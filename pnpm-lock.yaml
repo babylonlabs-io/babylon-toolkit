@@ -305,6 +305,12 @@ importers:
         specifier: ^0.23.0
         version: 0.23.0(rollup@4.46.1)(vite@6.4.1(@types/node@22.17.0)(jiti@2.5.1)(terser@5.44.0)(tsx@4.20.3)(yaml@2.8.2))
 
+  packages/babylon-tbv-registry:
+    devDependencies:
+      typescript:
+        specifier: ^5.8.3
+        version: 5.9.2
+
   packages/babylon-tbv-rust-wasm:
     devDependencies:
       '@internal/eslint-config':
@@ -901,6 +907,9 @@ importers:
       '@babylonlabs-io/core-ui':
         specifier: workspace:*
         version: link:../../packages/babylon-core-ui
+      '@babylonlabs-io/tbv-registry':
+        specifier: workspace:*
+        version: link:../../packages/babylon-tbv-registry
       '@babylonlabs-io/ts-sdk':
         specifier: workspace:*
         version: link:../../packages/babylon-ts-sdk

@@ -51,8 +51,12 @@ export interface VaultProvider {
   name?: string;
   /** Provider's RPC URL (from registry) */
   url: string;
-  /** Provider's icon URL (from icon service, optional) */
+  /** Provider's icon URL (from registry, optional) */
   iconUrl?: string;
+  /** Whether provider is in the verified registry */
+  verified: boolean;
+  /** Whether provider is currently active/online (from registry) */
+  active: boolean;
 }
 
 /**

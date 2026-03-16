@@ -1,6 +1,5 @@
 .bbn-select-with-icon {
-  @apply relative flex w-full cursor-pointer items-center rounded border bg-surface text-accent-secondary outline-none transition-all;
-  padding: 17.5px 24px;
+  @apply relative flex w-full cursor-pointer items-center rounded border bg-surface px-4 py-3 text-accent-secondary outline-none transition-all;
 
   &:focus-visible {
     @apply border-secondary-strokeDark;
@@ -79,6 +78,10 @@
       }
     }
 
+    &-label-group {
+      @apply flex min-w-0 flex-col;
+    }
+
     &-text {
       @apply block truncate;
       font-family: "Px Grotesk", sans-serif;
@@ -86,6 +89,13 @@
       font-size: 16px;
       line-height: 150%;
       letter-spacing: 0.15px;
+    }
+
+    &-description {
+      @apply block truncate text-accent-secondary;
+      font-family: "Px Grotesk", sans-serif;
+      font-size: 10px;
+      line-height: 1.5;
     }
   }
 

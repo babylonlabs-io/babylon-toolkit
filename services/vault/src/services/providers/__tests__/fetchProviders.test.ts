@@ -1,3 +1,4 @@
+import { getVerifiedProvider } from "@babylonlabs-io/tbv-registry/vault-provider";
 import { describe, expect, it, vi } from "vitest";
 
 import { graphqlClient } from "../../../clients/graphql";
@@ -13,7 +14,12 @@ vi.mock("../../../clients/graphql", () => ({
   },
 }));
 
+vi.mock("@babylonlabs-io/tbv-registry/vault-provider", () => ({
+  getVerifiedProvider: vi.fn(),
+}));
+
 const mockRequest = vi.mocked(graphqlClient.request);
+const mockGetVerifiedProvider = vi.mocked(getVerifiedProvider);
 
 describe("fetchProviders", () => {
   describe("fetchAppProviders", () => {
@@ -103,12 +109,76 @@ describe("fetchProviders", () => {
           btcPubKey: "0xpk1",
           name: "provider-1",
           url: "https://rpc.example.com",
+          iconUrl: undefined,
+          verified: false,
+          active: false,
         },
         {
           id: "0xprovider3",
           btcPubKey: "0xpk3",
           name: undefined,
           url: "https://rpc3.example.com",
+          iconUrl: undefined,
+          verified: false,
+          active: false,
+        },
+      ]);
+    });
+
+    it("should enrich providers with registry data when verified", async () => {
+      mockGetVerifiedProvider.mockImplementation((address: string) => {
+        if (address === "0xverified") {
+          return {
+            address: "0xverified",
+            name: "Registry Name",
+            rpcUrl: "https://registry-rpc.example.com",
+            iconUrl: "https://registry-icon.example.com/icon.png",
+            active: true,
+          };
+        }
+        return undefined;
+      });
+
+      mockRequest.mockResolvedValueOnce({
+        vaultProviders: {
+          items: [
+            {
+              id: "0xverified",
+              btcPubKey: "0xpk1",
+              name: "on-chain-name",
+              rpcUrl: "https://onchain-rpc.example.com",
+            },
+            {
+              id: "0xunverified",
+              btcPubKey: "0xpk2",
+              name: "unverified-provider",
+              rpcUrl: "https://unverified-rpc.example.com",
+            },
+          ],
+        },
+        vaultKeeperApplications: { items: [] },
+      });
+
+      const result = await fetchAppProviders("0xAppController");
+
+      expect(result.vaultProviders).toEqual([
+        {
+          id: "0xverified",
+          btcPubKey: "0xpk1",
+          name: "Registry Name",
+          url: "https://registry-rpc.example.com",
+          iconUrl: "https://registry-icon.example.com/icon.png",
+          verified: true,
+          active: true,
+        },
+        {
+          id: "0xunverified",
+          btcPubKey: "0xpk2",
+          name: "unverified-provider",
+          url: "https://unverified-rpc.example.com",
+          iconUrl: undefined,
+          verified: false,
+          active: false,
         },
       ]);
     });

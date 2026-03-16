@@ -23,6 +23,8 @@ export interface OptionWithIcon {
   value: string;
   label: string;
   icon?: ReactNode;
+  /** Optional description shown below the label in dropdown options */
+  description?: string;
 }
 
 export interface SelectWithIconProps {
@@ -210,7 +212,7 @@ export const SelectWithIcon = forwardRef<HTMLDivElement, SelectWithIconProps>(
           </div>
           <RiArrowDownSLine
             className={twJoin("bbn-select-with-icon-arrow", isOpen && "bbn-select-with-icon-arrow-open")}
-            size={35}
+            size={20}
           />
         </div>
 
@@ -238,7 +240,12 @@ export const SelectWithIcon = forwardRef<HTMLDivElement, SelectWithIconProps>(
                 onClick={() => handleSelect(option)}
               >
                 {option.icon && <div className="bbn-select-with-icon-option-image">{option.icon}</div>}
-                <span className="bbn-select-with-icon-option-text">{option.label}</span>
+                <div className="bbn-select-with-icon-option-label-group">
+                  <span className="bbn-select-with-icon-option-text">{option.label}</span>
+                  {option.description && (
+                    <span className="bbn-select-with-icon-option-description">{option.description}</span>
+                  )}
+                </div>
               </div>
             ))}
           </div>

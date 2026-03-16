@@ -1,0 +1,20 @@
+[
+  {
+    "address": "0x7c310c9e42b2e1e4b5dee2e702f83d5667f2d3d3",
+    "name": "Babylon Labs Vault Provider",
+    "rpcUrl": "https://rpc.vault-provider-0.alpha-testnet.babylonlabs.io",
+    "active": true
+  },
+  {
+    "address": "0x967c1c7fd472cbb7300d29d2b63351b5e3f81640",
+    "name": "Devnet Vault Provider 1",
+    "rpcUrl": "https://rpc.vault-provider-1.vault-devnet.babylonlabs.io",
+    "active": true
+  },
+  {
+    "address": "0xaf8d9d665f4e27f3966a074dce5c50684bfbe358",
+    "name": "Devnet Vault Provider 0",
+    "rpcUrl": "https://rpc.vault-provider-0.vault-devnet.babylonlabs.io",
+    "active": true
+  }
+]

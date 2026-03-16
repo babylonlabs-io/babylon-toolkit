@@ -112,6 +112,8 @@ describe("Collateral Utilities", () => {
         url: "https://provider.test",
         name: "Babylon Provider",
         iconUrl: "https://example.com/icon.png",
+        verified: true,
+        active: true,
       };
       const findProvider = (address: string) =>
         address === "0xprovider1" ? mockProvider : undefined;

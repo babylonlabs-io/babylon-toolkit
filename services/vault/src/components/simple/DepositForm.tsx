@@ -3,7 +3,7 @@ import {
   Card,
   Checkbox,
   Loader,
-  Select,
+  SelectWithIcon,
 } from "@babylonlabs-io/core-ui";
 import { useMemo } from "react";
 
@@ -18,6 +18,8 @@ const btcConfig = getNetworkConfigBTC();
 interface Provider {
   id: string;
   name: string;
+  verified?: boolean;
+  active?: boolean;
 }
 
 interface Application {
@@ -114,6 +116,8 @@ export function DepositForm({
   const providerOptions = providers.map((p) => ({
     value: p.id,
     label: p.name,
+    // Verified providers show Active/Inactive; unverified show nothing
+    description: p.verified ? (p.active ? "Active" : "Inactive") : undefined,
   }));
 
   const {
@@ -205,7 +209,7 @@ export function DepositForm({
             No vault providers available at this time.
           </p>
         ) : (
-          <Select
+          <SelectWithIcon
             className="border-0 bg-transparent"
             options={providerOptions}
             value={selectedProvider}
