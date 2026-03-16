@@ -1,11 +1,12 @@
 import { reactConfig } from "@internal/eslint-config/react";
 import importOrder from "eslint-plugin-import";
 import { defineConfig } from "eslint/config";
+import tseslint from "typescript-eslint";
 
 export default defineConfig([
   ...reactConfig,
   {
-    plugins: { import: importOrder },
+    plugins: { import: importOrder, "@typescript-eslint": tseslint.plugin },
     rules: {
       "@typescript-eslint/no-explicit-any": "warn",
       "no-empty-pattern": 0,
