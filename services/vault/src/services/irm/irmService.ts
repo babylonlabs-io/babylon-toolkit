@@ -13,7 +13,7 @@ import { ethClient } from "../../clients/eth-contract/client";
  * Standard IRM interface for reading borrow rates
  * Most IRM contracts implement this interface
  */
-const IRM_ABI = [
+const BORROW_RATE_ABI = [
   {
     inputs: [
       {
@@ -45,7 +45,9 @@ const IRM_ABI = [
     stateMutability: "view",
     type: "function",
   },
-  // Alternative method for simpler IRMs
+] as const;
+
+const BORROW_RATE_VIEW_ABI = [
   {
     inputs: [{ name: "utilization", type: "uint256" }],
     name: "borrowRateView",
@@ -95,11 +97,28 @@ export async function getBorrowRate(
 
   try {
     // Try the standard borrowRate method first
+    const borrowRateParams = [
+      {
+        loanToken: marketParams.loanToken,
+        collateralToken: marketParams.collateralToken,
+        oracle: marketParams.oracle,
+        irm: marketParams.irm,
+        lltv: marketParams.lltv,
+      },
+      {
+        totalSupplyAssets: marketState.totalSupplyAssets,
+        totalSupplyShares: marketState.totalSupplyShares,
+        totalBorrowAssets: marketState.totalBorrowAssets,
+        totalBorrowShares: marketState.totalBorrowShares,
+        lastUpdate: marketState.lastUpdate,
+        fee: marketState.fee,
+      },
+    ] as const;
     const rate = (await publicClient.readContract({
       address: irmAddress,
-      abi: IRM_ABI,
+      abi: BORROW_RATE_ABI,
       functionName: "borrowRate",
-      args: [marketParams, marketState] as const,
+      args: borrowRateParams,
     })) as bigint;
 
     return rate;
@@ -115,7 +134,7 @@ export async function getBorrowRate(
     try {
       const rate = await publicClient.readContract({
         address: irmAddress,
-        abi: IRM_ABI,
+        abi: BORROW_RATE_VIEW_ABI,
         functionName: "borrowRateView",
         args: [utilization],
       });

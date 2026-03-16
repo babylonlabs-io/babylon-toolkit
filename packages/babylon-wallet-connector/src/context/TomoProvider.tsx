@@ -2,7 +2,7 @@ import { TomoContextProvider } from "@tomo-inc/wallet-connect-sdk";
 import "@tomo-inc/wallet-connect-sdk/style.css";
 import { useMemo, type PropsWithChildren } from "react";
 
-import { BBNConfig, BTCConfig, ETHConfig } from "@/core/types";
+import { BBNConfig, BTCConfig } from "@/core/types";
 
 import { ChainConfigArr } from "./Chain.context";
 
@@ -11,7 +11,8 @@ interface TomoProviderProps {
   theme?: string;
 }
 
-type TomoChainConfig = ReturnType<typeof adaptBtcConfig> | ReturnType<typeof adaptBbnConfig> | ReturnType<typeof adaptEthConfig>;
+type TomoBtcChain = ReturnType<typeof adaptBtcConfig>;
+type TomoCosmosChain = ReturnType<typeof adaptBbnConfig>;
 
 function adaptBtcConfig(config: BTCConfig) {
   return {
@@ -39,46 +40,29 @@ function adaptBbnConfig(config: BBNConfig) {
   };
 }
 
-function adaptEthConfig(config: ETHConfig) {
-  return {
-    id: 3,
-    name: config.chainName,
-    type: "ethereum" as const,
-    chainId: config.chainId,
-    rpcUrl: config.rpcUrl,
-    explorerUrl: config.explorerUrl,
-    nativeCurrency: config.nativeCurrency,
-  };
-}
-
-function adaptChainConfig(item: ChainConfigArr[number]): TomoChainConfig | undefined {
-  switch (item.chain) {
-    case "BTC": return adaptBtcConfig(item.config);
-    case "BBN": return adaptBbnConfig(item.config);
-    case "ETH": return adaptEthConfig(item.config);
-    default: return undefined;
-  }
-}
-
 export const TomoConnectionProvider = ({ children, theme, config }: PropsWithChildren<TomoProviderProps>) => {
-  const tomoConfig = useMemo(
-    () =>
-      config.reduce(
-        (acc, item) => {
-          const adapted = adaptChainConfig(item);
-          return adapted ? { ...acc, [item.chain]: adapted } : acc;
-        },
-        {} as Record<string, TomoChainConfig>,
-      ),
+  const bitcoinChains = useMemo(
+    (): TomoBtcChain[] =>
+      config
+        .filter((item): item is { chain: "BTC"; config: BTCConfig } => item.chain === "BTC")
+        .map((item) => adaptBtcConfig(item.config)),
+    [config],
+  );
+
+  const cosmosChains = useMemo(
+    (): TomoCosmosChain[] =>
+      config
+        .filter((item): item is { chain: "BBN"; config: BBNConfig } => item.chain === "BBN")
+        .map((item) => adaptBbnConfig(item.config)),
     [config],
   );
 
   return (
     <TomoContextProvider
       autoReconnect={false}
-      bitcoinChains={[tomoConfig.BTC]}
+      bitcoinChains={bitcoinChains}
       chainTypes={["bitcoin", "cosmos"]}
-      cosmosChains={[tomoConfig.BBN]}
+      cosmosChains={cosmosChains}
       style={{
         rounded: "medium",
         theme: theme as "dark" | "light",

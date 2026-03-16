@@ -204,7 +204,7 @@ export const BTCWalletProvider = ({ children }: PropsWithChildren) => {
           error instanceof Error ? error : new Error("BTC wallet connection failed"),
         );
         handleError({
-          error,
+          error: error instanceof Error ? error : new Error(String(error)),
           displayOptions: {
             retryAction: () => connectBTC(walletProvider),
           },
@@ -328,7 +328,8 @@ export const BTCWalletProvider = ({ children }: PropsWithChildren) => {
       btcDisconnect();
     };
 
-    const handleAccountsChanged = async (accounts?: string | string[]) => {
+    const handleAccountsChanged = (...args: unknown[]) => {
+      const accounts = args[0] as string | string[] | undefined;
       const accountsArray = Array.isArray(accounts)
         ? accounts
         : accounts

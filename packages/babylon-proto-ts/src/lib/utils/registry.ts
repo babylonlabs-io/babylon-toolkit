@@ -47,12 +47,12 @@ const protosToRegister: ProtoToRegister[] = [
 
 const createGeneratedType = (messageType: ProtoCodec): GeneratedType => {
   return {
-    encode: messageType.encode.bind(messageType),
-    decode: messageType.decode.bind(messageType),
+    encode: messageType.encode.bind(messageType) as unknown as GeneratedType["encode"],
+    decode: messageType.decode.bind(messageType) as unknown as GeneratedType["decode"],
     fromPartial: (properties?: Record<string, unknown>): unknown => {
       return messageType.fromPartial(properties ?? {});
     },
-  };
+  } as GeneratedType;
 };
 
 // Create the registry with the protos to register
