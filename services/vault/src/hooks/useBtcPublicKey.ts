@@ -1,6 +1,8 @@
 import { useChainConnector } from "@babylonlabs-io/wallet-connector";
 import { useEffect, useState } from "react";
 
+import { logger } from "@/infrastructure";
+
 import { processPublicKeyToXOnly } from "../utils/btc";
 
 /**
@@ -29,7 +31,9 @@ export function useBtcPublicKey(btcConnected: boolean): string | undefined {
             : xOnlyKey;
           setBtcPublicKey(keyWithoutPrefix);
         } catch (err) {
-          console.error("Failed to get BTC public key:", err);
+          logger.error(err instanceof Error ? err : new Error(String(err)), {
+            data: { context: "Failed to get BTC public key" },
+          });
           setBtcPublicKey(undefined);
         }
       } else {

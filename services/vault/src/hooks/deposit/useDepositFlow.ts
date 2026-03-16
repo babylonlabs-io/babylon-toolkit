@@ -20,6 +20,7 @@ import type { Address, Hex } from "viem";
 
 import { useProtocolParamsContext } from "@/context/ProtocolParamsContext";
 import { useVaults } from "@/hooks/useVaults";
+import { logger } from "@/infrastructure";
 import { deriveLamportPkHash, linkPeginToMnemonic } from "@/services/lamport";
 import { collectReservedUtxoRefs } from "@/services/vault";
 import { prepareAndSignDepositorGraph } from "@/services/vault/depositorGraphSigningService";
@@ -296,11 +297,11 @@ export function useDepositFlow(
         } catch (err) {
           // Re-throw abort errors so they're suppressed by the outer catch
           if (signal.aborted) throw err;
-          // ETH tx already succeeded — deposit is recoverable via resume flow
-          console.error(
-            "Lamport key submission failed (deposit is recoverable):",
-            err,
-          );
+          logger.error(err instanceof Error ? err : new Error(String(err)), {
+            data: {
+              context: "Lamport key submission failed (deposit is recoverable)",
+            },
+          });
         }
 
         // Step 3: Poll and sign payout transactions
@@ -408,7 +409,9 @@ export function useDepositFlow(
           const errorMessage =
             err instanceof Error ? err.message : "Unknown error";
           setError(errorMessage);
-          console.error("Deposit flow error:", err);
+          logger.error(err instanceof Error ? err : new Error(String(err)), {
+            data: { context: "Deposit flow error" },
+          });
         }
         return null;
       } finally {

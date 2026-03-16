@@ -1,5 +1,7 @@
 // Block utilities for converting block numbers to dates
 
+import { logger } from "@/infrastructure";
+
 import { ethClient } from "../clients/eth-contract/client";
 
 /**
@@ -22,7 +24,9 @@ export async function blockToDateString(blockNumber: number): Promise<string> {
     const date = new Date(Number(block.timestamp) * 1000);
     return date.toISOString().split("T")[0]; // Returns YYYY-MM-DD format
   } catch (error) {
-    console.warn(`Failed to fetch block ${blockNumber}:`, error);
+    logger.warn(`Failed to fetch block ${blockNumber}`, {
+      data: { error: error instanceof Error ? error.message : String(error) },
+    });
     return "Unknown";
   }
 }
@@ -46,7 +50,9 @@ export async function blockToDate(blockNumber: number): Promise<Date | null> {
 
     return new Date(Number(block.timestamp) * 1000);
   } catch (error) {
-    console.warn(`Failed to fetch block ${blockNumber}:`, error);
+    logger.warn(`Failed to fetch block ${blockNumber}`, {
+      data: { error: error instanceof Error ? error.message : String(error) },
+    });
     return null;
   }
 }

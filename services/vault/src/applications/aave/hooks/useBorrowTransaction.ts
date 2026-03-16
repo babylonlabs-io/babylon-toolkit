@@ -9,6 +9,7 @@ import { parseUnits } from "viem";
 import { useAccount, useWalletClient } from "wagmi";
 
 import { useError } from "@/context/error";
+import { logger } from "@/infrastructure";
 import {
   ErrorCode,
   WalletError,
@@ -83,8 +84,9 @@ export function useBorrowTransaction(): UseBorrowTransactionResult {
 
       return true;
     } catch (error) {
-      console.error("Borrow failed:", error);
-
+      logger.error(error instanceof Error ? error : new Error(String(error)), {
+        data: { context: "Borrow failed" },
+      });
       const mappedError =
         error instanceof Error
           ? mapViemErrorToContractError(error, "Borrow")

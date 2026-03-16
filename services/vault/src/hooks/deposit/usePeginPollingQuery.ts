@@ -8,6 +8,8 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef } from "react";
 
+import { logger } from "@/infrastructure";
+
 import { VaultProviderRpcApi } from "../../clients/vault-provider-rpc";
 import type { DepositorGraphTransactions } from "../../clients/vault-provider-rpc/types";
 import {
@@ -164,7 +166,9 @@ async function fetchFromProvider(
       const errorObj =
         error instanceof Error ? error : new Error("Provider unreachable");
       errors.set(depositId, errorObj);
-      console.warn(`Failed to poll deposit ${depositId}:`, error);
+      logger.warn(`Failed to poll deposit ${depositId}`, {
+        error: error instanceof Error ? error.message : String(error),
+      });
     }
   }
 }

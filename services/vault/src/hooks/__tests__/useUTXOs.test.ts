@@ -49,6 +49,13 @@ vi.mock("../../state/AppState", () => ({
   useAppState: vi.fn(() => ({ ordinalsExcluded: true })),
 }));
 
+const { mockLoggerWarn } = vi.hoisted(() => ({
+  mockLoggerWarn: vi.fn(),
+}));
+vi.mock("@/infrastructure", () => ({
+  logger: { warn: mockLoggerWarn, error: vi.fn(), info: vi.fn() },
+}));
+
 vi.mock("../../clients/btc/config", () => ({
   getMempoolApiUrl: vi.fn(() => "https://mempool.test/api"),
 }));
@@ -112,7 +119,7 @@ describe("useUTXOs", () => {
         refetch: vi.fn(),
       });
 
-      const consoleSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+      mockLoggerWarn.mockClear();
 
       const { result } = renderHook(() => useUTXOs(testAddress));
 
@@ -122,13 +129,12 @@ describe("useUTXOs", () => {
       expect(result.current.spendableUTXOs).toHaveLength(3);
       expect(result.current.spendableMempoolUTXOs).toHaveLength(3);
 
-      // Should log warning about ordinals failure
-      expect(consoleSpy).toHaveBeenCalledWith(
-        "Ordinals API failed, treating all UTXOs as available:",
-        expect.any(Error),
+      expect(mockLoggerWarn).toHaveBeenCalledWith(
+        "Ordinals API failed, treating all UTXOs as available",
+        expect.objectContaining({
+          data: { error: "Ordinals API returned 500" },
+        }),
       );
-
-      consoleSpy.mockRestore();
     });
 
     it("should treat all confirmed UTXOs as available when ordinals API is loading", () => {

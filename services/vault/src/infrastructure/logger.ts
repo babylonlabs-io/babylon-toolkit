@@ -2,6 +2,7 @@ import {
   type SeverityLevel,
   addBreadcrumb,
   captureException,
+  captureMessage,
 } from "@sentry/react";
 
 type Value = string | number | boolean | object;
@@ -42,4 +43,12 @@ export default {
         : tags,
       extra,
     }),
+  event: (
+    message: string,
+    {
+      level = "warning",
+      category,
+      ...data
+    }: { level?: SeverityLevel } & Context = {},
+  ) => captureMessage(message, { level, extra: { category, ...data } }),
 };

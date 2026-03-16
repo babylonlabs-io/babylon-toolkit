@@ -1,5 +1,7 @@
 import { MutationCache, QueryCache, QueryClient } from "@tanstack/react-query";
 
+import { logger } from "@/infrastructure";
+
 const calculateRetryDelay = (attemptIndex: number): number => {
   return Math.min(1000 * 2 ** attemptIndex, 30000);
 };
@@ -22,10 +24,8 @@ const shouldRetry = (failureCount: number, error: Error): boolean => {
 
 const logError = (error: Error, context?: string): void => {
   const errorContext = context ? `[${context}]` : "";
-  console.error(`React Query Error ${errorContext}:`, {
-    message: error.message,
-    stack: error.stack,
-    name: error.name,
+  logger.error(error, {
+    data: { context: `React Query Error ${errorContext}` },
   });
 };
 
