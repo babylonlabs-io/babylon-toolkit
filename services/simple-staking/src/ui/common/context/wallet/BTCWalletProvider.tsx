@@ -201,7 +201,9 @@ export const BTCWalletProvider = ({ children }: PropsWithChildren) => {
         });
       } catch (error: unknown) {
         logger.error(
-          error instanceof Error ? error : new Error("BTC wallet connection failed"),
+          error instanceof Error
+            ? error
+            : new Error("BTC wallet connection failed"),
         );
         handleError({
           error: error instanceof Error ? error : new Error(String(error)),
@@ -293,7 +295,10 @@ export const BTCWalletProvider = ({ children }: PropsWithChildren) => {
 
     interface BtcWalletExtension {
       on?: (event: string, handler: (...args: unknown[]) => void) => void;
-      removeListener?: (event: string, handler: (...args: unknown[]) => void) => void;
+      removeListener?: (
+        event: string,
+        handler: (...args: unknown[]) => void,
+      ) => void;
       off?: (event: string, handler: (...args: unknown[]) => void) => void;
     }
 
