@@ -10,9 +10,9 @@ import { ArtifactDownloadModal } from "@/components/deposit/ArtifactDownloadModa
 import { DepositButton, ExpandMenuButton } from "@/components/shared";
 import { Connect } from "@/components/Wallet";
 import { getNetworkConfigBTC } from "@/config";
-import { logger } from "@/infrastructure";
 import type { ArtifactDownloadModalParams } from "@/hooks/deposit/useArtifactDownloadModal";
 import { useVaultProviders } from "@/hooks/deposit/useVaultProviders";
+import { logger } from "@/infrastructure";
 import type { CollateralVaultEntry } from "@/types/collateral";
 
 import { CollateralExpandedContent } from "./CollateralExpandedContent";
