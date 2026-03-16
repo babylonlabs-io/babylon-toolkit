@@ -25,7 +25,7 @@ interface MultiVaultDepositSignContentProps {
   vaultAmounts: bigint[];
   precomputedPlan: AllocationPlan;
   feeRate: number;
-  btcWalletProvider: BitcoinWallet | null;
+  btcWalletProvider: BitcoinWallet;
   depositorEthAddress: Address | undefined;
   selectedApplication: string;
   selectedProviders: string[];

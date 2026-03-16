@@ -50,7 +50,7 @@ import { useVaultProviders } from "./useVaultProviders";
 export interface UseDepositFlowParams {
   amount: bigint;
   feeRate: number;
-  btcWalletProvider: BitcoinWallet;
+  btcWalletProvider: BitcoinWallet | null;
   depositorEthAddress: Address | undefined;
   selectedApplication: string;
   selectedProviders: string[];
@@ -185,10 +185,10 @@ export function useDepositFlow(
           maxDeposit,
         });
 
-        // After validation, these are guaranteed to be defined
-        if (!btcAddress || !depositorEthAddress) {
+        if (!btcAddress || !depositorEthAddress || !btcWalletProvider) {
           throw new Error("BTC or ETH wallet not connected");
         }
+        const confirmedBtcWallet = btcWalletProvider;
 
         // Step 1: Get ETH wallet client
         setCurrentStep(DepositFlowStep.SIGN_POP);
@@ -216,7 +216,7 @@ export function useDepositFlow(
 
         // Step 2a: Build and fund the BTC transaction (no on-chain submission yet)
         const prepared = await preparePegin({
-          btcWalletProvider,
+          btcWalletProvider: confirmedBtcWallet,
           walletClient,
           amount,
           feeRate,
@@ -243,7 +243,7 @@ export function useDepositFlow(
 
         // Step 2b: Register pegin on-chain (PoP + ETH tx)
         const registration = await registerPeginAndWait({
-          btcWalletProvider,
+          btcWalletProvider: confirmedBtcWallet,
           walletClient,
           depositorBtcPubkey: prepared.depositorBtcPubkey,
           fundedTxHex: prepared.btcTxHex,
@@ -330,7 +330,7 @@ export function useDepositFlow(
         setIsWaiting(false);
 
         const signatures = await signPayoutTransactions(
-          btcWalletProvider,
+          confirmedBtcWallet,
           context,
           preparedTransactions,
           setPayoutSigningProgress,
@@ -343,7 +343,7 @@ export function useDepositFlow(
           await prepareAndSignDepositorGraph({
             depositorGraph,
             depositorBtcPubkey: prepared.depositorBtcPubkey,
-            btcWallet: btcWalletProvider,
+            btcWallet: confirmedBtcWallet,
             vaultProviderBtcPubkey: context.vaultProviderBtcPubkey,
             vaultKeeperBtcPubkeys: context.vaultKeeperBtcPubkeys,
             universalChallengerBtcPubkeys:
@@ -384,7 +384,7 @@ export function useDepositFlow(
           {
             btcTxid: registration.btcTxid,
             depositorBtcPubkey: prepared.depositorBtcPubkey,
-            btcWalletProvider,
+            btcWalletProvider: confirmedBtcWallet,
           },
           depositorEthAddress,
         );
