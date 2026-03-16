@@ -22,9 +22,7 @@ interface LcdConsensusPubkey {
   key?: string;
 }
 
-function getConsensusPubKey(
-  validator: CosmosValidator,
-): string | undefined {
+function getConsensusPubKey(validator: CosmosValidator): string | undefined {
   const pubkey = validator.consensusPubkey as unknown as
     | LcdConsensusPubkey
     | undefined;
