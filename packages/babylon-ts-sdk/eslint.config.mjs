@@ -5,7 +5,7 @@ export default defineConfig([
   ...typescriptConfig,
   {
     rules: {
-      "@typescript-eslint/no-explicit-any": "off",
+      "@typescript-eslint/no-explicit-any": "warn",
       "nx/enforce-module-boundaries": "off",
     },
   },

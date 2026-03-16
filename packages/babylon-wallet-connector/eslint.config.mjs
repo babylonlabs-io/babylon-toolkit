@@ -7,7 +7,7 @@ export default defineConfig([
   {
     plugins: { import: importOrder },
     rules: {
-      "@typescript-eslint/no-explicit-any": 0,
+      "@typescript-eslint/no-explicit-any": "warn",
       "no-empty-pattern": 0,
       "import/order": [
         "error",

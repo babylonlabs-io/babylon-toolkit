@@ -11,44 +11,64 @@ interface TomoProviderProps {
   theme?: string;
 }
 
-const CONFIG_ADAPTERS = {
-  BTC: (config: BTCConfig) => ({
+type TomoChainConfig = ReturnType<typeof adaptBtcConfig> | ReturnType<typeof adaptBbnConfig> | ReturnType<typeof adaptEthConfig>;
+
+function adaptBtcConfig(config: BTCConfig) {
+  return {
     id: 1,
     name: config.networkName,
-    type: "bitcoin",
+    type: "bitcoin" as const,
     network: config.network,
     backendUrls: {
       mempoolUrl: config.mempoolApiUrl + "/api/",
     },
-  }),
-  BBN: (config: BBNConfig) => ({
+  };
+}
+
+function adaptBbnConfig(config: BBNConfig) {
+  return {
     id: 2,
     name: config.chainData.chainName,
-    type: "cosmos",
+    type: "cosmos" as const,
     network: config.chainId,
     modularData: config.chainData,
     backendUrls: {
       rpcUrl: config.rpc,
     },
     logo: config.chainData.chainSymbolImageUrl,
-  }),
-  ETH: (config: ETHConfig) => ({
+  };
+}
+
+function adaptEthConfig(config: ETHConfig) {
+  return {
     id: 3,
     name: config.chainName,
-    type: "ethereum",
+    type: "ethereum" as const,
     chainId: config.chainId,
     rpcUrl: config.rpcUrl,
     explorerUrl: config.explorerUrl,
     nativeCurrency: config.nativeCurrency,
-  }),
-};
+  };
+}
+
+function adaptChainConfig(item: ChainConfigArr[number]): TomoChainConfig | undefined {
+  switch (item.chain) {
+    case "BTC": return adaptBtcConfig(item.config);
+    case "BBN": return adaptBbnConfig(item.config);
+    case "ETH": return adaptEthConfig(item.config);
+    default: return undefined;
+  }
+}
 
 export const TomoConnectionProvider = ({ children, theme, config }: PropsWithChildren<TomoProviderProps>) => {
   const tomoConfig = useMemo(
     () =>
       config.reduce(
-        (acc, item) => ({ ...acc, [item.chain]: CONFIG_ADAPTERS[item.chain]?.(item.config as any) }),
-        {} as Record<string, any>,
+        (acc, item) => {
+          const adapted = adaptChainConfig(item);
+          return adapted ? { ...acc, [item.chain]: adapted } : acc;
+        },
+        {} as Record<string, TomoChainConfig>,
       ),
     [config],
   );

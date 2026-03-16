@@ -199,8 +199,10 @@ export const BTCWalletProvider = ({ children }: PropsWithChildren) => {
           btcAddress: address,
           walletName: await walletProvider.getWalletProviderName(),
         });
-      } catch (error: any) {
-        logger.error(error);
+      } catch (error: unknown) {
+        logger.error(
+          error instanceof Error ? error : new Error("BTC wallet connection failed"),
+        );
         handleError({
           error,
           displayOptions: {
@@ -289,25 +291,35 @@ export const BTCWalletProvider = ({ children }: PropsWithChildren) => {
     if (!address) return; // Only listen when connected
     if (typeof window === "undefined") return;
 
-    const win = window as any;
+    interface BtcWalletExtension {
+      on?: (event: string, handler: (...args: unknown[]) => void) => void;
+      removeListener?: (event: string, handler: (...args: unknown[]) => void) => void;
+      off?: (event: string, handler: (...args: unknown[]) => void) => void;
+    }
 
-    // Get all possible BTC wallet providers
-    const providers: any[] = [];
+    const win = window as Window & {
+      okxwallet?: {
+        bitcoin?: BtcWalletExtension;
+        bitcoinTestnet?: BtcWalletExtension;
+        bitcoinSignet?: BtcWalletExtension;
+      };
+      unisat?: BtcWalletExtension;
+      $onekey?: { btc?: BtcWalletExtension };
+      btcwallet?: BtcWalletExtension;
+    };
 
-    // OKX wallet
+    const providers: BtcWalletExtension[] = [];
+
     if (win.okxwallet?.bitcoin) providers.push(win.okxwallet.bitcoin);
     if (win.okxwallet?.bitcoinTestnet)
       providers.push(win.okxwallet.bitcoinTestnet);
     if (win.okxwallet?.bitcoinSignet)
       providers.push(win.okxwallet.bitcoinSignet);
 
-    // Unisat
     if (win.unisat) providers.push(win.unisat);
 
-    // OneKey
     if (win.$onekey?.btc) providers.push(win.$onekey.btc);
 
-    // Generic
     if (win.btcwallet) providers.push(win.btcwallet);
 
     if (providers.length === 0) return;

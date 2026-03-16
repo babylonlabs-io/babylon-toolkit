@@ -99,7 +99,7 @@ export async function getBorrowRate(
       address: irmAddress,
       abi: IRM_ABI,
       functionName: "borrowRate",
-      args: [marketParams as any, marketState as any],
+      args: [marketParams, marketState] as const,
     })) as bigint;
 
     return rate;

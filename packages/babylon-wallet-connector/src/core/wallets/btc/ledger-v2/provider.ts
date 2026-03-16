@@ -3,7 +3,7 @@ import TransportWebHID from "@ledgerhq/hw-transport-webhid";
 import TransportWebUSB from "@ledgerhq/hw-transport-webusb";
 import { Transaction } from "@scure/btc-signer";
 import { Buffer } from "buffer";
-import AppClient, { DefaultWalletPolicy, getBbnVersion, signMessage, signPsbt } from "ledger-bitcoin-babylon-boilerplate";
+import AppClient, { type DefaultDescriptorTemplate, DefaultWalletPolicy, getBbnVersion, signMessage, signPsbt } from "ledger-bitcoin-babylon-boilerplate";
 
 import type { BTCConfig, InscriptionIdentifier, SignPsbtOptions } from "@/core/types";
 import { IBTCProvider, Network } from "@/core/types";
@@ -112,7 +112,7 @@ export class LedgerProviderV2 implements IBTCProvider {
     // Select policy template based on purpose
     // purpose 86: Taproot (tr)
     // purpose 84: Native SegWit (wpkh)
-    let policyTemplate: string;
+    let policyTemplate: DefaultDescriptorTemplate;
     if (purpose === 86) {
       policyTemplate = "tr(@0/**)";
     } else if (purpose === 84) {
@@ -122,7 +122,7 @@ export class LedgerProviderV2 implements IBTCProvider {
     }
 
     const policyDescriptor = `[${fpr}/${purpose}'/${networkDerivationIndex}'/0']${extendedPubKey}`;
-    const policy = new DefaultWalletPolicy(policyTemplate as any, policyDescriptor);
+    const policy = new DefaultWalletPolicy(policyTemplate, policyDescriptor);
 
     if (!policy) {
       throw new Error("Could not create the wallet policy");

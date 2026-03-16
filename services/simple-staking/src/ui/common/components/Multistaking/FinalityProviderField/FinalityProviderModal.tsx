@@ -2,6 +2,7 @@ import {
   FinalityProviderLogo,
   ValidatorSelector,
   type ColumnProps,
+  type ValidatorRow,
   IconButton,
 } from "@babylonlabs-io/core-ui";
 import { useMemo, useRef } from "react";
@@ -62,22 +63,19 @@ export const FinalityProviderModal = ({
     [finalityProviders],
   );
 
-  const columns: ColumnProps<any>[] = [
+  const columns: ColumnProps<ValidatorRow>[] = [
     {
       key: "provider",
       header: "Finality Provider",
       headerClassName: "max-w-[240px]",
       cellClassName: "text-primary-dark max-w-[240px]",
-      render: (
-        _: unknown,
-        row: { id: string; name: string; rank: number; logo_url: string },
-      ) => {
+      render: (_value, row) => {
         const original = finalityProviders.find((fp) => fp.btcPk === row.id);
         const rank = original ? finalityProviders.indexOf(original) + 1 : 0;
         return (
           <div className="flex min-w-0 items-center gap-2">
             <FinalityProviderLogo
-              logoUrl={row.logo_url}
+              logoUrl={(row as ValidatorRow & { logo_url?: string }).logo_url}
               rank={rank}
               moniker={row.name}
             />
@@ -92,10 +90,9 @@ export const FinalityProviderModal = ({
       header: "BTC PK",
       headerClassName: "max-w-[220px]",
       cellClassName: "max-w-[220px]",
-      render: (_: unknown, row: { id: string }) => (
+      render: (_value, row) => (
         <div
           className="truncate"
-          // stop propagation to prevent selection of row
           onClick={(e) => e.stopPropagation()}
           onMouseDown={(e) => e.stopPropagation()}
         >
@@ -107,7 +104,7 @@ export const FinalityProviderModal = ({
       key: "totalDelegation",
       header: "Total Delegation",
       headerClassName: "max-w-[160px]",
-      render: (_: unknown, row: { id: string }) => {
+      render: (_value, row) => {
         const fp = fpById.get(String(row.id));
         const total = maxDecimals(satoshiToBtc(fp?.activeTVLSat || 0), 8);
         return (
@@ -117,7 +114,7 @@ export const FinalityProviderModal = ({
         );
       },
       cellClassName: "pr-4 max-w-[160px]",
-      sorter: (a: { id: string }, b: { id: string }) => {
+      sorter: (a: ValidatorRow, b: ValidatorRow) => {
         const fa = fpById.get(String(a.id));
         const fb = fpById.get(String(b.id));
         const va = fa?.activeTVLSat ?? 0;
@@ -130,12 +127,12 @@ export const FinalityProviderModal = ({
       header: "Commission",
       headerClassName: "max-w-[140px]",
       cellClassName: "pr-4 max-w-[140px]",
-      render: (_: unknown, row: { commission: string }) => (
+      render: (_value, row) => (
         <span className="inline-block max-w-[140px] truncate text-left">
           {row.commission}
         </span>
       ),
-      sorter: (a: { commission: string }, b: { commission: string }) =>
+      sorter: (a, b) =>
         Number.parseFloat(a.commission) - Number.parseFloat(b.commission),
     },
     {
@@ -159,14 +156,14 @@ export const FinalityProviderModal = ({
     onClose();
   };
 
-  const handleSelect = (row: any) => {
+  const handleSelect = (row: ValidatorRow) => {
     if (selectedBsnId !== undefined) {
       closingFromAddRef.current = true;
       onAdd(selectedBsnId, String(row.id));
     }
   };
 
-  const mapGridItem = (row: any) => {
+  const mapGridItem = (row: ValidatorRow) => {
     const original = finalityProviders.find((fp) => fp.btcPk === row.id);
     const rank = original ? finalityProviders.indexOf(original) + 1 : 0;
     const fp = fpById.get(String(row.id));
@@ -209,9 +206,9 @@ export const FinalityProviderModal = ({
     };
   };
 
-  const handleIsRowSelectable = (row: any) => {
+  const handleIsRowSelectable = (row: ValidatorRow) => {
     const fp = fpById.get(String(row.id));
-    return fp ? isRowSelectable(fp as any) : false;
+    return fp ? isRowSelectable(fp) : false;
   };
 
   return (
