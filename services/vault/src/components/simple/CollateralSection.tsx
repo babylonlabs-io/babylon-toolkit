@@ -10,6 +10,7 @@ import { ArtifactDownloadModal } from "@/components/deposit/ArtifactDownloadModa
 import { DepositButton, ExpandMenuButton } from "@/components/shared";
 import { Connect } from "@/components/Wallet";
 import { getNetworkConfigBTC } from "@/config";
+import { logger } from "@/infrastructure";
 import type { ArtifactDownloadModalParams } from "@/hooks/deposit/useArtifactDownloadModal";
 import { useVaultProviders } from "@/hooks/deposit/useVaultProviders";
 import type { CollateralVaultEntry } from "@/types/collateral";
@@ -50,7 +51,7 @@ export function CollateralSection({
 
       const provider = findProvider(vault.providerAddress);
       if (!provider?.url || !vault.depositorBtcPubkey) {
-        console.warn(
+        logger.warn(
           `[CollateralSection] Cannot download artifacts: missing provider URL or depositor public key for vault ${vaultEntryId}`,
         );
         return;
