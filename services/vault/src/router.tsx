@@ -40,25 +40,45 @@ export const Router = () => {
   const apps = getAllApplications();
 
   return (
-    <Suspense fallback={<RouteFallback />}>
-      <Routes>
-        <Route path="/" element={<RootLayout />}>
-          {/* deprecated route */}
-          {/* <Route index element={<ApplicationsHome />} /> */}
-          <Route index element={<DashboardWithProviders />} />
-          <Route path="activity" element={<Activity />} />
-          <Route path="deposit" element={<ApplicationsHome />} />
-
-          {apps.map((app) => (
-            <Route
-              key={app.metadata.id}
-              path={`app/${app.metadata.id}/*`}
-              element={<app.Routes />}
-            />
-          ))}
-        </Route>
-        <Route path="*" element={<NotFound />} />
-      </Routes>
-    </Suspense>
+    <Routes>
+      <Route path="/" element={<RootLayout />}>
+        <Route
+          index
+          element={
+            <Suspense fallback={<RouteFallback />}>
+              <DashboardWithProviders />
+            </Suspense>
+          }
+        />
+        <Route
+          path="activity"
+          element={
+            <Suspense fallback={<RouteFallback />}>
+              <Activity />
+            </Suspense>
+          }
+        />
+        <Route
+          path="deposit"
+          element={
+            <Suspense fallback={<RouteFallback />}>
+              <ApplicationsHome />
+            </Suspense>
+          }
+        />
+        {apps.map((app) => (
+          <Route
+            key={app.metadata.id}
+            path={`app/${app.metadata.id}/*`}
+            element={
+              <Suspense fallback={<RouteFallback />}>
+                <app.Routes />
+              </Suspense>
+            }
+          />
+        ))}
+      </Route>
+      <Route path="*" element={<NotFound />} />
+    </Routes>
   );
 };
