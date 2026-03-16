@@ -5,7 +5,6 @@
 
 import { Avatar, Button, StatusBadge } from "@babylonlabs-io/core-ui";
 
-import { VerifiedProviderAvatar } from "@/components/shared";
 import { getNetworkConfigBTC } from "@/config";
 import { truncateHash } from "@/utils/addressUtils";
 import { formatBtcAmount, formatDateTime } from "@/utils/formatting";
@@ -32,7 +31,6 @@ export function CollateralVaultItem({
   inUse,
   providerName,
   providerIconUrl,
-  providerVerified,
   onArtifactDownload,
 }: CollateralVaultItemProps) {
   const formattedDate = formatDateTime(new Date(addedAt * SECONDS_TO_MS));
@@ -66,12 +64,9 @@ export function CollateralVaultItem({
       <div className="flex items-center justify-between">
         <span className="text-sm text-accent-secondary">Vault Provider</span>
         <div className="flex items-center gap-1.5">
-          <VerifiedProviderAvatar
-            name={providerName}
-            url={providerIconUrl}
-            size="small"
-            verified={providerVerified}
-          />
+          {providerIconUrl && (
+            <Avatar url={providerIconUrl} alt={providerName} size="tiny" />
+          )}
           <span className="text-sm text-accent-primary">{providerName}</span>
         </div>
       </div>
