@@ -41,7 +41,6 @@ describe("Collateral Utilities", () => {
           providerAddress: "0xprovider1",
           providerName: "0xprov...der1",
           providerIconUrl: undefined,
-          providerVerified: false,
           depositorBtcPubkey: undefined,
         },
       ]);
@@ -105,7 +104,6 @@ describe("Collateral Utilities", () => {
         providerAddress: "",
         providerName: "",
         providerIconUrl: undefined,
-        providerVerified: false,
         depositorBtcPubkey: undefined,
       });
     });

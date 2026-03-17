@@ -19,8 +19,6 @@ export interface CollateralVaultEntry {
   providerName: string;
   /** Vault provider icon URL (optional) */
   providerIconUrl?: string;
-  /** Whether the vault provider is verified */
-  providerVerified?: boolean;
   /** Depositor's BTC public key (hex) */
   depositorBtcPubkey?: string;
 }

@@ -35,7 +35,6 @@ export function CollateralExpandedContent({
             inUse={vault.inUse}
             providerName={vault.providerName}
             providerIconUrl={vault.providerIconUrl}
-            providerVerified={vault.providerVerified}
             onArtifactDownload={
               onArtifactDownload
                 ? () => onArtifactDownload(vault.id)

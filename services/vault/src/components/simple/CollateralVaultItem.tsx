@@ -20,7 +20,6 @@ interface CollateralVaultItemProps {
   inUse: boolean;
   providerName: string;
   providerIconUrl?: string;
-  providerVerified?: boolean;
   onArtifactDownload?: () => void;
 }
 

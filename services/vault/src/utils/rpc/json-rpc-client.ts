@@ -99,6 +99,36 @@ export class JsonRpcClient {
     method: string,
     params: TParams,
   ): Promise<TResult> {
+    const response = await this.fetchWithRetry(method, params);
+    const jsonResponse: JsonRpcResponse<TResult> = await response.json();
+
+    if ("error" in jsonResponse) {
+      const errorResponse = jsonResponse as JsonRpcErrorResponse;
+      throw new JsonRpcError(
+        errorResponse.error.code,
+        errorResponse.error.message,
+        errorResponse.error.data,
+      );
+    }
+
+    const successResponse = jsonResponse as JsonRpcSuccessResponse<TResult>;
+    return successResponse.result;
+  }
+
+  /**
+   * Make a JSON-RPC request returning the raw Response (unparsed body).
+   *
+   * Shares the same retry / timeout / backoff behaviour as `call()` but
+   * skips JSON body parsing so callers can stream the response as a Blob.
+   */
+  async callRaw<TParams>(method: string, params: TParams): Promise<Response> {
+    return this.fetchWithRetry(method, params);
+  }
+
+  private async fetchWithRetry<TParams>(
+    method: string,
+    params: TParams,
+  ): Promise<Response> {
     const requestId = ++this.requestId;
 
     // jsonrpsee (Rust backend) expects params as an array (positional parameters)
@@ -111,6 +141,7 @@ export class JsonRpcClient {
       id: requestId,
     };
 
+    const body = JSON.stringify(request);
     let lastError: Error | null = null;
 
     for (let attempt = 0; attempt <= this.retries; attempt++) {
@@ -121,119 +152,7 @@ export class JsonRpcClient {
         const response = await fetch(this.baseUrl, {
           method: "POST",
           headers: this.headers,
-          body: JSON.stringify(request),
-          signal: controller.signal,
-        });
-
-        clearTimeout(timeoutId);
-
-        // Check if we should retry on HTTP error
-        if (!response.ok) {
-          const shouldRetry =
-            attempt < this.retries &&
-            RETRYABLE_STATUS_CODES.includes(response.status);
-
-          if (shouldRetry) {
-            const delay = this.retryDelay * Math.pow(2, attempt);
-            logger.warn(
-              `[JsonRpcClient] HTTP ${response.status} for ${method}, retrying in ${delay}ms (attempt ${attempt + 1}/${this.retries})`,
-            );
-            await this.sleep(delay);
-            continue;
-          }
-
-          throw new Error(
-            `HTTP error: ${response.status} ${response.statusText}`,
-          );
-        }
-
-        const jsonResponse: JsonRpcResponse<TResult> = await response.json();
-
-        // Check for JSON-RPC error response
-        if ("error" in jsonResponse) {
-          const errorResponse = jsonResponse as JsonRpcErrorResponse;
-          throw new JsonRpcError(
-            errorResponse.error.code,
-            errorResponse.error.message,
-            errorResponse.error.data,
-          );
-        }
-
-        // Return the result
-        const successResponse = jsonResponse as JsonRpcSuccessResponse<TResult>;
-        return successResponse.result;
-      } catch (error) {
-        clearTimeout(timeoutId);
-        lastError = error instanceof Error ? error : new Error(String(error));
-
-        // Handle timeout - retryable
-        if (error instanceof Error && error.name === "AbortError") {
-          if (attempt < this.retries) {
-            const delay = this.retryDelay * Math.pow(2, attempt);
-            logger.warn(
-              `[JsonRpcClient] Timeout for ${method}, retrying in ${delay}ms (attempt ${attempt + 1}/${this.retries})`,
-            );
-            await this.sleep(delay);
-            continue;
-          }
-          throw new JsonRpcError(
-            JSON_RPC_ERROR_CODES.TIMEOUT,
-            `Request timeout after ${this.timeout}ms (${this.retries + 1} attempts)`,
-          );
-        }
-
-        // Handle network errors (CORS, connection refused, etc.) - retryable
-        if (error instanceof TypeError) {
-          if (attempt < this.retries) {
-            const delay = this.retryDelay * Math.pow(2, attempt);
-            logger.warn(
-              `[JsonRpcClient] Network error for ${method}: ${error.message}, retrying in ${delay}ms (attempt ${attempt + 1}/${this.retries})`,
-            );
-            await this.sleep(delay);
-            continue;
-          }
-          throw new JsonRpcError(
-            JSON_RPC_ERROR_CODES.NETWORK,
-            `Network error: ${error.message} (${this.retries + 1} attempts)`,
-          );
-        }
-
-        // Don't retry JSON-RPC errors (business logic errors)
-        throw error;
-      }
-    }
-
-    // Should not reach here, but handle just in case
-    throw lastError || new Error("Unknown error after retries");
-  }
-
-  /**
-   * Make a JSON-RPC request returning the raw Response (unparsed body).
-   *
-   * Shares the same retry / timeout / backoff behaviour as `call()` but
-   * skips JSON body parsing so callers can stream the response as a Blob.
-   */
-  async callRaw<TParams>(method: string, params: TParams): Promise<Response> {
-    const requestId = ++this.requestId;
-
-    const request: JsonRpcRequest<TParams[]> = {
-      jsonrpc: "2.0",
-      method,
-      params: [params],
-      id: requestId,
-    };
-
-    let lastError: Error | null = null;
-
-    for (let attempt = 0; attempt <= this.retries; attempt++) {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), this.timeout);
-
-      try {
-        const response = await fetch(this.baseUrl, {
-          method: "POST",
-          headers: this.headers,
-          body: JSON.stringify(request),
+          body,
           signal: controller.signal,
         });
 
@@ -278,6 +197,7 @@ export class JsonRpcClient {
           );
         }
 
+        // Handle network errors (CORS, connection refused, etc.) - retryable
         if (error instanceof TypeError) {
           if (attempt < this.retries) {
             const delay = this.retryDelay * Math.pow(2, attempt);
@@ -293,6 +213,7 @@ export class JsonRpcClient {
           );
         }
 
+        // Don't retry JSON-RPC errors (business logic errors)
         throw error;
       }
     }
