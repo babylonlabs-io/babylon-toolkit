@@ -7,6 +7,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 
+import { useOptimalSplit } from "@/applications/aave/hooks/useOptimalSplit";
 import type { AllocationPlan } from "@/services/vault";
 import {
   estimatePeginFeeForAllocation,
@@ -56,12 +57,25 @@ export function useAllocationPlanning({
   const [planError, setPlanError] = useState<string | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Compute vault amounts: split evenly into 2 vaults
+  // Compute optimal vault split using on-chain risk parameters
+  const {
+    sacrificialVault,
+    protectedVault,
+    canSplit: splitParamsCanSplit,
+    isLoading: splitParamsLoading,
+  } = useOptimalSplit(amountSats);
+
   const vaultAmounts = useMemo(() => {
-    if (amountSats <= 0n) return null;
-    const half = amountSats / 2n;
-    return [half, amountSats - half] as const;
-  }, [amountSats]);
+    if (amountSats <= 0n || splitParamsLoading || !splitParamsCanSplit)
+      return null;
+    return [sacrificialVault, protectedVault] as const;
+  }, [
+    amountSats,
+    splitParamsLoading,
+    splitParamsCanSplit,
+    sacrificialVault,
+    protectedVault,
+  ]);
 
   useEffect(() => {
     // Clear previous debounce
@@ -169,10 +183,13 @@ export function useAllocationPlanning({
   }, [allocationPlan, depositorClaimValue, feeRate]);
 
   // canSplit: whether the current UTXOs + amount allow splitting into 2 vaults.
+  // Requires both: risk-parameter feasibility (splitParamsCanSplit) AND
+  // UTXO feasibility (enough UTXOs to fund both vaults).
   // When allocationPlan is already computed (partial liquidation is on), reuse it
   // to avoid a redundant synchronous planUtxoAllocation() call (which may invoke
   // WASM) on every render during slider drags.
   const canSplit = useMemo(() => {
+    if (!splitParamsCanSplit) return false;
     if (allocationPlan) return true;
     if (!vaultAmounts || !spendableUTXOs?.length || !btcAddress || feeRate <= 0)
       return false;
@@ -189,6 +206,7 @@ export function useAllocationPlanning({
       return false;
     }
   }, [
+    splitParamsCanSplit,
     allocationPlan,
     vaultAmounts,
     spendableUTXOs,
@@ -201,7 +219,7 @@ export function useAllocationPlanning({
     allocationPlan,
     strategy: allocationPlan?.strategy ?? null,
     totalFeeSats,
-    isPlanning,
+    isPlanning: isPlanning || splitParamsLoading,
     planError,
     canSplit,
   };

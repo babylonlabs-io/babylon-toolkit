@@ -10,6 +10,9 @@ import type {
   AaveSpokeUserPosition,
 } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
 import {
+  getCollateralFactor as sdkGetCollateralFactor,
+  getLiquidationBonus as sdkGetLiquidationBonus,
+  getTargetHealthFactor as sdkGetTargetHealthFactor,
   getUserAccountData as sdkGetUserAccountData,
   getUserPosition as sdkGetUserPosition,
   getUserTotalDebt as sdkGetUserTotalDebt,
@@ -116,6 +119,45 @@ export async function getUserTotalDebt(
     reserveId,
     userAddress,
   );
+}
+
+/**
+ * Get the target health factor (THF) from the Core Spoke contract.
+ *
+ * @param spokeAddress - Core Spoke contract address
+ * @returns THF in WAD format (1e18 = 1.0)
+ */
+export async function getTargetHealthFactor(
+  spokeAddress: Address,
+): Promise<bigint> {
+  const publicClient = ethClient.getPublicClient();
+  return sdkGetTargetHealthFactor(publicClient, spokeAddress);
+}
+
+/**
+ * Get the collateral factor (CF) from the Core Spoke contract.
+ *
+ * @param spokeAddress - Core Spoke contract address
+ * @returns CF in BPS (10000 = 100%)
+ */
+export async function getCollateralFactor(
+  spokeAddress: Address,
+): Promise<bigint> {
+  const publicClient = ethClient.getPublicClient();
+  return sdkGetCollateralFactor(publicClient, spokeAddress);
+}
+
+/**
+ * Get the liquidation bonus (LB) from the Core Spoke contract.
+ *
+ * @param spokeAddress - Core Spoke contract address
+ * @returns LB in WAD format (1e18 = 1.0)
+ */
+export async function getLiquidationBonus(
+  spokeAddress: Address,
+): Promise<bigint> {
+  const publicClient = ethClient.getPublicClient();
+  return sdkGetLiquidationBonus(publicClient, spokeAddress);
 }
 
 // Re-export types

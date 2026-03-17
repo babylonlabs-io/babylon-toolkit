@@ -27,6 +27,22 @@ export {
 export const CONFIG_STALE_TIME_MS = 5 * 60 * 1000;
 
 /**
+ * Expected health factor at liquidation (worst-case assumption).
+ * Used in vault split calculations to determine how much collateral
+ * would be seized. 0.95 means we assume HF drops to 0.95 before
+ * liquidation triggers.
+ */
+export const EXPECTED_HEALTH_FACTOR_AT_LIQUIDATION = 0.95;
+
+/**
+ * Safety margin multiplier for sacrificial vault sizing.
+ * 1.05 means the sacrificial vault is sized 5% larger than the
+ * computed target seizure to account for price movements between
+ * split computation and actual liquidation.
+ */
+export const VAULT_SPLIT_SAFETY_MARGIN = 1.05;
+
+/**
  * Refetch interval for position data (30 seconds)
  * Positions need to be refreshed regularly for live debt/health data
  */
