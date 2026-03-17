@@ -38,6 +38,10 @@ const DEFAULT_RESULT: Omit<UseRebalanceCheckResult, "isLoading" | "error"> = {
   targetCoverage: 0n,
 };
 
+/**
+ * @param vaultAmounts - Callers should stabilize this array with useMemo
+ *   to avoid unnecessary recomputations (arrays are compared by reference).
+ */
 export function useRebalanceCheck(
   vaultAmounts: bigint[],
 ): UseRebalanceCheckResult {
