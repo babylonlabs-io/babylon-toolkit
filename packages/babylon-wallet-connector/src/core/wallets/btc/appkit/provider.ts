@@ -180,9 +180,11 @@ export class AppKitBTCProvider implements IBTCProvider {
 
       const result = await walletProvider.signPSBT(params);
 
-      const signedPsbtBase64 = typeof result === "string"
-        ? result
-        : (result as { psbt?: string })?.psbt ?? String(result);
+      const psbt = (result as { psbt?: string })?.psbt;
+      if (typeof result !== "string" && !psbt) {
+        throw new Error("Unexpected signPSBT response: missing psbt field");
+      }
+      const signedPsbtBase64 = typeof result === "string" ? result : psbt!;
 
       const signedPsbtHex = Psbt.fromBase64(signedPsbtBase64).toHex();
 

@@ -75,7 +75,7 @@ export const FinalityProviderModal = ({
         return (
           <div className="flex min-w-0 items-center gap-2">
             <FinalityProviderLogo
-              logoUrl={(row as ValidatorRow & { logo_url?: string }).logo_url}
+              logoUrl={original?.logo_url}
               rank={rank}
               moniker={row.name}
             />
