@@ -85,3 +85,41 @@ export const MIN_HEALTH_FACTOR_FOR_BORROW = 1.2;
  * 0.01% buffer (1 basis point) - the contract only takes what's owed.
  */
 export const FULL_REPAY_BUFFER_DIVISOR = 10000n; // 1/10000 = 0.01% buffer
+
+/**
+ * Mock Core Spoke parameter: Target Health Factor (THF)
+ * Per-spoke governance parameter. After liquidation, the protocol targets
+ * restoring the position to this health factor.
+ *
+ * Stored in WAD format — Aave's fixed-point encoding where 1e18 = 1.0.
+ * To convert to a plain number: `Number(value) / 1e18`.
+ * 1.10 * 1e18 = 1_100_000_000_000_000_000n
+ *
+ * TODO: Replace with real contract read when Core Spoke ABI is available
+ */
+export const MOCK_TARGET_HEALTH_FACTOR_WAD = 1_100_000_000_000_000_000n;
+
+/**
+ * Mock Core Spoke parameter: Collateral Factor (CF)
+ * Determines what fraction of collateral value counts toward borrowing power.
+ *
+ * Stored in BPS (basis points) — 1 BPS = 0.01%, so 10000 BPS = 100%.
+ * To convert to a decimal: `Number(value) / 10000`.
+ * 0.75 (75%) * 10000 = 7500n
+ *
+ * TODO: Replace with real contract read when Core Spoke ABI is available
+ */
+export const MOCK_COLLATERAL_FACTOR_BPS = 7500n;
+
+/**
+ * Mock Core Spoke parameter: Liquidation Bonus (LB)
+ * Bonus multiplier awarded to liquidators. Fixed at 1.05 (5% bonus),
+ * min = max (no Dutch auction).
+ *
+ * Stored in WAD format — Aave's fixed-point encoding where 1e18 = 1.0.
+ * To convert to a plain number: `Number(value) / 1e18`.
+ * 1.05 * 1e18 = 1_050_000_000_000_000_000n
+ *
+ * TODO: Replace with real contract read when Core Spoke ABI is available
+ */
+export const MOCK_LIQUIDATION_BONUS_WAD = 1_050_000_000_000_000_000n;
