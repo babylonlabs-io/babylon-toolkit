@@ -125,6 +125,11 @@ export function computeSeizedFraction(
   THF: number,
   expectedHF: number,
 ): number {
+  // HF ≤ 0 means position is fully underwater — full seizure
+  if (expectedHF <= 0) {
+    return 1;
+  }
+
   const liqPenalty = LB * CF;
 
   // If THF <= liq_penalty, full liquidation is inevitable
@@ -132,6 +137,8 @@ export function computeSeizedFraction(
     return 1;
   }
 
+  // Floating-point errors here are ~1e-15, negligible relative to the 5%
+  // safety margin applied by callers (computeOptimalSplit, checkRebalanceNeeded).
   const seizedFraction =
     (CF * (THF - expectedHF)) / (THF - liqPenalty) * (LB / expectedHF);
 
@@ -254,6 +261,11 @@ export function computeMinDepositForSplit(
 /**
  * Check if the sacrificial vault (index 0) needs to be increased to cover
  * the current target seizure amount.
+ *
+ * **Scope:** This function only checks whether the sacrificial vault's sizing
+ * is adequate. It does NOT detect whether a split exists — a single vault that
+ * exceeds the target coverage returns `needsRebalance: false`. Callers should
+ * check `vaultAmounts.length < 2` separately to detect unsplit positions.
  *
  * Used on position page load to detect when parameter changes (THF, CF, LB)
  * have made the current split insufficient.
