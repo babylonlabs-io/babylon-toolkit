@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useState, type PropsWithChildren } from "react";
+import type { Hex } from "viem";
 
 import type { AllocationPlan } from "@/services/vault";
 
@@ -8,6 +9,7 @@ export enum DepositStep {
   FORM = "form",
   REVIEW = "review",
   MNEMONIC = "mnemonic",
+  SECRET = "secret",
   SIGN = "sign",
   SUCCESS = "success",
 }
@@ -21,6 +23,7 @@ export interface DepositStateData {
   btcTxid: string;
   ethTxHash: string;
   depositorBtcPubkey?: string;
+  secretHash?: Hex;
 }
 
 interface DepositStateContext {
@@ -32,6 +35,7 @@ interface DepositStateContext {
   btcTxid: string;
   ethTxHash: string;
   depositorBtcPubkey?: string;
+  secretHash?: Hex;
   processing: boolean;
   isSplitDeposit: boolean;
   splitAllocationPlan: AllocationPlan | null;
@@ -47,6 +51,7 @@ interface DepositStateContext {
     ethTxHash: string,
     depositorBtcPubkey?: string,
   ) => void;
+  setSecretHash: (hash: Hex) => void;
   setProcessing: (processing: boolean) => void;
   setIsSplitDeposit: (v: boolean) => void;
   setSplitAllocationPlan: (plan: AllocationPlan | null) => void;
@@ -63,6 +68,7 @@ const { StateProvider, useState: useDepositState } =
     btcTxid: "",
     ethTxHash: "",
     depositorBtcPubkey: undefined,
+    secretHash: undefined,
     processing: false,
     isSplitDeposit: false,
     splitAllocationPlan: null,
@@ -70,6 +76,7 @@ const { StateProvider, useState: useDepositState } =
     setDepositData: () => {},
     setFeeRate: () => {},
     setTransactionHashes: () => {},
+    setSecretHash: () => {},
     setProcessing: () => {},
     setIsSplitDeposit: () => {},
     setSplitAllocationPlan: () => {},
@@ -85,6 +92,7 @@ export function DepositState({ children }: PropsWithChildren) {
   const [btcTxid, setBtcTxid] = useState("");
   const [ethTxHash, setEthTxHash] = useState("");
   const [depositorBtcPubkey, setDepositorBtcPubkey] = useState<string>();
+  const [secretHash, setSecretHash] = useState<Hex | undefined>(undefined);
   const [processing, setProcessing] = useState(false);
   const [isSplitDeposit, setIsSplitDeposit] = useState(false);
   const [splitAllocationPlan, setSplitAllocationPlan] =
@@ -125,6 +133,7 @@ export function DepositState({ children }: PropsWithChildren) {
     setBtcTxid("");
     setEthTxHash("");
     setDepositorBtcPubkey(undefined);
+    setSecretHash(undefined);
     setProcessing(false);
     setIsSplitDeposit(false);
     setSplitAllocationPlan(null);
@@ -140,6 +149,7 @@ export function DepositState({ children }: PropsWithChildren) {
       btcTxid,
       ethTxHash,
       depositorBtcPubkey,
+      secretHash,
       processing,
       isSplitDeposit,
       splitAllocationPlan,
@@ -147,6 +157,7 @@ export function DepositState({ children }: PropsWithChildren) {
       setDepositData,
       setFeeRate: updateFeeRate,
       setTransactionHashes,
+      setSecretHash,
       setProcessing,
       setIsSplitDeposit,
       setSplitAllocationPlan,
@@ -161,6 +172,7 @@ export function DepositState({ children }: PropsWithChildren) {
       btcTxid,
       ethTxHash,
       depositorBtcPubkey,
+      secretHash,
       processing,
       isSplitDeposit,
       splitAllocationPlan,
@@ -168,6 +180,7 @@ export function DepositState({ children }: PropsWithChildren) {
       setDepositData,
       updateFeeRate,
       setTransactionHashes,
+      setSecretHash,
       reset,
     ],
   );

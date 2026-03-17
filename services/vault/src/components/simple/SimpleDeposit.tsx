@@ -12,9 +12,14 @@ import type { VaultActivity } from "@/types/activity";
 import type { ClaimerTransactions } from "@/types/rpc";
 import type { VaultProvider } from "@/types/vaultProvider";
 
-import { DepositState, DepositStep } from "../../context/deposit/DepositState";
+import {
+  DepositState,
+  DepositStep,
+  useDepositState,
+} from "../../context/deposit/DepositState";
 import { useDepositPageFlow } from "../../hooks/deposit/useDepositPageFlow";
 import { useDepositPageForm } from "../../hooks/deposit/useDepositPageForm";
+import { AtomicSwapSecretModal } from "../deposit/AtomicSwapSecretModal";
 import { MnemonicModal } from "../deposit/MnemonicModal";
 
 import { DepositForm } from "./DepositForm";
@@ -133,6 +138,18 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
     setTransactionHashes,
   } = useDepositPageFlow();
 
+  const { setSecretHash } = useDepositState();
+
+  const handleMnemonicComplete = useCallback(
+    (mnemonic?: string, mnemonicId?: string) => {
+      confirmMnemonic(mnemonic, mnemonicId);
+      if (FeatureFlags.isAtomicSwapPeginEnabled) {
+        goToStep(DepositStep.SECRET);
+      }
+    },
+    [confirmMnemonic, goToStep],
+  );
+
   const partialLiquidationProps = hasActiveVaults
     ? undefined
     : {
@@ -226,11 +243,23 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
           <MnemonicModal
             open
             onClose={onClose}
-            onComplete={confirmMnemonic}
+            onComplete={handleMnemonicComplete}
             hasExistingVaults={hasExistingVaults}
             scope={ethAddress}
           />
         )}
+
+        {renderedStep === DepositStep.SECRET &&
+          FeatureFlags.isAtomicSwapPeginEnabled && (
+            <AtomicSwapSecretModal
+              open
+              onClose={onClose}
+              onComplete={(_secretHex, secretHash) => {
+                setSecretHash(secretHash);
+                goToStep(DepositStep.SIGN);
+              }}
+            />
+          )}
 
         {renderedStep === DepositStep.SIGN &&
           getMnemonic &&
