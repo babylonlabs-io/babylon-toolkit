@@ -19,3 +19,16 @@ export type {
   SelectableVault,
   VaultSelectionResult,
 } from "./vaultSelection.js";
+export {
+  checkRebalanceNeeded,
+  computeMinDepositForSplit,
+  computeOptimalSplit,
+  computeSeizedFraction,
+} from "./vaultSplit.js";
+export type {
+  MinDepositForSplitParams,
+  OptimalSplitParams,
+  OptimalSplitResult,
+  RebalanceCheckParams,
+  RebalanceCheckResult,
+} from "./vaultSplit.js";
