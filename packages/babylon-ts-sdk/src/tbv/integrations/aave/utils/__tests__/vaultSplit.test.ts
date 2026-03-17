@@ -46,6 +46,16 @@ describe("vaultSplit", () => {
       expect(fraction).toBe(1);
     });
 
+    it("should return 1 when expectedHF is 0 (fully underwater)", () => {
+      const fraction = computeSeizedFraction(0.75, 1.05, 1.1, 0);
+      expect(fraction).toBe(1);
+    });
+
+    it("should return 1 when expectedHF is negative", () => {
+      const fraction = computeSeizedFraction(0.75, 1.05, 1.1, -0.5);
+      expect(fraction).toBe(1);
+    });
+
     it("should clamp to 0 when expectedHF >= THF", () => {
       // When expectedHF >= THF, (THF - expectedHF) <= 0, so fraction <= 0
       const fraction = computeSeizedFraction(0.75, 1.05, 1.1, 1.2);
