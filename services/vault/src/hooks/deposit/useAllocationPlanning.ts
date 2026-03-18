@@ -184,17 +184,6 @@ export function useAllocationPlanning({
     return total;
   }, [allocationPlan, depositorClaimValue, feeRate]);
 
-  const splitRatioLabel = useMemo(() => {
-    if (!splitParamsCanSplit || amountSats <= 0n) return null;
-    const total = sacrificialVault + protectedVault;
-    if (total === 0n) return null;
-    const sacrificialPct = Math.round(
-      (Number(sacrificialVault) / Number(total)) * 100,
-    );
-    const protectedPct = 100 - sacrificialPct;
-    return `${sacrificialPct}/${protectedPct}`;
-  }, [splitParamsCanSplit, amountSats, sacrificialVault, protectedVault]);
-
   // canSplit: whether the current UTXOs + amount allow splitting into 2 vaults.
   // Requires both: risk-parameter feasibility (splitParamsCanSplit) AND
   // UTXO feasibility (enough UTXOs to fund both vaults).
@@ -227,6 +216,17 @@ export function useAllocationPlanning({
     feeRate,
     depositorClaimValue,
   ]);
+
+  const splitRatioLabel = useMemo(() => {
+    if (!canSplit || amountSats <= 0n) return null;
+    const total = sacrificialVault + protectedVault;
+    if (total === 0n) return null;
+    const sacrificialPct = Math.round(
+      (Number(sacrificialVault) / Number(total)) * 100,
+    );
+    const protectedPct = 100 - sacrificialPct;
+    return `${sacrificialPct}/${protectedPct}`;
+  }, [canSplit, amountSats, sacrificialVault, protectedVault]);
 
   return {
     allocationPlan,

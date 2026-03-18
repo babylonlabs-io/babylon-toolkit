@@ -136,6 +136,7 @@ export function DepositForm({
 
   const splitStatusText = useMemo(() => {
     if (!partialLiquidation?.canSplit) {
+      if (partialLiquidation?.isPlanning) return "Computing allocation...";
       return amountSats > 0n
         ? "Deposit amount too low for 2-vault split"
         : null;
