@@ -30,7 +30,6 @@ import {
 } from "@/services/lamport";
 import type { VaultActivity } from "@/types/activity";
 import type { ClaimerTransactions } from "@/types/rpc";
-import type { VaultProvider } from "@/types/vaultProvider";
 
 import { DepositProgressView } from "./DepositProgressView";
 
@@ -152,26 +151,16 @@ export function ResumeBroadcastContent({
 
 export interface ResumeLamportContentProps {
   activity: VaultActivity;
-  vaultProviders: VaultProvider[];
   onClose: () => void;
   onSuccess: () => void;
 }
 
-function resolveProviderUrl(
-  activity: VaultActivity,
-  vaultProviders: VaultProvider[],
-): string | null {
-  const providerAddress = activity.providers[0]?.id;
-  if (!providerAddress) return null;
-  const provider = vaultProviders.find(
-    (p) => p.id.toLowerCase() === providerAddress.toLowerCase(),
-  );
-  return provider?.url ?? null;
+function resolveProviderAddress(activity: VaultActivity): string | null {
+  return activity.providers[0]?.id ?? null;
 }
 
 export function ResumeLamportContent({
   activity,
-  vaultProviders,
   onClose,
   onSuccess,
 }: ResumeLamportContentProps) {
@@ -204,9 +193,9 @@ export function ResumeLamportContent({
       setError(null);
 
       try {
-        const providerUrl = resolveProviderUrl(activity, vaultProviders);
-        if (!providerUrl) {
-          throw new Error("Could not resolve vault provider URL");
+        const providerAddress = resolveProviderAddress(activity);
+        if (!providerAddress) {
+          throw new Error("Could not resolve vault provider address");
         }
 
         const btcTxid = activity.txHash ?? null;
@@ -229,7 +218,7 @@ export function ResumeLamportContent({
           btcTxid,
           depositorBtcPubkey: activity.depositorBtcPubkey,
           appContractAddress: activity.applicationController,
-          providerUrl,
+          providerAddress,
           getMnemonic: () => Promise.resolve(mnemonic),
         });
 
@@ -255,7 +244,7 @@ export function ResumeLamportContent({
         setError(msg);
       }
     },
-    [activity, vaultProviders, ethAddress, onSuccess],
+    [activity, ethAddress, onSuccess],
   );
 
   const handleRetry = useCallback(() => {

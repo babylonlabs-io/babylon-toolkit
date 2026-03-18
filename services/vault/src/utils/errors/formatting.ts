@@ -47,11 +47,38 @@ export function formatPayoutSignatureError(error: unknown): {
           "The vault provider took too long to respond. Please try again.",
       };
     }
+    // -32001: proxy "Provider not found" (message-specific) vs FE client "Network error" (generic)
+    if (
+      error.code === -32001 &&
+      error.message.toLowerCase().includes("provider not found")
+    ) {
+      return {
+        title: "Provider Not Found",
+        message:
+          "The vault provider could not be found in the on-chain registry. It may have been deregistered.",
+      };
+    }
     if (error.code === -32001) {
       return {
         title: "Connection Failed",
         message:
           "Unable to connect to the vault provider. Please check your connection and try again.",
+      };
+    }
+    // Proxy-specific: VP request timed out at the proxy level
+    if (error.code === -32002) {
+      return {
+        title: "Provider Timeout",
+        message:
+          "The vault provider took too long to respond. Please try again later.",
+      };
+    }
+    // Proxy-specific: VP unreachable, DNS failure, or response too large
+    if (error.code === -32003) {
+      return {
+        title: "Provider Unavailable",
+        message:
+          "The vault provider is temporarily unreachable. Please try again later.",
       };
     }
     return {

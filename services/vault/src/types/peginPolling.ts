@@ -10,7 +10,7 @@ import type {
   PeginState,
 } from "../models/peginStateMachine";
 import type { PendingPeginRequest } from "../storage/peginStorage";
-import type { ClaimerTransactions, VaultProvider } from "../types";
+import type { ClaimerTransactions } from "../types";
 import type { VaultActivity } from "../types/activity";
 
 /** Result of polling for a single deposit */
@@ -62,8 +62,6 @@ export interface PeginPollingProviderProps extends PropsWithChildren {
   btcPublicKey?: string;
   /** Depositor's BTC address (for UTXO validation) */
   btcAddress?: string;
-  /** Vault providers data (pre-fetched at page level) */
-  vaultProviders: VaultProvider[];
 }
 
 /** Deposit prepared for polling */

@@ -128,7 +128,6 @@ export function usePayoutSigningState({
     const providers = {
       vaultProvider: {
         address: provider.id as Hex,
-        url: provider.url,
         btcPubKey: provider.btcPubKey,
       },
       vaultKeepers: vaultKeepers.map((vk) => ({ btcPubKey: vk.btcPubKey })),
@@ -166,7 +165,7 @@ export function usePayoutSigningState({
     try {
       // Prepare signing context (fetches vault data, resolves pubkeys)
       // Uses versioned keepers and challengers based on vault's locked versions
-      const { context, vaultProviderUrl } = await prepareSigningContext({
+      const { context, vaultProviderAddress } = await prepareSigningContext({
         peginTxId: activity.txHash!,
         depositorBtcPubkey: btcPublicKey,
         providers,
@@ -201,7 +200,7 @@ export function usePayoutSigningState({
 
       // Submit signatures to vault provider
       await submitSignaturesToVaultProvider(
-        vaultProviderUrl,
+        vaultProviderAddress,
         activity.txHash!,
         btcPublicKey,
         signatures,

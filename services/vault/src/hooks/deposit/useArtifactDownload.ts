@@ -21,7 +21,7 @@ export function useArtifactDownload() {
   });
 
   const download = useCallback(
-    async (providerUrl: string, peginTxid: string, depositorPk: string) => {
+    async (providerAddress: string, peginTxid: string, depositorPk: string) => {
       setState({
         loading: true,
         progress: "Fetching artifacts from vault provider...",
@@ -31,7 +31,7 @@ export function useArtifactDownload() {
 
       try {
         const artifacts = await fetchDepositorArtifacts(
-          providerUrl,
+          providerAddress,
           peginTxid,
           depositorPk,
         );

@@ -6,7 +6,7 @@
  * sign/broadcast actions on pending deposits.
  */
 
-import { useCallback, useMemo } from "react";
+import { useMemo } from "react";
 import type { Address } from "viem";
 
 import { useBTCWallet, useETHWallet } from "@/context/wallet";
@@ -56,15 +56,8 @@ export function usePendingDeposits() {
     onSuccess: refetchActivities,
   });
 
-  const findProvider = useCallback(
-    (id: string) =>
-      vaultProviders.find((p) => p.id.toLowerCase() === id.toLowerCase()),
-    [vaultProviders],
-  );
-
   const artifactDownloadModal = useArtifactDownloadModal({
     allActivities: activities,
-    findProvider,
     onSuccess: refetchActivities,
   });
 

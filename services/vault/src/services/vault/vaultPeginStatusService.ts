@@ -9,6 +9,7 @@
 import { VaultProviderRpcApi } from "@/clients/vault-provider-rpc";
 import { pollUntil } from "@/utils/async";
 import { stripHexPrefix } from "@/utils/btc";
+import { getVpProxyUrl } from "@/utils/rpc";
 
 /** Timeout for RPC requests (60 seconds) */
 const RPC_TIMEOUT_MS = 60 * 1000;
@@ -17,8 +18,8 @@ const RPC_TIMEOUT_MS = 60 * 1000;
 const DEFAULT_POLL_INTERVAL_MS = 10 * 1000;
 
 export interface WaitForPeginStatusParams {
-  /** Vault provider RPC URL */
-  providerUrl: string;
+  /** Vault provider Ethereum address */
+  providerAddress: string;
   /** BTC transaction ID (with or without 0x prefix) */
   btcTxid: string;
   /** Set of acceptable statuses — polling stops when the VP reports one of these */
@@ -42,7 +43,7 @@ export async function waitForPeginStatus(
   params: WaitForPeginStatusParams,
 ): Promise<string> {
   const {
-    providerUrl,
+    providerAddress,
     btcTxid,
     targetStatuses,
     timeoutMs,
@@ -50,7 +51,10 @@ export async function waitForPeginStatus(
     signal,
   } = params;
 
-  const rpcClient = new VaultProviderRpcApi(providerUrl, RPC_TIMEOUT_MS);
+  const rpcClient = new VaultProviderRpcApi(
+    getVpProxyUrl(providerAddress),
+    RPC_TIMEOUT_MS,
+  );
   const strippedTxid = stripHexPrefix(btcTxid);
 
   return pollUntil<string>(

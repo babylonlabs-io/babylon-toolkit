@@ -307,7 +307,6 @@ export default function SimpleDeposit(props: SimpleDepositProps) {
             <div className="mx-auto w-full max-w-[520px]">
               <ResumeLamportContent
                 activity={props.activity}
-                vaultProviders={props.vaultProviders}
                 onClose={onClose}
                 onSuccess={props.onResumeSuccess}
               />

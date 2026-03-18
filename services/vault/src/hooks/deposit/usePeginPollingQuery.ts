@@ -20,7 +20,7 @@ import {
 } from "../../config/polling";
 import { DaemonStatus } from "../../models/peginStateMachine";
 import type { PendingPeginRequest } from "../../storage/peginStorage";
-import type { ClaimerTransactions, VaultProvider } from "../../types";
+import type { ClaimerTransactions } from "../../types";
 import type { VaultActivity } from "../../types/activity";
 import type {
   DepositsByProvider,
@@ -38,7 +38,6 @@ interface UsePeginPollingQueryParams {
   activities: VaultActivity[];
   pendingPegins: PendingPeginRequest[];
   btcPublicKey?: string;
-  vaultProviders: VaultProvider[];
 }
 
 /** Result from polling query */
@@ -183,7 +182,6 @@ export function usePeginPollingQuery({
   activities,
   pendingPegins,
   btcPublicKey,
-  vaultProviders,
 }: UsePeginPollingQueryParams): UsePeginPollingQueryResult {
   // Identify deposits that need polling
   const depositsToPoll = useMemo(
@@ -193,22 +191,18 @@ export function usePeginPollingQuery({
 
   // Use refs to access latest values in queryFn without stale closures
   const depositsRef = useRef(depositsToPoll);
-  const providersRef = useRef(vaultProviders);
   const btcPubKeyRef = useRef(btcPublicKey);
 
   // Keep refs updated
   useEffect(() => {
     depositsRef.current = depositsToPoll;
-    providersRef.current = vaultProviders;
     btcPubKeyRef.current = btcPublicKey;
-  }, [depositsToPoll, vaultProviders, btcPublicKey]);
+  }, [depositsToPoll, btcPublicKey]);
 
   // Only enable when all required data is ready:
   // - btcPublicKey from wallet
   // - deposits to poll (pending deposits)
-  // - vault providers loaded (needed for RPC URLs)
-  const isEnabled =
-    !!btcPublicKey && depositsToPoll.length > 0 && vaultProviders.length > 0;
+  const isEnabled = !!btcPublicKey && depositsToPoll.length > 0;
 
   const { data, isLoading, refetch } = useQuery({
     queryKey: [
@@ -218,7 +212,6 @@ export function usePeginPollingQuery({
     ],
     queryFn: async (): Promise<PollingQueryData> => {
       const currentDeposits = depositsRef.current;
-      const currentProviders = providersRef.current;
       const currentBtcPubKey = btcPubKeyRef.current;
 
       if (!currentBtcPubKey || currentDeposits.length === 0) {
@@ -232,10 +225,7 @@ export function usePeginPollingQuery({
       }
 
       // Group by provider using current values
-      const depositsByProvider = groupDepositsByProvider(
-        currentDeposits,
-        currentProviders,
-      );
+      const depositsByProvider = groupDepositsByProvider(currentDeposits);
 
       const transactions = new Map<string, ClaimerTransactions[]>();
       const depositorGraphs = new Map<string, DepositorGraphTransactions>();

@@ -24,6 +24,11 @@ vi.mock("@/utils/depositorClaimValue", () => ({
   computeDepositorClaimValue: vi.fn().mockResolvedValue(35000n),
 }));
 
+vi.mock("@/utils/rpc", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/utils/rpc")>()),
+  getVpProxyUrl: (address: string) => `https://proxy.test/rpc/${address}`,
+}));
+
 // Mock SDK functions
 vi.mock("@babylonlabs-io/ts-sdk", () => ({
   pushTx: vi.fn(),
@@ -426,7 +431,7 @@ async function setupDefaultMocks() {
   });
   vi.mocked(pollAndPreparePayoutSigning).mockResolvedValue({
     context: {} as any,
-    vaultProviderUrl: "https://provider.test",
+    vaultProviderAddress: "0xProvider123",
     preparedTransactions: [
       {
         claimerPubkeyXOnly: "claimerpubkey",
@@ -1369,7 +1374,7 @@ describe("useMultiVaultDepositFlow", () => {
         .mockRejectedValueOnce(new Error("Payout fail vault 0"))
         .mockResolvedValueOnce({
           context: {} as any,
-          vaultProviderUrl: "https://provider.test",
+          vaultProviderAddress: "0xProvider123",
           preparedTransactions: [
             {
               claimerPubkeyXOnly: "claimerpubkey",
