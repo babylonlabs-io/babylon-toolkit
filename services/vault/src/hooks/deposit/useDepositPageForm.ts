@@ -78,6 +78,8 @@ export interface UseDepositPageFormResult {
   allocationPlan: AllocationPlan | null;
   isPlanning: boolean;
   planError: string | null;
+  /** Display label for the split ratio, null when not applicable */
+  splitRatioLabel: string | null;
   /** Effective fee: multi-vault fee when checkbox is on, single-vault fee otherwise */
   effectiveFeeSats: bigint | null;
 
@@ -249,6 +251,7 @@ export function useDepositPageForm(): UseDepositPageFormResult {
     isPlanning,
     planError,
     canSplit,
+    splitRatioLabel,
   } = useAllocationPlanning({
     amountSats,
     feeRate: estimatedFeeRate,
@@ -372,6 +375,7 @@ export function useDepositPageForm(): UseDepositPageFormResult {
     allocationPlan,
     isPlanning,
     planError,
+    splitRatioLabel,
     effectiveFeeSats,
     validateForm,
     validateAmountOnBlur,

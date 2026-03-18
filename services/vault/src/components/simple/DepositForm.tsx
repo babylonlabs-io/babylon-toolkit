@@ -32,6 +32,7 @@ interface PartialLiquidationProps {
   canSplit: boolean;
   strategy: "SINGLE" | "MULTI_INPUT" | "SPLIT" | null;
   isPlanning: boolean;
+  splitRatioLabel: string | null;
 }
 
 interface DepositFormProps {
@@ -136,7 +137,7 @@ export function DepositForm({
   const splitStatusText = useMemo(() => {
     if (!partialLiquidation?.canSplit) {
       return amountSats > 0n
-        ? "Insufficient balance to split into 2 vaults"
+        ? "Deposit amount too low for 2-vault split"
         : null;
     }
     if (partialLiquidation.isPlanning) return "Computing allocation...";
@@ -180,6 +181,35 @@ export function DepositForm({
         />
       </Card>
 
+      {/* Partial liquidation checkbox */}
+      {partialLiquidation && (
+        <Card variant="filled" className="flex flex-col gap-2 px-4 py-3">
+          <label className="flex cursor-pointer items-center gap-3">
+            <Checkbox
+              checked={partialLiquidation.isEnabled}
+              onChange={() =>
+                partialLiquidation.onChange(!partialLiquidation.isEnabled)
+              }
+              variant="default"
+              showLabel={false}
+              disabled={!partialLiquidation.canSplit}
+            />
+            <span
+              className={`text-sm ${partialLiquidation.canSplit ? "text-accent-primary" : "text-accent-secondary"}`}
+            >
+              {partialLiquidation.splitRatioLabel
+                ? `2 UTXO Split - ${partialLiquidation.splitRatioLabel} (Recommended)`
+                : "2 UTXO Split (Recommended)"}
+            </span>
+          </label>
+          {splitStatusText && (
+            <span className="text-xs text-accent-secondary">
+              {splitStatusText}
+            </span>
+          )}
+        </Card>
+      )}
+
       {/* Aave app */}
       {selectedApp && (
         <Card variant="filled" className="flex items-center gap-3">
@@ -214,33 +244,6 @@ export function DepositForm({
           />
         )}
       </Card>
-
-      {/* Partial liquidation checkbox */}
-      {partialLiquidation && (
-        <Card variant="filled" className="flex flex-col gap-2 px-4 py-3">
-          <label className="flex cursor-pointer items-center gap-3">
-            <Checkbox
-              checked={partialLiquidation.isEnabled}
-              onChange={() =>
-                partialLiquidation.onChange(!partialLiquidation.isEnabled)
-              }
-              variant="default"
-              showLabel={false}
-              disabled={!partialLiquidation.canSplit}
-            />
-            <span
-              className={`text-sm ${partialLiquidation.canSplit ? "text-accent-primary" : "text-accent-secondary"}`}
-            >
-              Enable partial liquidation (2 vaults)
-            </span>
-          </label>
-          {splitStatusText && (
-            <span className="text-xs text-accent-secondary">
-              {splitStatusText}
-            </span>
-          )}
-        </Card>
-      )}
 
       {/* CTA button */}
       <DepositButton
