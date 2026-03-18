@@ -42,7 +42,7 @@ describe("Collateral Utilities", () => {
           providerAddress: "0xprovider1",
           providerName: "0xprov...der1",
           providerIconUrl: undefined,
-          depositorBtcPubkey: undefined,
+          depositorBtcPubkey: "0xbtcpubkey1",
         },
       ]);
     });
