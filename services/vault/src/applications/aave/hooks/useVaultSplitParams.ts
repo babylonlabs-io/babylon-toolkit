@@ -9,11 +9,13 @@ import { useQuery } from "@tanstack/react-query";
 import type { Address } from "viem";
 
 import { AaveSpoke } from "../clients";
-import { BPS_SCALE, CONFIG_STALE_TIME_MS } from "../constants";
+import {
+  BPS_SCALE,
+  CONFIG_RETRY_COUNT,
+  CONFIG_STALE_TIME_MS,
+} from "../constants";
 import { useAaveConfig } from "../context";
 import { wadToNumber } from "../utils";
-
-const RETRY_COUNT = 3;
 
 export interface VaultSplitParams {
   /** Target health factor (e.g. 1.10) */
@@ -57,7 +59,7 @@ export function useVaultSplitParams(): UseVaultSplitParamsResult {
     enabled: !!spokeAddress,
     staleTime: CONFIG_STALE_TIME_MS,
     refetchOnWindowFocus: false,
-    retry: RETRY_COUNT,
+    retry: CONFIG_RETRY_COUNT,
   });
 
   return {

@@ -26,6 +26,9 @@ export {
  */
 export const CONFIG_STALE_TIME_MS = 5 * 60 * 1000;
 
+/** Number of retries for config/parameter queries */
+export const CONFIG_RETRY_COUNT = 3;
+
 /**
  * Expected health factor at liquidation (worst-case assumption).
  * Used in vault split calculations to determine how much collateral
