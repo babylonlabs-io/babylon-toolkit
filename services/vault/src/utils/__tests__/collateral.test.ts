@@ -20,6 +20,7 @@ function makeCollateral(
       status: "active",
       vaultProvider: "0xprovider1",
       inUse: true,
+      depositorBtcPubKey: "0xbtcpubkey1",
     },
     ...overrides,
   };
@@ -69,6 +70,7 @@ describe("Collateral Utilities", () => {
             status: "liquidated",
             vaultProvider: "0xprovider1",
             inUse: false,
+            depositorBtcPubKey: "0xbtcpubkey1",
           },
         }),
       ];
@@ -86,6 +88,7 @@ describe("Collateral Utilities", () => {
             status: "depositor_withdrawn",
             vaultProvider: "0xprovider1",
             inUse: false,
+            depositorBtcPubKey: "0xbtcpubkey1",
           },
         }),
       ];
