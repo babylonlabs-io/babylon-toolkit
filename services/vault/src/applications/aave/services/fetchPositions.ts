@@ -51,7 +51,7 @@ export interface AavePositionCollateral {
     status: string;
     vaultProvider: string;
     inUse: boolean;
-    depositorBtcPubKey?: string;
+    depositorBtcPubKey: string;
   };
 }
 
@@ -84,7 +84,7 @@ interface GraphQLCollateralItem {
     status: string;
     vaultProvider: string;
     inUse: boolean;
-    depositorBtcPubKey?: string;
+    depositorBtcPubKey: string;
   };
 }
 
