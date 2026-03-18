@@ -18,6 +18,8 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo } from "react";
 
+import { logger } from "@/infrastructure";
+
 import { getMempoolApiUrl } from "../clients/btc/config";
 import { useAppState } from "../state/AppState";
 
@@ -61,9 +63,13 @@ export function useUTXOs(
       const [utxos, txs] = await Promise.all([
         getAddressUtxos(btcAddress!, apiUrl),
         getAddressTxs(btcAddress!, apiUrl).catch((err) => {
-          console.warn(
-            "[useUTXOs] Failed to fetch address txs, continuing without broadcast detection:",
-            err,
+          logger.warn(
+            "[useUTXOs] Failed to fetch address txs, continuing without broadcast detection",
+            {
+              data: {
+                error: err instanceof Error ? err.message : String(err),
+              },
+            },
           );
           return [];
         }),
@@ -105,10 +111,14 @@ export function useUTXOs(
   // Log ordinals API errors once when the error changes (not on every render)
   useEffect(() => {
     if (ordinalsError) {
-      console.warn(
-        "Ordinals API failed, treating all UTXOs as available:",
-        ordinalsError,
-      );
+      logger.warn("Ordinals API failed, treating all UTXOs as available", {
+        data: {
+          error:
+            ordinalsError instanceof Error
+              ? ordinalsError.message
+              : String(ordinalsError),
+        },
+      });
     }
   }, [ordinalsError]);
 

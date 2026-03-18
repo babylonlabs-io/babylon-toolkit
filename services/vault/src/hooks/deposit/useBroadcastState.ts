@@ -12,6 +12,7 @@
 import { useCallback, useState } from "react";
 
 import { usePeginPolling } from "@/context/deposit/PeginPollingContext";
+import { logger } from "@/infrastructure";
 import { LocalStorageStatus } from "@/models/peginStateMachine";
 import { usePeginStorage } from "@/storage/usePeginStorage";
 import type { VaultActivity } from "@/types/activity";
@@ -81,7 +82,9 @@ export function useBroadcastState({
         },
       });
     } catch (err) {
-      console.error("Broadcast failed:", err);
+      logger.error(err instanceof Error ? err : new Error(String(err)), {
+        data: { context: "Broadcast failed" },
+      });
       setLocalBroadcasting(false);
     }
   }, [

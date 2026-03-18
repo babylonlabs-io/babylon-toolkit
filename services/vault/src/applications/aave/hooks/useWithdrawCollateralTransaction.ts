@@ -11,6 +11,7 @@ import type { Address, Hex } from "viem";
 import { useAccount, useWalletClient } from "wagmi";
 
 import { useError } from "@/context/error";
+import { logger } from "@/infrastructure";
 import {
   ErrorCode,
   WalletError,
@@ -85,8 +86,10 @@ export function useWithdrawCollateralTransaction(): UseWithdrawCollateralTransac
 
         return true;
       } catch (error) {
-        console.error("Withdraw collateral failed:", error);
-
+        logger.error(
+          error instanceof Error ? error : new Error(String(error)),
+          { data: { context: "Withdraw collateral failed" } },
+        );
         const mappedError =
           error instanceof Error
             ? mapViemErrorToContractError(error, "Withdraw Collateral")

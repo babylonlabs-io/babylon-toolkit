@@ -49,7 +49,6 @@ function transformVaultToTableData(
     provider: {
       name: providerName,
       icon: provider?.iconUrl,
-      verified: provider?.verified ?? false,
     },
     status: peginState.displayLabel,
   };
@@ -60,7 +59,6 @@ export interface RedeemedVaultInfo {
   amountBtc: number;
   providerName: string;
   providerIconUrl?: string;
-  providerVerified?: boolean;
   /** Vault provider's Ethereum address (used to look up RPC URL for pegout polling) */
   vaultProviderAddress: string;
   /** Timestamp in milliseconds when vault was created */
@@ -133,7 +131,6 @@ export function useAaveVaults(
           amountBtc: satoshiToBtcNumber(vault.amount),
           providerName,
           providerIconUrl: provider?.iconUrl,
-          providerVerified: provider?.verified ?? false,
           vaultProviderAddress: vault.vaultProvider,
           createdAt: vault.createdAt,
         };

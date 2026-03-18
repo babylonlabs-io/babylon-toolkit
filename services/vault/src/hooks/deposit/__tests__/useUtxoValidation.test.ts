@@ -10,6 +10,13 @@ import { ContractStatus } from "../../../models/peginStateMachine";
 import type { VaultActivity } from "../../../types/activity";
 import { useUtxoValidation } from "../useUtxoValidation";
 
+const { mockLoggerWarn } = vi.hoisted(() => ({
+  mockLoggerWarn: vi.fn(),
+}));
+vi.mock("@/infrastructure", () => ({
+  logger: { warn: mockLoggerWarn, error: vi.fn(), info: vi.fn() },
+}));
+
 // Mock extractInputsFromTransaction to avoid bitcoinjs-lib ecc initialization
 vi.mock("../../../services/vault/vaultUtxoValidationService", () => ({
   extractInputsFromTransaction: vi.fn((txHex: string) => {
@@ -374,7 +381,7 @@ describe("useUtxoValidation", () => {
         ),
       ];
 
-      const consoleSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+      mockLoggerWarn.mockClear();
 
       const { result } = renderHook(() =>
         useUtxoValidation({
@@ -388,13 +395,10 @@ describe("useUtxoValidation", () => {
       expect(result.current.unavailableUtxos.has("invalid-tx")).toBe(false);
       // Valid tx should be marked unavailable (no matching UTXOs)
       expect(result.current.unavailableUtxos.has("valid-tx")).toBe(true);
-      // Should have logged a warning
-      expect(consoleSpy).toHaveBeenCalledWith(
+      expect(mockLoggerWarn).toHaveBeenCalledWith(
         expect.stringContaining("[useUtxoValidation] Failed to parse tx"),
-        expect.anything(),
+        expect.objectContaining({ data: { error: "Failed to parse" } }),
       );
-
-      consoleSpy.mockRestore();
     });
   });
 

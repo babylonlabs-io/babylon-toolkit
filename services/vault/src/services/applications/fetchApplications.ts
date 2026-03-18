@@ -1,5 +1,7 @@
 import { gql } from "graphql-request";
 
+import { logger } from "@/infrastructure";
+
 import { getApplicationMetadataByController } from "../../applications";
 import { graphqlClient } from "../../clients/graphql";
 import type { Application } from "../../types/application";
@@ -49,7 +51,7 @@ export async function fetchApplications(): Promise<Application[]> {
     .map((app): Application | null => {
       const metadata = getApplicationMetadataByController(app.id);
       if (!metadata) {
-        console.warn(
+        logger.warn(
           `Application ${app.id} has no metadata in registry, skipping`,
         );
         return null;

@@ -126,6 +126,17 @@ vi.mock("@/storage/peginStorage", () => ({
   addPendingPegin: vi.fn(),
 }));
 
+const { mockLoggerError } = vi.hoisted(() => ({
+  mockLoggerError: vi.fn(),
+}));
+vi.mock("@/infrastructure", () => ({
+  logger: {
+    error: mockLoggerError,
+    warn: vi.fn(),
+    info: vi.fn(),
+  },
+}));
+
 // Mock deposit flow steps
 vi.mock("../depositFlowSteps", () => ({
   DepositFlowStep: {
@@ -1097,10 +1108,8 @@ describe("useMultiVaultDepositFlow", () => {
       });
     });
 
-    it("should log individual vault errors to console", async () => {
-      const consoleSpy = vi
-        .spyOn(console, "error")
-        .mockImplementation(() => {});
+    it("should log individual vault errors via logger", async () => {
+      mockLoggerError.mockClear();
 
       const { planUtxoAllocation } = vi.mocked(
         await import("@/services/vault"),
@@ -1128,13 +1137,15 @@ describe("useMultiVaultDepositFlow", () => {
       await executeWithAutoArtifactDownload(result);
 
       await waitFor(() => {
-        expect(consoleSpy).toHaveBeenCalledWith(
-          "[Multi-Vault] Pegin creation failed for vault 1:",
+        expect(mockLoggerError).toHaveBeenCalledWith(
           expect.any(Error),
+          expect.objectContaining({
+            data: {
+              context: "[Multi-Vault] Pegin creation failed for vault 1",
+            },
+          }),
         );
       });
-
-      consoleSpy.mockRestore();
     });
 
     it("should show error when ALL pegin creations fail", async () => {

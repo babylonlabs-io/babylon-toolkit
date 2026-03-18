@@ -14,6 +14,7 @@ import { useTheme } from "next-themes";
 import { useCallback, useMemo, useRef, type PropsWithChildren } from "react";
 
 import featureFlags from "@/config/featureFlags";
+import { logger } from "@/infrastructure";
 
 const context = typeof window !== "undefined" ? window : {};
 
@@ -113,8 +114,7 @@ export const WalletConnectionProvider = ({ children }: PropsWithChildren) => {
     if (error?.message?.includes("rejected")) {
       return;
     }
-    // Log non-rejection errors for debugging
-    console.error("Wallet connection error:", error);
+    logger.error(error, { data: { context: "Wallet connection error" } });
   }, []);
 
   return (

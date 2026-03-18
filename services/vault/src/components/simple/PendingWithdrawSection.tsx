@@ -87,7 +87,6 @@ export function PendingWithdrawSection({
                   txHash={vault.id}
                   providerName={vault.providerName}
                   providerIconUrl={vault.providerIconUrl}
-                  providerVerified={vault.providerVerified}
                   statusContent={
                     <VaultStatusBadge
                       dotColor={STATUS_DOT_COLORS[variant]}

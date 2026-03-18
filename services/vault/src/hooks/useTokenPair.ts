@@ -5,6 +5,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { getAddress, isAddress } from "viem";
 
+import { logger } from "@/infrastructure";
+
 import { getMarketTokenPairAsync } from "../services/token";
 import type { MarketTokenPair } from "../services/token/tokenService";
 
@@ -23,7 +25,7 @@ function normalizeAddress(address: string | undefined): string | null {
 
   // Validate and checksum the address
   if (!isAddress(prefixedAddress)) {
-    console.warn(`[useTokenPair] Invalid address format: ${address}`);
+    logger.warn(`[useTokenPair] Invalid address format: ${address}`);
     return null;
   }
 
@@ -51,11 +53,9 @@ export function useTokenPair(
     queryKey: ["tokenPair", normalizedCollateral, normalizedLoan],
     queryFn: async () => {
       if (!normalizedCollateral || !normalizedLoan) {
-        console.warn(
-          "[useTokenPair] Invalid or missing addresses:",
-          collateralToken,
-          loanToken,
-        );
+        logger.warn("[useTokenPair] Invalid or missing addresses", {
+          data: { collateralToken, loanToken },
+        });
         return null;
       }
       return getMarketTokenPairAsync(normalizedCollateral, normalizedLoan);

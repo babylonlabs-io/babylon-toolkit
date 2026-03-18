@@ -7,6 +7,7 @@
 
 import type { Hex } from "viem";
 
+import { logger } from "@/infrastructure";
 import { fetchVaultById } from "@/services/vault";
 import { pollUntil } from "@/utils/async";
 
@@ -58,8 +59,11 @@ export async function waitForContractVerification(
         }
         return null;
       } catch (error) {
-        // Continue polling - vault may not be indexed yet
-        console.warn("Error polling for contract verification:", error);
+        logger.warn("Error polling for contract verification", {
+          data: {
+            error: error instanceof Error ? error.message : String(error),
+          },
+        });
         return null;
       }
     },

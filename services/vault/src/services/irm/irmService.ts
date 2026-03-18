@@ -7,6 +7,8 @@
 
 import type { Address } from "viem";
 
+import { logger } from "@/infrastructure";
+
 import { ethClient } from "../../clients/eth-contract/client";
 
 /**
@@ -123,7 +125,9 @@ export async function getBorrowRate(
 
     return rate;
   } catch (error) {
-    console.warn("Standard borrowRate method failed, trying fallback:", error);
+    logger.warn("Standard borrowRate method failed, trying fallback", {
+      data: { error: error instanceof Error ? error.message : String(error) },
+    });
 
     // Fallback: Calculate utilization and use borrowRateView
     const utilization = calculateUtilization(
@@ -141,8 +145,12 @@ export async function getBorrowRate(
 
       return rate as bigint;
     } catch (fallbackError) {
-      console.error("Both IRM methods failed:", fallbackError);
-      // Return 0 if we can't get the rate
+      logger.error(
+        fallbackError instanceof Error
+          ? fallbackError
+          : new Error(String(fallbackError)),
+        { data: { context: "Both IRM methods failed" } },
+      );
       return 0n;
     }
   }
@@ -210,7 +218,9 @@ export async function getMarketBorrowAPR(
 
     return convertBorrowRateToAPR(borrowRate);
   } catch (error) {
-    console.error("Failed to get market borrow APR:", error);
+    logger.error(error instanceof Error ? error : new Error(String(error)), {
+      data: { context: "Failed to get market borrow APR" },
+    });
     return null;
   }
 }

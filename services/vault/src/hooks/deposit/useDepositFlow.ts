@@ -20,6 +20,7 @@ import type { Address, Hex } from "viem";
 
 import { useProtocolParamsContext } from "@/context/ProtocolParamsContext";
 import { useVaults } from "@/hooks/useVaults";
+import { logger } from "@/infrastructure";
 import { deriveLamportPkHash, linkPeginToMnemonic } from "@/services/lamport";
 import { collectReservedUtxoRefs } from "@/services/vault";
 import { prepareAndSignDepositorGraph } from "@/services/vault/depositorGraphSigningService";
@@ -50,7 +51,7 @@ import { useVaultProviders } from "./useVaultProviders";
 export interface UseDepositFlowParams {
   amount: bigint;
   feeRate: number;
-  btcWalletProvider: BitcoinWallet;
+  btcWalletProvider: BitcoinWallet | null;
   depositorEthAddress: Address | undefined;
   selectedApplication: string;
   selectedProviders: string[];
@@ -185,10 +186,10 @@ export function useDepositFlow(
           maxDeposit,
         });
 
-        // After validation, these are guaranteed to be defined
-        if (!btcAddress || !depositorEthAddress) {
+        if (!btcAddress || !depositorEthAddress || !btcWalletProvider) {
           throw new Error("BTC or ETH wallet not connected");
         }
+        const confirmedBtcWallet = btcWalletProvider;
 
         // Step 1: Get ETH wallet client
         setCurrentStep(DepositFlowStep.SIGN_POP);
@@ -216,7 +217,7 @@ export function useDepositFlow(
 
         // Step 2a: Build and fund the BTC transaction (no on-chain submission yet)
         const prepared = await preparePegin({
-          btcWalletProvider,
+          btcWalletProvider: confirmedBtcWallet,
           walletClient,
           amount,
           feeRate,
@@ -243,7 +244,7 @@ export function useDepositFlow(
 
         // Step 2b: Register pegin on-chain (PoP + ETH tx)
         const registration = await registerPeginAndWait({
-          btcWalletProvider,
+          btcWalletProvider: confirmedBtcWallet,
           walletClient,
           depositorBtcPubkey: prepared.depositorBtcPubkey,
           fundedTxHex: prepared.btcTxHex,
@@ -296,11 +297,11 @@ export function useDepositFlow(
         } catch (err) {
           // Re-throw abort errors so they're suppressed by the outer catch
           if (signal.aborted) throw err;
-          // ETH tx already succeeded — deposit is recoverable via resume flow
-          console.error(
-            "Lamport key submission failed (deposit is recoverable):",
-            err,
-          );
+          logger.error(err instanceof Error ? err : new Error(String(err)), {
+            data: {
+              context: "Lamport key submission failed (deposit is recoverable)",
+            },
+          });
         }
 
         // Step 3: Poll and sign payout transactions
@@ -330,7 +331,7 @@ export function useDepositFlow(
         setIsWaiting(false);
 
         const signatures = await signPayoutTransactions(
-          btcWalletProvider,
+          confirmedBtcWallet,
           context,
           preparedTransactions,
           setPayoutSigningProgress,
@@ -343,7 +344,7 @@ export function useDepositFlow(
           await prepareAndSignDepositorGraph({
             depositorGraph,
             depositorBtcPubkey: prepared.depositorBtcPubkey,
-            btcWallet: btcWalletProvider,
+            btcWallet: confirmedBtcWallet,
             vaultProviderBtcPubkey: context.vaultProviderBtcPubkey,
             vaultKeeperBtcPubkeys: context.vaultKeeperBtcPubkeys,
             universalChallengerBtcPubkeys:
@@ -384,7 +385,7 @@ export function useDepositFlow(
           {
             btcTxid: registration.btcTxid,
             depositorBtcPubkey: prepared.depositorBtcPubkey,
-            btcWalletProvider,
+            btcWalletProvider: confirmedBtcWallet,
           },
           depositorEthAddress,
         );
@@ -408,7 +409,9 @@ export function useDepositFlow(
           const errorMessage =
             err instanceof Error ? err.message : "Unknown error";
           setError(errorMessage);
-          console.error("Deposit flow error:", err);
+          logger.error(err instanceof Error ? err : new Error(String(err)), {
+            data: { context: "Deposit flow error" },
+          });
         }
         return null;
       } finally {

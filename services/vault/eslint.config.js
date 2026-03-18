@@ -45,6 +45,7 @@ export default tseslint.config(
       "react-refresh": reactRefresh,
     },
     rules: {
+      "no-console": "error",
       ...reactHooks.configs.recommended.rules,
       "react-hooks/exhaustive-deps": "error",
       "react-hooks/rules-of-hooks": "error",
@@ -103,6 +104,18 @@ export default tseslint.config(
     },
   },
   eslintPluginPrettierRecommended,
+  {
+    files: [
+      "**/test/**",
+      "**/__tests__/**",
+      "**/*.test.{ts,tsx}",
+      "**/setup.ts",
+      "vite.config.ts",
+    ],
+    rules: {
+      "no-console": "off",
+    },
+  },
   {
     settings: {
       "import/resolver": {

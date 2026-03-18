@@ -8,6 +8,8 @@
 
 import { isAddress, type Address } from "viem";
 
+import { logger } from "@/infrastructure";
+
 /**
  * Environment variables for the vault application
  */
@@ -30,7 +32,7 @@ function parseOptionalAddress(value: string | undefined): Address | undefined {
   const trimmed = value?.trim();
   if (!trimmed) return undefined;
   if (!isAddress(trimmed)) {
-    console.warn(`Invalid address in env config: "${trimmed}", ignoring.`);
+    logger.warn(`Invalid address in env config: "${trimmed}", ignoring.`);
     return undefined;
   }
   return trimmed as Address;

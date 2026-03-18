@@ -95,7 +95,6 @@ export function PendingDepositCard({
       txHash={txHash}
       providerName={providerName}
       providerIconUrl={provider?.iconUrl}
-      providerVerified={provider?.verified}
       statusContent={
         <VaultStatusBadge
           dotColor={dotColor}
