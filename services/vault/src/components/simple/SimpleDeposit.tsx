@@ -134,7 +134,10 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
     setTransactionHashes,
   } = useDepositPageFlow();
 
-  const partialLiquidationProps = hasActiveVaults
+  const allowSplit =
+    !hasActiveVaults || FeatureFlags.isForcePartialLiquidationSplit;
+
+  const partialLiquidationProps = !allowSplit
     ? undefined
     : {
         isEnabled: isPartialLiquidation,
@@ -162,7 +165,7 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
       ]);
       setFeeRate(estimatedFeeRate);
       const shouldSplit =
-        isPartialLiquidation && !hasActiveVaults && !!allocationPlan;
+        isPartialLiquidation && allowSplit && !!allocationPlan;
       setIsSplitDeposit(shouldSplit);
       if (shouldSplit && allocationPlan) {
         setSplitAllocationPlan(allocationPlan);
