@@ -161,7 +161,8 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
         formData.selectedProvider,
       ]);
       setFeeRate(estimatedFeeRate);
-      const shouldSplit = isPartialLiquidation && !hasActiveVaults;
+      const shouldSplit =
+        isPartialLiquidation && !hasActiveVaults && !!allocationPlan;
       setIsSplitDeposit(shouldSplit);
       if (shouldSplit && allocationPlan) {
         setSplitAllocationPlan(allocationPlan);

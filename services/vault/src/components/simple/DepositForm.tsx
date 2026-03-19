@@ -1,11 +1,14 @@
 import {
+  Accordion,
+  AccordionDetails,
+  AccordionSummary,
   AmountSlider,
   Card,
-  Checkbox,
   Loader,
   Select,
 } from "@babylonlabs-io/core-ui";
 import { useMemo } from "react";
+import { IoCheckmark, IoChevronUp } from "react-icons/io5";
 
 import { ApplicationLogo } from "@/components/ApplicationLogo";
 import { DepositButton } from "@/components/shared";
@@ -149,16 +152,32 @@ export function DepositForm({
     return null;
   }, [partialLiquidation, amountSats]);
 
-  const ctaLabel = isFeeError
-    ? (feeError ?? "Fee estimate unavailable")
-    : depositService.getDepositButtonLabel({
-        amountSats,
-        minDeposit,
-        maxDeposit,
-        btcBalance,
-      });
+  const splitNotReady =
+    partialLiquidation?.isEnabled &&
+    !partialLiquidation?.canSplit &&
+    !partialLiquidation?.isPlanning;
+
+  const splitSummaryLabel = partialLiquidation?.splitRatioLabel
+    ? `2 UTXO Split - ${partialLiquidation.splitRatioLabel} (Recommended)`
+    : "2 UTXO Split (Recommended)";
+
+  const ctaLabel = splitNotReady
+    ? "Deposit amount too low for 2-vault split"
+    : isFeeError
+      ? (feeError ?? "Fee estimate unavailable")
+      : depositService.getDepositButtonLabel({
+          amountSats,
+          minDeposit,
+          maxDeposit,
+          btcBalance,
+        });
   const ctaDisabled =
-    !isValid || !isDepositEnabled || isGeoBlocked || !hasAmount || feeDisabled;
+    !isValid ||
+    !isDepositEnabled ||
+    isGeoBlocked ||
+    !hasAmount ||
+    feeDisabled ||
+    splitNotReady;
 
   return (
     <div className="flex w-full flex-col gap-4">
@@ -182,32 +201,70 @@ export function DepositForm({
         />
       </Card>
 
-      {/* Partial liquidation checkbox */}
+      {/* Partial liquidation split selector */}
       {partialLiquidation && (
-        <Card variant="filled" className="flex flex-col gap-2 px-4 py-3">
-          <label className="flex cursor-pointer items-center gap-3">
-            <Checkbox
-              checked={partialLiquidation.isEnabled}
-              onChange={() =>
-                partialLiquidation.onChange(!partialLiquidation.isEnabled)
-              }
-              variant="default"
-              showLabel={false}
-              disabled={!partialLiquidation.canSplit}
-            />
-            <span
-              className={`text-sm ${partialLiquidation.canSplit ? "text-accent-primary" : "text-accent-secondary"}`}
+        <Card variant="filled" className="py-0">
+          <Accordion>
+            <AccordionSummary
+              className="flex items-center justify-between px-0 py-3"
+              iconProps={{
+                variant: "outlined",
+                size: "small",
+                className:
+                  "border-0 !text-secondary-strokeDark !static !translate-y-0",
+              }}
+              renderIcon={(expanded) => (
+                <IoChevronUp
+                  className={`transition-transform ${expanded ? "" : "rotate-180"}`}
+                />
+              )}
             >
-              {partialLiquidation.splitRatioLabel
-                ? `2 UTXO Split - ${partialLiquidation.splitRatioLabel} (Recommended)`
-                : "2 UTXO Split (Recommended)"}
-            </span>
-          </label>
-          {splitStatusText && (
-            <span className="text-xs text-accent-secondary">
-              {splitStatusText}
-            </span>
-          )}
+              <span
+                className={`text-sm ${partialLiquidation.canSplit ? "text-accent-primary" : "text-accent-secondary"}`}
+              >
+                {partialLiquidation.isEnabled
+                  ? splitSummaryLabel
+                  : "Do not split UTXO"}
+              </span>
+            </AccordionSummary>
+            <AccordionDetails className="flex flex-col px-0 pb-3">
+              <p className="mb-3 text-xs text-accent-secondary">
+                Splitting your BTC into multiple vaults gives your position more
+                flexibility. If liquidation occurs, it may allow only part of
+                your collateral to be affected instead of the full amount.
+              </p>
+
+              <button
+                type="button"
+                className="flex w-full items-center justify-between py-3 text-sm text-accent-primary"
+                onClick={() => partialLiquidation.onChange(false)}
+              >
+                Do not split UTXO
+                {!partialLiquidation.isEnabled && (
+                  <IoCheckmark className="text-secondary-main" size={20} />
+                )}
+              </button>
+
+              <button
+                type="button"
+                className={`flex w-full items-center justify-between py-3 text-sm ${partialLiquidation.canSplit ? "text-accent-primary" : "text-accent-secondary"}`}
+                onClick={() => partialLiquidation.onChange(true)}
+              >
+                {partialLiquidation.splitRatioLabel
+                  ? `2 UTXO Split - ${partialLiquidation.splitRatioLabel} (Recommended)`
+                  : "2 UTXO Split (Recommended)"}
+                {partialLiquidation.isEnabled && (
+                  <IoCheckmark className="text-secondary-main" size={20} />
+                )}
+              </button>
+
+              {splitStatusText && (
+                <span className="block pt-1 text-xs text-accent-secondary">
+                  {splitStatusText}
+                </span>
+              )}
+            </AccordionDetails>
+          </Accordion>
         </Card>
       )}
 

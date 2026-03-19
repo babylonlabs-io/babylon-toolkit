@@ -221,6 +221,7 @@ export function useAllocationPlanning({
     if (!canSplit || amountSats <= 0n) return null;
     const total = sacrificialVault + protectedVault;
     if (total === 0n) return null;
+    // Safe: BTC amounts in sats fit within Number.MAX_SAFE_INTEGER (max ~2.1e15 sats < 9e15)
     const sacrificialPct = Math.round(
       (Number(sacrificialVault) / Number(total)) * 100,
     );
