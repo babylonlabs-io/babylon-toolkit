@@ -36,15 +36,20 @@
  *
  * ### {@link PeginManager}
  * Orchestrates the peg-in deposit flow:
- * - {@link PeginManager.preparePegin | preparePegin()} - Build and fund transaction
+ * - {@link PeginManager.preparePegin | preparePegin()} - Build and fund transaction (current flow)
  * - {@link PeginManager.registerPeginOnChain | registerPeginOnChain()} - Submit to Ethereum
- * - {@link PeginManager.signAndBroadcast | signAndBroadcast()} - Broadcast to Bitcoin
+ * - {@link PeginManager.signAndBroadcast | signAndBroadcast()} - Broadcast to Bitcoin (current flow)
+ *
+ * New peg-in flow (Pre-PegIn) methods (planned):
+ * - `preparePrePegin()` - Build Pre-PegIn + derive PegIn
+ * - `buildRefundTransaction()` - Build refund for timed-out Pre-PegIn
+ * - `getPrePeginHtlcInfo()` - Get HTLC scripts/control blocks
  *
  * ### {@link PayoutManager}
  * Signs payout authorization transactions (Step 3 of peg-in).
  * - {@link PayoutManager.signPayoutTransaction | signPayoutTransaction()} - Sign payout (uses Assert tx as reference)
  *
- * ## Complete Peg-in Flow
+ * ## Complete Peg-in Flow (Current)
  *
  * The 4-step peg-in flow uses both managers:
  *
@@ -54,6 +59,15 @@
  * | 2 | PeginManager | `registerPeginOnChain()` |
  * | 3 | PayoutManager | `signPayoutTransaction()` |
  * | 4 | PeginManager | `signAndBroadcast()` |
+ *
+ * ## New Peg-in Flow (Pre-PegIn)
+ *
+ * | Step | Manager | Method |
+ * |------|---------|--------|
+ * | 1 | PeginManager | `preparePrePegin()` |
+ * | 2 | PeginManager | Sign & broadcast Pre-PegIn, register on Ethereum |
+ * | 3 | PayoutManager | `signPayoutTransaction()` |
+ * | 4 | PeginManager | Reveal secret to activate vault |
  *
  * **Step 3 Details:** The vault provider provides 3 transactions per claimer:
  * - `claim_tx` - Claim transaction
@@ -70,8 +84,13 @@
 export { PeginManager } from "./PeginManager";
 export type {
   CreatePeginParams,
+  CreatePrePeginParams,
   PeginManagerConfig,
   PeginResult,
+  PeginFromPrePeginResult,
+  PrePeginResult,
+  PrePeginTransactionParams,
+  PrePeginWithPeginResult,
   RegisterPeginParams,
   RegisterPeginResult,
   SignAndBroadcastParams,

@@ -35,7 +35,10 @@ import type { BitcoinWallet } from "../../../shared/wallets/interfaces/BitcoinWa
 import type { Hash } from "../../../shared/wallets/interfaces/EthereumWallet";
 import { getUtxoInfo, pushTx } from "../clients/mempool";
 import { BTCVaultsManagerABI, handleContractError } from "../contracts";
-import { buildPeginPsbt, type Network } from "../primitives";
+import {
+  buildPeginPsbt,
+  type Network,
+} from "../primitives";
 import {
   isAddressFromPublicKey,
   stripHexPrefix,
@@ -195,6 +198,100 @@ export interface PeginResult {
   ethTxHash: Hash | null;
 }
 
+// ============================================================================
+// Pre-PegIn Types (New PegIn Flow)
+// ============================================================================
+
+/**
+ * Core Pre-PegIn transaction parameters (protocol-level, no funding details).
+ * Used by methods that don't require UTXO selection (refund, HTLC info).
+ */
+export interface PrePeginTransactionParams {
+  /** Amount to lock in the vault (in satoshis) */
+  amount: bigint;
+  /** Vault provider's Ethereum address */
+  vaultProvider: Address;
+  /** Vault provider's BTC public key (x-only, 64-char hex) */
+  vaultProviderBtcPubkey: string;
+  /** Vault keeper BTC public keys (x-only, 64-char hex) */
+  vaultKeeperBtcPubkeys: string[];
+  /** Universal challenger BTC public keys (x-only, 64-char hex) */
+  universalChallengerBtcPubkeys: string[];
+  /** SHA256 hash commitment h = SHA256(s) (hex, 64 chars = 32 bytes) */
+  hashH: string;
+  /** CSV timelock for the refund path in blocks */
+  timelockRefund: number;
+  /** Fee rate in sat/vB (from contract offchain params) */
+  feeRate: bigint;
+  /** Number of local challengers (from contract params) */
+  numLocalChallengers: number;
+  /** M in M-of-N council multisig (from contract params) */
+  councilQuorum: number;
+  /** N in M-of-N council multisig (from contract params) */
+  councilSize: number;
+}
+
+/**
+ * Parameters for preparing a Pre-PegIn transaction (new peg-in flow).
+ * Extends core params with funding details and PegIn timelock.
+ */
+export interface CreatePrePeginParams extends PrePeginTransactionParams {
+  /** CSV timelock in blocks for the PegIn output */
+  timelockPegin: number;
+  /** Available UTXOs from the depositor's wallet for funding */
+  availableUTXOs: UTXO[];
+  /** Wallet fee rate in satoshis per vbyte for the Pre-PegIn transaction */
+  walletFeeRate: number;
+  /** Bitcoin address for receiving change */
+  changeAddress: string;
+}
+
+/**
+ * Result of preparing a Pre-PegIn transaction.
+ */
+export interface PrePeginResult {
+  /** Funded but unsigned Pre-PegIn transaction hex */
+  fundedPrePeginTxHex: string;
+  /** Pre-PegIn transaction ID (funded, stable after signing since inputs are SegWit) */
+  prePeginTxid: string;
+  /** HTLC output scriptPubKey (hex) */
+  htlcScriptPubKey: string;
+  /** HTLC output value in satoshis */
+  htlcValue: bigint;
+  /** Auto-computed depositor claim value in satoshis */
+  depositorClaimValue: bigint;
+  /** UTXOs selected for funding */
+  selectedUTXOs: UTXO[];
+  /** Transaction fee in satoshis */
+  fee: bigint;
+  /** Change amount in satoshis */
+  changeAmount: bigint;
+}
+
+/**
+ * Result of building a PegIn from a Pre-PegIn.
+ */
+export interface PeginFromPrePeginResult {
+  /** PegIn transaction hex (depositor needs to sign their input) */
+  peginTxHex: string;
+  /** PegIn transaction ID (vault ID) */
+  peginTxid: string;
+  /** Vault script pubkey (hex) */
+  vaultScriptPubKey: string;
+  /** Vault output value in satoshis */
+  vaultValue: bigint;
+}
+
+/**
+ * Combined result of preparePrePegin + buildPeginFromPrePegin.
+ */
+export interface PrePeginWithPeginResult {
+  /** Pre-PegIn preparation result */
+  prePegin: PrePeginResult;
+  /** PegIn transaction derived from the Pre-PegIn */
+  pegin: PeginFromPrePeginResult;
+}
+
 /**
  * Parameters for signing and broadcasting a transaction.
  */
@@ -324,6 +421,9 @@ export class PeginManager {
   }
 
   /**
+   * TODO: Remove once the new Pre-PegIn flow replaces the current flow.
+   * The new flow uses preparePrePegin() instead.
+   *
    * Prepares a peg-in transaction by building and funding it.
    *
    * This method orchestrates the following steps:
@@ -403,6 +503,10 @@ export class PeginManager {
   }
 
   /**
+   * TODO: Remove once the new Pre-PegIn flow replaces the current flow.
+   * In the new flow, the Pre-PegIn tx is signed/broadcast separately, and the
+   * PegIn tx is submitted to Ethereum (not broadcast to Bitcoin directly).
+   *
    * Signs and broadcasts a funded peg-in transaction to the Bitcoin network.
    *
    * This method:
@@ -515,6 +619,12 @@ export class PeginManager {
   }
 
   /**
+   * TODO: Update once the new Pre-PegIn flow replaces the current flow.
+   * The new flow will pass different params to submitPeginRequest:
+   * unsignedPrePeginTx, depositorSignedPeginTx, and hashlock h (instead of unsignedPegInTx).
+   * VaultId will be derived from depositorSignedPeginTx (not unsigned tx).
+   * A new activateVaultWithSecret() call will also be needed after secret reveal.
+   *
    * Registers a peg-in on Ethereum by calling the BTCVaultsManager contract.
    *
    * This method:
@@ -660,6 +770,18 @@ export class PeginManager {
       handleContractError(error);
     }
   }
+
+  // ===========================================================================
+  // Pre-PegIn Methods (New PegIn Flow) — staged, will be wired in when WASM is
+  // rebuilt with Pre-PegIn support. See:
+  //   - primitives/psbt/prepegin.ts (primitive functions)
+  //   - Types: CreatePrePeginParams, PrePeginTransactionParams, etc. (above)
+  //
+  // Methods to add in future PR:
+  //   - preparePrePegin(params: CreatePrePeginParams): PrePeginWithPeginResult
+  //   - buildRefundTransaction(params: PrePeginTransactionParams, ...): string
+  //   - getPrePeginHtlcInfo(params: PrePeginTransactionParams): PrePeginHtlcInfo
+  // ===========================================================================
 
   /**
    * Check if a vault already exists for a given vault ID.

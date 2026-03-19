@@ -22,6 +22,9 @@ export async function initWasm() {
 }
 
 /**
+ * TODO: Remove once the new Pre-PegIn flow replaces the current flow.
+ * The new flow uses createPrePeginTransaction() + buildPeginFromPrePegin() instead.
+ *
  * Creates an unfunded peg-in transaction with no inputs and one output.
  *
  * This function creates a Bitcoin transaction template that the frontend
@@ -109,6 +112,13 @@ export type {
   AssertNoPayoutScriptInfo,
   ChallengeAssertConnectorParams,
   ChallengeAssertScriptInfo,
+  PrePeginHtlcConnectorParams,
+  PrePeginHtlcConnectorInfo,
+  PrePeginTxParams,
+  PrePeginTxResult,
+  PeginFromPrePeginParams,
+  PeginFromPrePeginResult,
+  RefundFromPrePeginParams,
 } from "./types.js";
 
 // Export constants
@@ -126,6 +136,13 @@ export {
 // Export challenge assert connector utilities (depositor-as-claimer)
 export { getChallengeAssertScriptInfo } from "./challengeAssertConnector.js";
 
+// Pre-PegIn utilities — function exports are staged in
+// prePeginTx.ts and prePeginHtlcConnector.ts but NOT re-exported here
+// until WASM is rebuilt with Pre-PegIn support.
+// Only type exports are included above (compile-time only, no runtime impact).
+
+// TODO: Remove WasmPeginTx re-export once the new Pre-PegIn flow replaces the current flow.
+// The new flow constructs PegIn via WasmPrePeginTx.buildPeginTx() instead.
 // Re-export the raw WASM types if needed
 // @ts-expect-error - WASM files are in dist/generated/ (checked into git), not src/generated/
 export { WasmPeginTx, WasmPeginPayoutConnector } from "./generated/btc_vault.js";

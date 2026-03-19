@@ -40,6 +40,10 @@
  *
  * ### PSBT Builders
  * - {@link buildPeginPsbt} - Create unfunded peg-in transaction
+ * - {@link buildPrePeginPsbt} - Create unfunded Pre-PegIn transaction (new peg-in flow)
+ * - {@link buildPeginFromPrePeginPsbt} - Build PegIn from funded Pre-PegIn (new peg-in flow)
+ * - {@link buildRefundFromPrePeginPsbt} - Build refund from funded Pre-PegIn (new peg-in flow)
+ * - {@link getPrePeginHtlcInfo} - Get HTLC scripts and control blocks (new peg-in flow)
  * - {@link buildPayoutPsbt} - Create payout PSBT for signing
  * - {@link extractPayoutSignature} - Extract Schnorr signature from signed PSBT
  * - {@link buildDepositorPayoutPsbt} - Create depositor's own Payout PSBT (depositor-as-claimer path)
@@ -67,6 +71,14 @@ export type { Network } from "@babylonlabs-io/babylon-tbv-rust-wasm";
 // PSBT builders
 export { buildPeginPsbt } from "./psbt/pegin";
 export type { PeginParams, PeginPsbtResult } from "./psbt/pegin";
+
+// Pre-PegIn primitives (new peg-in flow) — type-only exports until WASM is rebuilt
+export type {
+  PrePeginParams,
+  PrePeginPsbtResult,
+  PeginFromPrePeginPsbtResult,
+  PrePeginHtlcInfo,
+} from "./psbt/prepegin";
 
 export { buildPayoutPsbt, extractPayoutSignature } from "./psbt/payout";
 export type { PayoutParams, PayoutPsbtResult } from "./psbt/payout";

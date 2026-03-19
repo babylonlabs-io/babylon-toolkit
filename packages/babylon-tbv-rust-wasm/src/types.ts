@@ -146,3 +146,148 @@ export interface ChallengeAssertScriptInfo {
   /** The control block for the ChallengeAssert script (hex encoded) */
   controlBlock: string;
 }
+
+// ============================================================================
+// Pre-PegIn Types (New PegIn Flow)
+// ============================================================================
+
+/**
+ * Parameters for creating a Pre-PegIn HTLC connector.
+ *
+ * The HTLC connector defines the spending conditions for the Pre-PegIn output:
+ * - Leaf 0 (hashlock): Secret reveal + all-party signatures (Depositor + VP + VKs + UCs)
+ * - Leaf 1 (refund): Depositor signature after CSV timelock
+ */
+export interface PrePeginHtlcConnectorParams {
+  /** X-only public key of the depositor (hex encoded, 64 chars) */
+  depositor: string;
+  /** X-only public key of the vault provider (hex encoded, 64 chars) */
+  vaultProvider: string;
+  /** Array of x-only public keys of vault keepers (hex encoded) */
+  vaultKeepers: string[];
+  /** Array of x-only public keys of universal challengers (hex encoded) */
+  universalChallengers: string[];
+  /** SHA256 hash commitment h = SHA256(s) (hex encoded, 64 chars = 32 bytes) */
+  hashH: string;
+  /** CSV timelock for the refund path in blocks (must be non-zero) */
+  timelockRefund: number;
+}
+
+/**
+ * HTLC connector information for the Pre-PegIn output.
+ */
+export interface PrePeginHtlcConnectorInfo {
+  /** Taproot address for the HTLC output */
+  address: string;
+  /** Taproot scriptPubKey (hex encoded) */
+  scriptPubKey: string;
+  /** Hashlock + all-party spend script (leaf 0, hex encoded) */
+  hashlockScript: string;
+  /** Control block for spending via the hashlock leaf (hex encoded) */
+  hashlockControlBlock: string;
+  /** Refund script (leaf 1, hex encoded) */
+  refundScript: string;
+  /** Control block for spending via the refund leaf (hex encoded) */
+  refundControlBlock: string;
+}
+
+/**
+ * Parameters for creating an unfunded Pre-PegIn transaction.
+ *
+ * The Pre-PegIn transaction locks BTC in an HTLC output that can be spent
+ * either by revealing the secret (hashlock path) or by the depositor after
+ * the refund timelock expires.
+ *
+ * The `depositorClaimValue` and `htlcValue` are auto-computed by WASM from
+ * the provided contract parameters.
+ */
+export interface PrePeginTxParams {
+  /** X-only public key of the depositor (hex encoded, 64 chars) */
+  depositor: string;
+  /** X-only public key of the vault provider (hex encoded, 64 chars) */
+  vaultProvider: string;
+  /** Array of x-only public keys of vault keepers (hex encoded) */
+  vaultKeepers: string[];
+  /** Array of x-only public keys of universal challengers (hex encoded) */
+  universalChallengers: string[];
+  /** SHA256 hash commitment h = SHA256(s) (hex encoded, 64 chars = 32 bytes) */
+  hashH: string;
+  /** CSV timelock for the refund path in blocks (must be non-zero) */
+  timelockRefund: number;
+  /** Amount in satoshis to lock in the vault */
+  peginAmount: bigint;
+  /** Fee rate in sat/vB (from contract offchain params) */
+  feeRate: bigint;
+  /** Number of local challengers (from contract params) */
+  numLocalChallengers: number;
+  /** M in M-of-N council multisig (from contract params) */
+  councilQuorum: number;
+  /** N in M-of-N council multisig (from contract params) */
+  councilSize: number;
+  /** Bitcoin network */
+  network: Network;
+}
+
+/**
+ * Result of creating an unfunded Pre-PegIn transaction.
+ *
+ * This transaction has no inputs and two outputs:
+ * - Output 0: HTLC output (value = peginAmount + depositorClaimValue + peginFee)
+ * - Output 1: CPFP anchor (BIP-86 keypath for depositor)
+ *
+ * The frontend must fund this by selecting UTXOs, adding inputs, and a change output.
+ */
+export interface PrePeginTxResult {
+  /** Unfunded transaction hex (no inputs) */
+  txHex: string;
+  /** Transaction ID (changes after funding) */
+  txid: string;
+  /** HTLC output scriptPubKey (hex encoded) */
+  htlcScriptPubKey: string;
+  /** HTLC output value in satoshis (peginAmount + depositorClaimValue + peginFee) */
+  htlcValue: bigint;
+  /** Taproot address for the HTLC output */
+  htlcAddress: string;
+  /** Vault amount in satoshis */
+  peginAmount: bigint;
+  /** Auto-computed depositor claim value in satoshis */
+  depositorClaimValue: bigint;
+}
+
+/**
+ * Parameters for building a PegIn transaction from a funded Pre-PegIn.
+ */
+export interface PeginFromPrePeginParams {
+  /** CSV timelock in blocks for the PegIn output */
+  timelockPegin: number;
+  /** Txid of the funded (but not yet signed) Pre-PegIn transaction (hex, 64 chars) */
+  fundedPrePeginTxid: string;
+}
+
+/**
+ * Result of building a PegIn transaction from a Pre-PegIn.
+ *
+ * The PegIn tx has a single input spending Pre-PegIn output 0 (HTLC)
+ * via the hashlock + all-party script. The fee is baked into the
+ * HTLC input/output difference.
+ */
+export interface PeginFromPrePeginResult {
+  /** Transaction hex */
+  txHex: string;
+  /** Transaction ID */
+  txid: string;
+  /** Vault script pubkey (hex encoded) */
+  vaultScriptPubKey: string;
+  /** Vault output value in satoshis */
+  vaultValue: bigint;
+}
+
+/**
+ * Parameters for building a refund transaction from a funded Pre-PegIn.
+ */
+export interface RefundFromPrePeginParams {
+  /** Transaction fee in satoshis */
+  refundFee: bigint;
+  /** Txid of the funded Pre-PegIn transaction (hex, 64 chars) */
+  fundedPrePeginTxid: string;
+}

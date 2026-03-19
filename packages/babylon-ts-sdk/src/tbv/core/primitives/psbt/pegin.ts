@@ -91,6 +91,9 @@ export interface PeginPsbtResult {
 }
 
 /**
+ * TODO: Remove once the new Pre-PegIn flow replaces the current flow.
+ * The new flow uses buildPrePeginPsbt() + buildPeginFromPrePeginPsbt() instead.
+ *
  * Build unsigned peg-in PSBT using WASM.
  *
  * This is a pure function that wraps the Rust WASM implementation.
