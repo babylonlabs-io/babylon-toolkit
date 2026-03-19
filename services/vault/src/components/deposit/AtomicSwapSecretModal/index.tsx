@@ -8,8 +8,8 @@ import {
   DialogHeader,
   ResponsiveDialog,
   Text,
-  Warning,
   useCopy,
+  Warning,
 } from "@babylonlabs-io/core-ui";
 import { sha256 } from "@noble/hashes/sha2.js";
 import { useState } from "react";
