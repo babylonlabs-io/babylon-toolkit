@@ -128,7 +128,7 @@ export interface LamportSubmissionParams {
   btcTxid: string;
   depositorBtcPubkey: string;
   appContractAddress: string;
-  providerUrl: string;
+  providerAddress: string;
   getMnemonic: () => Promise<string>;
   signal?: AbortSignal;
 }
@@ -142,7 +142,7 @@ export interface PayoutSigningParams {
   /** The pegin transaction hex from step 2 - used for signing context */
   btcTxHex: string;
   depositorBtcPubkey: string;
-  providerUrl: string;
+  providerAddress: string;
   providerBtcPubKey: string;
   vaultKeepers: Array<{ btcPubKey: string }>;
   universalChallengers: Array<{ btcPubKey: string }>;
@@ -154,7 +154,7 @@ export interface PayoutSigningParams {
 
 export interface PayoutSigningContext {
   context: SigningContext;
-  vaultProviderUrl: string;
+  vaultProviderAddress: string;
   preparedTransactions: PreparedTransaction[];
   depositorGraph: DepositorGraphTransactions;
 }

@@ -57,6 +57,11 @@ export class JsonRpcError extends Error {
   }
 }
 
+export const JSON_RPC_ERROR_CODES = {
+  TIMEOUT: -32000,
+  NETWORK: -32001,
+} as const;
+
 /** HTTP status codes that are retryable */
 const RETRYABLE_STATUS_CODES = [408, 429, 500, 502, 503, 504];
 
@@ -94,6 +99,36 @@ export class JsonRpcClient {
     method: string,
     params: TParams,
   ): Promise<TResult> {
+    const response = await this.fetchWithRetry(method, params);
+    const jsonResponse: JsonRpcResponse<TResult> = await response.json();
+
+    if ("error" in jsonResponse) {
+      const errorResponse = jsonResponse as JsonRpcErrorResponse;
+      throw new JsonRpcError(
+        errorResponse.error.code,
+        errorResponse.error.message,
+        errorResponse.error.data,
+      );
+    }
+
+    const successResponse = jsonResponse as JsonRpcSuccessResponse<TResult>;
+    return successResponse.result;
+  }
+
+  /**
+   * Make a JSON-RPC request returning the raw Response (unparsed body).
+   *
+   * Shares the same retry / timeout / backoff behaviour as `call()` but
+   * skips JSON body parsing so callers can stream the response as a Blob.
+   */
+  async callRaw<TParams>(method: string, params: TParams): Promise<Response> {
+    return this.fetchWithRetry(method, params);
+  }
+
+  private async fetchWithRetry<TParams>(
+    method: string,
+    params: TParams,
+  ): Promise<Response> {
     const requestId = ++this.requestId;
 
     // jsonrpsee (Rust backend) expects params as an array (positional parameters)
@@ -106,6 +141,7 @@ export class JsonRpcClient {
       id: requestId,
     };
 
+    const body = JSON.stringify(request);
     let lastError: Error | null = null;
 
     for (let attempt = 0; attempt <= this.retries; attempt++) {
@@ -116,13 +152,12 @@ export class JsonRpcClient {
         const response = await fetch(this.baseUrl, {
           method: "POST",
           headers: this.headers,
-          body: JSON.stringify(request),
+          body,
           signal: controller.signal,
         });
 
         clearTimeout(timeoutId);
 
-        // Check if we should retry on HTTP error
         if (!response.ok) {
           const shouldRetry =
             attempt < this.retries &&
@@ -142,26 +177,11 @@ export class JsonRpcClient {
           );
         }
 
-        const jsonResponse: JsonRpcResponse<TResult> = await response.json();
-
-        // Check for JSON-RPC error response
-        if ("error" in jsonResponse) {
-          const errorResponse = jsonResponse as JsonRpcErrorResponse;
-          throw new JsonRpcError(
-            errorResponse.error.code,
-            errorResponse.error.message,
-            errorResponse.error.data,
-          );
-        }
-
-        // Return the result
-        const successResponse = jsonResponse as JsonRpcSuccessResponse<TResult>;
-        return successResponse.result;
+        return response;
       } catch (error) {
         clearTimeout(timeoutId);
         lastError = error instanceof Error ? error : new Error(String(error));
 
-        // Handle timeout - retryable
         if (error instanceof Error && error.name === "AbortError") {
           if (attempt < this.retries) {
             const delay = this.retryDelay * Math.pow(2, attempt);
@@ -172,7 +192,7 @@ export class JsonRpcClient {
             continue;
           }
           throw new JsonRpcError(
-            -32000,
+            JSON_RPC_ERROR_CODES.TIMEOUT,
             `Request timeout after ${this.timeout}ms (${this.retries + 1} attempts)`,
           );
         }
@@ -188,7 +208,7 @@ export class JsonRpcClient {
             continue;
           }
           throw new JsonRpcError(
-            -32001,
+            JSON_RPC_ERROR_CODES.NETWORK,
             `Network error: ${error.message} (${this.retries + 1} attempts)`,
           );
         }
@@ -198,7 +218,6 @@ export class JsonRpcClient {
       }
     }
 
-    // Should not reach here, but handle just in case
     throw lastError || new Error("Unknown error after retries");
   }
 

@@ -51,6 +51,7 @@ export interface AavePositionCollateral {
     status: string;
     vaultProvider: string;
     inUse: boolean;
+    depositorBtcPubKey: string;
   };
 }
 
@@ -83,6 +84,7 @@ interface GraphQLCollateralItem {
     status: string;
     vaultProvider: string;
     inUse: boolean;
+    depositorBtcPubKey: string;
   };
 }
 
@@ -129,6 +131,7 @@ const GET_AAVE_ACTIVE_POSITIONS_WITH_COLLATERALS = gql`
               status
               vaultProvider
               inUse
+              depositorBtcPubKey
             }
           }
         }
@@ -152,6 +155,7 @@ const GET_AAVE_POSITION_COLLATERALS = gql`
           status
           vaultProvider
           inUse
+          depositorBtcPubKey
         }
       }
     }
@@ -204,6 +208,7 @@ function mapGraphQLCollateralToAavePositionCollateral(
           status: item.vault.status,
           vaultProvider: item.vault.vaultProvider,
           inUse: item.vault.inUse,
+          depositorBtcPubKey: item.vault.depositorBtcPubKey,
         }
       : undefined,
   };

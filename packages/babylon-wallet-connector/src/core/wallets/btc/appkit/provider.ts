@@ -1,3 +1,4 @@
+import type { BitcoinAdapter } from "@reown/appkit-adapter-bitcoin";
 import { Psbt } from "bitcoinjs-lib";
 
 import type { BTCConfig, IBTCProvider, InscriptionIdentifier, SignPsbtOptions } from "@/core/types";
@@ -7,14 +8,36 @@ import { APPKIT_BTC_CONNECTED_EVENT } from "./constants";
 import icon from "./icon.svg";
 import { getSharedBtcAppKitConfig, hasSharedBtcAppKitConfig } from "./sharedConfig";
 
-/**
- * AppKitBTCProvider - BTC wallet provider using AppKit/BitcoinAdapter
- */
+interface BtcConnectedEvent extends Event {
+  detail?: { address?: string; publicKey?: string };
+}
+
+interface AppKitBtcWalletProvider {
+  signPSBT?: (params: {
+    psbt: string;
+    signInputs?: { address: string; signingIndexes: number[] };
+    broadcast: boolean;
+  }) => Promise<string | { psbt?: string }>;
+  signMessage?: (params: {
+    message: string;
+    address: string;
+    protocol: string;
+  }) => Promise<string>;
+}
+
+interface AdapterConnection {
+  account?: { address?: string; publicKey?: string };
+}
+
+function getAdapterConnections(adapter: BitcoinAdapter): AdapterConnection[] {
+  return (adapter as unknown as { connections?: AdapterConnection[] }).connections ?? [];
+}
+
 export class AppKitBTCProvider implements IBTCProvider {
   private config: BTCConfig;
   private address?: string;
   private publicKey?: string;
-  private eventHandlers: Map<string, Set<(...args: any[]) => void>> = new Map();
+  private eventHandlers: Map<string, Set<(...args: unknown[]) => void>> = new Map();
 
   constructor(config: BTCConfig) {
     this.config = config;
@@ -47,11 +70,12 @@ export class AppKitBTCProvider implements IBTCProvider {
             reject(new Error("Connection timeout"));
           }, 60000);
 
-          const handleAccountChange = (event: any) => {
-            if (event.detail?.address) {
+          const handleAccountChange = (event: Event) => {
+            const detail = (event as BtcConnectedEvent).detail;
+            if (detail?.address) {
               cleanup();
-              this.address = event.detail.address;
-              this.publicKey = event.detail.publicKey;
+              this.address = detail.address;
+              this.publicKey = detail.publicKey;
               resolve();
             } else {
               console.warn("[AppKit Provider] Event received but no address in detail");
@@ -60,10 +84,10 @@ export class AppKitBTCProvider implements IBTCProvider {
 
           const cleanup = () => {
             clearTimeout(timeout);
-            window.removeEventListener(APPKIT_BTC_CONNECTED_EVENT, handleAccountChange as any);
+            window.removeEventListener(APPKIT_BTC_CONNECTED_EVENT, handleAccountChange);
           };
 
-          window.addEventListener(APPKIT_BTC_CONNECTED_EVENT, handleAccountChange as any);
+          window.addEventListener(APPKIT_BTC_CONNECTED_EVENT, handleAccountChange);
         });
 
         await waitForConnection;
@@ -95,8 +119,7 @@ export class AppKitBTCProvider implements IBTCProvider {
     // Try to get address from AppKit state
     if (hasSharedBtcAppKitConfig()) {
       const { adapter } = this.getAppKitConfig();
-      // Get connected address from adapter connections
-      const connections = (adapter as any).connections || [];
+      const connections = getAdapterConnections(adapter);
       if (connections.length > 0 && connections[0].account?.address) {
         this.address = connections[0].account.address;
         if (this.address) {
@@ -113,10 +136,9 @@ export class AppKitBTCProvider implements IBTCProvider {
       return this.publicKey;
     }
 
-    // Try to get public key from AppKit state
     if (hasSharedBtcAppKitConfig()) {
       const { adapter } = this.getAppKitConfig();
-      const connections = (adapter as any).connections || [];
+      const connections = getAdapterConnections(adapter);
       if (connections.length > 0 && connections[0].account?.publicKey) {
         this.publicKey = connections[0].account.publicKey;
         if (this.publicKey) {
@@ -133,40 +155,37 @@ export class AppKitBTCProvider implements IBTCProvider {
       const { modal } = this.getAppKitConfig();
       const address = await this.getAddress();
 
-      // Get the wallet provider using modal.getProvider() - the correct AppKit API
-      const walletProvider = modal.getProvider<any>("bip122");
+      const walletProvider = modal.getProvider("bip122") as AppKitBtcWalletProvider | undefined;
 
       if (!walletProvider) {
         throw new Error("No wallet provider found for bip122 namespace");
       }
 
-      // Check for signPSBT (capital PSBT) method
-      if (!(walletProvider as any).signPSBT) {
+      if (!walletProvider.signPSBT) {
         throw new Error("Connected wallet does not support PSBT signing");
       }
 
-      // Convert hex PSBT to Base64 format for AppKit wallets
-      // AppKit wallets expect Base64 format, while native wallets use hex
       const psbtBase64 = Psbt.fromHex(psbtHex).toBase64();
 
       const params = {
-        psbt: psbtBase64, // ✅ Base64 format for AppKit
+        psbt: psbtBase64,
         signInputs: options?.autoFinalized
           ? undefined
           : {
               address,
-              signingIndexes: [0], // Sign all inputs by default
+              signingIndexes: [0],
             },
         broadcast: false,
       };
 
-      // Call walletProvider.signPSBT
-      const result = await (walletProvider as any).signPSBT(params);
+      const result = await walletProvider.signPSBT(params);
 
-      // Handle different return formats - some wallets return { psbt: string }, others return string directly
-      const signedPsbtBase64 = typeof result === "string" ? result : (result as any)?.psbt || result;
+      const psbt = (result as { psbt?: string })?.psbt;
+      if (typeof result !== "string" && !psbt) {
+        throw new Error("Unexpected signPSBT response: missing psbt field");
+      }
+      const signedPsbtBase64 = typeof result === "string" ? result : psbt!;
 
-      // Convert Base64 back to hex format for consistency with Babylon code
       const signedPsbtHex = Psbt.fromBase64(signedPsbtBase64).toHex();
 
       return signedPsbtHex;
@@ -196,27 +215,23 @@ export class AppKitBTCProvider implements IBTCProvider {
       const { modal } = this.getAppKitConfig();
       const address = await this.getAddress();
 
-      // Get the wallet provider using modal.getProvider() - the correct AppKit API
-      const walletProvider = modal.getProvider<any>("bip122");
+      const walletProvider = modal.getProvider("bip122") as AppKitBtcWalletProvider | undefined;
 
       if (!walletProvider) {
         throw new Error("No wallet provider found for bip122 namespace");
       }
 
-      if (!(walletProvider as any).signMessage) {
+      if (!walletProvider.signMessage) {
         throw new Error("Connected wallet does not support message signing");
       }
 
-      // Map "bip322-simple" to "bip322" for wallet compatibility
       const protocol = type === "bip322-simple" ? "bip322" : "ecdsa";
 
-      const params = {
+      const signature = await walletProvider.signMessage({
         message,
         address,
         protocol,
-      };
-
-      const signature = await (walletProvider as any).signMessage(params);
+      });
 
       return signature;
     } catch (error) {

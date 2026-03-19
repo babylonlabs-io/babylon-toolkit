@@ -20,6 +20,7 @@ function makeCollateral(
       status: "active",
       vaultProvider: "0xprovider1",
       inUse: true,
+      depositorBtcPubKey: "0xbtcpubkey1",
     },
     ...overrides,
   };
@@ -38,8 +39,10 @@ describe("Collateral Utilities", () => {
           amountBtc: 1,
           addedAt: 1700000000,
           inUse: true,
+          providerAddress: "0xprovider1",
           providerName: "0xprov...der1",
           providerIconUrl: undefined,
+          depositorBtcPubkey: "0xbtcpubkey1",
         },
       ]);
     });
@@ -67,6 +70,7 @@ describe("Collateral Utilities", () => {
             status: "liquidated",
             vaultProvider: "0xprovider1",
             inUse: false,
+            depositorBtcPubKey: "0xbtcpubkey1",
           },
         }),
       ];
@@ -84,6 +88,7 @@ describe("Collateral Utilities", () => {
             status: "depositor_withdrawn",
             vaultProvider: "0xprovider1",
             inUse: false,
+            depositorBtcPubKey: "0xbtcpubkey1",
           },
         }),
       ];
@@ -99,8 +104,10 @@ describe("Collateral Utilities", () => {
       expect(result).toHaveLength(1);
       expect(result[0]).toMatchObject({
         inUse: false,
+        providerAddress: "",
         providerName: "",
         providerIconUrl: undefined,
+        depositorBtcPubkey: undefined,
       });
     });
 

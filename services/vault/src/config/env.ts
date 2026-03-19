@@ -19,6 +19,7 @@ interface EnvVars {
   GRAPHQL_ENDPOINT: string;
   SIDECAR_API_URL: string;
   BTC_PRICE_FEED: Address | undefined;
+  VP_PROXY_URL: string;
 }
 
 interface EnvValidationResult {
@@ -53,6 +54,12 @@ function validateEnvVars(): EnvValidationResult {
       process.env.NEXT_PUBLIC_TBV_SIDECAR_API_URL ?? ""
     ).replace(/\/$/, ""),
 
+    // Vault provider proxy (required)
+    VP_PROXY_URL: (process.env.NEXT_PUBLIC_TBV_VP_PROXY_URL ?? "").replace(
+      /\/$/,
+      "",
+    ),
+
     // Price feed oracle override (optional)
     BTC_PRICE_FEED: parseOptionalAddress(
       process.env.NEXT_PUBLIC_TBV_BTC_PRICE_FEED,
@@ -63,6 +70,7 @@ function validateEnvVars(): EnvValidationResult {
     "BTC_VAULTS_MANAGER",
     "AAVE_CONTROLLER",
     "GRAPHQL_ENDPOINT",
+    "VP_PROXY_URL",
   ] as const;
 
   const missingVars = requiredVars.filter(
@@ -75,6 +83,7 @@ function validateEnvVars(): EnvValidationResult {
       BTC_VAULTS_MANAGER: "NEXT_PUBLIC_TBV_BTC_VAULTS_MANAGER",
       AAVE_CONTROLLER: "NEXT_PUBLIC_TBV_AAVE_CONTROLLER",
       GRAPHQL_ENDPOINT: "NEXT_PUBLIC_TBV_GRAPHQL_ENDPOINT",
+      VP_PROXY_URL: "NEXT_PUBLIC_TBV_VP_PROXY_URL",
     };
 
     const missingVarNames = missingVars.map((key) => envVarMap[key] || key);
@@ -85,6 +94,7 @@ function validateEnvVars(): EnvValidationResult {
         AAVE_CONTROLLER: ZERO_ADDRESS,
         GRAPHQL_ENDPOINT: "",
         SIDECAR_API_URL: "",
+        VP_PROXY_URL: "",
         BTC_PRICE_FEED: undefined,
       },
       error: `Missing: ${missingVarNames.join(", ")}`,

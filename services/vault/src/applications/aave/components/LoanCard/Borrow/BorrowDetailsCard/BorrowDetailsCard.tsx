@@ -1,15 +1,13 @@
 import { KeyValueList, SubSection } from "@babylonlabs-io/core-ui";
+import type { ComponentProps } from "react";
 
 import {
   getHealthFactorColor,
   getHealthFactorStatusFromValue,
 } from "@/applications/aave/utils";
-import { HeartIcon, InfoIcon } from "@/components/shared";
+import { HeartIcon } from "@/components/shared";
 
-interface KeyValueItem {
-  label: string | React.ReactNode;
-  value: string | React.ReactNode;
-}
+type KeyValueListItems = ComponentProps<typeof KeyValueList>["items"];
 
 interface BorrowDetailsCardProps {
   borrowRatio: string;
@@ -18,15 +16,6 @@ interface BorrowDetailsCardProps {
   healthFactorValue: number;
   healthFactorOriginal?: string;
   healthFactorOriginalValue?: number;
-}
-
-function LabelWithInfo({ children }: { children: React.ReactNode }) {
-  return (
-    <span className="flex items-center gap-2">
-      {children}
-      <InfoIcon />
-    </span>
-  );
 }
 
 /**
@@ -50,9 +39,9 @@ export function BorrowDetailsCard({
     ? getHealthFactorColor(originalStatus)
     : undefined;
 
-  const items: KeyValueItem[] = [
+  const items: KeyValueListItems = [
     {
-      label: <LabelWithInfo>Borrow rate</LabelWithInfo>,
+      label: "Borrow rate",
       value: borrowRatioOriginal ? (
         <span className="flex items-center gap-2">
           <span className="text-accent-secondary">{borrowRatioOriginal}</span>
@@ -64,7 +53,7 @@ export function BorrowDetailsCard({
       ),
     },
     {
-      label: <LabelWithInfo>Health factor</LabelWithInfo>,
+      label: "Health factor",
       value:
         healthFactorOriginal && originalColor ? (
           <span className="flex items-center gap-2">
@@ -90,7 +79,7 @@ export function BorrowDetailsCard({
   return (
     <SubSection className="w-full flex-col">
       <KeyValueList
-        items={items as any}
+        items={items}
         showDivider={false}
         className="w-full"
         textSize="small"

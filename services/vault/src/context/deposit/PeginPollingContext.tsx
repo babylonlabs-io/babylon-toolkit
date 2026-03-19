@@ -87,7 +87,6 @@ export function PeginPollingProvider({
   pendingPegins,
   btcPublicKey,
   btcAddress,
-  vaultProviders,
 }: PeginPollingProviderProps) {
   // Optimistic status overrides (for immediate UI feedback after signing)
   const [optimisticStatuses, setOptimisticStatuses] = useState<
@@ -107,7 +106,6 @@ export function PeginPollingProvider({
     activities,
     pendingPegins,
     btcPublicKey,
-    vaultProviders,
   });
 
   // Fetch UTXOs and recent transactions using React Query (cached with 30s staleTime)

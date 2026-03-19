@@ -59,50 +59,65 @@ const msgCreateBTCDelegationConverter = {
           : {}),
       };
     },
-    fromAmino: (json: any): btcstakingtx.MsgCreateBTCDelegation => {
-      const hasInclusionProof = json.staking_tx_inclusion_proof?.key.hash;
+    fromAmino: (
+      json: Record<string, unknown>,
+    ): btcstakingtx.MsgCreateBTCDelegation => {
+      const pop = json.pop as { btc_sig_type: number; btc_sig: string };
+      const fpBtcPkList = json.fp_btc_pk_list as string[];
+      const inclusionProof = json.staking_tx_inclusion_proof as
+        | { key: { index: number; hash: string }; proof: string }
+        | undefined;
+      const hasInclusionProof = inclusionProof?.key?.hash;
       return {
-        stakerAddr: json.staker_addr,
-        btcPk: Buffer.from(json.btc_pk, "base64"),
+        stakerAddr: json.staker_addr as string,
+        btcPk: new Uint8Array(Buffer.from(json.btc_pk as string, "base64")),
         pop: {
-          btcSigType: json.pop.btc_sig_type,
-          btcSig: Buffer.from(json.pop.btc_sig, "base64"),
+          btcSigType: pop.btc_sig_type,
+          btcSig: new Uint8Array(Buffer.from(pop.btc_sig, "base64")),
         },
-        fpBtcPkList: json.fp_btc_pk_list.map((pk: string) =>
-          Buffer.from(pk, "base64"),
+        fpBtcPkList: fpBtcPkList.map(
+          (pk) => new Uint8Array(Buffer.from(pk, "base64")),
         ),
-        stakingTime: json.staking_time,
-        stakingValue: Number.parseInt(json.staking_value, 10),
-        stakingTx: Buffer.from(json.staking_tx, "base64"),
-        stakingTxInclusionProof: hasInclusionProof
-          ? {
-              key: {
-                index: json.staking_tx_inclusion_proof.key.index,
-                hash: Buffer.from(
-                  json.staking_tx_inclusion_proof.key.hash,
-                  "base64",
+        stakingTime: json.staking_time as number,
+        stakingValue: Number.parseInt(json.staking_value as string, 10),
+        stakingTx: new Uint8Array(
+          Buffer.from(json.staking_tx as string, "base64"),
+        ),
+        stakingTxInclusionProof:
+          hasInclusionProof && inclusionProof
+            ? {
+                key: {
+                  index: inclusionProof.key.index,
+                  hash: new Uint8Array(
+                    Buffer.from(inclusionProof.key.hash, "base64"),
+                  ),
+                },
+                proof: new Uint8Array(
+                  Buffer.from(inclusionProof.proof, "base64"),
                 ),
-              },
-              proof: Buffer.from(
-                json.staking_tx_inclusion_proof.proof,
-                "base64",
-              ),
-            }
-          : undefined,
-        slashingTx: Buffer.from(json.slashing_tx, "base64"),
-        delegatorSlashingSig: Buffer.from(
-          json.delegator_slashing_sig,
-          "base64",
+              }
+            : undefined,
+        slashingTx: new Uint8Array(
+          Buffer.from(json.slashing_tx as string, "base64"),
         ),
-        unbondingTime: json.unbonding_time,
-        unbondingTx: Buffer.from(json.unbonding_tx, "base64"),
-        unbondingValue: Number.parseInt(json.unbonding_value, 10),
-        unbondingSlashingTx: Buffer.from(json.unbonding_slashing_tx, "base64"),
-        delegatorUnbondingSlashingSig: Buffer.from(
-          json.delegator_unbonding_slashing_sig,
-          "base64",
+        delegatorSlashingSig: new Uint8Array(
+          Buffer.from(json.delegator_slashing_sig as string, "base64"),
         ),
-      } as any;
+        unbondingTime: json.unbonding_time as number,
+        unbondingTx: new Uint8Array(
+          Buffer.from(json.unbonding_tx as string, "base64"),
+        ),
+        unbondingValue: Number.parseInt(json.unbonding_value as string, 10),
+        unbondingSlashingTx: new Uint8Array(
+          Buffer.from(json.unbonding_slashing_tx as string, "base64"),
+        ),
+        delegatorUnbondingSlashingSig: new Uint8Array(
+          Buffer.from(
+            json.delegator_unbonding_slashing_sig as string,
+            "base64",
+          ),
+        ),
+      };
     },
   },
 };
@@ -148,35 +163,50 @@ const msgBtcStakeExpandConverter = {
         funding_tx: Buffer.from(msg.fundingTx).toString("base64"),
       };
     },
-    fromAmino: (json: any): btcstakingtx.MsgBtcStakeExpand => {
+    fromAmino: (
+      json: Record<string, unknown>,
+    ): btcstakingtx.MsgBtcStakeExpand => {
+      const pop = json.pop as { btc_sig_type: number; btc_sig: string };
+      const fpBtcPkList = json.fp_btc_pk_list as string[];
       return {
-        stakerAddr: json.staker_addr,
-        btcPk: Buffer.from(json.btc_pk, "base64"),
+        stakerAddr: json.staker_addr as string,
+        btcPk: new Uint8Array(Buffer.from(json.btc_pk as string, "base64")),
         pop: {
-          btcSigType: json.pop.btc_sig_type,
-          btcSig: Buffer.from(json.pop.btc_sig, "base64"),
+          btcSigType: pop.btc_sig_type,
+          btcSig: new Uint8Array(Buffer.from(pop.btc_sig, "base64")),
         },
-        fpBtcPkList: json.fp_btc_pk_list.map((pk: string) =>
-          Buffer.from(pk, "base64"),
+        fpBtcPkList: fpBtcPkList.map(
+          (pk) => new Uint8Array(Buffer.from(pk, "base64")),
         ),
-        stakingTime: json.staking_time,
-        stakingValue: Number.parseInt(json.staking_value, 10),
-        stakingTx: Buffer.from(json.staking_tx, "base64"),
-        slashingTx: Buffer.from(json.slashing_tx, "base64"),
-        delegatorSlashingSig: Buffer.from(
-          json.delegator_slashing_sig,
-          "base64",
+        stakingTime: json.staking_time as number,
+        stakingValue: Number.parseInt(json.staking_value as string, 10),
+        stakingTx: new Uint8Array(
+          Buffer.from(json.staking_tx as string, "base64"),
         ),
-        unbondingTime: json.unbonding_time,
-        unbondingTx: Buffer.from(json.unbonding_tx, "base64"),
-        unbondingValue: Number.parseInt(json.unbonding_value, 10),
-        unbondingSlashingTx: Buffer.from(json.unbonding_slashing_tx, "base64"),
-        delegatorUnbondingSlashingSig: Buffer.from(
-          json.delegator_unbonding_slashing_sig,
-          "base64",
+        slashingTx: new Uint8Array(
+          Buffer.from(json.slashing_tx as string, "base64"),
         ),
-        previousStakingTxHash: json.previous_staking_tx_hash,
-        fundingTx: Buffer.from(json.funding_tx, "base64"),
+        delegatorSlashingSig: new Uint8Array(
+          Buffer.from(json.delegator_slashing_sig as string, "base64"),
+        ),
+        unbondingTime: json.unbonding_time as number,
+        unbondingTx: new Uint8Array(
+          Buffer.from(json.unbonding_tx as string, "base64"),
+        ),
+        unbondingValue: Number.parseInt(json.unbonding_value as string, 10),
+        unbondingSlashingTx: new Uint8Array(
+          Buffer.from(json.unbonding_slashing_tx as string, "base64"),
+        ),
+        delegatorUnbondingSlashingSig: new Uint8Array(
+          Buffer.from(
+            json.delegator_unbonding_slashing_sig as string,
+            "base64",
+          ),
+        ),
+        previousStakingTxHash: json.previous_staking_tx_hash as string,
+        fundingTx: new Uint8Array(
+          Buffer.from(json.funding_tx as string, "base64"),
+        ),
       };
     },
   },
@@ -191,10 +221,12 @@ const msgWithdrawRewardConverter = {
         address: msg.address,
       };
     },
-    fromAmino: (json: any): incentivetx.MsgWithdrawReward => {
+    fromAmino: (
+      json: Record<string, unknown>,
+    ): incentivetx.MsgWithdrawReward => {
       return {
-        type: json.type,
-        address: json.address,
+        type: json.type as string,
+        address: json.address as string,
       };
     },
   },

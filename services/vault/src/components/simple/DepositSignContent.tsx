@@ -95,7 +95,7 @@ export function DepositSignContent({
           open={!!artifactDownloadInfo}
           onClose={handleClose}
           onComplete={continueAfterArtifactDownload}
-          providerUrl={artifactDownloadInfo.providerUrl}
+          providerAddress={artifactDownloadInfo.providerAddress}
           peginTxid={artifactDownloadInfo.peginTxid}
           depositorPk={artifactDownloadInfo.depositorPk}
         />

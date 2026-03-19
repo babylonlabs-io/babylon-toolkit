@@ -3,7 +3,7 @@
  * Renders a single vault card within the expanded collateral view.
  */
 
-import { Avatar, StatusBadge } from "@babylonlabs-io/core-ui";
+import { Avatar, Button, StatusBadge } from "@babylonlabs-io/core-ui";
 
 import { getNetworkConfigBTC } from "@/config";
 import { truncateHash } from "@/utils/addressUtils";
@@ -20,6 +20,7 @@ interface CollateralVaultItemProps {
   inUse: boolean;
   providerName: string;
   providerIconUrl?: string;
+  onArtifactDownload?: () => void;
 }
 
 export function CollateralVaultItem({
@@ -29,6 +30,7 @@ export function CollateralVaultItem({
   inUse,
   providerName,
   providerIconUrl,
+  onArtifactDownload,
 }: CollateralVaultItemProps) {
   const formattedDate = formatDateTime(new Date(addedAt * SECONDS_TO_MS));
 
@@ -75,6 +77,17 @@ export function CollateralVaultItem({
           {truncateHash(vaultId)}
         </span>
       </div>
+
+      {onArtifactDownload && (
+        <Button
+          variant="outlined"
+          color="primary"
+          className="w-full rounded-full"
+          onClick={onArtifactDownload}
+        >
+          Download Artifacts
+        </Button>
+      )}
     </div>
   );
 }

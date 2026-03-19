@@ -1,5 +1,6 @@
 import { BitcoinAdapter } from "@reown/appkit-adapter-bitcoin";
 import { WagmiAdapter } from "@reown/appkit-adapter-wagmi";
+import type { AppKitNetwork } from "@reown/appkit/networks";
 import { bitcoin, bitcoinSignet } from "@reown/appkit/networks";
 import { createAppKit } from "@reown/appkit/react";
 import { cookieStorage, createStorage } from "wagmi";
@@ -86,9 +87,8 @@ export function initializeAppKitModal(config: AppKitModalConfig) {
   const projectId = config.projectId;
   const metadata = config.metadata;
 
-  // Build list of all networks for AppKit modal
-  const allNetworks: any[] = [];
-  const adapters: any[] = [];
+  const allNetworks: AppKitNetwork[] = [];
+  const adapters: (WagmiAdapter | BitcoinAdapter)[] = [];
 
   // Create Wagmi Adapter if ETH is configured
   if (config.eth?.chain) {
@@ -134,7 +134,7 @@ export function initializeAppKitModal(config: AppKitModalConfig) {
   // Create single AppKit modal with all adapters
   appKitModal = createAppKit({
     adapters,
-    networks: allNetworks as any,
+    networks: allNetworks as [AppKitNetwork, ...AppKitNetwork[]],
     projectId,
     metadata,
   });

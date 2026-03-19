@@ -24,6 +24,7 @@ import {
 } from "@/services/lamport";
 import { waitForPeginStatus } from "@/services/vault/vaultPeginStatusService";
 import { stripHexPrefix } from "@/utils/btc";
+import { getVpProxyUrl } from "@/utils/rpc";
 
 import type { LamportSubmissionParams } from "./types";
 
@@ -72,7 +73,7 @@ export async function submitLamportPublicKey(
     btcTxid,
     depositorBtcPubkey,
     appContractAddress,
-    providerUrl,
+    providerAddress,
     getMnemonic,
     signal,
   } = params;
@@ -81,7 +82,7 @@ export async function submitLamportPublicKey(
 
   // Wait until VP has ingested the pegin and is ready for the Lamport key.
   const status = await waitForPeginStatus({
-    providerUrl,
+    providerAddress,
     btcTxid,
     targetStatuses: TARGET_STATUSES,
     timeoutMs: STATUS_POLL_TIMEOUT_MS,
@@ -113,7 +114,10 @@ export async function submitLamportPublicKey(
 
   signal?.throwIfAborted();
 
-  const rpcClient = new VaultProviderRpcApi(providerUrl, RPC_TIMEOUT_MS);
+  const rpcClient = new VaultProviderRpcApi(
+    getVpProxyUrl(providerAddress),
+    RPC_TIMEOUT_MS,
+  );
 
   await rpcClient.submitDepositorLamportKey({
     pegin_txid: stripHexPrefix(btcTxid),

@@ -69,7 +69,7 @@ export interface UseDepositFlowParams {
 }
 
 export interface ArtifactDownloadInfo {
-  providerUrl: string;
+  providerAddress: string;
   peginTxid: string;
   depositorPk: string;
 }
@@ -284,8 +284,8 @@ export function useDepositFlow(
         setIsWaiting(true);
 
         const provider = findProvider(selectedProviders[0] as Hex);
-        if (!provider?.url) {
-          throw new Error("Vault provider not found or has no RPC URL");
+        if (!provider) {
+          throw new Error("Vault provider not found");
         }
 
         // Step 2.5: Submit full Lamport PK to vault provider via RPC
@@ -294,7 +294,7 @@ export function useDepositFlow(
             btcTxid: registration.btcTxid,
             depositorBtcPubkey: prepared.depositorBtcPubkey,
             appContractAddress: selectedApplication,
-            providerUrl: provider.url,
+            providerAddress: provider.id,
             getMnemonic,
             signal,
           });
@@ -313,14 +313,14 @@ export function useDepositFlow(
 
         const {
           context,
-          vaultProviderUrl,
+          vaultProviderAddress,
           preparedTransactions,
           depositorGraph,
         } = await pollAndPreparePayoutSigning({
           btcTxid: registration.btcTxid,
           btcTxHex: prepared.btcTxHex,
           depositorBtcPubkey: prepared.depositorBtcPubkey,
-          providerUrl: provider.url,
+          providerAddress: provider.id,
           providerBtcPubKey: provider.btcPubKey,
           vaultKeepers: vaultKeepers.map((vk) => ({
             btcPubKey: vk.btcPubKey,
@@ -358,7 +358,7 @@ export function useDepositFlow(
           });
 
         await submitPayoutSignatures(
-          vaultProviderUrl,
+          vaultProviderAddress,
           registration.btcTxid,
           prepared.depositorBtcPubkey,
           signatures,
@@ -369,7 +369,7 @@ export function useDepositFlow(
 
         setCurrentStep(DepositFlowStep.ARTIFACT_DOWNLOAD);
         setArtifactDownloadInfo({
-          providerUrl: provider.url,
+          providerAddress: provider.id,
           peginTxid: registration.btcTxid,
           depositorPk: prepared.depositorBtcPubkey,
         });

@@ -1,3 +1,4 @@
+import type { Validator as CosmosValidator } from "cosmjs-types/cosmos/staking/v1beta1/staking";
 import { useMemo } from "react";
 
 import babylon from "@/infrastructure/babylon";
@@ -15,6 +16,17 @@ export interface Validator {
   tokens: number;
   unbondingTime: number;
   status: ValidatorStatus;
+}
+
+interface LcdConsensusPubkey {
+  key?: string;
+}
+
+function getConsensusPubKey(validator: CosmosValidator): string | undefined {
+  const pubkey = validator.consensusPubkey as unknown as
+    | LcdConsensusPubkey
+    | undefined;
+  return pubkey?.key;
 }
 
 function getValidatorStatus(
@@ -92,15 +104,13 @@ export function useValidatorService() {
 
           const unbondingTime = Number(validator.unbondingTime.seconds) * 1000;
 
-          const consPubKey = (validator as any)?.consensusPubkey?.key as
-            | string
-            | undefined;
+          const consPubKey = getConsensusPubKey(validator);
           const consAddr = consPubKey ? consAddrMap.get(consPubKey) : undefined;
           const isInActiveSet = Boolean(
             consPubKey && consAddrMap.has(consPubKey),
           );
           const isSlashed = consAddr ? tombstonedSet.has(consAddr) : false;
-          const isJailed = Boolean((validator as any).jailed);
+          const isJailed = validator.jailed;
           const status: Validator["status"] = getValidatorStatus(
             isSlashed,
             isJailed,

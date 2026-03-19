@@ -15,7 +15,7 @@ interface ArtifactDownloadModalProps {
   open: boolean;
   onClose: () => void;
   onComplete: () => void;
-  providerUrl: string;
+  providerAddress: string;
   peginTxid: string;
   depositorPk: string;
 }
@@ -24,7 +24,7 @@ export function ArtifactDownloadModal({
   open,
   onClose,
   onComplete,
-  providerUrl,
+  providerAddress,
   peginTxid,
   depositorPk,
 }: ArtifactDownloadModalProps) {
@@ -32,7 +32,7 @@ export function ArtifactDownloadModal({
     useArtifactDownload();
 
   const handleDownload = () => {
-    download(providerUrl, peginTxid, depositorPk);
+    download(providerAddress, peginTxid, depositorPk);
   };
 
   const handleComplete = () => {

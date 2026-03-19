@@ -4,11 +4,15 @@
  */
 
 import { Avatar, Card } from "@babylonlabs-io/core-ui";
-import { useState } from "react";
+import { useCallback, useState } from "react";
 
+import { ArtifactDownloadModal } from "@/components/deposit/ArtifactDownloadModal";
 import { DepositButton, ExpandMenuButton } from "@/components/shared";
 import { Connect } from "@/components/Wallet";
 import { getNetworkConfigBTC } from "@/config";
+import type { ArtifactDownloadModalParams } from "@/hooks/deposit/useArtifactDownloadModal";
+import { useVaultProviders } from "@/hooks/deposit/useVaultProviders";
+import { logger } from "@/infrastructure";
 import type { CollateralVaultEntry } from "@/types/collateral";
 
 import { CollateralExpandedContent } from "./CollateralExpandedContent";
@@ -35,7 +39,32 @@ export function CollateralSection({
   onDeposit,
 }: CollateralSectionProps) {
   const [isExpanded, setIsExpanded] = useState(false);
+  const [artifactParams, setArtifactParams] =
+    useState<ArtifactDownloadModalParams | null>(null);
+  const { findProvider } = useVaultProviders();
   const canWithdraw = !hasDebt;
+
+  const handleArtifactDownload = useCallback(
+    (vaultEntryId: string) => {
+      const vault = collateralVaults.find((v) => v.id === vaultEntryId);
+      if (!vault) return;
+
+      const provider = findProvider(vault.providerAddress);
+      if (!provider || !vault.depositorBtcPubkey) {
+        logger.warn(
+          `[CollateralSection] Cannot download artifacts: missing provider or depositor public key for vault ${vaultEntryId}`,
+        );
+        return;
+      }
+
+      setArtifactParams({
+        providerAddress: vault.providerAddress,
+        peginTxid: vault.vaultId,
+        depositorPk: vault.depositorBtcPubkey,
+      });
+    },
+    [collateralVaults, findProvider],
+  );
 
   return (
     <div className="w-full space-y-6">
@@ -84,6 +113,7 @@ export function CollateralSection({
               vaults={collateralVaults}
               onWithdraw={onWithdraw}
               canWithdraw={canWithdraw}
+              onArtifactDownload={handleArtifactDownload}
             />
           )}
         </Card>
@@ -119,6 +149,17 @@ export function CollateralSection({
             </div>
           </div>
         </Card>
+      )}
+
+      {artifactParams && (
+        <ArtifactDownloadModal
+          open={!!artifactParams}
+          onClose={() => setArtifactParams(null)}
+          onComplete={() => setArtifactParams(null)}
+          providerAddress={artifactParams.providerAddress}
+          peginTxid={artifactParams.peginTxid}
+          depositorPk={artifactParams.depositorPk}
+        />
       )}
     </div>
   );
