@@ -50,15 +50,15 @@ export function CollateralSection({
       if (!vault) return;
 
       const provider = findProvider(vault.providerAddress);
-      if (!provider?.url || !vault.depositorBtcPubkey) {
+      if (!provider || !vault.depositorBtcPubkey) {
         logger.warn(
-          `[CollateralSection] Cannot download artifacts: missing provider URL or depositor public key for vault ${vaultEntryId}`,
+          `[CollateralSection] Cannot download artifacts: missing provider or depositor public key for vault ${vaultEntryId}`,
         );
         return;
       }
 
       setArtifactParams({
-        providerUrl: provider.url,
+        providerAddress: vault.providerAddress,
         peginTxid: vault.vaultId,
         depositorPk: vault.depositorBtcPubkey,
       });
@@ -156,7 +156,7 @@ export function CollateralSection({
           open={!!artifactParams}
           onClose={() => setArtifactParams(null)}
           onComplete={() => setArtifactParams(null)}
-          providerUrl={artifactParams.providerUrl}
+          providerAddress={artifactParams.providerAddress}
           peginTxid={artifactParams.peginTxid}
           depositorPk={artifactParams.depositorPk}
         />
