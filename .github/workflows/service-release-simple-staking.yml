@@ -46,13 +46,22 @@ jobs:
         include:
           - environment: canon-devnet
             aws_account: 537927626649
+            protected: false
           - environment: btc-mainnet-devnet
             aws_account: 537927626649
+            protected: false
           - environment: testnet
             aws_account: 615368094160
+            protected: true
           - environment: mainnet
             aws_account: 490721144737
+            protected: true
 
+    if: >
+      !matrix.protected ||
+      github.ref == 'refs/heads/main' ||
+      startsWith(github.ref, 'refs/heads/release/') ||
+      startsWith(github.ref, 'refs/tags/')
     environment: ${{ matrix.environment }}
     steps:
       - name: Checkout repository
