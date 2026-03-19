@@ -87,6 +87,10 @@ Create a `.env` file with the following variables:
   - Default: `false` (all three checkboxes shown unless explicitly set to `"true"`)
   - Set to `"true"` to show only the Terms of Use & Privacy Policy checkbox, hiding the inscriptions and hardware wallet warnings
 
+- `NEXT_PUBLIC_FF_FORCE_PARTIAL_LIQUIDATION_SPLIT` - Forces partial liquidation split to always be suggested, even with active vaults
+  - Default: `false` (disabled unless explicitly set to `"true"`)
+  - Set to `"true"` to bypass the active-vaults check — useful for dev/QA testing of the split deposit flow
+
 ## Available Scripts
 
 ### Development

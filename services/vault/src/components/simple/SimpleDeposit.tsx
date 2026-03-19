@@ -134,16 +134,17 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
     setTransactionHashes,
   } = useDepositPageFlow();
 
-  const partialLiquidationProps = hasActiveVaults
-    ? undefined
-    : {
-        isEnabled: isPartialLiquidation,
-        onChange: setIsPartialLiquidation,
-        canSplit,
-        strategy,
-        isPlanning,
-        splitRatioLabel,
-      };
+  const partialLiquidationProps =
+    hasActiveVaults && !FeatureFlags.isForcePartialLiquidationSplit
+      ? undefined
+      : {
+          isEnabled: isPartialLiquidation,
+          onChange: setIsPartialLiquidation,
+          canSplit,
+          strategy,
+          isPlanning,
+          splitRatioLabel,
+        };
 
   // Freeze the rendered step during the close animation and reset on reopen
   const renderedStep = useDialogStep(open, depositStep, resetDeposit);
@@ -162,7 +163,9 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
       ]);
       setFeeRate(estimatedFeeRate);
       const shouldSplit =
-        isPartialLiquidation && !hasActiveVaults && !!allocationPlan;
+        isPartialLiquidation &&
+        (!hasActiveVaults || FeatureFlags.isForcePartialLiquidationSplit) &&
+        !!allocationPlan;
       setIsSplitDeposit(shouldSplit);
       if (shouldSplit && allocationPlan) {
         setSplitAllocationPlan(allocationPlan);
