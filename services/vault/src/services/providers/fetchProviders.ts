@@ -1,6 +1,7 @@
 import { gql } from "graphql-request";
 
 import { graphqlClient } from "../../clients/graphql";
+import { isActiveProvider } from "../../constants/activeProviders";
 import type {
   AppProvidersResponse,
   VaultKeeper,
@@ -157,6 +158,7 @@ export async function fetchAppProviders(
       btcPubKey: provider.btcPubKey,
       name: provider.name ?? undefined,
       url: provider.rpcUrl,
+      active: isActiveProvider(provider.id),
     }));
 
   const vaultKeeperItems: VaultKeeperItem[] =

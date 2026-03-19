@@ -51,6 +51,8 @@ export interface VaultProvider {
   name?: string;
   /** Provider's RPC URL (from registry) */
   url: string;
+  /** Whether provider is known to be active/stable */
+  active: boolean;
 }
 
 /**
