@@ -11,7 +11,7 @@
  */
 
 import { stripHexPrefix } from "@/utils/btc";
-import { JsonRpcClient, JsonRpcError } from "@/utils/rpc";
+import { JsonRpcClient, JsonRpcError, getVpProxyUrl } from "@/utils/rpc";
 
 /** Timeout for the artifact request RPC call (artifacts can be large). */
 const RPC_TIMEOUT_MS = 120 * 1000;
@@ -25,14 +25,18 @@ const ERROR_RESPONSE_SIZE_THRESHOLD = 4096;
  * Uses JsonRpcClient.callRaw() so the large payload is never fully parsed
  * into a JS object while still getting retry logic and consistent error
  * handling. Error responses are small enough to parse safely.
+ *
+ * @param providerAddress - Vault provider's Ethereum address.
+ * @param peginTxid       - Bitcoin pegin transaction ID (hex, with or without 0x prefix).
+ * @param depositorPk     - Depositor's Bitcoin public key.
  */
 export async function fetchAndDownloadArtifacts(
-  providerUrl: string,
+  providerAddress: string,
   peginTxid: string,
   depositorPk: string,
 ): Promise<void> {
   const client = new JsonRpcClient({
-    baseUrl: providerUrl,
+    baseUrl: getVpProxyUrl(providerAddress),
     timeout: RPC_TIMEOUT_MS,
   });
 

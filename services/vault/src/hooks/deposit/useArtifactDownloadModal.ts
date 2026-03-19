@@ -1,51 +1,46 @@
 import { useCallback, useMemo, useState } from "react";
 
-import type { VaultProvider } from "../../types";
 import type { VaultActivity } from "../../types/activity";
 
 export interface ArtifactDownloadModalParams {
-  providerUrl: string;
+  providerAddress: string;
   peginTxid: string;
   depositorPk: string;
 }
 
 function getArtifactParams(
   activity: VaultActivity,
-  findProvider: (address: string) => VaultProvider | undefined,
 ): ArtifactDownloadModalParams | null {
-  const providerId = activity.providers?.[0]?.id;
-  const provider = providerId ? findProvider(providerId) : undefined;
-  const providerUrl = provider?.url;
+  const providerAddress = activity.providers?.[0]?.id;
   const peginTxid = activity.txHash || activity.id;
   const depositorPk = activity.depositorBtcPubkey;
 
-  if (!providerUrl || !peginTxid || !depositorPk) {
+  if (!providerAddress || !peginTxid || !depositorPk) {
     return null;
   }
-  return { providerUrl, peginTxid, depositorPk };
+  return { providerAddress, peginTxid, depositorPk };
 }
 
 export function useArtifactDownloadModal(options: {
   allActivities: VaultActivity[];
-  findProvider: (address: string) => VaultProvider | undefined;
   onSuccess?: () => void;
 }) {
-  const { allActivities, findProvider, onSuccess } = options;
+  const { allActivities, onSuccess } = options;
   const [activity, setActivity] = useState<VaultActivity | null>(null);
 
   const params = useMemo((): ArtifactDownloadModalParams | null => {
     if (!activity) return null;
-    return getArtifactParams(activity, findProvider);
-  }, [activity, findProvider]);
+    return getArtifactParams(activity);
+  }, [activity]);
 
   const handleArtifactDownloadClick = useCallback(
     (depositId: string) => {
       const found = allActivities.find((a) => a.id === depositId);
-      if (found && getArtifactParams(found, findProvider)) {
+      if (found && getArtifactParams(found)) {
         setActivity(found);
       }
     },
-    [allActivities, findProvider],
+    [allActivities],
   );
 
   const handleClose = useCallback(() => {

@@ -1,3 +1,5 @@
+import { Loader } from "@babylonlabs-io/core-ui";
+import { lazy, Suspense } from "react";
 import { Route, Routes } from "react-router";
 
 import { getAllApplications } from "./applications";
@@ -6,11 +8,24 @@ import {
   AaveConfigProvider,
   PendingVaultsProvider,
 } from "./applications/aave/context";
-import Activity from "./components/pages/Activity";
-import ApplicationsHome from "./components/pages/ApplicationsHome";
 import RootLayout from "./components/pages/RootLayout";
 import NotFound from "./components/pages/not-found";
-import { DashboardPage } from "./components/simple/DashboardPage";
+
+const Activity = lazy(() => import("./components/pages/Activity"));
+const ApplicationsHome = lazy(
+  () => import("./components/pages/ApplicationsHome"),
+);
+const DashboardPage = lazy(() =>
+  import("./components/simple/DashboardPage").then((m) => ({
+    default: m.DashboardPage,
+  })),
+);
+
+const RouteFallback = () => (
+  <div className="flex min-h-[50vh] items-center justify-center">
+    <Loader />
+  </div>
+);
 
 // TODO: Remove Aave provider wrappers once dashboard routing is finalized
 const DashboardWithProviders = () => (
@@ -27,17 +42,39 @@ export const Router = () => {
   return (
     <Routes>
       <Route path="/" element={<RootLayout />}>
-        {/* deprecated route */}
-        {/* <Route index element={<ApplicationsHome />} /> */}
-        <Route index element={<DashboardWithProviders />} />
-        <Route path="activity" element={<Activity />} />
-        <Route path="deposit" element={<ApplicationsHome />} />
-
+        <Route
+          index
+          element={
+            <Suspense fallback={<RouteFallback />}>
+              <DashboardWithProviders />
+            </Suspense>
+          }
+        />
+        <Route
+          path="activity"
+          element={
+            <Suspense fallback={<RouteFallback />}>
+              <Activity />
+            </Suspense>
+          }
+        />
+        <Route
+          path="deposit"
+          element={
+            <Suspense fallback={<RouteFallback />}>
+              <ApplicationsHome />
+            </Suspense>
+          }
+        />
         {apps.map((app) => (
           <Route
             key={app.metadata.id}
             path={`app/${app.metadata.id}/*`}
-            element={<app.Routes />}
+            element={
+              <Suspense fallback={<RouteFallback />}>
+                <app.Routes />
+              </Suspense>
+            }
           />
         ))}
       </Route>

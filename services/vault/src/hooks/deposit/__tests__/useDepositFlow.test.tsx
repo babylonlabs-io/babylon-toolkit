@@ -311,6 +311,12 @@ vi.mock("@/context/ProtocolParamsContext", () => ({
   })),
 }));
 
+// Mock VP proxy URL builder
+vi.mock("@/utils/rpc", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/utils/rpc")>()),
+  getVpProxyUrl: (address: string) => `https://proxy.test/rpc/${address}`,
+}));
+
 // Mock vault provider RPC
 vi.mock("@/clients/vault-provider-rpc", () => {
   return {

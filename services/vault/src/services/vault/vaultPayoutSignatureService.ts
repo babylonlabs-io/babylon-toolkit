@@ -15,6 +15,7 @@ import {
   stripHexPrefix,
   validateXOnlyPubkey,
 } from "../../utils/btc";
+import { getVpProxyUrl } from "../../utils/rpc";
 import { fetchVaultKeepersByVersion } from "../providers/fetchProviders";
 
 import { fetchVaultProviderById } from "./fetchVaultProviders";
@@ -24,8 +25,6 @@ import { fetchVaultById } from "./fetchVaults";
 export interface PayoutVaultProvider {
   /** Provider's Ethereum address */
   address: Hex;
-  /** Provider's RPC URL */
-  url: string;
   /** Provider's BTC public key (optional - will be fetched if not provided) */
   btcPubKey?: string;
 }
@@ -64,7 +63,7 @@ export interface PrepareSigningContextParams {
 
 export interface PreparedSigningData {
   context: SigningContext;
-  vaultProviderUrl: string;
+  vaultProviderAddress: Hex;
 }
 
 /**
@@ -97,10 +96,8 @@ export function validatePayoutSignatureParams(params: {
     throw new Error("Invalid claimerTransactions: must be a non-empty array");
   }
 
-  if (!vaultProvider?.address || !vaultProvider?.url) {
-    throw new Error(
-      "Invalid vaultProvider: must have address and url properties",
-    );
+  if (!vaultProvider?.address) {
+    throw new Error("Invalid vaultProvider: must have an address");
   }
 
   if (!vaultKeepers || vaultKeepers.length === 0) {
@@ -154,13 +151,16 @@ export function getSortedUniversalChallengerPubkeys(
  * Submit payout signatures to vault provider RPC.
  */
 export async function submitSignaturesToVaultProvider(
-  vaultProviderUrl: string,
+  vaultProviderAddress: string,
   peginTxId: string,
   depositorBtcPubkey: string,
   signatures: Record<string, ClaimerSignatures>,
   depositorClaimerPresignatures: DepositorAsClaimerPresignatures,
 ): Promise<void> {
-  const rpcClient = new VaultProviderRpcApi(vaultProviderUrl, 30000);
+  const rpcClient = new VaultProviderRpcApi(
+    getVpProxyUrl(vaultProviderAddress),
+    30000,
+  );
 
   // The VP expects signatures for ALL claimers (VP + VKs + depositor).
   // The depositor's own payout signature comes from depositorClaimerPresignatures
@@ -326,7 +326,7 @@ export async function prepareSigningContext(
 
   return {
     context: signingContext,
-    vaultProviderUrl: vaultProvider.url,
+    vaultProviderAddress: vaultProvider.address,
   };
 }
 

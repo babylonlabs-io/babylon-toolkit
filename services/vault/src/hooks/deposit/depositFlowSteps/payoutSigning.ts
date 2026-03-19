@@ -21,6 +21,7 @@ import {
 import { waitForPeginStatus } from "@/services/vault/vaultPeginStatusService";
 import { updatePendingPeginStatus } from "@/storage/peginStorage";
 import { stripHexPrefix } from "@/utils/btc";
+import { getVpProxyUrl } from "@/utils/rpc";
 
 import type { PayoutSigningContext, PayoutSigningParams } from "./types";
 
@@ -57,7 +58,7 @@ export async function pollAndPreparePayoutSigning(
     btcTxid,
     btcTxHex,
     depositorBtcPubkey,
-    providerUrl,
+    providerAddress,
     providerBtcPubKey,
     vaultKeepers,
     universalChallengers,
@@ -67,7 +68,7 @@ export async function pollAndPreparePayoutSigning(
 
   // Phase 1: Poll status until VP is ready for depositor signatures
   await waitForPeginStatus({
-    providerUrl,
+    providerAddress,
     btcTxid,
     targetStatuses: TARGET_STATUS,
     timeoutMs: MAX_POLLING_TIMEOUT_MS,
@@ -75,7 +76,10 @@ export async function pollAndPreparePayoutSigning(
   });
 
   // Phase 2: Fetch transaction data (VP is ready)
-  const rpcClient = new VaultProviderRpcApi(providerUrl, RPC_TIMEOUT_MS);
+  const rpcClient = new VaultProviderRpcApi(
+    getVpProxyUrl(providerAddress),
+    RPC_TIMEOUT_MS,
+  );
   const response = await rpcClient.requestDepositorPresignTransactions({
     pegin_txid: stripHexPrefix(btcTxid),
     depositor_pk: stripHexPrefix(depositorBtcPubkey),
@@ -97,7 +101,7 @@ export async function pollAndPreparePayoutSigning(
 
   return {
     context,
-    vaultProviderUrl: providerUrl,
+    vaultProviderAddress: providerAddress,
     preparedTransactions: prepareTransactionsForSigning(response.txs),
     depositorGraph: response.depositor_graph,
   };
@@ -107,7 +111,7 @@ export async function pollAndPreparePayoutSigning(
  * Submit payout signatures to vault provider.
  */
 export async function submitPayoutSignatures(
-  vaultProviderUrl: string,
+  vaultProviderAddress: string,
   btcTxid: string,
   depositorBtcPubkey: string,
   signatures: Record<string, ClaimerSignatures>,
@@ -115,7 +119,7 @@ export async function submitPayoutSignatures(
   depositorClaimerPresignatures: DepositorAsClaimerPresignatures,
 ): Promise<void> {
   await submitSignaturesToVaultProvider(
-    vaultProviderUrl,
+    vaultProviderAddress,
     btcTxid,
     depositorBtcPubkey,
     signatures,

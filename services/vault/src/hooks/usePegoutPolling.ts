@@ -24,8 +24,8 @@ import {
   PEGOUT_TERMINAL_STATUSES,
   type PegoutDisplayState,
 } from "@/models/pegoutStateMachine";
-import type { VaultProvider } from "@/types";
 import { stripHexPrefix } from "@/utils/btc";
+import { getVpProxyUrl } from "@/utils/rpc";
 
 export interface PegoutPollingResult {
   displayState: PegoutDisplayState;
@@ -44,27 +44,26 @@ interface VaultsByProvider {
 
 function groupVaultsByProvider(
   vaults: RedeemedVaultInfo[],
-  findProvider: (address: string) => VaultProvider | undefined,
 ): Map<string, VaultsByProvider> {
   const grouped = new Map<string, VaultsByProvider>();
 
   for (const vault of vaults) {
-    const provider = findProvider(vault.vaultProviderAddress);
-    if (!provider) {
+    const providerAddress = vault.vaultProviderAddress;
+    if (!providerAddress || !providerAddress.startsWith("0x")) {
       logger.warn(
-        `Provider ${vault.vaultProviderAddress} not found, skipping pegout poll for vault ${vault.id}`,
+        `Invalid or missing provider address for vault ${vault.id}, skipping pegout poll`,
       );
       continue;
     }
-
-    const existing = grouped.get(provider.url);
-    const entry: VaultToPoll = { vault, providerUrl: provider.url };
+    const providerUrl = getVpProxyUrl(providerAddress);
+    const existing = grouped.get(providerAddress);
+    const entry: VaultToPoll = { vault, providerUrl };
 
     if (existing) {
       existing.vaults.push(entry);
     } else {
-      grouped.set(provider.url, {
-        providerUrl: provider.url,
+      grouped.set(providerAddress, {
+        providerUrl,
         vaults: [entry],
       });
     }
@@ -105,7 +104,6 @@ async function fetchPegoutStatusesFromProvider(
 
 interface UsePegoutPollingParams {
   redeemedVaults: RedeemedVaultInfo[];
-  findProvider: (address: string) => VaultProvider | undefined;
 }
 
 interface UsePegoutPollingResult {
@@ -115,15 +113,12 @@ interface UsePegoutPollingResult {
 
 export function usePegoutPolling({
   redeemedVaults,
-  findProvider,
 }: UsePegoutPollingParams): UsePegoutPollingResult {
   const vaultsRef = useRef(redeemedVaults);
-  const findProviderRef = useRef(findProvider);
 
   useEffect(() => {
     vaultsRef.current = redeemedVaults;
-    findProviderRef.current = findProvider;
-  }, [redeemedVaults, findProvider]);
+  }, [redeemedVaults]);
 
   const isEnabled = redeemedVaults.length > 0;
 
@@ -136,16 +131,12 @@ export function usePegoutPolling({
     queryKey,
     queryFn: async (): Promise<Map<string, PegoutPollingResult>> => {
       const currentVaults = vaultsRef.current;
-      const currentFindProvider = findProviderRef.current;
 
       if (currentVaults.length === 0) {
         return new Map();
       }
 
-      const vaultsByProvider = groupVaultsByProvider(
-        currentVaults,
-        currentFindProvider,
-      );
+      const vaultsByProvider = groupVaultsByProvider(currentVaults);
 
       const results = new Map<string, PegoutPollingResult>();
 

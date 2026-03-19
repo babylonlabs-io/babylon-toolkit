@@ -8,7 +8,8 @@
  * Rules:
  * 1. All feature flags must be defined in this file for easy maintenance
  * 2. All feature flags must start with NEXT_PUBLIC_FF_ prefix
- * 3. Default value for all feature flags is true (feature is enabled)
+ * 3. Opt-out flags (!== "false") default to true (e.g. isDepositEnabled, isBorrowEnabled)
+ *    Opt-in flags (=== "true") default to false (e.g. isSimplifiedTermsEnabled, isForcePartialLiquidationSplit)
  * 4. Feature flags are only configurable by DevOps in mainnet environments
  */
 
@@ -44,5 +45,19 @@ export default {
    */
   get isSimplifiedTermsEnabled() {
     return process.env.NEXT_PUBLIC_FF_SIMPLIFIED_TERMS === "true";
+  },
+
+  /**
+   * FORCE_PARTIAL_LIQUIDATION feature flag
+   *
+   * Purpose: Forces partial liquidation split to always be suggested,
+   * even when the user has active vaults
+   * Why needed: Simplifies dev/QA testing of the split deposit flow
+   * Default: false (disabled unless explicitly set to "true")
+   */
+  get isForcePartialLiquidationSplit() {
+    return (
+      process.env.NEXT_PUBLIC_FF_FORCE_PARTIAL_LIQUIDATION_SPLIT === "true"
+    );
   },
 };

@@ -101,6 +101,7 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
     strategy,
     allocationPlan,
     isPlanning,
+    splitRatioLabel,
     effectiveFeeSats,
     validateForm,
   } = useDepositPageForm();
@@ -133,7 +134,10 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
     setTransactionHashes,
   } = useDepositPageFlow();
 
-  const partialLiquidationProps = hasActiveVaults
+  const allowSplit =
+    !hasActiveVaults || FeatureFlags.isForcePartialLiquidationSplit;
+
+  const partialLiquidationProps = !allowSplit
     ? undefined
     : {
         isEnabled: isPartialLiquidation,
@@ -141,6 +145,7 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
         canSplit,
         strategy,
         isPlanning,
+        splitRatioLabel,
       };
 
   // Freeze the rendered step during the close animation and reset on reopen
@@ -159,7 +164,8 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
         formData.selectedProvider,
       ]);
       setFeeRate(estimatedFeeRate);
-      const shouldSplit = isPartialLiquidation && !hasActiveVaults;
+      const shouldSplit =
+        isPartialLiquidation && allowSplit && !!allocationPlan;
       setIsSplitDeposit(shouldSplit);
       if (shouldSplit && allocationPlan) {
         setSplitAllocationPlan(allocationPlan);
@@ -307,7 +313,6 @@ export default function SimpleDeposit(props: SimpleDepositProps) {
             <div className="mx-auto w-full max-w-[520px]">
               <ResumeLamportContent
                 activity={props.activity}
-                vaultProviders={props.vaultProviders}
                 onClose={onClose}
                 onSuccess={props.onResumeSuccess}
               />

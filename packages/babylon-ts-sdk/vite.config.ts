@@ -36,6 +36,7 @@ export default defineConfig({
         "@bitcoin-js/tiny-secp256k1-asmjs",
         "@babylonlabs-io/babylon-tbv-rust-wasm",
         "viem",
+        "buffer",
       ],
       output: {
         sourcemapExcludeSources: false,
