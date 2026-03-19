@@ -1,6 +1,6 @@
 import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
 import { useCallback, useEffect, useRef } from "react";
-import type { Address } from "viem";
+import type { Address, Hex } from "viem";
 
 import { ArtifactDownloadModal } from "@/components/deposit/ArtifactDownloadModal";
 import {
@@ -23,6 +23,7 @@ interface DepositSignContentProps {
   universalChallengerBtcPubkeys: string[];
   getMnemonic: () => Promise<string>;
   mnemonicId?: string;
+  depositorAtomicSwapSecretHash?: Hex;
   onSuccess: (
     btcTxid: string,
     ethTxHash: string,
@@ -36,6 +37,7 @@ export function DepositSignContent({
   onClose,
   onSuccess,
   onRefetchActivities,
+  depositorAtomicSwapSecretHash,
   ...flowParams
 }: DepositSignContentProps) {
   const {
@@ -48,7 +50,7 @@ export function DepositSignContent({
     payoutSigningProgress,
     artifactDownloadInfo,
     continueAfterArtifactDownload,
-  } = useDepositFlow(flowParams);
+  } = useDepositFlow({ ...flowParams, depositorAtomicSwapSecretHash });
 
   // Auto-start the flow on mount
   const started = useRef(false);

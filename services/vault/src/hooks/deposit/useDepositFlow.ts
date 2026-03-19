@@ -64,6 +64,8 @@ export interface UseDepositFlowParams {
   /** UUID of the stored mnemonic, used to record the peg-in → mnemonic
    *  mapping so the resume flow can look up the correct mnemonic. */
   mnemonicId?: string;
+  /** SHA-256 hash of the depositor's atomic swap secret */
+  depositorAtomicSwapSecretHash?: Hex;
 }
 
 export interface ArtifactDownloadInfo {
@@ -99,6 +101,7 @@ export function useDepositFlow(
     universalChallengerBtcPubkeys,
     getMnemonic,
     mnemonicId,
+    depositorAtomicSwapSecretHash,
   } = params;
 
   // State
@@ -252,6 +255,7 @@ export function useDepositFlow(
           onPopSigned: () => setCurrentStep(DepositFlowStep.SUBMIT_PEGIN),
           depositorPayoutBtcAddress: btcAddress,
           depositorLamportPkHash: lamportPkHash,
+          depositorAtomicSwapSecretHash,
         });
 
         // Save to localStorage
@@ -444,6 +448,7 @@ export function useDepositFlow(
       maxDeposit,
       getMnemonic,
       mnemonicId,
+      depositorAtomicSwapSecretHash,
     ]);
 
   return {

@@ -99,6 +99,8 @@ export interface UseMultiVaultDepositFlowParams {
   mnemonicId?: string;
   /** Pre-computed allocation plan from the form (skips runtime planning) */
   precomputedPlan?: AllocationPlan;
+  /** SHA-256 hash of the depositor's atomic swap secret */
+  depositorAtomicSwapSecretHash?: Hex;
 }
 
 export interface ArtifactDownloadInfo {
@@ -252,6 +254,7 @@ export function useMultiVaultDepositFlow(
     getMnemonic,
     mnemonicId,
     precomputedPlan,
+    depositorAtomicSwapSecretHash,
   } = params;
 
   // State
@@ -514,6 +517,7 @@ export function useMultiVaultDepositFlow(
                   preSignedBtcPopSignature: capturedPopSignature,
                   onPopSigned: () =>
                     setCurrentStep(DepositFlowStep.SUBMIT_PEGIN),
+                  depositorAtomicSwapSecretHash,
                 },
               );
 
@@ -572,6 +576,7 @@ export function useMultiVaultDepositFlow(
                 depositorLamportPkHash: lamportPkHash,
                 preSignedBtcPopSignature: capturedPopSignature,
                 onPopSigned: () => setCurrentStep(DepositFlowStep.SUBMIT_PEGIN),
+                depositorAtomicSwapSecretHash,
               });
 
               // Capture PoP signature from first vault for reuse
@@ -941,6 +946,7 @@ export function useMultiVaultDepositFlow(
       getMnemonic,
       mnemonicId,
       precomputedPlan,
+      depositorAtomicSwapSecretHash,
     ]);
 
   return {

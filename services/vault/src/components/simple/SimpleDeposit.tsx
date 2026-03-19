@@ -1,5 +1,5 @@
 import { FullScreenDialog, Heading } from "@babylonlabs-io/core-ui";
-import { useCallback } from "react";
+import { useCallback, useRef } from "react";
 import type { Hex } from "viem";
 
 import type { DepositorGraphTransactions } from "@/clients/vault-provider-rpc/types";
@@ -32,6 +32,14 @@ import {
   ResumeLamportContent,
   ResumeSignContent,
 } from "./ResumeDepositContent";
+
+function generateSecretHex(): string {
+  const bytes = new Uint8Array(32);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes)
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
 
 // ---------------------------------------------------------------------------
 // Props
@@ -138,13 +146,20 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
     setTransactionHashes,
   } = useDepositPageFlow();
 
-  const { setSecretHash } = useDepositState();
+  const { setSecretHash, secretHash } = useDepositState();
+
+  // Generated once per deposit flow when the SECRET step is entered.
+  // Using a ref (not state) avoids re-renders and survives modal remounts.
+  const secretHexRef = useRef<string | null>(null);
 
   const handleMnemonicComplete = useCallback(
     (mnemonic?: string, mnemonicId?: string) => {
       confirmMnemonic(mnemonic, mnemonicId);
       if (FeatureFlags.isAtomicSwapPeginEnabled) {
+        secretHexRef.current = generateSecretHex();
         goToStep(DepositStep.SECRET);
+      } else {
+        goToStep(DepositStep.SIGN);
       }
     },
     [confirmMnemonic, goToStep],
@@ -250,12 +265,14 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
         )}
 
         {renderedStep === DepositStep.SECRET &&
-          FeatureFlags.isAtomicSwapPeginEnabled && (
+          FeatureFlags.isAtomicSwapPeginEnabled &&
+          secretHexRef.current && (
             <AtomicSwapSecretModal
               open
               onClose={onClose}
-              onComplete={(_secretHex, secretHash) => {
-                setSecretHash(secretHash);
+              secretHex={secretHexRef.current}
+              onComplete={(_secretHex, hash) => {
+                setSecretHash(hash);
                 goToStep(DepositStep.SIGN);
               }}
             />
@@ -281,6 +298,7 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
                   universalChallengerBtcPubkeys={universalChallengerBtcPubkeys}
                   getMnemonic={getMnemonic}
                   mnemonicId={mnemonicId}
+                  depositorAtomicSwapSecretHash={secretHash}
                   onSuccess={handleSignSuccess}
                   onClose={onClose}
                   onRefetchActivities={refetchActivities}
@@ -298,6 +316,7 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
                   universalChallengerBtcPubkeys={universalChallengerBtcPubkeys}
                   getMnemonic={getMnemonic}
                   mnemonicId={mnemonicId}
+                  depositorAtomicSwapSecretHash={secretHash}
                   onSuccess={handleSignSuccess}
                   onClose={onClose}
                   onRefetchActivities={refetchActivities}

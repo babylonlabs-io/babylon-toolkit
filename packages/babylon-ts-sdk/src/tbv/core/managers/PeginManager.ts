@@ -255,6 +255,13 @@ export interface RegisterPeginParams {
    * Useful for multi-vault deposits where PoP only needs to be signed once.
    */
   preSignedBtcPopSignature?: Hex;
+
+  /**
+   * SHA-256 hash of the depositor's atomic swap secret (bytes32).
+   * Required for atomic swap pegin deposits.
+   * TODO: Wire into submitPeginRequest contract call when contract ABI is updated to support atomic swap pegins.
+   */
+  depositorAtomicSwapSecretHash?: Hex;
 }
 
 /**

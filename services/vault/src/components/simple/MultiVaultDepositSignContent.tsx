@@ -8,7 +8,7 @@
 
 import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
 import { useCallback } from "react";
-import type { Address } from "viem";
+import type { Address, Hex } from "viem";
 
 import { ArtifactDownloadModal } from "@/components/deposit/ArtifactDownloadModal";
 import {
@@ -34,6 +34,7 @@ interface MultiVaultDepositSignContentProps {
   universalChallengerBtcPubkeys: string[];
   getMnemonic: () => Promise<string>;
   mnemonicId?: string;
+  depositorAtomicSwapSecretHash?: Hex;
   onSuccess: (
     btcTxid: string,
     ethTxHash: string,
@@ -49,6 +50,7 @@ export function MultiVaultDepositSignContent({
   onRefetchActivities,
   vaultAmounts,
   precomputedPlan,
+  depositorAtomicSwapSecretHash,
   ...flowParams
 }: MultiVaultDepositSignContentProps) {
   const {
@@ -65,6 +67,7 @@ export function MultiVaultDepositSignContent({
   } = useMultiVaultDepositFlow({
     vaultAmounts,
     precomputedPlan,
+    depositorAtomicSwapSecretHash,
     ...flowParams,
   });
 

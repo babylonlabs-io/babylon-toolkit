@@ -10,40 +10,33 @@ import {
   Warning,
 } from "@babylonlabs-io/core-ui";
 import { sha256 } from "@noble/hashes/sha2.js";
-import { useRef, useState } from "react";
+import { useState } from "react";
 import type { Hex } from "viem";
 
 interface AtomicSwapSecretModalProps {
   open: boolean;
   onClose: () => void;
+  secretHex: string;
   onComplete: (secretHex: string, secretHash: Hex) => void;
-}
-
-function generateSecretHex(): string {
-  const bytes = new Uint8Array(32);
-  crypto.getRandomValues(bytes);
-  return Array.from(bytes)
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
 }
 
 export function AtomicSwapSecretModal({
   open,
   onClose,
+  secretHex,
   onComplete,
 }: AtomicSwapSecretModalProps) {
-  const secretRef = useRef<string>(generateSecretHex());
   const [acknowledged, setAcknowledged] = useState(false);
 
   const handleContinue = () => {
     const secretBytes = Uint8Array.from(
-      secretRef.current.match(/.{2}/g)!.map((b) => parseInt(b, 16)),
+      secretHex.match(/.{2}/g)!.map((b) => parseInt(b, 16)),
     );
     const hashBytes = sha256(secretBytes);
     const hashHex: Hex = `0x${Array.from(hashBytes)
       .map((b) => b.toString(16).padStart(2, "0"))
       .join("")}`;
-    onComplete(secretRef.current, hashHex);
+    onComplete(secretHex, hashHex);
   };
 
   return (
@@ -61,13 +54,13 @@ export function AtomicSwapSecretModal({
           continuing.
         </Text>
 
-        <Copy value={secretRef.current} className="w-full">
+        <Copy value={secretHex} className="w-full">
           <div className="bg-surface-secondary cursor-pointer rounded-md px-4 py-3">
             <Text
               variant="body2"
               className="break-all font-mono text-accent-primary"
             >
-              {secretRef.current}
+              {secretHex}
             </Text>
           </div>
         </Copy>

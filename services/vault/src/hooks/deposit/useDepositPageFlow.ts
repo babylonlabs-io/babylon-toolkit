@@ -177,15 +177,11 @@ export function useDepositPageFlow(): UseDepositPageFlowResult {
   const [mnemonicId, setMnemonicId] = useState<string | undefined>(undefined);
   const [mnemonicVersion, setMnemonicVersion] = useState(0);
 
-  const confirmMnemonic = useCallback(
-    (mnemonic?: string, id?: string) => {
-      mnemonicRef.current = mnemonic;
-      setMnemonicId(id);
-      setMnemonicVersion((v) => v + 1);
-      goToStep(DepositStep.SIGN);
-    },
-    [goToStep],
-  );
+  const confirmMnemonic = useCallback((mnemonic?: string, id?: string) => {
+    mnemonicRef.current = mnemonic;
+    setMnemonicId(id);
+    setMnemonicVersion((v) => v + 1);
+  }, []);
 
   const getMnemonic = useMemo<(() => Promise<string>) | undefined>(
     () => (mnemonicRef.current ? async () => mnemonicRef.current! : undefined),

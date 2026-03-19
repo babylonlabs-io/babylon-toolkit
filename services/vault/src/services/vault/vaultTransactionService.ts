@@ -74,6 +74,11 @@ export interface RegisterPeginOnChainParams {
   depositorLamportPkHash: Hex;
   /** Pre-signed BTC PoP signature to reuse (skips BTC wallet signing) */
   preSignedBtcPopSignature?: Hex;
+  /**
+   * SHA-256 hash of the depositor's atomic swap secret.
+   * TODO: Pass to peginManager.registerPeginOnChain when contract ABI is updated to support atomic swap pegins.
+   */
+  depositorAtomicSwapSecretHash?: Hex;
 }
 
 /**

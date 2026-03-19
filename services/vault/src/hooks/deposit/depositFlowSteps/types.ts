@@ -98,6 +98,8 @@ export interface PeginRegisterParams {
   depositorLamportPkHash: Hex;
   /** Pre-signed BTC PoP signature to reuse (skips BTC wallet signing) */
   preSignedBtcPopSignature?: Hex;
+  /** SHA-256 hash of the depositor's atomic swap secret */
+  depositorAtomicSwapSecretHash?: Hex;
 }
 
 export interface PeginRegisterResult {
