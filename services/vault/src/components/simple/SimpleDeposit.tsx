@@ -1,5 +1,5 @@
 import { FullScreenDialog, Heading } from "@babylonlabs-io/core-ui";
-import { useCallback, useRef } from "react";
+import { useCallback, useRef, useState } from "react";
 import type { Hex } from "viem";
 
 import type { DepositorGraphTransactions } from "@/clients/vault-provider-rpc/types";
@@ -11,6 +11,7 @@ import { depositService } from "@/services/deposit";
 import type { VaultActivity } from "@/types/activity";
 import type { ClaimerTransactions } from "@/types/rpc";
 import type { VaultProvider } from "@/types/vaultProvider";
+import { generateSecretHex } from "@/utils/secretUtils";
 
 import {
   DepositState,
@@ -19,7 +20,7 @@ import {
 } from "../../context/deposit/DepositState";
 import { useDepositPageFlow } from "../../hooks/deposit/useDepositPageFlow";
 import { useDepositPageForm } from "../../hooks/deposit/useDepositPageForm";
-import { AtomicSwapSecretModal } from "../deposit/AtomicSwapSecretModal";
+import { DepositSecretModal } from "../deposit/DepositSecretModal";
 import { MnemonicModal } from "../deposit/MnemonicModal";
 
 import { DepositForm } from "./DepositForm";
@@ -32,14 +33,6 @@ import {
   ResumeLamportContent,
   ResumeSignContent,
 } from "./ResumeDepositContent";
-
-function generateSecretHex(): string {
-  const bytes = new Uint8Array(32);
-  crypto.getRandomValues(bytes);
-  return Array.from(bytes)
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
-}
 
 // ---------------------------------------------------------------------------
 // Props
@@ -147,23 +140,32 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
     setTransactionHashes,
   } = useDepositPageFlow();
 
-  const { setSecretHash, secretHash } = useDepositState();
+  const { setSecretHashes, secretHashes } = useDepositState();
 
-  // Generated once per deposit flow when the SECRET step is entered.
-  // Using a ref (not state) avoids re-renders and survives modal remounts.
-  const secretHexRef = useRef<string | null>(null);
+  // Per-vault secrets generated when the SECRET step is entered.
+  // Using a ref (not state) avoids re-renders and keeps sensitive data
+  // out of React DevTools.
+  const secretHexesRef = useRef<string[]>([]);
+  const [secretVaultIndex, setSecretVaultIndex] = useState(0);
 
   const handleMnemonicComplete = useCallback(
     (mnemonic?: string, mnemonicId?: string) => {
       confirmMnemonic(mnemonic, mnemonicId);
-      if (FeatureFlags.isAtomicSwapPeginEnabled) {
-        secretHexRef.current = generateSecretHex();
+      if (FeatureFlags.isNewPeginFlowEnabled) {
+        const vaultCount =
+          isSplitDeposit && splitAllocationPlan
+            ? splitAllocationPlan.vaultAllocations.length
+            : 1;
+        secretHexesRef.current = Array.from({ length: vaultCount }, () =>
+          generateSecretHex(),
+        );
+        setSecretVaultIndex(0);
         goToStep(DepositStep.SECRET);
       } else {
         goToStep(DepositStep.SIGN);
       }
     },
-    [confirmMnemonic, goToStep],
+    [confirmMnemonic, goToStep, isSplitDeposit, splitAllocationPlan],
   );
 
   const allowSplit =
@@ -180,8 +182,14 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
         splitRatioLabel,
       };
 
+  const resetAll = useCallback(() => {
+    secretHexesRef.current = [];
+    setSecretVaultIndex(0);
+    resetDeposit();
+  }, [resetDeposit]);
+
   // Freeze the rendered step during the close animation and reset on reopen
-  const renderedStep = useDialogStep(open, depositStep, resetDeposit);
+  const renderedStep = useDialogStep(open, depositStep, resetAll);
 
   const handleMaxClick = () => {
     if (maxDepositSats !== null && maxDepositSats > 0n) {
@@ -271,15 +279,27 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
         )}
 
         {renderedStep === DepositStep.SECRET &&
-          FeatureFlags.isAtomicSwapPeginEnabled &&
-          secretHexRef.current && (
-            <AtomicSwapSecretModal
+          FeatureFlags.isNewPeginFlowEnabled &&
+          secretHexesRef.current.length > 0 && (
+            <DepositSecretModal
+              key={secretVaultIndex}
               open
               onClose={onClose}
-              secretHex={secretHexRef.current}
+              secretHex={secretHexesRef.current[secretVaultIndex]}
+              vaultLabel={
+                secretHexesRef.current.length > 1
+                  ? `Vault ${secretVaultIndex + 1} of ${secretHexesRef.current.length}`
+                  : undefined
+              }
               onComplete={(_secretHex, hash) => {
-                setSecretHash(hash);
-                goToStep(DepositStep.SIGN);
+                const updated = [...secretHashes, hash];
+                if (secretVaultIndex + 1 < secretHexesRef.current.length) {
+                  setSecretHashes(updated);
+                  setSecretVaultIndex((i) => i + 1);
+                } else {
+                  setSecretHashes(updated);
+                  goToStep(DepositStep.SIGN);
+                }
               }}
             />
           )}
@@ -304,7 +324,7 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
                   universalChallengerBtcPubkeys={universalChallengerBtcPubkeys}
                   getMnemonic={getMnemonic}
                   mnemonicId={mnemonicId}
-                  depositorAtomicSwapSecretHash={secretHash}
+                  depositorSecretHashes={secretHashes}
                   onSuccess={handleSignSuccess}
                   onClose={onClose}
                   onRefetchActivities={refetchActivities}
@@ -322,7 +342,7 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
                   universalChallengerBtcPubkeys={universalChallengerBtcPubkeys}
                   getMnemonic={getMnemonic}
                   mnemonicId={mnemonicId}
-                  depositorAtomicSwapSecretHash={secretHash}
+                  depositorSecretHash={secretHashes[0]}
                   onSuccess={handleSignSuccess}
                   onClose={onClose}
                   onRefetchActivities={refetchActivities}

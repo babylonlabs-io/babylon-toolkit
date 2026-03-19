@@ -23,7 +23,7 @@ export interface DepositStateData {
   btcTxid: string;
   ethTxHash: string;
   depositorBtcPubkey?: string;
-  secretHash?: Hex;
+  secretHashes: Hex[];
 }
 
 interface DepositStateContext {
@@ -35,7 +35,7 @@ interface DepositStateContext {
   btcTxid: string;
   ethTxHash: string;
   depositorBtcPubkey?: string;
-  secretHash?: Hex;
+  secretHashes: Hex[];
   processing: boolean;
   isSplitDeposit: boolean;
   splitAllocationPlan: AllocationPlan | null;
@@ -51,7 +51,7 @@ interface DepositStateContext {
     ethTxHash: string,
     depositorBtcPubkey?: string,
   ) => void;
-  setSecretHash: (hash: Hex) => void;
+  setSecretHashes: (hashes: Hex[]) => void;
   setProcessing: (processing: boolean) => void;
   setIsSplitDeposit: (v: boolean) => void;
   setSplitAllocationPlan: (plan: AllocationPlan | null) => void;
@@ -68,7 +68,7 @@ const { StateProvider, useState: useDepositState } =
     btcTxid: "",
     ethTxHash: "",
     depositorBtcPubkey: undefined,
-    secretHash: undefined,
+    secretHashes: [],
     processing: false,
     isSplitDeposit: false,
     splitAllocationPlan: null,
@@ -76,7 +76,7 @@ const { StateProvider, useState: useDepositState } =
     setDepositData: () => {},
     setFeeRate: () => {},
     setTransactionHashes: () => {},
-    setSecretHash: () => {},
+    setSecretHashes: () => {},
     setProcessing: () => {},
     setIsSplitDeposit: () => {},
     setSplitAllocationPlan: () => {},
@@ -92,7 +92,7 @@ export function DepositState({ children }: PropsWithChildren) {
   const [btcTxid, setBtcTxid] = useState("");
   const [ethTxHash, setEthTxHash] = useState("");
   const [depositorBtcPubkey, setDepositorBtcPubkey] = useState<string>();
-  const [secretHash, setSecretHash] = useState<Hex | undefined>(undefined);
+  const [secretHashes, setSecretHashes] = useState<Hex[]>([]);
   const [processing, setProcessing] = useState(false);
   const [isSplitDeposit, setIsSplitDeposit] = useState(false);
   const [splitAllocationPlan, setSplitAllocationPlan] =
@@ -133,7 +133,7 @@ export function DepositState({ children }: PropsWithChildren) {
     setBtcTxid("");
     setEthTxHash("");
     setDepositorBtcPubkey(undefined);
-    setSecretHash(undefined);
+    setSecretHashes([]);
     setProcessing(false);
     setIsSplitDeposit(false);
     setSplitAllocationPlan(null);
@@ -149,7 +149,7 @@ export function DepositState({ children }: PropsWithChildren) {
       btcTxid,
       ethTxHash,
       depositorBtcPubkey,
-      secretHash,
+      secretHashes,
       processing,
       isSplitDeposit,
       splitAllocationPlan,
@@ -157,7 +157,7 @@ export function DepositState({ children }: PropsWithChildren) {
       setDepositData,
       setFeeRate: updateFeeRate,
       setTransactionHashes,
-      setSecretHash,
+      setSecretHashes,
       setProcessing,
       setIsSplitDeposit,
       setSplitAllocationPlan,
@@ -172,7 +172,7 @@ export function DepositState({ children }: PropsWithChildren) {
       btcTxid,
       ethTxHash,
       depositorBtcPubkey,
-      secretHash,
+      secretHashes,
       processing,
       isSplitDeposit,
       splitAllocationPlan,
@@ -180,7 +180,7 @@ export function DepositState({ children }: PropsWithChildren) {
       setDepositData,
       updateFeeRate,
       setTransactionHashes,
-      setSecretHash,
+      setSecretHashes,
       reset,
     ],
   );

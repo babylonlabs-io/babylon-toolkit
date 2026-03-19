@@ -109,10 +109,10 @@ export interface RegisterSplitPeginParams {
   /** Pre-signed BTC PoP signature to reuse (skips BTC wallet signing) */
   preSignedBtcPopSignature?: Hex;
   /**
-   * SHA-256 hash of the depositor's atomic swap secret.
-   * TODO: Pass to peginManager.registerPeginOnChain when contract ABI is updated to support atomic swap pegins.
+   * SHA-256 hash of the depositor's secret for the new peg-in flow.
+   * TODO: Pass to peginManager.registerPeginOnChain when contract ABI is updated to support the new peg-in flow.
    */
-  depositorAtomicSwapSecretHash?: Hex;
+  depositorSecretHash?: Hex;
 }
 
 export interface RegisterSplitPeginResult {

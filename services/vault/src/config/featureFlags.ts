@@ -62,13 +62,13 @@ export default {
   },
 
   /**
-   * ATOMIC_SWAP_PEGIN feature flag
+   * NEW_PEGIN_FLOW feature flag
    *
-   * Purpose: Controls whether the atomic swap pegin deposit flow is rendered
+   * Purpose: Controls whether the new peg-in flow deposit flow is rendered
    * Why needed: Allows gradual rollout of the new deposit flow while preserving the existing flow
    * Default: false (existing deposit flow is rendered unless explicitly set to "true")
    */
-  get isAtomicSwapPeginEnabled() {
-    return process.env.NEXT_PUBLIC_FF_ATOMIC_SWAP_PEGIN === "true";
+  get isNewPeginFlowEnabled() {
+    return process.env.NEXT_PUBLIC_FF_NEW_PEGIN_FLOW === "true";
   },
 };

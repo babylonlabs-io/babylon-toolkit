@@ -257,11 +257,11 @@ export interface RegisterPeginParams {
   preSignedBtcPopSignature?: Hex;
 
   /**
-   * SHA-256 hash of the depositor's atomic swap secret (bytes32).
-   * Required for atomic swap pegin deposits.
-   * TODO: Wire into submitPeginRequest contract call when contract ABI is updated to support atomic swap pegins.
+   * SHA-256 hash of the depositor's secret (bytes32).
+   * Required for the new peg-in flow deposits.
+   * TODO: Wire into submitPeginRequest contract call when contract ABI is updated to support the new peg-in flow.
    */
-  depositorAtomicSwapSecretHash?: Hex;
+  depositorSecretHash?: Hex;
 }
 
 /**

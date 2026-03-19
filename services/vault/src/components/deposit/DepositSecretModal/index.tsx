@@ -11,43 +11,44 @@ import {
   useCopy,
   Warning,
 } from "@babylonlabs-io/core-ui";
-import { sha256 } from "@noble/hashes/sha2.js";
 import { useState } from "react";
 import type { Hex } from "viem";
 
-interface AtomicSwapSecretModalProps {
+import { hashSecret } from "@/utils/secretUtils";
+
+interface DepositSecretModalProps {
   open: boolean;
   onClose: () => void;
   secretHex: string;
+  /** Optional label shown in the title, e.g. "Vault 1 of 2" */
+  vaultLabel?: string;
   onComplete: (secretHex: string, secretHash: Hex) => void;
 }
 
-export function AtomicSwapSecretModal({
+export function DepositSecretModal({
   open,
   onClose,
   secretHex,
+  vaultLabel,
   onComplete,
-}: AtomicSwapSecretModalProps) {
+}: DepositSecretModalProps) {
   const [acknowledged, setAcknowledged] = useState(false);
   const [revealed, setRevealed] = useState(false);
   const { isCopied, copyToClipboard } = useCopy();
   const copied = isCopied(secretHex);
 
   const handleContinue = () => {
-    const secretBytes = Uint8Array.from(
-      secretHex.match(/.{2}/g)!.map((b) => parseInt(b, 16)),
-    );
-    const hashBytes = sha256(secretBytes);
-    const hashHex: Hex = `0x${Array.from(hashBytes)
-      .map((b) => b.toString(16).padStart(2, "0"))
-      .join("")}`;
-    onComplete(secretHex, hashHex);
+    onComplete(secretHex, hashSecret(secretHex));
   };
 
   return (
     <ResponsiveDialog open={open} onClose={onClose}>
       <DialogHeader
-        title="Save Your Secret Key"
+        title={
+          vaultLabel
+            ? `Save Your Secret Key — ${vaultLabel}`
+            : "Save Your Secret Key"
+        }
         onClose={onClose}
         className="text-accent-primary"
       />
@@ -60,19 +61,19 @@ export function AtomicSwapSecretModal({
         </Text>
 
         <div className="bg-surface-secondary flex items-center gap-3 rounded-md border border-secondary-strokeLight px-4 py-3">
-          <span
-            className="min-w-0 flex-1 cursor-pointer break-all font-mono text-xs text-accent-primary"
-            onClick={() => copyToClipboard(secretHex, secretHex)}
-            onMouseEnter={() => setRevealed(true)}
-            onMouseLeave={() => setRevealed(false)}
-          >
-            {revealed ? secretHex : "•".repeat(secretHex.length)}
-          </span>
           <button
             type="button"
-            className="flex h-[19px] shrink-0 cursor-pointer items-center"
+            className="min-w-0 flex-1 cursor-pointer break-all text-left font-mono text-xs text-accent-primary"
+            onClick={() => setRevealed((v) => !v)}
+            aria-label={revealed ? "Hide secret key" : "Reveal secret key"}
+          >
+            {revealed ? secretHex : "•".repeat(secretHex.length)}
+          </button>
+          <button
+            type="button"
+            className="flex shrink-0 cursor-pointer items-center"
             onClick={() => copyToClipboard(secretHex, secretHex)}
-            aria-label="Copy secret key"
+            aria-label={copied ? "Copied" : "Copy secret key"}
           >
             {copied ? (
               <CheckIcon size={16} variant="success" />

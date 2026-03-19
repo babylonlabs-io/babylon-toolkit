@@ -34,7 +34,7 @@ interface MultiVaultDepositSignContentProps {
   universalChallengerBtcPubkeys: string[];
   getMnemonic: () => Promise<string>;
   mnemonicId?: string;
-  depositorAtomicSwapSecretHash?: Hex;
+  depositorSecretHashes?: Hex[];
   onSuccess: (
     btcTxid: string,
     ethTxHash: string,
@@ -50,7 +50,7 @@ export function MultiVaultDepositSignContent({
   onRefetchActivities,
   vaultAmounts,
   precomputedPlan,
-  depositorAtomicSwapSecretHash,
+  depositorSecretHashes,
   ...flowParams
 }: MultiVaultDepositSignContentProps) {
   const {
@@ -67,7 +67,7 @@ export function MultiVaultDepositSignContent({
   } = useMultiVaultDepositFlow({
     vaultAmounts,
     precomputedPlan,
-    depositorAtomicSwapSecretHash,
+    depositorSecretHashes,
     ...flowParams,
   });
 
