@@ -4,13 +4,15 @@
 
 import type { Hex } from "viem";
 
+import { getVpProxyUrl } from "@/utils/rpc";
+
 import {
   ContractStatus,
   isPreDepositorSignaturesError,
   LocalStorageStatus,
 } from "../models/peginStateMachine";
 import type { PendingPeginRequest } from "../storage/peginStorage";
-import type { ClaimerTransactions, VaultProvider } from "../types";
+import type { ClaimerTransactions } from "../types";
 import type { VaultActivity } from "../types/activity";
 import type { DepositsByProvider, DepositToPoll } from "../types/peginPolling";
 
@@ -138,27 +140,23 @@ export function getDepositsNeedingPolling(
 }
 
 /**
- * Group deposits by vault provider URL for batched RPC calls
+ * Group deposits by vault provider for batched RPC calls via the proxy
  */
 export function groupDepositsByProvider(
   depositsToPoll: DepositToPoll[],
-  vaultProviders: VaultProvider[],
 ): Map<string, DepositsByProvider> {
   const grouped = new Map<string, DepositsByProvider>();
 
   for (const deposit of depositsToPoll) {
-    const provider = vaultProviders.find(
-      (p) => p.id.toLowerCase() === deposit.vaultProviderAddress?.toLowerCase(),
-    );
+    const providerAddress = deposit.vaultProviderAddress;
+    if (!providerAddress || !providerAddress.startsWith("0x")) continue;
 
-    if (!provider?.url) continue;
-
-    const existing = grouped.get(provider.url);
+    const existing = grouped.get(providerAddress);
     if (existing) {
       existing.deposits.push(deposit);
     } else {
-      grouped.set(provider.url, {
-        providerUrl: provider.url,
+      grouped.set(providerAddress, {
+        providerUrl: getVpProxyUrl(providerAddress),
         deposits: [deposit],
       });
     }

@@ -102,7 +102,7 @@ export interface UseMultiVaultDepositFlowParams {
 }
 
 export interface ArtifactDownloadInfo {
-  providerUrl: string;
+  providerAddress: string;
   peginTxid: string;
   depositorPk: string;
 }
@@ -688,8 +688,8 @@ export function useMultiVaultDepositFlow(
         // ========================================================================
 
         const provider = findProvider(primaryProvider as Hex);
-        if (!provider?.url) {
-          throw new Error("Vault provider has no RPC URL");
+        if (!provider) {
+          throw new Error("Vault provider not found");
         }
 
         for (const result of successfulPegins) {
@@ -698,7 +698,7 @@ export function useMultiVaultDepositFlow(
               btcTxid: result.vaultId,
               depositorBtcPubkey: result.depositorBtcPubkey,
               appContractAddress: selectedApplication,
-              providerUrl: provider.url,
+              providerAddress: provider.id,
               getMnemonic,
               signal,
             });
@@ -732,14 +732,14 @@ export function useMultiVaultDepositFlow(
             setIsWaiting(true);
             const {
               context,
-              vaultProviderUrl,
+              vaultProviderAddress,
               preparedTransactions,
               depositorGraph,
             } = await pollAndPreparePayoutSigning({
               btcTxid: result.vaultId, // Use vaultId for payout lookup
               btcTxHex: result.btcTxHex,
               depositorBtcPubkey: result.depositorBtcPubkey,
-              providerUrl: provider.url,
+              providerAddress: provider.id,
               providerBtcPubKey: provider.btcPubKey,
               vaultKeepers,
               universalChallengers: universalChallengerBtcPubkeys.map(
@@ -779,7 +779,7 @@ export function useMultiVaultDepositFlow(
 
             // Submit signatures
             await submitPayoutSignatures(
-              vaultProviderUrl,
+              vaultProviderAddress,
               result.vaultId,
               result.depositorBtcPubkey,
               signatures,
@@ -801,7 +801,7 @@ export function useMultiVaultDepositFlow(
                   context:
                     "[Multi-Vault] Failed to sign or submit payouts for vault",
                   vaultId: result.vaultId,
-                  providerUrl: provider.url,
+                  providerAddress: provider.id,
                 },
               },
             );
@@ -821,7 +821,7 @@ export function useMultiVaultDepositFlow(
           if (signal.aborted) break;
 
           setArtifactDownloadInfo({
-            providerUrl: provider.url,
+            providerAddress: provider.id,
             peginTxid: result.vaultId,
             depositorPk: result.depositorBtcPubkey,
           });

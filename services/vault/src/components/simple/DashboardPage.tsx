@@ -15,7 +15,6 @@ import { useAaveVaults } from "@/applications/aave/hooks";
 import type { Asset } from "@/applications/aave/types";
 import type { RootLayoutContext } from "@/components/pages/RootLayout";
 import { useConnection, useETHWallet } from "@/context/wallet";
-import { useVaultProviders } from "@/hooks/deposit/useVaultProviders";
 import { useDashboardState } from "@/hooks/useDashboardState";
 import { usePegoutPolling } from "@/hooks/usePegoutPolling";
 import { ClaimerPegoutStatusValue } from "@/models/pegoutStateMachine";
@@ -57,10 +56,8 @@ export function DashboardPage() {
   const { vaults: aaveVaults, redeemedVaults } = useAaveVaults(
     isConnected ? address : undefined,
   );
-  const { findProvider } = useVaultProviders();
   const { pegoutStatuses } = usePegoutPolling({
     redeemedVaults,
-    findProvider,
   });
 
   // Filter out vaults whose payout has been broadcast (terminal success).

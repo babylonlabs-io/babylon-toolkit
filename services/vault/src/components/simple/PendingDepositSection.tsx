@@ -61,7 +61,6 @@ export function PendingDepositSection() {
       pendingPegins={pendingPegins}
       btcPublicKey={btcPublicKey}
       btcAddress={btcAddress}
-      vaultProviders={vaultProviders}
     >
       <div className="w-full space-y-6">
         {/* Header row */}
@@ -129,7 +128,7 @@ export function PendingDepositSection() {
           open={artifactDownloadModal.isOpen}
           onClose={artifactDownloadModal.handleClose}
           onComplete={artifactDownloadModal.handleComplete}
-          providerUrl={artifactDownloadModal.params.providerUrl}
+          providerAddress={artifactDownloadModal.params.providerAddress}
           peginTxid={artifactDownloadModal.params.peginTxid}
           depositorPk={artifactDownloadModal.params.depositorPk}
         />

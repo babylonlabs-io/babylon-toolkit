@@ -7,3 +7,4 @@ export {
   type JsonRpcResponse,
   type JsonRpcSuccessResponse,
 } from "./json-rpc-client";
+export { getVpProxyUrl } from "./vpProxy";

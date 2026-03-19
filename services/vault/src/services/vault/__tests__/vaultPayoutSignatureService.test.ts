@@ -63,7 +63,6 @@ describe("vaultPayoutSignatureService", () => {
       claimerTransactions: [createClaimerTransactions("abc")],
       vaultProvider: {
         address: "0x123" as `0x${string}`,
-        url: "http://localhost:8080",
       },
       vaultKeepers: [{ btcPubKey: "0xabc" }],
       universalChallengers: [{ btcPubKey: "0xdef" }],
@@ -110,16 +109,7 @@ describe("vaultPayoutSignatureService", () => {
       expect(() =>
         validatePayoutSignatureParams({
           ...validParams,
-          vaultProvider: { url: "http://localhost" } as any,
-        }),
-      ).toThrow("Invalid vaultProvider");
-    });
-
-    it("should throw for missing vaultProvider url", () => {
-      expect(() =>
-        validatePayoutSignatureParams({
-          ...validParams,
-          vaultProvider: { address: "0x123" as `0x${string}` } as any,
+          vaultProvider: {} as any,
         }),
       ).toThrow("Invalid vaultProvider");
     });
