@@ -97,6 +97,7 @@ describe("fetchProviders", () => {
           btcPubKey: "0xpk1",
           name: "provider-1",
           url: "https://rpc.example.com",
+          active: false,
         },
       ]);
     });

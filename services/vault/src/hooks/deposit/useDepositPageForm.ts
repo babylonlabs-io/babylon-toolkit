@@ -44,7 +44,12 @@ export interface UseDepositPageFormResult {
     logoUrl: string | null;
   }>;
   isLoadingApplications: boolean;
-  providers: Array<{ id: string; name: string; btcPubkey: string }>;
+  providers: Array<{
+    id: string;
+    name: string;
+    btcPubkey: string;
+    status?: string;
+  }>;
   isLoadingProviders: boolean;
 
   amountSats: bigint;
@@ -99,6 +104,7 @@ export function useDepositPageForm(): UseDepositPageFormResult {
       id: p.id,
       name: p.name || formatProviderName(p.id),
       btcPubkey: p.btcPubKey || "",
+      status: p.active ? "active" : "unstable",
     }));
   }, [rawProviders]);
 
