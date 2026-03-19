@@ -27,7 +27,11 @@ export function useArtifactDownload() {
       });
 
       try {
-        await fetchAndDownloadArtifacts(providerAddress, peginTxid, depositorPk);
+        await fetchAndDownloadArtifacts(
+          providerAddress,
+          peginTxid,
+          depositorPk,
+        );
 
         setState({
           loading: false,
