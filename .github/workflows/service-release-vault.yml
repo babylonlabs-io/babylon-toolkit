@@ -42,23 +42,22 @@ jobs:
     needs: [lint_test]
     runs-on: ubuntu-24.04
     strategy:
+      fail-fast: false
       matrix:
         include:
           - environment: vault-devnet
             aws_account: 537927626649
-            protected: false
+            prod: false
           - environment: vault-staging-devnet
             aws_account: 537927626649
-            protected: false
+            prod: false
           - environment: vault-testnet
             aws_account: 615368094160
-            protected: true
+            prod: true
 
-    if: >
-      !matrix.protected ||
-      github.ref == 'refs/heads/main' ||
-      startsWith(github.ref, 'refs/heads/release/') ||
-      startsWith(github.ref, 'refs/tags/')
+    # prod environments are allowed to fail on feature branches (workflow_dispatch)
+    # without cancelling or failing the devnet environments
+    continue-on-error: ${{ matrix.prod }}
     environment: ${{ matrix.environment }}
     steps:
       - name: Checkout repository
