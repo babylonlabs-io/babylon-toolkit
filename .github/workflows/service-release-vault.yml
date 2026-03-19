@@ -42,22 +42,26 @@ jobs:
     needs: [lint_test]
     runs-on: ubuntu-24.04
     strategy:
-      fail-fast: false
+      fail-fast: false # devnet envs must keep running even if prod envs fail (prod blocks workflow_dispatch from feature branches)
       matrix:
         include:
           - environment: vault-devnet
             aws_account: 537927626649
-            prod: false
           - environment: vault-staging-devnet
             aws_account: 537927626649
-            prod: false
           - environment: vault-testnet
             aws_account: 615368094160
-            prod: true
+          # Negative tests: wrong environment for the account
+          - environment: vault-devnet
+            aws_account: 615368094160
+            expect_oidc_failure: true
+          - environment: vault-testnet
+            aws_account: 537927626649
+            expect_oidc_failure: true
+          - environment: vault-staging-devnet
+            aws_account: 615368094160
+            expect_oidc_failure: true
 
-    # prod environments are allowed to fail on feature branches (workflow_dispatch)
-    # without cancelling or failing the devnet environments
-    continue-on-error: ${{ matrix.prod }}
     environment: ${{ matrix.environment }}
     steps:
       - name: Checkout repository
@@ -142,6 +146,12 @@ jobs:
           aws s3 cp /tmp/vault-${{ matrix.environment }}-${{ github.sha }}.tar.gz s3://${{ vars.S3_PUBLIC_BUCKET_NEW }}/vault/${{ matrix.environment }}/${{ github.sha }}.tar.gz
           aws s3 cp /tmp/vault-${{ matrix.environment }}-${{ github.sha }}-files-checksum.txt s3://${{ vars.S3_CHECKSUM_BUCKET_NEW }}/vault/${{ matrix.environment }}/${{ github.sha }}-files-checksum.txt
           aws s3 cp /tmp/vault-${{ matrix.environment }}-${{ github.sha }}-global-checksum.txt s3://${{ vars.S3_CHECKSUM_BUCKET_NEW }}/vault/${{ matrix.environment }}/${{ github.sha }}-global-checksum.txt
+
+      - name: Delete artifact from S3 (test delete permission)
+        run: |
+          aws s3 rm s3://${{ vars.S3_PUBLIC_BUCKET_NEW }}/vault/${{ matrix.environment }}/${{ github.sha }}.tar.gz
+          aws s3 rm s3://${{ vars.S3_CHECKSUM_BUCKET_NEW }}/vault/${{ matrix.environment }}/${{ github.sha }}-files-checksum.txt
+          aws s3 rm s3://${{ vars.S3_CHECKSUM_BUCKET_NEW }}/vault/${{ matrix.environment }}/${{ github.sha }}-global-checksum.txt
 
       - name: Upload to S3 with Git Tag
         if: startsWith(github.ref, 'refs/tags/')
