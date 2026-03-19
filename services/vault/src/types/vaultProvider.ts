@@ -53,6 +53,8 @@ export interface VaultProvider {
   url: string;
   /** Provider's icon URL (from icon service, optional) */
   iconUrl?: string;
+  /** Whether the provider is verified (from registry, optional) */
+  verified?: boolean;
 }
 
 /**

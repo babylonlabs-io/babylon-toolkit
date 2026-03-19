@@ -13,8 +13,12 @@ export interface CollateralVaultEntry {
   addedAt: number;
   /** Whether the vault is currently in use as collateral */
   inUse: boolean;
+  /** Vault provider Ethereum address */
+  providerAddress: string;
   /** Vault provider display name */
   providerName: string;
   /** Vault provider icon URL (optional) */
   providerIconUrl?: string;
+  /** Depositor's BTC public key (hex) */
+  depositorBtcPubkey?: string;
 }

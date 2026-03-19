@@ -38,7 +38,6 @@ export function DashboardPage() {
   const [assetModalMode, setAssetModalMode] = useState<LoanTab>(
     LOAN_TAB.BORROW,
   );
-
   const {
     collateralBtc,
     collateralValueUsd,

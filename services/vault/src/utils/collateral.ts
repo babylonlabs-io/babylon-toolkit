@@ -46,8 +46,10 @@ export function toCollateralVaultEntries(
       amountBtc: satoshiToBtcNumber(c.amount),
       addedAt: Number(c.addedAt),
       inUse: c.vault?.inUse ?? false,
+      providerAddress: providerAddress,
       providerName: provider?.name ?? truncateHash(providerAddress),
       providerIconUrl: provider?.iconUrl,
+      depositorBtcPubkey: c.vault?.depositorBtcPubKey,
     };
   });
 }

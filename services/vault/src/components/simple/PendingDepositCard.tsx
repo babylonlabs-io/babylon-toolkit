@@ -78,8 +78,9 @@ export function PendingDepositCard({
     }
   };
 
-  const label =
-    loading && !transactions ? "Loading..." : peginState.displayLabel;
+  const actionLabel =
+    status.type === "available" ? status.action.label : peginState.displayLabel;
+  const label = loading && !transactions ? "Loading..." : actionLabel;
   const buttonDisabled = !isActionable || (loading && !transactions);
   const dotColor = STATUS_DOT_COLORS[peginState.displayVariant];
 

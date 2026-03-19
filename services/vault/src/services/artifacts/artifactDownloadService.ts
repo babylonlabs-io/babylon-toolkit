@@ -4,59 +4,75 @@
  * These artifacts are required for the depositor to independently claim
  * their vault funds. They are retrieved from the vault provider after
  * the Lamport key has been submitted and the vault is fully set up.
+ *
+ * Artifacts can be very large (tens of MB), so we avoid parsing the full
+ * JSON response into memory. Instead we stream the raw response text
+ * directly to a Blob for download.
  */
 
-import { VaultProviderRpcApi } from "@/clients/vault-provider-rpc";
-import type { RequestDepositorClaimerArtifactsResponse } from "@/clients/vault-provider-rpc/types";
 import { stripHexPrefix } from "@/utils/btc";
-import { getVpProxyUrl } from "@/utils/rpc";
+import { JsonRpcClient, JsonRpcError, getVpProxyUrl } from "@/utils/rpc";
 
 /** Timeout for the artifact request RPC call (artifacts can be large). */
 const RPC_TIMEOUT_MS = 120 * 1000;
 
+/** Error responses are typically small; artifact payloads are tens of MB. */
+const ERROR_RESPONSE_SIZE_THRESHOLD = 4096;
+
 /**
- * Request the depositor-as-claimer artifacts from the vault provider.
+ * Fetch artifacts from the vault provider and trigger a browser file download.
+ *
+ * Uses JsonRpcClient.callRaw() so the large payload is never fully parsed
+ * into a JS object while still getting retry logic and consistent error
+ * handling. Error responses are small enough to parse safely.
  *
  * @param providerAddress - Vault provider's Ethereum address.
  * @param peginTxid       - Bitcoin pegin transaction ID (hex, with or without 0x prefix).
  * @param depositorPk     - Depositor's Bitcoin public key.
- * @returns The artifact payload containing BaBe session data and challenger info.
  */
-export async function fetchDepositorArtifacts(
+export async function fetchAndDownloadArtifacts(
   providerAddress: string,
   peginTxid: string,
   depositorPk: string,
-): Promise<RequestDepositorClaimerArtifactsResponse> {
-  const rpcClient = new VaultProviderRpcApi(
-    getVpProxyUrl(providerAddress),
-    RPC_TIMEOUT_MS,
-  );
-  return rpcClient.requestDepositorClaimerArtifacts({
-    pegin_txid: stripHexPrefix(peginTxid),
-    depositor_pk: depositorPk,
+): Promise<void> {
+  const client = new JsonRpcClient({
+    baseUrl: getVpProxyUrl(providerAddress),
+    timeout: RPC_TIMEOUT_MS,
   });
+
+  const response = await client.callRaw(
+    "vaultProvider_requestDepositorClaimerArtifacts",
+    {
+      pegin_txid: stripHexPrefix(peginTxid),
+      depositor_pk: stripHexPrefix(depositorPk),
+    },
+  );
+
+  const blob = await response.blob();
+
+  if (blob.size < ERROR_RESPONSE_SIZE_THRESHOLD) {
+    const text = await blob.text();
+    const parsed = JSON.parse(text);
+    if (parsed.error) {
+      throw new JsonRpcError(
+        parsed.error.code,
+        parsed.error.message,
+        parsed.error.data,
+      );
+    }
+  }
+
+  triggerBlobDownload(blob, peginTxid);
 }
 
 /**
- * Trigger a browser file download of the artifact JSON.
- *
- * Creates a temporary Blob URL and programmatically clicks a hidden
- * anchor element to save the file as `babylon-vault-artifacts-<txid>.json`.
- *
- * @param artifacts - The artifact response to serialize.
- * @param peginTxid - Used to name the downloaded file.
+ * Trigger a browser file download from a Blob.
  */
-export function triggerArtifactDownload(
-  artifacts: RequestDepositorClaimerArtifactsResponse,
-  peginTxid: string,
-): void {
-  const blob = new Blob([JSON.stringify(artifacts)], {
-    type: "application/json",
-  });
+function triggerBlobDownload(blob: Blob, peginTxid: string): void {
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
   anchor.href = url;
-  anchor.download = `babylon-vault-artifacts-${peginTxid.slice(0, 8)}.json`;
+  anchor.download = `babylon-vault-artifacts-${stripHexPrefix(peginTxid).slice(0, 8)}.json`;
   document.body.appendChild(anchor);
   anchor.click();
   document.body.removeChild(anchor);

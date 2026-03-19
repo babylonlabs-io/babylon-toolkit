@@ -13,12 +13,14 @@ interface CollateralExpandedContentProps {
   vaults: CollateralVaultEntry[];
   onWithdraw: () => void;
   canWithdraw: boolean;
+  onArtifactDownload?: (vaultId: string) => void;
 }
 
 export function CollateralExpandedContent({
   vaults,
   onWithdraw,
   canWithdraw,
+  onArtifactDownload,
 }: CollateralExpandedContentProps) {
   return (
     <div className="mt-4 space-y-4">
@@ -33,6 +35,11 @@ export function CollateralExpandedContent({
             inUse={vault.inUse}
             providerName={vault.providerName}
             providerIconUrl={vault.providerIconUrl}
+            onArtifactDownload={
+              onArtifactDownload
+                ? () => onArtifactDownload(vault.id)
+                : undefined
+            }
           />
         ))}
       </div>

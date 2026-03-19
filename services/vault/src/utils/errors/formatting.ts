@@ -3,7 +3,7 @@
  * Transform errors to user-friendly messages
  */
 
-import { JsonRpcError } from "../rpc";
+import { JSON_RPC_ERROR_CODES, JsonRpcError } from "../rpc";
 
 /**
  * Transform error to user-friendly message
@@ -40,7 +40,7 @@ export function formatPayoutSignatureError(error: unknown): {
   message: string;
 } {
   if (error instanceof JsonRpcError) {
-    if (error.code === -32000) {
+    if (error.code === JSON_RPC_ERROR_CODES.TIMEOUT) {
       return {
         title: "Request Timeout",
         message:
@@ -49,7 +49,7 @@ export function formatPayoutSignatureError(error: unknown): {
     }
     // -32001: proxy "Provider not found" (message-specific) vs FE client "Network error" (generic)
     if (
-      error.code === -32001 &&
+      error.code === JSON_RPC_ERROR_CODES.NETWORK &&
       error.message.toLowerCase().includes("provider not found")
     ) {
       return {
@@ -58,7 +58,7 @@ export function formatPayoutSignatureError(error: unknown): {
           "The vault provider could not be found in the on-chain registry. It may have been deregistered.",
       };
     }
-    if (error.code === -32001) {
+    if (error.code === JSON_RPC_ERROR_CODES.NETWORK) {
       return {
         title: "Connection Failed",
         message:
