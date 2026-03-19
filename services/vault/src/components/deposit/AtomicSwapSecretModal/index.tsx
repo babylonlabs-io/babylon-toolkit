@@ -1,13 +1,15 @@
 import {
   Button,
   Checkbox,
-  Copy,
+  CheckIcon,
+  CopyIcon,
   DialogBody,
   DialogFooter,
   DialogHeader,
   ResponsiveDialog,
   Text,
   Warning,
+  useCopy,
 } from "@babylonlabs-io/core-ui";
 import { sha256 } from "@noble/hashes/sha2.js";
 import { useState } from "react";
@@ -27,6 +29,9 @@ export function AtomicSwapSecretModal({
   onComplete,
 }: AtomicSwapSecretModalProps) {
   const [acknowledged, setAcknowledged] = useState(false);
+  const [revealed, setRevealed] = useState(false);
+  const { isCopied, copyToClipboard } = useCopy();
+  const copied = isCopied(secretHex);
 
   const handleContinue = () => {
     const secretBytes = Uint8Array.from(
@@ -54,16 +59,28 @@ export function AtomicSwapSecretModal({
           continuing.
         </Text>
 
-        <Copy value={secretHex} className="w-full">
-          <div className="bg-surface-secondary cursor-pointer rounded-md px-4 py-3">
-            <Text
-              variant="body2"
-              className="break-all font-mono text-accent-primary"
-            >
-              {secretHex}
-            </Text>
-          </div>
-        </Copy>
+        <div className="bg-surface-secondary flex items-center gap-3 rounded-md border border-secondary-strokeLight px-4 py-3">
+          <span
+            className="min-w-0 flex-1 cursor-pointer break-all font-mono text-xs text-accent-primary"
+            onClick={() => copyToClipboard(secretHex, secretHex)}
+            onMouseEnter={() => setRevealed(true)}
+            onMouseLeave={() => setRevealed(false)}
+          >
+            {revealed ? secretHex : "•".repeat(secretHex.length)}
+          </span>
+          <button
+            type="button"
+            className="flex h-[19px] shrink-0 cursor-pointer items-center"
+            onClick={() => copyToClipboard(secretHex, secretHex)}
+            aria-label="Copy secret key"
+          >
+            {copied ? (
+              <CheckIcon size={16} variant="success" />
+            ) : (
+              <CopyIcon size={16} variant="secondary" />
+            )}
+          </button>
+        </div>
 
         <Warning>
           If you lose this secret, you will be unable to activate your vault.
