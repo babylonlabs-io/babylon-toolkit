@@ -151,6 +151,7 @@ export async function registerPeginAndWait(
     depositorPayoutBtcAddress,
     depositorLamportPkHash,
     preSignedBtcPopSignature,
+    depositorSecretHash,
   } = params;
 
   const result = await registerPeginOnChain(btcWalletProvider, walletClient, {
@@ -161,6 +162,7 @@ export async function registerPeginAndWait(
     depositorPayoutBtcAddress,
     depositorLamportPkHash,
     preSignedBtcPopSignature,
+    depositorSecretHash,
   });
 
   await waitForEthConfirmation(result.transactionHash);

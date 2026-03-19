@@ -1,5 +1,5 @@
 import { FullScreenDialog, Heading } from "@babylonlabs-io/core-ui";
-import { useCallback } from "react";
+import { useCallback, useRef, useState } from "react";
 import type { Hex } from "viem";
 
 import type { DepositorGraphTransactions } from "@/clients/vault-provider-rpc/types";
@@ -11,10 +11,16 @@ import { depositService } from "@/services/deposit";
 import type { VaultActivity } from "@/types/activity";
 import type { ClaimerTransactions } from "@/types/rpc";
 import type { VaultProvider } from "@/types/vaultProvider";
+import { generateSecretHex } from "@/utils/secretUtils";
 
-import { DepositState, DepositStep } from "../../context/deposit/DepositState";
+import {
+  DepositState,
+  DepositStep,
+  useDepositState,
+} from "../../context/deposit/DepositState";
 import { useDepositPageFlow } from "../../hooks/deposit/useDepositPageFlow";
 import { useDepositPageForm } from "../../hooks/deposit/useDepositPageForm";
+import { DepositSecretModal } from "../deposit/DepositSecretModal";
 import { MnemonicModal } from "../deposit/MnemonicModal";
 
 import { DepositForm } from "./DepositForm";
@@ -134,6 +140,34 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
     setTransactionHashes,
   } = useDepositPageFlow();
 
+  const { setSecretHashes, secretHashes } = useDepositState();
+
+  // Per-vault secrets generated when the SECRET step is entered.
+  // Using a ref (not state) avoids re-renders and keeps sensitive data
+  // out of React DevTools.
+  const secretHexesRef = useRef<string[]>([]);
+  const [secretVaultIndex, setSecretVaultIndex] = useState(0);
+
+  const handleMnemonicComplete = useCallback(
+    (mnemonic?: string, mnemonicId?: string) => {
+      confirmMnemonic(mnemonic, mnemonicId);
+      if (FeatureFlags.isNewPeginFlowEnabled) {
+        const vaultCount =
+          isSplitDeposit && splitAllocationPlan
+            ? splitAllocationPlan.vaultAllocations.length
+            : 1;
+        secretHexesRef.current = Array.from({ length: vaultCount }, () =>
+          generateSecretHex(),
+        );
+        setSecretVaultIndex(0);
+        goToStep(DepositStep.SECRET);
+      } else {
+        goToStep(DepositStep.SIGN);
+      }
+    },
+    [confirmMnemonic, goToStep, isSplitDeposit, splitAllocationPlan],
+  );
+
   const allowSplit =
     !hasActiveVaults || FeatureFlags.isForcePartialLiquidationSplit;
 
@@ -148,8 +182,14 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
         splitRatioLabel,
       };
 
+  const resetAll = useCallback(() => {
+    secretHexesRef.current = [];
+    setSecretVaultIndex(0);
+    resetDeposit();
+  }, [resetDeposit]);
+
   // Freeze the rendered step during the close animation and reset on reopen
-  const renderedStep = useDialogStep(open, depositStep, resetDeposit);
+  const renderedStep = useDialogStep(open, depositStep, resetAll);
 
   const handleMaxClick = () => {
     if (maxDepositSats !== null && maxDepositSats > 0n) {
@@ -232,11 +272,37 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
           <MnemonicModal
             open
             onClose={onClose}
-            onComplete={confirmMnemonic}
+            onComplete={handleMnemonicComplete}
             hasExistingVaults={hasExistingVaults}
             scope={ethAddress}
           />
         )}
+
+        {renderedStep === DepositStep.SECRET &&
+          FeatureFlags.isNewPeginFlowEnabled &&
+          secretHexesRef.current.length > 0 && (
+            <DepositSecretModal
+              key={secretVaultIndex}
+              open
+              onClose={onClose}
+              secretHex={secretHexesRef.current[secretVaultIndex]}
+              vaultLabel={
+                secretHexesRef.current.length > 1
+                  ? `Vault ${secretVaultIndex + 1} of ${secretHexesRef.current.length}`
+                  : undefined
+              }
+              onComplete={(_secretHex, hash) => {
+                const updated = [...secretHashes, hash];
+                if (secretVaultIndex + 1 < secretHexesRef.current.length) {
+                  setSecretHashes(updated);
+                  setSecretVaultIndex((i) => i + 1);
+                } else {
+                  setSecretHashes(updated);
+                  goToStep(DepositStep.SIGN);
+                }
+              }}
+            />
+          )}
 
         {renderedStep === DepositStep.SIGN &&
           getMnemonic &&
@@ -258,6 +324,7 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
                   universalChallengerBtcPubkeys={universalChallengerBtcPubkeys}
                   getMnemonic={getMnemonic}
                   mnemonicId={mnemonicId}
+                  depositorSecretHashes={secretHashes}
                   onSuccess={handleSignSuccess}
                   onClose={onClose}
                   onRefetchActivities={refetchActivities}
@@ -275,6 +342,7 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
                   universalChallengerBtcPubkeys={universalChallengerBtcPubkeys}
                   getMnemonic={getMnemonic}
                   mnemonicId={mnemonicId}
+                  depositorSecretHash={secretHashes[0]}
                   onSuccess={handleSignSuccess}
                   onClose={onClose}
                   onRefetchActivities={refetchActivities}

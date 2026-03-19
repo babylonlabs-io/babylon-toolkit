@@ -60,4 +60,15 @@ export default {
       process.env.NEXT_PUBLIC_FF_FORCE_PARTIAL_LIQUIDATION_SPLIT === "true"
     );
   },
+
+  /**
+   * NEW_PEGIN_FLOW feature flag
+   *
+   * Purpose: Controls whether the new peg-in flow deposit flow is rendered
+   * Why needed: Allows gradual rollout of the new deposit flow while preserving the existing flow
+   * Default: false (existing deposit flow is rendered unless explicitly set to "true")
+   */
+  get isNewPeginFlowEnabled() {
+    return process.env.NEXT_PUBLIC_FF_NEW_PEGIN_FLOW === "true";
+  },
 };
