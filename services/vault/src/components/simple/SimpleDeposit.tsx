@@ -101,6 +101,7 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
     strategy,
     allocationPlan,
     isPlanning,
+    splitRatioLabel,
     effectiveFeeSats,
     validateForm,
   } = useDepositPageForm();
@@ -141,6 +142,7 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
         canSplit,
         strategy,
         isPlanning,
+        splitRatioLabel,
       };
 
   // Freeze the rendered step during the close animation and reset on reopen
@@ -159,7 +161,8 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
         formData.selectedProvider,
       ]);
       setFeeRate(estimatedFeeRate);
-      const shouldSplit = isPartialLiquidation && !hasActiveVaults;
+      const shouldSplit =
+        isPartialLiquidation && !hasActiveVaults && !!allocationPlan;
       setIsSplitDeposit(shouldSplit);
       if (shouldSplit && allocationPlan) {
         setSplitAllocationPlan(allocationPlan);

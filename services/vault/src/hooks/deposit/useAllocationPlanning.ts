@@ -40,6 +40,8 @@ export interface UseAllocationPlanningResult {
   planError: string | null;
   /** Whether the current UTXOs + amount allow splitting into 2 vaults */
   canSplit: boolean;
+  /** Display label for the split ratio, null when not applicable */
+  splitRatioLabel: string | null;
 }
 
 export function useAllocationPlanning({
@@ -215,6 +217,18 @@ export function useAllocationPlanning({
     depositorClaimValue,
   ]);
 
+  const splitRatioLabel = useMemo(() => {
+    if (!canSplit || amountSats <= 0n) return null;
+    const total = sacrificialVault + protectedVault;
+    if (total === 0n) return null;
+    // Safe: BTC amounts in sats fit within Number.MAX_SAFE_INTEGER (max ~2.1e15 sats < 9e15)
+    const sacrificialPct = Math.round(
+      (Number(sacrificialVault) / Number(total)) * 100,
+    );
+    const protectedPct = 100 - sacrificialPct;
+    return `${sacrificialPct}/${protectedPct}`;
+  }, [canSplit, amountSats, sacrificialVault, protectedVault]);
+
   return {
     allocationPlan,
     strategy: allocationPlan?.strategy ?? null,
@@ -222,5 +236,6 @@ export function useAllocationPlanning({
     isPlanning: isPlanning || splitParamsLoading,
     planError,
     canSplit,
+    splitRatioLabel,
   };
 }
