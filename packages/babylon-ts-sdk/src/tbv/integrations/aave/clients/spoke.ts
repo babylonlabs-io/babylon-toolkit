@@ -10,6 +10,11 @@
 
 import type { Address, PublicClient } from "viem";
 
+import {
+  MOCK_COLLATERAL_FACTOR_BPS,
+  MOCK_LIQUIDATION_BONUS_WAD,
+  MOCK_TARGET_HEALTH_FACTOR_WAD,
+} from "../constants.js";
 import type {
   AaveSpokeUserAccountData,
   AaveSpokeUserPosition,
@@ -250,4 +255,61 @@ export async function getUserTotalDebt(
   });
 
   return result as bigint;
+}
+
+/**
+ * Get the target health factor (THF) from the Core Spoke contract.
+ *
+ * Per-spoke governance parameter. After a liquidation, the protocol targets
+ * restoring the position to this health factor.
+ *
+ * @param _publicClient - Viem public client (unused in mock, required for API stability)
+ * @param _spokeAddress - Core Spoke contract address (unused in mock, required for API stability)
+ * @returns Target health factor in WAD (1e18 = 1.0). Example: 1.10 = 1_100_000_000_000_000_000n
+ *
+ * TODO: Replace mock with real contract read when Core Spoke ABI is available
+ */
+export async function getTargetHealthFactor(
+  _publicClient: PublicClient,
+  _spokeAddress: Address,
+): Promise<bigint> {
+  return MOCK_TARGET_HEALTH_FACTOR_WAD;
+}
+
+/**
+ * Get the collateral factor (CF) from the Core Spoke contract.
+ *
+ * Determines what fraction of collateral value counts toward borrowing power.
+ * Default is 75% (7500 BPS), configurable per spoke.
+ *
+ * @param _publicClient - Viem public client (unused in mock, required for API stability)
+ * @param _spokeAddress - Core Spoke contract address (unused in mock, required for API stability)
+ * @returns Collateral factor in BPS (10000 = 100%). Example: 0.75 = 7500n
+ *
+ * TODO: Replace mock with real contract read when Core Spoke ABI is available
+ */
+export async function getCollateralFactor(
+  _publicClient: PublicClient,
+  _spokeAddress: Address,
+): Promise<bigint> {
+  return MOCK_COLLATERAL_FACTOR_BPS;
+}
+
+/**
+ * Get the liquidation bonus (LB) from the Core Spoke contract.
+ *
+ * The bonus multiplier awarded to liquidators. Fixed at 1.05 (5% bonus)
+ * with min = max (no Dutch auction).
+ *
+ * @param _publicClient - Viem public client (unused in mock, required for API stability)
+ * @param _spokeAddress - Core Spoke contract address (unused in mock, required for API stability)
+ * @returns Liquidation bonus in WAD (1e18 = 1.0). Example: 1.05 = 1_050_000_000_000_000_000n
+ *
+ * TODO: Replace mock with real contract read when Core Spoke ABI is available
+ */
+export async function getLiquidationBonus(
+  _publicClient: PublicClient,
+  _spokeAddress: Address,
+): Promise<bigint> {
+  return MOCK_LIQUIDATION_BONUS_WAD;
 }
