@@ -69,9 +69,9 @@ export const ETHWalletProvider = ({ children, callbacks }: ETHWalletProviderProp
         setLoading(false);
 
         await callbacks?.onConnect?.(walletAddress);
-      } catch (error: any) {
+      } catch (error: unknown) {
         setLoading(false);
-        callbacks?.onError?.(error, { address: walletAddress });
+        callbacks?.onError?.(error instanceof Error ? error : new Error("ETH connection failed"), { address: walletAddress });
       }
     },
     [callbacks],
@@ -175,18 +175,16 @@ export const ETHWalletProvider = ({ children, callbacks }: ETHWalletProviderProp
         setAddress(newAddress);
         try {
           await callbacks?.onAddressChange?.(newAddress);
-        } catch (error: any) {
-          callbacks?.onError?.(error, { address: newAddress });
+        } catch (error: unknown) {
+          callbacks?.onError?.(error instanceof Error ? error : new Error("ETH address change failed"), { address: newAddress });
         } finally {
           isProcessingChangeRef.current = false;
         }
       } else if (!newAddress && previousAddress) {
-        // Account disconnected
         disconnect();
       }
     };
 
-    // Subscribe to account changes on the provider
     if (typeof provider.on === "function") {
       provider.on("accountsChanged", onAccountsChanged);
     }
@@ -205,7 +203,10 @@ export const ETHWalletProvider = ({ children, callbacks }: ETHWalletProviderProp
     if (!address) return; // Only listen when connected
     if (typeof window === "undefined") return;
 
-    const ethereum = (window as any).ethereum;
+    const ethereum = (window as Window & { ethereum?: {
+      on?: (event: string, handler: (accounts: string[]) => void) => void;
+      removeListener?: (event: string, handler: (accounts: string[]) => void) => void;
+    } }).ethereum;
     if (!ethereum || typeof ethereum.on !== "function") return;
 
     const onInjectedAccountsChanged = async (accounts: string[]) => {
@@ -229,8 +230,8 @@ export const ETHWalletProvider = ({ children, callbacks }: ETHWalletProviderProp
         setAddress(newAddress);
         try {
           await callbacks?.onAddressChange?.(newAddress);
-        } catch (error: any) {
-          callbacks?.onError?.(error, { address: newAddress });
+        } catch (error: unknown) {
+          callbacks?.onError?.(error instanceof Error ? error : new Error("ETH address change failed"), { address: newAddress });
         } finally {
           isProcessingChangeRef.current = false;
         }

@@ -1,36 +1,36 @@
-import { GeneratedType, Registry } from "@cosmjs/proto-signing";
+import { type GeneratedType, Registry } from "@cosmjs/proto-signing";
+import type { BinaryReader, BinaryWriter } from "@bufbuild/protobuf/wire";
 import { MsgWithdrawDelegatorReward } from "cosmjs-types/cosmos/distribution/v1beta1/tx.js";
 
 import { REGISTRY_TYPE_URLS } from "../../constants";
 import * as btcstakingtx from "../../generated/babylon/btcstaking/v1/tx";
 import * as epochingtx from "../../generated/babylon/epoching/v1/tx";
 import * as incentivetx from "../../generated/babylon/incentive/tx";
-import { MessageFns } from "../../generated/google/protobuf/any";
 
-// Define the structure of each proto to register
-type ProtoToRegister<T> = {
+interface ProtoCodec {
+  encode(message: unknown, writer?: BinaryWriter): BinaryWriter;
+  decode(input: BinaryReader | Uint8Array, length?: number): unknown;
+  fromPartial(object: unknown): unknown;
+}
+
+interface ProtoToRegister {
   typeUrl: string;
-  messageType: MessageFns<T>;
-};
+  messageType: ProtoCodec;
+}
 
-// List of protos to register in the registry
-const protosToRegister: ProtoToRegister<any>[] = [
-  // BTC Staking - Creating a BTC delegation
+const protosToRegister: ProtoToRegister[] = [
   {
     typeUrl: REGISTRY_TYPE_URLS.MsgCreateBTCDelegation,
     messageType: btcstakingtx.MsgCreateBTCDelegation,
   },
-  // BTC Staking - Expanding a BTC delegation
   {
     typeUrl: REGISTRY_TYPE_URLS.MsgBtcStakeExpand,
     messageType: btcstakingtx.MsgBtcStakeExpand,
   },
-  // Incentives - Withdrawing BABY rewards from BTC Staking
   {
     typeUrl: REGISTRY_TYPE_URLS.MsgWithdrawRewardForBTCStaking,
     messageType: incentivetx.MsgWithdrawReward,
   },
-  // Epoching - Staking / Unstaking BABY
   {
     typeUrl: REGISTRY_TYPE_URLS.MsgStakeBABY,
     messageType: epochingtx.MsgWrappedDelegate,
@@ -39,23 +39,20 @@ const protosToRegister: ProtoToRegister<any>[] = [
     typeUrl: REGISTRY_TYPE_URLS.MsgUnstakeBABY,
     messageType: epochingtx.MsgWrappedUndelegate,
   },
-  // Cosmos Distribution - Withdrawing rewards from BABY Staking
   {
     typeUrl: REGISTRY_TYPE_URLS.MsgWithdrawRewardForBABYStaking,
-    messageType: MsgWithdrawDelegatorReward as any,
+    messageType: MsgWithdrawDelegatorReward as unknown as ProtoCodec,
   },
 ];
 
-// Utility function to create a `GeneratedType` from `MessageFns`
-// Temporary workaround until https://github.com/cosmos/cosmjs/issues/1613 is fixed
-const createGeneratedType = <T>(messageType: any): GeneratedType => {
+const createGeneratedType = (messageType: ProtoCodec): GeneratedType => {
   return {
-    encode: messageType.encode.bind(messageType),
-    decode: messageType.decode.bind(messageType),
-    fromPartial: (properties?: Partial<T>): T => {
-      return messageType.fromPartial(properties ?? ({} as T));
+    encode: messageType.encode.bind(messageType) as unknown as GeneratedType["encode"],
+    decode: messageType.decode.bind(messageType) as unknown as GeneratedType["decode"],
+    fromPartial: (properties?: Record<string, unknown>): unknown => {
+      return messageType.fromPartial(properties ?? {});
     },
-  };
+  } as GeneratedType;
 };
 
 // Create the registry with the protos to register

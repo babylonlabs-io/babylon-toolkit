@@ -112,8 +112,7 @@ Sentry.init({
 
   beforeSend(event, hint) {
     // If this is an analytics event, clear its breadcrumbs only
-    const analyticsCategoryTag =
-      (event as any)?.tags?.["analytics.category"] ?? undefined;
+    const analyticsCategoryTag = event.tags?.["analytics.category"];
     if (analyticsCategoryTag) {
       event.breadcrumbs = [];
     }
@@ -123,10 +122,14 @@ Sentry.init({
       version: getCommitHash(),
     };
 
-    const exception = hint?.originalException as any;
+    const exception = hint?.originalException;
+    const exceptionCode =
+      exception instanceof Error
+        ? (exception as Error & { code?: string }).code
+        : undefined;
 
-    if (exception?.code) {
-      event.fingerprint = ["{{ default }}", exception?.code];
+    if (exceptionCode) {
+      event.fingerprint = ["{{ default }}", exceptionCode];
     }
 
     // Wallet identifiers are redacted at the source (logging points)

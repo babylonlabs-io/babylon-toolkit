@@ -61,8 +61,9 @@ export const apiWrapper = async <TResponseData = unknown>(
       const responseText = await response
         .text()
         .catch(() => generalErrorMessage);
-      const cause = new Error(responseText);
-      (cause as any).status = response.status;
+      const cause = Object.assign(new Error(responseText), {
+        status: response.status,
+      });
       const clientError = new ClientError(
         ERROR_CODES.EXTERNAL_SERVICE_UNAVAILABLE,
         "Error fetching data from the API",
