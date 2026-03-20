@@ -104,7 +104,7 @@ export function useDepositPageForm(): UseDepositPageFormResult {
       id: p.id,
       name: p.name || formatProviderName(p.id),
       btcPubkey: p.btcPubKey || "",
-      status: p.active ? "active" : "unstable",
+      status: p.active ? "active" : "unavailable",
     }));
   }, [rawProviders]);
 
