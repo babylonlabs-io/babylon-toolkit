@@ -17,7 +17,6 @@ const CLAIM_TX_VSIZE = 307n;
 export interface ComputeDepositorClaimValueParams {
   numLocalChallengers: number;
   numUniversalChallengers: number;
-  babeInstancesToFinalize: number;
   councilQuorum: number;
   councilSize: number;
   feeRate: bigint;
@@ -29,7 +28,6 @@ export async function computeDepositorClaimValue(
   const wasmValue = await computeMinClaimValue(
     params.numLocalChallengers,
     params.numUniversalChallengers,
-    params.babeInstancesToFinalize,
     params.councilQuorum,
     params.councilSize,
     params.feeRate,

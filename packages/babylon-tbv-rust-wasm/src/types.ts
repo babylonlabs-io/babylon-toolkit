@@ -4,53 +4,115 @@
 export type Network = "bitcoin" | "testnet" | "regtest" | "signet";
 
 /**
- * Parameters for creating an unfunded peg-in transaction.
+ * Parameters for creating an unfunded Pre-PegIn transaction.
  *
- * Note: This creates a transaction with no inputs and one output (the pegin output).
- * The frontend is responsible for:
- * - Selecting UTXOs to fund the transaction
- * - Calculating transaction fees
- * - Adding inputs to cover peginAmount + fees
- * - Adding a change output if needed
- * - Creating and signing the PSBT via wallet
+ * The Pre-PegIn transaction locks BTC in an HTLC output. The depositor must
+ * fund it with UTXOs from their wallet. Once funded and its txid is known,
+ * the PegIn transaction can be derived via buildPeginTxFromPrePegin().
  */
-export interface PegInParams {
-  /** X-only public key of the depositor (hex encoded) */
+export interface PrePeginParams {
+  /** X-only public key of the depositor (hex encoded, 64 chars) */
   depositorPubkey: string;
-  /** X-only public key of the vault provider (hex encoded) */
+  /** X-only public key of the vault provider (hex encoded, 64 chars) */
   vaultProviderPubkey: string;
-  /** Array of x-only public keys of vault keepers (hex encoded) */
+  /** Array of x-only public keys of vault keepers (hex encoded, 64 chars each) */
   vaultKeeperPubkeys: string[];
-  /** Array of x-only public keys of universal challengers (hex encoded) */
+  /** Array of x-only public keys of universal challengers (hex encoded, 64 chars each) */
   universalChallengerPubkeys: string[];
-  /** CSV timelock in blocks for the PegIn output */
-  timelockPegin: number;
-  /** Amount to peg-in in satoshis */
+  /** SHA256 hash commitment (64 hex chars = 32 bytes) */
+  hashH: string;
+  /** CSV timelock in blocks for the HTLC refund path */
+  timelockRefund: number;
+  /** Amount to peg in (satoshis) */
   pegInAmount: bigint;
-  /** Amount in satoshis for the depositor's claim output */
-  depositorClaimValue: bigint;
+  /** Fee rate in sat/vB from contract offchain params */
+  feeRate: bigint;
+  /** Number of local challengers (from contract params) */
+  numLocalChallengers: number;
+  /** M in M-of-N council multisig (from contract params) */
+  councilQuorum: number;
+  /** N in M-of-N council multisig (from contract params) */
+  councilSize: number;
   /** Bitcoin network */
   network: Network;
 }
 
 /**
- * Result of creating an unfunded peg-in transaction.
+ * Result of creating an unfunded Pre-PegIn transaction.
  *
- * This transaction has no inputs and only one output (the pegin output).
- * The frontend must:
- * - Add inputs from selected UTXOs
- * - Calculate and add change output if needed
- * - Sign the transaction via wallet
+ * The transaction has no inputs and one output (the HTLC output). The caller
+ * must fund it by selecting UTXOs covering htlcValue + fees, then call
+ * buildPeginTxFromPrePegin() with the funded txid to derive the PegIn transaction.
  */
-export interface PegInResult {
-  /** Unfunded transaction hex (no inputs, only pegin output) */
+export interface PrePeginResult {
+  /** Unfunded transaction hex (no inputs, one HTLC output) */
   txHex: string;
-  /** Transaction ID (will change after adding inputs and signing) */
+  /** Transaction ID of the unfunded Pre-PegIn transaction */
   txid: string;
-  /** Vault script pubkey (hex encoded) */
+  /** HTLC output value in satoshis (peginAmount + depositorClaimValue + minPeginFee) */
+  htlcValue: bigint;
+  /** HTLC output scriptPubKey (hex encoded) */
+  htlcScriptPubKey: string;
+  /** HTLC Taproot address */
+  htlcAddress: string;
+  /** Pegin amount in satoshis */
+  peginAmount: bigint;
+  /** Depositor claim value computed by WASM from contract parameters */
+  depositorClaimValue: bigint;
+}
+
+/**
+ * Result of building the PegIn transaction from a funded Pre-PegIn txid.
+ */
+export interface PeginTxResult {
+  /** PegIn transaction hex (1 input spending HTLC output, 1 vault output) */
+  txHex: string;
+  /** PegIn transaction ID */
+  txid: string;
+  /** Vault output scriptPubKey (hex encoded) */
   vaultScriptPubKey: string;
   /** Vault output value in satoshis */
   vaultValue: bigint;
+}
+
+/**
+ * Parameters for constructing the Pre-PegIn HTLC connector.
+ *
+ * Subset of PrePeginParams — only the structural parameters, not the fee/amount ones.
+ */
+export interface HtlcConnectorParams {
+  /** X-only public key of the depositor (hex encoded, 64 chars) */
+  depositorPubkey: string;
+  /** X-only public key of the vault provider (hex encoded, 64 chars) */
+  vaultProviderPubkey: string;
+  /** Array of x-only public keys of vault keepers (hex encoded, 64 chars each) */
+  vaultKeeperPubkeys: string[];
+  /** Array of x-only public keys of universal challengers (hex encoded, 64 chars each) */
+  universalChallengerPubkeys: string[];
+  /** SHA256 hash commitment (64 hex chars = 32 bytes) */
+  hashH: string;
+  /** CSV timelock in blocks for the HTLC refund path */
+  timelockRefund: number;
+  /** Bitcoin network */
+  network: Network;
+}
+
+/**
+ * HTLC connector info for building PSBTs that sign Pre-PegIn HTLC inputs.
+ */
+export interface HtlcConnectorInfo {
+  /** Hashlock + all-party spend script (leaf 0) as hex — used for PegIn tx signing */
+  hashlockScript: string;
+  /** Taproot control block for the hashlock leaf (leaf 0) */
+  hashlockControlBlock: string;
+  /** Refund script (leaf 1) as hex */
+  refundScript: string;
+  /** Taproot control block for the refund leaf (leaf 1) */
+  refundControlBlock: string;
+  /** HTLC Taproot address */
+  address: string;
+  /** HTLC scriptPubKey (hex encoded) */
+  scriptPubKey: string;
 }
 
 /**

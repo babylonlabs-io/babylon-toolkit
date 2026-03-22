@@ -29,7 +29,7 @@ import {
   type PayoutSigningProgress,
 } from "@/services/vault/vaultPayoutSignatureService";
 import { getPendingPegins } from "@/storage/peginStorage";
-import { computeDepositorClaimValue } from "@/utils/depositorClaimValue";
+import { generateHtlcSecret, hashHFromSecret } from "@/utils/htlcSecret";
 
 import {
   broadcastBtcTransaction,
@@ -157,6 +157,7 @@ export function useDepositFlow(
     minDeposit,
     maxDeposit,
     timelockPegin,
+    timelockRefund,
     latestUniversalChallengers,
     getOffchainParamsByVersion,
   } = useProtocolParamsContext();
@@ -202,20 +203,11 @@ export function useDepositFlow(
           pendingPegins,
         });
 
-        // Compute depositorClaimValue with actual VK count. The context value
-        // uses 0 local challengers (floor for UI estimation); the VP validates
-        // with vault_keepers.len(), so we must match that here.
-        const depositorClaimValue = await computeDepositorClaimValue({
-          numLocalChallengers: vaultKeeperBtcPubkeys.length,
-          numUniversalChallengers: universalChallengerBtcPubkeys.length,
-          babeInstancesToFinalize:
-            config.offchainParams.babeInstancesToFinalize,
-          councilQuorum: config.offchainParams.councilQuorum,
-          councilSize: config.offchainParams.securityCouncilKeys.length,
-          feeRate: config.offchainParams.feeRate,
-        });
+        // Step 2a: Build Pre-PegIn HTLC, fund it, and sign PegIn input
+        // Generate a random secret and compute H = SHA256(secret) for the HTLC
+        const htlcSecret = generateHtlcSecret();
+        const hashH = await hashHFromSecret(htlcSecret);
 
-        // Step 2a: Build and fund the BTC transaction (no on-chain submission yet)
         const prepared = await preparePegin({
           btcWalletProvider: confirmedBtcWallet,
           walletClient,
@@ -227,7 +219,11 @@ export function useDepositFlow(
           vaultKeeperBtcPubkeys,
           universalChallengerBtcPubkeys,
           timelockPegin,
-          depositorClaimValue,
+          timelockRefund,
+          hashH,
+          numLocalChallengers: vaultKeeperBtcPubkeys.length,
+          councilQuorum: config.offchainParams.councilQuorum,
+          councilSize: config.offchainParams.securityCouncilKeys.length,
           confirmedUTXOs: spendableUTXOs!,
           reservedUtxoRefs,
         });
@@ -243,18 +239,19 @@ export function useDepositFlow(
         );
 
         // Step 2b: Register pegin on-chain (PoP + ETH tx)
+        // Pass peginTxHex so the contract computes the vault ID from the pegin tx hash
         const registration = await registerPeginAndWait({
           btcWalletProvider: confirmedBtcWallet,
           walletClient,
           depositorBtcPubkey: prepared.depositorBtcPubkey,
-          fundedTxHex: prepared.btcTxHex,
+          peginTxHex: prepared.peginTxHex,
           vaultProviderAddress: selectedProviders[0],
           onPopSigned: () => setCurrentStep(DepositFlowStep.SUBMIT_PEGIN),
           depositorPayoutBtcAddress: btcAddress,
           depositorLamportPkHash: lamportPkHash,
         });
 
-        // Save to localStorage
+        // Save to localStorage — store the pre-pegin tx hex for broadcasting later
         savePendingPegin({
           depositorEthAddress,
           btcTxid: registration.btcTxid,
@@ -262,7 +259,7 @@ export function useDepositFlow(
           amount,
           selectedProviders,
           applicationController: selectedApplication,
-          unsignedTxHex: prepared.btcTxHex,
+          unsignedTxHex: prepared.fundedPrePeginTxHex,
           selectedUTXOs: prepared.selectedUTXOs,
         });
 
@@ -314,7 +311,7 @@ export function useDepositFlow(
           depositorGraph,
         } = await pollAndPreparePayoutSigning({
           btcTxid: registration.btcTxid,
-          btcTxHex: prepared.btcTxHex,
+          btcTxHex: prepared.fundedPrePeginTxHex,
           depositorBtcPubkey: prepared.depositorBtcPubkey,
           providerUrl: provider.url,
           providerBtcPubKey: provider.btcPubKey,
@@ -398,7 +395,7 @@ export function useDepositFlow(
           ethTxHash: registration.ethTxHash,
           depositorBtcPubkey: prepared.depositorBtcPubkey,
           transactionData: {
-            unsignedTxHex: prepared.btcTxHex,
+            unsignedTxHex: prepared.fundedPrePeginTxHex,
             selectedUTXOs: prepared.selectedUTXOs,
             fee: prepared.fee,
           },
@@ -430,6 +427,7 @@ export function useDepositFlow(
       vaultKeeperBtcPubkeys,
       universalChallengerBtcPubkeys,
       timelockPegin,
+      timelockRefund,
       config,
       btcAddress,
       spendableUTXOs,

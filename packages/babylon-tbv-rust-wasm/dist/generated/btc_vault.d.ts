@@ -1,10 +1,6 @@
 /* tslint:disable */
 /* eslint-disable */
 /**
- * Initialize panic hook for better error messages in the browser console.
- */
-export function init_panic_hook(): void;
-/**
  * Returns the number of UTXOs used per challenger to distribute input label hashes.
  *
  * This is a protocol constant (currently 3) derived from Bitcoin's 1000 stack element
@@ -28,19 +24,22 @@ export function numUtxosForInputLabels(): number;
  *
  * Usage in JS:
  * ```js
- * const minClaimValue = computeMinClaimValue(numLocal, numUniversal, numGcs, quorum, councilSize, feeRate);
+ * const minClaimValue = computeMinClaimValue(numLocal, numUniversal, quorum, councilSize, feeRate);
  * ```
  *
  * # Arguments
  *
  * * `num_local_challengers` - Number of local challengers
  * * `num_universal_challengers` - Number of universal challengers
- * * `num_gcs` - Number of garbled circuits per challenger
  * * `council_quorum` - M in M-of-N council multisig
  * * `council_size` - N in M-of-N council multisig
  * * `fee_rate` - Fee rate in sat/vB from the contract
  */
-export function computeMinClaimValue(num_local_challengers: number, num_universal_challengers: number, num_gcs: number, council_quorum: number, council_size: number, fee_rate: bigint): bigint;
+export function computeMinClaimValue(num_local_challengers: number, num_universal_challengers: number, council_quorum: number, council_size: number, fee_rate: bigint): bigint;
+/**
+ * Initialize panic hook for better error messages in the browser console.
+ */
+export function init_panic_hook(): void;
 /**
  * WASM wrapper for AssertChallengeAssertConnector.
  *
@@ -249,6 +248,7 @@ export class WasmPeginPayoutConnector {
  * Represents an unfunded PegIn transaction that locks funds into the vault.
  */
 export class WasmPeginTx {
+  private constructor();
   free(): void;
   [Symbol.dispose](): void;
   /**
@@ -256,44 +256,9 @@ export class WasmPeginTx {
    */
   getVaultValue(): bigint;
   /**
-   * Creates a new unfunded PegIn transaction with a CPFP anchor output.
-   *
-   * The anchor output is appended as the last transaction output and can be
-   * used for fee bumping via child-pays-for-parent.
-   *
-   * # Arguments
-   *
-   * * `depositor` - Hex-encoded depositor public key (64 chars)
-   * * `vault_provider` - Hex-encoded vault provider public key (64 chars)
-   * * `vault_keepers` - Array of hex-encoded vault keeper public keys
-   * * `universal_challengers` - Array of hex-encoded universal challenger public keys
-   * * `timelock_pegin` - CSV timelock (P = t3) in blocks for the PegIn output
-   * * `pegin_amount` - Amount in satoshis to lock in the vault
-   * * `depositor_claim_value` - Amount in satoshis for the depositor's claim output
-   * * `network` - Network name: "mainnet", "testnet", "regtest", or "signet"
-   * * `anchor_output_json` - JSON string of an [`AnchorOutput`] for CPFP fee bumping
-   *   (e.g. `{"script_pubkey": "5120...", "value": 330}`)
-   */
-  static newWithAnchorOutput(depositor: string, vault_provider: string, vault_keepers: string[], universal_challengers: string[], timelock_pegin: number, pegin_amount: bigint, depositor_claim_value: bigint, network: string, anchor_output_json: string): WasmPeginTx;
-  /**
    * Returns the vault scriptPubKey as hex.
    */
   getVaultScriptPubKey(): string;
-  /**
-   * Creates a new unfunded PegIn transaction without an anchor output.
-   *
-   * # Arguments
-   *
-   * * `depositor` - Hex-encoded depositor public key (64 chars)
-   * * `vault_provider` - Hex-encoded vault provider public key (64 chars)
-   * * `vault_keepers` - Array of hex-encoded vault keeper public keys
-   * * `universal_challengers` - Array of hex-encoded universal challenger public keys
-   * * `timelock_pegin` - CSV timelock (P = t3) in blocks for the PegIn output
-   * * `pegin_amount` - Amount in satoshis to lock in the vault
-   * * `depositor_claim_value` - Amount in satoshis for the depositor's claim output
-   * * `network` - Network name: "mainnet", "testnet", "regtest", or "signet"
-   */
-  constructor(depositor: string, vault_provider: string, vault_keepers: string[], universal_challengers: string[], timelock_pegin: number, pegin_amount: bigint, depositor_claim_value: bigint, network: string);
   /**
    * Returns the transaction as hex-encoded bytes.
    */
@@ -311,6 +276,157 @@ export class WasmPeginTx {
    */
   static fromJson(json: string): WasmPeginTx;
 }
+/**
+ * WASM wrapper for PrePeginHtlcConnector.
+ *
+ * This connector defines the spending conditions for the Pre-PegIn HTLC output.
+ * The frontend uses `getHashlockScript()` and `getHashlockControlBlock()` to
+ * build a PSBT for the depositor's signature over the PegIn input.
+ */
+export class WasmPrePeginHtlcConnector {
+  free(): void;
+  [Symbol.dispose](): void;
+  /**
+   * Returns the Taproot address for the HTLC output.
+   *
+   * # Arguments
+   *
+   * * `network` - Network name: "mainnet", "testnet", "regtest", or "signet"
+   */
+  getAddress(network: string): string;
+  /**
+   * Returns the refund script (leaf 1) as hex.
+   */
+  getRefundScript(): string;
+  /**
+   * Returns the Taproot scriptPubKey as hex.
+   *
+   * # Arguments
+   *
+   * * `network` - Network name: "mainnet", "testnet", "regtest", or "signet"
+   */
+  getScriptPubKey(network: string): string;
+  /**
+   * Returns the hashlock + all-party spend script (leaf 0) as hex.
+   */
+  getHashlockScript(): string;
+  /**
+   * Returns the refund control block as hex.
+   *
+   * The control block is needed for taproot script-path spending of the
+   * refund leaf (leaf 1).
+   */
+  getRefundControlBlock(): string;
+  /**
+   * Returns the hashlock control block as hex.
+   *
+   * The control block is needed for taproot script-path spending of the
+   * hashlock leaf (leaf 0).
+   */
+  getHashlockControlBlock(): string;
+  /**
+   * Creates a new PrePeginHtlcConnector.
+   *
+   * # Arguments
+   *
+   * * `depositor` - Hex-encoded depositor public key (64 chars)
+   * * `vault_provider` - Hex-encoded vault provider public key (64 chars)
+   * * `vault_keepers` - Array of hex-encoded vault keeper public keys
+   * * `universal_challengers` - Array of hex-encoded universal challenger public keys
+   * * `hash_h` - Hex-encoded SHA256 hash commitment (64 hex chars = 32 bytes)
+   * * `timelock_refund` - CSV timelock for the refund path (must be non-zero)
+   */
+  constructor(depositor: string, vault_provider: string, vault_keepers: string[], universal_challengers: string[], hash_h: string, timelock_refund: number);
+}
+/**
+ * WASM wrapper for PrePegInTx.
+ *
+ * Represents an unfunded Pre-PegIn transaction that locks BTC in an HTLC output.
+ * Also serves as the entry point for deriving the PegIn and refund transactions.
+ */
+export class WasmPrePeginTx {
+  free(): void;
+  [Symbol.dispose](): void;
+  /**
+   * Builds the PegIn transaction that spends this Pre-PegIn's HTLC output.
+   *
+   * The resulting transaction has a single input spending Pre-PegIn output 0
+   * via the hashlock + all-party script (leaf 0). The fee is baked into the
+   * HTLC input/output difference.
+   *
+   * Since Pre-PegIn inputs are required to be non-legacy (SegWit/Taproot),
+   * the txid is stable after funding — signing does not change it.
+   *
+   * # Arguments
+   *
+   * * `timelock_pegin` - CSV timelock (P = t3) in blocks for the PegIn output
+   * * `funded_prepegin_txid` - Hex-encoded txid of the funded Pre-PegIn transaction
+   */
+  buildPeginTx(timelock_pegin: number, funded_prepegin_txid: string): WasmPeginTx;
+  /**
+   * Returns the HTLC output value in satoshis.
+   */
+  getHtlcValue(): bigint;
+  /**
+   * Builds an unsigned refund transaction that spends this Pre-PegIn's HTLC
+   * output via the refund script (leaf 1) after the timelock expires.
+   *
+   * The depositor signs this externally via their wallet.
+   *
+   * # Arguments
+   *
+   * * `refund_fee` - Transaction fee in satoshis
+   * * `funded_prepegin_txid` - Hex-encoded txid of the funded Pre-PegIn transaction
+   */
+  buildRefundTx(refund_fee: bigint, funded_prepegin_txid: string): string;
+  /**
+   * Returns the HTLC Taproot address.
+   */
+  getHtlcAddress(): string;
+  /**
+   * Returns the pegin amount in satoshis.
+   */
+  getPeginAmount(): bigint;
+  /**
+   * Returns the HTLC output scriptPubKey as hex.
+   */
+  getHtlcScriptPubKey(): string;
+  /**
+   * Returns the depositor claim value in satoshis.
+   */
+  getDepositorClaimValue(): bigint;
+  /**
+   * Creates a new unfunded Pre-PegIn transaction.
+   *
+   * Internally computes `depositor_claim_value` (via `compute_min_claim_value`)
+   * and `htlc_value` (= `pegin_amount + depositor_claim_value + min_pegin_fee`)
+   * from the provided contract parameters.
+   *
+   * # Arguments
+   *
+   * * `depositor` - Hex-encoded depositor public key (64 chars)
+   * * `vault_provider` - Hex-encoded vault provider public key (64 chars)
+   * * `vault_keepers` - Array of hex-encoded vault keeper public keys
+   * * `universal_challengers` - Array of hex-encoded universal challenger public keys
+   * * `hash_h` - Hex-encoded SHA256 hash commitment (64 hex chars = 32 bytes)
+   * * `timelock_refund` - CSV timelock for the refund path (must be non-zero)
+   * * `pegin_amount` - Amount in satoshis to lock in the vault
+   * * `fee_rate` - Fee rate in sat/vB (from contract offchain params)
+   * * `num_local_challengers` - Number of local challengers (from contract params)
+   * * `council_quorum` - M in M-of-N council multisig (from contract params)
+   * * `council_size` - N in M-of-N council multisig (from contract params)
+   * * `network` - Network name: "mainnet", "testnet", "regtest", or "signet"
+   */
+  constructor(depositor: string, vault_provider: string, vault_keepers: string[], universal_challengers: string[], hash_h: string, timelock_refund: number, pegin_amount: bigint, fee_rate: bigint, num_local_challengers: number, council_quorum: number, council_size: number, network: string);
+  /**
+   * Returns the transaction as hex-encoded bytes.
+   */
+  toHex(): string;
+  /**
+   * Returns the transaction ID.
+   */
+  getTxid(): string;
+}
 
 export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembly.Module;
 
@@ -321,7 +437,9 @@ export interface InitOutput {
   readonly __wbg_wasmpayouttx_free: (a: number, b: number) => void;
   readonly __wbg_wasmpeginpayoutconnector_free: (a: number, b: number) => void;
   readonly __wbg_wasmpegintx_free: (a: number, b: number) => void;
-  readonly computeMinClaimValue: (a: number, b: number, c: number, d: number, e: number, f: bigint) => bigint;
+  readonly __wbg_wasmprepeginhtlcconnector_free: (a: number, b: number) => void;
+  readonly __wbg_wasmprepegintx_free: (a: number, b: number) => void;
+  readonly computeMinClaimValue: (a: number, b: number, c: number, d: number, e: bigint) => bigint;
   readonly numUtxosForInputLabels: () => number;
   readonly wasmassertchallengeassertconnector_getAddress: (a: number, b: number, c: number) => [number, number, number, number];
   readonly wasmassertchallengeassertconnector_getControlBlock: (a: number) => [number, number, number, number];
@@ -350,10 +468,25 @@ export interface InitOutput {
   readonly wasmpegintx_getTxid: (a: number) => [number, number];
   readonly wasmpegintx_getVaultScriptPubKey: (a: number) => [number, number];
   readonly wasmpegintx_getVaultValue: (a: number) => bigint;
-  readonly wasmpegintx_new: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: bigint, k: bigint, l: number, m: number) => [number, number, number];
-  readonly wasmpegintx_newWithAnchorOutput: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: bigint, k: bigint, l: number, m: number, n: number, o: number) => [number, number, number];
   readonly wasmpegintx_toHex: (a: number) => [number, number];
   readonly wasmpegintx_toJson: (a: number) => [number, number, number, number];
+  readonly wasmprepeginhtlcconnector_getAddress: (a: number, b: number, c: number) => [number, number, number, number];
+  readonly wasmprepeginhtlcconnector_getHashlockControlBlock: (a: number) => [number, number, number, number];
+  readonly wasmprepeginhtlcconnector_getHashlockScript: (a: number) => [number, number];
+  readonly wasmprepeginhtlcconnector_getRefundControlBlock: (a: number) => [number, number, number, number];
+  readonly wasmprepeginhtlcconnector_getRefundScript: (a: number) => [number, number];
+  readonly wasmprepeginhtlcconnector_getScriptPubKey: (a: number, b: number, c: number) => [number, number, number, number];
+  readonly wasmprepeginhtlcconnector_new: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number) => [number, number, number];
+  readonly wasmprepegintx_buildPeginTx: (a: number, b: number, c: number, d: number) => [number, number, number];
+  readonly wasmprepegintx_buildRefundTx: (a: number, b: bigint, c: number, d: number) => [number, number, number, number];
+  readonly wasmprepegintx_getDepositorClaimValue: (a: number) => bigint;
+  readonly wasmprepegintx_getHtlcAddress: (a: number) => [number, number];
+  readonly wasmprepegintx_getHtlcScriptPubKey: (a: number) => [number, number];
+  readonly wasmprepegintx_getHtlcValue: (a: number) => bigint;
+  readonly wasmprepegintx_getPeginAmount: (a: number) => bigint;
+  readonly wasmprepegintx_getTxid: (a: number) => [number, number];
+  readonly wasmprepegintx_new: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: bigint, m: bigint, n: number, o: number, p: number, q: number, r: number) => [number, number, number];
+  readonly wasmprepegintx_toHex: (a: number) => [number, number];
   readonly init_panic_hook: () => void;
   readonly rustsecp256k1_v0_10_0_context_create: (a: number) => number;
   readonly rustsecp256k1_v0_10_0_context_destroy: (a: number) => void;
@@ -363,8 +496,8 @@ export interface InitOutput {
   readonly __wbindgen_realloc: (a: number, b: number, c: number, d: number) => number;
   readonly __wbindgen_free: (a: number, b: number, c: number) => void;
   readonly __wbindgen_externrefs: WebAssembly.Table;
-  readonly __externref_table_alloc: () => number;
   readonly __externref_table_dealloc: (a: number) => void;
+  readonly __externref_table_alloc: () => number;
   readonly __wbindgen_start: () => void;
 }
 

@@ -55,13 +55,18 @@ export interface PegInConfiguration {
   pegInProofTimeout: bigint;
   /** Required BTC confirmation depth */
   pegInConfirmationDepth: bigint;
-  /** CSV timelock in blocks for the PegIn output (from offchain params) */
+  /** CSV timelock in blocks for the PegIn vault output (from offchain params) */
   timelockPegin: number;
+  /**
+   * CSV timelock in blocks for the Pre-PegIn HTLC refund path.
+   * TODO: fetch from ProtocolParams contract once btc-vault adds this parameter.
+   */
+  timelockRefund: number;
   /** Value in satoshis for the depositor's claim output (from offchain params) */
   depositorClaimValue: bigint;
   /** Vault provider commission in basis points (e.g., 500 = 5%) */
   vpCommissionBps: number;
-  /** Latest offchain params (for computing depositorClaimValue in context) */
+  /** Latest offchain params (for council quorum, fee rate, etc.) */
   offchainParams: VersionedOffchainParams;
 }
 
@@ -161,6 +166,11 @@ export async function getPegInConfiguration(): Promise<PegInConfiguration> {
   // timelockPegin = uint16(timelockAssert), matching PeginLogic.sol:115
   const timelockPegin = Number(offchainParams.timelockAssert);
 
+  // TODO: Replace with value from contract once btc-vault adds timelockRefund
+  // to VersionedOffchainParams. For now, use timelockChallengeAssert as a proxy
+  // (the HTLC refund timelock should be shorter than the vault's assert timelock).
+  const timelockRefund = Number(offchainParams.timelockChallengeAssert);
+
   // TODO: Replace with value from contract once btc-vault exposes
   // depositorClaimValue as a parameter. Must cover the full downstream
   // tx graph (Claim → Assert → Payout).
@@ -173,6 +183,7 @@ export async function getPegInConfiguration(): Promise<PegInConfiguration> {
     pegInProofTimeout: params.pegInProofTimeout,
     pegInConfirmationDepth: params.pegInConfirmationDepth,
     timelockPegin,
+    timelockRefund,
     depositorClaimValue,
     vpCommissionBps: offchainParams.vpCommissionBps,
     offchainParams,

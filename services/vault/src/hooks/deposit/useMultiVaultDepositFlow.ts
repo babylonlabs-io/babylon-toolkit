@@ -50,8 +50,8 @@ import {
 } from "@/services/vault/vaultPayoutSignatureService";
 import { addPendingPegin } from "@/storage/peginStorage";
 import { satoshiToBtcNumber } from "@/utils/btcConversion";
-import { computeDepositorClaimValue } from "@/utils/depositorClaimValue";
 import { formatBtcValue } from "@/utils/formatting";
+import { generateHtlcSecret, hashHFromSecret } from "@/utils/htlcSecret";
 
 import {
   broadcastBtcTransaction,
@@ -141,8 +141,8 @@ export interface PeginCreationResult {
   ethTxHash: Hex;
   /** Vault ID from contract (primary identifier) */
   vaultId: Hex;
-  /** Unsigned BTC transaction hex */
-  btcTxHex: string;
+  /** Funded Pre-PegIn tx hex — this is the tx the depositor signs and broadcasts */
+  fundedPrePeginTxHex: string;
   /** UTXOs used in the pegin */
   selectedUTXOs: DepositUtxo[];
   /** Transaction fee in satoshis */
@@ -310,8 +310,13 @@ export function useMultiVaultDepositFlow(
   const { btcAddress, spendableUTXOs, isUTXOsLoading, utxoError } =
     useBtcWalletState();
   const { findProvider, vaultKeepers } = useVaultProviders(selectedApplication);
-  const { config, timelockPegin, getOffchainParamsByVersion } =
-    useProtocolParamsContext();
+  const {
+    config,
+    timelockPegin,
+    timelockRefund,
+    depositorClaimValue,
+    getOffchainParamsByVersion,
+  } = useProtocolParamsContext();
 
   // ============================================================================
   // Main Execution Function
@@ -361,19 +366,6 @@ export function useMultiVaultDepositFlow(
 
         // Generate batch ID for tracking
         const batchId = uuidv4();
-
-        // Compute depositorClaimValue with actual VK count. The context value
-        // uses 0 local challengers (floor for UI estimation); the VP validates
-        // with vault_keepers.len(), so we must match that here.
-        const depositorClaimValue = await computeDepositorClaimValue({
-          numLocalChallengers: vaultKeeperBtcPubkeys.length,
-          numUniversalChallengers: universalChallengerBtcPubkeys.length,
-          babeInstancesToFinalize:
-            config.offchainParams.babeInstancesToFinalize,
-          councilQuorum: config.offchainParams.councilQuorum,
-          councilSize: config.offchainParams.securityCouncilKeys.length,
-          feeRate: config.offchainParams.feeRate,
-        });
 
         // ========================================================================
         // Step 1: Plan UTXO Allocation (use precomputed plan if available)
@@ -452,7 +444,7 @@ export function useMultiVaultDepositFlow(
               btcTxid: string;
               ethTxHash: Hex;
               vaultId: Hex;
-              btcTxHex: string;
+              fundedPrePeginTxHex: string;
               selectedUTXOs: UTXO[];
               fee: bigint;
             };
@@ -480,6 +472,10 @@ export function useMultiVaultDepositFlow(
                   ? publicKeyHex.slice(2) // Strip first byte (02 or 03) → x-only
                   : publicKeyHex; // Already x-only
 
+              // Generate HTLC secret per vault
+              const splitHtlcSecret = generateHtlcSecret();
+              const splitHashH = await hashHFromSecret(splitHtlcSecret);
+
               const prepareResult = await preparePeginFromSplitOutput({
                 pegInAmount: peginAmount,
                 feeRate,
@@ -490,8 +486,14 @@ export function useMultiVaultDepositFlow(
                 vaultKeeperBtcPubkeys,
                 universalChallengerBtcPubkeys,
                 timelockPegin,
-                depositorClaimValue,
+                timelockRefund,
+                hashH: splitHashH,
+                numLocalChallengers: vaultKeeperBtcPubkeys.length,
+                councilQuorum: config.offchainParams.councilQuorum,
+                councilSize: config.offchainParams.securityCouncilKeys.length,
                 splitOutput: utxoToUse,
+                signPsbt: (psbtHex: string) =>
+                  confirmedBtcWallet.signPsbt(psbtHex),
               });
 
               // Derive Lamport keypair and compute PK hash (before ETH tx)
@@ -507,7 +509,7 @@ export function useMultiVaultDepositFlow(
                 walletClient,
                 {
                   depositorBtcPubkey: prepareResult.depositorBtcPubkey,
-                  unsignedBtcTx: prepareResult.fundedTxHex,
+                  unsignedBtcTx: prepareResult.peginTxHex,
                   vaultProviderAddress: primaryProvider,
                   depositorPayoutBtcAddress: confirmedBtcAddress,
                   depositorLamportPkHash: splitLamportPkHash,
@@ -524,7 +526,7 @@ export function useMultiVaultDepositFlow(
                 btcTxid: prepareResult.btcTxHash,
                 ethTxHash: registrationResult.ethTxHash,
                 vaultId: registrationResult.vaultId,
-                btcTxHex: prepareResult.fundedTxHex,
+                fundedPrePeginTxHex: prepareResult.fundedPrePeginTxHex,
                 selectedUTXOs: prepareResult.selectedUTXOs,
                 fee: prepareResult.fee,
               };
@@ -538,6 +540,10 @@ export function useMultiVaultDepositFlow(
                 throw new Error(`No UTXO available for vault ${i}`);
               }
 
+              // Generate HTLC secret per vault
+              const htlcSecret = generateHtlcSecret();
+              const hashH = await hashHFromSecret(htlcSecret);
+
               const prepared = await preparePegin({
                 btcWalletProvider: confirmedBtcWallet,
                 walletClient,
@@ -549,7 +555,11 @@ export function useMultiVaultDepositFlow(
                 vaultKeeperBtcPubkeys,
                 universalChallengerBtcPubkeys,
                 timelockPegin,
-                depositorClaimValue,
+                timelockRefund,
+                hashH,
+                numLocalChallengers: vaultKeeperBtcPubkeys.length,
+                councilQuorum: config.offchainParams.councilQuorum,
+                councilSize: config.offchainParams.securityCouncilKeys.length,
                 confirmedUTXOs: allocation.utxos,
                 reservedUtxoRefs: [],
               });
@@ -566,7 +576,7 @@ export function useMultiVaultDepositFlow(
                 btcWalletProvider: confirmedBtcWallet,
                 walletClient,
                 depositorBtcPubkey: prepared.depositorBtcPubkey,
-                fundedTxHex: prepared.btcTxHex,
+                peginTxHex: prepared.peginTxHex,
                 vaultProviderAddress: selectedProviders[0],
                 depositorPayoutBtcAddress: confirmedBtcAddress,
                 depositorLamportPkHash: lamportPkHash,
@@ -582,7 +592,7 @@ export function useMultiVaultDepositFlow(
                 btcTxid: registration.btcTxid,
                 ethTxHash: registration.ethTxHash,
                 vaultId: registration.btcTxid as Hex,
-                btcTxHex: prepared.btcTxHex,
+                fundedPrePeginTxHex: prepared.fundedPrePeginTxHex,
                 selectedUTXOs: prepared.selectedUTXOs,
                 fee: prepared.fee,
               };
@@ -594,7 +604,7 @@ export function useMultiVaultDepositFlow(
               btcTxHash: peginResult.btcTxid as Hex,
               ethTxHash: peginResult.ethTxHash,
               vaultId: peginResult.vaultId as Hex,
-              btcTxHex: peginResult.btcTxHex,
+              fundedPrePeginTxHex: peginResult.fundedPrePeginTxHex,
               selectedUTXOs: peginResult.selectedUTXOs,
               fee: peginResult.fee,
               depositorBtcPubkey,
@@ -613,7 +623,7 @@ export function useMultiVaultDepositFlow(
               btcTxHash: "0x" as Hex,
               ethTxHash: "0x" as Hex,
               vaultId: "0x" as Hex,
-              btcTxHex: "",
+              fundedPrePeginTxHex: "",
               selectedUTXOs: [],
               fee: 0n,
               depositorBtcPubkey: "",
@@ -737,7 +747,7 @@ export function useMultiVaultDepositFlow(
               depositorGraph,
             } = await pollAndPreparePayoutSigning({
               btcTxid: result.vaultId, // Use vaultId for payout lookup
-              btcTxHex: result.btcTxHex,
+              btcTxHex: result.fundedPrePeginTxHex,
               depositorBtcPubkey: result.depositorBtcPubkey,
               providerUrl: provider.url,
               providerBtcPubKey: provider.btcPubKey,
@@ -857,7 +867,7 @@ export function useMultiVaultDepositFlow(
             if (allocation.fromSplit && splitTxResult) {
               // SPLIT OUTPUT: Use custom broadcast (no mempool fetch)
               await broadcastPeginWithLocalUtxo({
-                fundedTxHex: result.btcTxHex,
+                fundedTxHex: result.fundedPrePeginTxHex,
                 depositorBtcPubkey: result.depositorBtcPubkey,
                 splitOutputs: splitTxResult.outputs,
                 signPsbt: (psbtHex: string) =>
@@ -930,6 +940,8 @@ export function useMultiVaultDepositFlow(
       vaultKeeperBtcPubkeys,
       universalChallengerBtcPubkeys,
       timelockPegin,
+      timelockRefund,
+      depositorClaimValue,
       config,
       btcAddress,
       spendableUTXOs,

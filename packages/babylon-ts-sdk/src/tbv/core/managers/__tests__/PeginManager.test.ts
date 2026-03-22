@@ -1,7 +1,7 @@
 /**
  * Tests for PeginManager
  *
- * Tests the manager's ability to orchestrate peg-in operations
+ * Tests the manager's ability to orchestrate atomic swap peg-in operations
  * using primitives, utilities, and mock wallets.
  */
 
@@ -17,10 +17,24 @@ import { initializeWasmForTests } from "../../primitives/psbt/__tests__/helpers"
 import type { UTXO } from "../../utils";
 import { PeginManager, type PeginManagerConfig } from "../PeginManager";
 
-// Mock calculateBtcTxHash to avoid parsing fake transaction hex in tests
+// Mock calculateBtcTxHash to avoid parsing funded pre-pegin tx in tests
 vi.mock("../../utils/transaction/btcTxHash", () => ({
   calculateBtcTxHash: vi.fn(() => `0x${"a".repeat(64)}`),
 }));
+
+// Mock buildPeginInputPsbt and extractPeginInputSignature — the mock wallet cannot
+// produce a valid signed PSBT, so we mock these two primitives that require real signing
+vi.mock("../../primitives/psbt/peginInput", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("../../primitives/psbt/peginInput")>();
+  return {
+    ...actual,
+    buildPeginInputPsbt: vi
+      .fn()
+      .mockResolvedValue({ psbtHex: "deadbeef" }),
+    extractPeginInputSignature: vi.fn().mockReturnValue("a".repeat(128)),
+  };
+});
 
 // Mock viem's createPublicClient to avoid HTTP requests during gas estimation
 vi.mock("viem", async (importOriginal) => {
@@ -29,11 +43,13 @@ vi.mock("viem", async (importOriginal) => {
     ...actual,
     createPublicClient: vi.fn(() => ({
       estimateGas: vi.fn().mockResolvedValue(100000n),
-      readContract: vi.fn().mockImplementation(({ functionName }: { functionName: string }) => {
-        if (functionName === "getPegInFee") return Promise.resolve(0n);
-        // getBTCVault — return vault with zero depositor (vault doesn't exist)
-        return Promise.resolve({ depositor: actual.zeroAddress });
-      }),
+      readContract: vi
+        .fn()
+        .mockImplementation(({ functionName }: { functionName: string }) => {
+          if (functionName === "getPegInFee") return Promise.resolve(0n);
+          // getBTCVault — return vault with zero depositor (vault doesn't exist)
+          return Promise.resolve({ depositor: actual.zeroAddress });
+        }),
     })),
   };
 });
@@ -62,9 +78,11 @@ const TEST_KEYS = {
     "2f8bde4d1a07209355b4a7250a5c5128e88b84bddc619ab7cba8d569b240efe4",
 } as const;
 
+// Deterministic SHA256 hash commitment (64 hex chars = 32 bytes)
+const TEST_HASH_H = "ab".repeat(32);
+
 // Mock depositor Lamport public key hash (bytes32)
-const MOCK_LAMPORT_PK_HASH =
-  `0x${"ab".repeat(32)}` as `0x${string}`;
+const MOCK_LAMPORT_PK_HASH = `0x${"ab".repeat(32)}` as `0x${string}`;
 
 const TEST_AMOUNTS = {
   PEGIN: 90_000n,
@@ -74,25 +92,27 @@ const TEST_AMOUNTS = {
 
 // Test UTXOs with valid P2TR scriptPubKey (OP_1 <32-byte-pubkey>)
 // Format: 51 (OP_1) + 20 (push 32 bytes) + 32-byte pubkey
+// Values are large to cover the WASM-computed htlcValue, which includes
+// pegInAmount + depositorClaimValue (protocol graph fees) + internal fees.
 const TEST_UTXOS: UTXO[] = [
   {
     txid: "0000000000000000000000000000000000000000000000000000000000000001",
     vout: 0,
-    value: 100_000,
+    value: 800_000,
     scriptPubKey:
       "5120" + "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
   },
   {
     txid: "0000000000000000000000000000000000000000000000000000000000000002",
     vout: 0,
-    value: 200_000,
+    value: 800_000,
     scriptPubKey:
       "5120" + "c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5",
   },
   {
     txid: "0000000000000000000000000000000000000000000000000000000000000003",
     vout: 1,
-    value: 50_000,
+    value: 800_000,
     scriptPubKey:
       "5120" + "f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9",
   },
@@ -106,8 +126,24 @@ const TEST_CONTRACT_ADDRESS =
 const TEST_CHANGE_ADDRESS =
   "tb1plqg44wluw66vpkfccz23rdmtlepnx2m3yef57yyz66flgxdf4h8q7wu6pf";
 
+// Base params for prepareAtomicPegin — shared across tests
+const BASE_ATOMIC_PEGIN_PARAMS = {
+  vaultProvider: TEST_CONTRACT_ADDRESS,
+  vaultProviderBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
+  vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
+  universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
+  timelockPegin: 100,
+  timelockRefund: 50,
+  hashH: TEST_HASH_H,
+  feeRate: 10,
+  numLocalChallengers: 1,
+  councilQuorum: 2,
+  councilSize: 3,
+  availableUTXOs: TEST_UTXOS,
+  changeAddress: TEST_CHANGE_ADDRESS,
+} as const;
+
 describe("PeginManager", () => {
-  // Initialize WASM before running tests
   beforeAll(async () => {
     await initializeWasmForTests();
   });
@@ -122,7 +158,7 @@ describe("PeginManager", () => {
       const config: PeginManagerConfig = {
         btcNetwork: "signet",
         btcWallet,
-        ethWallet: ethWallet as any, // Mock wallet for testing
+        ethWallet: ethWallet as any,
         ethChain: TEST_CHAIN,
         vaultContracts: {
           btcVaultsManager: TEST_CONTRACT_ADDRESS,
@@ -149,7 +185,7 @@ describe("PeginManager", () => {
           btcWallet,
           ethWallet: ethWallet as any,
           ethChain: TEST_CHAIN,
-        vaultContracts: { btcVaultsManager: TEST_CONTRACT_ADDRESS },
+          vaultContracts: { btcVaultsManager: TEST_CONTRACT_ADDRESS },
           mempoolApiUrl: MEMPOOL_API_URLS.signet,
         });
 
@@ -158,8 +194,8 @@ describe("PeginManager", () => {
     });
   });
 
-  describe("preparePegin", () => {
-    it("should prepare a peg-in transaction with valid params", async () => {
+  describe("prepareAtomicPegin", () => {
+    it("should prepare an atomic pegin with valid params", async () => {
       const btcWallet = new MockBitcoinWallet({
         publicKeyHex: TEST_KEYS.DEPOSITOR,
       });
@@ -174,46 +210,43 @@ describe("PeginManager", () => {
         mempoolApiUrl: MEMPOOL_API_URLS.signet,
       });
 
-      const result = await manager.preparePegin({
+      const result = await manager.prepareAtomicPegin({
         amount: TEST_AMOUNTS.PEGIN,
-        vaultProvider: TEST_CONTRACT_ADDRESS,
-        vaultProviderBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
-        vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
-        universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
-        timelockPegin: 100,
-        depositorClaimValue: 35000n,
-        availableUTXOs: TEST_UTXOS,
-        feeRate: 10,
-        changeAddress: TEST_CHANGE_ADDRESS,
+        ...BASE_ATOMIC_PEGIN_PARAMS,
       });
 
       // Verify result structure
-      expect(result).toHaveProperty("btcTxHash");
-      expect(result).toHaveProperty("fundedTxHex");
+      expect(result).toHaveProperty("fundedPrePeginTxHex");
+      expect(result).toHaveProperty("htlcValue");
+      expect(result).toHaveProperty("signedPeginInputPsbtHex");
+      expect(result).toHaveProperty("peginInputSignature");
       expect(result).toHaveProperty("vaultScriptPubKey");
+      expect(result).toHaveProperty("peginTxHex");
+      expect(result).toHaveProperty("prePeginTxid");
+      expect(result).toHaveProperty("peginTxid");
       expect(result).toHaveProperty("selectedUTXOs");
       expect(result).toHaveProperty("fee");
       expect(result).toHaveProperty("changeAmount");
-      expect(result).toHaveProperty("ethTxHash");
 
       // Verify types
-      expect(typeof result.btcTxHash).toBe("string");
-      expect(typeof result.fundedTxHex).toBe("string");
+      expect(typeof result.fundedPrePeginTxHex).toBe("string");
+      expect(typeof result.htlcValue).toBe("bigint");
       expect(typeof result.vaultScriptPubKey).toBe("string");
       expect(Array.isArray(result.selectedUTXOs)).toBe(true);
       expect(typeof result.fee).toBe("bigint");
       expect(typeof result.changeAmount).toBe("bigint");
-      expect(result.ethTxHash).toBeNull(); // Not implemented yet
+      expect(result.peginInputSignature).toBe("a".repeat(128)); // from mock
 
       // Verify values
-      expect(result.btcTxHash.length).toBe(64);
-      expect(result.fundedTxHex.length).toBeGreaterThan(0);
+      expect(result.fundedPrePeginTxHex.length).toBeGreaterThan(0);
+      expect(result.htlcValue).toBeGreaterThan(0n);
       expect(result.vaultScriptPubKey.length).toBeGreaterThan(0);
       expect(result.selectedUTXOs.length).toBeGreaterThan(0);
       expect(result.fee).toBeGreaterThan(0n);
+      expect(result.peginTxid).toMatch(/^[0-9a-f]{64}$/);
     });
 
-    it("should select appropriate UTXOs for the amount", async () => {
+    it("should select UTXOs covering htlcValue + fee", async () => {
       const btcWallet = new MockBitcoinWallet({
         publicKeyHex: TEST_KEYS.DEPOSITOR,
       });
@@ -228,31 +261,19 @@ describe("PeginManager", () => {
         mempoolApiUrl: MEMPOOL_API_URLS.signet,
       });
 
-      // Request small amount - should select minimal UTXOs
-      const result = await manager.preparePegin({
+      const result = await manager.prepareAtomicPegin({
         amount: TEST_AMOUNTS.PEGIN_SMALL,
-        vaultProvider: TEST_CONTRACT_ADDRESS,
-        vaultProviderBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
-        vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
-        universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
-        timelockPegin: 100,
-        depositorClaimValue: 35000n,
-        availableUTXOs: TEST_UTXOS,
-        feeRate: 5,
-        changeAddress: TEST_CHANGE_ADDRESS,
+        ...BASE_ATOMIC_PEGIN_PARAMS,
       });
 
-      // Should select at least one UTXO
       expect(result.selectedUTXOs.length).toBeGreaterThanOrEqual(1);
 
-      // Total selected value should be >= amount + depositorClaimValue + fee
+      // totalSelected = htlcValue + fee + changeAmount
       const totalSelected = result.selectedUTXOs.reduce(
         (sum, utxo) => sum + BigInt(utxo.value),
         0n,
       );
-      expect(totalSelected).toBeGreaterThanOrEqual(
-        TEST_AMOUNTS.PEGIN_SMALL + 35000n + result.fee,
-      );
+      expect(totalSelected).toBe(result.htlcValue + result.fee + result.changeAmount);
     });
 
     it("should handle multiple vault keepers and universal challengers", async () => {
@@ -270,21 +291,15 @@ describe("PeginManager", () => {
         mempoolApiUrl: MEMPOOL_API_URLS.signet,
       });
 
-      const result = await manager.preparePegin({
+      const result = await manager.prepareAtomicPegin({
         amount: TEST_AMOUNTS.PEGIN,
-        vaultProvider: TEST_CONTRACT_ADDRESS,
-        vaultProviderBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
+        ...BASE_ATOMIC_PEGIN_PARAMS,
         vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1, TEST_KEYS.VAULT_KEEPER_2],
-        universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
-        timelockPegin: 100,
-        depositorClaimValue: 35000n,
-        availableUTXOs: TEST_UTXOS,
-        feeRate: 10,
-        changeAddress: TEST_CHANGE_ADDRESS,
+        numLocalChallengers: 2,
       });
 
-      expect(result.fundedTxHex).toBeDefined();
-      expect(result.vaultScriptPubKey).toBeDefined();
+      expect(result.fundedPrePeginTxHex.length).toBeGreaterThan(0);
+      expect(result.vaultScriptPubKey.length).toBeGreaterThan(0);
     });
 
     it("should calculate change correctly", async () => {
@@ -302,27 +317,17 @@ describe("PeginManager", () => {
         mempoolApiUrl: MEMPOOL_API_URLS.signet,
       });
 
-      const result = await manager.preparePegin({
+      const result = await manager.prepareAtomicPegin({
         amount: TEST_AMOUNTS.PEGIN,
-        vaultProvider: TEST_CONTRACT_ADDRESS,
-        vaultProviderBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
-        vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
-        universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
-        timelockPegin: 100,
-        depositorClaimValue: 35000n,
-        availableUTXOs: TEST_UTXOS,
-        feeRate: 10,
-        changeAddress: TEST_CHANGE_ADDRESS,
+        ...BASE_ATOMIC_PEGIN_PARAMS,
       });
 
-      // Verify accounting: totalSelected = amount + depositorClaimValue + fee + change
+      // totalSelected = htlcValue + fee + changeAmount
       const totalSelected = result.selectedUTXOs.reduce(
         (sum, utxo) => sum + BigInt(utxo.value),
         0n,
       );
-      expect(totalSelected).toBe(
-        TEST_AMOUNTS.PEGIN + 35000n + result.fee + result.changeAmount,
-      );
+      expect(totalSelected).toBe(result.htlcValue + result.fee + result.changeAmount);
     });
 
     it("should throw error for insufficient funds", async () => {
@@ -340,7 +345,6 @@ describe("PeginManager", () => {
         mempoolApiUrl: MEMPOOL_API_URLS.signet,
       });
 
-      // Request more than available UTXOs
       const totalAvailable = TEST_UTXOS.reduce(
         (sum, utxo) => sum + BigInt(utxo.value),
         0n,
@@ -348,17 +352,9 @@ describe("PeginManager", () => {
       const excessiveAmount = totalAvailable + 100_000n;
 
       await expect(
-        manager.preparePegin({
+        manager.prepareAtomicPegin({
           amount: excessiveAmount,
-          vaultProvider: TEST_CONTRACT_ADDRESS,
-          vaultProviderBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
-          vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
-        universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
-          timelockPegin: 100,
-          depositorClaimValue: 35000n,
-          availableUTXOs: TEST_UTXOS,
-          feeRate: 10,
-          changeAddress: TEST_CHANGE_ADDRESS,
+          ...BASE_ATOMIC_PEGIN_PARAMS,
         }),
       ).rejects.toThrow(/Insufficient funds/);
     });
@@ -379,17 +375,10 @@ describe("PeginManager", () => {
       });
 
       await expect(
-        manager.preparePegin({
+        manager.prepareAtomicPegin({
           amount: TEST_AMOUNTS.PEGIN,
-          vaultProvider: TEST_CONTRACT_ADDRESS,
-          vaultProviderBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
-          vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
-        universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
-          timelockPegin: 100,
-          depositorClaimValue: 35000n,
-          availableUTXOs: [], // Empty UTXOs
-          feeRate: 10,
-          changeAddress: TEST_CHANGE_ADDRESS,
+          ...BASE_ATOMIC_PEGIN_PARAMS,
+          availableUTXOs: [],
         }),
       ).rejects.toThrow(/no UTXOs available/);
     });
@@ -409,19 +398,11 @@ describe("PeginManager", () => {
         mempoolApiUrl: MEMPOOL_API_URLS.signet,
       });
 
-      // Invalid vault provider pubkey
       await expect(
-        manager.preparePegin({
+        manager.prepareAtomicPegin({
           amount: TEST_AMOUNTS.PEGIN,
-          vaultProvider: TEST_CONTRACT_ADDRESS,
+          ...BASE_ATOMIC_PEGIN_PARAMS,
           vaultProviderBtcPubkey: "invalid-pubkey",
-          vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
-        universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
-          timelockPegin: 100,
-          depositorClaimValue: 35000n,
-          availableUTXOs: TEST_UTXOS,
-          feeRate: 10,
-          changeAddress: TEST_CHANGE_ADDRESS,
         }),
       ).rejects.toThrow();
     });
@@ -442,17 +423,12 @@ describe("PeginManager", () => {
       });
 
       await expect(
-        manager.preparePegin({
+        manager.prepareAtomicPegin({
           amount: TEST_AMOUNTS.PEGIN,
-          vaultProvider: TEST_CONTRACT_ADDRESS,
-          vaultProviderBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
-          vaultKeeperBtcPubkeys: [], // Empty vault keepers
+          ...BASE_ATOMIC_PEGIN_PARAMS,
+          vaultKeeperBtcPubkeys: [],
           universalChallengerBtcPubkeys: [],
-          timelockPegin: 100,
-          depositorClaimValue: 35000n,
-          availableUTXOs: TEST_UTXOS,
-          feeRate: 10,
-          changeAddress: TEST_CHANGE_ADDRESS,
+          numLocalChallengers: 0,
         }),
       ).rejects.toThrow();
     });
@@ -475,34 +451,23 @@ describe("PeginManager", () => {
         mempoolApiUrl: MEMPOOL_API_URLS.signet,
       });
 
-      // Spy on wallet method
       const getPublicKeySpy = vi.spyOn(btcWallet, "getPublicKeyHex");
 
-      await manager.preparePegin({
+      await manager.prepareAtomicPegin({
         amount: TEST_AMOUNTS.PEGIN,
-        vaultProvider: TEST_CONTRACT_ADDRESS,
-        vaultProviderBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
-        vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
-        universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
-        timelockPegin: 100,
-        depositorClaimValue: 35000n,
-        availableUTXOs: TEST_UTXOS,
-        feeRate: 10,
-        changeAddress: TEST_CHANGE_ADDRESS,
+        ...BASE_ATOMIC_PEGIN_PARAMS,
       });
 
-      // Verify wallet was called
       expect(getPublicKeySpy).toHaveBeenCalled();
     });
 
     it("should handle wallet errors gracefully", async () => {
       const btcWallet = new MockBitcoinWallet({
         publicKeyHex: TEST_KEYS.DEPOSITOR,
-        shouldFailSigning: true, // This doesn't affect getPublicKey
+        shouldFailSigning: true,
       });
       const ethWallet = new MockEthereumWallet();
 
-      // Override getPublicKeyHex to throw
       btcWallet.getPublicKeyHex = async () => {
         throw new Error("Wallet connection failed");
       };
@@ -517,17 +482,9 @@ describe("PeginManager", () => {
       });
 
       await expect(
-        manager.preparePegin({
+        manager.prepareAtomicPegin({
           amount: TEST_AMOUNTS.PEGIN,
-          vaultProvider: TEST_CONTRACT_ADDRESS,
-          vaultProviderBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
-          vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
-        universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
-          timelockPegin: 100,
-          depositorClaimValue: 35000n,
-          availableUTXOs: TEST_UTXOS,
-          feeRate: 10,
-          changeAddress: TEST_CHANGE_ADDRESS,
+          ...BASE_ATOMIC_PEGIN_PARAMS,
         }),
       ).rejects.toThrow("Wallet connection failed");
     });
@@ -540,7 +497,6 @@ describe("PeginManager", () => {
       });
       const ethWallet = new MockEthereumWallet();
 
-      // Spy on sendTransaction
       const sendTxSpy = vi.spyOn(ethWallet, "sendTransaction");
       const signMessageSpy = vi.spyOn(btcWallet, "signMessage");
 
@@ -553,7 +509,6 @@ describe("PeginManager", () => {
         mempoolApiUrl: MEMPOOL_API_URLS.signet,
       });
 
-      // Use a valid-looking tx hex (minimal transaction format)
       const mockUnsignedTx = "0100000000010000000000";
 
       const result = await manager.registerPeginOnChain({
@@ -565,19 +520,16 @@ describe("PeginManager", () => {
         depositorLamportPkHash: MOCK_LAMPORT_PK_HASH,
       });
 
-      // Verify BTC wallet signed the ETH address (PoP)
       expect(signMessageSpy).toHaveBeenCalled();
       const signedMessage = signMessageSpy.mock.calls[0][0];
-      expect(signedMessage.toLowerCase()).toContain("0x"); // ETH address
+      expect(signedMessage.toLowerCase()).toContain("0x");
 
-      // Verify ETH wallet sent transaction
       expect(sendTxSpy).toHaveBeenCalled();
       const txRequest = sendTxSpy.mock.calls[0][0];
       expect(txRequest.to).toBe(TEST_CONTRACT_ADDRESS);
       expect(txRequest.data).toBeDefined();
-      expect(txRequest.data).toContain("0x"); // Encoded call data
+      expect(txRequest.data).toContain("0x");
 
-      // Verify result contains ethTxHash and vaultId
       expect(result).toBeDefined();
       expect(result.ethTxHash).toBeDefined();
       expect(result.ethTxHash.startsWith("0x")).toBe(true);
@@ -658,7 +610,6 @@ describe("PeginManager", () => {
         mempoolApiUrl: MEMPOOL_API_URLS.signet,
       });
 
-      // Test with 0x prefix
       await manager.registerPeginOnChain({
         depositorBtcPubkey: `0x${TEST_KEYS.DEPOSITOR}`,
         unsignedBtcTx: "0x0100000000010000000000",
@@ -670,7 +621,6 @@ describe("PeginManager", () => {
 
       expect(sendTxSpy).toHaveBeenCalled();
 
-      // Test without 0x prefix
       sendTxSpy.mockClear();
       await manager.registerPeginOnChain({
         depositorBtcPubkey: TEST_KEYS.DEPOSITOR,
@@ -701,7 +651,6 @@ describe("PeginManager", () => {
         mempoolApiUrl: MEMPOOL_API_URLS.signet,
       });
 
-      // Invalid transaction hex
       await expect(
         manager.signAndBroadcast({
           fundedTxHex: "invalid-hex",
@@ -709,7 +658,6 @@ describe("PeginManager", () => {
         }),
       ).rejects.toThrow();
     });
-
   });
 
   describe("Deterministic output", () => {
@@ -730,23 +678,14 @@ describe("PeginManager", () => {
 
       const params = {
         amount: TEST_AMOUNTS.PEGIN,
-        vaultProvider: TEST_CONTRACT_ADDRESS,
-        vaultProviderBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
-        vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
-        universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
-        timelockPegin: 100,
-        depositorClaimValue: 35000n,
-        availableUTXOs: TEST_UTXOS,
-        feeRate: 10,
-        changeAddress: TEST_CHANGE_ADDRESS,
+        ...BASE_ATOMIC_PEGIN_PARAMS,
       };
 
-      const result1 = await manager.preparePegin(params);
-      const result2 = await manager.preparePegin(params);
+      const result1 = await manager.prepareAtomicPegin(params);
+      const result2 = await manager.prepareAtomicPegin(params);
 
-      // Same inputs should produce same vault script
       expect(result1.vaultScriptPubKey).toBe(result2.vaultScriptPubKey);
-      expect(result1.btcTxHash).toBe(result2.btcTxHash);
+      expect(result1.peginTxid).toBe(result2.peginTxid);
       expect(result1.fee).toBe(result2.fee);
     });
 
@@ -755,7 +694,7 @@ describe("PeginManager", () => {
         publicKeyHex: TEST_KEYS.DEPOSITOR,
       });
       const btcWallet2 = new MockBitcoinWallet({
-        publicKeyHex: TEST_KEYS.VAULT_KEEPER_1, // Different key
+        publicKeyHex: TEST_KEYS.VAULT_KEEPER_1,
       });
       const ethWallet = new MockEthereumWallet();
 
@@ -779,25 +718,14 @@ describe("PeginManager", () => {
 
       const params = {
         amount: TEST_AMOUNTS.PEGIN,
-        vaultProvider: TEST_CONTRACT_ADDRESS,
-        vaultProviderBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
+        ...BASE_ATOMIC_PEGIN_PARAMS,
         vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_2],
-        universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
-        timelockPegin: 100,
-        depositorClaimValue: 35000n,
-        availableUTXOs: TEST_UTXOS,
-        feeRate: 10,
-        changeAddress: TEST_CHANGE_ADDRESS,
       };
 
-      const result1 = await manager1.preparePegin(params);
-      const result2 = await manager2.preparePegin(params);
+      const result1 = await manager1.prepareAtomicPegin(params);
+      const result2 = await manager2.prepareAtomicPegin(params);
 
-      // Different depositors should produce different vault scripts
       expect(result1.vaultScriptPubKey).not.toBe(result2.vaultScriptPubKey);
     });
   });
 });
-
-
-
