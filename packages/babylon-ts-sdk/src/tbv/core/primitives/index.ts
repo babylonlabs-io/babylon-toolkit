@@ -79,8 +79,19 @@ export type {
 } from "@babylonlabs-io/babylon-tbv-rust-wasm";
 
 // PSBT builders
-export { buildPeginPsbt } from "./psbt/pegin";
-export type { PeginParams, PeginPsbtResult } from "./psbt/pegin";
+export { buildPrePeginPsbt, buildPeginTxFromFundedPrePegin } from "./psbt/pegin";
+export type {
+  PrePeginParams,
+  PrePeginPsbtResult,
+  BuildPeginTxParams,
+  PeginTxResult,
+} from "./psbt/pegin";
+
+export { buildPeginInputPsbt, extractPeginInputSignature } from "./psbt/peginInput";
+export type {
+  BuildPeginInputPsbtParams,
+  BuildPeginInputPsbtResult,
+} from "./psbt/peginInput";
 
 export { buildPayoutPsbt, extractPayoutSignature } from "./psbt/payout";
 export type { PayoutParams, PayoutPsbtResult } from "./psbt/payout";

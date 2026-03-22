@@ -1,478 +1,333 @@
 /**
- * Tests for buildPeginPsbt primitive function
+ * Tests for buildPrePeginPsbt and buildPeginTxFromFundedPrePegin primitives
  */
 
-import {
-  createPegInTransaction,
-  type Network,
-} from "@babylonlabs-io/babylon-tbv-rust-wasm";
+import type { Network } from "@babylonlabs-io/babylon-tbv-rust-wasm";
 import { beforeAll, describe, expect, it } from "vitest";
-import { buildPeginPsbt, type PeginParams } from "../pegin";
+
+import {
+  buildPrePeginPsbt,
+  buildPeginTxFromFundedPrePegin,
+  type PrePeginParams,
+} from "../pegin";
 import { TEST_AMOUNTS, TEST_KEYS, initializeWasmForTests } from "./helpers";
 
-describe("buildPeginPsbt", () => {
-  // Initialize WASM before running tests
+// Deterministic SHA256 hash commitment (64 hex chars = 32 bytes)
+const TEST_HASH_H = "ab".repeat(32);
+
+// A fake funded Pre-PegIn txid (64 hex chars)
+const TEST_FUNDED_TXID = "cafe".repeat(16);
+
+const TEST_TIMELOCK_REFUND = 50;
+const TEST_TIMELOCK_PEGIN = 100;
+const TEST_COUNCIL_QUORUM = 2;
+const TEST_COUNCIL_SIZE = 3;
+
+function makePrePeginParams(overrides?: Partial<PrePeginParams>): PrePeginParams {
+  return {
+    depositorPubkey: TEST_KEYS.DEPOSITOR,
+    vaultProviderPubkey: TEST_KEYS.VAULT_PROVIDER,
+    vaultKeeperPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
+    universalChallengerPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
+    hashH: TEST_HASH_H,
+    timelockRefund: TEST_TIMELOCK_REFUND,
+    pegInAmount: TEST_AMOUNTS.PEGIN,
+    feeRate: 10n,
+    numLocalChallengers: 1,
+    councilQuorum: TEST_COUNCIL_QUORUM,
+    councilSize: TEST_COUNCIL_SIZE,
+    network: "signet" as Network,
+    ...overrides,
+  };
+}
+
+describe("buildPrePeginPsbt", () => {
   beforeAll(async () => {
     await initializeWasmForTests();
   });
 
   describe("Basic functionality", () => {
-    it("should build a valid peg-in PSBT for signet", async () => {
-      const params: PeginParams = {
-        depositorPubkey: TEST_KEYS.DEPOSITOR,
-        vaultProviderPubkey: TEST_KEYS.VAULT_PROVIDER,
-        vaultKeeperPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
-        universalChallengerPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
-        timelockPegin: 100,
-        pegInAmount: TEST_AMOUNTS.PEGIN,
-        depositorClaimValue: 35000n,
-        network: "signet" as Network,
-      };
+    it("should build a valid unfunded Pre-PegIn transaction for signet", async () => {
+      const result = await buildPrePeginPsbt(makePrePeginParams());
 
-      const result = await buildPeginPsbt(params);
-
-      // Verify result structure
       expect(result).toHaveProperty("psbtHex");
-      expect(result).toHaveProperty("txid");
-      expect(result).toHaveProperty("vaultScriptPubKey");
-      expect(result).toHaveProperty("vaultValue");
+      expect(result).toHaveProperty("htlcValue");
+      expect(result).toHaveProperty("htlcScriptPubKey");
+      expect(result).toHaveProperty("htlcAddress");
+      expect(result).toHaveProperty("peginAmount");
+      expect(result).toHaveProperty("depositorClaimValue");
 
-      // Verify types
       expect(typeof result.psbtHex).toBe("string");
-      expect(typeof result.txid).toBe("string");
-      expect(typeof result.vaultScriptPubKey).toBe("string");
-      expect(typeof result.vaultValue).toBe("bigint");
+      expect(typeof result.htlcValue).toBe("bigint");
+      expect(typeof result.htlcScriptPubKey).toBe("string");
+      expect(typeof result.htlcAddress).toBe("string");
+      expect(typeof result.peginAmount).toBe("bigint");
+      expect(typeof result.depositorClaimValue).toBe("bigint");
 
-      // Verify values
       expect(result.psbtHex.length).toBeGreaterThan(0);
-      expect(result.txid.length).toBe(64); // Bitcoin txid is 64 hex chars
-      expect(result.vaultScriptPubKey.length).toBeGreaterThan(0);
-      expect(result.vaultValue).toBe(TEST_AMOUNTS.PEGIN);
+      expect(result.htlcValue).toBeGreaterThan(0n);
+      expect(result.htlcScriptPubKey.length).toBeGreaterThan(0);
+      expect(result.htlcAddress.length).toBeGreaterThan(0);
+      expect(result.peginAmount).toBe(TEST_AMOUNTS.PEGIN);
+      expect(result.depositorClaimValue).toBeGreaterThan(0n);
+    });
+
+    it("should set htlcValue >= pegInAmount + depositorClaimValue", async () => {
+      const result = await buildPrePeginPsbt(makePrePeginParams());
+
+      // htlcValue covers pegInAmount + depositorClaimValue + internal fees
+      expect(result.htlcValue).toBeGreaterThanOrEqual(
+        result.peginAmount + result.depositorClaimValue,
+      );
     });
 
     it("should handle different networks", async () => {
       const networks: Network[] = ["bitcoin", "testnet", "regtest", "signet"];
 
       for (const network of networks) {
-        const params: PeginParams = {
-          depositorPubkey: TEST_KEYS.DEPOSITOR,
-          vaultProviderPubkey: TEST_KEYS.VAULT_PROVIDER,
-          vaultKeeperPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
-          universalChallengerPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
-          timelockPegin: 100,
-          pegInAmount: TEST_AMOUNTS.PEGIN,
-          depositorClaimValue: 35000n,
-          network,
-        };
+        const result = await buildPrePeginPsbt(makePrePeginParams({ network }));
 
-        const result = await buildPeginPsbt(params);
-
-        expect(result.psbtHex).toBeDefined();
-        expect(result.txid).toBeDefined();
-        expect(result.vaultValue).toBe(TEST_AMOUNTS.PEGIN);
+        expect(result.psbtHex.length).toBeGreaterThan(0);
+        expect(result.htlcValue).toBeGreaterThan(0n);
+        expect(result.peginAmount).toBe(TEST_AMOUNTS.PEGIN);
       }
     });
 
-    it("should handle different amounts", async () => {
+    it("should handle different peg-in amounts", async () => {
       const amounts = [
-        TEST_AMOUNTS.SMALL,
         TEST_AMOUNTS.PEGIN_SMALL,
         TEST_AMOUNTS.PEGIN_MEDIUM,
         TEST_AMOUNTS.PEGIN_LARGE,
         TEST_AMOUNTS.ONE_BTC,
       ];
 
-      for (const amount of amounts) {
-        const params: PeginParams = {
-          depositorPubkey: TEST_KEYS.DEPOSITOR,
-          vaultProviderPubkey: TEST_KEYS.VAULT_PROVIDER,
-          vaultKeeperPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
-          universalChallengerPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
-          timelockPegin: 100,
-          pegInAmount: amount,
-          depositorClaimValue: 35000n,
-          network: "signet",
-        };
+      for (const pegInAmount of amounts) {
+        const result = await buildPrePeginPsbt(makePrePeginParams({ pegInAmount }));
 
-        const result = await buildPeginPsbt(params);
-
-        expect(result.vaultValue).toBe(amount);
+        expect(result.peginAmount).toBe(pegInAmount);
+        expect(result.htlcValue).toBeGreaterThanOrEqual(pegInAmount);
       }
     });
 
     it("should handle multiple vault keepers", async () => {
-      const params: PeginParams = {
-        depositorPubkey: TEST_KEYS.DEPOSITOR,
-        vaultProviderPubkey: TEST_KEYS.VAULT_PROVIDER,
-        vaultKeeperPubkeys: [TEST_KEYS.VAULT_KEEPER_1, TEST_KEYS.VAULT_KEEPER_2],
-        universalChallengerPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
-        timelockPegin: 100,
-        pegInAmount: TEST_AMOUNTS.PEGIN,
-        depositorClaimValue: 35000n,
-        network: "signet",
-      };
+      const result = await buildPrePeginPsbt(
+        makePrePeginParams({
+          vaultKeeperPubkeys: [TEST_KEYS.VAULT_KEEPER_1, TEST_KEYS.VAULT_KEEPER_2],
+          numLocalChallengers: 2,
+        }),
+      );
 
-      const result = await buildPeginPsbt(params);
-
-      expect(result.psbtHex).toBeDefined();
-      expect(result.txid).toBeDefined();
-      expect(result.vaultValue).toBe(TEST_AMOUNTS.PEGIN);
+      expect(result.psbtHex.length).toBeGreaterThan(0);
+      expect(result.htlcValue).toBeGreaterThan(0n);
     });
 
     it("should handle multiple universal challengers", async () => {
-      const params: PeginParams = {
-        depositorPubkey: TEST_KEYS.DEPOSITOR,
-        vaultProviderPubkey: TEST_KEYS.VAULT_PROVIDER,
-        vaultKeeperPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
-        universalChallengerPubkeys: [
-          TEST_KEYS.UNIVERSAL_CHALLENGER_1,
-          TEST_KEYS.UNIVERSAL_CHALLENGER_2,
-        ],
-        timelockPegin: 100,
-        pegInAmount: TEST_AMOUNTS.PEGIN,
-        depositorClaimValue: 35000n,
-        network: "signet",
-      };
+      const result = await buildPrePeginPsbt(
+        makePrePeginParams({
+          universalChallengerPubkeys: [
+            TEST_KEYS.UNIVERSAL_CHALLENGER_1,
+            TEST_KEYS.UNIVERSAL_CHALLENGER_2,
+          ],
+        }),
+      );
 
-      const result = await buildPeginPsbt(params);
-
-      expect(result.psbtHex).toBeDefined();
-      expect(result.txid).toBeDefined();
-      expect(result.vaultValue).toBe(TEST_AMOUNTS.PEGIN);
-    });
-  });
-
-  describe("Integration with WASM", () => {
-    it("should produce same output as calling WASM directly", async () => {
-      const params: PeginParams = {
-        depositorPubkey: TEST_KEYS.DEPOSITOR,
-        vaultProviderPubkey: TEST_KEYS.VAULT_PROVIDER,
-        vaultKeeperPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
-        universalChallengerPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
-        timelockPegin: 100,
-        pegInAmount: TEST_AMOUNTS.PEGIN,
-        depositorClaimValue: 35000n,
-        network: "signet",
-      };
-
-      // Call our SDK function
-      const sdkResult = await buildPeginPsbt(params);
-
-      // Call WASM directly
-      const wasmResult = await createPegInTransaction({
-        depositorPubkey: params.depositorPubkey,
-        vaultProviderPubkey: params.vaultProviderPubkey,
-        vaultKeeperPubkeys: params.vaultKeeperPubkeys,
-        universalChallengerPubkeys: params.universalChallengerPubkeys,
-        timelockPegin: params.timelockPegin,
-        pegInAmount: params.pegInAmount,
-        depositorClaimValue: params.depositorClaimValue,
-        network: params.network,
-      });
-
-      // Results should match (accounting for property name differences)
-      expect(sdkResult.psbtHex).toBe(wasmResult.txHex);
-      expect(sdkResult.txid).toBe(wasmResult.txid);
-      expect(sdkResult.vaultScriptPubKey).toBe(wasmResult.vaultScriptPubKey);
-      expect(sdkResult.vaultValue).toBe(wasmResult.vaultValue);
+      expect(result.psbtHex.length).toBeGreaterThan(0);
+      expect(result.htlcValue).toBeGreaterThan(0n);
     });
   });
 
   describe("Deterministic output", () => {
     it("should produce the same result for the same inputs", async () => {
-      const params: PeginParams = {
-        depositorPubkey: TEST_KEYS.DEPOSITOR,
-        vaultProviderPubkey: TEST_KEYS.VAULT_PROVIDER,
-        vaultKeeperPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
-        universalChallengerPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
-        timelockPegin: 100,
-        pegInAmount: TEST_AMOUNTS.PEGIN,
-        depositorClaimValue: 35000n,
-        network: "signet",
-      };
+      const params = makePrePeginParams();
 
-      const result1 = await buildPeginPsbt(params);
-      const result2 = await buildPeginPsbt(params);
+      const result1 = await buildPrePeginPsbt(params);
+      const result2 = await buildPrePeginPsbt(params);
 
       expect(result1.psbtHex).toBe(result2.psbtHex);
+      expect(result1.htlcValue).toBe(result2.htlcValue);
+      expect(result1.htlcScriptPubKey).toBe(result2.htlcScriptPubKey);
+      expect(result1.htlcAddress).toBe(result2.htlcAddress);
+    });
+
+    it("should produce different output for different depositor keys", async () => {
+      const result1 = await buildPrePeginPsbt(makePrePeginParams());
+      const result2 = await buildPrePeginPsbt(
+        makePrePeginParams({ depositorPubkey: TEST_KEYS.VAULT_PROVIDER }),
+      );
+
+      expect(result1.psbtHex).not.toBe(result2.psbtHex);
+      expect(result1.htlcScriptPubKey).not.toBe(result2.htlcScriptPubKey);
+      expect(result1.htlcAddress).not.toBe(result2.htlcAddress);
+    });
+
+    it("should produce different output for different hashH values", async () => {
+      const result1 = await buildPrePeginPsbt(
+        makePrePeginParams({ hashH: "ab".repeat(32) }),
+      );
+      const result2 = await buildPrePeginPsbt(
+        makePrePeginParams({ hashH: "cd".repeat(32) }),
+      );
+
+      expect(result1.htlcScriptPubKey).not.toBe(result2.htlcScriptPubKey);
+      expect(result1.htlcAddress).not.toBe(result2.htlcAddress);
+    });
+
+    it("should produce different output for different vault keepers", async () => {
+      const result1 = await buildPrePeginPsbt(
+        makePrePeginParams({ vaultKeeperPubkeys: [TEST_KEYS.VAULT_KEEPER_1] }),
+      );
+      const result2 = await buildPrePeginPsbt(
+        makePrePeginParams({ vaultKeeperPubkeys: [TEST_KEYS.VAULT_KEEPER_2] }),
+      );
+
+      expect(result1.htlcScriptPubKey).not.toBe(result2.htlcScriptPubKey);
+    });
+  });
+
+  describe("Error handling", () => {
+    it("should reject invalid depositor pubkey", async () => {
+      await expect(
+        buildPrePeginPsbt(makePrePeginParams({ depositorPubkey: "invalid-pubkey" })),
+      ).rejects.toThrow();
+    });
+
+    it("should reject depositor pubkey with incorrect length", async () => {
+      await expect(
+        buildPrePeginPsbt(makePrePeginParams({ depositorPubkey: "abcd1234" })),
+      ).rejects.toThrow();
+    });
+
+    it("should reject invalid vault provider pubkey", async () => {
+      await expect(
+        buildPrePeginPsbt(
+          makePrePeginParams({ vaultProviderPubkey: "not-a-valid-hex-key" }),
+        ),
+      ).rejects.toThrow();
+    });
+
+    it("should reject invalid vault keeper pubkey in array", async () => {
+      await expect(
+        buildPrePeginPsbt(
+          makePrePeginParams({ vaultKeeperPubkeys: ["zzzzinvalidhexzzzz"] }),
+        ),
+      ).rejects.toThrow();
+    });
+
+    it("should reject invalid network string", async () => {
+      await expect(
+        buildPrePeginPsbt(
+          makePrePeginParams({ network: "invalid-network" as Network }),
+        ),
+      ).rejects.toThrow();
+    });
+  });
+});
+
+describe("buildPeginTxFromFundedPrePegin", () => {
+  beforeAll(async () => {
+    await initializeWasmForTests();
+  });
+
+  describe("Basic functionality", () => {
+    it("should build a valid PegIn transaction from a funded Pre-PegIn txid", async () => {
+      const prePeginParams = makePrePeginParams();
+
+      const result = await buildPeginTxFromFundedPrePegin({
+        prePeginParams,
+        timelockPegin: TEST_TIMELOCK_PEGIN,
+        fundedPrePeginTxid: TEST_FUNDED_TXID,
+      });
+
+      expect(result).toHaveProperty("txHex");
+      expect(result).toHaveProperty("txid");
+      expect(result).toHaveProperty("vaultScriptPubKey");
+      expect(result).toHaveProperty("vaultValue");
+
+      expect(typeof result.txHex).toBe("string");
+      expect(typeof result.txid).toBe("string");
+      expect(typeof result.vaultScriptPubKey).toBe("string");
+      expect(typeof result.vaultValue).toBe("bigint");
+
+      expect(result.txHex.length).toBeGreaterThan(0);
+      expect(result.txid).toMatch(/^[0-9a-f]{64}$/);
+      expect(result.vaultScriptPubKey.length).toBeGreaterThan(0);
+      expect(result.vaultValue).toBeGreaterThan(0n);
+    });
+
+    it("should embed fundedPrePeginTxid as the input reference", async () => {
+      const prePeginParams = makePrePeginParams();
+
+      const result1 = await buildPeginTxFromFundedPrePegin({
+        prePeginParams,
+        timelockPegin: TEST_TIMELOCK_PEGIN,
+        fundedPrePeginTxid: TEST_FUNDED_TXID,
+      });
+
+      const result2 = await buildPeginTxFromFundedPrePegin({
+        prePeginParams,
+        timelockPegin: TEST_TIMELOCK_PEGIN,
+        fundedPrePeginTxid: "dead".repeat(16), // Different txid
+      });
+
+      // Different Pre-PegIn txids produce different PegIn txids
+      expect(result1.txid).not.toBe(result2.txid);
+      expect(result1.txHex).not.toBe(result2.txHex);
+    });
+
+    it("should produce the same vaultScriptPubKey for same depositor and keepers", async () => {
+      const prePeginParams = makePrePeginParams();
+
+      const result1 = await buildPeginTxFromFundedPrePegin({
+        prePeginParams,
+        timelockPegin: TEST_TIMELOCK_PEGIN,
+        fundedPrePeginTxid: TEST_FUNDED_TXID,
+      });
+
+      const result2 = await buildPeginTxFromFundedPrePegin({
+        prePeginParams,
+        timelockPegin: TEST_TIMELOCK_PEGIN,
+        fundedPrePeginTxid: TEST_FUNDED_TXID,
+      });
+
       expect(result1.txid).toBe(result2.txid);
       expect(result1.vaultScriptPubKey).toBe(result2.vaultScriptPubKey);
       expect(result1.vaultValue).toBe(result2.vaultValue);
     });
 
-    it("should produce different results for different depositor keys", async () => {
-      const params1: PeginParams = {
-        depositorPubkey: TEST_KEYS.DEPOSITOR,
-        vaultProviderPubkey: TEST_KEYS.VAULT_PROVIDER,
-        vaultKeeperPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
-        universalChallengerPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
-        timelockPegin: 100,
-        pegInAmount: TEST_AMOUNTS.PEGIN,
-        depositorClaimValue: 35000n,
-        network: "signet",
-      };
+    it("should produce different vaultScriptPubKey for different depositors", async () => {
+      const result1 = await buildPeginTxFromFundedPrePegin({
+        prePeginParams: makePrePeginParams(),
+        timelockPegin: TEST_TIMELOCK_PEGIN,
+        fundedPrePeginTxid: TEST_FUNDED_TXID,
+      });
 
-      const params2: PeginParams = {
-        ...params1,
-        // Use a different depositor key to ensure different output
-        depositorPubkey: TEST_KEYS.VAULT_PROVIDER, // Different from TEST_KEYS.DEPOSITOR
-      };
+      const result2 = await buildPeginTxFromFundedPrePegin({
+        prePeginParams: makePrePeginParams({
+          depositorPubkey: TEST_KEYS.VAULT_PROVIDER,
+        }),
+        timelockPegin: TEST_TIMELOCK_PEGIN,
+        fundedPrePeginTxid: TEST_FUNDED_TXID,
+      });
 
-      const result1 = await buildPeginPsbt(params1);
-      const result2 = await buildPeginPsbt(params2);
-
-      expect(result1.psbtHex).not.toBe(result2.psbtHex);
-      expect(result1.txid).not.toBe(result2.txid);
       expect(result1.vaultScriptPubKey).not.toBe(result2.vaultScriptPubKey);
-    });
-  });
-
-  describe("Edge cases", () => {
-    it("should handle large amounts", async () => {
-      const params: PeginParams = {
-        depositorPubkey: TEST_KEYS.DEPOSITOR,
-        vaultProviderPubkey: TEST_KEYS.VAULT_PROVIDER,
-        vaultKeeperPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
-        universalChallengerPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
-        timelockPegin: 100,
-        pegInAmount: TEST_AMOUNTS.MAX,
-        depositorClaimValue: 35000n,
-        network: "signet",
-      };
-
-      const result = await buildPeginPsbt(params);
-
-      expect(result.vaultValue).toBe(TEST_AMOUNTS.MAX);
-    });
-  });
-
-  describe("Real-world scenario", () => {
-    it("should build a PSBT for a realistic peg-in scenario", async () => {
-      // Realistic scenario: User pegging in 0.001 BTC (100,000 sats)
-      const params: PeginParams = {
-        depositorPubkey: TEST_KEYS.DEPOSITOR,
-        vaultProviderPubkey: TEST_KEYS.VAULT_PROVIDER,
-        vaultKeeperPubkeys: [TEST_KEYS.VAULT_KEEPER_1, TEST_KEYS.VAULT_KEEPER_2],
-        universalChallengerPubkeys: [
-          TEST_KEYS.UNIVERSAL_CHALLENGER_1,
-          TEST_KEYS.UNIVERSAL_CHALLENGER_2,
-        ],
-        timelockPegin: 100,
-        pegInAmount: TEST_AMOUNTS.PEGIN_MEDIUM,
-        depositorClaimValue: 35000n,
-        network: "signet",
-      };
-
-      const result = await buildPeginPsbt(params);
-
-      // Verify the PSBT is ready to be funded
-      expect(result.psbtHex).toBeDefined();
-      expect(result.psbtHex.length).toBeGreaterThan(0);
-
-      // Verify transaction details
-      expect(result.txid).toBeDefined();
-      expect(result.txid).toMatch(/^[0-9a-f]{64}$/);
-
-      // Verify vault script
-      expect(result.vaultScriptPubKey).toBeDefined();
-      expect(result.vaultScriptPubKey.length).toBeGreaterThan(0);
-
-      // Verify amount
-      expect(result.vaultValue).toBe(TEST_AMOUNTS.PEGIN_MEDIUM);
-    });
-  });
-
-  describe("Type safety", () => {
-    it("should enforce Network type", async () => {
-      const params: PeginParams = {
-        depositorPubkey: TEST_KEYS.DEPOSITOR,
-        vaultProviderPubkey: TEST_KEYS.VAULT_PROVIDER,
-        vaultKeeperPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
-        universalChallengerPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
-        timelockPegin: 100,
-        pegInAmount: TEST_AMOUNTS.PEGIN,
-        depositorClaimValue: 35000n,
-        network: "signet" as Network,
-      };
-
-      const result = await buildPeginPsbt(params);
-      expect(result).toBeDefined();
+      expect(result1.txid).not.toBe(result2.txid);
     });
 
-    it("should handle bigint amounts correctly", async () => {
-      const params: PeginParams = {
-        depositorPubkey: TEST_KEYS.DEPOSITOR,
-        vaultProviderPubkey: TEST_KEYS.VAULT_PROVIDER,
-        vaultKeeperPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
-        universalChallengerPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
+    it("should produce different results for different timelockPegin", async () => {
+      const prePeginParams = makePrePeginParams();
+
+      const result1 = await buildPeginTxFromFundedPrePegin({
+        prePeginParams,
         timelockPegin: 100,
-        pegInAmount: BigInt(90000),
-        depositorClaimValue: 35000n,
-        network: "signet",
-      };
+        fundedPrePeginTxid: TEST_FUNDED_TXID,
+      });
 
-      const result = await buildPeginPsbt(params);
-      expect(typeof result.vaultValue).toBe("bigint");
-      expect(result.vaultValue).toBe(TEST_AMOUNTS.PEGIN);
-    });
-  });
+      const result2 = await buildPeginTxFromFundedPrePegin({
+        prePeginParams,
+        timelockPegin: 200,
+        fundedPrePeginTxid: TEST_FUNDED_TXID,
+      });
 
-  describe("Error handling", () => {
-    it("should reject invalid depositor pubkey format", async () => {
-      const params: PeginParams = {
-        depositorPubkey: "invalid-pubkey",
-        vaultProviderPubkey: TEST_KEYS.VAULT_PROVIDER,
-        vaultKeeperPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
-        universalChallengerPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
-        timelockPegin: 100,
-        pegInAmount: TEST_AMOUNTS.PEGIN,
-        depositorClaimValue: 35000n,
-        network: "signet",
-      };
-
-      await expect(buildPeginPsbt(params)).rejects.toThrow();
-    });
-
-    it("should reject invalid vault provider pubkey format", async () => {
-      const params: PeginParams = {
-        depositorPubkey: TEST_KEYS.DEPOSITOR,
-        vaultProviderPubkey: "not-a-valid-hex-key-123",
-        vaultKeeperPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
-        universalChallengerPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
-        timelockPegin: 100,
-        pegInAmount: TEST_AMOUNTS.PEGIN,
-        depositorClaimValue: 35000n,
-        network: "signet",
-      };
-
-      await expect(buildPeginPsbt(params)).rejects.toThrow();
-    });
-
-    it("should reject invalid vault keeper pubkey in array", async () => {
-      const params: PeginParams = {
-        depositorPubkey: TEST_KEYS.DEPOSITOR,
-        vaultProviderPubkey: TEST_KEYS.VAULT_PROVIDER,
-        vaultKeeperPubkeys: ["zzzzinvalidhexzzzz"],
-        universalChallengerPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
-        timelockPegin: 100,
-        pegInAmount: TEST_AMOUNTS.PEGIN,
-        depositorClaimValue: 35000n,
-        network: "signet",
-      };
-
-      await expect(buildPeginPsbt(params)).rejects.toThrow();
-    });
-
-    it("should reject invalid network string", async () => {
-      const params: PeginParams = {
-        depositorPubkey: TEST_KEYS.DEPOSITOR,
-        vaultProviderPubkey: TEST_KEYS.VAULT_PROVIDER,
-        vaultKeeperPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
-        universalChallengerPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
-        timelockPegin: 100,
-        pegInAmount: TEST_AMOUNTS.PEGIN,
-        depositorClaimValue: 35000n,
-        network: "invalid-network" as Network,
-      };
-
-      await expect(buildPeginPsbt(params)).rejects.toThrow();
-    });
-
-    it("should reject pubkey with incorrect length", async () => {
-      const params: PeginParams = {
-        depositorPubkey: "abcd1234", // Too short
-        vaultProviderPubkey: TEST_KEYS.VAULT_PROVIDER,
-        vaultKeeperPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
-        universalChallengerPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
-        timelockPegin: 100,
-        pegInAmount: TEST_AMOUNTS.PEGIN,
-        depositorClaimValue: 35000n,
-        network: "signet",
-      };
-
-      await expect(buildPeginPsbt(params)).rejects.toThrow();
-    });
-
-    it("should reject pubkey with non-hex characters", async () => {
-      const params: PeginParams = {
-        depositorPubkey: "g".repeat(64), // 'g' is not a valid hex character
-        vaultProviderPubkey: TEST_KEYS.VAULT_PROVIDER,
-        vaultKeeperPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
-        universalChallengerPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
-        timelockPegin: 100,
-        pegInAmount: TEST_AMOUNTS.PEGIN,
-        depositorClaimValue: 35000n,
-        network: "signet",
-      };
-
-      await expect(buildPeginPsbt(params)).rejects.toThrow();
-    });
-  });
-
-  describe("Transaction structure validation", () => {
-    it("should produce transaction with correct output structure", async () => {
-      const params: PeginParams = {
-        depositorPubkey: TEST_KEYS.DEPOSITOR,
-        vaultProviderPubkey: TEST_KEYS.VAULT_PROVIDER,
-        vaultKeeperPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
-        universalChallengerPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
-        timelockPegin: 100,
-        pegInAmount: TEST_AMOUNTS.PEGIN,
-        depositorClaimValue: 35000n,
-        network: "signet",
-      };
-
-      const result = await buildPeginPsbt(params);
-
-      // Transaction should have no inputs (unfunded)
-      // and one output (the vault output)
-      expect(result.psbtHex).toBeDefined();
-      expect(result.vaultScriptPubKey).toBeDefined();
-
-      // Verify the returned value matches input
-      expect(result.vaultValue).toBe(TEST_AMOUNTS.PEGIN);
-    });
-
-    it("should produce deterministic vaultScriptPubKey for same inputs", async () => {
-      const params: PeginParams = {
-        depositorPubkey: TEST_KEYS.DEPOSITOR,
-        vaultProviderPubkey: TEST_KEYS.VAULT_PROVIDER,
-        vaultKeeperPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
-        universalChallengerPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
-        timelockPegin: 100,
-        pegInAmount: TEST_AMOUNTS.PEGIN,
-        depositorClaimValue: 35000n,
-        network: "signet",
-      };
-
-      const result1 = await buildPeginPsbt(params);
-      const result2 = await buildPeginPsbt(params);
-
-      // Same inputs should produce same vault script
-      expect(result1.vaultScriptPubKey).toBe(result2.vaultScriptPubKey);
-    });
-
-    it("should produce different vaultScriptPubKey for different vault keepers", async () => {
-      const params1: PeginParams = {
-        depositorPubkey: TEST_KEYS.DEPOSITOR,
-        vaultProviderPubkey: TEST_KEYS.VAULT_PROVIDER,
-        vaultKeeperPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
-        universalChallengerPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
-        timelockPegin: 100,
-        pegInAmount: TEST_AMOUNTS.PEGIN,
-        depositorClaimValue: 35000n,
-        network: "signet",
-      };
-
-      const params2: PeginParams = {
-        ...params1,
-        vaultKeeperPubkeys: [TEST_KEYS.VAULT_KEEPER_2],
-      };
-
-      const result1 = await buildPeginPsbt(params1);
-      const result2 = await buildPeginPsbt(params2);
-
-      // Different vault keepers should produce different vault scripts
       expect(result1.vaultScriptPubKey).not.toBe(result2.vaultScriptPubKey);
     });
   });

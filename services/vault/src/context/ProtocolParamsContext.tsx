@@ -39,8 +39,13 @@ interface ProtocolParamsContextValue {
   minDeposit: bigint;
   /** Maximum deposit amount in satoshis (from contract) */
   maxDeposit: bigint;
-  /** CSV timelock in blocks for the PegIn output (from offchain params) */
+  /** CSV timelock in blocks for the PegIn vault output (from offchain params) */
   timelockPegin: number;
+  /**
+   * CSV timelock in blocks for the Pre-PegIn HTLC refund path.
+   * TODO: fetch from contract once btc-vault adds this parameter.
+   */
+  timelockRefund: number;
   /** Value in satoshis for the depositor's claim output (from offchain params) */
   depositorClaimValue: bigint;
   /** Vault provider commission in basis points (e.g., 500 = 5%) */
@@ -159,6 +164,7 @@ export function ProtocolParamsProvider({
     minDeposit: configData.minimumPegInAmount,
     maxDeposit: configData.maxPegInAmount,
     timelockPegin: configData.timelockPegin,
+    timelockRefund: configData.timelockRefund,
     depositorClaimValue: configData.depositorClaimValue,
     vpCommissionBps: configData.vpCommissionBps,
     latestUniversalChallengers,

@@ -32,7 +32,7 @@ export interface PeginUTXOParams {
 export type UTXO = SDKUtxo;
 
 /**
- * Parameters for preparing a pegin transaction (build + fund, no on-chain submission)
+ * Parameters for preparing an atomic swap pegin transaction
  */
 export interface PreparePeginParams {
   pegInAmount: bigint;
@@ -42,19 +42,36 @@ export interface PreparePeginParams {
   vaultProviderBtcPubkey: string;
   vaultKeeperBtcPubkeys: string[];
   universalChallengerBtcPubkeys: string[];
-  /** CSV timelock in blocks for the PegIn output */
+  /** CSV timelock in blocks for the PegIn vault output */
   timelockPegin: number;
-  /** Value in satoshis for the depositor's claim output */
-  depositorClaimValue: bigint;
+  /**
+   * CSV timelock in blocks for the Pre-PegIn HTLC refund path.
+   * TODO: fetch from ProtocolParams contract once btc-vault adds this parameter.
+   */
+  timelockRefund: number;
+  /** SHA256 hash commitment for the HTLC (64 hex chars = 32 bytes) */
+  hashH: string;
+  /** Number of local challengers (vault keepers) */
+  numLocalChallengers: number;
+  /** M in M-of-N council multisig */
+  councilQuorum: number;
+  /** N in M-of-N council multisig */
+  councilSize: number;
   availableUTXOs: UTXO[];
 }
 
 /**
- * Result of preparing a pegin transaction (before on-chain registration)
+ * Result of preparing an atomic swap pegin transaction
  */
 export interface PreparePeginResult {
+  /** Vault ID: hash of the pegin tx (NOT the pre-pegin tx). */
   btcTxHash: Hex;
-  fundedTxHex: string;
+  /** Funded Pre-PegIn tx hex — this is the tx the depositor signs and broadcasts. */
+  fundedPrePeginTxHex: string;
+  /** PegIn tx hex — pass to registerPeginOnChain as unsignedBtcTx for vault ID computation. */
+  peginTxHex: string;
+  /** Depositor's Schnorr signature over PegIn input 0 (HTLC leaf 0), 128 hex chars. */
+  peginInputSignature: string;
   selectedUTXOs: UTXO[];
   fee: bigint;
   depositorBtcPubkey: string;
@@ -114,10 +131,11 @@ function createPeginManager(
 }
 
 /**
- * Build and fund a pegin BTC transaction without submitting to Ethereum.
+ * Build and fund the atomic swap pegin transactions without submitting to Ethereum.
  *
- * Returns the funded transaction hex and the BTC txid (vault ID) so the
- * caller can derive the Lamport keypair before on-chain registration.
+ * Creates the Pre-PegIn HTLC transaction, funds it, derives the PegIn transaction,
+ * and signs the PegIn input. Returns both transactions and the depositor's signature
+ * so the caller can derive the Lamport keypair before on-chain registration.
  */
 export async function preparePeginTransaction(
   btcWallet: BitcoinWallet,
@@ -126,16 +144,20 @@ export async function preparePeginTransaction(
 ): Promise<PreparePeginResult> {
   const peginManager = createPeginManager(btcWallet, ethWallet);
 
-  const peginResult = await peginManager.preparePegin({
+  const atomicResult = await peginManager.prepareAtomicPegin({
     amount: params.pegInAmount,
     vaultProvider: params.vaultProviderAddress,
     vaultProviderBtcPubkey: params.vaultProviderBtcPubkey,
     vaultKeeperBtcPubkeys: params.vaultKeeperBtcPubkeys,
     universalChallengerBtcPubkeys: params.universalChallengerBtcPubkeys,
     timelockPegin: params.timelockPegin,
-    depositorClaimValue: params.depositorClaimValue,
-    availableUTXOs: params.availableUTXOs,
+    timelockRefund: params.timelockRefund,
+    hashH: params.hashH,
     feeRate: params.feeRate,
+    numLocalChallengers: params.numLocalChallengers,
+    councilQuorum: params.councilQuorum,
+    councilSize: params.councilSize,
+    availableUTXOs: params.availableUTXOs,
     changeAddress: params.changeAddress,
   });
 
@@ -146,10 +168,12 @@ export async function preparePeginTransaction(
       : depositorBtcPubkeyRaw;
 
   return {
-    btcTxHash: peginResult.btcTxHash as Hex,
-    fundedTxHex: peginResult.fundedTxHex,
-    selectedUTXOs: peginResult.selectedUTXOs,
-    fee: peginResult.fee,
+    btcTxHash: `0x${atomicResult.peginTxid}` as Hex,
+    fundedPrePeginTxHex: atomicResult.fundedPrePeginTxHex,
+    peginTxHex: atomicResult.peginTxHex,
+    peginInputSignature: atomicResult.peginInputSignature,
+    selectedUTXOs: atomicResult.selectedUTXOs,
+    fee: atomicResult.fee,
     depositorBtcPubkey,
   };
 }

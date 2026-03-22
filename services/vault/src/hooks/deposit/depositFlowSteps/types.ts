@@ -69,18 +69,35 @@ export interface PeginPrepareParams {
   vaultProviderBtcPubkey: string;
   vaultKeeperBtcPubkeys: string[];
   universalChallengerBtcPubkeys: string[];
-  /** CSV timelock in blocks for the PegIn output */
+  /** CSV timelock in blocks for the PegIn vault output */
   timelockPegin: number;
-  /** Value in satoshis for the depositor's claim output */
-  depositorClaimValue: bigint;
+  /**
+   * CSV timelock in blocks for the Pre-PegIn HTLC refund path.
+   * TODO: fetch from ProtocolParams contract once btc-vault adds this parameter.
+   */
+  timelockRefund: number;
+  /** SHA256 hash commitment for the HTLC (64 hex chars = 32 bytes) */
+  hashH: string;
+  /** Number of local challengers (vault keepers) */
+  numLocalChallengers: number;
+  /** M in M-of-N council multisig */
+  councilQuorum: number;
+  /** N in M-of-N council multisig */
+  councilSize: number;
   confirmedUTXOs: DepositUtxo[];
   reservedUtxoRefs: UtxoRef[];
 }
 
 export interface PeginPrepareResult {
+  /** Vault ID: hash of the pegin tx (NOT the pre-pegin tx) */
   btcTxid: Hex;
   depositorBtcPubkey: string;
-  btcTxHex: string;
+  /** Funded Pre-PegIn tx hex — this is the tx the depositor signs and broadcasts */
+  fundedPrePeginTxHex: string;
+  /** PegIn tx hex — passed to registerPeginOnChain for vault ID computation */
+  peginTxHex: string;
+  /** Depositor's Schnorr signature over PegIn input 0 (HTLC leaf 0), 128 hex chars */
+  peginInputSignature: string;
   selectedUTXOs: DepositUtxo[];
   fee: bigint;
 }
@@ -89,7 +106,8 @@ export interface PeginRegisterParams {
   btcWalletProvider: BitcoinWallet;
   walletClient: WalletClient;
   depositorBtcPubkey: string;
-  fundedTxHex: string;
+  /** PegIn tx hex — used to compute the vault ID on-chain */
+  peginTxHex: string;
   vaultProviderAddress: string;
   onPopSigned?: () => void;
   /** Depositor's BTC payout address (e.g. bc1p...) */

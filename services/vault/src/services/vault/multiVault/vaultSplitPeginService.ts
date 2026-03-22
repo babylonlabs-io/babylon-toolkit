@@ -24,13 +24,17 @@ import { pushTx } from "@babylonlabs-io/ts-sdk";
 import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
 import type { UTXO } from "@babylonlabs-io/ts-sdk/tbv/core";
 import {
-  buildPeginPsbt,
+  buildPeginInputPsbt,
+  buildPeginTxFromFundedPrePegin,
+  buildPrePeginPsbt,
   calculateBtcTxHash,
+  extractPeginInputSignature,
   fundPeginTransaction,
   getNetwork,
   getPsbtInputFields,
   PeginManager,
   selectUtxosForPegin,
+  type PrePeginParams,
 } from "@babylonlabs-io/ts-sdk/tbv/core";
 import { Psbt, Transaction } from "bitcoinjs-lib";
 import { Buffer } from "buffer";
@@ -62,22 +66,42 @@ export interface PrepareSplitPeginParams {
   vaultKeeperBtcPubkeys: string[];
   /** Universal challenger BTC public keys */
   universalChallengerBtcPubkeys: string[];
-  /** CSV timelock in blocks for the PegIn output */
+  /** CSV timelock in blocks for the PegIn vault output */
   timelockPegin: number;
-  /** Amount in satoshis for the depositor's claim output */
-  depositorClaimValue: bigint;
+  /**
+   * CSV timelock in blocks for the Pre-PegIn HTLC refund path.
+   * TODO: fetch from ProtocolParams contract once btc-vault adds this parameter.
+   */
+  timelockRefund: number;
+  /** SHA256 hash commitment for the HTLC (64 hex chars = 32 bytes) */
+  hashH: string;
+  /** Number of local challengers (vault keepers) */
+  numLocalChallengers: number;
+  /** M in M-of-N council multisig */
+  councilQuorum: number;
+  /** N in M-of-N council multisig */
+  councilSize: number;
   /**
    * The split transaction output that funds this pegin.
    * Must include `txid`, `vout`, `value`, and `scriptPubKey`.
    */
   splitOutput: UTXO;
+  /**
+   * Function to sign a PSBT and return the signed PSBT hex.
+   * Used to sign the PegIn input PSBT (HTLC leaf 0).
+   */
+  signPsbt: (psbtHex: string) => Promise<string>;
 }
 
 export interface PrepareSplitPeginResult {
-  /** Unsigned transaction hash (deterministic, computed before signing) */
+  /** Vault ID: hash of the pegin tx (NOT the pre-pegin tx). */
   btcTxHash: string;
-  /** Unsigned funded transaction hex (inputs + outputs, no signatures) */
-  fundedTxHex: string;
+  /** Funded Pre-PegIn tx hex — this is the tx the depositor signs and broadcasts. */
+  fundedPrePeginTxHex: string;
+  /** PegIn tx hex — pass to registerPeginOnChain as unsignedBtcTx for vault ID computation. */
+  peginTxHex: string;
+  /** Depositor's Schnorr signature over PegIn input 0 (HTLC leaf 0), 128 hex chars. */
+  peginInputSignature: string;
   /** Vault script pubkey hex */
   vaultScriptPubKey: string;
   /** UTXOs consumed by the pegin (always just the single split output) */
@@ -147,21 +171,23 @@ export interface BroadcastSplitPeginParams {
 // ============================================================================
 
 /**
- * Build a pegin transaction using local split UTXO data.
+ * Build an atomic swap pegin using local split UTXO data.
  *
- * Unlike `PeginManager.preparePegin()`, this function does **not** fetch UTXO
- * data from the mempool. Instead it accepts the split output directly, making
- * it suitable for spending outputs from unconfirmed split transactions.
+ * Unlike `PeginManager.prepareAtomicPegin()`, this function does **not** fetch
+ * UTXO data from the mempool. Instead it accepts the split output directly,
+ * making it suitable for spending outputs from unconfirmed split transactions.
  *
  * Steps:
  *  1. Validate depositor's x-only BTC pubkey format.
  *  2. Normalise all BTC pubkeys (strip "0x") via `stripHexPrefix()`.
- *  3. Build an unfunded PSBT with the vault output via `buildPeginPsbt()`.
+ *  3. Build unfunded Pre-PegIn HTLC tx via `buildPrePeginPsbt()`.
  *  4. Select UTXOs (just the single split output) via `selectUtxosForPegin()`.
- *  5. Fund the transaction (add input + change) via `fundPeginTransaction()`.
+ *  5. Fund the Pre-PegIn transaction via `fundPeginTransaction()`.
+ *  6. Derive the PegIn tx from the funded Pre-PegIn txid.
+ *  7. Build and sign the PegIn input PSBT (HTLC leaf 0).
  *
  * @param params - Pegin parameters including the local split output and depositor pubkey
- * @returns Unsigned funded transaction and associated metadata
+ * @returns Funded Pre-PegIn tx, PegIn tx, and depositor's HTLC signature
  */
 export async function preparePeginFromSplitOutput(
   params: PrepareSplitPeginParams,
@@ -182,38 +208,78 @@ export async function preparePeginFromSplitOutput(
     const universalChallengerBtcPubkeys =
       params.universalChallengerBtcPubkeys.map(stripHexPrefix);
 
-    // Step 3: Build unfunded PSBT (creates vault output, no inputs yet)
-    const peginPsbt = await buildPeginPsbt({
+    const prePeginParams: PrePeginParams = {
       depositorPubkey: params.depositorBtcPubkey,
       vaultProviderPubkey: vaultProviderBtcPubkey,
       vaultKeeperPubkeys: vaultKeeperBtcPubkeys,
       universalChallengerPubkeys: universalChallengerBtcPubkeys,
-      timelockPegin: params.timelockPegin,
+      hashH: params.hashH,
+      timelockRefund: params.timelockRefund,
       pegInAmount: params.pegInAmount,
-      depositorClaimValue: params.depositorClaimValue,
+      feeRate: BigInt(params.feeRate),
+      numLocalChallengers: params.numLocalChallengers,
+      councilQuorum: params.councilQuorum,
+      councilSize: params.councilSize,
       network,
-    });
+    };
+
+    // Step 3: Build unfunded Pre-PegIn HTLC transaction (no inputs yet)
+    const prePeginResult = await buildPrePeginPsbt(prePeginParams);
 
     // Step 4: Select UTXOs — only the split output; no mempool fetch
     const utxoSelection = selectUtxosForPegin(
       [params.splitOutput],
-      params.pegInAmount + params.depositorClaimValue,
+      prePeginResult.htlcValue,
       params.feeRate,
     );
 
-    // Step 5: Fund the transaction (add input + change output)
-    const fundedTxHex = fundPeginTransaction({
-      unfundedTxHex: peginPsbt.psbtHex,
+    // Step 5: Fund the Pre-PegIn transaction (add input + change output)
+    const fundedPrePeginTxHex = fundPeginTransaction({
+      unfundedTxHex: prePeginResult.psbtHex,
       selectedUTXOs: utxoSelection.selectedUTXOs,
       changeAddress: params.changeAddress,
       changeAmount: utxoSelection.changeAmount,
       network: btcNetwork,
     });
 
+    const prePeginTxid = stripHexPrefix(
+      calculateBtcTxHash(fundedPrePeginTxHex),
+    );
+
+    // Step 6: Derive the PegIn transaction from the funded Pre-PegIn txid
+    const peginTxResult = await buildPeginTxFromFundedPrePegin({
+      prePeginParams,
+      timelockPegin: params.timelockPegin,
+      fundedPrePeginTxid: prePeginTxid,
+    });
+
+    // Step 7: Build PegIn input PSBT, sign it, and extract the depositor signature
+    const peginInputPsbtResult = await buildPeginInputPsbt({
+      peginTxHex: peginTxResult.txHex,
+      fundedPrePeginTxHex,
+      depositorPubkey: params.depositorBtcPubkey,
+      vaultProviderPubkey: vaultProviderBtcPubkey,
+      vaultKeeperPubkeys: vaultKeeperBtcPubkeys,
+      universalChallengerPubkeys: universalChallengerBtcPubkeys,
+      hashH: params.hashH,
+      timelockRefund: params.timelockRefund,
+      network,
+    });
+
+    const signedPeginInputPsbtHex = await params.signPsbt(
+      peginInputPsbtResult.psbtHex,
+    );
+    const peginInputSignature = extractPeginInputSignature(
+      signedPeginInputPsbtHex,
+      params.depositorBtcPubkey,
+    );
+
     return {
-      btcTxHash: stripHexPrefix(calculateBtcTxHash(fundedTxHex)),
-      fundedTxHex,
-      vaultScriptPubKey: peginPsbt.vaultScriptPubKey,
+      btcTxHash: peginTxResult.txid,
+      fundedPrePeginTxHex,
+      peginTxHex: peginTxResult.txHex,
+      peginInputSignature,
+      vaultScriptPubKey: peginTxResult.vaultScriptPubKey,
       selectedUTXOs: utxoSelection.selectedUTXOs,
       fee: utxoSelection.fee,
       changeAmount: utxoSelection.changeAmount,
