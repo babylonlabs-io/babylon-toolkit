@@ -25,7 +25,10 @@ import {
 // ─── Hoisted mocks (must run before module imports) ──────────────────────────
 
 const {
-  mockBuildPeginPsbt,
+  mockBuildPrePeginPsbt,
+  mockBuildPeginTxFromFundedPrePegin,
+  mockBuildPeginInputPsbt,
+  mockExtractPeginInputSignature,
   mockCalculateBtcTxHash,
   mockSelectUtxosForPegin,
   mockFundPeginTransaction,
@@ -40,7 +43,10 @@ const {
   mockPsbtInstance,
 } = vi.hoisted(() => {
   // --- SDK tbv/core mocks ---
-  const mockBuildPeginPsbt = vi.fn();
+  const mockBuildPrePeginPsbt = vi.fn();
+  const mockBuildPeginTxFromFundedPrePegin = vi.fn();
+  const mockBuildPeginInputPsbt = vi.fn();
+  const mockExtractPeginInputSignature = vi.fn();
   const mockCalculateBtcTxHash = vi.fn();
   const mockSelectUtxosForPegin = vi.fn();
   const mockFundPeginTransaction = vi.fn();
@@ -95,7 +101,10 @@ const {
   }
 
   return {
-    mockBuildPeginPsbt,
+    mockBuildPrePeginPsbt,
+    mockBuildPeginTxFromFundedPrePegin,
+    mockBuildPeginInputPsbt,
+    mockExtractPeginInputSignature,
     mockCalculateBtcTxHash,
     mockSelectUtxosForPegin,
     mockFundPeginTransaction,
@@ -114,7 +123,10 @@ const {
 // ─── Module mocks ─────────────────────────────────────────────────────────────
 
 vi.mock("@babylonlabs-io/ts-sdk/tbv/core", () => ({
-  buildPeginPsbt: mockBuildPeginPsbt,
+  buildPrePeginPsbt: mockBuildPrePeginPsbt,
+  buildPeginTxFromFundedPrePegin: mockBuildPeginTxFromFundedPrePegin,
+  buildPeginInputPsbt: mockBuildPeginInputPsbt,
+  extractPeginInputSignature: mockExtractPeginInputSignature,
   calculateBtcTxHash: mockCalculateBtcTxHash,
   selectUtxosForPegin: mockSelectUtxosForPegin,
   fundPeginTransaction: mockFundPeginTransaction,
@@ -179,12 +191,25 @@ const VAULT_PROVIDER_BTC_PUBKEY = "bb".repeat(32);
 const VAULT_KEEPER_PUBKEYS = ["cc".repeat(32)];
 const UNIVERSAL_CHALLENGER_PUBKEYS = ["dd".repeat(32)];
 
-const MOCK_PEGIN_PSBT = {
+const MOCK_PRE_PEGIN_RESULT = {
   psbtHex: "unfunded-psbt-hex",
+  htlcValue: 5_100_000n,
+  htlcScriptPubKey: "htlc-script-pubkey",
+  htlcAddress: "htlc-address",
+  peginAmount: 5_000_000n,
+  depositorClaimValue: 35_000n,
+};
+
+const MOCK_PEGIN_TX_RESULT = {
+  txHex: "pegin-tx-hex",
   txid: "cafebabe" + "0".repeat(56),
   vaultScriptPubKey: "vault-script-pubkey",
   vaultValue: 5_000_000n,
 };
+
+const MOCK_PEGIN_INPUT_PSBT = { psbtHex: "pegin-input-psbt-hex" };
+
+const MOCK_PEGIN_INPUT_SIGNATURE = "a".repeat(128);
 
 // 1-input pegin fee at feeRate=5: ceil((P2TR_INPUT_SIZE(58) + 2×OUTPUT_SIZE(43) + OVERHEAD(11)) × 5)
 //                                = ceil(155 × 5) = 775 sats
@@ -220,15 +245,27 @@ describe("preparePeginFromSplitOutput", () => {
       vaultKeeperBtcPubkeys: [...VAULT_KEEPER_PUBKEYS],
       universalChallengerBtcPubkeys: [...UNIVERSAL_CHALLENGER_PUBKEYS],
       timelockPegin: 100,
-      depositorClaimValue: 35_000n,
+      timelockRefund: 50,
+      hashH: "ab".repeat(32),
+      numLocalChallengers: 1,
+      councilQuorum: 2,
+      councilSize: 3,
+      signPsbt: vi.fn().mockResolvedValue("signed-pegin-input-psbt-hex"),
       splitOutput: SPLIT_OUTPUT,
     };
 
-    mockBuildPeginPsbt.mockResolvedValue(MOCK_PEGIN_PSBT);
+    mockBuildPrePeginPsbt.mockResolvedValue(MOCK_PRE_PEGIN_RESULT);
+    mockBuildPeginTxFromFundedPrePegin.mockResolvedValue(MOCK_PEGIN_TX_RESULT);
+    mockBuildPeginInputPsbt.mockResolvedValue(MOCK_PEGIN_INPUT_PSBT);
+    mockExtractPeginInputSignature.mockReturnValue(MOCK_PEGIN_INPUT_SIGNATURE);
     mockCalculateBtcTxHash.mockReturnValue(MOCK_FUNDED_TXID);
     mockSelectUtxosForPegin.mockReturnValue(MOCK_UTXO_SELECTION);
     mockFundPeginTransaction.mockReturnValue(MOCK_FUNDED_TX_HEX);
     mockGetNetwork.mockReturnValue({ network: "testnet" });
+
+    baseParams.signPsbt = vi
+      .fn()
+      .mockResolvedValue("signed-pegin-input-psbt-hex");
   });
 
   // ── pubkey validation ──────────────────────────────────────────────────
@@ -257,7 +294,7 @@ describe("preparePeginFromSplitOutput", () => {
       baseParams.vaultProviderBtcPubkey = "0x" + VAULT_PROVIDER_BTC_PUBKEY;
       await preparePeginFromSplitOutput(baseParams);
 
-      const callArg = mockBuildPeginPsbt.mock.calls[0][0];
+      const callArg = mockBuildPrePeginPsbt.mock.calls[0][0];
       expect(callArg.vaultProviderPubkey).toBe(VAULT_PROVIDER_BTC_PUBKEY);
     });
 
@@ -265,7 +302,7 @@ describe("preparePeginFromSplitOutput", () => {
       baseParams.vaultKeeperBtcPubkeys = ["0x" + VAULT_KEEPER_PUBKEYS[0]];
       await preparePeginFromSplitOutput(baseParams);
 
-      const callArg = mockBuildPeginPsbt.mock.calls[0][0];
+      const callArg = mockBuildPrePeginPsbt.mock.calls[0][0];
       expect(callArg.vaultKeeperPubkeys).toEqual([VAULT_KEEPER_PUBKEYS[0]]);
     });
 
@@ -275,7 +312,7 @@ describe("preparePeginFromSplitOutput", () => {
       ];
       await preparePeginFromSplitOutput(baseParams);
 
-      const callArg = mockBuildPeginPsbt.mock.calls[0][0];
+      const callArg = mockBuildPrePeginPsbt.mock.calls[0][0];
       expect(callArg.universalChallengerPubkeys).toEqual([
         UNIVERSAL_CHALLENGER_PUBKEYS[0],
       ]);
@@ -285,18 +322,22 @@ describe("preparePeginFromSplitOutput", () => {
   // ── SDK call orchestration ────────────────────────────────────────────────
 
   describe("SDK call orchestration", () => {
-    it("calls buildPeginPsbt with normalised pubkeys, pegInAmount, timelock, claimValue, and network", async () => {
+    it("calls buildPrePeginPsbt with normalised pubkeys and all pre-pegin params", async () => {
       await preparePeginFromSplitOutput(baseParams);
 
-      expect(mockBuildPeginPsbt).toHaveBeenCalledTimes(1);
-      expect(mockBuildPeginPsbt).toHaveBeenCalledWith({
+      expect(mockBuildPrePeginPsbt).toHaveBeenCalledTimes(1);
+      expect(mockBuildPrePeginPsbt).toHaveBeenCalledWith({
         depositorPubkey: X_ONLY_PUBKEY,
         vaultProviderPubkey: VAULT_PROVIDER_BTC_PUBKEY,
         vaultKeeperPubkeys: VAULT_KEEPER_PUBKEYS,
         universalChallengerPubkeys: UNIVERSAL_CHALLENGER_PUBKEYS,
-        timelockPegin: 100,
+        hashH: baseParams.hashH,
+        timelockRefund: baseParams.timelockRefund,
         pegInAmount: baseParams.pegInAmount,
-        depositorClaimValue: 35_000n,
+        feeRate: BigInt(baseParams.feeRate),
+        numLocalChallengers: baseParams.numLocalChallengers,
+        councilQuorum: baseParams.councilQuorum,
+        councilSize: baseParams.councilSize,
         network: "testnet",
       });
     });
@@ -308,18 +349,16 @@ describe("preparePeginFromSplitOutput", () => {
       const [utxos, amount, feeRate] = mockSelectUtxosForPegin.mock.calls[0];
       expect(utxos).toHaveLength(1);
       expect(utxos[0]).toBe(SPLIT_OUTPUT);
-      expect(amount).toBe(
-        baseParams.pegInAmount + baseParams.depositorClaimValue,
-      );
+      expect(amount).toBe(MOCK_PRE_PEGIN_RESULT.htlcValue);
       expect(feeRate).toBe(baseParams.feeRate);
     });
 
-    it("calls fundPeginTransaction with psbtHex from buildPeginPsbt", async () => {
+    it("calls fundPeginTransaction with psbtHex from buildPrePeginPsbt", async () => {
       await preparePeginFromSplitOutput(baseParams);
 
       expect(mockFundPeginTransaction).toHaveBeenCalledTimes(1);
       const callArg = mockFundPeginTransaction.mock.calls[0][0];
-      expect(callArg.unfundedTxHex).toBe(MOCK_PEGIN_PSBT.psbtHex);
+      expect(callArg.unfundedTxHex).toBe(MOCK_PRE_PEGIN_RESULT.psbtHex);
     });
 
     it("calls fundPeginTransaction with changeAddress and changeAmount from selection", async () => {
@@ -336,27 +375,87 @@ describe("preparePeginFromSplitOutput", () => {
       const callArg = mockFundPeginTransaction.mock.calls[0][0];
       expect(callArg.selectedUTXOs).toEqual(MOCK_UTXO_SELECTION.selectedUTXOs);
     });
+
+    it("calls calculateBtcTxHash with funded pre-pegin tx hex", async () => {
+      await preparePeginFromSplitOutput(baseParams);
+
+      expect(mockCalculateBtcTxHash).toHaveBeenCalledWith(MOCK_FUNDED_TX_HEX);
+    });
+
+    it("calls buildPeginTxFromFundedPrePegin with stripped pre-pegin txid", async () => {
+      await preparePeginFromSplitOutput(baseParams);
+
+      expect(mockBuildPeginTxFromFundedPrePegin).toHaveBeenCalledTimes(1);
+      const callArg = mockBuildPeginTxFromFundedPrePegin.mock.calls[0][0];
+      // MOCK_FUNDED_TXID is "0x" + "ab".repeat(32); the 0x prefix should be stripped
+      expect(callArg.fundedPrePeginTxid).toBe("ab".repeat(32));
+      expect(callArg.timelockPegin).toBe(baseParams.timelockPegin);
+    });
+
+    it("calls buildPeginInputPsbt with correct params", async () => {
+      await preparePeginFromSplitOutput(baseParams);
+
+      expect(mockBuildPeginInputPsbt).toHaveBeenCalledTimes(1);
+      const callArg = mockBuildPeginInputPsbt.mock.calls[0][0];
+      expect(callArg.peginTxHex).toBe(MOCK_PEGIN_TX_RESULT.txHex);
+      expect(callArg.fundedPrePeginTxHex).toBe(MOCK_FUNDED_TX_HEX);
+      expect(callArg.depositorPubkey).toBe(X_ONLY_PUBKEY);
+      expect(callArg.vaultProviderPubkey).toBe(VAULT_PROVIDER_BTC_PUBKEY);
+      expect(callArg.vaultKeeperPubkeys).toEqual(VAULT_KEEPER_PUBKEYS);
+      expect(callArg.universalChallengerPubkeys).toEqual(
+        UNIVERSAL_CHALLENGER_PUBKEYS,
+      );
+      expect(callArg.hashH).toBe(baseParams.hashH);
+      expect(callArg.timelockRefund).toBe(baseParams.timelockRefund);
+      expect(callArg.network).toBe("testnet");
+    });
+
+    it("calls signPsbt with pegin input psbt hex", async () => {
+      await preparePeginFromSplitOutput(baseParams);
+
+      expect(baseParams.signPsbt).toHaveBeenCalledWith(
+        MOCK_PEGIN_INPUT_PSBT.psbtHex,
+      );
+    });
+
+    it("calls extractPeginInputSignature with signed psbt and depositor pubkey", async () => {
+      await preparePeginFromSplitOutput(baseParams);
+
+      expect(mockExtractPeginInputSignature).toHaveBeenCalledWith(
+        "signed-pegin-input-psbt-hex",
+        X_ONLY_PUBKEY,
+      );
+    });
   });
 
   // ── return value ──────────────────────────────────────────────────────────
 
   describe("return value", () => {
-    it("returns btcTxHash computed from the funded transaction", async () => {
+    it("returns btcTxHash from peginTxResult.txid", async () => {
       const result = await preparePeginFromSplitOutput(baseParams);
-      // btcTxHash should be calculated from the funded tx (not the unfunded PSBT),
-      // matching PeginManager.preparePegin behavior
-      expect(mockCalculateBtcTxHash).toHaveBeenCalledWith(MOCK_FUNDED_TX_HEX);
-      expect(result.btcTxHash).toBe("ab".repeat(32)); // 0x prefix stripped
+      expect(result.btcTxHash).toBe(MOCK_PEGIN_TX_RESULT.txid);
     });
 
-    it("returns fundedTxHex from fundPeginTransaction", async () => {
+    it("returns fundedPrePeginTxHex from fundPeginTransaction", async () => {
       const result = await preparePeginFromSplitOutput(baseParams);
-      expect(result.fundedTxHex).toBe(MOCK_FUNDED_TX_HEX);
+      expect(result.fundedPrePeginTxHex).toBe(MOCK_FUNDED_TX_HEX);
     });
 
-    it("returns vaultScriptPubKey from buildPeginPsbt", async () => {
+    it("returns peginTxHex from buildPeginTxFromFundedPrePegin", async () => {
       const result = await preparePeginFromSplitOutput(baseParams);
-      expect(result.vaultScriptPubKey).toBe(MOCK_PEGIN_PSBT.vaultScriptPubKey);
+      expect(result.peginTxHex).toBe(MOCK_PEGIN_TX_RESULT.txHex);
+    });
+
+    it("returns peginInputSignature from extractPeginInputSignature", async () => {
+      const result = await preparePeginFromSplitOutput(baseParams);
+      expect(result.peginInputSignature).toBe(MOCK_PEGIN_INPUT_SIGNATURE);
+    });
+
+    it("returns vaultScriptPubKey from buildPeginTxFromFundedPrePegin", async () => {
+      const result = await preparePeginFromSplitOutput(baseParams);
+      expect(result.vaultScriptPubKey).toBe(
+        MOCK_PEGIN_TX_RESULT.vaultScriptPubKey,
+      );
     });
 
     it("returns selectedUTXOs from selectUtxosForPegin", async () => {
@@ -384,7 +483,7 @@ describe("preparePeginFromSplitOutput", () => {
 
   describe("error handling", () => {
     it("wraps SDK errors with 'Failed to prepare pegin from split output:'", async () => {
-      mockBuildPeginPsbt.mockRejectedValue(new Error("WASM init failed"));
+      mockBuildPrePeginPsbt.mockRejectedValue(new Error("WASM init failed"));
 
       await expect(preparePeginFromSplitOutput(baseParams)).rejects.toThrow(
         "Failed to prepare pegin from split output: WASM init failed",
