@@ -124,13 +124,13 @@ export interface CreateAtomicPeginParams {
    * Vault keeper BTC public keys (x-only, 64-char hex).
    * Can be provided with or without "0x" prefix (will be stripped automatically).
    */
-  vaultKeeperBtcPubkeys: string[];
+  vaultKeeperBtcPubkeys: readonly string[];
 
   /**
    * Universal challenger BTC public keys (x-only, 64-char hex).
    * Can be provided with or without "0x" prefix (will be stripped automatically).
    */
-  universalChallengerBtcPubkeys: string[];
+  universalChallengerBtcPubkeys: readonly string[];
 
   /**
    * CSV timelock in blocks for the PegIn vault output.
@@ -171,7 +171,7 @@ export interface CreateAtomicPeginParams {
   /**
    * Available UTXOs from the depositor's wallet for funding the Pre-PegIn transaction.
    */
-  availableUTXOs: UTXO[];
+  availableUTXOs: readonly UTXO[];
 
   /**
    * Bitcoin address for receiving change from the Pre-PegIn transaction.
@@ -428,7 +428,7 @@ export class PeginManager {
 
     // Step 3: Select UTXOs to cover the HTLC value
     const utxoSelection = selectUtxosForPegin(
-      params.availableUTXOs,
+      [...params.availableUTXOs],
       prePeginResult.htlcValue,
       params.feeRate,
     );
