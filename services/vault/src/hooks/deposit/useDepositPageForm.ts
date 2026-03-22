@@ -228,7 +228,6 @@ export function useDepositPageForm(): UseDepositPageFormResult {
       computeDepositorClaimValue({
         numLocalChallengers: vaultKeepers.length,
         numUniversalChallengers: latestUniversalChallengers.length,
-        babeInstancesToFinalize: config.offchainParams.babeInstancesToFinalize,
         councilQuorum: config.offchainParams.councilQuorum,
         councilSize: config.offchainParams.securityCouncilKeys.length,
         feeRate: config.offchainParams.feeRate,

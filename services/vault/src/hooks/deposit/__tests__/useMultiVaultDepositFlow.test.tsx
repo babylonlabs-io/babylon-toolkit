@@ -391,7 +391,9 @@ async function setupDefaultMocks() {
   vi.mocked(planUtxoAllocation).mockReturnValue(SINGLE_PLAN);
   vi.mocked(preparePeginFromSplitOutput).mockResolvedValue({
     btcTxHash: "peginTxHash" as Hex,
-    fundedTxHex: "fundedTxHex",
+    fundedPrePeginTxHex: "fundedPrePeginTxHex",
+    peginTxHex: "peginTxHex",
+    peginInputSignature: "a".repeat(128),
     vaultScriptPubKey: "vaultScriptPubKey",
     selectedUTXOs: [MOCK_UTXO_1],
     fee: 1000n,
@@ -415,7 +417,9 @@ async function setupDefaultMocks() {
   vi.mocked(preparePegin).mockResolvedValue({
     btcTxid: "0xstandardBtcTxid" as Hex,
     depositorBtcPubkey: "ab".repeat(32),
-    btcTxHex: "standardTxHex",
+    fundedPrePeginTxHex: "standardPrePeginTxHex",
+    peginTxHex: "standardPeginTxHex",
+    peginInputSignature: "a".repeat(128),
     selectedUTXOs: [MOCK_UTXO_1],
     fee: 800n,
   });
@@ -1053,7 +1057,9 @@ describe("useMultiVaultDepositFlow", () => {
         .mockResolvedValueOnce({
           btcTxid: "0xvault1TxId" as Hex,
           depositorBtcPubkey: "ab".repeat(32),
-          btcTxHex: "vault1Hex",
+          fundedPrePeginTxHex: "vault1PrePeginHex",
+          peginTxHex: "vault1PeginHex",
+          peginInputSignature: "a".repeat(128),
           selectedUTXOs: [MOCK_UTXO_1],
           fee: 800n,
         })
@@ -1088,7 +1094,9 @@ describe("useMultiVaultDepositFlow", () => {
         .mockResolvedValueOnce({
           btcTxid: "0xvault1TxId" as Hex,
           depositorBtcPubkey: "ab".repeat(32),
-          btcTxHex: "vault1Hex",
+          fundedPrePeginTxHex: "vault1PrePeginHex",
+          peginTxHex: "vault1PeginHex",
+          peginInputSignature: "a".repeat(128),
           selectedUTXOs: [MOCK_UTXO_1],
           fee: 800n,
         })
@@ -1121,7 +1129,9 @@ describe("useMultiVaultDepositFlow", () => {
         .mockResolvedValueOnce({
           btcTxid: "0xvault1TxId" as Hex,
           depositorBtcPubkey: "ab".repeat(32),
-          btcTxHex: "vault1Hex",
+          fundedPrePeginTxHex: "vault1PrePeginHex",
+          peginTxHex: "vault1PeginHex",
+          peginInputSignature: "a".repeat(128),
           selectedUTXOs: [MOCK_UTXO_1],
           fee: 800n,
         })

@@ -24,7 +24,7 @@ export function generateHtlcSecret(): Uint8Array {
  * @returns 64-character hex string (32 bytes, no "0x" prefix)
  */
 export async function hashHFromSecret(secret: Uint8Array): Promise<string> {
-  const hashBuffer = await crypto.subtle.digest("SHA-256", secret);
+  const hashBuffer = await crypto.subtle.digest("SHA-256", secret.buffer as ArrayBuffer);
   return Array.from(new Uint8Array(hashBuffer))
     .map((b) => b.toString(16).padStart(2, "0"))
     .join("");
