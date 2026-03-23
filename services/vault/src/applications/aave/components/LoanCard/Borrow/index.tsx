@@ -61,6 +61,7 @@ export function Borrow() {
   const { isDisabled, buttonText, errorMessage } = validateBorrowAction(
     borrowAmount,
     metrics.healthFactorValue,
+    maxBorrowAmount,
   );
 
   const sliderMaxBorrow = Math.max(maxBorrowAmount, MIN_SLIDER_MAX);
