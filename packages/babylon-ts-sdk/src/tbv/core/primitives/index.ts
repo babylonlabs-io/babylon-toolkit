@@ -49,6 +49,14 @@
  * ### Script Generators
  * - {@link createPayoutScript} - Generate taproot payout script
  *
+ * ### WASM Functions
+ * - {@link computeMinClaimValue} - Compute the minimum claim value accepted by the vault provider
+ *
+ * ### Connector Parameter Types
+ * - `AssertPayoutNoPayoutConnectorParams` - Connector params for NoPayout/AssertPayout PSBTs
+ * - `ChallengeAssertConnectorParams` - Connector params for ChallengeAssert PSBTs
+ * - `PayoutConnectorParams` - Connector params for Payout PSBTs
+ *
  * ### Bitcoin Utilities
  * - {@link processPublicKeyToXOnly} - Convert any pubkey format to x-only
  * - {@link validateWalletPubkey} - Validate wallet matches expected depositor
