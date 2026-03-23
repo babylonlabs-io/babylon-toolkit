@@ -69,7 +69,7 @@ export function useBorrowTransaction(): UseBorrowTransactionResult {
 
       // Convert borrow amount to token decimals
       const borrowAmountBigInt = parseUnits(
-        borrowAmount.toString(),
+        borrowAmount.toFixed(reserve.token.decimals),
         reserve.token.decimals,
       );
 
