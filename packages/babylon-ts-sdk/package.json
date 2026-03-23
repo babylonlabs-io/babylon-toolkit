@@ -1,6 +1,6 @@
 {
   "name": "@babylonlabs-io/ts-sdk",
-  "version": "0.0.0-semantic-release",
+  "version": "0.1.0",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

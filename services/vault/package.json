@@ -23,7 +23,6 @@
     "test:e2e:report": "playwright show-report"
   },
   "dependencies": {
-    "@babylonlabs-io/babylon-tbv-rust-wasm": "workspace:*",
     "@babylonlabs-io/config": "workspace:*",
     "@babylonlabs-io/core-ui": "workspace:*",
     "@babylonlabs-io/ts-sdk": "workspace:*",

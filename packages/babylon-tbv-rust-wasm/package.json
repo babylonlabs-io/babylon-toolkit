@@ -1,7 +1,6 @@
 {
   "name": "@babylonlabs-io/babylon-tbv-rust-wasm",
-  "version": "0.0.0",
-  "private": true,
+  "version": "0.1.0",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -22,6 +21,10 @@
   "author": "",
   "license": "ISC",
   "description": "BTC Vault WASM bindings for Babylon Trustless Bitcoin Vaults",
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
   "devDependencies": {
     "@internal/eslint-config": "workspace:*",
     "shelljs": "^0.8.5",

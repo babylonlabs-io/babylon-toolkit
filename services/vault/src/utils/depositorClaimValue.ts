@@ -9,7 +9,7 @@
  * TODO: remove CLAIM_TX_VSIZE once btc-vault fixes compute_min_claim_value.
  */
 
-import { computeMinClaimValue } from "@babylonlabs-io/babylon-tbv-rust-wasm";
+import { computeMinClaimValue } from "@babylonlabs-io/ts-sdk/tbv/core";
 
 /** Claim tx vsize — fixed structure: 1 P2TR input, 4 P2TR outputs. */
 const CLAIM_TX_VSIZE = 307n;

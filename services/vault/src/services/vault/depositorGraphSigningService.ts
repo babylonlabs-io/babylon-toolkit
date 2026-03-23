@@ -12,11 +12,6 @@
  */
 
 import type {
-  AssertPayoutNoPayoutConnectorParams,
-  ChallengeAssertConnectorParams,
-  PayoutConnectorParams,
-} from "@babylonlabs-io/babylon-tbv-rust-wasm";
-import type {
   BitcoinWallet,
   SignPsbtOptions,
 } from "@babylonlabs-io/ts-sdk/shared";
@@ -25,6 +20,9 @@ import {
   buildDepositorPayoutPsbt,
   buildNoPayoutPsbt,
   extractPayoutSignature,
+  type AssertPayoutNoPayoutConnectorParams,
+  type ChallengeAssertConnectorParams,
+  type PayoutConnectorParams,
 } from "@babylonlabs-io/ts-sdk/tbv/core";
 
 import type { VersionedOffchainParams } from "../../clients/eth-contract/protocol-params";
