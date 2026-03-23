@@ -135,6 +135,7 @@ export function isArtifactDownloadAvailable(
 }
 
 const ACTION_REQUIRED_BADGE_PRIORITY: PeginAction[] = [
+  PeginAction.ACTIVATE_VAULT,
   PeginAction.SIGN_PAYOUT_TRANSACTIONS,
   PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN,
   PeginAction.SUBMIT_LAMPORT_KEY,
@@ -144,6 +145,7 @@ const ACTION_REQUIRED_BADGE_LABELS: Record<PeginAction, string> = {
   [PeginAction.SUBMIT_LAMPORT_KEY]: "Key required",
   [PeginAction.SIGN_PAYOUT_TRANSACTIONS]: "Signing Required",
   [PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN]: "Broadcast required",
+  [PeginAction.ACTIVATE_VAULT]: "Activation required",
   [PeginAction.NONE]: "",
 };
 

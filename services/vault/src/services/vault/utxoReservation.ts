@@ -139,8 +139,8 @@ export function collectReservedUtxoRefs(
     ) {
       continue;
     }
-    if (vault.unsignedBtcTx) {
-      reserved.push(...extractInputUtxoRefs(vault.unsignedBtcTx));
+    if (vault.unsignedPrePeginTx) {
+      reserved.push(...extractInputUtxoRefs(vault.unsignedPrePeginTx));
     }
   }
 

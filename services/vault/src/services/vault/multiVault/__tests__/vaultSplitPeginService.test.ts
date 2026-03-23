@@ -507,7 +507,10 @@ describe("registerSplitPeginOnChain", () => {
 
     baseParams = {
       depositorBtcPubkey: X_ONLY_PUBKEY,
-      unsignedBtcTx: "unsigned-tx-hex",
+      unsignedPrePeginTxHex: "unsigned-pre-pegin-tx-hex",
+      peginTxHex: "pegin-tx-hex",
+      hashlock:
+        "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890" as `0x${string}`,
       vaultProviderAddress: VAULT_PROVIDER_ADDRESS,
       onPopSigned: undefined,
       depositorPayoutBtcAddress:
@@ -549,7 +552,7 @@ describe("registerSplitPeginOnChain", () => {
   // ── delegation ────────────────────────────────────────────────────────────
 
   describe("registerPeginOnChain delegation", () => {
-    it("passes depositorBtcPubkey, unsignedBtcTx, and vaultProvider correctly", async () => {
+    it("passes all params correctly to PeginManager.registerPeginOnChain", async () => {
       await registerSplitPeginOnChain(
         mockBtcWallet as any,
         mockEthWallet as any,
@@ -558,7 +561,10 @@ describe("registerSplitPeginOnChain", () => {
 
       expect(mockRegisterPeginOnChain).toHaveBeenCalledWith({
         depositorBtcPubkey: X_ONLY_PUBKEY,
-        unsignedBtcTx: "unsigned-tx-hex",
+        unsignedPrePeginTx: "unsigned-pre-pegin-tx-hex",
+        depositorSignedPeginTx: "pegin-tx-hex",
+        hashlock:
+          "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
         vaultProvider: VAULT_PROVIDER_ADDRESS,
         onPopSigned: undefined,
         depositorPayoutBtcAddress:
@@ -681,7 +687,7 @@ describe("broadcastPeginWithLocalUtxo", () => {
     mockSignPsbt = vi.fn().mockResolvedValue("signed-psbt-hex");
 
     baseParams = {
-      fundedTxHex: "funded-tx-hex",
+      fundedPrePeginTxHex: "funded-tx-hex",
       depositorBtcPubkey: X_ONLY_PUBKEY,
       splitOutputs: [SPLIT_OUTPUT],
       signPsbt: mockSignPsbt,
@@ -743,15 +749,15 @@ describe("broadcastPeginWithLocalUtxo", () => {
   // ── 0x prefix stripping ───────────────────────────────────────────────────
 
   describe("0x prefix stripping", () => {
-    it("strips 0x prefix from fundedTxHex before passing to Transaction.fromHex", async () => {
-      baseParams.fundedTxHex = "0x" + "funded-tx-hex";
+    it("strips 0x prefix from fundedPrePeginTxHex before passing to Transaction.fromHex", async () => {
+      baseParams.fundedPrePeginTxHex = "0x" + "funded-tx-hex";
       await broadcastPeginWithLocalUtxo(baseParams);
 
       expect(mockFromHex).toHaveBeenCalledWith("funded-tx-hex");
     });
 
-    it("does not double-strip when fundedTxHex has no 0x prefix", async () => {
-      baseParams.fundedTxHex = "funded-tx-hex";
+    it("does not double-strip when fundedPrePeginTxHex has no 0x prefix", async () => {
+      baseParams.fundedPrePeginTxHex = "funded-tx-hex";
       await broadcastPeginWithLocalUtxo(baseParams);
 
       expect(mockFromHex).toHaveBeenCalledWith("funded-tx-hex");

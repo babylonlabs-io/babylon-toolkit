@@ -37,10 +37,19 @@ interface LamportKeyModalState {
   handleSuccess: () => void;
 }
 
+interface ActivationModalState {
+  activatingActivity: VaultActivity | null;
+  handleClose: () => void;
+  handleSuccess: () => void;
+  successOpen: boolean;
+  handleSuccessClose: () => void;
+}
+
 interface PendingDepositModalsProps {
   signModal: SignModalState;
   broadcastModal: BroadcastModalState;
   lamportKeyModal: LamportKeyModalState;
+  activationModal: ActivationModalState;
   vaultProviders: VaultProvider[];
   btcPublicKey: string | undefined;
   ethAddress: string | undefined;
@@ -50,6 +59,7 @@ export function PendingDepositModals({
   signModal,
   broadcastModal,
   lamportKeyModal,
+  activationModal,
   vaultProviders,
   btcPublicKey,
   ethAddress,
@@ -99,6 +109,18 @@ export function PendingDepositModals({
           onResumeSuccess={handleLamportKeySuccess}
           activity={lamportKeyModal.activity}
           vaultProviders={vaultProviders}
+        />
+      )}
+
+      {/* Activation Modal — secret input + ETH tx */}
+      {activationModal.activatingActivity && ethAddress && (
+        <SimpleDeposit
+          open={!!activationModal.activatingActivity}
+          resumeMode="activate_vault"
+          onClose={activationModal.handleClose}
+          onResumeSuccess={activationModal.handleSuccess}
+          activity={activationModal.activatingActivity}
+          depositorEthAddress={ethAddress}
         />
       )}
 

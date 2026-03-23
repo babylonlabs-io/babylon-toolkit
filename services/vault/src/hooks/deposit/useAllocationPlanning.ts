@@ -23,7 +23,7 @@ export interface UseAllocationPlanningParams {
   isPartialLiquidation: boolean;
   spendableUTXOs: DepositUtxo[] | undefined;
   btcAddress: string | undefined;
-  depositorClaimValue: bigint;
+  depositorClaimValue: bigint | undefined;
 }
 
 export interface UseAllocationPlanningResult {
@@ -76,7 +76,8 @@ export function useAllocationPlanning({
       !vaultAmounts ||
       !spendableUTXOs?.length ||
       !btcAddress ||
-      feeRate <= 0
+      feeRate <= 0 ||
+      depositorClaimValue == null
     ) {
       setAllocationPlan(null);
       setPlanError(null);
@@ -123,7 +124,7 @@ export function useAllocationPlanning({
 
   // Compute total fee from the allocation plan
   const totalFeeSats = useMemo(() => {
-    if (!allocationPlan) return null;
+    if (!allocationPlan || depositorClaimValue == null) return null;
 
     let total = 0n;
 

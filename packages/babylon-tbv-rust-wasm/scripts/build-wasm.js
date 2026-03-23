@@ -206,10 +206,11 @@ const buildWasm = async () => {
     console.log('\n✅ WASM build completed successfully!');
     console.log(`Generated files are in: ${OUTPUT_DIR}`);
     console.log('\nExported modules:');
-    console.log('  - WasmPeginTx (PegIn transaction creation)');
-    console.log('  - WasmPeginPayoutConnector (Payout script generation)');
-    console.log('  - WasmPayoutTx (Payout transaction)');
-    console.log('  - WasmPayoutOptimisticTx (Optimistic payout transaction)');
+    console.log('  - WasmPrePeginTx (Pre-PegIn HTLC transaction)');
+    console.log('  - WasmPrePeginHtlcConnector (HTLC connector info)');
+    console.log('  - WasmPeginTx (PegIn transaction from pre-pegin)');
+    console.log('  - computeMinClaimValue (Minimum claim value calculation)');
+    console.log('  - numUtxosForInputLabels (UTXO count for input labels)');
   } catch (error) {
     console.error('Error during WASM build:', error);
     // Clean up on error

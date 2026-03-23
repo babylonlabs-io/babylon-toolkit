@@ -21,11 +21,11 @@ export function WithdrawReviewContent({
   onConfirm,
 }: WithdrawReviewContentProps) {
   const { defaultFeeRate } = useNetworkFees();
-  const { vpCommissionBps } = useProtocolParamsContext();
+  const { minVpCommissionBps } = useProtocolParamsContext();
 
   const rows: DetailRow[] = useMemo(() => {
-    const vpCommissionBtc = totalAmountBtc * (vpCommissionBps / BPS_SCALE);
-    const vpCommissionUsd = totalAmountUsd * (vpCommissionBps / BPS_SCALE);
+    const vpCommissionBtc = totalAmountBtc * (minVpCommissionBps / BPS_SCALE);
+    const vpCommissionUsd = totalAmountUsd * (minVpCommissionBps / BPS_SCALE);
 
     return [
       {
@@ -46,7 +46,7 @@ export function WithdrawReviewContent({
       {
         label: "VP Commission",
         value:
-          vpCommissionBps > 0 ? (
+          minVpCommissionBps > 0 ? (
             <span>
               {formatBtcAmount(vpCommissionBtc)}{" "}
               <span className="text-accent-secondary">
@@ -58,7 +58,7 @@ export function WithdrawReviewContent({
           ),
       },
     ];
-  }, [totalAmountBtc, totalAmountUsd, defaultFeeRate, vpCommissionBps]);
+  }, [totalAmountBtc, totalAmountUsd, defaultFeeRate, minVpCommissionBps]);
 
   return (
     <div className="w-full">

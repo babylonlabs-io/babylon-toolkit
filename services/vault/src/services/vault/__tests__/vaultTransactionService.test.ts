@@ -20,6 +20,7 @@ const { mockPreparePegin, MockPeginManager } = vi.hoisted(() => {
 
 vi.mock("@babylonlabs-io/ts-sdk/tbv/core", () => ({
   PeginManager: MockPeginManager,
+  ensureHexPrefix: (hex: string) => (hex.startsWith("0x") ? hex : `0x${hex}`),
 }));
 
 vi.mock("@babylonlabs-io/config", () => ({

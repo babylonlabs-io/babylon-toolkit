@@ -7,6 +7,7 @@
  */
 
 export {
+  ensureHexPrefix,
   hexToUint8Array,
   isValidHex,
   processPublicKeyToXOnly,

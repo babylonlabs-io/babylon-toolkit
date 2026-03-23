@@ -1,10 +1,16 @@
 /**
- * Custom hook for vault actions (broadcast)
+ * Custom hook for vault actions (broadcast, activation)
  */
 
-import { useChainConnector } from "@babylonlabs-io/wallet-connector";
+import { getETHChain } from "@babylonlabs-io/config";
+import { ensureHexPrefix } from "@babylonlabs-io/ts-sdk/tbv/core";
+import {
+  getSharedWagmiConfig,
+  useChainConnector,
+} from "@babylonlabs-io/wallet-connector";
 import { useState } from "react";
 import type { Hex } from "viem";
+import { getWalletClient, switchChain } from "wagmi/actions";
 
 import {
   getNextLocalStatus,
@@ -17,8 +23,10 @@ import {
   fetchVaultById,
   UtxoNotAvailableError,
 } from "../../services/vault";
+import { activateVaultWithSecret } from "../../services/vault/vaultActivationService";
 import type { PendingPeginRequest } from "../../storage/peginStorage";
 import { stripHexPrefix } from "../../utils/btc";
+import { validateSecretAgainstHashlock } from "../../utils/htlcSecret";
 
 export interface BroadcastPeginParams {
   activityId: string;
@@ -36,11 +44,32 @@ export interface BroadcastPeginParams {
   onShowSuccessModal: () => void;
 }
 
+export interface ActivateVaultParams {
+  /** Vault ID (e.g. pegin tx hash) */
+  vaultId: string;
+  /** HTLC secret hex entered by the user (with or without 0x prefix) */
+  secretHex: string;
+  /** Depositor's ETH address */
+  depositorEthAddress: string;
+  pendingPegin?: PendingPeginRequest;
+  updatePendingPeginStatus?: (
+    peginId: string,
+    status: LocalStorageStatus,
+    btcTxHash?: string,
+  ) => void;
+  onRefetchActivities: () => void;
+  onShowSuccessModal: () => void;
+}
+
 export interface UseVaultActionsReturn {
   // Broadcast state
   broadcasting: boolean;
   broadcastError: string | null;
   handleBroadcast: (params: BroadcastPeginParams) => Promise<void>;
+  // Activation state
+  activating: boolean;
+  activationError: string | null;
+  handleActivation: (params: ActivateVaultParams) => Promise<void>;
 }
 
 /**
@@ -50,6 +79,10 @@ export function useVaultActions(): UseVaultActionsReturn {
   // Broadcast state
   const [broadcasting, setBroadcasting] = useState(false);
   const [broadcastError, setBroadcastError] = useState<string | null>(null);
+
+  // Activation state
+  const [activating, setActivating] = useState(false);
+  const [activationError, setActivationError] = useState<string | null>(null);
 
   // Connectors
   const btcConnector = useChainConnector("BTC");
@@ -81,12 +114,10 @@ export function useVaultActions(): UseVaultActionsReturn {
         throw new Error("Vault not found. Please try again.");
       }
 
-      const unsignedTxHex = vault.unsignedBtcTx;
+      const unsignedTxHex = vault.unsignedPrePeginTx;
 
       if (!unsignedTxHex) {
-        throw new Error(
-          "Unsigned transaction not found in contract. Please try again.",
-        );
+        throw new Error("Pre-pegin transaction not found. Please try again.");
       }
 
       // Get BTC wallet provider
@@ -165,9 +196,86 @@ export function useVaultActions(): UseVaultActionsReturn {
     }
   };
 
+  /**
+   * Handle vault activation — reveal HTLC secret on Ethereum
+   */
+  const handleActivation = async (params: ActivateVaultParams) => {
+    const {
+      vaultId,
+      secretHex,
+      depositorEthAddress,
+      pendingPegin,
+      updatePendingPeginStatus,
+      onRefetchActivities,
+      onShowSuccessModal,
+    } = params;
+
+    setActivating(true);
+    setActivationError(null);
+
+    try {
+      // Fetch vault to get hashlock for client-side validation
+      const vault = await fetchVaultById(vaultId as Hex);
+      if (!vault) {
+        throw new Error("Vault not found. Please try again.");
+      }
+      if (!vault.hashlock) {
+        throw new Error(
+          "Vault hashlock not found. The vault may not support atomic swap activation.",
+        );
+      }
+
+      // Validate secret against hashlock before sending ETH tx
+      const isValid = await validateSecretAgainstHashlock(
+        secretHex,
+        vault.hashlock,
+      );
+      if (!isValid) {
+        throw new Error(
+          "Invalid secret: SHA256(secret) does not match the vault's hashlock. Please check your secret and try again.",
+        );
+      }
+
+      // Get ETH wallet client
+      const chain = getETHChain();
+      const wagmiConfig = getSharedWagmiConfig();
+      await switchChain(wagmiConfig, { chainId: chain.id });
+      const walletClient = await getWalletClient(wagmiConfig, {
+        account: depositorEthAddress as Hex,
+      });
+
+      // Call activateVaultWithSecret on the contract
+      await activateVaultWithSecret({
+        vaultId: ensureHexPrefix(vaultId),
+        secret: ensureHexPrefix(secretHex),
+        walletClient,
+      });
+
+      // Update localStorage status
+      const nextStatus = getNextLocalStatus(PeginAction.ACTIVATE_VAULT);
+      if (pendingPegin && updatePendingPeginStatus && nextStatus) {
+        updatePendingPeginStatus(vaultId, nextStatus);
+      }
+
+      // Show success and refetch
+      onShowSuccessModal();
+      onRefetchActivities();
+
+      setActivating(false);
+    } catch (err) {
+      const errorMessage =
+        err instanceof Error ? err.message : "Failed to activate vault";
+      setActivationError(errorMessage);
+      setActivating(false);
+    }
+  };
+
   return {
     broadcasting,
     broadcastError,
     handleBroadcast,
+    activating,
+    activationError,
+    handleActivation,
   };
 }

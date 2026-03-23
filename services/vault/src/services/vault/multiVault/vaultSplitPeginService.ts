@@ -68,10 +68,7 @@ export interface PrepareSplitPeginParams {
   universalChallengerBtcPubkeys: string[];
   /** CSV timelock in blocks for the PegIn vault output */
   timelockPegin: number;
-  /**
-   * CSV timelock in blocks for the Pre-PegIn HTLC refund path.
-   * TODO: fetch from ProtocolParams contract once btc-vault adds this parameter.
-   */
+  /** CSV timelock in blocks for the Pre-PegIn HTLC refund path (tRefund from VersionedOffchainParams) */
   timelockRefund: number;
   /** SHA256 hash commitment for the HTLC (64 hex chars = 32 bytes) */
   hashH: string;
@@ -98,7 +95,7 @@ export interface PrepareSplitPeginResult {
   btcTxHash: string;
   /** Funded Pre-PegIn tx hex — this is the tx the depositor signs and broadcasts. */
   fundedPrePeginTxHex: string;
-  /** PegIn tx hex — pass to registerPeginOnChain as unsignedBtcTx for vault ID computation. */
+  /** PegIn tx hex — pass to registerSplitPeginOnChain as depositorSignedPeginTx; vault ID derived from this. */
   peginTxHex: string;
   /** Depositor's Schnorr signature over PegIn input 0 (HTLC leaf 0), 128 hex chars. */
   peginInputSignature: string;
@@ -117,8 +114,12 @@ export interface PrepareSplitPeginResult {
 export interface RegisterSplitPeginParams {
   /** Depositor's x-only BTC pubkey (64 hex chars) */
   depositorBtcPubkey: string;
-  /** Unsigned pegin transaction hex */
-  unsignedBtcTx: string;
+  /** Funded Pre-PegIn tx hex — submitted to contract as unsignedPrePeginTx for DA */
+  unsignedPrePeginTxHex: string;
+  /** PegIn tx hex — submitted to contract as depositorSignedPeginTx; vault ID derived from this */
+  peginTxHex: string;
+  /** SHA256 hashlock for atomic swap activation (bytes32 hex with 0x prefix) */
+  hashlock: Hex;
   /** Ethereum address of the vault provider */
   vaultProviderAddress: Address;
   /**
@@ -144,8 +145,8 @@ export interface RegisterSplitPeginResult {
 }
 
 export interface BroadcastSplitPeginParams {
-  /** Unsigned funded pegin transaction hex */
-  fundedTxHex: string;
+  /** Funded Pre-PegIn transaction hex (the HTLC output the depositor broadcasts) */
+  fundedPrePeginTxHex: string;
   /** Depositor's x-only BTC pubkey (64 hex chars) */
   depositorBtcPubkey: string;
   /**
@@ -301,7 +302,7 @@ export async function preparePeginFromSplitOutput(
  *
  * @param btcWallet - Bitcoin wallet for signing BIP-322 PoP
  * @param ethWallet - Ethereum wallet client for submitting transaction
- * @param params - Registration parameters including depositor pubkey and unsigned BTC tx
+ * @param params - Registration parameters including depositor pubkey, pre-pegin tx, and pegin tx
  * @returns Ethereum transaction hash and vault ID (primary identifier)
  */
 export async function registerSplitPeginOnChain(
@@ -323,7 +324,9 @@ export async function registerSplitPeginOnChain(
 
     const result = await peginManager.registerPeginOnChain({
       depositorBtcPubkey: params.depositorBtcPubkey,
-      unsignedBtcTx: params.unsignedBtcTx,
+      unsignedPrePeginTx: params.unsignedPrePeginTxHex,
+      depositorSignedPeginTx: params.peginTxHex,
+      hashlock: params.hashlock,
       vaultProvider: params.vaultProviderAddress,
       onPopSigned: params.onPopSigned,
       depositorPayoutBtcAddress: params.depositorPayoutBtcAddress,
@@ -365,14 +368,15 @@ export async function registerSplitPeginOnChain(
 export async function broadcastPeginWithLocalUtxo(
   params: BroadcastSplitPeginParams,
 ): Promise<string> {
-  const { fundedTxHex, depositorBtcPubkey, splitOutputs, signPsbt } = params;
+  const { fundedPrePeginTxHex, depositorBtcPubkey, splitOutputs, signPsbt } =
+    params;
 
   try {
     // Number of hex chars to show per txid in error messages (4 bytes = readable, unambiguous enough)
     const TXID_PREFIX_LENGTH = 8;
 
     // Step 1: Parse the funded transaction
-    const tx = Transaction.fromHex(stripHexPrefix(fundedTxHex));
+    const tx = Transaction.fromHex(stripHexPrefix(fundedPrePeginTxHex));
 
     if (tx.ins.length === 0) {
       throw new Error("Transaction has no inputs");

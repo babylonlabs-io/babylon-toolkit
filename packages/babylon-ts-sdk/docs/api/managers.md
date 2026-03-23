@@ -1121,16 +1121,16 @@ Bitcoin transaction hash (without 0x prefix).
 This is the hash of the unsigned transaction and will NOT change after signing.
 Used as the unique vault identifier in the contract.
 
-##### fundedTxHex
+##### fundedPrePeginTxHex
 
 ```ts
-fundedTxHex: string;
+fundedPrePeginTxHex: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:155](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L155)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:191](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L191)
 
-Funded but unsigned transaction hex.
-This transaction has inputs and outputs but is not yet signed.
+Funded but unsigned Pre-PegIn transaction hex.
+Sign and broadcast this AFTER registering on Ethereum.
 
 ##### vaultScriptPubKey
 
@@ -1193,15 +1193,15 @@ Parameters for signing and broadcasting a transaction.
 
 #### Properties
 
-##### fundedTxHex
+##### fundedPrePeginTxHex
 
 ```ts
-fundedTxHex: string;
+fundedPrePeginTxHex: string;
 ```
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:191](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L191)
 
-Funded transaction hex from preparePegin().
+Funded Pre-PegIn transaction hex from preparePegin().
 
 ##### depositorBtcPubkey
 
@@ -1236,15 +1236,29 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:209](
 Depositor's BTC public key (x-only, 64-char hex).
 Can be provided with or without "0x" prefix.
 
-##### unsignedBtcTx
+##### unsignedPrePeginTx
 
 ```ts
-unsignedBtcTx: string;
+unsignedPrePeginTx: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:214](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L214)
+Funded Pre-PegIn transaction hex (HTLC output). Submitted to the contract for data availability.
 
-Funded but unsigned BTC transaction hex.
+##### depositorSignedPeginTx
+
+```ts
+depositorSignedPeginTx: string;
+```
+
+PegIn transaction hex (spends the Pre-PegIn HTLC output). The vault ID is derived from this transaction.
+
+##### hashlock
+
+```ts
+hashlock: `0x${string}`;
+```
+
+SHA256 hashlock for atomic swap activation (bytes32 hex with 0x prefix).
 
 ##### vaultProvider
 

@@ -60,8 +60,8 @@ function getDepositsForUtxoValidation(
       return false;
     }
 
-    // Must have unsigned tx for validation
-    return !!activity.unsignedBtcTx;
+    // Must have pre-pegin tx (the tx that spends wallet UTXOs) for validation
+    return !!activity.unsignedPrePeginTx;
   });
 }
 
@@ -99,7 +99,9 @@ export function useUtxoValidation({
 
     for (const deposit of depositsToValidate) {
       try {
-        const inputs = extractInputsFromTransaction(deposit.unsignedBtcTx!);
+        const inputs = extractInputsFromTransaction(
+          deposit.unsignedPrePeginTx!,
+        );
 
         // If any input is not in the available set, check if it was spent by vault's own tx
         const hasUnavailableInput = inputs.some(

@@ -10,6 +10,7 @@ import { useCallback, useMemo } from "react";
 import type { Address } from "viem";
 
 import { useBTCWallet, useETHWallet } from "@/context/wallet";
+import { useActivationModal } from "@/hooks/deposit/useActivationModal";
 import { useAllDepositProviders } from "@/hooks/deposit/useAllDepositProviders";
 import { useArtifactDownloadModal } from "@/hooks/deposit/useArtifactDownloadModal";
 import { useBroadcastModal } from "@/hooks/deposit/useBroadcastModal";
@@ -56,6 +57,11 @@ export function usePendingDeposits() {
     onSuccess: refetchActivities,
   });
 
+  const activationModal = useActivationModal({
+    allActivities: activities,
+    onSuccess: refetchActivities,
+  });
+
   const findProvider = useCallback(
     (id: string) =>
       vaultProviders.find((p) => p.id.toLowerCase() === id.toLowerCase()),
@@ -82,6 +88,7 @@ export function usePendingDeposits() {
     signModal,
     broadcastModal,
     lamportKeyModal,
+    activationModal,
     artifactDownloadModal,
   };
 }

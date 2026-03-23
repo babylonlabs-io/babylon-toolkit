@@ -38,6 +38,7 @@ interface PendingDepositCardProps {
   ) => void;
   onBroadcastClick: (depositId: string) => void;
   onLamportKeyClick: (depositId: string) => void;
+  onActivationClick: (depositId: string) => void;
   onArtifactDownloadClick?: (depositId: string) => void;
 }
 
@@ -51,6 +52,7 @@ export function PendingDepositCard({
   onSignClick,
   onBroadcastClick,
   onLamportKeyClick,
+  onActivationClick,
   onArtifactDownloadClick,
 }: PendingDepositCardProps) {
   const pollingResult = useDepositPollingResult(depositId);
@@ -75,6 +77,8 @@ export function PendingDepositCard({
       }
     } else if (action === PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN) {
       onBroadcastClick(depositId);
+    } else if (action === PeginAction.ACTIVATE_VAULT) {
+      onActivationClick(depositId);
     }
   };
 

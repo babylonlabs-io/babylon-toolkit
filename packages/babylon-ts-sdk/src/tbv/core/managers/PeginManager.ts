@@ -44,6 +44,7 @@ import {
   type Network,
 } from "../primitives";
 import {
+  ensureHexPrefix,
   isAddressFromPublicKey,
   stripHexPrefix,
 } from "../primitives/utils/bitcoin";
@@ -217,7 +218,7 @@ export interface AtomicPeginResult {
   prePeginTxid: string;
 
   /**
-   * PegIn transaction hex. Pass to registerPeginOnChain as `unsignedBtcTx`
+   * PegIn transaction hex. Pass to registerPeginOnChain as `depositorSignedPeginTx`
    * so the contract computes the correct vault ID from the pegin txid.
    */
   peginTxHex: string;
@@ -272,14 +273,24 @@ export interface RegisterPeginParams {
   depositorBtcPubkey: string;
 
   /**
-   * Funded but unsigned BTC transaction hex.
+   * Unsigned Pre-PegIn transaction hex (submitted to contract for data availability).
    */
-  unsignedBtcTx: string;
+  unsignedPrePeginTx: string;
+
+  /**
+   * Depositor-signed PegIn transaction hex (submitted to contract; vault ID derived from this).
+   */
+  depositorSignedPeginTx: string;
 
   /**
    * Vault provider's Ethereum address.
    */
   vaultProvider: Address;
+
+  /**
+   * SHA256 hashlock for atomic swap activation (bytes32 hex with 0x prefix).
+   */
+  hashlock: Hex;
 
   /**
    * Optional callback invoked after PoP signing completes but before ETH transaction.
@@ -592,8 +603,10 @@ export class PeginManager {
     // Step 5: Finalize and extract transaction
     try {
       signedPsbt.finalizeAllInputs();
-    } catch {
-      // Some wallets finalize automatically, ignore errors
+    } catch (e) {
+      // Some wallets (e.g. UniSat, OKX) auto-finalize PSBTs before returning them.
+      // Attempting to finalize again throws, which is expected and safe to skip.
+      console.debug("PSBT finalization skipped (wallet likely auto-finalized):", e);
     }
 
     const signedTxHex = signedPsbt.extractTransaction().toHex();
@@ -626,8 +639,10 @@ export class PeginManager {
   ): Promise<RegisterPeginResult> {
     const {
       depositorBtcPubkey,
-      unsignedBtcTx,
+      unsignedPrePeginTx,
+      depositorSignedPeginTx,
       vaultProvider,
+      hashlock,
       onPopSigned,
       depositorPayoutBtcAddress,
       depositorLamportPkHash,
@@ -651,20 +666,16 @@ export class PeginManager {
     }
 
     // Step 3: Format parameters for contract call
-    const depositorBtcPubkeyHex = depositorBtcPubkey.startsWith("0x")
-      ? (depositorBtcPubkey as Hex)
-      : (`0x${depositorBtcPubkey}` as Hex);
-
-    const unsignedPegInTx = unsignedBtcTx.startsWith("0x")
-      ? (unsignedBtcTx as Hex)
-      : (`0x${unsignedBtcTx}` as Hex);
+    const depositorBtcPubkeyHex = ensureHexPrefix(depositorBtcPubkey);
+    const unsignedPrePeginTxHex = ensureHexPrefix(unsignedPrePeginTx);
+    const depositorSignedPeginTxHex = ensureHexPrefix(depositorSignedPeginTx);
 
     const payoutScriptPubKey = await this.resolvePayoutScriptPubKey(
       depositorPayoutBtcAddress,
     );
 
-    // Step 4: Calculate vault ID and check if it already exists (pre-flight check)
-    const vaultId = calculateBtcTxHash(unsignedPegInTx);
+    // Step 4: Calculate vault ID from depositorSignedPeginTx and check if it already exists
+    const vaultId = calculateBtcTxHash(depositorSignedPeginTxHex);
     const exists = await this.checkVaultExists(vaultId);
 
     if (exists) {
@@ -704,8 +715,10 @@ export class PeginManager {
         depositorEthAddress,
         depositorBtcPubkeyHex,
         btcPopSignature,
-        unsignedPegInTx,
+        unsignedPrePeginTxHex,
+        depositorSignedPeginTxHex,
         vaultProvider,
+        hashlock,
         payoutScriptPubKey,
         depositorLamportPkHash,
       ],

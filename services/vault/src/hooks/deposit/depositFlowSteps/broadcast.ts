@@ -26,15 +26,15 @@ export async function broadcastBtcTransaction(
 ): Promise<string> {
   const { btcTxid, depositorBtcPubkey, btcWalletProvider } = params;
 
-  // Fetch vault to get unsigned tx
+  // Fetch vault to get the funded Pre-PegIn tx (the HTLC output the depositor broadcasts)
   const vault = await fetchVaultById(btcTxid as Hex);
-  if (!vault?.unsignedBtcTx) {
-    throw new Error("Vault or unsigned transaction not found");
+  if (!vault?.unsignedPrePeginTx) {
+    throw new Error("Vault or pre-pegin transaction not found");
   }
 
-  // Broadcast BTC transaction
+  // Broadcast the Pre-PegIn tx (NOT the PegIn tx — the VP handles the PegIn tx after secret reveal)
   const broadcastTxId = await broadcastPeginTransaction({
-    unsignedTxHex: vault.unsignedBtcTx,
+    unsignedTxHex: vault.unsignedPrePeginTx,
     btcWalletProvider: {
       signPsbt: (psbtHex: string) => btcWalletProvider.signPsbt(psbtHex),
     },

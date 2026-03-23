@@ -84,7 +84,9 @@ console.log("Fee:", result.fee, "satoshis");
 // Step 2: Register on Ethereum (generates PoP, submits to contract)
 const { ethTxHash, vaultId } = await peginManager.registerPeginOnChain({
   depositorBtcPubkey: "...",
-  unsignedBtcTx: result.fundedTxHex,
+  unsignedPrePeginTx: result.fundedPrePeginTxHex,
+  depositorSignedPeginTx: result.peginTxHex,
+  hashlock: "0x...",
   vaultProvider: "0x...",
 });
 
@@ -108,7 +110,7 @@ console.log("Payout signatures submitted");
 // Step 4: Sign and broadcast to Bitcoin
 // Wait for contract status to become VERIFIED (1) before broadcasting
 const btcTxid = await peginManager.signAndBroadcast({
-  fundedTxHex: result.fundedTxHex,
+  fundedPrePeginTxHex: result.fundedPrePeginTxHex,
   depositorBtcPubkey: "...",
 });
 
@@ -120,7 +122,7 @@ console.log("Broadcasted:", btcTxid);
 
 | Step | Method/Manager           | Returns                                                                           |
 | ---- | ------------------------ | --------------------------------------------------------------------------------- |
-| 1    | `preparePegin()`         | `{ btcTxHash, fundedTxHex, vaultScriptPubKey, selectedUTXOs, fee, changeAmount }` |
+| 1    | `preparePegin()`         | `{ btcTxHash, fundedPrePeginTxHex, vaultScriptPubKey, selectedUTXOs, fee, changeAmount }` |
 | 2    | `registerPeginOnChain()` | `{ ethTxHash, vaultId }`                                                          |
 | 3    | `PayoutManager` methods  | `{ signature }` per claimer                                                       |
 | 4    | `signAndBroadcast()`     | `btcTxid` (string)                                                                |

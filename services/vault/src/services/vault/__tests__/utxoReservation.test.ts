@@ -84,14 +84,16 @@ describe("UTXO Reservation", () => {
 
     const createMockVault = (
       status: ContractStatus,
-      unsignedBtcTx: string,
+      unsignedPrePeginTx: string,
     ): Vault => ({
       id: "0xvault1" as any,
       depositor: "0xdepositor" as any,
       depositorBtcPubkey: "0xpubkey" as any,
-      unsignedBtcTx: unsignedBtcTx as any,
+      depositorSignedPeginTx: "0x" as any,
+      unsignedPrePeginTx: unsignedPrePeginTx as any,
       amount: 100000n,
       vaultProvider: "0xprovider" as any,
+      vkVersion: 1,
       status,
       applicationController: "0xcontroller" as any,
       createdAt: Date.now(),

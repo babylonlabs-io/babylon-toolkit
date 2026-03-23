@@ -25,16 +25,18 @@ export enum DepositFlowStep {
   SIGN_SPLIT_TX = 0,
   /** Step 1: Sign proof of possession in BTC wallet */
   SIGN_POP = 1,
-  /** Step 2: Sign and submit peg-in request in ETH wallet */
+  /** Step 2: Submit peg-in to Ethereum (registers vault on-chain) */
   SUBMIT_PEGIN = 2,
-  /** Step 3: Sign payout transactions in BTC wallet */
-  SIGN_PAYOUTS = 3,
-  /** Step 4: Download vault artifacts */
-  ARTIFACT_DOWNLOAD = 4,
-  /** Step 5: Sign and broadcast BTC transaction */
-  BROADCAST_BTC = 5,
-  /** Step 6: Deposit completed */
-  COMPLETED = 6,
+  /** Step 3: Sign and broadcast Pre-PegIn transaction to Bitcoin */
+  BROADCAST_PRE_PEGIN = 3,
+  /** Step 4: Sign payout transactions in BTC wallet */
+  SIGN_PAYOUTS = 4,
+  /** Step 5: Download vault artifacts */
+  ARTIFACT_DOWNLOAD = 5,
+  /** Step 6: Reveal HTLC secret on Ethereum to activate the vault */
+  ACTIVATE_VAULT = 6,
+  /** Step 7: Deposit completed */
+  COMPLETED = 7,
 }
 
 // ============================================================================
@@ -71,10 +73,7 @@ export interface PeginPrepareParams {
   universalChallengerBtcPubkeys: string[];
   /** CSV timelock in blocks for the PegIn vault output */
   timelockPegin: number;
-  /**
-   * CSV timelock in blocks for the Pre-PegIn HTLC refund path.
-   * TODO: fetch from ProtocolParams contract once btc-vault adds this parameter.
-   */
+  /** CSV timelock in blocks for the Pre-PegIn HTLC refund path (tRefund from VersionedOffchainParams) */
   timelockRefund: number;
   /** SHA256 hash commitment for the HTLC (64 hex chars = 32 bytes) */
   hashH: string;
@@ -106,8 +105,12 @@ export interface PeginRegisterParams {
   btcWalletProvider: BitcoinWallet;
   walletClient: WalletClient;
   depositorBtcPubkey: string;
-  /** PegIn tx hex — used to compute the vault ID on-chain */
+  /** PegIn tx hex — submitted as depositorSignedPeginTx; vault ID derived from this */
   peginTxHex: string;
+  /** Funded Pre-PegIn tx hex — submitted as unsignedPrePeginTx for DA */
+  fundedPrePeginTxHex: string;
+  /** SHA256 hashlock for atomic swap activation (hex with 0x prefix) */
+  hashlock: Hex;
   vaultProviderAddress: string;
   onPopSigned?: () => void;
   /** Depositor's BTC payout address (e.g. bc1p...) */
@@ -194,6 +197,8 @@ export interface DepositFlowResult {
   btcTxid: string;
   ethTxHash: string;
   depositorBtcPubkey: string;
+  /** HTLC secret hex (no 0x prefix) — shown to the user for safekeeping */
+  htlcSecretHex: string;
   transactionData: {
     unsignedTxHex: string;
     selectedUTXOs: DepositUtxo[];

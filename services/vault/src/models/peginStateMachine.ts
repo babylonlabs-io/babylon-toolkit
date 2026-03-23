@@ -16,8 +16,10 @@
 // ============================================================================
 
 /**
- * Smart contract peg-in status (on-chain)
- * Source: BTCVaultsManager.sol - enum BTCVaultStatus
+ * Vault status — combines on-chain contract status (0-4) with indexer-derived
+ * statuses (5-7). The contract enum (BTCVaultsManager.sol BTCVaultStatus) only
+ * has: Pending(0), Verified(1), Active(2), Redeemed(3), Expired(4).
+ * The indexer maps these and adds extra statuses for UI display.
  *
  * IMPORTANT: With the new contract architecture:
  * - Core vault status (BTCVaultsManager) does NOT change when used by applications
@@ -27,24 +29,27 @@
 export enum ContractStatus {
   /** Status 0: Request submitted, waiting for ACKs */
   PENDING = 0,
-  /** Status 1: All ACKs collected, ready for inclusion proof */
+  /** Status 1: All ACKs collected, ready for secret activation */
   VERIFIED = 1,
-  /** Status 2: Inclusion proof verified, vault is active and usable (stays here even when used by apps) */
+  /** Status 2: HTLC secret revealed, vault is active and usable (stays here even when used by apps) */
   ACTIVE = 2,
   /** Status 3: Vault has been redeemed, BTC is claimable */
   REDEEMED = 3,
-  /** Status 4: Vault was liquidated (collateral seized due to unpaid debt) */
+  /** Status 4 (indexer-only): Vault was liquidated (collateral seized due to unpaid debt) */
   LIQUIDATED = 4,
-  /** Status 5: Vault is invalid - BTC UTXOs were spent in a different transaction */
+  /** Status 5 (indexer-only): Vault is invalid — BTC UTXOs were spent in a different transaction */
   INVALID = 5,
-  /** Status 6: Depositor has withdrawn their BTC (redemption complete) */
+  /** Status 6 (indexer-only): Depositor has withdrawn their BTC (redemption complete) */
   DEPOSITOR_WITHDRAWN = 6,
-  /** Status 7 (indexer-only): Vault expired due to AckTimeout or ProofTimeout */
+  /** Status 7 (indexer-only): Vault expired due to AckTimeout or ActivationTimeout */
   EXPIRED = 7,
 }
 
 /** Reason why a vault expired */
-export type ExpirationReason = "ack_timeout" | "proof_timeout";
+export type ExpirationReason =
+  | "ack_timeout"
+  | "proof_timeout"
+  | "activation_timeout";
 
 /**
  * Local storage status (off-chain, temporary)
@@ -79,6 +84,7 @@ export enum DaemonStatus {
   PENDING_DEPOSITOR_LAMPORT_PK = "PendingDepositorLamportPK",
   PENDING_BABE_SETUP = "PendingBabeSetup",
   PENDING_CHALLENGER_PRESIGNING = "PendingChallengerPresigning",
+  PENDING_PEGIN_SIGS_AVAILABILITY = "PendingPeginSigsAvailability",
   PENDING_DEPOSITOR_SIGNATURES = "PendingDepositorSignatures",
   PENDING_ACKS = "PendingACKs",
   PENDING_ACTIVATION = "PendingActivation",
@@ -96,6 +102,7 @@ export const PRE_DEPOSITOR_SIGNATURES_STATES = [
   DaemonStatus.PENDING_INGESTION,
   DaemonStatus.PENDING_BABE_SETUP,
   DaemonStatus.PENDING_CHALLENGER_PRESIGNING,
+  DaemonStatus.PENDING_PEGIN_SIGS_AVAILABILITY,
 ] as const;
 
 /**
@@ -129,6 +136,7 @@ export const PEGIN_DISPLAY_LABELS = {
   PROCESSING: "Processing",
   VERIFIED: "Verified",
   PENDING_BITCOIN_CONFIRMATIONS: "Confirming",
+  READY_TO_ACTIVATE: "Ready to Activate",
   AVAILABLE: "Available",
   IN_USE: "In Use",
   REDEEM_IN_PROGRESS: "Redeem in Progress",
@@ -175,6 +183,8 @@ export enum PeginAction {
   SIGN_PAYOUT_TRANSACTIONS = "SIGN_PAYOUT_TRANSACTIONS",
   /** Sign and broadcast peg-in transaction to Bitcoin */
   SIGN_AND_BROADCAST_TO_BITCOIN = "SIGN_AND_BROADCAST_TO_BITCOIN",
+  /** Reveal HTLC secret on Ethereum to activate vault */
+  ACTIVATE_VAULT = "ACTIVATE_VAULT",
   /** No action available - user must wait */
   NONE = "NONE",
 }
@@ -208,6 +218,7 @@ export interface GetPeginStateOptions {
 const EXPIRATION_REASON_LABELS: Record<ExpirationReason, string> = {
   ack_timeout: "The vault provider did not acknowledge in time",
   proof_timeout: "The inclusion proof was not submitted in time",
+  activation_timeout: "The vault was not activated in time",
 };
 
 function formatExpiredTimeAgo(timestamp: number): string {
@@ -343,18 +354,18 @@ export function getPeginState(
     };
   }
 
-  // Contract Status 1: Verified (All ACKs collected, ready for inclusion proof)
+  // Contract Status 1: Verified (All ACKs collected, ready for activation)
   if (contractStatus === ContractStatus.VERIFIED) {
-    // Sub-state: BTC transaction broadcasted (waiting for confirmations)
+    // Sub-state: BTC transaction broadcasted — user needs to reveal secret to activate
     if (localStatus === LocalStorageStatus.CONFIRMING) {
       return {
         contractStatus,
         localStatus,
-        displayLabel: PEGIN_DISPLAY_LABELS.PENDING_BITCOIN_CONFIRMATIONS,
+        displayLabel: PEGIN_DISPLAY_LABELS.READY_TO_ACTIVATE,
         displayVariant: "pending",
-        availableActions: [PeginAction.NONE],
+        availableActions: [PeginAction.ACTIVATE_VAULT],
         message:
-          "Bitcoin transaction broadcasted. Waiting for network confirmations...",
+          "Bitcoin transaction confirmed. Reveal your HTLC secret to activate the vault.",
       };
     }
 
@@ -510,6 +521,13 @@ export function getPrimaryActionButton(state: PeginState): {
     };
   }
 
+  if (state.availableActions.includes(PeginAction.ACTIVATE_VAULT)) {
+    return {
+      label: "Activate",
+      action: PeginAction.ACTIVATE_VAULT,
+    };
+  }
+
   return null;
 }
 
@@ -528,6 +546,8 @@ export function getNextLocalStatus(
       return LocalStorageStatus.PAYOUT_SIGNED;
     case PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN:
       return LocalStorageStatus.CONFIRMING;
+    case PeginAction.ACTIVATE_VAULT:
+      return LocalStorageStatus.CONFIRMED;
     default:
       return null;
   }

@@ -23,15 +23,18 @@ import { DepositFlowStep } from "@/components/deposit/DepositSignModal/depositSt
 import type { PayoutSigningProgress } from "@/services/vault/vaultPayoutSignatureService";
 
 /**
- * Map the internal DepositFlowStep + isWaiting to a 1-indexed visual step (1-6).
+ * Map the internal DepositFlowStep + isWaiting to a 1-indexed visual step (1-9).
  *
- * Visual steps:
- * 1. Sign proof of possession
- * 2. Submit peg-in requests
- * 3. Wait (~ 15 min)
- * 4. Sign payout transactions
- * 5. Wait (~ 12 mins)
- * 6. Submit peg-in transactions
+ * Visual steps (must match buildStepItems order):
+ * 1. Sign proof of possession          (SIGN_POP)
+ * 2. Submit peg-in to Ethereum         (SUBMIT_PEGIN)
+ * 3. Broadcast to Bitcoin              (BROADCAST_PRE_PEGIN)
+ * 4. Wait (~ 15 min)                   (SIGN_PAYOUTS when isWaiting)
+ * 5. Sign payout transactions          (SIGN_PAYOUTS when !isWaiting)
+ * 6. Download vault artifacts           (ARTIFACT_DOWNLOAD)
+ * 7. Wait (~ 12 mins)                  (ACTIVATE_VAULT when isWaiting)
+ * 8. Activate vault on Ethereum        (ACTIVATE_VAULT when !isWaiting)
+ * 9. (completed)                       (COMPLETED)
  */
 export function getVisualStep(
   currentStep: DepositFlowStep,
@@ -42,14 +45,16 @@ export function getVisualStep(
       return 1;
     case DepositFlowStep.SUBMIT_PEGIN:
       return 2;
+    case DepositFlowStep.BROADCAST_PRE_PEGIN:
+      return 3;
     case DepositFlowStep.SIGN_PAYOUTS:
-      return isWaiting ? 3 : 4;
+      return isWaiting ? 4 : 5;
     case DepositFlowStep.ARTIFACT_DOWNLOAD:
-      return 5;
-    case DepositFlowStep.BROADCAST_BTC:
-      return isWaiting ? 6 : 7;
+      return 6;
+    case DepositFlowStep.ACTIVATE_VAULT:
+      return isWaiting ? 7 : 8;
     case DepositFlowStep.COMPLETED:
-      return 8;
+      return 9;
     default:
       return 1;
   }
@@ -63,7 +68,8 @@ export function buildStepItems(
 
   return [
     { label: "Sign proof of possession" },
-    { label: "Submit peg-in requests" },
+    { label: "Submit peg-in to Ethereum" },
+    { label: "Broadcast to Bitcoin" },
     { label: "Wait", description: "(~ 15 min)" },
     {
       label: "Sign payout transactions",
@@ -72,7 +78,7 @@ export function buildStepItems(
     },
     { label: "Download vault artifacts" },
     { label: "Wait", description: "(~ 12 mins)" },
-    { label: "Submit peg-in transactions" },
+    { label: "Activate vault on Ethereum" },
   ];
 }
 
@@ -108,28 +114,30 @@ const SPLIT_STEPS = {
   SIGN_SPLIT_TX: 1,
   SIGN_POP_SUBMIT_1: 2,
   SIGN_POP_SUBMIT_2: 3,
-  WAIT_CONFIRMATION: 4,
-  SIGN_PAYOUTS: 5,
-  DOWNLOAD_ARTIFACTS: 6,
-  WAIT_BROADCAST: 7,
-  BROADCAST: 8,
+  BROADCAST: 4,
+  WAIT_CONFIRMATION: 5,
+  SIGN_PAYOUTS: 6,
+  DOWNLOAD_ARTIFACTS: 7,
+  WAIT_ACTIVATION: 8,
+  ACTIVATE: 9,
 };
 
 const MULTI_INPUT_STEPS = {
   SIGN_POP_SUBMIT_1: 1,
   SIGN_POP_SUBMIT_2: 2,
-  WAIT_CONFIRMATION: 3,
-  SIGN_PAYOUTS: 4,
-  DOWNLOAD_ARTIFACTS: 5,
-  WAIT_BROADCAST: 6,
-  BROADCAST: 7,
+  BROADCAST: 3,
+  WAIT_CONFIRMATION: 4,
+  SIGN_PAYOUTS: 5,
+  DOWNLOAD_ARTIFACTS: 6,
+  WAIT_ACTIVATION: 7,
+  ACTIVATE: 8,
 };
 
 /**
  * Map DepositFlowStep + vault index + strategy to a 1-indexed visual step for multi-vault.
  *
- * SPLIT (8 steps):       Sign split TX → Sign PoP + Submit 1/2 → Submit 2/2 → Wait → Sign payouts → Download artifacts → Wait → Broadcast
- * MULTI_INPUT (7 steps): Sign PoP + Submit 1/2 → Submit 2/2 → Wait → Sign payouts → Download artifacts → Wait → Broadcast
+ * SPLIT (9 steps):       Sign split TX → Sign PoP + Submit 1/2 → Submit 2/2 → Broadcast → Wait → Sign payouts → Download artifacts → Wait → Activate vault
+ * MULTI_INPUT (8 steps): Sign PoP + Submit 1/2 → Submit 2/2 → Broadcast → Wait → Sign payouts → Download artifacts → Wait → Activate vault
  */
 export function getMultiVaultVisualStep(
   currentStep: DepositFlowStep,
@@ -147,14 +155,16 @@ export function getMultiVaultVisualStep(
       return (currentVaultIndex ?? 0) === 0
         ? s.SIGN_POP_SUBMIT_1
         : s.SIGN_POP_SUBMIT_2;
+    case DepositFlowStep.BROADCAST_PRE_PEGIN:
+      return s.BROADCAST;
     case DepositFlowStep.SIGN_PAYOUTS:
       return isWaiting ? s.WAIT_CONFIRMATION : s.SIGN_PAYOUTS;
     case DepositFlowStep.ARTIFACT_DOWNLOAD:
       return s.DOWNLOAD_ARTIFACTS;
-    case DepositFlowStep.BROADCAST_BTC:
-      return isWaiting ? s.WAIT_BROADCAST : s.BROADCAST;
+    case DepositFlowStep.ACTIVATE_VAULT:
+      return isWaiting ? s.WAIT_ACTIVATION : s.ACTIVATE;
     case DepositFlowStep.COMPLETED:
-      return s.BROADCAST + 1;
+      return s.ACTIVATE + 1;
     default:
       return 1;
   }
@@ -176,6 +186,7 @@ export function buildMultiVaultStepItems(
   steps.push(
     { label: "Sign PoP + Submit pegin 1/2" },
     { label: "Submit pegin 2/2" },
+    { label: "Broadcast to Bitcoin" },
     { label: "Wait", description: "(~ 15 min)" },
     {
       label: "Sign payout transactions",
@@ -184,7 +195,7 @@ export function buildMultiVaultStepItems(
     },
     { label: "Download vault artifacts" },
     { label: "Wait", description: "(~ 12 mins)" },
-    { label: "Broadcast" },
+    { label: "Activate vault on Ethereum" },
   );
 
   return steps;

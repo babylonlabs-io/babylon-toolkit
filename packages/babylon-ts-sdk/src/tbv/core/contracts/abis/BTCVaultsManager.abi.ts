@@ -9,7 +9,7 @@
 
 /**
  * Minimal ABI for BTCVaultsManager contract.
- * Contains only submitPeginRequest function used by PeginManager.
+ * Contains submitPeginRequest, activateVaultWithSecret, getPegInFee, and getBTCVault.
  */
 export const BTCVaultsManagerABI = [
   {
@@ -32,7 +32,12 @@ export const BTCVaultsManagerABI = [
         internalType: "bytes",
       },
       {
-        name: "unsignedPegInTx",
+        name: "unsignedPrePeginTx",
+        type: "bytes",
+        internalType: "bytes",
+      },
+      {
+        name: "depositorSignedPeginTx",
         type: "bytes",
         internalType: "bytes",
       },
@@ -40,6 +45,11 @@ export const BTCVaultsManagerABI = [
         name: "vaultProvider",
         type: "address",
         internalType: "address",
+      },
+      {
+        name: "hashlock",
+        type: "bytes32",
+        internalType: "bytes32",
       },
       {
         name: "depositorPayoutBtcAddress",
@@ -81,7 +91,12 @@ export const BTCVaultsManagerABI = [
         internalType: "bytes",
       },
       {
-        name: "unsignedPegInTx",
+        name: "unsignedPrePeginTx",
+        type: "bytes",
+        internalType: "bytes",
+      },
+      {
+        name: "depositorSignedPeginTx",
         type: "bytes",
         internalType: "bytes",
       },
@@ -89,6 +104,11 @@ export const BTCVaultsManagerABI = [
         name: "vaultProvider",
         type: "address",
         internalType: "address",
+      },
+      {
+        name: "hashlock",
+        type: "bytes32",
+        internalType: "bytes32",
       },
       {
         name: "referralCode",
@@ -114,6 +134,24 @@ export const BTCVaultsManagerABI = [
       },
     ],
     stateMutability: "payable",
+  },
+  {
+    type: "function",
+    name: "activateVaultWithSecret",
+    inputs: [
+      {
+        name: "vaultId",
+        type: "bytes32",
+        internalType: "bytes32",
+      },
+      {
+        name: "s",
+        type: "bytes32",
+        internalType: "bytes32",
+      },
+    ],
+    outputs: [],
+    stateMutability: "nonpayable",
   },
   {
     type: "function",
@@ -152,7 +190,7 @@ export const BTCVaultsManagerABI = [
         components: [
           { name: "depositor", type: "address", internalType: "address" },
           { name: "depositorBtcPubKey", type: "bytes32", internalType: "bytes32" },
-          { name: "unsignedPegInTx", type: "bytes", internalType: "bytes" },
+          { name: "depositorSignedPeginTx", type: "bytes", internalType: "bytes" },
           { name: "amount", type: "uint256", internalType: "uint256" },
           { name: "vaultProvider", type: "address", internalType: "address" },
           { name: "status", type: "uint8", internalType: "enum IBTCVaultsManager.BTCVaultStatus" },
@@ -160,9 +198,11 @@ export const BTCVaultsManagerABI = [
           { name: "universalChallengersVersion", type: "uint16", internalType: "uint16" },
           { name: "appVaultKeepersVersion", type: "uint16", internalType: "uint16" },
           { name: "offchainParamsVersion", type: "uint16", internalType: "uint16" },
+          { name: "vkVersion", type: "uint16", internalType: "uint16" },
           { name: "createdAt", type: "uint256", internalType: "uint256" },
           { name: "verifiedAt", type: "uint256", internalType: "uint256" },
           { name: "depositorLamportPkHash", type: "bytes32", internalType: "bytes32" },
+          { name: "hashlock", type: "bytes32", internalType: "bytes32" },
         ],
       },
     ],
@@ -184,5 +224,14 @@ export const BTCVaultsManagerABI = [
       },
     ],
   },
+  {
+    type: "error",
+    name: "InvalidSecret",
+    inputs: [],
+  },
+  {
+    type: "error",
+    name: "ActivationDeadlineExpired",
+    inputs: [],
+  },
 ] as const;
-

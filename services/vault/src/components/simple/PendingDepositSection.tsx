@@ -39,6 +39,7 @@ export function PendingDepositSection() {
     signModal,
     broadcastModal,
     lamportKeyModal,
+    activationModal,
     artifactDownloadModal,
   } = usePendingDeposits();
 
@@ -114,6 +115,7 @@ export function PendingDepositSection() {
                   onSignClick={signModal.handleSignClick}
                   onBroadcastClick={broadcastModal.handleBroadcastClick}
                   onLamportKeyClick={lamportKeyModal.handleLamportKeyClick}
+                  onActivationClick={activationModal.handleActivationClick}
                   onArtifactDownloadClick={
                     artifactDownloadModal.handleArtifactDownloadClick
                   }
@@ -140,6 +142,7 @@ export function PendingDepositSection() {
         signModal={signModal}
         broadcastModal={broadcastModal}
         lamportKeyModal={lamportKeyModal}
+        activationModal={activationModal}
         vaultProviders={vaultProviders}
         btcPublicKey={btcPublicKey}
         ethAddress={ethAddress}
