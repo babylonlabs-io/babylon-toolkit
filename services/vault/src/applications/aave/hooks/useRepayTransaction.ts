@@ -114,7 +114,10 @@ export function useRepayTransaction({
           config.controllerAddress as Address,
           reserve.reserveId,
           reserve.token.address,
-          parseUnits(repayAmount.toFixed(reserve.token.decimals), reserve.token.decimals),
+          parseUnits(
+            repayAmount.toFixed(reserve.token.decimals),
+            reserve.token.decimals,
+          ),
         );
       }
 
