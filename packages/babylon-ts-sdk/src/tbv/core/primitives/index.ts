@@ -61,8 +61,14 @@
  * @module primitives
  */
 
-// Core types from WASM package
+// Core types and functions from WASM package
 export type { Network } from "@babylonlabs-io/babylon-tbv-rust-wasm";
+export { computeMinClaimValue } from "@babylonlabs-io/babylon-tbv-rust-wasm";
+export type {
+  AssertPayoutNoPayoutConnectorParams,
+  ChallengeAssertConnectorParams,
+  PayoutConnectorParams,
+} from "@babylonlabs-io/babylon-tbv-rust-wasm";
 
 // PSBT builders
 export { buildPeginPsbt } from "./psbt/pegin";
