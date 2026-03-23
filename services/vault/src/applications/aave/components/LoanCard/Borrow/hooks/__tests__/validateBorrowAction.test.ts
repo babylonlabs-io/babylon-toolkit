@@ -68,7 +68,11 @@ describe("validateBorrowAction", () => {
     // Amount exceeds max AND HF is low — should show max amount error
     const result = validateBorrowAction(20000, 0.5, 10000);
 
-    expect(result.buttonText).toBe("Amount exceeds maximum");
+    expect(result).toEqual({
+      isDisabled: true,
+      buttonText: "Amount exceeds maximum",
+      errorMessage: "Maximum borrowable amount is 10000.00",
+    });
   });
 
   it("enables borrow at exactly max amount with safe HF", () => {
