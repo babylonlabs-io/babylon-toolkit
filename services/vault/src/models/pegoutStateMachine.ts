@@ -29,7 +29,11 @@ export interface PegoutDisplayState {
   message: string;
 }
 
-/** Terminal statuses — polling should stop when reached. */
+/**
+ * Terminal statuses — polling should stop when reached.
+ * Note: Unknown/unrecognized statuses are intentionally non-terminal.
+ * The VP may transition to a known state, so polling continues.
+ */
 export const PEGOUT_TERMINAL_STATUSES = new Set<string>([
   ClaimerPegoutStatusValue.PAYOUT_BROADCAST,
   ClaimerPegoutStatusValue.FAILED,
