@@ -66,6 +66,10 @@ pnpm docs:validate
 5. Run `pnpm lint` and `pnpm test` to ensure everything passes
 6. Submit a pull request
 
+## Releasing
+
+See the [SDK Release Workflow](../../DEVELOPMENT.md#sdk-release-workflow) section in the root DEVELOPMENT.md for details on stable releases, release candidates, and versioning.
+
 ## Questions?
 
 - [GitHub Issues](https://github.com/babylonlabs-io/babylon-toolkit/issues)

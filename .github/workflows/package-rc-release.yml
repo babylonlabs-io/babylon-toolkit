@@ -1,0 +1,66 @@
+name: Package RC Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      package:
+        description: 'Package to release RC for'
+        required: true
+        type: choice
+        options:
+          - '@babylonlabs-io/ts-sdk'
+          - '@babylonlabs-io/babylon-tbv-rust-wasm'
+      preid:
+        description: 'Pre-release identifier (rc, alpha, beta)'
+        required: true
+        default: 'rc'
+        type: string
+
+jobs:
+  rc-release:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24.2.0'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Install Corepack
+        run: npm install -g corepack && corepack enable
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build all
+        run: pnpm exec nx run-many --target=build --all
+
+      - name: Bump RC version
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          pnpm exec nx release version \
+            --projects=${{ inputs.package }} \
+            --preid=${{ inputs.preid }} \
+            --specifier=prerelease \
+            --git-commit=false \
+            --git-tag=false
+
+      - name: Publish RC to npm
+        run: |
+          pnpm exec nx release publish \
+            --projects=${{ inputs.package }} \
+            --tag=next
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NPM_CONFIG_PROVENANCE: true
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
