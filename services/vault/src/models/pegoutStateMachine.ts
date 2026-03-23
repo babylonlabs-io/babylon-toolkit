@@ -97,5 +97,14 @@ export function getPegoutDisplayState(
     return INITIATING_STATE;
   }
 
-  return PEGOUT_STATUS_MAP[claimerStatus] ?? INITIATING_STATE;
+  const knownState = PEGOUT_STATUS_MAP[claimerStatus];
+  if (knownState) {
+    return knownState;
+  }
+
+  return {
+    label: "Unknown",
+    variant: "warning",
+    message: `Unknown status: ${claimerStatus}. Please contact support.`,
+  };
 }
