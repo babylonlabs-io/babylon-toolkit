@@ -44,23 +44,36 @@ jobs:
       - name: Build all
         run: pnpm exec nx run-many --target=build --all
 
+      - name: Lint all
+        run: pnpm exec nx run-many --target=lint --all
+
+      - name: Test all
+        run: pnpm exec nx run-many --target=test --all
+
       - name: Bump RC version
+        env:
+          PKG: ${{ inputs.package }}
+          PREID: ${{ inputs.preid }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           pnpm exec nx release version \
-            --projects=${{ inputs.package }} \
-            --preid=${{ inputs.preid }} \
+            --projects="$PKG" \
+            --preid="$PREID" \
             --specifier=prerelease \
             --git-commit=false \
-            --git-tag=false
+            --git-tag=true
+
+      - name: Push RC tag
+        run: git push --tags
 
       - name: Publish RC to npm
-        run: |
-          pnpm exec nx release publish \
-            --projects=${{ inputs.package }} \
-            --tag=next
         env:
+          PKG: ${{ inputs.package }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NPM_CONFIG_PROVENANCE: true
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          pnpm exec nx release publish \
+            --projects="$PKG" \
+            --tag=next
