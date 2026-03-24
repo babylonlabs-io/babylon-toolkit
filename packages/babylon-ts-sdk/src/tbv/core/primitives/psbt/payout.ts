@@ -313,14 +313,27 @@ export function extractPayoutSignature(
   );
 }
 
+const SIGHASH_ALL = 0x01;
+
 /**
  * Extract and validate a 64-byte Schnorr signature, stripping sighash flag if present.
+ * Rejects signatures with sighash types other than SIGHASH_ALL (0x01) to prevent
+ * acceptance of signatures that don't commit to all outputs (e.g. SIGHASH_NONE).
  * @internal
  */
-function extractSchnorrSig(sig: Uint8Array, inputIndex: number): string {
+export function extractSchnorrSig(
+  sig: Uint8Array,
+  inputIndex: number,
+): string {
   if (sig.length === 64) {
     return uint8ArrayToHex(new Uint8Array(sig));
   } else if (sig.length === 65) {
+    const sighashByte = sig[64];
+    if (sighashByte !== SIGHASH_ALL) {
+      throw new Error(
+        `Unexpected sighash type 0x${sighashByte.toString(16).padStart(2, "0")} at input ${inputIndex}. Expected SIGHASH_ALL (0x01).`,
+      );
+    }
     return uint8ArrayToHex(new Uint8Array(sig.subarray(0, 64)));
   }
   throw new Error(

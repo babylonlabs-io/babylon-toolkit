@@ -13,6 +13,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import {
   buildPayoutPsbt,
   extractPayoutSignature,
+  extractSchnorrSig,
   type PayoutParams,
 } from "../payout";
 import {
@@ -436,5 +437,119 @@ describe("extractPayoutSignature", () => {
       expect(extracted).toBe(expected64);
       expect(extracted.length).toBe(128); // 64 bytes = 128 hex chars
     });
+
+    it("should reject 65-byte signature with SIGHASH_NONE", () => {
+      const signature65 = Buffer.alloc(65);
+      signature65.fill(0xbb, 0, 64);
+      signature65[64] = 0x02; // SIGHASH_NONE
+
+      const psbt = new Psbt();
+      psbt.addInput({
+        hash: NULL_TXID,
+        index: 0,
+        witnessUtxo: {
+          script: createDummyP2WPKH("0"),
+          value: TEST_WITNESS_UTXO_VALUE,
+        },
+        tapScriptSig: [
+          {
+            pubkey: Buffer.from(TEST_KEYS.DEPOSITOR, "hex"),
+            signature: signature65,
+            leafHash: Buffer.alloc(32, 0),
+          },
+        ],
+      });
+
+      const psbtHex = psbt.toHex();
+
+      expect(() =>
+        extractPayoutSignature(psbtHex, TEST_KEYS.DEPOSITOR),
+      ).toThrow(/Unexpected sighash type 0x02 at input 0\. Expected SIGHASH_ALL/);
+    });
+
+    it("should reject 65-byte signature with SIGHASH_SINGLE|ANYONECANPAY", () => {
+      const signature65 = Buffer.alloc(65);
+      signature65.fill(0xbb, 0, 64);
+      signature65[64] = 0x83; // SIGHASH_SINGLE | ANYONECANPAY
+
+      const psbt = new Psbt();
+      psbt.addInput({
+        hash: NULL_TXID,
+        index: 0,
+        witnessUtxo: {
+          script: createDummyP2WPKH("0"),
+          value: TEST_WITNESS_UTXO_VALUE,
+        },
+        tapScriptSig: [
+          {
+            pubkey: Buffer.from(TEST_KEYS.DEPOSITOR, "hex"),
+            signature: signature65,
+            leafHash: Buffer.alloc(32, 0),
+          },
+        ],
+      });
+
+      const psbtHex = psbt.toHex();
+
+      expect(() =>
+        extractPayoutSignature(psbtHex, TEST_KEYS.DEPOSITOR),
+      ).toThrow(/Unexpected sighash type 0x83 at input 0\. Expected SIGHASH_ALL/);
+    });
+  });
+});
+
+describe("extractSchnorrSig", () => {
+  it("accepts a 64-byte signature (SIGHASH_DEFAULT)", () => {
+    const sig = new Uint8Array(64).fill(0xaa);
+    const result = extractSchnorrSig(sig, 0);
+    expect(result.length).toBe(128);
+  });
+
+  it("accepts a 65-byte signature with SIGHASH_ALL (0x01)", () => {
+    const sig = new Uint8Array(65);
+    sig.fill(0xbb, 0, 64);
+    sig[64] = 0x01;
+    const result = extractSchnorrSig(sig, 0);
+    expect(result.length).toBe(128);
+    expect(result).toBe(Buffer.alloc(64, 0xbb).toString("hex"));
+  });
+
+  it("rejects a 65-byte signature with SIGHASH_NONE (0x02)", () => {
+    const sig = new Uint8Array(65);
+    sig[64] = 0x02;
+    expect(() => extractSchnorrSig(sig, 3)).toThrow(
+      "Unexpected sighash type 0x02 at input 3. Expected SIGHASH_ALL (0x01).",
+    );
+  });
+
+  it("rejects a 65-byte signature with SIGHASH_SINGLE (0x03)", () => {
+    const sig = new Uint8Array(65);
+    sig[64] = 0x03;
+    expect(() => extractSchnorrSig(sig, 0)).toThrow(
+      /Unexpected sighash type 0x03/,
+    );
+  });
+
+  it("rejects a 65-byte signature with ANYONECANPAY variant (0x81)", () => {
+    const sig = new Uint8Array(65);
+    sig[64] = 0x81;
+    expect(() => extractSchnorrSig(sig, 0)).toThrow(
+      /Unexpected sighash type 0x81/,
+    );
+  });
+
+  it("rejects a 65-byte signature with sighash byte 0x00", () => {
+    const sig = new Uint8Array(65);
+    sig[64] = 0x00;
+    expect(() => extractSchnorrSig(sig, 0)).toThrow(
+      /Unexpected sighash type 0x00/,
+    );
+  });
+
+  it("throws on unexpected signature length", () => {
+    const sig = new Uint8Array(63);
+    expect(() => extractSchnorrSig(sig, 1)).toThrow(
+      "Unexpected signature length at input 1: 63",
+    );
   });
 });
