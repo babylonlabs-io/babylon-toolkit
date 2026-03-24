@@ -83,18 +83,12 @@ jobs:
           PKG: ${{ inputs.package }}
           PREID: ${{ inputs.preid }}
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
           pnpm exec nx release version \
             --projects="$PKG" \
             --preid="$PREID" \
             --specifier=prerelease \
             --git-commit=false \
-            --git-tag=true
-
-      - name: Push RC tag
-        if: github.event_name == 'workflow_dispatch'
-        run: git push --tags
+            --git-tag=false
 
       - name: Publish RC to npm
         if: github.event_name == 'workflow_dispatch'
