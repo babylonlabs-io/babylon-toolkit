@@ -89,6 +89,18 @@ describe("fetchVaults", () => {
       );
     });
 
+    it("returns vault when depositorLamportPkHash is present", async () => {
+      const hash = "0x" + "ab".repeat(32);
+      mockedRequest.mockResolvedValueOnce({
+        vault: makeGraphQLVaultItem({ depositorLamportPkHash: hash }),
+      });
+
+      const vault = await fetchVaultById("0xabc123" as `0x${string}`);
+
+      expect(vault).not.toBeNull();
+      expect(vault!.depositorLamportPkHash).toBe(hash);
+    });
+
     it("returns null when vault is not found", async () => {
       mockedRequest.mockResolvedValueOnce({ vault: null });
 

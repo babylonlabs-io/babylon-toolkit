@@ -156,15 +156,15 @@ function mapGraphQLStatusToVaultStatus(
 }
 
 /**
- * Validates that a required GraphQL field is non-null.
- * Throws if the field is null, since this indicates a buggy or compromised server response.
+ * Validates that a required GraphQL field is non-null and non-undefined.
+ * Throws if the field is nullish, since this indicates a buggy or compromised server response.
  */
 function validateRequiredField<T>(
-  value: T | null,
+  value: T | null | undefined,
   fieldName: string,
   vaultId: string,
 ): T {
-  if (value === null) {
+  if (value == null) {
     throw new Error(
       `Missing required field "${fieldName}" for vault ${vaultId}`,
     );
