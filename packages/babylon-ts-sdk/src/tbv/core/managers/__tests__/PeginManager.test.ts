@@ -84,6 +84,12 @@ const TEST_HASH_H = "ab".repeat(32);
 // Mock depositor Lamport public key hash (bytes32)
 const MOCK_LAMPORT_PK_HASH = `0x${"ab".repeat(32)}` as `0x${string}`;
 
+// Mock hashlock for atomic swap (bytes32)
+const MOCK_HASHLOCK = `0x${"cd".repeat(32)}` as `0x${string}`;
+
+// Mock depositor-signed pegin tx hex
+const MOCK_DEPOSITOR_SIGNED_PEGIN_TX = "0200000000010000000000";
+
 const TEST_AMOUNTS = {
   PEGIN: 90_000n,
   PEGIN_SMALL: 50_000n,
@@ -509,12 +515,14 @@ describe("PeginManager", () => {
         mempoolApiUrl: MEMPOOL_API_URLS.signet,
       });
 
-      const mockUnsignedTx = "0100000000010000000000";
+      const mockUnsignedPrePeginTx = "0100000000010000000000";
 
       const result = await manager.registerPeginOnChain({
         depositorBtcPubkey: TEST_KEYS.DEPOSITOR,
-        unsignedBtcTx: mockUnsignedTx,
+        unsignedPrePeginTx: mockUnsignedPrePeginTx,
+        depositorSignedPeginTx: MOCK_DEPOSITOR_SIGNED_PEGIN_TX,
         vaultProvider: TEST_CONTRACT_ADDRESS,
+        hashlock: MOCK_HASHLOCK,
         depositorPayoutBtcAddress:
           "tb1pmfr3p9j00pfxjh0zmgp99y8zftmd3s5pmedqhyptwy6lm87hf5ssk79hv2",
         depositorLamportPkHash: MOCK_LAMPORT_PK_HASH,
@@ -556,8 +564,10 @@ describe("PeginManager", () => {
       await expect(
         manager.registerPeginOnChain({
           depositorBtcPubkey: TEST_KEYS.DEPOSITOR,
-          unsignedBtcTx: "0100000000010000000000",
+          unsignedPrePeginTx: "0100000000010000000000",
+          depositorSignedPeginTx: MOCK_DEPOSITOR_SIGNED_PEGIN_TX,
           vaultProvider: TEST_CONTRACT_ADDRESS,
+          hashlock: MOCK_HASHLOCK,
           depositorPayoutBtcAddress:
             "tb1pmfr3p9j00pfxjh0zmgp99y8zftmd3s5pmedqhyptwy6lm87hf5ssk79hv2",
           depositorLamportPkHash: MOCK_LAMPORT_PK_HASH,
@@ -585,8 +595,10 @@ describe("PeginManager", () => {
       await expect(
         manager.registerPeginOnChain({
           depositorBtcPubkey: TEST_KEYS.DEPOSITOR,
-          unsignedBtcTx: "0100000000010000000000",
+          unsignedPrePeginTx: "0100000000010000000000",
+          depositorSignedPeginTx: MOCK_DEPOSITOR_SIGNED_PEGIN_TX,
           vaultProvider: TEST_CONTRACT_ADDRESS,
+          hashlock: MOCK_HASHLOCK,
           depositorPayoutBtcAddress:
             "tb1pmfr3p9j00pfxjh0zmgp99y8zftmd3s5pmedqhyptwy6lm87hf5ssk79hv2",
           depositorLamportPkHash: MOCK_LAMPORT_PK_HASH,
@@ -612,8 +624,10 @@ describe("PeginManager", () => {
 
       await manager.registerPeginOnChain({
         depositorBtcPubkey: `0x${TEST_KEYS.DEPOSITOR}`,
-        unsignedBtcTx: "0x0100000000010000000000",
+        unsignedPrePeginTx: "0x0100000000010000000000",
+        depositorSignedPeginTx: `0x${MOCK_DEPOSITOR_SIGNED_PEGIN_TX}`,
         vaultProvider: TEST_CONTRACT_ADDRESS,
+        hashlock: MOCK_HASHLOCK,
         depositorPayoutBtcAddress:
           "tb1pmfr3p9j00pfxjh0zmgp99y8zftmd3s5pmedqhyptwy6lm87hf5ssk79hv2",
         depositorLamportPkHash: MOCK_LAMPORT_PK_HASH,
@@ -624,8 +638,10 @@ describe("PeginManager", () => {
       sendTxSpy.mockClear();
       await manager.registerPeginOnChain({
         depositorBtcPubkey: TEST_KEYS.DEPOSITOR,
-        unsignedBtcTx: "0100000000010000000000",
+        unsignedPrePeginTx: "0100000000010000000000",
+        depositorSignedPeginTx: MOCK_DEPOSITOR_SIGNED_PEGIN_TX,
         vaultProvider: TEST_CONTRACT_ADDRESS,
+        hashlock: MOCK_HASHLOCK,
         depositorPayoutBtcAddress:
           "tb1pmfr3p9j00pfxjh0zmgp99y8zftmd3s5pmedqhyptwy6lm87hf5ssk79hv2",
         depositorLamportPkHash: MOCK_LAMPORT_PK_HASH,

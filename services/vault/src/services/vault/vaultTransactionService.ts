@@ -8,7 +8,7 @@
 import { getETHChain } from "@babylonlabs-io/config";
 import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
 import type { UTXO as SDKUtxo } from "@babylonlabs-io/ts-sdk/tbv/core";
-import { PeginManager } from "@babylonlabs-io/ts-sdk/tbv/core";
+import { ensureHexPrefix, PeginManager } from "@babylonlabs-io/ts-sdk/tbv/core";
 import type { Address, Hex, WalletClient } from "viem";
 
 import { getMempoolApiUrl } from "../../clients/btc/config";
@@ -44,10 +44,7 @@ export interface PreparePeginParams {
   universalChallengerBtcPubkeys: string[];
   /** CSV timelock in blocks for the PegIn vault output */
   timelockPegin: number;
-  /**
-   * CSV timelock in blocks for the Pre-PegIn HTLC refund path.
-   * TODO: fetch from ProtocolParams contract once btc-vault adds this parameter.
-   */
+  /** CSV timelock in blocks for the Pre-PegIn HTLC refund path (tRefund from VersionedOffchainParams) */
   timelockRefund: number;
   /** SHA256 hash commitment for the HTLC (64 hex chars = 32 bytes) */
   hashH: string;
@@ -68,7 +65,7 @@ export interface PreparePeginResult {
   btcTxHash: Hex;
   /** Funded Pre-PegIn tx hex — this is the tx the depositor signs and broadcasts. */
   fundedPrePeginTxHex: string;
-  /** PegIn tx hex — pass to registerPeginOnChain as unsignedBtcTx for vault ID computation. */
+  /** PegIn tx hex — submitted to contract as depositorSignedPeginTx; vault ID derived from this. */
   peginTxHex: string;
   /** Depositor's Schnorr signature over PegIn input 0 (HTLC leaf 0), 128 hex chars. */
   peginInputSignature: string;
@@ -82,7 +79,12 @@ export interface PreparePeginResult {
  */
 export interface RegisterPeginOnChainParams {
   depositorBtcPubkey: string;
-  fundedTxHex: string;
+  /** Funded Pre-PegIn tx hex — submitted to contract as unsignedPrePeginTx for DA */
+  unsignedPrePeginTxHex: string;
+  /** PegIn tx hex — submitted to contract as depositorSignedPeginTx; vault ID derived from this */
+  peginTxHex: string;
+  /** SHA256 hashlock for atomic swap activation (bytes32 hex with 0x prefix) */
+  hashlock: Hex;
   vaultProviderAddress: Address;
   onPopSigned?: () => void | Promise<void>;
   /** Depositor's BTC payout address (e.g. bc1p...) */
@@ -168,7 +170,7 @@ export async function preparePeginTransaction(
       : depositorBtcPubkeyRaw;
 
   return {
-    btcTxHash: `0x${atomicResult.peginTxid}` as Hex,
+    btcTxHash: ensureHexPrefix(atomicResult.peginTxid),
     fundedPrePeginTxHex: atomicResult.fundedPrePeginTxHex,
     peginTxHex: atomicResult.peginTxHex,
     peginInputSignature: atomicResult.peginInputSignature,
@@ -193,7 +195,9 @@ export async function registerPeginOnChain(
 
   const registrationResult = await peginManager.registerPeginOnChain({
     depositorBtcPubkey: params.depositorBtcPubkey,
-    unsignedBtcTx: params.fundedTxHex,
+    unsignedPrePeginTx: params.unsignedPrePeginTxHex,
+    depositorSignedPeginTx: params.peginTxHex,
+    hashlock: params.hashlock,
     vaultProvider: params.vaultProviderAddress,
     onPopSigned: params.onPopSigned,
     depositorPayoutBtcAddress: params.depositorPayoutBtcAddress,
@@ -204,7 +208,7 @@ export async function registerPeginOnChain(
   return {
     transactionHash: registrationResult.ethTxHash,
     btcTxHash: registrationResult.vaultId,
-    btcTxHex: params.fundedTxHex,
+    btcTxHex: params.unsignedPrePeginTxHex,
     btcPopSignature: registrationResult.btcPopSignature,
   };
 }

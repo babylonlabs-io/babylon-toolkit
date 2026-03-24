@@ -8,6 +8,7 @@
  * Used by SimpleDeposit when opened in resume mode.
  */
 
+import { Button, Input } from "@babylonlabs-io/core-ui";
 import { useCallback, useMemo, useState } from "react";
 import type { Hex } from "viem";
 
@@ -20,6 +21,7 @@ import { MnemonicModal } from "@/components/deposit/MnemonicModal";
 import { usePayoutSigningState } from "@/components/deposit/PayoutSignModal/usePayoutSigningState";
 import { useETHWallet } from "@/context/wallet";
 import { submitLamportPublicKey } from "@/hooks/deposit/depositFlowSteps/lamportSubmission";
+import { useActivationState } from "@/hooks/deposit/useActivationState";
 import { useBroadcastState } from "@/hooks/deposit/useBroadcastState";
 import { useRunOnce } from "@/hooks/useRunOnce";
 import {
@@ -79,10 +81,10 @@ export function ResumeSignContent({
     <DepositProgressView
       currentStep={
         isComplete
-          ? DepositFlowStep.BROADCAST_BTC
+          ? DepositFlowStep.ARTIFACT_DOWNLOAD
           : DepositFlowStep.SIGN_PAYOUTS
       }
-      isWaiting={isComplete}
+      isWaiting={false}
       error={error?.message ?? null}
       isComplete={derived.isComplete}
       isProcessing={derived.isProcessing}
@@ -122,7 +124,7 @@ export function ResumeBroadcastContent({
   useRunOnce(handleBroadcast);
 
   const derived = computeDepositDerivedState(
-    DepositFlowStep.BROADCAST_BTC,
+    DepositFlowStep.BROADCAST_PRE_PEGIN,
     broadcasting,
     false,
     error,
@@ -130,7 +132,7 @@ export function ResumeBroadcastContent({
 
   return (
     <DepositProgressView
-      currentStep={DepositFlowStep.BROADCAST_BTC}
+      currentStep={DepositFlowStep.BROADCAST_PRE_PEGIN}
       isWaiting={false}
       error={error}
       isComplete={derived.isComplete}
@@ -284,5 +286,120 @@ export function ResumeLamportContent({
       successMessage="Your Lamport public key has been submitted. The deposit will continue processing."
       onRetry={error ? handleRetry : undefined}
     />
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Activate Vault Content
+// ---------------------------------------------------------------------------
+
+export interface ResumeActivationContentProps {
+  activity: VaultActivity;
+  depositorEthAddress: string;
+  onClose: () => void;
+  onSuccess: () => void;
+}
+
+export function ResumeActivationContent({
+  activity,
+  depositorEthAddress,
+  onClose,
+  onSuccess,
+}: ResumeActivationContentProps) {
+  const [secretHex, setSecretHex] = useState("");
+  const [submitted, setSubmitted] = useState(false);
+
+  const { activating, error, handleActivation } = useActivationState({
+    activity,
+    depositorEthAddress,
+    onSuccess,
+  });
+
+  const cleanSecret = secretHex.trim().replace(/^0x/, "");
+  const isValidFormat = /^[0-9a-fA-F]{64}$/.test(cleanSecret);
+
+  const handleSubmit = useCallback(async () => {
+    setSubmitted(true);
+    await handleActivation(cleanSecret);
+  }, [cleanSecret, handleActivation]);
+
+  const handleRetry = useCallback(() => {
+    setSubmitted(false);
+    setSecretHex("");
+  }, []);
+
+  // After submission, show progress view
+  if (submitted) {
+    const derived = computeDepositDerivedState(
+      DepositFlowStep.ACTIVATE_VAULT,
+      activating,
+      false,
+      error,
+    );
+
+    return (
+      <DepositProgressView
+        currentStep={DepositFlowStep.ACTIVATE_VAULT}
+        isWaiting={false}
+        error={error}
+        isComplete={derived.isComplete}
+        isProcessing={derived.isProcessing}
+        canClose={derived.canClose}
+        canContinueInBackground={false}
+        payoutSigningProgress={null}
+        onClose={onClose}
+        successMessage="Your vault has been activated. The vault provider can now claim the HTLC on Bitcoin."
+        onRetry={error ? handleRetry : undefined}
+      />
+    );
+  }
+
+  // Secret input form
+  return (
+    <div className="flex flex-col gap-6 rounded-2xl bg-secondary-contrast p-6">
+      <div className="flex flex-col gap-2">
+        <h3 className="text-lg font-semibold text-accent-primary">
+          Activate Vault
+        </h3>
+        <p className="text-tertiary text-sm">
+          Enter the HTLC secret you saved during the deposit to activate this
+          vault on Ethereum.
+        </p>
+      </div>
+
+      <div className="flex flex-col gap-1">
+        <Input
+          placeholder="Enter secret (64 hex characters)"
+          value={secretHex}
+          onChange={(e) => setSecretHex(e.target.value)}
+          className="font-mono text-sm"
+        />
+        {secretHex.length > 0 && !isValidFormat && (
+          <p className="text-xs text-error-main">
+            Secret must be exactly 64 hex characters (32 bytes)
+          </p>
+        )}
+      </div>
+
+      <div className="flex gap-3">
+        <Button
+          variant="outlined"
+          color="primary"
+          className="flex-1"
+          onClick={onClose}
+        >
+          Cancel
+        </Button>
+        <Button
+          variant="contained"
+          color="primary"
+          className="flex-1"
+          disabled={!isValidFormat}
+          onClick={handleSubmit}
+        >
+          Activate
+        </Button>
+      </div>
+    </div>
   );
 }

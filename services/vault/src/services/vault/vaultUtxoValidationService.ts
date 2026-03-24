@@ -74,7 +74,7 @@ export function extractInputsFromTransaction(
     tx = Transaction.fromHex(cleanHex);
   } catch (error) {
     throw new Error(
-      `Failed to parse unsigned BTC transaction: ${error instanceof Error ? error.message : String(error)}`,
+      `Failed to parse BTC transaction: ${error instanceof Error ? error.message : String(error)}`,
     );
   }
 

@@ -133,7 +133,7 @@
         "internalType": "bytes32"
       },
       {
-        "name": "unsignedPegInTx",
+        "name": "depositorSignedPeginTx",
         "type": "bytes",
         "internalType": "bytes"
       },
@@ -173,6 +173,11 @@
         "internalType": "uint16"
       },
       {
+        "name": "vkVersion",
+        "type": "uint16",
+        "internalType": "uint16"
+      },
+      {
         "name": "createdAt",
         "type": "uint256",
         "internalType": "uint256"
@@ -184,6 +189,11 @@
       },
       {
         "name": "depositorLamportPkHash",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "hashlock",
         "type": "bytes32",
         "internalType": "bytes32"
       }
@@ -310,7 +320,7 @@
             "internalType": "bytes32"
           },
           {
-            "name": "unsignedPegInTx",
+            "name": "depositorSignedPeginTx",
             "type": "bytes",
             "internalType": "bytes"
           },
@@ -350,6 +360,11 @@
             "internalType": "uint16"
           },
           {
+            "name": "vkVersion",
+            "type": "uint16",
+            "internalType": "uint16"
+          },
+          {
             "name": "createdAt",
             "type": "uint256",
             "internalType": "uint256"
@@ -361,6 +376,11 @@
           },
           {
             "name": "depositorLamportPkHash",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          },
+          {
+            "name": "hashlock",
             "type": "bytes32",
             "internalType": "bytes32"
           }
@@ -453,7 +473,7 @@
             "internalType": "bytes32"
           },
           {
-            "name": "unsignedPegInTx",
+            "name": "depositorSignedPeginTx",
             "type": "bytes",
             "internalType": "bytes"
           },
@@ -493,6 +513,11 @@
             "internalType": "uint16"
           },
           {
+            "name": "vkVersion",
+            "type": "uint16",
+            "internalType": "uint16"
+          },
+          {
             "name": "createdAt",
             "type": "uint256",
             "internalType": "uint256"
@@ -504,6 +529,11 @@
           },
           {
             "name": "depositorLamportPkHash",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          },
+          {
+            "name": "hashlock",
             "type": "bytes32",
             "internalType": "bytes32"
           }
@@ -952,7 +982,12 @@
         "internalType": "bytes"
       },
       {
-        "name": "unsignedPegInTx",
+        "name": "unsignedPrePeginTx",
+        "type": "bytes",
+        "internalType": "bytes"
+      },
+      {
+        "name": "depositorSignedPeginTx",
         "type": "bytes",
         "internalType": "bytes"
       },
@@ -960,6 +995,11 @@
         "name": "vaultProvider",
         "type": "address",
         "internalType": "address"
+      },
+      {
+        "name": "hashlock",
+        "type": "bytes32",
+        "internalType": "bytes32"
       },
       {
         "name": "depositorPayoutBtcAddress",
@@ -1001,7 +1041,12 @@
         "internalType": "bytes"
       },
       {
-        "name": "unsignedPegInTx",
+        "name": "unsignedPrePeginTx",
+        "type": "bytes",
+        "internalType": "bytes"
+      },
+      {
+        "name": "depositorSignedPeginTx",
         "type": "bytes",
         "internalType": "bytes"
       },
@@ -1009,6 +1054,11 @@
         "name": "vaultProvider",
         "type": "address",
         "internalType": "address"
+      },
+      {
+        "name": "hashlock",
+        "type": "bytes32",
+        "internalType": "bytes32"
       },
       {
         "name": "referralCode",
@@ -1034,6 +1084,24 @@
       }
     ],
     "stateMutability": "payable"
+  },
+  {
+    "type": "function",
+    "name": "activateVaultWithSecret",
+    "inputs": [
+      {
+        "name": "vaultId",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "s",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
   },
   {
     "type": "function",
@@ -1164,7 +1232,7 @@
     "name": "PeginActivated",
     "inputs": [
       {
-        "name": "pegInTxHash",
+        "name": "vaultId",
         "type": "bytes32",
         "indexed": true,
         "internalType": "bytes32"
@@ -1174,6 +1242,12 @@
         "type": "address",
         "indexed": true,
         "internalType": "address"
+      },
+      {
+        "name": "secret",
+        "type": "bytes32",
+        "indexed": false,
+        "internalType": "bytes32"
       }
     ],
     "anonymous": false

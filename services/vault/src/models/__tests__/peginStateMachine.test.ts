@@ -80,14 +80,12 @@ describe("peginStateMachine", () => {
       );
     });
 
-    it("shows confirming when BTC tx is broadcast", () => {
+    it("shows ready to activate when BTC tx is broadcast", () => {
       const state = getPeginState(ContractStatus.VERIFIED, {
         localStatus: LocalStorageStatus.CONFIRMING,
       });
-      expect(state.displayLabel).toBe(
-        PEGIN_DISPLAY_LABELS.PENDING_BITCOIN_CONFIRMATIONS,
-      );
-      expect(state.message).toContain("Waiting for network confirmations");
+      expect(state.displayLabel).toBe(PEGIN_DISPLAY_LABELS.READY_TO_ACTIVATE);
+      expect(state.availableActions).toContain(PeginAction.ACTIVATE_VAULT);
     });
   });
 

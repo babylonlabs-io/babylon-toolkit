@@ -83,6 +83,9 @@ export interface UseDepositPageFormResult {
   /** Effective fee: multi-vault fee when checkbox is on, single-vault fee otherwise */
   effectiveFeeSats: bigint | null;
 
+  /** Depositor claim value computed from WASM (VK/UC counts + fee). undefined while loading. */
+  depositorClaimValue: bigint | undefined;
+
   validateForm: () => boolean;
   validateAmountOnBlur: () => void;
   resetForm: () => void;
@@ -257,7 +260,7 @@ export function useDepositPageForm(): UseDepositPageFormResult {
     isPartialLiquidation,
     spendableUTXOs,
     btcAddress,
-    depositorClaimValue: depositorClaimValue ?? 0n,
+    depositorClaimValue,
   });
 
   // Auto-check once when splitting first becomes possible
@@ -371,6 +374,7 @@ export function useDepositPageForm(): UseDepositPageFormResult {
     setIsPartialLiquidation,
     canSplit,
     strategy,
+    depositorClaimValue,
     allocationPlan,
     isPlanning,
     planError,

@@ -135,19 +135,19 @@ describe("vaultUtxoValidationService", () => {
 
     it("should throw clear error for invalid transaction hex", () => {
       expect(() => extractInputsFromTransaction("invalid-hex")).toThrow(
-        "Failed to parse unsigned BTC transaction",
+        "Failed to parse BTC transaction",
       );
     });
 
     it("should throw clear error for empty string", () => {
       expect(() => extractInputsFromTransaction("")).toThrow(
-        "Failed to parse unsigned BTC transaction",
+        "Failed to parse BTC transaction",
       );
     });
 
     it("should throw clear error for truncated hex", () => {
       expect(() => extractInputsFromTransaction("01000000")).toThrow(
-        "Failed to parse unsigned BTC transaction",
+        "Failed to parse BTC transaction",
       );
     });
   });

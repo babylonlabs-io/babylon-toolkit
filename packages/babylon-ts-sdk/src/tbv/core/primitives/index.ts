@@ -116,6 +116,7 @@ export {
   hexToUint8Array,
   isAddressFromPublicKey,
   isValidHex,
+  ensureHexPrefix,
   processPublicKeyToXOnly,
   stripHexPrefix,
   toXOnly,

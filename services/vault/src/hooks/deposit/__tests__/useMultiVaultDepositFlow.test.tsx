@@ -37,6 +37,7 @@ vi.mock("@babylonlabs-io/ts-sdk", () => ({
 vi.mock("@babylonlabs-io/ts-sdk/tbv/core", () => ({
   createSplitTransaction: vi.fn(),
   createSplitTransactionPsbt: vi.fn(),
+  ensureHexPrefix: (hex: string) => (hex.startsWith("0x") ? hex : `0x${hex}`),
 }));
 
 // Mock wallet connector (still needed by other code)
@@ -94,7 +95,7 @@ vi.mock("@/services/vault", () => ({
   planUtxoAllocation: vi.fn(),
   preparePeginFromSplitOutput: vi.fn(),
   registerSplitPeginOnChain: vi.fn(),
-  broadcastPeginWithLocalUtxo: vi.fn(),
+  broadcastPrePeginWithLocalUtxo: vi.fn(),
 }));
 
 vi.mock("@/services/vault/vaultPayoutSignatureService", () => ({
@@ -126,9 +127,24 @@ vi.mock("@/services/lamport/lamportService", () => ({
     ),
 }));
 
+vi.mock("@/services/vault/vaultActivationService", () => ({
+  activateVaultWithSecret: vi
+    .fn()
+    .mockResolvedValue({ hash: "0xActivationTxHash" }),
+}));
+
+vi.mock("@/services/vault/vaultPeginBroadcastService", () => ({
+  broadcastPrePeginTransaction: vi.fn().mockResolvedValue("mockBroadcastTxId"),
+}));
+
+vi.mock("@/models/peginStateMachine", () => ({
+  LocalStorageStatus: { CONFIRMING: "CONFIRMING" },
+}));
+
 // Mock storage
 vi.mock("@/storage/peginStorage", () => ({
   addPendingPegin: vi.fn(),
+  updatePendingPeginStatus: vi.fn(),
 }));
 
 const { mockLoggerError } = vi.hoisted(() => ({
@@ -150,8 +166,9 @@ vi.mock("../depositFlowSteps", () => ({
     SUBMIT_PEGIN: 2,
     SIGN_PAYOUTS: 3,
     ARTIFACT_DOWNLOAD: 4,
-    BROADCAST_BTC: 5,
-    COMPLETED: 6,
+    BROADCAST_PRE_PEGIN: 5,
+    ACTIVATE_VAULT: 6,
+    COMPLETED: 7,
   },
   getEthWalletClient: vi.fn(),
   preparePegin: vi.fn(),
@@ -160,7 +177,6 @@ vi.mock("../depositFlowSteps", () => ({
   submitLamportPublicKey: vi.fn(),
   submitPayoutSignatures: vi.fn(),
   waitForContractVerification: vi.fn(),
-  broadcastBtcTransaction: vi.fn(),
 }));
 
 // ============================================================================
@@ -203,6 +219,7 @@ const MOCK_PARAMS = {
   vaultProviderBtcPubkey: "ab".repeat(32), // 64 hex chars
   vaultKeeperBtcPubkeys: ["keeper1pubkey"],
   universalChallengerBtcPubkeys: ["uc1pubkey"],
+  depositorClaimValue: 35_000n,
   getMnemonic: async () => "test mnemonic phrase for lamport key derivation",
 };
 
@@ -313,10 +330,13 @@ async function setupDefaultMocks() {
     planUtxoAllocation,
     preparePeginFromSplitOutput,
     registerSplitPeginOnChain,
-    broadcastPeginWithLocalUtxo,
+    broadcastPrePeginWithLocalUtxo,
   } = vi.mocked(await import("@/services/vault"));
   const { signPayoutTransactions } = vi.mocked(
     await import("@/services/vault/vaultPayoutSignatureService"),
+  );
+  const { broadcastPrePeginTransaction } = vi.mocked(
+    await import("@/services/vault/vaultPeginBroadcastService"),
   );
   const { addPendingPegin } = vi.mocked(await import("@/storage/peginStorage"));
   const {
@@ -326,7 +346,6 @@ async function setupDefaultMocks() {
     pollAndPreparePayoutSigning,
     submitPayoutSignatures,
     waitForContractVerification,
-    broadcastBtcTransaction,
   } = vi.mocked(await import("../depositFlowSteps"));
 
   // BTC wallet state (btcAddress + UTXOs)
@@ -410,7 +429,7 @@ async function setupDefaultMocks() {
     vaultId: "0xVaultId" as Hex,
     btcPopSignature: "0xMockPopSignature" as Hex,
   });
-  vi.mocked(broadcastPeginWithLocalUtxo).mockResolvedValue("btcTxId");
+  vi.mocked(broadcastPrePeginWithLocalUtxo).mockResolvedValue("btcTxId");
 
   // Payout signing
   vi.mocked(signPayoutTransactions).mockResolvedValue({
@@ -455,7 +474,7 @@ async function setupDefaultMocks() {
   });
   vi.mocked(submitPayoutSignatures).mockResolvedValue(undefined);
   vi.mocked(waitForContractVerification).mockResolvedValue(undefined);
-  vi.mocked(broadcastBtcTransaction).mockResolvedValue(undefined);
+  vi.mocked(broadcastPrePeginTransaction).mockResolvedValue("mockBroadcastTxId");
 
   // Storage
   vi.mocked(addPendingPegin).mockReturnValue(undefined);
@@ -846,8 +865,8 @@ describe("useMultiVaultDepositFlow", () => {
       );
     });
 
-    it("should use broadcastPeginWithLocalUtxo for broadcast", async () => {
-      const { planUtxoAllocation, broadcastPeginWithLocalUtxo } = vi.mocked(
+    it("should use broadcastPrePeginWithLocalUtxo for broadcast", async () => {
+      const { planUtxoAllocation, broadcastPrePeginWithLocalUtxo } = vi.mocked(
         await import("@/services/vault"),
       );
 
@@ -860,7 +879,7 @@ describe("useMultiVaultDepositFlow", () => {
       await executeWithAutoArtifactDownload(result);
 
       await waitFor(() => {
-        expect(broadcastPeginWithLocalUtxo).toHaveBeenCalledTimes(2);
+        expect(broadcastPrePeginWithLocalUtxo).toHaveBeenCalledTimes(2);
       });
     });
 
@@ -1080,9 +1099,8 @@ describe("useMultiVaultDepositFlow", () => {
       const depositResult = await executeWithAutoArtifactDownload(result);
 
       expect(depositResult).not.toBeNull();
-      expect(depositResult!.pegins).toHaveLength(2);
-      expect(depositResult!.pegins[0].error).toBeUndefined();
-      expect(depositResult!.pegins[1].error).toBe("Vault 2 failed");
+      // Only successful pegins are included in results
+      expect(depositResult!.pegins).toHaveLength(1);
     });
 
     it("should save only successful pegins", async () => {
@@ -1216,7 +1234,7 @@ describe("useMultiVaultDepositFlow", () => {
       const executePromise = result.current.executeMultiVaultDeposit();
 
       await waitFor(() => {
-        expect(result.current.currentStep).toBe(6); // COMPLETED
+        expect(result.current.currentStep).toBe(7); // COMPLETED
       });
 
       await executePromise;
@@ -1333,12 +1351,12 @@ describe("useMultiVaultDepositFlow", () => {
       const { planUtxoAllocation } = vi.mocked(
         await import("@/services/vault"),
       );
-      const { broadcastBtcTransaction } = vi.mocked(
-        await import("../depositFlowSteps"),
+      const { broadcastPrePeginTransaction } = vi.mocked(
+        await import("@/services/vault/vaultPeginBroadcastService"),
       );
 
       vi.mocked(planUtxoAllocation).mockReturnValue(SINGLE_PLAN);
-      vi.mocked(broadcastBtcTransaction).mockRejectedValue(
+      vi.mocked(broadcastPrePeginTransaction).mockRejectedValue(
         new Error("Network timeout"),
       );
 
@@ -1376,8 +1394,9 @@ describe("useMultiVaultDepositFlow", () => {
       const { planUtxoAllocation } = vi.mocked(
         await import("@/services/vault"),
       );
-      const { pollAndPreparePayoutSigning, broadcastBtcTransaction } =
-        vi.mocked(await import("../depositFlowSteps"));
+      const { pollAndPreparePayoutSigning } = vi.mocked(
+        await import("../depositFlowSteps"),
+      );
 
       vi.mocked(planUtxoAllocation).mockReturnValue(MULTI_INPUT_PLAN);
       vi.mocked(pollAndPreparePayoutSigning)
@@ -1402,7 +1421,10 @@ describe("useMultiVaultDepositFlow", () => {
             offchain_params_version: 0,
           },
         });
-      vi.mocked(broadcastBtcTransaction).mockRejectedValue(
+      const { broadcastPrePeginTransaction } = vi.mocked(
+        await import("@/services/vault/vaultPeginBroadcastService"),
+      );
+      vi.mocked(broadcastPrePeginTransaction).mockRejectedValue(
         new Error("Broadcast fail"),
       );
 

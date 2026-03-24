@@ -1,12 +1,12 @@
 /**
- * Step 4: BTC transaction broadcast
+ * Step 3: Broadcast Pre-PegIn BTC transaction
  */
 
-import type { Address, Hex } from "viem";
+import type { Address } from "viem";
 
 import { LocalStorageStatus } from "@/models/peginStateMachine";
 import { waitForContractVerification } from "@/services/deposit/polling";
-import { broadcastPeginTransaction, fetchVaultById } from "@/services/vault";
+import { broadcastPrePeginTransaction } from "@/services/vault";
 import { updatePendingPeginStatus } from "@/storage/peginStorage";
 
 import type { BroadcastParams } from "./types";
@@ -15,26 +15,25 @@ import type { BroadcastParams } from "./types";
 export { waitForContractVerification };
 
 /**
- * Broadcast BTC transaction after verification is complete.
- * Returns the broadcast transaction ID.
+ * Sign and broadcast the funded Pre-PegIn transaction to Bitcoin.
  *
- * Note: Call waitForContractVerification() first to ensure the vault is verified.
+ * Uses the funded tx hex passed directly from memory rather than
+ * re-fetching from the indexer, since broadcast now runs right after
+ * ETH submission (before the indexer has processed the event).
  */
 export async function broadcastBtcTransaction(
   params: BroadcastParams,
   depositorEthAddress: Address,
 ): Promise<string> {
-  const { btcTxid, depositorBtcPubkey, btcWalletProvider } = params;
+  const {
+    btcTxid,
+    depositorBtcPubkey,
+    btcWalletProvider,
+    fundedPrePeginTxHex,
+  } = params;
 
-  // Fetch vault to get unsigned tx
-  const vault = await fetchVaultById(btcTxid as Hex);
-  if (!vault?.unsignedBtcTx) {
-    throw new Error("Vault or unsigned transaction not found");
-  }
-
-  // Broadcast BTC transaction
-  const broadcastTxId = await broadcastPeginTransaction({
-    unsignedTxHex: vault.unsignedBtcTx,
+  const broadcastTxId = await broadcastPrePeginTransaction({
+    unsignedTxHex: fundedPrePeginTxHex,
     btcWalletProvider: {
       signPsbt: (psbtHex: string) => btcWalletProvider.signPsbt(psbtHex),
     },

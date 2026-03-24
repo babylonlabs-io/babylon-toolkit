@@ -1,20 +1,20 @@
 /**
- * Split Pegin Service
+ * Split Pre-PegIn Service
  *
- * Provides pegin creation for the SPLIT allocation strategy, where each vault's
- * pegin transaction spends an output from an **unconfirmed** split transaction
+ * Provides Pre-PegIn creation for the SPLIT allocation strategy, where each vault's
+ * Pre-PegIn transaction spends an output from an **unconfirmed** split transaction
  * instead of a confirmed wallet UTXO.
  *
  * The standard SDK PeginManager flow fetches UTXO data from the mempool API,
  * which fails for outputs that do not yet exist on-chain. This service replicates
- * the same pegin construction logic but uses **local UTXO data** supplied by the
+ * the same Pre-PegIn construction logic but uses **local UTXO data** supplied by the
  * caller — data that was captured when the split transaction was built.
  *
  * Three entry points:
- *  1. `preparePeginFromSplitOutput`  – builds the pegin tx using local UTXO data
- *  2. `registerSplitPeginOnChain`    – submits the pegin to Ethereum (reuses SDK)
- *  3. `broadcastPeginWithLocalUtxo`  – signs and broadcasts the pegin without
- *                                      fetching anything from the mempool
+ *  1. `preparePeginFromSplitOutput`       – builds the Pre-PegIn tx using local UTXO data
+ *  2. `registerSplitPeginOnChain`         – submits the pegin to Ethereum (reuses SDK)
+ *  3. `broadcastPrePeginWithLocalUtxo`    – signs and broadcasts the Pre-PegIn without
+ *                                           fetching anything from the mempool
  *
  * @module services/vault/multiVault/vaultSplitPeginService
  */
@@ -68,10 +68,7 @@ export interface PrepareSplitPeginParams {
   universalChallengerBtcPubkeys: string[];
   /** CSV timelock in blocks for the PegIn vault output */
   timelockPegin: number;
-  /**
-   * CSV timelock in blocks for the Pre-PegIn HTLC refund path.
-   * TODO: fetch from ProtocolParams contract once btc-vault adds this parameter.
-   */
+  /** CSV timelock in blocks for the Pre-PegIn HTLC refund path (tRefund from VersionedOffchainParams) */
   timelockRefund: number;
   /** SHA256 hash commitment for the HTLC (64 hex chars = 32 bytes) */
   hashH: string;
@@ -98,7 +95,7 @@ export interface PrepareSplitPeginResult {
   btcTxHash: string;
   /** Funded Pre-PegIn tx hex — this is the tx the depositor signs and broadcasts. */
   fundedPrePeginTxHex: string;
-  /** PegIn tx hex — pass to registerPeginOnChain as unsignedBtcTx for vault ID computation. */
+  /** PegIn tx hex — pass to registerSplitPeginOnChain as depositorSignedPeginTx; vault ID derived from this. */
   peginTxHex: string;
   /** Depositor's Schnorr signature over PegIn input 0 (HTLC leaf 0), 128 hex chars. */
   peginInputSignature: string;
@@ -117,8 +114,12 @@ export interface PrepareSplitPeginResult {
 export interface RegisterSplitPeginParams {
   /** Depositor's x-only BTC pubkey (64 hex chars) */
   depositorBtcPubkey: string;
-  /** Unsigned pegin transaction hex */
-  unsignedBtcTx: string;
+  /** Funded Pre-PegIn tx hex — submitted to contract as unsignedPrePeginTx for DA */
+  unsignedPrePeginTxHex: string;
+  /** PegIn tx hex — submitted to contract as depositorSignedPeginTx; vault ID derived from this */
+  peginTxHex: string;
+  /** SHA256 hashlock for atomic swap activation (bytes32 hex with 0x prefix) */
+  hashlock: Hex;
   /** Ethereum address of the vault provider */
   vaultProviderAddress: Address;
   /**
@@ -149,8 +150,8 @@ export interface RegisterSplitPeginResult {
 }
 
 export interface BroadcastSplitPeginParams {
-  /** Unsigned funded pegin transaction hex */
-  fundedTxHex: string;
+  /** Funded Pre-PegIn transaction hex (the HTLC output the depositor broadcasts) */
+  fundedPrePeginTxHex: string;
   /** Depositor's x-only BTC pubkey (64 hex chars) */
   depositorBtcPubkey: string;
   /**
@@ -227,9 +228,12 @@ export async function preparePeginFromSplitOutput(
     const prePeginResult = await buildPrePeginPsbt(prePeginParams);
 
     // Step 4: Select UTXOs — only the split output; no mempool fetch
+    // Must cover ALL WASM outputs (HTLC + depositor claim), not just htlcValue.
+    const totalOutputValue =
+      prePeginResult.htlcValue + prePeginResult.depositorClaimValue;
     const utxoSelection = selectUtxosForPegin(
       [params.splitOutput],
-      prePeginResult.htlcValue,
+      totalOutputValue,
       params.feeRate,
     );
 
@@ -306,7 +310,7 @@ export async function preparePeginFromSplitOutput(
  *
  * @param btcWallet - Bitcoin wallet for signing BIP-322 PoP
  * @param ethWallet - Ethereum wallet client for submitting transaction
- * @param params - Registration parameters including depositor pubkey and unsigned BTC tx
+ * @param params - Registration parameters including depositor pubkey, pre-pegin tx, and pegin tx
  * @returns Ethereum transaction hash and vault ID (primary identifier)
  */
 export async function registerSplitPeginOnChain(
@@ -328,7 +332,9 @@ export async function registerSplitPeginOnChain(
 
     const result = await peginManager.registerPeginOnChain({
       depositorBtcPubkey: params.depositorBtcPubkey,
-      unsignedBtcTx: params.unsignedBtcTx,
+      unsignedPrePeginTx: params.unsignedPrePeginTxHex,
+      depositorSignedPeginTx: params.peginTxHex,
+      hashlock: params.hashlock,
       vaultProvider: params.vaultProviderAddress,
       onPopSigned: params.onPopSigned,
       depositorPayoutBtcAddress: params.depositorPayoutBtcAddress,
@@ -344,13 +350,13 @@ export async function registerSplitPeginOnChain(
 }
 
 // ============================================================================
-// Function 3: broadcastPeginWithLocalUtxo
+// Function 3: broadcastPrePeginWithLocalUtxo
 // ============================================================================
 
 /**
  * Sign and broadcast a split pegin transaction using local UTXO data.
  *
- * Unlike `broadcastPeginTransaction()` in the standard flow, this function does
+ * Unlike `broadcastPrePeginTransaction()` in the standard flow, this function does
  * **not** fetch UTXO data from the mempool. Each input is matched against the
  * provided `splitOutputs` array by `txid:vout`. This is required because the
  * split transaction may still be unconfirmed when this function runs.
@@ -367,17 +373,18 @@ export async function registerSplitPeginOnChain(
  * @returns The broadcasted Bitcoin transaction ID
  * @throws Error if a matching split output cannot be found for any input
  */
-export async function broadcastPeginWithLocalUtxo(
+export async function broadcastPrePeginWithLocalUtxo(
   params: BroadcastSplitPeginParams,
 ): Promise<string> {
-  const { fundedTxHex, depositorBtcPubkey, splitOutputs, signPsbt } = params;
+  const { fundedPrePeginTxHex, depositorBtcPubkey, splitOutputs, signPsbt } =
+    params;
 
   try {
     // Number of hex chars to show per txid in error messages (4 bytes = readable, unambiguous enough)
     const TXID_PREFIX_LENGTH = 8;
 
     // Step 1: Parse the funded transaction
-    const tx = Transaction.fromHex(stripHexPrefix(fundedTxHex));
+    const tx = Transaction.fromHex(stripHexPrefix(fundedPrePeginTxHex));
 
     if (tx.ins.length === 0) {
       throw new Error("Transaction has no inputs");
@@ -460,6 +467,6 @@ export async function broadcastPeginWithLocalUtxo(
     return btcTxid;
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
-    throw new Error(`Failed to broadcast split pegin transaction: ${message}`);
+    throw new Error(`Failed to broadcast split Pre-PegIn transaction: ${message}`);
   }
 }

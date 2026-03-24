@@ -18,12 +18,10 @@ import ProtocolParamsAbi from "./abis/ProtocolParams.abi.json";
  * TBV Protocol Parameters from the contract
  */
 export interface TBVProtocolParams {
-  btcPrismAddress: Address;
   minimumPegInAmount: bigint;
   maxPegInAmount: bigint;
   pegInAckTimeout: bigint;
-  pegInProofTimeout: bigint;
-  pegInConfirmationDepth: bigint;
+  peginActivationTimeout: bigint;
 }
 
 /**
@@ -38,7 +36,10 @@ export interface VersionedOffchainParams {
   feeRate: bigint;
   babeTotalInstances: number;
   babeInstancesToFinalize: number;
-  vpCommissionBps: number;
+  minVpCommissionBps: number;
+  tRefund: number;
+  tStale: number;
+  minPeginFeeRate: bigint;
 }
 
 /**
@@ -51,21 +52,14 @@ export interface PegInConfiguration {
   maxPegInAmount: bigint;
   /** Timeout for ACK collection in ETH blocks */
   pegInAckTimeout: bigint;
-  /** Timeout for BTC inclusion proof in ETH blocks */
-  pegInProofTimeout: bigint;
-  /** Required BTC confirmation depth */
-  pegInConfirmationDepth: bigint;
+  /** Timeout for pegin activation in ETH blocks */
+  peginActivationTimeout: bigint;
   /** CSV timelock in blocks for the PegIn vault output (from offchain params) */
   timelockPegin: number;
-  /**
-   * CSV timelock in blocks for the Pre-PegIn HTLC refund path.
-   * TODO: fetch from ProtocolParams contract once btc-vault adds this parameter.
-   */
+  /** CSV timelock in blocks for the Pre-PegIn HTLC refund path (from offchain params tRefund) */
   timelockRefund: number;
-  /** Value in satoshis for the depositor's claim output (from offchain params) */
-  depositorClaimValue: bigint;
-  /** Vault provider commission in basis points (e.g., 500 = 5%) */
-  vpCommissionBps: number;
+  /** Minimum vault provider commission in basis points (e.g., 500 = 5%) */
+  minVpCommissionBps: number;
   /** Latest offchain params (for council quorum, fee rate, etc.) */
   offchainParams: VersionedOffchainParams;
 }
@@ -126,12 +120,10 @@ export async function getTBVProtocolParams(): Promise<TBVProtocolParams> {
   const result = params as TBVProtocolParams;
 
   return {
-    btcPrismAddress: result.btcPrismAddress,
     minimumPegInAmount: result.minimumPegInAmount,
     maxPegInAmount: result.maxPegInAmount,
     pegInAckTimeout: result.pegInAckTimeout,
-    pegInProofTimeout: result.pegInProofTimeout,
-    pegInConfirmationDepth: result.pegInConfirmationDepth,
+    peginActivationTimeout: result.peginActivationTimeout,
   };
 }
 
@@ -166,26 +158,16 @@ export async function getPegInConfiguration(): Promise<PegInConfiguration> {
   // timelockPegin = uint16(timelockAssert), matching PeginLogic.sol:115
   const timelockPegin = Number(offchainParams.timelockAssert);
 
-  // TODO: Replace with value from contract once btc-vault adds timelockRefund
-  // to VersionedOffchainParams. For now, use timelockChallengeAssert as a proxy
-  // (the HTLC refund timelock should be shorter than the vault's assert timelock).
-  const timelockRefund = Number(offchainParams.timelockChallengeAssert);
-
-  // TODO: Replace with value from contract once btc-vault exposes
-  // depositorClaimValue as a parameter. Must cover the full downstream
-  // tx graph (Claim → Assert → Payout).
-  const depositorClaimValue = 500_000n;
+  const timelockRefund = Number(offchainParams.tRefund);
 
   return {
     minimumPegInAmount: params.minimumPegInAmount,
     maxPegInAmount: params.maxPegInAmount,
     pegInAckTimeout: params.pegInAckTimeout,
-    pegInProofTimeout: params.pegInProofTimeout,
-    pegInConfirmationDepth: params.pegInConfirmationDepth,
+    peginActivationTimeout: params.peginActivationTimeout,
     timelockPegin,
     timelockRefund,
-    depositorClaimValue,
-    vpCommissionBps: offchainParams.vpCommissionBps,
+    minVpCommissionBps: offchainParams.minVpCommissionBps,
     offchainParams,
   };
 }

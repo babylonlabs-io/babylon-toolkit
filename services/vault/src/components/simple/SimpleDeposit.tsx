@@ -29,6 +29,7 @@ import { DepositSuccessContent } from "./DepositSuccessContent";
 import { FadeTransition } from "./FadeTransition";
 import { MultiVaultDepositSignContent } from "./MultiVaultDepositSignContent";
 import {
+  ResumeActivationContent,
   ResumeBroadcastContent,
   ResumeLamportContent,
   ResumeSignContent,
@@ -71,11 +72,19 @@ type ResumeLamportProps = SimpleDepositBaseProps & {
   onResumeSuccess: () => void;
 };
 
+type ResumeActivationProps = SimpleDepositBaseProps & {
+  resumeMode: "activate_vault";
+  activity: VaultActivity;
+  depositorEthAddress: string;
+  onResumeSuccess: () => void;
+};
+
 export type SimpleDepositProps =
   | NewDepositProps
   | ResumeSignProps
   | ResumeBroadcastProps
-  | ResumeLamportProps;
+  | ResumeLamportProps
+  | ResumeActivationProps;
 
 // ---------------------------------------------------------------------------
 // New deposit flow content (form → sign → success)
@@ -105,6 +114,7 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
     setIsPartialLiquidation,
     canSplit,
     strategy,
+    depositorClaimValue,
     allocationPlan,
     isPlanning,
     splitRatioLabel,
@@ -306,7 +316,8 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
 
         {renderedStep === DepositStep.SIGN &&
           getMnemonic &&
-          btcWalletProvider && (
+          btcWalletProvider &&
+          depositorClaimValue != null && (
             <div className="mx-auto w-full max-w-[520px]">
               {isSplitDeposit && splitAllocationPlan ? (
                 <MultiVaultDepositSignContent
@@ -322,6 +333,7 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
                   vaultProviderBtcPubkey={selectedProviderBtcPubkey}
                   vaultKeeperBtcPubkeys={vaultKeeperBtcPubkeys}
                   universalChallengerBtcPubkeys={universalChallengerBtcPubkeys}
+                  depositorClaimValue={depositorClaimValue}
                   getMnemonic={getMnemonic}
                   mnemonicId={mnemonicId}
                   depositorSecretHashes={secretHashes}
@@ -381,6 +393,27 @@ export default function SimpleDeposit(props: SimpleDepositProps) {
             <div className="mx-auto w-full max-w-[520px]">
               <ResumeLamportContent
                 activity={props.activity}
+                onClose={onClose}
+                onSuccess={props.onResumeSuccess}
+              />
+            </div>
+          </FullScreenDialog>
+        </ProtocolParamsProvider>
+      );
+    }
+
+    if (resumeMode === "activate_vault") {
+      return (
+        <ProtocolParamsProvider>
+          <FullScreenDialog
+            open={open}
+            onClose={onClose}
+            className="items-center justify-center p-6"
+          >
+            <div className="mx-auto w-full max-w-[520px]">
+              <ResumeActivationContent
+                activity={props.activity}
+                depositorEthAddress={props.depositorEthAddress}
                 onClose={onClose}
                 onSuccess={props.onResumeSuccess}
               />

@@ -35,8 +35,11 @@ export interface Vault {
   /** Depositor's BTC public key (x-only, 32 bytes) */
   depositorBtcPubkey: Hex;
 
-  /** Unsigned BTC transaction hex */
-  unsignedBtcTx: Hex;
+  /** Depositor-signed pegin transaction hex (from contract struct) */
+  depositorSignedPeginTx: Hex;
+
+  /** Unsigned pre-pegin transaction hex (from PegInSubmitted event, DA only) */
+  unsignedPrePeginTx?: Hex;
 
   /** Amount in satoshis */
   amount: bigint;
@@ -44,7 +47,19 @@ export interface Vault {
   /** Vault provider's Ethereum address */
   vaultProvider: Address;
 
-  /** Vault status (0=Pending, 1=Verified, 2=Active, 3=Redeemed, 4=Liquidated, 5=Invalid, 6=DepositorWithdrawn, 7=Expired) */
+  /** Version of vault keepers at vault creation */
+  vkVersion: number;
+
+  /** Hashlock for atomic swap (HTLC hash) */
+  hashlock?: Hex;
+
+  /** Secret preimage for atomic swap (revealed after claim) */
+  secret?: Hex;
+
+  /** Timestamp when pegin signatures were posted on-chain (milliseconds) */
+  peginSigsPostedAt?: number;
+
+  /** Vault status (0=Pending, 1=Verified, 2=Active, 3=Redeemed; 4-7 are indexer-derived) */
   status: ContractStatus;
 
   /** Application controller address (immutable, set at creation) */
