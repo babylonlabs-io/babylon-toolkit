@@ -118,11 +118,18 @@ export function formatPayoutSignatureError(error: unknown): {
           "The deposit transaction could not be found. It may have been processed already.",
       };
     }
-    if (error.message.includes("Failed to sign payout transaction")) {
+    if (error.message.includes("Failed to sign Payout transaction")) {
       return {
         title: "Signing Failed",
         message:
           "Failed to sign the payout transaction. Please try again or reconnect your wallet.",
+      };
+    }
+    if (error.message.includes("Failed to batch sign payout transactions")) {
+      return {
+        title: "Batch Signing Failed",
+        message:
+          "Failed to sign payout transactions. Please try again or reconnect your wallet.",
       };
     }
     return {
