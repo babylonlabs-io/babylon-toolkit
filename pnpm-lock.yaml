@@ -899,8 +899,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/babylon-core-ui
       '@babylonlabs-io/ts-sdk':
-        specifier: 0.1.1
-        version: 0.1.1(viem@2.38.2(bufferutil@4.0.9)(typescript@5.9.2)(utf-8-validate@5.0.10)(zod@3.22.4))
+        specifier: workspace:*
+        version: link:../../packages/babylon-ts-sdk
       '@babylonlabs-io/wallet-connector':
         specifier: workspace:*
         version: link:../../packages/babylon-wallet-connector
@@ -1815,20 +1815,12 @@ packages:
     resolution: {integrity: sha512-qQ5m48eI/MFLQ5PxQj4PFaprjyCTLI37ElWMmNs0K8Lk3dVeOdNpB3ks8jc7yM5CDmVC73eMVk/trk3fgmrUpA==}
     engines: {node: '>=6.9.0'}
 
-  '@babylonlabs-io/babylon-tbv-rust-wasm@0.1.0':
-    resolution: {integrity: sha512-bluioC9Z+RlyjfttqAOXPCwSIJTE9Juff5PZZ7tEl87c9+hSSAsHFcKn5WsDfW9IDPa5XDjeVYl0f0wfJqiznw==}
-
   '@babylonlabs-io/btc-staking-ts@2.8.6':
     resolution: {integrity: sha512-IPg5ayMnsFHGWPTNULyd8iDv+6F56oOn63Zk7DNpcwBYU+Zp95Dc3zESsiN7QN8eXvKlCOlD/Zki76hwx00/xQ==}
     engines: {node: '>=22.0.0 <25.0.0'}
     peerDependencies:
       '@babylonlabs-io/babylon-proto-ts': 1.22.1
       bitcoinjs-lib: 6.1.7
-
-  '@babylonlabs-io/ts-sdk@0.1.1':
-    resolution: {integrity: sha512-+aexGNicY91UA/r/hvGX7oHiylByDoin5ltQ3qVAjmvbfmdqYkpUyAKDQAXuRriRcSZA0y69p7Jvg8UbIwdbzA==}
-    peerDependencies:
-      viem: ^2.38.2
 
   '@base-org/account@1.1.1':
     resolution: {integrity: sha512-IfVJPrDPhHfqXRDb89472hXkpvJuQQR7FDI9isLPHEqSYt/45whIoBxSPgZ0ssTt379VhQo4+87PWI1DoLSfAQ==}
@@ -11603,22 +11595,12 @@ snapshots:
       '@babel/helper-string-parser': 7.27.1
       '@babel/helper-validator-identifier': 7.28.5
 
-  '@babylonlabs-io/babylon-tbv-rust-wasm@0.1.0': {}
-
   '@babylonlabs-io/btc-staking-ts@2.8.6(@babylonlabs-io/babylon-proto-ts@packages+babylon-proto-ts)(bitcoinjs-lib@6.1.7)':
     dependencies:
       '@babylonlabs-io/babylon-proto-ts': link:packages/babylon-proto-ts
       '@bitcoin-js/tiny-secp256k1-asmjs': 2.2.3
       '@cosmjs/encoding': 0.36.0
       bitcoinjs-lib: 6.1.7
-
-  '@babylonlabs-io/ts-sdk@0.1.1(viem@2.38.2(bufferutil@4.0.9)(typescript@5.9.2)(utf-8-validate@5.0.10)(zod@3.22.4))':
-    dependencies:
-      '@babylonlabs-io/babylon-tbv-rust-wasm': 0.1.0
-      '@bitcoin-js/tiny-secp256k1-asmjs': 2.2.3
-      bitcoinjs-lib: 6.1.7
-      buffer: 6.0.3
-      viem: 2.38.2(bufferutil@4.0.9)(typescript@5.9.2)(utf-8-validate@5.0.10)(zod@3.22.4)
 
   '@base-org/account@1.1.1(@types/react@18.3.23)(bufferutil@4.0.9)(react@18.3.1)(typescript@5.9.2)(use-sync-external-store@1.4.0(react@18.3.1))(utf-8-validate@5.0.10)(zod@3.22.4)':
     dependencies:
