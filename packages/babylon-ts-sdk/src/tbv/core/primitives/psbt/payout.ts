@@ -321,10 +321,7 @@ const SIGHASH_ALL = 0x01;
  * acceptance of signatures that don't commit to all outputs (e.g. SIGHASH_NONE).
  * @internal
  */
-export function extractSchnorrSig(
-  sig: Uint8Array,
-  inputIndex: number,
-): string {
+function extractSchnorrSig(sig: Uint8Array, inputIndex: number): string {
   if (sig.length === 64) {
     return uint8ArrayToHex(new Uint8Array(sig));
   } else if (sig.length === 65) {
