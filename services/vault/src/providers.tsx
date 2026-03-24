@@ -45,10 +45,12 @@ function Providers({ children }: React.PropsWithChildren) {
                     </WagmiProvider>
                   </GeoFencingProvider>
                 </ErrorProvider>
-                <ReactQueryDevtools
-                  buttonPosition="bottom-left"
-                  initialIsOpen={false}
-                />
+                {process.env.NODE_ENV === "development" && (
+                  <ReactQueryDevtools
+                    buttonPosition="bottom-left"
+                    initialIsOpen={false}
+                  />
+                )}
               </QueryClientProvider>
               <NotificationContainer />
             </div>
