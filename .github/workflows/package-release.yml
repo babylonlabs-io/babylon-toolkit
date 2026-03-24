@@ -76,7 +76,6 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NPM_CONFIG_PROVENANCE: true
-          NODE_AUTH_TOKEN: ''
 
       - name: Bump RC version
         if: github.event_name == 'workflow_dispatch'
@@ -100,11 +99,9 @@ jobs:
       - name: Publish RC to npm
         if: github.event_name == 'workflow_dispatch'
         env:
-          PKG: ${{ inputs.package }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NPM_CONFIG_PROVENANCE: true
-          NODE_AUTH_TOKEN: ''
         run: |
-          pnpm exec nx release publish \
-            --projects="$PKG" \
-            --tag=next
+          PKG_DIR=$(pnpm exec nx show project ${{ inputs.package }} --json | jq -r '.root')
+          cd "$PKG_DIR"
+          npm publish --provenance --access public --tag next
