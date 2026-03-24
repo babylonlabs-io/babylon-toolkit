@@ -10,6 +10,7 @@
  * directly to a Blob for download.
  */
 
+import { logger } from "@/infrastructure";
 import { stripHexPrefix } from "@/utils/btc";
 import { JsonRpcClient, JsonRpcError, getVpProxyUrl } from "@/utils/rpc";
 
@@ -54,6 +55,11 @@ export async function fetchAndDownloadArtifacts(
     const text = await blob.text();
     const parsed = JSON.parse(text);
     if (parsed.error) {
+      if (parsed.error.data !== undefined) {
+        logger.info(
+          `[artifactDownloadService] RPC error included data field (code: ${parsed.error.code})`,
+        );
+      }
       throw new JsonRpcError(parsed.error.code, parsed.error.message);
     }
   }
