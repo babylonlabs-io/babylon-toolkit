@@ -444,15 +444,12 @@ export class PeginManager {
     // Step 2: Build unfunded Pre-PegIn transaction (HTLC output, no inputs)
     const prePeginResult = await buildPrePeginPsbt(prePeginParams);
 
-    // Step 3: Select UTXOs to cover ALL unfunded tx outputs (HTLC + depositor claim)
-    // The WASM tx has multiple outputs; htlcValue is only output 0.
+    // Step 3: Select UTXOs to cover ALL unfunded tx outputs (HTLC + CPFP anchor)
     // fundPeginTransaction copies all WASM outputs, so UTXO selection must
     // account for their total value, not just the HTLC output.
-    const totalOutputValue =
-      prePeginResult.htlcValue + prePeginResult.depositorClaimValue;
     const utxoSelection = selectUtxosForPegin(
       [...params.availableUTXOs],
-      totalOutputValue,
+      prePeginResult.totalOutputValue,
       params.feeRate,
     );
 

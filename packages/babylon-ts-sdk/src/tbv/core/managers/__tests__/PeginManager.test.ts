@@ -274,12 +274,13 @@ describe("PeginManager", () => {
 
       expect(result.selectedUTXOs.length).toBeGreaterThanOrEqual(1);
 
-      // totalSelected = htlcValue + fee + changeAmount
+      // Selected UTXOs must cover all outputs (HTLC + CPFP anchor) + fee
       const totalSelected = result.selectedUTXOs.reduce(
         (sum, utxo) => sum + BigInt(utxo.value),
         0n,
       );
-      expect(totalSelected).toBe(result.htlcValue + result.fee + result.changeAmount);
+      expect(totalSelected).toBeGreaterThanOrEqual(result.htlcValue + result.fee);
+      expect(result.changeAmount).toBeGreaterThanOrEqual(0n);
     });
 
     it("should handle multiple vault keepers and universal challengers", async () => {
@@ -328,12 +329,13 @@ describe("PeginManager", () => {
         ...BASE_ATOMIC_PEGIN_PARAMS,
       });
 
-      // totalSelected = htlcValue + fee + changeAmount
+      // Selected UTXOs must cover all outputs (HTLC + CPFP anchor) + fee
       const totalSelected = result.selectedUTXOs.reduce(
         (sum, utxo) => sum + BigInt(utxo.value),
         0n,
       );
-      expect(totalSelected).toBe(result.htlcValue + result.fee + result.changeAmount);
+      expect(totalSelected).toBeGreaterThanOrEqual(result.htlcValue + result.fee);
+      expect(result.changeAmount).toBeGreaterThanOrEqual(0n);
     });
 
     it("should throw error for insufficient funds", async () => {

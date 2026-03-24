@@ -193,6 +193,7 @@ const UNIVERSAL_CHALLENGER_PUBKEYS = ["dd".repeat(32)];
 
 const MOCK_PRE_PEGIN_RESULT = {
   psbtHex: "unfunded-psbt-hex",
+  totalOutputValue: 5_100_546n, // htlcValue + CPFP anchor (546 sats)
   htlcValue: 5_100_000n,
   htlcScriptPubKey: "htlc-script-pubkey",
   htlcAddress: "htlc-address",
@@ -349,7 +350,7 @@ describe("preparePeginFromSplitOutput", () => {
       const [utxos, amount, feeRate] = mockSelectUtxosForPegin.mock.calls[0];
       expect(utxos).toHaveLength(1);
       expect(utxos[0]).toBe(SPLIT_OUTPUT);
-      expect(amount).toBe(MOCK_PRE_PEGIN_RESULT.htlcValue);
+      expect(amount).toBe(MOCK_PRE_PEGIN_RESULT.totalOutputValue);
       expect(feeRate).toBe(baseParams.feeRate);
     });
 
@@ -936,19 +937,19 @@ describe("broadcastPrePeginWithLocalUtxo", () => {
   // ── error handling ────────────────────────────────────────────────────────
 
   describe("error handling", () => {
-    it("wraps broadcast errors with 'Failed to broadcast split pegin transaction:'", async () => {
+    it("wraps broadcast errors with 'Failed to broadcast split Pre-PegIn transaction:'", async () => {
       mockPushTx.mockRejectedValue(new Error("mempool rejected tx"));
 
       await expect(broadcastPrePeginWithLocalUtxo(baseParams)).rejects.toThrow(
-        "Failed to broadcast split pegin transaction: mempool rejected tx",
+        "Failed to broadcast split Pre-PegIn transaction: mempool rejected tx",
       );
     });
 
-    it("wraps signing errors with 'Failed to broadcast split pegin transaction:'", async () => {
+    it("wraps signing errors with 'Failed to broadcast split Pre-PegIn transaction:'", async () => {
       mockSignPsbt.mockRejectedValue(new Error("user rejected signing"));
 
       await expect(broadcastPrePeginWithLocalUtxo(baseParams)).rejects.toThrow(
-        "Failed to broadcast split pegin transaction: user rejected signing",
+        "Failed to broadcast split Pre-PegIn transaction: user rejected signing",
       );
     });
   });

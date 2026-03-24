@@ -20,6 +20,8 @@ import {
   type Network,
 } from "@babylonlabs-io/babylon-tbv-rust-wasm";
 
+import { parseUnfundedWasmTransaction } from "../../utils/transaction/fundPeginTransaction";
+
 /**
  * Parameters for building an unfunded Pre-PegIn PSBT
  */
@@ -55,16 +57,18 @@ export interface PrePeginParams {
  */
 export interface PrePeginPsbtResult {
   /**
-   * Unfunded transaction hex (no inputs, one HTLC output).
+   * Unfunded transaction hex (no inputs, HTLC output + CPFP anchor).
    *
    * The caller is responsible for:
-   * - Selecting UTXOs covering htlcValue + network fees
+   * - Selecting UTXOs covering totalOutputValue + network fees
    * - Funding the transaction (add inputs and change output)
    * - Computing the funded transaction's txid
    * - Calling buildPeginTxFromFundedPrePegin() with the funded txid
    */
   psbtHex: string;
-  /** HTLC output value in satoshis — the amount the UTXOs must cover */
+  /** Sum of all unfunded outputs (HTLC + CPFP anchor) — use this for UTXO selection */
+  totalOutputValue: bigint;
+  /** HTLC output value in satoshis (output 0 only, includes peginAmount + depositorClaimValue + minPeginFee) */
   htlcValue: bigint;
   /** HTLC output scriptPubKey (hex encoded) */
   htlcScriptPubKey: string;
@@ -105,9 +109,9 @@ export interface PeginTxResult {
 /**
  * Build unfunded Pre-PegIn transaction using WASM.
  *
- * Creates a Bitcoin transaction template with no inputs and one HTLC output.
- * The HTLC value is computed internally from the contract parameters — the caller
- * does not need to compute depositorClaimValue separately.
+ * Creates a Bitcoin transaction template with no inputs, an HTLC output, and a
+ * CPFP anchor output. The HTLC value is computed internally from the contract
+ * parameters — the caller does not need to compute depositorClaimValue separately.
  *
  * @param params - Pre-PegIn parameters
  * @returns Unfunded Pre-PegIn transaction details with HTLC output information
@@ -131,8 +135,17 @@ export async function buildPrePeginPsbt(
     network: params.network,
   });
 
+  // Parse the unfunded tx to sum all output values (HTLC + CPFP anchor).
+  // This is the amount UTXOs must cover before adding network fees.
+  const parsed = parseUnfundedWasmTransaction(result.txHex);
+  const totalOutputValue = parsed.outputs.reduce(
+    (sum, o) => sum + BigInt(o.value),
+    0n,
+  );
+
   return {
     psbtHex: result.txHex,
+    totalOutputValue,
     htlcValue: result.htlcValue,
     htlcScriptPubKey: result.htlcScriptPubKey,
     htlcAddress: result.htlcAddress,

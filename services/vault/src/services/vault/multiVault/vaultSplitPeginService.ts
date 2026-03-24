@@ -228,12 +228,10 @@ export async function preparePeginFromSplitOutput(
     const prePeginResult = await buildPrePeginPsbt(prePeginParams);
 
     // Step 4: Select UTXOs — only the split output; no mempool fetch
-    // Must cover ALL WASM outputs (HTLC + depositor claim), not just htlcValue.
-    const totalOutputValue =
-      prePeginResult.htlcValue + prePeginResult.depositorClaimValue;
+    // Must cover ALL WASM outputs (HTLC + CPFP anchor), not just htlcValue.
     const utxoSelection = selectUtxosForPegin(
       [params.splitOutput],
-      totalOutputValue,
+      prePeginResult.totalOutputValue,
       params.feeRate,
     );
 
