@@ -54,11 +54,7 @@ export async function fetchAndDownloadArtifacts(
     const text = await blob.text();
     const parsed = JSON.parse(text);
     if (parsed.error) {
-      throw new JsonRpcError(
-        parsed.error.code,
-        parsed.error.message,
-        parsed.error.data,
-      );
+      throw new JsonRpcError(parsed.error.code, parsed.error.message);
     }
   }
 

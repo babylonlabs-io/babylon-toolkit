@@ -33,6 +33,7 @@ import type {
   PresignDataPerChallenger,
 } from "../../clients/vault-provider-rpc/types";
 import { signPsbtsWithFallback, stripHexPrefix } from "../../utils/btc";
+import { sanitizeErrorMessage } from "../../utils/errors/formatting";
 
 /**
  * Number of ChallengeAssert inputs per challenger.
@@ -423,7 +424,7 @@ export async function signDepositorGraph(
     );
   } catch (err) {
     throw new Error(
-      `Failed to sign depositor graph transactions: ${err instanceof Error ? err.message : JSON.stringify(err)}`,
+      `Failed to sign depositor graph transactions: ${sanitizeErrorMessage(err)}`,
     );
   }
 

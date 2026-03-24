@@ -50,7 +50,6 @@ export class JsonRpcError extends Error {
   constructor(
     public code: number,
     message: string,
-    public data?: unknown,
   ) {
     super(message);
     this.name = "JsonRpcError";
@@ -104,10 +103,14 @@ export class JsonRpcClient {
 
     if ("error" in jsonResponse) {
       const errorResponse = jsonResponse as JsonRpcErrorResponse;
+      if (errorResponse.error.data !== undefined) {
+        logger.info(
+          `[JsonRpcClient] RPC error included data field for ${method} (code: ${errorResponse.error.code})`,
+        );
+      }
       throw new JsonRpcError(
         errorResponse.error.code,
         errorResponse.error.message,
-        errorResponse.error.data,
       );
     }
 

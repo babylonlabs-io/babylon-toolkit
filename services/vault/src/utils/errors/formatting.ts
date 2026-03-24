@@ -6,6 +6,16 @@
 import { JSON_RPC_ERROR_CODES, JsonRpcError } from "../rpc";
 
 /**
+ * Extract a safe error message from an unknown error value.
+ * Never serializes arbitrary objects — only extracts .message from Error instances.
+ */
+export function sanitizeErrorMessage(err: unknown): string {
+  if (err instanceof Error) return err.message;
+  if (typeof err === "string") return err;
+  return "Unknown error";
+}
+
+/**
  * Transform error to user-friendly message
  * @param error - Raw error
  * @returns User-friendly error message
@@ -83,7 +93,7 @@ export function formatPayoutSignatureError(error: unknown): {
     }
     return {
       title: "Signature Submission Failed",
-      message: `The vault provider rejected the request: ${error.message}`,
+      message: `The vault provider rejected the request (error code: ${error.code}). Please try again or contact support.`,
     };
   }
 
@@ -117,7 +127,8 @@ export function formatPayoutSignatureError(error: unknown): {
     }
     return {
       title: "Payout Signing Error",
-      message: error.message,
+      message:
+        "An unexpected error occurred while signing payouts. Please try again or contact support.",
     };
   }
 
@@ -176,7 +187,8 @@ export function formatLendingError(error: unknown): {
     }
     return {
       title: "Transaction Failed",
-      message: error.message,
+      message:
+        "An unexpected error occurred during the transaction. Please try again or contact support.",
     };
   }
 
