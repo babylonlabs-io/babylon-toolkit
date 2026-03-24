@@ -117,7 +117,7 @@ Merging a PR to `main` that touches `packages/babylon-ts-sdk/` or `packages/baby
 Use RCs to test SDK changes against the vault frontend before merging to `main`:
 
 1. Create a feature branch and make your SDK changes
-2. Go to **Actions → "Package RC Release" → Run workflow**
+2. Go to **Actions → "Build and Release in Mono Repo" → Run workflow**
 3. Select the branch, package, and pre-release identifier (default: `rc`)
 4. The RC is published to npm with the `next` tag (e.g., `0.2.0-rc.0`)
 5. In the vault frontend, temporarily pin to the RC version to test:
