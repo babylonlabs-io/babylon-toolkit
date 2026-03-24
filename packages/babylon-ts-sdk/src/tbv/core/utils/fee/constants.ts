@@ -42,3 +42,11 @@ export function rateBasedTxBufferFee(feeRate: number): number {
     ? LOW_RATE_ESTIMATION_ACCURACY_BUFFER
     : 0;
 }
+
+/**
+ * Safety multiplier for split transaction fee validation.
+ * The signed PSBT's fee rate and absolute fee must not exceed this multiple
+ * of the planned values. 5x accounts for witness estimation variance while
+ * catching catastrophic wallet-side overpayment.
+ */
+export const SPLIT_TX_FEE_SAFETY_MULTIPLIER = 5;
