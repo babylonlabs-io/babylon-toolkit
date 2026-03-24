@@ -156,6 +156,23 @@ function mapGraphQLStatusToVaultStatus(
 }
 
 /**
+ * Validates that a required GraphQL field is non-null.
+ * Throws if the field is null, since this indicates a buggy or compromised server response.
+ */
+function validateRequiredField<T>(
+  value: T | null,
+  fieldName: string,
+  vaultId: string,
+): T {
+  if (value === null) {
+    throw new Error(
+      `Missing required field "${fieldName}" for vault ${vaultId}`,
+    );
+  }
+  return value;
+}
+
+/**
  * Transform GraphQL vault item to Vault
  */
 function transformVaultItem(item: GraphQLVaultItem): Vault {
@@ -176,7 +193,11 @@ function transformVaultItem(item: GraphQLVaultItem): Vault {
       : undefined,
     referralCode: item.referralCode,
     depositorPayoutBtcAddress: item.depositorPayoutBtcAddress as Hex,
-    depositorLamportPkHash: item.depositorLamportPkHash!,
+    depositorLamportPkHash: validateRequiredField(
+      item.depositorLamportPkHash,
+      "depositorLamportPkHash",
+      item.id,
+    ),
     createdAt: parseInt(item.pendingAt, 10) * 1000,
     expiredAt: item.expiredAt ? parseInt(item.expiredAt, 10) * 1000 : undefined,
     expirationReason: (item.expirationReason as ExpirationReason) ?? undefined,
