@@ -4,6 +4,20 @@ on:
   push:
     branches:
       - main
+  workflow_dispatch:
+    inputs:
+      package:
+        description: 'Package to release RC for'
+        required: true
+        type: choice
+        options:
+          - '@babylonlabs-io/ts-sdk'
+          - '@babylonlabs-io/babylon-tbv-rust-wasm'
+      preid:
+        description: 'Pre-release identifier (rc, alpha, beta)'
+        required: true
+        default: 'rc'
+        type: string
 
 jobs:
   build_and_release:
@@ -31,6 +45,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Single Version Policy
+        if: github.event_name == 'push'
         run: |-
           # Exit immediately if any command in the script fails
           set -e
@@ -52,9 +67,8 @@ jobs:
       - name: Test all
         run: pnpm exec nx run-many --target=test --all
 
-
-
       - name: Release changed packages
+        if: github.event_name == 'push'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -62,3 +76,33 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NPM_CONFIG_PROVENANCE: true
+
+      - name: Bump RC version
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          PKG: ${{ inputs.package }}
+          PREID: ${{ inputs.preid }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          pnpm exec nx release version \
+            --projects="$PKG" \
+            --preid="$PREID" \
+            --specifier=prerelease \
+            --git-commit=false \
+            --git-tag=true
+
+      - name: Push RC tag
+        if: github.event_name == 'workflow_dispatch'
+        run: git push --tags
+
+      - name: Publish RC to npm
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          PKG: ${{ inputs.package }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NPM_CONFIG_PROVENANCE: true
+        run: |
+          pnpm exec nx release publish \
+            --projects="$PKG" \
+            --tag=next

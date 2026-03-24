@@ -96,3 +96,42 @@ For a migrated package, make sure the tag version matches the released version i
 git tag @babylonlabs-io/my-package/1.2.3
 git push origin @babylonlabs-io/my-package/1.2.3
 ```
+
+### SDK Release Workflow
+
+The `@babylonlabs-io/ts-sdk` and `@babylonlabs-io/babylon-tbv-rust-wasm` packages follow an independent release cycle, decoupled from the vault frontend.
+
+#### How releases work
+
+| Trigger | What happens | npm tag |
+|---------|-------------|---------|
+| Push to `main` with conventional commit | CI auto-publishes next stable version (e.g., `0.2.0`) | `latest` |
+| Manual workflow dispatch from a branch | Publishes a release candidate (e.g., `0.2.0-rc.0`) | `next` |
+
+#### Stable releases (automatic)
+
+Merging a PR to `main` that touches `packages/babylon-ts-sdk/` or `packages/babylon-tbv-rust-wasm/` with a conventional commit prefix (`feat:`, `fix:`) triggers the CI pipeline to publish a new stable version automatically.
+
+#### Release candidates (manual)
+
+Use RCs to test SDK changes against the vault frontend before merging to `main`:
+
+1. Create a feature branch and make your SDK changes
+2. Go to **Actions → "Build and Release in Mono Repo" → Run workflow**
+3. Select the branch, package, and pre-release identifier (default: `rc`)
+4. The RC is published to npm with the `next` tag (e.g., `0.2.0-rc.0`)
+5. In the vault frontend, temporarily pin to the RC version to test:
+   ```json
+   "@babylonlabs-io/ts-sdk": "0.2.0-rc.0"
+   ```
+6. Run `pnpm install` and verify the integration
+7. Once validated, merge the SDK branch to `main` → CI publishes stable `0.2.0`
+8. Update vault to the stable version
+
+#### Consuming SDK in the vault frontend
+
+The vault frontend pins to a specific SDK version (not `workspace:*`). To upgrade:
+
+1. Update the version in `services/vault/package.json`
+2. Run `pnpm install` to update the lockfile
+3. Test and submit a PR
