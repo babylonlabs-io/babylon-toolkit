@@ -35,6 +35,7 @@ vi.mock("@babylonlabs-io/ts-sdk", () => ({
 }));
 
 vi.mock("@babylonlabs-io/ts-sdk/tbv/core", () => ({
+  SPLIT_TX_FEE_SAFETY_MULTIPLIER: 5,
   createSplitTransaction: vi.fn(),
   createSplitTransactionPsbt: vi.fn(),
   ensureHexPrefix: (hex: string) => (hex.startsWith("0x") ? hex : `0x${hex}`),
@@ -96,6 +97,7 @@ vi.mock("@/services/vault", () => ({
   preparePeginFromSplitOutput: vi.fn(),
   registerSplitPeginOnChain: vi.fn(),
   broadcastPrePeginWithLocalUtxo: vi.fn(),
+  estimateSplitTxFee: vi.fn(() => 10000n),
 }));
 
 vi.mock("@/services/vault/vaultPayoutSignatureService", () => ({
@@ -908,6 +910,57 @@ describe("useMultiVaultDepositFlow", () => {
         splitTxId: "splitTxId" + "0".repeat(56),
         strategy: "SPLIT",
         warnings: undefined,
+      });
+    });
+
+    it("should call setMaximumFeeRate with dynamic value based on feeRate", async () => {
+      const { planUtxoAllocation } = vi.mocked(
+        await import("@/services/vault"),
+      );
+      const { Psbt } = vi.mocked(await import("bitcoinjs-lib"));
+
+      const mockSetMaximumFeeRate = vi.fn();
+      vi.mocked(Psbt.fromHex).mockReturnValue({
+        setMaximumFeeRate: mockSetMaximumFeeRate,
+        extractTransaction: vi.fn(() => ({
+          toHex: vi.fn(() => "mockSignedTxHex"),
+        })),
+      } as any);
+
+      vi.mocked(planUtxoAllocation).mockReturnValue(SPLIT_PLAN);
+
+      const { result } = renderHook(() =>
+        useMultiVaultDepositFlow(SPLIT_VAULT_PARAMS),
+      );
+
+      await executeWithAutoArtifactDownload(result);
+
+      await waitFor(() => {
+        // feeRate=10, multiplier=5 → maxAllowedFeeRate=50
+        expect(mockSetMaximumFeeRate).toHaveBeenCalledWith(50);
+      });
+    });
+
+    it("should throw when split transaction fee exceeds safety limit", async () => {
+      const { planUtxoAllocation, estimateSplitTxFee } = vi.mocked(
+        await import("@/services/vault"),
+      );
+
+      // Set estimated fee very low so actual fee (10,000 sats) exceeds 5x limit
+      vi.mocked(estimateSplitTxFee).mockReturnValueOnce(100n);
+
+      vi.mocked(planUtxoAllocation).mockReturnValue(SPLIT_PLAN);
+
+      const { result } = renderHook(() =>
+        useMultiVaultDepositFlow(SPLIT_VAULT_PARAMS),
+      );
+
+      await executeWithAutoArtifactDownload(result);
+
+      await waitFor(() => {
+        expect(result.current.error).toContain(
+          "Split transaction fee 10000 sats exceeds safety limit of 500 sats",
+        );
       });
     });
   });

@@ -27,6 +27,7 @@ import {
   createSplitTransaction,
   createSplitTransactionPsbt,
   ensureHexPrefix,
+  SPLIT_TX_FEE_SAFETY_MULTIPLIER,
 } from "@babylonlabs-io/ts-sdk/tbv/core";
 import { Psbt } from "bitcoinjs-lib";
 import { Buffer } from "buffer";
@@ -43,6 +44,7 @@ import { validateMultiVaultDepositInputs } from "@/services/deposit/validations"
 import { deriveLamportPkHash, linkPeginToMnemonic } from "@/services/lamport";
 import {
   broadcastPrePeginWithLocalUtxo,
+  estimateSplitTxFee,
   planUtxoAllocation,
   preparePeginFromSplitOutput,
   registerSplitPeginOnChain,
@@ -206,6 +208,7 @@ interface SplitTxSignResult {
 async function createAndSignSplitTransaction(
   splitTx: NonNullable<AllocationPlan["splitTransaction"]>,
   btcWalletProvider: BitcoinWallet,
+  feeRate: number,
 ): Promise<SplitTxSignResult> {
   const network = getBTCNetworkForWASM();
 
@@ -238,10 +241,37 @@ async function createAndSignSplitTransaction(
     autoFinalized: true,
   });
 
-  // Extract signed transaction
+  // Extract signed transaction with dynamic fee rate limit
+  const maxAllowedFeeRate = Math.ceil(feeRate * SPLIT_TX_FEE_SAFETY_MULTIPLIER);
   const signedPsbt = Psbt.fromHex(signedPsbtHex);
-  signedPsbt.setMaximumFeeRate(100000); // Allow high fee rates for split transactions
+  signedPsbt.setMaximumFeeRate(maxAllowedFeeRate);
   const signedTx = signedPsbt.extractTransaction();
+
+  // Planner sanity check: verify planned fee is within expected bounds
+  const totalInputValue = splitTx.inputs.reduce(
+    (sum, input) => sum + BigInt(input.value),
+    0n,
+  );
+  const totalOutputValue = splitTx.outputs.reduce(
+    (sum, output) => sum + output.amount,
+    0n,
+  );
+  const actualFee = totalInputValue - totalOutputValue;
+  const expectedFee = estimateSplitTxFee(
+    splitTx.inputs.length,
+    splitTx.outputs.length,
+    feeRate,
+  );
+  const maxAllowedFee = expectedFee * BigInt(SPLIT_TX_FEE_SAFETY_MULTIPLIER);
+
+  if (actualFee > maxAllowedFee) {
+    throw new Error(
+      `Split transaction fee ${actualFee} sats exceeds safety limit of ${maxAllowedFee} sats ` +
+        `(${SPLIT_TX_FEE_SAFETY_MULTIPLIER}x estimated fee of ${expectedFee} sats ` +
+        `at ${feeRate} sat/vB). The allocation planner may have produced an incorrect fee.`,
+    );
+  }
+
   const signedHex = signedTx.toHex();
 
   return {
@@ -413,6 +443,7 @@ export function useMultiVaultDepositFlow(
           splitTxResult = await createAndSignSplitTransaction(
             plan.splitTransaction,
             confirmedBtcWallet,
+            feeRate,
           );
           // 2b. Broadcast split TX IMMEDIATELY
           try {
