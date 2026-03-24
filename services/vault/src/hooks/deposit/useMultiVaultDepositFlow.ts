@@ -42,7 +42,7 @@ import { LocalStorageStatus } from "@/models/peginStateMachine";
 import { validateMultiVaultDepositInputs } from "@/services/deposit/validations";
 import { deriveLamportPkHash, linkPeginToMnemonic } from "@/services/lamport";
 import {
-  broadcastPeginWithLocalUtxo,
+  broadcastPrePeginWithLocalUtxo,
   planUtxoAllocation,
   preparePeginFromSplitOutput,
   registerSplitPeginOnChain,
@@ -54,7 +54,7 @@ import {
   signPayoutTransactions,
   type PayoutSigningProgress,
 } from "@/services/vault/vaultPayoutSignatureService";
-import { broadcastPeginTransaction } from "@/services/vault/vaultPeginBroadcastService";
+import { broadcastPrePeginTransaction } from "@/services/vault/vaultPeginBroadcastService";
 import {
   addPendingPegin,
   updatePendingPeginStatus,
@@ -712,13 +712,15 @@ export function useMultiVaultDepositFlow(
 
         setCurrentStep(DepositFlowStep.BROADCAST_PRE_PEGIN);
 
+        const broadcastedVaultIds = new Set<string>();
+
         for (const result of peginResults) {
           try {
             const allocation = plan.vaultAllocations[result.vaultIndex];
 
             if (allocation.fromSplit && splitTxResult) {
               // SPLIT OUTPUT: Use custom broadcast (no mempool fetch)
-              await broadcastPeginWithLocalUtxo({
+              await broadcastPrePeginWithLocalUtxo({
                 fundedPrePeginTxHex: result.fundedPrePeginTxHex,
                 depositorBtcPubkey: result.depositorBtcPubkey,
                 splitOutputs: splitTxResult.outputs,
@@ -727,7 +729,7 @@ export function useMultiVaultDepositFlow(
               });
             } else {
               // STANDARD: Broadcast directly from memory (no indexer re-fetch)
-              await broadcastPeginTransaction({
+              await broadcastPrePeginTransaction({
                 unsignedTxHex: result.fundedPrePeginTxHex,
                 btcWalletProvider: {
                   signPsbt: (psbtHex: string) =>
@@ -736,6 +738,8 @@ export function useMultiVaultDepositFlow(
                 depositorBtcPubkey: result.depositorBtcPubkey,
               });
             }
+
+            broadcastedVaultIds.add(result.vaultId);
 
             // Update localStorage status after successful broadcast
             updatePendingPeginStatus(
@@ -762,6 +766,13 @@ export function useMultiVaultDepositFlow(
           }
         }
 
+        // Only continue the flow for vaults whose Pre-PegIn was actually broadcast.
+        // Failed-broadcast vaults will never reach VERIFIED on-chain, so polling
+        // for them would hang until the abort signal fires.
+        const broadcastedResults = peginResults.filter((r) =>
+          broadcastedVaultIds.has(r.vaultId),
+        );
+
         // ========================================================================
         // Step 5: Submit Lamport Public Keys to Vault Provider
         // ========================================================================
@@ -769,7 +780,7 @@ export function useMultiVaultDepositFlow(
         setCurrentStep(DepositFlowStep.SIGN_PAYOUTS);
         setIsWaiting(true);
 
-        for (const result of peginResults) {
+        for (const result of broadcastedResults) {
           try {
             await submitLamportPublicKey({
               btcTxid: result.vaultId,
@@ -804,7 +815,7 @@ export function useMultiVaultDepositFlow(
         // VP waits for Pre-PegIn BTC confirmation before being ready.
         // ========================================================================
 
-        for (const result of peginResults) {
+        for (const result of broadcastedResults) {
           try {
             setIsWaiting(true);
             const {
@@ -894,7 +905,7 @@ export function useMultiVaultDepositFlow(
 
         setCurrentStep(DepositFlowStep.ARTIFACT_DOWNLOAD);
 
-        for (const result of peginResults) {
+        for (const result of broadcastedResults) {
           if (signal.aborted) break;
 
           setArtifactDownloadInfo({
@@ -917,13 +928,13 @@ export function useMultiVaultDepositFlow(
         setCurrentStep(DepositFlowStep.ACTIVATE_VAULT);
         setIsWaiting(true);
         await Promise.all(
-          peginResults.map((r) =>
+          broadcastedResults.map((r) =>
             waitForContractVerification({ btcTxid: r.vaultId, signal }),
           ),
         );
         setIsWaiting(false);
 
-        for (const result of peginResults) {
+        for (const result of broadcastedResults) {
           try {
             await activateVaultWithSecret({
               vaultId: result.vaultId,

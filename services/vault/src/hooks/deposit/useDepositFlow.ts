@@ -295,6 +295,7 @@ export function useDepositFlow(
             btcTxid: registration.btcTxid,
             depositorBtcPubkey: prepared.depositorBtcPubkey,
             btcWalletProvider: confirmedBtcWallet,
+            fundedPrePeginTxHex: prepared.fundedPrePeginTxHex,
           },
           depositorEthAddress,
         );

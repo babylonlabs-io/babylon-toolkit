@@ -24,7 +24,7 @@ export interface UTXOInfo {
   scriptPubKey: string;
 }
 
-export interface BroadcastPeginParams {
+export interface BroadcastPrePeginParams {
   /**
    * Unsigned transaction hex (from contract or WASM)
    */
@@ -132,14 +132,14 @@ async function signAndFinalizePsbt(
 }
 
 /**
- * Sign and broadcast a PegIn transaction to the Bitcoin network
+ * Sign and broadcast the funded Pre-PegIn transaction to the Bitcoin network
  *
  * @param params - Transaction and wallet parameters
  * @returns The broadcasted transaction ID
  * @throws Error if signing or broadcasting fails
  */
-export async function broadcastPeginTransaction(
-  params: BroadcastPeginParams,
+export async function broadcastPrePeginTransaction(
+  params: BroadcastPrePeginParams,
 ): Promise<string> {
   const { unsignedTxHex, btcWalletProvider, depositorBtcPubkey } = params;
 
@@ -168,6 +168,6 @@ export async function broadcastPeginTransaction(
     return await pushTx(signedTxHex, getMempoolApiUrl());
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
-    throw new Error(`Failed to broadcast PegIn transaction: ${message}`);
+    throw new Error(`Failed to broadcast Pre-PegIn transaction: ${message}`);
   }
 }

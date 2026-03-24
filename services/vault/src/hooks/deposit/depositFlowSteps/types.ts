@@ -186,6 +186,8 @@ export interface BroadcastParams {
   btcTxid: string;
   depositorBtcPubkey: string;
   btcWalletProvider: BitcoinWallet;
+  /** Funded Pre-PegIn tx hex to broadcast (avoids re-fetching from indexer) */
+  fundedPrePeginTxHex: string;
 }
 
 // ============================================================================

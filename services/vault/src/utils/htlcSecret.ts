@@ -5,10 +5,10 @@
  * depositor commits to a secret preimage H = SHA256(secret). This module
  * provides utilities to generate the secret and derive the hash commitment.
  *
- * The secret is shown to the user during the deposit flow via the
- * DepositSecretModal. The user must copy and store it — it is NOT persisted
- * by the frontend. The secret is needed to activate the vault on Ethereum
- * and to claim the HTLC refund if the atomic swap does not complete.
+ * The secret is returned in `DepositFlowResult.htlcSecretHex` and used
+ * automatically during the in-flow activation step. If the session is
+ * interrupted before activation, the resume flow prompts the user to
+ * re-enter the secret.
  */
 
 /** Generate a cryptographically secure random 32-byte HTLC secret. */
@@ -72,6 +72,12 @@ export async function createHtlcSecret(): Promise<HtlcSecretResult> {
  */
 function hexToBytes(hex: string): Uint8Array {
   const clean = hex.startsWith("0x") ? hex.slice(2) : hex;
+  if (clean.length % 2 !== 0) {
+    throw new Error(`hex string has odd length: ${clean.length}`);
+  }
+  if (!/^[0-9a-fA-F]*$/.test(clean)) {
+    throw new Error("hex string contains non-hex characters");
+  }
   const bytes = new Uint8Array(clean.length / 2);
   for (let i = 0; i < bytes.length; i++) {
     bytes[i] = parseInt(clean.slice(i * 2, i * 2 + 2), 16);

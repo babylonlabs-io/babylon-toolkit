@@ -90,7 +90,7 @@ vi.mock("@/services/vault", () => ({
   planUtxoAllocation: vi.fn(),
   preparePeginFromSplitOutput: vi.fn(),
   registerSplitPeginOnChain: vi.fn(),
-  broadcastPeginWithLocalUtxo: vi.fn(),
+  broadcastPrePeginWithLocalUtxo: vi.fn(),
 }));
 
 vi.mock("@/services/vault/vaultPayoutSignatureService", () => ({
@@ -129,7 +129,7 @@ vi.mock("@/services/vault/vaultActivationService", () => ({
 }));
 
 vi.mock("@/services/vault/vaultPeginBroadcastService", () => ({
-  broadcastPeginTransaction: vi.fn().mockResolvedValue("mockBroadcastTxId"),
+  broadcastPrePeginTransaction: vi.fn().mockResolvedValue("mockBroadcastTxId"),
 }));
 
 vi.mock("@/models/peginStateMachine", () => ({
@@ -325,12 +325,12 @@ async function setupDefaultMocks() {
     planUtxoAllocation,
     preparePeginFromSplitOutput,
     registerSplitPeginOnChain,
-    broadcastPeginWithLocalUtxo,
+    broadcastPrePeginWithLocalUtxo,
   } = vi.mocked(await import("@/services/vault"));
   const { signPayoutTransactions } = vi.mocked(
     await import("@/services/vault/vaultPayoutSignatureService"),
   );
-  const { broadcastPeginTransaction } = vi.mocked(
+  const { broadcastPrePeginTransaction } = vi.mocked(
     await import("@/services/vault/vaultPeginBroadcastService"),
   );
   const { addPendingPegin } = vi.mocked(await import("@/storage/peginStorage"));
@@ -424,7 +424,7 @@ async function setupDefaultMocks() {
     vaultId: "0xVaultId" as Hex,
     btcPopSignature: "0xMockPopSignature" as Hex,
   });
-  vi.mocked(broadcastPeginWithLocalUtxo).mockResolvedValue("btcTxId");
+  vi.mocked(broadcastPrePeginWithLocalUtxo).mockResolvedValue("btcTxId");
 
   // Payout signing
   vi.mocked(signPayoutTransactions).mockResolvedValue({
@@ -469,7 +469,7 @@ async function setupDefaultMocks() {
   });
   vi.mocked(submitPayoutSignatures).mockResolvedValue(undefined);
   vi.mocked(waitForContractVerification).mockResolvedValue(undefined);
-  vi.mocked(broadcastPeginTransaction).mockResolvedValue("mockBroadcastTxId");
+  vi.mocked(broadcastPrePeginTransaction).mockResolvedValue("mockBroadcastTxId");
 
   // Storage
   vi.mocked(addPendingPegin).mockReturnValue(undefined);
@@ -860,8 +860,8 @@ describe("useMultiVaultDepositFlow", () => {
       );
     });
 
-    it("should use broadcastPeginWithLocalUtxo for broadcast", async () => {
-      const { planUtxoAllocation, broadcastPeginWithLocalUtxo } = vi.mocked(
+    it("should use broadcastPrePeginWithLocalUtxo for broadcast", async () => {
+      const { planUtxoAllocation, broadcastPrePeginWithLocalUtxo } = vi.mocked(
         await import("@/services/vault"),
       );
 
@@ -874,7 +874,7 @@ describe("useMultiVaultDepositFlow", () => {
       await executeWithAutoArtifactDownload(result);
 
       await waitFor(() => {
-        expect(broadcastPeginWithLocalUtxo).toHaveBeenCalledTimes(2);
+        expect(broadcastPrePeginWithLocalUtxo).toHaveBeenCalledTimes(2);
       });
     });
 
@@ -1346,12 +1346,12 @@ describe("useMultiVaultDepositFlow", () => {
       const { planUtxoAllocation } = vi.mocked(
         await import("@/services/vault"),
       );
-      const { broadcastPeginTransaction } = vi.mocked(
+      const { broadcastPrePeginTransaction } = vi.mocked(
         await import("@/services/vault/vaultPeginBroadcastService"),
       );
 
       vi.mocked(planUtxoAllocation).mockReturnValue(SINGLE_PLAN);
-      vi.mocked(broadcastPeginTransaction).mockRejectedValue(
+      vi.mocked(broadcastPrePeginTransaction).mockRejectedValue(
         new Error("Network timeout"),
       );
 
@@ -1416,10 +1416,10 @@ describe("useMultiVaultDepositFlow", () => {
             offchain_params_version: 0,
           },
         });
-      const { broadcastPeginTransaction } = vi.mocked(
+      const { broadcastPrePeginTransaction } = vi.mocked(
         await import("@/services/vault/vaultPeginBroadcastService"),
       );
-      vi.mocked(broadcastPeginTransaction).mockRejectedValue(
+      vi.mocked(broadcastPrePeginTransaction).mockRejectedValue(
         new Error("Broadcast fail"),
       );
 

@@ -229,7 +229,7 @@ vi.mock("@/utils/btc", () => ({
 
 // Mock vault services for steps 3-4
 vi.mock("@/services/vault", () => ({
-  broadcastPeginTransaction: vi.fn().mockResolvedValue("0xbroadcasttxid"),
+  broadcastPrePeginTransaction: vi.fn().mockResolvedValue("0xbroadcasttxid"),
   fetchVaultById: vi.fn().mockResolvedValue({
     depositorSignedPeginTx: "0xmockunsignedtx",
     unsignedPrePeginTx: "0xmockprepeginTx",

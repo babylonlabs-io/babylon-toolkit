@@ -25,7 +25,7 @@ export type { UseDepositValidationResult } from "./useDepositValidation";
 export { useEstimatedBtcFee } from "./useEstimatedBtcFee";
 export { useVaultActions } from "./useVaultActions";
 export type {
-  BroadcastPeginParams,
+  BroadcastPrePeginParams,
   UseVaultActionsReturn,
 } from "./useVaultActions";
 

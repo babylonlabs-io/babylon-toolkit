@@ -19,7 +19,7 @@ import {
 } from "../../models/peginStateMachine";
 import {
   assertUtxosAvailable,
-  broadcastPeginTransaction,
+  broadcastPrePeginTransaction,
   fetchVaultById,
   UtxoNotAvailableError,
 } from "../../services/vault";
@@ -28,7 +28,7 @@ import type { PendingPeginRequest } from "../../storage/peginStorage";
 import { stripHexPrefix } from "../../utils/btc";
 import { validateSecretAgainstHashlock } from "../../utils/htlcSecret";
 
-export interface BroadcastPeginParams {
+export interface BroadcastPrePeginParams {
   activityId: string;
   activityAmount: string;
   activityProviders: Array<{ id: string }>;
@@ -65,7 +65,7 @@ export interface UseVaultActionsReturn {
   // Broadcast state
   broadcasting: boolean;
   broadcastError: string | null;
-  handleBroadcast: (params: BroadcastPeginParams) => Promise<void>;
+  handleBroadcast: (params: BroadcastPrePeginParams) => Promise<void>;
   // Activation state
   activating: boolean;
   activationError: string | null;
@@ -90,7 +90,7 @@ export function useVaultActions(): UseVaultActionsReturn {
   /**
    * Handle broadcasting BTC transaction
    */
-  const handleBroadcast = async (params: BroadcastPeginParams) => {
+  const handleBroadcast = async (params: BroadcastPrePeginParams) => {
     const {
       activityId,
       activityAmount,
@@ -145,7 +145,7 @@ export function useVaultActions(): UseVaultActionsReturn {
       await assertUtxosAvailable(unsignedTxHex, depositorAddress);
 
       // Broadcast the transaction (UTXO will be derived from mempool API)
-      const txId = await broadcastPeginTransaction({
+      const txId = await broadcastPrePeginTransaction({
         unsignedTxHex,
         btcWalletProvider: {
           signPsbt: (psbtHex: string) => btcWalletProvider.signPsbt(psbtHex),

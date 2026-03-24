@@ -356,8 +356,11 @@ export function getPeginState(
 
   // Contract Status 1: Verified (All ACKs collected, ready for activation)
   if (contractStatus === ContractStatus.VERIFIED) {
-    // Sub-state: BTC transaction broadcasted — user needs to reveal secret to activate
-    if (localStatus === LocalStorageStatus.CONFIRMING) {
+    // Sub-state: BTC was already broadcast (CONFIRMING or later) — activate
+    if (
+      localStatus === LocalStorageStatus.CONFIRMING ||
+      localStatus === LocalStorageStatus.PAYOUT_SIGNED
+    ) {
       return {
         contractStatus,
         localStatus,
@@ -369,7 +372,7 @@ export function getPeginState(
       };
     }
 
-    // Ready to broadcast to Bitcoin
+    // Pre-PegIn not yet broadcast — offer broadcast action
     return {
       contractStatus,
       localStatus,

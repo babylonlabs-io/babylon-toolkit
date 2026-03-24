@@ -1,20 +1,20 @@
 /**
- * Split Pegin Service
+ * Split Pre-PegIn Service
  *
- * Provides pegin creation for the SPLIT allocation strategy, where each vault's
- * pegin transaction spends an output from an **unconfirmed** split transaction
+ * Provides Pre-PegIn creation for the SPLIT allocation strategy, where each vault's
+ * Pre-PegIn transaction spends an output from an **unconfirmed** split transaction
  * instead of a confirmed wallet UTXO.
  *
  * The standard SDK PeginManager flow fetches UTXO data from the mempool API,
  * which fails for outputs that do not yet exist on-chain. This service replicates
- * the same pegin construction logic but uses **local UTXO data** supplied by the
+ * the same Pre-PegIn construction logic but uses **local UTXO data** supplied by the
  * caller — data that was captured when the split transaction was built.
  *
  * Three entry points:
- *  1. `preparePeginFromSplitOutput`  – builds the pegin tx using local UTXO data
- *  2. `registerSplitPeginOnChain`    – submits the pegin to Ethereum (reuses SDK)
- *  3. `broadcastPeginWithLocalUtxo`  – signs and broadcasts the pegin without
- *                                      fetching anything from the mempool
+ *  1. `preparePeginFromSplitOutput`       – builds the Pre-PegIn tx using local UTXO data
+ *  2. `registerSplitPeginOnChain`         – submits the pegin to Ethereum (reuses SDK)
+ *  3. `broadcastPrePeginWithLocalUtxo`    – signs and broadcasts the Pre-PegIn without
+ *                                           fetching anything from the mempool
  *
  * @module services/vault/multiVault/vaultSplitPeginService
  */
@@ -223,9 +223,12 @@ export async function preparePeginFromSplitOutput(
     const prePeginResult = await buildPrePeginPsbt(prePeginParams);
 
     // Step 4: Select UTXOs — only the split output; no mempool fetch
+    // Must cover ALL WASM outputs (HTLC + depositor claim), not just htlcValue.
+    const totalOutputValue =
+      prePeginResult.htlcValue + prePeginResult.depositorClaimValue;
     const utxoSelection = selectUtxosForPegin(
       [params.splitOutput],
-      prePeginResult.htlcValue,
+      totalOutputValue,
       params.feeRate,
     );
 
@@ -342,13 +345,13 @@ export async function registerSplitPeginOnChain(
 }
 
 // ============================================================================
-// Function 3: broadcastPeginWithLocalUtxo
+// Function 3: broadcastPrePeginWithLocalUtxo
 // ============================================================================
 
 /**
  * Sign and broadcast a split pegin transaction using local UTXO data.
  *
- * Unlike `broadcastPeginTransaction()` in the standard flow, this function does
+ * Unlike `broadcastPrePeginTransaction()` in the standard flow, this function does
  * **not** fetch UTXO data from the mempool. Each input is matched against the
  * provided `splitOutputs` array by `txid:vout`. This is required because the
  * split transaction may still be unconfirmed when this function runs.
@@ -365,7 +368,7 @@ export async function registerSplitPeginOnChain(
  * @returns The broadcasted Bitcoin transaction ID
  * @throws Error if a matching split output cannot be found for any input
  */
-export async function broadcastPeginWithLocalUtxo(
+export async function broadcastPrePeginWithLocalUtxo(
   params: BroadcastSplitPeginParams,
 ): Promise<string> {
   const { fundedPrePeginTxHex, depositorBtcPubkey, splitOutputs, signPsbt } =
@@ -459,6 +462,6 @@ export async function broadcastPeginWithLocalUtxo(
     return btcTxid;
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
-    throw new Error(`Failed to broadcast split pegin transaction: ${message}`);
+    throw new Error(`Failed to broadcast split Pre-PegIn transaction: ${message}`);
   }
 }

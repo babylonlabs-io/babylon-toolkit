@@ -7,14 +7,14 @@
  * Key things under test:
  *  - preparePeginFromSplitOutput: pubkey normalisation, SDK call orchestration, return mapping
  *  - registerSplitPeginOnChain:   PeginManager construction, delegation, return pass-through
- *  - broadcastPeginWithLocalUtxo: UTXO matching (no mempool), PSBT construction, sign & broadcast
+ *  - broadcastPrePeginWithLocalUtxo: UTXO matching (no mempool), PSBT construction, sign & broadcast
  */
 
 import type { UTXO } from "@babylonlabs-io/ts-sdk/tbv/core";
 import { beforeEach, describe, expect, it, vi, type Mock } from "vitest";
 
 import {
-  broadcastPeginWithLocalUtxo,
+  broadcastPrePeginWithLocalUtxo,
   preparePeginFromSplitOutput,
   registerSplitPeginOnChain,
   type BroadcastSplitPeginParams,
@@ -633,9 +633,9 @@ describe("registerSplitPeginOnChain", () => {
   });
 });
 
-// ─── broadcastPeginWithLocalUtxo ─────────────────────────────────────────────
+// ─── broadcastPrePeginWithLocalUtxo ─────────────────────────────────────────────
 
-describe("broadcastPeginWithLocalUtxo", () => {
+describe("broadcastPrePeginWithLocalUtxo", () => {
   /**
    * A raw Bitcoin transaction stores txid bytes in **little-endian** (reversed) order.
    * When we do `Buffer.from(input.hash).reverse().toString("hex")` we recover the
@@ -715,7 +715,7 @@ describe("broadcastPeginWithLocalUtxo", () => {
     it("throws 'Transaction has no inputs' when tx has empty ins", async () => {
       mockFromHex.mockReturnValue(makeFakeTx({ ins: [] }));
 
-      await expect(broadcastPeginWithLocalUtxo(baseParams)).rejects.toThrow(
+      await expect(broadcastPrePeginWithLocalUtxo(baseParams)).rejects.toThrow(
         "Transaction has no inputs",
       );
     });
@@ -723,7 +723,7 @@ describe("broadcastPeginWithLocalUtxo", () => {
     it("throws 'Invalid pubkey format' for a pubkey shorter than 64 chars", async () => {
       baseParams.depositorBtcPubkey = "aa".repeat(31); // 62 chars
 
-      await expect(broadcastPeginWithLocalUtxo(baseParams)).rejects.toThrow(
+      await expect(broadcastPrePeginWithLocalUtxo(baseParams)).rejects.toThrow(
         "Invalid pubkey format",
       );
     });
@@ -731,7 +731,7 @@ describe("broadcastPeginWithLocalUtxo", () => {
     it("throws 'Invalid pubkey format' for a pubkey longer than 64 chars", async () => {
       baseParams.depositorBtcPubkey = "aa".repeat(33); // 66 chars
 
-      await expect(broadcastPeginWithLocalUtxo(baseParams)).rejects.toThrow(
+      await expect(broadcastPrePeginWithLocalUtxo(baseParams)).rejects.toThrow(
         "Invalid pubkey format",
       );
     });
@@ -740,7 +740,7 @@ describe("broadcastPeginWithLocalUtxo", () => {
       // 64 chars but contains "zz"
       baseParams.depositorBtcPubkey = "zz".repeat(1) + "aa".repeat(31);
 
-      await expect(broadcastPeginWithLocalUtxo(baseParams)).rejects.toThrow(
+      await expect(broadcastPrePeginWithLocalUtxo(baseParams)).rejects.toThrow(
         "Invalid pubkey format",
       );
     });
@@ -751,14 +751,14 @@ describe("broadcastPeginWithLocalUtxo", () => {
   describe("0x prefix stripping", () => {
     it("strips 0x prefix from fundedPrePeginTxHex before passing to Transaction.fromHex", async () => {
       baseParams.fundedPrePeginTxHex = "0x" + "funded-tx-hex";
-      await broadcastPeginWithLocalUtxo(baseParams);
+      await broadcastPrePeginWithLocalUtxo(baseParams);
 
       expect(mockFromHex).toHaveBeenCalledWith("funded-tx-hex");
     });
 
     it("does not double-strip when fundedPrePeginTxHex has no 0x prefix", async () => {
       baseParams.fundedPrePeginTxHex = "funded-tx-hex";
-      await broadcastPeginWithLocalUtxo(baseParams);
+      await broadcastPrePeginWithLocalUtxo(baseParams);
 
       expect(mockFromHex).toHaveBeenCalledWith("funded-tx-hex");
     });
@@ -767,7 +767,7 @@ describe("broadcastPeginWithLocalUtxo", () => {
       baseParams.depositorBtcPubkey = "0x" + X_ONLY_PUBKEY;
       // Should succeed — 0x is stripped leaving the valid 64-char key
       await expect(
-        broadcastPeginWithLocalUtxo(baseParams),
+        broadcastPrePeginWithLocalUtxo(baseParams),
       ).resolves.toBeDefined();
     });
   });
@@ -777,7 +777,7 @@ describe("broadcastPeginWithLocalUtxo", () => {
   describe("UTXO matching", () => {
     it("matches split output by reversed txid and vout", async () => {
       // The service reverses input.hash to get display txid and compares to splitOutputs
-      await broadcastPeginWithLocalUtxo(baseParams);
+      await broadcastPrePeginWithLocalUtxo(baseParams);
 
       // getPsbtInputFields should be called with the matched utxo data
       expect(mockGetPsbtInputFields).toHaveBeenCalledTimes(1);
@@ -797,7 +797,7 @@ describe("broadcastPeginWithLocalUtxo", () => {
         }),
       );
 
-      await expect(broadcastPeginWithLocalUtxo(baseParams)).rejects.toThrow(
+      await expect(broadcastPrePeginWithLocalUtxo(baseParams)).rejects.toThrow(
         "Missing UTXO data for input",
       );
     });
@@ -810,7 +810,7 @@ describe("broadcastPeginWithLocalUtxo", () => {
         }),
       );
 
-      await expect(broadcastPeginWithLocalUtxo(baseParams)).rejects.toThrow(
+      await expect(broadcastPrePeginWithLocalUtxo(baseParams)).rejects.toThrow(
         // Error message should contain the first 8 chars of the available txid
         SPLIT_TXID.slice(0, 8),
       );
@@ -825,7 +825,7 @@ describe("broadcastPeginWithLocalUtxo", () => {
         }),
       );
 
-      await expect(broadcastPeginWithLocalUtxo(baseParams)).rejects.toThrow(
+      await expect(broadcastPrePeginWithLocalUtxo(baseParams)).rejects.toThrow(
         "Missing UTXO data for input",
       );
     });
@@ -838,7 +838,7 @@ describe("broadcastPeginWithLocalUtxo", () => {
         }),
       );
 
-      await expect(broadcastPeginWithLocalUtxo(baseParams)).rejects.toThrow(
+      await expect(broadcastPrePeginWithLocalUtxo(baseParams)).rejects.toThrow(
         "Missing UTXO data for input",
       );
     });
@@ -849,18 +849,18 @@ describe("broadcastPeginWithLocalUtxo", () => {
   describe("PSBT construction", () => {
     it("sets PSBT version from the parsed transaction", async () => {
       mockFromHex.mockReturnValue(makeFakeTx({ version: 2 }));
-      await broadcastPeginWithLocalUtxo(baseParams);
+      await broadcastPrePeginWithLocalUtxo(baseParams);
       expect(mockPsbtInstance.setVersion).toHaveBeenCalledWith(2);
     });
 
     it("sets PSBT locktime from the parsed transaction", async () => {
       mockFromHex.mockReturnValue(makeFakeTx({ locktime: 800_000 }));
-      await broadcastPeginWithLocalUtxo(baseParams);
+      await broadcastPrePeginWithLocalUtxo(baseParams);
       expect(mockPsbtInstance.setLocktime).toHaveBeenCalledWith(800_000);
     });
 
     it("calls getPsbtInputFields with matched UTXO data", async () => {
-      await broadcastPeginWithLocalUtxo(baseParams);
+      await broadcastPrePeginWithLocalUtxo(baseParams);
 
       const [utxoArg] = mockGetPsbtInputFields.mock.calls[0];
       expect(utxoArg.scriptPubKey).toBe(SPLIT_OUTPUT.scriptPubKey);
@@ -868,7 +868,7 @@ describe("broadcastPeginWithLocalUtxo", () => {
     });
 
     it("calls getPsbtInputFields with the x-only public key buffer", async () => {
-      await broadcastPeginWithLocalUtxo(baseParams);
+      await broadcastPrePeginWithLocalUtxo(baseParams);
 
       const [, pubkeyArg] = mockGetPsbtInputFields.mock.calls[0];
       expect(pubkeyArg).toEqual(Buffer.from(X_ONLY_PUBKEY, "hex"));
@@ -877,7 +877,7 @@ describe("broadcastPeginWithLocalUtxo", () => {
     it("adds input to PSBT with hash, index, sequence, and spread psbtInputFields", async () => {
       const fakeTx = makeFakeTx();
       mockFromHex.mockReturnValue(fakeTx);
-      await broadcastPeginWithLocalUtxo(baseParams);
+      await broadcastPrePeginWithLocalUtxo(baseParams);
 
       expect(mockPsbtInstance.addInput).toHaveBeenCalledWith({
         hash: fakeTx.ins[0]!.hash,
@@ -896,7 +896,7 @@ describe("broadcastPeginWithLocalUtxo", () => {
       });
       mockFromHex.mockReturnValue(fakeTx);
 
-      await broadcastPeginWithLocalUtxo(baseParams);
+      await broadcastPrePeginWithLocalUtxo(baseParams);
 
       expect(mockPsbtInstance.addOutput).toHaveBeenCalledTimes(2);
       expect(mockPsbtInstance.addOutput).toHaveBeenNthCalledWith(1, {
@@ -914,12 +914,12 @@ describe("broadcastPeginWithLocalUtxo", () => {
 
   describe("signing and broadcast", () => {
     it("calls signPsbt with the PSBT hex", async () => {
-      await broadcastPeginWithLocalUtxo(baseParams);
+      await broadcastPrePeginWithLocalUtxo(baseParams);
       expect(mockSignPsbt).toHaveBeenCalledWith("psbt-hex");
     });
 
     it("calls pushTx with signed tx hex and mempool API URL", async () => {
-      await broadcastPeginWithLocalUtxo(baseParams);
+      await broadcastPrePeginWithLocalUtxo(baseParams);
 
       expect(mockPushTx).toHaveBeenCalledWith(
         "signed-tx-hex",
@@ -928,7 +928,7 @@ describe("broadcastPeginWithLocalUtxo", () => {
     });
 
     it("returns the txid string from pushTx", async () => {
-      const result = await broadcastPeginWithLocalUtxo(baseParams);
+      const result = await broadcastPrePeginWithLocalUtxo(baseParams);
       expect(result).toBe("broadcast-txid");
     });
   });
@@ -939,7 +939,7 @@ describe("broadcastPeginWithLocalUtxo", () => {
     it("wraps broadcast errors with 'Failed to broadcast split pegin transaction:'", async () => {
       mockPushTx.mockRejectedValue(new Error("mempool rejected tx"));
 
-      await expect(broadcastPeginWithLocalUtxo(baseParams)).rejects.toThrow(
+      await expect(broadcastPrePeginWithLocalUtxo(baseParams)).rejects.toThrow(
         "Failed to broadcast split pegin transaction: mempool rejected tx",
       );
     });
@@ -947,7 +947,7 @@ describe("broadcastPeginWithLocalUtxo", () => {
     it("wraps signing errors with 'Failed to broadcast split pegin transaction:'", async () => {
       mockSignPsbt.mockRejectedValue(new Error("user rejected signing"));
 
-      await expect(broadcastPeginWithLocalUtxo(baseParams)).rejects.toThrow(
+      await expect(broadcastPrePeginWithLocalUtxo(baseParams)).rejects.toThrow(
         "Failed to broadcast split pegin transaction: user rejected signing",
       );
     });
