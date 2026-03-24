@@ -76,6 +76,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NPM_CONFIG_PROVENANCE: true
+          NODE_AUTH_TOKEN: ''
 
       - name: Bump RC version
         if: github.event_name == 'workflow_dispatch'
@@ -102,6 +103,7 @@ jobs:
           PKG: ${{ inputs.package }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NPM_CONFIG_PROVENANCE: true
+          NODE_AUTH_TOKEN: ''
         run: |
           pnpm exec nx release publish \
             --projects="$PKG" \
