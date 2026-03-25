@@ -52,7 +52,8 @@ import { useVaultProviders } from "./useVaultProviders";
 
 export interface UseDepositFlowParams {
   amount: bigint;
-  feeRate: number;
+  /** Mempool fee rate in sat/vB for UTXO selection and funding */
+  mempoolFeeRate: number;
   btcWalletProvider: BitcoinWallet | null;
   depositorEthAddress: Address | undefined;
   selectedApplication: string;
@@ -98,7 +99,7 @@ export function useDepositFlow(
 ): UseDepositFlowReturn {
   const {
     amount,
-    feeRate,
+    mempoolFeeRate,
     btcWalletProvider,
     depositorEthAddress,
     selectedApplication,
@@ -224,7 +225,8 @@ export function useDepositFlow(
           btcWalletProvider: confirmedBtcWallet,
           walletClient,
           amount,
-          feeRate,
+          protocolFeeRate: config.offchainParams.feeRate,
+          mempoolFeeRate,
           btcAddress,
           selectedProviders,
           vaultProviderBtcPubkey,
@@ -233,7 +235,6 @@ export function useDepositFlow(
           timelockPegin,
           timelockRefund,
           hashH,
-          numLocalChallengers: vaultKeeperBtcPubkeys.length,
           councilQuorum: config.offchainParams.councilQuorum,
           councilSize: config.offchainParams.securityCouncilKeys.length,
           confirmedUTXOs: spendableUTXOs!,
@@ -463,7 +464,7 @@ export function useDepositFlow(
       }
     }, [
       amount,
-      feeRate,
+      mempoolFeeRate,
       btcWalletProvider,
       depositorEthAddress,
       selectedApplication,

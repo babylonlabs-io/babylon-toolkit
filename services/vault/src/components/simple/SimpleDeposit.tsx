@@ -322,7 +322,7 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
                     (a) => a.amount,
                   )}
                   precomputedPlan={splitAllocationPlan}
-                  feeRate={feeRate}
+                  mempoolFeeRate={feeRate}
                   btcWalletProvider={btcWalletProvider}
                   depositorEthAddress={ethAddress}
                   selectedApplication={selectedApplication}
@@ -342,7 +342,7 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
               ) : (
                 <DepositSignContent
                   amount={depositAmount}
-                  feeRate={feeRate}
+                  mempoolFeeRate={feeRate}
                   btcWalletProvider={btcWalletProvider}
                   depositorEthAddress={ethAddress}
                   selectedApplication={selectedApplication}

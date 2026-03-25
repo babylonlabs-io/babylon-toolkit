@@ -145,14 +145,16 @@ export interface CreateAtomicPeginParams {
   hashH: string;
 
   /**
-   * Fee rate in satoshis per vbyte for the Pre-PegIn transaction.
+   * Protocol fee rate in sat/vB from the contract offchain params.
+   * Used by WASM for computing depositorClaimValue and min pegin fee.
    */
-  feeRate: number;
+  protocolFeeRate: bigint;
 
   /**
-   * Number of local challengers (from contract params).
+   * Mempool fee rate in sat/vB for funding the Pre-PegIn transaction.
+   * Used for UTXO selection and change calculation.
    */
-  numLocalChallengers: number;
+  mempoolFeeRate: number;
 
   /**
    * M in M-of-N council multisig (from contract params).
@@ -421,6 +423,8 @@ export class PeginManager {
     const universalChallengerBtcPubkeys =
       params.universalChallengerBtcPubkeys.map(stripHexPrefix);
 
+    const numLocalChallengers = vaultKeeperBtcPubkeys.length;
+
     const prePeginParams: PrePeginParams = {
       depositorPubkey: depositorBtcPubkey,
       vaultProviderPubkey: vaultProviderBtcPubkey,
@@ -429,8 +433,8 @@ export class PeginManager {
       hashH: params.hashH,
       timelockRefund: params.timelockRefund,
       pegInAmount: params.amount,
-      feeRate: BigInt(params.feeRate),
-      numLocalChallengers: params.numLocalChallengers,
+      feeRate: params.protocolFeeRate,
+      numLocalChallengers,
       councilQuorum: params.councilQuorum,
       councilSize: params.councilSize,
       network: this.config.btcNetwork,
@@ -445,7 +449,7 @@ export class PeginManager {
     const utxoSelection = selectUtxosForPegin(
       [...params.availableUTXOs],
       prePeginResult.totalOutputValue,
-      params.feeRate,
+      params.mempoolFeeRate,
     );
 
     // Step 4: Fund the Pre-PegIn transaction with selected UTXOs

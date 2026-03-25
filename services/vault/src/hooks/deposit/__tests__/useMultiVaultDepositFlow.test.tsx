@@ -19,11 +19,6 @@ import { useMultiVaultDepositFlow } from "../useMultiVaultDepositFlow";
 // Mocks
 // ============================================================================
 
-// Mock depositor claim value utility
-vi.mock("@/utils/depositorClaimValue", () => ({
-  computeDepositorClaimValue: vi.fn().mockResolvedValue(35000n),
-}));
-
 vi.mock("@/utils/rpc", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/utils/rpc")>()),
   getVpProxyUrl: (address: string) => `https://proxy.test/rpc/${address}`,
@@ -211,7 +206,7 @@ const MOCK_ETH_WALLET = {
 
 const MOCK_PARAMS = {
   vaultAmounts: [100000n],
-  feeRate: 10,
+  mempoolFeeRate: 10,
   btcWalletProvider: MOCK_BTC_WALLET as any,
   depositorEthAddress: "0xEthAddress123" as Address,
   selectedApplication: "0xAppController",

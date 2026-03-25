@@ -74,7 +74,8 @@ describe("vaultTransactionService - preparePeginTransaction", () => {
 
   const baseParams: PreparePeginParams = {
     pegInAmount: 100000n,
-    feeRate: 10,
+    protocolFeeRate: 10n,
+    mempoolFeeRate: 10,
     changeAddress: "bc1qtest",
     vaultProviderAddress: "0xprovider" as `0x${string}`,
     vaultProviderBtcPubkey: "pubkey",
@@ -83,7 +84,6 @@ describe("vaultTransactionService - preparePeginTransaction", () => {
     timelockPegin: 100,
     timelockRefund: 50,
     hashH: "ab".repeat(32),
-    numLocalChallengers: 1,
     councilQuorum: 2,
     councilSize: 3,
     availableUTXOs: mockUTXOs,

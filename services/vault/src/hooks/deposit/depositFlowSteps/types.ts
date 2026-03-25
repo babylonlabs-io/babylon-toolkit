@@ -65,7 +65,10 @@ export interface PeginPrepareParams {
   btcWalletProvider: BitcoinWallet;
   walletClient: WalletClient;
   amount: bigint;
-  feeRate: number;
+  /** Protocol fee rate in sat/vB from contract offchain params */
+  protocolFeeRate: bigint;
+  /** Mempool fee rate in sat/vB for UTXO selection and funding */
+  mempoolFeeRate: number;
   btcAddress: string;
   selectedProviders: string[];
   vaultProviderBtcPubkey: string;
@@ -77,8 +80,6 @@ export interface PeginPrepareParams {
   timelockRefund: number;
   /** SHA256 hash commitment for the HTLC (64 hex chars = 32 bytes) */
   hashH: string;
-  /** Number of local challengers (vault keepers) */
-  numLocalChallengers: number;
   /** M in M-of-N council multisig */
   councilQuorum: number;
   /** N in M-of-N council multisig */

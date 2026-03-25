@@ -49,6 +49,9 @@
  * ### Script Generators
  * - {@link createPayoutScript} - Generate taproot payout script
  *
+ * ### Challenger Counting
+ * - {@link computeNumLocalChallengers} - Compute number of local challengers for a vault
+ *
  * ### WASM Functions
  * - {@link computeMinClaimValue} - Compute the minimum claim value accepted by the vault provider
  *
@@ -68,6 +71,9 @@
  *
  * @module primitives
  */
+
+// Challenger counting
+export { computeNumLocalChallengers } from "./challengers";
 
 // Core types and functions from WASM package
 export type { Network } from "@babylonlabs-io/babylon-tbv-rust-wasm";

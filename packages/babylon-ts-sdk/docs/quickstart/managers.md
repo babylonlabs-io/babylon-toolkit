@@ -75,8 +75,8 @@ const result = await peginManager.prepareAtomicPegin({
   timelockPegin: 100, // CSV timelock for PegIn vault output
   timelockRefund: 50, // CSV timelock for Pre-PegIn HTLC refund
   hashH: "abcd...", // SHA256(secret) for the HTLC (64 hex chars)
-  feeRate: 10, // sat/vB
-  numLocalChallengers: 1,
+  protocolFeeRate: 2n, // Protocol fee rate from contract offchain params
+  mempoolFeeRate: 10, // Mempool fee rate in sat/vB for UTXO selection
   councilQuorum: 2,
   councilSize: 3,
   availableUTXOs, // Your UTXOs

@@ -1,9 +1,13 @@
+import {
+  computeMinClaimValue,
+  computeNumLocalChallengers,
+} from "@babylonlabs-io/ts-sdk/tbv/core";
 import { useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { PriceMetadata } from "@/clients/eth-contract/chainlink";
+import { useBtcPublicKey } from "@/hooks/useBtcPublicKey";
 import type { AllocationPlan } from "@/services/vault";
-import { computeDepositorClaimValue } from "@/utils/depositorClaimValue";
 
 import { useProtocolParamsContext } from "../../context/ProtocolParamsContext";
 import { useBTCWallet, useConnection } from "../../context/wallet";
@@ -92,8 +96,9 @@ export interface UseDepositPageFormResult {
 }
 
 export function useDepositPageForm(): UseDepositPageFormResult {
-  const { address: btcAddress } = useBTCWallet();
+  const { address: btcAddress, connected: btcConnected } = useBTCWallet();
   const { isConnected: isWalletConnected } = useConnection();
+  const depositorBtcPubkey = useBtcPublicKey(btcConnected);
   const { config, latestUniversalChallengers } = useProtocolParamsContext();
   const btcPriceUSD = usePrice("BTC");
   const { metadata, hasStalePrices, hasPriceFetchError } = usePrices();
@@ -160,6 +165,16 @@ export function useDepositPageForm(): UseDepositPageFormResult {
     prevApplicationRef.current = currentApp;
   }, [formData.selectedApplication]);
 
+  // Derive selected VP's BTC pubkey and VK BTC pubkeys for challenger count
+  const selectedVpBtcPubkey = useMemo(() => {
+    const provider = providers.find((p) => p.id === formData.selectedProvider);
+    return provider?.btcPubkey;
+  }, [providers, formData.selectedProvider]);
+  const vaultKeeperBtcPubkeys = useMemo(
+    () => vaultKeepers.map((vk) => vk.btcPubKey),
+    [vaultKeepers],
+  );
+
   const providerIds = useMemo(
     () => providers.map((p: { id: string }) => p.id),
     [providers],
@@ -217,27 +232,41 @@ export function useDepositPageForm(): UseDepositPageFormResult {
     maxDeposit: maxDepositSats,
   } = useEstimatedBtcFee(amountSats, spendableMempoolUTXOs);
 
-  // Compute depositorClaimValue with actual VK count (local challengers = VKs).
-  // undefined while loading — isValid gates on this to prevent submitting with no value.
+  // Compute depositorClaimValue for UI validation (min deposit check).
+  // Uses {VP} ∪ {VKs} − {depositor} which is >= the transaction builder's
+  // vaultKeepers.length, making this a conservative estimate.
+  const numLocalChallengers = useMemo(() => {
+    if (!selectedVpBtcPubkey || !depositorBtcPubkey) return undefined;
+    try {
+      return computeNumLocalChallengers(
+        selectedVpBtcPubkey,
+        vaultKeeperBtcPubkeys,
+        depositorBtcPubkey,
+      );
+    } catch {
+      return undefined;
+    }
+  }, [selectedVpBtcPubkey, vaultKeeperBtcPubkeys, depositorBtcPubkey]);
+
   const { data: depositorClaimValue } = useQuery({
     queryKey: [
       "depositorClaimValue",
-      vaultKeepers.length,
+      numLocalChallengers,
       latestUniversalChallengers.length,
-      config.offchainParams.babeInstancesToFinalize,
       config.offchainParams.councilQuorum,
       config.offchainParams.securityCouncilKeys.length,
       String(config.offchainParams.feeRate),
     ],
     queryFn: () =>
-      computeDepositorClaimValue({
-        numLocalChallengers: vaultKeepers.length,
-        numUniversalChallengers: latestUniversalChallengers.length,
-        councilQuorum: config.offchainParams.councilQuorum,
-        councilSize: config.offchainParams.securityCouncilKeys.length,
-        feeRate: config.offchainParams.feeRate,
-      }),
-    enabled: latestUniversalChallengers.length > 0,
+      computeMinClaimValue(
+        numLocalChallengers!,
+        latestUniversalChallengers.length,
+        config.offchainParams.councilQuorum,
+        config.offchainParams.securityCouncilKeys.length,
+        config.offchainParams.feeRate,
+      ),
+    enabled:
+      latestUniversalChallengers.length > 0 && numLocalChallengers != null,
     staleTime: STALE_TIME_MS,
     refetchOnWindowFocus: false,
   });

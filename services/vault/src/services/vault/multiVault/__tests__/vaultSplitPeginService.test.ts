@@ -133,6 +133,7 @@ vi.mock("@babylonlabs-io/ts-sdk/tbv/core", () => ({
   getNetwork: mockGetNetwork,
   getPsbtInputFields: mockGetPsbtInputFields,
   PeginManager: MockPeginManager,
+  computeNumLocalChallengers: vi.fn(() => 2),
 }));
 
 vi.mock("@babylonlabs-io/ts-sdk", () => ({
@@ -238,7 +239,8 @@ describe("preparePeginFromSplitOutput", () => {
 
     baseParams = {
       pegInAmount: 5_000_000n,
-      feeRate: 5,
+      protocolFeeRate: 5n,
+      mempoolFeeRate: 5,
       changeAddress: CHANGE_ADDRESS,
       vaultProviderAddress: VAULT_PROVIDER_ADDRESS,
       depositorBtcPubkey: X_ONLY_PUBKEY,
@@ -248,7 +250,6 @@ describe("preparePeginFromSplitOutput", () => {
       timelockPegin: 100,
       timelockRefund: 50,
       hashH: "ab".repeat(32),
-      numLocalChallengers: 1,
       councilQuorum: 2,
       councilSize: 3,
       signPsbt: vi.fn().mockResolvedValue("signed-pegin-input-psbt-hex"),
@@ -335,8 +336,8 @@ describe("preparePeginFromSplitOutput", () => {
         hashH: baseParams.hashH,
         timelockRefund: baseParams.timelockRefund,
         pegInAmount: baseParams.pegInAmount,
-        feeRate: BigInt(baseParams.feeRate),
-        numLocalChallengers: baseParams.numLocalChallengers,
+        feeRate: baseParams.protocolFeeRate,
+        numLocalChallengers: 1,
         councilQuorum: baseParams.councilQuorum,
         councilSize: baseParams.councilSize,
         network: "testnet",
@@ -351,7 +352,7 @@ describe("preparePeginFromSplitOutput", () => {
       expect(utxos).toHaveLength(1);
       expect(utxos[0]).toBe(SPLIT_OUTPUT);
       expect(amount).toBe(MOCK_PRE_PEGIN_RESULT.totalOutputValue);
-      expect(feeRate).toBe(baseParams.feeRate);
+      expect(feeRate).toBe(baseParams.mempoolFeeRate);
     });
 
     it("calls fundPeginTransaction with psbtHex from buildPrePeginPsbt", async () => {
