@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 
 import { isPreDepositorSignaturesError } from "@/models/peginStateMachine";
 import { fetchAndDownloadArtifacts } from "@/services/artifacts";
@@ -20,8 +20,14 @@ export function useArtifactDownload() {
     downloaded: false,
   });
 
+  // TODO: Remove cancelledRef once the backend delivers artifacts via streaming
+  // instead of a single oversized RPC response (~450 MB). Until then, the
+  // download reliably times out and users need a way to dismiss the modal.
+  const cancelledRef = useRef(false);
+
   const download = useCallback(
     async (providerAddress: string, peginTxid: string, depositorPk: string) => {
+      cancelledRef.current = false;
       setState({
         loading: true,
         progress: "Fetching artifacts from vault provider...",
@@ -31,6 +37,8 @@ export function useArtifactDownload() {
 
       // eslint-disable-next-line no-constant-condition
       while (true) {
+        if (cancelledRef.current) return;
+
         try {
           await fetchAndDownloadArtifacts(
             providerAddress,
@@ -38,6 +46,7 @@ export function useArtifactDownload() {
             depositorPk,
           );
 
+          if (cancelledRef.current) return;
           setState({
             loading: false,
             progress: "",
@@ -57,6 +66,7 @@ export function useArtifactDownload() {
             continue;
           }
 
+          if (cancelledRef.current) return;
           setState({
             loading: false,
             progress: "",
@@ -70,6 +80,16 @@ export function useArtifactDownload() {
     [],
   );
 
+  const cancel = useCallback(() => {
+    cancelledRef.current = true;
+    setState({
+      loading: false,
+      progress: "",
+      error: null,
+      downloaded: false,
+    });
+  }, []);
+
   const reset = useCallback(() => {
     setState({
       loading: false,
@@ -82,6 +102,7 @@ export function useArtifactDownload() {
   return {
     ...state,
     download,
+    cancel,
     reset,
   };
 }
