@@ -4,7 +4,12 @@
 
 import { describe, expect, it } from "vitest";
 
-import { formatErrorMessage } from "../formatting";
+import { JsonRpcError } from "../../rpc";
+import {
+  formatErrorMessage,
+  formatPayoutSignatureError,
+  sanitizeErrorMessage,
+} from "../formatting";
 
 describe("Error Formatting", () => {
   describe("formatErrorMessage", () => {
@@ -46,6 +51,43 @@ describe("Error Formatting", () => {
     it("should preserve original message for unrecognized errors", () => {
       const customError = new Error("Custom error message");
       expect(formatErrorMessage(customError)).toBe("Custom error message");
+    });
+  });
+
+  describe("sanitizeErrorMessage", () => {
+    it("extracts message from Error instances", () => {
+      expect(sanitizeErrorMessage(new Error("some error"))).toBe("some error");
+    });
+
+    it("returns string errors as-is", () => {
+      expect(sanitizeErrorMessage("a string error")).toBe("a string error");
+    });
+
+    it("returns 'Unknown error' for non-Error objects", () => {
+      expect(sanitizeErrorMessage({ key: "value" })).toBe("Unknown error");
+      expect(sanitizeErrorMessage(42)).toBe("Unknown error");
+      expect(sanitizeErrorMessage(null)).toBe("Unknown error");
+      expect(sanitizeErrorMessage(undefined)).toBe("Unknown error");
+    });
+  });
+
+  describe("formatPayoutSignatureError", () => {
+    it("shows error code instead of raw message for unknown JsonRpcError codes", () => {
+      const error = new JsonRpcError(-32099, "internal: secret key data here");
+      const result = formatPayoutSignatureError(error);
+
+      expect(result.title).toBe("Signature Submission Failed");
+      expect(result.message).toContain("error code: -32099");
+      expect(result.message).not.toContain("secret key data here");
+    });
+
+    it("shows generic message for unrecognized Error messages", () => {
+      const error = new Error("some internal detail about signing");
+      const result = formatPayoutSignatureError(error);
+
+      expect(result.title).toBe("Payout Signing Error");
+      expect(result.message).not.toContain("internal detail");
+      expect(result.message).toContain("unexpected error");
     });
   });
 });
