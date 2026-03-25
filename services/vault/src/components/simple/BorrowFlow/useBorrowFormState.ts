@@ -94,6 +94,7 @@ export function useBorrowFormState({
   const { isDisabled, buttonText } = validateBorrowAction(
     borrowAmount,
     metrics.healthFactorValue,
+    maxBorrowAmount,
   );
 
   const sliderMax = Math.max(maxBorrowAmount, MIN_SLIDER_MAX);
@@ -163,7 +164,7 @@ export function useBorrowFormState({
     isBorrowEnabled: FeatureFlags.isBorrowEnabled,
     showLiquidationWarning:
       borrowAmount > 0 &&
-      metrics.healthFactorValue > 0 &&
+      isFinite(metrics.healthFactorValue) &&
       metrics.healthFactorValue < MIN_HEALTH_FACTOR_FOR_BORROW,
 
     balanceFormatted: `${formatTokenAmount(collateralValueUsd, 2)} USD`,

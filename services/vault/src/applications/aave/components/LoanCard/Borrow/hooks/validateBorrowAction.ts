@@ -17,11 +17,13 @@ export interface BorrowValidationResult {
  *
  * @param borrowAmount - Amount user wants to borrow
  * @param projectedHealthFactor - Health factor after the borrow
+ * @param maxBorrowAmount - Maximum borrowable amount based on collateral and debt
  * @returns Validation result with disabled state, button text, and error message
  */
 export function validateBorrowAction(
   borrowAmount: number,
   projectedHealthFactor: number,
+  maxBorrowAmount: number,
 ): BorrowValidationResult {
   if (borrowAmount === 0) {
     return {
@@ -31,9 +33,17 @@ export function validateBorrowAction(
     };
   }
 
+  if (borrowAmount > maxBorrowAmount) {
+    return {
+      isDisabled: true,
+      buttonText: "Amount exceeds maximum",
+      errorMessage: `Maximum borrowable amount is ${maxBorrowAmount.toFixed(2)}`,
+    };
+  }
+
   // Block borrow if health factor would be too low
   if (
-    projectedHealthFactor > 0 &&
+    isFinite(projectedHealthFactor) &&
     projectedHealthFactor < MIN_HEALTH_FACTOR_FOR_BORROW
   ) {
     return {
