@@ -443,7 +443,7 @@ export function useMultiVaultDepositFlow(
           splitTxResult = await createAndSignSplitTransaction(
             plan.splitTransaction,
             confirmedBtcWallet,
-            feeRate,
+            mempoolFeeRate,
           );
           // 2b. Broadcast split TX IMMEDIATELY
           try {
