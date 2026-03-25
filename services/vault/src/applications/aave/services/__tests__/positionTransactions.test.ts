@@ -144,25 +144,13 @@ describe("positionTransactions", () => {
 
     it("should throw error when amount is 0", async () => {
       await expect(
-        repay(
-          mockWalletClient,
-          mockChain,
-          "0xuser" as any,
-          1n,
-          0n,
-        ),
+        repay(mockWalletClient, mockChain, "0xuser" as any, 1n, 0n),
       ).rejects.toThrow("Repay amount must be greater than 0");
     });
 
     it("should throw error when amount is negative", async () => {
       await expect(
-        repay(
-          mockWalletClient,
-          mockChain,
-          "0xuser" as any,
-          1n,
-          -100n,
-        ),
+        repay(mockWalletClient, mockChain, "0xuser" as any, 1n, -100n),
       ).rejects.toThrow("Repay amount must be greater than 0");
     });
   });
@@ -227,13 +215,7 @@ describe("positionTransactions", () => {
       const noAccountWallet = { account: undefined } as any;
 
       await expect(
-        repayPartial(
-          noAccountWallet,
-          mockChain,
-          1n,
-          "0xtoken" as any,
-          1000n,
-        ),
+        repayPartial(noAccountWallet, mockChain, 1n, "0xtoken" as any, 1000n),
       ).rejects.toThrow("Wallet address not available");
     });
   });

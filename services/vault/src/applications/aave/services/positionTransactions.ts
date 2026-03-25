@@ -144,13 +144,7 @@ export async function repayPartial(
     );
   }
 
-  return repay(
-    walletClient,
-    chain,
-    userAddress,
-    debtReserveId,
-    amount,
-  );
+  return repay(walletClient, chain, userAddress, debtReserveId, amount);
 }
 
 /**
@@ -221,13 +215,7 @@ export async function repayFull(
     );
   }
 
-  return repay(
-    walletClient,
-    chain,
-    userAddress,
-    debtReserveId,
-    amountToRepay,
-  );
+  return repay(walletClient, chain, userAddress, debtReserveId, amountToRepay);
 }
 
 /**
