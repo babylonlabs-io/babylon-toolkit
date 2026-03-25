@@ -23,8 +23,6 @@ export interface AaveConfig {
   btcVaultManagerAddress: string;
   /** Core Spoke contract address (for user lending positions) */
   btcVaultCoreSpokeAddress: string;
-  /** Core Spoke proxy implementation address */
-  btcVaultCoreSpokeProxyImplementation: string;
   /** vBTC reserve ID on Core Spoke */
   btcVaultCoreVbtcReserveId: bigint;
 }
@@ -105,7 +103,6 @@ interface GraphQLAaveAppConfigResponse {
     vaultBtcAddress: string;
     btcVaultManagerAddress: string;
     btcVaultCoreSpokeAddress: string;
-    btcVaultCoreSpokeProxyImplementation: string;
     btcVaultCoreVbtcReserveId: string;
   } | null;
   /** All reserves (we filter for vBTC and borrowable in code) */
@@ -127,7 +124,6 @@ const GET_AAVE_APP_CONFIG = gql`
       vaultBtcAddress
       btcVaultManagerAddress
       btcVaultCoreSpokeAddress
-      btcVaultCoreSpokeProxyImplementation
       btcVaultCoreVbtcReserveId
     }
     aaveReserves {
@@ -212,8 +208,6 @@ export async function fetchAaveAppConfig(): Promise<AaveAppConfig | null> {
     vaultBtcAddress: response.aaveConfig.vaultBtcAddress,
     btcVaultManagerAddress: response.aaveConfig.btcVaultManagerAddress,
     btcVaultCoreSpokeAddress: response.aaveConfig.btcVaultCoreSpokeAddress,
-    btcVaultCoreSpokeProxyImplementation:
-      response.aaveConfig.btcVaultCoreSpokeProxyImplementation,
     btcVaultCoreVbtcReserveId: vbtcReserveId,
   };
 
@@ -253,7 +247,6 @@ interface GraphQLAaveConfigResponse {
     vaultBtcAddress: string;
     btcVaultManagerAddress: string;
     btcVaultCoreSpokeAddress: string;
-    btcVaultCoreSpokeProxyImplementation: string;
     btcVaultCoreVbtcReserveId: string;
   } | null;
 }
@@ -266,7 +259,6 @@ const GET_AAVE_CONFIG = gql`
       vaultBtcAddress
       btcVaultManagerAddress
       btcVaultCoreSpokeAddress
-      btcVaultCoreSpokeProxyImplementation
       btcVaultCoreVbtcReserveId
     }
   }
@@ -288,8 +280,6 @@ export async function fetchAaveConfig(): Promise<AaveConfig | null> {
     vaultBtcAddress: response.aaveConfig.vaultBtcAddress,
     btcVaultManagerAddress: response.aaveConfig.btcVaultManagerAddress,
     btcVaultCoreSpokeAddress: response.aaveConfig.btcVaultCoreSpokeAddress,
-    btcVaultCoreSpokeProxyImplementation:
-      response.aaveConfig.btcVaultCoreSpokeProxyImplementation,
     btcVaultCoreVbtcReserveId: BigInt(
       response.aaveConfig.btcVaultCoreVbtcReserveId,
     ),
