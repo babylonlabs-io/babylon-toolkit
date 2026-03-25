@@ -19,6 +19,10 @@ export const STEP_DESCRIPTIONS: Partial<
   [DepositFlowStep.SUBMIT_PEGIN]: {
     active: "Please sign and submit the peg-in request in your ETH wallet.",
   },
+  [DepositFlowStep.BROADCAST_PRE_PEGIN]: {
+    active:
+      "Please sign and broadcast the Pre-PegIn transaction in your BTC wallet.",
+  },
   [DepositFlowStep.SIGN_PAYOUTS]: {
     active: "Please sign the payout transaction(s) in your BTC wallet.",
     waiting: "Waiting for Vault Provider to prepare payout transaction(s)...",
@@ -26,9 +30,8 @@ export const STEP_DESCRIPTIONS: Partial<
   [DepositFlowStep.ARTIFACT_DOWNLOAD]: {
     active: "Download your vault artifacts before continuing.",
   },
-  [DepositFlowStep.BROADCAST_BTC]: {
-    active:
-      "Please sign and broadcast the Bitcoin transaction in your BTC wallet.",
+  [DepositFlowStep.ACTIVATE_VAULT]: {
+    active: "Revealing HTLC secret on Ethereum to activate the vault.",
     waiting: "Waiting for on-chain verification...",
   },
   [DepositFlowStep.COMPLETED]: {
@@ -43,14 +46,15 @@ export function getStepLabels(): string[] {
   return [
     "Sign proof of possession",
     "Sign & submit peg-in request to Ethereum",
+    "Sign & broadcast Pre-PegIn to Bitcoin",
     "Sign payout transaction(s)",
     "Download vault artifacts",
-    "Sign & broadcast Bitcoin transaction",
+    "Activate vault on Ethereum",
   ];
 }
 
 export function getTotalSteps(): number {
-  return 5;
+  return 6;
 }
 
 /**
@@ -95,7 +99,7 @@ export function canCloseModal(
   if (
     isWaiting &&
     (currentStep === DepositFlowStep.SIGN_PAYOUTS ||
-      currentStep === DepositFlowStep.BROADCAST_BTC)
+      currentStep === DepositFlowStep.ACTIVATE_VAULT)
   )
     return true;
   return false;
@@ -105,7 +109,7 @@ export function canCloseModal(
  * Default success message for deposit completion
  */
 export const DEPOSIT_SUCCESS_MESSAGE =
-  "Your Bitcoin transaction has been broadcast to the network. It will be confirmed after receiving the required number of Bitcoin confirmations.";
+  "Your vault has been activated. The deposit is now complete.";
 
 /**
  * Compute derived UI state from flow state.

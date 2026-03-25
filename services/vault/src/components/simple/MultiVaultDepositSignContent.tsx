@@ -32,8 +32,10 @@ interface MultiVaultDepositSignContentProps {
   vaultProviderBtcPubkey: string;
   vaultKeeperBtcPubkeys: string[];
   universalChallengerBtcPubkeys: string[];
+  depositorClaimValue: bigint;
   getMnemonic: () => Promise<string>;
   mnemonicId?: string;
+  htlcSecretHexes: string[];
   depositorSecretHashes?: Hex[];
   onSuccess: (
     btcTxid: string,
@@ -50,6 +52,7 @@ export function MultiVaultDepositSignContent({
   onRefetchActivities,
   vaultAmounts,
   precomputedPlan,
+  htlcSecretHexes,
   depositorSecretHashes,
   ...flowParams
 }: MultiVaultDepositSignContentProps) {
@@ -67,6 +70,7 @@ export function MultiVaultDepositSignContent({
   } = useMultiVaultDepositFlow({
     vaultAmounts,
     precomputedPlan,
+    htlcSecretHexes,
     depositorSecretHashes,
     ...flowParams,
   });
@@ -76,13 +80,12 @@ export function MultiVaultDepositSignContent({
     const result = await executeMultiVaultDeposit();
     if (result) {
       onRefetchActivities?.();
-      // Use the first successful pegin for the success callback
-      const firstSuccess = result.pegins.find((p) => !p.error);
-      if (firstSuccess) {
+      const firstPegin = result.pegins[0];
+      if (firstPegin) {
         onSuccess(
-          firstSuccess.btcTxHash,
-          firstSuccess.ethTxHash,
-          firstSuccess.depositorBtcPubkey,
+          firstPegin.btcTxHash,
+          firstPegin.ethTxHash,
+          firstPegin.depositorBtcPubkey,
         );
       }
     }

@@ -281,7 +281,7 @@ export async function prepareSigningContext(
 
   // Fetch vault data from GraphQL
   const vault = await fetchVaultById(peginTxId as Hex);
-  if (!vault?.unsignedBtcTx) {
+  if (!vault?.depositorSignedPeginTx) {
     throw new Error("Vault or pegin transaction not found");
   }
 
@@ -315,7 +315,7 @@ export async function prepareSigningContext(
   );
 
   const signingContext = {
-    peginTxHex: vault.unsignedBtcTx,
+    peginTxHex: vault.depositorSignedPeginTx,
     vaultProviderBtcPubkey,
     vaultKeeperBtcPubkeys,
     universalChallengerBtcPubkeys,

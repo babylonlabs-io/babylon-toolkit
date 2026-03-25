@@ -76,8 +76,8 @@ export async function getEthWalletClient(
 // ============================================================================
 
 /**
- * Build and fund the BTC pegin transaction. Returns the btcTxid so the
- * caller can derive the Lamport keypair before on-chain registration.
+ * Build and fund the atomic swap pegin transactions. Returns the peginTxid so
+ * the caller can derive the Lamport keypair before on-chain registration.
  */
 export async function preparePegin(
   params: PeginPrepareParams,
@@ -93,7 +93,11 @@ export async function preparePegin(
     vaultKeeperBtcPubkeys,
     universalChallengerBtcPubkeys,
     timelockPegin,
-    depositorClaimValue,
+    timelockRefund,
+    hashH,
+    numLocalChallengers,
+    councilQuorum,
+    councilSize,
     confirmedUTXOs,
     reservedUtxoRefs,
   } = params;
@@ -117,7 +121,11 @@ export async function preparePegin(
       vaultKeeperBtcPubkeys,
       universalChallengerBtcPubkeys,
       timelockPegin,
-      depositorClaimValue,
+      timelockRefund,
+      hashH,
+      numLocalChallengers,
+      councilQuorum,
+      councilSize,
       availableUTXOs: utxosToUse,
     },
   );
@@ -125,7 +133,9 @@ export async function preparePegin(
   return {
     btcTxid: result.btcTxHash,
     depositorBtcPubkey: result.depositorBtcPubkey,
-    btcTxHex: result.fundedTxHex,
+    fundedPrePeginTxHex: result.fundedPrePeginTxHex,
+    peginTxHex: result.peginTxHex,
+    peginInputSignature: result.peginInputSignature,
     selectedUTXOs: result.selectedUTXOs,
     fee: result.fee,
   };
@@ -145,7 +155,9 @@ export async function registerPeginAndWait(
     btcWalletProvider,
     walletClient,
     depositorBtcPubkey,
-    fundedTxHex,
+    peginTxHex,
+    fundedPrePeginTxHex,
+    hashlock,
     vaultProviderAddress,
     onPopSigned,
     depositorPayoutBtcAddress,
@@ -156,7 +168,9 @@ export async function registerPeginAndWait(
 
   const result = await registerPeginOnChain(btcWalletProvider, walletClient, {
     depositorBtcPubkey,
-    fundedTxHex,
+    unsignedPrePeginTxHex: fundedPrePeginTxHex,
+    peginTxHex,
+    hashlock,
     vaultProviderAddress: vaultProviderAddress as Address,
     onPopSigned,
     depositorPayoutBtcAddress,
@@ -238,7 +252,6 @@ export function savePendingPegin(params: SavePendingPeginParams): void {
   const {
     depositorEthAddress,
     btcTxid,
-    ethTxHash,
     amount,
     selectedProviders,
     applicationController,
@@ -254,7 +267,7 @@ export function savePendingPegin(params: SavePendingPeginParams): void {
     providerIds: selectedProviders,
     applicationController,
     status: LocalStorageStatus.PENDING,
-    btcTxHash: ethTxHash,
+    btcTxHash: btcTxid,
     unsignedTxHex,
     selectedUTXOs: selectedUTXOs.map((utxo) => ({
       txid: utxo.txid,

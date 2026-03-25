@@ -101,8 +101,11 @@ export interface VaultActivity {
   /** Depositor's BTC public key (x-only, 32 bytes) */
   depositorBtcPubkey?: string;
 
-  /** Unsigned BTC transaction hex (for UTXO validation) */
-  unsignedBtcTx?: string;
+  /** Depositor-signed pegin transaction hex */
+  depositorSignedPeginTx?: string;
+
+  /** Unsigned pre-pegin transaction hex (spends depositor's UTXOs — used for UTXO validation) */
+  unsignedPrePeginTx?: string;
 
   /** Keccak256 hash of depositor's Lamport public key (committed on-chain) */
   depositorLamportPkHash: string;

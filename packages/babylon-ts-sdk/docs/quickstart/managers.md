@@ -66,25 +66,32 @@ const peginManager = new PeginManager({
 ```typescript
 import { PayoutManager } from "@babylonlabs-io/ts-sdk/tbv/core";
 
-// Step 1: Prepare transaction (builds funded tx, selects UTXOs)
-const result = await peginManager.preparePegin({
+// Step 1: Prepare transaction (builds Pre-PegIn HTLC + PegIn tx, signs PegIn input)
+const result = await peginManager.prepareAtomicPegin({
   amount: 100000n, // satoshis
-  vaultProvider: "0x...", // Vault provider ETH address
   vaultProviderBtcPubkey: "abc123...", // x-only, 64 hex chars
   vaultKeeperBtcPubkeys: ["def456..."], // x-only pubkeys
   universalChallengerBtcPubkeys: ["ghi789..."],
-  availableUTXOs, // Your UTXOs
+  timelockPegin: 100, // CSV timelock for PegIn vault output
+  timelockRefund: 50, // CSV timelock for Pre-PegIn HTLC refund
+  hashH: "abcd...", // SHA256(secret) for the HTLC (64 hex chars)
   feeRate: 10, // sat/vB
+  numLocalChallengers: 1,
+  councilQuorum: 2,
+  councilSize: 3,
+  availableUTXOs, // Your UTXOs
   changeAddress: "tb1q...", // Your change address
 });
 
-console.log("Vault ID:", result.btcTxHash);
+console.log("Vault ID:", result.peginTxid);
 console.log("Fee:", result.fee, "satoshis");
 
 // Step 2: Register on Ethereum (generates PoP, submits to contract)
 const { ethTxHash, vaultId } = await peginManager.registerPeginOnChain({
   depositorBtcPubkey: "...",
-  unsignedBtcTx: result.fundedTxHex,
+  unsignedPrePeginTx: result.fundedPrePeginTxHex,
+  depositorSignedPeginTx: result.peginTxHex,
+  hashlock: "0x...",
   vaultProvider: "0x...",
 });
 
@@ -108,7 +115,7 @@ console.log("Payout signatures submitted");
 // Step 4: Sign and broadcast to Bitcoin
 // Wait for contract status to become VERIFIED (1) before broadcasting
 const btcTxid = await peginManager.signAndBroadcast({
-  fundedTxHex: result.fundedTxHex,
+  fundedPrePeginTxHex: result.fundedPrePeginTxHex,
   depositorBtcPubkey: "...",
 });
 
@@ -120,7 +127,7 @@ console.log("Broadcasted:", btcTxid);
 
 | Step | Method/Manager           | Returns                                                                           |
 | ---- | ------------------------ | --------------------------------------------------------------------------------- |
-| 1    | `preparePegin()`         | `{ btcTxHash, fundedTxHex, vaultScriptPubKey, selectedUTXOs, fee, changeAmount }` |
+| 1    | `prepareAtomicPegin()`   | `{ fundedPrePeginTxHex, peginTxHex, peginTxid, peginInputSignature, selectedUTXOs, fee, ... }` |
 | 2    | `registerPeginOnChain()` | `{ ethTxHash, vaultId }`                                                          |
 | 3    | `PayoutManager` methods  | `{ signature }` per claimer                                                       |
 | 4    | `signAndBroadcast()`     | `btcTxid` (string)                                                                |

@@ -5,16 +5,17 @@
  * and managing React state between steps.
  *
  * Flow steps:
- * 1. Build & fund BTC transaction (preparePegin)
- * 2. Derive Lamport keypair + compute keccak256 hash (if depositor-as-claimer)
+ * 1. Build & fund Pre-PegIn + PegIn transactions (preparePegin)
+ * 2. Derive Lamport keypair + compute keccak256 hash
  * 3. Sign PoP + submit ETH transaction with Lamport PK hash (registerPeginAndWait)
- * 4. Submit full Lamport PK to vault provider via RPC (if depositor-as-claimer)
- * 5. Sign Payout Transactions (after polling for readiness)
- * 6. Download vault artifacts (if depositor-as-claimer)
- * 7. Sign & Broadcast BTC Transaction
+ * 4. Sign & broadcast Pre-PegIn transaction to Bitcoin
+ * 5. Submit Lamport PK to VP, poll for readiness, sign payout transactions
+ * 6. Download vault artifacts
+ * 7. Wait for contract verification, then activate vault (reveal HTLC secret on Ethereum)
  */
 
 import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
+import { ensureHexPrefix } from "@babylonlabs-io/ts-sdk/tbv/core";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Address, Hex } from "viem";
 
@@ -24,12 +25,13 @@ import { logger } from "@/infrastructure";
 import { deriveLamportPkHash, linkPeginToMnemonic } from "@/services/lamport";
 import { collectReservedUtxoRefs } from "@/services/vault";
 import { prepareAndSignDepositorGraph } from "@/services/vault/depositorGraphSigningService";
+import { activateVaultWithSecret } from "@/services/vault/vaultActivationService";
 import {
   signPayoutTransactions,
   type PayoutSigningProgress,
 } from "@/services/vault/vaultPayoutSignatureService";
 import { getPendingPegins } from "@/storage/peginStorage";
-import { computeDepositorClaimValue } from "@/utils/depositorClaimValue";
+import { hashSecret } from "@/utils/secretUtils";
 
 import {
   broadcastBtcTransaction,
@@ -64,6 +66,11 @@ export interface UseDepositFlowParams {
   /** UUID of the stored mnemonic, used to record the peg-in → mnemonic
    *  mapping so the resume flow can look up the correct mnemonic. */
   mnemonicId?: string;
+  /** Raw HTLC secret hex (no 0x prefix) — generated in the secret modal step.
+   *  This secret is used as the HTLC preimage and its SHA-256 hash becomes
+   *  the on-chain hashlock. Must match what was shown to the user so the
+   *  resume flow can recover the vault. */
+  htlcSecretHex: string;
   /** SHA-256 hash of the depositor's secret for the new peg-in flow */
   depositorSecretHash?: Hex;
 }
@@ -101,6 +108,7 @@ export function useDepositFlow(
     universalChallengerBtcPubkeys,
     getMnemonic,
     mnemonicId,
+    htlcSecretHex: providedHtlcSecretHex,
     depositorSecretHash,
   } = params;
 
@@ -160,6 +168,7 @@ export function useDepositFlow(
     minDeposit,
     maxDeposit,
     timelockPegin,
+    timelockRefund,
     latestUniversalChallengers,
     getOffchainParamsByVersion,
   } = useProtocolParamsContext();
@@ -205,20 +214,12 @@ export function useDepositFlow(
           pendingPegins,
         });
 
-        // Compute depositorClaimValue with actual VK count. The context value
-        // uses 0 local challengers (floor for UI estimation); the VP validates
-        // with vault_keepers.len(), so we must match that here.
-        const depositorClaimValue = await computeDepositorClaimValue({
-          numLocalChallengers: vaultKeeperBtcPubkeys.length,
-          numUniversalChallengers: universalChallengerBtcPubkeys.length,
-          babeInstancesToFinalize:
-            config.offchainParams.babeInstancesToFinalize,
-          councilQuorum: config.offchainParams.councilQuorum,
-          councilSize: config.offchainParams.securityCouncilKeys.length,
-          feeRate: config.offchainParams.feeRate,
-        });
+        // Step 2a: Build Pre-PegIn HTLC, fund it, and sign PegIn input
+        // Use the secret shown to the user in the secret modal — the on-chain
+        // hashlock must match so the user can activate via the resume flow.
+        const htlcSecretHex = providedHtlcSecretHex;
+        const hashH = hashSecret(htlcSecretHex).slice(2); // strip 0x prefix
 
-        // Step 2a: Build and fund the BTC transaction (no on-chain submission yet)
         const prepared = await preparePegin({
           btcWalletProvider: confirmedBtcWallet,
           walletClient,
@@ -230,7 +231,11 @@ export function useDepositFlow(
           vaultKeeperBtcPubkeys,
           universalChallengerBtcPubkeys,
           timelockPegin,
-          depositorClaimValue,
+          timelockRefund,
+          hashH,
+          numLocalChallengers: vaultKeeperBtcPubkeys.length,
+          councilQuorum: config.offchainParams.councilQuorum,
+          councilSize: config.offchainParams.securityCouncilKeys.length,
           confirmedUTXOs: spendableUTXOs!,
           reservedUtxoRefs,
         });
@@ -246,11 +251,14 @@ export function useDepositFlow(
         );
 
         // Step 2b: Register pegin on-chain (PoP + ETH tx)
+        // Pass both pre-pegin (for DA) and pegin tx (for vault ID computation)
         const registration = await registerPeginAndWait({
           btcWalletProvider: confirmedBtcWallet,
           walletClient,
           depositorBtcPubkey: prepared.depositorBtcPubkey,
-          fundedTxHex: prepared.btcTxHex,
+          peginTxHex: prepared.peginTxHex,
+          fundedPrePeginTxHex: prepared.fundedPrePeginTxHex,
+          hashlock: ensureHexPrefix(hashH),
           vaultProviderAddress: selectedProviders[0],
           onPopSigned: () => setCurrentStep(DepositFlowStep.SUBMIT_PEGIN),
           depositorPayoutBtcAddress: btcAddress,
@@ -258,15 +266,14 @@ export function useDepositFlow(
           depositorSecretHash,
         });
 
-        // Save to localStorage
+        // Save to localStorage — store the pre-pegin tx hex for broadcasting later
         savePendingPegin({
           depositorEthAddress,
           btcTxid: registration.btcTxid,
-          ethTxHash: registration.ethTxHash,
           amount,
           selectedProviders,
           applicationController: selectedApplication,
-          unsignedTxHex: prepared.btcTxHex,
+          unsignedTxHex: prepared.fundedPrePeginTxHex,
           selectedUTXOs: prepared.selectedUTXOs,
         });
 
@@ -280,15 +287,37 @@ export function useDepositFlow(
 
         // Move to next step after persisting pegin + mnemonic link,
         // so a page refresh won't lose the association.
-        setCurrentStep(DepositFlowStep.SIGN_PAYOUTS);
-        setIsWaiting(true);
 
         const provider = findProvider(selectedProviders[0] as Hex);
         if (!provider) {
           throw new Error("Vault provider not found");
         }
 
-        // Step 2.5: Submit full Lamport PK to vault provider via RPC
+        // ================================================================
+        // Step 3: Broadcast Pre-PegIn to Bitcoin
+        // Per spec, broadcast happens right after ETH submission so the VP
+        // can monitor the Pre-PegIn on-chain before BaBe setup.
+        // ================================================================
+
+        setCurrentStep(DepositFlowStep.BROADCAST_PRE_PEGIN);
+
+        await broadcastBtcTransaction(
+          {
+            btcTxid: registration.btcTxid,
+            depositorBtcPubkey: prepared.depositorBtcPubkey,
+            btcWalletProvider: confirmedBtcWallet,
+            fundedPrePeginTxHex: prepared.fundedPrePeginTxHex,
+          },
+          depositorEthAddress,
+        );
+
+        // ================================================================
+        // Step 4: Submit Lamport PK to vault provider via RPC
+        // ================================================================
+
+        setCurrentStep(DepositFlowStep.SIGN_PAYOUTS);
+        setIsWaiting(true);
+
         try {
           await submitLamportPublicKey({
             btcTxid: registration.btcTxid,
@@ -308,8 +337,10 @@ export function useDepositFlow(
           });
         }
 
-        // Step 3: Poll and sign payout transactions
-        // (step already set above, isWaiting already true)
+        // ================================================================
+        // Step 4 (cont): Poll and sign payout transactions
+        // VP waits for Pre-PegIn BTC confirmation before being ready.
+        // ================================================================
 
         const {
           context,
@@ -318,7 +349,7 @@ export function useDepositFlow(
           depositorGraph,
         } = await pollAndPreparePayoutSigning({
           btcTxid: registration.btcTxid,
-          btcTxHex: prepared.btcTxHex,
+          btcTxHex: prepared.peginTxHex,
           depositorBtcPubkey: prepared.depositorBtcPubkey,
           providerAddress: provider.id,
           providerBtcPubKey: provider.btcPubKey,
@@ -367,6 +398,10 @@ export function useDepositFlow(
         );
         setPayoutSigningProgress(null);
 
+        // ================================================================
+        // Step 5: Download vault artifacts
+        // ================================================================
+
         setCurrentStep(DepositFlowStep.ARTIFACT_DOWNLOAD);
         setArtifactDownloadInfo({
           providerAddress: provider.id,
@@ -377,7 +412,12 @@ export function useDepositFlow(
           artifactResolverRef.current = resolve;
         });
 
-        setCurrentStep(DepositFlowStep.BROADCAST_BTC);
+        // ================================================================
+        // Step 6: Activate vault — wait for contract VERIFIED, then
+        // reveal HTLC secret on Ethereum
+        // ================================================================
+
+        setCurrentStep(DepositFlowStep.ACTIVATE_VAULT);
         setIsWaiting(true);
         await waitForContractVerification({
           btcTxid: registration.btcTxid,
@@ -385,14 +425,11 @@ export function useDepositFlow(
         });
         setIsWaiting(false);
 
-        await broadcastBtcTransaction(
-          {
-            btcTxid: registration.btcTxid,
-            depositorBtcPubkey: prepared.depositorBtcPubkey,
-            btcWalletProvider: confirmedBtcWallet,
-          },
-          depositorEthAddress,
-        );
+        await activateVaultWithSecret({
+          vaultId: ensureHexPrefix(registration.btcTxid),
+          secret: ensureHexPrefix(htlcSecretHex),
+          walletClient,
+        });
 
         // Complete
         setCurrentStep(DepositFlowStep.COMPLETED);
@@ -401,8 +438,9 @@ export function useDepositFlow(
           btcTxid: registration.btcTxid,
           ethTxHash: registration.ethTxHash,
           depositorBtcPubkey: prepared.depositorBtcPubkey,
+          htlcSecretHex,
           transactionData: {
-            unsignedTxHex: prepared.btcTxHex,
+            unsignedTxHex: prepared.fundedPrePeginTxHex,
             selectedUTXOs: prepared.selectedUTXOs,
             fee: prepared.fee,
           },
@@ -434,6 +472,7 @@ export function useDepositFlow(
       vaultKeeperBtcPubkeys,
       universalChallengerBtcPubkeys,
       timelockPegin,
+      timelockRefund,
       config,
       btcAddress,
       spendableUTXOs,
@@ -448,6 +487,7 @@ export function useDepositFlow(
       maxDeposit,
       getMnemonic,
       mnemonicId,
+      providedHtlcSecretHex,
       depositorSecretHash,
     ]);
 

@@ -13,7 +13,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // Configuration - Update these when btc-vault updates
 const BTC_VAULT_REPO_URL = 'git@github.com:babylonlabs-io/btc-vault.git';
 const BTC_VAULT_BRANCH = 'main';
-const BTC_VAULT_COMMIT = 'e430465b';
+const BTC_VAULT_COMMIT = '546a3d64';
 const REQUIRED_RUSTC_VERSION = '1.90';
 
 const REPO_DIR = path.join(__dirname, '..', 'btc-vault-temp');
@@ -26,16 +26,15 @@ const buildWasm = async () => {
     // Ensure rustup toolchain is used
     const HOME = process.env.HOME;
     const RUSTUP_HOME = process.env.RUSTUP_HOME || `${HOME}/.rustup`;
+    // Use cargo's bin dir (rustup shims) so rust-toolchain.toml in btc-vault
+    // can override the toolchain, rather than locking to the currently active one.
+    const cargoBinPath = `${HOME}/.cargo/bin`;
 
-    // Get the rustup rustc path
-    const rustcPathResult = shell.exec('rustup which rustc', { silent: true });
-    if (rustcPathResult.code !== 0) {
+    // Verify rustup is available via cargo bin
+    if (!shell.test('-f', `${cargoBinPath}/rustup`)) {
       console.error('Error: rustup not found or not configured properly');
       process.exit(1);
     }
-
-    const rustcPath = rustcPathResult.stdout.trim();
-    const rustupBinPath = path.dirname(rustcPath);
 
     // Setup LLVM for wasm32 target (required for secp256k1-sys compilation)
     let LLVM_BIN_PATH = process.env.LLVM_BIN_PATH;
@@ -61,8 +60,8 @@ const buildWasm = async () => {
       }
     }
 
-    // Prepend rustup toolchain bin and LLVM to PATH
-    shell.env.PATH = `${rustupBinPath}:${LLVM_BIN_PATH}:${shell.env.PATH}`;
+    // Prepend cargo shims and LLVM to PATH so rust-toolchain.toml is respected
+    shell.env.PATH = `${cargoBinPath}:${LLVM_BIN_PATH}:${shell.env.PATH}`;
     shell.env.RUSTUP_HOME = RUSTUP_HOME;
 
     // Set target-specific compiler variables for wasm32-unknown-unknown
@@ -136,6 +135,24 @@ const buildWasm = async () => {
       process.exit(1);
     }
 
+    // Ensure wasm32 target is installed for the toolchain specified in rust-toolchain.toml
+    console.log('Adding wasm32-unknown-unknown target...');
+    try {
+      execFileSync('rustup', ['target', 'add', 'wasm32-unknown-unknown'], {
+        cwd: REPO_DIR,
+        stdio: 'inherit',
+        env: {
+          ...process.env,
+          PATH: shell.env.PATH,
+          RUSTUP_HOME: shell.env.RUSTUP_HOME,
+        },
+      });
+    } catch {
+      console.error('Error: Failed to add wasm32-unknown-unknown target');
+      shell.rm('-rf', REPO_DIR);
+      process.exit(1);
+    }
+
     // Build with wasm-pack from vault crate
     console.log('Building WASM with wasm-pack from crates/vault...');
     const wasmOutputDir = path.join(REPO_DIR, 'wasm-build-output');
@@ -194,10 +211,11 @@ const buildWasm = async () => {
     console.log('\n✅ WASM build completed successfully!');
     console.log(`Generated files are in: ${OUTPUT_DIR}`);
     console.log('\nExported modules:');
-    console.log('  - WasmPeginTx (PegIn transaction creation)');
-    console.log('  - WasmPeginPayoutConnector (Payout script generation)');
-    console.log('  - WasmPayoutTx (Payout transaction)');
-    console.log('  - WasmPayoutOptimisticTx (Optimistic payout transaction)');
+    console.log('  - WasmPrePeginTx (Pre-PegIn HTLC transaction)');
+    console.log('  - WasmPrePeginHtlcConnector (HTLC connector info)');
+    console.log('  - WasmPeginTx (PegIn transaction from pre-pegin)');
+    console.log('  - computeMinClaimValue (Minimum claim value calculation)');
+    console.log('  - numUtxosForInputLabels (UTXO count for input labels)');
   } catch (error) {
     console.error('Error during WASM build:', error);
     // Clean up on error

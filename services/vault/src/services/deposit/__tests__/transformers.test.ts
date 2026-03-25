@@ -106,12 +106,12 @@ describe("Deposit Transformers", () => {
         }).displayLabel,
       ).toBe("Processing");
 
-      // Test the actual case where CONFIRMING is used
+      // VERIFIED + CONFIRMING = ready to activate (BTC broadcast done, needs secret reveal)
       expect(
         getPeginState(ContractStatus.VERIFIED, {
           localStatus: LocalStorageStatus.CONFIRMING,
         }).displayLabel,
-      ).toBe("Confirming");
+      ).toBe("Ready to Activate");
     });
 
     it("should handle undefined local status", () => {

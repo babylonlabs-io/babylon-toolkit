@@ -12,7 +12,7 @@ const { mockPreparePegin, MockPeginManager } = vi.hoisted(() => {
   const mockPreparePegin = vi.fn();
 
   class MockPeginManager {
-    preparePegin = mockPreparePegin;
+    prepareAtomicPegin = mockPreparePegin;
   }
 
   return { mockPreparePegin, MockPeginManager };
@@ -20,6 +20,7 @@ const { mockPreparePegin, MockPeginManager } = vi.hoisted(() => {
 
 vi.mock("@babylonlabs-io/ts-sdk/tbv/core", () => ({
   PeginManager: MockPeginManager,
+  ensureHexPrefix: (hex: string) => (hex.startsWith("0x") ? hex : `0x${hex}`),
 }));
 
 vi.mock("@babylonlabs-io/config", () => ({
@@ -80,7 +81,11 @@ describe("vaultTransactionService - preparePeginTransaction", () => {
     vaultKeeperBtcPubkeys: ["keeper1"],
     universalChallengerBtcPubkeys: ["challenger1"],
     timelockPegin: 100,
-    depositorClaimValue: 35000n,
+    timelockRefund: 50,
+    hashH: "ab".repeat(32),
+    numLocalChallengers: 1,
+    councilQuorum: 2,
+    councilSize: 3,
     availableUTXOs: mockUTXOs,
   };
 
@@ -88,8 +93,10 @@ describe("vaultTransactionService - preparePeginTransaction", () => {
     vi.clearAllMocks();
 
     mockPreparePegin.mockResolvedValue({
-      btcTxHash: "txhash123",
-      fundedTxHex: "0x123abc",
+      peginTxid: "txhash123",
+      fundedPrePeginTxHex: "0x123abc",
+      peginTxHex: "0xpeginHex",
+      peginInputSignature: "a".repeat(128),
       selectedUTXOs: [mockUTXOs[0]],
       fee: 1000n,
     });

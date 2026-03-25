@@ -6,7 +6,7 @@ import { DepositFlowStep } from "../DepositSignModal/depositStepHelpers";
 enum ProgressMode {
   /** SIGN_PAYOUTS step, waiting for vault provider to prepare transactions */
   WAITING_FOR_PROVIDER = "waiting_for_provider",
-  /** BROADCAST_BTC step, waiting for on-chain verification */
+  /** ACTIVATE_VAULT step, waiting for on-chain verification before activation */
   WAITING_FOR_VERIFICATION = "waiting_for_verification",
   /** SIGN_PAYOUTS step, actively signing payout transactions */
   SIGNING_PAYOUTS = "signing_payouts",
@@ -39,7 +39,7 @@ function getProgressMode(
   if (step === DepositFlowStep.SIGN_PAYOUTS && isWaiting) {
     return ProgressMode.WAITING_FOR_PROVIDER;
   }
-  if (step === DepositFlowStep.BROADCAST_BTC && isWaiting) {
+  if (step === DepositFlowStep.ACTIVATE_VAULT && isWaiting) {
     return ProgressMode.WAITING_FOR_VERIFICATION;
   }
   if (step === DepositFlowStep.SIGN_PAYOUTS && total > 0) {
@@ -87,8 +87,8 @@ export function SigningProgress({
           </Text>
         </div>
         <Text variant="body2" className="mt-2 text-sm text-accent-secondary">
-          Your payout signatures have been submitted. The system is verifying
-          them on-chain before the Bitcoin transaction can be broadcast.
+          Waiting for vault keepers to verify and acknowledge your deposit
+          before activation.
         </Text>
       </div>
     );

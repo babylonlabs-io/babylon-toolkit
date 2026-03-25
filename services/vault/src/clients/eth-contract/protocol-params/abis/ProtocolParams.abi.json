@@ -40,20 +40,7 @@
   },
   {
     "type": "function",
-    "name": "pegInProofTimeout",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "pegInConfirmationDepth",
+    "name": "peginActivationTimeout",
     "inputs": [],
     "outputs": [
       {
@@ -75,11 +62,6 @@
         "internalType": "struct IProtocolParams.TBVProtocolParams",
         "components": [
           {
-            "name": "btcPrismAddress",
-            "type": "address",
-            "internalType": "address"
-          },
-          {
             "name": "minimumPegInAmount",
             "type": "uint256",
             "internalType": "uint256"
@@ -95,12 +77,7 @@
             "internalType": "uint256"
           },
           {
-            "name": "pegInProofTimeout",
-            "type": "uint256",
-            "internalType": "uint256"
-          },
-          {
-            "name": "pegInConfirmationDepth",
+            "name": "peginActivationTimeout",
             "type": "uint256",
             "internalType": "uint256"
           }
@@ -174,9 +151,24 @@
             "internalType": "uint8"
           },
           {
-            "name": "vpCommissionBps",
+            "name": "minVpCommissionBps",
             "type": "uint16",
             "internalType": "uint16"
+          },
+          {
+            "name": "tRefund",
+            "type": "uint32",
+            "internalType": "uint32"
+          },
+          {
+            "name": "tStale",
+            "type": "uint32",
+            "internalType": "uint32"
+          },
+          {
+            "name": "minPeginFeeRate",
+            "type": "uint64",
+            "internalType": "uint64"
           }
         ]
       }
@@ -229,9 +221,24 @@
             "internalType": "uint8"
           },
           {
-            "name": "vpCommissionBps",
+            "name": "minVpCommissionBps",
             "type": "uint16",
             "internalType": "uint16"
+          },
+          {
+            "name": "tRefund",
+            "type": "uint32",
+            "internalType": "uint32"
+          },
+          {
+            "name": "tStale",
+            "type": "uint32",
+            "internalType": "uint32"
+          },
+          {
+            "name": "minPeginFeeRate",
+            "type": "uint64",
+            "internalType": "uint64"
           }
         ]
       }

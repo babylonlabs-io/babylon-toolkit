@@ -64,7 +64,7 @@ vi.mock("@/utils/async", () => ({
 }));
 
 vi.mock("@/services/vault", () => ({
-  broadcastPeginTransaction: vi.fn(),
+  broadcastPrePeginTransaction: vi.fn(),
   fetchVaultById: vi.fn(),
   selectUtxosForDeposit: vi.fn(({ availableUtxos }) => availableUtxos),
 }));

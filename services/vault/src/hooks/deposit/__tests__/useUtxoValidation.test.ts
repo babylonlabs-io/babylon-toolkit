@@ -53,13 +53,13 @@ function createActivity(
   id: string,
   contractStatus: ContractStatus,
   depositorBtcPubkey: string,
-  unsignedBtcTx?: string,
+  unsignedPrePeginTx?: string,
 ): VaultActivity {
   return {
     id,
     contractStatus,
     depositorBtcPubkey,
-    unsignedBtcTx,
+    unsignedPrePeginTx,
     isInUse: false,
   } as VaultActivity;
 }
@@ -252,7 +252,7 @@ describe("useUtxoValidation", () => {
       expect(result.current.unavailableUtxos.has("not-owned")).toBe(false);
     });
 
-    it("should skip deposits without unsignedBtcTx", () => {
+    it("should skip deposits without unsignedPrePeginTx", () => {
       const activities = [
         createActivity(
           "with-tx",

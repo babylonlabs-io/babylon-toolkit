@@ -25,7 +25,12 @@ const VAULT_FIELDS = `
   status
   inUse
   ackCount
-  unsignedPegInTx
+  depositorSignedPeginTx
+  unsignedPrePeginTx
+  vkVersion
+  hashlock
+  secret
+  peginSigsPostedAt
   appVaultKeepersVersion
   universalChallengersVersion
   offchainParamsVersion
@@ -72,6 +77,7 @@ const GET_VAULT_BY_ID = gql`
  */
 type GraphQLVaultStatus =
   | "pending"
+  | "signatures_collected"
   | "verified"
   | "available"
   | "redeemed"
@@ -93,7 +99,12 @@ interface GraphQLVaultItem {
   status: GraphQLVaultStatus;
   inUse: boolean;
   ackCount: number;
-  unsignedPegInTx: string;
+  depositorSignedPeginTx: string;
+  unsignedPrePeginTx: string;
+  vkVersion: number;
+  hashlock: string;
+  secret: string | null;
+  peginSigsPostedAt: string | null;
   appVaultKeepersVersion: number;
   universalChallengersVersion: number;
   offchainParamsVersion: number;
@@ -136,6 +147,8 @@ function mapGraphQLStatusToVaultStatus(
   switch (status) {
     case "pending":
       return VaultStatus.PENDING;
+    case "signatures_collected":
+      return VaultStatus.PENDING;
     case "verified":
       return VaultStatus.VERIFIED;
     case "available":
@@ -163,9 +176,16 @@ function transformVaultItem(item: GraphQLVaultItem): Vault {
     id: item.id as Hex,
     depositor: item.depositor as Address,
     depositorBtcPubkey: item.depositorBtcPubKey as Hex,
-    unsignedBtcTx: item.unsignedPegInTx as Hex,
+    depositorSignedPeginTx: item.depositorSignedPeginTx as Hex,
+    unsignedPrePeginTx: item.unsignedPrePeginTx as Hex,
     amount: BigInt(item.amount),
     vaultProvider: item.vaultProvider as Address,
+    vkVersion: item.vkVersion,
+    hashlock: item.hashlock ? (item.hashlock as Hex) : undefined,
+    secret: item.secret ? (item.secret as Hex) : undefined,
+    peginSigsPostedAt: item.peginSigsPostedAt
+      ? parseInt(item.peginSigsPostedAt, 10) * 1000
+      : undefined,
     status: mapGraphQLStatusToVaultStatus(item.status),
     applicationController: item.applicationController as Address,
     appVaultKeepersVersion: item.appVaultKeepersVersion,

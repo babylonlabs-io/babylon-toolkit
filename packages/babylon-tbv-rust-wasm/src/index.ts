@@ -1,6 +1,12 @@
-// @ts-expect-error - WASM files are in dist/generated/ (checked into git), not src/generated/
-import init, { WasmPeginTx, computeMinClaimValue as wasmComputeMinClaimValue, numUtxosForInputLabels as wasmNumUtxosForInputLabels } from "./generated/btc_vault.js";
-import type { PegInParams, PegInResult } from "./types.js";
+// @ts-ignore - WASM files are in dist/generated/ (checked into git), not src/generated/
+import init, { WasmPrePeginTx, WasmPrePeginHtlcConnector, WasmPeginTx, computeMinClaimValue as wasmComputeMinClaimValue, numUtxosForInputLabels as wasmNumUtxosForInputLabels } from "./generated/btc_vault.js";
+import type {
+  PrePeginParams,
+  PrePeginResult,
+  PeginTxResult,
+  HtlcConnectorParams,
+  HtlcConnectorInfo,
+} from "./types.js";
 
 let wasmInitialized = false;
 let wasmInitPromise: Promise<void> | null = null;
@@ -22,45 +28,146 @@ export async function initWasm() {
 }
 
 /**
- * Creates an unfunded peg-in transaction with no inputs and one output.
+ * Creates an unfunded Pre-PegIn transaction with no inputs and one HTLC output.
  *
- * This function creates a Bitcoin transaction template that the frontend
- * must fund by:
- * 1. Selecting appropriate UTXOs from the wallet
- * 2. Calculating transaction fees based on selected inputs
- * 3. Adding inputs to cover peginAmount + fees
- * 4. Adding a change output if the input value exceeds peginAmount + fees
- * 5. Creating a PSBT and signing it via the wallet
+ * The HTLC output value (htlcValue) covers the peg-in amount, depositor claim value,
+ * and minimum pegin fee — all computed internally from the provided contract parameters.
  *
- * The returned transaction has:
- * - 0 inputs
- * - 1 output (the pegin output to the vault address)
+ * After building the Pre-PegIn transaction, the caller must:
+ * 1. Select UTXOs covering htlcValue + network fees
+ * 2. Fund the transaction (add inputs and change output)
+ * 3. Compute the funded transaction's txid
+ * 4. Call buildPeginTxFromPrePegin() to derive the PegIn transaction
+ * 5. Sign the PegIn input using the HTLC hashlock leaf (leaf 0)
  *
- * @param params - Peg-in parameters (public keys, amount, network)
- * @returns Unfunded transaction details with vault output information
+ * @param params - Pre-PegIn parameters from contract and depositor wallet
+ * @returns Unfunded transaction details with HTLC output information
  */
-export async function createPegInTransaction(
-  params: PegInParams
-): Promise<PegInResult> {
+export async function createPrePeginTransaction(
+  params: PrePeginParams,
+): Promise<PrePeginResult> {
   await initWasm();
 
-  const tx = new WasmPeginTx(
+  const tx = new WasmPrePeginTx(
     params.depositorPubkey,
     params.vaultProviderPubkey,
     params.vaultKeeperPubkeys,
     params.universalChallengerPubkeys,
-    params.timelockPegin,
+    params.hashH,
+    params.timelockRefund,
     params.pegInAmount,
-    params.depositorClaimValue,
-    params.network
+    params.feeRate,
+    params.numLocalChallengers,
+    params.councilQuorum,
+    params.councilSize,
+    params.network,
   );
 
-  return {
-    txHex: tx.toHex(),
-    txid: tx.getTxid(),
-    vaultScriptPubKey: tx.getVaultScriptPubKey(),
-    vaultValue: tx.getVaultValue(),
-  };
+  try {
+    return {
+      txHex: tx.toHex(),
+      txid: tx.getTxid(),
+      htlcValue: tx.getHtlcValue(),
+      htlcScriptPubKey: tx.getHtlcScriptPubKey(),
+      htlcAddress: tx.getHtlcAddress(),
+      peginAmount: tx.getPeginAmount(),
+      depositorClaimValue: tx.getDepositorClaimValue(),
+    };
+  } finally {
+    tx.free();
+  }
+}
+
+/**
+ * Derives the PegIn transaction from a funded Pre-PegIn txid.
+ *
+ * The PegIn transaction has a single input spending Pre-PegIn output 0
+ * via the hashlock + all-party script (leaf 0). Since all Pre-PegIn inputs
+ * must be SegWit/Taproot, the txid is stable after funding — signing does
+ * not change it.
+ *
+ * @param params - Same PrePeginParams used to create the Pre-PegIn transaction
+ * @param timelockPegin - CSV timelock in blocks for the PegIn vault output
+ * @param fundedPrePeginTxid - Hex-encoded txid of the funded Pre-PegIn transaction
+ * @returns PegIn transaction details including vault output information
+ */
+export async function buildPeginTxFromPrePegin(
+  params: PrePeginParams,
+  timelockPegin: number,
+  fundedPrePeginTxid: string,
+): Promise<PeginTxResult> {
+  await initWasm();
+
+  const prePeginTx = new WasmPrePeginTx(
+    params.depositorPubkey,
+    params.vaultProviderPubkey,
+    params.vaultKeeperPubkeys,
+    params.universalChallengerPubkeys,
+    params.hashH,
+    params.timelockRefund,
+    params.pegInAmount,
+    params.feeRate,
+    params.numLocalChallengers,
+    params.councilQuorum,
+    params.councilSize,
+    params.network,
+  );
+
+  let peginTx: WasmPeginTx | null = null;
+  try {
+    peginTx = prePeginTx.buildPeginTx(
+      timelockPegin,
+      fundedPrePeginTxid,
+    );
+
+    return {
+      txHex: peginTx.toHex(),
+      txid: peginTx.getTxid(),
+      vaultScriptPubKey: peginTx.getVaultScriptPubKey(),
+      vaultValue: peginTx.getVaultValue(),
+    };
+  } finally {
+    peginTx?.free();
+    prePeginTx.free();
+  }
+}
+
+/**
+ * Returns HTLC connector script info for signing the PegIn transaction input.
+ *
+ * The depositor signs PegIn input 0 using the hashlock leaf (leaf 0) of the
+ * Pre-PegIn HTLC output. Use getHashlockScript() and getHashlockControlBlock()
+ * to construct the tapLeafScript entry in the PSBT.
+ *
+ * @param params - HTLC connector parameters (subset of PrePeginParams)
+ * @returns Hashlock and refund script info for PSBT construction
+ */
+export async function getPrePeginHtlcConnectorInfo(
+  params: HtlcConnectorParams,
+): Promise<HtlcConnectorInfo> {
+  await initWasm();
+
+  const connector = new WasmPrePeginHtlcConnector(
+    params.depositorPubkey,
+    params.vaultProviderPubkey,
+    params.vaultKeeperPubkeys,
+    params.universalChallengerPubkeys,
+    params.hashH,
+    params.timelockRefund,
+  );
+
+  try {
+    return {
+      hashlockScript: connector.getHashlockScript(),
+      hashlockControlBlock: connector.getHashlockControlBlock(),
+      refundScript: connector.getRefundScript(),
+      refundControlBlock: connector.getRefundControlBlock(),
+      address: connector.getAddress(params.network),
+      scriptPubKey: connector.getScriptPubKey(params.network),
+    };
+  } finally {
+    connector.free();
+  }
 }
 
 /**
@@ -72,7 +179,6 @@ export async function createPegInTransaction(
 export async function computeMinClaimValue(
   numLocalChallengers: number,
   numUniversalChallengers: number,
-  numGcs: number,
   councilQuorum: number,
   councilSize: number,
   feeRate: bigint,
@@ -81,7 +187,6 @@ export async function computeMinClaimValue(
   return wasmComputeMinClaimValue(
     numLocalChallengers,
     numUniversalChallengers,
-    numGcs,
     councilQuorum,
     councilSize,
     feeRate,
@@ -100,8 +205,11 @@ export async function numUtxosForInputLabels(): Promise<number> {
 // Export types
 export type {
   Network,
-  PegInParams,
-  PegInResult,
+  PrePeginParams,
+  PrePeginResult,
+  PeginTxResult,
+  HtlcConnectorParams,
+  HtlcConnectorInfo,
   PayoutConnectorParams,
   PayoutConnectorInfo,
   AssertPayoutNoPayoutConnectorParams,
@@ -126,6 +234,6 @@ export {
 // Export challenge assert connector utilities (depositor-as-claimer)
 export { getChallengeAssertScriptInfo } from "./challengeAssertConnector.js";
 
-// Re-export the raw WASM types if needed
-// @ts-expect-error - WASM files are in dist/generated/ (checked into git), not src/generated/
-export { WasmPeginTx, WasmPeginPayoutConnector } from "./generated/btc_vault.js";
+// Re-export raw WASM types for callers that need direct access
+// @ts-ignore - WASM files are in dist/generated/ (checked into git), not src/generated/
+export { WasmPeginTx, WasmPeginPayoutConnector, WasmPrePeginTx, WasmPrePeginHtlcConnector } from "./generated/btc_vault.js";

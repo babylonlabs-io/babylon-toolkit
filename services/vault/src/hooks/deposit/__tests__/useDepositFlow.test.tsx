@@ -30,6 +30,11 @@ vi.mock("@/utils/depositorClaimValue", () => ({
   computeDepositorClaimValue: vi.fn().mockResolvedValue(35000n),
 }));
 
+// Mock ts-sdk tbv/core to avoid ecc library initialization
+vi.mock("@babylonlabs-io/ts-sdk/tbv/core", () => ({
+  ensureHexPrefix: (hex: string) => (hex.startsWith("0x") ? hex : `0x${hex}`),
+}));
+
 // Mock dependencies
 vi.mock("@babylonlabs-io/config", () => ({
   getETHChain: vi.fn(() => ({
@@ -195,7 +200,9 @@ vi.mock("@/services/vault/vaultProofOfPossessionService", () => ({
 vi.mock("@/services/vault/vaultTransactionService", () => ({
   preparePeginTransaction: vi.fn().mockResolvedValue({
     btcTxHash: "0xmocktxid123",
-    fundedTxHex: "0xmockhex",
+    fundedPrePeginTxHex: "0xmockhex",
+    peginTxHex: "0xmockpegintx",
+    peginInputSignature: "cc".repeat(64),
     selectedUTXOs: [
       { txid: "0x123", vout: 0, value: 500000, scriptPubKey: "0xabc" },
     ],
@@ -222,9 +229,10 @@ vi.mock("@/utils/btc", () => ({
 
 // Mock vault services for steps 3-4
 vi.mock("@/services/vault", () => ({
-  broadcastPeginTransaction: vi.fn().mockResolvedValue("0xbroadcasttxid"),
+  broadcastPrePeginTransaction: vi.fn().mockResolvedValue("0xbroadcasttxid"),
   fetchVaultById: vi.fn().mockResolvedValue({
-    unsignedBtcTx: "0xmockunsignedtx",
+    depositorSignedPeginTx: "0xmockunsignedtx",
+    unsignedPrePeginTx: "0xmockprepeginTx",
     status: 1,
   }),
   collectReservedUtxoRefs: vi.fn().mockReturnValue([]),
@@ -264,6 +272,12 @@ vi.mock("@/services/vault/depositorGraphSigningService", () => ({
   }),
 }));
 
+vi.mock("@/services/vault/vaultActivationService", () => ({
+  activateVaultWithSecret: vi
+    .fn()
+    .mockResolvedValue({ hash: "0xActivationTxHash" }),
+}));
+
 // Mock protocol params query to avoid ETH client initialization
 vi.mock("@/clients/eth-contract/protocol-params/query", () => ({
   getLatestOffchainParams: vi.fn().mockResolvedValue({
@@ -288,8 +302,7 @@ vi.mock("@/context/ProtocolParamsContext", () => ({
       minimumPegInAmount: 10000n,
       maxPegInAmount: 100_000_000n,
       pegInAckTimeout: 50400n,
-      pegInProofTimeout: 100800n,
-      pegInConfirmationDepth: 30n,
+      peginActivationTimeout: 100800n,
       timelockPegin: 100,
       offchainParams: {
         babeInstancesToFinalize: 2,
@@ -394,6 +407,7 @@ describe("useDepositFlow - Chain Switching", () => {
     universalChallengerBtcPubkeys: ["0xUniversalChallengerKey1"],
     modalOpen: true,
     getMnemonic: async () => "test mnemonic phrase for lamport key derivation",
+    htlcSecretHex: "ab".repeat(32),
   };
 
   beforeEach(() => {

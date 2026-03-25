@@ -39,12 +39,12 @@ interface ProtocolParamsContextValue {
   minDeposit: bigint;
   /** Maximum deposit amount in satoshis (from contract) */
   maxDeposit: bigint;
-  /** CSV timelock in blocks for the PegIn output (from offchain params) */
+  /** CSV timelock in blocks for the PegIn vault output (from offchain params) */
   timelockPegin: number;
-  /** Value in satoshis for the depositor's claim output (from offchain params) */
-  depositorClaimValue: bigint;
-  /** Vault provider commission in basis points (e.g., 500 = 5%) */
-  vpCommissionBps: number;
+  /** CSV timelock in blocks for the Pre-PegIn HTLC refund path (from offchain params tRefund) */
+  timelockRefund: number;
+  /** Minimum vault provider commission in basis points (e.g., 500 = 5%) */
+  minVpCommissionBps: number;
   /** Latest universal challengers - use for new peg-ins */
   latestUniversalChallengers: UniversalChallenger[];
   /** Get universal challengers by version - use for payout signing existing vaults */
@@ -159,8 +159,8 @@ export function ProtocolParamsProvider({
     minDeposit: configData.minimumPegInAmount,
     maxDeposit: configData.maxPegInAmount,
     timelockPegin: configData.timelockPegin,
-    depositorClaimValue: configData.depositorClaimValue,
-    vpCommissionBps: configData.vpCommissionBps,
+    timelockRefund: configData.timelockRefund,
+    minVpCommissionBps: configData.minVpCommissionBps,
     latestUniversalChallengers,
     getUniversalChallengersByVersion,
     getOffchainParamsByVersion,

@@ -23,6 +23,7 @@ interface DepositSignContentProps {
   universalChallengerBtcPubkeys: string[];
   getMnemonic: () => Promise<string>;
   mnemonicId?: string;
+  htlcSecretHex: string;
   depositorSecretHash?: Hex;
   onSuccess: (
     btcTxid: string,
@@ -37,6 +38,7 @@ export function DepositSignContent({
   onClose,
   onSuccess,
   onRefetchActivities,
+  htlcSecretHex,
   depositorSecretHash,
   ...flowParams
 }: DepositSignContentProps) {
@@ -50,7 +52,7 @@ export function DepositSignContent({
     payoutSigningProgress,
     artifactDownloadInfo,
     continueAfterArtifactDownload,
-  } = useDepositFlow({ ...flowParams, depositorSecretHash });
+  } = useDepositFlow({ ...flowParams, htlcSecretHex, depositorSecretHash });
 
   // Auto-start the flow on mount
   const started = useRef(false);

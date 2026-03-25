@@ -18,6 +18,7 @@ import { Buffer } from "buffer";
 import { initEccLib, networks, payments } from "bitcoinjs-lib";
 
 import type { Network } from "@babylonlabs-io/babylon-tbv-rust-wasm";
+import type { Hex } from "viem";
 
 /**
  * Strip "0x" prefix from hex string if present.
@@ -30,6 +31,19 @@ import type { Network } from "@babylonlabs-io/babylon-tbv-rust-wasm";
  */
 export function stripHexPrefix(hex: string): string {
   return hex.startsWith("0x") ? hex.slice(2) : hex;
+}
+
+/**
+ * Ensure "0x" prefix on a hex string, returning viem's Hex type.
+ *
+ * Ethereum/viem APIs expect `0x`-prefixed hex, but Bitcoin tooling
+ * typically omits the prefix. This normalises either form.
+ *
+ * @param hex - Hex string with or without "0x" prefix
+ * @returns `0x`-prefixed hex string typed as viem Hex
+ */
+export function ensureHexPrefix(hex: string): Hex {
+  return hex.startsWith("0x") ? (hex as Hex) : (`0x${hex}` as Hex);
 }
 
 /**

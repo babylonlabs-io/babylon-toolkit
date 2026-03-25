@@ -17,7 +17,7 @@
 
 ---
 
-# @babylonlabs-io/ts-sdk v0.0.0-semantic-release
+# @babylonlabs-io/ts-sdk v0.1.1
 
 ## Modules
 

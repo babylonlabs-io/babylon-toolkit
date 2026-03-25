@@ -221,7 +221,7 @@
             "internalType": "bytes32"
           },
           {
-            "name": "unsignedPegInTx",
+            "name": "depositorSignedPeginTx",
             "type": "bytes",
             "internalType": "bytes"
           },
@@ -261,6 +261,11 @@
             "internalType": "uint16"
           },
           {
+            "name": "vkVersion",
+            "type": "uint16",
+            "internalType": "uint16"
+          },
+          {
             "name": "createdAt",
             "type": "uint256",
             "internalType": "uint256"
@@ -269,6 +274,16 @@
             "name": "verifiedAt",
             "type": "uint256",
             "internalType": "uint256"
+          },
+          {
+            "name": "depositorLamportPkHash",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          },
+          {
+            "name": "hashlock",
+            "type": "bytes32",
+            "internalType": "bytes32"
           }
         ]
       }

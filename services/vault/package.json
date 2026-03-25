@@ -25,7 +25,7 @@
   "dependencies": {
     "@babylonlabs-io/config": "workspace:*",
     "@babylonlabs-io/core-ui": "workspace:*",
-    "@babylonlabs-io/ts-sdk": "0.1.1",
+    "@babylonlabs-io/ts-sdk": "workspace:*",
     "@babylonlabs-io/wallet-connector": "workspace:*",
     "@bitcoin-js/tiny-secp256k1-asmjs": "2.2.3",
     "@metamask/browser-passworder": "6.0.0",

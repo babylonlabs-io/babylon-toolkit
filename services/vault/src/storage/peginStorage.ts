@@ -46,7 +46,7 @@ export interface PendingPeginRequest {
   status: LocalStorageStatus; // Track user actions (required, defaults to PENDING)
   btcTxHash?: string; // BTC transaction hash (set when broadcasting to Bitcoin)
   // Fields for cross-device broadcasting support
-  unsignedTxHex?: string; // Unsigned BTC transaction hex (for broadcasting later)
+  unsignedTxHex?: string; // Funded Pre-PegIn tx hex (for broadcasting later)
   selectedUTXOs?: Array<{
     // UTXOs used in the transaction
     txid: string;
