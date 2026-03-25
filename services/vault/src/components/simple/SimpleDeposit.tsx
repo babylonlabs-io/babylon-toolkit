@@ -161,19 +161,17 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
   const handleMnemonicComplete = useCallback(
     (mnemonic?: string, mnemonicId?: string) => {
       confirmMnemonic(mnemonic, mnemonicId);
-      if (FeatureFlags.isNewPeginFlowEnabled) {
-        const vaultCount =
-          isSplitDeposit && splitAllocationPlan
-            ? splitAllocationPlan.vaultAllocations.length
-            : 1;
-        secretHexesRef.current = Array.from({ length: vaultCount }, () =>
-          generateSecretHex(),
-        );
-        setSecretVaultIndex(0);
-        goToStep(DepositStep.SECRET);
-      } else {
-        goToStep(DepositStep.SIGN);
-      }
+      // Always generate secrets — the atomic swap flow requires an HTLC preimage.
+      // The feature flag only controls whether the user sees the secret modal.
+      const vaultCount =
+        isSplitDeposit && splitAllocationPlan
+          ? splitAllocationPlan.vaultAllocations.length
+          : 1;
+      secretHexesRef.current = Array.from({ length: vaultCount }, () =>
+        generateSecretHex(),
+      );
+      setSecretVaultIndex(0);
+      goToStep(DepositStep.SECRET);
     },
     [confirmMnemonic, goToStep, isSplitDeposit, splitAllocationPlan],
   );
@@ -289,7 +287,6 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
         )}
 
         {renderedStep === DepositStep.SECRET &&
-          FeatureFlags.isNewPeginFlowEnabled &&
           secretHexesRef.current.length > 0 && (
             <DepositSecretModal
               key={secretVaultIndex}
