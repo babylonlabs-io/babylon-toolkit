@@ -409,7 +409,7 @@ describe("extractPayoutSignature", () => {
       // We need to strip this to get the pure 64-byte signature
       const signature65 = Buffer.alloc(65);
       signature65.fill(0xbb, 0, 64); // Fill first 64 bytes
-      signature65[64] = 0x01; // Sighash flag (SIGHASH_ALL)
+      signature65[64] = Transaction.SIGHASH_ALL;
 
       const psbt = new Psbt();
       psbt.addInput({
@@ -435,6 +435,64 @@ describe("extractPayoutSignature", () => {
       const expected64 = Buffer.alloc(64, 0xbb).toString("hex");
       expect(extracted).toBe(expected64);
       expect(extracted.length).toBe(128); // 64 bytes = 128 hex chars
+    });
+
+    it("should reject 65-byte signature with SIGHASH_NONE", () => {
+      const signature65 = Buffer.alloc(65);
+      signature65.fill(0xbb, 0, 64);
+      signature65[64] = Transaction.SIGHASH_NONE;
+
+      const psbt = new Psbt();
+      psbt.addInput({
+        hash: NULL_TXID,
+        index: 0,
+        witnessUtxo: {
+          script: createDummyP2WPKH("0"),
+          value: TEST_WITNESS_UTXO_VALUE,
+        },
+        tapScriptSig: [
+          {
+            pubkey: Buffer.from(TEST_KEYS.DEPOSITOR, "hex"),
+            signature: signature65,
+            leafHash: Buffer.alloc(32, 0),
+          },
+        ],
+      });
+
+      const psbtHex = psbt.toHex();
+
+      expect(() =>
+        extractPayoutSignature(psbtHex, TEST_KEYS.DEPOSITOR),
+      ).toThrow(/Unexpected sighash type 0x02 at input 0\. Expected SIGHASH_ALL/);
+    });
+
+    it("should reject 65-byte signature with SIGHASH_SINGLE|ANYONECANPAY", () => {
+      const signature65 = Buffer.alloc(65);
+      signature65.fill(0xbb, 0, 64);
+      signature65[64] = Transaction.SIGHASH_SINGLE | Transaction.SIGHASH_ANYONECANPAY;
+
+      const psbt = new Psbt();
+      psbt.addInput({
+        hash: NULL_TXID,
+        index: 0,
+        witnessUtxo: {
+          script: createDummyP2WPKH("0"),
+          value: TEST_WITNESS_UTXO_VALUE,
+        },
+        tapScriptSig: [
+          {
+            pubkey: Buffer.from(TEST_KEYS.DEPOSITOR, "hex"),
+            signature: signature65,
+            leafHash: Buffer.alloc(32, 0),
+          },
+        ],
+      });
+
+      const psbtHex = psbt.toHex();
+
+      expect(() =>
+        extractPayoutSignature(psbtHex, TEST_KEYS.DEPOSITOR),
+      ).toThrow(/Unexpected sighash type 0x83 at input 0\. Expected SIGHASH_ALL/);
     });
   });
 });
