@@ -474,7 +474,9 @@ async function setupDefaultMocks() {
   });
   vi.mocked(submitPayoutSignatures).mockResolvedValue(undefined);
   vi.mocked(waitForContractVerification).mockResolvedValue(undefined);
-  vi.mocked(broadcastPrePeginTransaction).mockResolvedValue("mockBroadcastTxId");
+  vi.mocked(broadcastPrePeginTransaction).mockResolvedValue(
+    "mockBroadcastTxId",
+  );
 
   // Storage
   vi.mocked(addPendingPegin).mockReturnValue(undefined);
