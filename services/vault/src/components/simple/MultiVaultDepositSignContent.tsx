@@ -24,7 +24,7 @@ import { DepositProgressView } from "./DepositProgressView";
 interface MultiVaultDepositSignContentProps {
   vaultAmounts: bigint[];
   precomputedPlan: AllocationPlan;
-  feeRate: number;
+  mempoolFeeRate: number;
   btcWalletProvider: BitcoinWallet;
   depositorEthAddress: Address | undefined;
   selectedApplication: string;

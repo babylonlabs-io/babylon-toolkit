@@ -140,8 +140,8 @@ const BASE_ATOMIC_PEGIN_PARAMS = {
   timelockPegin: 100,
   timelockRefund: 50,
   hashH: TEST_HASH_H,
-  feeRate: 10,
-  numLocalChallengers: 1,
+  protocolFeeRate: 10n,
+  mempoolFeeRate: 10,
   councilQuorum: 2,
   councilSize: 3,
   availableUTXOs: TEST_UTXOS,
@@ -301,7 +301,6 @@ describe("PeginManager", () => {
         amount: TEST_AMOUNTS.PEGIN,
         ...BASE_ATOMIC_PEGIN_PARAMS,
         vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1, TEST_KEYS.VAULT_KEEPER_2],
-        numLocalChallengers: 2,
       });
 
       expect(result.fundedPrePeginTxHex.length).toBeGreaterThan(0);
@@ -435,7 +434,6 @@ describe("PeginManager", () => {
           ...BASE_ATOMIC_PEGIN_PARAMS,
           vaultKeeperBtcPubkeys: [],
           universalChallengerBtcPubkeys: [],
-          numLocalChallengers: 0,
         }),
       ).rejects.toThrow();
     });

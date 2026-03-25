@@ -52,8 +52,10 @@ import { stripHexPrefix, validateXOnlyPubkey } from "../../../utils/btc";
 export interface PrepareSplitPeginParams {
   /** Vault deposit amount in satoshis */
   pegInAmount: bigint;
-  /** Fee rate in sat/vByte */
-  feeRate: number;
+  /** Protocol fee rate in sat/vB from contract offchain params */
+  protocolFeeRate: bigint;
+  /** Mempool fee rate in sat/vB for UTXO selection */
+  mempoolFeeRate: number;
   /** BTC address for change output */
   changeAddress: string;
   /** Ethereum address of the vault provider */
@@ -72,8 +74,6 @@ export interface PrepareSplitPeginParams {
   timelockRefund: number;
   /** SHA256 hash commitment for the HTLC (64 hex chars = 32 bytes) */
   hashH: string;
-  /** Number of local challengers (vault keepers) */
-  numLocalChallengers: number;
   /** M in M-of-N council multisig */
   councilQuorum: number;
   /** N in M-of-N council multisig */
@@ -209,6 +209,8 @@ export async function preparePeginFromSplitOutput(
     const universalChallengerBtcPubkeys =
       params.universalChallengerBtcPubkeys.map(stripHexPrefix);
 
+    const numLocalChallengers = vaultKeeperBtcPubkeys.length;
+
     const prePeginParams: PrePeginParams = {
       depositorPubkey: params.depositorBtcPubkey,
       vaultProviderPubkey: vaultProviderBtcPubkey,
@@ -217,8 +219,8 @@ export async function preparePeginFromSplitOutput(
       hashH: params.hashH,
       timelockRefund: params.timelockRefund,
       pegInAmount: params.pegInAmount,
-      feeRate: BigInt(params.feeRate),
-      numLocalChallengers: params.numLocalChallengers,
+      feeRate: params.protocolFeeRate,
+      numLocalChallengers,
       councilQuorum: params.councilQuorum,
       councilSize: params.councilSize,
       network,
@@ -232,7 +234,7 @@ export async function preparePeginFromSplitOutput(
     const utxoSelection = selectUtxosForPegin(
       [params.splitOutput],
       prePeginResult.totalOutputValue,
-      params.feeRate,
+      params.mempoolFeeRate,
     );
 
     // Step 5: Fund the Pre-PegIn transaction (add input + change output)

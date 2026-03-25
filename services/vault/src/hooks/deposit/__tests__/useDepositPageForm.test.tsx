@@ -43,8 +43,15 @@ import { useApplications } from "../../useApplications";
 import { useDepositPageForm } from "../useDepositPageForm";
 import { useEstimatedBtcFee } from "../useEstimatedBtcFee";
 
-vi.mock("@/utils/depositorClaimValue", () => ({
-  computeDepositorClaimValue: vi.fn().mockResolvedValue(35_000n),
+vi.mock("@babylonlabs-io/ts-sdk/tbv/core", () => ({
+  computeNumLocalChallengers: vi.fn(() => 2),
+  computeMinClaimValue: vi.fn().mockResolvedValue(35_000n),
+}));
+
+vi.mock("@/hooks/useBtcPublicKey", () => ({
+  useBtcPublicKey: vi.fn(
+    () => "aa".repeat(32), // 64-char mock x-only pubkey
+  ),
 }));
 
 vi.mock("../../../context/ProtocolParamsContext", () => ({

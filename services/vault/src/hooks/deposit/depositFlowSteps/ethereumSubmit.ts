@@ -86,7 +86,8 @@ export async function preparePegin(
     btcWalletProvider,
     walletClient,
     amount,
-    feeRate,
+    protocolFeeRate,
+    mempoolFeeRate,
     btcAddress,
     selectedProviders,
     vaultProviderBtcPubkey,
@@ -95,7 +96,6 @@ export async function preparePegin(
     timelockPegin,
     timelockRefund,
     hashH,
-    numLocalChallengers,
     councilQuorum,
     councilSize,
     confirmedUTXOs,
@@ -106,7 +106,7 @@ export async function preparePegin(
     availableUtxos: confirmedUTXOs,
     reservedUtxoRefs,
     requiredAmount: amount,
-    feeRate,
+    feeRate: mempoolFeeRate,
   });
 
   const result = await preparePeginTransaction(
@@ -114,7 +114,8 @@ export async function preparePegin(
     walletClient,
     {
       pegInAmount: amount,
-      feeRate,
+      protocolFeeRate,
+      mempoolFeeRate,
       changeAddress: btcAddress,
       vaultProviderAddress: selectedProviders[0] as Address,
       vaultProviderBtcPubkey,
@@ -123,7 +124,6 @@ export async function preparePegin(
       timelockPegin,
       timelockRefund,
       hashH,
-      numLocalChallengers,
       councilQuorum,
       councilSize,
       availableUTXOs: utxosToUse,

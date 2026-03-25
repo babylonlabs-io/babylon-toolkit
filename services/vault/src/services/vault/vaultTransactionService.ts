@@ -36,7 +36,10 @@ export type UTXO = SDKUtxo;
  */
 export interface PreparePeginParams {
   pegInAmount: bigint;
-  feeRate: number;
+  /** Protocol fee rate in sat/vB from contract offchain params */
+  protocolFeeRate: bigint;
+  /** Mempool fee rate in sat/vB for UTXO selection and funding */
+  mempoolFeeRate: number;
   changeAddress: string;
   vaultProviderAddress: Address;
   vaultProviderBtcPubkey: string;
@@ -48,8 +51,6 @@ export interface PreparePeginParams {
   timelockRefund: number;
   /** SHA256 hash commitment for the HTLC (64 hex chars = 32 bytes) */
   hashH: string;
-  /** Number of local challengers (vault keepers) */
-  numLocalChallengers: number;
   /** M in M-of-N council multisig */
   councilQuorum: number;
   /** N in M-of-N council multisig */
@@ -154,8 +155,8 @@ export async function preparePeginTransaction(
     timelockPegin: params.timelockPegin,
     timelockRefund: params.timelockRefund,
     hashH: params.hashH,
-    feeRate: params.feeRate,
-    numLocalChallengers: params.numLocalChallengers,
+    protocolFeeRate: params.protocolFeeRate,
+    mempoolFeeRate: params.mempoolFeeRate,
     councilQuorum: params.councilQuorum,
     councilSize: params.councilSize,
     availableUTXOs: params.availableUTXOs,

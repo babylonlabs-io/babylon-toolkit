@@ -50,6 +50,9 @@ the managers module instead (PeginManager and PayoutManager).
 ### Script Generators
 - [createPayoutScript](#createpayoutscript) - Generate taproot payout script
 
+### Challenger Counting
+- [computeNumLocalChallengers](#computenumlocalchallengers) - Compute number of local challengers for a vault
+
 ### WASM Functions
 - [computeMinClaimValue](#computeminclaimvalue) - Compute the minimum claim value accepted by the vault provider
 
@@ -1176,6 +1179,53 @@ Defined in: packages/babylon-tbv-rust-wasm/dist/types.d.ts:4
 Bitcoin network types supported by the vault system
 
 ## Functions
+
+### computeNumLocalChallengers()
+
+```ts
+function computeNumLocalChallengers(
+  vaultProviderPubkey: string,
+  vaultKeeperPubkeys: string[],
+  depositorPubkey: string,
+): number;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/challengers.ts](../../packages/babylon-ts-sdk/src/tbv/core/primitives/challengers.ts)
+
+Compute the number of local challengers for a vault.
+
+Mirrors the vault provider's `compute_num_challengers()` logic:
+local challengers = {vault\_provider} ∪ {vault\_keepers} − {depositor}
+
+Keys are normalized to x-only lowercase hex before comparison, so `0x`-prefixed, compressed, or mixed-case keys are handled correctly.
+
+#### Parameters
+
+##### vaultProviderPubkey
+
+`string`
+
+Vault provider BTC public key
+
+##### vaultKeeperPubkeys
+
+`string[]`
+
+Vault keeper BTC public keys
+
+##### depositorPubkey
+
+`string`
+
+Depositor (claimer) BTC public key
+
+#### Returns
+
+`number`
+
+Number of local challengers
+
+---
 
 ### computeMinClaimValue()
 

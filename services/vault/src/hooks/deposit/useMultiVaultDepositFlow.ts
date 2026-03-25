@@ -84,8 +84,8 @@ import { useVaultProviders } from "./useVaultProviders";
 export interface UseMultiVaultDepositFlowParams {
   /** Vault amounts in satoshis - [amount1] for single vault, [amount1, amount2] for two vaults */
   vaultAmounts: bigint[];
-  /** Fee rate in sat/vByte */
-  feeRate: number;
+  /** Mempool fee rate in sat/vB for UTXO selection and funding */
+  mempoolFeeRate: number;
   /** Bitcoin wallet provider */
   btcWalletProvider: BitcoinWallet | null;
   /** Depositor's Ethereum address */
@@ -260,7 +260,7 @@ export function useMultiVaultDepositFlow(
 ): UseMultiVaultDepositFlowReturn {
   const {
     vaultAmounts,
-    feeRate,
+    mempoolFeeRate,
     btcWalletProvider,
     depositorEthAddress,
     selectedApplication,
@@ -393,7 +393,7 @@ export function useMultiVaultDepositFlow(
           planUtxoAllocation(
             spendableUTXOs,
             vaultAmounts,
-            feeRate,
+            mempoolFeeRate,
             confirmedBtcAddress,
             depositorClaimValue,
           );
@@ -498,7 +498,8 @@ export function useMultiVaultDepositFlow(
 
               const prepareResult = await preparePeginFromSplitOutput({
                 pegInAmount: peginAmount,
-                feeRate,
+                protocolFeeRate: config.offchainParams.feeRate,
+                mempoolFeeRate,
                 changeAddress: confirmedBtcAddress,
                 vaultProviderAddress: primaryProvider,
                 depositorBtcPubkey,
@@ -508,7 +509,6 @@ export function useMultiVaultDepositFlow(
                 timelockPegin,
                 timelockRefund,
                 hashH: splitHashH,
-                numLocalChallengers: vaultKeeperBtcPubkeys.length,
                 councilQuorum: config.offchainParams.councilQuorum,
                 councilSize: config.offchainParams.securityCouncilKeys.length,
                 splitOutput: utxoToUse,
@@ -573,7 +573,8 @@ export function useMultiVaultDepositFlow(
                 btcWalletProvider: confirmedBtcWallet,
                 walletClient,
                 amount: peginAmount,
-                feeRate,
+                protocolFeeRate: config.offchainParams.feeRate,
+                mempoolFeeRate,
                 btcAddress: confirmedBtcAddress,
                 selectedProviders,
                 vaultProviderBtcPubkey,
@@ -582,7 +583,6 @@ export function useMultiVaultDepositFlow(
                 timelockPegin,
                 timelockRefund,
                 hashH,
-                numLocalChallengers: vaultKeeperBtcPubkeys.length,
                 councilQuorum: config.offchainParams.councilQuorum,
                 councilSize: config.offchainParams.securityCouncilKeys.length,
                 confirmedUTXOs: allocation.utxos,
@@ -1010,7 +1010,7 @@ export function useMultiVaultDepositFlow(
       }
     }, [
       vaultAmounts,
-      feeRate,
+      mempoolFeeRate,
       btcWalletProvider,
       depositorEthAddress,
       selectedApplication,

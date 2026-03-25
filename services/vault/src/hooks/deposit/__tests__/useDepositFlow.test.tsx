@@ -25,11 +25,6 @@ vi.mock("@/config", () => ({
   },
 }));
 
-// Mock depositor claim value utility
-vi.mock("@/utils/depositorClaimValue", () => ({
-  computeDepositorClaimValue: vi.fn().mockResolvedValue(35000n),
-}));
-
 // Mock ts-sdk tbv/core to avoid ecc library initialization
 vi.mock("@babylonlabs-io/ts-sdk/tbv/core", () => ({
   ensureHexPrefix: (hex: string) => (hex.startsWith("0x") ? hex : `0x${hex}`),
@@ -397,7 +392,7 @@ describe("useDepositFlow - Chain Switching", () => {
 
   const mockParams = {
     amount: 500000n,
-    feeRate: 20, // Fee rate from review modal (sat/vB)
+    mempoolFeeRate: 20, // Mempool fee rate in sat/vB
     btcWalletProvider: mockBtcWalletProvider,
     depositorEthAddress: "0xEthAddress123" as Address,
     selectedApplication: "0xcb3843752798493344c254d8d88640621e202395", // Aave controller address
