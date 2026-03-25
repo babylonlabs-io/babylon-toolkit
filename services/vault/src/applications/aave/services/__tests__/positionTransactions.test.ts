@@ -47,6 +47,7 @@ vi.mock("../../clients", () => ({
 // Mock config
 vi.mock("../../config", () => ({
   getAaveControllerAddress: vi.fn(() => "0xcontroller"),
+  getAaveSpokeAddress: vi.fn(() => "0xspoke"),
 }));
 
 import { FULL_REPAY_BUFFER_DIVISOR } from "../../constants";
@@ -125,7 +126,6 @@ describe("positionTransactions", () => {
       const result = await repay(
         mockWalletClient,
         mockChain,
-        "0xcontroller" as any,
         borrower,
         debtReserveId,
         amount,
@@ -147,7 +147,6 @@ describe("positionTransactions", () => {
         repay(
           mockWalletClient,
           mockChain,
-          "0xcontroller" as any,
           "0xuser" as any,
           1n,
           0n,
@@ -160,7 +159,6 @@ describe("positionTransactions", () => {
         repay(
           mockWalletClient,
           mockChain,
-          "0xcontroller" as any,
           "0xuser" as any,
           1n,
           -100n,
@@ -184,20 +182,19 @@ describe("positionTransactions", () => {
       await repayPartial(
         mockWalletClient,
         mockChain,
-        "0xcontroller" as any,
         1n,
         "0xtoken" as any,
         amount,
       );
 
-      // Should check allowance
+      // Should check allowance against the pinned controller address
       expect(mockGetERC20Allowance).toHaveBeenCalledWith(
         "0xtoken",
         "0xuser",
         "0xcontroller",
       );
 
-      // Should approve exact amount (not MAX_UINT256)
+      // Should approve exact amount (not MAX_UINT256) to the pinned controller address
       expect(mockApproveERC20).toHaveBeenCalledWith(
         mockWalletClient,
         mockChain,
@@ -217,7 +214,6 @@ describe("positionTransactions", () => {
       await repayPartial(
         mockWalletClient,
         mockChain,
-        "0xcontroller" as any,
         1n,
         "0xtoken" as any,
         amount,
@@ -234,7 +230,6 @@ describe("positionTransactions", () => {
         repayPartial(
           noAccountWallet,
           mockChain,
-          "0xcontroller" as any,
           1n,
           "0xtoken" as any,
           1000n,
@@ -256,7 +251,7 @@ describe("positionTransactions", () => {
       mockGetERC20Balance.mockResolvedValue(amountToRepay + 1000n);
     });
 
-    it("should approve exact debt amount plus buffer (not MAX_UINT256)", async () => {
+    it("should approve exact debt amount plus buffer to the pinned controller address (not MAX_UINT256)", async () => {
       const currentDebt = 1000000n;
       const expectedRepayAmount =
         currentDebt + currentDebt / FULL_REPAY_BUFFER_DIVISOR;
@@ -264,14 +259,12 @@ describe("positionTransactions", () => {
       await repayFull(
         mockWalletClient,
         mockChain,
-        "0xcontroller" as any,
         1n,
         "0xtoken" as any,
-        "0xspoke" as any,
         "0xproxy" as any,
       );
 
-      // Verify approval is for exact amount, not MAX_UINT256
+      // Verify approval is for exact amount, not MAX_UINT256, to the pinned controller address
       expect(mockApproveERC20).toHaveBeenCalledWith(
         mockWalletClient,
         mockChain,
@@ -281,14 +274,12 @@ describe("positionTransactions", () => {
       );
     });
 
-    it("should fetch current debt from contract", async () => {
+    it("should fetch current debt from the pinned spoke address", async () => {
       await repayFull(
         mockWalletClient,
         mockChain,
-        "0xcontroller" as any,
         1n,
         "0xtoken" as any,
-        "0xspoke" as any,
         "0xproxy" as any,
       );
 
@@ -308,10 +299,8 @@ describe("positionTransactions", () => {
       await repayFull(
         mockWalletClient,
         mockChain,
-        "0xcontroller" as any,
         1n,
         "0xtoken" as any,
-        "0xspoke" as any,
         "0xproxy" as any,
       );
 
@@ -325,10 +314,8 @@ describe("positionTransactions", () => {
         repayFull(
           mockWalletClient,
           mockChain,
-          "0xcontroller" as any,
           1n,
           "0xtoken" as any,
-          "0xspoke" as any,
           "0xproxy" as any,
         ),
       ).rejects.toThrow("No debt to repay");
@@ -341,10 +328,8 @@ describe("positionTransactions", () => {
         repayFull(
           mockWalletClient,
           mockChain,
-          "0xcontroller" as any,
           1n,
           "0xtoken" as any,
-          "0xspoke" as any,
           "0xproxy" as any,
         ),
       ).rejects.toThrow(
@@ -359,10 +344,8 @@ describe("positionTransactions", () => {
         repayFull(
           noAccountWallet,
           mockChain,
-          "0xcontroller" as any,
           1n,
           "0xtoken" as any,
-          "0xspoke" as any,
           "0xproxy" as any,
         ),
       ).rejects.toThrow("Wallet address not available");
