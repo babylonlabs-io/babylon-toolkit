@@ -282,7 +282,9 @@ export async function preparePeginFromSplitOutput(
     // Finalize the PSBT so the witness stack contains [sig, script, controlBlock],
     // then extract the transaction hex. This is the depositor-signed PegIn tx that
     // vaultd expects when verifying the depositor signature on-chain.
-    const depositorSignedPeginTxHex = finalizePeginInputPsbt(signedPeginInputPsbtHex);
+    const depositorSignedPeginTxHex = finalizePeginInputPsbt(
+      signedPeginInputPsbtHex,
+    );
 
     return {
       btcTxHash: peginTxResult.txid,
