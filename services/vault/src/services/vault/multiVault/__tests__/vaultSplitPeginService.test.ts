@@ -29,6 +29,7 @@ const {
   mockBuildPeginTxFromFundedPrePegin,
   mockBuildPeginInputPsbt,
   mockExtractPeginInputSignature,
+  mockFinalizePeginInputPsbt,
   mockCalculateBtcTxHash,
   mockSelectUtxosForPegin,
   mockFundPeginTransaction,
@@ -47,6 +48,7 @@ const {
   const mockBuildPeginTxFromFundedPrePegin = vi.fn();
   const mockBuildPeginInputPsbt = vi.fn();
   const mockExtractPeginInputSignature = vi.fn();
+  const mockFinalizePeginInputPsbt = vi.fn();
   const mockCalculateBtcTxHash = vi.fn();
   const mockSelectUtxosForPegin = vi.fn();
   const mockFundPeginTransaction = vi.fn();
@@ -105,6 +107,7 @@ const {
     mockBuildPeginTxFromFundedPrePegin,
     mockBuildPeginInputPsbt,
     mockExtractPeginInputSignature,
+    mockFinalizePeginInputPsbt,
     mockCalculateBtcTxHash,
     mockSelectUtxosForPegin,
     mockFundPeginTransaction,
@@ -127,6 +130,7 @@ vi.mock("@babylonlabs-io/ts-sdk/tbv/core", () => ({
   buildPeginTxFromFundedPrePegin: mockBuildPeginTxFromFundedPrePegin,
   buildPeginInputPsbt: mockBuildPeginInputPsbt,
   extractPeginInputSignature: mockExtractPeginInputSignature,
+  finalizePeginInputPsbt: mockFinalizePeginInputPsbt,
   calculateBtcTxHash: mockCalculateBtcTxHash,
   selectUtxosForPegin: mockSelectUtxosForPegin,
   fundPeginTransaction: mockFundPeginTransaction,
@@ -260,6 +264,7 @@ describe("preparePeginFromSplitOutput", () => {
     mockBuildPeginTxFromFundedPrePegin.mockResolvedValue(MOCK_PEGIN_TX_RESULT);
     mockBuildPeginInputPsbt.mockResolvedValue(MOCK_PEGIN_INPUT_PSBT);
     mockExtractPeginInputSignature.mockReturnValue(MOCK_PEGIN_INPUT_SIGNATURE);
+    mockFinalizePeginInputPsbt.mockReturnValue("finalized-pegin-tx-hex");
     mockCalculateBtcTxHash.mockReturnValue(MOCK_FUNDED_TXID);
     mockSelectUtxosForPegin.mockReturnValue(MOCK_UTXO_SELECTION);
     mockFundPeginTransaction.mockReturnValue(MOCK_FUNDED_TX_HEX);
@@ -443,9 +448,9 @@ describe("preparePeginFromSplitOutput", () => {
       expect(result.fundedPrePeginTxHex).toBe(MOCK_FUNDED_TX_HEX);
     });
 
-    it("returns peginTxHex from buildPeginTxFromFundedPrePegin", async () => {
+    it("returns peginTxHex as the finalized depositor-signed tx", async () => {
       const result = await preparePeginFromSplitOutput(baseParams);
-      expect(result.peginTxHex).toBe(MOCK_PEGIN_TX_RESULT.txHex);
+      expect(result.peginTxHex).toBe("finalized-pegin-tx-hex");
     });
 
     it("returns peginInputSignature from extractPeginInputSignature", async () => {

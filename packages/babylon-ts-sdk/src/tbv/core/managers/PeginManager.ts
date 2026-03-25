@@ -40,6 +40,7 @@ import {
   buildPeginTxFromFundedPrePegin,
   buildPeginInputPsbt,
   extractPeginInputSignature,
+  finalizePeginInputPsbt,
   type PrePeginParams,
   type Network,
 } from "../primitives";
@@ -509,13 +510,18 @@ export class PeginManager {
       depositorBtcPubkey,
     );
 
+    // Finalize the PSBT so the witness stack contains [sig, script, controlBlock],
+    // then extract the transaction hex. This is the depositor-signed PegIn tx that
+    // vaultd expects when verifying the depositor signature on-chain.
+    const depositorSignedPeginTxHex = finalizePeginInputPsbt(signedPeginInputPsbtHex);
+
     return {
       fundedPrePeginTxHex,
       htlcValue: prePeginResult.htlcValue,
       signedPeginInputPsbtHex,
       peginInputSignature,
       vaultScriptPubKey: peginTxResult.vaultScriptPubKey,
-      peginTxHex: peginTxResult.txHex,
+      peginTxHex: depositorSignedPeginTxHex,
       prePeginTxid,
       peginTxid: peginTxResult.txid,
       selectedUTXOs: utxoSelection.selectedUTXOs,
