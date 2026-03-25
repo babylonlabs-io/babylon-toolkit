@@ -221,6 +221,7 @@ const MOCK_PARAMS = {
   universalChallengerBtcPubkeys: ["uc1pubkey"],
   depositorClaimValue: 35_000n,
   getMnemonic: async () => "test mnemonic phrase for lamport key derivation",
+  htlcSecretHexes: ["ab".repeat(32), "cd".repeat(32)],
 };
 
 const SINGLE_PLAN: AllocationPlan = {
@@ -1349,7 +1350,7 @@ describe("useMultiVaultDepositFlow", () => {
       );
     });
 
-    it("should include warnings when BTC broadcast fails", async () => {
+    it("should surface error when all BTC broadcasts fail", async () => {
       const { planUtxoAllocation } = vi.mocked(
         await import("@/services/vault"),
       );
@@ -1368,11 +1369,10 @@ describe("useMultiVaultDepositFlow", () => {
 
       const depositResult = await executeWithAutoArtifactDownload(result);
 
-      expect(depositResult).not.toBeNull();
-      expect(depositResult!.warnings).toBeDefined();
-      expect(depositResult!.warnings![0]).toContain(
-        "Vault 0: BTC broadcast failed",
-      );
+      await waitFor(() => {
+        expect(depositResult).toBeNull();
+        expect(result.current.error).toContain("All vault broadcasts failed");
+      });
     });
 
     it("should not include warnings field when all operations succeed", async () => {
@@ -1392,40 +1392,15 @@ describe("useMultiVaultDepositFlow", () => {
       expect(depositResult!.warnings).toBeUndefined(); // No warnings when everything succeeds
     });
 
-    it("should accumulate warnings from both payout and broadcast failures", async () => {
+    it("should surface error when all broadcasts fail even with mixed payout results", async () => {
       const { planUtxoAllocation } = vi.mocked(
         await import("@/services/vault"),
       );
-      const { pollAndPreparePayoutSigning } = vi.mocked(
-        await import("../depositFlowSteps"),
-      );
-
-      vi.mocked(planUtxoAllocation).mockReturnValue(MULTI_INPUT_PLAN);
-      vi.mocked(pollAndPreparePayoutSigning)
-        .mockRejectedValueOnce(new Error("Payout fail vault 0"))
-        .mockResolvedValueOnce({
-          context: {} as any,
-          vaultProviderAddress: "0xProvider123",
-          preparedTransactions: [
-            {
-              claimerPubkeyXOnly: "claimerpubkey",
-              payoutTxHex: "payoutHex",
-              assertTxHex: "assertHex",
-            },
-          ],
-          depositorGraph: {
-            claim_tx: { tx_hex: "0xdepclaim" },
-            assert_tx: { tx_hex: "0xdepassert" },
-            payout_tx: { tx_hex: "0xdeppayout" },
-            challenger_presign_data: [],
-            payout_sighash: "0xsighash",
-            payout_prevouts: [],
-            offchain_params_version: 0,
-          },
-        });
       const { broadcastPrePeginTransaction } = vi.mocked(
         await import("@/services/vault/vaultPeginBroadcastService"),
       );
+
+      vi.mocked(planUtxoAllocation).mockReturnValue(MULTI_INPUT_PLAN);
       vi.mocked(broadcastPrePeginTransaction).mockRejectedValue(
         new Error("Broadcast fail"),
       );
@@ -1439,10 +1414,10 @@ describe("useMultiVaultDepositFlow", () => {
 
       const depositResult = await executeWithAutoArtifactDownload(result);
 
-      expect(depositResult).not.toBeNull();
-      expect(depositResult!.warnings).toBeDefined();
-      expect(depositResult!.warnings!.length).toBeGreaterThanOrEqual(2);
-      // At least one payout warning and one or more broadcast warnings
+      await waitFor(() => {
+        expect(depositResult).toBeNull();
+        expect(result.current.error).toContain("All vault broadcasts failed");
+      });
     });
   });
 });

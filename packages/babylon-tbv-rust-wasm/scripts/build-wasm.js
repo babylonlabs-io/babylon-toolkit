@@ -141,6 +141,11 @@ const buildWasm = async () => {
       execFileSync('rustup', ['target', 'add', 'wasm32-unknown-unknown'], {
         cwd: REPO_DIR,
         stdio: 'inherit',
+        env: {
+          ...process.env,
+          PATH: shell.env.PATH,
+          RUSTUP_HOME: shell.env.RUSTUP_HOME,
+        },
       });
     } catch {
       console.error('Error: Failed to add wasm32-unknown-unknown target');

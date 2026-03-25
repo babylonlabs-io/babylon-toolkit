@@ -134,7 +134,6 @@ const TEST_CHANGE_ADDRESS =
 
 // Base params for prepareAtomicPegin — shared across tests
 const BASE_ATOMIC_PEGIN_PARAMS = {
-  vaultProvider: TEST_CONTRACT_ADDRESS,
   vaultProviderBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
   vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
   universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
@@ -671,7 +670,7 @@ describe("PeginManager", () => {
 
       await expect(
         manager.signAndBroadcast({
-          fundedTxHex: "invalid-hex",
+          fundedPrePeginTxHex: "invalid-hex",
           depositorBtcPubkey: TEST_KEYS.DEPOSITOR,
         }),
       ).rejects.toThrow();

@@ -31,7 +31,7 @@ import {
   type PayoutSigningProgress,
 } from "@/services/vault/vaultPayoutSignatureService";
 import { getPendingPegins } from "@/storage/peginStorage";
-import { createHtlcSecret } from "@/utils/htlcSecret";
+import { hashSecret } from "@/utils/secretUtils";
 
 import {
   broadcastBtcTransaction,
@@ -66,6 +66,11 @@ export interface UseDepositFlowParams {
   /** UUID of the stored mnemonic, used to record the peg-in → mnemonic
    *  mapping so the resume flow can look up the correct mnemonic. */
   mnemonicId?: string;
+  /** Raw HTLC secret hex (no 0x prefix) — generated in the secret modal step.
+   *  This secret is used as the HTLC preimage and its SHA-256 hash becomes
+   *  the on-chain hashlock. Must match what was shown to the user so the
+   *  resume flow can recover the vault. */
+  htlcSecretHex: string;
   /** SHA-256 hash of the depositor's secret for the new peg-in flow */
   depositorSecretHash?: Hex;
 }
@@ -103,6 +108,7 @@ export function useDepositFlow(
     universalChallengerBtcPubkeys,
     getMnemonic,
     mnemonicId,
+    htlcSecretHex: providedHtlcSecretHex,
     depositorSecretHash,
   } = params;
 
@@ -209,8 +215,10 @@ export function useDepositFlow(
         });
 
         // Step 2a: Build Pre-PegIn HTLC, fund it, and sign PegIn input
-        // Generate a random secret and compute H = SHA256(secret) for the HTLC
-        const { secretHex: htlcSecretHex, hashH } = await createHtlcSecret();
+        // Use the secret shown to the user in the secret modal — the on-chain
+        // hashlock must match so the user can activate via the resume flow.
+        const htlcSecretHex = providedHtlcSecretHex;
+        const hashH = hashSecret(htlcSecretHex).slice(2); // strip 0x prefix
 
         const prepared = await preparePegin({
           btcWalletProvider: confirmedBtcWallet,
@@ -262,7 +270,6 @@ export function useDepositFlow(
         savePendingPegin({
           depositorEthAddress,
           btcTxid: registration.btcTxid,
-          ethTxHash: registration.ethTxHash,
           amount,
           selectedProviders,
           applicationController: selectedApplication,
@@ -342,7 +349,7 @@ export function useDepositFlow(
           depositorGraph,
         } = await pollAndPreparePayoutSigning({
           btcTxid: registration.btcTxid,
-          btcTxHex: prepared.fundedPrePeginTxHex,
+          btcTxHex: prepared.peginTxHex,
           depositorBtcPubkey: prepared.depositorBtcPubkey,
           providerAddress: provider.id,
           providerBtcPubKey: provider.btcPubKey,
@@ -480,6 +487,7 @@ export function useDepositFlow(
       maxDeposit,
       getMnemonic,
       mnemonicId,
+      providedHtlcSecretHex,
       depositorSecretHash,
     ]);
 

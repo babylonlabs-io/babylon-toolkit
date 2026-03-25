@@ -2,69 +2,10 @@
  * HTLC Secret Utilities
  *
  * The atomic swap pegin flow uses an HTLC (Hash Time Lock Contract) where the
- * depositor commits to a secret preimage H = SHA256(secret). This module
- * provides utilities to generate the secret and derive the hash commitment.
- *
- * The secret is returned in `DepositFlowResult.htlcSecretHex` and used
- * automatically during the in-flow activation step. If the session is
- * interrupted before activation, the resume flow prompts the user to
- * re-enter the secret.
+ * depositor commits to a secret preimage H = SHA256(secret). Secret generation
+ * is handled by `secretUtils.ts`; this module provides validation utilities
+ * for verifying a secret against an on-chain hashlock.
  */
-
-/** Generate a cryptographically secure random 32-byte HTLC secret. */
-export function generateHtlcSecret(): Uint8Array {
-  const secret = new Uint8Array(32);
-  crypto.getRandomValues(secret);
-  return secret;
-}
-
-/** Convert a Uint8Array secret to a hex string (no 0x prefix). */
-export function secretToHex(secret: Uint8Array): string {
-  return Array.from(secret)
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
-}
-
-/**
- * Compute the HTLC hash commitment H = SHA256(secret).
- *
- * @param secret - 32-byte random secret
- * @returns 64-character hex string (32 bytes, no "0x" prefix)
- */
-export async function hashHFromSecret(secret: Uint8Array): Promise<string> {
-  const hashBuffer = await crypto.subtle.digest(
-    "SHA-256",
-    secret.buffer as ArrayBuffer,
-  );
-  return Array.from(new Uint8Array(hashBuffer))
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
-}
-
-/**
- * Result of creating an HTLC secret for a pegin.
- */
-export interface HtlcSecretResult {
-  /** The raw secret hex string (shown to the user, needed for activation/refund) */
-  secretHex: string;
-  /** H = SHA256(secret), the hash commitment for the HTLC (no 0x prefix) */
-  hashH: string;
-}
-
-/**
- * Generate a new HTLC secret and its hash commitment.
- *
- * TODO: In the near future, this will be replaced by a wallet call
- * (the wallet will generate and manage the secret).
- *
- * @returns The secret hex and hash commitment
- */
-export async function createHtlcSecret(): Promise<HtlcSecretResult> {
-  const secret = generateHtlcSecret();
-  const secretHex = secretToHex(secret);
-  const hashH = await hashHFromSecret(secret);
-  return { secretHex, hashH };
-}
 
 /**
  * Convert a hex string to Uint8Array for hashing.
@@ -102,7 +43,7 @@ export async function validateSecretAgainstHashlock(
   const secretBytes = hexToBytes(secretHex);
   const hashBuffer = await crypto.subtle.digest(
     "SHA-256",
-    secretBytes.buffer as ArrayBuffer,
+    secretBytes as BufferSource,
   );
   const computedHash = Array.from(new Uint8Array(hashBuffer))
     .map((b) => b.toString(16).padStart(2, "0"))

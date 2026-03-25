@@ -111,11 +111,6 @@ export interface CreateAtomicPeginParams {
   amount: bigint;
 
   /**
-   * Vault provider's Ethereum address.
-   */
-  vaultProvider: Address;
-
-  /**
    * Vault provider's BTC public key (x-only, 64-char hex).
    * Can be provided with or without "0x" prefix (will be stripped automatically).
    */
@@ -250,9 +245,9 @@ export interface AtomicPeginResult {
  */
 export interface SignAndBroadcastParams {
   /**
-   * Funded transaction hex from preparePegin().
+   * Funded Pre-PegIn transaction hex from prepareAtomicPegin().
    */
-  fundedTxHex: string;
+  fundedPrePeginTxHex: string;
 
   /**
    * Depositor's BTC public key (x-only, 64-char hex).
@@ -487,8 +482,21 @@ export class PeginManager {
     });
 
     // Step 7: Sign the PegIn input PSBT via BTC wallet
+    // The PegIn input is a Taproot script-path spend (HTLC hashlock leaf), so:
+    // - autoFinalized: false to keep tapScriptSig accessible for signature extraction
+    // - disableTweakSigner: true because script-path uses the untweaked internal key
     const signedPeginInputPsbtHex = await this.config.btcWallet.signPsbt(
       peginInputPsbtResult.psbtHex,
+      {
+        autoFinalized: false,
+        signInputs: [
+          {
+            index: 0,
+            publicKey: depositorBtcPubkeyRaw,
+            disableTweakSigner: true,
+          },
+        ],
+      },
     );
 
     // Extract the depositor's Schnorr signature from the signed PSBT
@@ -528,12 +536,12 @@ export class PeginManager {
    * @throws Error if signing or broadcasting fails
    */
   async signAndBroadcast(params: SignAndBroadcastParams): Promise<string> {
-    const { fundedTxHex, depositorBtcPubkey } = params;
+    const { fundedPrePeginTxHex, depositorBtcPubkey } = params;
 
     // Step 1: Parse the funded transaction
-    const cleanHex = fundedTxHex.startsWith("0x")
-      ? fundedTxHex.slice(2)
-      : fundedTxHex;
+    const cleanHex = fundedPrePeginTxHex.startsWith("0x")
+      ? fundedPrePeginTxHex.slice(2)
+      : fundedPrePeginTxHex;
     const tx = Transaction.fromHex(cleanHex);
 
     if (tx.ins.length === 0) {
@@ -614,8 +622,16 @@ export class PeginManager {
       signedPsbt.finalizeAllInputs();
     } catch (e) {
       // Some wallets (e.g. UniSat, OKX) auto-finalize PSBTs before returning them.
-      // Attempting to finalize again throws, which is expected and safe to skip.
-      console.debug("PSBT finalization skipped (wallet likely auto-finalized):", e);
+      // Attempting to finalize again throws, which is expected and safe to skip —
+      // but verify the wallet actually finalized all inputs.
+      const allFinalized = signedPsbt.data.inputs.every(
+        (inp) => inp.finalScriptWitness || inp.finalScriptSig,
+      );
+      if (!allFinalized) {
+        throw new Error(
+          `PSBT finalization failed and wallet did not auto-finalize: ${e}`,
+        );
+      }
     }
 
     const signedTxHex = signedPsbt.extractTransaction().toHex();

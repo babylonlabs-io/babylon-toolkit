@@ -133,7 +133,6 @@ export interface PeginRegisterResult {
 export interface SavePendingPeginParams {
   depositorEthAddress: Address;
   btcTxid: string;
-  ethTxHash: string;
   amount: bigint;
   selectedProviders: string[];
   applicationController: string;

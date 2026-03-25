@@ -336,6 +336,7 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
                   depositorClaimValue={depositorClaimValue}
                   getMnemonic={getMnemonic}
                   mnemonicId={mnemonicId}
+                  htlcSecretHexes={secretHexesRef.current}
                   depositorSecretHashes={secretHashes}
                   onSuccess={handleSignSuccess}
                   onClose={onClose}
@@ -354,6 +355,7 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
                   universalChallengerBtcPubkeys={universalChallengerBtcPubkeys}
                   getMnemonic={getMnemonic}
                   mnemonicId={mnemonicId}
+                  htlcSecretHex={secretHexesRef.current[0]}
                   depositorSecretHash={secretHashes[0]}
                   onSuccess={handleSignSuccess}
                   onClose={onClose}

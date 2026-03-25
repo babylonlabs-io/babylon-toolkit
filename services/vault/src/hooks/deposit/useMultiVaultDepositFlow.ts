@@ -61,7 +61,7 @@ import {
 } from "@/storage/peginStorage";
 import { satoshiToBtcNumber } from "@/utils/btcConversion";
 import { formatBtcValue } from "@/utils/formatting";
-import { createHtlcSecret } from "@/utils/htlcSecret";
+import { hashSecret } from "@/utils/secretUtils";
 
 import {
   DepositFlowStep,
@@ -110,6 +110,10 @@ export interface UseMultiVaultDepositFlowParams {
   depositorClaimValue: bigint;
   /** Pre-computed allocation plan from the form (skips runtime planning) */
   precomputedPlan?: AllocationPlan;
+  /** Per-vault raw HTLC secret hexes (no 0x prefix) — generated in the secret
+   *  modal step. These are used as the HTLC preimages so the on-chain
+   *  hashlocks match what was shown to the user. */
+  htlcSecretHexes: string[];
   /** Per-vault SHA-256 secret hashes for the new peg-in flow (one per vault) */
   depositorSecretHashes?: Hex[];
 }
@@ -156,6 +160,8 @@ export interface PeginCreationResult {
   vaultId: Hex;
   /** Funded Pre-PegIn tx hex — this is the tx the depositor signs and broadcasts */
   fundedPrePeginTxHex: string;
+  /** PegIn tx hex — the vault transaction derived from the Pre-PegIn */
+  peginTxHex: string;
   /** UTXOs used in the pegin */
   selectedUTXOs: DepositUtxo[];
   /** Transaction fee in satoshis */
@@ -266,6 +272,7 @@ export function useMultiVaultDepositFlow(
     mnemonicId,
     depositorClaimValue,
     precomputedPlan,
+    htlcSecretHexes,
     depositorSecretHashes,
   } = params;
 
@@ -456,6 +463,7 @@ export function useMultiVaultDepositFlow(
               ethTxHash: Hex;
               vaultId: Hex;
               fundedPrePeginTxHex: string;
+              peginTxHex: string;
               selectedUTXOs: UTXO[];
               fee: bigint;
               htlcSecretHex: string;
@@ -484,9 +492,9 @@ export function useMultiVaultDepositFlow(
                   ? publicKeyHex.slice(2) // Strip first byte (02 or 03) → x-only
                   : publicKeyHex; // Already x-only
 
-              // Generate HTLC secret per vault
-              const { secretHex: splitHtlcSecretHex, hashH: splitHashH } =
-                await createHtlcSecret();
+              // Use the secret shown to the user in the secret modal
+              const splitHtlcSecretHex = htlcSecretHexes[i];
+              const splitHashH = hashSecret(splitHtlcSecretHex).slice(2);
 
               const prepareResult = await preparePeginFromSplitOutput({
                 pegInAmount: peginAmount,
@@ -542,6 +550,7 @@ export function useMultiVaultDepositFlow(
                 ethTxHash: registrationResult.ethTxHash,
                 vaultId: registrationResult.vaultId,
                 fundedPrePeginTxHex: prepareResult.fundedPrePeginTxHex,
+                peginTxHex: prepareResult.peginTxHex,
                 selectedUTXOs: prepareResult.selectedUTXOs,
                 fee: prepareResult.fee,
                 htlcSecretHex: splitHtlcSecretHex,
@@ -556,9 +565,9 @@ export function useMultiVaultDepositFlow(
                 throw new Error(`No UTXO available for vault ${i}`);
               }
 
-              // Generate HTLC secret per vault
-              const { secretHex: htlcSecretHex, hashH } =
-                await createHtlcSecret();
+              // Use the secret shown to the user in the secret modal
+              const htlcSecretHex = htlcSecretHexes[i];
+              const hashH = hashSecret(htlcSecretHex).slice(2);
 
               const prepared = await preparePegin({
                 btcWalletProvider: confirmedBtcWallet,
@@ -612,6 +621,7 @@ export function useMultiVaultDepositFlow(
                 ethTxHash: registration.ethTxHash,
                 vaultId: registration.btcTxid as Hex,
                 fundedPrePeginTxHex: prepared.fundedPrePeginTxHex,
+                peginTxHex: prepared.peginTxHex,
                 selectedUTXOs: prepared.selectedUTXOs,
                 fee: prepared.fee,
                 htlcSecretHex,
@@ -625,6 +635,7 @@ export function useMultiVaultDepositFlow(
               ethTxHash: peginResult.ethTxHash,
               vaultId: peginResult.vaultId as Hex,
               fundedPrePeginTxHex: peginResult.fundedPrePeginTxHex,
+              peginTxHex: peginResult.peginTxHex,
               selectedUTXOs: peginResult.selectedUTXOs,
               fee: peginResult.fee,
               depositorBtcPubkey,
@@ -778,6 +789,12 @@ export function useMultiVaultDepositFlow(
           broadcastedVaultIds.has(r.vaultId),
         );
 
+        if (broadcastedResults.length === 0) {
+          throw new Error(
+            "All vault broadcasts failed. Check the warnings for details.",
+          );
+        }
+
         // ========================================================================
         // Step 5: Submit Lamport Public Keys to Vault Provider
         // ========================================================================
@@ -830,7 +847,7 @@ export function useMultiVaultDepositFlow(
               depositorGraph,
             } = await pollAndPreparePayoutSigning({
               btcTxid: result.vaultId, // Use vaultId for payout lookup
-              btcTxHex: result.fundedPrePeginTxHex,
+              btcTxHex: result.peginTxHex,
               depositorBtcPubkey: result.depositorBtcPubkey,
               providerAddress: provider.id,
               providerBtcPubKey: provider.btcPubKey,
@@ -1015,6 +1032,7 @@ export function useMultiVaultDepositFlow(
       getMnemonic,
       mnemonicId,
       precomputedPlan,
+      htlcSecretHexes,
       depositorSecretHashes,
     ]);
 

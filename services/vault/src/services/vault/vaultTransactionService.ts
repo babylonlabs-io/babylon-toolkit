@@ -148,7 +148,6 @@ export async function preparePeginTransaction(
 
   const atomicResult = await peginManager.prepareAtomicPegin({
     amount: params.pegInAmount,
-    vaultProvider: params.vaultProviderAddress,
     vaultProviderBtcPubkey: params.vaultProviderBtcPubkey,
     vaultKeeperBtcPubkeys: params.vaultKeeperBtcPubkeys,
     universalChallengerBtcPubkeys: params.universalChallengerBtcPubkeys,

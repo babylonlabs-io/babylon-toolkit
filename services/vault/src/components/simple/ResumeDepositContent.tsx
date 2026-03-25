@@ -80,9 +80,7 @@ export function ResumeSignContent({
   return (
     <DepositProgressView
       currentStep={
-        isComplete
-          ? DepositFlowStep.ARTIFACT_DOWNLOAD
-          : DepositFlowStep.SIGN_PAYOUTS
+        isComplete ? DepositFlowStep.COMPLETED : DepositFlowStep.SIGN_PAYOUTS
       }
       isWaiting={false}
       error={error?.message ?? null}

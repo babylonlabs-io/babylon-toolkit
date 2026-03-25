@@ -35,6 +35,7 @@ interface MultiVaultDepositSignContentProps {
   depositorClaimValue: bigint;
   getMnemonic: () => Promise<string>;
   mnemonicId?: string;
+  htlcSecretHexes: string[];
   depositorSecretHashes?: Hex[];
   onSuccess: (
     btcTxid: string,
@@ -51,6 +52,7 @@ export function MultiVaultDepositSignContent({
   onRefetchActivities,
   vaultAmounts,
   precomputedPlan,
+  htlcSecretHexes,
   depositorSecretHashes,
   ...flowParams
 }: MultiVaultDepositSignContentProps) {
@@ -68,6 +70,7 @@ export function MultiVaultDepositSignContent({
   } = useMultiVaultDepositFlow({
     vaultAmounts,
     precomputedPlan,
+    htlcSecretHexes,
     depositorSecretHashes,
     ...flowParams,
   });

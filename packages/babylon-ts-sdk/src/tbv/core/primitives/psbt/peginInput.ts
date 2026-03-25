@@ -201,12 +201,15 @@ export function extractPeginInputSignature(
     );
   }
 
-  // Finalized PSBT — extract from witness (first stack item is the depositor sig)
+  // Finalized PSBT — the witness stack order depends on the wallet's finalizer,
+  // so we cannot reliably pick the depositor's signature by position. Require
+  // the non-finalized tapScriptSig path which identifies signatures by pubkey.
   if (input.finalScriptWitness && input.finalScriptWitness.length > 0) {
-    const witnessStack = parseWitnessStack(input.finalScriptWitness);
-    if (witnessStack.length >= 1) {
-      return extractSchnorrSig(witnessStack[0]);
-    }
+    throw new Error(
+      "PegIn input PSBT is already finalized. Cannot reliably extract the " +
+        "depositor signature from the witness stack. Ensure the wallet returns " +
+        "a non-finalized PSBT with tapScriptSig entries.",
+    );
   }
 
   throw new Error(
@@ -225,34 +228,3 @@ function extractSchnorrSig(sig: Uint8Array): string {
   throw new Error(`Unexpected PegIn input signature length: ${sig.length}`);
 }
 
-/** Parse a BIP-141 serialized witness stack into individual stack items. */
-function parseWitnessStack(witness: Buffer): Buffer[] {
-  const items: Buffer[] = [];
-  let offset = 0;
-
-  const readVarInt = (): number => {
-    const first = witness[offset++];
-    if (first < 0xfd) return first;
-    if (first === 0xfd) {
-      const val = witness[offset] | (witness[offset + 1] << 8);
-      offset += 2;
-      return val;
-    }
-    // 0xfe/0xff won't occur for witness stack item counts
-    const val =
-      witness[offset] |
-      (witness[offset + 1] << 8) |
-      (witness[offset + 2] << 16) |
-      (witness[offset + 3] << 24);
-    offset += 4;
-    return val;
-  };
-
-  const itemCount = readVarInt();
-  for (let i = 0; i < itemCount; i++) {
-    const len = readVarInt();
-    items.push(witness.slice(offset, offset + len));
-    offset += len;
-  }
-  return items;
-}

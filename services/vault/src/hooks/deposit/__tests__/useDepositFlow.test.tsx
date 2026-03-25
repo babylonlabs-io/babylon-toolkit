@@ -407,6 +407,7 @@ describe("useDepositFlow - Chain Switching", () => {
     universalChallengerBtcPubkeys: ["0xUniversalChallengerKey1"],
     modalOpen: true,
     getMnemonic: async () => "test mnemonic phrase for lamport key derivation",
+    htlcSecretHex: "ab".repeat(32),
   };
 
   beforeEach(() => {

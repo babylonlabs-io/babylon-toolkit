@@ -252,7 +252,6 @@ export function savePendingPegin(params: SavePendingPeginParams): void {
   const {
     depositorEthAddress,
     btcTxid,
-    ethTxHash,
     amount,
     selectedProviders,
     applicationController,
@@ -268,7 +267,7 @@ export function savePendingPegin(params: SavePendingPeginParams): void {
     providerIds: selectedProviders,
     applicationController,
     status: LocalStorageStatus.PENDING,
-    btcTxHash: ethTxHash,
+    btcTxHash: btcTxid,
     unsignedTxHex,
     selectedUTXOs: selectedUTXOs.map((utxo) => ({
       txid: utxo.txid,

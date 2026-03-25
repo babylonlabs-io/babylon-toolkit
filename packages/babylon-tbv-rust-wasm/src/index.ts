@@ -63,15 +63,19 @@ export async function createPrePeginTransaction(
     params.network,
   );
 
-  return {
-    txHex: tx.toHex(),
-    txid: tx.getTxid(),
-    htlcValue: tx.getHtlcValue(),
-    htlcScriptPubKey: tx.getHtlcScriptPubKey(),
-    htlcAddress: tx.getHtlcAddress(),
-    peginAmount: tx.getPeginAmount(),
-    depositorClaimValue: tx.getDepositorClaimValue(),
-  };
+  try {
+    return {
+      txHex: tx.toHex(),
+      txid: tx.getTxid(),
+      htlcValue: tx.getHtlcValue(),
+      htlcScriptPubKey: tx.getHtlcScriptPubKey(),
+      htlcAddress: tx.getHtlcAddress(),
+      peginAmount: tx.getPeginAmount(),
+      depositorClaimValue: tx.getDepositorClaimValue(),
+    };
+  } finally {
+    tx.free();
+  }
 }
 
 /**
@@ -109,17 +113,23 @@ export async function buildPeginTxFromPrePegin(
     params.network,
   );
 
-  const peginTx: WasmPeginTx = prePeginTx.buildPeginTx(
-    timelockPegin,
-    fundedPrePeginTxid,
-  );
+  let peginTx: WasmPeginTx | null = null;
+  try {
+    peginTx = prePeginTx.buildPeginTx(
+      timelockPegin,
+      fundedPrePeginTxid,
+    );
 
-  return {
-    txHex: peginTx.toHex(),
-    txid: peginTx.getTxid(),
-    vaultScriptPubKey: peginTx.getVaultScriptPubKey(),
-    vaultValue: peginTx.getVaultValue(),
-  };
+    return {
+      txHex: peginTx.toHex(),
+      txid: peginTx.getTxid(),
+      vaultScriptPubKey: peginTx.getVaultScriptPubKey(),
+      vaultValue: peginTx.getVaultValue(),
+    };
+  } finally {
+    peginTx?.free();
+    prePeginTx.free();
+  }
 }
 
 /**
@@ -146,14 +156,18 @@ export async function getPrePeginHtlcConnectorInfo(
     params.timelockRefund,
   );
 
-  return {
-    hashlockScript: connector.getHashlockScript(),
-    hashlockControlBlock: connector.getHashlockControlBlock(),
-    refundScript: connector.getRefundScript(),
-    refundControlBlock: connector.getRefundControlBlock(),
-    address: connector.getAddress(params.network),
-    scriptPubKey: connector.getScriptPubKey(params.network),
-  };
+  try {
+    return {
+      hashlockScript: connector.getHashlockScript(),
+      hashlockControlBlock: connector.getHashlockControlBlock(),
+      refundScript: connector.getRefundScript(),
+      refundControlBlock: connector.getRefundControlBlock(),
+      address: connector.getAddress(params.network),
+      scriptPubKey: connector.getScriptPubKey(params.network),
+    };
+  } finally {
+    connector.free();
+  }
 }
 
 /**
