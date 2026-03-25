@@ -86,6 +86,8 @@ jobs:
           NEXT_PUBLIC_ETH_RPC_URL: ${{ vars.NEXT_PUBLIC_ETH_RPC_URL }}
           # GraphQL Endpoint
           NEXT_PUBLIC_TBV_GRAPHQL_ENDPOINT: ${{ vars.NEXT_PUBLIC_TBV_GRAPHQL_ENDPOINT }}
+          # Vault Provider Proxy
+          NEXT_PUBLIC_TBV_VP_PROXY_URL: ${{ vars.NEXT_PUBLIC_TBV_VP_PROXY_URL }}
           # Trustless Bitcoin Vault (TBV) Contracts
           NEXT_PUBLIC_TBV_BTC_VAULTS_MANAGER: ${{ vars.NEXT_PUBLIC_TBV_BTC_VAULTS_MANAGER }}
           NEXT_PUBLIC_TBV_AAVE_CONTROLLER: ${{ vars.NEXT_PUBLIC_TBV_AAVE_CONTROLLER }}
