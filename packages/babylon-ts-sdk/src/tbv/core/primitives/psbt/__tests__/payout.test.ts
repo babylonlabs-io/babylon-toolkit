@@ -409,7 +409,7 @@ describe("extractPayoutSignature", () => {
       // We need to strip this to get the pure 64-byte signature
       const signature65 = Buffer.alloc(65);
       signature65.fill(0xbb, 0, 64); // Fill first 64 bytes
-      signature65[64] = 0x01; // Sighash flag (SIGHASH_ALL)
+      signature65[64] = Transaction.SIGHASH_ALL;
 
       const psbt = new Psbt();
       psbt.addInput({
@@ -440,7 +440,7 @@ describe("extractPayoutSignature", () => {
     it("should reject 65-byte signature with SIGHASH_NONE", () => {
       const signature65 = Buffer.alloc(65);
       signature65.fill(0xbb, 0, 64);
-      signature65[64] = 0x02; // SIGHASH_NONE
+      signature65[64] = Transaction.SIGHASH_NONE;
 
       const psbt = new Psbt();
       psbt.addInput({
@@ -469,7 +469,7 @@ describe("extractPayoutSignature", () => {
     it("should reject 65-byte signature with SIGHASH_SINGLE|ANYONECANPAY", () => {
       const signature65 = Buffer.alloc(65);
       signature65.fill(0xbb, 0, 64);
-      signature65[64] = 0x83; // SIGHASH_SINGLE | ANYONECANPAY
+      signature65[64] = Transaction.SIGHASH_SINGLE | Transaction.SIGHASH_ANYONECANPAY;
 
       const psbt = new Psbt();
       psbt.addInput({
