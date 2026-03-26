@@ -2,8 +2,11 @@
  * Depositor Graph Signing Service
  *
  * Signs the depositor's own graph transactions (Payout, NoPayout per challenger,
- * ChallengeAssert per challenger) and assembles them into DepositorAsClaimerPresignatures
- * for submission to the vault provider.
+ * ChallengeAssert per challenger) using pre-built PSBTs from the vault provider.
+ *
+ * The VP returns unsigned PSBTs with prevouts, scripts, and taproot metadata
+ * already embedded (BIP 174), so any standard PSBT-compatible signer can
+ * produce signatures without extra context.
  *
  * Transaction counts: 1 Payout + N NoPayout + N ChallengeAssert = 1 + 2N total PSBTs
  * (each ChallengeAssert PSBT has 3 inputs signed in one go)
@@ -15,22 +18,14 @@ import type {
   BitcoinWallet,
   SignPsbtOptions,
 } from "@babylonlabs-io/ts-sdk/shared";
-import {
-  buildChallengeAssertPsbt,
-  buildDepositorPayoutPsbt,
-  buildNoPayoutPsbt,
-  extractPayoutSignature,
-  type AssertPayoutNoPayoutConnectorParams,
-  type ChallengeAssertConnectorParams,
-  type PayoutConnectorParams,
-} from "@babylonlabs-io/ts-sdk/tbv/core";
+import { extractPayoutSignature } from "@babylonlabs-io/ts-sdk/tbv/core";
+import { Psbt } from "bitcoinjs-lib";
+import { Buffer } from "buffer";
 
-import type { VersionedOffchainParams } from "../../clients/eth-contract/protocol-params";
 import type {
   DepositorAsClaimerPresignatures,
   DepositorGraphTransactions,
   DepositorPreSigsPerChallenger,
-  PresignDataPerChallenger,
 } from "../../clients/vault-provider-rpc/types";
 import { signPsbtsWithFallback, stripHexPrefix } from "../../utils/btc";
 import { sanitizeErrorMessage } from "../../utils/errors/formatting";
@@ -40,6 +35,11 @@ import { sanitizeErrorMessage } from "../../utils/errors/formatting";
  * Protocol constant from btc-vault (NUM_UTXOS_FOR_CHALLENGE_ASSERT).
  */
 const NUM_CHALLENGE_ASSERT_INPUTS = 3;
+
+/** Convert a base64-encoded PSBT to hex (wallet signing format). */
+function base64ToHex(b64: string): string {
+  return Buffer.from(b64, "base64").toString("hex");
+}
 
 /**
  * Taproot script path sign options — disables tweak signer and prevents
@@ -65,39 +65,15 @@ function challengeAssertSignOptions(publicKey: string): SignPsbtOptions {
 }
 
 /**
- * Offchain parameters needed for depositor graph signing
- */
-export interface DepositorGraphOffchainParams {
-  /** Vault provider's BTC public key (x-only hex) — needed for PeginPayout connector */
-  vaultProviderBtcPubkey: string;
-  /** Vault keeper BTC public keys (x-only hex) — needed for PeginPayout connector */
-  vaultKeeperBtcPubkeys: string[];
-  /** CSV timelock in blocks for the PegIn output — needed for PeginPayout connector */
-  timelockPegin: number;
-  /** Local challenger pubkeys (currently empty []) */
-  localChallengers: string[];
-  /** Universal challenger pubkeys (sorted, x-only hex) */
-  universalChallengers: string[];
-  /** CSV timelock in blocks for the Assert output */
-  timelockAssert: number;
-  /** Security council member pubkeys (x-only hex) */
-  councilMembers: string[];
-  /** Council quorum (M-of-N multisig threshold) */
-  councilQuorum: number;
-}
-
-/**
  * Parameters for signDepositorGraph
  */
 export interface SignDepositorGraphParams {
-  /** The depositor graph from VP response */
+  /** The depositor graph from VP response (contains pre-built PSBTs) */
   depositorGraph: DepositorGraphTransactions;
   /** Depositor's BTC public key (x-only, 64-char hex) */
   depositorBtcPubkey: string;
   /** Bitcoin wallet for signing */
   btcWallet: BitcoinWallet;
-  /** Offchain params for connector construction */
-  offchainParams: DepositorGraphOffchainParams;
 }
 
 /** Tracks which indices in the flat PSBT array belong to which challenger */
@@ -107,55 +83,55 @@ interface ChallengerIndexEntry {
   challengeAssertIdx: number;
 }
 
-/** Result of the build phase — flat PSBT array with index mapping */
-interface BuiltDepositorGraphPsbts {
+/** Result of the collect phase — flat PSBT array with index mapping */
+interface CollectedDepositorGraphPsbts {
   psbtHexes: string[];
   signOptions: SignPsbtOptions[];
   challengerIndexMap: ChallengerIndexEntry[];
 }
 
 // ============================================================================
-// Build phase
+// PSBT verification — ensure pre-built PSBTs match advertised tx_hex
 // ============================================================================
 
 /**
- * Build ChallengeAssert connector params for each input of a challenger's CA tx.
+ * Verify that a base64-encoded PSBT's unsigned transaction matches the
+ * expected transaction hex. Catches VP serialization bugs.
+ *
+ * @throws if the PSBT's unsigned transaction doesn't match tx_hex
  */
-function buildChallengeAssertConnectorParams(
-  challenger: PresignDataPerChallenger,
-  depositorPubkey: string,
-  challengerPubkey: string,
-): ChallengeAssertConnectorParams[] {
-  const params: ChallengeAssertConnectorParams[] = [];
-  for (let j = 0; j < NUM_CHALLENGE_ASSERT_INPUTS; j++) {
-    const connectorData = challenger.challenge_assert_connectors[j];
-    if (!connectorData) {
-      throw new Error(
-        `Missing challenge_assert_connector data for challenger ${challengerPubkey}, index ${j}`,
-      );
-    }
-    params.push({
-      claimer: depositorPubkey,
-      challenger: challengerPubkey,
-      lamportHashesJson: connectorData.lamport_hashes_json,
-      gcInputLabelHashesJson: connectorData.gc_input_label_hashes_json,
-    });
+function verifyPsbtMatchesTxHex(
+  psbtBase64: string,
+  expectedTxHex: string,
+  label: string,
+): void {
+  const psbt = Psbt.fromBase64(psbtBase64);
+  // psbt.data is a bip174 PsbtBase; getTransaction() returns the unsigned tx as a Buffer
+  const unsignedTxHex = stripHexPrefix(
+    psbt.data.getTransaction().toString("hex"),
+  ).toLowerCase();
+  const normalizedExpected = stripHexPrefix(expectedTxHex).toLowerCase();
+  if (unsignedTxHex !== normalizedExpected) {
+    throw new Error(
+      `PSBT integrity check failed for ${label}: unsigned transaction does not match tx_hex`,
+    );
   }
-  return params;
 }
 
+// ============================================================================
+// Collect phase — decode pre-built PSBTs from VP response
+// ============================================================================
+
 /**
- * Build all PSBTs for the depositor graph and track their indices.
+ * Collect all pre-built PSBTs from the depositor graph and track their indices.
+ * Verifies each PSBT's unsigned transaction matches the corresponding tx_hex.
  *
  * Layout: [Payout, NoPayout_0, CA_0, NoPayout_1, CA_1, ...]
  */
-async function buildDepositorGraphPsbts(
+function collectDepositorGraphPsbts(
   depositorGraph: DepositorGraphTransactions,
-  depositorPubkey: string,
   walletPublicKey: string,
-  peginPayoutParams: PayoutConnectorParams,
-  assertConnectorParams: AssertPayoutNoPayoutConnectorParams,
-): Promise<BuiltDepositorGraphPsbts> {
+): CollectedDepositorGraphPsbts {
   const psbtHexes: string[] = [];
   const signOptions: SignPsbtOptions[] = [];
   const challengerIndexMap: ChallengerIndexEntry[] = [];
@@ -163,73 +139,51 @@ async function buildDepositorGraphPsbts(
   const taprootOpts = taprootScriptSignOptions(walletPublicKey);
   const challengeAssertOpts = challengeAssertSignOptions(walletPublicKey);
 
-  // Index 0: Payout PSBT (uses PeginPayoutConnector — same as VP/VK payout)
-  try {
-    const payoutPsbt = await buildDepositorPayoutPsbt({
-      payoutTxHex: depositorGraph.payout_tx.tx_hex,
-      prevouts: depositorGraph.payout_prevouts,
-      connectorParams: peginPayoutParams,
-    });
-    psbtHexes.push(payoutPsbt);
-    signOptions.push(taprootOpts);
-  } catch (err) {
-    throw new Error(
-      `Failed to build depositor Payout PSBT: ${err instanceof Error ? err.message : String(err)}`,
-    );
+  // Index 0: Payout PSBT
+  if (!depositorGraph.payout_psbt) {
+    throw new Error("depositorGraph.payout_psbt is missing");
   }
+  verifyPsbtMatchesTxHex(
+    depositorGraph.payout_psbt,
+    depositorGraph.payout_tx.tx_hex,
+    "depositor payout",
+  );
+  psbtHexes.push(base64ToHex(depositorGraph.payout_psbt));
+  signOptions.push(taprootOpts);
 
   // Per-challenger: 1 NoPayout + 1 ChallengeAssert (with 3 inputs)
   for (const challenger of depositorGraph.challenger_presign_data) {
     const challengerPubkey = stripHexPrefix(challenger.challenger_pubkey);
 
-    // Validate prevouts early (before building PSBTs)
-    if (
-      !challenger.challenge_assert_prevouts ||
-      challenger.challenge_assert_prevouts.length === 0
-    ) {
-      throw new Error(
-        `Missing challenge_assert_prevouts for challenger ${challengerPubkey}`,
-      );
-    }
-
     // NoPayout PSBT
     const noPayoutIdx = psbtHexes.length;
-    try {
-      const noPayoutPsbt = await buildNoPayoutPsbt({
-        noPayoutTxHex: challenger.nopayout_tx.tx_hex,
-        challengerPubkey,
-        prevouts: challenger.nopayout_prevouts,
-        connectorParams: assertConnectorParams,
-      });
-      psbtHexes.push(noPayoutPsbt);
-      signOptions.push(taprootOpts);
-    } catch (err) {
+    if (!challenger.nopayout_psbt) {
       throw new Error(
-        `Failed to build NoPayout PSBT for challenger ${challengerPubkey}: ${err instanceof Error ? err.message : String(err)}`,
+        `Missing nopayout_psbt for challenger ${challengerPubkey}`,
       );
     }
+    verifyPsbtMatchesTxHex(
+      challenger.nopayout_psbt,
+      challenger.nopayout_tx.tx_hex,
+      `nopayout (challenger ${challengerPubkey})`,
+    );
+    psbtHexes.push(base64ToHex(challenger.nopayout_psbt));
+    signOptions.push(taprootOpts);
 
     // ChallengeAssert PSBT — 1 PSBT with NUM_CHALLENGE_ASSERT_INPUTS inputs
     const challengeAssertIdx = psbtHexes.length;
-    const connectorParamsPerInput = buildChallengeAssertConnectorParams(
-      challenger,
-      depositorPubkey,
-      challengerPubkey,
-    );
-
-    try {
-      const caPsbt = await buildChallengeAssertPsbt({
-        challengeAssertTxHex: challenger.challenge_assert_tx.tx_hex,
-        prevouts: challenger.challenge_assert_prevouts,
-        connectorParamsPerInput,
-      });
-      psbtHexes.push(caPsbt);
-      signOptions.push(challengeAssertOpts);
-    } catch (err) {
+    if (!challenger.challenge_assert_psbt) {
       throw new Error(
-        `Failed to build ChallengeAssert PSBT for challenger ${challengerPubkey}: ${err instanceof Error ? err.message : String(err)}`,
+        `Missing challenge_assert_psbt for challenger ${challengerPubkey}`,
       );
     }
+    verifyPsbtMatchesTxHex(
+      challenger.challenge_assert_psbt,
+      challenger.challenge_assert_tx.tx_hex,
+      `challenge_assert (challenger ${challengerPubkey})`,
+    );
+    psbtHexes.push(base64ToHex(challenger.challenge_assert_psbt));
+    signOptions.push(challengeAssertOpts);
 
     challengerIndexMap.push({
       challengerPubkey,
@@ -292,126 +246,24 @@ function extractDepositorGraphSignatures(
  * Sign all depositor graph transactions and assemble into presignatures.
  *
  * Flow:
- * 1. Build all PSBTs (1 Payout + N NoPayout + N ChallengeAssert)
+ * 1. Collect pre-built PSBTs from VP response (base64 → hex)
  * 2. Batch sign via wallet.signPsbts() if available, else sequential signPsbt()
  * 3. Extract Schnorr signatures from each signed PSBT
  * 4. Assemble into DepositorAsClaimerPresignatures
  */
-/**
- * Parameters for prepareAndSignDepositorGraph — the high-level wrapper
- * that derives offchain params and delegates to signDepositorGraph.
- */
-export interface PrepareAndSignDepositorGraphParams {
-  depositorGraph: DepositorGraphTransactions;
-  depositorBtcPubkey: string;
-  btcWallet: BitcoinWallet;
-  vaultProviderBtcPubkey: string;
-  vaultKeeperBtcPubkeys: string[];
-  universalChallengerBtcPubkeys: string[];
-  timelockPegin: number;
-  getOffchainParamsByVersion: (
-    version: number,
-  ) => VersionedOffchainParams | undefined;
-}
-
-/**
- * Derive offchain params from the depositor graph version, compute local
- * challengers vs universal challengers, then sign all depositor graph PSBTs.
- *
- * This wraps signDepositorGraph with the param-derivation logic that was
- * previously duplicated across useDepositFlow, useMultiVaultDepositFlow,
- * and usePayoutSigningState.
- */
-export async function prepareAndSignDepositorGraph(
-  params: PrepareAndSignDepositorGraphParams,
-): Promise<DepositorAsClaimerPresignatures> {
-  const {
-    depositorGraph,
-    depositorBtcPubkey,
-    btcWallet,
-    vaultProviderBtcPubkey,
-    vaultKeeperBtcPubkeys,
-    universalChallengerBtcPubkeys,
-    timelockPegin,
-    getOffchainParamsByVersion,
-  } = params;
-
-  const offchainParams = getOffchainParamsByVersion(
-    depositorGraph.offchain_params_version,
-  );
-  if (!offchainParams) {
-    throw new Error(
-      `Offchain params version ${depositorGraph.offchain_params_version} not found. Please refresh the page.`,
-    );
-  }
-
-  const sortedUCPubkeys = universalChallengerBtcPubkeys
-    .map(stripHexPrefix)
-    .sort();
-  const councilMembers = offchainParams.securityCouncilKeys.map(stripHexPrefix);
-
-  // Derive local challengers: any challenger in the graph that isn't a UC
-  const ucSet = new Set(sortedUCPubkeys);
-  const localChallengers = depositorGraph.challenger_presign_data
-    .map((c) => stripHexPrefix(c.challenger_pubkey))
-    .filter((pk) => !ucSet.has(pk))
-    .sort();
-
-  return signDepositorGraph({
-    depositorGraph,
-    depositorBtcPubkey,
-    btcWallet,
-    offchainParams: {
-      vaultProviderBtcPubkey,
-      vaultKeeperBtcPubkeys,
-      timelockPegin,
-      localChallengers,
-      universalChallengers: sortedUCPubkeys,
-      timelockAssert: Number(offchainParams.timelockAssert),
-      councilMembers,
-      councilQuorum: offchainParams.councilQuorum,
-    },
-  });
-}
-
 export async function signDepositorGraph(
   params: SignDepositorGraphParams,
 ): Promise<DepositorAsClaimerPresignatures> {
-  const { depositorGraph, depositorBtcPubkey, btcWallet, offchainParams } =
-    params;
+  const { depositorGraph, depositorBtcPubkey, btcWallet } = params;
 
   const depositorPubkey = stripHexPrefix(depositorBtcPubkey);
 
   // Get the wallet's compressed public key for signInputs identification
   const walletPublicKey = await btcWallet.getPublicKeyHex();
 
-  // Build connector params
-  const peginPayoutParams: PayoutConnectorParams = {
-    depositor: depositorPubkey,
-    vaultProvider: stripHexPrefix(offchainParams.vaultProviderBtcPubkey),
-    vaultKeepers: offchainParams.vaultKeeperBtcPubkeys.map(stripHexPrefix),
-    universalChallengers: offchainParams.universalChallengers,
-    timelockPegin: offchainParams.timelockPegin,
-  };
-
-  const assertConnectorParams: AssertPayoutNoPayoutConnectorParams = {
-    claimer: depositorPubkey,
-    localChallengers: offchainParams.localChallengers,
-    universalChallengers: offchainParams.universalChallengers,
-    timelockAssert: offchainParams.timelockAssert,
-    councilMembers: offchainParams.councilMembers,
-    councilQuorum: offchainParams.councilQuorum,
-  };
-
-  // 1. Build all PSBTs
+  // 1. Collect pre-built PSBTs from VP response
   const { psbtHexes, signOptions, challengerIndexMap } =
-    await buildDepositorGraphPsbts(
-      depositorGraph,
-      depositorPubkey,
-      walletPublicKey,
-      peginPayoutParams,
-      assertConnectorParams,
-    );
+    collectDepositorGraphPsbts(depositorGraph, walletPublicKey);
 
   // 2. Sign all PSBTs (batch when wallet supports it, sequential fallback for mobile)
   let signedPsbtHexes: string[];

@@ -1,9 +1,6 @@
-import {
-  buildChallengeAssertPsbt,
-  buildDepositorPayoutPsbt,
-  buildNoPayoutPsbt,
-  extractPayoutSignature,
-} from "@babylonlabs-io/ts-sdk/tbv/core";
+import { extractPayoutSignature } from "@babylonlabs-io/ts-sdk/tbv/core";
+import { Psbt } from "bitcoinjs-lib";
+import { Buffer } from "buffer";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { DepositorGraphTransactions } from "../../../clients/vault-provider-rpc/types";
@@ -12,23 +9,26 @@ import {
   type SignDepositorGraphParams,
 } from "../depositorGraphSigningService";
 
-// Mock the PSBT builders (vitest hoists vi.mock calls)
+// Mock extractPayoutSignature (vitest hoists vi.mock calls)
 vi.mock("@babylonlabs-io/ts-sdk/tbv/core", () => ({
-  buildDepositorPayoutPsbt: vi.fn().mockResolvedValue("psbt_payout_hex"),
-  buildNoPayoutPsbt: vi.fn().mockResolvedValue("psbt_nopayout_hex"),
-  buildChallengeAssertPsbt: vi.fn().mockResolvedValue("psbt_ca_hex"),
   extractPayoutSignature: vi.fn().mockReturnValue("default_sig_hex"),
+}));
+
+// Mock Psbt.fromBase64 for PSBT integrity verification
+vi.mock("bitcoinjs-lib", () => ({
+  Psbt: {
+    fromBase64: vi.fn(),
+  },
 }));
 
 const DEPOSITOR_PUBKEY =
   "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef";
-const VP_PUBKEY =
-  "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
-const VK_PUBKEY =
-  "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc";
-const CHALLENGER_PUBKEY_1 =
-  "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 const WALLET_COMPRESSED_PUBKEY = "02" + DEPOSITOR_PUBKEY; // 66-char compressed pubkey
+
+/** Helper to create a base64-encoded mock PSBT (content doesn't matter since extractPayoutSignature is mocked). */
+function mockPsbtBase64(label: string): string {
+  return Buffer.from(label).toString("base64");
+}
 
 function createMockDepositorGraph(
   numChallengers = 1,
@@ -38,39 +38,9 @@ function createMockDepositorGraph(
     return {
       challenger_pubkey: pubkey,
       nopayout_tx: { tx_hex: `nopayout_tx_${i}` },
-      nopayout_sighash: `nopayout_sighash_${i}`,
       challenge_assert_tx: { tx_hex: `ca_tx_${i}` },
-      challenge_assert_sighashes: [
-        `ca_sh_${i}_0`,
-        `ca_sh_${i}_1`,
-        `ca_sh_${i}_2`,
-      ] as [string, string, string],
-      challenge_assert_connectors: [
-        {
-          lamport_hashes_json: `lamport_${i}_0`,
-          gc_input_label_hashes_json: `gc_${i}_0`,
-        },
-        {
-          lamport_hashes_json: `lamport_${i}_1`,
-          gc_input_label_hashes_json: `gc_${i}_1`,
-        },
-        {
-          lamport_hashes_json: `lamport_${i}_2`,
-          gc_input_label_hashes_json: `gc_${i}_2`,
-        },
-      ] as [
-        { lamport_hashes_json: string; gc_input_label_hashes_json: string },
-        { lamport_hashes_json: string; gc_input_label_hashes_json: string },
-        { lamport_hashes_json: string; gc_input_label_hashes_json: string },
-      ],
-      // Flat prevouts array (one per input, matching VP response)
-      challenge_assert_prevouts: [
-        { script_pubkey: "sp0", value: 1000 },
-        { script_pubkey: "sp1", value: 1000 },
-        { script_pubkey: "sp2", value: 1000 },
-      ],
-      nopayout_prevouts: [{ script_pubkey: "sp_np", value: 2000 }],
-      output_label_hashes: [],
+      challenge_assert_psbt: mockPsbtBase64(`ca_psbt_${i}`),
+      nopayout_psbt: mockPsbtBase64(`nopayout_psbt_${i}`),
     };
   });
 
@@ -78,8 +48,7 @@ function createMockDepositorGraph(
     claim_tx: { tx_hex: "claim_tx_hex" },
     payout_tx: { tx_hex: "payout_tx_hex" },
     assert_tx: { tx_hex: "assert_tx_hex" },
-    payout_sighash: "payout_sighash",
-    payout_prevouts: [{ script_pubkey: "sp_payout", value: 5000 }],
+    payout_psbt: mockPsbtBase64("payout_psbt"),
     offchain_params_version: 1,
     challenger_presign_data: challengers,
   };
@@ -88,26 +57,49 @@ function createMockDepositorGraph(
 function createMockParams(
   overrides?: Partial<SignDepositorGraphParams>,
 ): SignDepositorGraphParams {
+  const depositorGraph =
+    overrides?.depositorGraph ?? createMockDepositorGraph(1);
+
+  // Set up PSBT verification mock for the graph being used
+  setupPsbtVerificationMock(depositorGraph);
+
   return {
-    depositorGraph: createMockDepositorGraph(1),
+    depositorGraph,
     depositorBtcPubkey: DEPOSITOR_PUBKEY,
     btcWallet: {
       signPsbts: vi.fn(),
       signPsbt: vi.fn(),
       getPublicKeyHex: vi.fn().mockResolvedValue(WALLET_COMPRESSED_PUBKEY),
     } as any,
-    offchainParams: {
-      vaultProviderBtcPubkey: VP_PUBKEY,
-      vaultKeeperBtcPubkeys: [VK_PUBKEY],
-      timelockPegin: 50,
-      localChallengers: [],
-      universalChallengers: [CHALLENGER_PUBKEY_1],
-      timelockAssert: 100,
-      councilMembers: ["council1"],
-      councilQuorum: 1,
-    },
     ...overrides,
   };
+}
+
+/**
+ * Configure Psbt.fromBase64 mock to return a fake PSBT whose getTransaction()
+ * returns the matching tx_hex for verification to pass.
+ */
+function setupPsbtVerificationMock(
+  depositorGraph: DepositorGraphTransactions,
+): void {
+  const txHexByPsbt = new Map<string, string>();
+  txHexByPsbt.set(depositorGraph.payout_psbt, depositorGraph.payout_tx.tx_hex);
+  for (const c of depositorGraph.challenger_presign_data) {
+    txHexByPsbt.set(c.nopayout_psbt, c.nopayout_tx.tx_hex);
+    txHexByPsbt.set(c.challenge_assert_psbt, c.challenge_assert_tx.tx_hex);
+  }
+
+  vi.mocked(Psbt.fromBase64).mockImplementation((b64: string) => {
+    const expectedHex = txHexByPsbt.get(b64);
+    return {
+      data: {
+        getTransaction: () => ({
+          toString: (encoding: string) =>
+            encoding === "hex" ? (expectedHex ?? "mismatch") : "",
+        }),
+      },
+    } as any;
+  });
 }
 
 describe("depositorGraphSigningService", () => {
@@ -116,7 +108,7 @@ describe("depositorGraphSigningService", () => {
   });
 
   describe("signDepositorGraph", () => {
-    it("should build correct number of PSBTs for 1 challenger", async () => {
+    it("should sign correct number of PSBTs for 1 challenger", async () => {
       // 1 payout + 1 nopayout + 1 challenge_assert = 3 total PSBTs
       const mockExtract = vi.mocked(extractPayoutSignature);
       mockExtract.mockReturnValue("deadbeef".repeat(16)); // 128-char hex sig
@@ -131,14 +123,13 @@ describe("depositorGraphSigningService", () => {
 
       await signDepositorGraph(params);
 
-      expect(buildDepositorPayoutPsbt).toHaveBeenCalledTimes(1);
-      expect(buildNoPayoutPsbt).toHaveBeenCalledTimes(1);
-      // 1 ChallengeAssert PSBT per challenger (not 3)
-      expect(buildChallengeAssertPsbt).toHaveBeenCalledTimes(1);
-
-      // Batch sign should be called with 3 PSBTs and sign options (including publicKey)
+      // Batch sign should be called with 3 PSBTs and sign options
       expect(wallet.signPsbts).toHaveBeenCalledWith(
-        ["psbt_payout_hex", "psbt_nopayout_hex", "psbt_ca_hex"],
+        expect.arrayContaining([
+          expect.any(String), // payout PSBT hex
+          expect.any(String), // nopayout PSBT hex
+          expect.any(String), // challenge_assert PSBT hex
+        ]),
         [
           // Payout: sign input 0
           {
@@ -187,7 +178,7 @@ describe("depositorGraphSigningService", () => {
       );
     });
 
-    it("should build correct number of PSBTs for 2 challengers", async () => {
+    it("should sign correct number of PSBTs for 2 challengers", async () => {
       // 1 payout + 2 nopayout + 2 challenge_assert = 5 total
       const mockExtract = vi.mocked(extractPayoutSignature);
       mockExtract.mockReturnValue("deadbeef".repeat(16));
@@ -199,9 +190,13 @@ describe("depositorGraphSigningService", () => {
 
       await signDepositorGraph(params);
 
-      expect(buildDepositorPayoutPsbt).toHaveBeenCalledTimes(1);
-      expect(buildNoPayoutPsbt).toHaveBeenCalledTimes(2);
-      expect(buildChallengeAssertPsbt).toHaveBeenCalledTimes(2);
+      // 5 PSBTs total
+      expect(wallet.signPsbts).toHaveBeenCalledWith(
+        expect.any(Array),
+        expect.any(Array),
+      );
+      const [psbts] = wallet.signPsbts.mock.calls[0];
+      expect(psbts).toHaveLength(5);
     });
 
     it("should return correct presignature structure", async () => {
@@ -247,39 +242,9 @@ describe("depositorGraphSigningService", () => {
 
       // 3 PSBTs signed sequentially with per-PSBT sign options
       expect(wallet.signPsbt).toHaveBeenCalledTimes(3);
-      expect(wallet.signPsbt).toHaveBeenCalledWith("psbt_payout_hex", {
-        autoFinalized: false,
-        signInputs: [
-          {
-            index: 0,
-            publicKey: WALLET_COMPRESSED_PUBKEY,
-            disableTweakSigner: true,
-          },
-        ],
-      });
-      expect(wallet.signPsbt).toHaveBeenCalledWith("psbt_ca_hex", {
-        autoFinalized: false,
-        signInputs: [
-          {
-            index: 0,
-            publicKey: WALLET_COMPRESSED_PUBKEY,
-            disableTweakSigner: true,
-          },
-          {
-            index: 1,
-            publicKey: WALLET_COMPRESSED_PUBKEY,
-            disableTweakSigner: true,
-          },
-          {
-            index: 2,
-            publicKey: WALLET_COMPRESSED_PUBKEY,
-            disableTweakSigner: true,
-          },
-        ],
-      });
     });
 
-    it("should pass correct connector params to payout builder", async () => {
+    it("should convert base64 PSBTs from VP to hex for wallet signing", async () => {
       const mockExtract = vi.mocked(extractPayoutSignature);
       mockExtract.mockReturnValue("deadbeef".repeat(16));
 
@@ -289,85 +254,13 @@ describe("depositorGraphSigningService", () => {
 
       await signDepositorGraph(params);
 
-      expect(buildDepositorPayoutPsbt).toHaveBeenCalledWith({
-        payoutTxHex: "payout_tx_hex",
-        prevouts: [{ script_pubkey: "sp_payout", value: 5000 }],
-        connectorParams: {
-          depositor: DEPOSITOR_PUBKEY,
-          vaultProvider: VP_PUBKEY,
-          vaultKeepers: [VK_PUBKEY],
-          universalChallengers: [CHALLENGER_PUBKEY_1],
-          timelockPegin: 50,
-        },
-      });
-    });
-
-    it("should pass correct params to nopayout builder", async () => {
-      const mockExtract = vi.mocked(extractPayoutSignature);
-      mockExtract.mockReturnValue("deadbeef".repeat(16));
-
-      const params = createMockParams();
-      const wallet = params.btcWallet as any;
-      wallet.signPsbts.mockResolvedValue(Array(3).fill("signed_hex"));
-
-      await signDepositorGraph(params);
-
-      expect(buildNoPayoutPsbt).toHaveBeenCalledWith({
-        noPayoutTxHex: "nopayout_tx_0",
-        challengerPubkey: "a".repeat(64),
-        prevouts: [{ script_pubkey: "sp_np", value: 2000 }],
-        connectorParams: {
-          claimer: DEPOSITOR_PUBKEY,
-          localChallengers: [],
-          universalChallengers: [CHALLENGER_PUBKEY_1],
-          timelockAssert: 100,
-          councilMembers: ["council1"],
-          councilQuorum: 1,
-        },
-      });
-    });
-
-    it("should pass all connector params per input to challenge assert builder", async () => {
-      const mockExtract = vi.mocked(extractPayoutSignature);
-      mockExtract.mockReturnValue("deadbeef".repeat(16));
-
-      const params = createMockParams();
-      const wallet = params.btcWallet as any;
-      wallet.signPsbts.mockResolvedValue(Array(3).fill("signed_hex"));
-
-      await signDepositorGraph(params);
-
-      // Called once per challenger (1 PSBT with all 3 inputs)
-      expect(buildChallengeAssertPsbt).toHaveBeenCalledTimes(1);
-
-      expect(buildChallengeAssertPsbt).toHaveBeenCalledWith({
-        challengeAssertTxHex: "ca_tx_0",
-        prevouts: [
-          { script_pubkey: "sp0", value: 1000 },
-          { script_pubkey: "sp1", value: 1000 },
-          { script_pubkey: "sp2", value: 1000 },
-        ],
-        connectorParamsPerInput: [
-          {
-            claimer: DEPOSITOR_PUBKEY,
-            challenger: "a".repeat(64),
-            lamportHashesJson: "lamport_0_0",
-            gcInputLabelHashesJson: "gc_0_0",
-          },
-          {
-            claimer: DEPOSITOR_PUBKEY,
-            challenger: "a".repeat(64),
-            lamportHashesJson: "lamport_0_1",
-            gcInputLabelHashesJson: "gc_0_1",
-          },
-          {
-            claimer: DEPOSITOR_PUBKEY,
-            challenger: "a".repeat(64),
-            lamportHashesJson: "lamport_0_2",
-            gcInputLabelHashesJson: "gc_0_2",
-          },
-        ],
-      });
+      // Verify PSBTs passed to wallet are hex (converted from base64)
+      const [psbts] = wallet.signPsbts.mock.calls[0];
+      const expectedPayoutHex = Buffer.from(
+        mockPsbtBase64("payout_psbt"),
+        "base64",
+      ).toString("hex");
+      expect(psbts[0]).toBe(expectedPayoutHex);
     });
 
     it("should extract 3 sigs from ChallengeAssert PSBT using input indices", async () => {
@@ -416,24 +309,6 @@ describe("depositorGraphSigningService", () => {
       );
     });
 
-    it("should throw when challenge_assert_connector data is missing", async () => {
-      const graph = createMockDepositorGraph(1);
-      // Remove one connector entry to trigger the error
-      graph.challenger_presign_data[0].challenge_assert_connectors = [
-        graph.challenger_presign_data[0].challenge_assert_connectors[0],
-        graph.challenger_presign_data[0].challenge_assert_connectors[1],
-        // Missing third connector
-      ] as any;
-
-      const params = createMockParams({ depositorGraph: graph });
-      const wallet = params.btcWallet as any;
-      wallet.signPsbts.mockResolvedValue(Array(3).fill("signed_hex"));
-
-      await expect(signDepositorGraph(params)).rejects.toThrow(
-        /Missing challenge_assert_connector data/,
-      );
-    });
-
     it("should handle 0 challengers (payout only)", async () => {
       const mockExtract = vi.mocked(extractPayoutSignature);
       mockExtract.mockReturnValue("payout_only_sig");
@@ -445,13 +320,9 @@ describe("depositorGraphSigningService", () => {
 
       const result = await signDepositorGraph(params);
 
-      expect(buildDepositorPayoutPsbt).toHaveBeenCalledTimes(1);
-      expect(buildNoPayoutPsbt).toHaveBeenCalledTimes(0);
-      expect(buildChallengeAssertPsbt).toHaveBeenCalledTimes(0);
-
       // Wallet should be called with exactly 1 PSBT and sign options
       expect(wallet.signPsbts).toHaveBeenCalledWith(
-        ["psbt_payout_hex"],
+        [expect.any(String)],
         [
           {
             autoFinalized: false,
@@ -483,78 +354,128 @@ describe("depositorGraphSigningService", () => {
       );
     });
 
-    it("should strip 0x prefix from vault provider and vault keeper pubkeys", async () => {
-      const mockExtract = vi.mocked(extractPayoutSignature);
-      mockExtract.mockReturnValue("deadbeef".repeat(16));
+    it("should throw when payout_psbt is missing", async () => {
+      const graph = createMockDepositorGraph(0);
+      (graph as any).payout_psbt = undefined;
 
-      const params = createMockParams({
-        depositorBtcPubkey: "0x" + DEPOSITOR_PUBKEY,
-        offchainParams: {
-          vaultProviderBtcPubkey: "0x" + VP_PUBKEY,
-          vaultKeeperBtcPubkeys: ["0x" + VK_PUBKEY],
-          timelockPegin: 50,
-          localChallengers: [],
-          universalChallengers: [CHALLENGER_PUBKEY_1],
-          timelockAssert: 100,
-          councilMembers: ["council1"],
-          councilQuorum: 1,
-        },
-      });
+      const params = createMockParams({ depositorGraph: graph });
       const wallet = params.btcWallet as any;
-      wallet.signPsbts.mockResolvedValue(Array(3).fill("signed_hex"));
+      wallet.signPsbts.mockResolvedValue([]);
 
-      await signDepositorGraph(params);
-
-      // Payout builder should receive stripped pubkeys
-      expect(buildDepositorPayoutPsbt).toHaveBeenCalledWith(
-        expect.objectContaining({
-          connectorParams: {
-            depositor: DEPOSITOR_PUBKEY,
-            vaultProvider: VP_PUBKEY,
-            vaultKeepers: [VK_PUBKEY],
-            universalChallengers: [CHALLENGER_PUBKEY_1],
-            timelockPegin: 50,
-          },
-        }),
-      );
-
-      // NoPayout builder should also receive stripped claimer pubkey
-      expect(buildNoPayoutPsbt).toHaveBeenCalledWith(
-        expect.objectContaining({
-          connectorParams: expect.objectContaining({
-            claimer: DEPOSITOR_PUBKEY,
-          }),
-        }),
+      await expect(signDepositorGraph(params)).rejects.toThrow(
+        /payout_psbt is missing/,
       );
     });
 
-    it("should handle empty vault keepers array", async () => {
-      const mockExtract = vi.mocked(extractPayoutSignature);
-      mockExtract.mockReturnValue("deadbeef".repeat(16));
+    it("should throw when challenger nopayout_psbt is missing", async () => {
+      const graph = createMockDepositorGraph(1);
+      (graph.challenger_presign_data[0] as any).nopayout_psbt = undefined;
 
-      const params = createMockParams({
-        offchainParams: {
-          vaultProviderBtcPubkey: VP_PUBKEY,
-          vaultKeeperBtcPubkeys: [],
-          timelockPegin: 50,
-          localChallengers: [],
-          universalChallengers: [CHALLENGER_PUBKEY_1],
-          timelockAssert: 100,
-          councilMembers: ["council1"],
-          councilQuorum: 1,
-        },
-      });
+      const params = createMockParams({ depositorGraph: graph });
       const wallet = params.btcWallet as any;
       wallet.signPsbts.mockResolvedValue(Array(3).fill("signed_hex"));
 
-      await signDepositorGraph(params);
+      await expect(signDepositorGraph(params)).rejects.toThrow(
+        /Missing nopayout_psbt/,
+      );
+    });
 
-      expect(buildDepositorPayoutPsbt).toHaveBeenCalledWith(
-        expect.objectContaining({
-          connectorParams: expect.objectContaining({
-            vaultKeepers: [],
-          }),
-        }),
+    it("should throw when challenger challenge_assert_psbt is missing", async () => {
+      const graph = createMockDepositorGraph(1);
+      (graph.challenger_presign_data[0] as any).challenge_assert_psbt =
+        undefined;
+
+      const params = createMockParams({ depositorGraph: graph });
+      const wallet = params.btcWallet as any;
+      wallet.signPsbts.mockResolvedValue(Array(3).fill("signed_hex"));
+
+      await expect(signDepositorGraph(params)).rejects.toThrow(
+        /Missing challenge_assert_psbt/,
+      );
+    });
+
+    it("should throw when payout PSBT does not match tx_hex", async () => {
+      const params = createMockParams();
+
+      // Override the mock AFTER createMockParams so payout PSBT verification fails
+      vi.mocked(Psbt.fromBase64).mockImplementation(
+        () =>
+          ({
+            data: {
+              getTransaction: () => ({
+                toString: (encoding: string) =>
+                  encoding === "hex" ? "wrong_tx_hex" : "",
+              }),
+            },
+          }) as any,
+      );
+
+      await expect(signDepositorGraph(params)).rejects.toThrow(
+        /PSBT integrity check failed for depositor payout/,
+      );
+    });
+
+    it("should throw when nopayout PSBT does not match tx_hex", async () => {
+      const graph = createMockDepositorGraph(1);
+      const params = createMockParams({ depositorGraph: graph });
+
+      // Override mock to pass payout but fail nopayout verification
+      const payoutPsbt = graph.payout_psbt;
+      vi.mocked(Psbt.fromBase64).mockImplementation(
+        (b64: string) =>
+          ({
+            data: {
+              getTransaction: () => ({
+                toString: (encoding: string) =>
+                  encoding === "hex"
+                    ? b64 === payoutPsbt
+                      ? graph.payout_tx.tx_hex
+                      : "wrong_tx_hex"
+                    : "",
+              }),
+            },
+          }) as any,
+      );
+
+      await expect(signDepositorGraph(params)).rejects.toThrow(
+        /PSBT integrity check failed for nopayout/,
+      );
+    });
+
+    it("should throw when challenge_assert PSBT does not match tx_hex", async () => {
+      const graph = createMockDepositorGraph(1);
+      const params = createMockParams({ depositorGraph: graph });
+
+      // Override mock to pass payout and nopayout but fail challenge_assert
+      const passingPsbts = new Set([
+        graph.payout_psbt,
+        graph.challenger_presign_data[0].nopayout_psbt,
+      ]);
+      const txHexMap = new Map<string, string>([
+        [graph.payout_psbt, graph.payout_tx.tx_hex],
+        [
+          graph.challenger_presign_data[0].nopayout_psbt,
+          graph.challenger_presign_data[0].nopayout_tx.tx_hex,
+        ],
+      ]);
+      vi.mocked(Psbt.fromBase64).mockImplementation(
+        (b64: string) =>
+          ({
+            data: {
+              getTransaction: () => ({
+                toString: (encoding: string) =>
+                  encoding === "hex"
+                    ? passingPsbts.has(b64)
+                      ? (txHexMap.get(b64) ?? "wrong")
+                      : "wrong_tx_hex"
+                    : "",
+              }),
+            },
+          }) as any,
+      );
+
+      await expect(signDepositorGraph(params)).rejects.toThrow(
+        /PSBT integrity check failed for challenge_assert/,
       );
     });
 
@@ -569,16 +490,22 @@ describe("depositorGraphSigningService", () => {
       );
     });
 
-    it("should throw when challenge_assert_prevouts is empty", async () => {
-      const graph = createMockDepositorGraph(1);
-      graph.challenger_presign_data[0].challenge_assert_prevouts = [];
+    it("should strip 0x prefix from depositor pubkey", async () => {
+      const mockExtract = vi.mocked(extractPayoutSignature);
+      mockExtract.mockReturnValue("deadbeef".repeat(16));
 
-      const params = createMockParams({ depositorGraph: graph });
+      const params = createMockParams({
+        depositorBtcPubkey: "0x" + DEPOSITOR_PUBKEY,
+      });
       const wallet = params.btcWallet as any;
       wallet.signPsbts.mockResolvedValue(Array(3).fill("signed_hex"));
 
-      await expect(signDepositorGraph(params)).rejects.toThrow(
-        /Missing challenge_assert_prevouts/,
+      await signDepositorGraph(params);
+
+      // extractPayoutSignature should receive stripped pubkey
+      expect(mockExtract).toHaveBeenCalledWith(
+        expect.any(String),
+        DEPOSITOR_PUBKEY,
       );
     });
   });

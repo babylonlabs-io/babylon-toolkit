@@ -101,7 +101,7 @@ vi.mock("@/services/vault/vaultPayoutSignatureService", () => ({
 
 // Mock depositor graph signing service to avoid SDK imports triggering initEccLib
 vi.mock("@/services/vault/depositorGraphSigningService", () => ({
-  prepareAndSignDepositorGraph: vi.fn().mockResolvedValue({
+  signDepositorGraph: vi.fn().mockResolvedValue({
     payout_signatures: { payout_signature: "mock_payout_sig" },
     per_challenger: {},
   }),
@@ -465,8 +465,7 @@ async function setupDefaultMocks() {
       assert_tx: { tx_hex: "0xdepassert" },
       payout_tx: { tx_hex: "0xdeppayout" },
       challenger_presign_data: [],
-      payout_sighash: "0xsighash",
-      payout_prevouts: [],
+      payout_psbt: "bW9ja19wYXlvdXRfcHNidA==",
       offchain_params_version: 0,
     },
   });

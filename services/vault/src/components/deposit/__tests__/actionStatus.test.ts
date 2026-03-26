@@ -18,7 +18,6 @@ function pollingResultWithAction(
     error: null,
     peginState,
     isOwnedByCurrentWallet: true,
-    utxoUnavailable: false,
   };
 }
 

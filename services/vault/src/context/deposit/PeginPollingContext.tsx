@@ -20,7 +20,6 @@ import {
 } from "react";
 
 import { usePeginPollingQuery } from "../../hooks/deposit/usePeginPollingQuery";
-import { useUtxoValidation } from "../../hooks/deposit/useUtxoValidation";
 import { useUTXOs } from "../../hooks/useUTXOs";
 import {
   ContractStatus,
@@ -57,10 +56,12 @@ function resolveLocalStatus(
   // Auto-detect CONFIRMING state from blockchain data.
   // If contract is VERIFIED and the tx is already broadcast to Bitcoin,
   // treat as CONFIRMING even if localStorage doesn't have this status.
+  // Skip if already CONFIRMING or CONFIRMED (post-activation) to avoid regression.
   if (
     hasUtxoData &&
     contractStatus === ContractStatus.VERIFIED &&
-    localStatus !== LocalStorageStatus.CONFIRMING
+    localStatus !== LocalStorageStatus.CONFIRMING &&
+    localStatus !== LocalStorageStatus.CONFIRMED
   ) {
     const txid = stripHexPrefix(depositId).toLowerCase();
     if (broadcastedTxIds.has(txid)) {
@@ -108,25 +109,15 @@ export function PeginPollingProvider({
     btcPublicKey,
   });
 
-  // Fetch UTXOs and recent transactions using React Query (cached with 30s staleTime)
+  // Fetch recent transactions using React Query (cached with 30s staleTime)
+  // broadcastedTxIds is used by resolveLocalStatus to auto-detect CONFIRMING state
   const {
-    allUTXOs,
     broadcastedTxIds,
     isLoading: isLoadingUtxos,
     error: utxoError,
   } = useUTXOs(btcAddress);
 
-  // Validate UTXOs for pending broadcast deposits
-  // Pass undefined while loading or on error to avoid false positives
-  // (error state would have empty arrays, falsely marking deposits as invalid)
-  // broadcastedTxIds is used to detect if UTXOs were spent by vault's own tx (confirming vs invalid)
   const hasUtxoData = !!btcAddress && !isLoadingUtxos && !utxoError;
-  const { unavailableUtxos } = useUtxoValidation({
-    activities,
-    btcPublicKey,
-    availableUtxos: hasUtxoData ? allUTXOs : undefined,
-    broadcastedTxIds: hasUtxoData ? broadcastedTxIds : undefined,
-  });
 
   // Optimistic status handlers
   const setOptimisticStatus = useCallback(
@@ -166,13 +157,11 @@ export function PeginPollingProvider({
 
       const transactions = data?.get(depositId) ?? null;
       const isReady = transactions ? areTransactionsReady(transactions) : false;
-      const utxoUnavailable = unavailableUtxos.has(depositId);
 
       const peginState = getPeginState(contractStatus, {
         localStatus,
         transactionsReady: isReady,
         isInUse: activity.isInUse,
-        utxoUnavailable,
         needsLamportKey: needsLamportKey?.has(depositId),
         pendingIngestion: pendingIngestion?.has(depositId),
         expirationReason: activity.expirationReason,
@@ -191,7 +180,6 @@ export function PeginPollingProvider({
           activity.depositorBtcPubkey,
           btcPublicKey,
         ),
-        utxoUnavailable,
       };
     },
     [
@@ -205,7 +193,6 @@ export function PeginPollingProvider({
       isLoading,
       optimisticStatuses,
       btcPublicKey,
-      unavailableUtxos,
       hasUtxoData,
       broadcastedTxIds,
     ],

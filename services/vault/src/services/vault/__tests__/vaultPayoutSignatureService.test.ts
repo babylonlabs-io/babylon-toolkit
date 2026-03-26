@@ -47,8 +47,7 @@ function createClaimerTransactions(
     claim_tx: { tx_hex: "claim_hex" },
     assert_tx: { tx_hex: "assert_hex" },
     payout_tx: { tx_hex: "payout_hex" },
-    payout_sighash: "payout_sighash_hex",
-    payout_prevouts: [{ script_pubkey: "sp_payout", value: 5000 }],
+    payout_psbt: "bW9ja19wYXlvdXRfcHNidA==",
     ...overrides,
   };
 }

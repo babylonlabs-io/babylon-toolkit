@@ -11,10 +11,7 @@ import {
   getPrimaryActionButton,
   PeginAction,
 } from "../../models/peginStateMachine";
-import {
-  UTXO_UNAVAILABLE_WARNING,
-  WALLET_OWNERSHIP_WARNING,
-} from "../../utils/vaultWarnings";
+import { WALLET_OWNERSHIP_WARNING } from "../../utils/vaultWarnings";
 
 /**
  * Action button configuration from state machine.
@@ -50,7 +47,6 @@ export type ActionStatus = ActionAvailable | ActionUnavailable;
  *
  * This centralizes the logic for checking:
  * - Wallet ownership
- * - UTXO availability
  * - Provider errors
  * - Action button availability
  *
@@ -60,8 +56,7 @@ export type ActionStatus = ActionAvailable | ActionUnavailable;
 export function getActionStatus(
   pollingResult: DepositPollingResult,
 ): ActionStatus {
-  const { peginState, isOwnedByCurrentWallet, utxoUnavailable, error } =
-    pollingResult;
+  const { peginState, isOwnedByCurrentWallet, error } = pollingResult;
 
   const reasons: string[] = [];
 
@@ -71,9 +66,6 @@ export function getActionStatus(
   }
   if (!isOwnedByCurrentWallet) {
     reasons.push(WALLET_OWNERSHIP_WARNING);
-  }
-  if (utxoUnavailable) {
-    reasons.push(UTXO_UNAVAILABLE_WARNING);
   }
 
   // If any blockers exist, action is unavailable
@@ -102,7 +94,7 @@ export function getActionStatus(
 export function getWarningMessages(
   pollingResult: DepositPollingResult,
 ): string[] {
-  const { isOwnedByCurrentWallet, utxoUnavailable, error } = pollingResult;
+  const { isOwnedByCurrentWallet, error } = pollingResult;
 
   const messages: string[] = [];
 
@@ -112,16 +104,12 @@ export function getWarningMessages(
   if (!isOwnedByCurrentWallet) {
     messages.push(WALLET_OWNERSHIP_WARNING);
   }
-  if (utxoUnavailable) {
-    messages.push(UTXO_UNAVAILABLE_WARNING);
-  }
 
   return messages;
 }
 
 /**
- * Artifact availability intentionally ignores utxoUnavailable — artifacts
- * are stored on the provider and do not depend on UTXO state.
+ * Check if artifact download is available for the current deposit state.
  */
 export function isArtifactDownloadAvailable(
   pollingResult: DepositPollingResult,
