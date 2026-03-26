@@ -16,7 +16,7 @@ import type {
 
 import { ERC20 } from "../../../clients/eth-contract";
 import { AaveControllerTx, AaveSpoke } from "../clients";
-import { getAaveControllerAddress, getAaveSpokeAddress } from "../config";
+import { getAaveControllerAddress } from "../config";
 import { FULL_REPAY_BUFFER_DIVISOR } from "../constants";
 
 /**
@@ -173,7 +173,7 @@ export async function repayFull(
   }
 
   const controllerAddress = getAaveControllerAddress();
-  const spokeAddress = getAaveSpokeAddress();
+  const spokeAddress = await AaveControllerTx.getCoreSpokeAddress(controllerAddress);
 
   // Fetch current debt from the contract
   const currentDebt = await AaveSpoke.getUserTotalDebt(
