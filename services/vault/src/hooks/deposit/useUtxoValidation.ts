@@ -14,7 +14,10 @@ import { useMemo } from "react";
 import { logger } from "@/infrastructure";
 
 import { ContractStatus } from "../../models/peginStateMachine";
-import { extractInputsFromTransaction } from "../../services/vault/vaultUtxoValidationService";
+import {
+  extractInputsFromTransaction,
+  extractTxId,
+} from "../../services/vault/vaultUtxoValidationService";
 import type { VaultActivity } from "../../types/activity";
 import { stripHexPrefix } from "../../utils/btc";
 import { isVaultOwnedByWallet } from "../../utils/vaultWarnings";
@@ -109,10 +112,13 @@ export function useUtxoValidation({
         );
 
         if (hasUnavailableInput) {
-          // Check if the deposit's transaction has been broadcast
-          // If so, the UTXO was spent by the vault's own tx (confirming, not invalid)
-          const txid = stripHexPrefix(deposit.id).toLowerCase();
-          const isBroadcasted = broadcastedTxIds?.has(txid) ?? false;
+          // The UTXOs are spent by the Pre-PegIn tx (not the vault ID / PegIn tx).
+          // Check both: the vault ID (PegIn tx hash) and the Pre-PegIn tx ID.
+          const peginTxId = stripHexPrefix(deposit.id).toLowerCase();
+          const prePeginTxId = extractTxId(deposit.unsignedPrePeginTx!);
+          const isBroadcasted =
+            (broadcastedTxIds?.has(peginTxId) ?? false) ||
+            (broadcastedTxIds?.has(prePeginTxId) ?? false);
 
           if (!isBroadcasted) {
             // UTXO spent by a different transaction - truly unavailable

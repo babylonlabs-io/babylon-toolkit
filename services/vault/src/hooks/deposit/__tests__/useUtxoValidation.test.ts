@@ -17,7 +17,7 @@ vi.mock("@/infrastructure", () => ({
   logger: { warn: mockLoggerWarn, error: vi.fn(), info: vi.fn() },
 }));
 
-// Mock extractInputsFromTransaction to avoid bitcoinjs-lib ecc initialization
+// Mock service functions to avoid bitcoinjs-lib ecc initialization
 vi.mock("../../../services/vault/vaultUtxoValidationService", () => ({
   extractInputsFromTransaction: vi.fn((txHex: string) => {
     // Return mock inputs based on tx hex marker
@@ -42,6 +42,13 @@ vi.mock("../../../services/vault/vaultUtxoValidationService", () => ({
     }
     // Default: return empty inputs
     return [];
+  }),
+  extractTxId: vi.fn((txHex: string) => {
+    if (txHex === "tx-aaa-3") return "pre-pegin-txid-aaa";
+    if (txHex === "tx-bbb-0") return "pre-pegin-txid-bbb";
+    if (txHex === "tx-pre-pegin-broadcasted")
+      return "pre-pegin-txid-broadcasted";
+    throw new Error("Failed to parse");
   }),
 }));
 
@@ -188,7 +195,7 @@ describe("useUtxoValidation", () => {
       expect(result.current.unavailableUtxos.has("redeemed")).toBe(false);
     });
 
-    it("should not mark as unavailable if tx is in broadcastedTxIds", () => {
+    it("should not mark as unavailable if vault ID (pegin tx) is in broadcastedTxIds", () => {
       const activities = [
         createActivity(
           "0xbroadcasted123",
@@ -221,6 +228,31 @@ describe("useUtxoValidation", () => {
       expect(result.current.unavailableUtxos.has("0xnotbroadcasted")).toBe(
         true,
       );
+    });
+
+    it("should not mark as unavailable if pre-pegin tx ID is in broadcastedTxIds", () => {
+      // In the atomic swap flow, deposit.id is the PegIn tx hash, but the tx that
+      // spends wallet UTXOs is the Pre-PegIn tx (a different ID). Both must be checked.
+      const activities = [
+        createActivity(
+          "0xpegin-tx-id", // vault ID / PegIn tx — NOT in broadcastedTxIds
+          ContractStatus.VERIFIED,
+          TEST_BTC_PUBKEY,
+          "tx-pre-pegin-broadcasted", // Pre-PegIn tx — IS in broadcastedTxIds
+        ),
+      ];
+
+      const { result } = renderHook(() =>
+        useUtxoValidation({
+          activities,
+          btcPublicKey: TEST_BTC_PUBKEY,
+          availableUtxos: [], // No UTXOs available
+          broadcastedTxIds: new Set(["pre-pegin-txid-broadcasted"]),
+        }),
+      );
+
+      // Should NOT be marked unavailable — the Pre-PegIn tx was broadcast (confirming)
+      expect(result.current.unavailableUtxos.has("0xpegin-tx-id")).toBe(false);
     });
 
     it("should only check deposits owned by current wallet", () => {

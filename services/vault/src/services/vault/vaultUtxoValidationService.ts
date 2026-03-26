@@ -57,6 +57,28 @@ export class UtxoNotAvailableError extends Error {
 }
 
 /**
+ * Extract the txid from a transaction hex.
+ *
+ * For segwit transactions, the txid is the hash of the non-witness serialization,
+ * which is the same whether the transaction is signed or unsigned.
+ *
+ * @param txHex - Transaction hex (with or without 0x prefix)
+ * @returns txid as lowercase hex string
+ */
+export function extractTxId(txHex: string): string {
+  const cleanHex = txHex.startsWith("0x") ? txHex.slice(2) : txHex;
+  let tx: Transaction;
+  try {
+    tx = Transaction.fromHex(cleanHex);
+  } catch (error) {
+    throw new Error(
+      `Failed to parse BTC transaction: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+  return tx.getId();
+}
+
+/**
  * Extract input references (txid:vout) from an unsigned transaction.
  *
  * @param unsignedTxHex - Unsigned transaction hex

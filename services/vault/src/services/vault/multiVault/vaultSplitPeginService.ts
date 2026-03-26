@@ -465,6 +465,8 @@ export async function broadcastPrePeginWithLocalUtxo(
     return btcTxid;
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
-    throw new Error(`Failed to broadcast split Pre-PegIn transaction: ${message}`);
+    throw new Error(
+      `Failed to broadcast split Pre-PegIn transaction: ${message}`,
+    );
   }
 }
