@@ -67,7 +67,7 @@ export function buildStepItems(
   const payoutCompleted = progress?.completed ?? 0;
 
   return [
-    { label: "Sign proof of possession" },
+    { label: "Sign peg-in input & proof of possession" },
     { label: "Submit peg-in to Ethereum" },
     { label: "Sign & broadcast to Bitcoin" },
     { label: "Awaiting Bitcoin confirmation", description: "(~ 15 min)" },
@@ -184,8 +184,8 @@ export function buildMultiVaultStepItems(
   }
 
   steps.push(
-    { label: "Sign PoP + Submit pegin 1/2" },
-    { label: "Submit pegin 2/2" },
+    { label: "Sign peg-in input, PoP + Submit 1/2" },
+    { label: "Submit peg-in 2/2" },
     { label: "Sign & broadcast to Bitcoin" },
     { label: "Awaiting Bitcoin confirmation", description: "(~ 15 min)" },
     {

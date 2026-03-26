@@ -15,7 +15,7 @@ export const STEP_DESCRIPTIONS: Partial<
   },
   [DepositFlowStep.SIGN_POP]: {
     active:
-      "Your BTC wallet will prompt you to sign the pegin transaction and proof of possession.",
+      "Please sign in your BTC wallet. You will see 2 requests: one to sign the peg-in input, and one for the proof of possession.",
   },
   [DepositFlowStep.SUBMIT_PEGIN]: {
     active: "Please sign and submit the peg-in request in your ETH wallet.",
