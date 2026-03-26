@@ -1,9 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  validateRequiredAddress,
-  validateRequiredUrl,
-} from "@/config/env";
+import { validateRequiredAddress, validateRequiredUrl } from "@/config/env";
 
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 const VALID_ADDRESS = "0x1234567890abcdef1234567890abcdef12345678";
@@ -59,7 +56,11 @@ describe("validateRequiredAddress", () => {
 
   it("includes the env var name in the error message", () => {
     const errors: string[] = [];
-    validateRequiredAddress("0x1234", "NEXT_PUBLIC_TBV_AAVE_CONTROLLER", errors);
+    validateRequiredAddress(
+      "0x1234",
+      "NEXT_PUBLIC_TBV_AAVE_CONTROLLER",
+      errors,
+    );
     expect(errors[0]).toContain("NEXT_PUBLIC_TBV_AAVE_CONTROLLER");
   });
 });
@@ -116,9 +117,7 @@ describe("validateRequiredUrl", () => {
     const errors: string[] = [];
     const result = validateRequiredUrl("not-a-url", "MY_VAR", errors);
     expect(result).toBe("");
-    expect(errors).toContainEqual(
-      expect.stringContaining("not a valid URL"),
-    );
+    expect(errors).toContainEqual(expect.stringContaining("not a valid URL"));
   });
 
   it("rejects a non-http/https scheme", () => {
@@ -132,7 +131,11 @@ describe("validateRequiredUrl", () => {
 
   it("includes the env var name in the error message", () => {
     const errors: string[] = [];
-    validateRequiredUrl("not-a-url", "NEXT_PUBLIC_TBV_GRAPHQL_ENDPOINT", errors);
+    validateRequiredUrl(
+      "not-a-url",
+      "NEXT_PUBLIC_TBV_GRAPHQL_ENDPOINT",
+      errors,
+    );
     expect(errors[0]).toContain("NEXT_PUBLIC_TBV_GRAPHQL_ENDPOINT");
   });
 });
