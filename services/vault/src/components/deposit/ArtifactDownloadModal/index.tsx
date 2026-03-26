@@ -28,7 +28,7 @@ export function ArtifactDownloadModal({
   peginTxid,
   depositorPk,
 }: ArtifactDownloadModalProps) {
-  const { loading, progress, error, downloaded, download, reset } =
+  const { loading, progress, error, downloaded, download, cancel, reset } =
     useArtifactDownload();
 
   const handleDownload = () => {
@@ -42,6 +42,15 @@ export function ArtifactDownloadModal({
 
   const handleClose = () => {
     reset();
+    onClose();
+  };
+
+  // TODO: Remove handleCancel (and the Cancel button below) once the backend
+  // delivers artifacts via streaming instead of a single oversized RPC response
+  // (~450 MB). Until then downloads reliably time out, so users must be able
+  // to dismiss the modal without waiting.
+  const handleCancel = () => {
+    cancel();
     onClose();
   };
 
@@ -97,14 +106,26 @@ export function ArtifactDownloadModal({
 
       <DialogFooter className="px-4 pb-6 sm:px-6">
         {!downloaded ? (
-          <Button
-            variant="contained"
-            className="w-full"
-            onClick={handleDownload}
-            disabled={loading}
-          >
-            {loading ? "Downloading..." : "Download Artifacts"}
-          </Button>
+          <>
+            <Button
+              variant="contained"
+              className="w-full"
+              onClick={handleDownload}
+              disabled={loading}
+            >
+              {loading ? "Downloading..." : "Download Artifacts"}
+            </Button>
+            {/* TODO: Remove Cancel button once backend streaming is implemented (see handleCancel above) */}
+            {loading && (
+              <Button
+                variant="outlined"
+                className="w-full"
+                onClick={handleCancel}
+              >
+                Cancel
+              </Button>
+            )}
+          </>
         ) : (
           <Button
             variant="contained"

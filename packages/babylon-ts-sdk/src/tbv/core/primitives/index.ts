@@ -93,7 +93,7 @@ export type {
   PeginTxResult,
 } from "./psbt/pegin";
 
-export { buildPeginInputPsbt, extractPeginInputSignature } from "./psbt/peginInput";
+export { buildPeginInputPsbt, extractPeginInputSignature, finalizePeginInputPsbt } from "./psbt/peginInput";
 export type {
   BuildPeginInputPsbtParams,
   BuildPeginInputPsbtResult,

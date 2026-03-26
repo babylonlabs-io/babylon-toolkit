@@ -217,6 +217,37 @@ export function extractPeginInputSignature(
   );
 }
 
+/**
+ * Finalize a signed PegIn input PSBT and return the depositor-signed transaction hex.
+ *
+ * The default tapscript finalizer builds the full witness stack [sig, script, controlBlock]
+ * that vaultd requires when verifying the depositor signature on-chain.
+ *
+ * @param signedPsbtHex - Non-finalized signed PSBT hex (returned by wallet with autoFinalized: false)
+ * @returns Depositor-signed PegIn transaction hex with full taproot witness stack
+ */
+export function finalizePeginInputPsbt(signedPsbtHex: string): string {
+  const psbt = Psbt.fromHex(signedPsbtHex);
+
+  // Some wallets (UniSat, OKX) ignore autoFinalized: false and return
+  // already-finalized PSBTs. finalizeAllInputs() throws in that case,
+  // so fall back to verifying the wallet already finalized all inputs.
+  try {
+    psbt.finalizeAllInputs();
+  } catch (e) {
+    const allFinalized = psbt.data.inputs.every(
+      (inp) => inp.finalScriptWitness || inp.finalScriptSig,
+    );
+    if (!allFinalized) {
+      throw new Error(
+        `PSBT finalization failed and wallet did not auto-finalize: ${e}`,
+      );
+    }
+  }
+
+  return psbt.extractTransaction().toHex();
+}
+
 /** Extract and validate a 64-byte Schnorr signature, stripping sighash flag if present. */
 function extractSchnorrSig(sig: Uint8Array): string {
   if (sig.length === 64) {

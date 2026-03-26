@@ -22,8 +22,8 @@ vi.mock("../../utils/transaction/btcTxHash", () => ({
   calculateBtcTxHash: vi.fn(() => `0x${"a".repeat(64)}`),
 }));
 
-// Mock buildPeginInputPsbt and extractPeginInputSignature — the mock wallet cannot
-// produce a valid signed PSBT, so we mock these two primitives that require real signing
+// Mock buildPeginInputPsbt, extractPeginInputSignature, and finalizePeginInputPsbt —
+// the mock wallet cannot produce a valid signed PSBT, so we mock these primitives
 vi.mock("../../primitives/psbt/peginInput", async (importOriginal) => {
   const actual =
     await importOriginal<typeof import("../../primitives/psbt/peginInput")>();
@@ -33,6 +33,7 @@ vi.mock("../../primitives/psbt/peginInput", async (importOriginal) => {
       .fn()
       .mockResolvedValue({ psbtHex: "deadbeef" }),
     extractPeginInputSignature: vi.fn().mockReturnValue("a".repeat(128)),
+    finalizePeginInputPsbt: vi.fn().mockReturnValue("mock-depositor-signed-pegin-tx"),
   };
 });
 

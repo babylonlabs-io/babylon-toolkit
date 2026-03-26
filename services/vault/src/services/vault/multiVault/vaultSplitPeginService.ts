@@ -21,7 +21,10 @@
 
 import { getETHChain } from "@babylonlabs-io/config";
 import { pushTx } from "@babylonlabs-io/ts-sdk";
-import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
+import type {
+  BitcoinWallet,
+  SignPsbtOptions,
+} from "@babylonlabs-io/ts-sdk/shared";
 import type { UTXO } from "@babylonlabs-io/ts-sdk/tbv/core";
 import {
   buildPeginInputPsbt,
@@ -29,6 +32,7 @@ import {
   buildPrePeginPsbt,
   calculateBtcTxHash,
   extractPeginInputSignature,
+  finalizePeginInputPsbt,
   fundPeginTransaction,
   getNetwork,
   getPsbtInputFields,
@@ -87,7 +91,7 @@ export interface PrepareSplitPeginParams {
    * Function to sign a PSBT and return the signed PSBT hex.
    * Used to sign the PegIn input PSBT (HTLC leaf 0).
    */
-  signPsbt: (psbtHex: string) => Promise<string>;
+  signPsbt: (psbtHex: string, options?: SignPsbtOptions) => Promise<string>;
 }
 
 export interface PrepareSplitPeginResult {
@@ -270,18 +274,39 @@ export async function preparePeginFromSplitOutput(
       network,
     });
 
+    // Sign the PegIn input PSBT via BTC wallet
+    // The PegIn input is a Taproot script-path spend (HTLC hashlock leaf), so:
+    // - autoFinalized: false to keep tapScriptSig accessible for signature extraction
+    // - disableTweakSigner: true because script-path uses the untweaked internal key
     const signedPeginInputPsbtHex = await params.signPsbt(
       peginInputPsbtResult.psbtHex,
+      {
+        autoFinalized: false,
+        signInputs: [
+          {
+            index: 0,
+            publicKey: params.depositorBtcPubkey,
+            disableTweakSigner: true,
+          },
+        ],
+      },
     );
     const peginInputSignature = extractPeginInputSignature(
       signedPeginInputPsbtHex,
       params.depositorBtcPubkey,
     );
 
+    // Finalize the PSBT so the witness stack contains [sig, script, controlBlock],
+    // then extract the transaction hex. This is the depositor-signed PegIn tx that
+    // vaultd expects when verifying the depositor signature on-chain.
+    const depositorSignedPeginTxHex = finalizePeginInputPsbt(
+      signedPeginInputPsbtHex,
+    );
+
     return {
       btcTxHash: peginTxResult.txid,
       fundedPrePeginTxHex,
-      peginTxHex: peginTxResult.txHex,
+      peginTxHex: depositorSignedPeginTxHex,
       peginInputSignature,
       vaultScriptPubKey: peginTxResult.vaultScriptPubKey,
       selectedUTXOs: utxoSelection.selectedUTXOs,
