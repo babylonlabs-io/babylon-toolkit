@@ -30,6 +30,8 @@ interface EnvValidationResult {
 
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000" as Address;
 
+const ALLOWED_URL_SCHEMES = ["https:", "http:"];
+
 function parseOptionalAddress(value: string | undefined): Address | undefined {
   const trimmed = value?.trim();
   if (!trimmed) return undefined;
@@ -40,76 +42,108 @@ function parseOptionalAddress(value: string | undefined): Address | undefined {
   return trimmed as Address;
 }
 
+export function validateRequiredAddress(
+  value: string | undefined,
+  envVarName: string,
+  errors: string[],
+): Address {
+  const trimmed = value?.trim();
+  if (!trimmed) {
+    errors.push(`${envVarName} is missing`);
+    return ZERO_ADDRESS;
+  }
+  if (!isAddress(trimmed)) {
+    errors.push(`${envVarName} is not a valid EVM address: "${trimmed}"`);
+    return ZERO_ADDRESS;
+  }
+  if (trimmed.toLowerCase() === ZERO_ADDRESS) {
+    errors.push(`${envVarName} must not be the zero address`);
+    return ZERO_ADDRESS;
+  }
+  return trimmed as Address;
+}
+
+export function validateRequiredUrl(
+  value: string | undefined,
+  envVarName: string,
+  errors: string[],
+): string {
+  const trimmed = (value ?? "").replace(/\/$/, "").trim();
+  if (!trimmed) {
+    errors.push(`${envVarName} is missing`);
+    return "";
+  }
+  let parsed: URL;
+  try {
+    parsed = new URL(trimmed);
+  } catch {
+    errors.push(`${envVarName} is not a valid URL: "${trimmed}"`);
+    return "";
+  }
+  if (!ALLOWED_URL_SCHEMES.includes(parsed.protocol)) {
+    errors.push(
+      `${envVarName} must use http or https scheme, got: "${parsed.protocol}"`,
+    );
+    return "";
+  }
+  return trimmed;
+}
+
 /**
  * Validate and extract all required environment variables
  */
 function validateEnvVars(): EnvValidationResult {
-  const envVars = {
-    // Contract addresses (required)
-    BTC_VAULTS_MANAGER: process.env.NEXT_PUBLIC_TBV_BTC_VAULTS_MANAGER,
-    AAVE_CONTROLLER: process.env.NEXT_PUBLIC_TBV_AAVE_CONTROLLER,
-    AAVE_SPOKE: process.env.NEXT_PUBLIC_TBV_AAVE_SPOKE,
+  const errors: string[] = [];
 
-    // API endpoints (required)
-    GRAPHQL_ENDPOINT: process.env.NEXT_PUBLIC_TBV_GRAPHQL_ENDPOINT,
-    SIDECAR_API_URL: (
-      process.env.NEXT_PUBLIC_TBV_SIDECAR_API_URL ?? ""
-    ).replace(/\/$/, ""),
-
-    // Vault provider proxy (required)
-    VP_PROXY_URL: (process.env.NEXT_PUBLIC_TBV_VP_PROXY_URL ?? "").replace(
-      /\/$/,
-      "",
-    ),
-
-    // Price feed oracle override (optional)
-    BTC_PRICE_FEED: parseOptionalAddress(
-      process.env.NEXT_PUBLIC_TBV_BTC_PRICE_FEED,
-    ),
-  };
-
-  const requiredVars = [
-    "BTC_VAULTS_MANAGER",
-    "AAVE_CONTROLLER",
-    "AAVE_SPOKE",
-    "GRAPHQL_ENDPOINT",
-    "VP_PROXY_URL",
-  ] as const;
-
-  const missingVars = requiredVars.filter(
-    (key) => !envVars[key as keyof typeof envVars],
+  const BTC_VAULTS_MANAGER = validateRequiredAddress(
+    process.env.NEXT_PUBLIC_TBV_BTC_VAULTS_MANAGER,
+    "NEXT_PUBLIC_TBV_BTC_VAULTS_MANAGER",
+    errors,
+  );
+  const AAVE_CONTROLLER = validateRequiredAddress(
+    process.env.NEXT_PUBLIC_TBV_AAVE_CONTROLLER,
+    "NEXT_PUBLIC_TBV_AAVE_CONTROLLER",
+    errors,
+  );
+  const AAVE_SPOKE = validateRequiredAddress(
+    process.env.NEXT_PUBLIC_TBV_AAVE_SPOKE,
+    "NEXT_PUBLIC_TBV_AAVE_SPOKE",
+    errors,
+  );
+  const GRAPHQL_ENDPOINT = validateRequiredUrl(
+    process.env.NEXT_PUBLIC_TBV_GRAPHQL_ENDPOINT,
+    "NEXT_PUBLIC_TBV_GRAPHQL_ENDPOINT",
+    errors,
+  );
+  const SIDECAR_API_URL = validateRequiredUrl(
+    process.env.NEXT_PUBLIC_TBV_SIDECAR_API_URL,
+    "NEXT_PUBLIC_TBV_SIDECAR_API_URL",
+    errors,
+  );
+  const VP_PROXY_URL = validateRequiredUrl(
+    process.env.NEXT_PUBLIC_TBV_VP_PROXY_URL,
+    "NEXT_PUBLIC_TBV_VP_PROXY_URL",
+    errors,
+  );
+  const BTC_PRICE_FEED = parseOptionalAddress(
+    process.env.NEXT_PUBLIC_TBV_BTC_PRICE_FEED,
   );
 
-  if (missingVars.length > 0) {
-    // Map internal names to actual env var names
-    const envVarMap: Record<string, string> = {
-      BTC_VAULTS_MANAGER: "NEXT_PUBLIC_TBV_BTC_VAULTS_MANAGER",
-      AAVE_CONTROLLER: "NEXT_PUBLIC_TBV_AAVE_CONTROLLER",
-      AAVE_SPOKE: "NEXT_PUBLIC_TBV_AAVE_SPOKE",
-      GRAPHQL_ENDPOINT: "NEXT_PUBLIC_TBV_GRAPHQL_ENDPOINT",
-      VP_PROXY_URL: "NEXT_PUBLIC_TBV_VP_PROXY_URL",
-    };
+  const env: EnvVars = {
+    BTC_VAULTS_MANAGER,
+    AAVE_CONTROLLER,
+    AAVE_SPOKE,
+    GRAPHQL_ENDPOINT,
+    SIDECAR_API_URL,
+    VP_PROXY_URL,
+    BTC_PRICE_FEED,
+  };
 
-    const missingVarNames = missingVars.map((key) => envVarMap[key] || key);
-
-    return {
-      env: {
-        BTC_VAULTS_MANAGER: ZERO_ADDRESS,
-        AAVE_CONTROLLER: ZERO_ADDRESS,
-        AAVE_SPOKE: ZERO_ADDRESS,
-        GRAPHQL_ENDPOINT: "",
-        SIDECAR_API_URL: "",
-        VP_PROXY_URL: "",
-        BTC_PRICE_FEED: undefined,
-      },
-      error: `Missing: ${missingVarNames.join(", ")}`,
-    };
+  if (errors.length > 0) {
+    return { env, error: errors.join("; ") };
   }
 
-  return {
-    env: envVars as EnvVars,
-    error: null,
-  };
+  return { env, error: null };
 }
 
 const validationResult = validateEnvVars();
