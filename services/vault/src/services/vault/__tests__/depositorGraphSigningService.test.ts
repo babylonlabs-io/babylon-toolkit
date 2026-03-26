@@ -41,25 +41,6 @@ function createMockDepositorGraph(
       challenge_assert_tx: { tx_hex: `ca_tx_${i}` },
       challenge_assert_psbt: mockPsbtBase64(`ca_psbt_${i}`),
       nopayout_psbt: mockPsbtBase64(`nopayout_psbt_${i}`),
-      challenge_assert_connectors: [
-        {
-          lamport_hashes_json: `lamport_${i}_0`,
-          gc_input_label_hashes_json: `gc_${i}_0`,
-        },
-        {
-          lamport_hashes_json: `lamport_${i}_1`,
-          gc_input_label_hashes_json: `gc_${i}_1`,
-        },
-        {
-          lamport_hashes_json: `lamport_${i}_2`,
-          gc_input_label_hashes_json: `gc_${i}_2`,
-        },
-      ] as [
-        { lamport_hashes_json: string; gc_input_label_hashes_json: string },
-        { lamport_hashes_json: string; gc_input_label_hashes_json: string },
-        { lamport_hashes_json: string; gc_input_label_hashes_json: string },
-      ],
-      output_label_hashes: [],
     };
   });
 
@@ -413,7 +394,7 @@ describe("depositorGraphSigningService", () => {
       );
     });
 
-    it("should throw when PSBT does not match tx_hex", async () => {
+    it("should throw when payout PSBT does not match tx_hex", async () => {
       const params = createMockParams();
 
       // Override the mock AFTER createMockParams so payout PSBT verification fails
@@ -431,6 +412,70 @@ describe("depositorGraphSigningService", () => {
 
       await expect(signDepositorGraph(params)).rejects.toThrow(
         /PSBT integrity check failed for depositor payout/,
+      );
+    });
+
+    it("should throw when nopayout PSBT does not match tx_hex", async () => {
+      const graph = createMockDepositorGraph(1);
+      const params = createMockParams({ depositorGraph: graph });
+
+      // Override mock to pass payout but fail nopayout verification
+      const payoutPsbt = graph.payout_psbt;
+      vi.mocked(Psbt.fromBase64).mockImplementation(
+        (b64: string) =>
+          ({
+            data: {
+              getTransaction: () => ({
+                toString: (encoding: string) =>
+                  encoding === "hex"
+                    ? b64 === payoutPsbt
+                      ? graph.payout_tx.tx_hex
+                      : "wrong_tx_hex"
+                    : "",
+              }),
+            },
+          }) as any,
+      );
+
+      await expect(signDepositorGraph(params)).rejects.toThrow(
+        /PSBT integrity check failed for nopayout/,
+      );
+    });
+
+    it("should throw when challenge_assert PSBT does not match tx_hex", async () => {
+      const graph = createMockDepositorGraph(1);
+      const params = createMockParams({ depositorGraph: graph });
+
+      // Override mock to pass payout and nopayout but fail challenge_assert
+      const passingPsbts = new Set([
+        graph.payout_psbt,
+        graph.challenger_presign_data[0].nopayout_psbt,
+      ]);
+      const txHexMap = new Map<string, string>([
+        [graph.payout_psbt, graph.payout_tx.tx_hex],
+        [
+          graph.challenger_presign_data[0].nopayout_psbt,
+          graph.challenger_presign_data[0].nopayout_tx.tx_hex,
+        ],
+      ]);
+      vi.mocked(Psbt.fromBase64).mockImplementation(
+        (b64: string) =>
+          ({
+            data: {
+              getTransaction: () => ({
+                toString: (encoding: string) =>
+                  encoding === "hex"
+                    ? passingPsbts.has(b64)
+                      ? (txHexMap.get(b64) ?? "wrong")
+                      : "wrong_tx_hex"
+                    : "",
+              }),
+            },
+          }) as any,
+      );
+
+      await expect(signDepositorGraph(params)).rejects.toThrow(
+        /PSBT integrity check failed for challenge_assert/,
       );
     });
 

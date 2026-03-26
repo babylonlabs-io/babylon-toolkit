@@ -69,12 +69,6 @@ export interface TransactionData {
   tx_hex: string;
 }
 
-/** Connector data for ChallengeAssert inputs (server-generated label hashes). */
-export interface ChallengeAssertConnectorData {
-  lamport_hashes_json: string;
-  gc_input_label_hashes_json: string;
-}
-
 /** Set of transactions the depositor must pre-sign for a single claimer (VP or VK graph). */
 export interface ClaimerTransactions {
   claimer_pubkey: string;
@@ -94,14 +88,6 @@ export interface PresignDataPerChallenger {
   challenge_assert_psbt: string;
   /** Unsigned PSBT (base64) for the NoPayout transaction (input 0). */
   nopayout_psbt: string;
-  /** Per-segment connector data for ChallengeAssert inputs (one per UTXO segment). */
-  challenge_assert_connectors: [
-    ChallengeAssertConnectorData,
-    ChallengeAssertConnectorData,
-    ChallengeAssertConnectorData,
-  ];
-  /** Output label hashes for this challenger (used in GC verification). */
-  output_label_hashes: string[];
 }
 
 /** Depositor-as-claimer TxGraph transactions (claim, assert, payout + challengers). */
