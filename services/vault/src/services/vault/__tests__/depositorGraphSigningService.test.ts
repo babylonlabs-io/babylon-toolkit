@@ -399,6 +399,20 @@ describe("depositorGraphSigningService", () => {
       );
     });
 
+    it("should throw when challenger challenge_assert_psbt is missing", async () => {
+      const graph = createMockDepositorGraph(1);
+      (graph.challenger_presign_data[0] as any).challenge_assert_psbt =
+        undefined;
+
+      const params = createMockParams({ depositorGraph: graph });
+      const wallet = params.btcWallet as any;
+      wallet.signPsbts.mockResolvedValue(Array(3).fill("signed_hex"));
+
+      await expect(signDepositorGraph(params)).rejects.toThrow(
+        /Missing challenge_assert_psbt/,
+      );
+    });
+
     it("should throw when PSBT does not match tx_hex", async () => {
       const params = createMockParams();
 

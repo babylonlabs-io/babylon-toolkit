@@ -106,6 +106,7 @@ function verifyPsbtMatchesTxHex(
   label: string,
 ): void {
   const psbt = Psbt.fromBase64(psbtBase64);
+  // psbt.data is a bip174 PsbtBase; getTransaction() returns the unsigned tx as a Buffer
   const unsignedTxHex = stripHexPrefix(
     psbt.data.getTransaction().toString("hex"),
   ).toLowerCase();
