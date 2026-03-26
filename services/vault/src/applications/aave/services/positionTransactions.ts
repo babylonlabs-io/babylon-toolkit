@@ -16,7 +16,7 @@ import type {
 
 import { ERC20 } from "../../../clients/eth-contract";
 import { AaveControllerTx, AaveSpoke } from "../clients";
-import { getAaveControllerAddress } from "../config";
+import { getAaveControllerAddress, getAaveSpokeAddress } from "../config";
 import { FULL_REPAY_BUFFER_DIVISOR } from "../constants";
 
 /**
@@ -58,10 +58,10 @@ export async function borrow(
  * Repay debt to a Core Spoke position (low-level)
  *
  * User must have approved the controller to spend debt tokens first.
+ * Uses the pinned controller address from trusted environment config.
  *
  * @param walletClient - Connected wallet client
  * @param chain - Chain configuration
- * @param controllerAddress - Aave controller contract address
  * @param borrower - Borrower's address (for self-repay, use connected wallet address)
  * @param debtReserveId - Reserve ID for the debt token
  * @param amount - Amount to repay (in debt token decimals)
@@ -70,11 +70,11 @@ export async function borrow(
 export async function repay(
   walletClient: WalletClient,
   chain: Chain,
-  controllerAddress: Address,
   borrower: Address,
   debtReserveId: bigint,
   amount: bigint,
 ): Promise<{ transactionHash: Hash; receipt: TransactionReceipt }> {
+  const controllerAddress = getAaveControllerAddress();
   if (amount <= 0n) {
     throw new Error("Repay amount must be greater than 0");
   }
@@ -98,10 +98,10 @@ export async function repay(
  * Repay a partial amount of debt
  *
  * Handles approval if needed, then executes repay.
+ * Uses the pinned controller address from trusted environment config.
  *
  * @param walletClient - Connected wallet client
  * @param chain - Chain configuration
- * @param controllerAddress - Aave controller contract address
  * @param debtReserveId - Reserve ID for the debt token
  * @param tokenAddress - Token address for the debt
  * @param amount - Amount to repay (in debt token decimals)
@@ -110,7 +110,6 @@ export async function repay(
 export async function repayPartial(
   walletClient: WalletClient,
   chain: Chain,
-  controllerAddress: Address,
   debtReserveId: bigint,
   tokenAddress: Address,
   amount: bigint,
@@ -119,6 +118,8 @@ export async function repayPartial(
   if (!userAddress) {
     throw new Error("Wallet address not available");
   }
+
+  const controllerAddress = getAaveControllerAddress();
 
   const userBalance = await ERC20.getERC20Balance(tokenAddress, userAddress);
   if (userBalance < amount) {
@@ -143,43 +144,36 @@ export async function repayPartial(
     );
   }
 
-  return repay(
-    walletClient,
-    chain,
-    controllerAddress,
-    userAddress,
-    debtReserveId,
-    amount,
-  );
+  return repay(walletClient, chain, userAddress, debtReserveId, amount);
 }
 
 /**
  * Repay all debt for a reserve
  *
  * Fetches exact debt from contract, handles approval, then repays.
+ * Uses pinned controller and spoke addresses from trusted environment config.
  *
  * @param walletClient - Connected wallet client
  * @param chain - Chain configuration
- * @param controllerAddress - Aave controller contract address
  * @param debtReserveId - Reserve ID for the debt token
  * @param tokenAddress - Token address for the debt
- * @param spokeAddress - Spoke contract address
  * @param proxyContract - User's proxy contract address
  * @returns Transaction result
  */
 export async function repayFull(
   walletClient: WalletClient,
   chain: Chain,
-  controllerAddress: Address,
   debtReserveId: bigint,
   tokenAddress: Address,
-  spokeAddress: Address,
   proxyContract: Address,
 ): Promise<{ transactionHash: Hash; receipt: TransactionReceipt }> {
   const userAddress = walletClient.account?.address;
   if (!userAddress) {
     throw new Error("Wallet address not available");
   }
+
+  const controllerAddress = getAaveControllerAddress();
+  const spokeAddress = getAaveSpokeAddress();
 
   // Fetch current debt from the contract
   const currentDebt = await AaveSpoke.getUserTotalDebt(
@@ -221,14 +215,7 @@ export async function repayFull(
     );
   }
 
-  return repay(
-    walletClient,
-    chain,
-    controllerAddress,
-    userAddress,
-    debtReserveId,
-    amountToRepay,
-  );
+  return repay(walletClient, chain, userAddress, debtReserveId, amountToRepay);
 }
 
 /**

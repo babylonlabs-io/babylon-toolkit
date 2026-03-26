@@ -16,6 +16,7 @@ import { logger } from "@/infrastructure";
 interface EnvVars {
   BTC_VAULTS_MANAGER: Address;
   AAVE_CONTROLLER: Address;
+  AAVE_SPOKE: Address;
   GRAPHQL_ENDPOINT: string;
   SIDECAR_API_URL: string;
   BTC_PRICE_FEED: Address | undefined;
@@ -47,6 +48,7 @@ function validateEnvVars(): EnvValidationResult {
     // Contract addresses (required)
     BTC_VAULTS_MANAGER: process.env.NEXT_PUBLIC_TBV_BTC_VAULTS_MANAGER,
     AAVE_CONTROLLER: process.env.NEXT_PUBLIC_TBV_AAVE_CONTROLLER,
+    AAVE_SPOKE: process.env.NEXT_PUBLIC_TBV_AAVE_SPOKE,
 
     // API endpoints (required)
     GRAPHQL_ENDPOINT: process.env.NEXT_PUBLIC_TBV_GRAPHQL_ENDPOINT,
@@ -69,6 +71,7 @@ function validateEnvVars(): EnvValidationResult {
   const requiredVars = [
     "BTC_VAULTS_MANAGER",
     "AAVE_CONTROLLER",
+    "AAVE_SPOKE",
     "GRAPHQL_ENDPOINT",
     "VP_PROXY_URL",
   ] as const;
@@ -82,6 +85,7 @@ function validateEnvVars(): EnvValidationResult {
     const envVarMap: Record<string, string> = {
       BTC_VAULTS_MANAGER: "NEXT_PUBLIC_TBV_BTC_VAULTS_MANAGER",
       AAVE_CONTROLLER: "NEXT_PUBLIC_TBV_AAVE_CONTROLLER",
+      AAVE_SPOKE: "NEXT_PUBLIC_TBV_AAVE_SPOKE",
       GRAPHQL_ENDPOINT: "NEXT_PUBLIC_TBV_GRAPHQL_ENDPOINT",
       VP_PROXY_URL: "NEXT_PUBLIC_TBV_VP_PROXY_URL",
     };
@@ -92,6 +96,7 @@ function validateEnvVars(): EnvValidationResult {
       env: {
         BTC_VAULTS_MANAGER: ZERO_ADDRESS,
         AAVE_CONTROLLER: ZERO_ADDRESS,
+        AAVE_SPOKE: ZERO_ADDRESS,
         GRAPHQL_ENDPOINT: "",
         SIDECAR_API_URL: "",
         VP_PROXY_URL: "",
