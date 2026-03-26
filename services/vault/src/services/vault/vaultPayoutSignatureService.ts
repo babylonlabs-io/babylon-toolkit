@@ -2,6 +2,7 @@ import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
 import { PayoutManager, type Network } from "@babylonlabs-io/ts-sdk/tbv/core";
 import type { Hex } from "viem";
 
+import { getVaultFromChain } from "../../clients/eth-contract/btc-vaults-manager/query";
 import { VaultProviderRpcApi } from "../../clients/vault-provider-rpc";
 import type {
   ClaimerSignatures,
@@ -19,7 +20,6 @@ import { getVpProxyUrl } from "../../utils/rpc";
 import { fetchVaultKeepersByVersion } from "../providers/fetchProviders";
 
 import { fetchVaultProviderById } from "./fetchVaultProviders";
-import { fetchVaultById } from "./fetchVaults";
 
 /** Vault provider info needed for payout signing */
 export interface PayoutVaultProvider {
@@ -279,11 +279,11 @@ export async function prepareSigningContext(
   } = params;
   const { vaultProvider } = providers;
 
-  // Fetch vault data from GraphQL
-  const vault = await fetchVaultById(peginTxId as Hex);
-  if (!vault?.depositorSignedPeginTx) {
-    throw new Error("Vault or pegin transaction not found");
-  }
+  // Fetch signing-critical vault fields from the contract (authoritative source).
+  // Never use the GraphQL indexer for these values — a compromised indexer could
+  // substitute a different pegin transaction or signer-set versions and obtain
+  // signatures over attacker-chosen graph parameters.
+  const vault = await getVaultFromChain(peginTxId as Hex);
 
   // Fetch versioned vault keepers (per-application)
   const vaultKeepers = await fetchVaultKeepersByVersion(

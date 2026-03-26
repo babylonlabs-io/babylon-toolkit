@@ -10,8 +10,9 @@ vi.mock("../fetchVaultProviders", () => ({
   fetchVaultProviderById: vi.fn(),
 }));
 
-vi.mock("../fetchVaults", () => ({
-  fetchVaultById: vi.fn(),
+// Mock on-chain vault query (used by prepareSigningContext)
+vi.mock("../../../clients/eth-contract/btc-vaults-manager/query", () => ({
+  getVaultFromChain: vi.fn(),
 }));
 
 // Mock RPC client
