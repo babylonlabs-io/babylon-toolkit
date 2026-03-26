@@ -32,6 +32,7 @@ export async function getCoreSpokeAddress(
     address: controllerAddress,
     abi: AaveIntegrationControllerABI,
     functionName: "BTC_VAULT_CORE_SPOKE",
+    args: [],
   }) as Promise<Address>;
 }
 
