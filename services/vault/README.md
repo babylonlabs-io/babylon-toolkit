@@ -61,6 +61,7 @@ Create a `.env` file with the following variables:
   - Example: `https://babylon-vault-indexer-api.vault-devnet.babylonlabs.io`
 - `NEXT_PUBLIC_TBV_BTC_VAULTS_MANAGER` - TBV BTC Vaults Manager contract address
 - `NEXT_PUBLIC_TBV_AAVE_CONTROLLER` - TBV Aave Integration Controller contract address
+- `NEXT_PUBLIC_TBV_AAVE_SPOKE` - TBV Aave Core Spoke contract address
 
 ### Optional
 
