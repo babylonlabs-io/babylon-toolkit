@@ -213,12 +213,14 @@ describe("vaultPayoutSignatureService", () => {
           "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
         payoutTxHex: "payout_hex_1",
         assertTxHex: "assert_hex_1",
+        expectedPayoutSighash: "payout_sighash_hex",
       });
       expect(result[1]).toEqual({
         claimerPubkeyXOnly:
           "abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
         payoutTxHex: "payout_hex_2",
         assertTxHex: "assert_hex_2",
+        expectedPayoutSighash: "payout_sighash_hex",
       });
     });
 

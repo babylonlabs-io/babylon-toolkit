@@ -19,6 +19,7 @@ import {
   buildPayoutPsbt,
   extractPayoutSignature,
   validateWalletPubkey,
+  verifySighash,
   type Network,
 } from "../primitives";
 
@@ -93,6 +94,13 @@ export interface SignPayoutParams extends SignPayoutBaseParams {
    * Payout input 1 references Assert output 0.
    */
   assertTxHex: string;
+
+  /**
+   * VP-provided expected sighash for the payout transaction (hex).
+   * If provided, the locally-computed sighash is verified against this value
+   * after PSBT construction and before wallet signing.
+   */
+  expectedPayoutSighash?: string;
 }
 
 /**
@@ -187,6 +195,16 @@ export class PayoutManager {
       timelockPegin: params.timelockPegin,
       network: this.config.network,
     });
+
+    // Verify sighash matches VP expectation before signing
+    if (params.expectedPayoutSighash) {
+      verifySighash(
+        payoutPsbt.psbtHex,
+        0,
+        params.expectedPayoutSighash,
+        "Claimer payout input 0",
+      );
+    }
 
     // Sign PSBT via wallet
     // - signInputs restricts signing to input 0 only (input 1 is signed by claimer/challengers)
@@ -291,6 +309,17 @@ export class PayoutManager {
         timelockPegin: tx.timelockPegin,
         network: this.config.network,
       });
+
+      // Verify sighash matches VP expectation before signing
+      if (tx.expectedPayoutSighash) {
+        verifySighash(
+          payoutPsbt.psbtHex,
+          0,
+          tx.expectedPayoutSighash,
+          `Claimer payout input 0 (claimer ${depositorPubkey.slice(0, 8)}…)`,
+        );
+      }
+
       psbtsToSign.push(payoutPsbt.psbtHex);
       signOptions.push({
         autoFinalized: false,

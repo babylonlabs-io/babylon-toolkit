@@ -198,6 +198,8 @@ export interface PreparedTransaction {
   payoutTxHex: string;
   /** Assert transaction (for reference, used in Payout signing) */
   assertTxHex: string;
+  /** VP-provided expected sighash for payout verification */
+  expectedPayoutSighash: string;
 }
 
 /**
@@ -210,6 +212,7 @@ export function prepareTransactionsForSigning(
     claimerPubkeyXOnly: processPublicKeyToXOnly(tx.claimer_pubkey),
     payoutTxHex: tx.payout_tx.tx_hex,
     assertTxHex: tx.assert_tx.tx_hex,
+    expectedPayoutSighash: tx.payout_sighash,
   }));
 }
 
@@ -241,6 +244,7 @@ export async function signPayout(
       universalChallengerBtcPubkeys: context.universalChallengerBtcPubkeys,
       depositorBtcPubkey: context.depositorBtcPubkey,
       timelockPegin: context.timelockPegin,
+      expectedPayoutSighash: transaction.expectedPayoutSighash,
     });
 
     return result.signature;
@@ -379,6 +383,7 @@ export async function signAllTransactionsBatch(
         universalChallengerBtcPubkeys: context.universalChallengerBtcPubkeys,
         depositorBtcPubkey: context.depositorBtcPubkey,
         timelockPegin: context.timelockPegin,
+        expectedPayoutSighash: tx.expectedPayoutSighash,
       })),
     );
 
