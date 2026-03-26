@@ -14,7 +14,8 @@ export const STEP_DESCRIPTIONS: Partial<
     active: "Please sign the split transaction in your BTC wallet.",
   },
   [DepositFlowStep.SIGN_POP]: {
-    active: "Please sign the proof of possession in your BTC wallet.",
+    active:
+      "Please sign in your BTC wallet. You will see 2 requests: one to sign the peg-in input, and one for the proof of possession.",
   },
   [DepositFlowStep.SUBMIT_PEGIN]: {
     active: "Please sign and submit the peg-in request in your ETH wallet.",

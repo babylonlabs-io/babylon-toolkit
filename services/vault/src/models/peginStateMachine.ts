@@ -135,7 +135,6 @@ export const PEGIN_DISPLAY_LABELS = {
   AWAITING_KEY: "Awaiting key",
   PROCESSING: "Processing",
   VERIFIED: "Verified",
-  PENDING_BITCOIN_CONFIRMATIONS: "Confirming",
   READY_TO_ACTIVATE: "Ready to Activate",
   AVAILABLE: "Available",
   IN_USE: "In Use",
@@ -291,7 +290,7 @@ export function getPeginState(
         displayVariant: "pending",
         availableActions: [PeginAction.SUBMIT_LAMPORT_KEY],
         message:
-          "Vault provider is waiting for your Lamport public key. Please enter your mnemonic to continue.",
+          "Vault provider is waiting for your Lamport public key. Click 'Submit Lamport Key' to continue.",
       };
     }
 
@@ -373,6 +372,8 @@ export function getPeginState(
       displayLabel: PEGIN_DISPLAY_LABELS.VERIFIED,
       displayVariant: "pending",
       availableActions: [PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN],
+      message:
+        "Payout transactions signed. Broadcast the Pre-PegIn transaction to Bitcoin to continue.",
     };
   }
 
@@ -497,7 +498,7 @@ export function getPrimaryActionButton(state: PeginState): {
 } | null {
   if (state.availableActions.includes(PeginAction.SUBMIT_LAMPORT_KEY)) {
     return {
-      label: "Enter Mnemonic",
+      label: "Submit Lamport Key",
       action: PeginAction.SUBMIT_LAMPORT_KEY,
     };
   }
