@@ -111,6 +111,8 @@ export type { NoPayoutParams } from "./psbt/noPayout";
 export { buildChallengeAssertPsbt } from "./psbt/challengeAssert";
 export type { ChallengeAssertParams } from "./psbt/challengeAssert";
 
+export { computeTaprootSighash, verifySighash, SighashMismatchError } from "./psbt/sighash";
+
 // Script generators
 export { createPayoutScript } from "./scripts/payout";
 export type { PayoutScriptParams, PayoutScriptResult } from "./scripts/payout";

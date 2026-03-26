@@ -20,6 +20,7 @@ import {
   buildDepositorPayoutPsbt,
   buildNoPayoutPsbt,
   extractPayoutSignature,
+  verifySighash,
   type AssertPayoutNoPayoutConnectorParams,
   type ChallengeAssertConnectorParams,
   type PayoutConnectorParams,
@@ -242,6 +243,67 @@ async function buildDepositorGraphPsbts(
 }
 
 // ============================================================================
+// Sighash verification phase
+// ============================================================================
+
+/**
+ * Verify that locally-computed sighashes from built PSBTs match the
+ * VP-provided expected sighashes. This catches incorrect tap leaf scripts
+ * or prevout data BEFORE the user signs.
+ *
+ * @throws {SighashMismatchError} on first mismatch
+ */
+function verifyDepositorGraphSighashes(
+  psbtHexes: string[],
+  challengerIndexMap: ChallengerIndexEntry[],
+  depositorGraph: DepositorGraphTransactions,
+): void {
+  // Payout PSBT (index 0, input 0)
+  verifySighash(
+    psbtHexes[0],
+    0,
+    depositorGraph.payout_sighash,
+    "Payout input 0",
+  );
+
+  // Per-challenger: NoPayout + ChallengeAssert
+  for (const entry of challengerIndexMap) {
+    const challenger = depositorGraph.challenger_presign_data.find(
+      (c) => stripHexPrefix(c.challenger_pubkey) === entry.challengerPubkey,
+    );
+
+    if (!challenger) {
+      throw new Error(
+        `Challenger ${entry.challengerPubkey} not found in depositor graph`,
+      );
+    }
+
+    // NoPayout (input 0)
+    verifySighash(
+      psbtHexes[entry.noPayoutIdx],
+      0,
+      challenger.nopayout_sighash,
+      `NoPayout input 0 (challenger ${entry.challengerPubkey.slice(0, 8)}…)`,
+    );
+
+    // ChallengeAssert (inputs 0, 1, 2)
+    if (challenger.challenge_assert_sighashes.length !== NUM_CHALLENGE_ASSERT_INPUTS) {
+      throw new Error(
+        `Expected ${NUM_CHALLENGE_ASSERT_INPUTS} challenge_assert_sighashes for challenger ${entry.challengerPubkey.slice(0, 8)}…, got ${challenger.challenge_assert_sighashes.length}`,
+      );
+    }
+    for (let i = 0; i < NUM_CHALLENGE_ASSERT_INPUTS; i++) {
+      verifySighash(
+        psbtHexes[entry.challengeAssertIdx],
+        i,
+        challenger.challenge_assert_sighashes[i],
+        `ChallengeAssert input ${i} (challenger ${entry.challengerPubkey.slice(0, 8)}…)`,
+      );
+    }
+  }
+}
+
+// ============================================================================
 // Extract phase
 // ============================================================================
 
@@ -412,6 +474,9 @@ export async function signDepositorGraph(
       peginPayoutParams,
       assertConnectorParams,
     );
+
+  // 1.5 Verify sighashes match VP expectations BEFORE signing
+  verifyDepositorGraphSighashes(psbtHexes, challengerIndexMap, depositorGraph);
 
   // 2. Sign all PSBTs (batch when wallet supports it, sequential fallback for mobile)
   let signedPsbtHexes: string[];

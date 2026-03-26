@@ -43,3 +43,5 @@ export type { NoPayoutParams } from "./noPayout";
 
 export { buildChallengeAssertPsbt } from "./challengeAssert";
 export type { ChallengeAssertParams } from "./challengeAssert";
+
+export { computeTaprootSighash, verifySighash, SighashMismatchError } from "./sighash";

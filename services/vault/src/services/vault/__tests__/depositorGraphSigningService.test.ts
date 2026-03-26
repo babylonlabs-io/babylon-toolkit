@@ -3,6 +3,7 @@ import {
   buildDepositorPayoutPsbt,
   buildNoPayoutPsbt,
   extractPayoutSignature,
+  verifySighash,
 } from "@babylonlabs-io/ts-sdk/tbv/core";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -12,12 +13,13 @@ import {
   type SignDepositorGraphParams,
 } from "../depositorGraphSigningService";
 
-// Mock the PSBT builders (vitest hoists vi.mock calls)
+// Mock the PSBT builders and sighash verification (vitest hoists vi.mock calls)
 vi.mock("@babylonlabs-io/ts-sdk/tbv/core", () => ({
   buildDepositorPayoutPsbt: vi.fn().mockResolvedValue("psbt_payout_hex"),
   buildNoPayoutPsbt: vi.fn().mockResolvedValue("psbt_nopayout_hex"),
   buildChallengeAssertPsbt: vi.fn().mockResolvedValue("psbt_ca_hex"),
   extractPayoutSignature: vi.fn().mockReturnValue("default_sig_hex"),
+  verifySighash: vi.fn(),
 }));
 
 const DEPOSITOR_PUBKEY =
@@ -580,6 +582,76 @@ describe("depositorGraphSigningService", () => {
       await expect(signDepositorGraph(params)).rejects.toThrow(
         /Missing challenge_assert_prevouts/,
       );
+    });
+
+    it("should verify sighashes for all depositor-signed inputs before signing", async () => {
+      const mockExtract = vi.mocked(extractPayoutSignature);
+      mockExtract.mockReturnValue("deadbeef".repeat(16));
+      const mockVerify = vi.mocked(verifySighash);
+
+      const params = createMockParams();
+      const wallet = params.btcWallet as any;
+      wallet.signPsbts.mockResolvedValue(Array(3).fill("signed_hex"));
+
+      await signDepositorGraph(params);
+
+      // 1 payout + 1 nopayout + 3 challenge_assert inputs = 5 verify calls
+      expect(mockVerify).toHaveBeenCalledTimes(5);
+
+      // Payout: PSBT index 0, input 0
+      expect(mockVerify).toHaveBeenCalledWith(
+        "psbt_payout_hex",
+        0,
+        "payout_sighash",
+        "Payout input 0",
+      );
+
+      // NoPayout: PSBT index 1, input 0
+      expect(mockVerify).toHaveBeenCalledWith(
+        "psbt_nopayout_hex",
+        0,
+        "nopayout_sighash_0",
+        expect.stringContaining("NoPayout input 0"),
+      );
+
+      // ChallengeAssert: PSBT index 2, inputs 0, 1, 2
+      expect(mockVerify).toHaveBeenCalledWith(
+        "psbt_ca_hex",
+        0,
+        "ca_sh_0_0",
+        expect.stringContaining("ChallengeAssert input 0"),
+      );
+      expect(mockVerify).toHaveBeenCalledWith(
+        "psbt_ca_hex",
+        1,
+        "ca_sh_0_1",
+        expect.stringContaining("ChallengeAssert input 1"),
+      );
+      expect(mockVerify).toHaveBeenCalledWith(
+        "psbt_ca_hex",
+        2,
+        "ca_sh_0_2",
+        expect.stringContaining("ChallengeAssert input 2"),
+      );
+    });
+
+    it("should not call wallet signing when sighash verification fails", async () => {
+      const mockVerify = vi.mocked(verifySighash);
+      mockVerify.mockImplementation(() => {
+        throw new Error("Sighash mismatch for Payout input 0");
+      });
+
+      const params = createMockParams();
+      const wallet = params.btcWallet as any;
+      wallet.signPsbts.mockResolvedValue(Array(3).fill("signed_hex"));
+
+      await expect(signDepositorGraph(params)).rejects.toThrow(
+        /Sighash mismatch/,
+      );
+
+      // Wallet should never be called when verification fails
+      expect(wallet.signPsbts).not.toHaveBeenCalled();
+      expect(wallet.signPsbt).not.toHaveBeenCalled();
     });
   });
 });
