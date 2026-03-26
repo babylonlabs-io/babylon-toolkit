@@ -417,11 +417,21 @@ describe("preparePeginFromSplitOutput", () => {
       expect(callArg.network).toBe("testnet");
     });
 
-    it("calls signPsbt with pegin input psbt hex", async () => {
+    it("calls signPsbt with pegin input psbt hex and taproot options", async () => {
       await preparePeginFromSplitOutput(baseParams);
 
       expect(baseParams.signPsbt).toHaveBeenCalledWith(
         MOCK_PEGIN_INPUT_PSBT.psbtHex,
+        {
+          autoFinalized: false,
+          signInputs: [
+            {
+              index: 0,
+              publicKey: X_ONLY_PUBKEY,
+              disableTweakSigner: true,
+            },
+          ],
+        },
       );
     });
 

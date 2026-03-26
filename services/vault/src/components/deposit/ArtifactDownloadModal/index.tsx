@@ -117,7 +117,11 @@ export function ArtifactDownloadModal({
             </Button>
             {/* TODO: Remove Cancel button once backend streaming is implemented (see handleCancel above) */}
             {loading && (
-              <Button variant="outlined" className="w-full" onClick={handleCancel}>
+              <Button
+                variant="outlined"
+                className="w-full"
+                onClick={handleCancel}
+              >
                 Cancel
               </Button>
             )}

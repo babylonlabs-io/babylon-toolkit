@@ -543,8 +543,8 @@ export function useMultiVaultDepositFlow(
                 councilQuorum: config.offchainParams.councilQuorum,
                 councilSize: config.offchainParams.securityCouncilKeys.length,
                 splitOutput: utxoToUse,
-                signPsbt: (psbtHex: string) =>
-                  confirmedBtcWallet.signPsbt(psbtHex),
+                signPsbt: (psbtHex, options) =>
+                  confirmedBtcWallet.signPsbt(psbtHex, options),
               });
 
               // Derive Lamport keypair and compute PK hash (before ETH tx)
