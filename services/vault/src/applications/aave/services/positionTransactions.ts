@@ -173,7 +173,8 @@ export async function repayFull(
   }
 
   const controllerAddress = getAaveControllerAddress();
-  const spokeAddress = await AaveControllerTx.getCoreSpokeAddress(controllerAddress);
+  const spokeAddress =
+    await AaveControllerTx.getCoreSpokeAddress(controllerAddress);
 
   // Fetch current debt from the contract
   const currentDebt = await AaveSpoke.getUserTotalDebt(

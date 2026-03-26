@@ -218,13 +218,7 @@ describe("positionTransactions", () => {
       const noAccountWallet = { account: undefined } as any;
 
       await expect(
-        repayPartial(
-          noAccountWallet,
-          mockChain,
-          1n,
-          "0xtoken" as any,
-          1000n,
-        ),
+        repayPartial(noAccountWallet, mockChain, 1n, "0xtoken" as any, 1000n),
       ).rejects.toThrow("Wallet address not available");
     });
   });
