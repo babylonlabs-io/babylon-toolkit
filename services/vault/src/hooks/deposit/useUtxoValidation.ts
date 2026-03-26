@@ -9,6 +9,7 @@
  */
 
 import type { MempoolUTXO } from "@babylonlabs-io/ts-sdk";
+import { calculateBtcTxHash } from "@babylonlabs-io/ts-sdk/tbv/core";
 import { useMemo } from "react";
 
 import { logger } from "@/infrastructure";
@@ -109,10 +110,16 @@ export function useUtxoValidation({
         );
 
         if (hasUnavailableInput) {
-          // Check if the deposit's transaction has been broadcast
-          // If so, the UTXO was spent by the vault's own tx (confirming, not invalid)
-          const txid = stripHexPrefix(deposit.id).toLowerCase();
-          const isBroadcasted = broadcastedTxIds?.has(txid) ?? false;
+          // In the atomic swap flow, deposit.id is the PegIn tx hash but the tx
+          // that actually spends wallet UTXOs is the Pre-PegIn tx (a different ID).
+          // Check both so a confirming deposit is not falsely marked as Invalid.
+          const peginTxId = stripHexPrefix(deposit.id).toLowerCase();
+          const prePeginTxId = stripHexPrefix(
+            calculateBtcTxHash(deposit.unsignedPrePeginTx!),
+          ).toLowerCase();
+          const isBroadcasted =
+            (broadcastedTxIds?.has(peginTxId) ?? false) ||
+            (broadcastedTxIds?.has(prePeginTxId) ?? false);
 
           if (!isBroadcasted) {
             // UTXO spent by a different transaction - truly unavailable

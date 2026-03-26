@@ -17,6 +17,16 @@ vi.mock("@/infrastructure", () => ({
   logger: { warn: mockLoggerWarn, error: vi.fn(), info: vi.fn() },
 }));
 
+// Mock calculateBtcTxHash to avoid bitcoinjs-lib ecc initialization
+vi.mock("@babylonlabs-io/ts-sdk/tbv/core", () => ({
+  calculateBtcTxHash: vi.fn((txHex: string) => {
+    // Return a deterministic fake txid based on the marker
+    if (txHex === "tx-pre-pegin-broadcasted")
+      return "0xpre-pegin-txid-broadcasted";
+    return `0xpre-pegin-txid-for-${txHex}`;
+  }),
+}));
+
 // Mock extractInputsFromTransaction to avoid bitcoinjs-lib ecc initialization
 vi.mock("../../../services/vault/vaultUtxoValidationService", () => ({
   extractInputsFromTransaction: vi.fn((txHex: string) => {
@@ -221,6 +231,31 @@ describe("useUtxoValidation", () => {
       expect(result.current.unavailableUtxos.has("0xnotbroadcasted")).toBe(
         true,
       );
+    });
+
+    it("should not mark as unavailable if pre-pegin tx ID is in broadcastedTxIds", () => {
+      // In the atomic swap flow, deposit.id is the PegIn tx hash but the tx that
+      // spends wallet UTXOs is the Pre-PegIn tx — a different ID.
+      const activities = [
+        createActivity(
+          "0xpegin-tx-id", // vault ID / PegIn tx — NOT in broadcastedTxIds
+          ContractStatus.VERIFIED,
+          TEST_BTC_PUBKEY,
+          "tx-pre-pegin-broadcasted", // Pre-PegIn tx — IS in broadcastedTxIds
+        ),
+      ];
+
+      const { result } = renderHook(() =>
+        useUtxoValidation({
+          activities,
+          btcPublicKey: TEST_BTC_PUBKEY,
+          availableUtxos: [],
+          broadcastedTxIds: new Set(["pre-pegin-txid-broadcasted"]),
+        }),
+      );
+
+      // Should NOT be marked unavailable — Pre-PegIn tx was broadcast (confirming)
+      expect(result.current.unavailableUtxos.has("0xpegin-tx-id")).toBe(false);
     });
 
     it("should only check deposits owned by current wallet", () => {
