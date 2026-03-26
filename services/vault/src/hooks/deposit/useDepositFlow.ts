@@ -24,7 +24,7 @@ import { useVaults } from "@/hooks/useVaults";
 import { logger } from "@/infrastructure";
 import { deriveLamportPkHash, linkPeginToMnemonic } from "@/services/lamport";
 import { collectReservedUtxoRefs } from "@/services/vault";
-import { prepareAndSignDepositorGraph } from "@/services/vault/depositorGraphSigningService";
+import { signDepositorGraph } from "@/services/vault/depositorGraphSigningService";
 import { activateVaultWithSecret } from "@/services/vault/vaultActivationService";
 import {
   signPayoutTransactions,
@@ -171,7 +171,6 @@ export function useDepositFlow(
     timelockPegin,
     timelockRefund,
     latestUniversalChallengers,
-    getOffchainParamsByVersion,
   } = useProtocolParamsContext();
 
   const executeDepositFlow =
@@ -374,20 +373,12 @@ export function useDepositFlow(
         );
 
         // Sign depositor graph (depositor-as-claimer flow)
-        // Use version-resolved values from context so that the UC/keeper
-        // set matches the vault's locked versions.
-        const depositorClaimerPresignatures =
-          await prepareAndSignDepositorGraph({
-            depositorGraph,
-            depositorBtcPubkey: prepared.depositorBtcPubkey,
-            btcWallet: confirmedBtcWallet,
-            vaultProviderBtcPubkey: context.vaultProviderBtcPubkey,
-            vaultKeeperBtcPubkeys: context.vaultKeeperBtcPubkeys,
-            universalChallengerBtcPubkeys:
-              context.universalChallengerBtcPubkeys,
-            timelockPegin,
-            getOffchainParamsByVersion,
-          });
+        // PSBTs are pre-built by the VP with all taproot metadata embedded.
+        const depositorClaimerPresignatures = await signDepositorGraph({
+          depositorGraph,
+          depositorBtcPubkey: prepared.depositorBtcPubkey,
+          btcWallet: confirmedBtcWallet,
+        });
 
         await submitPayoutSignatures(
           vaultProviderAddress,
@@ -483,7 +474,6 @@ export function useDepositFlow(
       findProvider,
       vaultKeepers,
       latestUniversalChallengers,
-      getOffchainParamsByVersion,
       minDeposit,
       maxDeposit,
       getMnemonic,

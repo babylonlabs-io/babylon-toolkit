@@ -50,7 +50,7 @@ import {
   registerSplitPeginOnChain,
   type AllocationPlan,
 } from "@/services/vault";
-import { prepareAndSignDepositorGraph } from "@/services/vault/depositorGraphSigningService";
+import { signDepositorGraph } from "@/services/vault/depositorGraphSigningService";
 import { activateVaultWithSecret } from "@/services/vault/vaultActivationService";
 import {
   signPayoutTransactions,
@@ -362,8 +362,7 @@ export function useMultiVaultDepositFlow(
   const { btcAddress, spendableUTXOs, isUTXOsLoading, utxoError } =
     useBtcWalletState();
   const { findProvider, vaultKeepers } = useVaultProviders(selectedApplication);
-  const { config, timelockPegin, timelockRefund, getOffchainParamsByVersion } =
-    useProtocolParamsContext();
+  const { config, timelockPegin, timelockRefund } = useProtocolParamsContext();
 
   // ============================================================================
   // Main Execution Function
@@ -903,20 +902,12 @@ export function useMultiVaultDepositFlow(
             );
 
             // Sign depositor graph (depositor-as-claimer flow)
-            // Use version-resolved values from context so that the UC/keeper
-            // set matches the vault's locked versions.
-            const depositorClaimerPresignatures =
-              await prepareAndSignDepositorGraph({
-                depositorGraph,
-                depositorBtcPubkey: result.depositorBtcPubkey,
-                btcWallet: confirmedBtcWallet,
-                vaultProviderBtcPubkey: context.vaultProviderBtcPubkey,
-                vaultKeeperBtcPubkeys: context.vaultKeeperBtcPubkeys,
-                universalChallengerBtcPubkeys:
-                  context.universalChallengerBtcPubkeys,
-                timelockPegin,
-                getOffchainParamsByVersion,
-              });
+            // PSBTs are pre-built by the VP with all taproot metadata embedded.
+            const depositorClaimerPresignatures = await signDepositorGraph({
+              depositorGraph,
+              depositorBtcPubkey: result.depositorBtcPubkey,
+              btcWallet: confirmedBtcWallet,
+            });
 
             // Submit signatures
             await submitPayoutSignatures(
@@ -1059,7 +1050,6 @@ export function useMultiVaultDepositFlow(
       utxoError,
       vaultKeepers,
       findProvider,
-      getOffchainParamsByVersion,
       getMnemonic,
       mnemonicId,
       precomputedPlan,

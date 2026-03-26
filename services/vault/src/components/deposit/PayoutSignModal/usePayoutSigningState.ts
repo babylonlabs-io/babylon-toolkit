@@ -20,7 +20,7 @@ import {
   LocalStorageStatus,
   PeginAction,
 } from "../../../models/peginStateMachine";
-import { prepareAndSignDepositorGraph } from "../../../services/vault/depositorGraphSigningService";
+import { signDepositorGraph } from "../../../services/vault/depositorGraphSigningService";
 import {
   prepareSigningContext,
   prepareTransactionsForSigning,
@@ -85,7 +85,6 @@ export function usePayoutSigningState({
   const {
     latestUniversalChallengers,
     getUniversalChallengersByVersion,
-    getOffchainParamsByVersion,
     timelockPegin,
   } = useProtocolParamsContext();
   const btcConnector = useChainConnector("BTC");
@@ -185,17 +184,11 @@ export function usePayoutSigningState({
       );
 
       // Sign depositor graph (depositor-as-claimer flow)
-      // Use version-resolved values from context (not latest) so that
-      // resumed deposits use the UC set that was locked at creation time.
-      const depositorClaimerPresignatures = await prepareAndSignDepositorGraph({
+      // PSBTs are pre-built by the VP with all taproot metadata embedded.
+      const depositorClaimerPresignatures = await signDepositorGraph({
         depositorGraph,
         depositorBtcPubkey: btcPublicKey,
         btcWallet: btcWalletProvider,
-        vaultProviderBtcPubkey: context.vaultProviderBtcPubkey,
-        vaultKeeperBtcPubkeys: context.vaultKeeperBtcPubkeys,
-        universalChallengerBtcPubkeys: context.universalChallengerBtcPubkeys,
-        timelockPegin,
-        getOffchainParamsByVersion,
       });
 
       // Submit signatures to vault provider
@@ -240,7 +233,6 @@ export function usePayoutSigningState({
     vaultKeepers,
     latestUniversalChallengers,
     getUniversalChallengersByVersion,
-    getOffchainParamsByVersion,
     timelockPegin,
     btcConnector?.connectedWallet?.provider,
     btcPublicKey,

@@ -87,6 +87,14 @@ describe("peginStateMachine", () => {
       expect(state.displayLabel).toBe(PEGIN_DISPLAY_LABELS.READY_TO_ACTIVATE);
       expect(state.availableActions).toContain(PeginAction.ACTIVATE_VAULT);
     });
+
+    it("shows processing when vault is activated but indexer hasn't caught up", () => {
+      const state = getPeginState(ContractStatus.VERIFIED, {
+        localStatus: LocalStorageStatus.CONFIRMED,
+      });
+      expect(state.displayLabel).toBe(PEGIN_DISPLAY_LABELS.PROCESSING);
+      expect(state.availableActions).toEqual([PeginAction.NONE]);
+    });
   });
 
   // ==========================================================================
@@ -224,19 +232,6 @@ describe("peginStateMachine", () => {
         "This vault has expired. The vault provider did not acknowledge in time. Expired 2h ago.",
       );
       vi.useRealTimers();
-    });
-  });
-
-  // ==========================================================================
-  // getPeginState — UTXO unavailable (early exit)
-  // ==========================================================================
-  describe("getPeginState - utxoUnavailable", () => {
-    it("shows invalid regardless of contract status", () => {
-      const state = getPeginState(ContractStatus.PENDING, {
-        utxoUnavailable: true,
-      });
-      expect(state.displayLabel).toBe(PEGIN_DISPLAY_LABELS.INVALID);
-      expect(state.message).toContain("UTXOs were spent");
     });
   });
 

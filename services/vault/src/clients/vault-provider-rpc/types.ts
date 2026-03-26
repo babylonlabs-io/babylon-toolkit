@@ -69,28 +69,20 @@ export interface TransactionData {
   tx_hex: string;
 }
 
-/** Previous output data needed for PSBT construction. */
-export interface PrevoutData {
-  script_pubkey: string;
-  value: number;
-}
-
-/** Connector data for building ChallengeAssert PSBTs. */
+/** Connector data for ChallengeAssert inputs (server-generated label hashes). */
 export interface ChallengeAssertConnectorData {
   lamport_hashes_json: string;
   gc_input_label_hashes_json: string;
 }
 
-/** Set of transactions the depositor must pre-sign for a single claimer. */
+/** Set of transactions the depositor must pre-sign for a single claimer (VP or VK graph). */
 export interface ClaimerTransactions {
   claimer_pubkey: string;
   claim_tx: TransactionData;
   assert_tx: TransactionData;
   payout_tx: TransactionData;
-  /** Sighash for the payout transaction (hex). */
-  payout_sighash: string;
-  /** Prevouts for building payout PSBT. */
-  payout_prevouts: PrevoutData[];
+  /** Unsigned PSBT (base64) for the Payout transaction — embeds prevouts, scripts, and taproot metadata. */
+  payout_psbt: string;
 }
 
 /** Challenger-specific transactions and signing data for the depositor graph. */
@@ -98,20 +90,16 @@ export interface PresignDataPerChallenger {
   challenger_pubkey: string;
   challenge_assert_tx: TransactionData;
   nopayout_tx: TransactionData;
-  /** 3 sighashes for the ChallengeAssert transactions. */
-  challenge_assert_sighashes: [string, string, string];
-  /** Sighash for the NoPayout transaction. */
-  nopayout_sighash: string;
-  /** Connector data for building ChallengeAssert PSBTs (one per ChallengeAssert tx). */
+  /** Unsigned PSBT (base64) for the ChallengeAssert transaction (all 3 inputs). */
+  challenge_assert_psbt: string;
+  /** Unsigned PSBT (base64) for the NoPayout transaction (input 0). */
+  nopayout_psbt: string;
+  /** Per-segment connector data for ChallengeAssert inputs (one per UTXO segment). */
   challenge_assert_connectors: [
     ChallengeAssertConnectorData,
     ChallengeAssertConnectorData,
     ChallengeAssertConnectorData,
   ];
-  /** Prevouts for all ChallengeAssert inputs (flat, one per input). */
-  challenge_assert_prevouts: PrevoutData[];
-  /** Prevouts for building NoPayout PSBT. */
-  nopayout_prevouts: PrevoutData[];
   /** Output label hashes for this challenger (used in GC verification). */
   output_label_hashes: string[];
 }
@@ -121,11 +109,9 @@ export interface DepositorGraphTransactions {
   claim_tx: TransactionData;
   assert_tx: TransactionData;
   payout_tx: TransactionData;
+  /** Unsigned PSBT (base64) for the Payout transaction — embeds prevouts, scripts, and taproot metadata. */
+  payout_psbt: string;
   challenger_presign_data: PresignDataPerChallenger[];
-  /** Sighash for the depositor's payout transaction. */
-  payout_sighash: string;
-  /** Prevouts for building the depositor's payout PSBT. */
-  payout_prevouts: PrevoutData[];
   /** Offchain params version used when constructing this graph. */
   offchain_params_version: number;
 }

@@ -203,8 +203,6 @@ export interface GetPeginStateOptions {
   transactionsReady?: boolean;
   /** Whether vault is in use by an application (from ApplicationVaultTracker) */
   isInUse?: boolean;
-  /** Whether the UTXO for this deposit is no longer available (spent) */
-  utxoUnavailable?: boolean;
   /** Whether the vault provider is waiting for the depositor's lamport public key */
   needsLamportKey?: boolean;
   /** Whether the vault provider hasn't ingested this peg-in yet */
@@ -263,29 +261,11 @@ export function getPeginState(
     localStatus,
     transactionsReady,
     isInUse,
-    utxoUnavailable,
     needsLamportKey,
     pendingIngestion,
     expirationReason,
     expiredAt,
   } = options;
-
-  // Early check: If UTXO is unavailable (spent), show Invalid state
-  // This provides immediate feedback before the backend updates the status
-  // Note: Deposits whose txid is detected in broadcastedTxIds are treated as not-unavailable
-  // (spending UTXO is expected after broadcast). If broadcastedTxIds is unavailable or
-  // doesn't contain the txid, the deposit may still be marked unavailable.
-  if (utxoUnavailable) {
-    return {
-      contractStatus,
-      localStatus,
-      displayLabel: PEGIN_DISPLAY_LABELS.INVALID,
-      displayVariant: "warning",
-      availableActions: [PeginAction.NONE],
-      message:
-        "This vault is invalid. The BTC UTXOs were spent in a different transaction.",
-    };
-  }
 
   // Contract Status 0: Pending (Request submitted, waiting for ACKs)
   if (contractStatus === ContractStatus.PENDING) {
@@ -356,6 +336,20 @@ export function getPeginState(
 
   // Contract Status 1: Verified (All ACKs collected, ready for activation)
   if (contractStatus === ContractStatus.VERIFIED) {
+    // Sub-state: Vault already activated (secret revealed on ETH), waiting for
+    // indexer to update contract status from VERIFIED → ACTIVE
+    if (localStatus === LocalStorageStatus.CONFIRMED) {
+      return {
+        contractStatus,
+        localStatus,
+        displayLabel: PEGIN_DISPLAY_LABELS.PROCESSING,
+        displayVariant: "pending",
+        availableActions: [PeginAction.NONE],
+        message:
+          "Vault activation submitted. Waiting for on-chain confirmation...",
+      };
+    }
+
     // Sub-state: BTC was already broadcast (CONFIRMING or later) — activate
     if (
       localStatus === LocalStorageStatus.CONFIRMING ||
