@@ -19,7 +19,6 @@ import {
   mapViemErrorToContractError,
 } from "@/utils/errors";
 
-import { useAaveConfig } from "../context";
 import { repayFull, repayPartial } from "../services";
 import type { AaveReserveConfig } from "../services/fetchConfig";
 
@@ -59,7 +58,6 @@ export function useRepayTransaction({
   const queryClient = useQueryClient();
   const chain = walletClient?.chain;
   const { handleError } = useError();
-  const { config } = useAaveConfig();
 
   const executeRepay = async (
     repayAmount: number,
@@ -85,10 +83,6 @@ export function useRepayTransaction({
         );
       }
 
-      if (!config?.controllerAddress || !config?.btcVaultCoreSpokeAddress) {
-        throw new Error("Aave config not available");
-      }
-
       // Call appropriate service based on repayment type
       // The borrower address is resolved from the connected wallet (self-repay)
       if (isFullRepayment) {
@@ -101,17 +95,14 @@ export function useRepayTransaction({
         await repayFull(
           walletClient,
           chain,
-          config.controllerAddress as Address,
           reserve.reserveId,
           reserve.token.address,
-          config.btcVaultCoreSpokeAddress as Address,
           proxyContract as Address,
         );
       } else {
         await repayPartial(
           walletClient,
           chain,
-          config.controllerAddress as Address,
           reserve.reserveId,
           reserve.token.address,
           parseUnits(

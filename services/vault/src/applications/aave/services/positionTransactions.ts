@@ -101,7 +101,6 @@ export async function repay(
  *
  * @param walletClient - Connected wallet client
  * @param chain - Chain configuration
- * @param controllerAddress - Aave controller contract address
  * @param debtReserveId - Reserve ID for the debt token
  * @param tokenAddress - Token address for the debt
  * @param amount - Amount to repay (in debt token decimals)
@@ -110,7 +109,6 @@ export async function repay(
 export async function repayPartial(
   walletClient: WalletClient,
   chain: Chain,
-  controllerAddress: Address,
   debtReserveId: bigint,
   tokenAddress: Address,
   amount: bigint,
@@ -119,6 +117,8 @@ export async function repayPartial(
   if (!userAddress) {
     throw new Error("Wallet address not available");
   }
+
+  const controllerAddress = getAaveControllerAddress();
 
   const userBalance = await ERC20.getERC20Balance(tokenAddress, userAddress);
   if (userBalance < amount) {
@@ -160,26 +160,25 @@ export async function repayPartial(
  *
  * @param walletClient - Connected wallet client
  * @param chain - Chain configuration
- * @param controllerAddress - Aave controller contract address
  * @param debtReserveId - Reserve ID for the debt token
  * @param tokenAddress - Token address for the debt
- * @param spokeAddress - Spoke contract address
  * @param proxyContract - User's proxy contract address
  * @returns Transaction result
  */
 export async function repayFull(
   walletClient: WalletClient,
   chain: Chain,
-  controllerAddress: Address,
   debtReserveId: bigint,
   tokenAddress: Address,
-  spokeAddress: Address,
   proxyContract: Address,
 ): Promise<{ transactionHash: Hash; receipt: TransactionReceipt }> {
   const userAddress = walletClient.account?.address;
   if (!userAddress) {
     throw new Error("Wallet address not available");
   }
+
+  const controllerAddress = getAaveControllerAddress();
+  const spokeAddress = await AaveControllerTx.getCoreSpokeAddress(controllerAddress);
 
   // Fetch current debt from the contract
   const currentDebt = await AaveSpoke.getUserTotalDebt(

@@ -10,6 +10,7 @@ const {
   mockGetERC20Allowance,
   mockGetERC20Balance,
   mockGetUserTotalDebt,
+  mockGetCoreSpokeAddress,
   mockBorrowFromCorePosition,
   mockRepayToCorePosition,
   mockWithdrawCollaterals,
@@ -18,6 +19,7 @@ const {
   mockGetERC20Allowance: vi.fn(),
   mockGetERC20Balance: vi.fn(),
   mockGetUserTotalDebt: vi.fn(),
+  mockGetCoreSpokeAddress: vi.fn(),
   mockBorrowFromCorePosition: vi.fn(),
   mockRepayToCorePosition: vi.fn(),
   mockWithdrawCollaterals: vi.fn(),
@@ -38,6 +40,7 @@ vi.mock("../../clients", () => ({
     borrowFromCorePosition: mockBorrowFromCorePosition,
     repayToCorePosition: mockRepayToCorePosition,
     withdrawCollaterals: mockWithdrawCollaterals,
+    getCoreSpokeAddress: mockGetCoreSpokeAddress,
   },
   AaveSpoke: {
     getUserTotalDebt: mockGetUserTotalDebt,
@@ -76,6 +79,7 @@ describe("positionTransactions", () => {
     mockBorrowFromCorePosition.mockResolvedValue(mockTxResult);
     mockRepayToCorePosition.mockResolvedValue(mockTxResult);
     mockWithdrawCollaterals.mockResolvedValue(mockTxResult);
+    mockGetCoreSpokeAddress.mockResolvedValue("0xspoke");
   });
 
   // ============================================================================
@@ -184,7 +188,6 @@ describe("positionTransactions", () => {
       await repayPartial(
         mockWalletClient,
         mockChain,
-        "0xcontroller" as any,
         1n,
         "0xtoken" as any,
         amount,
@@ -217,7 +220,6 @@ describe("positionTransactions", () => {
       await repayPartial(
         mockWalletClient,
         mockChain,
-        "0xcontroller" as any,
         1n,
         "0xtoken" as any,
         amount,
@@ -234,7 +236,6 @@ describe("positionTransactions", () => {
         repayPartial(
           noAccountWallet,
           mockChain,
-          "0xcontroller" as any,
           1n,
           "0xtoken" as any,
           1000n,
@@ -264,10 +265,8 @@ describe("positionTransactions", () => {
       await repayFull(
         mockWalletClient,
         mockChain,
-        "0xcontroller" as any,
         1n,
         "0xtoken" as any,
-        "0xspoke" as any,
         "0xproxy" as any,
       );
 
@@ -285,10 +284,8 @@ describe("positionTransactions", () => {
       await repayFull(
         mockWalletClient,
         mockChain,
-        "0xcontroller" as any,
         1n,
         "0xtoken" as any,
-        "0xspoke" as any,
         "0xproxy" as any,
       );
 
@@ -308,10 +305,8 @@ describe("positionTransactions", () => {
       await repayFull(
         mockWalletClient,
         mockChain,
-        "0xcontroller" as any,
         1n,
         "0xtoken" as any,
-        "0xspoke" as any,
         "0xproxy" as any,
       );
 
@@ -325,10 +320,8 @@ describe("positionTransactions", () => {
         repayFull(
           mockWalletClient,
           mockChain,
-          "0xcontroller" as any,
           1n,
           "0xtoken" as any,
-          "0xspoke" as any,
           "0xproxy" as any,
         ),
       ).rejects.toThrow("No debt to repay");
@@ -341,10 +334,8 @@ describe("positionTransactions", () => {
         repayFull(
           mockWalletClient,
           mockChain,
-          "0xcontroller" as any,
           1n,
           "0xtoken" as any,
-          "0xspoke" as any,
           "0xproxy" as any,
         ),
       ).rejects.toThrow(
@@ -359,10 +350,8 @@ describe("positionTransactions", () => {
         repayFull(
           noAccountWallet,
           mockChain,
-          "0xcontroller" as any,
           1n,
           "0xtoken" as any,
-          "0xspoke" as any,
           "0xproxy" as any,
         ),
       ).rejects.toThrow("Wallet address not available");

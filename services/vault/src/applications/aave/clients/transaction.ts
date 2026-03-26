@@ -14,6 +14,27 @@ import {
 } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
 import { type Address, type Chain, type Hex, type WalletClient } from "viem";
 
+/**
+ * Read the Core Spoke address from the controller contract.
+ *
+ * BTC_VAULT_CORE_SPOKE is an immutable property on the AaveIntegrationController.
+ * Reading it on-chain from the trusted controller guarantees the spoke address
+ * is not influenced by untrusted external sources (e.g. GraphQL indexer).
+ *
+ * @param controllerAddress - Trusted AaveIntegrationController address
+ * @returns Core Spoke contract address
+ */
+export async function getCoreSpokeAddress(
+  controllerAddress: Address,
+): Promise<Address> {
+  const publicClient = ethClient.getPublicClient();
+  return publicClient.readContract({
+    address: controllerAddress,
+    abi: AaveIntegrationControllerABI,
+    functionName: "BTC_VAULT_CORE_SPOKE",
+  }) as Promise<Address>;
+}
+
 import { ethClient } from "../../../clients/eth-contract/client";
 import { type TransactionResult } from "../../../clients/eth-contract/transactionFactory";
 import { mapViemErrorToContractError } from "../../../utils/errors";
