@@ -80,9 +80,11 @@ export function useSeizureSimulation(
     for (const id of vaultIds) {
       const normalizedId = id.toLowerCase() as Hex;
       const amountSats = vaultAmounts.get(normalizedId);
-      if (amountSats !== undefined) {
-        orderedVaults.push({ id: normalizedId, amountSats });
+      if (amountSats === undefined) {
+        // Vault order is known but amounts are incomplete — defer simulation
+        return { simulation: null, targetSeizureSats: 0n, orderedVaults: [] };
       }
+      orderedVaults.push({ id: normalizedId, amountSats });
     }
 
     if (orderedVaults.length === 0) {
