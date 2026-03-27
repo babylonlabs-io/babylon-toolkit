@@ -1,7 +1,7 @@
 /**
  * Tests for PeginManager
  *
- * Tests the manager's ability to orchestrate atomic swap peg-in operations
+ * Tests the manager's ability to orchestrate peg-in operations
  * using primitives, utilities, and mock wallets.
  */
 
@@ -85,7 +85,7 @@ const TEST_HASH_H = "ab".repeat(32);
 // Mock depositor Lamport public key hash (bytes32)
 const MOCK_LAMPORT_PK_HASH = `0x${"ab".repeat(32)}` as `0x${string}`;
 
-// Mock hashlock for atomic swap (bytes32)
+// Mock hashlock for HTLC (bytes32)
 const MOCK_HASHLOCK = `0x${"cd".repeat(32)}` as `0x${string}`;
 
 // Mock depositor-signed pegin tx hex
@@ -133,8 +133,8 @@ const TEST_CONTRACT_ADDRESS =
 const TEST_CHANGE_ADDRESS =
   "tb1plqg44wluw66vpkfccz23rdmtlepnx2m3yef57yyz66flgxdf4h8q7wu6pf";
 
-// Base params for prepareAtomicPegin — shared across tests
-const BASE_ATOMIC_PEGIN_PARAMS = {
+// Base params for preparePegin — shared across tests
+const BASE_PREPARE_PEGIN_PARAMS = {
   vaultProviderBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
   vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
   universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
@@ -200,8 +200,8 @@ describe("PeginManager", () => {
     });
   });
 
-  describe("prepareAtomicPegin", () => {
-    it("should prepare an atomic pegin with valid params", async () => {
+  describe("preparePegin", () => {
+    it("should prepare a pegin with valid params", async () => {
       const btcWallet = new MockBitcoinWallet({
         publicKeyHex: TEST_KEYS.DEPOSITOR,
       });
@@ -216,9 +216,9 @@ describe("PeginManager", () => {
         mempoolApiUrl: MEMPOOL_API_URLS.signet,
       });
 
-      const result = await manager.prepareAtomicPegin({
+      const result = await manager.preparePegin({
         amount: TEST_AMOUNTS.PEGIN,
-        ...BASE_ATOMIC_PEGIN_PARAMS,
+        ...BASE_PREPARE_PEGIN_PARAMS,
       });
 
       // Verify result structure
@@ -267,9 +267,9 @@ describe("PeginManager", () => {
         mempoolApiUrl: MEMPOOL_API_URLS.signet,
       });
 
-      const result = await manager.prepareAtomicPegin({
+      const result = await manager.preparePegin({
         amount: TEST_AMOUNTS.PEGIN_SMALL,
-        ...BASE_ATOMIC_PEGIN_PARAMS,
+        ...BASE_PREPARE_PEGIN_PARAMS,
       });
 
       expect(result.selectedUTXOs.length).toBeGreaterThanOrEqual(1);
@@ -298,9 +298,9 @@ describe("PeginManager", () => {
         mempoolApiUrl: MEMPOOL_API_URLS.signet,
       });
 
-      const result = await manager.prepareAtomicPegin({
+      const result = await manager.preparePegin({
         amount: TEST_AMOUNTS.PEGIN,
-        ...BASE_ATOMIC_PEGIN_PARAMS,
+        ...BASE_PREPARE_PEGIN_PARAMS,
         vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1, TEST_KEYS.VAULT_KEEPER_2],
       });
 
@@ -323,9 +323,9 @@ describe("PeginManager", () => {
         mempoolApiUrl: MEMPOOL_API_URLS.signet,
       });
 
-      const result = await manager.prepareAtomicPegin({
+      const result = await manager.preparePegin({
         amount: TEST_AMOUNTS.PEGIN,
-        ...BASE_ATOMIC_PEGIN_PARAMS,
+        ...BASE_PREPARE_PEGIN_PARAMS,
       });
 
       // Selected UTXOs must cover all outputs (HTLC + CPFP anchor) + fee
@@ -359,9 +359,9 @@ describe("PeginManager", () => {
       const excessiveAmount = totalAvailable + 100_000n;
 
       await expect(
-        manager.prepareAtomicPegin({
+        manager.preparePegin({
           amount: excessiveAmount,
-          ...BASE_ATOMIC_PEGIN_PARAMS,
+          ...BASE_PREPARE_PEGIN_PARAMS,
         }),
       ).rejects.toThrow(/Insufficient funds/);
     });
@@ -382,9 +382,9 @@ describe("PeginManager", () => {
       });
 
       await expect(
-        manager.prepareAtomicPegin({
+        manager.preparePegin({
           amount: TEST_AMOUNTS.PEGIN,
-          ...BASE_ATOMIC_PEGIN_PARAMS,
+          ...BASE_PREPARE_PEGIN_PARAMS,
           availableUTXOs: [],
         }),
       ).rejects.toThrow(/no UTXOs available/);
@@ -406,9 +406,9 @@ describe("PeginManager", () => {
       });
 
       await expect(
-        manager.prepareAtomicPegin({
+        manager.preparePegin({
           amount: TEST_AMOUNTS.PEGIN,
-          ...BASE_ATOMIC_PEGIN_PARAMS,
+          ...BASE_PREPARE_PEGIN_PARAMS,
           vaultProviderBtcPubkey: "invalid-pubkey",
         }),
       ).rejects.toThrow();
@@ -430,9 +430,9 @@ describe("PeginManager", () => {
       });
 
       await expect(
-        manager.prepareAtomicPegin({
+        manager.preparePegin({
           amount: TEST_AMOUNTS.PEGIN,
-          ...BASE_ATOMIC_PEGIN_PARAMS,
+          ...BASE_PREPARE_PEGIN_PARAMS,
           vaultKeeperBtcPubkeys: [],
           universalChallengerBtcPubkeys: [],
         }),
@@ -459,9 +459,9 @@ describe("PeginManager", () => {
 
       const getPublicKeySpy = vi.spyOn(btcWallet, "getPublicKeyHex");
 
-      await manager.prepareAtomicPegin({
+      await manager.preparePegin({
         amount: TEST_AMOUNTS.PEGIN,
-        ...BASE_ATOMIC_PEGIN_PARAMS,
+        ...BASE_PREPARE_PEGIN_PARAMS,
       });
 
       expect(getPublicKeySpy).toHaveBeenCalled();
@@ -488,9 +488,9 @@ describe("PeginManager", () => {
       });
 
       await expect(
-        manager.prepareAtomicPegin({
+        manager.preparePegin({
           amount: TEST_AMOUNTS.PEGIN,
-          ...BASE_ATOMIC_PEGIN_PARAMS,
+          ...BASE_PREPARE_PEGIN_PARAMS,
         }),
       ).rejects.toThrow("Wallet connection failed");
     });
@@ -694,11 +694,11 @@ describe("PeginManager", () => {
 
       const params = {
         amount: TEST_AMOUNTS.PEGIN,
-        ...BASE_ATOMIC_PEGIN_PARAMS,
+        ...BASE_PREPARE_PEGIN_PARAMS,
       };
 
-      const result1 = await manager.prepareAtomicPegin(params);
-      const result2 = await manager.prepareAtomicPegin(params);
+      const result1 = await manager.preparePegin(params);
+      const result2 = await manager.preparePegin(params);
 
       expect(result1.vaultScriptPubKey).toBe(result2.vaultScriptPubKey);
       expect(result1.peginTxid).toBe(result2.peginTxid);
@@ -734,12 +734,12 @@ describe("PeginManager", () => {
 
       const params = {
         amount: TEST_AMOUNTS.PEGIN,
-        ...BASE_ATOMIC_PEGIN_PARAMS,
+        ...BASE_PREPARE_PEGIN_PARAMS,
         vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_2],
       };
 
-      const result1 = await manager1.prepareAtomicPegin(params);
-      const result2 = await manager2.prepareAtomicPegin(params);
+      const result1 = await manager1.preparePegin(params);
+      const result2 = await manager2.preparePegin(params);
 
       expect(result1.vaultScriptPubKey).not.toBe(result2.vaultScriptPubKey);
     });

@@ -5,7 +5,7 @@
  * and deriving PegIn transactions from them, using the WASM implementation from
  * @babylonlabs-io/babylon-tbv-rust-wasm.
  *
- * Atomic Swap Flow:
+ * Pre-PegIn Flow:
  * 1. buildPrePeginPsbt()     — creates unfunded Pre-PegIn tx (HTLC output)
  * 2. [caller funds Pre-PegIn tx and computes txid]
  * 3. buildPeginTxFromFundedPrePegin() — derives PegIn tx spending the HTLC

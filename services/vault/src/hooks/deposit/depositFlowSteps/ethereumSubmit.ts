@@ -76,7 +76,7 @@ export async function getEthWalletClient(
 // ============================================================================
 
 /**
- * Build and fund the atomic swap pegin transactions. Returns the peginTxid so
+ * Build and fund the pegin transactions. Returns the peginTxid so
  * the caller can derive the Lamport keypair before on-chain registration.
  */
 export async function preparePegin(

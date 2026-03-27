@@ -221,7 +221,7 @@ export function useVaultActions(): UseVaultActionsReturn {
       }
       if (!vault.hashlock) {
         throw new Error(
-          "Vault hashlock not found. The vault may not support atomic swap activation.",
+          "Vault hashlock not found. The vault may not support activation.",
         );
       }
 

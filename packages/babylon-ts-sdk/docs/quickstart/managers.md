@@ -67,7 +67,7 @@ const peginManager = new PeginManager({
 import { PayoutManager } from "@babylonlabs-io/ts-sdk/tbv/core";
 
 // Step 1: Prepare transaction (builds Pre-PegIn HTLC + PegIn tx, signs PegIn input)
-const result = await peginManager.prepareAtomicPegin({
+const result = await peginManager.preparePegin({
   amount: 100000n, // satoshis
   vaultProviderBtcPubkey: "abc123...", // x-only, 64 hex chars
   vaultKeeperBtcPubkeys: ["def456..."], // x-only pubkeys
@@ -127,7 +127,7 @@ console.log("Broadcasted:", btcTxid);
 
 | Step | Method/Manager           | Returns                                                                           |
 | ---- | ------------------------ | --------------------------------------------------------------------------------- |
-| 1    | `prepareAtomicPegin()`   | `{ fundedPrePeginTxHex, peginTxHex, peginTxid, peginInputSignature, selectedUTXOs, fee, ... }` |
+| 1    | `preparePegin()`   | `{ fundedPrePeginTxHex, peginTxHex, peginTxid, peginInputSignature, selectedUTXOs, fee, ... }` |
 | 2    | `registerPeginOnChain()` | `{ ethTxHash, vaultId }`                                                          |
 | 3    | `PayoutManager` methods  | `{ signature }` per claimer                                                       |
 | 4    | `signAndBroadcast()`     | `btcTxid` (string)                                                                |

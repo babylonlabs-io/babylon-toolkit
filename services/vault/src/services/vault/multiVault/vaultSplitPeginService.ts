@@ -122,7 +122,7 @@ export interface RegisterSplitPeginParams {
   unsignedPrePeginTxHex: string;
   /** PegIn tx hex — submitted to contract as depositorSignedPeginTx; vault ID derived from this */
   peginTxHex: string;
-  /** SHA256 hashlock for atomic swap activation (bytes32 hex with 0x prefix) */
+  /** SHA256 hashlock for HTLC activation (bytes32 hex with 0x prefix) */
   hashlock: Hex;
   /** Ethereum address of the vault provider */
   vaultProviderAddress: Address;
@@ -176,9 +176,9 @@ export interface BroadcastSplitPeginParams {
 // ============================================================================
 
 /**
- * Build an atomic swap pegin using local split UTXO data.
+ * Build a pegin using local split UTXO data.
  *
- * Unlike `PeginManager.prepareAtomicPegin()`, this function does **not** fetch
+ * Unlike `PeginManager.preparePegin()`, this function does **not** fetch
  * UTXO data from the mempool. Instead it accepts the split output directly,
  * making it suitable for spending outputs from unconfirmed split transactions.
  *

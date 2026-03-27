@@ -50,10 +50,10 @@ export interface Vault {
   /** Version of vault keepers at vault creation */
   vkVersion: number;
 
-  /** Hashlock for atomic swap (HTLC hash) */
+  /** Hashlock for HTLC pegin flow */
   hashlock?: Hex;
 
-  /** Secret preimage for atomic swap (revealed after claim) */
+  /** Secret preimage for HTLC (revealed after claim) */
   secret?: Hex;
 
   /** Timestamp when pegin signatures were posted on-chain (milliseconds) */
