@@ -725,7 +725,7 @@ export function useMultiVaultDepositFlow(
               btcTxHash: peginResult.btcTxHash, // For compatibility
               amount: formatBtcValue(satoshiToBtcNumber(vaultAmount)), // BTC format
               providerIds: [primaryProvider],
-              applicationController: selectedApplication,
+              applicationEntryPoint: selectedApplication,
               batchId, // Links to batch
               splitTxId: splitTxResult?.txid, // Split TX ID (if used)
               batchIndex: peginResult.vaultIndex + 1, // 1-based position for UI display

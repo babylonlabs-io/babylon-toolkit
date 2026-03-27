@@ -5,7 +5,7 @@
  * Only includes Core Spoke operations for regular users (no Arbitrageur operations).
  */
 
-import { BTCVaultsManagerABI } from "@babylonlabs-io/ts-sdk/tbv/core";
+import { BTCVaultRegistryABI } from "@babylonlabs-io/ts-sdk/tbv/core";
 import {
   AaveIntegrationControllerABI,
   buildBorrowTx,
@@ -88,10 +88,10 @@ async function executeTx(
     };
   } catch (error) {
     // Include both ABIs for comprehensive error decoding
-    // AaveIntegrationController may call into BTCVaultsManager
+    // AaveIntegrationController may call into BTCVaultRegistry
     throw mapViemErrorToContractError(error, errorContext, [
       AaveIntegrationControllerABI,
-      BTCVaultsManagerABI,
+      BTCVaultRegistryABI,
     ]);
   }
 }

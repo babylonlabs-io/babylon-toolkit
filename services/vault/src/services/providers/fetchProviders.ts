@@ -44,7 +44,7 @@ interface VersionedKeepersResponse {
 
 const GET_APP_PROVIDERS = gql`
   query GetAppProviders($appController: String!) {
-    vaultProviders(where: { applicationController: $appController }) {
+    vaultProviders(where: { applicationEntryPoint: $appController }) {
       items {
         id
         btcPubKey
@@ -52,7 +52,7 @@ const GET_APP_PROVIDERS = gql`
         rpcUrl
       }
     }
-    vaultKeeperApplications(where: { applicationController: $appController }) {
+    vaultKeeperApplications(where: { applicationEntryPoint: $appController }) {
       items {
         vaultKeeper
         version
@@ -68,7 +68,7 @@ const GET_APP_PROVIDERS = gql`
 const GET_KEEPERS_BY_VERSION = gql`
   query GetKeepersByVersion($appController: String!, $keepersVersion: Int!) {
     vaultKeeperApplications(
-      where: { applicationController: $appController, version: $keepersVersion }
+      where: { applicationEntryPoint: $appController, version: $keepersVersion }
     ) {
       items {
         vaultKeeper
@@ -108,18 +108,18 @@ export function getLatestVersionKeepers(
  * Used for payout signing where we need the keepers that were locked
  * when the vault was created.
  *
- * @param applicationController - The application controller address
+ * @param applicationEntryPoint - The application controller address
  * @param appVaultKeepersVersion - The vault keepers version locked at vault creation
  * @returns Array of vault keepers for that version
  */
 export async function fetchVaultKeepersByVersion(
-  applicationController: string,
+  applicationEntryPoint: string,
   appVaultKeepersVersion: number,
 ): Promise<VaultKeeper[]> {
   const response = await graphqlClient.request<VersionedKeepersResponse>(
     GET_KEEPERS_BY_VERSION,
     {
-      appController: applicationController.toLowerCase(),
+      appController: applicationEntryPoint.toLowerCase(),
       keepersVersion: appVaultKeepersVersion,
     },
   );
@@ -139,15 +139,15 @@ export async function fetchVaultKeepersByVersion(
  * Note: Logos are fetched separately via useLogos hook to avoid blocking
  * provider data on the logo API.
  *
- * @param applicationController - The application controller address to filter by.
+ * @param applicationEntryPoint - The application controller address to filter by.
  * @returns Object containing vaultProviders and vaultKeepers arrays
  */
 export async function fetchAppProviders(
-  applicationController: string,
+  applicationEntryPoint: string,
 ): Promise<AppProvidersResponse> {
   const response = await graphqlClient.request<GraphQLAppProvidersResponse>(
     GET_APP_PROVIDERS,
-    { appController: applicationController.toLowerCase() },
+    { appController: applicationEntryPoint.toLowerCase() },
   );
 
   const vaultProviders: VaultProvider[] = response.vaultProviders.items

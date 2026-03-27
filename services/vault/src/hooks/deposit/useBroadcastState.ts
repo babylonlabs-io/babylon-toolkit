@@ -66,7 +66,7 @@ export function useBroadcastState({
         activityId: activity.id,
         activityAmount: activity.collateral.amount,
         activityProviders: activity.providers,
-        activityApplicationController: activity.applicationController,
+        activityApplicationEntryPoint: activity.applicationEntryPoint,
         pendingPegin,
         updatePendingPeginStatus,
         addPendingPegin,

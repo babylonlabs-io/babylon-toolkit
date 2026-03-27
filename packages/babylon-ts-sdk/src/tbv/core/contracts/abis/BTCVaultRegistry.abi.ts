@@ -1,17 +1,17 @@
 /**
- * BTCVaultsManager Contract ABI
+ * BTCVaultRegistry Contract ABI
  *
  * Minimal ABI containing only the functions needed by the SDK.
  * Full ABI is available in the vault service package.
  *
- * @module contracts/abis/BTCVaultsManager
+ * @module contracts/abis/BTCVaultRegistry
  */
 
 /**
- * Minimal ABI for BTCVaultsManager contract.
+ * Minimal ABI for BTCVaultRegistry contract.
  * Contains submitPeginRequest, activateVaultWithSecret, getPegInFee, and getBTCVault.
  */
-export const BTCVaultsManagerABI = [
+export const BTCVaultRegistryABI = [
   {
     type: "function",
     name: "submitPeginRequest",
@@ -50,6 +50,11 @@ export const BTCVaultsManagerABI = [
         name: "hashlock",
         type: "bytes32",
         internalType: "bytes32",
+      },
+      {
+        name: "htlcVout",
+        type: "uint8",
+        internalType: "uint8",
       },
       {
         name: "depositorPayoutBtcAddress",
@@ -109,6 +114,11 @@ export const BTCVaultsManagerABI = [
         name: "hashlock",
         type: "bytes32",
         internalType: "bytes32",
+      },
+      {
+        name: "htlcVout",
+        type: "uint8",
+        internalType: "uint8",
       },
       {
         name: "referralCode",
@@ -186,23 +196,24 @@ export const BTCVaultsManagerABI = [
       {
         name: "vault",
         type: "tuple",
-        internalType: "struct IBTCVaultsManager.BTCVault",
+        internalType: "struct IBTCVaultRegistry.BTCVault",
         components: [
           { name: "depositor", type: "address", internalType: "address" },
           { name: "depositorBtcPubKey", type: "bytes32", internalType: "bytes32" },
           { name: "depositorSignedPeginTx", type: "bytes", internalType: "bytes" },
           { name: "amount", type: "uint256", internalType: "uint256" },
           { name: "vaultProvider", type: "address", internalType: "address" },
-          { name: "status", type: "uint8", internalType: "enum IBTCVaultsManager.BTCVaultStatus" },
-          { name: "applicationController", type: "address", internalType: "address" },
+          { name: "status", type: "uint8", internalType: "enum IBTCVaultRegistry.BTCVaultStatus" },
+          { name: "applicationEntryPoint", type: "address", internalType: "address" },
           { name: "universalChallengersVersion", type: "uint16", internalType: "uint16" },
           { name: "appVaultKeepersVersion", type: "uint16", internalType: "uint16" },
           { name: "offchainParamsVersion", type: "uint16", internalType: "uint16" },
-          { name: "vkVersion", type: "uint16", internalType: "uint16" },
+          { name: "proverProgramVersion", type: "uint16", internalType: "uint16" },
           { name: "createdAt", type: "uint256", internalType: "uint256" },
           { name: "verifiedAt", type: "uint256", internalType: "uint256" },
           { name: "depositorLamportPkHash", type: "bytes32", internalType: "bytes32" },
           { name: "hashlock", type: "bytes32", internalType: "bytes32" },
+          { name: "htlcVout", type: "uint8", internalType: "uint8" },
         ],
       },
     ],
@@ -232,6 +243,31 @@ export const BTCVaultsManagerABI = [
   {
     type: "error",
     name: "ActivationDeadlineExpired",
+    inputs: [],
+  },
+  {
+    type: "error",
+    name: "InvalidHashlock",
+    inputs: [],
+  },
+  {
+    type: "error",
+    name: "DuplicateHashlock",
+    inputs: [],
+  },
+  {
+    type: "error",
+    name: "CapExceeded",
+    inputs: [],
+  },
+  {
+    type: "error",
+    name: "InvalidOutputIndex",
+    inputs: [],
+  },
+  {
+    type: "error",
+    name: "PeginSignaturesIncomplete",
     inputs: [],
   },
 ] as const;

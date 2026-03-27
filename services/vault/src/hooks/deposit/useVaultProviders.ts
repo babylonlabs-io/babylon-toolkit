@@ -2,7 +2,7 @@
  * Hook to fetch and cache vault providers and vault keepers (per-application)
  *
  * This hook fetches vault providers and vault keepers from the GraphQL indexer.
- * The data is cached per application controller using React Query.
+ * The data is cached per application entryPoint using React Query.
  *
  * Logos are fetched separately via useLogos hook to avoid blocking provider
  * data on the logo API. Providers are available immediately; logos are merged
@@ -48,26 +48,26 @@ export interface UseVaultProvidersResult {
 /**
  * Hook to fetch vault providers and vault keepers from the GraphQL indexer
  *
- * Data is cached per application controller and shared across all components.
- * When applicationController changes, providers are re-fetched for the new application.
+ * Data is cached per application entryPoint and shared across all components.
+ * When applicationEntryPoint changes, providers are re-fetched for the new application.
  *
  * Note: For universal challengers (system-wide), use useProtocolParamsContext() instead.
  *
- * @param applicationController - Optional override for the application controller address.
- *                                When omitted, defaults to the Aave config's controllerAddress.
+ * @param applicationEntryPoint - Optional override for the application entry point address.
+ *                                When omitted, defaults to the Aave config's adapterAddress.
  * @returns Hook result with vaultProviders, vaultKeepers, loading, error states
  */
 export function useVaultProviders(
-  applicationController?: string,
+  applicationEntryPoint?: string,
 ): UseVaultProvidersResult {
   const { config } = useAaveConfig();
-  const controller = applicationController ?? config?.controllerAddress;
+  const entryPoint = applicationEntryPoint ?? config?.adapterAddress;
 
   const { data, isLoading, error, refetch } = useQuery<AppProvidersResponse>({
-    queryKey: ["providers", controller],
-    queryFn: () => fetchAppProviders(controller!),
-    // Only fetch when controller is provided
-    enabled: Boolean(controller),
+    queryKey: ["providers", entryPoint],
+    queryFn: () => fetchAppProviders(entryPoint!),
+    // Only fetch when entryPoint is provided
+    enabled: Boolean(entryPoint),
     // Fetch once on mount
     refetchOnMount: false,
     // Don't refetch on window focus

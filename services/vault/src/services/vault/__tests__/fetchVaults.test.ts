@@ -20,7 +20,7 @@ function makeGraphQLVaultItem(
     depositorBtcPubKey: "0xbtcpub",
     vaultProvider: "0xprovider",
     amount: "100000",
-    applicationController: "0xcontroller",
+    applicationEntryPoint: "0xcontroller",
     status: "pending",
     inUse: false,
     ackCount: 0,

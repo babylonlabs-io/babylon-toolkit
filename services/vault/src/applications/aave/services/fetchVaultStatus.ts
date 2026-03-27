@@ -29,7 +29,7 @@ export interface AaveVaultStatus {
   /** Vault ID (pegInTxHash) */
   vaultId: string;
   /** Application controller address */
-  applicationController: string;
+  applicationEntryPoint: string;
   /** Vault usage status */
   status: AaveVaultUsageStatus;
   /** Last update timestamp */
@@ -39,7 +39,7 @@ export interface AaveVaultStatus {
 /** GraphQL vault status item shape */
 interface GraphQLVaultStatusItem {
   vaultId: string;
-  applicationController: string;
+  applicationEntryPoint: string;
   status: AaveVaultUsageStatus;
   updatedAt: string;
 }
@@ -56,7 +56,7 @@ const GET_AAVE_VAULT_STATUSES = gql`
     aaveVaultStatuss(where: { vaultId_in: $vaultIds }) {
       items {
         vaultId
-        applicationController
+        applicationEntryPoint
         status
         updatedAt
       }
@@ -68,7 +68,7 @@ const GET_AAVE_VAULT_STATUS = gql`
   query GetAaveVaultStatus($vaultId: String!) {
     aaveVaultStatus(vaultId: $vaultId) {
       vaultId
-      applicationController
+      applicationEntryPoint
       status
       updatedAt
     }
@@ -83,7 +83,7 @@ function mapGraphQLVaultStatusToAaveVaultStatus(
 ): AaveVaultStatus {
   return {
     vaultId: item.vaultId,
-    applicationController: item.applicationController,
+    applicationEntryPoint: item.applicationEntryPoint,
     status: item.status,
     updatedAt: BigInt(item.updatedAt),
   };

@@ -2,14 +2,14 @@
  * Protocol Parameters Query Client
  *
  * Fetches protocol parameters from the ProtocolParams contract.
- * The ProtocolParams address is fetched from BTCVaultsManager.
+ * The ProtocolParams address is fetched from BTCVaultRegistry.
  */
 
 import type { Address } from "viem";
 
 import { CONTRACTS } from "@/config/contracts";
 
-import BTCVaultsManagerAbi from "../btc-vaults-manager/abis/BTCVaultsManager.abi.json";
+import BTCVaultRegistryAbi from "../btc-vault-registry/abis/BTCVaultRegistry.abi.json";
 import { ethClient } from "../client";
 
 import ProtocolParamsAbi from "./abis/ProtocolParams.abi.json";
@@ -82,7 +82,7 @@ export function clearProtocolParamsCache(): void {
 }
 
 /**
- * Get the ProtocolParams contract address from BTCVaultsManager
+ * Get the ProtocolParams contract address from BTCVaultRegistry
  */
 export async function getProtocolParamsAddress(): Promise<Address> {
   const publicClient = ethClient.getPublicClient();
@@ -94,8 +94,8 @@ export async function getProtocolParamsAddress(): Promise<Address> {
   }
 
   const address = await publicClient.readContract({
-    address: CONTRACTS.BTC_VAULTS_MANAGER,
-    abi: BTCVaultsManagerAbi,
+    address: CONTRACTS.BTC_VAULT_REGISTRY,
+    abi: BTCVaultRegistryAbi,
     functionName: "protocolParams",
   });
 

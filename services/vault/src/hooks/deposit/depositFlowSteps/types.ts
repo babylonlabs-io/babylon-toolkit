@@ -136,7 +136,7 @@ export interface SavePendingPeginParams {
   btcTxid: string;
   amount: bigint;
   selectedProviders: string[];
-  applicationController: string;
+  applicationEntryPoint: string;
   unsignedTxHex: string;
   selectedUTXOs: DepositUtxo[];
 }

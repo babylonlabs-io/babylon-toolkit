@@ -42,7 +42,7 @@ describe("getPendingActivities", () => {
         timestamp: mockTimestamp - 60000, // 1 minute ago
         amount: "1.5",
         status: LocalStorageStatus.PENDING,
-        applicationController: "0xcontroller",
+        applicationEntryPoint: "0xcontroller",
       };
 
       vi.mocked(getPendingPegins).mockReturnValue([mockPendingPegin]);
@@ -85,7 +85,7 @@ describe("getPendingActivities", () => {
         timestamp: mockTimestamp - 60000,
         amount: "1.5",
         status: LocalStorageStatus.CONFIRMING,
-        applicationController: "0xcontroller",
+        applicationEntryPoint: "0xcontroller",
         btcTxHash: "0xbtctxhash123",
       };
 
@@ -105,7 +105,7 @@ describe("getPendingActivities", () => {
       expect(result[0].transactionHash).toBe("0xbtctxhash123");
     });
 
-    it("should skip pegins without applicationController", async () => {
+    it("should skip pegins without applicationEntryPoint", async () => {
       const { getPendingPegins } = await import("@/storage/peginStorage");
       const { getApplicationMetadataByController } = await import(
         "@/applications"
@@ -116,7 +116,7 @@ describe("getPendingActivities", () => {
         timestamp: mockTimestamp,
         amount: "1.5",
         status: LocalStorageStatus.PENDING,
-        // No applicationController
+        // No applicationEntryPoint
       };
 
       vi.mocked(getPendingPegins).mockReturnValue([mockPendingPegin]);
@@ -137,7 +137,7 @@ describe("getPendingActivities", () => {
         id: "0xabc123",
         timestamp: mockTimestamp,
         status: LocalStorageStatus.PENDING,
-        applicationController: "0xcontroller",
+        applicationEntryPoint: "0xcontroller",
         // No amount
       };
 
@@ -167,7 +167,7 @@ describe("getPendingActivities", () => {
         timestamp: mockTimestamp,
         amount: "1.5",
         status: LocalStorageStatus.PENDING,
-        applicationController: "0xunknown",
+        applicationEntryPoint: "0xunknown",
       };
 
       vi.mocked(getPendingPegins).mockReturnValue([mockPendingPegin]);
@@ -191,14 +191,14 @@ describe("getPendingActivities", () => {
           timestamp: mockTimestamp - 120000, // 2 minutes ago
           amount: "1.0",
           status: LocalStorageStatus.PENDING,
-          applicationController: "0xcontroller",
+          applicationEntryPoint: "0xcontroller",
         },
         {
           id: "0xnewer",
           timestamp: mockTimestamp - 60000, // 1 minute ago
           amount: "2.0",
           status: LocalStorageStatus.PENDING,
-          applicationController: "0xcontroller",
+          applicationEntryPoint: "0xcontroller",
         },
       ];
 

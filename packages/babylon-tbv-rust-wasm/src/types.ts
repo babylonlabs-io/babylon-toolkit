@@ -6,9 +6,9 @@ export type Network = "bitcoin" | "testnet" | "regtest" | "signet";
 /**
  * Parameters for creating an unfunded Pre-PegIn transaction.
  *
- * The Pre-PegIn transaction locks BTC in an HTLC output. The depositor must
- * fund it with UTXOs from their wallet. Once funded and its txid is known,
- * the PegIn transaction can be derived via buildPeginTxFromPrePegin().
+ * The Pre-PegIn transaction locks BTC in HTLC output(s). The depositor must
+ * fund it with UTXOs from their wallet. Once funded, call
+ * reconstructFromFundedTx() then buildPeginTx() to derive the PegIn transaction.
  */
 export interface PrePeginParams {
   /** X-only public key of the depositor (hex encoded, 64 chars) */
@@ -19,8 +19,8 @@ export interface PrePeginParams {
   vaultKeeperPubkeys: string[];
   /** Array of x-only public keys of universal challengers (hex encoded, 64 chars each) */
   universalChallengerPubkeys: string[];
-  /** SHA256 hash commitment (64 hex chars = 32 bytes) */
-  hashH: string;
+  /** SHA256 hash commitments (64 hex chars = 32 bytes each). One per HTLC output. */
+  hashlocks: readonly string[];
   /** CSV timelock in blocks for the HTLC refund path */
   timelockRefund: number;
   /** Amount to peg in (satoshis) */
@@ -40,9 +40,9 @@ export interface PrePeginParams {
 /**
  * Result of creating an unfunded Pre-PegIn transaction.
  *
- * The transaction has no inputs and one output (the HTLC output). The caller
+ * The transaction has no inputs and one or more HTLC outputs. The caller
  * must fund it by selecting UTXOs covering htlcValue + fees, then call
- * buildPeginTxFromPrePegin() with the funded txid to derive the PegIn transaction.
+ * reconstructFromFundedTx() followed by buildPeginTx() to derive PegIn transactions.
  */
 export interface PrePeginResult {
   /** Unfunded transaction hex (no inputs, one HTLC output) */
@@ -89,8 +89,8 @@ export interface HtlcConnectorParams {
   vaultKeeperPubkeys: string[];
   /** Array of x-only public keys of universal challengers (hex encoded, 64 chars each) */
   universalChallengerPubkeys: string[];
-  /** SHA256 hash commitment (64 hex chars = 32 bytes) */
-  hashH: string;
+  /** SHA256 hash commitment for a single HTLC (64 hex chars = 32 bytes) */
+  hashlock: string;
   /** CSV timelock in blocks for the HTLC refund path */
   timelockRefund: number;
   /** Bitcoin network */

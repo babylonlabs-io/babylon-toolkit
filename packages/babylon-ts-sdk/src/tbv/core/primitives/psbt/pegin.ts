@@ -20,6 +20,8 @@ import {
   type Network,
 } from "@babylonlabs-io/babylon-tbv-rust-wasm";
 
+export { SINGLE_DEPOSIT_HTLC_VOUT } from "@babylonlabs-io/babylon-tbv-rust-wasm";
+
 import { parseUnfundedWasmTransaction } from "../../utils/transaction/fundPeginTransaction";
 
 /**
@@ -34,8 +36,8 @@ export interface PrePeginParams {
   vaultKeeperPubkeys: string[];
   /** Array of universal challenger BTC public keys (x-only, 64-char hex) */
   universalChallengerPubkeys: string[];
-  /** SHA256 hash commitment (64 hex chars = 32 bytes) */
-  hashH: string;
+  /** SHA256 hash commitment(s) (64 hex chars = 32 bytes each) */
+  hashlocks: readonly string[];
   /** CSV timelock in blocks for the HTLC refund path */
   timelockRefund: number;
   /** Amount to peg in (satoshis) */
@@ -88,8 +90,10 @@ export interface BuildPeginTxParams {
   prePeginParams: PrePeginParams;
   /** CSV timelock in blocks for the PegIn vault output */
   timelockPegin: number;
-  /** Txid of the funded Pre-PegIn transaction (hex, 64 chars) */
-  fundedPrePeginTxid: string;
+  /** Hex-encoded funded Pre-PegIn transaction */
+  fundedPrePeginTxHex: string;
+  /** Index of the HTLC output to spend */
+  htlcVout: number;
 }
 
 /**
@@ -125,7 +129,7 @@ export async function buildPrePeginPsbt(
     vaultProviderPubkey: params.vaultProviderPubkey,
     vaultKeeperPubkeys: params.vaultKeeperPubkeys,
     universalChallengerPubkeys: params.universalChallengerPubkeys,
-    hashH: params.hashH,
+    hashlocks: [...params.hashlocks],
     timelockRefund: params.timelockRefund,
     pegInAmount: params.pegInAmount,
     feeRate: params.feeRate,
@@ -155,12 +159,12 @@ export async function buildPrePeginPsbt(
 }
 
 /**
- * Build the PegIn transaction from a funded Pre-PegIn txid.
+ * Build the PegIn transaction from a funded Pre-PegIn transaction.
  *
- * The PegIn transaction spends Pre-PegIn output 0 via the HTLC hashlock leaf (leaf 0).
- * Since Pre-PegIn inputs must be SegWit/Taproot, the txid is stable after funding.
+ * The PegIn transaction spends the Pre-PegIn HTLC output at htlcVout via the
+ * hashlock + all-party script (leaf 0).
  *
- * @param params - Build parameters including Pre-PegIn params and funded txid
+ * @param params - Build parameters including Pre-PegIn params and funded tx hex
  * @returns PegIn transaction details
  * @throws If WASM initialization fails or parameters are invalid
  */
@@ -173,7 +177,7 @@ export async function buildPeginTxFromFundedPrePegin(
       vaultProviderPubkey: params.prePeginParams.vaultProviderPubkey,
       vaultKeeperPubkeys: params.prePeginParams.vaultKeeperPubkeys,
       universalChallengerPubkeys: params.prePeginParams.universalChallengerPubkeys,
-      hashH: params.prePeginParams.hashH,
+      hashlocks: [...params.prePeginParams.hashlocks],
       timelockRefund: params.prePeginParams.timelockRefund,
       pegInAmount: params.prePeginParams.pegInAmount,
       feeRate: params.prePeginParams.feeRate,
@@ -183,7 +187,8 @@ export async function buildPeginTxFromFundedPrePegin(
       network: params.prePeginParams.network,
     },
     params.timelockPegin,
-    params.fundedPrePeginTxid,
+    params.fundedPrePeginTxHex,
+    params.htlcVout,
   );
 
   return {

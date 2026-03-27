@@ -32,7 +32,7 @@ export interface BroadcastPrePeginParams {
   activityId: string;
   activityAmount: string;
   activityProviders: Array<{ id: string }>;
-  activityApplicationController?: string;
+  activityApplicationEntryPoint?: string;
   pendingPegin?: PendingPeginRequest;
   updatePendingPeginStatus?: (
     peginId: string,
@@ -95,7 +95,7 @@ export function useVaultActions(): UseVaultActionsReturn {
       activityId,
       activityAmount,
       activityProviders,
-      activityApplicationController,
+      activityApplicationEntryPoint,
       pendingPegin,
       updatePendingPeginStatus,
       addPendingPegin,
@@ -168,7 +168,7 @@ export function useVaultActions(): UseVaultActionsReturn {
           id: activityId,
           amount: activityAmount,
           providerIds: activityProviders.map((p) => p.id),
-          applicationController: activityApplicationController,
+          applicationEntryPoint: activityApplicationEntryPoint,
           status: nextStatus,
           btcTxHash: txId,
         });

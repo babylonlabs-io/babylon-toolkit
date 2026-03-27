@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 // Mock env before importing modules that use it
 vi.mock("@/config/env", () => ({
   ENV: {
-    BTC_VAULTS_MANAGER: "0x1234567890123456789012345678901234567890",
+    BTC_VAULT_REGISTRY: "0x1234567890123456789012345678901234567890",
     AAVE_CONTROLLER: "0x1234567890123456789012345678901234567890",
     GRAPHQL_ENDPOINT: "https://test.example.com/graphql",
   },
@@ -34,7 +34,7 @@ vi.mock("@/clients/eth-contract", () => ({
     readContract: vi.fn(),
     getTransactionReceipt: vi.fn(),
   },
-  BTCVaultsManagerQuery: {
+  BTCVaultRegistryQuery: {
     getPeginRequest: vi.fn(),
   },
 }));
