@@ -2,11 +2,11 @@
  * Peg-in Manager - Wallet Orchestration for Peg-in Operations
  *
  * This module provides the PeginManager class that orchestrates the complete
- * atomic swap peg-in flow using SDK primitives, utilities, and wallet interfaces.
+ * peg-in flow using SDK primitives, utilities, and wallet interfaces.
  *
  * @remarks
- * PeginManager handles the atomic swap peg-in flow:
- * 1. **prepareAtomicPegin()** - Build Pre-PegIn HTLC, fund it, sign PegIn input
+ * PeginManager handles the peg-in flow:
+ * 1. **preparePegin()** - Build Pre-PegIn HTLC, fund it, sign PegIn input
  * 2. **registerPeginOnChain()** - Submit to Ethereum contract with PoP
  * 3. *(Use {@link PayoutManager} for payout authorization signing)*
  * 4. **signAndBroadcast()** - Sign and broadcast Pre-PegIn tx to Bitcoin network
@@ -103,9 +103,9 @@ export interface PeginManagerConfig {
 }
 
 /**
- * Parameters for the atomic swap pegin flow (pre-pegin + pegin transactions).
+ * Parameters for the pegin flow (pre-pegin + pegin transactions).
  */
-export interface CreateAtomicPeginParams {
+export interface PreparePeginParams {
   /**
    * Amount to peg in (in satoshis).
    */
@@ -179,9 +179,9 @@ export interface CreateAtomicPeginParams {
 }
 
 /**
- * Result of preparing an atomic swap pegin.
+ * Result of preparing a pegin.
  */
-export interface AtomicPeginResult {
+export interface PreparePeginResult {
   /**
    * Funded but unsigned Pre-PegIn transaction hex.
    * Sign and broadcast this AFTER registering on Ethereum.
@@ -248,7 +248,7 @@ export interface AtomicPeginResult {
  */
 export interface SignAndBroadcastParams {
   /**
-   * Funded Pre-PegIn transaction hex from prepareAtomicPegin().
+   * Funded Pre-PegIn transaction hex from preparePegin().
    */
   fundedPrePeginTxHex: string;
 
@@ -286,7 +286,7 @@ export interface RegisterPeginParams {
   vaultProvider: Address;
 
   /**
-   * SHA256 hashlock for atomic swap activation (bytes32 hex with 0x prefix).
+   * SHA256 hashlock for HTLC activation (bytes32 hex with 0x prefix).
    */
   hashlock: Hex;
 
@@ -352,11 +352,11 @@ export interface RegisterPeginResult {
  * by coordinating between SDK primitives, utilities, and wallet interfaces.
  *
  * @remarks
- * The complete atomic swap peg-in flow consists of 4 steps:
+ * The complete peg-in flow consists of 4 steps:
  *
  * | Step | Method | Description |
  * |------|--------|-------------|
- * | 1 | {@link prepareAtomicPegin} | Build Pre-PegIn HTLC, fund it, sign PegIn input |
+ * | 1 | {@link preparePegin} | Build Pre-PegIn HTLC, fund it, sign PegIn input |
  * | 2 | {@link registerPeginOnChain} | Submit to Ethereum contract with PoP |
  * | 3 | {@link PayoutManager} | Sign BOTH payout authorizations |
  * | 4 | {@link signAndBroadcast} | Sign and broadcast Pre-PegIn tx to Bitcoin network |
@@ -389,7 +389,7 @@ export class PeginManager {
   }
 
   /**
-   * Prepares an atomic swap peg-in by building the Pre-PegIn HTLC transaction,
+   * Prepares a peg-in by building the Pre-PegIn HTLC transaction,
    * funding it, constructing the PegIn transaction, and signing the PegIn input.
    *
    * This method orchestrates the following steps:
@@ -404,13 +404,13 @@ export class PeginManager {
    * The returned `fundedPrePeginTxHex` is funded but unsigned (inputs unsigned).
    * Use `signAndBroadcast()` AFTER registering on Ethereum to broadcast it.
    *
-   * @param params - Atomic pegin parameters including amount, HTLC params, UTXOs
-   * @returns Atomic pegin result with funded Pre-PegIn tx, signed PegIn input, and signatures
+   * @param params - Pegin parameters including amount, HTLC params, UTXOs
+   * @returns Pegin result with funded Pre-PegIn tx, signed PegIn input, and signatures
    * @throws Error if wallet operations fail or insufficient funds
    */
-  async prepareAtomicPegin(
-    params: CreateAtomicPeginParams,
-  ): Promise<AtomicPeginResult> {
+  async preparePegin(
+    params: PreparePeginParams,
+  ): Promise<PreparePeginResult> {
     // Step 1: Get depositor BTC public key from wallet
     const depositorBtcPubkeyRaw = await this.config.btcWallet.getPublicKeyHex();
     // Convert 33-byte compressed (66 chars) to 32-byte x-only (64 chars) if needed

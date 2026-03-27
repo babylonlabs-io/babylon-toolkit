@@ -1,7 +1,7 @@
 /**
  * HTLC Secret Utilities
  *
- * The atomic swap pegin flow uses an HTLC (Hash Time Lock Contract) where the
+ * The pre-pegin flow uses an HTLC (Hash Time Lock Contract) where the
  * depositor commits to a secret preimage H = SHA256(secret). Secret generation
  * is handled by `secretUtils.ts`; this module provides validation utilities
  * for verifying a secret against an on-chain hashlock.

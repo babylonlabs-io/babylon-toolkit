@@ -12,7 +12,7 @@ const { mockPreparePegin, MockPeginManager } = vi.hoisted(() => {
   const mockPreparePegin = vi.fn();
 
   class MockPeginManager {
-    prepareAtomicPegin = mockPreparePegin;
+    preparePegin = mockPreparePegin;
   }
 
   return { mockPreparePegin, MockPeginManager };

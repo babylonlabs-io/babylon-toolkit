@@ -4,8 +4,8 @@
  * Builds the PSBT for the depositor to sign the PegIn transaction's HTLC input
  * (Pre-PegIn HTLC leaf 0 — the hashlock + all-party script).
  *
- * This is the "Sign Pegin transaction HTLC leaf 0 input" step in the atomic
- * swap activation flow. The depositor signs input 0 of the PegIn transaction,
+ * This is the "Sign Pegin transaction HTLC leaf 0 input" step in the pre-pegin
+ * flow. The depositor signs input 0 of the PegIn transaction,
  * which spends output 0 of the funded Pre-PegIn transaction via script-path.
  *
  * @module primitives/psbt/peginInput

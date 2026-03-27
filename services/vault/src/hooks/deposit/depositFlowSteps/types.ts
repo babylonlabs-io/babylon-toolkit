@@ -110,7 +110,7 @@ export interface PeginRegisterParams {
   peginTxHex: string;
   /** Funded Pre-PegIn tx hex — submitted as unsignedPrePeginTx for DA */
   fundedPrePeginTxHex: string;
-  /** SHA256 hashlock for atomic swap activation (hex with 0x prefix) */
+  /** SHA256 hashlock for HTLC activation (hex with 0x prefix) */
   hashlock: Hex;
   vaultProviderAddress: string;
   onPopSigned?: () => void;

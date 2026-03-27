@@ -35,8 +35,8 @@
  * ## Available Managers
  *
  * ### {@link PeginManager}
- * Orchestrates the atomic swap peg-in flow:
- * - {@link PeginManager.prepareAtomicPegin | prepareAtomicPegin()} - Build Pre-PegIn HTLC and sign PegIn input
+ * Orchestrates the peg-in flow:
+ * - {@link PeginManager.preparePegin | preparePegin()} - Build Pre-PegIn HTLC and sign PegIn input
  * - {@link PeginManager.registerPeginOnChain | registerPeginOnChain()} - Submit to Ethereum
  * - {@link PeginManager.signAndBroadcast | signAndBroadcast()} - Broadcast to Bitcoin
  *
@@ -50,7 +50,7 @@
  *
  * | Step | Manager | Method |
  * |------|---------|--------|
- * | 1 | PeginManager | `prepareAtomicPegin()` |
+ * | 1 | PeginManager | `preparePegin()` |
  * | 2 | PeginManager | `registerPeginOnChain()` |
  * | 3 | PayoutManager | `signPayoutTransaction()` |
  * | 4 | PeginManager | `signAndBroadcast()` |
@@ -69,8 +69,8 @@
 
 export { PeginManager } from "./PeginManager";
 export type {
-  AtomicPeginResult,
-  CreateAtomicPeginParams,
+  PreparePeginResult,
+  PreparePeginParams,
   PeginManagerConfig,
   RegisterPeginParams,
   RegisterPeginResult,
