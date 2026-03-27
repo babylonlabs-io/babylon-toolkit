@@ -1,5 +1,5 @@
 /**
- * Aave Integration Controller - Write operations (transactions)
+ * Aave Integration Adapter - Write operations (transactions)
  *
  * Vault-side wrapper that uses SDK transaction builders and executes with vault's wallet client.
  * Only includes Core Spoke operations for regular users (no Arbitrageur operations).
@@ -7,7 +7,7 @@
 
 import { BTCVaultRegistryABI } from "@babylonlabs-io/ts-sdk/tbv/core";
 import {
-  AaveIntegrationControllerABI,
+  AaveIntegrationAdapterABI,
   buildBorrowTx,
   buildRepayTx,
   buildWithdrawCollateralsTx,
@@ -88,9 +88,9 @@ async function executeTx(
     };
   } catch (error) {
     // Include both ABIs for comprehensive error decoding
-    // AaveIntegrationController may call into BTCVaultRegistry
+    // AaveIntegrationAdapter may call into BTCVaultRegistry
     throw mapViemErrorToContractError(error, errorContext, [
-      AaveIntegrationControllerABI,
+      AaveIntegrationAdapterABI,
       BTCVaultRegistryABI,
     ]);
   }
@@ -104,7 +104,7 @@ async function executeTx(
  *
  * @param walletClient - Connected wallet client for signing transactions
  * @param chain - Chain configuration
- * @param contractAddress - AaveIntegrationController contract address
+ * @param contractAddress - AaveIntegrationAdapter contract address
  * @param vaultIds - Array of vault IDs (bytes32 hex strings) to withdraw
  * @returns Transaction result with hash and receipt
  */
@@ -131,7 +131,7 @@ export async function withdrawCollaterals(
  *
  * @param walletClient - Connected wallet client for signing transactions
  * @param chain - Chain configuration
- * @param contractAddress - AaveIntegrationController contract address
+ * @param contractAddress - AaveIntegrationAdapter contract address
  * @param debtReserveId - Aave reserve ID for the debt asset
  * @param amount - Amount to borrow
  * @param receiver - Address to receive borrowed tokens
@@ -163,12 +163,12 @@ export async function borrowFromCorePosition(
 /**
  * Repay debt to Core Spoke position
  *
- * Repays debt on a position. User must have approved the controller to spend
+ * Repays debt on a position. User must have approved the adapter to spend
  * the debt token.
  *
  * @param walletClient - Connected wallet client for signing transactions
  * @param chain - Chain configuration
- * @param contractAddress - AaveIntegrationController contract address
+ * @param contractAddress - AaveIntegrationAdapter contract address
  * @param borrower - Borrower's address (for self-repay, use connected wallet address)
  * @param debtReserveId - Aave reserve ID for the debt asset
  * @param amount - Amount to repay

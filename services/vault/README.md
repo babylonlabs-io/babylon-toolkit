@@ -60,7 +60,7 @@ Create a `.env` file with the following variables:
 - `NEXT_PUBLIC_TBV_GRAPHQL_ENDPOINT` - GraphQL API endpoint for vault data (also provides vault provider RPC URLs)
   - Example: `https://babylon-vault-indexer-api.vault-devnet.babylonlabs.io`
 - `NEXT_PUBLIC_TBV_BTC_VAULT_REGISTRY` - TBV BTC Vault Registry contract address
-- `NEXT_PUBLIC_TBV_AAVE_CONTROLLER` - TBV Aave Integration Controller contract address
+- `NEXT_PUBLIC_TBV_AAVE_ADAPTER` - TBV Aave Integration Adapter contract address
 - `NEXT_PUBLIC_TBV_AAVE_SPOKE` - TBV Aave Core Spoke contract address
 
 ### Optional

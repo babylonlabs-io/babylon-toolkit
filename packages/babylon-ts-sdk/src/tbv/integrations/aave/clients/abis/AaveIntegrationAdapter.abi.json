@@ -1192,7 +1192,7 @@
   },
   {
     "type": "event",
-    "name": "ControllerApplicationFeeRecipientUpdated",
+    "name": "AdapterApplicationRecipientUpdated",
     "inputs": [
       {
         "name": "applicationFeeRecipient",
@@ -1728,7 +1728,7 @@
   },
   {
     "type": "error",
-    "name": "OnlyApplicationController",
+    "name": "OnlyApplicationEntryPoint",
     "inputs": []
   },
   {

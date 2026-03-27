@@ -13,7 +13,7 @@ import { useDepositFlow } from "../useDepositFlow";
 vi.mock("@/config/contracts", () => ({
   CONTRACTS: {
     BTC_VAULT_REGISTRY: "0x1234567890123456789012345678901234567890",
-    AAVE_CONTROLLER: "0x1234567890123456789012345678901234567890",
+    AAVE_ADAPTER: "0x1234567890123456789012345678901234567890",
   },
 }));
 
@@ -213,7 +213,7 @@ vi.mock("@/services/vault/vaultTransactionService", () => ({
 
 vi.mock("@/context/deposit/DepositState", () => ({
   useDepositState: vi.fn(() => ({
-    selectedApplication: "0xAaveController123",
+    selectedApplication: "0xAaveAdapter123",
   })),
 }));
 
@@ -394,7 +394,7 @@ describe("useDepositFlow - Chain Switching", () => {
     mempoolFeeRate: 20, // Mempool fee rate in sat/vB
     btcWalletProvider: mockBtcWalletProvider,
     depositorEthAddress: "0xEthAddress123" as Address,
-    selectedApplication: "0xcb3843752798493344c254d8d88640621e202395", // Aave controller address
+    selectedApplication: "0xcb3843752798493344c254d8d88640621e202395", // Aave adapter address
     selectedProviders: ["0xProvider123" as Address],
     vaultProviderBtcPubkey: "0xVaultProviderKey",
     vaultKeeperBtcPubkeys: ["0xVaultKeeperKey1"],

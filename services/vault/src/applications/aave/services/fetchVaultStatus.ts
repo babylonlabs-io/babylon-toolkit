@@ -28,7 +28,7 @@ export type AaveVaultUsageStatus =
 export interface AaveVaultStatus {
   /** Vault ID (pegInTxHash) */
   vaultId: string;
-  /** Application controller address */
+  /** Application entry point address */
   applicationEntryPoint: string;
   /** Vault usage status */
   status: AaveVaultUsageStatus;

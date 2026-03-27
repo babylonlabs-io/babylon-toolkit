@@ -15,8 +15,8 @@ import type {
 } from "viem";
 
 import { ERC20 } from "../../../clients/eth-contract";
-import { AaveControllerTx, AaveSpoke } from "../clients";
-import { getAaveControllerAddress, getAaveSpokeAddress } from "../config";
+import { AaveAdapterTx, AaveSpoke } from "../clients";
+import { getAaveAdapterAddress, getAaveSpokeAddress } from "../config";
 import { FULL_REPAY_BUFFER_DIVISOR } from "../constants";
 
 /**
@@ -39,10 +39,10 @@ export async function borrow(
     throw new Error("Wallet address not available");
   }
 
-  const result = await AaveControllerTx.borrowFromCorePosition(
+  const result = await AaveAdapterTx.borrowFromCorePosition(
     walletClient,
     chain,
-    getAaveControllerAddress(),
+    getAaveAdapterAddress(),
     debtReserveId,
     amount,
     userAddress,
@@ -57,8 +57,8 @@ export async function borrow(
 /**
  * Repay debt to a Core Spoke position (low-level)
  *
- * User must have approved the controller to spend debt tokens first.
- * Uses the pinned controller address from trusted environment config.
+ * User must have approved the adapter to spend debt tokens first.
+ * Uses the pinned adapter address from trusted environment config.
  *
  * @param walletClient - Connected wallet client
  * @param chain - Chain configuration
@@ -74,15 +74,15 @@ export async function repay(
   debtReserveId: bigint,
   amount: bigint,
 ): Promise<{ transactionHash: Hash; receipt: TransactionReceipt }> {
-  const controllerAddress = getAaveControllerAddress();
+  const adapterAddress = getAaveAdapterAddress();
   if (amount <= 0n) {
     throw new Error("Repay amount must be greater than 0");
   }
 
-  const result = await AaveControllerTx.repayToCorePosition(
+  const result = await AaveAdapterTx.repayToCorePosition(
     walletClient,
     chain,
-    controllerAddress,
+    adapterAddress,
     borrower,
     debtReserveId,
     amount,
@@ -98,7 +98,7 @@ export async function repay(
  * Repay a partial amount of debt
  *
  * Handles approval if needed, then executes repay.
- * Uses the pinned controller address from trusted environment config.
+ * Uses the pinned adapter address from trusted environment config.
  *
  * @param walletClient - Connected wallet client
  * @param chain - Chain configuration
@@ -119,7 +119,7 @@ export async function repayPartial(
     throw new Error("Wallet address not available");
   }
 
-  const controllerAddress = getAaveControllerAddress();
+  const adapterAddress = getAaveAdapterAddress();
 
   const userBalance = await ERC20.getERC20Balance(tokenAddress, userAddress);
   if (userBalance < amount) {
@@ -131,7 +131,7 @@ export async function repayPartial(
   const currentAllowance = await ERC20.getERC20Allowance(
     tokenAddress,
     userAddress,
-    controllerAddress,
+    adapterAddress,
   );
 
   if (currentAllowance < amount) {
@@ -139,7 +139,7 @@ export async function repayPartial(
       walletClient,
       chain,
       tokenAddress,
-      controllerAddress,
+      adapterAddress,
       amount,
     );
   }
@@ -151,7 +151,7 @@ export async function repayPartial(
  * Repay all debt for a reserve
  *
  * Fetches exact debt from contract, handles approval, then repays.
- * Uses pinned controller and spoke addresses from trusted environment config.
+ * Uses pinned adapter and spoke addresses from trusted environment config.
  *
  * @param walletClient - Connected wallet client
  * @param chain - Chain configuration
@@ -172,7 +172,7 @@ export async function repayFull(
     throw new Error("Wallet address not available");
   }
 
-  const controllerAddress = getAaveControllerAddress();
+  const adapterAddress = getAaveAdapterAddress();
   const spokeAddress = getAaveSpokeAddress();
 
   // Fetch current debt from the contract
@@ -202,7 +202,7 @@ export async function repayFull(
   const currentAllowance = await ERC20.getERC20Allowance(
     tokenAddress,
     userAddress,
-    controllerAddress,
+    adapterAddress,
   );
 
   if (currentAllowance < amountToRepay) {
@@ -210,7 +210,7 @@ export async function repayFull(
       walletClient,
       chain,
       tokenAddress,
-      controllerAddress,
+      adapterAddress,
       amountToRepay,
     );
   }
@@ -234,10 +234,10 @@ export async function withdrawSelectedCollateral(
   chain: Chain,
   vaultIds: Hex[],
 ): Promise<{ transactionHash: Hash; receipt: TransactionReceipt }> {
-  const result = await AaveControllerTx.withdrawCollaterals(
+  const result = await AaveAdapterTx.withdrawCollaterals(
     walletClient,
     chain,
-    getAaveControllerAddress(),
+    getAaveAdapterAddress(),
     vaultIds,
   );
 

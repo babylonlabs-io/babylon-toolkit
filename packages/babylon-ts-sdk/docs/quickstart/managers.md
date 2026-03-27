@@ -59,7 +59,7 @@ const peginManager = new PeginManager({
 });
 ```
 
-> **Application selection:** The vault provider you choose determines which application your BTC vault is registered with (e.g., Aave). Each vault provider is bound to a specific application controller on-chain. This cannot be changed after registration.
+> **Application selection:** The vault provider you choose determines which application your BTC vault is registered with (e.g., Aave). Each vault provider is bound to a specific application entry point on-chain. This cannot be changed after registration.
 
 ### 4-Step Flow
 
