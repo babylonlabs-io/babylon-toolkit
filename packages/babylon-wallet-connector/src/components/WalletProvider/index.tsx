@@ -4,6 +4,7 @@ import { ChainConfigArr, ChainProvider } from "@/context/Chain.context";
 import { LifeCycleHooksProvider, type LifeCycleHooksProps } from "@/context/LifecycleHooks.context";
 import { TomoConnectionProvider } from "@/context/TomoProvider";
 import { createAccountStorage } from "@/core/storage";
+import type { BBNConfig, BTCConfig, ETHConfig } from "@/core/types";
 import { initializeAppKitModal, type AppKitModalConfig } from "@/core/wallets/appkit/appKitModal";
 import { useAppKitOpenListener } from "@/hooks/appkit/useAppKitOpenListener";
 import { TomoBBNConnector } from "@/widgets/tomo/BBNConnector";
@@ -11,6 +12,26 @@ import { TomoBTCConnector } from "@/widgets/tomo/BTCConnector";
 
 import { WalletDialog } from "./components/WalletDialog";
 import { ONE_HOUR } from "./constants";
+
+function deriveNetworkMap(config: Readonly<ChainConfigArr>): Record<string, string> {
+  const map: Record<string, string> = {};
+
+  for (const entry of config) {
+    switch (entry.chain) {
+      case "BTC":
+        map.BTC = (entry.config as BTCConfig).network.toString();
+        break;
+      case "BBN":
+        map.BBN = (entry.config as BBNConfig).chainId;
+        break;
+      case "ETH":
+        map.ETH = (entry.config as ETHConfig).chainId.toString();
+        break;
+    }
+  }
+
+  return map;
+}
 
 interface WalletProviderProps {
   ttl?: number;
@@ -48,7 +69,8 @@ export function WalletProvider({
   appKitConfig,
   simplifiedTerms = false,
 }: PropsWithChildren<WalletProviderProps>) {
-  const storage = useMemo(() => createAccountStorage(ttl), [ttl]);
+  const networkMap = useMemo(() => deriveNetworkMap(config), [config]);
+  const storage = useMemo(() => createAccountStorage(ttl, networkMap), [ttl, networkMap]);
 
   // Initialize unified AppKit modal synchronously before render (only if config provided)
   // This ensures both wagmi and bitcoin configs are available before children mount
