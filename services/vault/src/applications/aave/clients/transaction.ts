@@ -206,7 +206,7 @@ export async function repayToCorePosition(
  *
  * @param walletClient - Connected wallet client for signing transactions
  * @param chain - Chain configuration
- * @param contractAddress - AaveIntegrationController contract address
+ * @param contractAddress - AaveIntegrationAdapter contract address
  * @param permutedVaultIds - Vault IDs in desired new order (must be a permutation of current vaults)
  * @returns Transaction result with hash and receipt
  */

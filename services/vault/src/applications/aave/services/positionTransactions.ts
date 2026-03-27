@@ -264,10 +264,10 @@ export async function reorderVaultOrder(
   chain: Chain,
   permutedVaultIds: Hex[],
 ): Promise<{ transactionHash: Hash; receipt: TransactionReceipt }> {
-  const result = await AaveControllerTx.reorderVaults(
+  const result = await AaveAdapterTx.reorderVaults(
     walletClient,
     chain,
-    getAaveControllerAddress(),
+    getAaveAdapterAddress(),
     permutedVaultIds,
   );
 

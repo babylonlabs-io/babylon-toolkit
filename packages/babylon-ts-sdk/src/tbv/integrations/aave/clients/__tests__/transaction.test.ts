@@ -101,7 +101,7 @@ describe("transaction builders", () => {
       expect(result.data).toBeDefined();
 
       const decoded = decodeFunctionData({
-        abi: AaveIntegrationControllerABI,
+        abi: AaveIntegrationAdapterABI,
         data: result.data,
       });
 
@@ -118,7 +118,7 @@ describe("transaction builders", () => {
       const result = buildReorderVaultsTx(CONTRACT_ADDRESS, [...permutedVaultIds]);
 
       const decoded = decodeFunctionData({
-        abi: AaveIntegrationControllerABI,
+        abi: AaveIntegrationAdapterABI,
         data: result.data,
       });
 
