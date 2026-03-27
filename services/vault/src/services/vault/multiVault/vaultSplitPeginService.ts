@@ -21,10 +21,8 @@
 
 import { getETHChain } from "@babylonlabs-io/config";
 import { pushTx } from "@babylonlabs-io/ts-sdk";
-import type {
-  BitcoinWallet,
-  SignPsbtOptions,
-} from "@babylonlabs-io/ts-sdk/shared";
+import type { BitcoinWallet, SignPsbtOptions } from "@babylonlabs-io/ts-sdk/shared";
+import { createTaprootScriptPathSignOptions } from "@babylonlabs-io/ts-sdk/shared";
 import type { UTXO } from "@babylonlabs-io/ts-sdk/tbv/core";
 import {
   buildPeginInputPsbt,
@@ -271,22 +269,10 @@ export async function preparePeginFromSplitOutput(
       network,
     });
 
-    // Sign the PegIn input PSBT via BTC wallet
-    // The PegIn input is a Taproot script-path spend (HTLC hashlock leaf), so:
-    // - autoFinalized: false to keep tapScriptSig accessible for signature extraction
-    // - disableTweakSigner: true because script-path uses the untweaked internal key
+    // Sign the PegIn input PSBT via BTC wallet (Taproot script-path spend)
     const signedPeginInputPsbtHex = await params.signPsbt(
       peginInputPsbtResult.psbtHex,
-      {
-        autoFinalized: false,
-        signInputs: [
-          {
-            index: 0,
-            publicKey: params.depositorBtcPubkey,
-            disableTweakSigner: true,
-          },
-        ],
-      },
+      createTaprootScriptPathSignOptions(params.depositorBtcPubkey, 1),
     );
     const peginInputSignature = extractPeginInputSignature(
       signedPeginInputPsbtHex,

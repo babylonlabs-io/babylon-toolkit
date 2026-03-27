@@ -32,6 +32,7 @@ import {
 } from "viem";
 
 import type { BitcoinWallet } from "../../../shared/wallets/interfaces/BitcoinWallet";
+import { createTaprootScriptPathSignOptions } from "../../../shared/wallets/signOptions";
 import type { Hash } from "../../../shared/wallets/interfaces/EthereumWallet";
 import { getUtxoInfo, pushTx } from "../clients/mempool";
 import { BTCVaultRegistryABI, handleContractError } from "../contracts";
@@ -495,22 +496,10 @@ export class PeginManager {
       network: this.config.btcNetwork,
     });
 
-    // Step 7: Sign the PegIn input PSBT via BTC wallet
-    // The PegIn input is a Taproot script-path spend (HTLC hashlock leaf), so:
-    // - autoFinalized: false to keep tapScriptSig accessible for signature extraction
-    // - disableTweakSigner: true because script-path uses the untweaked internal key
+    // Step 7: Sign the PegIn input PSBT via BTC wallet (Taproot script-path spend)
     const signedPeginInputPsbtHex = await this.config.btcWallet.signPsbt(
       peginInputPsbtResult.psbtHex,
-      {
-        autoFinalized: false,
-        signInputs: [
-          {
-            index: 0,
-            publicKey: depositorBtcPubkeyRaw,
-            disableTweakSigner: true,
-          },
-        ],
-      },
+      createTaprootScriptPathSignOptions(depositorBtcPubkeyRaw, 1),
     );
 
     // Extract the depositor's Schnorr signature from the signed PSBT
