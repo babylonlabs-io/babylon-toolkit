@@ -10,9 +10,9 @@ import { ENV } from "./env";
 
 export const CONTRACTS = {
   /**
-   * BTCVaultsManager contract - Manages vault lifecycle (submit, ACK, activate, redeem)
+   * BTCVaultRegistry contract - Manages vault lifecycle (submit, ACK, activate, redeem)
    */
-  BTC_VAULTS_MANAGER: ENV.BTC_VAULTS_MANAGER as Address,
+  BTC_VAULT_REGISTRY: ENV.BTC_VAULT_REGISTRY as Address,
 
   /**
    * AaveIntegrationController contract - Aave-specific application controller

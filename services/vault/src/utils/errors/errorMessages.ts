@@ -23,7 +23,7 @@ export const CONTRACT_ERROR_MESSAGES: Record<string, string> = {
     "Invalid fairness payment token decimals.",
 
   // ============================================================================
-  // BTCVaultsManager errors
+  // BTCVaultRegistry errors
   // ============================================================================
   BTCVaultNotFound: "Vault not found. The vault ID may be invalid.",
   VaultNotActive: "This vault is not active.",

@@ -14,7 +14,7 @@ import { logger } from "@/infrastructure";
  * Environment variables for the vault application
  */
 interface EnvVars {
-  BTC_VAULTS_MANAGER: Address;
+  BTC_VAULT_REGISTRY: Address;
   AAVE_CONTROLLER: Address;
   AAVE_SPOKE: Address;
   GRAPHQL_ENDPOINT: string;
@@ -46,7 +46,7 @@ function parseOptionalAddress(value: string | undefined): Address | undefined {
 function validateEnvVars(): EnvValidationResult {
   const envVars = {
     // Contract addresses (required)
-    BTC_VAULTS_MANAGER: process.env.NEXT_PUBLIC_TBV_BTC_VAULTS_MANAGER,
+    BTC_VAULT_REGISTRY: process.env.NEXT_PUBLIC_TBV_BTC_VAULT_REGISTRY,
     AAVE_CONTROLLER: process.env.NEXT_PUBLIC_TBV_AAVE_CONTROLLER,
     AAVE_SPOKE: process.env.NEXT_PUBLIC_TBV_AAVE_SPOKE,
 
@@ -69,7 +69,7 @@ function validateEnvVars(): EnvValidationResult {
   };
 
   const requiredVars = [
-    "BTC_VAULTS_MANAGER",
+    "BTC_VAULT_REGISTRY",
     "AAVE_CONTROLLER",
     "AAVE_SPOKE",
     "GRAPHQL_ENDPOINT",
@@ -83,7 +83,7 @@ function validateEnvVars(): EnvValidationResult {
   if (missingVars.length > 0) {
     // Map internal names to actual env var names
     const envVarMap: Record<string, string> = {
-      BTC_VAULTS_MANAGER: "NEXT_PUBLIC_TBV_BTC_VAULTS_MANAGER",
+      BTC_VAULT_REGISTRY: "NEXT_PUBLIC_TBV_BTC_VAULT_REGISTRY",
       AAVE_CONTROLLER: "NEXT_PUBLIC_TBV_AAVE_CONTROLLER",
       AAVE_SPOKE: "NEXT_PUBLIC_TBV_AAVE_SPOKE",
       GRAPHQL_ENDPOINT: "NEXT_PUBLIC_TBV_GRAPHQL_ENDPOINT",
@@ -94,7 +94,7 @@ function validateEnvVars(): EnvValidationResult {
 
     return {
       env: {
-        BTC_VAULTS_MANAGER: ZERO_ADDRESS,
+        BTC_VAULT_REGISTRY: ZERO_ADDRESS,
         AAVE_CONTROLLER: ZERO_ADDRESS,
         AAVE_SPOKE: ZERO_ADDRESS,
         GRAPHQL_ENDPOINT: "",

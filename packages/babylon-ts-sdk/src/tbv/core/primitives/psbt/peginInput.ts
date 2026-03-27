@@ -43,7 +43,7 @@ export interface BuildPeginInputPsbtParams {
   /** Universal challenger BTC public keys (x-only, 64-char hex) */
   universalChallengerPubkeys: string[];
   /** SHA256 hash commitment (64 hex chars = 32 bytes) */
-  hashH: string;
+  hashlock: string;
   /** CSV timelock in blocks for the HTLC refund path */
   timelockRefund: number;
   /** Bitcoin network */
@@ -88,7 +88,7 @@ export async function buildPeginInputPsbt(
     vaultProviderPubkey: params.vaultProviderPubkey,
     vaultKeeperPubkeys: params.vaultKeeperPubkeys,
     universalChallengerPubkeys: params.universalChallengerPubkeys,
-    hashH: params.hashH,
+    hashlock: params.hashlock,
     timelockRefund: params.timelockRefund,
     network: params.network,
   });

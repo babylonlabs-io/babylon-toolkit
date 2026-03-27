@@ -10,7 +10,7 @@
 import { getETHChain } from "@babylonlabs-io/config";
 import type { Abi, Hex, WalletClient } from "viem";
 
-import BTCVaultsManagerABI from "@/clients/eth-contract/btc-vaults-manager/abis/BTCVaultsManager.abi.json";
+import BTCVaultRegistryABI from "@/clients/eth-contract/btc-vault-registry/abis/BTCVaultRegistry.abi.json";
 import {
   executeWrite,
   type TransactionResult,
@@ -27,7 +27,7 @@ export interface ActivateVaultParams {
 }
 
 /**
- * Call activateVaultWithSecret on the BTCVaultsManager contract.
+ * Call activateVaultWithSecret on the BTCVaultRegistry contract.
  *
  * Reveals the HTLC secret on Ethereum, moving the vault Verified -> Active.
  * The contract verifies SHA256(secret) == vault.hashlock and checks the
@@ -41,8 +41,8 @@ export async function activateVaultWithSecret(
   return executeWrite({
     walletClient,
     chain: getETHChain(),
-    address: CONTRACTS.BTC_VAULTS_MANAGER,
-    abi: BTCVaultsManagerABI as Abi,
+    address: CONTRACTS.BTC_VAULT_REGISTRY,
+    abi: BTCVaultRegistryABI as Abi,
     functionName: "activateVaultWithSecret",
     args: [vaultId, secret],
     errorContext: "vault activation",

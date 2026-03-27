@@ -21,14 +21,15 @@ const VAULT_FIELDS = `
   depositorBtcPubKey
   vaultProvider
   amount
-  applicationController
+  applicationEntryPoint
   status
   inUse
   ackCount
   depositorSignedPeginTx
   unsignedPrePeginTx
-  vkVersion
+  proverProgramVersion
   hashlock
+  htlcVout
   secret
   peginSigsPostedAt
   appVaultKeepersVersion
@@ -95,14 +96,15 @@ interface GraphQLVaultItem {
   depositorBtcPubKey: string;
   vaultProvider: string;
   amount: string;
-  applicationController: string;
+  applicationEntryPoint: string;
   status: GraphQLVaultStatus;
   inUse: boolean;
   ackCount: number;
   depositorSignedPeginTx: string;
   unsignedPrePeginTx: string;
-  vkVersion: number;
+  proverProgramVersion: number;
   hashlock: string;
+  htlcVout: number;
   secret: string | null;
   peginSigsPostedAt: string | null;
   appVaultKeepersVersion: number;
@@ -197,14 +199,15 @@ function transformVaultItem(item: GraphQLVaultItem): Vault {
     unsignedPrePeginTx: item.unsignedPrePeginTx as Hex,
     amount: BigInt(item.amount),
     vaultProvider: item.vaultProvider as Address,
-    vkVersion: item.vkVersion,
+    proverProgramVersion: item.proverProgramVersion,
     hashlock: item.hashlock ? (item.hashlock as Hex) : undefined,
+    htlcVout: item.htlcVout,
     secret: item.secret ? (item.secret as Hex) : undefined,
     peginSigsPostedAt: item.peginSigsPostedAt
       ? parseInt(item.peginSigsPostedAt, 10) * 1000
       : undefined,
     status: mapGraphQLStatusToVaultStatus(item.status),
-    applicationController: item.applicationController as Address,
+    applicationEntryPoint: item.applicationEntryPoint as Address,
     appVaultKeepersVersion: item.appVaultKeepersVersion,
     universalChallengersVersion: item.universalChallengersVersion,
     offchainParamsVersion: item.offchainParamsVersion,

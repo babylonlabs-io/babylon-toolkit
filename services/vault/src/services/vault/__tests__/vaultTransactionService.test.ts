@@ -45,7 +45,7 @@ vi.mock("../../../config/pegin", () => ({
 
 vi.mock("../../../config/contracts", () => ({
   CONTRACTS: {
-    BTC_VAULTS_MANAGER: "0xcontract",
+    BTC_VAULT_REGISTRY: "0xcontract",
   },
 }));
 

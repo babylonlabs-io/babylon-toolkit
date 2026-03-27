@@ -24,7 +24,7 @@ export const queryKeys = {
     [
       "peginRequests",
       address,
-      CONTRACTS.BTC_VAULTS_MANAGER,
+      CONTRACTS.BTC_VAULT_REGISTRY,
       CONTRACTS.AAVE_CONTROLLER,
     ] as const,
 

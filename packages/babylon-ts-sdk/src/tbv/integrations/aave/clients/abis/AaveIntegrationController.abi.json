@@ -241,7 +241,7 @@
             "internalType": "enum IBTCVaultsManager.BTCVaultStatus"
           },
           {
-            "name": "applicationController",
+            "name": "applicationEntryPoint",
             "type": "address",
             "internalType": "address"
           },
@@ -261,7 +261,7 @@
             "internalType": "uint16"
           },
           {
-            "name": "vkVersion",
+            "name": "proverProgramVersion",
             "type": "uint16",
             "internalType": "uint16"
           },
@@ -284,6 +284,11 @@
             "name": "hashlock",
             "type": "bytes32",
             "internalType": "bytes32"
+          },
+          {
+            "name": "htlcVout",
+            "type": "uint8",
+            "internalType": "uint8"
           }
         ]
       }

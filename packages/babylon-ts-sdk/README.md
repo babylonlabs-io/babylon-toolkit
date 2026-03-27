@@ -87,7 +87,7 @@ import { selectUtxosForPegin } from "@babylonlabs-io/ts-sdk/tbv/core";
 import { BitcoinWallet, UTXO } from "@babylonlabs-io/ts-sdk/shared";
 
 // Contract ABIs
-import { BTCVaultsManagerABI } from "@babylonlabs-io/ts-sdk/tbv/core";
+import { BTCVaultRegistryABI } from "@babylonlabs-io/ts-sdk/tbv/core";
 
 // Protocol integrations (Aave)
 import {

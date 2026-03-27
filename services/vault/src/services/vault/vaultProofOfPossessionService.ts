@@ -36,7 +36,7 @@ export interface ProofOfPossessionParams {
   action: PopAction;
 
   /**
-   * Verifying contract address (BTCVaultsManager)
+   * Verifying contract address (BTCVaultRegistry)
    * Required to prevent cross-contract replay attacks
    */
   verifyingContract: Address;

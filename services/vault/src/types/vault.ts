@@ -47,11 +47,14 @@ export interface Vault {
   /** Vault provider's Ethereum address */
   vaultProvider: Address;
 
-  /** Version of vault keepers at vault creation */
-  vkVersion: number;
+  /** Version of prover program at vault creation */
+  proverProgramVersion: number;
 
   /** Hashlock for HTLC pegin flow */
   hashlock?: Hex;
+
+  /** Index of the HTLC output in the Pre-PegIn transaction */
+  htlcVout: number;
 
   /** Secret preimage for HTLC (revealed after claim) */
   secret?: Hex;
@@ -62,8 +65,8 @@ export interface Vault {
   /** Vault status (0=Pending, 1=Verified, 2=Active, 3=Redeemed; 4-7 are indexer-derived) */
   status: ContractStatus;
 
-  /** Application controller address (immutable, set at creation) */
-  applicationController: Address;
+  /** Application entry point address (immutable, set at creation) */
+  applicationEntryPoint: Address;
 
   // === Version fields (locked at vault creation for payout signing) ===
 

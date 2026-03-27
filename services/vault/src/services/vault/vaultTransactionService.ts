@@ -127,7 +127,7 @@ function createPeginManager(
     ethWallet,
     ethChain: getETHChain(),
     vaultContracts: {
-      btcVaultsManager: CONTRACTS.BTC_VAULTS_MANAGER,
+      btcVaultRegistry: CONTRACTS.BTC_VAULT_REGISTRY,
     },
     mempoolApiUrl: getMempoolApiUrl(),
   });
@@ -154,7 +154,7 @@ export async function preparePeginTransaction(
     universalChallengerBtcPubkeys: params.universalChallengerBtcPubkeys,
     timelockPegin: params.timelockPegin,
     timelockRefund: params.timelockRefund,
-    hashH: params.hashH,
+    hashlocks: [params.hashH],
     protocolFeeRate: params.protocolFeeRate,
     mempoolFeeRate: params.mempoolFeeRate,
     councilQuorum: params.councilQuorum,
