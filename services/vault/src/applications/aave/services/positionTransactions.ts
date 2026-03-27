@@ -2,7 +2,7 @@
  * Aave Position Transactions Service
  *
  * Orchestrates transaction operations for Aave positions.
- * Handles borrow, repay, and withdraw operations.
+ * Handles borrow, repay, withdraw, and reorder operations.
  */
 
 import type {
@@ -239,6 +239,36 @@ export async function withdrawSelectedCollateral(
     chain,
     getAaveAdapterAddress(),
     vaultIds,
+  );
+
+  return {
+    transactionHash: result.transactionHash,
+    receipt: result.receipt,
+  };
+}
+
+/**
+ * Reorder vaults for liquidation priority
+ *
+ * Changes the prefix ordering of vaults on-chain. Vaults at lower indices
+ * are seized first during liquidation. The permuted array must contain
+ * exactly the same vault IDs as the current position, in the desired new order.
+ *
+ * @param walletClient - Connected wallet client
+ * @param chain - Chain configuration
+ * @param permutedVaultIds - Vault IDs in desired new order (must be a permutation)
+ * @returns Transaction result
+ */
+export async function reorderVaultOrder(
+  walletClient: WalletClient,
+  chain: Chain,
+  permutedVaultIds: Hex[],
+): Promise<{ transactionHash: Hash; receipt: TransactionReceipt }> {
+  const result = await AaveControllerTx.reorderVaults(
+    walletClient,
+    chain,
+    getAaveControllerAddress(),
+    permutedVaultIds,
   );
 
   return {

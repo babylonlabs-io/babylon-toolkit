@@ -73,6 +73,7 @@ export type {
 // Contract clients (queries and transaction builders)
 export {
   buildBorrowTx,
+  buildReorderVaultsTx,
   buildRepayTx,
   buildWithdrawCollateralsTx,
   getCollateralFactor,
@@ -98,6 +99,8 @@ export {
   computeMinDepositForSplit,
   computeOptimalSplit,
   computeSeizedFraction,
+  computeTargetSeizureSats,
+  simulatePrefixSeizure,
   formatHealthFactor,
   getHealthFactorColor,
   getHealthFactorStatus,
@@ -114,8 +117,12 @@ export type {
   MinDepositForSplitParams,
   OptimalSplitParams,
   OptimalSplitResult,
+  OrderedVault,
+  PrefixSeizureParams,
+  PrefixSeizureResult,
   RebalanceCheckParams,
   RebalanceCheckResult,
+  TargetSeizureParams,
   SelectableVault,
   VaultSelectionResult,
 } from "./utils/index.js";

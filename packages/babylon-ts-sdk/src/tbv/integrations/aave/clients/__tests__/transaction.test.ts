@@ -6,6 +6,7 @@ import {
   buildWithdrawCollateralsTx,
   buildBorrowTx,
   buildRepayTx,
+  buildReorderVaultsTx,
 } from "../transaction.js";
 
 const CONTRACT_ADDRESS = "0x1234567890123456789012345678901234567890" as const;
@@ -84,6 +85,45 @@ describe("transaction builders", () => {
 
       expect(decoded.functionName).toBe("repayToCorePosition");
       expect(decoded.args).toEqual([borrower, 2n, 500000n]);
+    });
+  });
+
+  describe("buildReorderVaultsTx", () => {
+    it("should encode reorderVaults with permuted vault IDs", () => {
+      const permutedVaultIds = [
+        "0x0000000000000000000000000000000000000000000000000000000000000002",
+        "0x0000000000000000000000000000000000000000000000000000000000000001",
+      ] as const;
+
+      const result = buildReorderVaultsTx(CONTRACT_ADDRESS, [...permutedVaultIds]);
+
+      expect(result.to).toBe(CONTRACT_ADDRESS);
+      expect(result.data).toBeDefined();
+
+      const decoded = decodeFunctionData({
+        abi: AaveIntegrationControllerABI,
+        data: result.data,
+      });
+
+      expect(decoded.functionName).toBe("reorderVaults");
+      expect(decoded.args).toHaveLength(1);
+      expect(decoded.args![0]).toEqual([...permutedVaultIds]);
+    });
+
+    it("should encode with a single vault ID", () => {
+      const permutedVaultIds = [
+        "0x0000000000000000000000000000000000000000000000000000000000000001",
+      ] as const;
+
+      const result = buildReorderVaultsTx(CONTRACT_ADDRESS, [...permutedVaultIds]);
+
+      const decoded = decodeFunctionData({
+        abi: AaveIntegrationControllerABI,
+        data: result.data,
+      });
+
+      expect(decoded.functionName).toBe("reorderVaults");
+      expect(decoded.args![0]).toEqual([...permutedVaultIds]);
     });
   });
 });

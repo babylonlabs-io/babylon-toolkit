@@ -9,6 +9,7 @@ import { BTCVaultRegistryABI } from "@babylonlabs-io/ts-sdk/tbv/core";
 import {
   AaveIntegrationAdapterABI,
   buildBorrowTx,
+  buildReorderVaultsTx,
   buildRepayTx,
   buildWithdrawCollateralsTx,
 } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
@@ -194,5 +195,33 @@ export async function repayToCorePosition(
     to,
     data,
     "repay to Aave Core position",
+  );
+}
+
+/**
+ * Reorder vaults for liquidation priority
+ *
+ * Changes the prefix ordering of vaults. Vaults at lower indices
+ * are seized first during liquidation.
+ *
+ * @param walletClient - Connected wallet client for signing transactions
+ * @param chain - Chain configuration
+ * @param contractAddress - AaveIntegrationController contract address
+ * @param permutedVaultIds - Vault IDs in desired new order (must be a permutation of current vaults)
+ * @returns Transaction result with hash and receipt
+ */
+export async function reorderVaults(
+  walletClient: WalletClient,
+  chain: Chain,
+  contractAddress: Address,
+  permutedVaultIds: Hex[],
+): Promise<TransactionResult> {
+  const { to, data } = buildReorderVaultsTx(contractAddress, permutedVaultIds);
+  return executeTx(
+    walletClient,
+    chain,
+    to,
+    data,
+    "reorder vaults in Aave position",
   );
 }
