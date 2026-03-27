@@ -1,7 +1,7 @@
 /**
  * Hook for reordering vaults on-chain.
  *
- * Calls reorderVaults(bytes32[]) on the AaveIntegrationController
+ * Calls reorderVaults(bytes32[]) on the AaveIntegrationAdapter
  * to change the prefix ordering for liquidation priority.
  */
 
