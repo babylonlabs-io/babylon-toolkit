@@ -34,7 +34,7 @@ export interface UseBorrowTransactionResult {
  *
  * Returns the transaction handler and processing state.
  * Handles wallet validation, error mapping, and cache invalidation.
- * The controller resolves the borrower's proxy automatically from msg.sender.
+ * The adapter resolves the borrower's proxy automatically from msg.sender.
  */
 export function useBorrowTransaction(): UseBorrowTransactionResult {
   const [isProcessing, setIsProcessing] = useState(false);
@@ -74,7 +74,7 @@ export function useBorrowTransaction(): UseBorrowTransactionResult {
       );
 
       // Execute the borrow transaction
-      // Controller resolves borrower's proxy from msg.sender
+      // Adapter resolves borrower's proxy from msg.sender
       await borrow(walletClient, chain, reserve.reserveId, borrowAmountBigInt);
 
       // Invalidate position queries to refresh data

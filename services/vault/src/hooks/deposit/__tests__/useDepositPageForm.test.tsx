@@ -7,7 +7,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("@/config/env", () => ({
   ENV: {
     BTC_VAULT_REGISTRY: "0x1234567890123456789012345678901234567890",
-    AAVE_CONTROLLER: "0x1234567890123456789012345678901234567890",
+    AAVE_ADAPTER: "0x1234567890123456789012345678901234567890",
     GRAPHQL_ENDPOINT: "https://test.example.com/graphql",
   },
 }));

@@ -1,9 +1,9 @@
-import { AaveIntegrationControllerABI } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
+import { AaveIntegrationAdapterABI } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
 
 import { registerApplication } from "../registry";
 import type { ApplicationRegistration } from "../types";
 
-import { AAVE_APP_ID, getAaveControllerAddress } from "./config";
+import { AAVE_APP_ID, getAaveAdapterAddress } from "./config";
 import { AaveRoutes } from "./routes";
 
 export const aaveApp: ApplicationRegistration = {
@@ -18,11 +18,11 @@ export const aaveApp: ApplicationRegistration = {
   },
   Routes: AaveRoutes,
   contracts: {
-    abi: AaveIntegrationControllerABI,
+    abi: AaveIntegrationAdapterABI,
   },
 };
 
-registerApplication(aaveApp, getAaveControllerAddress());
+registerApplication(aaveApp, getAaveAdapterAddress());
 
 export { AAVE_APP_ID, AAVE_CONTRACTS } from "./config";
 export { AaveRoutes } from "./routes";

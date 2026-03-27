@@ -12,10 +12,10 @@ import { graphqlClient } from "../../../clients/graphql";
 
 /**
  * Aave configuration from GraphQL indexer
- * Contains contract addresses and reserve IDs discovered from the AaveIntegrationController
+ * Contains contract addresses and reserve IDs discovered from the AaveIntegrationAdapter
  */
 export interface AaveConfig {
-  /** AaveIntegrationController contract address */
+  /** AaveIntegrationAdapter contract address */
   adapterAddress: string;
   /** VaultBTC token address */
   vaultBtcAddress: string;
