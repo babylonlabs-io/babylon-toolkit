@@ -17,11 +17,11 @@ import { type Address, type Chain, type Hex, type WalletClient } from "viem";
 /**
  * Read the Core Spoke address from the controller contract.
  *
- * BTC_VAULT_CORE_SPOKE is an immutable property on the AaveIntegrationController.
- * Reading it on-chain from the trusted controller guarantees the spoke address
+ * BTC_VAULT_CORE_SPOKE is an immutable property on the AaveIntegrationAdapter.
+ * Reading it on-chain from the trusted adapter guarantees the spoke address
  * is not influenced by untrusted external sources (e.g. GraphQL indexer).
  *
- * @param controllerAddress - Trusted AaveIntegrationController address
+ * @param controllerAddress - Trusted AaveIntegrationAdapter address
  * @returns Core Spoke contract address
  */
 export async function getCoreSpokeAddress(
@@ -30,7 +30,7 @@ export async function getCoreSpokeAddress(
   const publicClient = ethClient.getPublicClient();
   return publicClient.readContract({
     address: controllerAddress,
-    abi: AaveIntegrationControllerABI,
+    abi: AaveIntegrationAdapterABI,
     functionName: "BTC_VAULT_CORE_SPOKE",
     args: [],
   }) as Promise<Address>;
