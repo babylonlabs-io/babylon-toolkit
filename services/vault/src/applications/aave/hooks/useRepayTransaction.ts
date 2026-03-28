@@ -85,7 +85,7 @@ export function useRepayTransaction({
 
       // Call appropriate service based on repayment type
       // The borrower address is resolved from the connected wallet (self-repay)
-      // Controller and spoke addresses are pinned from trusted environment config
+      // Adapter and spoke addresses are pinned from trusted environment config
       if (isFullRepayment) {
         if (!proxyContract) {
           throw new Error(

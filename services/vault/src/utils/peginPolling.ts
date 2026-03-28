@@ -126,7 +126,7 @@ export function getDepositsNeedingPolling(
         !!btcPublicKey &&
         !!vaultProviderAddress &&
         !!activity.txHash &&
-        !!activity.applicationController &&
+        !!activity.applicationEntryPoint &&
         isVaultOwnedByWallet(activity.depositorBtcPubkey, btcPublicKey);
 
       return {

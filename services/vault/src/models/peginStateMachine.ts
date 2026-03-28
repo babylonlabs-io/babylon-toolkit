@@ -17,12 +17,12 @@
 
 /**
  * Vault status — combines on-chain contract status (0-4) with indexer-derived
- * statuses (5-7). The contract enum (BTCVaultsManager.sol BTCVaultStatus) only
+ * statuses (5-7). The contract enum (BTCVaultRegistry.sol BTCVaultStatus) only
  * has: Pending(0), Verified(1), Active(2), Redeemed(3), Expired(4).
  * The indexer maps these and adds extra statuses for UI display.
  *
  * IMPORTANT: With the new contract architecture:
- * - Core vault status (BTCVaultsManager) does NOT change when used by applications
+ * - Core vault status (BTCVaultRegistry) does NOT change when used by applications
  * - Vaults remain at ACTIVE status even when used in DeFi positions
  * - Application usage status is tracked separately by each integration controller
  */

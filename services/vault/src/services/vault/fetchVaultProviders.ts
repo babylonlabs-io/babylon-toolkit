@@ -15,7 +15,7 @@ const GET_VAULT_PROVIDERS = gql`
       items {
         id
         btcPubKey
-        applicationController
+        applicationEntryPoint
         name
         rpcUrl
         grpcUrl
@@ -32,7 +32,7 @@ const GET_VAULT_PROVIDER_BY_ID = gql`
     vaultProvider(id: $id) {
       id
       btcPubKey
-      applicationController
+      applicationEntryPoint
       name
       rpcUrl
       grpcUrl
@@ -49,7 +49,7 @@ const GET_VAULT_PROVIDER_BY_ID = gql`
 export interface VaultProvider {
   id: string;
   btcPubKey: string;
-  applicationController: string;
+  applicationEntryPoint: string;
   name: string | null;
   rpcUrl: string | null;
   grpcUrl: string | null;

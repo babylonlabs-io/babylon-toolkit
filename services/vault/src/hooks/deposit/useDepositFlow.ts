@@ -272,7 +272,7 @@ export function useDepositFlow(
           btcTxid: registration.btcTxid,
           amount,
           selectedProviders,
-          applicationController: selectedApplication,
+          applicationEntryPoint: selectedApplication,
           unsignedTxHex: prepared.fundedPrePeginTxHex,
           selectedUTXOs: prepared.selectedUTXOs,
         });

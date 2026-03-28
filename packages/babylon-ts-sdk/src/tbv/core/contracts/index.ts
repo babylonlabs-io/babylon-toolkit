@@ -7,7 +7,7 @@
  * @module contracts
  */
 
-export { BTCVaultsManagerABI } from "./abis/BTCVaultsManager.abi";
+export { BTCVaultRegistryABI } from "./abis/BTCVaultRegistry.abi";
 
 export {
   CONTRACT_ERRORS,

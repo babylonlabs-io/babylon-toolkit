@@ -161,7 +161,7 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
   const handleMnemonicComplete = useCallback(
     (mnemonic?: string, mnemonicId?: string) => {
       confirmMnemonic(mnemonic, mnemonicId);
-      // Always generate secrets — the atomic swap flow requires an HTLC preimage.
+      // Always generate secrets — the pegin flow requires an HTLC preimage.
       // The feature flag only controls whether the user sees the secret modal.
       const vaultCount =
         isSplitDeposit && splitAllocationPlan

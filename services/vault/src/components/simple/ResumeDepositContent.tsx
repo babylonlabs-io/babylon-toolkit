@@ -208,7 +208,7 @@ export function ResumeLamportContent({
             "Missing depositor BTC public key on activity; cannot derive Lamport keypair",
           );
         }
-        if (!activity.applicationController) {
+        if (!activity.applicationEntryPoint) {
           throw new Error(
             "Missing application controller address on activity; cannot derive Lamport keypair",
           );
@@ -217,7 +217,7 @@ export function ResumeLamportContent({
         await submitLamportPublicKey({
           btcTxid,
           depositorBtcPubkey: activity.depositorBtcPubkey,
-          appContractAddress: activity.applicationController,
+          appContractAddress: activity.applicationEntryPoint,
           providerAddress,
           getMnemonic: () => Promise.resolve(mnemonic),
         });

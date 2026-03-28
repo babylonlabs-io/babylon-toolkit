@@ -14,8 +14,8 @@ import { logger } from "@/infrastructure";
  * Environment variables for the vault application
  */
 interface EnvVars {
-  BTC_VAULTS_MANAGER: Address;
-  AAVE_CONTROLLER: Address;
+  BTC_VAULT_REGISTRY: Address;
+  AAVE_ADAPTER: Address;
   GRAPHQL_ENDPOINT: string;
   SIDECAR_API_URL: string;
   BTC_PRICE_FEED: Address | undefined;
@@ -45,8 +45,8 @@ function parseOptionalAddress(value: string | undefined): Address | undefined {
 function validateEnvVars(): EnvValidationResult {
   const envVars = {
     // Contract addresses (required)
-    BTC_VAULTS_MANAGER: process.env.NEXT_PUBLIC_TBV_BTC_VAULTS_MANAGER,
-    AAVE_CONTROLLER: process.env.NEXT_PUBLIC_TBV_AAVE_CONTROLLER,
+    BTC_VAULT_REGISTRY: process.env.NEXT_PUBLIC_TBV_BTC_VAULT_REGISTRY,
+    AAVE_ADAPTER: process.env.NEXT_PUBLIC_TBV_AAVE_ADAPTER,
 
     // API endpoints (required)
     GRAPHQL_ENDPOINT: process.env.NEXT_PUBLIC_TBV_GRAPHQL_ENDPOINT,
@@ -67,8 +67,8 @@ function validateEnvVars(): EnvValidationResult {
   };
 
   const requiredVars = [
-    "BTC_VAULTS_MANAGER",
-    "AAVE_CONTROLLER",
+    "BTC_VAULT_REGISTRY",
+    "AAVE_ADAPTER",
     "GRAPHQL_ENDPOINT",
     "VP_PROXY_URL",
   ] as const;
@@ -80,8 +80,8 @@ function validateEnvVars(): EnvValidationResult {
   if (missingVars.length > 0) {
     // Map internal names to actual env var names
     const envVarMap: Record<string, string> = {
-      BTC_VAULTS_MANAGER: "NEXT_PUBLIC_TBV_BTC_VAULTS_MANAGER",
-      AAVE_CONTROLLER: "NEXT_PUBLIC_TBV_AAVE_CONTROLLER",
+      BTC_VAULT_REGISTRY: "NEXT_PUBLIC_TBV_BTC_VAULT_REGISTRY",
+      AAVE_ADAPTER: "NEXT_PUBLIC_TBV_AAVE_ADAPTER",
       GRAPHQL_ENDPOINT: "NEXT_PUBLIC_TBV_GRAPHQL_ENDPOINT",
       VP_PROXY_URL: "NEXT_PUBLIC_TBV_VP_PROXY_URL",
     };
@@ -90,8 +90,8 @@ function validateEnvVars(): EnvValidationResult {
 
     return {
       env: {
-        BTC_VAULTS_MANAGER: ZERO_ADDRESS,
-        AAVE_CONTROLLER: ZERO_ADDRESS,
+        BTC_VAULT_REGISTRY: ZERO_ADDRESS,
+        AAVE_ADAPTER: ZERO_ADDRESS,
         GRAPHQL_ENDPOINT: "",
         SIDECAR_API_URL: "",
         VP_PROXY_URL: "",

@@ -30,7 +30,6 @@ import {
   buildPeginInputPsbt,
   buildPeginTxFromFundedPrePegin,
   buildPrePeginPsbt,
-  calculateBtcTxHash,
   extractPeginInputSignature,
   finalizePeginInputPsbt,
   fundPeginTransaction,
@@ -38,6 +37,7 @@ import {
   getPsbtInputFields,
   PeginManager,
   selectUtxosForPegin,
+  SINGLE_DEPOSIT_HTLC_VOUT,
   type PrePeginParams,
 } from "@babylonlabs-io/ts-sdk/tbv/core";
 import { Psbt, Transaction } from "bitcoinjs-lib";
@@ -122,7 +122,7 @@ export interface RegisterSplitPeginParams {
   unsignedPrePeginTxHex: string;
   /** PegIn tx hex — submitted to contract as depositorSignedPeginTx; vault ID derived from this */
   peginTxHex: string;
-  /** SHA256 hashlock for atomic swap activation (bytes32 hex with 0x prefix) */
+  /** SHA256 hashlock for HTLC activation (bytes32 hex with 0x prefix) */
   hashlock: Hex;
   /** Ethereum address of the vault provider */
   vaultProviderAddress: Address;
@@ -176,9 +176,9 @@ export interface BroadcastSplitPeginParams {
 // ============================================================================
 
 /**
- * Build an atomic swap pegin using local split UTXO data.
+ * Build a pegin using local split UTXO data.
  *
- * Unlike `PeginManager.prepareAtomicPegin()`, this function does **not** fetch
+ * Unlike `PeginManager.preparePegin()`, this function does **not** fetch
  * UTXO data from the mempool. Instead it accepts the split output directly,
  * making it suitable for spending outputs from unconfirmed split transactions.
  *
@@ -220,7 +220,7 @@ export async function preparePeginFromSplitOutput(
       vaultProviderPubkey: vaultProviderBtcPubkey,
       vaultKeeperPubkeys: vaultKeeperBtcPubkeys,
       universalChallengerPubkeys: universalChallengerBtcPubkeys,
-      hashH: params.hashH,
+      hashlocks: [params.hashH],
       timelockRefund: params.timelockRefund,
       pegInAmount: params.pegInAmount,
       feeRate: params.protocolFeeRate,
@@ -250,15 +250,12 @@ export async function preparePeginFromSplitOutput(
       network: btcNetwork,
     });
 
-    const prePeginTxid = stripHexPrefix(
-      calculateBtcTxHash(fundedPrePeginTxHex),
-    );
-
-    // Step 6: Derive the PegIn transaction from the funded Pre-PegIn txid
+    // Step 6: Derive the PegIn transaction from the funded Pre-PegIn tx
     const peginTxResult = await buildPeginTxFromFundedPrePegin({
       prePeginParams,
       timelockPegin: params.timelockPegin,
-      fundedPrePeginTxid: prePeginTxid,
+      fundedPrePeginTxHex,
+      htlcVout: SINGLE_DEPOSIT_HTLC_VOUT,
     });
 
     // Step 7: Build PegIn input PSBT, sign it, and extract the depositor signature
@@ -269,7 +266,7 @@ export async function preparePeginFromSplitOutput(
       vaultProviderPubkey: vaultProviderBtcPubkey,
       vaultKeeperPubkeys: vaultKeeperBtcPubkeys,
       universalChallengerPubkeys: universalChallengerBtcPubkeys,
-      hashH: params.hashH,
+      hashlock: params.hashH,
       timelockRefund: params.timelockRefund,
       network,
     });
@@ -350,7 +347,7 @@ export async function registerSplitPeginOnChain(
       ethWallet,
       ethChain: getETHChain(),
       vaultContracts: {
-        btcVaultsManager: CONTRACTS.BTC_VAULTS_MANAGER,
+        btcVaultRegistry: CONTRACTS.BTC_VAULT_REGISTRY,
       },
       mempoolApiUrl: getMempoolApiUrl(),
     });

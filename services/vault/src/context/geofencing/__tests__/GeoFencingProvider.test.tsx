@@ -7,7 +7,7 @@ import { GeoFencingProvider, useGeoFencing } from "../GeoFencingProvider";
 
 vi.mock("@/config/contracts", () => ({
   CONTRACTS: {
-    AAVE_CONTROLLER: "0x1234567890123456789012345678901234567890",
+    AAVE_ADAPTER: "0x1234567890123456789012345678901234567890",
   },
 }));
 

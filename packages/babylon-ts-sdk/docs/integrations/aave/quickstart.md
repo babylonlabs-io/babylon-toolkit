@@ -35,7 +35,7 @@ const walletClient = createWalletClient({
 });
 
 // You provide these (from your config/indexer)
-const CONTROLLER: Address = "0x...";
+const ADAPTER: Address = "0x...";
 const SPOKE: Address = "0x...";
 const VBTC_RESERVE_ID = 1n;
 const USDC_RESERVE_ID = 2n;
@@ -56,7 +56,7 @@ if (!account) {
 const userAddress: Address =
   typeof account === "string" ? account : account.address;
 
-const position = await getPosition(publicClient, CONTROLLER, userAddress);
+const position = await getPosition(publicClient, ADAPTER, userAddress);
 if (!position) throw new Error("No position found");
 const proxyAddress = position.proxyContract;
 
@@ -77,7 +77,7 @@ if (status !== "safe" && status !== "no_debt") {
 const amount = parseUnits("100", 6); // 100 USDC
 
 // USDC_RESERVE_ID can be any debt reserve
-const tx = buildBorrowTx(CONTROLLER, USDC_RESERVE_ID, amount, userAddress);
+const tx = buildBorrowTx(ADAPTER, USDC_RESERVE_ID, amount, userAddress);
 
 // 4. Execute
 const hash = await walletClient.sendTransaction({ to: tx.to, data: tx.data });
@@ -109,7 +109,7 @@ if (!account) {
 const userAddress: Address =
   typeof account === "string" ? account : account.address;
 
-const position = await getPosition(publicClient, CONTROLLER, userAddress);
+const position = await getPosition(publicClient, ADAPTER, userAddress);
 if (!position) throw new Error("No position found");
 const proxyAddress = position.proxyContract;
 
@@ -141,13 +141,13 @@ const approveHash = await walletClient.writeContract({
     },
   ],
   functionName: "approve",
-  args: [CONTROLLER, repayAmount],
+  args: [ADAPTER, repayAmount],
 });
 await publicClient.waitForTransactionReceipt({ hash: approveHash });
 
 // 4. Build transaction
 const borrower: Address = "0x..."; // Borrower's address
-const tx = buildRepayTx(CONTROLLER, borrower, USDC_RESERVE_ID, repayAmount);
+const tx = buildRepayTx(ADAPTER, borrower, USDC_RESERVE_ID, repayAmount);
 
 // 5. Execute
 const hash = await walletClient.sendTransaction({ to: tx.to, data: tx.data });
@@ -156,7 +156,7 @@ await publicClient.waitForTransactionReceipt({ hash });
 
 **What happens on-chain:**
 
-- Repayment tokens transferred from the borrower's wallet to controller
+- Repayment tokens transferred from the borrower's wallet to adapter
 - Debt zeroed out in the borrower's Aave position
 - Health factor improves
 
@@ -179,7 +179,7 @@ if (!account) {
 const userAddress: Address =
   typeof account === "string" ? account : account.address;
 
-const position = await getPosition(publicClient, CONTROLLER, userAddress);
+const position = await getPosition(publicClient, ADAPTER, userAddress);
 if (!position) throw new Error("No position found");
 const proxyAddress = position.proxyContract;
 
@@ -197,7 +197,7 @@ if (userHasDebt) {
 
 // 3. Build transaction (withdraw selected vaults)
 const vaultIdsToWithdraw: Hex[] = position.vaultIds; // or a subset
-const tx = buildWithdrawCollateralsTx(CONTROLLER, vaultIdsToWithdraw);
+const tx = buildWithdrawCollateralsTx(ADAPTER, vaultIdsToWithdraw);
 
 // 4. Execute
 const hash = await walletClient.sendTransaction({ to: tx.to, data: tx.data });

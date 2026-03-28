@@ -16,7 +16,7 @@ export interface DepositorStruct {
 
 /**
  * Aave position structure from the contract.
- * The controller resolves the user's proxy and vaults from their address.
+ * The adapter resolves the user's proxy and vaults from their address.
  */
 export interface AaveMarketPosition {
   proxyContract: Address;

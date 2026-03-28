@@ -7,7 +7,7 @@ import { getSharedWagmiConfig } from "@babylonlabs-io/wallet-connector";
 import type { Abi, Address, Hash, WalletClient } from "viem";
 import { getWalletClient, switchChain } from "wagmi/actions";
 
-import BTCVaultsManagerABI from "@/clients/eth-contract/btc-vaults-manager/abis/BTCVaultsManager.abi.json";
+import BTCVaultRegistryABI from "@/clients/eth-contract/btc-vault-registry/abis/BTCVaultRegistry.abi.json";
 import { ethClient } from "@/clients/eth-contract/client";
 import { logger } from "@/infrastructure";
 import { LocalStorageStatus } from "@/models/peginStateMachine";
@@ -76,7 +76,7 @@ export async function getEthWalletClient(
 // ============================================================================
 
 /**
- * Build and fund the atomic swap pegin transactions. Returns the peginTxid so
+ * Build and fund the pegin transactions. Returns the peginTxid so
  * the caller can derive the Lamport keypair before on-chain registration.
  */
 export async function preparePegin(
@@ -215,7 +215,7 @@ async function waitForEthConfirmation(ethTxHash: Hash): Promise<void> {
                 `Transaction reverted. Hash: ${ethTxHash}. Check the transaction on block explorer for details.`,
               ),
               "pegin confirmation",
-              [BTCVaultsManagerABI as Abi],
+              [BTCVaultRegistryABI as Abi],
             );
           }
 
@@ -254,7 +254,7 @@ export function savePendingPegin(params: SavePendingPeginParams): void {
     btcTxid,
     amount,
     selectedProviders,
-    applicationController,
+    applicationEntryPoint,
     unsignedTxHex,
     selectedUTXOs,
   } = params;
@@ -265,7 +265,7 @@ export function savePendingPegin(params: SavePendingPeginParams): void {
     id: btcTxid,
     amount: amountBtc,
     providerIds: selectedProviders,
-    applicationController,
+    applicationEntryPoint,
     status: LocalStorageStatus.PENDING,
     btcTxHash: btcTxid,
     unsignedTxHex,

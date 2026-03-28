@@ -35,7 +35,7 @@ interface GraphQLVaultActivitiesResponse {
 
 interface GraphQLVaultItem {
   id: string;
-  applicationController: string;
+  applicationEntryPoint: string;
 }
 
 interface GraphQLVaultsResponse {
@@ -70,7 +70,7 @@ const GET_VAULTS_BY_IDS = gql`
     vaults(where: { id_in: $vaultIds }) {
       items {
         id
-        applicationController
+        applicationEntryPoint
       }
     }
   }
@@ -119,13 +119,13 @@ export async function fetchUserActivities(
   );
 
   const vaultMap = new Map(
-    vaultsData.vaults.items.map((v) => [v.id, v.applicationController]),
+    vaultsData.vaults.items.map((v) => [v.id, v.applicationEntryPoint]),
   );
 
   return activities.map((item) => {
-    const applicationController = vaultMap.get(item.vaultId);
-    const appMetadata = applicationController
-      ? getApplicationMetadataByController(applicationController)
+    const applicationEntryPoint = vaultMap.get(item.vaultId);
+    const appMetadata = applicationEntryPoint
+      ? getApplicationMetadataByController(applicationEntryPoint)
       : undefined;
 
     return {

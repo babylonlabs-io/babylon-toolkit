@@ -148,7 +148,7 @@ export function usePeginStorage({
               },
             ]
           : [],
-        applicationController: pending.applicationController,
+        applicationEntryPoint: pending.applicationEntryPoint,
         contractStatus: ContractStatus.PENDING,
         displayLabel: getPeginState(ContractStatus.PENDING).displayLabel,
         isPending: true,
@@ -194,15 +194,7 @@ export function usePeginStorage({
   const addPendingPegin = useCallback(
     (pegin: Omit<PendingPeginRequest, "timestamp">) => {
       if (!ethAddress) return;
-      addPendingPeginToStorage(ethAddress, {
-        id: pegin.id,
-        amount: pegin.amount,
-        providerIds: pegin.providerIds,
-        status: pegin.status,
-        btcTxHash: pegin.btcTxHash,
-        unsignedTxHex: pegin.unsignedTxHex,
-        selectedUTXOs: pegin.selectedUTXOs,
-      });
+      addPendingPeginToStorage(ethAddress, pegin);
       // Event will be dispatched by storage function - no manual state update needed
     },
     [ethAddress],
