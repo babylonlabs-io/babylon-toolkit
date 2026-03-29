@@ -12,7 +12,7 @@ vi.mock("@/clients/eth-contract/client", () => ({
 
 vi.mock("@/config/contracts", () => ({
   CONTRACTS: {
-    BTC_VAULTS_MANAGER: "0xBTCVaultsManager",
+    BTC_VAULT_REGISTRY: "0xBTCVaultRegistry",
   },
 }));
 
@@ -23,7 +23,7 @@ const VAULT_ID =
 
 const FULL_VAULT = {
   depositorSignedPeginTx: "0xdeadbeef",
-  applicationController: "0xAppController" as `0x${string}`,
+  applicationEntryPoint: "0xAppEntryPoint" as `0x${string}`,
   vaultProvider: "0xVaultProvider" as `0x${string}`,
   universalChallengersVersion: 1,
   appVaultKeepersVersion: 2,
@@ -37,7 +37,7 @@ describe("getVaultFromChain", () => {
 
     expect(result).toEqual({
       depositorSignedPeginTx: FULL_VAULT.depositorSignedPeginTx,
-      applicationController: FULL_VAULT.applicationController,
+      applicationEntryPoint: FULL_VAULT.applicationEntryPoint,
       vaultProvider: FULL_VAULT.vaultProvider,
       universalChallengersVersion: FULL_VAULT.universalChallengersVersion,
       appVaultKeepersVersion: FULL_VAULT.appVaultKeepersVersion,
@@ -51,7 +51,7 @@ describe("getVaultFromChain", () => {
 
     expect(mockReadContract).toHaveBeenCalledWith(
       expect.objectContaining({
-        address: "0xBTCVaultsManager",
+        address: "0xBTCVaultRegistry",
         functionName: "getBTCVault",
         args: [VAULT_ID],
       }),

@@ -85,7 +85,7 @@ export type {
 } from "@babylonlabs-io/babylon-tbv-rust-wasm";
 
 // PSBT builders
-export { buildPrePeginPsbt, buildPeginTxFromFundedPrePegin } from "./psbt/pegin";
+export { buildPrePeginPsbt, buildPeginTxFromFundedPrePegin, SINGLE_DEPOSIT_HTLC_VOUT } from "./psbt/pegin";
 export type {
   PrePeginParams,
   PrePeginPsbtResult,

@@ -5,18 +5,19 @@
 import type { Network } from "@babylonlabs-io/babylon-tbv-rust-wasm";
 import { beforeAll, describe, expect, it } from "vitest";
 
+import * as bitcoin from "bitcoinjs-lib";
+
 import {
   buildPrePeginPsbt,
   buildPeginTxFromFundedPrePegin,
+  SINGLE_DEPOSIT_HTLC_VOUT,
   type PrePeginParams,
 } from "../pegin";
+import { fundPeginTransaction } from "../../../utils/transaction/fundPeginTransaction";
 import { TEST_AMOUNTS, TEST_KEYS, initializeWasmForTests } from "./helpers";
 
 // Deterministic SHA256 hash commitment (64 hex chars = 32 bytes)
 const TEST_HASH_H = "ab".repeat(32);
-
-// A fake funded Pre-PegIn txid (64 hex chars)
-const TEST_FUNDED_TXID = "cafe".repeat(16);
 
 const TEST_TIMELOCK_REFUND = 50;
 const TEST_TIMELOCK_PEGIN = 100;
@@ -29,7 +30,7 @@ function makePrePeginParams(overrides?: Partial<PrePeginParams>): PrePeginParams
     vaultProviderPubkey: TEST_KEYS.VAULT_PROVIDER,
     vaultKeeperPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
     universalChallengerPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
-    hashH: TEST_HASH_H,
+    hashlocks: [TEST_HASH_H],
     timelockRefund: TEST_TIMELOCK_REFUND,
     pegInAmount: TEST_AMOUNTS.PEGIN,
     feeRate: 10n,
@@ -160,12 +161,12 @@ describe("buildPrePeginPsbt", () => {
       expect(result1.htlcAddress).not.toBe(result2.htlcAddress);
     });
 
-    it("should produce different output for different hashH values", async () => {
+    it("should produce different output for different hashlocks values", async () => {
       const result1 = await buildPrePeginPsbt(
-        makePrePeginParams({ hashH: "ab".repeat(32) }),
+        makePrePeginParams({ hashlocks: ["ab".repeat(32)] }),
       );
       const result2 = await buildPrePeginPsbt(
-        makePrePeginParams({ hashH: "cd".repeat(32) }),
+        makePrePeginParams({ hashlocks: ["cd".repeat(32)] }),
       );
 
       expect(result1.htlcScriptPubKey).not.toBe(result2.htlcScriptPubKey);
@@ -228,14 +229,40 @@ describe("buildPeginTxFromFundedPrePegin", () => {
     await initializeWasmForTests();
   });
 
+  // Helper: build an unfunded Pre-PegIn tx, then fund it with a fake UTXO
+  // so fromFundedTransaction gets a valid tx with at least one input.
+  async function buildFundedPrePeginTxHex(overrides?: Partial<PrePeginParams>) {
+    const params = makePrePeginParams(overrides);
+    const result = await buildPrePeginPsbt(params);
+
+    // Fund the unfunded tx with a fake UTXO that covers totalOutputValue
+    const fundedTxHex = fundPeginTransaction({
+      unfundedTxHex: result.psbtHex,
+      selectedUTXOs: [
+        {
+          txid: "aa".repeat(32),
+          vout: 0,
+          value: Number(result.totalOutputValue + 10_000n),
+          scriptPubKey: "0014" + "bb".repeat(20),
+        },
+      ],
+      changeAddress: "tb1qw508d6qejxtdg4y5r3zarvary0c5xw7kxpjzsx",
+      changeAmount: 10_000n,
+      network: bitcoin.networks.testnet,
+    });
+
+    return { txHex: fundedTxHex, params };
+  }
+
   describe("Basic functionality", () => {
-    it("should build a valid PegIn transaction from a funded Pre-PegIn txid", async () => {
-      const prePeginParams = makePrePeginParams();
+    it("should build a valid PegIn transaction from a funded Pre-PegIn tx hex", async () => {
+      const { txHex, params } = await buildFundedPrePeginTxHex();
 
       const result = await buildPeginTxFromFundedPrePegin({
-        prePeginParams,
+        prePeginParams: params,
         timelockPegin: TEST_TIMELOCK_PEGIN,
-        fundedPrePeginTxid: TEST_FUNDED_TXID,
+        fundedPrePeginTxHex: txHex,
+        htlcVout: SINGLE_DEPOSIT_HTLC_VOUT,
       });
 
       expect(result).toHaveProperty("txHex");
@@ -254,39 +281,46 @@ describe("buildPeginTxFromFundedPrePegin", () => {
       expect(result.vaultValue).toBeGreaterThan(0n);
     });
 
-    it("should embed fundedPrePeginTxid as the input reference", async () => {
-      const prePeginParams = makePrePeginParams();
+    it("should embed fundedPrePeginTxHex as the input reference", async () => {
+      const { txHex: txHex1, params: params1 } = await buildFundedPrePeginTxHex();
+      const { txHex: txHex2, params: params2 } = await buildFundedPrePeginTxHex({
+        hashlocks: ["cd".repeat(32)],
+      });
 
       const result1 = await buildPeginTxFromFundedPrePegin({
-        prePeginParams,
+        prePeginParams: params1,
         timelockPegin: TEST_TIMELOCK_PEGIN,
-        fundedPrePeginTxid: TEST_FUNDED_TXID,
+        fundedPrePeginTxHex: txHex1,
+        htlcVout: SINGLE_DEPOSIT_HTLC_VOUT,
       });
 
       const result2 = await buildPeginTxFromFundedPrePegin({
-        prePeginParams,
+        prePeginParams: params2,
         timelockPegin: TEST_TIMELOCK_PEGIN,
-        fundedPrePeginTxid: "dead".repeat(16), // Different txid
+        fundedPrePeginTxHex: txHex2,
+        htlcVout: SINGLE_DEPOSIT_HTLC_VOUT,
       });
 
-      // Different Pre-PegIn txids produce different PegIn txids
+      // Different Pre-PegIn transactions produce different PegIn txids
       expect(result1.txid).not.toBe(result2.txid);
       expect(result1.txHex).not.toBe(result2.txHex);
     });
 
     it("should produce the same vaultScriptPubKey for same depositor and keepers", async () => {
-      const prePeginParams = makePrePeginParams();
+      const { txHex, params } = await buildFundedPrePeginTxHex();
 
       const result1 = await buildPeginTxFromFundedPrePegin({
-        prePeginParams,
+        prePeginParams: params,
         timelockPegin: TEST_TIMELOCK_PEGIN,
-        fundedPrePeginTxid: TEST_FUNDED_TXID,
+        fundedPrePeginTxHex: txHex,
+        htlcVout: SINGLE_DEPOSIT_HTLC_VOUT,
       });
 
       const result2 = await buildPeginTxFromFundedPrePegin({
-        prePeginParams,
+        prePeginParams: params,
         timelockPegin: TEST_TIMELOCK_PEGIN,
-        fundedPrePeginTxid: TEST_FUNDED_TXID,
+        fundedPrePeginTxHex: txHex,
+        htlcVout: SINGLE_DEPOSIT_HTLC_VOUT,
       });
 
       expect(result1.txid).toBe(result2.txid);
@@ -295,18 +329,23 @@ describe("buildPeginTxFromFundedPrePegin", () => {
     });
 
     it("should produce different vaultScriptPubKey for different depositors", async () => {
+      const { txHex: txHex1, params: params1 } = await buildFundedPrePeginTxHex();
+      const { txHex: txHex2, params: params2 } = await buildFundedPrePeginTxHex({
+        depositorPubkey: TEST_KEYS.VAULT_PROVIDER,
+      });
+
       const result1 = await buildPeginTxFromFundedPrePegin({
-        prePeginParams: makePrePeginParams(),
+        prePeginParams: params1,
         timelockPegin: TEST_TIMELOCK_PEGIN,
-        fundedPrePeginTxid: TEST_FUNDED_TXID,
+        fundedPrePeginTxHex: txHex1,
+        htlcVout: SINGLE_DEPOSIT_HTLC_VOUT,
       });
 
       const result2 = await buildPeginTxFromFundedPrePegin({
-        prePeginParams: makePrePeginParams({
-          depositorPubkey: TEST_KEYS.VAULT_PROVIDER,
-        }),
+        prePeginParams: params2,
         timelockPegin: TEST_TIMELOCK_PEGIN,
-        fundedPrePeginTxid: TEST_FUNDED_TXID,
+        fundedPrePeginTxHex: txHex2,
+        htlcVout: SINGLE_DEPOSIT_HTLC_VOUT,
       });
 
       expect(result1.vaultScriptPubKey).not.toBe(result2.vaultScriptPubKey);
@@ -314,18 +353,20 @@ describe("buildPeginTxFromFundedPrePegin", () => {
     });
 
     it("should produce different results for different timelockPegin", async () => {
-      const prePeginParams = makePrePeginParams();
+      const { txHex, params } = await buildFundedPrePeginTxHex();
 
       const result1 = await buildPeginTxFromFundedPrePegin({
-        prePeginParams,
+        prePeginParams: params,
         timelockPegin: 100,
-        fundedPrePeginTxid: TEST_FUNDED_TXID,
+        fundedPrePeginTxHex: txHex,
+        htlcVout: SINGLE_DEPOSIT_HTLC_VOUT,
       });
 
       const result2 = await buildPeginTxFromFundedPrePegin({
-        prePeginParams,
+        prePeginParams: params,
         timelockPegin: 200,
-        fundedPrePeginTxid: TEST_FUNDED_TXID,
+        fundedPrePeginTxHex: txHex,
+        htlcVout: SINGLE_DEPOSIT_HTLC_VOUT,
       });
 
       expect(result1.vaultScriptPubKey).not.toBe(result2.vaultScriptPubKey);

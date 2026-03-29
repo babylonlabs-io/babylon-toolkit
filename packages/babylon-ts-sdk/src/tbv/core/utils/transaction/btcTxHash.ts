@@ -15,7 +15,7 @@ import type { Hex } from "viem";
  * 1. Double SHA256 the transaction bytes
  * 2. Reverse the byte order (Bitcoin convention)
  *
- * The resulting hash is used as the unique vault identifier in the BTCVaultsManager contract.
+ * The resulting hash is used as the unique vault identifier in the BTCVaultRegistry contract.
  *
  * @param txHex - Transaction hex (with or without 0x prefix)
  * @returns The transaction hash as Hex (with 0x prefix)

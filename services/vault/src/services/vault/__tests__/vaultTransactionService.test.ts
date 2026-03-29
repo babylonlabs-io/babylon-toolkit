@@ -12,7 +12,7 @@ const { mockPreparePegin, MockPeginManager } = vi.hoisted(() => {
   const mockPreparePegin = vi.fn();
 
   class MockPeginManager {
-    prepareAtomicPegin = mockPreparePegin;
+    preparePegin = mockPreparePegin;
   }
 
   return { mockPreparePegin, MockPeginManager };
@@ -45,7 +45,7 @@ vi.mock("../../../config/pegin", () => ({
 
 vi.mock("../../../config/contracts", () => ({
   CONTRACTS: {
-    BTC_VAULTS_MANAGER: "0xcontract",
+    BTC_VAULT_REGISTRY: "0xcontract",
   },
 }));
 

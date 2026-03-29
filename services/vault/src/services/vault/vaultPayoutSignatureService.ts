@@ -278,7 +278,7 @@ export async function prepareSigningContext(
 
   // Fetch versioned vault keepers (per-application)
   const vaultKeepers = await fetchVaultKeepersByVersion(
-    vault.applicationController,
+    vault.applicationEntryPoint,
     vault.appVaultKeepersVersion,
   );
 

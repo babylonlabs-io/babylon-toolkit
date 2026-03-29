@@ -44,6 +44,20 @@ import { decrypt, encrypt } from "@metamask/browser-passworder";
 import { logger } from "@/infrastructure";
 import { stripHexPrefix } from "@/utils/btc";
 
+/**
+ * Error thrown when the vault integrity check fails, indicating that
+ * vault data in localStorage may have been tampered with.
+ */
+export class VaultTamperingError extends Error {
+  constructor() {
+    super(
+      "Vault integrity check failed — data may have been tampered with. " +
+        "Clear the vault and re-import your mnemonic.",
+    );
+    this.name = "VaultTamperingError";
+  }
+}
+
 /** Base localStorage key where the encrypted vault is stored. */
 const STORAGE_KEY = "babylon-lamport-vault";
 
@@ -86,6 +100,17 @@ interface MultiMnemonicVault {
    * call. `null` when the vault has no entries yet.
    */
   passwordCheck: string | null;
+  /**
+   * Encrypted SHA-256 hash of the canonical vault payload, used to
+   * detect tampering of structural fields (mnemonics, activeMnemonicId,
+   * passwordCheck). `null` for legacy vaults created before this field
+   * was introduced.
+   *
+   * Note: `peginMap` is excluded from the integrity hash because
+   * {@link linkPeginToMnemonic} writes to it without the password.
+   * peginMap tampering is a recoverable DoS (VP rejects wrong key).
+   */
+  integrityTag: string | null;
 }
 
 /**
@@ -132,6 +157,80 @@ function safeRemoveItem(key: string): void {
 }
 
 /**
+ * Compute the SHA-256 hex digest of a string using the Web Crypto API.
+ */
+async function sha256Hex(data: string): Promise<string> {
+  const encoded = new TextEncoder().encode(data);
+  const hashBuffer = await crypto.subtle.digest("SHA-256", encoded);
+  const bytes = new Uint8Array(hashBuffer);
+  let hex = "";
+  for (const b of bytes) {
+    hex += b.toString(16).padStart(2, "0");
+  }
+  return hex;
+}
+
+/**
+ * Produce a deterministic JSON string of the vault fields covered by
+ * the integrity tag. Key order is fixed by constructing a fresh object.
+ *
+ * `peginMap` is deliberately excluded — see {@link MultiMnemonicVault.integrityTag}.
+ */
+function canonicalVaultPayload(vault: MultiMnemonicVault): string {
+  return JSON.stringify({
+    mnemonics: vault.mnemonics.map((m) => ({
+      id: m.id,
+      encrypted: m.encrypted,
+    })),
+    activeMnemonicId: vault.activeMnemonicId,
+    passwordCheck: vault.passwordCheck,
+  });
+}
+
+/**
+ * Compute an integrity tag for the vault by hashing the canonical
+ * payload and encrypting the hash with the vault password.
+ */
+async function computeIntegrityTag(
+  vault: MultiMnemonicVault,
+  password: string,
+): Promise<string> {
+  const hash = await sha256Hex(canonicalVaultPayload(vault));
+  return encrypt(password, hash);
+}
+
+/**
+ * Verify the vault's integrity tag. Throws {@link VaultTamperingError}
+ * if the stored tag does not match the current vault state.
+ *
+ * Skips verification for legacy vaults where `integrityTag` is `null`.
+ */
+async function verifyIntegrityTag(
+  vault: MultiMnemonicVault,
+  password: string,
+): Promise<void> {
+  if (vault.integrityTag === null) return;
+
+  let storedHash: unknown;
+  try {
+    storedHash = await decrypt(password, vault.integrityTag);
+  } catch {
+    // If passwordCheck is absent (pre-passwordCheck vault), we cannot
+    // distinguish a wrong password from actual tampering — surface as
+    // a password error to avoid misleading the user.
+    if (!vault.passwordCheck) {
+      throw new Error("Incorrect vault password");
+    }
+    throw new VaultTamperingError();
+  }
+
+  const expectedHash = await sha256Hex(canonicalVaultPayload(vault));
+  if (storedHash !== expectedHash) {
+    throw new VaultTamperingError();
+  }
+}
+
+/**
  * Generate a random UUID (v4) for use as a mnemonic entry identifier.
  *
  * @returns A new UUID string.
@@ -148,12 +247,49 @@ function generateId(): string {
  * @returns `true` if the value has a `mnemonics` array.
  */
 function isMultiVault(parsed: unknown): parsed is MultiMnemonicVault {
-  return (
-    typeof parsed === "object" &&
-    parsed !== null &&
-    "mnemonics" in parsed &&
-    Array.isArray((parsed as Record<string, unknown>).mnemonics)
-  );
+  if (typeof parsed !== "object" || parsed === null) return false;
+  const obj = parsed as Record<string, unknown>;
+
+  // Must have mnemonics array
+  if (!Array.isArray(obj.mnemonics)) return false;
+
+  // Each entry must have id (string) and encrypted (string)
+  for (const entry of obj.mnemonics as unknown[]) {
+    if (typeof entry !== "object" || entry === null) return false;
+    const e = entry as Record<string, unknown>;
+    if (typeof e.id !== "string" || typeof e.encrypted !== "string") {
+      return false;
+    }
+  }
+
+  // peginMap must be a plain object (not null, not array)
+  if (
+    typeof obj.peginMap !== "object" ||
+    obj.peginMap === null ||
+    Array.isArray(obj.peginMap)
+  ) {
+    return false;
+  }
+
+  // activeMnemonicId: string | null
+  if (
+    obj.activeMnemonicId !== null &&
+    obj.activeMnemonicId !== undefined &&
+    typeof obj.activeMnemonicId !== "string"
+  ) {
+    return false;
+  }
+
+  // passwordCheck: string | null
+  if (
+    obj.passwordCheck !== null &&
+    obj.passwordCheck !== undefined &&
+    typeof obj.passwordCheck !== "string"
+  ) {
+    return false;
+  }
+
+  return true;
 }
 
 /**
@@ -173,11 +309,16 @@ function readVault(scope?: string): MultiMnemonicVault | null {
     return null;
   }
 
-  if (isMultiVault(parsed)) {
-    return parsed;
-  }
+  if (!isMultiVault(parsed)) return null;
 
-  return null;
+  // Normalize integrityTag for legacy vaults that predate this field
+  return {
+    mnemonics: parsed.mnemonics,
+    peginMap: parsed.peginMap,
+    activeMnemonicId: parsed.activeMnemonicId ?? null,
+    passwordCheck: parsed.passwordCheck ?? null,
+    integrityTag: parsed.integrityTag ?? null,
+  };
 }
 
 /**
@@ -201,6 +342,7 @@ function emptyVault(): MultiMnemonicVault {
     peginMap: {},
     activeMnemonicId: null,
     passwordCheck: null,
+    integrityTag: null,
   };
 }
 
@@ -267,11 +409,15 @@ export async function addMnemonic(
     }
   }
 
+  // Verify integrity before trusting vault contents
+  await verifyIntegrityTag(vault, password);
+
   for (const entry of vault.mnemonics) {
     try {
       const existing = await decryptEntry(entry, password);
       if (existing === mnemonic) {
         vault.activeMnemonicId = entry.id;
+        vault.integrityTag = await computeIntegrityTag(vault, password);
         writeVault(vault, scope);
         return entry.id;
       }
@@ -290,6 +436,7 @@ export async function addMnemonic(
   const encrypted = await encrypt(password, { mnemonic });
   vault.mnemonics.push({ id, encrypted });
   vault.activeMnemonicId = id;
+  vault.integrityTag = await computeIntegrityTag(vault, password);
   writeVault(vault, scope);
   return id;
 }
@@ -319,6 +466,19 @@ export async function unlockMnemonic(
     throw new Error("No stored mnemonic found");
   }
 
+  // Verify password before integrity check so a wrong password
+  // throws "Incorrect vault password" rather than VaultTamperingError
+  if (vault.passwordCheck) {
+    try {
+      await decrypt(password, vault.passwordCheck);
+    } catch {
+      throw new Error("Incorrect vault password");
+    }
+  }
+
+  // Verify integrity before trusting vault contents
+  await verifyIntegrityTag(vault, password);
+
   const targetId = mnemonicId ?? vault.activeMnemonicId;
   const entry = targetId
     ? vault.mnemonics.find((m) => m.id === targetId)
@@ -328,7 +488,17 @@ export async function unlockMnemonic(
     throw new Error("Mnemonic not found in vault");
   }
 
-  return decryptEntry(entry, password);
+  const result = await decryptEntry(entry, password);
+
+  // Migrate legacy vaults AFTER confirming the password is correct
+  // (decryptEntry succeeded). Writing before would brick the vault if
+  // a wrong password is supplied on a passwordCheck-less vault.
+  if (vault.integrityTag === null) {
+    vault.integrityTag = await computeIntegrityTag(vault, password);
+    writeVault(vault, scope);
+  }
+
+  return result;
 }
 
 /**

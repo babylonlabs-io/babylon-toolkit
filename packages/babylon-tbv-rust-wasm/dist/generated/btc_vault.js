@@ -936,16 +936,16 @@ export class WasmPrePeginHtlcConnector {
      * * `vault_provider` - Hex-encoded vault provider public key (64 chars)
      * * `vault_keepers` - Array of hex-encoded vault keeper public keys
      * * `universal_challengers` - Array of hex-encoded universal challenger public keys
-     * * `hash_h` - Hex-encoded SHA256 hash commitment (64 hex chars = 32 bytes)
+     * * `hashlock` - Hex-encoded SHA256 hash commitment (64 hex chars = 32 bytes)
      * * `timelock_refund` - CSV timelock for the refund path (must be non-zero)
      * @param {string} depositor
      * @param {string} vault_provider
      * @param {string[]} vault_keepers
      * @param {string[]} universal_challengers
-     * @param {string} hash_h
+     * @param {string} hashlock
      * @param {number} timelock_refund
      */
-    constructor(depositor, vault_provider, vault_keepers, universal_challengers, hash_h, timelock_refund) {
+    constructor(depositor, vault_provider, vault_keepers, universal_challengers, hashlock, timelock_refund) {
         const ptr0 = passStringToWasm0(depositor, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len0 = WASM_VECTOR_LEN;
         const ptr1 = passStringToWasm0(vault_provider, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
@@ -954,7 +954,7 @@ export class WasmPrePeginHtlcConnector {
         const len2 = WASM_VECTOR_LEN;
         const ptr3 = passArrayJsValueToWasm0(universal_challengers, wasm.__wbindgen_malloc);
         const len3 = WASM_VECTOR_LEN;
-        const ptr4 = passStringToWasm0(hash_h, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const ptr4 = passStringToWasm0(hashlock, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len4 = WASM_VECTOR_LEN;
         const ret = wasm.wasmprepeginhtlcconnector_new(ptr0, len0, ptr1, len1, ptr2, len2, ptr3, len3, ptr4, len4, timelock_refund);
         if (ret[2]) {
@@ -974,6 +974,13 @@ if (Symbol.dispose) WasmPrePeginHtlcConnector.prototype[Symbol.dispose] = WasmPr
  * Also serves as the entry point for deriving the PegIn and refund transactions.
  */
 export class WasmPrePeginTx {
+    static __wrap(ptr) {
+        ptr = ptr >>> 0;
+        const obj = Object.create(WasmPrePeginTx.prototype);
+        obj.__wbg_ptr = ptr;
+        WasmPrePeginTxFinalization.register(obj, obj.__wbg_ptr, obj);
+        return obj;
+    }
     __destroy_into_raw() {
         const ptr = this.__wbg_ptr;
         this.__wbg_ptr = 0;
@@ -985,65 +992,92 @@ export class WasmPrePeginTx {
         wasm.__wbg_wasmprepegintx_free(ptr, 0);
     }
     /**
-     * Builds the PegIn transaction that spends this Pre-PegIn's HTLC output.
+     * Builds the PegIn transaction that spends a Pre-PegIn HTLC output.
      *
-     * The resulting transaction has a single input spending Pre-PegIn output 0
-     * via the hashlock + all-party script (leaf 0). The fee is baked into the
-     * HTLC input/output difference.
+     * The resulting transaction has a single input spending the HTLC at
+     * `htlc_vout` via the hashlock + all-party script (leaf 0). The fee is
+     * baked into the HTLC input/output difference.
      *
-     * Since Pre-PegIn inputs are required to be non-legacy (SegWit/Taproot),
-     * the txid is stable after funding — signing does not change it.
+     * **Important:** This must be called on a funded `WasmPrePeginTx` (created
+     * via `fromFundedTransaction`) so the PegIn input references the correct
+     * Pre-PegIn txid.
      *
      * # Arguments
      *
      * * `timelock_pegin` - CSV timelock (P = t3) in blocks for the PegIn output
-     * * `funded_prepegin_txid` - Hex-encoded txid of the funded Pre-PegIn transaction
+     * * `htlc_vout` - Index of the HTLC output within the Pre-PegIn transaction
      * @param {number} timelock_pegin
-     * @param {string} funded_prepegin_txid
+     * @param {number} htlc_vout
      * @returns {WasmPeginTx}
      */
-    buildPeginTx(timelock_pegin, funded_prepegin_txid) {
-        const ptr0 = passStringToWasm0(funded_prepegin_txid, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-        const len0 = WASM_VECTOR_LEN;
-        const ret = wasm.wasmprepegintx_buildPeginTx(this.__wbg_ptr, timelock_pegin, ptr0, len0);
+    buildPeginTx(timelock_pegin, htlc_vout) {
+        const ret = wasm.wasmprepegintx_buildPeginTx(this.__wbg_ptr, timelock_pegin, htlc_vout);
         if (ret[2]) {
             throw takeFromExternrefTable0(ret[1]);
         }
         return WasmPeginTx.__wrap(ret[0]);
     }
     /**
-     * Builds an unsigned refund transaction that spends this Pre-PegIn's HTLC
+     * Builds an unsigned refund transaction that spends a Pre-PegIn HTLC
      * output via the refund script (leaf 1) after the timelock expires.
      *
      * The depositor signs this externally via their wallet.
      *
+     * **Important:** This must be called on a funded `WasmPrePeginTx` (created
+     * via `fromFundedTransaction`) so the refund input references the correct
+     * Pre-PegIn txid.
+     *
      * # Arguments
      *
      * * `refund_fee` - Transaction fee in satoshis
-     * * `funded_prepegin_txid` - Hex-encoded txid of the funded Pre-PegIn transaction
+     * * `htlc_vout` - Index of the HTLC output within the Pre-PegIn transaction
      * @param {bigint} refund_fee
-     * @param {string} funded_prepegin_txid
+     * @param {number} htlc_vout
      * @returns {string}
      */
-    buildRefundTx(refund_fee, funded_prepegin_txid) {
-        let deferred3_0;
-        let deferred3_1;
+    buildRefundTx(refund_fee, htlc_vout) {
+        let deferred2_0;
+        let deferred2_1;
         try {
-            const ptr0 = passStringToWasm0(funded_prepegin_txid, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-            const len0 = WASM_VECTOR_LEN;
-            const ret = wasm.wasmprepegintx_buildRefundTx(this.__wbg_ptr, refund_fee, ptr0, len0);
-            var ptr2 = ret[0];
-            var len2 = ret[1];
+            const ret = wasm.wasmprepegintx_buildRefundTx(this.__wbg_ptr, refund_fee, htlc_vout);
+            var ptr1 = ret[0];
+            var len1 = ret[1];
             if (ret[3]) {
-                ptr2 = 0; len2 = 0;
+                ptr1 = 0; len1 = 0;
                 throw takeFromExternrefTable0(ret[2]);
             }
-            deferred3_0 = ptr2;
-            deferred3_1 = len2;
-            return getStringFromWasm0(ptr2, len2);
+            deferred2_0 = ptr1;
+            deferred2_1 = len1;
+            return getStringFromWasm0(ptr1, len1);
         } finally {
-            wasm.__wbindgen_free(deferred3_0, deferred3_1, 1);
+            wasm.__wbindgen_free(deferred2_0, deferred2_1, 1);
         }
+    }
+    /**
+     * Reconstructs a `WasmPrePeginTx` from a funded Pre-PegIn transaction.
+     *
+     * Call this after the depositor's wallet has funded the unfunded Pre-PegIn
+     * (adding inputs). The resulting object has the correct txid and can be
+     * used directly with `buildPeginTx` / `buildRefundTx`.
+     *
+     * # Arguments
+     *
+     * * `funded_tx_hex` - Hex-encoded funded Pre-PegIn transaction bytes
+     * * `pegin_amount` - Amount in satoshis to lock in each vault
+     * * `depositor_claim_value` - Amount in satoshis for the depositor's claim output
+     * @param {string} funded_tx_hex
+     * @param {bigint} pegin_amount
+     * @param {bigint} depositor_claim_value
+     * @returns {WasmPrePeginTx}
+     */
+    fromFundedTransaction(funded_tx_hex, pegin_amount, depositor_claim_value) {
+        const ptr0 = passStringToWasm0(funded_tx_hex, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.wasmprepegintx_fromFundedTransaction(this.__wbg_ptr, ptr0, len0, pegin_amount, depositor_claim_value);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return WasmPrePeginTx.__wrap(ret[0]);
     }
     /**
      * Returns the depositor claim value in satoshis.
@@ -1055,43 +1089,69 @@ export class WasmPrePeginTx {
     }
     /**
      * Returns the HTLC Taproot address.
+     * @param {number} htlc_vout
      * @returns {string}
      */
-    getHtlcAddress() {
-        let deferred1_0;
-        let deferred1_1;
+    getHtlcAddress(htlc_vout) {
+        let deferred2_0;
+        let deferred2_1;
         try {
-            const ret = wasm.wasmprepegintx_getHtlcAddress(this.__wbg_ptr);
-            deferred1_0 = ret[0];
-            deferred1_1 = ret[1];
-            return getStringFromWasm0(ret[0], ret[1]);
+            const ret = wasm.wasmprepegintx_getHtlcAddress(this.__wbg_ptr, htlc_vout);
+            var ptr1 = ret[0];
+            var len1 = ret[1];
+            if (ret[3]) {
+                ptr1 = 0; len1 = 0;
+                throw takeFromExternrefTable0(ret[2]);
+            }
+            deferred2_0 = ptr1;
+            deferred2_1 = len1;
+            return getStringFromWasm0(ptr1, len1);
         } finally {
-            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+            wasm.__wbindgen_free(deferred2_0, deferred2_1, 1);
         }
     }
     /**
      * Returns the HTLC output scriptPubKey as hex.
+     * @param {number} htlc_vout
      * @returns {string}
      */
-    getHtlcScriptPubKey() {
-        let deferred1_0;
-        let deferred1_1;
+    getHtlcScriptPubKey(htlc_vout) {
+        let deferred2_0;
+        let deferred2_1;
         try {
-            const ret = wasm.wasmprepegintx_getHtlcScriptPubKey(this.__wbg_ptr);
-            deferred1_0 = ret[0];
-            deferred1_1 = ret[1];
-            return getStringFromWasm0(ret[0], ret[1]);
+            const ret = wasm.wasmprepegintx_getHtlcScriptPubKey(this.__wbg_ptr, htlc_vout);
+            var ptr1 = ret[0];
+            var len1 = ret[1];
+            if (ret[3]) {
+                ptr1 = 0; len1 = 0;
+                throw takeFromExternrefTable0(ret[2]);
+            }
+            deferred2_0 = ptr1;
+            deferred2_1 = len1;
+            return getStringFromWasm0(ptr1, len1);
         } finally {
-            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+            wasm.__wbindgen_free(deferred2_0, deferred2_1, 1);
         }
     }
     /**
      * Returns the HTLC output value in satoshis.
+     * @param {number} htlc_vout
      * @returns {bigint}
      */
-    getHtlcValue() {
-        const ret = wasm.wasmprepegintx_getHtlcValue(this.__wbg_ptr);
-        return BigInt.asUintN(64, ret);
+    getHtlcValue(htlc_vout) {
+        const ret = wasm.wasmprepegintx_getHtlcValue(this.__wbg_ptr, htlc_vout);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return BigInt.asUintN(64, ret[0]);
+    }
+    /**
+     * Returns the number of HTLC outputs in this Pre-PegIn transaction.
+     * @returns {number}
+     */
+    getNumHtlcs() {
+        const ret = wasm.wasmprepegintx_getNumHtlcs(this.__wbg_ptr);
+        return ret >>> 0;
     }
     /**
      * Returns the pegin amount in satoshis.
@@ -1130,9 +1190,11 @@ export class WasmPrePeginTx {
      * * `vault_provider` - Hex-encoded vault provider public key (64 chars)
      * * `vault_keepers` - Array of hex-encoded vault keeper public keys
      * * `universal_challengers` - Array of hex-encoded universal challenger public keys
-     * * `hash_h` - Hex-encoded SHA256 hash commitment (64 hex chars = 32 bytes)
+     * * `hashlocks` - Array of hex-encoded SHA256 hash commitments (64 hex chars each).
+     *   One per HTLC output. For a single deposit pass one hashlock; for batched
+     *   deposits pass multiple.
      * * `timelock_refund` - CSV timelock for the refund path (must be non-zero)
-     * * `pegin_amount` - Amount in satoshis to lock in the vault
+     * * `pegin_amount` - Amount in satoshis to lock in each vault
      * * `fee_rate` - Fee rate in sat/vB (from contract offchain params)
      * * `num_local_challengers` - Number of local challengers (from contract params)
      * * `council_quorum` - M in M-of-N council multisig (from contract params)
@@ -1142,7 +1204,7 @@ export class WasmPrePeginTx {
      * @param {string} vault_provider
      * @param {string[]} vault_keepers
      * @param {string[]} universal_challengers
-     * @param {string} hash_h
+     * @param {string[]} hashlocks
      * @param {number} timelock_refund
      * @param {bigint} pegin_amount
      * @param {bigint} fee_rate
@@ -1151,7 +1213,7 @@ export class WasmPrePeginTx {
      * @param {number} council_size
      * @param {string} network
      */
-    constructor(depositor, vault_provider, vault_keepers, universal_challengers, hash_h, timelock_refund, pegin_amount, fee_rate, num_local_challengers, council_quorum, council_size, network) {
+    constructor(depositor, vault_provider, vault_keepers, universal_challengers, hashlocks, timelock_refund, pegin_amount, fee_rate, num_local_challengers, council_quorum, council_size, network) {
         const ptr0 = passStringToWasm0(depositor, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len0 = WASM_VECTOR_LEN;
         const ptr1 = passStringToWasm0(vault_provider, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
@@ -1160,7 +1222,7 @@ export class WasmPrePeginTx {
         const len2 = WASM_VECTOR_LEN;
         const ptr3 = passArrayJsValueToWasm0(universal_challengers, wasm.__wbindgen_malloc);
         const len3 = WASM_VECTOR_LEN;
-        const ptr4 = passStringToWasm0(hash_h, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const ptr4 = passArrayJsValueToWasm0(hashlocks, wasm.__wbindgen_malloc);
         const len4 = WASM_VECTOR_LEN;
         const ptr5 = passStringToWasm0(network, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len5 = WASM_VECTOR_LEN;
@@ -1223,7 +1285,10 @@ if (Symbol.dispose) WasmPrePeginTx.prototype[Symbol.dispose] = WasmPrePeginTx.pr
  */
 export function computeMinClaimValue(num_local_challengers, num_universal_challengers, council_quorum, council_size, fee_rate) {
     const ret = wasm.computeMinClaimValue(num_local_challengers, num_universal_challengers, council_quorum, council_size, fee_rate);
-    return BigInt.asUintN(64, ret);
+    if (ret[2]) {
+        throw takeFromExternrefTable0(ret[1]);
+    }
+    return BigInt.asUintN(64, ret[0]);
 }
 
 /**
@@ -1252,6 +1317,13 @@ export function numUtxosForInputLabels() {
 function __wbg_get_imports() {
     const import0 = {
         __proto__: null,
+        __wbg___wbindgen_debug_string_5398f5bb970e0daa: function(arg0, arg1) {
+            const ret = debugString(arg1);
+            const ptr1 = passStringToWasm0(ret, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+            const len1 = WASM_VECTOR_LEN;
+            getDataViewMemory0().setInt32(arg0 + 4 * 1, len1, true);
+            getDataViewMemory0().setInt32(arg0 + 4 * 0, ptr1, true);
+        },
         __wbg___wbindgen_string_get_395e606bd0ee4427: function(arg0, arg1) {
             const obj = arg1;
             const ret = typeof(obj) === 'string' ? obj : undefined;
@@ -1332,6 +1404,71 @@ function addToExternrefTable0(obj) {
     const idx = wasm.__externref_table_alloc();
     wasm.__wbindgen_externrefs.set(idx, obj);
     return idx;
+}
+
+function debugString(val) {
+    // primitive types
+    const type = typeof val;
+    if (type == 'number' || type == 'boolean' || val == null) {
+        return  `${val}`;
+    }
+    if (type == 'string') {
+        return `"${val}"`;
+    }
+    if (type == 'symbol') {
+        const description = val.description;
+        if (description == null) {
+            return 'Symbol';
+        } else {
+            return `Symbol(${description})`;
+        }
+    }
+    if (type == 'function') {
+        const name = val.name;
+        if (typeof name == 'string' && name.length > 0) {
+            return `Function(${name})`;
+        } else {
+            return 'Function';
+        }
+    }
+    // objects
+    if (Array.isArray(val)) {
+        const length = val.length;
+        let debug = '[';
+        if (length > 0) {
+            debug += debugString(val[0]);
+        }
+        for(let i = 1; i < length; i++) {
+            debug += ', ' + debugString(val[i]);
+        }
+        debug += ']';
+        return debug;
+    }
+    // Test for built-in
+    const builtInMatches = /\[object ([^\]]+)\]/.exec(toString.call(val));
+    let className;
+    if (builtInMatches && builtInMatches.length > 1) {
+        className = builtInMatches[1];
+    } else {
+        // Failed to match the standard '[object ClassName]'
+        return toString.call(val);
+    }
+    if (className == 'Object') {
+        // we're a user defined class or Object
+        // JSON.stringify avoids problems with cycles, and is generally much
+        // easier than looping through ownProperties of `val`.
+        try {
+            return 'Object(' + JSON.stringify(val) + ')';
+        } catch (_) {
+            return 'Object';
+        }
+    }
+    // errors
+    if (val instanceof Error) {
+        return `${val.name}: ${val.message}\n${val.stack}`;
+    }
+    // TODO we could test for more things here, like `Set`s and `Map`s.
+    return className;
 }
 
 let cachedDataViewMemory0 = null;

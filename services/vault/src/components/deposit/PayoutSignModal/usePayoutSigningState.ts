@@ -80,7 +80,7 @@ export function usePayoutSigningState({
   const [error, setError] = useState<SigningError | null>(null);
 
   const { findProvider, vaultKeepers } = useVaultProviders(
-    activity.applicationController,
+    activity.applicationEntryPoint,
   );
   const {
     latestUniversalChallengers,

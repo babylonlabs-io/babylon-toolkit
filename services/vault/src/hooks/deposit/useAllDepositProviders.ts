@@ -2,7 +2,7 @@
  * Hook to fetch vault providers for all applications present in deposits
  *
  * Since deposits can belong to different applications, this hook:
- * 1. Extracts unique applicationController addresses from activities
+ * 1. Extracts unique applicationEntryPoint addresses from activities
  * 2. Fetches providers for each application in parallel
  * 3. Merges results into a single flat list
  *
@@ -48,11 +48,11 @@ export function useAllDepositProviders(
   activities: VaultActivity[],
 ): UseAllDepositProvidersResult {
   // Step 1: Extract unique application controllers from activities
-  const applicationControllers = useMemo(() => {
+  const applicationEntryPoints = useMemo(() => {
     const controllers = new Set<string>();
     for (const activity of activities) {
-      if (activity.applicationController) {
-        controllers.add(activity.applicationController);
+      if (activity.applicationEntryPoint) {
+        controllers.add(activity.applicationEntryPoint);
       }
     }
     return Array.from(controllers);
@@ -60,7 +60,7 @@ export function useAllDepositProviders(
 
   // Step 2: Fetch providers for each application in parallel
   const queries = useQueries({
-    queries: applicationControllers.map((appController) => ({
+    queries: applicationEntryPoints.map((appController) => ({
       queryKey: ["providers", appController],
       queryFn: () => fetchAppProviders(appController),
       staleTime: PROVIDER_STALE_TIME_MS,

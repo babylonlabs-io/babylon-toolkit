@@ -1,7 +1,7 @@
 /**
- * BTCVaultsManager On-Chain Query Client
+ * BTCVaultRegistry On-Chain Query Client
  *
- * Reads vault state directly from the BTCVaultsManager contract.
+ * Reads vault state directly from the BTCVaultRegistry contract.
  * Use this for signing-critical data that must not be sourced from the indexer.
  */
 
@@ -11,22 +11,22 @@ import { CONTRACTS } from "@/config/contracts";
 
 import { ethClient } from "../client";
 
-import BTCVaultsManagerAbi from "./abis/BTCVaultsManager.abi.json";
+import BTCVaultRegistryAbi from "./abis/BTCVaultRegistry.abi.json";
 
 /**
- * Signing-critical fields read directly from the BTCVaultsManager contract.
+ * Signing-critical fields read directly from the BTCVaultRegistry contract.
  * These are used to build the payout signing context and must not come from GraphQL.
  */
 export interface OnChainVaultData {
   depositorSignedPeginTx: Hex;
-  applicationController: Address;
+  applicationEntryPoint: Address;
   vaultProvider: Address;
   universalChallengersVersion: number;
   appVaultKeepersVersion: number;
 }
 
 /**
- * Read signing-critical vault fields from the BTCVaultsManager contract.
+ * Read signing-critical vault fields from the BTCVaultRegistry contract.
  *
  * Throws if the vault does not exist on-chain (empty depositorSignedPeginTx).
  *
@@ -38,8 +38,8 @@ export async function getVaultFromChain(
   const publicClient = ethClient.getPublicClient();
 
   const vault = await publicClient.readContract({
-    address: CONTRACTS.BTC_VAULTS_MANAGER,
-    abi: BTCVaultsManagerAbi as const,
+    address: CONTRACTS.BTC_VAULT_REGISTRY,
+    abi: BTCVaultRegistryAbi as const,
     functionName: "getBTCVault",
     args: [vaultId],
   });
@@ -52,7 +52,7 @@ export async function getVaultFromChain(
 
   return {
     depositorSignedPeginTx: vault.depositorSignedPeginTx,
-    applicationController: vault.applicationController,
+    applicationEntryPoint: vault.applicationEntryPoint,
     vaultProvider: vault.vaultProvider,
     universalChallengersVersion: vault.universalChallengersVersion,
     appVaultKeepersVersion: vault.appVaultKeepersVersion,

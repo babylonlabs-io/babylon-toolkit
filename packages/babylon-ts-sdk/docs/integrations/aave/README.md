@@ -14,12 +14,12 @@ The SDK provides pure functions for Babylon's custom Aave integration:
 - **Query Functions** - Read on-chain data (health factor, debt, positions)
 - **Utilities** - Calculate health factor, select vaults, format values
 
-> **Note:** Since you can't interact with native BTC directly on Aave, the SDK calls go through a Controller contract that translates BTC vault operations into standard Aave actions on the Spoke (the Aave pool contract).
+> **Note:** Since you can't interact with native BTC directly on Aave, the SDK calls go through an Adapter contract that translates BTC vault operations into standard Aave actions on the Spoke (the Aave pool contract).
 
 ## Prerequisites
 
 1. **Active BTC Vaults** - Created via `PeginManager` (see [managers quickstart](../../quickstart/managers.md))
-2. **Contract Addresses** - Aave controller, spoke, reserve IDs (from config/indexer)
+2. **Contract Addresses** - Aave adapter, spoke, reserve IDs (from config/indexer)
 3. **Ethereum Wallet** - viem `WalletClient` for signing transactions
 
 ## Key Concepts
@@ -109,7 +109,7 @@ const accountData = await getUserAccountData(publicClient, spokeAddress, proxyAd
 const healthFactor = Number(accountData.healthFactor) / 1e18;
 
 // Borrow 100 USDC against BTC vault collateral
-const tx = buildBorrowTx(controllerAddress, reserveId, parseUnits("100", 6), receiver);
+const tx = buildBorrowTx(adapterAddress, reserveId, parseUnits("100", 6), receiver);
 await walletClient.sendTransaction({ to: tx.to, data: tx.data });
 ```
 

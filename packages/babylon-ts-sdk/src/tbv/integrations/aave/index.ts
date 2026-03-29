@@ -38,8 +38,8 @@
  * const hf = Number(accountData.healthFactor) / 1e18;
  * console.log("Health Factor:", hf);
  *
- * // Borrow stablecoins (controller resolves proxy from msg.sender)
- * const borrowTx = buildBorrowTx(controllerAddress, reserveId, amount, receiver);
+ * // Borrow stablecoins (adapter resolves proxy from msg.sender)
+ * const borrowTx = buildBorrowTx(adapterAddress, reserveId, amount, receiver);
  * await walletClient.sendTransaction({ to: borrowTx.to, data: borrowTx.data });
  * ```
  */
@@ -121,5 +121,5 @@ export type {
 } from "./utils/index.js";
 
 // Export ABIs for application registration
-export { default as AaveIntegrationControllerABI } from "./clients/abis/AaveIntegrationController.abi.json";
+export { default as AaveIntegrationAdapterABI } from "./clients/abis/AaveIntegrationAdapter.abi.json";
 export { default as AaveSpokeABI } from "./clients/abis/AaveSpoke.abi.json";

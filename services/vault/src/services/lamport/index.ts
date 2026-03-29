@@ -17,6 +17,7 @@ export type {
   VerificationChallenge,
 } from "./lamportService";
 export {
+  VaultTamperingError,
   addMnemonic,
   clearStoredMnemonic,
   getActiveMnemonicId,

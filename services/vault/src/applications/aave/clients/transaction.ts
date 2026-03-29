@@ -1,18 +1,40 @@
 /**
- * Aave Integration Controller - Write operations (transactions)
+ * Aave Integration Adapter - Write operations (transactions)
  *
  * Vault-side wrapper that uses SDK transaction builders and executes with vault's wallet client.
  * Only includes Core Spoke operations for regular users (no Arbitrageur operations).
  */
 
-import { BTCVaultsManagerABI } from "@babylonlabs-io/ts-sdk/tbv/core";
+import { BTCVaultRegistryABI } from "@babylonlabs-io/ts-sdk/tbv/core";
 import {
-  AaveIntegrationControllerABI,
+  AaveIntegrationAdapterABI,
   buildBorrowTx,
   buildRepayTx,
   buildWithdrawCollateralsTx,
 } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
 import { type Address, type Chain, type Hex, type WalletClient } from "viem";
+
+/**
+ * Read the Core Spoke address from the controller contract.
+ *
+ * BTC_VAULT_CORE_SPOKE is an immutable property on the AaveIntegrationAdapter.
+ * Reading it on-chain from the trusted adapter guarantees the spoke address
+ * is not influenced by untrusted external sources (e.g. GraphQL indexer).
+ *
+ * @param controllerAddress - Trusted AaveIntegrationAdapter address
+ * @returns Core Spoke contract address
+ */
+export async function getCoreSpokeAddress(
+  controllerAddress: Address,
+): Promise<Address> {
+  const publicClient = ethClient.getPublicClient();
+  return publicClient.readContract({
+    address: controllerAddress,
+    abi: AaveIntegrationAdapterABI,
+    functionName: "BTC_VAULT_CORE_SPOKE",
+    args: [],
+  }) as Promise<Address>;
+}
 
 import { ethClient } from "../../../clients/eth-contract/client";
 import { type TransactionResult } from "../../../clients/eth-contract/transactionFactory";
@@ -88,10 +110,10 @@ async function executeTx(
     };
   } catch (error) {
     // Include both ABIs for comprehensive error decoding
-    // AaveIntegrationController may call into BTCVaultsManager
+    // AaveIntegrationAdapter may call into BTCVaultRegistry
     throw mapViemErrorToContractError(error, errorContext, [
-      AaveIntegrationControllerABI,
-      BTCVaultsManagerABI,
+      AaveIntegrationAdapterABI,
+      BTCVaultRegistryABI,
     ]);
   }
 }
@@ -104,7 +126,7 @@ async function executeTx(
  *
  * @param walletClient - Connected wallet client for signing transactions
  * @param chain - Chain configuration
- * @param contractAddress - AaveIntegrationController contract address
+ * @param contractAddress - AaveIntegrationAdapter contract address
  * @param vaultIds - Array of vault IDs (bytes32 hex strings) to withdraw
  * @returns Transaction result with hash and receipt
  */
@@ -131,7 +153,7 @@ export async function withdrawCollaterals(
  *
  * @param walletClient - Connected wallet client for signing transactions
  * @param chain - Chain configuration
- * @param contractAddress - AaveIntegrationController contract address
+ * @param contractAddress - AaveIntegrationAdapter contract address
  * @param debtReserveId - Aave reserve ID for the debt asset
  * @param amount - Amount to borrow
  * @param receiver - Address to receive borrowed tokens
@@ -163,12 +185,12 @@ export async function borrowFromCorePosition(
 /**
  * Repay debt to Core Spoke position
  *
- * Repays debt on a position. User must have approved the controller to spend
+ * Repays debt on a position. User must have approved the adapter to spend
  * the debt token.
  *
  * @param walletClient - Connected wallet client for signing transactions
  * @param chain - Chain configuration
- * @param contractAddress - AaveIntegrationController contract address
+ * @param contractAddress - AaveIntegrationAdapter contract address
  * @param borrower - Borrower's address (for self-repay, use connected wallet address)
  * @param debtReserveId - Aave reserve ID for the debt asset
  * @param amount - Amount to repay
