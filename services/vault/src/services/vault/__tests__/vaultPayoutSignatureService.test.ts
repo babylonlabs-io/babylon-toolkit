@@ -11,7 +11,7 @@ vi.mock("../fetchVaultProviders", () => ({
 }));
 
 // Mock on-chain vault query (used by prepareSigningContext)
-vi.mock("../../../clients/eth-contract/btc-vaults-manager/query", () => ({
+vi.mock("../../../clients/eth-contract/btc-vault-registry/query", () => ({
   getVaultFromChain: vi.fn(),
 }));
 
@@ -30,7 +30,7 @@ vi.mock("../../../config/pegin", () => ({
   getBTCNetworkForWASM: vi.fn().mockReturnValue("testnet"),
 }));
 
-import { getVaultFromChain } from "../../../clients/eth-contract/btc-vaults-manager/query";
+import { getVaultFromChain } from "../../../clients/eth-contract/btc-vault-registry/query";
 import type { ClaimerTransactions } from "../../../clients/vault-provider-rpc/types";
 import { fetchVaultKeepersByVersion } from "../../providers/fetchProviders";
 import { fetchVaultProviderById } from "../fetchVaultProviders";
@@ -538,19 +538,19 @@ describe("vaultPayoutSignatureService", () => {
       "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef";
 
     const onChainVault = {
-      depositorSignedPeginTx: "0xdeadbeef",
-      applicationController: "0xAppController" as `0x${string}`,
+      depositorSignedPeginTx: "0xdeadbeef" as `0x${string}`,
+      applicationEntryPoint: "0xAppEntryPoint" as `0x${string}`,
       vaultProvider: "0xOnChainVaultProvider" as `0x${string}`,
       universalChallengersVersion: 1,
       appVaultKeepersVersion: 2,
     };
 
     const vaultKeepers = [
-      { btcPubKey: "keeperpubkey1" },
-      { btcPubKey: "keeperpubkey2" },
+      { id: "0xKeeper1", btcPubKey: "keeperpubkey1" },
+      { id: "0xKeeper2", btcPubKey: "keeperpubkey2" },
     ];
 
-    const universalChallengers = [{ btcPubKey: "challpubkey1" }];
+    const universalChallengers = [{ id: "0xChallenger1", btcPubKey: "challpubkey1" }];
 
     const providers = {
       vaultProvider: {
@@ -589,7 +589,7 @@ describe("vaultPayoutSignatureService", () => {
       });
 
       expect(fetchVaultKeepersByVersion).toHaveBeenCalledWith(
-        onChainVault.applicationController,
+        onChainVault.applicationEntryPoint,
         onChainVault.appVaultKeepersVersion,
       );
     });

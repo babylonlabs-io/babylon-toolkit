@@ -2,7 +2,7 @@ import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
 import { PayoutManager, type Network } from "@babylonlabs-io/ts-sdk/tbv/core";
 import type { Address, Hex } from "viem";
 
-import { getVaultFromChain } from "../../clients/eth-contract/btc-vaults-manager/query";
+import { getVaultFromChain } from "../../clients/eth-contract/btc-vault-registry/query";
 import { VaultProviderRpcApi } from "../../clients/vault-provider-rpc";
 import type {
   ClaimerSignatures,

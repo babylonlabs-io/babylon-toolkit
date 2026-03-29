@@ -3,8 +3,8 @@
 // Shared client
 export { ethClient } from "./client";
 
-// BTCVaultsManager
-export type { OnChainVaultData } from "./btc-vaults-manager/query";
+// BTCVaultRegistry
+export type { OnChainVaultData } from "./btc-vault-registry/query";
 
 // Protocol Params
 export * as ProtocolParamsQuery from "./protocol-params";

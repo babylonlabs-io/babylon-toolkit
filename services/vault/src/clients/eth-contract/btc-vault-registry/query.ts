@@ -37,12 +37,12 @@ export async function getVaultFromChain(
 ): Promise<OnChainVaultData> {
   const publicClient = ethClient.getPublicClient();
 
-  const vault = await publicClient.readContract({
+  const vault = (await publicClient.readContract({
     address: CONTRACTS.BTC_VAULT_REGISTRY,
-    abi: BTCVaultRegistryAbi as const,
+    abi: BTCVaultRegistryAbi,
     functionName: "getBTCVault",
     args: [vaultId],
-  });
+  })) as OnChainVaultData;
 
   if (!vault.depositorSignedPeginTx || vault.depositorSignedPeginTx === "0x") {
     throw new Error(
