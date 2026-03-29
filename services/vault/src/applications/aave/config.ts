@@ -8,14 +8,9 @@ export { AAVE_FUNCTION_NAMES } from "@babylonlabs-io/ts-sdk/tbv/integrations/aav
 export const AAVE_APP_ID = "aave";
 
 export const AAVE_CONTRACTS = {
-  AAVE_CONTROLLER: ENV.AAVE_CONTROLLER as Address,
-  AAVE_SPOKE: ENV.AAVE_SPOKE as Address,
+  AAVE_ADAPTER: ENV.AAVE_ADAPTER as Address,
 } as const;
 
-export function getAaveControllerAddress(): Address {
-  return AAVE_CONTRACTS.AAVE_CONTROLLER;
-}
-
-export function getAaveSpokeAddress(): Address {
-  return AAVE_CONTRACTS.AAVE_SPOKE;
+export function getAaveAdapterAddress(): Address {
+  return AAVE_CONTRACTS.AAVE_ADAPTER;
 }

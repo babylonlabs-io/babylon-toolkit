@@ -8,6 +8,18 @@ import type {
   HtlcConnectorInfo,
 } from "./types.js";
 
+/**
+ * HTLC output index for single deposits.
+ *
+ * TODO: Support batched deposits (multiple hashlocks → multiple HTLC outputs
+ * in a single Pre-PegIn tx). Both btc-vault WASM and vault-contracts-aave-v4
+ * already support this. Batched deposits would replace the current UTXO split
+ * service — one BTC transaction with N HTLC outputs instead of N separate
+ * Pre-PegIn transactions, and one Ethereum submission per vault (each with its
+ * own htlcVout index).
+ */
+const SINGLE_DEPOSIT_HTLC_VOUT = 0;
+
 let wasmInitialized = false;
 let wasmInitPromise: Promise<void> | null = null;
 
@@ -28,7 +40,7 @@ export async function initWasm() {
 }
 
 /**
- * Creates an unfunded Pre-PegIn transaction with no inputs and one HTLC output.
+ * Creates an unfunded Pre-PegIn transaction with no inputs and HTLC output(s).
  *
  * The HTLC output value (htlcValue) covers the peg-in amount, depositor claim value,
  * and minimum pegin fee — all computed internally from the provided contract parameters.
@@ -36,8 +48,8 @@ export async function initWasm() {
  * After building the Pre-PegIn transaction, the caller must:
  * 1. Select UTXOs covering htlcValue + network fees
  * 2. Fund the transaction (add inputs and change output)
- * 3. Compute the funded transaction's txid
- * 4. Call buildPeginTxFromPrePegin() to derive the PegIn transaction
+ * 3. Call reconstructFromFundedTx() with the funded tx hex
+ * 4. Call buildPeginTx() to derive the PegIn transaction
  * 5. Sign the PegIn input using the HTLC hashlock leaf (leaf 0)
  *
  * @param params - Pre-PegIn parameters from contract and depositor wallet
@@ -53,7 +65,7 @@ export async function createPrePeginTransaction(
     params.vaultProviderPubkey,
     params.vaultKeeperPubkeys,
     params.universalChallengerPubkeys,
-    params.hashH,
+    [...params.hashlocks],
     params.timelockRefund,
     params.pegInAmount,
     params.feeRate,
@@ -67,9 +79,9 @@ export async function createPrePeginTransaction(
     return {
       txHex: tx.toHex(),
       txid: tx.getTxid(),
-      htlcValue: tx.getHtlcValue(),
-      htlcScriptPubKey: tx.getHtlcScriptPubKey(),
-      htlcAddress: tx.getHtlcAddress(),
+      htlcValue: tx.getHtlcValue(SINGLE_DEPOSIT_HTLC_VOUT),
+      htlcScriptPubKey: tx.getHtlcScriptPubKey(SINGLE_DEPOSIT_HTLC_VOUT),
+      htlcAddress: tx.getHtlcAddress(SINGLE_DEPOSIT_HTLC_VOUT),
       peginAmount: tx.getPeginAmount(),
       depositorClaimValue: tx.getDepositorClaimValue(),
     };
@@ -79,31 +91,31 @@ export async function createPrePeginTransaction(
 }
 
 /**
- * Derives the PegIn transaction from a funded Pre-PegIn txid.
+ * Derives the PegIn transaction from a funded Pre-PegIn transaction.
  *
- * The PegIn transaction has a single input spending Pre-PegIn output 0
- * via the hashlock + all-party script (leaf 0). Since all Pre-PegIn inputs
- * must be SegWit/Taproot, the txid is stable after funding — signing does
- * not change it.
+ * The PegIn transaction has a single input spending the Pre-PegIn HTLC output
+ * at `htlcVout` via the hashlock + all-party script (leaf 0).
  *
  * @param params - Same PrePeginParams used to create the Pre-PegIn transaction
  * @param timelockPegin - CSV timelock in blocks for the PegIn vault output
- * @param fundedPrePeginTxid - Hex-encoded txid of the funded Pre-PegIn transaction
+ * @param fundedPrePeginTxHex - Hex-encoded funded Pre-PegIn transaction
+ * @param htlcVout - Index of the HTLC output to spend
  * @returns PegIn transaction details including vault output information
  */
 export async function buildPeginTxFromPrePegin(
   params: PrePeginParams,
   timelockPegin: number,
-  fundedPrePeginTxid: string,
+  fundedPrePeginTxHex: string,
+  htlcVout: number,
 ): Promise<PeginTxResult> {
   await initWasm();
 
-  const prePeginTx = new WasmPrePeginTx(
+  const unfundedTx = new WasmPrePeginTx(
     params.depositorPubkey,
     params.vaultProviderPubkey,
     params.vaultKeeperPubkeys,
     params.universalChallengerPubkeys,
-    params.hashH,
+    [...params.hashlocks],
     params.timelockRefund,
     params.pegInAmount,
     params.feeRate,
@@ -113,12 +125,15 @@ export async function buildPeginTxFromPrePegin(
     params.network,
   );
 
+  let fundedTx: WasmPrePeginTx | null = null;
   let peginTx: WasmPeginTx | null = null;
   try {
-    peginTx = prePeginTx.buildPeginTx(
-      timelockPegin,
-      fundedPrePeginTxid,
+    fundedTx = unfundedTx.fromFundedTransaction(
+      fundedPrePeginTxHex,
+      params.pegInAmount,
+      unfundedTx.getDepositorClaimValue(),
     );
+    peginTx = fundedTx.buildPeginTx(timelockPegin, htlcVout);
 
     return {
       txHex: peginTx.toHex(),
@@ -128,7 +143,8 @@ export async function buildPeginTxFromPrePegin(
     };
   } finally {
     peginTx?.free();
-    prePeginTx.free();
+    fundedTx?.free();
+    unfundedTx.free();
   }
 }
 
@@ -152,7 +168,7 @@ export async function getPrePeginHtlcConnectorInfo(
     params.vaultProviderPubkey,
     params.vaultKeeperPubkeys,
     params.universalChallengerPubkeys,
-    params.hashH,
+    params.hashlock,
     params.timelockRefund,
   );
 
@@ -221,6 +237,7 @@ export type {
 
 // Export constants
 export { TAP_INTERNAL_KEY, tapInternalPubkey } from "./constants.js";
+export { SINGLE_DEPOSIT_HTLC_VOUT };
 
 // Export payout connector utilities
 export { createPayoutConnector, getPeginPayoutScript } from "./payoutConnector.js";

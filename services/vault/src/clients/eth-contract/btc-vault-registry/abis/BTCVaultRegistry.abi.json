@@ -150,10 +150,10 @@
       {
         "name": "status",
         "type": "uint8",
-        "internalType": "enum IBTCVaultsManager.BTCVaultStatus"
+        "internalType": "enum IBTCVaultRegistry.BTCVaultStatus"
       },
       {
-        "name": "applicationController",
+        "name": "applicationEntryPoint",
         "type": "address",
         "internalType": "address"
       },
@@ -173,7 +173,7 @@
         "internalType": "uint16"
       },
       {
-        "name": "vkVersion",
+        "name": "proverProgramVersion",
         "type": "uint16",
         "internalType": "uint16"
       },
@@ -196,6 +196,11 @@
         "name": "hashlock",
         "type": "bytes32",
         "internalType": "bytes32"
+      },
+      {
+        "name": "htlcVout",
+        "type": "uint8",
+        "internalType": "uint8"
       }
     ],
     "stateMutability": "view"
@@ -215,7 +220,7 @@
         "internalType": "bytes32"
       },
       {
-        "name": "applicationController",
+        "name": "applicationEntryPoint",
         "type": "address",
         "internalType": "address"
       }
@@ -248,7 +253,7 @@
         "internalType": "address"
       },
       {
-        "name": "applicationController",
+        "name": "applicationEntryPoint",
         "type": "address",
         "internalType": "address"
       }
@@ -307,7 +312,7 @@
       {
         "name": "vault",
         "type": "tuple",
-        "internalType": "struct IBTCVaultsManager.BTCVault",
+        "internalType": "struct IBTCVaultRegistry.BTCVault",
         "components": [
           {
             "name": "depositor",
@@ -337,10 +342,10 @@
           {
             "name": "status",
             "type": "uint8",
-            "internalType": "enum IBTCVaultsManager.BTCVaultStatus"
+            "internalType": "enum IBTCVaultRegistry.BTCVaultStatus"
           },
           {
-            "name": "applicationController",
+            "name": "applicationEntryPoint",
             "type": "address",
             "internalType": "address"
           },
@@ -360,7 +365,7 @@
             "internalType": "uint16"
           },
           {
-            "name": "vkVersion",
+            "name": "proverProgramVersion",
             "type": "uint16",
             "internalType": "uint16"
           },
@@ -383,6 +388,11 @@
             "name": "hashlock",
             "type": "bytes32",
             "internalType": "bytes32"
+          },
+          {
+            "name": "htlcVout",
+            "type": "uint8",
+            "internalType": "uint8"
           }
         ]
       }
@@ -460,7 +470,7 @@
       {
         "name": "vaults",
         "type": "tuple[]",
-        "internalType": "struct IBTCVaultsManager.BTCVault[]",
+        "internalType": "struct IBTCVaultRegistry.BTCVault[]",
         "components": [
           {
             "name": "depositor",
@@ -490,10 +500,10 @@
           {
             "name": "status",
             "type": "uint8",
-            "internalType": "enum IBTCVaultsManager.BTCVaultStatus"
+            "internalType": "enum IBTCVaultRegistry.BTCVaultStatus"
           },
           {
-            "name": "applicationController",
+            "name": "applicationEntryPoint",
             "type": "address",
             "internalType": "address"
           },
@@ -513,7 +523,7 @@
             "internalType": "uint16"
           },
           {
-            "name": "vkVersion",
+            "name": "proverProgramVersion",
             "type": "uint16",
             "internalType": "uint16"
           },
@@ -536,6 +546,11 @@
             "name": "hashlock",
             "type": "bytes32",
             "internalType": "bytes32"
+          },
+          {
+            "name": "htlcVout",
+            "type": "uint8",
+            "internalType": "uint8"
           }
         ]
       }
@@ -746,7 +761,7 @@
         "internalType": "bytes32"
       },
       {
-        "name": "applicationController",
+        "name": "applicationEntryPoint",
         "type": "address",
         "internalType": "address"
       }
@@ -837,7 +852,7 @@
         "internalType": "bytes"
       },
       {
-        "name": "applicationController",
+        "name": "applicationEntryPoint",
         "type": "address",
         "internalType": "address"
       }
@@ -1002,6 +1017,11 @@
         "internalType": "bytes32"
       },
       {
+        "name": "htlcVout",
+        "type": "uint8",
+        "internalType": "uint8"
+      },
+      {
         "name": "depositorPayoutBtcAddress",
         "type": "bytes",
         "internalType": "bytes"
@@ -1059,6 +1079,11 @@
         "name": "hashlock",
         "type": "bytes32",
         "internalType": "bytes32"
+      },
+      {
+        "name": "htlcVout",
+        "type": "uint8",
+        "internalType": "uint8"
       },
       {
         "name": "referralCode",
@@ -1188,7 +1213,7 @@
         "internalType": "bytes32"
       },
       {
-        "name": "applicationController",
+        "name": "applicationEntryPoint",
         "type": "address",
         "internalType": "address"
       }
@@ -1389,7 +1414,7 @@
         "internalType": "bytes32"
       },
       {
-        "name": "applicationController",
+        "name": "applicationEntryPoint",
         "type": "address",
         "indexed": true,
         "internalType": "address"
@@ -1497,7 +1522,7 @@
   },
   {
     "type": "error",
-    "name": "OnlyApplicationController",
+    "name": "OnlyApplicationEntryPoint",
     "inputs": []
   },
   {
@@ -1569,6 +1594,31 @@
   {
     "type": "error",
     "name": "ZeroAddress",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "InvalidHashlock",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "DuplicateHashlock",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "CapExceeded",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "InvalidOutputIndex",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "PeginSignaturesIncomplete",
     "inputs": []
   }
 ]

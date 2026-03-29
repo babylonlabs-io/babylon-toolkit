@@ -38,7 +38,7 @@ vi.mock("@/utils/errors", () => ({
 }));
 
 vi.mock(
-  "@/clients/eth-contract/btc-vaults-manager/abis/BTCVaultsManager.abi.json",
+  "@/clients/eth-contract/btc-vault-registry/abis/BTCVaultRegistry.abi.json",
   () => ({ default: [] }),
 );
 

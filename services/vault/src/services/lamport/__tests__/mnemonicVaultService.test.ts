@@ -9,6 +9,7 @@ import {
   hasStoredMnemonic,
   linkPeginToMnemonic,
   unlockMnemonic,
+  VaultTamperingError,
 } from "../mnemonicVaultService";
 
 const TEST_MNEMONIC =
@@ -123,9 +124,8 @@ describe("mnemonicVaultService", () => {
       expect(getActiveMnemonicId()).toBe(id2);
     });
 
-    it("skips corrupted entries during duplicate check", async () => {
-      // Add a valid entry first
-      const id1 = await addMnemonic(TEST_MNEMONIC, TEST_PASSWORD);
+    it("detects corrupted entry ciphertext as tampering", async () => {
+      await addMnemonic(TEST_MNEMONIC, TEST_PASSWORD);
 
       // Manually corrupt the first entry's ciphertext in localStorage
       const raw = localStorage.getItem("babylon-lamport-vault")!;
@@ -133,18 +133,13 @@ describe("mnemonicVaultService", () => {
       vault.mnemonics[0].encrypted = "corrupted-ciphertext";
       localStorage.setItem("babylon-lamport-vault", JSON.stringify(vault));
 
-      // Adding a different mnemonic should succeed (skips corrupted entry)
-      const id2 = await addMnemonic(TEST_MNEMONIC_2, TEST_PASSWORD);
-      expect(id2).not.toBe(id1);
-
-      // The vault should now have the corrupted entry + the new one
-      const updated = JSON.parse(
-        localStorage.getItem("babylon-lamport-vault")!,
+      // Integrity tag catches the modification
+      await expect(addMnemonic(TEST_MNEMONIC_2, TEST_PASSWORD)).rejects.toThrow(
+        VaultTamperingError,
       );
-      expect(updated.mnemonics).toHaveLength(2);
     });
 
-    it("creates a new entry when re-adding the same mnemonic whose entry is corrupted", async () => {
+    it("detects corrupted entry on re-add as tampering", async () => {
       await addMnemonic(TEST_MNEMONIC, TEST_PASSWORD);
 
       // Corrupt the entry
@@ -153,14 +148,10 @@ describe("mnemonicVaultService", () => {
       vault.mnemonics[0].encrypted = "corrupted-ciphertext";
       localStorage.setItem("babylon-lamport-vault", JSON.stringify(vault));
 
-      // Re-adding the same mnemonic can't deduplicate (corrupted entry is
-      // skipped), so a second entry is created
-      const id2 = await addMnemonic(TEST_MNEMONIC, TEST_PASSWORD);
-      const updated = JSON.parse(
-        localStorage.getItem("babylon-lamport-vault")!,
+      // Integrity tag catches the modification
+      await expect(addMnemonic(TEST_MNEMONIC, TEST_PASSWORD)).rejects.toThrow(
+        VaultTamperingError,
       );
-      expect(updated.mnemonics).toHaveLength(2);
-      expect(updated.mnemonics[1].id).toBe(id2);
     });
   });
 
@@ -415,6 +406,257 @@ describe("mnemonicVaultService", () => {
       expect(typeof id).toBe("string");
       const mnemonic = await unlockMnemonic(TEST_PASSWORD);
       expect(mnemonic).toBe(TEST_MNEMONIC);
+    });
+  });
+
+  describe("integrity tag", () => {
+    it("stores integrityTag in localStorage after addMnemonic", async () => {
+      await addMnemonic(TEST_MNEMONIC, TEST_PASSWORD);
+      const raw = localStorage.getItem(STORAGE_KEY)!;
+      const parsed = JSON.parse(raw);
+      expect(parsed).toHaveProperty("integrityTag");
+      expect(typeof parsed.integrityTag).toBe("string");
+    });
+
+    it("unlockMnemonic succeeds when integrity is intact", async () => {
+      await addMnemonic(TEST_MNEMONIC, TEST_PASSWORD);
+      const result = await unlockMnemonic(TEST_PASSWORD);
+      expect(result).toBe(TEST_MNEMONIC);
+    });
+
+    it("detects tampered mnemonic ID on unlock", async () => {
+      await addMnemonic(TEST_MNEMONIC, TEST_PASSWORD);
+
+      const raw = localStorage.getItem(STORAGE_KEY)!;
+      const vault = JSON.parse(raw);
+      vault.mnemonics[0].id = "tampered-uuid";
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(vault));
+
+      await expect(unlockMnemonic(TEST_PASSWORD)).rejects.toThrow(
+        VaultTamperingError,
+      );
+    });
+
+    it("detects tampered activeMnemonicId on unlock", async () => {
+      await addMnemonic(TEST_MNEMONIC, TEST_PASSWORD);
+
+      const raw = localStorage.getItem(STORAGE_KEY)!;
+      const vault = JSON.parse(raw);
+      vault.activeMnemonicId = "tampered-uuid";
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(vault));
+
+      await expect(unlockMnemonic(TEST_PASSWORD)).rejects.toThrow(
+        VaultTamperingError,
+      );
+    });
+
+    it("detects tampered passwordCheck on unlock as incorrect password", async () => {
+      await addMnemonic(TEST_MNEMONIC, TEST_PASSWORD);
+
+      const raw = localStorage.getItem(STORAGE_KEY)!;
+      const vault = JSON.parse(raw);
+      vault.passwordCheck = "tampered-value";
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(vault));
+
+      // Password check runs before integrity verification, so tampered
+      // passwordCheck manifests as "Incorrect vault password" (same as addMnemonic)
+      await expect(unlockMnemonic(TEST_PASSWORD)).rejects.toThrow(
+        "Incorrect vault password",
+      );
+    });
+
+    it("detects corrupted integrityTag on unlock", async () => {
+      await addMnemonic(TEST_MNEMONIC, TEST_PASSWORD);
+
+      const raw = localStorage.getItem(STORAGE_KEY)!;
+      const vault = JSON.parse(raw);
+      vault.integrityTag = "garbage-ciphertext";
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(vault));
+
+      await expect(unlockMnemonic(TEST_PASSWORD)).rejects.toThrow(
+        VaultTamperingError,
+      );
+    });
+
+    it("detects tampered mnemonic ID on addMnemonic", async () => {
+      await addMnemonic(TEST_MNEMONIC, TEST_PASSWORD);
+
+      const raw = localStorage.getItem(STORAGE_KEY)!;
+      const vault = JSON.parse(raw);
+      vault.mnemonics[0].id = "tampered-uuid";
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(vault));
+
+      await expect(addMnemonic(TEST_MNEMONIC_2, TEST_PASSWORD)).rejects.toThrow(
+        VaultTamperingError,
+      );
+    });
+
+    it("wrong password throws 'Incorrect vault password' not VaultTamperingError", async () => {
+      await addMnemonic(TEST_MNEMONIC, TEST_PASSWORD);
+
+      await expect(unlockMnemonic("wrong-password")).rejects.toThrow(
+        "Incorrect vault password",
+      );
+      await expect(unlockMnemonic("wrong-password")).rejects.not.toThrow(
+        VaultTamperingError,
+      );
+    });
+
+    it("skips verification for legacy vaults without integrityTag", async () => {
+      // Simulate a legacy vault created before integrityTag was introduced
+      const legacyVault = {
+        mnemonics: [],
+        peginMap: {},
+        activeMnemonicId: null,
+        passwordCheck: null,
+      };
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(legacyVault));
+
+      // Should succeed — no integrityTag means legacy vault, skip verification
+      const id = await addMnemonic(TEST_MNEMONIC, TEST_PASSWORD);
+      expect(typeof id).toBe("string");
+
+      // After addMnemonic, the vault should now have an integrityTag
+      const raw = localStorage.getItem(STORAGE_KEY)!;
+      const updated = JSON.parse(raw);
+      expect(typeof updated.integrityTag).toBe("string");
+    });
+
+    it("migrates legacy vault by setting integrityTag on first unlock", async () => {
+      await addMnemonic(TEST_MNEMONIC, TEST_PASSWORD);
+
+      // Strip integrityTag to simulate a legacy vault
+      const raw = localStorage.getItem(STORAGE_KEY)!;
+      const vault = JSON.parse(raw);
+      delete vault.integrityTag;
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(vault));
+
+      // First unlock should succeed (legacy) and migrate
+      const result = await unlockMnemonic(TEST_PASSWORD);
+      expect(result).toBe(TEST_MNEMONIC);
+
+      // Vault should now have integrityTag
+      const updated = JSON.parse(localStorage.getItem(STORAGE_KEY)!);
+      expect(typeof updated.integrityTag).toBe("string");
+
+      // Second unlock should also succeed (tag now verified)
+      const result2 = await unlockMnemonic(TEST_PASSWORD);
+      expect(result2).toBe(TEST_MNEMONIC);
+    });
+
+    it("detects tampering after legacy vault migration", async () => {
+      await addMnemonic(TEST_MNEMONIC, TEST_PASSWORD);
+
+      // Strip integrityTag to simulate legacy vault
+      const raw = localStorage.getItem(STORAGE_KEY)!;
+      const vault = JSON.parse(raw);
+      delete vault.integrityTag;
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(vault));
+
+      // Migrate by unlocking
+      await unlockMnemonic(TEST_PASSWORD);
+
+      // Now tamper with activeMnemonicId — should be detected
+      const raw2 = localStorage.getItem(STORAGE_KEY)!;
+      const vault2 = JSON.parse(raw2);
+      vault2.activeMnemonicId = "tampered-uuid";
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(vault2));
+
+      await expect(unlockMnemonic(TEST_PASSWORD)).rejects.toThrow(
+        VaultTamperingError,
+      );
+    });
+
+    it("recomputes tag after adding a second mnemonic", async () => {
+      await addMnemonic(TEST_MNEMONIC, TEST_PASSWORD);
+      const raw1 = localStorage.getItem(STORAGE_KEY)!;
+      const tag1 = JSON.parse(raw1).integrityTag;
+
+      await addMnemonic(TEST_MNEMONIC_2, TEST_PASSWORD);
+      const raw2 = localStorage.getItem(STORAGE_KEY)!;
+      const tag2 = JSON.parse(raw2).integrityTag;
+
+      expect(tag2).not.toBe(tag1);
+    });
+
+    it("peginMap changes do not break integrity on next unlock", async () => {
+      await addMnemonic(TEST_MNEMONIC, TEST_PASSWORD);
+      const id = getActiveMnemonicId()!;
+
+      // linkPeginToMnemonic modifies peginMap without updating integrityTag
+      linkPeginToMnemonic("abc123", id);
+
+      // unlockMnemonic should still succeed because peginMap is excluded
+      // from the integrity hash
+      const result = await unlockMnemonic(TEST_PASSWORD);
+      expect(result).toBe(TEST_MNEMONIC);
+    });
+  });
+
+  describe("isMultiVault type guard", () => {
+    it("rejects vault with peginMap as array", () => {
+      localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify({
+          mnemonics: [],
+          peginMap: [],
+          activeMnemonicId: null,
+          passwordCheck: null,
+        }),
+      );
+      expect(getActiveMnemonicId()).toBeNull();
+    });
+
+    it("rejects vault with peginMap as null", () => {
+      localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify({
+          mnemonics: [],
+          peginMap: null,
+          activeMnemonicId: null,
+          passwordCheck: null,
+        }),
+      );
+      expect(getActiveMnemonicId()).toBeNull();
+    });
+
+    it("rejects vault with activeMnemonicId as number", () => {
+      localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify({
+          mnemonics: [],
+          peginMap: {},
+          activeMnemonicId: 42,
+          passwordCheck: null,
+        }),
+      );
+      expect(getActiveMnemonicId()).toBeNull();
+    });
+
+    it("rejects vault with mnemonic entry missing id", () => {
+      localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify({
+          mnemonics: [{ encrypted: "data" }],
+          peginMap: {},
+          activeMnemonicId: null,
+          passwordCheck: null,
+        }),
+      );
+      expect(getActiveMnemonicId()).toBeNull();
+    });
+
+    it("rejects vault with mnemonic entry missing encrypted", () => {
+      localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify({
+          mnemonics: [{ id: "uuid-1" }],
+          peginMap: {},
+          activeMnemonicId: null,
+          passwordCheck: null,
+        }),
+      );
+      expect(getActiveMnemonicId()).toBeNull();
     });
   });
 });

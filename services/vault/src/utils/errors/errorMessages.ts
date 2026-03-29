@@ -6,7 +6,7 @@
  */
 export const CONTRACT_ERROR_MESSAGES: Record<string, string> = {
   // ============================================================================
-  // Aave Integration Controller / Collateral Logic errors
+  // Aave Integration Adapter / Collateral Logic errors
   // ============================================================================
   DebtMustBeRepaidFirst:
     "You must repay all debt before withdrawing collateral.",
@@ -23,7 +23,7 @@ export const CONTRACT_ERROR_MESSAGES: Record<string, string> = {
     "Invalid fairness payment token decimals.",
 
   // ============================================================================
-  // BTCVaultsManager errors
+  // BTCVaultRegistry errors
   // ============================================================================
   BTCVaultNotFound: "Vault not found. The vault ID may be invalid.",
   VaultNotActive: "This vault is not active.",
@@ -59,10 +59,10 @@ export const CONTRACT_ERROR_MESSAGES: Record<string, string> = {
   ApplicationAlreadyRegistered: "Application is already registered.",
   ApplicationNotRegistered: "Application is not registered.",
   InvalidApplicationStatus: "Invalid application status.",
-  OnlyApplicationController:
-    "Only the application controller can perform this action.",
-  IntegrationControllerNotSet: "Integration controller is not set.",
-  AaveControllerNotSet: "Aave controller is not set.",
+  OnlyApplicationEntryPoint:
+    "Only the application entry point can perform this action.",
+  IntegrationAdapterNotSet: "Integration adapter is not set.",
+  AaveAdapterNotSet: "Aave adapter is not set.",
 
   // ============================================================================
   // Aave Spoke errors

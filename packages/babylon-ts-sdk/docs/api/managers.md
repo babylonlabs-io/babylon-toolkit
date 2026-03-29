@@ -36,8 +36,8 @@ Use primitives instead when you need:
 ## Available Managers
 
 ### [PeginManager](#peginmanager)
-Orchestrates the atomic swap peg-in flow:
-- [prepareAtomicPegin()](#prepareatomicpegin) - Build Pre-PegIn HTLC and sign PegIn input
+Orchestrates the peg-in flow:
+- [preparePegin()](#preparepegin) - Build Pre-PegIn HTLC and sign PegIn input
 - [registerPeginOnChain()](#registerpeginonchain) - Submit to Ethereum
 - [signAndBroadcast()](#signandbroadcast) - Broadcast to Bitcoin
 
@@ -51,7 +51,7 @@ The 4-step peg-in flow uses both managers:
 
 | Step | Manager | Method |
 |------|---------|--------|
-| 1 | PeginManager | `prepareAtomicPegin()` |
+| 1 | PeginManager | `preparePegin()` |
 | 2 | PeginManager | `registerPeginOnChain()` |
 | 3 | PayoutManager | `signPayoutTransaction()` |
 | 4 | PeginManager | `signAndBroadcast()` |
@@ -246,11 +246,11 @@ by coordinating between SDK primitives, utilities, and wallet interfaces.
 
 #### Remarks
 
-The complete atomic swap peg-in flow consists of 4 steps:
+The complete peg-in flow consists of 4 steps:
 
 | Step | Method | Description |
 |------|--------|-------------|
-| 1 | [prepareAtomicPegin](#prepareatomicpegin) | Build Pre-PegIn HTLC, fund it, sign PegIn input |
+| 1 | [preparePegin](#preparepegin) | Build Pre-PegIn HTLC, fund it, sign PegIn input |
 | 2 | [registerPeginOnChain](#registerpeginonchain) | Submit to Ethereum contract with PoP |
 | 3 | [PayoutManager](#payoutmanager) | Sign BOTH payout authorizations |
 | 4 | [signAndBroadcast](#signandbroadcast) | Sign and broadcast Pre-PegIn tx to Bitcoin network |
@@ -298,15 +298,15 @@ Manager configuration including wallets and contract addresses
 
 #### Methods
 
-##### prepareAtomicPegin()
+##### preparePegin()
 
 ```ts
-prepareAtomicPegin(params): Promise<AtomicPeginResult>;
+preparePegin(params): Promise<PreparePeginResult>;
 ```
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:408](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L408)
 
-Prepares an atomic swap peg-in by building the Pre-PegIn HTLC transaction,
+Prepares a peg-in by building the Pre-PegIn HTLC transaction,
 funding it, constructing the PegIn transaction, and signing the PegIn input.
 
 This method orchestrates the following steps:
@@ -325,15 +325,15 @@ Use `signAndBroadcast()` AFTER registering on Ethereum to broadcast it.
 
 ###### params
 
-[`CreateAtomicPeginParams`](#createatomicpeginparams)
+[`PreparePeginParams`](#preparepeginparams)
 
-Atomic pegin parameters including amount, HTLC params, UTXOs
+Pegin parameters including amount, HTLC params, UTXOs
 
 ###### Returns
 
-`Promise`\<[`AtomicPeginResult`](#atomicpeginresult)\>
+`Promise`\<[`PreparePeginResult`](#preparepeginresult)\>
 
-Atomic pegin result with funded Pre-PegIn tx, signed PegIn input, and signatures
+Pegin result with funded Pre-PegIn tx, signed PegIn input, and signatures
 
 ###### Throws
 
@@ -1026,11 +1026,11 @@ a custom URL if running your own mempool instance.
 
 ***
 
-### CreateAtomicPeginParams
+### PreparePeginParams
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:107](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L107)
 
-Parameters for the atomic swap pegin flow (pre-pegin + pegin transactions).
+Parameters for the pegin flow (pre-pegin + pegin transactions).
 
 #### Properties
 
@@ -1168,11 +1168,11 @@ Bitcoin address for receiving change from the Pre-PegIn transaction.
 
 ***
 
-### AtomicPeginResult
+### PreparePeginResult
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:181](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L181)
 
-Result of preparing an atomic swap pegin.
+Result of preparing a pegin.
 
 #### Properties
 
@@ -1308,7 +1308,7 @@ fundedPrePeginTxHex: string;
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:250](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L250)
 
-Funded Pre-PegIn transaction hex from prepareAtomicPegin().
+Funded Pre-PegIn transaction hex from preparePegin().
 
 ##### depositorBtcPubkey
 
@@ -1381,7 +1381,7 @@ hashlock: `0x${string}`;
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:288](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L288)
 
-SHA256 hashlock for atomic swap activation (bytes32 hex with 0x prefix).
+SHA256 hashlock for HTLC activation (bytes32 hex with 0x prefix).
 
 ##### onPopSigned()?
 

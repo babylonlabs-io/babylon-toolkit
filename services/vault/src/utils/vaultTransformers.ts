@@ -57,7 +57,7 @@ export function transformVaultToActivity(vault: Vault): VaultActivity {
         id: vault.vaultProvider,
       },
     ],
-    applicationController: vault.applicationController,
+    applicationEntryPoint: vault.applicationEntryPoint,
     timestamp: vault.createdAt,
     depositorBtcPubkey: vault.depositorBtcPubkey,
     depositorSignedPeginTx: vault.depositorSignedPeginTx,

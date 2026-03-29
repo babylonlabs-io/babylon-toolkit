@@ -14,9 +14,8 @@ import { logger } from "@/infrastructure";
  * Environment variables for the vault application
  */
 interface EnvVars {
-  BTC_VAULTS_MANAGER: Address;
-  AAVE_CONTROLLER: Address;
-  AAVE_SPOKE: Address;
+  BTC_VAULT_REGISTRY: Address;
+  AAVE_ADAPTER: Address;
   GRAPHQL_ENDPOINT: string;
   SIDECAR_API_URL: string | undefined;
   BTC_PRICE_FEED: Address | undefined;
@@ -114,19 +113,14 @@ export function validateRequiredUrl(
 function validateEnvVars(): EnvValidationResult {
   const errors: string[] = [];
 
-  const BTC_VAULTS_MANAGER = validateRequiredAddress(
-    process.env.NEXT_PUBLIC_TBV_BTC_VAULTS_MANAGER,
-    "NEXT_PUBLIC_TBV_BTC_VAULTS_MANAGER",
+  const BTC_VAULT_REGISTRY = validateRequiredAddress(
+    process.env.NEXT_PUBLIC_TBV_BTC_VAULT_REGISTRY,
+    "NEXT_PUBLIC_TBV_BTC_VAULT_REGISTRY",
     errors,
   );
-  const AAVE_CONTROLLER = validateRequiredAddress(
-    process.env.NEXT_PUBLIC_TBV_AAVE_CONTROLLER,
-    "NEXT_PUBLIC_TBV_AAVE_CONTROLLER",
-    errors,
-  );
-  const AAVE_SPOKE = validateRequiredAddress(
-    process.env.NEXT_PUBLIC_TBV_AAVE_SPOKE,
-    "NEXT_PUBLIC_TBV_AAVE_SPOKE",
+  const AAVE_ADAPTER = validateRequiredAddress(
+    process.env.NEXT_PUBLIC_TBV_AAVE_ADAPTER,
+    "NEXT_PUBLIC_TBV_AAVE_ADAPTER",
     errors,
   );
   const GRAPHQL_ENDPOINT = validateRequiredUrl(
@@ -147,9 +141,8 @@ function validateEnvVars(): EnvValidationResult {
   );
 
   const env: EnvVars = {
-    BTC_VAULTS_MANAGER,
-    AAVE_CONTROLLER,
-    AAVE_SPOKE,
+    BTC_VAULT_REGISTRY,
+    AAVE_ADAPTER,
     GRAPHQL_ENDPOINT,
     SIDECAR_API_URL,
     VP_PROXY_URL,

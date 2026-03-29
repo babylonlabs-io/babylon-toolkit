@@ -10,6 +10,7 @@ const {
   mockGetERC20Allowance,
   mockGetERC20Balance,
   mockGetUserTotalDebt,
+  mockGetCoreSpokeAddress,
   mockBorrowFromCorePosition,
   mockRepayToCorePosition,
   mockWithdrawCollaterals,
@@ -18,6 +19,7 @@ const {
   mockGetERC20Allowance: vi.fn(),
   mockGetERC20Balance: vi.fn(),
   mockGetUserTotalDebt: vi.fn(),
+  mockGetCoreSpokeAddress: vi.fn(),
   mockBorrowFromCorePosition: vi.fn(),
   mockRepayToCorePosition: vi.fn(),
   mockWithdrawCollaterals: vi.fn(),
@@ -34,10 +36,11 @@ vi.mock("../../../../clients/eth-contract", () => ({
 
 // Mock Aave clients
 vi.mock("../../clients", () => ({
-  AaveControllerTx: {
+  AaveAdapterTx: {
     borrowFromCorePosition: mockBorrowFromCorePosition,
     repayToCorePosition: mockRepayToCorePosition,
     withdrawCollaterals: mockWithdrawCollaterals,
+    getCoreSpokeAddress: mockGetCoreSpokeAddress,
   },
   AaveSpoke: {
     getUserTotalDebt: mockGetUserTotalDebt,
@@ -46,8 +49,7 @@ vi.mock("../../clients", () => ({
 
 // Mock config
 vi.mock("../../config", () => ({
-  getAaveControllerAddress: vi.fn(() => "0xcontroller"),
-  getAaveSpokeAddress: vi.fn(() => "0xspoke"),
+  getAaveAdapterAddress: vi.fn(() => "0xadapter"),
 }));
 
 import { FULL_REPAY_BUFFER_DIVISOR } from "../../constants";
@@ -77,6 +79,7 @@ describe("positionTransactions", () => {
     mockBorrowFromCorePosition.mockResolvedValue(mockTxResult);
     mockRepayToCorePosition.mockResolvedValue(mockTxResult);
     mockWithdrawCollaterals.mockResolvedValue(mockTxResult);
+    mockGetCoreSpokeAddress.mockResolvedValue("0xspoke");
   });
 
   // ============================================================================
@@ -97,7 +100,7 @@ describe("positionTransactions", () => {
       expect(mockBorrowFromCorePosition).toHaveBeenCalledWith(
         mockWalletClient,
         mockChain,
-        "0xcontroller",
+        "0xadapter",
         debtReserveId,
         amount,
         "0xuser",
@@ -134,7 +137,7 @@ describe("positionTransactions", () => {
       expect(mockRepayToCorePosition).toHaveBeenCalledWith(
         mockWalletClient,
         mockChain,
-        "0xcontroller",
+        "0xadapter",
         borrower,
         debtReserveId,
         amount,
@@ -175,19 +178,19 @@ describe("positionTransactions", () => {
         amount,
       );
 
-      // Should check allowance against the pinned controller address
+      // Should check allowance against the pinned adapter address
       expect(mockGetERC20Allowance).toHaveBeenCalledWith(
         "0xtoken",
         "0xuser",
-        "0xcontroller",
+        "0xadapter",
       );
 
-      // Should approve exact amount (not MAX_UINT256) to the pinned controller address
+      // Should approve exact amount (not MAX_UINT256) to the pinned adapter address
       expect(mockApproveERC20).toHaveBeenCalledWith(
         mockWalletClient,
         mockChain,
         "0xtoken",
-        "0xcontroller",
+        "0xadapter",
         amount,
       );
 
@@ -233,7 +236,7 @@ describe("positionTransactions", () => {
       mockGetERC20Balance.mockResolvedValue(amountToRepay + 1000n);
     });
 
-    it("should approve exact debt amount plus buffer to the pinned controller address (not MAX_UINT256)", async () => {
+    it("should approve exact debt amount plus buffer to the pinned adapter address (not MAX_UINT256)", async () => {
       const currentDebt = 1000000n;
       const expectedRepayAmount =
         currentDebt + currentDebt / FULL_REPAY_BUFFER_DIVISOR;
@@ -246,12 +249,12 @@ describe("positionTransactions", () => {
         "0xproxy" as any,
       );
 
-      // Verify approval is for exact amount, not MAX_UINT256, to the pinned controller address
+      // Verify approval is for exact amount, not MAX_UINT256, to the pinned adapter address
       expect(mockApproveERC20).toHaveBeenCalledWith(
         mockWalletClient,
         mockChain,
         "0xtoken",
-        "0xcontroller",
+        "0xadapter",
         expectedRepayAmount,
       );
     });
@@ -350,7 +353,7 @@ describe("positionTransactions", () => {
       expect(mockWithdrawCollaterals).toHaveBeenCalledWith(
         mockWalletClient,
         mockChain,
-        "0xcontroller",
+        "0xadapter",
         vaultIds,
       );
       expect(result.transactionHash).toBe("0xhash");

@@ -40,8 +40,8 @@ const accountData = await getUserAccountData(publicClient, spokeAddress, proxyAd
 const hf = Number(accountData.healthFactor) / 1e18;
 console.log("Health Factor:", hf);
 
-// Borrow stablecoins (controller resolves proxy from msg.sender)
-const borrowTx = buildBorrowTx(controllerAddress, reserveId, amount, receiver);
+// Borrow stablecoins (adapter resolves proxy from msg.sender)
+const borrowTx = buildBorrowTx(adapterAddress, reserveId, amount, receiver);
 await walletClient.sendTransaction({ to: borrowTx.to, data: borrowTx.data });
 ```
 
@@ -78,7 +78,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts:14](../.
 Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts:21](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts#L21)
 
 Aave position structure from the contract.
-The controller resolves the user's proxy and vaults from their address.
+The adapter resolves the user's proxy and vaults from their address.
 
 #### Properties
 
@@ -664,7 +664,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/query.ts:
 
 Get a position by user address.
 
-The controller resolves the user's proxy contract and collateralized vault IDs.
+The adapter resolves the user's proxy contract and collateralized vault IDs.
 
 NOTE: Prefer using the indexer (fetchAavePositionWithCollaterals) for position data.
 This function is only needed when you need data not available in the indexer,
@@ -680,7 +680,7 @@ Viem public client for reading contracts
 
 `` `0x${string}` ``
 
-AaveIntegrationController contract address
+AaveIntegrationAdapter contract address
 
 ##### user
 
@@ -719,7 +719,7 @@ Viem public client for reading contracts
 
 `` `0x${string}` ``
 
-AaveIntegrationController contract address
+AaveIntegrationAdapter contract address
 
 ##### user
 
@@ -1156,7 +1156,7 @@ Withdraws specific vaults (partial withdrawal) and redeems them back to the depo
 
 `` `0x${string}` ``
 
-AaveIntegrationController contract address
+AaveIntegrationAdapter contract address
 
 ##### vaultIds
 
@@ -1195,7 +1195,7 @@ Health factor must remain above 1.0 after borrowing, otherwise transaction will 
 
 `` `0x${string}` ``
 
-AaveIntegrationController contract address
+AaveIntegrationAdapter contract address
 
 ##### debtReserveId
 
@@ -1231,7 +1231,7 @@ import { parseUnits } from "viem";
 const borrowAmount = parseUnits("100", 6);
 
 const txParams = buildBorrowTx(
-  "0x123...", // Controller address
+  "0x123...", // Adapter address
   2n, // USDC reserve ID
   borrowAmount,
   "0x456..." // Receiver address
@@ -1277,7 +1277,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/transacti
 
 Build transaction to repay debt on AAVE position.
 
-**Requires token approval** - user must approve controller to spend debt token first.
+**Requires token approval** - user must approve adapter to spend debt token first.
 Repays borrowed assets (partial or full repayment supported).
 
 #### Parameters
@@ -1286,7 +1286,7 @@ Repays borrowed assets (partial or full repayment supported).
 
 `` `0x${string}` ``
 
-AaveIntegrationController contract address
+AaveIntegrationAdapter contract address
 
 ##### borrower
 
@@ -1319,7 +1319,7 @@ import { buildRepayTx } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
 
 // Build repay transaction (self-repay)
 const txParams = buildRepayTx(
-  AAVE_CONTROLLER,
+  AAVE_ADAPTER,
   borrowerAddress, // Connected wallet address for self-repay
   USDC_RESERVE_ID,
   repayAmount
@@ -1335,7 +1335,7 @@ const hash = await walletClient.sendTransaction({
 #### Remarks
 
 **What happens on-chain:**
-1. Transfers tokens from user to controller (requires approval)
+1. Transfers tokens from user to adapter (requires approval)
 2. Burns debt tokens from user's proxy
 3. Updates position debt
 4. Emits `Repaid` event

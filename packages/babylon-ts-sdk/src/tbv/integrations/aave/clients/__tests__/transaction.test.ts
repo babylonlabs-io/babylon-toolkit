@@ -1,7 +1,7 @@
 import { decodeFunctionData } from "viem";
 import { describe, expect, it } from "vitest";
 
-import AaveIntegrationControllerABI from "../abis/AaveIntegrationController.abi.json";
+import AaveIntegrationAdapterABI from "../abis/AaveIntegrationAdapter.abi.json";
 import {
   buildWithdrawCollateralsTx,
   buildBorrowTx,
@@ -25,7 +25,7 @@ describe("transaction builders", () => {
 
       // Decode and verify the function call
       const decoded = decodeFunctionData({
-        abi: AaveIntegrationControllerABI,
+        abi: AaveIntegrationAdapterABI,
         data: result.data,
       });
 
@@ -42,7 +42,7 @@ describe("transaction builders", () => {
       const result = buildWithdrawCollateralsTx(CONTRACT_ADDRESS, [...vaultIds]);
 
       const decoded = decodeFunctionData({
-        abi: AaveIntegrationControllerABI,
+        abi: AaveIntegrationAdapterABI,
         data: result.data,
       });
 
@@ -60,7 +60,7 @@ describe("transaction builders", () => {
       expect(result.to).toBe(CONTRACT_ADDRESS);
 
       const decoded = decodeFunctionData({
-        abi: AaveIntegrationControllerABI,
+        abi: AaveIntegrationAdapterABI,
         data: result.data,
       });
 
@@ -78,7 +78,7 @@ describe("transaction builders", () => {
       expect(result.to).toBe(CONTRACT_ADDRESS);
 
       const decoded = decodeFunctionData({
-        abi: AaveIntegrationControllerABI,
+        abi: AaveIntegrationAdapterABI,
         data: result.data,
       });
 

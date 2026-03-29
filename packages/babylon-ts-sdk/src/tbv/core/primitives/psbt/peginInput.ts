@@ -4,8 +4,8 @@
  * Builds the PSBT for the depositor to sign the PegIn transaction's HTLC input
  * (Pre-PegIn HTLC leaf 0 — the hashlock + all-party script).
  *
- * This is the "Sign Pegin transaction HTLC leaf 0 input" step in the atomic
- * swap activation flow. The depositor signs input 0 of the PegIn transaction,
+ * This is the "Sign Pegin transaction HTLC leaf 0 input" step in the pre-pegin
+ * flow. The depositor signs input 0 of the PegIn transaction,
  * which spends output 0 of the funded Pre-PegIn transaction via script-path.
  *
  * @module primitives/psbt/peginInput
@@ -43,7 +43,7 @@ export interface BuildPeginInputPsbtParams {
   /** Universal challenger BTC public keys (x-only, 64-char hex) */
   universalChallengerPubkeys: string[];
   /** SHA256 hash commitment (64 hex chars = 32 bytes) */
-  hashH: string;
+  hashlock: string;
   /** CSV timelock in blocks for the HTLC refund path */
   timelockRefund: number;
   /** Bitcoin network */
@@ -88,7 +88,7 @@ export async function buildPeginInputPsbt(
     vaultProviderPubkey: params.vaultProviderPubkey,
     vaultKeeperPubkeys: params.vaultKeeperPubkeys,
     universalChallengerPubkeys: params.universalChallengerPubkeys,
-    hashH: params.hashH,
+    hashlock: params.hashlock,
     timelockRefund: params.timelockRefund,
     network: params.network,
   });

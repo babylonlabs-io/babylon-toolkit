@@ -21,12 +21,12 @@ const btcConfig = getNetworkConfigBTC();
 function convertPendingPeginToActivity(
   pending: PendingPeginRequest,
 ): ActivityLog | null {
-  if (!pending.applicationController || !pending.amount) {
+  if (!pending.applicationEntryPoint || !pending.amount) {
     return null;
   }
 
   const appMetadata = getApplicationMetadataByController(
-    pending.applicationController,
+    pending.applicationEntryPoint,
   );
   if (!appMetadata) {
     return null;
