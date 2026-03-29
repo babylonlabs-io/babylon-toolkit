@@ -10,6 +10,7 @@ const {
   mockGetERC20Allowance,
   mockGetERC20Balance,
   mockGetUserTotalDebt,
+  mockGetCoreSpokeAddress,
   mockBorrowFromCorePosition,
   mockRepayToCorePosition,
   mockWithdrawCollaterals,
@@ -18,6 +19,7 @@ const {
   mockGetERC20Allowance: vi.fn(),
   mockGetERC20Balance: vi.fn(),
   mockGetUserTotalDebt: vi.fn(),
+  mockGetCoreSpokeAddress: vi.fn(),
   mockBorrowFromCorePosition: vi.fn(),
   mockRepayToCorePosition: vi.fn(),
   mockWithdrawCollaterals: vi.fn(),
@@ -38,6 +40,7 @@ vi.mock("../../clients", () => ({
     borrowFromCorePosition: mockBorrowFromCorePosition,
     repayToCorePosition: mockRepayToCorePosition,
     withdrawCollaterals: mockWithdrawCollaterals,
+    getCoreSpokeAddress: mockGetCoreSpokeAddress,
   },
   AaveSpoke: {
     getUserTotalDebt: mockGetUserTotalDebt,
@@ -47,7 +50,6 @@ vi.mock("../../clients", () => ({
 // Mock config
 vi.mock("../../config", () => ({
   getAaveAdapterAddress: vi.fn(() => "0xadapter"),
-  getAaveSpokeAddress: vi.fn(() => "0xspoke"),
 }));
 
 import { FULL_REPAY_BUFFER_DIVISOR } from "../../constants";
@@ -77,6 +79,7 @@ describe("positionTransactions", () => {
     mockBorrowFromCorePosition.mockResolvedValue(mockTxResult);
     mockRepayToCorePosition.mockResolvedValue(mockTxResult);
     mockWithdrawCollaterals.mockResolvedValue(mockTxResult);
+    mockGetCoreSpokeAddress.mockResolvedValue("0xspoke");
   });
 
   // ============================================================================
