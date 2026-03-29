@@ -550,7 +550,9 @@ describe("vaultPayoutSignatureService", () => {
       { id: "0xKeeper2", btcPubKey: "keeperpubkey2" },
     ];
 
-    const universalChallengers = [{ id: "0xChallenger1", btcPubKey: "challpubkey1" }];
+    const universalChallengers = [
+      { id: "0xChallenger1", btcPubKey: "challpubkey1" },
+    ];
 
     const providers = {
       vaultProvider: {
