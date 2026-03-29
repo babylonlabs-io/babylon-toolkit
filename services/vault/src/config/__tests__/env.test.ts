@@ -88,10 +88,32 @@ describe("validateRequiredUrl", () => {
     expect(errors).toHaveLength(0);
   });
 
+  it("preserves a URL with a path", () => {
+    const errors: string[] = [];
+    const result = validateRequiredUrl(
+      "https://api.example.com/v1/graphql",
+      "MY_VAR",
+      errors,
+    );
+    expect(result).toBe("https://api.example.com/v1/graphql");
+    expect(errors).toHaveLength(0);
+  });
+
   it("strips a trailing slash", () => {
     const errors: string[] = [];
     const result = validateRequiredUrl(
       "https://api.example.com/",
+      "MY_VAR",
+      errors,
+    );
+    expect(result).toBe("https://api.example.com");
+    expect(errors).toHaveLength(0);
+  });
+
+  it("strips a trailing slash followed by whitespace", () => {
+    const errors: string[] = [];
+    const result = validateRequiredUrl(
+      "https://api.example.com/ ",
       "MY_VAR",
       errors,
     );

@@ -18,7 +18,7 @@ interface EnvVars {
   AAVE_CONTROLLER: Address;
   AAVE_SPOKE: Address;
   GRAPHQL_ENDPOINT: string;
-  SIDECAR_API_URL: string;
+  SIDECAR_API_URL: string | undefined;
   BTC_PRICE_FEED: Address | undefined;
   VP_PROXY_URL: string;
 }
@@ -32,10 +32,29 @@ const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000" as Address;
 
 const ALLOWED_URL_SCHEMES = ["https:", "http:"];
 
+function parseOptionalUrl(value: string | undefined): string | undefined {
+  const trimmed = (value ?? "").trim().replace(/\/$/, "");
+  if (!trimmed) return undefined;
+  let parsed: URL;
+  try {
+    parsed = new URL(trimmed);
+  } catch {
+    logger.warn(`Invalid URL in env config: "${trimmed}", ignoring.`);
+    return undefined;
+  }
+  if (!ALLOWED_URL_SCHEMES.includes(parsed.protocol)) {
+    logger.warn(
+      `URL in env config must use http or https scheme, got: "${parsed.protocol}", ignoring.`,
+    );
+    return undefined;
+  }
+  return trimmed;
+}
+
 function parseOptionalAddress(value: string | undefined): Address | undefined {
   const trimmed = value?.trim();
   if (!trimmed) return undefined;
-  if (!isAddress(trimmed)) {
+  if (!isAddress(trimmed, { strict: false })) {
     logger.warn(`Invalid address in env config: "${trimmed}", ignoring.`);
     return undefined;
   }
@@ -52,7 +71,7 @@ export function validateRequiredAddress(
     errors.push(`${envVarName} is missing`);
     return ZERO_ADDRESS;
   }
-  if (!isAddress(trimmed)) {
+  if (!isAddress(trimmed, { strict: false })) {
     errors.push(`${envVarName} is not a valid EVM address: "${trimmed}"`);
     return ZERO_ADDRESS;
   }
@@ -68,7 +87,7 @@ export function validateRequiredUrl(
   envVarName: string,
   errors: string[],
 ): string {
-  const trimmed = (value ?? "").replace(/\/$/, "").trim();
+  const trimmed = (value ?? "").trim().replace(/\/$/, "");
   if (!trimmed) {
     errors.push(`${envVarName} is missing`);
     return "";
@@ -115,10 +134,8 @@ function validateEnvVars(): EnvValidationResult {
     "NEXT_PUBLIC_TBV_GRAPHQL_ENDPOINT",
     errors,
   );
-  const SIDECAR_API_URL = validateRequiredUrl(
+  const SIDECAR_API_URL = parseOptionalUrl(
     process.env.NEXT_PUBLIC_TBV_SIDECAR_API_URL,
-    "NEXT_PUBLIC_TBV_SIDECAR_API_URL",
-    errors,
   );
   const VP_PROXY_URL = validateRequiredUrl(
     process.env.NEXT_PUBLIC_TBV_VP_PROXY_URL,
