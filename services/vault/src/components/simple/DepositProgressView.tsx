@@ -26,7 +26,7 @@ import type { PayoutSigningProgress } from "@/services/vault/vaultPayoutSignatur
  * Map the internal DepositFlowStep + isWaiting to a 1-indexed visual step (1-9).
  *
  * Visual steps (must match buildStepItems order):
- * 1. Sign proof of possession          (SIGN_POP)
+ * 1. Sign peg-in input & PoP               (SIGN_POP)
  * 2. Submit peg-in to Ethereum         (SUBMIT_PEGIN)
  * 3. Broadcast to Bitcoin              (BROADCAST_PRE_PEGIN)
  * 4. Wait (~ 15 min)                   (SIGN_PAYOUTS when isWaiting)
@@ -67,7 +67,7 @@ export function buildStepItems(
   const payoutCompleted = progress?.completed ?? 0;
 
   return [
-    { label: "Sign proof of possession" },
+    { label: "Sign peg-in input & PoP" },
     { label: "Submit peg-in to Ethereum" },
     { label: "Broadcast to Bitcoin" },
     { label: "Wait", description: "(~ 15 min)" },
@@ -184,8 +184,8 @@ export function buildMultiVaultStepItems(
   }
 
   steps.push(
-    { label: "Sign PoP + Submit pegin 1/2" },
-    { label: "Submit pegin 2/2" },
+    { label: "Sign peg-in input, PoP + Submit 1/2" },
+    { label: "Submit peg-in 2/2" },
     { label: "Broadcast to Bitcoin" },
     { label: "Wait", description: "(~ 15 min)" },
     {
