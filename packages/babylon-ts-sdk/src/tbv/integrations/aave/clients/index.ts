@@ -16,6 +16,7 @@ export {
 // Transaction builders
 export {
   buildBorrowTx,
+  buildReorderVaultsTx,
   buildRepayTx,
   buildWithdrawCollateralsTx,
 } from "./transaction.js";

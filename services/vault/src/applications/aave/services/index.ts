@@ -49,6 +49,7 @@ export {
 // Position transactions
 export {
   borrow,
+  reorderVaultOrder,
   repay,
   repayFull,
   repayPartial,

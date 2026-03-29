@@ -15,6 +15,33 @@ import type { TransactionParams } from "../types.js";
 import AaveIntegrationAdapterABI from "./abis/AaveIntegrationAdapter.abi.json";
 
 /**
+ * Build transaction to reorder vaults for liquidation priority.
+ *
+ * The permuted array must contain exactly the same vault IDs as the
+ * current position, in the desired new order. Vaults are seized in
+ * prefix order (index 0 first) during liquidation.
+ *
+ * @param contractAddress - AaveIntegrationAdapter contract address
+ * @param permutedVaultIds - Vault IDs in desired new order (must be a permutation of current vaults)
+ * @returns Unsigned transaction parameters
+ */
+export function buildReorderVaultsTx(
+  contractAddress: Address,
+  permutedVaultIds: Hex[],
+): TransactionParams {
+  const data = encodeFunctionData({
+    abi: AaveIntegrationAdapterABI,
+    functionName: AAVE_FUNCTION_NAMES.REORDER_VAULTS,
+    args: [permutedVaultIds],
+  });
+
+  return {
+    to: contractAddress,
+    data,
+  };
+}
+
+/**
  * Build transaction to withdraw selected vaults from AAVE position.
  *
  * Withdraws specific vaults (partial withdrawal) and redeems them back to the depositor.

@@ -19,10 +19,20 @@ export {
   type UseRebalanceCheckResult,
 } from "./useRebalanceCheck";
 export {
+  useReorderVaults,
+  type UseReorderVaultsResult,
+} from "./useReorderVaults";
+export {
   useRepayTransaction,
   type UseRepayTransactionProps,
   type UseRepayTransactionResult,
 } from "./useRepayTransaction";
+export {
+  useSeizureSimulation,
+  type UseSeizureSimulationResult,
+  type VaultAmountMap,
+} from "./useSeizureSimulation";
+export { useVaultOrder, type UseVaultOrderResult } from "./useVaultOrder";
 export {
   useVaultSplitParams,
   type UseVaultSplitParamsResult,
