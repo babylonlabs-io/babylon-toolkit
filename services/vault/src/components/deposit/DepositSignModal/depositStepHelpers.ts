@@ -41,24 +41,6 @@ export const STEP_DESCRIPTIONS: Partial<
 };
 
 /**
- * Step labels for the progress indicator
- */
-export function getStepLabels(): string[] {
-  return [
-    "Sign proof of possession",
-    "Sign & submit peg-in request to Ethereum",
-    "Sign & broadcast Pre-PegIn to Bitcoin",
-    "Sign payout transaction(s)",
-    "Download vault artifacts",
-    "Activate vault on Ethereum",
-  ];
-}
-
-export function getTotalSteps(): number {
-  return 6;
-}
-
-/**
  * Get the description text for the current step
  */
 export function getStepDescription(

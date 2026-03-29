@@ -78,6 +78,7 @@ describe("peginStateMachine", () => {
       expect(state.availableActions).toContain(
         PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN,
       );
+      expect(state.message).toContain("Broadcast the Pre-PegIn transaction");
     });
 
     it("shows ready to activate when BTC tx is broadcast", () => {
