@@ -4,7 +4,6 @@
 export { ethClient } from "./client";
 
 // BTCVaultsManager
-export * as BTCVaultsManagerQuery from "./btc-vaults-manager/query";
 export type { OnChainVaultData } from "./btc-vaults-manager/query";
 
 // Protocol Params
