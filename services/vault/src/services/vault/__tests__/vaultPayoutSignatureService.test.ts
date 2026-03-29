@@ -5,13 +5,19 @@ vi.mock("@babylonlabs-io/ts-sdk/tbv/core", () => ({
   PayoutManager: vi.fn(),
 }));
 
-// Mock GraphQL fetch functions
+// Mock vault provider GraphQL fetch (BTC pubkey fallback in resolveVaultProviderBtcPubkey)
 vi.mock("../fetchVaultProviders", () => ({
   fetchVaultProviderById: vi.fn(),
 }));
 
-vi.mock("../fetchVaults", () => ({
-  fetchVaultById: vi.fn(),
+// Mock on-chain vault query (used by prepareSigningContext)
+vi.mock("../../../clients/eth-contract/btc-vault-registry/query", () => ({
+  getVaultFromChain: vi.fn(),
+}));
+
+// Mock versioned vault keeper fetch (used by prepareSigningContext)
+vi.mock("../../providers/fetchProviders", () => ({
+  fetchVaultKeepersByVersion: vi.fn(),
 }));
 
 // Mock RPC client
@@ -24,10 +30,14 @@ vi.mock("../../../config/pegin", () => ({
   getBTCNetworkForWASM: vi.fn().mockReturnValue("testnet"),
 }));
 
+import { getVaultFromChain } from "../../../clients/eth-contract/btc-vault-registry/query";
 import type { ClaimerTransactions } from "../../../clients/vault-provider-rpc/types";
+import { fetchVaultKeepersByVersion } from "../../providers/fetchProviders";
+import { fetchVaultProviderById } from "../fetchVaultProviders";
 import {
   getSortedUniversalChallengerPubkeys,
   getSortedVaultKeeperPubkeys,
+  prepareSigningContext,
   prepareTransactionsForSigning,
   signAllTransactionsBatch,
   signPayoutTransactions,
@@ -60,9 +70,6 @@ describe("vaultPayoutSignatureService", () => {
       depositorBtcPubkey:
         "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
       claimerTransactions: [createClaimerTransactions("abc")],
-      vaultProvider: {
-        address: "0x123" as `0x${string}`,
-      },
       vaultKeepers: [{ btcPubKey: "0xabc" }],
       universalChallengers: [{ btcPubKey: "0xdef" }],
     };
@@ -102,15 +109,6 @@ describe("vaultPayoutSignatureService", () => {
           claimerTransactions: [],
         }),
       ).toThrow("Invalid claimerTransactions");
-    });
-
-    it("should throw for missing vaultProvider address", () => {
-      expect(() =>
-        validatePayoutSignatureParams({
-          ...validParams,
-          vaultProvider: {} as any,
-        }),
-      ).toThrow("Invalid vaultProvider");
     });
 
     it("should throw for empty vaultKeepers", () => {
@@ -530,6 +528,134 @@ describe("vaultPayoutSignatureService", () => {
       ).rejects.toThrow(
         "Failed to batch sign payout transactions: Unknown error",
       );
+    });
+  });
+
+  describe("prepareSigningContext", () => {
+    const peginTxId =
+      "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef";
+    const depositorBtcPubkey =
+      "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef";
+
+    const onChainVault = {
+      depositorSignedPeginTx: "0xdeadbeef" as `0x${string}`,
+      applicationEntryPoint: "0xAppEntryPoint" as `0x${string}`,
+      vaultProvider: "0xOnChainVaultProvider" as `0x${string}`,
+      universalChallengersVersion: 1,
+      appVaultKeepersVersion: 2,
+    };
+
+    const vaultKeepers = [
+      { id: "0xKeeper1", btcPubKey: "keeperpubkey1" },
+      { id: "0xKeeper2", btcPubKey: "keeperpubkey2" },
+    ];
+
+    const universalChallengers = [
+      { id: "0xChallenger1", btcPubKey: "challpubkey1" },
+    ];
+
+    const providers = {
+      vaultProvider: {
+        btcPubKey: "0xproviderbtcpubkey",
+      },
+      vaultKeepers,
+      universalChallengers,
+    };
+
+    it("sources peginTxHex from on-chain vault data, not params", async () => {
+      vi.mocked(getVaultFromChain).mockResolvedValue(onChainVault);
+      vi.mocked(fetchVaultKeepersByVersion).mockResolvedValue(vaultKeepers);
+
+      const { context } = await prepareSigningContext({
+        peginTxId,
+        depositorBtcPubkey,
+        providers,
+        timelockPegin: 100,
+        getUniversalChallengersByVersion: () => universalChallengers,
+      });
+
+      expect(getVaultFromChain).toHaveBeenCalledWith(peginTxId);
+      expect(context.peginTxHex).toBe(onChainVault.depositorSignedPeginTx);
+    });
+
+    it("fetches vault keepers using version from on-chain vault", async () => {
+      vi.mocked(getVaultFromChain).mockResolvedValue(onChainVault);
+      vi.mocked(fetchVaultKeepersByVersion).mockResolvedValue(vaultKeepers);
+
+      await prepareSigningContext({
+        peginTxId,
+        depositorBtcPubkey,
+        providers,
+        timelockPegin: 100,
+        getUniversalChallengersByVersion: () => universalChallengers,
+      });
+
+      expect(fetchVaultKeepersByVersion).toHaveBeenCalledWith(
+        onChainVault.applicationEntryPoint,
+        onChainVault.appVaultKeepersVersion,
+      );
+    });
+
+    it("selects universal challengers using version from on-chain vault", async () => {
+      vi.mocked(getVaultFromChain).mockResolvedValue(onChainVault);
+      vi.mocked(fetchVaultKeepersByVersion).mockResolvedValue(vaultKeepers);
+
+      const getUniversalChallengersByVersion = vi
+        .fn()
+        .mockReturnValue(universalChallengers);
+
+      await prepareSigningContext({
+        peginTxId,
+        depositorBtcPubkey,
+        providers,
+        timelockPegin: 100,
+        getUniversalChallengersByVersion,
+      });
+
+      expect(getUniversalChallengersByVersion).toHaveBeenCalledWith(
+        onChainVault.universalChallengersVersion,
+      );
+    });
+
+    it("throws when no universal challengers exist for the on-chain version", async () => {
+      vi.mocked(getVaultFromChain).mockResolvedValue(onChainVault);
+      vi.mocked(fetchVaultKeepersByVersion).mockResolvedValue(vaultKeepers);
+
+      await expect(
+        prepareSigningContext({
+          peginTxId,
+          depositorBtcPubkey,
+          providers,
+          timelockPegin: 100,
+          getUniversalChallengersByVersion: () => [],
+        }),
+      ).rejects.toThrow(
+        `No universal challengers found for version ${onChainVault.universalChallengersVersion}`,
+      );
+    });
+
+    it("resolves vault provider btc pubkey from GraphQL using on-chain address when not provided inline", async () => {
+      vi.mocked(getVaultFromChain).mockResolvedValue(onChainVault);
+      vi.mocked(fetchVaultKeepersByVersion).mockResolvedValue(vaultKeepers);
+      vi.mocked(fetchVaultProviderById).mockResolvedValue({
+        btcPubKey: "0xfetchedproviderkey",
+      } as any);
+
+      const { context } = await prepareSigningContext({
+        peginTxId,
+        depositorBtcPubkey,
+        providers: {
+          ...providers,
+          vaultProvider: {},
+        },
+        timelockPegin: 100,
+        getUniversalChallengersByVersion: () => universalChallengers,
+      });
+
+      expect(fetchVaultProviderById).toHaveBeenCalledWith(
+        onChainVault.vaultProvider,
+      );
+      expect(context.vaultProviderBtcPubkey).toBe("fetchedproviderkey");
     });
   });
 

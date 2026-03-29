@@ -3,6 +3,9 @@
 // Shared client
 export { ethClient } from "./client";
 
+// BTCVaultRegistry
+export type { OnChainVaultData } from "./btc-vault-registry/query";
+
 // Protocol Params
 export * as ProtocolParamsQuery from "./protocol-params";
 export type { PegInConfiguration, TBVProtocolParams } from "./protocol-params";
