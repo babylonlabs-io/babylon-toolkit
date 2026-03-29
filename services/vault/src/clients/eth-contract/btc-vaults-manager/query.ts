@@ -20,6 +20,7 @@ import BTCVaultsManagerAbi from "./abis/BTCVaultsManager.abi.json";
 export interface OnChainVaultData {
   depositorSignedPeginTx: Hex;
   applicationController: Address;
+  vaultProvider: Address;
   universalChallengersVersion: number;
   appVaultKeepersVersion: number;
 }
@@ -36,17 +37,12 @@ export async function getVaultFromChain(
 ): Promise<OnChainVaultData> {
   const publicClient = ethClient.getPublicClient();
 
-  const vault = (await publicClient.readContract({
+  const vault = await publicClient.readContract({
     address: CONTRACTS.BTC_VAULTS_MANAGER,
-    abi: BTCVaultsManagerAbi,
+    abi: BTCVaultsManagerAbi as const,
     functionName: "getBTCVault",
     args: [vaultId],
-  })) as {
-    depositorSignedPeginTx: Hex;
-    applicationController: Address;
-    universalChallengersVersion: number;
-    appVaultKeepersVersion: number;
-  };
+  });
 
   if (!vault.depositorSignedPeginTx || vault.depositorSignedPeginTx === "0x") {
     throw new Error(
@@ -57,6 +53,7 @@ export async function getVaultFromChain(
   return {
     depositorSignedPeginTx: vault.depositorSignedPeginTx,
     applicationController: vault.applicationController,
+    vaultProvider: vault.vaultProvider,
     universalChallengersVersion: vault.universalChallengersVersion,
     appVaultKeepersVersion: vault.appVaultKeepersVersion,
   };

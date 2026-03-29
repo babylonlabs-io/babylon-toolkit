@@ -1,6 +1,6 @@
 import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
 import { PayoutManager, type Network } from "@babylonlabs-io/ts-sdk/tbv/core";
-import type { Hex } from "viem";
+import type { Address, Hex } from "viem";
 
 import { getVaultFromChain } from "../../clients/eth-contract/btc-vaults-manager/query";
 import { VaultProviderRpcApi } from "../../clients/vault-provider-rpc";
@@ -23,9 +23,7 @@ import { fetchVaultProviderById } from "./fetchVaultProviders";
 
 /** Vault provider info needed for payout signing */
 export interface PayoutVaultProvider {
-  /** Provider's Ethereum address */
-  address: Hex;
-  /** Provider's BTC public key (optional - will be fetched if not provided) */
+  /** Provider's BTC public key (optional - will be fetched from GraphQL if not provided) */
   btcPubKey?: string;
 }
 
@@ -73,7 +71,6 @@ export function validatePayoutSignatureParams(params: {
   peginTxId: string;
   depositorBtcPubkey: string;
   claimerTransactions: ClaimerTransactions[];
-  vaultProvider: PayoutVaultProvider;
   vaultKeepers: PayoutVaultKeeper[];
   universalChallengers: PayoutUniversalChallenger[];
 }): void {
@@ -81,7 +78,6 @@ export function validatePayoutSignatureParams(params: {
     peginTxId,
     depositorBtcPubkey,
     claimerTransactions,
-    vaultProvider,
     vaultKeepers,
     universalChallengers,
   } = params;
@@ -94,10 +90,6 @@ export function validatePayoutSignatureParams(params: {
 
   if (!claimerTransactions || claimerTransactions.length === 0) {
     throw new Error("Invalid claimerTransactions: must be a non-empty array");
-  }
-
-  if (!vaultProvider?.address) {
-    throw new Error("Invalid vaultProvider: must have an address");
   }
 
   if (!vaultKeepers || vaultKeepers.length === 0) {
@@ -114,13 +106,14 @@ export function validatePayoutSignatureParams(params: {
  * Uses provided key or fetches from GraphQL if not provided.
  */
 export async function resolveVaultProviderBtcPubkey(
-  vaultProvider: PayoutVaultProvider,
+  address: Address,
+  btcPubKey?: string,
 ): Promise<string> {
-  if (vaultProvider.btcPubKey) {
-    return stripHexPrefix(vaultProvider.btcPubKey);
+  if (btcPubKey) {
+    return stripHexPrefix(btcPubKey);
   }
 
-  const provider = await fetchVaultProviderById(vaultProvider.address);
+  const provider = await fetchVaultProviderById(address);
   if (!provider) {
     throw new Error("Vault provider not found");
   }
@@ -277,8 +270,6 @@ export async function prepareSigningContext(
     timelockPegin,
     getUniversalChallengersByVersion,
   } = params;
-  const { vaultProvider } = providers;
-
   // Fetch signing-critical vault fields from the contract (authoritative source).
   // Never use the GraphQL indexer for these values — a compromised indexer could
   // substitute a different pegin transaction or signer-set versions and obtain
@@ -302,9 +293,11 @@ export async function prepareSigningContext(
     );
   }
 
-  // Resolve vault provider's BTC public key
-  const vaultProviderBtcPubkey =
-    await resolveVaultProviderBtcPubkey(vaultProvider);
+  // Resolve vault provider's BTC public key using the contract-authoritative address
+  const vaultProviderBtcPubkey = await resolveVaultProviderBtcPubkey(
+    vault.vaultProvider,
+    providers.vaultProvider?.btcPubKey,
+  );
 
   // Get pubkeys (sorted order matches Rust backend)
   const vaultKeeperBtcPubkeys = getSortedVaultKeeperPubkeys(
@@ -326,7 +319,7 @@ export async function prepareSigningContext(
 
   return {
     context: signingContext,
-    vaultProviderAddress: vaultProvider.address,
+    vaultProviderAddress: vault.vaultProvider,
   };
 }
 

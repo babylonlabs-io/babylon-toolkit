@@ -126,7 +126,6 @@ export function usePayoutSigningState({
     // Build providers object
     const providers = {
       vaultProvider: {
-        address: provider.id as Hex,
         btcPubKey: provider.btcPubKey,
       },
       vaultKeepers: vaultKeepers.map((vk) => ({ btcPubKey: vk.btcPubKey })),
@@ -141,7 +140,6 @@ export function usePayoutSigningState({
         peginTxId: activity.txHash!,
         depositorBtcPubkey: btcPublicKey,
         claimerTransactions: transactions,
-        vaultProvider: providers.vaultProvider,
         vaultKeepers: providers.vaultKeepers,
         universalChallengers: providers.universalChallengers,
       });
