@@ -12,37 +12,9 @@ import { getAddress, isAddress } from "viem";
 
 import { logger } from "@/infrastructure";
 
-import { ethClient } from "../../clients/eth-contract/client";
 import { getNetworkConfigBTC } from "../../config";
 
 const btcConfig = getNetworkConfigBTC();
-
-/**
- * ERC20 ABI for fetching token metadata
- */
-const ERC20_METADATA_ABI = [
-  {
-    inputs: [],
-    name: "name",
-    outputs: [{ name: "", type: "string" }],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [],
-    name: "symbol",
-    outputs: [{ name: "", type: "string" }],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [],
-    name: "decimals",
-    outputs: [{ name: "", type: "uint8" }],
-    stateMutability: "view",
-    type: "function",
-  },
-] as const;
 
 /**
  * Token metadata interface
@@ -60,18 +32,6 @@ export interface TokenMetadata {
   icon?: string;
   /** Chain ID where this token exists */
   chainId?: number;
-}
-
-/**
- * Token pair information for markets
- */
-export interface MarketTokenPair {
-  /** Collateral token metadata */
-  collateral: TokenMetadata;
-  /** Loan token metadata */
-  loan: TokenMetadata;
-  /** Formatted pair name (e.g., "BTC / USDC") */
-  pairName: string;
 }
 
 // Known token configurations
@@ -144,145 +104,9 @@ const TOKEN_REGISTRY: Record<string, TokenMetadata> = {
 };
 
 /**
- * Fetch token metadata from blockchain
- *
- * @param address - Token contract address
- * @returns Token metadata fetched from the contract
- */
-async function fetchTokenMetadataFromChain(
-  address: Address,
-): Promise<Omit<TokenMetadata, "icon"> | null> {
-  try {
-    const publicClient = ethClient.getPublicClient();
-
-    // Fetch name, symbol, and decimals in parallel
-    const [name, symbol, decimals] = await Promise.all([
-      publicClient.readContract({
-        address,
-        abi: ERC20_METADATA_ABI,
-        functionName: "name",
-      }),
-      publicClient.readContract({
-        address,
-        abi: ERC20_METADATA_ABI,
-        functionName: "symbol",
-      }),
-      publicClient.readContract({
-        address,
-        abi: ERC20_METADATA_ABI,
-        functionName: "decimals",
-      }),
-    ]);
-
-    // Normalize vaultBTC symbol and name for display
-    const symbolLower = (symbol as string).toLowerCase();
-    const isVaultBTC = symbolLower === "vaultbtc";
-    const normalizedSymbol = isVaultBTC
-      ? btcConfig.coinSymbol
-      : (symbol as string);
-    const normalizedName = isVaultBTC ? btcConfig.name : (name as string);
-
-    return {
-      address,
-      name: normalizedName,
-      symbol: normalizedSymbol,
-      decimals: decimals as number,
-    };
-  } catch (error) {
-    logger.warn(`[TokenService] Failed to fetch metadata for ${address}`, {
-      data: { error: error instanceof Error ? error.message : String(error) },
-    });
-    return null;
-  }
-}
-
-/**
  * Cache for fetched token metadata (in-memory cache)
  */
 const tokenMetadataCache = new Map<string, TokenMetadata>();
-
-/**
- * Get token metadata by address (async version that fetches from blockchain)
- * First checks cache, then registry, then fetches from blockchain
- *
- * @param address - Token contract address
- * @returns Token metadata
- */
-export async function getTokenMetadata(
-  address: string,
-): Promise<TokenMetadata> {
-  if (!isAddress(address)) {
-    throw new Error(`Invalid token address: ${address}`);
-  }
-
-  const checksumAddress = getAddress(address);
-
-  // 1. Check cache first
-  if (tokenMetadataCache.has(checksumAddress)) {
-    return tokenMetadataCache.get(checksumAddress)!;
-  }
-
-  // 2. Check registry
-  const registryToken = TOKEN_REGISTRY[checksumAddress];
-  if (registryToken) {
-    tokenMetadataCache.set(checksumAddress, registryToken);
-    return registryToken;
-  }
-
-  // 3. Fetch from blockchain
-  const chainMetadata = await fetchTokenMetadataFromChain(checksumAddress);
-
-  if (chainMetadata) {
-    // Use special icons for common token symbols
-    const icon = getIconForSymbol(chainMetadata.symbol);
-
-    const tokenMetadata: TokenMetadata = {
-      ...chainMetadata,
-      icon,
-    };
-
-    tokenMetadataCache.set(checksumAddress, tokenMetadata);
-    return tokenMetadata;
-  }
-
-  // 4. Fallback to default
-  const truncatedAddress = `${checksumAddress.slice(0, 6)}...${checksumAddress.slice(-4)}`;
-  const fallbackMetadata: TokenMetadata = {
-    address: checksumAddress as Address,
-    symbol: truncatedAddress,
-    name: `Unknown Token (${truncatedAddress})`,
-    decimals: 18,
-    // No icon - Avatar component will show fallback (initials)
-    icon: undefined,
-  };
-
-  tokenMetadataCache.set(checksumAddress, fallbackMetadata);
-  return fallbackMetadata;
-}
-
-/**
- * Get icon path based on token symbol
- * Returns undefined if no known icon exists (Avatar component will show fallback)
- */
-function getIconForSymbol(symbol: string): string | undefined {
-  const symbolUpper = symbol.toUpperCase();
-
-  // Map common symbols to icon paths
-  const iconMap: Record<string, string> = {
-    BTC: btcConfig.icon,
-    SBTC: btcConfig.icon,
-    WBTC: btcConfig.icon,
-    VBTC: btcConfig.icon,
-    USDC: "/images/usdc.png",
-    USDT: "/images/usdt.png",
-    DAI: "/images/dai.png",
-    ETH: "/images/eth.png",
-    WETH: "/images/eth.png",
-  };
-
-  // Return undefined for unknown tokens so Avatar shows fallback
-  return iconMap[symbolUpper];
-}
 
 const tokenBrandColorsMap: Record<string, string> = {
   BTC: "#F7931A",
@@ -347,115 +171,13 @@ export function getTokenByAddress(address: string): TokenMetadata | null {
 }
 
 /**
- * Get token metadata for a market pair (async version - fetches from blockchain)
- *
- * @param collateralAddress - Collateral token address
- * @param loanAddress - Loan token address
- * @returns Market token pair information
- */
-export async function getMarketTokenPairAsync(
-  collateralAddress: string,
-  loanAddress: string,
-): Promise<MarketTokenPair> {
-  // Fetch both tokens in parallel
-  const [collateral, loan] = await Promise.all([
-    getTokenMetadata(collateralAddress),
-    getTokenMetadata(loanAddress),
-  ]);
-
-  return {
-    collateral,
-    loan,
-    pairName: `${collateral.symbol} / ${loan.symbol}`,
-  };
-}
-
-/**
- * Get token metadata for a market pair (sync version - uses cache/registry only)
- *
- * @param collateralAddress - Collateral token address
- * @param loanAddress - Loan token address
- * @returns Market token pair information
- */
-export function getMarketTokenPair(
-  collateralAddress: string,
-  loanAddress: string,
-): MarketTokenPair {
-  const collateral = getTokenByAddress(collateralAddress) || {
-    address: collateralAddress as Address,
-    symbol: "???",
-    name: "Unknown",
-    decimals: 18,
-    // No icon - Avatar component will show fallback (initials)
-    icon: undefined,
-  };
-
-  const loan = getTokenByAddress(loanAddress) || {
-    address: loanAddress as Address,
-    symbol: "???",
-    name: "Unknown",
-    decimals: 18,
-    // No icon - Avatar component will show fallback (initials)
-    icon: undefined,
-  };
-
-  return {
-    collateral,
-    loan,
-    pairName: `${collateral.symbol} / ${loan.symbol}`,
-  };
-}
-
-/**
- * Format token amount based on decimals
- *
- * @param amount - Raw token amount (as bigint)
- * @param decimals - Number of decimals for the token
- * @returns Formatted amount as number
- */
-export function formatTokenAmount(amount: bigint, decimals: number): number {
-  return Number(amount) / Math.pow(10, decimals);
-}
-
-/**
- * Parse token amount to raw units
- *
- * @param amount - Human-readable amount
- * @param decimals - Number of decimals for the token
- * @returns Raw amount as bigint
- */
-export function parseTokenAmount(amount: number, decimals: number): bigint {
-  return BigInt(Math.floor(amount * Math.pow(10, decimals)));
-}
-
-/**
- * Get all supported tokens
- *
- * @returns Array of all token metadata
- */
-export function getAllTokens(): TokenMetadata[] {
-  return Object.values(TOKEN_REGISTRY);
-}
-
-/**
- * Check if a token is supported
- *
- * @param address - Token address to check
- * @returns True if token is in registry
- */
-export function isTokenSupported(address: string): boolean {
-  if (!isAddress(address)) return false;
-  return getAddress(address) in TOKEN_REGISTRY;
-}
-
-/**
  * Generate a data URI for a token icon fallback
  * Creates a circular SVG with the token's first letter
  *
  * @param symbol - Token symbol
  * @returns Data URI for an SVG icon
  */
-export function generateTokenIconFallback(symbol: string): string {
+function generateTokenIconFallback(symbol: string): string {
   const letter = symbol?.charAt(0).toUpperCase() || "?";
   const color = "#CE6533"; // Use accent color
 

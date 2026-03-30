@@ -71,20 +71,9 @@ export interface PegInConfiguration {
 const protocolParamsAddressCache = new Map<number, Address>();
 
 /**
- * Clear the protocol params address cache.
- *
- * Call this when:
- * - After contract upgrades
- * - During testing to reset state
- */
-export function clearProtocolParamsCache(): void {
-  protocolParamsAddressCache.clear();
-}
-
-/**
  * Get the ProtocolParams contract address from BTCVaultRegistry
  */
-export async function getProtocolParamsAddress(): Promise<Address> {
+async function getProtocolParamsAddress(): Promise<Address> {
   const publicClient = ethClient.getPublicClient();
   const chainId = await publicClient.getChainId();
 
@@ -253,21 +242,4 @@ export async function fetchAllOffchainParams(): Promise<AllOffchainParamsData> {
   }
 
   return { byVersion, latestVersion };
-}
-
-/**
- * Get just the minimum peg-in amount from the contract
- * More efficient if you only need this single value
- */
-export async function getMinimumPegInAmount(): Promise<bigint> {
-  const publicClient = ethClient.getPublicClient();
-  const protocolParamsAddress = await getProtocolParamsAddress();
-
-  const amount = await publicClient.readContract({
-    address: protocolParamsAddress,
-    abi: ProtocolParamsAbi,
-    functionName: "minimumPegInAmount",
-  });
-
-  return amount as bigint;
 }

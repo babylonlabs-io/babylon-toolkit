@@ -12,12 +12,13 @@ Monorepo (pnpm workspaces) for Babylon's Bitcoin vault frontend. Users lock BTC 
 - `packages/ts-sdk` — TypeScript SDK for protocol interaction
 
 ### Build Prerequisites
-- Node 24, pnpm
+- Node 24 via nvm (`nvm use 24`), pnpm via Corepack
 - Must rebuild `core-ui` and `ts-sdk` before vault build (stale `dist/` is a common issue)
 
 ## Build & Test Commands
 
 ```bash
+nvm use 24                            # Switch to Node 24 (required)
 pnpm install                          # Install all dependencies
 pnpm run build                        # Build all packages
 pnpm run lint                         # Lint all packages

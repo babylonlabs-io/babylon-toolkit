@@ -27,16 +27,6 @@ import {
   type ContractStatus,
 } from "../models/peginStateMachine";
 
-/**
- * Provider information stored in localStorage
- * Minimal set needed for UI display
- */
-export interface StoredProvider {
-  id: string; // Vault provider's Ethereum address
-  name?: string; // Provider display name (if available)
-  icon?: string; // Provider icon URL (if available)
-}
-
 export interface PendingPeginRequest {
   id: string; // Peg-in ID (pegin tx hash)
   timestamp: number; // When the peg-in was initiated
@@ -200,16 +190,6 @@ export function addPendingPegin(
 }
 
 /**
- * Remove a pending peg-in from localStorage by ID
- */
-export function removePendingPegin(ethAddress: string, peginId: string): void {
-  const existingPegins = getPendingPegins(ethAddress);
-  const normalizedId = normalizeTransactionId(peginId);
-  const updatedPegins = existingPegins.filter((p) => p.id !== normalizedId);
-  savePendingPegins(ethAddress, updatedPegins);
-}
-
-/**
  * Update status of a pending peg-in
  * Used to track user actions through the peg-in flow
  * Optionally updates btcTxHash when broadcasting to Bitcoin
@@ -279,21 +259,4 @@ export function filterPendingPegins(
     // This handles the logic for keeping status 0-1 and removing status 2+
     return !shouldRemoveFromLocalStorage(confirmedPegin.status, pegin.status);
   });
-}
-
-/**
- * Clear all pending peg-ins for an address
- */
-export function clearPendingPegins(ethAddress: string): void {
-  if (!ethAddress) return;
-
-  try {
-    const key = getStorageKey(ethAddress);
-    localStorage.removeItem(key);
-    dispatchStorageUpdateEvent(ethAddress);
-  } catch (error) {
-    logger.error(error instanceof Error ? error : new Error(String(error)), {
-      data: { context: "[peginStorage] Failed to clear pending pegins" },
-    });
-  }
 }

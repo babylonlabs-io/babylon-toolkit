@@ -7,11 +7,9 @@ export { ethClient } from "./client";
 export type { OnChainVaultData } from "./btc-vault-registry/query";
 
 // Protocol Params
-export * as ProtocolParamsQuery from "./protocol-params";
 export type { PegInConfiguration, TBVProtocolParams } from "./protocol-params";
 
 // Chainlink Oracle (for independent BTC/USD price)
-export * as ChainlinkOracle from "./chainlink";
 export type { ChainlinkRoundData } from "./chainlink";
 
 // ERC20
