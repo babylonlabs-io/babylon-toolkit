@@ -44,8 +44,8 @@ export interface AavePositionCollateral {
   addedAt: bigint;
   /** Timestamp when removed (null if still active) */
   removedAt: bigint | null;
-  /** Liquidation priority index (0 = seized first). Updated on VaultsReordered events. Not available until indexer schema is updated. */
-  liquidationIndex: number | undefined;
+  /** Liquidation priority index (0 = seized first). Updated on VaultsReordered events. */
+  liquidationIndex: number;
   /** Associated vault data */
   vault?: {
     id: string;
@@ -80,7 +80,7 @@ interface GraphQLCollateralItem {
   amount: string;
   addedAt: string;
   removedAt: string | null;
-  liquidationIndex?: string;
+  liquidationIndex: string;
   vault?: {
     id: string;
     amount: string;
@@ -206,10 +206,7 @@ function mapGraphQLCollateralToAavePositionCollateral(
     amount: BigInt(item.amount),
     addedAt: BigInt(item.addedAt),
     removedAt: item.removedAt ? BigInt(item.removedAt) : null,
-    liquidationIndex:
-      item.liquidationIndex !== undefined
-        ? Number(item.liquidationIndex)
-        : undefined,
+    liquidationIndex: Number(item.liquidationIndex),
     vault: item.vault
       ? {
           id: item.vault.id,
