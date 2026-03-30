@@ -106,15 +106,16 @@ function setupPsbtVerificationMock(
   });
 }
 
-/** Create a mock signed PSBT with tapScriptSig containing a 64-byte signature per input. */
-function mockSignedPsbt(inputCount: number, sigBytes = MOCK_SIG_BYTES) {
+/** Create a mock signed PSBT with tapScriptSig containing a signature per input. */
+function mockSignedPsbt(inputCount: number, sigBytesPerInput?: Buffer[]) {
+  const defaultSig = MOCK_SIG_BYTES;
   return {
     data: {
-      inputs: Array.from({ length: inputCount }, () => ({
+      inputs: Array.from({ length: inputCount }, (_, i) => ({
         tapScriptSig: [
           {
             pubkey: Buffer.alloc(32, 0xff),
-            signature: sigBytes,
+            signature: sigBytesPerInput?.[i] ?? defaultSig,
           },
         ],
       })),
@@ -125,11 +126,19 @@ function mockSignedPsbt(inputCount: number, sigBytes = MOCK_SIG_BYTES) {
 /**
  * Set up Psbt.fromHex to return mock signed PSBTs.
  * Each call returns a PSBT with tapScriptSig entries.
+ * Optional sigBytesPerPsbt allows distinct per-input signatures for each PSBT.
  */
-function setupFromHexMock(signedHexes: string[], inputCounts: number[]): void {
+function setupFromHexMock(
+  signedHexes: string[],
+  inputCounts: number[],
+  sigBytesPerPsbt?: Buffer[][],
+): void {
   const hexToMock = new Map<string, ReturnType<typeof mockSignedPsbt>>();
   for (let i = 0; i < signedHexes.length; i++) {
-    hexToMock.set(signedHexes[i], mockSignedPsbt(inputCounts[i]));
+    hexToMock.set(
+      signedHexes[i],
+      mockSignedPsbt(inputCounts[i], sigBytesPerPsbt?.[i]),
+    );
   }
 
   vi.mocked(Psbt.fromHex).mockImplementation(
@@ -225,48 +234,23 @@ describe("depositorGraphSigningService", () => {
     });
 
     it("should return correct presignature structure", async () => {
-      // Use distinct signed hex values so fromHex can return different sigs
+      // Distinct signed hex values so fromHex returns stable per-PSBT mocks
       const signedHexes = ["signed_payout", "signed_nopayout", "signed_ca"];
-      let callIdx = 0;
-      const sigs = [
-        Buffer.alloc(64, 0x01),
-        Buffer.alloc(64, 0x02),
+
+      // Distinct signatures per PSBT so we can verify correct extraction
+      const payoutSig = Buffer.alloc(64, 0x01);
+      const noPayoutSig = Buffer.alloc(64, 0x02);
+      const caSigs = [
         Buffer.alloc(64, 0x03),
         Buffer.alloc(64, 0x04),
         Buffer.alloc(64, 0x05),
       ];
 
-      vi.mocked(Psbt.fromHex).mockImplementation(() => {
-        const sig = sigs[callIdx] ?? Buffer.alloc(64, 0xff);
-        callIdx++;
-        return {
-          data: {
-            inputs: [
-              {
-                tapScriptSig: [
-                  { pubkey: Buffer.alloc(32, 0xff), signature: sig },
-                ],
-              },
-              {
-                tapScriptSig: [
-                  {
-                    pubkey: Buffer.alloc(32, 0xff),
-                    signature: sigs[callIdx] ?? Buffer.alloc(64, 0xff),
-                  },
-                ],
-              },
-              {
-                tapScriptSig: [
-                  {
-                    pubkey: Buffer.alloc(32, 0xff),
-                    signature: sigs[callIdx + 1] ?? Buffer.alloc(64, 0xff),
-                  },
-                ],
-              },
-            ],
-          },
-        } as any;
-      });
+      setupFromHexMock(
+        signedHexes,
+        [1, 1, TEST_CHALLENGE_ASSERT_INPUT_COUNT],
+        [[payoutSig], [noPayoutSig], caSigs],
+      );
 
       const params = createMockParams();
       const wallet = params.btcWallet as any;
@@ -274,17 +258,21 @@ describe("depositorGraphSigningService", () => {
 
       const result = await signDepositorGraph(params);
 
-      // Payout signature should be a 128-char hex string
-      expect(result.payout_signatures.payout_signature).toHaveLength(128);
+      // Payout signature should match the exact sig bytes
+      expect(result.payout_signatures.payout_signature).toBe(
+        payoutSig.toString("hex"),
+      );
 
-      // Per-challenger should have correct structure
+      // Per-challenger should have correct structure and values
       const challengerPubkey = "a".repeat(64);
       const perChallenger = result.per_challenger[challengerPubkey];
       expect(perChallenger).toBeDefined();
-      expect(perChallenger.challenge_assert_signatures).toHaveLength(
-        TEST_CHALLENGE_ASSERT_INPUT_COUNT,
+      expect(perChallenger.nopayout_signature).toBe(
+        noPayoutSig.toString("hex"),
       );
-      expect(perChallenger.nopayout_signature).toHaveLength(128);
+      expect(perChallenger.challenge_assert_signatures).toEqual(
+        caSigs.map((s) => s.toString("hex")),
+      );
     });
 
     it("should fall back to sequential signing when signPsbts is not available", async () => {
@@ -565,6 +553,71 @@ describe("depositorGraphSigningService", () => {
 
       await expect(signDepositorGraph(params)).rejects.toThrow(
         /Unexpected sighash type 0x83/,
+      );
+    });
+
+    it("should extract signature from finalScriptWitness when tapScriptSig is absent", async () => {
+      // Build a BIP-141 witness stack: [signature, script, controlBlock]
+      const sigBytes = Buffer.alloc(64, 0xdd);
+      const script = Buffer.from("deadbeef", "hex");
+      const controlBlock = Buffer.from("c0" + "aa".repeat(32), "hex");
+
+      // BIP-141 format: varint(3 items) + [varint(len), data] per item
+      const witnessItems = [sigBytes, script, controlBlock];
+      const parts: Buffer[] = [Buffer.from([witnessItems.length])];
+      for (const item of witnessItems) {
+        parts.push(Buffer.from([item.length]));
+        parts.push(item);
+      }
+      const finalScriptWitness = Buffer.concat(parts);
+
+      vi.mocked(Psbt.fromHex).mockImplementation(
+        () =>
+          ({
+            data: {
+              inputs: [
+                {
+                  // No tapScriptSig — wallet finalized the PSBT
+                  finalScriptWitness,
+                },
+              ],
+            },
+          }) as any,
+      );
+
+      const graph = createMockDepositorGraph(0);
+      const params = createMockParams({ depositorGraph: graph });
+      const wallet = params.btcWallet as any;
+      wallet.signPsbts.mockResolvedValue(["signed_payout"]);
+
+      const result = await signDepositorGraph(params);
+
+      expect(result.payout_signatures.payout_signature).toBe(
+        sigBytes.toString("hex"),
+      );
+    });
+
+    it("should throw when neither tapScriptSig nor finalScriptWitness is present", async () => {
+      vi.mocked(Psbt.fromHex).mockImplementation(
+        () =>
+          ({
+            data: {
+              inputs: [
+                {
+                  // Neither tapScriptSig nor finalScriptWitness
+                },
+              ],
+            },
+          }) as any,
+      );
+
+      const graph = createMockDepositorGraph(0);
+      const params = createMockParams({ depositorGraph: graph });
+      const wallet = params.btcWallet as any;
+      wallet.signPsbts.mockResolvedValue(["signed_payout"]);
+
+      await expect(signDepositorGraph(params)).rejects.toThrow(
+        /No tapScriptSig or finalScriptWitness found/,
       );
     });
   });

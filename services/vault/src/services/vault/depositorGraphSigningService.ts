@@ -198,37 +198,12 @@ function collectDepositorGraphPsbts(
 const SIGHASH_ALL = 0x01;
 
 /**
- * Extract a 64-byte Schnorr signature from a signed PSBT input.
+ * Validate and return a 64-byte Schnorr signature hex, stripping the sighash
+ * byte from 65-byte signatures when it is SIGHASH_ALL.
  *
- * VP-built PSBTs have exactly one signer per input, so after signing there is
- * exactly one tapScriptSig entry. We extract it without filtering by pubkey
- * because some wallets (e.g. OKX) sign with a different key than the
- * depositor's registered taproot pubkey.
- *
- * @throws if the input has no tapScriptSig or the signature length is invalid
+ * @throws if the signature length is invalid or sighash type is unexpected
  */
-function extractSignatureFromSignedInput(
-  signedPsbtHex: string,
-  inputIndex: number,
-): string {
-  const psbt = Psbt.fromHex(signedPsbtHex);
-
-  if (inputIndex >= psbt.data.inputs.length) {
-    throw new Error(
-      `Input index ${inputIndex} out of range (${psbt.data.inputs.length} inputs)`,
-    );
-  }
-
-  const input = psbt.data.inputs[inputIndex];
-
-  if (!input.tapScriptSig || input.tapScriptSig.length === 0) {
-    throw new Error(
-      `No tapScriptSig found in signed PSBT at input ${inputIndex}`,
-    );
-  }
-
-  const sig = input.tapScriptSig[0].signature;
-
+function extractSchnorrSig(sig: Buffer, inputIndex: number): string {
   if (sig.length === 64) {
     return Buffer.from(sig).toString("hex");
   }
@@ -248,6 +223,126 @@ function extractSignatureFromSignedInput(
 }
 
 /**
+ * Parse a BIP-141 serialized witness stack into individual stack items.
+ * Format: [varint item_count] [varint len, data]...
+ */
+function parseWitnessStack(witness: Buffer): Buffer[] {
+  const items: Buffer[] = [];
+  let offset = 0;
+
+  const readVarInt = (): number => {
+    const first = witness[offset++];
+    if (first < 0xfd) return first;
+    if (first === 0xfd) {
+      const val = witness[offset] | (witness[offset + 1] << 8);
+      offset += 2;
+      return val;
+    }
+    if (first === 0xfe) {
+      const val =
+        witness[offset] |
+        (witness[offset + 1] << 8) |
+        (witness[offset + 2] << 16) |
+        (witness[offset + 3] << 24);
+      offset += 4;
+      return val;
+    }
+    // 0xff — 8-byte, won't happen for witness data
+    offset += 8;
+    return 0;
+  };
+
+  const count = readVarInt();
+  for (let i = 0; i < count; i++) {
+    const len = readVarInt();
+    items.push(witness.subarray(offset, offset + len) as Buffer);
+    offset += len;
+  }
+
+  return items;
+}
+
+/**
+ * Extract a 64-byte Schnorr signature from a single PSBT input.
+ *
+ * VP-built PSBTs have exactly one signer per input, so after signing there is
+ * exactly one tapScriptSig entry. We extract it without filtering by pubkey
+ * because some wallets (e.g. OKX) sign with a different key than the
+ * depositor's registered taproot pubkey.
+ *
+ * Some wallets ignore `autoFinalized: false` and return finalized PSBTs with
+ * signatures only in `finalScriptWitness`. We fall back to parsing the witness
+ * stack in that case: taproot script-path witness is [signature, script, controlBlock].
+ *
+ * @throws if the input has no tapScriptSig/finalScriptWitness or the signature is invalid
+ */
+function extractSignatureFromInput(
+  input: {
+    tapScriptSig?: { signature: Buffer }[];
+    finalScriptWitness?: Buffer;
+  },
+  inputIndex: number,
+): string {
+  // Case 1: Non-finalized PSBT — extract from tapScriptSig
+  if (input.tapScriptSig && input.tapScriptSig.length > 0) {
+    return extractSchnorrSig(input.tapScriptSig[0].signature, inputIndex);
+  }
+
+  // Case 2: Finalized PSBT — extract from finalScriptWitness
+  // Taproot script-path witness: [signature, script, controlBlock]
+  if (input.finalScriptWitness && input.finalScriptWitness.length > 0) {
+    const witnessStack = parseWitnessStack(input.finalScriptWitness);
+    if (witnessStack.length >= 1) {
+      return extractSchnorrSig(witnessStack[0], inputIndex);
+    }
+  }
+
+  throw new Error(
+    `No tapScriptSig or finalScriptWitness found in signed PSBT at input ${inputIndex}`,
+  );
+}
+
+/**
+ * Parse a signed PSBT hex and extract the Schnorr signature from a single input.
+ * For single-input PSBTs (Payout, NoPayout).
+ */
+function extractSignatureFromSignedInput(
+  signedPsbtHex: string,
+  inputIndex: number,
+): string {
+  const psbt = Psbt.fromHex(signedPsbtHex);
+
+  if (inputIndex >= psbt.data.inputs.length) {
+    throw new Error(
+      `Input index ${inputIndex} out of range (${psbt.data.inputs.length} inputs)`,
+    );
+  }
+
+  return extractSignatureFromInput(psbt.data.inputs[inputIndex], inputIndex);
+}
+
+/**
+ * Parse a signed PSBT hex once and extract Schnorr signatures from all inputs.
+ * Avoids re-parsing the same hex for multi-input PSBTs (ChallengeAssert).
+ */
+function extractAllSignaturesFromSignedPsbt(
+  signedPsbtHex: string,
+  inputCount: number,
+): string[] {
+  const psbt = Psbt.fromHex(signedPsbtHex);
+
+  if (psbt.data.inputs.length < inputCount) {
+    throw new Error(
+      `Expected ${inputCount} inputs but PSBT has ${psbt.data.inputs.length}`,
+    );
+  }
+
+  return Array.from({ length: inputCount }, (_, i) =>
+    extractSignatureFromInput(psbt.data.inputs[i], i),
+  );
+}
+
+/**
  * Extract all signatures from signed PSBTs and assemble into presignatures.
  */
 function extractDepositorGraphSignatures(
@@ -263,12 +358,10 @@ function extractDepositorGraphSignatures(
   // Per-challenger signatures
   const perChallenger: Record<string, DepositorPreSigsPerChallenger> = {};
   for (const entry of challengerEntries) {
-    const caSignedPsbt = signedPsbtHexes[entry.challengeAssertIdx];
-
     perChallenger[entry.challengerPubkey] = {
-      challenge_assert_signatures: Array.from(
-        { length: entry.challengeAssertInputCount },
-        (_, i) => extractSignatureFromSignedInput(caSignedPsbt, i),
+      challenge_assert_signatures: extractAllSignaturesFromSignedPsbt(
+        signedPsbtHexes[entry.challengeAssertIdx],
+        entry.challengeAssertInputCount,
       ),
       nopayout_signature: extractSignatureFromSignedInput(
         signedPsbtHexes[entry.noPayoutIdx],
