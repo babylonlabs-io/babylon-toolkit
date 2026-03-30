@@ -31,9 +31,8 @@ import {
   type WalletClient,
 } from "viem";
 
-import type { BitcoinWallet } from "../../../shared/wallets/interfaces/BitcoinWallet";
-import { createTaprootScriptPathSignOptions } from "../../../shared/wallets/signOptions";
-import type { Hash } from "../../../shared/wallets/interfaces/EthereumWallet";
+import type { BitcoinWallet, Hash } from "../../../shared/wallets";
+import { createTaprootScriptPathSignOptions } from "../../../shared/wallets";
 import { getUtxoInfo, pushTx } from "../clients/mempool";
 import { BTCVaultRegistryABI, handleContractError } from "../contracts";
 import {

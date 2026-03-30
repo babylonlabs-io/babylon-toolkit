@@ -14,7 +14,10 @@
  * @see btc-vault docs/pegin.md — "Automatic Graph Creation & Presigning"
  */
 
-import type { BitcoinWallet, SignPsbtOptions } from "@babylonlabs-io/ts-sdk/shared";
+import type {
+  BitcoinWallet,
+  SignPsbtOptions,
+} from "@babylonlabs-io/ts-sdk/shared";
 import { createTaprootScriptPathSignOptions } from "@babylonlabs-io/ts-sdk/shared";
 import { extractPayoutSignature } from "@babylonlabs-io/ts-sdk/tbv/core";
 import { Psbt } from "bitcoinjs-lib";
@@ -111,7 +114,10 @@ function collectDepositorGraphPsbts(
   const signOptions: SignPsbtOptions[] = [];
   const challengerIndexMap: ChallengerIndexEntry[] = [];
 
-  const singleInputOpts = createTaprootScriptPathSignOptions(walletPublicKey, 1);
+  const singleInputOpts = createTaprootScriptPathSignOptions(
+    walletPublicKey,
+    1,
+  );
   const challengeAssertOpts = createTaprootScriptPathSignOptions(
     walletPublicKey,
     NUM_CHALLENGE_ASSERT_INPUTS,

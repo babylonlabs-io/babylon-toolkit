@@ -16,6 +16,10 @@ export function createTaprootScriptPathSignOptions(
   publicKey: string,
   inputCount: number,
 ): SignPsbtOptions {
+  if (!Number.isInteger(inputCount) || inputCount < 1) {
+    throw new Error(`inputCount must be a positive integer, got ${inputCount}`);
+  }
+
   return {
     autoFinalized: false,
     signInputs: Array.from({ length: inputCount }, (_, i) => ({

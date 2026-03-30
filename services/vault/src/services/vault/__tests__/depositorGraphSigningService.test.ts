@@ -14,17 +14,6 @@ vi.mock("@babylonlabs-io/ts-sdk/tbv/core", () => ({
   extractPayoutSignature: vi.fn().mockReturnValue("default_sig_hex"),
 }));
 
-vi.mock("@babylonlabs-io/ts-sdk/shared", () => ({
-  createTaprootScriptPathSignOptions: (publicKey: string, inputCount: number) => ({
-    autoFinalized: false,
-    signInputs: Array.from({ length: inputCount }, (_, i) => ({
-      index: i,
-      publicKey,
-      disableTweakSigner: true,
-    })),
-  }),
-}));
-
 // Mock Psbt.fromBase64 for PSBT integrity verification
 vi.mock("bitcoinjs-lib", () => ({
   Psbt: {

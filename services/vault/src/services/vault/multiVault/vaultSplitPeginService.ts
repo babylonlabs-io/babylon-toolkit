@@ -21,7 +21,10 @@
 
 import { getETHChain } from "@babylonlabs-io/config";
 import { pushTx } from "@babylonlabs-io/ts-sdk";
-import type { BitcoinWallet, SignPsbtOptions } from "@babylonlabs-io/ts-sdk/shared";
+import type {
+  BitcoinWallet,
+  SignPsbtOptions,
+} from "@babylonlabs-io/ts-sdk/shared";
 import { createTaprootScriptPathSignOptions } from "@babylonlabs-io/ts-sdk/shared";
 import type { UTXO } from "@babylonlabs-io/ts-sdk/tbv/core";
 import {
