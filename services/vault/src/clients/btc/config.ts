@@ -18,8 +18,3 @@ export function getMempoolApiUrl(): string {
   const btcConfig = getNetworkConfigBTC();
   return `${btcConfig.mempoolApiUrl}/api`;
 }
-
-/**
- * Default timeout for Mempool API requests (30 seconds)
- */
-export const MEMPOOL_API_TIMEOUT = 30000;

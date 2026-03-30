@@ -82,13 +82,6 @@ const CHAINLINK_AGGREGATOR_V3_ABI = [
     stateMutability: "view",
     type: "function",
   },
-  {
-    inputs: [],
-    name: "decimals",
-    outputs: [{ name: "", type: "uint8" }],
-    stateMutability: "view",
-    type: "function",
-  },
 ] as const;
 
 /**
@@ -119,7 +112,7 @@ export interface PriceMetadata {
 /**
  * Result of fetching token prices with metadata
  */
-export interface TokenPricesResult {
+interface TokenPricesResult {
   /** Record mapping token symbols to their USD prices */
   prices: Record<string, number>;
   /** Metadata about price freshness and errors per token */
@@ -132,7 +125,7 @@ export interface TokenPricesResult {
  * @param feedAddress - Address of the Chainlink price feed contract
  * @returns Round data including price (answer field)
  */
-export async function getLatestRoundData(
+async function getLatestRoundData(
   feedAddress: Address,
 ): Promise<ChainlinkRoundData> {
   const publicClient = ethClient.getPublicClient();
@@ -154,64 +147,6 @@ export async function getLatestRoundData(
 }
 
 /**
- * Get the number of decimals for the price feed
- * BTC/USD feeds typically use 8 decimals
- *
- * @param feedAddress - Address of the Chainlink price feed contract
- * @returns Number of decimals
- */
-export async function getDecimals(feedAddress: Address): Promise<number> {
-  const publicClient = ethClient.getPublicClient();
-
-  const decimals = await publicClient.readContract({
-    address: feedAddress,
-    abi: CHAINLINK_AGGREGATOR_V3_ABI,
-    functionName: "decimals",
-  });
-
-  return decimals;
-}
-
-/**
- * Get BTC price in USD from Chainlink oracle
- *
- * Automatically uses the correct feed address based on the configured network.
- * Chainlink BTC/USD feeds return price with 8 decimals.
- *
- * Note: If price data is stale (older than 1 hour), a warning is logged but
- * the last known price is still returned. This is common on testnets.
- *
- * @returns BTC price in USD as a number
- * @throws Error if price is invalid (zero or negative)
- */
-export async function getBTCPriceUSD(): Promise<number> {
-  const feedAddress = getChainlinkFeedAddress("BTC")!;
-  const roundData = await getLatestRoundData(feedAddress);
-
-  // Validate answer is positive (can be 0 or negative on oracle malfunction)
-  if (roundData.answer <= 0n) {
-    throw new Error(
-      "Invalid BTC price from Chainlink oracle: price must be positive",
-    );
-  }
-
-  // Warn if price is stale (older than 1 hour) but still return it
-  // This is common on testnets where Chainlink doesn't update frequently
-  if (!isPriceFresh(roundData)) {
-    const ageSeconds =
-      Math.floor(Date.now() / 1000) - Number(roundData.updatedAt);
-    const ageHours = (ageSeconds / 3600).toFixed(1);
-    logger.event(
-      `Chainlink BTC/USD price data is stale (${ageHours} hours old). Using last known price.`,
-    );
-  }
-
-  // Chainlink BTC/USD uses 8 decimals
-  // answer = price * 10^8, so divide by 10^8 to get USD price
-  return Number(roundData.answer) / 1e8;
-}
-
-/**
  * Validate that price data is fresh (not stale)
  * Chainlink recommends checking updatedAt is recent
  *
@@ -219,7 +154,7 @@ export async function getBTCPriceUSD(): Promise<number> {
  * @param maxAgeSeconds - Maximum age in seconds (default: 3600 = 1 hour)
  * @returns true if data is fresh, false if stale
  */
-export function isPriceFresh(
+function isPriceFresh(
   roundData: ChainlinkRoundData,
   maxAgeSeconds: number = 3600,
 ): boolean {

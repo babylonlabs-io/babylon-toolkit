@@ -15,10 +15,6 @@ export {
 } from "./useBorrowTransaction";
 export { useOptimalSplit, type UseOptimalSplitResult } from "./useOptimalSplit";
 export {
-  useRebalanceCheck,
-  type UseRebalanceCheckResult,
-} from "./useRebalanceCheck";
-export {
   useReorderVaults,
   type UseReorderVaultsResult,
 } from "./useReorderVaults";
