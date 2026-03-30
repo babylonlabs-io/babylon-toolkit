@@ -52,13 +52,12 @@ export const VAULT_SPLIT_SAFETY_MARGIN = 1.05;
 export const POSITION_REFETCH_INTERVAL_MS = 30 * 1000;
 
 /**
- * Multiplier applied to POSITION_REFETCH_INTERVAL_MS to determine
- * when position data is considered stale for UI warning purposes.
- * Data is flagged stale if the last successful fetch was more than
- * POSITION_REFETCH_INTERVAL_MS * this multiplier ago.
- * A value of 3 means data older than 90 seconds triggers a warning.
+ * Threshold (ms) after which position data is considered stale.
+ * If the last successful fetch was longer than this ago, the UI
+ * warns that oracle-derived values may be outdated.
+ * 3 × 30s refetch interval = 90s.
  */
-export const POSITION_STALENESS_MULTIPLIER = 3;
+export const POSITION_STALENESS_THRESHOLD_MS = POSITION_REFETCH_INTERVAL_MS * 3;
 
 /**
  * Minimum slider max value to prevent division by zero

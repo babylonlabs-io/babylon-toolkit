@@ -13,7 +13,7 @@ import { satoshiToBtcNumber } from "@/utils/btcConversion";
 
 import {
   POSITION_REFETCH_INTERVAL_MS,
-  POSITION_STALENESS_MULTIPLIER,
+  POSITION_STALENESS_THRESHOLD_MS,
 } from "../constants";
 import { useAaveConfig } from "../context";
 import {
@@ -98,14 +98,12 @@ export function useAaveUserPosition(
     [borrowableReserveIds],
   );
 
-  const stalenessThresholdMs =
-    POSITION_REFETCH_INTERVAL_MS * POSITION_STALENESS_MULTIPLIER;
-
   const {
     data: positions,
     isLoading: positionsLoading,
     error: positionsError,
     dataUpdatedAt,
+    isFetching,
     refetch,
   } = useQuery({
     queryKey: [
@@ -138,7 +136,9 @@ export function useAaveUserPosition(
 
     const checkStaleness = () => {
       const age = Date.now() - dataUpdatedAt;
-      setIsPositionDataStale(age > stalenessThresholdMs);
+      setIsPositionDataStale(
+        !isFetching && age > POSITION_STALENESS_THRESHOLD_MS,
+      );
     };
 
     checkStaleness();
@@ -153,7 +153,7 @@ export function useAaveUserPosition(
     return () => {
       clearInterval(stalenessTimerRef.current);
     };
-  }, [dataUpdatedAt, stalenessThresholdMs]);
+  }, [dataUpdatedAt, isFetching]);
 
   // User can only have one position (single vBTC collateral reserve)
   const position = positions?.[0] ?? null;
