@@ -304,7 +304,9 @@ function hash160(data: Uint8Array): Uint8Array {
  */
 export function mnemonicToLamportSeed(mnemonic: string): Uint8Array {
   const seed = mnemonicToSeedSync(mnemonic);
-  return new Uint8Array(seed);
+  const copy = new Uint8Array(seed);
+  seed.fill(0);
+  return copy;
 }
 
 /**
@@ -408,6 +410,7 @@ export async function deriveLamportKeypair(
   hmacResult.fill(0);
   derivedKey.fill(0);
   derivedChainCode.fill(0);
+  seed.fill(0);
 
   return { falsePreimages, truePreimages, falseHashes, trueHashes };
 }
