@@ -17,7 +17,7 @@ interface EnvVars {
   BTC_VAULT_REGISTRY: Address;
   AAVE_ADAPTER: Address;
   GRAPHQL_ENDPOINT: string;
-  SIDECAR_API_URL: string;
+  SIDECAR_API_URL: string | undefined;
   BTC_PRICE_FEED: Address | undefined;
   VP_PROXY_URL: string;
 }
@@ -29,82 +29,131 @@ interface EnvValidationResult {
 
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000" as Address;
 
+const ALLOWED_URL_SCHEMES = ["https:", "http:"];
+
+function parseOptionalUrl(value: string | undefined): string | undefined {
+  const trimmed = (value ?? "").trim().replace(/\/$/, "");
+  if (!trimmed) return undefined;
+  let parsed: URL;
+  try {
+    parsed = new URL(trimmed);
+  } catch {
+    logger.warn(`Invalid URL in env config: "${trimmed}", ignoring.`);
+    return undefined;
+  }
+  if (!ALLOWED_URL_SCHEMES.includes(parsed.protocol)) {
+    logger.warn(
+      `URL in env config must use http or https scheme, got: "${parsed.protocol}", ignoring.`,
+    );
+    return undefined;
+  }
+  return trimmed;
+}
+
 function parseOptionalAddress(value: string | undefined): Address | undefined {
   const trimmed = value?.trim();
   if (!trimmed) return undefined;
-  if (!isAddress(trimmed)) {
+  if (!isAddress(trimmed, { strict: false })) {
     logger.warn(`Invalid address in env config: "${trimmed}", ignoring.`);
     return undefined;
   }
   return trimmed as Address;
 }
 
+export function validateRequiredAddress(
+  value: string | undefined,
+  envVarName: string,
+  errors: string[],
+): Address {
+  const trimmed = value?.trim();
+  if (!trimmed) {
+    errors.push(`${envVarName} is missing`);
+    return ZERO_ADDRESS;
+  }
+  if (!isAddress(trimmed, { strict: false })) {
+    errors.push(`${envVarName} is not a valid EVM address: "${trimmed}"`);
+    return ZERO_ADDRESS;
+  }
+  if (trimmed.toLowerCase() === ZERO_ADDRESS) {
+    errors.push(`${envVarName} must not be the zero address`);
+    return ZERO_ADDRESS;
+  }
+  return trimmed as Address;
+}
+
+export function validateRequiredUrl(
+  value: string | undefined,
+  envVarName: string,
+  errors: string[],
+): string {
+  const trimmed = (value ?? "").trim().replace(/\/$/, "");
+  if (!trimmed) {
+    errors.push(`${envVarName} is missing`);
+    return "";
+  }
+  let parsed: URL;
+  try {
+    parsed = new URL(trimmed);
+  } catch {
+    errors.push(`${envVarName} is not a valid URL: "${trimmed}"`);
+    return "";
+  }
+  if (!ALLOWED_URL_SCHEMES.includes(parsed.protocol)) {
+    errors.push(
+      `${envVarName} must use http or https scheme, got: "${parsed.protocol}"`,
+    );
+    return "";
+  }
+  return trimmed;
+}
+
 /**
  * Validate and extract all required environment variables
  */
 function validateEnvVars(): EnvValidationResult {
-  const envVars = {
-    // Contract addresses (required)
-    BTC_VAULT_REGISTRY: process.env.NEXT_PUBLIC_TBV_BTC_VAULT_REGISTRY,
-    AAVE_ADAPTER: process.env.NEXT_PUBLIC_TBV_AAVE_ADAPTER,
+  const errors: string[] = [];
 
-    // API endpoints (required)
-    GRAPHQL_ENDPOINT: process.env.NEXT_PUBLIC_TBV_GRAPHQL_ENDPOINT,
-    SIDECAR_API_URL: (
-      process.env.NEXT_PUBLIC_TBV_SIDECAR_API_URL ?? ""
-    ).replace(/\/$/, ""),
-
-    // Vault provider proxy (required)
-    VP_PROXY_URL: (process.env.NEXT_PUBLIC_TBV_VP_PROXY_URL ?? "").replace(
-      /\/$/,
-      "",
-    ),
-
-    // Price feed oracle override (optional)
-    BTC_PRICE_FEED: parseOptionalAddress(
-      process.env.NEXT_PUBLIC_TBV_BTC_PRICE_FEED,
-    ),
-  };
-
-  const requiredVars = [
-    "BTC_VAULT_REGISTRY",
-    "AAVE_ADAPTER",
-    "GRAPHQL_ENDPOINT",
-    "VP_PROXY_URL",
-  ] as const;
-
-  const missingVars = requiredVars.filter(
-    (key) => !envVars[key as keyof typeof envVars],
+  const BTC_VAULT_REGISTRY = validateRequiredAddress(
+    process.env.NEXT_PUBLIC_TBV_BTC_VAULT_REGISTRY,
+    "NEXT_PUBLIC_TBV_BTC_VAULT_REGISTRY",
+    errors,
+  );
+  const AAVE_ADAPTER = validateRequiredAddress(
+    process.env.NEXT_PUBLIC_TBV_AAVE_ADAPTER,
+    "NEXT_PUBLIC_TBV_AAVE_ADAPTER",
+    errors,
+  );
+  const GRAPHQL_ENDPOINT = validateRequiredUrl(
+    process.env.NEXT_PUBLIC_TBV_GRAPHQL_ENDPOINT,
+    "NEXT_PUBLIC_TBV_GRAPHQL_ENDPOINT",
+    errors,
+  );
+  const SIDECAR_API_URL = parseOptionalUrl(
+    process.env.NEXT_PUBLIC_TBV_SIDECAR_API_URL,
+  );
+  const VP_PROXY_URL = validateRequiredUrl(
+    process.env.NEXT_PUBLIC_TBV_VP_PROXY_URL,
+    "NEXT_PUBLIC_TBV_VP_PROXY_URL",
+    errors,
+  );
+  const BTC_PRICE_FEED = parseOptionalAddress(
+    process.env.NEXT_PUBLIC_TBV_BTC_PRICE_FEED,
   );
 
-  if (missingVars.length > 0) {
-    // Map internal names to actual env var names
-    const envVarMap: Record<string, string> = {
-      BTC_VAULT_REGISTRY: "NEXT_PUBLIC_TBV_BTC_VAULT_REGISTRY",
-      AAVE_ADAPTER: "NEXT_PUBLIC_TBV_AAVE_ADAPTER",
-      GRAPHQL_ENDPOINT: "NEXT_PUBLIC_TBV_GRAPHQL_ENDPOINT",
-      VP_PROXY_URL: "NEXT_PUBLIC_TBV_VP_PROXY_URL",
-    };
+  const env: EnvVars = {
+    BTC_VAULT_REGISTRY,
+    AAVE_ADAPTER,
+    GRAPHQL_ENDPOINT,
+    SIDECAR_API_URL,
+    VP_PROXY_URL,
+    BTC_PRICE_FEED,
+  };
 
-    const missingVarNames = missingVars.map((key) => envVarMap[key] || key);
-
-    return {
-      env: {
-        BTC_VAULT_REGISTRY: ZERO_ADDRESS,
-        AAVE_ADAPTER: ZERO_ADDRESS,
-        GRAPHQL_ENDPOINT: "",
-        SIDECAR_API_URL: "",
-        VP_PROXY_URL: "",
-        BTC_PRICE_FEED: undefined,
-      },
-      error: `Missing: ${missingVarNames.join(", ")}`,
-    };
+  if (errors.length > 0) {
+    return { env, error: errors.join("; ") };
   }
 
-  return {
-    env: envVars as EnvVars,
-    error: null,
-  };
+  return { env, error: null };
 }
 
 const validationResult = validateEnvVars();
