@@ -39,7 +39,7 @@ export function useVaultOrder(
   userAddress: string | undefined,
 ): UseVaultOrderResult {
   const { data, isLoading, error } = useQuery({
-    queryKey: ["vaultOrder", userAddress],
+    queryKey: ["vaultOrder", userAddress?.toLowerCase()],
     queryFn: () => fetchVaultOrder(userAddress!),
     enabled: !!userAddress,
     staleTime: CONFIG_STALE_TIME_MS,

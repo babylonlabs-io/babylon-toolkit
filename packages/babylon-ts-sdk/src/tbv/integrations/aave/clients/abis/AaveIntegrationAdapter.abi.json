@@ -1929,10 +1929,5 @@
     "type": "error",
     "name": "InvalidVaultsPermutation",
     "inputs": []
-  },
-  {
-    "type": "error",
-    "name": "EmptyArray",
-    "inputs": []
   }
 ]

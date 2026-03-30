@@ -33,10 +33,10 @@ export interface UseSeizureSimulationResult {
 }
 
 /**
- * Map from vault ID to amount in satoshis.
- * Callers build this from their vault data source.
+ * Map from **lowercase hex** vault ID to amount in satoshis.
+ * Keys MUST be lowercased before insertion — lookups use lowercase IDs.
  */
-export type VaultAmountMap = ReadonlyMap<string, bigint>;
+export type VaultAmountMap = ReadonlyMap<Hex, bigint>;
 
 /**
  * Simulate prefix seizure for the user's current vault ordering.
@@ -75,11 +75,17 @@ export function useSeizureSimulation(
       };
     }
 
+    // Normalize map keys to lowercase so checksummed caller keys still match
+    const normalizedAmounts = new Map<Hex, bigint>();
+    for (const [key, value] of vaultAmounts) {
+      normalizedAmounts.set(key.toLowerCase() as Hex, value);
+    }
+
     // Build ordered vault list by matching indexer order with amounts
     const orderedVaults: OrderedVault[] = [];
     for (const id of vaultIds) {
       const normalizedId = id.toLowerCase() as Hex;
-      const amountSats = vaultAmounts.get(normalizedId);
+      const amountSats = normalizedAmounts.get(normalizedId);
       if (amountSats === undefined) {
         // Vault order is known but amounts are incomplete — defer simulation
         return { simulation: null, targetSeizureSats: 0n, orderedVaults: [] };

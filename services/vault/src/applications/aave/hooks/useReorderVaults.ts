@@ -23,7 +23,7 @@ import { reorderVaultOrder } from "../services";
 
 export interface UseReorderVaultsResult {
   /** Execute the reorder transaction */
-  executeReorder: (permutedVaultIds: string[]) => Promise<boolean>;
+  executeReorder: (permutedVaultIds: Hex[]) => Promise<boolean>;
   /** Whether transaction is currently processing */
   isProcessing: boolean;
 }
@@ -45,7 +45,7 @@ export function useReorderVaults(): UseReorderVaultsResult {
   const { handleError } = useError();
 
   const executeReorder = useCallback(
-    async (permutedVaultIds: string[]) => {
+    async (permutedVaultIds: Hex[]) => {
       setIsProcessing(true);
       try {
         if (!walletClient || !chain) {
@@ -62,11 +62,11 @@ export function useReorderVaults(): UseReorderVaultsResult {
           );
         }
 
-        await reorderVaultOrder(walletClient, chain, permutedVaultIds as Hex[]);
+        await reorderVaultOrder(walletClient, chain, permutedVaultIds);
 
         // Invalidate vault order query to refetch from contract
         await queryClient.invalidateQueries({
-          queryKey: ["vaultOrder", address],
+          queryKey: ["vaultOrder", address?.toLowerCase()],
         });
 
         // Invalidate vault-related queries
