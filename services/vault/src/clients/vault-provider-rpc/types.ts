@@ -25,7 +25,7 @@ export interface SubmitDepositorLamportKeyParams {
 
 /** Per-challenger signatures for the depositor-as-claimer flow. */
 export interface DepositorPreSigsPerChallenger {
-  challenge_assert_signatures: [string, string, string];
+  challenge_assert_signatures: string[];
   nopayout_signature: string;
 }
 
@@ -84,7 +84,7 @@ export interface PresignDataPerChallenger {
   challenger_pubkey: string;
   challenge_assert_tx: TransactionData;
   nopayout_tx: TransactionData;
-  /** Unsigned PSBT (base64) for the ChallengeAssert transaction (all 3 inputs). */
+  /** Unsigned PSBT (base64) for the ChallengeAssert transaction. */
   challenge_assert_psbt: string;
   /** Unsigned PSBT (base64) for the NoPayout transaction (input 0). */
   nopayout_psbt: string;

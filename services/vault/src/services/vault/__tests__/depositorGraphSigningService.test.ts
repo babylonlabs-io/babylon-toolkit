@@ -75,6 +75,9 @@ function createMockParams(
   };
 }
 
+/** Number of ChallengeAssert inputs used in test fixtures. */
+const TEST_CHALLENGE_ASSERT_INPUT_COUNT = 3;
+
 /**
  * Configure Psbt.fromBase64 mock to return a fake PSBT whose getTransaction()
  * returns the matching tx_hex for verification to pass.
@@ -83,10 +86,12 @@ function setupPsbtVerificationMock(
   depositorGraph: DepositorGraphTransactions,
 ): void {
   const txHexByPsbt = new Map<string, string>();
+  const challengeAssertPsbts = new Set<string>();
   txHexByPsbt.set(depositorGraph.payout_psbt, depositorGraph.payout_tx.tx_hex);
   for (const c of depositorGraph.challenger_presign_data) {
     txHexByPsbt.set(c.nopayout_psbt, c.nopayout_tx.tx_hex);
     txHexByPsbt.set(c.challenge_assert_psbt, c.challenge_assert_tx.tx_hex);
+    challengeAssertPsbts.add(c.challenge_assert_psbt);
   }
 
   vi.mocked(Psbt.fromBase64).mockImplementation((b64: string) => {
@@ -97,6 +102,9 @@ function setupPsbtVerificationMock(
           toString: (encoding: string) =>
             encoding === "hex" ? (expectedHex ?? "mismatch") : "",
         }),
+        inputs: challengeAssertPsbts.has(b64)
+          ? Array(TEST_CHALLENGE_ASSERT_INPUT_COUNT).fill({})
+          : [{}],
       },
     } as any;
   });
@@ -363,7 +371,7 @@ describe("depositorGraphSigningService", () => {
       wallet.signPsbts.mockResolvedValue([]);
 
       await expect(signDepositorGraph(params)).rejects.toThrow(
-        /payout_psbt is missing/,
+        /Missing depositor payout PSBT/,
       );
     });
 
@@ -376,7 +384,7 @@ describe("depositorGraphSigningService", () => {
       wallet.signPsbts.mockResolvedValue(Array(3).fill("signed_hex"));
 
       await expect(signDepositorGraph(params)).rejects.toThrow(
-        /Missing nopayout_psbt/,
+        /Missing nopayout.*PSBT/,
       );
     });
 
@@ -390,7 +398,7 @@ describe("depositorGraphSigningService", () => {
       wallet.signPsbts.mockResolvedValue(Array(3).fill("signed_hex"));
 
       await expect(signDepositorGraph(params)).rejects.toThrow(
-        /Missing challenge_assert_psbt/,
+        /Missing challenge_assert.*PSBT/,
       );
     });
 
@@ -433,6 +441,7 @@ describe("depositorGraphSigningService", () => {
                       : "wrong_tx_hex"
                     : "",
               }),
+              inputs: [{}],
             },
           }) as any,
       );
@@ -470,6 +479,7 @@ describe("depositorGraphSigningService", () => {
                       : "wrong_tx_hex"
                     : "",
               }),
+              inputs: Array(TEST_CHALLENGE_ASSERT_INPUT_COUNT).fill({}),
             },
           }) as any,
       );

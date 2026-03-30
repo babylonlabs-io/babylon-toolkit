@@ -9,7 +9,7 @@
  * produce signatures without extra context.
  *
  * Transaction counts: 1 Payout + N NoPayout + N ChallengeAssert = 1 + 2N total PSBTs
- * (each ChallengeAssert PSBT has 3 inputs signed in one go)
+ * (each ChallengeAssert PSBT's input count is derived from the PSBT itself)
  *
  * @see btc-vault docs/pegin.md — "Automatic Graph Creation & Presigning"
  */
@@ -31,12 +31,6 @@ import type {
 import { signPsbtsWithFallback, stripHexPrefix } from "../../utils/btc";
 import { sanitizeErrorMessage } from "../../utils/errors/formatting";
 
-/**
- * Number of ChallengeAssert inputs per challenger.
- * Protocol constant from btc-vault (NUM_UTXOS_FOR_CHALLENGE_ASSERT).
- */
-const NUM_CHALLENGE_ASSERT_INPUTS = 3;
-
 /** Convert a base64-encoded PSBT to hex (wallet signing format). */
 function base64ToHex(b64: string): string {
   return Buffer.from(b64, "base64").toString("hex");
@@ -55,17 +49,18 @@ export interface SignDepositorGraphParams {
 }
 
 /** Tracks which indices in the flat PSBT array belong to which challenger */
-interface ChallengerIndexEntry {
+interface ChallengerEntry {
   challengerPubkey: string;
   noPayoutIdx: number;
   challengeAssertIdx: number;
+  challengeAssertInputCount: number;
 }
 
 /** Result of the collect phase — flat PSBT array with index mapping */
 interface CollectedDepositorGraphPsbts {
   psbtHexes: string[];
   signOptions: SignPsbtOptions[];
-  challengerIndexMap: ChallengerIndexEntry[];
+  challengerEntries: ChallengerEntry[];
 }
 
 // ============================================================================
@@ -73,18 +68,18 @@ interface CollectedDepositorGraphPsbts {
 // ============================================================================
 
 /**
- * Verify that a base64-encoded PSBT's unsigned transaction matches the
- * expected transaction hex. Catches VP serialization bugs.
+ * Parse a base64-encoded PSBT and verify its unsigned transaction matches
+ * the expected transaction hex. Catches VP serialization bugs.
  *
+ * @returns the parsed Psbt (for callers that need to inspect inputs)
  * @throws if the PSBT's unsigned transaction doesn't match tx_hex
  */
-function verifyPsbtMatchesTxHex(
+function verifyAndParsePsbt(
   psbtBase64: string,
   expectedTxHex: string,
   label: string,
-): void {
+): Psbt {
   const psbt = Psbt.fromBase64(psbtBase64);
-  // psbt.data is a bip174 PsbtBase; getTransaction() returns the unsigned tx as a Buffer
   const unsignedTxHex = stripHexPrefix(
     psbt.data.getTransaction().toString("hex"),
   ).toLowerCase();
@@ -94,6 +89,25 @@ function verifyPsbtMatchesTxHex(
       `PSBT integrity check failed for ${label}: unsigned transaction does not match tx_hex`,
     );
   }
+  return psbt;
+}
+
+/**
+ * Validate that a PSBT field is present, verify it against expected tx_hex,
+ * and convert to hex for wallet signing.
+ *
+ * @throws if psbtBase64 is falsy or fails integrity check
+ */
+function validateAndConvertPsbt(
+  psbtBase64: string | undefined,
+  expectedTxHex: string,
+  label: string,
+): string {
+  if (!psbtBase64) {
+    throw new Error(`Missing ${label} PSBT`);
+  }
+  verifyAndParsePsbt(psbtBase64, expectedTxHex, label);
+  return base64ToHex(psbtBase64);
 }
 
 // ============================================================================
@@ -112,71 +126,71 @@ function collectDepositorGraphPsbts(
 ): CollectedDepositorGraphPsbts {
   const psbtHexes: string[] = [];
   const signOptions: SignPsbtOptions[] = [];
-  const challengerIndexMap: ChallengerIndexEntry[] = [];
+  const challengerEntries: ChallengerEntry[] = [];
 
   const singleInputOpts = createTaprootScriptPathSignOptions(
     walletPublicKey,
     1,
   );
-  const challengeAssertOpts = createTaprootScriptPathSignOptions(
-    walletPublicKey,
-    NUM_CHALLENGE_ASSERT_INPUTS,
-  );
 
   // Index 0: Payout PSBT
-  if (!depositorGraph.payout_psbt) {
-    throw new Error("depositorGraph.payout_psbt is missing");
-  }
-  verifyPsbtMatchesTxHex(
+  const payoutHex = validateAndConvertPsbt(
     depositorGraph.payout_psbt,
     depositorGraph.payout_tx.tx_hex,
     "depositor payout",
   );
-  psbtHexes.push(base64ToHex(depositorGraph.payout_psbt));
+  psbtHexes.push(payoutHex);
   signOptions.push(singleInputOpts);
 
-  // Per-challenger: 1 NoPayout + 1 ChallengeAssert (with 3 inputs)
+  // Per-challenger: 1 NoPayout + 1 ChallengeAssert
   for (const challenger of depositorGraph.challenger_presign_data) {
     const challengerPubkey = stripHexPrefix(challenger.challenger_pubkey);
 
-    // NoPayout PSBT
+    // NoPayout PSBT — single input
     const noPayoutIdx = psbtHexes.length;
-    if (!challenger.nopayout_psbt) {
-      throw new Error(
-        `Missing nopayout_psbt for challenger ${challengerPubkey}`,
-      );
-    }
-    verifyPsbtMatchesTxHex(
+    const noPayoutHex = validateAndConvertPsbt(
       challenger.nopayout_psbt,
       challenger.nopayout_tx.tx_hex,
       `nopayout (challenger ${challengerPubkey})`,
     );
-    psbtHexes.push(base64ToHex(challenger.nopayout_psbt));
+    psbtHexes.push(noPayoutHex);
     signOptions.push(singleInputOpts);
 
-    // ChallengeAssert PSBT — 1 PSBT with NUM_CHALLENGE_ASSERT_INPUTS inputs
+    // ChallengeAssert PSBT — input count derived from the PSBT itself
     const challengeAssertIdx = psbtHexes.length;
     if (!challenger.challenge_assert_psbt) {
       throw new Error(
-        `Missing challenge_assert_psbt for challenger ${challengerPubkey}`,
+        `Missing challenge_assert (challenger ${challengerPubkey}) PSBT`,
       );
     }
-    verifyPsbtMatchesTxHex(
+    const caPsbt = verifyAndParsePsbt(
       challenger.challenge_assert_psbt,
       challenger.challenge_assert_tx.tx_hex,
       `challenge_assert (challenger ${challengerPubkey})`,
     );
+    const challengeAssertInputCount = caPsbt.data.inputs.length;
+    if (challengeAssertInputCount === 0) {
+      throw new Error(
+        `ChallengeAssert PSBT for challenger ${challengerPubkey} has 0 inputs — expected at least 1`,
+      );
+    }
     psbtHexes.push(base64ToHex(challenger.challenge_assert_psbt));
-    signOptions.push(challengeAssertOpts);
+    signOptions.push(
+      createTaprootScriptPathSignOptions(
+        walletPublicKey,
+        challengeAssertInputCount,
+      ),
+    );
 
-    challengerIndexMap.push({
+    challengerEntries.push({
       challengerPubkey,
       noPayoutIdx,
       challengeAssertIdx,
+      challengeAssertInputCount,
     });
   }
 
-  return { psbtHexes, signOptions, challengerIndexMap };
+  return { psbtHexes, signOptions, challengerEntries };
 }
 
 // ============================================================================
@@ -188,7 +202,7 @@ function collectDepositorGraphPsbts(
  */
 function extractDepositorGraphSignatures(
   signedPsbtHexes: string[],
-  challengerIndexMap: ChallengerIndexEntry[],
+  challengerEntries: ChallengerEntry[],
   depositorPubkey: string,
 ): DepositorAsClaimerPresignatures {
   // Payout signature (index 0, input 0)
@@ -199,14 +213,14 @@ function extractDepositorGraphSignatures(
 
   // Per-challenger signatures
   const perChallenger: Record<string, DepositorPreSigsPerChallenger> = {};
-  for (const entry of challengerIndexMap) {
+  for (const entry of challengerEntries) {
     const caSignedPsbt = signedPsbtHexes[entry.challengeAssertIdx];
 
     perChallenger[entry.challengerPubkey] = {
       challenge_assert_signatures: Array.from(
-        { length: NUM_CHALLENGE_ASSERT_INPUTS },
+        { length: entry.challengeAssertInputCount },
         (_, i) => extractPayoutSignature(caSignedPsbt, depositorPubkey, i),
-      ) as [string, string, string],
+      ),
       nopayout_signature: extractPayoutSignature(
         signedPsbtHexes[entry.noPayoutIdx],
         depositorPubkey,
@@ -246,7 +260,7 @@ export async function signDepositorGraph(
   const walletPublicKey = await btcWallet.getPublicKeyHex();
 
   // 1. Collect pre-built PSBTs from VP response
-  const { psbtHexes, signOptions, challengerIndexMap } =
+  const { psbtHexes, signOptions, challengerEntries } =
     collectDepositorGraphPsbts(depositorGraph, walletPublicKey);
 
   // 2. Sign all PSBTs (batch when wallet supports it, sequential fallback for mobile)
@@ -273,7 +287,7 @@ export async function signDepositorGraph(
   // 3. Extract signatures and assemble presignatures
   return extractDepositorGraphSignatures(
     signedPsbtHexes,
-    challengerIndexMap,
+    challengerEntries,
     depositorPubkey,
   );
 }
