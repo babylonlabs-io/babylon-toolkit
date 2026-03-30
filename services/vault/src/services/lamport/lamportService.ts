@@ -341,7 +341,7 @@ export function mnemonicToLamportSeed(mnemonic: string): Uint8Array {
  * The same (mnemonic, vaultId, depositorPk, appContractAddress) tuple always
  * produces the same keypair, enabling recovery from the mnemonic alone.
  *
- * @param seed               - 64-byte seed from {@link mnemonicToLamportSeed}.
+ * @param seed               - 64-byte seed from {@link mnemonicToLamportSeed}. Zeroed after use.
  * @param vaultId            - Unique identifier of the vault (e.g. pegin tx hash).
  * @param depositorPk        - Depositor's public key (hex string).
  * @param appContractAddress - Ethereum address of the application contract.
