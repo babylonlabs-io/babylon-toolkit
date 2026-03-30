@@ -34,9 +34,6 @@ vi.mock("@/clients/eth-contract", () => ({
     readContract: vi.fn(),
     getTransactionReceipt: vi.fn(),
   },
-  BTCVaultRegistryQuery: {
-    getPeginRequest: vi.fn(),
-  },
 }));
 
 import { useApplications } from "../../useApplications";
