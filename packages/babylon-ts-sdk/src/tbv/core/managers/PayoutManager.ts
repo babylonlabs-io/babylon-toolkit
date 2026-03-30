@@ -14,7 +14,11 @@
  * @module managers/PayoutManager
  */
 
-import type { BitcoinWallet } from "../../../shared/wallets/interfaces/BitcoinWallet";
+import type {
+  BitcoinWallet,
+  SignPsbtOptions,
+} from "../../../shared/wallets";
+import { createTaprootScriptPathSignOptions } from "../../../shared/wallets";
 import {
   buildPayoutPsbt,
   extractPayoutSignature,
@@ -188,22 +192,10 @@ export class PayoutManager {
       network: this.config.network,
     });
 
-    // Sign PSBT via wallet
-    // - signInputs restricts signing to input 0 only (input 1 is signed by claimer/challengers)
-    // - walletPubkeyRaw uses compressed format (66 chars) as expected by wallets like UniSat
-    // - disableTweakSigner is required for Taproot script path spend (uses untweaked key)
+    // Sign PSBT via wallet (Taproot script-path spend, input 0 only)
     const signedPsbtHex = await this.config.btcWallet.signPsbt(
       payoutPsbt.psbtHex,
-      {
-        autoFinalized: false,
-        signInputs: [
-          {
-            index: 0,
-            publicKey: walletPubkeyRaw,
-            disableTweakSigner: true,
-          },
-        ],
-      },
+      createTaprootScriptPathSignOptions(walletPubkeyRaw, 1),
     );
 
     // Extract Schnorr signature
@@ -261,14 +253,7 @@ export class PayoutManager {
 
     // Build all PSBTs (1 per claimer)
     const psbtsToSign: string[] = [];
-    const signOptions: Array<{
-      autoFinalized: boolean;
-      signInputs: Array<{
-        index: number;
-        publicKey: string;
-        disableTweakSigner: boolean;
-      }>;
-    }> = [];
+    const signOptions: SignPsbtOptions[] = [];
     const depositorPubkeys: string[] = [];
 
     for (const tx of transactions) {
@@ -292,16 +277,7 @@ export class PayoutManager {
         network: this.config.network,
       });
       psbtsToSign.push(payoutPsbt.psbtHex);
-      signOptions.push({
-        autoFinalized: false,
-        signInputs: [
-          {
-            index: 0,
-            publicKey: walletPubkeyRaw,
-            disableTweakSigner: true,
-          },
-        ],
-      });
+      signOptions.push(createTaprootScriptPathSignOptions(walletPubkeyRaw, 1));
     }
 
     // Batch sign all PSBTs with single wallet interaction

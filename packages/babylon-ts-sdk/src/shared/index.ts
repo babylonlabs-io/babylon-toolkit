@@ -9,6 +9,8 @@ export type {
   SignPsbtOptions,
 } from "./wallets";
 
+export { createTaprootScriptPathSignOptions } from "./wallets";
+
 export { MockBitcoinWallet, MockEthereumWallet } from "./wallets";
 
 export type {
