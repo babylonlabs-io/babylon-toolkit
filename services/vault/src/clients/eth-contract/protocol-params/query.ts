@@ -207,6 +207,20 @@ export async function getOffchainParamsByVersion(
   return result as VersionedOffchainParams;
 }
 
+/**
+ * Get timelockPegin for a specific offchain params version.
+ * timelockPegin = uint16(timelockAssert), matching PeginLogic.sol:115.
+ *
+ * Use the vault's locked offchainParamsVersion — using the latest version
+ * would produce invalid signatures if timelockAssert changed after vault creation.
+ */
+export async function getTimelockPeginByVersion(
+  offchainParamsVersion: number,
+): Promise<number> {
+  const params = await getOffchainParamsByVersion(offchainParamsVersion);
+  return Number(params.timelockAssert);
+}
+
 /** All offchain params grouped by version */
 export interface AllOffchainParamsData {
   byVersion: Map<number, VersionedOffchainParams>;

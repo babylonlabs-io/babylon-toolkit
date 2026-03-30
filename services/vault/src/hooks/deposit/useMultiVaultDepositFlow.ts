@@ -888,7 +888,6 @@ export function useMultiVaultDepositFlow(
                   btcPubKey,
                 }),
               ),
-              timelockPegin,
               signal,
             });
 

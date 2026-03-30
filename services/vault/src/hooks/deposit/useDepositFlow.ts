@@ -360,7 +360,6 @@ export function useDepositFlow(
           universalChallengers: latestUniversalChallengers.map((uc) => ({
             btcPubKey: uc.btcPubKey,
           })),
-          timelockPegin,
           signal,
         });
 

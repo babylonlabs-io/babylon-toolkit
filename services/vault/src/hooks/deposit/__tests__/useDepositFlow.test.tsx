@@ -273,12 +273,33 @@ vi.mock("@/services/vault/vaultActivationService", () => ({
     .mockResolvedValue({ hash: "0xActivationTxHash" }),
 }));
 
+// Mock pegin status polling (used by pollAndPreparePayoutSigning)
+vi.mock("@/services/vault/vaultPeginStatusService", () => ({
+  waitForPeginStatus: vi.fn().mockResolvedValue(undefined),
+}));
+
+// Mock on-chain vault query (used by pollAndPreparePayoutSigning for timelockPegin)
+vi.mock("@/clients/eth-contract/btc-vault-registry/query", () => ({
+  getVaultFromChain: vi.fn().mockResolvedValue({
+    depositorSignedPeginTx: "0xmockpegintx",
+    applicationEntryPoint: "0xAaveAdapter123",
+    vaultProvider: "0xProvider123",
+    universalChallengersVersion: 1,
+    appVaultKeepersVersion: 1,
+    offchainParamsVersion: 1,
+  }),
+}));
+
 // Mock protocol params query to avoid ETH client initialization
 vi.mock("@/clients/eth-contract/protocol-params/query", () => ({
   getLatestOffchainParams: vi.fn().mockResolvedValue({
     timelockAssert: 100,
     securityCouncilKeys: ["0xcouncil1"],
   }),
+}));
+
+vi.mock("@/clients/eth-contract/protocol-params", () => ({
+  getTimelockPeginByVersion: vi.fn().mockResolvedValue(100),
 }));
 
 // Mock Lamport service (deriveLamportPkHash returns a mock hash)

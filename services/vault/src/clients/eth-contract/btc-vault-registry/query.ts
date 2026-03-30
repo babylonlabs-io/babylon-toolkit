@@ -23,6 +23,8 @@ export interface OnChainVaultData {
   vaultProvider: Address;
   universalChallengersVersion: number;
   appVaultKeepersVersion: number;
+  /** Offchain params version locked at vault creation — use for timelockPegin lookup */
+  offchainParamsVersion: number;
 }
 
 /**
@@ -54,7 +56,8 @@ export async function getVaultFromChain(
     depositorSignedPeginTx: vault.depositorSignedPeginTx,
     applicationEntryPoint: vault.applicationEntryPoint,
     vaultProvider: vault.vaultProvider,
-    universalChallengersVersion: vault.universalChallengersVersion,
-    appVaultKeepersVersion: vault.appVaultKeepersVersion,
+    universalChallengersVersion: Number(vault.universalChallengersVersion),
+    appVaultKeepersVersion: Number(vault.appVaultKeepersVersion),
+    offchainParamsVersion: Number(vault.offchainParamsVersion),
   };
 }
