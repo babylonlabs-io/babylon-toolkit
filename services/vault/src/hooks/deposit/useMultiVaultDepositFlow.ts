@@ -62,7 +62,7 @@ import {
   updatePendingPeginStatus,
 } from "@/storage/peginStorage";
 import { satoshiToBtcNumber } from "@/utils/btcConversion";
-import { formatErrorMessage } from "@/utils/errors/formatting";
+import { sanitizeErrorMessage } from "@/utils/errors/formatting";
 import { formatBtcValue } from "@/utils/formatting";
 import { hashSecret } from "@/utils/secretUtils";
 
@@ -1018,7 +1018,7 @@ export function useMultiVaultDepositFlow(
       } catch (err: unknown) {
         // Don't show error if flow was aborted (user intentionally closed modal)
         if (!signal.aborted) {
-          setError(formatErrorMessage(err));
+          setError(sanitizeErrorMessage(err));
           logger.error(err instanceof Error ? err : new Error(String(err)), {
             data: { context: "Multi-vault deposit flow error" },
           });

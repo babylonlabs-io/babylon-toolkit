@@ -15,7 +15,7 @@ export const STEP_DESCRIPTIONS: Partial<
   },
   [DepositFlowStep.SIGN_POP]: {
     active:
-      "Your BTC wallet will prompt you twice: first to sign the pegin transaction, then to sign proof of possession.",
+      "Your BTC wallet will prompt you to sign the pegin transaction and proof of possession.",
   },
   [DepositFlowStep.SUBMIT_PEGIN]: {
     active: "Please sign and submit the peg-in request in your ETH wallet.",

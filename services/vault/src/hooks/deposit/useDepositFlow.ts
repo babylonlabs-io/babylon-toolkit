@@ -31,7 +31,7 @@ import {
   type PayoutSigningProgress,
 } from "@/services/vault/vaultPayoutSignatureService";
 import { getPendingPegins } from "@/storage/peginStorage";
-import { formatErrorMessage } from "@/utils/errors/formatting";
+import { sanitizeErrorMessage } from "@/utils/errors/formatting";
 import { hashSecret } from "@/utils/secretUtils";
 
 import {
@@ -441,7 +441,7 @@ export function useDepositFlow(
       } catch (err) {
         // Don't show error if flow was aborted (user intentionally closed modal)
         if (!signal.aborted) {
-          setError(formatErrorMessage(err));
+          setError(sanitizeErrorMessage(err));
           logger.error(err instanceof Error ? err : new Error(String(err)), {
             data: { context: "Deposit flow error" },
           });

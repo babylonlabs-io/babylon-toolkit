@@ -28,11 +28,11 @@ import type { PayoutSigningProgress } from "@/services/vault/vaultPayoutSignatur
  * Visual steps (must match buildStepItems order):
  * 1. Sign proof of possession          (SIGN_POP)
  * 2. Submit peg-in to Ethereum         (SUBMIT_PEGIN)
- * 3. Broadcast to Bitcoin              (BROADCAST_PRE_PEGIN)
- * 4. Wait (~ 15 min)                   (SIGN_PAYOUTS when isWaiting)
+ * 3. Sign & broadcast to Bitcoin       (BROADCAST_PRE_PEGIN)
+ * 4. Awaiting Bitcoin confirmation      (SIGN_PAYOUTS when isWaiting)
  * 5. Sign payout transactions          (SIGN_PAYOUTS when !isWaiting)
  * 6. Download vault artifacts           (ARTIFACT_DOWNLOAD)
- * 7. Wait (~ 12 mins)                  (ACTIVATE_VAULT when isWaiting)
+ * 7. Awaiting vault verification       (ACTIVATE_VAULT when isWaiting)
  * 8. Activate vault on Ethereum        (ACTIVATE_VAULT when !isWaiting)
  * 9. (completed)                       (COMPLETED)
  */
