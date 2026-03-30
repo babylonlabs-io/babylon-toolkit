@@ -78,6 +78,7 @@ describe("peginStateMachine", () => {
       expect(state.availableActions).toContain(
         PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN,
       );
+      expect(state.message).toContain("Broadcast the Pre-PegIn transaction");
     });
 
     it("shows ready to activate when BTC tx is broadcast", () => {
@@ -258,13 +259,13 @@ describe("peginStateMachine", () => {
   });
 
   describe("getPrimaryActionButton", () => {
-    it("returns Enter Mnemonic for lamport key", () => {
+    it("returns Submit Lamport Key for lamport key", () => {
       const state = getPeginState(ContractStatus.PENDING, {
         needsLamportKey: true,
       });
       const button = getPrimaryActionButton(state);
       expect(button).toEqual({
-        label: "Enter Mnemonic",
+        label: "Submit Lamport Key",
         action: PeginAction.SUBMIT_LAMPORT_KEY,
       });
     });
