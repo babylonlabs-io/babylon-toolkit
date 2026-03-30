@@ -181,7 +181,6 @@ export function usePayoutSigningState({
       // PSBTs are pre-built by the VP with all taproot metadata embedded.
       const depositorClaimerPresignatures = await signDepositorGraph({
         depositorGraph,
-        depositorBtcPubkey: btcPublicKey,
         btcWallet: btcWalletProvider,
       });
 

@@ -89,5 +89,34 @@ describe("Error Formatting", () => {
       expect(result.message).not.toContain("internal detail");
       expect(result.message).toContain("unexpected error");
     });
+
+    it("handles depositor graph signing failure", () => {
+      const error = new Error(
+        "Failed to sign depositor graph transactions: user rejected",
+      );
+      const result = formatPayoutSignatureError(error);
+
+      expect(result.title).toBe("Graph Signing Failed");
+      expect(result.message).toContain("depositor graph transactions");
+      expect(result.message).toContain("reconnect your wallet");
+    });
+
+    it("handles PSBT integrity check failure", () => {
+      const error = new Error(
+        "PSBT integrity check failed for depositor payout: unsigned transaction does not match tx_hex",
+      );
+      const result = formatPayoutSignatureError(error);
+
+      expect(result.title).toBe("Transaction Integrity Error");
+      expect(result.message).toContain("integrity verification");
+    });
+
+    it("handles wallet returning wrong number of signed PSBTs", () => {
+      const error = new Error("Wallet returned 5 signed PSBTs, expected 17");
+      const result = formatPayoutSignatureError(error);
+
+      expect(result.title).toBe("Signing Mismatch");
+      expect(result.message).toContain("unexpected number");
+    });
   });
 });

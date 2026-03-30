@@ -132,6 +132,27 @@ export function formatPayoutSignatureError(error: unknown): {
           "Failed to sign payout transactions. Please try again or reconnect your wallet.",
       };
     }
+    if (error.message.includes("Failed to sign depositor graph transactions")) {
+      return {
+        title: "Graph Signing Failed",
+        message:
+          "Failed to sign depositor graph transactions. Please try again or reconnect your wallet.",
+      };
+    }
+    if (error.message.includes("PSBT integrity check failed")) {
+      return {
+        title: "Transaction Integrity Error",
+        message:
+          "A pre-built transaction from the vault provider failed integrity verification. Please try again or contact support.",
+      };
+    }
+    if (error.message.includes("signed PSBTs, expected")) {
+      return {
+        title: "Signing Mismatch",
+        message:
+          "The wallet returned an unexpected number of signed transactions. Please try again or reconnect your wallet.",
+      };
+    }
     return {
       title: "Payout Signing Error",
       message:

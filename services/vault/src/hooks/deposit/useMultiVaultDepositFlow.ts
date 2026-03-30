@@ -905,7 +905,6 @@ export function useMultiVaultDepositFlow(
             // PSBTs are pre-built by the VP with all taproot metadata embedded.
             const depositorClaimerPresignatures = await signDepositorGraph({
               depositorGraph,
-              depositorBtcPubkey: result.depositorBtcPubkey,
               btcWallet: confirmedBtcWallet,
             });
 

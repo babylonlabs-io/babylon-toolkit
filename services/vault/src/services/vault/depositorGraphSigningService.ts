@@ -19,7 +19,6 @@ import type {
   SignPsbtOptions,
 } from "@babylonlabs-io/ts-sdk/shared";
 import { createTaprootScriptPathSignOptions } from "@babylonlabs-io/ts-sdk/shared";
-import { extractPayoutSignature } from "@babylonlabs-io/ts-sdk/tbv/core";
 import { Psbt } from "bitcoinjs-lib";
 import { Buffer } from "buffer";
 
@@ -42,8 +41,6 @@ function base64ToHex(b64: string): string {
 export interface SignDepositorGraphParams {
   /** The depositor graph from VP response (contains pre-built PSBTs) */
   depositorGraph: DepositorGraphTransactions;
-  /** Depositor's BTC public key (x-only, 64-char hex) */
-  depositorBtcPubkey: string;
   /** Bitcoin wallet for signing */
   btcWallet: BitcoinWallet;
 }
@@ -194,8 +191,61 @@ function collectDepositorGraphPsbts(
 }
 
 // ============================================================================
-// Extract phase
+// Extract phase — pubkey-agnostic signature extraction for VP-built PSBTs
 // ============================================================================
+
+/** SIGHASH_ALL byte value for Schnorr signatures (BIP 341). */
+const SIGHASH_ALL = 0x01;
+
+/**
+ * Extract a 64-byte Schnorr signature from a signed PSBT input.
+ *
+ * VP-built PSBTs have exactly one signer per input, so after signing there is
+ * exactly one tapScriptSig entry. We extract it without filtering by pubkey
+ * because some wallets (e.g. OKX) sign with a different key than the
+ * depositor's registered taproot pubkey.
+ *
+ * @throws if the input has no tapScriptSig or the signature length is invalid
+ */
+function extractSignatureFromSignedInput(
+  signedPsbtHex: string,
+  inputIndex: number,
+): string {
+  const psbt = Psbt.fromHex(signedPsbtHex);
+
+  if (inputIndex >= psbt.data.inputs.length) {
+    throw new Error(
+      `Input index ${inputIndex} out of range (${psbt.data.inputs.length} inputs)`,
+    );
+  }
+
+  const input = psbt.data.inputs[inputIndex];
+
+  if (!input.tapScriptSig || input.tapScriptSig.length === 0) {
+    throw new Error(
+      `No tapScriptSig found in signed PSBT at input ${inputIndex}`,
+    );
+  }
+
+  const sig = input.tapScriptSig[0].signature;
+
+  if (sig.length === 64) {
+    return Buffer.from(sig).toString("hex");
+  }
+
+  if (sig.length === 65) {
+    if (sig[64] !== SIGHASH_ALL) {
+      throw new Error(
+        `Unexpected sighash type 0x${sig[64].toString(16).padStart(2, "0")} at input ${inputIndex}. Expected SIGHASH_ALL (0x01).`,
+      );
+    }
+    return Buffer.from(sig.subarray(0, 64)).toString("hex");
+  }
+
+  throw new Error(
+    `Unexpected signature length at input ${inputIndex}: ${sig.length}`,
+  );
+}
 
 /**
  * Extract all signatures from signed PSBTs and assemble into presignatures.
@@ -203,12 +253,11 @@ function collectDepositorGraphPsbts(
 function extractDepositorGraphSignatures(
   signedPsbtHexes: string[],
   challengerEntries: ChallengerEntry[],
-  depositorPubkey: string,
 ): DepositorAsClaimerPresignatures {
   // Payout signature (index 0, input 0)
-  const payoutSignature = extractPayoutSignature(
+  const payoutSignature = extractSignatureFromSignedInput(
     signedPsbtHexes[0],
-    depositorPubkey,
+    0,
   );
 
   // Per-challenger signatures
@@ -219,11 +268,11 @@ function extractDepositorGraphSignatures(
     perChallenger[entry.challengerPubkey] = {
       challenge_assert_signatures: Array.from(
         { length: entry.challengeAssertInputCount },
-        (_, i) => extractPayoutSignature(caSignedPsbt, depositorPubkey, i),
+        (_, i) => extractSignatureFromSignedInput(caSignedPsbt, i),
       ),
-      nopayout_signature: extractPayoutSignature(
+      nopayout_signature: extractSignatureFromSignedInput(
         signedPsbtHexes[entry.noPayoutIdx],
-        depositorPubkey,
+        0,
       ),
     };
   }
@@ -252,9 +301,7 @@ function extractDepositorGraphSignatures(
 export async function signDepositorGraph(
   params: SignDepositorGraphParams,
 ): Promise<DepositorAsClaimerPresignatures> {
-  const { depositorGraph, depositorBtcPubkey, btcWallet } = params;
-
-  const depositorPubkey = stripHexPrefix(depositorBtcPubkey);
+  const { depositorGraph, btcWallet } = params;
 
   // Get the wallet's compressed public key for signInputs identification
   const walletPublicKey = await btcWallet.getPublicKeyHex();
@@ -285,9 +332,5 @@ export async function signDepositorGraph(
   }
 
   // 3. Extract signatures and assemble presignatures
-  return extractDepositorGraphSignatures(
-    signedPsbtHexes,
-    challengerEntries,
-    depositorPubkey,
-  );
+  return extractDepositorGraphSignatures(signedPsbtHexes, challengerEntries);
 }
