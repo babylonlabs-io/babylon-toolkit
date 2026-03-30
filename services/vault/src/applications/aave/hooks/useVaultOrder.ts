@@ -23,7 +23,7 @@ async function fetchVaultOrder(userAddress: string): Promise<Hex[]> {
 
   return collaterals
     .filter((c) => c.removedAt === null)
-    .sort((a, b) => a.liquidationIndex - b.liquidationIndex)
+    .sort((a, b) => (a.liquidationIndex ?? 0) - (b.liquidationIndex ?? 0))
     .map((c) => c.vaultId as Hex);
 }
 
