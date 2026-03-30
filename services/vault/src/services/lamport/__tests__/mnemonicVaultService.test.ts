@@ -18,7 +18,7 @@ const TEST_MNEMONIC_2 = "zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo wrong";
 const TEST_PASSWORD = "test-password-123";
 const STORAGE_KEY = "babylon-lamport-vault";
 const TEST_SCOPE = "0xABCDEF1234567890";
-const SCOPED_STORAGE_KEY = `${STORAGE_KEY}-${TEST_SCOPE}`;
+const SCOPED_STORAGE_KEY = `${STORAGE_KEY}-${TEST_SCOPE.toLowerCase()}`;
 
 describe("mnemonicVaultService", () => {
   beforeEach(() => {
