@@ -340,6 +340,20 @@ export async function getNetworkFees(apiUrl: string): Promise<NetworkFees> {
     }
   }
 
+  if (
+    data.minimumFee > data.economyFee ||
+    data.economyFee > data.hourFee ||
+    data.hourFee > data.halfHourFee ||
+    data.halfHourFee > data.fastestFee
+  ) {
+    throw new Error(
+      `Fee rate ordering violation from mempool API: expected ` +
+        `minimumFee (${data.minimumFee}) <= economyFee (${data.economyFee}) <= ` +
+        `hourFee (${data.hourFee}) <= halfHourFee (${data.halfHourFee}) <= ` +
+        `fastestFee (${data.fastestFee}).`,
+    );
+  }
+
   return data as NetworkFees;
 }
 

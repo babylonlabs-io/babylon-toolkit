@@ -287,6 +287,21 @@ describe("getNetworkFees", () => {
     );
   });
 
+  it("rejects fee rates with invalid ordering", async () => {
+    mockFetch.mockResolvedValueOnce(
+      jsonResponse({
+        fastestFee: 10,
+        halfHourFee: 30,
+        hourFee: 20,
+        economyFee: 10,
+        minimumFee: 1,
+      }),
+    );
+    await expect(getNetworkFees(API_URL)).rejects.toThrow(
+      /Fee rate ordering violation/,
+    );
+  });
+
   it("accepts fee rates at the maximum bound", async () => {
     mockFetch.mockResolvedValueOnce(
       jsonResponse({ ...validFees, fastestFee: 10000 }),
