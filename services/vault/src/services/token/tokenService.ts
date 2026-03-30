@@ -108,8 +108,6 @@ const TOKEN_REGISTRY: Record<string, TokenMetadata> = {
  */
 const tokenMetadataCache = new Map<string, TokenMetadata>();
 
-
-
 const tokenBrandColorsMap: Record<string, string> = {
   BTC: "#F7931A",
   WBTC: "#F7931A",
