@@ -14,14 +14,15 @@ export const STEP_DESCRIPTIONS: Partial<
     active: "Please sign the split transaction in your BTC wallet.",
   },
   [DepositFlowStep.SIGN_POP]: {
-    active: "Please sign the proof of possession in your BTC wallet.",
+    active:
+      "Your BTC wallet will prompt you twice: first to sign the pegin transaction, then to sign proof of possession.",
   },
   [DepositFlowStep.SUBMIT_PEGIN]: {
     active: "Please sign and submit the peg-in request in your ETH wallet.",
   },
   [DepositFlowStep.BROADCAST_PRE_PEGIN]: {
     active:
-      "Please sign and broadcast the Pre-PegIn transaction in your BTC wallet.",
+      "Please sign the Pre-PegIn transaction in your BTC wallet. It will be broadcast to Bitcoin immediately after.",
   },
   [DepositFlowStep.SIGN_PAYOUTS]: {
     active: "Please sign the payout transaction(s) in your BTC wallet.",
@@ -38,24 +39,6 @@ export const STEP_DESCRIPTIONS: Partial<
     active: "Deposit successfully submitted!",
   },
 };
-
-/**
- * Step labels for the progress indicator
- */
-export function getStepLabels(): string[] {
-  return [
-    "Sign proof of possession",
-    "Sign & submit peg-in request to Ethereum",
-    "Sign & broadcast Pre-PegIn to Bitcoin",
-    "Sign payout transaction(s)",
-    "Download vault artifacts",
-    "Activate vault on Ethereum",
-  ];
-}
-
-export function getTotalSteps(): number {
-  return 6;
-}
 
 /**
  * Get the description text for the current step

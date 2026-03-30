@@ -69,15 +69,15 @@ export function buildStepItems(
   return [
     { label: "Sign proof of possession" },
     { label: "Submit peg-in to Ethereum" },
-    { label: "Broadcast to Bitcoin" },
-    { label: "Wait", description: "(~ 15 min)" },
+    { label: "Sign & broadcast to Bitcoin" },
+    { label: "Awaiting Bitcoin confirmation", description: "(~ 15 min)" },
     {
       label: "Sign payout transactions",
       description:
         payoutTotal > 0 ? `(${payoutCompleted} of ${payoutTotal})` : undefined,
     },
     { label: "Download vault artifacts" },
-    { label: "Wait", description: "(~ 12 mins)" },
+    { label: "Awaiting vault verification", description: "(~ 12 mins)" },
     { label: "Activate vault on Ethereum" },
   ];
 }
@@ -186,15 +186,15 @@ export function buildMultiVaultStepItems(
   steps.push(
     { label: "Sign PoP + Submit pegin 1/2" },
     { label: "Submit pegin 2/2" },
-    { label: "Broadcast to Bitcoin" },
-    { label: "Wait", description: "(~ 15 min)" },
+    { label: "Sign & broadcast to Bitcoin" },
+    { label: "Awaiting Bitcoin confirmation", description: "(~ 15 min)" },
     {
       label: "Sign payout transactions",
       description:
         payoutTotal > 0 ? `(${payoutCompleted} of ${payoutTotal})` : undefined,
     },
     { label: "Download vault artifacts" },
-    { label: "Wait", description: "(~ 12 mins)" },
+    { label: "Awaiting vault verification", description: "(~ 12 mins)" },
     { label: "Activate vault on Ethereum" },
   );
 
@@ -259,7 +259,7 @@ export function DepositProgressView(props: DepositProgressViewProps) {
           onClick={error && onRetry ? onRetry : onClose}
         >
           {canContinueInBackground ? (
-            "You can close and come back later"
+            "Close & continue later"
           ) : error ? (
             onRetry ? (
               "Retry"
