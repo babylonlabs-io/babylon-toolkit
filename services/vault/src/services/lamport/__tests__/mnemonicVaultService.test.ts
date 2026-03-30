@@ -193,6 +193,12 @@ describe("mnemonicVaultService", () => {
       ).rejects.toThrow("No stored mnemonic found");
     });
 
+    it("finds a scoped mnemonic regardless of address casing", async () => {
+      await addMnemonic(TEST_MNEMONIC, TEST_PASSWORD, "0xABCDEF1234567890");
+      const result = await unlockMnemonic(TEST_PASSWORD, "0xabcdef1234567890");
+      expect(result).toBe(TEST_MNEMONIC);
+    });
+
     it("unlocks a specific mnemonic by ID", async () => {
       const id1 = await addMnemonic(TEST_MNEMONIC, TEST_PASSWORD);
       await addMnemonic(TEST_MNEMONIC_2, TEST_PASSWORD);
