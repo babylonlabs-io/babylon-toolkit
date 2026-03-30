@@ -9,6 +9,28 @@
 
 import type { MempoolUTXO, NetworkFees, TxInfo, UtxoInfo } from "./types";
 
+/** Maximum valid satoshi value: 21 million BTC × 10^8 sats/BTC */
+const MAX_SATOSHIS = 21_000_000 * 1e8;
+
+/**
+ * Maximum sane fee rate in sat/vByte.
+ * The April 2024 Runes spike peaked around 1,805 sat/vB — 10,000 provides ample headroom.
+ */
+const MAX_FEE_RATE = 10_000;
+
+function isValidSatoshiValue(value: number): boolean {
+  return Number.isInteger(value) && value > 0 && value <= MAX_SATOSHIS;
+}
+
+function isValidFeeRate(value: number): boolean {
+  return Number.isInteger(value) && value > 0 && value <= MAX_FEE_RATE;
+}
+
+function isValidVout(vout: number, outputCount?: number): boolean {
+  if (!Number.isInteger(vout) || vout < 0) return false;
+  return outputCount === undefined || vout < outputCount;
+}
+
 /**
  * Default mempool API URLs by network.
  */
@@ -151,13 +173,16 @@ export async function getUtxoInfo(
 ): Promise<UtxoInfo> {
   const txInfo = await getTxInfo(txid, apiUrl);
 
-  if (vout >= txInfo.vout.length) {
+  if (!isValidVout(vout, txInfo.vout.length)) {
     throw new Error(
       `Invalid vout ${vout} for transaction ${txid} (has ${txInfo.vout.length} outputs)`,
     );
   }
 
   const output = txInfo.vout[vout];
+  if (!isValidSatoshiValue(output.value)) {
+    throw new Error(`Invalid UTXO value ${output.value} for ${txid}:${vout}`);
+  }
 
   return {
     txid,
@@ -201,6 +226,20 @@ export async function getAddressUtxos(
       throw new Error(
         `Invalid Bitcoin address: ${address}. Mempool API validation failed.`,
       );
+    }
+
+    // Validate UTXO fields from the external API.
+    // Note: upper-bound vout check is omitted because we don't fetch
+    // full transactions here. Out-of-range indices surface downstream.
+    for (const utxo of utxos) {
+      if (!isValidVout(utxo.vout)) {
+        throw new Error(`Invalid vout ${utxo.vout} for ${utxo.txid}`);
+      }
+      if (!isValidSatoshiValue(utxo.value)) {
+        throw new Error(
+          `Invalid UTXO value ${utxo.value} for ${utxo.txid}:${utxo.vout}`,
+        );
+      }
     }
 
     // Sort by value (largest first) and map to our UTXO format
@@ -285,15 +324,33 @@ export async function getNetworkFees(apiUrl: string): Promise<NetworkFees> {
 
   const data = await response.json();
 
+  const feeFields = [
+    "fastestFee",
+    "halfHourFee",
+    "hourFee",
+    "economyFee",
+    "minimumFee",
+  ] as const;
+
+  for (const field of feeFields) {
+    if (!isValidFeeRate(data[field])) {
+      throw new Error(
+        `Invalid fee rate ${field}=${data[field]} from mempool API: expected a positive number ≤ ${MAX_FEE_RATE}`,
+      );
+    }
+  }
+
   if (
-    typeof data.fastestFee !== "number" ||
-    typeof data.halfHourFee !== "number" ||
-    typeof data.hourFee !== "number" ||
-    typeof data.economyFee !== "number" ||
-    typeof data.minimumFee !== "number"
+    data.minimumFee > data.economyFee ||
+    data.economyFee > data.hourFee ||
+    data.hourFee > data.halfHourFee ||
+    data.halfHourFee > data.fastestFee
   ) {
     throw new Error(
-      "Invalid fee data structure from mempool API. Expected all fee fields to be numbers.",
+      `Fee rate ordering violation from mempool API: expected ` +
+        `minimumFee (${data.minimumFee}) <= economyFee (${data.economyFee}) <= ` +
+        `hourFee (${data.hourFee}) <= halfHourFee (${data.halfHourFee}) <= ` +
+        `fastestFee (${data.fastestFee}).`,
     );
   }
 
