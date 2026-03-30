@@ -18,6 +18,7 @@ import type {
   BitcoinWallet,
   SignPsbtOptions,
 } from "@babylonlabs-io/ts-sdk/shared";
+import { createTaprootScriptPathSignOptions } from "@babylonlabs-io/ts-sdk/shared";
 import { extractPayoutSignature } from "@babylonlabs-io/ts-sdk/tbv/core";
 import { Psbt } from "bitcoinjs-lib";
 import { Buffer } from "buffer";
@@ -39,29 +40,6 @@ const NUM_CHALLENGE_ASSERT_INPUTS = 3;
 /** Convert a base64-encoded PSBT to hex (wallet signing format). */
 function base64ToHex(b64: string): string {
   return Buffer.from(b64, "base64").toString("hex");
-}
-
-/**
- * Taproot script path sign options — disables tweak signer and prevents
- * auto-finalization so we can extract raw Schnorr signatures from tapScriptSig.
- */
-function taprootScriptSignOptions(publicKey: string): SignPsbtOptions {
-  return {
-    autoFinalized: false,
-    signInputs: [{ index: 0, publicKey, disableTweakSigner: true }],
-  };
-}
-
-/** Sign options for ChallengeAssert PSBTs (one entry per input). */
-function challengeAssertSignOptions(publicKey: string): SignPsbtOptions {
-  return {
-    autoFinalized: false,
-    signInputs: Array.from({ length: NUM_CHALLENGE_ASSERT_INPUTS }, (_, i) => ({
-      index: i,
-      publicKey,
-      disableTweakSigner: true,
-    })),
-  };
 }
 
 /**
@@ -136,8 +114,14 @@ function collectDepositorGraphPsbts(
   const signOptions: SignPsbtOptions[] = [];
   const challengerIndexMap: ChallengerIndexEntry[] = [];
 
-  const taprootOpts = taprootScriptSignOptions(walletPublicKey);
-  const challengeAssertOpts = challengeAssertSignOptions(walletPublicKey);
+  const singleInputOpts = createTaprootScriptPathSignOptions(
+    walletPublicKey,
+    1,
+  );
+  const challengeAssertOpts = createTaprootScriptPathSignOptions(
+    walletPublicKey,
+    NUM_CHALLENGE_ASSERT_INPUTS,
+  );
 
   // Index 0: Payout PSBT
   if (!depositorGraph.payout_psbt) {
@@ -149,7 +133,7 @@ function collectDepositorGraphPsbts(
     "depositor payout",
   );
   psbtHexes.push(base64ToHex(depositorGraph.payout_psbt));
-  signOptions.push(taprootOpts);
+  signOptions.push(singleInputOpts);
 
   // Per-challenger: 1 NoPayout + 1 ChallengeAssert (with 3 inputs)
   for (const challenger of depositorGraph.challenger_presign_data) {
@@ -168,7 +152,7 @@ function collectDepositorGraphPsbts(
       `nopayout (challenger ${challengerPubkey})`,
     );
     psbtHexes.push(base64ToHex(challenger.nopayout_psbt));
-    signOptions.push(taprootOpts);
+    signOptions.push(singleInputOpts);
 
     // ChallengeAssert PSBT — 1 PSBT with NUM_CHALLENGE_ASSERT_INPUTS inputs
     const challengeAssertIdx = psbtHexes.length;
