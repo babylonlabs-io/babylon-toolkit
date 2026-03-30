@@ -11,8 +11,14 @@ function readAccountsMap(): Record<string, unknown> {
   if (!raw) return {};
 
   try {
-    return JSON.parse(raw) as Record<string, unknown>;
-  } catch {
+    const parsed: unknown = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      localStorage.removeItem(CONNECTED_ACCOUNTS_KEY);
+      return {};
+    }
+    return parsed as Record<string, unknown>;
+  } catch (e) {
+    console.error("[account-storage] Failed to parse accounts map, clearing corrupted entry:", e);
     localStorage.removeItem(CONNECTED_ACCOUNTS_KEY);
     return {};
   }
@@ -25,7 +31,8 @@ function readAccountsMap(): Record<string, unknown> {
 function writeAccountsMap(map: Record<string, unknown>): void {
   try {
     localStorage.setItem(CONNECTED_ACCOUNTS_KEY, JSON.stringify(map));
-  } catch {
+  } catch (e) {
+    console.error("[account-storage] Failed to write accounts map, clearing entry:", e);
     localStorage.removeItem(CONNECTED_ACCOUNTS_KEY);
   }
 }
