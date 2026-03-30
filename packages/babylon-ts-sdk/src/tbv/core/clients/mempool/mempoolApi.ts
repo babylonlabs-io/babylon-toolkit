@@ -228,7 +228,9 @@ export async function getAddressUtxos(
       );
     }
 
-    // Validate UTXO fields from the external API
+    // Validate UTXO fields from the external API.
+    // Note: upper-bound vout check is omitted because we don't fetch
+    // full transactions here. Out-of-range indices surface downstream.
     for (const utxo of utxos) {
       if (!isValidVout(utxo.vout)) {
         throw new Error(`Invalid vout ${utxo.vout} for ${utxo.txid}`);

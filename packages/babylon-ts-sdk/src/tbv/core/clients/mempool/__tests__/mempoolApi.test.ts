@@ -18,10 +18,10 @@ afterAll(() => {
   vi.unstubAllGlobals();
 });
 
-function jsonResponse(body: unknown, status = 200): Response {
+function jsonResponse(body: unknown): Response {
   return {
-    ok: status >= 200 && status < 300,
-    status,
+    ok: true,
+    status: 200,
     statusText: "OK",
     headers: new Headers({ "content-type": "application/json" }),
     json: () => Promise.resolve(body),
@@ -93,6 +93,18 @@ describe("getAddressUtxos", () => {
       .mockResolvedValueOnce(jsonResponse(validAddressInfo));
     await expect(getAddressUtxos(address, API_URL)).rejects.toThrow(
       /Invalid vout -1/,
+    );
+  });
+
+  it("rejects fractional vout from API", async () => {
+    const utxoList = [
+      { txid: "tx0", vout: 1.5, value: 50000, status: { confirmed: true } },
+    ];
+    mockFetch
+      .mockResolvedValueOnce(jsonResponse(utxoList))
+      .mockResolvedValueOnce(jsonResponse(validAddressInfo));
+    await expect(getAddressUtxos(address, API_URL)).rejects.toThrow(
+      /Invalid vout 1\.5/,
     );
   });
 
