@@ -27,6 +27,7 @@ const FULL_VAULT = {
   vaultProvider: "0xVaultProvider" as `0x${string}`,
   universalChallengersVersion: 1,
   appVaultKeepersVersion: 2,
+  offchainParamsVersion: 3,
 };
 
 describe("getVaultFromChain", () => {
@@ -41,6 +42,7 @@ describe("getVaultFromChain", () => {
       vaultProvider: FULL_VAULT.vaultProvider,
       universalChallengersVersion: FULL_VAULT.universalChallengersVersion,
       appVaultKeepersVersion: FULL_VAULT.appVaultKeepersVersion,
+      offchainParamsVersion: FULL_VAULT.offchainParamsVersion,
     });
   });
 

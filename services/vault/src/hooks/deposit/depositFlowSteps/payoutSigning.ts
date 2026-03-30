@@ -2,8 +2,10 @@
  * Step 3: Payout signing - poll for transactions and submit signatures
  */
 
-import type { Address } from "viem";
+import type { Address, Hex } from "viem";
 
+import { getVaultFromChain } from "@/clients/eth-contract/btc-vault-registry/query";
+import { getTimelockPeginByVersion } from "@/clients/eth-contract/protocol-params";
 import { VaultProviderRpcApi } from "@/clients/vault-provider-rpc";
 import type {
   ClaimerSignatures,
@@ -62,7 +64,6 @@ export async function pollAndPreparePayoutSigning(
     providerBtcPubKey,
     vaultKeepers,
     universalChallengers,
-    timelockPegin,
     signal,
   } = params;
 
@@ -84,6 +85,14 @@ export async function pollAndPreparePayoutSigning(
     pegin_txid: stripHexPrefix(btcTxid),
     depositor_pk: stripHexPrefix(depositorBtcPubkey),
   });
+
+  // Derive timelockPegin from the vault's locked offchainParamsVersion.
+  // Using the latest offchain params would produce invalid signatures if
+  // timelockAssert changed between vault creation and payout signing.
+  const vault = await getVaultFromChain(btcTxid as Hex);
+  const timelockPegin = await getTimelockPeginByVersion(
+    vault.offchainParamsVersion,
+  );
 
   const vaultKeeperBtcPubkeys = getSortedVaultKeeperPubkeys(vaultKeepers);
   const universalChallengerBtcPubkeys =

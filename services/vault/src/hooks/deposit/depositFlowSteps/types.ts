@@ -167,8 +167,6 @@ export interface PayoutSigningParams {
   providerBtcPubKey: string;
   vaultKeepers: Array<{ btcPubKey: string }>;
   universalChallengers: Array<{ btcPubKey: string }>;
-  /** CSV timelock in blocks for the PegIn output */
-  timelockPegin: number;
   /** Optional AbortSignal for cancellation */
   signal?: AbortSignal;
 }

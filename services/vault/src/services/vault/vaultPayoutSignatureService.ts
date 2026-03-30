@@ -3,6 +3,7 @@ import { PayoutManager, type Network } from "@babylonlabs-io/ts-sdk/tbv/core";
 import type { Address, Hex } from "viem";
 
 import { getVaultFromChain } from "../../clients/eth-contract/btc-vault-registry/query";
+import { getTimelockPeginByVersion } from "../../clients/eth-contract/protocol-params";
 import { VaultProviderRpcApi } from "../../clients/vault-provider-rpc";
 import type {
   ClaimerSignatures,
@@ -53,8 +54,6 @@ export interface PrepareSigningContextParams {
   peginTxId: string;
   depositorBtcPubkey: string;
   providers: PayoutProviders;
-  /** CSV timelock in blocks for the PegIn output */
-  timelockPegin: number;
   /** Function to get UCs by version from context (avoids redundant fetch) */
   getUniversalChallengersByVersion: (version: number) => UniversalChallenger[];
 }
@@ -267,7 +266,6 @@ export async function prepareSigningContext(
     peginTxId,
     depositorBtcPubkey,
     providers,
-    timelockPegin,
     getUniversalChallengersByVersion,
   } = params;
   // Fetch signing-critical vault fields from the contract (authoritative source).
@@ -275,6 +273,10 @@ export async function prepareSigningContext(
   // substitute a different pegin transaction or signer-set versions and obtain
   // signatures over attacker-chosen graph parameters.
   const vault = await getVaultFromChain(peginTxId as Hex);
+
+  const timelockPegin = await getTimelockPeginByVersion(
+    vault.offchainParamsVersion,
+  );
 
   // Fetch versioned vault keepers (per-application)
   const vaultKeepers = await fetchVaultKeepersByVersion(
