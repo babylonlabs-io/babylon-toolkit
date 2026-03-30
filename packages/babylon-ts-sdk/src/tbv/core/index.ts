@@ -16,3 +16,4 @@ export * from "./utils";
 export * from "./managers";
 export * from "./clients";
 export * from "./contracts";
+export * from "./lamport";
