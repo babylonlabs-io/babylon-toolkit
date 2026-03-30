@@ -75,7 +75,7 @@ export function Borrow() {
   };
 
   const getBorrowButtonText = () => {
-    if (!FeatureFlags.isBorrowEnabled) return "Borrowing Unavailable";
+    if (FeatureFlags.isBorrowDisabled) return "Borrowing Unavailable";
     if (isProcessing) return "Processing...";
     return buttonText;
   };
@@ -139,7 +139,7 @@ export function Borrow() {
         )}
 
         {/* Borrow Unavailable Message */}
-        {!FeatureFlags.isBorrowEnabled && (
+        {FeatureFlags.isBorrowDisabled && (
           <Text variant="body2" className="text-center text-warning-main">
             Borrowing is temporarily unavailable. Please check back later.
           </Text>
@@ -152,7 +152,7 @@ export function Borrow() {
         color="secondary"
         size="large"
         fluid
-        disabled={isDisabled || isProcessing || !FeatureFlags.isBorrowEnabled}
+        disabled={isDisabled || isProcessing || FeatureFlags.isBorrowDisabled}
         onClick={handleBorrow}
         className="mt-6"
       >

@@ -62,7 +62,7 @@ interface DepositFormProps {
   estimatedFeeRate: number;
   isLoadingFee: boolean;
   feeError: string | null;
-  isDepositEnabled: boolean;
+  isDepositDisabled: boolean;
   isGeoBlocked: boolean;
   onDeposit: () => void;
 
@@ -90,7 +90,7 @@ export function DepositForm({
   estimatedFeeRate,
   isLoadingFee,
   feeError,
-  isDepositEnabled,
+  isDepositDisabled,
   isGeoBlocked,
   onDeposit,
   partialLiquidation,
@@ -173,7 +173,7 @@ export function DepositForm({
         });
   const ctaDisabled =
     !isValid ||
-    !isDepositEnabled ||
+    isDepositDisabled ||
     isGeoBlocked ||
     !hasAmount ||
     feeDisabled ||
@@ -312,7 +312,7 @@ export function DepositForm({
         disabled={ctaDisabled}
         onClick={onDeposit}
       >
-        {isDepositEnabled ? ctaLabel : "Depositing Unavailable"}
+        {isDepositDisabled ? "Depositing Unavailable" : ctaLabel}
       </DepositButton>
 
       {/* Fee breakdown */}

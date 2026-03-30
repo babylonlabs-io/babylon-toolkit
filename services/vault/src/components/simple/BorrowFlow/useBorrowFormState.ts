@@ -39,7 +39,7 @@ export interface BorrowFormState {
   isDisabled: boolean;
   buttonText: string;
   isProcessing: boolean;
-  isBorrowEnabled: boolean;
+  isBorrowDisabled: boolean;
   showLiquidationWarning: boolean;
 
   // Details card
@@ -138,7 +138,7 @@ export function useBorrowFormState({
     }
   };
 
-  const resolvedButtonText = !FeatureFlags.isBorrowEnabled
+  const resolvedButtonText = FeatureFlags.isBorrowDisabled
     ? "Borrowing Unavailable"
     : isProcessing
       ? "Processing..."
@@ -161,7 +161,7 @@ export function useBorrowFormState({
     isDisabled,
     buttonText: resolvedButtonText,
     isProcessing,
-    isBorrowEnabled: FeatureFlags.isBorrowEnabled,
+    isBorrowDisabled: FeatureFlags.isBorrowDisabled,
     showLiquidationWarning:
       borrowAmount > 0 &&
       isFinite(metrics.healthFactorValue) &&

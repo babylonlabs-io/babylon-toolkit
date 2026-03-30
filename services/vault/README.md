@@ -74,14 +74,14 @@ Create a `.env` file with the following variables:
 
 ### Feature Flags
 
-- `NEXT_PUBLIC_FF_ENABLE_DEPOSIT` - Controls whether deposit functionality is available
-  - Default: `true` (deposits are enabled unless explicitly set to `"false"`)
-  - Set to `"false"` to disable deposit functionality during maintenance or incidents
+- `NEXT_PUBLIC_FF_DISABLE_DEPOSIT` - Kill-switch to disable deposit functionality during maintenance or incidents
+  - Default: `false` (deposits are enabled unless explicitly set to `"true"`)
+  - Set to `"true"` to disable deposit functionality
   - When disabled, users will see "Depositing Unavailable" and the deposit button will be disabled
 
-- `NEXT_PUBLIC_FF_ENABLE_BORROW` - Controls whether borrowing functionality is available
-  - Default: `true` (borrowing is enabled unless explicitly set to `"false"`)
-  - Set to `"false"` to disable borrowing functionality during maintenance or incidents
+- `NEXT_PUBLIC_FF_DISABLE_BORROW` - Kill-switch to disable borrowing functionality during maintenance or incidents
+  - Default: `false` (borrowing is enabled unless explicitly set to `"true"`)
+  - Set to `"true"` to disable borrowing functionality
   - When disabled, users will see "Borrowing Unavailable" and the borrow button will be disabled
 
 - `NEXT_PUBLIC_FF_SIMPLIFIED_TERMS` - Controls whether the wallet connection dialog shows simplified terms

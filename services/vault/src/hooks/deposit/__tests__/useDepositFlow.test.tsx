@@ -19,8 +19,8 @@ vi.mock("@/config/contracts", () => ({
 
 vi.mock("@/config", () => ({
   FeatureFlags: {
-    isDepositEnabled: true,
-    isBorrowEnabled: true,
+    isDepositDisabled: false,
+    isBorrowDisabled: false,
     isSimplifiedTermsEnabled: false,
   },
 }));
