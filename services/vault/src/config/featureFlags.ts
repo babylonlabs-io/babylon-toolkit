@@ -9,31 +9,28 @@
  * 1. All feature flags must be defined in this file for easy maintenance
  * 2. All feature flags must start with NEXT_PUBLIC_FF_ prefix
  * 3. All flags use opt-in semantics (=== "true") and default to false
- *    Safety-critical kill-switches (deposit, borrow) must be explicitly enabled per environment
  * 4. Feature flags are only configurable by DevOps in mainnet environments
  */
 
 export default {
   /**
-   * ENABLE_DEPOSIT feature flag
+   * DISABLE_DEPOSIT feature flag
    *
-   * Purpose: Controls whether deposit functionality is available
-   * Why needed: Allows disabling deposits during maintenance or incidents
-   * Default: false (deposits are disabled unless explicitly set to "true")
+   * Purpose: Kill-switch to disable deposit functionality during maintenance or incidents
+   * Default: false (deposits are enabled unless explicitly set to "true")
    */
-  get isDepositEnabled() {
-    return process.env.NEXT_PUBLIC_FF_ENABLE_DEPOSIT === "true";
+  get isDepositDisabled() {
+    return process.env.NEXT_PUBLIC_FF_DISABLE_DEPOSIT === "true";
   },
 
   /**
-   * ENABLE_BORROW feature flag
+   * DISABLE_BORROW feature flag
    *
-   * Purpose: Controls whether borrowing functionality is available
-   * Why needed: Allows disabling borrowing during maintenance or incidents
-   * Default: false (borrowing is disabled unless explicitly set to "true")
+   * Purpose: Kill-switch to disable borrowing functionality during maintenance or incidents
+   * Default: false (borrowing is enabled unless explicitly set to "true")
    */
-  get isBorrowEnabled() {
-    return process.env.NEXT_PUBLIC_FF_ENABLE_BORROW === "true";
+  get isBorrowDisabled() {
+    return process.env.NEXT_PUBLIC_FF_DISABLE_BORROW === "true";
   },
 
   /**

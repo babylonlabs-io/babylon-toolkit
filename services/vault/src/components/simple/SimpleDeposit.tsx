@@ -267,7 +267,7 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
                 estimatedFeeRate={estimatedFeeRate}
                 isLoadingFee={isLoadingFee}
                 feeError={feeError}
-                isDepositEnabled={FeatureFlags.isDepositEnabled}
+                isDepositDisabled={FeatureFlags.isDepositDisabled}
                 isGeoBlocked={isGeoBlocked || isGeoLoading}
                 onDeposit={handleDeposit}
                 partialLiquidation={partialLiquidationProps}

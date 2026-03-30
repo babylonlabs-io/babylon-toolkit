@@ -189,7 +189,7 @@ function BorrowFormView({ state, onChangeAsset }: BorrowFormViewProps) {
         size="large"
         fluid
         disabled={
-          state.isDisabled || state.isProcessing || !state.isBorrowEnabled
+          state.isDisabled || state.isProcessing || state.isBorrowDisabled
         }
         onClick={state.handleBorrow}
         className="mt-6"
