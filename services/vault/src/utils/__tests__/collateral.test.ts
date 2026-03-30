@@ -14,6 +14,7 @@ function makeCollateral(
     amount: 100000000n, // 1 BTC
     addedAt: 1700000000n,
     removedAt: null,
+    liquidationIndex: 0,
     vault: {
       id: "vault1",
       amount: 100000000n,

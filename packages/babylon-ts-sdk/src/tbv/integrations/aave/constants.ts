@@ -16,6 +16,8 @@ export const AAVE_FUNCTION_NAMES = {
   BORROW: "borrowFromCorePosition",
   /** Repay debt to Core Spoke position */
   REPAY: "repayToCorePosition",
+  /** Reorder vault prefix ordering for liquidation priority */
+  REORDER_VAULTS: "reorderVaults",
 } as const;
 
 /**

@@ -20,6 +20,16 @@ export type {
   VaultSelectionResult,
 } from "./vaultSelection.js";
 export {
+  computeTargetSeizureSats,
+  simulatePrefixSeizure,
+} from "./seizureSimulation.js";
+export type {
+  OrderedVault,
+  PrefixSeizureParams,
+  PrefixSeizureResult,
+  TargetSeizureParams,
+} from "./seizureSimulation.js";
+export {
   checkRebalanceNeeded,
   computeMinDepositForSplit,
   computeOptimalSplit,

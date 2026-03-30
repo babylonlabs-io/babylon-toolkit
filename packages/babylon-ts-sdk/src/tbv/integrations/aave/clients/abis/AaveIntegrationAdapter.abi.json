@@ -1892,5 +1892,42 @@
     "type": "error",
     "name": "ZeroBorrowAmount",
     "inputs": []
+  },
+  {
+    "type": "function",
+    "name": "reorderVaults",
+    "inputs": [
+      {
+        "name": "permuted",
+        "type": "bytes32[]",
+        "internalType": "bytes32[]"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "event",
+    "name": "VaultsReordered",
+    "inputs": [
+      {
+        "name": "borrower",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "newVaults",
+        "type": "bytes32[]",
+        "indexed": false,
+        "internalType": "bytes32[]"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "error",
+    "name": "InvalidVaultsPermutation",
+    "inputs": []
   }
 ]
