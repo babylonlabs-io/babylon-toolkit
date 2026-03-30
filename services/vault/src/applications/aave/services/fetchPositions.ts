@@ -128,6 +128,7 @@ const GET_AAVE_ACTIVE_POSITIONS_WITH_COLLATERALS = gql`
             amount
             addedAt
             removedAt
+            liquidationIndex
             vault {
               id
               amount
@@ -152,6 +153,7 @@ const GET_AAVE_POSITION_COLLATERALS = gql`
         amount
         addedAt
         removedAt
+        liquidationIndex
         vault {
           id
           amount
