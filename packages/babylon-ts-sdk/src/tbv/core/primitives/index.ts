@@ -99,6 +99,12 @@ export type {
   BuildPeginInputPsbtResult,
 } from "./psbt/peginInput";
 
+export { buildRefundPsbt } from "./psbt/refund";
+export type {
+  BuildRefundPsbtParams,
+  BuildRefundPsbtResult,
+} from "./psbt/refund";
+
 export { buildPayoutPsbt, extractPayoutSignature } from "./psbt/payout";
 export type { PayoutParams, PayoutPsbtResult } from "./psbt/payout";
 

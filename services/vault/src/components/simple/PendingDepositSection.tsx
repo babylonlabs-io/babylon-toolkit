@@ -41,6 +41,7 @@ export function PendingDepositSection() {
     lamportKeyModal,
     activationModal,
     artifactDownloadModal,
+    refundModal,
   } = usePendingDeposits();
 
   const totalBtcAmount = useMemo(
@@ -115,6 +116,7 @@ export function PendingDepositSection() {
                   onBroadcastClick={broadcastModal.handleBroadcastClick}
                   onLamportKeyClick={lamportKeyModal.handleLamportKeyClick}
                   onActivationClick={activationModal.handleActivationClick}
+                  onRefundClick={refundModal.handleRefundClick}
                   onArtifactDownloadClick={
                     artifactDownloadModal.handleArtifactDownloadClick
                   }
@@ -136,12 +138,13 @@ export function PendingDepositSection() {
         />
       )}
 
-      {/* Sign / Broadcast / Lamport Key / Success modals */}
+      {/* Sign / Broadcast / Lamport Key / Activation / Refund / Success modals */}
       <PendingDepositModals
         signModal={signModal}
         broadcastModal={broadcastModal}
         lamportKeyModal={lamportKeyModal}
         activationModal={activationModal}
+        refundModal={refundModal}
         vaultProviders={vaultProviders}
         btcPublicKey={btcPublicKey}
         ethAddress={ethAddress}

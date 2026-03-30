@@ -23,6 +23,7 @@ import { useETHWallet } from "@/context/wallet";
 import { submitLamportPublicKey } from "@/hooks/deposit/depositFlowSteps/lamportSubmission";
 import { useActivationState } from "@/hooks/deposit/useActivationState";
 import { useBroadcastState } from "@/hooks/deposit/useBroadcastState";
+import { useRefundState } from "@/hooks/deposit/useRefundState";
 import { useRunOnce } from "@/hooks/useRunOnce";
 import {
   getMnemonicIdForPegin,
@@ -399,5 +400,55 @@ export function ResumeActivationContent({
         </Button>
       </div>
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Refund HTLC Content
+// ---------------------------------------------------------------------------
+
+export interface ResumeRefundContentProps {
+  activity: VaultActivity;
+  onClose: () => void;
+  onSuccess: () => void;
+}
+
+export function ResumeRefundContent({
+  activity,
+  onClose,
+  onSuccess,
+}: ResumeRefundContentProps) {
+  const { refunding, refundTxId, error, handleRefund } = useRefundState({
+    activity,
+    onSuccess,
+  });
+
+  useRunOnce(handleRefund);
+
+  const derived = computeDepositDerivedState(
+    DepositFlowStep.BROADCAST_PRE_PEGIN,
+    refunding,
+    false,
+    error,
+  );
+
+  return (
+    <DepositProgressView
+      currentStep={DepositFlowStep.BROADCAST_PRE_PEGIN}
+      isWaiting={false}
+      error={error}
+      isComplete={derived.isComplete}
+      isProcessing={derived.isProcessing}
+      canClose={derived.canClose}
+      canContinueInBackground={false}
+      payoutSigningProgress={null}
+      onClose={onClose}
+      successMessage={
+        refundTxId
+          ? `Refund transaction broadcast successfully. Transaction ID: ${refundTxId}`
+          : "Your refund transaction has been broadcast to Bitcoin."
+      }
+      onRetry={error ? handleRefund : undefined}
+    />
   );
 }
