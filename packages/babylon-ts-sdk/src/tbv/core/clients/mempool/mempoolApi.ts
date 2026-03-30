@@ -9,6 +9,15 @@
 
 import type { MempoolUTXO, NetworkFees, TxInfo, UtxoInfo } from "./types";
 
+/** Minimum valid fee rate in sat/vB (Bitcoin relay minimum). */
+const MIN_FEE_RATE_SAT_PER_VB = 1;
+
+/** Maximum valid fee rate in sat/vB. Prevents catastrophic overpayment from malicious API responses. */
+const MAX_FEE_RATE_SAT_PER_VB = 5_000;
+
+/** Maximum valid UTXO value in satoshis (21 million BTC total supply cap). */
+const MAX_UTXO_VALUE_SATS = 2_100_000_000_000_000;
+
 /**
  * Default mempool API URLs by network.
  */
@@ -203,6 +212,20 @@ export async function getAddressUtxos(
       );
     }
 
+    // Validate UTXO values: must be positive integers within Bitcoin's valid range
+    for (const utxo of utxos) {
+      if (
+        !Number.isInteger(utxo.value) ||
+        utxo.value <= 0 ||
+        utxo.value > MAX_UTXO_VALUE_SATS
+      ) {
+        throw new Error(
+          `Invalid UTXO value ${utxo.value} for ${utxo.txid}:${utxo.vout}. ` +
+            `Expected a positive integer <= ${MAX_UTXO_VALUE_SATS} satoshis.`,
+        );
+      }
+    }
+
     // Sort by value (largest first) and map to our UTXO format
     const sortedUTXOs = utxos.sort((a, b) => b.value - a.value);
 
@@ -285,18 +308,40 @@ export async function getNetworkFees(apiUrl: string): Promise<NetworkFees> {
 
   const data = await response.json();
 
+  const feeFields = ["fastestFee", "halfHourFee", "hourFee", "economyFee", "minimumFee"] as const;
+
+  for (const field of feeFields) {
+    const value = data[field];
+    if (typeof value !== "number") {
+      throw new Error(
+        `Invalid fee data from mempool API: ${field} is not a number (got ${typeof value}).`,
+      );
+    }
+    if (value < MIN_FEE_RATE_SAT_PER_VB || value > MAX_FEE_RATE_SAT_PER_VB) {
+      throw new Error(
+        `Fee rate ${field} (${value} sat/vB) is outside valid range ` +
+          `[${MIN_FEE_RATE_SAT_PER_VB}, ${MAX_FEE_RATE_SAT_PER_VB}]. ` +
+          `Possible malicious or corrupted API response.`,
+      );
+    }
+  }
+
+  const fees = data as NetworkFees;
+
   if (
-    typeof data.fastestFee !== "number" ||
-    typeof data.halfHourFee !== "number" ||
-    typeof data.hourFee !== "number" ||
-    typeof data.economyFee !== "number" ||
-    typeof data.minimumFee !== "number"
+    fees.minimumFee > fees.economyFee ||
+    fees.economyFee > fees.hourFee ||
+    fees.hourFee > fees.halfHourFee ||
+    fees.halfHourFee > fees.fastestFee
   ) {
     throw new Error(
-      "Invalid fee data structure from mempool API. Expected all fee fields to be numbers.",
+      `Fee rate ordering violation from mempool API: expected ` +
+        `minimumFee (${fees.minimumFee}) <= economyFee (${fees.economyFee}) <= ` +
+        `hourFee (${fees.hourFee}) <= halfHourFee (${fees.halfHourFee}) <= ` +
+        `fastestFee (${fees.fastestFee}).`,
     );
   }
 
-  return data as NetworkFees;
+  return fees;
 }
 
