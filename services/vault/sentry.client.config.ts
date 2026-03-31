@@ -12,8 +12,9 @@
 import * as Sentry from "@sentry/react";
 import { v4 as uuidv4 } from "uuid";
 
-import { getCommitHash, isProductionEnv } from "@/config";
+import { getCommitHash } from "@/config";
 import { REPLAYS_ON_ERROR_RATE } from "@/constants";
+import { redactData, scrubSentryEvent, scrubString } from "@/utils/telemetry";
 
 const SENTRY_DEVICE_ID_KEY = "sentry_device_id";
 
@@ -61,14 +62,24 @@ Sentry.init({
   // Setting this option to true will print useful information to the console while you're setting up Sentry.
   debug: false,
 
+  beforeBreadcrumb(breadcrumb) {
+    if (breadcrumb.message) {
+      breadcrumb.message = scrubString(breadcrumb.message);
+    }
+    if (breadcrumb.data) {
+      breadcrumb.data = redactData(breadcrumb.data);
+    }
+    return breadcrumb;
+  },
+
   replaysOnErrorSampleRate: REPLAYS_ON_ERROR_RATE,
 
   replaysSessionSampleRate: 0,
 
   integrations: [
     Sentry.replayIntegration({
-      // Additional Replay configuration goes in here, for example:
-      maskAllText: isProductionEnv(),
+      maskAllText: true,
+      maskAllInputs: true,
       blockAllMedia: true,
     }),
     // Browser tracing for performance monitoring and React component annotation
@@ -87,7 +98,7 @@ Sentry.init({
       event.fingerprint = ["{{ default }}", exception.code];
     }
 
-    return event;
+    return scrubSentryEvent(event);
   },
 });
 
