@@ -30,6 +30,13 @@ describe("scrubString", () => {
     expect(scrubString(input)).toBe("Error for [BTC_ADDR]");
   });
 
+  it("replaces BTC taproot addresses (bc1p, 62-char payload)", () => {
+    const taprootAddr =
+      "bc1p5d7rjq7g6rdk2yhzks9smlaqtedr4dekq08ge8ztwac72sfr9rusxg3s7a";
+    const input = `Taproot output ${taprootAddr}`;
+    expect(scrubString(input)).toBe("Taproot output [BTC_ADDR]");
+  });
+
   it("replaces BTC bech32 testnet addresses", () => {
     const input = "Sending to tb1qw508d6qejxtdg4y5r3zarvary0c5xw7kxpjzsx";
     expect(scrubString(input)).toBe("Sending to [BTC_ADDR]");
@@ -124,6 +131,14 @@ describe("redactData", () => {
   it("returns numbers and booleans unchanged", () => {
     expect(redactData(42)).toBe(42);
     expect(redactData(true)).toBe(true);
+  });
+
+  it("extracts and scrubs Error message instead of returning empty object", () => {
+    const err = new Error(
+      "Failed for 0x742d35Cc6634C0532925a3b844Bc9e7595f2bD80",
+    );
+    const result = redactData({ error: err }) as { error: { message: string } };
+    expect(result.error).toEqual({ message: "Failed for [ETH_ADDR]" });
   });
 });
 

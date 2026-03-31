@@ -15,8 +15,8 @@ export function redactIdentifier(value: string): string {
   return `${head}...${tail}`;
 }
 
-// BTC bech32 addresses (mainnet bc1, testnet/signet tb1)
-const BTC_BECH32_RE = /\b(bc1|tb1)[a-zA-HJ-NP-Z0-9]{24,58}\b/g;
+// BTC bech32 addresses (mainnet bc1, testnet/signet tb1, including taproot bc1p)
+const BTC_BECH32_RE = /\b(bc1|tb1)[a-zA-HJ-NP-Z0-9]{24,62}\b/g;
 // BTC legacy P2PKH (1...) and P2SH (3...)
 const BTC_LEGACY_RE = /\b[13][a-km-zA-HJ-NP-Z1-9]{24,33}\b/g;
 // ETH addresses (0x + 40 hex)
@@ -76,6 +76,11 @@ export function redactData<T>(obj: T): T {
 
   if (Array.isArray(obj)) {
     return obj.map((item) => redactData(item)) as T;
+  }
+
+  // Error instances have non-enumerable message/stack — extract and scrub the message
+  if (obj instanceof Error) {
+    return { message: scrubString(obj.message) } as T;
   }
 
   if (typeof obj === "object") {
