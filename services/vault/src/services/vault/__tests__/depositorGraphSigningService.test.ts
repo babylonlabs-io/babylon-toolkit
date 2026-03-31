@@ -555,5 +555,35 @@ describe("depositorGraphSigningService", () => {
         DEPOSITOR_PUBKEY,
       );
     });
+
+    it("should strip tapBip32Derivation and tapMerkleRoot from cloned PSBT inputs", async () => {
+      const mockExtract = vi.mocked(extractPayoutSignature);
+      mockExtract.mockReturnValue("deadbeef".repeat(16));
+
+      const params = createMockParams();
+      const wallet = params.btcWallet as any;
+      wallet.signPsbts.mockResolvedValue(Array(3).fill("signed_hex"));
+
+      // Track inputs created by fromHex (the clone)
+      const clonedInputs: Record<string, unknown>[] = [];
+      vi.mocked(Psbt.fromHex).mockImplementation((hex: string) => {
+        const inputs = [
+          {
+            tapBip32Derivation: [{ pubkey: "fake" }],
+            tapMerkleRoot: Buffer.alloc(32),
+          },
+        ];
+        clonedInputs.push(...inputs);
+        return { toHex: () => hex, data: { inputs } } as any;
+      });
+
+      await signDepositorGraph(params);
+
+      // Verify sanitization deleted the fields from all cloned inputs
+      for (const input of clonedInputs) {
+        expect(input.tapBip32Derivation).toBeUndefined();
+        expect(input.tapMerkleRoot).toBeUndefined();
+      }
+    });
   });
 });
