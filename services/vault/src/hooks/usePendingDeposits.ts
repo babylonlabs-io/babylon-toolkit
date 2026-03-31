@@ -41,7 +41,8 @@ export function usePendingDeposits() {
         (a) =>
           a.contractStatus === ContractStatus.PENDING ||
           a.contractStatus === ContractStatus.VERIFIED ||
-          (a.contractStatus === ContractStatus.EXPIRED && !!a.unsignedPrePeginTx),
+          (a.contractStatus === ContractStatus.EXPIRED &&
+            !!a.unsignedPrePeginTx),
       ),
     [activities],
   );
