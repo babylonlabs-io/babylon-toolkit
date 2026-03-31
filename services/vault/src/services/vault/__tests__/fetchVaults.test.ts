@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { logger } from "@/infrastructure";
 
@@ -53,6 +53,8 @@ function makeGraphQLVaultItem(
 }
 
 describe("fetchVaults", () => {
+  afterEach(() => vi.clearAllMocks());
+
   describe("fetchVaultsByDepositor", () => {
     it("skips vault and logs error when depositorLamportPkHash is null", async () => {
       mockedRequest.mockResolvedValueOnce({
@@ -116,7 +118,6 @@ describe("fetchVaults", () => {
     });
 
     it("logs error to Sentry when vault has unknown status", async () => {
-      mockedLoggerError.mockClear();
       mockedRequest.mockResolvedValueOnce({
         vaults: {
           items: [
