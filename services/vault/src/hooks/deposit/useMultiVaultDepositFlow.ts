@@ -680,7 +680,7 @@ export function useMultiVaultDepositFlow(
               },
             });
 
-            vaultErrors.push(`Vault ${i}: ${errorMsg}`);
+            vaultErrors.push(`Vault ${i + 1}: ${errorMsg}`);
 
             // Continue with next vault (independent failures)
           }
@@ -797,7 +797,7 @@ export function useMultiVaultDepositFlow(
           } catch (error) {
             const errorMsg =
               error instanceof Error ? error.message : String(error);
-            const warning = `Vault ${result.vaultIndex}: BTC broadcast failed - ${errorMsg}`;
+            const warning = `Vault ${result.vaultIndex + 1}: BTC broadcast failed - ${errorMsg}`;
             warnings.push(warning);
             logger.error(
               error instanceof Error ? error : new Error(String(error)),
@@ -848,7 +848,7 @@ export function useMultiVaultDepositFlow(
             if (signal.aborted) throw error;
             const errorMsg =
               error instanceof Error ? error.message : String(error);
-            const warning = `Vault ${result.vaultIndex}: Lamport key submission failed - ${errorMsg}`;
+            const warning = `Vault ${result.vaultIndex + 1}: Lamport key submission failed - ${errorMsg}`;
             warnings.push(warning);
             logger.error(
               error instanceof Error ? error : new Error(String(error)),
@@ -924,7 +924,7 @@ export function useMultiVaultDepositFlow(
 
             const errorMsg =
               error instanceof Error ? error.message : String(error);
-            const warning = `Vault ${result.vaultIndex}: Payout signing failed - ${errorMsg}`;
+            const warning = `Vault ${result.vaultIndex + 1}: Payout signing failed - ${errorMsg}`;
             warnings.push(warning);
             logger.error(
               error instanceof Error ? error : new Error(String(error)),
