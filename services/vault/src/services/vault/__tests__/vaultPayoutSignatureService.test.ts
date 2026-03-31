@@ -721,6 +721,7 @@ describe("vaultPayoutSignatureService", () => {
       depositorBtcPubkey: "depositor_pubkey",
       timelockPegin: 100,
       network: "testnet" as const,
+      registeredPayoutScriptPubKey: "0x0014aaaa",
     };
 
     const claimer1Pubkey =

@@ -541,8 +541,10 @@ describe("PayoutManager", () => {
       // The payout output uses createDummyP2WPKH("d") so this should match
       const prefixedScriptPubKey = "0x" + P2WPKH_PREFIX + "d".repeat(40);
 
-      try {
-        await manager.signPayoutTransaction({
+      // Validation should pass (not throw address mismatch).
+      // It will fail later in PSBT building, but that's unrelated.
+      await expect(
+        manager.signPayoutTransaction({
           payoutTxHex,
           peginTxHex,
           assertTxHex,
@@ -551,13 +553,10 @@ describe("PayoutManager", () => {
           universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
           timelockPegin: 100,
           registeredPayoutScriptPubKey: prefixedScriptPubKey,
-        });
-      } catch (error) {
-        // May fail later in PSBT building, but should NOT fail on address mismatch
-        expect((error as Error).message).not.toContain(
-          "does not pay to the registered depositor payout address",
-        );
-      }
+        }),
+      ).rejects.not.toThrow(
+        "does not pay to the registered depositor payout address",
+      );
     });
 
     it("should throw for invalid hex in registeredPayoutScriptPubKey", async () => {
