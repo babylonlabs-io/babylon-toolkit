@@ -18,7 +18,7 @@ const TEST_MNEMONIC_2 = "zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo wrong";
 const TEST_PASSWORD = "test-password-123";
 const STORAGE_KEY = "babylon-lamport-vault";
 const TEST_SCOPE = "0xABCDEF1234567890";
-const SCOPED_STORAGE_KEY = `${STORAGE_KEY}-${TEST_SCOPE}`;
+const SCOPED_STORAGE_KEY = `${STORAGE_KEY}-${TEST_SCOPE.toLowerCase()}`;
 
 describe("mnemonicVaultService", () => {
   beforeEach(() => {
@@ -191,6 +191,12 @@ describe("mnemonicVaultService", () => {
       await expect(
         unlockMnemonic(TEST_PASSWORD, "other-scope"),
       ).rejects.toThrow("No stored mnemonic found");
+    });
+
+    it("finds a scoped mnemonic regardless of address casing", async () => {
+      await addMnemonic(TEST_MNEMONIC, TEST_PASSWORD, "0xABCDEF1234567890");
+      const result = await unlockMnemonic(TEST_PASSWORD, "0xabcdef1234567890");
+      expect(result).toBe(TEST_MNEMONIC);
     });
 
     it("unlocks a specific mnemonic by ID", async () => {

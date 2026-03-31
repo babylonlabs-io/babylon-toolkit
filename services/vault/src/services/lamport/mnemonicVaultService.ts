@@ -75,7 +75,7 @@ const PASSWORD_CHECK_SENTINEL = "babylon-vault-ok";
  * @returns The localStorage key string.
  */
 function storageKey(scope?: string): string {
-  return scope ? `${STORAGE_KEY}-${scope}` : STORAGE_KEY;
+  return scope ? `${STORAGE_KEY}-${scope.toLowerCase()}` : STORAGE_KEY;
 }
 
 /** A single encrypted mnemonic entry stored in the vault. */
