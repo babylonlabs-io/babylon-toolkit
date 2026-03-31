@@ -1,11 +1,6 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  PEGOUT_MAX_CONSECUTIVE_FAILURES,
-  PEGOUT_MAX_UNKNOWN_STATUS_POLLS,
-} from "@/config/polling";
-
-import {
   getPegoutDisplayState,
   isPegoutEffectivelyTerminal,
   isRecognizedPegoutStatus,
@@ -106,6 +101,11 @@ describe("pegoutStateMachine", () => {
       expect(isRecognizedPegoutStatus("")).toBe(false);
       expect(isRecognizedPegoutStatus("FAILED")).toBe(false);
     });
+
+    it("returns false for Object.prototype keys", () => {
+      expect(isRecognizedPegoutStatus("constructor")).toBe(false);
+      expect(isRecognizedPegoutStatus("toString")).toBe(false);
+    });
   });
 
   describe("isPegoutEffectivelyTerminal", () => {
@@ -128,53 +128,23 @@ describe("pegoutStateMachine", () => {
     });
 
     it("returns true when consecutive failures reach threshold", () => {
-      expect(
-        isPegoutEffectivelyTerminal(
-          undefined,
-          PEGOUT_MAX_CONSECUTIVE_FAILURES,
-          0,
-        ),
-      ).toBe(true);
+      expect(isPegoutEffectivelyTerminal(undefined, 10, 0)).toBe(true);
     });
 
     it("returns true when consecutive failures exceed threshold", () => {
-      expect(
-        isPegoutEffectivelyTerminal(
-          undefined,
-          PEGOUT_MAX_CONSECUTIVE_FAILURES + 5,
-          0,
-        ),
-      ).toBe(true);
+      expect(isPegoutEffectivelyTerminal(undefined, 15, 0)).toBe(true);
     });
 
     it("returns true when consecutive unknown polls reach threshold", () => {
-      expect(
-        isPegoutEffectivelyTerminal(
-          "SomeNewStatus",
-          0,
-          PEGOUT_MAX_UNKNOWN_STATUS_POLLS,
-        ),
-      ).toBe(true);
+      expect(isPegoutEffectivelyTerminal("SomeNewStatus", 0, 20)).toBe(true);
     });
 
     it("returns true when consecutive unknown polls exceed threshold", () => {
-      expect(
-        isPegoutEffectivelyTerminal(
-          "SomeNewStatus",
-          0,
-          PEGOUT_MAX_UNKNOWN_STATUS_POLLS + 1,
-        ),
-      ).toBe(true);
+      expect(isPegoutEffectivelyTerminal("SomeNewStatus", 0, 21)).toBe(true);
     });
 
     it("returns false when counters are just below thresholds", () => {
-      expect(
-        isPegoutEffectivelyTerminal(
-          "SomeNewStatus",
-          PEGOUT_MAX_CONSECUTIVE_FAILURES - 1,
-          PEGOUT_MAX_UNKNOWN_STATUS_POLLS - 1,
-        ),
-      ).toBe(false);
+      expect(isPegoutEffectivelyTerminal("SomeNewStatus", 9, 19)).toBe(false);
     });
   });
 

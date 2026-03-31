@@ -102,14 +102,14 @@ async function fetchPegoutStatusesFromProvider(
       // Reset failure counter on successful RPC call
       counters.failureCounts.set(vault.id, 0);
 
-      if (claimerStatus && !isRecognizedPegoutStatus(claimerStatus)) {
+      if (!claimerStatus || !isRecognizedPegoutStatus(claimerStatus)) {
         const prevUnknown = counters.unknownCounts.get(vault.id) ?? 0;
         const newUnknown = prevUnknown + 1;
         counters.unknownCounts.set(vault.id, newUnknown);
 
         if (newUnknown >= PEGOUT_MAX_UNKNOWN_STATUS_POLLS) {
           logger.warn(
-            `Pegout polling for ${vault.id} timed out after ${newUnknown} consecutive unknown status polls (last status: "${claimerStatus}")`,
+            `Pegout polling for ${vault.id} timed out after ${newUnknown} consecutive unknown status polls (last status: "${claimerStatus ?? ""}")`,
           );
           results.set(vault.id, { displayState: TIMED_OUT_STATE, response });
           continue;

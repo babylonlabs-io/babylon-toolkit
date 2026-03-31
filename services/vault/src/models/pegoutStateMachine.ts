@@ -38,7 +38,7 @@ export interface PegoutDisplayState {
  * Hard terminal statuses — the VP has definitively finished processing.
  * For the full terminal check (including soft timeouts), use {@link isPegoutEffectivelyTerminal}.
  */
-export const PEGOUT_TERMINAL_STATUSES = new Set<string>([
+const PEGOUT_TERMINAL_STATUSES = new Set<string>([
   ClaimerPegoutStatusValue.PAYOUT_BROADCAST,
   ClaimerPegoutStatusValue.FAILED,
 ]);
@@ -100,7 +100,7 @@ export const TIMED_OUT_STATE: PegoutDisplayState = {
 
 /** Whether a claimer status string maps to a known pegout state. */
 export function isRecognizedPegoutStatus(status: string): boolean {
-  return status in PEGOUT_STATUS_MAP;
+  return Object.hasOwn(PEGOUT_STATUS_MAP, status);
 }
 
 /**
