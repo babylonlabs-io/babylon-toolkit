@@ -3,7 +3,8 @@
  *
  * Polls `vaultProvider_getPegoutStatus` for each redeemed vault,
  * batching requests by vault provider. Stops polling when all
- * vaults reach a terminal status (PayoutBroadcast or Failed).
+ * vaults reach a terminal status (PayoutBroadcast or Failed) or
+ * exceed consecutive failure / unknown-status thresholds.
  */
 
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
@@ -13,6 +14,8 @@ import type { RedeemedVaultInfo } from "@/applications/aave/hooks/useAaveVaults"
 import { VaultProviderRpcApi } from "@/clients/vault-provider-rpc";
 import type { GetPegoutStatusResponse } from "@/clients/vault-provider-rpc/types";
 import {
+  PEGOUT_MAX_CONSECUTIVE_FAILURES,
+  PEGOUT_MAX_UNKNOWN_STATUS_POLLS,
   POLLING_INTERVAL_MS,
   POLLING_RETRY_COUNT,
   POLLING_RETRY_DELAY_MS,
@@ -21,8 +24,10 @@ import {
 import { logger } from "@/infrastructure";
 import {
   getPegoutDisplayState,
-  PEGOUT_TERMINAL_STATUSES,
+  isPegoutEffectivelyTerminal,
+  isRecognizedPegoutStatus,
   type PegoutDisplayState,
+  TIMED_OUT_STATE,
 } from "@/models/pegoutStateMachine";
 import { stripHexPrefix } from "@/utils/btc";
 import { getVpProxyUrl } from "@/utils/rpc";
@@ -40,6 +45,12 @@ interface VaultToPoll {
 interface VaultsByProvider {
   providerUrl: string;
   vaults: VaultToPoll[];
+}
+
+/** Per-vault counters for failure and unknown-status tracking. */
+interface VaultPollCounters {
+  failureCounts: Map<string, number>;
+  unknownCounts: Map<string, number>;
 }
 
 function groupVaultsByProvider(
@@ -76,6 +87,7 @@ async function fetchPegoutStatusesFromProvider(
   providerUrl: string,
   vaults: VaultToPoll[],
   results: Map<string, PegoutPollingResult>,
+  counters: VaultPollCounters,
 ): Promise<void> {
   const rpcClient = new VaultProviderRpcApi(providerUrl, RPC_TIMEOUT_MS);
 
@@ -85,19 +97,49 @@ async function fetchPegoutStatusesFromProvider(
         pegin_txid: stripHexPrefix(vault.id),
       });
 
-      const displayState = getPegoutDisplayState(
-        response.claimer?.status,
-        response.found,
-      );
+      const claimerStatus = response.claimer?.status;
+
+      // Reset failure counter on successful RPC call
+      counters.failureCounts.set(vault.id, 0);
+
+      if (claimerStatus && !isRecognizedPegoutStatus(claimerStatus)) {
+        const prevUnknown = counters.unknownCounts.get(vault.id) ?? 0;
+        const newUnknown = prevUnknown + 1;
+        counters.unknownCounts.set(vault.id, newUnknown);
+
+        if (newUnknown >= PEGOUT_MAX_UNKNOWN_STATUS_POLLS) {
+          logger.warn(
+            `Pegout polling for ${vault.id} timed out after ${newUnknown} consecutive unknown status polls (last status: "${claimerStatus}")`,
+          );
+          results.set(vault.id, { displayState: TIMED_OUT_STATE, response });
+          continue;
+        }
+      } else {
+        counters.unknownCounts.set(vault.id, 0);
+      }
+
+      const displayState = getPegoutDisplayState(claimerStatus, response.found);
 
       results.set(vault.id, { displayState, response });
     } catch (error) {
       logger.warn(`Failed to poll pegout status for ${vault.id}`, {
         data: { error: error instanceof Error ? error.message : String(error) },
       });
-      results.set(vault.id, {
-        displayState: getPegoutDisplayState(undefined, false),
-      });
+
+      const prevFailures = counters.failureCounts.get(vault.id) ?? 0;
+      const newFailures = prevFailures + 1;
+      counters.failureCounts.set(vault.id, newFailures);
+
+      if (newFailures >= PEGOUT_MAX_CONSECUTIVE_FAILURES) {
+        logger.warn(
+          `Pegout polling for ${vault.id} timed out after ${newFailures} consecutive failures`,
+        );
+        results.set(vault.id, { displayState: TIMED_OUT_STATE });
+      } else {
+        results.set(vault.id, {
+          displayState: getPegoutDisplayState(undefined, false),
+        });
+      }
     }
   }
 }
@@ -115,6 +157,10 @@ export function usePegoutPolling({
   redeemedVaults,
 }: UsePegoutPollingParams): UsePegoutPollingResult {
   const vaultsRef = useRef(redeemedVaults);
+  const countersRef = useRef<VaultPollCounters>({
+    failureCounts: new Map(),
+    unknownCounts: new Map(),
+  });
 
   useEffect(() => {
     vaultsRef.current = redeemedVaults;
@@ -142,7 +188,12 @@ export function usePegoutPolling({
 
       const fetchPromises = Array.from(vaultsByProvider.values()).map(
         ({ providerUrl, vaults }) =>
-          fetchPegoutStatusesFromProvider(providerUrl, vaults, results),
+          fetchPegoutStatusesFromProvider(
+            providerUrl,
+            vaults,
+            results,
+            countersRef.current,
+          ),
       );
 
       await Promise.all(fetchPromises);
@@ -151,9 +202,21 @@ export function usePegoutPolling({
       // so they're included in the terminal check and don't cause premature poll stop.
       for (const vault of currentVaults) {
         if (!results.has(vault.id)) {
-          results.set(vault.id, {
-            displayState: getPegoutDisplayState(undefined, false),
-          });
+          const counters = countersRef.current;
+          const prevFailures = counters.failureCounts.get(vault.id) ?? 0;
+          const newFailures = prevFailures + 1;
+          counters.failureCounts.set(vault.id, newFailures);
+
+          if (newFailures >= PEGOUT_MAX_CONSECUTIVE_FAILURES) {
+            logger.warn(
+              `Pegout polling for ${vault.id} timed out: provider not found after ${newFailures} consecutive polls`,
+            );
+            results.set(vault.id, { displayState: TIMED_OUT_STATE });
+          } else {
+            results.set(vault.id, {
+              displayState: getPegoutDisplayState(undefined, false),
+            });
+          }
         }
       }
 
@@ -165,11 +228,16 @@ export function usePegoutPolling({
       const statusMap = query.state.data;
       if (!statusMap || statusMap.size === 0) return POLLING_INTERVAL_MS;
 
-      // Stop polling when all vaults have reached a terminal status
-      const allTerminal = Array.from(statusMap.values()).every((result) => {
-        const claimerStatus = result.response?.claimer?.status;
-        return claimerStatus && PEGOUT_TERMINAL_STATUSES.has(claimerStatus);
-      });
+      const counters = countersRef.current;
+
+      const allTerminal = Array.from(statusMap.entries()).every(
+        ([vaultId, result]) => {
+          const claimerStatus = result.response?.claimer?.status;
+          const failures = counters.failureCounts.get(vaultId) ?? 0;
+          const unknowns = counters.unknownCounts.get(vaultId) ?? 0;
+          return isPegoutEffectivelyTerminal(claimerStatus, failures, unknowns);
+        },
+      );
 
       return allTerminal ? false : POLLING_INTERVAL_MS;
     },

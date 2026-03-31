@@ -1,6 +1,16 @@
 import { describe, expect, it } from "vitest";
 
-import { getPegoutDisplayState } from "../pegoutStateMachine";
+import {
+  PEGOUT_MAX_CONSECUTIVE_FAILURES,
+  PEGOUT_MAX_UNKNOWN_STATUS_POLLS,
+} from "@/config/polling";
+
+import {
+  getPegoutDisplayState,
+  isPegoutEffectivelyTerminal,
+  isRecognizedPegoutStatus,
+  TIMED_OUT_STATE,
+} from "../pegoutStateMachine";
 
 describe("pegoutStateMachine", () => {
   describe("getPegoutDisplayState", () => {
@@ -77,6 +87,102 @@ describe("pegoutStateMachine", () => {
       const state = getPegoutDisplayState("corrupted_value_123", true);
       expect(state.label).toBe("Unknown");
       expect(state.message).toContain("corrupted_value_123");
+    });
+  });
+
+  describe("isRecognizedPegoutStatus", () => {
+    it("returns true for all known claimer statuses", () => {
+      expect(isRecognizedPegoutStatus("ClaimEventReceived")).toBe(true);
+      expect(isRecognizedPegoutStatus("ClaimBroadcast")).toBe(true);
+      expect(isRecognizedPegoutStatus("AssertBroadcast")).toBe(true);
+      expect(isRecognizedPegoutStatus("ChallengeAssertObserved")).toBe(true);
+      expect(isRecognizedPegoutStatus("WronglyChallengedBroadcast")).toBe(true);
+      expect(isRecognizedPegoutStatus("PayoutBroadcast")).toBe(true);
+      expect(isRecognizedPegoutStatus("Failed")).toBe(true);
+    });
+
+    it("returns false for unrecognized statuses", () => {
+      expect(isRecognizedPegoutStatus("SomeNewStatus")).toBe(false);
+      expect(isRecognizedPegoutStatus("")).toBe(false);
+      expect(isRecognizedPegoutStatus("FAILED")).toBe(false);
+    });
+  });
+
+  describe("isPegoutEffectivelyTerminal", () => {
+    it("returns true for PayoutBroadcast", () => {
+      expect(isPegoutEffectivelyTerminal("PayoutBroadcast", 0, 0)).toBe(true);
+    });
+
+    it("returns true for Failed", () => {
+      expect(isPegoutEffectivelyTerminal("Failed", 0, 0)).toBe(true);
+    });
+
+    it("returns false for in-progress status with low counters", () => {
+      expect(isPegoutEffectivelyTerminal("ClaimBroadcast", 0, 0)).toBe(false);
+      expect(isPegoutEffectivelyTerminal("AssertBroadcast", 2, 3)).toBe(false);
+    });
+
+    it("returns false for undefined status with low counters", () => {
+      expect(isPegoutEffectivelyTerminal(undefined, 0, 0)).toBe(false);
+      expect(isPegoutEffectivelyTerminal(undefined, 5, 0)).toBe(false);
+    });
+
+    it("returns true when consecutive failures reach threshold", () => {
+      expect(
+        isPegoutEffectivelyTerminal(
+          undefined,
+          PEGOUT_MAX_CONSECUTIVE_FAILURES,
+          0,
+        ),
+      ).toBe(true);
+    });
+
+    it("returns true when consecutive failures exceed threshold", () => {
+      expect(
+        isPegoutEffectivelyTerminal(
+          undefined,
+          PEGOUT_MAX_CONSECUTIVE_FAILURES + 5,
+          0,
+        ),
+      ).toBe(true);
+    });
+
+    it("returns true when consecutive unknown polls reach threshold", () => {
+      expect(
+        isPegoutEffectivelyTerminal(
+          "SomeNewStatus",
+          0,
+          PEGOUT_MAX_UNKNOWN_STATUS_POLLS,
+        ),
+      ).toBe(true);
+    });
+
+    it("returns true when consecutive unknown polls exceed threshold", () => {
+      expect(
+        isPegoutEffectivelyTerminal(
+          "SomeNewStatus",
+          0,
+          PEGOUT_MAX_UNKNOWN_STATUS_POLLS + 1,
+        ),
+      ).toBe(true);
+    });
+
+    it("returns false when counters are just below thresholds", () => {
+      expect(
+        isPegoutEffectivelyTerminal(
+          "SomeNewStatus",
+          PEGOUT_MAX_CONSECUTIVE_FAILURES - 1,
+          PEGOUT_MAX_UNKNOWN_STATUS_POLLS - 1,
+        ),
+      ).toBe(false);
+    });
+  });
+
+  describe("TIMED_OUT_STATE", () => {
+    it("has warning variant and Status Unavailable label", () => {
+      expect(TIMED_OUT_STATE.label).toBe("Status Unavailable");
+      expect(TIMED_OUT_STATE.variant).toBe("warning");
+      expect(TIMED_OUT_STATE.message).toBeTruthy();
     });
   });
 });
