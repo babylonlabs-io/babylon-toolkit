@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
+import { logger } from "@/infrastructure";
+
 import { graphqlClient } from "../../../clients/graphql/client";
 import { fetchVaultById, fetchVaultsByDepositor } from "../fetchVaults";
 
@@ -9,7 +11,14 @@ vi.mock("../../../clients/graphql/client", () => ({
   },
 }));
 
+vi.mock("@/infrastructure", () => ({
+  logger: {
+    error: vi.fn(),
+  },
+}));
+
 const mockedRequest = vi.mocked(graphqlClient.request);
+const mockedLoggerError = vi.mocked(logger.error);
 
 function makeGraphQLVaultItem(
   overrides: Record<string, unknown> = {},
@@ -45,7 +54,7 @@ function makeGraphQLVaultItem(
 
 describe("fetchVaults", () => {
   describe("fetchVaultsByDepositor", () => {
-    it("throws when depositorLamportPkHash is null", async () => {
+    it("skips vault and logs error when depositorLamportPkHash is null", async () => {
       mockedRequest.mockResolvedValueOnce({
         vaults: {
           items: [makeGraphQLVaultItem({ depositorLamportPkHash: null })],
@@ -53,10 +62,18 @@ describe("fetchVaults", () => {
         },
       });
 
-      await expect(
-        fetchVaultsByDepositor("0xdepositor" as `0x${string}`),
-      ).rejects.toThrow(
-        'Missing required field "depositorLamportPkHash" for vault 0xabc123',
+      const vaults = await fetchVaultsByDepositor(
+        "0xdepositor" as `0x${string}`,
+      );
+
+      expect(vaults).toHaveLength(0);
+      expect(mockedLoggerError).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: expect.stringContaining("depositorLamportPkHash"),
+        }),
+        expect.objectContaining({
+          tags: expect.objectContaining({ vaultId: "0xabc123" }),
+        }),
       );
     });
 
@@ -75,6 +92,56 @@ describe("fetchVaults", () => {
 
       expect(vaults).toHaveLength(1);
       expect(vaults[0].depositorLamportPkHash).toBe(hash);
+    });
+
+    it("skips vaults with unknown GraphQL status and returns valid ones", async () => {
+      mockedRequest.mockResolvedValueOnce({
+        vaults: {
+          items: [
+            makeGraphQLVaultItem({ id: "0x1", status: "pending" }),
+            makeGraphQLVaultItem({ id: "0x2", status: "bogus_status" }),
+            makeGraphQLVaultItem({ id: "0x3", status: "available" }),
+          ],
+          totalCount: 3,
+        },
+      });
+
+      const vaults = await fetchVaultsByDepositor(
+        "0xdepositor" as `0x${string}`,
+      );
+
+      expect(vaults).toHaveLength(2);
+      expect(vaults[0].id).toBe("0x1");
+      expect(vaults[1].id).toBe("0x3");
+    });
+
+    it("logs error to Sentry when vault has unknown status", async () => {
+      mockedLoggerError.mockClear();
+      mockedRequest.mockResolvedValueOnce({
+        vaults: {
+          items: [
+            makeGraphQLVaultItem({ id: "0xbad", status: "bogus_status" }),
+          ],
+          totalCount: 1,
+        },
+      });
+
+      await fetchVaultsByDepositor("0xdepositor" as `0x${string}`);
+
+      expect(mockedLoggerError).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: expect.stringContaining(
+            'Unknown GraphQL vault status "bogus_status"',
+          ),
+        }),
+        expect.objectContaining({
+          tags: expect.objectContaining({
+            vaultId: "0xbad",
+            component: "fetchVaults",
+          }),
+          data: expect.objectContaining({ rawStatus: "bogus_status" }),
+        }),
+      );
     });
   });
 
@@ -106,6 +173,16 @@ describe("fetchVaults", () => {
 
       const result = await fetchVaultById("0xnotfound" as `0x${string}`);
       expect(result).toBeNull();
+    });
+
+    it("throws when vault has unknown GraphQL status", async () => {
+      mockedRequest.mockResolvedValueOnce({
+        vault: makeGraphQLVaultItem({ status: "some_future_status" }),
+      });
+
+      await expect(fetchVaultById("0xabc123" as `0x${string}`)).rejects.toThrow(
+        'Unknown GraphQL vault status "some_future_status"',
+      );
     });
   });
 });
