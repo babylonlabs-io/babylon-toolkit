@@ -96,7 +96,9 @@ function setupPsbtVerificationMock(
 
   vi.mocked(Psbt.fromBase64).mockImplementation((b64: string) => {
     const expectedHex = txHexByPsbt.get(b64);
+    const psbtHex = Buffer.from(b64, "base64").toString("hex");
     return {
+      toHex: () => psbtHex,
       data: {
         getTransaction: () => ({
           toString: (encoding: string) =>
@@ -409,11 +411,13 @@ describe("depositorGraphSigningService", () => {
       vi.mocked(Psbt.fromBase64).mockImplementation(
         () =>
           ({
+            toHex: () => "",
             data: {
               getTransaction: () => ({
                 toString: (encoding: string) =>
                   encoding === "hex" ? "wrong_tx_hex" : "",
               }),
+              inputs: [{}],
             },
           }) as any,
       );
@@ -432,6 +436,7 @@ describe("depositorGraphSigningService", () => {
       vi.mocked(Psbt.fromBase64).mockImplementation(
         (b64: string) =>
           ({
+            toHex: () => Buffer.from(b64, "base64").toString("hex"),
             data: {
               getTransaction: () => ({
                 toString: (encoding: string) =>
@@ -470,6 +475,7 @@ describe("depositorGraphSigningService", () => {
       vi.mocked(Psbt.fromBase64).mockImplementation(
         (b64: string) =>
           ({
+            toHex: () => Buffer.from(b64, "base64").toString("hex"),
             data: {
               getTransaction: () => ({
                 toString: (encoding: string) =>
