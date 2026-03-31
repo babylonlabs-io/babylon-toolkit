@@ -1,6 +1,6 @@
 import { useCallback, useState } from "react";
 
-import { useBTCWallet } from "@/context/wallet";
+import { useChainConnector } from "@/context/wallet";
 import { logger } from "@/infrastructure";
 import { buildAndBroadcastRefundTransaction } from "@/services/vault/vaultRefundService";
 import type { VaultActivity } from "@/types/activity";
@@ -25,7 +25,8 @@ export function useRefundState({
   activity,
   onSuccess,
 }: UseRefundStateProps): UseRefundStateResult {
-  const { provider: btcWalletProvider } = useBTCWallet();
+  const btcConnector = useChainConnector("BTC");
+  const btcWalletProvider = btcConnector?.connectedWallet?.provider;
   const [refunding, setRefunding] = useState(false);
   const [refundTxId, setRefundTxId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
