@@ -98,11 +98,13 @@ function verifyAndParsePsbt(
  * Fields preserved: witnessUtxo, tapLeafScript, tapInternalKey
  * Fields stripped: tapBip32Derivation, tapMerkleRoot
  */
-function sanitizePsbtForScriptPathSigning(psbt: Psbt): void {
-  for (const input of psbt.data.inputs) {
+function sanitizePsbtForScriptPathSigning(psbt: Psbt): Psbt {
+  const clone = Psbt.fromHex(psbt.toHex());
+  for (const input of clone.data.inputs) {
     delete input.tapBip32Derivation;
     delete input.tapMerkleRoot;
   }
+  return clone;
 }
 
 /**
@@ -120,8 +122,8 @@ function validateAndConvertPsbt(
     throw new Error(`Missing ${label} PSBT`);
   }
   const psbt = verifyAndParsePsbt(psbtBase64, expectedTxHex, label);
-  sanitizePsbtForScriptPathSigning(psbt);
-  return psbt.toHex();
+  const sanitized = sanitizePsbtForScriptPathSigning(psbt);
+  return sanitized.toHex();
 }
 
 // ============================================================================
@@ -189,8 +191,8 @@ function collectDepositorGraphPsbts(
         `ChallengeAssert PSBT for challenger ${challengerPubkey} has 0 inputs — expected at least 1`,
       );
     }
-    sanitizePsbtForScriptPathSigning(caPsbt);
-    psbtHexes.push(caPsbt.toHex());
+    const sanitizedCaPsbt = sanitizePsbtForScriptPathSigning(caPsbt);
+    psbtHexes.push(sanitizedCaPsbt.toHex());
     signOptions.push(
       createTaprootScriptPathSignOptions(
         walletPublicKey,

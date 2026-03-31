@@ -18,6 +18,7 @@ vi.mock("@babylonlabs-io/ts-sdk/tbv/core", () => ({
 vi.mock("bitcoinjs-lib", () => ({
   Psbt: {
     fromBase64: vi.fn(),
+    fromHex: vi.fn(),
   },
 }));
 
@@ -110,6 +111,15 @@ function setupPsbtVerificationMock(
       },
     } as any;
   });
+
+  // Psbt.fromHex is used by sanitizePsbtForScriptPathSigning to clone
+  vi.mocked(Psbt.fromHex).mockImplementation(
+    (hex: string) =>
+      ({
+        toHex: () => hex,
+        data: { inputs: [{}] },
+      }) as any,
+  );
 }
 
 describe("depositorGraphSigningService", () => {
@@ -421,6 +431,13 @@ describe("depositorGraphSigningService", () => {
             },
           }) as any,
       );
+      vi.mocked(Psbt.fromHex).mockImplementation(
+        (hex: string) =>
+          ({
+            toHex: () => hex,
+            data: { inputs: [{}] },
+          }) as any,
+      );
 
       await expect(signDepositorGraph(params)).rejects.toThrow(
         /PSBT integrity check failed for depositor payout/,
@@ -448,6 +465,13 @@ describe("depositorGraphSigningService", () => {
               }),
               inputs: [{}],
             },
+          }) as any,
+      );
+      vi.mocked(Psbt.fromHex).mockImplementation(
+        (hex: string) =>
+          ({
+            toHex: () => hex,
+            data: { inputs: [{}] },
           }) as any,
       );
 
@@ -487,6 +511,13 @@ describe("depositorGraphSigningService", () => {
               }),
               inputs: Array(TEST_CHALLENGE_ASSERT_INPUT_COUNT).fill({}),
             },
+          }) as any,
+      );
+      vi.mocked(Psbt.fromHex).mockImplementation(
+        (hex: string) =>
+          ({
+            toHex: () => hex,
+            data: { inputs: [{}] },
           }) as any,
       );
 
