@@ -32,7 +32,6 @@ interface MultiVaultDepositSignContentProps {
   vaultProviderBtcPubkey: string;
   vaultKeeperBtcPubkeys: string[];
   universalChallengerBtcPubkeys: string[];
-  depositorClaimValue: bigint;
   getMnemonic: () => Promise<string>;
   mnemonicId?: string;
   htlcSecretHexes: string[];
