@@ -10,17 +10,13 @@
  * Cleanup Strategy:
  * - Keep entries for contract status 0-1 (PENDING, VERIFIED)
  * - Remove entries for contract status 2+ (ACTIVE, REDEEMED)
- * - Remove when older than 24 hours (stale data)
+ * - Remove when contract status has progressed beyond local status
  * - Status field tracks user actions: pending → payout_signed → confirming
  */
 
 import { logger } from "@/infrastructure";
 
-import {
-  MAX_PENDING_DURATION,
-  STORAGE_KEY_PREFIX,
-  STORAGE_UPDATE_EVENT,
-} from "../constants";
+import { STORAGE_KEY_PREFIX, STORAGE_UPDATE_EVENT } from "../constants";
 import {
   LocalStorageStatus,
   shouldRemoveFromLocalStorage,
@@ -218,7 +214,6 @@ export function updatePendingPeginStatus(
  * Uses peginStateMachine.shouldRemoveFromLocalStorage() for cleanup logic:
  * - Keep entries for contract status 0-1 (PENDING, VERIFIED)
  * - Remove entries for contract status 2+ (ACTIVE, REDEEMED)
- * - Remove entries older than 24 hours (stale data)
  * - Remove when contract status has progressed beyond local status
  *
  * This ensures localStorage stays in sync with the state machine
@@ -227,8 +222,6 @@ export function filterPendingPegins(
   pendingPegins: PendingPeginRequest[],
   confirmedPegins: Array<{ id: string; status: number }>,
 ): PendingPeginRequest[] {
-  const now = Date.now();
-
   // Normalize confirmed pegin IDs to ensure they have 0x prefix
   const normalizedConfirmedPegins = confirmedPegins.map((p) => ({
     id: normalizeTransactionId(p.id),
@@ -238,12 +231,6 @@ export function filterPendingPegins(
   return pendingPegins.filter((pegin) => {
     // Normalize the pending pegin ID as well (should already be normalized, but just in case)
     const normalizedPeginId = normalizeTransactionId(pegin.id);
-
-    // Remove if exceeded max duration (24 hours)
-    const age = now - pegin.timestamp;
-    if (age > MAX_PENDING_DURATION) {
-      return false;
-    }
 
     // Check if pegin exists on blockchain (using normalized IDs)
     const confirmedPegin = normalizedConfirmedPegins.find(
