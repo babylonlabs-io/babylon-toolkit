@@ -108,8 +108,8 @@ export interface PeginRegisterParams {
   depositorBtcPubkey: string;
   /** PegIn tx hex — submitted as depositorSignedPeginTx; vault ID derived from this */
   peginTxHex: string;
-  /** Funded Pre-PegIn tx hex — submitted as unsignedPrePeginTx for DA */
-  fundedPrePeginTxHex: string;
+  /** Pre-PegIn tx hex — submitted as unsignedPrePeginTx for DA */
+  unsignedPrePeginTxHex: string;
   /** SHA256 hashlock for HTLC activation (hex with 0x prefix) */
   hashlock: Hex;
   vaultProviderAddress: string;
