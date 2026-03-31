@@ -24,7 +24,8 @@ const ETH_ADDR_RE = /\b0x[0-9a-fA-F]{40}\b/g;
 // Babylon/Cosmos addresses (bbn1...)
 const BBN_ADDR_RE = /\bbbn1[a-z0-9]{38,58}\b/g;
 // Long hex strings (64+ hex chars = 32+ bytes — keys, tx data, signatures)
-const LONG_HEX_RE = /\b[0-9a-fA-F]{64,}\b/g;
+// Also catches 0x-prefixed long hex (>40 hex chars, to avoid double-matching ETH addresses)
+const LONG_HEX_RE = /\b0x[0-9a-fA-F]{41,}\b|\b[0-9a-fA-F]{64,}\b/g;
 
 /**
  * Apply regex-based scrubbing to an arbitrary string.
@@ -99,6 +100,10 @@ export function redactData<T>(obj: T): T {
 export function scrubSentryEvent<T extends SentryEvent>(event: T): T {
   if (event.message) {
     event.message = scrubString(event.message);
+  }
+
+  if (event.tags) {
+    event.tags = redactData(event.tags) as typeof event.tags;
   }
 
   if (event.extra) {

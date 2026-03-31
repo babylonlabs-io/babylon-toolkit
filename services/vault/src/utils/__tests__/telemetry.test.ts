@@ -53,6 +53,12 @@ describe("scrubString", () => {
     expect(scrubString(input)).toBe("Transaction [HEX_REDACTED] failed");
   });
 
+  it("replaces 0x-prefixed long hex strings (ETH tx hashes)", () => {
+    const txHash = "0x" + "a".repeat(64);
+    const input = `tx hash ${txHash} failed`;
+    expect(scrubString(input)).toBe("tx hash [HEX_REDACTED] failed");
+  });
+
   it("does not replace short hex strings", () => {
     const hex32 = "a".repeat(32);
     const input = `Error code ${hex32}`;
@@ -179,6 +185,18 @@ describe("scrubSentryEvent", () => {
     };
     const result = scrubSentryEvent(event);
     expect(result.request?.url).toBe("https://rpc.example.com/[ETH_ADDR]");
+  });
+
+  it("scrubs tags containing sensitive data", () => {
+    const event: SentryEvent = {
+      tags: {
+        contract: "0x742d35Cc6634C0532925a3b844Bc9e7595f2bD80",
+        environment: "staging",
+      },
+    };
+    const result = scrubSentryEvent(event);
+    expect(result.tags?.contract).toBe("[ETH_ADDR]");
+    expect(result.tags?.environment).toBe("staging");
   });
 
   it("preserves non-sensitive event fields", () => {
