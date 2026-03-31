@@ -356,15 +356,16 @@ export class PayoutManager {
     payoutTxHex: string,
     registeredPayoutScriptPubKey: string,
   ): void {
-    const cleanScriptHex = stripHexPrefix(registeredPayoutScriptPubKey);
-
-    if (!isValidHex(cleanScriptHex)) {
+    if (!isValidHex(registeredPayoutScriptPubKey)) {
       throw new Error(
         "Invalid registeredPayoutScriptPubKey: not valid hex",
       );
     }
 
-    const expectedScript = Buffer.from(cleanScriptHex, "hex");
+    const expectedScript = Buffer.from(
+      stripHexPrefix(registeredPayoutScriptPubKey),
+      "hex",
+    );
     const payoutTx = Transaction.fromHex(stripHexPrefix(payoutTxHex));
 
     const hasMatchingOutput = payoutTx.outs.some((output) =>
