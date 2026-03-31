@@ -14,6 +14,10 @@
  * @module managers/PayoutManager
  */
 
+import { Buffer } from "buffer";
+
+import { Transaction } from "bitcoinjs-lib";
+
 import type {
   BitcoinWallet,
   SignPsbtOptions,
@@ -22,6 +26,8 @@ import { createTaprootScriptPathSignOptions } from "../../../shared/wallets";
 import {
   buildPayoutPsbt,
   extractPayoutSignature,
+  isValidHex,
+  stripHexPrefix,
   validateWalletPubkey,
   type Network,
 } from "../primitives";
@@ -77,6 +83,13 @@ interface SignPayoutBaseParams {
    * as stored on-chain. If not provided, will be fetched from the wallet.
    */
   depositorBtcPubkey?: string;
+
+  /**
+   * The on-chain registered depositor payout scriptPubKey (hex, with or without 0x prefix).
+   * Used to validate that the VP-provided payout transaction actually pays to the
+   * correct depositor payout address before signing.
+   */
+  registeredPayoutScriptPubKey: string;
 }
 
 /**
@@ -172,6 +185,12 @@ export class PayoutManager {
   async signPayoutTransaction(
     params: SignPayoutParams,
   ): Promise<PayoutSignatureResult> {
+    // Validate payout TX outputs pay to the registered depositor payout address
+    this.validatePayoutOutputs(
+      params.payoutTxHex,
+      params.registeredPayoutScriptPubKey,
+    );
+
     // Validate wallet pubkey matches depositor and get both formats
     const walletPubkeyRaw = await this.config.btcWallet.getPublicKeyHex();
     const { depositorPubkey } = validateWalletPubkey(
@@ -257,6 +276,12 @@ export class PayoutManager {
     const depositorPubkeys: string[] = [];
 
     for (const tx of transactions) {
+      // Validate payout TX outputs pay to the registered depositor payout address
+      this.validatePayoutOutputs(
+        tx.payoutTxHex,
+        tx.registeredPayoutScriptPubKey,
+      );
+
       // Validate wallet pubkey matches depositor
       const { depositorPubkey } = validateWalletPubkey(
         walletPubkeyRaw,
@@ -313,5 +338,43 @@ export class PayoutManager {
     }
 
     return results;
+  }
+
+  /**
+   * Validates that the payout transaction contains at least one output
+   * paying to the registered depositor payout address (scriptPubKey).
+   *
+   * This prevents a malicious vault provider from substituting a different
+   * payout address in the transaction the depositor is asked to sign.
+   *
+   * @param payoutTxHex - Raw payout transaction hex
+   * @param registeredPayoutScriptPubKey - On-chain registered scriptPubKey (hex, with or without 0x prefix)
+   * @throws Error if scriptPubKey is invalid hex
+   * @throws Error if no output matches the registered payout address
+   */
+  private validatePayoutOutputs(
+    payoutTxHex: string,
+    registeredPayoutScriptPubKey: string,
+  ): void {
+    const cleanScriptHex = stripHexPrefix(registeredPayoutScriptPubKey);
+
+    if (!isValidHex(cleanScriptHex)) {
+      throw new Error(
+        "Invalid registeredPayoutScriptPubKey: not valid hex",
+      );
+    }
+
+    const expectedScript = Buffer.from(cleanScriptHex, "hex");
+    const payoutTx = Transaction.fromHex(stripHexPrefix(payoutTxHex));
+
+    const hasMatchingOutput = payoutTx.outs.some((output) =>
+      output.script.equals(expectedScript),
+    );
+
+    if (!hasMatchingOutput) {
+      throw new Error(
+        "Payout transaction does not pay to the registered depositor payout address",
+      );
+    }
   }
 }

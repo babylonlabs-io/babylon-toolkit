@@ -179,6 +179,8 @@ export interface SigningContext {
   depositorBtcPubkey: string;
   timelockPegin: number;
   network: Network;
+  /** On-chain registered depositor payout scriptPubKey (hex) for payout output validation */
+  registeredPayoutScriptPubKey: string;
 }
 
 /**
@@ -233,6 +235,7 @@ export async function signPayout(
       universalChallengerBtcPubkeys: context.universalChallengerBtcPubkeys,
       depositorBtcPubkey: context.depositorBtcPubkey,
       timelockPegin: context.timelockPegin,
+      registeredPayoutScriptPubKey: context.registeredPayoutScriptPubKey,
     });
 
     return result.signature;
@@ -317,6 +320,7 @@ export async function prepareSigningContext(
     depositorBtcPubkey,
     timelockPegin,
     network: getBTCNetworkForWASM(),
+    registeredPayoutScriptPubKey: vault.depositorPayoutBtcAddress,
   };
 
   return {
@@ -374,6 +378,7 @@ export async function signAllTransactionsBatch(
         universalChallengerBtcPubkeys: context.universalChallengerBtcPubkeys,
         depositorBtcPubkey: context.depositorBtcPubkey,
         timelockPegin: context.timelockPegin,
+        registeredPayoutScriptPubKey: context.registeredPayoutScriptPubKey,
       })),
     );
 

@@ -15,6 +15,7 @@ import { MockBitcoinWallet } from "../../../../shared/wallets/mocks";
 import {
   DUMMY_TXID_1,
   NULL_TXID,
+  P2WPKH_PREFIX,
   SEQUENCE_MAX,
   TEST_CLAIM_VALUE,
   TEST_COMBINED_VALUE,
@@ -35,6 +36,9 @@ const TEST_KEYS = {
   UNIVERSAL_CHALLENGER_1:
     "2f8bde4d1a07209355b4a7250a5c5128e88b84bddc619ab7cba8d569b240efe4",
 } as const;
+
+/** Valid P2WPKH scriptPubKey for payout output address validation tests */
+const TEST_PAYOUT_SCRIPT_PUBKEY = P2WPKH_PREFIX + "d".repeat(40);
 
 describe("PayoutManager", () => {
   beforeAll(async () => {
@@ -209,6 +213,7 @@ describe("PayoutManager", () => {
           vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
           universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
           timelockPegin: 100,
+          registeredPayoutScriptPubKey: TEST_PAYOUT_SCRIPT_PUBKEY,
         },
         {
           payoutTxHex: payoutTxHex2,
@@ -218,6 +223,7 @@ describe("PayoutManager", () => {
           vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
           universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
           timelockPegin: 100,
+          registeredPayoutScriptPubKey: TEST_PAYOUT_SCRIPT_PUBKEY,
         },
       ]);
 
@@ -262,6 +268,7 @@ describe("PayoutManager", () => {
             vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
             universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
             timelockPegin: 100,
+            registeredPayoutScriptPubKey: TEST_PAYOUT_SCRIPT_PUBKEY,
           },
         ]),
       ).rejects.toThrow(
@@ -302,6 +309,7 @@ describe("PayoutManager", () => {
             vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
             universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
             timelockPegin: 100,
+            registeredPayoutScriptPubKey: TEST_PAYOUT_SCRIPT_PUBKEY,
           },
         ]),
       ).rejects.toThrow();
@@ -357,6 +365,7 @@ describe("PayoutManager", () => {
             vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
             universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
             timelockPegin: 100,
+            registeredPayoutScriptPubKey: TEST_PAYOUT_SCRIPT_PUBKEY,
           },
           {
             payoutTxHex: createTestPayoutTransaction(peginTxHex, assertTxHex),
@@ -366,6 +375,7 @@ describe("PayoutManager", () => {
             vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
             universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
             timelockPegin: 100,
+            registeredPayoutScriptPubKey: TEST_PAYOUT_SCRIPT_PUBKEY,
           },
         ]),
       ).rejects.toThrow(
@@ -425,6 +435,7 @@ describe("PayoutManager", () => {
             vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
             universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
             timelockPegin: 100,
+            registeredPayoutScriptPubKey: TEST_PAYOUT_SCRIPT_PUBKEY,
           },
           {
             payoutTxHex: createTestPayoutTransaction(peginTxHex, assertTxHex),
@@ -434,10 +445,181 @@ describe("PayoutManager", () => {
             vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
             universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
             timelockPegin: 100,
+            registeredPayoutScriptPubKey: TEST_PAYOUT_SCRIPT_PUBKEY,
           },
         ]),
       ).rejects.toThrow(
         "Expected 2 signed PSBTs but received 3",
+      );
+    });
+  });
+
+  describe("payout output address validation", () => {
+    /**
+     * Creates a deterministic assert transaction used for payout inputs.
+     */
+    function createTestAssertTransaction(): string {
+      const tx = new Transaction();
+      tx.addInput(DUMMY_TXID_1, 0xffffffff, SEQUENCE_MAX);
+      tx.addOutput(createDummyP2WPKH("c"), Number(TEST_CLAIM_VALUE));
+      return tx.toHex();
+    }
+
+    /**
+     * Creates a deterministic Payout transaction that spends the peg-in output + assert output.
+     */
+    function createTestPayoutTransaction(
+      peginTxHex: string,
+      assertTxHex: string,
+    ): string {
+      const peginTx = Transaction.fromHex(peginTxHex);
+      const assertTx = Transaction.fromHex(assertTxHex);
+      const tx = new Transaction();
+
+      tx.addInput(
+        Buffer.from(peginTx.getId(), "hex").reverse(),
+        0,
+        SEQUENCE_MAX,
+      );
+      tx.addInput(
+        Buffer.from(assertTx.getId(), "hex").reverse(),
+        0,
+        SEQUENCE_MAX,
+      );
+      tx.addOutput(createDummyP2WPKH("d"), Number(TEST_COMBINED_VALUE));
+
+      return tx.toHex();
+    }
+
+    it("should throw when payout TX does not pay to registered address", async () => {
+      const peginTxHex = createTestPeginTransaction();
+      const assertTxHex = createTestAssertTransaction();
+      const payoutTxHex = createTestPayoutTransaction(peginTxHex, assertTxHex);
+
+      // Use a scriptPubKey that does NOT match the payout output ("a" instead of "d")
+      const wrongScriptPubKey = P2WPKH_PREFIX + "a".repeat(40);
+
+      const btcWallet = new MockBitcoinWallet({
+        publicKeyHex: TEST_KEYS.DEPOSITOR,
+      });
+
+      const manager = new PayoutManager({
+        network: "signet",
+        btcWallet,
+      });
+
+      await expect(
+        manager.signPayoutTransaction({
+          payoutTxHex,
+          peginTxHex,
+          assertTxHex,
+          vaultProviderBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
+          vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
+          universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
+          timelockPegin: 100,
+          registeredPayoutScriptPubKey: wrongScriptPubKey,
+        }),
+      ).rejects.toThrow(
+        "Payout transaction does not pay to the registered depositor payout address",
+      );
+    });
+
+    it("should accept 0x-prefixed scriptPubKey", async () => {
+      const peginTxHex = createTestPeginTransaction();
+      const assertTxHex = createTestAssertTransaction();
+      const payoutTxHex = createTestPayoutTransaction(peginTxHex, assertTxHex);
+
+      const btcWallet = new MockBitcoinWallet({
+        publicKeyHex: TEST_KEYS.DEPOSITOR,
+      });
+
+      const manager = new PayoutManager({
+        network: "signet",
+        btcWallet,
+      });
+
+      // The payout output uses createDummyP2WPKH("d") so this should match
+      const prefixedScriptPubKey = "0x" + P2WPKH_PREFIX + "d".repeat(40);
+
+      try {
+        await manager.signPayoutTransaction({
+          payoutTxHex,
+          peginTxHex,
+          assertTxHex,
+          vaultProviderBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
+          vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
+          universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
+          timelockPegin: 100,
+          registeredPayoutScriptPubKey: prefixedScriptPubKey,
+        });
+      } catch (error) {
+        // May fail later in PSBT building, but should NOT fail on address mismatch
+        expect((error as Error).message).not.toContain(
+          "does not pay to the registered depositor payout address",
+        );
+      }
+    });
+
+    it("should throw for invalid hex in registeredPayoutScriptPubKey", async () => {
+      const peginTxHex = createTestPeginTransaction();
+      const assertTxHex = createTestAssertTransaction();
+      const payoutTxHex = createTestPayoutTransaction(peginTxHex, assertTxHex);
+
+      const btcWallet = new MockBitcoinWallet({
+        publicKeyHex: TEST_KEYS.DEPOSITOR,
+      });
+
+      const manager = new PayoutManager({
+        network: "signet",
+        btcWallet,
+      });
+
+      await expect(
+        manager.signPayoutTransaction({
+          payoutTxHex,
+          peginTxHex,
+          assertTxHex,
+          vaultProviderBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
+          vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
+          universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
+          timelockPegin: 100,
+          registeredPayoutScriptPubKey: "not-valid-hex",
+        }),
+      ).rejects.toThrow("Invalid registeredPayoutScriptPubKey: not valid hex");
+    });
+
+    it("should reject mismatched scriptPubKey in batch signing path", async () => {
+      const peginTxHex = createTestPeginTransaction();
+      const assertTxHex = createTestAssertTransaction();
+      const payoutTxHex = createTestPayoutTransaction(peginTxHex, assertTxHex);
+
+      // Use a scriptPubKey that does NOT match the payout output
+      const wrongScriptPubKey = P2WPKH_PREFIX + "a".repeat(40);
+
+      const btcWallet = new MockBitcoinWallet({
+        publicKeyHex: TEST_KEYS.DEPOSITOR,
+      });
+
+      const manager = new PayoutManager({
+        network: "signet",
+        btcWallet,
+      });
+
+      await expect(
+        manager.signPayoutTransactionsBatch([
+          {
+            payoutTxHex,
+            peginTxHex,
+            assertTxHex,
+            vaultProviderBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
+            vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
+            universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
+            timelockPegin: 100,
+            registeredPayoutScriptPubKey: wrongScriptPubKey,
+          },
+        ]),
+      ).rejects.toThrow(
+        "Payout transaction does not pay to the registered depositor payout address",
       );
     });
   });
