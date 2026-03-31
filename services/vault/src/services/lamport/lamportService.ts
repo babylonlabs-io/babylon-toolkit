@@ -304,7 +304,9 @@ function hash160(data: Uint8Array): Uint8Array {
  */
 export function mnemonicToLamportSeed(mnemonic: string): Uint8Array {
   const seed = mnemonicToSeedSync(mnemonic);
-  return new Uint8Array(seed);
+  const copy = new Uint8Array(seed);
+  seed.fill(0);
+  return copy;
 }
 
 /**
@@ -339,7 +341,7 @@ export function mnemonicToLamportSeed(mnemonic: string): Uint8Array {
  * The same (mnemonic, vaultId, depositorPk, appContractAddress) tuple always
  * produces the same keypair, enabling recovery from the mnemonic alone.
  *
- * @param seed               - 64-byte seed from {@link mnemonicToLamportSeed}.
+ * @param seed               - 64-byte seed from {@link mnemonicToLamportSeed}. Zeroed after use.
  * @param vaultId            - Unique identifier of the vault (e.g. pegin tx hash).
  * @param depositorPk        - Depositor's public key (hex string).
  * @param appContractAddress - Ethereum address of the application contract.
@@ -408,6 +410,7 @@ export async function deriveLamportKeypair(
   hmacResult.fill(0);
   derivedKey.fill(0);
   derivedChainCode.fill(0);
+  seed.fill(0);
 
   return { falsePreimages, truePreimages, falseHashes, trueHashes };
 }
