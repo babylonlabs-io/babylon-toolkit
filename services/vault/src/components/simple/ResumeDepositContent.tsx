@@ -420,7 +420,6 @@ export function ResumeRefundContent({
 }: ResumeRefundContentProps) {
   const { refunding, refundTxId, error, handleRefund } = useRefundState({
     activity,
-    onSuccess,
   });
 
   useRunOnce(handleRefund);
@@ -432,6 +431,16 @@ export function ResumeRefundContent({
     error,
   );
 
+  // When the refund succeeds, the user closes the dialog themselves after
+  // seeing the confirmation. We call onSuccess() at that point so the parent
+  // refetches activities only after the user has acknowledged the result.
+  const handleClose = () => {
+    if (derived.isComplete) {
+      onSuccess();
+    }
+    onClose();
+  };
+
   return (
     <DepositProgressView
       currentStep={DepositFlowStep.BROADCAST_PRE_PEGIN}
@@ -442,7 +451,7 @@ export function ResumeRefundContent({
       canClose={derived.canClose}
       canContinueInBackground={false}
       payoutSigningProgress={null}
-      onClose={onClose}
+      onClose={handleClose}
       successMessage={
         refundTxId
           ? `Refund transaction broadcast successfully. Transaction ID: ${refundTxId}`

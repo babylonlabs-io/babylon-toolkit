@@ -32,15 +32,16 @@ export function usePendingDeposits() {
 
   const { vaultProviders } = useAllDepositProviders(activities);
 
-  // Filter to pending deposits (0=PENDING, 1=VERIFIED) and expired ones (7=EXPIRED)
-  // Expired vaults are included so the depositor can initiate a refund
+  // Filter to pending deposits (0=PENDING, 1=VERIFIED) and refundable expired ones (7=EXPIRED).
+  // Only EXPIRED vaults with unsignedPrePeginTx are included — without it the
+  // refund PSBT cannot be built and the card would show with no actionable button.
   const pendingActivities = useMemo(
     () =>
       activities.filter(
         (a) =>
           a.contractStatus === ContractStatus.PENDING ||
           a.contractStatus === ContractStatus.VERIFIED ||
-          a.contractStatus === ContractStatus.EXPIRED,
+          (a.contractStatus === ContractStatus.EXPIRED && !!a.unsignedPrePeginTx),
       ),
     [activities],
   );

@@ -7,7 +7,6 @@ import type { VaultActivity } from "@/types/activity";
 
 export interface UseRefundStateProps {
   activity: VaultActivity;
-  onSuccess: () => void;
 }
 
 export interface UseRefundStateResult {
@@ -23,7 +22,6 @@ export interface UseRefundStateResult {
 
 export function useRefundState({
   activity,
-  onSuccess,
 }: UseRefundStateProps): UseRefundStateResult {
   const btcConnector = useChainConnector("BTC");
   const btcWalletProvider = btcConnector?.connectedWallet?.provider;
@@ -40,6 +38,10 @@ export function useRefundState({
       setError("Missing vault transaction hash");
       return;
     }
+    if (!activity.depositorBtcPubkey) {
+      setError("Missing depositor BTC public key");
+      return;
+    }
 
     setRefunding(true);
     setError(null);
@@ -48,10 +50,14 @@ export function useRefundState({
       const txId = await buildAndBroadcastRefundTransaction({
         vaultId: activity.txHash,
         btcWalletProvider,
+        depositorBtcPubkey: activity.depositorBtcPubkey,
       });
       setRefundTxId(txId);
       setRefunding(false);
-      onSuccess();
+      // onSuccess() is intentionally NOT called here.
+      // The success screen displays the txId and lets the user close the dialog.
+      // onSuccess() is called from ResumeRefundContent's onClose so the parent
+      // refetches activities only after the user has seen the confirmation.
     } catch (err) {
       logger.error(err instanceof Error ? err : new Error(String(err)), {
         data: { context: "Refund failed", vaultId: activity.txHash },
@@ -61,7 +67,7 @@ export function useRefundState({
       );
       setRefunding(false);
     }
-  }, [activity, btcWalletProvider, onSuccess]);
+  }, [activity, btcWalletProvider]);
 
   return { refunding, refundTxId, error, handleRefund };
 }

@@ -9,6 +9,10 @@
  */
 
 import {
+  createTaprootScriptPathSignOptions,
+  type SignPsbtOptions,
+} from "@babylonlabs-io/ts-sdk/shared";
+import {
   buildRefundPsbt,
   getNetworkFees,
   pushTx,
@@ -18,6 +22,7 @@ import { Psbt } from "bitcoinjs-lib";
 import type { Hex } from "viem";
 
 import { getMempoolApiUrl } from "../../clients/btc/config";
+import { getVaultFromChain } from "../../clients/eth-contract/btc-vault-registry/query";
 import { getOffchainParamsByVersion } from "../../clients/eth-contract/protocol-params";
 import { getBTCNetworkForWASM } from "../../config/pegin";
 import { fetchAllUniversalChallengers } from "../providers";
@@ -46,16 +51,23 @@ export interface BroadcastRefundParams {
   vaultId: Hex;
   /** BTC wallet provider for signing */
   btcWalletProvider: {
-    signPsbt: (psbtHex: string) => Promise<string>;
+    signPsbt: (psbtHex: string, options?: SignPsbtOptions) => Promise<string>;
   };
+  /** Depositor's BTC public key (compressed or x-only hex) for signing options */
+  depositorBtcPubkey: string;
 }
 
 /**
  * Build, sign, and broadcast a refund transaction for an expired vault.
  *
- * Fetches all required data from the indexer and contract, reconstructs the
- * Pre-PegIn HTLC, builds the refund PSBT using the refund script (leaf 1),
- * signs it via the depositor's BTC wallet, and broadcasts to Bitcoin.
+ * Versioning fields (appVaultKeepersVersion, universalChallengersVersion,
+ * offchainParamsVersion, vaultProvider, applicationEntryPoint) are fetched
+ * from the on-chain BTCVaultRegistry contract — never from the GraphQL indexer —
+ * following the same security policy as prepareSigningContext in
+ * vaultPayoutSignatureService.ts.
+ *
+ * Fields not stored on-chain (unsignedPrePeginTx, hashlock, htlcVout,
+ * depositorBtcPubkey) are read from the indexer.
  *
  * The broadcast will be rejected by the network if timelockRefund blocks
  * have not yet passed since the Pre-PegIn transaction was confirmed.
@@ -66,50 +78,59 @@ export interface BroadcastRefundParams {
 export async function buildAndBroadcastRefundTransaction(
   params: BroadcastRefundParams,
 ): Promise<string> {
-  const { vaultId, btcWalletProvider } = params;
+  const { vaultId, btcWalletProvider, depositorBtcPubkey } = params;
 
-  const vault = await fetchVaultById(vaultId);
-  if (!vault) {
+  // Fetch signing-critical versioning fields from the on-chain contract.
+  // A compromised indexer could substitute different version numbers and
+  // trick the depositor into signing over an attacker-chosen signer set.
+  const [onChainVault, indexerVault] = await Promise.all([
+    getVaultFromChain(vaultId),
+    fetchVaultById(vaultId),
+  ]);
+
+  if (!indexerVault) {
     throw new Error(`Vault ${vaultId} not found`);
   }
-  if (!vault.unsignedPrePeginTx) {
+  if (!indexerVault.unsignedPrePeginTx) {
     throw new Error(
       "Pre-PegIn transaction not available for this vault. Cannot build refund transaction.",
     );
   }
-  if (!vault.hashlock) {
+  if (!indexerVault.hashlock) {
     throw new Error(
       "Vault hashlock not found. Cannot reconstruct the HTLC for the refund transaction.",
     );
   }
 
   const offchainParams = await getOffchainParamsByVersion(
-    vault.offchainParamsVersion,
+    onChainVault.offchainParamsVersion,
   );
 
-  const vaultProvider = await fetchVaultProviderById(vault.vaultProvider);
+  const vaultProvider = await fetchVaultProviderById(
+    onChainVault.vaultProvider,
+  );
   if (!vaultProvider) {
     throw new Error(
-      `Vault provider ${vault.vaultProvider} not found. Cannot build refund transaction.`,
+      `Vault provider ${onChainVault.vaultProvider} not found. Cannot build refund transaction.`,
     );
   }
 
   const vaultKeepers = await fetchVaultKeepersByVersion(
-    vault.applicationEntryPoint,
-    vault.appVaultKeepersVersion,
+    onChainVault.applicationEntryPoint,
+    onChainVault.appVaultKeepersVersion,
   );
   if (vaultKeepers.length === 0) {
     throw new Error(
-      `No vault keepers found for version ${vault.appVaultKeepersVersion}`,
+      `No vault keepers found for version ${onChainVault.appVaultKeepersVersion}`,
     );
   }
 
   const ucData = await fetchAllUniversalChallengers();
   const universalChallengersList =
-    ucData.byVersion.get(vault.universalChallengersVersion) ?? [];
+    ucData.byVersion.get(onChainVault.universalChallengersVersion) ?? [];
   if (universalChallengersList.length === 0) {
     throw new Error(
-      `Universal challengers not found for version ${vault.universalChallengersVersion}`,
+      `Universal challengers not found for version ${onChainVault.universalChallengersVersion}`,
     );
   }
 
@@ -129,26 +150,27 @@ export async function buildAndBroadcastRefundTransaction(
 
   const { psbtHex } = await buildRefundPsbt({
     prePeginParams: {
-      depositorPubkey: stripHexPrefix(vault.depositorBtcPubkey),
+      depositorPubkey: stripHexPrefix(depositorBtcPubkey),
       vaultProviderPubkey: stripHexPrefix(vaultProvider.btcPubKey),
       vaultKeeperPubkeys,
       universalChallengerPubkeys,
-      hashlocks: [stripHexPrefix(vault.hashlock)],
+      hashlocks: [stripHexPrefix(indexerVault.hashlock)],
       timelockRefund: offchainParams.tRefund,
-      pegInAmount: vault.amount,
+      pegInAmount: indexerVault.amount,
       feeRate: offchainParams.feeRate,
       numLocalChallengers,
       councilQuorum: offchainParams.councilQuorum,
       councilSize: offchainParams.securityCouncilKeys.length,
       network: getBTCNetworkForWASM(),
     },
-    fundedPrePeginTxHex: stripHexPrefix(vault.unsignedPrePeginTx),
-    htlcVout: vault.htlcVout,
+    fundedPrePeginTxHex: stripHexPrefix(indexerVault.unsignedPrePeginTx),
+    htlcVout: indexerVault.htlcVout,
     refundFee,
-    hashlock: stripHexPrefix(vault.hashlock),
+    hashlock: stripHexPrefix(indexerVault.hashlock),
   });
 
-  const signedPsbtHex = await btcWalletProvider.signPsbt(psbtHex);
+  const signOptions = createTaprootScriptPathSignOptions(depositorBtcPubkey, 1);
+  const signedPsbtHex = await btcWalletProvider.signPsbt(psbtHex, signOptions);
   const signedPsbt = Psbt.fromHex(signedPsbtHex);
 
   try {
