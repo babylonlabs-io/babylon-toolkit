@@ -1,5 +1,5 @@
-import { useCallback, useState } from "react";
 import { useChainConnector } from "@babylonlabs-io/wallet-connector";
+import { useCallback, useState } from "react";
 
 import { logger } from "@/infrastructure";
 import { buildAndBroadcastRefundTransaction } from "@/services/vault/vaultRefundService";
