@@ -8,18 +8,6 @@ import type {
   HtlcConnectorInfo,
 } from "./types.js";
 
-/**
- * HTLC output index for single deposits.
- *
- * TODO: Support batched deposits (multiple hashlocks → multiple HTLC outputs
- * in a single Pre-PegIn tx). Both btc-vault WASM and vault-contracts-aave-v4
- * already support this. Batched deposits would replace the current UTXO split
- * service — one BTC transaction with N HTLC outputs instead of N separate
- * Pre-PegIn transactions, and one Ethereum submission per vault (each with its
- * own htlcVout index).
- */
-const SINGLE_DEPOSIT_HTLC_VOUT = 0;
-
 let wasmInitialized = false;
 let wasmInitPromise: Promise<void> | null = null;
 
@@ -66,8 +54,8 @@ export async function createPrePeginTransaction(
     params.vaultKeeperPubkeys,
     params.universalChallengerPubkeys,
     [...params.hashlocks],
+    new BigUint64Array(params.pegInAmounts),
     params.timelockRefund,
-    params.pegInAmount,
     params.feeRate,
     params.numLocalChallengers,
     params.councilQuorum,
@@ -76,13 +64,26 @@ export async function createPrePeginTransaction(
   );
 
   try {
+    const numHtlcs = tx.getNumHtlcs();
+    const htlcValues: bigint[] = [];
+    const htlcScriptPubKeys: string[] = [];
+    const htlcAddresses: string[] = [];
+    const peginAmounts: bigint[] = [];
+
+    for (let i = 0; i < numHtlcs; i++) {
+      htlcValues.push(tx.getHtlcValue(i));
+      htlcScriptPubKeys.push(tx.getHtlcScriptPubKey(i));
+      htlcAddresses.push(tx.getHtlcAddress(i));
+      peginAmounts.push(tx.getPeginAmountAt(i));
+    }
+
     return {
       txHex: tx.toHex(),
       txid: tx.getTxid(),
-      htlcValue: tx.getHtlcValue(SINGLE_DEPOSIT_HTLC_VOUT),
-      htlcScriptPubKey: tx.getHtlcScriptPubKey(SINGLE_DEPOSIT_HTLC_VOUT),
-      htlcAddress: tx.getHtlcAddress(SINGLE_DEPOSIT_HTLC_VOUT),
-      peginAmount: tx.getPeginAmount(),
+      htlcValues,
+      htlcScriptPubKeys,
+      htlcAddresses,
+      peginAmounts,
       depositorClaimValue: tx.getDepositorClaimValue(),
     };
   } finally {
@@ -116,8 +117,8 @@ export async function buildPeginTxFromPrePegin(
     params.vaultKeeperPubkeys,
     params.universalChallengerPubkeys,
     [...params.hashlocks],
+    new BigUint64Array(params.pegInAmounts),
     params.timelockRefund,
-    params.pegInAmount,
     params.feeRate,
     params.numLocalChallengers,
     params.councilQuorum,
@@ -128,11 +129,7 @@ export async function buildPeginTxFromPrePegin(
   let fundedTx: WasmPrePeginTx | null = null;
   let peginTx: WasmPeginTx | null = null;
   try {
-    fundedTx = unfundedTx.fromFundedTransaction(
-      fundedPrePeginTxHex,
-      params.pegInAmount,
-      unfundedTx.getDepositorClaimValue(),
-    );
+    fundedTx = unfundedTx.fromFundedTransaction(fundedPrePeginTxHex);
     peginTx = fundedTx.buildPeginTx(timelockPegin, htlcVout);
 
     return {
@@ -237,7 +234,6 @@ export type {
 
 // Export constants
 export { TAP_INTERNAL_KEY, tapInternalPubkey } from "./constants.js";
-export { SINGLE_DEPOSIT_HTLC_VOUT };
 
 // Export payout connector utilities
 export { createPayoutConnector, getPeginPayoutScript } from "./payoutConnector.js";

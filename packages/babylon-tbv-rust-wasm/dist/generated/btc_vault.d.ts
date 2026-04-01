@@ -354,13 +354,14 @@ export class WasmPrePeginTx {
      * (adding inputs). The resulting object has the correct txid and can be
      * used directly with `buildPeginTx` / `buildRefundTx`.
      *
+     * The per-HTLC pegin amounts and depositor claim value are preserved from
+     * the original unfunded object (`self`).
+     *
      * # Arguments
      *
      * * `funded_tx_hex` - Hex-encoded funded Pre-PegIn transaction bytes
-     * * `pegin_amount` - Amount in satoshis to lock in each vault
-     * * `depositor_claim_value` - Amount in satoshis for the depositor's claim output
      */
-    fromFundedTransaction(funded_tx_hex: string, pegin_amount: bigint, depositor_claim_value: bigint): WasmPrePeginTx;
+    fromFundedTransaction(funded_tx_hex: string): WasmPrePeginTx;
     /**
      * Returns the depositor claim value in satoshis.
      */
@@ -382,9 +383,9 @@ export class WasmPrePeginTx {
      */
     getNumHtlcs(): number;
     /**
-     * Returns the pegin amount in satoshis.
+     * Returns the pegin amount in satoshis for a specific HTLC output.
      */
-    getPeginAmount(): bigint;
+    getPeginAmountAt(htlc_vout: number): bigint;
     /**
      * Returns the transaction ID.
      */
@@ -405,15 +406,16 @@ export class WasmPrePeginTx {
      * * `hashlocks` - Array of hex-encoded SHA256 hash commitments (64 hex chars each).
      *   One per HTLC output. For a single deposit pass one hashlock; for batched
      *   deposits pass multiple.
+     * * `pegin_amounts` - Array of pegin amounts in satoshis (one per hashlock).
+     *   Must have the same length as `hashlocks`.
      * * `timelock_refund` - CSV timelock for the refund path (must be non-zero)
-     * * `pegin_amount` - Amount in satoshis to lock in each vault
      * * `fee_rate` - Fee rate in sat/vB (from contract offchain params)
      * * `num_local_challengers` - Number of local challengers (from contract params)
      * * `council_quorum` - M in M-of-N council multisig (from contract params)
      * * `council_size` - N in M-of-N council multisig (from contract params)
      * * `network` - Network name: "mainnet", "testnet", "regtest", or "signet"
      */
-    constructor(depositor: string, vault_provider: string, vault_keepers: string[], universal_challengers: string[], hashlocks: string[], timelock_refund: number, pegin_amount: bigint, fee_rate: bigint, num_local_challengers: number, council_quorum: number, council_size: number, network: string);
+    constructor(depositor: string, vault_provider: string, vault_keepers: string[], universal_challengers: string[], hashlocks: string[], pegin_amounts: BigUint64Array, timelock_refund: number, fee_rate: bigint, num_local_challengers: number, council_quorum: number, council_size: number, network: string);
     /**
      * Returns the transaction as hex-encoded bytes.
      */
@@ -514,15 +516,15 @@ export interface InitOutput {
     readonly wasmprepeginhtlcconnector_new: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number) => [number, number, number];
     readonly wasmprepegintx_buildPeginTx: (a: number, b: number, c: number) => [number, number, number];
     readonly wasmprepegintx_buildRefundTx: (a: number, b: bigint, c: number) => [number, number, number, number];
-    readonly wasmprepegintx_fromFundedTransaction: (a: number, b: number, c: number, d: bigint, e: bigint) => [number, number, number];
+    readonly wasmprepegintx_fromFundedTransaction: (a: number, b: number, c: number) => [number, number, number];
     readonly wasmprepegintx_getDepositorClaimValue: (a: number) => bigint;
     readonly wasmprepegintx_getHtlcAddress: (a: number, b: number) => [number, number, number, number];
     readonly wasmprepegintx_getHtlcScriptPubKey: (a: number, b: number) => [number, number, number, number];
     readonly wasmprepegintx_getHtlcValue: (a: number, b: number) => [bigint, number, number];
     readonly wasmprepegintx_getNumHtlcs: (a: number) => number;
-    readonly wasmprepegintx_getPeginAmount: (a: number) => bigint;
+    readonly wasmprepegintx_getPeginAmountAt: (a: number, b: number) => [bigint, number, number];
     readonly wasmprepegintx_getTxid: (a: number) => [number, number];
-    readonly wasmprepegintx_new: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: bigint, m: bigint, n: number, o: number, p: number, q: number, r: number) => [number, number, number];
+    readonly wasmprepegintx_new: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number, m: number, n: bigint, o: number, p: number, q: number, r: number, s: number) => [number, number, number];
     readonly wasmprepegintx_toHex: (a: number) => [number, number];
     readonly init_panic_hook: () => void;
     readonly rustsecp256k1_v0_10_0_context_create: (a: number) => number;

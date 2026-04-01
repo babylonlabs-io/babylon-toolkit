@@ -20,8 +20,6 @@ import {
   type Network,
 } from "@babylonlabs-io/babylon-tbv-rust-wasm";
 
-export { SINGLE_DEPOSIT_HTLC_VOUT } from "@babylonlabs-io/babylon-tbv-rust-wasm";
-
 import { parseUnfundedWasmTransaction } from "../../utils/transaction/fundPeginTransaction";
 
 /**
@@ -40,8 +38,8 @@ export interface PrePeginParams {
   hashlocks: readonly string[];
   /** CSV timelock in blocks for the HTLC refund path */
   timelockRefund: number;
-  /** Amount to peg in (satoshis) */
-  pegInAmount: bigint;
+  /** Amounts to peg in (satoshis), one per deposit */
+  pegInAmounts: readonly bigint[];
   /** Fee rate in sat/vB from contract offchain params */
   feeRate: bigint;
   /** Number of local challengers (from contract params) */
@@ -70,14 +68,14 @@ export interface PrePeginPsbtResult {
   psbtHex: string;
   /** Sum of all unfunded outputs (HTLC + CPFP anchor) — use this for UTXO selection */
   totalOutputValue: bigint;
-  /** HTLC output value in satoshis (output 0 only, includes peginAmount + depositorClaimValue + minPeginFee) */
-  htlcValue: bigint;
-  /** HTLC output scriptPubKey (hex encoded) */
-  htlcScriptPubKey: string;
-  /** HTLC Taproot address */
-  htlcAddress: string;
-  /** Pegin amount in satoshis */
-  peginAmount: bigint;
+  /** HTLC output values in satoshis, one per deposit (each includes peginAmount + depositorClaimValue + minPeginFee) */
+  htlcValues: readonly bigint[];
+  /** HTLC output scriptPubKeys (hex encoded), one per deposit */
+  htlcScriptPubKeys: readonly string[];
+  /** HTLC Taproot addresses, one per deposit */
+  htlcAddresses: readonly string[];
+  /** Pegin amounts in satoshis, one per deposit */
+  peginAmounts: readonly bigint[];
   /** Depositor claim value computed by WASM from contract parameters */
   depositorClaimValue: bigint;
 }
@@ -131,7 +129,7 @@ export async function buildPrePeginPsbt(
     universalChallengerPubkeys: params.universalChallengerPubkeys,
     hashlocks: [...params.hashlocks],
     timelockRefund: params.timelockRefund,
-    pegInAmount: params.pegInAmount,
+    pegInAmounts: [...params.pegInAmounts],
     feeRate: params.feeRate,
     numLocalChallengers: params.numLocalChallengers,
     councilQuorum: params.councilQuorum,
@@ -150,10 +148,10 @@ export async function buildPrePeginPsbt(
   return {
     psbtHex: result.txHex,
     totalOutputValue,
-    htlcValue: result.htlcValue,
-    htlcScriptPubKey: result.htlcScriptPubKey,
-    htlcAddress: result.htlcAddress,
-    peginAmount: result.peginAmount,
+    htlcValues: result.htlcValues,
+    htlcScriptPubKeys: result.htlcScriptPubKeys,
+    htlcAddresses: result.htlcAddresses,
+    peginAmounts: result.peginAmounts,
     depositorClaimValue: result.depositorClaimValue,
   };
 }
@@ -179,7 +177,7 @@ export async function buildPeginTxFromFundedPrePegin(
       universalChallengerPubkeys: params.prePeginParams.universalChallengerPubkeys,
       hashlocks: [...params.prePeginParams.hashlocks],
       timelockRefund: params.prePeginParams.timelockRefund,
-      pegInAmount: params.prePeginParams.pegInAmount,
+      pegInAmounts: [...params.prePeginParams.pegInAmounts],
       feeRate: params.prePeginParams.feeRate,
       numLocalChallengers: params.prePeginParams.numLocalChallengers,
       councilQuorum: params.prePeginParams.councilQuorum,
