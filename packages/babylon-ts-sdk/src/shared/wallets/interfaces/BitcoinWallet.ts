@@ -117,4 +117,18 @@ export interface BitcoinWallet {
    * @returns BitcoinNetwork enum value (MAINNET, TESTNET, SIGNET)
    */
   getNetwork(): Promise<BitcoinNetwork>;
+
+  /**
+   * Derives a deterministic 32-byte hash from the wallet's key material
+   * using HKDF-SHA-256 with a domain-specific context.
+   *
+   * This enables deterministic secret generation: calling with the same
+   * context always produces the same output, removing the need for users
+   * to manually back up and re-enter secrets.
+   *
+   * @param context - Hex-encoded context string (even-length, no 0x prefix).
+   * @returns 64-character hex string (32 bytes).
+   * @throws If the wallet does not support this operation (e.g., hardware wallets).
+   */
+  deriveContextHash?(context: string): Promise<string>;
 }
