@@ -3,8 +3,11 @@
  * Displays collateral with an expandable view showing individual peg-in vaults.
  */
 
-import { Avatar, Card } from "@babylonlabs-io/core-ui";
+import { Avatar, Button, Card } from "@babylonlabs-io/core-ui";
+import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useState } from "react";
+import type { Address } from "viem";
+import { useAccount } from "wagmi";
 
 import { ArtifactDownloadModal } from "@/components/deposit/ArtifactDownloadModal";
 import { DepositButton, ExpandMenuButton } from "@/components/shared";
@@ -14,8 +17,10 @@ import type { ArtifactDownloadModalParams } from "@/hooks/deposit/useArtifactDow
 import { useVaultProviders } from "@/hooks/deposit/useVaultProviders";
 import { logger } from "@/infrastructure";
 import type { CollateralVaultEntry } from "@/types/collateral";
+import { invalidateVaultQueries } from "@/utils/queryKeys";
 
 import { CollateralExpandedContent } from "./CollateralExpandedContent";
+import { ReorderSuccessModal, ReorderVaultsModal } from "./ReorderVaults";
 
 const btcConfig = getNetworkConfigBTC();
 
@@ -41,8 +46,23 @@ export function CollateralSection({
   const [isExpanded, setIsExpanded] = useState(false);
   const [artifactParams, setArtifactParams] =
     useState<ArtifactDownloadModalParams | null>(null);
+  const [isReorderOpen, setIsReorderOpen] = useState(false);
+  const [isReorderSuccess, setIsReorderSuccess] = useState(false);
   const { findProvider } = useVaultProviders();
+  const queryClient = useQueryClient();
+  const { address } = useAccount();
   const canWithdraw = !hasDebt;
+  const canReorder = collateralVaults.length >= 2;
+
+  const handleReorderSuccessClose = useCallback(() => {
+    setIsReorderSuccess(false);
+    if (address) {
+      queryClient.invalidateQueries({
+        queryKey: ["vaultOrder", address.toLowerCase()],
+      });
+      invalidateVaultQueries(queryClient, address as Address);
+    }
+  }, [address, queryClient]);
 
   const handleArtifactDownload = useCallback(
     (vaultEntryId: string) => {
@@ -74,6 +94,16 @@ export function CollateralSection({
           Collateral
         </h2>
         <div className="flex items-center gap-2">
+          {canReorder && (
+            <Button
+              variant="outlined"
+              size="medium"
+              onClick={() => setIsReorderOpen(true)}
+              className="rounded-full"
+            >
+              Reorder
+            </Button>
+          )}
           <DepositButton
             variant="outlined"
             size="medium"
@@ -161,6 +191,18 @@ export function CollateralSection({
           depositorPk={artifactParams.depositorPk}
         />
       )}
+
+      <ReorderVaultsModal
+        isOpen={isReorderOpen}
+        onClose={() => setIsReorderOpen(false)}
+        vaults={collateralVaults}
+        onSuccess={() => setIsReorderSuccess(true)}
+      />
+
+      <ReorderSuccessModal
+        isOpen={isReorderSuccess}
+        onClose={handleReorderSuccessClose}
+      />
     </div>
   );
 }

@@ -42,7 +42,9 @@ export function useDashboardState(connectedAddress: string | undefined) {
   const collateralVaults = useMemo(
     (): CollateralVaultEntry[] =>
       position?.collaterals
-        ? toCollateralVaultEntries(position.collaterals, findProvider)
+        ? toCollateralVaultEntries(position.collaterals, findProvider).sort(
+            (a, b) => a.liquidationIndex - b.liquidationIndex,
+          )
         : [],
     [position?.collaterals, findProvider],
   );

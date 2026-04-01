@@ -10,6 +10,7 @@ import {
   formatBtcAmount,
   formatDateTime,
   formatLLTV,
+  formatOrdinal,
   formatProviderDisplayName,
   formatTimeAgo,
   formatUsdValue,
@@ -148,6 +149,36 @@ describe("Formatting Utilities", () => {
 
     it("should fall back to truncated address when name is empty string", () => {
       expect(formatProviderDisplayName("", longAddress)).toBe("0x1234...5678");
+    });
+  });
+
+  describe("formatOrdinal", () => {
+    it("should format 1st, 2nd, 3rd correctly", () => {
+      expect(formatOrdinal(1)).toBe("1st");
+      expect(formatOrdinal(2)).toBe("2nd");
+      expect(formatOrdinal(3)).toBe("3rd");
+    });
+
+    it("should format 4th-20th with 'th' suffix", () => {
+      expect(formatOrdinal(4)).toBe("4th");
+      expect(formatOrdinal(10)).toBe("10th");
+      expect(formatOrdinal(11)).toBe("11th");
+      expect(formatOrdinal(12)).toBe("12th");
+      expect(formatOrdinal(13)).toBe("13th");
+      expect(formatOrdinal(20)).toBe("20th");
+    });
+
+    it("should handle 21st, 22nd, 23rd pattern", () => {
+      expect(formatOrdinal(21)).toBe("21st");
+      expect(formatOrdinal(22)).toBe("22nd");
+      expect(formatOrdinal(23)).toBe("23rd");
+      expect(formatOrdinal(24)).toBe("24th");
+    });
+
+    it("should handle 111th, 112th, 113th (teen exceptions)", () => {
+      expect(formatOrdinal(111)).toBe("111th");
+      expect(formatOrdinal(112)).toBe("112th");
+      expect(formatOrdinal(113)).toBe("113th");
     });
   });
 

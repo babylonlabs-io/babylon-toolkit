@@ -183,6 +183,22 @@ export function formatTimeAgo(timestamp: number): string {
 }
 
 /**
+ * Format a 1-based position as an ordinal string (1st, 2nd, 3rd, 4th, etc.)
+ * @param n - 1-based position number
+ * @returns Ordinal string (e.g., "1st", "2nd", "3rd", "11th", "21st")
+ */
+export function formatOrdinal(n: number): string {
+  const mod100 = n % 100;
+  if (mod100 >= 11 && mod100 <= 13) return `${n}th`;
+
+  const mod10 = n % 10;
+  if (mod10 === 1) return `${n}st`;
+  if (mod10 === 2) return `${n}nd`;
+  if (mod10 === 3) return `${n}rd`;
+  return `${n}th`;
+}
+
+/**
  * Format token amount for display with appropriate precision.
  * Shows minimum 2 decimals, up to maxDecimals, trimming trailing zeros.
  *
