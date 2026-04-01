@@ -52,6 +52,14 @@ export const VAULT_SPLIT_SAFETY_MARGIN = 1.05;
 export const POSITION_REFETCH_INTERVAL_MS = 30 * 1000;
 
 /**
+ * Threshold (ms) after which position data is considered stale.
+ * If the last successful fetch was longer than this ago, the UI
+ * warns that oracle-derived values may be outdated.
+ * 3 × 30s refetch interval = 90s.
+ */
+export const POSITION_STALENESS_THRESHOLD_MS = POSITION_REFETCH_INTERVAL_MS * 3;
+
+/**
  * Minimum slider max value to prevent division by zero
  * when no vaults or borrow capacity available
  */

@@ -1,17 +1,9 @@
 // Wallet interfaces
+export { BitcoinNetworks } from "./interfaces";
 export type {
   BitcoinNetwork,
   BitcoinWallet,
   Hash,
+  SignInputOptions,
   SignPsbtOptions,
 } from "./interfaces";
-
-// Sign options helpers
-export { createTaprootScriptPathSignOptions } from "./signOptions";
-
-// Mock implementations for testing
-export { MockBitcoinWallet, MockEthereumWallet } from "./mocks";
-export type {
-  MockBitcoinWalletConfig,
-  MockEthereumWalletConfig,
-} from "./mocks";

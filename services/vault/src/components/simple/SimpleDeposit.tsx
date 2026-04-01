@@ -338,7 +338,6 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
                   vaultProviderBtcPubkey={selectedProviderBtcPubkey}
                   vaultKeeperBtcPubkeys={vaultKeeperBtcPubkeys}
                   universalChallengerBtcPubkeys={universalChallengerBtcPubkeys}
-                  depositorClaimValue={depositorClaimValue}
                   getMnemonic={getMnemonic}
                   mnemonicId={mnemonicId}
                   htlcSecretHexes={secretHexesRef.current}

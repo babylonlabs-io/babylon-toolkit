@@ -32,8 +32,8 @@ import {
 } from "viem";
 
 import type { BitcoinWallet, Hash } from "../../../shared/wallets";
-import { createTaprootScriptPathSignOptions } from "../../../shared/wallets";
-import { getUtxoInfo, pushTx } from "../clients/mempool";
+import { createTaprootScriptPathSignOptions } from "../utils/signing";
+import { type UtxoInfo, getUtxoInfo, pushTx } from "../clients/mempool";
 import { BTCVaultRegistryABI, handleContractError } from "../contracts";
 import {
   buildPrePeginPsbt,
@@ -260,6 +260,14 @@ export interface SignAndBroadcastParams {
    * Required for Taproot signing.
    */
   depositorBtcPubkey: string;
+
+  /**
+   * Optional pre-fetched prevout data for inputs not yet in the mempool.
+   * Key format: "txid:vout" (e.g. "abc123...def:0").
+   * When provided, matching inputs skip the mempool API fetch.
+   * Useful for split transactions where outputs are unconfirmed.
+   */
+  localPrevouts?: Record<string, { scriptPubKey: string; value: number }>;
 }
 
 /**
@@ -345,6 +353,28 @@ export interface RegisterPeginResult {
    * Returned so callers can reuse it for subsequent pegins without re-signing.
    */
   btcPopSignature: Hex;
+}
+
+/**
+ * Resolve prevout data for a transaction input.
+ * Checks localPrevouts first; falls back to mempool API.
+ */
+function resolveUtxoInfo(
+  txid: string,
+  vout: number,
+  localPrevouts: Record<string, { scriptPubKey: string; value: number }> | undefined,
+  apiUrl: string,
+): Promise<UtxoInfo> {
+  const local = localPrevouts?.[`${txid}:${vout}`];
+  if (local) {
+    return Promise.resolve({
+      txid,
+      vout,
+      value: local.value,
+      scriptPubKey: local.scriptPubKey,
+    });
+  }
+  return getUtxoInfo(txid, vout, apiUrl);
 }
 
 /**
@@ -578,16 +608,13 @@ export class PeginManager {
     }
     const apiUrl = this.config.mempoolApiUrl;
 
-    // Fetch all UTXO data in parallel for better performance
+    // Resolve prevout data for each input (local cache or mempool API)
     const utxoDataPromises = tx.ins.map((input) => {
       const txid = Buffer.from(input.hash).reverse().toString("hex");
       const vout = input.index;
-      return getUtxoInfo(txid, vout, apiUrl).then((utxoData) => ({
-        input,
-        utxoData,
-        txid,
-        vout,
-      }));
+      return resolveUtxoInfo(txid, vout, params.localPrevouts, apiUrl).then(
+        (utxoData) => ({ input, utxoData, txid, vout }),
+      );
     });
 
     const inputsWithUtxoData = await Promise.all(utxoDataPromises);

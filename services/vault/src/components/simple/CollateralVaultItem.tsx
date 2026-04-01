@@ -7,7 +7,11 @@ import { Avatar, Button, StatusBadge } from "@babylonlabs-io/core-ui";
 
 import { getNetworkConfigBTC } from "@/config";
 import { truncateHash } from "@/utils/addressUtils";
-import { formatBtcAmount, formatDateTime } from "@/utils/formatting";
+import {
+  formatBtcAmount,
+  formatDateTime,
+  formatOrdinal,
+} from "@/utils/formatting";
 
 const btcConfig = getNetworkConfigBTC();
 
@@ -20,6 +24,7 @@ interface CollateralVaultItemProps {
   inUse: boolean;
   providerName: string;
   providerIconUrl?: string;
+  liquidationIndex?: number;
   onArtifactDownload?: () => void;
 }
 
@@ -30,6 +35,7 @@ export function CollateralVaultItem({
   inUse,
   providerName,
   providerIconUrl,
+  liquidationIndex,
   onArtifactDownload,
 }: CollateralVaultItemProps) {
   const formattedDate = formatDateTime(new Date(addedAt * SECONDS_TO_MS));
@@ -77,6 +83,18 @@ export function CollateralVaultItem({
           {truncateHash(vaultId)}
         </span>
       </div>
+
+      {/* Liquidation Order row */}
+      {liquidationIndex !== undefined && (
+        <div className="flex items-center justify-between">
+          <span className="text-sm text-accent-secondary">
+            Liquidation Order
+          </span>
+          <span className="text-sm text-accent-primary">
+            {formatOrdinal(liquidationIndex + 1)}
+          </span>
+        </div>
+      )}
 
       {onArtifactDownload && (
         <Button

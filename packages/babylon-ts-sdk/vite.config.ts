@@ -27,6 +27,7 @@ export default defineConfig({
           "src/tbv/integrations/aave/index.ts",
         ),
         "shared/index": path.resolve(__dirname, "src/shared/index.ts"),
+        "testing/index": path.resolve(__dirname, "src/testing/index.ts"),
       },
       formats: ["es", "cjs"],
     },

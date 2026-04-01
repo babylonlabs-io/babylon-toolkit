@@ -18,10 +18,11 @@ import type {
   BitcoinWallet,
   SignPsbtOptions,
 } from "@babylonlabs-io/ts-sdk/shared";
-import { createTaprootScriptPathSignOptions } from "@babylonlabs-io/ts-sdk/shared";
-import { extractPayoutSignature } from "@babylonlabs-io/ts-sdk/tbv/core";
+import {
+  createTaprootScriptPathSignOptions,
+  extractPayoutSignature,
+} from "@babylonlabs-io/ts-sdk/tbv/core";
 import { Psbt } from "bitcoinjs-lib";
-import { Buffer } from "buffer";
 
 import type {
   DepositorAsClaimerPresignatures,
@@ -30,11 +31,6 @@ import type {
 } from "../../clients/vault-provider-rpc/types";
 import { signPsbtsWithFallback, stripHexPrefix } from "../../utils/btc";
 import { sanitizeErrorMessage } from "../../utils/errors/formatting";
-
-/** Convert a base64-encoded PSBT to hex (wallet signing format). */
-function base64ToHex(b64: string): string {
-  return Buffer.from(b64, "base64").toString("hex");
-}
 
 /**
  * Parameters for signDepositorGraph
@@ -93,8 +89,29 @@ function verifyAndParsePsbt(
 }
 
 /**
+ * Sanitize a parsed PSBT for Taproot script-path signing.
+ *
+ * VP-provided PSBTs include tapBip32Derivation and tapMerkleRoot metadata
+ * that causes some wallets (notably OKX) to ignore disableTweakSigner and
+ * sign with a tweaked key. Stripping these fields forces the wallet to
+ * rely solely on tapLeafScript for script-path signing — matching our
+ * code-built PSBTs' behavior.
+ *
+ * Fields preserved: witnessUtxo, tapLeafScript, tapInternalKey
+ * Fields stripped: tapBip32Derivation, tapMerkleRoot
+ */
+function sanitizePsbtForScriptPathSigning(psbt: Psbt): Psbt {
+  const clone = Psbt.fromHex(psbt.toHex());
+  for (const input of clone.data.inputs) {
+    delete input.tapBip32Derivation;
+    delete input.tapMerkleRoot;
+  }
+  return clone;
+}
+
+/**
  * Validate that a PSBT field is present, verify it against expected tx_hex,
- * and convert to hex for wallet signing.
+ * sanitize taproot metadata, and convert to hex for wallet signing.
  *
  * @throws if psbtBase64 is falsy or fails integrity check
  */
@@ -106,8 +123,9 @@ function validateAndConvertPsbt(
   if (!psbtBase64) {
     throw new Error(`Missing ${label} PSBT`);
   }
-  verifyAndParsePsbt(psbtBase64, expectedTxHex, label);
-  return base64ToHex(psbtBase64);
+  const psbt = verifyAndParsePsbt(psbtBase64, expectedTxHex, label);
+  const sanitized = sanitizePsbtForScriptPathSigning(psbt);
+  return sanitized.toHex();
 }
 
 // ============================================================================
@@ -139,6 +157,7 @@ function collectDepositorGraphPsbts(
     depositorGraph.payout_tx.tx_hex,
     "depositor payout",
   );
+
   psbtHexes.push(payoutHex);
   signOptions.push(singleInputOpts);
 
@@ -174,7 +193,8 @@ function collectDepositorGraphPsbts(
         `ChallengeAssert PSBT for challenger ${challengerPubkey} has 0 inputs — expected at least 1`,
       );
     }
-    psbtHexes.push(base64ToHex(challenger.challenge_assert_psbt));
+    const sanitizedCaPsbt = sanitizePsbtForScriptPathSigning(caPsbt);
+    psbtHexes.push(sanitizedCaPsbt.toHex());
     signOptions.push(
       createTaprootScriptPathSignOptions(
         walletPublicKey,

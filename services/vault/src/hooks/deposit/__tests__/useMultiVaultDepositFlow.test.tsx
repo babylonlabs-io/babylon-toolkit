@@ -216,7 +216,6 @@ const MOCK_PARAMS = {
   vaultProviderBtcPubkey: "ab".repeat(32), // 64 hex chars
   vaultKeeperBtcPubkeys: ["keeper1pubkey"],
   universalChallengerBtcPubkeys: ["uc1pubkey"],
-  depositorClaimValue: 35_000n,
   getMnemonic: async () => "test mnemonic phrase for lamport key derivation",
   htlcSecretHexes: ["ab".repeat(32), "cd".repeat(32)],
 };
@@ -1254,8 +1253,8 @@ describe("useMultiVaultDepositFlow", () => {
       await waitFor(() => {
         expect(depositResult).toBeNull();
         expect(result.current.error).toContain("All pegin creations failed");
-        expect(result.current.error).toContain("Vault 0: Vault 1 failed");
-        expect(result.current.error).toContain("Vault 1: Vault 2 failed");
+        expect(result.current.error).toContain("Vault 1: Vault 1 failed");
+        expect(result.current.error).toContain("Vault 2: Vault 2 failed");
       });
     });
   });
@@ -1390,10 +1389,10 @@ describe("useMultiVaultDepositFlow", () => {
       expect(depositResult!.warnings).toBeDefined();
       expect(depositResult!.warnings).toHaveLength(2); // Both vaults failed payout signing
       expect(depositResult!.warnings![0]).toContain(
-        "Vault 0: Payout signing failed",
+        "Vault 1: Payout signing failed",
       );
       expect(depositResult!.warnings![1]).toContain(
-        "Vault 1: Payout signing failed",
+        "Vault 2: Payout signing failed",
       );
     });
 

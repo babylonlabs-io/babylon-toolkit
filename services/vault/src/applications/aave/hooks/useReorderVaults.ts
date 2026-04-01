@@ -5,9 +5,8 @@
  * to change the prefix ordering for liquidation priority.
  */
 
-import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useState } from "react";
-import type { Address, Hex } from "viem";
+import type { Hex } from "viem";
 import { useAccount, useWalletClient } from "wagmi";
 
 import { useError } from "@/context/error";
@@ -17,7 +16,6 @@ import {
   WalletError,
   mapViemErrorToContractError,
 } from "@/utils/errors";
-import { invalidateVaultQueries } from "@/utils/queryKeys";
 
 import { reorderVaultOrder } from "../services";
 
@@ -34,13 +32,14 @@ export interface UseReorderVaultsResult {
  * Handles:
  * 1. Wallet validation
  * 2. Reorder transaction execution
- * 3. Cache invalidation on success (vault order + vault queries)
+ *
+ * Cache invalidation is deferred to the success modal close handler
+ * to give the indexer time to process the block.
  */
 export function useReorderVaults(): UseReorderVaultsResult {
   const [isProcessing, setIsProcessing] = useState(false);
   const { data: walletClient } = useWalletClient();
   const { address } = useAccount();
-  const queryClient = useQueryClient();
   const chain = walletClient?.chain;
   const { handleError } = useError();
 
@@ -63,14 +62,6 @@ export function useReorderVaults(): UseReorderVaultsResult {
         }
 
         await reorderVaultOrder(walletClient, chain, permutedVaultIds);
-
-        // Invalidate vault order query to refetch from contract
-        await queryClient.invalidateQueries({
-          queryKey: ["vaultOrder", address?.toLowerCase()],
-        });
-
-        // Invalidate vault-related queries
-        await invalidateVaultQueries(queryClient, address as Address);
 
         return true;
       } catch (error) {
@@ -95,7 +86,7 @@ export function useReorderVaults(): UseReorderVaultsResult {
         setIsProcessing(false);
       }
     },
-    [walletClient, chain, address, queryClient, handleError],
+    [walletClient, chain, address, handleError],
   );
 
   return {

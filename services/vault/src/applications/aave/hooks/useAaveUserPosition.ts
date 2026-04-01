@@ -6,12 +6,15 @@
  */
 
 import { useQuery } from "@tanstack/react-query";
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { Address } from "viem";
 
 import { satoshiToBtcNumber } from "@/utils/btcConversion";
 
-import { POSITION_REFETCH_INTERVAL_MS } from "../constants";
+import {
+  POSITION_REFETCH_INTERVAL_MS,
+  POSITION_STALENESS_THRESHOLD_MS,
+} from "../constants";
 import { useAaveConfig } from "../context";
 import {
   getUserPositionsWithLiveData,
@@ -47,6 +50,14 @@ export interface UseAaveUserPositionResult {
   healthFactor: number | null;
   /** Health factor status for UI display */
   healthFactorStatus: HealthFactorStatus;
+  /**
+   * True when position data may be stale (last successful fetch
+   * exceeded the staleness threshold). Indicates oracle-derived
+   * values (health factor, collateral/debt USD) may be outdated.
+   * This is a UI-level warning — on-chain Aave has its own oracle
+   * staleness protections for liquidation decisions.
+   */
+  isPositionDataStale: boolean;
   /** Loading state */
   isLoading: boolean;
   /** Error state */
@@ -91,6 +102,8 @@ export function useAaveUserPosition(
     data: positions,
     isLoading: positionsLoading,
     error: positionsError,
+    dataUpdatedAt,
+    isFetching,
     refetch,
   } = useQuery({
     queryKey: [
@@ -109,6 +122,38 @@ export function useAaveUserPosition(
     refetchOnMount: true,
     refetchInterval: POSITION_REFETCH_INTERVAL_MS,
   });
+
+  // Track staleness: re-evaluate when dataUpdatedAt changes or on a timer
+  const [isPositionDataStale, setIsPositionDataStale] = useState(false);
+  const stalenessTimerRef = useRef<ReturnType<typeof setInterval>>();
+
+  useEffect(() => {
+    // No data fetched yet — not stale (just loading)
+    if (dataUpdatedAt === 0) {
+      setIsPositionDataStale(false);
+      return;
+    }
+
+    const checkStaleness = () => {
+      const age = Date.now() - dataUpdatedAt;
+      setIsPositionDataStale(
+        !isFetching && age > POSITION_STALENESS_THRESHOLD_MS,
+      );
+    };
+
+    checkStaleness();
+
+    // Re-check at the refetch interval so the flag updates even if
+    // the component doesn't re-render from new data
+    stalenessTimerRef.current = setInterval(
+      checkStaleness,
+      POSITION_REFETCH_INTERVAL_MS,
+    );
+
+    return () => {
+      clearInterval(stalenessTimerRef.current);
+    };
+  }, [dataUpdatedAt, isFetching]);
 
   // User can only have one position (single vBTC collateral reserve)
   const position = positions?.[0] ?? null;
@@ -150,6 +195,7 @@ export function useAaveUserPosition(
     debtValueUsd,
     healthFactor,
     healthFactorStatus,
+    isPositionDataStale,
     isLoading: positionsLoading || configLoading,
     error: positionsError as Error | null,
     refetch: async () => void refetch(),

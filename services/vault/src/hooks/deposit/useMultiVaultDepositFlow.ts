@@ -109,8 +109,6 @@ export interface UseMultiVaultDepositFlowParams {
   /** UUID of the stored mnemonic, used to record the peg-in → mnemonic
    *  mapping so the resume flow can look up the correct mnemonic. */
   mnemonicId?: string;
-  /** Depositor claim value in satoshis (computed via WASM from VK/UC counts) */
-  depositorClaimValue: bigint;
   /** Pre-computed allocation plan from the form (skips runtime planning) */
   precomputedPlan?: AllocationPlan;
   /** Per-vault raw HTLC secret hexes (no 0x prefix) — generated in the secret
@@ -301,7 +299,6 @@ export function useMultiVaultDepositFlow(
     universalChallengerBtcPubkeys,
     getMnemonic,
     mnemonicId,
-    depositorClaimValue,
     precomputedPlan,
     htlcSecretHexes,
     depositorSecretHashes,
@@ -425,7 +422,6 @@ export function useMultiVaultDepositFlow(
             vaultAmounts,
             mempoolFeeRate,
             confirmedBtcAddress,
-            depositorClaimValue,
           );
 
         setAllocationPlan(plan);
@@ -680,7 +676,7 @@ export function useMultiVaultDepositFlow(
               },
             });
 
-            vaultErrors.push(`Vault ${i}: ${errorMsg}`);
+            vaultErrors.push(`Vault ${i + 1}: ${errorMsg}`);
 
             // Continue with next vault (independent failures)
           }
@@ -797,7 +793,7 @@ export function useMultiVaultDepositFlow(
           } catch (error) {
             const errorMsg =
               error instanceof Error ? error.message : String(error);
-            const warning = `Vault ${result.vaultIndex}: BTC broadcast failed - ${errorMsg}`;
+            const warning = `Vault ${result.vaultIndex + 1}: BTC broadcast failed - ${errorMsg}`;
             warnings.push(warning);
             logger.error(
               error instanceof Error ? error : new Error(String(error)),
@@ -848,7 +844,7 @@ export function useMultiVaultDepositFlow(
             if (signal.aborted) throw error;
             const errorMsg =
               error instanceof Error ? error.message : String(error);
-            const warning = `Vault ${result.vaultIndex}: Lamport key submission failed - ${errorMsg}`;
+            const warning = `Vault ${result.vaultIndex + 1}: Lamport key submission failed - ${errorMsg}`;
             warnings.push(warning);
             logger.error(
               error instanceof Error ? error : new Error(String(error)),
@@ -924,7 +920,7 @@ export function useMultiVaultDepositFlow(
 
             const errorMsg =
               error instanceof Error ? error.message : String(error);
-            const warning = `Vault ${result.vaultIndex}: Payout signing failed - ${errorMsg}`;
+            const warning = `Vault ${result.vaultIndex + 1}: Payout signing failed - ${errorMsg}`;
             warnings.push(warning);
             logger.error(
               error instanceof Error ? error : new Error(String(error)),
@@ -1041,7 +1037,6 @@ export function useMultiVaultDepositFlow(
       universalChallengerBtcPubkeys,
       timelockPegin,
       timelockRefund,
-      depositorClaimValue,
       config,
       btcAddress,
       spendableUTXOs,

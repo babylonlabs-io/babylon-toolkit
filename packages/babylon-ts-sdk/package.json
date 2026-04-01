@@ -39,6 +39,11 @@
       "types": "./dist/shared/index.d.ts",
       "require": "./dist/shared/index.cjs",
       "import": "./dist/shared/index.js"
+    },
+    "./testing": {
+      "types": "./dist/testing/index.d.ts",
+      "require": "./dist/testing/index.cjs",
+      "import": "./dist/testing/index.js"
     }
   },
   "scripts": {
@@ -78,6 +83,8 @@
   "dependencies": {
     "@babylonlabs-io/babylon-tbv-rust-wasm": "workspace:*",
     "@bitcoin-js/tiny-secp256k1-asmjs": "2.2.3",
+    "@noble/hashes": "2.0.1",
+    "@scure/bip39": "2.0.1",
     "bitcoinjs-lib": "6.1.7",
     "buffer": "6.0.3"
   },

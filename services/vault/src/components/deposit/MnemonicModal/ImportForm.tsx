@@ -90,6 +90,7 @@ export function ImportForm({
                 inputRefs.current[index] = el;
               }}
               type="text"
+              data-sentry-mask
               value={word}
               onChange={(e) => handleWordChange(index, e.target.value)}
               onKeyDown={(e) => handleKeyDown(index, e)}

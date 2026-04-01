@@ -5,6 +5,8 @@ import {
   captureMessage,
 } from "@sentry/react";
 
+import { redactData, scrubString } from "@/utils/telemetry";
+
 type Value = string | number | boolean | object;
 
 type Context = Record<string, Value | Value[]> & {
@@ -21,16 +23,16 @@ export default {
   info: (message: string, { category, ...data }: Context = {}) =>
     addBreadcrumb({
       level: "info",
-      message,
+      message: scrubString(message),
       category,
-      data,
+      data: redactData(data),
     }),
   warn: (message: string, { category, ...data }: Context = {}) =>
     addBreadcrumb({
       level: "warning",
-      message,
+      message: scrubString(message),
       category,
-      data,
+      data: redactData(data),
     }),
   error: (
     error: Error,
@@ -41,7 +43,7 @@ export default {
       tags: Reflect.has(error, "errorCode")
         ? { ...tags, errorCode: Reflect.get(error, "errorCode") as string }
         : tags,
-      extra,
+      extra: extra ? redactData(extra) : extra,
     }),
   event: (
     message: string,
@@ -50,5 +52,9 @@ export default {
       category,
       ...data
     }: { level?: SeverityLevel } & Context = {},
-  ) => captureMessage(message, { level, extra: { category, ...data } }),
+  ) =>
+    captureMessage(scrubString(message), {
+      level,
+      extra: redactData({ category, ...data }),
+    }),
 };

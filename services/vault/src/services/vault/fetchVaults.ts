@@ -8,6 +8,8 @@
 import { gql } from "graphql-request";
 import type { Address, Hex } from "viem";
 
+import { logger } from "@/infrastructure";
+
 import { graphqlClient } from "../../clients/graphql/client";
 import type { ExpirationReason } from "../../models/peginStateMachine";
 import { type Vault, VaultStatus } from "../../types/vault";
@@ -166,7 +168,9 @@ function mapGraphQLStatusToVaultStatus(
     case "depositor_withdrawn":
       return VaultStatus.DEPOSITOR_WITHDRAWN;
     default:
-      return VaultStatus.PENDING;
+      throw new Error(
+        `Unknown GraphQL vault status "${status as string}" — refusing to map to an actionable state`,
+      );
   }
 }
 
@@ -242,7 +246,18 @@ export async function fetchVaultsByDepositor(
     { depositor: depositorAddress.toLowerCase() },
   );
 
-  return data.vaults.items.map(transformVaultItem);
+  const vaults: Vault[] = [];
+  for (const item of data.vaults.items) {
+    try {
+      vaults.push(transformVaultItem(item));
+    } catch (error) {
+      logger.error(error instanceof Error ? error : new Error(String(error)), {
+        tags: { vaultId: item.id, component: "fetchVaults" },
+        data: { rawStatus: item.status },
+      });
+    }
+  }
+  return vaults;
 }
 
 /**

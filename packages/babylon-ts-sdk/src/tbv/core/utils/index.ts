@@ -14,3 +14,4 @@ export * from "./fee";
 export * from "./utxo";
 export * from "./transaction";
 export * from "./btc";
+export * from "./signing";
