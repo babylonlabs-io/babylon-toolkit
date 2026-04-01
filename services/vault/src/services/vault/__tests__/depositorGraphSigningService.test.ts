@@ -18,6 +18,7 @@ vi.mock("@babylonlabs-io/ts-sdk/tbv/core", () => ({
 vi.mock("bitcoinjs-lib", () => ({
   Psbt: {
     fromBase64: vi.fn(),
+    fromHex: vi.fn(),
   },
 }));
 
@@ -96,7 +97,9 @@ function setupPsbtVerificationMock(
 
   vi.mocked(Psbt.fromBase64).mockImplementation((b64: string) => {
     const expectedHex = txHexByPsbt.get(b64);
+    const psbtHex = Buffer.from(b64, "base64").toString("hex");
     return {
+      toHex: () => psbtHex,
       data: {
         getTransaction: () => ({
           toString: (encoding: string) =>
@@ -108,6 +111,15 @@ function setupPsbtVerificationMock(
       },
     } as any;
   });
+
+  // Psbt.fromHex is used by sanitizePsbtForScriptPathSigning to clone
+  vi.mocked(Psbt.fromHex).mockImplementation(
+    (hex: string) =>
+      ({
+        toHex: () => hex,
+        data: { inputs: [{}] },
+      }) as any,
+  );
 }
 
 describe("depositorGraphSigningService", () => {
@@ -409,12 +421,21 @@ describe("depositorGraphSigningService", () => {
       vi.mocked(Psbt.fromBase64).mockImplementation(
         () =>
           ({
+            toHex: () => "",
             data: {
               getTransaction: () => ({
                 toString: (encoding: string) =>
                   encoding === "hex" ? "wrong_tx_hex" : "",
               }),
+              inputs: [{}],
             },
+          }) as any,
+      );
+      vi.mocked(Psbt.fromHex).mockImplementation(
+        (hex: string) =>
+          ({
+            toHex: () => hex,
+            data: { inputs: [{}] },
           }) as any,
       );
 
@@ -432,6 +453,7 @@ describe("depositorGraphSigningService", () => {
       vi.mocked(Psbt.fromBase64).mockImplementation(
         (b64: string) =>
           ({
+            toHex: () => Buffer.from(b64, "base64").toString("hex"),
             data: {
               getTransaction: () => ({
                 toString: (encoding: string) =>
@@ -443,6 +465,13 @@ describe("depositorGraphSigningService", () => {
               }),
               inputs: [{}],
             },
+          }) as any,
+      );
+      vi.mocked(Psbt.fromHex).mockImplementation(
+        (hex: string) =>
+          ({
+            toHex: () => hex,
+            data: { inputs: [{}] },
           }) as any,
       );
 
@@ -470,6 +499,7 @@ describe("depositorGraphSigningService", () => {
       vi.mocked(Psbt.fromBase64).mockImplementation(
         (b64: string) =>
           ({
+            toHex: () => Buffer.from(b64, "base64").toString("hex"),
             data: {
               getTransaction: () => ({
                 toString: (encoding: string) =>
@@ -481,6 +511,13 @@ describe("depositorGraphSigningService", () => {
               }),
               inputs: Array(TEST_CHALLENGE_ASSERT_INPUT_COUNT).fill({}),
             },
+          }) as any,
+      );
+      vi.mocked(Psbt.fromHex).mockImplementation(
+        (hex: string) =>
+          ({
+            toHex: () => hex,
+            data: { inputs: [{}] },
           }) as any,
       );
 
@@ -517,6 +554,36 @@ describe("depositorGraphSigningService", () => {
         expect.any(String),
         DEPOSITOR_PUBKEY,
       );
+    });
+
+    it("should strip tapBip32Derivation and tapMerkleRoot from cloned PSBT inputs", async () => {
+      const mockExtract = vi.mocked(extractPayoutSignature);
+      mockExtract.mockReturnValue("deadbeef".repeat(16));
+
+      const params = createMockParams();
+      const wallet = params.btcWallet as any;
+      wallet.signPsbts.mockResolvedValue(Array(3).fill("signed_hex"));
+
+      // Track inputs created by fromHex (the clone)
+      const clonedInputs: Record<string, unknown>[] = [];
+      vi.mocked(Psbt.fromHex).mockImplementation((hex: string) => {
+        const inputs = [
+          {
+            tapBip32Derivation: [{ pubkey: "fake" }],
+            tapMerkleRoot: Buffer.alloc(32),
+          },
+        ];
+        clonedInputs.push(...inputs);
+        return { toHex: () => hex, data: { inputs } } as any;
+      });
+
+      await signDepositorGraph(params);
+
+      // Verify sanitization deleted the fields from all cloned inputs
+      for (const input of clonedInputs) {
+        expect(input.tapBip32Derivation).toBeUndefined();
+        expect(input.tapMerkleRoot).toBeUndefined();
+      }
     });
   });
 });
