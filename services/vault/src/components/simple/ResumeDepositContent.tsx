@@ -354,7 +354,7 @@ export function ResumeActivationContent({
 
   // Secret input form
   return (
-    <div className="flex flex-col gap-6 rounded-2xl bg-secondary-contrast p-6">
+    <div className="flex flex-col gap-6 rounded-2xl bg-surface p-6">
       <div className="flex flex-col gap-2">
         <h3 className="text-lg font-semibold text-accent-primary">
           Activate Vault
