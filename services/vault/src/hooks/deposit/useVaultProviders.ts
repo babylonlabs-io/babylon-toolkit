@@ -18,7 +18,7 @@
  */
 
 import { useQuery } from "@tanstack/react-query";
-import { useCallback } from "react";
+import { useCallback, useMemo } from "react";
 
 import { useAaveConfig } from "../../applications/aave/context/AaveConfigContext";
 import { fetchAppProviders } from "../../services/providers";
@@ -28,6 +28,7 @@ import type {
   VaultProvider,
 } from "../../types";
 import { toIdentity } from "../useLogos";
+import { useUnhealthyVps } from "../useUnhealthyVps";
 import { useWithLogos } from "../useWithLogos";
 
 export interface UseVaultProvidersResult {
@@ -82,10 +83,18 @@ export function useVaultProviders(
     retry: 1,
   });
 
+  // Filter out unhealthy VPs (circuit breaker).
+  // On health-endpoint failure the set is empty → no providers filtered.
+  const unhealthyVps = useUnhealthyVps();
+  const healthyProviders = useMemo(() => {
+    const providers = data?.vaultProviders ?? [];
+    if (unhealthyVps.size === 0) return providers;
+    return providers.filter((p) => !unhealthyVps.has(p.id.toLowerCase()));
+  }, [data?.vaultProviders, unhealthyVps]);
+
   // Fetch logos separately and merge with providers (non-blocking)
-  const vaultProvidersWithLogos = useWithLogos(
-    data?.vaultProviders ?? [],
-    (p) => toIdentity(p.btcPubKey),
+  const vaultProvidersWithLogos = useWithLogos(healthyProviders, (p) =>
+    toIdentity(p.btcPubKey),
   );
 
   // Helper function to find provider by address
