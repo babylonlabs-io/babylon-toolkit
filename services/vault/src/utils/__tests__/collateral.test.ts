@@ -44,6 +44,7 @@ describe("Collateral Utilities", () => {
           providerName: "0xprov...der1",
           providerIconUrl: undefined,
           depositorBtcPubkey: "0xbtcpubkey1",
+          liquidationIndex: 0,
         },
       ]);
     });

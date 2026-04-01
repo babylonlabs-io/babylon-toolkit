@@ -21,4 +21,6 @@ export interface CollateralVaultEntry {
   providerIconUrl?: string;
   /** Depositor's BTC public key (hex) */
   depositorBtcPubkey?: string;
+  /** Liquidation priority index (0 = seized first) */
+  liquidationIndex: number;
 }
