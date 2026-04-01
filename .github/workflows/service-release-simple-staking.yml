@@ -58,9 +58,8 @@ jobs:
             aws_account: 490721144737
             prod: true
 
-    # prod environments are allowed to fail on feature branches (workflow_dispatch)
-    # without cancelling or failing the devnet environments
-    continue-on-error: ${{ matrix.prod }}
+    # Skip prod environments on feature branches (workflow_dispatch)
+    if: ${{ !matrix.prod || github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/') || startsWith(github.ref, 'refs/tags/') }}
     environment: ${{ matrix.environment }}
     steps:
       - name: Checkout repository

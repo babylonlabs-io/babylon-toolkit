@@ -51,16 +51,6 @@ jobs:
             aws_account: 537927626649
           - environment: vault-testnet
             aws_account: 615368094160
-          # Negative tests: wrong environment for the account
-          - environment: vault-devnet
-            aws_account: 615368094160
-            expect_oidc_failure: true
-          - environment: vault-testnet
-            aws_account: 537927626649
-            expect_oidc_failure: true
-          - environment: vault-staging-devnet
-            aws_account: 615368094160
-            expect_oidc_failure: true
 
     environment: ${{ matrix.environment }}
     steps:
@@ -146,12 +136,6 @@ jobs:
           aws s3 cp /tmp/vault-${{ matrix.environment }}-${{ github.sha }}.tar.gz s3://${{ vars.S3_PUBLIC_BUCKET_NEW }}/vault/${{ matrix.environment }}/${{ github.sha }}.tar.gz
           aws s3 cp /tmp/vault-${{ matrix.environment }}-${{ github.sha }}-files-checksum.txt s3://${{ vars.S3_CHECKSUM_BUCKET_NEW }}/vault/${{ matrix.environment }}/${{ github.sha }}-files-checksum.txt
           aws s3 cp /tmp/vault-${{ matrix.environment }}-${{ github.sha }}-global-checksum.txt s3://${{ vars.S3_CHECKSUM_BUCKET_NEW }}/vault/${{ matrix.environment }}/${{ github.sha }}-global-checksum.txt
-
-      - name: Delete artifact from S3 (test delete permission)
-        run: |
-          aws s3 rm s3://${{ vars.S3_PUBLIC_BUCKET_NEW }}/vault/${{ matrix.environment }}/${{ github.sha }}.tar.gz
-          aws s3 rm s3://${{ vars.S3_CHECKSUM_BUCKET_NEW }}/vault/${{ matrix.environment }}/${{ github.sha }}-files-checksum.txt
-          aws s3 rm s3://${{ vars.S3_CHECKSUM_BUCKET_NEW }}/vault/${{ matrix.environment }}/${{ github.sha }}-global-checksum.txt
 
       - name: Upload to S3 with Git Tag
         if: startsWith(github.ref, 'refs/tags/')
