@@ -633,7 +633,7 @@ export function useMultiVaultDepositFlow(
                 walletClient,
                 depositorBtcPubkey: prepared.depositorBtcPubkey,
                 peginTxHex: prepared.peginTxHex,
-                fundedPrePeginTxHex: prepared.fundedPrePeginTxHex,
+                unsignedPrePeginTxHex: prepared.fundedPrePeginTxHex,
                 hashlock: ensureHexPrefix(hashH),
                 vaultProviderAddress: selectedProviders[0],
                 depositorPayoutBtcAddress: confirmedBtcAddress,
