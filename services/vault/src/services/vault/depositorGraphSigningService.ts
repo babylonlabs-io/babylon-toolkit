@@ -18,8 +18,10 @@ import type {
   BitcoinWallet,
   SignPsbtOptions,
 } from "@babylonlabs-io/ts-sdk/shared";
-import { createTaprootScriptPathSignOptions } from "@babylonlabs-io/ts-sdk/shared";
-import { extractPayoutSignature } from "@babylonlabs-io/ts-sdk/tbv/core";
+import {
+  createTaprootScriptPathSignOptions,
+  extractPayoutSignature,
+} from "@babylonlabs-io/ts-sdk/tbv/core";
 import { Psbt } from "bitcoinjs-lib";
 
 import type {

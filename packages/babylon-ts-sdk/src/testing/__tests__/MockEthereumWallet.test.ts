@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { MockEthereumWallet } from "../mocks/MockEthereumWallet";
+import { MockEthereumWallet } from "../MockEthereumWallet";
 
 describe("MockEthereumWallet", () => {
   let wallet: MockEthereumWallet;

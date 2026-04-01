@@ -39,6 +39,11 @@
       "types": "./dist/shared/index.d.ts",
       "require": "./dist/shared/index.cjs",
       "import": "./dist/shared/index.js"
+    },
+    "./testing": {
+      "types": "./dist/testing/index.d.ts",
+      "require": "./dist/testing/index.cjs",
+      "import": "./dist/testing/index.js"
     }
   },
   "scripts": {

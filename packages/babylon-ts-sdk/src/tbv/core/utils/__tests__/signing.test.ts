@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { createTaprootScriptPathSignOptions } from "../signOptions";
+import { createTaprootScriptPathSignOptions } from "../signing";
 
 const TEST_PUBKEY =
   "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef";

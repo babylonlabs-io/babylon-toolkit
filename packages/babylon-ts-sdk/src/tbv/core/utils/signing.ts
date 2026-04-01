@@ -1,4 +1,4 @@
-import type { SignPsbtOptions } from "./interfaces";
+import type { SignPsbtOptions } from "../../../shared/wallets/interfaces";
 
 /**
  * Create SignPsbtOptions for Taproot script-path PSBT signing.

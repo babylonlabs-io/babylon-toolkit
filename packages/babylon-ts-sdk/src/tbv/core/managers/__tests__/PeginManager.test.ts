@@ -11,7 +11,7 @@ import type { Address, Chain } from "viem";
 import {
   MockBitcoinWallet,
   MockEthereumWallet,
-} from "../../../../shared/wallets/mocks";
+} from "../../../../testing";
 import { MEMPOOL_API_URLS } from "../../clients/mempool";
 import { initializeWasmForTests } from "../../primitives/psbt/__tests__/helpers";
 import type { UTXO } from "../../utils";

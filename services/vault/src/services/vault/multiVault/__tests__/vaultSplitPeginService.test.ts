@@ -135,6 +135,17 @@ vi.mock("@babylonlabs-io/ts-sdk/tbv/core", () => ({
   PeginManager: MockPeginManager,
   computeNumLocalChallengers: vi.fn(() => 2),
   SINGLE_DEPOSIT_HTLC_VOUT: 0,
+  createTaprootScriptPathSignOptions: (
+    publicKey: string,
+    inputCount: number,
+  ) => ({
+    autoFinalized: false,
+    signInputs: Array.from({ length: inputCount }, (_, i) => ({
+      index: i,
+      publicKey,
+      disableTweakSigner: true,
+    })),
+  }),
 }));
 
 vi.mock("@babylonlabs-io/ts-sdk", () => ({

@@ -3,6 +3,7 @@ export { BitcoinNetworks } from "./BitcoinWallet";
 export type {
   BitcoinNetwork,
   BitcoinWallet,
+  SignInputOptions,
   SignPsbtOptions,
 } from "./BitcoinWallet";
 
