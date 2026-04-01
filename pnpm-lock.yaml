@@ -325,6 +325,12 @@ importers:
       '@bitcoin-js/tiny-secp256k1-asmjs':
         specifier: 2.2.3
         version: 2.2.3
+      '@noble/hashes':
+        specifier: 2.0.1
+        version: 2.0.1
+      '@scure/bip39':
+        specifier: 2.0.1
+        version: 2.0.1
       bitcoinjs-lib:
         specifier: 6.1.7
         version: 6.1.7
