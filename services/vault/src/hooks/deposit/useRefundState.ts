@@ -62,8 +62,12 @@ export function useRefundState({
       logger.error(err instanceof Error ? err : new Error(String(err)), {
         data: { context: "Refund failed", vaultId: activity.txHash },
       });
+      const message =
+        err instanceof Error ? err.message : "Refund transaction failed";
       setError(
-        err instanceof Error ? err.message : "Refund transaction failed",
+        message.includes("non-BIP68-final")
+          ? "The Bitcoin timelock has not expired yet. Your refund will be available once enough blocks have been mined since the deposit transaction. Please try again later."
+          : message,
       );
       setRefunding(false);
     }
