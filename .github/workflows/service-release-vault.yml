@@ -42,7 +42,7 @@ jobs:
     needs: [lint_test]
     runs-on: ubuntu-24.04
     strategy:
-      fail-fast: false # devnet envs must keep running even if prod envs fail (prod blocks workflow_dispatch from feature branches)
+      fail-fast: false
       matrix:
         include:
           - environment: vault-devnet
@@ -51,7 +51,10 @@ jobs:
             aws_account: 537927626649
           - environment: vault-testnet
             aws_account: 615368094160
+            prod: true
 
+    # Prod environments will fail OIDC on feature branches; allow failure so devnet jobs aren't blocked
+    continue-on-error: ${{ matrix.prod == true }}
     environment: ${{ matrix.environment }}
     steps:
       - name: Checkout repository

@@ -47,10 +47,8 @@ jobs:
         include:
           - environment: canon-devnet
             aws_account: 537927626649
-            prod: false
           - environment: btc-mainnet-devnet
             aws_account: 537927626649
-            prod: false
           - environment: testnet
             aws_account: 615368094160
             prod: true
@@ -58,8 +56,8 @@ jobs:
             aws_account: 490721144737
             prod: true
 
-    # Skip prod environments on feature branches (workflow_dispatch)
-    if: ${{ !matrix.prod || github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/') || startsWith(github.ref, 'refs/tags/') }}
+    # Prod environments will fail OIDC on feature branches; allow failure so devnet jobs aren't blocked
+    continue-on-error: ${{ matrix.prod == true }}
     environment: ${{ matrix.environment }}
     steps:
       - name: Checkout repository
