@@ -8,12 +8,10 @@
  * timelockRefund Bitcoin blocks have passed, using the refund script (leaf 1).
  */
 
-import {
-  createTaprootScriptPathSignOptions,
-  type SignPsbtOptions,
-} from "@babylonlabs-io/ts-sdk/shared";
+import type { SignPsbtOptions } from "@babylonlabs-io/ts-sdk/shared";
 import {
   buildRefundPsbt,
+  createTaprootScriptPathSignOptions,
   getNetworkFees,
   pushTx,
   stripHexPrefix,
