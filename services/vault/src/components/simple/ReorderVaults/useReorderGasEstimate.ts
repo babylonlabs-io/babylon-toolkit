@@ -15,7 +15,7 @@ import { getAaveAdapterAddress } from "@/applications/aave/config";
 import { ethClient } from "@/clients/eth-contract/client";
 import { usePrice } from "@/hooks/usePrices";
 
-const WEI_PER_ETH = 1e18;
+const WEI_PER_ETH = 10n ** 18n;
 
 export interface ReorderGasEstimate {
   /** Formatted ETH fee string (e.g. "0.00012 ETH") */
@@ -61,7 +61,11 @@ export function useReorderGasEstimate(
       ]);
 
       const gasCostWei = gasUnits * gasPrice;
-      return Number(gasCostWei) / WEI_PER_ETH;
+      // Split into whole + remainder to avoid BigInt-to-Number precision loss
+      // (gasCostWei can exceed Number.MAX_SAFE_INTEGER at high gas prices)
+      const wholePart = gasCostWei / WEI_PER_ETH;
+      const remainder = gasCostWei % WEI_PER_ETH;
+      return Number(wholePart) + Number(remainder) / Number(WEI_PER_ETH);
     },
     enabled: enabled && !!address && vaultIds.length > 0,
     staleTime: 30_000,

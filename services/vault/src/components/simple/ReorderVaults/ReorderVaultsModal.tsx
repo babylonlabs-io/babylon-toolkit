@@ -70,6 +70,9 @@ export function ReorderVaultsModal({
     }),
   );
 
+  // Prevent closing while transaction is in-flight
+  const handleClose = isProcessing ? undefined : onClose;
+
   const handleConfirmClick = async () => {
     const success = await handleConfirm();
     if (success) {
@@ -79,8 +82,8 @@ export function ReorderVaultsModal({
   };
 
   return (
-    <ResponsiveDialog open={isOpen} onClose={onClose}>
-      <DialogHeader title={REORDER_MODAL_TITLE} onClose={onClose} />
+    <ResponsiveDialog open={isOpen} onClose={handleClose}>
+      <DialogHeader title={REORDER_MODAL_TITLE} onClose={handleClose} />
       <DialogBody className="space-y-4">
         <p className="text-sm text-accent-secondary">
           {REORDER_MODAL_SUBTITLE}
@@ -101,6 +104,7 @@ export function ReorderVaultsModal({
                 <ReorderVaultItem
                   key={vault.id}
                   id={vault.id}
+                  vaultId={vault.vaultId}
                   amountBtc={vault.amountBtc}
                   position={index + 1}
                 />
