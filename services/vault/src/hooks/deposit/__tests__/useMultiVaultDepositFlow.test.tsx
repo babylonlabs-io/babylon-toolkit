@@ -216,7 +216,6 @@ const MOCK_PARAMS = {
   vaultProviderBtcPubkey: "ab".repeat(32), // 64 hex chars
   vaultKeeperBtcPubkeys: ["keeper1pubkey"],
   universalChallengerBtcPubkeys: ["uc1pubkey"],
-  depositorClaimValue: 35_000n,
   getMnemonic: async () => "test mnemonic phrase for lamport key derivation",
   htlcSecretHexes: ["ab".repeat(32), "cd".repeat(32)],
 };

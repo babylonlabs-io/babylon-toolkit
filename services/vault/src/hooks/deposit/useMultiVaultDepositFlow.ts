@@ -109,8 +109,6 @@ export interface UseMultiVaultDepositFlowParams {
   /** UUID of the stored mnemonic, used to record the peg-in → mnemonic
    *  mapping so the resume flow can look up the correct mnemonic. */
   mnemonicId?: string;
-  /** Depositor claim value in satoshis (computed via WASM from VK/UC counts) */
-  depositorClaimValue: bigint;
   /** Pre-computed allocation plan from the form (skips runtime planning) */
   precomputedPlan?: AllocationPlan;
   /** Per-vault raw HTLC secret hexes (no 0x prefix) — generated in the secret
@@ -301,7 +299,6 @@ export function useMultiVaultDepositFlow(
     universalChallengerBtcPubkeys,
     getMnemonic,
     mnemonicId,
-    depositorClaimValue,
     precomputedPlan,
     htlcSecretHexes,
     depositorSecretHashes,
@@ -425,7 +422,6 @@ export function useMultiVaultDepositFlow(
             vaultAmounts,
             mempoolFeeRate,
             confirmedBtcAddress,
-            depositorClaimValue,
           );
 
         setAllocationPlan(plan);
@@ -1041,7 +1037,6 @@ export function useMultiVaultDepositFlow(
       universalChallengerBtcPubkeys,
       timelockPegin,
       timelockRefund,
-      depositorClaimValue,
       config,
       btcAddress,
       spendableUTXOs,
