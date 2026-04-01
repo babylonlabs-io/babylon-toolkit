@@ -10,6 +10,11 @@
  *                                                          ↘ ChallengeAssertObserved → Failed (challenger won)
  */
 
+import {
+  PEGOUT_MAX_CONSECUTIVE_FAILURES,
+  PEGOUT_MAX_UNKNOWN_STATUS_POLLS,
+} from "@/config/polling";
+
 /** Claimer-side pegout statuses reported by the VP. */
 export enum ClaimerPegoutStatusValue {
   CLAIM_EVENT_RECEIVED = "ClaimEventReceived",
@@ -30,11 +35,10 @@ export interface PegoutDisplayState {
 }
 
 /**
- * Terminal statuses — polling should stop when reached.
- * Note: Unknown/unrecognized statuses are intentionally non-terminal.
- * The VP may transition to a known state, so polling continues.
+ * Hard terminal statuses — the VP has definitively finished processing.
+ * For the full terminal check (including soft timeouts), use {@link isPegoutEffectivelyTerminal}.
  */
-export const PEGOUT_TERMINAL_STATUSES = new Set<string>([
+const PEGOUT_TERMINAL_STATUSES = new Set<string>([
   ClaimerPegoutStatusValue.PAYOUT_BROADCAST,
   ClaimerPegoutStatusValue.FAILED,
 ]);
@@ -87,6 +91,18 @@ const INITIATING_STATE: PegoutDisplayState = {
   message: "Your withdrawal is being prepared by the vault provider.",
 };
 
+export const TIMED_OUT_STATE: PegoutDisplayState = {
+  label: "Status Unavailable",
+  variant: "warning",
+  message:
+    "Unable to determine withdrawal status. The vault provider may be unreachable. Please try again later or contact support.",
+};
+
+/** Whether a claimer status string maps to a known pegout state. */
+export function isRecognizedPegoutStatus(status: string): boolean {
+  return Object.hasOwn(PEGOUT_STATUS_MAP, status);
+}
+
 /**
  * Map VP pegout response to a UI display state.
  *
@@ -111,4 +127,30 @@ export function getPegoutDisplayState(
     variant: "warning",
     message: `Unknown status: ${claimerStatus}. Please contact support.`,
   };
+}
+
+/**
+ * Whether a vault's pegout should be treated as terminal for polling purposes.
+ *
+ * Returns true for hard terminal statuses (PayoutBroadcast, Failed) and
+ * soft terminal conditions (too many consecutive failures or unknown-status polls).
+ */
+export function isPegoutEffectivelyTerminal(
+  claimerStatus: string | undefined,
+  consecutiveFailures: number,
+  consecutiveUnknownPolls: number,
+): boolean {
+  if (claimerStatus && PEGOUT_TERMINAL_STATUSES.has(claimerStatus)) {
+    return true;
+  }
+
+  if (consecutiveFailures >= PEGOUT_MAX_CONSECUTIVE_FAILURES) {
+    return true;
+  }
+
+  if (consecutiveUnknownPolls >= PEGOUT_MAX_UNKNOWN_STATUS_POLLS) {
+    return true;
+  }
+
+  return false;
 }
