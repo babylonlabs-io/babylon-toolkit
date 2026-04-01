@@ -319,6 +319,8 @@ describe("Deposit Validations", () => {
       universalChallengerBtcPubkeys: ["c".repeat(64)],
       minDeposit: 10_000n,
       maxDeposit: 100_000n,
+      htlcSecretHexesLength: 2,
+      depositorSecretHashesLength: 2,
     };
 
     it("passes when all vault amounts are within min/max range", () => {

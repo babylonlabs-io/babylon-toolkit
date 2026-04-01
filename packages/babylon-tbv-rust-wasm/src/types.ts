@@ -23,8 +23,8 @@ export interface PrePeginParams {
   hashlocks: readonly string[];
   /** CSV timelock in blocks for the HTLC refund path */
   timelockRefund: number;
-  /** Amount to peg in (satoshis) */
-  pegInAmount: bigint;
+  /** Amounts to peg in per HTLC output (satoshis) */
+  pegInAmounts: readonly bigint[];
   /** Fee rate in sat/vB from contract offchain params */
   feeRate: bigint;
   /** Number of local challengers (from contract params) */
@@ -41,22 +41,22 @@ export interface PrePeginParams {
  * Result of creating an unfunded Pre-PegIn transaction.
  *
  * The transaction has no inputs and one or more HTLC outputs. The caller
- * must fund it by selecting UTXOs covering htlcValue + fees, then call
+ * must fund it by selecting UTXOs covering the sum of htlcValues + fees, then call
  * reconstructFromFundedTx() followed by buildPeginTx() to derive PegIn transactions.
  */
 export interface PrePeginResult {
-  /** Unfunded transaction hex (no inputs, one HTLC output) */
+  /** Unfunded transaction hex (no inputs, HTLC outputs only) */
   txHex: string;
   /** Transaction ID of the unfunded Pre-PegIn transaction */
   txid: string;
-  /** HTLC output value in satoshis (peginAmount + depositorClaimValue + minPeginFee) */
-  htlcValue: bigint;
-  /** HTLC output scriptPubKey (hex encoded) */
-  htlcScriptPubKey: string;
-  /** HTLC Taproot address */
-  htlcAddress: string;
-  /** Pegin amount in satoshis */
-  peginAmount: bigint;
+  /** Per-HTLC output values in satoshis (peginAmount + depositorClaimValue + minPeginFee each) */
+  htlcValues: readonly bigint[];
+  /** Per-HTLC output scriptPubKeys (hex encoded) */
+  htlcScriptPubKeys: readonly string[];
+  /** Per-HTLC Taproot addresses */
+  htlcAddresses: readonly string[];
+  /** Per-HTLC pegin amounts in satoshis */
+  peginAmounts: readonly bigint[];
   /** Depositor claim value computed by WASM from contract parameters */
   depositorClaimValue: bigint;
 }

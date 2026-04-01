@@ -3,7 +3,7 @@
  *
  * These functions contain the business logic for each step of the deposit flow.
  * They are pure (no React state) and can be easily tested.
- * The useDepositFlow hook orchestrates these functions and manages state.
+ * The deposit flow hook orchestrates these functions and manages state.
  *
  * Flow steps:
  * 0. Validation - validateDepositInputs
@@ -19,16 +19,12 @@
 export { DepositFlowStep } from "./types";
 export type {
   BroadcastParams,
-  DepositFlowResult,
   DepositUtxo,
   LamportSubmissionParams,
   PayoutSigningContext,
   PayoutSigningParams,
-  PeginPrepareParams,
-  PeginPrepareResult,
   PeginRegisterParams,
   PeginRegisterResult,
-  SavePendingPeginParams,
   UtxoRef,
 } from "./types";
 
@@ -37,12 +33,7 @@ export { validateDepositInputs } from "./validation";
 export type { DepositFlowInputs } from "./validation";
 
 // Steps 1-2: ETH wallet and pegin submission
-export {
-  getEthWalletClient,
-  preparePegin,
-  registerPeginAndWait,
-  savePendingPegin,
-} from "./ethereumSubmit";
+export { getEthWalletClient, registerPeginAndWait } from "./ethereumSubmit";
 
 // Step 2.5: Lamport key submission
 export { submitLamportPublicKey } from "./lamportSubmission";
