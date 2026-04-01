@@ -11,7 +11,12 @@ import { depositService } from "@/services/deposit";
 import type { VaultActivity } from "@/types/activity";
 import type { ClaimerTransactions } from "@/types/rpc";
 import type { VaultProvider } from "@/types/vaultProvider";
-import { generateSecretHex } from "@/utils/secretUtils";
+import {
+  deriveOrGenerateSecret,
+  hashSecret,
+  type HtlcSecretContextParams,
+  walletSupportsDeriveContextHash,
+} from "@/utils/secretUtils";
 
 import {
   DepositState,
@@ -167,7 +172,7 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
   const [secretVaultIndex, setSecretVaultIndex] = useState(0);
 
   const handleMnemonicComplete = useCallback(
-    (mnemonic?: string, mnemonicId?: string) => {
+    async (mnemonic?: string, mnemonicId?: string) => {
       confirmMnemonic(mnemonic, mnemonicId);
       // Always generate secrets — the pegin flow requires an HTLC preimage.
       // The feature flag only controls whether the user sees the secret modal.
@@ -175,13 +180,45 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
         isSplitDeposit && splitAllocationPlan
           ? splitAllocationPlan.vaultAllocations.length
           : 1;
-      secretHexesRef.current = Array.from({ length: vaultCount }, () =>
-        generateSecretHex(),
-      );
+
+      // Derive secrets deterministically from the wallet if supported,
+      // otherwise fall back to random generation.
+      const secrets: string[] = [];
+      for (let i = 0; i < vaultCount; i++) {
+        const contextParams: HtlcSecretContextParams = {
+          depositorEthAddress: ethAddress ?? "",
+          vaultProviderAddress: selectedProviders[0] ?? "",
+          applicationEntryPoint: selectedApplication ?? "",
+          vaultIndex: i,
+        };
+        secrets.push(
+          await deriveOrGenerateSecret(btcWalletProvider, contextParams),
+        );
+      }
+      secretHexesRef.current = secrets;
+
+      // When the wallet supports deriveContextHash, secrets are deterministic
+      // and can be re-derived at activation time — skip the manual save modal.
+      if (walletSupportsDeriveContextHash(btcWalletProvider)) {
+        const hashes = secrets.map((s) => hashSecret(s));
+        setSecretHashes(hashes);
+        goToStep(DepositStep.SIGN);
+        return;
+      }
+
       setSecretVaultIndex(0);
       goToStep(DepositStep.SECRET);
     },
-    [confirmMnemonic, goToStep, isSplitDeposit, splitAllocationPlan],
+    [
+      confirmMnemonic,
+      goToStep,
+      isSplitDeposit,
+      splitAllocationPlan,
+      btcWalletProvider,
+      ethAddress,
+      selectedProviders,
+      selectedApplication,
+    ],
   );
 
   const allowSplit =

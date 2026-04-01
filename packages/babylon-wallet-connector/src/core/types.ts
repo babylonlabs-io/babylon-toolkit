@@ -390,6 +390,16 @@ export interface IBTCProvider extends IProvider {
    * @returns A promise that resolves to the version of the wallet provider.
    */
   getVersion?(): Promise<string>;
+
+  /**
+   * Derives a deterministic 32-byte hash from the wallet's key material
+   * using HKDF-SHA-256 with a domain-specific context.
+   *
+   * @param context - Hex-encoded context string (even-length, no 0x prefix).
+   * @returns 64-character hex string (32 bytes).
+   * @throws If the wallet does not support this operation (e.g., hardware wallets).
+   */
+  deriveContextHash?(context: string): Promise<string>;
 }
 
 export interface IBBNProvider extends IProvider {

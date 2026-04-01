@@ -9,7 +9,9 @@
  */
 
 import { Button, Input } from "@babylonlabs-io/core-ui";
-import { useCallback, useMemo, useState } from "react";
+import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
+import { useChainConnector } from "@babylonlabs-io/wallet-connector";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Hex } from "viem";
 
 import type { DepositorGraphTransactions } from "@/clients/vault-provider-rpc/types";
@@ -34,6 +36,10 @@ import {
 } from "@/services/wots";
 import type { VaultActivity } from "@/types/activity";
 import type { ClaimerTransactions } from "@/types/rpc";
+import {
+  buildHtlcSecretContext,
+  walletSupportsDeriveContextHash,
+} from "@/utils/secretUtils";
 
 import { DepositProgressView } from "./DepositProgressView";
 
@@ -315,12 +321,48 @@ export function ResumeActivationContent({
 }: ResumeActivationContentProps) {
   const [secretHex, setSecretHex] = useState("");
   const [submitted, setSubmitted] = useState(false);
+  const [deriving, setDeriving] = useState(false);
+
+  const btcConnector = useChainConnector("BTC");
+  const btcWallet = (btcConnector?.connectedWallet?.provider as BitcoinWallet | undefined) ?? null;
 
   const { activating, error, handleActivation } = useActivationState({
     activity,
     depositorEthAddress,
     onSuccess,
   });
+
+  // When the wallet supports deriveContextHash, auto-derive and submit the secret.
+  // The context is reconstructed from the same parameters used at deposit time.
+  const canDerive = walletSupportsDeriveContextHash(btcWallet);
+
+  useEffect(() => {
+    if (!canDerive || submitted || deriving) return;
+
+    const derive = async () => {
+      setDeriving(true);
+      try {
+        // Reconstruct the same context used at deposit time.
+        // vaultIndex=0 for single deposits; split deposits would need
+        // the index stored in localStorage (out of scope for this spike).
+        const context = buildHtlcSecretContext({
+          depositorEthAddress,
+          vaultProviderAddress: activity.providers[0]?.id ?? "",
+          applicationEntryPoint: activity.applicationEntryPoint ?? "",
+          vaultIndex: 0,
+        });
+        const derived = await btcWallet!.deriveContextHash!(context);
+        setSecretHex(derived);
+        setSubmitted(true);
+        await handleActivation(derived);
+      } catch {
+        // Derivation failed — fall back to manual entry
+        setDeriving(false);
+      }
+    };
+
+    derive();
+  }, [canDerive, submitted, deriving, btcWallet, depositorEthAddress, activity, handleActivation]);
 
   const cleanSecret = secretHex.trim().replace(/^0x/, "");
   const isValidFormat = /^[0-9a-fA-F]{64}$/.test(cleanSecret);
@@ -332,6 +374,7 @@ export function ResumeActivationContent({
 
   const handleRetry = useCallback(() => {
     setSubmitted(false);
+    setDeriving(false);
     setSecretHex("");
   }, []);
 
@@ -361,7 +404,24 @@ export function ResumeActivationContent({
     );
   }
 
-  // Secret input form
+  // When wallet is deriving, show a loading state
+  if (deriving) {
+    return (
+      <div className="flex flex-col gap-6 rounded-2xl bg-secondary-contrast p-6">
+        <div className="flex flex-col gap-2">
+          <h3 className="text-lg font-semibold text-accent-primary">
+            Activate Vault
+          </h3>
+          <p className="text-tertiary text-sm">
+            Deriving secret from your wallet... Please approve the request in
+            your wallet.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // Secret input form (fallback for wallets without deriveContextHash)
   return (
     <div className="flex flex-col gap-6 rounded-2xl bg-surface p-6">
       <div className="flex flex-col gap-2">

@@ -384,4 +384,23 @@ export class UnisatProvider implements IBTCProvider {
   getWalletProviderIcon = async (): Promise<string> => {
     return logo;
   };
+
+  deriveContextHash = async (context: string): Promise<string> => {
+    if (!this.walletInfo)
+      throw new WalletError({
+        code: ERROR_CODES.WALLET_NOT_CONNECTED,
+        message: "Unisat Wallet not connected",
+        wallet: WALLET_PROVIDER_NAME,
+      });
+
+    if (typeof this.provider.deriveContextHash !== "function") {
+      throw new WalletError({
+        code: ERROR_CODES.UNKNOWN_ERROR,
+        message: "Unisat Wallet does not support deriveContextHash. Please update your wallet.",
+        wallet: WALLET_PROVIDER_NAME,
+      });
+    }
+
+    return await this.provider.deriveContextHash(context);
+  };
 }
