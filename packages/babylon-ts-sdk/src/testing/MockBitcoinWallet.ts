@@ -1,7 +1,7 @@
 import { Buffer } from "buffer";
 
-import { BitcoinNetworks, type BitcoinNetwork } from "../interfaces";
-import type { BitcoinWallet } from "../interfaces/BitcoinWallet";
+import { BitcoinNetworks, type BitcoinNetwork } from "../shared/wallets/interfaces";
+import type { BitcoinWallet } from "../shared/wallets/interfaces/BitcoinWallet";
 
 /**
  * Configuration for MockBitcoinWallet.

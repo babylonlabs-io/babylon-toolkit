@@ -11,7 +11,7 @@ import { Psbt, Transaction } from "bitcoinjs-lib";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 
 import type { BitcoinWallet } from "../../../../shared/wallets/interfaces/BitcoinWallet";
-import { MockBitcoinWallet } from "../../../../shared/wallets/mocks";
+import { MockBitcoinWallet } from "../../../../testing";
 import {
   DUMMY_TXID_1,
   NULL_TXID,

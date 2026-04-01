@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { BitcoinNetworks } from "../interfaces";
 import type { BitcoinWallet } from "../interfaces/BitcoinWallet";
-import { MockBitcoinWallet } from "../mocks/MockBitcoinWallet";
+import { MockBitcoinWallet } from "../../../testing/MockBitcoinWallet";
 
 describe("BitcoinWallet Interface", () => {
   let wallet: BitcoinWallet;

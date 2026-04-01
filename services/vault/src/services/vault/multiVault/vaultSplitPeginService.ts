@@ -25,12 +25,11 @@ import type {
   BitcoinWallet,
   SignPsbtOptions,
 } from "@babylonlabs-io/ts-sdk/shared";
-import { createTaprootScriptPathSignOptions } from "@babylonlabs-io/ts-sdk/shared";
-import type { UTXO } from "@babylonlabs-io/ts-sdk/tbv/core";
 import {
   buildPeginInputPsbt,
   buildPeginTxFromFundedPrePegin,
   buildPrePeginPsbt,
+  createTaprootScriptPathSignOptions,
   extractPeginInputSignature,
   finalizePeginInputPsbt,
   fundPeginTransaction,
@@ -40,6 +39,7 @@ import {
   selectUtxosForPegin,
   SINGLE_DEPOSIT_HTLC_VOUT,
   type PrePeginParams,
+  type UTXO,
 } from "@babylonlabs-io/ts-sdk/tbv/core";
 import { Psbt, Transaction } from "bitcoinjs-lib";
 import { Buffer } from "buffer";

@@ -12,6 +12,17 @@ import {
 // Mock extractPayoutSignature (vitest hoists vi.mock calls)
 vi.mock("@babylonlabs-io/ts-sdk/tbv/core", () => ({
   extractPayoutSignature: vi.fn().mockReturnValue("default_sig_hex"),
+  createTaprootScriptPathSignOptions: (
+    publicKey: string,
+    inputCount: number,
+  ) => ({
+    autoFinalized: false,
+    signInputs: Array.from({ length: inputCount }, (_, i) => ({
+      index: i,
+      publicKey,
+      disableTweakSigner: true,
+    })),
+  }),
 }));
 
 // Mock Psbt.fromBase64 for PSBT integrity verification

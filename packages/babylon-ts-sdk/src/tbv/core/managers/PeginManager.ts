@@ -32,7 +32,7 @@ import {
 } from "viem";
 
 import type { BitcoinWallet, Hash } from "../../../shared/wallets";
-import { createTaprootScriptPathSignOptions } from "../../../shared/wallets";
+import { createTaprootScriptPathSignOptions } from "../utils/signing";
 import { type UtxoInfo, getUtxoInfo, pushTx } from "../clients/mempool";
 import { BTCVaultRegistryABI, handleContractError } from "../contracts";
 import {

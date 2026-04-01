@@ -18,7 +18,7 @@ import type {
   BitcoinWallet,
   SignPsbtOptions,
 } from "../../../shared/wallets";
-import { createTaprootScriptPathSignOptions } from "../../../shared/wallets";
+import { createTaprootScriptPathSignOptions } from "../utils/signing";
 import {
   buildPayoutPsbt,
   extractPayoutSignature,

@@ -76,7 +76,7 @@ class UnisatAdapter implements BitcoinWallet {
 import {
   MockBitcoinWallet,
   MockEthereumWallet,
-} from "@babylonlabs-io/ts-sdk/shared";
+} from "@babylonlabs-io/ts-sdk/testing";
 
 describe("My SDK Feature", () => {
   it("should work with Bitcoin wallet", async () => {
