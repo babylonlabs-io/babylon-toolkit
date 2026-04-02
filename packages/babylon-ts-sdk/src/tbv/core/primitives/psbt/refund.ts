@@ -20,7 +20,7 @@ import {
 import { Buffer } from "buffer";
 import { Psbt, Transaction } from "bitcoinjs-lib";
 
-import { hexToUint8Array } from "../utils/bitcoin";
+import { hexToUint8Array, uint8ArrayToHex } from "../utils/bitcoin";
 import type { PrePeginParams } from "./pegin";
 
 /**
@@ -129,6 +129,23 @@ export async function buildRefundPsbt(
     }
 
     const refundInput = refundTx.ins[0];
+
+    // Verify the refund input spends the correct Pre-PegIn HTLC output
+    const prePeginTxid = prePeginTx.getId();
+    const refundInputTxid = uint8ArrayToHex(
+      new Uint8Array(refundInput.hash).slice().reverse(),
+    );
+    if (refundInputTxid !== prePeginTxid) {
+      throw new Error(
+        `Refund input does not reference the Pre-PegIn transaction. ` +
+          `Expected ${prePeginTxid}, got ${refundInputTxid}`,
+      );
+    }
+    if (refundInput.index !== htlcVout) {
+      throw new Error(
+        `Refund input index ${refundInput.index} does not match expected htlcVout ${htlcVout}`,
+      );
+    }
 
     const psbt = new Psbt();
     psbt.setVersion(refundTx.version);

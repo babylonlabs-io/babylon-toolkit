@@ -33,8 +33,9 @@ export function usePendingDeposits() {
   const { vaultProviders } = useAllDepositProviders(activities);
 
   // Filter to pending deposits (0=PENDING, 1=VERIFIED) and refundable expired ones (7=EXPIRED).
-  // Only EXPIRED vaults with unsignedPrePeginTx are included — without it the
-  // refund PSBT cannot be built and the card would show with no actionable button.
+  // Only EXPIRED vaults with unsignedPrePeginTx are included — it is the only
+  // indexer-sourced field required to build the refund PSBT (hashlock and htlcVout
+  // come from the on-chain contract and are always available).
   const pendingActivities = useMemo(
     () =>
       activities.filter(

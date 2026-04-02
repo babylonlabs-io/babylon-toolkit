@@ -64,8 +64,8 @@ export interface BroadcastRefundParams {
  * following the same security policy as prepareSigningContext in
  * vaultPayoutSignatureService.ts.
  *
- * Fields not stored on-chain (unsignedPrePeginTx, hashlock, htlcVout,
- * depositorBtcPubkey) are read from the indexer.
+ * Fields not stored on-chain (unsignedPrePeginTx, depositorBtcPubkey) are read
+ * from the indexer. hashlock and htlcVout are read from the on-chain contract.
  *
  * The broadcast will be rejected by the network if timelockRefund blocks
  * have not yet passed since the Pre-PegIn transaction was confirmed.
@@ -94,12 +94,6 @@ export async function buildAndBroadcastRefundTransaction(
       "Pre-PegIn transaction not available for this vault. Cannot build refund transaction.",
     );
   }
-  if (!indexerVault.hashlock) {
-    throw new Error(
-      "Vault hashlock not found. Cannot reconstruct the HTLC for the refund transaction.",
-    );
-  }
-
   const offchainParams = await getOffchainParamsByVersion(
     onChainVault.offchainParamsVersion,
   );
@@ -152,7 +146,7 @@ export async function buildAndBroadcastRefundTransaction(
       vaultProviderPubkey: stripHexPrefix(vaultProvider.btcPubKey),
       vaultKeeperPubkeys,
       universalChallengerPubkeys,
-      hashlocks: [stripHexPrefix(indexerVault.hashlock)],
+      hashlocks: [stripHexPrefix(onChainVault.hashlock)],
       timelockRefund: offchainParams.tRefund,
       pegInAmount: indexerVault.amount,
       feeRate: offchainParams.feeRate,
@@ -162,9 +156,9 @@ export async function buildAndBroadcastRefundTransaction(
       network: getBTCNetworkForWASM(),
     },
     fundedPrePeginTxHex: stripHexPrefix(indexerVault.unsignedPrePeginTx),
-    htlcVout: indexerVault.htlcVout,
+    htlcVout: onChainVault.htlcVout,
     refundFee,
-    hashlock: stripHexPrefix(indexerVault.hashlock),
+    hashlock: stripHexPrefix(onChainVault.hashlock),
   });
 
   const signOptions = createTaprootScriptPathSignOptions(depositorBtcPubkey, 1);
