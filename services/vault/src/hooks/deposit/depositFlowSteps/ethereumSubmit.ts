@@ -156,7 +156,7 @@ export async function registerPeginAndWait(
     walletClient,
     depositorBtcPubkey,
     peginTxHex,
-    fundedPrePeginTxHex,
+    unsignedPrePeginTxHex,
     hashlock,
     vaultProviderAddress,
     onPopSigned,
@@ -168,7 +168,7 @@ export async function registerPeginAndWait(
 
   const result = await registerPeginOnChain(btcWalletProvider, walletClient, {
     depositorBtcPubkey,
-    unsignedPrePeginTxHex: fundedPrePeginTxHex,
+    unsignedPrePeginTxHex,
     peginTxHex,
     hashlock,
     vaultProviderAddress: vaultProviderAddress as Address,
