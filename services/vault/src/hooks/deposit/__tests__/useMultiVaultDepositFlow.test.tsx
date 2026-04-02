@@ -7,7 +7,7 @@
  * - SPLIT: Two vaults with split transaction
  */
 
-import { renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import type { Address, Hex } from "viem";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -302,7 +302,9 @@ async function executeWithAutoArtifactDownload(result: {
 }) {
   const pollId = setInterval(() => {
     if (result.current.artifactDownloadInfo) {
-      result.current.continueAfterArtifactDownload();
+      void act(() => {
+        result.current.continueAfterArtifactDownload();
+      });
     }
   }, 10);
 
