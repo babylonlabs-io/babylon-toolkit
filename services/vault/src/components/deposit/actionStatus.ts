@@ -129,6 +129,7 @@ const ACTION_REQUIRED_BADGE_PRIORITY: PeginAction[] = [
   PeginAction.SIGN_PAYOUT_TRANSACTIONS,
   PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN,
   PeginAction.SUBMIT_LAMPORT_KEY,
+  PeginAction.REFUND_HTLC,
 ];
 
 const ACTION_REQUIRED_BADGE_LABELS: Record<PeginAction, string> = {
@@ -136,6 +137,7 @@ const ACTION_REQUIRED_BADGE_LABELS: Record<PeginAction, string> = {
   [PeginAction.SIGN_PAYOUT_TRANSACTIONS]: "Signing Required",
   [PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN]: "Broadcast required",
   [PeginAction.ACTIVATE_VAULT]: "Activation required",
+  [PeginAction.REFUND_HTLC]: "Refund available",
   [PeginAction.NONE]: "",
 };
 

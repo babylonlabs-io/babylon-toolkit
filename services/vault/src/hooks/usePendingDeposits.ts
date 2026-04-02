@@ -1,9 +1,9 @@
 /**
  * usePendingDeposits hook
  *
- * Fetches vault deposits and filters to only pending ones (contractStatus 0 or 1).
+ * Fetches vault deposits and filters to only pending ones (contractStatus 0, 1, or 7).
  * Provides polling infrastructure, wallet state, and modal handlers for
- * sign/broadcast actions on pending deposits.
+ * sign/broadcast/refund actions on pending and expired deposits.
  */
 
 import { useMemo } from "react";
@@ -16,6 +16,7 @@ import { useArtifactDownloadModal } from "@/hooks/deposit/useArtifactDownloadMod
 import { useBroadcastModal } from "@/hooks/deposit/useBroadcastModal";
 import { useLamportKeyModal } from "@/hooks/deposit/useLamportKeyModal";
 import { usePayoutSignModal } from "@/hooks/deposit/usePayoutSignModal";
+import { useRefundModal } from "@/hooks/deposit/useRefundModal";
 import { useBtcPublicKey } from "@/hooks/useBtcPublicKey";
 import { useVaultDeposits } from "@/hooks/useVaultDeposits";
 import { ContractStatus } from "@/models/peginStateMachine";
@@ -31,13 +32,18 @@ export function usePendingDeposits() {
 
   const { vaultProviders } = useAllDepositProviders(activities);
 
-  // Filter to only pending deposits (contract status 0=PENDING or 1=VERIFIED)
+  // Filter to pending deposits (0=PENDING, 1=VERIFIED) and refundable expired ones (7=EXPIRED).
+  // Only EXPIRED vaults with unsignedPrePeginTx are included — it is the only
+  // indexer-sourced field required to build the refund PSBT (hashlock and htlcVout
+  // come from the on-chain contract and are always available).
   const pendingActivities = useMemo(
     () =>
       activities.filter(
         (a) =>
           a.contractStatus === ContractStatus.PENDING ||
-          a.contractStatus === ContractStatus.VERIFIED,
+          a.contractStatus === ContractStatus.VERIFIED ||
+          (a.contractStatus === ContractStatus.EXPIRED &&
+            !!a.unsignedPrePeginTx),
       ),
     [activities],
   );
@@ -67,6 +73,11 @@ export function usePendingDeposits() {
     onSuccess: refetchActivities,
   });
 
+  const refundModal = useRefundModal({
+    allActivities: activities,
+    onSuccess: refetchActivities,
+  });
+
   return {
     pendingActivities,
     allActivities: activities,
@@ -83,5 +94,6 @@ export function usePendingDeposits() {
     lamportKeyModal,
     activationModal,
     artifactDownloadModal,
+    refundModal,
   };
 }

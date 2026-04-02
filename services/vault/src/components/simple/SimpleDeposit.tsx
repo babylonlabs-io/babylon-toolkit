@@ -32,6 +32,7 @@ import {
   ResumeActivationContent,
   ResumeBroadcastContent,
   ResumeLamportContent,
+  ResumeRefundContent,
   ResumeSignContent,
 } from "./ResumeDepositContent";
 
@@ -79,12 +80,19 @@ type ResumeActivationProps = SimpleDepositBaseProps & {
   onResumeSuccess: () => void;
 };
 
+type ResumeRefundProps = SimpleDepositBaseProps & {
+  resumeMode: "refund_htlc";
+  activity: VaultActivity;
+  onResumeSuccess: () => void;
+};
+
 export type SimpleDepositProps =
   | NewDepositProps
   | ResumeSignProps
   | ResumeBroadcastProps
   | ResumeLamportProps
-  | ResumeActivationProps;
+  | ResumeActivationProps
+  | ResumeRefundProps;
 
 // ---------------------------------------------------------------------------
 // New deposit flow content (form → sign → success)
@@ -418,6 +426,24 @@ export default function SimpleDeposit(props: SimpleDepositProps) {
             </div>
           </FullScreenDialog>
         </ProtocolParamsProvider>
+      );
+    }
+
+    if (resumeMode === "refund_htlc") {
+      return (
+        <FullScreenDialog
+          open={open}
+          onClose={onClose}
+          className="items-center justify-center p-6"
+        >
+          <div className="mx-auto w-full max-w-[520px]">
+            <ResumeRefundContent
+              activity={props.activity}
+              onClose={onClose}
+              onSuccess={props.onResumeSuccess}
+            />
+          </div>
+        </FullScreenDialog>
       );
     }
 

@@ -550,6 +550,9 @@ describe("vaultPayoutSignatureService", () => {
       universalChallengersVersion: 1,
       appVaultKeepersVersion: 2,
       offchainParamsVersion: 3,
+      hashlock:
+        "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890" as `0x${string}`,
+      htlcVout: 0,
     };
 
     const vaultKeepers = [
