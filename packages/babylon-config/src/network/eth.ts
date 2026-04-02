@@ -32,14 +32,17 @@ if (isNaN(chainIdRaw)) {
   );
 }
 
-if (chainIdRaw !== 1 && chainIdRaw !== 11155111) {
+export const ETH_MAINNET_CHAIN_ID = 1 as const;
+export const ETH_SEPOLIA_CHAIN_ID = 11155111 as const;
+
+if (chainIdRaw !== ETH_MAINNET_CHAIN_ID && chainIdRaw !== ETH_SEPOLIA_CHAIN_ID) {
   throw new Error(
     `Unsupported NEXT_PUBLIC_ETH_CHAINID value: ${chainIdRaw}. Must be either 1 (mainnet) or 11155111 (sepolia).`,
   );
 }
 
 // Type is now narrowed to 1 | 11155111 after validation
-const chainId = chainIdRaw as 1 | 11155111;
+export const chainId = chainIdRaw as typeof ETH_MAINNET_CHAIN_ID | typeof ETH_SEPOLIA_CHAIN_ID;
 
 // Extended config type for UI-specific properties
 export type ExtendedETHConfig = ETHConfig & {

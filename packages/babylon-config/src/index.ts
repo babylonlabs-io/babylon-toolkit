@@ -2,24 +2,32 @@
 export * from './network/eth';
 export * from './network/btc';
 
+import {
+  btcNetwork,
+  BTC_MAINNET,
+  BTC_SIGNET,
+} from './network/btc';
+import {
+  chainId,
+  ETH_MAINNET_CHAIN_ID,
+  ETH_SEPOLIA_CHAIN_ID,
+} from './network/eth';
+
 // Cross-network pairing validation
 // Both modules above throw if their individual env vars are invalid.
 // Here we enforce that the combination is a known safe pairing.
-const _btcNetwork = process.env.NEXT_PUBLIC_BTC_NETWORK;
-const _ethChainId = process.env.NEXT_PUBLIC_ETH_CHAINID;
-
-const VALID_PAIRINGS: Array<{ btc: string; eth: string }> = [
-  { btc: "mainnet", eth: "1" },
-  { btc: "signet", eth: "11155111" },
+const VALID_PAIRINGS: Array<{ btc: string; eth: number }> = [
+  { btc: BTC_MAINNET, eth: ETH_MAINNET_CHAIN_ID },
+  { btc: BTC_SIGNET, eth: ETH_SEPOLIA_CHAIN_ID },
 ];
 
 const isPaired = VALID_PAIRINGS.some(
-  (p) => p.btc === _btcNetwork && p.eth === _ethChainId,
+  (p) => p.btc === btcNetwork && p.eth === chainId,
 );
 
 if (!isPaired) {
   throw new Error(
-    `Invalid network pairing: NEXT_PUBLIC_BTC_NETWORK="${_btcNetwork}" with NEXT_PUBLIC_ETH_CHAINID="${_ethChainId}". ` +
+    `Invalid network pairing: NEXT_PUBLIC_BTC_NETWORK="${btcNetwork}" with NEXT_PUBLIC_ETH_CHAINID="${chainId}". ` +
       `Allowed pairings: mainnet+1 (production), signet+11155111 (testnet).`,
   );
 }
