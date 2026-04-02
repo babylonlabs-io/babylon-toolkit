@@ -101,20 +101,35 @@ export function DepositSignContent({
 
   return (
     <>
-      <DepositProgressView
-        variant={vaultCount > 1 ? "multi" : undefined}
-        currentVaultIndex={currentVaultIndex}
-        currentStep={currentStep}
-        isWaiting={isWaiting}
-        error={error}
-        isComplete={isComplete}
-        isProcessing={isProcessing}
-        canClose={canClose}
-        canContinueInBackground={canContinueInBackground}
-        payoutSigningProgress={payoutSigningProgress}
-        onClose={handleClose}
-        successMessage={DEPOSIT_SUCCESS_MESSAGE}
-      />
+      {vaultCount > 1 ? (
+        <DepositProgressView
+          variant="multi"
+          currentVaultIndex={currentVaultIndex}
+          currentStep={currentStep}
+          isWaiting={isWaiting}
+          error={error}
+          isComplete={isComplete}
+          isProcessing={isProcessing}
+          canClose={canClose}
+          canContinueInBackground={canContinueInBackground}
+          payoutSigningProgress={payoutSigningProgress}
+          onClose={handleClose}
+          successMessage={DEPOSIT_SUCCESS_MESSAGE}
+        />
+      ) : (
+        <DepositProgressView
+          currentStep={currentStep}
+          isWaiting={isWaiting}
+          error={error}
+          isComplete={isComplete}
+          isProcessing={isProcessing}
+          canClose={canClose}
+          canContinueInBackground={canContinueInBackground}
+          payoutSigningProgress={payoutSigningProgress}
+          onClose={handleClose}
+          successMessage={DEPOSIT_SUCCESS_MESSAGE}
+        />
+      )}
       {artifactDownloadInfo && (
         <ArtifactDownloadModal
           open={!!artifactDownloadInfo}
