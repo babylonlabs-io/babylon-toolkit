@@ -39,10 +39,7 @@ import {
 } from "@/services/vault/vaultPayoutSignatureService";
 import { broadcastPrePeginTransaction } from "@/services/vault/vaultPeginBroadcastService";
 import { preparePeginTransaction } from "@/services/vault/vaultTransactionService";
-import {
-  addPendingPegin,
-  updatePendingPeginStatus,
-} from "@/storage/peginStorage";
+import { addPendingPegin } from "@/storage/peginStorage";
 import { satoshiToBtcNumber } from "@/utils/btcConversion";
 import { sanitizeErrorMessage } from "@/utils/errors/formatting";
 import { formatBtcValue } from "@/utils/formatting";
@@ -393,7 +390,36 @@ export function useMultiVaultDepositFlow(
         setCurrentVaultIndex(null);
 
         // ========================================================================
-        // Step 4: Save Pegins to Storage
+        // Step 4: Broadcast Pre-PegIn transaction to Bitcoin
+        // Broadcast immediately after ETH registration so the VP can verify
+        // the Pre-PegIn inputs on the Bitcoin network when it processes the
+        // Ethereum event. Nothing must throw between ETH registration and
+        // this broadcast — otherwise the VP has the event but no BTC tx.
+        // ========================================================================
+
+        setCurrentStep(DepositFlowStep.BROADCAST_PRE_PEGIN);
+
+        try {
+          await broadcastPrePeginTransaction({
+            unsignedTxHex: batchResult.fundedPrePeginTxHex,
+            btcWalletProvider: {
+              signPsbt: (psbtHex: string) =>
+                confirmedBtcWallet.signPsbt(psbtHex),
+            },
+            depositorBtcPubkey: batchResult.depositorBtcPubkey,
+          });
+        } catch (error) {
+          const errorMsg =
+            error instanceof Error ? error.message : String(error);
+          throw new Error(
+            `Failed to broadcast batch Pre-PegIn transaction: ${errorMsg}`,
+          );
+        }
+
+        // ========================================================================
+        // Step 5: Save Pegins to Storage
+        // Saved after both ETH registration and BTC broadcast succeed, so
+        // localStorage never contains ghost entries for un-broadcast pegins.
         // ========================================================================
 
         for (const peginResult of peginResults) {
@@ -413,14 +439,22 @@ export function useMultiVaultDepositFlow(
           }
 
           addPendingPegin(confirmedEthAddress, {
-            id: peginResult.vaultId, // PRIMARY ID (vaultId from contract)
-            btcTxHash: peginResult.btcTxHash, // For compatibility
-            amount: formatBtcValue(satoshiToBtcNumber(vaultAmount)), // BTC format
+            id: peginResult.vaultId,
+            btcTxHash: peginResult.btcTxHash,
+            amount: formatBtcValue(satoshiToBtcNumber(vaultAmount)),
             providerIds: [primaryProvider],
             applicationEntryPoint: selectedApplication,
-            batchId, // Links to batch
-            batchIndex: peginResult.vaultIndex + 1, // 1-based position for UI display
-            batchTotal: vaultAmounts.length, // Total vaults in this batch
+            batchId,
+            batchIndex: peginResult.vaultIndex + 1,
+            batchTotal: vaultAmounts.length,
+            status: LocalStorageStatus.CONFIRMING,
+            unsignedTxHex: peginResult.fundedPrePeginTxHex,
+            selectedUTXOs: peginResult.selectedUTXOs.map((u) => ({
+              txid: u.txid,
+              vout: u.vout,
+              value: String(u.value),
+              scriptPubKey: u.scriptPubKey,
+            })),
           });
 
           if (mnemonicId) {
@@ -432,8 +466,9 @@ export function useMultiVaultDepositFlow(
           }
         }
 
-        // Move to next step after persisting pegins + mnemonic links,
-        // so a page refresh won't lose the associations.
+        // All vaults share the same Pre-PegIn tx — if broadcast succeeded,
+        // all pegins are live on Bitcoin.
+        const broadcastedResults = peginResults;
 
         const provider = findProvider(primaryProvider as Hex);
         if (!provider) {
@@ -441,57 +476,7 @@ export function useMultiVaultDepositFlow(
         }
 
         // ========================================================================
-        // Step 5: Broadcast Pre-PegIn transaction to Bitcoin
-        // One shared Pre-PegIn tx for all vaults in the batch.
-        // ========================================================================
-
-        setCurrentStep(DepositFlowStep.BROADCAST_PRE_PEGIN);
-
-        const broadcastedVaultIds = new Set<string>();
-
-        try {
-          await broadcastPrePeginTransaction({
-            unsignedTxHex: batchResult.fundedPrePeginTxHex,
-            btcWalletProvider: {
-              signPsbt: (psbtHex: string) =>
-                confirmedBtcWallet.signPsbt(psbtHex),
-            },
-            depositorBtcPubkey: batchResult.depositorBtcPubkey,
-          });
-
-          // All vaults share the same Pre-PegIn tx, so all are broadcast together
-          for (const result of peginResults) {
-            broadcastedVaultIds.add(result.vaultId);
-
-            updatePendingPeginStatus(
-              confirmedEthAddress,
-              result.vaultId,
-              LocalStorageStatus.CONFIRMING,
-            );
-          }
-        } catch (error) {
-          const errorMsg =
-            error instanceof Error ? error.message : String(error);
-          throw new Error(
-            `Failed to broadcast batch Pre-PegIn transaction: ${errorMsg}`,
-          );
-        }
-
-        // Only continue the flow for vaults whose Pre-PegIn was actually broadcast.
-        // Failed-broadcast vaults will never reach VERIFIED on-chain, so polling
-        // for them would hang until the abort signal fires.
-        const broadcastedResults = peginResults.filter((r) =>
-          broadcastedVaultIds.has(r.vaultId),
-        );
-
-        if (broadcastedResults.length === 0) {
-          throw new Error(
-            "All vault broadcasts failed. Check the warnings for details.",
-          );
-        }
-
-        // ========================================================================
-        // Step 5: Submit Lamport Public Keys to Vault Provider
+        // Step 6: Submit Lamport Keys + Sign Payout Transactions
         // ========================================================================
 
         setCurrentStep(DepositFlowStep.SIGN_PAYOUTS);
@@ -528,7 +513,7 @@ export function useMultiVaultDepositFlow(
         }
 
         // ========================================================================
-        // Step 5 (cont): Sign Payout Transactions
+        // Step 6 (cont): Sign Payout Transactions
         // VP waits for Pre-PegIn BTC confirmation before being ready.
         // ========================================================================
 

@@ -294,11 +294,24 @@ export function getPeginState(
       };
     }
 
-    // Sub-state: VP hasn't ingested this peg-in yet, or we haven't
-    // received any polling response yet (initial state after submission).
-    // pendingIngestion is undefined before first poll, true when VP returns
-    // "not found", and false once VP has ingested the deposit.
-    if (pendingIngestion !== false && !transactionsReady) {
+    // Sub-state: VP confirmed it hasn't ingested this peg-in yet.
+    // This likely means the Pre-PegIn BTC transaction was never broadcast.
+    // Offer the Broadcast action so the user can retry.
+    if (pendingIngestion === true && !transactionsReady) {
+      return {
+        contractStatus,
+        localStatus,
+        displayLabel: PEGIN_DISPLAY_LABELS.PENDING,
+        displayVariant: "pending",
+        availableActions: [PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN],
+        message:
+          "Vault provider has not detected your deposit. The Pre-PegIn transaction may not have been broadcast. Click 'Broadcast' to retry.",
+      };
+    }
+
+    // Sub-state: We haven't received any polling response yet (initial state
+    // after submission). pendingIngestion is undefined before first poll.
+    if (pendingIngestion === undefined && !transactionsReady) {
       return {
         contractStatus,
         localStatus,
@@ -514,7 +527,7 @@ export function getPrimaryActionButton(state: PeginState): {
     state.availableActions.includes(PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN)
   ) {
     return {
-      label: "Broadcast",
+      label: "Broadcast BTC",
       action: PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN,
     };
   }

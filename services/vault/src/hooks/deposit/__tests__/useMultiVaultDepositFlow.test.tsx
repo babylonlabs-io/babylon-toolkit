@@ -101,7 +101,6 @@ vi.mock("@/models/peginStateMachine", () => ({
 
 vi.mock("@/storage/peginStorage", () => ({
   addPendingPegin: vi.fn(),
-  updatePendingPeginStatus: vi.fn(),
 }));
 
 vi.mock("@/utils/secretUtils", () => ({
@@ -527,8 +526,8 @@ describe("useMultiVaultDepositFlow", () => {
       });
     });
 
-    it("should update all vault statuses to CONFIRMING after broadcast", async () => {
-      const { updatePendingPeginStatus } = vi.mocked(
+    it("should save pegins with CONFIRMING status after broadcast", async () => {
+      const { addPendingPegin } = vi.mocked(
         await import("@/storage/peginStorage"),
       );
 
@@ -539,7 +538,13 @@ describe("useMultiVaultDepositFlow", () => {
       await executeWithAutoArtifactDownload(result);
 
       await waitFor(() => {
-        expect(updatePendingPeginStatus).toHaveBeenCalledTimes(2);
+        expect(addPendingPegin).toHaveBeenCalledTimes(2);
+        expect(addPendingPegin).toHaveBeenCalledWith(
+          "0xEthAddress123",
+          expect.objectContaining({
+            status: "CONFIRMING",
+          }),
+        );
       });
     });
   });
