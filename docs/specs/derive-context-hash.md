@@ -1,6 +1,6 @@
 # `deriveContextHash` Specification
 
-**Spec revision**: 0.8-draft
+**Spec revision**: 0.9-draft
 **Algorithm version**: 0 (salt: `"derive-context-hash"`, no suffix)
 **Date**: 2026-04-02
 **Authors**: Jerome Wang (Babylon Labs)
@@ -10,21 +10,39 @@
 
 ## Abstract
 
-`deriveContextHash` is a wallet API method that derives a deterministic 32-byte value from the wallet's key material and an application-provided context string. It uses HKDF-SHA-256 (RFC 5869) and is designed for cross-wallet compatibility — any conforming implementation produces the same output for the same key material and context.
+`deriveContextHash` is a wallet API method that derives a
+deterministic 32-byte value from the wallet's key material and an
+application-provided context string. It uses HKDF-SHA-256
+(RFC 5869) and is designed for cross-wallet compatibility — any
+conforming implementation produces the same output for the same
+key material and context.
 
-The method is generic. The wallet has no knowledge of what the derived value is used for. dApps provide an opaque context and receive a deterministic output.
+The method is generic. The wallet has no knowledge of what the
+derived value is used for. dApps provide an opaque context and
+receive a deterministic output.
 
 ---
 
 ## 1. Motivation
 
-dApps sometimes need a deterministic secret tied to the user's wallet — one that can be reproduced across sessions and devices without manual storage. Examples include:
+dApps sometimes need a deterministic secret tied to the user's
+wallet — one that can be reproduced across sessions and devices
+without manual storage. Examples include:
 
-- **HTLC preimages** — commit a hash at deposit time, reveal the preimage days later to complete activation.
-- **One-time signature seeds** — derive seed material for signature schemes (WOTS, Lamport) without the user managing a separate mnemonic.
-- **Deterministic identifiers** — generate wallet-bound values that are stable across sessions.
+- **HTLC preimages** — commit a hash at deposit time, reveal
+  the preimage days later to complete activation.
+- **One-time signature seeds** — derive seed material for
+  signature schemes (WOTS, Lamport) without the user managing
+  a separate mnemonic.
+- **Deterministic identifiers** — generate wallet-bound values
+  that are stable across sessions.
 
-Today, dApps typically generate random secrets in the browser and ask users to save them manually. This is error-prone and has no recovery path. `deriveContextHash` replaces this pattern: the wallet derives the value deterministically from its own key material, so the same context always produces the same output — no manual step needed.
+Today, dApps typically generate random secrets in the browser
+and ask users to save them manually. This is error-prone and
+has no recovery path. `deriveContextHash` replaces this pattern:
+the wallet derives the value deterministically from its own key
+material, so the same context always produces the same output —
+no manual step needed.
 
 ---
 
@@ -42,44 +60,89 @@ wallet.deriveContextHash(context: string, options?: {
 ```
 
 **Parameters:**
-- `context` — hex-encoded byte string (even-length, lowercase, no `0x` prefix). Acts as a domain separator; different contexts produce independent outputs. Must not be empty.
-- `options` — optional configuration object. Does not affect the derived output.
-  - `display` — optional object with fields for the wallet to show in the approval dialog.
-    - `title` — short label for the operation (e.g. `"Vault Deposit Secret"`).
-    - `description` — longer explanation of what the derived value will be used for (e.g. `"Derive a secret for vault deposit activation"`).
+- `context` — hex-encoded byte string (even-length, lowercase,
+  no `0x` prefix). Acts as a domain separator; different contexts
+  produce independent outputs. Must not be empty.
+- `options` — optional configuration object. Does not affect the
+  derived output.
+  - `display` — optional object with fields for the wallet to
+    show in the approval dialog.
+    - `title` — short label for the operation
+      (e.g. `"Vault Deposit Secret"`).
+    - `description` — longer explanation of what the derived
+      value will be used for (e.g.
+      `"Derive a secret for vault deposit activation"`).
 
 **Returns:**
-- Hex-encoded 32-byte derived value (64 lowercase hex characters).
+- Hex-encoded 32-byte derived value (64 lowercase hex chars).
 
 **Errors:**
-- Context is empty, odd-length, contains non-hex characters (including uppercase `A–F`), has a `0x` prefix, or exceeds 1024 bytes (2048 hex characters).
+- Context is empty, odd-length, contains non-hex characters
+  (including uppercase `A–F`), has a `0x` prefix, or exceeds
+  1024 bytes (2048 hex characters).
 - User rejects the approval dialog.
 - Wallet does not support the method.
 
-**User approval required.** The wallet MUST show a confirmation dialog before deriving and returning the value. The dialog SHOULD display the requesting origin. If `display` is provided, the wallet SHOULD show the title and description to help the user understand what they are approving.
+**User approval required.** The wallet MUST show a confirmation
+dialog before deriving and returning the value. If `display` is
+provided, the wallet SHOULD show the title and description to
+help the user understand what they are approving.
 
 ### 2.2 Derivation Algorithm
 
 ```
-ikm    = BIP-32 private key at path m/44'/0'/0'/60888'
-salt   = "derive-context-hash"                   (UTF-8 encoded)
-info   = context                                  (raw bytes, decoded from hex input)
+ikm    = BIP-32 private key at path m/73681862'
+salt   = "derive-context-hash"        (UTF-8 encoded)
+info   = context                       (raw bytes, decoded from hex)
 length = 32
 
 output = HKDF-SHA-256(ikm, salt, info, length)
 ```
 
-**IKM (Input Key Material):** The raw 32-byte private key scalar at BIP-32 derivation path `m/44'/0'/0'/60888'` (all indices hardened), using standard BIP-32 derivation on secp256k1. This is the 32-byte big-endian scalar `k` only — excluding chain code, depth, fingerprint, child number, and any serialization prefix. If BIP-32 derivation at any level produces an invalid child key (IL ≥ curve order or resulting key is zero), the wallet MUST return an error rather than skip to the next index.
+**IKM (Input Key Material):** The raw 32-byte private key scalar
+at BIP-32 derivation path `m/73681862'` (hardened), using
+standard BIP-32 derivation on secp256k1. This is the 32-byte
+big-endian scalar `k` only — excluding chain code, depth,
+fingerprint, child number, and any serialization prefix. If
+BIP-32 derivation produces an invalid child key (IL ≥ curve
+order or resulting key is zero), the wallet MUST return an error
+rather than skip to the next index.
 
-The derivation path is dedicated to this method — it MUST NOT be used for signing or any other BIP-32 derivation. Using a BIP-32 derived key (rather than the raw BIP-39 seed) ensures hardware wallets can run the entire derivation internally on the secure element without exporting the private key. This requires a dedicated device app; the stock Bitcoin app on Ledger/Trezor does not support this operation.
+The purpose index `73681862` is derived deterministically:
+`trunc31_be(SHA-256("derive-context-hash"))`. This avoids
+collision with registered BIP-43 purpose values (BIP-44 `44'`,
+BIP-85 `83696968'`, etc.) and the reserved range
+`10001'–19999'`.
 
-The derivation path is fixed regardless of the wallet's active account or network. All accounts derived from the same seed share the same `deriveContextHash` root. Applications that need per-account isolation MUST encode an account identifier in their context.
+The derivation path is dedicated to this method — it MUST NOT
+be used for signing or any other BIP-32 derivation. Using a
+BIP-32 derived key (rather than the raw BIP-39 seed) ensures
+hardware wallets can run the entire derivation internally on
+the secure element without exporting the private key. This
+requires a dedicated device app; the stock Bitcoin app on
+Ledger/Trezor does not support this operation.
 
-Note: BIP-39 passphrases produce different seeds from the same mnemonic. Two wallets with the same mnemonic but different passphrases will produce different outputs.
+The derivation path is fixed regardless of the wallet's active
+account or network. All accounts derived from the same seed
+share the same `deriveContextHash` root. Applications that need
+per-account isolation MUST encode an account identifier in
+their context.
 
-**Salt:** The fixed UTF-8 string `"derive-context-hash"`. Provides domain separation from BIP-32 and other HMAC-based derivation schemes. For future revisions, the `-v1`, `-v2`, etc. suffix can be appended to the salt to indicate the version of the scheme. The current `derive-context-hash` salt is version 0 without a suffix.
+Note: BIP-39 passphrases produce different seeds from the same
+mnemonic. Two wallets with the same mnemonic but different
+passphrases will produce different outputs.
 
-**Info:** The raw context bytes decoded from the hex input. This is the only caller-controlled parameter and determines the output. Maximum context length is 1024 bytes (2048 hex characters). Wallets MUST reject contexts exceeding this limit.
+**Salt:** The fixed UTF-8 string `"derive-context-hash"`.
+Provides domain separation from BIP-32 and other HMAC-based
+derivation schemes. For future revisions, a `-v1`, `-v2`, etc.
+suffix can be appended to the salt to indicate the version of
+the scheme. The current `derive-context-hash` salt is version 0
+without a suffix.
+
+**Info:** The raw context bytes decoded from the hex input. This
+is the only caller-controlled parameter and determines the
+output. Maximum context length is 1024 bytes (2048 hex chars).
+Wallets MUST reject contexts exceeding this limit.
 
 **Length:** 32 bytes (256 bits).
 
@@ -87,47 +150,77 @@ Note: BIP-39 passphrases produce different seeds from the same mnemonic. Two wal
 
 HKDF (RFC 5869) is a two-stage key derivation function:
 
-1. **Extract:** `PRK = HMAC-SHA-256(salt, ikm)` — concentrates the entropy of the IKM into a fixed-length pseudorandom key.
-2. **Expand:** `output = HMAC-SHA-256(PRK, info || 0x01)` — derives the output keyed on the context. (For 32-byte output, only one HMAC block is needed.)
+1. **Extract:** `PRK = HMAC-SHA-256(salt, ikm)` — concentrates
+   the entropy of the IKM into a pseudorandom key.
+2. **Expand:** `output = HMAC-SHA-256(PRK, info || 0x01)` —
+   derives the output keyed on the context. (For 32-byte output,
+   only one HMAC block is needed.)
 
-Implementations SHOULD use a well-audited HKDF library (e.g. `@noble/hashes/hkdf`, OpenSSL, libsodium). Implementations SHOULD zero intermediate key material (PRK) after use where the runtime permits (native/firmware). In garbage-collected environments (JavaScript), explicit zeroization is best-effort.
+Implementations SHOULD use a well-audited HKDF library (e.g.
+`@noble/hashes/hkdf`, OpenSSL, libsodium). Implementations
+SHOULD zero intermediate key material (PRK) after use where the
+runtime permits (native/firmware). In garbage-collected
+environments (JavaScript), explicit zeroization is best-effort.
 
 ---
 
 ## 3. Example Use Case: Babylon Vault Deposits
 
-This section is informational — it describes how Babylon uses `deriveContextHash` as a concrete example.
+This section is informational — it describes how Babylon uses
+`deriveContextHash` as a concrete example.
 
-Babylon's vault deposit flow requires depositors to commit to a secret at deposit time and reveal that same secret days or weeks later to activate the vault. The secret is the preimage of a SHA-256 hash embedded in an HTLC script on Bitcoin.
+Babylon's vault deposit flow requires depositors to commit to a
+secret at deposit time and reveal that same secret days or weeks
+later to activate the vault. The secret is the preimage of a
+SHA-256 hash embedded in an HTLC script on Bitcoin.
 
-The hashlock must exist before the Pre-PegIn transaction is constructed, but the transaction hash isn't known yet — a circular dependency. To resolve this, the dApp builds a "dummy" Pre-PegIn transaction with a placeholder hashlock (zero), computes its txid, and uses that as part of the context:
+The hashlock must exist before the Pre-PegIn transaction is
+constructed, but the transaction hash isn't known yet — a
+circular dependency. To resolve this, the dApp builds a "dummy"
+Pre-PegIn transaction with a placeholder hashlock (zero),
+computes its txid, and uses that as part of the context:
 
 ```
 context = (dummyPrePeginTxid, htlcVout, depositorPubkey)
 ```
 
-The dApp calls `deriveContextHash` with this context, computes `SHA-256(output)` to get the real hashlock, and rebuilds the Pre-PegIn with the real hashlock. Days or weeks later at activation time, the dApp reconstructs the same context from on-chain state — the dummy txid is deterministic from the same inputs — calls `deriveContextHash` again, and reveals the preimage on Ethereum.
+The dApp calls `deriveContextHash` with this context, computes
+`SHA-256(output)` to get the real hashlock, and rebuilds the
+Pre-PegIn with the real hashlock. Days or weeks later at
+activation time, the dApp reconstructs the same context from
+on-chain state — the dummy txid is deterministic from the same
+inputs — calls `deriveContextHash` again, and reveals the
+preimage on Ethereum.
 
-A future use case is WOTS (Winternitz One-Time Signature) seed derivation — the wallet provides a 32-byte seed via `deriveContextHash`, and the dApp expands it into WOTS keypairs in WASM. This would eliminate the separate mnemonic that users currently manage for Lamport key signing.
+A future use case is WOTS (Winternitz One-Time Signature) seed
+derivation — the wallet provides a 32-byte seed via
+`deriveContextHash`, and the dApp expands it into WOTS keypairs
+in WASM. This would eliminate the separate mnemonic that users
+currently manage for Lamport key signing.
 
 ---
 
 ## 4. Test Vectors
 
-All test vectors use the following BIP-39 mnemonic (no passphrase):
+All test vectors use the following BIP-39 mnemonic (no
+passphrase):
 
 ```
-abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about
+abandon abandon abandon abandon abandon abandon
+abandon abandon abandon abandon abandon about
 ```
 
 BIP-39 seed (hex):
 ```
-5eb00bbddcf069084889a8ab9155568165f5c453ccb85e70811aaed6f6da5fc19a5ac40b389cd370d086206dec8aa6c43daea6690f20ad3d8d48b2d2ce9e38e4
+5eb00bbddcf069084889a8ab9155568165f5c453ccb85e70811aaed6
+f6da5fc19a5ac40b389cd370d086206dec8aa6c43daea6690f20ad3d
+8d48b2d2ce9e38e4
 ```
 
-BIP-32 private key at `m/44'/0'/0'/60888'` (hex):
+BIP-32 private key at `m/73681862'` (hex):
 ```
-064e8a85d0048189bc17e58379d37839ed12e3b56563485993aa587a9ec310e1
+391cdb922097ec9c96fc13cadb01d5745ccf31f5dbec3a3810344071
+4779ec85
 ```
 
 ### Vector 1
@@ -135,26 +228,32 @@ BIP-32 private key at `m/44'/0'/0'/60888'` (hex):
 ```
 context (hex):  deadbeef
 salt (utf-8):   derive-context-hash
-output (hex):   4c7a42f554f857afdd75d546baf6a5c31374dae86d0fe4e71171ccad2f67bd0f
+output (hex):   7705bba1af7a72102de462edcc19f322
+                1a085854c3c5e5bc076c817a2b9dcdc0
 ```
 
 ### Vector 2
 
 ```
 context (hex):  00
-output (hex):   220f0c3bd7550d90c04e02f8d38d5308e369e37e058a932f19f46b9de2ca6f2c
+output (hex):   f3e4c1b05c560acbc68c99510422148a
+                5406ebaad67ac391637dc31ece153543
 ```
 
 ### Vector 3
 
 ```
-context (hex):  0000000000000000000000000000000000000000000000000000000000000000
-                0000000000000000000000000000000000000000000000000000000000000000
-                (64 zero bytes — stress test for long context)
-output (hex):   3759445ff56682405d433e1c6ada92c17a861601eb105e9058d380d0b915591a
+context (hex):  00000000000000000000000000000000
+                00000000000000000000000000000000
+                00000000000000000000000000000000
+                00000000000000000000000000000000
+                (64 zero bytes)
+output (hex):   daea256df5378fe7664d181684e28523
+                fe5650ea041a70b5b500d51de29f9bc1
 ```
 
-Vectors verified against Node.js `crypto.hkdf('sha256', ...)` and a manual HMAC-based implementation.
+Vectors verified against Node.js `crypto.hkdf('sha256', ...)`
+and a manual HMAC-based implementation.
 
 ---
 
@@ -162,9 +261,18 @@ Vectors verified against Node.js `crypto.hkdf('sha256', ...)` and a manual HMAC-
 
 | Resource | Link |
 |----------|------|
-| HKDF RFC | [RFC 5869](https://datatracker.ietf.org/doc/html/rfc5869) |
-| Krawczyk 2010 | [Cryptographic Extraction and Key Derivation: The HKDF Scheme](https://eprint.iacr.org/2010/264) |
-| BIP-32 HD Wallets | [BIP-32](https://github.com/bitcoin/bips/blob/master/bip-0032.mediawiki) |
-| BIP-39 Mnemonic | [BIP-39](https://github.com/bitcoin/bips/blob/master/bip-0039.mediawiki) |
-| UniSat wallet PR | [unisat-wallet/wallet#2](https://github.com/unisat-wallet/wallet/pull/2) |
-| Salt fix PR | [unisat-wallet/wallet#3](https://github.com/unisat-wallet/wallet/pull/3) |
+| HKDF RFC | [RFC 5869][rfc5869] |
+| Krawczyk 2010 | [HKDF Scheme][krawczyk] |
+| BIP-32 | [HD Wallets][bip32] |
+| BIP-39 | [Mnemonic][bip39] |
+| BIP-43 | [Purpose Field][bip43] |
+| UniSat wallet PR | [wallet#2][unisat2] |
+| Salt fix PR | [wallet#3][unisat3] |
+
+[rfc5869]: https://datatracker.ietf.org/doc/html/rfc5869
+[krawczyk]: https://eprint.iacr.org/2010/264
+[bip32]: https://github.com/bitcoin/bips/blob/master/bip-0032.mediawiki
+[bip39]: https://github.com/bitcoin/bips/blob/master/bip-0039.mediawiki
+[bip43]: https://github.com/bitcoin/bips/blob/master/bip-0043.mediawiki
+[unisat2]: https://github.com/unisat-wallet/wallet/pull/2
+[unisat3]: https://github.com/unisat-wallet/wallet/pull/3
