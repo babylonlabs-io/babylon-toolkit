@@ -100,9 +100,13 @@ This section is informational — it describes how Babylon uses `deriveContextHa
 
 Babylon's vault deposit flow requires depositors to commit to a secret at deposit time and reveal that same secret days or weeks later to activate the vault. The secret is the preimage of a SHA-256 hash embedded in an HTLC script on Bitcoin.
 
-At deposit time, the dApp calls `deriveContextHash` with a context constructed from on-chain vault parameters. The dApp computes `SHA-256(output)` and embeds the hash in the HTLC. Days or weeks later, the user returns to activate — the dApp reconstructs the same context from on-chain state, calls `deriveContextHash` again, and reveals the original secret on Ethereum.
+The hashlock must exist before the Pre-PegIn transaction is constructed, but the transaction hash isn't known yet — a circular dependency. To resolve this, the dApp builds a "dummy" Pre-PegIn transaction with a placeholder hashlock (zero), computes its txid, and uses that as part of the context:
 
-The context construction is application-defined. Babylon uses on-chain vault state to ensure the context is reproducible without stored data.
+```
+context = (dummyPrePeginTxid, htlcVout, depositorPubkey)
+```
+
+The dApp calls `deriveContextHash` with this context, computes `SHA-256(output)` to get the real hashlock, and rebuilds the Pre-PegIn with the real hashlock. Days or weeks later at activation time, the dApp reconstructs the same context from on-chain state — the dummy txid is deterministic from the same inputs — calls `deriveContextHash` again, and reveals the preimage on Ethereum.
 
 A future use case is WOTS (Winternitz One-Time Signature) seed derivation — the wallet provides a 32-byte seed via `deriveContextHash`, and the dApp expands it into WOTS keypairs in WASM. This would eliminate the separate mnemonic that users currently manage for Lamport key signing.
 
