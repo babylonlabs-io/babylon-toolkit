@@ -104,7 +104,6 @@ export function ReorderVaultsModal({
                 <ReorderVaultItem
                   key={vault.id}
                   id={vault.id}
-                  vaultId={vault.vaultId}
                   amountBtc={vault.amountBtc}
                   position={index + 1}
                 />

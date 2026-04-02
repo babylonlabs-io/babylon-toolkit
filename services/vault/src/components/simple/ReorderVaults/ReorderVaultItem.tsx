@@ -4,21 +4,18 @@ import { CSS } from "@dnd-kit/utilities";
 import { IoReorderThree } from "react-icons/io5";
 
 import { getNetworkConfigBTC } from "@/config";
-import { truncateHash } from "@/utils/addressUtils";
 import { formatBtcAmount, formatOrdinal } from "@/utils/formatting";
 
 const btcConfig = getNetworkConfigBTC();
 
 interface ReorderVaultItemProps {
   id: string;
-  vaultId: string;
   amountBtc: number;
   position: number;
 }
 
 export function ReorderVaultItem({
   id,
-  vaultId,
   amountBtc,
   position,
 }: ReorderVaultItemProps) {
@@ -48,14 +45,12 @@ export function ReorderVaultItem({
     >
       <div className="flex items-center gap-3">
         <Avatar url={btcConfig.icon} alt={btcConfig.coinSymbol} size="small" />
-        <div className="flex flex-col">
-          <span className="text-base font-medium text-accent-primary">
-            {formatBtcAmount(amountBtc)} ({formatOrdinal(position)})
+        <span className="text-base font-medium text-accent-primary">
+          {formatBtcAmount(amountBtc)} -{" "}
+          <span className="font-mono text-sm opacity-75">
+            {formatOrdinal(position)}
           </span>
-          <span className="font-mono text-xs text-accent-secondary">
-            {truncateHash(vaultId)}
-          </span>
-        </div>
+        </span>
       </div>
       <button
         type="button"
