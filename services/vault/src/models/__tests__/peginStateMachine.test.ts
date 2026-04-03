@@ -28,6 +28,26 @@ describe("peginStateMachine", () => {
       expect(state.message).toContain("not detected your deposit");
     });
 
+    it("shows waiting state after broadcast even if VP has not ingested yet", () => {
+      const state = getPeginState(ContractStatus.PENDING, {
+        localStatus: LocalStorageStatus.CONFIRMING,
+        pendingIngestion: true,
+      });
+      expect(state.displayLabel).toBe(PEGIN_DISPLAY_LABELS.PENDING);
+      expect(state.availableActions).toEqual([PeginAction.NONE]);
+      expect(state.message).toContain("Pre-PegIn transaction broadcast");
+    });
+
+    it("shows preparing transactions when CONFIRMING and VP has ingested", () => {
+      const state = getPeginState(ContractStatus.PENDING, {
+        localStatus: LocalStorageStatus.CONFIRMING,
+        pendingIngestion: false,
+        transactionsReady: false,
+      });
+      expect(state.displayLabel).toBe(PEGIN_DISPLAY_LABELS.PENDING);
+      expect(state.message).toContain("prepare Claim and Payout");
+    });
+
     it("shows pending ingestion when no polling response yet (undefined)", () => {
       const state = getPeginState(ContractStatus.PENDING, {});
       expect(state.displayLabel).toBe(PEGIN_DISPLAY_LABELS.PENDING);

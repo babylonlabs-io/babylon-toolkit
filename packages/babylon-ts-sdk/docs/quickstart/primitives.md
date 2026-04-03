@@ -192,6 +192,7 @@ The SDK provides utility functions you'll need when using primitives.
 ```typescript
 import {
   selectUtxosForPegin, // UTXO selection with fee calculation
+  peginOutputCount, // Compute output count for fee estimation
   calculateBtcTxHash, // Get tx hash from hex
   fundPeginTransaction, // Add inputs/change to unfunded tx hex
   P2TR_INPUT_SIZE, // Fee calculation constants
@@ -206,6 +207,7 @@ const { selectedUTXOs, fee, changeAmount } = selectUtxosForPegin(
   availableUTXOs, // Your UTXOs
   amount, // Target amount (satoshis)
   feeRate, // sat/vB
+  peginOutputCount(vaultCount), // N HTLCs + CPFP anchor
 );
 ```
 

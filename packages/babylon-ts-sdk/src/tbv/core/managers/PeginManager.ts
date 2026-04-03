@@ -54,6 +54,7 @@ import {
   fundPeginTransaction,
   getNetwork,
   getPsbtInputFields,
+  peginOutputCount,
   selectUtxosForPegin,
   type UTXO,
 } from "../utils";
@@ -477,6 +478,7 @@ export class PeginManager {
       [...params.availableUTXOs],
       prePeginResult.totalOutputValue,
       params.mempoolFeeRate,
+      peginOutputCount(prePeginResult.htlcValues.length),
     );
 
     // Step 4: Fund the Pre-PegIn transaction with selected UTXOs
