@@ -8,6 +8,7 @@ import { useState } from "react";
 import { parseUnits } from "viem";
 import { useAccount, useWalletClient } from "wagmi";
 
+import { ERC20 } from "@/clients/eth-contract";
 import { useError } from "@/context/error";
 import { logger } from "@/infrastructure";
 import {
@@ -67,10 +68,15 @@ export function useBorrowTransaction(): UseBorrowTransactionResult {
         );
       }
 
-      // Convert borrow amount to token decimals
+      // Fetch decimals on-chain to prevent a compromised GraphQL indexer from
+      // supplying a falsified value that would cause parseUnits to produce a
+      // materially different amount than the user intended.
+      const onChainDecimals = await ERC20.getERC20Decimals(
+        reserve.token.address,
+      );
       const borrowAmountBigInt = parseUnits(
-        borrowAmount.toFixed(reserve.token.decimals),
-        reserve.token.decimals,
+        borrowAmount.toFixed(onChainDecimals),
+        onChainDecimals,
       );
 
       // Execute the borrow transaction

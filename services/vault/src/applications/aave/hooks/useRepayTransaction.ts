@@ -11,6 +11,7 @@ import type { Address } from "viem";
 import { parseUnits } from "viem";
 import { useAccount, useWalletClient } from "wagmi";
 
+import { ERC20 } from "@/clients/eth-contract";
 import { useError } from "@/context/error";
 import { logger } from "@/infrastructure";
 import {
@@ -101,15 +102,15 @@ export function useRepayTransaction({
           proxyContract as Address,
         );
       } else {
+        const onChainDecimals = await ERC20.getERC20Decimals(
+          reserve.token.address,
+        );
         await repayPartial(
           walletClient,
           chain,
           reserve.reserveId,
           reserve.token.address,
-          parseUnits(
-            repayAmount.toFixed(reserve.token.decimals),
-            reserve.token.decimals,
-          ),
+          parseUnits(repayAmount.toFixed(onChainDecimals), onChainDecimals),
         );
       }
 
