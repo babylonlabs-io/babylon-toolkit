@@ -31,6 +31,7 @@ import {
   type PayoutSigningProgress,
 } from "@/services/vault/vaultPayoutSignatureService";
 import { getPendingPegins } from "@/storage/peginStorage";
+import { btcAddressToScriptPubKeyHex } from "@/utils/btc";
 import { sanitizeErrorMessage } from "@/utils/errors/formatting";
 import { hashSecret } from "@/utils/secretUtils";
 
@@ -360,6 +361,7 @@ export function useDepositFlow(
           universalChallengers: latestUniversalChallengers.map((uc) => ({
             btcPubKey: uc.btcPubKey,
           })),
+          depositorPayoutBtcAddress: btcAddressToScriptPubKeyHex(btcAddress),
           signal,
         });
 

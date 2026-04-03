@@ -25,8 +25,8 @@ export interface OnChainVaultData {
   appVaultKeepersVersion: number;
   /** Offchain params version locked at vault creation — use for timelockPegin lookup */
   offchainParamsVersion: number;
-  /** Depositor's registered payout BTC address (scriptPubKey hex) from the contract */
-  depositorPayoutBtcAddress: Hex;
+  // Note: depositorPayoutBtcAddress is not in the BTCVault struct — only emitted
+  // in the PegInSubmitted event. Source it from the indexer instead.
 }
 
 /**
@@ -61,6 +61,5 @@ export async function getVaultFromChain(
     universalChallengersVersion: Number(vault.universalChallengersVersion),
     appVaultKeepersVersion: Number(vault.appVaultKeepersVersion),
     offchainParamsVersion: Number(vault.offchainParamsVersion),
-    depositorPayoutBtcAddress: vault.depositorPayoutBtcAddress,
   };
 }

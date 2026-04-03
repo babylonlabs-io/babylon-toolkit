@@ -220,6 +220,7 @@ vi.mock("@/context/deposit/DepositState", () => ({
 vi.mock("@/utils/btc", () => ({
   processPublicKeyToXOnly: vi.fn((key) => key),
   stripHexPrefix: vi.fn((hex) => hex.replace("0x", "")),
+  btcAddressToScriptPubKeyHex: vi.fn(() => "0x0014mockedscriptpubkey"),
 }));
 
 // Mock vault services for steps 3-4

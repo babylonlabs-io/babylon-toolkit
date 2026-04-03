@@ -56,6 +56,8 @@ export interface PrepareSigningContextParams {
   providers: PayoutProviders;
   /** Function to get UCs by version from context (avoids redundant fetch) */
   getUniversalChallengersByVersion: (version: number) => UniversalChallenger[];
+  /** Depositor's registered payout address (scriptPubKey hex) */
+  depositorPayoutBtcAddress: string;
 }
 
 export interface PreparedSigningData {
@@ -270,11 +272,14 @@ export async function prepareSigningContext(
     depositorBtcPubkey,
     providers,
     getUniversalChallengersByVersion,
+    depositorPayoutBtcAddress,
   } = params;
   // Fetch signing-critical vault fields from the contract (authoritative source).
   // Never use the GraphQL indexer for these values — a compromised indexer could
   // substitute a different pegin transaction or signer-set versions and obtain
   // signatures over attacker-chosen graph parameters.
+  // Note: depositorPayoutBtcAddress is passed in separately — the contract only
+  // emits it in the PegInSubmitted event, it's not stored in the BTCVault struct.
   const vault = await getVaultFromChain(peginTxId as Hex);
 
   const timelockPegin = await getTimelockPeginByVersion(
@@ -320,7 +325,7 @@ export async function prepareSigningContext(
     depositorBtcPubkey,
     timelockPegin,
     network: getBTCNetworkForWASM(),
-    registeredPayoutScriptPubKey: vault.depositorPayoutBtcAddress,
+    registeredPayoutScriptPubKey: depositorPayoutBtcAddress,
   };
 
   return {
