@@ -62,6 +62,7 @@ interface DepositFormProps {
   estimatedFeeRate: number;
   isLoadingFee: boolean;
   feeError: string | null;
+  depositorClaimValue?: bigint;
   isDepositDisabled: boolean;
   isGeoBlocked: boolean;
   onDeposit: () => void;
@@ -90,6 +91,7 @@ export function DepositForm({
   estimatedFeeRate,
   isLoadingFee,
   feeError,
+  depositorClaimValue,
   isDepositDisabled,
   isGeoBlocked,
   onDeposit,
@@ -170,6 +172,8 @@ export function DepositForm({
           minDeposit,
           maxDeposit,
           btcBalance,
+          estimatedFeeSats: estimatedFeeSats ?? undefined,
+          depositorClaimValue,
         });
   const ctaDisabled =
     !isValid ||

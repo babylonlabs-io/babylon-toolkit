@@ -246,11 +246,23 @@ vi.mock("../../../services/deposit", () => ({
         amountSats: bigint;
         minDeposit: bigint;
         btcBalance: bigint;
+        estimatedFeeSats?: bigint;
+        depositorClaimValue?: bigint;
       }) => {
-        const { amountSats, minDeposit, btcBalance } = params;
+        const {
+          amountSats,
+          minDeposit,
+          btcBalance,
+          estimatedFeeSats,
+          depositorClaimValue,
+        } = params;
         if (amountSats <= 0n) return false;
         if (amountSats < minDeposit) return false;
-        if (amountSats > btcBalance) return false;
+        if (estimatedFeeSats == null || depositorClaimValue == null)
+          return false;
+        const totalRequired =
+          amountSats + estimatedFeeSats + depositorClaimValue;
+        if (totalRequired > btcBalance) return false;
         return true;
       },
     ),
@@ -310,6 +322,14 @@ describe("useDepositPageForm", () => {
       },
     });
     vi.clearAllMocks();
+    // Reset fee mock (clearAllMocks only clears call history, not implementations)
+    vi.mocked(useEstimatedBtcFee).mockReturnValue({
+      fee: 1500n,
+      feeRate: 5,
+      isLoading: false,
+      error: null,
+      maxDeposit: 798500n,
+    });
     // Reset to default applications data
     vi.mocked(useApplications).mockReturnValue({
       data: [
@@ -488,7 +508,27 @@ describe("useDepositPageForm", () => {
       expect(result.current.estimatedFeeRate).toBe(5);
       expect(result.current.isLoadingFee).toBe(false);
       expect(result.current.feeError).toBeNull();
+
+      // Without a selected provider, depositorClaimValue is not computed,
+      // so maxDepositSats equals the raw fee-adjusted value
       expect(result.current.maxDepositSats).toBe(798500n);
+    });
+
+    it("should subtract depositorClaimValue from maxDepositSats", async () => {
+      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
+
+      // Select a provider so depositorClaimValue query resolves
+      act(() => {
+        result.current.setFormData({
+          selectedProvider: "0x1234567890abcdef1234567890abcdef12345678",
+        });
+      });
+
+      // Wait for depositorClaimValue (35,000 from mock) to be computed
+      // maxDepositSats: 798500 - 35000 = 763500
+      await waitFor(() => {
+        expect(result.current.maxDepositSats).toBe(763500n);
+      });
     });
 
     it("should propagate fee loading state", () => {
@@ -892,6 +932,54 @@ describe("useDepositPageForm", () => {
       });
 
       expect(result.current.isValid).toBe(false);
+    });
+
+    it("should be false when amount + fees + claimValue exceeds balance", async () => {
+      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
+
+      // Balance: 800,000 sats
+      // Amount: 770,000 sats (0.0077 BTC)
+      // Fee: 1,500 sats (mocked)
+      // ClaimValue: 35,000 sats (mocked)
+      // Total: 770,000 + 1,500 + 35,000 = 806,500 > 800,000
+      act(() => {
+        result.current.setFormData({
+          amountBtc: "0.0077",
+          selectedApplication: "0xControllerAddress1",
+          selectedProvider: "0x1234567890abcdef1234567890abcdef12345678",
+        });
+      });
+
+      await waitFor(() => {
+        expect(result.current.depositorClaimValue).toBe(35000n);
+      });
+
+      expect(result.current.isValid).toBe(false);
+    });
+
+    it("should be true when amount + fees + claimValue fits within balance", async () => {
+      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
+
+      // Balance: 800,000 sats
+      // Amount: 750,000 sats (0.0075 BTC)
+      // Fee: 1,500 sats (mocked)
+      // ClaimValue: 35,000 sats (mocked)
+      // Total: 750,000 + 1,500 + 35,000 = 786,500 < 800,000
+      act(() => {
+        result.current.setFormData({
+          amountBtc: "0.0075",
+          selectedApplication: "0xControllerAddress1",
+          selectedProvider: "0x1234567890abcdef1234567890abcdef12345678",
+        });
+      });
+
+      await waitFor(() => {
+        expect(result.current.depositorClaimValue).toBe(35000n);
+      });
+
+      await waitFor(() => {
+        expect(result.current.isValid).toBe(true);
+      });
     });
   });
 
