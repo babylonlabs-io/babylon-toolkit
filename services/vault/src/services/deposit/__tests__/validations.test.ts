@@ -4,14 +4,11 @@
 
 import { describe, expect, it } from "vitest";
 
-import type { UTXO } from "../../vault/vaultTransactionService";
 import {
   getDepositButtonLabel,
   isDepositAmountValid,
   validateDepositAmount,
   validateProviderSelection,
-  validateSufficientBalance,
-  validateUTXOs,
 } from "../validations";
 
 describe("Deposit Validations", () => {
@@ -82,131 +79,6 @@ describe("Deposit Validations", () => {
       const result = validateDepositAmount(200_000_000n, minDeposit, 0n);
 
       expect(result.valid).toBe(true);
-    });
-  });
-
-  describe("validateSufficientBalance", () => {
-    it("should accept sufficient balance", () => {
-      const result = validateSufficientBalance(100000n, 200000n);
-
-      expect(result.valid).toBe(true);
-      expect(result.error).toBeUndefined();
-    });
-
-    it("should reject insufficient balance", () => {
-      const result = validateSufficientBalance(100000n, 50000n);
-
-      expect(result.valid).toBe(false);
-      expect(result.error).toContain("Insufficient balance");
-      expect(result.error).toContain("50000"); // Shows shortage amount
-    });
-
-    it("should accept exact balance", () => {
-      const result = validateSufficientBalance(100000n, 100000n);
-
-      expect(result.valid).toBe(true);
-    });
-
-    it("should handle zero required amount", () => {
-      const result = validateSufficientBalance(0n, 100000n);
-
-      expect(result.valid).toBe(true);
-    });
-
-    it("should handle zero balance with non-zero required", () => {
-      const result = validateSufficientBalance(100000n, 0n);
-
-      expect(result.valid).toBe(false);
-      expect(result.error).toContain("100000");
-    });
-  });
-
-  describe("validateUTXOs", () => {
-    const validUTXOs: UTXO[] = [
-      { txid: "0x123", vout: 0, value: 50000, scriptPubKey: "0xabc" },
-      { txid: "0x456", vout: 1, value: 100000, scriptPubKey: "0xdef" },
-    ];
-
-    it("should accept valid UTXOs with sufficient value", () => {
-      const result = validateUTXOs(validUTXOs, 100000n);
-
-      expect(result.valid).toBe(true);
-      expect(result.error).toBeUndefined();
-    });
-
-    it("should reject empty UTXO array", () => {
-      const result = validateUTXOs([], 100000n);
-
-      expect(result.valid).toBe(false);
-      expect(result.error).toContain("No UTXOs available");
-    });
-
-    it("should reject null/undefined UTXOs", () => {
-      const result = validateUTXOs(null as any, 100000n);
-
-      expect(result.valid).toBe(false);
-      expect(result.error).toContain("No UTXOs available");
-    });
-
-    it("should reject invalid UTXOs (missing txid)", () => {
-      const invalidUTXOs: UTXO[] = [
-        { txid: "", vout: 0, value: 50000, scriptPubKey: "0xabc" },
-      ];
-
-      const result = validateUTXOs(invalidUTXOs, 10000n);
-
-      expect(result.valid).toBe(false);
-      expect(result.error).toContain("invalid UTXOs");
-    });
-
-    it("should reject invalid UTXOs (invalid vout)", () => {
-      const invalidUTXOs: UTXO[] = [
-        {
-          txid: "0x123",
-          vout: undefined as any,
-          value: 50000,
-          scriptPubKey: "0xabc",
-        },
-      ];
-
-      const result = validateUTXOs(invalidUTXOs, 10000n);
-
-      expect(result.valid).toBe(false);
-      expect(result.error).toContain("invalid UTXOs");
-    });
-
-    it("should reject invalid UTXOs (zero or negative value)", () => {
-      const invalidUTXOs: UTXO[] = [
-        { txid: "0x123", vout: 0, value: 0, scriptPubKey: "0xabc" },
-        { txid: "0x456", vout: 1, value: -100, scriptPubKey: "0xdef" },
-      ];
-
-      const result = validateUTXOs(invalidUTXOs, 10000n);
-
-      expect(result.valid).toBe(false);
-      expect(result.error).toContain("invalid UTXOs");
-    });
-
-    it("should reject insufficient UTXO value", () => {
-      const result = validateUTXOs(validUTXOs, 200000n); // Total is 150000
-
-      expect(result.valid).toBe(false);
-      expect(result.error).toContain("don't have sufficient value");
-    });
-
-    it("should warn about too many UTXOs", () => {
-      const manyUTXOs: UTXO[] = Array.from({ length: 15 }, (_, i) => ({
-        txid: `0x${i}`,
-        vout: i,
-        value: 10000,
-        scriptPubKey: `0x${i}`,
-      }));
-
-      const result = validateUTXOs(manyUTXOs, 50000n);
-
-      expect(result.valid).toBe(true);
-      expect(result.warnings).toBeDefined();
-      expect(result.warnings![0]).toContain("increase transaction fees");
     });
   });
 
@@ -318,12 +190,47 @@ describe("Deposit Validations", () => {
       expect(result).toBe(true);
     });
 
-    it("should return true for exact balance amount", () => {
+    it("should return true for exact balance amount with no fees", () => {
       const result = isDepositAmountValid({
         amountSats: btcBalance,
         minDeposit,
         btcBalance,
       });
+      expect(result).toBe(true);
+    });
+
+    it("should return false when amount + fees exceed balance", () => {
+      const result = isDepositAmountValid({
+        amountSats: 990000n,
+        minDeposit,
+        btcBalance,
+        estimatedFeeSats: 20000n,
+      });
+      // 990000 + 20000 = 1010000 > 1000000
+      expect(result).toBe(false);
+    });
+
+    it("should return false when amount + fees + claimValue exceed balance", () => {
+      const result = isDepositAmountValid({
+        amountSats: 900000n,
+        minDeposit,
+        btcBalance,
+        estimatedFeeSats: 5000n,
+        depositorClaimValue: 100000n,
+      });
+      // 900000 + 5000 + 100000 = 1005000 > 1000000
+      expect(result).toBe(false);
+    });
+
+    it("should return true when amount + fees + claimValue fit within balance", () => {
+      const result = isDepositAmountValid({
+        amountSats: 900000n,
+        minDeposit,
+        btcBalance,
+        estimatedFeeSats: 5000n,
+        depositorClaimValue: 50000n,
+      });
+      // 900000 + 5000 + 50000 = 955000 < 1000000
       expect(result).toBe(true);
     });
 
@@ -404,6 +311,41 @@ describe("Deposit Validations", () => {
           btcBalance,
         }),
       ).toBe("Insufficient balance");
+    });
+
+    it("should show 'Insufficient balance' when amount + fees exceed balance", () => {
+      expect(
+        getDepositButtonLabel({
+          amountSats: 990000n,
+          minDeposit,
+          btcBalance,
+          estimatedFeeSats: 20000n,
+        }),
+      ).toBe("Insufficient balance");
+    });
+
+    it("should show 'Insufficient balance' when amount + fees + claimValue exceed balance", () => {
+      expect(
+        getDepositButtonLabel({
+          amountSats: 900000n,
+          minDeposit,
+          btcBalance,
+          estimatedFeeSats: 5000n,
+          depositorClaimValue: 100000n,
+        }),
+      ).toBe("Insufficient balance");
+    });
+
+    it("should show 'Deposit' when amount + fees + claimValue fit within balance", () => {
+      expect(
+        getDepositButtonLabel({
+          amountSats: 900000n,
+          minDeposit,
+          btcBalance,
+          estimatedFeeSats: 5000n,
+          depositorClaimValue: 50000n,
+        }),
+      ).toBe("Deposit");
     });
   });
 });

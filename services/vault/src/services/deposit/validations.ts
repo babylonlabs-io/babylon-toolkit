@@ -45,6 +45,10 @@ export interface DepositFormValidityParams {
   maxDeposit?: bigint;
   /** User's available BTC balance in satoshis */
   btcBalance: bigint;
+  /** Estimated transaction fee in satoshis */
+  estimatedFeeSats?: bigint;
+  /** Depositor claim value in satoshis (required output for challenge transactions) */
+  depositorClaimValue?: bigint;
 }
 
 /**
@@ -59,7 +63,14 @@ export interface DepositFormValidityParams {
 export function isDepositAmountValid(
   params: DepositFormValidityParams,
 ): boolean {
-  const { amountSats, minDeposit, maxDeposit, btcBalance } = params;
+  const {
+    amountSats,
+    minDeposit,
+    maxDeposit,
+    btcBalance,
+    estimatedFeeSats,
+    depositorClaimValue,
+  } = params;
 
   // Must have a positive amount
   if (amountSats <= 0n) return false;
@@ -70,8 +81,10 @@ export function isDepositAmountValid(
   // Must not exceed max deposit (if set)
   if (maxDeposit && maxDeposit > 0n && amountSats > maxDeposit) return false;
 
-  // Must not exceed balance
-  if (amountSats > btcBalance) return false;
+  // Must not exceed balance (including estimated fees and depositor claim value)
+  const totalRequired =
+    amountSats + (estimatedFeeSats ?? 0n) + (depositorClaimValue ?? 0n);
+  if (totalRequired > btcBalance) return false;
 
   return true;
 }
@@ -85,11 +98,22 @@ export function isDepositAmountValid(
 export function getDepositButtonLabel(
   params: DepositFormValidityParams,
 ): string {
-  const { amountSats, minDeposit, maxDeposit, btcBalance } = params;
+  const {
+    amountSats,
+    minDeposit,
+    maxDeposit,
+    btcBalance,
+    estimatedFeeSats,
+    depositorClaimValue,
+  } = params;
 
   if (amountSats <= 0n) return "Enter an amount";
   if (btcBalance <= 0n) return "No available balance";
-  if (amountSats > btcBalance) return "Insufficient balance";
+
+  const totalRequired =
+    amountSats + (estimatedFeeSats ?? 0n) + (depositorClaimValue ?? 0n);
+  if (totalRequired > btcBalance) return "Insufficient balance";
+
   if (amountSats < minDeposit)
     return `Minimum ${formatSatoshisToBtc(minDeposit)} BTC`;
   if (maxDeposit && maxDeposit > 0n && amountSats > maxDeposit)
@@ -131,81 +155,6 @@ export function validateDepositAmount(
   }
 
   return { valid: true };
-}
-
-/**
- * Validate if user has sufficient balance
- * @param requiredAmount - Total required amount (deposit + fees)
- * @param availableBalance - User's available balance
- * @returns Validation result
- */
-export function validateSufficientBalance(
-  requiredAmount: bigint,
-  availableBalance: bigint,
-): ValidationResult {
-  if (availableBalance < requiredAmount) {
-    const shortage = requiredAmount - availableBalance;
-    return {
-      valid: false,
-      error: `Insufficient balance. Need ${shortage} more satoshis`,
-    };
-  }
-
-  return { valid: true };
-}
-
-/**
- * Validate UTXOs for deposit
- * @param utxos - Available UTXOs
- * @param requiredAmount - Required amount for deposit
- * @returns Validation result
- */
-export function validateUTXOs(
-  utxos: UTXO[],
-  requiredAmount: bigint,
-): ValidationResult {
-  if (!utxos || utxos.length === 0) {
-    return {
-      valid: false,
-      error: "No UTXOs available for deposit",
-    };
-  }
-
-  // Check if UTXOs are confirmed (have valid txid and vout)
-  const invalidUTXOs = utxos.filter(
-    (u) => !u.txid || u.vout === undefined || u.value <= 0,
-  );
-
-  if (invalidUTXOs.length > 0) {
-    return {
-      valid: false,
-      error: `${invalidUTXOs.length} invalid UTXOs detected`,
-    };
-  }
-
-  // Calculate total available from UTXOs
-  const totalAvailable = utxos.reduce(
-    (sum, utxo) => sum + BigInt(utxo.value),
-    0n,
-  );
-
-  if (totalAvailable < requiredAmount) {
-    return {
-      valid: false,
-      error: "UTXOs don't have sufficient value for deposit",
-    };
-  }
-
-  // Warning for too many UTXOs (affects fees)
-  const warnings: string[] = [];
-  if (utxos.length > 10) {
-    warnings.push("Using many UTXOs will increase transaction fees");
-  }
-
-  return {
-    valid: true,
-    warnings: warnings.length > 0 ? warnings : undefined,
-  };
 }
 
 /**
