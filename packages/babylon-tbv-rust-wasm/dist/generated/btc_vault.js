@@ -1060,20 +1060,19 @@ export class WasmPrePeginTx {
      * (adding inputs). The resulting object has the correct txid and can be
      * used directly with `buildPeginTx` / `buildRefundTx`.
      *
+     * The per-HTLC pegin amounts and depositor claim value are preserved from
+     * the original unfunded object (`self`).
+     *
      * # Arguments
      *
      * * `funded_tx_hex` - Hex-encoded funded Pre-PegIn transaction bytes
-     * * `pegin_amount` - Amount in satoshis to lock in each vault
-     * * `depositor_claim_value` - Amount in satoshis for the depositor's claim output
      * @param {string} funded_tx_hex
-     * @param {bigint} pegin_amount
-     * @param {bigint} depositor_claim_value
      * @returns {WasmPrePeginTx}
      */
-    fromFundedTransaction(funded_tx_hex, pegin_amount, depositor_claim_value) {
+    fromFundedTransaction(funded_tx_hex) {
         const ptr0 = passStringToWasm0(funded_tx_hex, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len0 = WASM_VECTOR_LEN;
-        const ret = wasm.wasmprepegintx_fromFundedTransaction(this.__wbg_ptr, ptr0, len0, pegin_amount, depositor_claim_value);
+        const ret = wasm.wasmprepegintx_fromFundedTransaction(this.__wbg_ptr, ptr0, len0);
         if (ret[2]) {
             throw takeFromExternrefTable0(ret[1]);
         }
@@ -1154,12 +1153,16 @@ export class WasmPrePeginTx {
         return ret >>> 0;
     }
     /**
-     * Returns the pegin amount in satoshis.
+     * Returns the pegin amount in satoshis for a specific HTLC output.
+     * @param {number} htlc_vout
      * @returns {bigint}
      */
-    getPeginAmount() {
-        const ret = wasm.wasmprepegintx_getPeginAmount(this.__wbg_ptr);
-        return BigInt.asUintN(64, ret);
+    getPeginAmountAt(htlc_vout) {
+        const ret = wasm.wasmprepegintx_getPeginAmountAt(this.__wbg_ptr, htlc_vout);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return BigInt.asUintN(64, ret[0]);
     }
     /**
      * Returns the transaction ID.
@@ -1193,8 +1196,9 @@ export class WasmPrePeginTx {
      * * `hashlocks` - Array of hex-encoded SHA256 hash commitments (64 hex chars each).
      *   One per HTLC output. For a single deposit pass one hashlock; for batched
      *   deposits pass multiple.
+     * * `pegin_amounts` - Array of pegin amounts in satoshis (one per hashlock).
+     *   Must have the same length as `hashlocks`.
      * * `timelock_refund` - CSV timelock for the refund path (must be non-zero)
-     * * `pegin_amount` - Amount in satoshis to lock in each vault
      * * `fee_rate` - Fee rate in sat/vB (from contract offchain params)
      * * `num_local_challengers` - Number of local challengers (from contract params)
      * * `council_quorum` - M in M-of-N council multisig (from contract params)
@@ -1205,15 +1209,15 @@ export class WasmPrePeginTx {
      * @param {string[]} vault_keepers
      * @param {string[]} universal_challengers
      * @param {string[]} hashlocks
+     * @param {BigUint64Array} pegin_amounts
      * @param {number} timelock_refund
-     * @param {bigint} pegin_amount
      * @param {bigint} fee_rate
      * @param {number} num_local_challengers
      * @param {number} council_quorum
      * @param {number} council_size
      * @param {string} network
      */
-    constructor(depositor, vault_provider, vault_keepers, universal_challengers, hashlocks, timelock_refund, pegin_amount, fee_rate, num_local_challengers, council_quorum, council_size, network) {
+    constructor(depositor, vault_provider, vault_keepers, universal_challengers, hashlocks, pegin_amounts, timelock_refund, fee_rate, num_local_challengers, council_quorum, council_size, network) {
         const ptr0 = passStringToWasm0(depositor, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len0 = WASM_VECTOR_LEN;
         const ptr1 = passStringToWasm0(vault_provider, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
@@ -1224,9 +1228,11 @@ export class WasmPrePeginTx {
         const len3 = WASM_VECTOR_LEN;
         const ptr4 = passArrayJsValueToWasm0(hashlocks, wasm.__wbindgen_malloc);
         const len4 = WASM_VECTOR_LEN;
-        const ptr5 = passStringToWasm0(network, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const ptr5 = passArray64ToWasm0(pegin_amounts, wasm.__wbindgen_malloc);
         const len5 = WASM_VECTOR_LEN;
-        const ret = wasm.wasmprepegintx_new(ptr0, len0, ptr1, len1, ptr2, len2, ptr3, len3, ptr4, len4, timelock_refund, pegin_amount, fee_rate, num_local_challengers, council_quorum, council_size, ptr5, len5);
+        const ptr6 = passStringToWasm0(network, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len6 = WASM_VECTOR_LEN;
+        const ret = wasm.wasmprepegintx_new(ptr0, len0, ptr1, len1, ptr2, len2, ptr3, len3, ptr4, len4, ptr5, len5, timelock_refund, fee_rate, num_local_challengers, council_quorum, council_size, ptr6, len6);
         if (ret[2]) {
             throw takeFromExternrefTable0(ret[1]);
         }
@@ -1471,6 +1477,14 @@ function debugString(val) {
     return className;
 }
 
+let cachedBigUint64ArrayMemory0 = null;
+function getBigUint64ArrayMemory0() {
+    if (cachedBigUint64ArrayMemory0 === null || cachedBigUint64ArrayMemory0.byteLength === 0) {
+        cachedBigUint64ArrayMemory0 = new BigUint64Array(wasm.memory.buffer);
+    }
+    return cachedBigUint64ArrayMemory0;
+}
+
 let cachedDataViewMemory0 = null;
 function getDataViewMemory0() {
     if (cachedDataViewMemory0 === null || cachedDataViewMemory0.buffer.detached === true || (cachedDataViewMemory0.buffer.detached === undefined && cachedDataViewMemory0.buffer !== wasm.memory.buffer)) {
@@ -1494,6 +1508,13 @@ function getUint8ArrayMemory0() {
 
 function isLikeNone(x) {
     return x === undefined || x === null;
+}
+
+function passArray64ToWasm0(arg, malloc) {
+    const ptr = malloc(arg.length * 8, 8) >>> 0;
+    getBigUint64ArrayMemory0().set(arg, ptr / 8);
+    WASM_VECTOR_LEN = arg.length;
+    return ptr;
 }
 
 function passArrayJsValueToWasm0(array, malloc) {
@@ -1582,6 +1603,7 @@ let wasmModule, wasm;
 function __wbg_finalize_init(instance, module) {
     wasm = instance.exports;
     wasmModule = module;
+    cachedBigUint64ArrayMemory0 = null;
     cachedDataViewMemory0 = null;
     cachedUint8ArrayMemory0 = null;
     wasm.__wbindgen_start();

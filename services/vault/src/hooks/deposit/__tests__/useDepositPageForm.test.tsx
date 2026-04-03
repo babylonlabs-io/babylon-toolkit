@@ -43,6 +43,7 @@ import { useEstimatedBtcFee } from "../useEstimatedBtcFee";
 vi.mock("@babylonlabs-io/ts-sdk/tbv/core", () => ({
   computeNumLocalChallengers: vi.fn(() => 2),
   computeMinClaimValue: vi.fn().mockResolvedValue(35_000n),
+  peginOutputCount: (vaultCount: number) => vaultCount + 1,
 }));
 
 vi.mock("@/hooks/useBtcPublicKey", () => ({
@@ -218,7 +219,6 @@ vi.mock("../useAllocationPlanning", () => ({
   useAllocationPlanning: vi.fn(() => ({
     allocationPlan: null,
     strategy: null,
-    totalFeeSats: null,
     isPlanning: false,
     planError: null,
     canSplit: false,
