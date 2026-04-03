@@ -113,6 +113,9 @@ export interface PayoutPsbtResult {
  * @throws If input 0 does not reference the pegin transaction
  * @throws If input 1 does not reference the assert transaction
  * @throws If previous output is not found for either input
+ * @throws If pegin output script does not match expected vault scriptPubKey
+ * @throws If payout transaction has no outputs
+ * @throws If total output value exceeds total input value
  */
 export async function buildPayoutPsbt(
   params: PayoutParams,
@@ -200,6 +203,40 @@ export async function buildPayoutPsbt(
   if (!input1PrevOut) {
     throw new Error(
       `Previous output not found for input 1 (txid: ${input1Txid}, index: ${input1.index})`,
+    );
+  }
+
+  // Verify the pegin output script matches the vault scriptPubKey derived from
+  // protocol parameters. A malicious vault provider could supply a payoutTxHex
+  // that references the correct pegin txid/index but whose prevout script has
+  // been tampered with, or we could be signing over a wrong vault entirely.
+  const expectedVaultScriptHex = stripHexPrefix(payoutConnector.scriptPubKey);
+  const actualPeginScriptHex = uint8ArrayToHex(new Uint8Array(peginPrevOut.script));
+  if (actualPeginScriptHex !== expectedVaultScriptHex) {
+    throw new Error(
+      `Pegin output script does not match expected vault scriptPubKey. ` +
+        `Expected ${expectedVaultScriptHex}, got ${actualPeginScriptHex}`,
+    );
+  }
+
+  // Payout must have at least one output
+  if (payoutTx.outs.length === 0) {
+    throw new Error("Payout transaction must have at least 1 output");
+  }
+
+  // Conservation check: total output value cannot exceed total input value.
+  // This prevents a malicious VP from constructing a transaction that inflates
+  // value. Note: output destinations cannot be fully validated here because the
+  // protocol does not deterministically specify them from these parameters.
+  const totalInputValue =
+    BigInt(peginPrevOut.value) + BigInt(input1PrevOut.value);
+  const totalOutputValue = payoutTx.outs.reduce(
+    (sum, out) => sum + BigInt(out.value),
+    0n,
+  );
+  if (totalOutputValue > totalInputValue) {
+    throw new Error(
+      `Payout output values (${totalOutputValue} sats) exceed input values (${totalInputValue} sats)`,
     );
   }
 

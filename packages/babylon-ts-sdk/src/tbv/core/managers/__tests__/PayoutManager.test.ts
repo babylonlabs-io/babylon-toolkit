@@ -19,10 +19,11 @@ import {
   TEST_CLAIM_VALUE,
   TEST_COMBINED_VALUE,
   TEST_PEGIN_VALUE,
-  createDummyP2TR,
   createDummyP2WPKH,
 } from "../../primitives/psbt/__tests__/constants";
 import { initializeWasmForTests } from "../../primitives/psbt/__tests__/helpers";
+import { createPayoutScript } from "../../primitives/scripts/payout";
+import { hexToUint8Array, stripHexPrefix } from "../../primitives/utils/bitcoin";
 import { PayoutManager, type PayoutManagerConfig } from "../PayoutManager";
 
 // Test constants - use valid secp256k1 x-only public keys
@@ -37,17 +38,30 @@ const TEST_KEYS = {
 } as const;
 
 describe("PayoutManager", () => {
+  let vaultScriptPubKey: Buffer;
+
   beforeAll(async () => {
     await initializeWasmForTests();
+    const payoutConnector = await createPayoutScript({
+      depositor: TEST_KEYS.DEPOSITOR,
+      vaultProvider: TEST_KEYS.VAULT_PROVIDER,
+      vaultKeepers: [TEST_KEYS.VAULT_KEEPER_1],
+      universalChallengers: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
+      timelockPegin: 100,
+      network: "signet",
+    });
+    vaultScriptPubKey = Buffer.from(
+      hexToUint8Array(stripHexPrefix(payoutConnector.scriptPubKey)),
+    );
   });
 
   /**
-   * Creates a deterministic peg-in transaction with a single Taproot output.
+   * Creates a deterministic peg-in transaction whose output uses the real vault scriptPubKey.
    */
   function createTestPeginTransaction(): string {
     const tx = new Transaction();
     tx.addInput(NULL_TXID, 0xffffffff, SEQUENCE_MAX);
-    tx.addOutput(createDummyP2TR(), Number(TEST_PEGIN_VALUE));
+    tx.addOutput(vaultScriptPubKey, Number(TEST_PEGIN_VALUE));
     return tx.toHex();
   }
 

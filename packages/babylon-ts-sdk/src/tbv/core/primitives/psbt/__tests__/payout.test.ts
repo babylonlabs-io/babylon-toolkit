@@ -15,6 +15,8 @@ import {
   extractPayoutSignature,
   type PayoutParams,
 } from "../payout";
+import { createPayoutScript } from "../../scripts/payout";
+import { hexToUint8Array, stripHexPrefix } from "../../utils/bitcoin";
 import {
   DUMMY_TXID_2,
   NULL_TXID,
@@ -26,24 +28,22 @@ import {
   TEST_PAYOUT_VALUE,
   TEST_PEGIN_VALUE,
   TEST_WITNESS_UTXO_VALUE,
-  createDummyP2TR,
   createDummyP2WPKH,
 } from "./constants";
 import { TEST_KEYS, initializeWasmForTests } from "./helpers";
 
 /**
- * Creates a test pegin transaction with a single P2TR output (simplified for testing).
+ * Creates a test pegin transaction whose output uses the real vault scriptPubKey.
+ * The script must match the one derived by buildPayoutPsbt from protocol parameters.
  */
-function createTestPeginTransaction(): string {
+function createTestPeginTransaction(vaultScriptPubKey: Buffer): string {
   const tx = new Transaction();
 
   // Dummy coinbase-like input (all-zeros txid, max sequence)
   // This allows the transaction to serialize properly for testing
   tx.addInput(NULL_TXID, 0xffffffff, SEQUENCE_MAX);
 
-  // P2TR output representing the vault address
-  // Uses secp256k1 generator point for structurally valid but dummy pubkey
-  tx.addOutput(createDummyP2TR(), Number(TEST_PEGIN_VALUE));
+  tx.addOutput(vaultScriptPubKey, Number(TEST_PEGIN_VALUE));
 
   return tx.toHex();
 }
@@ -91,9 +91,22 @@ function createTestPayoutTransaction(
 }
 
 describe("buildPayoutPsbt", () => {
-  // Initialize WASM before running tests
+  let vaultScriptPubKey: Buffer;
+
+  // Initialize WASM and compute the vault scriptPubKey before running tests
   beforeAll(async () => {
     await initializeWasmForTests();
+    const payoutConnector = await createPayoutScript({
+      depositor: TEST_KEYS.DEPOSITOR,
+      vaultProvider: TEST_KEYS.VAULT_PROVIDER,
+      vaultKeepers: [TEST_KEYS.VAULT_KEEPER_1],
+      universalChallengers: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
+      timelockPegin: 100,
+      network: "signet" as Network,
+    });
+    vaultScriptPubKey = Buffer.from(
+      hexToUint8Array(stripHexPrefix(payoutConnector.scriptPubKey)),
+    );
   });
 
   describe("Basic functionality", () => {
@@ -102,7 +115,7 @@ describe("buildPayoutPsbt", () => {
       // - PegIn: Contains vault output that depositor can sign
       // - Assert: Assert output from claimer (challenge path)
       // - Payout: Spends both pegin and assert outputs (required for correct sighash)
-      const peginTxHex = createTestPeginTransaction();
+      const peginTxHex = createTestPeginTransaction(vaultScriptPubKey);
       const assertTxHex = createTestAssertTransaction();
       const payoutTxHex = createTestPayoutTransaction(peginTxHex, assertTxHex);
 
@@ -147,7 +160,7 @@ describe("buildPayoutPsbt", () => {
     });
 
     it("should handle different networks", async () => {
-      const peginTxHex = createTestPeginTransaction();
+      const peginTxHex = createTestPeginTransaction(vaultScriptPubKey);
       const assertTxHex = createTestAssertTransaction();
       const payoutTxHex = createTestPayoutTransaction(peginTxHex, assertTxHex);
 
@@ -175,7 +188,7 @@ describe("buildPayoutPsbt", () => {
     });
 
     it("should preserve transaction version and locktime", async () => {
-      const peginTxHex = createTestPeginTransaction();
+      const peginTxHex = createTestPeginTransaction(vaultScriptPubKey);
       const assertTxHex = createTestAssertTransaction();
       const payoutTxHex = createTestPayoutTransaction(peginTxHex, assertTxHex);
 
@@ -205,7 +218,7 @@ describe("buildPayoutPsbt", () => {
 
   describe("Error handling", () => {
     it("should throw error when Payout transaction has fewer than 2 inputs", async () => {
-      const peginTxHex = createTestPeginTransaction();
+      const peginTxHex = createTestPeginTransaction(vaultScriptPubKey);
       const assertTxHex = createTestAssertTransaction();
 
       // Create a payout transaction with only 1 input (should fail since we need 2)
@@ -237,7 +250,7 @@ describe("buildPayoutPsbt", () => {
     });
 
     it("should throw error when previous output not found", async () => {
-      const peginTxHex = createTestPeginTransaction();
+      const peginTxHex = createTestPeginTransaction(vaultScriptPubKey);
       const assertTxHex = createTestAssertTransaction();
       const assertTx = Transaction.fromHex(assertTxHex);
 
@@ -277,7 +290,7 @@ describe("buildPayoutPsbt", () => {
 
   describe("Integration with WASM", () => {
     it("should successfully use WASM-generated payout script", async () => {
-      const peginTxHex = createTestPeginTransaction();
+      const peginTxHex = createTestPeginTransaction(vaultScriptPubKey);
       const assertTxHex = createTestAssertTransaction();
       const payoutTxHex = createTestPayoutTransaction(peginTxHex, assertTxHex);
 
@@ -305,6 +318,115 @@ describe("buildPayoutPsbt", () => {
       expect(firstInput.tapLeafScript![0].controlBlock).toBeDefined();
       expect(firstInput.tapLeafScript![0].controlBlock.length).toBeGreaterThan(
         0,
+      );
+    });
+  });
+
+  describe("Output validation", () => {
+    it("should throw error when pegin output script does not match vault scriptPubKey", async () => {
+      // Simulate a malicious VP that returns the correct pegin txid/index but
+      // a pegin transaction whose output script is not the expected vault script.
+      const wrongScriptPeginTx = new Transaction();
+      wrongScriptPeginTx.addInput(NULL_TXID, 0xffffffff, SEQUENCE_MAX);
+      wrongScriptPeginTx.addOutput(
+        createDummyP2WPKH("a"),
+        Number(TEST_PEGIN_VALUE),
+      );
+      const peginTxHex = wrongScriptPeginTx.toHex();
+
+      const assertTxHex = createTestAssertTransaction();
+      const payoutTxHex = createTestPayoutTransaction(peginTxHex, assertTxHex);
+
+      const params: PayoutParams = {
+        payoutTxHex,
+        peginTxHex,
+        assertTxHex,
+        depositorBtcPubkey: TEST_KEYS.DEPOSITOR,
+        vaultProviderBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
+        vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
+        universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
+        timelockPegin: 100,
+        network: "signet" as Network,
+      };
+
+      await expect(buildPayoutPsbt(params)).rejects.toThrow(
+        /Pegin output script does not match expected vault scriptPubKey/,
+      );
+    });
+
+    it("should throw error when payout transaction has no outputs", async () => {
+      const peginTxHex = createTestPeginTransaction(vaultScriptPubKey);
+      const assertTxHex = createTestAssertTransaction();
+
+      const peginTx = Transaction.fromHex(peginTxHex);
+      const assertTx = Transaction.fromHex(assertTxHex);
+      const noOutputTx = new Transaction();
+      noOutputTx.addInput(
+        Buffer.from(peginTx.getId(), "hex").reverse(),
+        0,
+        SEQUENCE_MAX,
+      );
+      noOutputTx.addInput(
+        Buffer.from(assertTx.getId(), "hex").reverse(),
+        0,
+        SEQUENCE_MAX,
+      );
+
+      const params: PayoutParams = {
+        payoutTxHex: noOutputTx.toHex(),
+        peginTxHex,
+        assertTxHex,
+        depositorBtcPubkey: TEST_KEYS.DEPOSITOR,
+        vaultProviderBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
+        vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
+        universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
+        timelockPegin: 100,
+        network: "signet" as Network,
+      };
+
+      await expect(buildPayoutPsbt(params)).rejects.toThrow(
+        /must have at least 1 output/,
+      );
+    });
+
+    it("should throw error when output values exceed input values", async () => {
+      const peginTxHex = createTestPeginTransaction(vaultScriptPubKey);
+      const assertTxHex = createTestAssertTransaction();
+
+      const peginTx = Transaction.fromHex(peginTxHex);
+      const assertTx = Transaction.fromHex(assertTxHex);
+      const inflatedTx = new Transaction();
+      inflatedTx.addInput(
+        Buffer.from(peginTx.getId(), "hex").reverse(),
+        0,
+        SEQUENCE_MAX,
+      );
+      inflatedTx.addInput(
+        Buffer.from(assertTx.getId(), "hex").reverse(),
+        0,
+        SEQUENCE_MAX,
+      );
+      // Total inputs: TEST_PEGIN_VALUE + TEST_CLAIM_VALUE = 150,000 sats
+      // Output exceeds that by 1 sat
+      inflatedTx.addOutput(
+        createDummyP2WPKH("a"),
+        Number(TEST_PEGIN_VALUE + TEST_CLAIM_VALUE + 1n),
+      );
+
+      const params: PayoutParams = {
+        payoutTxHex: inflatedTx.toHex(),
+        peginTxHex,
+        assertTxHex,
+        depositorBtcPubkey: TEST_KEYS.DEPOSITOR,
+        vaultProviderBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
+        vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
+        universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
+        timelockPegin: 100,
+        network: "signet" as Network,
+      };
+
+      await expect(buildPayoutPsbt(params)).rejects.toThrow(
+        /exceed input values/,
       );
     });
   });
