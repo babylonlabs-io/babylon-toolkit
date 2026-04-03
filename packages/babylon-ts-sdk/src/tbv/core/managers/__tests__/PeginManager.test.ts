@@ -44,9 +44,10 @@ vi.mock("viem", async (importOriginal) => {
     ...actual,
     createPublicClient: vi.fn(() => ({
       estimateGas: vi.fn().mockResolvedValue(100000n),
-      waitForTransactionReceipt: vi
-        .fn()
-        .mockResolvedValue({ status: "success" }),
+      waitForTransactionReceipt: vi.fn().mockResolvedValue({
+        status: "success",
+        transactionHash: "0x" + "ab".repeat(32),
+      }),
       readContract: vi
         .fn()
         .mockImplementation(({ functionName }: { functionName: string }) => {
@@ -673,9 +674,10 @@ describe("PeginManager", () => {
       // with waitForTransactionReceipt returning "reverted"
       mockedCreatePublicClient.mockReturnValueOnce({
         estimateGas: vi.fn().mockResolvedValue(100000n),
-        waitForTransactionReceipt: vi
-          .fn()
-          .mockResolvedValue({ status: "reverted" }),
+        waitForTransactionReceipt: vi.fn().mockResolvedValue({
+          status: "reverted",
+          transactionHash: "0x" + "ab".repeat(32),
+        }),
         readContract: defaultReadContract,
       } as any);
 
