@@ -29,8 +29,8 @@ export interface OnChainVaultData {
   hashlock: Hex;
   /** Index of the HTLC output in the Pre-PegIn transaction */
   htlcVout: number;
-  /** Depositor's registered payout BTC address (scriptPubKey hex) from the contract */
-  depositorPayoutBtcAddress: Hex;
+  // Note: depositorPayoutBtcAddress is not in the BTCVault struct — only emitted
+  // in the PegInSubmitted event. Source it from the indexer instead.
 }
 
 /**
@@ -67,6 +67,5 @@ export async function getVaultFromChain(
     offchainParamsVersion: Number(vault.offchainParamsVersion),
     hashlock: vault.hashlock,
     htlcVout: Number(vault.htlcVout),
-    depositorPayoutBtcAddress: vault.depositorPayoutBtcAddress,
   };
 }

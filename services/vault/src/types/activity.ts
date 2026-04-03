@@ -107,6 +107,9 @@ export interface VaultActivity {
   /** Unsigned pre-pegin transaction hex (spends depositor's UTXOs — used for UTXO validation) */
   unsignedPrePeginTx?: string;
 
+  /** Depositor-specified BTC payout address (raw scriptPubKey hex from indexer) */
+  depositorPayoutBtcAddress?: Hex;
+
   /** Keccak256 hash of depositor's WOTS public key (committed on-chain) */
   depositorWotsPkHash: string;
 
