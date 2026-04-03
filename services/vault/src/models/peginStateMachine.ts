@@ -295,9 +295,21 @@ export function getPeginState(
     }
 
     // Sub-state: VP confirmed it hasn't ingested this peg-in yet.
-    // This likely means the Pre-PegIn BTC transaction was never broadcast.
-    // Offer the Broadcast action so the user can retry.
+    // If we already broadcast (CONFIRMING), show a waiting state instead of
+    // re-offering the broadcast button. The user already broadcast; VP just
+    // hasn't detected it yet.
     if (pendingIngestion === true && !transactionsReady) {
+      if (localStatus === LocalStorageStatus.CONFIRMING) {
+        return {
+          contractStatus,
+          localStatus,
+          displayLabel: PEGIN_DISPLAY_LABELS.PENDING,
+          displayVariant: "pending",
+          availableActions: [PeginAction.NONE],
+          message:
+            "Pre-PegIn transaction broadcast. Waiting for vault provider to detect your deposit...",
+        };
+      }
       return {
         contractStatus,
         localStatus,

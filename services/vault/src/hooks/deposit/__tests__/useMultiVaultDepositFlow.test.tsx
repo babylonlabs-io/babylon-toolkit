@@ -405,7 +405,7 @@ describe("useMultiVaultDepositFlow", () => {
           expect.objectContaining({
             htlcVout: 0,
             peginTxHex: "peginTxHex0",
-            fundedPrePeginTxHex: "batchFundedPrePeginHex",
+            unsignedPrePeginTxHex: "batchFundedPrePeginHex",
           }),
         );
 
@@ -415,7 +415,7 @@ describe("useMultiVaultDepositFlow", () => {
           expect.objectContaining({
             htlcVout: 1,
             peginTxHex: "peginTxHex1",
-            fundedPrePeginTxHex: "batchFundedPrePeginHex",
+            unsignedPrePeginTxHex: "batchFundedPrePeginHex",
           }),
         );
       });

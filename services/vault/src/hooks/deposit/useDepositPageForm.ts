@@ -1,6 +1,7 @@
 import {
   computeMinClaimValue,
   computeNumLocalChallengers,
+  peginOutputCount,
 } from "@babylonlabs-io/ts-sdk/tbv/core";
 import { useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -84,9 +85,6 @@ export interface UseDepositPageFormResult {
   planError: string | null;
   /** Display label for the split ratio, null when not applicable */
   splitRatioLabel: string | null;
-  /** Effective fee: multi-vault fee when checkbox is on, single-vault fee otherwise */
-  effectiveFeeSats: bigint | null;
-
   /** Depositor claim value computed from WASM (VK/UC counts + fee). undefined while loading. */
   depositorClaimValue: bigint | undefined;
 
@@ -224,13 +222,23 @@ export function useDepositPageForm(): UseDepositPageFormResult {
     return depositService.parseBtcToSatoshis(formData.amountBtc);
   }, [formData.amountBtc]);
 
+  // Partial liquidation (multi-vault deposit) — declared early so the fee
+  // estimate below can account for the batch output count.
+  const [isPartialLiquidation, setIsPartialLiquidation] = useState(false);
+  const hasAutoChecked = useRef(false);
+
+  // Batch-first: one Pre-PegIn tx with N HTLC outputs + 1 CPFP anchor.
+  // When partial liquidation is on, N = 2 (sacrificial + protected vaults).
+  const vaultCount = isPartialLiquidation ? 2 : 1;
+  const numPeginOutputs = peginOutputCount(vaultCount);
+
   const {
     fee: estimatedFeeSats,
     feeRate: estimatedFeeRate,
     isLoading: isLoadingFee,
     error: feeError,
     maxDeposit: maxDepositSats,
-  } = useEstimatedBtcFee(amountSats, spendableMempoolUTXOs);
+  } = useEstimatedBtcFee(amountSats, spendableMempoolUTXOs, numPeginOutputs);
 
   // Compute depositorClaimValue for UI validation (min deposit check).
   // Uses {VP} ∪ {VKs} − {depositor} which is >= the transaction builder's
@@ -271,14 +279,9 @@ export function useDepositPageForm(): UseDepositPageFormResult {
     refetchOnWindowFocus: false,
   });
 
-  // Partial liquidation (multi-vault deposit)
-  const [isPartialLiquidation, setIsPartialLiquidation] = useState(false);
-  const hasAutoChecked = useRef(false);
-
   const {
     allocationPlan,
     strategy,
-    totalFeeSats: multiVaultFeeSats,
     isPlanning,
     planError,
     canSplit,
@@ -299,11 +302,6 @@ export function useDepositPageForm(): UseDepositPageFormResult {
       setIsPartialLiquidation(true);
     }
   }, [canSplit]);
-
-  const effectiveFeeSats =
-    isPartialLiquidation && multiVaultFeeSats != null
-      ? multiVaultFeeSats
-      : estimatedFeeSats;
 
   const validateForm = useCallback(() => {
     const newErrors: typeof errors = {};
@@ -408,7 +406,6 @@ export function useDepositPageForm(): UseDepositPageFormResult {
     isPlanning,
     planError,
     splitRatioLabel,
-    effectiveFeeSats,
     validateForm,
     validateAmountOnBlur,
     resetForm,

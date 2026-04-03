@@ -105,6 +105,7 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
     amountSats,
     minDeposit,
     maxDeposit,
+    estimatedFeeSats,
     estimatedFeeRate,
     isLoadingFee,
     feeError,
@@ -116,7 +117,6 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
     allocationPlan,
     isPlanning,
     splitRatioLabel,
-    effectiveFeeSats,
     validateForm,
   } = useDepositPageForm();
 
@@ -261,7 +261,7 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
                   setFormData({ selectedProvider: providerId })
                 }
                 isValid={isValid}
-                estimatedFeeSats={effectiveFeeSats}
+                estimatedFeeSats={estimatedFeeSats}
                 estimatedFeeRate={estimatedFeeRate}
                 isLoadingFee={isLoadingFee}
                 feeError={feeError}
