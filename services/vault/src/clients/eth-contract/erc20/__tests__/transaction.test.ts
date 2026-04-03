@@ -103,6 +103,30 @@ describe("approveERC20", () => {
     ).rejects.toThrow("Wallet account not available for ERC20 approval");
   });
 
+  it("revokes with a single transaction when amount is zero and allowance is non-zero", async () => {
+    mockGetERC20Allowance.mockResolvedValue(500n);
+    mockExecuteWrite.mockResolvedValue({
+      transactionHash: "0xhash",
+      receipt: {},
+    });
+
+    await approveERC20(
+      mockWalletClient,
+      mockChain,
+      TOKEN_ADDRESS,
+      SPENDER_ADDRESS,
+      0n,
+    );
+
+    expect(mockExecuteWrite).toHaveBeenCalledTimes(1);
+    expect(mockExecuteWrite).toHaveBeenCalledWith(
+      expect.objectContaining({
+        args: [SPENDER_ADDRESS, 0n],
+        errorContext: "approve ERC20",
+      }),
+    );
+  });
+
   it("reads allowance for the correct owner, token, and spender", async () => {
     mockGetERC20Allowance.mockResolvedValue(0n);
     mockExecuteWrite.mockResolvedValue({

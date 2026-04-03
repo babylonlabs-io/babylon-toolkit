@@ -51,7 +51,7 @@ export async function approveERC20(
 
   // USDT-like tokens revert if approve is called with a non-zero amount
   // when the current allowance is also non-zero. Reset to zero first.
-  if (currentAllowance !== 0n) {
+  if (currentAllowance !== 0n && amount !== 0n) {
     await executeWrite({
       walletClient,
       chain,
