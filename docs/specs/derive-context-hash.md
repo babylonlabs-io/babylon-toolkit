@@ -51,27 +51,13 @@ no manual step needed.
 ### 2.1 API
 
 ```
-wallet.deriveContextHash(context: string, options?: {
-  display?: {
-    title?: string;
-    description?: string;
-  };
-}) → Promise<string>
+wallet.deriveContextHash(context: string) → Promise<string>
 ```
 
 **Parameters:**
 - `context` — hex-encoded byte string (even-length, lowercase,
   no `0x` prefix). Acts as a domain separator; different contexts
   produce independent outputs. Must not be empty.
-- `options` — optional configuration object. Does not affect the
-  derived output.
-  - `display` — optional object with fields for the wallet to
-    show in the approval dialog.
-    - `title` — short label for the operation
-      (e.g. `"Vault Deposit Secret"`).
-    - `description` — longer explanation of what the derived
-      value will be used for (e.g.
-      `"Derive a secret for vault deposit activation"`).
 
 **Returns:**
 - Hex-encoded 32-byte derived value (64 lowercase hex chars).
@@ -84,9 +70,8 @@ wallet.deriveContextHash(context: string, options?: {
 - Wallet does not support the method.
 
 **User approval required.** The wallet MUST show a confirmation
-dialog before deriving and returning the value. If `display` is
-provided, the wallet SHOULD show the title and description to
-help the user understand what they are approving.
+dialog before deriving and returning the value. The dialog
+SHOULD display the requesting origin and the context bytes.
 
 ### 2.2 Derivation Algorithm
 
@@ -185,7 +170,8 @@ context = (dummyPrePeginTxid, htlcVout, depositorPubkey)
 ```
 
 The dApp calls `deriveContextHash` with this context, computes
-`SHA-256(output)` to get the real hashlock, and rebuilds the
+`SHA-256(deriveContextHash(context))` to get the real hashlock,
+and rebuilds the
 Pre-PegIn with the real hashlock. Days or weeks later at
 activation time, the dApp reconstructs the same context from
 on-chain state — the dummy txid is deterministic from the same
