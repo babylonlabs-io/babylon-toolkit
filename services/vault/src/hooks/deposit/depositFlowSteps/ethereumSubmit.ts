@@ -4,11 +4,9 @@
 
 import { getETHChain } from "@babylonlabs-io/config";
 import { getSharedWagmiConfig } from "@babylonlabs-io/wallet-connector";
-import type { Abi, Address, Hash, WalletClient } from "viem";
+import type { Address, WalletClient } from "viem";
 import { getWalletClient, switchChain } from "wagmi/actions";
 
-import BTCVaultRegistryABI from "@/clients/eth-contract/btc-vault-registry/abis/BTCVaultRegistry.abi.json";
-import { ethClient } from "@/clients/eth-contract/client";
 import { logger } from "@/infrastructure";
 import { LocalStorageStatus } from "@/models/peginStateMachine";
 import { depositService } from "@/services/deposit";
@@ -18,8 +16,6 @@ import {
   registerPeginOnChain,
 } from "@/services/vault/vaultTransactionService";
 import { addPendingPegin } from "@/storage/peginStorage";
-import { pollUntil } from "@/utils/async";
-import { ContractError, mapViemErrorToContractError } from "@/utils/errors";
 
 import type {
   PeginPrepareParams,
@@ -28,9 +24,6 @@ import type {
   PeginRegisterResult,
   SavePendingPeginParams,
 } from "./types";
-
-const ETH_CONFIRMATION_POLL_INTERVAL = 5_000; // 5s between polls
-const ETH_CONFIRMATION_TIMEOUT = 120_000; // 2 minute timeout
 
 // ============================================================================
 // Step 1: Get ETH Wallet Client
@@ -147,6 +140,7 @@ export async function preparePegin(
 
 /**
  * Submit the PoP signature and ETH transaction, then wait for confirmation.
+ * Receipt verification is handled by the SDK's registerPeginOnChain().
  */
 export async function registerPeginAndWait(
   params: PeginRegisterParams,
@@ -179,66 +173,11 @@ export async function registerPeginAndWait(
     depositorSecretHash,
   });
 
-  await waitForEthConfirmation(result.transactionHash);
-
   return {
     btcTxid: result.btcTxHash,
     ethTxHash: result.transactionHash,
     btcPopSignature: result.btcPopSignature,
   };
-}
-
-// ============================================================================
-// ETH Confirmation Polling
-// ============================================================================
-
-/**
- * Poll for ETH transaction receipt, retrying on transient RPC errors.
- *
- * This polls with retries so a submitted transaction isn't lost
- * due to a momentary network hiccup.
- */
-async function waitForEthConfirmation(ethTxHash: Hash): Promise<void> {
-  const publicClient = ethClient.getPublicClient();
-
-  try {
-    await pollUntil(
-      async () => {
-        try {
-          const receipt = await publicClient.getTransactionReceipt({
-            hash: ethTxHash,
-          });
-
-          if (receipt.status === "reverted") {
-            throw mapViemErrorToContractError(
-              new Error(
-                `Transaction reverted. Hash: ${ethTxHash}. Check the transaction on block explorer for details.`,
-              ),
-              "pegin confirmation",
-              [BTCVaultRegistryABI as Abi],
-            );
-          }
-
-          return receipt;
-        } catch (error) {
-          if (error instanceof ContractError) throw error;
-          return null;
-        }
-      },
-      {
-        intervalMs: ETH_CONFIRMATION_POLL_INTERVAL,
-        timeoutMs: ETH_CONFIRMATION_TIMEOUT,
-      },
-    );
-  } catch (error) {
-    if (error instanceof ContractError) throw error;
-
-    throw new Error(
-      `ETH transaction not confirmed within ${ETH_CONFIRMATION_TIMEOUT / 1000}s. ` +
-        `It may still be pending. Please check the transaction on a block explorer. ` +
-        `Hash: ${ethTxHash}`,
-    );
-  }
 }
 
 // ============================================================================
