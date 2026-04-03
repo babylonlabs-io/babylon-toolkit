@@ -9,6 +9,7 @@ import {
   getDepositButtonLabel,
   isDepositAmountValid,
   validateDepositAmount,
+  validateMultiVaultDepositInputs,
   validateProviderSelection,
   validateSufficientBalance,
   validateUTXOs,
@@ -357,6 +358,58 @@ describe("Deposit Validations", () => {
         btcBalance,
       });
       expect(result).toBe(true);
+    });
+  });
+
+  describe("validateMultiVaultDepositInputs", () => {
+    const validInputs = {
+      btcAddress: "bc1qtest",
+      depositorEthAddress:
+        "0x1234567890abcdef1234567890abcdef12345678" as `0x${string}`,
+      vaultAmounts: [50_000n, 50_000n],
+      selectedProviders: ["0x1234567890abcdef1234567890abcdef12345678"],
+      confirmedUTXOs: [
+        { txid: "0xabc", vout: 0, value: 200_000, scriptPubKey: "0xdef" },
+      ] as UTXO[],
+      isUTXOsLoading: false,
+      utxoError: null,
+      vaultProviderBtcPubkey: "a".repeat(64),
+      vaultKeeperBtcPubkeys: ["b".repeat(64)],
+      universalChallengerBtcPubkeys: ["c".repeat(64)],
+      minDeposit: 10_000n,
+      maxDeposit: 100_000n,
+    };
+
+    it("passes when all vault amounts are within min/max range", () => {
+      expect(() => validateMultiVaultDepositInputs(validInputs)).not.toThrow();
+    });
+
+    it("throws when a vault amount is below minDeposit", () => {
+      expect(() =>
+        validateMultiVaultDepositInputs({
+          ...validInputs,
+          vaultAmounts: [5_000n, 50_000n],
+        }),
+      ).toThrow("Vault 1: Minimum deposit");
+    });
+
+    it("throws when a vault amount exceeds maxDeposit", () => {
+      expect(() =>
+        validateMultiVaultDepositInputs({
+          ...validInputs,
+          vaultAmounts: [50_000n, 200_000n],
+        }),
+      ).toThrow("Vault 2: Maximum deposit");
+    });
+
+    it("passes when maxDeposit is undefined", () => {
+      expect(() =>
+        validateMultiVaultDepositInputs({
+          ...validInputs,
+          maxDeposit: undefined,
+          vaultAmounts: [50_000n, 500_000n],
+        }),
+      ).not.toThrow();
     });
   });
 

@@ -360,7 +360,8 @@ export function useMultiVaultDepositFlow(
   const { btcAddress, spendableUTXOs, isUTXOsLoading, utxoError } =
     useBtcWalletState();
   const { findProvider, vaultKeepers } = useVaultProviders(selectedApplication);
-  const { config, timelockPegin, timelockRefund } = useProtocolParamsContext();
+  const { config, timelockPegin, timelockRefund, minDeposit, maxDeposit } =
+    useProtocolParamsContext();
 
   // ============================================================================
   // Main Execution Function
@@ -395,6 +396,8 @@ export function useMultiVaultDepositFlow(
           vaultProviderBtcPubkey,
           vaultKeeperBtcPubkeys,
           universalChallengerBtcPubkeys,
+          minDeposit,
+          maxDeposit,
         });
 
         // After validation, these values are guaranteed to be defined
@@ -1038,6 +1041,8 @@ export function useMultiVaultDepositFlow(
       timelockPegin,
       timelockRefund,
       config,
+      minDeposit,
+      maxDeposit,
       btcAddress,
       spendableUTXOs,
       isUTXOsLoading,

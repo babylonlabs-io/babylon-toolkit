@@ -388,6 +388,8 @@ export interface MultiVaultDepositFlowInputs {
   vaultProviderBtcPubkey: string;
   vaultKeeperBtcPubkeys: string[];
   universalChallengerBtcPubkeys: string[];
+  minDeposit: bigint;
+  maxDeposit?: bigint;
 }
 
 /**
@@ -456,6 +458,8 @@ export function validateMultiVaultDepositInputs(
     vaultProviderBtcPubkey,
     vaultKeeperBtcPubkeys,
     universalChallengerBtcPubkeys,
+    minDeposit,
+    maxDeposit,
   } = params;
 
   validateWalletConnections(btcAddress, depositorEthAddress);
@@ -464,6 +468,18 @@ export function validateMultiVaultDepositInputs(
   const amountsValidation = validateVaultAmounts(vaultAmounts);
   if (!amountsValidation.valid) {
     throw new Error(amountsValidation.error);
+  }
+
+  // Per-vault min/max deposit validation
+  for (let i = 0; i < vaultAmounts.length; i++) {
+    const amountValidation = validateDepositAmount(
+      vaultAmounts[i],
+      minDeposit,
+      maxDeposit,
+    );
+    if (!amountValidation.valid) {
+      throw new Error(`Vault ${i + 1}: ${amountValidation.error}`);
+    }
   }
 
   validateProviders(selectedProviders);
