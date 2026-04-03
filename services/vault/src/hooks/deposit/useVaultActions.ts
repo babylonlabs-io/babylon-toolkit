@@ -107,17 +107,33 @@ export function useVaultActions(): UseVaultActionsReturn {
     setBroadcastError(null);
 
     try {
-      // Fetch vault data from GraphQL
-      const vault = await fetchVaultById(activityId as Hex);
+      // Use the locally stored transaction as the source of truth when available.
+      // Only fall back to GraphQL for cross-device recovery where no local copy exists.
+      // This prevents a malicious or compromised GraphQL endpoint from substituting
+      // a forged transaction that spends the depositor's UTXOs to attacker-controlled outputs.
+      let unsignedTxHex: string;
+      let depositorBtcPubkeyRaw: string;
 
-      if (!vault) {
-        throw new Error("Vault not found. Please try again.");
-      }
+      if (pendingPegin?.unsignedTxHex) {
+        unsignedTxHex = pendingPegin.unsignedTxHex;
 
-      const unsignedTxHex = vault.unsignedPrePeginTx;
-
-      if (!unsignedTxHex) {
-        throw new Error("Pre-pegin transaction not found. Please try again.");
+        // depositorBtcPubkey is not stored in localStorage; fetch from GraphQL (public key only).
+        const vault = await fetchVaultById(activityId as Hex);
+        if (!vault) {
+          throw new Error("Vault not found. Please try again.");
+        }
+        depositorBtcPubkeyRaw = vault.depositorBtcPubkey;
+      } else {
+        // Cross-device path: no local copy exists, fall back to GraphQL.
+        const vault = await fetchVaultById(activityId as Hex);
+        if (!vault) {
+          throw new Error("Vault not found. Please try again.");
+        }
+        if (!vault.unsignedPrePeginTx) {
+          throw new Error("Pre-pegin transaction not found. Please try again.");
+        }
+        unsignedTxHex = vault.unsignedPrePeginTx;
+        depositorBtcPubkeyRaw = vault.depositorBtcPubkey;
       }
 
       // Get BTC wallet provider
@@ -130,7 +146,7 @@ export function useVaultActions(): UseVaultActionsReturn {
 
       // Get depositor's BTC public key (needed for Taproot signing)
       // Strip "0x" prefix since it comes from GraphQL (Ethereum-style hex)
-      const depositorBtcPubkey = stripHexPrefix(vault.depositorBtcPubkey);
+      const depositorBtcPubkey = stripHexPrefix(depositorBtcPubkeyRaw);
       if (!depositorBtcPubkey) {
         throw new Error(
           "Depositor BTC public key not found. Please try creating the peg-in request again.",
