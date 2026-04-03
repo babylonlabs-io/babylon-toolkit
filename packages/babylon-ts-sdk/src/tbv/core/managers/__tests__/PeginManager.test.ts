@@ -44,6 +44,10 @@ vi.mock("viem", async (importOriginal) => {
     ...actual,
     createPublicClient: vi.fn(() => ({
       estimateGas: vi.fn().mockResolvedValue(100000n),
+      waitForTransactionReceipt: vi.fn().mockResolvedValue({
+        status: "success",
+        transactionHash: "0x" + "ab".repeat(32),
+      }),
       readContract: vi
         .fn()
         .mockImplementation(({ functionName }: { functionName: string }) => {
@@ -648,6 +652,61 @@ describe("PeginManager", () => {
       });
 
       expect(sendTxSpy).toHaveBeenCalled();
+    });
+
+    it("should throw when transaction receipt status is reverted", async () => {
+      const viem = await import("viem");
+      const mockedCreatePublicClient = vi.mocked(viem.createPublicClient);
+
+      const defaultReadContract = vi
+        .fn()
+        .mockImplementation(({ functionName }: { functionName: string }) => {
+          if (functionName === "getPegInFee") return Promise.resolve(0n);
+          return Promise.resolve({ depositor: viem.zeroAddress });
+        });
+
+      // First call: checkVaultExists (default behavior)
+      mockedCreatePublicClient.mockReturnValueOnce({
+        readContract: defaultReadContract,
+      } as any);
+
+      // Second call: the main publicClient in registerPeginOnChain
+      // with waitForTransactionReceipt returning "reverted"
+      mockedCreatePublicClient.mockReturnValueOnce({
+        estimateGas: vi.fn().mockResolvedValue(100000n),
+        waitForTransactionReceipt: vi.fn().mockResolvedValue({
+          status: "reverted",
+          transactionHash: "0x" + "ab".repeat(32),
+        }),
+        readContract: defaultReadContract,
+      } as any);
+
+      const btcWallet = new MockBitcoinWallet({
+        publicKeyHex: TEST_KEYS.DEPOSITOR,
+      });
+      const ethWallet = new MockEthereumWallet();
+
+      const manager = new PeginManager({
+        btcNetwork: "signet",
+        btcWallet,
+        ethWallet: ethWallet as any,
+        ethChain: TEST_CHAIN,
+        vaultContracts: { btcVaultRegistry: TEST_CONTRACT_ADDRESS },
+        mempoolApiUrl: MEMPOOL_API_URLS.signet,
+      });
+
+      await expect(
+        manager.registerPeginOnChain({
+          depositorBtcPubkey: TEST_KEYS.DEPOSITOR,
+          unsignedPrePeginTx: "0100000000010000000000",
+          depositorSignedPeginTx: MOCK_DEPOSITOR_SIGNED_PEGIN_TX,
+          vaultProvider: TEST_CONTRACT_ADDRESS,
+          hashlock: MOCK_HASHLOCK,
+          depositorPayoutBtcAddress:
+            "tb1pmfr3p9j00pfxjh0zmgp99y8zftmd3s5pmedqhyptwy6lm87hf5ssk79hv2",
+          depositorLamportPkHash: MOCK_LAMPORT_PK_HASH,
+        }),
+      ).rejects.toThrow(/Transaction reverted/);
     });
   });
 

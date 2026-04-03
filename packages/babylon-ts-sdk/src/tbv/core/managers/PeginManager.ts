@@ -408,6 +408,13 @@ function resolveUtxoInfo(
  * @see {@link buildPrePeginPsbt} - Lower-level primitive for custom implementations
  * @see {@link https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/docs/quickstart/managers.md | Managers Quickstart}
  */
+/**
+ * Maximum time (ms) to wait for a transaction receipt before timing out.
+ * Matches the prior vault-service polling timeout so users see a clear error
+ * instead of an indefinite hang when a transaction is dropped from the mempool.
+ */
+const RECEIPT_TIMEOUT_MS = 120_000;
+
 export class PeginManager {
   private readonly config: PeginManagerConfig;
 
@@ -801,10 +808,11 @@ export class PeginManager {
     }
 
     // Step 8: Submit peg-in request to contract (estimation passed)
+    let ethTxHash: Hex;
     try {
       // Send transaction with pre-estimated gas to skip internal estimation
       // Note: viem's sendTransaction uses `gas`, not `gasLimit`
-      const ethTxHash = await this.config.ethWallet.sendTransaction({
+      ethTxHash = await this.config.ethWallet.sendTransaction({
         to: this.config.vaultContracts.btcVaultRegistry,
         data: callData,
         value: peginFee,
@@ -812,16 +820,30 @@ export class PeginManager {
         chain: this.config.ethChain,
         gas: gasEstimate,
       });
-
-      return {
-        ethTxHash,
-        vaultId,
-        btcPopSignature,
-      };
     } catch (error) {
       // Use proper error handler for better error messages
       handleContractError(error);
     }
+
+    // Step 9: Wait for transaction receipt and verify it was not reverted
+    const receipt = await publicClient.waitForTransactionReceipt({
+      hash: ethTxHash,
+      timeout: RECEIPT_TIMEOUT_MS,
+    });
+    if (receipt.status === "reverted") {
+      handleContractError(
+        new Error(
+          `Transaction reverted. Hash: ${ethTxHash}. ` +
+            `Check the transaction on block explorer for details.`,
+        ),
+      );
+    }
+
+    return {
+      ethTxHash: receipt.transactionHash,
+      vaultId,
+      btcPopSignature,
+    };
   }
 
   /**
