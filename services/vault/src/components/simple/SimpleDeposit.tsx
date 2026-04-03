@@ -263,6 +263,7 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
                   setFormData({ selectedProvider: providerId })
                 }
                 isValid={isValid}
+                depositorClaimValue={depositorClaimValue}
                 estimatedFeeSats={effectiveFeeSats}
                 estimatedFeeRate={estimatedFeeRate}
                 isLoadingFee={isLoadingFee}

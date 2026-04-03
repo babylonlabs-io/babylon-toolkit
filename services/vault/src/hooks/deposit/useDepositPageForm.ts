@@ -179,7 +179,7 @@ export function useDepositPageForm(): UseDepositPageFormResult {
     () => providers.map((p: { id: string }) => p.id),
     [providers],
   );
-  const validation = useDepositValidation(btcAddress, providerIds);
+  const validation = useDepositValidation(providerIds);
 
   // Get UTXOs for balance calculation (already respects inscription preference)
   const { spendableUTXOs, spendableMempoolUTXOs } = useUTXOs(btcAddress);
@@ -305,6 +305,14 @@ export function useDepositPageForm(): UseDepositPageFormResult {
       ? multiVaultFeeSats
       : estimatedFeeSats;
 
+  // Adjust max deposit to account for depositorClaimValue (network fees already subtracted)
+  const adjustedMaxDepositSats = useMemo(() => {
+    if (maxDepositSats == null || depositorClaimValue == null)
+      return maxDepositSats;
+    const adjusted = maxDepositSats - depositorClaimValue;
+    return adjusted > 0n ? adjusted : 0n;
+  }, [maxDepositSats, depositorClaimValue]);
+
   const validateForm = useCallback(() => {
     const newErrors: typeof errors = {};
 
@@ -338,12 +346,14 @@ export function useDepositPageForm(): UseDepositPageFormResult {
     const hasProvider = formData.selectedProvider !== "";
     const noErrors = Object.keys(errors).length === 0;
 
-    // Delegate amount validation to service layer
+    // Delegate amount validation to service layer (includes fees + claim value)
     const isAmountValid = depositService.isDepositAmountValid({
       amountSats,
       minDeposit: validation.minDeposit,
       maxDeposit: validation.maxDeposit,
       btcBalance,
+      estimatedFeeSats: effectiveFeeSats ?? undefined,
+      depositorClaimValue,
     });
 
     return (
@@ -363,6 +373,7 @@ export function useDepositPageForm(): UseDepositPageFormResult {
     validation.minDeposit,
     validation.maxDeposit,
     btcBalance,
+    effectiveFeeSats,
     depositorClaimValue,
   ]);
 
@@ -398,7 +409,7 @@ export function useDepositPageForm(): UseDepositPageFormResult {
     estimatedFeeRate,
     isLoadingFee,
     feeError,
-    maxDepositSats,
+    maxDepositSats: adjustedMaxDepositSats,
     isPartialLiquidation,
     setIsPartialLiquidation,
     canSplit,
