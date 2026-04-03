@@ -81,9 +81,11 @@ export function isDepositAmountValid(
   // Must not exceed max deposit (if set)
   if (maxDeposit && maxDeposit > 0n && amountSats > maxDeposit) return false;
 
+  // Fees and claim value must be known before validating balance
+  if (estimatedFeeSats == null || depositorClaimValue == null) return false;
+
   // Must not exceed balance (including estimated fees and depositor claim value)
-  const totalRequired =
-    amountSats + (estimatedFeeSats ?? 0n) + (depositorClaimValue ?? 0n);
+  const totalRequired = amountSats + estimatedFeeSats + depositorClaimValue;
   if (totalRequired > btcBalance) return false;
 
   return true;
@@ -109,9 +111,10 @@ export function getDepositButtonLabel(
 
   if (amountSats <= 0n) return "Enter an amount";
   if (btcBalance <= 0n) return "No available balance";
+  if (estimatedFeeSats == null || depositorClaimValue == null)
+    return "Calculating fees...";
 
-  const totalRequired =
-    amountSats + (estimatedFeeSats ?? 0n) + (depositorClaimValue ?? 0n);
+  const totalRequired = amountSats + estimatedFeeSats + depositorClaimValue;
   if (totalRequired > btcBalance) return "Insufficient balance";
 
   if (amountSats < minDeposit)

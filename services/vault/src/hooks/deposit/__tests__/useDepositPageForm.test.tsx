@@ -258,8 +258,10 @@ vi.mock("../../../services/deposit", () => ({
         } = params;
         if (amountSats <= 0n) return false;
         if (amountSats < minDeposit) return false;
+        if (estimatedFeeSats == null || depositorClaimValue == null)
+          return false;
         const totalRequired =
-          amountSats + (estimatedFeeSats ?? 0n) + (depositorClaimValue ?? 0n);
+          amountSats + estimatedFeeSats + depositorClaimValue;
         if (totalRequired > btcBalance) return false;
         return true;
       },

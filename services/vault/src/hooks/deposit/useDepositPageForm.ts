@@ -363,8 +363,7 @@ export function useDepositPageForm(): UseDepositPageFormResult {
       hasProvider &&
       noErrors &&
       isAmountValid &&
-      depositorClaimValue != null &&
-      effectiveFeeSats != null
+      depositorClaimValue != null
     );
   }, [
     isWalletConnected,

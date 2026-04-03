@@ -150,6 +150,8 @@ describe("Deposit Validations", () => {
         amountSats: 100000n,
         minDeposit,
         btcBalance,
+        estimatedFeeSats: 1000n,
+        depositorClaimValue: 5000n,
       });
       expect(result).toBe(true);
     });
@@ -186,15 +188,39 @@ describe("Deposit Validations", () => {
         amountSats: minDeposit,
         minDeposit,
         btcBalance,
+        estimatedFeeSats: 0n,
+        depositorClaimValue: 0n,
       });
       expect(result).toBe(true);
     });
 
-    it("should return true for exact balance amount with no fees", () => {
+    it("should return false when estimatedFeeSats is absent", () => {
+      const result = isDepositAmountValid({
+        amountSats: 100000n,
+        minDeposit,
+        btcBalance,
+        depositorClaimValue: 5000n,
+      });
+      expect(result).toBe(false);
+    });
+
+    it("should return false when depositorClaimValue is absent", () => {
+      const result = isDepositAmountValid({
+        amountSats: 100000n,
+        minDeposit,
+        btcBalance,
+        estimatedFeeSats: 5000n,
+      });
+      expect(result).toBe(false);
+    });
+
+    it("should return true for exact balance amount with zero fees", () => {
       const result = isDepositAmountValid({
         amountSats: btcBalance,
         minDeposit,
         btcBalance,
+        estimatedFeeSats: 0n,
+        depositorClaimValue: 0n,
       });
       expect(result).toBe(true);
     });
@@ -205,6 +231,7 @@ describe("Deposit Validations", () => {
         minDeposit,
         btcBalance,
         estimatedFeeSats: 20000n,
+        depositorClaimValue: 0n,
       });
       // 990000 + 20000 = 1010000 > 1000000
       expect(result).toBe(false);
@@ -240,6 +267,8 @@ describe("Deposit Validations", () => {
         amountSats: largeBalance,
         minDeposit,
         btcBalance: largeBalance,
+        estimatedFeeSats: 0n,
+        depositorClaimValue: 0n,
       });
       expect(result).toBe(true);
     });
@@ -251,6 +280,8 @@ describe("Deposit Validations", () => {
         minDeposit,
         maxDeposit,
         btcBalance,
+        estimatedFeeSats: 0n,
+        depositorClaimValue: 0n,
       });
       expect(result).toBe(false);
     });
@@ -262,6 +293,8 @@ describe("Deposit Validations", () => {
         minDeposit,
         maxDeposit,
         btcBalance,
+        estimatedFeeSats: 0n,
+        depositorClaimValue: 0n,
       });
       expect(result).toBe(true);
     });
@@ -277,9 +310,21 @@ describe("Deposit Validations", () => {
       ).toBe("Enter an amount");
     });
 
-    it("should show 'Deposit' for valid amount", () => {
+    it("should show 'Calculating fees...' when fees are absent", () => {
       expect(
         getDepositButtonLabel({ amountSats: 100000n, minDeposit, btcBalance }),
+      ).toBe("Calculating fees...");
+    });
+
+    it("should show 'Deposit' for valid amount", () => {
+      expect(
+        getDepositButtonLabel({
+          amountSats: 100000n,
+          minDeposit,
+          btcBalance,
+          estimatedFeeSats: 1000n,
+          depositorClaimValue: 5000n,
+        }),
       ).toBe("Deposit");
     });
 
@@ -288,6 +333,8 @@ describe("Deposit Validations", () => {
         amountSats: 5000n,
         minDeposit,
         btcBalance,
+        estimatedFeeSats: 1000n,
+        depositorClaimValue: 5000n,
       });
       expect(label).toContain("Minimum");
     });
@@ -299,6 +346,8 @@ describe("Deposit Validations", () => {
         minDeposit,
         maxDeposit,
         btcBalance,
+        estimatedFeeSats: 1000n,
+        depositorClaimValue: 5000n,
       });
       expect(label).toContain("Maximum");
     });
@@ -309,6 +358,8 @@ describe("Deposit Validations", () => {
           amountSats: btcBalance + 1n,
           minDeposit,
           btcBalance,
+          estimatedFeeSats: 0n,
+          depositorClaimValue: 0n,
         }),
       ).toBe("Insufficient balance");
     });
@@ -320,6 +371,7 @@ describe("Deposit Validations", () => {
           minDeposit,
           btcBalance,
           estimatedFeeSats: 20000n,
+          depositorClaimValue: 0n,
         }),
       ).toBe("Insufficient balance");
     });
