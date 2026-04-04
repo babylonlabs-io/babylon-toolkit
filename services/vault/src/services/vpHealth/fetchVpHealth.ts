@@ -26,7 +26,17 @@ export async function fetchVpHealth(): Promise<VpHealthSnapshot[]> {
       return [];
     }
 
-    return (await response.json()) as VpHealthSnapshot[];
+    const data: unknown = await response.json();
+    if (!Array.isArray(data)) return [];
+
+    return data.filter(
+      (item): item is VpHealthSnapshot =>
+        typeof item === "object" &&
+        item !== null &&
+        typeof (item as Record<string, unknown>).address === "string" &&
+        typeof (item as Record<string, unknown>).successRate === "number" &&
+        typeof (item as Record<string, unknown>).totalRequests === "number",
+    );
   } catch (error) {
     logger.warn("VP health endpoint unreachable", { data: { error } });
     return [];

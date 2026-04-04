@@ -52,10 +52,11 @@ export interface DepositFormValidityParams {
 }
 
 /**
- * Check if deposit amount is within valid range and balance
+ * Check if deposit amount is within valid range and balance.
  *
- * This is a pure function that validates deposit constraints without side effects.
- * Used by form hooks to determine if the submit button should be enabled.
+ * This is a quick check for the form CTA button — it does NOT account for
+ * transaction fees or depositor claim value. Full balance validation
+ * (including fees) happens at transaction build time in the review modal.
  *
  * @param params - Validation parameters
  * @returns true if deposit amount is valid
