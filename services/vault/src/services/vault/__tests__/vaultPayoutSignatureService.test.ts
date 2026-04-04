@@ -311,6 +311,7 @@ describe("vaultPayoutSignatureService", () => {
         depositorBtcPubkey: "depositor_pubkey",
         timelockPegin: 100,
         network: "testnet" as const,
+        registeredPayoutScriptPubKey: "0x0014aaaa",
       };
 
       // Mock PayoutManager
@@ -374,6 +375,7 @@ describe("vaultPayoutSignatureService", () => {
           universalChallengerBtcPubkeys: ["challenger1"],
           depositorBtcPubkey: "depositor_pubkey",
           timelockPegin: 100,
+          registeredPayoutScriptPubKey: "0x0014aaaa",
         },
         {
           payoutTxHex: "payout_2",
@@ -384,6 +386,7 @@ describe("vaultPayoutSignatureService", () => {
           universalChallengerBtcPubkeys: ["challenger1"],
           depositorBtcPubkey: "depositor_pubkey",
           timelockPegin: 100,
+          registeredPayoutScriptPubKey: "0x0014aaaa",
         },
       ]);
     });
@@ -405,6 +408,7 @@ describe("vaultPayoutSignatureService", () => {
         depositorBtcPubkey: "depositor_pubkey",
         timelockPegin: 100,
         network: "testnet" as const,
+        registeredPayoutScriptPubKey: "0x0014aaaa",
       };
 
       // Mock PayoutManager without batch signing support
@@ -451,6 +455,7 @@ describe("vaultPayoutSignatureService", () => {
         depositorBtcPubkey: "depositor_pubkey",
         timelockPegin: 100,
         network: "testnet" as const,
+        registeredPayoutScriptPubKey: "0x0014aaaa",
       };
 
       // Mock PayoutManager that throws during signing
@@ -502,6 +507,7 @@ describe("vaultPayoutSignatureService", () => {
         depositorBtcPubkey: "depositor_pubkey",
         timelockPegin: 100,
         network: "testnet" as const,
+        registeredPayoutScriptPubKey: "0x0014aaaa",
       };
 
       // Mock PayoutManager that throws non-Error object
@@ -543,6 +549,9 @@ describe("vaultPayoutSignatureService", () => {
     const depositorBtcPubkey =
       "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef";
 
+    const depositorPayoutBtcAddress =
+      "0x0014aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+
     const onChainVault = {
       depositorSignedPeginTx: "0xdeadbeef" as `0x${string}`,
       applicationEntryPoint: "0xAppEntryPoint" as `0x${string}`,
@@ -579,6 +588,7 @@ describe("vaultPayoutSignatureService", () => {
         depositorBtcPubkey,
         providers,
         getUniversalChallengersByVersion: () => universalChallengers,
+        depositorPayoutBtcAddress,
       });
 
       expect(getVaultFromChain).toHaveBeenCalledWith(peginTxId);
@@ -595,6 +605,7 @@ describe("vaultPayoutSignatureService", () => {
         depositorBtcPubkey,
         providers,
         getUniversalChallengersByVersion: () => universalChallengers,
+        depositorPayoutBtcAddress,
       });
 
       expect(fetchVaultKeepersByVersion).toHaveBeenCalledWith(
@@ -617,6 +628,7 @@ describe("vaultPayoutSignatureService", () => {
         depositorBtcPubkey,
         providers,
         getUniversalChallengersByVersion,
+        depositorPayoutBtcAddress,
       });
 
       expect(getUniversalChallengersByVersion).toHaveBeenCalledWith(
@@ -635,6 +647,7 @@ describe("vaultPayoutSignatureService", () => {
           depositorBtcPubkey,
           providers,
           getUniversalChallengersByVersion: () => [],
+          depositorPayoutBtcAddress,
         }),
       ).rejects.toThrow(
         `No universal challengers found for version ${onChainVault.universalChallengersVersion}`,
@@ -651,6 +664,7 @@ describe("vaultPayoutSignatureService", () => {
         depositorBtcPubkey,
         providers,
         getUniversalChallengersByVersion: () => universalChallengers,
+        depositorPayoutBtcAddress,
       });
 
       expect(getTimelockPeginByVersion).toHaveBeenCalledWith(
@@ -675,12 +689,31 @@ describe("vaultPayoutSignatureService", () => {
           vaultProvider: {},
         },
         getUniversalChallengersByVersion: () => universalChallengers,
+        depositorPayoutBtcAddress,
       });
 
       expect(fetchVaultProviderById).toHaveBeenCalledWith(
         onChainVault.vaultProvider,
       );
       expect(context.vaultProviderBtcPubkey).toBe("fetchedproviderkey");
+    });
+
+    it("includes depositorPayoutBtcAddress param as registeredPayoutScriptPubKey in context", async () => {
+      vi.mocked(getVaultFromChain).mockResolvedValue(onChainVault);
+      vi.mocked(fetchVaultKeepersByVersion).mockResolvedValue(vaultKeepers);
+      vi.mocked(getTimelockPeginByVersion).mockResolvedValue(100);
+
+      const { context } = await prepareSigningContext({
+        peginTxId,
+        depositorBtcPubkey,
+        providers,
+        getUniversalChallengersByVersion: () => universalChallengers,
+        depositorPayoutBtcAddress,
+      });
+
+      expect(context.registeredPayoutScriptPubKey).toBe(
+        depositorPayoutBtcAddress,
+      );
     });
   });
 
@@ -693,6 +726,7 @@ describe("vaultPayoutSignatureService", () => {
       depositorBtcPubkey: "depositor_pubkey",
       timelockPegin: 100,
       network: "testnet" as const,
+      registeredPayoutScriptPubKey: "0x0014aaaa",
     };
 
     const claimer1Pubkey =

@@ -167,6 +167,8 @@ export interface PayoutSigningParams {
   providerBtcPubKey: string;
   vaultKeepers: Array<{ btcPubKey: string }>;
   universalChallengers: Array<{ btcPubKey: string }>;
+  /** Depositor's registered payout address (scriptPubKey hex) from the indexer */
+  depositorPayoutBtcAddress: string;
   /** Optional AbortSignal for cancellation */
   signal?: AbortSignal;
 }

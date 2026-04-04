@@ -61,6 +61,7 @@ import {
   addPendingPegin,
   updatePendingPeginStatus,
 } from "@/storage/peginStorage";
+import { btcAddressToScriptPubKeyHex } from "@/utils/btc";
 import { satoshiToBtcNumber } from "@/utils/btcConversion";
 import { sanitizeErrorMessage } from "@/utils/errors/formatting";
 import { formatBtcValue } from "@/utils/formatting";
@@ -887,6 +888,8 @@ export function useMultiVaultDepositFlow(
                   btcPubKey,
                 }),
               ),
+              depositorPayoutBtcAddress:
+                btcAddressToScriptPubKeyHex(confirmedBtcAddress),
               signal,
             });
 

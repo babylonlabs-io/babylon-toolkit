@@ -98,6 +98,16 @@ export function usePayoutSigningState({
       return;
     }
 
+    // Validate payout address exists (required for payout output validation)
+    if (!activity.depositorPayoutBtcAddress) {
+      setError({
+        title: "Missing Payout Address",
+        message:
+          "Depositor payout address not available. Please wait for indexer sync and try again.",
+      });
+      return;
+    }
+
     // Find vault provider
     const vaultProviderAddress = activity.providers[0]?.id as Hex;
     const provider = findProvider(vaultProviderAddress);
@@ -164,6 +174,7 @@ export function usePayoutSigningState({
         depositorBtcPubkey: btcPublicKey,
         providers,
         getUniversalChallengersByVersion,
+        depositorPayoutBtcAddress: activity.depositorPayoutBtcAddress,
       });
 
       // Prepare transactions for signing
@@ -223,6 +234,7 @@ export function usePayoutSigningState({
     activity.providers,
     activity.txHash,
     activity.id,
+    activity.depositorPayoutBtcAddress,
     findProvider,
     vaultKeepers,
     latestUniversalChallengers,
