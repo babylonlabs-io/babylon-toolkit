@@ -4,6 +4,7 @@
 
 import { describe, expect, it } from "vitest";
 
+import type { UTXO } from "../../vault/vaultTransactionService";
 import {
   getDepositButtonLabel,
   isDepositAmountValid,
