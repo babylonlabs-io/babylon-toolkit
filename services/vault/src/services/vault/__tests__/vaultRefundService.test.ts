@@ -1,4 +1,3 @@
-import { beforeEach, describe, expect, it, vi, type Mock } from "vitest";
 vi.mock("@babylonlabs-io/ts-sdk/tbv/core", () => ({
   buildRefundPsbt: vi.fn(),
   createTaprootScriptPathSignOptions: vi.fn().mockReturnValue({}),
@@ -53,12 +52,13 @@ vi.mock("bitcoinjs-lib", () => {
   };
 });
 
-
 import {
   buildRefundPsbt,
   getNetworkFees,
   pushTx,
 } from "@babylonlabs-io/ts-sdk/tbv/core";
+import { beforeEach, describe, expect, it, vi, type Mock } from "vitest";
+
 import { getVaultFromChain } from "../../../clients/eth-contract/btc-vault-registry/query";
 import { getOffchainParamsByVersion } from "../../../clients/eth-contract/protocol-params";
 import { fetchAllUniversalChallengers } from "../../providers";
