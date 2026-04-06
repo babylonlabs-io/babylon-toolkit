@@ -4,6 +4,18 @@
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "node": {
+        "types": "./dist/index-node.d.ts",
+        "default": "./dist/index-node.js"
+      },
+      "default": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      }
+    }
+  },
   "scripts": {
     "build": "tsc -b tsconfig.lib.json",
     "build-wasm": "node scripts/build-wasm.js"
@@ -11,7 +23,8 @@
   "files": [
     "dist",
     "dist/**/*.d.ts",
-    "dist/**/*.wasm"
+    "dist/**/*.wasm",
+    "dist/**/*.cjs"
   ],
   "repository": {
     "type": "git",

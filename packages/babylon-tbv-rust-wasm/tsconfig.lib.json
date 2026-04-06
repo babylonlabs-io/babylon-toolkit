@@ -11,6 +11,6 @@
     "moduleResolution": "Bundler",
     "target": "es2022"
   },
-  "include": ["src/**/*.ts", "dist/generated/**/*.d.ts"],
+  "include": ["src/**/*.ts", "dist/generated/**/*.d.ts", "dist/generated-node/**/*.d.ts"],
   "exclude": ["node_modules"]
 }
