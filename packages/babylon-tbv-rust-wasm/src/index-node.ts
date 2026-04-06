@@ -8,13 +8,11 @@ import { createRequire } from "node:module";
 const require = createRequire(import.meta.url);
 
 // The nodejs target generates CJS — load it via createRequire.
-// eslint-disable-next-line @typescript-eslint/no-require-imports
 const wasmModule = require("./generated-node/btc_vault.cjs");
 
 const {
   WasmPrePeginTx,
   WasmPrePeginHtlcConnector,
-  WasmPeginTx,
   WasmPeginPayoutConnector,
   WasmAssertPayoutNoPayoutConnector,
   WasmAssertChallengeAssertConnector,
@@ -105,7 +103,7 @@ export async function buildPeginTxFromPrePegin(
   );
 
   let fundedTx: InstanceType<typeof WasmPrePeginTx> | null = null;
-  let peginTx: InstanceType<typeof WasmPeginTx> | null = null;
+  let peginTx: ReturnType<typeof unfundedTx.buildPeginTx> | null = null;
   try {
     fundedTx = unfundedTx.fromFundedTransaction(
       fundedPrePeginTxHex,

@@ -18,7 +18,8 @@
   },
   "scripts": {
     "build": "tsc -b tsconfig.lib.json",
-    "build-wasm": "node scripts/build-wasm.js"
+    "build-wasm": "node scripts/build-wasm.js",
+    "lint": "eslint ."
   },
   "files": [
     "dist",

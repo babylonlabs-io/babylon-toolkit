@@ -1,4 +1,4 @@
-// @ts-ignore - WASM files are in dist/generated/ (checked into git), not src/generated/
+// @ts-expect-error - WASM files are in dist/generated/ (checked into git), not src/generated/
 import init, { WasmPrePeginTx, WasmPrePeginHtlcConnector, WasmPeginTx, computeMinClaimValue as wasmComputeMinClaimValue, numUtxosForInputLabels as wasmNumUtxosForInputLabels } from "./generated/btc_vault.js";
 import type {
   PrePeginParams,
@@ -252,5 +252,5 @@ export {
 export { getChallengeAssertScriptInfo } from "./challengeAssertConnector.js";
 
 // Re-export raw WASM types for callers that need direct access
-// @ts-ignore - WASM files are in dist/generated/ (checked into git), not src/generated/
+// @ts-expect-error - WASM files are in dist/generated/ (checked into git), not src/generated/
 export { WasmPeginTx, WasmPeginPayoutConnector, WasmPrePeginTx, WasmPrePeginHtlcConnector } from "./generated/btc_vault.js";
