@@ -144,13 +144,29 @@ export function useVaultActions(): UseVaultActionsReturn {
       // This prevents wasted signing effort if UTXOs have been spent
       await assertUtxosAvailable(unsignedTxHex, depositorAddress);
 
-      // Broadcast the transaction (UTXO will be derived from mempool API)
+      // Build localPrevouts from stored selectedUTXOs (avoids untrusted mempool fetch)
+      const localPrevouts:
+        | Record<string, { scriptPubKey: string; value: number }>
+        | undefined = pendingPegin?.selectedUTXOs
+        ? Object.fromEntries(
+            pendingPegin.selectedUTXOs.map((utxo) => [
+              `${utxo.txid}:${utxo.vout}`,
+              {
+                scriptPubKey: utxo.scriptPubKey,
+                value: Number(utxo.value),
+              },
+            ]),
+          )
+        : undefined;
+
+      // Broadcast with pre-validated UTXOs from localStorage (falls back to mempool if unavailable)
       const txId = await broadcastPrePeginTransaction({
         unsignedTxHex,
         btcWalletProvider: {
           signPsbt: (psbtHex: string) => btcWalletProvider.signPsbt(psbtHex),
         },
         depositorBtcPubkey,
+        localPrevouts,
       });
 
       // Update or create localStorage entry for status tracking

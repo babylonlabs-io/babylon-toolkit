@@ -30,7 +30,18 @@ export async function broadcastBtcTransaction(
     depositorBtcPubkey,
     btcWalletProvider,
     fundedPrePeginTxHex,
+    selectedUTXOs,
   } = params;
+
+  // Convert selectedUTXOs to localPrevouts format for mempool-free broadcast
+  const localPrevouts: Record<string, { scriptPubKey: string; value: number }> =
+    {};
+  for (const utxo of selectedUTXOs) {
+    localPrevouts[`${utxo.txid}:${utxo.vout}`] = {
+      scriptPubKey: utxo.scriptPubKey,
+      value: utxo.value,
+    };
+  }
 
   const broadcastTxId = await broadcastPrePeginTransaction({
     unsignedTxHex: fundedPrePeginTxHex,
@@ -38,6 +49,7 @@ export async function broadcastBtcTransaction(
       signPsbt: (psbtHex: string) => btcWalletProvider.signPsbt(psbtHex),
     },
     depositorBtcPubkey,
+    localPrevouts,
   });
 
   // Update localStorage

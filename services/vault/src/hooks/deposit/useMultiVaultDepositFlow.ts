@@ -774,7 +774,18 @@ export function useMultiVaultDepositFlow(
                   confirmedBtcWallet.signPsbt(psbtHex),
               });
             } else {
-              // STANDARD: Broadcast directly from memory (no indexer re-fetch)
+              // STANDARD: Broadcast with pre-validated UTXOs (no mempool fetch)
+              const localPrevouts: Record<
+                string,
+                { scriptPubKey: string; value: number }
+              > = {};
+              for (const utxo of result.selectedUTXOs) {
+                localPrevouts[`${utxo.txid}:${utxo.vout}`] = {
+                  scriptPubKey: utxo.scriptPubKey,
+                  value: utxo.value,
+                };
+              }
+
               await broadcastPrePeginTransaction({
                 unsignedTxHex: result.fundedPrePeginTxHex,
                 btcWalletProvider: {
@@ -782,6 +793,7 @@ export function useMultiVaultDepositFlow(
                     confirmedBtcWallet.signPsbt(psbtHex),
                 },
                 depositorBtcPubkey: result.depositorBtcPubkey,
+                localPrevouts,
               });
             }
 

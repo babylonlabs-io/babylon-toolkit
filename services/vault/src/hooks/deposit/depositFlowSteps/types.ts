@@ -188,6 +188,8 @@ export interface BroadcastParams {
   btcWalletProvider: BitcoinWallet;
   /** Funded Pre-PegIn tx hex to broadcast (avoids re-fetching from indexer) */
   fundedPrePeginTxHex: string;
+  /** Pre-validated UTXOs from preparePegin() — used instead of mempool fetch */
+  selectedUTXOs: DepositUtxo[];
 }
 
 // ============================================================================

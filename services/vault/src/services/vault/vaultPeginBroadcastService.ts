@@ -42,6 +42,13 @@ export interface BroadcastPrePeginParams {
    * Required for Taproot (P2TR) signing
    */
   depositorBtcPubkey: string;
+
+  /**
+   * Pre-validated UTXO data from transaction construction phase.
+   * When provided, matching inputs skip the mempool API fetch.
+   * Key format: "txid:vout" (e.g. "abc123...def:0").
+   */
+  localPrevouts?: Record<string, { scriptPubKey: string; value: number }>;
 }
 
 /**
@@ -51,14 +58,16 @@ async function addInputsToPsbt(
   psbt: Psbt,
   tx: Transaction,
   publicKeyNoCoord: Buffer,
+  localPrevouts?: Record<string, { scriptPubKey: string; value: number }>,
 ): Promise<void> {
   for (const input of tx.ins) {
     // Extract txid and vout (Bitcoin stores txid in reverse byte order)
     const txid = Buffer.from(input.hash).reverse().toString("hex");
     const vout = input.index;
 
-    // Fetch UTXO data from mempool
-    const utxoData = await fetchUTXOFromMempool(txid, vout);
+    // Use pre-validated local data when available, fall back to mempool API
+    const local = localPrevouts?.[`${txid}:${vout}`];
+    const utxoData = local ?? (await fetchUTXOFromMempool(txid, vout));
 
     // Get proper PSBT input fields based on script type
     // Handles P2PKH, P2SH, P2WPKH, P2WSH, P2TR
@@ -100,12 +109,13 @@ function addOutputsToPsbt(psbt: Psbt, tx: Transaction): void {
 async function createPsbtFromTransaction(
   tx: Transaction,
   publicKeyNoCoord: Buffer,
+  localPrevouts?: Record<string, { scriptPubKey: string; value: number }>,
 ): Promise<Psbt> {
   const psbt = new Psbt();
   psbt.setVersion(tx.version);
   psbt.setLocktime(tx.locktime);
 
-  await addInputsToPsbt(psbt, tx, publicKeyNoCoord);
+  await addInputsToPsbt(psbt, tx, publicKeyNoCoord, localPrevouts);
   addOutputsToPsbt(psbt, tx);
 
   return psbt;
@@ -141,7 +151,12 @@ async function signAndFinalizePsbt(
 export async function broadcastPrePeginTransaction(
   params: BroadcastPrePeginParams,
 ): Promise<string> {
-  const { unsignedTxHex, btcWalletProvider, depositorBtcPubkey } = params;
+  const {
+    unsignedTxHex,
+    btcWalletProvider,
+    depositorBtcPubkey,
+    localPrevouts,
+  } = params;
 
   try {
     // Parse transaction
@@ -156,7 +171,11 @@ export async function broadcastPrePeginTransaction(
 
     // Convert to PSBT with proper input fields
     const publicKeyNoCoord = Buffer.from(depositorBtcPubkey, "hex");
-    const psbt = await createPsbtFromTransaction(tx, publicKeyNoCoord);
+    const psbt = await createPsbtFromTransaction(
+      tx,
+      publicKeyNoCoord,
+      localPrevouts,
+    );
 
     // Sign and finalize
     const signedTxHex = await signAndFinalizePsbt(

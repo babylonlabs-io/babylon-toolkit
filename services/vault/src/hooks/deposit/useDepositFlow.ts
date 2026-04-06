@@ -308,6 +308,7 @@ export function useDepositFlow(
             depositorBtcPubkey: prepared.depositorBtcPubkey,
             btcWalletProvider: confirmedBtcWallet,
             fundedPrePeginTxHex: prepared.fundedPrePeginTxHex,
+            selectedUTXOs: prepared.selectedUTXOs,
           },
           depositorEthAddress,
         );
