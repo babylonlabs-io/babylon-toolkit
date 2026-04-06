@@ -16,7 +16,7 @@ import {
 // Cross-network pairing validation
 // Both modules above throw if their individual env vars are invalid.
 // Here we enforce that the combination is a known safe pairing.
-const VALID_PAIRINGS: Array<{ btc: string; eth: number }> = [
+const VALID_PAIRINGS: Array<{ btc: typeof BTC_MAINNET | typeof BTC_SIGNET; eth: typeof ETH_MAINNET_CHAIN_ID | typeof ETH_SEPOLIA_CHAIN_ID }> = [
   { btc: BTC_MAINNET, eth: ETH_MAINNET_CHAIN_ID },
   { btc: BTC_SIGNET, eth: ETH_SEPOLIA_CHAIN_ID },
 ];

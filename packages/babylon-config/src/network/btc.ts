@@ -41,15 +41,15 @@ export const btcNetwork = btcNetworkRaw as typeof BTC_MAINNET | typeof BTC_SIGNE
 // Export for vault pegin usage
 export type BTCNetwork = Network;
 
-const config: Record<string, BTCConfig> = {
-  mainnet: {
+const config: Record<typeof BTC_MAINNET | typeof BTC_SIGNET, BTCConfig> = {
+  [BTC_MAINNET]: {
     coinName: "BTC",
     coinSymbol: "BTC",
     networkName: "BTC",
     mempoolApiUrl: MEMPOOL_API,
     network: Network.MAINNET,
   },
-  signet: {
+  [BTC_SIGNET]: {
     coinName: "Signet BTC",
     coinSymbol: "sBTC",
     networkName: "BTC signet",

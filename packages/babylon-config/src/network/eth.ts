@@ -52,10 +52,10 @@ export type ExtendedETHConfig = ETHConfig & {
 
 type Config = ExtendedETHConfig;
 
-const config: Record<number, Config> = {
-  1: {
+const config: Record<typeof ETH_MAINNET_CHAIN_ID | typeof ETH_SEPOLIA_CHAIN_ID, Config> = {
+  [ETH_MAINNET_CHAIN_ID]: {
     name: "Ethereum Mainnet",
-    chainId: 1,
+    chainId: ETH_MAINNET_CHAIN_ID,
     chainName: "Ethereum Mainnet",
     rpcUrl:
       process.env.NEXT_PUBLIC_ETH_RPC_URL ||
@@ -68,9 +68,9 @@ const config: Record<number, Config> = {
     },
     displayUSD: true,
   },
-  11155111: {
+  [ETH_SEPOLIA_CHAIN_ID]: {
     name: "Ethereum Sepolia",
-    chainId: 11155111,
+    chainId: ETH_SEPOLIA_CHAIN_ID,
     chainName: "Sepolia Testnet",
     rpcUrl:
       process.env.NEXT_PUBLIC_ETH_RPC_URL ||
@@ -102,9 +102,9 @@ export function getNetworkConfigETH(): Config {
 export function getETHChain(): Chain {
   // Use chainId directly since it's already validated
   switch (chainId) {
-    case 1:
+    case ETH_MAINNET_CHAIN_ID:
       return mainnet;
-    case 11155111:
+    case ETH_SEPOLIA_CHAIN_ID:
       return sepolia;
     default:
       throw new Error(
