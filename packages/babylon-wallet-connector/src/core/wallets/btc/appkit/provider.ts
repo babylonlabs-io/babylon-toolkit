@@ -15,7 +15,7 @@ interface BtcConnectedEvent extends Event {
 interface AppKitBtcWalletProvider {
   signPSBT?: (params: {
     psbt: string;
-    signInputs?: { address: string; signingIndexes: number[] };
+    signInputs?: { address: string; signingIndexes: number[]; disableTweakSigner?: boolean };
     broadcast: boolean;
   }) => Promise<string | { psbt?: string }>;
   signMessage?: (params: {
@@ -167,14 +167,16 @@ export class AppKitBTCProvider implements IBTCProvider {
 
       const psbtBase64 = Psbt.fromHex(psbtHex).toBase64();
 
+      const signingIndexes = options?.signInputs?.map((i) => i.index) ?? [0];
+      const disableTweakSigner = options?.signInputs?.some((i) => i.disableTweakSigner) ?? false;
+
       const params = {
         psbt: psbtBase64,
-        signInputs: options?.autoFinalized
-          ? undefined
-          : {
-              address,
-              signingIndexes: [0],
-            },
+        signInputs: {
+          address,
+          signingIndexes,
+          ...(disableTweakSigner && { disableTweakSigner: true }),
+        },
         broadcast: false,
       };
 
