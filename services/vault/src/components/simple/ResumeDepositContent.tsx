@@ -424,18 +424,16 @@ export function ResumeRefundContent({
 
   useRunOnce(handleRefund);
 
-  const derived = computeDepositDerivedState(
-    DepositFlowStep.BROADCAST_PRE_PEGIN,
-    refunding,
-    false,
-    error,
-  );
+  const hasSucceeded = !!refundTxId && !refunding;
+  const isComplete = hasSucceeded;
+  const canClose = hasSucceeded || !!error;
+  const isProcessing = refunding && !error;
 
   // When the refund succeeds, the user closes the dialog themselves after
   // seeing the confirmation. We call onSuccess() at that point so the parent
   // refetches activities only after the user has acknowledged the result.
   const handleClose = () => {
-    if (derived.isComplete) {
+    if (isComplete) {
       onSuccess();
     }
     onClose();
@@ -446,9 +444,9 @@ export function ResumeRefundContent({
       currentStep={DepositFlowStep.BROADCAST_PRE_PEGIN}
       isWaiting={false}
       error={error}
-      isComplete={derived.isComplete}
-      isProcessing={derived.isProcessing}
-      canClose={derived.canClose}
+      isComplete={isComplete}
+      isProcessing={isProcessing}
+      canClose={canClose}
       canContinueInBackground={false}
       payoutSigningProgress={null}
       onClose={handleClose}

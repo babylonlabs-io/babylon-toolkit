@@ -234,6 +234,21 @@ describe("peginStateMachine", () => {
       );
       vi.useRealTimers();
     });
+
+    it("offers REFUND_HTLC action when canRefund is true", () => {
+      const state = getPeginState(ContractStatus.EXPIRED, { canRefund: true });
+      expect(state.availableActions).toEqual([PeginAction.REFUND_HTLC]);
+    });
+
+    it("offers no action when canRefund is false", () => {
+      const state = getPeginState(ContractStatus.EXPIRED, { canRefund: false });
+      expect(state.availableActions).toEqual([PeginAction.NONE]);
+    });
+
+    it("offers no action when canRefund is not provided", () => {
+      const state = getPeginState(ContractStatus.EXPIRED);
+      expect(state.availableActions).toEqual([PeginAction.NONE]);
+    });
   });
 
   // ==========================================================================
@@ -294,6 +309,15 @@ describe("peginStateMachine", () => {
     it("returns null for available vault (no user action)", () => {
       const state = getPeginState(ContractStatus.ACTIVE);
       expect(getPrimaryActionButton(state)).toBeNull();
+    });
+
+    it("returns Refund for expired vault with canRefund", () => {
+      const state = getPeginState(ContractStatus.EXPIRED, { canRefund: true });
+      const button = getPrimaryActionButton(state);
+      expect(button).toEqual({
+        label: "Refund",
+        action: PeginAction.REFUND_HTLC,
+      });
     });
 
     it("returns null when no action available", () => {
