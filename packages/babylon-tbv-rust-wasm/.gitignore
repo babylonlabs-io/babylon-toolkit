@@ -4,9 +4,8 @@ dist/*.d.ts
 dist/*.map
 dist/tsconfig.lib.tsbuildinfo
 
-# Keep WASM files checked into git
+# Keep web WASM files checked into git
 !dist/generated/
-!dist/generated-node/
 
 # Temporary build directories
 btc-vault-temp/

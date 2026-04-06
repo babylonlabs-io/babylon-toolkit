@@ -1,24 +1,16 @@
 // Node.js entry point for the WASM bindings.
 //
-// Uses the --target nodejs wasm-pack build which loads the .wasm file
-// from disk via fs.readFileSync instead of fetch().
+// Loads the committed web WASM binary synchronously from disk using
+// readFileSync and initializes it via initSync. This avoids fetch()-based
+// loading, which does not work in Node.js environments, and does not require
+// a separate wasm-pack --target nodejs build step.
 
-import { createRequire } from "node:module";
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 
-const require = createRequire(import.meta.url);
-
-// The nodejs target generates CJS — load it via createRequire.
-const wasmModule = require("./generated-node/btc_vault.cjs");
-
-const {
-  WasmPrePeginTx,
-  WasmPrePeginHtlcConnector,
-  WasmPeginPayoutConnector,
-  WasmAssertPayoutNoPayoutConnector,
-  WasmAssertChallengeAssertConnector,
-  computeMinClaimValue: wasmComputeMinClaimValue,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-} = wasmModule as any;
+// @ts-expect-error - WASM files are in dist/generated/ (checked into git), not src/generated/
+import { initSync, WasmPrePeginTx, WasmPrePeginHtlcConnector, WasmPeginPayoutConnector, WasmAssertPayoutNoPayoutConnector, WasmAssertChallengeAssertConnector, computeMinClaimValue as wasmComputeMinClaimValue } from "./generated/btc_vault.js";
 
 import type {
   PrePeginParams,
@@ -41,11 +33,17 @@ import type {
  */
 const SINGLE_DEPOSIT_HTLC_VOUT = 0;
 
-/**
- * No-op for Node.js — the nodejs WASM target initializes synchronously on require().
- */
+let wasmInitialized = false;
+
 export async function initWasm(): Promise<void> {
-  // Nothing to do: wasm-pack --target nodejs loads the .wasm synchronously.
+  if (wasmInitialized) return;
+  const wasmPath = join(
+    dirname(fileURLToPath(import.meta.url)),
+    "generated",
+    "btc_vault_bg.wasm",
+  );
+  initSync({ module: readFileSync(wasmPath) });
+  wasmInitialized = true;
 }
 
 export async function createPrePeginTransaction(

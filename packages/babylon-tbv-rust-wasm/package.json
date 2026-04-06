@@ -24,8 +24,7 @@
   "files": [
     "dist",
     "dist/**/*.d.ts",
-    "dist/**/*.wasm",
-    "dist/**/*.cjs"
+    "dist/**/*.wasm"
   ],
   "repository": {
     "type": "git",
