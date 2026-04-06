@@ -40,8 +40,8 @@ export function useUnhealthyVps(): Set<string> {
     queryKey: ["vpHealth"],
     queryFn: fetchVpHealth,
     refetchInterval: POLL_INTERVAL_MS,
-    // On error, queryFn throws → data stays undefined → we return empty set
-    // This gives us graceful degradation: all VPs shown when endpoint is down
+    // fetchVpHealth returns [] on any failure (graceful degradation),
+    // so all VPs remain visible when the endpoint is down
     retry: false,
     refetchOnWindowFocus: false,
   });

@@ -83,29 +83,33 @@ export function useVaultProviders(
     retry: 1,
   });
 
-  // Filter out unhealthy VPs (circuit breaker).
-  // On health-endpoint failure the set is empty → no providers filtered.
   const unhealthyVps = useUnhealthyVps();
-  const healthyProviders = useMemo(() => {
-    const providers = data?.vaultProviders ?? [];
-    if (unhealthyVps.size === 0) return providers;
-    return providers.filter((p) => !unhealthyVps.has(p.id.toLowerCase()));
-  }, [data?.vaultProviders, unhealthyVps]);
 
-  // Fetch logos separately and merge with providers (non-blocking)
-  const vaultProvidersWithLogos = useWithLogos(healthyProviders, (p) =>
+  // All providers with logos (unfiltered) — used by findProvider so that
+  // existing vaults on temporarily unhealthy VPs remain resolvable.
+  const allProviders = data?.vaultProviders ?? [];
+  const allProvidersWithLogos = useWithLogos(allProviders, (p) =>
     toIdentity(p.btcPubKey),
   );
 
-  // Helper function to find provider by address
-  // Memoized to prevent unnecessary re-renders in consuming components
+  // Filtered list for selection UI — excludes unhealthy VPs.
+  const vaultProvidersWithLogos = useMemo(() => {
+    if (unhealthyVps.size === 0) return allProvidersWithLogos;
+    return allProvidersWithLogos.filter(
+      (p) => !unhealthyVps.has(p.id.toLowerCase()),
+    );
+  }, [allProvidersWithLogos, unhealthyVps]);
+
+  // Find provider by address — searches ALL providers (including unhealthy)
+  // so that vault management flows (payout signing, dashboard) still work
+  // for existing vaults on temporarily degraded VPs.
   const findProvider = useCallback(
     (address: string): VaultProvider | undefined => {
-      return vaultProvidersWithLogos.find(
+      return allProvidersWithLogos.find(
         (p) => p.id.toLowerCase() === address.toLowerCase(),
       );
     },
-    [vaultProvidersWithLogos],
+    [allProvidersWithLogos],
   );
 
   // Wrap refetch to return Promise<void>
