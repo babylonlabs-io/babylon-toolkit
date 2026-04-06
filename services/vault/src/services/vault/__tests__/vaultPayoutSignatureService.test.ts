@@ -650,7 +650,7 @@ describe("vaultPayoutSignatureService", () => {
           depositorBtcPubkey,
           providers,
           getUniversalChallengersByVersion: () => [],
-          depositorPayoutBtcAddress,
+          registeredPayoutScriptPubKey: depositorPayoutBtcAddress,
         }),
       ).rejects.toThrow(
         `No universal challengers found for version ${onChainVault.universalChallengersVersion}`,
