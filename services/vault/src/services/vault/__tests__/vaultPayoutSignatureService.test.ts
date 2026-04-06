@@ -591,7 +591,7 @@ describe("vaultPayoutSignatureService", () => {
         depositorBtcPubkey,
         providers,
         getUniversalChallengersByVersion: () => universalChallengers,
-        depositorPayoutBtcAddress,
+        registeredPayoutScriptPubKey: depositorPayoutBtcAddress,
       });
 
       expect(getVaultFromChain).toHaveBeenCalledWith(peginTxId);
@@ -608,7 +608,7 @@ describe("vaultPayoutSignatureService", () => {
         depositorBtcPubkey,
         providers,
         getUniversalChallengersByVersion: () => universalChallengers,
-        depositorPayoutBtcAddress,
+        registeredPayoutScriptPubKey: depositorPayoutBtcAddress,
       });
 
       expect(fetchVaultKeepersByVersion).toHaveBeenCalledWith(
@@ -631,7 +631,7 @@ describe("vaultPayoutSignatureService", () => {
         depositorBtcPubkey,
         providers,
         getUniversalChallengersByVersion,
-        depositorPayoutBtcAddress,
+        registeredPayoutScriptPubKey: depositorPayoutBtcAddress,
       });
 
       expect(getUniversalChallengersByVersion).toHaveBeenCalledWith(
@@ -667,7 +667,7 @@ describe("vaultPayoutSignatureService", () => {
         depositorBtcPubkey,
         providers,
         getUniversalChallengersByVersion: () => universalChallengers,
-        depositorPayoutBtcAddress,
+        registeredPayoutScriptPubKey: depositorPayoutBtcAddress,
       });
 
       expect(getTimelockPeginByVersion).toHaveBeenCalledWith(
@@ -692,7 +692,7 @@ describe("vaultPayoutSignatureService", () => {
           vaultProvider: {},
         },
         getUniversalChallengersByVersion: () => universalChallengers,
-        depositorPayoutBtcAddress,
+        registeredPayoutScriptPubKey: depositorPayoutBtcAddress,
       });
 
       expect(fetchVaultProviderById).toHaveBeenCalledWith(
@@ -701,7 +701,7 @@ describe("vaultPayoutSignatureService", () => {
       expect(context.vaultProviderBtcPubkey).toBe("fetchedproviderkey");
     });
 
-    it("includes depositorPayoutBtcAddress param as registeredPayoutScriptPubKey in context", async () => {
+    it("includes registeredPayoutScriptPubKey in signing context", async () => {
       vi.mocked(getVaultFromChain).mockResolvedValue(onChainVault);
       vi.mocked(fetchVaultKeepersByVersion).mockResolvedValue(vaultKeepers);
       vi.mocked(getTimelockPeginByVersion).mockResolvedValue(100);
@@ -711,7 +711,7 @@ describe("vaultPayoutSignatureService", () => {
         depositorBtcPubkey,
         providers,
         getUniversalChallengersByVersion: () => universalChallengers,
-        depositorPayoutBtcAddress,
+        registeredPayoutScriptPubKey: depositorPayoutBtcAddress,
       });
 
       expect(context.registeredPayoutScriptPubKey).toBe(

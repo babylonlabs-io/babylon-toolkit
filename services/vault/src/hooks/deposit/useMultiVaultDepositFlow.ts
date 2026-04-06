@@ -541,7 +541,7 @@ export function useMultiVaultDepositFlow(
                   btcPubKey,
                 }),
               ),
-              depositorPayoutBtcAddress:
+              registeredPayoutScriptPubKey:
                 btcAddressToScriptPubKeyHex(confirmedBtcAddress),
               signal,
             });
