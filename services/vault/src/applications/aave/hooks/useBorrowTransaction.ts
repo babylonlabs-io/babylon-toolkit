@@ -73,9 +73,17 @@ export function useBorrowTransaction(): UseBorrowTransactionResult {
       // materially different amount than the user intended.
       const onChainDecimals = await ERC20.getERC20Decimals(
         reserve.token.address,
-      );
+      ).catch(() => {
+        throw new Error(
+          `Failed to fetch on-chain decimals for ${reserve.token.address}`,
+        );
+      });
+      // Clamp toFixed precision to 15 to avoid IEEE 754 floating-point artifacts
+      // (e.g. (0.1).toFixed(18) === "0.100000000000000006"). parseUnits handles
+      // strings with fewer decimal places than the token's decimals correctly.
+      const SAFE_TOFIXED_PRECISION = 15;
       const borrowAmountBigInt = parseUnits(
-        borrowAmount.toFixed(onChainDecimals),
+        borrowAmount.toFixed(Math.min(onChainDecimals, SAFE_TOFIXED_PRECISION)),
         onChainDecimals,
       );
 

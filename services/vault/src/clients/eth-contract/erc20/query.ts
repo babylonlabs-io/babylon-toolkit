@@ -91,6 +91,13 @@ export async function getERC20Decimals(tokenAddress: Address): Promise<number> {
     args: [],
   });
 
+  const MAX_REASONABLE_DECIMALS = 18;
+  if (decimals > MAX_REASONABLE_DECIMALS) {
+    throw new Error(
+      `Token ${tokenAddress} reported ${decimals} decimals, expected at most ${MAX_REASONABLE_DECIMALS}`,
+    );
+  }
+
   return decimals as number;
 }
 

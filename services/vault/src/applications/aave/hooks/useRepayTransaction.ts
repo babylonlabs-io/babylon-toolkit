@@ -104,13 +104,23 @@ export function useRepayTransaction({
       } else {
         const onChainDecimals = await ERC20.getERC20Decimals(
           reserve.token.address,
-        );
+        ).catch(() => {
+          throw new Error(
+            `Failed to fetch on-chain decimals for ${reserve.token.address}`,
+          );
+        });
+        const SAFE_TOFIXED_PRECISION = 15;
         await repayPartial(
           walletClient,
           chain,
           reserve.reserveId,
           reserve.token.address,
-          parseUnits(repayAmount.toFixed(onChainDecimals), onChainDecimals),
+          parseUnits(
+            repayAmount.toFixed(
+              Math.min(onChainDecimals, SAFE_TOFIXED_PRECISION),
+            ),
+            onChainDecimals,
+          ),
         );
       }
 
