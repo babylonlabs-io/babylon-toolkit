@@ -13,7 +13,7 @@ import type {
  *
  * Used to build ChallengeAssert PSBTs for the depositor-as-claimer path.
  * Each challenger has 3 ChallengeAssert transactions, and this connector
- * generates the spending scripts using Lamport and GC label hashes from the VP.
+ * generates the spending scripts using WOTS public keys from the VP.
  *
  * @param params - ChallengeAssert connector parameters
  * @returns Script and control block (hex encoded)
@@ -26,12 +26,16 @@ export async function getChallengeAssertScriptInfo(
   const conn = new WasmAssertChallengeAssertConnector(
     params.claimer,
     params.challenger,
-    params.lamportHashesJson,
-    params.gcInputLabelHashesJson,
+    params.claimerWotsKeysJson,
+    params.gcWotsKeysJson,
   );
 
-  return {
-    script: conn.getScript(),
-    controlBlock: conn.getControlBlock(),
-  };
+  try {
+    return {
+      script: conn.getScript(),
+      controlBlock: conn.getControlBlock(),
+    };
+  } finally {
+    conn.free();
+  }
 }
