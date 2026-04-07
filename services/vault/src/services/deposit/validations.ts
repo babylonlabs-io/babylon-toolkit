@@ -125,6 +125,89 @@ export function getDepositButtonLabel(
   return "Deposit";
 }
 
+// ---------------------------------------------------------------------------
+// Unified CTA state — single source of truth for label + disabled
+// ---------------------------------------------------------------------------
+
+/**
+ * All inputs needed to determine the deposit CTA button state.
+ * Extends amount-validation params with form-level and system-level flags.
+ */
+export interface DepositCtaParams extends DepositFormValidityParams {
+  isDepositDisabled: boolean;
+  isGeoBlocked: boolean;
+  isWalletConnected: boolean;
+  hasApplication: boolean;
+  hasProvider: boolean;
+  splitNotReady: boolean;
+  isFeeError: boolean;
+  feeError: string | null;
+  feeDisabled: boolean;
+}
+
+export interface DepositCtaState {
+  disabled: boolean;
+  label: string;
+}
+
+/**
+ * Single source of truth for the deposit CTA button.
+ *
+ * Returns both `disabled` and `label` so they can never be out of sync.
+ * Checks are ordered by priority — the first matching condition wins.
+ */
+export function getDepositCtaState(params: DepositCtaParams): DepositCtaState {
+  if (params.isDepositDisabled) {
+    return { disabled: true, label: "Depositing Unavailable" };
+  }
+
+  if (params.isGeoBlocked) {
+    return { disabled: true, label: "Service unavailable in your region" };
+  }
+
+  if (!params.isWalletConnected) {
+    return { disabled: true, label: "Connect your wallet" };
+  }
+
+  if (!params.hasApplication) {
+    return { disabled: true, label: "Select an application" };
+  }
+
+  if (!params.hasProvider) {
+    return { disabled: true, label: "Select a vault provider" };
+  }
+
+  if (params.splitNotReady) {
+    return {
+      disabled: true,
+      label: "Deposit amount too low for 2-vault split",
+    };
+  }
+
+  // Amount-level validation first — handles "Enter an amount", "No available
+  // balance", "Calculating fees...", min/max, and balance checks.  Must run
+  // before fee-disabled so that empty-form states are not masked.
+  const amountLabel = getDepositButtonLabel(params);
+  if (amountLabel !== "Deposit") {
+    return { disabled: true, label: amountLabel };
+  }
+
+  // Fee edge-cases that getDepositButtonLabel cannot catch (e.g. fee rate is
+  // still loading while a stale estimatedFeeSats is cached).
+  if (params.isFeeError) {
+    return {
+      disabled: true,
+      label: params.feeError ?? "Fee estimate unavailable",
+    };
+  }
+
+  if (params.feeDisabled) {
+    return { disabled: true, label: "Calculating fees..." };
+  }
+
+  return { disabled: false, label: "Deposit" };
+}
+
 /**
  * Validate deposit amount against minimum constraint
  * @param amount - Deposit amount in satoshis

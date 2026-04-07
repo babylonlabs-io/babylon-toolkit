@@ -95,7 +95,8 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
   const {
     formData,
     setFormData,
-    isValid,
+    effectiveSelectedApplication,
+    isWalletConnected,
     btcBalance,
     btcPrice,
     hasPriceFetchError,
@@ -207,7 +208,7 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
 
   const handleDeposit = () => {
     if (validateForm()) {
-      setDepositData(amountSats, formData.selectedApplication, [
+      setDepositData(amountSats, effectiveSelectedApplication, [
         formData.selectedProvider,
       ]);
       setFeeRate(estimatedFeeRate);
@@ -254,14 +255,14 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
                 onAmountChange={(value) => setFormData({ amountBtc: value })}
                 onMaxClick={handleMaxClick}
                 applications={applications}
-                selectedApplication={formData.selectedApplication}
+                selectedApplication={effectiveSelectedApplication}
                 providers={providers}
                 isLoadingProviders={isLoadingProviders}
                 selectedProvider={formData.selectedProvider}
                 onProviderSelect={(providerId) =>
                   setFormData({ selectedProvider: providerId })
                 }
-                isValid={isValid}
+                isWalletConnected={isWalletConnected}
                 depositorClaimValue={depositorClaimValue}
                 estimatedFeeSats={estimatedFeeSats}
                 estimatedFeeRate={estimatedFeeRate}

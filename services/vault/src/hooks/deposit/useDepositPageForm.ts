@@ -10,6 +10,7 @@ import type { PriceMetadata } from "@/clients/eth-contract/chainlink";
 import { useBtcPublicKey } from "@/hooks/useBtcPublicKey";
 import type { AllocationPlan } from "@/services/vault";
 
+import { useAaveConfig } from "../../applications/aave/context";
 import { useProtocolParamsContext } from "../../context/ProtocolParamsContext";
 import { useBTCWallet, useConnection } from "../../context/wallet";
 import { depositService } from "../../services/deposit";
@@ -28,20 +29,20 @@ const STALE_TIME_MS = 5 * 60 * 1000;
 
 export interface DepositPageFormData {
   amountBtc: string;
-  selectedApplication: string;
   selectedProvider: string;
 }
 
 export interface UseDepositPageFormResult {
   formData: DepositPageFormData;
   setFormData: (data: Partial<DepositPageFormData>) => void;
+  /** Resolved application: user choice or auto-selected single app */
+  effectiveSelectedApplication: string;
 
   errors: {
     amount?: string;
     application?: string;
     provider?: string;
   };
-  isValid: boolean;
   isWalletConnected: boolean;
 
   btcBalance: bigint;
@@ -98,18 +99,14 @@ export function useDepositPageForm(): UseDepositPageFormResult {
   const { isConnected: isWalletConnected } = useConnection();
   const depositorBtcPubkey = useBtcPublicKey(btcConnected);
   const { config, latestUniversalChallengers } = useProtocolParamsContext();
+  const { config: aaveConfig } = useAaveConfig();
   const btcPriceUSD = usePrice("BTC");
   const { metadata, hasStalePrices, hasPriceFetchError } = usePrices();
 
   const [formData, setFormDataInternal] = useState<DepositPageFormData>({
     amountBtc: "",
-    // Keep empty initially to avoid calling useVaultProviders with invalid value
-    selectedApplication: "",
     selectedProvider: "",
   });
-
-  // Track previous application to detect changes
-  const prevApplicationRef = useRef<string>("");
 
   const { data: applicationsData, isLoading: isLoadingApplications } =
     useApplications();
@@ -122,22 +119,16 @@ export function useDepositPageForm(): UseDepositPageFormResult {
     }));
   }, [applicationsData]);
 
-  // Auto-select if only one application available
-  useEffect(() => {
-    if (!isLoadingApplications && applicationsData?.length === 1) {
-      setFormDataInternal((prev) => ({
-        ...prev,
-        selectedApplication: applicationsData[0].id,
-      }));
-    }
-  }, [isLoadingApplications, applicationsData]);
+  // The application is always the Aave adapter — AaveConfigProvider blocks
+  // rendering until loaded, so adapterAddress is available synchronously.
+  const effectiveSelectedApplication = aaveConfig?.adapterAddress || "";
 
   // Fetch providers based on selected application
   const {
     vaultProviders: rawProviders,
     vaultKeepers,
     loading: isLoadingProviders,
-  } = useVaultProviders(formData.selectedApplication || undefined);
+  } = useVaultProviders(effectiveSelectedApplication || undefined);
   const providers = useMemo(() => {
     return rawProviders.map((p) => ({
       id: p.id,
@@ -146,22 +137,6 @@ export function useDepositPageForm(): UseDepositPageFormResult {
       iconUrl: p.iconUrl,
     }));
   }, [rawProviders]);
-
-  // Reset provider selection when application changes
-  useEffect(() => {
-    const currentApp = formData.selectedApplication;
-    const prevApp = prevApplicationRef.current;
-
-    // Only reset if application actually changed (not on initial mount)
-    if (prevApp && currentApp !== prevApp) {
-      setFormDataInternal((prev) => ({
-        ...prev,
-        selectedProvider: "",
-      }));
-    }
-
-    prevApplicationRef.current = currentApp;
-  }, [formData.selectedApplication]);
 
   // Derive selected VP's BTC pubkey and VK BTC pubkeys for challenger count
   const selectedVpBtcPubkey = useMemo(() => {
@@ -201,8 +176,6 @@ export function useDepositPageForm(): UseDepositPageFormResult {
       }));
       // Clear errors when user starts typing (they'll be validated on blur)
       if (data.amountBtc !== undefined) clearFieldError("amount");
-      if (data.selectedApplication !== undefined)
-        clearFieldError("application");
       if (data.selectedProvider !== undefined) clearFieldError("provider");
     },
     [clearFieldError],
@@ -319,7 +292,7 @@ export function useDepositPageForm(): UseDepositPageFormResult {
       newErrors.amount = amountResult.error;
     }
 
-    if (!formData.selectedApplication) {
+    if (!effectiveSelectedApplication) {
       newErrors.application = "Please select an application";
     }
 
@@ -336,49 +309,11 @@ export function useDepositPageForm(): UseDepositPageFormResult {
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
-  }, [formData, validation, setErrors]);
-
-  const isValid = useMemo(() => {
-    const hasAmount = formData.amountBtc !== "";
-    const hasApplication = formData.selectedApplication !== "";
-    const hasProvider = formData.selectedProvider !== "";
-    const noErrors = Object.keys(errors).length === 0;
-
-    // Delegate amount validation to service layer (includes fees + claim value)
-    const isAmountValid = depositService.isDepositAmountValid({
-      amountSats,
-      minDeposit: validation.minDeposit,
-      maxDeposit: validation.maxDeposit,
-      btcBalance,
-      estimatedFeeSats: estimatedFeeSats ?? undefined,
-      depositorClaimValue,
-    });
-
-    return (
-      isWalletConnected &&
-      hasAmount &&
-      hasApplication &&
-      hasProvider &&
-      noErrors &&
-      isAmountValid &&
-      depositorClaimValue != null
-    );
-  }, [
-    isWalletConnected,
-    formData,
-    errors,
-    amountSats,
-    validation.minDeposit,
-    validation.maxDeposit,
-    btcBalance,
-    estimatedFeeSats,
-    depositorClaimValue,
-  ]);
+  }, [formData, effectiveSelectedApplication, validation, setErrors]);
 
   const resetForm = useCallback(() => {
     setFormDataInternal({
       amountBtc: "",
-      selectedApplication: "",
       selectedProvider: "",
     });
     resetErrors();
@@ -387,8 +322,8 @@ export function useDepositPageForm(): UseDepositPageFormResult {
   return {
     formData,
     setFormData,
+    effectiveSelectedApplication,
     errors,
-    isValid,
     isWalletConnected,
     btcBalance,
     btcBalanceFormatted,
