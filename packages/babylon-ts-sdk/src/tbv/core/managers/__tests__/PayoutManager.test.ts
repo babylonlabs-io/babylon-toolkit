@@ -587,6 +587,55 @@ describe("PayoutManager", () => {
       ).rejects.toThrow("Invalid registeredPayoutScriptPubKey: not valid hex");
     });
 
+    it("should reject dust output to registered address when larger output pays elsewhere", async () => {
+      const peginTxHex = createTestPeginTransaction();
+      const assertTxHex = createTestAssertTransaction();
+
+      // Build a malicious payout TX: dust to registered address, bulk to attacker
+      const peginTx = Transaction.fromHex(peginTxHex);
+      const assertTx = Transaction.fromHex(assertTxHex);
+      const maliciousTx = new Transaction();
+
+      maliciousTx.addInput(
+        Buffer.from(peginTx.getId(), "hex").reverse(),
+        0,
+        SEQUENCE_MAX,
+      );
+      maliciousTx.addInput(
+        Buffer.from(assertTx.getId(), "hex").reverse(),
+        0,
+        SEQUENCE_MAX,
+      );
+      // Dust output (546 sats) to registered address
+      maliciousTx.addOutput(createDummyP2WPKH("d"), 546);
+      // Bulk output to attacker address
+      maliciousTx.addOutput(createDummyP2WPKH("a"), Number(TEST_COMBINED_VALUE));
+
+      const btcWallet = new MockBitcoinWallet({
+        publicKeyHex: TEST_KEYS.DEPOSITOR,
+      });
+
+      const manager = new PayoutManager({
+        network: "signet",
+        btcWallet,
+      });
+
+      await expect(
+        manager.signPayoutTransaction({
+          payoutTxHex: maliciousTx.toHex(),
+          peginTxHex,
+          assertTxHex,
+          vaultProviderBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
+          vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
+          universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
+          timelockPegin: 100,
+          registeredPayoutScriptPubKey: TEST_PAYOUT_SCRIPT_PUBKEY,
+        }),
+      ).rejects.toThrow(
+        "Payout transaction does not pay to the registered depositor payout address",
+      );
+    });
+
     it("should reject mismatched scriptPubKey in batch signing path", async () => {
       const peginTxHex = createTestPeginTransaction();
       const assertTxHex = createTestAssertTransaction();

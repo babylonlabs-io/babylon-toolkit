@@ -50,7 +50,6 @@ vi.mock("@/utils/btc", async (importOriginal) => ({
   btcAddressToScriptPubKeyHex: vi.fn(() => "0x0014mockedscriptpubkey"),
 }));
 
-
 vi.mock("../useVaultProviders", () => ({
   useVaultProviders: vi.fn(),
 }));

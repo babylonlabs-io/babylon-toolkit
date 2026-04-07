@@ -341,16 +341,18 @@ export class PayoutManager {
   }
 
   /**
-   * Validates that the payout transaction contains at least one output
-   * paying to the registered depositor payout address (scriptPubKey).
+   * Validates that the payout transaction's largest output pays to the
+   * registered depositor payout address (scriptPubKey).
    *
-   * This prevents a malicious vault provider from substituting a different
-   * payout address in the transaction the depositor is asked to sign.
+   * This prevents two attack vectors from a malicious vault provider:
+   * 1. Substituting a completely different payout address
+   * 2. Including a dust output to the correct address while routing
+   *    the actual funds to an attacker-controlled address
    *
    * @param payoutTxHex - Raw payout transaction hex
    * @param registeredPayoutScriptPubKey - On-chain registered scriptPubKey (hex, with or without 0x prefix)
    * @throws Error if scriptPubKey is invalid hex
-   * @throws Error if no output matches the registered payout address
+   * @throws Error if the largest output does not pay to the registered address
    */
   private validatePayoutOutputs(
     payoutTxHex: string,
@@ -368,11 +370,17 @@ export class PayoutManager {
     );
     const payoutTx = Transaction.fromHex(stripHexPrefix(payoutTxHex));
 
-    const hasMatchingOutput = payoutTx.outs.some((output) =>
-      output.script.equals(expectedScript),
+    if (payoutTx.outs.length === 0) {
+      throw new Error("Payout transaction has no outputs");
+    }
+
+    // Find the largest output by value — this must pay to the registered address.
+    // A dust output to the correct address with funds routed elsewhere is rejected.
+    const largestOutput = payoutTx.outs.reduce((max, output) =>
+      output.value > max.value ? output : max,
     );
 
-    if (!hasMatchingOutput) {
+    if (!largestOutput.script.equals(expectedScript)) {
       throw new Error(
         "Payout transaction does not pay to the registered depositor payout address",
       );
