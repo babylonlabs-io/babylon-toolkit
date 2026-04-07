@@ -87,4 +87,19 @@ describe("deriveVaultId", () => {
       deriveVaultId("0x", "1234567890abcdef1234567890abcdef12345678"),
     ).rejects.toThrow("Invalid hex string");
   });
+
+  // Byte-length validation
+  it("throws when peginTxHash is not 32 bytes", async () => {
+    const shortHash = "ab".repeat(31); // 31 bytes
+    await expect(
+      deriveVaultId(shortHash, "1234567890abcdef1234567890abcdef12345678"),
+    ).rejects.toThrow("peginTxHash must be 32 bytes, got 31");
+  });
+
+  it("throws when depositor is not 20 bytes", async () => {
+    const shortAddr = "1234567890abcdef1234"; // 10 bytes
+    await expect(
+      deriveVaultId("ab".repeat(32), shortAddr),
+    ).rejects.toThrow("depositor must be 20 bytes, got 10");
+  });
 });

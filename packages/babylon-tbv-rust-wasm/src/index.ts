@@ -221,10 +221,15 @@ export async function deriveVaultId(
   depositor: string,
 ): Promise<string> {
   await initWasm();
-  return wasmDeriveVaultId(
-    hexToBytes(peginTxHash),
-    hexToBytes(depositor),
-  );
+  const hashBytes = hexToBytes(peginTxHash);
+  if (hashBytes.length !== 32) {
+    throw new Error(`peginTxHash must be 32 bytes, got ${hashBytes.length}`);
+  }
+  const depositorBytes = hexToBytes(depositor);
+  if (depositorBytes.length !== 20) {
+    throw new Error(`depositor must be 20 bytes, got ${depositorBytes.length}`);
+  }
+  return wasmDeriveVaultId(hashBytes, depositorBytes);
 }
 
 function hexToBytes(hex: string): Uint8Array {
