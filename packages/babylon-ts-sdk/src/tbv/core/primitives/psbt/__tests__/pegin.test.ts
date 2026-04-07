@@ -10,7 +10,6 @@ import * as bitcoin from "bitcoinjs-lib";
 import {
   buildPrePeginPsbt,
   buildPeginTxFromFundedPrePegin,
-  SINGLE_DEPOSIT_HTLC_VOUT,
   type PrePeginParams,
 } from "../pegin";
 import { fundPeginTransaction } from "../../../utils/transaction/fundPeginTransaction";
@@ -32,7 +31,7 @@ function makePrePeginParams(overrides?: Partial<PrePeginParams>): PrePeginParams
     universalChallengerPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
     hashlocks: [TEST_HASH_H],
     timelockRefund: TEST_TIMELOCK_REFUND,
-    pegInAmount: TEST_AMOUNTS.PEGIN,
+    pegInAmounts: [TEST_AMOUNTS.PEGIN],
     feeRate: 10n,
     numLocalChallengers: 1,
     councilQuorum: TEST_COUNCIL_QUORUM,
@@ -52,24 +51,24 @@ describe("buildPrePeginPsbt", () => {
       const result = await buildPrePeginPsbt(makePrePeginParams());
 
       expect(result).toHaveProperty("psbtHex");
-      expect(result).toHaveProperty("htlcValue");
-      expect(result).toHaveProperty("htlcScriptPubKey");
-      expect(result).toHaveProperty("htlcAddress");
-      expect(result).toHaveProperty("peginAmount");
+      expect(result).toHaveProperty("htlcValues");
+      expect(result).toHaveProperty("htlcScriptPubKeys");
+      expect(result).toHaveProperty("htlcAddresses");
+      expect(result).toHaveProperty("peginAmounts");
       expect(result).toHaveProperty("depositorClaimValue");
 
       expect(typeof result.psbtHex).toBe("string");
-      expect(typeof result.htlcValue).toBe("bigint");
-      expect(typeof result.htlcScriptPubKey).toBe("string");
-      expect(typeof result.htlcAddress).toBe("string");
-      expect(typeof result.peginAmount).toBe("bigint");
+      expect(typeof result.htlcValues[0]).toBe("bigint");
+      expect(typeof result.htlcScriptPubKeys[0]).toBe("string");
+      expect(typeof result.htlcAddresses[0]).toBe("string");
+      expect(typeof result.peginAmounts[0]).toBe("bigint");
       expect(typeof result.depositorClaimValue).toBe("bigint");
 
       expect(result.psbtHex.length).toBeGreaterThan(0);
-      expect(result.htlcValue).toBeGreaterThan(0n);
-      expect(result.htlcScriptPubKey.length).toBeGreaterThan(0);
-      expect(result.htlcAddress.length).toBeGreaterThan(0);
-      expect(result.peginAmount).toBe(TEST_AMOUNTS.PEGIN);
+      expect(result.htlcValues[0]).toBeGreaterThan(0n);
+      expect(result.htlcScriptPubKeys[0].length).toBeGreaterThan(0);
+      expect(result.htlcAddresses[0].length).toBeGreaterThan(0);
+      expect(result.peginAmounts[0]).toBe(TEST_AMOUNTS.PEGIN);
       expect(result.depositorClaimValue).toBeGreaterThan(0n);
     });
 
@@ -77,8 +76,8 @@ describe("buildPrePeginPsbt", () => {
       const result = await buildPrePeginPsbt(makePrePeginParams());
 
       // htlcValue covers pegInAmount + depositorClaimValue + internal fees
-      expect(result.htlcValue).toBeGreaterThanOrEqual(
-        result.peginAmount + result.depositorClaimValue,
+      expect(result.htlcValues[0]).toBeGreaterThanOrEqual(
+        result.peginAmounts[0] + result.depositorClaimValue,
       );
     });
 
@@ -89,8 +88,8 @@ describe("buildPrePeginPsbt", () => {
         const result = await buildPrePeginPsbt(makePrePeginParams({ network }));
 
         expect(result.psbtHex.length).toBeGreaterThan(0);
-        expect(result.htlcValue).toBeGreaterThan(0n);
-        expect(result.peginAmount).toBe(TEST_AMOUNTS.PEGIN);
+        expect(result.htlcValues[0]).toBeGreaterThan(0n);
+        expect(result.peginAmounts[0]).toBe(TEST_AMOUNTS.PEGIN);
       }
     });
 
@@ -103,10 +102,10 @@ describe("buildPrePeginPsbt", () => {
       ];
 
       for (const pegInAmount of amounts) {
-        const result = await buildPrePeginPsbt(makePrePeginParams({ pegInAmount }));
+        const result = await buildPrePeginPsbt(makePrePeginParams({ pegInAmounts: [pegInAmount] }));
 
-        expect(result.peginAmount).toBe(pegInAmount);
-        expect(result.htlcValue).toBeGreaterThanOrEqual(pegInAmount);
+        expect(result.peginAmounts[0]).toBe(pegInAmount);
+        expect(result.htlcValues[0]).toBeGreaterThanOrEqual(pegInAmount);
       }
     });
 
@@ -119,7 +118,7 @@ describe("buildPrePeginPsbt", () => {
       );
 
       expect(result.psbtHex.length).toBeGreaterThan(0);
-      expect(result.htlcValue).toBeGreaterThan(0n);
+      expect(result.htlcValues[0]).toBeGreaterThan(0n);
     });
 
     it("should handle multiple universal challengers", async () => {
@@ -133,7 +132,7 @@ describe("buildPrePeginPsbt", () => {
       );
 
       expect(result.psbtHex.length).toBeGreaterThan(0);
-      expect(result.htlcValue).toBeGreaterThan(0n);
+      expect(result.htlcValues[0]).toBeGreaterThan(0n);
     });
   });
 
@@ -145,9 +144,9 @@ describe("buildPrePeginPsbt", () => {
       const result2 = await buildPrePeginPsbt(params);
 
       expect(result1.psbtHex).toBe(result2.psbtHex);
-      expect(result1.htlcValue).toBe(result2.htlcValue);
-      expect(result1.htlcScriptPubKey).toBe(result2.htlcScriptPubKey);
-      expect(result1.htlcAddress).toBe(result2.htlcAddress);
+      expect(result1.htlcValues[0]).toBe(result2.htlcValues[0]);
+      expect(result1.htlcScriptPubKeys[0]).toBe(result2.htlcScriptPubKeys[0]);
+      expect(result1.htlcAddresses[0]).toBe(result2.htlcAddresses[0]);
     });
 
     it("should produce different output for different depositor keys", async () => {
@@ -157,8 +156,8 @@ describe("buildPrePeginPsbt", () => {
       );
 
       expect(result1.psbtHex).not.toBe(result2.psbtHex);
-      expect(result1.htlcScriptPubKey).not.toBe(result2.htlcScriptPubKey);
-      expect(result1.htlcAddress).not.toBe(result2.htlcAddress);
+      expect(result1.htlcScriptPubKeys[0]).not.toBe(result2.htlcScriptPubKeys[0]);
+      expect(result1.htlcAddresses[0]).not.toBe(result2.htlcAddresses[0]);
     });
 
     it("should produce different output for different hashlocks values", async () => {
@@ -169,8 +168,8 @@ describe("buildPrePeginPsbt", () => {
         makePrePeginParams({ hashlocks: ["cd".repeat(32)] }),
       );
 
-      expect(result1.htlcScriptPubKey).not.toBe(result2.htlcScriptPubKey);
-      expect(result1.htlcAddress).not.toBe(result2.htlcAddress);
+      expect(result1.htlcScriptPubKeys[0]).not.toBe(result2.htlcScriptPubKeys[0]);
+      expect(result1.htlcAddresses[0]).not.toBe(result2.htlcAddresses[0]);
     });
 
     it("should produce different output for different vault keepers", async () => {
@@ -181,7 +180,7 @@ describe("buildPrePeginPsbt", () => {
         makePrePeginParams({ vaultKeeperPubkeys: [TEST_KEYS.VAULT_KEEPER_2] }),
       );
 
-      expect(result1.htlcScriptPubKey).not.toBe(result2.htlcScriptPubKey);
+      expect(result1.htlcScriptPubKeys[0]).not.toBe(result2.htlcScriptPubKeys[0]);
     });
   });
 
@@ -262,7 +261,7 @@ describe("buildPeginTxFromFundedPrePegin", () => {
         prePeginParams: params,
         timelockPegin: TEST_TIMELOCK_PEGIN,
         fundedPrePeginTxHex: txHex,
-        htlcVout: SINGLE_DEPOSIT_HTLC_VOUT,
+        htlcVout: 0,
       });
 
       expect(result).toHaveProperty("txHex");
@@ -291,14 +290,14 @@ describe("buildPeginTxFromFundedPrePegin", () => {
         prePeginParams: params1,
         timelockPegin: TEST_TIMELOCK_PEGIN,
         fundedPrePeginTxHex: txHex1,
-        htlcVout: SINGLE_DEPOSIT_HTLC_VOUT,
+        htlcVout: 0,
       });
 
       const result2 = await buildPeginTxFromFundedPrePegin({
         prePeginParams: params2,
         timelockPegin: TEST_TIMELOCK_PEGIN,
         fundedPrePeginTxHex: txHex2,
-        htlcVout: SINGLE_DEPOSIT_HTLC_VOUT,
+        htlcVout: 0,
       });
 
       // Different Pre-PegIn transactions produce different PegIn txids
@@ -313,14 +312,14 @@ describe("buildPeginTxFromFundedPrePegin", () => {
         prePeginParams: params,
         timelockPegin: TEST_TIMELOCK_PEGIN,
         fundedPrePeginTxHex: txHex,
-        htlcVout: SINGLE_DEPOSIT_HTLC_VOUT,
+        htlcVout: 0,
       });
 
       const result2 = await buildPeginTxFromFundedPrePegin({
         prePeginParams: params,
         timelockPegin: TEST_TIMELOCK_PEGIN,
         fundedPrePeginTxHex: txHex,
-        htlcVout: SINGLE_DEPOSIT_HTLC_VOUT,
+        htlcVout: 0,
       });
 
       expect(result1.txid).toBe(result2.txid);
@@ -338,14 +337,14 @@ describe("buildPeginTxFromFundedPrePegin", () => {
         prePeginParams: params1,
         timelockPegin: TEST_TIMELOCK_PEGIN,
         fundedPrePeginTxHex: txHex1,
-        htlcVout: SINGLE_DEPOSIT_HTLC_VOUT,
+        htlcVout: 0,
       });
 
       const result2 = await buildPeginTxFromFundedPrePegin({
         prePeginParams: params2,
         timelockPegin: TEST_TIMELOCK_PEGIN,
         fundedPrePeginTxHex: txHex2,
-        htlcVout: SINGLE_DEPOSIT_HTLC_VOUT,
+        htlcVout: 0,
       });
 
       expect(result1.vaultScriptPubKey).not.toBe(result2.vaultScriptPubKey);
@@ -359,14 +358,14 @@ describe("buildPeginTxFromFundedPrePegin", () => {
         prePeginParams: params,
         timelockPegin: 100,
         fundedPrePeginTxHex: txHex,
-        htlcVout: SINGLE_DEPOSIT_HTLC_VOUT,
+        htlcVout: 0,
       });
 
       const result2 = await buildPeginTxFromFundedPrePegin({
         prePeginParams: params,
         timelockPegin: 200,
         fundedPrePeginTxHex: txHex,
-        htlcVout: SINGLE_DEPOSIT_HTLC_VOUT,
+        htlcVout: 0,
       });
 
       expect(result1.vaultScriptPubKey).not.toBe(result2.vaultScriptPubKey);

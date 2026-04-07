@@ -37,7 +37,7 @@ describe("selectUtxosForPegin", () => {
   ];
 
   it("should select single UTXO when sufficient", () => {
-    const result = selectUtxosForPegin(mockUTXOs, 50000n, 10);
+    const result = selectUtxosForPegin(mockUTXOs, 50000n, 10, 2);
 
     expect(result.selectedUTXOs).toHaveLength(1);
     expect(result.selectedUTXOs[0].txid).toBe("tx1"); // Largest UTXO selected first
@@ -47,7 +47,7 @@ describe("selectUtxosForPegin", () => {
   });
 
   it("should select multiple UTXOs when needed", () => {
-    const result = selectUtxosForPegin(mockUTXOs, 120000n, 10);
+    const result = selectUtxosForPegin(mockUTXOs, 120000n, 10, 2);
 
     expect(result.selectedUTXOs.length).toBeGreaterThan(1);
     expect(result.totalValue).toBeGreaterThanOrEqual(120000n);
@@ -55,14 +55,14 @@ describe("selectUtxosForPegin", () => {
   });
 
   it("should sort UTXOs by value (largest first)", () => {
-    const result = selectUtxosForPegin(mockUTXOs, 30000n, 10);
+    const result = selectUtxosForPegin(mockUTXOs, 30000n, 10, 2);
 
     // Should select the largest UTXO first (100000)
     expect(result.selectedUTXOs[0].value).toBe(100000);
   });
 
   it("should calculate fee with change output if change > dust", () => {
-    const result = selectUtxosForPegin(mockUTXOs, 50000n, 10);
+    const result = selectUtxosForPegin(mockUTXOs, 50000n, 10, 2);
 
     // Change should be above dust threshold
     expect(result.changeAmount).toBeGreaterThan(546n);
@@ -74,7 +74,7 @@ describe("selectUtxosForPegin", () => {
   });
 
   it("should throw error when no UTXOs available", () => {
-    expect(() => selectUtxosForPegin([], 10000n, 10)).toThrow(
+    expect(() => selectUtxosForPegin([], 10000n, 10, 2)).toThrow(
       "Insufficient funds: no UTXOs available",
     );
   });
@@ -90,7 +90,7 @@ describe("selectUtxosForPegin", () => {
       },
     ];
 
-    expect(() => selectUtxosForPegin(smallUTXOs, 500000n, 10)).toThrow(
+    expect(() => selectUtxosForPegin(smallUTXOs, 500000n, 10, 2)).toThrow(
       /Insufficient funds/,
     );
   });
@@ -100,14 +100,14 @@ describe("selectUtxosForPegin", () => {
   // during transaction signing. Real wallets filter UTXOs before passing to SDK.
 
   it("should handle low fee rates with buffer", () => {
-    const result = selectUtxosForPegin(mockUTXOs, 50000n, 1);
+    const result = selectUtxosForPegin(mockUTXOs, 50000n, 1, 2);
 
     // Fee should include LOW_RATE_ESTIMATION_ACCURACY_BUFFER (30 sats)
     expect(result.fee).toBeGreaterThan(30n);
   });
 
   it("should handle high fee rates without extra buffer", () => {
-    const result = selectUtxosForPegin(mockUTXOs, 50000n, 50);
+    const result = selectUtxosForPegin(mockUTXOs, 50000n, 50, 2);
 
     // Fee should be proportional to fee rate
     expect(result.fee).toBeGreaterThan(100n);
@@ -115,7 +115,7 @@ describe("selectUtxosForPegin", () => {
 
   it("should iterate until sufficient funds including fees", () => {
     // Test that it keeps adding UTXOs until total >= peginAmount + fee
-    const result = selectUtxosForPegin(mockUTXOs, 150000n, 10);
+    const result = selectUtxosForPegin(mockUTXOs, 150000n, 10, 2);
 
     // Should select at least 2 UTXOs
     expect(result.selectedUTXOs.length).toBeGreaterThanOrEqual(2);
@@ -124,6 +124,14 @@ describe("selectUtxosForPegin", () => {
     expect(result.totalValue).toBeGreaterThanOrEqual(
       150000n + result.fee,
     );
+  });
+
+  it("should charge higher fee for more outputs", () => {
+    const feeWith2Outputs = selectUtxosForPegin(mockUTXOs, 50000n, 10, 2).fee;
+    const feeWith5Outputs = selectUtxosForPegin(mockUTXOs, 50000n, 10, 5).fee;
+
+    // More outputs → larger tx → higher fee
+    expect(feeWith5Outputs).toBeGreaterThan(feeWith2Outputs);
   });
 });
 
