@@ -1,25 +1,26 @@
 # `deriveContextHash` Specification
 
-**Spec revision**: 0.9-draft
+**Spec revision**: 1.0
 **Algorithm version**: 0 (salt: `"derive-context-hash"`, no suffix)
-**Date**: 2026-04-02
+**Date**: 2026-04-07
 **Authors**: Jerome Wang (Babylon Labs)
-**Status**: Draft — pending auditor review
+**Status**: Draft — incorporates auditor feedback (Coinspect)
 
 ---
 
 ## Abstract
 
 `deriveContextHash` is a wallet API method that derives a
-deterministic 32-byte value from the wallet's key material and an
-application-provided context string. It uses HKDF-SHA-256
-(RFC 5869) and is designed for cross-wallet compatibility — any
-conforming implementation produces the same output for the same
-key material and context.
+deterministic 32-byte value from the wallet's key material, an
+application name, and an application-provided context string. It
+uses HKDF-SHA-256 (RFC 5869) and is designed for cross-wallet
+compatibility — any conforming implementation produces the same
+output for the same key material, application name, and context.
 
 The method is generic. The wallet has no knowledge of what the
-derived value is used for. dApps provide an opaque context and
-receive a deterministic output.
+derived value is used for. dApps provide an application name and
+an opaque context; the wallet displays the application name in
+its approval dialog and returns a deterministic output.
 
 ---
 
@@ -51,18 +52,34 @@ no manual step needed.
 ### 2.1 API
 
 ```
-wallet.deriveContextHash(context: string) → Promise<string>
+wallet.deriveContextHash(
+  appName: string,
+  context: string
+) → Promise<string>
 ```
 
 **Parameters:**
+- `appName` — a human-readable application identifier (1–64
+  bytes, ASCII lowercase letters, digits, and hyphens only:
+  `[a-z0-9\-]`). Provides mandatory app-level domain separation:
+  two dApps using different `appName` values will never produce
+  the same output, even if their `context` values collide. The
+  wallet MUST display `appName` in the approval dialog so the
+  user can see which application is requesting the derivation.
+  Wallets MUST reject `appName` values containing characters
+  outside the allowed set.
+  Examples: `"babylon-vault"`, `"ordinals-market"`.
 - `context` — hex-encoded byte string (even-length, lowercase,
-  no `0x` prefix). Acts as a domain separator; different contexts
-  produce independent outputs. Must not be empty.
+  no `0x` prefix). Application-specific data that determines the
+  output within the app's namespace. Different contexts produce
+  independent outputs. Must not be empty.
 
 **Returns:**
 - Hex-encoded 32-byte derived value (64 lowercase hex chars).
 
 **Errors:**
+- `appName` is empty, exceeds 64 bytes, or contains characters
+  outside `[a-z0-9\-]`.
 - Context is empty, odd-length, contains non-hex characters
   (including uppercase `A–F`), has a `0x` prefix, or exceeds
   1024 bytes (2048 hex characters).
@@ -71,18 +88,27 @@ wallet.deriveContextHash(context: string) → Promise<string>
 
 **User approval required.** The wallet MUST show a confirmation
 dialog before deriving and returning the value. The dialog
-SHOULD display the requesting origin and the context bytes.
+MUST display the `appName` and the requesting origin. The
+dialog SHOULD also display the context bytes.
 
 ### 2.2 Derivation Algorithm
 
 ```
 ikm    = BIP-32 private key at path m/73681862'
 salt   = "derive-context-hash"        (UTF-8 encoded)
-info   = context                       (raw bytes, decoded from hex)
+info   = SHA-256(UTF8(appName)) || context  (raw bytes)
 length = 32
 
 output = HKDF-SHA-256(ikm, salt, info, length)
 ```
+
+The `info` field is constructed by concatenating the SHA-256
+hash of the UTF-8 encoded `appName` (32 bytes, fixed-length)
+with the raw context bytes decoded from hex. Hashing `appName`
+ensures it occupies a fixed 32-byte prefix, eliminating
+length-confusion collisions between different `appName`/`context`
+combinations (e.g. appName `"foobar"` + context `0x01` vs
+appName `"foo"` + context `0x626172_01` can never collide).
 
 **IKM (Input Key Material):** The raw 32-byte private key scalar
 at BIP-32 derivation path `m/73681862'` (hardened), using
@@ -124,14 +150,38 @@ suffix can be appended to the salt to indicate the version of
 the scheme. The current `derive-context-hash` salt is version 0
 without a suffix.
 
-**Info:** The raw context bytes decoded from the hex input. This
-is the only caller-controlled parameter and determines the
-output. Maximum context length is 1024 bytes (2048 hex chars).
-Wallets MUST reject contexts exceeding this limit.
+**Info:** The concatenation of `SHA-256(UTF8(appName))` (32
+bytes) and the raw context bytes decoded from the hex input.
+The `appName` hash provides mandatory app-level domain
+separation; the context is the caller-controlled parameter
+that determines the output within the app's namespace. Maximum
+context length is 1024 bytes (2048 hex chars). Wallets MUST
+reject contexts exceeding this limit.
 
 **Length:** 32 bytes (256 bits).
 
-### 2.3 HKDF-SHA-256
+### 2.3 Context Encoding Guidance
+
+The `context` field is opaque bytes from the wallet's
+perspective, but dApps constructing multi-field contexts SHOULD
+use a canonical encoding to avoid ambiguity. Recommended
+approach: length-prefix each field.
+
+```
+context = len(field1) || field1 || len(field2) || field2 || ...
+```
+
+Where `len` is the byte length encoded as a 4-byte big-endian
+unsigned integer. This prevents concatenation collisions (e.g.
+fields `"AB" + "CD"` vs `"A" + "BCD"` producing identical
+context bytes).
+
+For fixed-length fields (txids, public keys), length prefixes
+are optional but still recommended for consistency. dApps MUST
+NOT rely on the wallet to parse or validate context structure —
+the wallet treats context as opaque bytes.
+
+### 2.4 HKDF-SHA-256
 
 HKDF (RFC 5869) is a two-stage key derivation function:
 
@@ -169,14 +219,13 @@ computes its txid, and uses that as part of the context:
 context = (dummyPrePeginTxid, htlcVout, depositorPubkey)
 ```
 
-The dApp calls `deriveContextHash` with this context, computes
-`SHA-256(deriveContextHash(context))` to get the real hashlock,
-and rebuilds the
-Pre-PegIn with the real hashlock. Days or weeks later at
-activation time, the dApp reconstructs the same context from
-on-chain state — the dummy txid is deterministic from the same
-inputs — calls `deriveContextHash` again, and reveals the
-preimage on Ethereum.
+The dApp calls `deriveContextHash("babylon-vault", context)`,
+computes `SHA-256(deriveContextHash("babylon-vault", context))`
+to get the real hashlock, and rebuilds the Pre-PegIn with the
+real hashlock. Days or weeks later at activation time, the dApp
+reconstructs the same context from on-chain state — the dummy
+txid is deterministic from the same inputs — calls
+`deriveContextHash` again, and reveals the preimage on Ethereum.
 
 A future use case is WOTS (Winternitz One-Time Signature) seed
 derivation — the wallet provides a 32-byte seed via
@@ -209,33 +258,59 @@ BIP-32 private key at `m/73681862'` (hex):
 4779ec85
 ```
 
+All vectors use `appName = "test-app"`.
+
+SHA-256(UTF8("test-app")) (hex):
+```
+b58b0cb4ecdea3c65311b4ca8833fe47b6ae0a7500f87a8eb31e8379
+d3fe48f1
+```
+
+The `info` field for each vector is:
+`SHA-256(UTF8("test-app")) || decode_hex(context)`.
+
 ### Vector 1
 
 ```
+appName:        test-app
 context (hex):  deadbeef
 salt (utf-8):   derive-context-hash
-output (hex):   7705bba1af7a72102de462edcc19f322
-                1a085854c3c5e5bc076c817a2b9dcdc0
+info (hex):     b58b0cb4ecdea3c65311b4ca8833fe47
+                b6ae0a7500f87a8eb31e8379d3fe48f1
+                deadbeef
+output (hex):   3b0e2d90a01122eed8a520648073892f
+                6b2d8f4419216023d63cdbd49500fca3
 ```
 
 ### Vector 2
 
 ```
+appName:        test-app
 context (hex):  00
-output (hex):   f3e4c1b05c560acbc68c99510422148a
-                5406ebaad67ac391637dc31ece153543
+info (hex):     b58b0cb4ecdea3c65311b4ca8833fe47
+                b6ae0a7500f87a8eb31e8379d3fe48f1
+                00
+output (hex):   50775126782c1a5e4d60daa4666b2c75
+                90f0b5a445a4115b0abd411467c92597
 ```
 
 ### Vector 3
 
 ```
+appName:        test-app
 context (hex):  00000000000000000000000000000000
                 00000000000000000000000000000000
                 00000000000000000000000000000000
                 00000000000000000000000000000000
                 (64 zero bytes)
-output (hex):   daea256df5378fe7664d181684e28523
-                fe5650ea041a70b5b500d51de29f9bc1
+info (hex):     b58b0cb4ecdea3c65311b4ca8833fe47
+                b6ae0a7500f87a8eb31e8379d3fe48f1
+                00000000000000000000000000000000
+                00000000000000000000000000000000
+                00000000000000000000000000000000
+                00000000000000000000000000000000
+output (hex):   d81e4a91f32eabd34df0e55ca36f26f2
+                11af65dfe575b7201c95baaa6608cdd9
 ```
 
 Vectors verified against Node.js `crypto.hkdf('sha256', ...)`
