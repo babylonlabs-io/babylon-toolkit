@@ -712,6 +712,7 @@ describe("PeginManager", () => {
           depositorSignedPeginTx: MOCK_DEPOSITOR_SIGNED_PEGIN_TX,
           vaultProvider: TEST_CONTRACT_ADDRESS,
           hashlock: MOCK_HASHLOCK,
+          htlcVout: 0,
           depositorPayoutBtcAddress:
             "tb1pmfr3p9j00pfxjh0zmgp99y8zftmd3s5pmedqhyptwy6lm87hf5ssk79hv2",
           depositorLamportPkHash: MOCK_LAMPORT_PK_HASH,

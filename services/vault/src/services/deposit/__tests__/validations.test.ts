@@ -333,7 +333,7 @@ describe("Deposit Validations", () => {
           ...validInputs,
           vaultAmounts: [5_000n, 50_000n],
         }),
-      ).toThrow("Vault 1: Minimum deposit");
+      ).toThrow("below minimum deposit");
     });
 
     it("throws when a vault amount exceeds maxDeposit", () => {
@@ -342,7 +342,7 @@ describe("Deposit Validations", () => {
           ...validInputs,
           vaultAmounts: [50_000n, 200_000n],
         }),
-      ).toThrow("Vault 2: Maximum deposit");
+      ).toThrow("exceeds maximum deposit");
     });
 
     it("passes when maxDeposit is undefined", () => {

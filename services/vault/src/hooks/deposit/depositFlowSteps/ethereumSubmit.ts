@@ -98,4 +98,3 @@ export async function registerPeginAndWait(
     btcPopSignature: result.btcPopSignature,
   };
 }
-

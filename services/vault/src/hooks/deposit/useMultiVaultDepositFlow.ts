@@ -6,18 +6,19 @@
  * registers each vault individually on Ethereum, then broadcasts the shared tx.
  *
  * Flow:
- * 1. Validation - check wallets, UTXOs, pubkeys
+ * 0. Validation — check wallets, UTXOs, pubkeys, array alignment
+ * 1. Get shared resources (ETH wallet client, mnemonic)
  * 2. Batch Pre-PegIn creation (one BTC tx with N HTLC outputs)
- * 3. Per-vault Ethereum registration (with PoP reuse)
- * 4. Broadcast Pre-PegIn transaction to Bitcoin (immediately after ETH)
- * 5. Save to localStorage with CONFIRMING status (after both chains succeed)
- * 6. Submit Lamport keys, poll VP, sign payout transactions
- * 7. Download vault artifacts (per vault, user-driven)
- * 8. Wait for contract verification, then activate vaults (reveal HTLC secret on Ethereum)
+ * 3. Per-vault ETH registration (with PoP reuse)
+ * 4. Broadcast Pre-PegIn transaction to Bitcoin + save to localStorage (CONFIRMING)
+ * 5. Submit Lamport keys, poll VP, sign payout transactions
+ * 6. Download vault artifacts (per vault, user-driven)
+ * 7. Wait for contract verification, then activate vaults (reveal HTLC secret)
  *
  * ETH registration is all-or-nothing: if any vault fails, the Pre-PegIn is NOT
- * broadcast, so no BTC gets locked in unregistered HTLC outputs. The on-chain
- * registrations will expire after pegInAckTimeout.
+ * broadcast, so no BTC gets locked in unregistered HTLC outputs. Successfully
+ * The on-chain registrations will expire after pegInAckTimeout. A future contract
+ * update will batch all vault registrations into a single ETH call.
  */
 
 import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
@@ -374,7 +375,7 @@ export function useMultiVaultDepositFlow(
           // Capture PoP signature from first vault for reuse
           capturedPopSignature ??= registration.btcPopSignature;
 
-          peginResults.push({
+          const peginResult: PeginCreationResult = {
             vaultIndex: i,
             btcTxHash: vault.btcTxHash as Hex,
             ethTxHash: registration.ethTxHash,
@@ -385,7 +386,9 @@ export function useMultiVaultDepositFlow(
             fee: batchResult.fee,
             depositorBtcPubkey: batchResult.depositorBtcPubkey,
             htlcSecretHex,
-          });
+          };
+
+          peginResults.push(peginResult);
         }
 
         setCurrentVaultIndex(null);
@@ -418,7 +421,7 @@ export function useMultiVaultDepositFlow(
         }
 
         // ========================================================================
-        // Step 5: Save Pegins to Storage
+        // Step 4b: Save Pegins to Storage
         // Saved after both ETH registration and BTC broadcast succeed, so
         // localStorage never contains ghost entries for un-broadcast pegins.
         // ========================================================================
@@ -477,7 +480,7 @@ export function useMultiVaultDepositFlow(
         }
 
         // ========================================================================
-        // Step 6: Submit Lamport Keys + Sign Payout Transactions
+        // Step 5: Submit Lamport Keys + Sign Payout Transactions
         // ========================================================================
 
         setCurrentStep(DepositFlowStep.SIGN_PAYOUTS);
@@ -514,7 +517,7 @@ export function useMultiVaultDepositFlow(
         }
 
         // ========================================================================
-        // Step 6 (cont): Sign Payout Transactions
+        // Step 5 (cont): Sign Payout Transactions
         // VP waits for Pre-PegIn BTC confirmation before being ready.
         // ========================================================================
 
