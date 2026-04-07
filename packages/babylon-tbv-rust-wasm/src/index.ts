@@ -1,5 +1,5 @@
 // @ts-ignore - WASM files are in dist/generated/ (checked into git), not src/generated/
-import init, { WasmPrePeginTx, WasmPrePeginHtlcConnector, WasmPeginTx, computeMinClaimValue as wasmComputeMinClaimValue, numUtxosForInputLabels as wasmNumUtxosForInputLabels } from "./generated/btc_vault.js";
+import init, { WasmPrePeginTx, WasmPrePeginHtlcConnector, WasmPeginTx, computeMinClaimValue as wasmComputeMinClaimValue, deriveVaultId as wasmDeriveVaultId } from "./generated/btc_vault.js";
 import type {
   PrePeginParams,
   PrePeginResult,
@@ -207,12 +207,39 @@ export async function computeMinClaimValue(
 }
 
 /**
- * Returns the protocol constant for the number of UTXOs (Assert outputs)
- * per challenger. Currently 3, derived from Bitcoin's 1000 stack element limit.
+ * Derives the vault ID from a PegIn transaction hash and depositor ETH address.
+ *
+ * Vault ID = keccak256(abi.encode(peginTxHash, depositor))
+ * This matches the Solidity-side derivation in BTCVaultRegistry.
+ *
+ * @param peginTxHash - 32-byte PegIn tx hash in display order (big-endian), hex encoded
+ * @param depositor - 20-byte Ethereum address of the depositor, hex encoded
+ * @returns Hex-encoded vault ID (32 bytes)
  */
-export async function numUtxosForInputLabels(): Promise<number> {
+export async function deriveVaultId(
+  peginTxHash: string,
+  depositor: string,
+): Promise<string> {
   await initWasm();
-  return wasmNumUtxosForInputLabels();
+  return wasmDeriveVaultId(
+    hexToBytes(peginTxHash),
+    hexToBytes(depositor),
+  );
+}
+
+function hexToBytes(hex: string): Uint8Array {
+  const clean = hex.startsWith("0x") ? hex.slice(2) : hex;
+  if (clean.length === 0 || clean.length % 2 !== 0) {
+    throw new Error(`Invalid hex string: expected even length, got ${clean.length}`);
+  }
+  if (!/^[0-9a-fA-F]+$/.test(clean)) {
+    throw new Error("Invalid hex string: contains non-hex characters");
+  }
+  const bytes = new Uint8Array(clean.length / 2);
+  for (let i = 0; i < bytes.length; i++) {
+    bytes[i] = parseInt(clean.substr(i * 2, 2), 16);
+  }
+  return bytes;
 }
 
 // Export types

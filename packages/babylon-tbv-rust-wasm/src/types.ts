@@ -193,10 +193,10 @@ export interface ChallengeAssertConnectorParams {
   claimer: string;
   /** X-only public key of the challenger (hex encoded) */
   challenger: string;
-  /** JSON string of Lamport hash values from VP */
-  lamportHashesJson: string;
-  /** JSON string of GC input label hashes from VP */
-  gcInputLabelHashesJson: string;
+  /** JSON string of WOTS public keys (blocks 0-1) from VP */
+  claimerWotsKeysJson: string;
+  /** JSON string of GC WOTS public keys (array of arrays) from VP */
+  gcWotsKeysJson: string;
 }
 
 /**

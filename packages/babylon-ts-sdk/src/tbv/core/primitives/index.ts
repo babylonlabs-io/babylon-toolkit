@@ -77,7 +77,7 @@ export { computeNumLocalChallengers } from "./challengers";
 
 // Core types and functions from WASM package
 export type { Network } from "@babylonlabs-io/babylon-tbv-rust-wasm";
-export { computeMinClaimValue } from "@babylonlabs-io/babylon-tbv-rust-wasm";
+export { computeMinClaimValue, deriveVaultId } from "@babylonlabs-io/babylon-tbv-rust-wasm";
 export type {
   AssertPayoutNoPayoutConnectorParams,
   ChallengeAssertConnectorParams,

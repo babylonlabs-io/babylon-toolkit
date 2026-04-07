@@ -167,9 +167,9 @@ const caPsbtHex = await buildChallengeAssertPsbt({
   challengeAssertTxHex: "...",      // From vault provider
   prevouts: challengeAssertPrevouts, // [{script_pubkey, value}] from VP (flat, 3 entries)
   connectorParamsPerInput: [         // One per input (3 total)
-    { claimer: depositorPubkey, challenger: "def456...", lamportHashesJson: "...", gcInputLabelHashesJson: "..." },
-    { claimer: depositorPubkey, challenger: "def456...", lamportHashesJson: "...", gcInputLabelHashesJson: "..." },
-    { claimer: depositorPubkey, challenger: "def456...", lamportHashesJson: "...", gcInputLabelHashesJson: "..." },
+    { claimer: depositorPubkey, challenger: "def456...", claimerWotsKeysJson: "...", gcWotsKeysJson: "..." },
+    { claimer: depositorPubkey, challenger: "def456...", claimerWotsKeysJson: "...", gcWotsKeysJson: "..." },
+    { claimer: depositorPubkey, challenger: "def456...", claimerWotsKeysJson: "...", gcWotsKeysJson: "..." },
   ],
 });
 const signedCA = await wallet.signPsbt(caPsbtHex);
