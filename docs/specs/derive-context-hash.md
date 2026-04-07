@@ -139,6 +139,15 @@ share the same `deriveContextHash` root. Applications that need
 per-account isolation MUST encode an account identifier in
 their context.
 
+**Imported private keys:** Wallets that support imported (non-HD)
+private keys MAY offer `deriveContextHash` for those keys. Since
+imported keys lack a BIP-32 hierarchy, the wallet SHOULD use the
+raw 32-byte private key directly as IKM, skipping BIP-32
+derivation. Outputs from imported keys are not cross-wallet
+compatible — this is inherent to imported keys, which have no
+shared derivation tree. Wallets MUST clearly document this
+behavior to users and dApp developers.
+
 Note: BIP-39 passphrases produce different seeds from the same
 mnemonic. Two wallets with the same mnemonic but different
 passphrases will produce different outputs.
