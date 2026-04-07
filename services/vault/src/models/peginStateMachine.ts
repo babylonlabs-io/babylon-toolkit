@@ -184,6 +184,8 @@ export enum PeginAction {
   SIGN_AND_BROADCAST_TO_BITCOIN = "SIGN_AND_BROADCAST_TO_BITCOIN",
   /** Reveal HTLC secret on Ethereum to activate vault */
   ACTIVATE_VAULT = "ACTIVATE_VAULT",
+  /** Sign and broadcast HTLC refund transaction for an expired vault */
+  REFUND_HTLC = "REFUND_HTLC",
   /** No action available - user must wait */
   NONE = "NONE",
 }
@@ -210,6 +212,8 @@ export interface GetPeginStateOptions {
   expirationReason?: ExpirationReason;
   /** Timestamp when vault expired in milliseconds (only relevant when status is EXPIRED) */
   expiredAt?: number;
+  /** Whether the depositor can refund the HTLC (Pre-PegIn tx available) */
+  canRefund?: boolean;
 }
 
 const EXPIRATION_REASON_LABELS: Record<ExpirationReason, string> = {
@@ -264,6 +268,7 @@ export function getPeginState(
     pendingIngestion,
     expirationReason,
     expiredAt,
+    canRefund,
   } = options;
 
   // Contract Status 0: Pending (Request submitted, waiting for ACKs)
@@ -463,7 +468,9 @@ export function getPeginState(
       localStatus,
       displayLabel: PEGIN_DISPLAY_LABELS.EXPIRED,
       displayVariant: "warning",
-      availableActions: [PeginAction.NONE],
+      availableActions: canRefund
+        ? [PeginAction.REFUND_HTLC]
+        : [PeginAction.NONE],
       message: buildExpiredMessage(expirationReason, expiredAt),
     };
   }
@@ -548,6 +555,13 @@ export function getPrimaryActionButton(state: PeginState): {
     return {
       label: "Activate",
       action: PeginAction.ACTIVATE_VAULT,
+    };
+  }
+
+  if (state.availableActions.includes(PeginAction.REFUND_HTLC)) {
+    return {
+      label: "Refund",
+      action: PeginAction.REFUND_HTLC,
     };
   }
 
