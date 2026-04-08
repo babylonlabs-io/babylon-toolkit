@@ -5,9 +5,13 @@
  */
 
 import { act, renderHook } from "@testing-library/react";
+import type { Hex } from "viem";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-// Mocks must be declared before imports of the module under test
+import { broadcastPrePeginTransaction, fetchVaultById } from "@/services/vault";
+
+import { useVaultActions } from "../useVaultActions";
+
 vi.mock("@babylonlabs-io/config", () => ({
   getETHChain: vi.fn(() => ({ id: 11155111 })),
 }));
@@ -73,12 +77,6 @@ vi.mock("@/models/peginStateMachine", async (importOriginal) => {
     },
   };
 });
-
-import type { Hex } from "viem";
-
-import { broadcastPrePeginTransaction, fetchVaultById } from "@/services/vault";
-
-import { useVaultActions } from "../useVaultActions";
 
 const mockFetchVaultById = vi.mocked(fetchVaultById);
 const mockBroadcastPrePeginTransaction = vi.mocked(
