@@ -251,8 +251,9 @@ export function calculate(params: CalculatorParams): CalculatorResult {
   const savedSum = optimalSum - currentSum;
   const savedBtcAfterG1 = optimalBtcAfterG1 - currentBtcAfterG1;
 
-  // Suppress reorder if it would create a rebalance condition that doesn't exist now
-  if (reorderWouldHelp && nVaults >= 2) {
+  // Suppress reorder if it would create a rebalance condition that doesn't exist now.
+  // Skip for cliffs — going from cliff to rebalance is always an improvement.
+  if (reorderWouldHelp && nVaults >= 2 && !isCliff) {
     const currentOverSeizure = firstGroup ? firstGroup.overSeizureBtc : 0;
     const currentProtected = firstGroup ? firstGroup.btcRemainingAfter : 0;
     const currentIsCliff = firstGroup
@@ -339,7 +340,7 @@ export function calculate(params: CalculatorParams): CalculatorResult {
         );
       }
       warnings.push({
-        type: "reorder",
+        type: "cliff",
         title: "Swap vault order to unlock partial protection",
         detail: `${best.name} (${best.btc.toFixed(2)} BTC) covers the target seizure alone. Right now both vaults are seized together because ${vaults[0].name} is first and too small.`,
         suggestion: `Suggested order: ${best.name} → ${other.name}`,

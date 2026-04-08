@@ -200,28 +200,28 @@ describe("calculate", () => {
   // ── C. Two vaults — wrong order ────────────────────────────────
 
   describe("two vaults wrong order", () => {
-    it("C1: [0.35, 0.65] — reorder needed (swap)", () => {
+    it("C1: [0.35, 0.65] — cliff fixable by reorder (swap)", () => {
       const result = calculate(makeParams([v(0.35), v(0.65)]));
-      expect(hasWarning(result.warnings, "reorder")).toBe(true);
-      expect(getWarning(result.warnings, "reorder")?.title).toContain("Swap");
+      expect(hasWarning(result.warnings, "cliff")).toBe(true);
+      expect(getWarning(result.warnings, "cliff")?.title).toContain("Swap");
     });
 
-    it("C2: [0.20, 0.80] — reorder suppressed (creates rebalance), cliff instead", () => {
+    it("C2: [0.20, 0.80] — cliff fixable by reorder", () => {
       const result = calculate(makeParams([v(0.2), v(0.8)]));
       expect(hasWarning(result.warnings, "cliff")).toBe(true);
-      expect(hasWarning(result.warnings, "reorder")).toBe(false);
+      expect(getWarning(result.warnings, "cliff")?.title).toContain("Swap");
     });
 
-    it("C3: [0.39, 0.61] — just below target boundary, reorder", () => {
+    it("C3: [0.39, 0.61] — just below target boundary, cliff fixable by reorder", () => {
       // target=0.3979, threshold=0.3939. 0.39 < 0.3939 → cliff; 0.61 covers → reorder
       const result = calculate(makeParams([v(0.39), v(0.61)]));
-      expect(hasWarning(result.warnings, "reorder")).toBe(true);
+      expect(hasWarning(result.warnings, "cliff")).toBe(true);
     });
 
-    it("C4: [0.10, 0.90] — reorder suppressed, cliff", () => {
+    it("C4: [0.10, 0.90] — cliff fixable by reorder", () => {
       const result = calculate(makeParams([v(0.1), v(0.9)]));
       expect(hasWarning(result.warnings, "cliff")).toBe(true);
-      expect(hasWarning(result.warnings, "reorder")).toBe(false);
+      expect(getWarning(result.warnings, "cliff")?.title).toContain("Swap");
     });
 
     it("C5: [0.30, 0.30] total=0.60 — each covers, no cliff", () => {
@@ -248,9 +248,9 @@ describe("calculate", () => {
       expect(hasWarning(result.warnings, "cliff")).toBe(true);
     });
 
-    it("D3: THF=1.30, [0.40, 0.60] — 0.60 covers, reorder", () => {
+    it("D3: THF=1.30, [0.40, 0.60] — 0.60 covers, cliff fixable by reorder", () => {
       const result = calculate(makeParams([v(0.4), v(0.6)], { THF: 1.3 }));
-      expect(hasWarning(result.warnings, "reorder")).toBe(true);
+      expect(hasWarning(result.warnings, "cliff")).toBe(true);
     });
 
     it("D4: THF=1.40, [0.50, 0.50] — extreme THF, cliff", () => {
@@ -538,10 +538,10 @@ describe("calculate", () => {
       expect(result.groups).toHaveLength(2);
     });
 
-    it("L3: THF=1.14, [0.42, 0.58] — reorder needed", () => {
+    it("L3: THF=1.14, [0.42, 0.58] — cliff fixable by reorder", () => {
       // seized_frac≈0.447; 0.42 < 0.447 → cliff; 0.58 >= 0.447 → reorder
       const result = calculate(makeParams([v(0.42), v(0.58)], { THF: 1.14 }));
-      expect(hasWarning(result.warnings, "reorder")).toBe(true);
+      expect(hasWarning(result.warnings, "cliff")).toBe(true);
     });
 
     it("L4: THF=1.20, [0.50, 0.50] — within tolerance, no cliff", () => {
@@ -578,10 +578,10 @@ describe("calculate", () => {
       expect(hasWarning(result.warnings, "reorder")).toBe(false);
     });
 
-    it("M3: [0.393, 0.607] — just below 1% tolerance, reorder", () => {
-      // 0.393 < 0.3939 → outside tol; 0.607 > 0.3939 → reorder
+    it("M3: [0.393, 0.607] — just below 1% tolerance, cliff fixable by reorder", () => {
+      // 0.393 < 0.3939 → outside tol; 0.607 > 0.3939 → cliff fixable by reorder
       const result = calculate(makeParams([v(0.393), v(0.607)]));
-      expect(hasWarning(result.warnings, "reorder")).toBe(true);
+      expect(hasWarning(result.warnings, "cliff")).toBe(true);
     });
 
     it("M5: zero debt — no risk, no groups", () => {
@@ -732,17 +732,19 @@ describe("bannerSeverity", () => {
     expect(state.severity).toBe("red");
   });
 
-  it("returns red for dust", () => {
+  it("returns hidden for dust", () => {
     const result = calculate(makeParams([v(0.5)], { totalDebtUsd: 500 }));
     const state = deriveBannerState(result);
-    expect(state.severity).toBe("red");
+    expect(state.severity).toBe("hidden");
+    expect(state.primaryWarning?.type).toBe("dust");
+    expect(state.secondaryWarnings).toHaveLength(0);
   });
 
-  it("returns yellow for reorder", () => {
-    // Use large vaults to avoid urgent, but wrong order
+  it("returns red for cliff fixable by reorder", () => {
+    // [1.0, 2.0] wrong order — cliff fixable by reorder emits type "cliff" → red
     const result = calculate(makeParams([v(1.0), v(2.0)]));
     const state = deriveBannerState(result);
-    expect(state.severity).toBe("yellow");
+    expect(state.severity).toBe("red");
   });
 
   it("returns yellow for rebalance", () => {
