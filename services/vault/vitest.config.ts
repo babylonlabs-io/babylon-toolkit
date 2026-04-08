@@ -25,7 +25,6 @@ export default defineConfig({
     exclude: [
       "**/node_modules/**",
       "**/dist/**",
-      "**/*.integration.test.tsx",
       "**/e2e/**",
     ],
     coverage: {
