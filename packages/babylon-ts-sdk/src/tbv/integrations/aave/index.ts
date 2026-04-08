@@ -91,6 +91,8 @@ export {
 // Utilities
 export {
   HEALTH_FACTOR_COLORS,
+  MAX_GROUPS,
+  MIN_DEBT_THRESHOLD,
   SEIZURE_TOL,
   aaveValueToUsd,
   calculateBorrowRatio,

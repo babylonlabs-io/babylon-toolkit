@@ -2,6 +2,8 @@ import {
   computeOptimalOrder,
   computeSeizedFractionDetailed,
   getGroup1FromOrder,
+  MAX_GROUPS,
+  MIN_DEBT_THRESHOLD,
   SEIZURE_TOL,
   simulateCascade,
 } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
@@ -36,11 +38,8 @@ const URGENT_DISTANCE_PCT = 5;
 /** Threshold for detecting meaningful reorder improvement */
 const REORDER_TOL = 0.001;
 
-/** Minimum debt to continue processing — must match cascadeSimulation.ts */
-const MIN_DEBT_THRESHOLD = 0.01;
-
-/** Maximum groups per cascade simulation — must match cascadeSimulation.ts */
-const MAX_GROUPS = 20;
+/** Placeholder ID for a hypothetical new vault in rebalance suggestions */
+const PLACEHOLDER_VAULT_ID = "__new__";
 
 export function calculate(params: CalculatorParams): CalculatorResult {
   const {
@@ -262,10 +261,9 @@ export function calculate(params: CalculatorParams): CalculatorResult {
     const currentHasRebalanceCond =
       currentOverSeizure > currentProtected && !currentIsCliff;
 
-    const optG1Btc = optimalG1Vaults.reduce((s, v) => s + v.btc, 0);
     const optTarget = totalBtc * seizedFraction;
-    const optOver = Math.max(0, optG1Btc - optTarget);
-    const optProtected = totalBtc - optG1Btc;
+    const optOver = Math.max(0, optimalG1Btc - optTarget);
+    const optProtected = totalBtc - optimalG1Btc;
     const optIsCliff = optimalG1Vaults.length === nVaults;
     const optWouldTriggerRebalance = optOver > optProtected && !optIsCliff;
 
@@ -439,8 +437,8 @@ export function calculate(params: CalculatorParams): CalculatorResult {
     if (rounded <= totalBtc) {
       suggestedRebalanceVaultBtc = rounded;
       const placeholder: Vault = {
-        id: "__new__",
-        name: "__new__",
+        id: PLACEHOLDER_VAULT_ID,
+        name: PLACEHOLDER_VAULT_ID,
         btc: rounded,
       };
       const allVaults = [placeholder, ...vaults];
@@ -465,10 +463,9 @@ export function calculate(params: CalculatorParams): CalculatorResult {
           seizedFraction,
           SEIZURE_TOL,
         ).reduce((s, v) => s + v.btc, 0);
-        const optProtected =
-          allVaults.reduce((s, v) => s + v.btc, 0) - optG1Btc;
-        const optTarget =
-          allVaults.reduce((s, v) => s + v.btc, 0) * seizedFraction;
+        const allBtc = allVaults.reduce((s, v) => s + v.btc, 0);
+        const optProtected = allBtc - optG1Btc;
+        const optTarget = allBtc * seizedFraction;
         const optOver = optG1Btc - optTarget;
 
         if (optOver > optProtected) {

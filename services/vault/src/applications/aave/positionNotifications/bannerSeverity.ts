@@ -1,4 +1,4 @@
-import type { CalculatorResult, Warning } from "./types";
+import type { CalculatorResult, Warning, WarningType } from "./types";
 
 export type BannerSeverity = "red" | "yellow" | "green" | "hidden";
 
@@ -8,8 +8,12 @@ export interface BannerState {
   secondaryWarnings: Warning[];
 }
 
-const RED_WARNING_TYPES = new Set(["urgent", "cliff"]);
-const STRUCTURAL_WARNING_TYPES = new Set(["cliff", "reorder", "rebalance"]);
+const RED_WARNING_TYPES = new Set<WarningType>(["urgent", "cliff"]);
+const STRUCTURAL_WARNING_TYPES = new Set<WarningType>([
+  "cliff",
+  "reorder",
+  "rebalance",
+]);
 
 /**
  * Map a CalculatorResult to a banner display state.

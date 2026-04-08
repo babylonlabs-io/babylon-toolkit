@@ -23,10 +23,10 @@ export interface CascadeVault {
 export const SEIZURE_TOL = 0.01;
 
 /** Circuit breaker for group cascade loop */
-const MAX_GROUPS = 20;
+export const MAX_GROUPS = 20;
 
 /** Minimum debt threshold to continue cascade (avoids infinite loop on dust) */
-const MIN_DEBT_THRESHOLD = 0.01;
+export const MIN_DEBT_THRESHOLD = 0.01;
 
 /**
  * Prefix walk: consume vaults front-to-back until target seizure is covered.
@@ -134,7 +134,7 @@ export function simulateCascade<T extends CascadeVault>(
     );
     remaining = remaining.slice(i);
     debt = debtAfter;
-    const btcNow = remaining.reduce((s, v) => s + v.btc, 0);
+    const btcNow = totalBtc - prefixSum;
     sumBtcAfterEvents += btcNow;
     if (btcAfterG1 < 0) btcAfterG1 = btcNow;
     groupCount++;

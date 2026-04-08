@@ -21,6 +21,8 @@ export type {
 } from "./vaultSelection.js";
 export {
   getGroup1FromOrder,
+  MAX_GROUPS,
+  MIN_DEBT_THRESHOLD,
   SEIZURE_TOL,
   simulateCascade,
 } from "./cascadeSimulation.js";
