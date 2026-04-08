@@ -1,9 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import {
-  addMnemonic,
-  unlockMnemonic,
-} from "../mnemonicVaultService";
+import { addMnemonic, unlockMnemonic } from "../mnemonicVaultService";
 
 const TEST_MNEMONIC =
   "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
