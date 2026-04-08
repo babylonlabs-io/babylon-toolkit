@@ -19,7 +19,6 @@ import {
 import { useProtocolParamsContext } from "../../context/ProtocolParamsContext";
 import { useETHWallet } from "../../context/wallet";
 import { VaultStatus } from "../../types/vault";
-import type { VaultProvider } from "../../types/vaultProvider";
 import { useVaultDeposits } from "../useVaultDeposits";
 import { useVaults } from "../useVaults";
 
@@ -56,7 +55,7 @@ export interface UseDepositPageFlowResult {
   confirmMnemonic: (mnemonic?: string, mnemonicId?: string) => void;
   getMnemonic: (() => Promise<string>) | undefined;
   mnemonicId: string | undefined;
-  onSignSuccess: (btcTxid: string, ethTxHash: string) => void;
+  onSignSuccess: (peginTxHash: string, ethTxHash: string) => void;
   resetDeposit: () => void;
   refetchActivities: () => Promise<void>;
 
@@ -75,7 +74,7 @@ export interface UseDepositPageFlowResult {
   ) => void;
   setFeeRate: (feeRate: number) => void;
   setTransactionHashes: (
-    btcTxid: string,
+    peginTxHash: string,
     ethTxHash: string,
     depositorBtcPubkey?: string,
   ) => void;
@@ -108,7 +107,7 @@ export function useDepositPageFlow(): UseDepositPageFlowResult {
     reset: resetDepositState,
   } = useDepositState();
 
-  const { vaultProviders, vaultKeepers } = useVaultProviders(
+  const { vaultKeepers, findProvider } = useVaultProviders(
     selectedApplication || undefined,
   );
   const { latestUniversalChallengers } = useProtocolParamsContext();
@@ -129,7 +128,7 @@ export function useDepositPageFlow(): UseDepositPageFlowResult {
     vaultKeeperBtcPubkeys,
     universalChallengerBtcPubkeys,
   } = useMemo(() => {
-    if (selectedProviders.length === 0 || vaultProviders.length === 0) {
+    if (selectedProviders.length === 0) {
       return {
         selectedProviderBtcPubkey: "",
         vaultKeeperBtcPubkeys: [],
@@ -137,10 +136,9 @@ export function useDepositPageFlow(): UseDepositPageFlowResult {
       };
     }
 
-    const selectedProvider = vaultProviders.find(
-      (p: VaultProvider) =>
-        p.id.toLowerCase() === selectedProviders[0].toLowerCase(),
-    );
+    // Use findProvider (searches all providers including unhealthy) so that
+    // a VP becoming unhealthy mid-flow doesn't break an in-progress deposit.
+    const selectedProvider = findProvider(selectedProviders[0]);
 
     return {
       selectedProviderBtcPubkey: selectedProvider?.btcPubKey || "",
@@ -151,7 +149,7 @@ export function useDepositPageFlow(): UseDepositPageFlowResult {
     };
   }, [
     selectedProviders,
-    vaultProviders,
+    findProvider,
     vaultKeepers,
     latestUniversalChallengers,
   ]);
@@ -196,8 +194,8 @@ export function useDepositPageFlow(): UseDepositPageFlowResult {
     resetDepositState();
   }, [resetDepositState]);
 
-  const onSignSuccess = (btcTxid: string, ethTxHash: string) => {
-    setTransactionHashes(btcTxid, ethTxHash);
+  const onSignSuccess = (peginTxHash: string, ethTxHash: string) => {
+    setTransactionHashes(peginTxHash, ethTxHash);
     goToStep(DepositStep.SUCCESS);
   };
 

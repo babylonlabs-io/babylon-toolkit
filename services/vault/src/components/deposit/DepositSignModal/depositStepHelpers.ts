@@ -95,7 +95,7 @@ export const DEPOSIT_SUCCESS_MESSAGE =
 
 /**
  * Compute derived UI state from flow state.
- * Used by DepositSignContent and MultiVaultDepositSignContent.
+ * Used by DepositSignContent.
  */
 export function computeDepositDerivedState(
   currentStep: DepositFlowStep,

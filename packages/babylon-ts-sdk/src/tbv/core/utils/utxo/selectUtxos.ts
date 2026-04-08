@@ -63,6 +63,7 @@ export interface UTXOSelectionResult {
  * @param availableUTXOs - All available UTXOs from wallet
  * @param peginAmount - Amount to peg in (satoshis)
  * @param feeRate - Fee rate (sat/vbyte)
+ * @param numOutputs - Number of outputs in the unfunded transaction (HTLC + CPFP anchor, before change)
  * @returns Selected UTXOs, total value, calculated fee, and change amount
  * @throws Error if insufficient funds or no valid UTXOs
  */
@@ -70,7 +71,14 @@ export function selectUtxosForPegin(
   availableUTXOs: UTXO[],
   peginAmount: bigint,
   feeRate: number,
+  numOutputs: number,
 ): UTXOSelectionResult {
+  if (!Number.isInteger(numOutputs) || numOutputs < 1) {
+    throw new Error(
+      `Invalid numOutputs: expected a positive integer, got ${numOutputs}`,
+    );
+  }
+
   if (availableUTXOs.length === 0) {
     throw new Error("Insufficient funds: no UTXOs available");
   }
@@ -104,7 +112,7 @@ export function selectUtxosForPegin(
 
     // Recalculate fee based on CURRENT number of inputs
     const inputSize = selectedUTXOs.length * P2TR_INPUT_SIZE;
-    const outputSize = 2 * MAX_NON_LEGACY_OUTPUT_SIZE; // vault + depositor claim outputs
+    const outputSize = numOutputs * MAX_NON_LEGACY_OUTPUT_SIZE;
     const baseTxSize = inputSize + outputSize + TX_BUFFER_SIZE_OVERHEAD;
 
     // Calculate base fee with buffer

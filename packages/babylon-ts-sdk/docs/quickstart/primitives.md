@@ -167,9 +167,9 @@ const caPsbtHex = await buildChallengeAssertPsbt({
   challengeAssertTxHex: "...",      // From vault provider
   prevouts: challengeAssertPrevouts, // [{script_pubkey, value}] from VP (flat, 3 entries)
   connectorParamsPerInput: [         // One per input (3 total)
-    { claimer: depositorPubkey, challenger: "def456...", lamportHashesJson: "...", gcInputLabelHashesJson: "..." },
-    { claimer: depositorPubkey, challenger: "def456...", lamportHashesJson: "...", gcInputLabelHashesJson: "..." },
-    { claimer: depositorPubkey, challenger: "def456...", lamportHashesJson: "...", gcInputLabelHashesJson: "..." },
+    { claimer: depositorPubkey, challenger: "def456...", claimerWotsKeysJson: "...", gcWotsKeysJson: "..." },
+    { claimer: depositorPubkey, challenger: "def456...", claimerWotsKeysJson: "...", gcWotsKeysJson: "..." },
+    { claimer: depositorPubkey, challenger: "def456...", claimerWotsKeysJson: "...", gcWotsKeysJson: "..." },
   ],
 });
 const signedCA = await wallet.signPsbt(caPsbtHex);
@@ -192,6 +192,7 @@ The SDK provides utility functions you'll need when using primitives.
 ```typescript
 import {
   selectUtxosForPegin, // UTXO selection with fee calculation
+  peginOutputCount, // Compute output count for fee estimation
   calculateBtcTxHash, // Get tx hash from hex
   fundPeginTransaction, // Add inputs/change to unfunded tx hex
   P2TR_INPUT_SIZE, // Fee calculation constants
@@ -206,6 +207,7 @@ const { selectedUTXOs, fee, changeAmount } = selectUtxosForPegin(
   availableUTXOs, // Your UTXOs
   amount, // Target amount (satoshis)
   feeRate, // sat/vB
+  peginOutputCount(vaultCount), // N HTLCs + CPFP anchor
 );
 ```
 

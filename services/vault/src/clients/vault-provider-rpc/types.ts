@@ -4,7 +4,7 @@
  * Source: https://github.com/babylonlabs-io/btc-vault/blob/main/docs/pegin.md
  */
 
-import type { LamportPublicKey } from "@/services/lamport";
+import type { WotsPublicKey } from "@/services/wots";
 
 // ============================================================================
 // Request Parameter Types
@@ -16,11 +16,11 @@ export interface RequestDepositorPresignTransactionsParams {
   depositor_pk: string;
 }
 
-/** Params for submitting the depositor's Lamport public key to the VP. */
-export interface SubmitDepositorLamportKeyParams {
+/** Params for submitting the depositor's WOTS public key to the VP. */
+export interface SubmitDepositorWotsKeyParams {
   pegin_txid: string;
   depositor_pk: string;
-  lamport_public_key: LamportPublicKey;
+  wots_public_keys: WotsPublicKey;
 }
 
 /** Per-challenger signatures for the depositor-as-claimer flow. */

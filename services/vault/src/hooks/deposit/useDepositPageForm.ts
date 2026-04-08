@@ -1,6 +1,7 @@
 import {
   computeMinClaimValue,
   computeNumLocalChallengers,
+  peginOutputCount,
 } from "@babylonlabs-io/ts-sdk/tbv/core";
 import { useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -9,6 +10,7 @@ import type { PriceMetadata } from "@/clients/eth-contract/chainlink";
 import { useBtcPublicKey } from "@/hooks/useBtcPublicKey";
 import type { AllocationPlan } from "@/services/vault";
 
+import { useAaveConfig } from "../../applications/aave/context";
 import { useProtocolParamsContext } from "../../context/ProtocolParamsContext";
 import { useBTCWallet, useConnection } from "../../context/wallet";
 import { depositService } from "../../services/deposit";
@@ -27,20 +29,20 @@ const STALE_TIME_MS = 5 * 60 * 1000;
 
 export interface DepositPageFormData {
   amountBtc: string;
-  selectedApplication: string;
   selectedProvider: string;
 }
 
 export interface UseDepositPageFormResult {
   formData: DepositPageFormData;
   setFormData: (data: Partial<DepositPageFormData>) => void;
+  /** Resolved application: user choice or auto-selected single app */
+  effectiveSelectedApplication: string;
 
   errors: {
     amount?: string;
     application?: string;
     provider?: string;
   };
-  isValid: boolean;
   isWalletConnected: boolean;
 
   btcBalance: bigint;
@@ -84,9 +86,6 @@ export interface UseDepositPageFormResult {
   planError: string | null;
   /** Display label for the split ratio, null when not applicable */
   splitRatioLabel: string | null;
-  /** Effective fee: multi-vault fee when checkbox is on, single-vault fee otherwise */
-  effectiveFeeSats: bigint | null;
-
   /** Depositor claim value computed from WASM (VK/UC counts + fee). undefined while loading. */
   depositorClaimValue: bigint | undefined;
 
@@ -100,18 +99,14 @@ export function useDepositPageForm(): UseDepositPageFormResult {
   const { isConnected: isWalletConnected } = useConnection();
   const depositorBtcPubkey = useBtcPublicKey(btcConnected);
   const { config, latestUniversalChallengers } = useProtocolParamsContext();
+  const { config: aaveConfig } = useAaveConfig();
   const btcPriceUSD = usePrice("BTC");
   const { metadata, hasStalePrices, hasPriceFetchError } = usePrices();
 
   const [formData, setFormDataInternal] = useState<DepositPageFormData>({
     amountBtc: "",
-    // Keep empty initially to avoid calling useVaultProviders with invalid value
-    selectedApplication: "",
     selectedProvider: "",
   });
-
-  // Track previous application to detect changes
-  const prevApplicationRef = useRef<string>("");
 
   const { data: applicationsData, isLoading: isLoadingApplications } =
     useApplications();
@@ -124,22 +119,16 @@ export function useDepositPageForm(): UseDepositPageFormResult {
     }));
   }, [applicationsData]);
 
-  // Auto-select if only one application available
-  useEffect(() => {
-    if (!isLoadingApplications && applicationsData?.length === 1) {
-      setFormDataInternal((prev) => ({
-        ...prev,
-        selectedApplication: applicationsData[0].id,
-      }));
-    }
-  }, [isLoadingApplications, applicationsData]);
+  // The application is always the Aave adapter — AaveConfigProvider blocks
+  // rendering until loaded, so adapterAddress is available synchronously.
+  const effectiveSelectedApplication = aaveConfig?.adapterAddress || "";
 
   // Fetch providers based on selected application
   const {
     vaultProviders: rawProviders,
     vaultKeepers,
     loading: isLoadingProviders,
-  } = useVaultProviders(formData.selectedApplication || undefined);
+  } = useVaultProviders(effectiveSelectedApplication || undefined);
   const providers = useMemo(() => {
     return rawProviders.map((p) => ({
       id: p.id,
@@ -148,22 +137,6 @@ export function useDepositPageForm(): UseDepositPageFormResult {
       iconUrl: p.iconUrl,
     }));
   }, [rawProviders]);
-
-  // Reset provider selection when application changes
-  useEffect(() => {
-    const currentApp = formData.selectedApplication;
-    const prevApp = prevApplicationRef.current;
-
-    // Only reset if application actually changed (not on initial mount)
-    if (prevApp && currentApp !== prevApp) {
-      setFormDataInternal((prev) => ({
-        ...prev,
-        selectedProvider: "",
-      }));
-    }
-
-    prevApplicationRef.current = currentApp;
-  }, [formData.selectedApplication]);
 
   // Derive selected VP's BTC pubkey and VK BTC pubkeys for challenger count
   const selectedVpBtcPubkey = useMemo(() => {
@@ -203,8 +176,6 @@ export function useDepositPageForm(): UseDepositPageFormResult {
       }));
       // Clear errors when user starts typing (they'll be validated on blur)
       if (data.amountBtc !== undefined) clearFieldError("amount");
-      if (data.selectedApplication !== undefined)
-        clearFieldError("application");
       if (data.selectedProvider !== undefined) clearFieldError("provider");
     },
     [clearFieldError],
@@ -224,13 +195,23 @@ export function useDepositPageForm(): UseDepositPageFormResult {
     return depositService.parseBtcToSatoshis(formData.amountBtc);
   }, [formData.amountBtc]);
 
+  // Partial liquidation (multi-vault deposit) — declared early so the fee
+  // estimate below can account for the batch output count.
+  const [isPartialLiquidation, setIsPartialLiquidation] = useState(false);
+  const hasAutoChecked = useRef(false);
+
+  // Batch-first: one Pre-PegIn tx with N HTLC outputs + 1 CPFP anchor.
+  // When partial liquidation is on, N = 2 (sacrificial + protected vaults).
+  const vaultCount = isPartialLiquidation ? 2 : 1;
+  const numPeginOutputs = peginOutputCount(vaultCount);
+
   const {
     fee: estimatedFeeSats,
     feeRate: estimatedFeeRate,
     isLoading: isLoadingFee,
     error: feeError,
     maxDeposit: maxDepositSats,
-  } = useEstimatedBtcFee(amountSats, spendableMempoolUTXOs);
+  } = useEstimatedBtcFee(amountSats, spendableMempoolUTXOs, numPeginOutputs);
 
   // Compute depositorClaimValue for UI validation (min deposit check).
   // Uses {VP} ∪ {VKs} − {depositor} which is >= the transaction builder's
@@ -271,14 +252,9 @@ export function useDepositPageForm(): UseDepositPageFormResult {
     refetchOnWindowFocus: false,
   });
 
-  // Partial liquidation (multi-vault deposit)
-  const [isPartialLiquidation, setIsPartialLiquidation] = useState(false);
-  const hasAutoChecked = useRef(false);
-
   const {
     allocationPlan,
     strategy,
-    totalFeeSats: multiVaultFeeSats,
     isPlanning,
     planError,
     canSplit,
@@ -300,11 +276,6 @@ export function useDepositPageForm(): UseDepositPageFormResult {
     }
   }, [canSplit]);
 
-  const effectiveFeeSats =
-    isPartialLiquidation && multiVaultFeeSats != null
-      ? multiVaultFeeSats
-      : estimatedFeeSats;
-
   // Adjust max deposit to account for depositorClaimValue (network fees already subtracted)
   const adjustedMaxDepositSats = useMemo(() => {
     if (maxDepositSats == null || depositorClaimValue == null)
@@ -321,7 +292,7 @@ export function useDepositPageForm(): UseDepositPageFormResult {
       newErrors.amount = amountResult.error;
     }
 
-    if (!formData.selectedApplication) {
+    if (!effectiveSelectedApplication) {
       newErrors.application = "Please select an application";
     }
 
@@ -338,49 +309,11 @@ export function useDepositPageForm(): UseDepositPageFormResult {
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
-  }, [formData, validation, setErrors]);
-
-  const isValid = useMemo(() => {
-    const hasAmount = formData.amountBtc !== "";
-    const hasApplication = formData.selectedApplication !== "";
-    const hasProvider = formData.selectedProvider !== "";
-    const noErrors = Object.keys(errors).length === 0;
-
-    // Delegate amount validation to service layer (includes fees + claim value)
-    const isAmountValid = depositService.isDepositAmountValid({
-      amountSats,
-      minDeposit: validation.minDeposit,
-      maxDeposit: validation.maxDeposit,
-      btcBalance,
-      estimatedFeeSats: effectiveFeeSats ?? undefined,
-      depositorClaimValue,
-    });
-
-    return (
-      isWalletConnected &&
-      hasAmount &&
-      hasApplication &&
-      hasProvider &&
-      noErrors &&
-      isAmountValid &&
-      depositorClaimValue != null
-    );
-  }, [
-    isWalletConnected,
-    formData,
-    errors,
-    amountSats,
-    validation.minDeposit,
-    validation.maxDeposit,
-    btcBalance,
-    effectiveFeeSats,
-    depositorClaimValue,
-  ]);
+  }, [formData, effectiveSelectedApplication, validation, setErrors]);
 
   const resetForm = useCallback(() => {
     setFormDataInternal({
       amountBtc: "",
-      selectedApplication: "",
       selectedProvider: "",
     });
     resetErrors();
@@ -389,8 +322,8 @@ export function useDepositPageForm(): UseDepositPageFormResult {
   return {
     formData,
     setFormData,
+    effectiveSelectedApplication,
     errors,
-    isValid,
     isWalletConnected,
     btcBalance,
     btcBalanceFormatted,
@@ -419,7 +352,6 @@ export function useDepositPageForm(): UseDepositPageFormResult {
     isPlanning,
     planError,
     splitRatioLabel,
-    effectiveFeeSats,
     validateForm,
     validateAmountOnBlur,
     resetForm,

@@ -38,9 +38,10 @@ export function PendingDepositSection() {
     hasPendingDeposits,
     signModal,
     broadcastModal,
-    lamportKeyModal,
+    wotsKeyModal,
     activationModal,
     artifactDownloadModal,
+    refundModal,
   } = usePendingDeposits();
 
   const totalBtcAmount = useMemo(
@@ -108,13 +109,14 @@ export function PendingDepositSection() {
                   depositId={activity.id}
                   amount={activity.collateral.amount}
                   timestamp={activity.timestamp}
-                  txHash={activity.txHash ?? activity.id}
+                  txHash={activity.peginTxHash!}
                   providerId={activity.providers[0].id}
                   vaultProviders={vaultProviders}
                   onSignClick={signModal.handleSignClick}
                   onBroadcastClick={broadcastModal.handleBroadcastClick}
-                  onLamportKeyClick={lamportKeyModal.handleLamportKeyClick}
+                  onWotsKeyClick={wotsKeyModal.handleWotsKeyClick}
                   onActivationClick={activationModal.handleActivationClick}
+                  onRefundClick={refundModal.handleRefundClick}
                   onArtifactDownloadClick={
                     artifactDownloadModal.handleArtifactDownloadClick
                   }
@@ -136,12 +138,13 @@ export function PendingDepositSection() {
         />
       )}
 
-      {/* Sign / Broadcast / Lamport Key / Success modals */}
+      {/* Sign / Broadcast / WOTS Key / Activation / Refund / Success modals */}
       <PendingDepositModals
         signModal={signModal}
         broadcastModal={broadcastModal}
-        lamportKeyModal={lamportKeyModal}
+        wotsKeyModal={wotsKeyModal}
         activationModal={activationModal}
+        refundModal={refundModal}
         vaultProviders={vaultProviders}
         btcPublicKey={btcPublicKey}
         ethAddress={ethAddress}

@@ -29,7 +29,7 @@ const VAULT_FIELDS = `
   ackCount
   depositorSignedPeginTx
   unsignedPrePeginTx
-  proverProgramVersion
+  peginTxHash
   hashlock
   htlcVout
   secret
@@ -40,7 +40,9 @@ const VAULT_FIELDS = `
   currentOwner
   referralCode
   depositorPayoutBtcAddress
-  depositorLamportPkHash
+  depositorWotsPkHash
+  depositorPopSignature
+  prePeginTxHash
   pendingAt
   verifiedAt
   activatedAt
@@ -104,8 +106,8 @@ interface GraphQLVaultItem {
   ackCount: number;
   depositorSignedPeginTx: string;
   unsignedPrePeginTx: string;
-  proverProgramVersion: number;
-  hashlock: string;
+  peginTxHash: string;
+  hashlock: string | null;
   htlcVout: number;
   secret: string | null;
   peginSigsPostedAt: string | null;
@@ -115,7 +117,9 @@ interface GraphQLVaultItem {
   currentOwner: string | null;
   referralCode: number;
   depositorPayoutBtcAddress: string;
-  depositorLamportPkHash: string | null;
+  depositorWotsPkHash: string | null;
+  depositorPopSignature: string | null;
+  prePeginTxHash: string | null;
   pendingAt: string;
   verifiedAt: string | null;
   activatedAt: string | null;
@@ -191,20 +195,57 @@ function validateRequiredField<T>(
   return value;
 }
 
+/** Zero-hash constant (32 zero bytes) — treated as "not set" by the indexer */
+const ZERO_HASH =
+  "0x0000000000000000000000000000000000000000000000000000000000000000";
+
+/**
+ * Normalize an optional hex field from the indexer.
+ * Treats null, "0x" (empty bytes), and zero-hash as undefined.
+ */
+const VALID_HEX_PATTERN = /^0x[0-9a-fA-F]+$/;
+
+function normalizeOptionalHex(value: string | null): Hex | undefined {
+  if (!value || value === "0x" || value === ZERO_HASH) return undefined;
+  if (!VALID_HEX_PATTERN.test(value)) {
+    logger.warn(
+      `[fetchVaults] Malformed hex value from indexer: ${value.slice(0, 20)}...`,
+    );
+    return undefined;
+  }
+  return value as Hex;
+}
+
+const VALID_EXPIRATION_REASONS: ReadonlySet<string> = new Set([
+  "ack_timeout",
+  "proof_timeout",
+  "activation_timeout",
+]);
+
+function isValidExpirationReason(
+  value: string | null | undefined,
+): value is ExpirationReason {
+  return typeof value === "string" && VALID_EXPIRATION_REASONS.has(value);
+}
+
 /**
  * Transform GraphQL vault item to Vault
  */
 function transformVaultItem(item: GraphQLVaultItem): Vault {
   return {
     id: item.id as Hex,
+    peginTxHash: validateRequiredField(
+      item.peginTxHash,
+      "peginTxHash",
+      item.id,
+    ) as Hex,
     depositor: item.depositor as Address,
     depositorBtcPubkey: item.depositorBtcPubKey as Hex,
     depositorSignedPeginTx: item.depositorSignedPeginTx as Hex,
     unsignedPrePeginTx: item.unsignedPrePeginTx as Hex,
     amount: BigInt(item.amount),
     vaultProvider: item.vaultProvider as Address,
-    proverProgramVersion: item.proverProgramVersion,
-    hashlock: item.hashlock ? (item.hashlock as Hex) : undefined,
+    hashlock: normalizeOptionalHex(item.hashlock),
     htlcVout: item.htlcVout,
     secret: item.secret ? (item.secret as Hex) : undefined,
     peginSigsPostedAt: item.peginSigsPostedAt
@@ -220,14 +261,18 @@ function transformVaultItem(item: GraphQLVaultItem): Vault {
       : undefined,
     referralCode: item.referralCode,
     depositorPayoutBtcAddress: item.depositorPayoutBtcAddress as Hex,
-    depositorLamportPkHash: validateRequiredField(
-      item.depositorLamportPkHash,
-      "depositorLamportPkHash",
+    depositorWotsPkHash: validateRequiredField(
+      item.depositorWotsPkHash,
+      "depositorWotsPkHash",
       item.id,
     ),
+    depositorPopSignature: normalizeOptionalHex(item.depositorPopSignature),
+    prePeginTxHash: normalizeOptionalHex(item.prePeginTxHash),
     createdAt: parseInt(item.pendingAt, 10) * 1000,
     expiredAt: item.expiredAt ? parseInt(item.expiredAt, 10) * 1000 : undefined,
-    expirationReason: (item.expirationReason as ExpirationReason) ?? undefined,
+    expirationReason: isValidExpirationReason(item.expirationReason)
+      ? item.expirationReason
+      : undefined,
     isInUse: item.inUse,
   };
 }
@@ -263,7 +308,7 @@ export async function fetchVaultsByDepositor(
 /**
  * Fetch a single vault by ID from GraphQL
  *
- * @param vaultId - Vault ID (pegin tx hash)
+ * @param vaultId - Vault ID (derived: keccak256(abi.encode(peginTxHash, depositor)))
  * @returns Vault or null if not found
  */
 export async function fetchVaultById(vaultId: Hex): Promise<Vault | null> {

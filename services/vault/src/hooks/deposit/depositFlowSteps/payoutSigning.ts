@@ -57,20 +57,23 @@ export async function pollAndPreparePayoutSigning(
   params: PayoutSigningParams,
 ): Promise<PayoutSigningContext> {
   const {
-    btcTxid,
+    vaultId,
+    peginTxHash,
     btcTxHex,
     depositorBtcPubkey,
     providerAddress,
     providerBtcPubKey,
     vaultKeepers,
     universalChallengers,
+    registeredPayoutScriptPubKey,
     signal,
   } = params;
 
   // Phase 1: Poll status until VP is ready for depositor signatures
+  // VP RPC uses raw BTC pegin tx hash, not derived vault ID
   await waitForPeginStatus({
     providerAddress,
-    btcTxid,
+    peginTxHash,
     targetStatuses: TARGET_STATUS,
     timeoutMs: MAX_POLLING_TIMEOUT_MS,
     signal,
@@ -82,14 +85,15 @@ export async function pollAndPreparePayoutSigning(
     RPC_TIMEOUT_MS,
   );
   const response = await rpcClient.requestDepositorPresignTransactions({
-    pegin_txid: stripHexPrefix(btcTxid),
+    pegin_txid: stripHexPrefix(peginTxHash),
     depositor_pk: stripHexPrefix(depositorBtcPubkey),
   });
 
   // Derive timelockPegin from the vault's locked offchainParamsVersion.
   // Using the latest offchain params would produce invalid signatures if
   // timelockAssert changed between vault creation and payout signing.
-  const vault = await getVaultFromChain(btcTxid as Hex);
+  // Contract call uses derived vault ID
+  const vault = await getVaultFromChain(vaultId as Hex);
   const timelockPegin = await getTimelockPeginByVersion(
     vault.offchainParamsVersion,
   );
@@ -106,6 +110,7 @@ export async function pollAndPreparePayoutSigning(
     depositorBtcPubkey,
     timelockPegin,
     network: getBTCNetworkForWASM(),
+    registeredPayoutScriptPubKey,
   };
 
   return {
@@ -121,23 +126,26 @@ export async function pollAndPreparePayoutSigning(
  */
 export async function submitPayoutSignatures(
   vaultProviderAddress: string,
-  btcTxid: string,
+  peginTxHash: string,
   depositorBtcPubkey: string,
   signatures: Record<string, ClaimerSignatures>,
   depositorEthAddress: Address,
   depositorClaimerPresignatures: DepositorAsClaimerPresignatures,
+  vaultId: string,
 ): Promise<void> {
+  // VP RPC uses raw BTC pegin tx hash
   await submitSignaturesToVaultProvider(
     vaultProviderAddress,
-    btcTxid,
+    peginTxHash,
     depositorBtcPubkey,
     signatures,
     depositorClaimerPresignatures,
   );
 
+  // localStorage uses derived vault ID
   updatePendingPeginStatus(
     depositorEthAddress,
-    btcTxid,
+    vaultId,
     LocalStorageStatus.PAYOUT_SIGNED,
   );
 }

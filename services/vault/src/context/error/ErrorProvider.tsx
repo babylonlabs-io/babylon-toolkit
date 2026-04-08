@@ -97,5 +97,4 @@ export const ErrorProvider: FC<ErrorProviderProps> = ({ children }) => {
     </ErrorContext.Provider>
   );
 };
-
 export const useError = () => useContext(ErrorContext);

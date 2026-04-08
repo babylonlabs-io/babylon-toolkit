@@ -9,8 +9,8 @@ import type {
   RequestDepositorClaimerArtifactsResponse,
   RequestDepositorPresignTransactionsParams,
   RequestDepositorPresignTransactionsResponse,
-  SubmitDepositorLamportKeyParams,
   SubmitDepositorPresignaturesParams,
+  SubmitDepositorWotsKeyParams,
 } from "./types";
 import {
   validateGetPeginStatusResponse,
@@ -64,15 +64,15 @@ export class VaultProviderRpcApi {
   }
 
   /**
-   * Submit the depositor's Lamport public key to the vault provider.
+   * Submit the depositor's WOTS public key to the vault provider.
    * Called after the pegin is finalized on Ethereum, when the VP is in
-   * `PendingDepositorLamportPK` status.
+   * `PendingDepositorWotsPK` status.
    */
-  async submitDepositorLamportKey(
-    params: SubmitDepositorLamportKeyParams,
+  async submitDepositorWotsKey(
+    params: SubmitDepositorWotsKeyParams,
   ): Promise<void> {
-    return this.client.call<SubmitDepositorLamportKeyParams, void>(
-      "vaultProvider_submitDepositorLamportKey",
+    return this.client.call<SubmitDepositorWotsKeyParams, void>(
+      "vaultProvider_submitDepositorWotsKey",
       params,
     );
   }

@@ -8,7 +8,10 @@ import type {
   BitcoinWallet,
   SignPsbtOptions,
 } from "@babylonlabs-io/ts-sdk/shared";
+import * as bitcoin from "bitcoinjs-lib";
 import { Buffer } from "buffer";
+
+import { getNetworkConfigBTC } from "../../config";
 
 /**
  * Strip "0x" prefix from hex string if present
@@ -97,6 +100,17 @@ export async function signPsbtsWithFallback(
     signed.push(await wallet.signPsbt(psbtHexes[i], options?.[i]));
   }
   return signed;
+}
+
+/**
+ * Convert a BTC address to its scriptPubKey hex representation (0x-prefixed).
+ * Uses the current environment's BTC network configuration.
+ */
+export function btcAddressToScriptPubKeyHex(address: string): string {
+  const { network } = getNetworkConfigBTC();
+  const btcNetwork =
+    network === "mainnet" ? bitcoin.networks.bitcoin : bitcoin.networks.testnet;
+  return `0x${bitcoin.address.toOutputScript(address, btcNetwork).toString("hex")}`;
 }
 
 export function processPublicKeyToXOnly(publicKeyHex: string): string {

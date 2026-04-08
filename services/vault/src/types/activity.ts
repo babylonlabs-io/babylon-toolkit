@@ -21,8 +21,8 @@ import type {
  * Vault activity - represents both deposits and borrowing positions
  */
 export interface VaultActivity {
-  /** Unique identifier (txHash or depositorAddress) */
-  id: string;
+  /** Derived vault ID: keccak256(abi.encode(peginTxHash, depositor)) */
+  id: Hex;
 
   /** Collateral information */
   collateral: {
@@ -44,8 +44,8 @@ export interface VaultActivity {
 
   // === Pegin/Deposit fields (VaultDeposit tab) ===
 
-  /** Transaction hash (pegin tx) */
-  txHash?: Hex;
+  /** Raw BTC pegin transaction hash (for VP RPC operations) */
+  peginTxHash?: Hex;
 
   /** Contract status (0=Pending, 1=Verified, 2=Active, 3=Redeemed, 4=Liquidated, 5=Invalid, 6=DepositorWithdrawn, 7=Expired) */
   contractStatus?: number;
@@ -107,8 +107,11 @@ export interface VaultActivity {
   /** Unsigned pre-pegin transaction hex (spends depositor's UTXOs — used for UTXO validation) */
   unsignedPrePeginTx?: string;
 
-  /** Keccak256 hash of depositor's Lamport public key (committed on-chain) */
-  depositorLamportPkHash: string;
+  /** Depositor-specified BTC payout address (raw scriptPubKey hex from indexer) */
+  depositorPayoutBtcAddress?: Hex;
+
+  /** Keccak256 hash of depositor's WOTS public key (committed on-chain) */
+  depositorWotsPkHash: string;
 
   /** Timestamp when vault expired (milliseconds), undefined if not expired */
   expiredAt?: number;

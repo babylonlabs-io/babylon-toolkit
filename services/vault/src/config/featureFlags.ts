@@ -57,4 +57,16 @@ export default {
       process.env.NEXT_PUBLIC_FF_FORCE_PARTIAL_LIQUIDATION_SPLIT === "true"
     );
   },
+
+  /**
+   * POSITION_NOTIFICATIONS feature flag
+   *
+   * Purpose: Enables the position notifications calculator that analyzes
+   * vault structure and shows actionable warnings (cliff, reorder, rebalance, etc.)
+   * Why needed: Feature is being developed incrementally; hidden behind flag until ready
+   * Default: false (disabled unless explicitly set to "true")
+   */
+  get isPositionNotificationsEnabled() {
+    return process.env.NEXT_PUBLIC_FF_POSITION_NOTIFICATIONS === "true";
+  },
 };
