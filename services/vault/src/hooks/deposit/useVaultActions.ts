@@ -126,7 +126,8 @@ export function useVaultActions(): UseVaultActionsReturn {
       const localUnsignedTxHex = pendingPegin?.unsignedTxHex;
       if (
         localUnsignedTxHex !== undefined &&
-        localUnsignedTxHex !== graphqlUnsignedTxHex
+        stripHexPrefix(localUnsignedTxHex).toLowerCase() !==
+          stripHexPrefix(graphqlUnsignedTxHex).toLowerCase()
       ) {
         throw new Error(
           "Transaction mismatch: the indexer returned a transaction that differs from the locally stored copy. Aborting to prevent a potential attack.",

@@ -74,17 +74,22 @@ vi.mock("@/models/peginStateMachine", async (importOriginal) => {
   };
 });
 
-import { fetchVaultById } from "@/services/vault";
+import { broadcastPrePeginTransaction, fetchVaultById } from "@/services/vault";
 
 import { useVaultActions } from "../useVaultActions";
 
 const mockFetchVaultById = vi.mocked(fetchVaultById);
+const mockBroadcastPrePeginTransaction = vi.mocked(broadcastPrePeginTransaction);
 
+// Local copy produced by WASM — no 0x prefix
 const TRUSTED_TX_HEX = "70736274ff...trustedtx";
-const ATTACKER_TX_HEX = "70736274ff...attackertx";
+// Same transaction as returned by the indexer (viem Hex always has 0x prefix)
+const GRAPHQL_TX_HEX = `0x${TRUSTED_TX_HEX}`;
+// A genuinely different transaction returned by a compromised indexer
+const ATTACKER_TX_HEX = "0x70736274ff...attackertx";
 
 const baseVault = {
-  unsignedPrePeginTx: TRUSTED_TX_HEX,
+  unsignedPrePeginTx: GRAPHQL_TX_HEX,
   depositorBtcPubkey: "0xdepositorBtcPubkey",
 };
 
@@ -119,6 +124,9 @@ describe("useVaultActions — handleBroadcast transaction integrity", () => {
     });
 
     expect(result.current.broadcastError).toBeNull();
+    expect(mockBroadcastPrePeginTransaction).toHaveBeenCalledWith(
+      expect.objectContaining({ unsignedTxHex: TRUSTED_TX_HEX }),
+    );
   });
 
   it("throws when local tx hex differs from GraphQL tx hex", async () => {
@@ -157,6 +165,9 @@ describe("useVaultActions — handleBroadcast transaction integrity", () => {
     });
 
     expect(result.current.broadcastError).toBeNull();
+    expect(mockBroadcastPrePeginTransaction).toHaveBeenCalledWith(
+      expect.objectContaining({ unsignedTxHex: GRAPHQL_TX_HEX }),
+    );
   });
 
   it("uses GraphQL tx when pendingPegin has no unsignedTxHex (cross-device)", async () => {
@@ -176,5 +187,8 @@ describe("useVaultActions — handleBroadcast transaction integrity", () => {
     });
 
     expect(result.current.broadcastError).toBeNull();
+    expect(mockBroadcastPrePeginTransaction).toHaveBeenCalledWith(
+      expect.objectContaining({ unsignedTxHex: GRAPHQL_TX_HEX }),
+    );
   });
 });
