@@ -6,6 +6,7 @@
 
 export { BitcoinScriptType, getScriptType } from "./btcScriptType";
 export {
+  btcAddressToScriptPubKeyHex,
   processPublicKeyToXOnly,
   signPsbtsWithFallback,
   stripHexPrefix,

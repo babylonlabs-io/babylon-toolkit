@@ -4,13 +4,13 @@ export * from "./config/pegin";
 export {
   DepositStateStep,
   // Hooks
-  useDepositFlow,
   useDepositState,
   useDepositValidation,
+  useMultiVaultDepositFlow,
   // Types
   type DepositStateData,
-  type UseDepositFlowParams,
-  type UseDepositFlowReturn,
   type UseDepositValidationResult,
+  type UseMultiVaultDepositFlowParams,
+  type UseMultiVaultDepositFlowReturn,
 } from "./hooks/deposit";
 export * from "./services/deposit";

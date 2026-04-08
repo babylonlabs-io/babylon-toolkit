@@ -35,7 +35,6 @@ export function useArtifactDownload() {
         downloaded: false,
       });
 
-      // eslint-disable-next-line no-constant-condition
       while (true) {
         if (cancelledRef.current) return;
 

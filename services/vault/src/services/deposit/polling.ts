@@ -27,8 +27,8 @@ const POLLING_INTERVAL_MS = 10 * 1000;
 const MAX_POLLING_TIMEOUT_MS = 2 * 60 * 1000;
 
 export interface WaitForContractVerificationParams {
-  /** BTC transaction ID (with 0x prefix) */
-  btcTxid: string;
+  /** Derived vault ID (with 0x prefix) — used to query the indexer */
+  vaultId: string;
   /** Optional AbortSignal for cancellation */
   signal?: AbortSignal;
 }
@@ -44,12 +44,12 @@ export interface WaitForContractVerificationParams {
 export async function waitForContractVerification(
   params: WaitForContractVerificationParams,
 ): Promise<void> {
-  const { btcTxid, signal } = params;
+  const { vaultId, signal } = params;
 
   await pollUntil<true>(
     async () => {
       try {
-        const vault = await fetchVaultById(btcTxid as Hex);
+        const vault = await fetchVaultById(vaultId as Hex);
         // Status values:
         //   0 = PENDING (waiting for signatures)
         //   1 = VERIFIED (ready for broadcast)

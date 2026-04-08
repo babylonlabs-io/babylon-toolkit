@@ -8,7 +8,7 @@
  * @module primitives/psbt/__tests__/helpers
  */
 
-import { readFile } from "node:fs/promises";
+import { initWasm } from "@babylonlabs-io/babylon-tbv-rust-wasm";
 
 /**
  * Test public key constants derived from deterministic secret keys.
@@ -71,10 +71,6 @@ export const TEST_AMOUNTS = {
 /**
  * Initialize WASM module for Node.js testing environment.
  *
- * This function loads the WASM binary from the workspace and initializes it
- * properly for the test environment. It uses require.resolve() to find the
- * WASM file reliably regardless of the workspace structure.
- *
  * **Note:** This should be called once in beforeAll() for each test suite.
  *
  * @returns Promise that resolves when WASM is initialized
@@ -90,28 +86,5 @@ export const TEST_AMOUNTS = {
  * ```
  */
 export async function initializeWasmForTests(): Promise<void> {
-  try {
-    // Use require.resolve to reliably find the WASM file in the workspace
-    const wasmPath = require.resolve(
-      "@babylonlabs-io/babylon-tbv-rust-wasm/dist/generated/btc_vault_bg.wasm",
-    );
-
-    // Load the WASM binary
-    const wasmBuffer = await readFile(wasmPath);
-    const wasmModule = new WebAssembly.Module(wasmBuffer.buffer as ArrayBuffer);
-
-    // Import the WASM initialization function
-    const init = (
-      await import(
-        "@babylonlabs-io/babylon-tbv-rust-wasm/dist/generated/btc_vault.js"
-      )
-    ).default;
-
-    // Initialize WASM with the loaded module
-    await init(wasmModule);
-  } catch (error) {
-    throw new Error(
-      `Failed to initialize WASM for tests: ${error instanceof Error ? error.message : String(error)}`,
-    );
-  }
+  await initWasm();
 }

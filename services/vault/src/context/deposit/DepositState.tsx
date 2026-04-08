@@ -20,7 +20,7 @@ export interface DepositStateData {
   selectedApplication: string;
   selectedProviders: string[];
   feeRate: number;
-  btcTxid: string;
+  peginTxHash: string;
   ethTxHash: string;
   depositorBtcPubkey?: string;
   secretHashes: Hex[];
@@ -32,7 +32,7 @@ interface DepositStateContext {
   selectedApplication: string;
   selectedProviders: string[];
   feeRate: number;
-  btcTxid: string;
+  peginTxHash: string;
   ethTxHash: string;
   depositorBtcPubkey?: string;
   secretHashes: Hex[];
@@ -47,7 +47,7 @@ interface DepositStateContext {
   ) => void;
   setFeeRate: (feeRate: number) => void;
   setTransactionHashes: (
-    btcTxid: string,
+    peginTxHash: string,
     ethTxHash: string,
     depositorBtcPubkey?: string,
   ) => void;
@@ -65,7 +65,7 @@ const { StateProvider, useState: useDepositState } =
     selectedApplication: "",
     selectedProviders: [],
     feeRate: 0,
-    btcTxid: "",
+    peginTxHash: "",
     ethTxHash: "",
     depositorBtcPubkey: undefined,
     secretHashes: [],
@@ -89,7 +89,7 @@ export function DepositState({ children }: PropsWithChildren) {
   const [selectedApplication, setSelectedApplication] = useState("");
   const [selectedProviders, setSelectedProviders] = useState<string[]>([]);
   const [feeRate, setFeeRate] = useState(0);
-  const [btcTxid, setBtcTxid] = useState("");
+  const [peginTxHash, setPeginTxHash] = useState("");
   const [ethTxHash, setEthTxHash] = useState("");
   const [depositorBtcPubkey, setDepositorBtcPubkey] = useState<string>();
   const [secretHashes, setSecretHashes] = useState<Hex[]>([]);
@@ -117,7 +117,7 @@ export function DepositState({ children }: PropsWithChildren) {
 
   const setTransactionHashes = useCallback(
     (btc: string, eth: string, pubkey?: string) => {
-      setBtcTxid(btc);
+      setPeginTxHash(btc);
       setEthTxHash(eth);
       setDepositorBtcPubkey(pubkey);
     },
@@ -130,7 +130,7 @@ export function DepositState({ children }: PropsWithChildren) {
     setSelectedApplication("");
     setSelectedProviders([]);
     setFeeRate(0);
-    setBtcTxid("");
+    setPeginTxHash("");
     setEthTxHash("");
     setDepositorBtcPubkey(undefined);
     setSecretHashes([]);
@@ -146,7 +146,7 @@ export function DepositState({ children }: PropsWithChildren) {
       selectedApplication,
       selectedProviders,
       feeRate,
-      btcTxid,
+      peginTxHash,
       ethTxHash,
       depositorBtcPubkey,
       secretHashes,
@@ -169,7 +169,7 @@ export function DepositState({ children }: PropsWithChildren) {
       selectedApplication,
       selectedProviders,
       feeRate,
-      btcTxid,
+      peginTxHash,
       ethTxHash,
       depositorBtcPubkey,
       secretHashes,

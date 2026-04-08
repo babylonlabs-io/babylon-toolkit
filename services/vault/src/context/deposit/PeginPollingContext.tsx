@@ -99,7 +99,7 @@ export function PeginPollingProvider({
     data,
     depositorGraphs,
     errors,
-    needsLamportKey,
+    needsWotsKey,
     pendingIngestion,
     isLoading,
     refetch,
@@ -162,10 +162,11 @@ export function PeginPollingProvider({
         localStatus,
         transactionsReady: isReady,
         isInUse: activity.isInUse,
-        needsLamportKey: needsLamportKey?.has(depositId),
+        needsWotsKey: needsWotsKey?.has(depositId),
         pendingIngestion: pendingIngestion?.has(depositId),
         expirationReason: activity.expirationReason,
         expiredAt: activity.expiredAt,
+        canRefund: !!activity.unsignedPrePeginTx,
       });
 
       return {
@@ -188,7 +189,7 @@ export function PeginPollingProvider({
       data,
       depositorGraphs,
       errors,
-      needsLamportKey,
+      needsWotsKey,
       pendingIngestion,
       isLoading,
       optimisticStatuses,

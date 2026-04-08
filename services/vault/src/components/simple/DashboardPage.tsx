@@ -9,11 +9,13 @@ import { useMemo, useState } from "react";
 import { useNavigate, useOutletContext } from "react-router";
 
 import { AssetSelectionModal } from "@/applications/aave/components/AssetSelectionModal";
+import { PositionNotificationsDebugPanel } from "@/applications/aave/components/PositionNotificationsDebugPanel";
 import { LOAN_TAB, type LoanTab } from "@/applications/aave/constants";
 import { useSyncPendingVaults } from "@/applications/aave/context";
 import { useAaveVaults } from "@/applications/aave/hooks";
 import type { Asset } from "@/applications/aave/types";
 import type { RootLayoutContext } from "@/components/pages/RootLayout";
+import featureFlags from "@/config/featureFlags";
 import { useConnection, useETHWallet } from "@/context/wallet";
 import { useDashboardState } from "@/hooks/useDashboardState";
 import { usePegoutPolling } from "@/hooks/usePegoutPolling";
@@ -149,6 +151,10 @@ export function DashboardPage() {
           onBorrow={handleBorrow}
           onRepay={handleRepay}
         />
+
+        {featureFlags.isPositionNotificationsEnabled && (
+          <PositionNotificationsDebugPanel />
+        )}
       </div>
 
       {/* Withdraw Flow */}

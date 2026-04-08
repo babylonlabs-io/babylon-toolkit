@@ -105,13 +105,55 @@ export interface RebalanceCheckResult {
 }
 
 /**
- * Compute the fraction of collateral that would be seized during liquidation.
+ * Compute the fraction of collateral that would be seized during liquidation,
+ * returning both the raw (unclamped) and clamped values.
+ *
+ * The raw value is useful for detecting unusual protocol parameter combinations
+ * (values outside [0, 1] indicate something unexpected).
  *
  * Formula:
  * ```
  * liq_penalty = LB × CF
  * seized_fraction = CF × (THF - expectedHF) / (THF - liq_penalty) × LB / expectedHF
  * ```
+ *
+ * @param CF - Collateral factor (e.g. 0.75)
+ * @param LB - Liquidation bonus (e.g. 1.05)
+ * @param THF - Target health factor (e.g. 1.10)
+ * @param expectedHF - Expected health factor at liquidation (e.g. 0.95)
+ * @returns Both the raw seized fraction and the clamped [0, 1] value
+ */
+export function computeSeizedFractionDetailed(
+  CF: number,
+  LB: number,
+  THF: number,
+  expectedHF: number,
+): { seizedFraction: number; seizedFractionRaw: number } {
+  // HF ≤ 0 means position is fully underwater — full seizure
+  if (expectedHF <= 0) {
+    return { seizedFraction: 1, seizedFractionRaw: Infinity };
+  }
+
+  const liqPenalty = LB * CF;
+
+  // If THF <= liq_penalty, full liquidation is inevitable
+  if (THF <= liqPenalty) {
+    return { seizedFraction: 1, seizedFractionRaw: Infinity };
+  }
+
+  // Floating-point errors here are ~1e-15, negligible relative to the 5%
+  // safety margin applied by callers (computeOptimalSplit, checkRebalanceNeeded).
+  const seizedFractionRaw =
+    ((CF * (THF - expectedHF)) / (THF - liqPenalty)) * (LB / expectedHF);
+
+  return {
+    seizedFraction: Math.max(0, Math.min(1, seizedFractionRaw)),
+    seizedFractionRaw,
+  };
+}
+
+/**
+ * Compute the fraction of collateral that would be seized during liquidation.
  *
  * @param CF - Collateral factor (e.g. 0.75)
  * @param LB - Liquidation bonus (e.g. 1.05)
@@ -125,24 +167,7 @@ export function computeSeizedFraction(
   THF: number,
   expectedHF: number,
 ): number {
-  // HF ≤ 0 means position is fully underwater — full seizure
-  if (expectedHF <= 0) {
-    return 1;
-  }
-
-  const liqPenalty = LB * CF;
-
-  // If THF <= liq_penalty, full liquidation is inevitable
-  if (THF <= liqPenalty) {
-    return 1;
-  }
-
-  // Floating-point errors here are ~1e-15, negligible relative to the 5%
-  // safety margin applied by callers (computeOptimalSplit, checkRebalanceNeeded).
-  const seizedFraction =
-    (CF * (THF - expectedHF)) / (THF - liqPenalty) * (LB / expectedHF);
-
-  return Math.max(0, Math.min(1, seizedFraction));
+  return computeSeizedFractionDetailed(CF, LB, THF, expectedHF).seizedFraction;
 }
 
 /**

@@ -31,7 +31,7 @@ import {
   type WalletClient,
 } from "viem";
 
-import type { BitcoinWallet, Hash } from "../../../shared/wallets";
+import type { BitcoinWallet, Hash, SignPsbtOptions } from "../../../shared/wallets";
 import { createTaprootScriptPathSignOptions } from "../utils/signing";
 import { type UtxoInfo, getUtxoInfo, pushTx } from "../clients/mempool";
 import { BTCVaultRegistryABI, handleContractError } from "../contracts";
@@ -41,7 +41,7 @@ import {
   buildPeginInputPsbt,
   extractPeginInputSignature,
   finalizePeginInputPsbt,
-  SINGLE_DEPOSIT_HTLC_VOUT,
+  deriveVaultId,
   type PrePeginParams,
   type Network,
 } from "../primitives";
@@ -55,6 +55,7 @@ import {
   fundPeginTransaction,
   getNetwork,
   getPsbtInputFields,
+  peginOutputCount,
   selectUtxosForPegin,
   type UTXO,
 } from "../utils";
@@ -108,9 +109,11 @@ export interface PeginManagerConfig {
  */
 export interface PreparePeginParams {
   /**
-   * Amount to peg in (in satoshis).
+   * Amounts to peg in per HTLC (in satoshis).
+   * Must have the same length as `hashlocks`.
+   * For single deposits, pass a single-element array.
    */
-  amount: bigint;
+  amounts: readonly bigint[];
 
   /**
    * Vault provider's BTC public key (x-only, 64-char hex).
@@ -183,64 +186,36 @@ export interface PreparePeginParams {
 /**
  * Result of preparing a pegin.
  */
-export interface PreparePeginResult {
-  /**
-   * Funded but unsigned Pre-PegIn transaction hex.
-   * Sign and broadcast this AFTER registering on Ethereum.
-   */
-  fundedPrePeginTxHex: string;
-
-  /**
-   * Pre-PegIn HTLC value in satoshis (amount the UTXOs cover).
-   */
+/** Per-vault PegIn data derived from a shared Pre-PegIn transaction */
+export interface PerVaultPeginData {
+  /** Index of the HTLC output in the Pre-PegIn transaction (0, 1, 2, ...) */
+  htlcVout: number;
+  /** HTLC output value in satoshis */
   htlcValue: bigint;
-
-  /**
-   * PegIn transaction hex with depositor's HTLC leaf 0 signature embedded in the PSBT.
-   * Submit the extracted signature to the vault provider.
-   */
-  signedPeginInputPsbtHex: string;
-
-  /**
-   * Depositor's Schnorr signature over PegIn input 0 (HTLC leaf 0), 128 hex chars.
-   * This is submitted to the contract via the VP's signPeginInput batch.
-   */
-  peginInputSignature: string;
-
-  /**
-   * Vault script pubkey hex — used in the ETH registration call.
-   */
-  vaultScriptPubKey: string;
-
-  /**
-   * Funded Pre-PegIn transaction ID.
-   */
-  prePeginTxid: string;
-
-  /**
-   * PegIn transaction hex. Pass to registerPeginOnChain as `depositorSignedPeginTx`
-   * so the contract computes the correct vault ID from the pegin txid.
-   */
+  /** Depositor-signed PegIn transaction hex (for contract registration) */
   peginTxHex: string;
-
-  /**
-   * PegIn transaction ID (stable — signing does not change it).
-   */
+  /** PegIn transaction ID */
   peginTxid: string;
+  /** Depositor's Schnorr signature over PegIn input (HTLC leaf 0) */
+  peginInputSignature: string;
+  /** Vault output scriptPubKey hex */
+  vaultScriptPubKey: string;
+}
 
-  /**
-   * UTXOs selected to fund the Pre-PegIn transaction.
-   */
+export interface PreparePeginResult {
+  /** Funded but unsigned Pre-PegIn transaction hex */
+  fundedPrePeginTxHex: string;
+  /** Funded Pre-PegIn transaction ID */
+  prePeginTxid: string;
+  /** Unfunded Pre-PegIn transaction hex (for contract DA submission) */
+  unsignedPrePeginTxHex: string;
+  /** Per-vault PegIn data — one entry per hashlock/amount */
+  perVault: PerVaultPeginData[];
+  /** UTXOs selected to fund the Pre-PegIn transaction */
   selectedUTXOs: UTXO[];
-
-  /**
-   * Transaction fee in satoshis.
-   */
+  /** Transaction fee in satoshis */
   fee: bigint;
-
-  /**
-   * Change amount in satoshis (if any).
-   */
+  /** Change amount in satoshis (if any) */
   changeAmount: bigint;
 }
 
@@ -314,8 +289,8 @@ export interface RegisterPeginParams {
    */
   depositorPayoutBtcAddress?: string;
 
-  /** Keccak256 hash of the depositor's Lamport public key (bytes32) */
-  depositorLamportPkHash: Hex;
+  /** Keccak256 hash of the depositor's WOTS public key (bytes32) */
+  depositorWotsPkHash: Hex;
 
   /**
    * Pre-signed BTC PoP signature (hex with 0x prefix).
@@ -330,6 +305,13 @@ export interface RegisterPeginParams {
    * TODO: Wire into submitPeginRequest contract call when contract ABI is updated to support the new peg-in flow.
    */
   depositorSecretHash?: Hex;
+
+  /**
+   * Zero-based index of the HTLC output in the Pre-PegIn transaction that
+   * this PegIn spends. In a batch Pre-PegIn with N HTLC outputs, each vault
+   * registration references a different htlcVout (0..N-1).
+   */
+  htlcVout: number;
 }
 
 /**
@@ -342,11 +324,16 @@ export interface RegisterPeginResult {
   ethTxHash: Hash;
 
   /**
-   * Vault identifier used in the BTCVaultRegistry contract.
-   * This is the Bitcoin transaction hash with 0x prefix for Ethereum compatibility.
-   * Corresponds to btcTxHash from PeginResult, but formatted as Hex with '0x' prefix.
+   * Derived vault ID: keccak256(abi.encode(peginTxHash, depositor)).
+   * Used for contract reads/writes and indexer queries.
    */
   vaultId: Hex;
+
+  /**
+   * Raw Bitcoin pegin transaction hash (double-SHA256 of the signed pegin tx).
+   * Used for VP RPC operations which key on the BTC transaction ID.
+   */
+  peginTxHash: Hex;
 
   /**
    * The BTC PoP signature used for this registration (hex with 0x prefix).
@@ -463,10 +450,13 @@ export class PeginManager {
     const universalChallengerBtcPubkeys =
       params.universalChallengerBtcPubkeys.map(stripHexPrefix);
 
-    if (params.hashlocks.length !== 1) {
+    if (params.hashlocks.length !== params.amounts.length) {
       throw new Error(
-        "hashlocks must contain exactly one entry (batched deposits not yet supported)",
+        `hashlocks.length (${params.hashlocks.length}) must equal amounts.length (${params.amounts.length})`,
       );
+    }
+    if (params.hashlocks.length === 0) {
+      throw new Error("hashlocks must contain at least one entry");
     }
 
     const numLocalChallengers = vaultKeeperBtcPubkeys.length;
@@ -478,7 +468,7 @@ export class PeginManager {
       universalChallengerPubkeys: universalChallengerBtcPubkeys,
       hashlocks: params.hashlocks,
       timelockRefund: params.timelockRefund,
-      pegInAmount: params.amount,
+      pegInAmounts: params.amounts,
       feeRate: params.protocolFeeRate,
       numLocalChallengers,
       councilQuorum: params.councilQuorum,
@@ -486,16 +476,15 @@ export class PeginManager {
       network: this.config.btcNetwork,
     };
 
-    // Step 2: Build unfunded Pre-PegIn transaction (HTLC output, no inputs)
+    // Step 2: Build unfunded Pre-PegIn transaction (N HTLC outputs, no inputs)
     const prePeginResult = await buildPrePeginPsbt(prePeginParams);
 
-    // Step 3: Select UTXOs to cover ALL unfunded tx outputs (HTLC + CPFP anchor)
-    // fundPeginTransaction copies all WASM outputs, so UTXO selection must
-    // account for their total value, not just the HTLC output.
+    // Step 3: Select UTXOs to cover ALL unfunded tx outputs (HTLCs + CPFP anchor)
     const utxoSelection = selectUtxosForPegin(
       [...params.availableUTXOs],
       prePeginResult.totalOutputValue,
       params.mempoolFeeRate,
+      peginOutputCount(prePeginResult.htlcValues.length),
     );
 
     // Step 4: Fund the Pre-PegIn transaction with selected UTXOs
@@ -508,60 +497,115 @@ export class PeginManager {
       network,
     });
 
-    // Compute the funded Pre-PegIn txid for reference
     const prePeginTxid = stripHexPrefix(calculateBtcTxHash(fundedPrePeginTxHex));
 
-    // Step 5: Derive the PegIn transaction from the funded Pre-PegIn tx
-    const peginTxResult = await buildPeginTxFromFundedPrePegin({
-      prePeginParams,
-      timelockPegin: params.timelockPegin,
-      fundedPrePeginTxHex,
-      htlcVout: SINGLE_DEPOSIT_HTLC_VOUT,
-    });
+    // Step 5: For each HTLC output, derive PegIn tx and build PSBT (no signing yet)
+    const peginTxResults: Array<{
+      txHex: string;
+      txid: string;
+      vaultScriptPubKey: string;
+    }> = [];
+    const psbtsToSign: string[] = [];
+    const signOptions: SignPsbtOptions[] = [];
 
-    // Step 6: Build PSBT for depositor to sign PegIn input 0 (HTLC hashlock leaf)
-    const peginInputPsbtResult = await buildPeginInputPsbt({
-      peginTxHex: peginTxResult.txHex,
-      fundedPrePeginTxHex,
-      depositorPubkey: depositorBtcPubkey,
-      vaultProviderPubkey: vaultProviderBtcPubkey,
-      vaultKeeperPubkeys: vaultKeeperBtcPubkeys,
-      universalChallengerPubkeys: universalChallengerBtcPubkeys,
-      hashlock: params.hashlocks[0],
-      timelockRefund: params.timelockRefund,
-      network: this.config.btcNetwork,
-    });
+    for (let i = 0; i < params.hashlocks.length; i++) {
+      const peginTxResult = await buildPeginTxFromFundedPrePegin({
+        prePeginParams,
+        timelockPegin: params.timelockPegin,
+        fundedPrePeginTxHex,
+        htlcVout: i,
+      });
 
-    // Step 7: Sign the PegIn input PSBT via BTC wallet (Taproot script-path spend)
-    const signedPeginInputPsbtHex = await this.config.btcWallet.signPsbt(
-      peginInputPsbtResult.psbtHex,
-      createTaprootScriptPathSignOptions(depositorBtcPubkeyRaw, 1),
+      const peginInputPsbtResult = await buildPeginInputPsbt({
+        peginTxHex: peginTxResult.txHex,
+        fundedPrePeginTxHex,
+        depositorPubkey: depositorBtcPubkey,
+        vaultProviderPubkey: vaultProviderBtcPubkey,
+        vaultKeeperPubkeys: vaultKeeperBtcPubkeys,
+        universalChallengerPubkeys: universalChallengerBtcPubkeys,
+        hashlock: params.hashlocks[i],
+        timelockRefund: params.timelockRefund,
+        network: this.config.btcNetwork,
+      });
+
+      peginTxResults.push(peginTxResult);
+      psbtsToSign.push(peginInputPsbtResult.psbtHex);
+      signOptions.push(
+        createTaprootScriptPathSignOptions(depositorBtcPubkeyRaw, 1),
+      );
+    }
+
+    // Step 6: Batch sign all PegIn input PSBTs (single signPsbts call where supported)
+    const signedPsbts = await this.signPsbtsWithFallback(
+      psbtsToSign,
+      signOptions,
     );
 
-    // Extract the depositor's Schnorr signature from the signed PSBT
-    const peginInputSignature = extractPeginInputSignature(
-      signedPeginInputPsbtHex,
-      depositorBtcPubkey,
-    );
+    // Step 7: Extract signatures and finalize
+    const perVault: PerVaultPeginData[] = [];
+    for (let i = 0; i < signedPsbts.length; i++) {
+      const peginInputSignature = extractPeginInputSignature(
+        signedPsbts[i],
+        depositorBtcPubkey,
+      );
 
-    // Finalize the PSBT so the witness stack contains [sig, script, controlBlock],
-    // then extract the transaction hex. This is the depositor-signed PegIn tx that
-    // vaultd expects when verifying the depositor signature on-chain.
-    const depositorSignedPeginTxHex = finalizePeginInputPsbt(signedPeginInputPsbtHex);
+      const depositorSignedPeginTxHex = finalizePeginInputPsbt(signedPsbts[i]);
+
+      perVault.push({
+        htlcVout: i,
+        htlcValue: prePeginResult.htlcValues[i],
+        peginTxHex: depositorSignedPeginTxHex,
+        peginTxid: peginTxResults[i].txid,
+        peginInputSignature,
+        vaultScriptPubKey: peginTxResults[i].vaultScriptPubKey,
+      });
+    }
 
     return {
       fundedPrePeginTxHex,
-      htlcValue: prePeginResult.htlcValue,
-      signedPeginInputPsbtHex,
-      peginInputSignature,
-      vaultScriptPubKey: peginTxResult.vaultScriptPubKey,
-      peginTxHex: depositorSignedPeginTxHex,
       prePeginTxid,
-      peginTxid: peginTxResult.txid,
+      unsignedPrePeginTxHex: prePeginResult.psbtHex,
+      perVault,
       selectedUTXOs: utxoSelection.selectedUTXOs,
       fee: utxoSelection.fee,
       changeAmount: utxoSelection.changeAmount,
     };
+  }
+
+  /**
+   * Signs multiple PSBTs using batch signing if available, falling back to sequential signing.
+   *
+   * Wallets that support native batch signing (e.g. UniSat) will sign all PSBTs
+   * in a single interaction. Others (e.g. Ledger, AppKit) implement signPsbts
+   * by looping signPsbt internally, so the UX depends on the wallet adapter.
+   */
+  private async signPsbtsWithFallback(
+    psbtsHexes: string[],
+    options: SignPsbtOptions[],
+  ): Promise<string[]> {
+    if (typeof this.config.btcWallet.signPsbts === "function") {
+      const signedPsbts = await this.config.btcWallet.signPsbts(
+        psbtsHexes,
+        options,
+      );
+      if (signedPsbts.length !== psbtsHexes.length) {
+        throw new Error(
+          `Expected ${psbtsHexes.length} signed PSBTs but received ${signedPsbts.length}`,
+        );
+      }
+      return signedPsbts;
+    }
+
+    // Fallback: sign sequentially
+    const signedPsbts: string[] = [];
+    for (let i = 0; i < psbtsHexes.length; i++) {
+      const signed = await this.config.btcWallet.signPsbt(
+        psbtsHexes[i],
+        options[i],
+      );
+      signedPsbts.push(signed);
+    }
+    return signedPsbts;
   }
 
   /**
@@ -625,6 +669,25 @@ export class PeginManager {
     });
 
     const inputsWithUtxoData = await Promise.all(utxoDataPromises);
+
+    // Cross-validate: total input value must cover total output value.
+    // A mismatch indicates the mempool API returned manipulated UTXO data,
+    // which could lead to fee-siphoning or invalid signatures.
+    const totalInputValue = inputsWithUtxoData.reduce(
+      (sum, i) => sum + BigInt(i.utxoData.value),
+      0n,
+    );
+    const totalOutputValue = tx.outs.reduce(
+      (sum, out) => sum + BigInt(out.value),
+      0n,
+    );
+    if (totalInputValue < totalOutputValue) {
+      throw new Error(
+        `UTXO value mismatch: total input value (${totalInputValue} sat) is less than ` +
+          `total output value (${totalOutputValue} sat). ` +
+          `This may indicate the mempool API returned manipulated UTXO data.`,
+      );
+    }
 
     // Add inputs with proper PSBT fields based on script type
     for (const { input, utxoData, txid, vout } of inputsWithUtxoData) {
@@ -709,9 +772,10 @@ export class PeginManager {
       depositorSignedPeginTx,
       vaultProvider,
       hashlock,
+      htlcVout,
       onPopSigned,
       depositorPayoutBtcAddress,
-      depositorLamportPkHash,
+      depositorWotsPkHash,
       preSignedBtcPopSignature,
     } = params;
 
@@ -740,15 +804,20 @@ export class PeginManager {
       depositorPayoutBtcAddress,
     );
 
-    // Step 4: Calculate vault ID from depositorSignedPeginTx and check if it already exists
-    const vaultId = calculateBtcTxHash(depositorSignedPeginTxHex);
+    // Step 4: Calculate pegin tx hash and derive vault ID, then check if it already exists
+    const peginTxHash = calculateBtcTxHash(depositorSignedPeginTxHex);
+    const derivedVaultIdHex = await deriveVaultId(
+      stripHexPrefix(peginTxHash),
+      stripHexPrefix(depositorEthAddress),
+    );
+    const vaultId = ensureHexPrefix(derivedVaultIdHex) as Hex;
     const exists = await this.checkVaultExists(vaultId);
 
     if (exists) {
       throw new Error(
-        `Vault already exists for this transaction (ID: ${vaultId}). ` +
-          `Vault IDs are deterministically derived from the unsigned Bitcoin transaction, so using the same UTXOs and amount will always produce the same vault. ` +
-          `To create a new vault, please use different UTXOs or a different amount to generate a unique transaction.`,
+        `Vault already exists (ID: ${vaultId}, peginTxHash: ${peginTxHash}). ` +
+          `Vault IDs are derived from the pegin transaction hash and depositor address. ` +
+          `To create a new vault, use different UTXOs or a different amount to generate a unique transaction.`,
       );
     }
 
@@ -785,9 +854,9 @@ export class PeginManager {
         depositorSignedPeginTxHex,
         vaultProvider,
         hashlock,
-        SINGLE_DEPOSIT_HTLC_VOUT,
+        htlcVout,
         payoutScriptPubKey,
-        depositorLamportPkHash,
+        depositorWotsPkHash,
       ],
     });
 
@@ -842,6 +911,7 @@ export class PeginManager {
     return {
       ethTxHash: receipt.transactionHash,
       vaultId,
+      peginTxHash,
       btcPopSignature,
     };
   }

@@ -39,6 +39,7 @@ describe("getPendingActivities", () => {
 
       const mockPendingPegin: PendingPeginRequest = {
         id: "0xabc123",
+        peginTxHash: "0xpeginTxHash123",
         timestamp: mockTimestamp - 60000, // 1 minute ago
         amount: "1.5",
         status: LocalStorageStatus.PENDING,
@@ -70,11 +71,11 @@ describe("getPendingActivities", () => {
           id: "aave",
           name: "Aave",
         },
-        transactionHash: "",
+        transactionHash: "0xpeginTxHash123",
       });
     });
 
-    it("should include btcTxHash when available", async () => {
+    it("should include peginTxHash when available", async () => {
       const { getPendingPegins } = await import("@/storage/peginStorage");
       const { getApplicationMetadataByController } = await import(
         "@/applications"
@@ -86,7 +87,7 @@ describe("getPendingActivities", () => {
         amount: "1.5",
         status: LocalStorageStatus.CONFIRMING,
         applicationEntryPoint: "0xcontroller",
-        btcTxHash: "0xbtctxhash123",
+        peginTxHash: "0xbtctxhash123",
       };
 
       vi.mocked(getPendingPegins).mockReturnValue([mockPendingPegin]);
@@ -113,6 +114,7 @@ describe("getPendingActivities", () => {
 
       const mockPendingPegin: PendingPeginRequest = {
         id: "0xabc123",
+        peginTxHash: "0xpeginTxHash123",
         timestamp: mockTimestamp,
         amount: "1.5",
         status: LocalStorageStatus.PENDING,
@@ -135,6 +137,7 @@ describe("getPendingActivities", () => {
 
       const mockPendingPegin: PendingPeginRequest = {
         id: "0xabc123",
+        peginTxHash: "0xpeginTxHash123",
         timestamp: mockTimestamp,
         status: LocalStorageStatus.PENDING,
         applicationEntryPoint: "0xcontroller",
@@ -164,6 +167,7 @@ describe("getPendingActivities", () => {
 
       const mockPendingPegin: PendingPeginRequest = {
         id: "0xabc123",
+        peginTxHash: "0xpeginTxHash123",
         timestamp: mockTimestamp,
         amount: "1.5",
         status: LocalStorageStatus.PENDING,
@@ -188,6 +192,7 @@ describe("getPendingActivities", () => {
       const mockPegins: PendingPeginRequest[] = [
         {
           id: "0xolder",
+          peginTxHash: "0xpeginTxHashOlder",
           timestamp: mockTimestamp - 120000, // 2 minutes ago
           amount: "1.0",
           status: LocalStorageStatus.PENDING,
@@ -195,6 +200,7 @@ describe("getPendingActivities", () => {
         },
         {
           id: "0xnewer",
+          peginTxHash: "0xpeginTxHashNewer",
           timestamp: mockTimestamp - 60000, // 1 minute ago
           amount: "2.0",
           status: LocalStorageStatus.PENDING,

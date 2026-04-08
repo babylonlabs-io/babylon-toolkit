@@ -5,8 +5,10 @@
 export interface CollateralVaultEntry {
   /** Composite ID for React keys */
   id: string;
-  /** Peg-in transaction hash (pegInTxHash) used as vault ID (for display and operations) */
+  /** Derived vault ID: keccak256(abi.encode(peginTxHash, depositor)) */
   vaultId: string;
+  /** Raw BTC pegin transaction hash (for VP RPC operations like artifact download) */
+  peginTxHash?: string;
   /** Vault amount in BTC (converted from satoshis) */
   amountBtc: number;
   /** Unix timestamp in seconds when added as collateral */

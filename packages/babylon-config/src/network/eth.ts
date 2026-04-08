@@ -32,14 +32,17 @@ if (isNaN(chainIdRaw)) {
   );
 }
 
-if (chainIdRaw !== 1 && chainIdRaw !== 11155111) {
+export const ETH_MAINNET_CHAIN_ID = 1 as const;
+export const ETH_SEPOLIA_CHAIN_ID = 11155111 as const;
+
+if (chainIdRaw !== ETH_MAINNET_CHAIN_ID && chainIdRaw !== ETH_SEPOLIA_CHAIN_ID) {
   throw new Error(
     `Unsupported NEXT_PUBLIC_ETH_CHAINID value: ${chainIdRaw}. Must be either 1 (mainnet) or 11155111 (sepolia).`,
   );
 }
 
 // Type is now narrowed to 1 | 11155111 after validation
-const chainId = chainIdRaw as 1 | 11155111;
+export const chainId = chainIdRaw as typeof ETH_MAINNET_CHAIN_ID | typeof ETH_SEPOLIA_CHAIN_ID;
 
 // Extended config type for UI-specific properties
 export type ExtendedETHConfig = ETHConfig & {
@@ -49,10 +52,10 @@ export type ExtendedETHConfig = ETHConfig & {
 
 type Config = ExtendedETHConfig;
 
-const config: Record<number, Config> = {
-  1: {
+const config: Record<typeof ETH_MAINNET_CHAIN_ID | typeof ETH_SEPOLIA_CHAIN_ID, Config> = {
+  [ETH_MAINNET_CHAIN_ID]: {
     name: "Ethereum Mainnet",
-    chainId: 1,
+    chainId: ETH_MAINNET_CHAIN_ID,
     chainName: "Ethereum Mainnet",
     rpcUrl:
       process.env.NEXT_PUBLIC_ETH_RPC_URL ||
@@ -65,9 +68,9 @@ const config: Record<number, Config> = {
     },
     displayUSD: true,
   },
-  11155111: {
+  [ETH_SEPOLIA_CHAIN_ID]: {
     name: "Ethereum Sepolia",
-    chainId: 11155111,
+    chainId: ETH_SEPOLIA_CHAIN_ID,
     chainName: "Sepolia Testnet",
     rpcUrl:
       process.env.NEXT_PUBLIC_ETH_RPC_URL ||
@@ -99,9 +102,9 @@ export function getNetworkConfigETH(): Config {
 export function getETHChain(): Chain {
   // Use chainId directly since it's already validated
   switch (chainId) {
-    case 1:
+    case ETH_MAINNET_CHAIN_ID:
       return mainnet;
-    case 11155111:
+    case ETH_SEPOLIA_CHAIN_ID:
       return sepolia;
     default:
       throw new Error(

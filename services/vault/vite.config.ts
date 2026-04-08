@@ -55,6 +55,7 @@ export default defineConfig({
       include: ["crypto"],
       globals: {
         Buffer: true,
+        global: false,
       },
     }),
     EnvironmentPlugin("all", { prefix: "NEXT_PUBLIC_" }),

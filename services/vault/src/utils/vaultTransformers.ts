@@ -43,7 +43,7 @@ export function transformVaultToActivity(vault: Vault): VaultActivity {
   // Create VaultActivity object (deposit/collateral info)
   return {
     id: vault.id,
-    txHash: vault.id,
+    peginTxHash: vault.peginTxHash,
     collateral: {
       amount: btcAmount,
       symbol: btcConfig.coinSymbol,
@@ -62,7 +62,8 @@ export function transformVaultToActivity(vault: Vault): VaultActivity {
     depositorBtcPubkey: vault.depositorBtcPubkey,
     depositorSignedPeginTx: vault.depositorSignedPeginTx,
     unsignedPrePeginTx: vault.unsignedPrePeginTx,
-    depositorLamportPkHash: vault.depositorLamportPkHash,
+    depositorPayoutBtcAddress: vault.depositorPayoutBtcAddress,
+    depositorWotsPkHash: vault.depositorWotsPkHash,
     expiredAt: vault.expiredAt,
     expirationReason: vault.expirationReason,
     // No action handlers - these are attached at the component level

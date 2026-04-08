@@ -73,17 +73,16 @@ describe("vaultTransactionService - preparePeginTransaction", () => {
   ];
 
   const baseParams: PreparePeginParams = {
-    pegInAmount: 100000n,
+    pegInAmounts: [100000n],
     protocolFeeRate: 10n,
     mempoolFeeRate: 10,
     changeAddress: "bc1qtest",
-    vaultProviderAddress: "0xprovider" as `0x${string}`,
     vaultProviderBtcPubkey: "pubkey",
     vaultKeeperBtcPubkeys: ["keeper1"],
     universalChallengerBtcPubkeys: ["challenger1"],
     timelockPegin: 100,
     timelockRefund: 50,
-    hashH: "ab".repeat(32),
+    hashlocks: ["ab".repeat(32)],
     councilQuorum: 2,
     councilSize: 3,
     availableUTXOs: mockUTXOs,
@@ -93,12 +92,18 @@ describe("vaultTransactionService - preparePeginTransaction", () => {
     vi.clearAllMocks();
 
     mockPreparePegin.mockResolvedValue({
-      peginTxid: "txhash123",
       fundedPrePeginTxHex: "0x123abc",
-      peginTxHex: "0xpeginHex",
-      peginInputSignature: "a".repeat(128),
+      unsignedPrePeginTxHex: "0xunfunded",
       selectedUTXOs: [mockUTXOs[0]],
       fee: 1000n,
+      perVault: [
+        {
+          htlcVout: 0,
+          peginTxid: "txhash123",
+          peginTxHex: "0xpeginHex",
+          peginInputSignature: "a".repeat(128),
+        },
+      ],
     });
 
     mockBtcWallet = {
@@ -111,7 +116,7 @@ describe("vaultTransactionService - preparePeginTransaction", () => {
   });
 
   describe("basic functionality", () => {
-    it("should use all available UTXOs", async () => {
+    it("should pass all available UTXOs to the SDK", async () => {
       await preparePeginTransaction(
         mockBtcWallet as any,
         mockEthWallet as any,
@@ -121,6 +126,64 @@ describe("vaultTransactionService - preparePeginTransaction", () => {
       expect(mockPreparePegin).toHaveBeenCalledTimes(1);
       const callArgs = mockPreparePegin.mock.calls[0][0];
       expect(callArgs.availableUTXOs).toHaveLength(4);
+    });
+
+    it("should return batch-shaped result with perVault array", async () => {
+      const result = await preparePeginTransaction(
+        mockBtcWallet as any,
+        mockEthWallet as any,
+        baseParams,
+      );
+
+      expect(result.perVault).toHaveLength(1);
+      expect(result.perVault[0].htlcVout).toBe(0);
+      expect(result.perVault[0].peginTxHash).toBe("0xtxhash123");
+      expect(result.perVault[0].peginTxHex).toBe("0xpeginHex");
+      expect(result.fundedPrePeginTxHex).toBe("0x123abc");
+      expect(result.unsignedPrePeginTxHex).toBe("0xunfunded");
+    });
+
+    it("should handle multi-vault params", async () => {
+      const multiParams: PreparePeginParams = {
+        ...baseParams,
+        pegInAmounts: [100000n, 200000n],
+        hashlocks: ["ab".repeat(32), "cd".repeat(32)],
+      };
+
+      mockPreparePegin.mockResolvedValue({
+        fundedPrePeginTxHex: "0x123abc",
+        unsignedPrePeginTxHex: "0xunfunded",
+        selectedUTXOs: [mockUTXOs[0], mockUTXOs[1]],
+        fee: 2000n,
+        perVault: [
+          {
+            htlcVout: 0,
+            peginTxid: "txhash0",
+            peginTxHex: "peginHex0",
+            peginInputSignature: "a".repeat(128),
+          },
+          {
+            htlcVout: 1,
+            peginTxid: "txhash1",
+            peginTxHex: "peginHex1",
+            peginInputSignature: "b".repeat(128),
+          },
+        ],
+      });
+
+      const result = await preparePeginTransaction(
+        mockBtcWallet as any,
+        mockEthWallet as any,
+        multiParams,
+      );
+
+      expect(result.perVault).toHaveLength(2);
+      expect(result.perVault[0].htlcVout).toBe(0);
+      expect(result.perVault[1].htlcVout).toBe(1);
+      expect(mockPreparePegin.mock.calls[0][0].amounts).toEqual([
+        100000n,
+        200000n,
+      ]);
     });
   });
 

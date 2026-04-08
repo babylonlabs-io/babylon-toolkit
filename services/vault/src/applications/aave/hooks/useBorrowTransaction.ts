@@ -8,6 +8,7 @@ import { useState } from "react";
 import { parseUnits } from "viem";
 import { useAccount, useWalletClient } from "wagmi";
 
+import { ERC20 } from "@/clients/eth-contract";
 import { useError } from "@/context/error";
 import { logger } from "@/infrastructure";
 import {
@@ -67,10 +68,23 @@ export function useBorrowTransaction(): UseBorrowTransactionResult {
         );
       }
 
-      // Convert borrow amount to token decimals
+      // Fetch decimals on-chain to prevent a compromised GraphQL indexer from
+      // supplying a falsified value that would cause parseUnits to produce a
+      // materially different amount than the user intended.
+      const onChainDecimals = await ERC20.getERC20Decimals(
+        reserve.token.address,
+      ).catch(() => {
+        throw new Error(
+          `Failed to fetch on-chain decimals for ${reserve.token.address}`,
+        );
+      });
+      // Clamp toFixed precision to 15 to avoid IEEE 754 floating-point artifacts
+      // (e.g. (0.1).toFixed(18) === "0.100000000000000006"). parseUnits handles
+      // strings with fewer decimal places than the token's decimals correctly.
+      const SAFE_TOFIXED_PRECISION = 15;
       const borrowAmountBigInt = parseUnits(
-        borrowAmount.toFixed(reserve.token.decimals),
-        reserve.token.decimals,
+        borrowAmount.toFixed(Math.min(onChainDecimals, SAFE_TOFIXED_PRECISION)),
+        onChainDecimals,
       );
 
       // Execute the borrow transaction

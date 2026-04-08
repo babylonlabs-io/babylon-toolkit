@@ -36,6 +36,14 @@ vi.mock("@/clients/eth-contract", () => ({
   },
 }));
 
+vi.mock("../../../applications/aave/context", () => ({
+  useAaveConfig: vi.fn(() => ({
+    config: { adapterAddress: "0xAaveAdapter" },
+    isLoading: false,
+    error: null,
+  })),
+}));
+
 import { useApplications } from "../../useApplications";
 import { useDepositPageForm } from "../useDepositPageForm";
 import { useEstimatedBtcFee } from "../useEstimatedBtcFee";
@@ -43,6 +51,7 @@ import { useEstimatedBtcFee } from "../useEstimatedBtcFee";
 vi.mock("@babylonlabs-io/ts-sdk/tbv/core", () => ({
   computeNumLocalChallengers: vi.fn(() => 2),
   computeMinClaimValue: vi.fn().mockResolvedValue(35_000n),
+  peginOutputCount: (vaultCount: number) => vaultCount + 1,
 }));
 
 vi.mock("@/hooks/useBtcPublicKey", () => ({
@@ -218,7 +227,6 @@ vi.mock("../useAllocationPlanning", () => ({
   useAllocationPlanning: vi.fn(() => ({
     allocationPlan: null,
     strategy: null,
-    totalFeeSats: null,
     isPlanning: false,
     planError: null,
     canSplit: false,
@@ -395,63 +403,15 @@ describe("useDepositPageForm", () => {
 
       expect(result.current.formData).toEqual({
         amountBtc: "",
-        selectedApplication: "",
         selectedProvider: "",
       });
       expect(result.current.errors).toEqual({});
-      expect(result.current.isValid).toBe(false);
     });
 
-    it("should auto-select application when only one is available", async () => {
-      // Mock useApplications to return only one application
-      vi.mocked(useApplications).mockReturnValue({
-        data: [
-          {
-            id: "0xControllerAddress1",
-            name: "App One",
-            type: "Lending",
-            logoUrl: "https://example.com/logo1.png",
-            registeredAt: "2024-01-01T00:00:00Z",
-            blockNumber: "1000000",
-            transactionHash: "0xabc123",
-            description: "Test app one",
-            websiteUrl: "https://appone.com",
-          },
-        ],
-        isLoading: false,
-        error: null,
-        isError: false,
-        isPending: false,
-        isSuccess: true,
-        status: "success",
-        fetchStatus: "idle",
-        isFetching: false,
-        isRefetching: false,
-        isPaused: false,
-        refetch: vi.fn(),
-        isLoadingError: false,
-        isRefetchError: false,
-        dataUpdatedAt: Date.now(),
-        errorUpdatedAt: 0,
-        failureCount: 0,
-        failureReason: null,
-        errorUpdateCount: 0,
-        isFetched: true,
-        isFetchedAfterMount: true,
-        isInitialLoading: false,
-        isPlaceholderData: false,
-        isStale: false,
-        promise: Promise.resolve([]),
-      } as unknown as ReturnType<typeof useApplications>);
-
+    it("should resolve application from aave config on mount", () => {
       const { result } = renderHook(() => useDepositPageForm(), { wrapper });
 
-      // After effect runs, should auto-select the only available application
-      await waitFor(() => {
-        expect(result.current.formData.selectedApplication).toBe(
-          "0xControllerAddress1",
-        );
-      });
+      expect(result.current.effectiveSelectedApplication).toBe("0xAaveAdapter");
     });
 
     it("should calculate BTC balance from UTXOs", () => {
@@ -576,20 +536,6 @@ describe("useDepositPageForm", () => {
       expect(result.current.formData.amountBtc).toBe("0.001");
     });
 
-    it("should update application field", () => {
-      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
-
-      act(() => {
-        result.current.setFormData({
-          selectedApplication: "0xControllerAddress1",
-        });
-      });
-
-      expect(result.current.formData.selectedApplication).toBe(
-        "0xControllerAddress1",
-      );
-    });
-
     it("should update provider field", () => {
       const { result } = renderHook(() => useDepositPageForm(), { wrapper });
 
@@ -601,22 +547,6 @@ describe("useDepositPageForm", () => {
 
       expect(result.current.formData.selectedProvider).toBe(
         "0x1234567890abcdef1234567890abcdef12345678",
-      );
-    });
-
-    it("should update multiple fields at once", () => {
-      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
-
-      act(() => {
-        result.current.setFormData({
-          amountBtc: "0.002",
-          selectedApplication: "0xControllerAddress2",
-        });
-      });
-
-      expect(result.current.formData.amountBtc).toBe("0.002");
-      expect(result.current.formData.selectedApplication).toBe(
-        "0xControllerAddress2",
       );
     });
 
@@ -636,21 +566,14 @@ describe("useDepositPageForm", () => {
       expect(result.current.errors.amount).toBeUndefined();
     });
 
-    it("should clear application error when application is updated", () => {
+    it("should not set application error when aave config provides default", () => {
       const { result } = renderHook(() => useDepositPageForm(), { wrapper });
 
       act(() => {
         result.current.validateForm();
       });
 
-      expect(result.current.errors.application).toBeDefined();
-
-      act(() => {
-        result.current.setFormData({
-          selectedApplication: "0xControllerAddress1",
-        });
-      });
-
+      // effectiveSelectedApplication falls back to aaveConfig.adapterAddress
       expect(result.current.errors.application).toBeUndefined();
     });
 
@@ -714,9 +637,8 @@ describe("useDepositPageForm", () => {
       expect(result.current.errors.amount).toBe(
         "Amount must be greater than zero",
       );
-      expect(result.current.errors.application).toBe(
-        "Please select an application",
-      );
+      // Application is resolved via aaveConfig fallback — no error
+      expect(result.current.errors.application).toBeUndefined();
       expect(result.current.errors.provider).toBe(
         "Please select a vault provider",
       );
@@ -728,7 +650,6 @@ describe("useDepositPageForm", () => {
       act(() => {
         result.current.setFormData({
           amountBtc: "0.00001",
-          selectedApplication: "0xControllerAddress1",
           selectedProvider: "0x1234567890abcdef1234567890abcdef12345678",
         });
       });
@@ -744,34 +665,12 @@ describe("useDepositPageForm", () => {
       );
     });
 
-    it("should validate application field", () => {
-      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
-
-      act(() => {
-        result.current.setFormData({
-          amountBtc: "0.001",
-          selectedProvider: "0x1234567890abcdef1234567890abcdef12345678",
-        });
-      });
-
-      let isValid: boolean = false;
-      act(() => {
-        isValid = result.current.validateForm();
-      });
-
-      expect(isValid).toBe(false);
-      expect(result.current.errors.application).toBe(
-        "Please select an application",
-      );
-    });
-
     it("should validate provider field", () => {
       const { result } = renderHook(() => useDepositPageForm(), { wrapper });
 
       act(() => {
         result.current.setFormData({
           amountBtc: "0.001",
-          selectedApplication: "0xControllerAddress1",
         });
       });
 
@@ -792,7 +691,6 @@ describe("useDepositPageForm", () => {
       act(() => {
         result.current.setFormData({
           amountBtc: "0.001",
-          selectedApplication: "0xControllerAddress1",
           selectedProvider: "0x1234567890abcdef1234567890abcdef12345678",
         });
       });
@@ -812,7 +710,6 @@ describe("useDepositPageForm", () => {
       act(() => {
         result.current.setFormData({
           amountBtc: "0.001",
-          selectedApplication: "0xControllerAddress1",
           selectedProvider: "0x1234567890abcdef1234567890abcdef12345678",
         });
       });
@@ -828,161 +725,6 @@ describe("useDepositPageForm", () => {
     });
   });
 
-  describe("isValid computed property", () => {
-    it("should be false for empty form", () => {
-      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
-
-      expect(result.current.isValid).toBe(false);
-    });
-
-    it("should be false if amount is missing", () => {
-      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
-
-      act(() => {
-        result.current.setFormData({
-          selectedApplication: "0xControllerAddress1",
-          selectedProvider: "0x1234567890abcdef1234567890abcdef12345678",
-        });
-      });
-
-      expect(result.current.isValid).toBe(false);
-    });
-
-    it("should be false if application is missing", () => {
-      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
-
-      act(() => {
-        result.current.setFormData({
-          amountBtc: "0.001",
-          selectedProvider: "0x1234567890abcdef1234567890abcdef12345678",
-        });
-      });
-
-      expect(result.current.isValid).toBe(false);
-    });
-
-    it("should be false if provider is missing", () => {
-      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
-
-      act(() => {
-        result.current.setFormData({
-          amountBtc: "0.001",
-          selectedApplication: "0xControllerAddress1",
-        });
-      });
-
-      expect(result.current.isValid).toBe(false);
-    });
-
-    it("should be false if there are validation errors", async () => {
-      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
-
-      act(() => {
-        result.current.setFormData({
-          amountBtc: "0.001",
-          selectedApplication: "0xControllerAddress1",
-          selectedProvider: "0x1234567890abcdef1234567890abcdef12345678",
-        });
-      });
-
-      act(() => {
-        result.current.validateForm();
-      });
-
-      // Wait for depositorClaimValue query to resolve
-      await waitFor(() => {
-        expect(result.current.isValid).toBe(true);
-      });
-
-      act(() => {
-        result.current.setFormData({ amountBtc: "" });
-      });
-
-      expect(result.current.isValid).toBe(false);
-    });
-
-    it("should be true when all fields are filled and no errors", async () => {
-      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
-
-      act(() => {
-        result.current.setFormData({
-          amountBtc: "0.001",
-          selectedApplication: "0xControllerAddress1",
-          selectedProvider: "0x1234567890abcdef1234567890abcdef12345678",
-        });
-      });
-
-      // Wait for depositorClaimValue query to resolve
-      await waitFor(() => {
-        expect(result.current.isValid).toBe(true);
-      });
-    });
-
-    it("should be false when amount exceeds balance", () => {
-      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
-
-      // Balance is 800,000 sats (from mocked UTXOs: 500000 + 300000)
-      // 1 BTC = 100,000,000 sats, so we set an amount higher than balance
-      act(() => {
-        result.current.setFormData({
-          amountBtc: "0.01", // 1,000,000 sats - exceeds 800,000 balance
-          selectedApplication: "app1",
-          selectedProvider: "0x1234567890abcdef1234567890abcdef12345678",
-        });
-      });
-
-      expect(result.current.isValid).toBe(false);
-    });
-
-    it("should be false when amount + fees + claimValue exceeds balance", async () => {
-      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
-
-      // Balance: 800,000 sats
-      // Amount: 770,000 sats (0.0077 BTC)
-      // Fee: 1,500 sats (mocked)
-      // ClaimValue: 35,000 sats (mocked)
-      // Total: 770,000 + 1,500 + 35,000 = 806,500 > 800,000
-      act(() => {
-        result.current.setFormData({
-          amountBtc: "0.0077",
-          selectedApplication: "0xControllerAddress1",
-          selectedProvider: "0x1234567890abcdef1234567890abcdef12345678",
-        });
-      });
-
-      await waitFor(() => {
-        expect(result.current.depositorClaimValue).toBe(35000n);
-      });
-
-      expect(result.current.isValid).toBe(false);
-    });
-
-    it("should be true when amount + fees + claimValue fits within balance", async () => {
-      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
-
-      // Balance: 800,000 sats
-      // Amount: 750,000 sats (0.0075 BTC)
-      // Fee: 1,500 sats (mocked)
-      // ClaimValue: 35,000 sats (mocked)
-      // Total: 750,000 + 1,500 + 35,000 = 786,500 < 800,000
-      act(() => {
-        result.current.setFormData({
-          amountBtc: "0.0075",
-          selectedApplication: "0xControllerAddress1",
-          selectedProvider: "0x1234567890abcdef1234567890abcdef12345678",
-        });
-      });
-
-      await waitFor(() => {
-        expect(result.current.depositorClaimValue).toBe(35000n);
-      });
-
-      await waitFor(() => {
-        expect(result.current.isValid).toBe(true);
-      });
-    });
-  });
-
   describe("resetForm", () => {
     it("should reset form data to initial state", () => {
       const { result } = renderHook(() => useDepositPageForm(), { wrapper });
@@ -990,7 +732,6 @@ describe("useDepositPageForm", () => {
       act(() => {
         result.current.setFormData({
           amountBtc: "0.001",
-          selectedApplication: "0xControllerAddress1",
           selectedProvider: "0x1234567890abcdef1234567890abcdef12345678",
         });
       });
@@ -1003,7 +744,6 @@ describe("useDepositPageForm", () => {
 
       expect(result.current.formData).toEqual({
         amountBtc: "",
-        selectedApplication: "",
         selectedProvider: "",
       });
     });

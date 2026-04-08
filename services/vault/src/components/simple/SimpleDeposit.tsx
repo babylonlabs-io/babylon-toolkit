@@ -27,12 +27,12 @@ import { DepositForm } from "./DepositForm";
 import { DepositSignContent } from "./DepositSignContent";
 import { DepositSuccessContent } from "./DepositSuccessContent";
 import { FadeTransition } from "./FadeTransition";
-import { MultiVaultDepositSignContent } from "./MultiVaultDepositSignContent";
 import {
   ResumeActivationContent,
   ResumeBroadcastContent,
-  ResumeLamportContent,
+  ResumeRefundContent,
   ResumeSignContent,
+  ResumeWotsContent,
 } from "./ResumeDepositContent";
 
 // ---------------------------------------------------------------------------
@@ -65,8 +65,8 @@ type ResumeBroadcastProps = SimpleDepositBaseProps & {
   onResumeSuccess: () => void;
 };
 
-type ResumeLamportProps = SimpleDepositBaseProps & {
-  resumeMode: "submit_lamport_key";
+type ResumeWotsProps = SimpleDepositBaseProps & {
+  resumeMode: "submit_wots_key";
   activity: VaultActivity;
   vaultProviders: VaultProvider[];
   onResumeSuccess: () => void;
@@ -79,12 +79,19 @@ type ResumeActivationProps = SimpleDepositBaseProps & {
   onResumeSuccess: () => void;
 };
 
+type ResumeRefundProps = SimpleDepositBaseProps & {
+  resumeMode: "refund_htlc";
+  activity: VaultActivity;
+  onResumeSuccess: () => void;
+};
+
 export type SimpleDepositProps =
   | NewDepositProps
   | ResumeSignProps
   | ResumeBroadcastProps
-  | ResumeLamportProps
-  | ResumeActivationProps;
+  | ResumeWotsProps
+  | ResumeActivationProps
+  | ResumeRefundProps;
 
 // ---------------------------------------------------------------------------
 // New deposit flow content (form → sign → success)
@@ -96,7 +103,8 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
   const {
     formData,
     setFormData,
-    isValid,
+    effectiveSelectedApplication,
+    isWalletConnected,
     btcBalance,
     btcPrice,
     hasPriceFetchError,
@@ -106,6 +114,7 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
     amountSats,
     minDeposit,
     maxDeposit,
+    estimatedFeeSats,
     estimatedFeeRate,
     isLoadingFee,
     feeError,
@@ -114,11 +123,10 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
     setIsPartialLiquidation,
     canSplit,
     strategy,
-    depositorClaimValue,
     allocationPlan,
     isPlanning,
     splitRatioLabel,
-    effectiveFeeSats,
+    depositorClaimValue,
     validateForm,
   } = useDepositPageForm();
 
@@ -208,7 +216,7 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
 
   const handleDeposit = () => {
     if (validateForm()) {
-      setDepositData(amountSats, formData.selectedApplication, [
+      setDepositData(amountSats, effectiveSelectedApplication, [
         formData.selectedProvider,
       ]);
       setFeeRate(estimatedFeeRate);
@@ -223,8 +231,8 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
   };
 
   const handleSignSuccess = useCallback(
-    (btcTxid: string, ethTxHash: string, _depositorBtcPubkey: string) => {
-      setTransactionHashes(btcTxid, ethTxHash, _depositorBtcPubkey);
+    (peginTxHash: string, ethTxHash: string, _depositorBtcPubkey: string) => {
+      setTransactionHashes(peginTxHash, ethTxHash, _depositorBtcPubkey);
       goToStep(DepositStep.SUCCESS);
     },
     [setTransactionHashes, goToStep],
@@ -255,16 +263,16 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
                 onAmountChange={(value) => setFormData({ amountBtc: value })}
                 onMaxClick={handleMaxClick}
                 applications={applications}
-                selectedApplication={formData.selectedApplication}
+                selectedApplication={effectiveSelectedApplication}
                 providers={providers}
                 isLoadingProviders={isLoadingProviders}
                 selectedProvider={formData.selectedProvider}
                 onProviderSelect={(providerId) =>
                   setFormData({ selectedProvider: providerId })
                 }
-                isValid={isValid}
+                isWalletConnected={isWalletConnected}
                 depositorClaimValue={depositorClaimValue}
-                estimatedFeeSats={effectiveFeeSats}
+                estimatedFeeSats={estimatedFeeSats}
                 estimatedFeeRate={estimatedFeeRate}
                 isLoadingFee={isLoadingFee}
                 feeError={feeError}
@@ -314,51 +322,30 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
 
         {renderedStep === DepositStep.SIGN &&
           getMnemonic &&
-          btcWalletProvider &&
-          depositorClaimValue != null && (
+          btcWalletProvider && (
             <div className="mx-auto w-full max-w-[520px]">
-              {isSplitDeposit && splitAllocationPlan ? (
-                <MultiVaultDepositSignContent
-                  vaultAmounts={splitAllocationPlan.vaultAllocations.map(
-                    (a) => a.amount,
-                  )}
-                  precomputedPlan={splitAllocationPlan}
-                  mempoolFeeRate={feeRate}
-                  btcWalletProvider={btcWalletProvider}
-                  depositorEthAddress={ethAddress}
-                  selectedApplication={selectedApplication}
-                  selectedProviders={selectedProviders}
-                  vaultProviderBtcPubkey={selectedProviderBtcPubkey}
-                  vaultKeeperBtcPubkeys={vaultKeeperBtcPubkeys}
-                  universalChallengerBtcPubkeys={universalChallengerBtcPubkeys}
-                  getMnemonic={getMnemonic}
-                  mnemonicId={mnemonicId}
-                  htlcSecretHexes={secretHexesRef.current}
-                  depositorSecretHashes={secretHashes}
-                  onSuccess={handleSignSuccess}
-                  onClose={onClose}
-                  onRefetchActivities={refetchActivities}
-                />
-              ) : (
-                <DepositSignContent
-                  amount={depositAmount}
-                  mempoolFeeRate={feeRate}
-                  btcWalletProvider={btcWalletProvider}
-                  depositorEthAddress={ethAddress}
-                  selectedApplication={selectedApplication}
-                  selectedProviders={selectedProviders}
-                  vaultProviderBtcPubkey={selectedProviderBtcPubkey}
-                  vaultKeeperBtcPubkeys={vaultKeeperBtcPubkeys}
-                  universalChallengerBtcPubkeys={universalChallengerBtcPubkeys}
-                  getMnemonic={getMnemonic}
-                  mnemonicId={mnemonicId}
-                  htlcSecretHex={secretHexesRef.current[0]}
-                  depositorSecretHash={secretHashes[0]}
-                  onSuccess={handleSignSuccess}
-                  onClose={onClose}
-                  onRefetchActivities={refetchActivities}
-                />
-              )}
+              <DepositSignContent
+                vaultAmounts={
+                  isSplitDeposit && splitAllocationPlan
+                    ? splitAllocationPlan.vaultAllocations.map((a) => a.amount)
+                    : [depositAmount]
+                }
+                mempoolFeeRate={feeRate}
+                btcWalletProvider={btcWalletProvider}
+                depositorEthAddress={ethAddress}
+                selectedApplication={selectedApplication}
+                selectedProviders={selectedProviders}
+                vaultProviderBtcPubkey={selectedProviderBtcPubkey}
+                vaultKeeperBtcPubkeys={vaultKeeperBtcPubkeys}
+                universalChallengerBtcPubkeys={universalChallengerBtcPubkeys}
+                getMnemonic={getMnemonic}
+                mnemonicId={mnemonicId}
+                htlcSecretHexes={secretHexesRef.current}
+                depositorSecretHashes={secretHashes}
+                onSuccess={handleSignSuccess}
+                onClose={onClose}
+                onRefetchActivities={refetchActivities}
+              />
             </div>
           )}
 
@@ -381,7 +368,7 @@ export default function SimpleDeposit(props: SimpleDepositProps) {
 
   // Resume mode: skip form/state providers and render resume content directly
   if (resumeMode) {
-    if (resumeMode === "submit_lamport_key") {
+    if (resumeMode === "submit_wots_key") {
       return (
         <ProtocolParamsProvider>
           <FullScreenDialog
@@ -390,7 +377,7 @@ export default function SimpleDeposit(props: SimpleDepositProps) {
             className="items-center justify-center p-6"
           >
             <div className="mx-auto w-full max-w-[520px]">
-              <ResumeLamportContent
+              <ResumeWotsContent
                 activity={props.activity}
                 onClose={onClose}
                 onSuccess={props.onResumeSuccess}
@@ -419,6 +406,24 @@ export default function SimpleDeposit(props: SimpleDepositProps) {
             </div>
           </FullScreenDialog>
         </ProtocolParamsProvider>
+      );
+    }
+
+    if (resumeMode === "refund_htlc") {
+      return (
+        <FullScreenDialog
+          open={open}
+          onClose={onClose}
+          className="items-center justify-center p-6"
+        >
+          <div className="mx-auto w-full max-w-[520px]">
+            <ResumeRefundContent
+              activity={props.activity}
+              onClose={onClose}
+              onSuccess={props.onResumeSuccess}
+            />
+          </div>
+        </FullScreenDialog>
       );
     }
 

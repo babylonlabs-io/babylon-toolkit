@@ -77,7 +77,7 @@ export { computeNumLocalChallengers } from "./challengers";
 
 // Core types and functions from WASM package
 export type { Network } from "@babylonlabs-io/babylon-tbv-rust-wasm";
-export { computeMinClaimValue } from "@babylonlabs-io/babylon-tbv-rust-wasm";
+export { computeMinClaimValue, deriveVaultId } from "@babylonlabs-io/babylon-tbv-rust-wasm";
 export type {
   AssertPayoutNoPayoutConnectorParams,
   ChallengeAssertConnectorParams,
@@ -85,7 +85,7 @@ export type {
 } from "@babylonlabs-io/babylon-tbv-rust-wasm";
 
 // PSBT builders
-export { buildPrePeginPsbt, buildPeginTxFromFundedPrePegin, SINGLE_DEPOSIT_HTLC_VOUT } from "./psbt/pegin";
+export { buildPrePeginPsbt, buildPeginTxFromFundedPrePegin } from "./psbt/pegin";
 export type {
   PrePeginParams,
   PrePeginPsbtResult,
@@ -98,6 +98,12 @@ export type {
   BuildPeginInputPsbtParams,
   BuildPeginInputPsbtResult,
 } from "./psbt/peginInput";
+
+export { buildRefundPsbt } from "./psbt/refund";
+export type {
+  BuildRefundPsbtParams,
+  BuildRefundPsbtResult,
+} from "./psbt/refund";
 
 export { buildPayoutPsbt, extractPayoutSignature } from "./psbt/payout";
 export type { PayoutParams, PayoutPsbtResult } from "./psbt/payout";
