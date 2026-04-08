@@ -149,4 +149,9 @@ export interface BroadcastParams {
   btcWalletProvider: BitcoinWallet;
   /** Funded Pre-PegIn tx hex to broadcast (avoids re-fetching from indexer) */
   fundedPrePeginTxHex: string;
+  /**
+   * Trusted UTXO data from transaction construction phase.
+   * Key format: "txid:vout". When provided, skips untrusted mempool API queries.
+   */
+  expectedUtxos?: Record<string, { scriptPubKey: string; value: number }>;
 }
