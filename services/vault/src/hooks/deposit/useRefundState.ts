@@ -29,16 +29,19 @@ export function useRefundState({
   const [refundTxId, setRefundTxId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // Destructure stable primitives to avoid re-creating handleRefund on every render
+  const { id: vaultId, depositorBtcPubkey } = activity;
+
   const handleRefund = useCallback(async () => {
     if (!btcWalletProvider) {
       setError("BTC wallet not connected");
       return;
     }
-    if (!activity.txHash) {
-      setError("Missing vault transaction hash");
+    if (!vaultId) {
+      setError("Missing vault ID");
       return;
     }
-    if (!activity.depositorBtcPubkey) {
+    if (!depositorBtcPubkey) {
       setError("Missing depositor BTC public key");
       return;
     }
@@ -48,9 +51,9 @@ export function useRefundState({
 
     try {
       const txId = await buildAndBroadcastRefundTransaction({
-        vaultId: activity.txHash,
+        vaultId,
         btcWalletProvider,
-        depositorBtcPubkey: activity.depositorBtcPubkey,
+        depositorBtcPubkey,
       });
       setRefundTxId(txId);
       setRefunding(false);
@@ -60,7 +63,7 @@ export function useRefundState({
       // refetches activities only after the user has seen the confirmation.
     } catch (err) {
       logger.error(err instanceof Error ? err : new Error(String(err)), {
-        data: { context: "Refund failed", vaultId: activity.txHash },
+        data: { context: "Refund failed", vaultId },
       });
       const message =
         err instanceof Error ? err.message : "Refund transaction failed";
@@ -71,7 +74,7 @@ export function useRefundState({
       );
       setRefunding(false);
     }
-  }, [activity, btcWalletProvider]);
+  }, [vaultId, depositorBtcPubkey, btcWalletProvider]);
 
   return { refunding, refundTxId, error, handleRefund };
 }

@@ -71,7 +71,7 @@ export async function submitWotsPublicKey(
   params: WotsSubmissionParams,
 ): Promise<void> {
   const {
-    btcTxid,
+    peginTxHash,
     depositorBtcPubkey,
     appContractAddress,
     providerAddress,
@@ -84,7 +84,7 @@ export async function submitWotsPublicKey(
   // Wait until VP has ingested the pegin and is ready for the WOTS key.
   const status = await waitForPeginStatus({
     providerAddress,
-    btcTxid,
+    peginTxHash,
     targetStatuses: TARGET_STATUSES,
     timeoutMs: STATUS_POLL_TIMEOUT_MS,
     signal,
@@ -103,7 +103,7 @@ export async function submitWotsPublicKey(
   try {
     const keypair = await deriveWotsKeypair(
       seed,
-      btcTxid,
+      peginTxHash,
       depositorBtcPubkey,
       appContractAddress,
     );
@@ -121,7 +121,7 @@ export async function submitWotsPublicKey(
   );
 
   await rpcClient.submitDepositorWotsKey({
-    pegin_txid: stripHexPrefix(btcTxid),
+    pegin_txid: stripHexPrefix(peginTxHash),
     depositor_pk: stripHexPrefix(depositorBtcPubkey),
     wots_public_keys: wotsPublicKey,
   });

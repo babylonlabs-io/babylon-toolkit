@@ -26,7 +26,7 @@ export async function broadcastBtcTransaction(
   depositorEthAddress: Address,
 ): Promise<string> {
   const {
-    btcTxid,
+    vaultId,
     depositorBtcPubkey,
     btcWalletProvider,
     fundedPrePeginTxHex,
@@ -43,9 +43,8 @@ export async function broadcastBtcTransaction(
   // Update localStorage
   updatePendingPeginStatus(
     depositorEthAddress,
-    btcTxid,
+    vaultId,
     LocalStorageStatus.CONFIRMING,
-    broadcastTxId,
   );
 
   return broadcastTxId;

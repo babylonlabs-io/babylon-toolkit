@@ -51,7 +51,8 @@ export interface PayoutProviders {
 }
 
 export interface PrepareSigningContextParams {
-  peginTxId: string;
+  /** Derived vault ID (for contract calls) */
+  vaultId: string;
   depositorBtcPubkey: string;
   providers: PayoutProviders;
   /** Function to get UCs by version from context (avoids redundant fetch) */
@@ -69,22 +70,22 @@ export interface PreparedSigningData {
  * Validate input parameters for payout signing.
  */
 export function validatePayoutSignatureParams(params: {
-  peginTxId: string;
+  vaultId: string;
   depositorBtcPubkey: string;
   claimerTransactions: ClaimerTransactions[];
   vaultKeepers: PayoutVaultKeeper[];
   universalChallengers: PayoutUniversalChallenger[];
 }): void {
   const {
-    peginTxId,
+    vaultId,
     depositorBtcPubkey,
     claimerTransactions,
     vaultKeepers,
     universalChallengers,
   } = params;
 
-  if (!peginTxId || typeof peginTxId !== "string") {
-    throw new Error("Invalid peginTxId: must be a non-empty string");
+  if (!vaultId || typeof vaultId !== "string") {
+    throw new Error("Invalid vaultId: must be a non-empty string");
   }
 
   validateXOnlyPubkey(depositorBtcPubkey);
@@ -146,7 +147,7 @@ export function getSortedUniversalChallengerPubkeys(
  */
 export async function submitSignaturesToVaultProvider(
   vaultProviderAddress: string,
-  peginTxId: string,
+  peginTxHash: string,
   depositorBtcPubkey: string,
   signatures: Record<string, ClaimerSignatures>,
   depositorClaimerPresignatures: DepositorAsClaimerPresignatures,
@@ -165,7 +166,7 @@ export async function submitSignaturesToVaultProvider(
     depositorClaimerPresignatures.payout_signatures;
 
   await rpcClient.submitDepositorPresignatures({
-    pegin_txid: stripHexPrefix(peginTxId),
+    pegin_txid: stripHexPrefix(peginTxHash),
     depositor_pk: stripHexPrefix(depositorBtcPubkey),
     signatures: allSignatures,
     depositor_claimer_presignatures: depositorClaimerPresignatures,
@@ -268,7 +269,7 @@ export async function prepareSigningContext(
   params: PrepareSigningContextParams,
 ): Promise<PreparedSigningData> {
   const {
-    peginTxId,
+    vaultId,
     depositorBtcPubkey,
     providers,
     getUniversalChallengersByVersion,
@@ -280,7 +281,7 @@ export async function prepareSigningContext(
   // signatures over attacker-chosen graph parameters.
   // Note: registeredPayoutScriptPubKey is passed in separately — the contract only
   // emits it in the PegInSubmitted event, it's not stored in the BTCVault struct.
-  const vault = await getVaultFromChain(peginTxId as Hex);
+  const vault = await getVaultFromChain(vaultId as Hex);
 
   const timelockPegin = await getTimelockPeginByVersion(
     vault.offchainParamsVersion,

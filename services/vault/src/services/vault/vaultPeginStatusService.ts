@@ -20,8 +20,8 @@ const DEFAULT_POLL_INTERVAL_MS = 10 * 1000;
 export interface WaitForPeginStatusParams {
   /** Vault provider Ethereum address */
   providerAddress: string;
-  /** BTC transaction ID (with or without 0x prefix) */
-  btcTxid: string;
+  /** Raw BTC pegin transaction hash (with or without 0x prefix) */
+  peginTxHash: string;
   /** Set of acceptable statuses — polling stops when the VP reports one of these */
   targetStatuses: Set<string>;
   /** Maximum time to wait in milliseconds */
@@ -44,7 +44,7 @@ export async function waitForPeginStatus(
 ): Promise<string> {
   const {
     providerAddress,
-    btcTxid,
+    peginTxHash,
     targetStatuses,
     timeoutMs,
     intervalMs = DEFAULT_POLL_INTERVAL_MS,
@@ -55,7 +55,7 @@ export async function waitForPeginStatus(
     getVpProxyUrl(providerAddress),
     RPC_TIMEOUT_MS,
   );
-  const strippedTxid = stripHexPrefix(btcTxid);
+  const strippedTxid = stripHexPrefix(peginTxHash);
 
   return pollUntil<string>(
     async () => {

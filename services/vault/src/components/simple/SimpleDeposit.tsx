@@ -231,8 +231,8 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
   };
 
   const handleSignSuccess = useCallback(
-    (btcTxid: string, ethTxHash: string, _depositorBtcPubkey: string) => {
-      setTransactionHashes(btcTxid, ethTxHash, _depositorBtcPubkey);
+    (peginTxHash: string, ethTxHash: string, _depositorBtcPubkey: string) => {
+      setTransactionHashes(peginTxHash, ethTxHash, _depositorBtcPubkey);
       goToStep(DepositStep.SUCCESS);
     },
     [setTransactionHashes, goToStep],

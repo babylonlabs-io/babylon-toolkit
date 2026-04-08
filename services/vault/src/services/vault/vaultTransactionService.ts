@@ -65,11 +65,11 @@ export interface PreparePeginParams {
 export interface PeginVaultResult {
   /** Zero-based HTLC output index in the Pre-PegIn tx */
   htlcVout: number;
-  /** Vault ID: hash of the pegin tx */
-  btcTxHash: Hex;
+  /** Raw BTC pegin transaction hash (double-SHA256, with 0x prefix) */
+  peginTxHash: Hex;
   /** PegIn tx hex for this vault */
   peginTxHex: string;
-  /** PegIn tx ID */
+  /** PegIn tx ID (without 0x prefix) */
   peginTxid: string;
   /** Depositor's Schnorr signature over PegIn input */
   peginInputSignature: string;
@@ -125,7 +125,10 @@ export interface RegisterPeginOnChainParams {
  */
 export interface RegisterPeginResult {
   transactionHash: Hex;
-  btcTxHash: Hex;
+  /** Derived vault ID: keccak256(abi.encode(peginTxHash, depositor)) */
+  vaultId: Hex;
+  /** Raw BTC pegin transaction hash (for VP RPC operations) */
+  peginTxHash: Hex;
   btcTxHex: string;
   /** The BTC PoP signature used, for reuse in subsequent pegins */
   btcPopSignature: Hex;
@@ -191,7 +194,7 @@ export async function preparePeginTransaction(
     unsignedPrePeginTxHex: result.unsignedPrePeginTxHex,
     perVault: result.perVault.map((v) => ({
       htlcVout: v.htlcVout,
-      btcTxHash: ensureHexPrefix(v.peginTxid),
+      peginTxHash: ensureHexPrefix(v.peginTxid),
       peginTxHex: v.peginTxHex,
       peginTxid: v.peginTxid,
       peginInputSignature: v.peginInputSignature,
@@ -230,7 +233,8 @@ export async function registerPeginOnChain(
 
   return {
     transactionHash: registrationResult.ethTxHash,
-    btcTxHash: registrationResult.vaultId,
+    vaultId: registrationResult.vaultId,
+    peginTxHash: registrationResult.peginTxHash,
     btcTxHex: params.unsignedPrePeginTxHex,
     btcPopSignature: registrationResult.btcPopSignature,
   };

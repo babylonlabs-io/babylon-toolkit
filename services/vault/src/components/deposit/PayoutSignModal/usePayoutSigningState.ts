@@ -163,7 +163,7 @@ export function usePayoutSigningState({
     // Validate inputs
     try {
       validatePayoutSignatureParams({
-        peginTxId: activity.txHash!,
+        vaultId: activity.id,
         depositorBtcPubkey: btcPublicKey,
         claimerTransactions: transactions,
         vaultKeepers: providers.vaultKeepers,
@@ -189,7 +189,7 @@ export function usePayoutSigningState({
       // Prepare signing context (fetches vault data, resolves pubkeys)
       // Uses versioned keepers and challengers based on vault's locked versions
       const { context, vaultProviderAddress } = await prepareSigningContext({
-        peginTxId: activity.txHash!,
+        vaultId: activity.id,
         depositorBtcPubkey: btcPublicKey,
         providers,
         getUniversalChallengersByVersion,
@@ -215,25 +215,21 @@ export function usePayoutSigningState({
         btcWallet: btcWalletProvider,
       });
 
-      // Submit signatures to vault provider
+      // Submit signatures to vault provider (VP RPC uses peginTxHash)
       await submitSignaturesToVaultProvider(
         vaultProviderAddress,
-        activity.txHash!,
+        activity.peginTxHash!,
         btcPublicKey,
         signatures,
         depositorClaimerPresignatures,
       );
 
-      // Update localStorage status using state machine
+      // Update localStorage status using state machine (storage uses vaultId)
       const nextStatus = getNextLocalStatus(
         PeginAction.SIGN_PAYOUT_TRANSACTIONS,
       );
-      if (nextStatus && activity.txHash) {
-        updatePendingPeginStatus(
-          depositorEthAddress,
-          activity.txHash,
-          nextStatus,
-        );
+      if (nextStatus) {
+        updatePendingPeginStatus(depositorEthAddress, activity.id, nextStatus);
 
         // Optimistically update UI immediately (before refetch completes)
         setOptimisticStatus(activity.id, LocalStorageStatus.PAYOUT_SIGNED);
@@ -251,7 +247,7 @@ export function usePayoutSigningState({
     transactions,
     depositorGraph,
     activity.providers,
-    activity.txHash,
+    activity.peginTxHash,
     activity.id,
     activity.depositorPayoutBtcAddress,
     findProvider,

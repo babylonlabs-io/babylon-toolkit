@@ -43,6 +43,7 @@ export function toCollateralVaultEntries(
     return {
       id: `${c.depositorAddress}-${c.vaultId}`,
       vaultId: c.vaultId,
+      peginTxHash: c.vault?.peginTxHash,
       amountBtc: satoshiToBtcNumber(c.amount),
       addedAt: Number(c.addedAt),
       inUse: c.vault?.inUse ?? false,

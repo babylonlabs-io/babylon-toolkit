@@ -41,6 +41,7 @@ import {
   buildPeginInputPsbt,
   extractPeginInputSignature,
   finalizePeginInputPsbt,
+  deriveVaultId,
   type PrePeginParams,
   type Network,
 } from "../primitives";
@@ -323,11 +324,16 @@ export interface RegisterPeginResult {
   ethTxHash: Hash;
 
   /**
-   * Vault identifier used in the BTCVaultRegistry contract.
-   * This is the Bitcoin transaction hash with 0x prefix for Ethereum compatibility.
-   * Corresponds to btcTxHash from PeginResult, but formatted as Hex with '0x' prefix.
+   * Derived vault ID: keccak256(abi.encode(peginTxHash, depositor)).
+   * Used for contract reads/writes and indexer queries.
    */
   vaultId: Hex;
+
+  /**
+   * Raw Bitcoin pegin transaction hash (double-SHA256 of the signed pegin tx).
+   * Used for VP RPC operations which key on the BTC transaction ID.
+   */
+  peginTxHash: Hex;
 
   /**
    * The BTC PoP signature used for this registration (hex with 0x prefix).
@@ -779,15 +785,20 @@ export class PeginManager {
       depositorPayoutBtcAddress,
     );
 
-    // Step 4: Calculate vault ID from depositorSignedPeginTx and check if it already exists
-    const vaultId = calculateBtcTxHash(depositorSignedPeginTxHex);
+    // Step 4: Calculate pegin tx hash and derive vault ID, then check if it already exists
+    const peginTxHash = calculateBtcTxHash(depositorSignedPeginTxHex);
+    const derivedVaultIdHex = await deriveVaultId(
+      stripHexPrefix(peginTxHash),
+      stripHexPrefix(depositorEthAddress),
+    );
+    const vaultId = ensureHexPrefix(derivedVaultIdHex) as Hex;
     const exists = await this.checkVaultExists(vaultId);
 
     if (exists) {
       throw new Error(
-        `Vault already exists for this transaction (ID: ${vaultId}). ` +
-          `Vault IDs are deterministically derived from the unsigned Bitcoin transaction, so using the same UTXOs and amount will always produce the same vault. ` +
-          `To create a new vault, please use different UTXOs or a different amount to generate a unique transaction.`,
+        `Vault already exists (ID: ${vaultId}, peginTxHash: ${peginTxHash}). ` +
+          `Vault IDs are derived from the pegin transaction hash and depositor address. ` +
+          `To create a new vault, use different UTXOs or a different amount to generate a unique transaction.`,
       );
     }
 
@@ -881,6 +892,7 @@ export class PeginManager {
     return {
       ethTxHash: receipt.transactionHash,
       vaultId,
+      peginTxHash,
       btcPopSignature,
     };
   }

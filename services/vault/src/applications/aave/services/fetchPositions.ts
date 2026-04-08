@@ -36,7 +36,7 @@ export interface AavePosition {
 export interface AavePositionCollateral {
   /** Depositor's ETH address (part of composite key) */
   depositorAddress: string;
-  /** Vault ID (pegInTxHash, part of composite key) */
+  /** Vault ID: keccak256(abi.encode(peginTxHash, depositor)) (part of composite key) */
   vaultId: string;
   /** Collateral amount from this vault */
   amount: bigint;
@@ -49,6 +49,7 @@ export interface AavePositionCollateral {
   /** Associated vault data */
   vault?: {
     id: string;
+    peginTxHash: string;
     amount: bigint;
     status: string;
     vaultProvider: string;
@@ -83,6 +84,7 @@ interface GraphQLCollateralItem {
   liquidationIndex: string;
   vault?: {
     id: string;
+    peginTxHash: string;
     amount: string;
     status: string;
     vaultProvider: string;
@@ -131,6 +133,7 @@ const GET_AAVE_ACTIVE_POSITIONS_WITH_COLLATERALS = gql`
             liquidationIndex
             vault {
               id
+              peginTxHash
               amount
               status
               vaultProvider
@@ -210,6 +213,7 @@ function mapGraphQLCollateralToAavePositionCollateral(
     vault: item.vault
       ? {
           id: item.vault.id,
+          peginTxHash: item.vault.peginTxHash,
           amount: BigInt(item.vault.amount),
           status: item.vault.status,
           vaultProvider: item.vault.vaultProvider,

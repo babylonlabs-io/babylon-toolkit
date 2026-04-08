@@ -29,15 +29,14 @@ import { stripHexPrefix } from "../../utils/btc";
 import { validateSecretAgainstHashlock } from "../../utils/htlcSecret";
 
 export interface BroadcastPrePeginParams {
-  activityId: string;
+  activityId: Hex;
   activityAmount: string;
   activityProviders: Array<{ id: string }>;
   activityApplicationEntryPoint?: string;
   pendingPegin?: PendingPeginRequest;
   updatePendingPeginStatus?: (
-    peginId: string,
+    vaultId: string,
     status: LocalStorageStatus,
-    btcTxHash?: string,
   ) => void;
   addPendingPegin?: (pegin: Omit<PendingPeginRequest, "timestamp">) => void;
   onRefetchActivities: () => void;
@@ -45,17 +44,16 @@ export interface BroadcastPrePeginParams {
 }
 
 export interface ActivateVaultParams {
-  /** Vault ID (e.g. pegin tx hash) */
-  vaultId: string;
+  /** Derived vault ID: keccak256(abi.encode(peginTxHash, depositor)) */
+  vaultId: Hex;
   /** HTLC secret hex entered by the user (with or without 0x prefix) */
   secretHex: string;
   /** Depositor's ETH address */
   depositorEthAddress: string;
   pendingPegin?: PendingPeginRequest;
   updatePendingPeginStatus?: (
-    peginId: string,
+    vaultId: string,
     status: LocalStorageStatus,
-    btcTxHash?: string,
   ) => void;
   onRefetchActivities: () => void;
   onShowSuccessModal: () => void;
@@ -108,7 +106,7 @@ export function useVaultActions(): UseVaultActionsReturn {
 
     try {
       // Fetch vault data from GraphQL
-      const vault = await fetchVaultById(activityId as Hex);
+      const vault = await fetchVaultById(activityId);
 
       if (!vault) {
         throw new Error("Vault not found. Please try again.");
@@ -145,7 +143,7 @@ export function useVaultActions(): UseVaultActionsReturn {
       await assertUtxosAvailable(unsignedTxHex, depositorAddress);
 
       // Broadcast the transaction (UTXO will be derived from mempool API)
-      const txId = await broadcastPrePeginTransaction({
+      await broadcastPrePeginTransaction({
         unsignedTxHex,
         btcWalletProvider: {
           signPsbt: (psbtHex: string) => btcWalletProvider.signPsbt(psbtHex),
@@ -160,17 +158,17 @@ export function useVaultActions(): UseVaultActionsReturn {
       );
 
       if (pendingPegin && updatePendingPeginStatus && nextStatus) {
-        // Case 1: localStorage entry EXISTS - update status and txHash
-        updatePendingPeginStatus(activityId, nextStatus, txId);
+        // Case 1: localStorage entry EXISTS - update status
+        updatePendingPeginStatus(activityId, nextStatus);
       } else if (addPendingPegin && nextStatus) {
-        // Case 2: NO localStorage entry (cross-device) - create one with status and txHash
+        // Case 2: NO localStorage entry (cross-device) - create one with status
         addPendingPegin({
           id: activityId,
           amount: activityAmount,
           providerIds: activityProviders.map((p) => p.id),
           applicationEntryPoint: activityApplicationEntryPoint,
+          peginTxHash: vault.peginTxHash,
           status: nextStatus,
-          btcTxHash: txId,
         });
       }
 
@@ -215,7 +213,7 @@ export function useVaultActions(): UseVaultActionsReturn {
 
     try {
       // Fetch vault to get hashlock for client-side validation
-      const vault = await fetchVaultById(vaultId as Hex);
+      const vault = await fetchVaultById(vaultId);
       if (!vault) {
         throw new Error("Vault not found. Please try again.");
       }

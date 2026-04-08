@@ -32,7 +32,6 @@ export function useRefundModal(options: {
 
   return {
     refundingActivity,
-    isOpen: !!refundingActivity,
     handleRefundClick,
     handleClose,
     handleSuccess,

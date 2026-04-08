@@ -129,12 +129,12 @@ export interface UseMultiVaultDepositFlowReturn {
 export interface PeginCreationResult {
   /** Vault index (0 or 1) */
   vaultIndex: number;
-  /** Bitcoin transaction hash */
-  btcTxHash: Hex;
+  /** Derived vault ID: keccak256(abi.encode(peginTxHash, depositor)) */
+  vaultId: Hex;
+  /** Raw BTC pegin transaction hash (for VP RPC operations) */
+  peginTxHash: Hex;
   /** Ethereum transaction hash */
   ethTxHash: Hex;
-  /** Vault ID from contract (primary identifier) */
-  vaultId: Hex;
   /** Funded Pre-PegIn tx hex — this is the tx the depositor signs and broadcasts */
   fundedPrePeginTxHex: string;
   /** PegIn tx hex — the vault transaction derived from the Pre-PegIn */
@@ -353,7 +353,7 @@ export function useMultiVaultDepositFlow(
           // Derive keypair and compute WOTS PK hash (before ETH tx)
           const wotsPkHash = await deriveWotsPkHash(
             mnemonic,
-            vault.btcTxHash,
+            vault.peginTxHash,
             batchResult.depositorBtcPubkey,
             selectedApplication,
           );
@@ -378,9 +378,9 @@ export function useMultiVaultDepositFlow(
 
           const peginResult: PeginCreationResult = {
             vaultIndex: i,
-            btcTxHash: vault.btcTxHash as Hex,
+            vaultId: registration.vaultId,
+            peginTxHash: registration.peginTxHash,
             ethTxHash: registration.ethTxHash,
-            vaultId: registration.btcTxid as Hex,
             fundedPrePeginTxHex: batchResult.fundedPrePeginTxHex,
             peginTxHex: vault.peginTxHex,
             selectedUTXOs: batchResult.selectedUTXOs,
@@ -445,7 +445,7 @@ export function useMultiVaultDepositFlow(
 
           addPendingPegin(confirmedEthAddress, {
             id: peginResult.vaultId,
-            btcTxHash: peginResult.btcTxHash,
+            peginTxHash: peginResult.peginTxHash,
             amount: formatBtcValue(satoshiToBtcNumber(vaultAmount)),
             providerIds: [primaryProvider],
             applicationEntryPoint: selectedApplication,
@@ -464,7 +464,7 @@ export function useMultiVaultDepositFlow(
 
           if (mnemonicId) {
             linkPeginToMnemonic(
-              peginResult.vaultId,
+              peginResult.peginTxHash,
               mnemonicId,
               confirmedEthAddress,
             );
@@ -490,7 +490,7 @@ export function useMultiVaultDepositFlow(
         for (const result of broadcastedResults) {
           try {
             await submitWotsPublicKey({
-              btcTxid: result.vaultId,
+              peginTxHash: result.peginTxHash,
               depositorBtcPubkey: result.depositorBtcPubkey,
               appContractAddress: selectedApplication,
               providerAddress: provider.id,
@@ -530,7 +530,8 @@ export function useMultiVaultDepositFlow(
               preparedTransactions,
               depositorGraph,
             } = await pollAndPreparePayoutSigning({
-              btcTxid: result.vaultId, // Use vaultId for payout lookup
+              vaultId: result.vaultId,
+              peginTxHash: result.peginTxHash,
               btcTxHex: result.peginTxHex,
               depositorBtcPubkey: result.depositorBtcPubkey,
               providerAddress: provider.id,
@@ -567,11 +568,12 @@ export function useMultiVaultDepositFlow(
             // Submit signatures
             await submitPayoutSignatures(
               vaultProviderAddress,
-              result.vaultId,
+              result.peginTxHash,
               result.depositorBtcPubkey,
               signatures,
               confirmedEthAddress,
               depositorClaimerPresignatures,
+              result.vaultId,
             );
           } catch (error) {
             // If the user cancelled, stop immediately — don't continue with other vaults
@@ -609,7 +611,7 @@ export function useMultiVaultDepositFlow(
 
           setArtifactDownloadInfo({
             providerAddress: provider.id,
-            peginTxid: result.vaultId,
+            peginTxid: result.peginTxHash,
             depositorPk: result.depositorBtcPubkey,
           });
 
@@ -628,7 +630,7 @@ export function useMultiVaultDepositFlow(
         setIsWaiting(true);
         await Promise.all(
           broadcastedResults.map((r) =>
-            waitForContractVerification({ btcTxid: r.vaultId, signal }),
+            waitForContractVerification({ vaultId: r.vaultId, signal }),
           ),
         );
         setIsWaiting(false);

@@ -38,7 +38,7 @@ export interface OnChainVaultData {
  *
  * Throws if the vault does not exist on-chain (empty depositorSignedPeginTx).
  *
- * @param vaultId - Vault ID (pegin tx hash, bytes32)
+ * @param vaultId - Vault ID: keccak256(abi.encode(peginTxHash, depositor)), bytes32
  */
 export async function getVaultFromChain(
   vaultId: Hex,

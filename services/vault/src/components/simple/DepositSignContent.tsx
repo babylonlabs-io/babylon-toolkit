@@ -35,7 +35,7 @@ interface DepositSignContentProps {
   htlcSecretHexes: string[];
   depositorSecretHashes: Hex[];
   onSuccess: (
-    btcTxid: string,
+    peginTxHash: string,
     ethTxHash: string,
     depositorBtcPubkey: string,
   ) => void;
@@ -78,7 +78,7 @@ export function DepositSignContent({
       const firstPegin = result.pegins[0];
       if (firstPegin) {
         onSuccess(
-          firstPegin.btcTxHash,
+          firstPegin.peginTxHash,
           firstPegin.ethTxHash,
           firstPegin.depositorBtcPubkey,
         );
