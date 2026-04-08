@@ -51,7 +51,9 @@ export function utxosToExpectedRecord(
     if (!u.scriptPubKey || !HEX_RE.test(u.scriptPubKey)) {
       throw new Error(`Invalid UTXO scriptPubKey for ${u.txid}:${u.vout}`);
     }
-    record[`${u.txid}:${u.vout}`] = {
+    // Normalize txid to lowercase — Buffer.toString("hex") returns lowercase,
+    // but stored/external txids may use uppercase hex characters
+    record[`${u.txid.toLowerCase()}:${u.vout}`] = {
       scriptPubKey: u.scriptPubKey,
       value: numValue,
     };
@@ -179,7 +181,8 @@ async function addInputsToPsbt(
     });
   }
 
-  // Cross-validate: total inputs must cover total outputs
+  // Cross-validate on both paths: trusted path provides extra assurance,
+  // mempool fallback path relies on this as the primary sanity check
   const totalOutputValue = tx.outs.reduce(
     (sum, out) => sum + BigInt(out.value),
     0n,

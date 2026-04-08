@@ -145,7 +145,7 @@ export function useVaultActions(): UseVaultActionsReturn {
 
       // Use trusted UTXO data from localStorage when available (stored at
       // construction time), falling back to mempool API with cross-validation
-      const expectedUtxos = pendingPegin?.selectedUTXOs
+      const expectedUtxos = pendingPegin?.selectedUTXOs?.length
         ? utxosToExpectedRecord(pendingPegin.selectedUTXOs)
         : undefined;
 
