@@ -44,7 +44,7 @@ export async function activateVaultWithSecret(
     address: CONTRACTS.BTC_VAULT_REGISTRY,
     abi: BTCVaultRegistryABI as Abi,
     functionName: "activateVaultWithSecret",
-    args: [vaultId, secret],
+    args: [vaultId, secret, "0x"],
     errorContext: "vault activation",
   });
 }

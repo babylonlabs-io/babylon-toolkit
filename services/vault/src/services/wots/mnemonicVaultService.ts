@@ -11,7 +11,7 @@
  * ## Storage format
  *
  * ```
- * key: "babylon-lamport-vault" | "babylon-lamport-vault-{scope}"
+ * key: "babylon-wots-vault" | "babylon-wots-vault-{scope}"
  * value: {
  *   mnemonics: [{ id: "uuid", encrypted: "..." }, ...],
  *   peginMap: { "peginTxHash": "mnemonicUuid", ... },
@@ -36,7 +36,7 @@
  *
  * All functions accept an optional `scope` parameter (typically an
  * ETH address) that isolates the vault in localStorage. When omitted,
- * the global key `"babylon-lamport-vault"` is used.
+ * the global key `"babylon-wots-vault"` is used.
  */
 
 import { decrypt, encrypt } from "@metamask/browser-passworder";
@@ -59,7 +59,7 @@ export class VaultTamperingError extends Error {
 }
 
 /** Base localStorage key where the encrypted vault is stored. */
-const STORAGE_KEY = "babylon-lamport-vault";
+const STORAGE_KEY = "babylon-wots-vault";
 
 /**
  * Known plaintext encrypted with the vault password to verify that

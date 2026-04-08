@@ -37,7 +37,7 @@ interface PendingDepositCardProps {
     depositorGraph: DepositorGraphTransactions,
   ) => void;
   onBroadcastClick: (depositId: string) => void;
-  onLamportKeyClick: (depositId: string) => void;
+  onWotsKeyClick: (depositId: string) => void;
   onActivationClick: (depositId: string) => void;
   onRefundClick: (depositId: string) => void;
   onArtifactDownloadClick?: (depositId: string) => void;
@@ -52,7 +52,7 @@ export function PendingDepositCard({
   vaultProviders,
   onSignClick,
   onBroadcastClick,
-  onLamportKeyClick,
+  onWotsKeyClick,
   onActivationClick,
   onRefundClick,
   onArtifactDownloadClick,
@@ -71,8 +71,8 @@ export function PendingDepositCard({
     if (status.type !== "available") return;
 
     const { action } = status.action;
-    if (action === PeginAction.SUBMIT_LAMPORT_KEY) {
-      onLamportKeyClick(depositId);
+    if (action === PeginAction.SUBMIT_WOTS_KEY) {
+      onWotsKeyClick(depositId);
     } else if (action === PeginAction.SIGN_PAYOUT_TRANSACTIONS) {
       if (transactions && depositorGraph) {
         onSignClick(depositId, transactions, depositorGraph);

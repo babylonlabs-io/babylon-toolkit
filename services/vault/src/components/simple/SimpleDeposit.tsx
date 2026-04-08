@@ -30,9 +30,9 @@ import { FadeTransition } from "./FadeTransition";
 import {
   ResumeActivationContent,
   ResumeBroadcastContent,
-  ResumeLamportContent,
   ResumeRefundContent,
   ResumeSignContent,
+  ResumeWotsContent,
 } from "./ResumeDepositContent";
 
 // ---------------------------------------------------------------------------
@@ -65,8 +65,8 @@ type ResumeBroadcastProps = SimpleDepositBaseProps & {
   onResumeSuccess: () => void;
 };
 
-type ResumeLamportProps = SimpleDepositBaseProps & {
-  resumeMode: "submit_lamport_key";
+type ResumeWotsProps = SimpleDepositBaseProps & {
+  resumeMode: "submit_wots_key";
   activity: VaultActivity;
   vaultProviders: VaultProvider[];
   onResumeSuccess: () => void;
@@ -89,7 +89,7 @@ export type SimpleDepositProps =
   | NewDepositProps
   | ResumeSignProps
   | ResumeBroadcastProps
-  | ResumeLamportProps
+  | ResumeWotsProps
   | ResumeActivationProps
   | ResumeRefundProps;
 
@@ -368,7 +368,7 @@ export default function SimpleDeposit(props: SimpleDepositProps) {
 
   // Resume mode: skip form/state providers and render resume content directly
   if (resumeMode) {
-    if (resumeMode === "submit_lamport_key") {
+    if (resumeMode === "submit_wots_key") {
       return (
         <ProtocolParamsProvider>
           <FullScreenDialog
@@ -377,7 +377,7 @@ export default function SimpleDeposit(props: SimpleDepositProps) {
             className="items-center justify-center p-6"
           >
             <div className="mx-auto w-full max-w-[520px]">
-              <ResumeLamportContent
+              <ResumeWotsContent
                 activity={props.activity}
                 onClose={onClose}
                 onSuccess={props.onResumeSuccess}

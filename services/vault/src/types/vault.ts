@@ -24,8 +24,11 @@ export { ContractStatus as VaultStatus };
 export interface Vault {
   // === Identity ===
 
-  /** Vault ID (same as pegin transaction hash) */
+  /** Vault ID — keccak256(abi.encode(peginTxHash, depositor)) */
   id: Hex;
+
+  /** Bitcoin pegin transaction hash (for BTC/VP operations) */
+  peginTxHash: Hex;
 
   // === Core vault data ===
 
@@ -46,9 +49,6 @@ export interface Vault {
 
   /** Vault provider's Ethereum address */
   vaultProvider: Address;
-
-  /** Version of prover program at vault creation */
-  proverProgramVersion: number;
 
   /** Hashlock for HTLC pegin flow */
   hashlock?: Hex;
@@ -101,8 +101,14 @@ export interface Vault {
   /** Depositor-specified BTC payout address (raw scriptPubKey) */
   depositorPayoutBtcAddress: Hex;
 
-  /** Keccak256 hash of depositor's Lamport public key (committed on-chain) */
-  depositorLamportPkHash: string;
+  /** Keccak256 hash of depositor's WOTS public key (committed on-chain) */
+  depositorWotsPkHash: string;
+
+  /** BTC proof of possession signature */
+  depositorPopSignature?: Hex;
+
+  /** Bitcoin txid of the unsigned pre-pegin transaction */
+  prePeginTxHash?: Hex;
 
   // === Application/usage status ===
 

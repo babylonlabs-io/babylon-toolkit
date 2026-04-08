@@ -288,8 +288,8 @@ export interface RegisterPeginParams {
    */
   depositorPayoutBtcAddress?: string;
 
-  /** Keccak256 hash of the depositor's Lamport public key (bytes32) */
-  depositorLamportPkHash: Hex;
+  /** Keccak256 hash of the depositor's WOTS public key (bytes32) */
+  depositorWotsPkHash: Hex;
 
   /**
    * Pre-signed BTC PoP signature (hex with 0x prefix).
@@ -750,7 +750,7 @@ export class PeginManager {
       htlcVout,
       onPopSigned,
       depositorPayoutBtcAddress,
-      depositorLamportPkHash,
+      depositorWotsPkHash,
       preSignedBtcPopSignature,
     } = params;
 
@@ -826,7 +826,7 @@ export class PeginManager {
         hashlock,
         htlcVout,
         payoutScriptPubKey,
-        depositorLamportPkHash,
+        depositorWotsPkHash,
       ],
     });
 

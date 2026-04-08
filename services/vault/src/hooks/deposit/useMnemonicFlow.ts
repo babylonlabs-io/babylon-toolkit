@@ -2,7 +2,7 @@
  * State machine hook for the mnemonic backup / unlock flow.
  *
  * Manages the lifecycle of generating, verifying, encrypting, and
- * unlocking a BIP-39 mnemonic used for Lamport key derivation.
+ * unlocking a BIP-39 mnemonic used for WOTS key derivation.
  *
  * ## Flow paths
  *
@@ -21,7 +21,7 @@ import { useCallback, useEffect, useState } from "react";
 import {
   addMnemonic,
   createVerificationChallenge,
-  generateLamportMnemonic,
+  generateWotsMnemonic,
   getActiveMnemonicId,
   getMnemonicWords,
   hasStoredMnemonic,
@@ -29,7 +29,7 @@ import {
   unlockMnemonic,
   verifyMnemonicWords,
   type VerificationChallenge,
-} from "@/services/lamport";
+} from "@/services/wots";
 
 /** Steps in the mnemonic flow state machine. */
 export enum MnemonicStep {
@@ -123,7 +123,7 @@ export function useMnemonicFlow({
     setState((prev) => ({
       ...prev,
       step: MnemonicStep.GENERATE,
-      mnemonic: generateLamportMnemonic(),
+      mnemonic: generateWotsMnemonic(),
       challenge: null,
       error: null,
     }));

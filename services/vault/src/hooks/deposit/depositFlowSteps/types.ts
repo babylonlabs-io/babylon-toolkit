@@ -77,8 +77,8 @@ export interface PeginRegisterParams {
   onPopSigned?: () => void;
   /** Depositor's BTC payout address (e.g. bc1p...) */
   depositorPayoutBtcAddress: string;
-  /** Keccak256 hash of the depositor's Lamport public key */
-  depositorLamportPkHash: Hex;
+  /** Keccak256 hash of the depositor's WOTS public key */
+  depositorWotsPkHash: Hex;
   /** Pre-signed BTC PoP signature to reuse (skips BTC wallet signing) */
   preSignedBtcPopSignature?: Hex;
   /** SHA-256 hash of the depositor's secret for the new peg-in flow */
@@ -93,10 +93,10 @@ export interface PeginRegisterResult {
 }
 
 // ============================================================================
-// Step 2.5: Lamport Key Submission
+// Step 2.5: WOTS Key Submission
 // ============================================================================
 
-export interface LamportSubmissionParams {
+export interface WotsSubmissionParams {
   btcTxid: string;
   depositorBtcPubkey: string;
   appContractAddress: string;

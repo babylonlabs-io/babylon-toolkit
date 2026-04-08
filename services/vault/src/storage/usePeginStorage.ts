@@ -154,7 +154,7 @@ export function usePeginStorage({
         isPending: true,
         pendingMessage: "Transaction pending confirmation...",
         timestamp: pending.timestamp,
-        depositorLamportPkHash: "",
+        depositorWotsPkHash: "",
       }));
 
     // Update confirmed activities with localStorage status (for displayLabel)

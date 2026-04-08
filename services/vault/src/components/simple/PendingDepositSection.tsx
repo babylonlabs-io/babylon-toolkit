@@ -38,7 +38,7 @@ export function PendingDepositSection() {
     hasPendingDeposits,
     signModal,
     broadcastModal,
-    lamportKeyModal,
+    wotsKeyModal,
     activationModal,
     artifactDownloadModal,
     refundModal,
@@ -114,7 +114,7 @@ export function PendingDepositSection() {
                   vaultProviders={vaultProviders}
                   onSignClick={signModal.handleSignClick}
                   onBroadcastClick={broadcastModal.handleBroadcastClick}
-                  onLamportKeyClick={lamportKeyModal.handleLamportKeyClick}
+                  onWotsKeyClick={wotsKeyModal.handleWotsKeyClick}
                   onActivationClick={activationModal.handleActivationClick}
                   onRefundClick={refundModal.handleRefundClick}
                   onArtifactDownloadClick={
@@ -138,11 +138,11 @@ export function PendingDepositSection() {
         />
       )}
 
-      {/* Sign / Broadcast / Lamport Key / Activation / Refund / Success modals */}
+      {/* Sign / Broadcast / WOTS Key / Activation / Refund / Success modals */}
       <PendingDepositModals
         signModal={signModal}
         broadcastModal={broadcastModal}
-        lamportKeyModal={lamportKeyModal}
+        wotsKeyModal={wotsKeyModal}
         activationModal={activationModal}
         refundModal={refundModal}
         vaultProviders={vaultProviders}
