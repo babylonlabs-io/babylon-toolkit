@@ -107,7 +107,7 @@ export function useDepositPageFlow(): UseDepositPageFlowResult {
     reset: resetDepositState,
   } = useDepositState();
 
-  const { vaultProviders, vaultKeepers, findProvider } = useVaultProviders(
+  const { vaultKeepers, findProvider } = useVaultProviders(
     selectedApplication || undefined,
   );
   const { latestUniversalChallengers } = useProtocolParamsContext();
