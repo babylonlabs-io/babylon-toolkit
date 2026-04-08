@@ -47,8 +47,7 @@ function makeGraphQLVaultItem(
     referralCode: 0,
     depositorPayoutBtcAddress: "0xpayout",
     depositorWotsPkHash: "0x" + "ab".repeat(32),
-    depositorPopSignature: null,
-    prePeginTxHash: null,
+    btcPopSignature: null,
     pendingAt: "1700000000",
     verifiedAt: null,
     activatedAt: null,
@@ -106,14 +105,12 @@ describe("fetchVaults", () => {
 
     it("maps peginTxHash and new optional fields correctly", async () => {
       const popSig = "0x" + "cc".repeat(32);
-      const prePeginHash = "0x" + "dd".repeat(32);
       mockedRequest.mockResolvedValueOnce({
         vaults: {
           items: [
             makeGraphQLVaultItem({
               peginTxHash: "0xpegin123",
-              depositorPopSignature: popSig,
-              prePeginTxHash: prePeginHash,
+              btcPopSignature: popSig,
             }),
           ],
           totalCount: 1,
@@ -126,12 +123,11 @@ describe("fetchVaults", () => {
 
       expect(vaults).toHaveLength(1);
       expect(vaults[0].peginTxHash).toBe("0xpegin123");
-      expect(vaults[0].depositorPopSignature).toBe(popSig);
-      expect(vaults[0].prePeginTxHash).toBe(prePeginHash);
+      expect(vaults[0].btcPopSignature).toBe(popSig);
     });
 
     it("normalizes null optional fields to undefined", async () => {
-      // Base fixture has depositorPopSignature: null, prePeginTxHash: null
+      // Base fixture has btcPopSignature: null
       mockedRequest.mockResolvedValueOnce({
         vaults: {
           items: [makeGraphQLVaultItem()],
@@ -144,8 +140,7 @@ describe("fetchVaults", () => {
       );
 
       expect(vaults).toHaveLength(1);
-      expect(vaults[0].depositorPopSignature).toBeUndefined();
-      expect(vaults[0].prePeginTxHash).toBeUndefined();
+      expect(vaults[0].btcPopSignature).toBeUndefined();
     });
 
     it("normalizes zero-hash and empty-bytes optional fields to undefined", async () => {
@@ -155,8 +150,7 @@ describe("fetchVaults", () => {
         vaults: {
           items: [
             makeGraphQLVaultItem({
-              depositorPopSignature: "0x",
-              prePeginTxHash: zeroHash,
+              btcPopSignature: "0x",
               hashlock: zeroHash,
             }),
           ],
@@ -169,8 +163,7 @@ describe("fetchVaults", () => {
       );
 
       expect(vaults).toHaveLength(1);
-      expect(vaults[0].depositorPopSignature).toBeUndefined();
-      expect(vaults[0].prePeginTxHash).toBeUndefined();
+      expect(vaults[0].btcPopSignature).toBeUndefined();
       expect(vaults[0].hashlock).toBeUndefined();
     });
 

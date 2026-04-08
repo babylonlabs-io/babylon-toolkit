@@ -343,6 +343,63 @@ export interface RegisterPeginResult {
 }
 
 /**
+ * Single request in a batch pegin registration.
+ * All requests in a batch share the same vault provider and depositor.
+ */
+export interface BatchPeginRequestItem {
+  /** Depositor's BTC public key (x-only, 64-char hex or with 0x prefix) */
+  depositorBtcPubkey: string;
+  /** Unsigned Pre-PegIn tx hex (same for all vaults in batch) */
+  unsignedPrePeginTx: string;
+  /** Signed PegIn tx hex for this vault */
+  depositorSignedPeginTx: string;
+  /** SHA256 hashlock for HTLC activation (bytes32 hex) */
+  hashlock: Hex;
+  /** Zero-based HTLC output index in the Pre-PegIn tx */
+  htlcVout: number;
+  /** Depositor's BTC payout address (optional — wallet address used if omitted) */
+  depositorPayoutBtcAddress?: string;
+  /** Keccak256 hash of the depositor's WOTS public key (bytes32) */
+  depositorWotsPkHash: Hex;
+}
+
+/**
+ * Parameters for registerPeginBatchOnChain.
+ */
+export interface RegisterPeginBatchParams {
+  /** Vault provider address (shared across all vaults in batch) */
+  vaultProvider: Address;
+  /** Individual pegin requests (one per vault) */
+  requests: BatchPeginRequestItem[];
+  /** Pre-signed BTC PoP signature (signed once, reused for all vaults) */
+  preSignedBtcPopSignature?: Hex;
+  /** Called after PoP is signed (before ETH tx) */
+  onPopSigned?: () => void | Promise<void>;
+}
+
+/**
+ * Per-vault result from a batch pegin registration.
+ */
+export interface BatchPeginResultItem {
+  /** Derived vault ID: keccak256(abi.encode(peginTxHash, depositor)) */
+  vaultId: Hex;
+  /** Raw BTC pegin transaction hash */
+  peginTxHash: Hex;
+}
+
+/**
+ * Result of registering a batch of pegins on Ethereum in a single transaction.
+ */
+export interface RegisterPeginBatchResult {
+  /** Ethereum transaction hash */
+  ethTxHash: Hex;
+  /** Per-vault results (same order as input requests) */
+  vaults: BatchPeginResultItem[];
+  /** The BTC PoP signature used (for reference) */
+  btcPopSignature: Hex;
+}
+
+/**
  * Resolve prevout data for a transaction input.
  * Checks localPrevouts first; falls back to mempool API.
  */
@@ -912,6 +969,162 @@ export class PeginManager {
       ethTxHash: receipt.transactionHash,
       vaultId,
       peginTxHash,
+      btcPopSignature,
+    };
+  }
+
+  /**
+   * Register multiple pegins on Ethereum in a single transaction.
+   *
+   * Uses the contract's submitPeginRequestBatch() to submit all vault
+   * registrations atomically. All vaults must share the same vault provider.
+   * The PoP signature is signed once and included in each request.
+   *
+   * @param params - Batch registration parameters
+   * @returns Batch result with per-vault IDs and single ETH tx hash
+   */
+  async registerPeginBatchOnChain(
+    params: RegisterPeginBatchParams,
+  ): Promise<RegisterPeginBatchResult> {
+    const { vaultProvider, requests, preSignedBtcPopSignature, onPopSigned } =
+      params;
+
+    if (requests.length === 0) {
+      throw new Error("Batch pegin requires at least one request");
+    }
+
+    // Step 1: Get depositor ETH address
+    if (!this.config.ethWallet.account) {
+      throw new Error("Ethereum wallet account not found");
+    }
+    const depositorEthAddress = this.config.ethWallet.account.address;
+
+    // Step 2: Create proof of possession (or reuse pre-signed one)
+    const btcPopSignature = await this.resolvePopSignature(
+      depositorEthAddress,
+      preSignedBtcPopSignature,
+    );
+
+    if (onPopSigned) {
+      await onPopSigned();
+    }
+
+    // Step 3: Resolve payout scriptPubKey (same for all vaults — same depositor)
+    const payoutScriptPubKey = await this.resolvePayoutScriptPubKey(
+      requests[0].depositorPayoutBtcAddress,
+    );
+
+    // Step 4: Pre-compute vault IDs and check for duplicates
+    const vaultResults: BatchPeginResultItem[] = [];
+    for (const req of requests) {
+      const depositorSignedPeginTxHex = ensureHexPrefix(
+        req.depositorSignedPeginTx,
+      );
+      const peginTxHash = calculateBtcTxHash(depositorSignedPeginTxHex);
+      const derivedVaultIdHex = await deriveVaultId(
+        stripHexPrefix(peginTxHash),
+        stripHexPrefix(depositorEthAddress),
+      );
+      const vaultId = ensureHexPrefix(derivedVaultIdHex) as Hex;
+      const exists = await this.checkVaultExists(vaultId);
+      if (exists) {
+        throw new Error(
+          `Vault already exists (ID: ${vaultId}, peginTxHash: ${peginTxHash}). ` +
+            `To create a new vault, use different UTXOs or a different amount.`,
+        );
+      }
+      vaultResults.push({ vaultId, peginTxHash });
+    }
+
+    // Step 5: Query pegin fee and compute total
+    const publicClient = createPublicClient({
+      chain: this.config.ethChain,
+      transport: http(),
+    });
+
+    let peginFee: bigint;
+    try {
+      peginFee = (await publicClient.readContract({
+        address: this.config.vaultContracts.btcVaultRegistry,
+        abi: BTCVaultRegistryABI,
+        functionName: "getPegInFee",
+        args: [vaultProvider],
+      })) as bigint;
+    } catch {
+      throw new Error(
+        "Failed to query pegin fee from the contract. " +
+          "Please check your network connection and that the contract address is correct.",
+      );
+    }
+    const totalFee = peginFee * BigInt(requests.length);
+
+    // Step 6: Build BatchPeginRequest[] tuple array
+    const batchRequests = requests.map((req) => ({
+      depositorBtcPubKey: ensureHexPrefix(req.depositorBtcPubkey) as Hex,
+      btcPopSignature: btcPopSignature as Hex,
+      unsignedPrePeginTx: ensureHexPrefix(req.unsignedPrePeginTx) as Hex,
+      depositorSignedPeginTx: ensureHexPrefix(
+        req.depositorSignedPeginTx,
+      ) as Hex,
+      hashlock: req.hashlock,
+      htlcVout: req.htlcVout,
+      referralCode: 0,
+      depositorPayoutBtcAddress: payoutScriptPubKey as Hex,
+      depositorWotsPkHash: req.depositorWotsPkHash,
+    }));
+
+    // Step 7: Encode batch call data
+    const callData = encodeFunctionData({
+      abi: BTCVaultRegistryABI,
+      functionName: "submitPeginRequestBatch",
+      args: [depositorEthAddress, vaultProvider, batchRequests],
+    });
+
+    // Step 8: Estimate gas
+    let gasEstimate: bigint;
+    try {
+      gasEstimate = await publicClient.estimateGas({
+        to: this.config.vaultContracts.btcVaultRegistry,
+        data: callData,
+        value: totalFee,
+        account: this.config.ethWallet.account.address,
+      });
+    } catch (error) {
+      handleContractError(error);
+    }
+
+    // Step 9: Submit batch transaction
+    let ethTxHash: Hex;
+    try {
+      ethTxHash = await this.config.ethWallet.sendTransaction({
+        to: this.config.vaultContracts.btcVaultRegistry,
+        data: callData,
+        value: totalFee,
+        account: this.config.ethWallet.account,
+        chain: this.config.ethChain,
+        gas: gasEstimate,
+      });
+    } catch (error) {
+      handleContractError(error);
+    }
+
+    // Step 10: Wait for receipt
+    const receipt = await publicClient.waitForTransactionReceipt({
+      hash: ethTxHash,
+      timeout: RECEIPT_TIMEOUT_MS,
+    });
+    if (receipt.status === "reverted") {
+      handleContractError(
+        new Error(
+          `Batch transaction reverted. Hash: ${ethTxHash}. ` +
+            `Check the transaction on block explorer for details.`,
+        ),
+      );
+    }
+
+    return {
+      ethTxHash: receipt.transactionHash,
+      vaults: vaultResults,
       btcPopSignature,
     };
   }

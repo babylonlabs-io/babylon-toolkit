@@ -61,37 +61,33 @@ export interface UtxoRef {
 // Steps 1-2: Pegin Submit
 // ============================================================================
 
-export interface PeginRegisterParams {
+export interface PeginBatchRegisterParams {
   btcWalletProvider: BitcoinWallet;
   walletClient: WalletClient;
-  depositorBtcPubkey: string;
-  /** PegIn tx hex — submitted as depositorSignedPeginTx; vault ID derived from this */
-  peginTxHex: string;
-  /** Pre-PegIn tx hex — submitted as unsignedPrePeginTx for DA */
-  unsignedPrePeginTxHex: string;
-  /** SHA256 hashlock for HTLC activation (hex with 0x prefix) */
-  hashlock: Hex;
-  /** Zero-based index of the HTLC output in the Pre-PegIn tx this PegIn spends */
-  htlcVout: number;
+  /** Vault provider ETH address (shared for all vaults in batch) */
   vaultProviderAddress: string;
-  onPopSigned?: () => void;
-  /** Depositor's BTC payout address (e.g. bc1p...) */
-  depositorPayoutBtcAddress: string;
-  /** Keccak256 hash of the depositor's WOTS public key */
-  depositorWotsPkHash: Hex;
-  /** Pre-signed BTC PoP signature to reuse (skips BTC wallet signing) */
+  /** Per-vault registration data */
+  requests: Array<{
+    depositorBtcPubkey: string;
+    unsignedPrePeginTx: string;
+    depositorSignedPeginTx: string;
+    hashlock: Hex;
+    htlcVout: number;
+    depositorPayoutBtcAddress?: string;
+    depositorWotsPkHash: Hex;
+  }>;
+  /** Pre-signed BTC PoP signature (signed once, reused for all) */
   preSignedBtcPopSignature?: Hex;
-  /** SHA-256 hash of the depositor's secret for the new peg-in flow */
-  depositorSecretHash?: Hex;
+  /** Called after PoP is signed (before ETH tx) */
+  onPopSigned?: () => void;
 }
 
-export interface PeginRegisterResult {
-  /** Derived vault ID for contract/indexer operations */
-  vaultId: Hex;
-  /** Raw BTC pegin transaction hash for VP RPC operations */
-  peginTxHash: Hex;
+export interface PeginBatchRegisterResult {
   ethTxHash: Hex;
-  /** The BTC PoP signature used, for reuse in subsequent pegins */
+  vaults: Array<{
+    vaultId: Hex;
+    peginTxHash: Hex;
+  }>;
   btcPopSignature: Hex;
 }
 

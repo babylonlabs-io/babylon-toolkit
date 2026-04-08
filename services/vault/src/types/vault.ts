@@ -105,10 +105,7 @@ export interface Vault {
   depositorWotsPkHash: string;
 
   /** BTC proof of possession signature */
-  depositorPopSignature?: Hex;
-
-  /** Bitcoin txid of the unsigned pre-pegin transaction */
-  prePeginTxHash?: Hex;
+  btcPopSignature?: Hex;
 
   // === Application/usage status ===
 

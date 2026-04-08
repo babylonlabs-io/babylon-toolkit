@@ -9,7 +9,7 @@
  * 0. Validation - validateDepositInputs
  * 1. Get ETH wallet - getEthWalletClient
  * 2a. Prepare pegin - preparePegin (build + fund BTC tx)
- * 2b. Register pegin - registerPeginAndWait (PoP + ETH tx)
+ * 2b. Register pegin batch - registerPeginBatchAndWait (PoP + single ETH tx)
  * 2.5. WOTS key RPC submission - submitWotsPublicKey
  * 3. Payout signing - pollAndPreparePayoutSigning, submitPayoutSignatures
  * 4. Broadcast - waitForContractVerification, broadcastBtcTransaction
@@ -22,8 +22,8 @@ export type {
   DepositUtxo,
   PayoutSigningContext,
   PayoutSigningParams,
-  PeginRegisterParams,
-  PeginRegisterResult,
+  PeginBatchRegisterParams,
+  PeginBatchRegisterResult,
   UtxoRef,
   WotsSubmissionParams,
 } from "./types";
@@ -33,7 +33,10 @@ export { validateDepositInputs } from "./validation";
 export type { DepositFlowInputs } from "./validation";
 
 // Steps 1-2: ETH wallet and pegin submission
-export { getEthWalletClient, registerPeginAndWait } from "./ethereumSubmit";
+export {
+  getEthWalletClient,
+  registerPeginBatchAndWait,
+} from "./ethereumSubmit";
 
 // Step 2.5: WOTS key submission
 export { submitWotsPublicKey } from "./wotsSubmission";

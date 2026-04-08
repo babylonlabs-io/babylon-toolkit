@@ -41,8 +41,7 @@ const VAULT_FIELDS = `
   referralCode
   depositorPayoutBtcAddress
   depositorWotsPkHash
-  depositorPopSignature
-  prePeginTxHash
+  btcPopSignature
   pendingAt
   verifiedAt
   activatedAt
@@ -118,8 +117,7 @@ interface GraphQLVaultItem {
   referralCode: number;
   depositorPayoutBtcAddress: string;
   depositorWotsPkHash: string | null;
-  depositorPopSignature: string | null;
-  prePeginTxHash: string | null;
+  btcPopSignature: string | null;
   pendingAt: string;
   verifiedAt: string | null;
   activatedAt: string | null;
@@ -266,8 +264,7 @@ function transformVaultItem(item: GraphQLVaultItem): Vault {
       "depositorWotsPkHash",
       item.id,
     ),
-    depositorPopSignature: normalizeOptionalHex(item.depositorPopSignature),
-    prePeginTxHash: normalizeOptionalHex(item.prePeginTxHash),
+    btcPopSignature: normalizeOptionalHex(item.btcPopSignature),
     createdAt: parseInt(item.pendingAt, 10) * 1000,
     expiredAt: item.expiredAt ? parseInt(item.expiredAt, 10) * 1000 : undefined,
     expirationReason: isValidExpirationReason(item.expirationReason)
