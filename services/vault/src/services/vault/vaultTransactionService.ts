@@ -148,7 +148,7 @@ export async function preparePeginTransaction(
   const peginManager = createPeginManager(btcWallet, ethWallet);
 
   const peginResult = await peginManager.preparePegin({
-    amount: params.pegInAmount,
+    amounts: [params.pegInAmount],
     vaultProviderBtcPubkey: params.vaultProviderBtcPubkey,
     vaultKeeperBtcPubkeys: params.vaultKeeperBtcPubkeys,
     universalChallengerBtcPubkeys: params.universalChallengerBtcPubkeys,
@@ -169,11 +169,16 @@ export async function preparePeginTransaction(
       ? depositorBtcPubkeyRaw.slice(2)
       : depositorBtcPubkeyRaw;
 
+  const vaultData = peginResult.perVault[0];
+  if (!vaultData) {
+    throw new Error("preparePegin returned no per-vault data");
+  }
+
   return {
-    btcTxHash: ensureHexPrefix(peginResult.peginTxid),
+    btcTxHash: ensureHexPrefix(vaultData.peginTxid),
     fundedPrePeginTxHex: peginResult.fundedPrePeginTxHex,
-    peginTxHex: peginResult.peginTxHex,
-    peginInputSignature: peginResult.peginInputSignature,
+    peginTxHex: vaultData.peginTxHex,
+    peginInputSignature: vaultData.peginInputSignature,
     selectedUTXOs: peginResult.selectedUTXOs,
     fee: peginResult.fee,
     depositorBtcPubkey,
@@ -203,6 +208,7 @@ export async function registerPeginOnChain(
     depositorPayoutBtcAddress: params.depositorPayoutBtcAddress,
     depositorLamportPkHash: params.depositorLamportPkHash,
     preSignedBtcPopSignature: params.preSignedBtcPopSignature,
+    htlcVout: 0,
   });
 
   return {

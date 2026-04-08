@@ -2,8 +2,9 @@ import type { MempoolUTXO } from "@babylonlabs-io/ts-sdk";
 import {
   MAX_NON_LEGACY_OUTPUT_SIZE,
   P2TR_INPUT_SIZE,
-  TX_BUFFER_SIZE_OVERHEAD,
+  peginOutputCount,
   selectUtxosForPegin,
+  TX_BUFFER_SIZE_OVERHEAD,
 } from "@babylonlabs-io/ts-sdk/tbv/core";
 import { useMemo } from "react";
 
@@ -121,7 +122,12 @@ export function useEstimatedBtcFee(
 
     try {
       // Use SDK's iterative UTXO selection with fee calculation
-      const { fee } = selectUtxosForPegin(utxos, amount, defaultFeeRate);
+      const { fee } = selectUtxosForPegin(
+        utxos,
+        amount,
+        defaultFeeRate,
+        peginOutputCount(1),
+      );
 
       return {
         fee,

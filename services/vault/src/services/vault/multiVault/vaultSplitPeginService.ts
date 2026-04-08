@@ -36,8 +36,8 @@ import {
   getNetwork,
   getPsbtInputFields,
   PeginManager,
+  peginOutputCount,
   selectUtxosForPegin,
-  SINGLE_DEPOSIT_HTLC_VOUT,
   type PrePeginParams,
   type UTXO,
 } from "@babylonlabs-io/ts-sdk/tbv/core";
@@ -223,7 +223,7 @@ export async function preparePeginFromSplitOutput(
       universalChallengerPubkeys: universalChallengerBtcPubkeys,
       hashlocks: [params.hashH],
       timelockRefund: params.timelockRefund,
-      pegInAmount: params.pegInAmount,
+      pegInAmounts: [params.pegInAmount],
       feeRate: params.protocolFeeRate,
       numLocalChallengers,
       councilQuorum: params.councilQuorum,
@@ -240,6 +240,7 @@ export async function preparePeginFromSplitOutput(
       [params.splitOutput],
       prePeginResult.totalOutputValue,
       params.mempoolFeeRate,
+      peginOutputCount(1),
     );
 
     // Step 5: Fund the Pre-PegIn transaction (add input + change output)
@@ -256,7 +257,7 @@ export async function preparePeginFromSplitOutput(
       prePeginParams,
       timelockPegin: params.timelockPegin,
       fundedPrePeginTxHex,
-      htlcVout: SINGLE_DEPOSIT_HTLC_VOUT,
+      htlcVout: 0,
     });
 
     // Step 7: Build PegIn input PSBT, sign it, and extract the depositor signature
@@ -351,6 +352,7 @@ export async function registerSplitPeginOnChain(
       depositorPayoutBtcAddress: params.depositorPayoutBtcAddress,
       depositorLamportPkHash: params.depositorLamportPkHash,
       preSignedBtcPopSignature: params.preSignedBtcPopSignature,
+      htlcVout: 0,
     });
 
     return result;
