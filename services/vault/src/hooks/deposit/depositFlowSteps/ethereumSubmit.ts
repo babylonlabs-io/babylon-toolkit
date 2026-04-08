@@ -93,7 +93,8 @@ export async function registerPeginAndWait(
   });
 
   return {
-    btcTxid: result.btcTxHash,
+    vaultId: result.vaultId,
+    peginTxHash: result.peginTxHash,
     ethTxHash: result.transactionHash,
     btcPopSignature: result.btcPopSignature,
   };

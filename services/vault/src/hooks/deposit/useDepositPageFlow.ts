@@ -56,7 +56,7 @@ export interface UseDepositPageFlowResult {
   confirmMnemonic: (mnemonic?: string, mnemonicId?: string) => void;
   getMnemonic: (() => Promise<string>) | undefined;
   mnemonicId: string | undefined;
-  onSignSuccess: (btcTxid: string, ethTxHash: string) => void;
+  onSignSuccess: (peginTxHash: string, ethTxHash: string) => void;
   resetDeposit: () => void;
   refetchActivities: () => Promise<void>;
 
@@ -75,7 +75,7 @@ export interface UseDepositPageFlowResult {
   ) => void;
   setFeeRate: (feeRate: number) => void;
   setTransactionHashes: (
-    btcTxid: string,
+    peginTxHash: string,
     ethTxHash: string,
     depositorBtcPubkey?: string,
   ) => void;
@@ -196,8 +196,8 @@ export function useDepositPageFlow(): UseDepositPageFlowResult {
     resetDepositState();
   }, [resetDepositState]);
 
-  const onSignSuccess = (btcTxid: string, ethTxHash: string) => {
-    setTransactionHashes(btcTxid, ethTxHash);
+  const onSignSuccess = (peginTxHash: string, ethTxHash: string) => {
+    setTransactionHashes(peginTxHash, ethTxHash);
     goToStep(DepositStep.SUCCESS);
   };
 

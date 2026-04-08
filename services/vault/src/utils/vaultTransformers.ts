@@ -43,7 +43,7 @@ export function transformVaultToActivity(vault: Vault): VaultActivity {
   // Create VaultActivity object (deposit/collateral info)
   return {
     id: vault.id,
-    txHash: vault.id,
+    peginTxHash: vault.peginTxHash,
     collateral: {
       amount: btcAmount,
       symbol: btcConfig.coinSymbol,

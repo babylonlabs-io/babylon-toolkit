@@ -17,6 +17,7 @@ function makeCollateral(
     liquidationIndex: 0,
     vault: {
       id: "vault1",
+      peginTxHash: "0xpeginTxHash1",
       amount: 100000000n,
       status: "active",
       vaultProvider: "0xprovider1",
@@ -37,6 +38,7 @@ describe("Collateral Utilities", () => {
         {
           id: "0xdepositor1-vault1",
           vaultId: "vault1",
+          peginTxHash: "0xpeginTxHash1",
           amountBtc: 1,
           addedAt: 1700000000,
           inUse: true,
@@ -68,6 +70,7 @@ describe("Collateral Utilities", () => {
         makeCollateral({
           vault: {
             id: "vault1",
+            peginTxHash: "0xpeginTxHash1",
             amount: 100000000n,
             status: "liquidated",
             vaultProvider: "0xprovider1",
@@ -86,6 +89,7 @@ describe("Collateral Utilities", () => {
         makeCollateral({
           vault: {
             id: "vault1",
+            peginTxHash: "0xpeginTxHash1",
             amount: 100000000n,
             status: "depositor_withdrawn",
             vaultProvider: "0xprovider1",

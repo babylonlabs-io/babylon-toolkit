@@ -30,6 +30,7 @@ describe("UTXO Reservation", () => {
   describe("collectReservedUtxoRefs", () => {
     const mockPendingPegin: PendingPeginRequest = {
       id: "0x1234",
+      peginTxHash: "0xpeginTxHash1234",
       timestamp: Date.now(),
       status: "pending" as any,
       selectedUTXOs: [
@@ -54,6 +55,7 @@ describe("UTXO Reservation", () => {
 
     const mockPendingPeginWithTxHex: PendingPeginRequest = {
       id: "0x5678",
+      peginTxHash: "0xpeginTxHash5678",
       timestamp: Date.now(),
       status: "pending" as any,
       unsignedTxHex: VALID_TX_FOR_PENDING,

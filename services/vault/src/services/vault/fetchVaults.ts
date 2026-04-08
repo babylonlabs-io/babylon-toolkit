@@ -107,7 +107,7 @@ interface GraphQLVaultItem {
   depositorSignedPeginTx: string;
   unsignedPrePeginTx: string;
   peginTxHash: string;
-  hashlock: string;
+  hashlock: string | null;
   htlcVout: number;
   secret: string | null;
   peginSigsPostedAt: string | null;
@@ -203,9 +203,29 @@ const ZERO_HASH =
  * Normalize an optional hex field from the indexer.
  * Treats null, "0x" (empty bytes), and zero-hash as undefined.
  */
+const VALID_HEX_PATTERN = /^0x[0-9a-fA-F]+$/;
+
 function normalizeOptionalHex(value: string | null): Hex | undefined {
   if (!value || value === "0x" || value === ZERO_HASH) return undefined;
+  if (!VALID_HEX_PATTERN.test(value)) {
+    logger.warn(
+      `[fetchVaults] Malformed hex value from indexer: ${value.slice(0, 20)}...`,
+    );
+    return undefined;
+  }
   return value as Hex;
+}
+
+const VALID_EXPIRATION_REASONS: ReadonlySet<string> = new Set([
+  "ack_timeout",
+  "proof_timeout",
+  "activation_timeout",
+]);
+
+function isValidExpirationReason(
+  value: string | null | undefined,
+): value is ExpirationReason {
+  return typeof value === "string" && VALID_EXPIRATION_REASONS.has(value);
 }
 
 /**
@@ -250,7 +270,9 @@ function transformVaultItem(item: GraphQLVaultItem): Vault {
     prePeginTxHash: normalizeOptionalHex(item.prePeginTxHash),
     createdAt: parseInt(item.pendingAt, 10) * 1000,
     expiredAt: item.expiredAt ? parseInt(item.expiredAt, 10) * 1000 : undefined,
-    expirationReason: (item.expirationReason as ExpirationReason) ?? undefined,
+    expirationReason: isValidExpirationReason(item.expirationReason)
+      ? item.expirationReason
+      : undefined,
     isInUse: item.inUse,
   };
 }

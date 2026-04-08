@@ -47,7 +47,7 @@ describe("vaultTransformers", () => {
       const activity = transformVaultToActivity(vault);
 
       expect(activity.id).toBe(vault.id);
-      expect(activity.txHash).toBe(vault.id);
+      expect(activity.peginTxHash).toBe(vault.peginTxHash);
       expect(activity.contractStatus).toBe(ContractStatus.PENDING);
       expect(activity.isInUse).toBe(false);
       expect(activity.collateral.symbol).toBe("BTC");

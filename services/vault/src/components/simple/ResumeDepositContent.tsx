@@ -173,10 +173,10 @@ export function ResumeWotsContent({
 
   const mappedMnemonicId = useMemo(
     () =>
-      activity.txHash && ethAddress
-        ? getMnemonicIdForPegin(activity.txHash, ethAddress)
+      activity.peginTxHash && ethAddress
+        ? getMnemonicIdForPegin(activity.peginTxHash, ethAddress)
         : null,
-    [activity.txHash, ethAddress],
+    [activity.peginTxHash, ethAddress],
   );
 
   const canUseStoredMnemonic =
@@ -199,9 +199,9 @@ export function ResumeWotsContent({
           throw new Error("Could not resolve vault provider address");
         }
 
-        const btcTxid = activity.txHash ?? null;
-        if (!btcTxid) {
-          throw new Error("Missing transaction hash");
+        const peginTxHash = activity.peginTxHash ?? null;
+        if (!peginTxHash) {
+          throw new Error("Missing pegin transaction hash");
         }
 
         if (!activity.depositorBtcPubkey) {
@@ -216,7 +216,7 @@ export function ResumeWotsContent({
         }
 
         await submitWotsPublicKey({
-          btcTxid,
+          peginTxHash,
           depositorBtcPubkey: activity.depositorBtcPubkey,
           appContractAddress: activity.applicationEntryPoint,
           providerAddress,
@@ -224,7 +224,7 @@ export function ResumeWotsContent({
         });
 
         if (mnemonicId && ethAddress) {
-          linkPeginToMnemonic(btcTxid, mnemonicId, ethAddress);
+          linkPeginToMnemonic(peginTxHash, mnemonicId, ethAddress);
         }
 
         setSubmitting(false);

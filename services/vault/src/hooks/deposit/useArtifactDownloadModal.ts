@@ -12,7 +12,7 @@ function getArtifactParams(
   activity: VaultActivity,
 ): ArtifactDownloadModalParams | null {
   const providerAddress = activity.providers?.[0]?.id;
-  const peginTxid = activity.txHash || activity.id;
+  const peginTxid = activity.peginTxHash;
   const depositorPk = activity.depositorBtcPubkey;
 
   if (!providerAddress || !peginTxid || !depositorPk) {

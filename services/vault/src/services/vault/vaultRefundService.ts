@@ -41,11 +41,13 @@ import {
  * - Non-witness: version(4) + segwit(2) + inputCount(1) + input(41) + outputCount(1) + P2TR output(43) + locktime(4) = 96 bytes
  * - Witness: stackCount(1) + sig(65) + scriptLen(1) + refundScript(~39) + controlBlockLen(1) + controlBlock(33) = ~140 bytes
  * - vsize = (96 * 4 + 140) / 4 ≈ 131 vbytes — using 160 as a safe margin
+ *
+ * TODO: Replace with WASM SDK vsize calculation when available.
  */
 const REFUND_TX_VSIZE_ESTIMATE = 160;
 
 export interface BroadcastRefundParams {
-  /** Vault ID (pegin tx hash) */
+  /** Vault ID: keccak256(abi.encode(peginTxHash, depositor)) */
   vaultId: Hex;
   /** BTC wallet provider for signing */
   btcWalletProvider: {
@@ -161,7 +163,12 @@ export async function buildAndBroadcastRefundTransaction(
     hashlock: stripHexPrefix(onChainVault.hashlock),
   });
 
-  const signOptions = createTaprootScriptPathSignOptions(depositorBtcPubkey, 1);
+  /** Leaf index of the refund script in the taproot script tree */
+  const REFUND_SCRIPT_LEAF_INDEX = 1;
+  const signOptions = createTaprootScriptPathSignOptions(
+    depositorBtcPubkey,
+    REFUND_SCRIPT_LEAF_INDEX,
+  );
   const signedPsbtHex = await btcWalletProvider.signPsbt(psbtHex, signOptions);
   const signedPsbt = Psbt.fromHex(signedPsbtHex);
 

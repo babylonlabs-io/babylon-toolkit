@@ -137,7 +137,7 @@ describe("vaultTransactionService - preparePeginTransaction", () => {
 
       expect(result.perVault).toHaveLength(1);
       expect(result.perVault[0].htlcVout).toBe(0);
-      expect(result.perVault[0].btcTxHash).toBe("0xtxhash123");
+      expect(result.perVault[0].peginTxHash).toBe("0xtxhash123");
       expect(result.perVault[0].peginTxHex).toBe("0xpeginHex");
       expect(result.fundedPrePeginTxHex).toBe("0x123abc");
       expect(result.unsignedPrePeginTxHex).toBe("0xunfunded");

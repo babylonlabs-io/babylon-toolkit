@@ -86,7 +86,10 @@ export interface PeginRegisterParams {
 }
 
 export interface PeginRegisterResult {
-  btcTxid: string;
+  /** Derived vault ID for contract/indexer operations */
+  vaultId: Hex;
+  /** Raw BTC pegin transaction hash for VP RPC operations */
+  peginTxHash: Hex;
   ethTxHash: Hex;
   /** The BTC PoP signature used, for reuse in subsequent pegins */
   btcPopSignature: Hex;
@@ -97,7 +100,8 @@ export interface PeginRegisterResult {
 // ============================================================================
 
 export interface WotsSubmissionParams {
-  btcTxid: string;
+  /** Raw BTC pegin transaction hash (for VP RPC pegin_txid) */
+  peginTxHash: string;
   depositorBtcPubkey: string;
   appContractAddress: string;
   providerAddress: string;
@@ -110,7 +114,10 @@ export interface WotsSubmissionParams {
 // ============================================================================
 
 export interface PayoutSigningParams {
-  btcTxid: string;
+  /** Derived vault ID (for contract operations in signing context) */
+  vaultId: string;
+  /** Raw BTC pegin transaction hash (for VP RPC operations) */
+  peginTxHash: string;
   /** The pegin transaction hex from step 2 - used for signing context */
   btcTxHex: string;
   depositorBtcPubkey: string;
@@ -136,7 +143,8 @@ export interface PayoutSigningContext {
 // ============================================================================
 
 export interface BroadcastParams {
-  btcTxid: string;
+  /** Derived vault ID (for localStorage identity) */
+  vaultId: string;
   depositorBtcPubkey: string;
   btcWalletProvider: BitcoinWallet;
   /** Funded Pre-PegIn tx hex to broadcast (avoids re-fetching from indexer) */

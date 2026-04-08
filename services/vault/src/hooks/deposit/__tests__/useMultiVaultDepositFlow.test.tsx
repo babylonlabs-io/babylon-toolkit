@@ -183,14 +183,14 @@ const MOCK_BATCH_RESULT = {
   perVault: [
     {
       htlcVout: 0,
-      btcTxHash: "0xVault0BtcTxHash" as Hex,
+      peginTxHash: "0xVault0BtcTxHash" as Hex,
       peginTxHex: "peginTxHex0",
       peginTxid: "peginTxid0",
       peginInputSignature: "a".repeat(128),
     },
     {
       htlcVout: 1,
-      btcTxHash: "0xVault1BtcTxHash" as Hex,
+      peginTxHash: "0xVault1BtcTxHash" as Hex,
       peginTxHex: "peginTxHex1",
       peginTxid: "peginTxid1",
       peginInputSignature: "b".repeat(128),
@@ -305,7 +305,8 @@ async function setupDefaultMocks() {
 
   vi.mocked(getEthWalletClient).mockResolvedValue(MOCK_ETH_WALLET as any);
   vi.mocked(registerPeginAndWait).mockResolvedValue({
-    btcTxid: "0xRegisteredVaultId" as Hex,
+    vaultId: "0xRegisteredVaultId" as Hex,
+    peginTxHash: "0xRegisteredPeginTxHash" as Hex,
     ethTxHash: "0xEthTxHash" as Hex,
     btcPopSignature: "0xMockPopSignature" as Hex,
   });
@@ -437,12 +438,14 @@ describe("useMultiVaultDepositFlow", () => {
       // First call returns a PoP signature
       vi.mocked(registerPeginAndWait)
         .mockResolvedValueOnce({
-          btcTxid: "0xVault0Id" as Hex,
+          vaultId: "0xVault0Id" as Hex,
+          peginTxHash: "0xVault0PeginTxHash" as Hex,
           ethTxHash: "0xEthTx0" as Hex,
           btcPopSignature: "0xPopSig" as Hex,
         })
         .mockResolvedValueOnce({
-          btcTxid: "0xVault1Id" as Hex,
+          vaultId: "0xVault1Id" as Hex,
+          peginTxHash: "0xVault1PeginTxHash" as Hex,
           ethTxHash: "0xEthTx1" as Hex,
           btcPopSignature: "0xPopSig" as Hex,
         });

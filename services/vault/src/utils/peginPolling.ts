@@ -125,7 +125,7 @@ export function getDepositsNeedingPolling(
         localStatus !== LocalStorageStatus.PAYOUT_SIGNED &&
         !!btcPublicKey &&
         !!vaultProviderAddress &&
-        !!activity.txHash &&
+        !!activity.peginTxHash &&
         !!activity.applicationEntryPoint &&
         isVaultOwnedByWallet(activity.depositorBtcPubkey, btcPublicKey);
 

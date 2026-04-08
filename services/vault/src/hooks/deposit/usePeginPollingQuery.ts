@@ -106,7 +106,7 @@ async function fetchFromProvider(
 
   for (const deposit of deposits) {
     const depositId = deposit.activity.id;
-    const strippedTxid = stripHexPrefix(deposit.activity.txHash!);
+    const strippedTxid = stripHexPrefix(deposit.activity.peginTxHash!);
 
     try {
       // Phase 1: Lightweight status check
