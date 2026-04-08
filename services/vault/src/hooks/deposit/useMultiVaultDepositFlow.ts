@@ -27,6 +27,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { v4 as uuidv4 } from "uuid";
 import type { Address, Hex } from "viem";
 
+import { VpResponseValidationError } from "@/clients/vault-provider-rpc/validators";
 import { useProtocolParamsContext } from "@/context/ProtocolParamsContext";
 import { logger } from "@/infrastructure";
 import { LocalStorageStatus } from "@/models/peginStateMachine";
@@ -46,7 +47,6 @@ import { deriveWotsPkHash, linkPeginToMnemonic } from "@/services/wots";
 import { addPendingPegin } from "@/storage/peginStorage";
 import { btcAddressToScriptPubKeyHex } from "@/utils/btc";
 import { satoshiToBtcNumber } from "@/utils/btcConversion";
-import { VpResponseValidationError } from "@/clients/vault-provider-rpc/validators";
 import { sanitizeErrorMessage } from "@/utils/errors/formatting";
 import { formatBtcValue } from "@/utils/formatting";
 import { hashSecret } from "@/utils/secretUtils";
