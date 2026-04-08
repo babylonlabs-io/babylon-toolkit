@@ -74,6 +74,8 @@ vi.mock("@/models/peginStateMachine", async (importOriginal) => {
   };
 });
 
+import type { Hex } from "viem";
+
 import { broadcastPrePeginTransaction, fetchVaultById } from "@/services/vault";
 
 import { useVaultActions } from "../useVaultActions";
@@ -94,7 +96,7 @@ const baseVault = {
 };
 
 const baseBroadcastParams = {
-  activityId: "0xvaultId",
+  activityId: "0xvaultId" as Hex,
   activityAmount: "0.01",
   activityProviders: [{ id: "0xprovider" }],
   onRefetchActivities: vi.fn(),
@@ -115,9 +117,10 @@ describe("useVaultActions — handleBroadcast transaction integrity", () => {
       await result.current.handleBroadcast({
         ...baseBroadcastParams,
         pendingPegin: {
-          id: "0xvaultId",
+          id: "0xvaultId" as Hex,
           timestamp: Date.now(),
           status: "PENDING" as never,
+          peginTxHash: "0xpeginTxHash" as Hex,
           unsignedTxHex: TRUSTED_TX_HEX,
         },
       });
@@ -141,9 +144,10 @@ describe("useVaultActions — handleBroadcast transaction integrity", () => {
       await result.current.handleBroadcast({
         ...baseBroadcastParams,
         pendingPegin: {
-          id: "0xvaultId",
+          id: "0xvaultId" as Hex,
           timestamp: Date.now(),
           status: "PENDING" as never,
+          peginTxHash: "0xpeginTxHash" as Hex,
           unsignedTxHex: TRUSTED_TX_HEX,
         },
       });
@@ -179,9 +183,10 @@ describe("useVaultActions — handleBroadcast transaction integrity", () => {
       await result.current.handleBroadcast({
         ...baseBroadcastParams,
         pendingPegin: {
-          id: "0xvaultId",
+          id: "0xvaultId" as Hex,
           timestamp: Date.now(),
           status: "PENDING" as never,
+          peginTxHash: "0xpeginTxHash" as Hex,
         },
       });
     });
