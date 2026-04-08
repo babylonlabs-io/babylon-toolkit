@@ -44,6 +44,12 @@ vi.mock("@/context/ProtocolParamsContext", () => ({
   useProtocolParamsContext: vi.fn(),
 }));
 
+// Mock btc utils (btcAddressToScriptPubKeyHex needs valid address + bitcoinjs-lib)
+vi.mock("@/utils/btc", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/utils/btc")>()),
+  btcAddressToScriptPubKeyHex: vi.fn(() => "0x0014mockedscriptpubkey"),
+}));
+
 vi.mock("../useVaultProviders", () => ({
   useVaultProviders: vi.fn(),
 }));

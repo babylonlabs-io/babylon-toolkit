@@ -29,6 +29,8 @@ export interface OnChainVaultData {
   hashlock: Hex;
   /** Index of the HTLC output in the Pre-PegIn transaction */
   htlcVout: number;
+  // Note: depositorPayoutBtcAddress is not in the BTCVault struct — only emitted
+  // in the PegInSubmitted event. Source it from the indexer instead.
 }
 
 /**

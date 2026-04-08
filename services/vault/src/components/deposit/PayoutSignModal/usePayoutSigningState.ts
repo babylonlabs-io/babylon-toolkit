@@ -31,6 +31,7 @@ import {
 import { updatePendingPeginStatus } from "../../../storage/peginStorage";
 import type { VaultActivity } from "../../../types/activity";
 import type { ClaimerTransactions } from "../../../types/rpc";
+import { btcAddressToScriptPubKeyHex } from "../../../utils/btc";
 import { formatPayoutSignatureError } from "../../../utils/errors/formatting";
 
 import type { SigningProgressProps } from "./SigningProgress";
@@ -96,6 +97,34 @@ export function usePayoutSigningState({
           "No transactions available to sign. Please wait and try again.",
       });
       return;
+    }
+
+    // Validate payout address exists (required for payout output validation)
+    if (!activity.depositorPayoutBtcAddress) {
+      setError({
+        title: "Missing Payout Address",
+        message:
+          "Depositor payout address not available. Please wait for indexer sync and try again.",
+      });
+      return;
+    }
+
+    // Security: verify indexer-sourced scriptPubKey matches the connected wallet.
+    // A compromised indexer could return a different depositorPayoutBtcAddress,
+    // causing the validation to check against an attacker's address.
+    const connectedBtcAddress = btcConnector?.connectedWallet?.account?.address;
+    if (connectedBtcAddress) {
+      const walletScriptPubKey =
+        btcAddressToScriptPubKeyHex(connectedBtcAddress);
+      if (walletScriptPubKey !== activity.depositorPayoutBtcAddress) {
+        setError({
+          title: "Payout Address Mismatch",
+          message:
+            "The payout address from the indexer does not match your connected wallet. " +
+            "This may indicate a data integrity issue. Please verify your wallet connection.",
+        });
+        return;
+      }
     }
 
     // Find vault provider
@@ -164,6 +193,7 @@ export function usePayoutSigningState({
         depositorBtcPubkey: btcPublicKey,
         providers,
         getUniversalChallengersByVersion,
+        registeredPayoutScriptPubKey: activity.depositorPayoutBtcAddress,
       });
 
       // Prepare transactions for signing
@@ -223,10 +253,12 @@ export function usePayoutSigningState({
     activity.providers,
     activity.txHash,
     activity.id,
+    activity.depositorPayoutBtcAddress,
     findProvider,
     vaultKeepers,
     latestUniversalChallengers,
     getUniversalChallengersByVersion,
+    btcConnector?.connectedWallet?.account?.address,
     btcConnector?.connectedWallet?.provider,
     btcPublicKey,
     depositorEthAddress,

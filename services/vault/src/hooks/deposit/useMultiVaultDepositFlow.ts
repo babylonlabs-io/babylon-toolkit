@@ -41,6 +41,7 @@ import { broadcastPrePeginTransaction } from "@/services/vault/vaultPeginBroadca
 import { preparePeginTransaction } from "@/services/vault/vaultTransactionService";
 import { deriveWotsPkHash, linkPeginToMnemonic } from "@/services/wots";
 import { addPendingPegin } from "@/storage/peginStorage";
+import { btcAddressToScriptPubKeyHex } from "@/utils/btc";
 import { satoshiToBtcNumber } from "@/utils/btcConversion";
 import { sanitizeErrorMessage } from "@/utils/errors/formatting";
 import { formatBtcValue } from "@/utils/formatting";
@@ -540,6 +541,8 @@ export function useMultiVaultDepositFlow(
                   btcPubKey,
                 }),
               ),
+              registeredPayoutScriptPubKey:
+                btcAddressToScriptPubKeyHex(confirmedBtcAddress),
               signal,
             });
 
