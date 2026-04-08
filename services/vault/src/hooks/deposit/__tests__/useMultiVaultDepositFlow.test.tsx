@@ -121,7 +121,8 @@ vi.mock("@/services/deposit/validations", () => ({
   validateMultiVaultDepositInputs: vi.fn(),
 }));
 
-vi.mock("@/models/peginStateMachine", () => ({
+vi.mock("@/models/peginStateMachine", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/models/peginStateMachine")>()),
   LocalStorageStatus: { CONFIRMING: "CONFIRMING" },
 }));
 
