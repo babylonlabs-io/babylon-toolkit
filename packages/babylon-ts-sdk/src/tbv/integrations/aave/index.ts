@@ -10,8 +10,8 @@
  *
  * ## Key Features
  *
- * - ✅ **Pure Functions** - No wallet dependencies, works anywhere (Node.js, browser, serverless)
- * - ✅ **Type-Safe** - Full TypeScript support with viem integration
+ * - **Pure Functions** - No wallet dependencies, works anywhere (Node.js, browser, serverless)
+ * - **Type-Safe** - Full TypeScript support with viem integration
  *
  * ## Architecture
  *
@@ -91,27 +91,33 @@ export {
 // Utilities
 export {
   HEALTH_FACTOR_COLORS,
+  SEIZURE_TOL,
   aaveValueToUsd,
   calculateBorrowRatio,
   calculateHealthFactor,
   calculateTotalVaultAmount,
   checkRebalanceNeeded,
   computeMinDepositForSplit,
+  computeOptimalOrder,
   computeOptimalSplit,
   computeSeizedFraction,
+  computeSeizedFractionDetailed,
   computeTargetSeizureSats,
-  simulatePrefixSeizure,
   formatHealthFactor,
+  getGroup1FromOrder,
   getHealthFactorColor,
   getHealthFactorStatus,
   getHealthFactorStatusFromValue,
   hasDebtFromPosition,
   isHealthFactorHealthy,
   selectVaultsForAmount,
+  simulateCascade,
+  simulatePrefixSeizure,
   wadToNumber,
 } from "./utils/index.js";
 
 export type {
+  CascadeVault,
   HealthFactorColor,
   HealthFactorStatus,
   MinDepositForSplitParams,
@@ -122,8 +128,8 @@ export type {
   PrefixSeizureResult,
   RebalanceCheckParams,
   RebalanceCheckResult,
-  TargetSeizureParams,
   SelectableVault,
+  TargetSeizureParams,
   VaultSelectionResult,
 } from "./utils/index.js";
 
