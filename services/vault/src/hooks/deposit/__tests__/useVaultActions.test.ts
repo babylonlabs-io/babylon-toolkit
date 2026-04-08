@@ -81,7 +81,9 @@ import { broadcastPrePeginTransaction, fetchVaultById } from "@/services/vault";
 import { useVaultActions } from "../useVaultActions";
 
 const mockFetchVaultById = vi.mocked(fetchVaultById);
-const mockBroadcastPrePeginTransaction = vi.mocked(broadcastPrePeginTransaction);
+const mockBroadcastPrePeginTransaction = vi.mocked(
+  broadcastPrePeginTransaction,
+);
 
 // Local copy produced by WASM — no 0x prefix
 const TRUSTED_TX_HEX = "70736274ff...trustedtx";
