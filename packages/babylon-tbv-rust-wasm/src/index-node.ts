@@ -10,7 +10,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 // @ts-expect-error - WASM files are in dist/generated/ (checked into git), not src/generated/
-import { initSync, WasmPrePeginTx, WasmPrePeginHtlcConnector, WasmPeginPayoutConnector, WasmAssertPayoutNoPayoutConnector, WasmAssertChallengeAssertConnector, computeMinClaimValue as wasmComputeMinClaimValue, deriveVaultId as wasmDeriveVaultId } from "./generated/btc_vault.js";
+import { initSync, WasmPrePeginTx, WasmPeginTx, WasmPrePeginHtlcConnector, WasmPeginPayoutConnector, WasmAssertPayoutNoPayoutConnector, WasmAssertChallengeAssertConnector, computeMinClaimValue as wasmComputeMinClaimValue, deriveVaultId as wasmDeriveVaultId } from "./generated/btc_vault.js";
 
 import type {
   PrePeginParams,
@@ -31,7 +31,6 @@ import type {
 /**
  * HTLC output index for single deposits.
  */
-const SINGLE_DEPOSIT_HTLC_VOUT = 0;
 
 let wasmInitialized = false;
 
@@ -55,8 +54,8 @@ export async function createPrePeginTransaction(
     params.vaultKeeperPubkeys,
     params.universalChallengerPubkeys,
     [...params.hashlocks],
+    new BigUint64Array(params.pegInAmounts),
     params.timelockRefund,
-    params.pegInAmount,
     params.feeRate,
     params.numLocalChallengers,
     params.councilQuorum,
@@ -65,13 +64,26 @@ export async function createPrePeginTransaction(
   );
 
   try {
+    const numHtlcs = tx.getNumHtlcs();
+    const htlcValues: bigint[] = [];
+    const htlcScriptPubKeys: string[] = [];
+    const htlcAddresses: string[] = [];
+    const peginAmounts: bigint[] = [];
+
+    for (let i = 0; i < numHtlcs; i++) {
+      htlcValues.push(tx.getHtlcValue(i));
+      htlcScriptPubKeys.push(tx.getHtlcScriptPubKey(i));
+      htlcAddresses.push(tx.getHtlcAddress(i));
+      peginAmounts.push(tx.getPeginAmountAt(i));
+    }
+
     return {
       txHex: tx.toHex(),
       txid: tx.getTxid(),
-      htlcValue: tx.getHtlcValue(SINGLE_DEPOSIT_HTLC_VOUT),
-      htlcScriptPubKey: tx.getHtlcScriptPubKey(SINGLE_DEPOSIT_HTLC_VOUT),
-      htlcAddress: tx.getHtlcAddress(SINGLE_DEPOSIT_HTLC_VOUT),
-      peginAmount: tx.getPeginAmount(),
+      htlcValues,
+      htlcScriptPubKeys,
+      htlcAddresses,
+      peginAmounts,
       depositorClaimValue: tx.getDepositorClaimValue(),
     };
   } finally {
@@ -91,8 +103,8 @@ export async function buildPeginTxFromPrePegin(
     params.vaultKeeperPubkeys,
     params.universalChallengerPubkeys,
     [...params.hashlocks],
+    new BigUint64Array(params.pegInAmounts),
     params.timelockRefund,
-    params.pegInAmount,
     params.feeRate,
     params.numLocalChallengers,
     params.councilQuorum,
@@ -100,14 +112,10 @@ export async function buildPeginTxFromPrePegin(
     params.network,
   );
 
-  let fundedTx: InstanceType<typeof WasmPrePeginTx> | null = null;
-  let peginTx: ReturnType<typeof unfundedTx.buildPeginTx> | null = null;
+  let fundedTx: WasmPrePeginTx | null = null;
+  let peginTx: WasmPeginTx | null = null;
   try {
-    fundedTx = unfundedTx.fromFundedTransaction(
-      fundedPrePeginTxHex,
-      params.pegInAmount,
-      unfundedTx.getDepositorClaimValue(),
-    );
+    fundedTx = unfundedTx.fromFundedTransaction(fundedPrePeginTxHex);
     peginTx = fundedTx.buildPeginTx(timelockPegin, htlcVout);
 
     return {
@@ -258,8 +266,8 @@ export async function getChallengeAssertScriptInfo(
   const conn = new WasmAssertChallengeAssertConnector(
     params.claimer,
     params.challenger,
-    params.lamportHashesJson,
-    params.gcInputLabelHashesJson,
+    params.claimerWotsKeysJson,
+    params.gcWotsKeysJson,
   );
 
   try {
@@ -331,4 +339,3 @@ export type {
 
 // Export constants
 export { TAP_INTERNAL_KEY, tapInternalPubkey } from "./constants.js";
-export { SINGLE_DEPOSIT_HTLC_VOUT };
