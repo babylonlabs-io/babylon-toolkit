@@ -18,6 +18,7 @@ const REQUIRED_RUSTC_VERSION = '1.90';
 
 const REPO_DIR = path.join(__dirname, '..', 'btc-vault-temp');
 const OUTPUT_DIR = path.join(__dirname, '..', 'dist', 'generated');
+const OUTPUT_DIR_NODE = path.join(__dirname, '..', 'dist', 'generated-node');
 
 const buildWasm = async () => {
   try {
@@ -191,30 +192,71 @@ const buildWasm = async () => {
       process.exit(1);
     }
 
-    // Copy generated files to dist/generated
+    // Build Node.js target
+    console.log('Building WASM with wasm-pack for Node.js target...');
+    const wasmOutputDirNode = path.join(REPO_DIR, 'wasm-build-output-node');
+
+    try {
+      execFileSync(
+        'wasm-pack',
+        [
+          'build',
+          '--target',
+          'nodejs',
+          '--scope',
+          'babylonlabs-io',
+          '--out-dir',
+          wasmOutputDirNode,
+          'crates/vault',
+          '--',
+          '--no-default-features',
+          '--features',
+          'wasm',
+        ],
+        {
+          cwd: REPO_DIR,
+          stdio: 'inherit',
+          env: {
+            ...process.env,
+            PATH: shell.env.PATH,
+            RUSTUP_HOME: shell.env.RUSTUP_HOME,
+            CC_wasm32_unknown_unknown: shell.env.CC_wasm32_unknown_unknown,
+            AR_wasm32_unknown_unknown: shell.env.AR_wasm32_unknown_unknown,
+          },
+        },
+      );
+    } catch {
+      console.error('Error: wasm-pack build (nodejs target) failed');
+      shell.rm('-rf', REPO_DIR);
+      process.exit(1);
+    }
+
+    // Copy generated files to dist/generated (web) and dist/generated-node (nodejs)
     console.log('Copying generated files...');
+    const name = 'btc_vault';
+
     shell.rm('-rf', OUTPUT_DIR);
     shell.mkdir('-p', OUTPUT_DIR);
-
-    // Copy wasm-pack output files to dist/generated
-    const name = 'btc_vault';
     shell.cp(`${wasmOutputDir}/${name}.js`, `${OUTPUT_DIR}/${name}.js`);
     shell.cp(`${wasmOutputDir}/${name}.d.ts`, `${OUTPUT_DIR}/${name}.d.ts`);
     shell.cp(`${wasmOutputDir}/${name}_bg.wasm`, `${OUTPUT_DIR}/${name}_bg.wasm`);
     shell.cp(`${wasmOutputDir}/${name}_bg.wasm.d.ts`, `${OUTPUT_DIR}/${name}_bg.wasm.d.ts`);
+
+    shell.rm('-rf', OUTPUT_DIR_NODE);
+    shell.mkdir('-p', OUTPUT_DIR_NODE);
+    // Rename .js to .cjs since the package uses "type": "module"
+    shell.cp(`${wasmOutputDirNode}/${name}.js`, `${OUTPUT_DIR_NODE}/${name}.cjs`);
+    shell.cp(`${wasmOutputDirNode}/${name}.d.ts`, `${OUTPUT_DIR_NODE}/${name}.d.ts`);
+    shell.cp(`${wasmOutputDirNode}/${name}_bg.wasm`, `${OUTPUT_DIR_NODE}/${name}_bg.wasm`);
+    shell.cp(`${wasmOutputDirNode}/${name}_bg.wasm.d.ts`, `${OUTPUT_DIR_NODE}/${name}_bg.wasm.d.ts`);
 
     // Clean up
     console.log('Cleaning up...');
     shell.rm('-rf', REPO_DIR);
 
     console.log('\n✅ WASM build completed successfully!');
-    console.log(`Generated files are in: ${OUTPUT_DIR}`);
-    console.log('\nExported modules:');
-    console.log('  - WasmPrePeginTx (Pre-PegIn HTLC transaction)');
-    console.log('  - WasmPrePeginHtlcConnector (HTLC connector info)');
-    console.log('  - WasmPeginTx (PegIn transaction from pre-pegin)');
-    console.log('  - computeMinClaimValue (Minimum claim value calculation)');
-    console.log('  - deriveVaultId (Vault ID derivation)');
+    console.log(`Generated files (web):    ${OUTPUT_DIR}`);
+    console.log(`Generated files (nodejs): ${OUTPUT_DIR_NODE}`);
   } catch (error) {
     console.error('Error during WASM build:', error);
     // Clean up on error
