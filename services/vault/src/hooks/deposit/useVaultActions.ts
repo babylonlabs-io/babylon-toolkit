@@ -24,6 +24,7 @@ import {
   UtxoNotAvailableError,
 } from "../../services/vault";
 import { activateVaultWithSecret } from "../../services/vault/vaultActivationService";
+import { utxosToExpectedRecord } from "../../services/vault/vaultPeginBroadcastService";
 import type { PendingPeginRequest } from "../../storage/peginStorage";
 import { stripHexPrefix } from "../../utils/btc";
 import { validateSecretAgainstHashlock } from "../../utils/htlcSecret";
@@ -142,13 +143,19 @@ export function useVaultActions(): UseVaultActionsReturn {
       // This prevents wasted signing effort if UTXOs have been spent
       await assertUtxosAvailable(unsignedTxHex, depositorAddress);
 
-      // Broadcast the transaction (UTXO will be derived from mempool API)
+      // Use trusted UTXO data from localStorage when available (stored at
+      // construction time), falling back to mempool API with cross-validation
+      const expectedUtxos = pendingPegin?.selectedUTXOs
+        ? utxosToExpectedRecord(pendingPegin.selectedUTXOs)
+        : undefined;
+
       await broadcastPrePeginTransaction({
         unsignedTxHex,
         btcWalletProvider: {
           signPsbt: (psbtHex: string) => btcWalletProvider.signPsbt(psbtHex),
         },
         depositorBtcPubkey,
+        expectedUtxos,
       });
 
       // Update or create localStorage entry for status tracking

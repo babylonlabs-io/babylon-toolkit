@@ -670,6 +670,25 @@ export class PeginManager {
 
     const inputsWithUtxoData = await Promise.all(utxoDataPromises);
 
+    // Cross-validate: total input value must cover total output value.
+    // A mismatch indicates the mempool API returned manipulated UTXO data,
+    // which could lead to fee-siphoning or invalid signatures.
+    const totalInputValue = inputsWithUtxoData.reduce(
+      (sum, i) => sum + BigInt(i.utxoData.value),
+      0n,
+    );
+    const totalOutputValue = tx.outs.reduce(
+      (sum, out) => sum + BigInt(out.value),
+      0n,
+    );
+    if (totalInputValue < totalOutputValue) {
+      throw new Error(
+        `UTXO value mismatch: total input value (${totalInputValue} sat) is less than ` +
+          `total output value (${totalOutputValue} sat). ` +
+          `This may indicate the mempool API returned manipulated UTXO data.`,
+      );
+    }
+
     // Add inputs with proper PSBT fields based on script type
     for (const { input, utxoData, txid, vout } of inputsWithUtxoData) {
       const psbtInputFields = getPsbtInputFields(

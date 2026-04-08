@@ -37,7 +37,10 @@ import {
   signPayoutTransactions,
   type PayoutSigningProgress,
 } from "@/services/vault/vaultPayoutSignatureService";
-import { broadcastPrePeginTransaction } from "@/services/vault/vaultPeginBroadcastService";
+import {
+  broadcastPrePeginTransaction,
+  utxosToExpectedRecord,
+} from "@/services/vault/vaultPeginBroadcastService";
 import { preparePeginTransaction } from "@/services/vault/vaultTransactionService";
 import { deriveWotsPkHash, linkPeginToMnemonic } from "@/services/wots";
 import { addPendingPegin } from "@/storage/peginStorage";
@@ -412,6 +415,7 @@ export function useMultiVaultDepositFlow(
                 confirmedBtcWallet.signPsbt(psbtHex),
             },
             depositorBtcPubkey: batchResult.depositorBtcPubkey,
+            expectedUtxos: utxosToExpectedRecord(batchResult.selectedUTXOs),
           });
         } catch (error) {
           const errorMsg =

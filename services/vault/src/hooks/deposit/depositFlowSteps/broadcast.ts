@@ -30,6 +30,7 @@ export async function broadcastBtcTransaction(
     depositorBtcPubkey,
     btcWalletProvider,
     fundedPrePeginTxHex,
+    expectedUtxos,
   } = params;
 
   const broadcastTxId = await broadcastPrePeginTransaction({
@@ -38,6 +39,7 @@ export async function broadcastBtcTransaction(
       signPsbt: (psbtHex: string) => btcWalletProvider.signPsbt(psbtHex),
     },
     depositorBtcPubkey,
+    expectedUtxos,
   });
 
   // Update localStorage

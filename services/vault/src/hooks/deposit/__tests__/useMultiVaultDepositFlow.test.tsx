@@ -78,6 +78,26 @@ vi.mock("@/services/vault/vaultActivationService", () => ({
 
 vi.mock("@/services/vault/vaultPeginBroadcastService", () => ({
   broadcastPrePeginTransaction: vi.fn().mockResolvedValue("mockBroadcastTxId"),
+  utxosToExpectedRecord: vi.fn(
+    (
+      utxos: Array<{
+        txid: string;
+        vout: number;
+        value: number | string;
+        scriptPubKey: string;
+      }>,
+    ) => {
+      const record: Record<string, { scriptPubKey: string; value: number }> =
+        {};
+      for (const u of utxos) {
+        record[`${u.txid}:${u.vout}`] = {
+          scriptPubKey: u.scriptPubKey,
+          value: Number(u.value),
+        };
+      }
+      return record;
+    },
+  ),
 }));
 
 vi.mock("@/services/wots/wotsService", () => ({
