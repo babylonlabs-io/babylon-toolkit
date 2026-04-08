@@ -101,7 +101,9 @@ export function validateGetPeginStatusResponse(
   }
 
   if (typeof r.status !== "string") {
-    throw new VpResponseValidationError(`VP response validation failed: "status" must be a string`);
+    throw new VpResponseValidationError(
+      `VP response validation failed: "status" must be a string`,
+    );
   }
 
   if (!DAEMON_STATUS_VALUES.has(r.status)) {
@@ -142,7 +144,9 @@ export function validateRequestDepositorPresignTransactionsResponse(
   const r = response as Record<string, unknown>;
 
   if (!Array.isArray(r.txs)) {
-    throw new VpResponseValidationError(`VP response validation failed: "txs" must be an array`);
+    throw new VpResponseValidationError(
+      `VP response validation failed: "txs" must be an array`,
+    );
   }
 
   for (let i = 0; i < r.txs.length; i++) {

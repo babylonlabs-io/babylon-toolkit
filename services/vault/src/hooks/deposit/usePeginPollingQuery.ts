@@ -11,8 +11,8 @@ import { useEffect, useMemo, useRef } from "react";
 import { logger } from "@/infrastructure";
 
 import { VaultProviderRpcApi } from "../../clients/vault-provider-rpc";
-import { VpResponseValidationError } from "../../clients/vault-provider-rpc/validators";
 import type { DepositorGraphTransactions } from "../../clients/vault-provider-rpc/types";
+import { VpResponseValidationError } from "../../clients/vault-provider-rpc/validators";
 import {
   POLLING_INTERVAL_MS,
   POLLING_RETRY_COUNT,

@@ -59,7 +59,9 @@ const validPeginStatusResponse = {
 function getVpValidationDetail(fn: () => void): string {
   try {
     fn();
-    throw new Error("Expected VpResponseValidationError but no error was thrown");
+    throw new Error(
+      "Expected VpResponseValidationError but no error was thrown",
+    );
   } catch (e) {
     expect(e).toBeInstanceOf(VpResponseValidationError);
     return (e as VpResponseValidationError).detail;
