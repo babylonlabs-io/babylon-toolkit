@@ -36,10 +36,10 @@ const URGENT_DISTANCE_PCT = 5;
 /** Threshold for detecting meaningful reorder improvement */
 const REORDER_TOL = 0.001;
 
-/** Minimum debt to continue processing */
+/** Minimum debt to continue processing — must match cascadeSimulation.ts */
 const MIN_DEBT_THRESHOLD = 0.01;
 
-/** Maximum groups per cascade simulation */
+/** Maximum groups per cascade simulation — must match cascadeSimulation.ts */
 const MAX_GROUPS = 20;
 
 export function calculate(params: CalculatorParams): CalculatorResult {
@@ -131,8 +131,11 @@ export function calculate(params: CalculatorParams): CalculatorResult {
     const seizedVaults = remainingVaults.slice(0, i);
     const seizedBtc = prefixSum;
     const overSeizureBtc = Math.max(0, seizedBtc - curTargetSeizure);
+    const debtDenominator = THF - liqPenalty;
     const debtToRepay =
-      remainingDebt * ((THF - expectedHF) / (THF - liqPenalty));
+      debtDenominator === 0
+        ? remainingDebt
+        : remainingDebt * ((THF - expectedHF) / debtDenominator);
 
     let fairnessDebtRepay = 0;
     let fairnessPaymentUsd = 0;
@@ -190,21 +193,6 @@ export function calculate(params: CalculatorParams): CalculatorResult {
   const isCliff =
     firstGroup != null && firstGroup.vaults.length === nVaults && nVaults > 1;
 
-  const {
-    order: globalOptimalOrder,
-    sumBtcAfterEvents: optimalSum,
-    btcAfterG1: optimalBtcAfterG1,
-  } = computeOptimalOrder(
-    vaults,
-    totalDebtUsd,
-    seizedFraction,
-    SEIZURE_TOL,
-    CF,
-    THF,
-    maxLB,
-    expectedHF,
-  );
-
   const { sumBtcAfterEvents: currentSum, btcAfterG1: currentBtcAfterG1 } =
     simulateCascade(
       vaults,
@@ -216,6 +204,31 @@ export function calculate(params: CalculatorParams): CalculatorResult {
       maxLB,
       expectedHF,
     );
+
+  // Optimizer throws for >20 vaults (bitmask overflow). Fall back to current
+  // order so structural warnings still fire but reorder suggestions are skipped.
+  let globalOptimalOrder: Vault[];
+  let optimalSum: number;
+  let optimalBtcAfterG1: number;
+  try {
+    const optimized = computeOptimalOrder(
+      vaults,
+      totalDebtUsd,
+      seizedFraction,
+      SEIZURE_TOL,
+      CF,
+      THF,
+      maxLB,
+      expectedHF,
+    );
+    globalOptimalOrder = optimized.order;
+    optimalSum = optimized.sumBtcAfterEvents;
+    optimalBtcAfterG1 = optimized.btcAfterG1;
+  } catch {
+    globalOptimalOrder = [...vaults];
+    optimalSum = currentSum;
+    optimalBtcAfterG1 = currentBtcAfterG1;
+  }
 
   const sumImproves = optimalSum > currentSum + REORDER_TOL;
   const afterG1Improves =
@@ -431,34 +444,44 @@ export function calculate(params: CalculatorParams): CalculatorResult {
       };
       const allVaults = [placeholder, ...vaults];
 
-      const { order: optOrder } = computeOptimalOrder(
-        allVaults,
-        totalDebtUsd,
-        seizedFraction,
-        SEIZURE_TOL,
-        CF,
-        THF,
-        maxLB,
-        expectedHF,
-      );
+      // Optimizer may throw for >20 vaults — fall back to manual order
+      let useManualOrder = false;
+      try {
+        const { order: optOrder } = computeOptimalOrder(
+          allVaults,
+          totalDebtUsd,
+          seizedFraction,
+          SEIZURE_TOL,
+          CF,
+          THF,
+          maxLB,
+          expectedHF,
+        );
 
-      // Verify the optimized order doesn't still trigger rebalance
-      const optG1Btc = getGroup1FromOrder(
-        optOrder,
-        seizedFraction,
-        SEIZURE_TOL,
-      ).reduce((s, v) => s + v.btc, 0);
-      const optProtected = allVaults.reduce((s, v) => s + v.btc, 0) - optG1Btc;
-      const optTarget =
-        allVaults.reduce((s, v) => s + v.btc, 0) * seizedFraction;
-      const optOver = optG1Btc - optTarget;
+        // Verify the optimized order doesn't still trigger rebalance
+        const optG1Btc = getGroup1FromOrder(
+          optOrder,
+          seizedFraction,
+          SEIZURE_TOL,
+        ).reduce((s, v) => s + v.btc, 0);
+        const optProtected =
+          allVaults.reduce((s, v) => s + v.btc, 0) - optG1Btc;
+        const optTarget =
+          allVaults.reduce((s, v) => s + v.btc, 0) * seizedFraction;
+        const optOver = optG1Btc - optTarget;
 
-      if (optOver > optProtected) {
-        // Optimizer order still triggers rebalance — use manual protective order
+        if (optOver > optProtected) {
+          useManualOrder = true;
+        } else {
+          suggestedRebalanceOrder = optOrder;
+        }
+      } catch {
+        useManualOrder = true;
+      }
+
+      if (useManualOrder) {
         const sortedSmall = [...smallVaults].sort((a, b) => b.btc - a.btc);
         suggestedRebalanceOrder = [placeholder, ...sortedSmall, largest];
-      } else {
-        suggestedRebalanceOrder = optOrder;
       }
     }
   }

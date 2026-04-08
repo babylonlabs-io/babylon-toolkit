@@ -191,10 +191,13 @@ export function computeOptimalOrder<T extends CascadeVault>(
       maxLB,
       expectedHF,
     );
-    if (
-      refined.sumBtcAfterEvents <= result.sumBtcAfterEvents + EPS &&
-      refined.btcAfterG1 <= result.btcAfterG1 + EPS
-    ) {
+    const primaryImproves =
+      refined.sumBtcAfterEvents > result.sumBtcAfterEvents + EPS;
+    const primaryTied =
+      Math.abs(refined.sumBtcAfterEvents - result.sumBtcAfterEvents) <= EPS;
+    const tiebreakerImproves =
+      primaryTied && refined.btcAfterG1 > result.btcAfterG1 + EPS;
+    if (!primaryImproves && !tiebreakerImproves) {
       break;
     }
     result = refined;
