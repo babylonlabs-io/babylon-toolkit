@@ -53,6 +53,10 @@ vi.mock("@/services/vault/vaultActivationService", () => ({
   activateVaultWithSecret: vi.fn(),
 }));
 
+vi.mock("@/services/vault/vaultPeginBroadcastService", () => ({
+  utxosToExpectedRecord: vi.fn(() => ({})),
+}));
+
 vi.mock("@/utils/btc", () => ({
   stripHexPrefix: vi.fn((hex: string) => hex.replace("0x", "")),
 }));
