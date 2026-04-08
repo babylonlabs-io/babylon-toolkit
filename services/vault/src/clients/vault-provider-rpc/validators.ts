@@ -16,11 +16,33 @@ import type {
 
 const DAEMON_STATUS_VALUES = new Set<string>(Object.values(DaemonStatus));
 
+const VP_VALIDATION_USER_MESSAGE =
+  "The vault provider returned an unexpected response. Please try again or contact support.";
+
+/**
+ * Thrown when a VP RPC response fails runtime validation.
+ *
+ * `.message` is a user-facing string safe to display in the UI.
+ * `.detail` contains the technical reason, suitable for logging.
+ */
+export class VpResponseValidationError extends Error {
+  readonly detail: string;
+
+  constructor(detail: string) {
+    super(VP_VALIDATION_USER_MESSAGE);
+    this.name = "VpResponseValidationError";
+    this.detail = detail;
+  }
+}
+
 /** Non-empty string of hexadecimal characters (case-insensitive). */
 const HEX_RE = /^[0-9a-fA-F]+$/;
 
 /** Expected length (in hex chars) of an x-only Bitcoin public key (32 bytes). */
 const X_ONLY_PUBKEY_HEX_LEN = 64;
+
+/** Expected length (in hex chars) of a Bitcoin transaction ID (32 bytes). */
+const TXID_HEX_LEN = 64;
 
 function isNonEmptyHex(value: unknown): value is string {
   return typeof value === "string" && value.length > 0 && HEX_RE.test(value);
@@ -32,7 +54,7 @@ function isNonEmptyString(value: unknown): value is string {
 
 function assertNonEmptyHex(value: unknown, field: string): void {
   if (!isNonEmptyHex(value)) {
-    throw new Error(
+    throw new VpResponseValidationError(
       `VP response validation failed: "${field}" must be a non-empty hex string, got ${JSON.stringify(value)}`,
     );
   }
@@ -40,7 +62,7 @@ function assertNonEmptyHex(value: unknown, field: string): void {
 
 function assertNonEmptyString(value: unknown, field: string): void {
   if (!isNonEmptyString(value)) {
-    throw new Error(
+    throw new VpResponseValidationError(
       `VP response validation failed: "${field}" must be a non-empty string, got ${JSON.stringify(value)}`,
     );
   }
@@ -48,7 +70,7 @@ function assertNonEmptyString(value: unknown, field: string): void {
 
 function assertXOnlyPubkey(value: unknown, field: string): void {
   if (!isNonEmptyHex(value) || value.length !== X_ONLY_PUBKEY_HEX_LEN) {
-    throw new Error(
+    throw new VpResponseValidationError(
       `VP response validation failed: "${field}" must be a ${X_ONLY_PUBKEY_HEX_LEN}-char hex string (x-only pubkey), got ${JSON.stringify(value)}`,
     );
   }
@@ -65,31 +87,37 @@ export function validateGetPeginStatusResponse(
   response: unknown,
 ): asserts response is GetPeginStatusResponse {
   if (response === null || typeof response !== "object") {
-    throw new Error(
+    throw new VpResponseValidationError(
       `VP response validation failed: getPeginStatus response is not an object`,
     );
   }
 
   const r = response as Record<string, unknown>;
 
-  if (typeof r.pegin_txid !== "string") {
-    throw new Error(
-      `VP response validation failed: "pegin_txid" must be a string`,
+  if (!isNonEmptyHex(r.pegin_txid) || r.pegin_txid.length !== TXID_HEX_LEN) {
+    throw new VpResponseValidationError(
+      `VP response validation failed: "pegin_txid" must be a ${TXID_HEX_LEN}-char hex string (txid), got ${JSON.stringify(r.pegin_txid)}`,
     );
   }
 
   if (typeof r.status !== "string") {
-    throw new Error(`VP response validation failed: "status" must be a string`);
+    throw new VpResponseValidationError(`VP response validation failed: "status" must be a string`);
   }
 
   if (!DAEMON_STATUS_VALUES.has(r.status)) {
-    throw new Error(
+    throw new VpResponseValidationError(
       `VP response validation failed: unrecognized status "${r.status}". Expected one of: ${[...DAEMON_STATUS_VALUES].join(", ")}`,
     );
   }
 
+  if (r.progress === null || typeof r.progress !== "object") {
+    throw new VpResponseValidationError(
+      `VP response validation failed: "progress" must be an object`,
+    );
+  }
+
   if (typeof r.health_info !== "string") {
-    throw new Error(
+    throw new VpResponseValidationError(
       `VP response validation failed: "health_info" must be a string`,
     );
   }
@@ -106,7 +134,7 @@ export function validateRequestDepositorPresignTransactionsResponse(
   response: unknown,
 ): asserts response is RequestDepositorPresignTransactionsResponse {
   if (response === null || typeof response !== "object") {
-    throw new Error(
+    throw new VpResponseValidationError(
       `VP response validation failed: requestDepositorPresignTransactions response is not an object`,
     );
   }
@@ -114,7 +142,7 @@ export function validateRequestDepositorPresignTransactionsResponse(
   const r = response as Record<string, unknown>;
 
   if (!Array.isArray(r.txs)) {
-    throw new Error(`VP response validation failed: "txs" must be an array`);
+    throw new VpResponseValidationError(`VP response validation failed: "txs" must be an array`);
   }
 
   for (let i = 0; i < r.txs.length; i++) {
@@ -122,7 +150,7 @@ export function validateRequestDepositorPresignTransactionsResponse(
   }
 
   if (r.depositor_graph === null || typeof r.depositor_graph !== "object") {
-    throw new Error(
+    throw new VpResponseValidationError(
       `VP response validation failed: "depositor_graph" must be an object`,
     );
   }
@@ -134,7 +162,7 @@ export function validateRequestDepositorPresignTransactionsResponse(
 
 function validateTransactionData(value: unknown, field: string): void {
   if (value === null || typeof value !== "object") {
-    throw new Error(
+    throw new VpResponseValidationError(
       `VP response validation failed: "${field}" must be an object`,
     );
   }
@@ -144,7 +172,7 @@ function validateTransactionData(value: unknown, field: string): void {
 
 function validateClaimerTransactions(value: unknown, field: string): void {
   if (value === null || typeof value !== "object") {
-    throw new Error(
+    throw new VpResponseValidationError(
       `VP response validation failed: "${field}" must be an object`,
     );
   }
@@ -160,7 +188,7 @@ function validateClaimerTransactions(value: unknown, field: string): void {
 
 function validatePresignDataPerChallenger(value: unknown, field: string): void {
   if (value === null || typeof value !== "object") {
-    throw new Error(
+    throw new VpResponseValidationError(
       `VP response validation failed: "${field}" must be an object`,
     );
   }
@@ -189,7 +217,7 @@ function validateDepositorGraphTransactions(
   assertNonEmptyString(graph.payout_psbt, "depositor_graph.payout_psbt");
 
   if (!Array.isArray(graph.challenger_presign_data)) {
-    throw new Error(
+    throw new VpResponseValidationError(
       `VP response validation failed: "depositor_graph.challenger_presign_data" must be an array`,
     );
   }
@@ -202,7 +230,7 @@ function validateDepositorGraphTransactions(
   }
 
   if (typeof graph.offchain_params_version !== "number") {
-    throw new Error(
+    throw new VpResponseValidationError(
       `VP response validation failed: "depositor_graph.offchain_params_version" must be a number`,
     );
   }

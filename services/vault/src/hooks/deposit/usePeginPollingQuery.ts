@@ -11,6 +11,7 @@ import { useEffect, useMemo, useRef } from "react";
 import { logger } from "@/infrastructure";
 
 import { VaultProviderRpcApi } from "../../clients/vault-provider-rpc";
+import { VpResponseValidationError } from "../../clients/vault-provider-rpc/validators";
 import type { DepositorGraphTransactions } from "../../clients/vault-provider-rpc/types";
 import {
   POLLING_INTERVAL_MS,
@@ -167,7 +168,12 @@ async function fetchFromProvider(
         error instanceof Error ? error : new Error("Provider unreachable");
       errors.set(depositId, errorObj);
       logger.warn(`Failed to poll deposit ${depositId}`, {
-        error: error instanceof Error ? error.message : String(error),
+        error:
+          error instanceof VpResponseValidationError
+            ? error.detail
+            : error instanceof Error
+              ? error.message
+              : String(error),
       });
     }
   }

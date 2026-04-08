@@ -4,6 +4,7 @@ import { DaemonStatus } from "../../../models/peginStateMachine";
 import {
   validateGetPeginStatusResponse,
   validateRequestDepositorPresignTransactionsResponse,
+  VpResponseValidationError,
 } from "../validators";
 
 // ============================================================================
@@ -51,6 +52,35 @@ const validPeginStatusResponse = {
   health_info: "ok",
 };
 
+/**
+ * Calls fn(), expects it to throw a VpResponseValidationError, and returns
+ * the error's `.detail` string for further assertion.
+ */
+function getVpValidationDetail(fn: () => void): string {
+  try {
+    fn();
+    throw new Error("Expected VpResponseValidationError but no error was thrown");
+  } catch (e) {
+    expect(e).toBeInstanceOf(VpResponseValidationError);
+    return (e as VpResponseValidationError).detail;
+  }
+}
+
+// ============================================================================
+// VpResponseValidationError
+// ============================================================================
+
+describe("VpResponseValidationError", () => {
+  it("has a user-friendly message and preserves technical detail", () => {
+    const err = new VpResponseValidationError("internal: bad field");
+    expect(err.message).toBe(
+      "The vault provider returned an unexpected response. Please try again or contact support.",
+    );
+    expect(err.detail).toBe("internal: bad field");
+    expect(err.name).toBe("VpResponseValidationError");
+  });
+});
+
 // ============================================================================
 // validateGetPeginStatusResponse
 // ============================================================================
@@ -71,59 +101,105 @@ describe("validateGetPeginStatusResponse", () => {
   });
 
   it("throws for an unrecognized status string", () => {
-    expect(() =>
+    const detail = getVpValidationDetail(() =>
       validateGetPeginStatusResponse({
         ...validPeginStatusResponse,
         status: "MaliciousStatus",
       }),
-    ).toThrow('unrecognized status "MaliciousStatus"');
+    );
+    expect(detail).toContain('unrecognized status "MaliciousStatus"');
   });
 
   it("throws for an empty status string", () => {
-    expect(() =>
+    const detail = getVpValidationDetail(() =>
       validateGetPeginStatusResponse({
         ...validPeginStatusResponse,
         status: "",
       }),
-    ).toThrow("unrecognized status");
+    );
+    expect(detail).toContain("unrecognized status");
   });
 
   it("throws when status is missing", () => {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { status, ...withoutStatus } = validPeginStatusResponse;
-    expect(() => validateGetPeginStatusResponse(withoutStatus)).toThrow(
-      '"status" must be a string',
+    const detail = getVpValidationDetail(() =>
+      validateGetPeginStatusResponse(withoutStatus),
     );
+    expect(detail).toContain('"status" must be a string');
   });
 
   it("throws when pegin_txid is not a string", () => {
-    expect(() =>
+    const detail = getVpValidationDetail(() =>
       validateGetPeginStatusResponse({
         ...validPeginStatusResponse,
         pegin_txid: 42,
       }),
-    ).toThrow('"pegin_txid" must be a string');
+    );
+    expect(detail).toContain('"pegin_txid" must be a 64-char hex string');
+  });
+
+  it("throws when pegin_txid is not valid hex", () => {
+    const detail = getVpValidationDetail(() =>
+      validateGetPeginStatusResponse({
+        ...validPeginStatusResponse,
+        pegin_txid: "z".repeat(64),
+      }),
+    );
+    expect(detail).toContain('"pegin_txid" must be a 64-char hex string');
+  });
+
+  it("throws when pegin_txid is not 64 chars", () => {
+    const detail = getVpValidationDetail(() =>
+      validateGetPeginStatusResponse({
+        ...validPeginStatusResponse,
+        pegin_txid: "a".repeat(32),
+      }),
+    );
+    expect(detail).toContain('"pegin_txid" must be a 64-char hex string');
+  });
+
+  it("throws when progress is missing", () => {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { progress, ...withoutProgress } = validPeginStatusResponse;
+    const detail = getVpValidationDetail(() =>
+      validateGetPeginStatusResponse(withoutProgress),
+    );
+    expect(detail).toContain('"progress" must be an object');
+  });
+
+  it("throws when progress is not an object", () => {
+    const detail = getVpValidationDetail(() =>
+      validateGetPeginStatusResponse({
+        ...validPeginStatusResponse,
+        progress: "invalid",
+      }),
+    );
+    expect(detail).toContain('"progress" must be an object');
   });
 
   it("throws when health_info is not a string", () => {
-    expect(() =>
+    const detail = getVpValidationDetail(() =>
       validateGetPeginStatusResponse({
         ...validPeginStatusResponse,
         health_info: null,
       }),
-    ).toThrow('"health_info" must be a string');
+    );
+    expect(detail).toContain('"health_info" must be a string');
   });
 
   it("throws when response is null", () => {
-    expect(() => validateGetPeginStatusResponse(null)).toThrow(
-      "response is not an object",
+    const detail = getVpValidationDetail(() =>
+      validateGetPeginStatusResponse(null),
     );
+    expect(detail).toContain("response is not an object");
   });
 
   it("throws when response is not an object", () => {
-    expect(() => validateGetPeginStatusResponse("string")).toThrow(
-      "response is not an object",
+    const detail = getVpValidationDetail(() =>
+      validateGetPeginStatusResponse("string"),
     );
+    expect(detail).toContain("response is not an object");
   });
 });
 
@@ -157,51 +233,56 @@ describe("validateRequestDepositorPresignTransactionsResponse", () => {
   });
 
   it("throws when response is null", () => {
-    expect(() =>
+    const detail = getVpValidationDetail(() =>
       validateRequestDepositorPresignTransactionsResponse(null),
-    ).toThrow("response is not an object");
+    );
+    expect(detail).toContain("response is not an object");
   });
 
   it("throws when txs is not an array", () => {
-    expect(() =>
+    const detail = getVpValidationDetail(() =>
       validateRequestDepositorPresignTransactionsResponse({
         ...validPresignResponse,
         txs: "not-an-array",
       }),
-    ).toThrow('"txs" must be an array');
+    );
+    expect(detail).toContain('"txs" must be an array');
   });
 
   it("throws when depositor_graph is missing", () => {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { depositor_graph, ...withoutGraph } = validPresignResponse;
-    expect(() =>
+    const detail = getVpValidationDetail(() =>
       validateRequestDepositorPresignTransactionsResponse(withoutGraph),
-    ).toThrow('"depositor_graph" must be an object');
+    );
+    expect(detail).toContain('"depositor_graph" must be an object');
   });
 
   describe("claimer transaction validation", () => {
     it("throws when claimer_pubkey has wrong length", () => {
-      expect(() =>
+      const detail = getVpValidationDetail(() =>
         validateRequestDepositorPresignTransactionsResponse({
           ...validPresignResponse,
           txs: [
             { ...validClaimerTransaction, claimer_pubkey: "ab".repeat(33) },
           ],
         }),
-      ).toThrow("txs[0].claimer_pubkey");
+      );
+      expect(detail).toContain("txs[0].claimer_pubkey");
     });
 
     it("throws when claimer_pubkey contains non-hex characters", () => {
-      expect(() =>
+      const detail = getVpValidationDetail(() =>
         validateRequestDepositorPresignTransactionsResponse({
           ...validPresignResponse,
           txs: [{ ...validClaimerTransaction, claimer_pubkey: "z".repeat(64) }],
         }),
-      ).toThrow("txs[0].claimer_pubkey");
+      );
+      expect(detail).toContain("txs[0].claimer_pubkey");
     });
 
     it("throws when claim_tx.tx_hex is empty", () => {
-      expect(() =>
+      const detail = getVpValidationDetail(() =>
         validateRequestDepositorPresignTransactionsResponse({
           ...validPresignResponse,
           txs: [
@@ -211,11 +292,12 @@ describe("validateRequestDepositorPresignTransactionsResponse", () => {
             },
           ],
         }),
-      ).toThrow("txs[0].claim_tx.tx_hex");
+      );
+      expect(detail).toContain("txs[0].claim_tx.tx_hex");
     });
 
     it("throws when assert_tx.tx_hex contains non-hex characters", () => {
-      expect(() =>
+      const detail = getVpValidationDetail(() =>
         validateRequestDepositorPresignTransactionsResponse({
           ...validPresignResponse,
           txs: [
@@ -225,31 +307,34 @@ describe("validateRequestDepositorPresignTransactionsResponse", () => {
             },
           ],
         }),
-      ).toThrow("txs[0].assert_tx.tx_hex");
+      );
+      expect(detail).toContain("txs[0].assert_tx.tx_hex");
     });
 
     it("throws when payout_tx.tx_hex is missing", () => {
-      expect(() =>
+      const detail = getVpValidationDetail(() =>
         validateRequestDepositorPresignTransactionsResponse({
           ...validPresignResponse,
           txs: [{ ...validClaimerTransaction, payout_tx: {} }],
         }),
-      ).toThrow("txs[0].payout_tx.tx_hex");
+      );
+      expect(detail).toContain("txs[0].payout_tx.tx_hex");
     });
 
     it("throws when payout_psbt is empty", () => {
-      expect(() =>
+      const detail = getVpValidationDetail(() =>
         validateRequestDepositorPresignTransactionsResponse({
           ...validPresignResponse,
           txs: [{ ...validClaimerTransaction, payout_psbt: "" }],
         }),
-      ).toThrow("txs[0].payout_psbt");
+      );
+      expect(detail).toContain("txs[0].payout_psbt");
     });
   });
 
   describe("depositor_graph validation", () => {
     it("throws when depositor_graph.claim_tx.tx_hex is empty", () => {
-      expect(() =>
+      const detail = getVpValidationDetail(() =>
         validateRequestDepositorPresignTransactionsResponse({
           ...validPresignResponse,
           depositor_graph: {
@@ -257,11 +342,12 @@ describe("validateRequestDepositorPresignTransactionsResponse", () => {
             claim_tx: { tx_hex: "" },
           },
         }),
-      ).toThrow("depositor_graph.claim_tx.tx_hex");
+      );
+      expect(detail).toContain("depositor_graph.claim_tx.tx_hex");
     });
 
     it("throws when depositor_graph.payout_psbt is missing", () => {
-      expect(() =>
+      const detail = getVpValidationDetail(() =>
         validateRequestDepositorPresignTransactionsResponse({
           ...validPresignResponse,
           depositor_graph: {
@@ -269,11 +355,12 @@ describe("validateRequestDepositorPresignTransactionsResponse", () => {
             payout_psbt: "",
           },
         }),
-      ).toThrow("depositor_graph.payout_psbt");
+      );
+      expect(detail).toContain("depositor_graph.payout_psbt");
     });
 
     it("throws when challenger_presign_data is not an array", () => {
-      expect(() =>
+      const detail = getVpValidationDetail(() =>
         validateRequestDepositorPresignTransactionsResponse({
           ...validPresignResponse,
           depositor_graph: {
@@ -281,11 +368,12 @@ describe("validateRequestDepositorPresignTransactionsResponse", () => {
             challenger_presign_data: null,
           },
         }),
-      ).toThrow("depositor_graph.challenger_presign_data");
+      );
+      expect(detail).toContain("depositor_graph.challenger_presign_data");
     });
 
     it("throws when a challenger_presign_data entry has invalid challenger_pubkey", () => {
-      expect(() =>
+      const detail = getVpValidationDetail(() =>
         validateRequestDepositorPresignTransactionsResponse({
           ...validPresignResponse,
           depositor_graph: {
@@ -295,11 +383,14 @@ describe("validateRequestDepositorPresignTransactionsResponse", () => {
             ],
           },
         }),
-      ).toThrow("depositor_graph.challenger_presign_data[0].challenger_pubkey");
+      );
+      expect(detail).toContain(
+        "depositor_graph.challenger_presign_data[0].challenger_pubkey",
+      );
     });
 
     it("throws when offchain_params_version is not a number", () => {
-      expect(() =>
+      const detail = getVpValidationDetail(() =>
         validateRequestDepositorPresignTransactionsResponse({
           ...validPresignResponse,
           depositor_graph: {
@@ -307,7 +398,8 @@ describe("validateRequestDepositorPresignTransactionsResponse", () => {
             offchain_params_version: "1",
           },
         }),
-      ).toThrow("depositor_graph.offchain_params_version");
+      );
+      expect(detail).toContain("depositor_graph.offchain_params_version");
     });
   });
 });

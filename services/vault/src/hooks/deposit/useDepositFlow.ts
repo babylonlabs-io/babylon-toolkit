@@ -31,6 +31,7 @@ import {
   type PayoutSigningProgress,
 } from "@/services/vault/vaultPayoutSignatureService";
 import { getPendingPegins } from "@/storage/peginStorage";
+import { VpResponseValidationError } from "@/clients/vault-provider-rpc/validators";
 import { sanitizeErrorMessage } from "@/utils/errors/formatting";
 import { hashSecret } from "@/utils/secretUtils";
 
@@ -442,7 +443,12 @@ export function useDepositFlow(
         if (!signal.aborted) {
           setError(sanitizeErrorMessage(err));
           logger.error(err instanceof Error ? err : new Error(String(err)), {
-            data: { context: "Deposit flow error" },
+            data: {
+              context: "Deposit flow error",
+              ...(err instanceof VpResponseValidationError && {
+                detail: err.detail,
+              }),
+            },
           });
         }
         return null;
