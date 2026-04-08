@@ -9,6 +9,7 @@ import {
   computeMinDepositForSplit,
   computeOptimalSplit,
   computeSeizedFraction,
+  computeSeizedFractionDetailed,
 } from "../vaultSplit.js";
 
 // Mock parameter values (contracts not deployed yet)
@@ -65,6 +66,26 @@ describe("vaultSplit", () => {
     it("should clamp to 0 when expectedHF equals THF", () => {
       const fraction = computeSeizedFraction(0.75, 1.05, 1.1, 1.1);
       expect(fraction).toBe(0);
+    });
+
+    it("should return raw and clamped values from computeSeizedFractionDetailed", () => {
+      const { CF, LB, THF, expectedHF } = DEFAULT_PARAMS;
+      const result = computeSeizedFractionDetailed(CF, LB, THF, expectedHF);
+      expect(result.seizedFraction).toBeCloseTo(0.398, 2);
+      expect(result.seizedFractionRaw).toBeCloseTo(0.398, 2);
+    });
+
+    it("should expose raw value outside [0,1] for unusual params", () => {
+      // expectedHF > THF → negative raw value
+      const result = computeSeizedFractionDetailed(0.75, 1.05, 1.1, 1.2);
+      expect(result.seizedFractionRaw).toBeLessThan(0);
+      expect(result.seizedFraction).toBe(0);
+    });
+
+    it("should return Infinity raw when expectedHF <= 0", () => {
+      const result = computeSeizedFractionDetailed(0.75, 1.05, 1.1, 0);
+      expect(result.seizedFractionRaw).toBe(Infinity);
+      expect(result.seizedFraction).toBe(1);
     });
 
     it("should stay in [0, 1] for a range of valid parameters", () => {

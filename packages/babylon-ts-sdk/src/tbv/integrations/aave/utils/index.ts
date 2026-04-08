@@ -20,6 +20,15 @@ export type {
   VaultSelectionResult,
 } from "./vaultSelection.js";
 export {
+  getGroup1FromOrder,
+  MAX_GROUPS,
+  MIN_DEBT_THRESHOLD,
+  SEIZURE_TOL,
+  simulateCascade,
+} from "./cascadeSimulation.js";
+export type { CascadeVault } from "./cascadeSimulation.js";
+export { computeOptimalOrder } from "./optimalOrder.js";
+export {
   computeTargetSeizureSats,
   simulatePrefixSeizure,
 } from "./seizureSimulation.js";
@@ -34,6 +43,7 @@ export {
   computeMinDepositForSplit,
   computeOptimalSplit,
   computeSeizedFraction,
+  computeSeizedFractionDetailed,
 } from "./vaultSplit.js";
 export type {
   MinDepositForSplitParams,
