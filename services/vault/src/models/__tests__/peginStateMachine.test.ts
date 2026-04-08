@@ -54,12 +54,12 @@ describe("peginStateMachine", () => {
       expect(state.message).toContain("detect your deposit");
     });
 
-    it("shows awaiting key when VP needs lamport key", () => {
+    it("shows awaiting key when VP needs WOTS key", () => {
       const state = getPeginState(ContractStatus.PENDING, {
-        needsLamportKey: true,
+        needsWotsKey: true,
       });
       expect(state.displayLabel).toBe(PEGIN_DISPLAY_LABELS.AWAITING_KEY);
-      expect(state.availableActions).toContain(PeginAction.SUBMIT_LAMPORT_KEY);
+      expect(state.availableActions).toContain(PeginAction.SUBMIT_WOTS_KEY);
     });
 
     it("shows preparing transactions when VP ingested but not ready", () => {
@@ -297,14 +297,14 @@ describe("peginStateMachine", () => {
   });
 
   describe("getPrimaryActionButton", () => {
-    it("returns Submit Lamport Key for lamport key", () => {
+    it("returns Submit WOTS Key for WOTS key", () => {
       const state = getPeginState(ContractStatus.PENDING, {
-        needsLamportKey: true,
+        needsWotsKey: true,
       });
       const button = getPrimaryActionButton(state);
       expect(button).toEqual({
-        label: "Submit Lamport Key",
-        action: PeginAction.SUBMIT_LAMPORT_KEY,
+        label: "Submit WOTS Key",
+        action: PeginAction.SUBMIT_WOTS_KEY,
       });
     });
 

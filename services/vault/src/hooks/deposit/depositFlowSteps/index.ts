@@ -10,7 +10,7 @@
  * 1. Get ETH wallet - getEthWalletClient
  * 2a. Prepare pegin - preparePegin (build + fund BTC tx)
  * 2b. Register pegin - registerPeginAndWait (PoP + ETH tx)
- * 2.5. Lamport key RPC submission - submitLamportPublicKey
+ * 2.5. WOTS key RPC submission - submitWotsPublicKey
  * 3. Payout signing - pollAndPreparePayoutSigning, submitPayoutSignatures
  * 4. Broadcast - waitForContractVerification, broadcastBtcTransaction
  */
@@ -20,12 +20,12 @@ export { DepositFlowStep } from "./types";
 export type {
   BroadcastParams,
   DepositUtxo,
-  LamportSubmissionParams,
   PayoutSigningContext,
   PayoutSigningParams,
   PeginRegisterParams,
   PeginRegisterResult,
   UtxoRef,
+  WotsSubmissionParams,
 } from "./types";
 
 // Step 0: Validation (from service layer)
@@ -35,8 +35,8 @@ export type { DepositFlowInputs } from "./validation";
 // Steps 1-2: ETH wallet and pegin submission
 export { getEthWalletClient, registerPeginAndWait } from "./ethereumSubmit";
 
-// Step 2.5: Lamport key submission
-export { submitLamportPublicKey } from "./lamportSubmission";
+// Step 2.5: WOTS key submission
+export { submitWotsPublicKey } from "./wotsSubmission";
 
 // Step 3: Payout signing
 export {

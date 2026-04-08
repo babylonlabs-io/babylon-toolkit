@@ -71,7 +71,7 @@ export enum LocalStorageStatus {
  * Source: /btc-vault/crates/vaultd/src/workers/claimer/mod.rs PegInStatus enum
  *
  * State flow (happy path):
- * PendingIngestion -> PendingDepositorLamportPK -> PendingBabeSetup -> PendingChallengerPresigning
+ * PendingIngestion -> PendingDepositorWotsPK -> PendingBabeSetup -> PendingChallengerPresigning
  *   -> PendingDepositorSignatures -> PendingACKs -> PendingActivation -> Activated
  *
  * Terminal / branching states:
@@ -81,7 +81,7 @@ export enum LocalStorageStatus {
  */
 export enum DaemonStatus {
   PENDING_INGESTION = "PendingIngestion",
-  PENDING_DEPOSITOR_LAMPORT_PK = "PendingDepositorLamportPK",
+  PENDING_DEPOSITOR_WOTS_PK = "PendingDepositorWotsPK",
   PENDING_BABE_SETUP = "PendingBabeSetup",
   PENDING_CHALLENGER_PRESIGNING = "PendingChallengerPresigning",
   PENDING_PEGIN_SIGS_AVAILABILITY = "PendingPeginSigsAvailability",
@@ -176,8 +176,8 @@ export interface PeginState {
  * Note: Only includes ACTUAL user actions, not waiting states
  */
 export enum PeginAction {
-  /** Submit lamport key (re-enter mnemonic) */
-  SUBMIT_LAMPORT_KEY = "SUBMIT_LAMPORT_KEY",
+  /** Submit WOTS key (re-enter mnemonic) */
+  SUBMIT_WOTS_KEY = "SUBMIT_WOTS_KEY",
   /** Sign payout transactions */
   SIGN_PAYOUT_TRANSACTIONS = "SIGN_PAYOUT_TRANSACTIONS",
   /** Sign and broadcast peg-in transaction to Bitcoin */
@@ -204,8 +204,8 @@ export interface GetPeginStateOptions {
   transactionsReady?: boolean;
   /** Whether vault is in use by an application (from ApplicationVaultTracker) */
   isInUse?: boolean;
-  /** Whether the vault provider is waiting for the depositor's lamport public key */
-  needsLamportKey?: boolean;
+  /** Whether the vault provider is waiting for the depositor's WOTS public key */
+  needsWotsKey?: boolean;
   /** Whether the vault provider hasn't ingested this peg-in yet */
   pendingIngestion?: boolean;
   /** Expiration reason (only relevant when status is EXPIRED) */
@@ -264,7 +264,7 @@ export function getPeginState(
     localStatus,
     transactionsReady,
     isInUse,
-    needsLamportKey,
+    needsWotsKey,
     pendingIngestion,
     expirationReason,
     expiredAt,
@@ -286,16 +286,16 @@ export function getPeginState(
       };
     }
 
-    // Sub-state: Vault provider waiting for depositor's lamport public key
-    if (needsLamportKey) {
+    // Sub-state: Vault provider waiting for depositor's WOTS public key
+    if (needsWotsKey) {
       return {
         contractStatus,
         localStatus,
         displayLabel: PEGIN_DISPLAY_LABELS.AWAITING_KEY,
         displayVariant: "pending",
-        availableActions: [PeginAction.SUBMIT_LAMPORT_KEY],
+        availableActions: [PeginAction.SUBMIT_WOTS_KEY],
         message:
-          "Vault provider is waiting for your Lamport public key. Click 'Submit Lamport Key' to continue.",
+          "Vault provider is waiting for your WOTS public key. Click 'Submit WOTS Key' to continue.",
       };
     }
 
@@ -340,7 +340,7 @@ export function getPeginState(
     }
 
     // Sub-state: VP has ingested but transactions aren't ready yet
-    // (e.g. after lamport key submitted, VP is preparing claim/payout txns)
+    // (e.g. after WOTS key submitted, VP is preparing claim/payout txns)
     if (!transactionsReady) {
       return {
         contractStatus,
@@ -528,10 +528,10 @@ export function getPrimaryActionButton(state: PeginState): {
   label: string;
   action: PeginAction;
 } | null {
-  if (state.availableActions.includes(PeginAction.SUBMIT_LAMPORT_KEY)) {
+  if (state.availableActions.includes(PeginAction.SUBMIT_WOTS_KEY)) {
     return {
-      label: "Submit Lamport Key",
-      action: PeginAction.SUBMIT_LAMPORT_KEY,
+      label: "Submit WOTS Key",
+      action: PeginAction.SUBMIT_WOTS_KEY,
     };
   }
 

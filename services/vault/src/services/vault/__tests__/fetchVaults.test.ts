@@ -33,14 +33,22 @@ function makeGraphQLVaultItem(
     status: "pending",
     inUse: false,
     ackCount: 0,
-    unsignedPegInTx: "0xtx",
+    depositorSignedPeginTx: "0xtx",
+    unsignedPrePeginTx: "0xpretx",
+    peginTxHash: "0xpeginhash",
+    hashlock: "0x" + "00".repeat(32),
+    htlcVout: 0,
+    secret: null,
+    peginSigsPostedAt: null,
     appVaultKeepersVersion: 1,
     universalChallengersVersion: 1,
     offchainParamsVersion: 1,
     currentOwner: null,
     referralCode: 0,
     depositorPayoutBtcAddress: "0xpayout",
-    depositorLamportPkHash: "0x" + "ab".repeat(32),
+    depositorWotsPkHash: "0x" + "ab".repeat(32),
+    depositorPopSignature: null,
+    prePeginTxHash: null,
     pendingAt: "1700000000",
     verifiedAt: null,
     activatedAt: null,
@@ -56,10 +64,10 @@ describe("fetchVaults", () => {
   afterEach(() => vi.clearAllMocks());
 
   describe("fetchVaultsByDepositor", () => {
-    it("skips vault and logs error when depositorLamportPkHash is null", async () => {
+    it("skips vault and logs error when depositorWotsPkHash is null", async () => {
       mockedRequest.mockResolvedValueOnce({
         vaults: {
-          items: [makeGraphQLVaultItem({ depositorLamportPkHash: null })],
+          items: [makeGraphQLVaultItem({ depositorWotsPkHash: null })],
           totalCount: 1,
         },
       });
@@ -71,7 +79,7 @@ describe("fetchVaults", () => {
       expect(vaults).toHaveLength(0);
       expect(mockedLoggerError).toHaveBeenCalledWith(
         expect.objectContaining({
-          message: expect.stringContaining("depositorLamportPkHash"),
+          message: expect.stringContaining("depositorWotsPkHash"),
         }),
         expect.objectContaining({
           tags: expect.objectContaining({ vaultId: "0xabc123" }),
@@ -79,11 +87,11 @@ describe("fetchVaults", () => {
       );
     });
 
-    it("returns vaults when depositorLamportPkHash is present", async () => {
+    it("returns vaults when depositorWotsPkHash is present", async () => {
       const hash = "0x" + "ab".repeat(32);
       mockedRequest.mockResolvedValueOnce({
         vaults: {
-          items: [makeGraphQLVaultItem({ depositorLamportPkHash: hash })],
+          items: [makeGraphQLVaultItem({ depositorWotsPkHash: hash })],
           totalCount: 1,
         },
       });
@@ -93,7 +101,100 @@ describe("fetchVaults", () => {
       );
 
       expect(vaults).toHaveLength(1);
-      expect(vaults[0].depositorLamportPkHash).toBe(hash);
+      expect(vaults[0].depositorWotsPkHash).toBe(hash);
+    });
+
+    it("maps peginTxHash and new optional fields correctly", async () => {
+      const popSig = "0x" + "cc".repeat(32);
+      const prePeginHash = "0x" + "dd".repeat(32);
+      mockedRequest.mockResolvedValueOnce({
+        vaults: {
+          items: [
+            makeGraphQLVaultItem({
+              peginTxHash: "0xpegin123",
+              depositorPopSignature: popSig,
+              prePeginTxHash: prePeginHash,
+            }),
+          ],
+          totalCount: 1,
+        },
+      });
+
+      const vaults = await fetchVaultsByDepositor(
+        "0xdepositor" as `0x${string}`,
+      );
+
+      expect(vaults).toHaveLength(1);
+      expect(vaults[0].peginTxHash).toBe("0xpegin123");
+      expect(vaults[0].depositorPopSignature).toBe(popSig);
+      expect(vaults[0].prePeginTxHash).toBe(prePeginHash);
+    });
+
+    it("normalizes null optional fields to undefined", async () => {
+      // Base fixture has depositorPopSignature: null, prePeginTxHash: null
+      mockedRequest.mockResolvedValueOnce({
+        vaults: {
+          items: [makeGraphQLVaultItem()],
+          totalCount: 1,
+        },
+      });
+
+      const vaults = await fetchVaultsByDepositor(
+        "0xdepositor" as `0x${string}`,
+      );
+
+      expect(vaults).toHaveLength(1);
+      expect(vaults[0].depositorPopSignature).toBeUndefined();
+      expect(vaults[0].prePeginTxHash).toBeUndefined();
+    });
+
+    it("normalizes zero-hash and empty-bytes optional fields to undefined", async () => {
+      const zeroHash =
+        "0x0000000000000000000000000000000000000000000000000000000000000000";
+      mockedRequest.mockResolvedValueOnce({
+        vaults: {
+          items: [
+            makeGraphQLVaultItem({
+              depositorPopSignature: "0x",
+              prePeginTxHash: zeroHash,
+              hashlock: zeroHash,
+            }),
+          ],
+          totalCount: 1,
+        },
+      });
+
+      const vaults = await fetchVaultsByDepositor(
+        "0xdepositor" as `0x${string}`,
+      );
+
+      expect(vaults).toHaveLength(1);
+      expect(vaults[0].depositorPopSignature).toBeUndefined();
+      expect(vaults[0].prePeginTxHash).toBeUndefined();
+      expect(vaults[0].hashlock).toBeUndefined();
+    });
+
+    it("skips vault and logs error when peginTxHash is null", async () => {
+      mockedRequest.mockResolvedValueOnce({
+        vaults: {
+          items: [makeGraphQLVaultItem({ peginTxHash: null })],
+          totalCount: 1,
+        },
+      });
+
+      const vaults = await fetchVaultsByDepositor(
+        "0xdepositor" as `0x${string}`,
+      );
+
+      expect(vaults).toHaveLength(0);
+      expect(mockedLoggerError).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: expect.stringContaining("peginTxHash"),
+        }),
+        expect.objectContaining({
+          tags: expect.objectContaining({ vaultId: "0xabc123" }),
+        }),
+      );
     });
 
     it("skips vaults with unknown GraphQL status and returns valid ones", async () => {
@@ -147,26 +248,36 @@ describe("fetchVaults", () => {
   });
 
   describe("fetchVaultById", () => {
-    it("throws when depositorLamportPkHash is null", async () => {
+    it("throws when peginTxHash is null", async () => {
       mockedRequest.mockResolvedValueOnce({
-        vault: makeGraphQLVaultItem({ depositorLamportPkHash: null }),
+        vault: makeGraphQLVaultItem({ peginTxHash: null }),
       });
 
       await expect(fetchVaultById("0xabc123" as `0x${string}`)).rejects.toThrow(
-        'Missing required field "depositorLamportPkHash" for vault 0xabc123',
+        'Missing required field "peginTxHash" for vault 0xabc123',
       );
     });
 
-    it("returns vault when depositorLamportPkHash is present", async () => {
+    it("throws when depositorWotsPkHash is null", async () => {
+      mockedRequest.mockResolvedValueOnce({
+        vault: makeGraphQLVaultItem({ depositorWotsPkHash: null }),
+      });
+
+      await expect(fetchVaultById("0xabc123" as `0x${string}`)).rejects.toThrow(
+        'Missing required field "depositorWotsPkHash" for vault 0xabc123',
+      );
+    });
+
+    it("returns vault when depositorWotsPkHash is present", async () => {
       const hash = "0x" + "ab".repeat(32);
       mockedRequest.mockResolvedValueOnce({
-        vault: makeGraphQLVaultItem({ depositorLamportPkHash: hash }),
+        vault: makeGraphQLVaultItem({ depositorWotsPkHash: hash }),
       });
 
       const vault = await fetchVaultById("0xabc123" as `0x${string}`);
 
       expect(vault).not.toBeNull();
-      expect(vault!.depositorLamportPkHash).toBe(hash);
+      expect(vault!.depositorWotsPkHash).toBe(hash);
     });
 
     it("returns null when vault is not found", async () => {

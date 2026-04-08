@@ -93,7 +93,7 @@ describe("UTXO Reservation", () => {
       unsignedPrePeginTx: unsignedPrePeginTx as any,
       amount: 100000n,
       vaultProvider: "0xprovider" as any,
-      proverProgramVersion: 1,
+      peginTxHash: "0xpegin" as any,
       htlcVout: 0,
       status,
       applicationEntryPoint: "0xcontroller" as any,
@@ -103,7 +103,7 @@ describe("UTXO Reservation", () => {
       universalChallengersVersion: 1,
       offchainParamsVersion: 1,
       referralCode: 0,
-      depositorLamportPkHash: "0x" + "ab".repeat(32),
+      depositorWotsPkHash: "0x" + "ab".repeat(32),
       depositorPayoutBtcAddress: "0xpayoutaddr" as any,
     });
 

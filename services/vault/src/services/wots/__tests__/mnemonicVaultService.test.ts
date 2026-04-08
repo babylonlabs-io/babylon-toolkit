@@ -16,7 +16,7 @@ const TEST_MNEMONIC =
   "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
 const TEST_MNEMONIC_2 = "zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo wrong";
 const TEST_PASSWORD = "test-password-123";
-const STORAGE_KEY = "babylon-lamport-vault";
+const STORAGE_KEY = "babylon-wots-vault";
 const TEST_SCOPE = "0xABCDEF1234567890";
 const SCOPED_STORAGE_KEY = `${STORAGE_KEY}-${TEST_SCOPE.toLowerCase()}`;
 
@@ -43,7 +43,7 @@ describe("mnemonicVaultService", () => {
 
     it("treats structurally invalid JSON as empty vault", async () => {
       localStorage.setItem(
-        "babylon-lamport-vault",
+        "babylon-wots-vault",
         JSON.stringify({ foo: "bar" }),
       );
       expect(await hasStoredMnemonic()).toBe(false);
@@ -128,10 +128,10 @@ describe("mnemonicVaultService", () => {
       await addMnemonic(TEST_MNEMONIC, TEST_PASSWORD);
 
       // Manually corrupt the first entry's ciphertext in localStorage
-      const raw = localStorage.getItem("babylon-lamport-vault")!;
+      const raw = localStorage.getItem("babylon-wots-vault")!;
       const vault = JSON.parse(raw);
       vault.mnemonics[0].encrypted = "corrupted-ciphertext";
-      localStorage.setItem("babylon-lamport-vault", JSON.stringify(vault));
+      localStorage.setItem("babylon-wots-vault", JSON.stringify(vault));
 
       // Integrity tag catches the modification
       await expect(addMnemonic(TEST_MNEMONIC_2, TEST_PASSWORD)).rejects.toThrow(
@@ -143,10 +143,10 @@ describe("mnemonicVaultService", () => {
       await addMnemonic(TEST_MNEMONIC, TEST_PASSWORD);
 
       // Corrupt the entry
-      const raw = localStorage.getItem("babylon-lamport-vault")!;
+      const raw = localStorage.getItem("babylon-wots-vault")!;
       const vault = JSON.parse(raw);
       vault.mnemonics[0].encrypted = "corrupted-ciphertext";
-      localStorage.setItem("babylon-lamport-vault", JSON.stringify(vault));
+      localStorage.setItem("babylon-wots-vault", JSON.stringify(vault));
 
       // Integrity tag catches the modification
       await expect(addMnemonic(TEST_MNEMONIC, TEST_PASSWORD)).rejects.toThrow(
@@ -257,7 +257,7 @@ describe("mnemonicVaultService", () => {
     it("does not create a vault when linking to a non-existent scope", () => {
       linkPeginToMnemonic("abc", "some-id", "non-existent-scope");
       expect(
-        localStorage.getItem("babylon-lamport-vault-non-existent-scope"),
+        localStorage.getItem("babylon-wots-vault-non-existent-scope"),
       ).toBeNull();
     });
 
@@ -396,7 +396,7 @@ describe("mnemonicVaultService", () => {
     it("treats old single-mnemonic format as empty", async () => {
       // Old format: { encrypted: "..." } without mnemonics array
       localStorage.setItem(
-        "babylon-lamport-vault",
+        "babylon-wots-vault",
         JSON.stringify({ encrypted: "old-data" }),
       );
       const result = await hasStoredMnemonic();
@@ -405,7 +405,7 @@ describe("mnemonicVaultService", () => {
 
     it("allows adding a mnemonic when old format exists (overwrites)", async () => {
       localStorage.setItem(
-        "babylon-lamport-vault",
+        "babylon-wots-vault",
         JSON.stringify({ encrypted: "old-data" }),
       );
       const id = await addMnemonic(TEST_MNEMONIC, TEST_PASSWORD);

@@ -3,7 +3,7 @@
  *
  * These artifacts are required for the depositor to independently claim
  * their vault funds. They are retrieved from the vault provider after
- * the Lamport key has been submitted and the vault is fully set up.
+ * the WOTS key has been submitted and the vault is fully set up.
  *
  * Artifacts can be very large (tens of MB), so we avoid parsing the full
  * JSON response into memory. Instead we stream the raw response text

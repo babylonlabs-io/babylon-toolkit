@@ -86,8 +86,8 @@ const TEST_KEYS = {
 // Deterministic SHA256 hash commitment (64 hex chars = 32 bytes)
 const TEST_HASH_H = "ab".repeat(32);
 
-// Mock depositor Lamport public key hash (bytes32)
-const MOCK_LAMPORT_PK_HASH = `0x${"ab".repeat(32)}` as `0x${string}`;
+// Mock depositor WOTS public key hash (bytes32)
+const MOCK_WOTS_PK_HASH = `0x${"ab".repeat(32)}` as `0x${string}`;
 
 // Mock hashlock for HTLC (bytes32)
 const MOCK_HASHLOCK = `0x${"cd".repeat(32)}` as `0x${string}`;
@@ -535,7 +535,7 @@ describe("PeginManager", () => {
         htlcVout: 0,
         depositorPayoutBtcAddress:
           "tb1pmfr3p9j00pfxjh0zmgp99y8zftmd3s5pmedqhyptwy6lm87hf5ssk79hv2",
-        depositorLamportPkHash: MOCK_LAMPORT_PK_HASH,
+        depositorWotsPkHash: MOCK_WOTS_PK_HASH,
       });
 
       expect(signMessageSpy).toHaveBeenCalled();
@@ -581,7 +581,7 @@ describe("PeginManager", () => {
           htlcVout: 0,
           depositorPayoutBtcAddress:
             "tb1pmfr3p9j00pfxjh0zmgp99y8zftmd3s5pmedqhyptwy6lm87hf5ssk79hv2",
-          depositorLamportPkHash: MOCK_LAMPORT_PK_HASH,
+          depositorWotsPkHash: MOCK_WOTS_PK_HASH,
         }),
       ).rejects.toThrow(/Mock signing failed/);
     });
@@ -613,7 +613,7 @@ describe("PeginManager", () => {
           htlcVout: 0,
           depositorPayoutBtcAddress:
             "tb1pmfr3p9j00pfxjh0zmgp99y8zftmd3s5pmedqhyptwy6lm87hf5ssk79hv2",
-          depositorLamportPkHash: MOCK_LAMPORT_PK_HASH,
+          depositorWotsPkHash: MOCK_WOTS_PK_HASH,
         }),
       ).rejects.toThrow(/Mock transaction failed/);
     });
@@ -643,7 +643,7 @@ describe("PeginManager", () => {
         htlcVout: 0,
         depositorPayoutBtcAddress:
           "tb1pmfr3p9j00pfxjh0zmgp99y8zftmd3s5pmedqhyptwy6lm87hf5ssk79hv2",
-        depositorLamportPkHash: MOCK_LAMPORT_PK_HASH,
+        depositorWotsPkHash: MOCK_WOTS_PK_HASH,
       });
 
       expect(sendTxSpy).toHaveBeenCalled();
@@ -658,7 +658,7 @@ describe("PeginManager", () => {
         htlcVout: 0,
         depositorPayoutBtcAddress:
           "tb1pmfr3p9j00pfxjh0zmgp99y8zftmd3s5pmedqhyptwy6lm87hf5ssk79hv2",
-        depositorLamportPkHash: MOCK_LAMPORT_PK_HASH,
+        depositorWotsPkHash: MOCK_WOTS_PK_HASH,
       });
 
       expect(sendTxSpy).toHaveBeenCalled();
@@ -715,7 +715,7 @@ describe("PeginManager", () => {
           htlcVout: 0,
           depositorPayoutBtcAddress:
             "tb1pmfr3p9j00pfxjh0zmgp99y8zftmd3s5pmedqhyptwy6lm87hf5ssk79hv2",
-          depositorLamportPkHash: MOCK_LAMPORT_PK_HASH,
+          depositorWotsPkHash: MOCK_WOTS_PK_HASH,
         }),
       ).rejects.toThrow(/Transaction reverted/);
     });

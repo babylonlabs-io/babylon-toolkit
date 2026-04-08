@@ -1,9 +1,9 @@
 /**
- * @module lamportService
+ * @module wotsService
  *
- * Deterministic Lamport one-time-signature key derivation for Babylon vault
+ * Deterministic WOTS one-time-signature key derivation for Babylon vault
  * deposits. Each depositor generates a BIP-39 mnemonic that seeds a
- * hierarchical derivation tree, producing one unique Lamport keypair per
+ * hierarchical derivation tree, producing one unique WOTS keypair per
  * vault.
  *
  * ## High-level flow
@@ -24,7 +24,7 @@
  *    become the *derived chain code*. This ensures that the same mnemonic
  *    yields a unique keypair for every (vault, depositor, contract) tuple.
  *
- * 4. **Lamport keypair expansion** — For each of the {@link PI_1_BITS} bits
+ * 4. **WOTS keypair expansion** — For each of the {@link PI_1_BITS} bits
  *    (508, matching the garbled circuit label count in the protocol):
  *    - Two HMAC-SHA-512 values are computed using the derived chain code as
  *      key and `derivedKey || <bitFlag><bitIndex>` as data, where bitFlag
@@ -40,7 +40,7 @@
  *
  * 5. **Public key serialization** — The public key is the pair of hex-encoded
  *    hash lists (`false_list`, `true_list`), submitted on-chain so the vault
- *    provider can later verify a one-time Lamport signature.
+ *    provider can later verify a one-time WOTS signature.
  *
  * ## Security considerations
  *
@@ -48,7 +48,7 @@
  *   zeroed after use to limit exposure in memory.
  * - Preimages are secret and must never leave the client; only the hashes
  *   (public key) are shared.
- * - Each Lamport keypair is single-use: revealing a preimage to sign a
+ * - Each WOTS keypair is single-use: revealing a preimage to sign a
  *   message consumes that bit position.
  *
  * ## Dependencies
@@ -73,13 +73,13 @@ import { wordlist } from "@scure/bip39/wordlists/english.js";
 import { stripHexPrefix } from "@/utils/btc";
 
 /**
- * Number of bit positions in the Lamport keypair. Corresponds to the number
+ * Number of bit positions in the WOTS keypair. Corresponds to the number
  * of garbled-circuit labels used in the BitVM-style protocol (PI_1 circuit).
  */
 const PI_1_BITS = 508;
 
 /**
- * Size in bytes of each Lamport preimage (garbled-circuit label size).
+ * Size in bytes of each WOTS preimage (garbled-circuit label size).
  * Preimages are truncated from HMAC-SHA-512 output to this length.
  */
 const GC_LABEL_SIZE = 16;
@@ -100,7 +100,7 @@ const INDEX_BUFFER_SIZE = 5;
 const LENGTH_PREFIX_SIZE = 4;
 
 /**
- * A Lamport keypair consisting of preimages (private) and their hashes
+ * A WOTS keypair consisting of preimages (private) and their hashes
  * (public) for both the `false` and `true` branch of each bit position.
  *
  * - `falsePreimages[i]` / `truePreimages[i]` — 16-byte secret preimages.
@@ -108,7 +108,7 @@ const LENGTH_PREFIX_SIZE = 4;
  *
  * All arrays have length {@link PI_1_BITS} (508).
  */
-export interface LamportKeypair {
+export interface WotsKeypair {
   falsePreimages: Uint8Array[];
   truePreimages: Uint8Array[];
   falseHashes: Uint8Array[];
@@ -116,10 +116,10 @@ export interface LamportKeypair {
 }
 
 /**
- * Serialized Lamport public key as two lists of hex-encoded Hash160 digests.
+ * Serialized WOTS public key as two lists of hex-encoded Hash160 digests.
  * This is the format submitted on-chain and to the vault provider.
  */
-export interface LamportPublicKey {
+export interface WotsPublicKey {
   false_list: string[];
   true_list: string[];
 }
@@ -142,7 +142,7 @@ export interface VerificationChallenge {
  *
  * @returns A space-separated 12-word mnemonic string.
  */
-export function generateLamportMnemonic(): string {
+export function generateWotsMnemonic(): string {
   return generateMnemonic(wordlist, MNEMONIC_ENTROPY_BITS);
 }
 
@@ -300,9 +300,9 @@ function hash160(data: Uint8Array): Uint8Array {
  * `"mnemonic"` (no user password), per the BIP-39 specification.
  *
  * @param mnemonic - A valid 12-word BIP-39 mnemonic.
- * @returns 64-byte seed suitable for {@link deriveLamportKeypair}.
+ * @returns 64-byte seed suitable for {@link deriveWotsKeypair}.
  */
-export function mnemonicToLamportSeed(mnemonic: string): Uint8Array {
+export function mnemonicToWotsSeed(mnemonic: string): Uint8Array {
   const seed = mnemonicToSeedSync(mnemonic);
   const copy = new Uint8Array(seed);
   seed.fill(0);
@@ -310,7 +310,7 @@ export function mnemonicToLamportSeed(mnemonic: string): Uint8Array {
 }
 
 /**
- * Derive a deterministic Lamport keypair for a specific vault.
+ * Derive a deterministic WOTS keypair for a specific vault.
  *
  * ### Derivation steps
  *
@@ -341,18 +341,18 @@ export function mnemonicToLamportSeed(mnemonic: string): Uint8Array {
  * The same (mnemonic, vaultId, depositorPk, appContractAddress) tuple always
  * produces the same keypair, enabling recovery from the mnemonic alone.
  *
- * @param seed               - 64-byte seed from {@link mnemonicToLamportSeed}. Zeroed after use.
+ * @param seed               - 64-byte seed from {@link mnemonicToWotsSeed}. Zeroed after use.
  * @param vaultId            - Unique identifier of the vault (e.g. pegin tx hash).
  * @param depositorPk        - Depositor's public key (hex string).
  * @param appContractAddress - Ethereum address of the application contract.
- * @returns A {@link LamportKeypair} with 508 preimage/hash pairs per branch.
+ * @returns A {@link WotsKeypair} with 508 preimage/hash pairs per branch.
  */
-export async function deriveLamportKeypair(
+export async function deriveWotsKeypair(
   seed: Uint8Array,
   vaultId: string,
   depositorPk: string,
   appContractAddress: string,
-): Promise<LamportKeypair> {
+): Promise<WotsKeypair> {
   // Normalize inputs once — callers don't need to worry about 0x prefixes.
   vaultId = stripHexPrefix(vaultId);
   depositorPk = stripHexPrefix(depositorPk);
@@ -426,18 +426,18 @@ const toHex = (bytes: Uint8Array) =>
     .join("");
 
 /**
- * Extract the public key from a Lamport keypair.
+ * Extract the public key from a WOTS keypair.
  *
  * The public key consists of the Hash160 digests (hex-encoded) for both
  * the `false` and `true` branch of each bit position. This is the value
  * submitted on-chain and to the vault provider for later signature
  * verification.
  *
- * @param keypair - A derived {@link LamportKeypair}.
- * @returns The {@link LamportPublicKey} with `false_list` and `true_list`,
+ * @param keypair - A derived {@link WotsKeypair}.
+ * @returns The {@link WotsPublicKey} with `false_list` and `true_list`,
  *          each containing 508 hex strings of 40 characters (20 bytes).
  */
-export function keypairToPublicKey(keypair: LamportKeypair): LamportPublicKey {
+export function keypairToPublicKey(keypair: WotsKeypair): WotsPublicKey {
   return {
     false_list: keypair.falseHashes.map(toHex),
     true_list: keypair.trueHashes.map(toHex),
@@ -445,19 +445,22 @@ export function keypairToPublicKey(keypair: LamportKeypair): LamportPublicKey {
 }
 
 /**
- * Compute the keccak256 hash of a Lamport keypair's public key.
+ * Compute the keccak256 hash of a WOTS keypair's public key.
  *
  * Matches the Rust `InputLabelHashes::keccak256_hash()` implementation:
  * `keccak256(falseHashes[0] || falseHashes[1] || ... || trueHashes[0] || trueHashes[1] || ...)`
  *
  * Each hash is 20 bytes (Hash160). Total input: `PI_1_BITS * 20 * 2` bytes.
- * The result is committed on-chain as `depositorLamportPkHash` so the vault
- * provider can later verify submitted Lamport public keys.
+ * The result is committed on-chain as `depositorWotsPkHash` so the vault
+ * provider can later verify submitted WOTS public keys.
  *
- * @param keypair - A derived {@link LamportKeypair}.
+ * @param keypair - A derived {@link WotsKeypair}.
  * @returns 32-byte keccak256 digest as a `0x`-prefixed hex string.
  */
-export function computeLamportPkHash(keypair: LamportKeypair): `0x${string}` {
+export function computeWotsPkHash(keypair: WotsKeypair): `0x${string}` {
+  if (keypair.falseHashes.length === 0 || keypair.trueHashes.length === 0) {
+    throw new Error("computeWotsPkHash: keypair hash arrays must not be empty");
+  }
   const hashSize = keypair.falseHashes[0].length;
   const totalBytes =
     (keypair.falseHashes.length + keypair.trueHashes.length) * hashSize;
@@ -478,27 +481,27 @@ export function computeLamportPkHash(keypair: LamportKeypair): `0x${string}` {
 }
 
 /**
- * Convenience wrapper: derive a Lamport keypair from a mnemonic and return
+ * Convenience wrapper: derive a WOTS keypair from a mnemonic and return
  * the keccak256 hash of its public key. Handles seed creation and cleanup.
  *
- * Used before the ETH transaction to produce the `depositorLamportPkHash`
+ * Used before the ETH transaction to produce the `depositorWotsPkHash`
  * that gets committed on-chain.
  */
-export async function deriveLamportPkHash(
+export async function deriveWotsPkHash(
   mnemonic: string,
   peginTxid: string,
   depositorBtcPubkey: string,
   appContractAddress: string,
 ): Promise<`0x${string}`> {
-  const seed = mnemonicToLamportSeed(mnemonic);
+  const seed = mnemonicToWotsSeed(mnemonic);
   try {
-    const keypair = await deriveLamportKeypair(
+    const keypair = await deriveWotsKeypair(
       seed,
       peginTxid,
       depositorBtcPubkey,
       appContractAddress,
     );
-    return computeLamportPkHash(keypair);
+    return computeWotsPkHash(keypair);
   } finally {
     seed.fill(0);
   }
@@ -506,19 +509,19 @@ export async function deriveLamportPkHash(
 
 /**
  * Check whether an error from the vault provider indicates that the
- * submitted Lamport public key hash does not match the on-chain
+ * submitted WOTS public key hash does not match the on-chain
  * commitment. This signals that the wrong mnemonic was used, as
  * opposed to a transient network or validation error.
  *
  * The backend error message is:
- *   "Lamport public key hash does not match on-chain commitment"
+ *   "WOTS public key hash does not match on-chain commitment"
  */
-export function isLamportMismatchError(error: unknown): boolean {
+export function isWotsMismatchError(error: unknown): boolean {
   const msg =
     error instanceof Error
       ? error.message
       : typeof error === "string"
         ? error
         : "";
-  return /lamport.*hash.*does not match/i.test(msg);
+  return /wots.*hash.*does not match/i.test(msg);
 }
