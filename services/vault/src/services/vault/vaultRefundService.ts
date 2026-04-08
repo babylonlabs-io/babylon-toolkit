@@ -148,7 +148,7 @@ export async function buildAndBroadcastRefundTransaction(
       universalChallengerPubkeys,
       hashlocks: [stripHexPrefix(onChainVault.hashlock)],
       timelockRefund: offchainParams.tRefund,
-      pegInAmount: indexerVault.amount,
+      pegInAmounts: [indexerVault.amount],
       feeRate: offchainParams.feeRate,
       numLocalChallengers,
       councilQuorum: offchainParams.councilQuorum,

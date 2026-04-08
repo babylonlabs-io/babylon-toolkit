@@ -1411,15 +1411,15 @@ Converted to scriptPubKey internally via bitcoinjs-lib.
 If omitted, defaults to the connected BTC wallet's address
 via `btcWallet.getAddress()`.
 
-##### depositorLamportPkHash
+##### depositorWotsPkHash
 
 ```ts
-depositorLamportPkHash: `0x${string}`;
+depositorWotsPkHash: `0x${string}`;
 ```
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:305](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L305)
 
-Keccak256 hash of the depositor's Lamport public key (bytes32)
+Keccak256 hash of the depositor's WOTS public key (bytes32)
 
 ##### preSignedBtcPopSignature?
 

@@ -73,7 +73,7 @@ export async function registerPeginAndWait(
     vaultProviderAddress,
     onPopSigned,
     depositorPayoutBtcAddress,
-    depositorLamportPkHash,
+    depositorWotsPkHash,
     preSignedBtcPopSignature,
     depositorSecretHash,
   } = params;
@@ -87,7 +87,7 @@ export async function registerPeginAndWait(
     vaultProviderAddress: vaultProviderAddress as Address,
     onPopSigned,
     depositorPayoutBtcAddress,
-    depositorLamportPkHash,
+    depositorWotsPkHash,
     preSignedBtcPopSignature,
     depositorSecretHash,
   });

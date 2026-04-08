@@ -1,7 +1,7 @@
 /**
  * PendingDepositModals Component
  *
- * Renders the sign / broadcast / lamport key / success modals used by the
+ * Renders the sign / broadcast / WOTS key / success modals used by the
  * pending deposit section. Uses SimpleDeposit in resume mode for all actions.
  */
 
@@ -30,7 +30,7 @@ interface BroadcastModalState {
   handleSuccessClose: () => void;
 }
 
-interface LamportKeyModalState {
+interface WotsKeyModalState {
   isOpen: boolean;
   activity: VaultActivity | null;
   handleClose: () => void;
@@ -54,7 +54,7 @@ interface RefundModalState {
 interface PendingDepositModalsProps {
   signModal: SignModalState;
   broadcastModal: BroadcastModalState;
-  lamportKeyModal: LamportKeyModalState;
+  wotsKeyModal: WotsKeyModalState;
   activationModal: ActivationModalState;
   refundModal: RefundModalState;
   vaultProviders: VaultProvider[];
@@ -65,7 +65,7 @@ interface PendingDepositModalsProps {
 export function PendingDepositModals({
   signModal,
   broadcastModal,
-  lamportKeyModal,
+  wotsKeyModal,
   activationModal,
   refundModal,
   vaultProviders,
@@ -74,8 +74,8 @@ export function PendingDepositModals({
 }: PendingDepositModalsProps) {
   const { refetch: refetchPolling } = usePeginPolling();
 
-  const handleLamportKeySuccess = () => {
-    lamportKeyModal.handleSuccess();
+  const handleWotsKeySuccess = () => {
+    wotsKeyModal.handleSuccess();
     refetchPolling();
   };
 
@@ -108,14 +108,14 @@ export function PendingDepositModals({
         />
       )}
 
-      {/* Lamport Key Modal – mnemonic re-entry */}
-      {lamportKeyModal.isOpen && lamportKeyModal.activity && (
+      {/* WOTS Key Modal – mnemonic re-entry */}
+      {wotsKeyModal.isOpen && wotsKeyModal.activity && (
         <SimpleDeposit
-          open={lamportKeyModal.isOpen}
-          resumeMode="submit_lamport_key"
-          onClose={lamportKeyModal.handleClose}
-          onResumeSuccess={handleLamportKeySuccess}
-          activity={lamportKeyModal.activity}
+          open={wotsKeyModal.isOpen}
+          resumeMode="submit_wots_key"
+          onClose={wotsKeyModal.handleClose}
+          onResumeSuccess={handleWotsKeySuccess}
+          activity={wotsKeyModal.activity}
           vaultProviders={vaultProviders}
         />
       )}

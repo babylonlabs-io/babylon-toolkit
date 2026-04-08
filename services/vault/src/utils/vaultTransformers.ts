@@ -62,7 +62,7 @@ export function transformVaultToActivity(vault: Vault): VaultActivity {
     depositorBtcPubkey: vault.depositorBtcPubkey,
     depositorSignedPeginTx: vault.depositorSignedPeginTx,
     unsignedPrePeginTx: vault.unsignedPrePeginTx,
-    depositorLamportPkHash: vault.depositorLamportPkHash,
+    depositorWotsPkHash: vault.depositorWotsPkHash,
     expiredAt: vault.expiredAt,
     expirationReason: vault.expirationReason,
     // No action handlers - these are attached at the component level

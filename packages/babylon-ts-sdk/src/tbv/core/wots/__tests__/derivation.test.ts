@@ -1,40 +1,40 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  computeLamportPkHash,
-  deriveLamportKeypair,
+  computeWotsPkHash,
+  deriveWotsKeypair,
   keypairToPublicKey,
-  mnemonicToLamportSeed,
+  mnemonicToWotsSeed,
 } from "../derivation";
-import { deriveLamportPkHash } from "../deriveLamportPkHash";
-import { isLamportMismatchError } from "../errors";
+import { deriveWotsPkHash } from "../deriveWotsPkHash";
+import { isWotsMismatchError } from "../errors";
 
 const KNOWN_MNEMONIC =
   "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
 
-describe("lamport derivation (SDK)", () => {
-  describe("mnemonicToLamportSeed", () => {
+describe("WOTS derivation (SDK)", () => {
+  describe("mnemonicToWotsSeed", () => {
     it("produces a 64-byte seed", () => {
-      const seed = mnemonicToLamportSeed(KNOWN_MNEMONIC);
+      const seed = mnemonicToWotsSeed(KNOWN_MNEMONIC);
       expect(seed).toBeInstanceOf(Uint8Array);
       expect(seed.length).toBe(64);
     });
 
     it("is deterministic for the same mnemonic", () => {
-      const a = mnemonicToLamportSeed(KNOWN_MNEMONIC);
-      const b = mnemonicToLamportSeed(KNOWN_MNEMONIC);
+      const a = mnemonicToWotsSeed(KNOWN_MNEMONIC);
+      const b = mnemonicToWotsSeed(KNOWN_MNEMONIC);
       expect(a).toEqual(b);
     });
   });
 
-  describe("deriveLamportKeypair", () => {
-    const freshSeed = () => mnemonicToLamportSeed(KNOWN_MNEMONIC);
+  describe("deriveWotsKeypair", () => {
+    const freshSeed = () => mnemonicToWotsSeed(KNOWN_MNEMONIC);
     const vaultId = "vault-1";
     const depositorPk = "pk-abc";
     const appContractAddress = "0x1234";
 
     it("generates 508 preimage and hash slots per type", async () => {
-      const keypair = await deriveLamportKeypair(
+      const keypair = await deriveWotsKeypair(
         freshSeed(),
         vaultId,
         depositorPk,
@@ -47,7 +47,7 @@ describe("lamport derivation (SDK)", () => {
     });
 
     it("produces 16-byte preimages and 20-byte hashes", async () => {
-      const keypair = await deriveLamportKeypair(
+      const keypair = await deriveWotsKeypair(
         freshSeed(),
         vaultId,
         depositorPk,
@@ -60,13 +60,13 @@ describe("lamport derivation (SDK)", () => {
     });
 
     it("is deterministic for the same inputs", async () => {
-      const a = await deriveLamportKeypair(
+      const a = await deriveWotsKeypair(
         freshSeed(),
         vaultId,
         depositorPk,
         appContractAddress,
       );
-      const b = await deriveLamportKeypair(
+      const b = await deriveWotsKeypair(
         freshSeed(),
         vaultId,
         depositorPk,
@@ -80,7 +80,7 @@ describe("lamport derivation (SDK)", () => {
 
     it("rejects a seed that is not 64 bytes", async () => {
       await expect(
-        deriveLamportKeypair(
+        deriveWotsKeypair(
           new Uint8Array(32),
           vaultId,
           depositorPk,
@@ -90,13 +90,13 @@ describe("lamport derivation (SDK)", () => {
     });
 
     it("produces different keys for different vault IDs", async () => {
-      const a = await deriveLamportKeypair(
+      const a = await deriveWotsKeypair(
         freshSeed(),
         "vault-1",
         depositorPk,
         appContractAddress,
       );
-      const b = await deriveLamportKeypair(
+      const b = await deriveWotsKeypair(
         freshSeed(),
         "vault-2",
         depositorPk,
@@ -108,8 +108,8 @@ describe("lamport derivation (SDK)", () => {
 
   describe("keypairToPublicKey", () => {
     it("converts keypair hashes to hex strings", async () => {
-      const seed = mnemonicToLamportSeed(KNOWN_MNEMONIC);
-      const keypair = await deriveLamportKeypair(
+      const seed = mnemonicToWotsSeed(KNOWN_MNEMONIC);
+      const keypair = await deriveWotsKeypair(
         seed,
         "vault-1",
         "pk-abc",
@@ -128,81 +128,81 @@ describe("lamport derivation (SDK)", () => {
     });
   });
 
-  describe("computeLamportPkHash", () => {
-    const freshSeed = () => mnemonicToLamportSeed(KNOWN_MNEMONIC);
+  describe("computeWotsPkHash", () => {
+    const freshSeed = () => mnemonicToWotsSeed(KNOWN_MNEMONIC);
     const vaultId = "vault-1";
     const depositorPk = "pk-abc";
     const appContractAddress = "0x1234";
 
     it("produces a deterministic hash for known inputs", async () => {
-      const keypair = await deriveLamportKeypair(
+      const keypair = await deriveWotsKeypair(
         freshSeed(),
         vaultId,
         depositorPk,
         appContractAddress,
       );
-      const hash = computeLamportPkHash(keypair);
+      const hash = computeWotsPkHash(keypair);
       expect(hash).toBe(
         "0x27242076796ab9f57b3734af2cc39bf367f26aecced2bdd200a609052657e98e",
       );
     });
 
     it("returns the same hash for the same keypair derived twice", async () => {
-      const keypairA = await deriveLamportKeypair(
+      const keypairA = await deriveWotsKeypair(
         freshSeed(),
         vaultId,
         depositorPk,
         appContractAddress,
       );
-      const keypairB = await deriveLamportKeypair(
+      const keypairB = await deriveWotsKeypair(
         freshSeed(),
         vaultId,
         depositorPk,
         appContractAddress,
       );
-      expect(computeLamportPkHash(keypairA)).toBe(
-        computeLamportPkHash(keypairB),
+      expect(computeWotsPkHash(keypairA)).toBe(
+        computeWotsPkHash(keypairB),
       );
     });
 
     it("produces different hashes for different vault IDs", async () => {
-      const keypairA = await deriveLamportKeypair(
+      const keypairA = await deriveWotsKeypair(
         freshSeed(),
         "vault-1",
         depositorPk,
         appContractAddress,
       );
-      const keypairB = await deriveLamportKeypair(
+      const keypairB = await deriveWotsKeypair(
         freshSeed(),
         "vault-2",
         depositorPk,
         appContractAddress,
       );
-      expect(computeLamportPkHash(keypairA)).not.toBe(
-        computeLamportPkHash(keypairB),
+      expect(computeWotsPkHash(keypairA)).not.toBe(
+        computeWotsPkHash(keypairB),
       );
     });
 
     it("returns a 0x-prefixed 66-character hex string", async () => {
-      const keypair = await deriveLamportKeypair(
+      const keypair = await deriveWotsKeypair(
         freshSeed(),
         vaultId,
         depositorPk,
         appContractAddress,
       );
-      const hash = computeLamportPkHash(keypair);
+      const hash = computeWotsPkHash(keypair);
       expect(hash).toMatch(/^0x[0-9a-f]{64}$/);
       expect(hash.length).toBe(66);
     });
 
     it("changes when a single bit position hash is modified", async () => {
-      const keypair = await deriveLamportKeypair(
+      const keypair = await deriveWotsKeypair(
         freshSeed(),
         vaultId,
         depositorPk,
         appContractAddress,
       );
-      const originalHash = computeLamportPkHash(keypair);
+      const originalHash = computeWotsPkHash(keypair);
 
       const tampered: typeof keypair = {
         falsePreimages: keypair.falsePreimages,
@@ -218,17 +218,17 @@ describe("lamport derivation (SDK)", () => {
         }),
       };
 
-      expect(computeLamportPkHash(tampered)).not.toBe(originalHash);
+      expect(computeWotsPkHash(tampered)).not.toBe(originalHash);
     });
   });
 
-  describe("deriveLamportPkHash", () => {
+  describe("deriveWotsPkHash", () => {
     it("produces the same hash as manual seed + derive + compute", async () => {
       const vaultId = "vault-1";
       const depositorPk = "pk-abc";
       const appContractAddress = "0x1234";
 
-      const hash = await deriveLamportPkHash(
+      const hash = await deriveWotsPkHash(
         KNOWN_MNEMONIC,
         vaultId,
         depositorPk,
@@ -241,49 +241,49 @@ describe("lamport derivation (SDK)", () => {
     });
   });
 
-  describe("isLamportMismatchError", () => {
+  describe("isWotsMismatchError", () => {
     it("returns true for the exact VP error message", () => {
       const err = new Error(
-        "Lamport public key hash does not match on-chain commitment",
+        "WOTS public key hash does not match on-chain commitment",
       );
-      expect(isLamportMismatchError(err)).toBe(true);
+      expect(isWotsMismatchError(err)).toBe(true);
     });
 
     it("returns true when the VP message is embedded in a wrapper error", () => {
       const err = new Error(
-        "RPC error: Lamport public key hash does not match on-chain commitment (code 3002)",
+        "RPC error: WOTS public key hash does not match on-chain commitment (code 3002)",
       );
-      expect(isLamportMismatchError(err)).toBe(true);
+      expect(isWotsMismatchError(err)).toBe(true);
     });
 
     it("returns false for network errors", () => {
-      expect(isLamportMismatchError(new Error("fetch failed"))).toBe(false);
+      expect(isWotsMismatchError(new Error("fetch failed"))).toBe(false);
     });
 
     it("returns false for missing field errors", () => {
       expect(
-        isLamportMismatchError(new Error("Missing transaction hash")),
+        isWotsMismatchError(new Error("Missing transaction hash")),
       ).toBe(false);
     });
 
     it("returns false for generic errors", () => {
       expect(
-        isLamportMismatchError(new Error("Failed to submit lamport key")),
+        isWotsMismatchError(new Error("Failed to submit wots key")),
       ).toBe(false);
     });
 
     it("handles string errors", () => {
       expect(
-        isLamportMismatchError(
-          "Lamport public key hash does not match on-chain commitment",
+        isWotsMismatchError(
+          "WOTS public key hash does not match on-chain commitment",
         ),
       ).toBe(true);
     });
 
     it("handles non-error values", () => {
-      expect(isLamportMismatchError(null)).toBe(false);
-      expect(isLamportMismatchError(undefined)).toBe(false);
-      expect(isLamportMismatchError(42)).toBe(false);
+      expect(isWotsMismatchError(null)).toBe(false);
+      expect(isWotsMismatchError(undefined)).toBe(false);
+      expect(isWotsMismatchError(42)).toBe(false);
     });
   });
 });

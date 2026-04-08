@@ -107,8 +107,8 @@ export interface VaultActivity {
   /** Unsigned pre-pegin transaction hex (spends depositor's UTXOs — used for UTXO validation) */
   unsignedPrePeginTx?: string;
 
-  /** Keccak256 hash of depositor's Lamport public key (committed on-chain) */
-  depositorLamportPkHash: string;
+  /** Keccak256 hash of depositor's WOTS public key (committed on-chain) */
+  depositorWotsPkHash: string;
 
   /** Timestamp when vault expired (milliseconds), undefined if not expired */
   expiredAt?: number;

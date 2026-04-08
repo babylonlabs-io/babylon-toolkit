@@ -74,16 +74,16 @@ vi.mock("@/services/vault/vaultPeginBroadcastService", () => ({
   broadcastPrePeginTransaction: vi.fn().mockResolvedValue("mockBroadcastTxId"),
 }));
 
-vi.mock("@/services/lamport/lamportService", () => ({
-  deriveLamportPkHash: vi
+vi.mock("@/services/wots/wotsService", () => ({
+  deriveWotsPkHash: vi
     .fn()
     .mockResolvedValue(
       "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
     ),
 }));
 
-vi.mock("@/services/lamport", () => ({
-  deriveLamportPkHash: vi
+vi.mock("@/services/wots", () => ({
+  deriveWotsPkHash: vi
     .fn()
     .mockResolvedValue(
       "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
@@ -131,7 +131,7 @@ vi.mock("../depositFlowSteps", () => ({
   getEthWalletClient: vi.fn(),
   registerPeginAndWait: vi.fn(),
   pollAndPreparePayoutSigning: vi.fn(),
-  submitLamportPublicKey: vi.fn(),
+  submitWotsPublicKey: vi.fn(),
   submitPayoutSignatures: vi.fn(),
   waitForContractVerification: vi.fn(),
 }));
@@ -202,7 +202,7 @@ const MOCK_PARAMS = {
   vaultProviderBtcPubkey: "ab".repeat(32),
   vaultKeeperBtcPubkeys: ["keeper1pubkey"],
   universalChallengerBtcPubkeys: ["uc1pubkey"],
-  getMnemonic: async () => "test mnemonic phrase for lamport key derivation",
+  getMnemonic: async () => "test mnemonic phrase for wots key derivation",
   htlcSecretHexes: ["ab".repeat(32), "cd".repeat(32)],
   depositorSecretHashes: [
     ("0x" + "aa".repeat(32)) as Hex,

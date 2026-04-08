@@ -108,8 +108,8 @@ export interface RegisterPeginOnChainParams {
   onPopSigned?: () => void | Promise<void>;
   /** Depositor's BTC payout address (e.g. bc1p...) */
   depositorPayoutBtcAddress: string;
-  /** Keccak256 hash of the depositor's Lamport public key */
-  depositorLamportPkHash: Hex;
+  /** Keccak256 hash of the depositor's WOTS public key */
+  depositorWotsPkHash: Hex;
   /** Pre-signed BTC PoP signature to reuse (skips BTC wallet signing) */
   preSignedBtcPopSignature?: Hex;
   /**
@@ -205,7 +205,7 @@ export async function preparePeginTransaction(
 /**
  * Register a prepared pegin on Ethereum (PoP signature + contract call).
  *
- * This is the second half of the pegin flow, called after the Lamport
+ * This is the second half of the pegin flow, called after the WOTS
  * keypair has been derived and its hash is available.
  */
 export async function registerPeginOnChain(
@@ -224,7 +224,7 @@ export async function registerPeginOnChain(
     vaultProvider: params.vaultProviderAddress,
     onPopSigned: params.onPopSigned,
     depositorPayoutBtcAddress: params.depositorPayoutBtcAddress,
-    depositorLamportPkHash: params.depositorLamportPkHash,
+    depositorWotsPkHash: params.depositorWotsPkHash,
     preSignedBtcPopSignature: params.preSignedBtcPopSignature,
   });
 

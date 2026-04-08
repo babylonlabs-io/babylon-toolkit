@@ -1,33 +1,33 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  computeLamportPkHash,
+  computeWotsPkHash,
   createVerificationChallenge,
-  deriveLamportKeypair,
-  generateLamportMnemonic,
+  deriveWotsKeypair,
+  generateWotsMnemonic,
   getMnemonicWords,
-  isLamportMismatchError,
   isValidMnemonic,
+  isWotsMismatchError,
   keypairToPublicKey,
-  mnemonicToLamportSeed,
+  mnemonicToWotsSeed,
   verifyMnemonicWords,
-} from "../lamportService";
+} from "../wotsService";
 
 const KNOWN_MNEMONIC =
   "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
 
-describe("lamportService", () => {
-  describe("generateLamportMnemonic", () => {
+describe("wotsService", () => {
+  describe("generateWotsMnemonic", () => {
     it("generates a valid 12-word mnemonic", () => {
-      const mnemonic = generateLamportMnemonic();
+      const mnemonic = generateWotsMnemonic();
       const words = mnemonic.split(" ");
       expect(words).toHaveLength(12);
       expect(isValidMnemonic(mnemonic)).toBe(true);
     });
 
     it("generates unique mnemonics on each call", () => {
-      const a = generateLamportMnemonic();
-      const b = generateLamportMnemonic();
+      const a = generateWotsMnemonic();
+      const b = generateWotsMnemonic();
       expect(a).not.toBe(b);
     });
   });
@@ -109,30 +109,30 @@ describe("lamportService", () => {
     });
   });
 
-  describe("mnemonicToLamportSeed", () => {
+  describe("mnemonicToWotsSeed", () => {
     it("produces a 64-byte seed", () => {
-      const seed = mnemonicToLamportSeed(KNOWN_MNEMONIC);
+      const seed = mnemonicToWotsSeed(KNOWN_MNEMONIC);
       expect(seed).toBeInstanceOf(Uint8Array);
       expect(seed.length).toBe(64);
     });
 
     it("is deterministic for the same mnemonic", () => {
-      const a = mnemonicToLamportSeed(KNOWN_MNEMONIC);
-      const b = mnemonicToLamportSeed(KNOWN_MNEMONIC);
+      const a = mnemonicToWotsSeed(KNOWN_MNEMONIC);
+      const b = mnemonicToWotsSeed(KNOWN_MNEMONIC);
       expect(a).toEqual(b);
     });
   });
 
-  describe("deriveLamportKeypair", () => {
-    // deriveLamportKeypair zeros the seed after use, so each test must
+  describe("deriveWotsKeypair", () => {
+    // deriveWotsKeypair zeros the seed after use, so each test must
     // create a fresh copy to avoid cross-test contamination.
-    const freshSeed = () => mnemonicToLamportSeed(KNOWN_MNEMONIC);
+    const freshSeed = () => mnemonicToWotsSeed(KNOWN_MNEMONIC);
     const vaultId = "vault-1";
     const depositorPk = "pk-abc";
     const appContractAddress = "0x1234";
 
     it("generates 508 preimage and hash slots per type", async () => {
-      const keypair = await deriveLamportKeypair(
+      const keypair = await deriveWotsKeypair(
         freshSeed(),
         vaultId,
         depositorPk,
@@ -145,7 +145,7 @@ describe("lamportService", () => {
     });
 
     it("produces 16-byte preimages and 20-byte hashes", async () => {
-      const keypair = await deriveLamportKeypair(
+      const keypair = await deriveWotsKeypair(
         freshSeed(),
         vaultId,
         depositorPk,
@@ -158,13 +158,13 @@ describe("lamportService", () => {
     });
 
     it("is deterministic for the same inputs", async () => {
-      const a = await deriveLamportKeypair(
+      const a = await deriveWotsKeypair(
         freshSeed(),
         vaultId,
         depositorPk,
         appContractAddress,
       );
-      const b = await deriveLamportKeypair(
+      const b = await deriveWotsKeypair(
         freshSeed(),
         vaultId,
         depositorPk,
@@ -177,13 +177,13 @@ describe("lamportService", () => {
     });
 
     it("produces different keys for different vault IDs", async () => {
-      const a = await deriveLamportKeypair(
+      const a = await deriveWotsKeypair(
         freshSeed(),
         "vault-1",
         depositorPk,
         appContractAddress,
       );
-      const b = await deriveLamportKeypair(
+      const b = await deriveWotsKeypair(
         freshSeed(),
         "vault-2",
         depositorPk,
@@ -195,8 +195,8 @@ describe("lamportService", () => {
 
   describe("keypairToPublicKey", () => {
     it("converts keypair hashes to hex strings", async () => {
-      const seed = mnemonicToLamportSeed(KNOWN_MNEMONIC);
-      const keypair = await deriveLamportKeypair(
+      const seed = mnemonicToWotsSeed(KNOWN_MNEMONIC);
+      const keypair = await deriveWotsKeypair(
         seed,
         "vault-1",
         "pk-abc",
@@ -215,82 +215,78 @@ describe("lamportService", () => {
     });
   });
 
-  describe("computeLamportPkHash", () => {
-    // Use a factory — deriveLamportKeypair zeros the seed after use
-    const freshSeed = () => mnemonicToLamportSeed(KNOWN_MNEMONIC);
+  describe("computeWotsPkHash", () => {
+    // Use a factory — deriveWotsKeypair zeros the seed after use
+    const freshSeed = () => mnemonicToWotsSeed(KNOWN_MNEMONIC);
     const vaultId = "vault-1";
     const depositorPk = "pk-abc";
     const appContractAddress = "0x1234";
 
     it("produces a deterministic hash for known inputs", async () => {
-      const keypair = await deriveLamportKeypair(
+      const keypair = await deriveWotsKeypair(
         freshSeed(),
         vaultId,
         depositorPk,
         appContractAddress,
       );
-      const hash = computeLamportPkHash(keypair);
+      const hash = computeWotsPkHash(keypair);
       expect(hash).toBe(
         "0x27242076796ab9f57b3734af2cc39bf367f26aecced2bdd200a609052657e98e",
       );
     });
 
     it("returns the same hash for the same keypair derived twice", async () => {
-      const keypairA = await deriveLamportKeypair(
+      const keypairA = await deriveWotsKeypair(
         freshSeed(),
         vaultId,
         depositorPk,
         appContractAddress,
       );
-      const keypairB = await deriveLamportKeypair(
+      const keypairB = await deriveWotsKeypair(
         freshSeed(),
         vaultId,
         depositorPk,
         appContractAddress,
       );
-      expect(computeLamportPkHash(keypairA)).toBe(
-        computeLamportPkHash(keypairB),
-      );
+      expect(computeWotsPkHash(keypairA)).toBe(computeWotsPkHash(keypairB));
     });
 
     it("produces different hashes for different vault IDs", async () => {
-      const keypairA = await deriveLamportKeypair(
+      const keypairA = await deriveWotsKeypair(
         freshSeed(),
         "vault-1",
         depositorPk,
         appContractAddress,
       );
-      const keypairB = await deriveLamportKeypair(
+      const keypairB = await deriveWotsKeypair(
         freshSeed(),
         "vault-2",
         depositorPk,
         appContractAddress,
       );
-      expect(computeLamportPkHash(keypairA)).not.toBe(
-        computeLamportPkHash(keypairB),
-      );
+      expect(computeWotsPkHash(keypairA)).not.toBe(computeWotsPkHash(keypairB));
     });
 
     it("returns a 0x-prefixed 66-character hex string", async () => {
-      const keypair = await deriveLamportKeypair(
+      const keypair = await deriveWotsKeypair(
         freshSeed(),
         vaultId,
         depositorPk,
         appContractAddress,
       );
-      const hash = computeLamportPkHash(keypair);
+      const hash = computeWotsPkHash(keypair);
       expect(hash).toMatch(/^0x[0-9a-f]{64}$/);
       expect(hash.length).toBe(66);
     });
 
     it("changes when a single bit position hash is modified", async () => {
-      const keypair = await deriveLamportKeypair(
+      const keypair = await deriveWotsKeypair(
         freshSeed(),
         vaultId,
         depositorPk,
         appContractAddress,
       );
-      const originalHash = computeLamportPkHash(keypair);
+      const originalHash = computeWotsPkHash(keypair);
 
       // Flip one byte in the last trueHash (bit position 507)
       const tampered: typeof keypair = {
@@ -307,53 +303,53 @@ describe("lamportService", () => {
         }),
       };
 
-      expect(computeLamportPkHash(tampered)).not.toBe(originalHash);
+      expect(computeWotsPkHash(tampered)).not.toBe(originalHash);
     });
   });
 
-  describe("isLamportMismatchError", () => {
+  describe("isWotsMismatchError", () => {
     it("returns true for the exact VP error message", () => {
       const err = new Error(
-        "Lamport public key hash does not match on-chain commitment",
+        "WOTS public key hash does not match on-chain commitment",
       );
-      expect(isLamportMismatchError(err)).toBe(true);
+      expect(isWotsMismatchError(err)).toBe(true);
     });
 
     it("returns true when the VP message is embedded in a wrapper error", () => {
       const err = new Error(
-        "RPC error: Lamport public key hash does not match on-chain commitment (code 3002)",
+        "RPC error: WOTS public key hash does not match on-chain commitment (code 3002)",
       );
-      expect(isLamportMismatchError(err)).toBe(true);
+      expect(isWotsMismatchError(err)).toBe(true);
     });
 
     it("returns false for network errors", () => {
-      expect(isLamportMismatchError(new Error("fetch failed"))).toBe(false);
+      expect(isWotsMismatchError(new Error("fetch failed"))).toBe(false);
     });
 
     it("returns false for missing field errors", () => {
-      expect(
-        isLamportMismatchError(new Error("Missing transaction hash")),
-      ).toBe(false);
+      expect(isWotsMismatchError(new Error("Missing transaction hash"))).toBe(
+        false,
+      );
     });
 
     it("returns false for generic errors", () => {
-      expect(
-        isLamportMismatchError(new Error("Failed to submit lamport key")),
-      ).toBe(false);
+      expect(isWotsMismatchError(new Error("Failed to submit wots key"))).toBe(
+        false,
+      );
     });
 
     it("handles string errors", () => {
       expect(
-        isLamportMismatchError(
-          "Lamport public key hash does not match on-chain commitment",
+        isWotsMismatchError(
+          "WOTS public key hash does not match on-chain commitment",
         ),
       ).toBe(true);
     });
 
     it("handles non-error values", () => {
-      expect(isLamportMismatchError(null)).toBe(false);
-      expect(isLamportMismatchError(undefined)).toBe(false);
-      expect(isLamportMismatchError(42)).toBe(false);
+      expect(isWotsMismatchError(null)).toBe(false);
+      expect(isWotsMismatchError(undefined)).toBe(false);
+      expect(isWotsMismatchError(42)).toBe(false);
     });
   });
 });

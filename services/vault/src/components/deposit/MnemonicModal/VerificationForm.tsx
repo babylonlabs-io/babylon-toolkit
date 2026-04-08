@@ -1,7 +1,7 @@
 import { Button, Text } from "@babylonlabs-io/core-ui";
 import { useCallback, useState } from "react";
 
-import type { VerificationChallenge } from "@/services/lamport";
+import type { VerificationChallenge } from "@/services/wots";
 
 interface VerificationFormProps {
   challenge: VerificationChallenge;

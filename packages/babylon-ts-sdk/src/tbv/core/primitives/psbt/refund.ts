@@ -78,8 +78,8 @@ export async function buildRefundPsbt(
     prePeginParams.vaultKeeperPubkeys,
     prePeginParams.universalChallengerPubkeys,
     [...prePeginParams.hashlocks],
+    new BigUint64Array(prePeginParams.pegInAmounts),
     prePeginParams.timelockRefund,
-    prePeginParams.pegInAmount,
     prePeginParams.feeRate,
     prePeginParams.numLocalChallengers,
     prePeginParams.councilQuorum,
@@ -89,11 +89,7 @@ export async function buildRefundPsbt(
 
   let fundedTx: WasmPrePeginTx | null = null;
   try {
-    fundedTx = unfundedTx.fromFundedTransaction(
-      fundedPrePeginTxHex,
-      prePeginParams.pegInAmount,
-      unfundedTx.getDepositorClaimValue(),
-    );
+    fundedTx = unfundedTx.fromFundedTransaction(fundedPrePeginTxHex);
 
     const refundTxHex = fundedTx.buildRefundTx(refundFee, htlcVout);
 

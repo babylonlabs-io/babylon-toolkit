@@ -11,7 +11,7 @@
  * 2. Batch Pre-PegIn creation (one BTC tx with N HTLC outputs)
  * 3. Per-vault ETH registration (with PoP reuse)
  * 4. Broadcast Pre-PegIn transaction to Bitcoin + save to localStorage (CONFIRMING)
- * 5. Submit Lamport keys, poll VP, sign payout transactions
+ * 5. Submit WOTS keys, poll VP, sign payout transactions
  * 6. Download vault artifacts (per vault, user-driven)
  * 7. Wait for contract verification, then activate vaults (reveal HTLC secret)
  *
@@ -31,7 +31,6 @@ import { useProtocolParamsContext } from "@/context/ProtocolParamsContext";
 import { logger } from "@/infrastructure";
 import { LocalStorageStatus } from "@/models/peginStateMachine";
 import { validateMultiVaultDepositInputs } from "@/services/deposit/validations";
-import { deriveLamportPkHash, linkPeginToMnemonic } from "@/services/lamport";
 import { signDepositorGraph } from "@/services/vault/depositorGraphSigningService";
 import { activateVaultWithSecret } from "@/services/vault/vaultActivationService";
 import {
@@ -40,6 +39,7 @@ import {
 } from "@/services/vault/vaultPayoutSignatureService";
 import { broadcastPrePeginTransaction } from "@/services/vault/vaultPeginBroadcastService";
 import { preparePeginTransaction } from "@/services/vault/vaultTransactionService";
+import { deriveWotsPkHash, linkPeginToMnemonic } from "@/services/wots";
 import { addPendingPegin } from "@/storage/peginStorage";
 import { satoshiToBtcNumber } from "@/utils/btcConversion";
 import { sanitizeErrorMessage } from "@/utils/errors/formatting";
@@ -51,8 +51,8 @@ import {
   getEthWalletClient,
   pollAndPreparePayoutSigning,
   registerPeginAndWait,
-  submitLamportPublicKey,
   submitPayoutSignatures,
+  submitWotsPublicKey,
   waitForContractVerification,
   type DepositUtxo,
 } from "./depositFlowSteps";
@@ -82,7 +82,7 @@ export interface UseMultiVaultDepositFlowParams {
   vaultKeeperBtcPubkeys: string[];
   /** Universal challenger BTC public keys */
   universalChallengerBtcPubkeys: string[];
-  /** Callback to retrieve the decrypted mnemonic for Lamport PK derivation
+  /** Callback to retrieve the decrypted mnemonic for WOTS PK derivation
    *  and submission to the vault provider. */
   getMnemonic: () => Promise<string>;
   /** UUID of the stored mnemonic, used to record the peg-in → mnemonic
@@ -349,8 +349,8 @@ export function useMultiVaultDepositFlow(
           const vault = batchResult.perVault[i];
           const htlcSecretHex = htlcSecretHexes[i];
 
-          // Derive Lamport keypair and compute PK hash (before ETH tx)
-          const lamportPkHash = await deriveLamportPkHash(
+          // Derive keypair and compute WOTS PK hash (before ETH tx)
+          const wotsPkHash = await deriveWotsPkHash(
             mnemonic,
             vault.btcTxHash,
             batchResult.depositorBtcPubkey,
@@ -367,7 +367,7 @@ export function useMultiVaultDepositFlow(
             htlcVout: vault.htlcVout,
             vaultProviderAddress: primaryProvider,
             depositorPayoutBtcAddress: confirmedBtcAddress,
-            depositorLamportPkHash: lamportPkHash,
+            depositorWotsPkHash: wotsPkHash,
             preSignedBtcPopSignature: capturedPopSignature,
             depositorSecretHash: depositorSecretHashes[i],
           });
@@ -480,7 +480,7 @@ export function useMultiVaultDepositFlow(
         }
 
         // ========================================================================
-        // Step 5: Submit Lamport Keys + Sign Payout Transactions
+        // Step 5: Submit WOTS Keys + Sign Payout Transactions
         // ========================================================================
 
         setCurrentStep(DepositFlowStep.SIGN_PAYOUTS);
@@ -488,7 +488,7 @@ export function useMultiVaultDepositFlow(
 
         for (const result of broadcastedResults) {
           try {
-            await submitLamportPublicKey({
+            await submitWotsPublicKey({
               btcTxid: result.vaultId,
               depositorBtcPubkey: result.depositorBtcPubkey,
               appContractAddress: selectedApplication,
@@ -501,14 +501,13 @@ export function useMultiVaultDepositFlow(
             if (signal.aborted) throw error;
             const errorMsg =
               error instanceof Error ? error.message : String(error);
-            const warning = `Vault ${result.vaultIndex + 1}: Lamport key submission failed - ${errorMsg}`;
+            const warning = `Vault ${result.vaultIndex + 1}: WOTS key submission failed - ${errorMsg}`;
             warnings.push(warning);
             logger.error(
               error instanceof Error ? error : new Error(String(error)),
               {
                 data: {
-                  context:
-                    "[Multi-Vault] Failed to submit Lamport key for vault",
+                  context: "[Multi-Vault] Failed to submit WOTS key for vault",
                   vaultId: result.vaultId,
                 },
               },

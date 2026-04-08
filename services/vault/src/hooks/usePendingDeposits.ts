@@ -14,9 +14,9 @@ import { useActivationModal } from "@/hooks/deposit/useActivationModal";
 import { useAllDepositProviders } from "@/hooks/deposit/useAllDepositProviders";
 import { useArtifactDownloadModal } from "@/hooks/deposit/useArtifactDownloadModal";
 import { useBroadcastModal } from "@/hooks/deposit/useBroadcastModal";
-import { useLamportKeyModal } from "@/hooks/deposit/useLamportKeyModal";
 import { usePayoutSignModal } from "@/hooks/deposit/usePayoutSignModal";
 import { useRefundModal } from "@/hooks/deposit/useRefundModal";
+import { useWotsKeyModal } from "@/hooks/deposit/useWotsKeyModal";
 import { useBtcPublicKey } from "@/hooks/useBtcPublicKey";
 import { useVaultDeposits } from "@/hooks/useVaultDeposits";
 import { ContractStatus } from "@/models/peginStateMachine";
@@ -58,7 +58,7 @@ export function usePendingDeposits() {
     onSuccess: refetchActivities,
   });
 
-  const lamportKeyModal = useLamportKeyModal({
+  const wotsKeyModal = useWotsKeyModal({
     allActivities: activities,
     onSuccess: refetchActivities,
   });
@@ -91,7 +91,7 @@ export function usePendingDeposits() {
     refetchActivities,
     signModal,
     broadcastModal,
-    lamportKeyModal,
+    wotsKeyModal,
     activationModal,
     artifactDownloadModal,
     refundModal,
