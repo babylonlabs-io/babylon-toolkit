@@ -17,12 +17,35 @@ describe("peginStateMachine", () => {
   // getPeginState — PENDING contract status
   // ==========================================================================
   describe("getPeginState - PENDING", () => {
-    it("shows pending ingestion when VP has not ingested yet", () => {
+    it("offers broadcast when VP has not ingested yet", () => {
       const state = getPeginState(ContractStatus.PENDING, {
         pendingIngestion: true,
       });
       expect(state.displayLabel).toBe(PEGIN_DISPLAY_LABELS.PENDING);
-      expect(state.message).toContain("detect your deposit");
+      expect(state.availableActions).toContain(
+        PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN,
+      );
+      expect(state.message).toContain("not detected your deposit");
+    });
+
+    it("shows waiting state after broadcast even if VP has not ingested yet", () => {
+      const state = getPeginState(ContractStatus.PENDING, {
+        localStatus: LocalStorageStatus.CONFIRMING,
+        pendingIngestion: true,
+      });
+      expect(state.displayLabel).toBe(PEGIN_DISPLAY_LABELS.PENDING);
+      expect(state.availableActions).toEqual([PeginAction.NONE]);
+      expect(state.message).toContain("Pre-PegIn transaction broadcast");
+    });
+
+    it("shows preparing transactions when CONFIRMING and VP has ingested", () => {
+      const state = getPeginState(ContractStatus.PENDING, {
+        localStatus: LocalStorageStatus.CONFIRMING,
+        pendingIngestion: false,
+        transactionsReady: false,
+      });
+      expect(state.displayLabel).toBe(PEGIN_DISPLAY_LABELS.PENDING);
+      expect(state.message).toContain("prepare Claim and Payout");
     });
 
     it("shows pending ingestion when no polling response yet (undefined)", () => {
@@ -234,6 +257,21 @@ describe("peginStateMachine", () => {
       );
       vi.useRealTimers();
     });
+
+    it("offers REFUND_HTLC action when canRefund is true", () => {
+      const state = getPeginState(ContractStatus.EXPIRED, { canRefund: true });
+      expect(state.availableActions).toEqual([PeginAction.REFUND_HTLC]);
+    });
+
+    it("offers no action when canRefund is false", () => {
+      const state = getPeginState(ContractStatus.EXPIRED, { canRefund: false });
+      expect(state.availableActions).toEqual([PeginAction.NONE]);
+    });
+
+    it("offers no action when canRefund is not provided", () => {
+      const state = getPeginState(ContractStatus.EXPIRED);
+      expect(state.availableActions).toEqual([PeginAction.NONE]);
+    });
   });
 
   // ==========================================================================
@@ -286,7 +324,7 @@ describe("peginStateMachine", () => {
       const state = getPeginState(ContractStatus.VERIFIED);
       const button = getPrimaryActionButton(state);
       expect(button).toEqual({
-        label: "Broadcast",
+        label: "Broadcast BTC",
         action: PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN,
       });
     });
@@ -294,6 +332,15 @@ describe("peginStateMachine", () => {
     it("returns null for available vault (no user action)", () => {
       const state = getPeginState(ContractStatus.ACTIVE);
       expect(getPrimaryActionButton(state)).toBeNull();
+    });
+
+    it("returns Refund for expired vault with canRefund", () => {
+      const state = getPeginState(ContractStatus.EXPIRED, { canRefund: true });
+      const button = getPrimaryActionButton(state);
+      expect(button).toEqual({
+        label: "Refund",
+        action: PeginAction.REFUND_HTLC,
+      });
     });
 
     it("returns null when no action available", () => {

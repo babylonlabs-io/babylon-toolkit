@@ -55,6 +55,7 @@ the managers module instead (PeginManager and PayoutManager).
 
 ### WASM Functions
 - [computeMinClaimValue](#computeminclaimvalue) - Compute the minimum claim value accepted by the vault provider
+- [deriveVaultId](#derivevaultid) - Derive vault ID from PegIn tx hash and depositor address
 
 ### Connector Parameter Types
 - `AssertPayoutNoPayoutConnectorParams` - Connector params for NoPayout/AssertPayout PSBTs
@@ -234,25 +235,25 @@ Defined in: packages/babylon-tbv-rust-wasm/dist/types.d.ts:184
 
 X-only public key of the challenger (hex encoded)
 
-##### lamportHashesJson
+##### claimerWotsKeysJson
 
 ```ts
-lamportHashesJson: string;
+claimerWotsKeysJson: string;
 ```
 
 Defined in: packages/babylon-tbv-rust-wasm/dist/types.d.ts:186
 
-JSON string of Lamport hash values from VP
+JSON string of WOTS public keys (blocks 0-1) from VP
 
-##### gcInputLabelHashesJson
+##### gcWotsKeysJson
 
 ```ts
-gcInputLabelHashesJson: string;
+gcWotsKeysJson: string;
 ```
 
 Defined in: packages/babylon-tbv-rust-wasm/dist/types.d.ts:188
 
-JSON string of GC input label hashes from VP
+JSON string of GC WOTS public keys (array of arrays) from VP
 
 ***
 

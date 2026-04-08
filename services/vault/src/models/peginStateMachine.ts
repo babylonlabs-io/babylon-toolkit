@@ -184,6 +184,8 @@ export enum PeginAction {
   SIGN_AND_BROADCAST_TO_BITCOIN = "SIGN_AND_BROADCAST_TO_BITCOIN",
   /** Reveal HTLC secret on Ethereum to activate vault */
   ACTIVATE_VAULT = "ACTIVATE_VAULT",
+  /** Sign and broadcast HTLC refund transaction for an expired vault */
+  REFUND_HTLC = "REFUND_HTLC",
   /** No action available - user must wait */
   NONE = "NONE",
 }
@@ -210,6 +212,8 @@ export interface GetPeginStateOptions {
   expirationReason?: ExpirationReason;
   /** Timestamp when vault expired in milliseconds (only relevant when status is EXPIRED) */
   expiredAt?: number;
+  /** Whether the depositor can refund the HTLC (Pre-PegIn tx available) */
+  canRefund?: boolean;
 }
 
 const EXPIRATION_REASON_LABELS: Record<ExpirationReason, string> = {
@@ -264,6 +268,7 @@ export function getPeginState(
     pendingIngestion,
     expirationReason,
     expiredAt,
+    canRefund,
   } = options;
 
   // Contract Status 0: Pending (Request submitted, waiting for ACKs)
@@ -294,11 +299,36 @@ export function getPeginState(
       };
     }
 
-    // Sub-state: VP hasn't ingested this peg-in yet, or we haven't
-    // received any polling response yet (initial state after submission).
-    // pendingIngestion is undefined before first poll, true when VP returns
-    // "not found", and false once VP has ingested the deposit.
-    if (pendingIngestion !== false && !transactionsReady) {
+    // Sub-state: VP confirmed it hasn't ingested this peg-in yet.
+    // If we already broadcast (CONFIRMING), show a waiting state instead of
+    // re-offering the broadcast button. The user already broadcast; VP just
+    // hasn't detected it yet.
+    if (pendingIngestion === true && !transactionsReady) {
+      if (localStatus === LocalStorageStatus.CONFIRMING) {
+        return {
+          contractStatus,
+          localStatus,
+          displayLabel: PEGIN_DISPLAY_LABELS.PENDING,
+          displayVariant: "pending",
+          availableActions: [PeginAction.NONE],
+          message:
+            "Pre-PegIn transaction broadcast. Waiting for vault provider to detect your deposit...",
+        };
+      }
+      return {
+        contractStatus,
+        localStatus,
+        displayLabel: PEGIN_DISPLAY_LABELS.PENDING,
+        displayVariant: "pending",
+        availableActions: [PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN],
+        message:
+          "Vault provider has not detected your deposit. The Pre-PegIn transaction may not have been broadcast. Click 'Broadcast' to retry.",
+      };
+    }
+
+    // Sub-state: We haven't received any polling response yet (initial state
+    // after submission). pendingIngestion is undefined before first poll.
+    if (pendingIngestion === undefined && !transactionsReady) {
       return {
         contractStatus,
         localStatus,
@@ -438,7 +468,9 @@ export function getPeginState(
       localStatus,
       displayLabel: PEGIN_DISPLAY_LABELS.EXPIRED,
       displayVariant: "warning",
-      availableActions: [PeginAction.NONE],
+      availableActions: canRefund
+        ? [PeginAction.REFUND_HTLC]
+        : [PeginAction.NONE],
       message: buildExpiredMessage(expirationReason, expiredAt),
     };
   }
@@ -514,7 +546,7 @@ export function getPrimaryActionButton(state: PeginState): {
     state.availableActions.includes(PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN)
   ) {
     return {
-      label: "Broadcast",
+      label: "Broadcast BTC",
       action: PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN,
     };
   }
@@ -523,6 +555,13 @@ export function getPrimaryActionButton(state: PeginState): {
     return {
       label: "Activate",
       action: PeginAction.ACTIVATE_VAULT,
+    };
+  }
+
+  if (state.availableActions.includes(PeginAction.REFUND_HTLC)) {
+    return {
+      label: "Refund",
+      action: PeginAction.REFUND_HTLC,
     };
   }
 

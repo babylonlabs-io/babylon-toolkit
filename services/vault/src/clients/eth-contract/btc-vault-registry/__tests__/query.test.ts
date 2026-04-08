@@ -28,6 +28,9 @@ const FULL_VAULT = {
   universalChallengersVersion: 1,
   appVaultKeepersVersion: 2,
   offchainParamsVersion: 3,
+  hashlock:
+    "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890" as `0x${string}`,
+  htlcVout: 0,
 };
 
 describe("getVaultFromChain", () => {
@@ -43,6 +46,8 @@ describe("getVaultFromChain", () => {
       universalChallengersVersion: FULL_VAULT.universalChallengersVersion,
       appVaultKeepersVersion: FULL_VAULT.appVaultKeepersVersion,
       offchainParamsVersion: FULL_VAULT.offchainParamsVersion,
+      hashlock: FULL_VAULT.hashlock,
+      htlcVout: FULL_VAULT.htlcVout,
     });
   });
 

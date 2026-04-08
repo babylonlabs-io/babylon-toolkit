@@ -289,6 +289,15 @@ function isMultiVault(parsed: unknown): parsed is MultiMnemonicVault {
     return false;
   }
 
+  // integrityTag: string | null
+  if (
+    obj.integrityTag !== null &&
+    obj.integrityTag !== undefined &&
+    typeof obj.integrityTag !== "string"
+  ) {
+    return false;
+  }
+
   return true;
 }
 

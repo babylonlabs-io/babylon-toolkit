@@ -125,6 +125,89 @@ export function getDepositButtonLabel(
   return "Deposit";
 }
 
+// ---------------------------------------------------------------------------
+// Unified CTA state — single source of truth for label + disabled
+// ---------------------------------------------------------------------------
+
+/**
+ * All inputs needed to determine the deposit CTA button state.
+ * Extends amount-validation params with form-level and system-level flags.
+ */
+export interface DepositCtaParams extends DepositFormValidityParams {
+  isDepositDisabled: boolean;
+  isGeoBlocked: boolean;
+  isWalletConnected: boolean;
+  hasApplication: boolean;
+  hasProvider: boolean;
+  splitNotReady: boolean;
+  isFeeError: boolean;
+  feeError: string | null;
+  feeDisabled: boolean;
+}
+
+export interface DepositCtaState {
+  disabled: boolean;
+  label: string;
+}
+
+/**
+ * Single source of truth for the deposit CTA button.
+ *
+ * Returns both `disabled` and `label` so they can never be out of sync.
+ * Checks are ordered by priority — the first matching condition wins.
+ */
+export function getDepositCtaState(params: DepositCtaParams): DepositCtaState {
+  if (params.isDepositDisabled) {
+    return { disabled: true, label: "Depositing Unavailable" };
+  }
+
+  if (params.isGeoBlocked) {
+    return { disabled: true, label: "Service unavailable in your region" };
+  }
+
+  if (!params.isWalletConnected) {
+    return { disabled: true, label: "Connect your wallet" };
+  }
+
+  if (!params.hasApplication) {
+    return { disabled: true, label: "Select an application" };
+  }
+
+  if (!params.hasProvider) {
+    return { disabled: true, label: "Select a vault provider" };
+  }
+
+  if (params.splitNotReady) {
+    return {
+      disabled: true,
+      label: "Deposit amount too low for 2-vault split",
+    };
+  }
+
+  // Amount-level validation first — handles "Enter an amount", "No available
+  // balance", "Calculating fees...", min/max, and balance checks.  Must run
+  // before fee-disabled so that empty-form states are not masked.
+  const amountLabel = getDepositButtonLabel(params);
+  if (amountLabel !== "Deposit") {
+    return { disabled: true, label: amountLabel };
+  }
+
+  // Fee edge-cases that getDepositButtonLabel cannot catch (e.g. fee rate is
+  // still loading while a stale estimatedFeeSats is cached).
+  if (params.isFeeError) {
+    return {
+      disabled: true,
+      label: params.feeError ?? "Fee estimate unavailable",
+    };
+  }
+
+  if (params.feeDisabled) {
+    return { disabled: true, label: "Calculating fees..." };
+  }
+
+  return { disabled: false, label: "Deposit" };
+}
+
 /**
  * Validate deposit amount against minimum constraint
  * @param amount - Deposit amount in satoshis
@@ -340,16 +423,25 @@ export interface MultiVaultDepositFlowInputs {
   vaultProviderBtcPubkey: string;
   vaultKeeperBtcPubkeys: string[];
   universalChallengerBtcPubkeys: string[];
+  /** Protocol minimum deposit per vault (satoshis) */
   minDeposit: bigint;
+  /** Protocol maximum deposit per vault (satoshis) */
   maxDeposit?: bigint;
+  /** Number of HTLC secret hexes — must match vaultAmounts.length */
+  htlcSecretHexesLength: number;
+  /** Number of depositor secret hashes — must match vaultAmounts.length */
+  depositorSecretHashesLength: number;
 }
 
 /**
- * Validate vault amounts array for multi-vault deposits
- * @param amounts - Array of vault amounts in satoshis
- * @returns Validation result
+ * Validate vault amounts array for multi-vault deposits.
+ * Checks count, positivity, and per-vault min/max protocol limits.
  */
-export function validateVaultAmounts(amounts: bigint[]): ValidationResult {
+export function validateVaultAmounts(
+  amounts: bigint[],
+  minDeposit?: bigint,
+  maxDeposit?: bigint,
+): ValidationResult {
   if (!amounts || amounts.length === 0) {
     return {
       valid: false,
@@ -364,11 +456,26 @@ export function validateVaultAmounts(amounts: bigint[]): ValidationResult {
     };
   }
 
-  if (amounts.some((amount) => amount <= 0n)) {
-    return {
-      valid: false,
-      error: "All vault amounts must be positive",
-    };
+  for (let i = 0; i < amounts.length; i++) {
+    const amount = amounts[i];
+    if (amount <= 0n) {
+      return {
+        valid: false,
+        error: `Vault ${i + 1} amount must be positive`,
+      };
+    }
+    if (minDeposit && amount < minDeposit) {
+      return {
+        valid: false,
+        error: `Vault ${i + 1} amount ${formatSatoshisToBtc(amount)} BTC is below minimum deposit ${formatSatoshisToBtc(minDeposit)} BTC`,
+      };
+    }
+    if (maxDeposit && amount > maxDeposit) {
+      return {
+        valid: false,
+        error: `Vault ${i + 1} amount ${formatSatoshisToBtc(amount)} BTC exceeds maximum deposit ${formatSatoshisToBtc(maxDeposit)} BTC`,
+      };
+    }
   }
 
   return { valid: true };
@@ -412,12 +519,31 @@ export function validateMultiVaultDepositInputs(
     universalChallengerBtcPubkeys,
     minDeposit,
     maxDeposit,
+    htlcSecretHexesLength,
+    depositorSecretHashesLength,
   } = params;
 
   validateWalletConnections(btcAddress, depositorEthAddress);
 
-  // Vault amounts (multi-vault specific)
-  const amountsValidation = validateVaultAmounts(vaultAmounts);
+  // Array alignment: all per-vault arrays must have the same length
+  const vaultCount = vaultAmounts.length;
+  if (htlcSecretHexesLength !== vaultCount) {
+    throw new Error(
+      `htlcSecretHexes length (${htlcSecretHexesLength}) must match vaultAmounts length (${vaultCount})`,
+    );
+  }
+  if (depositorSecretHashesLength !== vaultCount) {
+    throw new Error(
+      `depositorSecretHashes length (${depositorSecretHashesLength}) must match vaultAmounts length (${vaultCount})`,
+    );
+  }
+
+  // Vault amounts with per-vault min/max checks
+  const amountsValidation = validateVaultAmounts(
+    vaultAmounts,
+    minDeposit,
+    maxDeposit,
+  );
   if (!amountsValidation.valid) {
     throw new Error(amountsValidation.error);
   }
@@ -436,7 +562,7 @@ export function validateMultiVaultDepositInputs(
 
   validateProviders(selectedProviders);
 
-  // Vault provider pubkey (multi-vault specific)
+  // Vault provider pubkey
   const pubkeyValidation = validateVaultProviderPubkey(vaultProviderBtcPubkey);
   if (!pubkeyValidation.valid) {
     throw new Error(pubkeyValidation.error);

@@ -221,39 +221,44 @@ describe("PeginManager", () => {
       });
 
       const result = await manager.preparePegin({
-        amount: TEST_AMOUNTS.PEGIN,
+        amounts: [TEST_AMOUNTS.PEGIN],
         ...BASE_PREPARE_PEGIN_PARAMS,
       });
 
       // Verify result structure
       expect(result).toHaveProperty("fundedPrePeginTxHex");
-      expect(result).toHaveProperty("htlcValue");
-      expect(result).toHaveProperty("signedPeginInputPsbtHex");
-      expect(result).toHaveProperty("peginInputSignature");
-      expect(result).toHaveProperty("vaultScriptPubKey");
-      expect(result).toHaveProperty("peginTxHex");
       expect(result).toHaveProperty("prePeginTxid");
-      expect(result).toHaveProperty("peginTxid");
+      expect(result).toHaveProperty("unsignedPrePeginTxHex");
+      expect(result).toHaveProperty("perVault");
       expect(result).toHaveProperty("selectedUTXOs");
       expect(result).toHaveProperty("fee");
       expect(result).toHaveProperty("changeAmount");
 
+      // Verify per-vault data
+      expect(result.perVault).toHaveLength(1);
+      expect(result.perVault[0]).toHaveProperty("htlcVout");
+      expect(result.perVault[0]).toHaveProperty("htlcValue");
+      expect(result.perVault[0]).toHaveProperty("peginTxHex");
+      expect(result.perVault[0]).toHaveProperty("peginTxid");
+      expect(result.perVault[0]).toHaveProperty("peginInputSignature");
+      expect(result.perVault[0]).toHaveProperty("vaultScriptPubKey");
+
       // Verify types
       expect(typeof result.fundedPrePeginTxHex).toBe("string");
-      expect(typeof result.htlcValue).toBe("bigint");
-      expect(typeof result.vaultScriptPubKey).toBe("string");
+      expect(typeof result.perVault[0].htlcValue).toBe("bigint");
+      expect(typeof result.perVault[0].vaultScriptPubKey).toBe("string");
       expect(Array.isArray(result.selectedUTXOs)).toBe(true);
       expect(typeof result.fee).toBe("bigint");
       expect(typeof result.changeAmount).toBe("bigint");
-      expect(result.peginInputSignature).toBe("a".repeat(128)); // from mock
+      expect(result.perVault[0].peginInputSignature).toBe("a".repeat(128)); // from mock
 
       // Verify values
       expect(result.fundedPrePeginTxHex.length).toBeGreaterThan(0);
-      expect(result.htlcValue).toBeGreaterThan(0n);
-      expect(result.vaultScriptPubKey.length).toBeGreaterThan(0);
+      expect(result.perVault[0].htlcValue).toBeGreaterThan(0n);
+      expect(result.perVault[0].vaultScriptPubKey.length).toBeGreaterThan(0);
       expect(result.selectedUTXOs.length).toBeGreaterThan(0);
       expect(result.fee).toBeGreaterThan(0n);
-      expect(result.peginTxid).toMatch(/^[0-9a-f]{64}$/);
+      expect(result.perVault[0].peginTxid).toMatch(/^[0-9a-f]{64}$/);
     });
 
     it("should select UTXOs covering htlcValue + fee", async () => {
@@ -272,7 +277,7 @@ describe("PeginManager", () => {
       });
 
       const result = await manager.preparePegin({
-        amount: TEST_AMOUNTS.PEGIN_SMALL,
+        amounts: [TEST_AMOUNTS.PEGIN_SMALL],
         ...BASE_PREPARE_PEGIN_PARAMS,
       });
 
@@ -283,7 +288,7 @@ describe("PeginManager", () => {
         (sum, utxo) => sum + BigInt(utxo.value),
         0n,
       );
-      expect(totalSelected).toBeGreaterThanOrEqual(result.htlcValue + result.fee);
+      expect(totalSelected).toBeGreaterThanOrEqual(result.perVault[0].htlcValue + result.fee);
       expect(result.changeAmount).toBeGreaterThanOrEqual(0n);
     });
 
@@ -303,13 +308,13 @@ describe("PeginManager", () => {
       });
 
       const result = await manager.preparePegin({
-        amount: TEST_AMOUNTS.PEGIN,
+        amounts: [TEST_AMOUNTS.PEGIN],
         ...BASE_PREPARE_PEGIN_PARAMS,
         vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1, TEST_KEYS.VAULT_KEEPER_2],
       });
 
       expect(result.fundedPrePeginTxHex.length).toBeGreaterThan(0);
-      expect(result.vaultScriptPubKey.length).toBeGreaterThan(0);
+      expect(result.perVault[0].vaultScriptPubKey.length).toBeGreaterThan(0);
     });
 
     it("should calculate change correctly", async () => {
@@ -328,7 +333,7 @@ describe("PeginManager", () => {
       });
 
       const result = await manager.preparePegin({
-        amount: TEST_AMOUNTS.PEGIN,
+        amounts: [TEST_AMOUNTS.PEGIN],
         ...BASE_PREPARE_PEGIN_PARAMS,
       });
 
@@ -337,7 +342,7 @@ describe("PeginManager", () => {
         (sum, utxo) => sum + BigInt(utxo.value),
         0n,
       );
-      expect(totalSelected).toBeGreaterThanOrEqual(result.htlcValue + result.fee);
+      expect(totalSelected).toBeGreaterThanOrEqual(result.perVault[0].htlcValue + result.fee);
       expect(result.changeAmount).toBeGreaterThanOrEqual(0n);
     });
 
@@ -364,7 +369,7 @@ describe("PeginManager", () => {
 
       await expect(
         manager.preparePegin({
-          amount: excessiveAmount,
+          amounts: [excessiveAmount],
           ...BASE_PREPARE_PEGIN_PARAMS,
         }),
       ).rejects.toThrow(/Insufficient funds/);
@@ -387,7 +392,7 @@ describe("PeginManager", () => {
 
       await expect(
         manager.preparePegin({
-          amount: TEST_AMOUNTS.PEGIN,
+          amounts: [TEST_AMOUNTS.PEGIN],
           ...BASE_PREPARE_PEGIN_PARAMS,
           availableUTXOs: [],
         }),
@@ -411,7 +416,7 @@ describe("PeginManager", () => {
 
       await expect(
         manager.preparePegin({
-          amount: TEST_AMOUNTS.PEGIN,
+          amounts: [TEST_AMOUNTS.PEGIN],
           ...BASE_PREPARE_PEGIN_PARAMS,
           vaultProviderBtcPubkey: "invalid-pubkey",
         }),
@@ -435,7 +440,7 @@ describe("PeginManager", () => {
 
       await expect(
         manager.preparePegin({
-          amount: TEST_AMOUNTS.PEGIN,
+          amounts: [TEST_AMOUNTS.PEGIN],
           ...BASE_PREPARE_PEGIN_PARAMS,
           vaultKeeperBtcPubkeys: [],
           universalChallengerBtcPubkeys: [],
@@ -464,7 +469,7 @@ describe("PeginManager", () => {
       const getPublicKeySpy = vi.spyOn(btcWallet, "getPublicKeyHex");
 
       await manager.preparePegin({
-        amount: TEST_AMOUNTS.PEGIN,
+        amounts: [TEST_AMOUNTS.PEGIN],
         ...BASE_PREPARE_PEGIN_PARAMS,
       });
 
@@ -493,7 +498,7 @@ describe("PeginManager", () => {
 
       await expect(
         manager.preparePegin({
-          amount: TEST_AMOUNTS.PEGIN,
+          amounts: [TEST_AMOUNTS.PEGIN],
           ...BASE_PREPARE_PEGIN_PARAMS,
         }),
       ).rejects.toThrow("Wallet connection failed");
@@ -527,6 +532,7 @@ describe("PeginManager", () => {
         depositorSignedPeginTx: MOCK_DEPOSITOR_SIGNED_PEGIN_TX,
         vaultProvider: TEST_CONTRACT_ADDRESS,
         hashlock: MOCK_HASHLOCK,
+        htlcVout: 0,
         depositorPayoutBtcAddress:
           "tb1pmfr3p9j00pfxjh0zmgp99y8zftmd3s5pmedqhyptwy6lm87hf5ssk79hv2",
         depositorLamportPkHash: MOCK_LAMPORT_PK_HASH,
@@ -572,6 +578,7 @@ describe("PeginManager", () => {
           depositorSignedPeginTx: MOCK_DEPOSITOR_SIGNED_PEGIN_TX,
           vaultProvider: TEST_CONTRACT_ADDRESS,
           hashlock: MOCK_HASHLOCK,
+          htlcVout: 0,
           depositorPayoutBtcAddress:
             "tb1pmfr3p9j00pfxjh0zmgp99y8zftmd3s5pmedqhyptwy6lm87hf5ssk79hv2",
           depositorLamportPkHash: MOCK_LAMPORT_PK_HASH,
@@ -603,6 +610,7 @@ describe("PeginManager", () => {
           depositorSignedPeginTx: MOCK_DEPOSITOR_SIGNED_PEGIN_TX,
           vaultProvider: TEST_CONTRACT_ADDRESS,
           hashlock: MOCK_HASHLOCK,
+          htlcVout: 0,
           depositorPayoutBtcAddress:
             "tb1pmfr3p9j00pfxjh0zmgp99y8zftmd3s5pmedqhyptwy6lm87hf5ssk79hv2",
           depositorLamportPkHash: MOCK_LAMPORT_PK_HASH,
@@ -632,6 +640,7 @@ describe("PeginManager", () => {
         depositorSignedPeginTx: `0x${MOCK_DEPOSITOR_SIGNED_PEGIN_TX}`,
         vaultProvider: TEST_CONTRACT_ADDRESS,
         hashlock: MOCK_HASHLOCK,
+        htlcVout: 0,
         depositorPayoutBtcAddress:
           "tb1pmfr3p9j00pfxjh0zmgp99y8zftmd3s5pmedqhyptwy6lm87hf5ssk79hv2",
         depositorLamportPkHash: MOCK_LAMPORT_PK_HASH,
@@ -646,6 +655,7 @@ describe("PeginManager", () => {
         depositorSignedPeginTx: MOCK_DEPOSITOR_SIGNED_PEGIN_TX,
         vaultProvider: TEST_CONTRACT_ADDRESS,
         hashlock: MOCK_HASHLOCK,
+        htlcVout: 0,
         depositorPayoutBtcAddress:
           "tb1pmfr3p9j00pfxjh0zmgp99y8zftmd3s5pmedqhyptwy6lm87hf5ssk79hv2",
         depositorLamportPkHash: MOCK_LAMPORT_PK_HASH,
@@ -702,6 +712,7 @@ describe("PeginManager", () => {
           depositorSignedPeginTx: MOCK_DEPOSITOR_SIGNED_PEGIN_TX,
           vaultProvider: TEST_CONTRACT_ADDRESS,
           hashlock: MOCK_HASHLOCK,
+          htlcVout: 0,
           depositorPayoutBtcAddress:
             "tb1pmfr3p9j00pfxjh0zmgp99y8zftmd3s5pmedqhyptwy6lm87hf5ssk79hv2",
           depositorLamportPkHash: MOCK_LAMPORT_PK_HASH,
@@ -752,15 +763,15 @@ describe("PeginManager", () => {
       });
 
       const params = {
-        amount: TEST_AMOUNTS.PEGIN,
+        amounts: [TEST_AMOUNTS.PEGIN],
         ...BASE_PREPARE_PEGIN_PARAMS,
       };
 
       const result1 = await manager.preparePegin(params);
       const result2 = await manager.preparePegin(params);
 
-      expect(result1.vaultScriptPubKey).toBe(result2.vaultScriptPubKey);
-      expect(result1.peginTxid).toBe(result2.peginTxid);
+      expect(result1.perVault[0].vaultScriptPubKey).toBe(result2.perVault[0].vaultScriptPubKey);
+      expect(result1.perVault[0].peginTxid).toBe(result2.perVault[0].peginTxid);
       expect(result1.fee).toBe(result2.fee);
     });
 
@@ -792,7 +803,7 @@ describe("PeginManager", () => {
       });
 
       const params = {
-        amount: TEST_AMOUNTS.PEGIN,
+        amounts: [TEST_AMOUNTS.PEGIN],
         ...BASE_PREPARE_PEGIN_PARAMS,
         vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_2],
       };
@@ -800,7 +811,7 @@ describe("PeginManager", () => {
       const result1 = await manager1.preparePegin(params);
       const result2 = await manager2.preparePegin(params);
 
-      expect(result1.vaultScriptPubKey).not.toBe(result2.vaultScriptPubKey);
+      expect(result1.perVault[0].vaultScriptPubKey).not.toBe(result2.perVault[0].vaultScriptPubKey);
     });
   });
 });

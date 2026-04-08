@@ -45,11 +45,18 @@ interface ActivationModalState {
   handleSuccessClose: () => void;
 }
 
+interface RefundModalState {
+  refundingActivity: VaultActivity | null;
+  handleClose: () => void;
+  handleSuccess: () => void;
+}
+
 interface PendingDepositModalsProps {
   signModal: SignModalState;
   broadcastModal: BroadcastModalState;
   lamportKeyModal: LamportKeyModalState;
   activationModal: ActivationModalState;
+  refundModal: RefundModalState;
   vaultProviders: VaultProvider[];
   btcPublicKey: string | undefined;
   ethAddress: string | undefined;
@@ -60,6 +67,7 @@ export function PendingDepositModals({
   broadcastModal,
   lamportKeyModal,
   activationModal,
+  refundModal,
   vaultProviders,
   btcPublicKey,
   ethAddress,
@@ -121,6 +129,17 @@ export function PendingDepositModals({
           onResumeSuccess={activationModal.handleSuccess}
           activity={activationModal.activatingActivity}
           depositorEthAddress={ethAddress}
+        />
+      )}
+
+      {/* Refund Modal */}
+      {refundModal.refundingActivity && (
+        <SimpleDeposit
+          open={!!refundModal.refundingActivity}
+          resumeMode="refund_htlc"
+          onClose={refundModal.handleClose}
+          onResumeSuccess={refundModal.handleSuccess}
+          activity={refundModal.refundingActivity}
         />
       )}
 

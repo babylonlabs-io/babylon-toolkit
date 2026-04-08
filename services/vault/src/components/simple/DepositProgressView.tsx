@@ -105,24 +105,11 @@ interface SingleVaultProps extends BaseProgressViewProps {
 interface MultiVaultProps extends BaseProgressViewProps {
   variant: "multi";
   currentVaultIndex: number | null;
-  strategy: "MULTI_INPUT" | "SPLIT";
 }
 
 export type DepositProgressViewProps = SingleVaultProps | MultiVaultProps;
 
-const SPLIT_STEPS = {
-  SIGN_SPLIT_TX: 1,
-  SIGN_POP_SUBMIT_1: 2,
-  SIGN_POP_SUBMIT_2: 3,
-  BROADCAST: 4,
-  WAIT_CONFIRMATION: 5,
-  SIGN_PAYOUTS: 6,
-  DOWNLOAD_ARTIFACTS: 7,
-  WAIT_ACTIVATION: 8,
-  ACTIVATE: 9,
-};
-
-const MULTI_INPUT_STEPS = {
+const BATCH_STEPS = {
   SIGN_POP_SUBMIT_1: 1,
   SIGN_POP_SUBMIT_2: 2,
   BROADCAST: 3,
@@ -134,44 +121,39 @@ const MULTI_INPUT_STEPS = {
 };
 
 /**
- * Map DepositFlowStep + vault index + strategy to a 1-indexed visual step for multi-vault.
+ * Map DepositFlowStep + vault index to a 1-indexed visual step for multi-vault.
  *
- * SPLIT (9 steps):       Sign split TX → Sign PoP + Submit 1/2 → Submit 2/2 → Broadcast → Wait → Sign payouts → Download artifacts → Wait → Activate vault
- * MULTI_INPUT (8 steps): Sign PoP + Submit 1/2 → Submit 2/2 → Broadcast → Wait → Sign payouts → Download artifacts → Wait → Activate vault
+ * BATCH (8 steps): Sign PoP + Register 1/2 → Register 2/2 → Broadcast → Wait → Sign payouts → Download artifacts → Wait → Activate vault
  */
 export function getMultiVaultVisualStep(
   currentStep: DepositFlowStep,
   isWaiting: boolean,
   currentVaultIndex: number | null,
-  strategy: "MULTI_INPUT" | "SPLIT",
 ): number {
-  const s = strategy === "SPLIT" ? SPLIT_STEPS : MULTI_INPUT_STEPS;
-
   switch (currentStep) {
-    case DepositFlowStep.SIGN_SPLIT_TX:
-      return SPLIT_STEPS.SIGN_SPLIT_TX;
     case DepositFlowStep.SIGN_POP:
     case DepositFlowStep.SUBMIT_PEGIN:
       return (currentVaultIndex ?? 0) === 0
-        ? s.SIGN_POP_SUBMIT_1
-        : s.SIGN_POP_SUBMIT_2;
+        ? BATCH_STEPS.SIGN_POP_SUBMIT_1
+        : BATCH_STEPS.SIGN_POP_SUBMIT_2;
     case DepositFlowStep.BROADCAST_PRE_PEGIN:
-      return s.BROADCAST;
+      return BATCH_STEPS.BROADCAST;
     case DepositFlowStep.SIGN_PAYOUTS:
-      return isWaiting ? s.WAIT_CONFIRMATION : s.SIGN_PAYOUTS;
+      return isWaiting
+        ? BATCH_STEPS.WAIT_CONFIRMATION
+        : BATCH_STEPS.SIGN_PAYOUTS;
     case DepositFlowStep.ARTIFACT_DOWNLOAD:
-      return s.DOWNLOAD_ARTIFACTS;
+      return BATCH_STEPS.DOWNLOAD_ARTIFACTS;
     case DepositFlowStep.ACTIVATE_VAULT:
-      return isWaiting ? s.WAIT_ACTIVATION : s.ACTIVATE;
+      return isWaiting ? BATCH_STEPS.WAIT_ACTIVATION : BATCH_STEPS.ACTIVATE;
     case DepositFlowStep.COMPLETED:
-      return s.ACTIVATE + 1;
+      return BATCH_STEPS.ACTIVATE + 1;
     default:
       return 1;
   }
 }
 
 export function buildMultiVaultStepItems(
-  strategy: "MULTI_INPUT" | "SPLIT",
   progress: PayoutSigningProgress | null,
 ): StepperItem[] {
   const payoutTotal = progress?.totalClaimers ?? 0;
@@ -179,13 +161,9 @@ export function buildMultiVaultStepItems(
 
   const steps: StepperItem[] = [];
 
-  if (strategy === "SPLIT") {
-    steps.push({ label: "Sign split transaction" });
-  }
-
   steps.push(
-    { label: "Sign PoP + Submit 1/2" },
-    { label: "Sign peg-in tx 2/2" },
+    { label: "Sign PoP + Register 1/2" },
+    { label: "Register 2/2" },
     { label: "Sign & broadcast to Bitcoin" },
     { label: "Awaiting Bitcoin confirmation", description: "(~ 15 min)" },
     {
@@ -217,23 +195,17 @@ export function DepositProgressView(props: DepositProgressViewProps) {
   } = props;
 
   const isMulti = props.variant === "multi";
-  const strategy = isMulti ? props.strategy : null;
 
   const visualStep = isMulti
-    ? getMultiVaultVisualStep(
-        currentStep,
-        isWaiting,
-        props.currentVaultIndex,
-        props.strategy,
-      )
+    ? getMultiVaultVisualStep(currentStep, isWaiting, props.currentVaultIndex)
     : getVisualStep(currentStep, isWaiting);
 
   const steps = useMemo(
     () =>
-      isMulti && strategy
-        ? buildMultiVaultStepItems(strategy, payoutSigningProgress)
+      isMulti
+        ? buildMultiVaultStepItems(payoutSigningProgress)
         : buildStepItems(payoutSigningProgress),
-    [isMulti, strategy, payoutSigningProgress],
+    [isMulti, payoutSigningProgress],
   );
 
   return (

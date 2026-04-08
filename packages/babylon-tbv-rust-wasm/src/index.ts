@@ -1,5 +1,5 @@
 // @ts-expect-error - WASM files are in dist/generated/ (checked into git), not src/generated/
-import init, { WasmPrePeginTx, WasmPrePeginHtlcConnector, WasmPeginTx, computeMinClaimValue as wasmComputeMinClaimValue, numUtxosForInputLabels as wasmNumUtxosForInputLabels } from "./generated/btc_vault.js";
+import init, { WasmPrePeginTx, WasmPrePeginHtlcConnector, WasmPeginTx, computeMinClaimValue as wasmComputeMinClaimValue, deriveVaultId as wasmDeriveVaultId } from "./generated/btc_vault.js";
 import type {
   PrePeginParams,
   PrePeginResult,
@@ -7,18 +7,6 @@ import type {
   HtlcConnectorParams,
   HtlcConnectorInfo,
 } from "./types.js";
-
-/**
- * HTLC output index for single deposits.
- *
- * TODO: Support batched deposits (multiple hashlocks → multiple HTLC outputs
- * in a single Pre-PegIn tx). Both btc-vault WASM and vault-contracts-aave-v4
- * already support this. Batched deposits would replace the current UTXO split
- * service — one BTC transaction with N HTLC outputs instead of N separate
- * Pre-PegIn transactions, and one Ethereum submission per vault (each with its
- * own htlcVout index).
- */
-const SINGLE_DEPOSIT_HTLC_VOUT = 0;
 
 let wasmInitialized = false;
 let wasmInitPromise: Promise<void> | null = null;
@@ -66,8 +54,8 @@ export async function createPrePeginTransaction(
     params.vaultKeeperPubkeys,
     params.universalChallengerPubkeys,
     [...params.hashlocks],
+    new BigUint64Array(params.pegInAmounts),
     params.timelockRefund,
-    params.pegInAmount,
     params.feeRate,
     params.numLocalChallengers,
     params.councilQuorum,
@@ -76,13 +64,26 @@ export async function createPrePeginTransaction(
   );
 
   try {
+    const numHtlcs = tx.getNumHtlcs();
+    const htlcValues: bigint[] = [];
+    const htlcScriptPubKeys: string[] = [];
+    const htlcAddresses: string[] = [];
+    const peginAmounts: bigint[] = [];
+
+    for (let i = 0; i < numHtlcs; i++) {
+      htlcValues.push(tx.getHtlcValue(i));
+      htlcScriptPubKeys.push(tx.getHtlcScriptPubKey(i));
+      htlcAddresses.push(tx.getHtlcAddress(i));
+      peginAmounts.push(tx.getPeginAmountAt(i));
+    }
+
     return {
       txHex: tx.toHex(),
       txid: tx.getTxid(),
-      htlcValue: tx.getHtlcValue(SINGLE_DEPOSIT_HTLC_VOUT),
-      htlcScriptPubKey: tx.getHtlcScriptPubKey(SINGLE_DEPOSIT_HTLC_VOUT),
-      htlcAddress: tx.getHtlcAddress(SINGLE_DEPOSIT_HTLC_VOUT),
-      peginAmount: tx.getPeginAmount(),
+      htlcValues,
+      htlcScriptPubKeys,
+      htlcAddresses,
+      peginAmounts,
       depositorClaimValue: tx.getDepositorClaimValue(),
     };
   } finally {
@@ -116,8 +117,8 @@ export async function buildPeginTxFromPrePegin(
     params.vaultKeeperPubkeys,
     params.universalChallengerPubkeys,
     [...params.hashlocks],
+    new BigUint64Array(params.pegInAmounts),
     params.timelockRefund,
-    params.pegInAmount,
     params.feeRate,
     params.numLocalChallengers,
     params.councilQuorum,
@@ -128,11 +129,7 @@ export async function buildPeginTxFromPrePegin(
   let fundedTx: WasmPrePeginTx | null = null;
   let peginTx: WasmPeginTx | null = null;
   try {
-    fundedTx = unfundedTx.fromFundedTransaction(
-      fundedPrePeginTxHex,
-      params.pegInAmount,
-      unfundedTx.getDepositorClaimValue(),
-    );
+    fundedTx = unfundedTx.fromFundedTransaction(fundedPrePeginTxHex);
     peginTx = fundedTx.buildPeginTx(timelockPegin, htlcVout);
 
     return {
@@ -210,12 +207,44 @@ export async function computeMinClaimValue(
 }
 
 /**
- * Returns the protocol constant for the number of UTXOs (Assert outputs)
- * per challenger. Currently 3, derived from Bitcoin's 1000 stack element limit.
+ * Derives the vault ID from a PegIn transaction hash and depositor ETH address.
+ *
+ * Vault ID = keccak256(abi.encode(peginTxHash, depositor))
+ * This matches the Solidity-side derivation in BTCVaultRegistry.
+ *
+ * @param peginTxHash - 32-byte PegIn tx hash in display order (big-endian), hex encoded
+ * @param depositor - 20-byte Ethereum address of the depositor, hex encoded
+ * @returns Hex-encoded vault ID (32 bytes)
  */
-export async function numUtxosForInputLabels(): Promise<number> {
+export async function deriveVaultId(
+  peginTxHash: string,
+  depositor: string,
+): Promise<string> {
   await initWasm();
-  return wasmNumUtxosForInputLabels();
+  const hashBytes = hexToBytes(peginTxHash);
+  if (hashBytes.length !== 32) {
+    throw new Error(`peginTxHash must be 32 bytes, got ${hashBytes.length}`);
+  }
+  const depositorBytes = hexToBytes(depositor);
+  if (depositorBytes.length !== 20) {
+    throw new Error(`depositor must be 20 bytes, got ${depositorBytes.length}`);
+  }
+  return wasmDeriveVaultId(hashBytes, depositorBytes);
+}
+
+function hexToBytes(hex: string): Uint8Array {
+  const clean = hex.startsWith("0x") ? hex.slice(2) : hex;
+  if (clean.length === 0 || clean.length % 2 !== 0) {
+    throw new Error(`Invalid hex string: expected even length, got ${clean.length}`);
+  }
+  if (!/^[0-9a-fA-F]+$/.test(clean)) {
+    throw new Error("Invalid hex string: contains non-hex characters");
+  }
+  const bytes = new Uint8Array(clean.length / 2);
+  for (let i = 0; i < bytes.length; i++) {
+    bytes[i] = parseInt(clean.substr(i * 2, 2), 16);
+  }
+  return bytes;
 }
 
 // Export types
@@ -237,7 +266,6 @@ export type {
 
 // Export constants
 export { TAP_INTERNAL_KEY, tapInternalPubkey } from "./constants.js";
-export { SINGLE_DEPOSIT_HTLC_VOUT };
 
 // Export payout connector utilities
 export { createPayoutConnector, getPeginPayoutScript } from "./payoutConnector.js";

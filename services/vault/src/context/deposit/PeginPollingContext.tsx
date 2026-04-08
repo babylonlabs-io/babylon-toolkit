@@ -166,6 +166,7 @@ export function PeginPollingProvider({
         pendingIngestion: pendingIngestion?.has(depositId),
         expirationReason: activity.expirationReason,
         expiredAt: activity.expiredAt,
+        canRefund: !!activity.unsignedPrePeginTx,
       });
 
       return {

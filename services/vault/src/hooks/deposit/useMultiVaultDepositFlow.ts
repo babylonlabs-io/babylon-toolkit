@@ -1,55 +1,37 @@
 /**
  * Multi-Vault Deposit Flow Hook
  *
- * Orchestrates the complete 2-vault deposit flow with split transaction support.
- *
- * This hook handles three allocation strategies:
- * - SINGLE: One vault using standard flow
- * - MULTI_INPUT: Two vaults, each funded by existing UTXOs (no split TX)
- * - SPLIT: Two vaults funded by creating a split transaction first
+ * Orchestrates the batch-first deposit flow. A single vault is just a batch of 1.
+ * Creates ONE Pre-PegIn BTC transaction with N HTLC outputs (one per vault),
+ * registers each vault individually on Ethereum, then broadcasts the shared tx.
  *
  * Flow:
- * 1. Validation - check wallets, UTXOs, pubkeys
- * 2. Planning - determine allocation strategy
- * 3. Split TX (if needed) - create, sign, broadcast immediately
- * 4. Pegin Creation - create 1-2 pegins (independent failures allowed)
- * 5. Storage - save with batch tracking
- * 6. Broadcast Pre-PegIn transactions to Bitcoin
- * 7. Submit Lamport keys, poll VP, sign payout transactions
- * 8. Download vault artifacts (per vault, user-driven)
- * 9. Wait for contract verification, then activate vaults (reveal HTLC secret on Ethereum)
+ * 0. Validation — check wallets, UTXOs, pubkeys, array alignment
+ * 1. Get shared resources (ETH wallet client, mnemonic)
+ * 2. Batch Pre-PegIn creation (one BTC tx with N HTLC outputs)
+ * 3. Per-vault ETH registration (with PoP reuse)
+ * 4. Broadcast Pre-PegIn transaction to Bitcoin + save to localStorage (CONFIRMING)
+ * 5. Submit Lamport keys, poll VP, sign payout transactions
+ * 6. Download vault artifacts (per vault, user-driven)
+ * 7. Wait for contract verification, then activate vaults (reveal HTLC secret)
+ *
+ * ETH registration is all-or-nothing: if any vault fails, the Pre-PegIn is NOT
+ * broadcast, so no BTC gets locked in unregistered HTLC outputs. Successfully
+ * The on-chain registrations will expire after pegInAckTimeout. A future contract
+ * update will batch all vault registrations into a single ETH call.
  */
 
-import { pushTx } from "@babylonlabs-io/ts-sdk";
 import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
-import type { UTXO } from "@babylonlabs-io/ts-sdk/tbv/core";
-import {
-  createSplitTransaction,
-  createSplitTransactionPsbt,
-  ensureHexPrefix,
-  SPLIT_TX_FEE_SAFETY_MULTIPLIER,
-} from "@babylonlabs-io/ts-sdk/tbv/core";
-import { Psbt } from "bitcoinjs-lib";
-import { Buffer } from "buffer";
+import { ensureHexPrefix } from "@babylonlabs-io/ts-sdk/tbv/core";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { v4 as uuidv4 } from "uuid";
 import type { Address, Hex } from "viem";
 
-import { getMempoolApiUrl } from "@/clients/btc/config";
-import { getBTCNetworkForWASM } from "@/config/pegin";
 import { useProtocolParamsContext } from "@/context/ProtocolParamsContext";
 import { logger } from "@/infrastructure";
 import { LocalStorageStatus } from "@/models/peginStateMachine";
 import { validateMultiVaultDepositInputs } from "@/services/deposit/validations";
 import { deriveLamportPkHash, linkPeginToMnemonic } from "@/services/lamport";
-import {
-  broadcastPrePeginWithLocalUtxo,
-  estimateSplitTxFee,
-  planUtxoAllocation,
-  preparePeginFromSplitOutput,
-  registerSplitPeginOnChain,
-  type AllocationPlan,
-} from "@/services/vault";
 import { signDepositorGraph } from "@/services/vault/depositorGraphSigningService";
 import { activateVaultWithSecret } from "@/services/vault/vaultActivationService";
 import {
@@ -57,10 +39,8 @@ import {
   type PayoutSigningProgress,
 } from "@/services/vault/vaultPayoutSignatureService";
 import { broadcastPrePeginTransaction } from "@/services/vault/vaultPeginBroadcastService";
-import {
-  addPendingPegin,
-  updatePendingPeginStatus,
-} from "@/storage/peginStorage";
+import { preparePeginTransaction } from "@/services/vault/vaultTransactionService";
+import { addPendingPegin } from "@/storage/peginStorage";
 import { satoshiToBtcNumber } from "@/utils/btcConversion";
 import { sanitizeErrorMessage } from "@/utils/errors/formatting";
 import { formatBtcValue } from "@/utils/formatting";
@@ -70,7 +50,6 @@ import {
   DepositFlowStep,
   getEthWalletClient,
   pollAndPreparePayoutSigning,
-  preparePegin,
   registerPeginAndWait,
   submitLamportPublicKey,
   submitPayoutSignatures,
@@ -109,14 +88,12 @@ export interface UseMultiVaultDepositFlowParams {
   /** UUID of the stored mnemonic, used to record the peg-in → mnemonic
    *  mapping so the resume flow can look up the correct mnemonic. */
   mnemonicId?: string;
-  /** Pre-computed allocation plan from the form (skips runtime planning) */
-  precomputedPlan?: AllocationPlan;
   /** Per-vault raw HTLC secret hexes (no 0x prefix) — generated in the secret
    *  modal step. These are used as the HTLC preimages so the on-chain
    *  hashlocks match what was shown to the user. */
   htlcSecretHexes: string[];
   /** Per-vault SHA-256 secret hashes for the new peg-in flow (one per vault) */
-  depositorSecretHashes?: Hex[];
+  depositorSecretHashes: Hex[];
 }
 
 export interface ArtifactDownloadInfo {
@@ -140,8 +117,6 @@ export interface UseMultiVaultDepositFlowReturn {
   error: string | null;
   /** Whether currently waiting for external action (e.g., wallet signature) */
   isWaiting: boolean;
-  /** UTXO allocation plan (set after Step 1) */
-  allocationPlan: AllocationPlan | null;
   /** Payout signing progress (X of Y signings) */
   payoutSigningProgress: PayoutSigningProgress | null;
   /** Artifact download info (when set, the UI should show the download modal) */
@@ -178,106 +153,8 @@ export interface MultiVaultDepositResult {
   pegins: PeginCreationResult[];
   /** Batch ID linking the vaults */
   batchId: string;
-  /** Split transaction ID if split strategy was used */
-  splitTxId?: string;
-  /** Allocation strategy used */
-  strategy: string;
   /** Warning messages for background operation failures (payout signing, broadcast) */
   warnings?: string[];
-}
-
-interface SplitTxSignResult {
-  /** Transaction ID */
-  txid: string;
-  /** Signed transaction hex */
-  signedHex: string;
-  /** Output UTXOs created by split transaction */
-  outputs: Array<{
-    txid: string;
-    vout: number;
-    value: number;
-    scriptPubKey: string;
-  }>;
-}
-
-// ============================================================================
-// Helper: Create and Sign Split Transaction
-// ============================================================================
-
-async function createAndSignSplitTransaction(
-  splitTx: NonNullable<AllocationPlan["splitTransaction"]>,
-  btcWalletProvider: BitcoinWallet,
-  feeRate: number,
-): Promise<SplitTxSignResult> {
-  const network = getBTCNetworkForWASM();
-
-  // Create unsigned split transaction
-  const result = createSplitTransaction(
-    splitTx.inputs,
-    splitTx.outputs.map((o) => ({
-      amount: o.amount,
-      address: o.address,
-    })),
-    network,
-  );
-
-  // Get depositor's public key for P2TR signing
-  const publicKeyHex = await btcWalletProvider.getPublicKeyHex();
-  const publicKeyNoCoord = Buffer.from(
-    publicKeyHex.length === 64 ? publicKeyHex : publicKeyHex.slice(2),
-    "hex",
-  );
-
-  // Create PSBT
-  const psbtHex = createSplitTransactionPsbt(
-    result.txHex,
-    splitTx.inputs,
-    publicKeyNoCoord,
-  );
-
-  // Sign via wallet
-  const signedPsbtHex = await btcWalletProvider.signPsbt(psbtHex, {
-    autoFinalized: true,
-  });
-
-  // Extract signed transaction with dynamic fee rate limit
-  const maxAllowedFeeRate = Math.ceil(feeRate * SPLIT_TX_FEE_SAFETY_MULTIPLIER);
-  const signedPsbt = Psbt.fromHex(signedPsbtHex);
-  signedPsbt.setMaximumFeeRate(maxAllowedFeeRate);
-  const signedTx = signedPsbt.extractTransaction();
-
-  // Planner sanity check: verify planned fee is within expected bounds
-  const totalInputValue = splitTx.inputs.reduce(
-    (sum, input) => sum + BigInt(input.value),
-    0n,
-  );
-  const totalOutputValue = splitTx.outputs.reduce(
-    (sum, output) => sum + output.amount,
-    0n,
-  );
-  const actualFee = totalInputValue - totalOutputValue;
-  const expectedFee = estimateSplitTxFee(
-    splitTx.inputs.length,
-    splitTx.outputs.length,
-    feeRate,
-  );
-  const maxAllowedFee = expectedFee * BigInt(SPLIT_TX_FEE_SAFETY_MULTIPLIER);
-
-  if (actualFee > maxAllowedFee) {
-    throw new Error(
-      `Split transaction fee ${actualFee} sats exceeds safety limit of ${maxAllowedFee} sats ` +
-        `(${SPLIT_TX_FEE_SAFETY_MULTIPLIER}x estimated fee of ${expectedFee} sats ` +
-        `at ${feeRate} sat/vB). The allocation planner may have produced an incorrect fee.`,
-    );
-  }
-
-  const signedHex = signedTx.toHex();
-
-  return {
-    txid: result.txid,
-    signedHex,
-    outputs: result.outputs,
-  };
 }
 
 // ============================================================================
@@ -299,7 +176,6 @@ export function useMultiVaultDepositFlow(
     universalChallengerBtcPubkeys,
     getMnemonic,
     mnemonicId,
-    precomputedPlan,
     htlcSecretHexes,
     depositorSecretHashes,
   } = params;
@@ -314,9 +190,6 @@ export function useMultiVaultDepositFlow(
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isWaiting, setIsWaiting] = useState(false);
-  const [allocationPlan, setAllocationPlan] = useState<AllocationPlan | null>(
-    null,
-  );
   const [payoutSigningProgress, setPayoutSigningProgress] =
     useState<PayoutSigningProgress | null>(null);
   const [artifactDownloadInfo, setArtifactDownloadInfo] =
@@ -398,6 +271,8 @@ export function useMultiVaultDepositFlow(
           universalChallengerBtcPubkeys,
           minDeposit,
           maxDeposit,
+          htlcSecretHexesLength: htlcSecretHexes.length,
+          depositorSecretHashesLength: depositorSecretHashes.length,
         });
 
         // After validation, these values are guaranteed to be defined
@@ -415,49 +290,7 @@ export function useMultiVaultDepositFlow(
         const batchId = uuidv4();
 
         // ========================================================================
-        // Step 1: Plan UTXO Allocation (use precomputed plan if available)
-        // ========================================================================
-
-        const plan =
-          precomputedPlan ??
-          planUtxoAllocation(
-            spendableUTXOs,
-            vaultAmounts,
-            mempoolFeeRate,
-            confirmedBtcAddress,
-          );
-
-        setAllocationPlan(plan);
-
-        // ========================================================================
-        // Step 2: Create and Broadcast Split Transaction (if needed)
-        // ========================================================================
-
-        let splitTxResult: SplitTxSignResult | null = null;
-
-        if (plan.needsSplit && plan.splitTransaction) {
-          setCurrentStep(DepositFlowStep.SIGN_SPLIT_TX);
-
-          // 2a. Create and sign split transaction
-          splitTxResult = await createAndSignSplitTransaction(
-            plan.splitTransaction,
-            confirmedBtcWallet,
-            mempoolFeeRate,
-          );
-          // 2b. Broadcast split TX IMMEDIATELY
-          try {
-            await pushTx(splitTxResult.signedHex, getMempoolApiUrl());
-          } catch (broadcastError) {
-            throw new Error(
-              `Failed to broadcast split transaction: ${broadcastError instanceof Error ? broadcastError.message : String(broadcastError)}`,
-            );
-          }
-
-          // Split outputs are now on-chain (unconfirmed) and can be used for pegins
-        }
-
-        // ========================================================================
-        // Step 2.5: Get shared resources (once, before per-vault loop)
+        // Step 1: Get shared resources
         // ========================================================================
 
         // Get ETH wallet client once (chain switch + wallet client are reusable)
@@ -469,281 +302,177 @@ export function useMultiVaultDepositFlow(
         const mnemonic = await getMnemonic();
 
         // ========================================================================
-        // Step 3: Create N Pegins (1 or 2) — with POP reuse
+        // Step 2: Create Batch Pre-PegIn (all vaults in one BTC tx)
         // ========================================================================
 
         setCurrentStep(DepositFlowStep.SIGN_POP);
 
+        // Compute hashlocks from secrets
+        const hashlocks = htlcSecretHexes.map(
+          (hex) => hashSecret(hex).slice(2), // strip 0x prefix
+        );
+
+        // ONE Pre-PegIn tx with N HTLC outputs (one per vault)
+        const batchResult = await preparePeginTransaction(
+          confirmedBtcWallet,
+          walletClient,
+          {
+            pegInAmounts: vaultAmounts,
+            protocolFeeRate: config.offchainParams.feeRate,
+            mempoolFeeRate,
+            changeAddress: confirmedBtcAddress,
+            vaultProviderBtcPubkey,
+            vaultKeeperBtcPubkeys,
+            universalChallengerBtcPubkeys,
+            timelockPegin,
+            timelockRefund,
+            hashlocks,
+            councilQuorum: config.offchainParams.councilQuorum,
+            councilSize: config.offchainParams.securityCouncilKeys.length,
+            availableUTXOs: spendableUTXOs,
+          },
+        );
+
+        // ========================================================================
+        // Step 3: Register each vault on Ethereum (with PoP reuse)
+        // ========================================================================
+
+        setCurrentStep(DepositFlowStep.SUBMIT_PEGIN);
+
         let capturedPopSignature: Hex | undefined;
 
         const peginResults: PeginCreationResult[] = [];
-        const vaultErrors: string[] = [];
 
-        for (let i = 0; i < vaultAmounts.length; i++) {
+        for (let i = 0; i < batchResult.perVault.length; i++) {
           setCurrentVaultIndex(i);
 
-          try {
-            const allocation = plan.vaultAllocations[i];
+          const vault = batchResult.perVault[i];
+          const htlcSecretHex = htlcSecretHexes[i];
 
-            const peginAmount = vaultAmounts[i];
+          // Derive Lamport keypair and compute PK hash (before ETH tx)
+          const lamportPkHash = await deriveLamportPkHash(
+            mnemonic,
+            vault.btcTxHash,
+            batchResult.depositorBtcPubkey,
+            selectedApplication,
+          );
 
-            // CRITICAL: Use different path for split outputs vs existing UTXOs
-            let peginResult: {
-              btcTxid: string;
-              ethTxHash: Hex;
-              vaultId: Hex;
-              fundedPrePeginTxHex: string;
-              peginTxHex: string;
-              selectedUTXOs: UTXO[];
-              fee: bigint;
-              htlcSecretHex: string;
-            };
-            let depositorBtcPubkey: string;
+          const registration = await registerPeginAndWait({
+            btcWalletProvider: confirmedBtcWallet,
+            walletClient,
+            depositorBtcPubkey: batchResult.depositorBtcPubkey,
+            peginTxHex: vault.peginTxHex,
+            unsignedPrePeginTxHex: batchResult.fundedPrePeginTxHex,
+            hashlock: ensureHexPrefix(hashlocks[i]),
+            htlcVout: vault.htlcVout,
+            vaultProviderAddress: primaryProvider,
+            depositorPayoutBtcAddress: confirmedBtcAddress,
+            depositorLamportPkHash: lamportPkHash,
+            preSignedBtcPopSignature: capturedPopSignature,
+            depositorSecretHash: depositorSecretHashes[i],
+          });
 
-            if (allocation.fromSplit && splitTxResult) {
-              // ================================================================
-              // SPLIT OUTPUT PATH: Use custom pegin builder (no mempool fetch)
-              // ================================================================
+          // Capture PoP signature from first vault for reuse
+          capturedPopSignature ??= registration.btcPopSignature;
 
-              // Use output from split transaction (now on-chain)
-              const splitOutput =
-                splitTxResult.outputs[allocation.splitTxOutputIndex!];
-              const utxoToUse: UTXO = {
-                txid: splitOutput.txid,
-                vout: splitOutput.vout,
-                value: splitOutput.value,
-                scriptPubKey: splitOutput.scriptPubKey,
-              };
+          const peginResult: PeginCreationResult = {
+            vaultIndex: i,
+            btcTxHash: vault.btcTxHash as Hex,
+            ethTxHash: registration.ethTxHash,
+            vaultId: registration.btcTxid as Hex,
+            fundedPrePeginTxHex: batchResult.fundedPrePeginTxHex,
+            peginTxHex: vault.peginTxHex,
+            selectedUTXOs: batchResult.selectedUTXOs,
+            fee: batchResult.fee,
+            depositorBtcPubkey: batchResult.depositorBtcPubkey,
+            htlcSecretHex,
+          };
 
-              // Extract depositor pubkey
-              const publicKeyHex = await confirmedBtcWallet.getPublicKeyHex();
-              depositorBtcPubkey =
-                publicKeyHex.length === 66
-                  ? publicKeyHex.slice(2) // Strip first byte (02 or 03) → x-only
-                  : publicKeyHex; // Already x-only
-
-              // Use the secret shown to the user in the secret modal
-              const splitHtlcSecretHex = htlcSecretHexes[i];
-              const splitHashH = hashSecret(splitHtlcSecretHex).slice(2);
-
-              const prepareResult = await preparePeginFromSplitOutput({
-                pegInAmount: peginAmount,
-                protocolFeeRate: config.offchainParams.feeRate,
-                mempoolFeeRate,
-                changeAddress: confirmedBtcAddress,
-                vaultProviderAddress: primaryProvider,
-                depositorBtcPubkey,
-                vaultProviderBtcPubkey,
-                vaultKeeperBtcPubkeys,
-                universalChallengerBtcPubkeys,
-                timelockPegin,
-                timelockRefund,
-                hashH: splitHashH,
-                councilQuorum: config.offchainParams.councilQuorum,
-                councilSize: config.offchainParams.securityCouncilKeys.length,
-                splitOutput: utxoToUse,
-                signPsbt: (psbtHex, options) =>
-                  confirmedBtcWallet.signPsbt(psbtHex, options),
-              });
-
-              // Derive Lamport keypair and compute PK hash (before ETH tx)
-              const splitLamportPkHash = await deriveLamportPkHash(
-                mnemonic,
-                prepareResult.btcTxHash,
-                prepareResult.depositorBtcPubkey,
-                selectedApplication,
-              );
-
-              const registrationResult = await registerSplitPeginOnChain(
-                confirmedBtcWallet,
-                walletClient,
-                {
-                  depositorBtcPubkey: prepareResult.depositorBtcPubkey,
-                  unsignedPrePeginTxHex: prepareResult.fundedPrePeginTxHex,
-                  peginTxHex: prepareResult.peginTxHex,
-                  hashlock: ensureHexPrefix(splitHashH),
-                  vaultProviderAddress: primaryProvider,
-                  depositorPayoutBtcAddress: confirmedBtcAddress,
-                  depositorLamportPkHash: splitLamportPkHash,
-                  preSignedBtcPopSignature: capturedPopSignature,
-                  onPopSigned: () =>
-                    setCurrentStep(DepositFlowStep.SUBMIT_PEGIN),
-                  depositorSecretHash: depositorSecretHashes?.[i],
-                },
-              );
-
-              // Capture PoP signature from first vault for reuse
-              capturedPopSignature ??= registrationResult.btcPopSignature;
-
-              peginResult = {
-                btcTxid: prepareResult.btcTxHash,
-                ethTxHash: registrationResult.ethTxHash,
-                vaultId: registrationResult.vaultId,
-                fundedPrePeginTxHex: prepareResult.fundedPrePeginTxHex,
-                peginTxHex: prepareResult.peginTxHex,
-                selectedUTXOs: prepareResult.selectedUTXOs,
-                fee: prepareResult.fee,
-                htlcSecretHex: splitHtlcSecretHex,
-              };
-            } else {
-              // ================================================================
-              // STANDARD PATH: Prepare + register pegin (mempool OK)
-              // ================================================================
-
-              // Validate UTXOs are available
-              if (allocation.utxos.length === 0) {
-                throw new Error(`No UTXO available for vault ${i}`);
-              }
-
-              // Use the secret shown to the user in the secret modal
-              const htlcSecretHex = htlcSecretHexes[i];
-              const hashH = hashSecret(htlcSecretHex).slice(2);
-
-              const prepared = await preparePegin({
-                btcWalletProvider: confirmedBtcWallet,
-                walletClient,
-                amount: peginAmount,
-                protocolFeeRate: config.offchainParams.feeRate,
-                mempoolFeeRate,
-                btcAddress: confirmedBtcAddress,
-                selectedProviders,
-                vaultProviderBtcPubkey,
-                vaultKeeperBtcPubkeys,
-                universalChallengerBtcPubkeys,
-                timelockPegin,
-                timelockRefund,
-                hashH,
-                councilQuorum: config.offchainParams.councilQuorum,
-                councilSize: config.offchainParams.securityCouncilKeys.length,
-                confirmedUTXOs: allocation.utxos,
-                reservedUtxoRefs: [],
-              });
-
-              // Derive Lamport keypair and compute PK hash (before ETH tx)
-              const lamportPkHash = await deriveLamportPkHash(
-                mnemonic,
-                prepared.btcTxid,
-                prepared.depositorBtcPubkey,
-                selectedApplication,
-              );
-
-              const registration = await registerPeginAndWait({
-                btcWalletProvider: confirmedBtcWallet,
-                walletClient,
-                depositorBtcPubkey: prepared.depositorBtcPubkey,
-                peginTxHex: prepared.peginTxHex,
-                unsignedPrePeginTxHex: prepared.fundedPrePeginTxHex,
-                hashlock: ensureHexPrefix(hashH),
-                vaultProviderAddress: selectedProviders[0],
-                depositorPayoutBtcAddress: confirmedBtcAddress,
-                depositorLamportPkHash: lamportPkHash,
-                preSignedBtcPopSignature: capturedPopSignature,
-                onPopSigned: () => setCurrentStep(DepositFlowStep.SUBMIT_PEGIN),
-                depositorSecretHash: depositorSecretHashes?.[i],
-              });
-
-              // Capture PoP signature from first vault for reuse
-              capturedPopSignature ??= registration.btcPopSignature;
-
-              depositorBtcPubkey = prepared.depositorBtcPubkey;
-              peginResult = {
-                btcTxid: registration.btcTxid,
-                ethTxHash: registration.ethTxHash,
-                vaultId: registration.btcTxid as Hex,
-                fundedPrePeginTxHex: prepared.fundedPrePeginTxHex,
-                peginTxHex: prepared.peginTxHex,
-                selectedUTXOs: prepared.selectedUTXOs,
-                fee: prepared.fee,
-                htlcSecretHex,
-              };
-            }
-
-            // Store result
-            peginResults.push({
-              vaultIndex: i,
-              btcTxHash: peginResult.btcTxid as Hex,
-              ethTxHash: peginResult.ethTxHash,
-              vaultId: peginResult.vaultId as Hex,
-              fundedPrePeginTxHex: peginResult.fundedPrePeginTxHex,
-              peginTxHex: peginResult.peginTxHex,
-              selectedUTXOs: peginResult.selectedUTXOs,
-              fee: peginResult.fee,
-              depositorBtcPubkey,
-              htlcSecretHex: peginResult.htlcSecretHex,
-            });
-          } catch (err: unknown) {
-            const errorMsg = err instanceof Error ? err.message : String(err);
-            logger.error(err instanceof Error ? err : new Error(String(err)), {
-              data: {
-                context: `[Multi-Vault] Pegin creation failed for vault ${i}`,
-              },
-            });
-
-            vaultErrors.push(`Vault ${i + 1}: ${errorMsg}`);
-
-            // Continue with next vault (independent failures)
-          }
+          peginResults.push(peginResult);
         }
 
         setCurrentVaultIndex(null);
 
-        // If ALL pegin creations failed, abort — don't silently show "completed"
-        if (peginResults.length === 0 && vaultErrors.length > 0) {
+        // ========================================================================
+        // Step 4: Broadcast Pre-PegIn transaction to Bitcoin
+        // Broadcast immediately after ETH registration so the VP can verify
+        // the Pre-PegIn inputs on the Bitcoin network when it processes the
+        // Ethereum event. Nothing must throw between ETH registration and
+        // this broadcast — otherwise the VP has the event but no BTC tx.
+        // ========================================================================
+
+        setCurrentStep(DepositFlowStep.BROADCAST_PRE_PEGIN);
+
+        try {
+          await broadcastPrePeginTransaction({
+            unsignedTxHex: batchResult.fundedPrePeginTxHex,
+            btcWalletProvider: {
+              signPsbt: (psbtHex: string) =>
+                confirmedBtcWallet.signPsbt(psbtHex),
+            },
+            depositorBtcPubkey: batchResult.depositorBtcPubkey,
+          });
+        } catch (error) {
+          const errorMsg =
+            error instanceof Error ? error.message : String(error);
           throw new Error(
-            `All pegin creations failed: ${vaultErrors.join("; ")}`,
+            `Failed to broadcast batch Pre-PegIn transaction: ${errorMsg}`,
           );
         }
 
-        // Surface partial failures as warnings so the user knows
-        if (vaultErrors.length > 0) {
-          warnings.push(...vaultErrors);
-        }
-
         // ========================================================================
-        // Step 4: Save Pegins to Storage
+        // Step 4b: Save Pegins to Storage
+        // Saved after both ETH registration and BTC broadcast succeed, so
+        // localStorage never contains ghost entries for un-broadcast pegins.
         // ========================================================================
 
-        if (peginResults.length > 0) {
-          for (const peginResult of peginResults) {
-            const vaultAmount = vaultAmounts[peginResult.vaultIndex];
+        for (const peginResult of peginResults) {
+          const vaultAmount = vaultAmounts[peginResult.vaultIndex];
 
-            if (vaultAmount === undefined) {
-              logger.error(
-                new Error("[Multi-Vault] Invalid vault index for vault"),
-                {
-                  data: {
-                    vaultIndex: peginResult.vaultIndex,
-                    vaultId: peginResult.vaultId,
-                  },
+          if (vaultAmount === undefined) {
+            logger.error(
+              new Error("[Multi-Vault] Invalid vault index for vault"),
+              {
+                data: {
+                  vaultIndex: peginResult.vaultIndex,
+                  vaultId: peginResult.vaultId,
                 },
-              );
-              continue;
-            }
+              },
+            );
+            continue;
+          }
 
-            addPendingPegin(confirmedEthAddress, {
-              id: peginResult.vaultId, // PRIMARY ID (vaultId from contract)
-              btcTxHash: peginResult.btcTxHash, // For compatibility
-              amount: formatBtcValue(satoshiToBtcNumber(vaultAmount)), // BTC format
-              providerIds: [primaryProvider],
-              applicationEntryPoint: selectedApplication,
-              batchId, // Links to batch
-              splitTxId: splitTxResult?.txid, // Split TX ID (if used)
-              batchIndex: peginResult.vaultIndex + 1, // 1-based position for UI display
-              batchTotal: vaultAmounts.length, // Total vaults in this batch
-            });
+          addPendingPegin(confirmedEthAddress, {
+            id: peginResult.vaultId,
+            btcTxHash: peginResult.btcTxHash,
+            amount: formatBtcValue(satoshiToBtcNumber(vaultAmount)),
+            providerIds: [primaryProvider],
+            applicationEntryPoint: selectedApplication,
+            batchId,
+            batchIndex: peginResult.vaultIndex + 1,
+            batchTotal: vaultAmounts.length,
+            status: LocalStorageStatus.CONFIRMING,
+            unsignedTxHex: peginResult.fundedPrePeginTxHex,
+            selectedUTXOs: peginResult.selectedUTXOs.map((u) => ({
+              txid: u.txid,
+              vout: u.vout,
+              value: String(u.value),
+              scriptPubKey: u.scriptPubKey,
+            })),
+          });
 
-            if (mnemonicId) {
-              linkPeginToMnemonic(
-                peginResult.vaultId,
-                mnemonicId,
-                confirmedEthAddress,
-              );
-            }
+          if (mnemonicId) {
+            linkPeginToMnemonic(
+              peginResult.vaultId,
+              mnemonicId,
+              confirmedEthAddress,
+            );
           }
         }
 
-        // Move to next step after persisting pegins + mnemonic links,
-        // so a page refresh won't lose the associations.
+        // All vaults share the same Pre-PegIn tx — if broadcast succeeded,
+        // all pegins are live on Bitcoin.
+        const broadcastedResults = peginResults;
 
         const provider = findProvider(primaryProvider as Hex);
         if (!provider) {
@@ -751,82 +480,7 @@ export function useMultiVaultDepositFlow(
         }
 
         // ========================================================================
-        // Step 4: Broadcast Pre-PegIn transactions to Bitcoin
-        // Per spec, broadcast happens right after ETH submission so the VP
-        // can monitor the Pre-PegIn on-chain before BaBe setup.
-        // ========================================================================
-
-        setCurrentStep(DepositFlowStep.BROADCAST_PRE_PEGIN);
-
-        const broadcastedVaultIds = new Set<string>();
-
-        for (const result of peginResults) {
-          try {
-            const allocation = plan.vaultAllocations[result.vaultIndex];
-
-            if (allocation.fromSplit && splitTxResult) {
-              // SPLIT OUTPUT: Use custom broadcast (no mempool fetch)
-              await broadcastPrePeginWithLocalUtxo({
-                fundedPrePeginTxHex: result.fundedPrePeginTxHex,
-                depositorBtcPubkey: result.depositorBtcPubkey,
-                splitOutputs: splitTxResult.outputs,
-                signPsbt: (psbtHex: string) =>
-                  confirmedBtcWallet.signPsbt(psbtHex),
-              });
-            } else {
-              // STANDARD: Broadcast directly from memory (no indexer re-fetch)
-              await broadcastPrePeginTransaction({
-                unsignedTxHex: result.fundedPrePeginTxHex,
-                btcWalletProvider: {
-                  signPsbt: (psbtHex: string) =>
-                    confirmedBtcWallet.signPsbt(psbtHex),
-                },
-                depositorBtcPubkey: result.depositorBtcPubkey,
-              });
-            }
-
-            broadcastedVaultIds.add(result.vaultId);
-
-            // Update localStorage status after successful broadcast
-            updatePendingPeginStatus(
-              confirmedEthAddress,
-              result.vaultId,
-              LocalStorageStatus.CONFIRMING,
-            );
-          } catch (error) {
-            const errorMsg =
-              error instanceof Error ? error.message : String(error);
-            const warning = `Vault ${result.vaultIndex + 1}: BTC broadcast failed - ${errorMsg}`;
-            warnings.push(warning);
-            logger.error(
-              error instanceof Error ? error : new Error(String(error)),
-              {
-                data: {
-                  context: "[Multi-Vault] Failed to broadcast vault pegin",
-                  vaultIndex: result.vaultIndex,
-                  btcTxHash: result.btcTxHash,
-                },
-              },
-            );
-            // Continue with other vaults
-          }
-        }
-
-        // Only continue the flow for vaults whose Pre-PegIn was actually broadcast.
-        // Failed-broadcast vaults will never reach VERIFIED on-chain, so polling
-        // for them would hang until the abort signal fires.
-        const broadcastedResults = peginResults.filter((r) =>
-          broadcastedVaultIds.has(r.vaultId),
-        );
-
-        if (broadcastedResults.length === 0) {
-          throw new Error(
-            "All vault broadcasts failed. Check the warnings for details.",
-          );
-        }
-
-        // ========================================================================
-        // Step 5: Submit Lamport Public Keys to Vault Provider
+        // Step 5: Submit Lamport Keys + Sign Payout Transactions
         // ========================================================================
 
         setCurrentStep(DepositFlowStep.SIGN_PAYOUTS);
@@ -989,7 +643,7 @@ export function useMultiVaultDepositFlow(
 
             const errorMsg =
               error instanceof Error ? error.message : String(error);
-            const warning = `Vault ${result.vaultIndex}: Activation failed - ${errorMsg}`;
+            const warning = `Vault ${result.vaultIndex + 1}: Activation failed - ${errorMsg}`;
             warnings.push(warning);
             logger.error(
               error instanceof Error ? error : new Error(String(error)),
@@ -1009,8 +663,6 @@ export function useMultiVaultDepositFlow(
         return {
           pegins: peginResults,
           batchId,
-          splitTxId: splitTxResult?.txid,
-          strategy: plan.strategy,
           warnings: warnings.length > 0 ? warnings : undefined,
         };
       } catch (err: unknown) {
@@ -1051,7 +703,6 @@ export function useMultiVaultDepositFlow(
       findProvider,
       getMnemonic,
       mnemonicId,
-      precomputedPlan,
       htlcSecretHexes,
       depositorSecretHashes,
     ]);
@@ -1064,7 +715,6 @@ export function useMultiVaultDepositFlow(
     processing,
     error,
     isWaiting,
-    allocationPlan,
     payoutSigningProgress,
     artifactDownloadInfo,
     continueAfterArtifactDownload,

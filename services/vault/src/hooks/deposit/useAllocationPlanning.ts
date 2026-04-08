@@ -9,10 +9,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import { useOptimalSplit } from "@/applications/aave/hooks/useOptimalSplit";
 import type { AllocationPlan } from "@/services/vault";
-import {
-  estimatePeginFeeForAllocation,
-  planUtxoAllocation,
-} from "@/services/vault";
+import { planUtxoAllocation } from "@/services/vault";
 
 import type { DepositUtxo } from "./depositFlowSteps/types";
 
@@ -32,8 +29,6 @@ export interface UseAllocationPlanningResult {
   allocationPlan: AllocationPlan | null;
   /** Selected strategy ("SINGLE" | "MULTI_INPUT" | "SPLIT"), null when inactive */
   strategy: AllocationPlan["strategy"] | null;
-  /** Total estimated fees in sats for the multi-vault deposit */
-  totalFeeSats: bigint | null;
   /** Whether planning is in progress */
   isPlanning: boolean;
   /** Error message if planning failed */
@@ -138,53 +133,6 @@ export function useAllocationPlanning({
     depositorClaimValue,
   ]);
 
-  // Compute total fee from the allocation plan
-  const totalFeeSats = useMemo(() => {
-    if (!allocationPlan || depositorClaimValue == null) return null;
-
-    let total = 0n;
-
-    if (
-      allocationPlan.strategy === "SPLIT" &&
-      allocationPlan.splitTransaction
-    ) {
-      // SPLIT strategy: fee = split TX fee + per-vault pegin fees
-      // Split TX fee = sum(input values) - sum(output values)
-      const splitTx = allocationPlan.splitTransaction;
-      const inputTotal = splitTx.inputs.reduce(
-        (sum, u) => sum + BigInt(u.value),
-        0n,
-      );
-      const outputTotal = splitTx.outputs.reduce(
-        (sum, o) => sum + o.amount,
-        0n,
-      );
-      total += inputTotal - outputTotal;
-
-      // Per-vault pegin fees: each split output is sized as vault amount + pegin fee buffer
-      for (const alloc of allocationPlan.vaultAllocations) {
-        if (alloc.fromSplit && alloc.splitTxOutputIndex != null) {
-          const splitOutput = splitTx.outputs[alloc.splitTxOutputIndex];
-          if (splitOutput) {
-            const perVaultFee =
-              splitOutput.amount - alloc.amount - depositorClaimValue;
-            total += perVaultFee > 0n ? perVaultFee : 0n;
-          }
-        }
-      }
-    } else {
-      // MULTI_INPUT strategy: fee = estimated pegin fee per vault
-      // Each vault's pegin tx fee depends on its input count.
-      // The excess UTXO value beyond (amount + depositorClaimValue + fee) is
-      // change returned to the user, NOT fee.
-      for (const alloc of allocationPlan.vaultAllocations) {
-        total += estimatePeginFeeForAllocation(alloc.utxos.length, feeRate);
-      }
-    }
-
-    return total;
-  }, [allocationPlan, depositorClaimValue, feeRate]);
-
   // canSplit: whether the current UTXOs + amount allow splitting into 2 vaults.
   // Requires both: risk-parameter feasibility (splitParamsCanSplit) AND
   // UTXO feasibility (enough UTXOs to fund both vaults).
@@ -233,7 +181,6 @@ export function useAllocationPlanning({
   return {
     allocationPlan,
     strategy: allocationPlan?.strategy ?? null,
-    totalFeeSats,
     isPlanning: isPlanning || splitParamsLoading,
     planError,
     canSplit,

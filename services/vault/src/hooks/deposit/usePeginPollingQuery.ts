@@ -78,7 +78,6 @@ interface UsePeginPollingQueryResult {
  * or has already moved past depositor interaction.
  */
 const TRANSIENT_STATUSES = new Set<string>([
-  DaemonStatus.PENDING_INGESTION,
   DaemonStatus.PENDING_BABE_SETUP,
   DaemonStatus.PENDING_CHALLENGER_PRESIGNING,
   DaemonStatus.PENDING_PEGIN_SIGS_AVAILABILITY,
@@ -120,6 +119,13 @@ async function fetchFromProvider(
       if (status === DaemonStatus.PENDING_DEPOSITOR_LAMPORT_PK) {
         needsLamportKey.add(depositId);
         errors.delete(depositId);
+        continue;
+      }
+
+      if (status === DaemonStatus.PENDING_INGESTION) {
+        pendingIngestion.add(depositId);
+        errors.delete(depositId);
+        needsLamportKey.delete(depositId);
         continue;
       }
 
