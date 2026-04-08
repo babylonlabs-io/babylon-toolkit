@@ -1,4 +1,33 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+vi.mock("@metamask/browser-passworder", () => ({
+  encrypt: (password: string, data: unknown): Promise<string> =>
+    Promise.resolve(
+      JSON.stringify({ p: password, d: btoa(JSON.stringify(data)) }),
+    ),
+  decrypt: (password: string, encrypted: string): Promise<unknown> => {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(encrypted);
+    } catch {
+      return Promise.reject(new Error("Failed to decrypt"));
+    }
+    if (
+      typeof parsed !== "object" ||
+      parsed === null ||
+      (parsed as Record<string, unknown>).p !== password
+    ) {
+      return Promise.reject(new Error("Failed to decrypt"));
+    }
+    try {
+      return Promise.resolve(
+        JSON.parse(atob((parsed as Record<string, unknown>).d as string)),
+      );
+    } catch {
+      return Promise.reject(new Error("Failed to decrypt"));
+    }
+  },
+}));
 
 import {
   addMnemonic,
