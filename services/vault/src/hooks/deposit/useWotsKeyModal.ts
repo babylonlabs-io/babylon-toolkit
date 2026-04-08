@@ -2,7 +2,7 @@ import { useCallback, useState } from "react";
 
 import type { VaultActivity } from "../../types/activity";
 
-export function useLamportKeyModal(options: {
+export function useWotsKeyModal(options: {
   allActivities: VaultActivity[];
   onSuccess: () => void;
 }) {
@@ -10,7 +10,7 @@ export function useLamportKeyModal(options: {
 
   const [activity, setActivity] = useState<VaultActivity | null>(null);
 
-  const handleLamportKeyClick = useCallback(
+  const handleWotsKeyClick = useCallback(
     (depositId: string) => {
       const found = allActivities.find((a) => a.id === depositId);
       if (found) {
@@ -32,7 +32,7 @@ export function useLamportKeyModal(options: {
   return {
     activity,
     isOpen: !!activity,
-    handleLamportKeyClick,
+    handleWotsKeyClick,
     handleClose,
     handleSuccess,
   };

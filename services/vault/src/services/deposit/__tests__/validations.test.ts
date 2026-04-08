@@ -6,7 +6,9 @@ import { describe, expect, it } from "vitest";
 
 import type { UTXO } from "../../vault/vaultTransactionService";
 import {
+  type DepositCtaParams,
   getDepositButtonLabel,
+  getDepositCtaState,
   isDepositAmountValid,
   validateDepositAmount,
   validateMultiVaultDepositInputs,
@@ -319,6 +321,8 @@ describe("Deposit Validations", () => {
       universalChallengerBtcPubkeys: ["c".repeat(64)],
       minDeposit: 10_000n,
       maxDeposit: 100_000n,
+      htlcSecretHexesLength: 2,
+      depositorSecretHashesLength: 2,
     };
 
     it("passes when all vault amounts are within min/max range", () => {
@@ -331,7 +335,7 @@ describe("Deposit Validations", () => {
           ...validInputs,
           vaultAmounts: [5_000n, 50_000n],
         }),
-      ).toThrow("Vault 1: Minimum deposit");
+      ).toThrow("below minimum deposit");
     });
 
     it("throws when a vault amount exceeds maxDeposit", () => {
@@ -340,7 +344,7 @@ describe("Deposit Validations", () => {
           ...validInputs,
           vaultAmounts: [50_000n, 200_000n],
         }),
-      ).toThrow("Vault 2: Maximum deposit");
+      ).toThrow("exceeds maximum deposit");
     });
 
     it("passes when maxDeposit is undefined", () => {
@@ -452,6 +456,207 @@ describe("Deposit Validations", () => {
           depositorClaimValue: 50000n,
         }),
       ).toBe("Deposit");
+    });
+  });
+
+  describe("getDepositCtaState", () => {
+    const readyParams: DepositCtaParams = {
+      amountSats: 100000n,
+      minDeposit: 10000n,
+      btcBalance: 1000000n,
+      estimatedFeeSats: 1000n,
+      depositorClaimValue: 5000n,
+      isDepositDisabled: false,
+      isGeoBlocked: false,
+      isWalletConnected: true,
+      hasApplication: true,
+      hasProvider: true,
+      splitNotReady: false,
+      isFeeError: false,
+      feeError: null,
+      feeDisabled: false,
+    };
+
+    it("returns enabled 'Deposit' when all conditions are met", () => {
+      const result = getDepositCtaState(readyParams);
+      expect(result).toEqual({ disabled: false, label: "Deposit" });
+    });
+
+    it("returns 'Depositing Unavailable' when deposits are disabled", () => {
+      const result = getDepositCtaState({
+        ...readyParams,
+        isDepositDisabled: true,
+      });
+      expect(result).toEqual({
+        disabled: true,
+        label: "Depositing Unavailable",
+      });
+    });
+
+    it("returns geo-blocked message when geo-blocked", () => {
+      const result = getDepositCtaState({
+        ...readyParams,
+        isGeoBlocked: true,
+      });
+      expect(result).toEqual({
+        disabled: true,
+        label: "Service unavailable in your region",
+      });
+    });
+
+    it("returns 'Connect your wallet' when wallet is not connected", () => {
+      const result = getDepositCtaState({
+        ...readyParams,
+        isWalletConnected: false,
+      });
+      expect(result).toEqual({
+        disabled: true,
+        label: "Connect your wallet",
+      });
+    });
+
+    it("returns 'Select an application' when application is missing", () => {
+      const result = getDepositCtaState({
+        ...readyParams,
+        hasApplication: false,
+      });
+      expect(result).toEqual({
+        disabled: true,
+        label: "Select an application",
+      });
+    });
+
+    it("returns 'Select a vault provider' when provider is missing", () => {
+      const result = getDepositCtaState({
+        ...readyParams,
+        hasProvider: false,
+      });
+      expect(result).toEqual({
+        disabled: true,
+        label: "Select a vault provider",
+      });
+    });
+
+    it("returns split-not-ready message when split is not ready", () => {
+      const result = getDepositCtaState({
+        ...readyParams,
+        splitNotReady: true,
+      });
+      expect(result).toEqual({
+        disabled: true,
+        label: "Deposit amount too low for 2-vault split",
+      });
+    });
+
+    it("returns fee error message when fee estimation fails", () => {
+      const result = getDepositCtaState({
+        ...readyParams,
+        isFeeError: true,
+        feeError: "Network congestion",
+      });
+      expect(result).toEqual({
+        disabled: true,
+        label: "Network congestion",
+      });
+    });
+
+    it("returns fallback fee error when feeError is null", () => {
+      const result = getDepositCtaState({
+        ...readyParams,
+        isFeeError: true,
+        feeError: null,
+      });
+      expect(result).toEqual({
+        disabled: true,
+        label: "Fee estimate unavailable",
+      });
+    });
+
+    it("returns 'Calculating fees...' when fee is loading", () => {
+      const result = getDepositCtaState({
+        ...readyParams,
+        feeDisabled: true,
+      });
+      expect(result).toEqual({
+        disabled: true,
+        label: "Calculating fees...",
+      });
+    });
+
+    it("returns amount-level label when amount is invalid", () => {
+      const result = getDepositCtaState({
+        ...readyParams,
+        amountSats: 5000n, // below minDeposit of 10000n
+      });
+      expect(result.disabled).toBe(true);
+      expect(result.label).toContain("Minimum");
+    });
+
+    it("returns 'Enter an amount' when amount is zero", () => {
+      const result = getDepositCtaState({
+        ...readyParams,
+        amountSats: 0n,
+      });
+      expect(result).toEqual({ disabled: true, label: "Enter an amount" });
+    });
+
+    it("returns 'Insufficient balance' when total exceeds balance", () => {
+      const result = getDepositCtaState({
+        ...readyParams,
+        amountSats: 990000n,
+        estimatedFeeSats: 20000n,
+        depositorClaimValue: 0n,
+      });
+      expect(result).toEqual({
+        disabled: true,
+        label: "Insufficient balance",
+      });
+    });
+
+    it("prioritizes deposit-disabled over geo-blocked", () => {
+      const result = getDepositCtaState({
+        ...readyParams,
+        isDepositDisabled: true,
+        isGeoBlocked: true,
+      });
+      expect(result.label).toBe("Depositing Unavailable");
+    });
+
+    it("prioritizes geo-blocked over wallet-not-connected", () => {
+      const result = getDepositCtaState({
+        ...readyParams,
+        isGeoBlocked: true,
+        isWalletConnected: false,
+      });
+      expect(result.label).toBe("Service unavailable in your region");
+    });
+
+    it("prioritizes fee error over fee loading", () => {
+      const result = getDepositCtaState({
+        ...readyParams,
+        isFeeError: true,
+        feeError: "RPC timeout",
+        feeDisabled: true,
+      });
+      expect(result.label).toBe("RPC timeout");
+    });
+
+    it("shows 'Enter an amount' over fee-disabled when no amount entered", () => {
+      const result = getDepositCtaState({
+        ...readyParams,
+        amountSats: 0n,
+        feeDisabled: true,
+      });
+      expect(result.label).toBe("Enter an amount");
+    });
+
+    it("shows amount label over fee-disabled when amount is below minimum", () => {
+      const result = getDepositCtaState({
+        ...readyParams,
+        amountSats: 5000n,
+        feeDisabled: true,
+      });
+      expect(result.label).toContain("Minimum");
     });
   });
 });

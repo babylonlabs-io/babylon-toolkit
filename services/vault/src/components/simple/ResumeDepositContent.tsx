@@ -20,16 +20,17 @@ import {
 import { MnemonicModal } from "@/components/deposit/MnemonicModal";
 import { usePayoutSigningState } from "@/components/deposit/PayoutSignModal/usePayoutSigningState";
 import { useETHWallet } from "@/context/wallet";
-import { submitLamportPublicKey } from "@/hooks/deposit/depositFlowSteps/lamportSubmission";
+import { submitWotsPublicKey } from "@/hooks/deposit/depositFlowSteps/wotsSubmission";
 import { useActivationState } from "@/hooks/deposit/useActivationState";
 import { useBroadcastState } from "@/hooks/deposit/useBroadcastState";
+import { useRefundState } from "@/hooks/deposit/useRefundState";
 import { useRunOnce } from "@/hooks/useRunOnce";
 import {
   getMnemonicIdForPegin,
   hasMnemonicEntry,
-  isLamportMismatchError,
+  isWotsMismatchError,
   linkPeginToMnemonic,
-} from "@/services/lamport";
+} from "@/services/wots";
 import type { VaultActivity } from "@/types/activity";
 import type { ClaimerTransactions } from "@/types/rpc";
 
@@ -146,10 +147,10 @@ export function ResumeBroadcastContent({
 }
 
 // ---------------------------------------------------------------------------
-// Submit Lamport Key Content
+// Submit WOTS Key Content
 // ---------------------------------------------------------------------------
 
-export interface ResumeLamportContentProps {
+export interface ResumeWotsContentProps {
   activity: VaultActivity;
   onClose: () => void;
   onSuccess: () => void;
@@ -159,11 +160,11 @@ function resolveProviderAddress(activity: VaultActivity): string | null {
   return activity.providers[0]?.id ?? null;
 }
 
-export function ResumeLamportContent({
+export function ResumeWotsContent({
   activity,
   onClose,
   onSuccess,
-}: ResumeLamportContentProps) {
+}: ResumeWotsContentProps) {
   const { address: ethAddress } = useETHWallet();
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -205,16 +206,16 @@ export function ResumeLamportContent({
 
         if (!activity.depositorBtcPubkey) {
           throw new Error(
-            "Missing depositor BTC public key on activity; cannot derive Lamport keypair",
+            "Missing depositor BTC public key on activity; cannot derive WOTS keypair",
           );
         }
         if (!activity.applicationEntryPoint) {
           throw new Error(
-            "Missing application controller address on activity; cannot derive Lamport keypair",
+            "Missing application controller address on activity; cannot derive WOTS keypair",
           );
         }
 
-        await submitLamportPublicKey({
+        await submitWotsPublicKey({
           btcTxid,
           depositorBtcPubkey: activity.depositorBtcPubkey,
           appContractAddress: activity.applicationEntryPoint,
@@ -230,13 +231,13 @@ export function ResumeLamportContent({
         onSuccess();
       } catch (err) {
         const msg =
-          err instanceof Error ? err.message : "Failed to submit lamport key";
+          err instanceof Error ? err.message : "Failed to submit WOTS key";
 
         // Only invalidate the stored mnemonic when the VP explicitly
-        // reports a Lamport hash mismatch (wrong mnemonic). Network
+        // reports a WOTS hash mismatch (wrong mnemonic). Network
         // errors, missing fields, etc. should not discard a potentially
         // valid stored mnemonic.
-        if (isLamportMismatchError(err)) {
+        if (isWotsMismatchError(err)) {
           setStoredFailed(true);
         }
 
@@ -281,7 +282,7 @@ export function ResumeLamportContent({
       canContinueInBackground={false}
       payoutSigningProgress={null}
       onClose={onClose}
-      successMessage="Your Lamport public key has been submitted. The deposit will continue processing."
+      successMessage="Your WOTS public key has been submitted. The deposit will continue processing."
       onRetry={error ? handleRetry : undefined}
     />
   );
@@ -399,5 +400,62 @@ export function ResumeActivationContent({
         </Button>
       </div>
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Refund HTLC Content
+// ---------------------------------------------------------------------------
+
+export interface ResumeRefundContentProps {
+  activity: VaultActivity;
+  onClose: () => void;
+  onSuccess: () => void;
+}
+
+export function ResumeRefundContent({
+  activity,
+  onClose,
+  onSuccess,
+}: ResumeRefundContentProps) {
+  const { refunding, refundTxId, error, handleRefund } = useRefundState({
+    activity,
+  });
+
+  useRunOnce(handleRefund);
+
+  const hasSucceeded = !!refundTxId && !refunding;
+  const isComplete = hasSucceeded;
+  const canClose = hasSucceeded || !!error;
+  const isProcessing = refunding && !error;
+
+  // When the refund succeeds, the user closes the dialog themselves after
+  // seeing the confirmation. We call onSuccess() at that point so the parent
+  // refetches activities only after the user has acknowledged the result.
+  const handleClose = () => {
+    if (isComplete) {
+      onSuccess();
+    }
+    onClose();
+  };
+
+  return (
+    <DepositProgressView
+      currentStep={DepositFlowStep.BROADCAST_PRE_PEGIN}
+      isWaiting={false}
+      error={error}
+      isComplete={isComplete}
+      isProcessing={isProcessing}
+      canClose={canClose}
+      canContinueInBackground={false}
+      payoutSigningProgress={null}
+      onClose={handleClose}
+      successMessage={
+        refundTxId
+          ? `Refund transaction broadcast successfully. Transaction ID: ${refundTxId}`
+          : "Your refund transaction has been broadcast to Bitcoin."
+      }
+      onRetry={error ? handleRefund : undefined}
+    />
   );
 }

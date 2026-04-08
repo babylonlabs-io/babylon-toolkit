@@ -13,7 +13,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // Configuration - Update these when btc-vault updates
 const BTC_VAULT_REPO_URL = 'git@github.com:babylonlabs-io/btc-vault.git';
 const BTC_VAULT_BRANCH = 'main';
-const BTC_VAULT_COMMIT = '5868c05b';
+const BTC_VAULT_COMMIT = '78a4099e';
 const REQUIRED_RUSTC_VERSION = '1.90';
 
 const REPO_DIR = path.join(__dirname, '..', 'btc-vault-temp');
@@ -214,7 +214,7 @@ const buildWasm = async () => {
     console.log('  - WasmPrePeginHtlcConnector (HTLC connector info)');
     console.log('  - WasmPeginTx (PegIn transaction from pre-pegin)');
     console.log('  - computeMinClaimValue (Minimum claim value calculation)');
-    console.log('  - numUtxosForInputLabels (UTXO count for input labels)');
+    console.log('  - deriveVaultId (Vault ID derivation)');
   } catch (error) {
     console.error('Error during WASM build:', error);
     // Clean up on error

@@ -10,8 +10,8 @@ const MOCK_CHALLENGE = {
 };
 const MOCK_MNEMONIC_ID = "test-uuid-123";
 
-vi.mock("@/services/lamport", () => ({
-  generateLamportMnemonic: vi.fn(() => MOCK_MNEMONIC),
+vi.mock("@/services/wots", () => ({
+  generateWotsMnemonic: vi.fn(() => MOCK_MNEMONIC),
   getMnemonicWords: vi.fn((m: string) => m.split(" ")),
   isValidMnemonic: vi.fn((m: string) => m === MOCK_MNEMONIC),
   createVerificationChallenge: vi.fn(() => MOCK_CHALLENGE),
@@ -29,7 +29,7 @@ import {
   addMnemonic,
   hasStoredMnemonic,
   unlockMnemonic,
-} from "@/services/lamport";
+} from "@/services/wots";
 
 import { MnemonicStep, useMnemonicFlow } from "../useMnemonicFlow";
 

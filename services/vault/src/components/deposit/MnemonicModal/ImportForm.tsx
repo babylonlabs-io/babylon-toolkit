@@ -69,8 +69,8 @@ export function ImportForm({
   return (
     <div className="flex flex-col gap-4">
       <Text variant="body2" className="text-accent-secondary">
-        Enter your existing 12-word recovery phrase to derive your Lamport key
-        for this vault.
+        Enter your existing 12-word recovery phrase to derive your WOTS key for
+        this vault.
       </Text>
 
       <div className="grid grid-cols-3 gap-2 rounded-lg bg-secondary-contrast/5 p-4">

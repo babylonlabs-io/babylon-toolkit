@@ -11,6 +11,7 @@ import type { Address } from "viem";
 import { parseUnits } from "viem";
 import { useAccount, useWalletClient } from "wagmi";
 
+import { ERC20 } from "@/clients/eth-contract";
 import { useError } from "@/context/error";
 import { logger } from "@/infrastructure";
 import {
@@ -101,14 +102,24 @@ export function useRepayTransaction({
           proxyContract as Address,
         );
       } else {
+        const onChainDecimals = await ERC20.getERC20Decimals(
+          reserve.token.address,
+        ).catch(() => {
+          throw new Error(
+            `Failed to fetch on-chain decimals for ${reserve.token.address}`,
+          );
+        });
+        const SAFE_TOFIXED_PRECISION = 15;
         await repayPartial(
           walletClient,
           chain,
           reserve.reserveId,
           reserve.token.address,
           parseUnits(
-            repayAmount.toFixed(reserve.token.decimals),
-            reserve.token.decimals,
+            repayAmount.toFixed(
+              Math.min(onChainDecimals, SAFE_TOFIXED_PRECISION),
+            ),
+            onChainDecimals,
           ),
         );
       }

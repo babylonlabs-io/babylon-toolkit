@@ -57,7 +57,7 @@ interface DepositFormProps {
   selectedProvider: string;
   onProviderSelect: (providerId: string) => void;
 
-  isValid: boolean;
+  isWalletConnected: boolean;
   estimatedFeeSats: bigint | null;
   estimatedFeeRate: number;
   isLoadingFee: boolean;
@@ -86,7 +86,7 @@ export function DepositForm({
   isLoadingProviders,
   selectedProvider,
   onProviderSelect,
-  isValid,
+  isWalletConnected,
   estimatedFeeSats,
   estimatedFeeRate,
   isLoadingFee,
@@ -136,7 +136,6 @@ export function DepositForm({
     hasAmount: !!amount && amount !== "0",
   });
 
-  const hasAmount = !!amount && amount !== "0";
   const feeDisabled = isLoadingFee || estimatedFeeRate <= 0 || btcFee === null;
 
   const splitStatusText = useMemo(() => {
@@ -163,25 +162,23 @@ export function DepositForm({
     ? `2 UTXO Split - ${partialLiquidation.splitRatioLabel} (Recommended)`
     : "2 UTXO Split (Recommended)";
 
-  const ctaLabel = splitNotReady
-    ? "Deposit amount too low for 2-vault split"
-    : isFeeError
-      ? (feeError ?? "Fee estimate unavailable")
-      : depositService.getDepositButtonLabel({
-          amountSats,
-          minDeposit,
-          maxDeposit,
-          btcBalance,
-          estimatedFeeSats: estimatedFeeSats ?? undefined,
-          depositorClaimValue,
-        });
-  const ctaDisabled =
-    !isValid ||
-    isDepositDisabled ||
-    isGeoBlocked ||
-    !hasAmount ||
-    feeDisabled ||
-    splitNotReady;
+  const cta = depositService.getDepositCtaState({
+    amountSats,
+    minDeposit,
+    maxDeposit,
+    btcBalance,
+    estimatedFeeSats: estimatedFeeSats ?? undefined,
+    depositorClaimValue,
+    isDepositDisabled,
+    isGeoBlocked,
+    isWalletConnected,
+    hasApplication: !!selectedApplication,
+    hasProvider: !!selectedProvider,
+    splitNotReady: !!splitNotReady,
+    isFeeError,
+    feeError,
+    feeDisabled,
+  });
 
   return (
     <div className="flex w-full flex-col gap-4">
@@ -313,10 +310,10 @@ export function DepositForm({
         color="primary"
         size="large"
         fluid
-        disabled={ctaDisabled}
+        disabled={cta.disabled}
         onClick={onDeposit}
       >
-        {isDepositDisabled ? "Depositing Unavailable" : ctaLabel}
+        {cta.label}
       </DepositButton>
 
       {/* Fee breakdown */}

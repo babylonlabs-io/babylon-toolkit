@@ -25,6 +25,10 @@ export interface OnChainVaultData {
   appVaultKeepersVersion: number;
   /** Offchain params version locked at vault creation — use for timelockPegin lookup */
   offchainParamsVersion: number;
+  /** SHA-256 hash commitment for the HTLC (bytes32, 0x-prefixed) */
+  hashlock: Hex;
+  /** Index of the HTLC output in the Pre-PegIn transaction */
+  htlcVout: number;
 }
 
 /**
@@ -59,5 +63,7 @@ export async function getVaultFromChain(
     universalChallengersVersion: Number(vault.universalChallengersVersion),
     appVaultKeepersVersion: Number(vault.appVaultKeepersVersion),
     offchainParamsVersion: Number(vault.offchainParamsVersion),
+    hashlock: vault.hashlock,
+    htlcVout: Number(vault.htlcVout),
   };
 }

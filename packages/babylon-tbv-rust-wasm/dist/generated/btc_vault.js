@@ -3,8 +3,8 @@
 /**
  * WASM wrapper for AssertChallengeAssertConnector.
  *
- * This connector defines the spending conditions for Assert outputs 1..3(N+M),
- * used by ChallengeAssert transactions to prove invalid assertions.
+ * This connector defines the spending conditions for Assert outputs (blocks 0–1),
+ * used by ChallengeAssert-A transactions to prove invalid assertions.
  */
 export class WasmAssertChallengeAssertConnector {
     __destroy_into_raw() {
@@ -69,19 +69,25 @@ export class WasmAssertChallengeAssertConnector {
         }
     }
     /**
-     * Returns the ChallengeAssert script as hex.
+     * Returns the ChallengeAssert-A script as hex.
      * @returns {string}
      */
     getScript() {
-        let deferred1_0;
-        let deferred1_1;
+        let deferred2_0;
+        let deferred2_1;
         try {
             const ret = wasm.wasmassertchallengeassertconnector_getScript(this.__wbg_ptr);
-            deferred1_0 = ret[0];
-            deferred1_1 = ret[1];
-            return getStringFromWasm0(ret[0], ret[1]);
+            var ptr1 = ret[0];
+            var len1 = ret[1];
+            if (ret[3]) {
+                ptr1 = 0; len1 = 0;
+                throw takeFromExternrefTable0(ret[2]);
+            }
+            deferred2_0 = ptr1;
+            deferred2_1 = len1;
+            return getStringFromWasm0(ptr1, len1);
         } finally {
-            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+            wasm.__wbindgen_free(deferred2_0, deferred2_1, 1);
         }
     }
     /**
@@ -91,21 +97,21 @@ export class WasmAssertChallengeAssertConnector {
      *
      * * `claimer` - Hex-encoded claimer public key (64 chars)
      * * `challenger` - Hex-encoded challenger public key (64 chars)
-     * * `lamport_hashes_json` - JSON string of the Lamport label hashes for this segment
-     * * `gc_input_label_hashes_json` - JSON string of the GC input label hashes (array, one per GC)
+     * * `claimer_wots_keys_json` - JSON string of the claimer's WOTS public keys (blocks 0–1)
+     * * `gc_wots_keys_json` - JSON string of the GC WOTS public keys (array of arrays, one per GC)
      * @param {string} claimer
      * @param {string} challenger
-     * @param {string} lamport_hashes_json
-     * @param {string} gc_input_label_hashes_json
+     * @param {string} claimer_wots_keys_json
+     * @param {string} gc_wots_keys_json
      */
-    constructor(claimer, challenger, lamport_hashes_json, gc_input_label_hashes_json) {
+    constructor(claimer, challenger, claimer_wots_keys_json, gc_wots_keys_json) {
         const ptr0 = passStringToWasm0(claimer, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len0 = WASM_VECTOR_LEN;
         const ptr1 = passStringToWasm0(challenger, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len1 = WASM_VECTOR_LEN;
-        const ptr2 = passStringToWasm0(lamport_hashes_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const ptr2 = passStringToWasm0(claimer_wots_keys_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len2 = WASM_VECTOR_LEN;
-        const ptr3 = passStringToWasm0(gc_input_label_hashes_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const ptr3 = passStringToWasm0(gc_wots_keys_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len3 = WASM_VECTOR_LEN;
         const ret = wasm.wasmassertchallengeassertconnector_new(ptr0, len0, ptr1, len1, ptr2, len2, ptr3, len3);
         if (ret[2]) {
@@ -1060,20 +1066,19 @@ export class WasmPrePeginTx {
      * (adding inputs). The resulting object has the correct txid and can be
      * used directly with `buildPeginTx` / `buildRefundTx`.
      *
+     * The per-HTLC pegin amounts and depositor claim value are preserved from
+     * the original unfunded object (`self`).
+     *
      * # Arguments
      *
      * * `funded_tx_hex` - Hex-encoded funded Pre-PegIn transaction bytes
-     * * `pegin_amount` - Amount in satoshis to lock in each vault
-     * * `depositor_claim_value` - Amount in satoshis for the depositor's claim output
      * @param {string} funded_tx_hex
-     * @param {bigint} pegin_amount
-     * @param {bigint} depositor_claim_value
      * @returns {WasmPrePeginTx}
      */
-    fromFundedTransaction(funded_tx_hex, pegin_amount, depositor_claim_value) {
+    fromFundedTransaction(funded_tx_hex) {
         const ptr0 = passStringToWasm0(funded_tx_hex, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len0 = WASM_VECTOR_LEN;
-        const ret = wasm.wasmprepegintx_fromFundedTransaction(this.__wbg_ptr, ptr0, len0, pegin_amount, depositor_claim_value);
+        const ret = wasm.wasmprepegintx_fromFundedTransaction(this.__wbg_ptr, ptr0, len0);
         if (ret[2]) {
             throw takeFromExternrefTable0(ret[1]);
         }
@@ -1154,12 +1159,16 @@ export class WasmPrePeginTx {
         return ret >>> 0;
     }
     /**
-     * Returns the pegin amount in satoshis.
+     * Returns the pegin amount in satoshis for a specific HTLC output.
+     * @param {number} htlc_vout
      * @returns {bigint}
      */
-    getPeginAmount() {
-        const ret = wasm.wasmprepegintx_getPeginAmount(this.__wbg_ptr);
-        return BigInt.asUintN(64, ret);
+    getPeginAmountAt(htlc_vout) {
+        const ret = wasm.wasmprepegintx_getPeginAmountAt(this.__wbg_ptr, htlc_vout);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return BigInt.asUintN(64, ret[0]);
     }
     /**
      * Returns the transaction ID.
@@ -1193,8 +1202,9 @@ export class WasmPrePeginTx {
      * * `hashlocks` - Array of hex-encoded SHA256 hash commitments (64 hex chars each).
      *   One per HTLC output. For a single deposit pass one hashlock; for batched
      *   deposits pass multiple.
+     * * `pegin_amounts` - Array of pegin amounts in satoshis (one per hashlock).
+     *   Must have the same length as `hashlocks`.
      * * `timelock_refund` - CSV timelock for the refund path (must be non-zero)
-     * * `pegin_amount` - Amount in satoshis to lock in each vault
      * * `fee_rate` - Fee rate in sat/vB (from contract offchain params)
      * * `num_local_challengers` - Number of local challengers (from contract params)
      * * `council_quorum` - M in M-of-N council multisig (from contract params)
@@ -1205,15 +1215,15 @@ export class WasmPrePeginTx {
      * @param {string[]} vault_keepers
      * @param {string[]} universal_challengers
      * @param {string[]} hashlocks
+     * @param {BigUint64Array} pegin_amounts
      * @param {number} timelock_refund
-     * @param {bigint} pegin_amount
      * @param {bigint} fee_rate
      * @param {number} num_local_challengers
      * @param {number} council_quorum
      * @param {number} council_size
      * @param {string} network
      */
-    constructor(depositor, vault_provider, vault_keepers, universal_challengers, hashlocks, timelock_refund, pegin_amount, fee_rate, num_local_challengers, council_quorum, council_size, network) {
+    constructor(depositor, vault_provider, vault_keepers, universal_challengers, hashlocks, pegin_amounts, timelock_refund, fee_rate, num_local_challengers, council_quorum, council_size, network) {
         const ptr0 = passStringToWasm0(depositor, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len0 = WASM_VECTOR_LEN;
         const ptr1 = passStringToWasm0(vault_provider, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
@@ -1224,9 +1234,11 @@ export class WasmPrePeginTx {
         const len3 = WASM_VECTOR_LEN;
         const ptr4 = passArrayJsValueToWasm0(hashlocks, wasm.__wbindgen_malloc);
         const len4 = WASM_VECTOR_LEN;
-        const ptr5 = passStringToWasm0(network, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const ptr5 = passArray64ToWasm0(pegin_amounts, wasm.__wbindgen_malloc);
         const len5 = WASM_VECTOR_LEN;
-        const ret = wasm.wasmprepegintx_new(ptr0, len0, ptr1, len1, ptr2, len2, ptr3, len3, ptr4, len4, timelock_refund, pegin_amount, fee_rate, num_local_challengers, council_quorum, council_size, ptr5, len5);
+        const ptr6 = passStringToWasm0(network, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len6 = WASM_VECTOR_LEN;
+        const ret = wasm.wasmprepegintx_new(ptr0, len0, ptr1, len1, ptr2, len2, ptr3, len3, ptr4, len4, ptr5, len5, timelock_refund, fee_rate, num_local_challengers, council_quorum, council_size, ptr6, len6);
         if (ret[2]) {
             throw takeFromExternrefTable0(ret[1]);
         }
@@ -1254,6 +1266,75 @@ export class WasmPrePeginTx {
 if (Symbol.dispose) WasmPrePeginTx.prototype[Symbol.dispose] = WasmPrePeginTx.prototype.free;
 
 /**
+ * Computes sighashes for the claimer's Assert transaction inputs.
+ *
+ * Returns a JSON array of hex-encoded sighashes (one per input).
+ *
+ * # Arguments
+ *
+ * * `graph_json` - JSON-serialized `TxGraph`
+ * @param {string} graph_json
+ * @returns {string}
+ */
+export function computeAssertClaimerSighashes(graph_json) {
+    let deferred3_0;
+    let deferred3_1;
+    try {
+        const ptr0 = passStringToWasm0(graph_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.computeAssertClaimerSighashes(ptr0, len0);
+        var ptr2 = ret[0];
+        var len2 = ret[1];
+        if (ret[3]) {
+            ptr2 = 0; len2 = 0;
+            throw takeFromExternrefTable0(ret[2]);
+        }
+        deferred3_0 = ptr2;
+        deferred3_1 = len2;
+        return getStringFromWasm0(ptr2, len2);
+    } finally {
+        wasm.__wbindgen_free(deferred3_0, deferred3_1, 1);
+    }
+}
+
+/**
+ * Computes sighashes for the claimer's ChallengeAssert transactions (X and Y)
+ * for a specific challenger.
+ *
+ * Returns a JSON array of two hex-encoded sighashes: [ca_x_sighash, ca_y_sighash].
+ *
+ * # Arguments
+ *
+ * * `graph_json` - JSON-serialized `TxGraph`
+ * * `challenger_pk_hex` - Hex-encoded challenger x-only public key (64 chars)
+ * @param {string} graph_json
+ * @param {string} challenger_pk_hex
+ * @returns {string}
+ */
+export function computeChallengeAssertClaimerSighashes(graph_json, challenger_pk_hex) {
+    let deferred4_0;
+    let deferred4_1;
+    try {
+        const ptr0 = passStringToWasm0(graph_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ptr1 = passStringToWasm0(challenger_pk_hex, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len1 = WASM_VECTOR_LEN;
+        const ret = wasm.computeChallengeAssertClaimerSighashes(ptr0, len0, ptr1, len1);
+        var ptr3 = ret[0];
+        var len3 = ret[1];
+        if (ret[3]) {
+            ptr3 = 0; len3 = 0;
+            throw takeFromExternrefTable0(ret[2]);
+        }
+        deferred4_0 = ptr3;
+        deferred4_1 = len3;
+        return getStringFromWasm0(ptr3, len3);
+    } finally {
+        wasm.__wbindgen_free(deferred4_0, deferred4_1, 1);
+    }
+}
+
+/**
  * Computes the minimum depositor claim value (in satoshis) needed to fund the
  * entire claim transaction path.
  *
@@ -1261,7 +1342,7 @@ if (Symbol.dispose) WasmPrePeginTx.prototype[Symbol.dispose] = WasmPrePeginTx.pr
  * It accounts for both fee-rate-dependent costs (transaction vbytes × fee_rate)
  * and fixed structural costs (dust/minimum-value outputs along the path).
  *
- * The Lamport label count (`PI_1_BITS = 508`) is a protocol constant and does not
+ * The WOTS label count (`PI_1_BITS = 508`) is a protocol constant and does not
  * need to be specified.
  *
  * Usage in JS:
@@ -1292,6 +1373,194 @@ export function computeMinClaimValue(num_local_challengers, num_universal_challe
 }
 
 /**
+ * Computes the sighash for the claimer's NoPayout transaction for a specific
+ * challenger.
+ *
+ * Returns a hex-encoded sighash.
+ *
+ * # Arguments
+ *
+ * * `graph_json` - JSON-serialized `TxGraph`
+ * * `challenger_pk_hex` - Hex-encoded challenger x-only public key (64 chars)
+ * @param {string} graph_json
+ * @param {string} challenger_pk_hex
+ * @returns {string}
+ */
+export function computeNoPayoutClaimerSighash(graph_json, challenger_pk_hex) {
+    let deferred4_0;
+    let deferred4_1;
+    try {
+        const ptr0 = passStringToWasm0(graph_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ptr1 = passStringToWasm0(challenger_pk_hex, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len1 = WASM_VECTOR_LEN;
+        const ret = wasm.computeNoPayoutClaimerSighash(ptr0, len0, ptr1, len1);
+        var ptr3 = ret[0];
+        var len3 = ret[1];
+        if (ret[3]) {
+            ptr3 = 0; len3 = 0;
+            throw takeFromExternrefTable0(ret[2]);
+        }
+        deferred4_0 = ptr3;
+        deferred4_1 = len3;
+        return getStringFromWasm0(ptr3, len3);
+    } finally {
+        wasm.__wbindgen_free(deferred4_0, deferred4_1, 1);
+    }
+}
+
+/**
+ * Computes the sighash for the claimer's Payout transaction (input 1, Assert
+ * connector).
+ *
+ * Returns a hex-encoded sighash.
+ *
+ * # Arguments
+ *
+ * * `graph_json` - JSON-serialized `TxGraph`
+ * @param {string} graph_json
+ * @returns {string}
+ */
+export function computePayoutClaimerSighash(graph_json) {
+    let deferred3_0;
+    let deferred3_1;
+    try {
+        const ptr0 = passStringToWasm0(graph_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.computePayoutClaimerSighash(ptr0, len0);
+        var ptr2 = ret[0];
+        var len2 = ret[1];
+        if (ret[3]) {
+            ptr2 = 0; len2 = 0;
+            throw takeFromExternrefTable0(ret[2]);
+        }
+        deferred3_0 = ptr2;
+        deferred3_1 = len2;
+        return getStringFromWasm0(ptr2, len2);
+    } finally {
+        wasm.__wbindgen_free(deferred3_0, deferred3_1, 1);
+    }
+}
+
+/**
+ * Computes the sighash for the depositor's Payout transaction (input 0, vault
+ * UTXO).
+ *
+ * Returns a hex-encoded sighash.
+ *
+ * # Arguments
+ *
+ * * `graph_json` - JSON-serialized `TxGraph`
+ * @param {string} graph_json
+ * @returns {string}
+ */
+export function computePayoutDepositorSighash(graph_json) {
+    let deferred3_0;
+    let deferred3_1;
+    try {
+        const ptr0 = passStringToWasm0(graph_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.computePayoutDepositorSighash(ptr0, len0);
+        var ptr2 = ret[0];
+        var len2 = ret[1];
+        if (ret[3]) {
+            ptr2 = 0; len2 = 0;
+            throw takeFromExternrefTable0(ret[2]);
+        }
+        deferred3_0 = ptr2;
+        deferred3_1 = len2;
+        return getStringFromWasm0(ptr2, len2);
+    } finally {
+        wasm.__wbindgen_free(deferred3_0, deferred3_1, 1);
+    }
+}
+
+/**
+ * Computes the sighash for a PegIn transaction input (HTLC leaf 0 spend).
+ *
+ * Returns a hex-encoded sighash.
+ *
+ * # Arguments
+ *
+ * * `pegin_json` - JSON-serialized `PegInTx`
+ * * `htlc_connector_json` - JSON-serialized `PrePeginHtlcConnector`
+ * * `prepegin_htlc_output_json` - JSON-serialized `TxOut` (the Pre-PegIn HTLC output)
+ * @param {string} pegin_json
+ * @param {string} htlc_connector_json
+ * @param {string} prepegin_htlc_output_json
+ * @returns {string}
+ */
+export function computePeginInputSighash(pegin_json, htlc_connector_json, prepegin_htlc_output_json) {
+    let deferred5_0;
+    let deferred5_1;
+    try {
+        const ptr0 = passStringToWasm0(pegin_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ptr1 = passStringToWasm0(htlc_connector_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len1 = WASM_VECTOR_LEN;
+        const ptr2 = passStringToWasm0(prepegin_htlc_output_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len2 = WASM_VECTOR_LEN;
+        const ret = wasm.computePeginInputSighash(ptr0, len0, ptr1, len1, ptr2, len2);
+        var ptr4 = ret[0];
+        var len4 = ret[1];
+        if (ret[3]) {
+            ptr4 = 0; len4 = 0;
+            throw takeFromExternrefTable0(ret[2]);
+        }
+        deferred5_0 = ptr4;
+        deferred5_1 = len4;
+        return getStringFromWasm0(ptr4, len4);
+    } finally {
+        wasm.__wbindgen_free(deferred5_0, deferred5_1, 1);
+    }
+}
+
+/**
+ * Derive the on-chain vault identifier matching the Solidity logic:
+ *
+ * ```solidity
+ * keccak256(abi.encode(peginTxHash, depositor))
+ * ```
+ *
+ * This duplicates the ABI encoding from [`eth_client::vault_id::VaultId::derive`]
+ * because the `vault` crate cannot depend on `eth-client` (which pulls in `alloy`)
+ * in WASM builds. Both implementations must produce identical output — see the
+ * cross-crate golden-vector test in `eth-client` tests.
+ *
+ * # Arguments
+ * * `pegin_tx_hash` - 32-byte peginTxHash in display (big-endian) byte order
+ * * `depositor` - 20-byte Ethereum address of the depositor
+ *
+ * # Returns
+ * 32-byte vault identifier (hex-encoded string)
+ * @param {Uint8Array} pegin_tx_hash
+ * @param {Uint8Array} depositor
+ * @returns {string}
+ */
+export function deriveVaultId(pegin_tx_hash, depositor) {
+    let deferred4_0;
+    let deferred4_1;
+    try {
+        const ptr0 = passArray8ToWasm0(pegin_tx_hash, wasm.__wbindgen_malloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ptr1 = passArray8ToWasm0(depositor, wasm.__wbindgen_malloc);
+        const len1 = WASM_VECTOR_LEN;
+        const ret = wasm.deriveVaultId(ptr0, len0, ptr1, len1);
+        var ptr3 = ret[0];
+        var len3 = ret[1];
+        if (ret[3]) {
+            ptr3 = 0; len3 = 0;
+            throw takeFromExternrefTable0(ret[2]);
+        }
+        deferred4_0 = ptr3;
+        deferred4_1 = len3;
+        return getStringFromWasm0(ptr3, len3);
+    } finally {
+        wasm.__wbindgen_free(deferred4_0, deferred4_1, 1);
+    }
+}
+
+/**
  * Initialize panic hook for better error messages in the browser console.
  */
 export function init_panic_hook() {
@@ -1299,19 +1568,116 @@ export function init_panic_hook() {
 }
 
 /**
- * Returns the number of UTXOs used per challenger to distribute input label hashes.
+ * Validates TxGraph parameters before construction.
  *
- * This is a protocol constant (currently 3) derived from Bitcoin's 1000 stack element
- * limit. With 508 bits × 5 elements per bit = 2540 total elements, at least 3 UTXOs
- * are needed to stay under the limit.
+ * Checks that the claimer is VP, one of VKs, or the depositor; that no key
+ * overlaps exist between roles; and that GC data is present for every
+ * challenger.
  *
- * The frontend can use this to compute the number of Assert outputs per challenger
- * instead of maintaining a hardcoded value.
- * @returns {number}
+ * # Arguments
+ *
+ * * `params_json` - JSON-serialized `TxGraphParams`
+ *
+ * # Returns
+ *
+ * `Ok(())` if all parameters are valid, otherwise a descriptive error string.
+ * @param {string} params_json
  */
-export function numUtxosForInputLabels() {
-    const ret = wasm.numUtxosForInputLabels();
-    return ret >>> 0;
+export function validateTxGraphParams(params_json) {
+    const ptr0 = passStringToWasm0(params_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ret = wasm.validateTxGraphParams(ptr0, len0);
+    if (ret[1]) {
+        throw takeFromExternrefTable0(ret[0]);
+    }
+}
+
+/**
+ * Verifies claimer presignatures for the depositor-as-claimer flow.
+ *
+ * Validates the claimer's signatures on ChallengeAssert and NoPayout
+ * transactions for every challenger in the graph.
+ *
+ * # Arguments
+ *
+ * * `graph_json` - JSON-serialized `TxGraph`
+ * * `claimer_pk_hex` - Hex-encoded claimer x-only public key (64 chars)
+ * * `presigs_json` - JSON-serialized `ChallengePathPresignatures`
+ * @param {string} graph_json
+ * @param {string} claimer_pk_hex
+ * @param {string} presigs_json
+ */
+export function verifyClaimerPresignatures(graph_json, claimer_pk_hex, presigs_json) {
+    const ptr0 = passStringToWasm0(graph_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ptr1 = passStringToWasm0(claimer_pk_hex, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len1 = WASM_VECTOR_LEN;
+    const ptr2 = passStringToWasm0(presigs_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len2 = WASM_VECTOR_LEN;
+    const ret = wasm.verifyClaimerPresignatures(ptr0, len0, ptr1, len1, ptr2, len2);
+    if (ret[1]) {
+        throw takeFromExternrefTable0(ret[0]);
+    }
+}
+
+/**
+ * Verifies the depositor's signature on the Payout transaction.
+ *
+ * # Arguments
+ *
+ * * `graph_json` - JSON-serialized `TxGraph`
+ * * `depositor_pk_hex` - Hex-encoded depositor x-only public key (64 chars)
+ * * `payout_sig_hex` - Hex-encoded Schnorr signature (128 chars)
+ * @param {string} graph_json
+ * @param {string} depositor_pk_hex
+ * @param {string} payout_sig_hex
+ */
+export function verifyDepositorSignature(graph_json, depositor_pk_hex, payout_sig_hex) {
+    const ptr0 = passStringToWasm0(graph_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ptr1 = passStringToWasm0(depositor_pk_hex, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len1 = WASM_VECTOR_LEN;
+    const ptr2 = passStringToWasm0(payout_sig_hex, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len2 = WASM_VECTOR_LEN;
+    const ret = wasm.verifyDepositorSignature(ptr0, len0, ptr1, len1, ptr2, len2);
+    if (ret[1]) {
+        throw takeFromExternrefTable0(ret[0]);
+    }
+}
+
+/**
+ * Verifies a Taproot script-path signature.
+ *
+ * # Arguments
+ *
+ * * `tx_hex` - Hex-encoded consensus-serialized Bitcoin transaction
+ * * `input_index` - Index of the input being verified
+ * * `prevouts_json` - JSON-serialized array of `TxOut`
+ * * `script_hex` - Hex-encoded script being used for the spend
+ * * `pubkey_hex` - Hex-encoded x-only public key (64 chars)
+ * * `signature_hex` - Hex-encoded Taproot signature (64 or 65 bytes)
+ * @param {string} tx_hex
+ * @param {number} input_index
+ * @param {string} prevouts_json
+ * @param {string} script_hex
+ * @param {string} pubkey_hex
+ * @param {string} signature_hex
+ */
+export function verifyP2trScriptSpendSignature(tx_hex, input_index, prevouts_json, script_hex, pubkey_hex, signature_hex) {
+    const ptr0 = passStringToWasm0(tx_hex, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ptr1 = passStringToWasm0(prevouts_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len1 = WASM_VECTOR_LEN;
+    const ptr2 = passStringToWasm0(script_hex, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len2 = WASM_VECTOR_LEN;
+    const ptr3 = passStringToWasm0(pubkey_hex, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len3 = WASM_VECTOR_LEN;
+    const ptr4 = passStringToWasm0(signature_hex, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len4 = WASM_VECTOR_LEN;
+    const ret = wasm.verifyP2trScriptSpendSignature(ptr0, len0, input_index, ptr1, len1, ptr2, len2, ptr3, len3, ptr4, len4);
+    if (ret[1]) {
+        throw takeFromExternrefTable0(ret[0]);
+    }
 }
 
 function __wbg_get_imports() {
@@ -1324,6 +1690,23 @@ function __wbg_get_imports() {
             getDataViewMemory0().setInt32(arg0 + 4 * 1, len1, true);
             getDataViewMemory0().setInt32(arg0 + 4 * 0, ptr1, true);
         },
+        __wbg___wbindgen_is_function_3c846841762788c1: function(arg0) {
+            const ret = typeof(arg0) === 'function';
+            return ret;
+        },
+        __wbg___wbindgen_is_object_781bc9f159099513: function(arg0) {
+            const val = arg0;
+            const ret = typeof(val) === 'object' && val !== null;
+            return ret;
+        },
+        __wbg___wbindgen_is_string_7ef6b97b02428fae: function(arg0) {
+            const ret = typeof(arg0) === 'string';
+            return ret;
+        },
+        __wbg___wbindgen_is_undefined_52709e72fb9f179c: function(arg0) {
+            const ret = arg0 === undefined;
+            return ret;
+        },
         __wbg___wbindgen_string_get_395e606bd0ee4427: function(arg0, arg1) {
             const obj = arg1;
             const ret = typeof(obj) === 'string' ? obj : undefined;
@@ -1334,6 +1717,14 @@ function __wbg_get_imports() {
         },
         __wbg___wbindgen_throw_6ddd609b62940d55: function(arg0, arg1) {
             throw new Error(getStringFromWasm0(arg0, arg1));
+        },
+        __wbg_call_2d781c1f4d5c0ef8: function() { return handleError(function (arg0, arg1, arg2) {
+            const ret = arg0.call(arg1, arg2);
+            return ret;
+        }, arguments); },
+        __wbg_crypto_38df2bab126b63dc: function(arg0) {
+            const ret = arg0.crypto;
+            return ret;
         },
         __wbg_error_a6fa202b58aa1cd3: function(arg0, arg1) {
             let deferred0_0;
@@ -1346,10 +1737,43 @@ function __wbg_get_imports() {
                 wasm.__wbindgen_free(deferred0_0, deferred0_1, 1);
             }
         },
+        __wbg_getRandomValues_c44a50d8cfdaebeb: function() { return handleError(function (arg0, arg1) {
+            arg0.getRandomValues(arg1);
+        }, arguments); },
+        __wbg_length_ea16607d7b61445b: function(arg0) {
+            const ret = arg0.length;
+            return ret;
+        },
+        __wbg_msCrypto_bd5a034af96bcba6: function(arg0) {
+            const ret = arg0.msCrypto;
+            return ret;
+        },
         __wbg_new_227d7c05414eb861: function() {
             const ret = new Error();
             return ret;
         },
+        __wbg_new_with_length_825018a1616e9e55: function(arg0) {
+            const ret = new Uint8Array(arg0 >>> 0);
+            return ret;
+        },
+        __wbg_node_84ea875411254db1: function(arg0) {
+            const ret = arg0.node;
+            return ret;
+        },
+        __wbg_process_44c7a14e11e9f69e: function(arg0) {
+            const ret = arg0.process;
+            return ret;
+        },
+        __wbg_prototypesetcall_d62e5099504357e6: function(arg0, arg1, arg2) {
+            Uint8Array.prototype.set.call(getArrayU8FromWasm0(arg0, arg1), arg2);
+        },
+        __wbg_randomFillSync_6c25eac9869eb53c: function() { return handleError(function (arg0, arg1) {
+            arg0.randomFillSync(arg1);
+        }, arguments); },
+        __wbg_require_b4edbdcf3e2a1ef0: function() { return handleError(function () {
+            const ret = module.require;
+            return ret;
+        }, arguments); },
         __wbg_stack_3b0d974bbf31e44f: function(arg0, arg1) {
             const ret = arg1.stack;
             const ptr1 = passStringToWasm0(ret, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
@@ -1357,7 +1781,36 @@ function __wbg_get_imports() {
             getDataViewMemory0().setInt32(arg0 + 4 * 1, len1, true);
             getDataViewMemory0().setInt32(arg0 + 4 * 0, ptr1, true);
         },
+        __wbg_static_accessor_GLOBAL_8adb955bd33fac2f: function() {
+            const ret = typeof global === 'undefined' ? null : global;
+            return isLikeNone(ret) ? 0 : addToExternrefTable0(ret);
+        },
+        __wbg_static_accessor_GLOBAL_THIS_ad356e0db91c7913: function() {
+            const ret = typeof globalThis === 'undefined' ? null : globalThis;
+            return isLikeNone(ret) ? 0 : addToExternrefTable0(ret);
+        },
+        __wbg_static_accessor_SELF_f207c857566db248: function() {
+            const ret = typeof self === 'undefined' ? null : self;
+            return isLikeNone(ret) ? 0 : addToExternrefTable0(ret);
+        },
+        __wbg_static_accessor_WINDOW_bb9f1ba69d61b386: function() {
+            const ret = typeof window === 'undefined' ? null : window;
+            return isLikeNone(ret) ? 0 : addToExternrefTable0(ret);
+        },
+        __wbg_subarray_a068d24e39478a8a: function(arg0, arg1, arg2) {
+            const ret = arg0.subarray(arg1 >>> 0, arg2 >>> 0);
+            return ret;
+        },
+        __wbg_versions_276b2795b1c6a219: function(arg0) {
+            const ret = arg0.versions;
+            return ret;
+        },
         __wbindgen_cast_0000000000000001: function(arg0, arg1) {
+            // Cast intrinsic for `Ref(Slice(U8)) -> NamedExternref("Uint8Array")`.
+            const ret = getArrayU8FromWasm0(arg0, arg1);
+            return ret;
+        },
+        __wbindgen_cast_0000000000000002: function(arg0, arg1) {
             // Cast intrinsic for `Ref(String) -> Externref`.
             const ret = getStringFromWasm0(arg0, arg1);
             return ret;
@@ -1471,6 +1924,19 @@ function debugString(val) {
     return className;
 }
 
+function getArrayU8FromWasm0(ptr, len) {
+    ptr = ptr >>> 0;
+    return getUint8ArrayMemory0().subarray(ptr / 1, ptr / 1 + len);
+}
+
+let cachedBigUint64ArrayMemory0 = null;
+function getBigUint64ArrayMemory0() {
+    if (cachedBigUint64ArrayMemory0 === null || cachedBigUint64ArrayMemory0.byteLength === 0) {
+        cachedBigUint64ArrayMemory0 = new BigUint64Array(wasm.memory.buffer);
+    }
+    return cachedBigUint64ArrayMemory0;
+}
+
 let cachedDataViewMemory0 = null;
 function getDataViewMemory0() {
     if (cachedDataViewMemory0 === null || cachedDataViewMemory0.buffer.detached === true || (cachedDataViewMemory0.buffer.detached === undefined && cachedDataViewMemory0.buffer !== wasm.memory.buffer)) {
@@ -1492,8 +1958,31 @@ function getUint8ArrayMemory0() {
     return cachedUint8ArrayMemory0;
 }
 
+function handleError(f, args) {
+    try {
+        return f.apply(this, args);
+    } catch (e) {
+        const idx = addToExternrefTable0(e);
+        wasm.__wbindgen_exn_store(idx);
+    }
+}
+
 function isLikeNone(x) {
     return x === undefined || x === null;
+}
+
+function passArray64ToWasm0(arg, malloc) {
+    const ptr = malloc(arg.length * 8, 8) >>> 0;
+    getBigUint64ArrayMemory0().set(arg, ptr / 8);
+    WASM_VECTOR_LEN = arg.length;
+    return ptr;
+}
+
+function passArray8ToWasm0(arg, malloc) {
+    const ptr = malloc(arg.length * 1, 1) >>> 0;
+    getUint8ArrayMemory0().set(arg, ptr / 1);
+    WASM_VECTOR_LEN = arg.length;
+    return ptr;
 }
 
 function passArrayJsValueToWasm0(array, malloc) {
@@ -1582,6 +2071,7 @@ let wasmModule, wasm;
 function __wbg_finalize_init(instance, module) {
     wasm = instance.exports;
     wasmModule = module;
+    cachedBigUint64ArrayMemory0 = null;
     cachedDataViewMemory0 = null;
     cachedUint8ArrayMemory0 = null;
     wasm.__wbindgen_start();
