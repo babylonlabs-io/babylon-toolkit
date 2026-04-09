@@ -119,20 +119,25 @@ export function useAaveReserveDetail({
   // exists currently — totalDebtValueUsd equals the selected reserve's debt.
   // TODO: Replace with per-reserve oracle price when Spoke exposes it.
   const tokenPriceUsd = useMemo(() => {
+    // Return placeholder while reserve is loading or not found.
+    // This value is never consumed — parent components guard against
+    // null selectedReserve before rendering LoanProvider.
+    if (!selectedReserve) return STABLECOIN_FALLBACK_PRICE_USD;
+
     if (currentDebtAmount > 0 && debtValueUsd > 0) {
       return debtValueUsd / currentDebtAmount;
     }
 
     // First-time borrow: no debt to derive price from.
     // Only safe for stablecoins — throw for unknown tokens.
-    const symbol = selectedReserve?.token.symbol.toUpperCase();
-    const isKnownStablecoin =
-      symbol != null &&
-      (KNOWN_STABLECOIN_SYMBOLS as readonly string[]).includes(symbol);
+    const symbol = selectedReserve.token.symbol.toUpperCase();
+    const isKnownStablecoin = (
+      KNOWN_STABLECOIN_SYMBOLS as readonly string[]
+    ).includes(symbol);
 
     if (!isKnownStablecoin) {
       throw new Error(
-        `Cannot derive token price for ${symbol ?? "unknown"}: no existing debt and token is not a known stablecoin. ` +
+        `Cannot derive token price for ${symbol}: no existing debt and token is not a known stablecoin. ` +
           `Add a per-reserve oracle price source to support non-stablecoin borrows.`,
       );
     }
