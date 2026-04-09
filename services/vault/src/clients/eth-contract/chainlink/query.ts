@@ -44,6 +44,9 @@ const CHAINLINK_PRICE_FEEDS: Record<Network, ChainlinkFeedAddresses> = {
   },
 };
 
+/** Maximum acceptable age for Chainlink price data (1 hour) */
+const CHAINLINK_MAX_PRICE_AGE_SECONDS = 3600;
+
 function getChainlinkFeedAddress(symbol: string): Address | null {
   const network = getBTCNetwork();
   const normalizedSymbol = symbol.toUpperCase();
@@ -79,6 +82,13 @@ const CHAINLINK_AGGREGATOR_V3_ABI = [
       { name: "updatedAt", type: "uint256" },
       { name: "answeredInRound", type: "uint80" },
     ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "decimals",
+    outputs: [{ name: "", type: "uint8" }],
     stateMutability: "view",
     type: "function",
   },
@@ -120,29 +130,44 @@ interface TokenPricesResult {
 }
 
 /**
- * Get latest price data from Chainlink price feed
+ * Get latest price data and decimals from Chainlink price feed in a single RPC call.
  *
  * @param feedAddress - Address of the Chainlink price feed contract
- * @returns Round data including price (answer field)
+ * @returns Round data including price (answer field) and feed decimals
  */
-async function getLatestRoundData(
+async function getLatestRoundDataWithDecimals(
   feedAddress: Address,
-): Promise<ChainlinkRoundData> {
+): Promise<{ roundData: ChainlinkRoundData; decimals: number }> {
   const publicClient = ethClient.getPublicClient();
 
+  const [roundDataResult, decimalsResult] = await publicClient.multicall({
+    contracts: [
+      {
+        address: feedAddress,
+        abi: CHAINLINK_AGGREGATOR_V3_ABI,
+        functionName: "latestRoundData",
+      },
+      {
+        address: feedAddress,
+        abi: CHAINLINK_AGGREGATOR_V3_ABI,
+        functionName: "decimals",
+      },
+    ],
+    allowFailure: false,
+  });
+
   const [roundId, answer, startedAt, updatedAt, answeredInRound] =
-    await publicClient.readContract({
-      address: feedAddress,
-      abi: CHAINLINK_AGGREGATOR_V3_ABI,
-      functionName: "latestRoundData",
-    });
+    roundDataResult;
 
   return {
-    roundId,
-    answer,
-    startedAt,
-    updatedAt,
-    answeredInRound,
+    roundData: {
+      roundId,
+      answer,
+      startedAt,
+      updatedAt,
+      answeredInRound,
+    },
+    decimals: decimalsResult,
   };
 }
 
@@ -154,10 +179,11 @@ async function getLatestRoundData(
  * @param maxAgeSeconds - Maximum age in seconds (default: 3600 = 1 hour)
  * @returns true if data is fresh, false if stale
  */
-function isPriceFresh(
+export function isPriceFresh(
   roundData: ChainlinkRoundData,
-  maxAgeSeconds: number = 3600,
+  maxAgeSeconds: number = CHAINLINK_MAX_PRICE_AGE_SECONDS,
 ): boolean {
+  if (roundData.answeredInRound < roundData.roundId) return false;
   const now = BigInt(Math.floor(Date.now() / 1000));
   const age = now - roundData.updatedAt;
   return age <= BigInt(maxAgeSeconds);
@@ -166,7 +192,8 @@ function isPriceFresh(
 async function fetchPriceFromFeed(
   feedAddress: Address,
 ): Promise<{ price: number; metadata: PriceMetadata }> {
-  const roundData = await getLatestRoundData(feedAddress);
+  const { roundData, decimals } =
+    await getLatestRoundDataWithDecimals(feedAddress);
 
   if (roundData.answer <= 0n) {
     throw new Error(
@@ -179,14 +206,14 @@ async function fetchPriceFromFeed(
   const isStale = !isPriceFresh(roundData);
 
   if (isStale) {
-    const ageHours = (ageSeconds / 3600).toFixed(1);
+    const ageHours = (ageSeconds / CHAINLINK_MAX_PRICE_AGE_SECONDS).toFixed(1);
     logger.event(
       `Chainlink price data is stale (${ageHours} hours old). Using last known price.`,
     );
   }
 
   return {
-    price: Number(roundData.answer) / 1e8,
+    price: Number(roundData.answer) / 10 ** decimals,
     metadata: {
       isStale,
       ageSeconds,
