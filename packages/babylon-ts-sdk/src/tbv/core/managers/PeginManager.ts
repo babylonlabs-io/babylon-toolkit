@@ -303,13 +303,6 @@ export interface RegisterPeginParams {
   preSignedBtcPopSignature?: Hex;
 
   /**
-   * SHA-256 hash of the depositor's secret (bytes32).
-   * Required for the new peg-in flow deposits.
-   * TODO: Wire into submitPeginRequest contract call when contract ABI is updated to support the new peg-in flow.
-   */
-  depositorSecretHash?: Hex;
-
-  /**
    * Zero-based index of the HTLC output in the Pre-PegIn transaction that
    * this PegIn spends. In a batch Pre-PegIn with N HTLC outputs, each vault
    * registration references a different htlcVout (0..N-1).
@@ -933,7 +926,7 @@ export class PeginManager {
       });
     } catch (error) {
       // Estimation failed - handle contract error with actual revert reason
-      handleContractError(error);
+      handleContractError(error); // always throws (return type: never)
     }
 
     // Step 8: Submit peg-in request to contract (estimation passed)
@@ -951,7 +944,7 @@ export class PeginManager {
       });
     } catch (error) {
       // Use proper error handler for better error messages
-      handleContractError(error);
+      handleContractError(error); // always throws (return type: never)
     }
 
     // Step 9: Wait for transaction receipt and verify it was not reverted
@@ -1096,7 +1089,7 @@ export class PeginManager {
         account: this.config.ethWallet.account.address,
       });
     } catch (error) {
-      handleContractError(error);
+      handleContractError(error); // always throws (return type: never)
     }
 
     // Step 9: Submit batch transaction
@@ -1111,7 +1104,7 @@ export class PeginManager {
         gas: gasEstimate,
       });
     } catch (error) {
-      handleContractError(error);
+      handleContractError(error); // always throws (return type: never)
     }
 
     // Step 10: Wait for receipt
