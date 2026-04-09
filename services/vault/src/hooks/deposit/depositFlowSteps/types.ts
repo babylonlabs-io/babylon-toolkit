@@ -21,8 +21,6 @@ import type {
  * Numeric values enable ordered comparisons (e.g. `currentStep >= SIGN_PAYOUTS`).
  */
 export enum DepositFlowStep {
-  /** Step 0: Sign and broadcast split transaction (multi-vault SPLIT strategy only) */
-  SIGN_SPLIT_TX = 0,
   /** Step 1: Sign proof of possession in BTC wallet */
   SIGN_POP = 1,
   /** Step 2: Submit peg-in to Ethereum (registers vault on-chain) */

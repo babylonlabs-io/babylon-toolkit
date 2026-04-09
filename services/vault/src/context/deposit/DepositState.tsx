@@ -1,8 +1,6 @@
 import { useCallback, useMemo, useState, type PropsWithChildren } from "react";
 import type { Hex } from "viem";
 
-import type { AllocationPlan } from "@/services/vault";
-
 import { createStateUtils } from "../../utils/createStateUtils";
 
 export enum DepositStep {
@@ -38,7 +36,7 @@ interface DepositStateContext {
   secretHashes: Hex[];
   processing: boolean;
   isSplitDeposit: boolean;
-  splitAllocationPlan: AllocationPlan | null;
+  splitVaultAmounts: bigint[] | null;
   goToStep: (step: DepositStep) => void;
   setDepositData: (
     amount: bigint,
@@ -54,7 +52,7 @@ interface DepositStateContext {
   setSecretHashes: (hashes: Hex[]) => void;
   setProcessing: (processing: boolean) => void;
   setIsSplitDeposit: (v: boolean) => void;
-  setSplitAllocationPlan: (plan: AllocationPlan | null) => void;
+  setSplitVaultAmounts: (amounts: bigint[] | null) => void;
   reset: () => void;
 }
 
@@ -71,7 +69,7 @@ const { StateProvider, useState: useDepositState } =
     secretHashes: [],
     processing: false,
     isSplitDeposit: false,
-    splitAllocationPlan: null,
+    splitVaultAmounts: null,
     goToStep: () => {},
     setDepositData: () => {},
     setFeeRate: () => {},
@@ -79,7 +77,7 @@ const { StateProvider, useState: useDepositState } =
     setSecretHashes: () => {},
     setProcessing: () => {},
     setIsSplitDeposit: () => {},
-    setSplitAllocationPlan: () => {},
+    setSplitVaultAmounts: () => {},
     reset: () => {},
   });
 
@@ -95,8 +93,9 @@ export function DepositState({ children }: PropsWithChildren) {
   const [secretHashes, setSecretHashes] = useState<Hex[]>([]);
   const [processing, setProcessing] = useState(false);
   const [isSplitDeposit, setIsSplitDeposit] = useState(false);
-  const [splitAllocationPlan, setSplitAllocationPlan] =
-    useState<AllocationPlan | null>(null);
+  const [splitVaultAmounts, setSplitVaultAmounts] = useState<bigint[] | null>(
+    null,
+  );
 
   const goToStep = useCallback((newStep: DepositStep) => {
     setStep(newStep);
@@ -136,7 +135,7 @@ export function DepositState({ children }: PropsWithChildren) {
     setSecretHashes([]);
     setProcessing(false);
     setIsSplitDeposit(false);
-    setSplitAllocationPlan(null);
+    setSplitVaultAmounts(null);
   }, []);
 
   const context = useMemo(
@@ -152,7 +151,7 @@ export function DepositState({ children }: PropsWithChildren) {
       secretHashes,
       processing,
       isSplitDeposit,
-      splitAllocationPlan,
+      splitVaultAmounts,
       goToStep,
       setDepositData,
       setFeeRate: updateFeeRate,
@@ -160,7 +159,7 @@ export function DepositState({ children }: PropsWithChildren) {
       setSecretHashes,
       setProcessing,
       setIsSplitDeposit,
-      setSplitAllocationPlan,
+      setSplitVaultAmounts,
       reset,
     }),
     [
@@ -175,7 +174,7 @@ export function DepositState({ children }: PropsWithChildren) {
       secretHashes,
       processing,
       isSplitDeposit,
-      splitAllocationPlan,
+      splitVaultAmounts,
       goToStep,
       setDepositData,
       updateFeeRate,
