@@ -206,10 +206,18 @@ async function fetchPriceFromFeed(
   const isStale = !isPriceFresh(roundData);
 
   if (isStale) {
-    const ageHours = (ageSeconds / CHAINLINK_MAX_PRICE_AGE_SECONDS).toFixed(1);
-    logger.event(
-      `Chainlink price data is stale (${ageHours} hours old). Using last known price.`,
-    );
+    if (roundData.answeredInRound < roundData.roundId) {
+      logger.event(
+        `Chainlink price data is stale: incomplete round (answeredInRound=${roundData.answeredInRound} < roundId=${roundData.roundId}). Using last known price.`,
+      );
+    } else {
+      const ageHours = (ageSeconds / CHAINLINK_MAX_PRICE_AGE_SECONDS).toFixed(
+        1,
+      );
+      logger.event(
+        `Chainlink price data is stale (${ageHours} hours old). Using last known price.`,
+      );
+    }
   }
 
   return {

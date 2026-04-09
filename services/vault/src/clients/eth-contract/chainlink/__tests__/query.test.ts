@@ -31,6 +31,10 @@ vi.mock("@babylonlabs-io/wallet-connector", () => ({
   },
 }));
 
+vi.mock("@babylonlabs-io/config", () => ({
+  getBTCNetwork: vi.fn(() => 1), // Network.SIGNET
+}));
+
 import type { ChainlinkRoundData } from "../query";
 import { getTokenPrices, isPriceFresh } from "../query";
 
@@ -185,6 +189,48 @@ describe("getTokenPrices", () => {
 
     expect(result.prices["BTC"]).toBe(BTC_PRICE_USD);
     expect(result.metadata["BTC"].isStale).toBe(true);
+  });
+
+  it("logs incomplete round message when answeredInRound < roundId", async () => {
+    const { logger } = await import("@/infrastructure");
+    const nowSeconds = BigInt(Math.floor(Date.now() / 1000));
+    mockMulticall.mockResolvedValueOnce([
+      [
+        ROUND_ID,
+        BTC_ANSWER_8_DECIMALS,
+        nowSeconds - FRESH_AGE_SECONDS,
+        nowSeconds - FRESH_AGE_SECONDS,
+        INCOMPLETE_ANSWERED_IN_ROUND,
+      ],
+      STANDARD_DECIMALS,
+    ]);
+
+    await getTokenPrices(["BTC"]);
+
+    expect(logger.event).toHaveBeenCalledWith(
+      expect.stringContaining("incomplete round"),
+    );
+  });
+
+  it("logs age-based message when data exceeds max age", async () => {
+    const { logger } = await import("@/infrastructure");
+    const nowSeconds = BigInt(Math.floor(Date.now() / 1000));
+    mockMulticall.mockResolvedValueOnce([
+      [
+        ROUND_ID,
+        BTC_ANSWER_8_DECIMALS,
+        nowSeconds - TWO_HOURS_SECONDS,
+        nowSeconds - TWO_HOURS_SECONDS,
+        ROUND_ID,
+      ],
+      STANDARD_DECIMALS,
+    ]);
+
+    await getTokenPrices(["BTC"]);
+
+    expect(logger.event).toHaveBeenCalledWith(
+      expect.stringContaining("hours old"),
+    );
   });
 
   it("marks metadata as stale when data exceeds max age", async () => {
