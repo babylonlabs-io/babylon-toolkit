@@ -116,14 +116,26 @@ describe("useRepayState", () => {
       expect(result.current.isFullRepayment).toBe(false);
     });
 
-    it("should be false when balance limits max below repay amount", () => {
+    it("should be false when balance limits max below debt (partial repay via Max)", () => {
       const { result } = renderHook(() =>
         useRepayState({ currentDebtAmount: 100, userTokenBalance: 50 }),
       );
 
-      // Max is 50 (limited by balance), repay 50 is full of what's available
+      // Max is 50 (limited by balance), but debt is 100 — this is a partial repay
       act(() => {
         result.current.setRepayAmount(50);
+      });
+
+      expect(result.current.isFullRepayment).toBe(false);
+    });
+
+    it("should be true when repay amount matches actual debt with excess balance", () => {
+      const { result } = renderHook(() =>
+        useRepayState({ currentDebtAmount: 100, userTokenBalance: 200 }),
+      );
+
+      act(() => {
+        result.current.setRepayAmount(100);
       });
 
       expect(result.current.isFullRepayment).toBe(true);
