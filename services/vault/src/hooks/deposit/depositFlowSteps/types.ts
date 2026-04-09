@@ -73,7 +73,7 @@ export interface PeginBatchRegisterParams {
     depositorSignedPeginTx: string;
     hashlock: Hex;
     htlcVout: number;
-    depositorPayoutBtcAddress?: string;
+    depositorPayoutBtcAddress: string;
     depositorWotsPkHash: Hex;
   }>;
   /** Pre-signed BTC PoP signature (signed once, reused for all) */

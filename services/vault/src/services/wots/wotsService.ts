@@ -1,10 +1,10 @@
 /**
  * @module wotsService
  *
- * Deterministic WOTS one-time-signature key derivation for Babylon vault
- * deposits. Each depositor generates a BIP-39 mnemonic that seeds a
- * hierarchical derivation tree, producing one unique WOTS keypair per
- * vault.
+ * Deterministic WOTS (Winternitz One-Time Signature) key derivation for
+ * Babylon vault deposits. Each depositor generates a BIP-39 mnemonic that
+ * seeds a hierarchical derivation tree, producing WOTS block public keys
+ * per vault matching the Rust `babe::wots` implementation.
  *
  * ## High-level flow
  *
@@ -19,45 +19,34 @@
  * 3. **Per-vault child derivation** — A vault-specific child key is derived
  *    by computing `HMAC-SHA-512(chainCode, parentKey || vaultData)` where
  *    `vaultData` is the length-prefixed concatenation of the vault ID,
- *    depositor public key, and application contract address. The first 32
- *    bytes of the result become the *derived key* and the last 32 bytes
- *    become the *derived chain code*. This ensures that the same mnemonic
- *    yields a unique keypair for every (vault, depositor, contract) tuple.
+ *    depositor public key, and application contract address.
  *
- * 4. **WOTS keypair expansion** — For each of the {@link PI_1_BITS} bits
- *    (508, matching the garbled circuit label count in the protocol):
- *    - Two HMAC-SHA-512 values are computed using the derived chain code as
- *      key and `derivedKey || <bitFlag><bitIndex>` as data, where bitFlag
- *      is `0x00` (false) or `0x01` (true).
- *    - The first {@link GC_LABEL_SIZE} bytes (16) of each HMAC output
- *      become the *preimage* (private key component) for that bit.
- *    - Each preimage is hashed with Hash160 (SHA-256 then RIPEMD-160) to
- *      produce the corresponding *hash* (public key component).
+ * 4. **WOTS block key generation** — Two assert blocks are generated
+ *    (matching `ASSERT_WOTS_BLOCK_DIGIT_COUNTS = [64, 64]`), each with
+ *    64 message digits at 4 bits per digit plus 2 checksum digits.
+ *    For each block a 20-byte seed is derived, then Hash160 chains are
+ *    computed per the Rust `babe::wots::SecretKey::from_seed` algorithm.
+ *    The public key consists of the terminal chain values.
  *
- *    The result is four arrays of length 508:
- *    - `falsePreimages` / `truePreimages` — secret preimages (16 bytes each)
- *    - `falseHashes`    / `trueHashes`    — public hashes   (20 bytes each)
- *
- * 5. **Public key serialization** — The public key is the pair of hex-encoded
- *    hash lists (`false_list`, `true_list`), submitted on-chain so the vault
- *    provider can later verify a one-time WOTS signature.
+ * 5. **Serialization** — Public keys are serialized in the format expected
+ *    by the vault provider's `vaultProvider_submitDepositorWotsKey` RPC,
+ *    matching Rust `serde_json` of `Vec<babe::wots::PublicKey>`.
  *
  * ## Security considerations
  *
- * - All intermediate key material (parent key, chain code, HMAC outputs) is
- *   zeroed after use to limit exposure in memory.
- * - Preimages are secret and must never leave the client; only the hashes
- *   (public key) are shared.
- * - Each WOTS keypair is single-use: revealing a preimage to sign a
- *   message consumes that bit position.
+ * - Sensitive key material (parent key, chain code, HMAC outputs, block
+ *   seeds) is zeroed after use to limit exposure in memory. Intermediate
+ *   chain values (hash steps toward public terminals) are not zeroed as
+ *   they are not secret — only the chain starts (derived from the zeroed
+ *   block seed) carry entropy.
+ * - Only public key terminals are returned; secret chain starts stay local.
  *
- * ## Dependencies
+ * ## TODO: WASM migration
  *
- * | Library                      | Purpose                                |
- * |------------------------------|----------------------------------------|
- * | `@scure/bip39`               | BIP-39 mnemonic generation & seed      |
- * | `@noble/hashes` (ripemd160)  | RIPEMD-160 for Hash160                 |
- * | `@noble/hashes` (hmac, sha2) | HMAC-SHA-512, SHA-256                  |
+ * This TypeScript WOTS implementation mirrors the Rust `babe::wots` crate.
+ * It should be replaced with WASM bindings from btc-vault that expose
+ * `deriveAssertWotsPublicKeys(seed)` and `computeWotsPublicKeysHash(keys)`
+ * to avoid duplicating cryptographic logic. Track in btc-vault.
  */
 import { hmac } from "@noble/hashes/hmac.js";
 import { ripemd160 } from "@noble/hashes/legacy.js";
@@ -72,18 +61,6 @@ import { wordlist } from "@scure/bip39/wordlists/english.js";
 
 import { stripHexPrefix } from "@/utils/btc";
 
-/**
- * Number of bit positions in the WOTS keypair. Corresponds to the number
- * of garbled-circuit labels used in the BitVM-style protocol (PI_1 circuit).
- */
-const PI_1_BITS = 508;
-
-/**
- * Size in bytes of each WOTS preimage (garbled-circuit label size).
- * Preimages are truncated from HMAC-SHA-512 output to this length.
- */
-const GC_LABEL_SIZE = 16;
-
 /** Bits of entropy for BIP-39 mnemonic generation (128 = 12 words). */
 const MNEMONIC_ENTROPY_BITS = 128;
 
@@ -93,36 +70,65 @@ const KEY_SIZE = 32;
 /** Size in bytes of the full BIP-39 seed / HMAC-SHA-512 output. */
 const SEED_SIZE = 64;
 
-/** Size of the index buffer used in per-bit derivation (1 byte flag + 4 byte big-endian index). */
-const INDEX_BUFFER_SIZE = 5;
-
 /** Size of the big-endian length prefix prepended to variable-length fields. */
 const LENGTH_PREFIX_SIZE = 4;
 
+// ---------------------------------------------------------------------------
+// WOTS protocol constants — must match btc-vault / babe::wots
+// ---------------------------------------------------------------------------
+
+/** Hash160 output size in bytes (= RIPEMD-160(SHA-256(·))). */
+const CHAIN_ELEMENT_SIZE = 20;
+
+/** Bits per WOTS digit. Matches `babe::WOTS_DIGIT_BITS`. */
+const WOTS_DIGIT_BITS = 4;
+
+/** Number of checksum digits in canonical WOTS ordering. */
+const WOTS_CHECKSUM_DIGITS = 2;
+
+/** Digit index for the checksum minor chain (canonical ordering). */
+const CHECKSUM_MINOR_DIGIT_INDEX = 0;
+
+/** Digit index for the checksum major chain (canonical ordering). */
+const CHECKSUM_MAJOR_DIGIT_INDEX = 1;
+
 /**
- * A WOTS keypair consisting of preimages (private) and their hashes
- * (public) for both the `false` and `true` branch of each bit position.
- *
- * - `falsePreimages[i]` / `truePreimages[i]` — 16-byte secret preimages.
- * - `falseHashes[i]`    / `trueHashes[i]`    — 20-byte Hash160 digests.
- *
- * All arrays have length {@link PI_1_BITS} (508).
+ * Message digit counts per assert block.
+ * Matches `btc_vault::ASSERT_WOTS_BLOCK_DIGIT_COUNTS`.
+ * Two blocks of 64 message digits each (4 bits/digit → 256 bits capacity).
  */
-export interface WotsKeypair {
-  falsePreimages: Uint8Array[];
-  truePreimages: Uint8Array[];
-  falseHashes: Uint8Array[];
-  trueHashes: Uint8Array[];
+const ASSERT_WOTS_BLOCK_DIGIT_COUNTS: readonly number[] = [64, 64];
+
+// ---------------------------------------------------------------------------
+// WOTS types — matching Rust `babe::wots` serde format
+// ---------------------------------------------------------------------------
+
+/**
+ * WOTS configuration matching Rust `babe::wots::Config`.
+ * Serialized to JSON as `{"d": 4, "n": 64, "checksum_radix": 31}`.
+ */
+export interface WotsConfig {
+  d: number;
+  n: number;
+  checksum_radix: number;
 }
 
 /**
- * Serialized WOTS public key as two lists of hex-encoded Hash160 digests.
- * This is the format submitted on-chain and to the vault provider.
+ * WOTS block public key matching Rust `babe::wots::PublicKey` serde format.
+ * Chain values are arrays of byte values (matching Rust `[u8; 20]` → JSON `[0,1,...,19]`).
  */
-export interface WotsPublicKey {
-  false_list: string[];
-  true_list: string[];
+export interface WotsBlockPublicKey {
+  config: WotsConfig;
+  message_terminals: number[][];
+  checksum_major_terminal: number[];
+  checksum_minor_terminal: number[];
 }
+
+/**
+ * Array of WOTS block public keys — one per assert block.
+ * Matches Rust `btc_vault::WotsPublicKeyBlocks = Vec<WotsBlockPublicKey>`.
+ */
+export type WotsPublicKeys = WotsBlockPublicKey[];
 
 /**
  * A challenge used during the mnemonic backup verification flow. The user
@@ -290,17 +296,135 @@ function hash160(data: Uint8Array): Uint8Array {
 }
 
 // ---------------------------------------------------------------------------
-// Seed and keypair derivation
+// WOTS chain derivation internals — mirrors Rust babe::wots
+// ---------------------------------------------------------------------------
+
+/**
+ * Compute the default checksum radix for a given W_max.
+ * Matches Rust `default_checksum_radix(w_max)`:
+ *   smallest radix where radix² >= w_max + 1, at least 2.
+ */
+function defaultChecksumRadix(wMax: number): number {
+  let radix = 1;
+  while (radix * radix < wMax + 1) radix++;
+  return Math.max(radix, 2);
+}
+
+/**
+ * Create a WOTS config for a given message digit count.
+ * Matches Rust `babe::wots::Config::new(WOTS_DIGIT_BITS, n)`.
+ */
+function createWotsConfig(n: number): WotsConfig {
+  const d = WOTS_DIGIT_BITS;
+  const maxVal = maxDigitValue(d);
+  const wMax = n * maxVal;
+  return { d, n, checksum_radix: defaultChecksumRadix(wMax) };
+}
+
+/** Maximum value representable by a single WOTS digit: `2^d - 1`. */
+function maxDigitValue(d: number): number {
+  return (1 << d) - 1;
+}
+
+/**
+ * Derive the starting chain value for a given digit index.
+ * Matches Rust `chain_start_for_digit(seed, digit_index)`:
+ *   hash160(seed || varint_le(digit_index))
+ * where varint_le encodes the index as variable-length little-endian bytes.
+ */
+function chainStartForDigit(seed: Uint8Array, digitIndex: number): Uint8Array {
+  const suffixBytes: number[] = [];
+  let idx = digitIndex;
+  while (idx > 0) {
+    suffixBytes.push(idx & 0xff);
+    idx >>>= 8;
+  }
+  const preimage = new Uint8Array(seed.length + suffixBytes.length);
+  preimage.set(seed);
+  for (let i = 0; i < suffixBytes.length; i++) {
+    preimage[seed.length + i] = suffixBytes[i];
+  }
+  return hash160(preimage);
+}
+
+/**
+ * Compute the terminal value of a Hash160 chain of given length.
+ * Matches Rust `compute_chain(seed, len)` — returns chain[len].
+ */
+function computeChainTerminal(start: Uint8Array, steps: number): Uint8Array {
+  let current = start;
+  for (let i = 0; i < steps; i++) {
+    current = hash160(current);
+  }
+  return current;
+}
+
+// ---------------------------------------------------------------------------
+// Per-block public key derivation
+// ---------------------------------------------------------------------------
+
+/**
+ * Derive a single WOTS block public key from a per-block seed.
+ *
+ * Computes Hash160 chain terminals for each message digit and the two
+ * checksum digits, matching Rust `babe::wots::SecretKey::from_seed`.
+ *
+ * @param blockSeed - 20-byte per-block seed (zeroed by caller).
+ * @param config    - WOTS configuration for this block.
+ * @returns A single WOTS block public key.
+ */
+function deriveBlockPublicKey(
+  blockSeed: Uint8Array,
+  config: WotsConfig,
+): WotsBlockPublicKey {
+  const k = maxDigitValue(config.d);
+  const checksumMinorMax = config.checksum_radix - 1;
+  const checksumMajorMax = Math.floor((config.n * k) / config.checksum_radix);
+
+  // Message chain terminals (digit indices 2..n+2 in canonical order)
+  const messageTerminals: number[][] = [];
+  for (let digit = 0; digit < config.n; digit++) {
+    const start = chainStartForDigit(blockSeed, digit + WOTS_CHECKSUM_DIGITS);
+    const terminal = computeChainTerminal(start, k);
+    messageTerminals.push(Array.from(terminal));
+  }
+
+  // Checksum chain terminals
+  const checksumMinorStart = chainStartForDigit(
+    blockSeed,
+    CHECKSUM_MINOR_DIGIT_INDEX,
+  );
+  const checksumMinorTerminal = computeChainTerminal(
+    checksumMinorStart,
+    checksumMinorMax,
+  );
+
+  const checksumMajorStart = chainStartForDigit(
+    blockSeed,
+    CHECKSUM_MAJOR_DIGIT_INDEX,
+  );
+  const checksumMajorTerminal = computeChainTerminal(
+    checksumMajorStart,
+    checksumMajorMax,
+  );
+
+  return {
+    config,
+    message_terminals: messageTerminals,
+    checksum_major_terminal: Array.from(checksumMajorTerminal),
+    checksum_minor_terminal: Array.from(checksumMinorTerminal),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Seed and public key derivation
 // ---------------------------------------------------------------------------
 
 /**
  * Convert a BIP-39 mnemonic into a 64-byte seed.
  *
- * Internally uses PBKDF2 with 2048 rounds of HMAC-SHA-512 and the passphrase
- * `"mnemonic"` (no user password), per the BIP-39 specification.
- *
  * @param mnemonic - A valid 12-word BIP-39 mnemonic.
- * @returns 64-byte seed suitable for {@link deriveWotsKeypair}.
+ * @returns 64-byte seed suitable for {@link deriveWotsBlockPublicKeys}.
  */
 export function mnemonicToWotsSeed(mnemonic: string): Uint8Array {
   const seed = mnemonicToSeedSync(mnemonic);
@@ -310,113 +434,95 @@ export function mnemonicToWotsSeed(mnemonic: string): Uint8Array {
 }
 
 /**
- * Derive a deterministic WOTS keypair for a specific vault.
+ * Derive deterministic WOTS block public keys for a specific vault.
+ *
+ * Produces an array of {@link WotsBlockPublicKey} (one per assert block),
+ * matching the Rust `Vec<babe::wots::PublicKey>` format expected by the
+ * vault provider's `submitDepositorWotsKey` RPC.
  *
  * ### Derivation steps
  *
- * 1. **Split the seed** — bytes `[0..32)` = parent key, `[32..64)` = chain code.
+ * 1. **Split the BIP-39 seed** — bytes `[0..32)` = parent key, `[32..64)` = chain code.
  *
- * 2. **Child key derivation** —
- *    ```
- *    vaultData = lenPrefix(vaultId) || lenPrefix(depositorPk) || lenPrefix(appContractAddress)
- *    hmac      = HMAC-SHA-512(chainCode, parentKey || vaultData)
- *    derivedKey       = hmac[0..32)
- *    derivedChainCode = hmac[32..64)
- *    ```
+ * 2. **Per-vault child key** — `HMAC-SHA-512(chainCode, parentKey || vaultData)`,
+ *    where vaultData = lenPrefix(vaultId) || lenPrefix(depositorPk) || lenPrefix(appContractAddress).
  *
- * 3. **Bit-level key expansion** — For each bit index `i` in `[0, 508)`:
- *    ```
- *    falseHmac = HMAC-SHA-512(derivedChainCode, derivedKey || 0x00 || bigEndian32(i))
- *    trueHmac  = HMAC-SHA-512(derivedChainCode, derivedKey || 0x01 || bigEndian32(i))
+ * 3. **Per-block WOTS seed** — `hash160(derivedKey || blockIndex)` → 20-byte seed per block.
  *
- *    falsePreimage = falseHmac[0..16)     // 16 bytes = GC_LABEL_SIZE
- *    truePreimage  = trueHmac[0..16)
- *
- *    falseHash = Hash160(falsePreimage)    // 20 bytes
- *    trueHash  = Hash160(truePreimage)
- *    ```
- *
- * 4. **Cleanup** — All intermediate key material is zeroed.
- *
- * The same (mnemonic, vaultId, depositorPk, appContractAddress) tuple always
- * produces the same keypair, enabling recovery from the mnemonic alone.
+ * 4. **Chain derivation** (per Rust `babe::wots::SecretKey::from_seed`):
+ *    - Message chain `i`: start = `hash160(blockSeed || varint_le(i + 2))`, then
+ *      iterate Hash160 for `k = 2^d - 1 = 15` steps. Terminal = public key.
+ *    - Checksum minor chain: start at digit index 0, iterate for `checksumMinorMax` steps.
+ *    - Checksum major chain: start at digit index 1, iterate for `checksumMajorMax` steps.
  *
  * @param seed               - 64-byte seed from {@link mnemonicToWotsSeed}. Zeroed after use.
- * @param vaultId            - Unique identifier of the vault (e.g. pegin tx hash).
- * @param depositorPk        - Depositor's public key (hex string).
- * @param appContractAddress - Ethereum address of the application contract.
- * @returns A {@link WotsKeypair} with 508 preimage/hash pairs per branch.
+ * @param vaultId            - Unique identifier (pegin tx hash).
+ * @param depositorPk        - Depositor's BTC public key (hex string).
+ * @param appContractAddress - Application contract address.
+ * @returns Array of WOTS block public keys (currently 2 blocks).
  */
-export async function deriveWotsKeypair(
+export async function deriveWotsBlockPublicKeys(
   seed: Uint8Array,
   vaultId: string,
   depositorPk: string,
   appContractAddress: string,
-): Promise<WotsKeypair> {
-  // Normalize inputs once — callers don't need to worry about 0x prefixes.
+): Promise<WotsPublicKeys> {
   vaultId = stripHexPrefix(vaultId);
   depositorPk = stripHexPrefix(depositorPk);
 
   const chainCode = seed.slice(KEY_SIZE, SEED_SIZE);
   const parentKey = seed.slice(0, KEY_SIZE);
-
-  const vaultData = concatBytes(
-    lengthPrefixed(stringToBytes(vaultId)),
-    lengthPrefixed(stringToBytes(depositorPk)),
-    lengthPrefixed(stringToBytes(appContractAddress)),
+  const hmacResult = hmacSha512(
+    chainCode,
+    concatBytes(
+      parentKey,
+      concatBytes(
+        lengthPrefixed(stringToBytes(vaultId)),
+        lengthPrefixed(stringToBytes(depositorPk)),
+        lengthPrefixed(stringToBytes(appContractAddress)),
+      ),
+    ),
   );
-
-  const hmacResult = hmacSha512(chainCode, concatBytes(parentKey, vaultData));
   const derivedKey = hmacResult.slice(0, KEY_SIZE);
-  const derivedChainCode = hmacResult.slice(KEY_SIZE, SEED_SIZE);
 
-  const falsePreimages: Uint8Array[] = [];
-  const truePreimages: Uint8Array[] = [];
-  const falseHashes: Uint8Array[] = [];
-  const trueHashes: Uint8Array[] = [];
+  try {
+    const blocks: WotsBlockPublicKey[] = [];
 
-  for (let bit = 0; bit < PI_1_BITS; bit++) {
-    const falseIndex = new Uint8Array(INDEX_BUFFER_SIZE);
-    falseIndex[0] = 0;
-    new DataView(falseIndex.buffer).setUint32(1, bit, false);
+    for (
+      let blockIdx = 0;
+      blockIdx < ASSERT_WOTS_BLOCK_DIGIT_COUNTS.length;
+      blockIdx++
+    ) {
+      const n = ASSERT_WOTS_BLOCK_DIGIT_COUNTS[blockIdx];
+      const config = createWotsConfig(n);
 
-    const trueIndex = new Uint8Array(INDEX_BUFFER_SIZE);
-    trueIndex[0] = 1;
-    new DataView(trueIndex.buffer).setUint32(1, bit, false);
+      // Derive per-block 20-byte seed: hash160(derivedKey || blockIndex)
+      const blockSeedInput = new Uint8Array(derivedKey.length + 1);
+      blockSeedInput.set(derivedKey);
+      blockSeedInput[derivedKey.length] = blockIdx;
+      const blockSeed = hash160(blockSeedInput);
 
-    const falseHmac = hmacSha512(
-      derivedChainCode,
-      concatBytes(derivedKey, falseIndex),
-    );
-    const trueHmac = hmacSha512(
-      derivedChainCode,
-      concatBytes(derivedKey, trueIndex),
-    );
+      try {
+        blocks.push(deriveBlockPublicKey(blockSeed, config));
+      } finally {
+        blockSeedInput.fill(0);
+        blockSeed.fill(0);
+      }
+    }
 
-    const falsePreimage = falseHmac.slice(0, GC_LABEL_SIZE);
-    const truePreimage = trueHmac.slice(0, GC_LABEL_SIZE);
-
-    falsePreimages.push(falsePreimage);
-    truePreimages.push(truePreimage);
-    falseHashes.push(hash160(falsePreimage));
-    trueHashes.push(hash160(truePreimage));
-
-    falseHmac.fill(0);
-    trueHmac.fill(0);
+    return blocks;
+  } finally {
+    // Ensure sensitive material is always wiped, even on exceptions
+    chainCode.fill(0);
+    parentKey.fill(0);
+    hmacResult.fill(0);
+    derivedKey.fill(0);
+    seed.fill(0);
   }
-
-  chainCode.fill(0);
-  parentKey.fill(0);
-  hmacResult.fill(0);
-  derivedKey.fill(0);
-  derivedChainCode.fill(0);
-  seed.fill(0);
-
-  return { falsePreimages, truePreimages, falseHashes, trueHashes };
 }
 
 // ---------------------------------------------------------------------------
-// Serialization
+// Hash computation
 // ---------------------------------------------------------------------------
 
 /** Convert a byte array to a lowercase hex string. */
@@ -426,54 +532,49 @@ const toHex = (bytes: Uint8Array) =>
     .join("");
 
 /**
- * Extract the public key from a WOTS keypair.
+ * Compute the keccak256 hash of WOTS block public keys.
  *
- * The public key consists of the Hash160 digests (hex-encoded) for both
- * the `false` and `true` branch of each bit position. This is the value
- * submitted on-chain and to the vault provider for later signature
- * verification.
+ * Matches Rust `btc_vault::wots_public_keys_keccak256`: for each block,
+ * chain tips are concatenated in canonical order
+ * `[checksum_minor, checksum_major, message_terminals...]`, then all
+ * blocks are concatenated and hashed.
  *
- * @param keypair - A derived {@link WotsKeypair}.
- * @returns The {@link WotsPublicKey} with `false_list` and `true_list`,
- *          each containing 508 hex strings of 40 characters (20 bytes).
- */
-export function keypairToPublicKey(keypair: WotsKeypair): WotsPublicKey {
-  return {
-    false_list: keypair.falseHashes.map(toHex),
-    true_list: keypair.trueHashes.map(toHex),
-  };
-}
-
-/**
- * Compute the keccak256 hash of a WOTS keypair's public key.
- *
- * Matches the Rust `InputLabelHashes::keccak256_hash()` implementation:
- * `keccak256(falseHashes[0] || falseHashes[1] || ... || trueHashes[0] || trueHashes[1] || ...)`
- *
- * Each hash is 20 bytes (Hash160). Total input: `PI_1_BITS * 20 * 2` bytes.
  * The result is committed on-chain as `depositorWotsPkHash` so the vault
  * provider can later verify submitted WOTS public keys.
  *
- * @param keypair - A derived {@link WotsKeypair}.
+ * @param publicKeys - Array of WOTS block public keys.
  * @returns 32-byte keccak256 digest as a `0x`-prefixed hex string.
  */
-export function computeWotsPkHash(keypair: WotsKeypair): `0x${string}` {
-  if (keypair.falseHashes.length === 0 || keypair.trueHashes.length === 0) {
-    throw new Error("computeWotsPkHash: keypair hash arrays must not be empty");
+export function computeWotsPublicKeysHash(
+  publicKeys: WotsPublicKeys,
+): `0x${string}` {
+  if (publicKeys.length === 0) {
+    throw new Error(
+      "computeWotsPublicKeysHash: public keys array must not be empty",
+    );
   }
-  const hashSize = keypair.falseHashes[0].length;
-  const totalBytes =
-    (keypair.falseHashes.length + keypair.trueHashes.length) * hashSize;
-  const buffer = new Uint8Array(totalBytes);
 
-  let offset = 0;
-  for (const h of keypair.falseHashes) {
-    buffer.set(h, offset);
-    offset += hashSize;
+  // Use actual array lengths (not config.n) so the hash covers exactly the
+  // chain tips present in the payload — matching Rust's iteration over
+  // public_key.chain_tips().
+  let totalTips = 0;
+  for (const pk of publicKeys) {
+    totalTips += WOTS_CHECKSUM_DIGITS + pk.message_terminals.length;
   }
-  for (const h of keypair.trueHashes) {
-    buffer.set(h, offset);
-    offset += hashSize;
+
+  const buffer = new Uint8Array(totalTips * CHAIN_ELEMENT_SIZE);
+  let offset = 0;
+
+  for (const pk of publicKeys) {
+    // Canonical order: checksum_minor, checksum_major, then message terminals
+    buffer.set(pk.checksum_minor_terminal, offset);
+    offset += CHAIN_ELEMENT_SIZE;
+    buffer.set(pk.checksum_major_terminal, offset);
+    offset += CHAIN_ELEMENT_SIZE;
+    for (const terminal of pk.message_terminals) {
+      buffer.set(terminal, offset);
+      offset += CHAIN_ELEMENT_SIZE;
+    }
   }
 
   const digest = keccak_256(buffer);
@@ -481,8 +582,8 @@ export function computeWotsPkHash(keypair: WotsKeypair): `0x${string}` {
 }
 
 /**
- * Convenience wrapper: derive a WOTS keypair from a mnemonic and return
- * the keccak256 hash of its public key. Handles seed creation and cleanup.
+ * Convenience wrapper: derive WOTS block public keys from a mnemonic and
+ * return the keccak256 hash. Handles seed creation and cleanup.
  *
  * Used before the ETH transaction to produce the `depositorWotsPkHash`
  * that gets committed on-chain.
@@ -495,13 +596,13 @@ export async function deriveWotsPkHash(
 ): Promise<`0x${string}`> {
   const seed = mnemonicToWotsSeed(mnemonic);
   try {
-    const keypair = await deriveWotsKeypair(
+    const publicKeys = await deriveWotsBlockPublicKeys(
       seed,
       peginTxid,
       depositorBtcPubkey,
       appContractAddress,
     );
-    return computeWotsPkHash(keypair);
+    return computeWotsPublicKeysHash(publicKeys);
   } finally {
     seed.fill(0);
   }

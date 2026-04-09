@@ -1,14 +1,13 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  computeWotsPkHash,
+  computeWotsPublicKeysHash,
   createVerificationChallenge,
-  deriveWotsKeypair,
+  deriveWotsBlockPublicKeys,
   generateWotsMnemonic,
   getMnemonicWords,
   isValidMnemonic,
   isWotsMismatchError,
-  keypairToPublicKey,
   mnemonicToWotsSeed,
   verifyMnemonicWords,
 } from "../wotsService";
@@ -123,187 +122,176 @@ describe("wotsService", () => {
     });
   });
 
-  describe("deriveWotsKeypair", () => {
-    // deriveWotsKeypair zeros the seed after use, so each test must
-    // create a fresh copy to avoid cross-test contamination.
+  describe("deriveWotsBlockPublicKeys", () => {
     const freshSeed = () => mnemonicToWotsSeed(KNOWN_MNEMONIC);
     const vaultId = "vault-1";
     const depositorPk = "pk-abc";
     const appContractAddress = "0x1234";
 
-    it("generates 508 preimage and hash slots per type", async () => {
-      const keypair = await deriveWotsKeypair(
+    it("produces 2 blocks with correct config", async () => {
+      const blocks = await deriveWotsBlockPublicKeys(
         freshSeed(),
         vaultId,
         depositorPk,
         appContractAddress,
       );
-      expect(keypair.falsePreimages).toHaveLength(508);
-      expect(keypair.truePreimages).toHaveLength(508);
-      expect(keypair.falseHashes).toHaveLength(508);
-      expect(keypair.trueHashes).toHaveLength(508);
+      expect(blocks).toHaveLength(2);
+      for (const block of blocks) {
+        expect(block.config).toEqual({ d: 4, n: 64, checksum_radix: 31 });
+      }
     });
 
-    it("produces 16-byte preimages and 20-byte hashes", async () => {
-      const keypair = await deriveWotsKeypair(
+    it("each block has 64 message terminals and 2 checksum terminals", async () => {
+      const blocks = await deriveWotsBlockPublicKeys(
         freshSeed(),
         vaultId,
         depositorPk,
         appContractAddress,
       );
-      keypair.falsePreimages.forEach((p) => expect(p.length).toBe(16));
-      keypair.truePreimages.forEach((p) => expect(p.length).toBe(16));
-      keypair.falseHashes.forEach((h) => expect(h.length).toBe(20));
-      keypair.trueHashes.forEach((h) => expect(h.length).toBe(20));
+      for (const block of blocks) {
+        expect(block.message_terminals).toHaveLength(64);
+        expect(block.checksum_major_terminal).toHaveLength(20);
+        expect(block.checksum_minor_terminal).toHaveLength(20);
+      }
+    });
+
+    it("all chain values are 20-byte arrays of numbers", async () => {
+      const blocks = await deriveWotsBlockPublicKeys(
+        freshSeed(),
+        vaultId,
+        depositorPk,
+        appContractAddress,
+      );
+      for (const block of blocks) {
+        for (const terminal of block.message_terminals) {
+          expect(terminal).toHaveLength(20);
+          terminal.forEach((b) => {
+            expect(typeof b).toBe("number");
+            expect(b).toBeGreaterThanOrEqual(0);
+            expect(b).toBeLessThanOrEqual(255);
+          });
+        }
+      }
     });
 
     it("is deterministic for the same inputs", async () => {
-      const a = await deriveWotsKeypair(
+      const a = await deriveWotsBlockPublicKeys(
         freshSeed(),
         vaultId,
         depositorPk,
         appContractAddress,
       );
-      const b = await deriveWotsKeypair(
+      const b = await deriveWotsBlockPublicKeys(
         freshSeed(),
         vaultId,
         depositorPk,
         appContractAddress,
       );
-      expect(a.falsePreimages).toEqual(b.falsePreimages);
-      expect(a.truePreimages).toEqual(b.truePreimages);
-      expect(a.falseHashes).toEqual(b.falseHashes);
-      expect(a.trueHashes).toEqual(b.trueHashes);
+      expect(a).toEqual(b);
     });
 
     it("produces different keys for different vault IDs", async () => {
-      const a = await deriveWotsKeypair(
+      const a = await deriveWotsBlockPublicKeys(
         freshSeed(),
         "vault-1",
         depositorPk,
         appContractAddress,
       );
-      const b = await deriveWotsKeypair(
+      const b = await deriveWotsBlockPublicKeys(
         freshSeed(),
         "vault-2",
         depositorPk,
         appContractAddress,
       );
-      expect(a.falsePreimages[0]).not.toEqual(b.falsePreimages[0]);
+      expect(a[0].message_terminals[0]).not.toEqual(b[0].message_terminals[0]);
     });
-  });
 
-  describe("keypairToPublicKey", () => {
-    it("converts keypair hashes to hex strings", async () => {
-      const seed = mnemonicToWotsSeed(KNOWN_MNEMONIC);
-      const keypair = await deriveWotsKeypair(
-        seed,
-        "vault-1",
-        "pk-abc",
+    it("handles 0x-prefixed inputs the same as unprefixed", async () => {
+      const a = await deriveWotsBlockPublicKeys(
+        freshSeed(),
+        "0xdeadbeef",
+        "0xpk123",
         "0x1234",
       );
-      const pubkey = keypairToPublicKey(keypair);
-
-      expect(pubkey.false_list).toHaveLength(508);
-      expect(pubkey.true_list).toHaveLength(508);
-      pubkey.false_list.forEach((h: string) =>
-        expect(h).toMatch(/^[0-9a-f]{40}$/),
+      const b = await deriveWotsBlockPublicKeys(
+        freshSeed(),
+        "deadbeef",
+        "pk123",
+        "0x1234",
       );
-      pubkey.true_list.forEach((h: string) =>
-        expect(h).toMatch(/^[0-9a-f]{40}$/),
-      );
+      expect(a).toEqual(b);
     });
   });
 
-  describe("computeWotsPkHash", () => {
-    // Use a factory — deriveWotsKeypair zeros the seed after use
+  describe("computeWotsPublicKeysHash", () => {
     const freshSeed = () => mnemonicToWotsSeed(KNOWN_MNEMONIC);
     const vaultId = "vault-1";
     const depositorPk = "pk-abc";
     const appContractAddress = "0x1234";
 
-    it("produces a deterministic hash for known inputs", async () => {
-      const keypair = await deriveWotsKeypair(
-        freshSeed(),
-        vaultId,
-        depositorPk,
-        appContractAddress,
-      );
-      const hash = computeWotsPkHash(keypair);
-      expect(hash).toBe(
-        "0x27242076796ab9f57b3734af2cc39bf367f26aecced2bdd200a609052657e98e",
-      );
-    });
-
-    it("returns the same hash for the same keypair derived twice", async () => {
-      const keypairA = await deriveWotsKeypair(
-        freshSeed(),
-        vaultId,
-        depositorPk,
-        appContractAddress,
-      );
-      const keypairB = await deriveWotsKeypair(
-        freshSeed(),
-        vaultId,
-        depositorPk,
-        appContractAddress,
-      );
-      expect(computeWotsPkHash(keypairA)).toBe(computeWotsPkHash(keypairB));
-    });
-
-    it("produces different hashes for different vault IDs", async () => {
-      const keypairA = await deriveWotsKeypair(
-        freshSeed(),
-        "vault-1",
-        depositorPk,
-        appContractAddress,
-      );
-      const keypairB = await deriveWotsKeypair(
-        freshSeed(),
-        "vault-2",
-        depositorPk,
-        appContractAddress,
-      );
-      expect(computeWotsPkHash(keypairA)).not.toBe(computeWotsPkHash(keypairB));
-    });
-
     it("returns a 0x-prefixed 66-character hex string", async () => {
-      const keypair = await deriveWotsKeypair(
+      const blocks = await deriveWotsBlockPublicKeys(
         freshSeed(),
         vaultId,
         depositorPk,
         appContractAddress,
       );
-      const hash = computeWotsPkHash(keypair);
+      const hash = computeWotsPublicKeysHash(blocks);
       expect(hash).toMatch(/^0x[0-9a-f]{64}$/);
       expect(hash.length).toBe(66);
     });
 
-    it("changes when a single bit position hash is modified", async () => {
-      const keypair = await deriveWotsKeypair(
+    it("returns the same hash for the same keys derived twice", async () => {
+      const a = await deriveWotsBlockPublicKeys(
         freshSeed(),
         vaultId,
         depositorPk,
         appContractAddress,
       );
-      const originalHash = computeWotsPkHash(keypair);
+      const b = await deriveWotsBlockPublicKeys(
+        freshSeed(),
+        vaultId,
+        depositorPk,
+        appContractAddress,
+      );
+      expect(computeWotsPublicKeysHash(a)).toBe(computeWotsPublicKeysHash(b));
+    });
 
-      // Flip one byte in the last trueHash (bit position 507)
-      const tampered: typeof keypair = {
-        falsePreimages: keypair.falsePreimages,
-        truePreimages: keypair.truePreimages,
-        falseHashes: keypair.falseHashes,
-        trueHashes: keypair.trueHashes.map((h, i) => {
-          if (i === 507) {
-            const copy = new Uint8Array(h);
-            copy[0] ^= 0x01;
-            return copy;
-          }
-          return h;
-        }),
-      };
+    it("produces different hashes for different vault IDs", async () => {
+      const a = await deriveWotsBlockPublicKeys(
+        freshSeed(),
+        "vault-1",
+        depositorPk,
+        appContractAddress,
+      );
+      const b = await deriveWotsBlockPublicKeys(
+        freshSeed(),
+        "vault-2",
+        depositorPk,
+        appContractAddress,
+      );
+      expect(computeWotsPublicKeysHash(a)).not.toBe(
+        computeWotsPublicKeysHash(b),
+      );
+    });
 
-      expect(computeWotsPkHash(tampered)).not.toBe(originalHash);
+    it("changes when a single chain terminal is modified", async () => {
+      const blocks = await deriveWotsBlockPublicKeys(
+        freshSeed(),
+        vaultId,
+        depositorPk,
+        appContractAddress,
+      );
+      const originalHash = computeWotsPublicKeysHash(blocks);
+
+      // Deep-copy and flip one byte in the last message terminal of block 1
+      const tampered = blocks.map((b) => ({
+        ...b,
+        message_terminals: b.message_terminals.map((t) => [...t]),
+      }));
+      tampered[1].message_terminals[63][0] ^= 0x01;
+
+      expect(computeWotsPublicKeysHash(tampered)).not.toBe(originalHash);
     });
   });
 

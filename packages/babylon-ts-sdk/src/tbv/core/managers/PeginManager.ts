@@ -60,6 +60,9 @@ import {
   type UTXO,
 } from "../utils";
 
+/** Referral code sent with pegin registration — 0 means no referral. */
+const NO_REFERRAL_CODE = 0;
+
 /**
  * Configuration for the PeginManager.
  */
@@ -357,8 +360,8 @@ export interface BatchPeginRequestItem {
   hashlock: Hex;
   /** Zero-based HTLC output index in the Pre-PegIn tx */
   htlcVout: number;
-  /** Depositor's BTC payout address (optional — wallet address used if omitted) */
-  depositorPayoutBtcAddress?: string;
+  /** Depositor's BTC payout address (required — funds are sent here on payout) */
+  depositorPayoutBtcAddress: string;
   /** Keccak256 hash of the depositor's WOTS public key (bytes32) */
   depositorWotsPkHash: Hex;
 }
@@ -1009,10 +1012,13 @@ export class PeginManager {
       await onPopSigned();
     }
 
-    // Step 3: Resolve payout scriptPubKey (same for all vaults — same depositor)
-    const payoutScriptPubKey = await this.resolvePayoutScriptPubKey(
-      requests[0].depositorPayoutBtcAddress,
-    );
+    // Step 3: Resolve per-request payout scriptPubKey.
+    const resolvedPayoutScripts: Hex[] = [];
+    for (const req of requests) {
+      resolvedPayoutScripts.push(
+        await this.resolvePayoutScriptPubKey(req.depositorPayoutBtcAddress),
+      );
+    }
 
     // Step 4: Pre-compute vault IDs and check for duplicates
     const vaultResults: BatchPeginResultItem[] = [];
@@ -1059,7 +1065,7 @@ export class PeginManager {
     const totalFee = peginFee * BigInt(requests.length);
 
     // Step 6: Build BatchPeginRequest[] tuple array
-    const batchRequests = requests.map((req) => ({
+    const batchRequests = requests.map((req, i) => ({
       depositorBtcPubKey: ensureHexPrefix(req.depositorBtcPubkey) as Hex,
       btcPopSignature: btcPopSignature as Hex,
       unsignedPrePeginTx: ensureHexPrefix(req.unsignedPrePeginTx) as Hex,
@@ -1068,8 +1074,8 @@ export class PeginManager {
       ) as Hex,
       hashlock: req.hashlock,
       htlcVout: req.htlcVout,
-      referralCode: 0,
-      depositorPayoutBtcAddress: payoutScriptPubKey as Hex,
+      referralCode: NO_REFERRAL_CODE,
+      depositorPayoutBtcAddress: resolvedPayoutScripts[i],
       depositorWotsPkHash: req.depositorWotsPkHash,
     }));
 

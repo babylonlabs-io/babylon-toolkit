@@ -4,7 +4,7 @@
  * Source: https://github.com/babylonlabs-io/btc-vault/blob/main/docs/pegin.md
  */
 
-import type { WotsPublicKey } from "@/services/wots";
+import type { WotsBlockPublicKey } from "@/services/wots";
 
 // ============================================================================
 // Request Parameter Types
@@ -20,7 +20,7 @@ export interface RequestDepositorPresignTransactionsParams {
 export interface SubmitDepositorWotsKeyParams {
   pegin_txid: string;
   depositor_pk: string;
-  wots_public_keys: WotsPublicKey;
+  wots_public_keys: WotsBlockPublicKey[];
 }
 
 /** Per-challenger signatures for the depositor-as-claimer flow. */
