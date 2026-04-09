@@ -2,9 +2,9 @@ import type { MempoolUTXO } from "@babylonlabs-io/ts-sdk";
 import {
   MAX_NON_LEGACY_OUTPUT_SIZE,
   P2TR_INPUT_SIZE,
-  TX_BUFFER_SIZE_OVERHEAD,
   rateBasedTxBufferFee,
   selectUtxosForPegin,
+  TX_BUFFER_SIZE_OVERHEAD,
 } from "@babylonlabs-io/ts-sdk/tbv/core";
 import { useMemo } from "react";
 
