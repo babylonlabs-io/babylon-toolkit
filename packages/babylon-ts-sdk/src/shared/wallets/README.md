@@ -13,7 +13,10 @@ This module provides TypeScript interfaces that enable the SDK to work with any 
 Interface for Bitcoin wallet operations (Taproot, SegWit, etc.).
 
 ```typescript
-import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
+import type {
+  BitcoinWallet,
+  SignPsbtOptions,
+} from "@babylonlabs-io/ts-sdk/shared";
 
 interface BitcoinWallet {
   getPublicKeyHex(): Promise<string>;

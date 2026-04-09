@@ -56,7 +56,11 @@ import type {
   SignPsbtOptions,
   SignInputOptions,
 } from "@babylonlabs-io/ts-sdk/shared";
+```
 
+The interface shape for reference:
+
+```ts
 type BitcoinNetwork = "mainnet" | "testnet" | "signet";
 
 interface BitcoinWallet {
@@ -210,7 +214,7 @@ window.btcwallet = new BTCWalletImplementation();
 
 For Ethereum, no injection is needed. ETH wallets connect via AppKit / WalletConnect (standard EIP-1193).
 
-Full provider interface definitions are in [src/core/types.ts](../../packages/babylon-wallet-connector/src/core/types.ts).
+Full provider interface definitions are in [src/core/types.ts](../../babylon-wallet-connector/src/core/types.ts).
 
 ## Vault Transaction Flow
 
@@ -329,7 +333,9 @@ class MyWalletAdapter implements BitcoinWallet {
       testnet: "testnet",
       signet: "signet",
     };
-    return map[network] ?? "mainnet";
+    const result = map[network];
+    if (!result) throw new Error(`Unsupported network: ${network}`);
+    return result;
   }
 }
 ```
