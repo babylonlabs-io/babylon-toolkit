@@ -16,11 +16,12 @@ Interface for Bitcoin wallet operations (Taproot, SegWit, etc.).
 import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
 
 interface BitcoinWallet {
-  getPublicKey(): Promise<string>;
+  getPublicKeyHex(): Promise<string>;
   getAddress(): Promise<string>;
-  signPsbt(psbtHex: string): Promise<string>;
-  signMessage(message: string): Promise<string>;
-  getNetwork(): Promise<"mainnet" | "testnet" | "signet" | "regtest">;
+  signPsbt(psbtHex: string, options?: SignPsbtOptions): Promise<string>;
+  signPsbts(psbtsHexes: string[], options?: SignPsbtOptions[]): Promise<string[]>;
+  signMessage(message: string, type: "bip322-simple" | "ecdsa"): Promise<string>;
+  getNetwork(): Promise<"mainnet" | "testnet" | "signet">;
 }
 ```
 
@@ -40,13 +41,13 @@ const ethWallet: WalletClient = await getWalletClient(wagmiConfig);
 ### Using with Real Wallets
 
 ```typescript
-import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
+import type { BitcoinWallet, SignPsbtOptions } from "@babylonlabs-io/ts-sdk/shared";
 
 // Adapter for Unisat wallet
 class UnisatAdapter implements BitcoinWallet {
   constructor(private unisat: any) {}
 
-  async getPublicKey(): Promise<string> {
+  async getPublicKeyHex(): Promise<string> {
     return await this.unisat.getPublicKey();
   }
 
@@ -55,12 +56,25 @@ class UnisatAdapter implements BitcoinWallet {
     return accounts[0];
   }
 
-  async signPsbt(psbtHex: string): Promise<string> {
-    return await this.unisat.signPsbt(psbtHex, { autoFinalized: true });
+  async signPsbt(psbtHex: string, options?: SignPsbtOptions): Promise<string> {
+    return await this.unisat.signPsbt(psbtHex, {
+      autoFinalized: options?.autoFinalized ?? true,
+      signInputs: options?.signInputs,
+    });
   }
 
-  async signMessage(message: string): Promise<string> {
-    return await this.unisat.signMessage(message, "bip322-simple");
+  async signPsbts(psbtsHexes: string[], options?: SignPsbtOptions[]): Promise<string[]> {
+    return await this.unisat.signPsbts(
+      psbtsHexes,
+      options?.map((opt) => ({
+        autoFinalized: opt.autoFinalized ?? true,
+        signInputs: opt.signInputs,
+      })),
+    );
+  }
+
+  async signMessage(message: string, type: "bip322-simple" | "ecdsa"): Promise<string> {
+    return await this.unisat.signMessage(message, type);
   }
 
   async getNetwork() {
