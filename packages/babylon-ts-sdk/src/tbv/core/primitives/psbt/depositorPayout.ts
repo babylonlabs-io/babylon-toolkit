@@ -15,20 +15,17 @@
 
 import {
   type PayoutConnectorParams,
-  getPeginPayoutScript,
+  getPeginPayoutScriptInfo,
   tapInternalPubkey,
 } from "@babylonlabs-io/babylon-tbv-rust-wasm";
-import * as ecc from "@bitcoin-js/tiny-secp256k1-asmjs";
 import { Buffer } from "buffer";
-import { initEccLib, payments, Psbt, Transaction } from "bitcoinjs-lib";
+import { Psbt, Transaction } from "bitcoinjs-lib";
 
 import {
+  TAPSCRIPT_LEAF_VERSION,
   hexToUint8Array,
   stripHexPrefix,
 } from "../utils/bitcoin";
-
-// Initialize ECC library for bitcoinjs-lib
-initEccLib(ecc);
 
 /**
  * Parameters for building a depositor Payout PSBT
@@ -58,10 +55,12 @@ export async function buildDepositorPayoutPsbt(
   const payoutTxHex = stripHexPrefix(params.payoutTxHex);
   const payoutTx = Transaction.fromHex(payoutTxHex);
 
-  // Get payout script from WASM (PeginPayoutConnector — same as VP/VK payout)
-  const payoutScriptHex = await getPeginPayoutScript(params.connectorParams);
-  const scriptBytes = hexToUint8Array(payoutScriptHex);
-  const controlBlock = computeControlBlock(tapInternalPubkey, scriptBytes);
+  // Get payout script and control block from WASM (PeginPayoutConnector)
+  const { payoutScript, payoutControlBlock } = await getPeginPayoutScriptInfo(
+    params.connectorParams,
+  );
+  const scriptBytes = hexToUint8Array(payoutScript);
+  const controlBlock = hexToUint8Array(payoutControlBlock);
 
   const psbt = new Psbt();
   psbt.setVersion(payoutTx.version);
@@ -90,7 +89,7 @@ export async function buildDepositorPayoutPsbt(
     if (i === 0) {
       inputData.tapLeafScript = [
         {
-          leafVersion: 0xc0,
+          leafVersion: TAPSCRIPT_LEAF_VERSION,
           script: Buffer.from(scriptBytes),
           controlBlock: Buffer.from(controlBlock),
         },
@@ -112,31 +111,3 @@ export async function buildDepositorPayoutPsbt(
   return psbt.toHex();
 }
 
-/**
- * Compute control block for Taproot script path spend.
- * @internal
- */
-function computeControlBlock(
-  internalKey: Uint8Array,
-  script: Uint8Array,
-): Uint8Array {
-  const scriptTree = { output: Buffer.from(script) };
-  const payment = payments.p2tr({
-    internalPubkey: Buffer.from(internalKey),
-    scriptTree,
-  });
-
-  const outputKey = payment.pubkey;
-  if (!outputKey) {
-    throw new Error("Failed to compute output key");
-  }
-
-  const leafVersion = 0xc0;
-  const parity = outputKey[0] === 0x03 ? 1 : 0;
-  const controlByte = leafVersion | parity;
-
-  const result = new Uint8Array(1 + internalKey.length);
-  result[0] = controlByte;
-  result.set(internalKey, 1);
-  return result;
-}

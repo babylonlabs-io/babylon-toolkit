@@ -46,6 +46,7 @@ import {
   type Network,
 } from "../primitives";
 import {
+  ensureEcc,
   ensureHexPrefix,
   isAddressFromPublicKey,
   stripHexPrefix,
@@ -1167,6 +1168,8 @@ export class PeginManager {
   private async resolvePayoutScriptPubKey(
     depositorPayoutBtcAddress?: string,
   ): Promise<Hex> {
+    ensureEcc();
+
     let address: string;
 
     if (depositorPayoutBtcAddress) {

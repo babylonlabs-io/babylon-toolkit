@@ -17,6 +17,7 @@ import { address as bitcoinAddress, Psbt, Transaction } from "bitcoinjs-lib";
 import { Buffer } from "buffer";
 
 import type { Network } from "../../primitives";
+import { ensureEcc } from "../../primitives/utils/bitcoin";
 import type { UTXO } from "../utxo/selectUtxos";
 
 import { getNetwork } from "./fundPeginTransaction";
@@ -90,6 +91,8 @@ export function createSplitTransaction(
   outputs: SplitOutput[],
   network: Network,
 ): SplitTransactionResult {
+  ensureEcc();
+
   // Validate inputs
   if (inputs.length === 0) {
     throw new Error("No input UTXOs provided for split transaction");

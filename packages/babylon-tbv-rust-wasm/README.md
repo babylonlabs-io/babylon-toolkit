@@ -380,10 +380,11 @@ Creates a payout connector for signing payout transactions.
 - `taprootScriptHash` - Taproot script hash / tapLeafHash for PSBT signing
 - `scriptPubKey` - Taproot script pubkey (hex)
 - `address` - P2TR address
+- `payoutControlBlock` - Serialized control block for Taproot script path spend (hex)
 
-#### `getPeginPayoutScript(params: PayoutConnectorParams): Promise<string>`
+#### `getPeginPayoutScriptInfo(params: PayoutConnectorParams): Promise<{ payoutScript: string; payoutControlBlock: string }>`
 
-Returns the payout script hex from the PeginPayoutConnector without requiring a network parameter. Useful for building depositor Payout PSBTs where you only need the script (not the address).
+Returns the payout script and control block from the PeginPayoutConnector without requiring a network parameter. Useful for building payout PSBTs where you need the script and control block for Taproot script path spending.
 
 **Parameters:**
 - `params.depositor` - Depositor's x-only pubkey (hex)
@@ -393,7 +394,8 @@ Returns the payout script hex from the PeginPayoutConnector without requiring a 
 - `params.timelockPegin` - CSV timelock in blocks for PegIn output
 
 **Returns:**
-- Payout script hex string
+- `payoutScript` - Payout script hex string
+- `payoutControlBlock` - Serialized control block hex string
 
 #### `getAssertPayoutScriptInfo(params: AssertPayoutNoPayoutConnectorParams): Promise<AssertPayoutScriptInfo>`
 

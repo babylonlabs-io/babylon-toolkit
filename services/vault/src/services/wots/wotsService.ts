@@ -41,12 +41,24 @@
  *   block seed) carry entropy.
  * - Only public key terminals are returned; secret chain starts stay local.
  *
- * ## TODO: WASM migration
+ * ## Note: intentional TS-only implementation
  *
- * This TypeScript WOTS implementation mirrors the Rust `babe::wots` crate.
- * It should be replaced with WASM bindings from btc-vault that expose
- * `deriveAssertWotsPublicKeys(seed)` and `computeWotsPublicKeysHash(keys)`
- * to avoid duplicating cryptographic logic. Track in btc-vault.
+ * This TypeScript WOTS implementation mirrors the Rust `babe::wots` crate's
+ * cryptographic primitives (Hash160 chains, checksum digits, public key
+ * serialization) but the derivation path is fundamentally different:
+ *
+ * - **Rust (VP-side):** generates WOTS keypairs from pure random entropy
+ *   via `WotsBigBlockKeypairs::generate()`. No mnemonic, no seed hierarchy.
+ * - **TypeScript (depositor-side):** derives WOTS keys deterministically from
+ *   a BIP-39 mnemonic → HMAC-based child derivation → per-block seeds, so the
+ *   depositor can re-derive keys from their mnemonic backup.
+ *
+ * The mnemonic/seed hierarchy is wallet-layer logic that does not belong in
+ * Rust/WASM. Only the low-level chain computation (`from_seed`, `hash160`,
+ * checksum) is duplicated, and this is acceptable because:
+ *   1. The logic is simple and well-tested against Rust reference vectors.
+ *   2. Exposing it via WASM would require passing the depositor's secret seed
+ *      material across the JS↔WASM boundary with no security benefit.
  */
 import { hmac } from "@noble/hashes/hmac.js";
 import { ripemd160 } from "@noble/hashes/legacy.js";

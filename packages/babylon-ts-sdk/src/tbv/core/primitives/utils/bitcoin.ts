@@ -21,6 +21,13 @@ import type { Network } from "@babylonlabs-io/babylon-tbv-rust-wasm";
 import type { Hex } from "viem";
 
 /**
+ * BIP-341 Tapscript leaf version for script-path spends.
+ * @see https://github.com/bitcoin/bips/blob/master/bip-0341.mediawiki
+ * @see Rust: bitcoin::taproot::LeafVersion::TapScript
+ */
+export const TAPSCRIPT_LEAF_VERSION = 0xc0;
+
+/**
  * Strip "0x" prefix from hex string if present.
  *
  * Bitcoin expects plain hex (no "0x" prefix), but frontend often uses
@@ -207,7 +214,17 @@ export function validateWalletPubkey(
 
 let eccInitialized = false;
 
-function ensureEcc(): void {
+/**
+ * Lazily initialize the ECC library for bitcoinjs-lib.
+ *
+ * Must be called before any P2TR / Taproot address operation.
+ * Safe to call multiple times — only runs verification once.
+ *
+ * Why lazy: module-level `initEccLib(ecc)` breaks vitest because
+ * `vi.mock()` hoists above imports, so the mocked bitcoinjs-lib
+ * hasn't loaded the real ECC backend when the module evaluates.
+ */
+export function ensureEcc(): void {
   if (!eccInitialized) {
     initEccLib(ecc);
     eccInitialized = true;

@@ -40,26 +40,31 @@ export async function createPayoutConnector(
     params.timelockPegin
   );
 
-  return {
-    payoutScript: connector.getPayoutScript(),
-    taprootScriptHash: connector.getTaprootScriptHash(),
-    scriptPubKey: connector.getScriptPubKey(network),
-    address: connector.getAddress(network),
-  };
+  try {
+    return {
+      payoutScript: connector.getPayoutScript(),
+      taprootScriptHash: connector.getTaprootScriptHash(),
+      scriptPubKey: connector.getScriptPubKey(network),
+      address: connector.getAddress(network),
+      payoutControlBlock: connector.getPayoutControlBlock(),
+    };
+  } finally {
+    connector.free();
+  }
 }
 
 /**
- * Get just the payout script from the PeginPayoutConnector (no network needed).
+ * Get the payout script and control block from the PeginPayoutConnector (no network needed).
  *
- * Used by the depositor payout PSBT builder to get the correct taproot script
+ * Used by payout PSBT builders to get the correct taproot script and control block
  * for signing input 0 (PegIn vault UTXO).
  *
  * @param params - Payout connector parameters
- * @returns Payout script hex
+ * @returns Payout script and control block (hex encoded)
  */
-export async function getPeginPayoutScript(
+export async function getPeginPayoutScriptInfo(
   params: PayoutConnectorParams,
-): Promise<string> {
+): Promise<{ payoutScript: string; payoutControlBlock: string }> {
   await initWasm();
 
   const connector = new WasmPeginPayoutConnector(
@@ -70,5 +75,12 @@ export async function getPeginPayoutScript(
     params.timelockPegin
   );
 
-  return connector.getPayoutScript();
+  try {
+    return {
+      payoutScript: connector.getPayoutScript(),
+      payoutControlBlock: connector.getPayoutControlBlock(),
+    };
+  } finally {
+    connector.free();
+  }
 }

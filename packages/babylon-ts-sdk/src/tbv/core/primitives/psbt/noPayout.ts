@@ -18,6 +18,7 @@ import { Buffer } from "buffer";
 import { Psbt, Transaction } from "bitcoinjs-lib";
 
 import {
+  TAPSCRIPT_LEAF_VERSION,
   hexToUint8Array,
   stripHexPrefix,
 } from "../utils/bitcoin";
@@ -88,7 +89,7 @@ export async function buildNoPayoutPsbt(
     if (i === 0) {
       inputData.tapLeafScript = [
         {
-          leafVersion: 0xc0,
+          leafVersion: TAPSCRIPT_LEAF_VERSION,
           script: Buffer.from(scriptBytes),
           controlBlock: Buffer.from(controlBlockBytes),
         },

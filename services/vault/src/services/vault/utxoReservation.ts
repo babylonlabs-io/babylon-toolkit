@@ -5,6 +5,12 @@
  * and selecting available UTXOs with smart fallback logic.
  */
 
+import {
+  FEE_SAFETY_MARGIN,
+  MAX_NON_LEGACY_OUTPUT_SIZE,
+  P2TR_INPUT_SIZE,
+  TX_BUFFER_SIZE_OVERHEAD,
+} from "@babylonlabs-io/ts-sdk/tbv/core";
 import { Transaction } from "bitcoinjs-lib";
 import { Buffer } from "buffer";
 
@@ -83,27 +89,17 @@ function isUtxoReserved(
  * - Transaction overhead (11 vBytes)
  * - 10% safety margin
  *
- * Constants from SDK (packages/babylon-ts-sdk/src/tbv/core/utils/fee/constants.ts):
- * - P2TR_INPUT_SIZE = 58 vBytes
- * - MAX_NON_LEGACY_OUTPUT_SIZE = 43 vBytes
- * - TX_BUFFER_SIZE_OVERHEAD = 11 vBytes
- * - FEE_SAFETY_MARGIN = 1.1
  */
 function estimateMinimumFeeBuffer(feeRate: number): bigint {
   const ASSUMED_INPUTS = 2;
-  const P2TR_INPUT_SIZE = 58;
-  const P2TR_OUTPUT_SIZE = 43;
-  const TX_OVERHEAD = 11;
-  const SAFETY_MARGIN = 1.1;
 
-  // txSize = (2 inputs × 58) + (vault output 43) + (change output 43) + (overhead 11)
   const estimatedTxSize =
-    ASSUMED_INPUTS * P2TR_INPUT_SIZE + // inputs
-    P2TR_OUTPUT_SIZE + // vault output
-    P2TR_OUTPUT_SIZE + // change output
-    TX_OVERHEAD; // overhead
+    ASSUMED_INPUTS * P2TR_INPUT_SIZE +
+    MAX_NON_LEGACY_OUTPUT_SIZE + // vault output
+    MAX_NON_LEGACY_OUTPUT_SIZE + // change output
+    TX_BUFFER_SIZE_OVERHEAD;
 
-  const estimatedFee = Math.ceil(estimatedTxSize * feeRate * SAFETY_MARGIN);
+  const estimatedFee = Math.ceil(estimatedTxSize * feeRate * FEE_SAFETY_MARGIN);
   return BigInt(estimatedFee);
 }
 

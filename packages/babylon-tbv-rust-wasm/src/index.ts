@@ -268,7 +268,7 @@ export type {
 export { TAP_INTERNAL_KEY, tapInternalPubkey } from "./constants.js";
 
 // Export payout connector utilities
-export { createPayoutConnector, getPeginPayoutScript } from "./payoutConnector.js";
+export { createPayoutConnector, getPeginPayoutScriptInfo } from "./payoutConnector.js";
 
 // Export assert payout/nopayout connector utilities (depositor-as-claimer)
 export {
