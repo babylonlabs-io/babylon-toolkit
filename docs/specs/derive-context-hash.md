@@ -13,37 +13,34 @@
 `deriveContextHash` is a wallet API method that derives a
 deterministic 32-byte value from the wallet's key material, an
 application name, and an application-provided context string. It
-uses HKDF-SHA-256 (RFC 5869) and is designed for cross-wallet
+uses HKDF-SHA-256 (IETF RFC 5869) and is designed for cross-wallet
 compatibility — any conforming implementation produces the same
 output for the same key material, application name, and context.
 
 The method is generic. The wallet has no knowledge of what the
-derived value is used for. dApps provide an application name and
-an opaque context; the wallet displays the application name in
-its approval dialog and returns a deterministic output.
+derived value is used for. Applications provide an application
+name and an opaque context; the wallet displays the application
+name in its approval dialog and returns a deterministic output.
 
 ---
 
 ## 1. Motivation
 
-dApps sometimes need a deterministic secret tied to the user's
+Applications need a deterministic secret tied to the user's
 wallet — one that can be reproduced across sessions and devices
 without manual storage. Examples include:
 
-- **HTLC preimages** — commit a hash at deposit time, reveal
-  the preimage days later to complete activation.
+- **Hashlock pre-images** — commit to a secret that can be
+  later revealed.
 - **One-time signature seeds** — derive seed material for
   signature schemes (WOTS, Lamport) without the user managing
   a separate mnemonic.
 - **Deterministic identifiers** — generate wallet-bound values
   that are stable across sessions.
 
-Today, dApps typically generate random secrets in the browser
-and ask users to save them manually. This is error-prone and
-has no recovery path. `deriveContextHash` replaces this pattern:
-the wallet derives the value deterministically from its own key
-material, so the same context always produces the same output —
-no manual step needed.
+`deriveContextHash` enables applications to avoid generating
+secrets for users in the browser directly, which is error-prone
+and offers no recovery path.
 
 ---
 
@@ -62,12 +59,15 @@ wallet.deriveContextHash(
 - `appName` — a human-readable application identifier (1–64
   bytes, ASCII lowercase letters, digits, and hyphens only:
   `[a-z0-9\-]`). Provides mandatory app-level domain separation:
-  two dApps using different `appName` values will never produce
-  the same output, even if their `context` values collide. The
-  wallet MUST display `appName` in the approval dialog so the
-  user can see which application is requesting the derivation.
-  Wallets MUST reject `appName` values containing characters
-  outside the allowed set.
+  two applications using different `appName` values will never
+  produce the same output, even if their `context` values
+  collide. The wallet MUST display `appName` in the approval
+  dialog so the user can see which application is requesting
+  the derivation. `appName` is caller-supplied and is not, by
+  itself, an authenticated identity signal; a malicious
+  application can choose any allowed string. Wallets MUST
+  reject `appName` values containing characters outside the
+  allowed set.
   Examples: `"babylon-vault"`, `"ordinals-market"`.
 - `context` — hex-encoded byte string (even-length, lowercase,
   no `0x` prefix). Application-specific data that determines the
@@ -146,7 +146,7 @@ raw 32-byte private key directly as IKM, skipping BIP-32
 derivation. Outputs from imported keys are not cross-wallet
 compatible — this is inherent to imported keys, which have no
 shared derivation tree. Wallets MUST clearly document this
-behavior to users and dApp developers.
+behavior to users and application developers.
 
 Note: BIP-39 passphrases produce different seeds from the same
 mnemonic. Two wallets with the same mnemonic but different
@@ -159,21 +159,13 @@ suffix can be appended to the salt to indicate the version of
 the scheme. The current `derive-context-hash` salt is version 0
 without a suffix.
 
-**Info:** The concatenation of `SHA-256(UTF8(appName))` (32
-bytes) and the raw context bytes decoded from the hex input.
-The `appName` hash provides mandatory app-level domain
-separation; the context is the caller-controlled parameter
-that determines the output within the app's namespace. Maximum
-context length is 1024 bytes (2048 hex chars). Wallets MUST
-reject contexts exceeding this limit.
-
 **Length:** 32 bytes (256 bits).
 
 ### 2.3 Context Encoding Guidance
 
 The `context` field is opaque bytes from the wallet's
-perspective, but dApps constructing multi-field contexts SHOULD
-use a canonical encoding to avoid ambiguity. Recommended
+perspective, but applications constructing multi-field contexts
+SHOULD use a canonical encoding to avoid ambiguity. Recommended
 approach: length-prefix each field.
 
 ```
@@ -186,8 +178,9 @@ fields `"AB" + "CD"` vs `"A" + "BCD"` producing identical
 context bytes).
 
 For fixed-length fields (txids, public keys), length prefixes
-are optional but still recommended for consistency. dApps MUST
-NOT rely on the wallet to parse or validate context structure —
+are optional but still recommended for consistency. Applications
+MUST NOT rely on the wallet to parse or validate context
+structure —
 the wallet treats context as opaque bytes.
 
 ### 2.4 HKDF-SHA-256
@@ -208,38 +201,35 @@ environments (JavaScript), explicit zeroization is best-effort.
 
 ---
 
-## 3. Example Use Case: Babylon Vault Deposits
+## 3. Example Use Case: Babylon Trustless Bitcoin Vault Deposits
 
 This section is informational — it describes how Babylon uses
 `deriveContextHash` as a concrete example.
 
-Babylon's vault deposit flow requires depositors to commit to a
-secret at deposit time and reveal that same secret days or weeks
-later to activate the vault. The secret is the preimage of a
-SHA-256 hash embedded in an HTLC script on Bitcoin.
+Babylon's trustless Bitcoin vault deposit flow requires
+depositors to commit to a secret and reveal that same secret
+later during activation. The secret is the preimage of a
+SHA-256 hash embedded in a Bitcoin hashlock script.
 
-The hashlock must exist before the Pre-PegIn transaction is
-constructed, but the transaction hash isn't known yet — a
-circular dependency. To resolve this, the dApp builds a "dummy"
-Pre-PegIn transaction with a placeholder hashlock (zero),
-computes its txid, and uses that as part of the context:
+Babylon constructs the context from deterministic values that
+are available both when creating the deposit and later when
+revealing the secret, for example:
 
 ```
 context = (dummyPrePeginTxid, htlcVout, depositorPubkey)
 ```
 
-The dApp calls `deriveContextHash("babylon-vault", context)`,
-computes `SHA-256(deriveContextHash("babylon-vault", context))`
-to get the real hashlock, and rebuilds the Pre-PegIn with the
-real hashlock. Days or weeks later at activation time, the dApp
-reconstructs the same context from on-chain state — the dummy
-txid is deterministic from the same inputs — calls
-`deriveContextHash` again, and reveals the preimage on Ethereum.
+The application calls
+`deriveContextHash("babylon-vault", context)`, computes
+`SHA-256(deriveContextHash("babylon-vault", context))` to get
+the hashlock, and later reconstructs the same context from
+on-chain state to derive and reveal the same preimage on
+Ethereum.
 
 A future use case is WOTS (Winternitz One-Time Signature) seed
 derivation — the wallet provides a 32-byte seed via
-`deriveContextHash`, and the dApp expands it into WOTS keypairs
-in WASM. This would eliminate the separate mnemonic that users
+`deriveContextHash`, and the application expands it into WOTS
+keypairs in WASM. This would eliminate the separate mnemonic that users
 currently manage for Lamport key signing.
 
 ---
