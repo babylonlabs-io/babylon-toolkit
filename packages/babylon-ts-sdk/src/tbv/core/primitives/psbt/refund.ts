@@ -20,7 +20,7 @@ import {
 import { Buffer } from "buffer";
 import { Psbt, Transaction } from "bitcoinjs-lib";
 
-import { hexToUint8Array, uint8ArrayToHex } from "../utils/bitcoin";
+import { TAPSCRIPT_LEAF_VERSION, hexToUint8Array, uint8ArrayToHex } from "../utils/bitcoin";
 import type { PrePeginParams } from "./pegin";
 
 /**
@@ -157,7 +157,7 @@ export async function buildRefundPsbt(
       },
       tapLeafScript: [
         {
-          leafVersion: 0xc0,
+          leafVersion: TAPSCRIPT_LEAF_VERSION,
           script: Buffer.from(hexToUint8Array(htlcConnector.refundScript)),
           controlBlock: Buffer.from(
             hexToUint8Array(htlcConnector.refundControlBlock),

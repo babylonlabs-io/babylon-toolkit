@@ -143,6 +143,8 @@ export interface PayoutConnectorInfo {
   scriptPubKey: string;
   /** Pay-to-Taproot (P2TR) address */
   address: string;
+  /** Serialized control block for Taproot script path spend (hex encoded) */
+  payoutControlBlock: string;
 }
 
 /**

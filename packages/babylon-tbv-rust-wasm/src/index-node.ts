@@ -191,15 +191,16 @@ export async function createPayoutConnector(
       taprootScriptHash: connector.getTaprootScriptHash(),
       scriptPubKey: connector.getScriptPubKey(network),
       address: connector.getAddress(network),
+      payoutControlBlock: connector.getPayoutControlBlock(),
     };
   } finally {
     connector.free();
   }
 }
 
-export async function getPeginPayoutScript(
+export async function getPeginPayoutScriptInfo(
   params: PayoutConnectorParams,
-): Promise<string> {
+): Promise<{ payoutScript: string; payoutControlBlock: string }> {
   const connector = new WasmPeginPayoutConnector(
     params.depositor,
     params.vaultProvider,
@@ -209,7 +210,10 @@ export async function getPeginPayoutScript(
   );
 
   try {
-    return connector.getPayoutScript();
+    return {
+      payoutScript: connector.getPayoutScript(),
+      payoutControlBlock: connector.getPayoutControlBlock(),
+    };
   } finally {
     connector.free();
   }

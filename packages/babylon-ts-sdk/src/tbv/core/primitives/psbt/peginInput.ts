@@ -18,7 +18,7 @@ import {
 } from "@babylonlabs-io/babylon-tbv-rust-wasm";
 import { Buffer } from "buffer";
 import { Psbt, Transaction } from "bitcoinjs-lib";
-import { hexToUint8Array, stripHexPrefix, uint8ArrayToHex } from "../utils/bitcoin";
+import { TAPSCRIPT_LEAF_VERSION, hexToUint8Array, stripHexPrefix, uint8ArrayToHex } from "../utils/bitcoin";
 
 /**
  * Parameters for building the PegIn input PSBT
@@ -144,7 +144,7 @@ export async function buildPeginInputPsbt(
     },
     tapLeafScript: [
       {
-        leafVersion: 0xc0,
+        leafVersion: TAPSCRIPT_LEAF_VERSION,
         script: Buffer.from(hashlockScript),
         controlBlock: Buffer.from(hashlockControlBlock),
       },
