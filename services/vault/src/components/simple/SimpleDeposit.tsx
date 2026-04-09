@@ -218,6 +218,7 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
       ethAddress,
       selectedProviders,
       selectedApplication,
+      setSecretHashes,
     ],
   );
 

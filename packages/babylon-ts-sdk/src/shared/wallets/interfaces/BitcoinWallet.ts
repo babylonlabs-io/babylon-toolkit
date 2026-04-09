@@ -123,12 +123,13 @@ export interface BitcoinWallet {
    * using HKDF-SHA-256 with a domain-specific context.
    *
    * This enables deterministic secret generation: calling with the same
-   * context always produces the same output, removing the need for users
-   * to manually back up and re-enter secrets.
+   * (appName, context) pair always produces the same output, removing the
+   * need for users to manually back up and re-enter secrets.
    *
-   * @param context - Hex-encoded context string (even-length, no 0x prefix).
+   * @param appName - Application identifier (1-64 bytes, lowercase alphanumeric + hyphens).
+   * @param context - Hex-encoded context string (even-length, no 0x prefix, max 2048 hex chars).
    * @returns 64-character hex string (32 bytes).
    * @throws If the wallet does not support this operation (e.g., hardware wallets).
    */
-  deriveContextHash?(context: string): Promise<string>;
+  deriveContextHash?(appName: string, context: string): Promise<string>;
 }

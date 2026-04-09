@@ -395,11 +395,12 @@ export interface IBTCProvider extends IProvider {
    * Derives a deterministic 32-byte hash from the wallet's key material
    * using HKDF-SHA-256 with a domain-specific context.
    *
-   * @param context - Hex-encoded context string (even-length, no 0x prefix).
+   * @param appName - Application identifier (1-64 bytes, lowercase alphanumeric + hyphens).
+   * @param context - Hex-encoded context string (even-length, no 0x prefix, max 2048 hex chars).
    * @returns 64-character hex string (32 bytes).
    * @throws If the wallet does not support this operation (e.g., hardware wallets).
    */
-  deriveContextHash?(context: string): Promise<string>;
+  deriveContextHash?(appName: string, context: string): Promise<string>;
 }
 
 export interface IBBNProvider extends IProvider {

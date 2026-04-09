@@ -37,7 +37,7 @@ import {
 import type { VaultActivity } from "@/types/activity";
 import type { ClaimerTransactions } from "@/types/rpc";
 import {
-  buildHtlcSecretContext,
+  deriveOrGenerateSecret,
   walletSupportsDeriveContextHash,
 } from "@/utils/secretUtils";
 
@@ -324,7 +324,9 @@ export function ResumeActivationContent({
   const [deriving, setDeriving] = useState(false);
 
   const btcConnector = useChainConnector("BTC");
-  const btcWallet = (btcConnector?.connectedWallet?.provider as BitcoinWallet | undefined) ?? null;
+  const btcWallet =
+    (btcConnector?.connectedWallet?.provider as BitcoinWallet | undefined) ??
+    null;
 
   const { activating, error, handleActivation } = useActivationState({
     activity,
@@ -345,13 +347,13 @@ export function ResumeActivationContent({
         // Reconstruct the same context used at deposit time.
         // vaultIndex=0 for single deposits; split deposits would need
         // the index stored in localStorage (out of scope for this spike).
-        const context = buildHtlcSecretContext({
+        const contextParams = {
           depositorEthAddress,
           vaultProviderAddress: activity.providers[0]?.id ?? "",
           applicationEntryPoint: activity.applicationEntryPoint ?? "",
           vaultIndex: 0,
-        });
-        const derived = await btcWallet!.deriveContextHash!(context);
+        };
+        const derived = await deriveOrGenerateSecret(btcWallet, contextParams);
         setSecretHex(derived);
         setSubmitted(true);
         await handleActivation(derived);
@@ -362,7 +364,15 @@ export function ResumeActivationContent({
     };
 
     derive();
-  }, [canDerive, submitted, deriving, btcWallet, depositorEthAddress, activity, handleActivation]);
+  }, [
+    canDerive,
+    submitted,
+    deriving,
+    btcWallet,
+    depositorEthAddress,
+    activity,
+    handleActivation,
+  ]);
 
   const cleanSecret = secretHex.trim().replace(/^0x/, "");
   const isValidFormat = /^[0-9a-fA-F]{64}$/.test(cleanSecret);

@@ -6,6 +6,9 @@ import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
 /** Length of the deposit secret in bytes (256-bit). */
 const SECRET_LENGTH_BYTES = 32;
 
+/** Application name used for deriveContextHash domain separation. */
+const DERIVE_APP_NAME = "babylon-vault";
+
 /**
  * Generate a cryptographically random secret hex string for the new peg-in flow.
  *
@@ -62,8 +65,7 @@ export interface HtlcSecretContextParams {
 export function buildHtlcSecretContext(
   params: HtlcSecretContextParams,
 ): string {
-  const strip0x = (hex: string) =>
-    hex.startsWith("0x") ? hex.slice(2) : hex;
+  const strip0x = (hex: string) => (hex.startsWith("0x") ? hex.slice(2) : hex);
 
   // Concatenate raw hex: 20B depositor + 20B VP + 20B app + 4B index = 64 bytes
   const indexHex = params.vaultIndex.toString(16).padStart(8, "0");
@@ -90,15 +92,14 @@ export function buildHtlcSecretContext(
 export function walletSupportsDeriveContextHash(
   wallet: BitcoinWallet | null,
 ): boolean {
-  return (
-    wallet !== null && typeof wallet.deriveContextHash === "function"
-  );
+  return wallet !== null && typeof wallet.deriveContextHash === "function";
 }
 
 /**
  * Derive an HTLC secret deterministically from the wallet using
  * the deriveContextHash API. Falls back to random generation if
- * the wallet doesn't support it.
+ * the wallet doesn't support it or the call fails at runtime
+ * (e.g., the underlying extension hasn't shipped the method yet).
  *
  * @returns The 64-character hex secret (no 0x prefix)
  */
@@ -107,8 +108,14 @@ export async function deriveOrGenerateSecret(
   contextParams: HtlcSecretContextParams,
 ): Promise<string> {
   if (walletSupportsDeriveContextHash(wallet)) {
-    const context = buildHtlcSecretContext(contextParams);
-    return await wallet!.deriveContextHash!(context);
+    try {
+      const context = buildHtlcSecretContext(contextParams);
+      return await wallet!.deriveContextHash!(DERIVE_APP_NAME, context);
+    } catch {
+      // The wallet wrapper declares deriveContextHash but the underlying
+      // provider may not implement it yet. Fall back to random generation.
+      return generateSecretHex();
+    }
   }
   return generateSecretHex();
 }
