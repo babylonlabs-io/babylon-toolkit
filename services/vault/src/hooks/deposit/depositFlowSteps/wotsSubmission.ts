@@ -1,15 +1,15 @@
 /**
  * Step 2.5: WOTS public key RPC submission
  *
- * Derives a deterministic WOTS keypair from the depositor's mnemonic
+ * Derives deterministic WOTS block public keys from the depositor's mnemonic
  * and vault-specific inputs (pegin txid, depositor pubkey, app contract
- * address), then submits the full public key to the vault provider via RPC.
+ * address), then submits them to the vault provider via RPC.
  *
- * Note: The WOTS keypair is first derived *before* the ETH transaction
- * so its keccak256 hash can be committed on-chain as `depositorWotsPkHash`.
- * This function re-derives the same keypair and sends the full public key
- * to the vault provider *after* the ETH transaction is confirmed, since the
- * VP only accepts keys for pegins that are finalized on Ethereum.
+ * Note: The WOTS keys are first derived *before* the ETH transaction
+ * so their keccak256 hash can be committed on-chain as `depositorWotsPkHash`.
+ * This function re-derives the same keys and sends them to the vault
+ * provider *after* the ETH transaction is confirmed, since the VP only
+ * accepts keys for pegins that are finalized on Ethereum.
  *
  * Also used by the "resume deposit" flow when a user returns after closing
  * the app before the RPC submission completed.
@@ -18,11 +18,7 @@
 import { VaultProviderRpcApi } from "@/clients/vault-provider-rpc";
 import { DaemonStatus } from "@/models/peginStateMachine";
 import { waitForPeginStatus } from "@/services/vault/vaultPeginStatusService";
-import {
-  deriveWotsKeypair,
-  keypairToPublicKey,
-  mnemonicToWotsSeed,
-} from "@/services/wots";
+import { deriveWotsBlockPublicKeys, mnemonicToWotsSeed } from "@/services/wots";
 import { stripHexPrefix } from "@/utils/btc";
 import { getVpProxyUrl } from "@/utils/rpc";
 
@@ -56,9 +52,9 @@ const TARGET_STATUSES = new Set<string>([
 ]);
 
 /**
- * Derive a WOTS keypair from the mnemonic and submit the full public
- * key to the vault provider via RPC. The VP validates the key against the
- * keccak256 hash committed on-chain during the pegin ETH transaction.
+ * Derive WOTS block public keys from the mnemonic and submit them to the
+ * vault provider via RPC. The VP validates the keys against the keccak256
+ * hash committed on-chain during the pegin ETH transaction.
  *
  * Polls `getPeginStatus` first to ensure the VP has ingested the pegin and
  * is ready to accept the WOTS key (status = `PendingDepositorWotsPK`).
@@ -99,19 +95,13 @@ export async function submitWotsPublicKey(
   signal?.throwIfAborted();
 
   const seed = mnemonicToWotsSeed(mnemonic);
-  let wotsPublicKey: ReturnType<typeof keypairToPublicKey>;
-  try {
-    const keypair = await deriveWotsKeypair(
-      seed,
-      peginTxHash,
-      depositorBtcPubkey,
-      appContractAddress,
-    );
-    wotsPublicKey = keypairToPublicKey(keypair);
-  } finally {
-    // Zero out seed to avoid leaving sensitive key material in memory
-    seed.fill(0);
-  }
+  const wotsPublicKeys = await deriveWotsBlockPublicKeys(
+    seed,
+    peginTxHash,
+    depositorBtcPubkey,
+    appContractAddress,
+  );
+  // seed is zeroed inside deriveWotsBlockPublicKeys
 
   signal?.throwIfAborted();
 
@@ -123,6 +113,6 @@ export async function submitWotsPublicKey(
   await rpcClient.submitDepositorWotsKey({
     pegin_txid: stripHexPrefix(peginTxHash),
     depositor_pk: stripHexPrefix(depositorBtcPubkey),
-    wots_public_keys: wotsPublicKey,
+    wots_public_keys: wotsPublicKeys,
   });
 }

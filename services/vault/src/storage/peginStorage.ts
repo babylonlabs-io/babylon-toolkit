@@ -33,6 +33,7 @@ export interface PendingPeginRequest {
   applicationEntryPoint?: string; // Application controller address (for identifying the app)
   status: LocalStorageStatus; // Track user actions (required, defaults to PENDING)
   peginTxHash: Hex; // Raw BTC pegin transaction hash
+  depositorBtcPubkey?: string; // Depositor's BTC public key (x-only, for WOTS derivation in resume flow)
   // Fields for cross-device broadcasting support
   unsignedTxHex?: string; // Funded Pre-PegIn tx hex (for broadcasting later)
   selectedUTXOs?: Array<{

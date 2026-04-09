@@ -35,6 +35,14 @@ vi.mock("../../../config/pegin", () => ({
   getBTCNetworkForWASM: vi.fn().mockReturnValue("testnet"),
 }));
 
+// Mock BTC utils — deriveBip86ScriptPubKeyHex needs bitcoinjs-lib ecc + network config
+vi.mock("../../../utils/btc", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../../utils/btc")>()),
+  deriveBip86ScriptPubKeyHex: vi.fn(
+    (xOnlyPubkey: string) => `0x5120${xOnlyPubkey.slice(0, 64)}`,
+  ),
+}));
+
 import { getVaultFromChain } from "../../../clients/eth-contract/btc-vault-registry/query";
 import { getTimelockPeginByVersion } from "../../../clients/eth-contract/protocol-params";
 import type { ClaimerTransactions } from "../../../clients/vault-provider-rpc/types";
@@ -303,10 +311,11 @@ describe("vaultPayoutSignatureService", () => {
         },
       ];
 
+      // Both claimers are registered vault keepers
       const context = {
         peginTxHex: "pegin_hex",
         vaultProviderBtcPubkey: "provider_pubkey",
-        vaultKeeperBtcPubkeys: ["keeper1"],
+        vaultKeeperBtcPubkeys: [claimer1Pubkey, claimer2Pubkey],
         universalChallengerBtcPubkeys: ["challenger1"],
         depositorBtcPubkey: "depositor_pubkey",
         timelockPegin: 100,
@@ -365,36 +374,82 @@ describe("vaultPayoutSignatureService", () => {
       // Verify PayoutManager was called correctly
       expect(mockSupportsBatchSigning).toHaveBeenCalledTimes(1);
       expect(mockSignPayoutTransactionsBatch).toHaveBeenCalledTimes(1);
+
+      // Claimers don't match VP or depositor pubkeys → treated as VK claimers
+      // → BIP-86 P2TR scriptPubKey derived from claimer's x-only pubkey
       expect(mockSignPayoutTransactionsBatch).toHaveBeenCalledWith([
-        {
+        expect.objectContaining({
           payoutTxHex: "payout_1",
           peginTxHex: "pegin_hex",
           assertTxHex: "assert_1",
-          vaultProviderBtcPubkey: "provider_pubkey",
-          vaultKeeperBtcPubkeys: ["keeper1"],
-          universalChallengerBtcPubkeys: ["challenger1"],
-          depositorBtcPubkey: "depositor_pubkey",
-          timelockPegin: 100,
-          registeredPayoutScriptPubKey: "0x0014aaaa",
-        },
-        {
+          registeredPayoutScriptPubKey: `0x5120${claimer1Pubkey}`,
+        }),
+        expect.objectContaining({
           payoutTxHex: "payout_2",
           peginTxHex: "pegin_hex",
           assertTxHex: "assert_2",
-          vaultProviderBtcPubkey: "provider_pubkey",
-          vaultKeeperBtcPubkeys: ["keeper1"],
-          universalChallengerBtcPubkeys: ["challenger1"],
-          depositorBtcPubkey: "depositor_pubkey",
-          timelockPegin: 100,
-          registeredPayoutScriptPubKey: "0x0014aaaa",
-        },
+          registeredPayoutScriptPubKey: `0x5120${claimer2Pubkey}`,
+        }),
       ]);
     });
 
-    it("should throw error when wallet does not support batch signing", async () => {
+    it("should use registered payout address for VP claimer", async () => {
+      const vpPubkey = "aa".repeat(32);
       const transactions = [
         {
-          claimerPubkeyXOnly: "claimer1",
+          claimerPubkeyXOnly: vpPubkey,
+          payoutTxHex: "payout_1",
+          assertTxHex: "assert_1",
+        },
+      ];
+
+      const registeredAddress = "0x0014aaaa";
+      const context = {
+        peginTxHex: "pegin_hex",
+        vaultProviderBtcPubkey: vpPubkey,
+        vaultKeeperBtcPubkeys: ["bb".repeat(32)],
+        universalChallengerBtcPubkeys: ["cc".repeat(32)],
+        depositorBtcPubkey: "dd".repeat(32),
+        timelockPegin: 100,
+        network: "testnet" as const,
+        registeredPayoutScriptPubKey: registeredAddress,
+      };
+
+      const { PayoutManager } = await import("@babylonlabs-io/ts-sdk/tbv/core");
+      const mockSignPayoutTransactionsBatch = vi
+        .fn()
+        .mockResolvedValue([{ signature: "sig" }]);
+
+      (PayoutManager as any).mockImplementationOnce(function () {
+        return {
+          supportsBatchSigning: vi.fn().mockReturnValue(true),
+          signPayoutTransactionsBatch: mockSignPayoutTransactionsBatch,
+        };
+      });
+
+      const wallet = {
+        getPublicKeyHex: vi.fn(),
+        getAddress: vi.fn(),
+        signPsbt: vi.fn(),
+        signPsbts: vi.fn(),
+        signMessage: vi.fn(),
+        getNetwork: vi.fn(),
+      };
+
+      await signAllTransactionsBatch(wallet as any, context, transactions);
+
+      expect(mockSignPayoutTransactionsBatch).toHaveBeenCalledWith([
+        expect.objectContaining({
+          registeredPayoutScriptPubKey: registeredAddress,
+        }),
+      ]);
+    });
+
+    it("should throw for unknown claimer pubkey", async () => {
+      const unknownPubkey = "ff".repeat(32);
+      const transactions = [
+        {
+          claimerPubkeyXOnly: unknownPubkey,
           payoutTxHex: "payout_1",
           assertTxHex: "assert_1",
         },
@@ -402,10 +457,108 @@ describe("vaultPayoutSignatureService", () => {
 
       const context = {
         peginTxHex: "pegin_hex",
-        vaultProviderBtcPubkey: "provider_pubkey",
-        vaultKeeperBtcPubkeys: ["keeper1"],
-        universalChallengerBtcPubkeys: ["challenger1"],
-        depositorBtcPubkey: "depositor_pubkey",
+        vaultProviderBtcPubkey: "aa".repeat(32),
+        vaultKeeperBtcPubkeys: ["bb".repeat(32)],
+        universalChallengerBtcPubkeys: ["cc".repeat(32)],
+        depositorBtcPubkey: "dd".repeat(32),
+        timelockPegin: 100,
+        network: "testnet" as const,
+        registeredPayoutScriptPubKey: "0x0014aaaa",
+      };
+
+      const { PayoutManager } = await import("@babylonlabs-io/ts-sdk/tbv/core");
+
+      (PayoutManager as any).mockImplementationOnce(function () {
+        return {
+          supportsBatchSigning: vi.fn().mockReturnValue(true),
+          signPayoutTransactionsBatch: vi.fn(),
+        };
+      });
+
+      const wallet = {
+        getPublicKeyHex: vi.fn(),
+        getAddress: vi.fn(),
+        signPsbt: vi.fn(),
+        signPsbts: vi.fn(),
+        signMessage: vi.fn(),
+        getNetwork: vi.fn(),
+      };
+
+      await expect(
+        signAllTransactionsBatch(wallet as any, context, transactions),
+      ).rejects.toThrow("Unknown claimer pubkey");
+    });
+
+    it("should match claimer pubkeys case-insensitively", async () => {
+      const vpPubkeyLower = "aabb".repeat(16);
+      const vpPubkeyUpper = vpPubkeyLower.toUpperCase();
+      const transactions = [
+        {
+          claimerPubkeyXOnly: vpPubkeyUpper,
+          payoutTxHex: "payout_1",
+          assertTxHex: "assert_1",
+        },
+      ];
+
+      const registeredAddress = "0x0014aaaa";
+      const context = {
+        peginTxHex: "pegin_hex",
+        vaultProviderBtcPubkey: vpPubkeyLower,
+        vaultKeeperBtcPubkeys: ["bb".repeat(32)],
+        universalChallengerBtcPubkeys: ["cc".repeat(32)],
+        depositorBtcPubkey: "dd".repeat(32),
+        timelockPegin: 100,
+        network: "testnet" as const,
+        registeredPayoutScriptPubKey: registeredAddress,
+      };
+
+      const { PayoutManager } = await import("@babylonlabs-io/ts-sdk/tbv/core");
+      const mockSignPayoutTransactionsBatch = vi
+        .fn()
+        .mockResolvedValue([{ signature: "sig" }]);
+
+      (PayoutManager as any).mockImplementationOnce(function () {
+        return {
+          supportsBatchSigning: vi.fn().mockReturnValue(true),
+          signPayoutTransactionsBatch: mockSignPayoutTransactionsBatch,
+        };
+      });
+
+      const wallet = {
+        getPublicKeyHex: vi.fn(),
+        getAddress: vi.fn(),
+        signPsbt: vi.fn(),
+        signPsbts: vi.fn(),
+        signMessage: vi.fn(),
+        getNetwork: vi.fn(),
+      };
+
+      await signAllTransactionsBatch(wallet as any, context, transactions);
+
+      // Despite different casing, VP claimer should use registered address
+      expect(mockSignPayoutTransactionsBatch).toHaveBeenCalledWith([
+        expect.objectContaining({
+          registeredPayoutScriptPubKey: registeredAddress,
+        }),
+      ]);
+    });
+
+    it("should throw error when wallet does not support batch signing", async () => {
+      const keeperPubkey = "ee".repeat(32);
+      const transactions = [
+        {
+          claimerPubkeyXOnly: keeperPubkey,
+          payoutTxHex: "payout_1",
+          assertTxHex: "assert_1",
+        },
+      ];
+
+      const context = {
+        peginTxHex: "pegin_hex",
+        vaultProviderBtcPubkey: "aa".repeat(32),
+        vaultKeeperBtcPubkeys: [keeperPubkey],
+        universalChallengerBtcPubkeys: ["cc".repeat(32)],
+        depositorBtcPubkey: "dd".repeat(32),
         timelockPegin: 100,
         network: "testnet" as const,
         registeredPayoutScriptPubKey: "0x0014aaaa",
@@ -439,9 +592,10 @@ describe("vaultPayoutSignatureService", () => {
     });
 
     it("should throw error with proper message when batch signing fails", async () => {
+      const keeperPubkey = "cc".repeat(32);
       const transactions = [
         {
-          claimerPubkeyXOnly: "claimer1",
+          claimerPubkeyXOnly: keeperPubkey,
           payoutTxHex: "payout_1",
           assertTxHex: "assert_1",
         },
@@ -449,10 +603,10 @@ describe("vaultPayoutSignatureService", () => {
 
       const context = {
         peginTxHex: "pegin_hex",
-        vaultProviderBtcPubkey: "provider_pubkey",
-        vaultKeeperBtcPubkeys: ["keeper1"],
-        universalChallengerBtcPubkeys: ["challenger1"],
-        depositorBtcPubkey: "depositor_pubkey",
+        vaultProviderBtcPubkey: "aa".repeat(32),
+        vaultKeeperBtcPubkeys: [keeperPubkey],
+        universalChallengerBtcPubkeys: ["dd".repeat(32)],
+        depositorBtcPubkey: "bb".repeat(32),
         timelockPegin: 100,
         network: "testnet" as const,
         registeredPayoutScriptPubKey: "0x0014aaaa",
@@ -491,9 +645,10 @@ describe("vaultPayoutSignatureService", () => {
     });
 
     it("should handle unknown errors gracefully", async () => {
+      const keeperPubkey = "cc".repeat(32);
       const transactions = [
         {
-          claimerPubkeyXOnly: "claimer1",
+          claimerPubkeyXOnly: keeperPubkey,
           payoutTxHex: "payout_1",
           assertTxHex: "assert_1",
         },
@@ -501,10 +656,10 @@ describe("vaultPayoutSignatureService", () => {
 
       const context = {
         peginTxHex: "pegin_hex",
-        vaultProviderBtcPubkey: "provider_pubkey",
-        vaultKeeperBtcPubkeys: ["keeper1"],
-        universalChallengerBtcPubkeys: ["challenger1"],
-        depositorBtcPubkey: "depositor_pubkey",
+        vaultProviderBtcPubkey: "aa".repeat(32),
+        vaultKeeperBtcPubkeys: [keeperPubkey],
+        universalChallengerBtcPubkeys: ["dd".repeat(32)],
+        depositorBtcPubkey: "bb".repeat(32),
         timelockPegin: 100,
         network: "testnet" as const,
         registeredPayoutScriptPubKey: "0x0014aaaa",
@@ -721,21 +876,22 @@ describe("vaultPayoutSignatureService", () => {
   });
 
   describe("signPayoutTransactions", () => {
+    const claimer1Pubkey =
+      "1111111111111111111111111111111111111111111111111111111111111111";
+    const claimer2Pubkey =
+      "2222222222222222222222222222222222222222222222222222222222222222";
+
+    // Both claimers are registered vault keepers
     const context = {
       peginTxHex: "pegin_hex",
       vaultProviderBtcPubkey: "provider_pubkey",
-      vaultKeeperBtcPubkeys: ["keeper1"],
+      vaultKeeperBtcPubkeys: [claimer1Pubkey, claimer2Pubkey],
       universalChallengerBtcPubkeys: ["challenger1"],
       depositorBtcPubkey: "depositor_pubkey",
       timelockPegin: 100,
       network: "testnet" as const,
       registeredPayoutScriptPubKey: "0x0014aaaa",
     };
-
-    const claimer1Pubkey =
-      "1111111111111111111111111111111111111111111111111111111111111111";
-    const claimer2Pubkey =
-      "2222222222222222222222222222222222222222222222222222222222222222";
 
     const transactions = [
       {

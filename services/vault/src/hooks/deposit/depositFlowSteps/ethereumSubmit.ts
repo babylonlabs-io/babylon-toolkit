@@ -8,9 +8,12 @@ import type { Address, WalletClient } from "viem";
 import { getWalletClient, switchChain } from "wagmi/actions";
 
 import { logger } from "@/infrastructure";
-import { registerPeginOnChain } from "@/services/vault/vaultTransactionService";
+import { registerPeginBatchOnChain } from "@/services/vault/vaultTransactionService";
 
-import type { PeginRegisterParams, PeginRegisterResult } from "./types";
+import type {
+  PeginBatchRegisterParams,
+  PeginBatchRegisterResult,
+} from "./types";
 
 // ============================================================================
 // Step 1: Get ETH Wallet Client
@@ -52,50 +55,39 @@ export async function getEthWalletClient(
 }
 
 // ============================================================================
-// Step 2b: Register Pegin On-Chain (PoP + ETH tx + wait confirmation)
+// Step 2b: Batch Register Pegins On-Chain (single ETH tx for N vaults)
 // ============================================================================
 
 /**
- * Submit the PoP signature and ETH transaction, then wait for confirmation.
- * Receipt verification is handled by the SDK's registerPeginOnChain().
+ * Submit all vault registrations in a single ETH transaction using
+ * submitPeginRequestBatch(). Receipt verification is handled by the SDK.
  */
-export async function registerPeginAndWait(
-  params: PeginRegisterParams,
-): Promise<PeginRegisterResult> {
+export async function registerPeginBatchAndWait(
+  params: PeginBatchRegisterParams,
+): Promise<PeginBatchRegisterResult> {
   const {
     btcWalletProvider,
     walletClient,
-    depositorBtcPubkey,
-    peginTxHex,
-    unsignedPrePeginTxHex,
-    hashlock,
-    htlcVout,
     vaultProviderAddress,
-    onPopSigned,
-    depositorPayoutBtcAddress,
-    depositorWotsPkHash,
+    requests,
     preSignedBtcPopSignature,
-    depositorSecretHash,
+    onPopSigned,
   } = params;
 
-  const result = await registerPeginOnChain(btcWalletProvider, walletClient, {
-    depositorBtcPubkey,
-    unsignedPrePeginTxHex,
-    peginTxHex,
-    hashlock,
-    htlcVout,
-    vaultProviderAddress: vaultProviderAddress as Address,
-    onPopSigned,
-    depositorPayoutBtcAddress,
-    depositorWotsPkHash,
-    preSignedBtcPopSignature,
-    depositorSecretHash,
-  });
+  const result = await registerPeginBatchOnChain(
+    btcWalletProvider,
+    walletClient,
+    {
+      vaultProviderAddress: vaultProviderAddress as Address,
+      requests,
+      preSignedBtcPopSignature,
+      onPopSigned,
+    },
+  );
 
   return {
-    vaultId: result.vaultId,
-    peginTxHash: result.peginTxHash,
-    ethTxHash: result.transactionHash,
+    ethTxHash: result.ethTxHash,
+    vaults: result.vaults,
     btcPopSignature: result.btcPopSignature,
   };
 }

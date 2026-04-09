@@ -175,6 +175,7 @@ export function useVaultActions(): UseVaultActionsReturn {
           providerIds: activityProviders.map((p) => p.id),
           applicationEntryPoint: activityApplicationEntryPoint,
           peginTxHash: vault.peginTxHash,
+          depositorBtcPubkey: vault.depositorBtcPubkey,
           status: nextStatus,
         });
       }

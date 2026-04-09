@@ -2,7 +2,7 @@
  * Aave Vault Status Service
  *
  * Fetches vault usage status within Aave from the GraphQL indexer.
- * Status indicates whether a vault is none (unregistered), collateralized, escrowed, or redeemed.
+ * Status indicates whether a vault is none (unregistered), collateralized, llp_owned, or redeemed.
  */
 
 import { gql } from "graphql-request";
@@ -13,13 +13,13 @@ import { graphqlClient } from "../../../clients/graphql";
  * Aave vault usage status
  * - "none": Default for uninitialized entries; vault not registered with Aave
  * - "collateralized": Vault is backing an Aave position
- * - "escrowed": Vault is in VaultSwap escrow after liquidation
+ * - "llp_owned": Vault ownership transferred to LLP after liquidation
  * - "redeemed": Vault has been redeemed
  */
 export type AaveVaultUsageStatus =
   | "none"
   | "collateralized"
-  | "escrowed"
+  | "llp_owned"
   | "redeemed";
 
 /**

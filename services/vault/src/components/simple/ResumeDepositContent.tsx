@@ -25,6 +25,7 @@ import { useActivationState } from "@/hooks/deposit/useActivationState";
 import { useBroadcastState } from "@/hooks/deposit/useBroadcastState";
 import { useRefundState } from "@/hooks/deposit/useRefundState";
 import { useRunOnce } from "@/hooks/useRunOnce";
+import { fetchVaultById } from "@/services/vault/fetchVaults";
 import {
   getMnemonicIdForPegin,
   hasMnemonicEntry,
@@ -204,9 +205,16 @@ export function ResumeWotsContent({
           throw new Error("Missing pegin transaction hash");
         }
 
-        if (!activity.depositorBtcPubkey) {
+        // Resolve depositorBtcPubkey — available on confirmed vaults from indexer,
+        // but may be missing on pending (localStorage-only) activities.
+        let depositorBtcPubkey = activity.depositorBtcPubkey;
+        if (!depositorBtcPubkey) {
+          const vault = await fetchVaultById(activity.id);
+          depositorBtcPubkey = vault?.depositorBtcPubkey;
+        }
+        if (!depositorBtcPubkey) {
           throw new Error(
-            "Missing depositor BTC public key on activity; cannot derive WOTS keypair",
+            "Missing depositor BTC public key; vault may not be indexed yet. Please try again shortly.",
           );
         }
         if (!activity.applicationEntryPoint) {
@@ -217,7 +225,7 @@ export function ResumeWotsContent({
 
         await submitWotsPublicKey({
           peginTxHash,
-          depositorBtcPubkey: activity.depositorBtcPubkey,
+          depositorBtcPubkey,
           appContractAddress: activity.applicationEntryPoint,
           providerAddress,
           getMnemonic: () => Promise.resolve(mnemonic),

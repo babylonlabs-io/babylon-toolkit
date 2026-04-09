@@ -4,7 +4,7 @@
  * Source: https://github.com/babylonlabs-io/btc-vault/blob/main/docs/pegin.md
  */
 
-import type { WotsPublicKey } from "@/services/wots";
+import type { WotsBlockPublicKey } from "@/services/wots";
 
 // ============================================================================
 // Request Parameter Types
@@ -20,7 +20,7 @@ export interface RequestDepositorPresignTransactionsParams {
 export interface SubmitDepositorWotsKeyParams {
   pegin_txid: string;
   depositor_pk: string;
-  wots_public_keys: WotsPublicKey;
+  wots_public_keys: WotsBlockPublicKey[];
 }
 
 /** Per-challenger signatures for the depositor-as-claimer flow. */
@@ -79,15 +79,32 @@ export interface ClaimerTransactions {
   payout_psbt: string;
 }
 
+/** Per-segment connector data for ChallengeAssert inputs. */
+export interface ChallengeAssertConnectorData {
+  /** JSON string of WOTS public keys for this segment */
+  wots_pks_json: string;
+  /** JSON string of GC WOTS public keys for this segment */
+  gc_wots_keys_json: string;
+}
+
 /** Challenger-specific transactions and signing data for the depositor graph. */
 export interface PresignDataPerChallenger {
   challenger_pubkey: string;
-  challenge_assert_tx: TransactionData;
+  /** ChallengeAssertX transaction hex */
+  challenge_assert_x_tx: TransactionData;
+  /** ChallengeAssertY transaction hex */
+  challenge_assert_y_tx: TransactionData;
   nopayout_tx: TransactionData;
-  /** Unsigned PSBT (base64) for the ChallengeAssert transaction. */
-  challenge_assert_psbt: string;
+  /** Unsigned PSBT (base64) for the ChallengeAssertX transaction. */
+  challenge_assert_x_psbt: string;
+  /** Unsigned PSBT (base64) for the ChallengeAssertY transaction. */
+  challenge_assert_y_psbt: string;
   /** Unsigned PSBT (base64) for the NoPayout transaction (input 0). */
   nopayout_psbt: string;
+  /** Per-segment connector data for ChallengeAssert inputs. */
+  challenge_assert_connectors: ChallengeAssertConnectorData[];
+  /** Output label hashes (one SHA256 hex per GC). Server-only BaBe data. */
+  output_label_hashes: string[];
 }
 
 /** Depositor-as-claimer TxGraph transactions (claim, assert, payout + challengers). */

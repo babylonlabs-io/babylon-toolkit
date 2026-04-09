@@ -10,20 +10,20 @@ export {
   unlockMnemonic,
 } from "./mnemonicVaultService";
 export {
-  computeWotsPkHash,
+  computeWotsPublicKeysHash,
   createVerificationChallenge,
-  deriveWotsKeypair,
+  deriveWotsBlockPublicKeys,
   deriveWotsPkHash,
   generateWotsMnemonic,
   getMnemonicWords,
   isValidMnemonic,
   isWotsMismatchError,
-  keypairToPublicKey,
   mnemonicToWotsSeed,
   verifyMnemonicWords,
 } from "./wotsService";
 export type {
   VerificationChallenge,
-  WotsKeypair,
-  WotsPublicKey,
+  WotsBlockPublicKey,
+  WotsConfig,
+  WotsPublicKeys,
 } from "./wotsService";

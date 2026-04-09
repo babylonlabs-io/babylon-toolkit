@@ -56,7 +56,7 @@ vi.mock("../useVaultProviders", () => ({
 
 vi.mock("@/services/vault/vaultTransactionService", () => ({
   preparePeginTransaction: vi.fn(),
-  registerPeginOnChain: vi.fn(),
+  registerPeginBatchOnChain: vi.fn(),
 }));
 
 vi.mock("@/services/vault/vaultPayoutSignatureService", () => ({
@@ -155,7 +155,7 @@ vi.mock("../depositFlowSteps", () => ({
     COMPLETED: 7,
   },
   getEthWalletClient: vi.fn(),
-  registerPeginAndWait: vi.fn(),
+  registerPeginBatchAndWait: vi.fn(),
   pollAndPreparePayoutSigning: vi.fn(),
   submitWotsPublicKey: vi.fn(),
   submitPayoutSignatures: vi.fn(),
@@ -276,7 +276,7 @@ async function setupDefaultMocks() {
   const { addPendingPegin } = vi.mocked(await import("@/storage/peginStorage"));
   const {
     getEthWalletClient,
-    registerPeginAndWait,
+    registerPeginBatchAndWait,
     pollAndPreparePayoutSigning,
     submitPayoutSignatures,
     waitForContractVerification,
@@ -324,10 +324,18 @@ async function setupDefaultMocks() {
   });
 
   vi.mocked(getEthWalletClient).mockResolvedValue(MOCK_ETH_WALLET as any);
-  vi.mocked(registerPeginAndWait).mockResolvedValue({
-    vaultId: "0xRegisteredVaultId" as Hex,
-    peginTxHash: "0xRegisteredPeginTxHash" as Hex,
-    ethTxHash: "0xEthTxHash" as Hex,
+  vi.mocked(registerPeginBatchAndWait).mockResolvedValue({
+    ethTxHash: "0xBatchEthTxHash" as Hex,
+    vaults: [
+      {
+        vaultId: "0xVault0Id" as Hex,
+        peginTxHash: "0xVault0BtcTxHash" as Hex,
+      },
+      {
+        vaultId: "0xVault1Id" as Hex,
+        peginTxHash: "0xVault1BtcTxHash" as Hex,
+      },
+    ],
     btcPopSignature: "0xMockPopSignature" as Hex,
   });
   vi.mocked(pollAndPreparePayoutSigning).mockResolvedValue({
@@ -413,9 +421,9 @@ describe("useMultiVaultDepositFlow", () => {
     });
   });
 
-  describe("Per-Vault Registration", () => {
-    it("should register each vault with correct htlcVout", async () => {
-      const { registerPeginAndWait } = vi.mocked(
+  describe("Batch Registration", () => {
+    it("should call registerPeginBatchAndWait once with all vaults", async () => {
+      const { registerPeginBatchAndWait } = vi.mocked(
         await import("../depositFlowSteps"),
       );
 
@@ -426,49 +434,34 @@ describe("useMultiVaultDepositFlow", () => {
       await executeWithAutoArtifactDownload(result);
 
       await waitFor(() => {
-        expect(registerPeginAndWait).toHaveBeenCalledTimes(2);
+        expect(registerPeginBatchAndWait).toHaveBeenCalledTimes(1);
+
+        const callArgs = registerPeginBatchAndWait.mock.calls[0]?.[0];
+        expect(callArgs?.vaultProviderAddress).toBe("0xProvider123");
+        expect(callArgs?.requests).toHaveLength(2);
 
         // First vault: htlcVout = 0
-        expect(registerPeginAndWait).toHaveBeenNthCalledWith(
-          1,
+        expect(callArgs?.requests[0]).toEqual(
           expect.objectContaining({
             htlcVout: 0,
-            peginTxHex: "peginTxHex0",
-            unsignedPrePeginTxHex: "batchFundedPrePeginHex",
+            depositorSignedPeginTx: "peginTxHex0",
+            unsignedPrePeginTx: "batchFundedPrePeginHex",
           }),
         );
 
         // Second vault: htlcVout = 1
-        expect(registerPeginAndWait).toHaveBeenNthCalledWith(
-          2,
+        expect(callArgs?.requests[1]).toEqual(
           expect.objectContaining({
             htlcVout: 1,
-            peginTxHex: "peginTxHex1",
-            unsignedPrePeginTxHex: "batchFundedPrePeginHex",
+            depositorSignedPeginTx: "peginTxHex1",
+            unsignedPrePeginTx: "batchFundedPrePeginHex",
           }),
         );
       });
     });
 
-    it("should reuse PoP signature from first vault for subsequent vaults", async () => {
-      const { registerPeginAndWait } = vi.mocked(
-        await import("../depositFlowSteps"),
-      );
-
-      // First call returns a PoP signature
-      vi.mocked(registerPeginAndWait)
-        .mockResolvedValueOnce({
-          vaultId: "0xVault0Id" as Hex,
-          peginTxHash: "0xVault0PeginTxHash" as Hex,
-          ethTxHash: "0xEthTx0" as Hex,
-          btcPopSignature: "0xPopSig" as Hex,
-        })
-        .mockResolvedValueOnce({
-          vaultId: "0xVault1Id" as Hex,
-          peginTxHash: "0xVault1PeginTxHash" as Hex,
-          ethTxHash: "0xEthTx1" as Hex,
-          btcPopSignature: "0xPopSig" as Hex,
-        });
+    it("should derive WOTS PK hashes for all vaults before batch call", async () => {
+      const { deriveWotsPkHash } = vi.mocked(await import("@/services/wots"));
 
       const { result } = renderHook(() =>
         useMultiVaultDepositFlow(MOCK_PARAMS),
@@ -477,21 +470,8 @@ describe("useMultiVaultDepositFlow", () => {
       await executeWithAutoArtifactDownload(result);
 
       await waitFor(() => {
-        // First vault: no pre-signed PoP
-        expect(registerPeginAndWait).toHaveBeenNthCalledWith(
-          1,
-          expect.objectContaining({
-            preSignedBtcPopSignature: undefined,
-          }),
-        );
-
-        // Second vault: reuses PoP from first
-        expect(registerPeginAndWait).toHaveBeenNthCalledWith(
-          2,
-          expect.objectContaining({
-            preSignedBtcPopSignature: "0xPopSig",
-          }),
-        );
+        // WOTS derivation should happen for each vault
+        expect(deriveWotsPkHash).toHaveBeenCalledTimes(2);
       });
     });
   });
@@ -776,11 +756,15 @@ describe("useMultiVaultDepositFlow", () => {
       ...MOCK_PARAMS,
       vaultAmounts: [100000n],
       htlcSecretHexes: ["ab".repeat(32)],
+      depositorSecretHashes: [("0x" + "aa".repeat(32)) as Hex],
     };
 
     it("should create batch with single vault amount", async () => {
       const { preparePeginTransaction } = vi.mocked(
         await import("@/services/vault/vaultTransactionService"),
+      );
+      const { registerPeginBatchAndWait } = vi.mocked(
+        await import("../depositFlowSteps"),
       );
 
       // Return single-vault batch result
@@ -788,6 +772,18 @@ describe("useMultiVaultDepositFlow", () => {
         ...MOCK_BATCH_RESULT,
         perVault: [MOCK_BATCH_RESULT.perVault[0]],
       } as any);
+
+      // Single-vault batch registration
+      vi.mocked(registerPeginBatchAndWait).mockResolvedValueOnce({
+        ethTxHash: "0xSingleBatchEthTx" as Hex,
+        vaults: [
+          {
+            vaultId: "0xSingleVaultId" as Hex,
+            peginTxHash: "0xVault0BtcTxHash" as Hex,
+          },
+        ],
+        btcPopSignature: "0xPopSig" as Hex,
+      });
 
       const { result } = renderHook(() =>
         useMultiVaultDepositFlow(SINGLE_PARAMS),
@@ -803,6 +799,11 @@ describe("useMultiVaultDepositFlow", () => {
             pegInAmounts: [100000n],
           }),
         );
+
+        // Single vault should still use batch call with 1 request
+        expect(registerPeginBatchAndWait).toHaveBeenCalledTimes(1);
+        const callArgs = registerPeginBatchAndWait.mock.calls[0]?.[0];
+        expect(callArgs?.requests).toHaveLength(1);
       });
     });
   });

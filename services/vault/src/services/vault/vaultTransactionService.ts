@@ -7,7 +7,10 @@
 
 import { getETHChain } from "@babylonlabs-io/config";
 import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
-import type { UTXO as SDKUtxo } from "@babylonlabs-io/ts-sdk/tbv/core";
+import type {
+  BatchPeginRequestItem,
+  UTXO as SDKUtxo,
+} from "@babylonlabs-io/ts-sdk/tbv/core";
 import { ensureHexPrefix, PeginManager } from "@babylonlabs-io/ts-sdk/tbv/core";
 import type { Address, Hex, WalletClient } from "viem";
 
@@ -92,45 +95,31 @@ export interface PreparePeginResult {
 }
 
 /**
- * Parameters for registering a prepared pegin on-chain
+ * Parameters for batch-registering multiple prepared pegins on-chain in a single ETH tx.
  */
-export interface RegisterPeginOnChainParams {
-  depositorBtcPubkey: string;
-  /** Funded Pre-PegIn tx hex — submitted to contract as unsignedPrePeginTx for DA */
-  unsignedPrePeginTxHex: string;
-  /** PegIn tx hex — submitted to contract as depositorSignedPeginTx; vault ID derived from this */
-  peginTxHex: string;
-  /** SHA256 hashlock for HTLC activation (bytes32 hex with 0x prefix) */
-  hashlock: Hex;
-  /** Zero-based index of the HTLC output in the Pre-PegIn tx this PegIn spends */
-  htlcVout: number;
+export interface RegisterPeginBatchOnChainParams {
+  /** Vault provider address (shared across all vaults) */
   vaultProviderAddress: Address;
-  onPopSigned?: () => void | Promise<void>;
-  /** Depositor's BTC payout address (e.g. bc1p...) */
-  depositorPayoutBtcAddress: string;
-  /** Keccak256 hash of the depositor's WOTS public key */
-  depositorWotsPkHash: Hex;
-  /** Pre-signed BTC PoP signature to reuse (skips BTC wallet signing) */
+  /** Per-vault registration data */
+  requests: BatchPeginRequestItem[];
+  /** Pre-signed BTC PoP signature (signed once, reused for all) */
   preSignedBtcPopSignature?: Hex;
-  /**
-   * SHA-256 hash of the depositor's secret for the new peg-in flow.
-   * TODO: Pass to peginManager.registerPeginOnChain when contract ABI is updated to support the new peg-in flow.
-   */
-  depositorSecretHash?: Hex;
+  /** Called after PoP is signed (before ETH tx) */
+  onPopSigned?: () => void | Promise<void>;
 }
 
 /**
- * Result of registering a pegin on-chain (PoP + ETH tx only).
- * UTXOs and fee come from the earlier prepare step, not from registration.
+ * Result of batch-registering pegins on-chain.
  */
-export interface RegisterPeginResult {
-  transactionHash: Hex;
-  /** Derived vault ID: keccak256(abi.encode(peginTxHash, depositor)) */
-  vaultId: Hex;
-  /** Raw BTC pegin transaction hash (for VP RPC operations) */
-  peginTxHash: Hex;
-  btcTxHex: string;
-  /** The BTC PoP signature used, for reuse in subsequent pegins */
+export interface RegisterPeginBatchResult {
+  /** Ethereum transaction hash */
+  ethTxHash: Hex;
+  /** Per-vault results (same order as input requests) */
+  vaults: Array<{
+    vaultId: Hex;
+    peginTxHash: Hex;
+  }>;
+  /** The BTC PoP signature used */
   btcPopSignature: Hex;
 }
 
@@ -206,36 +195,28 @@ export async function preparePeginTransaction(
 }
 
 /**
- * Register a prepared pegin on Ethereum (PoP signature + contract call).
+ * Batch-register multiple prepared pegins on Ethereum in a single transaction.
  *
- * This is the second half of the pegin flow, called after the WOTS
- * keypair has been derived and its hash is available.
+ * Uses submitPeginRequestBatch() so users only sign one ETH tx for N vaults.
+ * The PoP signature is signed once and included in each request.
  */
-export async function registerPeginOnChain(
+export async function registerPeginBatchOnChain(
   btcWallet: BitcoinWallet,
   ethWallet: WalletClient,
-  params: RegisterPeginOnChainParams,
-): Promise<RegisterPeginResult> {
+  params: RegisterPeginBatchOnChainParams,
+): Promise<RegisterPeginBatchResult> {
   const peginManager = createPeginManager(btcWallet, ethWallet);
 
-  const registrationResult = await peginManager.registerPeginOnChain({
-    depositorBtcPubkey: params.depositorBtcPubkey,
-    unsignedPrePeginTx: params.unsignedPrePeginTxHex,
-    depositorSignedPeginTx: params.peginTxHex,
-    hashlock: params.hashlock,
-    htlcVout: params.htlcVout,
+  const result = await peginManager.registerPeginBatchOnChain({
     vaultProvider: params.vaultProviderAddress,
-    onPopSigned: params.onPopSigned,
-    depositorPayoutBtcAddress: params.depositorPayoutBtcAddress,
-    depositorWotsPkHash: params.depositorWotsPkHash,
+    requests: params.requests,
     preSignedBtcPopSignature: params.preSignedBtcPopSignature,
+    onPopSigned: params.onPopSigned,
   });
 
   return {
-    transactionHash: registrationResult.ethTxHash,
-    vaultId: registrationResult.vaultId,
-    peginTxHash: registrationResult.peginTxHash,
-    btcTxHex: params.unsignedPrePeginTxHex,
-    btcPopSignature: registrationResult.btcPopSignature,
+    ethTxHash: result.ethTxHash,
+    vaults: result.vaults,
+    btcPopSignature: result.btcPopSignature,
   };
 }

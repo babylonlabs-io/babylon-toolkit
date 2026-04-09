@@ -50,9 +50,13 @@ function createMockDepositorGraph(
     return {
       challenger_pubkey: pubkey,
       nopayout_tx: { tx_hex: `nopayout_tx_${i}` },
-      challenge_assert_tx: { tx_hex: `ca_tx_${i}` },
-      challenge_assert_psbt: mockPsbtBase64(`ca_psbt_${i}`),
+      challenge_assert_x_tx: { tx_hex: `ca_x_tx_${i}` },
+      challenge_assert_y_tx: { tx_hex: `ca_y_tx_${i}` },
+      challenge_assert_x_psbt: mockPsbtBase64(`ca_x_psbt_${i}`),
+      challenge_assert_y_psbt: mockPsbtBase64(`ca_y_psbt_${i}`),
       nopayout_psbt: mockPsbtBase64(`nopayout_psbt_${i}`),
+      challenge_assert_connectors: [],
+      output_label_hashes: [],
     };
   });
 
@@ -87,23 +91,20 @@ function createMockParams(
   };
 }
 
-/** Number of ChallengeAssert inputs used in test fixtures. */
-const TEST_CHALLENGE_ASSERT_INPUT_COUNT = 3;
-
 /**
  * Configure Psbt.fromBase64 mock to return a fake PSBT whose getTransaction()
  * returns the matching tx_hex for verification to pass.
+ * All PSBTs have a single input (ChallengeAssert X/Y each have 1 input).
  */
 function setupPsbtVerificationMock(
   depositorGraph: DepositorGraphTransactions,
 ): void {
   const txHexByPsbt = new Map<string, string>();
-  const challengeAssertPsbts = new Set<string>();
   txHexByPsbt.set(depositorGraph.payout_psbt, depositorGraph.payout_tx.tx_hex);
   for (const c of depositorGraph.challenger_presign_data) {
     txHexByPsbt.set(c.nopayout_psbt, c.nopayout_tx.tx_hex);
-    txHexByPsbt.set(c.challenge_assert_psbt, c.challenge_assert_tx.tx_hex);
-    challengeAssertPsbts.add(c.challenge_assert_psbt);
+    txHexByPsbt.set(c.challenge_assert_x_psbt, c.challenge_assert_x_tx.tx_hex);
+    txHexByPsbt.set(c.challenge_assert_y_psbt, c.challenge_assert_y_tx.tx_hex);
   }
 
   vi.mocked(Psbt.fromBase64).mockImplementation((b64: string) => {
@@ -116,9 +117,7 @@ function setupPsbtVerificationMock(
           toString: (encoding: string) =>
             encoding === "hex" ? (expectedHex ?? "mismatch") : "",
         }),
-        inputs: challengeAssertPsbts.has(b64)
-          ? Array(TEST_CHALLENGE_ASSERT_INPUT_COUNT).fill({})
-          : [{}],
+        inputs: [{}], // All PSBTs have a single input
       },
     } as any;
   });
@@ -140,26 +139,23 @@ describe("depositorGraphSigningService", () => {
 
   describe("signDepositorGraph", () => {
     it("should sign correct number of PSBTs for 1 challenger", async () => {
-      // 1 payout + 1 nopayout + 1 challenge_assert = 3 total PSBTs
+      // 1 payout + 1 nopayout + 2 challenge_assert (X + Y) = 4 total PSBTs
       const mockExtract = vi.mocked(extractPayoutSignature);
       mockExtract.mockReturnValue("deadbeef".repeat(16)); // 128-char hex sig
 
       const params = createMockParams();
       const wallet = params.btcWallet as any;
-      wallet.signPsbts.mockResolvedValue([
-        "signed_payout",
-        "signed_nopayout",
-        "signed_ca",
-      ]);
+      wallet.signPsbts.mockResolvedValue(Array(4).fill("signed_hex"));
 
       await signDepositorGraph(params);
 
-      // Batch sign should be called with 3 PSBTs and sign options
+      // Batch sign should be called with 4 PSBTs and sign options
       expect(wallet.signPsbts).toHaveBeenCalledWith(
         expect.arrayContaining([
           expect.any(String), // payout PSBT hex
           expect.any(String), // nopayout PSBT hex
-          expect.any(String), // challenge_assert PSBT hex
+          expect.any(String), // challenge_assert_x PSBT hex
+          expect.any(String), // challenge_assert_y PSBT hex
         ]),
         [
           // Payout: sign input 0
@@ -184,7 +180,7 @@ describe("depositorGraphSigningService", () => {
               },
             ],
           },
-          // ChallengeAssert: sign inputs 0, 1, 2
+          // ChallengeAssertX: sign input 0
           {
             autoFinalized: false,
             signInputs: [
@@ -193,13 +189,14 @@ describe("depositorGraphSigningService", () => {
                 publicKey: WALLET_COMPRESSED_PUBKEY,
                 disableTweakSigner: true,
               },
+            ],
+          },
+          // ChallengeAssertY: sign input 0
+          {
+            autoFinalized: false,
+            signInputs: [
               {
-                index: 1,
-                publicKey: WALLET_COMPRESSED_PUBKEY,
-                disableTweakSigner: true,
-              },
-              {
-                index: 2,
+                index: 0,
                 publicKey: WALLET_COMPRESSED_PUBKEY,
                 disableTweakSigner: true,
               },
@@ -210,24 +207,19 @@ describe("depositorGraphSigningService", () => {
     });
 
     it("should sign correct number of PSBTs for 2 challengers", async () => {
-      // 1 payout + 2 nopayout + 2 challenge_assert = 5 total
+      // 1 payout + 2 nopayout + 4 challenge_assert (2X + 2Y) = 7 total
       const mockExtract = vi.mocked(extractPayoutSignature);
       mockExtract.mockReturnValue("deadbeef".repeat(16));
 
       const graph = createMockDepositorGraph(2);
       const params = createMockParams({ depositorGraph: graph });
       const wallet = params.btcWallet as any;
-      wallet.signPsbts.mockResolvedValue(Array(5).fill("signed_hex"));
+      wallet.signPsbts.mockResolvedValue(Array(7).fill("signed_hex"));
 
       await signDepositorGraph(params);
 
-      // 5 PSBTs total
-      expect(wallet.signPsbts).toHaveBeenCalledWith(
-        expect.any(Array),
-        expect.any(Array),
-      );
       const [psbts] = wallet.signPsbts.mock.calls[0];
-      expect(psbts).toHaveLength(5);
+      expect(psbts).toHaveLength(7);
     });
 
     it("should return correct presignature structure", async () => {
@@ -240,23 +232,22 @@ describe("depositorGraphSigningService", () => {
 
       const params = createMockParams();
       const wallet = params.btcWallet as any;
-      wallet.signPsbts.mockResolvedValue(Array(3).fill("signed_hex"));
+      wallet.signPsbts.mockResolvedValue(Array(4).fill("signed_hex"));
 
       const result = await signDepositorGraph(params);
 
       // Payout signature (extracted first, index 0)
       expect(result.payout_signatures.payout_signature).toBe("sig_1");
 
-      // Per-challenger: 3 CA sigs extracted from inputs 0,1,2, then NoPayout
+      // Per-challenger: CA_X sig, CA_Y sig, then NoPayout
       const challengerPubkey = "a".repeat(64);
       const perChallenger = result.per_challenger[challengerPubkey];
       expect(perChallenger).toBeDefined();
       expect(perChallenger.challenge_assert_signatures).toEqual([
         "sig_2",
         "sig_3",
-        "sig_4",
       ]);
-      expect(perChallenger.nopayout_signature).toBe("sig_5");
+      expect(perChallenger.nopayout_signature).toBe("sig_4");
     });
 
     it("should fall back to sequential signing when signPsbts is not available", async () => {
@@ -271,8 +262,8 @@ describe("depositorGraphSigningService", () => {
 
       await signDepositorGraph(params);
 
-      // 3 PSBTs signed sequentially with per-PSBT sign options
-      expect(wallet.signPsbt).toHaveBeenCalledTimes(3);
+      // 4 PSBTs signed sequentially with per-PSBT sign options
+      expect(wallet.signPsbt).toHaveBeenCalledTimes(4);
     });
 
     it("should convert base64 PSBTs from VP to hex for wallet signing", async () => {
@@ -281,7 +272,7 @@ describe("depositorGraphSigningService", () => {
 
       const params = createMockParams();
       const wallet = params.btcWallet as any;
-      wallet.signPsbts.mockResolvedValue(Array(3).fill("signed_hex"));
+      wallet.signPsbts.mockResolvedValue(Array(4).fill("signed_hex"));
 
       await signDepositorGraph(params);
 
@@ -294,7 +285,7 @@ describe("depositorGraphSigningService", () => {
       expect(psbts[0]).toBe(expectedPayoutHex);
     });
 
-    it("should extract 3 sigs from ChallengeAssert PSBT using input indices", async () => {
+    it("should extract 1 sig each from ChallengeAssertX and ChallengeAssertY PSBTs", async () => {
       const mockExtract = vi.mocked(extractPayoutSignature);
       mockExtract.mockReturnValue("sig_hex");
 
@@ -303,36 +294,25 @@ describe("depositorGraphSigningService", () => {
       wallet.signPsbts.mockResolvedValue([
         "signed_payout",
         "signed_nopayout",
-        "signed_ca",
+        "signed_ca_x",
+        "signed_ca_y",
       ]);
 
       await signDepositorGraph(params);
 
-      // extractPayoutSignature should be called 5 times:
-      // 1 payout + 3 CA (input 0,1,2) + 1 nopayout
-      expect(mockExtract).toHaveBeenCalledTimes(5);
+      // extractPayoutSignature should be called 4 times:
+      // 1 payout + 1 CA_X + 1 CA_Y + 1 nopayout
+      expect(mockExtract).toHaveBeenCalledTimes(4);
 
       // Payout sig from signed_payout, input 0 (default)
       expect(mockExtract).toHaveBeenCalledWith(
         "signed_payout",
         DEPOSITOR_PUBKEY,
       );
-      // CA sigs from signed_ca, inputs 0, 1, 2
-      expect(mockExtract).toHaveBeenCalledWith(
-        "signed_ca",
-        DEPOSITOR_PUBKEY,
-        0,
-      );
-      expect(mockExtract).toHaveBeenCalledWith(
-        "signed_ca",
-        DEPOSITOR_PUBKEY,
-        1,
-      );
-      expect(mockExtract).toHaveBeenCalledWith(
-        "signed_ca",
-        DEPOSITOR_PUBKEY,
-        2,
-      );
+      // CA_X sig from signed_ca_x, input 0 (default)
+      expect(mockExtract).toHaveBeenCalledWith("signed_ca_x", DEPOSITOR_PUBKEY);
+      // CA_Y sig from signed_ca_y, input 0 (default)
+      expect(mockExtract).toHaveBeenCalledWith("signed_ca_y", DEPOSITOR_PUBKEY);
       // NoPayout sig from signed_nopayout, input 0 (default)
       expect(mockExtract).toHaveBeenCalledWith(
         "signed_nopayout",
@@ -404,24 +384,78 @@ describe("depositorGraphSigningService", () => {
 
       const params = createMockParams({ depositorGraph: graph });
       const wallet = params.btcWallet as any;
-      wallet.signPsbts.mockResolvedValue(Array(3).fill("signed_hex"));
+      wallet.signPsbts.mockResolvedValue(Array(4).fill("signed_hex"));
 
       await expect(signDepositorGraph(params)).rejects.toThrow(
         /Missing nopayout.*PSBT/,
       );
     });
 
-    it("should throw when challenger challenge_assert_psbt is missing", async () => {
+    it("should throw when challenge_assert_x_psbt is missing", async () => {
       const graph = createMockDepositorGraph(1);
-      (graph.challenger_presign_data[0] as any).challenge_assert_psbt =
+      (graph.challenger_presign_data[0] as any).challenge_assert_x_psbt =
         undefined;
 
       const params = createMockParams({ depositorGraph: graph });
       const wallet = params.btcWallet as any;
-      wallet.signPsbts.mockResolvedValue(Array(3).fill("signed_hex"));
+      wallet.signPsbts.mockResolvedValue(Array(4).fill("signed_hex"));
 
       await expect(signDepositorGraph(params)).rejects.toThrow(
-        /Missing challenge_assert.*PSBT/,
+        /Missing challenge_assert_x.*PSBT/,
+      );
+    });
+
+    it("should throw when challenge_assert_y_psbt is missing", async () => {
+      const graph = createMockDepositorGraph(1);
+      (graph.challenger_presign_data[0] as any).challenge_assert_y_psbt =
+        undefined;
+
+      const params = createMockParams({ depositorGraph: graph });
+      const wallet = params.btcWallet as any;
+      wallet.signPsbts.mockResolvedValue(Array(4).fill("signed_hex"));
+
+      await expect(signDepositorGraph(params)).rejects.toThrow(
+        /Missing challenge_assert_y.*PSBT/,
+      );
+    });
+
+    it("should throw when ChallengeAssert PSBT has wrong input count", async () => {
+      const graph = createMockDepositorGraph(1);
+      const params = createMockParams({ depositorGraph: graph });
+
+      // Override mock so CA_X PSBT returns 2 inputs instead of 1
+      const caXPsbt = graph.challenger_presign_data[0].challenge_assert_x_psbt;
+      const originalImpl = vi.mocked(Psbt.fromBase64).getMockImplementation()!;
+      vi.mocked(Psbt.fromBase64).mockImplementation((b64: string) => {
+        const result = originalImpl(b64);
+        if (b64 === caXPsbt) {
+          (result as any).data.inputs = [{}, {}]; // 2 inputs instead of 1
+        }
+        return result;
+      });
+
+      await expect(signDepositorGraph(params)).rejects.toThrow(
+        /challenge_assert_x.*has 2 inputs.*expected exactly 1/,
+      );
+    });
+
+    it("should throw when ChallengeAssert Y PSBT has wrong input count", async () => {
+      const graph = createMockDepositorGraph(1);
+      const params = createMockParams({ depositorGraph: graph });
+
+      // Override mock so CA_Y PSBT returns 0 inputs instead of 1
+      const caYPsbt = graph.challenger_presign_data[0].challenge_assert_y_psbt;
+      const originalImpl = vi.mocked(Psbt.fromBase64).getMockImplementation()!;
+      vi.mocked(Psbt.fromBase64).mockImplementation((b64: string) => {
+        const result = originalImpl(b64);
+        if (b64 === caYPsbt) {
+          (result as any).data.inputs = []; // 0 inputs instead of 1
+        }
+        return result;
+      });
+
+      await expect(signDepositorGraph(params)).rejects.toThrow(
+        /challenge_assert_y.*has 0 inputs.*expected exactly 1/,
       );
     });
 
@@ -491,11 +525,11 @@ describe("depositorGraphSigningService", () => {
       );
     });
 
-    it("should throw when challenge_assert PSBT does not match tx_hex", async () => {
+    it("should throw when challenge_assert_x PSBT does not match tx_hex", async () => {
       const graph = createMockDepositorGraph(1);
       const params = createMockParams({ depositorGraph: graph });
 
-      // Override mock to pass payout and nopayout but fail challenge_assert
+      // Override mock to pass payout and nopayout but fail challenge_assert_x
       const passingPsbts = new Set([
         graph.payout_psbt,
         graph.challenger_presign_data[0].nopayout_psbt,
@@ -520,7 +554,7 @@ describe("depositorGraphSigningService", () => {
                       : "wrong_tx_hex"
                     : "",
               }),
-              inputs: Array(TEST_CHALLENGE_ASSERT_INPUT_COUNT).fill({}),
+              inputs: [{}],
             },
           }) as any,
       );
@@ -533,18 +567,69 @@ describe("depositorGraphSigningService", () => {
       );
 
       await expect(signDepositorGraph(params)).rejects.toThrow(
-        /PSBT integrity check failed for challenge_assert/,
+        /PSBT integrity check failed for challenge_assert_x/,
+      );
+    });
+
+    it("should throw when challenge_assert_y PSBT does not match tx_hex", async () => {
+      const graph = createMockDepositorGraph(1);
+      const params = createMockParams({ depositorGraph: graph });
+
+      // Override mock to pass payout, nopayout, and CA_X but fail CA_Y
+      const passingPsbts = new Set([
+        graph.payout_psbt,
+        graph.challenger_presign_data[0].nopayout_psbt,
+        graph.challenger_presign_data[0].challenge_assert_x_psbt,
+      ]);
+      const txHexMap = new Map<string, string>([
+        [graph.payout_psbt, graph.payout_tx.tx_hex],
+        [
+          graph.challenger_presign_data[0].nopayout_psbt,
+          graph.challenger_presign_data[0].nopayout_tx.tx_hex,
+        ],
+        [
+          graph.challenger_presign_data[0].challenge_assert_x_psbt,
+          graph.challenger_presign_data[0].challenge_assert_x_tx.tx_hex,
+        ],
+      ]);
+      vi.mocked(Psbt.fromBase64).mockImplementation(
+        (b64: string) =>
+          ({
+            toHex: () => Buffer.from(b64, "base64").toString("hex"),
+            data: {
+              getTransaction: () => ({
+                toString: (encoding: string) =>
+                  encoding === "hex"
+                    ? passingPsbts.has(b64)
+                      ? (txHexMap.get(b64) ?? "wrong")
+                      : "wrong_tx_hex"
+                    : "",
+              }),
+              inputs: [{}],
+            },
+          }) as any,
+      );
+      vi.mocked(Psbt.fromHex).mockImplementation(
+        (hex: string) =>
+          ({
+            toHex: () => hex,
+            data: { inputs: [{}] },
+          }) as any,
+      );
+
+      await expect(signDepositorGraph(params)).rejects.toThrow(
+        /PSBT integrity check failed for challenge_assert_y/,
       );
     });
 
     it("should throw when wallet returns wrong number of signed PSBTs", async () => {
       const params = createMockParams();
       const wallet = params.btcWallet as any;
-      // Return 2 signed PSBTs when 3 are expected
+      // Return 2 signed PSBTs when 4 are expected
       wallet.signPsbts.mockResolvedValue(["signed_a", "signed_b"]);
 
       await expect(signDepositorGraph(params)).rejects.toThrow(
-        /Wallet returned 2 signed PSBTs, expected 3/,
+        /Wallet returned 2 signed PSBTs, expected 4/,
       );
     });
 
@@ -556,7 +641,7 @@ describe("depositorGraphSigningService", () => {
         depositorBtcPubkey: "0x" + DEPOSITOR_PUBKEY,
       });
       const wallet = params.btcWallet as any;
-      wallet.signPsbts.mockResolvedValue(Array(3).fill("signed_hex"));
+      wallet.signPsbts.mockResolvedValue(Array(4).fill("signed_hex"));
 
       await signDepositorGraph(params);
 
@@ -573,7 +658,7 @@ describe("depositorGraphSigningService", () => {
 
       const params = createMockParams();
       const wallet = params.btcWallet as any;
-      wallet.signPsbts.mockResolvedValue(Array(3).fill("signed_hex"));
+      wallet.signPsbts.mockResolvedValue(Array(4).fill("signed_hex"));
 
       // Track inputs created by fromHex (the clone)
       const clonedInputs: Record<string, unknown>[] = [];

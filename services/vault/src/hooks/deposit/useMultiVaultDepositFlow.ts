@@ -9,16 +9,15 @@
  * 0. Validation — check wallets, UTXOs, pubkeys, array alignment
  * 1. Get shared resources (ETH wallet client, mnemonic)
  * 2. Batch Pre-PegIn creation (one BTC tx with N HTLC outputs)
- * 3. Per-vault ETH registration (with PoP reuse)
+ * 3. Batch ETH registration (single submitPeginRequestBatch tx for all vaults)
  * 4. Broadcast Pre-PegIn transaction to Bitcoin + save to localStorage (CONFIRMING)
  * 5. Submit WOTS keys, poll VP, sign payout transactions
  * 6. Download vault artifacts (per vault, user-driven)
  * 7. Wait for contract verification, then activate vaults (reveal HTLC secret)
  *
- * ETH registration is all-or-nothing: if any vault fails, the Pre-PegIn is NOT
- * broadcast, so no BTC gets locked in unregistered HTLC outputs. Successfully
- * The on-chain registrations will expire after pegInAckTimeout. A future contract
- * update will batch all vault registrations into a single ETH call.
+ * ETH registration is atomic: submitPeginRequestBatch registers all vaults in a
+ * single transaction, so either all succeed or all fail. If it fails, the Pre-PegIn
+ * is NOT broadcast, so no BTC gets locked in unregistered HTLC outputs.
  */
 
 import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
@@ -54,7 +53,7 @@ import {
   DepositFlowStep,
   getEthWalletClient,
   pollAndPreparePayoutSigning,
-  registerPeginAndWait,
+  registerPeginBatchAndWait,
   submitPayoutSignatures,
   submitWotsPublicKey,
   waitForContractVerification,
@@ -338,64 +337,57 @@ export function useMultiVaultDepositFlow(
         );
 
         // ========================================================================
-        // Step 3: Register each vault on Ethereum (with PoP reuse)
+        // Step 3: Batch register all vaults on Ethereum (single ETH tx)
         // ========================================================================
 
         setCurrentStep(DepositFlowStep.SUBMIT_PEGIN);
 
-        let capturedPopSignature: Hex | undefined;
-
-        const peginResults: PeginCreationResult[] = [];
-
+        // 3a. Derive WOTS PK hashes for all vaults (must happen before ETH tx)
+        const wotsPkHashes: Hex[] = [];
         for (let i = 0; i < batchResult.perVault.length; i++) {
-          setCurrentVaultIndex(i);
-
           const vault = batchResult.perVault[i];
-          const htlcSecretHex = htlcSecretHexes[i];
-
-          // Derive keypair and compute WOTS PK hash (before ETH tx)
           const wotsPkHash = await deriveWotsPkHash(
             mnemonic,
             vault.peginTxHash,
             batchResult.depositorBtcPubkey,
             selectedApplication,
           );
+          wotsPkHashes.push(wotsPkHash);
+        }
 
-          const registration = await registerPeginAndWait({
-            btcWalletProvider: confirmedBtcWallet,
-            walletClient,
-            depositorBtcPubkey: batchResult.depositorBtcPubkey,
-            peginTxHex: vault.peginTxHex,
-            unsignedPrePeginTxHex: batchResult.fundedPrePeginTxHex,
-            hashlock: ensureHexPrefix(hashlocks[i]),
-            htlcVout: vault.htlcVout,
-            vaultProviderAddress: primaryProvider,
-            depositorPayoutBtcAddress: confirmedBtcAddress,
-            depositorWotsPkHash: wotsPkHash,
-            preSignedBtcPopSignature: capturedPopSignature,
-            depositorSecretHash: depositorSecretHashes[i],
-          });
+        // 3b. Build batch request array
+        const batchRequests = batchResult.perVault.map((vault, i) => ({
+          depositorBtcPubkey: batchResult.depositorBtcPubkey,
+          unsignedPrePeginTx: batchResult.fundedPrePeginTxHex,
+          depositorSignedPeginTx: vault.peginTxHex,
+          hashlock: ensureHexPrefix(hashlocks[i]) as Hex,
+          htlcVout: vault.htlcVout,
+          depositorPayoutBtcAddress: confirmedBtcAddress,
+          depositorWotsPkHash: wotsPkHashes[i],
+        }));
 
-          // Capture PoP signature from first vault for reuse
-          capturedPopSignature ??= registration.btcPopSignature;
+        // 3c. Single batch ETH transaction for all vaults
+        const batchRegistration = await registerPeginBatchAndWait({
+          btcWalletProvider: confirmedBtcWallet,
+          walletClient,
+          vaultProviderAddress: primaryProvider,
+          requests: batchRequests,
+        });
 
-          const peginResult: PeginCreationResult = {
+        // 3d. Build pegin results from batch response
+        const peginResults: PeginCreationResult[] =
+          batchRegistration.vaults.map((vault, i) => ({
             vaultIndex: i,
-            vaultId: registration.vaultId,
-            peginTxHash: registration.peginTxHash,
-            ethTxHash: registration.ethTxHash,
+            vaultId: vault.vaultId,
+            peginTxHash: vault.peginTxHash,
+            ethTxHash: batchRegistration.ethTxHash,
             fundedPrePeginTxHex: batchResult.fundedPrePeginTxHex,
-            peginTxHex: vault.peginTxHex,
+            peginTxHex: batchResult.perVault[i].peginTxHex,
             selectedUTXOs: batchResult.selectedUTXOs,
             fee: batchResult.fee,
             depositorBtcPubkey: batchResult.depositorBtcPubkey,
-            htlcSecretHex,
-          };
-
-          peginResults.push(peginResult);
-        }
-
-        setCurrentVaultIndex(null);
+            htlcSecretHex: htlcSecretHexes[i],
+          }));
 
         // ========================================================================
         // Step 4: Broadcast Pre-PegIn transaction to Bitcoin
@@ -450,6 +442,7 @@ export function useMultiVaultDepositFlow(
           addPendingPegin(confirmedEthAddress, {
             id: peginResult.vaultId,
             peginTxHash: peginResult.peginTxHash,
+            depositorBtcPubkey: peginResult.depositorBtcPubkey,
             amount: formatBtcValue(satoshiToBtcNumber(vaultAmount)),
             providerIds: [primaryProvider],
             applicationEntryPoint: selectedApplication,
@@ -525,8 +518,10 @@ export function useMultiVaultDepositFlow(
         // VP waits for Pre-PegIn BTC confirmation before being ready.
         // ========================================================================
 
-        for (const result of broadcastedResults) {
+        for (let vi = 0; vi < broadcastedResults.length; vi++) {
+          const result = broadcastedResults[vi];
           try {
+            setCurrentVaultIndex(vi);
             setIsWaiting(true);
             const {
               context,
@@ -603,6 +598,7 @@ export function useMultiVaultDepositFlow(
         }
 
         setPayoutSigningProgress(null);
+        setCurrentVaultIndex(null);
 
         // ========================================================================
         // Step 6: Download Vault Artifacts (per vault, sequential)
