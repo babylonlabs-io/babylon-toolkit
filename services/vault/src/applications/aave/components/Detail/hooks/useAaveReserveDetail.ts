@@ -12,6 +12,10 @@ import { formatUnits } from "viem";
 
 import { getTokenByAddress } from "@/services/token/tokenService";
 
+import {
+  KNOWN_STABLECOIN_SYMBOLS,
+  STABLECOIN_FALLBACK_PRICE_USD,
+} from "../../../constants";
 import { useAaveConfig } from "../../../context";
 import { useAaveUserPosition } from "../../../hooks";
 import type { AaveReserveConfig } from "../../../services/fetchConfig";
@@ -45,6 +49,8 @@ export interface UseAaveReserveDetailResult {
   totalDebtValueUsd: number;
   /** Health factor (null if no debt) */
   healthFactor: number | null;
+  /** Price of the selected borrow token in USD */
+  tokenPriceUsd: number;
 }
 
 export function useAaveReserveDetail({
@@ -108,6 +114,32 @@ export function useAaveReserveDetail({
   // Get liquidation threshold from vBTC reserve
   const liquidationThresholdBps = vbtcReserve?.reserve.collateralFactor ?? 0;
 
+  // Derive token price from oracle data when debt exists, otherwise use
+  // stablecoin fallback. This is valid because only one borrowable reserve
+  // exists currently — totalDebtValueUsd equals the selected reserve's debt.
+  // TODO: Replace with per-reserve oracle price when Spoke exposes it.
+  const tokenPriceUsd = useMemo(() => {
+    if (currentDebtAmount > 0 && debtValueUsd > 0) {
+      return debtValueUsd / currentDebtAmount;
+    }
+
+    // First-time borrow: no debt to derive price from.
+    // Only safe for stablecoins — throw for unknown tokens.
+    const symbol = selectedReserve?.token.symbol.toUpperCase();
+    const isKnownStablecoin =
+      symbol != null &&
+      (KNOWN_STABLECOIN_SYMBOLS as readonly string[]).includes(symbol);
+
+    if (!isKnownStablecoin) {
+      throw new Error(
+        `Cannot derive token price for ${symbol ?? "unknown"}: no existing debt and token is not a known stablecoin. ` +
+          `Add a per-reserve oracle price source to support non-stablecoin borrows.`,
+      );
+    }
+
+    return STABLECOIN_FALLBACK_PRICE_USD;
+  }, [currentDebtAmount, debtValueUsd, selectedReserve]);
+
   return {
     isLoading: configLoading || positionLoading,
     selectedReserve,
@@ -119,5 +151,6 @@ export function useAaveReserveDetail({
     currentDebtAmount,
     totalDebtValueUsd: debtValueUsd,
     healthFactor,
+    tokenPriceUsd,
   };
 }

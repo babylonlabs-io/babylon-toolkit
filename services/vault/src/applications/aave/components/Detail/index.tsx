@@ -47,6 +47,7 @@ export function AaveReserveDetail() {
     currentDebtAmount,
     totalDebtValueUsd,
     healthFactor,
+    tokenPriceUsd,
   } = useAaveReserveDetail({ reserveId, address });
 
   // Modal state management
@@ -130,6 +131,7 @@ export function AaveReserveDetail() {
     selectedReserve,
     assetConfig,
     proxyContract,
+    tokenPriceUsd,
     onBorrowSuccess: openBorrowSuccess,
     onRepaySuccess: openRepaySuccess,
   };

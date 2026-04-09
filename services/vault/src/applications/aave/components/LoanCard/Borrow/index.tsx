@@ -39,6 +39,7 @@ export function Borrow() {
     liquidationThresholdBps,
     selectedReserve,
     assetConfig,
+    tokenPriceUsd,
     onBorrowSuccess,
   } = useLoanContext();
 
@@ -48,6 +49,8 @@ export function Borrow() {
     useBorrowState({
       collateralValueUsd,
       currentDebtUsd: totalDebtValueUsd,
+      liquidationThresholdBps,
+      tokenPriceUsd,
     });
 
   const metrics = useBorrowMetrics({
@@ -56,6 +59,7 @@ export function Borrow() {
     currentDebtUsd: totalDebtValueUsd,
     liquidationThresholdBps,
     currentHealthFactor: healthFactor,
+    tokenPriceUsd,
   });
 
   const { isDisabled, buttonText, errorMessage } = validateBorrowAction(
@@ -116,7 +120,7 @@ export function Borrow() {
             }}
             onMaxClick={() => setBorrowAmount(sliderMaxBorrow)}
             rightField={{
-              value: formatUsdValue(borrowAmount),
+              value: formatUsdValue(borrowAmount * tokenPriceUsd),
             }}
             sliderActiveColor={getTokenBrandColor(assetConfig.symbol)}
             inputClassName={AMOUNT_INPUT_CLASS_NAME}

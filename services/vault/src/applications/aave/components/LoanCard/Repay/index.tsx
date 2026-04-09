@@ -37,6 +37,7 @@ export function Repay() {
     selectedReserve,
     assetConfig,
     proxyContract,
+    tokenPriceUsd,
     onRepaySuccess,
   } = useLoanContext();
 
@@ -70,6 +71,7 @@ export function Repay() {
     totalDebtValueUsd,
     liquidationThresholdBps,
     currentHealthFactor: healthFactor,
+    tokenPriceUsd,
   });
 
   const { isDisabled, buttonText, errorMessage } = validateRepayAction(
@@ -129,7 +131,7 @@ export function Repay() {
             }}
             onMaxClick={() => setRepayAmount(sliderMaxRepay)}
             rightField={{
-              value: formatUsdValue(repayAmount),
+              value: formatUsdValue(repayAmount * tokenPriceUsd),
             }}
             sliderActiveColor={getTokenBrandColor(assetConfig.symbol)}
             inputClassName={AMOUNT_INPUT_CLASS_NAME}
