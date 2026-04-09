@@ -81,7 +81,7 @@ export const MIN_SLIDER_MAX = 0.0001;
 
 /**
  * Tolerance for detecting full repayment
- * If repay amount is within this tolerance of max, treat as full repay
+ * If repay amount is within this tolerance of actual debt, treat as full repay
  */
 export const FULL_REPAY_TOLERANCE = 0.01;
 
