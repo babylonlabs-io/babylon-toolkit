@@ -306,8 +306,6 @@ export interface SignInputOptions {
    * When true, sign with the untweaked internal key.
    */
   disableTweakSigner?: boolean;
-  /** Use tweaked signer for Taproot key path spend */
-  useTweakedSigner?: boolean;
 }
 
 export interface SignPsbtOptions {
