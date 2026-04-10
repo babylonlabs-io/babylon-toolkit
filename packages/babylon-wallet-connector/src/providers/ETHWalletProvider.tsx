@@ -196,12 +196,56 @@ export const ETHWalletProvider = ({ children, callbacks }: ETHWalletProviderProp
     };
   }, [provider, callbacks, disconnect]);
 
-  // NOTE: A previous version also subscribed to window.ethereum.accountsChanged
-  // as a fallback for injected providers. That listener was unscoped — it fired
-  // even when the session used WalletConnect, allowing unrelated wallets to
-  // overwrite the active ETH identity. Removed per audit finding #54.
-  // The provider-specific listener above (via wagmi watchAccount) already handles
-  // account changes for all connector types including injected providers.
+  // Also listen directly to injected provider (window.ethereum) for account changes
+  // This is a fallback for when MetaMask is connected via injected provider
+  // and the AppKit provider events don't propagate correctly
+  useEffect(() => {
+    if (!address) return; // Only listen when connected
+    if (typeof window === "undefined") return;
+
+    const ethereum = (window as Window & { ethereum?: {
+      on?: (event: string, handler: (accounts: string[]) => void) => void;
+      removeListener?: (event: string, handler: (accounts: string[]) => void) => void;
+    } }).ethereum;
+    if (!ethereum || typeof ethereum.on !== "function") return;
+
+    const onInjectedAccountsChanged = async (accounts: string[]) => {
+      // Prevent duplicate processing if both provider and window.ethereum fire events
+      if (isProcessingChangeRef.current) return;
+
+      const newAddress = accounts[0];
+      const previousAddress = prevAddressRef.current;
+
+      // Handle disconnect/lock (empty accounts array)
+      if (!newAddress && previousAddress) {
+        disconnect();
+        return;
+      }
+
+      // Only handle if we're connected and address actually changed
+      if (newAddress && newAddress.toLowerCase() !== previousAddress?.toLowerCase()) {
+        // Set guard before async operations
+        isProcessingChangeRef.current = true;
+        prevAddressRef.current = newAddress;
+        setAddress(newAddress);
+        try {
+          await callbacks?.onAddressChange?.(newAddress);
+        } catch (error: unknown) {
+          callbacks?.onError?.(error instanceof Error ? error : new Error("ETH address change failed"), { address: newAddress });
+        } finally {
+          isProcessingChangeRef.current = false;
+        }
+      }
+    };
+
+    ethereum.on("accountsChanged", onInjectedAccountsChanged);
+
+    return () => {
+      if (typeof ethereum.removeListener === "function") {
+        ethereum.removeListener("accountsChanged", onInjectedAccountsChanged);
+      }
+    };
+  }, [address, callbacks]);
 
   // Check wallet connection when tab becomes visible
   // This handles the case where user disconnects from extension while tab is in background
