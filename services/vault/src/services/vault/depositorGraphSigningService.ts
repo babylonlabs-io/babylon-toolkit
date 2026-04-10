@@ -1,15 +1,14 @@
 /**
  * Depositor Graph Signing Service
  *
- * Signs the depositor's own graph transactions (Payout, NoPayout per challenger,
- * ChallengeAssert per challenger) using pre-built PSBTs from the vault provider.
+ * Signs the depositor's own graph transactions (Payout, NoPayout per challenger)
+ * using pre-built PSBTs from the vault provider.
  *
  * The VP returns unsigned PSBTs with prevouts, scripts, and taproot metadata
  * already embedded (BIP 174), so any standard PSBT-compatible signer can
  * produce signatures without extra context.
  *
- * Transaction counts: 1 Payout + N NoPayout + 2N ChallengeAssert (X + Y) = 1 + 3N total PSBTs
- * Each ChallengeAssert X/Y PSBT has a single input to sign.
+ * Transaction counts: 1 Payout + N NoPayout = 1 + N total PSBTs
  *
  * @see btc-vault docs/pegin.md — "Automatic Graph Creation & Presigning"
  */
@@ -48,8 +47,6 @@ export interface SignDepositorGraphParams {
 interface ChallengerEntry {
   challengerPubkey: string;
   noPayoutIdx: number;
-  challengeAssertXIdx: number;
-  challengeAssertYIdx: number;
 }
 
 /** Result of the collect phase — flat PSBT array with index mapping */
@@ -128,32 +125,6 @@ function validateAndConvertPsbt(
   return sanitized.toHex();
 }
 
-/**
- * Validate a single-input PSBT (ChallengeAssert X/Y).
- * Ensures the PSBT has exactly 1 input — a malformed VP response with 0 or >1
- * inputs would produce incorrect signatures.
- *
- * @throws if the PSBT has != 1 input, or fails integrity/presence checks
- */
-function validateSingleInputPsbt(
-  psbtBase64: string | undefined,
-  expectedTxHex: string,
-  label: string,
-): string {
-  if (!psbtBase64) {
-    throw new Error(`Missing ${label} PSBT`);
-  }
-  const psbt = verifyAndParsePsbt(psbtBase64, expectedTxHex, label);
-  const inputCount = psbt.data.inputs.length;
-  if (inputCount !== 1) {
-    throw new Error(
-      `${label} PSBT has ${inputCount} inputs — expected exactly 1`,
-    );
-  }
-  const sanitized = sanitizePsbtForScriptPathSigning(psbt);
-  return sanitized.toHex();
-}
-
 // ============================================================================
 // Collect phase — decode pre-built PSBTs from VP response
 // ============================================================================
@@ -162,7 +133,7 @@ function validateSingleInputPsbt(
  * Collect all pre-built PSBTs from the depositor graph and track their indices.
  * Verifies each PSBT's unsigned transaction matches the corresponding tx_hex.
  *
- * Layout: [Payout, NoPayout_0, CA_X_0, CA_Y_0, NoPayout_1, CA_X_1, CA_Y_1, ...]
+ * Layout: [Payout, NoPayout_0, NoPayout_1, ...]
  */
 function collectDepositorGraphPsbts(
   depositorGraph: DepositorGraphTransactions,
@@ -187,7 +158,7 @@ function collectDepositorGraphPsbts(
   psbtHexes.push(payoutHex);
   signOptions.push(singleInputOpts);
 
-  // Per-challenger: 1 NoPayout + 2 ChallengeAssert (X + Y)
+  // Per-challenger: 1 NoPayout
   for (const challenger of depositorGraph.challenger_presign_data) {
     const challengerPubkey = stripHexPrefix(challenger.challenger_pubkey);
 
@@ -201,31 +172,9 @@ function collectDepositorGraphPsbts(
     psbtHexes.push(noPayoutHex);
     signOptions.push(singleInputOpts);
 
-    // ChallengeAssertX PSBT — must have exactly 1 input
-    const challengeAssertXIdx = psbtHexes.length;
-    const caXHex = validateSingleInputPsbt(
-      challenger.challenge_assert_x_psbt,
-      challenger.challenge_assert_x_tx.tx_hex,
-      `challenge_assert_x (challenger ${challengerPubkey})`,
-    );
-    psbtHexes.push(caXHex);
-    signOptions.push(singleInputOpts);
-
-    // ChallengeAssertY PSBT — must have exactly 1 input
-    const challengeAssertYIdx = psbtHexes.length;
-    const caYHex = validateSingleInputPsbt(
-      challenger.challenge_assert_y_psbt,
-      challenger.challenge_assert_y_tx.tx_hex,
-      `challenge_assert_y (challenger ${challengerPubkey})`,
-    );
-    psbtHexes.push(caYHex);
-    signOptions.push(singleInputOpts);
-
     challengerEntries.push({
       challengerPubkey,
       noPayoutIdx,
-      challengeAssertXIdx,
-      challengeAssertYIdx,
     });
   }
 
@@ -250,20 +199,10 @@ function extractDepositorGraphSignatures(
     depositorPubkey,
   );
 
-  // Per-challenger signatures: [ChallengeAssertX_sig, ChallengeAssertY_sig]
+  // Per-challenger signatures: NoPayout only
   const perChallenger: Record<string, DepositorPreSigsPerChallenger> = {};
   for (const entry of challengerEntries) {
-    const caXSig = extractPayoutSignature(
-      signedPsbtHexes[entry.challengeAssertXIdx],
-      depositorPubkey,
-    );
-    const caYSig = extractPayoutSignature(
-      signedPsbtHexes[entry.challengeAssertYIdx],
-      depositorPubkey,
-    );
-
     perChallenger[entry.challengerPubkey] = {
-      challenge_assert_signatures: [caXSig, caYSig],
       nopayout_signature: extractPayoutSignature(
         signedPsbtHexes[entry.noPayoutIdx],
         depositorPubkey,

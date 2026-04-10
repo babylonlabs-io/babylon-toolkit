@@ -25,7 +25,6 @@ export interface SubmitDepositorWotsKeyParams {
 
 /** Per-challenger signatures for the depositor-as-claimer flow. */
 export interface DepositorPreSigsPerChallenger {
-  challenge_assert_signatures: string[];
   nopayout_signature: string;
 }
 
@@ -95,10 +94,6 @@ export interface PresignDataPerChallenger {
   /** ChallengeAssertY transaction hex */
   challenge_assert_y_tx: TransactionData;
   nopayout_tx: TransactionData;
-  /** Unsigned PSBT (base64) for the ChallengeAssertX transaction. */
-  challenge_assert_x_psbt: string;
-  /** Unsigned PSBT (base64) for the ChallengeAssertY transaction. */
-  challenge_assert_y_psbt: string;
   /** Unsigned PSBT (base64) for the NoPayout transaction (input 0). */
   nopayout_psbt: string;
   /** Per-segment connector data for ChallengeAssert inputs. */

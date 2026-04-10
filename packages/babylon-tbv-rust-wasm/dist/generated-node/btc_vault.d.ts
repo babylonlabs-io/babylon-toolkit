@@ -434,19 +434,6 @@ export class WasmPrePeginTx {
 export function computeAssertClaimerSighashes(graph_json: string): string;
 
 /**
- * Computes sighashes for the claimer's ChallengeAssert transactions (X and Y)
- * for a specific challenger.
- *
- * Returns a JSON array of two hex-encoded sighashes: [ca_x_sighash, ca_y_sighash].
- *
- * # Arguments
- *
- * * `graph_json` - JSON-serialized `TxGraph`
- * * `challenger_pk_hex` - Hex-encoded challenger x-only public key (64 chars)
- */
-export function computeChallengeAssertClaimerSighashes(graph_json: string, challenger_pk_hex: string): string;
-
-/**
  * Computes the minimum depositor claim value (in satoshis) needed to fund the
  * entire claim transaction path.
  *
