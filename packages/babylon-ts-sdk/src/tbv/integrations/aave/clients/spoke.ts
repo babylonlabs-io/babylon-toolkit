@@ -10,11 +10,6 @@
 
 import type { Address, PublicClient } from "viem";
 
-import {
-  MOCK_COLLATERAL_FACTOR_BPS,
-  MOCK_LIQUIDATION_BONUS_WAD,
-  MOCK_TARGET_HEALTH_FACTOR_WAD,
-} from "../constants.js";
 import type {
   AaveSpokeUserAccountData,
   AaveSpokeUserPosition,
@@ -257,59 +252,121 @@ export async function getUserTotalDebt(
   return result as bigint;
 }
 
+/** Result type from the `getReserve` contract call.
+ *
+ * Matches the on-chain `Reserve` struct defined in `ITBVAaveSpoke.sol`:
+ *   struct Reserve {
+ *     address underlying;
+ *     address hub;
+ *     uint16 assetId;
+ *     uint8 decimals;
+ *     uint24 collateralRisk;
+ *     ReserveFlags flags;   // uint8 bitmap
+ *     uint32 dynamicConfigKey;
+ *   }
+ *
+ * Note: this is the `Reserve` struct, NOT `ReserveConfig` — the contract
+ * exposes both as separate functions and they return different shapes.
+ */
+type ReserveResult = {
+  underlying: Address;
+  hub: Address;
+  assetId: number;
+  decimals: number;
+  collateralRisk: number;
+  flags: number;
+  dynamicConfigKey: number;
+};
+
+/**
+ * Get reserve data from the Core Spoke contract via the `getReserve` selector.
+ *
+ * Returns static reserve properties including the `dynamicConfigKey` needed
+ * for `getDynamicReserveConfig` calls. Use this as a fallback when reserve
+ * data is not available from the GraphQL indexer.
+ *
+ * Do NOT confuse with the contract's separate `getReserveConfig` function,
+ * which returns `{collateralRisk, paused, frozen, borrowable, receiveSharesEnabled}`.
+ *
+ * @param publicClient - Viem public client for reading contracts
+ * @param spokeAddress - Core Spoke contract address
+ * @param reserveId - Reserve ID
+ * @returns Reserve data including `dynamicConfigKey`
+ */
+export async function getReserve(
+  publicClient: PublicClient,
+  spokeAddress: Address,
+  reserveId: bigint,
+): Promise<ReserveResult> {
+  const result = await publicClient.readContract({
+    address: spokeAddress,
+    abi: AaveSpokeABI,
+    functionName: "getReserve",
+    args: [reserveId],
+  });
+  return result as ReserveResult;
+}
+
+/** Result type from getLiquidationConfig contract call */
+type LiquidationConfigResult = {
+  targetHealthFactor: bigint;
+  healthFactorForMaxBonus: bigint;
+  liquidationBonusFactor: bigint;
+};
+
+/** Result type from getDynamicReserveConfig contract call */
+type DynamicReserveConfigResult = {
+  collateralFactor: bigint;
+  maxLiquidationBonus: bigint;
+  liquidationFee: bigint;
+};
+
 /**
  * Get the target health factor (THF) from the Core Spoke contract.
  *
  * Per-spoke governance parameter. After a liquidation, the protocol targets
  * restoring the position to this health factor.
  *
- * @param _publicClient - Viem public client (unused in mock, required for API stability)
- * @param _spokeAddress - Core Spoke contract address (unused in mock, required for API stability)
+ * @param publicClient - Viem public client for reading contracts
+ * @param spokeAddress - Core Spoke contract address
  * @returns Target health factor in WAD (1e18 = 1.0). Example: 1.10 = 1_100_000_000_000_000_000n
- *
- * TODO: Replace mock with real contract read when Core Spoke ABI is available
  */
 export async function getTargetHealthFactor(
-  _publicClient: PublicClient,
-  _spokeAddress: Address,
+  publicClient: PublicClient,
+  spokeAddress: Address,
 ): Promise<bigint> {
-  return MOCK_TARGET_HEALTH_FACTOR_WAD;
+  const result = await publicClient.readContract({
+    address: spokeAddress,
+    abi: AaveSpokeABI,
+    functionName: "getLiquidationConfig",
+  });
+  const config = result as LiquidationConfigResult;
+  return config.targetHealthFactor;
 }
 
 /**
- * Get the collateral factor (CF) from the Core Spoke contract.
+ * Get the dynamic reserve config from the Core Spoke contract.
  *
- * Determines what fraction of collateral value counts toward borrowing power.
- * Default is 75% (7500 BPS), configurable per spoke.
+ * Returns collateral factor, max liquidation bonus, and liquidation fee
+ * for a specific reserve and dynamic config key.
  *
- * @param _publicClient - Viem public client (unused in mock, required for API stability)
- * @param _spokeAddress - Core Spoke contract address (unused in mock, required for API stability)
- * @returns Collateral factor in BPS (10000 = 100%). Example: 0.75 = 7500n
- *
- * TODO: Replace mock with real contract read when Core Spoke ABI is available
+ * @param publicClient - Viem public client for reading contracts
+ * @param spokeAddress - Core Spoke contract address
+ * @param reserveId - Reserve ID (e.g., vBTC reserve ID from indexer config)
+ * @param dynamicConfigKey - Dynamic config key (from reserve data)
+ * @returns Dynamic reserve config with collateralFactor (BPS), maxLiquidationBonus (BPS), liquidationFee (BPS)
  */
-export async function getCollateralFactor(
-  _publicClient: PublicClient,
-  _spokeAddress: Address,
-): Promise<bigint> {
-  return MOCK_COLLATERAL_FACTOR_BPS;
-}
-
-/**
- * Get the liquidation bonus (LB) from the Core Spoke contract.
- *
- * The bonus multiplier awarded to liquidators. Fixed at 1.05 (5% bonus)
- * with min = max (no Dutch auction).
- *
- * @param _publicClient - Viem public client (unused in mock, required for API stability)
- * @param _spokeAddress - Core Spoke contract address (unused in mock, required for API stability)
- * @returns Liquidation bonus in WAD (1e18 = 1.0). Example: 1.05 = 1_050_000_000_000_000_000n
- *
- * TODO: Replace mock with real contract read when Core Spoke ABI is available
- */
-export async function getLiquidationBonus(
-  _publicClient: PublicClient,
-  _spokeAddress: Address,
-): Promise<bigint> {
-  return MOCK_LIQUIDATION_BONUS_WAD;
+export async function getDynamicReserveConfig(
+  publicClient: PublicClient,
+  spokeAddress: Address,
+  reserveId: bigint,
+  dynamicConfigKey: number,
+): Promise<DynamicReserveConfigResult> {
+  const result = await publicClient.readContract({
+    address: spokeAddress,
+    abi: AaveSpokeABI,
+    functionName: "getDynamicReserveConfig",
+    args: [reserveId, dynamicConfigKey],
+  });
+  return result as DynamicReserveConfigResult;
 }

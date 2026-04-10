@@ -30,7 +30,7 @@ export function usePositionNotifications(
   connectedAddress: string | undefined,
 ): UsePositionNotificationsResult {
   const { params: splitParams, isLoading: paramsLoading } =
-    useVaultSplitParams();
+    useVaultSplitParams(connectedAddress);
 
   const {
     collateralVaults,

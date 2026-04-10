@@ -73,8 +73,8 @@
     "outputs": [
       {
         "name": "dynamicConfigKey",
-        "type": "uint24",
-        "internalType": "uint24"
+        "type": "uint32",
+        "internalType": "uint32"
       }
     ],
     "stateMutability": "nonpayable"
@@ -202,8 +202,8 @@
       },
       {
         "name": "dynamicConfigKey",
-        "type": "uint24",
-        "internalType": "uint24"
+        "type": "uint32",
+        "internalType": "uint32"
       }
     ],
     "outputs": [
@@ -341,29 +341,19 @@
             "internalType": "uint8"
           },
           {
-            "name": "dynamicConfigKey",
-            "type": "uint24",
-            "internalType": "uint24"
-          },
-          {
-            "name": "paused",
-            "type": "bool",
-            "internalType": "bool"
-          },
-          {
-            "name": "frozen",
-            "type": "bool",
-            "internalType": "bool"
-          },
-          {
-            "name": "borrowable",
-            "type": "bool",
-            "internalType": "bool"
-          },
-          {
             "name": "collateralRisk",
             "type": "uint24",
             "internalType": "uint24"
+          },
+          {
+            "name": "flags",
+            "type": "uint8",
+            "internalType": "ReserveFlags"
+          },
+          {
+            "name": "dynamicConfigKey",
+            "type": "uint32",
+            "internalType": "uint32"
           }
         ]
       }
@@ -638,8 +628,8 @@
           },
           {
             "name": "dynamicConfigKey",
-            "type": "uint24",
-            "internalType": "uint24"
+            "type": "uint32",
+            "internalType": "uint32"
           }
         ]
       }
@@ -1061,8 +1051,8 @@
       },
       {
         "name": "dynamicConfigKey",
-        "type": "uint24",
-        "internalType": "uint24"
+        "type": "uint32",
+        "internalType": "uint32"
       },
       {
         "name": "dynamicConfig",

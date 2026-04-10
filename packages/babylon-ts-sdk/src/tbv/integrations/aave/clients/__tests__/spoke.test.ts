@@ -1,37 +1,100 @@
 import type { Address, PublicClient } from "viem";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
-  MOCK_COLLATERAL_FACTOR_BPS,
-  MOCK_LIQUIDATION_BONUS_WAD,
-  MOCK_TARGET_HEALTH_FACTOR_WAD,
-} from "../../constants.js";
-import {
-  getCollateralFactor,
-  getLiquidationBonus,
+  getDynamicReserveConfig,
+  getReserve,
   getTargetHealthFactor,
 } from "../spoke.js";
 
-// Stub values — mock functions don't use these parameters yet
-const STUB_CLIENT = {} as PublicClient;
 const STUB_ADDRESS = "0x1234567890123456789012345678901234567890" as Address;
+const STUB_RESERVE_ID = 1n;
+const STUB_DYNAMIC_CONFIG_KEY = 0;
 
-describe("Core Spoke parameter reads (mock)", () => {
-  it("returns target health factor of 1.10 in WAD", async () => {
-    const thf = await getTargetHealthFactor(STUB_CLIENT, STUB_ADDRESS);
+function createMockClient(
+  returnValue: unknown,
+): PublicClient {
+  return {
+    readContract: vi.fn().mockResolvedValue(returnValue),
+  } as unknown as PublicClient;
+}
 
-    expect(thf).toBe(MOCK_TARGET_HEALTH_FACTOR_WAD);
+describe("Core Spoke parameter reads", () => {
+  describe("getTargetHealthFactor", () => {
+    it("reads targetHealthFactor from getLiquidationConfig", async () => {
+      const expectedTHF = 1_100_000_000_000_000_000n;
+      const client = createMockClient({
+        targetHealthFactor: expectedTHF,
+        healthFactorForMaxBonus: 900_000_000_000_000_000n,
+        liquidationBonusFactor: 5000n,
+      });
+
+      const thf = await getTargetHealthFactor(client, STUB_ADDRESS);
+
+      expect(thf).toBe(expectedTHF);
+      expect(client.readContract).toHaveBeenCalledWith(
+        expect.objectContaining({
+          address: STUB_ADDRESS,
+          functionName: "getLiquidationConfig",
+        }),
+      );
+    });
   });
 
-  it("returns collateral factor of 75% in BPS", async () => {
-    const cf = await getCollateralFactor(STUB_CLIENT, STUB_ADDRESS);
+  describe("getDynamicReserveConfig", () => {
+    it("reads dynamic reserve config with reserveId and dynamicConfigKey", async () => {
+      const expectedConfig = {
+        collateralFactor: 7500n,
+        maxLiquidationBonus: 10500n,
+        liquidationFee: 100n,
+      };
+      const client = createMockClient(expectedConfig);
 
-    expect(cf).toBe(MOCK_COLLATERAL_FACTOR_BPS);
+      const config = await getDynamicReserveConfig(
+        client,
+        STUB_ADDRESS,
+        STUB_RESERVE_ID,
+        STUB_DYNAMIC_CONFIG_KEY,
+      );
+
+      expect(config).toEqual(expectedConfig);
+      expect(client.readContract).toHaveBeenCalledWith(
+        expect.objectContaining({
+          address: STUB_ADDRESS,
+          functionName: "getDynamicReserveConfig",
+          args: [STUB_RESERVE_ID, STUB_DYNAMIC_CONFIG_KEY],
+        }),
+      );
+    });
   });
 
-  it("returns liquidation bonus of 1.05 in WAD", async () => {
-    const lb = await getLiquidationBonus(STUB_CLIENT, STUB_ADDRESS);
+  describe("getReserve", () => {
+    it("reads reserve data with reserveId via the getReserve selector", async () => {
+      const expectedReserve = {
+        underlying: STUB_ADDRESS,
+        hub: STUB_ADDRESS,
+        assetId: 1,
+        decimals: 8,
+        collateralRisk: 1000,
+        flags: 0,
+        dynamicConfigKey: 3,
+      };
+      const client = createMockClient(expectedReserve);
 
-    expect(lb).toBe(MOCK_LIQUIDATION_BONUS_WAD);
+      const reserve = await getReserve(
+        client,
+        STUB_ADDRESS,
+        STUB_RESERVE_ID,
+      );
+
+      expect(reserve).toEqual(expectedReserve);
+      expect(client.readContract).toHaveBeenCalledWith(
+        expect.objectContaining({
+          address: STUB_ADDRESS,
+          functionName: "getReserve",
+          args: [STUB_RESERVE_ID],
+        }),
+      );
+    });
   });
 });

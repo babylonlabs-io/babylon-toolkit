@@ -45,8 +45,11 @@ const EMPTY_RESULT: Omit<UseOptimalSplitResult, "isLoading" | "error"> = {
   minDepositForSplit: 0n,
 };
 
-export function useOptimalSplit(totalBtc: bigint): UseOptimalSplitResult {
-  const { params, isLoading, error } = useVaultSplitParams();
+export function useOptimalSplit(
+  totalBtc: bigint,
+  connectedAddress?: string,
+): UseOptimalSplitResult {
+  const { params, isLoading, error } = useVaultSplitParams(connectedAddress);
   const { minDeposit } = useProtocolParamsContext();
 
   const result = useMemo(() => {

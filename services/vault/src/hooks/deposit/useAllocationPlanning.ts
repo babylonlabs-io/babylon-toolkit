@@ -8,6 +8,7 @@
 import { useMemo } from "react";
 
 import { useOptimalSplit } from "@/applications/aave/hooks/useOptimalSplit";
+import { useETHWallet } from "@/context/wallet";
 
 export interface UseAllocationPlanningParams {
   amountSats: bigint;
@@ -29,8 +30,13 @@ export function useAllocationPlanning({
   amountSats,
   isPartialLiquidation,
 }: UseAllocationPlanningParams): UseAllocationPlanningResult {
+  // Pass the connected ETH address so useVaultSplitParams can prefer the
+  // user's existing position's dynamicConfigKey over the reserve's current
+  // key (positions are insulated from reserve config rotations until
+  // refresh — see Spoke.sol liquidation path).
+  const { address: ethAddress } = useETHWallet();
   const { sacrificialVault, protectedVault, canSplit, isLoading } =
-    useOptimalSplit(amountSats);
+    useOptimalSplit(amountSats, ethAddress);
 
   const vaultAmounts = useMemo(() => {
     if (!isPartialLiquidation || !canSplit || amountSats <= 0n) return null;
