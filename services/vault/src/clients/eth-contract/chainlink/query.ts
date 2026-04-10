@@ -47,6 +47,9 @@ const CHAINLINK_PRICE_FEEDS: Record<Network, ChainlinkFeedAddresses> = {
 /** Maximum acceptable age for Chainlink price data (1 hour) */
 const CHAINLINK_MAX_PRICE_AGE_SECONDS = 3600;
 
+/** Number of seconds in one hour — used for display formatting */
+const SECONDS_PER_HOUR = 3600;
+
 function getChainlinkFeedAddress(symbol: string): Address | null {
   const network = getBTCNetwork();
   const normalizedSymbol = symbol.toUpperCase();
@@ -211,9 +214,7 @@ async function fetchPriceFromFeed(
         `Chainlink price data is stale: incomplete round (answeredInRound=${roundData.answeredInRound} < roundId=${roundData.roundId}). Using last known price.`,
       );
     } else {
-      const ageHours = (ageSeconds / CHAINLINK_MAX_PRICE_AGE_SECONDS).toFixed(
-        1,
-      );
+      const ageHours = (ageSeconds / SECONDS_PER_HOUR).toFixed(1);
       logger.event(
         `Chainlink price data is stale (${ageHours} hours old). Using last known price.`,
       );
