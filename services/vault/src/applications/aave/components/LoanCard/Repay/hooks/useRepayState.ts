@@ -35,13 +35,14 @@ export function useRepayState({
     return Math.max(0, Math.min(currentDebtAmount, userTokenBalance));
   }, [currentDebtAmount, userTokenBalance]);
 
-  // Determine if this is a full repayment (within tolerance for floating point)
+  // Full repayment only when repay amount covers the actual debt, not the balance-capped max.
+  // When balance < debt, pressing Max should route to partial repay, not full repay.
   const isFullRepayment = useMemo(() => {
     return (
-      maxRepayAmount > 0 &&
-      Math.abs(repayAmount - maxRepayAmount) < FULL_REPAY_TOLERANCE
+      currentDebtAmount > 0 &&
+      Math.abs(repayAmount - currentDebtAmount) < FULL_REPAY_TOLERANCE
     );
-  }, [repayAmount, maxRepayAmount]);
+  }, [repayAmount, currentDebtAmount]);
 
   const resetRepayAmount = () => setRepayAmount(0);
 

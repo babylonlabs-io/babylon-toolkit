@@ -10,8 +10,13 @@
 import { useMemo } from "react";
 import { formatUnits } from "viem";
 
+import { logger } from "@/infrastructure";
 import { getTokenByAddress } from "@/services/token/tokenService";
 
+import {
+  KNOWN_STABLECOIN_SYMBOLS,
+  STABLECOIN_FALLBACK_PRICE_USD,
+} from "../../../constants";
 import { useAaveConfig } from "../../../context";
 import { useAaveUserPosition } from "../../../hooks";
 import type { AaveReserveConfig } from "../../../services/fetchConfig";
@@ -45,6 +50,8 @@ export interface UseAaveReserveDetailResult {
   totalDebtValueUsd: number;
   /** Health factor (null if no debt) */
   healthFactor: number | null;
+  /** Price of the selected borrow token in USD (null if unavailable) */
+  tokenPriceUsd: number | null;
 }
 
 export function useAaveReserveDetail({
@@ -108,6 +115,67 @@ export function useAaveReserveDetail({
   // Get liquidation threshold from vBTC reserve
   const liquidationThresholdBps = vbtcReserve?.reserve.collateralFactor ?? 0;
 
+  // Derive token price. Returns null when the price cannot be determined,
+  // in which case parent components render a fallback instead of LoanProvider.
+  //
+  // Current strategy: derive from debt ratio when debt exists, otherwise use
+  // the $1 stablecoin fallback for first-borrow of known stablecoins.
+  //
+  // The debt-ratio derivation assumes exactly one borrowable reserve, because
+  // debtValueUsd is the user's total debt across all reserves. A runtime
+  // assertion below fails loudly if that assumption is ever violated.
+  //
+  // TODO: Migrate to Chainlink price feeds via
+  // `services/vault/src/clients/eth-contract/chainlink/query.ts` once feeds
+  // are available for borrowable reserves on our target network. That would
+  // remove the single-reserve assumption and the stablecoin fallback.
+  const tokenPriceUsd = useMemo((): number | null => {
+    if (!selectedReserve) return null;
+
+    if (currentDebtAmount > 0 && debtValueUsd > 0) {
+      if (borrowableReserves.length !== 1) {
+        logger.error(
+          new Error(
+            "tokenPriceUsd debt-ratio derivation is only valid for a single borrowable reserve",
+          ),
+          {
+            data: {
+              context: "useAaveReserveDetail.tokenPriceUsd",
+              borrowableReserveCount: borrowableReserves.length,
+              selectedReserveSymbol: selectedReserve.token.symbol,
+            },
+          },
+        );
+        return null;
+      }
+      return debtValueUsd / currentDebtAmount;
+    }
+
+    // First-time borrow: no debt to derive price from.
+    // Only safe for stablecoins — log and return null for unknown tokens.
+    const symbol = selectedReserve.token.symbol.toUpperCase();
+    const isKnownStablecoin = (
+      KNOWN_STABLECOIN_SYMBOLS as readonly string[]
+    ).includes(symbol);
+
+    if (!isKnownStablecoin) {
+      logger.error(
+        new Error(
+          `Cannot derive token price for ${symbol}: no existing debt and token is not a known stablecoin`,
+        ),
+        {
+          data: {
+            context: "useAaveReserveDetail.tokenPriceUsd",
+            symbol,
+          },
+        },
+      );
+      return null;
+    }
+
+    return STABLECOIN_FALLBACK_PRICE_USD;
+  }, [currentDebtAmount, debtValueUsd, selectedReserve, borrowableReserves]);
+
   return {
     isLoading: configLoading || positionLoading,
     selectedReserve,
@@ -119,5 +187,6 @@ export function useAaveReserveDetail({
     currentDebtAmount,
     totalDebtValueUsd: debtValueUsd,
     healthFactor,
+    tokenPriceUsd,
   };
 }

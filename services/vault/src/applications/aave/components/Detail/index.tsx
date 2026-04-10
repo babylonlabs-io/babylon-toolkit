@@ -47,6 +47,7 @@ export function AaveReserveDetail() {
     currentDebtAmount,
     totalDebtValueUsd,
     healthFactor,
+    tokenPriceUsd,
   } = useAaveReserveDetail({ reserveId, address });
 
   // Modal state management
@@ -106,8 +107,13 @@ export function AaveReserveDetail() {
     );
   }
 
-  // Reserve not found
-  if (!selectedReserve || !assetConfig || !vbtcReserve) {
+  // Reserve not found or price unavailable
+  if (
+    !selectedReserve ||
+    !assetConfig ||
+    !vbtcReserve ||
+    tokenPriceUsd == null
+  ) {
     return (
       <Container className="pb-6">
         <div className="space-y-6">
@@ -130,6 +136,7 @@ export function AaveReserveDetail() {
     selectedReserve,
     assetConfig,
     proxyContract,
+    tokenPriceUsd,
     onBorrowSuccess: openBorrowSuccess,
     onRepaySuccess: openRepaySuccess,
   };

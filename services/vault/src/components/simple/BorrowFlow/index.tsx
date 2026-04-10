@@ -42,6 +42,7 @@ export function BorrowFlow({ open, onClose }: BorrowFlowProps) {
     currentDebtAmount,
     totalDebtValueUsd,
     healthFactor,
+    tokenPriceUsd,
   } = useAaveReserveDetail({
     reserveId: selectedAssetSymbol ?? undefined,
     address,
@@ -87,6 +88,7 @@ export function BorrowFlow({ open, onClose }: BorrowFlowProps) {
             currentDebtAmount={currentDebtAmount}
             totalDebtValueUsd={totalDebtValueUsd}
             healthFactor={healthFactor}
+            tokenPriceUsd={tokenPriceUsd}
             onChangeAsset={goBack}
             onBorrowSuccess={completeBorrow}
           />
@@ -113,6 +115,7 @@ function BorrowFormStep({
   currentDebtAmount,
   totalDebtValueUsd,
   healthFactor,
+  tokenPriceUsd,
   onChangeAsset,
   onBorrowSuccess,
 }: {
@@ -125,10 +128,11 @@ function BorrowFormStep({
   currentDebtAmount: number;
   totalDebtValueUsd: number;
   healthFactor: number | null;
+  tokenPriceUsd: number | null;
   onChangeAsset: () => void;
   onBorrowSuccess: (amount: number, symbol: string, icon: string) => void;
 }) {
-  if (isLoading || !selectedReserve || !assetConfig) {
+  if (isLoading || !selectedReserve || !assetConfig || tokenPriceUsd == null) {
     return (
       <div className="flex items-center justify-center py-20">
         <p className="text-accent-secondary">Loading...</p>
@@ -147,6 +151,7 @@ function BorrowFormStep({
         selectedReserve,
         assetConfig,
         proxyContract,
+        tokenPriceUsd,
         // These callbacks are handled by the BorrowFlow orchestrator
         onBorrowSuccess: () => {},
         onRepaySuccess: () => {},
