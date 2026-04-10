@@ -128,11 +128,11 @@ function BorrowFormStep({
   currentDebtAmount: number;
   totalDebtValueUsd: number;
   healthFactor: number | null;
-  tokenPriceUsd: number;
+  tokenPriceUsd: number | null;
   onChangeAsset: () => void;
   onBorrowSuccess: (amount: number, symbol: string, icon: string) => void;
 }) {
-  if (isLoading || !selectedReserve || !assetConfig) {
+  if (isLoading || !selectedReserve || !assetConfig || tokenPriceUsd == null) {
     return (
       <div className="flex items-center justify-center py-20">
         <p className="text-accent-secondary">Loading...</p>
