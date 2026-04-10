@@ -11,6 +11,8 @@ import { DaemonStatus } from "../../models/peginStateMachine";
 
 import type {
   GetPeginStatusResponse,
+  GetPegoutStatusResponse,
+  RequestDepositorClaimerArtifactsResponse,
   RequestDepositorPresignTransactionsResponse,
 } from "./types";
 
@@ -123,6 +125,12 @@ export function validateGetPeginStatusResponse(
       `VP response validation failed: "health_info" must be a string`,
     );
   }
+
+  if (r.last_error !== undefined && typeof r.last_error !== "string") {
+    throw new VpResponseValidationError(
+      `VP response validation failed: "last_error" must be a string if present, got ${JSON.stringify(r.last_error)}`,
+    );
+  }
 }
 
 /**
@@ -210,6 +218,124 @@ function validatePresignDataPerChallenger(value: unknown, field: string): void {
     `${field}.challenge_assert_psbt`,
   );
   assertNonEmptyString(d.nopayout_psbt, `${field}.nopayout_psbt`);
+}
+
+/**
+ * Validate a requestDepositorClaimerArtifacts response.
+ *
+ * tx_graph_json and verifying_key_hex are consumed by garbled-circuit
+ * evaluation. babe_sessions carries per-challenger decryption artifacts.
+ * A malicious VP could supply corrupt values to steer circuit evaluation.
+ */
+export function validateRequestDepositorClaimerArtifactsResponse(
+  response: unknown,
+): asserts response is RequestDepositorClaimerArtifactsResponse {
+  if (response === null || typeof response !== "object") {
+    throw new VpResponseValidationError(
+      `VP response validation failed: requestDepositorClaimerArtifacts response is not an object`,
+    );
+  }
+
+  const r = response as Record<string, unknown>;
+
+  if (!isNonEmptyString(r.tx_graph_json)) {
+    throw new VpResponseValidationError(
+      `VP response validation failed: "tx_graph_json" must be a non-empty string, got ${JSON.stringify(r.tx_graph_json)}`,
+    );
+  }
+
+  if (!isNonEmptyHex(r.verifying_key_hex)) {
+    throw new VpResponseValidationError(
+      `VP response validation failed: "verifying_key_hex" must be a non-empty hex string, got ${JSON.stringify(r.verifying_key_hex)}`,
+    );
+  }
+
+  if (r.babe_sessions === null || typeof r.babe_sessions !== "object") {
+    throw new VpResponseValidationError(
+      `VP response validation failed: "babe_sessions" must be an object`,
+    );
+  }
+
+  for (const [key, session] of Object.entries(
+    r.babe_sessions as Record<string, unknown>,
+  )) {
+    if (session === null || typeof session !== "object") {
+      throw new VpResponseValidationError(
+        `VP response validation failed: "babe_sessions.${key}" must be an object`,
+      );
+    }
+    const s = session as Record<string, unknown>;
+    if (!isNonEmptyHex(s.decryptor_artifacts_hex)) {
+      throw new VpResponseValidationError(
+        `VP response validation failed: "babe_sessions.${key}.decryptor_artifacts_hex" must be a non-empty hex string, got ${JSON.stringify(s.decryptor_artifacts_hex)}`,
+      );
+    }
+  }
+}
+
+/**
+ * Validate a getPegoutStatus response.
+ *
+ * found controls whether downstream code attempts to process a pegout.
+ * claimer.failed and claimer.status / challenger.status steer the UI flow.
+ * A malicious VP that sends wrong types here could suppress error display
+ * or push the UI into an unintended state.
+ */
+export function validateGetPegoutStatusResponse(
+  response: unknown,
+): asserts response is GetPegoutStatusResponse {
+  if (response === null || typeof response !== "object") {
+    throw new VpResponseValidationError(
+      `VP response validation failed: getPegoutStatus response is not an object`,
+    );
+  }
+
+  const r = response as Record<string, unknown>;
+
+  if (!isNonEmptyHex(r.pegin_txid) || r.pegin_txid.length !== TXID_HEX_LEN) {
+    throw new VpResponseValidationError(
+      `VP response validation failed: "pegin_txid" must be a ${TXID_HEX_LEN}-char hex string (txid), got ${JSON.stringify(r.pegin_txid)}`,
+    );
+  }
+
+  if (typeof r.found !== "boolean") {
+    throw new VpResponseValidationError(
+      `VP response validation failed: "found" must be a boolean, got ${JSON.stringify(r.found)}`,
+    );
+  }
+
+  if (r.claimer !== undefined) {
+    if (r.claimer === null || typeof r.claimer !== "object") {
+      throw new VpResponseValidationError(
+        `VP response validation failed: "claimer" must be an object if present`,
+      );
+    }
+    const claimer = r.claimer as Record<string, unknown>;
+    if (typeof claimer.status !== "string") {
+      throw new VpResponseValidationError(
+        `VP response validation failed: "claimer.status" must be a string, got ${JSON.stringify(claimer.status)}`,
+      );
+    }
+    if (typeof claimer.failed !== "boolean") {
+      throw new VpResponseValidationError(
+        `VP response validation failed: "claimer.failed" must be a boolean, got ${JSON.stringify(claimer.failed)}`,
+      );
+    }
+  }
+
+  if (r.challenger !== undefined) {
+    if (r.challenger === null || typeof r.challenger !== "object") {
+      throw new VpResponseValidationError(
+        `VP response validation failed: "challenger" must be an object if present`,
+      );
+    }
+    const challenger = r.challenger as Record<string, unknown>;
+    if (typeof challenger.status !== "string") {
+      throw new VpResponseValidationError(
+        `VP response validation failed: "challenger.status" must be a string, got ${JSON.stringify(challenger.status)}`,
+      );
+    }
+  }
 }
 
 function validateDepositorGraphTransactions(

@@ -14,6 +14,8 @@ import type {
 } from "./types";
 import {
   validateGetPeginStatusResponse,
+  validateGetPegoutStatusResponse,
+  validateRequestDepositorClaimerArtifactsResponse,
   validateRequestDepositorPresignTransactionsResponse,
 } from "./validators";
 
@@ -84,10 +86,12 @@ export class VaultProviderRpcApi {
   async requestDepositorClaimerArtifacts(
     params: RequestDepositorClaimerArtifactsParams,
   ): Promise<RequestDepositorClaimerArtifactsResponse> {
-    return this.client.call<
+    const response = await this.client.call<
       RequestDepositorClaimerArtifactsParams,
-      RequestDepositorClaimerArtifactsResponse
+      unknown
     >("vaultProvider_requestDepositorClaimerArtifacts", params);
+    validateRequestDepositorClaimerArtifactsResponse(response);
+    return response;
   }
 
   /** Get the current pegin status from the vault provider daemon. */
@@ -106,9 +110,11 @@ export class VaultProviderRpcApi {
   async getPegoutStatus(
     params: GetPegoutStatusParams,
   ): Promise<GetPegoutStatusResponse> {
-    return this.client.call<GetPegoutStatusParams, GetPegoutStatusResponse>(
+    const response = await this.client.call<GetPegoutStatusParams, unknown>(
       "vaultProvider_getPegoutStatus",
       params,
     );
+    validateGetPegoutStatusResponse(response);
+    return response;
   }
 }
