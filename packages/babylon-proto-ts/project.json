@@ -5,6 +5,16 @@
   "projectType": "library",
   "tags": ["type:package"],
   "targets": {
+    "build-proto": {
+      "inputs": [
+        "{projectRoot}/**/*",
+        "!{projectRoot}/src/generated/**/*",
+        "!{projectRoot}/dist/**/*",
+        "{workspaceRoot}/pnpm-lock.yaml"
+      ],
+      "outputs": ["{projectRoot}/src/generated"],
+      "cache": true
+    },
     "build": {
       "dependsOn": ["build-proto"],
       "outputs": ["{projectRoot}/dist"],
