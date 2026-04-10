@@ -44,6 +44,17 @@ export interface AavePositionWithLiveData extends AavePosition {
     suppliedShares: bigint;
     /** Whether position has any debt */
     hasDebt: boolean;
+    /**
+     * Dynamic config key stored on the user's position.
+     *
+     * This is the key the contract's liquidation path actually uses
+     * (`collateralUserPosition.dynamicConfigKey`). It is copied from
+     * `reserve.dynamicConfigKey` when the position is opened/refreshed and
+     * then insulated from later reserve-config rotations. Downstream split
+     * math must prefer this over the reserve's current key whenever the
+     * user already has a position.
+     */
+    dynamicConfigKey: number;
   };
   /**
    * Live account data from Spoke (calculated using on-chain oracle prices)
@@ -143,6 +154,7 @@ export async function getUserPositionsWithLiveData(
         premiumShares: spokePosition.premiumShares,
         suppliedShares: spokePosition.suppliedShares,
         hasDebt: hasDebtFromPosition(spokePosition),
+        dynamicConfigKey: spokePosition.dynamicConfigKey,
       },
       accountData,
       debtPositions,
@@ -245,6 +257,7 @@ export async function getPositionWithLiveData(
       premiumShares: spokePosition.premiumShares,
       suppliedShares: spokePosition.suppliedShares,
       hasDebt: hasDebtFromPosition(spokePosition),
+      dynamicConfigKey: spokePosition.dynamicConfigKey,
     },
     accountData,
   };

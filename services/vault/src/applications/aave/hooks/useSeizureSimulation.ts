@@ -61,7 +61,7 @@ export function useSeizureSimulation(
     params,
     isLoading: paramsLoading,
     error: paramsError,
-  } = useVaultSplitParams();
+  } = useVaultSplitParams(userAddress);
 
   const isLoading = orderLoading || paramsLoading;
   const error = orderError ?? paramsError;
