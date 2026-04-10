@@ -4,7 +4,7 @@
         src="https://github.com/user-attachments/assets/dc74271e-90f1-44bd-9122-2b7438ab375c"
         width="100"
     />
-    <h3 align="center">@babylonlabs-io/wallet-connect</h3>
+    <h3 align="center">@babylonlabs-io/wallet-connector</h3>
     <p align="center">Babylon Wallet Connector</p>
 </p>
 <br/>
@@ -47,7 +47,7 @@ implementation into the webpage's `window` object before the dApp loads.
 ## 👨🏻‍💻 Installation
 
 ```bash
-npm i @babylonlabs-io/wallet-connect
+npm i @babylonlabs-io/wallet-connector
 ```
 
 ## 📝 Commit Format & Automated Releases
