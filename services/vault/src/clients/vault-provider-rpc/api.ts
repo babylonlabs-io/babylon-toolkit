@@ -12,6 +12,12 @@ import type {
   SubmitDepositorPresignaturesParams,
   SubmitDepositorWotsKeyParams,
 } from "./types";
+import {
+  validateGetPeginStatusResponse,
+  validateGetPegoutStatusResponse,
+  validateRequestDepositorClaimerArtifactsResponse,
+  validateRequestDepositorPresignTransactionsResponse,
+} from "./validators";
 
 /**
  * JSON-RPC client for the Vault Provider API.
@@ -38,10 +44,12 @@ export class VaultProviderRpcApi {
   async requestDepositorPresignTransactions(
     params: RequestDepositorPresignTransactionsParams,
   ): Promise<RequestDepositorPresignTransactionsResponse> {
-    return this.client.call<
+    const response = await this.client.call<
       RequestDepositorPresignTransactionsParams,
-      RequestDepositorPresignTransactionsResponse
+      unknown
     >("vaultProvider_requestDepositorPresignTransactions", params);
+    validateRequestDepositorPresignTransactionsResponse(response);
+    return response;
   }
 
   /**
@@ -78,29 +86,35 @@ export class VaultProviderRpcApi {
   async requestDepositorClaimerArtifacts(
     params: RequestDepositorClaimerArtifactsParams,
   ): Promise<RequestDepositorClaimerArtifactsResponse> {
-    return this.client.call<
+    const response = await this.client.call<
       RequestDepositorClaimerArtifactsParams,
-      RequestDepositorClaimerArtifactsResponse
+      unknown
     >("vaultProvider_requestDepositorClaimerArtifacts", params);
+    validateRequestDepositorClaimerArtifactsResponse(response);
+    return response;
   }
 
   /** Get the current pegin status from the vault provider daemon. */
   async getPeginStatus(
     params: GetPeginStatusParams,
   ): Promise<GetPeginStatusResponse> {
-    return this.client.call<GetPeginStatusParams, GetPeginStatusResponse>(
+    const response = await this.client.call<GetPeginStatusParams, unknown>(
       "vaultProvider_getPeginStatus",
       params,
     );
+    validateGetPeginStatusResponse(response);
+    return response;
   }
 
   /** Get the current pegout status from the vault provider daemon. */
   async getPegoutStatus(
     params: GetPegoutStatusParams,
   ): Promise<GetPegoutStatusResponse> {
-    return this.client.call<GetPegoutStatusParams, GetPegoutStatusResponse>(
+    const response = await this.client.call<GetPegoutStatusParams, unknown>(
       "vaultProvider_getPegoutStatus",
       params,
     );
+    validateGetPegoutStatusResponse(response);
+    return response;
   }
 }

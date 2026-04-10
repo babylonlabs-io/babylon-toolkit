@@ -12,6 +12,7 @@ import { logger } from "@/infrastructure";
 
 import { VaultProviderRpcApi } from "../../clients/vault-provider-rpc";
 import type { DepositorGraphTransactions } from "../../clients/vault-provider-rpc/types";
+import { VpResponseValidationError } from "../../clients/vault-provider-rpc/validators";
 import {
   POLLING_INTERVAL_MS,
   POLLING_RETRY_COUNT,
@@ -173,7 +174,12 @@ async function fetchFromProvider(
         error instanceof Error ? error : new Error("Provider unreachable");
       errors.set(depositId, errorObj);
       logger.warn(`Failed to poll deposit ${depositId}`, {
-        error: error instanceof Error ? error.message : String(error),
+        error:
+          error instanceof VpResponseValidationError
+            ? error.detail
+            : error instanceof Error
+              ? error.message
+              : String(error),
       });
     }
   }

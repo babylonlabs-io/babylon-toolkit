@@ -26,6 +26,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { v4 as uuidv4 } from "uuid";
 import type { Address, Hex } from "viem";
 
+import { VpResponseValidationError } from "@/clients/vault-provider-rpc/validators";
 import { useProtocolParamsContext } from "@/context/ProtocolParamsContext";
 import { logger } from "@/infrastructure";
 import { LocalStorageStatus } from "@/models/peginStateMachine";
@@ -674,7 +675,12 @@ export function useMultiVaultDepositFlow(
         if (!signal.aborted) {
           setError(sanitizeErrorMessage(err));
           logger.error(err instanceof Error ? err : new Error(String(err)), {
-            data: { context: "Multi-vault deposit flow error" },
+            data: {
+              context: "Multi-vault deposit flow error",
+              ...(err instanceof VpResponseValidationError && {
+                detail: err.detail,
+              }),
+            },
           });
         }
         return null;
