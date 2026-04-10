@@ -18,6 +18,12 @@ import type {
 
 const DAEMON_STATUS_VALUES = new Set<string>(Object.values(DaemonStatus));
 
+const VP_ERROR_PREVIEW_MAX_LEN = 200;
+
+function preview(value: unknown): string {
+  return JSON.stringify(value)?.slice(0, VP_ERROR_PREVIEW_MAX_LEN) ?? "undefined";
+}
+
 const VP_VALIDATION_USER_MESSAGE =
   "The vault provider returned an unexpected response. Please try again or contact support.";
 
@@ -57,7 +63,7 @@ function isNonEmptyString(value: unknown): value is string {
 function assertNonEmptyHex(value: unknown, field: string): void {
   if (!isNonEmptyHex(value)) {
     throw new VpResponseValidationError(
-      `VP response validation failed: "${field}" must be a non-empty hex string, got ${JSON.stringify(value)}`,
+      `VP response validation failed: "${field}" must be a non-empty hex string, got ${preview(value)}`,
     );
   }
 }
@@ -65,7 +71,7 @@ function assertNonEmptyHex(value: unknown, field: string): void {
 function assertNonEmptyString(value: unknown, field: string): void {
   if (!isNonEmptyString(value)) {
     throw new VpResponseValidationError(
-      `VP response validation failed: "${field}" must be a non-empty string, got ${JSON.stringify(value)}`,
+      `VP response validation failed: "${field}" must be a non-empty string, got ${preview(value)}`,
     );
   }
 }
@@ -73,7 +79,7 @@ function assertNonEmptyString(value: unknown, field: string): void {
 function assertXOnlyPubkey(value: unknown, field: string): void {
   if (!isNonEmptyHex(value) || value.length !== X_ONLY_PUBKEY_HEX_LEN) {
     throw new VpResponseValidationError(
-      `VP response validation failed: "${field}" must be a ${X_ONLY_PUBKEY_HEX_LEN}-char hex string (x-only pubkey), got ${JSON.stringify(value)}`,
+      `VP response validation failed: "${field}" must be a ${X_ONLY_PUBKEY_HEX_LEN}-char hex string (x-only pubkey), got ${preview(value)}`,
     );
   }
 }
@@ -98,7 +104,7 @@ export function validateGetPeginStatusResponse(
 
   if (!isNonEmptyHex(r.pegin_txid) || r.pegin_txid.length !== TXID_HEX_LEN) {
     throw new VpResponseValidationError(
-      `VP response validation failed: "pegin_txid" must be a ${TXID_HEX_LEN}-char hex string (txid), got ${JSON.stringify(r.pegin_txid)}`,
+      `VP response validation failed: "pegin_txid" must be a ${TXID_HEX_LEN}-char hex string (txid), got ${preview(r.pegin_txid)}`,
     );
   }
 
@@ -128,7 +134,7 @@ export function validateGetPeginStatusResponse(
 
   if (r.last_error !== undefined && typeof r.last_error !== "string") {
     throw new VpResponseValidationError(
-      `VP response validation failed: "last_error" must be a string if present, got ${JSON.stringify(r.last_error)}`,
+      `VP response validation failed: "last_error" must be a string if present, got ${preview(r.last_error)}`,
     );
   }
 }
@@ -240,13 +246,13 @@ export function validateRequestDepositorClaimerArtifactsResponse(
 
   if (!isNonEmptyString(r.tx_graph_json)) {
     throw new VpResponseValidationError(
-      `VP response validation failed: "tx_graph_json" must be a non-empty string, got ${JSON.stringify(r.tx_graph_json)}`,
+      `VP response validation failed: "tx_graph_json" must be a non-empty string, got ${preview(r.tx_graph_json)}`,
     );
   }
 
   if (!isNonEmptyHex(r.verifying_key_hex)) {
     throw new VpResponseValidationError(
-      `VP response validation failed: "verifying_key_hex" must be a non-empty hex string, got ${JSON.stringify(r.verifying_key_hex)}`,
+      `VP response validation failed: "verifying_key_hex" must be a non-empty hex string, got ${preview(r.verifying_key_hex)}`,
     );
   }
 
@@ -267,7 +273,7 @@ export function validateRequestDepositorClaimerArtifactsResponse(
     const s = session as Record<string, unknown>;
     if (!isNonEmptyHex(s.decryptor_artifacts_hex)) {
       throw new VpResponseValidationError(
-        `VP response validation failed: "babe_sessions.${key}.decryptor_artifacts_hex" must be a non-empty hex string, got ${JSON.stringify(s.decryptor_artifacts_hex)}`,
+        `VP response validation failed: "babe_sessions.${key}.decryptor_artifacts_hex" must be a non-empty hex string, got ${preview(s.decryptor_artifacts_hex)}`,
       );
     }
   }
@@ -294,13 +300,13 @@ export function validateGetPegoutStatusResponse(
 
   if (!isNonEmptyHex(r.pegin_txid) || r.pegin_txid.length !== TXID_HEX_LEN) {
     throw new VpResponseValidationError(
-      `VP response validation failed: "pegin_txid" must be a ${TXID_HEX_LEN}-char hex string (txid), got ${JSON.stringify(r.pegin_txid)}`,
+      `VP response validation failed: "pegin_txid" must be a ${TXID_HEX_LEN}-char hex string (txid), got ${preview(r.pegin_txid)}`,
     );
   }
 
   if (typeof r.found !== "boolean") {
     throw new VpResponseValidationError(
-      `VP response validation failed: "found" must be a boolean, got ${JSON.stringify(r.found)}`,
+      `VP response validation failed: "found" must be a boolean, got ${preview(r.found)}`,
     );
   }
 
@@ -313,12 +319,12 @@ export function validateGetPegoutStatusResponse(
     const claimer = r.claimer as Record<string, unknown>;
     if (typeof claimer.status !== "string") {
       throw new VpResponseValidationError(
-        `VP response validation failed: "claimer.status" must be a string, got ${JSON.stringify(claimer.status)}`,
+        `VP response validation failed: "claimer.status" must be a string, got ${preview(claimer.status)}`,
       );
     }
     if (typeof claimer.failed !== "boolean") {
       throw new VpResponseValidationError(
-        `VP response validation failed: "claimer.failed" must be a boolean, got ${JSON.stringify(claimer.failed)}`,
+        `VP response validation failed: "claimer.failed" must be a boolean, got ${preview(claimer.failed)}`,
       );
     }
   }
@@ -332,7 +338,7 @@ export function validateGetPegoutStatusResponse(
     const challenger = r.challenger as Record<string, unknown>;
     if (typeof challenger.status !== "string") {
       throw new VpResponseValidationError(
-        `VP response validation failed: "challenger.status" must be a string, got ${JSON.stringify(challenger.status)}`,
+        `VP response validation failed: "challenger.status" must be a string, got ${preview(challenger.status)}`,
       );
     }
   }
