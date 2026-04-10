@@ -21,7 +21,9 @@ const DAEMON_STATUS_VALUES = new Set<string>(Object.values(DaemonStatus));
 const VP_ERROR_PREVIEW_MAX_LEN = 200;
 
 function preview(value: unknown): string {
-  return JSON.stringify(value)?.slice(0, VP_ERROR_PREVIEW_MAX_LEN) ?? "undefined";
+  return (
+    JSON.stringify(value)?.slice(0, VP_ERROR_PREVIEW_MAX_LEN) ?? "undefined"
+  );
 }
 
 const VP_VALIDATION_USER_MESSAGE =
