@@ -1306,44 +1306,6 @@ function computeAssertClaimerSighashes(graph_json) {
 exports.computeAssertClaimerSighashes = computeAssertClaimerSighashes;
 
 /**
- * Computes sighashes for the claimer's ChallengeAssert transactions (X and Y)
- * for a specific challenger.
- *
- * Returns a JSON array of two hex-encoded sighashes: [ca_x_sighash, ca_y_sighash].
- *
- * # Arguments
- *
- * * `graph_json` - JSON-serialized `TxGraph`
- * * `challenger_pk_hex` - Hex-encoded challenger x-only public key (64 chars)
- * @param {string} graph_json
- * @param {string} challenger_pk_hex
- * @returns {string}
- */
-function computeChallengeAssertClaimerSighashes(graph_json, challenger_pk_hex) {
-    let deferred4_0;
-    let deferred4_1;
-    try {
-        const ptr0 = passStringToWasm0(graph_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-        const len0 = WASM_VECTOR_LEN;
-        const ptr1 = passStringToWasm0(challenger_pk_hex, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-        const len1 = WASM_VECTOR_LEN;
-        const ret = wasm.computeChallengeAssertClaimerSighashes(ptr0, len0, ptr1, len1);
-        var ptr3 = ret[0];
-        var len3 = ret[1];
-        if (ret[3]) {
-            ptr3 = 0; len3 = 0;
-            throw takeFromExternrefTable0(ret[2]);
-        }
-        deferred4_0 = ptr3;
-        deferred4_1 = len3;
-        return getStringFromWasm0(ptr3, len3);
-    } finally {
-        wasm.__wbindgen_free(deferred4_0, deferred4_1, 1);
-    }
-}
-exports.computeChallengeAssertClaimerSighashes = computeChallengeAssertClaimerSighashes;
-
-/**
  * Computes the minimum depositor claim value (in satoshis) needed to fund the
  * entire claim transaction path.
  *
