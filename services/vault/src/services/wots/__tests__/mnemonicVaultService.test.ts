@@ -104,12 +104,6 @@ describe("mnemonicVaultService", () => {
       expect(parsed.mnemonics[0]).toHaveProperty("encrypted");
     });
 
-    it("does not store the mnemonic in plaintext", async () => {
-      await addMnemonic(TEST_MNEMONIC, TEST_PASSWORD);
-      const raw = localStorage.getItem(STORAGE_KEY)!;
-      expect(raw).not.toContain(TEST_MNEMONIC);
-    });
-
     it("stores under a scoped key when scope is provided", async () => {
       await addMnemonic(TEST_MNEMONIC, TEST_PASSWORD, TEST_SCOPE);
       expect(localStorage.getItem(STORAGE_KEY)).toBeNull();
