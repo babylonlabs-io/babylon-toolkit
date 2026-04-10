@@ -91,11 +91,6 @@ export async function buildAndBroadcastRefundTransaction(
   if (!indexerVault) {
     throw new Error(`Vault ${vaultId} not found`);
   }
-  if (!indexerVault.unsignedPrePeginTx) {
-    throw new Error(
-      "Pre-PegIn transaction not available for this vault. Cannot build refund transaction.",
-    );
-  }
   const offchainParams = await getOffchainParamsByVersion(
     onChainVault.offchainParamsVersion,
   );

@@ -155,6 +155,7 @@ export function usePeginStorage({
         pendingMessage: "Transaction pending confirmation...",
         timestamp: pending.timestamp,
         depositorBtcPubkey: pending.depositorBtcPubkey,
+        unsignedPrePeginTx: pending.unsignedTxHex,
         depositorWotsPkHash: "",
       }));
 

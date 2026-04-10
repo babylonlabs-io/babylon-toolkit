@@ -33,6 +33,7 @@ describe("UTXO Reservation", () => {
       peginTxHash: "0xpeginTxHash1234",
       timestamp: Date.now(),
       status: "pending" as any,
+      unsignedTxHex: "0xdeadbeef",
       selectedUTXOs: [
         { txid: "txid1", vout: 0, value: "50000", scriptPubKey: "script1" },
         { txid: "txid2", vout: 1, value: "100000", scriptPubKey: "script2" },

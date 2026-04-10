@@ -44,6 +44,7 @@ describe("getPendingActivities", () => {
         amount: "1.5",
         status: LocalStorageStatus.PENDING,
         applicationEntryPoint: "0xcontroller",
+        unsignedTxHex: "0xdeadbeef",
       };
 
       vi.mocked(getPendingPegins).mockReturnValue([mockPendingPegin]);
@@ -88,6 +89,7 @@ describe("getPendingActivities", () => {
         status: LocalStorageStatus.CONFIRMING,
         applicationEntryPoint: "0xcontroller",
         peginTxHash: "0xbtctxhash123",
+        unsignedTxHex: "0xdeadbeef",
       };
 
       vi.mocked(getPendingPegins).mockReturnValue([mockPendingPegin]);
@@ -118,6 +120,7 @@ describe("getPendingActivities", () => {
         timestamp: mockTimestamp,
         amount: "1.5",
         status: LocalStorageStatus.PENDING,
+        unsignedTxHex: "0xdeadbeef",
         // No applicationEntryPoint
       };
 
@@ -141,6 +144,7 @@ describe("getPendingActivities", () => {
         timestamp: mockTimestamp,
         status: LocalStorageStatus.PENDING,
         applicationEntryPoint: "0xcontroller",
+        unsignedTxHex: "0xdeadbeef",
         // No amount
       };
 
@@ -172,6 +176,7 @@ describe("getPendingActivities", () => {
         amount: "1.5",
         status: LocalStorageStatus.PENDING,
         applicationEntryPoint: "0xunknown",
+        unsignedTxHex: "0xdeadbeef",
       };
 
       vi.mocked(getPendingPegins).mockReturnValue([mockPendingPegin]);
@@ -197,6 +202,7 @@ describe("getPendingActivities", () => {
           amount: "1.0",
           status: LocalStorageStatus.PENDING,
           applicationEntryPoint: "0xcontroller",
+          unsignedTxHex: "0xdeadbeef",
         },
         {
           id: "0xnewer",
@@ -205,6 +211,7 @@ describe("getPendingActivities", () => {
           amount: "2.0",
           status: LocalStorageStatus.PENDING,
           applicationEntryPoint: "0xcontroller",
+          unsignedTxHex: "0xdeadbeef",
         },
       ];
 

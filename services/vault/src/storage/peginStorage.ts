@@ -35,7 +35,7 @@ export interface PendingPeginRequest {
   peginTxHash: Hex; // Raw BTC pegin transaction hash
   depositorBtcPubkey?: string; // Depositor's BTC public key (x-only, for WOTS derivation in resume flow)
   // Fields for cross-device broadcasting support
-  unsignedTxHex?: string; // Funded Pre-PegIn tx hex (for broadcasting later)
+  unsignedTxHex: string; // Funded Pre-PegIn tx hex (for broadcasting later)
   selectedUTXOs?: Array<{
     // UTXOs used in the transaction
     txid: string;

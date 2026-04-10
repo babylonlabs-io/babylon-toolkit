@@ -135,9 +135,7 @@ export function collectReservedUtxoRefs(
     ) {
       continue;
     }
-    if (vault.unsignedPrePeginTx) {
-      reserved.push(...extractInputUtxoRefs(vault.unsignedPrePeginTx));
-    }
+    reserved.push(...extractInputUtxoRefs(vault.unsignedPrePeginTx));
   }
 
   return reserved;
