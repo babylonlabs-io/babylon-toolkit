@@ -4,7 +4,7 @@
         src="https://github.com/user-attachments/assets/dc74271e-90f1-44bd-9122-2b7438ab375c"
         width="100"
     />
-    <h3 align="center">@babylonlabs-io/wallet-connect</h3>
+    <h3 align="center">@babylonlabs-io/wallet-connector</h3>
     <p align="center">Babylon Wallet Connector</p>
 </p>
 <br/>
@@ -21,14 +21,18 @@
   - [IProvider](#iprovider)
     - [IBTCProvider](#ibtcprovider)
     - [IBBNProvider](#ibbnprovider)
+    - [SignPsbtOptions](#signpsbtoptions)
+    - [IETHProvider](#iethprovider)
+  - [Wallet Injection](#wallet-injection)
+- [Vault Integration Guide](#vault-integration-guide)
 
 The Babylon Wallet Connector repository provides the wallet connection component
-used in the Babylon Staking Dashboard. This component enables the connection of
-both Bitcoin and Babylon Genesis chain wallets.
+used in Babylon dApps. This component enables the connection of Bitcoin, Babylon
+Genesis chain, and Ethereum wallets.
 
 ## 🔑 Key Features
 
-- Unified interfaces for Bitcoin and Babylon wallet connections
+- Unified interfaces for Bitcoin, Babylon, and Ethereum wallet connections
 - Support for browser extension wallets
 - Support for hardware wallets
 - Mobile wallet compatibility through injectable interfaces
@@ -36,9 +40,9 @@ both Bitcoin and Babylon Genesis chain wallets.
 
 ## 🧐 Overview
 
-The Babylon Wallet Connector provides a unified interface for integrating both
-Bitcoin and Babylon wallets into Babylon dApp. It supports both native wallet
-extensions and injectable mobile wallets.
+The Babylon Wallet Connector provides a unified interface for integrating
+Bitcoin, Babylon, and Ethereum wallets into Babylon dApps. It supports native
+wallet extensions, injectable mobile wallets, and AppKit/WalletConnect for ETH.
 
 The main architectural difference is that native wallets are built into the
 library, while injectable wallets can be dynamically added by injecting their
@@ -47,7 +51,7 @@ implementation into the webpage's `window` object before the dApp loads.
 ## 👨🏻‍💻 Installation
 
 ```bash
-npm i @babylonlabs-io/wallet-connect
+npm i @babylonlabs-io/wallet-connector
 ```
 
 ## 📝 Commit Format & Automated Releases
@@ -103,12 +107,12 @@ npm run dev
 > application. If you are unsure about a change, please reach out to the Babylon
 > Labs team.
 
-This guide explains how to integrate wallets with the Babylon staking app. The
-dApp supports both Bitcoin and Babylon wallets through two integration paths:
+This guide explains how to integrate wallets with Babylon dApps. The
+wallet connector supports Bitcoin, Babylon, and Ethereum wallets through two integration paths:
 
 ### 1. Browser extension wallets
 
-The recommended way to integrate your wallet with Babylon staking app is through
+The recommended way to integrate your wallet with Babylon dApps is through
 [Tomo Connect SDK Lite](https://docs.tomo.inc/tomo-sdk/tomo-connect-sdk-lite).
 Please refer to Tomo's documentation for integration details.
 
@@ -117,8 +121,8 @@ Please refer to Tomo's documentation for integration details.
 Full interface definitions can be found in
 [src/core/types.ts](src/core/types.ts).
 
-Below we outline the interfaces for Bitcoin and Babylon wallets that need to be
-implemented for integration with the Babylon staking app.
+Below we outline the interfaces for Bitcoin, Babylon, and Ethereum wallets that need to be
+implemented for integration with Babylon dApps.
 
 ### IProvider
 
@@ -285,6 +289,149 @@ export interface IBBNProvider extends IProvider {
 }
 ```
 
+#### SignPsbtOptions
+
+```ts
+export interface SignInputOptions {
+  /** Input index to sign */
+  index: number;
+  /** Address for signing (optional) */
+  address?: string;
+  /** Public key for signing (optional, hex string) */
+  publicKey?: string;
+  /** Sighash types (optional) */
+  sighashTypes?: number[];
+  /**
+   * Disable tweak signer for Taproot script path spend.
+   * When true, sign with the untweaked internal key.
+   */
+  disableTweakSigner?: boolean;
+  /** Use tweaked signer for Taproot key path spend */
+  useTweakedSigner?: boolean;
+}
+
+export interface SignPsbtOptions {
+  /** Whether to automatically finalize the PSBT after signing */
+  autoFinalized?: boolean;
+  /**
+   * Specific inputs to sign.
+   * If not provided, wallet will attempt to sign all inputs it
+   * can.
+   */
+  signInputs?: SignInputOptions[];
+}
+```
+
+#### IETHProvider
+
+```ts
+export interface IETHProvider extends IProvider {
+  /**
+   * Signs a message using personal_sign (EIP-191).
+   */
+  signMessage(message: string): Promise<string>;
+
+  /**
+   * Signs structured data using eth_signTypedData_v4 (EIP-712).
+   */
+  signTypedData(typedData: ETHTypedData): Promise<string>;
+
+  /**
+   * Sends a transaction to the blockchain.
+   * @returns Transaction hash
+   */
+  sendTransaction(
+    tx: ETHTransactionRequest,
+  ): Promise<string>;
+
+  /**
+   * Estimates gas for a transaction.
+   */
+  estimateGas(
+    tx: ETHTransactionRequest,
+  ): Promise<bigint>;
+
+  /**
+   * Gets the current chain ID.
+   */
+  getChainId(): Promise<number>;
+
+  /**
+   * Switches to a different chain.
+   */
+  switchChain(chainId: number): Promise<void>;
+
+  /**
+   * Gets the account balance in wei.
+   */
+  getBalance(): Promise<bigint>;
+
+  /**
+   * Gets the account nonce.
+   */
+  getNonce(): Promise<number>;
+
+  /**
+   * Gets network information.
+   */
+  getNetworkInfo(): Promise<NetworkInfo>;
+
+  /**
+   * Gets the wallet provider name (synchronous).
+   */
+  getWalletProviderName(): string;
+
+  /**
+   * Gets the wallet provider icon (synchronous).
+   */
+  getWalletProviderIcon(): string;
+
+  on(eventName: string, handler: Function): void;
+  off(eventName: string, handler: Function): void;
+}
+
+export interface ETHTransactionRequest {
+  to: string;
+  value?: string;
+  data?: string;
+  gasLimit?: bigint;
+  maxFeePerGas?: bigint;
+  maxPriorityFeePerGas?: bigint;
+  nonce?: number;
+}
+
+export interface ETHTypedData {
+  domain: {
+    name?: string;
+    version?: string;
+    chainId?: number;
+    verifyingContract?: string;
+    salt?: string;
+  };
+  types: Record<
+    string,
+    Array<{ name: string; type: string }>
+  >;
+  primaryType: string;
+  message: Record<string, any>;
+}
+
+export interface NetworkInfo {
+  name: string;
+  chainId: string;
+}
+```
+
+> **Note**: `getWalletProviderName()` and
+> `getWalletProviderIcon()` on `IETHProvider` are **synchronous**
+> (return `string`), unlike the async versions on `IBTCProvider`
+> and `IBBNProvider`.
+
+ETH wallets connect via AppKit / WalletConnect (standard
+EIP-1193). No `window.ethwallet` injection is supported.
+
+### Wallet Injection
+
 1. Implement provider interface
 2. Inject into `window` before loading dApp:
 
@@ -294,4 +441,11 @@ window.btcwallet = new BTCWalletImplementation();
 
 // For Babylon wallets
 window.bbnwallet = new BBNWalletImplementation();
+
+// For Ethereum wallets — no injection needed.
+// ETH connects via AppKit / WalletConnect.
 ```
+
+## Vault Integration Guide
+
+For detailed documentation on integrating wallets with Babylon's Trustless Bitcoin Vaults (TBV), including the full deposit transaction flow, signing options, and reference implementations, see the [Vault Integration Guide](docs/vault-integration-guide.md).
