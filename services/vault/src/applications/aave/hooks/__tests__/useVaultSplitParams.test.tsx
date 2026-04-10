@@ -70,13 +70,20 @@ vi.mock("../../context", () => ({
 // Stub useAaveUserPosition — useVaultSplitParams reads the position's stored
 // dynamicConfigKey from it to correctly match the contract's liquidation path.
 // Tests override this mock via mockUseAaveUserPosition.mockReturnValue(...).
-const mockUseAaveUserPosition = vi.fn(() => ({
+type MockUseAaveUserPositionResult = {
+  position: { liveData: { dynamicConfigKey: number } } | null;
+  isLoading: boolean;
+};
+const mockUseAaveUserPosition = vi.fn<
+  (connectedAddress?: string) => MockUseAaveUserPositionResult
+>(() => ({
   position: null,
   isLoading: false,
 }));
 
 vi.mock("../useAaveUserPosition", () => ({
-  useAaveUserPosition: (...args: unknown[]) => mockUseAaveUserPosition(...args),
+  useAaveUserPosition: (connectedAddress?: string) =>
+    mockUseAaveUserPosition(connectedAddress),
 }));
 
 import { useVaultSplitParams } from "../useVaultSplitParams";
