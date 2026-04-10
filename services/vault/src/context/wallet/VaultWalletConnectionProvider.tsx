@@ -35,36 +35,32 @@ function WalletProviders({ children }: PropsWithChildren) {
   // Guard against re-entrancy when disconnectAll triggers disconnect events
   const isDisconnectingRef = useRef(false);
 
-  // When BTC wallet disconnects, disconnect all wallets
+  const handleWalletReset = useCallback(async () => {
+    if (isDisconnectingRef.current) return;
+    isDisconnectingRef.current = true;
+    try {
+      await disconnectAll?.();
+    } finally {
+      isDisconnectingRef.current = false;
+    }
+  }, [disconnectAll]);
+
+  // When BTC wallet disconnects or changes account, disconnect all wallets
   const btcCallbacks = useMemo(
     () => ({
-      onDisconnect: () => {
-        if (isDisconnectingRef.current) return;
-        isDisconnectingRef.current = true;
-        try {
-          disconnectAll?.();
-        } finally {
-          isDisconnectingRef.current = false;
-        }
-      },
+      onDisconnect: handleWalletReset,
+      onAddressChange: handleWalletReset,
     }),
-    [disconnectAll],
+    [handleWalletReset],
   );
 
-  // When ETH wallet disconnects, disconnect all wallets
+  // When ETH wallet disconnects or changes account, disconnect all wallets
   const ethCallbacks = useMemo(
     () => ({
-      onDisconnect: () => {
-        if (isDisconnectingRef.current) return;
-        isDisconnectingRef.current = true;
-        try {
-          disconnectAll?.();
-        } finally {
-          isDisconnectingRef.current = false;
-        }
-      },
+      onDisconnect: handleWalletReset,
+      onAddressChange: handleWalletReset,
     }),
-    [disconnectAll],
+    [handleWalletReset],
   );
 
   return (
