@@ -10,7 +10,7 @@ import type { SignInputOptions } from "@/core/types";
  */
 export function mapSignInputsToToSignInputs(
   signInputs: SignInputOptions[],
-  additionalFieldsFn?: (input: SignInputOptions) => Record<string, any>,
+  additionalFieldsFn?: (input: SignInputOptions) => Record<string, unknown>,
 ) {
   return signInputs.map((input) => ({
     index: input.index,

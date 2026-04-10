@@ -24,7 +24,7 @@ interface AppKitSignInput {
 interface AppKitBtcWalletProvider {
   signPSBT?: (params: {
     psbt: string;
-    signInputs: AppKitSignInput[];
+    signInputs?: AppKitSignInput[];
     broadcast: boolean;
   }) => Promise<{ psbt: string; txid?: string }>;
   signMessage?: (params: {
@@ -176,9 +176,9 @@ export class AppKitBTCProvider implements IBTCProvider {
 
       const psbtBase64 = Psbt.fromHex(psbtHex).toBase64();
 
-      const signInputs: AppKitSignInput[] =
+      const signInputs: AppKitSignInput[] | undefined =
         options?.autoFinalized || !options?.signInputs
-          ? []
+          ? undefined
           : options.signInputs.map((input) => ({
               address: input.address ?? address,
               index: input.index,
@@ -190,9 +190,13 @@ export class AppKitBTCProvider implements IBTCProvider {
 
       const result = await walletProvider.signPSBT({
         psbt: psbtBase64,
-        signInputs,
         broadcast: false,
+        ...(signInputs && { signInputs }),
       });
+
+      if (!result.psbt) {
+        throw new Error("Unexpected signPSBT response: missing psbt field");
+      }
 
       return Psbt.fromBase64(result.psbt).toHex();
     } catch (error) {
