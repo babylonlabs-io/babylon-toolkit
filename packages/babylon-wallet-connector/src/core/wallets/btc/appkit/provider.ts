@@ -12,12 +12,20 @@ interface BtcConnectedEvent extends Event {
   detail?: { address?: string; publicKey?: string };
 }
 
+interface AppKitSignInput {
+  address: string;
+  index: number;
+  sighashTypes: number[];
+  publicKey?: string;
+  disableTweakSigner?: boolean;
+}
+
 interface AppKitBtcWalletProvider {
   signPSBT?: (params: {
     psbt: string;
-    signInputs?: { address: string; signingIndexes: number[] };
+    signInputs?: AppKitSignInput[];
     broadcast: boolean;
-  }) => Promise<string | { psbt?: string }>;
+  }) => Promise<{ psbt: string; txid?: string }>;
   signMessage?: (params: {
     message: string;
     address: string;
@@ -167,28 +175,28 @@ export class AppKitBTCProvider implements IBTCProvider {
 
       const psbtBase64 = Psbt.fromHex(psbtHex).toBase64();
 
-      const params = {
-        psbt: psbtBase64,
-        signInputs: options?.autoFinalized
+      const signInputs: AppKitSignInput[] | undefined =
+        options?.autoFinalized || !options?.signInputs
           ? undefined
-          : {
-              address,
-              signingIndexes: [0],
-            },
+          : options.signInputs.map((input) => ({
+              address: input.address ?? address,
+              index: input.index,
+              sighashTypes: input.sighashTypes ?? [],
+              ...(input.publicKey && { publicKey: input.publicKey }),
+              ...(input.disableTweakSigner && { disableTweakSigner: true }),
+            }));
+
+      const result = await walletProvider.signPSBT({
+        psbt: psbtBase64,
         broadcast: false,
-      };
+        ...(signInputs && { signInputs }),
+      });
 
-      const result = await walletProvider.signPSBT(params);
-
-      const psbt = (result as { psbt?: string })?.psbt;
-      if (typeof result !== "string" && !psbt) {
+      if (!result.psbt) {
         throw new Error("Unexpected signPSBT response: missing psbt field");
       }
-      const signedPsbtBase64 = typeof result === "string" ? result : psbt!;
 
-      const signedPsbtHex = Psbt.fromBase64(signedPsbtBase64).toHex();
-
-      return signedPsbtHex;
+      return Psbt.fromBase64(result.psbt).toHex();
     } catch (error) {
       console.error("[AppKit Provider] signPsbt failed:", error);
       throw new Error(`Failed to sign PSBT: ${error instanceof Error ? error.message : "Unknown error"}`);
