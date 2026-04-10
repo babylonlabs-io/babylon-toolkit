@@ -1,5 +1,5 @@
 import { FullScreenDialog, Heading } from "@babylonlabs-io/core-ui";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { Hex } from "viem";
 
 import type { DepositorGraphTransactions } from "@/clients/vault-provider-rpc/types";
@@ -122,9 +122,8 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
     isPartialLiquidation,
     setIsPartialLiquidation,
     canSplit,
-    strategy,
-    allocationPlan,
-    isPlanning,
+    vaultAmounts,
+    isSplitLoading,
     splitRatioLabel,
     depositorClaimValue,
     validateForm,
@@ -145,8 +144,8 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
     hasActiveVaults,
     isSplitDeposit,
     setIsSplitDeposit,
-    splitAllocationPlan,
-    setSplitAllocationPlan,
+    splitVaultAmounts,
+    setSplitVaultAmounts,
     confirmMnemonic,
     getMnemonic,
     mnemonicId,
@@ -172,20 +171,27 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
       // Always generate secrets — the pegin flow requires an HTLC preimage.
       // The feature flag only controls whether the user sees the secret modal.
       const vaultCount =
-        isSplitDeposit && splitAllocationPlan
-          ? splitAllocationPlan.vaultAllocations.length
-          : 1;
+        isSplitDeposit && splitVaultAmounts ? splitVaultAmounts.length : 1;
       secretHexesRef.current = Array.from({ length: vaultCount }, () =>
         generateSecretHex(),
       );
       setSecretVaultIndex(0);
       goToStep(DepositStep.SECRET);
     },
-    [confirmMnemonic, goToStep, isSplitDeposit, splitAllocationPlan],
+    [confirmMnemonic, goToStep, isSplitDeposit, splitVaultAmounts],
   );
 
   const allowSplit =
     !hasActiveVaults || FeatureFlags.isForcePartialLiquidationSplit;
+
+  // Auto-enable split once when it first becomes available and allowed
+  const hasAutoChecked = useRef(false);
+  useEffect(() => {
+    if (canSplit && allowSplit && !hasAutoChecked.current) {
+      hasAutoChecked.current = true;
+      setIsPartialLiquidation(true);
+    }
+  }, [canSplit, allowSplit, setIsPartialLiquidation]);
 
   const partialLiquidationProps = !allowSplit
     ? undefined
@@ -193,16 +199,17 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
         isEnabled: isPartialLiquidation,
         onChange: setIsPartialLiquidation,
         canSplit,
-        strategy,
-        isPlanning,
+        isLoading: isSplitLoading,
         splitRatioLabel,
       };
 
   const resetAll = useCallback(() => {
     secretHexesRef.current = [];
     setSecretVaultIndex(0);
+    hasAutoChecked.current = false;
+    setIsPartialLiquidation(false);
     resetDeposit();
-  }, [resetDeposit]);
+  }, [setIsPartialLiquidation, resetDeposit]);
 
   // Freeze the rendered step during the close animation and reset on reopen
   const renderedStep = useDialogStep(open, depositStep, resetAll);
@@ -220,11 +227,10 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
         formData.selectedProvider,
       ]);
       setFeeRate(estimatedFeeRate);
-      const shouldSplit =
-        isPartialLiquidation && allowSplit && !!allocationPlan;
+      const shouldSplit = isPartialLiquidation && allowSplit && !!vaultAmounts;
       setIsSplitDeposit(shouldSplit);
-      if (shouldSplit && allocationPlan) {
-        setSplitAllocationPlan(allocationPlan);
+      if (shouldSplit && vaultAmounts) {
+        setSplitVaultAmounts([...vaultAmounts]);
       }
       goToStep(DepositStep.MNEMONIC);
     }
@@ -326,8 +332,8 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
             <div className="mx-auto w-full max-w-[520px]">
               <DepositSignContent
                 vaultAmounts={
-                  isSplitDeposit && splitAllocationPlan
-                    ? splitAllocationPlan.vaultAllocations.map((a) => a.amount)
+                  isSplitDeposit && splitVaultAmounts
+                    ? splitVaultAmounts
                     : [depositAmount]
                 }
                 mempoolFeeRate={feeRate}

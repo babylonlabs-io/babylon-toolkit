@@ -10,8 +10,6 @@ import { useChainConnector } from "@babylonlabs-io/wallet-connector";
 import { useCallback, useMemo, useRef, useState } from "react";
 import type { Address } from "viem";
 
-import type { AllocationPlan } from "@/services/vault";
-
 import {
   DepositStep,
   useDepositState,
@@ -62,8 +60,8 @@ export interface UseDepositPageFlowResult {
   // Split deposit state
   isSplitDeposit: boolean;
   setIsSplitDeposit: (v: boolean) => void;
-  splitAllocationPlan: AllocationPlan | null;
-  setSplitAllocationPlan: (plan: AllocationPlan | null) => void;
+  splitVaultAmounts: bigint[] | null;
+  setSplitVaultAmounts: (amounts: bigint[] | null) => void;
 
   // Primitives (for custom flows like SimpleDeposit)
   goToStep: (step: DepositStep) => void;
@@ -102,8 +100,8 @@ export function useDepositPageFlow(): UseDepositPageFlowResult {
     setTransactionHashes,
     isSplitDeposit,
     setIsSplitDeposit,
-    splitAllocationPlan,
-    setSplitAllocationPlan,
+    splitVaultAmounts,
+    setSplitVaultAmounts,
     reset: resetDepositState,
   } = useDepositState();
 
@@ -214,8 +212,8 @@ export function useDepositPageFlow(): UseDepositPageFlowResult {
     hasActiveVaults,
     isSplitDeposit,
     setIsSplitDeposit,
-    splitAllocationPlan,
-    setSplitAllocationPlan,
+    splitVaultAmounts,
+    setSplitVaultAmounts,
     startDeposit,
     confirmReview,
     confirmMnemonic,

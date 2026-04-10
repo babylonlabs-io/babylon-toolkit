@@ -225,11 +225,10 @@ vi.mock("../useVaultProviders", () => ({
 
 vi.mock("../useAllocationPlanning", () => ({
   useAllocationPlanning: vi.fn(() => ({
-    allocationPlan: null,
-    strategy: null,
-    isPlanning: false,
-    planError: null,
+    vaultAmounts: null,
     canSplit: false,
+    splitRatioLabel: null,
+    isLoading: false,
   })),
 }));
 

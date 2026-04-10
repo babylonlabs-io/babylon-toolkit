@@ -4,11 +4,10 @@ import {
   peginOutputCount,
 } from "@babylonlabs-io/ts-sdk/tbv/core";
 import { useQuery } from "@tanstack/react-query";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 
 import type { PriceMetadata } from "@/clients/eth-contract/chainlink";
 import { useBtcPublicKey } from "@/hooks/useBtcPublicKey";
-import type { AllocationPlan } from "@/services/vault";
 
 import { useAaveConfig } from "../../applications/aave/context";
 import { useProtocolParamsContext } from "../../context/ProtocolParamsContext";
@@ -80,10 +79,10 @@ export interface UseDepositPageFormResult {
   isPartialLiquidation: boolean;
   setIsPartialLiquidation: (v: boolean) => void;
   canSplit: boolean;
-  strategy: AllocationPlan["strategy"] | null;
-  allocationPlan: AllocationPlan | null;
-  isPlanning: boolean;
-  planError: string | null;
+  /** Per-vault amounts when splitting, null when not applicable */
+  vaultAmounts: readonly [bigint, bigint] | null;
+  /** Whether split params are still loading */
+  isSplitLoading: boolean;
   /** Display label for the split ratio, null when not applicable */
   splitRatioLabel: string | null;
   /** Depositor claim value computed from WASM (VK/UC counts + fee). undefined while loading. */
@@ -198,7 +197,6 @@ export function useDepositPageForm(): UseDepositPageFormResult {
   // Partial liquidation (multi-vault deposit) — declared early so the fee
   // estimate below can account for the batch output count.
   const [isPartialLiquidation, setIsPartialLiquidation] = useState(false);
-  const hasAutoChecked = useRef(false);
 
   // Batch-first: one Pre-PegIn tx with N HTLC outputs + 1 CPFP anchor.
   // When partial liquidation is on, N = 2 (sacrificial + protected vaults).
@@ -253,28 +251,14 @@ export function useDepositPageForm(): UseDepositPageFormResult {
   });
 
   const {
-    allocationPlan,
-    strategy,
-    isPlanning,
-    planError,
+    vaultAmounts: splitVaultAmounts,
     canSplit,
     splitRatioLabel,
+    isLoading: isSplitLoading,
   } = useAllocationPlanning({
     amountSats,
-    feeRate: estimatedFeeRate,
     isPartialLiquidation,
-    spendableUTXOs,
-    btcAddress,
-    depositorClaimValue,
   });
-
-  // Auto-check once when splitting first becomes possible
-  useEffect(() => {
-    if (canSplit && !hasAutoChecked.current) {
-      hasAutoChecked.current = true;
-      setIsPartialLiquidation(true);
-    }
-  }, [canSplit]);
 
   // Adjust max deposit to account for depositorClaimValue (network fees already subtracted)
   const adjustedMaxDepositSats = useMemo(() => {
@@ -346,11 +330,9 @@ export function useDepositPageForm(): UseDepositPageFormResult {
     isPartialLiquidation,
     setIsPartialLiquidation,
     canSplit,
-    strategy,
+    vaultAmounts: splitVaultAmounts,
+    isSplitLoading,
     depositorClaimValue,
-    allocationPlan,
-    isPlanning,
-    planError,
     splitRatioLabel,
     validateForm,
     validateAmountOnBlur,
