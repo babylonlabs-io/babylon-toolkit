@@ -130,21 +130,6 @@ describe("vaultRefundService - buildAndBroadcastRefundTransaction", () => {
     ).rejects.toThrow(`Vault ${VAULT_ID} not found`);
   });
 
-  it("throws when unsignedPrePeginTx is missing", async () => {
-    (fetchVaultById as Mock).mockResolvedValue({
-      ...INDEXER_VAULT,
-      unsignedPrePeginTx: null,
-    });
-
-    await expect(
-      buildAndBroadcastRefundTransaction({
-        vaultId: VAULT_ID,
-        btcWalletProvider: BTC_WALLET_PROVIDER,
-        depositorBtcPubkey: DEPOSITOR_PUBKEY,
-      }),
-    ).rejects.toThrow("Pre-PegIn transaction not available for this vault");
-  });
-
   it("throws when vault provider is not found", async () => {
     (fetchVaultProviderById as Mock).mockResolvedValue(null);
 

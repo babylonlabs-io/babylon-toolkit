@@ -36,6 +36,7 @@ function makeVault(overrides: Partial<Vault> = {}): Vault {
     referralCode: 0,
     depositorPayoutBtcAddress: "0xpayout" as Hex,
     depositorWotsPkHash: "0x" + "ab".repeat(32),
+    unsignedPrePeginTx: "0xunsignedtx" as Hex,
     ...overrides,
   };
 }

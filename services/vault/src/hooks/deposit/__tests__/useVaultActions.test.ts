@@ -191,6 +191,7 @@ describe("useVaultActions — handleBroadcast transaction integrity", () => {
           timestamp: Date.now(),
           status: "PENDING" as never,
           peginTxHash: "0xpeginTxHash" as Hex,
+          unsignedTxHex: "",
         },
       });
     });

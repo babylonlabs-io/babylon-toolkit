@@ -240,7 +240,11 @@ function transformVaultItem(item: GraphQLVaultItem): Vault {
     depositor: item.depositor as Address,
     depositorBtcPubkey: item.depositorBtcPubKey as Hex,
     depositorSignedPeginTx: item.depositorSignedPeginTx as Hex,
-    unsignedPrePeginTx: item.unsignedPrePeginTx as Hex,
+    unsignedPrePeginTx: validateRequiredField(
+      item.unsignedPrePeginTx,
+      "unsignedPrePeginTx",
+      item.id,
+    ) as Hex,
     amount: BigInt(item.amount),
     vaultProvider: item.vaultProvider as Address,
     hashlock: normalizeOptionalHex(item.hashlock),

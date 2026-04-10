@@ -115,16 +115,12 @@ export function useVaultActions(): UseVaultActionsReturn {
 
       const graphqlUnsignedTxHex = vault.unsignedPrePeginTx;
 
-      if (!graphqlUnsignedTxHex) {
-        throw new Error("Pre-pegin transaction not found. Please try again.");
-      }
-
       // Use the locally stored transaction as the source of truth when available.
       // The local copy was saved before ETH submission and is trustworthy.
       // A mismatch means the indexer is returning a different transaction — abort.
       const localUnsignedTxHex = pendingPegin?.unsignedTxHex;
       if (
-        localUnsignedTxHex !== undefined &&
+        localUnsignedTxHex &&
         stripHexPrefix(localUnsignedTxHex).toLowerCase() !==
           stripHexPrefix(graphqlUnsignedTxHex).toLowerCase()
       ) {
@@ -132,7 +128,7 @@ export function useVaultActions(): UseVaultActionsReturn {
           "Transaction mismatch: the indexer returned a transaction that differs from the locally stored copy. Aborting to prevent a potential attack.",
         );
       }
-      const unsignedTxHex = localUnsignedTxHex ?? graphqlUnsignedTxHex;
+      const unsignedTxHex = localUnsignedTxHex || graphqlUnsignedTxHex;
 
       // Get BTC wallet provider
       const btcWalletProvider = btcConnector?.connectedWallet?.provider;
@@ -191,6 +187,7 @@ export function useVaultActions(): UseVaultActionsReturn {
           applicationEntryPoint: activityApplicationEntryPoint,
           peginTxHash: vault.peginTxHash,
           depositorBtcPubkey: vault.depositorBtcPubkey,
+          unsignedTxHex: vault.unsignedPrePeginTx,
           status: nextStatus,
         });
       }

@@ -104,8 +104,8 @@ export interface VaultActivity {
   /** Depositor-signed pegin transaction hex */
   depositorSignedPeginTx?: string;
 
-  /** Unsigned pre-pegin transaction hex (spends depositor's UTXOs — used for UTXO validation) */
-  unsignedPrePeginTx?: string;
+  /** Unsigned pre-pegin transaction hex (spends depositor's UTXOs — used for UTXO validation and refund) */
+  unsignedPrePeginTx: string;
 
   /** Depositor-specified BTC payout address (raw scriptPubKey hex from indexer) */
   depositorPayoutBtcAddress?: Hex;

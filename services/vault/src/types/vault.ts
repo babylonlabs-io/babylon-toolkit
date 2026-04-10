@@ -41,8 +41,8 @@ export interface Vault {
   /** Depositor-signed pegin transaction hex (from contract struct) */
   depositorSignedPeginTx: Hex;
 
-  /** Unsigned pre-pegin transaction hex (from PegInSubmitted event, DA only) */
-  unsignedPrePeginTx?: Hex;
+  /** Unsigned pre-pegin transaction hex (from PegInSubmitted event) */
+  unsignedPrePeginTx: Hex;
 
   /** Amount in satoshis */
   amount: bigint;
