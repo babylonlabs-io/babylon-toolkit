@@ -343,3 +343,6 @@ export type {
 
 // Export constants
 export { TAP_INTERNAL_KEY, tapInternalPubkey } from "./constants.js";
+
+// Re-export WASM classes (mirrors index.ts browser entry)
+export { WasmPrePeginTx, WasmPeginTx, WasmPrePeginHtlcConnector, WasmPeginPayoutConnector };
