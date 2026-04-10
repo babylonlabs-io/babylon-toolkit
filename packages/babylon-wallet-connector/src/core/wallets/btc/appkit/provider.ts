@@ -18,7 +18,6 @@ interface AppKitSignInput {
   sighashTypes: number[];
   publicKey?: string;
   disableTweakSigner?: boolean;
-  useTweakedSigner?: boolean;
 }
 
 interface AppKitBtcWalletProvider {
@@ -185,7 +184,6 @@ export class AppKitBTCProvider implements IBTCProvider {
               sighashTypes: input.sighashTypes ?? [],
               ...(input.publicKey && { publicKey: input.publicKey }),
               ...(input.disableTweakSigner && { disableTweakSigner: true }),
-              ...(input.useTweakedSigner && { useTweakedSigner: true }),
             }));
 
       const result = await walletProvider.signPSBT({
