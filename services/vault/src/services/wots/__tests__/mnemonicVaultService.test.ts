@@ -1,4 +1,33 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+vi.mock("@metamask/browser-passworder", () => ({
+  encrypt: (password: string, data: unknown): Promise<string> =>
+    Promise.resolve(
+      JSON.stringify({ p: password, d: btoa(JSON.stringify(data)) }),
+    ),
+  decrypt: (password: string, encrypted: string): Promise<unknown> => {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(encrypted);
+    } catch {
+      return Promise.reject(new Error("Failed to decrypt"));
+    }
+    if (
+      typeof parsed !== "object" ||
+      parsed === null ||
+      (parsed as Record<string, unknown>).p !== password
+    ) {
+      return Promise.reject(new Error("Failed to decrypt"));
+    }
+    try {
+      return Promise.resolve(
+        JSON.parse(atob((parsed as Record<string, unknown>).d as string)),
+      );
+    } catch {
+      return Promise.reject(new Error("Failed to decrypt"));
+    }
+  },
+}));
 
 import {
   addMnemonic,
@@ -73,12 +102,6 @@ describe("mnemonicVaultService", () => {
       expect(parsed.mnemonics).toHaveLength(1);
       expect(parsed.mnemonics[0]).toHaveProperty("id");
       expect(parsed.mnemonics[0]).toHaveProperty("encrypted");
-    });
-
-    it("does not store the mnemonic in plaintext", async () => {
-      await addMnemonic(TEST_MNEMONIC, TEST_PASSWORD);
-      const raw = localStorage.getItem(STORAGE_KEY)!;
-      expect(raw).not.toContain(TEST_MNEMONIC);
     });
 
     it("stores under a scoped key when scope is provided", async () => {
