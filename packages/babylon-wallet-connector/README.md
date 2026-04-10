@@ -21,6 +21,10 @@
   - [IProvider](#iprovider)
     - [IBTCProvider](#ibtcprovider)
     - [IBBNProvider](#ibbnprovider)
+    - [SignPsbtOptions](#signpsbtoptions)
+    - [IETHProvider](#iethprovider)
+  - [Wallet Injection](#wallet-injection)
+- [Vault Integration Guide](#vault-integration-guide)
 
 The Babylon Wallet Connector repository provides the wallet connection component
 used in Babylon dApps. This component enables the connection of Bitcoin, Babylon
@@ -103,12 +107,12 @@ npm run dev
 > application. If you are unsure about a change, please reach out to the Babylon
 > Labs team.
 
-This guide explains how to integrate wallets with the Babylon staking app. The
-dApp supports both Bitcoin and Babylon wallets through two integration paths:
+This guide explains how to integrate wallets with Babylon dApps. The
+wallet connector supports Bitcoin, Babylon, and Ethereum wallets through two integration paths:
 
 ### 1. Browser extension wallets
 
-The recommended way to integrate your wallet with Babylon staking app is through
+The recommended way to integrate your wallet with Babylon dApps is through
 [Tomo Connect SDK Lite](https://docs.tomo.inc/tomo-sdk/tomo-connect-sdk-lite).
 Please refer to Tomo's documentation for integration details.
 
@@ -117,8 +121,8 @@ Please refer to Tomo's documentation for integration details.
 Full interface definitions can be found in
 [src/core/types.ts](src/core/types.ts).
 
-Below we outline the interfaces for Bitcoin and Babylon wallets that need to be
-implemented for integration with the Babylon staking app.
+Below we outline the interfaces for Bitcoin, Babylon, and Ethereum wallets that need to be
+implemented for integration with Babylon dApps.
 
 ### IProvider
 
@@ -455,9 +459,13 @@ EIP-1193). No `window.ethwallet` injection is supported.
 // For Bitcoin wallets
 window.btcwallet = new BTCWalletImplementation();
 
-// For Babylon wallets (BTC staking only)
+// For Babylon wallets
 window.bbnwallet = new BBNWalletImplementation();
 
 // For Ethereum wallets — no injection needed.
 // ETH connects via AppKit / WalletConnect.
 ```
+
+## Vault Integration Guide
+
+For detailed documentation on integrating wallets with Babylon's Trustless Bitcoin Vaults (TBV), including the full deposit transaction flow, signing options, and reference implementations, see the [Vault Integration Guide](docs/vault-integration-guide.md).
