@@ -24,7 +24,7 @@ Babylon's Trustless Bitcoin Vaults (TBV) let users lock BTC on Bitcoin and recei
 If your wallet already implements `IBTCProvider` for Babylon BTC staking, here's what's new for TBV:
 
 - **`signPsbts()` is now critical** — TBV signs multiple PSBTs per deposit + payout pre-signing. Without batch signing, each PSBT requires a separate user approval.
-- **`SignPsbtOptions` expanded** — New fields: `contracts`, `action` (required for Ledger policy derivation), `signInputs` with `disableTweakSigner` (required for Taproot script path spends).
+- **`SignPsbtOptions` expanded** — New field `signInputs` with `disableTweakSigner` (required for Taproot script path spends).
 - **Ethereum wallet required** — Staking was BTC-only. TBV requires an ETH wallet for on-chain registration and DeFi. Uses viem `WalletClient` — any EIP-1193/wagmi/WalletConnect wallet works.
 - **No more BBN/Cosmos** — Staking used `IBBNProvider`. TBV replaces this with Ethereum.
 
@@ -67,8 +67,6 @@ All methods below are required for TBV integration.
 interface SignPsbtOptions {
   autoFinalized?: boolean;
   signInputs?: SignInputOptions[];
-  contracts?: Contract[];
-  action?: Action;
 }
 
 interface SignInputOptions {
@@ -89,8 +87,6 @@ interface SignInputOptions {
 | `signInputs[].disableTweakSigner` | Yes | **Critical for TBV** — set `true` for Taproot script path spends (untweaked internal key) |
 | `signInputs[].useTweakedSigner` | Yes | Set `true` for Taproot key path spends (tweaked key). Used by Unisat auto-detection. |
 | `signInputs[].sighashTypes` | Sometimes | Sighash override for specific inputs |
-| `contracts` | Ledger only | Contract context for Ledger policy derivation |
-| `action` | Ledger only | Action metadata for Ledger |
 
 ### Critical Requirements
 

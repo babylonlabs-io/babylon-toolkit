@@ -319,28 +319,8 @@ export interface SignPsbtOptions {
    * can.
    */
   signInputs?: SignInputOptions[];
-  /** Contract context for the signing operation (Ledger) */
-  contracts?: Contract[];
-  /** Action metadata (Ledger) */
-  action?: Action;
-}
-
-export interface Contract {
-  id: string;
-  params: Record<
-    string,
-    string | number | string[] | number[]
-  >;
-}
-
-export interface Action {
-  name: string;
 }
 ```
-
-> ⚠️ **Important**: `contracts` and `action` are required for
-> Ledger hardware wallet signing. Without them, the Ledger
-> provider will reject the signing request.
 
 #### IETHProvider
 
