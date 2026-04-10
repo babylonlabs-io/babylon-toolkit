@@ -167,6 +167,7 @@ const { signature } = await payoutManager.signPayoutTransaction({
   vaultProviderBtcPubkey: "...",
   vaultKeeperBtcPubkeys: [...],
   universalChallengerBtcPubkeys: [...],
+  registeredPayoutScriptPubKey: "0x...",  // From on-chain vault data
 });
 ```
 

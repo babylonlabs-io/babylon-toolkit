@@ -30,6 +30,7 @@ describe("UTXO Reservation", () => {
   describe("collectReservedUtxoRefs", () => {
     const mockPendingPegin: PendingPeginRequest = {
       id: "0x1234",
+      peginTxHash: "0xpeginTxHash1234",
       timestamp: Date.now(),
       status: "pending" as any,
       selectedUTXOs: [
@@ -54,6 +55,7 @@ describe("UTXO Reservation", () => {
 
     const mockPendingPeginWithTxHex: PendingPeginRequest = {
       id: "0x5678",
+      peginTxHash: "0xpeginTxHash5678",
       timestamp: Date.now(),
       status: "pending" as any,
       unsignedTxHex: VALID_TX_FOR_PENDING,
@@ -93,7 +95,7 @@ describe("UTXO Reservation", () => {
       unsignedPrePeginTx: unsignedPrePeginTx as any,
       amount: 100000n,
       vaultProvider: "0xprovider" as any,
-      proverProgramVersion: 1,
+      peginTxHash: "0xpegin" as any,
       htlcVout: 0,
       status,
       applicationEntryPoint: "0xcontroller" as any,
@@ -103,7 +105,7 @@ describe("UTXO Reservation", () => {
       universalChallengersVersion: 1,
       offchainParamsVersion: 1,
       referralCode: 0,
-      depositorLamportPkHash: "0x" + "ab".repeat(32),
+      depositorWotsPkHash: "0x" + "ab".repeat(32),
       depositorPayoutBtcAddress: "0xpayoutaddr" as any,
     });
 

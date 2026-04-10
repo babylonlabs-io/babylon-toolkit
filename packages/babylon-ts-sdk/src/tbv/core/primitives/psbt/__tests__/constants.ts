@@ -9,21 +9,10 @@
 
 import { Buffer } from "buffer";
 
-// ==================== Bitcoin Protocol Constants ====================
+import { TAPSCRIPT_LEAF_VERSION } from "../../utils/bitcoin";
 
-/**
- * Tapscript leaf version as defined in BIP-341.
- *
- * The value 0xc0 (binary: 11000000) represents:
- * - Bit 0: Parity bit for output key y-coordinate
- * - Bits 1-7: Leaf version (0xc0 >> 1 = 0x60)
- *
- * This is the standard leaf version for Tapscript execution.
- *
- * @see https://github.com/bitcoin/bips/blob/master/bip-0341.mediawiki
- * @see Rust: bitcoin::taproot::LeafVersion::TapScript
- */
-export const TAPSCRIPT_LEAF_VERSION = 0xc0;
+// Re-export for test convenience
+export { TAPSCRIPT_LEAF_VERSION };
 
 /**
  * Maximum sequence value (no relative timelock).

@@ -14,18 +14,15 @@ import {
   type Network,
   tapInternalPubkey,
 } from "@babylonlabs-io/babylon-tbv-rust-wasm";
-import * as ecc from "@bitcoin-js/tiny-secp256k1-asmjs";
 import { Buffer } from "buffer";
-import { initEccLib, payments, Psbt, Transaction } from "bitcoinjs-lib";
+import { Psbt, Transaction } from "bitcoinjs-lib";
 import { createPayoutScript } from "../scripts/payout";
 import {
+  TAPSCRIPT_LEAF_VERSION,
   hexToUint8Array,
   stripHexPrefix,
   uint8ArrayToHex,
 } from "../utils/bitcoin";
-
-// Initialize ECC library for bitcoinjs-lib
-initEccLib(ecc);
 
 /**
  * Parameters for building an unsigned Payout PSBT
@@ -133,7 +130,7 @@ export async function buildPayoutPsbt(
   });
 
   const payoutScriptBytes = hexToUint8Array(payoutConnector.payoutScript);
-  const controlBlock = computeControlBlock(tapInternalPubkey, payoutScriptBytes);
+  const controlBlock = hexToUint8Array(payoutConnector.payoutControlBlock);
 
   // Parse transactions
   const payoutTx = Transaction.fromHex(payoutTxHex);
@@ -215,7 +212,7 @@ export async function buildPayoutPsbt(
     },
     tapLeafScript: [
       {
-        leafVersion: 0xc0,
+        leafVersion: TAPSCRIPT_LEAF_VERSION,
         script: Buffer.from(payoutScriptBytes),
         controlBlock: Buffer.from(controlBlock),
       },
@@ -377,44 +374,3 @@ function parseWitnessStack(witness: Buffer): Buffer[] {
   return items;
 }
 
-/**
- * Compute control block for Taproot script path spend.
- *
- * For a single script (no tree), the control block format is:
- * [leaf_version | parity] || [internal_key_x_only]
- *
- * The leaf version for Tapscript is 0xc0, and the parity bit indicates
- * whether the output key has an odd or even y-coordinate.
- *
- * @param internalKey - Taproot internal public key (x-only, 32 bytes)
- * @param script - Taproot script to compute control block for
- * @returns Control block buffer
- *
- * @internal
- */
-function computeControlBlock(
-  internalKey: Uint8Array,
-  script: Uint8Array,
-): Uint8Array {
-  // Convert to actual Buffer instances for bitcoinjs-lib runtime type checks
-  const scriptTree = { output: Buffer.from(script) };
-  const payment = payments.p2tr({
-    internalPubkey: Buffer.from(internalKey),
-    scriptTree,
-  });
-
-  const outputKey = payment.pubkey;
-  if (!outputKey) {
-    throw new Error("Failed to compute output key");
-  }
-
-  // Control block: [leaf_version | parity] || [internal_key_x_only]
-  const leafVersion = 0xc0;
-  const parity = outputKey[0] === 0x03 ? 1 : 0; // 0x02 = even, 0x03 = odd
-  const controlByte = leafVersion | parity;
-
-  const result = new Uint8Array(1 + internalKey.length);
-  result[0] = controlByte;
-  result.set(internalKey, 1);
-  return result;
-}

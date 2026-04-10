@@ -74,6 +74,7 @@ export function useBorrowFormState({
     liquidationThresholdBps,
     selectedReserve,
     assetConfig,
+    tokenPriceUsd,
   } = useLoanContext();
 
   const { executeBorrow, isProcessing } = useBorrowTransaction();
@@ -81,6 +82,8 @@ export function useBorrowFormState({
   const { borrowAmount, setBorrowAmount, maxBorrowAmount } = useBorrowState({
     collateralValueUsd,
     currentDebtUsd: totalDebtValueUsd,
+    liquidationThresholdBps,
+    tokenPriceUsd,
   });
 
   const metrics = useBorrowMetrics({
@@ -89,6 +92,7 @@ export function useBorrowFormState({
     currentDebtUsd: totalDebtValueUsd,
     liquidationThresholdBps,
     currentHealthFactor: healthFactor,
+    tokenPriceUsd,
   });
 
   const { isDisabled, buttonText } = validateBorrowAction(
@@ -156,7 +160,7 @@ export function useBorrowFormState({
     setBorrowAmount,
     sliderMax,
     maxAmountFormatted: `${formatTokenAmount(sliderMax)} ${assetConfig.symbol}`,
-    usdValueFormatted: formatUsdValue(borrowAmount),
+    usdValueFormatted: formatUsdValue(borrowAmount * tokenPriceUsd),
 
     isDisabled,
     buttonText: resolvedButtonText,

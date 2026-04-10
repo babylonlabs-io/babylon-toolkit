@@ -75,6 +75,10 @@ export type {
   RegisterPeginParams,
   RegisterPeginResult,
   SignAndBroadcastParams,
+  BatchPeginRequestItem,
+  RegisterPeginBatchParams,
+  BatchPeginResultItem,
+  RegisterPeginBatchResult,
 } from "./PeginManager";
 
 export { PayoutManager } from "./PayoutManager";

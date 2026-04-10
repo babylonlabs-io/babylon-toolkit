@@ -1,9 +1,10 @@
 import { reactConfig } from "@internal/eslint-config/react";
 import importOrder from "eslint-plugin-import";
-import { defineConfig } from "eslint/config";
+import { defineConfig, globalIgnores } from "eslint/config";
 import tseslint from "typescript-eslint";
 
 export default defineConfig([
+  globalIgnores(["tests/e2e/fixtures/"]),
   ...reactConfig,
   {
     plugins: { import: importOrder, "@typescript-eslint": tseslint.plugin },

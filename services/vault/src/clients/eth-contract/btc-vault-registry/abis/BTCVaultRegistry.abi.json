@@ -13,9 +13,14 @@
         "internalType": "address"
       },
       {
-        "name": "_inclusionVerifier",
+        "name": "_feeEscrow",
         "type": "address",
-        "internalType": "contract BtcInclusionVerifier"
+        "internalType": "address"
+      },
+      {
+        "name": "_capPolicy",
+        "type": "address",
+        "internalType": "address"
       }
     ],
     "stateMutability": "nonpayable"
@@ -35,13 +40,13 @@
   },
   {
     "type": "function",
-    "name": "PEGIN_ACK_PREFIX",
+    "name": "MAX_VAULTS_PER_PAGE",
     "inputs": [],
     "outputs": [
       {
         "name": "",
-        "type": "string",
-        "internalType": "string"
+        "type": "uint256",
+        "internalType": "uint256"
       }
     ],
     "stateMutability": "view"
@@ -49,6 +54,19 @@
   {
     "type": "function",
     "name": "TBV_PROTOCOL_ADMIN",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "stateMutability": "pure"
+  },
+  {
+    "type": "function",
+    "name": "TBV_PROTOCOL_FREEZE_GUARDIAN",
     "inputs": [],
     "outputs": [
       {
@@ -100,6 +118,29 @@
   },
   {
     "type": "function",
+    "name": "activateVaultWithSecret",
+    "inputs": [
+      {
+        "name": "vaultId",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "s",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "activationMetadata",
+        "type": "bytes",
+        "internalType": "bytes"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
     "name": "applicationRegistry",
     "inputs": [],
     "outputs": [
@@ -107,6 +148,25 @@
         "name": "",
         "type": "address",
         "internalType": "contract IApplicationRegistry"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "btcKeyToProvider",
+    "inputs": [
+      {
+        "name": "",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
       }
     ],
     "stateMutability": "view"
@@ -173,11 +233,6 @@
         "internalType": "uint16"
       },
       {
-        "name": "proverProgramVersion",
-        "type": "uint16",
-        "internalType": "uint16"
-      },
-      {
         "name": "createdAt",
         "type": "uint256",
         "internalType": "uint256"
@@ -188,7 +243,7 @@
         "internalType": "uint256"
       },
       {
-        "name": "depositorLamportPkHash",
+        "name": "depositorWotsPkHash",
         "type": "bytes32",
         "internalType": "bytes32"
       },
@@ -201,71 +256,32 @@
         "name": "htlcVout",
         "type": "uint8",
         "internalType": "uint8"
+      },
+      {
+        "name": "depositorPopSignature",
+        "type": "bytes",
+        "internalType": "bytes"
+      },
+      {
+        "name": "prePeginTxHash",
+        "type": "bytes32",
+        "internalType": "bytes32"
       }
     ],
     "stateMutability": "view"
   },
   {
     "type": "function",
-    "name": "bypassAndRegisterVaultProvider",
-    "inputs": [
-      {
-        "name": "provider",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "btcPubKey",
-        "type": "bytes32",
-        "internalType": "bytes32"
-      },
-      {
-        "name": "applicationEntryPoint",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "bypassPeginAndCreateVault",
-    "inputs": [
-      {
-        "name": "depositor",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "depositorBtcPubKey",
-        "type": "bytes32",
-        "internalType": "bytes32"
-      },
-      {
-        "name": "amount",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "vaultProvider",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "applicationEntryPoint",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
+    "name": "capPolicy",
+    "inputs": [],
     "outputs": [
       {
-        "name": "vaultId",
-        "type": "bytes32",
-        "internalType": "bytes32"
+        "name": "",
+        "type": "address",
+        "internalType": "contract ICapPolicy"
       }
     ],
-    "stateMutability": "nonpayable"
+    "stateMutability": "view"
   },
   {
     "type": "function",
@@ -290,6 +306,26 @@
       }
     ],
     "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "feeEscrow",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "contract IFeeEscrow"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "freeze",
+    "inputs": [],
+    "outputs": [],
+    "stateMutability": "nonpayable"
   },
   {
     "type": "function",
@@ -365,11 +401,6 @@
             "internalType": "uint16"
           },
           {
-            "name": "proverProgramVersion",
-            "type": "uint16",
-            "internalType": "uint16"
-          },
-          {
             "name": "createdAt",
             "type": "uint256",
             "internalType": "uint256"
@@ -380,7 +411,7 @@
             "internalType": "uint256"
           },
           {
-            "name": "depositorLamportPkHash",
+            "name": "depositorWotsPkHash",
             "type": "bytes32",
             "internalType": "bytes32"
           },
@@ -393,6 +424,16 @@
             "name": "htlcVout",
             "type": "uint8",
             "internalType": "uint8"
+          },
+          {
+            "name": "depositorPopSignature",
+            "type": "bytes",
+            "internalType": "bytes"
+          },
+          {
+            "name": "prePeginTxHash",
+            "type": "bytes32",
+            "internalType": "bytes32"
           }
         ]
       }
@@ -401,7 +442,26 @@
   },
   {
     "type": "function",
-    "name": "getDepositorPeginRequests",
+    "name": "getBTCVaultAmountsBatch",
+    "inputs": [
+      {
+        "name": "vaultIds",
+        "type": "bytes32[]",
+        "internalType": "bytes32[]"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "amounts",
+        "type": "uint256[]",
+        "internalType": "uint256[]"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getDepositorVaultIds",
     "inputs": [
       {
         "name": "depositor",
@@ -411,7 +471,7 @@
     ],
     "outputs": [
       {
-        "name": "requestIds",
+        "name": "vaultIds",
         "type": "bytes32[]",
         "internalType": "bytes32[]"
       }
@@ -420,19 +480,43 @@
   },
   {
     "type": "function",
-    "name": "getDepositorTxHashes",
+    "name": "getPegInFee",
     "inputs": [
       {
-        "name": "depositor",
+        "name": "vaultProvider",
         "type": "address",
         "internalType": "address"
       }
     ],
     "outputs": [
       {
-        "name": "txHashes",
+        "name": "totalFee",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getPeginInputSignatures",
+    "inputs": [
+      {
+        "name": "vaultId",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "btcPubKeys",
         "type": "bytes32[]",
         "internalType": "bytes32[]"
+      },
+      {
+        "name": "signatures",
+        "type": "bytes[]",
+        "internalType": "bytes[]"
       }
     ],
     "stateMutability": "view"
@@ -464,6 +548,16 @@
         "name": "user",
         "type": "address",
         "internalType": "address"
+      },
+      {
+        "name": "offset",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "limit",
+        "type": "uint256",
+        "internalType": "uint256"
       }
     ],
     "outputs": [
@@ -523,11 +617,6 @@
             "internalType": "uint16"
           },
           {
-            "name": "proverProgramVersion",
-            "type": "uint16",
-            "internalType": "uint16"
-          },
-          {
             "name": "createdAt",
             "type": "uint256",
             "internalType": "uint256"
@@ -538,7 +627,7 @@
             "internalType": "uint256"
           },
           {
-            "name": "depositorLamportPkHash",
+            "name": "depositorWotsPkHash",
             "type": "bytes32",
             "internalType": "bytes32"
           },
@@ -551,8 +640,23 @@
             "name": "htlcVout",
             "type": "uint8",
             "internalType": "uint8"
+          },
+          {
+            "name": "depositorPopSignature",
+            "type": "bytes",
+            "internalType": "bytes"
+          },
+          {
+            "name": "prePeginTxHash",
+            "type": "bytes32",
+            "internalType": "bytes32"
           }
         ]
+      },
+      {
+        "name": "total",
+        "type": "uint256",
+        "internalType": "uint256"
       }
     ],
     "stateMutability": "view"
@@ -635,6 +739,25 @@
   },
   {
     "type": "function",
+    "name": "getVaultProviderCommission",
+    "inputs": [
+      {
+        "name": "vpAddr",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint16",
+        "internalType": "uint16"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "getVaultProviderKeyPair",
     "inputs": [
       {
@@ -647,7 +770,7 @@
       {
         "name": "",
         "type": "tuple",
-        "internalType": "struct IBTCVaultsManager.AddressBTCKeyPair",
+        "internalType": "struct IBTCVaultRegistry.AddressBTCKeyPair",
         "components": [
           {
             "name": "ethAddress",
@@ -708,13 +831,19 @@
   },
   {
     "type": "function",
-    "name": "inclusionVerifier",
-    "inputs": [],
+    "name": "hashlockToVaultId",
+    "inputs": [
+      {
+        "name": "",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
     "outputs": [
       {
         "name": "",
-        "type": "address",
-        "internalType": "contract BtcInclusionVerifier"
+        "type": "bool",
+        "internalType": "bool"
       }
     ],
     "stateMutability": "view"
@@ -734,12 +863,109 @@
   },
   {
     "type": "function",
+    "name": "isParticipant",
+    "inputs": [
+      {
+        "name": "account",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "appEntryPoint",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "isVP",
+        "type": "bool",
+        "internalType": "bool"
+      },
+      {
+        "name": "isVK",
+        "type": "bool",
+        "internalType": "bool"
+      },
+      {
+        "name": "isUC",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "isParticipantByBtcKey",
+    "inputs": [
+      {
+        "name": "btcKey",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "appEntryPoint",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "isVP",
+        "type": "bool",
+        "internalType": "bool"
+      },
+      {
+        "name": "isVK",
+        "type": "bool",
+        "internalType": "bool"
+      },
+      {
+        "name": "isUC",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "isPeginVerified",
     "inputs": [
       {
         "name": "vaultId",
         "type": "bytes32",
         "internalType": "bytes32"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "isPrePeginOutputUsed",
+    "inputs": [
+      {
+        "name": "prePeginTxHash",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "htlcVout",
+        "type": "uint8",
+        "internalType": "uint8"
+      },
+      {
+        "name": "depositor",
+        "type": "address",
+        "internalType": "address"
       }
     ],
     "outputs": [
@@ -790,6 +1016,30 @@
   },
   {
     "type": "function",
+    "name": "peginInputSignatures",
+    "inputs": [
+      {
+        "name": "",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes",
+        "internalType": "bytes"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "protocolParams",
     "inputs": [],
     "outputs": [
@@ -816,7 +1066,7 @@
   },
   {
     "type": "function",
-    "name": "redeemVault",
+    "name": "redeemVaultForAVK",
     "inputs": [
       {
         "name": "vaultId",
@@ -824,7 +1074,20 @@
         "internalType": "bytes32"
       },
       {
-        "name": "claimerPK",
+        "name": "vaultKeeperKey",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "redeemVaultForDepositor",
+    "inputs": [
+      {
+        "name": "vaultId",
         "type": "bytes32",
         "internalType": "bytes32"
       }
@@ -836,11 +1099,6 @@
     "type": "function",
     "name": "registerVaultProvider",
     "inputs": [
-      {
-        "name": "provider",
-        "type": "address",
-        "internalType": "address"
-      },
       {
         "name": "btcPubKeyXOnly",
         "type": "bytes32",
@@ -855,6 +1113,11 @@
         "name": "applicationEntryPoint",
         "type": "address",
         "internalType": "address"
+      },
+      {
+        "name": "commissionBps",
+        "type": "uint16",
+        "internalType": "uint16"
       }
     ],
     "outputs": [],
@@ -880,12 +1143,12 @@
   },
   {
     "type": "function",
-    "name": "reportExpiredPegin",
+    "name": "reportExpiredPegins",
     "inputs": [
       {
-        "name": "vaultId",
-        "type": "bytes32",
-        "internalType": "bytes32"
+        "name": "vaultIds",
+        "type": "bytes32[]",
+        "internalType": "bytes32[]"
       }
     ],
     "outputs": [],
@@ -904,31 +1167,6 @@
         "name": "account",
         "type": "address",
         "internalType": "address"
-      }
-    ],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "softPause",
-    "inputs": [],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "submitInclusionProof",
-    "inputs": [
-      {
-        "name": "vaultId",
-        "type": "bytes32",
-        "internalType": "bytes32"
-      },
-      {
-        "name": "inclusionProof",
-        "type": "bytes",
-        "internalType": "bytes"
       }
     ],
     "outputs": [],
@@ -959,12 +1197,12 @@
       {
         "name": "acks",
         "type": "tuple[]",
-        "internalType": "struct IBTCVaultsManager.ACKSubmission[]",
+        "internalType": "struct IBTCVaultRegistry.ACKSubmission[]",
         "components": [
           {
             "name": "vaultId",
-            "type": "bytes",
-            "internalType": "bytes"
+            "type": "bytes32",
+            "internalType": "bytes32"
           },
           {
             "name": "signature",
@@ -979,67 +1217,90 @@
   },
   {
     "type": "function",
-    "name": "submitPeginRequest",
+    "name": "submitPeginInputSignatureAsUC",
     "inputs": [
       {
-        "name": "depositor",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "depositorBtcPubKey",
+        "name": "vaultId",
         "type": "bytes32",
         "internalType": "bytes32"
       },
       {
-        "name": "btcPopSignature",
-        "type": "bytes",
-        "internalType": "bytes"
-      },
-      {
-        "name": "unsignedPrePeginTx",
-        "type": "bytes",
-        "internalType": "bytes"
-      },
-      {
-        "name": "depositorSignedPeginTx",
-        "type": "bytes",
-        "internalType": "bytes"
-      },
-      {
-        "name": "vaultProvider",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "hashlock",
+        "name": "btcPubKey",
         "type": "bytes32",
         "internalType": "bytes32"
       },
       {
-        "name": "htlcVout",
-        "type": "uint8",
-        "internalType": "uint8"
-      },
-      {
-        "name": "depositorPayoutBtcAddress",
+        "name": "signature",
         "type": "bytes",
         "internalType": "bytes"
-      },
-      {
-        "name": "depositorLamportPkHash",
-        "type": "bytes32",
-        "internalType": "bytes32"
       }
     ],
-    "outputs": [
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "submitPeginInputSignatureAsVK",
+    "inputs": [
       {
-        "name": "",
+        "name": "vaultId",
         "type": "bytes32",
         "internalType": "bytes32"
+      },
+      {
+        "name": "btcPubKey",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "signature",
+        "type": "bytes",
+        "internalType": "bytes"
       }
     ],
-    "stateMutability": "payable"
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "submitPeginInputSignatureAsVP",
+    "inputs": [
+      {
+        "name": "vaultId",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "signature",
+        "type": "bytes",
+        "internalType": "bytes"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "submitPeginInputSignatureBatch",
+    "inputs": [
+      {
+        "name": "vaultId",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "btcPubKeys",
+        "type": "bytes32[]",
+        "internalType": "bytes32[]"
+      },
+      {
+        "name": "signatures",
+        "type": "bytes[]",
+        "internalType": "bytes[]"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
   },
   {
     "type": "function",
@@ -1096,7 +1357,7 @@
         "internalType": "bytes"
       },
       {
-        "name": "depositorLamportPkHash",
+        "name": "depositorWotsPkHash",
         "type": "bytes32",
         "internalType": "bytes32"
       }
@@ -1112,21 +1373,143 @@
   },
   {
     "type": "function",
-    "name": "activateVaultWithSecret",
+    "name": "submitPeginRequest",
     "inputs": [
       {
-        "name": "vaultId",
+        "name": "depositor",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "depositorBtcPubKey",
         "type": "bytes32",
         "internalType": "bytes32"
       },
       {
-        "name": "s",
+        "name": "btcPopSignature",
+        "type": "bytes",
+        "internalType": "bytes"
+      },
+      {
+        "name": "unsignedPrePeginTx",
+        "type": "bytes",
+        "internalType": "bytes"
+      },
+      {
+        "name": "depositorSignedPeginTx",
+        "type": "bytes",
+        "internalType": "bytes"
+      },
+      {
+        "name": "vaultProvider",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "hashlock",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "htlcVout",
+        "type": "uint8",
+        "internalType": "uint8"
+      },
+      {
+        "name": "depositorPayoutBtcAddress",
+        "type": "bytes",
+        "internalType": "bytes"
+      },
+      {
+        "name": "depositorWotsPkHash",
         "type": "bytes32",
         "internalType": "bytes32"
       }
     ],
-    "outputs": [],
-    "stateMutability": "nonpayable"
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "stateMutability": "payable"
+  },
+  {
+    "type": "function",
+    "name": "submitPeginRequestBatch",
+    "inputs": [
+      {
+        "name": "depositor",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "vaultProvider",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "requests",
+        "type": "tuple[]",
+        "internalType": "struct IBTCVaultRegistry.BatchPeginRequest[]",
+        "components": [
+          {
+            "name": "depositorBtcPubKey",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          },
+          {
+            "name": "btcPopSignature",
+            "type": "bytes",
+            "internalType": "bytes"
+          },
+          {
+            "name": "unsignedPrePeginTx",
+            "type": "bytes",
+            "internalType": "bytes"
+          },
+          {
+            "name": "depositorSignedPeginTx",
+            "type": "bytes",
+            "internalType": "bytes"
+          },
+          {
+            "name": "hashlock",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          },
+          {
+            "name": "htlcVout",
+            "type": "uint8",
+            "internalType": "uint8"
+          },
+          {
+            "name": "referralCode",
+            "type": "uint32",
+            "internalType": "uint32"
+          },
+          {
+            "name": "depositorPayoutBtcAddress",
+            "type": "bytes",
+            "internalType": "bytes"
+          },
+          {
+            "name": "depositorWotsPkHash",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          }
+        ]
+      }
+    ],
+    "outputs": [
+      {
+        "name": "vaultIds",
+        "type": "bytes32[]",
+        "internalType": "bytes32[]"
+      }
+    ],
+    "stateMutability": "payable"
   },
   {
     "type": "function",
@@ -1149,8 +1532,28 @@
   },
   {
     "type": "function",
+    "name": "unfreeze",
+    "inputs": [],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
     "name": "unpause",
     "inputs": [],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "updateVaultProviderCommission",
+    "inputs": [
+      {
+        "name": "newCommissionBps",
+        "type": "uint16",
+        "internalType": "uint16"
+      }
+    ],
     "outputs": [],
     "stateMutability": "nonpayable"
   },
@@ -1216,6 +1619,11 @@
         "name": "applicationEntryPoint",
         "type": "address",
         "internalType": "address"
+      },
+      {
+        "name": "commissionBps",
+        "type": "uint16",
+        "internalType": "uint16"
       }
     ],
     "stateMutability": "view"
@@ -1273,6 +1681,50 @@
         "type": "bytes32",
         "indexed": false,
         "internalType": "bytes32"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "PeginInputSignaturePosted",
+    "inputs": [
+      {
+        "name": "vaultId",
+        "type": "bytes32",
+        "indexed": true,
+        "internalType": "bytes32"
+      },
+      {
+        "name": "btcPubKey",
+        "type": "bytes32",
+        "indexed": true,
+        "internalType": "bytes32"
+      },
+      {
+        "name": "signature",
+        "type": "bytes",
+        "indexed": false,
+        "internalType": "bytes"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "PeginInputSignaturesBatchPosted",
+    "inputs": [
+      {
+        "name": "vaultId",
+        "type": "bytes32",
+        "indexed": true,
+        "internalType": "bytes32"
+      },
+      {
+        "name": "vaultProvider",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
       }
     ],
     "anonymous": false
@@ -1354,6 +1806,19 @@
   },
   {
     "type": "event",
+    "name": "Unfrozen",
+    "inputs": [
+      {
+        "name": "pauser",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
     "name": "Unpaused",
     "inputs": [
       {
@@ -1389,10 +1854,35 @@
         "internalType": "bytes32"
       },
       {
+        "name": "peginTxHash",
+        "type": "bytes32",
+        "indexed": true,
+        "internalType": "bytes32"
+      },
+      {
         "name": "claimerPK",
         "type": "bytes32",
         "indexed": true,
         "internalType": "bytes32"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "VaultProviderCommissionUpdated",
+    "inputs": [
+      {
+        "name": "provider",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "newCommissionBps",
+        "type": "uint16",
+        "indexed": false,
+        "internalType": "uint16"
       }
     ],
     "anonymous": false
@@ -1418,9 +1908,20 @@
         "type": "address",
         "indexed": true,
         "internalType": "address"
+      },
+      {
+        "name": "commissionBps",
+        "type": "uint16",
+        "indexed": false,
+        "internalType": "uint16"
       }
     ],
     "anonymous": false
+  },
+  {
+    "type": "error",
+    "name": "ActivationDeadlineExpired",
+    "inputs": []
   },
   {
     "type": "error",
@@ -1445,7 +1946,39 @@
   },
   {
     "type": "error",
-    "name": "BtcKeyMismatch",
+    "name": "BtcKeyAlreadyRegistered",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "CommissionAboveMaximum",
+    "inputs": [
+      {
+        "name": "provided",
+        "type": "uint16",
+        "internalType": "uint16"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "CommissionBelowMinimum",
+    "inputs": [
+      {
+        "name": "provided",
+        "type": "uint16",
+        "internalType": "uint16"
+      },
+      {
+        "name": "minimum",
+        "type": "uint16",
+        "internalType": "uint16"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "CommissionUnchanged",
     "inputs": []
   },
   {
@@ -1462,6 +1995,11 @@
   {
     "type": "error",
     "name": "ERC1967NonPayable",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "EthKeyAlreadyRegistered",
     "inputs": []
   },
   {
@@ -1486,8 +2024,24 @@
   },
   {
     "type": "error",
-    "name": "InvalidProviderStatus",
+    "name": "InvalidHashlock",
     "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "InvalidPeginFee",
+    "inputs": [
+      {
+        "name": "provided",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "required",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ]
   },
   {
     "type": "error",
@@ -1496,14 +2050,13 @@
   },
   {
     "type": "error",
-    "name": "InvalidTransactionHashLength",
-    "inputs": [
-      {
-        "name": "actual",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ]
+    "name": "InvalidSecret",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "InvalidSignatureLength",
+    "inputs": []
   },
   {
     "type": "error",
@@ -1527,22 +2080,27 @@
   },
   {
     "type": "error",
-    "name": "PeginTransactionExpired",
+    "name": "ParticipantRoleOverlap",
     "inputs": []
   },
   {
     "type": "error",
-    "name": "ProviderAlreadyRegistered",
-    "inputs": []
-  },
-  {
-    "type": "error",
-    "name": "ProviderRegisteredForDifferentApp",
+    "name": "TBV_AlreadyFrozen",
     "inputs": []
   },
   {
     "type": "error",
     "name": "TBV_AlreadyPaused",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "TBV_Frozen",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "TBV_NotFrozen",
     "inputs": []
   },
   {
@@ -1583,7 +2141,7 @@
   },
   {
     "type": "error",
-    "name": "VaultAlreadyExists",
+    "name": "Unauthorized",
     "inputs": []
   },
   {
@@ -1593,32 +2151,12 @@
   },
   {
     "type": "error",
+    "name": "VaultProviderNotRegistered",
+    "inputs": []
+  },
+  {
+    "type": "error",
     "name": "ZeroAddress",
-    "inputs": []
-  },
-  {
-    "type": "error",
-    "name": "InvalidHashlock",
-    "inputs": []
-  },
-  {
-    "type": "error",
-    "name": "DuplicateHashlock",
-    "inputs": []
-  },
-  {
-    "type": "error",
-    "name": "CapExceeded",
-    "inputs": []
-  },
-  {
-    "type": "error",
-    "name": "InvalidOutputIndex",
-    "inputs": []
-  },
-  {
-    "type": "error",
-    "name": "PeginSignaturesIncomplete",
     "inputs": []
   }
 ]

@@ -113,6 +113,14 @@ export interface PayoutScriptResult {
    * that can be used to receive funds into the vault.
    */
   address: string;
+
+  /**
+   * Serialized control block for Taproot script path spend (hex encoded).
+   *
+   * Computed by the Rust WASM PeginPayoutConnector. Used directly in
+   * tapLeafScript when building payout PSBTs.
+   */
+  payoutControlBlock: string;
 }
 
 /**
@@ -152,5 +160,6 @@ export async function createPayoutScript(
     taprootScriptHash: connector.taprootScriptHash,
     scriptPubKey: connector.scriptPubKey,
     address: connector.address,
+    payoutControlBlock: connector.payoutControlBlock,
   };
 }

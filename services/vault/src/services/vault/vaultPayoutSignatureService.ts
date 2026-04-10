@@ -13,6 +13,7 @@ import type {
 import { getBTCNetworkForWASM } from "../../config/pegin";
 import type { UniversalChallenger } from "../../types";
 import {
+  deriveBip86ScriptPubKeyHex,
   processPublicKeyToXOnly,
   stripHexPrefix,
   validateXOnlyPubkey,
@@ -51,11 +52,14 @@ export interface PayoutProviders {
 }
 
 export interface PrepareSigningContextParams {
-  peginTxId: string;
+  /** Derived vault ID (for contract calls) */
+  vaultId: string;
   depositorBtcPubkey: string;
   providers: PayoutProviders;
   /** Function to get UCs by version from context (avoids redundant fetch) */
   getUniversalChallengersByVersion: (version: number) => UniversalChallenger[];
+  /** Depositor's registered payout scriptPubKey (hex) for payout output validation */
+  registeredPayoutScriptPubKey: string;
 }
 
 export interface PreparedSigningData {
@@ -67,22 +71,22 @@ export interface PreparedSigningData {
  * Validate input parameters for payout signing.
  */
 export function validatePayoutSignatureParams(params: {
-  peginTxId: string;
+  vaultId: string;
   depositorBtcPubkey: string;
   claimerTransactions: ClaimerTransactions[];
   vaultKeepers: PayoutVaultKeeper[];
   universalChallengers: PayoutUniversalChallenger[];
 }): void {
   const {
-    peginTxId,
+    vaultId,
     depositorBtcPubkey,
     claimerTransactions,
     vaultKeepers,
     universalChallengers,
   } = params;
 
-  if (!peginTxId || typeof peginTxId !== "string") {
-    throw new Error("Invalid peginTxId: must be a non-empty string");
+  if (!vaultId || typeof vaultId !== "string") {
+    throw new Error("Invalid vaultId: must be a non-empty string");
   }
 
   validateXOnlyPubkey(depositorBtcPubkey);
@@ -144,7 +148,7 @@ export function getSortedUniversalChallengerPubkeys(
  */
 export async function submitSignaturesToVaultProvider(
   vaultProviderAddress: string,
-  peginTxId: string,
+  peginTxHash: string,
   depositorBtcPubkey: string,
   signatures: Record<string, ClaimerSignatures>,
   depositorClaimerPresignatures: DepositorAsClaimerPresignatures,
@@ -163,7 +167,7 @@ export async function submitSignaturesToVaultProvider(
     depositorClaimerPresignatures.payout_signatures;
 
   await rpcClient.submitDepositorPresignatures({
-    pegin_txid: stripHexPrefix(peginTxId),
+    pegin_txid: stripHexPrefix(peginTxHash),
     depositor_pk: stripHexPrefix(depositorBtcPubkey),
     signatures: allSignatures,
     depositor_claimer_presignatures: depositorClaimerPresignatures,
@@ -179,6 +183,8 @@ export interface SigningContext {
   depositorBtcPubkey: string;
   timelockPegin: number;
   network: Network;
+  /** On-chain registered depositor payout scriptPubKey (hex) for payout output validation */
+  registeredPayoutScriptPubKey: string;
 }
 
 /**
@@ -206,6 +212,41 @@ export function prepareTransactionsForSigning(
 }
 
 /**
+ * Resolve the expected payout scriptPubKey for a given claimer.
+ *
+ * Matches Rust `TxGraphParams::payout_btc_address`:
+ * - VP/Depositor claimer: payout goes to the depositor's registered payout address
+ * - VK claimer: payout goes to a BIP-86 P2TR address derived from the VK's pubkey
+ */
+function resolvePayoutScriptPubKey(
+  claimerPubkeyXOnly: string,
+  context: SigningContext,
+): string {
+  const claimer = stripHexPrefix(claimerPubkeyXOnly).toLowerCase();
+  const vpPubkey = stripHexPrefix(context.vaultProviderBtcPubkey).toLowerCase();
+  const depositorPubkey = stripHexPrefix(
+    context.depositorBtcPubkey,
+  ).toLowerCase();
+
+  if (claimer === vpPubkey || claimer === depositorPubkey) {
+    return context.registeredPayoutScriptPubKey;
+  }
+
+  // Verify claimer is a known vault keeper before deriving their BIP-86 address
+  const isVaultKeeper = context.vaultKeeperBtcPubkeys.some(
+    (vk) => stripHexPrefix(vk).toLowerCase() === claimer,
+  );
+  if (!isVaultKeeper) {
+    throw new Error(
+      `Unknown claimer pubkey ${claimer}: not VP, depositor, or a registered vault keeper`,
+    );
+  }
+
+  // VK claimer: derive BIP-86 P2TR scriptPubKey from the VK's x-only pubkey
+  return deriveBip86ScriptPubKeyHex(claimer);
+}
+
+/**
  * Sign a Payout transaction for a single claimer.
  *
  * @param btcWallet - Bitcoin wallet for signing
@@ -224,6 +265,11 @@ export async function signPayout(
       btcWallet,
     });
 
+    const expectedScriptPubKey = resolvePayoutScriptPubKey(
+      transaction.claimerPubkeyXOnly,
+      context,
+    );
+
     const result = await payoutManager.signPayoutTransaction({
       payoutTxHex: transaction.payoutTxHex,
       peginTxHex: context.peginTxHex,
@@ -233,6 +279,7 @@ export async function signPayout(
       universalChallengerBtcPubkeys: context.universalChallengerBtcPubkeys,
       depositorBtcPubkey: context.depositorBtcPubkey,
       timelockPegin: context.timelockPegin,
+      registeredPayoutScriptPubKey: expectedScriptPubKey,
     });
 
     return result.signature;
@@ -263,16 +310,19 @@ export async function prepareSigningContext(
   params: PrepareSigningContextParams,
 ): Promise<PreparedSigningData> {
   const {
-    peginTxId,
+    vaultId,
     depositorBtcPubkey,
     providers,
     getUniversalChallengersByVersion,
+    registeredPayoutScriptPubKey,
   } = params;
   // Fetch signing-critical vault fields from the contract (authoritative source).
   // Never use the GraphQL indexer for these values — a compromised indexer could
   // substitute a different pegin transaction or signer-set versions and obtain
   // signatures over attacker-chosen graph parameters.
-  const vault = await getVaultFromChain(peginTxId as Hex);
+  // Note: registeredPayoutScriptPubKey is passed in separately — the contract only
+  // emits it in the PegInSubmitted event, it's not stored in the BTCVault struct.
+  const vault = await getVaultFromChain(vaultId as Hex);
 
   const timelockPegin = await getTimelockPeginByVersion(
     vault.offchainParamsVersion,
@@ -317,6 +367,7 @@ export async function prepareSigningContext(
     depositorBtcPubkey,
     timelockPegin,
     network: getBTCNetworkForWASM(),
+    registeredPayoutScriptPubKey,
   };
 
   return {
@@ -363,7 +414,9 @@ export async function signAllTransactionsBatch(
       );
     }
 
-    // Build batch signing params (1 Payout PSBT per claimer)
+    // Build batch signing params (1 Payout PSBT per claimer).
+    // Resolve per-claimer payout address: VP/depositor → registered address,
+    // VK → BIP-86 P2TR of VK's pubkey (matches Rust TxGraphParams::payout_btc_address).
     const results = await payoutManager.signPayoutTransactionsBatch(
       transactions.map((tx) => ({
         payoutTxHex: tx.payoutTxHex,
@@ -374,6 +427,10 @@ export async function signAllTransactionsBatch(
         universalChallengerBtcPubkeys: context.universalChallengerBtcPubkeys,
         depositorBtcPubkey: context.depositorBtcPubkey,
         timelockPegin: context.timelockPegin,
+        registeredPayoutScriptPubKey: resolvePayoutScriptPubKey(
+          tx.claimerPubkeyXOnly,
+          context,
+        ),
       })),
     );
 

@@ -84,7 +84,7 @@ export function PendingWithdrawSection({
                   key={vault.id}
                   amountBtc={vault.amountBtc}
                   timestamp={vault.createdAt}
-                  txHash={vault.id}
+                  txHash={vault.peginTxHash}
                   providerName={vault.providerName}
                   providerIconUrl={vault.providerIconUrl}
                   statusContent={

@@ -9,7 +9,7 @@
 
 /**
  * Minimal ABI for BTCVaultRegistry contract.
- * Contains submitPeginRequest, activateVaultWithSecret, getPegInFee, and getBTCVault.
+ * Contains submitPeginRequest, submitPeginRequestBatch, activateVaultWithSecret, getPegInFee, and getBTCVault.
  */
 export const BTCVaultRegistryABI = [
   {
@@ -62,7 +62,7 @@ export const BTCVaultRegistryABI = [
         internalType: "bytes",
       },
       {
-        name: "depositorLamportPkHash",
+        name: "depositorWotsPkHash",
         type: "bytes32",
         internalType: "bytes32",
       },
@@ -131,7 +131,7 @@ export const BTCVaultRegistryABI = [
         internalType: "bytes",
       },
       {
-        name: "depositorLamportPkHash",
+        name: "depositorWotsPkHash",
         type: "bytes32",
         internalType: "bytes32",
       },
@@ -142,6 +142,34 @@ export const BTCVaultRegistryABI = [
         type: "bytes32",
         internalType: "bytes32",
       },
+    ],
+    stateMutability: "payable",
+  },
+  {
+    type: "function",
+    name: "submitPeginRequestBatch",
+    inputs: [
+      { name: "depositor", type: "address", internalType: "address" },
+      { name: "vaultProvider", type: "address", internalType: "address" },
+      {
+        name: "requests",
+        type: "tuple[]",
+        internalType: "struct IBTCVaultRegistry.BatchPeginRequest[]",
+        components: [
+          { name: "depositorBtcPubKey", type: "bytes32", internalType: "bytes32" },
+          { name: "btcPopSignature", type: "bytes", internalType: "bytes" },
+          { name: "unsignedPrePeginTx", type: "bytes", internalType: "bytes" },
+          { name: "depositorSignedPeginTx", type: "bytes", internalType: "bytes" },
+          { name: "hashlock", type: "bytes32", internalType: "bytes32" },
+          { name: "htlcVout", type: "uint8", internalType: "uint8" },
+          { name: "referralCode", type: "uint32", internalType: "uint32" },
+          { name: "depositorPayoutBtcAddress", type: "bytes", internalType: "bytes" },
+          { name: "depositorWotsPkHash", type: "bytes32", internalType: "bytes32" },
+        ],
+      },
+    ],
+    outputs: [
+      { name: "vaultIds", type: "bytes32[]", internalType: "bytes32[]" },
     ],
     stateMutability: "payable",
   },
@@ -158,6 +186,11 @@ export const BTCVaultRegistryABI = [
         name: "s",
         type: "bytes32",
         internalType: "bytes32",
+      },
+      {
+        name: "activationMetadata",
+        type: "bytes",
+        internalType: "bytes",
       },
     ],
     outputs: [],
@@ -208,12 +241,13 @@ export const BTCVaultRegistryABI = [
           { name: "universalChallengersVersion", type: "uint16", internalType: "uint16" },
           { name: "appVaultKeepersVersion", type: "uint16", internalType: "uint16" },
           { name: "offchainParamsVersion", type: "uint16", internalType: "uint16" },
-          { name: "proverProgramVersion", type: "uint16", internalType: "uint16" },
           { name: "createdAt", type: "uint256", internalType: "uint256" },
           { name: "verifiedAt", type: "uint256", internalType: "uint256" },
-          { name: "depositorLamportPkHash", type: "bytes32", internalType: "bytes32" },
+          { name: "depositorWotsPkHash", type: "bytes32", internalType: "bytes32" },
           { name: "hashlock", type: "bytes32", internalType: "bytes32" },
           { name: "htlcVout", type: "uint8", internalType: "uint8" },
+          { name: "depositorPopSignature", type: "bytes", internalType: "bytes" },
+          { name: "prePeginTxHash", type: "bytes32", internalType: "bytes32" },
         ],
       },
     ],

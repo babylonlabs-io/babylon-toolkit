@@ -33,8 +33,7 @@ interface PartialLiquidationProps {
   isEnabled: boolean;
   onChange: (checked: boolean) => void;
   canSplit: boolean;
-  strategy: "SINGLE" | "MULTI_INPUT" | "SPLIT" | null;
-  isPlanning: boolean;
+  isLoading: boolean;
   splitRatioLabel: string | null;
 }
 
@@ -57,7 +56,7 @@ interface DepositFormProps {
   selectedProvider: string;
   onProviderSelect: (providerId: string) => void;
 
-  isValid: boolean;
+  isWalletConnected: boolean;
   estimatedFeeSats: bigint | null;
   estimatedFeeRate: number;
   isLoadingFee: boolean;
@@ -86,7 +85,7 @@ export function DepositForm({
   isLoadingProviders,
   selectedProvider,
   onProviderSelect,
-  isValid,
+  isWalletConnected,
   estimatedFeeSats,
   estimatedFeeRate,
   isLoadingFee,
@@ -136,52 +135,45 @@ export function DepositForm({
     hasAmount: !!amount && amount !== "0",
   });
 
-  const hasAmount = !!amount && amount !== "0";
   const feeDisabled = isLoadingFee || estimatedFeeRate <= 0 || btcFee === null;
 
   const splitStatusText = useMemo(() => {
     if (!partialLiquidation?.canSplit) {
-      if (partialLiquidation?.isPlanning) return "Computing allocation...";
+      if (partialLiquidation?.isLoading) return "Computing allocation...";
       return amountSats > 0n
         ? "Deposit amount too low for 2-vault split"
         : null;
     }
-    if (partialLiquidation.isPlanning) return "Computing allocation...";
-    if (partialLiquidation.strategy === "SPLIT")
-      return "Your BTC will be split into 2 vaults via an additional Bitcoin transaction";
-    if (partialLiquidation.strategy === "MULTI_INPUT")
-      return "Your BTC will be deposited into 2 vaults using existing UTXOs";
-    return null;
+    if (partialLiquidation.isLoading) return "Computing allocation...";
+    return "Your BTC will be deposited into 2 vaults";
   }, [partialLiquidation, amountSats]);
 
   const splitNotReady =
     partialLiquidation?.isEnabled &&
     !partialLiquidation?.canSplit &&
-    !partialLiquidation?.isPlanning;
+    !partialLiquidation?.isLoading;
 
   const splitSummaryLabel = partialLiquidation?.splitRatioLabel
-    ? `2 UTXO Split - ${partialLiquidation.splitRatioLabel} (Recommended)`
-    : "2 UTXO Split (Recommended)";
+    ? `2 Vault Split - ${partialLiquidation.splitRatioLabel} (Recommended)`
+    : "2 Vault Split (Recommended)";
 
-  const ctaLabel = splitNotReady
-    ? "Deposit amount too low for 2-vault split"
-    : isFeeError
-      ? (feeError ?? "Fee estimate unavailable")
-      : depositService.getDepositButtonLabel({
-          amountSats,
-          minDeposit,
-          maxDeposit,
-          btcBalance,
-          estimatedFeeSats: estimatedFeeSats ?? undefined,
-          depositorClaimValue,
-        });
-  const ctaDisabled =
-    !isValid ||
-    isDepositDisabled ||
-    isGeoBlocked ||
-    !hasAmount ||
-    feeDisabled ||
-    splitNotReady;
+  const cta = depositService.getDepositCtaState({
+    amountSats,
+    minDeposit,
+    maxDeposit,
+    btcBalance,
+    estimatedFeeSats: estimatedFeeSats ?? undefined,
+    depositorClaimValue,
+    isDepositDisabled,
+    isGeoBlocked,
+    isWalletConnected,
+    hasApplication: !!selectedApplication,
+    hasProvider: !!selectedProvider,
+    splitNotReady: !!splitNotReady,
+    isFeeError,
+    feeError,
+    feeDisabled,
+  });
 
   return (
     <div className="flex w-full flex-col gap-4">
@@ -228,7 +220,7 @@ export function DepositForm({
               >
                 {partialLiquidation.isEnabled
                   ? splitSummaryLabel
-                  : "Do not split UTXO"}
+                  : "Do not split"}
               </span>
             </AccordionSummary>
             <AccordionDetails className="flex flex-col px-0 pb-3">
@@ -243,7 +235,7 @@ export function DepositForm({
                 className="flex w-full items-center justify-between py-3 text-sm text-accent-primary"
                 onClick={() => partialLiquidation.onChange(false)}
               >
-                Do not split UTXO
+                Do not split
                 {!partialLiquidation.isEnabled && (
                   <IoCheckmark className="text-secondary-main" size={20} />
                 )}
@@ -255,8 +247,8 @@ export function DepositForm({
                 onClick={() => partialLiquidation.onChange(true)}
               >
                 {partialLiquidation.splitRatioLabel
-                  ? `2 UTXO Split - ${partialLiquidation.splitRatioLabel} (Recommended)`
-                  : "2 UTXO Split (Recommended)"}
+                  ? `2 Vault Split - ${partialLiquidation.splitRatioLabel} (Recommended)`
+                  : "2 Vault Split (Recommended)"}
                 {partialLiquidation.isEnabled && (
                   <IoCheckmark className="text-secondary-main" size={20} />
                 )}
@@ -313,24 +305,15 @@ export function DepositForm({
         color="primary"
         size="large"
         fluid
-        disabled={ctaDisabled}
+        disabled={cta.disabled}
         onClick={onDeposit}
       >
-        {isDepositDisabled ? "Depositing Unavailable" : ctaLabel}
+        {cta.label}
       </DepositButton>
 
       {/* Fee breakdown */}
       <div className="flex items-center justify-between text-sm">
-        <span className="text-accent-primary">
-          Bitcoin Network Fee
-          {partialLiquidation?.isEnabled &&
-            partialLiquidation.strategy === "SPLIT" && (
-              <span className="text-accent-secondary">
-                {" "}
-                (includes split tx)
-              </span>
-            )}
-        </span>
+        <span className="text-accent-primary">Bitcoin Network Fee</span>
         <span>
           <span
             className={isFeeError ? "text-error-main" : "text-accent-primary"}

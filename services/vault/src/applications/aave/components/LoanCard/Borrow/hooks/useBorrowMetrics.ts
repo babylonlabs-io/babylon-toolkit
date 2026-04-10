@@ -2,7 +2,7 @@
  * Borrow metrics calculation hook
  *
  * Calculates display metrics for borrow UI including projected health factor.
- * Uses USD values directly from Aave oracle.
+ * borrowAmount is in token units; converted to USD via tokenPriceUsd for calculations.
  */
 
 import {
@@ -12,6 +12,7 @@ import {
 } from "../../../../utils";
 
 export interface UseBorrowMetricsProps {
+  /** Borrow amount in token units */
   borrowAmount: number;
   /** Collateral value in USD (from Aave oracle) */
   collateralValueUsd: number;
@@ -21,6 +22,8 @@ export interface UseBorrowMetricsProps {
   liquidationThresholdBps: number;
   /** Current health factor (null if no debt) */
   currentHealthFactor: number | null;
+  /** Price of the borrow token in USD */
+  tokenPriceUsd: number;
 }
 
 export interface UseBorrowMetricsResult {
@@ -43,6 +46,7 @@ export function useBorrowMetrics({
   currentDebtUsd,
   liquidationThresholdBps,
   currentHealthFactor,
+  tokenPriceUsd,
 }: UseBorrowMetricsProps): UseBorrowMetricsResult {
   // When no borrow amount entered, show current values (no projection)
   if (borrowAmount === 0) {
@@ -57,8 +61,8 @@ export function useBorrowMetrics({
     };
   }
 
-  // Calculate projected values after borrow
-  const totalDebtUsd = currentDebtUsd + borrowAmount;
+  // Calculate projected values after borrow (convert token units to USD)
+  const totalDebtUsd = currentDebtUsd + borrowAmount * tokenPriceUsd;
   const healthFactorValue = calculateHealthFactor(
     collateralValueUsd,
     totalDebtUsd,

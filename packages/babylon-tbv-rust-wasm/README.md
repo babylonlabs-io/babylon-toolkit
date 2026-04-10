@@ -106,7 +106,7 @@ console.log(noPayoutInfo.noPayoutControlBlock);  // Control block (hex)
 
 ### ChallengeAssert Connector
 
-The ChallengeAssert connector generates scripts for ChallengeAssert transactions in the depositor-as-claimer path. It uses Lamport hashes and GC input label hashes provided by the vault provider.
+The ChallengeAssert connector generates scripts for ChallengeAssert transactions in the depositor-as-claimer path. It uses WOTS public keys and GC WOTS public keys provided by the vault provider.
 
 ```typescript
 import {
@@ -117,8 +117,8 @@ import {
 const params: ChallengeAssertConnectorParams = {
   claimer: 'abc123...',              // Depositor acting as claimer, x-only pubkey (hex)
   challenger: 'def456...',           // Challenger x-only pubkey (hex)
-  lamportHashesJson: '[[...]]',      // JSON string of Lamport hashes from VP
-  gcInputLabelHashesJson: '[[...]]', // JSON string of GC input label hashes from VP
+  claimerWotsKeysJson: '[[...]]',     // JSON string of WOTS public keys (blocks 0-1) from VP
+  gcWotsKeysJson: '[[...]]',          // JSON string of GC WOTS public keys from VP
 };
 
 const scriptInfo = await getChallengeAssertScriptInfo(params);
@@ -380,10 +380,11 @@ Creates a payout connector for signing payout transactions.
 - `taprootScriptHash` - Taproot script hash / tapLeafHash for PSBT signing
 - `scriptPubKey` - Taproot script pubkey (hex)
 - `address` - P2TR address
+- `payoutControlBlock` - Serialized control block for Taproot script path spend (hex)
 
-#### `getPeginPayoutScript(params: PayoutConnectorParams): Promise<string>`
+#### `getPeginPayoutScriptInfo(params: PayoutConnectorParams): Promise<{ payoutScript: string; payoutControlBlock: string }>`
 
-Returns the payout script hex from the PeginPayoutConnector without requiring a network parameter. Useful for building depositor Payout PSBTs where you only need the script (not the address).
+Returns the payout script and control block from the PeginPayoutConnector without requiring a network parameter. Useful for building payout PSBTs where you need the script and control block for Taproot script path spending.
 
 **Parameters:**
 - `params.depositor` - Depositor's x-only pubkey (hex)
@@ -393,7 +394,8 @@ Returns the payout script hex from the PeginPayoutConnector without requiring a 
 - `params.timelockPegin` - CSV timelock in blocks for PegIn output
 
 **Returns:**
-- Payout script hex string
+- `payoutScript` - Payout script hex string
+- `payoutControlBlock` - Serialized control block hex string
 
 #### `getAssertPayoutScriptInfo(params: AssertPayoutNoPayoutConnectorParams): Promise<AssertPayoutScriptInfo>`
 
@@ -425,13 +427,13 @@ Generates the NoPayout script and control block for a specific challenger. Each 
 
 #### `getChallengeAssertScriptInfo(params: ChallengeAssertConnectorParams): Promise<ChallengeAssertScriptInfo>`
 
-Generates the ChallengeAssert script and control block for a specific challenger. Uses Lamport hashes and GC input label hashes from the vault provider.
+Generates the ChallengeAssert script and control block for a specific challenger. Uses WOTS public keys and GC WOTS public keys from the vault provider.
 
 **Parameters:**
 - `params.claimer` - Claimer (depositor) x-only pubkey (hex)
 - `params.challenger` - Challenger x-only pubkey (hex)
-- `params.lamportHashesJson` - JSON string of Lamport hash values from VP
-- `params.gcInputLabelHashesJson` - JSON string of GC input label hashes from VP
+- `params.claimerWotsKeysJson` - JSON string of WOTS public keys (blocks 0-1) from VP
+- `params.gcWotsKeysJson` - JSON string of GC WOTS public keys from VP
 
 **Returns:**
 - `script` - ChallengeAssert script (hex)

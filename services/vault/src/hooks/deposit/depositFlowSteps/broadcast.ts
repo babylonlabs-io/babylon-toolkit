@@ -26,10 +26,11 @@ export async function broadcastBtcTransaction(
   depositorEthAddress: Address,
 ): Promise<string> {
   const {
-    btcTxid,
+    vaultId,
     depositorBtcPubkey,
     btcWalletProvider,
     fundedPrePeginTxHex,
+    expectedUtxos,
   } = params;
 
   const broadcastTxId = await broadcastPrePeginTransaction({
@@ -38,14 +39,14 @@ export async function broadcastBtcTransaction(
       signPsbt: (psbtHex: string) => btcWalletProvider.signPsbt(psbtHex),
     },
     depositorBtcPubkey,
+    expectedUtxos,
   });
 
   // Update localStorage
   updatePendingPeginStatus(
     depositorEthAddress,
-    btcTxid,
+    vaultId,
     LocalStorageStatus.CONFIRMING,
-    broadcastTxId,
   );
 
   return broadcastTxId;

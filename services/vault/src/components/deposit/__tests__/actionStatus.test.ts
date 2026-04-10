@@ -57,9 +57,9 @@ describe("getSectionActionRequiredLabel", () => {
     expect(getSectionActionRequiredLabel(results)).toBe("Broadcast required");
   });
 
-  it("returns Key required when one deposit needs lamport key", () => {
+  it("returns Key required when one deposit needs WOTS key", () => {
     const keyState = getPeginState(ContractStatus.PENDING, {
-      needsLamportKey: true,
+      needsWotsKey: true,
     });
     const results: (DepositPollingResult | undefined)[] = [
       pollingResultWithAction("id1", keyState),
@@ -73,7 +73,7 @@ describe("getSectionActionRequiredLabel", () => {
       transactionsReady: true,
     });
     const keyState = getPeginState(ContractStatus.PENDING, {
-      needsLamportKey: true,
+      needsWotsKey: true,
     });
     const results: (DepositPollingResult | undefined)[] = [
       pollingResultWithAction("id1", keyState),

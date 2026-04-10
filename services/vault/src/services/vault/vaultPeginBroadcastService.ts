@@ -24,6 +24,43 @@ export interface UTXOInfo {
   scriptPubKey: string;
 }
 
+const HEX_RE = /^[0-9a-fA-F]+$/;
+
+/**
+ * Convert a UTXO array into the expectedUtxos Record format
+ * used by broadcastPrePeginTransaction for trusted UTXO resolution.
+ * Validates each entry and throws on malformed data (e.g. corrupted localStorage).
+ */
+export function utxosToExpectedRecord(
+  utxos: ReadonlyArray<{
+    txid: string;
+    vout: number;
+    value: number | string;
+    scriptPubKey: string;
+  }>,
+): Record<string, { scriptPubKey: string; value: number }> {
+  const record: Record<string, { scriptPubKey: string; value: number }> = {};
+  for (const u of utxos) {
+    const numValue = Number(u.value);
+    if (!Number.isSafeInteger(numValue) || numValue < 0) {
+      throw new Error(`Invalid UTXO value for ${u.txid}:${u.vout}: ${u.value}`);
+    }
+    if (!u.txid || !HEX_RE.test(u.txid)) {
+      throw new Error(`Invalid UTXO txid: ${u.txid}`);
+    }
+    if (!u.scriptPubKey || !HEX_RE.test(u.scriptPubKey)) {
+      throw new Error(`Invalid UTXO scriptPubKey for ${u.txid}:${u.vout}`);
+    }
+    // Normalize txid to lowercase — Buffer.toString("hex") returns lowercase,
+    // but stored/external txids may use uppercase hex characters
+    record[`${u.txid.toLowerCase()}:${u.vout}`] = {
+      scriptPubKey: u.scriptPubKey,
+      value: numValue,
+    };
+  }
+  return record;
+}
+
 export interface BroadcastPrePeginParams {
   /**
    * Unsigned transaction hex (from contract or WASM)
@@ -42,23 +79,86 @@ export interface BroadcastPrePeginParams {
    * Required for Taproot (P2TR) signing
    */
   depositorBtcPubkey: string;
+
+  /**
+   * Trusted UTXO data from transaction construction phase.
+   * When provided, these are used directly instead of querying the mempool API,
+   * eliminating the trust boundary violation where a compromised mempool API
+   * could return manipulated UTXO values.
+   * Key format: "txid:vout" (e.g. "abc123...def:0").
+   */
+  expectedUtxos?: Record<string, { scriptPubKey: string; value: number }>;
 }
 
 /**
- * Add inputs from transaction to PSBT with proper UTXO data
+ * Resolve UTXO data for a transaction input.
+ * When expectedUtxos is provided, ALL inputs must be present in the map —
+ * a partial map would silently fall back to untrusted mempool data for
+ * missing entries, defeating the purpose of trusted prevout resolution.
+ */
+async function resolveInputUtxo(
+  txid: string,
+  vout: number,
+  expectedUtxos:
+    | Record<string, { scriptPubKey: string; value: number }>
+    | undefined,
+): Promise<{ scriptPubKey: string; value: number }> {
+  if (!expectedUtxos) {
+    return fetchUTXOFromMempool(txid, vout);
+  }
+
+  const expected = expectedUtxos[`${txid}:${vout}`];
+  if (!expected) {
+    throw new Error(
+      `expectedUtxos provided but missing entry for ${txid}:${vout}. ` +
+        `All transaction inputs must be covered when expectedUtxos is supplied.`,
+    );
+  }
+  return expected;
+}
+
+/**
+ * Sanity check: total input value must at least cover total output value.
+ * This catches obvious manipulation (negative fees) when the mempool fallback
+ * is used. The primary defense is using expectedUtxos from construction time;
+ * this check is defense-in-depth for the fallback path.
+ */
+function validateInputOutputBalance(
+  totalInputValue: bigint,
+  totalOutputValue: bigint,
+): void {
+  // The difference (input - output) is the miner fee. We validate that
+  // inputs are at least as large as outputs (negative fee = impossible).
+  if (totalInputValue < totalOutputValue) {
+    throw new Error(
+      `UTXO value mismatch: total input value (${totalInputValue} sat) is less than ` +
+        `total output value (${totalOutputValue} sat). ` +
+        `This may indicate the mempool API returned manipulated UTXO data.`,
+    );
+  }
+}
+
+/**
+ * Add inputs from transaction to PSBT with proper UTXO data.
+ * When expectedUtxos is provided, uses trusted data from the transaction
+ * construction phase instead of querying the untrusted mempool API.
  */
 async function addInputsToPsbt(
   psbt: Psbt,
   tx: Transaction,
   publicKeyNoCoord: Buffer,
+  expectedUtxos?: Record<string, { scriptPubKey: string; value: number }>,
 ): Promise<void> {
+  let totalInputValue = 0n;
+
   for (const input of tx.ins) {
     // Extract txid and vout (Bitcoin stores txid in reverse byte order)
     const txid = Buffer.from(input.hash).reverse().toString("hex");
     const vout = input.index;
 
-    // Fetch UTXO data from mempool
-    const utxoData = await fetchUTXOFromMempool(txid, vout);
+    // Use trusted data when available, fall back to mempool API
+    const utxoData = await resolveInputUtxo(txid, vout, expectedUtxos);
+    totalInputValue += BigInt(utxoData.value);
 
     // Get proper PSBT input fields based on script type
     // Handles P2PKH, P2SH, P2WPKH, P2WSH, P2TR
@@ -80,6 +180,14 @@ async function addInputsToPsbt(
       ...psbtInputFields, // Includes witnessUtxo, tapInternalKey (for P2TR), etc.
     });
   }
+
+  // Cross-validate on both paths: trusted path provides extra assurance,
+  // mempool fallback path relies on this as the primary sanity check
+  const totalOutputValue = tx.outs.reduce(
+    (sum, out) => sum + BigInt(out.value),
+    0n,
+  );
+  validateInputOutputBalance(totalInputValue, totalOutputValue);
 }
 
 /**
@@ -100,12 +208,13 @@ function addOutputsToPsbt(psbt: Psbt, tx: Transaction): void {
 async function createPsbtFromTransaction(
   tx: Transaction,
   publicKeyNoCoord: Buffer,
+  expectedUtxos?: Record<string, { scriptPubKey: string; value: number }>,
 ): Promise<Psbt> {
   const psbt = new Psbt();
   psbt.setVersion(tx.version);
   psbt.setLocktime(tx.locktime);
 
-  await addInputsToPsbt(psbt, tx, publicKeyNoCoord);
+  await addInputsToPsbt(psbt, tx, publicKeyNoCoord, expectedUtxos);
   addOutputsToPsbt(psbt, tx);
 
   return psbt;
@@ -141,7 +250,12 @@ async function signAndFinalizePsbt(
 export async function broadcastPrePeginTransaction(
   params: BroadcastPrePeginParams,
 ): Promise<string> {
-  const { unsignedTxHex, btcWalletProvider, depositorBtcPubkey } = params;
+  const {
+    unsignedTxHex,
+    btcWalletProvider,
+    depositorBtcPubkey,
+    expectedUtxos,
+  } = params;
 
   try {
     // Parse transaction
@@ -155,8 +269,14 @@ export async function broadcastPrePeginTransaction(
     }
 
     // Convert to PSBT with proper input fields
+    // When expectedUtxos is provided, trusted construction-time data is used
+    // instead of querying the untrusted mempool API
     const publicKeyNoCoord = Buffer.from(depositorBtcPubkey, "hex");
-    const psbt = await createPsbtFromTransaction(tx, publicKeyNoCoord);
+    const psbt = await createPsbtFromTransaction(
+      tx,
+      publicKeyNoCoord,
+      expectedUtxos,
+    );
 
     // Sign and finalize
     const signedTxHex = await signAndFinalizePsbt(

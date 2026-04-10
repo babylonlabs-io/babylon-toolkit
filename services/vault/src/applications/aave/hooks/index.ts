@@ -15,6 +15,11 @@ export {
 } from "./useBorrowTransaction";
 export { useOptimalSplit, type UseOptimalSplitResult } from "./useOptimalSplit";
 export {
+  usePositionNotifications,
+  type PositionNotificationsStatus,
+  type UsePositionNotificationsResult,
+} from "./usePositionNotifications";
+export {
   useReorderVaults,
   type UseReorderVaultsResult,
 } from "./useReorderVaults";

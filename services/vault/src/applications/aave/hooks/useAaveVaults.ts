@@ -56,6 +56,8 @@ function transformVaultToTableData(
 
 export interface RedeemedVaultInfo {
   id: string;
+  /** Raw BTC pegin transaction hash (for VP RPC operations) */
+  peginTxHash: string;
   amountBtc: number;
   providerName: string;
   providerIconUrl?: string;
@@ -128,6 +130,7 @@ export function useAaveVaults(
         );
         return {
           id: vault.id,
+          peginTxHash: vault.peginTxHash,
           amountBtc: satoshiToBtcNumber(vault.amount),
           providerName,
           providerIconUrl: provider?.iconUrl,

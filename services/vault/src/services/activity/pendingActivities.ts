@@ -46,7 +46,7 @@ function convertPendingPeginToActivity(
       symbol: btcConfig.coinSymbol,
       icon: btcConfig.icon,
     },
-    transactionHash: pending.btcTxHash ?? "",
+    transactionHash: pending.peginTxHash,
     isPending: true,
   };
 }

@@ -5,12 +5,6 @@
  * These hooks orchestrate the deposit flow and manage state.
  */
 
-export { useDepositFlow } from "./useDepositFlow";
-export type {
-  UseDepositFlowParams,
-  UseDepositFlowReturn,
-} from "./useDepositFlow";
-
 export { useMultiVaultDepositFlow } from "./useMultiVaultDepositFlow";
 export type {
   MultiVaultDepositResult,
@@ -36,8 +30,7 @@ export {
 } from "../../context/deposit/DepositState";
 export type { DepositStateData } from "../../context/deposit/DepositState";
 
-// Wallet and allocation hooks
-export { useAllocationPlanning } from "./useAllocationPlanning";
+// Wallet hooks
 export { useBtcWalletState } from "./useBtcWalletState";
 
 // Modal hooks

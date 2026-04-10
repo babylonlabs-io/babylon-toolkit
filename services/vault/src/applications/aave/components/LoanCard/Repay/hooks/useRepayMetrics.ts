@@ -2,7 +2,7 @@
  * Repay metrics calculation hook
  *
  * Calculates display metrics for repay UI including projected health factor.
- * Uses USD values directly from Aave oracle.
+ * repayAmount is in token units; converted to USD via tokenPriceUsd for calculations.
  * Repaying improves the health factor.
  */
 
@@ -24,6 +24,8 @@ export interface UseRepayMetricsProps {
   liquidationThresholdBps: number;
   /** Current health factor (null if no debt) */
   currentHealthFactor: number | null;
+  /** Price of the repay token in USD */
+  tokenPriceUsd: number;
 }
 
 export interface UseRepayMetricsResult {
@@ -46,6 +48,7 @@ export function useRepayMetrics({
   totalDebtValueUsd,
   liquidationThresholdBps,
   currentHealthFactor,
+  tokenPriceUsd,
 }: UseRepayMetricsProps): UseRepayMetricsResult {
   // When no repay amount entered, show current values (no projection)
   if (repayAmount === 0) {
@@ -59,7 +62,11 @@ export function useRepayMetrics({
     };
   }
 
-  const projectedTotalDebtUsd = Math.max(0, totalDebtValueUsd - repayAmount);
+  // Convert token units to USD for debt projection
+  const projectedTotalDebtUsd = Math.max(
+    0,
+    totalDebtValueUsd - repayAmount * tokenPriceUsd,
+  );
   const isFullRepayment = projectedTotalDebtUsd < FULL_REPAY_TOLERANCE;
 
   const healthFactorValue =

@@ -70,16 +70,16 @@ export function CollateralSection({
       if (!vault) return;
 
       const provider = findProvider(vault.providerAddress);
-      if (!provider || !vault.depositorBtcPubkey) {
+      if (!provider || !vault.depositorBtcPubkey || !vault.peginTxHash) {
         logger.warn(
-          `[CollateralSection] Cannot download artifacts: missing provider or depositor public key for vault ${vaultEntryId}`,
+          `[CollateralSection] Cannot download artifacts: missing provider, depositor public key, or peginTxHash for vault ${vaultEntryId}`,
         );
         return;
       }
 
       setArtifactParams({
         providerAddress: vault.providerAddress,
-        peginTxid: vault.vaultId,
+        peginTxid: vault.peginTxHash,
         depositorPk: vault.depositorBtcPubkey,
       });
     },

@@ -8,21 +8,11 @@ import type { Address, WalletClient } from "viem";
 import { getWalletClient, switchChain } from "wagmi/actions";
 
 import { logger } from "@/infrastructure";
-import { LocalStorageStatus } from "@/models/peginStateMachine";
-import { depositService } from "@/services/deposit";
-import { selectUtxosForDeposit } from "@/services/vault";
-import {
-  preparePeginTransaction,
-  registerPeginOnChain,
-} from "@/services/vault/vaultTransactionService";
-import { addPendingPegin } from "@/storage/peginStorage";
+import { registerPeginBatchOnChain } from "@/services/vault/vaultTransactionService";
 
 import type {
-  PeginPrepareParams,
-  PeginPrepareResult,
-  PeginRegisterParams,
-  PeginRegisterResult,
-  SavePendingPeginParams,
+  PeginBatchRegisterParams,
+  PeginBatchRegisterResult,
 } from "./types";
 
 // ============================================================================
@@ -65,154 +55,39 @@ export async function getEthWalletClient(
 }
 
 // ============================================================================
-// Step 2a: Prepare Pegin Transaction (build + fund BTC tx)
+// Step 2b: Batch Register Pegins On-Chain (single ETH tx for N vaults)
 // ============================================================================
 
 /**
- * Build and fund the pegin transactions. Returns the peginTxid so
- * the caller can derive the Lamport keypair before on-chain registration.
+ * Submit all vault registrations in a single ETH transaction using
+ * submitPeginRequestBatch(). Receipt verification is handled by the SDK.
  */
-export async function preparePegin(
-  params: PeginPrepareParams,
-): Promise<PeginPrepareResult> {
+export async function registerPeginBatchAndWait(
+  params: PeginBatchRegisterParams,
+): Promise<PeginBatchRegisterResult> {
   const {
     btcWalletProvider,
     walletClient,
-    amount,
-    protocolFeeRate,
-    mempoolFeeRate,
-    btcAddress,
-    selectedProviders,
-    vaultProviderBtcPubkey,
-    vaultKeeperBtcPubkeys,
-    universalChallengerBtcPubkeys,
-    timelockPegin,
-    timelockRefund,
-    hashH,
-    councilQuorum,
-    councilSize,
-    confirmedUTXOs,
-    reservedUtxoRefs,
+    vaultProviderAddress,
+    requests,
+    preSignedBtcPopSignature,
+    onPopSigned,
   } = params;
 
-  const utxosToUse = selectUtxosForDeposit({
-    availableUtxos: confirmedUTXOs,
-    reservedUtxoRefs,
-    requiredAmount: amount,
-    feeRate: mempoolFeeRate,
-  });
-
-  const result = await preparePeginTransaction(
+  const result = await registerPeginBatchOnChain(
     btcWalletProvider,
     walletClient,
     {
-      pegInAmount: amount,
-      protocolFeeRate,
-      mempoolFeeRate,
-      changeAddress: btcAddress,
-      vaultProviderAddress: selectedProviders[0] as Address,
-      vaultProviderBtcPubkey,
-      vaultKeeperBtcPubkeys,
-      universalChallengerBtcPubkeys,
-      timelockPegin,
-      timelockRefund,
-      hashH,
-      councilQuorum,
-      councilSize,
-      availableUTXOs: utxosToUse,
+      vaultProviderAddress: vaultProviderAddress as Address,
+      requests,
+      preSignedBtcPopSignature,
+      onPopSigned,
     },
   );
 
   return {
-    btcTxid: result.btcTxHash,
-    depositorBtcPubkey: result.depositorBtcPubkey,
-    fundedPrePeginTxHex: result.fundedPrePeginTxHex,
-    peginTxHex: result.peginTxHex,
-    peginInputSignature: result.peginInputSignature,
-    selectedUTXOs: result.selectedUTXOs,
-    fee: result.fee,
-  };
-}
-
-// ============================================================================
-// Step 2b: Register Pegin On-Chain (PoP + ETH tx + wait confirmation)
-// ============================================================================
-
-/**
- * Submit the PoP signature and ETH transaction, then wait for confirmation.
- * Receipt verification is handled by the SDK's registerPeginOnChain().
- */
-export async function registerPeginAndWait(
-  params: PeginRegisterParams,
-): Promise<PeginRegisterResult> {
-  const {
-    btcWalletProvider,
-    walletClient,
-    depositorBtcPubkey,
-    peginTxHex,
-    unsignedPrePeginTxHex,
-    hashlock,
-    vaultProviderAddress,
-    onPopSigned,
-    depositorPayoutBtcAddress,
-    depositorLamportPkHash,
-    preSignedBtcPopSignature,
-    depositorSecretHash,
-  } = params;
-
-  const result = await registerPeginOnChain(btcWalletProvider, walletClient, {
-    depositorBtcPubkey,
-    unsignedPrePeginTxHex,
-    peginTxHex,
-    hashlock,
-    vaultProviderAddress: vaultProviderAddress as Address,
-    onPopSigned,
-    depositorPayoutBtcAddress,
-    depositorLamportPkHash,
-    preSignedBtcPopSignature,
-    depositorSecretHash,
-  });
-
-  return {
-    btcTxid: result.btcTxHash,
-    ethTxHash: result.transactionHash,
+    ethTxHash: result.ethTxHash,
+    vaults: result.vaults,
     btcPopSignature: result.btcPopSignature,
   };
-}
-
-// ============================================================================
-// LocalStorage Helper
-// ============================================================================
-
-/**
- * Save pending pegin to localStorage.
- */
-export function savePendingPegin(params: SavePendingPeginParams): void {
-  const {
-    depositorEthAddress,
-    btcTxid,
-    amount,
-    selectedProviders,
-    applicationEntryPoint,
-    unsignedTxHex,
-    selectedUTXOs,
-  } = params;
-
-  const amountBtc = depositService.formatSatoshisToBtc(amount);
-
-  addPendingPegin(depositorEthAddress, {
-    id: btcTxid,
-    amount: amountBtc,
-    providerIds: selectedProviders,
-    applicationEntryPoint,
-    status: LocalStorageStatus.PENDING,
-    btcTxHash: btcTxid,
-    unsignedTxHex,
-    selectedUTXOs: selectedUTXOs.map((utxo) => ({
-      txid: utxo.txid,
-      vout: utxo.vout,
-      value: utxo.value.toString(),
-      scriptPubKey: utxo.scriptPubKey,
-    })),
-  });
 }

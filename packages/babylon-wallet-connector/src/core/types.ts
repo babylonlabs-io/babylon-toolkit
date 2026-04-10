@@ -305,8 +305,6 @@ export interface SignInputOptions {
   sighashTypes?: number[];
   /** Disable tweak signer for Taproot script path spend (optional) */
   disableTweakSigner?: boolean;
-  /** Use tweaked signer for Taproot key path spend (optional) */
-  useTweakedSigner?: boolean;
 }
 
 export interface SignPsbtOptions {

@@ -3,8 +3,8 @@ export { getPosition, getPositionCollateral } from "./query.js";
 
 // Spoke operations
 export {
-  getCollateralFactor,
-  getLiquidationBonus,
+  getDynamicReserveConfig,
+  getReserve,
   getTargetHealthFactor,
   getUserAccountData,
   getUserPosition,

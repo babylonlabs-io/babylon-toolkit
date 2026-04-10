@@ -31,6 +31,7 @@ import {
 import { updatePendingPeginStatus } from "../../../storage/peginStorage";
 import type { VaultActivity } from "../../../types/activity";
 import type { ClaimerTransactions } from "../../../types/rpc";
+import { btcAddressToScriptPubKeyHex } from "../../../utils/btc";
 import { formatPayoutSignatureError } from "../../../utils/errors/formatting";
 
 import type { SigningProgressProps } from "./SigningProgress";
@@ -98,6 +99,34 @@ export function usePayoutSigningState({
       return;
     }
 
+    // Validate payout address exists (required for payout output validation)
+    if (!activity.depositorPayoutBtcAddress) {
+      setError({
+        title: "Missing Payout Address",
+        message:
+          "Depositor payout address not available. Please wait for indexer sync and try again.",
+      });
+      return;
+    }
+
+    // Security: verify indexer-sourced scriptPubKey matches the connected wallet.
+    // A compromised indexer could return a different depositorPayoutBtcAddress,
+    // causing the validation to check against an attacker's address.
+    const connectedBtcAddress = btcConnector?.connectedWallet?.account?.address;
+    if (connectedBtcAddress) {
+      const walletScriptPubKey =
+        btcAddressToScriptPubKeyHex(connectedBtcAddress);
+      if (walletScriptPubKey !== activity.depositorPayoutBtcAddress) {
+        setError({
+          title: "Payout Address Mismatch",
+          message:
+            "The payout address from the indexer does not match your connected wallet. " +
+            "This may indicate a data integrity issue. Please verify your wallet connection.",
+        });
+        return;
+      }
+    }
+
     // Find vault provider
     const vaultProviderAddress = activity.providers[0]?.id as Hex;
     const provider = findProvider(vaultProviderAddress);
@@ -134,7 +163,7 @@ export function usePayoutSigningState({
     // Validate inputs
     try {
       validatePayoutSignatureParams({
-        peginTxId: activity.txHash!,
+        vaultId: activity.id,
         depositorBtcPubkey: btcPublicKey,
         claimerTransactions: transactions,
         vaultKeepers: providers.vaultKeepers,
@@ -160,10 +189,11 @@ export function usePayoutSigningState({
       // Prepare signing context (fetches vault data, resolves pubkeys)
       // Uses versioned keepers and challengers based on vault's locked versions
       const { context, vaultProviderAddress } = await prepareSigningContext({
-        peginTxId: activity.txHash!,
+        vaultId: activity.id,
         depositorBtcPubkey: btcPublicKey,
         providers,
         getUniversalChallengersByVersion,
+        registeredPayoutScriptPubKey: activity.depositorPayoutBtcAddress,
       });
 
       // Prepare transactions for signing
@@ -185,25 +215,21 @@ export function usePayoutSigningState({
         btcWallet: btcWalletProvider,
       });
 
-      // Submit signatures to vault provider
+      // Submit signatures to vault provider (VP RPC uses peginTxHash)
       await submitSignaturesToVaultProvider(
         vaultProviderAddress,
-        activity.txHash!,
+        activity.peginTxHash!,
         btcPublicKey,
         signatures,
         depositorClaimerPresignatures,
       );
 
-      // Update localStorage status using state machine
+      // Update localStorage status using state machine (storage uses vaultId)
       const nextStatus = getNextLocalStatus(
         PeginAction.SIGN_PAYOUT_TRANSACTIONS,
       );
-      if (nextStatus && activity.txHash) {
-        updatePendingPeginStatus(
-          depositorEthAddress,
-          activity.txHash,
-          nextStatus,
-        );
+      if (nextStatus) {
+        updatePendingPeginStatus(depositorEthAddress, activity.id, nextStatus);
 
         // Optimistically update UI immediately (before refetch completes)
         setOptimisticStatus(activity.id, LocalStorageStatus.PAYOUT_SIGNED);
@@ -221,12 +247,14 @@ export function usePayoutSigningState({
     transactions,
     depositorGraph,
     activity.providers,
-    activity.txHash,
+    activity.peginTxHash,
     activity.id,
+    activity.depositorPayoutBtcAddress,
     findProvider,
     vaultKeepers,
     latestUniversalChallengers,
     getUniversalChallengersByVersion,
+    btcConnector?.connectedWallet?.account?.address,
     btcConnector?.connectedWallet?.provider,
     btcPublicKey,
     depositorEthAddress,

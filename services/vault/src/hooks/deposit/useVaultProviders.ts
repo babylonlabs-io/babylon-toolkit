@@ -18,7 +18,7 @@
  */
 
 import { useQuery } from "@tanstack/react-query";
-import { useCallback } from "react";
+import { useCallback, useMemo } from "react";
 
 import { useAaveConfig } from "../../applications/aave/context/AaveConfigContext";
 import { fetchAppProviders } from "../../services/providers";
@@ -28,6 +28,7 @@ import type {
   VaultProvider,
 } from "../../types";
 import { toIdentity } from "../useLogos";
+import { useUnhealthyVps } from "../useUnhealthyVps";
 import { useWithLogos } from "../useWithLogos";
 
 export interface UseVaultProvidersResult {
@@ -82,21 +83,33 @@ export function useVaultProviders(
     retry: 1,
   });
 
-  // Fetch logos separately and merge with providers (non-blocking)
-  const vaultProvidersWithLogos = useWithLogos(
-    data?.vaultProviders ?? [],
-    (p) => toIdentity(p.btcPubKey),
+  const unhealthyVps = useUnhealthyVps();
+
+  // All providers with logos (unfiltered) — used by findProvider so that
+  // existing vaults on temporarily unhealthy VPs remain resolvable.
+  const allProviders = data?.vaultProviders ?? [];
+  const allProvidersWithLogos = useWithLogos(allProviders, (p) =>
+    toIdentity(p.btcPubKey),
   );
 
-  // Helper function to find provider by address
-  // Memoized to prevent unnecessary re-renders in consuming components
+  // Filtered list for selection UI — excludes unhealthy VPs.
+  const vaultProvidersWithLogos = useMemo(() => {
+    if (unhealthyVps.size === 0) return allProvidersWithLogos;
+    return allProvidersWithLogos.filter(
+      (p) => !unhealthyVps.has(p.id.toLowerCase()),
+    );
+  }, [allProvidersWithLogos, unhealthyVps]);
+
+  // Find provider by address — searches ALL providers (including unhealthy)
+  // so that vault management flows (payout signing, dashboard) still work
+  // for existing vaults on temporarily degraded VPs.
   const findProvider = useCallback(
     (address: string): VaultProvider | undefined => {
-      return vaultProvidersWithLogos.find(
+      return allProvidersWithLogos.find(
         (p) => p.id.toLowerCase() === address.toLowerCase(),
       );
     },
-    [vaultProvidersWithLogos],
+    [allProvidersWithLogos],
   );
 
   // Wrap refetch to return Promise<void>

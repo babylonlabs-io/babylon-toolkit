@@ -26,27 +26,30 @@ if (!btcNetworkRaw) {
   );
 }
 
-if (btcNetworkRaw !== "mainnet" && btcNetworkRaw !== "signet") {
+export const BTC_MAINNET = "mainnet" as const;
+export const BTC_SIGNET = "signet" as const;
+
+if (btcNetworkRaw !== BTC_MAINNET && btcNetworkRaw !== BTC_SIGNET) {
   throw new Error(
     `Invalid NEXT_PUBLIC_BTC_NETWORK value: "${btcNetworkRaw}". Must be either 'mainnet' or 'signet'.`,
   );
 }
 
 // Type is now narrowed to "mainnet" | "signet" after validation
-const btcNetwork = btcNetworkRaw as "mainnet" | "signet";
+export const btcNetwork = btcNetworkRaw as typeof BTC_MAINNET | typeof BTC_SIGNET;
 
 // Export for vault pegin usage
 export type BTCNetwork = Network;
 
-const config: Record<string, BTCConfig> = {
-  mainnet: {
+const config: Record<typeof BTC_MAINNET | typeof BTC_SIGNET, BTCConfig> = {
+  [BTC_MAINNET]: {
     coinName: "BTC",
     coinSymbol: "BTC",
     networkName: "BTC",
     mempoolApiUrl: MEMPOOL_API,
     network: Network.MAINNET,
   },
-  signet: {
+  [BTC_SIGNET]: {
     coinName: "Signet BTC",
     coinSymbol: "sBTC",
     networkName: "BTC signet",

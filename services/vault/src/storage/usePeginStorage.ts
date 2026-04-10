@@ -43,11 +43,10 @@ export interface UsePeginStorageResult {
   pendingPegins: PendingPeginRequest[];
   /** Add a new pending peg-in to localStorage */
   addPendingPegin: (pegin: Omit<PendingPeginRequest, "timestamp">) => void;
-  /** Update status of a pending peg-in, optionally with btcTxHash */
+  /** Update status of a pending peg-in */
   updatePendingPeginStatus: (
-    peginId: string,
+    vaultId: string,
     status: LocalStorageStatus,
-    btcTxHash?: string,
   ) => void;
 }
 
@@ -137,6 +136,7 @@ export function usePeginStorage({
       .filter((pending) => !confirmedMap.has(pending.id))
       .map((pending) => ({
         id: pending.id,
+        peginTxHash: pending.peginTxHash,
         collateral: {
           amount: pending.amount || "0",
           symbol: btcConfig.coinSymbol,
@@ -154,7 +154,8 @@ export function usePeginStorage({
         isPending: true,
         pendingMessage: "Transaction pending confirmation...",
         timestamp: pending.timestamp,
-        depositorLamportPkHash: "",
+        depositorBtcPubkey: pending.depositorBtcPubkey,
+        depositorWotsPkHash: "",
       }));
 
     // Update confirmed activities with localStorage status (for displayLabel)
@@ -202,9 +203,9 @@ export function usePeginStorage({
 
   // Update pending peg-in status - storage function will dispatch event
   const updatePendingPeginStatus = useCallback(
-    (peginId: string, status: LocalStorageStatus, btcTxHash?: string) => {
+    (vaultId: string, status: LocalStorageStatus) => {
       if (!ethAddress) return;
-      updatePendingPeginStatusInStorage(ethAddress, peginId, status, btcTxHash);
+      updatePendingPeginStatusInStorage(ethAddress, vaultId, status);
       // Event will be dispatched by storage function - no manual state update needed
     },
     [ethAddress],

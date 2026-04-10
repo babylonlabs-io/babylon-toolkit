@@ -27,6 +27,8 @@ export interface LoanContextValue {
   assetConfig: Asset;
   /** User's proxy contract address (for debt queries) */
   proxyContract: string | undefined;
+  /** Price of the selected borrow token in USD (from oracle or stablecoin fallback) */
+  tokenPriceUsd: number;
   /** Callback when borrow succeeds */
   onBorrowSuccess: (borrowAmount: number) => void;
   /** Callback when repay succeeds */

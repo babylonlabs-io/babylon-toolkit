@@ -94,7 +94,7 @@ async function fetchPegoutStatusesFromProvider(
   for (const { vault } of vaults) {
     try {
       const response = await rpcClient.getPegoutStatus({
-        pegin_txid: stripHexPrefix(vault.id),
+        pegin_txid: stripHexPrefix(vault.peginTxHash),
       });
 
       const claimerStatus = response.claimer?.status;

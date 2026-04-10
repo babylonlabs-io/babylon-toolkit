@@ -3,14 +3,14 @@
  *
  * These functions contain the business logic for each step of the deposit flow.
  * They are pure (no React state) and can be easily tested.
- * The useDepositFlow hook orchestrates these functions and manages state.
+ * The deposit flow hook orchestrates these functions and manages state.
  *
  * Flow steps:
  * 0. Validation - validateDepositInputs
  * 1. Get ETH wallet - getEthWalletClient
  * 2a. Prepare pegin - preparePegin (build + fund BTC tx)
- * 2b. Register pegin - registerPeginAndWait (PoP + ETH tx)
- * 2.5. Lamport key RPC submission - submitLamportPublicKey
+ * 2b. Register pegin batch - registerPeginBatchAndWait (PoP + single ETH tx)
+ * 2.5. WOTS key RPC submission - submitWotsPublicKey
  * 3. Payout signing - pollAndPreparePayoutSigning, submitPayoutSignatures
  * 4. Broadcast - waitForContractVerification, broadcastBtcTransaction
  */
@@ -19,17 +19,13 @@
 export { DepositFlowStep } from "./types";
 export type {
   BroadcastParams,
-  DepositFlowResult,
   DepositUtxo,
-  LamportSubmissionParams,
   PayoutSigningContext,
   PayoutSigningParams,
-  PeginPrepareParams,
-  PeginPrepareResult,
-  PeginRegisterParams,
-  PeginRegisterResult,
-  SavePendingPeginParams,
+  PeginBatchRegisterParams,
+  PeginBatchRegisterResult,
   UtxoRef,
+  WotsSubmissionParams,
 } from "./types";
 
 // Step 0: Validation (from service layer)
@@ -39,13 +35,11 @@ export type { DepositFlowInputs } from "./validation";
 // Steps 1-2: ETH wallet and pegin submission
 export {
   getEthWalletClient,
-  preparePegin,
-  registerPeginAndWait,
-  savePendingPegin,
+  registerPeginBatchAndWait,
 } from "./ethereumSubmit";
 
-// Step 2.5: Lamport key submission
-export { submitLamportPublicKey } from "./lamportSubmission";
+// Step 2.5: WOTS key submission
+export { submitWotsPublicKey } from "./wotsSubmission";
 
 // Step 3: Payout signing
 export {

@@ -10,8 +10,8 @@
  *
  * ## Key Features
  *
- * - ✅ **Pure Functions** - No wallet dependencies, works anywhere (Node.js, browser, serverless)
- * - ✅ **Type-Safe** - Full TypeScript support with viem integration
+ * - **Pure Functions** - No wallet dependencies, works anywhere (Node.js, browser, serverless)
+ * - **Type-Safe** - Full TypeScript support with viem integration
  *
  * ## Architecture
  *
@@ -54,9 +54,6 @@ export {
   FULL_REPAY_BUFFER_DIVISOR,
   HEALTH_FACTOR_WARNING_THRESHOLD,
   MIN_HEALTH_FACTOR_FOR_BORROW,
-  MOCK_COLLATERAL_FACTOR_BPS,
-  MOCK_LIQUIDATION_BONUS_WAD,
-  MOCK_TARGET_HEALTH_FACTOR_WAD,
   USDC_DECIMALS,
   WAD_DECIMALS,
 } from "./constants.js";
@@ -76,9 +73,9 @@ export {
   buildReorderVaultsTx,
   buildRepayTx,
   buildWithdrawCollateralsTx,
-  getCollateralFactor,
-  getLiquidationBonus,
+  getDynamicReserveConfig,
   getPosition,
+  getReserve,
   getPositionCollateral,
   getTargetHealthFactor,
   getUserAccountData,
@@ -91,27 +88,35 @@ export {
 // Utilities
 export {
   HEALTH_FACTOR_COLORS,
+  MAX_GROUPS,
+  MIN_DEBT_THRESHOLD,
+  SEIZURE_TOL,
   aaveValueToUsd,
   calculateBorrowRatio,
   calculateHealthFactor,
   calculateTotalVaultAmount,
   checkRebalanceNeeded,
   computeMinDepositForSplit,
+  computeOptimalOrder,
   computeOptimalSplit,
   computeSeizedFraction,
+  computeSeizedFractionDetailed,
   computeTargetSeizureSats,
-  simulatePrefixSeizure,
   formatHealthFactor,
+  getGroup1FromOrder,
   getHealthFactorColor,
   getHealthFactorStatus,
   getHealthFactorStatusFromValue,
   hasDebtFromPosition,
   isHealthFactorHealthy,
   selectVaultsForAmount,
+  simulateCascade,
+  simulatePrefixSeizure,
   wadToNumber,
 } from "./utils/index.js";
 
 export type {
+  CascadeVault,
   HealthFactorColor,
   HealthFactorStatus,
   MinDepositForSplitParams,
@@ -122,8 +127,8 @@ export type {
   PrefixSeizureResult,
   RebalanceCheckParams,
   RebalanceCheckResult,
-  TargetSeizureParams,
   SelectableVault,
+  TargetSeizureParams,
   VaultSelectionResult,
 } from "./utils/index.js";
 

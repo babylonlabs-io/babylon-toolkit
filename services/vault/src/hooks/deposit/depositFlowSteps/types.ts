@@ -3,7 +3,7 @@
  */
 
 import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
-import type { Address, Hex, WalletClient } from "viem";
+import type { Hex, WalletClient } from "viem";
 
 import type { DepositorGraphTransactions } from "@/clients/vault-provider-rpc/types";
 import type {
@@ -21,8 +21,6 @@ import type {
  * Numeric values enable ordered comparisons (e.g. `currentStep >= SIGN_PAYOUTS`).
  */
 export enum DepositFlowStep {
-  /** Step 0: Sign and broadcast split transaction (multi-vault SPLIT strategy only) */
-  SIGN_SPLIT_TX = 0,
   /** Step 1: Sign proof of possession in BTC wallet */
   SIGN_POP = 1,
   /** Step 2: Submit peg-in to Ethereum (registers vault on-chain) */
@@ -61,92 +59,43 @@ export interface UtxoRef {
 // Steps 1-2: Pegin Submit
 // ============================================================================
 
-export interface PeginPrepareParams {
+export interface PeginBatchRegisterParams {
   btcWalletProvider: BitcoinWallet;
   walletClient: WalletClient;
-  amount: bigint;
-  /** Protocol fee rate in sat/vB from contract offchain params */
-  protocolFeeRate: bigint;
-  /** Mempool fee rate in sat/vB for UTXO selection and funding */
-  mempoolFeeRate: number;
-  btcAddress: string;
-  selectedProviders: string[];
-  vaultProviderBtcPubkey: string;
-  vaultKeeperBtcPubkeys: string[];
-  universalChallengerBtcPubkeys: string[];
-  /** CSV timelock in blocks for the PegIn vault output */
-  timelockPegin: number;
-  /** CSV timelock in blocks for the Pre-PegIn HTLC refund path (tRefund from VersionedOffchainParams) */
-  timelockRefund: number;
-  /** SHA256 hash commitment for the HTLC (64 hex chars = 32 bytes) */
-  hashH: string;
-  /** M in M-of-N council multisig */
-  councilQuorum: number;
-  /** N in M-of-N council multisig */
-  councilSize: number;
-  confirmedUTXOs: DepositUtxo[];
-  reservedUtxoRefs: UtxoRef[];
-}
-
-export interface PeginPrepareResult {
-  /** Vault ID: hash of the pegin tx (NOT the pre-pegin tx) */
-  btcTxid: Hex;
-  depositorBtcPubkey: string;
-  /** Funded Pre-PegIn tx hex — this is the tx the depositor signs and broadcasts */
-  fundedPrePeginTxHex: string;
-  /** PegIn tx hex — passed to registerPeginOnChain for vault ID computation */
-  peginTxHex: string;
-  /** Depositor's Schnorr signature over PegIn input 0 (HTLC leaf 0), 128 hex chars */
-  peginInputSignature: string;
-  selectedUTXOs: DepositUtxo[];
-  fee: bigint;
-}
-
-export interface PeginRegisterParams {
-  btcWalletProvider: BitcoinWallet;
-  walletClient: WalletClient;
-  depositorBtcPubkey: string;
-  /** PegIn tx hex — submitted as depositorSignedPeginTx; vault ID derived from this */
-  peginTxHex: string;
-  /** Pre-PegIn tx hex — submitted as unsignedPrePeginTx for DA */
-  unsignedPrePeginTxHex: string;
-  /** SHA256 hashlock for HTLC activation (hex with 0x prefix) */
-  hashlock: Hex;
+  /** Vault provider ETH address (shared for all vaults in batch) */
   vaultProviderAddress: string;
-  onPopSigned?: () => void;
-  /** Depositor's BTC payout address (e.g. bc1p...) */
-  depositorPayoutBtcAddress: string;
-  /** Keccak256 hash of the depositor's Lamport public key */
-  depositorLamportPkHash: Hex;
-  /** Pre-signed BTC PoP signature to reuse (skips BTC wallet signing) */
+  /** Per-vault registration data */
+  requests: Array<{
+    depositorBtcPubkey: string;
+    unsignedPrePeginTx: string;
+    depositorSignedPeginTx: string;
+    hashlock: Hex;
+    htlcVout: number;
+    depositorPayoutBtcAddress: string;
+    depositorWotsPkHash: Hex;
+  }>;
+  /** Pre-signed BTC PoP signature (signed once, reused for all) */
   preSignedBtcPopSignature?: Hex;
-  /** SHA-256 hash of the depositor's secret for the new peg-in flow */
-  depositorSecretHash?: Hex;
+  /** Called after PoP is signed (before ETH tx) */
+  onPopSigned?: () => void;
 }
 
-export interface PeginRegisterResult {
-  btcTxid: string;
+export interface PeginBatchRegisterResult {
   ethTxHash: Hex;
-  /** The BTC PoP signature used, for reuse in subsequent pegins */
+  vaults: Array<{
+    vaultId: Hex;
+    peginTxHash: Hex;
+  }>;
   btcPopSignature: Hex;
 }
 
-export interface SavePendingPeginParams {
-  depositorEthAddress: Address;
-  btcTxid: string;
-  amount: bigint;
-  selectedProviders: string[];
-  applicationEntryPoint: string;
-  unsignedTxHex: string;
-  selectedUTXOs: DepositUtxo[];
-}
-
 // ============================================================================
-// Step 2.5: Lamport Key Submission
+// Step 2.5: WOTS Key Submission
 // ============================================================================
 
-export interface LamportSubmissionParams {
-  btcTxid: string;
+export interface WotsSubmissionParams {
+  /** Raw BTC pegin transaction hash (for VP RPC pegin_txid) */
+  peginTxHash: string;
   depositorBtcPubkey: string;
   appContractAddress: string;
   providerAddress: string;
@@ -159,7 +108,10 @@ export interface LamportSubmissionParams {
 // ============================================================================
 
 export interface PayoutSigningParams {
-  btcTxid: string;
+  /** Derived vault ID (for contract operations in signing context) */
+  vaultId: string;
+  /** Raw BTC pegin transaction hash (for VP RPC operations) */
+  peginTxHash: string;
   /** The pegin transaction hex from step 2 - used for signing context */
   btcTxHex: string;
   depositorBtcPubkey: string;
@@ -167,6 +119,8 @@ export interface PayoutSigningParams {
   providerBtcPubKey: string;
   vaultKeepers: Array<{ btcPubKey: string }>;
   universalChallengers: Array<{ btcPubKey: string }>;
+  /** Depositor's registered payout scriptPubKey (hex) — converted from BTC address before passing */
+  registeredPayoutScriptPubKey: string;
   /** Optional AbortSignal for cancellation */
   signal?: AbortSignal;
 }
@@ -183,27 +137,15 @@ export interface PayoutSigningContext {
 // ============================================================================
 
 export interface BroadcastParams {
-  btcTxid: string;
+  /** Derived vault ID (for localStorage identity) */
+  vaultId: string;
   depositorBtcPubkey: string;
   btcWalletProvider: BitcoinWallet;
   /** Funded Pre-PegIn tx hex to broadcast (avoids re-fetching from indexer) */
   fundedPrePeginTxHex: string;
-}
-
-// ============================================================================
-// Flow Result
-// ============================================================================
-
-/** Result returned on successful deposit flow completion */
-export interface DepositFlowResult {
-  btcTxid: string;
-  ethTxHash: string;
-  depositorBtcPubkey: string;
-  /** HTLC secret hex (no 0x prefix) — shown to the user for safekeeping */
-  htlcSecretHex: string;
-  transactionData: {
-    unsignedTxHex: string;
-    selectedUTXOs: DepositUtxo[];
-    fee: bigint;
-  };
+  /**
+   * Trusted UTXO data from transaction construction phase.
+   * Key format: "txid:vout". When provided, skips untrusted mempool API queries.
+   */
+  expectedUtxos?: Record<string, { scriptPubKey: string; value: number }>;
 }

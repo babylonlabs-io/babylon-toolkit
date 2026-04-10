@@ -8,7 +8,11 @@ import type {
   BitcoinWallet,
   SignPsbtOptions,
 } from "@babylonlabs-io/ts-sdk/shared";
+import * as ecc from "@bitcoin-js/tiny-secp256k1-asmjs";
+import * as bitcoin from "bitcoinjs-lib";
 import { Buffer } from "buffer";
+
+import { getNetworkConfigBTC } from "../../config";
 
 /**
  * Strip "0x" prefix from hex string if present
@@ -24,7 +28,7 @@ import { Buffer } from "buffer";
  * ```
  */
 export function stripHexPrefix(hex: string): string {
-  return hex.startsWith("0x") ? hex.slice(2) : hex;
+  return hex.startsWith("0x") || hex.startsWith("0X") ? hex.slice(2) : hex;
 }
 
 /**
@@ -97,6 +101,44 @@ export async function signPsbtsWithFallback(
     signed.push(await wallet.signPsbt(psbtHexes[i], options?.[i]));
   }
   return signed;
+}
+
+/**
+ * Convert a BTC address to its scriptPubKey hex representation (0x-prefixed).
+ * Uses the current environment's BTC network configuration.
+ */
+export function btcAddressToScriptPubKeyHex(address: string): string {
+  const { network } = getNetworkConfigBTC();
+  const btcNetwork =
+    network === "mainnet" ? bitcoin.networks.bitcoin : bitcoin.networks.testnet;
+  return `0x${bitcoin.address.toOutputScript(address, btcNetwork).toString("hex")}`;
+}
+
+/**
+ * Derive the BIP-86 P2TR scriptPubKey (0x-prefixed hex) from an x-only public key.
+ *
+ * Matches Rust `Bip86KeyConnector::generate_taproot_script_pubkey`: a keypath-only
+ * P2TR output with no script tree. Used to compute the expected payout address for
+ * vault keeper claimers, whose payout goes to their own BIP-86 address rather than
+ * the depositor's registered payout address.
+ */
+export function deriveBip86ScriptPubKeyHex(xOnlyPubkeyHex: string): string {
+  // Ensure ECC backend is initialized for p2tr (safe to call multiple times)
+  bitcoin.initEccLib(ecc);
+
+  const cleanHex = stripHexPrefix(xOnlyPubkeyHex);
+  validateXOnlyPubkey(cleanHex);
+  const { network } = getNetworkConfigBTC();
+  const btcNetwork =
+    network === "mainnet" ? bitcoin.networks.bitcoin : bitcoin.networks.testnet;
+  const { output } = bitcoin.payments.p2tr({
+    internalPubkey: Buffer.from(cleanHex, "hex"),
+    network: btcNetwork,
+  });
+  if (!output) {
+    throw new Error("Failed to derive BIP-86 P2TR scriptPubKey");
+  }
+  return `0x${output.toString("hex")}`;
 }
 
 export function processPublicKeyToXOnly(publicKeyHex: string): string {

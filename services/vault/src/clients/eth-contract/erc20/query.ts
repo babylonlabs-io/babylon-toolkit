@@ -71,6 +71,37 @@ export async function getERC20Balance(
 }
 
 /**
+ * Get ERC20 token decimals from the contract on-chain.
+ *
+ * Reads directly from the token contract rather than trusting an external
+ * source (e.g. a GraphQL indexer) for this value. Using the wrong decimals
+ * in parseUnits would silently produce a different amount than the user
+ * intended, so this must be authoritative.
+ *
+ * @param tokenAddress - ERC20 token contract address
+ * @returns Token decimals (e.g. 6 for USDC, 18 for WETH)
+ */
+export async function getERC20Decimals(tokenAddress: Address): Promise<number> {
+  const publicClient = ethClient.getPublicClient();
+
+  const decimals = await publicClient.readContract({
+    address: tokenAddress,
+    abi: ERC20_ABI,
+    functionName: "decimals",
+    args: [],
+  });
+
+  const MAX_REASONABLE_DECIMALS = 18;
+  if (decimals > MAX_REASONABLE_DECIMALS) {
+    throw new Error(
+      `Token ${tokenAddress} reported ${decimals} decimals, expected at most ${MAX_REASONABLE_DECIMALS}`,
+    );
+  }
+
+  return decimals as number;
+}
+
+/**
  * Get ERC20 token allowance
  * @param tokenAddress - ERC20 token contract address
  * @param ownerAddress - Address that owns the tokens

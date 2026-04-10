@@ -14,6 +14,8 @@
  * - Status field tracks user actions: pending → payout_signed → confirming
  */
 
+import type { Hex } from "viem";
+
 import { logger } from "@/infrastructure";
 
 import { STORAGE_KEY_PREFIX, STORAGE_UPDATE_EVENT } from "../constants";
@@ -24,13 +26,14 @@ import {
 } from "../models/peginStateMachine";
 
 export interface PendingPeginRequest {
-  id: string; // Peg-in ID (pegin tx hash)
+  id: Hex; // Derived vault ID: keccak256(abi.encode(peginTxHash, depositor))
   timestamp: number; // When the peg-in was initiated
   amount?: string; // Amount in BTC (formatted for display)
   providerIds?: string[]; // Vault provider's Ethereum addresses
   applicationEntryPoint?: string; // Application controller address (for identifying the app)
   status: LocalStorageStatus; // Track user actions (required, defaults to PENDING)
-  btcTxHash?: string; // BTC transaction hash (set when broadcasting to Bitcoin)
+  peginTxHash: Hex; // Raw BTC pegin transaction hash
+  depositorBtcPubkey?: string; // Depositor's BTC public key (x-only, for WOTS derivation in resume flow)
   // Fields for cross-device broadcasting support
   unsignedTxHex?: string; // Funded Pre-PegIn tx hex (for broadcasting later)
   selectedUTXOs?: Array<{
@@ -41,8 +44,7 @@ export interface PendingPeginRequest {
     scriptPubKey: string;
   }>;
   // Multi-vault tracking fields
-  batchId?: string; // UUID linking vaults created together (for MULTI_INPUT + SPLIT strategies)
-  splitTxId?: string; // Bitcoin split transaction hash (only for SPLIT strategy)
+  batchId?: string; // UUID linking vaults created together
   batchIndex?: number; // Position in batch (1-based: 1 or 2)
   batchTotal?: number; // Total vaults in batch (1 or 2)
 }
@@ -58,8 +60,8 @@ function getStorageKey(ethAddress: string): string {
  * Normalize transaction ID to ensure it has 0x prefix
  * This handles legacy data that might not have the prefix
  */
-function normalizeTransactionId(id: string): string {
-  return id.startsWith("0x") ? id : `0x${id}`;
+function normalizeTransactionId(id: string): Hex {
+  return (id.startsWith("0x") ? id : `0x${id}`) as Hex;
 }
 
 /**
@@ -188,21 +190,17 @@ export function addPendingPegin(
 /**
  * Update status of a pending peg-in
  * Used to track user actions through the peg-in flow
- * Optionally updates btcTxHash when broadcasting to Bitcoin
  */
 export function updatePendingPeginStatus(
   ethAddress: string,
-  peginId: string,
+  vaultId: string,
   status: LocalStorageStatus,
-  btcTxHash?: string,
 ): void {
   const existingPegins = getPendingPegins(ethAddress);
-  const normalizedId = normalizeTransactionId(peginId);
+  const normalizedId = normalizeTransactionId(vaultId);
 
   const updatedPegins = existingPegins.map((pegin) =>
-    pegin.id === normalizedId
-      ? { ...pegin, status, ...(btcTxHash && { btcTxHash }) }
-      : pegin,
+    pegin.id === normalizedId ? { ...pegin, status } : pegin,
   );
 
   savePendingPegins(ethAddress, updatedPegins);
