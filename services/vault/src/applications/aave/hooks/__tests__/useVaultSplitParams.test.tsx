@@ -59,11 +59,7 @@ vi.mock("../../context", () => ({
       btcVaultCoreSpokeAddress: "0xSpokeAddress",
       btcVaultCoreVbtcReserveId: 1n,
     },
-    vbtcReserve: {
-      reserve: {
-        dynamicConfigKey: 0,
-      },
-    },
+    vbtcReserve: null,
   })),
 }));
 
@@ -149,14 +145,14 @@ describe("useVaultSplitParams", () => {
     );
   });
 
-  it("uses indexer dynamicConfigKey when user has no position", async () => {
+  it("reads the reserve's current dynamicConfigKey from the contract when user has no position", async () => {
     const { result } = renderHook(() => useVaultSplitParams(), { wrapper });
 
     await waitFor(() => {
       expect(result.current.isLoading).toBe(false);
     });
 
-    expect(mockGetReserve).not.toHaveBeenCalled();
+    expect(mockGetReserve).toHaveBeenCalledWith("0xSpokeAddress", 1n);
     expect(mockGetDynamicReserveConfig).toHaveBeenCalledWith(
       "0xSpokeAddress",
       1n,
@@ -210,7 +206,7 @@ describe("useVaultSplitParams", () => {
     expect(mockGetDynamicReserveConfig).not.toHaveBeenCalled();
   });
 
-  it("falls back to contract read when dynamicConfigKey is not in indexer", async () => {
+  it("uses the dynamicConfigKey returned by getReserve for users without a position", async () => {
     const { useAaveConfig } = vi.mocked(await import("../../context"));
     useAaveConfig.mockReturnValue({
       config: {
