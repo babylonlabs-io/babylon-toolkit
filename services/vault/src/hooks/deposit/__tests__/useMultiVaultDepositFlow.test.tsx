@@ -128,6 +128,14 @@ vi.mock("@/models/peginStateMachine", async (importOriginal) => ({
 
 vi.mock("@/storage/peginStorage", () => ({
   addPendingPegin: vi.fn(),
+  getPendingPegins: vi.fn(() => []),
+}));
+
+vi.mock("@/services/vault/utxoReservation", () => ({
+  collectReservedUtxoRefs: vi.fn(() => []),
+  selectUtxosForDeposit: vi.fn(
+    ({ availableUtxos }: { availableUtxos: unknown[] }) => availableUtxos,
+  ),
 }));
 
 vi.mock("@/utils/secretUtils", () => ({
@@ -682,9 +690,14 @@ describe("useMultiVaultDepositFlow", () => {
       });
     });
 
-    it("should continue with other vaults when payout signing fails for one", async () => {
-      const { pollAndPreparePayoutSigning, submitPayoutSignatures } = vi.mocked(
-        await import("../depositFlowSteps"),
+    it("should only verify and activate vaults whose payout signing succeeded", async () => {
+      const {
+        pollAndPreparePayoutSigning,
+        submitPayoutSignatures,
+        waitForContractVerification,
+      } = vi.mocked(await import("../depositFlowSteps"));
+      const { activateVaultWithSecret } = vi.mocked(
+        await import("@/services/vault/vaultActivationService"),
       );
 
       // First vault fails payout signing, second succeeds
@@ -723,6 +736,106 @@ describe("useMultiVaultDepositFlow", () => {
 
       // Second vault's payouts should still be submitted
       expect(submitPayoutSignatures).toHaveBeenCalledTimes(1);
+
+      // Only the successful vault (vault 2) should be verified and activated
+      expect(waitForContractVerification).toHaveBeenCalledTimes(1);
+      expect(waitForContractVerification).toHaveBeenCalledWith(
+        expect.objectContaining({ vaultId: "0xVault1Id" }),
+      );
+      expect(activateVaultWithSecret).toHaveBeenCalledTimes(1);
+      expect(activateVaultWithSecret).toHaveBeenCalledWith(
+        expect.objectContaining({ vaultId: "0xVault1Id" }),
+      );
+    });
+
+    it("should skip payout signing for vaults whose WOTS key submission failed", async () => {
+      const {
+        submitWotsPublicKey,
+        pollAndPreparePayoutSigning,
+        waitForContractVerification,
+      } = vi.mocked(await import("../depositFlowSteps"));
+
+      // First vault's WOTS submission fails both attempts (retry exhausted)
+      vi.mocked(submitWotsPublicKey)
+        .mockRejectedValueOnce(new Error("WOTS derivation error"))
+        .mockRejectedValueOnce(new Error("WOTS derivation error"))
+        .mockResolvedValueOnce(undefined);
+
+      const { result } = renderHook(() =>
+        useMultiVaultDepositFlow(MOCK_PARAMS),
+      );
+
+      const depositResult = await executeWithAutoArtifactDownload(result);
+
+      expect(depositResult).not.toBeNull();
+      expect(depositResult?.warnings).toHaveLength(1);
+      expect(depositResult?.warnings?.[0]).toContain(
+        "WOTS key submission failed",
+      );
+
+      // Payout signing should only be attempted for vault 2 (vault 1 skipped)
+      expect(pollAndPreparePayoutSigning).toHaveBeenCalledTimes(1);
+      expect(pollAndPreparePayoutSigning).toHaveBeenCalledWith(
+        expect.objectContaining({ vaultId: "0xVault1Id" }),
+      );
+
+      // Only vault 2 should be verified
+      expect(waitForContractVerification).toHaveBeenCalledTimes(1);
+      expect(waitForContractVerification).toHaveBeenCalledWith(
+        expect.objectContaining({ vaultId: "0xVault1Id" }),
+      );
+    });
+
+    it("should retry WOTS submission once before skipping vault", async () => {
+      const { submitWotsPublicKey, pollAndPreparePayoutSigning } = vi.mocked(
+        await import("../depositFlowSteps"),
+      );
+
+      // First vault: fails once, succeeds on retry
+      // Second vault: succeeds first try
+      vi.mocked(submitWotsPublicKey)
+        .mockRejectedValueOnce(new Error("Network timeout"))
+        .mockResolvedValueOnce(undefined) // vault 1 retry succeeds
+        .mockResolvedValueOnce(undefined); // vault 2 succeeds
+
+      const { result } = renderHook(() =>
+        useMultiVaultDepositFlow(MOCK_PARAMS),
+      );
+
+      const depositResult = await executeWithAutoArtifactDownload(result);
+
+      // No warnings — both vaults recovered
+      expect(depositResult).not.toBeNull();
+      expect(depositResult?.warnings).toBeUndefined();
+
+      // Both vaults should proceed to payout signing
+      expect(pollAndPreparePayoutSigning).toHaveBeenCalledTimes(2);
+    });
+
+    it("should complete with warnings when all payout signings fail", async () => {
+      const { pollAndPreparePayoutSigning, waitForContractVerification } =
+        vi.mocked(await import("../depositFlowSteps"));
+      const { activateVaultWithSecret } = vi.mocked(
+        await import("@/services/vault/vaultActivationService"),
+      );
+
+      // Both vaults fail payout signing
+      vi.mocked(pollAndPreparePayoutSigning)
+        .mockRejectedValueOnce(new Error("VP timeout"))
+        .mockRejectedValueOnce(new Error("VP timeout"));
+
+      const { result } = renderHook(() =>
+        useMultiVaultDepositFlow(MOCK_PARAMS),
+      );
+
+      const depositResult = await executeWithAutoArtifactDownload(result);
+
+      expect(depositResult).not.toBeNull();
+      expect(depositResult?.warnings).toHaveLength(2);
+
+      // No verification or activation should be attempted
+      expect(waitForContractVerification).not.toHaveBeenCalled();
+      expect(activateVaultWithSecret).not.toHaveBeenCalled();
     });
 
     it("should not show error when flow is aborted", async () => {
@@ -805,6 +918,95 @@ describe("useMultiVaultDepositFlow", () => {
         expect(registerPeginBatchAndWait).toHaveBeenCalledTimes(1);
         const callArgs = registerPeginBatchAndWait.mock.calls[0]?.[0];
         expect(callArgs?.requests).toHaveLength(1);
+      });
+    });
+  });
+
+  describe("UTXO Reservation", () => {
+    it("should filter reserved UTXOs before preparing pegin transaction", async () => {
+      const { getPendingPegins } = vi.mocked(
+        await import("@/storage/peginStorage"),
+      );
+      const { collectReservedUtxoRefs, selectUtxosForDeposit } = vi.mocked(
+        await import("@/services/vault/utxoReservation"),
+      );
+      const { preparePeginTransaction } = vi.mocked(
+        await import("@/services/vault/vaultTransactionService"),
+      );
+
+      const mockPendingPegins = [
+        {
+          id: "0xexisting",
+          peginTxHash: "0xexistinghash",
+          timestamp: Date.now(),
+          status: "pending",
+          unsignedTxHex: "existingtxhex",
+          selectedUTXOs: [
+            {
+              txid: MOCK_UTXO_1.txid,
+              vout: 0,
+              value: "500000",
+              scriptPubKey: "0xabc123",
+            },
+          ],
+        },
+      ];
+      const mockReservedRefs = [{ txid: MOCK_UTXO_1.txid, vout: 0 }];
+
+      vi.mocked(getPendingPegins).mockReturnValueOnce(mockPendingPegins as any);
+      vi.mocked(collectReservedUtxoRefs).mockReturnValueOnce(mockReservedRefs);
+      // Only return MOCK_UTXO_2 (MOCK_UTXO_1 is reserved)
+      vi.mocked(selectUtxosForDeposit).mockReturnValueOnce([MOCK_UTXO_2]);
+
+      const { result } = renderHook(() =>
+        useMultiVaultDepositFlow(MOCK_PARAMS),
+      );
+
+      await executeWithAutoArtifactDownload(result);
+
+      await waitFor(() => {
+        expect(getPendingPegins).toHaveBeenCalledWith("0xEthAddress123");
+        expect(collectReservedUtxoRefs).toHaveBeenCalledWith({
+          pendingPegins: mockPendingPegins,
+        });
+        expect(selectUtxosForDeposit).toHaveBeenCalledWith(
+          expect.objectContaining({
+            availableUtxos: [MOCK_UTXO_1, MOCK_UTXO_2],
+            reservedUtxoRefs: mockReservedRefs,
+          }),
+        );
+        // preparePeginTransaction should receive filtered UTXOs
+        expect(preparePeginTransaction).toHaveBeenCalledWith(
+          expect.anything(),
+          expect.anything(),
+          expect.objectContaining({
+            availableUTXOs: [MOCK_UTXO_2],
+          }),
+        );
+      });
+    });
+
+    it("should throw when all UTXOs are reserved", async () => {
+      const { selectUtxosForDeposit } = vi.mocked(
+        await import("@/services/vault/utxoReservation"),
+      );
+
+      vi.mocked(selectUtxosForDeposit).mockImplementationOnce(() => {
+        throw new Error(
+          "All available UTXOs are reserved by pending deposits.",
+        );
+      });
+
+      const { result } = renderHook(() =>
+        useMultiVaultDepositFlow(MOCK_PARAMS),
+      );
+
+      await executeWithAutoArtifactDownload(result);
+
+      await waitFor(() => {
+        expect(result.current.error).toContain(
+          "All available UTXOs are reserved",
+        );
       });
     });
   });

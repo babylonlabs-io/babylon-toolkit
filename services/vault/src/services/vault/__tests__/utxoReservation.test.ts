@@ -378,8 +378,8 @@ describe("UTXO Reservation", () => {
       });
     });
 
-    describe("fallback conditions", () => {
-      it("should fallback to all UTXOs when all are reserved", () => {
+    describe("insufficient unreserved UTXOs", () => {
+      it("should throw when all UTXOs are reserved", () => {
         const reserved: UtxoRef[] = [
           { txid: "txid1", vout: 0 },
           { txid: "txid2", vout: 1 },
@@ -387,41 +387,39 @@ describe("UTXO Reservation", () => {
           { txid: "txid4", vout: 2 },
         ];
 
-        const result = selectUtxosForDeposit({
-          availableUtxos: mockUTXOs,
-          reservedUtxoRefs: reserved,
-          requiredAmount: 100000n,
-          feeRate: DEFAULT_FEE_RATE,
-        });
-
-        expect(result).toHaveLength(4);
-        expect(result).toEqual(mockUTXOs);
+        expect(() =>
+          selectUtxosForDeposit({
+            availableUtxos: mockUTXOs,
+            reservedUtxoRefs: reserved,
+            requiredAmount: 100000n,
+            feeRate: DEFAULT_FEE_RATE,
+          }),
+        ).toThrow("All available UTXOs are reserved by pending deposits");
       });
 
-      it("should fallback when unreserved UTXOs are insufficient for required amount + fee", () => {
+      it("should throw when unreserved UTXOs are insufficient for required amount + fee", () => {
         // Reserve txid2 (100000) and txid4 (200000)
         // Unreserved: txid1 (50000) + txid3 (75000) = 125000
-        // Required: 200000 + ~2343 fee buffer -> unreserved insufficient -> fallback
+        // Required: 200000 + ~2343 fee buffer -> unreserved insufficient
         const reserved: UtxoRef[] = [
           { txid: "txid2", vout: 1 },
           { txid: "txid4", vout: 2 },
         ];
 
-        const result = selectUtxosForDeposit({
-          availableUtxos: mockUTXOs,
-          reservedUtxoRefs: reserved,
-          requiredAmount: 200000n,
-          feeRate: DEFAULT_FEE_RATE,
-        });
-
-        expect(result).toHaveLength(4);
-        expect(result).toEqual(mockUTXOs);
+        expect(() =>
+          selectUtxosForDeposit({
+            availableUtxos: mockUTXOs,
+            reservedUtxoRefs: reserved,
+            requiredAmount: 200000n,
+            feeRate: DEFAULT_FEE_RATE,
+          }),
+        ).toThrow("Insufficient unreserved UTXOs for this deposit amount");
       });
 
-      it("should NOT fallback when unreserved value covers required + fee buffer", () => {
+      it("should return unreserved UTXOs when they cover required + fee buffer", () => {
         // Reserve txid1 (50000), txid3 (75000), txid4 (200000)
         // Unreserved: txid2 (100000)
-        // Required: 95000 + ~2343 fee buffer ≈ 97343 < 100000 -> should NOT fallback
+        // Required: 95000 + ~2343 fee buffer ≈ 97343 < 100000 -> sufficient
         const reserved: UtxoRef[] = [
           { txid: "txid1", vout: 0 },
           { txid: "txid3", vout: 0 },
@@ -439,25 +437,24 @@ describe("UTXO Reservation", () => {
         expect(result[0].txid).toBe("txid2");
       });
 
-      it("should fallback when unreserved value insufficient for required + fee buffer", () => {
+      it("should throw when unreserved value insufficient for required + fee buffer", () => {
         // Reserve txid1 (50000), txid3 (75000), txid4 (200000)
         // Unreserved: txid2 (100000)
-        // Required: 98000 + ~2343 fee buffer ≈ 100343 > 100000 -> insufficient -> fallback
+        // Required: 98000 + ~2343 fee buffer ≈ 100343 > 100000 -> insufficient
         const reserved: UtxoRef[] = [
           { txid: "txid1", vout: 0 },
           { txid: "txid3", vout: 0 },
           { txid: "txid4", vout: 2 },
         ];
 
-        const result = selectUtxosForDeposit({
-          availableUtxos: mockUTXOs,
-          reservedUtxoRefs: reserved,
-          requiredAmount: 98000n,
-          feeRate: DEFAULT_FEE_RATE,
-        });
-
-        expect(result).toHaveLength(4);
-        expect(result).toEqual(mockUTXOs);
+        expect(() =>
+          selectUtxosForDeposit({
+            availableUtxos: mockUTXOs,
+            reservedUtxoRefs: reserved,
+            requiredAmount: 98000n,
+            feeRate: DEFAULT_FEE_RATE,
+          }),
+        ).toThrow("Insufficient unreserved UTXOs for this deposit amount");
       });
     });
 
@@ -524,30 +521,28 @@ describe("UTXO Reservation", () => {
     });
 
     describe("fee buffer calculation", () => {
-      it("should use fee buffer in sufficiency check", () => {
+      it("should throw when high fee rate makes unreserved insufficient", () => {
         // Reserve txid1 (50000), txid3 (75000), txid4 (200000)
         // Unreserved: txid2 (100000)
         // At 100 sat/vB: fee buffer ≈ 23430 sats
-        // Required: 80000 + 23430 = 103430 > 100000 -> fallback
+        // Required: 80000 + 23430 = 103430 > 100000 -> insufficient
         const reserved: UtxoRef[] = [
           { txid: "txid1", vout: 0 },
           { txid: "txid3", vout: 0 },
           { txid: "txid4", vout: 2 },
         ];
 
-        const result = selectUtxosForDeposit({
-          availableUtxos: mockUTXOs,
-          reservedUtxoRefs: reserved,
-          requiredAmount: 80000n,
-          feeRate: 100, // High fee rate
-        });
-
-        // Should fallback due to fee buffer
-        expect(result).toHaveLength(4);
-        expect(result).toEqual(mockUTXOs);
+        expect(() =>
+          selectUtxosForDeposit({
+            availableUtxos: mockUTXOs,
+            reservedUtxoRefs: reserved,
+            requiredAmount: 80000n,
+            feeRate: 100, // High fee rate
+          }),
+        ).toThrow("Insufficient unreserved UTXOs");
       });
 
-      it("should not fallback with low fee rate", () => {
+      it("should return unreserved UTXOs with low fee rate", () => {
         // Same setup but with fee rate of 1 sat/vB
         // Fee buffer ≈ 234 sats
         // Required: 80000 + 234 = 80234 < 100000 -> unreserved sufficient
@@ -564,7 +559,6 @@ describe("UTXO Reservation", () => {
           feeRate: 1, // Low fee rate
         });
 
-        // Should NOT fallback
         expect(result).toHaveLength(1);
         expect(result[0].txid).toBe("txid2");
       });

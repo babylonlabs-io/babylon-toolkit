@@ -32,6 +32,10 @@ import { logger } from "@/infrastructure";
 import { LocalStorageStatus } from "@/models/peginStateMachine";
 import { validateMultiVaultDepositInputs } from "@/services/deposit/validations";
 import { signDepositorGraph } from "@/services/vault/depositorGraphSigningService";
+import {
+  collectReservedUtxoRefs,
+  selectUtxosForDeposit,
+} from "@/services/vault/utxoReservation";
 import { activateVaultWithSecret } from "@/services/vault/vaultActivationService";
 import {
   signPayoutTransactions,
@@ -43,7 +47,7 @@ import {
 } from "@/services/vault/vaultPeginBroadcastService";
 import { preparePeginTransaction } from "@/services/vault/vaultTransactionService";
 import { deriveWotsPkHash, linkPeginToMnemonic } from "@/services/wots";
-import { addPendingPegin } from "@/storage/peginStorage";
+import { addPendingPegin, getPendingPegins } from "@/storage/peginStorage";
 import { btcAddressToScriptPubKeyHex } from "@/utils/btc";
 import { satoshiToBtcNumber } from "@/utils/btcConversion";
 import { sanitizeErrorMessage } from "@/utils/errors/formatting";
@@ -316,6 +320,17 @@ export function useMultiVaultDepositFlow(
           (hex) => hashSecret(hex).slice(2), // strip 0x prefix
         );
 
+        // Filter out UTXOs reserved by in-flight deposits to prevent
+        // double-spend failures across concurrent sessions/tabs.
+        const pendingPegins = getPendingPegins(confirmedEthAddress);
+        const reservedUtxoRefs = collectReservedUtxoRefs({ pendingPegins });
+        const availableUTXOs = selectUtxosForDeposit({
+          availableUtxos: spendableUTXOs,
+          reservedUtxoRefs,
+          requiredAmount: vaultAmounts.reduce((sum, a) => sum + a, 0n),
+          feeRate: mempoolFeeRate,
+        });
+
         // ONE Pre-PegIn tx with N HTLC outputs (one per vault)
         const batchResult = await preparePeginTransaction(
           confirmedBtcWallet,
@@ -333,7 +348,7 @@ export function useMultiVaultDepositFlow(
             hashlocks,
             councilQuorum: config.offchainParams.councilQuorum,
             councilSize: config.offchainParams.securityCouncilKeys.length,
-            availableUTXOs: spendableUTXOs,
+            availableUTXOs,
           },
         );
 
@@ -485,32 +500,59 @@ export function useMultiVaultDepositFlow(
         setCurrentStep(DepositFlowStep.SIGN_PAYOUTS);
         setIsWaiting(true);
 
+        // Track per-vault outcomes so failed lanes don't block healthy siblings
+        const wotsFailedVaultIds = new Set<string>();
+
+        const MAX_WOTS_ATTEMPTS = 2;
+
         for (const result of broadcastedResults) {
-          try {
-            await submitWotsPublicKey({
-              peginTxHash: result.peginTxHash,
-              depositorBtcPubkey: result.depositorBtcPubkey,
-              appContractAddress: selectedApplication,
-              providerAddress: provider.id,
-              getMnemonic,
-              signal,
-            });
-          } catch (error) {
-            // Re-throw abort errors so they're suppressed by the outer catch
-            if (signal.aborted) throw error;
-            const errorMsg =
-              error instanceof Error ? error.message : String(error);
-            const warning = `Vault ${result.vaultIndex + 1}: WOTS key submission failed - ${errorMsg}`;
-            warnings.push(warning);
-            logger.error(
-              error instanceof Error ? error : new Error(String(error)),
-              {
-                data: {
-                  context: "[Multi-Vault] Failed to submit WOTS key for vault",
-                  vaultId: result.vaultId,
+          let wotsSuccess = false;
+
+          for (let attempt = 1; attempt <= MAX_WOTS_ATTEMPTS; attempt++) {
+            try {
+              await submitWotsPublicKey({
+                peginTxHash: result.peginTxHash,
+                depositorBtcPubkey: result.depositorBtcPubkey,
+                appContractAddress: selectedApplication,
+                providerAddress: provider.id,
+                getMnemonic,
+                signal,
+              });
+              wotsSuccess = true;
+              break;
+            } catch (error) {
+              // Re-throw abort errors so they're suppressed by the outer catch
+              if (signal.aborted) throw error;
+
+              if (attempt < MAX_WOTS_ATTEMPTS) {
+                // submitWotsPublicKey is idempotent — if the VP already accepted
+                // the key but the response was lost, the retry will detect that
+                // the VP moved past the WOTS stage and return early.
+                logger.warn(
+                  `[Multi-Vault] WOTS submission failed for vault ${result.vaultId}, retrying (attempt ${attempt}/${MAX_WOTS_ATTEMPTS})`,
+                );
+                continue;
+              }
+
+              const errorMsg =
+                error instanceof Error ? error.message : String(error);
+              const warning = `Vault ${result.vaultIndex + 1}: WOTS key submission failed - ${errorMsg}`;
+              warnings.push(warning);
+              logger.error(
+                error instanceof Error ? error : new Error(String(error)),
+                {
+                  data: {
+                    context:
+                      "[Multi-Vault] Failed to submit WOTS key for vault",
+                    vaultId: result.vaultId,
+                  },
                 },
-              },
-            );
+              );
+            }
+          }
+
+          if (!wotsSuccess) {
+            wotsFailedVaultIds.add(result.vaultId);
           }
         }
 
@@ -519,8 +561,15 @@ export function useMultiVaultDepositFlow(
         // VP waits for Pre-PegIn BTC confirmation before being ready.
         // ========================================================================
 
+        const payoutSignedVaultIds = new Set<string>();
+
         for (let vi = 0; vi < broadcastedResults.length; vi++) {
           const result = broadcastedResults[vi];
+
+          // Skip vaults whose WOTS key submission failed — the VP won't have
+          // the keys needed, so payout signing would timeout.
+          if (wotsFailedVaultIds.has(result.vaultId)) continue;
+
           try {
             setCurrentVaultIndex(vi);
             setIsWaiting(true);
@@ -575,6 +624,8 @@ export function useMultiVaultDepositFlow(
               depositorClaimerPresignatures,
               result.vaultId,
             );
+
+            payoutSignedVaultIds.add(result.vaultId);
           } catch (error) {
             // If the user cancelled, stop immediately — don't continue with other vaults
             if (signal.aborted) throw error;
@@ -601,13 +652,20 @@ export function useMultiVaultDepositFlow(
         setPayoutSigningProgress(null);
         setCurrentVaultIndex(null);
 
+        // Only proceed with vaults that completed payout signing.
+        // Vaults that failed WOTS submission or payout signing will never
+        // reach VERIFIED — waiting for them would block healthy siblings.
+        const readyResults = broadcastedResults.filter((r) =>
+          payoutSignedVaultIds.has(r.vaultId),
+        );
+
         // ========================================================================
         // Step 6: Download Vault Artifacts (per vault, sequential)
         // ========================================================================
 
         setCurrentStep(DepositFlowStep.ARTIFACT_DOWNLOAD);
 
-        for (const result of broadcastedResults) {
+        for (const result of readyResults) {
           if (signal.aborted) break;
 
           setArtifactDownloadInfo({
@@ -627,38 +685,40 @@ export function useMultiVaultDepositFlow(
         // reveal HTLC secret on Ethereum
         // ========================================================================
 
-        setCurrentStep(DepositFlowStep.ACTIVATE_VAULT);
-        setIsWaiting(true);
-        await Promise.all(
-          broadcastedResults.map((r) =>
-            waitForContractVerification({ vaultId: r.vaultId, signal }),
-          ),
-        );
-        setIsWaiting(false);
+        if (readyResults.length > 0) {
+          setCurrentStep(DepositFlowStep.ACTIVATE_VAULT);
+          setIsWaiting(true);
+          await Promise.all(
+            readyResults.map((r) =>
+              waitForContractVerification({ vaultId: r.vaultId, signal }),
+            ),
+          );
+          setIsWaiting(false);
 
-        for (const result of broadcastedResults) {
-          try {
-            await activateVaultWithSecret({
-              vaultId: result.vaultId,
-              secret: ensureHexPrefix(result.htlcSecretHex),
-              walletClient,
-            });
-          } catch (error) {
-            if (signal.aborted) throw error;
+          for (const result of readyResults) {
+            try {
+              await activateVaultWithSecret({
+                vaultId: result.vaultId,
+                secret: ensureHexPrefix(result.htlcSecretHex),
+                walletClient,
+              });
+            } catch (error) {
+              if (signal.aborted) throw error;
 
-            const errorMsg =
-              error instanceof Error ? error.message : String(error);
-            const warning = `Vault ${result.vaultIndex + 1}: Activation failed - ${errorMsg}`;
-            warnings.push(warning);
-            logger.error(
-              error instanceof Error ? error : new Error(String(error)),
-              {
-                data: {
-                  context: "[Multi-Vault] Failed to activate vault",
-                  vaultId: result.vaultId,
+              const errorMsg =
+                error instanceof Error ? error.message : String(error);
+              const warning = `Vault ${result.vaultIndex + 1}: Activation failed - ${errorMsg}`;
+              warnings.push(warning);
+              logger.error(
+                error instanceof Error ? error : new Error(String(error)),
+                {
+                  data: {
+                    context: "[Multi-Vault] Failed to activate vault",
+                    vaultId: result.vaultId,
+                  },
                 },
-              },
-            );
+              );
+            }
           }
         }
 

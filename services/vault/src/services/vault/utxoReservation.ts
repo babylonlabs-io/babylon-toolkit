@@ -142,18 +142,17 @@ export function collectReservedUtxoRefs(
 }
 
 /**
- * Select UTXOs for a deposit, filtering out reserved ones with smart fallback.
+ * Select UTXOs for a deposit, filtering out reserved ones.
  *
  * Logic:
  * 1. Filter out reserved UTXOs from the available pool
  * 2. If unreserved UTXOs are sufficient for the required amount + estimated fee, return them
- * 3. Otherwise, fallback to all available UTXOs (allows proceeding even with potential conflicts)
- *
- * This avoids double-spend failures when possible, but doesn't block the user
- * if they have no other choice (e.g., all UTXOs are in pending deposits).
+ * 3. Otherwise, throw — never silently reuse reserved UTXOs, as this risks double-spend
+ *    failures that strand registered-but-unbroadcastable vaults
  *
  * @param params - Selection parameters
- * @returns Array of UTXOs to use for the deposit
+ * @returns Array of unreserved UTXOs to use for the deposit
+ * @throws When all UTXOs are reserved or unreserved UTXOs are insufficient
  */
 export function selectUtxosForDeposit<
   T extends { txid: string; vout: number; value: number },
@@ -175,12 +174,13 @@ export function selectUtxosForDeposit<
     (utxo) => !isUtxoReserved(utxo, reservedUtxoRefs),
   );
 
-  // Fallback condition 1: No unreserved UTXOs
   if (unreserved.length === 0) {
-    return availableUtxos;
+    throw new Error(
+      "All available UTXOs are reserved by pending deposits. " +
+        "Wait for pending deposits to confirm or cancel them before starting a new deposit.",
+    );
   }
 
-  // Fallback condition 2: Unreserved UTXOs insufficient for required amount + fee
   const feeBuffer = estimateMinimumFeeBuffer(feeRate);
   const totalRequired = requiredAmount + feeBuffer;
   const unreservedTotal = unreserved.reduce(
@@ -188,9 +188,11 @@ export function selectUtxosForDeposit<
     0n,
   );
   if (unreservedTotal < totalRequired) {
-    return availableUtxos;
+    throw new Error(
+      "Insufficient unreserved UTXOs for this deposit amount. " +
+        "Wait for pending deposits to confirm or cancel them.",
+    );
   }
 
-  // Success: Use unreserved UTXOs
   return unreserved;
 }
