@@ -28,16 +28,26 @@ async function fetchWithTimeout(
     () => controller.abort(),
     MEMPOOL_REQUEST_TIMEOUT_MS,
   );
+
+  // Compose timeout signal with any caller-supplied signal so both can cancel
+  const signals = [controller.signal, options?.signal].filter(
+    Boolean,
+  ) as AbortSignal[];
+
   try {
-    const response = await fetch(url, {
+    // Don't clear timeout here — let it cover body consumption by callers
+    return await fetch(url, {
       ...options,
-      signal: controller.signal,
+      signal: AbortSignal.any(signals),
     });
-    clearTimeout(timeoutId);
-    return response;
   } catch (error) {
     clearTimeout(timeoutId);
-    if (error instanceof Error && error.name === "AbortError") {
+    if (
+      error != null &&
+      typeof error === "object" &&
+      "name" in error &&
+      error.name === "AbortError"
+    ) {
       throw new Error(
         `Mempool API request timed out after ${MEMPOOL_REQUEST_TIMEOUT_MS}ms: ${url}`,
       );

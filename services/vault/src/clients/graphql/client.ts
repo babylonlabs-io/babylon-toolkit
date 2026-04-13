@@ -13,17 +13,19 @@ export const graphqlClient = new GraphQLClient(ENV.GRAPHQL_ENDPOINT, {
       GRAPHQL_REQUEST_TIMEOUT_MS,
     );
 
+    // Compose timeout signal with any caller-supplied signal so both can cancel
+    const signals = [controller.signal, options?.signal].filter(
+      Boolean,
+    ) as AbortSignal[];
+
     try {
-      const response = await fetch(url, {
+      // Don't clear timeout — graphql-request parses body after this returns
+      return await fetch(url, {
         ...options,
-        signal: controller.signal,
+        signal: AbortSignal.any(signals),
       });
-      clearTimeout(timeoutId);
-      return response;
     } catch (error) {
       clearTimeout(timeoutId);
-      // Check name directly — DOMException from Node.js built-in fetch may fail
-      // cross-realm instanceof checks in jsdom environments
       if (
         error != null &&
         typeof error === "object" &&
