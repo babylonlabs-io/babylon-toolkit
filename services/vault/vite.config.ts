@@ -3,9 +3,12 @@ import react from "@vitejs/plugin-react";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { defineConfig } from "vite";
+import csp from "vite-plugin-csp-guard";
 import EnvironmentPlugin from "vite-plugin-environment";
 import { nodePolyfills } from "vite-plugin-node-polyfills";
 import tsconfigPaths from "vite-tsconfig-paths";
+
+import { buildCSPDirectives } from "./csp/policy";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -59,6 +62,16 @@ export default defineConfig({
       },
     }),
     EnvironmentPlugin("all", { prefix: "NEXT_PUBLIC_" }),
+    csp({
+      policy: buildCSPDirectives(),
+      dev: {
+        run: false,
+      },
+      build: {
+        sri: true,
+      },
+      override: true,
+    }),
     sentryVitePlugin({
       disable: !enableSentryPlugin,
       org: process.env.SENTRY_ORG,
