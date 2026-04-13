@@ -755,8 +755,9 @@ describe("useMultiVaultDepositFlow", () => {
         waitForContractVerification,
       } = vi.mocked(await import("../depositFlowSteps"));
 
-      // First vault's WOTS submission fails
+      // First vault's WOTS submission fails both attempts (retry exhausted)
       vi.mocked(submitWotsPublicKey)
+        .mockRejectedValueOnce(new Error("WOTS derivation error"))
         .mockRejectedValueOnce(new Error("WOTS derivation error"))
         .mockResolvedValueOnce(undefined);
 
@@ -783,6 +784,32 @@ describe("useMultiVaultDepositFlow", () => {
       expect(waitForContractVerification).toHaveBeenCalledWith(
         expect.objectContaining({ vaultId: "0xVault1Id" }),
       );
+    });
+
+    it("should retry WOTS submission once before skipping vault", async () => {
+      const { submitWotsPublicKey, pollAndPreparePayoutSigning } = vi.mocked(
+        await import("../depositFlowSteps"),
+      );
+
+      // First vault: fails once, succeeds on retry
+      // Second vault: succeeds first try
+      vi.mocked(submitWotsPublicKey)
+        .mockRejectedValueOnce(new Error("Network timeout"))
+        .mockResolvedValueOnce(undefined) // vault 1 retry succeeds
+        .mockResolvedValueOnce(undefined); // vault 2 succeeds
+
+      const { result } = renderHook(() =>
+        useMultiVaultDepositFlow(MOCK_PARAMS),
+      );
+
+      const depositResult = await executeWithAutoArtifactDownload(result);
+
+      // No warnings — both vaults recovered
+      expect(depositResult).not.toBeNull();
+      expect(depositResult?.warnings).toBeUndefined();
+
+      // Both vaults should proceed to payout signing
+      expect(pollAndPreparePayoutSigning).toHaveBeenCalledTimes(2);
     });
 
     it("should complete with warnings when all payout signings fail", async () => {

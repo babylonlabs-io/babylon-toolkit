@@ -503,33 +503,56 @@ export function useMultiVaultDepositFlow(
         // Track per-vault outcomes so failed lanes don't block healthy siblings
         const wotsFailedVaultIds = new Set<string>();
 
+        const MAX_WOTS_ATTEMPTS = 2;
+
         for (const result of broadcastedResults) {
-          try {
-            await submitWotsPublicKey({
-              peginTxHash: result.peginTxHash,
-              depositorBtcPubkey: result.depositorBtcPubkey,
-              appContractAddress: selectedApplication,
-              providerAddress: provider.id,
-              getMnemonic,
-              signal,
-            });
-          } catch (error) {
-            // Re-throw abort errors so they're suppressed by the outer catch
-            if (signal.aborted) throw error;
-            wotsFailedVaultIds.add(result.vaultId);
-            const errorMsg =
-              error instanceof Error ? error.message : String(error);
-            const warning = `Vault ${result.vaultIndex + 1}: WOTS key submission failed - ${errorMsg}`;
-            warnings.push(warning);
-            logger.error(
-              error instanceof Error ? error : new Error(String(error)),
-              {
-                data: {
-                  context: "[Multi-Vault] Failed to submit WOTS key for vault",
-                  vaultId: result.vaultId,
+          let wotsSuccess = false;
+
+          for (let attempt = 1; attempt <= MAX_WOTS_ATTEMPTS; attempt++) {
+            try {
+              await submitWotsPublicKey({
+                peginTxHash: result.peginTxHash,
+                depositorBtcPubkey: result.depositorBtcPubkey,
+                appContractAddress: selectedApplication,
+                providerAddress: provider.id,
+                getMnemonic,
+                signal,
+              });
+              wotsSuccess = true;
+              break;
+            } catch (error) {
+              // Re-throw abort errors so they're suppressed by the outer catch
+              if (signal.aborted) throw error;
+
+              if (attempt < MAX_WOTS_ATTEMPTS) {
+                // submitWotsPublicKey is idempotent — if the VP already accepted
+                // the key but the response was lost, the retry will detect that
+                // the VP moved past the WOTS stage and return early.
+                logger.warn(
+                  `[Multi-Vault] WOTS submission failed for vault ${result.vaultId}, retrying (attempt ${attempt}/${MAX_WOTS_ATTEMPTS})`,
+                );
+                continue;
+              }
+
+              const errorMsg =
+                error instanceof Error ? error.message : String(error);
+              const warning = `Vault ${result.vaultIndex + 1}: WOTS key submission failed - ${errorMsg}`;
+              warnings.push(warning);
+              logger.error(
+                error instanceof Error ? error : new Error(String(error)),
+                {
+                  data: {
+                    context:
+                      "[Multi-Vault] Failed to submit WOTS key for vault",
+                    vaultId: result.vaultId,
+                  },
                 },
-              },
-            );
+              );
+            }
+          }
+
+          if (!wotsSuccess) {
+            wotsFailedVaultIds.add(result.vaultId);
           }
         }
 
