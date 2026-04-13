@@ -1,6 +1,21 @@
-import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 
-import { getAddressUtxos, getNetworkFees, getUtxoInfo } from "../mempoolApi";
+import {
+  getAddressUtxos,
+  getNetworkFees,
+  getTxHex,
+  getUtxoInfo,
+  pushTx,
+} from "../mempoolApi";
 
 const API_URL = "https://mempool.space/api";
 
@@ -308,5 +323,68 @@ describe("getNetworkFees", () => {
     );
     const result = await getNetworkFees(API_URL);
     expect(result.fastestFee).toBe(10000);
+  });
+});
+
+describe("request timeout", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  function mockHangingFetch() {
+    mockFetch.mockImplementation(
+      (_url: string, options?: RequestInit) =>
+        new Promise((_resolve, reject) => {
+          options?.signal?.addEventListener("abort", () => {
+            reject(
+              new DOMException(
+                "The operation was aborted.",
+                "AbortError",
+              ),
+            );
+          });
+        }),
+    );
+  }
+
+  it("aborts getNetworkFees after 30s timeout", async () => {
+    mockHangingFetch();
+
+    const promise = getNetworkFees(API_URL);
+    // Attach rejection handler before advancing timers to avoid unhandled rejection
+    const assertion = expect(promise).rejects.toThrow(/timed out after 30000ms/);
+    await vi.advanceTimersByTimeAsync(30_000);
+    await assertion;
+  });
+
+  it("aborts pushTx after 30s timeout", async () => {
+    mockHangingFetch();
+
+    const promise = pushTx("deadbeef", API_URL);
+    const assertion = expect(promise).rejects.toThrow(/timed out after 30000ms/);
+    await vi.advanceTimersByTimeAsync(30_000);
+    await assertion;
+  });
+
+  it("aborts getTxHex after 30s timeout", async () => {
+    mockHangingFetch();
+
+    const promise = getTxHex("txid123", API_URL);
+    const assertion = expect(promise).rejects.toThrow(/timed out after 30000ms/);
+    await vi.advanceTimersByTimeAsync(30_000);
+    await assertion;
+  });
+
+  it("aborts getAddressUtxos after 30s timeout", async () => {
+    mockHangingFetch();
+
+    const promise = getAddressUtxos("bc1qtest", API_URL);
+    const assertion = expect(promise).rejects.toThrow(/timed out after 30000ms/);
+    await vi.advanceTimersByTimeAsync(30_000);
+    await assertion;
   });
 });

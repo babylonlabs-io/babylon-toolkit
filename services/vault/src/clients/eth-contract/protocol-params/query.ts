@@ -5,7 +5,7 @@
  * The ProtocolParams address is fetched from BTCVaultRegistry.
  */
 
-import type { Address } from "viem";
+import type { Abi, Address } from "viem";
 
 import { CONTRACTS } from "@/config/contracts";
 
@@ -139,10 +139,30 @@ export async function getLatestOffchainParams(): Promise<VersionedOffchainParams
  * all values needed for pegin transaction construction.
  */
 export async function getPegInConfiguration(): Promise<PegInConfiguration> {
-  const [params, offchainParams] = await Promise.all([
-    getTBVProtocolParams(),
-    getLatestOffchainParams(),
-  ]);
+  const publicClient = ethClient.getPublicClient();
+  const protocolParamsAddress = await getProtocolParamsAddress();
+
+  // Fetch both param sets in a single multicall to guarantee same-block atomicity.
+  // Separate RPC calls risk TOCTOU inconsistency if governance updates params between reads.
+  const [rawParams, rawOffchainParams] = await publicClient.multicall({
+    contracts: [
+      {
+        address: protocolParamsAddress,
+        abi: ProtocolParamsAbi,
+        functionName: "getTBVProtocolParams",
+      },
+      {
+        address: protocolParamsAddress,
+        abi: ProtocolParamsAbi,
+        functionName: "getLatestOffchainParams",
+      },
+    ],
+    allowFailure: false,
+  });
+
+  const params = rawParams as unknown as TBVProtocolParams;
+  const offchainParams =
+    rawOffchainParams as unknown as VersionedOffchainParams;
 
   // timelockPegin = uint16(timelockAssert), matching PeginLogic.sol:115
   const timelockPegin = Number(offchainParams.timelockAssert);
@@ -230,15 +250,29 @@ export async function fetchAllOffchainParams(): Promise<AllOffchainParamsData> {
     return { byVersion: new Map(), latestVersion: 0 };
   }
 
-  // Fetch all versions in parallel
+  const publicClient = ethClient.getPublicClient();
+  const protocolParamsAddress = await getProtocolParamsAddress();
+
+  // Fetch all versions in a single multicall for same-block consistency
   const versions = Array.from({ length: latestVersion }, (_, i) => i + 1);
-  const results = await Promise.all(
-    versions.map((v) => getOffchainParamsByVersion(v)),
-  );
+  const contracts = versions.map((v) => ({
+    address: protocolParamsAddress,
+    abi: ProtocolParamsAbi as Abi,
+    functionName: "getOffchainParamsByVersion" as const,
+    args: [v] as const,
+  }));
+
+  const results = await publicClient.multicall({
+    contracts,
+    allowFailure: false,
+  });
 
   const byVersion = new Map<number, VersionedOffchainParams>();
   for (let i = 0; i < versions.length; i++) {
-    byVersion.set(versions[i], results[i]);
+    byVersion.set(
+      versions[i],
+      results[i] as unknown as VersionedOffchainParams,
+    );
   }
 
   return { byVersion, latestVersion };
