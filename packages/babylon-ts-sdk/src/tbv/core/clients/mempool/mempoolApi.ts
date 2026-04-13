@@ -12,6 +12,40 @@ import type { MempoolUTXO, NetworkFees, TxInfo, UtxoInfo } from "./types";
 /** Maximum valid satoshi value: 21 million BTC × 10^8 sats/BTC */
 const MAX_SATOSHIS = 21_000_000 * 1e8;
 
+/** Timeout for mempool API requests — prevents indefinite hangs from stalled endpoints */
+const MEMPOOL_REQUEST_TIMEOUT_MS = 30_000;
+
+/**
+ * Fetch wrapper with AbortController-based timeout.
+ * Ensures all mempool API requests fail bounded rather than hanging indefinitely.
+ */
+async function fetchWithTimeout(
+  url: string,
+  options?: RequestInit,
+): Promise<Response> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(
+    () => controller.abort(),
+    MEMPOOL_REQUEST_TIMEOUT_MS,
+  );
+  try {
+    const response = await fetch(url, {
+      ...options,
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
+    return response;
+  } catch (error) {
+    clearTimeout(timeoutId);
+    if (error instanceof Error && error.name === "AbortError") {
+      throw new Error(
+        `Mempool API request timed out after ${MEMPOOL_REQUEST_TIMEOUT_MS}ms: ${url}`,
+      );
+    }
+    throw error;
+  }
+}
+
 /**
  * Maximum sane fee rate in sat/vByte.
  * The April 2024 Runes spike peaked around 1,805 sat/vB — 10,000 provides ample headroom.
@@ -48,7 +82,7 @@ async function fetchApi<T>(
   options?: RequestInit,
 ): Promise<T> {
   try {
-    const response = await fetch(url, options);
+    const response = await fetchWithTimeout(url, options);
 
     if (!response.ok) {
       const errorText = await response.text();
@@ -81,7 +115,7 @@ async function fetchApi<T>(
  */
 export async function pushTx(txHex: string, apiUrl: string): Promise<string> {
   try {
-    const response = await fetch(`${apiUrl}/tx`, {
+    const response = await fetchWithTimeout(`${apiUrl}/tx`, {
       method: "POST",
       body: txHex,
       headers: {
@@ -137,7 +171,7 @@ export async function getTxInfo(txid: string, apiUrl: string): Promise<TxInfo> {
  */
 export async function getTxHex(txid: string, apiUrl: string): Promise<string> {
   try {
-    const response = await fetch(`${apiUrl}/tx/${txid}/hex`);
+    const response = await fetchWithTimeout(`${apiUrl}/tx/${txid}/hex`);
 
     if (!response.ok) {
       const errorText = await response.text();
@@ -314,7 +348,7 @@ export async function getAddressTxs(
  * @see https://mempool.space/docs/api/rest#get-recommended-fees
  */
 export async function getNetworkFees(apiUrl: string): Promise<NetworkFees> {
-  const response = await fetch(`${apiUrl}/v1/fees/recommended`);
+  const response = await fetchWithTimeout(`${apiUrl}/v1/fees/recommended`);
 
   if (!response.ok) {
     throw new Error(
