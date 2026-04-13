@@ -89,6 +89,25 @@ export function formatSatoshisToBtc(
 }
 
 /**
+ * Format satoshis as a comma-grouped BTC display string (lossless).
+ * Same output as formatSatoshisToBtc but with thousands separators on the
+ * integer part — e.g. 100_000_000_000n → "1,000" instead of "1000".
+ *
+ * @param satoshis - Amount in satoshis
+ * @param decimals - Number of decimal places (default: 8)
+ * @returns Formatted BTC string with thousands separators
+ */
+export function formatSatoshisToBtcDisplay(
+  satoshis: bigint,
+  decimals: number = 8,
+): string {
+  const raw = formatSatoshisToBtc(satoshis, decimals);
+  const [whole, frac] = raw.split(".");
+  const wholeWithCommas = whole.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  return frac ? `${wholeWithCommas}.${frac}` : wholeWithCommas;
+}
+
+/**
  * Parse BTC string to satoshis
  * Uses string manipulation to avoid floating-point precision issues
  *

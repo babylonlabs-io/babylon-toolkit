@@ -73,9 +73,12 @@ describe("useDepositValidation", () => {
 
   describe("validateAmount", () => {
     it("should validate valid amount", () => {
-      const { result } = renderHook(() => useDepositValidation(mockProviders), {
-        wrapper,
-      });
+      const { result } = renderHook(
+        () => useDepositValidation({ availableProviders: mockProviders }),
+        {
+          wrapper,
+        },
+      );
 
       const validationResult = result.current.validateAmount("0.001");
 
@@ -84,9 +87,12 @@ describe("useDepositValidation", () => {
     });
 
     it("should reject invalid amount format", () => {
-      const { result } = renderHook(() => useDepositValidation(mockProviders), {
-        wrapper,
-      });
+      const { result } = renderHook(
+        () => useDepositValidation({ availableProviders: mockProviders }),
+        {
+          wrapper,
+        },
+      );
 
       const validationResult = result.current.validateAmount("invalid");
 
@@ -96,9 +102,12 @@ describe("useDepositValidation", () => {
     });
 
     it("should reject amount below minimum", () => {
-      const { result } = renderHook(() => useDepositValidation(mockProviders), {
-        wrapper,
-      });
+      const { result } = renderHook(
+        () => useDepositValidation({ availableProviders: mockProviders }),
+        {
+          wrapper,
+        },
+      );
 
       const validationResult = result.current.validateAmount("0.00001"); // Below minimum
 
@@ -107,9 +116,12 @@ describe("useDepositValidation", () => {
     });
 
     it("should use dynamic minimum based on fees", () => {
-      const { result } = renderHook(() => useDepositValidation(mockProviders), {
-        wrapper,
-      });
+      const { result } = renderHook(
+        () => useDepositValidation({ availableProviders: mockProviders }),
+        {
+          wrapper,
+        },
+      );
 
       expect(result.current.minDeposit).toBeGreaterThan(0n);
     });
@@ -118,9 +130,12 @@ describe("useDepositValidation", () => {
   describe("validateProviders", () => {
     it.skip("should validate single provider selection", async () => {
       // TODO: Requires proper provider API mocking
-      const { result } = renderHook(() => useDepositValidation(mockProviders), {
-        wrapper,
-      });
+      const { result } = renderHook(
+        () => useDepositValidation({ availableProviders: mockProviders }),
+        {
+          wrapper,
+        },
+      );
 
       const validationResult = result.current.validateProviders([
         result.current.availableProviders[0],
@@ -130,9 +145,12 @@ describe("useDepositValidation", () => {
     });
 
     it("should reject empty provider selection", () => {
-      const { result } = renderHook(() => useDepositValidation(mockProviders), {
-        wrapper,
-      });
+      const { result } = renderHook(
+        () => useDepositValidation({ availableProviders: mockProviders }),
+        {
+          wrapper,
+        },
+      );
 
       const validationResult = result.current.validateProviders([]);
 
@@ -142,9 +160,12 @@ describe("useDepositValidation", () => {
 
     it.skip("should reject invalid provider", async () => {
       // TODO: Requires proper provider API mocking
-      const { result } = renderHook(() => useDepositValidation(mockProviders), {
-        wrapper,
-      });
+      const { result } = renderHook(
+        () => useDepositValidation({ availableProviders: mockProviders }),
+        {
+          wrapper,
+        },
+      );
 
       const validationResult = result.current.validateProviders([
         "0xinvalidprovider",
@@ -156,9 +177,12 @@ describe("useDepositValidation", () => {
 
     it.skip("should reject multiple providers", async () => {
       // TODO: Requires proper provider API mocking
-      const { result } = renderHook(() => useDepositValidation(mockProviders), {
-        wrapper,
-      });
+      const { result } = renderHook(
+        () => useDepositValidation({ availableProviders: mockProviders }),
+        {
+          wrapper,
+        },
+      );
 
       const validationResult = result.current.validateProviders(
         result.current.availableProviders,
@@ -174,9 +198,12 @@ describe("useDepositValidation", () => {
   describe("provider fetching", () => {
     it.skip("should fetch available providers", async () => {
       // TODO: Requires proper provider API mocking
-      const { result } = renderHook(() => useDepositValidation(mockProviders), {
-        wrapper,
-      });
+      const { result } = renderHook(
+        () => useDepositValidation({ availableProviders: mockProviders }),
+        {
+          wrapper,
+        },
+      );
 
       expect(result.current.availableProviders).toHaveLength(2);
       expect(result.current.availableProviders[0]).toBe(
@@ -185,9 +212,12 @@ describe("useDepositValidation", () => {
     });
 
     it("should return available providers", () => {
-      const { result } = renderHook(() => useDepositValidation(mockProviders), {
-        wrapper,
-      });
+      const { result } = renderHook(
+        () => useDepositValidation({ availableProviders: mockProviders }),
+        {
+          wrapper,
+        },
+      );
 
       expect(result.current.availableProviders).toEqual(mockProviders);
     });
@@ -195,9 +225,12 @@ describe("useDepositValidation", () => {
 
   describe("edge cases", () => {
     it("should reject amounts exceeding max deposit", () => {
-      const { result } = renderHook(() => useDepositValidation(mockProviders), {
-        wrapper,
-      });
+      const { result } = renderHook(
+        () => useDepositValidation({ availableProviders: mockProviders }),
+        {
+          wrapper,
+        },
+      );
 
       // maxDeposit is 100_000_000 satoshis = 1 BTC
       const validationResult = result.current.validateAmount("2");
@@ -207,15 +240,83 @@ describe("useDepositValidation", () => {
     });
 
     it("should handle negative amounts by stripping minus sign", () => {
-      const { result } = renderHook(() => useDepositValidation(mockProviders), {
-        wrapper,
-      });
+      const { result } = renderHook(
+        () => useDepositValidation({ availableProviders: mockProviders }),
+        {
+          wrapper,
+        },
+      );
 
       const validationResult = result.current.validateAmount("-0.001");
 
       // parseBtcToSatoshis strips non-numeric chars including '-', so '-0.001' becomes '0.001'
       // 0.001 BTC = 100000 sats, which is valid
       expect(validationResult.valid).toBe(true);
+    });
+  });
+
+  describe("supply cap gating", () => {
+    it("rejects amounts that exceed effectiveRemaining", () => {
+      const { result } = renderHook(
+        () =>
+          useDepositValidation({
+            availableProviders: mockProviders,
+            // 0.0005 BTC remaining; 0.001 BTC requested → too large
+            effectiveRemaining: 50_000n,
+          }),
+        { wrapper },
+      );
+
+      const validationResult = result.current.validateAmount("0.001");
+
+      expect(validationResult.valid).toBe(false);
+      expect(validationResult.error).toMatch(/exceeds remaining capacity/i);
+    });
+
+    it("returns the supply-cap-reached error when remaining is zero", () => {
+      const { result } = renderHook(
+        () =>
+          useDepositValidation({
+            availableProviders: mockProviders,
+            effectiveRemaining: 0n,
+          }),
+        { wrapper },
+      );
+
+      const validationResult = result.current.validateAmount("0.001");
+
+      expect(validationResult.valid).toBe(false);
+      expect(validationResult.error).toMatch(/supply cap reached/i);
+    });
+
+    it("accepts amounts when effectiveRemaining is null (no cap)", () => {
+      const { result } = renderHook(
+        () =>
+          useDepositValidation({
+            availableProviders: mockProviders,
+            effectiveRemaining: null,
+          }),
+        { wrapper },
+      );
+
+      expect(result.current.validateAmount("0.001").valid).toBe(true);
+    });
+
+    it("blocks with an explicit error when capUnavailable is true", () => {
+      const { result } = renderHook(
+        () =>
+          useDepositValidation({
+            availableProviders: mockProviders,
+            effectiveRemaining: null,
+            capUnavailable: true,
+          }),
+        { wrapper },
+      );
+
+      const validationResult = result.current.validateAmount("0.001");
+
+      expect(validationResult.valid).toBe(false);
+      expect(validationResult.error).toMatch(/unable to verify supply cap/i);
     });
   });
 });

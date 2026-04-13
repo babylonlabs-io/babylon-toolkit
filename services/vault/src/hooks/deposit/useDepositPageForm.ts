@@ -11,9 +11,14 @@ import { useBtcPublicKey } from "@/hooks/useBtcPublicKey";
 
 import { useAaveConfig } from "../../applications/aave/context";
 import { useProtocolParamsContext } from "../../context/ProtocolParamsContext";
-import { useBTCWallet, useConnection } from "../../context/wallet";
+import {
+  useBTCWallet,
+  useConnection,
+  useETHWallet,
+} from "../../context/wallet";
 import { depositService } from "../../services/deposit";
 import { formatProviderDisplayName } from "../../utils/formatting";
+import { useApplicationCap } from "../useApplicationCap";
 import { useApplications } from "../useApplications";
 import { usePrice, usePrices } from "../usePrices";
 import { calculateBalance, useUTXOs } from "../useUTXOs";
@@ -151,7 +156,18 @@ export function useDepositPageForm(): UseDepositPageFormResult {
     () => providers.map((p: { id: string }) => p.id),
     [providers],
   );
-  const validation = useDepositValidation(providerIds);
+  const { address: ethAddress } = useETHWallet();
+  const { snapshot: capSnapshot } = useApplicationCap(
+    isWalletConnected ? ethAddress : undefined,
+  );
+  // A null snapshot means the cap state is unknown — either still loading or
+  // the on-chain read errored. In both cases we must block validation rather
+  // than let amounts through as if no cap applied.
+  const validation = useDepositValidation({
+    availableProviders: providerIds,
+    effectiveRemaining: capSnapshot?.effectiveRemaining ?? null,
+    capUnavailable: capSnapshot === null,
+  });
 
   // Get UTXOs for balance calculation (already respects inscription preference)
   const { spendableUTXOs, spendableMempoolUTXOs } = useUTXOs(btcAddress);
