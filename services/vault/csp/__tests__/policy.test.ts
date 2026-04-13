@@ -8,6 +8,7 @@ import { buildCSPDirectives } from "../policy";
 const ENV_KEYS = [
   "NEXT_PUBLIC_MEMPOOL_API",
   "NEXT_PUBLIC_ETH_RPC_URL",
+  "NEXT_PUBLIC_ETH_CHAINID",
   "NEXT_PUBLIC_TBV_GRAPHQL_ENDPOINT",
   "NEXT_PUBLIC_TBV_VP_PROXY_URL",
   "NEXT_PUBLIC_TBV_SIDECAR_API_URL",
@@ -62,6 +63,47 @@ describe("buildCSPDirectives", () => {
     expect(connectSrc).toContain("https://*.reown.com");
   });
 
+  it("uses BTC mempool fallback origin when NEXT_PUBLIC_MEMPOOL_API is unset", () => {
+    const directives = buildCSPDirectives();
+    const connectSrc = directives["connect-src"];
+
+    expect(connectSrc).toContain("https://mempool.space");
+  });
+
+  it("uses ETH sepolia fallback when NEXT_PUBLIC_ETH_RPC_URL is unset and chainId is sepolia", () => {
+    process.env.NEXT_PUBLIC_ETH_CHAINID = "11155111";
+
+    const directives = buildCSPDirectives();
+    const connectSrc = directives["connect-src"];
+
+    expect(connectSrc).toContain("https://ethereum-sepolia-rpc.publicnode.com");
+  });
+
+  it("uses ETH mainnet fallback when NEXT_PUBLIC_ETH_RPC_URL is unset and chainId is 1", () => {
+    process.env.NEXT_PUBLIC_ETH_CHAINID = "1";
+
+    const directives = buildCSPDirectives();
+    const connectSrc = directives["connect-src"];
+
+    expect(connectSrc).toContain("https://ethereum-rpc.publicnode.com");
+  });
+
+  it("uses env var origin instead of fallback when explicitly set", () => {
+    process.env.NEXT_PUBLIC_MEMPOOL_API = "https://custom-mempool.example.com";
+    process.env.NEXT_PUBLIC_ETH_RPC_URL = "https://custom-rpc.example.com";
+
+    const directives = buildCSPDirectives();
+    const connectSrc = directives["connect-src"];
+
+    expect(connectSrc).toContain("https://custom-mempool.example.com");
+    expect(connectSrc).toContain("https://custom-rpc.example.com");
+    expect(connectSrc).not.toContain("https://mempool.space");
+    expect(connectSrc).not.toContain("https://ethereum-rpc.publicnode.com");
+    expect(connectSrc).not.toContain(
+      "https://ethereum-sepolia-rpc.publicnode.com",
+    );
+  });
+
   it("includes env var origins in connect-src", () => {
     process.env.NEXT_PUBLIC_MEMPOOL_API = "https://mempool.space/api";
     process.env.NEXT_PUBLIC_ETH_RPC_URL =
@@ -95,19 +137,20 @@ describe("buildCSPDirectives", () => {
     const connectSrc = directives["connect-src"];
 
     expect(connectSrc).toContain("https://mempool.space");
-    // Only self + 1 env origin + wallet domains, no undefined entries
+    // No undefined entries
     expect(connectSrc.every((s) => typeof s === "string" && s.length > 0)).toBe(
       true,
     );
   });
 
-  it("ignores env vars with invalid URLs", () => {
+  it("falls back to default mempool origin when env var is an invalid URL", () => {
     process.env.NEXT_PUBLIC_MEMPOOL_API = "not-a-url";
 
     const directives = buildCSPDirectives();
     const connectSrc = directives["connect-src"];
 
     expect(connectSrc).not.toContain("not-a-url");
+    expect(connectSrc).toContain("https://mempool.space");
   });
 
   it("blocks inline scripts via script-src (no unsafe-inline)", () => {
