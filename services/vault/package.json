@@ -4,7 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "NODE_OPTIONS=--max-old-space-size=8192 pnpm exec vite",
+    "dev": "node scripts/sync-env.mjs && NODE_OPTIONS=--max-old-space-size=8192 pnpm exec vite",
+    "sync-env": "node scripts/sync-env.mjs --all",
+    "sync-env:check": "node scripts/sync-env.mjs --check",
     "watchDeps": "./scripts/watch-deps.sh @services/vault",
     "build": "NODE_OPTIONS=--max-old-space-size=8192 pnpm exec tsc --noEmit -p tsconfig.lib.json && NODE_OPTIONS=--max-old-space-size=8192 pnpm exec vite build",
     "lint": "eslint",
