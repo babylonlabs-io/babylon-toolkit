@@ -166,11 +166,18 @@ function main() {
 
   // Build desired key-value pairs from remote
   const remote = {};
+  const missingPaths = [];
   for (const [jsonPath, envKey] of Object.entries(FIELD_MAP)) {
     const value = resolve(config, jsonPath);
     if (value !== undefined) {
       remote[envKey] = String(value);
+    } else {
+      missingPaths.push(jsonPath);
     }
+  }
+  if (missingPaths.length > 0) {
+    console.warn(`⚠ sync-env: networks.json is missing expected fields: ${missingPaths.join(", ")}`);
+    console.warn("  The upstream schema may have changed — check tbv-networks and update FIELD_MAP.");
   }
 
   // --check mode: read-only, never write files
