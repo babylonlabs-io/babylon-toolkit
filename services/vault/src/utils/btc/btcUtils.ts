@@ -8,7 +8,6 @@ import type {
   BitcoinWallet,
   SignPsbtOptions,
 } from "@babylonlabs-io/ts-sdk/shared";
-import * as ecc from "@bitcoin-js/tiny-secp256k1-asmjs";
 import * as bitcoin from "bitcoinjs-lib";
 import { Buffer } from "buffer";
 
@@ -123,9 +122,6 @@ export function btcAddressToScriptPubKeyHex(address: string): string {
  * the depositor's registered payout address.
  */
 export function deriveBip86ScriptPubKeyHex(xOnlyPubkeyHex: string): string {
-  // Ensure ECC backend is initialized for p2tr (safe to call multiple times)
-  bitcoin.initEccLib(ecc);
-
   const cleanHex = stripHexPrefix(xOnlyPubkeyHex);
   validateXOnlyPubkey(cleanHex);
   const { network } = getNetworkConfigBTC();

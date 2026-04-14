@@ -19,7 +19,10 @@ import {
   POLLING_RETRY_DELAY_MS,
   RPC_TIMEOUT_MS,
 } from "../../config/polling";
-import { DaemonStatus } from "../../models/peginStateMachine";
+import {
+  DaemonStatus,
+  VP_TRANSIENT_STATUSES,
+} from "../../models/peginStateMachine";
 import type { PendingPeginRequest } from "../../storage/peginStorage";
 import type { ClaimerTransactions } from "../../types";
 import type { VaultActivity } from "../../types/activity";
@@ -75,19 +78,6 @@ interface UsePeginPollingQueryResult {
 }
 
 /**
- * Statuses where no depositor action is needed — VP is still processing
- * or has already moved past depositor interaction.
- */
-const TRANSIENT_STATUSES = new Set<string>([
-  DaemonStatus.PENDING_BABE_SETUP,
-  DaemonStatus.PENDING_CHALLENGER_PRESIGNING,
-  DaemonStatus.PENDING_PEGIN_SIGS_AVAILABILITY,
-  DaemonStatus.PENDING_ACKS,
-  DaemonStatus.PENDING_ACTIVATION,
-  DaemonStatus.ACTIVATED,
-]);
-
-/**
  * Fetch status and transactions from a single vault provider for multiple deposits.
  *
  * Uses the lightweight `getPeginStatus` RPC first, then only calls
@@ -130,7 +120,7 @@ async function fetchFromProvider(
         continue;
       }
 
-      if (TRANSIENT_STATUSES.has(status)) {
+      if (VP_TRANSIENT_STATUSES.has(status as DaemonStatus)) {
         errors.delete(depositId);
         needsWotsKey.delete(depositId);
         continue;
@@ -158,7 +148,7 @@ async function fetchFromProvider(
         continue;
       }
 
-      // Unknown status — clear errors and continue polling
+      // Unhandled status (e.g. ClaimPosted, PeggedOut) — clear errors, keep polling
       errors.delete(depositId);
       needsWotsKey.delete(depositId);
     } catch (error) {

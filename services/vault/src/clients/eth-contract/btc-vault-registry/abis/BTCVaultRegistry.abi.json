@@ -66,45 +66,6 @@
   },
   {
     "type": "function",
-    "name": "TBV_PROTOCOL_FREEZE_GUARDIAN",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "bytes32",
-        "internalType": "bytes32"
-      }
-    ],
-    "stateMutability": "pure"
-  },
-  {
-    "type": "function",
-    "name": "TBV_PROTOCOL_PAUSING_GUARDIAN",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "bytes32",
-        "internalType": "bytes32"
-      }
-    ],
-    "stateMutability": "pure"
-  },
-  {
-    "type": "function",
-    "name": "TIMELOCK_UPGRADER",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "bytes32",
-        "internalType": "bytes32"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
     "name": "UPGRADE_INTERFACE_VERSION",
     "inputs": [],
     "outputs": [
@@ -134,6 +95,24 @@
         "name": "activationMetadata",
         "type": "bytes",
         "internalType": "bytes"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "activateVaultWithSecretAndRedeem",
+    "inputs": [
+      {
+        "name": "vaultId",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "s",
+        "type": "bytes32",
+        "internalType": "bytes32"
       }
     ],
     "outputs": [],
@@ -173,7 +152,7 @@
   },
   {
     "type": "function",
-    "name": "btcVaults",
+    "name": "btcVaultsBasicInfo",
     "inputs": [
       {
         "name": "",
@@ -193,11 +172,6 @@
         "internalType": "bytes32"
       },
       {
-        "name": "depositorSignedPeginTx",
-        "type": "bytes",
-        "internalType": "bytes"
-      },
-      {
         "name": "amount",
         "type": "uint256",
         "internalType": "uint256"
@@ -210,12 +184,36 @@
       {
         "name": "status",
         "type": "uint8",
-        "internalType": "enum IBTCVaultRegistry.BTCVaultStatus"
+        "internalType": "enum BTCVaultTypes.BTCVaultStatus"
       },
       {
         "name": "applicationEntryPoint",
         "type": "address",
         "internalType": "address"
+      },
+      {
+        "name": "createdAt",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "btcVaultsProtocolInfo",
+    "inputs": [
+      {
+        "name": "",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "depositorSignedPeginTx",
+        "type": "bytes",
+        "internalType": "bytes"
       },
       {
         "name": "universalChallengersVersion",
@@ -231,11 +229,6 @@
         "name": "offchainParamsVersion",
         "type": "uint16",
         "internalType": "uint16"
-      },
-      {
-        "name": "createdAt",
-        "type": "uint256",
-        "internalType": "uint256"
       },
       {
         "name": "verifiedAt",
@@ -266,6 +259,11 @@
         "name": "prePeginTxHash",
         "type": "bytes32",
         "internalType": "bytes32"
+      },
+      {
+        "name": "vaultProviderCommissionBps",
+        "type": "uint16",
+        "internalType": "uint16"
       }
     ],
     "stateMutability": "view"
@@ -329,14 +327,26 @@
   },
   {
     "type": "function",
-    "name": "fullPause",
-    "inputs": [],
-    "outputs": [],
-    "stateMutability": "nonpayable"
+    "name": "getBTCVaultAmountsBatch",
+    "inputs": [
+      {
+        "name": "vaultIds",
+        "type": "bytes32[]",
+        "internalType": "bytes32[]"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "amounts",
+        "type": "uint256[]",
+        "internalType": "uint256[]"
+      }
+    ],
+    "stateMutability": "view"
   },
   {
     "type": "function",
-    "name": "getBTCVault",
+    "name": "getBtcVaultBasicInfo",
     "inputs": [
       {
         "name": "vaultId",
@@ -346,9 +356,9 @@
     ],
     "outputs": [
       {
-        "name": "vault",
+        "name": "vBasic",
         "type": "tuple",
-        "internalType": "struct IBTCVaultRegistry.BTCVault",
+        "internalType": "struct BTCVaultTypes.BTCVaultBasicInfo",
         "components": [
           {
             "name": "depositor",
@@ -359,11 +369,6 @@
             "name": "depositorBtcPubKey",
             "type": "bytes32",
             "internalType": "bytes32"
-          },
-          {
-            "name": "depositorSignedPeginTx",
-            "type": "bytes",
-            "internalType": "bytes"
           },
           {
             "name": "amount",
@@ -378,12 +383,43 @@
           {
             "name": "status",
             "type": "uint8",
-            "internalType": "enum IBTCVaultRegistry.BTCVaultStatus"
+            "internalType": "enum BTCVaultTypes.BTCVaultStatus"
           },
           {
             "name": "applicationEntryPoint",
             "type": "address",
             "internalType": "address"
+          },
+          {
+            "name": "createdAt",
+            "type": "uint256",
+            "internalType": "uint256"
+          }
+        ]
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getBtcVaultProtocolInfo",
+    "inputs": [
+      {
+        "name": "vaultId",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "vProtocol",
+        "type": "tuple",
+        "internalType": "struct BTCVaultRegistryTypes.BTCVaultProtocolInfo",
+        "components": [
+          {
+            "name": "depositorSignedPeginTx",
+            "type": "bytes",
+            "internalType": "bytes"
           },
           {
             "name": "universalChallengersVersion",
@@ -399,11 +435,6 @@
             "name": "offchainParamsVersion",
             "type": "uint16",
             "internalType": "uint16"
-          },
-          {
-            "name": "createdAt",
-            "type": "uint256",
-            "internalType": "uint256"
           },
           {
             "name": "verifiedAt",
@@ -434,27 +465,13 @@
             "name": "prePeginTxHash",
             "type": "bytes32",
             "internalType": "bytes32"
+          },
+          {
+            "name": "vaultProviderCommissionBps",
+            "type": "uint16",
+            "internalType": "uint16"
           }
         ]
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "getBTCVaultAmountsBatch",
-    "inputs": [
-      {
-        "name": "vaultIds",
-        "type": "bytes32[]",
-        "internalType": "bytes32[]"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "amounts",
-        "type": "uint256[]",
-        "internalType": "uint256[]"
       }
     ],
     "stateMutability": "view"
@@ -562,9 +579,9 @@
     ],
     "outputs": [
       {
-        "name": "vaults",
+        "name": "vBasics",
         "type": "tuple[]",
-        "internalType": "struct IBTCVaultRegistry.BTCVault[]",
+        "internalType": "struct BTCVaultTypes.BTCVaultBasicInfo[]",
         "components": [
           {
             "name": "depositor",
@@ -575,11 +592,6 @@
             "name": "depositorBtcPubKey",
             "type": "bytes32",
             "internalType": "bytes32"
-          },
-          {
-            "name": "depositorSignedPeginTx",
-            "type": "bytes",
-            "internalType": "bytes"
           },
           {
             "name": "amount",
@@ -594,12 +606,29 @@
           {
             "name": "status",
             "type": "uint8",
-            "internalType": "enum IBTCVaultRegistry.BTCVaultStatus"
+            "internalType": "enum BTCVaultTypes.BTCVaultStatus"
           },
           {
             "name": "applicationEntryPoint",
             "type": "address",
             "internalType": "address"
+          },
+          {
+            "name": "createdAt",
+            "type": "uint256",
+            "internalType": "uint256"
+          }
+        ]
+      },
+      {
+        "name": "vProtocols",
+        "type": "tuple[]",
+        "internalType": "struct BTCVaultRegistryTypes.BTCVaultProtocolInfo[]",
+        "components": [
+          {
+            "name": "depositorSignedPeginTx",
+            "type": "bytes",
+            "internalType": "bytes"
           },
           {
             "name": "universalChallengersVersion",
@@ -615,11 +644,6 @@
             "name": "offchainParamsVersion",
             "type": "uint16",
             "internalType": "uint16"
-          },
-          {
-            "name": "createdAt",
-            "type": "uint256",
-            "internalType": "uint256"
           },
           {
             "name": "verifiedAt",
@@ -650,6 +674,11 @@
             "name": "prePeginTxHash",
             "type": "bytes32",
             "internalType": "bytes32"
+          },
+          {
+            "name": "vaultProviderCommissionBps",
+            "type": "uint16",
+            "internalType": "uint16"
           }
         ]
       },
@@ -770,7 +799,7 @@
       {
         "name": "",
         "type": "tuple",
-        "internalType": "struct IBTCVaultRegistry.AddressBTCKeyPair",
+        "internalType": "struct BTCVaultTypes.AddressBTCKeyPair",
         "components": [
           {
             "name": "ethAddress",
@@ -1003,6 +1032,13 @@
   },
   {
     "type": "function",
+    "name": "pause",
+    "inputs": [],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
     "name": "pauseState",
     "inputs": [],
     "outputs": [
@@ -1010,6 +1046,25 @@
         "name": "",
         "type": "uint8",
         "internalType": "enum ITBVPausable.PauseState"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "peginInputSignatureCounts",
+    "inputs": [
+      {
+        "name": "",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
       }
     ],
     "stateMutability": "view"
@@ -1197,7 +1252,7 @@
       {
         "name": "acks",
         "type": "tuple[]",
-        "internalType": "struct IBTCVaultRegistry.ACKSubmission[]",
+        "internalType": "struct BTCVaultRegistryTypes.ACKSubmission[]",
         "components": [
           {
             "name": "vaultId",
@@ -1452,7 +1507,7 @@
       {
         "name": "requests",
         "type": "tuple[]",
-        "internalType": "struct IBTCVaultRegistry.BatchPeginRequest[]",
+        "internalType": "struct BTCVaultRegistryTypes.BatchPeginRequest[]",
         "components": [
           {
             "name": "depositorBtcPubKey",
@@ -1630,6 +1685,19 @@
   },
   {
     "type": "event",
+    "name": "Frozen",
+    "inputs": [
+      {
+        "name": "freezer",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
     "name": "Initialized",
     "inputs": [
       {
@@ -1643,14 +1711,8 @@
   },
   {
     "type": "event",
-    "name": "PausedWith",
+    "name": "Paused",
     "inputs": [
-      {
-        "name": "state",
-        "type": "uint8",
-        "indexed": true,
-        "internalType": "enum ITBVPausable.PauseState"
-      },
       {
         "name": "pauser",
         "type": "address",
@@ -1809,7 +1871,7 @@
     "name": "Unfrozen",
     "inputs": [
       {
-        "name": "pauser",
+        "name": "unfreezer",
         "type": "address",
         "indexed": true,
         "internalType": "address"
@@ -1983,6 +2045,11 @@
   },
   {
     "type": "error",
+    "name": "DuplicateHashlock",
+    "inputs": []
+  },
+  {
+    "type": "error",
     "name": "ERC1967InvalidImplementation",
     "inputs": [
       {
@@ -2024,6 +2091,11 @@
   },
   {
     "type": "error",
+    "name": "InvalidBTCVaultStatus",
+    "inputs": []
+  },
+  {
+    "type": "error",
     "name": "InvalidHashlock",
     "inputs": []
   },
@@ -2060,11 +2132,6 @@
   },
   {
     "type": "error",
-    "name": "InvalidVaultStatus",
-    "inputs": []
-  },
-  {
-    "type": "error",
     "name": "NoAppVaultKeepersConfigured",
     "inputs": []
   },
@@ -2091,6 +2158,16 @@
   {
     "type": "error",
     "name": "TBV_AlreadyPaused",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "TBV_CannotUnfreezeWhilePaused",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "TBV_CannotUnpauseWhileFrozen",
     "inputs": []
   },
   {
@@ -2146,7 +2223,7 @@
   },
   {
     "type": "error",
-    "name": "VaultKeeperNotAuthorized",
+    "name": "UnauthorizedVaultKeeper",
     "inputs": []
   },
   {

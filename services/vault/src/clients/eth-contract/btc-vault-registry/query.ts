@@ -33,8 +33,37 @@ export interface OnChainVaultData {
   // in the PegInSubmitted event. Source it from the indexer instead.
 }
 
+/** Shape returned by getBtcVaultBasicInfo */
+interface OnChainVaultBasicInfo {
+  depositor: Address;
+  depositorBtcPubKey: Hex;
+  amount: bigint;
+  vaultProvider: Address;
+  status: number;
+  applicationEntryPoint: Address;
+  createdAt: bigint;
+}
+
+/** Shape returned by getBtcVaultProtocolInfo */
+interface OnChainVaultProtocolInfo {
+  depositorSignedPeginTx: Hex;
+  universalChallengersVersion: number;
+  appVaultKeepersVersion: number;
+  offchainParamsVersion: number;
+  verifiedAt: bigint;
+  depositorWotsPkHash: Hex;
+  hashlock: Hex;
+  htlcVout: number;
+  depositorPopSignature: Hex;
+  prePeginTxHash: Hex;
+  vaultProviderCommissionBps: number;
+}
+
 /**
  * Read signing-critical vault fields from the BTCVaultRegistry contract.
+ *
+ * The contract stores vault data in two separate structs (BasicInfo + ProtocolInfo).
+ * Both are fetched in parallel and merged into the unified OnChainVaultData shape.
  *
  * Throws if the vault does not exist on-chain (empty depositorSignedPeginTx).
  *
@@ -45,27 +74,40 @@ export async function getVaultFromChain(
 ): Promise<OnChainVaultData> {
   const publicClient = ethClient.getPublicClient();
 
-  const vault = (await publicClient.readContract({
-    address: CONTRACTS.BTC_VAULT_REGISTRY,
-    abi: BTCVaultRegistryAbi,
-    functionName: "getBTCVault",
-    args: [vaultId],
-  })) as OnChainVaultData;
+  const [basicInfo, protocolInfo] = await Promise.all([
+    publicClient.readContract({
+      address: CONTRACTS.BTC_VAULT_REGISTRY,
+      abi: BTCVaultRegistryAbi,
+      functionName: "getBtcVaultBasicInfo",
+      args: [vaultId],
+    }) as Promise<OnChainVaultBasicInfo>,
+    publicClient.readContract({
+      address: CONTRACTS.BTC_VAULT_REGISTRY,
+      abi: BTCVaultRegistryAbi,
+      functionName: "getBtcVaultProtocolInfo",
+      args: [vaultId],
+    }) as Promise<OnChainVaultProtocolInfo>,
+  ]);
 
-  if (!vault.depositorSignedPeginTx || vault.depositorSignedPeginTx === "0x") {
+  if (
+    !protocolInfo.depositorSignedPeginTx ||
+    protocolInfo.depositorSignedPeginTx === "0x"
+  ) {
     throw new Error(
       `Vault ${vaultId} not found on-chain or has no pegin transaction`,
     );
   }
 
   return {
-    depositorSignedPeginTx: vault.depositorSignedPeginTx,
-    applicationEntryPoint: vault.applicationEntryPoint,
-    vaultProvider: vault.vaultProvider,
-    universalChallengersVersion: Number(vault.universalChallengersVersion),
-    appVaultKeepersVersion: Number(vault.appVaultKeepersVersion),
-    offchainParamsVersion: Number(vault.offchainParamsVersion),
-    hashlock: vault.hashlock,
-    htlcVout: Number(vault.htlcVout),
+    depositorSignedPeginTx: protocolInfo.depositorSignedPeginTx,
+    applicationEntryPoint: basicInfo.applicationEntryPoint,
+    vaultProvider: basicInfo.vaultProvider,
+    universalChallengersVersion: Number(
+      protocolInfo.universalChallengersVersion,
+    ),
+    appVaultKeepersVersion: Number(protocolInfo.appVaultKeepersVersion),
+    offchainParamsVersion: Number(protocolInfo.offchainParamsVersion),
+    hashlock: protocolInfo.hashlock,
+    htlcVout: Number(protocolInfo.htlcVout),
   };
 }

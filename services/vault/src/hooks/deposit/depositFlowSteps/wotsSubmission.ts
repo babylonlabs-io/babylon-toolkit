@@ -16,7 +16,7 @@
  */
 
 import { VaultProviderRpcApi } from "@/clients/vault-provider-rpc";
-import { DaemonStatus } from "@/models/peginStateMachine";
+import { DaemonStatus, POST_WOTS_STATUSES } from "@/models/peginStateMachine";
 import { waitForPeginStatus } from "@/services/vault/vaultPeginStatusService";
 import { deriveWotsBlockPublicKeys, mnemonicToWotsSeed } from "@/services/wots";
 import { stripHexPrefix } from "@/utils/btc";
@@ -30,23 +30,8 @@ const RPC_TIMEOUT_MS = 60 * 1000;
 /** Maximum time to wait for VP to reach PendingDepositorWotsPK (5 min). */
 const STATUS_POLL_TIMEOUT_MS = 5 * 60 * 1000;
 
-/**
- * Statuses that come after WOTS key submission.
- * If the VP is already in one of these states, the key was already submitted
- * (e.g. via resume flow) and we can skip.
- */
-const POST_WOTS_STATUSES = new Set<string>([
-  DaemonStatus.PENDING_BABE_SETUP,
-  DaemonStatus.PENDING_CHALLENGER_PRESIGNING,
-  DaemonStatus.PENDING_PEGIN_SIGS_AVAILABILITY,
-  DaemonStatus.PENDING_DEPOSITOR_SIGNATURES,
-  DaemonStatus.PENDING_ACKS,
-  DaemonStatus.PENDING_ACTIVATION,
-  DaemonStatus.ACTIVATED,
-]);
-
 /** All statuses we accept — either ready for submission or already past it. */
-const TARGET_STATUSES = new Set<string>([
+const TARGET_STATUSES: ReadonlySet<DaemonStatus> = new Set([
   DaemonStatus.PENDING_DEPOSITOR_WOTS_PK,
   ...POST_WOTS_STATUSES,
 ]);
@@ -87,7 +72,7 @@ export async function submitWotsPublicKey(
   });
 
   // Key was already submitted in a previous session (e.g. resume flow)
-  if (POST_WOTS_STATUSES.has(status)) {
+  if (POST_WOTS_STATUSES.has(status as DaemonStatus)) {
     return;
   }
 

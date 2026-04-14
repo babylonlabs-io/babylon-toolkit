@@ -52,8 +52,8 @@ vi.mock("viem", async (importOriginal) => {
         .fn()
         .mockImplementation(({ functionName }: { functionName: string }) => {
           if (functionName === "getPegInFee") return Promise.resolve(0n);
-          // getBTCVault — return vault with zero depositor (vault doesn't exist)
-          return Promise.resolve({ depositor: actual.zeroAddress });
+          // getBtcVaultBasicInfo — return tuple with zero depositor (vault doesn't exist)
+          return Promise.resolve([actual.zeroAddress]);
         }),
     })),
   };
@@ -672,7 +672,8 @@ describe("PeginManager", () => {
         .fn()
         .mockImplementation(({ functionName }: { functionName: string }) => {
           if (functionName === "getPegInFee") return Promise.resolve(0n);
-          return Promise.resolve({ depositor: viem.zeroAddress });
+          // getBtcVaultBasicInfo — return tuple with zero depositor (vault doesn't exist)
+          return Promise.resolve([viem.zeroAddress]);
         });
 
       // First call: checkVaultExists (default behavior)

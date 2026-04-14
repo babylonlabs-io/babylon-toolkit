@@ -17,7 +17,6 @@
 import * as bitcoin from "bitcoinjs-lib";
 import { Buffer } from "buffer";
 
-import { ensureEcc } from "../../primitives/utils/bitcoin";
 import { DUST_THRESHOLD } from "../fee/constants";
 import type { UTXO } from "../utxo/selectUtxos";
 
@@ -130,8 +129,6 @@ export function parseUnfundedWasmTransaction(
 export function fundPeginTransaction(
   params: FundPeginTransactionParams,
 ): string {
-  ensureEcc();
-
   const { unfundedTxHex, selectedUTXOs, changeAddress, changeAmount, network } =
     params;
 

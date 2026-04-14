@@ -23,7 +23,7 @@ export interface WaitForPeginStatusParams {
   /** Raw BTC pegin transaction hash (with or without 0x prefix) */
   peginTxHash: string;
   /** Set of acceptable statuses — polling stops when the VP reports one of these */
-  targetStatuses: Set<string>;
+  targetStatuses: ReadonlySet<string>;
   /** Maximum time to wait in milliseconds */
   timeoutMs: number;
   /** Polling interval in milliseconds (default: 10s) */

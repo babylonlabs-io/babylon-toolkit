@@ -87,6 +87,51 @@ function assertXOnlyPubkey(value: unknown, field: string): void {
 }
 
 /**
+ * Validate the optional presigning progress fields returned inside PeginProgressDetails.
+ * These fields are sent by newer VP versions; if present, they must have correct types.
+ */
+function validatePresigningProgressFields(
+  progress: Record<string, unknown>,
+): void {
+  const presigning = progress.presigning;
+  if (presigning === undefined || presigning === null) return;
+  if (typeof presigning !== "object" || Array.isArray(presigning)) {
+    throw new VpResponseValidationError(
+      `VP response validation failed: "progress.presigning" must be an object if present`,
+    );
+  }
+
+  const p = presigning as Record<string, unknown>;
+
+  if (
+    p.depositor_graph_created !== undefined &&
+    typeof p.depositor_graph_created !== "boolean"
+  ) {
+    throw new VpResponseValidationError(
+      `VP response validation failed: "progress.presigning.depositor_graph_created" must be a boolean if present, got ${preview(p.depositor_graph_created)}`,
+    );
+  }
+
+  if (
+    p.vk_challenger_presigning_completed !== undefined &&
+    typeof p.vk_challenger_presigning_completed !== "number"
+  ) {
+    throw new VpResponseValidationError(
+      `VP response validation failed: "progress.presigning.vk_challenger_presigning_completed" must be a number if present, got ${preview(p.vk_challenger_presigning_completed)}`,
+    );
+  }
+
+  if (
+    p.vk_challenger_presigning_total !== undefined &&
+    typeof p.vk_challenger_presigning_total !== "number"
+  ) {
+    throw new VpResponseValidationError(
+      `VP response validation failed: "progress.presigning.vk_challenger_presigning_total" must be a number if present, got ${preview(p.vk_challenger_presigning_total)}`,
+    );
+  }
+}
+
+/**
  * Validate a getPeginStatus response.
  *
  * Throws if the status field is not a recognized DaemonStatus value.
@@ -122,11 +167,17 @@ export function validateGetPeginStatusResponse(
     );
   }
 
-  if (r.progress === null || typeof r.progress !== "object") {
+  if (
+    r.progress === null ||
+    typeof r.progress !== "object" ||
+    Array.isArray(r.progress)
+  ) {
     throw new VpResponseValidationError(
       `VP response validation failed: "progress" must be an object`,
     );
   }
+
+  validatePresigningProgressFields(r.progress as Record<string, unknown>);
 
   if (typeof r.health_info !== "string") {
     throw new VpResponseValidationError(
@@ -206,6 +257,21 @@ function validateClaimerTransactions(value: unknown, field: string): void {
   assertNonEmptyString(tx.payout_psbt, `${field}.payout_psbt`);
 }
 
+function validateChallengeAssertConnectorData(
+  value: unknown,
+  field: string,
+): void {
+  if (value === null || typeof value !== "object") {
+    throw new VpResponseValidationError(
+      `VP response validation failed: "${field}" must be an object`,
+    );
+  }
+
+  const c = value as Record<string, unknown>;
+  assertNonEmptyString(c.wots_pks_json, `${field}.wots_pks_json`);
+  assertNonEmptyString(c.gc_wots_keys_json, `${field}.gc_wots_keys_json`);
+}
+
 function validatePresignDataPerChallenger(value: unknown, field: string): void {
   if (value === null || typeof value !== "object") {
     throw new VpResponseValidationError(
@@ -217,15 +283,41 @@ function validatePresignDataPerChallenger(value: unknown, field: string): void {
 
   assertXOnlyPubkey(d.challenger_pubkey, `${field}.challenger_pubkey`);
   validateTransactionData(
-    d.challenge_assert_tx,
-    `${field}.challenge_assert_tx`,
+    d.challenge_assert_x_tx,
+    `${field}.challenge_assert_x_tx`,
+  );
+  validateTransactionData(
+    d.challenge_assert_y_tx,
+    `${field}.challenge_assert_y_tx`,
   );
   validateTransactionData(d.nopayout_tx, `${field}.nopayout_tx`);
-  assertNonEmptyString(
-    d.challenge_assert_psbt,
-    `${field}.challenge_assert_psbt`,
-  );
   assertNonEmptyString(d.nopayout_psbt, `${field}.nopayout_psbt`);
+
+  if (!Array.isArray(d.challenge_assert_connectors)) {
+    throw new VpResponseValidationError(
+      `VP response validation failed: "${field}.challenge_assert_connectors" must be an array`,
+    );
+  }
+
+  for (let i = 0; i < d.challenge_assert_connectors.length; i++) {
+    validateChallengeAssertConnectorData(
+      d.challenge_assert_connectors[i],
+      `${field}.challenge_assert_connectors[${i}]`,
+    );
+  }
+
+  if (!Array.isArray(d.output_label_hashes)) {
+    throw new VpResponseValidationError(
+      `VP response validation failed: "${field}.output_label_hashes" must be an array`,
+    );
+  }
+
+  for (let i = 0; i < d.output_label_hashes.length; i++) {
+    assertNonEmptyHex(
+      d.output_label_hashes[i],
+      `${field}.output_label_hashes[${i}]`,
+    );
+  }
 }
 
 /**

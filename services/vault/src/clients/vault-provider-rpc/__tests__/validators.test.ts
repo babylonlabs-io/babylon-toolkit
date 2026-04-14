@@ -27,10 +27,14 @@ const validClaimerTransaction = {
 
 const validChallengerPresignData = {
   challenger_pubkey: VALID_PUBKEY,
-  challenge_assert_tx: { tx_hex: VALID_TX_HEX },
+  challenge_assert_x_tx: { tx_hex: VALID_TX_HEX },
+  challenge_assert_y_tx: { tx_hex: VALID_TX_HEX },
   nopayout_tx: { tx_hex: VALID_TX_HEX },
-  challenge_assert_psbt: VALID_PSBT,
   nopayout_psbt: VALID_PSBT,
+  challenge_assert_connectors: [
+    { wots_pks_json: '{"keys":[]}', gc_wots_keys_json: '{"keys":[]}' },
+  ],
+  output_label_hashes: ["a".repeat(64)],
 };
 
 const validDepositorGraph = {
@@ -177,6 +181,16 @@ describe("validateGetPeginStatusResponse", () => {
       validateGetPeginStatusResponse({
         ...validPeginStatusResponse,
         progress: "invalid",
+      }),
+    );
+    expect(detail).toContain('"progress" must be an object');
+  });
+
+  it("throws when progress is an array", () => {
+    const detail = getVpValidationDetail(() =>
+      validateGetPeginStatusResponse({
+        ...validPeginStatusResponse,
+        progress: [],
       }),
     );
     expect(detail).toContain('"progress" must be an object');
