@@ -42,6 +42,8 @@ import {
 type SimpleDepositBaseProps = {
   open: boolean;
   onClose: () => void;
+  /** Optional pre-filled BTC amount (e.g. from position notification suggestions) */
+  initialAmountBtc?: string;
 };
 
 type NewDepositProps = SimpleDepositBaseProps & {
@@ -97,7 +99,11 @@ export type SimpleDepositProps =
 // New deposit flow content (form → sign → success)
 // ---------------------------------------------------------------------------
 
-function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
+function SimpleDepositContent({
+  open,
+  onClose,
+  initialAmountBtc,
+}: SimpleDepositBaseProps) {
   const { isGeoBlocked, isLoading: isGeoLoading } = useGeoFencing();
 
   const {
@@ -159,6 +165,18 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
 
   const { setSecretHashes, secretHashes } = useDepositState();
 
+  // Pre-fill amount when opening with a suggested amount from notifications
+  const hasPrefilled = useRef(false);
+  useEffect(() => {
+    if (open && initialAmountBtc && !hasPrefilled.current) {
+      hasPrefilled.current = true;
+      setFormData({ amountBtc: initialAmountBtc });
+    }
+    if (!open) {
+      hasPrefilled.current = false;
+    }
+  }, [open, initialAmountBtc, setFormData]);
+
   // Per-vault secrets generated when the SECRET step is entered.
   // Using a ref (not state) avoids re-renders and keeps sensitive data
   // out of React DevTools.
@@ -181,8 +199,10 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
     [confirmMnemonic, goToStep, isSplitDeposit, splitVaultAmounts],
   );
 
+  const isSupplementalDeposit = !!initialAmountBtc;
   const allowSplit =
-    !hasActiveVaults || FeatureFlags.isForcePartialLiquidationSplit;
+    !isSupplementalDeposit &&
+    (!hasActiveVaults || FeatureFlags.isForcePartialLiquidationSplit);
 
   // Auto-enable split once when it first becomes available and allowed
   const hasAutoChecked = useRef(false);
@@ -469,7 +489,11 @@ export default function SimpleDeposit(props: SimpleDepositProps) {
   return (
     <ProtocolParamsProvider>
       <DepositState>
-        <SimpleDepositContent open={open} onClose={onClose} />
+        <SimpleDepositContent
+          open={open}
+          onClose={onClose}
+          initialAmountBtc={props.initialAmountBtc}
+        />
       </DepositState>
     </ProtocolParamsProvider>
   );

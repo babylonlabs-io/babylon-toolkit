@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { useETHWallet } from "@/context/wallet";
 
@@ -467,7 +467,14 @@ function ManualInputPanel({
   );
 }
 
-export function PositionNotificationsDebugPanel() {
+interface PositionNotificationsDebugPanelProps {
+  /** Called whenever the debug panel's display result changes, so the main banner can update */
+  onResultChange?: (result: CalculatorResult | null) => void;
+}
+
+export function PositionNotificationsDebugPanel({
+  onResultChange,
+}: PositionNotificationsDebugPanelProps) {
   const { address } = useETHWallet();
   const { result: hookResult, status } = usePositionNotifications(address);
   const [manualMode, setManualMode] = useState(false);
@@ -480,6 +487,11 @@ export function PositionNotificationsDebugPanel() {
   );
 
   const displayResult = manualMode ? manualResult : hookResult;
+
+  // Notify parent of result changes so the main banner updates
+  useEffect(() => {
+    onResultChange?.(displayResult);
+  }, [displayResult, onResultChange]);
 
   if (status === "flag-off") return null;
 

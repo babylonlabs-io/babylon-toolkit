@@ -13,13 +13,16 @@ import { PositionNotificationsDebugPanel } from "@/applications/aave/components/
 import { LOAN_TAB, type LoanTab } from "@/applications/aave/constants";
 import { useSyncPendingVaults } from "@/applications/aave/context";
 import { useAaveVaults } from "@/applications/aave/hooks";
+import type { CalculatorResult } from "@/applications/aave/positionNotifications";
 import type { Asset } from "@/applications/aave/types";
 import type { RootLayoutContext } from "@/components/pages/RootLayout";
 import featureFlags from "@/config/featureFlags";
-import { useConnection, useETHWallet } from "@/context/wallet";
+import { useBTCWallet, useConnection, useETHWallet } from "@/context/wallet";
 import { useDashboardState } from "@/hooks/useDashboardState";
 import { usePegoutPolling } from "@/hooks/usePegoutPolling";
+import { calculateBalance, useUTXOs } from "@/hooks/useUTXOs";
 import { ClaimerPegoutStatusValue } from "@/models/pegoutStateMachine";
+import { satoshiToBtcNumber } from "@/utils/btcConversion";
 import { formatBtcAmount, formatUsdValue } from "@/utils/formatting";
 
 import { CollateralSection } from "./CollateralSection";
@@ -27,16 +30,24 @@ import { LoansSection } from "./LoansSection";
 import { OverviewSection } from "./OverviewSection";
 import { PendingDepositSection } from "./PendingDepositSection";
 import { PendingWithdrawSection } from "./PendingWithdrawSection";
+import { PositionNotificationBanner } from "./PositionNotificationBanner";
 import WithdrawFlow from "./WithdrawFlow";
 
 export function DashboardPage() {
   const navigate = useNavigate();
   const { openDeposit } = useOutletContext<RootLayoutContext>();
   const { address } = useETHWallet();
+  const { address: btcAddress } = useBTCWallet();
   const { isConnected } = useConnection();
+  const { spendableUTXOs } = useUTXOs(btcAddress);
+  const btcBalanceBtc = satoshiToBtcNumber(
+    BigInt(calculateBalance(spendableUTXOs || [])),
+  );
 
   const [isWithdrawOpen, setIsWithdrawOpen] = useState(false);
   const [isAssetModalOpen, setIsAssetModalOpen] = useState(false);
+  const [debugResultOverride, setDebugResultOverride] =
+    useState<CalculatorResult | null>(null);
   const [assetModalMode, setAssetModalMode] = useState<LoanTab>(
     LOAN_TAB.BORROW,
   );
@@ -124,6 +135,14 @@ export function DashboardPage() {
           isConnected={isConnected}
         />
 
+        <PositionNotificationBanner
+          connectedAddress={address}
+          onDeposit={openDeposit}
+          onRepay={handleRepay}
+          result={debugResultOverride ?? undefined}
+          btcBalanceBtc={btcBalanceBtc}
+        />
+
         <PendingDepositSection />
 
         <PendingWithdrawSection
@@ -153,7 +172,9 @@ export function DashboardPage() {
         />
 
         {featureFlags.isPositionNotificationsEnabled && (
-          <PositionNotificationsDebugPanel />
+          <PositionNotificationsDebugPanel
+            onResultChange={setDebugResultOverride}
+          />
         )}
       </div>
 
