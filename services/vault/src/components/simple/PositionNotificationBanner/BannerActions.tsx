@@ -93,7 +93,10 @@ export function BannerActions({
   const warningType: WarningType = primaryWarning.type;
 
   // Stories D & E: cliff fixable by reorder, or reorder warning
-  if (warningType === "reorder" || hasReorderFix(warningType, result)) {
+  if (
+    (warningType === "reorder" || hasReorderFix(warningType, result)) &&
+    result.suggestedVaultOrder
+  ) {
     return (
       <div className="mt-3 flex items-center gap-2">
         <Button

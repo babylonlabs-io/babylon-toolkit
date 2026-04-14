@@ -22,7 +22,6 @@ import { useDashboardState } from "@/hooks/useDashboardState";
 import { usePegoutPolling } from "@/hooks/usePegoutPolling";
 import { calculateBalance, useUTXOs } from "@/hooks/useUTXOs";
 import { ClaimerPegoutStatusValue } from "@/models/pegoutStateMachine";
-import { satoshiToBtcNumber } from "@/utils/btcConversion";
 import { formatBtcAmount, formatUsdValue } from "@/utils/formatting";
 
 import { CollateralSection } from "./CollateralSection";
@@ -39,10 +38,10 @@ export function DashboardPage() {
   const { address } = useETHWallet();
   const { address: btcAddress } = useBTCWallet();
   const { isConnected } = useConnection();
-  const { spendableUTXOs } = useUTXOs(btcAddress);
-  const btcBalanceBtc = satoshiToBtcNumber(
-    BigInt(calculateBalance(spendableUTXOs || [])),
-  );
+  const { spendableUTXOs, isLoading: isLoadingUTXOs } = useUTXOs(btcAddress);
+  const btcBalanceBtc = isLoadingUTXOs
+    ? undefined
+    : calculateBalance(spendableUTXOs) / 100_000_000;
 
   const [isWithdrawOpen, setIsWithdrawOpen] = useState(false);
   const [isAssetModalOpen, setIsAssetModalOpen] = useState(false);
