@@ -111,7 +111,10 @@ export function formatPayoutSignatureError(error: unknown): {
         message: "Please reconnect your Bitcoin wallet to continue.",
       };
     }
-    if (error.message.includes("Vault or pegin transaction not found")) {
+    if (
+      error.message.includes("Vault or pegin transaction not found") ||
+      error.message.includes("not found on-chain")
+    ) {
       return {
         title: "Deposit Not Found",
         message:
@@ -132,6 +135,15 @@ export function formatPayoutSignatureError(error: unknown): {
           "Failed to sign payout transactions. Please try again or reconnect your wallet.",
       };
     }
+    // Contract call errors (viem) — surface a meaningful message instead of swallowing
+    if (error.message.includes("reverted")) {
+      return {
+        title: "Contract Call Failed",
+        message:
+          "A contract call failed during payout signing. The on-chain vault data may be unavailable. Please try again or contact support.",
+      };
+    }
+
     return {
       title: "Payout Signing Error",
       message:

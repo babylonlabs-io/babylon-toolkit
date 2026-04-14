@@ -104,12 +104,15 @@ export enum DaemonStatus {
 // ============================================================================
 
 /**
- * All states before PendingDepositorSignatures (inclusive of WOTS key step).
- * Used to detect "VP is still processing" errors.
+ * States where the VP is still processing (no depositor action needed).
+ * Used by isPreDepositorSignaturesError to detect transient "Invalid state"
+ * errors that should be silently retried.
+ *
+ * Excludes PENDING_DEPOSITOR_WOTS_PK — that state requires depositor action
+ * (WOTS key submission), so retrying would loop forever.
  */
 export const PRE_DEPOSITOR_SIGNATURES_STATES: readonly DaemonStatus[] = [
   DaemonStatus.PENDING_INGESTION,
-  DaemonStatus.PENDING_DEPOSITOR_WOTS_PK,
   DaemonStatus.PENDING_BABE_SETUP,
   DaemonStatus.PENDING_CHALLENGER_PRESIGNING,
   DaemonStatus.PENDING_PEGIN_SIGS_AVAILABILITY,

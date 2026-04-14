@@ -46,7 +46,6 @@ import {
   type Network,
 } from "../primitives";
 import {
-  ensureEcc,
   ensureHexPrefix,
   isAddressFromPublicKey,
   stripHexPrefix,
@@ -1143,15 +1142,15 @@ export class PeginManager {
         transport: http(),
       });
 
-      const vault = (await publicClient.readContract({
+      const result = (await publicClient.readContract({
         address: this.config.vaultContracts.btcVaultRegistry,
         abi: BTCVaultRegistryABI,
-        functionName: "getBTCVault",
+        functionName: "getBtcVaultBasicInfo",
         args: [vaultId],
-      })) as { depositor: Address };
+      })) as readonly [Address, ...unknown[]];
 
-      // If depositor is not zero address, vault exists
-      return vault.depositor !== zeroAddress;
+      // First element is depositor; if not zero address, vault exists
+      return result[0] !== zeroAddress;
     } catch {
       // If reading fails, assume vault doesn't exist and let contract handle it
       return false;
@@ -1168,8 +1167,6 @@ export class PeginManager {
   private async resolvePayoutScriptPubKey(
     depositorPayoutBtcAddress?: string,
   ): Promise<Hex> {
-    ensureEcc();
-
     let address: string;
 
     if (depositorPayoutBtcAddress) {

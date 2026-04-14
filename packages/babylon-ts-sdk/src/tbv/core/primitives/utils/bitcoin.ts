@@ -13,9 +13,8 @@
  * @module primitives/utils/bitcoin
  */
 
-import * as ecc from "@bitcoin-js/tiny-secp256k1-asmjs";
 import { Buffer } from "buffer";
-import { initEccLib, networks, payments } from "bitcoinjs-lib";
+import { networks, payments } from "bitcoinjs-lib";
 
 import type { Network } from "@babylonlabs-io/babylon-tbv-rust-wasm";
 import type { Hex } from "viem";
@@ -212,22 +211,27 @@ export function validateWalletPubkey(
 // Address derivation and validation
 // ============================================================================
 
-let eccInitialized = false;
-
 /**
- * Lazily initialize the ECC library for bitcoinjs-lib.
+ * Assert that the ECC library has been initialized via `initEccLib(ecc)`.
  *
- * Must be called before any P2TR / Taproot address operation.
- * Safe to call multiple times — only runs verification once.
- *
- * Why lazy: module-level `initEccLib(ecc)` breaks vitest because
- * `vi.mock()` hoists above imports, so the mocked bitcoinjs-lib
- * hasn't loaded the real ECC backend when the module evaluates.
+ * The consuming application must call `initEccLib(ecc)` from `bitcoinjs-lib`
+ * once at startup before using any SDK function that involves Taproot / P2TR
+ * operations. This guard provides a clear error message when that step was
+ * missed, instead of letting bitcoinjs-lib throw its generic
+ * "No ECC Library provided" error deep in a call stack.
  */
-export function ensureEcc(): void {
-  if (!eccInitialized) {
-    initEccLib(ecc);
-    eccInitialized = true;
+function assertEccInitialized(): void {
+  try {
+    payments.p2tr({ internalPubkey: Buffer.alloc(32, 1) });
+  } catch (e) {
+    if (e instanceof Error && e.message.includes("No ECC Library provided")) {
+      throw new Error(
+        "ECC library not initialized. " +
+          'You must call initEccLib(ecc) from "bitcoinjs-lib" before using the SDK. ' +
+          "See the ts-sdk README for setup instructions.",
+      );
+    }
+    // Any other error means ECC is loaded (e.g. invalid key is fine — ECC worked).
   }
 }
 
@@ -262,7 +266,7 @@ export function deriveTaprootAddress(
   publicKeyHex: string,
   network: Network,
 ): string {
-  ensureEcc();
+  assertEccInitialized();
   const xOnly = hexToUint8Array(processPublicKeyToXOnly(publicKeyHex));
   const { address } = payments.p2tr({
     internalPubkey: Buffer.from(xOnly),

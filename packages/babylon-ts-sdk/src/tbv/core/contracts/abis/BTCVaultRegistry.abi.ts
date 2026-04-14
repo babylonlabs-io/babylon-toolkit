@@ -9,7 +9,7 @@
 
 /**
  * Minimal ABI for BTCVaultRegistry contract.
- * Contains submitPeginRequest, submitPeginRequestBatch, activateVaultWithSecret, getPegInFee, and getBTCVault.
+ * Contains submitPeginRequest, submitPeginRequestBatch, activateVaultWithSecret, getPegInFee, and getBtcVaultBasicInfo.
  */
 export const BTCVaultRegistryABI = [
   {
@@ -217,7 +217,7 @@ export const BTCVaultRegistryABI = [
   },
   {
     type: "function",
-    name: "getBTCVault",
+    name: "getBtcVaultBasicInfo",
     inputs: [
       {
         name: "vaultId",
@@ -226,30 +226,13 @@ export const BTCVaultRegistryABI = [
       },
     ],
     outputs: [
-      {
-        name: "vault",
-        type: "tuple",
-        internalType: "struct IBTCVaultRegistry.BTCVault",
-        components: [
-          { name: "depositor", type: "address", internalType: "address" },
-          { name: "depositorBtcPubKey", type: "bytes32", internalType: "bytes32" },
-          { name: "depositorSignedPeginTx", type: "bytes", internalType: "bytes" },
-          { name: "amount", type: "uint256", internalType: "uint256" },
-          { name: "vaultProvider", type: "address", internalType: "address" },
-          { name: "status", type: "uint8", internalType: "enum IBTCVaultRegistry.BTCVaultStatus" },
-          { name: "applicationEntryPoint", type: "address", internalType: "address" },
-          { name: "universalChallengersVersion", type: "uint16", internalType: "uint16" },
-          { name: "appVaultKeepersVersion", type: "uint16", internalType: "uint16" },
-          { name: "offchainParamsVersion", type: "uint16", internalType: "uint16" },
-          { name: "createdAt", type: "uint256", internalType: "uint256" },
-          { name: "verifiedAt", type: "uint256", internalType: "uint256" },
-          { name: "depositorWotsPkHash", type: "bytes32", internalType: "bytes32" },
-          { name: "hashlock", type: "bytes32", internalType: "bytes32" },
-          { name: "htlcVout", type: "uint8", internalType: "uint8" },
-          { name: "depositorPopSignature", type: "bytes", internalType: "bytes" },
-          { name: "prePeginTxHash", type: "bytes32", internalType: "bytes32" },
-        ],
-      },
+      { name: "depositor", type: "address", internalType: "address" },
+      { name: "depositorBtcPubKey", type: "bytes32", internalType: "bytes32" },
+      { name: "amount", type: "uint256", internalType: "uint256" },
+      { name: "vaultProvider", type: "address", internalType: "address" },
+      { name: "status", type: "uint8", internalType: "enum IBTCVaultRegistry.BTCVaultStatus" },
+      { name: "applicationEntryPoint", type: "address", internalType: "address" },
+      { name: "createdAt", type: "uint256", internalType: "uint256" },
     ],
     stateMutability: "view",
   },

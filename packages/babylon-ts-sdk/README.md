@@ -41,14 +41,28 @@ This SDK handles the complex Bitcoin and Ethereum interactions needed to create 
 
 ```bash
 # npm
-npm install @babylonlabs-io/ts-sdk viem
+npm install @babylonlabs-io/ts-sdk viem bitcoinjs-lib @bitcoin-js/tiny-secp256k1-asmjs
 
 # yarn
-yarn add @babylonlabs-io/ts-sdk viem
+yarn add @babylonlabs-io/ts-sdk viem bitcoinjs-lib @bitcoin-js/tiny-secp256k1-asmjs
 
 # pnpm
-pnpm add @babylonlabs-io/ts-sdk viem
+pnpm add @babylonlabs-io/ts-sdk viem bitcoinjs-lib @bitcoin-js/tiny-secp256k1-asmjs
 ```
+
+### ECC Library Initialization
+
+The SDK uses `bitcoinjs-lib` for Taproot (P2TR) operations, which requires an ECC library to be initialized **before** any SDK function that touches Bitcoin addresses or PSBTs. Your application must call `initEccLib()` once at startup:
+
+```typescript
+import * as ecc from "@bitcoin-js/tiny-secp256k1-asmjs";
+import { initEccLib } from "bitcoinjs-lib";
+
+// Call once at app startup, before any SDK usage
+initEccLib(ecc);
+```
+
+For React apps, place this call in your entry point (e.g., `main.tsx`) before `createRoot()`. Failing to initialize will cause a runtime error: `"No ECC Library provided"`.
 
 ### Verify Installation
 
