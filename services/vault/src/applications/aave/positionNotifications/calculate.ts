@@ -234,7 +234,7 @@ export function calculate(params: CalculatorParams): CalculatorResult {
     !sumImproves && optimalBtcAfterG1 > currentBtcAfterG1 + REORDER_TOL;
   let reorderWouldHelp = sumImproves || afterG1Improves;
   const globalOptimalOrderStr = globalOptimalOrder
-    .map((v) => v.name)
+    .map((v) => `${v.name} (${fmt(v.btc)} BTC)`)
     .join(" → ");
 
   const optimalG1Vaults = getGroup1FromOrder(
@@ -341,7 +341,7 @@ export function calculate(params: CalculatorParams): CalculatorResult {
         type: "cliff",
         title: "Swap vault order to unlock partial protection",
         detail: `${best.name} (${best.btc.toFixed(2)} BTC) covers the target seizure alone. Right now both vaults are seized together because ${vaults[0].name} is first and too small.`,
-        suggestion: `Suggested order: ${best.name} → ${other.name}`,
+        suggestion: `Suggested order: ${best.name} (${fmt(best.btc)} BTC) → ${other.name} (${fmt(other.btc)} BTC)`,
       });
     } else if (isCliff) {
       const largest = vaults.reduce((a, b) => (a.btc > b.btc ? a : b));

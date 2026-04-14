@@ -7,7 +7,7 @@ import {
   TestingBanner,
 } from "@babylonlabs-io/core-ui";
 import { useTheme } from "next-themes";
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { NavLink, Outlet } from "react-router";
 import { twJoin } from "tailwind-merge";
 
@@ -24,7 +24,7 @@ import SimpleDeposit from "../simple/SimpleDeposit";
 import { Connect } from "../Wallet";
 
 export interface RootLayoutContext {
-  openDeposit: () => void;
+  openDeposit: (initialAmountBtc?: string) => void;
 }
 
 const btcConfig = getNetworkConfigBTC();
@@ -86,6 +86,19 @@ export default function RootLayout() {
   const isWalletConnected = btcConnected && ethConnected;
   const showAddressTypeBanner = isWalletConnected && !isSupportedAddress;
   const [isDepositOpen, setIsDepositOpen] = useState(false);
+  const [initialDepositAmountBtc, setInitialDepositAmountBtc] = useState<
+    string | undefined
+  >();
+
+  const openDeposit = useCallback((initialAmountBtc?: string) => {
+    setInitialDepositAmountBtc(initialAmountBtc);
+    setIsDepositOpen(true);
+  }, []);
+
+  const closeDeposit = useCallback(() => {
+    setIsDepositOpen(false);
+    setInitialDepositAmountBtc(undefined);
+  }, []);
 
   return (
     <div className="relative h-full min-h-svh w-full bg-surface">
@@ -103,7 +116,7 @@ export default function RootLayout() {
                 <DepositButton
                   variant="outlined"
                   rounded
-                  onClick={() => setIsDepositOpen(true)}
+                  onClick={() => openDeposit()}
                 >
                   Deposit {btcConfig.coinSymbol}
                 </DepositButton>
@@ -116,14 +129,15 @@ export default function RootLayout() {
         <Outlet
           context={
             {
-              openDeposit: () => setIsDepositOpen(true),
+              openDeposit,
             } satisfies RootLayoutContext
           }
         />
         <AaveConfigProvider>
           <SimpleDeposit
             open={isDepositOpen}
-            onClose={() => setIsDepositOpen(false)}
+            onClose={closeDeposit}
+            initialAmountBtc={initialDepositAmountBtc}
           />
         </AaveConfigProvider>
         <div className="mt-auto">
