@@ -54,10 +54,10 @@ export interface RequestDepositorClaimerArtifactsParams {
   depositor_pk: string;
 }
 
-/** Params for querying pegin status from the VP daemon. */
-export interface GetPeginStatusParams {
-  pegin_txid: string;
-}
+/** Params for querying pegin status from the VP daemon. Either pegin_txid or vault_id must be provided. */
+export type GetPeginStatusParams =
+  | { pegin_txid: string; vault_id?: never }
+  | { vault_id: string; pegin_txid?: never };
 
 // ============================================================================
 // Response Types
@@ -141,8 +141,17 @@ export interface ChallengerProgress {
 }
 
 export type GcDataProgress = ChallengerProgress;
-export type PresigningProgress = ChallengerProgress;
 export type AckCollectionProgress = ChallengerProgress;
+
+/** Extended presigning progress with all 3 concurrent phases. */
+export interface PresigningProgress extends ChallengerProgress {
+  /** Phase 2: whether the depositor-as-claimer graph has been created. */
+  depositor_graph_created?: boolean;
+  /** Phase 3: number of VK-challenger presigning sessions completed. */
+  vk_challenger_presigning_completed?: number;
+  /** Phase 3: total VK-challenger presigning sessions required. */
+  vk_challenger_presigning_total?: number;
+}
 
 /** Detailed progress breakdown for an in-progress pegin. */
 export interface PeginProgressDetails {

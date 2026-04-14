@@ -87,6 +87,51 @@ function assertXOnlyPubkey(value: unknown, field: string): void {
 }
 
 /**
+ * Validate the optional presigning progress fields returned inside PeginProgressDetails.
+ * These fields are sent by newer VP versions; if present, they must have correct types.
+ */
+function validatePresigningProgressFields(
+  progress: Record<string, unknown>,
+): void {
+  const presigning = progress.presigning;
+  if (presigning === undefined || presigning === null) return;
+  if (typeof presigning !== "object") {
+    throw new VpResponseValidationError(
+      `VP response validation failed: "progress.presigning" must be an object if present`,
+    );
+  }
+
+  const p = presigning as Record<string, unknown>;
+
+  if (
+    p.depositor_graph_created !== undefined &&
+    typeof p.depositor_graph_created !== "boolean"
+  ) {
+    throw new VpResponseValidationError(
+      `VP response validation failed: "progress.presigning.depositor_graph_created" must be a boolean if present, got ${preview(p.depositor_graph_created)}`,
+    );
+  }
+
+  if (
+    p.vk_challenger_presigning_completed !== undefined &&
+    typeof p.vk_challenger_presigning_completed !== "number"
+  ) {
+    throw new VpResponseValidationError(
+      `VP response validation failed: "progress.presigning.vk_challenger_presigning_completed" must be a number if present, got ${preview(p.vk_challenger_presigning_completed)}`,
+    );
+  }
+
+  if (
+    p.vk_challenger_presigning_total !== undefined &&
+    typeof p.vk_challenger_presigning_total !== "number"
+  ) {
+    throw new VpResponseValidationError(
+      `VP response validation failed: "progress.presigning.vk_challenger_presigning_total" must be a number if present, got ${preview(p.vk_challenger_presigning_total)}`,
+    );
+  }
+}
+
+/**
  * Validate a getPeginStatus response.
  *
  * Throws if the status field is not a recognized DaemonStatus value.
@@ -127,6 +172,8 @@ export function validateGetPeginStatusResponse(
       `VP response validation failed: "progress" must be an object`,
     );
   }
+
+  validatePresigningProgressFields(r.progress as Record<string, unknown>);
 
   if (typeof r.health_info !== "string") {
     throw new VpResponseValidationError(

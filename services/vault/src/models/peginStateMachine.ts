@@ -72,6 +72,7 @@ export enum LocalStorageStatus {
  *
  * State flow (happy path):
  * PendingIngestion -> PendingDepositorWotsPK -> PendingBabeSetup -> PendingChallengerPresigning
+ *   -> PendingPeginSigsAvailability -> PendingPrePegInConfirmations
  *   -> PendingDepositorSignatures -> PendingACKs -> PendingActivation -> Activated
  *
  * Terminal / branching states:
@@ -85,6 +86,7 @@ export enum DaemonStatus {
   PENDING_BABE_SETUP = "PendingBabeSetup",
   PENDING_CHALLENGER_PRESIGNING = "PendingChallengerPresigning",
   PENDING_PEGIN_SIGS_AVAILABILITY = "PendingPeginSigsAvailability",
+  PENDING_PRE_PEGIN_CONFIRMATIONS = "PendingPrePegInConfirmations",
   PENDING_DEPOSITOR_SIGNATURES = "PendingDepositorSignatures",
   PENDING_ACKS = "PendingACKs",
   PENDING_ACTIVATION = "PendingActivation",
@@ -94,16 +96,62 @@ export enum DaemonStatus {
   PEGGED_OUT = "PeggedOut",
 }
 
+// ============================================================================
+// Daemon Status Groups
+//
+// Canonical groupings of DaemonStatus values, derived from the happy-path
+// state flow. Consumers import these instead of maintaining local copies.
+// ============================================================================
+
 /**
- * States that occur before PendingDepositorSignatures.
- * When vault provider returns these states, frontend should wait/poll.
+ * All states before PendingDepositorSignatures (inclusive of WOTS key step).
+ * Used to detect "VP is still processing" errors.
  */
-export const PRE_DEPOSITOR_SIGNATURES_STATES = [
+export const PRE_DEPOSITOR_SIGNATURES_STATES: readonly DaemonStatus[] = [
   DaemonStatus.PENDING_INGESTION,
+  DaemonStatus.PENDING_DEPOSITOR_WOTS_PK,
   DaemonStatus.PENDING_BABE_SETUP,
   DaemonStatus.PENDING_CHALLENGER_PRESIGNING,
   DaemonStatus.PENDING_PEGIN_SIGS_AVAILABILITY,
-] as const;
+  DaemonStatus.PENDING_PRE_PEGIN_CONFIRMATIONS,
+];
+
+/**
+ * States after PendingDepositorSignatures where the depositor has no action.
+ */
+const POST_PAYOUT_SIGNATURE_STATUSES: readonly DaemonStatus[] = [
+  DaemonStatus.PENDING_ACKS,
+  DaemonStatus.PENDING_ACTIVATION,
+  DaemonStatus.ACTIVATED,
+];
+
+/**
+ * Statuses where no depositor action is needed — VP is still processing
+ * or has already moved past depositor interaction. Excludes PENDING_INGESTION
+ * (handled separately as "not found yet") and PENDING_DEPOSITOR_WOTS_PK
+ * (needs WOTS key submission).
+ *
+ * Used by the polling hook to decide whether to continue polling silently.
+ */
+export const VP_TRANSIENT_STATUSES: ReadonlySet<DaemonStatus> = new Set([
+  DaemonStatus.PENDING_BABE_SETUP,
+  DaemonStatus.PENDING_CHALLENGER_PRESIGNING,
+  DaemonStatus.PENDING_PEGIN_SIGS_AVAILABILITY,
+  DaemonStatus.PENDING_PRE_PEGIN_CONFIRMATIONS,
+  ...POST_PAYOUT_SIGNATURE_STATUSES,
+]);
+
+/**
+ * Statuses that come after WOTS key submission.
+ * If the VP is already in one of these states, the WOTS key was already
+ * submitted (e.g. via resume flow) and we can skip.
+ *
+ * = VP_TRANSIENT_STATUSES + PENDING_DEPOSITOR_SIGNATURES
+ */
+export const POST_WOTS_STATUSES: ReadonlySet<DaemonStatus> = new Set([
+  ...VP_TRANSIENT_STATUSES,
+  DaemonStatus.PENDING_DEPOSITOR_SIGNATURES,
+]);
 
 /**
  * Check if an error indicates the vault provider is still processing
