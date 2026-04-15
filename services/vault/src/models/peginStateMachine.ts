@@ -109,7 +109,6 @@ export const PEGIN_DISPLAY_LABELS = {
   SIGNING_REQUIRED: "Signing required",
   AWAITING_KEY: "Awaiting key",
   PROCESSING: "Processing",
-  VERIFIED: "Verified",
   READY_TO_ACTIVATE: "Ready to Activate",
   AVAILABLE: "Available",
   IN_USE: "In Use",
@@ -117,6 +116,7 @@ export const PEGIN_DISPLAY_LABELS = {
   REDEEMED: "Redeemed",
   LIQUIDATED: "Liquidated",
   EXPIRED: "Expired",
+  FAILED: "Failed",
   INVALID: "Invalid",
   UNKNOWN: "Unknown",
 } as const;
@@ -189,6 +189,8 @@ export interface GetPeginStateOptions {
   expiredAt?: number;
   /** Whether the depositor can refund the HTLC (Pre-PegIn tx available) */
   canRefund?: boolean;
+  /** Terminal error message from vault provider (e.g. expired, claim posted, pegged out) */
+  vpTerminalError?: string;
 }
 
 const EXPIRATION_REASON_LABELS: Record<ExpirationReason, string> = {
@@ -244,10 +246,26 @@ export function getPeginState(
     expirationReason,
     expiredAt,
     canRefund,
+    vpTerminalError,
   } = options;
 
   // Contract Status 0: Pending (Request submitted, waiting for ACKs)
   if (contractStatus === ContractStatus.PENDING) {
+    // Sub-state: Vault provider reported a terminal status (expired, claimed, pegged out).
+    // The on-chain contract may not have caught up yet, but the VP is done.
+    // This takes priority over all other sub-states because a terminal VP
+    // status means the deposit cannot proceed regardless.
+    if (vpTerminalError) {
+      return {
+        contractStatus,
+        localStatus,
+        displayLabel: PEGIN_DISPLAY_LABELS.FAILED,
+        displayVariant: "warning",
+        availableActions: [PeginAction.NONE],
+        message: vpTerminalError,
+      };
+    }
+
     // Sub-state: Depositor already signed (waiting for on-chain ACK)
     if (localStatus === LocalStorageStatus.PAYOUT_SIGNED) {
       return {
@@ -370,15 +388,14 @@ export function getPeginState(
       };
     }
 
-    // Pre-PegIn not yet broadcast — offer broadcast action
     return {
       contractStatus,
       localStatus,
-      displayLabel: PEGIN_DISPLAY_LABELS.VERIFIED,
+      displayLabel: PEGIN_DISPLAY_LABELS.READY_TO_ACTIVATE,
       displayVariant: "pending",
-      availableActions: [PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN],
+      availableActions: [PeginAction.ACTIVATE_VAULT],
       message:
-        "Payout transactions signed. Broadcast the Pre-PegIn transaction to Bitcoin to continue.",
+        "Bitcoin transaction confirmed. Reveal your HTLC secret to activate the vault.",
     };
   }
 
@@ -573,8 +590,8 @@ export function getNextLocalStatus(
  *
  * Keep logic:
  * - PENDING localStorage: only useful when contract is still PENDING (pegin might not be indexed)
- * - PAYOUT_SIGNED localStorage: useful when contract is PENDING or VERIFIED (user signed, waiting for ACK or broadcast)
- * - CONFIRMING localStorage: useful when contract is VERIFIED (user broadcast BTC, waiting for confirmations)
+ * - PAYOUT_SIGNED localStorage: useful when contract is PENDING or VERIFIED (user signed, waiting for activation)
+ * - CONFIRMING localStorage: useful when contract is VERIFIED (BTC broadcast, waiting for activation)
  *
  * Remove when:
  * - Contract reached terminal states (ACTIVE, REDEEMED, LIQUIDATED, INVALID, DEPOSITOR_WITHDRAWN)
@@ -605,7 +622,7 @@ export function shouldRemoveFromLocalStorage(
     return true; // Contract moved past PENDING, localStorage adds no value
   }
 
-  // Keep PAYOUT_SIGNED when contract is PENDING or VERIFIED (user needs to broadcast)
-  // Keep CONFIRMING when contract is VERIFIED (waiting for BTC confirmations)
+  // Keep PAYOUT_SIGNED when contract is PENDING or VERIFIED (user signed, waiting for ACK/activation)
+  // Keep CONFIRMING when contract is VERIFIED (user broadcast BTC, waiting for activation)
   return false;
 }

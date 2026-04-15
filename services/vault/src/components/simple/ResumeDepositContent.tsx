@@ -30,10 +30,12 @@ import { useRefundState } from "@/hooks/deposit/useRefundState";
 import { useRunOnce } from "@/hooks/useRunOnce";
 import { fetchVaultById } from "@/services/vault/fetchVaults";
 import {
+  deriveWotsBlockPublicKeys,
   getMnemonicIdForPegin,
   hasMnemonicEntry,
   isWotsMismatchError,
   linkPeginToMnemonic,
+  mnemonicToWotsSeed,
 } from "@/services/wots";
 import type { VaultActivity } from "@/types/activity";
 
@@ -225,12 +227,20 @@ export function ResumeWotsContent({
           );
         }
 
+        const seed = mnemonicToWotsSeed(mnemonic);
+        const wotsPublicKeys = await deriveWotsBlockPublicKeys(
+          seed,
+          peginTxHash,
+          depositorBtcPubkey,
+          activity.applicationEntryPoint,
+        );
+        seed.fill(0);
+
         await submitWotsPublicKey({
           peginTxHash,
           depositorBtcPubkey,
-          appContractAddress: activity.applicationEntryPoint,
           providerAddress,
-          getMnemonic: () => Promise.resolve(mnemonic),
+          wotsPublicKeys,
         });
 
         if (mnemonicId && ethAddress) {

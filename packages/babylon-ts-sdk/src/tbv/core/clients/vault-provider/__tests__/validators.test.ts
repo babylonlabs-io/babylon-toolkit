@@ -11,6 +11,7 @@ import {
 
 const VALID_TXID = "a".repeat(64);
 const VALID_PUBKEY = "b".repeat(64);
+const VALID_COMPRESSED_PUBKEY = "02" + "c".repeat(64);
 
 describe("VP Response Validators", () => {
   describe("validateGetPeginStatusResponse", () => {
@@ -257,6 +258,28 @@ describe("VP Response Validators", () => {
           depositor_graph: validDepositorGraph,
         }),
       ).toThrow(VpResponseValidationError);
+    });
+
+    it("accepts compressed (66-char) pubkeys", () => {
+      expect(() =>
+        validateRequestDepositorPresignTransactionsResponse({
+          txs: [
+            {
+              ...validClaimerTx,
+              claimer_pubkey: VALID_COMPRESSED_PUBKEY,
+            },
+          ],
+          depositor_graph: {
+            ...validDepositorGraph,
+            challenger_presign_data: [
+              {
+                ...validChallengerPresignData,
+                challenger_pubkey: VALID_COMPRESSED_PUBKEY,
+              },
+            ],
+          },
+        }),
+      ).not.toThrow();
     });
 
     it("rejects invalid claimer_pubkey length", () => {

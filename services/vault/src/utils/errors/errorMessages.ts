@@ -30,6 +30,14 @@ export const CONTRACT_ERROR_MESSAGES: Record<string, string> = {
   VaultAlreadyRedeemed: "This vault has already been redeemed.",
   VaultAlreadyExists: "A vault with this ID already exists.",
   InvalidVaultStatus: "The vault is in an invalid status for this operation.",
+  InvalidBTCVaultStatus:
+    "The vault is in an invalid status for this operation.",
+  ActivationDeadlineExpired:
+    "The activation deadline has passed. The vault can no longer be activated.",
+  InvalidSecret:
+    "The secret does not match the vault's hashlock. Please verify your secret and try again.",
+  InvalidHashlock: "The vault does not have a valid hashlock configured.",
+  DuplicateHashlock: "This vault has already been activated.",
   VaultNotEscrowed: "The vault is not in escrow.",
   VaultSwapNotSet: "Vault swap is not configured.",
   InvalidBTCPublicKey: "Invalid BTC public key format.",
@@ -63,6 +71,14 @@ export const CONTRACT_ERROR_MESSAGES: Record<string, string> = {
     "Only the application entry point can perform this action.",
   IntegrationAdapterNotSet: "Integration adapter is not set.",
   AaveAdapterNotSet: "Aave adapter is not set.",
+
+  // ============================================================================
+  // Aave Adapter position limits
+  // ============================================================================
+  VaultCountExceedsMaximum:
+    "You have reached the maximum number of vaults per position.",
+  PositionAboveMaximum:
+    "Your total vault amount exceeds the maximum position size.",
 
   // ============================================================================
   // Aave Spoke errors

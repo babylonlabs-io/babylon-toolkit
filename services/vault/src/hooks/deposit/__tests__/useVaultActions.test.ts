@@ -97,6 +97,7 @@ const ATTACKER_TX_HEX = "0x70736274ff...attackertx";
 const baseVault = {
   unsignedPrePeginTx: GRAPHQL_TX_HEX,
   depositorBtcPubkey: "0xdepositorBtcPubkey",
+  peginTxHash: "0xabcd1234",
 };
 
 const baseBroadcastParams = {

@@ -49,12 +49,12 @@ describe("getSectionActionRequiredLabel", () => {
     expect(getSectionActionRequiredLabel(results)).toBe("Signing Required");
   });
 
-  it("returns Broadcast required when one deposit needs broadcast", () => {
-    const broadcastState = getPeginState(ContractStatus.VERIFIED);
+  it("returns Activation required when one deposit is verified", () => {
+    const verifiedState = getPeginState(ContractStatus.VERIFIED);
     const results: (DepositPollingResult | undefined)[] = [
-      pollingResultWithAction("id1", broadcastState),
+      pollingResultWithAction("id1", verifiedState),
     ];
-    expect(getSectionActionRequiredLabel(results)).toBe("Broadcast required");
+    expect(getSectionActionRequiredLabel(results)).toBe("Activation required");
   });
 
   it("returns Key required when one deposit needs WOTS key", () => {

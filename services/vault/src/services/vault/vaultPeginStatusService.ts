@@ -6,7 +6,12 @@
  * avoid duplicating the pollUntil + getPeginStatus pattern.
  */
 
-import { VaultProviderRpcClient } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
+import {
+  JsonRpcError,
+  RpcErrorCode,
+  VP_TERMINAL_STATUSES,
+  VaultProviderRpcClient,
+} from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 
 import { pollUntil } from "@/utils/async";
 import { stripHexPrefix } from "@/utils/btc";
@@ -54,16 +59,32 @@ export async function waitForPeginStatus(
 
   return pollUntil<string>(
     async () => {
-      const response = await rpcClient.getPeginStatus({
-        pegin_txid: strippedTxid,
-      });
-      return targetStatuses.has(response.status) ? response.status : null;
+      const response = await rpcClient.getPeginStatus(
+        { pegin_txid: strippedTxid },
+        signal,
+      );
+      const status = response.status;
+      if (targetStatuses.has(status)) {
+        return status;
+      }
+      // Fail fast on terminal statuses to avoid waiting for timeout
+      if (
+        VP_TERMINAL_STATUSES.has(status as never) &&
+        !targetStatuses.has(status)
+      ) {
+        throw new Error(
+          `Pegin ${strippedTxid.slice(0, 8)}… reached terminal status "${status}" while waiting for ${[...targetStatuses].join(", ")}`,
+        );
+      }
+      return null;
     },
     {
       intervalMs,
       timeoutMs,
       isTransient: (error) =>
-        error instanceof Error && error.message.includes("PegIn not found"),
+        (error instanceof JsonRpcError &&
+          error.code === RpcErrorCode.NOT_FOUND) ||
+        (error instanceof Error && error.message.includes("PegIn not found")),
       signal,
     },
   );

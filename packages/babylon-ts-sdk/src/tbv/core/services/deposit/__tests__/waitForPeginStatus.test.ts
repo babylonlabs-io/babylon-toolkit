@@ -183,6 +183,43 @@ describe("waitForPeginStatus", () => {
     expect((error as Error).message).toContain(VALID_TXID.slice(0, 8));
   });
 
+  it("throws immediately when VP reaches a terminal status", async () => {
+    const reader = createMockStatusReader([
+      { status: DaemonStatus.PENDING_INGESTION },
+      { status: DaemonStatus.EXPIRED },
+    ]);
+
+    const resultPromise = waitForPeginStatus({
+      statusReader: reader,
+      peginTxid: VALID_TXID,
+      targetStatuses: new Set([DaemonStatus.PENDING_DEPOSITOR_SIGNATURES]),
+      timeoutMs: TEST_TIMEOUT_MS,
+      pollIntervalMs: TEST_POLL_INTERVAL_MS,
+    }).catch((e: unknown) => e);
+
+    await vi.advanceTimersByTimeAsync(150);
+
+    const error = await resultPromise;
+    expect(error).toBeInstanceOf(Error);
+    expect((error as Error).message).toContain("terminal status");
+    expect((error as Error).message).toContain("Expired");
+  });
+
+  it("does not treat terminal status as error when it is in the target set", async () => {
+    const reader = createMockStatusReader([
+      { status: DaemonStatus.EXPIRED },
+    ]);
+
+    const result = await waitForPeginStatus({
+      statusReader: reader,
+      peginTxid: VALID_TXID,
+      targetStatuses: new Set([DaemonStatus.EXPIRED]),
+      timeoutMs: TEST_TIMEOUT_MS,
+    });
+
+    expect(result).toBe(DaemonStatus.EXPIRED);
+  });
+
   it("accepts any status from the target set", async () => {
     const reader = createMockStatusReader([
       { status: DaemonStatus.ACTIVATED },

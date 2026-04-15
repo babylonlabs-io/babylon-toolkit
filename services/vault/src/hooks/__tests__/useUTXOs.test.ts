@@ -105,7 +105,7 @@ describe("useUTXOs", () => {
     it("should treat all confirmed UTXOs as available when ordinals API fails", () => {
       // Setup: UTXOs loaded successfully
       mockUseQuery.mockReturnValue({
-        data: { utxos: confirmedUtxos, txs: [] },
+        data: confirmedUtxos,
         isLoading: false,
         error: null,
         refetch: vi.fn(),
@@ -140,7 +140,7 @@ describe("useUTXOs", () => {
     it("should treat all confirmed UTXOs as available when ordinals API is loading", () => {
       // Setup: UTXOs loaded successfully
       mockUseQuery.mockReturnValue({
-        data: { utxos: confirmedUtxos, txs: [] },
+        data: confirmedUtxos,
         isLoading: false,
         error: null,
         refetch: vi.fn(),
@@ -169,7 +169,7 @@ describe("useUTXOs", () => {
     it("should filter inscription UTXOs when ordinals API succeeds", () => {
       // Setup: UTXOs loaded successfully
       mockUseQuery.mockReturnValue({
-        data: { utxos: confirmedUtxos, txs: [] },
+        data: confirmedUtxos,
         isLoading: false,
         error: null,
         refetch: vi.fn(),
@@ -219,7 +219,7 @@ describe("useUTXOs", () => {
       const testError = new Error("Network error");
 
       mockUseQuery.mockReturnValue({
-        data: { utxos: [createMempoolUtxo("txid1", 0, 100000)], txs: [] },
+        data: [createMempoolUtxo("txid1", 0, 100000)],
         isLoading: false,
         error: null,
         refetch: vi.fn(),
@@ -251,7 +251,7 @@ describe("useUTXOs", () => {
       ];
 
       mockUseQuery.mockReturnValue({
-        data: { utxos: mixedUtxos, txs: [] },
+        data: mixedUtxos,
         isLoading: false,
         error: null,
         refetch: vi.fn(),

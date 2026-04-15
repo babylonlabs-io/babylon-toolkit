@@ -46,7 +46,13 @@ import {
   utxosToExpectedRecord,
 } from "@/services/vault/vaultPeginBroadcastService";
 import { preparePeginTransaction } from "@/services/vault/vaultTransactionService";
-import { deriveWotsPkHash, linkPeginToMnemonic } from "@/services/wots";
+import {
+  computeWotsPublicKeysHash,
+  deriveWotsBlockPublicKeys,
+  linkPeginToMnemonic,
+  mnemonicToWotsSeed,
+  type WotsPublicKeys,
+} from "@/services/wots";
 import { addPendingPegin, getPendingPegins } from "@/storage/peginStorage";
 import { btcAddressToScriptPubKeyHex } from "@/utils/btc";
 import { satoshiToBtcNumber } from "@/utils/btcConversion";
@@ -358,17 +364,25 @@ export function useDepositFlow(
 
         setCurrentStep(DepositFlowStep.SUBMIT_PEGIN);
 
-        // 3a. Derive WOTS PK hashes for all vaults (must happen before ETH tx)
+        // 3a. Derive WOTS public keys for all vaults (must happen before ETH tx)
+        // Keys are derived here and reused for both:
+        //   - on-chain hash commitment (depositorWotsPkHash in ETH tx)
+        //   - VP RPC submission (step 5)
+        // Note: deriveWotsBlockPublicKeys zeroes the seed in its finally block,
+        // so a fresh seed must be created per vault.
+        const perVaultWotsKeys: WotsPublicKeys[] = [];
         const wotsPkHashes: Hex[] = [];
         for (let i = 0; i < batchResult.perVault.length; i++) {
           const vault = batchResult.perVault[i];
-          const wotsPkHash = await deriveWotsPkHash(
-            mnemonic,
+          const seed = mnemonicToWotsSeed(mnemonic);
+          const wotsPublicKeys = await deriveWotsBlockPublicKeys(
+            seed,
             vault.peginTxHash,
             batchResult.depositorBtcPubkey,
             selectedApplication,
           );
-          wotsPkHashes.push(wotsPkHash);
+          perVaultWotsKeys.push(wotsPublicKeys);
+          wotsPkHashes.push(computeWotsPublicKeysHash(wotsPublicKeys));
         }
 
         // 3b. Build batch request array
@@ -513,9 +527,8 @@ export function useDepositFlow(
               await submitWotsPublicKey({
                 peginTxHash: result.peginTxHash,
                 depositorBtcPubkey: result.depositorBtcPubkey,
-                appContractAddress: selectedApplication,
                 providerAddress: provider.id,
-                getMnemonic,
+                wotsPublicKeys: perVaultWotsKeys[result.vaultIndex],
                 signal,
               });
               wotsSuccess = true;

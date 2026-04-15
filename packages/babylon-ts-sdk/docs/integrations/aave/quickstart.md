@@ -66,7 +66,7 @@ const accountData = await getUserAccountData(publicClient, SPOKE, proxyAddress);
 const healthFactor = Number(accountData.healthFactor) / 1e18;
 const status = getHealthFactorStatus(
   healthFactor,
-  accountData.borrowedCount > 0n,
+  accountData.borrowCount > 0n,
 );
 
 if (status !== "safe" && status !== "no_debt") {
@@ -234,7 +234,7 @@ console.log(
   aaveValueToUsd(accountData.totalCollateralValue),
   "USD",
 );
-console.log("Debt:", aaveValueToUsd(accountData.totalDebtValue), "USD");
+console.log("Debt:", aaveRayValueToUsd(accountData.totalDebtValueRay), "USD");
 console.log("Health Factor:", Number(accountData.healthFactor) / 1e18);
 ```
 

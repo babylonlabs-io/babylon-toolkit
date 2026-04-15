@@ -1,12 +1,9 @@
 /**
  * UTXO Validation Service
  *
- * Validates that UTXOs referenced in a peg-in transaction are still unspent
+ * Validates that UTXOs referenced in a pre-pegin transaction are still unspent
  * BEFORE asking the user to sign. This prevents wasted signing effort when
- * UTXOs have already been spent.
- *
- * Uses a simple approach: fetch the depositor's current UTXOs and verify
- * that the transaction inputs are still available.
+ * UTXOs have already been spent by unrelated transactions.
  */
 
 import { getAddressUtxos } from "@babylonlabs-io/ts-sdk";
@@ -90,9 +87,6 @@ export function extractInputsFromTransaction(
  *
  * This should be called BEFORE signing to avoid wasting user effort
  * signing a transaction that will fail to broadcast.
- *
- * Uses a simple approach: fetches the depositor's current UTXOs and
- * checks if all transaction inputs are still in that set.
  *
  * @param unsignedTxHex - Unsigned transaction hex
  * @param depositorAddress - Depositor's Bitcoin address

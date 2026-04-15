@@ -60,8 +60,6 @@ export interface PeginPollingProviderProps extends PropsWithChildren {
   pendingPegins: PendingPeginRequest[];
   /** Depositor's BTC public key (x-only, 32 bytes without 0x prefix) */
   btcPublicKey?: string;
-  /** Depositor's BTC address (for broadcast state auto-detection) */
-  btcAddress?: string;
 }
 
 /** Deposit prepared for polling */

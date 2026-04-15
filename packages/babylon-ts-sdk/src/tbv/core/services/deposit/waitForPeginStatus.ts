@@ -6,7 +6,11 @@
  */
 
 import { JsonRpcError } from "../../clients/vault-provider/json-rpc-client";
-import { RpcErrorCode, type DaemonStatus } from "../../clients/vault-provider/types";
+import {
+  RpcErrorCode,
+  VP_TERMINAL_STATUSES,
+  type DaemonStatus,
+} from "../../clients/vault-provider/types";
 import type { PeginStatusReader } from "./interfaces";
 
 /** Default polling interval (10 seconds). */
@@ -69,6 +73,12 @@ export async function waitForPeginStatus(
       const status = response.status as DaemonStatus;
       if (targetStatuses.has(status)) {
         return status;
+      }
+      // Fail fast on terminal statuses to avoid waiting for timeout
+      if (VP_TERMINAL_STATUSES.has(status) && !targetStatuses.has(status)) {
+        throw new Error(
+          `Pegin ${peginTxid.slice(0, 8)}… reached terminal status "${status}" while waiting for ${[...targetStatuses].join(", ")}`,
+        );
       }
     } catch (error) {
       // "PegIn not found" is transient — VP hasn't ingested the pegin yet.

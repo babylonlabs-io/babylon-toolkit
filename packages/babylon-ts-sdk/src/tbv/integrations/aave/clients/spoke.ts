@@ -23,16 +23,15 @@ type AccountDataResult = {
   avgCollateralFactor: bigint;
   healthFactor: bigint;
   totalCollateralValue: bigint;
-  totalDebtValue: bigint;
+  totalDebtValueRay: bigint;
   activeCollateralCount: bigint;
-  borrowedCount: bigint;
+  borrowCount: bigint;
 };
 
 /** Position result type from contract */
 type PositionResult = {
   drawnShares: bigint;
   premiumShares: bigint;
-  realizedPremiumRay: bigint;
   premiumOffsetRay: bigint;
   suppliedShares: bigint;
   dynamicConfigKey: number;
@@ -45,7 +44,6 @@ function mapPositionResult(result: PositionResult): AaveSpokeUserPosition {
   return {
     drawnShares: result.drawnShares,
     premiumShares: result.premiumShares,
-    realizedPremiumRay: result.realizedPremiumRay,
     premiumOffsetRay: result.premiumOffsetRay,
     suppliedShares: result.suppliedShares,
     dynamicConfigKey: result.dynamicConfigKey,
@@ -83,14 +81,14 @@ function mapPositionResult(result: PositionResult): AaveSpokeUserPosition {
  *
  * console.log("Health Factor:", accountData.healthFactor);
  * console.log("Collateral (USD):", accountData.totalCollateralValue);
- * console.log("Debt (USD):", accountData.totalDebtValue);
+ * console.log("Debt (USD):", accountData.totalDebtValueRay);
  * ```
  *
  * @remarks
  * **Return values:**
  * - `healthFactor` - WAD format (1e18 = 1.0). Below 1.0 = liquidatable
  * - `totalCollateralValue` - USD value in base currency (1e26 = $1)
- * - `totalDebtValue` - USD value in base currency (1e26 = $1)
+ * - `totalDebtValueRay` - USD value in RAY-scaled base currency (1e35 = $1)
  * - `avgCollateralFactor` - Weighted average collateral factor in WAD (1e18 = 100%)
  * - `riskPremium` - Additional risk premium
  *
@@ -118,9 +116,9 @@ export async function getUserAccountData(
     avgCollateralFactor: data.avgCollateralFactor,
     healthFactor: data.healthFactor,
     totalCollateralValue: data.totalCollateralValue,
-    totalDebtValue: data.totalDebtValue,
+    totalDebtValueRay: data.totalDebtValueRay,
     activeCollateralCount: data.activeCollateralCount,
-    borrowedCount: data.borrowedCount,
+    borrowCount: data.borrowCount,
   };
 }
 

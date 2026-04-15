@@ -133,6 +133,18 @@ async function fetchFromProvider(
         continue;
       }
 
+      if (status === DaemonStatus.CLAIM_POSTED) {
+        errors.set(depositId, new Error("Claim transaction posted"));
+        needsWotsKey.delete(depositId);
+        continue;
+      }
+
+      if (status === DaemonStatus.PEGGED_OUT) {
+        errors.set(depositId, new Error("BTC has been returned to depositor"));
+        needsWotsKey.delete(depositId);
+        continue;
+      }
+
       // Phase 2: Status is PendingDepositorSignatures — fetch transaction data
       if (status === DaemonStatus.PENDING_DEPOSITOR_SIGNATURES) {
         const response = await rpcClient.requestDepositorPresignTransactions({
@@ -149,7 +161,7 @@ async function fetchFromProvider(
         continue;
       }
 
-      // Unhandled status (e.g. ClaimPosted, PeggedOut) — clear errors, keep polling
+      // Transient VP status — clear errors, keep polling
       errors.delete(depositId);
       needsWotsKey.delete(depositId);
     } catch (error) {
@@ -264,25 +276,24 @@ export function usePeginPollingQuery({
     enabled: isEnabled,
     staleTime: 0,
     refetchInterval: (query) => {
-      // Stop polling if any deposit has a terminal error (e.g., wallet mismatch)
-      const errorMap = query.state.data?.errors;
-      if (errorMap && errorMap.size > 0) {
-        for (const error of errorMap.values()) {
-          if (isTerminalPollingError(error)) return false;
-        }
-      }
-
-      // Stop polling if all deposits have ready transactions
       const currentDeposits = depositsRef.current;
+      if (currentDeposits.length === 0) return false;
+
       const txMap = query.state.data?.transactions;
-      const hasAllData = txMap && txMap.size === currentDeposits.length;
-      if (hasAllData) {
-        const allReady = currentDeposits.every((d) => {
-          const txs = txMap?.get(d.activity.id);
-          return txs && areTransactionsReady(txs);
-        });
-        if (allReady) return false;
-      }
+      const errorMap = query.state.data?.errors;
+
+      // Stop polling only when every deposit is resolved:
+      // either has ready transactions or hit a terminal error.
+      const allResolved = currentDeposits.every((d) => {
+        const depositId = d.activity.id;
+        const txs = txMap?.get(depositId);
+        if (txs && areTransactionsReady(txs)) return true;
+        const error = errorMap?.get(depositId);
+        if (error && isTerminalPollingError(error)) return true;
+        return false;
+      });
+      if (allResolved) return false;
+
       return POLLING_INTERVAL_MS;
     },
     retry: POLLING_RETRY_COUNT,

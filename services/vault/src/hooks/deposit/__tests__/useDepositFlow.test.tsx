@@ -101,17 +101,21 @@ vi.mock("@/services/vault/vaultPeginBroadcastService", () => ({
 }));
 
 vi.mock("@/services/wots/wotsService", () => ({
-  deriveWotsPkHash: vi
+  mnemonicToWotsSeed: vi.fn().mockReturnValue(new Uint8Array(32)),
+  deriveWotsBlockPublicKeys: vi.fn().mockResolvedValue([]),
+  computeWotsPublicKeysHash: vi
     .fn()
-    .mockResolvedValue(
+    .mockReturnValue(
       "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
     ),
 }));
 
 vi.mock("@/services/wots", () => ({
-  deriveWotsPkHash: vi
+  mnemonicToWotsSeed: vi.fn().mockReturnValue(new Uint8Array(32)),
+  deriveWotsBlockPublicKeys: vi.fn().mockResolvedValue([]),
+  computeWotsPublicKeysHash: vi
     .fn()
-    .mockResolvedValue(
+    .mockReturnValue(
       "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
     ),
   linkPeginToMnemonic: vi.fn(),
@@ -463,8 +467,10 @@ describe("useDepositFlow", () => {
       });
     });
 
-    it("should derive WOTS PK hashes for all vaults before batch call", async () => {
-      const { deriveWotsPkHash } = vi.mocked(await import("@/services/wots"));
+    it("should derive WOTS public keys for all vaults before batch call", async () => {
+      const { deriveWotsBlockPublicKeys } = vi.mocked(
+        await import("@/services/wots"),
+      );
 
       const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
 
@@ -472,7 +478,7 @@ describe("useDepositFlow", () => {
 
       await waitFor(() => {
         // WOTS derivation should happen for each vault
-        expect(deriveWotsPkHash).toHaveBeenCalledTimes(2);
+        expect(deriveWotsBlockPublicKeys).toHaveBeenCalledTimes(2);
       });
     });
   });

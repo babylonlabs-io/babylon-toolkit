@@ -51,6 +51,8 @@ const HEX_RE = /^[0-9a-fA-F]+$/;
 
 /** Expected length (in hex chars) of an x-only Bitcoin public key (32 bytes). */
 const X_ONLY_PUBKEY_HEX_LEN = 64;
+/** Expected length (in hex chars) of a compressed Bitcoin public key (33 bytes). */
+const COMPRESSED_PUBKEY_HEX_LEN = 66;
 
 /** Expected length (in hex chars) of a Bitcoin transaction ID (32 bytes). */
 const TXID_HEX_LEN = 64;
@@ -79,10 +81,18 @@ function assertNonEmptyString(value: unknown, field: string): void {
   }
 }
 
-function assertXOnlyPubkey(value: unknown, field: string): void {
-  if (!isNonEmptyHex(value) || value.length !== X_ONLY_PUBKEY_HEX_LEN) {
+/**
+ * Accept both x-only (64-char) and compressed (66-char) pubkeys from VP responses.
+ * The signing code normalizes to x-only via processPublicKeyToXOnly().
+ */
+function assertBtcPubkey(value: unknown, field: string): void {
+  if (
+    !isNonEmptyHex(value) ||
+    (value.length !== X_ONLY_PUBKEY_HEX_LEN &&
+      value.length !== COMPRESSED_PUBKEY_HEX_LEN)
+  ) {
     throw new VpResponseValidationError(
-      `VP response validation failed: "${field}" must be a ${X_ONLY_PUBKEY_HEX_LEN}-char hex string (x-only pubkey), got ${preview(value)}`,
+      `VP response validation failed: "${field}" must be a ${X_ONLY_PUBKEY_HEX_LEN} or ${COMPRESSED_PUBKEY_HEX_LEN}-char hex string (BTC pubkey), got ${preview(value)}`,
     );
   }
 }
@@ -244,7 +254,7 @@ function validateClaimerTransactions(value: unknown, field: string): void {
 
   const tx = value as Record<string, unknown>;
 
-  assertXOnlyPubkey(tx.claimer_pubkey, `${field}.claimer_pubkey`);
+  assertBtcPubkey(tx.claimer_pubkey, `${field}.claimer_pubkey`);
   validateTransactionData(tx.claim_tx, `${field}.claim_tx`);
   validateTransactionData(tx.assert_tx, `${field}.assert_tx`);
   validateTransactionData(tx.payout_tx, `${field}.payout_tx`);
@@ -275,7 +285,7 @@ function validatePresignDataPerChallenger(value: unknown, field: string): void {
 
   const d = value as Record<string, unknown>;
 
-  assertXOnlyPubkey(d.challenger_pubkey, `${field}.challenger_pubkey`);
+  assertBtcPubkey(d.challenger_pubkey, `${field}.challenger_pubkey`);
   validateTransactionData(
     d.challenge_assert_x_tx,
     `${field}.challenge_assert_x_tx`,

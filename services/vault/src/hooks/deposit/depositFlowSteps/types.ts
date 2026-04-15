@@ -10,6 +10,7 @@ import type {
   PreparedTransaction,
   SigningContext,
 } from "@/services/vault/vaultPayoutSignatureService";
+import type { WotsPublicKeys } from "@/services/wots";
 
 // ============================================================================
 // Deposit Flow Steps
@@ -97,9 +98,9 @@ export interface WotsSubmissionParams {
   /** Raw BTC pegin transaction hash (for VP RPC pegin_txid) */
   peginTxHash: string;
   depositorBtcPubkey: string;
-  appContractAddress: string;
   providerAddress: string;
-  getMnemonic: () => Promise<string>;
+  /** Pre-derived WOTS block public keys (one per assert block) */
+  wotsPublicKeys: WotsPublicKeys;
   signal?: AbortSignal;
 }
 

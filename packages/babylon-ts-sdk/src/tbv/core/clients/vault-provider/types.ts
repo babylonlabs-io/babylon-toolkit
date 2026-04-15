@@ -78,6 +78,17 @@ export const VP_TRANSIENT_STATUSES: ReadonlySet<DaemonStatus> = new Set([
 ]);
 
 /**
+ * Terminal VP statuses where no further progress is possible.
+ * If the VP reaches one of these states while polling, polling should
+ * stop immediately with an error rather than waiting for timeout.
+ */
+export const VP_TERMINAL_STATUSES: ReadonlySet<DaemonStatus> = new Set([
+  DaemonStatus.EXPIRED,
+  DaemonStatus.CLAIM_POSTED,
+  DaemonStatus.PEGGED_OUT,
+]);
+
+/**
  * Statuses that come after WOTS key submission.
  * If the VP is already in one of these states, the WOTS key was already
  * submitted and we can skip.

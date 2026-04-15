@@ -104,6 +104,11 @@
         "internalType": "struct ITBVAaveSpoke.ReserveConfig",
         "components": [
           {
+            "name": "collateralRisk",
+            "type": "uint24",
+            "internalType": "uint24"
+          },
+          {
             "name": "paused",
             "type": "bool",
             "internalType": "bool"
@@ -119,9 +124,9 @@
             "internalType": "bool"
           },
           {
-            "name": "collateralRisk",
-            "type": "uint24",
-            "internalType": "uint24"
+            "name": "receiveSharesEnabled",
+            "type": "bool",
+            "internalType": "bool"
           }
         ]
       },
@@ -377,6 +382,11 @@
         "internalType": "struct ITBVAaveSpoke.ReserveConfig",
         "components": [
           {
+            "name": "collateralRisk",
+            "type": "uint24",
+            "internalType": "uint24"
+          },
+          {
             "name": "paused",
             "type": "bool",
             "internalType": "bool"
@@ -392,9 +402,9 @@
             "internalType": "bool"
           },
           {
-            "name": "collateralRisk",
-            "type": "uint24",
-            "internalType": "uint24"
+            "name": "receiveSharesEnabled",
+            "type": "bool",
+            "internalType": "bool"
           }
         ]
       }
@@ -532,7 +542,7 @@
             "internalType": "uint256"
           },
           {
-            "name": "totalDebtValue",
+            "name": "totalDebtValueRay",
             "type": "uint256",
             "internalType": "uint256"
           },
@@ -542,7 +552,7 @@
             "internalType": "uint256"
           },
           {
-            "name": "borrowedCount",
+            "name": "borrowCount",
             "type": "uint256",
             "internalType": "uint256"
           }
@@ -612,14 +622,9 @@
             "internalType": "uint120"
           },
           {
-            "name": "realizedPremiumRay",
-            "type": "uint200",
-            "internalType": "uint200"
-          },
-          {
             "name": "premiumOffsetRay",
-            "type": "uint200",
-            "internalType": "uint200"
+            "type": "int200",
+            "internalType": "int200"
           },
           {
             "name": "suppliedShares",
@@ -1143,6 +1148,11 @@
         "internalType": "struct ITBVAaveSpoke.ReserveConfig",
         "components": [
           {
+            "name": "collateralRisk",
+            "type": "uint24",
+            "internalType": "uint24"
+          },
+          {
             "name": "paused",
             "type": "bool",
             "internalType": "bool"
@@ -1158,9 +1168,9 @@
             "internalType": "bool"
           },
           {
-            "name": "collateralRisk",
-            "type": "uint24",
-            "internalType": "uint24"
+            "name": "receiveSharesEnabled",
+            "type": "bool",
+            "internalType": "bool"
           }
         ]
       }

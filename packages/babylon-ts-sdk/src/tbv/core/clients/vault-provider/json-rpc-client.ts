@@ -244,7 +244,7 @@ export class JsonRpcClient {
 
           if (shouldRetry) {
             const delay = this.retryDelay * Math.pow(2, attempt);
-            await this.sleep(delay);
+            await this.sleep(delay, callerSignal);
             continue;
           }
 
@@ -267,7 +267,7 @@ export class JsonRpcClient {
         if (error instanceof Error && error.name === "AbortError") {
           if (attempt < maxRetries) {
             const delay = this.retryDelay * Math.pow(2, attempt);
-            await this.sleep(delay);
+            await this.sleep(delay, callerSignal);
             continue;
           }
           throw new JsonRpcError(
@@ -280,7 +280,7 @@ export class JsonRpcClient {
         if (error instanceof TypeError) {
           if (attempt < maxRetries) {
             const delay = this.retryDelay * Math.pow(2, attempt);
-            await this.sleep(delay);
+            await this.sleep(delay, callerSignal);
             continue;
           }
           throw new JsonRpcError(
@@ -297,8 +297,22 @@ export class JsonRpcClient {
     throw lastError || new Error("Unknown error after retries");
   }
 
-  private sleep(ms: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, ms));
+  private sleep(ms: number, signal?: AbortSignal): Promise<void> {
+    return new Promise((resolve, reject) => {
+      if (signal?.aborted) {
+        reject(new Error("Request aborted"));
+        return;
+      }
+      const timeoutId = setTimeout(() => {
+        signal?.removeEventListener("abort", onAbort);
+        resolve();
+      }, ms);
+      const onAbort = () => {
+        clearTimeout(timeoutId);
+        reject(new Error("Request aborted"));
+      };
+      signal?.addEventListener("abort", onAbort, { once: true });
+    });
   }
 
   getBaseUrl(): string {
