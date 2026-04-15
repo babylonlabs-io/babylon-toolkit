@@ -3,7 +3,9 @@
  * current usage (protocol-total and optionally per-user).
  *
  * Reads from the on-chain CapPolicy contract, keyed by the configured Aave
- * adapter entry point.
+ * adapter entry point. Gated by the `VAULT_CAP` feature flag — when disabled,
+ * the hook short-circuits without any RPC reads and consumers see a stable
+ * "no feature" state (`snapshot: null`, `isLoading: false`, `error: null`).
  */
 
 import { useQuery } from "@tanstack/react-query";
@@ -15,6 +17,7 @@ import {
   getApplicationUsage,
 } from "@/clients/eth-contract/cap-policy";
 import { CONTRACTS } from "@/config/contracts";
+import featureFlags from "@/config/featureFlags";
 import { computeCapSnapshot, type CapSnapshot } from "@/services/deposit";
 
 const APPLICATION_CAP_KEY = "applicationCap";
@@ -29,6 +32,7 @@ export interface UseApplicationCapResult {
 }
 
 export function useApplicationCap(user?: string): UseApplicationCapResult {
+  const enabled = featureFlags.isVaultCapEnabled;
   const app = CONTRACTS.AAVE_ADAPTER;
   // Wallet adapters surface addresses as string; cast at the boundary.
   const userAddress = user ? (user as Address) : undefined;
@@ -39,6 +43,7 @@ export function useApplicationCap(user?: string): UseApplicationCapResult {
     staleTime: CAP_STALE_TIME_MS,
     refetchInterval: CAP_REFETCH_INTERVAL_MS,
     refetchOnWindowFocus: false,
+    enabled,
   });
 
   const usageQuery = useQuery({
@@ -47,10 +52,11 @@ export function useApplicationCap(user?: string): UseApplicationCapResult {
     staleTime: CAP_STALE_TIME_MS,
     refetchInterval: CAP_REFETCH_INTERVAL_MS,
     refetchOnWindowFocus: false,
+    enabled,
   });
 
   const snapshot = useMemo<CapSnapshot | null>(() => {
-    if (!capsQuery.data) return null;
+    if (!enabled || !capsQuery.data) return null;
     // Uncapped deployments resolve immediately once caps are known; usage data
     // is irrelevant when no cap exists, so the UI can hide without waiting on
     // the usage query to finish loading.
@@ -70,7 +76,7 @@ export function useApplicationCap(user?: string): UseApplicationCapResult {
       totalBTC: usageQuery.data.totalBTC,
       userBTC: usageQuery.data.userBTC,
     });
-  }, [capsQuery.data, usageQuery.data]);
+  }, [enabled, capsQuery.data, usageQuery.data]);
 
   const capsRefetch = capsQuery.refetch;
   const usageRefetch = usageQuery.refetch;
@@ -79,10 +85,21 @@ export function useApplicationCap(user?: string): UseApplicationCapResult {
     usageRefetch();
   }, [capsRefetch, usageRefetch]);
 
+  // Once an uncapped snapshot resolves, the usage query is irrelevant — its
+  // pending/error state must not bleed into the public surface, otherwise an
+  // unrelated usage RPC failure would set `capUnavailable: true` in the
+  // deposit form and block all deposits with "Unable to verify supply cap".
+  const uncappedSnapshot =
+    snapshot !== null && !snapshot.hasTotalCap && !snapshot.hasPerAddressCap;
+
   return {
     snapshot,
-    isLoading: capsQuery.isLoading || usageQuery.isLoading,
-    error: (capsQuery.error ?? usageQuery.error) as Error | null,
+    isLoading: uncappedSnapshot
+      ? capsQuery.isLoading
+      : capsQuery.isLoading || usageQuery.isLoading,
+    error: (uncappedSnapshot
+      ? capsQuery.error
+      : (capsQuery.error ?? usageQuery.error)) as Error | null,
     refetch,
   };
 }

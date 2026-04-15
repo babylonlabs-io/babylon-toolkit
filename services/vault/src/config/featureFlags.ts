@@ -69,4 +69,18 @@ export default {
   get isPositionNotificationsEnabled() {
     return process.env.NEXT_PUBLIC_FF_POSITION_NOTIFICATIONS === "true";
   },
+
+  /**
+   * VAULT_CAP feature flag
+   *
+   * Purpose: Enables the vault supply-cap UI on the dashboard and the
+   * remaining-capacity check in deposit-form validation. When disabled, the
+   * hook short-circuits without any on-chain CapPolicy reads.
+   * Why needed: Feature is expected to be temporary; allows quickly hiding it
+   * per environment without a code change.
+   * Default: false (disabled unless explicitly set to "true")
+   */
+  get isVaultCapEnabled() {
+    return process.env.NEXT_PUBLIC_FF_VAULT_CAP === "true";
+  },
 };

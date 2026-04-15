@@ -10,6 +10,11 @@ vi.mock("@/config/contracts", () => ({
   },
 }));
 
+const featureFlagsMock = vi.hoisted(() => ({ isVaultCapEnabled: true }));
+vi.mock("@/config/featureFlags", () => ({
+  default: featureFlagsMock,
+}));
+
 vi.mock("@/clients/eth-contract/cap-policy", () => ({
   getApplicationCap: vi.fn(),
   getApplicationUsage: vi.fn(),
@@ -35,6 +40,7 @@ function buildWrapper() {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  featureFlagsMock.isVaultCapEnabled = true;
 });
 
 describe("useApplicationCap", () => {
@@ -121,5 +127,55 @@ describe("useApplicationCap", () => {
 
     expect(result.current.snapshot).toBeNull();
     expect(result.current.isLoading).toBe(true);
+  });
+
+  it("does not surface usage loading once an uncapped snapshot has resolved", async () => {
+    vi.mocked(getApplicationCap).mockResolvedValue({
+      totalCapBTC: 0n,
+      perAddressCapBTC: 0n,
+    });
+    // Usage RPC never resolves; without isolation the hook would stay loading.
+    vi.mocked(getApplicationUsage).mockImplementation(
+      () => new Promise(() => {}),
+    );
+
+    const { result } = renderHook(() => useApplicationCap(), {
+      wrapper: buildWrapper(),
+    });
+
+    await waitFor(() => expect(result.current.snapshot).not.toBeNull());
+    expect(result.current.isLoading).toBe(false);
+  });
+
+  it("does not surface usage errors once an uncapped snapshot has resolved", async () => {
+    vi.mocked(getApplicationCap).mockResolvedValue({
+      totalCapBTC: 0n,
+      perAddressCapBTC: 0n,
+    });
+    vi.mocked(getApplicationUsage).mockRejectedValue(
+      new Error("usage rpc timeout"),
+    );
+
+    const { result } = renderHook(() => useApplicationCap(), {
+      wrapper: buildWrapper(),
+    });
+
+    await waitFor(() => expect(result.current.snapshot).not.toBeNull());
+    // Wait one more tick to give the rejected usage query time to settle.
+    await waitFor(() => expect(result.current.error).toBeNull());
+  });
+
+  it("returns a no-feature state and skips RPC when the vault-cap flag is disabled", () => {
+    featureFlagsMock.isVaultCapEnabled = false;
+
+    const { result } = renderHook(() => useApplicationCap("0xuser"), {
+      wrapper: buildWrapper(),
+    });
+
+    expect(result.current.snapshot).toBeNull();
+    expect(result.current.isLoading).toBe(false);
+    expect(result.current.error).toBeNull();
+    expect(getApplicationCap).not.toHaveBeenCalled();
+    expect(getApplicationUsage).not.toHaveBeenCalled();
   });
 });
