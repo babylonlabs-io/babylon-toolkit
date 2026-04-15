@@ -17,23 +17,6 @@ export interface ValidationResult {
 }
 
 /**
- * Parameters for validating deposit flow inputs before starting
- */
-export interface DepositFlowInputs {
-  btcAddress: string | undefined;
-  depositorEthAddress: Address | undefined;
-  amount: bigint;
-  selectedProviders: string[];
-  confirmedUTXOs: UTXO[] | null;
-  isUTXOsLoading: boolean;
-  utxoError: Error | null;
-  vaultKeeperBtcPubkeys: string[];
-  universalChallengerBtcPubkeys: string[];
-  minDeposit: bigint;
-  maxDeposit?: bigint;
-}
-
-/**
  * Parameters for checking if a deposit form is valid
  */
 export interface DepositFormValidityParams {
@@ -364,46 +347,6 @@ function validateProviders(selectedProviders: string[]): void {
   if (!selectedProviders || selectedProviders.length === 0) {
     throw new Error("At least one vault provider required");
   }
-}
-
-// ============================================================================
-// Single-Vault Deposit Validation
-// ============================================================================
-
-/**
- * Validate all deposit inputs before starting the flow.
- * Throws an error if any validation fails.
- */
-export function validateDepositInputs(params: DepositFlowInputs): void {
-  const {
-    btcAddress,
-    depositorEthAddress,
-    amount,
-    selectedProviders,
-    confirmedUTXOs,
-    isUTXOsLoading,
-    utxoError,
-    vaultKeeperBtcPubkeys,
-    universalChallengerBtcPubkeys,
-    minDeposit,
-    maxDeposit,
-  } = params;
-
-  validateWalletConnections(btcAddress, depositorEthAddress);
-
-  const amountValidation = validateDepositAmount(
-    amount,
-    minDeposit,
-    maxDeposit,
-  );
-  if (!amountValidation.valid) {
-    throw new Error(amountValidation.error);
-  }
-
-  validateProviders(selectedProviders);
-  validateVaultKeepers(vaultKeeperBtcPubkeys);
-  validateUniversalChallengers(universalChallengerBtcPubkeys);
-  validateUTXOState(confirmedUTXOs, isUTXOsLoading, utxoError);
 }
 
 // ============================================================================

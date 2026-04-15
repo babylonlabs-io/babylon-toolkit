@@ -9,10 +9,13 @@
  */
 
 import { Button, Input } from "@babylonlabs-io/core-ui";
+import type {
+  ClaimerTransactions,
+  DepositorGraphTransactions,
+} from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import { useCallback, useMemo, useState } from "react";
 import type { Hex } from "viem";
 
-import type { DepositorGraphTransactions } from "@/clients/vault-provider-rpc/types";
 import {
   computeDepositDerivedState,
   DepositFlowStep,
@@ -33,7 +36,6 @@ import {
   linkPeginToMnemonic,
 } from "@/services/wots";
 import type { VaultActivity } from "@/types/activity";
-import type { ClaimerTransactions } from "@/types/rpc";
 
 import { DepositProgressView } from "./DepositProgressView";
 

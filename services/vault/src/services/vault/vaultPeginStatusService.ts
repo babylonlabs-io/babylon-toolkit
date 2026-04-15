@@ -6,13 +6,11 @@
  * avoid duplicating the pollUntil + getPeginStatus pattern.
  */
 
-import { VaultProviderRpcApi } from "@/clients/vault-provider-rpc";
+import { VaultProviderRpcClient } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
+
 import { pollUntil } from "@/utils/async";
 import { stripHexPrefix } from "@/utils/btc";
 import { getVpProxyUrl } from "@/utils/rpc";
-
-/** Timeout for RPC requests (60 seconds) */
-const RPC_TIMEOUT_MS = 60 * 1000;
 
 /** Default polling interval (10 seconds) */
 const DEFAULT_POLL_INTERVAL_MS = 10 * 1000;
@@ -51,10 +49,7 @@ export async function waitForPeginStatus(
     signal,
   } = params;
 
-  const rpcClient = new VaultProviderRpcApi(
-    getVpProxyUrl(providerAddress),
-    RPC_TIMEOUT_MS,
-  );
+  const rpcClient = new VaultProviderRpcClient(getVpProxyUrl(providerAddress));
   const strippedTxid = stripHexPrefix(peginTxHash);
 
   return pollUntil<string>(

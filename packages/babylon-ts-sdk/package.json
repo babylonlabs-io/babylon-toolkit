@@ -30,6 +30,16 @@
       "require": "./dist/tbv/core/utils/index.cjs",
       "import": "./dist/tbv/core/utils/index.js"
     },
+    "./tbv/core/clients": {
+      "types": "./dist/tbv/core/clients/index.d.ts",
+      "require": "./dist/tbv/core/clients/index.cjs",
+      "import": "./dist/tbv/core/clients/index.js"
+    },
+    "./tbv/core/services": {
+      "types": "./dist/tbv/core/services/index.d.ts",
+      "require": "./dist/tbv/core/services/index.cjs",
+      "import": "./dist/tbv/core/services/index.js"
+    },
     "./tbv/integrations/aave": {
       "types": "./dist/tbv/integrations/aave/index.d.ts",
       "require": "./dist/tbv/integrations/aave/index.cjs",

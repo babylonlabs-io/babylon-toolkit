@@ -3,5 +3,5 @@
  * Re-exports from service layer for convenience
  */
 
-export { validateDepositInputs } from "@/services/deposit/validations";
-export type { DepositFlowInputs } from "@/services/deposit/validations";
+export { validateMultiVaultDepositInputs } from "@/services/deposit/validations";
+export type { MultiVaultDepositFlowInputs } from "@/services/deposit/validations";

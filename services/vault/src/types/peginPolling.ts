@@ -2,15 +2,17 @@
  * Types for Peg-In Polling Context
  */
 
+import type {
+  ClaimerTransactions,
+  DepositorGraphTransactions,
+} from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import type { PropsWithChildren } from "react";
 
-import type { DepositorGraphTransactions } from "../clients/vault-provider-rpc/types";
 import type {
   LocalStorageStatus,
   PeginState,
 } from "../models/peginStateMachine";
 import type { PendingPeginRequest } from "../storage/peginStorage";
-import type { ClaimerTransactions } from "../types";
 import type { VaultActivity } from "../types/activity";
 
 /** Result of polling for a single deposit */

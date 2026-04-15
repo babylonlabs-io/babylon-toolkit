@@ -7,27 +7,28 @@
  * exceed consecutive failure / unknown-status thresholds.
  */
 
+import {
+  VaultProviderRpcClient,
+  type GetPegoutStatusResponse,
+} from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef } from "react";
 
 import type { RedeemedVaultInfo } from "@/applications/aave/hooks/useAaveVaults";
-import { VaultProviderRpcApi } from "@/clients/vault-provider-rpc";
-import type { GetPegoutStatusResponse } from "@/clients/vault-provider-rpc/types";
 import {
   PEGOUT_MAX_CONSECUTIVE_FAILURES,
   PEGOUT_MAX_UNKNOWN_STATUS_POLLS,
   POLLING_INTERVAL_MS,
   POLLING_RETRY_COUNT,
   POLLING_RETRY_DELAY_MS,
-  RPC_TIMEOUT_MS,
 } from "@/config/polling";
 import { logger } from "@/infrastructure";
 import {
   getPegoutDisplayState,
   isPegoutEffectivelyTerminal,
   isRecognizedPegoutStatus,
-  type PegoutDisplayState,
   TIMED_OUT_STATE,
+  type PegoutDisplayState,
 } from "@/models/pegoutStateMachine";
 import { stripHexPrefix } from "@/utils/btc";
 import { getVpProxyUrl } from "@/utils/rpc";
@@ -89,7 +90,7 @@ async function fetchPegoutStatusesFromProvider(
   results: Map<string, PegoutPollingResult>,
   counters: VaultPollCounters,
 ): Promise<void> {
-  const rpcClient = new VaultProviderRpcApi(providerUrl, RPC_TIMEOUT_MS);
+  const rpcClient = new VaultProviderRpcClient(providerUrl);
 
   for (const { vault } of vaults) {
     try {

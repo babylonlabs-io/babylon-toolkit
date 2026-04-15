@@ -5,26 +5,27 @@
  * transactions from all vault providers in parallel.
  */
 
+import type {
+  ClaimerTransactions,
+  DepositorGraphTransactions,
+} from "@babylonlabs-io/ts-sdk/tbv/core/clients";
+import {
+  DaemonStatus,
+  VaultProviderRpcClient,
+  VP_TRANSIENT_STATUSES,
+  VpResponseValidationError,
+} from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef } from "react";
 
 import { logger } from "@/infrastructure";
 
-import { VaultProviderRpcApi } from "../../clients/vault-provider-rpc";
-import type { DepositorGraphTransactions } from "../../clients/vault-provider-rpc/types";
-import { VpResponseValidationError } from "../../clients/vault-provider-rpc/validators";
 import {
   POLLING_INTERVAL_MS,
   POLLING_RETRY_COUNT,
   POLLING_RETRY_DELAY_MS,
-  RPC_TIMEOUT_MS,
 } from "../../config/polling";
-import {
-  DaemonStatus,
-  VP_TRANSIENT_STATUSES,
-} from "../../models/peginStateMachine";
 import type { PendingPeginRequest } from "../../storage/peginStorage";
-import type { ClaimerTransactions } from "../../types";
 import type { VaultActivity } from "../../types/activity";
 import type {
   DepositsByProvider,
@@ -93,7 +94,7 @@ async function fetchFromProvider(
   needsWotsKey: Set<string>,
   pendingIngestion: Set<string>,
 ): Promise<void> {
-  const rpcClient = new VaultProviderRpcApi(providerUrl, RPC_TIMEOUT_MS);
+  const rpcClient = new VaultProviderRpcClient(providerUrl);
 
   for (const deposit of deposits) {
     const depositId = deposit.activity.id;

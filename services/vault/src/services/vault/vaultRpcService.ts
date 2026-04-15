@@ -1,1 +1,1 @@
-export { VaultProviderRpcApi } from "../../clients/vault-provider-rpc";
+export { VaultProviderRpcClient } from "@babylonlabs-io/ts-sdk/tbv/core/clients";

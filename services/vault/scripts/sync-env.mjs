@@ -40,7 +40,6 @@ const FIELD_MAP = {
   vpProxyUrl: "NEXT_PUBLIC_TBV_VP_PROXY_URL",
   "contracts.btcVaultRegistry": "NEXT_PUBLIC_TBV_BTC_VAULT_REGISTRY",
   "contracts.aaveAdapter": "NEXT_PUBLIC_TBV_AAVE_ADAPTER",
-  "contracts.aaveSpoke": "NEXT_PUBLIC_TBV_AAVE_SPOKE",
   "contracts.btcPriceFeed": "NEXT_PUBLIC_TBV_BTC_PRICE_FEED",
 };
 

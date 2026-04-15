@@ -1,15 +1,17 @@
 import { FullScreenDialog, Heading } from "@babylonlabs-io/core-ui";
+import type {
+  ClaimerTransactions,
+  DepositorGraphTransactions,
+} from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Hex } from "viem";
 
-import type { DepositorGraphTransactions } from "@/clients/vault-provider-rpc/types";
 import { FeatureFlags } from "@/config";
 import { useGeoFencing } from "@/context/geofencing";
 import { ProtocolParamsProvider } from "@/context/ProtocolParamsContext";
 import { useDialogStep } from "@/hooks/deposit/useDialogStep";
 import { depositService } from "@/services/deposit";
 import type { VaultActivity } from "@/types/activity";
-import type { ClaimerTransactions } from "@/types/rpc";
 import type { VaultProvider } from "@/types/vaultProvider";
 import { generateSecretHex } from "@/utils/secretUtils";
 

@@ -15,17 +15,18 @@
  * the app before the RPC submission completed.
  */
 
-import { VaultProviderRpcApi } from "@/clients/vault-provider-rpc";
-import { DaemonStatus, POST_WOTS_STATUSES } from "@/models/peginStateMachine";
+import {
+  DaemonStatus,
+  POST_WOTS_STATUSES,
+  VaultProviderRpcClient,
+} from "@babylonlabs-io/ts-sdk/tbv/core/clients";
+
 import { waitForPeginStatus } from "@/services/vault/vaultPeginStatusService";
 import { deriveWotsBlockPublicKeys, mnemonicToWotsSeed } from "@/services/wots";
 import { stripHexPrefix } from "@/utils/btc";
 import { getVpProxyUrl } from "@/utils/rpc";
 
 import type { WotsSubmissionParams } from "./types";
-
-/** Timeout for the WOTS key submission RPC call. */
-const RPC_TIMEOUT_MS = 60 * 1000;
 
 /** Maximum time to wait for VP to reach PendingDepositorWotsPK (5 min). */
 const STATUS_POLL_TIMEOUT_MS = 5 * 60 * 1000;
@@ -90,10 +91,7 @@ export async function submitWotsPublicKey(
 
   signal?.throwIfAborted();
 
-  const rpcClient = new VaultProviderRpcApi(
-    getVpProxyUrl(providerAddress),
-    RPC_TIMEOUT_MS,
-  );
+  const rpcClient = new VaultProviderRpcClient(getVpProxyUrl(providerAddress));
 
   await rpcClient.submitDepositorWotsKey({
     pegin_txid: stripHexPrefix(peginTxHash),

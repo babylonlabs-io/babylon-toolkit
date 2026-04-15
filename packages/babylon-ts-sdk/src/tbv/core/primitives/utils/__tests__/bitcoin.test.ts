@@ -33,8 +33,7 @@ describe("Bitcoin Utilities", () => {
 
     it("should handle edge cases", () => {
       expect(stripHexPrefix("0x")).toBe("");
-      // Note: only lowercase "0x" is stripped, uppercase "0X" is not a valid prefix
-      expect(stripHexPrefix("0X")).toBe("0X");
+      expect(stripHexPrefix("0X")).toBe("");
     });
   });
 

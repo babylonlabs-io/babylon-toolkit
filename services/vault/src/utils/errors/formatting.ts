@@ -3,7 +3,10 @@
  * Transform errors to user-friendly messages
  */
 
-import { JSON_RPC_ERROR_CODES, JsonRpcError } from "../rpc";
+import {
+  JSON_RPC_ERROR_CODES,
+  JsonRpcError,
+} from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 
 /**
  * Extract a safe error message from an unknown error value.
@@ -76,7 +79,7 @@ export function formatPayoutSignatureError(error: unknown): {
       };
     }
     // Proxy-specific: VP request timed out at the proxy level
-    if (error.code === -32002) {
+    if (error.code === JSON_RPC_ERROR_CODES.PROXY_TIMEOUT) {
       return {
         title: "Provider Timeout",
         message:
@@ -84,7 +87,7 @@ export function formatPayoutSignatureError(error: unknown): {
       };
     }
     // Proxy-specific: VP unreachable, DNS failure, or response too large
-    if (error.code === -32003) {
+    if (error.code === JSON_RPC_ERROR_CODES.PROXY_UNAVAILABLE) {
       return {
         title: "Provider Unavailable",
         message:

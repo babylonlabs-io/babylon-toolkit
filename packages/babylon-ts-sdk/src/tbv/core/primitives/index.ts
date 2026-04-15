@@ -78,6 +78,15 @@ export { computeNumLocalChallengers } from "./challengers";
 // Core types and functions from WASM package
 export type { Network } from "@babylonlabs-io/babylon-tbv-rust-wasm";
 export { computeMinClaimValue, deriveVaultId } from "@babylonlabs-io/babylon-tbv-rust-wasm";
+
+/**
+ * 0x-prefixed bytes32, keccak256(abi.encode(peginTxHash, depositor)).
+ * On-chain vault identifier used by BTCVaultRegistry contract.
+ *
+ * Type alias for documentation — not branded.
+ * Derive with `deriveVaultId(peginTxHash, depositorAddress)`.
+ */
+export type VaultId = `0x${string}`;
 export type {
   AssertPayoutNoPayoutConnectorParams,
   ChallengeAssertConnectorParams,

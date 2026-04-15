@@ -1,9 +1,9 @@
-import { useCallback, useState } from "react";
-
 import type {
   ClaimerTransactions,
   DepositorGraphTransactions,
-} from "../../clients/vault-provider-rpc/types";
+} from "@babylonlabs-io/ts-sdk/tbv/core/clients";
+import { useCallback, useState } from "react";
+
 import type { VaultActivity } from "../../types/activity";
 
 /** Data for an active signing session — all fields set together */

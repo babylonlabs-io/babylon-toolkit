@@ -3,9 +3,9 @@
  */
 
 import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
+import type { DepositorGraphTransactions } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import type { Hex, WalletClient } from "viem";
 
-import type { DepositorGraphTransactions } from "@/clients/vault-provider-rpc/types";
 import type {
   PreparedTransaction,
   SigningContext,

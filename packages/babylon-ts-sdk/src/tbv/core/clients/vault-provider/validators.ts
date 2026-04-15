@@ -2,13 +2,14 @@
  * Runtime validation for vault provider RPC responses.
  *
  * All VP RPC methods return untyped JSON that TypeScript generics cast without
- * inspection. A malicious or compromised vault provider can return any shape.
- * These validators throw on unexpected data so callers never operate on
- * attacker-controlled inputs.
+ * inspection. These validators check the critical top-level fields and
+ * security-relevant values (status, txids, pubkeys). Optional progress
+ * sub-fields (gc_data, ack_collection, claimer_graphs) are NOT validated
+ * since they are informational and not used for signing or transaction
+ * construction. Only `progress.presigning` sub-fields are checked.
  */
 
-import { DaemonStatus } from "../../models/peginStateMachine";
-
+import { DaemonStatus } from "./types";
 import type {
   GetPeginStatusResponse,
   GetPegoutStatusResponse,
@@ -88,7 +89,6 @@ function assertXOnlyPubkey(value: unknown, field: string): void {
 
 /**
  * Validate the optional presigning progress fields returned inside PeginProgressDetails.
- * These fields are sent by newer VP versions; if present, they must have correct types.
  */
 function validatePresigningProgressFields(
   progress: Record<string, unknown>,
@@ -135,8 +135,6 @@ function validatePresigningProgressFields(
  * Validate a getPeginStatus response.
  *
  * Throws if the status field is not a recognized DaemonStatus value.
- * An unrecognized status could be used by a malicious VP to steer the
- * polling logic into an unintended code path (e.g., silently clearing errors).
  */
 export function validateGetPeginStatusResponse(
   response: unknown,
@@ -194,10 +192,6 @@ export function validateGetPeginStatusResponse(
 
 /**
  * Validate a requestDepositorPresignTransactions response.
- *
- * Strictly checks every field used downstream in PSBT construction.
- * Throws if any tx_hex field is not a valid hex string, if a claimer_pubkey
- * has the wrong format, or if required arrays/objects are missing.
  */
 export function validateRequestDepositorPresignTransactionsResponse(
   response: unknown,
@@ -322,10 +316,6 @@ function validatePresignDataPerChallenger(value: unknown, field: string): void {
 
 /**
  * Validate a requestDepositorClaimerArtifacts response.
- *
- * tx_graph_json and verifying_key_hex are consumed by garbled-circuit
- * evaluation. babe_sessions carries per-challenger decryption artifacts.
- * A malicious VP could supply corrupt values to steer circuit evaluation.
  */
 export function validateRequestDepositorClaimerArtifactsResponse(
   response: unknown,
@@ -375,11 +365,6 @@ export function validateRequestDepositorClaimerArtifactsResponse(
 
 /**
  * Validate a getPegoutStatus response.
- *
- * found controls whether downstream code attempts to process a pegout.
- * claimer.failed and claimer.status / challenger.status steer the UI flow.
- * A malicious VP that sends wrong types here could suppress error display
- * or push the UI into an unintended state.
  */
 export function validateGetPegoutStatusResponse(
   response: unknown,

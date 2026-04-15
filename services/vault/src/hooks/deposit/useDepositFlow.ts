@@ -1,5 +1,5 @@
 /**
- * Multi-Vault Deposit Flow Hook
+ * Deposit Flow Hook
  *
  * Orchestrates the batch-first deposit flow. A single vault is just a batch of 1.
  * Creates ONE Pre-PegIn BTC transaction with N HTLC outputs (one per vault),
@@ -22,11 +22,11 @@
 
 import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
 import { ensureHexPrefix } from "@babylonlabs-io/ts-sdk/tbv/core";
+import { VpResponseValidationError } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { v4 as uuidv4 } from "uuid";
 import type { Address, Hex } from "viem";
 
-import { VpResponseValidationError } from "@/clients/vault-provider-rpc/validators";
 import { useProtocolParamsContext } from "@/context/ProtocolParamsContext";
 import { logger } from "@/infrastructure";
 import { LocalStorageStatus } from "@/models/peginStateMachine";
@@ -71,7 +71,7 @@ import { useVaultProviders } from "./useVaultProviders";
 // Types
 // ============================================================================
 
-export interface UseMultiVaultDepositFlowParams {
+export interface UseDepositFlowParams {
   /** Vault amounts in satoshis - [amount1] for single vault, [amount1, amount2] for two vaults */
   vaultAmounts: bigint[];
   /** Mempool fee rate in sat/vB for UTXO selection and funding */
@@ -110,9 +110,9 @@ export interface ArtifactDownloadInfo {
   depositorPk: string;
 }
 
-export interface UseMultiVaultDepositFlowReturn {
-  /** Execute the multi-vault deposit flow */
-  executeMultiVaultDeposit: () => Promise<MultiVaultDepositResult | null>;
+export interface UseDepositFlowReturn {
+  /** Execute the batch deposit flow */
+  executeDeposit: () => Promise<MultiVaultDepositResult | null>;
   /** Cancel the running flow (e.g. when the user closes the modal) */
   abort: () => void;
   /** Current step in the deposit flow */
@@ -169,9 +169,9 @@ export interface MultiVaultDepositResult {
 // Main Hook
 // ============================================================================
 
-export function useMultiVaultDepositFlow(
-  params: UseMultiVaultDepositFlowParams,
-): UseMultiVaultDepositFlowReturn {
+export function useDepositFlow(
+  params: UseDepositFlowParams,
+): UseDepositFlowReturn {
   const {
     vaultAmounts,
     mempoolFeeRate,
@@ -248,7 +248,7 @@ export function useMultiVaultDepositFlow(
   // Main Execution Function
   // ============================================================================
 
-  const executeMultiVaultDeposit =
+  const executeDeposit =
     useCallback(async (): Promise<MultiVaultDepositResult | null> => {
       // Create a new AbortController for this flow execution
       abortControllerRef.current = new AbortController();
@@ -778,7 +778,7 @@ export function useMultiVaultDepositFlow(
     ]);
 
   return {
-    executeMultiVaultDeposit,
+    executeDeposit,
     abort,
     currentStep,
     currentVaultIndex,

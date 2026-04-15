@@ -1,15 +1,15 @@
 import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
 import { PayoutManager, type Network } from "@babylonlabs-io/ts-sdk/tbv/core";
-import type { Address, Hex } from "viem";
-
-import { getVaultFromChain } from "../../clients/eth-contract/btc-vault-registry/query";
-import { getTimelockPeginByVersion } from "../../clients/eth-contract/protocol-params";
-import { VaultProviderRpcApi } from "../../clients/vault-provider-rpc";
 import type {
   ClaimerSignatures,
   ClaimerTransactions,
   DepositorAsClaimerPresignatures,
-} from "../../clients/vault-provider-rpc/types";
+} from "@babylonlabs-io/ts-sdk/tbv/core/clients";
+import { VaultProviderRpcClient } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
+import type { Address, Hex } from "viem";
+
+import { getVaultFromChain } from "../../clients/eth-contract/btc-vault-registry/query";
+import { getTimelockPeginByVersion } from "../../clients/eth-contract/protocol-params";
 import { getBTCNetworkForWASM } from "../../config/pegin";
 import type { UniversalChallenger } from "../../types";
 import {
@@ -153,9 +153,9 @@ export async function submitSignaturesToVaultProvider(
   signatures: Record<string, ClaimerSignatures>,
   depositorClaimerPresignatures: DepositorAsClaimerPresignatures,
 ): Promise<void> {
-  const rpcClient = new VaultProviderRpcApi(
+  const rpcClient = new VaultProviderRpcClient(
     getVpProxyUrl(vaultProviderAddress),
-    30000,
+    { timeout: 30000 },
   );
 
   // The VP expects signatures for ALL claimers (VP + VKs + depositor).

@@ -7,11 +7,14 @@
  * - LocalStorage and optimistic updates
  */
 
+import type {
+  ClaimerTransactions,
+  DepositorGraphTransactions,
+} from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import { useChainConnector } from "@babylonlabs-io/wallet-connector";
 import { useCallback, useState } from "react";
 import type { Hex } from "viem";
 
-import type { DepositorGraphTransactions } from "../../../clients/vault-provider-rpc/types";
 import { usePeginPolling } from "../../../context/deposit/PeginPollingContext";
 import { useProtocolParamsContext } from "../../../context/ProtocolParamsContext";
 import { useVaultProviders } from "../../../hooks/deposit/useVaultProviders";
@@ -30,7 +33,6 @@ import {
 } from "../../../services/vault/vaultPayoutSignatureService";
 import { updatePendingPeginStatus } from "../../../storage/peginStorage";
 import type { VaultActivity } from "../../../types/activity";
-import type { ClaimerTransactions } from "../../../types/rpc";
 import { btcAddressToScriptPubKeyHex } from "../../../utils/btc";
 import { formatPayoutSignatureError } from "../../../utils/errors/formatting";
 

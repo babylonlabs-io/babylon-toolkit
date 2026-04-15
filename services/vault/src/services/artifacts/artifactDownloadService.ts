@@ -10,9 +10,14 @@
  * directly to a Blob for download.
  */
 
+import {
+  JsonRpcClient,
+  JsonRpcError,
+} from "@babylonlabs-io/ts-sdk/tbv/core/clients";
+
 import { logger } from "@/infrastructure";
 import { stripHexPrefix } from "@/utils/btc";
-import { JsonRpcClient, JsonRpcError, getVpProxyUrl } from "@/utils/rpc";
+import { getVpProxyUrl } from "@/utils/rpc";
 
 /** Timeout for the artifact request RPC call (artifacts can be large). */
 const RPC_TIMEOUT_MS = 120 * 1000;
@@ -39,6 +44,8 @@ export async function fetchAndDownloadArtifacts(
   const client = new JsonRpcClient({
     baseUrl: getVpProxyUrl(providerAddress),
     timeout: RPC_TIMEOUT_MS,
+    // Artifact requests are idempotent reads — safe to retry on transient errors
+    retryableFor: () => true,
   });
 
   const response = await client.callRaw(

@@ -2,6 +2,7 @@
  * Utility functions for Peg-In Polling
  */
 
+import type { ClaimerTransactions } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import type { Hex } from "viem";
 
 import { getVpProxyUrl } from "@/utils/rpc";
@@ -12,7 +13,6 @@ import {
   LocalStorageStatus,
 } from "../models/peginStateMachine";
 import type { PendingPeginRequest } from "../storage/peginStorage";
-import type { ClaimerTransactions } from "../types";
 import type { VaultActivity } from "../types/activity";
 import type { DepositsByProvider, DepositToPoll } from "../types/peginPolling";
 
