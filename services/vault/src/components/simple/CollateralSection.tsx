@@ -107,7 +107,7 @@ export function CollateralSection({
           <DepositButton
             variant="outlined"
             size="medium"
-            onClick={onDeposit}
+            onClick={() => onDeposit()}
             disabled={!isConnected}
             className="rounded-full"
           >
@@ -170,7 +170,7 @@ export function CollateralSection({
                 <DepositButton
                   variant="outlined"
                   size="medium"
-                  onClick={onDeposit}
+                  onClick={() => onDeposit()}
                   className="rounded-full"
                 >
                   Deposit {btcConfig.coinSymbol}

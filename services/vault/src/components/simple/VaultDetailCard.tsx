@@ -30,7 +30,7 @@ interface VaultDetailCardProps {
   /** Timestamp in milliseconds */
   timestamp: number;
   /** Transaction hash (hex, may include 0x prefix) */
-  txHash: string;
+  txHash?: string;
   /** Vault provider display name */
   providerName: string;
   /** Vault provider icon URL */
@@ -93,25 +93,29 @@ export function VaultDetailCard({
       </div>
 
       {/* Transaction Hash */}
-      <div className="flex items-center justify-between">
-        <span className="text-sm text-accent-secondary">Transaction Hash</span>
-        <button
-          type="button"
-          className="flex cursor-pointer items-center gap-1 font-mono text-sm text-accent-primary transition-colors hover:text-accent-secondary"
-          onClick={() => {
-            const hash = stripHexPrefix(txHash);
-            copyToClipboard(txHash, hash);
-          }}
-          aria-label={`Copy transaction hash ${truncateHash(txHash)}`}
-        >
-          <span>{truncateHash(stripHexPrefix(txHash))}</span>
-          {isCopied(txHash) ? (
-            <CheckIcon size={14} variant="success" />
-          ) : (
-            <CopyIcon size={14} />
-          )}
-        </button>
-      </div>
+      {txHash && (
+        <div className="flex items-center justify-between">
+          <span className="text-sm text-accent-secondary">
+            Transaction Hash
+          </span>
+          <button
+            type="button"
+            className="flex cursor-pointer items-center gap-1 font-mono text-sm text-accent-primary transition-colors hover:text-accent-secondary"
+            onClick={() => {
+              const hash = stripHexPrefix(txHash);
+              copyToClipboard(txHash, hash);
+            }}
+            aria-label={`Copy transaction hash ${truncateHash(txHash)}`}
+          >
+            <span>{truncateHash(stripHexPrefix(txHash))}</span>
+            {isCopied(txHash) ? (
+              <CheckIcon size={14} variant="success" />
+            ) : (
+              <CopyIcon size={14} />
+            )}
+          </button>
+        </div>
+      )}
 
       {action}
     </div>
