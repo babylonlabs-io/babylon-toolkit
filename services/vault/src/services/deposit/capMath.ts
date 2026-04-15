@@ -8,9 +8,26 @@
 import type { ApplicationCap } from "@/clients/eth-contract/cap-policy";
 
 export interface CapSnapshot {
+  /** Total BTC cap for the app, in satoshis. 0 when uncapped. */
   totalCapBTC: bigint;
+  /** Per-address BTC cap for the app, in satoshis. 0 when uncapped. */
   perAddressCapBTC: bigint;
+  /**
+   * Current total BTC locked in the application, in satoshis.
+   *
+   * Only meaningful when `hasTotalCap || hasPerAddressCap`. When both caps are
+   * 0 (uncapped), `useApplicationCap` short-circuits without waiting on the
+   * usage query and fills this with a placeholder `0n` — consumers that
+   * display actual usage must gate on one of the `has*Cap` flags.
+   */
   totalBTC: bigint;
+  /**
+   * Current BTC locked by the user, in satoshis, or null when no user is
+   * connected.
+   *
+   * Only meaningful when `hasTotalCap || hasPerAddressCap`. When uncapped,
+   * this is a placeholder `null` — see the note on `totalBTC`.
+   */
   userBTC: bigint | null;
   hasTotalCap: boolean;
   hasPerAddressCap: boolean;

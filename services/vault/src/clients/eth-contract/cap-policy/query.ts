@@ -1,8 +1,17 @@
 /**
  * CapPolicy query client.
  *
- * Resolves the CapPolicy address via BTCVaultRegistry.capPolicy(), caches it
- * per chainId, and exposes application-scoped cap + usage reads.
+ * Resolves the CapPolicy address via BTCVaultRegistry.capPolicy() with a short
+ * TTL (so a registry governance update propagates without requiring a page
+ * reload) and exposes application-scoped cap + usage reads.
+ *
+ * ### Units
+ * All BTC quantities returned by CapPolicy — `totalCapBTC`, `perAddressCapBTC`,
+ * `getApplicationTotalBTC`, `getApplicationUserBTC` — are denominated in
+ * **satoshis**, matching the satoshi convention used throughout the vault
+ * frontend. The `BTC` suffix on ABI field names comes from the contract struct
+ * and does NOT mean whole BTC. Callers must treat the returned bigints as
+ * satoshi counts.
  */
 
 import type { Address } from "viem";
@@ -14,36 +23,60 @@ import { ethClient } from "../client";
 
 import CapPolicyAbi from "./abis/CapPolicy.abi.json";
 
+const ZERO_ADDRESS: Address = "0x0000000000000000000000000000000000000000";
+const CAP_POLICY_ADDRESS_TTL_MS = 60_000;
+
 export interface ApplicationCap {
-  /** Total BTC cap for the app in satoshis. 0 = unlimited. */
+  /** Total BTC cap for the app, in satoshis. 0 = unlimited. */
   totalCapBTC: bigint;
-  /** Per-address BTC cap for the app in satoshis. 0 = unlimited. */
+  /** Per-address BTC cap for the app, in satoshis. 0 = unlimited. */
   perAddressCapBTC: bigint;
 }
 
 export interface ApplicationUsage {
-  /** Current total BTC locked across all users in this application (sats). */
+  /** Current total BTC locked across all users in this application, in satoshis. */
   totalBTC: bigint;
-  /** Current BTC locked by the user in this application (sats), or null when no user. */
+  /** Current BTC locked by the user in this application, in satoshis, or null when no user. */
   userBTC: bigint | null;
 }
 
-const capPolicyAddressCache = new Map<number, Address>();
+interface CachedCapPolicyAddress {
+  address: Address;
+  fetchedAt: number;
+}
+
+const capPolicyAddressCache = new Map<number, CachedCapPolicyAddress>();
 
 async function getCapPolicyAddress(): Promise<Address> {
   const publicClient = ethClient.getPublicClient();
   const chainId = await publicClient.getChainId();
 
   const cached = capPolicyAddressCache.get(chainId);
-  if (cached) return cached;
+  if (cached && Date.now() - cached.fetchedAt < CAP_POLICY_ADDRESS_TTL_MS) {
+    return cached.address;
+  }
 
-  const address = (await publicClient.readContract({
-    address: CONTRACTS.BTC_VAULT_REGISTRY,
-    abi: BTCVaultRegistryAbi,
-    functionName: "capPolicy",
-  })) as Address;
+  let address: Address;
+  try {
+    address = (await publicClient.readContract({
+      address: CONTRACTS.BTC_VAULT_REGISTRY,
+      abi: BTCVaultRegistryAbi,
+      functionName: "capPolicy",
+    })) as Address;
+  } catch (error) {
+    // Drop any stale entry so the next call re-attempts from the registry.
+    capPolicyAddressCache.delete(chainId);
+    throw error;
+  }
 
-  capPolicyAddressCache.set(chainId, address);
+  if (address === ZERO_ADDRESS) {
+    capPolicyAddressCache.delete(chainId);
+    throw new Error(
+      "CapPolicy address is not configured in BTCVaultRegistry (got 0x0).",
+    );
+  }
+
+  capPolicyAddressCache.set(chainId, { address, fetchedAt: Date.now() });
   return address;
 }
 
@@ -98,12 +131,4 @@ export async function getApplicationUsage(
   })) as bigint;
 
   return { totalBTC, userBTC };
-}
-
-/**
- * Test-only helper. Exposed so test setup can reset the cross-test address cache.
- * Not part of the public API; consumers should never call this in production.
- */
-export function __resetCapPolicyAddressCacheForTests(): void {
-  capPolicyAddressCache.clear();
 }

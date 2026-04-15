@@ -157,16 +157,17 @@ export function useDepositPageForm(): UseDepositPageFormResult {
     [providers],
   );
   const { address: ethAddress } = useETHWallet();
-  const { snapshot: capSnapshot } = useApplicationCap(
+  const { snapshot: capSnapshot, error: capError } = useApplicationCap(
     isWalletConnected ? ethAddress : undefined,
   );
-  // A null snapshot means the cap state is unknown — either still loading or
-  // the on-chain read errored. In both cases we must block validation rather
-  // than let amounts through as if no cap applied.
+  // Only block validation when the on-chain cap read has explicitly errored.
+  // During the initial load `capSnapshot` is null but `capError` is not set —
+  // in that window the validator skips the cap check so the user can still
+  // interact with the form. The contract still enforces the cap at submit.
   const validation = useDepositValidation({
     availableProviders: providerIds,
     effectiveRemaining: capSnapshot?.effectiveRemaining ?? null,
-    capUnavailable: capSnapshot === null,
+    capUnavailable: capError !== null,
   });
 
   // Get UTXOs for balance calculation (already respects inscription preference)
