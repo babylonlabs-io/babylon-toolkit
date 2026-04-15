@@ -32,6 +32,58 @@ import {
 import { TEST_KEYS, initializeWasmForTests } from "./helpers";
 
 /**
+ * Encodes a non-negative integer as a Bitcoin compact-size varint.
+ * Matches the subset of varints supported by parseWitnessStack.
+ */
+function encodeVarInt(n: number): Buffer {
+  if (n < 0xfd) return Buffer.from([n]);
+  if (n <= 0xffff) {
+    const buf = Buffer.alloc(3);
+    buf[0] = 0xfd;
+    buf.writeUInt16LE(n, 1);
+    return buf;
+  }
+  if (n <= 0xffffffff) {
+    const buf = Buffer.alloc(5);
+    buf[0] = 0xfe;
+    buf.writeUInt32LE(n, 1);
+    return buf;
+  }
+  throw new Error(`varint too large for witness test helper: ${n}`);
+}
+
+/**
+ * Serializes a witness stack in BIP-141 format:
+ *   [varint item_count] [varint len, data]...
+ */
+function serializeWitnessStack(items: Buffer[]): Buffer {
+  const parts: Buffer[] = [encodeVarInt(items.length)];
+  for (const item of items) {
+    parts.push(encodeVarInt(item.length));
+    parts.push(item);
+  }
+  return Buffer.concat(parts);
+}
+
+/**
+ * Builds a PSBT with a single input that already carries a finalScriptWitness,
+ * simulating a wallet that auto-finalized the signed PSBT.
+ */
+function makeFinalizedPayoutPsbtHex(finalScriptWitness: Buffer): string {
+  const psbt = new Psbt();
+  psbt.addInput({
+    hash: NULL_TXID,
+    index: 0,
+    witnessUtxo: {
+      script: createDummyP2WPKH("0"),
+      value: TEST_WITNESS_UTXO_VALUE,
+    },
+    finalScriptWitness,
+  });
+  return psbt.toHex();
+}
+
+/**
  * Creates a test pegin transaction with a single P2TR output (simplified for testing).
  */
 function createTestPeginTransaction(): string {
@@ -493,6 +545,126 @@ describe("extractPayoutSignature", () => {
       expect(() =>
         extractPayoutSignature(psbtHex, TEST_KEYS.DEPOSITOR),
       ).toThrow(/Unexpected sighash type 0x83 at input 0\. Expected SIGHASH_ALL/);
+    });
+  });
+
+  describe("Signature extraction from finalized PSBT", () => {
+    it("extracts 64-byte signature from finalized witness [sig, script, controlBlock]", () => {
+      const signature = Buffer.alloc(64, 0xaa);
+      const script = Buffer.alloc(34, 0xbb);
+      const controlBlock = Buffer.alloc(33, 0xcc);
+      const finalScriptWitness = serializeWitnessStack([
+        signature,
+        script,
+        controlBlock,
+      ]);
+      const psbtHex = makeFinalizedPayoutPsbtHex(finalScriptWitness);
+
+      const extracted = extractPayoutSignature(psbtHex, TEST_KEYS.DEPOSITOR);
+
+      expect(extracted).toBe(signature.toString("hex"));
+      expect(extracted.length).toBe(128);
+    });
+
+    it("strips SIGHASH_ALL flag from 65-byte signature in finalized witness", () => {
+      const signature = Buffer.alloc(65);
+      signature.fill(0xdd, 0, 64);
+      signature[64] = Transaction.SIGHASH_ALL;
+      const script = Buffer.alloc(34, 0xee);
+      const controlBlock = Buffer.alloc(33, 0xff);
+      const finalScriptWitness = serializeWitnessStack([
+        signature,
+        script,
+        controlBlock,
+      ]);
+      const psbtHex = makeFinalizedPayoutPsbtHex(finalScriptWitness);
+
+      const extracted = extractPayoutSignature(psbtHex, TEST_KEYS.DEPOSITOR);
+
+      expect(extracted).toBe(Buffer.alloc(64, 0xdd).toString("hex"));
+    });
+
+    it("rejects finalized witness with fewer than 3 items", () => {
+      const signature = Buffer.alloc(64, 0xaa);
+      const finalScriptWitness = serializeWitnessStack([signature]);
+      const psbtHex = makeFinalizedPayoutPsbtHex(finalScriptWitness);
+
+      expect(() =>
+        extractPayoutSignature(psbtHex, TEST_KEYS.DEPOSITOR),
+      ).toThrow(/expected 3 items.*got 1/);
+    });
+
+    it("rejects finalized witness with more than 3 items (multisig or annex)", () => {
+      const sig1 = Buffer.alloc(64, 0xaa);
+      const sig2 = Buffer.alloc(64, 0xbb);
+      const script = Buffer.alloc(34, 0xcc);
+      const controlBlock = Buffer.alloc(33, 0xdd);
+      const finalScriptWitness = serializeWitnessStack([
+        sig1,
+        sig2,
+        script,
+        controlBlock,
+      ]);
+      const psbtHex = makeFinalizedPayoutPsbtHex(finalScriptWitness);
+
+      expect(() =>
+        extractPayoutSignature(psbtHex, TEST_KEYS.DEPOSITOR),
+      ).toThrow(/expected 3 items.*got 4/);
+    });
+
+    it("rejects finalized witness whose first item is not a valid Schnorr signature length", () => {
+      const invalidSig = Buffer.alloc(32, 0xaa);
+      const script = Buffer.alloc(34, 0xbb);
+      const controlBlock = Buffer.alloc(33, 0xcc);
+      const finalScriptWitness = serializeWitnessStack([
+        invalidSig,
+        script,
+        controlBlock,
+      ]);
+      const psbtHex = makeFinalizedPayoutPsbtHex(finalScriptWitness);
+
+      expect(() =>
+        extractPayoutSignature(psbtHex, TEST_KEYS.DEPOSITOR),
+      ).toThrow(/Unexpected signature length at input 0/);
+    });
+
+    it("rejects malformed finalized witness that is truncated", () => {
+      // Claims 1 item of length 64 but provides only 10 bytes of payload.
+      const truncated = Buffer.concat([
+        Buffer.from([0x01, 0x40]),
+        Buffer.alloc(10, 0),
+      ]);
+      const psbtHex = makeFinalizedPayoutPsbtHex(truncated);
+
+      expect(() =>
+        extractPayoutSignature(psbtHex, TEST_KEYS.DEPOSITOR),
+      ).toThrow(/Malformed witness data/);
+    });
+
+    it("rejects finalized witness with an 8-byte (0xff) varint", () => {
+      // 0xff marks an 8-byte varint which is not used for witness item counts
+      // and cannot be represented losslessly as a JS number.
+      const malformed = Buffer.from([0xff, 0, 0, 0, 0, 0, 0, 0, 0]);
+      const psbtHex = makeFinalizedPayoutPsbtHex(malformed);
+
+      expect(() =>
+        extractPayoutSignature(psbtHex, TEST_KEYS.DEPOSITOR),
+      ).toThrow(/8-byte varint \(0xff\) not supported/);
+    });
+
+    it("rejects finalized witness with trailing bytes after the parsed stack", () => {
+      const signature = Buffer.alloc(64, 0xaa);
+      const script = Buffer.alloc(34, 0xbb);
+      const controlBlock = Buffer.alloc(33, 0xcc);
+      const withTrailing = Buffer.concat([
+        serializeWitnessStack([signature, script, controlBlock]),
+        Buffer.from([0xde, 0xad, 0xbe, 0xef]),
+      ]);
+      const psbtHex = makeFinalizedPayoutPsbtHex(withTrailing);
+
+      expect(() =>
+        extractPayoutSignature(psbtHex, TEST_KEYS.DEPOSITOR),
+      ).toThrow(/trailing byte/);
     });
   });
 });
