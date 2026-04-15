@@ -28,7 +28,7 @@ interface PendingDepositCardProps {
   amount: string;
   /** Milliseconds since epoch */
   timestamp?: number;
-  txHash: string;
+  txHash?: string;
   providerId: string;
   vaultProviders: VaultProvider[];
   onSignClick: (
