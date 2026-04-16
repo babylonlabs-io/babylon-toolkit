@@ -71,16 +71,16 @@ export default {
   },
 
   /**
-   * VAULT_CAP feature flag
+   * DISABLE_VAULT_CAP feature flag
    *
-   * Purpose: Enables the vault supply-cap UI on the dashboard and the
-   * remaining-capacity check in deposit-form validation. When disabled, the
-   * hook short-circuits without any on-chain CapPolicy reads.
-   * Why needed: Feature is expected to be temporary; allows quickly hiding it
-   * per environment without a code change.
-   * Default: false (disabled unless explicitly set to "true")
+   * Purpose: Kill-switch to hide the vault supply-cap UI (dashboard section
+   * and deposit-form remaining-capacity check). When enabled, the hook
+   * short-circuits without any on-chain CapPolicy reads.
+   * Why needed: Feature is on by default; this flag lets DevOps quickly
+   * disable it per environment without a code change.
+   * Default: false (vault cap is enabled unless explicitly set to "true")
    */
-  get isVaultCapEnabled() {
-    return process.env.NEXT_PUBLIC_FF_VAULT_CAP === "true";
+  get isVaultCapDisabled() {
+    return process.env.NEXT_PUBLIC_FF_DISABLE_VAULT_CAP === "true";
   },
 };

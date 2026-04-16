@@ -3,9 +3,10 @@
  * current usage (protocol-total and optionally per-user).
  *
  * Reads from the on-chain CapPolicy contract, keyed by the configured Aave
- * adapter entry point. Gated by the `VAULT_CAP` feature flag — when disabled,
- * the hook short-circuits without any RPC reads and consumers see a stable
- * "no feature" state (`snapshot: null`, `isLoading: false`, `error: null`).
+ * adapter entry point. Gated by the `DISABLE_VAULT_CAP` kill-switch — when
+ * the flag is set, the hook short-circuits without any RPC reads and
+ * consumers see a stable "no feature" state (`snapshot: null`,
+ * `isLoading: false`, `error: null`).
  */
 
 import { useQuery } from "@tanstack/react-query";
@@ -32,7 +33,7 @@ export interface UseApplicationCapResult {
 }
 
 export function useApplicationCap(user?: string): UseApplicationCapResult {
-  const enabled = featureFlags.isVaultCapEnabled;
+  const enabled = !featureFlags.isVaultCapDisabled;
   const app = CONTRACTS.AAVE_ADAPTER;
   // Wallet adapters surface addresses as string; cast at the boundary.
   const userAddress = user ? (user as Address) : undefined;
