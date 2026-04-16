@@ -729,13 +729,7 @@ describe("vaultPayoutSignatureService", () => {
       { id: "0xChallenger1", btcPubKey: "challpubkey1" },
     ];
 
-    const providers = {
-      vaultProvider: {
-        btcPubKey: "0xproviderbtcpubkey",
-      },
-      vaultKeepers,
-      universalChallengers,
-    };
+    const vaultProviderBtcPubKey = "0xproviderbtcpubkey";
 
     it("sources peginTxHex from on-chain vault data, not params", async () => {
       vi.mocked(getVaultFromChain).mockResolvedValue(onChainVault);
@@ -745,7 +739,7 @@ describe("vaultPayoutSignatureService", () => {
       const { context } = await prepareSigningContext({
         vaultId,
         depositorBtcPubkey,
-        providers,
+        vaultProviderBtcPubKey,
         getUniversalChallengersByVersion: () => universalChallengers,
         registeredPayoutScriptPubKey: depositorPayoutBtcAddress,
       });
@@ -762,7 +756,7 @@ describe("vaultPayoutSignatureService", () => {
       await prepareSigningContext({
         vaultId,
         depositorBtcPubkey,
-        providers,
+        vaultProviderBtcPubKey,
         getUniversalChallengersByVersion: () => universalChallengers,
         registeredPayoutScriptPubKey: depositorPayoutBtcAddress,
       });
@@ -785,7 +779,7 @@ describe("vaultPayoutSignatureService", () => {
       await prepareSigningContext({
         vaultId,
         depositorBtcPubkey,
-        providers,
+        vaultProviderBtcPubKey,
         getUniversalChallengersByVersion,
         registeredPayoutScriptPubKey: depositorPayoutBtcAddress,
       });
@@ -804,7 +798,7 @@ describe("vaultPayoutSignatureService", () => {
         prepareSigningContext({
           vaultId,
           depositorBtcPubkey,
-          providers,
+          vaultProviderBtcPubKey,
           getUniversalChallengersByVersion: () => [],
           registeredPayoutScriptPubKey: depositorPayoutBtcAddress,
         }),
@@ -821,7 +815,7 @@ describe("vaultPayoutSignatureService", () => {
       const { context } = await prepareSigningContext({
         vaultId,
         depositorBtcPubkey,
-        providers,
+        vaultProviderBtcPubKey,
         getUniversalChallengersByVersion: () => universalChallengers,
         registeredPayoutScriptPubKey: depositorPayoutBtcAddress,
       });
@@ -843,10 +837,7 @@ describe("vaultPayoutSignatureService", () => {
       const { context } = await prepareSigningContext({
         vaultId,
         depositorBtcPubkey,
-        providers: {
-          ...providers,
-          vaultProvider: {},
-        },
+        vaultProviderBtcPubKey: undefined,
         getUniversalChallengersByVersion: () => universalChallengers,
         registeredPayoutScriptPubKey: depositorPayoutBtcAddress,
       });
@@ -865,7 +856,7 @@ describe("vaultPayoutSignatureService", () => {
       const { context } = await prepareSigningContext({
         vaultId,
         depositorBtcPubkey,
-        providers,
+        vaultProviderBtcPubKey,
         getUniversalChallengersByVersion: () => universalChallengers,
         registeredPayoutScriptPubKey: depositorPayoutBtcAddress,
       });

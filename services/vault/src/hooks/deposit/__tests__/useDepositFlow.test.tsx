@@ -59,17 +59,6 @@ vi.mock("@/services/vault/vaultTransactionService", () => ({
   registerPeginBatchOnChain: vi.fn(),
 }));
 
-vi.mock("@/services/vault/vaultPayoutSignatureService", () => ({
-  signPayoutTransactions: vi.fn(),
-}));
-
-vi.mock("@/services/vault/depositorGraphSigningService", () => ({
-  signDepositorGraph: vi.fn().mockResolvedValue({
-    payout_signatures: { payout_signature: "mock_payout_sig" },
-    per_challenger: {},
-  }),
-}));
-
 vi.mock("@/services/vault/vaultActivationService", () => ({
   activateVaultWithSecret: vi
     .fn()
@@ -169,9 +158,8 @@ vi.mock("../depositFlowSteps", () => ({
   },
   getEthWalletClient: vi.fn(),
   registerPeginBatchAndWait: vi.fn(),
-  pollAndPreparePayoutSigning: vi.fn(),
+  signAndSubmitPayouts: vi.fn(),
   submitWotsPublicKey: vi.fn(),
-  submitPayoutSignatures: vi.fn(),
   waitForContractVerification: vi.fn(),
 }));
 
@@ -280,9 +268,6 @@ async function setupDefaultMocks() {
   const { preparePeginTransaction } = vi.mocked(
     await import("@/services/vault/vaultTransactionService"),
   );
-  const { signPayoutTransactions } = vi.mocked(
-    await import("@/services/vault/vaultPayoutSignatureService"),
-  );
   const { broadcastPrePeginTransaction } = vi.mocked(
     await import("@/services/vault/vaultPeginBroadcastService"),
   );
@@ -290,8 +275,7 @@ async function setupDefaultMocks() {
   const {
     getEthWalletClient,
     registerPeginBatchAndWait,
-    pollAndPreparePayoutSigning,
-    submitPayoutSignatures,
+    signAndSubmitPayouts,
     waitForContractVerification,
   } = vi.mocked(await import("../depositFlowSteps"));
 
@@ -317,6 +301,9 @@ async function setupDefaultMocks() {
       timelockAssert: 100n,
       securityCouncilKeys: ["0xcouncil1"],
     })),
+    getUniversalChallengersByVersion: vi.fn(() => [
+      { btcPubKey: "challenger1pubkey" },
+    ]),
   } as any);
 
   vi.mocked(useVaultProviders).mockReturnValue({
@@ -331,10 +318,6 @@ async function setupDefaultMocks() {
   vi.mocked(preparePeginTransaction).mockResolvedValue(
     MOCK_BATCH_RESULT as any,
   );
-
-  vi.mocked(signPayoutTransactions).mockResolvedValue({
-    mockclaimer: { payout_signature: "payoutSig" },
-  });
 
   vi.mocked(getEthWalletClient).mockResolvedValue(MOCK_ETH_WALLET as any);
   vi.mocked(registerPeginBatchAndWait).mockResolvedValue({
@@ -351,26 +334,7 @@ async function setupDefaultMocks() {
     ],
     btcPopSignature: "0xMockPopSignature" as Hex,
   });
-  vi.mocked(pollAndPreparePayoutSigning).mockResolvedValue({
-    context: {} as any,
-    vaultProviderAddress: "0xProvider123",
-    preparedTransactions: [
-      {
-        claimerPubkeyXOnly: "claimerpubkey",
-        payoutTxHex: "payoutHex",
-        assertTxHex: "assertHex",
-      },
-    ],
-    depositorGraph: {
-      claim_tx: { tx_hex: "0xdepclaim" },
-      assert_tx: { tx_hex: "0xdepassert" },
-      payout_tx: { tx_hex: "0xdeppayout" },
-      challenger_presign_data: [],
-      payout_psbt: "bW9ja19wYXlvdXRfcHNidA==",
-      offchain_params_version: 0,
-    },
-  });
-  vi.mocked(submitPayoutSignatures).mockResolvedValue(undefined);
+  vi.mocked(signAndSubmitPayouts).mockResolvedValue(undefined);
   vi.mocked(waitForContractVerification).mockResolvedValue(undefined);
   vi.mocked(broadcastPrePeginTransaction).mockResolvedValue(
     "mockBroadcastTxId",
@@ -562,8 +526,8 @@ describe("useDepositFlow", () => {
   });
 
   describe("Payout Signing", () => {
-    it("should poll and sign payouts for each broadcast vault", async () => {
-      const { pollAndPreparePayoutSigning } = vi.mocked(
+    it("should sign and submit payouts for each broadcast vault", async () => {
+      const { signAndSubmitPayouts } = vi.mocked(
         await import("../depositFlowSteps"),
       );
 
@@ -572,7 +536,7 @@ describe("useDepositFlow", () => {
       await executeWithAutoArtifactDownload(result);
 
       await waitFor(() => {
-        expect(pollAndPreparePayoutSigning).toHaveBeenCalledTimes(2);
+        expect(signAndSubmitPayouts).toHaveBeenCalledTimes(2);
       });
     });
   });
@@ -671,37 +635,17 @@ describe("useDepositFlow", () => {
     });
 
     it("should only verify and activate vaults whose payout signing succeeded", async () => {
-      const {
-        pollAndPreparePayoutSigning,
-        submitPayoutSignatures,
-        waitForContractVerification,
-      } = vi.mocked(await import("../depositFlowSteps"));
+      const { signAndSubmitPayouts, waitForContractVerification } = vi.mocked(
+        await import("../depositFlowSteps"),
+      );
       const { activateVaultWithSecret } = vi.mocked(
         await import("@/services/vault/vaultActivationService"),
       );
 
       // First vault fails payout signing, second succeeds
-      vi.mocked(pollAndPreparePayoutSigning)
+      vi.mocked(signAndSubmitPayouts)
         .mockRejectedValueOnce(new Error("VP timeout"))
-        .mockResolvedValueOnce({
-          context: {} as any,
-          vaultProviderAddress: "0xProvider123",
-          preparedTransactions: [
-            {
-              claimerPubkeyXOnly: "claimerpubkey",
-              payoutTxHex: "payoutHex",
-              assertTxHex: "assertHex",
-            },
-          ],
-          depositorGraph: {
-            claim_tx: { tx_hex: "0xdepclaim" },
-            assert_tx: { tx_hex: "0xdepassert" },
-            payout_tx: { tx_hex: "0xdeppayout" },
-            challenger_presign_data: [],
-            payout_psbt: "bW9ja19wYXlvdXRfcHNidA==",
-            offchain_params_version: 0,
-          },
-        });
+        .mockResolvedValueOnce(undefined);
 
       const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
 
@@ -712,8 +656,8 @@ describe("useDepositFlow", () => {
       expect(depositResult?.warnings).toHaveLength(1);
       expect(depositResult?.warnings?.[0]).toContain("Payout signing failed");
 
-      // Second vault's payouts should still be submitted
-      expect(submitPayoutSignatures).toHaveBeenCalledTimes(1);
+      // Second vault should still succeed
+      expect(signAndSubmitPayouts).toHaveBeenCalledTimes(2);
 
       // Only the successful vault (vault 2) should be verified and activated
       expect(waitForContractVerification).toHaveBeenCalledTimes(1);
@@ -729,7 +673,7 @@ describe("useDepositFlow", () => {
     it("should skip payout signing for vaults whose WOTS key submission failed", async () => {
       const {
         submitWotsPublicKey,
-        pollAndPreparePayoutSigning,
+        signAndSubmitPayouts,
         waitForContractVerification,
       } = vi.mocked(await import("../depositFlowSteps"));
 
@@ -750,8 +694,8 @@ describe("useDepositFlow", () => {
       );
 
       // Payout signing should only be attempted for vault 2 (vault 1 skipped)
-      expect(pollAndPreparePayoutSigning).toHaveBeenCalledTimes(1);
-      expect(pollAndPreparePayoutSigning).toHaveBeenCalledWith(
+      expect(signAndSubmitPayouts).toHaveBeenCalledTimes(1);
+      expect(signAndSubmitPayouts).toHaveBeenCalledWith(
         expect.objectContaining({ vaultId: "0xVault1Id" }),
       );
 
@@ -763,7 +707,7 @@ describe("useDepositFlow", () => {
     });
 
     it("should retry WOTS submission once before skipping vault", async () => {
-      const { submitWotsPublicKey, pollAndPreparePayoutSigning } = vi.mocked(
+      const { submitWotsPublicKey, signAndSubmitPayouts } = vi.mocked(
         await import("../depositFlowSteps"),
       );
 
@@ -783,18 +727,19 @@ describe("useDepositFlow", () => {
       expect(depositResult?.warnings).toBeUndefined();
 
       // Both vaults should proceed to payout signing
-      expect(pollAndPreparePayoutSigning).toHaveBeenCalledTimes(2);
+      expect(signAndSubmitPayouts).toHaveBeenCalledTimes(2);
     });
 
     it("should complete with warnings when all payout signings fail", async () => {
-      const { pollAndPreparePayoutSigning, waitForContractVerification } =
-        vi.mocked(await import("../depositFlowSteps"));
+      const { signAndSubmitPayouts, waitForContractVerification } = vi.mocked(
+        await import("../depositFlowSteps"),
+      );
       const { activateVaultWithSecret } = vi.mocked(
         await import("@/services/vault/vaultActivationService"),
       );
 
       // Both vaults fail payout signing
-      vi.mocked(pollAndPreparePayoutSigning)
+      vi.mocked(signAndSubmitPayouts)
         .mockRejectedValueOnce(new Error("VP timeout"))
         .mockRejectedValueOnce(new Error("VP timeout"));
 

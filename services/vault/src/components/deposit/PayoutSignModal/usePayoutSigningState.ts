@@ -11,6 +11,7 @@ import type {
   ClaimerTransactions,
   DepositorGraphTransactions,
 } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
+import { signDepositorGraph } from "@babylonlabs-io/ts-sdk/tbv/core/services";
 import { useChainConnector } from "@babylonlabs-io/wallet-connector";
 import { useCallback, useState } from "react";
 import type { Hex } from "viem";
@@ -23,7 +24,6 @@ import {
   LocalStorageStatus,
   PeginAction,
 } from "../../../models/peginStateMachine";
-import { signDepositorGraph } from "../../../services/vault/depositorGraphSigningService";
 import {
   prepareSigningContext,
   prepareTransactionsForSigning,
@@ -151,25 +151,16 @@ export function usePayoutSigningState({
       return;
     }
 
-    // Build providers object
-    const providers = {
-      vaultProvider: {
-        btcPubKey: provider.btcPubKey,
-      },
-      vaultKeepers: vaultKeepers.map((vk) => ({ btcPubKey: vk.btcPubKey })),
-      universalChallengers: latestUniversalChallengers.map((uc) => ({
-        btcPubKey: uc.btcPubKey,
-      })),
-    };
-
     // Validate inputs
     try {
       validatePayoutSignatureParams({
         vaultId: activity.id,
         depositorBtcPubkey: btcPublicKey,
         claimerTransactions: transactions,
-        vaultKeepers: providers.vaultKeepers,
-        universalChallengers: providers.universalChallengers,
+        vaultKeepers: vaultKeepers.map((vk) => ({ btcPubKey: vk.btcPubKey })),
+        universalChallengers: latestUniversalChallengers.map((uc) => ({
+          btcPubKey: uc.btcPubKey,
+        })),
       });
     } catch (err) {
       setError(formatPayoutSignatureError(err));
@@ -193,7 +184,7 @@ export function usePayoutSigningState({
       const { context, vaultProviderAddress } = await prepareSigningContext({
         vaultId: activity.id,
         depositorBtcPubkey: btcPublicKey,
-        providers,
+        vaultProviderBtcPubKey: provider.btcPubKey,
         getUniversalChallengersByVersion,
         registeredPayoutScriptPubKey: activity.depositorPayoutBtcAddress,
       });

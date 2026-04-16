@@ -72,3 +72,14 @@ export interface TransactionParams {
   /** Value to send (optional, defaults to 0) */
   value?: bigint;
 }
+
+/**
+ * Position size parameters from the AaveIntegrationAdapter contract.
+ * Controls maximum BTC position size and vault count per user.
+ */
+export interface PositionSizeParams {
+  /** Maximum BTC position size allowed (in satoshis) */
+  maxPositionBTC: bigint;
+  /** Maximum number of vaults per position */
+  maxVaultsPerPosition: bigint;
+}
