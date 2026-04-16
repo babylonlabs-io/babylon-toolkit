@@ -56,7 +56,9 @@ function CapCardSkeleton() {
 function VaultCapFrame({ children }: { children: ReactNode }) {
   return (
     <div className="w-full space-y-4">
-      <h2 className="text-[24px] font-normal text-accent-primary">Protocol Cap</h2>
+      <h2 className="text-[24px] font-normal text-accent-primary">
+        Protocol Cap
+      </h2>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">{children}</div>
     </div>
   );
