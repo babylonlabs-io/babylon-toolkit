@@ -5,7 +5,6 @@ import type {
   ClaimerTransactions,
   DepositorAsClaimerPresignatures,
 } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
-import { VaultProviderRpcClient } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import type { Address, Hex } from "viem";
 
 import { getVaultFromChain } from "../../clients/eth-contract/btc-vault-registry/query";
@@ -18,16 +17,10 @@ import {
   stripHexPrefix,
   validateXOnlyPubkey,
 } from "../../utils/btc";
-import { getVpProxyUrl } from "../../utils/rpc";
+import { createVpClient } from "../../utils/rpc";
 import { fetchVaultKeepersByVersion } from "../providers/fetchProviders";
 
 import { fetchVaultProviderById } from "./fetchVaultProviders";
-
-/** Vault provider info needed for payout signing */
-export interface PayoutVaultProvider {
-  /** Provider's BTC public key (optional - will be fetched from GraphQL if not provided) */
-  btcPubKey?: string;
-}
 
 /** Vault keeper info needed for payout signing */
 export interface PayoutVaultKeeper {
@@ -41,21 +34,12 @@ export interface PayoutUniversalChallenger {
   btcPubKey: string;
 }
 
-/** Provider data for payout signing */
-export interface PayoutProviders {
-  /** Vault provider info */
-  vaultProvider: PayoutVaultProvider;
-  /** Vault keepers for the application */
-  vaultKeepers: PayoutVaultKeeper[];
-  /** Universal challengers for the application */
-  universalChallengers: PayoutUniversalChallenger[];
-}
-
 export interface PrepareSigningContextParams {
   /** Derived vault ID (for contract calls) */
   vaultId: string;
   depositorBtcPubkey: string;
-  providers: PayoutProviders;
+  /** Vault provider's BTC public key hint (optional — resolved from GraphQL if missing) */
+  vaultProviderBtcPubKey?: string;
   /** Function to get UCs by version from context (avoids redundant fetch) */
   getUniversalChallengersByVersion: (version: number) => UniversalChallenger[];
   /** Depositor's registered payout scriptPubKey (hex) for payout output validation */
@@ -153,10 +137,7 @@ export async function submitSignaturesToVaultProvider(
   signatures: Record<string, ClaimerSignatures>,
   depositorClaimerPresignatures: DepositorAsClaimerPresignatures,
 ): Promise<void> {
-  const rpcClient = new VaultProviderRpcClient(
-    getVpProxyUrl(vaultProviderAddress),
-    { timeout: 30000 },
-  );
+  const rpcClient = createVpClient(vaultProviderAddress, { timeout: 30000 });
 
   // The VP expects signatures for ALL claimers (VP + VKs + depositor).
   // The depositor's own payout signature comes from depositorClaimerPresignatures
@@ -312,7 +293,7 @@ export async function prepareSigningContext(
   const {
     vaultId,
     depositorBtcPubkey,
-    providers,
+    vaultProviderBtcPubKey,
     getUniversalChallengersByVersion,
     registeredPayoutScriptPubKey,
   } = params;
@@ -348,7 +329,7 @@ export async function prepareSigningContext(
   // Resolve vault provider's BTC public key using the contract-authoritative address
   const vaultProviderBtcPubkey = await resolveVaultProviderBtcPubkey(
     vault.vaultProvider,
-    providers.vaultProvider?.btcPubKey,
+    vaultProviderBtcPubKey,
   );
 
   // Get pubkeys (sorted order matches Rust backend)

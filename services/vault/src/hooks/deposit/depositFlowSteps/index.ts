@@ -11,7 +11,7 @@
  * 2a. Prepare pegin - preparePegin (build + fund BTC tx)
  * 2b. Register pegin batch - registerPeginBatchAndWait (PoP + single ETH tx)
  * 2.5. WOTS key RPC submission - submitWotsPublicKey
- * 3. Payout signing - pollAndPreparePayoutSigning, submitPayoutSignatures
+ * 3. Payout signing - signAndSubmitPayouts
  * 4. Broadcast - waitForContractVerification, broadcastBtcTransaction
  */
 
@@ -20,8 +20,6 @@ export { DepositFlowStep } from "./types";
 export type {
   BroadcastParams,
   DepositUtxo,
-  PayoutSigningContext,
-  PayoutSigningParams,
   PeginBatchRegisterParams,
   PeginBatchRegisterResult,
   UtxoRef,
@@ -42,10 +40,8 @@ export {
 export { submitWotsPublicKey } from "./wotsSubmission";
 
 // Step 3: Payout signing
-export {
-  pollAndPreparePayoutSigning,
-  submitPayoutSignatures,
-} from "./payoutSigning";
+export { signAndSubmitPayouts } from "./payoutSigning";
+export type { SignAndSubmitPayoutsParams } from "./payoutSigning";
 
 // Step 4: Broadcast
 export {

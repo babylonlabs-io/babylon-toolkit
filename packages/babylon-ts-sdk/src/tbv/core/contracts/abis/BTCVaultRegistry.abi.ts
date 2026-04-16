@@ -287,4 +287,73 @@ export const BTCVaultRegistryABI = [
     name: "PeginSignaturesIncomplete",
     inputs: [],
   },
+  {
+    type: "function",
+    name: "getBtcVaultProtocolInfo",
+    inputs: [
+      {
+        name: "vaultId",
+        type: "bytes32",
+        internalType: "bytes32",
+      },
+    ],
+    outputs: [
+      {
+        name: "depositorSignedPeginTx",
+        type: "bytes",
+        internalType: "bytes",
+      },
+      {
+        name: "universalChallengersVersion",
+        type: "uint32",
+        internalType: "uint32",
+      },
+      {
+        name: "appVaultKeepersVersion",
+        type: "uint32",
+        internalType: "uint32",
+      },
+      {
+        name: "offchainParamsVersion",
+        type: "uint32",
+        internalType: "uint32",
+      },
+      {
+        name: "verifiedAt",
+        type: "uint256",
+        internalType: "uint256",
+      },
+      {
+        name: "depositorWotsPkHash",
+        type: "bytes32",
+        internalType: "bytes32",
+      },
+      {
+        name: "hashlock",
+        type: "bytes32",
+        internalType: "bytes32",
+      },
+      {
+        name: "htlcVout",
+        type: "uint8",
+        internalType: "uint8",
+      },
+      {
+        name: "depositorPopSignature",
+        type: "bytes",
+        internalType: "bytes",
+      },
+      {
+        name: "prePeginTxHash",
+        type: "bytes32",
+        internalType: "bytes32",
+      },
+      {
+        name: "vaultProviderCommissionBps",
+        type: "uint16",
+        internalType: "uint16",
+      },
+    ],
+    stateMutability: "view",
+  },
 ] as const;

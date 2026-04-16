@@ -65,6 +65,7 @@ export type {
   AaveSpokeUserAccountData,
   AaveSpokeUserPosition,
   DepositorStruct,
+  PositionSizeParams,
   TransactionParams,
 } from "./types.js";
 
@@ -76,8 +77,9 @@ export {
   buildWithdrawCollateralsTx,
   getDynamicReserveConfig,
   getPosition,
-  getReserve,
   getPositionCollateral,
+  getPositionSizeParams,
+  getReserve,
   getTargetHealthFactor,
   getUserAccountData,
   getUserPosition,

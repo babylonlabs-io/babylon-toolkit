@@ -31,16 +31,12 @@ import { useProtocolParamsContext } from "@/context/ProtocolParamsContext";
 import { logger } from "@/infrastructure";
 import { LocalStorageStatus } from "@/models/peginStateMachine";
 import { validateMultiVaultDepositInputs } from "@/services/deposit/validations";
-import { signDepositorGraph } from "@/services/vault/depositorGraphSigningService";
 import {
   collectReservedUtxoRefs,
   selectUtxosForDeposit,
 } from "@/services/vault/utxoReservation";
 import { activateVaultWithSecret } from "@/services/vault/vaultActivationService";
-import {
-  signPayoutTransactions,
-  type PayoutSigningProgress,
-} from "@/services/vault/vaultPayoutSignatureService";
+import type { PayoutSigningProgress } from "@/services/vault/vaultPayoutSignatureService";
 import {
   broadcastPrePeginTransaction,
   utxosToExpectedRecord,
@@ -63,9 +59,8 @@ import { hashSecret } from "@/utils/secretUtils";
 import {
   DepositFlowStep,
   getEthWalletClient,
-  pollAndPreparePayoutSigning,
   registerPeginBatchAndWait,
-  submitPayoutSignatures,
+  signAndSubmitPayouts,
   submitWotsPublicKey,
   waitForContractVerification,
   type DepositUtxo,
@@ -246,9 +241,15 @@ export function useDepositFlow(
   // Hooks
   const { btcAddress, spendableUTXOs, isUTXOsLoading, utxoError } =
     useBtcWalletState();
-  const { findProvider, vaultKeepers } = useVaultProviders(selectedApplication);
-  const { config, timelockPegin, timelockRefund, minDeposit, maxDeposit } =
-    useProtocolParamsContext();
+  const { findProvider } = useVaultProviders(selectedApplication);
+  const {
+    config,
+    timelockPegin,
+    timelockRefund,
+    minDeposit,
+    maxDeposit,
+    getUniversalChallengersByVersion,
+  } = useProtocolParamsContext();
 
   // ============================================================================
   // Main Execution Function
@@ -586,58 +587,22 @@ export function useDepositFlow(
           try {
             setCurrentVaultIndex(vi);
             setIsWaiting(true);
-            const {
-              context,
-              vaultProviderAddress,
-              preparedTransactions,
-              depositorGraph,
-            } = await pollAndPreparePayoutSigning({
+
+            await signAndSubmitPayouts({
               vaultId: result.vaultId,
               peginTxHash: result.peginTxHash,
-              btcTxHex: result.peginTxHex,
               depositorBtcPubkey: result.depositorBtcPubkey,
-              providerAddress: provider.id,
               providerBtcPubKey: provider.btcPubKey,
-              vaultKeepers,
-              universalChallengers: universalChallengerBtcPubkeys.map(
-                (btcPubKey) => ({
-                  btcPubKey,
-                }),
-              ),
               registeredPayoutScriptPubKey:
                 btcAddressToScriptPubKeyHex(confirmedBtcAddress),
+              getUniversalChallengersByVersion,
+              btcWallet: confirmedBtcWallet,
+              depositorEthAddress: confirmedEthAddress,
               signal,
+              onProgress: setPayoutSigningProgress,
             });
 
             setIsWaiting(false);
-
-            // Sign payouts (batch when wallet supports it)
-            const signatures = await signPayoutTransactions(
-              confirmedBtcWallet,
-              context,
-              preparedTransactions,
-              setPayoutSigningProgress,
-            );
-
-            // Sign depositor graph (depositor-as-claimer flow)
-            // PSBTs are pre-built by the VP with all taproot metadata embedded.
-            const depositorClaimerPresignatures = await signDepositorGraph({
-              depositorGraph,
-              depositorBtcPubkey: result.depositorBtcPubkey,
-              btcWallet: confirmedBtcWallet,
-            });
-
-            // Submit signatures
-            await submitPayoutSignatures(
-              vaultProviderAddress,
-              result.peginTxHash,
-              result.depositorBtcPubkey,
-              signatures,
-              confirmedEthAddress,
-              depositorClaimerPresignatures,
-              result.vaultId,
-            );
-
             payoutSignedVaultIds.add(result.vaultId);
           } catch (error) {
             // If the user cancelled, stop immediately — don't continue with other vaults
@@ -773,6 +738,7 @@ export function useDepositFlow(
       vaultProviderBtcPubkey,
       vaultKeeperBtcPubkeys,
       universalChallengerBtcPubkeys,
+      getUniversalChallengersByVersion,
       timelockPegin,
       timelockRefund,
       config,
@@ -782,7 +748,6 @@ export function useDepositFlow(
       spendableUTXOs,
       isUTXOsLoading,
       utxoError,
-      vaultKeepers,
       findProvider,
       getMnemonic,
       mnemonicId,

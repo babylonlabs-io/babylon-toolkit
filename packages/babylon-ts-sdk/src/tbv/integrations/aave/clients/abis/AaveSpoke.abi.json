@@ -1255,5 +1255,145 @@
       }
     ],
     "stateMutability": "nonpayable"
+  },
+  {
+    "type": "error",
+    "name": "AssetNotListed",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "ReserveExists",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "InvalidAssetId",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "ReserveNotListed",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "ReserveNotBorrowable",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "ReservePaused",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "ReserveFrozen",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "HealthFactorBelowThreshold",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "CollateralCannotBeLiquidated",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "ReserveNotSupplied",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "ReserveNotBorrowed",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "Unauthorized",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "ConfigKeyUninitialized",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "InactivePositionManager",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "InvalidSignature",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "InvalidAddress",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "InvalidOracleDecimals",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "InvalidCollateralRisk",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "InvalidLiquidationConfig",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "InvalidLiquidationFee",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "InvalidCollateralFactorAndMaxLiquidationBonus",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "InvalidCollateralFactor",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "SelfLiquidation",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "HealthFactorNotBelowThreshold",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "MustNotLeaveDust",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "InvalidDebtToCover",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "CannotReceiveShares",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "MaximumDynamicConfigKeyReached",
+    "inputs": []
   }
 ]
