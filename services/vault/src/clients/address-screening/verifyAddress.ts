@@ -9,6 +9,7 @@ interface AddressScreeningResponse {
 }
 
 const ALLOWED_RISK_LEVELS = ["low", "medium"];
+const FETCH_TIMEOUT_MS = 10_000;
 
 export class AddressScreeningNetworkError extends Error {
   constructor(message: string) {
@@ -27,11 +28,18 @@ export class AddressScreeningNetworkError extends Error {
  * the caller decides whether to hard-block or soft-allow on failure.
  */
 export async function verifyAddress(address: string): Promise<boolean> {
+  if (!ENV.UTILS_API_URL) {
+    // Screening not configured — allow by default.
+    return true;
+  }
+
   const url = `${ENV.UTILS_API_URL}/address/screening?address=${encodeURIComponent(address)}`;
 
   let response: Response;
   try {
-    response = await fetch(url);
+    response = await fetch(url, {
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+    });
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Unknown network error";

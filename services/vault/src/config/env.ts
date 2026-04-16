@@ -20,7 +20,7 @@ interface EnvVars {
   SIDECAR_API_URL: string | undefined;
   BTC_PRICE_FEED: Address | undefined;
   VP_PROXY_URL: string;
-  UTILS_API_URL: string;
+  UTILS_API_URL: string | undefined;
 }
 
 interface EnvValidationResult {
@@ -137,11 +137,7 @@ function validateEnvVars(): EnvValidationResult {
     "NEXT_PUBLIC_TBV_VP_PROXY_URL",
     errors,
   );
-  const UTILS_API_URL = validateRequiredUrl(
-    process.env.NEXT_PUBLIC_TBV_UTILS_API,
-    "NEXT_PUBLIC_TBV_UTILS_API",
-    errors,
-  );
+  const UTILS_API_URL = parseOptionalUrl(process.env.NEXT_PUBLIC_TBV_UTILS_API);
   const BTC_PRICE_FEED = parseOptionalAddress(
     process.env.NEXT_PUBLIC_TBV_BTC_PRICE_FEED,
   );

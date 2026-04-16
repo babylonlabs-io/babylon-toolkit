@@ -9,7 +9,15 @@
 const BTC_NETWORK = process.env.NEXT_PUBLIC_BTC_NETWORK ?? "unknown";
 const STORAGE_KEY = `tbv-address-screening-${BTC_NETWORK}`;
 
-type ScreeningMap = Record<string, boolean>;
+/** Re-screen addresses after 24 hours so updated risk assessments propagate. */
+const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+
+interface CacheEntry {
+  blocked: boolean;
+  ts: number;
+}
+
+type ScreeningMap = Record<string, CacheEntry>;
 
 function readMap(): ScreeningMap {
   try {
@@ -42,7 +50,10 @@ export function getAddressScreeningResult(
 ): boolean | undefined {
   if (!address) return undefined;
   const map = readMap();
-  return map[normalize(address)];
+  const entry = map[normalize(address)];
+  if (!entry) return undefined;
+  if (Date.now() - entry.ts > CACHE_TTL_MS) return undefined;
+  return entry.blocked;
 }
 
 export function setAddressScreeningResult(
@@ -51,7 +62,7 @@ export function setAddressScreeningResult(
 ): void {
   if (!address) return;
   const map = readMap();
-  map[normalize(address)] = failedRiskAssessment;
+  map[normalize(address)] = { blocked: failedRiskAssessment, ts: Date.now() };
   writeMap(map);
 }
 
