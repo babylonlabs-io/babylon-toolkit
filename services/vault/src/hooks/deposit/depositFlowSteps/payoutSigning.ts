@@ -19,20 +19,16 @@ import { updatePendingPeginStatus } from "@/storage/peginStorage";
 import { stripHexPrefix } from "@/utils/btc";
 import { createVpClient } from "@/utils/rpc";
 
-import type { UniversalChallenger } from "../../../types";
-
 export interface SignAndSubmitPayoutsParams {
   /** Derived vault ID (for contract reads + localStorage) */
   vaultId: string;
   /** Raw BTC pegin transaction hash */
   peginTxHash: string;
   depositorBtcPubkey: string;
-  /** Vault provider BTC public key hint (optional — resolved from contract if missing) */
+  /** Vault provider BTC public key hint (optional — resolved from GraphQL if missing) */
   providerBtcPubKey?: string;
   /** Depositor's registered payout scriptPubKey (hex) */
   registeredPayoutScriptPubKey: string;
-  /** Function to resolve UCs by their on-chain version */
-  getUniversalChallengersByVersion: (version: number) => UniversalChallenger[];
   /** Bitcoin wallet for signing */
   btcWallet: BitcoinWallet;
   /** Depositor's Ethereum address (for localStorage) */
@@ -60,7 +56,6 @@ export async function signAndSubmitPayouts(
     depositorBtcPubkey,
     providerBtcPubKey,
     registeredPayoutScriptPubKey,
-    getUniversalChallengersByVersion,
     btcWallet,
     depositorEthAddress,
     signal,
@@ -75,7 +70,6 @@ export async function signAndSubmitPayouts(
     vaultId,
     depositorBtcPubkey,
     vaultProviderBtcPubKey: providerBtcPubKey,
-    getUniversalChallengersByVersion,
     registeredPayoutScriptPubKey,
   });
 

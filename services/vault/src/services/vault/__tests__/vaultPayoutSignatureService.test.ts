@@ -2,8 +2,6 @@ import type { ClaimerTransactions } from "@babylonlabs-io/ts-sdk/tbv/core/client
 import { describe, expect, it, vi } from "vitest";
 
 import { getVaultFromChain } from "../../../clients/eth-contract/btc-vault-registry/query";
-import { getTimelockPeginByVersion } from "../../../clients/eth-contract/protocol-params";
-import { fetchVaultKeepersByVersion } from "../../providers/fetchProviders";
 import { fetchVaultProviderById } from "../fetchVaultProviders";
 import {
   getSortedUniversalChallengerPubkeys,
@@ -31,20 +29,29 @@ vi.mock("../../../clients/eth-contract/btc-vault-registry/query", () => ({
   getVaultFromChain: vi.fn(),
 }));
 
-// Mock versioned vault keeper fetch (used by prepareSigningContext)
-vi.mock("../../providers/fetchProviders", () => ({
-  fetchVaultKeepersByVersion: vi.fn(),
+// Mock SDK readers (used by prepareSigningContext for contract-based reads)
+const mockGetTimelockPeginByVersion = vi.fn();
+const mockGetVaultKeepersByVersion = vi.fn();
+const mockGetUniversalChallengersByVersion = vi.fn();
+vi.mock("../../../clients/eth-contract/sdk-readers", () => ({
+  getProtocolParamsReader: vi.fn().mockResolvedValue({
+    getTimelockPeginByVersion: (...args: unknown[]) =>
+      mockGetTimelockPeginByVersion(...args),
+  }),
+  getVaultKeeperReader: vi.fn().mockResolvedValue({
+    getVaultKeepersByVersion: (...args: unknown[]) =>
+      mockGetVaultKeepersByVersion(...args),
+  }),
+  getUniversalChallengerReader: vi.fn().mockResolvedValue({
+    getUniversalChallengersByVersion: (...args: unknown[]) =>
+      mockGetUniversalChallengersByVersion(...args),
+  }),
 }));
 
 // Mock RPC client
 vi.mock("@babylonlabs-io/ts-sdk/tbv/core/clients", async (importOriginal) => ({
   ...(await importOriginal()),
   VaultProviderRpcClient: vi.fn(),
-}));
-
-// Mock versioned timelockPegin lookup (used by prepareSigningContext)
-vi.mock("../../../clients/eth-contract/protocol-params", () => ({
-  getTimelockPeginByVersion: vi.fn(),
 }));
 
 // Mock config
@@ -733,14 +740,16 @@ describe("vaultPayoutSignatureService", () => {
 
     it("sources peginTxHex from on-chain vault data, not params", async () => {
       vi.mocked(getVaultFromChain).mockResolvedValue(onChainVault);
-      vi.mocked(fetchVaultKeepersByVersion).mockResolvedValue(vaultKeepers);
-      vi.mocked(getTimelockPeginByVersion).mockResolvedValue(100);
+      mockGetVaultKeepersByVersion.mockResolvedValue(vaultKeepers);
+      mockGetTimelockPeginByVersion.mockResolvedValue(100);
+      mockGetUniversalChallengersByVersion.mockResolvedValue(
+        universalChallengers,
+      );
 
       const { context } = await prepareSigningContext({
         vaultId,
         depositorBtcPubkey,
         vaultProviderBtcPubKey,
-        getUniversalChallengersByVersion: () => universalChallengers,
         registeredPayoutScriptPubKey: depositorPayoutBtcAddress,
       });
 
@@ -750,18 +759,20 @@ describe("vaultPayoutSignatureService", () => {
 
     it("fetches vault keepers using version from on-chain vault", async () => {
       vi.mocked(getVaultFromChain).mockResolvedValue(onChainVault);
-      vi.mocked(fetchVaultKeepersByVersion).mockResolvedValue(vaultKeepers);
-      vi.mocked(getTimelockPeginByVersion).mockResolvedValue(100);
+      mockGetVaultKeepersByVersion.mockResolvedValue(vaultKeepers);
+      mockGetTimelockPeginByVersion.mockResolvedValue(100);
+      mockGetUniversalChallengersByVersion.mockResolvedValue(
+        universalChallengers,
+      );
 
       await prepareSigningContext({
         vaultId,
         depositorBtcPubkey,
         vaultProviderBtcPubKey,
-        getUniversalChallengersByVersion: () => universalChallengers,
         registeredPayoutScriptPubKey: depositorPayoutBtcAddress,
       });
 
-      expect(fetchVaultKeepersByVersion).toHaveBeenCalledWith(
+      expect(mockGetVaultKeepersByVersion).toHaveBeenCalledWith(
         onChainVault.applicationEntryPoint,
         onChainVault.appVaultKeepersVersion,
       );
@@ -769,37 +780,35 @@ describe("vaultPayoutSignatureService", () => {
 
     it("selects universal challengers using version from on-chain vault", async () => {
       vi.mocked(getVaultFromChain).mockResolvedValue(onChainVault);
-      vi.mocked(fetchVaultKeepersByVersion).mockResolvedValue(vaultKeepers);
-
-      const getUniversalChallengersByVersion = vi
-        .fn()
-        .mockReturnValue(universalChallengers);
-      vi.mocked(getTimelockPeginByVersion).mockResolvedValue(100);
+      mockGetVaultKeepersByVersion.mockResolvedValue(vaultKeepers);
+      mockGetTimelockPeginByVersion.mockResolvedValue(100);
+      mockGetUniversalChallengersByVersion.mockResolvedValue(
+        universalChallengers,
+      );
 
       await prepareSigningContext({
         vaultId,
         depositorBtcPubkey,
         vaultProviderBtcPubKey,
-        getUniversalChallengersByVersion,
         registeredPayoutScriptPubKey: depositorPayoutBtcAddress,
       });
 
-      expect(getUniversalChallengersByVersion).toHaveBeenCalledWith(
+      expect(mockGetUniversalChallengersByVersion).toHaveBeenCalledWith(
         onChainVault.universalChallengersVersion,
       );
     });
 
     it("throws when no universal challengers exist for the on-chain version", async () => {
       vi.mocked(getVaultFromChain).mockResolvedValue(onChainVault);
-      vi.mocked(fetchVaultKeepersByVersion).mockResolvedValue(vaultKeepers);
-      vi.mocked(getTimelockPeginByVersion).mockResolvedValue(100);
+      mockGetVaultKeepersByVersion.mockResolvedValue(vaultKeepers);
+      mockGetTimelockPeginByVersion.mockResolvedValue(100);
+      mockGetUniversalChallengersByVersion.mockResolvedValue([]);
 
       await expect(
         prepareSigningContext({
           vaultId,
           depositorBtcPubkey,
           vaultProviderBtcPubKey,
-          getUniversalChallengersByVersion: () => [],
           registeredPayoutScriptPubKey: depositorPayoutBtcAddress,
         }),
       ).rejects.toThrow(
@@ -807,20 +816,42 @@ describe("vaultPayoutSignatureService", () => {
       );
     });
 
+    it("throws when no vault keepers exist for the on-chain version", async () => {
+      vi.mocked(getVaultFromChain).mockResolvedValue(onChainVault);
+      mockGetVaultKeepersByVersion.mockResolvedValue([]);
+      mockGetTimelockPeginByVersion.mockResolvedValue(100);
+      mockGetUniversalChallengersByVersion.mockResolvedValue(
+        universalChallengers,
+      );
+
+      await expect(
+        prepareSigningContext({
+          vaultId,
+          depositorBtcPubkey,
+          vaultProviderBtcPubKey,
+          registeredPayoutScriptPubKey: depositorPayoutBtcAddress,
+        }),
+      ).rejects.toThrow(
+        `No vault keepers found for version ${onChainVault.appVaultKeepersVersion}`,
+      );
+    });
+
     it("derives timelockPegin from vault's locked offchainParamsVersion", async () => {
       vi.mocked(getVaultFromChain).mockResolvedValue(onChainVault);
-      vi.mocked(fetchVaultKeepersByVersion).mockResolvedValue(vaultKeepers);
-      vi.mocked(getTimelockPeginByVersion).mockResolvedValue(42);
+      mockGetVaultKeepersByVersion.mockResolvedValue(vaultKeepers);
+      mockGetTimelockPeginByVersion.mockResolvedValue(42);
+      mockGetUniversalChallengersByVersion.mockResolvedValue(
+        universalChallengers,
+      );
 
       const { context } = await prepareSigningContext({
         vaultId,
         depositorBtcPubkey,
         vaultProviderBtcPubKey,
-        getUniversalChallengersByVersion: () => universalChallengers,
         registeredPayoutScriptPubKey: depositorPayoutBtcAddress,
       });
 
-      expect(getTimelockPeginByVersion).toHaveBeenCalledWith(
+      expect(mockGetTimelockPeginByVersion).toHaveBeenCalledWith(
         onChainVault.offchainParamsVersion,
       );
       expect(context.timelockPegin).toBe(42);
@@ -828,8 +859,11 @@ describe("vaultPayoutSignatureService", () => {
 
     it("resolves vault provider btc pubkey from GraphQL using on-chain address when not provided inline", async () => {
       vi.mocked(getVaultFromChain).mockResolvedValue(onChainVault);
-      vi.mocked(fetchVaultKeepersByVersion).mockResolvedValue(vaultKeepers);
-      vi.mocked(getTimelockPeginByVersion).mockResolvedValue(100);
+      mockGetVaultKeepersByVersion.mockResolvedValue(vaultKeepers);
+      mockGetTimelockPeginByVersion.mockResolvedValue(100);
+      mockGetUniversalChallengersByVersion.mockResolvedValue(
+        universalChallengers,
+      );
       vi.mocked(fetchVaultProviderById).mockResolvedValue({
         btcPubKey: "0xfetchedproviderkey",
       } as any);
@@ -838,7 +872,6 @@ describe("vaultPayoutSignatureService", () => {
         vaultId,
         depositorBtcPubkey,
         vaultProviderBtcPubKey: undefined,
-        getUniversalChallengersByVersion: () => universalChallengers,
         registeredPayoutScriptPubKey: depositorPayoutBtcAddress,
       });
 
@@ -850,14 +883,16 @@ describe("vaultPayoutSignatureService", () => {
 
     it("includes registeredPayoutScriptPubKey in signing context", async () => {
       vi.mocked(getVaultFromChain).mockResolvedValue(onChainVault);
-      vi.mocked(fetchVaultKeepersByVersion).mockResolvedValue(vaultKeepers);
-      vi.mocked(getTimelockPeginByVersion).mockResolvedValue(100);
+      mockGetVaultKeepersByVersion.mockResolvedValue(vaultKeepers);
+      mockGetTimelockPeginByVersion.mockResolvedValue(100);
+      mockGetUniversalChallengersByVersion.mockResolvedValue(
+        universalChallengers,
+      );
 
       const { context } = await prepareSigningContext({
         vaultId,
         depositorBtcPubkey,
         vaultProviderBtcPubKey,
-        getUniversalChallengersByVersion: () => universalChallengers,
         registeredPayoutScriptPubKey: depositorPayoutBtcAddress,
       });
 

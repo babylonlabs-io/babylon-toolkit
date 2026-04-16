@@ -242,14 +242,8 @@ export function useDepositFlow(
   const { btcAddress, spendableUTXOs, isUTXOsLoading, utxoError } =
     useBtcWalletState();
   const { findProvider } = useVaultProviders(selectedApplication);
-  const {
-    config,
-    timelockPegin,
-    timelockRefund,
-    minDeposit,
-    maxDeposit,
-    getUniversalChallengersByVersion,
-  } = useProtocolParamsContext();
+  const { config, timelockPegin, timelockRefund, minDeposit, maxDeposit } =
+    useProtocolParamsContext();
 
   // ============================================================================
   // Main Execution Function
@@ -595,7 +589,6 @@ export function useDepositFlow(
               providerBtcPubKey: provider.btcPubKey,
               registeredPayoutScriptPubKey:
                 btcAddressToScriptPubKeyHex(confirmedBtcAddress),
-              getUniversalChallengersByVersion,
               btcWallet: confirmedBtcWallet,
               depositorEthAddress: confirmedEthAddress,
               signal,
@@ -738,7 +731,6 @@ export function useDepositFlow(
       vaultProviderBtcPubkey,
       vaultKeeperBtcPubkeys,
       universalChallengerBtcPubkeys,
-      getUniversalChallengersByVersion,
       timelockPegin,
       timelockRefund,
       config,

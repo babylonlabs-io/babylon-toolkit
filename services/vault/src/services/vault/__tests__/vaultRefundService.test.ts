@@ -14,20 +14,27 @@ vi.mock("../../../clients/eth-contract/btc-vault-registry/query", () => ({
   getVaultFromChain: vi.fn(),
 }));
 
-vi.mock("../../../clients/eth-contract/protocol-params", () => ({
-  getOffchainParamsByVersion: vi.fn(),
-}));
-
 vi.mock("../../../config/pegin", () => ({
   getBTCNetworkForWASM: vi.fn().mockReturnValue("testnet"),
 }));
 
-vi.mock("../../providers", () => ({
-  fetchAllUniversalChallengers: vi.fn(),
-}));
-
-vi.mock("../../providers/fetchProviders", () => ({
-  fetchVaultKeepersByVersion: vi.fn(),
+// Mock SDK readers (used by buildAndBroadcastRefundTransaction for contract-based reads)
+const mockGetOffchainParamsByVersion = vi.fn();
+const mockGetVaultKeepersByVersion = vi.fn();
+const mockGetUniversalChallengersByVersion = vi.fn();
+vi.mock("../../../clients/eth-contract/sdk-readers", () => ({
+  getProtocolParamsReader: vi.fn().mockResolvedValue({
+    getOffchainParamsByVersion: (...args: unknown[]) =>
+      mockGetOffchainParamsByVersion(...args),
+  }),
+  getVaultKeeperReader: vi.fn().mockResolvedValue({
+    getVaultKeepersByVersion: (...args: unknown[]) =>
+      mockGetVaultKeepersByVersion(...args),
+  }),
+  getUniversalChallengerReader: vi.fn().mockResolvedValue({
+    getUniversalChallengersByVersion: (...args: unknown[]) =>
+      mockGetUniversalChallengersByVersion(...args),
+  }),
 }));
 
 vi.mock("../fetchVaultProviders", () => ({
@@ -60,9 +67,6 @@ import {
 import { beforeEach, describe, expect, it, vi, type Mock } from "vitest";
 
 import { getVaultFromChain } from "../../../clients/eth-contract/btc-vault-registry/query";
-import { getOffchainParamsByVersion } from "../../../clients/eth-contract/protocol-params";
-import { fetchAllUniversalChallengers } from "../../providers";
-import { fetchVaultKeepersByVersion } from "../../providers/fetchProviders";
 import { fetchVaultProviderById } from "../fetchVaultProviders";
 import { fetchVaultById } from "../fetchVaults";
 import { buildAndBroadcastRefundTransaction } from "../vaultRefundService";
@@ -71,11 +75,11 @@ const VAULT_ID = "0xdeadbeef" as `0x${string}`;
 const DEPOSITOR_PUBKEY = "aabbccdd";
 
 const ON_CHAIN_VAULT = {
-  offchainParamsVersion: 1n,
+  offchainParamsVersion: 1,
   vaultProvider: "0xprovider",
   applicationEntryPoint: "0xapp",
-  appVaultKeepersVersion: 1n,
-  universalChallengersVersion: 1n,
+  appVaultKeepersVersion: 1,
+  universalChallengersVersion: 1,
   hashlock: "0xhashlock",
   htlcVout: 0,
 };
@@ -106,12 +110,12 @@ describe("vaultRefundService - buildAndBroadcastRefundTransaction", () => {
 
     (getVaultFromChain as Mock).mockResolvedValue(ON_CHAIN_VAULT);
     (fetchVaultById as Mock).mockResolvedValue(INDEXER_VAULT);
-    (getOffchainParamsByVersion as Mock).mockResolvedValue(OFFCHAIN_PARAMS);
+    mockGetOffchainParamsByVersion.mockResolvedValue(OFFCHAIN_PARAMS);
     (fetchVaultProviderById as Mock).mockResolvedValue(VAULT_PROVIDER);
-    (fetchVaultKeepersByVersion as Mock).mockResolvedValue(VAULT_KEEPERS);
-    (fetchAllUniversalChallengers as Mock).mockResolvedValue({
-      byVersion: new Map([[1n, UNIVERSAL_CHALLENGERS]]),
-    });
+    mockGetVaultKeepersByVersion.mockResolvedValue(VAULT_KEEPERS);
+    mockGetUniversalChallengersByVersion.mockResolvedValue(
+      UNIVERSAL_CHALLENGERS,
+    );
     (getNetworkFees as Mock).mockResolvedValue({ halfHourFee: 10 });
     (buildRefundPsbt as Mock).mockResolvedValue({ psbtHex: "psbt_hex" });
     (pushTx as Mock).mockResolvedValue("tx_id_abc123");
@@ -145,7 +149,7 @@ describe("vaultRefundService - buildAndBroadcastRefundTransaction", () => {
   });
 
   it("throws when no vault keepers are found", async () => {
-    (fetchVaultKeepersByVersion as Mock).mockResolvedValue([]);
+    mockGetVaultKeepersByVersion.mockResolvedValue([]);
 
     await expect(
       buildAndBroadcastRefundTransaction({
@@ -159,9 +163,7 @@ describe("vaultRefundService - buildAndBroadcastRefundTransaction", () => {
   });
 
   it("throws when no universal challengers are found for the version", async () => {
-    (fetchAllUniversalChallengers as Mock).mockResolvedValue({
-      byVersion: new Map(),
-    });
+    mockGetUniversalChallengersByVersion.mockResolvedValue([]);
 
     await expect(
       buildAndBroadcastRefundTransaction({

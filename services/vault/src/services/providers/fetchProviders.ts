@@ -29,19 +29,6 @@ interface GraphQLAppProvidersResponse {
   };
 }
 
-/** GraphQL response for versioned keepers-only query */
-interface VersionedKeepersResponse {
-  vaultKeeperApplications: {
-    items: Array<{
-      vaultKeeper: string;
-      version: number;
-      vaultKeeperInfo: {
-        btcPubKey: string;
-      };
-    }>;
-  };
-}
-
 const GET_APP_PROVIDERS = gql`
   query GetAppProviders($appController: String!) {
     vaultProviders(where: { applicationEntryPoint: $appController }) {
@@ -53,23 +40,6 @@ const GET_APP_PROVIDERS = gql`
       }
     }
     vaultKeeperApplications(where: { applicationEntryPoint: $appController }) {
-      items {
-        vaultKeeper
-        version
-        vaultKeeperInfo {
-          btcPubKey
-        }
-      }
-    }
-  }
-`;
-
-/** GraphQL query to fetch vault keepers by exact version */
-const GET_KEEPERS_BY_VERSION = gql`
-  query GetKeepersByVersion($appController: String!, $keepersVersion: Int!) {
-    vaultKeeperApplications(
-      where: { applicationEntryPoint: $appController, version: $keepersVersion }
-    ) {
       items {
         vaultKeeper
         version
@@ -101,33 +71,6 @@ export function getLatestVersionKeepers(
   }
 
   return result;
-}
-
-/**
- * Fetches vault keepers by version for a specific application.
- * Used for payout signing where we need the keepers that were locked
- * when the vault was created.
- *
- * @param applicationEntryPoint - The application controller address
- * @param appVaultKeepersVersion - The vault keepers version locked at vault creation
- * @returns Array of vault keepers for that version
- */
-export async function fetchVaultKeepersByVersion(
-  applicationEntryPoint: string,
-  appVaultKeepersVersion: number,
-): Promise<VaultKeeper[]> {
-  const response = await graphqlClient.request<VersionedKeepersResponse>(
-    GET_KEEPERS_BY_VERSION,
-    {
-      appController: applicationEntryPoint.toLowerCase(),
-      keepersVersion: appVaultKeepersVersion,
-    },
-  );
-
-  return response.vaultKeeperApplications.items.map((item) => ({
-    id: item.vaultKeeper,
-    btcPubKey: item.vaultKeeperInfo.btcPubKey,
-  }));
 }
 
 /**

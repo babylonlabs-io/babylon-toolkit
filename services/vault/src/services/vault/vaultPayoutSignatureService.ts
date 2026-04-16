@@ -8,9 +8,12 @@ import type {
 import type { Address, Hex } from "viem";
 
 import { getVaultFromChain } from "../../clients/eth-contract/btc-vault-registry/query";
-import { getTimelockPeginByVersion } from "../../clients/eth-contract/protocol-params";
+import {
+  getProtocolParamsReader,
+  getUniversalChallengerReader,
+  getVaultKeeperReader,
+} from "../../clients/eth-contract/sdk-readers";
 import { getBTCNetworkForWASM } from "../../config/pegin";
-import type { UniversalChallenger } from "../../types";
 import {
   deriveBip86ScriptPubKeyHex,
   processPublicKeyToXOnly,
@@ -18,7 +21,6 @@ import {
   validateXOnlyPubkey,
 } from "../../utils/btc";
 import { createVpClient } from "../../utils/rpc";
-import { fetchVaultKeepersByVersion } from "../providers/fetchProviders";
 
 import { fetchVaultProviderById } from "./fetchVaultProviders";
 
@@ -40,8 +42,6 @@ export interface PrepareSigningContextParams {
   depositorBtcPubkey: string;
   /** Vault provider's BTC public key hint (optional — resolved from GraphQL if missing) */
   vaultProviderBtcPubKey?: string;
-  /** Function to get UCs by version from context (avoids redundant fetch) */
-  getUniversalChallengersByVersion: (version: number) => UniversalChallenger[];
   /** Depositor's registered payout scriptPubKey (hex) for payout output validation */
   registeredPayoutScriptPubKey: string;
 }
@@ -284,8 +284,8 @@ export interface PayoutSigningProgress {
  * Prepare the signing context by fetching all required data.
  * Call this once, then use signPayout for each transaction.
  *
- * Uses versioned vault keepers (fetched) and universal challengers (from context)
- * based on the versions locked when the vault was created.
+ * Uses versioned vault keepers and universal challengers from on-chain contracts
+ * (authoritative source) based on the versions locked when the vault was created.
  */
 export async function prepareSigningContext(
   params: PrepareSigningContextParams,
@@ -294,7 +294,6 @@ export async function prepareSigningContext(
     vaultId,
     depositorBtcPubkey,
     vaultProviderBtcPubKey,
-    getUniversalChallengersByVersion,
     registeredPayoutScriptPubKey,
   } = params;
   // Fetch signing-critical vault fields from the contract (authoritative source).
@@ -305,20 +304,30 @@ export async function prepareSigningContext(
   // emits it in the PegInSubmitted event, it's not stored in the BTCVault struct.
   const vault = await getVaultFromChain(vaultId as Hex);
 
-  const timelockPegin = await getTimelockPeginByVersion(
+  const protocolParamsReader = await getProtocolParamsReader();
+  const timelockPegin = await protocolParamsReader.getTimelockPeginByVersion(
     vault.offchainParamsVersion,
   );
 
-  // Fetch versioned vault keepers (per-application)
-  const vaultKeepers = await fetchVaultKeepersByVersion(
+  // Fetch versioned vault keepers from the contract (authoritative source)
+  const vaultKeeperReader = await getVaultKeeperReader();
+  const vaultKeepers = await vaultKeeperReader.getVaultKeepersByVersion(
     vault.applicationEntryPoint,
     vault.appVaultKeepersVersion,
   );
 
-  // Get versioned universal challengers from context (system-wide)
-  const universalChallengers = getUniversalChallengersByVersion(
-    vault.universalChallengersVersion,
-  );
+  if (vaultKeepers.length === 0) {
+    throw new Error(
+      `No vault keepers found for version ${vault.appVaultKeepersVersion}`,
+    );
+  }
+
+  // Fetch versioned universal challengers from the contract (authoritative source)
+  const universalChallengerReader = await getUniversalChallengerReader();
+  const universalChallengers =
+    await universalChallengerReader.getUniversalChallengersByVersion(
+      vault.universalChallengersVersion,
+    );
 
   if (universalChallengers.length === 0) {
     throw new Error(
