@@ -6,13 +6,16 @@
  * avoid duplicating the pollUntil + getPeginStatus pattern.
  */
 
-import { VaultProviderRpcApi } from "@/clients/vault-provider-rpc";
+import {
+  JsonRpcError,
+  RpcErrorCode,
+  VP_TERMINAL_STATUSES,
+  VaultProviderRpcClient,
+} from "@babylonlabs-io/ts-sdk/tbv/core/clients";
+
 import { pollUntil } from "@/utils/async";
 import { stripHexPrefix } from "@/utils/btc";
 import { getVpProxyUrl } from "@/utils/rpc";
-
-/** Timeout for RPC requests (60 seconds) */
-const RPC_TIMEOUT_MS = 60 * 1000;
 
 /** Default polling interval (10 seconds) */
 const DEFAULT_POLL_INTERVAL_MS = 10 * 1000;
@@ -51,24 +54,37 @@ export async function waitForPeginStatus(
     signal,
   } = params;
 
-  const rpcClient = new VaultProviderRpcApi(
-    getVpProxyUrl(providerAddress),
-    RPC_TIMEOUT_MS,
-  );
+  const rpcClient = new VaultProviderRpcClient(getVpProxyUrl(providerAddress));
   const strippedTxid = stripHexPrefix(peginTxHash);
 
   return pollUntil<string>(
     async () => {
-      const response = await rpcClient.getPeginStatus({
-        pegin_txid: strippedTxid,
-      });
-      return targetStatuses.has(response.status) ? response.status : null;
+      const response = await rpcClient.getPeginStatus(
+        { pegin_txid: strippedTxid },
+        signal,
+      );
+      const status = response.status;
+      if (targetStatuses.has(status)) {
+        return status;
+      }
+      // Fail fast on terminal statuses to avoid waiting for timeout
+      if (
+        VP_TERMINAL_STATUSES.has(status as never) &&
+        !targetStatuses.has(status)
+      ) {
+        throw new Error(
+          `Pegin ${strippedTxid.slice(0, 8)}… reached terminal status "${status}" while waiting for ${[...targetStatuses].join(", ")}`,
+        );
+      }
+      return null;
     },
     {
       intervalMs,
       timeoutMs,
       isTransient: (error) =>
-        error instanceof Error && error.message.includes("PegIn not found"),
+        (error instanceof JsonRpcError &&
+          error.code === RpcErrorCode.NOT_FOUND) ||
+        (error instanceof Error && error.message.includes("PegIn not found")),
       signal,
     },
   );

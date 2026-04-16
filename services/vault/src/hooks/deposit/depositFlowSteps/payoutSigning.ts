@@ -2,17 +2,20 @@
  * Step 3: Payout signing - poll for transactions and submit signatures
  */
 
+import type {
+  ClaimerSignatures,
+  DepositorAsClaimerPresignatures,
+} from "@babylonlabs-io/ts-sdk/tbv/core/clients";
+import {
+  DaemonStatus,
+  VaultProviderRpcClient,
+} from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import type { Address, Hex } from "viem";
 
 import { getVaultFromChain } from "@/clients/eth-contract/btc-vault-registry/query";
 import { getTimelockPeginByVersion } from "@/clients/eth-contract/protocol-params";
-import { VaultProviderRpcApi } from "@/clients/vault-provider-rpc";
-import type {
-  ClaimerSignatures,
-  DepositorAsClaimerPresignatures,
-} from "@/clients/vault-provider-rpc/types";
 import { getBTCNetworkForWASM } from "@/config/pegin";
-import { DaemonStatus, LocalStorageStatus } from "@/models/peginStateMachine";
+import { LocalStorageStatus } from "@/models/peginStateMachine";
 import {
   getSortedUniversalChallengerPubkeys,
   getSortedVaultKeeperPubkeys,
@@ -30,9 +33,6 @@ import type { PayoutSigningContext, PayoutSigningParams } from "./types";
 // ============================================================================
 // Constants
 // ============================================================================
-
-/** Timeout for RPC requests (60 seconds) */
-const RPC_TIMEOUT_MS = 60 * 1000;
 
 /** Maximum polling timeout (20 minutes) - vault provider may take 15-20 minutes to prepare */
 const MAX_POLLING_TIMEOUT_MS = 20 * 60 * 1000;
@@ -80,10 +80,7 @@ export async function pollAndPreparePayoutSigning(
   });
 
   // Phase 2: Fetch transaction data (VP is ready)
-  const rpcClient = new VaultProviderRpcApi(
-    getVpProxyUrl(providerAddress),
-    RPC_TIMEOUT_MS,
-  );
+  const rpcClient = new VaultProviderRpcClient(getVpProxyUrl(providerAddress));
   const response = await rpcClient.requestDepositorPresignTransactions({
     pegin_txid: stripHexPrefix(peginTxHash),
     depositor_pk: stripHexPrefix(depositorBtcPubkey),

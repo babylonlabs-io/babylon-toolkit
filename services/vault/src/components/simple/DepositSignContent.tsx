@@ -15,7 +15,7 @@ import {
   computeDepositDerivedState,
   DEPOSIT_SUCCESS_MESSAGE,
 } from "@/components/deposit/DepositSignModal/depositStepHelpers";
-import { useMultiVaultDepositFlow } from "@/hooks/deposit/useMultiVaultDepositFlow";
+import { useDepositFlow } from "@/hooks/deposit/useDepositFlow";
 import { useRunOnce } from "@/hooks/useRunOnce";
 
 import { DepositProgressView } from "./DepositProgressView";
@@ -53,7 +53,7 @@ export function DepositSignContent({
   ...flowParams
 }: DepositSignContentProps) {
   const {
-    executeMultiVaultDeposit,
+    executeDeposit,
     abort,
     currentStep,
     currentVaultIndex,
@@ -63,7 +63,7 @@ export function DepositSignContent({
     payoutSigningProgress,
     artifactDownloadInfo,
     continueAfterArtifactDownload,
-  } = useMultiVaultDepositFlow({
+  } = useDepositFlow({
     vaultAmounts,
     htlcSecretHexes,
     depositorSecretHashes,
@@ -72,7 +72,7 @@ export function DepositSignContent({
 
   // Auto-start the flow on mount
   const startFlow = useCallback(async () => {
-    const result = await executeMultiVaultDeposit();
+    const result = await executeDeposit();
     if (result) {
       onRefetchActivities?.();
       const firstPegin = result.pegins[0];
@@ -84,7 +84,7 @@ export function DepositSignContent({
         );
       }
     }
-  }, [executeMultiVaultDeposit, onRefetchActivities, onSuccess]);
+  }, [executeDeposit, onRefetchActivities, onSuccess]);
 
   useRunOnce(startFlow);
 

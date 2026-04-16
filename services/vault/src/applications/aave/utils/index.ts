@@ -1,6 +1,7 @@
 // Re-export utilities from SDK
 export {
   HEALTH_FACTOR_COLORS,
+  aaveRayValueToUsd,
   aaveValueToUsd,
   calculateBorrowRatio,
   calculateHealthFactor,

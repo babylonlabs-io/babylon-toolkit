@@ -149,15 +149,15 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts:38](../.
 
 Total collateral value in base currency (1e26 = $1 USD)
 
-##### totalDebtValue
+##### totalDebtValueRay
 
 ```ts
-totalDebtValue: bigint;
+totalDebtValueRay: bigint;
 ```
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts:40](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts#L40)
 
-Total debt value in base currency (1e26 = $1 USD)
+Total debt value in base currency, scaled by RAY (1e35 = $1 USD)
 
 ##### activeCollateralCount
 
@@ -169,10 +169,10 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts:42](../.
 
 Number of active collateral reserves
 
-##### borrowedCount
+##### borrowCount
 
 ```ts
-borrowedCount: bigint;
+borrowCount: bigint;
 ```
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts:44](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts#L44)
@@ -209,25 +209,15 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts:54](../.
 
 Premium shares (interest)
 
-##### realizedPremiumRay
-
-```ts
-realizedPremiumRay: bigint;
-```
-
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts:56](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts#L56)
-
-Realized premium (ray)
-
 ##### premiumOffsetRay
 
 ```ts
 premiumOffsetRay: bigint;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts:58](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts#L58)
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts:56](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts#L56)
 
-Premium offset (ray)
+Premium offset, expressed in asset units scaled by RAY (signed)
 
 ##### suppliedShares
 
@@ -1003,7 +993,7 @@ const accountData = await getUserAccountData(
 
 console.log("Health Factor:", accountData.healthFactor);
 console.log("Collateral (USD):", accountData.totalCollateralValue);
-console.log("Debt (USD):", accountData.totalDebtValue);
+console.log("Debt (USD):", accountData.totalDebtValueRay);
 ```
 
 #### Remarks
@@ -1011,7 +1001,7 @@ console.log("Debt (USD):", accountData.totalDebtValue);
 **Return values:**
 - `healthFactor` - WAD format (1e18 = 1.0). Below 1.0 = liquidatable
 - `totalCollateralValue` - USD value in base currency (1e26 = $1)
-- `totalDebtValue` - USD value in base currency (1e26 = $1)
+- `totalDebtValueRay` - USD value in RAY-scaled base currency (1e35 = $1)
 - `avgCollateralFactor` - Weighted average collateral factor in WAD (1e18 = 100%)
 - `riskPremium` - Additional risk premium
 
@@ -1835,7 +1825,6 @@ Check if a position has any debt based on Spoke position data.
 A position is considered to have debt if any of:
 - drawnShares > 0 (borrowed principal)
 - premiumShares > 0 (accrued interest shares)
-- realizedPremiumRay > 0 (realized interest)
 
 #### Parameters
 

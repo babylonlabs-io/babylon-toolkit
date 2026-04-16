@@ -150,8 +150,9 @@ export function useVaultActions(): UseVaultActionsReturn {
       // Get depositor's BTC address for UTXO validation
       const depositorAddress = await btcWalletProvider.getAddress();
 
-      // Validate UTXOs are still available BEFORE asking user to sign
+      // Validate UTXOs are still available BEFORE asking user to sign.
       // This prevents wasted signing effort if UTXOs have been spent
+      // by unrelated transactions.
       await assertUtxosAvailable(unsignedTxHex, depositorAddress);
 
       // Use trusted UTXO data from localStorage when available (stored at

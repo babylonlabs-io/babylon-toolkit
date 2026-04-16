@@ -137,7 +137,7 @@ export async function getUserPositionsWithLiveData(
   if (
     borrowableReserveIds &&
     borrowableReserveIds.length > 0 &&
-    accountData.borrowedCount > 0n
+    accountData.borrowCount > 0n
   ) {
     debtPositions = await fetchDebtPositionsForReserves(
       proxyAddress,

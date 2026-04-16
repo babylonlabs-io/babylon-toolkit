@@ -62,6 +62,14 @@ export const BPS_SCALE = 10000;
 export const AAVE_BASE_CURRENCY_DECIMALS = 26;
 
 /**
+ * Aave RAY-scaled base currency decimals
+ * Debt values (totalDebtValueRay) use 1e35 = $1 USD
+ *
+ * Reference: IAaveSpoke.sol UserAccountData.totalDebtValueRay
+ */
+export const AAVE_BASE_CURRENCY_RAY_DECIMALS = 35;
+
+/**
  * WAD decimals (1e18 = 1.0)
  * Used for health factor and collateral factor values
  *

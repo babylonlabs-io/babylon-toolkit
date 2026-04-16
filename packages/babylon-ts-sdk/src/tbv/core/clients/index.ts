@@ -7,4 +7,6 @@
  */
 
 export * from "./mempool";
+export * from "./vault-provider";
+export * from "./eth";
 

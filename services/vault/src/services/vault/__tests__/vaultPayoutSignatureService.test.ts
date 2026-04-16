@@ -1,4 +1,20 @@
+import type { ClaimerTransactions } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import { describe, expect, it, vi } from "vitest";
+
+import { getVaultFromChain } from "../../../clients/eth-contract/btc-vault-registry/query";
+import { getTimelockPeginByVersion } from "../../../clients/eth-contract/protocol-params";
+import { fetchVaultKeepersByVersion } from "../../providers/fetchProviders";
+import { fetchVaultProviderById } from "../fetchVaultProviders";
+import {
+  getSortedUniversalChallengerPubkeys,
+  getSortedVaultKeeperPubkeys,
+  prepareSigningContext,
+  prepareTransactionsForSigning,
+  signAllTransactionsBatch,
+  signPayoutTransactions,
+  validatePayoutSignatureParams,
+  walletSupportsBatchSigning,
+} from "../vaultPayoutSignatureService";
 
 // Mock SDK imports that may use WASM
 vi.mock("@babylonlabs-io/ts-sdk/tbv/core", () => ({
@@ -21,8 +37,9 @@ vi.mock("../../providers/fetchProviders", () => ({
 }));
 
 // Mock RPC client
-vi.mock("../../../clients/vault-provider-rpc", () => ({
-  VaultProviderRpcApi: vi.fn(),
+vi.mock("@babylonlabs-io/ts-sdk/tbv/core/clients", async (importOriginal) => ({
+  ...(await importOriginal()),
+  VaultProviderRpcClient: vi.fn(),
 }));
 
 // Mock versioned timelockPegin lookup (used by prepareSigningContext)
@@ -42,22 +59,6 @@ vi.mock("../../../utils/btc", async (importOriginal) => ({
     (xOnlyPubkey: string) => `0x5120${xOnlyPubkey.slice(0, 64)}`,
   ),
 }));
-
-import { getVaultFromChain } from "../../../clients/eth-contract/btc-vault-registry/query";
-import { getTimelockPeginByVersion } from "../../../clients/eth-contract/protocol-params";
-import type { ClaimerTransactions } from "../../../clients/vault-provider-rpc/types";
-import { fetchVaultKeepersByVersion } from "../../providers/fetchProviders";
-import { fetchVaultProviderById } from "../fetchVaultProviders";
-import {
-  getSortedUniversalChallengerPubkeys,
-  getSortedVaultKeeperPubkeys,
-  prepareSigningContext,
-  prepareTransactionsForSigning,
-  signAllTransactionsBatch,
-  signPayoutTransactions,
-  validatePayoutSignatureParams,
-  walletSupportsBatchSigning,
-} from "../vaultPayoutSignatureService";
 
 /**
  * Helper to create a valid ClaimerTransactions fixture with all 4 transactions

@@ -1,5 +1,5 @@
 /**
- * Tests for useMultiVaultDepositFlow hook
+ * Tests for useDepositFlow hook
  *
  * Tests the batch pegin flow where all vaults share a single Pre-PegIn
  * transaction with multiple HTLC outputs (one per vault).
@@ -9,7 +9,7 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import type { Address, Hex } from "viem";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { useMultiVaultDepositFlow } from "../useMultiVaultDepositFlow";
+import { useDepositFlow } from "../useDepositFlow";
 
 // ============================================================================
 // Mocks
@@ -101,17 +101,21 @@ vi.mock("@/services/vault/vaultPeginBroadcastService", () => ({
 }));
 
 vi.mock("@/services/wots/wotsService", () => ({
-  deriveWotsPkHash: vi
+  mnemonicToWotsSeed: vi.fn().mockReturnValue(new Uint8Array(32)),
+  deriveWotsBlockPublicKeys: vi.fn().mockResolvedValue([]),
+  computeWotsPublicKeysHash: vi
     .fn()
-    .mockResolvedValue(
+    .mockReturnValue(
       "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
     ),
 }));
 
 vi.mock("@/services/wots", () => ({
-  deriveWotsPkHash: vi
+  mnemonicToWotsSeed: vi.fn().mockReturnValue(new Uint8Array(32)),
+  deriveWotsBlockPublicKeys: vi.fn().mockResolvedValue([]),
+  computeWotsPublicKeysHash: vi
     .fn()
-    .mockResolvedValue(
+    .mockReturnValue(
       "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
     ),
   linkPeginToMnemonic: vi.fn(),
@@ -250,7 +254,7 @@ const MOCK_PARAMS = {
 // ============================================================================
 
 async function executeWithAutoArtifactDownload(result: {
-  current: ReturnType<typeof useMultiVaultDepositFlow>;
+  current: ReturnType<typeof useDepositFlow>;
 }) {
   const pollId = setInterval(() => {
     if (result.current.artifactDownloadInfo) {
@@ -261,7 +265,7 @@ async function executeWithAutoArtifactDownload(result: {
   }, 10);
 
   try {
-    return await result.current.executeMultiVaultDeposit();
+    return await result.current.executeDeposit();
   } finally {
     clearInterval(pollId);
   }
@@ -378,7 +382,7 @@ async function setupDefaultMocks() {
 // Tests
 // ============================================================================
 
-describe("useMultiVaultDepositFlow", () => {
+describe("useDepositFlow", () => {
   beforeEach(async () => {
     vi.clearAllMocks();
     await setupDefaultMocks();
@@ -390,9 +394,7 @@ describe("useMultiVaultDepositFlow", () => {
         await import("@/services/vault/vaultTransactionService"),
       );
 
-      const { result } = renderHook(() =>
-        useMultiVaultDepositFlow(MOCK_PARAMS),
-      );
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
 
       await executeWithAutoArtifactDownload(result);
 
@@ -417,9 +419,7 @@ describe("useMultiVaultDepositFlow", () => {
         await import("@/services/vault/vaultTransactionService"),
       );
 
-      const { result } = renderHook(() =>
-        useMultiVaultDepositFlow(MOCK_PARAMS),
-      );
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
 
       await executeWithAutoArtifactDownload(result);
 
@@ -436,9 +436,7 @@ describe("useMultiVaultDepositFlow", () => {
         await import("../depositFlowSteps"),
       );
 
-      const { result } = renderHook(() =>
-        useMultiVaultDepositFlow(MOCK_PARAMS),
-      );
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
 
       await executeWithAutoArtifactDownload(result);
 
@@ -469,18 +467,18 @@ describe("useMultiVaultDepositFlow", () => {
       });
     });
 
-    it("should derive WOTS PK hashes for all vaults before batch call", async () => {
-      const { deriveWotsPkHash } = vi.mocked(await import("@/services/wots"));
-
-      const { result } = renderHook(() =>
-        useMultiVaultDepositFlow(MOCK_PARAMS),
+    it("should derive WOTS public keys for all vaults before batch call", async () => {
+      const { deriveWotsBlockPublicKeys } = vi.mocked(
+        await import("@/services/wots"),
       );
+
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
 
       await executeWithAutoArtifactDownload(result);
 
       await waitFor(() => {
         // WOTS derivation should happen for each vault
-        expect(deriveWotsPkHash).toHaveBeenCalledTimes(2);
+        expect(deriveWotsBlockPublicKeys).toHaveBeenCalledTimes(2);
       });
     });
   });
@@ -491,9 +489,7 @@ describe("useMultiVaultDepositFlow", () => {
         await import("@/storage/peginStorage"),
       );
 
-      const { result } = renderHook(() =>
-        useMultiVaultDepositFlow(MOCK_PARAMS),
-      );
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
 
       await executeWithAutoArtifactDownload(result);
 
@@ -529,9 +525,7 @@ describe("useMultiVaultDepositFlow", () => {
         await import("@/services/vault/vaultPeginBroadcastService"),
       );
 
-      const { result } = renderHook(() =>
-        useMultiVaultDepositFlow(MOCK_PARAMS),
-      );
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
 
       await executeWithAutoArtifactDownload(result);
 
@@ -551,9 +545,7 @@ describe("useMultiVaultDepositFlow", () => {
         await import("@/storage/peginStorage"),
       );
 
-      const { result } = renderHook(() =>
-        useMultiVaultDepositFlow(MOCK_PARAMS),
-      );
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
 
       await executeWithAutoArtifactDownload(result);
 
@@ -575,9 +567,7 @@ describe("useMultiVaultDepositFlow", () => {
         await import("../depositFlowSteps"),
       );
 
-      const { result } = renderHook(() =>
-        useMultiVaultDepositFlow(MOCK_PARAMS),
-      );
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
 
       await executeWithAutoArtifactDownload(result);
 
@@ -593,9 +583,7 @@ describe("useMultiVaultDepositFlow", () => {
         await import("@/services/vault/vaultActivationService"),
       );
 
-      const { result } = renderHook(() =>
-        useMultiVaultDepositFlow(MOCK_PARAMS),
-      );
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
 
       await executeWithAutoArtifactDownload(result);
 
@@ -607,9 +595,7 @@ describe("useMultiVaultDepositFlow", () => {
 
   describe("Result", () => {
     it("should return result with pegins for each vault", async () => {
-      const { result } = renderHook(() =>
-        useMultiVaultDepositFlow(MOCK_PARAMS),
-      );
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
 
       const depositResult = await executeWithAutoArtifactDownload(result);
 
@@ -633,9 +619,7 @@ describe("useMultiVaultDepositFlow", () => {
     });
 
     it("should set currentStep to COMPLETED on success", async () => {
-      const { result } = renderHook(() =>
-        useMultiVaultDepositFlow(MOCK_PARAMS),
-      );
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
 
       await executeWithAutoArtifactDownload(result);
 
@@ -657,9 +641,7 @@ describe("useMultiVaultDepositFlow", () => {
         new Error("WASM error: invalid params"),
       );
 
-      const { result } = renderHook(() =>
-        useMultiVaultDepositFlow(MOCK_PARAMS),
-      );
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
 
       await executeWithAutoArtifactDownload(result);
 
@@ -677,9 +659,7 @@ describe("useMultiVaultDepositFlow", () => {
         new Error("Network error"),
       );
 
-      const { result } = renderHook(() =>
-        useMultiVaultDepositFlow(MOCK_PARAMS),
-      );
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
 
       await executeWithAutoArtifactDownload(result);
 
@@ -723,9 +703,7 @@ describe("useMultiVaultDepositFlow", () => {
           },
         });
 
-      const { result } = renderHook(() =>
-        useMultiVaultDepositFlow(MOCK_PARAMS),
-      );
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
 
       const depositResult = await executeWithAutoArtifactDownload(result);
 
@@ -761,9 +739,7 @@ describe("useMultiVaultDepositFlow", () => {
         .mockRejectedValueOnce(new Error("WOTS derivation error"))
         .mockResolvedValueOnce(undefined);
 
-      const { result } = renderHook(() =>
-        useMultiVaultDepositFlow(MOCK_PARAMS),
-      );
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
 
       const depositResult = await executeWithAutoArtifactDownload(result);
 
@@ -798,9 +774,7 @@ describe("useMultiVaultDepositFlow", () => {
         .mockResolvedValueOnce(undefined) // vault 1 retry succeeds
         .mockResolvedValueOnce(undefined); // vault 2 succeeds
 
-      const { result } = renderHook(() =>
-        useMultiVaultDepositFlow(MOCK_PARAMS),
-      );
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
 
       const depositResult = await executeWithAutoArtifactDownload(result);
 
@@ -824,9 +798,7 @@ describe("useMultiVaultDepositFlow", () => {
         .mockRejectedValueOnce(new Error("VP timeout"))
         .mockRejectedValueOnce(new Error("VP timeout"));
 
-      const { result } = renderHook(() =>
-        useMultiVaultDepositFlow(MOCK_PARAMS),
-      );
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
 
       const depositResult = await executeWithAutoArtifactDownload(result);
 
@@ -851,12 +823,10 @@ describe("useMultiVaultDepositFlow", () => {
           }),
       );
 
-      const { result } = renderHook(() =>
-        useMultiVaultDepositFlow(MOCK_PARAMS),
-      );
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
 
       // Start flow and immediately abort
-      const promise = result.current.executeMultiVaultDeposit();
+      const promise = result.current.executeDeposit();
       result.current.abort();
       await promise;
 
@@ -899,9 +869,7 @@ describe("useMultiVaultDepositFlow", () => {
         btcPopSignature: "0xPopSig" as Hex,
       });
 
-      const { result } = renderHook(() =>
-        useMultiVaultDepositFlow(SINGLE_PARAMS),
-      );
+      const { result } = renderHook(() => useDepositFlow(SINGLE_PARAMS));
 
       await executeWithAutoArtifactDownload(result);
 
@@ -958,9 +926,7 @@ describe("useMultiVaultDepositFlow", () => {
       // Only return MOCK_UTXO_2 (MOCK_UTXO_1 is reserved)
       vi.mocked(selectUtxosForDeposit).mockReturnValueOnce([MOCK_UTXO_2]);
 
-      const { result } = renderHook(() =>
-        useMultiVaultDepositFlow(MOCK_PARAMS),
-      );
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
 
       await executeWithAutoArtifactDownload(result);
 
@@ -997,9 +963,7 @@ describe("useMultiVaultDepositFlow", () => {
         );
       });
 
-      const { result } = renderHook(() =>
-        useMultiVaultDepositFlow(MOCK_PARAMS),
-      );
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
 
       await executeWithAutoArtifactDownload(result);
 

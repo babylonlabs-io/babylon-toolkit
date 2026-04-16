@@ -51,9 +51,9 @@ export async function waitForContractVerification(
       try {
         const vault = await fetchVaultById(vaultId as Hex);
         // Status values:
-        //   0 = PENDING (waiting for signatures)
-        //   1 = VERIFIED (ready for broadcast)
-        //   2+ = Post-broadcast states
+        //   0 = PENDING (waiting for ACKs)
+        //   1 = VERIFIED (ready for activation)
+        //   2+ = ACTIVE and beyond
         if (vault && vault.status >= 1) {
           return true;
         }

@@ -6,7 +6,7 @@
  * The deposit flow hook orchestrates these functions and manages state.
  *
  * Flow steps:
- * 0. Validation - validateDepositInputs
+ * 0. Validation - validateMultiVaultDepositInputs
  * 1. Get ETH wallet - getEthWalletClient
  * 2a. Prepare pegin - preparePegin (build + fund BTC tx)
  * 2b. Register pegin batch - registerPeginBatchAndWait (PoP + single ETH tx)
@@ -29,8 +29,8 @@ export type {
 } from "./types";
 
 // Step 0: Validation (from service layer)
-export { validateDepositInputs } from "./validation";
-export type { DepositFlowInputs } from "./validation";
+export { validateMultiVaultDepositInputs } from "./validation";
+export type { MultiVaultDepositFlowInputs } from "./validation";
 
 // Steps 1-2: ETH wallet and pegin submission
 export {

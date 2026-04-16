@@ -20,7 +20,6 @@ import {
 } from "react";
 
 import { usePeginPollingQuery } from "../../hooks/deposit/usePeginPollingQuery";
-import { useUTXOs } from "../../hooks/useUTXOs";
 import {
   ContractStatus,
   getPeginState,
@@ -31,45 +30,24 @@ import type {
   PeginPollingContextValue,
   PeginPollingProviderProps,
 } from "../../types/peginPolling";
-import { stripHexPrefix } from "../../utils/btc";
-import { areTransactionsReady } from "../../utils/peginPolling";
+import {
+  areTransactionsReady,
+  isTerminalPollingError,
+} from "../../utils/peginPolling";
 import { isVaultOwnedByWallet } from "../../utils/vaultWarnings";
 
 /**
  * Resolve the effective local status for a deposit, accounting for
- * optimistic UI updates and auto-detection of broadcast state.
+ * optimistic UI updates.
  */
 function resolveLocalStatus(
   depositId: string,
-  contractStatus: ContractStatus,
   optimisticStatuses: Map<string, LocalStorageStatus>,
   pendingPegins: Array<{ id: string; status?: string }>,
-  hasUtxoData: boolean,
-  broadcastedTxIds: Set<string>,
 ): LocalStorageStatus | undefined {
   const pendingPegin = pendingPegins.find((p) => p.id === depositId);
   const optimistic = optimisticStatuses.get(depositId);
-  let localStatus = (optimistic ?? pendingPegin?.status) as
-    | LocalStorageStatus
-    | undefined;
-
-  // Auto-detect CONFIRMING state from blockchain data.
-  // If contract is VERIFIED and the tx is already broadcast to Bitcoin,
-  // treat as CONFIRMING even if localStorage doesn't have this status.
-  // Skip if already CONFIRMING or CONFIRMED (post-activation) to avoid regression.
-  if (
-    hasUtxoData &&
-    contractStatus === ContractStatus.VERIFIED &&
-    localStatus !== LocalStorageStatus.CONFIRMING &&
-    localStatus !== LocalStorageStatus.CONFIRMED
-  ) {
-    const txid = stripHexPrefix(depositId).toLowerCase();
-    if (broadcastedTxIds.has(txid)) {
-      localStatus = LocalStorageStatus.CONFIRMING;
-    }
-  }
-
-  return localStatus;
+  return (optimistic ?? pendingPegin?.status) as LocalStorageStatus | undefined;
 }
 
 const PeginPollingContext = createContext<PeginPollingContextValue | null>(
@@ -87,7 +65,6 @@ export function PeginPollingProvider({
   activities,
   pendingPegins,
   btcPublicKey,
-  btcAddress,
 }: PeginPollingProviderProps) {
   // Optimistic status overrides (for immediate UI feedback after signing)
   const [optimisticStatuses, setOptimisticStatuses] = useState<
@@ -108,16 +85,6 @@ export function PeginPollingProvider({
     pendingPegins,
     btcPublicKey,
   });
-
-  // Fetch recent transactions using React Query (cached with 30s staleTime)
-  // broadcastedTxIds is used by resolveLocalStatus to auto-detect CONFIRMING state
-  const {
-    broadcastedTxIds,
-    isLoading: isLoadingUtxos,
-    error: utxoError,
-  } = useUTXOs(btcAddress);
-
-  const hasUtxoData = !!btcAddress && !isLoadingUtxos && !utxoError;
 
   // Optimistic status handlers
   const setOptimisticStatus = useCallback(
@@ -148,15 +115,18 @@ export function PeginPollingProvider({
       const contractStatus = (activity.contractStatus ?? 0) as ContractStatus;
       const localStatus = resolveLocalStatus(
         depositId,
-        contractStatus,
         optimisticStatuses,
         pendingPegins,
-        hasUtxoData,
-        broadcastedTxIds,
       );
 
       const transactions = data?.get(depositId) ?? null;
       const isReady = transactions ? areTransactionsReady(transactions) : false;
+
+      const depositError = errors?.get(depositId);
+      const vpTerminalError =
+        depositError && isTerminalPollingError(depositError)
+          ? depositError.message
+          : undefined;
 
       const peginState = getPeginState(contractStatus, {
         localStatus,
@@ -167,6 +137,7 @@ export function PeginPollingProvider({
         expirationReason: activity.expirationReason,
         expiredAt: activity.expiredAt,
         canRefund: !!activity.unsignedPrePeginTx,
+        vpTerminalError,
       });
 
       return {
@@ -194,8 +165,6 @@ export function PeginPollingProvider({
       isLoading,
       optimisticStatuses,
       btcPublicKey,
-      hasUtxoData,
-      broadcastedTxIds,
     ],
   );
 

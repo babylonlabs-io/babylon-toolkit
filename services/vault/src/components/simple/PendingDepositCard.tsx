@@ -6,11 +6,11 @@
  */
 
 import { Button } from "@babylonlabs-io/core-ui";
-
 import type {
   ClaimerTransactions,
   DepositorGraphTransactions,
-} from "@/clients/vault-provider-rpc/types";
+} from "@babylonlabs-io/ts-sdk/tbv/core/clients";
+
 import {
   getActionStatus,
   isArtifactDownloadAvailable,

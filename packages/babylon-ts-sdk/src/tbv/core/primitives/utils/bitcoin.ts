@@ -36,7 +36,7 @@ export const TAPSCRIPT_LEAF_VERSION = 0xc0;
  * @returns Hex string without "0x" prefix
  */
 export function stripHexPrefix(hex: string): string {
-  return hex.startsWith("0x") ? hex.slice(2) : hex;
+  return hex.startsWith("0x") || hex.startsWith("0X") ? hex.slice(2) : hex;
 }
 
 /**

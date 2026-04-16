@@ -17,3 +17,4 @@ export * from "./managers";
 export * from "./clients";
 export * from "./contracts";
 export * from "./wots";
+export * from "./services";

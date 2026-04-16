@@ -71,7 +71,7 @@ describe("Deposit Transformers", () => {
         "Pending",
       );
       expect(getPeginState(ContractStatus.VERIFIED).displayLabel).toBe(
-        "Verified",
+        "Ready to Activate",
       );
       expect(getPeginState(ContractStatus.ACTIVE).displayLabel).toBe(
         "Available",

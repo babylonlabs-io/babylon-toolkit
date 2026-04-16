@@ -9,10 +9,13 @@
  */
 
 import { Button, Input } from "@babylonlabs-io/core-ui";
+import type {
+  ClaimerTransactions,
+  DepositorGraphTransactions,
+} from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import { useCallback, useMemo, useState } from "react";
 import type { Hex } from "viem";
 
-import type { DepositorGraphTransactions } from "@/clients/vault-provider-rpc/types";
 import {
   computeDepositDerivedState,
   DepositFlowStep,
@@ -27,13 +30,14 @@ import { useRefundState } from "@/hooks/deposit/useRefundState";
 import { useRunOnce } from "@/hooks/useRunOnce";
 import { fetchVaultById } from "@/services/vault/fetchVaults";
 import {
+  deriveWotsBlockPublicKeys,
   getMnemonicIdForPegin,
   hasMnemonicEntry,
   isWotsMismatchError,
   linkPeginToMnemonic,
+  mnemonicToWotsSeed,
 } from "@/services/wots";
 import type { VaultActivity } from "@/types/activity";
-import type { ClaimerTransactions } from "@/types/rpc";
 
 import { DepositProgressView } from "./DepositProgressView";
 
@@ -223,12 +227,20 @@ export function ResumeWotsContent({
           );
         }
 
+        const seed = mnemonicToWotsSeed(mnemonic);
+        const wotsPublicKeys = await deriveWotsBlockPublicKeys(
+          seed,
+          peginTxHash,
+          depositorBtcPubkey,
+          activity.applicationEntryPoint,
+        );
+        seed.fill(0);
+
         await submitWotsPublicKey({
           peginTxHash,
           depositorBtcPubkey,
-          appContractAddress: activity.applicationEntryPoint,
           providerAddress,
-          getMnemonic: () => Promise.resolve(mnemonic),
+          wotsPublicKeys,
         });
 
         if (mnemonicId && ethAddress) {

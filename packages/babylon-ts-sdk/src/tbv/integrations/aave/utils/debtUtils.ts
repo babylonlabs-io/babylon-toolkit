@@ -12,15 +12,10 @@ import type { AaveSpokeUserPosition } from "../types.js";
  * A position is considered to have debt if any of:
  * - drawnShares > 0 (borrowed principal)
  * - premiumShares > 0 (accrued interest shares)
- * - realizedPremiumRay > 0 (realized interest)
  *
  * @param position - User position data from Spoke
  * @returns true if the position has any debt
  */
 export function hasDebtFromPosition(position: AaveSpokeUserPosition): boolean {
-  return (
-    position.drawnShares > 0n ||
-    position.premiumShares > 0n ||
-    position.realizedPremiumRay > 0n
-  );
+  return position.drawnShares > 0n || position.premiumShares > 0n;
 }

@@ -47,6 +47,7 @@
 // Constants
 export {
   AAVE_BASE_CURRENCY_DECIMALS,
+  AAVE_BASE_CURRENCY_RAY_DECIMALS,
   AAVE_FUNCTION_NAMES,
   BPS_SCALE,
   BPS_TO_PERCENT_DIVISOR,
@@ -91,6 +92,7 @@ export {
   MAX_GROUPS,
   MIN_DEBT_THRESHOLD,
   SEIZURE_TOL,
+  aaveRayValueToUsd,
   aaveValueToUsd,
   calculateBorrowRatio,
   calculateHealthFactor,

@@ -21,13 +21,13 @@ import {
   createTaprootScriptPathSignOptions,
   extractPayoutSignature,
 } from "@babylonlabs-io/ts-sdk/tbv/core";
-import { Psbt } from "bitcoinjs-lib";
-
 import type {
   DepositorAsClaimerPresignatures,
   DepositorGraphTransactions,
   DepositorPreSigsPerChallenger,
-} from "../../clients/vault-provider-rpc/types";
+} from "@babylonlabs-io/ts-sdk/tbv/core/clients";
+import { Psbt } from "bitcoinjs-lib";
+
 import { signPsbtsWithFallback, stripHexPrefix } from "../../utils/btc";
 import { sanitizeErrorMessage } from "../../utils/errors/formatting";
 

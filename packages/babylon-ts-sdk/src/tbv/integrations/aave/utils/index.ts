@@ -1,4 +1,8 @@
-export { aaveValueToUsd, wadToNumber } from "./aaveConversions.js";
+export {
+  aaveRayValueToUsd,
+  aaveValueToUsd,
+  wadToNumber,
+} from "./aaveConversions.js";
 export { calculateBorrowRatio } from "./borrowRatio.js";
 export { hasDebtFromPosition } from "./debtUtils.js";
 export {

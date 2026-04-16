@@ -2,13 +2,14 @@
  * Runtime validation for vault provider RPC responses.
  *
  * All VP RPC methods return untyped JSON that TypeScript generics cast without
- * inspection. A malicious or compromised vault provider can return any shape.
- * These validators throw on unexpected data so callers never operate on
- * attacker-controlled inputs.
+ * inspection. These validators check the critical top-level fields and
+ * security-relevant values (status, txids, pubkeys). Optional progress
+ * sub-fields (gc_data, ack_collection, claimer_graphs) are NOT validated
+ * since they are informational and not used for signing or transaction
+ * construction. Only `progress.presigning` sub-fields are checked.
  */
 
-import { DaemonStatus } from "../../models/peginStateMachine";
-
+import { DaemonStatus } from "./types";
 import type {
   GetPeginStatusResponse,
   GetPegoutStatusResponse,
@@ -50,6 +51,8 @@ const HEX_RE = /^[0-9a-fA-F]+$/;
 
 /** Expected length (in hex chars) of an x-only Bitcoin public key (32 bytes). */
 const X_ONLY_PUBKEY_HEX_LEN = 64;
+/** Expected length (in hex chars) of a compressed Bitcoin public key (33 bytes). */
+const COMPRESSED_PUBKEY_HEX_LEN = 66;
 
 /** Expected length (in hex chars) of a Bitcoin transaction ID (32 bytes). */
 const TXID_HEX_LEN = 64;
@@ -78,17 +81,24 @@ function assertNonEmptyString(value: unknown, field: string): void {
   }
 }
 
-function assertXOnlyPubkey(value: unknown, field: string): void {
-  if (!isNonEmptyHex(value) || value.length !== X_ONLY_PUBKEY_HEX_LEN) {
+/**
+ * Accept both x-only (64-char) and compressed (66-char) pubkeys from VP responses.
+ * The signing code normalizes to x-only via processPublicKeyToXOnly().
+ */
+function assertBtcPubkey(value: unknown, field: string): void {
+  if (
+    !isNonEmptyHex(value) ||
+    (value.length !== X_ONLY_PUBKEY_HEX_LEN &&
+      value.length !== COMPRESSED_PUBKEY_HEX_LEN)
+  ) {
     throw new VpResponseValidationError(
-      `VP response validation failed: "${field}" must be a ${X_ONLY_PUBKEY_HEX_LEN}-char hex string (x-only pubkey), got ${preview(value)}`,
+      `VP response validation failed: "${field}" must be a ${X_ONLY_PUBKEY_HEX_LEN} or ${COMPRESSED_PUBKEY_HEX_LEN}-char hex string (BTC pubkey), got ${preview(value)}`,
     );
   }
 }
 
 /**
  * Validate the optional presigning progress fields returned inside PeginProgressDetails.
- * These fields are sent by newer VP versions; if present, they must have correct types.
  */
 function validatePresigningProgressFields(
   progress: Record<string, unknown>,
@@ -135,8 +145,6 @@ function validatePresigningProgressFields(
  * Validate a getPeginStatus response.
  *
  * Throws if the status field is not a recognized DaemonStatus value.
- * An unrecognized status could be used by a malicious VP to steer the
- * polling logic into an unintended code path (e.g., silently clearing errors).
  */
 export function validateGetPeginStatusResponse(
   response: unknown,
@@ -194,10 +202,6 @@ export function validateGetPeginStatusResponse(
 
 /**
  * Validate a requestDepositorPresignTransactions response.
- *
- * Strictly checks every field used downstream in PSBT construction.
- * Throws if any tx_hex field is not a valid hex string, if a claimer_pubkey
- * has the wrong format, or if required arrays/objects are missing.
  */
 export function validateRequestDepositorPresignTransactionsResponse(
   response: unknown,
@@ -250,7 +254,7 @@ function validateClaimerTransactions(value: unknown, field: string): void {
 
   const tx = value as Record<string, unknown>;
 
-  assertXOnlyPubkey(tx.claimer_pubkey, `${field}.claimer_pubkey`);
+  assertBtcPubkey(tx.claimer_pubkey, `${field}.claimer_pubkey`);
   validateTransactionData(tx.claim_tx, `${field}.claim_tx`);
   validateTransactionData(tx.assert_tx, `${field}.assert_tx`);
   validateTransactionData(tx.payout_tx, `${field}.payout_tx`);
@@ -281,7 +285,7 @@ function validatePresignDataPerChallenger(value: unknown, field: string): void {
 
   const d = value as Record<string, unknown>;
 
-  assertXOnlyPubkey(d.challenger_pubkey, `${field}.challenger_pubkey`);
+  assertBtcPubkey(d.challenger_pubkey, `${field}.challenger_pubkey`);
   validateTransactionData(
     d.challenge_assert_x_tx,
     `${field}.challenge_assert_x_tx`,
@@ -322,10 +326,6 @@ function validatePresignDataPerChallenger(value: unknown, field: string): void {
 
 /**
  * Validate a requestDepositorClaimerArtifacts response.
- *
- * tx_graph_json and verifying_key_hex are consumed by garbled-circuit
- * evaluation. babe_sessions carries per-challenger decryption artifacts.
- * A malicious VP could supply corrupt values to steer circuit evaluation.
  */
 export function validateRequestDepositorClaimerArtifactsResponse(
   response: unknown,
@@ -375,11 +375,6 @@ export function validateRequestDepositorClaimerArtifactsResponse(
 
 /**
  * Validate a getPegoutStatus response.
- *
- * found controls whether downstream code attempts to process a pegout.
- * claimer.failed and claimer.status / challenger.status steer the UI flow.
- * A malicious VP that sends wrong types here could suppress error display
- * or push the UI into an unintended state.
  */
 export function validateGetPegoutStatusResponse(
   response: unknown,
