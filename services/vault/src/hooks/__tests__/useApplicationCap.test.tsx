@@ -10,7 +10,7 @@ vi.mock("@/config/contracts", () => ({
   },
 }));
 
-const featureFlagsMock = vi.hoisted(() => ({ isVaultCapEnabled: true }));
+const featureFlagsMock = vi.hoisted(() => ({ isVaultCapDisabled: false }));
 vi.mock("@/config/featureFlags", () => ({
   default: featureFlagsMock,
 }));
@@ -40,7 +40,7 @@ function buildWrapper() {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  featureFlagsMock.isVaultCapEnabled = true;
+  featureFlagsMock.isVaultCapDisabled = false;
 });
 
 describe("useApplicationCap", () => {
@@ -165,8 +165,8 @@ describe("useApplicationCap", () => {
     await waitFor(() => expect(result.current.error).toBeNull());
   });
 
-  it("returns a no-feature state and skips RPC when the vault-cap flag is disabled", () => {
-    featureFlagsMock.isVaultCapEnabled = false;
+  it("returns a no-feature state and skips RPC when the vault-cap kill-switch is set", () => {
+    featureFlagsMock.isVaultCapDisabled = true;
 
     const { result } = renderHook(() => useApplicationCap("0xuser"), {
       wrapper: buildWrapper(),

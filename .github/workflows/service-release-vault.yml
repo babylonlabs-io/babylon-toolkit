@@ -116,6 +116,8 @@ jobs:
           NEXT_PUBLIC_SENTRY_ENVIRONMENT: ${{ matrix.environment }}
           # Analytics
           GA4_MEASUREMENT_ID: ${{ vars.GA4_MEASUREMENT_ID }}
+          # Feature Flags
+          NEXT_PUBLIC_FF_DISABLE_VAULT_CAP: ${{ vars.NEXT_PUBLIC_FF_DISABLE_VAULT_CAP }}
 
       - name: Copy all index.html to fix path for deposit, activity, app/aave
         run: |

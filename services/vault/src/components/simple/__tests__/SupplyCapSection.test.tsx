@@ -38,10 +38,10 @@ const unlimitedSnapshot: CapSnapshot = {
 };
 
 describe("SupplyCapSection", () => {
-  it("renders the Vault Cap header and both cards", () => {
+  it("renders the Protocol Cap header and both cards", () => {
     mockBtcPrice.mockReturnValue(69_003.07);
     render(<SupplyCapSection snapshot={cappedSnapshot} />);
-    expect(screen.getByText("Vault Cap")).toBeInTheDocument();
+    expect(screen.getByText("Protocol Cap")).toBeInTheDocument();
     expect(screen.getByText("Total Cap")).toBeInTheDocument();
     expect(screen.getByText("Total Deposited")).toBeInTheDocument();
   });
@@ -87,7 +87,7 @@ describe("SupplyCapSection", () => {
     const { container } = render(
       <SupplyCapSection snapshot={null} isLoading />,
     );
-    expect(screen.getByText("Vault Cap")).toBeInTheDocument();
+    expect(screen.getByText("Protocol Cap")).toBeInTheDocument();
     expect(container.querySelectorAll(".animate-pulse")).toHaveLength(2);
   });
 
