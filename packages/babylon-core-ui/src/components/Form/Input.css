@@ -1,5 +1,5 @@
 .bbn-input {
-  @apply border-secondary-strokeDark/50 text-accent-secondary bg-surface flex items-center rounded border px-4 py-2 transition-colors;
+  @apply border-secondary-strokeDark/50 text-accent-secondary bg-secondary-highlight flex items-center rounded border px-4 py-2 transition-colors;
 
   &:focus-within {
     @apply border-secondary-strokeDark;
