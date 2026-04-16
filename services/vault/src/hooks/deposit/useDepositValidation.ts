@@ -2,7 +2,8 @@
  * Deposit validation hook
  *
  * Handles all validation logic for deposits using pure service functions.
- * Integrates with wallet data, UTXO queries, and protocol params from context.
+ * Integrates with wallet data, UTXO queries, protocol params from context,
+ * and (optionally) the configured application supply cap.
  */
 
 import { useCallback } from "react";
@@ -12,57 +13,86 @@ import type { ValidationResult } from "../../services/deposit";
 import { depositService } from "../../services/deposit";
 
 export interface UseDepositValidationResult {
-  // Validation functions
   validateAmount: (amount: string) => ValidationResult;
   validateProviders: (providers: string[]) => ValidationResult;
 
   availableProviders: string[];
   minDeposit: bigint;
   maxDeposit: bigint;
+  /** Effective remaining supply cap in satoshis, or null when no cap applies. */
+  effectiveRemaining: bigint | null;
+}
+
+export interface UseDepositValidationParams {
+  availableProviders?: string[];
+  /**
+   * Effective remaining application cap in satoshis.
+   * Null means no cap applies (unlimited / unknown).
+   */
+  effectiveRemaining?: bigint | null;
+  /**
+   * True when the supply cap state is unknown — either the on-chain read is
+   * still loading or it errored. When set, amount validation is blocked with
+   * an explicit error rather than silently passing as if no cap applied.
+   */
+  capUnavailable?: boolean;
 }
 
 /**
- * Hook for deposit validation logic
- *
- * @param availableProviders - List of available provider IDs (must be provided by caller)
- * @returns Validation functions and state
+ * Hook for deposit validation logic.
  */
 export function useDepositValidation(
-  availableProviders: string[] = [],
+  params: UseDepositValidationParams = {},
 ): UseDepositValidationResult {
-  const providers = availableProviders;
+  const {
+    availableProviders = [],
+    effectiveRemaining = null,
+    capUnavailable = false,
+  } = params;
 
   const { minDeposit, maxDeposit } = useProtocolParamsContext();
 
-  // Validate amount using on-chain minDeposit and maxDeposit
   const validateAmount = useCallback(
     (amount: string): ValidationResult => {
+      if (capUnavailable) {
+        return {
+          valid: false,
+          error: "Unable to verify supply cap — please try again",
+        };
+      }
+
       const satoshis = depositService.parseBtcToSatoshis(amount);
-      return depositService.validateDepositAmount(
+
+      const base = depositService.validateDepositAmount(
         satoshis,
         minDeposit,
         maxDeposit,
       );
+      if (!base.valid) return base;
+
+      return depositService.validateRemainingCapacity({
+        amount: satoshis,
+        effectiveRemaining,
+      });
     },
-    [minDeposit, maxDeposit],
+    [minDeposit, maxDeposit, effectiveRemaining, capUnavailable],
   );
 
-  // Validate provider selection
   const validateProviders = useCallback(
-    (selectedProviders: string[]): ValidationResult => {
-      return depositService.validateProviderSelection(
+    (selectedProviders: string[]): ValidationResult =>
+      depositService.validateProviderSelection(
         selectedProviders,
-        providers,
-      );
-    },
-    [providers],
+        availableProviders,
+      ),
+    [availableProviders],
   );
 
   return {
     validateAmount,
     validateProviders,
-    availableProviders: providers,
+    availableProviders,
     minDeposit,
     maxDeposit,
+    effectiveRemaining,
   };
 }

@@ -18,6 +18,7 @@ import type { Asset } from "@/applications/aave/types";
 import type { RootLayoutContext } from "@/components/pages/RootLayout";
 import featureFlags from "@/config/featureFlags";
 import { useBTCWallet, useConnection, useETHWallet } from "@/context/wallet";
+import { useApplicationCap } from "@/hooks/useApplicationCap";
 import { useDashboardState } from "@/hooks/useDashboardState";
 import { usePegoutPolling } from "@/hooks/usePegoutPolling";
 import { calculateBalance, useUTXOs } from "@/hooks/useUTXOs";
@@ -30,6 +31,7 @@ import { OverviewSection } from "./OverviewSection";
 import { PendingDepositSection } from "./PendingDepositSection";
 import { PendingWithdrawSection } from "./PendingWithdrawSection";
 import { PositionNotificationBanner } from "./PositionNotificationBanner";
+import { SupplyCapSection } from "./SupplyCapSection";
 import WithdrawFlow from "./WithdrawFlow";
 
 export function DashboardPage() {
@@ -63,6 +65,10 @@ export function DashboardPage() {
     collateralVaults,
     selectableBorrowedAssets,
   } = useDashboardState(address);
+
+  const { snapshot: capSnapshot, isLoading: isCapLoading } = useApplicationCap(
+    isConnected ? address : undefined,
+  );
 
   const { vaults: aaveVaults, redeemedVaults } = useAaveVaults(
     isConnected ? address : undefined,
@@ -126,6 +132,8 @@ export function DashboardPage() {
   return (
     <Container className="pb-6">
       <div className="space-y-6">
+        <SupplyCapSection snapshot={capSnapshot} isLoading={isCapLoading} />
+
         <OverviewSection
           healthFactor={healthFactor}
           healthFactorStatus={healthFactorStatus}

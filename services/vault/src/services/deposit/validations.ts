@@ -227,6 +227,42 @@ export function validateDepositAmount(
   return { valid: true };
 }
 
+export interface RemainingCapacityParams {
+  /** Requested deposit amount in satoshis */
+  amount: bigint;
+  /**
+   * Effective remaining capacity in satoshis (min of protocol-total and
+   * per-address remaining). `null` means no cap applies.
+   */
+  effectiveRemaining: bigint | null;
+}
+
+/**
+ * Validate that the requested deposit fits within the effective remaining cap.
+ */
+export function validateRemainingCapacity(
+  params: RemainingCapacityParams,
+): ValidationResult {
+  const { amount, effectiveRemaining } = params;
+  if (effectiveRemaining === null) return { valid: true };
+
+  if (effectiveRemaining === 0n) {
+    return {
+      valid: false,
+      error: "Supply cap reached — deposits temporarily paused",
+    };
+  }
+
+  if (amount > effectiveRemaining) {
+    return {
+      valid: false,
+      error: `Vault size exceeds remaining capacity (${formatSatoshisToBtc(effectiveRemaining)} BTC)`,
+    };
+  }
+
+  return { valid: true };
+}
+
 /**
  * Validate vault provider selection
  * @param selectedProviders - Selected provider addresses

@@ -13,6 +13,7 @@ import {
   formatOrdinal,
   formatProviderDisplayName,
   formatTimeAgo,
+  formatUsd,
   formatUsdValue,
 } from "../formatting";
 
@@ -87,6 +88,21 @@ describe("Formatting Utilities", () => {
 
     it("should round to 2 decimal places", () => {
       expect(formatUsdValue(1234.567)).toBe("$1,234.57 USD");
+    });
+  });
+
+  describe("formatUsd", () => {
+    it("formats positive values with commas and two fractional digits and no suffix", () => {
+      expect(formatUsd(1234.56)).toBe("$1,234.56");
+      expect(formatUsd(1_000_000)).toBe("$1,000,000.00");
+    });
+
+    it("renders $0.00 for zero", () => {
+      expect(formatUsd(0)).toBe("$0.00");
+    });
+
+    it("rounds to two decimal places", () => {
+      expect(formatUsd(1.239)).toBe("$1.24");
     });
   });
 

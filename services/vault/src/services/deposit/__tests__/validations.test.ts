@@ -13,6 +13,7 @@ import {
   validateDepositAmount,
   validateMultiVaultDepositInputs,
   validateProviderSelection,
+  validateRemainingCapacity,
 } from "../validations";
 
 describe("Deposit Validations", () => {
@@ -657,6 +658,41 @@ describe("Deposit Validations", () => {
         feeDisabled: true,
       });
       expect(result.label).toContain("Minimum");
+    });
+  });
+
+  describe("validateRemainingCapacity", () => {
+    it("passes when the requested amount fits within effective remaining", () => {
+      expect(
+        validateRemainingCapacity({ amount: 5n, effectiveRemaining: 10n }),
+      ).toEqual({ valid: true });
+    });
+
+    it("passes when there is no cap (effectiveRemaining is null)", () => {
+      expect(
+        validateRemainingCapacity({
+          amount: 500n,
+          effectiveRemaining: null,
+        }),
+      ).toEqual({ valid: true });
+    });
+
+    it("rejects with a supply-cap-reached error when remaining is zero", () => {
+      const result = validateRemainingCapacity({
+        amount: 1n,
+        effectiveRemaining: 0n,
+      });
+      expect(result.valid).toBe(false);
+      expect(result.error).toMatch(/supply cap reached/i);
+    });
+
+    it("rejects with a vault-too-large error when amount exceeds remaining", () => {
+      const result = validateRemainingCapacity({
+        amount: 20n,
+        effectiveRemaining: 5n,
+      });
+      expect(result.valid).toBe(false);
+      expect(result.error).toMatch(/exceeds remaining capacity/i);
     });
   });
 });
