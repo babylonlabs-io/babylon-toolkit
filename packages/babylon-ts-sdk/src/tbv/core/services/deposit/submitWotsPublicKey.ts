@@ -74,7 +74,7 @@ export async function submitWotsPublicKey(
   });
 
   // Key was already submitted in a previous session (e.g. resume flow)
-  if (POST_WOTS_STATUSES.has(status as DaemonStatus)) {
+  if (POST_WOTS_STATUSES.has(status)) {
     return;
   }
 
