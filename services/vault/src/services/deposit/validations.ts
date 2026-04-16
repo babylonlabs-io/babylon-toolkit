@@ -137,6 +137,7 @@ export function getDepositButtonLabel(
 export interface DepositCtaParams extends DepositFormValidityParams {
   isDepositDisabled: boolean;
   isGeoBlocked: boolean;
+  isAddressBlocked: boolean;
   isWalletConnected: boolean;
   hasApplication: boolean;
   hasProvider: boolean;
@@ -164,6 +165,10 @@ export function getDepositCtaState(params: DepositCtaParams): DepositCtaState {
 
   if (params.isGeoBlocked) {
     return { disabled: true, label: "Service unavailable in your region" };
+  }
+
+  if (params.isAddressBlocked) {
+    return { disabled: true, label: "Wallet not eligible" };
   }
 
   if (!params.isWalletConnected) {

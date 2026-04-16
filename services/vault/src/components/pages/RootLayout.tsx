@@ -13,11 +13,13 @@ import { twJoin } from "tailwind-merge";
 
 import { DepositButton } from "@/components/shared";
 import { getNetworkConfigBTC, shouldDisplayTestingMsg } from "@/config";
+import { useAddressScreening } from "@/context/addressScreening";
 import { useAddressType } from "@/context/addressType";
 import { useGeoFencing } from "@/context/geofencing";
 
 import { AaveConfigProvider } from "../../applications/aave/context";
 import { useBTCWallet, useETHWallet } from "../../context/wallet";
+import { AddressScreeningBanner } from "../shared/AddressScreeningBanner";
 import { AddressTypeBanner } from "../shared/AddressTypeBanner";
 import { GeoBlockBanner } from "../shared/GeoBlockBanner";
 import SimpleDeposit from "../simple/SimpleDeposit";
@@ -81,6 +83,7 @@ export default function RootLayout() {
   const { connected: btcConnected } = useBTCWallet();
   const { connected: ethConnected } = useETHWallet();
   const { isGeoBlocked } = useGeoFencing();
+  const { isBlocked: isAddressBlocked } = useAddressScreening();
   const { isSupportedAddress } = useAddressType();
 
   const isWalletConnected = btcConnected && ethConnected;
@@ -105,6 +108,9 @@ export default function RootLayout() {
       <div className="flex min-h-svh flex-col">
         <TestingBanner visible={shouldDisplayTestingMsg()} />
         <GeoBlockBanner visible={isGeoBlocked} />
+        <AddressScreeningBanner
+          visible={isWalletConnected && isAddressBlocked}
+        />
         <AddressTypeBanner visible={showAddressTypeBanner} />
         <Header
           size="sm"
@@ -112,15 +118,18 @@ export default function RootLayout() {
           mobileNavigation={<MobileNavigation />}
           rightActions={
             <div className="flex items-center gap-4">
-              {isWalletConnected && !isDepositOpen && !isGeoBlocked && (
-                <DepositButton
-                  variant="outlined"
-                  rounded
-                  onClick={() => openDeposit()}
-                >
-                  Deposit {btcConfig.coinSymbol}
-                </DepositButton>
-              )}
+              {isWalletConnected &&
+                !isDepositOpen &&
+                !isGeoBlocked &&
+                !isAddressBlocked && (
+                  <DepositButton
+                    variant="outlined"
+                    rounded
+                    onClick={() => openDeposit()}
+                  >
+                    Deposit {btcConfig.coinSymbol}
+                  </DepositButton>
+                )}
               <Connect />
               <StandardSettingsMenu theme={theme} setTheme={setTheme} />
             </div>

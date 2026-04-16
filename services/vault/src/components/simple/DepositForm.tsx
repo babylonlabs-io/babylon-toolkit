@@ -64,6 +64,7 @@ interface DepositFormProps {
   depositorClaimValue?: bigint;
   isDepositDisabled: boolean;
   isGeoBlocked: boolean;
+  isAddressBlocked: boolean;
   onDeposit: () => void;
 
   partialLiquidation?: PartialLiquidationProps;
@@ -93,6 +94,7 @@ export function DepositForm({
   depositorClaimValue,
   isDepositDisabled,
   isGeoBlocked,
+  isAddressBlocked,
   onDeposit,
   partialLiquidation,
 }: DepositFormProps) {
@@ -166,6 +168,7 @@ export function DepositForm({
     depositorClaimValue,
     isDepositDisabled,
     isGeoBlocked,
+    isAddressBlocked,
     isWalletConnected,
     hasApplication: !!selectedApplication,
     hasProvider: !!selectedProvider,
