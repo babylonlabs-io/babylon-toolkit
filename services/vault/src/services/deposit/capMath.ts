@@ -1,11 +1,16 @@
 /**
  * Pure cap math helpers for the application BTC supply cap feature.
- *
- * Consumers: useApplicationCap hook, SupplyCapSection component,
- * validateRemainingCapacity validator.
  */
 
-import type { ApplicationCap } from "@/clients/eth-contract/cap-policy";
+// ---------------------------------------------------------------------------
+// Types — narrow structural types, no vault-service imports
+// ---------------------------------------------------------------------------
+
+/** Narrow structural type for cap configuration. */
+export interface CapInput {
+  totalCapBTC: bigint;
+  perAddressCapBTC: bigint;
+}
 
 export interface CapSnapshot {
   /** Total BTC cap for the app, in satoshis. 0 when uncapped. */
@@ -40,15 +45,28 @@ export interface CapSnapshot {
 }
 
 export interface CapSnapshotInput {
-  caps: ApplicationCap;
+  caps: CapInput;
   totalBTC: bigint;
   userBTC: bigint | null;
 }
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
 
 function clampZero(value: bigint): bigint {
   return value < 0n ? 0n : value;
 }
 
+// ---------------------------------------------------------------------------
+// Public API
+// ---------------------------------------------------------------------------
+
+/**
+ * Compute the effective remaining capacity from total and per-user remaining.
+ * Returns the minimum of the two, or the single non-null value, or null if
+ * neither cap applies.
+ */
 export function computeEffectiveRemaining(
   remainingTotal: bigint | null,
   remainingForUser: bigint | null,
@@ -59,6 +77,9 @@ export function computeEffectiveRemaining(
   return remainingTotal < remainingForUser ? remainingTotal : remainingForUser;
 }
 
+/**
+ * Compute a full {@link CapSnapshot} from cap configuration and current usage.
+ */
 export function computeCapSnapshot(input: CapSnapshotInput): CapSnapshot {
   const { caps, totalBTC, userBTC } = input;
   const hasTotalCap = caps.totalCapBTC > 0n;

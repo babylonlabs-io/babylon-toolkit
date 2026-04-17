@@ -14,6 +14,8 @@
 |--------|-------|-------------|
 | **[primitives](primitives.md)** | Level 1 | Pure functions with no wallet dependencies |
 | **[managers](managers.md)** | Level 2 | High-level wallet orchestration classes |
+| **services** | — | Deposit validation, peg-in protocol state, pegout state |
+| **utils** | — | UTXO selection, reservation, availability checking |
 
 ---
 
@@ -24,3 +26,5 @@
 - [managers](managers.md)
 - [primitives](primitives.md)
 - [integrations/aave](integrations/aave.md)
+- services (deposit validation, peg-in state, pegout state)
+- utils (UTXO selection, reservation, availability)

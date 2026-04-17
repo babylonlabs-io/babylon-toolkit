@@ -9,3 +9,4 @@
 
 export * from "./deposit";
 export * from "./htlc";
+export * from "./pegout";

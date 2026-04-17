@@ -9,29 +9,10 @@
  * - danger: < 1.0 (can be liquidated)
  * - warning: < HEALTH_FACTOR_WARNING_THRESHOLD (at risk)
  * - safe: >= HEALTH_FACTOR_WARNING_THRESHOLD (healthy)
- *
- * Color mapping:
- * - Green (#00E676): safe
- * - Amber (#FFC400): warning
- * - Red (#FF1744): danger
- * - Gray (#5A5A5A): no_debt
  */
 
 import { BPS_SCALE, HEALTH_FACTOR_WARNING_THRESHOLD } from "../constants.js";
 
-export const HEALTH_FACTOR_COLORS = {
-  GREEN: "#00E676",
-  AMBER: "#FFC400",
-  RED: "#FF1744",
-  GRAY: "#5A5A5A",
-} as const;
-
-export type HealthFactorColor =
-  (typeof HEALTH_FACTOR_COLORS)[keyof typeof HEALTH_FACTOR_COLORS];
-
-/**
- * Health factor status based on our liquidation threshold
- */
 export type HealthFactorStatus = "safe" | "warning" | "danger" | "no_debt";
 
 /**
@@ -50,40 +31,6 @@ export function getHealthFactorStatus(
   if (healthFactor < 1.0) return "danger";
   if (healthFactor < HEALTH_FACTOR_WARNING_THRESHOLD) return "warning";
   return "safe";
-}
-
-/**
- * Gets the appropriate color for a health factor status.
- *
- * @param status - The health factor status
- * @returns The color code for the status
- */
-export function getHealthFactorColor(
-  status: HealthFactorStatus,
-): HealthFactorColor {
-  switch (status) {
-    case "safe":
-      return HEALTH_FACTOR_COLORS.GREEN;
-    case "warning":
-      return HEALTH_FACTOR_COLORS.AMBER;
-    case "danger":
-      return HEALTH_FACTOR_COLORS.RED;
-    case "no_debt":
-      return HEALTH_FACTOR_COLORS.GRAY;
-  }
-}
-
-/**
- * Format health factor number for display
- *
- * @param healthFactor - Health factor number (null if no debt)
- * @returns Formatted string for display
- */
-export function formatHealthFactor(healthFactor: number | null): string {
-  if (healthFactor === null) {
-    return "-"; // No debt
-  }
-  return healthFactor.toFixed(2);
 }
 
 /**

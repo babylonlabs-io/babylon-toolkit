@@ -94,6 +94,14 @@ import {
   buildChallengeAssertPsbt,
 } from "@babylonlabs-io/ts-sdk/tbv/core/primitives";
 
+// Services (deposit validation, protocol state)
+import {
+  getPeginProtocolState,
+  ContractStatus,
+  validateDepositAmount,
+  isPegoutTerminalStatus,
+} from "@babylonlabs-io/ts-sdk/tbv/core/services";
+
 // Utilities
 import { selectUtxosForPegin } from "@babylonlabs-io/ts-sdk/tbv/core";
 
@@ -105,8 +113,8 @@ import { BTCVaultRegistryABI } from "@babylonlabs-io/ts-sdk/tbv/core";
 
 // Protocol integrations (Aave)
 import {
-  buildAddCollateralTx,
   buildBorrowTx,
+  buildRepayTx,
   getUserAccountData,
   calculateHealthFactor,
 } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
