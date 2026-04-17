@@ -105,11 +105,10 @@ function isValidXOnlyHex(hex: string): boolean {
 // ---------------------------------------------------------------------------
 
 /**
- * Check if deposit amount is within valid range and balance.
+ * Check if deposit amount is within valid range and affordable.
  *
- * This is a quick check for the form CTA button — it does NOT account for
- * transaction fees or depositor claim value. Full balance validation
- * (including fees) happens at transaction build time in the review modal.
+ * Returns false when fees/claim value are not yet known (still loading),
+ * and includes them in the balance check once available.
  */
 export function isDepositAmountValid(
   params: DepositFormValidityParams,

@@ -213,6 +213,22 @@ describe("UTXO availability validation", () => {
       expect(result.allAvailable).toBe(true);
     });
 
+    it("should match UTXOs case-insensitively", () => {
+      const availableUtxos = [
+        {
+          txid: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+          vout: 3,
+        },
+      ];
+
+      const result = validateUtxosAvailable(
+        VALID_TX_SINGLE_INPUT,
+        availableUtxos,
+      );
+
+      expect(result.allAvailable).toBe(true);
+    });
+
     it("should accept UTXOs with extra properties beyond UtxoRef", () => {
       const availableUtxos = [
         {

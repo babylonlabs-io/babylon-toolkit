@@ -105,15 +105,15 @@ export function validateUtxosAvailable(
     throw new Error("Transaction has no inputs");
   }
 
-  // Create a set of available UTXOs for O(1) lookup
+  // Create a set of available UTXOs for O(1) lookup (lowercase for consistency with reservation.ts)
   const availableSet = new Set(
-    availableUtxos.map((utxo) => `${utxo.txid}:${utxo.vout}`),
+    availableUtxos.map((utxo) => `${utxo.txid.toLowerCase()}:${utxo.vout}`),
   );
 
   // Check which inputs are missing
   const missingUtxos: MissingUtxoInfo[] = [];
   for (const input of inputs) {
-    const key = `${input.txid}:${input.vout}`;
+    const key = `${input.txid.toLowerCase()}:${input.vout}`;
     if (!availableSet.has(key)) {
       missingUtxos.push({
         txid: input.txid,
