@@ -239,8 +239,13 @@ export function useDepositFlow(
   }, [abort]);
 
   // Hooks
-  const { btcAddress, spendableUTXOs, isUTXOsLoading, utxoError } =
-    useBtcWalletState();
+  const {
+    btcAddress,
+    spendableUTXOs,
+    isUTXOsLoading,
+    utxoError,
+    spendableBlockedByOrdinals,
+  } = useBtcWalletState();
   const { findProvider } = useVaultProviders(selectedApplication);
   const { config, timelockPegin, timelockRefund, minDeposit, maxDeposit } =
     useProtocolParamsContext();
@@ -272,6 +277,11 @@ export function useDepositFlow(
         }
         if (utxoError) {
           throw new Error(`Failed to load UTXOs: ${utxoError.message}`);
+        }
+        if (spendableBlockedByOrdinals) {
+          throw new Error(
+            "Inscription detection is unavailable. Please wait for the ordinals check to complete before depositing.",
+          );
         }
 
         validateMultiVaultDepositInputs({
@@ -745,6 +755,7 @@ export function useDepositFlow(
       spendableUTXOs,
       isUTXOsLoading,
       utxoError,
+      spendableBlockedByOrdinals,
       findProvider,
       getMnemonic,
       mnemonicId,

@@ -126,14 +126,29 @@ export function useUTXOs(
     ordinalsError,
   ]);
 
+  // Fail-closed gate: when the user has opted to exclude inscriptions, we cannot
+  // safely classify UTXOs as spendable until the ordinals classifier has produced
+  // a result. Surfacing this separately from `availableUTXOs` keeps the existing
+  // non-blocking display semantics while preventing spend paths from consuming
+  // unclassified UTXOs.
+  const spendableBlockedByOrdinals =
+    ordinalsExcluded && (isLoadingOrdinals || Boolean(ordinalsError));
+
   // Determine spendable UTXOs based on preference
   // When ordinalsExcluded is true (default), use availableUTXOs (excludes inscriptions)
   // When ordinalsExcluded is false, use all confirmed UTXOs
-  // If ordinals API failed/loading, availableUTXOs already contains all confirmed UTXOs
-  const spendableUTXOs = useMemo(
-    () => (ordinalsExcluded ? availableUTXOs : confirmedUtxosForOrdinals),
-    [ordinalsExcluded, availableUTXOs, confirmedUtxosForOrdinals],
-  );
+  // When ordinals classification is unknown (loading or errored) AND the user opted
+  // to exclude inscriptions, return an empty set so callers cannot spend
+  // potentially inscription-bearing UTXOs.
+  const spendableUTXOs = useMemo(() => {
+    if (spendableBlockedByOrdinals) return [];
+    return ordinalsExcluded ? availableUTXOs : confirmedUtxosForOrdinals;
+  }, [
+    spendableBlockedByOrdinals,
+    ordinalsExcluded,
+    availableUTXOs,
+    confirmedUtxosForOrdinals,
+  ]);
 
   // Create a set of inscription UTXO identifiers for filtering MempoolUTXOs
   const inscriptionUTXOIds = useMemo(() => {
@@ -141,8 +156,9 @@ export function useUTXOs(
   }, [inscriptionUTXOs]);
 
   // Spendable UTXOs in MempoolUTXO format (for SDK functions)
-  // If ordinals API failed/loading, inscriptionUTXOIds will be empty, so all UTXOs pass filter
+  // Mirrors the fail-closed gate above.
   const spendableMempoolUTXOs = useMemo(() => {
+    if (spendableBlockedByOrdinals) return [];
     if (!ordinalsExcluded) {
       return confirmedUTXOs;
     }
@@ -150,7 +166,12 @@ export function useUTXOs(
     return confirmedUTXOs.filter(
       (utxo) => !inscriptionUTXOIds.has(`${utxo.txid}:${utxo.vout}`),
     );
-  }, [ordinalsExcluded, confirmedUTXOs, inscriptionUTXOIds]);
+  }, [
+    spendableBlockedByOrdinals,
+    ordinalsExcluded,
+    confirmedUTXOs,
+    inscriptionUTXOIds,
+  ]);
 
   return {
     /** All UTXOs (including unconfirmed) */
@@ -165,6 +186,8 @@ export function useUTXOs(
     spendableUTXOs,
     /** Spendable UTXOs in MempoolUTXO format (for SDK functions) */
     spendableMempoolUTXOs,
+    /** True when spend paths are blocked because ordinals classification is not yet known */
+    spendableBlockedByOrdinals,
     /** Loading state */
     isLoading,
     /** Loading state (ordinals detection) */
