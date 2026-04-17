@@ -23,6 +23,10 @@
 import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
 import { ensureHexPrefix } from "@babylonlabs-io/ts-sdk/tbv/core";
 import { VpResponseValidationError } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
+import {
+  collectReservedUtxoRefs,
+  selectUtxosForDeposit,
+} from "@babylonlabs-io/ts-sdk/tbv/core/utils";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { v4 as uuidv4 } from "uuid";
 import type { Address, Hex } from "viem";
@@ -31,10 +35,6 @@ import { useProtocolParamsContext } from "@/context/ProtocolParamsContext";
 import { logger } from "@/infrastructure";
 import { LocalStorageStatus } from "@/models/peginStateMachine";
 import { validateMultiVaultDepositInputs } from "@/services/deposit/validations";
-import {
-  collectReservedUtxoRefs,
-  selectUtxosForDeposit,
-} from "@/services/vault/utxoReservation";
 import { activateVaultWithSecret } from "@/services/vault/vaultActivationService";
 import type { PayoutSigningProgress } from "@/services/vault/vaultPayoutSignatureService";
 import {

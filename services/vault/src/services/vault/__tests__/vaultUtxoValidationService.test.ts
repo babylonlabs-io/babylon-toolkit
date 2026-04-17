@@ -1,11 +1,11 @@
 /** Tests for UTXO validation service (I/O wrapper layer). */
 
 import { getAddressUtxos } from "@babylonlabs-io/ts-sdk";
+import { UtxoNotAvailableError } from "@babylonlabs-io/ts-sdk/tbv/core/utils";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   assertUtxosAvailable,
-  UtxoNotAvailableError,
   validateUtxosAvailable,
 } from "../vaultUtxoValidationService";
 

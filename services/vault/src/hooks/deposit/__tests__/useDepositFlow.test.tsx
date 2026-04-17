@@ -124,7 +124,7 @@ vi.mock("@/storage/peginStorage", () => ({
   getPendingPegins: vi.fn(() => []),
 }));
 
-vi.mock("@/services/vault/utxoReservation", () => ({
+vi.mock("@babylonlabs-io/ts-sdk/tbv/core/utils", () => ({
   collectReservedUtxoRefs: vi.fn(() => []),
   selectUtxosForDeposit: vi.fn(
     ({ availableUtxos }: { availableUtxos: unknown[] }) => availableUtxos,
@@ -841,7 +841,7 @@ describe("useDepositFlow", () => {
         await import("@/storage/peginStorage"),
       );
       const { collectReservedUtxoRefs, selectUtxosForDeposit } = vi.mocked(
-        await import("@/services/vault/utxoReservation"),
+        await import("@babylonlabs-io/ts-sdk/tbv/core/utils"),
       );
       const { preparePeginTransaction } = vi.mocked(
         await import("@/services/vault/vaultTransactionService"),
@@ -899,7 +899,7 @@ describe("useDepositFlow", () => {
 
     it("should throw when all UTXOs are reserved", async () => {
       const { selectUtxosForDeposit } = vi.mocked(
-        await import("@/services/vault/utxoReservation"),
+        await import("@babylonlabs-io/ts-sdk/tbv/core/utils"),
       );
 
       vi.mocked(selectUtxosForDeposit).mockImplementationOnce(() => {

@@ -7,21 +7,13 @@
  */
 
 import { getAddressUtxos } from "@babylonlabs-io/ts-sdk";
-import type {
-  MissingUtxoInfo,
-  UtxoValidationResult,
-} from "@babylonlabs-io/ts-sdk/tbv/core/utils";
+import type { UtxoValidationResult } from "@babylonlabs-io/ts-sdk/tbv/core/utils";
 import {
-  UtxoNotAvailableError,
-  extractInputsFromTransaction,
   assertUtxosAvailable as sdkAssertUtxosAvailable,
   validateUtxosAvailable as sdkValidateUtxosAvailable,
 } from "@babylonlabs-io/ts-sdk/tbv/core/utils";
 
 import { getMempoolApiUrl } from "../../clients/btc/config";
-
-export { UtxoNotAvailableError, extractInputsFromTransaction };
-export type { MissingUtxoInfo, UtxoValidationResult };
 
 export async function validateUtxosAvailable(
   unsignedTxHex: string,
