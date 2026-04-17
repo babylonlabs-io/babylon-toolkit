@@ -7,7 +7,9 @@
  * @module contracts
  */
 
+export { ApplicationRegistryABI } from "./abis/ApplicationRegistry.abi";
 export { BTCVaultRegistryABI } from "./abis/BTCVaultRegistry.abi";
+export { ProtocolParamsABI } from "./abis/ProtocolParams.abi";
 
 export {
   CONTRACT_ERRORS,

@@ -21,10 +21,12 @@ import type { Hex } from "viem";
 
 import { getMempoolApiUrl } from "../../clients/btc/config";
 import { getVaultFromChain } from "../../clients/eth-contract/btc-vault-registry/query";
-import { getOffchainParamsByVersion } from "../../clients/eth-contract/protocol-params";
+import {
+  getProtocolParamsReader,
+  getUniversalChallengerReader,
+  getVaultKeeperReader,
+} from "../../clients/eth-contract/sdk-readers";
 import { getBTCNetworkForWASM } from "../../config/pegin";
-import { fetchAllUniversalChallengers } from "../providers";
-import { fetchVaultKeepersByVersion } from "../providers/fetchProviders";
 
 import { fetchVaultProviderById } from "./fetchVaultProviders";
 import { fetchVaultById } from "./fetchVaults";
@@ -91,7 +93,14 @@ export async function buildAndBroadcastRefundTransaction(
   if (!indexerVault) {
     throw new Error(`Vault ${vaultId} not found`);
   }
-  const offchainParams = await getOffchainParamsByVersion(
+  // Fetch transaction-critical data from contracts (authoritative source)
+  const [protocolReader, keeperReader, challengerReader] = await Promise.all([
+    getProtocolParamsReader(),
+    getVaultKeeperReader(),
+    getUniversalChallengerReader(),
+  ]);
+
+  const offchainParams = await protocolReader.getOffchainParamsByVersion(
     onChainVault.offchainParamsVersion,
   );
 
@@ -104,7 +113,7 @@ export async function buildAndBroadcastRefundTransaction(
     );
   }
 
-  const vaultKeepers = await fetchVaultKeepersByVersion(
+  const vaultKeepers = await keeperReader.getVaultKeepersByVersion(
     onChainVault.applicationEntryPoint,
     onChainVault.appVaultKeepersVersion,
   );
@@ -114,9 +123,10 @@ export async function buildAndBroadcastRefundTransaction(
     );
   }
 
-  const ucData = await fetchAllUniversalChallengers();
   const universalChallengersList =
-    ucData.byVersion.get(onChainVault.universalChallengersVersion) ?? [];
+    await challengerReader.getUniversalChallengersByVersion(
+      onChainVault.universalChallengersVersion,
+    );
   if (universalChallengersList.length === 0) {
     throw new Error(
       `Universal challengers not found for version ${onChainVault.universalChallengersVersion}`,
@@ -169,8 +179,14 @@ export async function buildAndBroadcastRefundTransaction(
 
   try {
     signedPsbt.finalizeAllInputs();
-  } catch {
-    // Some wallets finalize automatically
+  } catch (e: unknown) {
+    // Some wallets (e.g. Keystone) finalize inputs during signPsbt.
+    // If already finalized, bitcoinjs throws "Input is already finalized".
+    // Any other finalization error is a real problem — surface it.
+    const message = e instanceof Error ? e.message : String(e);
+    if (!message.includes("already finalized")) {
+      throw new Error(`Failed to finalize refund PSBT: ${message}`);
+    }
   }
 
   const signedTxHex = signedPsbt.extractTransaction().toHex();

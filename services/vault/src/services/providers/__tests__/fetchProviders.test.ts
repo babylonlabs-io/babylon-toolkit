@@ -1,11 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { graphqlClient } from "../../../clients/graphql";
-import {
-  fetchAppProviders,
-  fetchVaultKeepersByVersion,
-  getLatestVersionKeepers,
-} from "../fetchProviders";
+import { fetchAppProviders, getLatestVersionKeepers } from "../fetchProviders";
 
 vi.mock("../../../clients/graphql", () => ({
   graphqlClient: {
@@ -173,47 +169,6 @@ describe("fetchProviders", () => {
         { id: "0xkeeper1", btcPubKey: "0xpubkey1" },
         { id: "0xkeeper2", btcPubKey: "0xpubkey2" },
       ]);
-    });
-  });
-
-  describe("fetchVaultKeepersByVersion", () => {
-    it("should fetch keepers and map to VaultKeeper format", async () => {
-      mockRequest.mockResolvedValueOnce({
-        vaultKeeperApplications: {
-          items: [
-            {
-              vaultKeeper: "0xkeeper1",
-              version: 1,
-              vaultKeeperInfo: { btcPubKey: "0xpubkey1" },
-            },
-            {
-              vaultKeeper: "0xkeeper2",
-              version: 2,
-              vaultKeeperInfo: { btcPubKey: "0xpubkey2" },
-            },
-          ],
-        },
-      });
-
-      const result = await fetchVaultKeepersByVersion("0xAppController", 2);
-
-      expect(result).toEqual([
-        { id: "0xkeeper1", btcPubKey: "0xpubkey1" },
-        { id: "0xkeeper2", btcPubKey: "0xpubkey2" },
-      ]);
-    });
-
-    it("should pass correct variables to GraphQL query", async () => {
-      mockRequest.mockResolvedValueOnce({
-        vaultKeeperApplications: { items: [] },
-      });
-
-      await fetchVaultKeepersByVersion("0xABCDEF", 3);
-
-      expect(mockRequest).toHaveBeenCalledWith(expect.anything(), {
-        appController: "0xabcdef",
-        keepersVersion: 3,
-      });
     });
   });
 });

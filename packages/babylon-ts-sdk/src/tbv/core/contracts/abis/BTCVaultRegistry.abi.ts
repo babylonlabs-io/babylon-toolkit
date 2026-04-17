@@ -356,4 +356,30 @@ export const BTCVaultRegistryABI = [
     ],
     stateMutability: "view",
   },
+  {
+    type: "function",
+    name: "protocolParams",
+    inputs: [],
+    outputs: [
+      {
+        name: "",
+        type: "address",
+        internalType: "contract IProtocolParams",
+      },
+    ],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "applicationRegistry",
+    inputs: [],
+    outputs: [
+      {
+        name: "",
+        type: "address",
+        internalType: "contract IApplicationRegistry",
+      },
+    ],
+    stateMutability: "view",
+  },
 ] as const;
