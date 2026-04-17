@@ -14,7 +14,7 @@ import * as transformers from "./transformers";
 import * as validations from "./validations";
 
 export const depositService = {
+  ...capMath,
   ...validations,
   ...transformers,
-  ...capMath,
 };

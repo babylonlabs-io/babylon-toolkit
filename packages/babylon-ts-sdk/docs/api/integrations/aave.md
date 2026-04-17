@@ -9,7 +9,7 @@ AAVE v4 Integration for Babylon Trustless BTC Vault
 This module provides transaction builders, query functions, and utilities for:
 - **Transaction Builders** - Build unsigned txs for borrow, repay, and withdraw
 - **Query Functions** - Fetch live position data, health factor, debt amounts from AAVE spoke
-- **Utility Functions** - Calculate health factor, select vaults, format values, check safety
+- **Utility Functions** - Calculate health factor, select vaults, check safety
 
 ## Key Features
 
@@ -825,16 +825,6 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.
 Required sacrificial vault coverage in satoshis
 
 ## Type Aliases
-
-### HealthFactorColor
-
-```ts
-type HealthFactorColor = typeof HEALTH_FACTOR_COLORS[keyof typeof HEALTH_FACTOR_COLORS];
-```
-
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/healthFactor.ts:29](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/healthFactor.ts#L29)
-
-***
 
 ### HealthFactorStatus
 
@@ -1874,58 +1864,6 @@ The status classification
 
 ***
 
-### getHealthFactorColor()
-
-```ts
-function getHealthFactorColor(status): HealthFactorColor;
-```
-
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/healthFactor.ts:61](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/healthFactor.ts#L61)
-
-Gets the appropriate color for a health factor status.
-
-#### Parameters
-
-##### status
-
-[`HealthFactorStatus`](#healthfactorstatus)
-
-The health factor status
-
-#### Returns
-
-[`HealthFactorColor`](#healthfactorcolor)
-
-The color code for the status
-
-***
-
-### formatHealthFactor()
-
-```ts
-function formatHealthFactor(healthFactor): string;
-```
-
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/healthFactor.ts:82](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/healthFactor.ts#L82)
-
-Format health factor number for display
-
-#### Parameters
-
-##### healthFactor
-
-Health factor number (null if no debt)
-
-`number` | `null`
-
-#### Returns
-
-`string`
-
-Formatted string for display
-
-***
-
 ### isHealthFactorHealthy()
 
 ```ts
@@ -2769,36 +2707,3 @@ Minimum debt threshold to continue cascade (avoids infinite loop on dust)
 
 ***
 
-### HEALTH\_FACTOR\_COLORS
-
-```ts
-const HEALTH_FACTOR_COLORS: object;
-```
-
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/healthFactor.ts:22](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/healthFactor.ts#L22)
-
-#### Type Declaration
-
-##### GREEN
-
-```ts
-readonly GREEN: "#00E676" = "#00E676";
-```
-
-##### AMBER
-
-```ts
-readonly AMBER: "#FFC400" = "#FFC400";
-```
-
-##### RED
-
-```ts
-readonly RED: "#FF1744" = "#FF1744";
-```
-
-##### GRAY
-
-```ts
-readonly GRAY: "#5A5A5A" = "#5A5A5A";
-```

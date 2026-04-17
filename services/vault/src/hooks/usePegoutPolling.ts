@@ -16,8 +16,6 @@ import { useEffect, useMemo, useRef } from "react";
 
 import type { RedeemedVaultInfo } from "@/applications/aave/hooks/useAaveVaults";
 import {
-  PEGOUT_MAX_CONSECUTIVE_FAILURES,
-  PEGOUT_MAX_UNKNOWN_STATUS_POLLS,
   POLLING_INTERVAL_MS,
   POLLING_RETRY_COUNT,
   POLLING_RETRY_DELAY_MS,
@@ -27,6 +25,8 @@ import {
   getPegoutDisplayState,
   isPegoutEffectivelyTerminal,
   isRecognizedPegoutStatus,
+  PEGOUT_MAX_CONSECUTIVE_FAILURES,
+  PEGOUT_MAX_UNKNOWN_STATUS_POLLS,
   TIMED_OUT_STATE,
   type PegoutDisplayState,
 } from "@/models/pegoutStateMachine";

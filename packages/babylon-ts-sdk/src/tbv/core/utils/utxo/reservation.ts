@@ -5,19 +5,17 @@
  * and selecting available UTXOs with smart fallback logic.
  */
 
+import { Transaction } from "bitcoinjs-lib";
+import { Buffer } from "buffer";
+
+import { stripHexPrefix } from "../../primitives/utils/bitcoin";
+import { ContractStatus } from "../../services/deposit/peginState";
 import {
   FEE_SAFETY_MARGIN,
   MAX_NON_LEGACY_OUTPUT_SIZE,
   P2TR_INPUT_SIZE,
   TX_BUFFER_SIZE_OVERHEAD,
-} from "@babylonlabs-io/ts-sdk/tbv/core";
-import { Transaction } from "bitcoinjs-lib";
-import { Buffer } from "buffer";
-
-import { ContractStatus } from "../../models/peginStateMachine";
-import type { PendingPeginRequest } from "../../storage/peginStorage";
-import type { Vault } from "../../types/vault";
-import { stripHexPrefix } from "../../utils/btc/btcUtils";
+} from "../fee/constants";
 
 // ============================================================================
 // Types
@@ -27,6 +25,18 @@ import { stripHexPrefix } from "../../utils/btc/btcUtils";
 export interface UtxoRef {
   txid: string;
   vout: number;
+}
+
+/** Narrow structural type for pending pegin data. */
+export interface PendingPeginLike {
+  selectedUTXOs?: Array<{ txid: string; vout: number }>;
+  unsignedTxHex?: string;
+}
+
+/** Narrow structural type for vault data. */
+export interface VaultLike {
+  status: number;
+  unsignedPrePeginTx: string;
 }
 
 export interface SelectUtxosForDepositParams<
@@ -43,8 +53,8 @@ export interface SelectUtxosForDepositParams<
 }
 
 export interface CollectReservedUtxoRefsParams {
-  vaults?: Vault[];
-  pendingPegins?: PendingPeginRequest[];
+  vaults?: VaultLike[];
+  pendingPegins?: PendingPeginLike[];
 }
 
 // ============================================================================
@@ -88,7 +98,6 @@ function isUtxoReserved(
  * - 1 change output (P2TR, 43 vBytes)
  * - Transaction overhead (11 vBytes)
  * - 10% safety margin
- *
  */
 function estimateMinimumFeeBuffer(feeRate: number): bigint {
   const ASSUMED_INPUTS = 2;
@@ -108,7 +117,7 @@ function estimateMinimumFeeBuffer(feeRate: number): bigint {
 // ============================================================================
 
 /**
- * Collect UTXO refs from in-flight deposits (PENDING/VERIFIED vaults and localStorage).
+ * Collect UTXO refs from in-flight deposits (PENDING/VERIFIED vaults and pending pegins).
  */
 export function collectReservedUtxoRefs(
   params: CollectReservedUtxoRefsParams,
@@ -116,7 +125,7 @@ export function collectReservedUtxoRefs(
   const reserved: UtxoRef[] = [];
   const { vaults = [], pendingPegins = [] } = params;
 
-  // Collect from pending pegins in localStorage
+  // Collect from pending pegins
   for (const pending of pendingPegins) {
     if (pending.selectedUTXOs && pending.selectedUTXOs.length > 0) {
       for (const utxo of pending.selectedUTXOs) {

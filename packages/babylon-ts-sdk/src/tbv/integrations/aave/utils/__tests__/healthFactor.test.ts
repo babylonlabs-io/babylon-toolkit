@@ -6,42 +6,12 @@ import { describe, expect, it } from "vitest";
 
 import {
   calculateHealthFactor,
-  formatHealthFactor,
-  getHealthFactorColor,
   getHealthFactorStatus,
   getHealthFactorStatusFromValue,
-  HEALTH_FACTOR_COLORS,
   isHealthFactorHealthy,
 } from "../healthFactor.js";
 
 describe("healthFactor", () => {
-  describe("formatHealthFactor", () => {
-    it("should format health factor to 2 decimal places", () => {
-      expect(formatHealthFactor(1.5)).toBe("1.50");
-    });
-
-    it("should format whole numbers with decimals", () => {
-      expect(formatHealthFactor(2)).toBe("2.00");
-    });
-
-    it("should format small health factors", () => {
-      expect(formatHealthFactor(0.85)).toBe("0.85");
-    });
-
-    it("should return '-' for null (no debt)", () => {
-      expect(formatHealthFactor(null)).toBe("-");
-    });
-
-    it("should handle very large health factors", () => {
-      expect(formatHealthFactor(100.123)).toBe("100.12");
-    });
-
-    it("should round to 2 decimal places", () => {
-      expect(formatHealthFactor(1.999)).toBe("2.00");
-      expect(formatHealthFactor(1.001)).toBe("1.00");
-    });
-  });
-
   describe("isHealthFactorHealthy", () => {
     it("should return true for health factor >= 1.0", () => {
       expect(isHealthFactorHealthy(1.0)).toBe(true);
@@ -121,24 +91,6 @@ describe("healthFactor", () => {
       expect(getHealthFactorStatus(1.5, true)).toBe("safe");
       expect(getHealthFactorStatus(2.0, true)).toBe("safe");
       expect(getHealthFactorStatus(10.0, true)).toBe("safe");
-    });
-  });
-
-  describe("getHealthFactorColor", () => {
-    it("should return GREEN for safe status", () => {
-      expect(getHealthFactorColor("safe")).toBe(HEALTH_FACTOR_COLORS.GREEN);
-    });
-
-    it("should return AMBER for warning status", () => {
-      expect(getHealthFactorColor("warning")).toBe(HEALTH_FACTOR_COLORS.AMBER);
-    });
-
-    it("should return RED for danger status", () => {
-      expect(getHealthFactorColor("danger")).toBe(HEALTH_FACTOR_COLORS.RED);
-    });
-
-    it("should return GRAY for no_debt status", () => {
-      expect(getHealthFactorColor("no_debt")).toBe(HEALTH_FACTOR_COLORS.GRAY);
     });
   });
 

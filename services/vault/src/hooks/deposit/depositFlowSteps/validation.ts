@@ -4,4 +4,4 @@
  */
 
 export { validateMultiVaultDepositInputs } from "@/services/deposit/validations";
-export type { MultiVaultDepositFlowInputs } from "@/services/deposit/validations";
+export type { VaultMultiVaultDepositInputs } from "@/services/deposit/validations";

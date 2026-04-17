@@ -6,7 +6,7 @@
  * This module provides transaction builders, query functions, and utilities for:
  * - **Transaction Builders** - Build unsigned txs for borrow, repay, and withdraw
  * - **Query Functions** - Fetch live position data, health factor, debt amounts from AAVE spoke
- * - **Utility Functions** - Calculate health factor, select vaults, format values, check safety
+ * - **Utility Functions** - Calculate health factor, select vaults, check safety
  *
  * ## Key Features
  *
@@ -90,7 +90,6 @@ export {
 
 // Utilities
 export {
-  HEALTH_FACTOR_COLORS,
   MAX_GROUPS,
   MIN_DEBT_THRESHOLD,
   SEIZURE_TOL,
@@ -106,9 +105,7 @@ export {
   computeSeizedFraction,
   computeSeizedFractionDetailed,
   computeTargetSeizureSats,
-  formatHealthFactor,
   getGroup1FromOrder,
-  getHealthFactorColor,
   getHealthFactorStatus,
   getHealthFactorStatusFromValue,
   hasDebtFromPosition,
@@ -121,7 +118,6 @@ export {
 
 export type {
   CascadeVault,
-  HealthFactorColor,
   HealthFactorStatus,
   MinDepositForSplitParams,
   OptimalSplitParams,

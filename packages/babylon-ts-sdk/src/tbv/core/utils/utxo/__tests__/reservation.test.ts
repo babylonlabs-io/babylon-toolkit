@@ -1,15 +1,15 @@
-/** Tests for vault UTXO reservation utilities. */
+/** Tests for UTXO reservation utilities. */
 
 import { describe, expect, it } from "vitest";
 
-import { ContractStatus } from "../../../models/peginStateMachine";
-import type { PendingPeginRequest } from "../../../storage/peginStorage";
-import type { Vault } from "../../../types/vault";
+import { ContractStatus } from "../../../services/deposit/peginState";
 import {
   collectReservedUtxoRefs,
   selectUtxosForDeposit,
+  type PendingPeginLike,
   type UtxoRef,
-} from "../utxoReservation";
+  type VaultLike,
+} from "../reservation";
 
 /** Minimal UTXO interface for testing. */
 interface TestUTXO {
@@ -28,15 +28,10 @@ function hasRef(refs: UtxoRef[], txid: string, vout: number): boolean {
 
 describe("UTXO Reservation", () => {
   describe("collectReservedUtxoRefs", () => {
-    const mockPendingPegin: PendingPeginRequest = {
-      id: "0x1234",
-      peginTxHash: "0xpeginTxHash1234",
-      timestamp: Date.now(),
-      status: "pending" as any,
-      unsignedTxHex: "0xdeadbeef",
+    const mockPendingPegin: PendingPeginLike = {
       selectedUTXOs: [
-        { txid: "txid1", vout: 0, value: "50000", scriptPubKey: "script1" },
-        { txid: "txid2", vout: 1, value: "100000", scriptPubKey: "script2" },
+        { txid: "txid1", vout: 0 },
+        { txid: "txid2", vout: 1 },
       ],
     };
 
@@ -54,11 +49,7 @@ describe("UTXO Reservation", () => {
       "76a914887c6824d03eb8997b1e28c1d81b4e5c8c96d41688ac" +
       "00000000";
 
-    const mockPendingPeginWithTxHex: PendingPeginRequest = {
-      id: "0x5678",
-      peginTxHash: "0xpeginTxHash5678",
-      timestamp: Date.now(),
-      status: "pending" as any,
+    const mockPendingPeginWithTxHex: PendingPeginLike = {
       unsignedTxHex: VALID_TX_FOR_PENDING,
     };
 
@@ -88,29 +79,12 @@ describe("UTXO Reservation", () => {
     const createMockVault = (
       status: ContractStatus,
       unsignedPrePeginTx: string,
-    ): Vault => ({
-      id: "0xvault1" as any,
-      depositor: "0xdepositor" as any,
-      depositorBtcPubkey: "0xpubkey" as any,
-      depositorSignedPeginTx: "0x" as any,
-      unsignedPrePeginTx: unsignedPrePeginTx as any,
-      amount: 100000n,
-      vaultProvider: "0xprovider" as any,
-      peginTxHash: "0xpegin" as any,
-      htlcVout: 0,
+    ): VaultLike => ({
       status,
-      applicationEntryPoint: "0xcontroller" as any,
-      createdAt: Date.now(),
-      isInUse: false,
-      appVaultKeepersVersion: 1,
-      universalChallengersVersion: 1,
-      offchainParamsVersion: 1,
-      referralCode: 0,
-      depositorWotsPkHash: "0x" + "ab".repeat(32),
-      depositorPayoutBtcAddress: "0xpayoutaddr" as any,
+      unsignedPrePeginTx,
     });
 
-    it("should collect refs from localStorage selectedUTXOs", () => {
+    it("should collect refs from selectedUTXOs", () => {
       const reserved = collectReservedUtxoRefs({
         pendingPegins: [mockPendingPegin],
         vaults: [],
@@ -253,6 +227,23 @@ describe("UTXO Reservation", () => {
       expect(reserved).toHaveLength(0);
     });
 
+    it("should NOT include refs from EXPIRED vaults", () => {
+      const vault = createMockVault(
+        ContractStatus.EXPIRED,
+        createValidTxHex(
+          "8888888888888888888888888888888888888888888888888888888888888888",
+          0,
+        ),
+      );
+
+      const reserved = collectReservedUtxoRefs({
+        pendingPegins: [],
+        vaults: [vault],
+      });
+
+      expect(reserved).toHaveLength(0);
+    });
+
     it("should NOT include refs from DEPOSITOR_WITHDRAWN vaults", () => {
       const vault = createMockVault(
         ContractStatus.DEPOSITOR_WITHDRAWN,
@@ -284,7 +275,7 @@ describe("UTXO Reservation", () => {
         vaults: [pendingVault],
       });
 
-      expect(reserved).toHaveLength(3); // 2 from localStorage + 1 from vault
+      expect(reserved).toHaveLength(3); // 2 from pending + 1 from vault
       expect(hasRef(reserved, "txid1", 0)).toBe(true);
       expect(hasRef(reserved, "txid2", 1)).toBe(true);
       expect(
@@ -322,7 +313,7 @@ describe("UTXO Reservation", () => {
     // Total value: 425000
 
     // Default fee rate for tests (10 sat/vB)
-    // Fee buffer at 10 sat/vB: (2*58 + 43 + 43 + 11) * 10 * 1.1 ≈ 2343 sats
+    // Fee buffer at 10 sat/vB: (2*58 + 43 + 43 + 11) * 10 * 1.1 ~ 2343 sats
     const DEFAULT_FEE_RATE = 10;
 
     describe("no reservations", () => {
@@ -341,9 +332,6 @@ describe("UTXO Reservation", () => {
 
     describe("with reservations - unreserved sufficient", () => {
       it("should filter out reserved UTXOs when unreserved are sufficient", () => {
-        // Reserve txid1 (50000) and txid3 (75000)
-        // Unreserved: txid2 (100000) + txid4 (200000) = 300000
-        // Required: 200000 + ~2343 fee buffer -> unreserved sufficient
         const reserved: UtxoRef[] = [
           { txid: "txid1", vout: 0 },
           { txid: "txid3", vout: 0 },
@@ -361,9 +349,6 @@ describe("UTXO Reservation", () => {
       });
 
       it("should handle partial reservation without fallback", () => {
-        // Reserve only txid1 (50000)
-        // Unreserved: 375000 total
-        // Required: 100000 + ~2343 fee buffer -> sufficient
         const reserved: UtxoRef[] = [{ txid: "txid1", vout: 0 }];
 
         const result = selectUtxosForDeposit({
@@ -398,9 +383,6 @@ describe("UTXO Reservation", () => {
       });
 
       it("should throw when unreserved UTXOs are insufficient for required amount + fee", () => {
-        // Reserve txid2 (100000) and txid4 (200000)
-        // Unreserved: txid1 (50000) + txid3 (75000) = 125000
-        // Required: 200000 + ~2343 fee buffer -> unreserved insufficient
         const reserved: UtxoRef[] = [
           { txid: "txid2", vout: 1 },
           { txid: "txid4", vout: 2 },
@@ -417,9 +399,6 @@ describe("UTXO Reservation", () => {
       });
 
       it("should return unreserved UTXOs when they cover required + fee buffer", () => {
-        // Reserve txid1 (50000), txid3 (75000), txid4 (200000)
-        // Unreserved: txid2 (100000)
-        // Required: 95000 + ~2343 fee buffer ≈ 97343 < 100000 -> sufficient
         const reserved: UtxoRef[] = [
           { txid: "txid1", vout: 0 },
           { txid: "txid3", vout: 0 },
@@ -438,9 +417,6 @@ describe("UTXO Reservation", () => {
       });
 
       it("should throw when unreserved value insufficient for required + fee buffer", () => {
-        // Reserve txid1 (50000), txid3 (75000), txid4 (200000)
-        // Unreserved: txid2 (100000)
-        // Required: 98000 + ~2343 fee buffer ≈ 100343 > 100000 -> insufficient
         const reserved: UtxoRef[] = [
           { txid: "txid1", vout: 0 },
           { txid: "txid3", vout: 0 },
@@ -484,13 +460,11 @@ describe("UTXO Reservation", () => {
           feeRate: DEFAULT_FEE_RATE,
         });
 
-        // Unreserved: txid4 (200000) >= 0 + fee buffer, so use unreserved
         expect(result).toHaveLength(1);
         expect(result[0].txid).toBe("txid4");
       });
 
       it("should handle case-insensitive txid matching", () => {
-        // Reserved with uppercase txid
         const reserved: UtxoRef[] = [{ txid: "TXID1", vout: 0 }];
 
         const result = selectUtxosForDeposit({
@@ -500,7 +474,6 @@ describe("UTXO Reservation", () => {
           feeRate: DEFAULT_FEE_RATE,
         });
 
-        // Should match case-insensitively, so txid1 is filtered out
         expect(result).toHaveLength(3);
         expect(result.map((u) => u.txid)).toEqual(["txid2", "txid3", "txid4"]);
       });
@@ -522,10 +495,6 @@ describe("UTXO Reservation", () => {
 
     describe("fee buffer calculation", () => {
       it("should throw when high fee rate makes unreserved insufficient", () => {
-        // Reserve txid1 (50000), txid3 (75000), txid4 (200000)
-        // Unreserved: txid2 (100000)
-        // At 100 sat/vB: fee buffer ≈ 23430 sats
-        // Required: 80000 + 23430 = 103430 > 100000 -> insufficient
         const reserved: UtxoRef[] = [
           { txid: "txid1", vout: 0 },
           { txid: "txid3", vout: 0 },
@@ -537,15 +506,12 @@ describe("UTXO Reservation", () => {
             availableUtxos: mockUTXOs,
             reservedUtxoRefs: reserved,
             requiredAmount: 80000n,
-            feeRate: 100, // High fee rate
+            feeRate: 100,
           }),
         ).toThrow("Insufficient unreserved UTXOs");
       });
 
       it("should return unreserved UTXOs with low fee rate", () => {
-        // Same setup but with fee rate of 1 sat/vB
-        // Fee buffer ≈ 234 sats
-        // Required: 80000 + 234 = 80234 < 100000 -> unreserved sufficient
         const reserved: UtxoRef[] = [
           { txid: "txid1", vout: 0 },
           { txid: "txid3", vout: 0 },
@@ -556,7 +522,7 @@ describe("UTXO Reservation", () => {
           availableUtxos: mockUTXOs,
           reservedUtxoRefs: reserved,
           requiredAmount: 80000n,
-          feeRate: 1, // Low fee rate
+          feeRate: 1,
         });
 
         expect(result).toHaveLength(1);

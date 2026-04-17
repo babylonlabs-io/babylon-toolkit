@@ -15,3 +15,29 @@ export type {
   PayoutSigningContext,
   PollAndSignPayoutsParams,
 } from "./signAndSubmitPayouts";
+export {
+  ContractStatus,
+  PeginAction,
+  canPerformAction,
+  getPeginProtocolState,
+} from "./peginState";
+export type {
+  ExpirationReason,
+  GetPeginProtocolStateOptions,
+  PeginProtocolState,
+} from "./peginState";
+export {
+  isDepositAmountValid,
+  validateDepositAmount,
+  validateRemainingCapacity,
+  validateProviderSelection,
+  validateVaultAmounts,
+  validateVaultProviderPubkey,
+  validateMultiVaultDepositInputs,
+} from "./validation";
+export type {
+  ValidationResult,
+  DepositFormValidityParams,
+  RemainingCapacityParams,
+  MultiVaultDepositFlowInputs,
+} from "./validation";

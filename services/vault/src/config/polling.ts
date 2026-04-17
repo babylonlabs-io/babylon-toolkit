@@ -14,9 +14,3 @@ export const POLLING_RETRY_COUNT = 3;
 
 /** Delay between retry attempts (5 seconds) */
 export const POLLING_RETRY_DELAY_MS = 5 * 1000;
-
-/** Max consecutive poll failures before treating a vault's pegout as timed out (10 × 30s = 5 min) */
-export const PEGOUT_MAX_CONSECUTIVE_FAILURES = 10;
-
-/** Max consecutive polls returning an unknown status before treating as terminal (20 × 30s = 10 min) */
-export const PEGOUT_MAX_UNKNOWN_STATUS_POLLS = 20;

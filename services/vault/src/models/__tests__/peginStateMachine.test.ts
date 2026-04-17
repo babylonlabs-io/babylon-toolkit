@@ -48,6 +48,18 @@ describe("peginStateMachine", () => {
       expect(state.message).toContain("prepare Claim and Payout");
     });
 
+    it("shows signing required when CONFIRMING and transactions are ready", () => {
+      const state = getPeginState(ContractStatus.PENDING, {
+        localStatus: LocalStorageStatus.CONFIRMING,
+        pendingIngestion: false,
+        transactionsReady: true,
+      });
+      expect(state.displayLabel).toBe(PEGIN_DISPLAY_LABELS.SIGNING_REQUIRED);
+      expect(state.availableActions).toContain(
+        PeginAction.SIGN_PAYOUT_TRANSACTIONS,
+      );
+    });
+
     it("shows pending ingestion when no polling response yet (undefined)", () => {
       const state = getPeginState(ContractStatus.PENDING, {});
       expect(state.displayLabel).toBe(PEGIN_DISPLAY_LABELS.PENDING);

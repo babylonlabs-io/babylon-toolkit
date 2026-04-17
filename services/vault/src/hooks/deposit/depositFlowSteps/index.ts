@@ -28,7 +28,7 @@ export type {
 
 // Step 0: Validation (from service layer)
 export { validateMultiVaultDepositInputs } from "./validation";
-export type { MultiVaultDepositFlowInputs } from "./validation";
+export type { VaultMultiVaultDepositInputs } from "./validation";
 
 // Steps 1-2: ETH wallet and pegin submission
 export {
