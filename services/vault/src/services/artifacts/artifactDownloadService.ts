@@ -5,32 +5,35 @@
  * their vault funds. They are retrieved from the vault provider after
  * the WOTS key has been submitted and the vault is fully set up.
  *
- * Artifacts can be very large (tens of MB), so we avoid parsing the full
- * JSON response into memory. Instead we stream the raw response text
- * directly to a Blob for download.
+ * Artifacts can be very large (tens of MB). The raw response body is
+ * retained as a Blob so the download step does not need to re-serialize
+ * it. The response is additionally parsed and schema-validated before
+ * the download is triggered, since the vault provider is only semi-trusted
+ * and a malformed artifact file would leave the depositor unable to claim
+ * funds independently.
  */
 
 import {
+  JSON_RPC_ERROR_CODES,
   JsonRpcClient,
   JsonRpcError,
+  validateRequestDepositorClaimerArtifactsResponse,
+  VpResponseValidationError,
 } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 
-import { logger } from "@/infrastructure";
 import { stripHexPrefix } from "@/utils/btc";
 import { getVpProxyUrl } from "@/utils/rpc";
 
 /** Timeout for the artifact request RPC call (artifacts can be large). */
 const RPC_TIMEOUT_MS = 120 * 1000;
 
-/** Error responses are typically small; artifact payloads are tens of MB. */
-const ERROR_RESPONSE_SIZE_THRESHOLD = 4096;
-
 /**
  * Fetch artifacts from the vault provider and trigger a browser file download.
  *
- * Uses JsonRpcClient.callRaw() so the large payload is never fully parsed
- * into a JS object while still getting retry logic and consistent error
- * handling. Error responses are small enough to parse safely.
+ * Uses JsonRpcClient.callRaw() so the raw response body can be preserved
+ * as a Blob for download without a separate re-serialization pass. The
+ * payload is parsed once for schema validation and the download is only
+ * triggered after validation succeeds.
  *
  * @param providerAddress - Vault provider's Ethereum address.
  * @param peginTxid       - Bitcoin pegin transaction ID (hex, with or without 0x prefix).
@@ -58,20 +61,62 @@ export async function fetchAndDownloadArtifacts(
 
   const blob = await response.blob();
 
-  if (blob.size < ERROR_RESPONSE_SIZE_THRESHOLD) {
-    const text = await blob.text();
-    const parsed = JSON.parse(text);
-    if (parsed.error) {
-      if (parsed.error.data !== undefined) {
-        logger.info(
-          `[artifactDownloadService] RPC error included data field (code: ${parsed.error.code})`,
-        );
-      }
-      throw new JsonRpcError(parsed.error.code, parsed.error.message);
-    }
-  }
+  await validateArtifactPayload(blob);
 
   triggerBlobDownload(blob, peginTxid);
+}
+
+/**
+ * Parse the raw JSON-RPC response and validate the artifact payload against
+ * its runtime schema. Throws JsonRpcError for RPC-level errors and
+ * VpResponseValidationError for malformed or incomplete artifact data.
+ */
+async function validateArtifactPayload(blob: Blob): Promise<void> {
+  let text: string;
+  try {
+    text = await blob.text();
+  } catch (err) {
+    throw new VpResponseValidationError(
+      `Failed to read artifact payload: ${err instanceof Error ? err.message : "unknown error"}`,
+    );
+  }
+
+  let envelope: unknown;
+  try {
+    envelope = JSON.parse(text);
+  } catch {
+    throw new VpResponseValidationError(
+      "Artifact response body is not valid JSON",
+    );
+  }
+
+  if (
+    envelope === null ||
+    typeof envelope !== "object" ||
+    Array.isArray(envelope)
+  ) {
+    throw new VpResponseValidationError(
+      "Artifact response envelope is not a JSON object",
+    );
+  }
+
+  const record = envelope as Record<string, unknown>;
+
+  if ("error" in record && record.error != null) {
+    const err = record.error as { code?: number; message?: string };
+    throw new JsonRpcError(
+      err.code ?? JSON_RPC_ERROR_CODES.INVALID_RESPONSE,
+      err.message ?? "Unknown RPC error",
+    );
+  }
+
+  if (!("result" in record)) {
+    throw new VpResponseValidationError(
+      "Artifact response envelope is missing the result field",
+    );
+  }
+
+  validateRequestDepositorClaimerArtifactsResponse(record.result);
 }
 
 /**
