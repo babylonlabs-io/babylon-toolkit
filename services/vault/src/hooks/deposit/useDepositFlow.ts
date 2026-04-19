@@ -274,12 +274,18 @@ export function useDepositFlow(
           throw new Error(`Failed to load UTXOs: ${utxoError.message}`);
         }
 
+        if (!spendableUTXOs) {
+          throw new Error(
+            "Spendable UTXOs unavailable after loading completed",
+          );
+        }
+
         validateMultiVaultDepositInputs({
           btcAddress,
           depositorEthAddress,
           vaultAmounts,
           selectedProviders,
-          confirmedUTXOs: spendableUTXOs ?? [],
+          confirmedUTXOs: spendableUTXOs,
           vaultProviderBtcPubkey,
           vaultKeeperBtcPubkeys,
           universalChallengerBtcPubkeys,

@@ -4,6 +4,7 @@
  * and provides CTA display logic.
  */
 
+import { formatSatoshisToBtc } from "@babylonlabs-io/ts-sdk/tbv/core";
 import {
   validateMultiVaultDepositInputs as sdkValidateMultiVaultDepositInputs,
   validateProviderSelection as sdkValidateProviderSelection,
@@ -12,8 +13,6 @@ import {
   type MultiVaultDepositFlowInputs,
   type ValidationResult,
 } from "@babylonlabs-io/ts-sdk/tbv/core/services";
-
-import { formatSatoshisToBtc } from "@/utils/btcConversion";
 
 export {
   isDepositAmountValid,

@@ -208,6 +208,26 @@ export function validateWalletPubkey(
 }
 
 // ============================================================================
+// BTC formatting
+// ============================================================================
+
+const SATOSHIS_PER_BTC = 100_000_000n;
+
+/**
+ * Format satoshis as a human-readable BTC string with trailing zeros removed.
+ */
+export function formatSatoshisToBtc(satoshis: bigint): string {
+  if (satoshis < 0n) {
+    return `-${formatSatoshisToBtc(-satoshis)}`;
+  }
+  const whole = satoshis / SATOSHIS_PER_BTC;
+  const fraction = satoshis % SATOSHIS_PER_BTC;
+  let fractionStr = fraction.toString().padStart(8, "0");
+  fractionStr = fractionStr.replace(/0+$/, "");
+  return fractionStr.length > 0 ? `${whole}.${fractionStr}` : whole.toString();
+}
+
+// ============================================================================
 // Address derivation and validation
 // ============================================================================
 

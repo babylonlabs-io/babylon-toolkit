@@ -138,6 +138,7 @@ export {
   isAddressFromPublicKey,
   isValidHex,
   ensureHexPrefix,
+  formatSatoshisToBtc,
   processPublicKeyToXOnly,
   stripHexPrefix,
   toXOnly,

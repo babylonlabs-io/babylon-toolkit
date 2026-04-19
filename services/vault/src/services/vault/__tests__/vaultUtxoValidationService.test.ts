@@ -77,7 +77,7 @@ describe("vaultUtxoValidationService", () => {
       expect(result.missingUtxos).toHaveLength(1);
     });
 
-    it("should propagate mempool API errors", async () => {
+    it("should propagate mempool API errors on validate", async () => {
       mockedGetAddressUtxos.mockRejectedValue(new Error("API unavailable"));
 
       await expect(
@@ -113,7 +113,7 @@ describe("vaultUtxoValidationService", () => {
       ).rejects.toThrow(UtxoNotAvailableError);
     });
 
-    it("should propagate mempool API errors", async () => {
+    it("should propagate mempool API errors on assert", async () => {
       mockedGetAddressUtxos.mockRejectedValue(new Error("Network timeout"));
 
       await expect(
