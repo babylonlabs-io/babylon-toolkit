@@ -224,11 +224,14 @@ describe("healthCheckService", () => {
   });
 
   describe("createEnvConfigError", () => {
-    it("creates an error with the correct title and message", () => {
+    it("creates a generic error without leaking details to the user", () => {
       const error = createEnvConfigError("MISSING_VAR_1, MISSING_VAR_2");
 
       expect(error.title).toBe("Configuration Error");
-      expect(error.message).toContain("MISSING_VAR_1, MISSING_VAR_2");
+      expect(error.message).toBe(
+        "The application is missing required configuration. Please contact support.",
+      );
+      expect(error.message).not.toContain("MISSING_VAR_1");
     });
   });
 

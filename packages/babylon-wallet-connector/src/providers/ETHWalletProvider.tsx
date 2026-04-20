@@ -58,7 +58,7 @@ export const ETHWalletProvider = ({ children, callbacks }: ETHWalletProviderProp
     try {
       await callbacks?.onDisconnect?.();
     } catch (error) {
-      console.error("Error in onDisconnect callback:", error);
+      console.error("Error in onDisconnect callback:", error instanceof Error ? error.message : "Unknown error");
     }
   }, [ethConnector, callbacks]);
 
@@ -128,7 +128,7 @@ export const ETHWalletProvider = ({ children, callbacks }: ETHWalletProviderProp
             connectETH(addr);
           }
         } catch (error) {
-          console.error("Error getting ETH address:", error);
+          console.error("Error getting ETH address:", error instanceof Error ? error.message : "Unknown error");
         }
       }
     });
@@ -222,7 +222,7 @@ export const ETHWalletProvider = ({ children, callbacks }: ETHWalletProviderProp
       }
     } catch (error) {
       // Connection check failed - wallet likely disconnected
-      console.error("ETH wallet connection check failed:", error);
+      console.error("ETH wallet connection check failed:", error instanceof Error ? error.message : "Unknown error");
       disconnect();
     }
   }, [provider, address, callbacks, disconnect]);

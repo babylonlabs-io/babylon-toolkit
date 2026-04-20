@@ -85,7 +85,7 @@ export const BTCWalletProvider = ({ children, callbacks }: BTCWalletProviderProp
     try {
       await callbacks?.onDisconnect?.();
     } catch (error) {
-      console.error("Error in onDisconnect callback:", error);
+      console.error("Error in onDisconnect callback:", error instanceof Error ? error.message : "Unknown error");
     }
   }, [callbacks]);
 
@@ -198,7 +198,7 @@ export const BTCWalletProvider = ({ children, callbacks }: BTCWalletProviderProp
         }
       } catch (error: any) {
         // Connection failure during account change likely means wallet disconnected
-        console.error("Error handling BTC account change:", error);
+        console.error("Error handling BTC account change:", error instanceof Error ? error.message : "Unknown error");
         callbacks?.onError?.(error);
         disconnect();
       }
@@ -259,7 +259,7 @@ export const BTCWalletProvider = ({ children, callbacks }: BTCWalletProviderProp
       }
     } catch (error) {
       // Connection check failed - wallet likely disconnected
-      console.error("BTC wallet connection check failed:", error);
+      console.error("BTC wallet connection check failed:", error instanceof Error ? error.message : "Unknown error");
       disconnect();
     }
   }, [btcWalletProvider, address, callbacks, disconnect]);

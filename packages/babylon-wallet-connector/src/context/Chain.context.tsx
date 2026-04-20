@@ -83,7 +83,7 @@ export function ChainProvider({
         });
         return connector;
       } catch (error) {
-        console.error("[ChainProvider] failed to create connector for chain:", chain, error);
+        console.error("[ChainProvider] failed to create connector for chain:", chain, error instanceof Error ? error.message : "Unknown error");
         throw error;
       }
     });
@@ -99,7 +99,7 @@ export function ChainProvider({
         setConnectors(connectors);
       })
       .catch((error) => {
-        console.error("[ChainProvider] init failed with error:", error);
+        console.error("[ChainProvider] init failed with error:", error instanceof Error ? error.message : "Unknown error");
         onError?.(error);
       });
   }, [setConnectors, init, onError]);
