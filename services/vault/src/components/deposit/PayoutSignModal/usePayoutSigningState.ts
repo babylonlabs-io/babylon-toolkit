@@ -97,95 +97,110 @@ export function usePayoutSigningState({
     if (inFlightRef.current || signing) return;
     inFlightRef.current = true;
 
-    if (!activity.depositorPayoutBtcAddress) {
-      setError({
-        title: "Missing Payout Address",
-        message:
-          "Depositor payout address not available. Please wait for indexer sync and try again.",
-      });
-      inFlightRef.current = false;
-      return;
-    }
-
-    // Security: the indexer-sourced payout scriptPubKey must match the
-    // connected wallet. A compromised indexer could otherwise trick signing
-    // over an attacker-chosen payout address.
-    const connectedBtcAddress = btcConnector?.connectedWallet?.account?.address;
-    if (connectedBtcAddress) {
-      const walletScriptPubKey =
-        btcAddressToScriptPubKeyHex(connectedBtcAddress);
-      if (walletScriptPubKey !== activity.depositorPayoutBtcAddress) {
-        setError({
-          title: "Payout Address Mismatch",
-          message:
-            "The payout address from the indexer does not match your connected wallet. " +
-            "This may indicate a data integrity issue. Please verify your wallet connection.",
-        });
-        inFlightRef.current = false;
-        return;
-      }
-    }
-
-    const vaultProviderAddress = activity.providers[0]?.id as Hex;
-    const provider = findProvider(vaultProviderAddress);
-    if (!provider) {
-      setError({
-        title: "Provider Not Found",
-        message: "Vault provider not found.",
-      });
-      inFlightRef.current = false;
-      return;
-    }
-
-    const btcWalletProvider = btcConnector?.connectedWallet?.provider;
-    if (!btcWalletProvider) {
-      setError({
-        title: "Wallet Not Connected",
-        message: "BTC wallet not connected.",
-      });
-      inFlightRef.current = false;
-      return;
-    }
-
-    setSigning(true);
-    setError(null);
-    // Reset progress; the SDK emits (completed, total) once it knows the
-    // real claimer count after polling the VP.
-    setProgress({ completed: 0, totalClaimers: 0 });
-
-    abortRef.current?.abort();
-    abortRef.current = new AbortController();
-
+    // Single outer try/finally so the reentrancy lock is always cleared —
+    // including on synchronous throws from the guards (e.g.
+    // `btcAddressToScriptPubKeyHex` rejects a wallet on the wrong BTC
+    // network). Without this, a guard throw would leave `inFlightRef`
+    // stuck at true and lock out every subsequent `handleSign()` until the
+    // component remounts.
     try {
-      await signAndSubmitPayouts({
-        vaultId: activity.id,
-        peginTxHash: activity.peginTxHash!,
-        depositorBtcPubkey: btcPublicKey,
-        providerBtcPubKey: provider.btcPubKey,
-        registeredPayoutScriptPubKey: activity.depositorPayoutBtcAddress,
-        btcWallet: btcWalletProvider,
-        depositorEthAddress,
-        signal: abortRef.current.signal,
-        onProgress: (next) => {
-          if (next === null) return;
-          setProgress(next);
-        },
-      });
-
-      // localStorage is written by signAndSubmitPayouts; mirror it optimistically
-      // so the polling query picks up PAYOUT_SIGNED before the next poll cycle.
-      setOptimisticStatus(activity.id, LocalStorageStatus.PAYOUT_SIGNED);
-
-      setSigning(false);
-      setIsComplete(true);
-      onSuccess();
-    } catch (err) {
-      if (err instanceof Error && err.name === "AbortError") {
-        setSigning(false);
+      if (!activity.depositorPayoutBtcAddress) {
+        setError({
+          title: "Missing Payout Address",
+          message:
+            "Depositor payout address not available. Please wait for indexer sync and try again.",
+        });
         return;
       }
-      setError(formatPayoutSignatureError(err));
-      setSigning(false);
+
+      // Security: the indexer-sourced payout scriptPubKey must match the
+      // connected wallet. A compromised indexer could otherwise trick signing
+      // over an attacker-chosen payout address.
+      const connectedBtcAddress =
+        btcConnector?.connectedWallet?.account?.address;
+      if (connectedBtcAddress) {
+        let walletScriptPubKey: string;
+        try {
+          walletScriptPubKey = btcAddressToScriptPubKeyHex(connectedBtcAddress);
+        } catch {
+          setError({
+            title: "Wallet Address Error",
+            message:
+              "Could not read your Bitcoin wallet address. Please reconnect the wallet and make sure it is on the correct Bitcoin network.",
+          });
+          return;
+        }
+        if (walletScriptPubKey !== activity.depositorPayoutBtcAddress) {
+          setError({
+            title: "Payout Address Mismatch",
+            message:
+              "The payout address from the indexer does not match your connected wallet. " +
+              "This may indicate a data integrity issue. Please verify your wallet connection.",
+          });
+          return;
+        }
+      }
+
+      const vaultProviderAddress = activity.providers[0]?.id as Hex;
+      const provider = findProvider(vaultProviderAddress);
+      if (!provider) {
+        setError({
+          title: "Provider Not Found",
+          message: "Vault provider not found.",
+        });
+        return;
+      }
+
+      const btcWalletProvider = btcConnector?.connectedWallet?.provider;
+      if (!btcWalletProvider) {
+        setError({
+          title: "Wallet Not Connected",
+          message: "BTC wallet not connected.",
+        });
+        return;
+      }
+
+      setSigning(true);
+      setError(null);
+      // Reset progress; the SDK emits (completed, total) once it knows the
+      // real claimer count after polling the VP.
+      setProgress({ completed: 0, totalClaimers: 0 });
+
+      abortRef.current?.abort();
+      abortRef.current = new AbortController();
+
+      try {
+        await signAndSubmitPayouts({
+          vaultId: activity.id,
+          peginTxHash: activity.peginTxHash!,
+          depositorBtcPubkey: btcPublicKey,
+          providerBtcPubKey: provider.btcPubKey,
+          registeredPayoutScriptPubKey: activity.depositorPayoutBtcAddress,
+          btcWallet: btcWalletProvider,
+          depositorEthAddress,
+          signal: abortRef.current.signal,
+          onProgress: (next) => {
+            if (next === null) return;
+            setProgress(next);
+          },
+        });
+
+        // localStorage is written by signAndSubmitPayouts; mirror it
+        // optimistically so the polling query picks up PAYOUT_SIGNED before
+        // the next poll cycle.
+        setOptimisticStatus(activity.id, LocalStorageStatus.PAYOUT_SIGNED);
+
+        setSigning(false);
+        setIsComplete(true);
+        onSuccess();
+      } catch (err) {
+        if (err instanceof Error && err.name === "AbortError") {
+          setSigning(false);
+          return;
+        }
+        setError(formatPayoutSignatureError(err));
+        setSigning(false);
+      }
     } finally {
       inFlightRef.current = false;
     }

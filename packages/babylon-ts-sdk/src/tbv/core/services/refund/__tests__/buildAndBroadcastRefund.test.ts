@@ -162,24 +162,7 @@ describe("buildAndBroadcastRefund", () => {
     expect(result).toBe(richResult);
   });
 
-  it("computes refundFee = ceil(feeRate * vsizeEstimate)", async () => {
-    await buildAndBroadcastRefund({
-      vaultId: VAULT_ID,
-      readVault,
-      readPrePeginContext,
-      feeRate: 7,
-      signPsbt,
-      broadcastTx,
-      vsizeEstimate: 200,
-    });
-
-    // 7 * 200 = 1400
-    expect(mockedBuildRefundPsbt).toHaveBeenCalledWith(
-      expect.objectContaining({ refundFee: 1400n }),
-    );
-  });
-
-  it("defaults vsizeEstimate to 160 when not provided", async () => {
+  it("computes refundFee = ceil(feeRate * REFUND_VSIZE) using the protocol-owned 160-vbyte constant", async () => {
     await buildAndBroadcastRefund({
       vaultId: VAULT_ID,
       readVault,
@@ -189,9 +172,26 @@ describe("buildAndBroadcastRefund", () => {
       broadcastTx,
     });
 
-    // 10 * 160 = 1600
+    // 10 sat/vB * 160 vbytes = 1600 sats
     expect(mockedBuildRefundPsbt).toHaveBeenCalledWith(
       expect.objectContaining({ refundFee: 1600n }),
+    );
+  });
+
+  it("rounds up non-integer fee products (ceil)", async () => {
+    await buildAndBroadcastRefund({
+      vaultId: VAULT_ID,
+      readVault,
+      readPrePeginContext,
+      feeRate: 1.251,
+      signPsbt,
+      broadcastTx,
+    });
+
+    // 1.251 sat/vB * 160 vbytes = 200.16 sats → ceil → 201. Using a rate
+    // that produces a fractional sat result guards Math.ceil vs. round/floor.
+    expect(mockedBuildRefundPsbt).toHaveBeenCalledWith(
+      expect.objectContaining({ refundFee: 201n }),
     );
   });
 
@@ -229,6 +229,12 @@ describe("buildAndBroadcastRefund", () => {
     expect(call[0].prePeginParams.hashlocks).toEqual([
       HASHLOCK.slice(2),
     ]);
+    // The top-level `hashlock` param on buildRefundPsbt is documented as
+    // "no 0x prefix" and feeds the WASM HTLC connector derivation. A
+    // prefixed value here would derive the wrong refund leaf and yield an
+    // unspendable PSBT. Guard the strip explicitly.
+    expect(call[0].hashlock).toBe(HASHLOCK.slice(2));
+    expect(call[0].hashlock).not.toMatch(/^0x/);
     expect(call[0].fundedPrePeginTxHex).not.toMatch(/^0x/);
   });
 
@@ -293,6 +299,43 @@ describe("buildAndBroadcastRefund", () => {
           broadcastTx,
         }),
       ).rejects.toThrow(/amount must be a positive bigint/);
+    });
+
+    it("rejects depositor pubkey of invalid hex length (65 chars)", async () => {
+      // Regression: {64,66} quantifier would silently accept 65 hex chars
+      // (not a valid byte length) and surface an opaque error deep in the
+      // WASM PSBT builder. Validation must reject here.
+      readVault.mockResolvedValue(
+        buildVault({ depositorBtcPubkey: "a".repeat(65) }),
+      );
+
+      await expect(
+        buildAndBroadcastRefund({
+          vaultId: VAULT_ID,
+          readVault,
+          readPrePeginContext,
+          feeRate: FEE_RATE,
+          signPsbt,
+          broadcastTx,
+        }),
+      ).rejects.toThrow(/depositorBtcPubkey must be 32 or 33 bytes/);
+    });
+
+    it("rejects vault provider pubkey of invalid hex length (65 chars)", async () => {
+      readPrePeginContext.mockResolvedValue(
+        buildCtx({ vaultProviderPubkey: "b".repeat(65) }),
+      );
+
+      await expect(
+        buildAndBroadcastRefund({
+          vaultId: VAULT_ID,
+          readVault,
+          readPrePeginContext,
+          feeRate: FEE_RATE,
+          signPsbt,
+          broadcastTx,
+        }),
+      ).rejects.toThrow(/vaultProviderPubkey must be 32 or 33 bytes/);
     });
 
     it("rejects empty vaultKeeperPubkeys", async () => {

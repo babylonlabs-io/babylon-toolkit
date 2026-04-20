@@ -16,18 +16,23 @@ import type { Address, Hex } from "viem";
 
 import type { SignPsbtOptions } from "../../../../shared/wallets/interfaces/BitcoinWallet";
 import { buildRefundPsbt } from "../../primitives/psbt/refund";
-import {
-  ensureHexPrefix,
-  stripHexPrefix,
-} from "../../primitives/utils/bitcoin";
+import { stripHexPrefix } from "../../primitives/utils/bitcoin";
 import { createTaprootScriptPathSignOptions } from "../../utils/signing";
 
 import { BIP68NotMatureError } from "./errors";
 
 const BYTES32_HEX_RE = /^0x[0-9a-fA-F]{64}$/;
 const HEX_BYTES_RE = /^(?:0x)?(?:[0-9a-fA-F]{2})+$/;
-const PUBKEY_HEX_RE = /^(?:0x)?[0-9a-fA-F]{64,66}$/;
-const DEFAULT_REFUND_VSIZE = 160;
+// Pubkeys are either 32 bytes (x-only, 64 hex chars) or 33 bytes (compressed,
+// 66 hex chars). 65 hex chars is not a valid byte length — reject it here
+// rather than letting the malformed value surface as an opaque PSBT/signing
+// failure later.
+const PUBKEY_HEX_RE = /^(?:0x)?(?:[0-9a-fA-F]{64}|[0-9a-fA-F]{66})$/;
+// Conservative upper bound for the fixed-shape refund tx (1 P2TR script-path
+// input spending the HTLC refund leaf → 1 P2TR/P2WPKH output). Taproot
+// script-path witness: 64-byte Schnorr sig + refund script + control block.
+// This is protocol-owned knowledge; callers don't parameterise it.
+const REFUND_VSIZE = 160;
 const REFUND_SCRIPT_LEAF_INDEX = 1;
 const MAX_VOUT = 0xffff;
 const BIP68_ERROR_RE = /non-BIP68-final/i;
@@ -134,8 +139,6 @@ export interface RefundInput<
   signPsbt: RefundPsbtSigner;
   /** Broadcast callback — returns whatever shape the caller needs. */
   broadcastTx: BtcBroadcaster<R>;
-  /** Override the 160-vbyte safe default used for refund fee estimation. */
-  vsizeEstimate?: number;
   /** Checked at every async boundary. */
   signal?: AbortSignal;
 }
@@ -253,7 +256,6 @@ export async function buildAndBroadcastRefund<
     feeRate,
     signPsbt,
     broadcastTx,
-    vsizeEstimate,
     signal,
   } = input;
 
@@ -271,11 +273,7 @@ export async function buildAndBroadcastRefund<
   if (!Number.isFinite(feeRate) || feeRate <= 0) {
     throw new Error(`feeRate must be a positive number, got ${feeRate}`);
   }
-  const vsize = vsizeEstimate ?? DEFAULT_REFUND_VSIZE;
-  if (!Number.isFinite(vsize) || vsize <= 0) {
-    throw new Error(`vsizeEstimate must be a positive number, got ${vsize}`);
-  }
-  const refundFee = BigInt(Math.ceil(feeRate * vsize));
+  const refundFee = BigInt(Math.ceil(feeRate * REFUND_VSIZE));
   signal?.throwIfAborted();
 
   const { psbtHex } = await buildRefundPsbt({
@@ -297,7 +295,11 @@ export async function buildAndBroadcastRefund<
     fundedPrePeginTxHex: stripHexPrefix(vault.unsignedPrePeginTxHex),
     htlcVout: vault.htlcVout,
     refundFee,
-    hashlock: ensureHexPrefix(stripHexPrefix(vault.hashlock)),
+    // buildRefundPsbt's top-level `hashlock` param is documented as "no 0x
+    // prefix" and flows into the WASM HTLC connector derivation; a prefixed
+    // value would derive the wrong refund script leaf and yield an
+    // unspendable PSBT. Match the `hashlocks` array handling above.
+    hashlock: stripHexPrefix(vault.hashlock),
   });
   signal?.throwIfAborted();
 

@@ -201,6 +201,9 @@ await activateVault({
   hashlock,                                     // optional but recommended:
                                                 //   SDK pre-validates sha256(secret)===hashlock
                                                 //   client-side to avoid wasted gas
+  activationMetadata: "0x",                     // pass "0x" when you have no metadata;
+                                                //   the SDK never defaults on tx-creation paths
+                                                //   so the empty value is always explicit
   writeContract: async (call) => {
     // Adapter: hand the SDK's call to your transport of choice.
     // In a Node.js / viem setup, this is typically a wrapper around

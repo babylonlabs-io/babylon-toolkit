@@ -209,6 +209,33 @@ describe("usePayoutSigningState", () => {
       expect(mockSignAndSubmitPayouts).not.toHaveBeenCalled();
     });
 
+    it("surfaces a wallet-address error and clears the lock when btcAddressToScriptPubKeyHex throws", async () => {
+      // Regression: setting `inFlightRef` before a synchronous guard that
+      // can throw (e.g. wallet on wrong BTC network) would leak the lock
+      // on the throw path, deadlocking every subsequent handleSign() call
+      // on the same hook instance until remount.
+      mockBtcAddressToScriptPubKeyHex.mockImplementationOnce(() => {
+        throw new Error("invalid network prefix");
+      });
+
+      const { result } = renderHookWithProps();
+
+      // First call: the wallet address parse throws synchronously.
+      await act(async () => {
+        await result.current.handleSign();
+      });
+      expect(result.current.error?.title).toBe("Wallet Address Error");
+      expect(mockSignAndSubmitPayouts).not.toHaveBeenCalled();
+
+      // Second call on the SAME hook: must reach the SDK. If the lock
+      // leaked, this assertion would fail.
+      await act(async () => {
+        await result.current.handleSign();
+      });
+      expect(mockSignAndSubmitPayouts).toHaveBeenCalledOnce();
+      expect(result.current.isComplete).toBe(true);
+    });
+
     it("clears the in-flight ref on guard failure so the SAME hook instance can retry", async () => {
       // The bug we're protecting against: an early-return guard path that
       // forgets to clear `inFlightRef`. That would lock the SAME hook

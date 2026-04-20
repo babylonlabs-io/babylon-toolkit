@@ -54,6 +54,10 @@ export async function activateVaultWithSecret(
     btcVaultRegistryAddress: CONTRACTS.BTC_VAULT_REGISTRY,
     vaultId,
     secret,
+    // Vault's activation flow has no metadata payload today; pass the
+    // contract's "empty bytes" sentinel explicitly rather than relying on
+    // an SDK-side default, per the no-fallback rule on tx-creation paths.
+    activationMetadata: "0x",
     writeContract: writer,
   });
 }

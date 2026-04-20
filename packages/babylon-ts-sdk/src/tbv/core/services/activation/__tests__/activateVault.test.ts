@@ -32,6 +32,7 @@ describe("activateVault", () => {
       btcVaultRegistryAddress: REGISTRY,
       vaultId: VAULT_ID,
       secret: ZERO_SECRET,
+      activationMetadata: "0x",
       writeContract,
     });
 
@@ -41,17 +42,6 @@ describe("activateVault", () => {
     expect(call.abi).toBe(BTCVaultRegistryABI);
     expect(call.functionName).toBe("activateVaultWithSecret");
     expect(call.args).toEqual([VAULT_ID, ZERO_SECRET, "0x"]);
-  });
-
-  it("defaults activationMetadata to '0x' when not provided", async () => {
-    await activateVault({
-      btcVaultRegistryAddress: REGISTRY,
-      vaultId: VAULT_ID,
-      secret: ZERO_SECRET,
-      writeContract,
-    });
-
-    expect(writeContract.mock.calls[0][0].args[2]).toBe("0x");
   });
 
   it("passes through a custom activationMetadata", async () => {
@@ -73,6 +63,7 @@ describe("activateVault", () => {
       btcVaultRegistryAddress: REGISTRY,
       vaultId: VAULT_ID,
       secret: noPrefix,
+      activationMetadata: "0x",
       writeContract,
     });
 
@@ -86,6 +77,7 @@ describe("activateVault", () => {
       btcVaultRegistryAddress: REGISTRY,
       vaultId: VAULT_ID,
       secret: upperPrefix,
+      activationMetadata: "0x",
       writeContract,
     });
 
@@ -109,6 +101,7 @@ describe("activateVault", () => {
       btcVaultRegistryAddress: REGISTRY,
       vaultId: VAULT_ID,
       secret: ZERO_SECRET,
+      activationMetadata: "0x",
       writeContract: richWriter,
     });
 
@@ -122,6 +115,7 @@ describe("activateVault", () => {
           btcVaultRegistryAddress: REGISTRY,
           vaultId: "0xaa" as Hex,
           secret: ZERO_SECRET,
+          activationMetadata: "0x",
           writeContract,
         }),
       ).rejects.toThrow(/vaultId must be 32 bytes/);
@@ -136,6 +130,7 @@ describe("activateVault", () => {
           btcVaultRegistryAddress: REGISTRY,
           vaultId: nonHex,
           secret: ZERO_SECRET,
+          activationMetadata: "0x",
           writeContract,
         }),
       ).rejects.toThrow(/vaultId must contain only hex characters/);
@@ -148,6 +143,7 @@ describe("activateVault", () => {
           btcVaultRegistryAddress: REGISTRY,
           vaultId: VAULT_ID,
           secret: "0xaa",
+          activationMetadata: "0x",
           writeContract,
         }),
       ).rejects.toThrow(/secret must be 32 bytes/);
@@ -162,6 +158,7 @@ describe("activateVault", () => {
           btcVaultRegistryAddress: REGISTRY,
           vaultId: VAULT_ID,
           secret: nonHex,
+          activationMetadata: "0x",
           writeContract,
         }),
       ).rejects.toThrow(/secret must contain only hex characters/);
@@ -174,6 +171,7 @@ describe("activateVault", () => {
           btcVaultRegistryAddress: "0xabcd" as Address,
           vaultId: VAULT_ID,
           secret: ZERO_SECRET,
+          activationMetadata: "0x",
           writeContract,
         }),
       ).rejects.toThrow(/btcVaultRegistryAddress must be a 20-byte/);
@@ -213,6 +211,7 @@ describe("activateVault", () => {
           vaultId: VAULT_ID,
           secret: ZERO_SECRET,
           hashlock: "0xaa" as Hex,
+          activationMetadata: "0x",
           writeContract,
         }),
       ).rejects.toThrow(/hashlock must be 32 bytes/);
@@ -227,6 +226,7 @@ describe("activateVault", () => {
         vaultId: VAULT_ID,
         secret: ZERO_SECRET,
         hashlock: ZERO_HASHLOCK,
+        activationMetadata: "0x",
         writeContract,
       });
 
@@ -242,6 +242,7 @@ describe("activateVault", () => {
           vaultId: VAULT_ID,
           secret: ZERO_SECRET,
           hashlock: wrongHashlock,
+          activationMetadata: "0x",
           writeContract,
         }),
       ).rejects.toThrow(/SHA256\(secret\) does not match/);
@@ -260,6 +261,7 @@ describe("activateVault", () => {
           btcVaultRegistryAddress: REGISTRY,
           vaultId: VAULT_ID,
           secret: ZERO_SECRET,
+          activationMetadata: "0x",
           writeContract,
         }),
       ).rejects.toThrow("ActivationDeadlineExpired");
@@ -274,6 +276,7 @@ describe("activateVault", () => {
           btcVaultRegistryAddress: REGISTRY,
           vaultId: VAULT_ID,
           secret: ZERO_SECRET,
+          activationMetadata: "0x",
           writeContract,
           signal: controller.signal,
         }),
@@ -288,6 +291,7 @@ describe("activateVault", () => {
         btcVaultRegistryAddress: REGISTRY,
         vaultId: VAULT_ID,
         secret: ZERO_SECRET,
+        activationMetadata: "0x",
         writeContract,
       });
 

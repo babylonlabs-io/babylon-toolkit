@@ -94,11 +94,12 @@ export interface ActivateVaultInput<
    */
   hashlock?: Hex;
   /**
-   * Optional activation metadata passed through to the contract. Must be a
-   * 0x-prefixed hex string; defaults to `"0x"` (empty bytes), matching
-   * today's usage.
+   * Activation metadata passed through to the contract. Required to keep
+   * the "empty metadata" convention explicit at the call site — pass `"0x"`
+   * (empty bytes) when no metadata is needed. Must be a 0x-prefixed hex
+   * string with an even number of hex chars.
    */
-  activationMetadata?: Hex;
+  activationMetadata: Hex;
   /** Caller-provided write callback — see {@link EthContractWriter}. */
   writeContract: EthContractWriter<R>;
   /**
@@ -122,8 +123,9 @@ export interface ActivateVaultInput<
  * @throws `Error` if `vaultId` or `secret` is not a valid 32-byte hex
  * @throws `Error` if `hashlock` is provided and is not a valid 32-byte hex,
  *         or if `sha256(secret) != hashlock`
- * @throws `Error` if `activationMetadata` is provided and is not a 0x-prefixed
- *         hex byte string (must have an even number of hex chars)
+ * @throws `Error` if `activationMetadata` is not a 0x-prefixed hex byte
+ *         string (must have an even number of hex chars). Pass `"0x"` for
+ *         empty metadata.
  * @throws whatever the injected `writeContract` throws
  * @throws `AbortError` / caller-provided abort reason if `signal` aborts
  */
@@ -156,15 +158,12 @@ export async function activateVault<
     }
   }
 
-  const metadata = activationMetadata ?? "0x";
-  if (activationMetadata !== undefined) {
-    assertHexBytes(activationMetadata, "activationMetadata");
-  }
+  assertHexBytes(activationMetadata, "activationMetadata");
 
   return writeContract({
     address: btcVaultRegistryAddress,
     abi: BTCVaultRegistryABI,
     functionName: "activateVaultWithSecret",
-    args: [vaultId, normalizedSecret, metadata],
+    args: [vaultId, normalizedSecret, activationMetadata],
   });
 }
