@@ -68,6 +68,20 @@ describe("fetchAndDownloadArtifacts", () => {
     expect(triggerDownloadSpy).toHaveBeenCalledTimes(1);
   });
 
+  it("skips parsing for payloads above the error-size threshold and triggers download", async () => {
+    const largeBody = "x".repeat(8192);
+    vi.mocked(fetch).mockResolvedValueOnce(
+      new Response(largeBody, {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+
+    await fetchAndDownloadArtifacts(PROVIDER_ADDRESS, PEGIN_TXID, DEPOSITOR_PK);
+
+    expect(triggerDownloadSpy).toHaveBeenCalledTimes(1);
+  });
+
   it("rejects an empty result object without triggering download", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(
       responseFor({ jsonrpc: "2.0", result: {}, id: 1 }),
@@ -99,6 +113,26 @@ describe("fetchAndDownloadArtifacts", () => {
       responseFor({
         jsonrpc: "2.0",
         result: { ...VALID_ARTIFACT_RESULT, verifying_key_hex: "not-hex!" },
+        id: 1,
+      }),
+    );
+
+    await expect(
+      fetchAndDownloadArtifacts(PROVIDER_ADDRESS, PEGIN_TXID, DEPOSITOR_PK),
+    ).rejects.toBeInstanceOf(VpResponseValidationError);
+    expect(triggerDownloadSpy).not.toHaveBeenCalled();
+  });
+
+  it("rejects babe_sessions entry with non-hex decryptor_artifacts_hex without triggering download", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      responseFor({
+        jsonrpc: "2.0",
+        result: {
+          ...VALID_ARTIFACT_RESULT,
+          babe_sessions: {
+            challenger1: { decryptor_artifacts_hex: "not-hex!" },
+          },
+        },
         id: 1,
       }),
     );

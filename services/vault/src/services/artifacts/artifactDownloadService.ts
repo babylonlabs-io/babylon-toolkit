@@ -5,12 +5,14 @@
  * their vault funds. They are retrieved from the vault provider after
  * the WOTS key has been submitted and the vault is fully set up.
  *
- * Artifacts can be very large (tens of MB). The raw response body is
+ * Artifacts can be very large (~450 MB today). The raw response body is
  * retained as a Blob so the download step does not need to re-serialize
- * it. The response is additionally parsed and schema-validated before
- * the download is triggered, since the vault provider is only semi-trusted
- * and a malformed artifact file would leave the depositor unable to claim
- * funds independently.
+ * it, and payloads above an RPC-error-sized threshold are not parsed on
+ * the main thread (doing so would risk exceeding V8's string length limit
+ * or freezing the tab). Full schema validation of the artifact body is
+ * deferred until the backend delivers artifacts via streaming; for now
+ * only small responses (expected to be JSON-RPC error envelopes) are
+ * parsed and validated.
  */
 
 import {
@@ -26,6 +28,12 @@ import { getVpProxyUrl } from "@/utils/rpc";
 
 /** Timeout for the artifact request RPC call (artifacts can be large). */
 const RPC_TIMEOUT_MS = 120 * 1000;
+
+/**
+ * Error responses are typically small; artifact payloads can be hundreds
+ * of MB. Only responses under this threshold are parsed on the main thread.
+ */
+const ERROR_RESPONSE_SIZE_THRESHOLD = 4096;
 
 /**
  * Fetch artifacts from the vault provider and trigger a browser file download.
@@ -70,8 +78,17 @@ export async function fetchAndDownloadArtifacts(
  * Parse the raw JSON-RPC response and validate the artifact payload against
  * its runtime schema. Throws JsonRpcError for RPC-level errors and
  * VpResponseValidationError for malformed or incomplete artifact data.
+ *
+ * Payloads above ERROR_RESPONSE_SIZE_THRESHOLD are assumed to be real
+ * artifact responses and are passed through without parsing - parsing a
+ * ~450 MB payload on the main thread would likely exceed V8's string
+ * length limit or freeze the tab.
  */
 async function validateArtifactPayload(blob: Blob): Promise<void> {
+  if (blob.size >= ERROR_RESPONSE_SIZE_THRESHOLD) {
+    return;
+  }
+
   let text: string;
   try {
     text = await blob.text();
@@ -103,11 +120,14 @@ async function validateArtifactPayload(blob: Blob): Promise<void> {
   const record = envelope as Record<string, unknown>;
 
   if ("error" in record && record.error != null) {
-    const err = record.error as { code?: number; message?: string };
-    throw new JsonRpcError(
-      err.code ?? JSON_RPC_ERROR_CODES.INVALID_RESPONSE,
-      err.message ?? "Unknown RPC error",
-    );
+    const err = record.error as Record<string, unknown>;
+    const code =
+      typeof err.code === "number"
+        ? err.code
+        : JSON_RPC_ERROR_CODES.INVALID_RESPONSE;
+    const message =
+      typeof err.message === "string" ? err.message : "Unknown RPC error";
+    throw new JsonRpcError(code, message);
   }
 
   if (!("result" in record)) {
