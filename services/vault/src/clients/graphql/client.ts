@@ -33,6 +33,7 @@ export const graphqlClient = new GraphQLClient(ENV.GRAPHQL_ENDPOINT, {
     } catch (error) {
       clearTimeout(timeoutId);
       if (
+        controller.signal.aborted &&
         error != null &&
         typeof error === "object" &&
         "name" in error &&
