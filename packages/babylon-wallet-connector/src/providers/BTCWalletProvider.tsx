@@ -166,9 +166,14 @@ export const BTCWalletProvider = ({ children, callbacks }: BTCWalletProviderProp
           return;
         }
 
-        // Re-connect to refresh the provider's internal cache
-        // This is necessary because providers cache walletInfo on connect
-        await btcWalletProvider.connectWallet();
+        // Check if the provider already updated its state (e.g. AppKit updates
+        // address/publicKey via its persistent listener before emitting accountChanged).
+        // Only re-connect if the address hasn't changed yet — other providers
+        // (OKX, Unisat) need connectWallet() to refresh their internal cache.
+        const currentAddress = await btcWalletProvider.getAddress();
+        if (currentAddress === address) {
+          await btcWalletProvider.connectWallet();
+        }
 
         const newAddress = await btcWalletProvider.getAddress();
 

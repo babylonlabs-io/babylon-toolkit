@@ -83,6 +83,37 @@ test("delete removes entry and its timestamp", () => {
   expect(storage.has("BTC")).toBe(false);
 });
 
+test("legacy _timestamp format expires correctly after migration", () => {
+  const now = Date.now();
+
+  // Simulate old-format data written before migration (single _timestamp)
+  localStorage.setItem(
+    "baby-connected-wallet-accounts",
+    JSON.stringify({ BTC: "btc-wallet-old", _timestamp: now - ONE_HOUR_MS - 1 }),
+  );
+
+  const storage = createAccountStorage(ONE_HOUR_MS);
+
+  // Legacy entry should be expired based on the old shared timestamp
+  expect(storage.get("BTC")).toBeUndefined();
+  expect(storage.has("BTC")).toBe(false);
+});
+
+test("legacy _timestamp format keeps fresh entries alive", () => {
+  const now = Date.now();
+
+  // Simulate old-format data that is still fresh
+  localStorage.setItem(
+    "baby-connected-wallet-accounts",
+    JSON.stringify({ BTC: "btc-wallet-old", _timestamp: now - 100 }),
+  );
+
+  const storage = createAccountStorage(ONE_HOUR_MS);
+
+  expect(storage.get("BTC")).toBe("btc-wallet-old");
+  expect(storage.has("BTC")).toBe(true);
+});
+
 test("network-scoped keys have independent TTLs", () => {
   const networkMap = { BTC: "mainnet", ETH: "1" };
   const storage = createAccountStorage(ONE_HOUR_MS, networkMap);

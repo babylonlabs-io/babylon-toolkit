@@ -37,8 +37,8 @@ test("rejects non-hex characters", () => {
   expect(() => toXOnlyPublicKeyHex(nonHex)).toThrow(/non-hex characters/);
 });
 
-test("rejects empty string", () => {
-  expect(() => toXOnlyPublicKeyHex("")).toThrow(/non-hex characters/);
+test("rejects empty string with descriptive message", () => {
+  expect(() => toXOnlyPublicKeyHex("")).toThrow(/must not be empty/);
 });
 
 test("rejects unexpected length", () => {

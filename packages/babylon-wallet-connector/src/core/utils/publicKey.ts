@@ -13,6 +13,13 @@ const HEX_PATTERN = /^[0-9a-fA-F]+$/;
  * @throws WalletError if the key format is invalid
  */
 export function toXOnlyPublicKeyHex(publicKeyHex: string): string {
+  if (publicKeyHex.length === 0) {
+    throw new WalletError({
+      code: ERROR_CODES.INVALID_PUBLIC_KEY,
+      message: "Invalid public key: must not be empty",
+    });
+  }
+
   if (!HEX_PATTERN.test(publicKeyHex)) {
     throw new WalletError({
       code: ERROR_CODES.INVALID_PUBLIC_KEY,

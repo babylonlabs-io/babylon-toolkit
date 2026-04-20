@@ -81,7 +81,6 @@ export class AppKitBTCProvider implements IBTCProvider {
 
       if (!detail?.address) {
         // No address means disconnect — notify handlers with empty accounts array
-        this.emit("accountChanged");
         this.emit("accountsChanged", []);
         return;
       }
@@ -93,7 +92,8 @@ export class AppKitBTCProvider implements IBTCProvider {
       this.address = detail.address;
       this.publicKey = detail.publicKey;
 
-      this.emit("accountChanged");
+      // Emit only accountsChanged (not both) because BTCWalletProvider registers
+      // the same handler for both events — emitting both would cause double execution.
       this.emit("accountsChanged", [detail.address]);
     };
 

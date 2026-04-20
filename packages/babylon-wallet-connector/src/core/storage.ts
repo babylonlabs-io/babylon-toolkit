@@ -66,7 +66,16 @@ export const createAccountStorage = (ttl: number, networkMap?: Record<string, st
   function isExpired(map: Record<string, unknown>, scoped: string): boolean {
     const timestamps = getTimestamps(map);
     const ts = timestamps[scoped];
-    return ts != null && Date.now() - ts > ttl;
+    if (ts != null) {
+      return Date.now() - ts > ttl;
+    }
+    // Fall back to legacy shared timestamp for entries written before migration
+    const legacyTs = map._timestamp;
+    if (typeof legacyTs === "number") {
+      return Date.now() - legacyTs > ttl;
+    }
+    // No timestamp at all — treat as expired
+    return true;
   }
 
   return {
