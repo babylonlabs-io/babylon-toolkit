@@ -141,7 +141,18 @@ export function usePayoutSigningState({
         }
       }
 
-      const vaultProviderAddress = activity.providers[0]?.id as Hex;
+      // Guard `providers[0]` explicitly rather than casting a possibly-undefined
+      // value — that would hide the "no provider assigned" case and leak
+      // `undefined` into `findProvider`.
+      const vaultProviderAddress = activity.providers[0]?.id;
+      if (!vaultProviderAddress) {
+        setError({
+          title: "Provider Not Assigned",
+          message:
+            "No vault provider is associated with this deposit. Please wait for indexer sync and try again.",
+        });
+        return;
+      }
       const provider = findProvider(vaultProviderAddress);
       if (!provider) {
         setError({
@@ -160,6 +171,18 @@ export function usePayoutSigningState({
         return;
       }
 
+      // `peginTxHash` is optional on `VaultActivity`, but payout signing
+      // cannot proceed without it — the SDK keys the VP poll by this txid.
+      // Guard explicitly instead of relying on a non-null assertion below.
+      if (!activity.peginTxHash) {
+        setError({
+          title: "Missing Pegin Transaction",
+          message:
+            "Pegin transaction hash not available yet. Please wait for indexer sync and try again.",
+        });
+        return;
+      }
+
       setSigning(true);
       setError(null);
       // Reset progress; the SDK emits (completed, total) once it knows the
@@ -172,7 +195,7 @@ export function usePayoutSigningState({
       try {
         await signAndSubmitPayouts({
           vaultId: activity.id,
-          peginTxHash: activity.peginTxHash!,
+          peginTxHash: activity.peginTxHash,
           depositorBtcPubkey: btcPublicKey,
           providerBtcPubKey: provider.btcPubKey,
           registeredPayoutScriptPubKey: activity.depositorPayoutBtcAddress,

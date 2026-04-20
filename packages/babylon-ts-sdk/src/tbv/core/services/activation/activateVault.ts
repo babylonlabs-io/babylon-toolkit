@@ -16,7 +16,11 @@ import { validateSecretAgainstHashlock } from "../htlc";
 
 const BYTES32_HEX_RE = /^0x[0-9a-fA-F]{64}$/;
 const ADDRESS_HEX_RE = /^0x[0-9a-fA-F]{40}$/;
-const HEX_BYTES_RE = /^0x([0-9a-fA-F]{2})*$/;
+// ETH calldata convention: 0x prefix REQUIRED, even number of hex chars, may
+// be empty ("0x"). Named distinctly from the BTC-hex regex in
+// buildAndBroadcastRefund.ts (which allows an optional prefix and requires
+// non-empty) to make the convention explicit at the call site.
+const ETH_HEX_BYTES_RE = /^0x([0-9a-fA-F]{2})*$/;
 
 function assertBytes32(value: string, label: string): void {
   if (value.length !== 66) {
@@ -40,7 +44,7 @@ function assertAddress(value: string, label: string): void {
 }
 
 function assertHexBytes(value: string, label: string): void {
-  if (!HEX_BYTES_RE.test(value)) {
+  if (!ETH_HEX_BYTES_RE.test(value)) {
     throw new Error(
       `${label} must be a 0x-prefixed hex string with an even number of hex chars`,
     );

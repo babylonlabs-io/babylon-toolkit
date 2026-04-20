@@ -209,6 +209,34 @@ describe("usePayoutSigningState", () => {
       expect(mockSignAndSubmitPayouts).not.toHaveBeenCalled();
     });
 
+    it("errors when no vault provider is assigned to the activity", async () => {
+      const { result } = renderHookWithProps({
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        activity: { ...ACTIVITY, providers: [] } as any,
+      });
+
+      await act(async () => {
+        await result.current.handleSign();
+      });
+
+      expect(result.current.error?.title).toBe("Provider Not Assigned");
+      expect(mockSignAndSubmitPayouts).not.toHaveBeenCalled();
+    });
+
+    it("errors when peginTxHash is missing from the activity", async () => {
+      const { result } = renderHookWithProps({
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        activity: { ...ACTIVITY, peginTxHash: undefined } as any,
+      });
+
+      await act(async () => {
+        await result.current.handleSign();
+      });
+
+      expect(result.current.error?.title).toBe("Missing Pegin Transaction");
+      expect(mockSignAndSubmitPayouts).not.toHaveBeenCalled();
+    });
+
     it("surfaces a wallet-address error and clears the lock when btcAddressToScriptPubKeyHex throws", async () => {
       // Regression: setting `inFlightRef` before a synchronous guard that
       // can throw (e.g. wallet on wrong BTC network) would leak the lock

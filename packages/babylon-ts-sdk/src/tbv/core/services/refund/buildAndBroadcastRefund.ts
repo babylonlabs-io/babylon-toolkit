@@ -22,7 +22,11 @@ import { createTaprootScriptPathSignOptions } from "../../utils/signing";
 import { BIP68NotMatureError } from "./errors";
 
 const BYTES32_HEX_RE = /^0x[0-9a-fA-F]{64}$/;
-const HEX_BYTES_RE = /^(?:0x)?(?:[0-9a-fA-F]{2})+$/;
+// BTC raw-hex convention: 0x prefix optional, even number of hex chars, must
+// be non-empty. Named distinctly from the ETH-hex regex in activateVault.ts
+// (which requires a 0x prefix and allows empty "0x") to make the convention
+// explicit at the call site.
+const BTC_HEX_BYTES_RE = /^(?:0x)?(?:[0-9a-fA-F]{2})+$/;
 // Pubkeys are either 32 bytes (x-only, 64 hex chars) or 33 bytes (compressed,
 // 66 hex chars). 65 hex chars is not a valid byte length — reject it here
 // rather than letting the malformed value surface as an opaque PSBT/signing
@@ -33,7 +37,11 @@ const PUBKEY_HEX_RE = /^(?:0x)?(?:[0-9a-fA-F]{64}|[0-9a-fA-F]{66})$/;
 // script-path witness: 64-byte Schnorr sig + refund script + control block.
 // This is protocol-owned knowledge; callers don't parameterise it.
 const REFUND_VSIZE = 160;
-const REFUND_SCRIPT_LEAF_INDEX = 1;
+// Refund tx has exactly one input — the HTLC output at htlcVout from the
+// Pre-PegIn tx. Used to tell the signer how many sign entries to generate.
+// (Not the taproot leaf index; the leaf is encoded into the PSBT by the
+// WASM PSBT builder based on the refund script path.)
+const REFUND_INPUT_COUNT = 1;
 const MAX_VOUT = 0xffff;
 const BIP68_ERROR_RE = /non-BIP68-final/i;
 
@@ -143,6 +151,12 @@ export interface RefundInput<
   signal?: AbortSignal;
 }
 
+function assertNonNegativeInteger(value: number, label: string): void {
+  if (!Number.isInteger(value) || value < 0) {
+    throw new Error(`${label} must be a non-negative integer, got ${value}`);
+  }
+}
+
 function validateVaultRefundData(v: VaultRefundData): void {
   assertBytes32(v.hashlock, "hashlock");
   if (
@@ -154,10 +168,20 @@ function validateVaultRefundData(v: VaultRefundData): void {
       `htlcVout must be an integer 0-${MAX_VOUT}, got ${v.htlcVout}`,
     );
   }
+  // Version fields flow directly into on-chain script derivation via
+  // `readPrePeginContext` — NaN, negative, or non-integer values would
+  // silently produce wrong scripts. Guard here as defence in depth even
+  // though the caller sources these from bigint on-chain reads.
+  assertNonNegativeInteger(v.offchainParamsVersion, "offchainParamsVersion");
+  assertNonNegativeInteger(v.appVaultKeepersVersion, "appVaultKeepersVersion");
+  assertNonNegativeInteger(
+    v.universalChallengersVersion,
+    "universalChallengersVersion",
+  );
   if (typeof v.unsignedPrePeginTxHex !== "string" || v.unsignedPrePeginTxHex.length === 0) {
     throw new Error("unsignedPrePeginTxHex must be a non-empty hex string");
   }
-  if (!HEX_BYTES_RE.test(v.unsignedPrePeginTxHex)) {
+  if (!BTC_HEX_BYTES_RE.test(v.unsignedPrePeginTxHex)) {
     throw new Error(
       "unsignedPrePeginTxHex must be a hex byte string (optional 0x prefix, even length)",
     );
@@ -305,7 +329,7 @@ export async function buildAndBroadcastRefund<
 
   const signOptions = createTaprootScriptPathSignOptions(
     vault.depositorBtcPubkey,
-    REFUND_SCRIPT_LEAF_INDEX,
+    REFUND_INPUT_COUNT,
   );
   const signedPsbtHex = await signPsbt(psbtHex, signOptions);
   const signedTxHex = finalizeAndExtract(signedPsbtHex);

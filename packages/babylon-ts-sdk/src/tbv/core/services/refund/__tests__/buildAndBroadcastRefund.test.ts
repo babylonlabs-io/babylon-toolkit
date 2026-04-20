@@ -286,6 +286,31 @@ describe("buildAndBroadcastRefund", () => {
       ).rejects.toThrow(/htlcVout must be an integer/);
     });
 
+    // Version fields flow directly into on-chain script derivation via
+    // readPrePeginContext — NaN, negative, or non-integer values would
+    // silently produce wrong scripts. Guard each one.
+    it.each([
+      ["offchainParamsVersion", { offchainParamsVersion: Number.NaN }],
+      ["offchainParamsVersion", { offchainParamsVersion: -1 }],
+      ["appVaultKeepersVersion", { appVaultKeepersVersion: Number.NaN }],
+      ["appVaultKeepersVersion", { appVaultKeepersVersion: 1.5 }],
+      ["universalChallengersVersion", { universalChallengersVersion: -1 }],
+    ])("rejects invalid %s", async (label, override) => {
+      readVault.mockResolvedValue(buildVault(override));
+
+      await expect(
+        buildAndBroadcastRefund({
+          vaultId: VAULT_ID,
+          readVault,
+          readPrePeginContext,
+          feeRate: FEE_RATE,
+          signPsbt,
+          broadcastTx,
+        }),
+      ).rejects.toThrow(new RegExp(`${label} must be a non-negative integer`));
+      expect(readPrePeginContext).not.toHaveBeenCalled();
+    });
+
     it("rejects zero or negative amount", async () => {
       readVault.mockResolvedValue(buildVault({ amount: 0n }));
 
