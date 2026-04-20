@@ -26,9 +26,9 @@ export async function fetchVpHealth(): Promise<VpHealthSnapshot[]> {
 
   try {
     const response = await fetch(url, { signal: controller.signal });
-    clearTimeout(timeoutId);
 
     if (!response.ok) {
+      clearTimeout(timeoutId);
       logger.warn("VP health endpoint returned non-OK status", {
         data: { status: response.status },
       });
@@ -36,6 +36,7 @@ export async function fetchVpHealth(): Promise<VpHealthSnapshot[]> {
     }
 
     const data: unknown = await response.json();
+    clearTimeout(timeoutId);
     if (!Array.isArray(data)) return [];
 
     return data.filter((item): item is VpHealthSnapshot => {
