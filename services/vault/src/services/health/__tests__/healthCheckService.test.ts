@@ -245,10 +245,9 @@ describe("healthCheckService", () => {
     it("logs details to Sentry via logger.error", () => {
       createEnvConfigError("MISSING_VAR_1, MISSING_VAR_2");
 
-      expect(logger.error).toHaveBeenCalledWith(
-        expect.any(Error),
-        { data: { details: "MISSING_VAR_1, MISSING_VAR_2" } },
-      );
+      expect(logger.error).toHaveBeenCalledWith(expect.any(Error), {
+        data: { details: "MISSING_VAR_1, MISSING_VAR_2" },
+      });
     });
   });
 
