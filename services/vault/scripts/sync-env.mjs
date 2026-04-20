@@ -50,6 +50,7 @@ const SECURITY_CRITICAL_KEYS = new Set([
   "NEXT_PUBLIC_TBV_BTC_PRICE_FEED",
   "NEXT_PUBLIC_ETH_RPC_URL",
   "NEXT_PUBLIC_TBV_VP_PROXY_URL",
+  "NEXT_PUBLIC_TBV_GRAPHQL_ENDPOINT",
 ]);
 
 function formatChange({ key, from }) {
@@ -214,6 +215,14 @@ function main() {
     for (const change of updated) {
       console.log(formatChange(change));
     }
+
+    const criticalChanges = updated.filter(({ key }) => SECURITY_CRITICAL_KEYS.has(key));
+    if (criticalChanges.length > 0) {
+      const names = criticalChanges.map(({ key }) => key).join(", ");
+      console.error(`\n⚠ sync-env: security-critical values changed: ${names}`);
+      console.error("  Verify these are expected before running sync.\n");
+    }
+
     process.exit(1);
   }
 
@@ -255,7 +264,7 @@ function main() {
     if (criticalChanges.length > 0) {
       const names = criticalChanges.map(({ key }) => key).join(", ");
       console.error(`\n⚠ sync-env: security-critical values changed: ${names}`);
-      console.error("  Verify these are expected. If not, restore .env from git: git checkout -- .env\n");
+      console.error(`  Verify these are expected. If not, restore from git: git checkout -- ${label}\n`);
     }
 
     totalUpdated += updated.length;
