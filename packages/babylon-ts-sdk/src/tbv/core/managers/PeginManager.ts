@@ -476,7 +476,7 @@ export class PeginManager {
    * 2. Build unfunded Pre-PegIn transaction (HTLC output) using primitives
    * 3. Select UTXOs to cover the HTLC value
    * 4. Fund the Pre-PegIn transaction
-   * 5. Derive the PegIn transaction from the funded Pre-PegIn txid
+   * 5. Derive the PegIn transaction from the funded Pre-PegIn tx
    * 6. Build PSBT for signing the PegIn input (HTLC leaf 0)
    * 7. Sign via BTC wallet and extract depositor signature
    *

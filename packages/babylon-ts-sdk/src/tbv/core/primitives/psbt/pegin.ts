@@ -62,8 +62,7 @@ export interface PrePeginPsbtResult {
    * The caller is responsible for:
    * - Selecting UTXOs covering totalOutputValue + network fees
    * - Funding the transaction (add inputs and change output)
-   * - Computing the funded transaction's txid
-   * - Calling buildPeginTxFromFundedPrePegin() with the funded txid
+   * - Calling buildPeginTxFromFundedPrePegin() with the funded tx hex
    */
   psbtHex: string;
   /** Sum of all unfunded outputs (HTLC + CPFP anchor) — use this for UTXO selection */
@@ -81,7 +80,7 @@ export interface PrePeginPsbtResult {
 }
 
 /**
- * Parameters for building the PegIn transaction from a funded Pre-PegIn txid
+ * Parameters for building the PegIn transaction from a funded Pre-PegIn tx
  */
 export interface BuildPeginTxParams {
   /** Same PrePeginParams used to create the Pre-PegIn transaction */

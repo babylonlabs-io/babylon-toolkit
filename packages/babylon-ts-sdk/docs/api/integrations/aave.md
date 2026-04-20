@@ -225,7 +225,7 @@ Premium offset, expressed in asset units scaled by RAY (signed)
 suppliedShares: bigint;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts:60](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts#L60)
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts:58](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts#L58)
 
 Supplied collateral shares
 
@@ -235,7 +235,7 @@ Supplied collateral shares
 dynamicConfigKey: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts:62](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts#L62)
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts:60](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts#L60)
 
 Dynamic config key
 
@@ -243,7 +243,7 @@ Dynamic config key
 
 ### TransactionParams
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts:69](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts#L69)
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts:67](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts#L67)
 
 Transaction parameters for unsigned transactions
 Compatible with viem's transaction format
@@ -256,7 +256,7 @@ Compatible with viem's transaction format
 to: `0x${string}`;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts:71](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts#L71)
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts:69](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts#L69)
 
 Contract address to call
 
@@ -266,7 +266,7 @@ Contract address to call
 data: `0x${string}`;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts:73](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts#L73)
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts:71](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts#L71)
 
 Encoded function data
 
@@ -276,9 +276,40 @@ Encoded function data
 optional value: bigint;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts:75](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts#L75)
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts:73](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts#L73)
 
 Value to send (optional, defaults to 0)
+
+***
+
+### PositionSizeParams
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts:80](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts#L80)
+
+Position size parameters from the AaveIntegrationAdapter contract.
+Controls maximum BTC position size and vault count per user.
+
+#### Properties
+
+##### maxPositionBTC
+
+```ts
+maxPositionBTC: bigint;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts:82](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts#L82)
+
+Maximum BTC position size allowed (in satoshis)
+
+##### maxVaultsPerPosition
+
+```ts
+maxVaultsPerPosition: bigint;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts:84](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts#L84)
+
+Maximum number of vaults per position
 
 ***
 
@@ -832,9 +863,7 @@ Required sacrificial vault coverage in satoshis
 type HealthFactorStatus = "safe" | "warning" | "danger" | "no_debt";
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/healthFactor.ts:35](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/healthFactor.ts#L35)
-
-Health factor status based on our liquidation threshold
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/healthFactor.ts:16](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/healthFactor.ts#L16)
 
 ## Functions
 
@@ -922,6 +951,39 @@ Total collateral amount in satoshis
 
 ***
 
+### getPositionSizeParams()
+
+```ts
+function getPositionSizeParams(publicClient, contractAddress): Promise<PositionSizeParams>;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/query.ts:90](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/query.ts#L90)
+
+Get position size parameters from the adapter contract.
+
+Returns the maximum BTC position size and maximum vaults per position
+as configured on-chain.
+
+#### Parameters
+
+##### publicClient
+
+Viem public client for reading contracts
+
+##### contractAddress
+
+`` `0x${string}` ``
+
+AaveIntegrationAdapter contract address
+
+#### Returns
+
+`Promise`\<[`PositionSizeParams`](#positionsizeparams)\>
+
+Position size parameters (maxPositionBTC, maxVaultsPerPosition)
+
+***
+
 ### getUserAccountData()
 
 ```ts
@@ -931,7 +993,7 @@ function getUserAccountData(
 userAddress): Promise<AaveSpokeUserAccountData>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/spoke.ts:103](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/spoke.ts#L103)
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/spoke.ts:101](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/spoke.ts#L101)
 
 Get aggregated user account health data from AAVE spoke.
 
@@ -1013,7 +1075,7 @@ function getUserPosition(
 userAddress): Promise<AaveSpokeUserPosition>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/spoke.ts:139](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/spoke.ts#L139)
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/spoke.ts:137](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/spoke.ts#L137)
 
 Get user position from the Spoke
 
@@ -1062,7 +1124,7 @@ function hasDebt(
 userAddress): Promise<boolean>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/spoke.ts:164](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/spoke.ts#L164)
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/spoke.ts:162](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/spoke.ts#L162)
 
 Check if a user has any debt in a reserve
 
@@ -1108,7 +1170,7 @@ function hasCollateral(
 userAddress): Promise<boolean>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/spoke.ts:188](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/spoke.ts#L188)
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/spoke.ts:186](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/spoke.ts#L186)
 
 Check if a user has supplied collateral in a reserve
 
@@ -1154,7 +1216,7 @@ function getUserTotalDebt(
 userAddress): Promise<bigint>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/spoke.ts:239](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/spoke.ts#L239)
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/spoke.ts:237](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/spoke.ts#L237)
 
 Get user's exact total debt in a reserve (token units, not shares).
 
@@ -1228,7 +1290,7 @@ function getReserve(
 reserveId): Promise<ReserveResult>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/spoke.ts:296](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/spoke.ts#L296)
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/spoke.ts:294](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/spoke.ts#L294)
 
 Get reserve data from the Core Spoke contract via the `getReserve` selector.
 
@@ -1271,7 +1333,7 @@ Reserve data including `dynamicConfigKey`
 function getTargetHealthFactor(publicClient, spokeAddress): Promise<bigint>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/spoke.ts:334](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/spoke.ts#L334)
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/spoke.ts:332](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/spoke.ts#L332)
 
 Get the target health factor (THF) from the Core Spoke contract.
 
@@ -1308,7 +1370,7 @@ function getDynamicReserveConfig(
 dynamicConfigKey): Promise<DynamicReserveConfigResult>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/spoke.ts:359](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/spoke.ts#L359)
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/spoke.ts:357](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/spoke.ts#L357)
 
 Get the dynamic reserve config from the Core Spoke contract.
 
@@ -1600,11 +1662,11 @@ const hash = await walletClient.sendTransaction({
 function aaveValueToUsd(value): number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/aaveConversions.ts:17](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/aaveConversions.ts#L17)
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/aaveConversions.ts:21](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/aaveConversions.ts#L21)
 
 Convert Aave base currency value to USD
 
-Aave uses 1e26 = $1 USD for collateral and debt values.
+Aave uses 1e26 = $1 USD for collateral values.
 
 #### Parameters
 
@@ -1622,13 +1684,41 @@ Value in USD
 
 ***
 
+### aaveRayValueToUsd()
+
+```ts
+function aaveRayValueToUsd(value): number;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/aaveConversions.ts:33](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/aaveConversions.ts#L33)
+
+Convert Aave RAY-scaled base currency value to USD
+
+Debt values use higher precision: 1e35 = $1 USD.
+
+#### Parameters
+
+##### value
+
+`bigint`
+
+Value in RAY-scaled base currency (1e35 = $1)
+
+#### Returns
+
+`number`
+
+Value in USD
+
+***
+
 ### wadToNumber()
 
 ```ts
 function wadToNumber(value): number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/aaveConversions.ts:29](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/aaveConversions.ts#L29)
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/aaveConversions.ts:45](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/aaveConversions.ts#L45)
 
 Convert Aave WAD value to number
 
@@ -1808,7 +1898,7 @@ btcAfterG1: number;
 function hasDebtFromPosition(position): boolean;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/debtUtils.ts:20](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/debtUtils.ts#L20)
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/debtUtils.ts:19](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/debtUtils.ts#L19)
 
 Check if a position has any debt based on Spoke position data.
 
@@ -1838,7 +1928,7 @@ true if the position has any debt
 function getHealthFactorStatus(healthFactor, hasDebt): HealthFactorStatus;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/healthFactor.ts:44](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/healthFactor.ts#L44)
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/healthFactor.ts:25](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/healthFactor.ts#L25)
 
 Determine health factor status for UI display
 
@@ -1870,7 +1960,7 @@ The status classification
 function isHealthFactorHealthy(healthFactor): boolean;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/healthFactor.ts:95](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/healthFactor.ts#L95)
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/healthFactor.ts:42](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/healthFactor.ts#L42)
 
 Checks if a health factor value represents a healthy position.
 
@@ -1896,7 +1986,7 @@ true if the health factor is >= 1.0 (healthy), false otherwise
 function getHealthFactorStatusFromValue(value): HealthFactorStatus;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/healthFactor.ts:109](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/healthFactor.ts#L109)
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/healthFactor.ts:56](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/healthFactor.ts#L56)
 
 Get health factor status from a numeric value.
 Used for UI components that work with Infinity for no-debt scenarios.
@@ -1926,7 +2016,7 @@ function calculateHealthFactor(
    liquidationThresholdBps): number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/healthFactor.ts:157](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/healthFactor.ts#L157)
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/healthFactor.ts:104](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/healthFactor.ts#L104)
 
 Calculate health factor for an AAVE position.
 
@@ -2616,13 +2706,28 @@ Reference: ISpoke.sol UserAccountData
 
 ***
 
+### AAVE\_BASE\_CURRENCY\_RAY\_DECIMALS
+
+```ts
+const AAVE_BASE_CURRENCY_RAY_DECIMALS: 35 = 35;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/constants.ts:70](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/constants.ts#L70)
+
+Aave RAY-scaled base currency decimals
+Debt values (totalDebtValueRay) use 1e35 = $1 USD
+
+Reference: IAaveSpoke.sol UserAccountData.totalDebtValueRay
+
+***
+
 ### WAD\_DECIMALS
 
 ```ts
 const WAD_DECIMALS: 18 = 18;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/constants.ts:70](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/constants.ts#L70)
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/constants.ts:78](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/constants.ts#L78)
 
 WAD decimals (1e18 = 1.0)
 Used for health factor and collateral factor values
@@ -2637,7 +2742,7 @@ Reference: ISpoke.sol - "healthFactor expressed in WAD. 1e18 represents a health
 const HEALTH_FACTOR_WARNING_THRESHOLD: 1.5 = 1.5;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/constants.ts:76](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/constants.ts#L76)
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/constants.ts:84](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/constants.ts#L84)
 
 Health factor warning threshold
 Positions below this are considered at risk of liquidation
@@ -2650,7 +2755,7 @@ Positions below this are considered at risk of liquidation
 const MIN_HEALTH_FACTOR_FOR_BORROW: 1.2 = 1.2;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/constants.ts:82](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/constants.ts#L82)
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/constants.ts:90](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/constants.ts#L90)
 
 Minimum health factor allowed for borrowing
 Prevents users from borrowing if resulting health factor would be below this.
@@ -2663,7 +2768,7 @@ Prevents users from borrowing if resulting health factor would be below this.
 const FULL_REPAY_BUFFER_DIVISOR: 10000n = 10000n;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/constants.ts:89](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/constants.ts#L89)
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/constants.ts:97](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/constants.ts#L97)
 
 Buffer for full repayment to account for interest accrual
 between fetching debt and transaction execution.
@@ -2704,6 +2809,3 @@ const MIN_DEBT_THRESHOLD: 0.01 = 0.01;
 Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/cascadeSimulation.ts:29](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/cascadeSimulation.ts#L29)
 
 Minimum debt threshold to continue cascade (avoids infinite loop on dust)
-
-***
-

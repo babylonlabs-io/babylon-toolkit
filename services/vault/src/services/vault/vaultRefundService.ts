@@ -1,22 +1,23 @@
 /**
- * Vault Refund Service
- *
- * Builds and broadcasts the HTLC refund transaction for expired vaults.
+ * Vault Refund Service — thin adapter over the SDK's `buildAndBroadcastRefund`.
  *
  * When a vault expires (ack_timeout, proof_timeout, or activation_timeout),
  * the depositor can reclaim their BTC from the Pre-PegIn HTLC output after
  * timelockRefund Bitcoin blocks have passed, using the refund script (leaf 1).
+ *
+ * Protocol logic (fee math, PSBT build, sign options, finalize, BIP68 error
+ * mapping) lives in the SDK. This adapter pre-fetches the mempool fee rate
+ * and provides the transport-specific callbacks for reads (on-chain +
+ * indexer), signing, and broadcast.
  */
 
 import type { SignPsbtOptions } from "@babylonlabs-io/ts-sdk/shared";
+import { getNetworkFees, pushTx } from "@babylonlabs-io/ts-sdk/tbv/core";
 import {
-  buildRefundPsbt,
-  createTaprootScriptPathSignOptions,
-  getNetworkFees,
-  pushTx,
-  stripHexPrefix,
-} from "@babylonlabs-io/ts-sdk/tbv/core";
-import { Psbt } from "bitcoinjs-lib";
+  buildAndBroadcastRefund,
+  type RefundPrePeginContext,
+  type VaultRefundData,
+} from "@babylonlabs-io/ts-sdk/tbv/core/services";
 import type { Hex } from "viem";
 
 import { getMempoolApiUrl } from "../../clients/btc/config";
@@ -29,24 +30,11 @@ import {
 import { getBTCNetworkForWASM } from "../../config/pegin";
 
 import { fetchVaultProviderById } from "./fetchVaultProviders";
-import { fetchVaultById } from "./fetchVaults";
+import { fetchVaultRefundData } from "./fetchVaults";
 import {
   getSortedUniversalChallengerPubkeys,
   getSortedVaultKeeperPubkeys,
 } from "./vaultPayoutSignatureService";
-
-/**
- * Estimated vsize in virtual bytes for a refund transaction:
- * 1 Taproot script-path input (refund leaf) + 1 P2TR output.
- *
- * Breakdown:
- * - Non-witness: version(4) + segwit(2) + inputCount(1) + input(41) + outputCount(1) + P2TR output(43) + locktime(4) = 96 bytes
- * - Witness: stackCount(1) + sig(65) + scriptLen(1) + refundScript(~39) + controlBlockLen(1) + controlBlock(33) = ~140 bytes
- * - vsize = (96 * 4 + 140) / 4 ≈ 131 vbytes — using 160 as a safe margin
- *
- * TODO: Replace with WASM SDK vsize calculation when available.
- */
-const REFUND_TX_VSIZE_ESTIMATE = 160;
 
 export interface BroadcastRefundParams {
   /** Vault ID: keccak256(abi.encode(peginTxHash, depositor)) */
@@ -59,77 +47,73 @@ export interface BroadcastRefundParams {
   depositorBtcPubkey: string;
 }
 
-/**
- * Build, sign, and broadcast a refund transaction for an expired vault.
- *
- * Versioning fields (appVaultKeepersVersion, universalChallengersVersion,
- * offchainParamsVersion, vaultProvider, applicationEntryPoint) are fetched
- * from the on-chain BTCVaultRegistry contract — never from the GraphQL indexer —
- * following the same security policy as prepareSigningContext in
- * vaultPayoutSignatureService.ts.
- *
- * Fields not stored on-chain (unsignedPrePeginTx, depositorBtcPubkey) are read
- * from the indexer. hashlock and htlcVout are read from the on-chain contract.
- *
- * The broadcast will be rejected by the network if timelockRefund blocks
- * have not yet passed since the Pre-PegIn transaction was confirmed.
- *
- * @returns The broadcasted refund transaction ID
- * @throws If vault data is missing or the broadcast fails
- */
-export async function buildAndBroadcastRefundTransaction(
-  params: BroadcastRefundParams,
-): Promise<string> {
-  const { vaultId, btcWalletProvider, depositorBtcPubkey } = params;
-
-  // Fetch signing-critical versioning fields from the on-chain contract.
-  // A compromised indexer could substitute different version numbers and
-  // trick the depositor into signing over an attacker-chosen signer set.
-  const [onChainVault, indexerVault] = await Promise.all([
+async function readVault(vaultId: Hex): Promise<VaultRefundData> {
+  // Versioning fields, hashlock, and htlcVout come from the on-chain contract
+  // — a compromised indexer could otherwise substitute a different signer set.
+  // From the indexer we pull only what refund actually needs: amount + the
+  // funded Pre-PegIn tx hex + the depositor's BTC pubkey. Using a minimal
+  // query (not the full Vault projection) avoids refund being blocked by
+  // indexer schema drift on unrelated fields such as `depositorWotsPkHash`.
+  const [onChainVault, indexerRefundData] = await Promise.all([
     getVaultFromChain(vaultId),
-    fetchVaultById(vaultId),
+    fetchVaultRefundData(vaultId),
   ]);
-
-  if (!indexerVault) {
+  if (!indexerRefundData) {
     throw new Error(`Vault ${vaultId} not found`);
   }
-  // Fetch transaction-critical data from contracts (authoritative source)
+  return {
+    hashlock: onChainVault.hashlock,
+    htlcVout: onChainVault.htlcVout,
+    offchainParamsVersion: onChainVault.offchainParamsVersion,
+    appVaultKeepersVersion: onChainVault.appVaultKeepersVersion,
+    universalChallengersVersion: onChainVault.universalChallengersVersion,
+    vaultProvider: onChainVault.vaultProvider,
+    applicationEntryPoint: onChainVault.applicationEntryPoint,
+    amount: indexerRefundData.amount,
+    unsignedPrePeginTxHex: indexerRefundData.unsignedPrePeginTx,
+    depositorBtcPubkey: indexerRefundData.depositorBtcPubkey,
+  };
+}
+
+async function readPrePeginContext(
+  vault: VaultRefundData,
+): Promise<RefundPrePeginContext> {
   const [protocolReader, keeperReader, challengerReader] = await Promise.all([
     getProtocolParamsReader(),
     getVaultKeeperReader(),
     getUniversalChallengerReader(),
   ]);
 
-  const offchainParams = await protocolReader.getOffchainParamsByVersion(
-    onChainVault.offchainParamsVersion,
-  );
+  const [
+    offchainParams,
+    vaultProvider,
+    vaultKeepers,
+    universalChallengersList,
+  ] = await Promise.all([
+    protocolReader.getOffchainParamsByVersion(vault.offchainParamsVersion),
+    fetchVaultProviderById(vault.vaultProvider),
+    keeperReader.getVaultKeepersByVersion(
+      vault.applicationEntryPoint,
+      vault.appVaultKeepersVersion,
+    ),
+    challengerReader.getUniversalChallengersByVersion(
+      vault.universalChallengersVersion,
+    ),
+  ]);
 
-  const vaultProvider = await fetchVaultProviderById(
-    onChainVault.vaultProvider,
-  );
   if (!vaultProvider) {
     throw new Error(
-      `Vault provider ${onChainVault.vaultProvider} not found. Cannot build refund transaction.`,
+      `Vault provider ${vault.vaultProvider} not found. Cannot build refund transaction.`,
     );
   }
-
-  const vaultKeepers = await keeperReader.getVaultKeepersByVersion(
-    onChainVault.applicationEntryPoint,
-    onChainVault.appVaultKeepersVersion,
-  );
   if (vaultKeepers.length === 0) {
     throw new Error(
-      `No vault keepers found for version ${onChainVault.appVaultKeepersVersion}`,
+      `No vault keepers found for version ${vault.appVaultKeepersVersion}`,
     );
   }
-
-  const universalChallengersList =
-    await challengerReader.getUniversalChallengersByVersion(
-      onChainVault.universalChallengersVersion,
-    );
   if (universalChallengersList.length === 0) {
     throw new Error(
-      `Universal challengers not found for version ${onChainVault.universalChallengersVersion}`,
+      `Universal challengers not found for version ${vault.universalChallengersVersion}`,
     );
   }
 
@@ -139,57 +123,56 @@ export async function buildAndBroadcastRefundTransaction(
   const universalChallengerPubkeys = getSortedUniversalChallengerPubkeys(
     universalChallengersList.map((uc) => ({ btcPubKey: uc.btcPubKey })),
   );
-  const numLocalChallengers = vaultKeeperPubkeys.length;
 
+  return {
+    vaultProviderPubkey: vaultProvider.btcPubKey,
+    vaultKeeperPubkeys,
+    universalChallengerPubkeys,
+    timelockRefund: offchainParams.tRefund,
+    feeRate: offchainParams.feeRate,
+    numLocalChallengers: vaultKeeperPubkeys.length,
+    councilQuorum: offchainParams.councilQuorum,
+    councilSize: offchainParams.securityCouncilKeys.length,
+    network: getBTCNetworkForWASM(),
+  };
+}
+
+/**
+ * Build, sign, and broadcast a refund transaction for an expired vault.
+ *
+ * The broadcast will be rejected by the Bitcoin network if timelockRefund
+ * blocks have not yet passed since the Pre-PegIn transaction was confirmed;
+ * in that case the SDK throws {@link BIP68NotMatureError}.
+ *
+ * @returns The broadcasted refund transaction ID
+ * @throws If vault data is missing or the broadcast fails
+ */
+export async function buildAndBroadcastRefundTransaction(
+  params: BroadcastRefundParams,
+): Promise<string> {
+  const { vaultId, btcWalletProvider, depositorBtcPubkey } = params;
   const mempoolApiUrl = getMempoolApiUrl();
-  const networkFees = await getNetworkFees(mempoolApiUrl);
-  const refundFee = BigInt(
-    Math.ceil(networkFees.halfHourFee * REFUND_TX_VSIZE_ESTIMATE),
-  );
 
-  const { psbtHex } = await buildRefundPsbt({
-    prePeginParams: {
-      depositorPubkey: stripHexPrefix(depositorBtcPubkey),
-      vaultProviderPubkey: stripHexPrefix(vaultProvider.btcPubKey),
-      vaultKeeperPubkeys,
-      universalChallengerPubkeys,
-      hashlocks: [stripHexPrefix(onChainVault.hashlock)],
-      timelockRefund: offchainParams.tRefund,
-      pegInAmounts: [indexerVault.amount],
-      feeRate: offchainParams.feeRate,
-      numLocalChallengers,
-      councilQuorum: offchainParams.councilQuorum,
-      councilSize: offchainParams.securityCouncilKeys.length,
-      network: getBTCNetworkForWASM(),
+  // Pre-fetch the mempool fee rate — it doesn't depend on any value the SDK
+  // computes, so passing it in keeps the SDK's orchestration honest.
+  const { halfHourFee } = await getNetworkFees(mempoolApiUrl);
+
+  // Override indexer-provided depositor pubkey with the caller's wallet key —
+  // the wallet is the authoritative source for the depositor's signing key.
+  const { txId } = await buildAndBroadcastRefund({
+    vaultId,
+    readVault: async () => {
+      const data = await readVault(vaultId);
+      return { ...data, depositorBtcPubkey };
     },
-    fundedPrePeginTxHex: stripHexPrefix(indexerVault.unsignedPrePeginTx),
-    htlcVout: onChainVault.htlcVout,
-    refundFee,
-    hashlock: stripHexPrefix(onChainVault.hashlock),
+    readPrePeginContext: (vault) => readPrePeginContext(vault),
+    feeRate: halfHourFee,
+    signPsbt: (psbtHex, options) =>
+      btcWalletProvider.signPsbt(psbtHex, options),
+    broadcastTx: async (signedTxHex) => ({
+      txId: await pushTx(signedTxHex, mempoolApiUrl),
+    }),
   });
 
-  /** Leaf index of the refund script in the taproot script tree */
-  const REFUND_SCRIPT_LEAF_INDEX = 1;
-  const signOptions = createTaprootScriptPathSignOptions(
-    depositorBtcPubkey,
-    REFUND_SCRIPT_LEAF_INDEX,
-  );
-  const signedPsbtHex = await btcWalletProvider.signPsbt(psbtHex, signOptions);
-  const signedPsbt = Psbt.fromHex(signedPsbtHex);
-
-  try {
-    signedPsbt.finalizeAllInputs();
-  } catch (e: unknown) {
-    // Some wallets (e.g. Keystone) finalize inputs during signPsbt.
-    // If already finalized, bitcoinjs throws "Input is already finalized".
-    // Any other finalization error is a real problem — surface it.
-    const message = e instanceof Error ? e.message : String(e);
-    if (!message.includes("already finalized")) {
-      throw new Error(`Failed to finalize refund PSBT: ${message}`);
-    }
-  }
-
-  const signedTxHex = signedPsbt.extractTransaction().toHex();
-
-  return pushTx(signedTxHex, mempoolApiUrl);
+  return txId;
 }

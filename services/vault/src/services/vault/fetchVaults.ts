@@ -324,3 +324,67 @@ export async function fetchVaultById(vaultId: Hex): Promise<Vault | null> {
 
   return transformVaultItem(data.vault);
 }
+
+/**
+ * Minimal fields needed by the refund flow — excludes unrelated required
+ * fields on the full {@link Vault} projection so that indexer schema drift or
+ * partial responses on non-refund fields (e.g. `depositorWotsPkHash`) cannot
+ * block a critical recovery path.
+ */
+export interface VaultRefundIndexerData {
+  depositorBtcPubkey: Hex;
+  amount: bigint;
+  unsignedPrePeginTx: Hex;
+}
+
+const GET_VAULT_REFUND_DATA = gql`
+  query GetVaultRefundData($id: String!) {
+    vault(id: $id) {
+      id
+      depositorBtcPubKey
+      amount
+      unsignedPrePeginTx
+    }
+  }
+`;
+
+interface VaultRefundGraphQLItem {
+  id: string;
+  depositorBtcPubKey: string;
+  amount: string;
+  unsignedPrePeginTx: string | null;
+}
+
+interface VaultRefundGraphQLResponse {
+  vault: VaultRefundGraphQLItem | null;
+}
+
+/**
+ * Fetch only the indexer fields the refund flow requires.
+ * Throws if the vault or its `unsignedPrePeginTx` is missing — both are
+ * required to build a refund PSBT.
+ */
+export async function fetchVaultRefundData(
+  vaultId: Hex,
+): Promise<VaultRefundIndexerData | null> {
+  const data = await graphqlClient.request<VaultRefundGraphQLResponse>(
+    GET_VAULT_REFUND_DATA,
+    { id: vaultId.toLowerCase() },
+  );
+
+  if (!data.vault) {
+    return null;
+  }
+
+  const { depositorBtcPubKey, amount, unsignedPrePeginTx } = data.vault;
+  if (!unsignedPrePeginTx) {
+    throw new Error(
+      `Vault ${vaultId} is missing unsignedPrePeginTx; cannot build refund`,
+    );
+  }
+  return {
+    depositorBtcPubkey: depositorBtcPubKey as Hex,
+    amount: BigInt(amount),
+    unsignedPrePeginTx: unsignedPrePeginTx as Hex,
+  };
+}

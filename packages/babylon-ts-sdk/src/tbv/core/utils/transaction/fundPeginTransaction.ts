@@ -5,7 +5,7 @@
  * UTXO inputs and change outputs, creating a transaction ready for wallet signing.
  *
  * Transaction Flow:
- * 1. SDK buildPeginPsbt() → unfunded transaction (0 inputs, vault + depositor claim outputs)
+ * 1. SDK buildPrePeginPsbt() → unfunded Pre-PegIn tx (0 inputs, HTLC + CPFP outputs)
  * 2. selectUtxosForPegin() → select UTXOs and calculate fees
  * 3. fundPeginTransaction() → add inputs/change, create funded transaction
  *

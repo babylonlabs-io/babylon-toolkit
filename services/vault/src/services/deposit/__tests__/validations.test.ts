@@ -39,7 +39,10 @@ describe("Deposit Validations", () => {
     });
 
     it("should reject null/undefined providers", () => {
-      const result = validateProviderSelection(null as any, availableProviders);
+      const result = validateProviderSelection(
+        null as unknown as string[],
+        availableProviders,
+      );
 
       expect(result.valid).toBe(false);
       expect(result.error?.toLowerCase()).toContain("at least one");

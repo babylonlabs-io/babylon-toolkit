@@ -7,10 +7,7 @@
  * exceed consecutive failure / unknown-status thresholds.
  */
 
-import {
-  VaultProviderRpcClient,
-  type GetPegoutStatusResponse,
-} from "@babylonlabs-io/ts-sdk/tbv/core/clients";
+import { type GetPegoutStatusResponse } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef } from "react";
 
@@ -31,7 +28,7 @@ import {
   type PegoutDisplayState,
 } from "@/models/pegoutStateMachine";
 import { stripHexPrefix } from "@/utils/btc";
-import { getVpProxyUrl } from "@/utils/rpc";
+import { createVpClient } from "@/utils/rpc";
 
 export interface PegoutPollingResult {
   displayState: PegoutDisplayState;
@@ -40,11 +37,11 @@ export interface PegoutPollingResult {
 
 interface VaultToPoll {
   vault: RedeemedVaultInfo;
-  providerUrl: string;
+  providerAddress: string;
 }
 
 interface VaultsByProvider {
-  providerUrl: string;
+  providerAddress: string;
   vaults: VaultToPoll[];
 }
 
@@ -67,15 +64,14 @@ function groupVaultsByProvider(
       );
       continue;
     }
-    const providerUrl = getVpProxyUrl(providerAddress);
     const existing = grouped.get(providerAddress);
-    const entry: VaultToPoll = { vault, providerUrl };
+    const entry: VaultToPoll = { vault, providerAddress };
 
     if (existing) {
       existing.vaults.push(entry);
     } else {
       grouped.set(providerAddress, {
-        providerUrl,
+        providerAddress,
         vaults: [entry],
       });
     }
@@ -85,12 +81,12 @@ function groupVaultsByProvider(
 }
 
 async function fetchPegoutStatusesFromProvider(
-  providerUrl: string,
+  providerAddress: string,
   vaults: VaultToPoll[],
   results: Map<string, PegoutPollingResult>,
   counters: VaultPollCounters,
 ): Promise<void> {
-  const rpcClient = new VaultProviderRpcClient(providerUrl);
+  const rpcClient = createVpClient(providerAddress);
 
   for (const { vault } of vaults) {
     try {
@@ -188,9 +184,9 @@ export function usePegoutPolling({
       const results = new Map<string, PegoutPollingResult>();
 
       const fetchPromises = Array.from(vaultsByProvider.values()).map(
-        ({ providerUrl, vaults }) =>
+        ({ providerAddress, vaults }) =>
           fetchPegoutStatusesFromProvider(
-            providerUrl,
+            providerAddress,
             vaults,
             results,
             countersRef.current,

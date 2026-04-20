@@ -1,37 +1,19 @@
 /**
- * Hook for managing payout signing state and logic
+ * Hook for managing payout signing state and logic.
  *
- * Separates business logic from UI:
- * - State management (signing, progress, error)
- * - Validation and signing orchestration
- * - LocalStorage and optimistic updates
+ * Delegates all signing, VP polling, and submission to the SDK via
+ * `signAndSubmitPayouts` (the shared deposit-flow adapter). This hook owns
+ * only the React state, guard checks, and optimistic localStorage updates.
  */
 
-import type {
-  ClaimerTransactions,
-  DepositorGraphTransactions,
-} from "@babylonlabs-io/ts-sdk/tbv/core/clients";
-import { signDepositorGraph } from "@babylonlabs-io/ts-sdk/tbv/core/services";
 import { useChainConnector } from "@babylonlabs-io/wallet-connector";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { Hex } from "viem";
 
 import { usePeginPolling } from "../../../context/deposit/PeginPollingContext";
-import { useProtocolParamsContext } from "../../../context/ProtocolParamsContext";
+import { signAndSubmitPayouts } from "../../../hooks/deposit/depositFlowSteps/payoutSigning";
 import { useVaultProviders } from "../../../hooks/deposit/useVaultProviders";
-import {
-  getNextLocalStatus,
-  LocalStorageStatus,
-  PeginAction,
-} from "../../../models/peginStateMachine";
-import {
-  prepareSigningContext,
-  prepareTransactionsForSigning,
-  signPayoutTransactions,
-  submitSignaturesToVaultProvider,
-  validatePayoutSignatureParams,
-} from "../../../services/vault/vaultPayoutSignatureService";
-import { updatePendingPeginStatus } from "../../../storage/peginStorage";
+import { LocalStorageStatus } from "../../../models/peginStateMachine";
 import type { VaultActivity } from "../../../types/activity";
 import { btcAddressToScriptPubKeyHex } from "../../../utils/btc";
 import { formatPayoutSignatureError } from "../../../utils/errors/formatting";
@@ -45,9 +27,6 @@ export interface SigningError {
 
 export interface UsePayoutSigningStateProps {
   activity: VaultActivity;
-  transactions: ClaimerTransactions[] | null;
-  /** Depositor graph transactions (depositor-as-claimer flow) */
-  depositorGraph: DepositorGraphTransactions;
   btcPublicKey: string;
   depositorEthAddress: Hex;
   onSuccess: () => void;
@@ -68,8 +47,6 @@ export interface UsePayoutSigningStateResult {
 
 export function usePayoutSigningState({
   activity,
-  transactions,
-  depositorGraph,
   btcPublicKey,
   depositorEthAddress,
   onSuccess,
@@ -82,168 +59,181 @@ export function usePayoutSigningState({
   });
   const [error, setError] = useState<SigningError | null>(null);
 
-  const { findProvider, vaultKeepers } = useVaultProviders(
-    activity.applicationEntryPoint,
-  );
-  const { latestUniversalChallengers } = useProtocolParamsContext();
+  const { findProvider } = useVaultProviders(activity.applicationEntryPoint);
   const btcConnector = useChainConnector("BTC");
   const { setOptimisticStatus } = usePeginPolling();
 
+  // Abort signing if the hook unmounts (e.g. user closes the modal) so we
+  // don't call setState on an unmounted component and stop the polling loop.
+  //
+  // Dev quirk: React StrictMode runs effects mount→cleanup→remount on the
+  // first commit. A direct `() => abort()` cleanup would kill the in-flight
+  // controller that `useRunOnce(handleSign)` just created during the first
+  // mount. We defer the abort to the next tick so the strict-mode remount
+  // can cancel it; a real unmount has no follow-up remount, so the scheduled
+  // abort fires normally.
+  const abortRef = useRef<AbortController | null>(null);
+  const pendingAbortRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (pendingAbortRef.current !== null) {
+      clearTimeout(pendingAbortRef.current);
+      pendingAbortRef.current = null;
+    }
+    return () => {
+      pendingAbortRef.current = setTimeout(() => {
+        abortRef.current?.abort();
+        pendingAbortRef.current = null;
+      }, 0);
+    };
+  }, []);
+
+  // Synchronous reentrancy guard. The `signing` state is async (batched by
+  // React), so two back-to-back calls before the next render could both see
+  // `signing === false`. Flip the ref before the first await, clear it in
+  // `finally`, and always check this before the state.
+  const inFlightRef = useRef(false);
+
   const handleSign = useCallback(async () => {
-    // Validate transactions exist
-    if (!transactions || transactions.length === 0) {
-      setError({
-        title: "No Transactions",
-        message:
-          "No transactions available to sign. Please wait and try again.",
-      });
-      return;
-    }
+    if (inFlightRef.current || signing) return;
+    inFlightRef.current = true;
 
-    // Validate payout address exists (required for payout output validation)
-    if (!activity.depositorPayoutBtcAddress) {
-      setError({
-        title: "Missing Payout Address",
-        message:
-          "Depositor payout address not available. Please wait for indexer sync and try again.",
-      });
-      return;
-    }
-
-    // Security: verify indexer-sourced scriptPubKey matches the connected wallet.
-    // A compromised indexer could return a different depositorPayoutBtcAddress,
-    // causing the validation to check against an attacker's address.
-    const connectedBtcAddress = btcConnector?.connectedWallet?.account?.address;
-    if (connectedBtcAddress) {
-      const walletScriptPubKey =
-        btcAddressToScriptPubKeyHex(connectedBtcAddress);
-      if (walletScriptPubKey !== activity.depositorPayoutBtcAddress) {
+    // Single outer try/finally so the reentrancy lock is always cleared —
+    // including on synchronous throws from the guards (e.g.
+    // `btcAddressToScriptPubKeyHex` rejects a wallet on the wrong BTC
+    // network). Without this, a guard throw would leave `inFlightRef`
+    // stuck at true and lock out every subsequent `handleSign()` until the
+    // component remounts.
+    try {
+      if (!activity.depositorPayoutBtcAddress) {
         setError({
-          title: "Payout Address Mismatch",
+          title: "Missing Payout Address",
           message:
-            "The payout address from the indexer does not match your connected wallet. " +
-            "This may indicate a data integrity issue. Please verify your wallet connection.",
+            "Depositor payout address not available. Please wait for indexer sync and try again.",
         });
         return;
       }
-    }
 
-    // Find vault provider
-    const vaultProviderAddress = activity.providers[0]?.id as Hex;
-    const provider = findProvider(vaultProviderAddress);
-
-    if (!provider) {
-      setError({
-        title: "Provider Not Found",
-        message: "Vault provider not found.",
-      });
-      return;
-    }
-
-    // Check wallet connection
-    const btcWalletProvider = btcConnector?.connectedWallet?.provider;
-    if (!btcWalletProvider) {
-      setError({
-        title: "Wallet Not Connected",
-        message: "BTC wallet not connected.",
-      });
-      return;
-    }
-
-    // Validate inputs
-    try {
-      validatePayoutSignatureParams({
-        vaultId: activity.id,
-        depositorBtcPubkey: btcPublicKey,
-        claimerTransactions: transactions,
-        vaultKeepers: vaultKeepers.map((vk) => ({ btcPubKey: vk.btcPubKey })),
-        universalChallengers: latestUniversalChallengers.map((uc) => ({
-          btcPubKey: uc.btcPubKey,
-        })),
-      });
-    } catch (err) {
-      setError(formatPayoutSignatureError(err));
-      return;
-    }
-
-    // Start signing
-    setSigning(true);
-    setError(null);
-
-    const totalClaimers = transactions.length;
-
-    setProgress({
-      completed: 0,
-      totalClaimers,
-    });
-
-    try {
-      // Prepare signing context (fetches vault data, resolves pubkeys)
-      // Uses versioned keepers and challengers based on vault's locked versions
-      const { context, vaultProviderAddress } = await prepareSigningContext({
-        vaultId: activity.id,
-        depositorBtcPubkey: btcPublicKey,
-        vaultProviderBtcPubKey: provider.btcPubKey,
-        registeredPayoutScriptPubKey: activity.depositorPayoutBtcAddress,
-      });
-
-      // Prepare transactions for signing
-      const preparedTransactions = prepareTransactionsForSigning(transactions);
-
-      // Sign all payout transactions (auto-detects batch vs sequential)
-      const signatures = await signPayoutTransactions(
-        btcWalletProvider,
-        context,
-        preparedTransactions,
-        setProgress,
-      );
-
-      // Sign depositor graph (depositor-as-claimer flow)
-      // PSBTs are pre-built by the VP with all taproot metadata embedded.
-      const depositorClaimerPresignatures = await signDepositorGraph({
-        depositorGraph,
-        depositorBtcPubkey: btcPublicKey,
-        btcWallet: btcWalletProvider,
-      });
-
-      // Submit signatures to vault provider (VP RPC uses peginTxHash)
-      await submitSignaturesToVaultProvider(
-        vaultProviderAddress,
-        activity.peginTxHash!,
-        btcPublicKey,
-        signatures,
-        depositorClaimerPresignatures,
-      );
-
-      // Update localStorage status using state machine (storage uses vaultId)
-      const nextStatus = getNextLocalStatus(
-        PeginAction.SIGN_PAYOUT_TRANSACTIONS,
-      );
-      if (nextStatus) {
-        updatePendingPeginStatus(depositorEthAddress, activity.id, nextStatus);
-
-        // Optimistically update UI immediately (before refetch completes)
-        setOptimisticStatus(activity.id, LocalStorageStatus.PAYOUT_SIGNED);
+      // Security: the indexer-sourced payout scriptPubKey must match the
+      // connected wallet. A compromised indexer could otherwise trick signing
+      // over an attacker-chosen payout address.
+      const connectedBtcAddress =
+        btcConnector?.connectedWallet?.account?.address;
+      if (connectedBtcAddress) {
+        let walletScriptPubKey: string;
+        try {
+          walletScriptPubKey = btcAddressToScriptPubKeyHex(connectedBtcAddress);
+        } catch {
+          setError({
+            title: "Wallet Address Error",
+            message:
+              "Could not read your Bitcoin wallet address. Please reconnect the wallet and make sure it is on the correct Bitcoin network.",
+          });
+          return;
+        }
+        if (walletScriptPubKey !== activity.depositorPayoutBtcAddress) {
+          setError({
+            title: "Payout Address Mismatch",
+            message:
+              "The payout address from the indexer does not match your connected wallet. " +
+              "This may indicate a data integrity issue. Please verify your wallet connection.",
+          });
+          return;
+        }
       }
 
-      // Success - show completion state and notify parent
-      setSigning(false);
-      setIsComplete(true);
-      onSuccess();
-    } catch (err) {
-      setError(formatPayoutSignatureError(err));
-      setSigning(false);
+      // Guard `providers[0]` explicitly rather than casting a possibly-undefined
+      // value — that would hide the "no provider assigned" case and leak
+      // `undefined` into `findProvider`.
+      const vaultProviderAddress = activity.providers[0]?.id;
+      if (!vaultProviderAddress) {
+        setError({
+          title: "Provider Not Assigned",
+          message:
+            "No vault provider is associated with this deposit. Please wait for indexer sync and try again.",
+        });
+        return;
+      }
+      const provider = findProvider(vaultProviderAddress);
+      if (!provider) {
+        setError({
+          title: "Provider Not Found",
+          message: "Vault provider not found.",
+        });
+        return;
+      }
+
+      const btcWalletProvider = btcConnector?.connectedWallet?.provider;
+      if (!btcWalletProvider) {
+        setError({
+          title: "Wallet Not Connected",
+          message: "BTC wallet not connected.",
+        });
+        return;
+      }
+
+      // `peginTxHash` is optional on `VaultActivity`, but payout signing
+      // cannot proceed without it — the SDK keys the VP poll by this txid.
+      // Guard explicitly instead of relying on a non-null assertion below.
+      if (!activity.peginTxHash) {
+        setError({
+          title: "Missing Pegin Transaction",
+          message:
+            "Pegin transaction hash not available yet. Please wait for indexer sync and try again.",
+        });
+        return;
+      }
+
+      setSigning(true);
+      setError(null);
+      // Reset progress; the SDK emits (completed, total) once it knows the
+      // real claimer count after polling the VP.
+      setProgress({ completed: 0, totalClaimers: 0 });
+
+      abortRef.current?.abort();
+      abortRef.current = new AbortController();
+
+      try {
+        await signAndSubmitPayouts({
+          vaultId: activity.id,
+          peginTxHash: activity.peginTxHash,
+          depositorBtcPubkey: btcPublicKey,
+          providerBtcPubKey: provider.btcPubKey,
+          registeredPayoutScriptPubKey: activity.depositorPayoutBtcAddress,
+          btcWallet: btcWalletProvider,
+          depositorEthAddress,
+          signal: abortRef.current.signal,
+          onProgress: (next) => {
+            if (next === null) return;
+            setProgress(next);
+          },
+        });
+
+        // localStorage is written by signAndSubmitPayouts; mirror it
+        // optimistically so the polling query picks up PAYOUT_SIGNED before
+        // the next poll cycle.
+        setOptimisticStatus(activity.id, LocalStorageStatus.PAYOUT_SIGNED);
+
+        setSigning(false);
+        setIsComplete(true);
+        onSuccess();
+      } catch (err) {
+        if (err instanceof Error && err.name === "AbortError") {
+          setSigning(false);
+          return;
+        }
+        setError(formatPayoutSignatureError(err));
+        setSigning(false);
+      }
+    } finally {
+      inFlightRef.current = false;
     }
   }, [
-    transactions,
-    depositorGraph,
+    signing,
     activity.providers,
     activity.peginTxHash,
     activity.id,
     activity.depositorPayoutBtcAddress,
     findProvider,
-    vaultKeepers,
-    latestUniversalChallengers,
     btcConnector?.connectedWallet?.account?.address,
     btcConnector?.connectedWallet?.provider,
     btcPublicKey,
@@ -252,11 +242,5 @@ export function usePayoutSigningState({
     onSuccess,
   ]);
 
-  return {
-    signing,
-    progress,
-    error,
-    isComplete,
-    handleSign,
-  };
+  return { signing, progress, error, isComplete, handleSign };
 }

@@ -131,10 +131,6 @@ vi.mock("@babylonlabs-io/ts-sdk/tbv/core/utils", () => ({
   ),
 }));
 
-vi.mock("@/utils/secretUtils", () => ({
-  hashSecret: vi.fn((hex: string) => `0x${hex.slice(0, 64)}` as Hex),
-}));
-
 const { mockLoggerError } = vi.hoisted(() => ({
   mockLoggerError: vi.fn(),
 }));
