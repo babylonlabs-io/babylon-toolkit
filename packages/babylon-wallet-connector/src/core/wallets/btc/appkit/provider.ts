@@ -46,9 +46,69 @@ export class AppKitBTCProvider implements IBTCProvider {
   private address?: string;
   private publicKey?: string;
   private eventHandlers: Map<string, Set<(...args: unknown[]) => void>> = new Map();
+  private listeningForChanges = false;
+  private boundHandleAccountChange: ((event: Event) => void) | null = null;
 
   constructor(config: BTCConfig) {
     this.config = config;
+  }
+
+  /**
+   * Emit an event to all registered handlers for the given event name.
+   */
+  private emit(eventName: string, ...args: unknown[]): void {
+    const handlers = this.eventHandlers.get(eventName);
+    if (!handlers) return;
+    for (const handler of handlers) {
+      try {
+        handler(...args);
+      } catch (error) {
+        console.error(`[AppKit Provider] Error in ${eventName} handler:`, error);
+      }
+    }
+  }
+
+  /**
+   * Start listening for account changes from the bridge hook.
+   * Sets up a persistent window listener for APPKIT_BTC_CONNECTED_EVENT
+   * so account switches are propagated to BTCWalletProvider via event handlers.
+   */
+  private startListeningForAccountChanges(): void {
+    if (this.listeningForChanges || typeof window === "undefined") return;
+
+    this.boundHandleAccountChange = (event: Event) => {
+      const detail = (event as BtcConnectedEvent).detail;
+
+      if (!detail?.address) {
+        // No address means disconnect — notify handlers with empty accounts array
+        this.emit("accountChanged");
+        this.emit("accountsChanged", []);
+        return;
+      }
+
+      if (detail.address === this.address) {
+        return;
+      }
+
+      this.address = detail.address;
+      this.publicKey = detail.publicKey;
+
+      this.emit("accountChanged");
+      this.emit("accountsChanged", [detail.address]);
+    };
+
+    window.addEventListener(APPKIT_BTC_CONNECTED_EVENT, this.boundHandleAccountChange);
+    this.listeningForChanges = true;
+  }
+
+  private stopListeningForAccountChanges(): void {
+    if (!this.listeningForChanges || typeof window === "undefined" || !this.boundHandleAccountChange) {
+      return;
+    }
+
+    window.removeEventListener(APPKIT_BTC_CONNECTED_EVENT, this.boundHandleAccountChange);
+    this.boundHandleAccountChange = null;
+    this.listeningForChanges = false;
   }
 
   /**
@@ -99,6 +159,7 @@ export class AppKitBTCProvider implements IBTCProvider {
         });
 
         await waitForConnection;
+        this.startListeningForAccountChanges();
         return;
       }
 
@@ -114,6 +175,7 @@ export class AppKitBTCProvider implements IBTCProvider {
       const { modal } = this.getAppKitConfig();
       await modal.disconnect();
     } finally {
+      this.stopListeningForAccountChanges();
       this.address = undefined;
       this.publicKey = undefined;
     }
@@ -274,8 +336,8 @@ export class AppKitBTCProvider implements IBTCProvider {
     return [];
   }
 
-  // Cleanup method for proper resource management
   destroy(): void {
+    this.stopListeningForAccountChanges();
     this.eventHandlers.clear();
   }
 }

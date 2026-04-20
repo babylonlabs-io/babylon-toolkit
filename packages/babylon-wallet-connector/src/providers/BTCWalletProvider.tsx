@@ -10,10 +10,11 @@ import {
 import type { networks } from "bitcoinjs-lib";
 
 import { ACCOUNT_CHANGE_EVENTS, DISCONNECT_EVENT } from "@/constants/walletEvents";
+import type { IBTCProvider, InscriptionIdentifier, Network, SignPsbtOptions } from "@/core/types";
+import { toXOnlyPublicKeyHex } from "@/core/utils/wallet";
 import { useChainConnector } from "@/hooks/useChainConnector";
 import { useVisibilityCheck } from "@/hooks/useVisibilityCheck";
 import { useWalletConnect } from "@/hooks/useWalletConnect";
-import type { IBTCProvider, InscriptionIdentifier, Network, SignPsbtOptions } from "@/core/types";
 
 export interface BTCWalletLifecycleCallbacks {
   onConnect?: (address: string, publicKeyNoCoord: string) => void | Promise<void>;
@@ -105,10 +106,7 @@ export const BTCWalletProvider = ({ children, callbacks }: BTCWalletProviderProp
           throw new Error("BTC wallet provider returned an empty public key");
         }
 
-        // Get public key without coordinates (remove first byte which indicates compression)
-        const publicKeyNoCoordHex = publicKeyHex.length === 66 
-          ? publicKeyHex.slice(2) 
-          : publicKeyHex;
+        const publicKeyNoCoordHex = toXOnlyPublicKeyHex(publicKeyHex);
 
         if (!publicKeyNoCoordHex) {
           throw new Error("Processed BTC public key (no coordinates) is empty");
@@ -187,10 +185,7 @@ export const BTCWalletProvider = ({ children, callbacks }: BTCWalletProviderProp
             throw new Error("BTC wallet provider returned an empty public key after account change");
           }
 
-          // Get public key without coordinates (remove first byte which indicates compression)
-          const newPublicKeyNoCoord = newPublicKeyHex.length === 66
-            ? newPublicKeyHex.slice(2)
-            : newPublicKeyHex;
+          const newPublicKeyNoCoord = toXOnlyPublicKeyHex(newPublicKeyHex);
 
           setAddress(newAddress);
           setPublicKeyNoCoord(newPublicKeyNoCoord);
@@ -252,7 +247,7 @@ export const BTCWalletProvider = ({ children, callbacks }: BTCWalletProviderProp
           disconnect();
           return;
         }
-        const pubKeyNoCoord = pubKeyHex.length === 66 ? pubKeyHex.slice(2) : pubKeyHex;
+        const pubKeyNoCoord = toXOnlyPublicKeyHex(pubKeyHex);
         setAddress(currentAddress);
         setPublicKeyNoCoord(pubKeyNoCoord);
         await callbacks?.onAddressChange?.(currentAddress, pubKeyNoCoord);
