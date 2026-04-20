@@ -29,12 +29,23 @@ export interface UtxoRef {
 
 /** Narrow structural type for pending pegin data. */
 export interface PendingPeginLike {
+  /**
+   * Optional vault id. When present, used to skip pending pegins that are
+   * already indexed on-chain so the canonical vault copy wins over a
+   * tamperable off-chain entry.
+   */
+  id?: string;
   selectedUTXOs?: Array<{ txid: string; vout: number }>;
   unsignedTxHex?: string;
 }
 
 /** Narrow structural type for vault data. */
 export interface VaultLike {
+  /**
+   * Optional vault id. When present, enables on-chain correlation with
+   * pending pegins sharing the same id.
+   */
+  id?: string;
   status: number;
   unsignedPrePeginTx: string;
 }
@@ -61,7 +72,14 @@ export interface CollectReservedUtxoRefsParams {
 // Internal Helpers
 // ============================================================================
 
-/** Parse a transaction hex and return the UTXO references of all inputs. */
+/**
+ * Parse a transaction hex and return the UTXO references of all inputs.
+ *
+ * Parse failures are logged and yield no refs. A malformed hex from an
+ * untrusted source (e.g. off-chain storage) must not silently collapse the
+ * reservation set — logging makes tampering visible in telemetry instead
+ * of swallowing the error.
+ */
 function extractInputUtxoRefs(txHex: string): UtxoRef[] {
   try {
     const tx = Transaction.fromHex(stripHexPrefix(txHex));
@@ -69,7 +87,14 @@ function extractInputUtxoRefs(txHex: string): UtxoRef[] {
       const txid = Buffer.from(input.hash).reverse().toString("hex");
       return { txid, vout: input.index };
     });
-  } catch {
+  } catch (error) {
+    console.warn(
+      "[utxoReservation] Failed to parse transaction hex; skipping inputs",
+      {
+        category: "utxoReservation",
+        error: error instanceof Error ? error.message : String(error),
+      },
+    );
     return [];
   }
 }
@@ -117,7 +142,22 @@ function estimateMinimumFeeBuffer(feeRate: number): bigint {
 // ============================================================================
 
 /**
- * Collect UTXO refs from in-flight deposits (PENDING/VERIFIED vaults and pending pegins).
+ * Collect UTXO refs from in-flight deposits (PENDING/VERIFIED vaults and
+ * pending pegins).
+ *
+ * On-chain vault data is canonical: for any pending pegin whose `id` matches
+ * an indexed on-chain vault, the pending-pegin copy is ignored entirely —
+ * the `vaults` branch below extracts refs from the indexer-supplied
+ * `unsignedPrePeginTx` so tampered off-chain data cannot poison the
+ * reservation set once the vault is indexed.
+ *
+ * For pegins not yet indexed, refs are derived from the stored
+ * `unsignedTxHex` only. The `selectedUTXOs` sidecar is NOT used for
+ * reservation: if it disagreed with the transaction's inputs (e.g. because
+ * the off-chain source was tampered), trusting it would poison the reserved
+ * set. The transaction hex must be validated at the source boundary before
+ * being handed to this function; parsing and using its inputs is the single
+ * source of truth here.
  */
 export function collectReservedUtxoRefs(
   params: CollectReservedUtxoRefsParams,
@@ -125,18 +165,21 @@ export function collectReservedUtxoRefs(
   const reserved: UtxoRef[] = [];
   const { vaults = [], pendingPegins = [] } = params;
 
-  // Collect from pending pegins
+  const onChainVaultIds = new Set(
+    vaults
+      .map((v) => v.id?.toLowerCase())
+      .filter((id): id is string => id !== undefined),
+  );
+
   for (const pending of pendingPegins) {
-    if (pending.selectedUTXOs && pending.selectedUTXOs.length > 0) {
-      for (const utxo of pending.selectedUTXOs) {
-        reserved.push({ txid: utxo.txid, vout: utxo.vout });
-      }
-    } else if (pending.unsignedTxHex) {
+    if (pending.id && onChainVaultIds.has(pending.id.toLowerCase())) {
+      continue;
+    }
+    if (pending.unsignedTxHex) {
       reserved.push(...extractInputUtxoRefs(pending.unsignedTxHex));
     }
   }
 
-  // Collect from PENDING/VERIFIED vaults
   for (const vault of vaults) {
     if (
       vault.status !== ContractStatus.PENDING &&
