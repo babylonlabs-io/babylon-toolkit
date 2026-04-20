@@ -256,8 +256,10 @@ describe("scrubSentryEvent", () => {
             stacktrace: {
               frames: [
                 {
-                  filename: "/app/0x742d35Cc6634C0532925a3b844Bc9e7595f2bD80/index.js",
-                  abs_path: "/abs/0x742d35Cc6634C0532925a3b844Bc9e7595f2bD80/index.js",
+                  filename:
+                    "/app/0x742d35Cc6634C0532925a3b844Bc9e7595f2bD80/index.js",
+                  abs_path:
+                    "/abs/0x742d35Cc6634C0532925a3b844Bc9e7595f2bD80/index.js",
                   module: "module.0x742d35Cc6634C0532925a3b844Bc9e7595f2bD80",
                   vars: {
                     depositorBtcPubkey: "a".repeat(64),
