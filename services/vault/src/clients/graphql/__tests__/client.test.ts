@@ -36,6 +36,23 @@ describe("graphqlClient timeout", () => {
     vi.useRealTimers();
   });
 
+  it("clears timeout after successful response", async () => {
+    const clearTimeoutSpy = vi.spyOn(globalThis, "clearTimeout");
+
+    mockFetch.mockResolvedValue(
+      new Response(JSON.stringify({ data: { vaults: [] } }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+
+    const { graphqlClient } = await import("../client");
+    await graphqlClient.request("{ vaults { id } }");
+
+    expect(clearTimeoutSpy).toHaveBeenCalled();
+    clearTimeoutSpy.mockRestore();
+  });
+
   it("aborts requests after 30s timeout", async () => {
     mockFetch.mockImplementation(
       (_url: string, options?: RequestInit) =>
