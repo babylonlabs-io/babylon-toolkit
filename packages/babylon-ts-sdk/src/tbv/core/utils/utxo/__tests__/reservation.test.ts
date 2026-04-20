@@ -1,6 +1,6 @@
 /** Tests for UTXO reservation utilities. */
 
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ContractStatus } from "../../../services/deposit/peginState";
 import {
@@ -26,33 +26,23 @@ function hasRef(refs: UtxoRef[], txid: string, vout: number): boolean {
   );
 }
 
+// Representative 32-byte txids as lowercase hex. Real Bitcoin txids are always
+// 64 hex chars; validators at the source boundary reject anything else.
+const TXID_A = "a".repeat(64);
+const TXID_B = "b".repeat(64);
+
 describe("UTXO Reservation", () => {
+  let warnSpy: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    warnSpy.mockRestore();
+  });
+
   describe("collectReservedUtxoRefs", () => {
-    const mockPendingPegin: PendingPeginLike = {
-      selectedUTXOs: [
-        { txid: "txid1", vout: 0 },
-        { txid: "txid2", vout: 1 },
-      ],
-    };
-
-    // Valid transaction hex for testing unsignedTxHex parsing
-    const VALID_TX_FOR_PENDING =
-      "0100000001" +
-      "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" + // prev txid (LE)
-      "03000000" + // prev vout = 3
-      "6b" +
-      "483045022100884d142d86652a3f47ba4746ec719bbfbd040a570b1deccbb6498c75c4ae24cb02204b9f039ff08df09cbe9f6addac960298cad530a863ea8f53982c09db8f6e381301210484ecc0d46f1918b30928fa0e4ed99f16a0fb4fde0735e7ade8416ab9fe423cc5" +
-      "ffffffff" +
-      "01" +
-      "605af40500000000" +
-      "19" +
-      "76a914887c6824d03eb8997b1e28c1d81b4e5c8c96d41688ac" +
-      "00000000";
-
-    const mockPendingPeginWithTxHex: PendingPeginLike = {
-      unsignedTxHex: VALID_TX_FOR_PENDING,
-    };
-
     // Helper to create a valid transaction hex with a specific prev txid
     const createValidTxHex = (prevTxidLE: string, prevVout: number): string => {
       const voutHex = prevVout.toString(16).padStart(8, "0");
@@ -76,39 +66,64 @@ describe("UTXO Reservation", () => {
       );
     };
 
+    // Valid transaction hex that spends a single input at `TXID_A:3`.
+    const VALID_TX_PENDING_TXID_A =
+      "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+    const VALID_TX_FOR_PENDING = createValidTxHex(VALID_TX_PENDING_TXID_A, 3);
+
+    const mockPendingPegin: PendingPeginLike = {
+      id: "0x1234",
+      unsignedTxHex: VALID_TX_FOR_PENDING,
+      // Present but ignored by `collectReservedUtxoRefs`; refs come from the
+      // transaction hex to avoid trusting a tamperable sidecar.
+      selectedUTXOs: [
+        {
+          txid: VALID_TX_PENDING_TXID_A,
+          vout: 3,
+        },
+      ],
+    };
+
     const createMockVault = (
       status: ContractStatus,
       unsignedPrePeginTx: string,
+      id?: string,
     ): VaultLike => ({
+      id,
       status,
       unsignedPrePeginTx,
     });
 
-    it("should collect refs from selectedUTXOs", () => {
+    it("should collect refs from the pending pegin's unsignedTxHex", () => {
       const reserved = collectReservedUtxoRefs({
         pendingPegins: [mockPendingPegin],
         vaults: [],
       });
 
-      expect(reserved).toHaveLength(2);
-      expect(hasRef(reserved, "txid1", 0)).toBe(true);
-      expect(hasRef(reserved, "txid2", 1)).toBe(true);
+      expect(reserved).toHaveLength(1);
+      expect(hasRef(reserved, VALID_TX_PENDING_TXID_A, 3)).toBe(true);
     });
 
-    it("should fall back to parsing unsignedTxHex when selectedUTXOs absent", () => {
+    it("ignores selectedUTXOs even when they would add extra refs", () => {
+      // The sidecar claims two UTXOs but the transaction only has one.
+      // collectReservedUtxoRefs must trust the transaction, not the sidecar.
+      const pegin: PendingPeginLike = {
+        ...mockPendingPegin,
+        selectedUTXOs: [
+          { txid: TXID_A, vout: 0 },
+          { txid: TXID_B, vout: 1 },
+        ],
+      };
+
       const reserved = collectReservedUtxoRefs({
-        pendingPegins: [mockPendingPeginWithTxHex],
+        pendingPegins: [pegin],
         vaults: [],
       });
 
       expect(reserved).toHaveLength(1);
-      expect(
-        hasRef(
-          reserved,
-          "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-          3,
-        ),
-      ).toBe(true);
+      expect(hasRef(reserved, VALID_TX_PENDING_TXID_A, 3)).toBe(true);
+      expect(hasRef(reserved, TXID_A, 0)).toBe(false);
+      expect(hasRef(reserved, TXID_B, 1)).toBe(false);
     });
 
     it("should include refs from PENDING vaults", () => {
@@ -275,9 +290,8 @@ describe("UTXO Reservation", () => {
         vaults: [pendingVault],
       });
 
-      expect(reserved).toHaveLength(3); // 2 from pending + 1 from vault
-      expect(hasRef(reserved, "txid1", 0)).toBe(true);
-      expect(hasRef(reserved, "txid2", 1)).toBe(true);
+      expect(reserved).toHaveLength(2); // 1 from pending tx + 1 from vault
+      expect(hasRef(reserved, VALID_TX_PENDING_TXID_A, 3)).toBe(true);
       expect(
         hasRef(
           reserved,
@@ -300,6 +314,72 @@ describe("UTXO Reservation", () => {
       const reserved = collectReservedUtxoRefs({});
 
       expect(reserved).toHaveLength(0);
+    });
+
+    it("ignores pending-pegin refs when the pegin is already indexed on-chain", () => {
+      const ON_CHAIN_TXID =
+        "1111111111111111111111111111111111111111111111111111111111111111";
+      const sharedVaultId = "0xshared";
+      const onChainVault = createMockVault(
+        ContractStatus.PENDING,
+        createValidTxHex(ON_CHAIN_TXID, 0),
+        sharedVaultId,
+      );
+      const tamperedPending: PendingPeginLike = {
+        ...mockPendingPegin,
+        id: sharedVaultId,
+        unsignedTxHex: createValidTxHex("f".repeat(64), 99),
+      };
+
+      const reserved = collectReservedUtxoRefs({
+        pendingPegins: [tamperedPending],
+        vaults: [onChainVault],
+      });
+
+      expect(reserved).toHaveLength(1);
+      expect(hasRef(reserved, ON_CHAIN_TXID, 0)).toBe(true);
+      expect(hasRef(reserved, "f".repeat(64), 99)).toBe(false);
+    });
+
+    it("ignores pending-pegin refs even when matching vault has non-reserving status", () => {
+      // Pegin is on-chain but ACTIVE: the vault branch adds no refs (UTXO is
+      // spent), and the pending-pegin copy is skipped to avoid resurrecting
+      // stale/tampered refs after the real spend.
+      const sharedVaultId = "0xactiveshared";
+      const activeVault = createMockVault(
+        ContractStatus.ACTIVE,
+        createValidTxHex("c".repeat(64), 0),
+        sharedVaultId,
+      );
+      const pendingCopy: PendingPeginLike = {
+        ...mockPendingPegin,
+        id: sharedVaultId,
+      };
+
+      const reserved = collectReservedUtxoRefs({
+        pendingPegins: [pendingCopy],
+        vaults: [activeVault],
+      });
+
+      expect(reserved).toHaveLength(0);
+    });
+
+    it("logs and yields no refs when unsignedTxHex fails to parse", () => {
+      const tamperedPending: PendingPeginLike = {
+        id: "0xbadhex",
+        unsignedTxHex: "deadbeef", // parseable hex but not a valid transaction
+      };
+
+      const reserved = collectReservedUtxoRefs({
+        pendingPegins: [tamperedPending],
+        vaults: [],
+      });
+
+      expect(reserved).toHaveLength(0);
+      expect(warnSpy).toHaveBeenCalledWith(
+        "[utxoReservation] Failed to parse transaction hex; skipping inputs",
+        expect.objectContaining({ category: "utxoReservation" }),
+      );
     });
   });
 

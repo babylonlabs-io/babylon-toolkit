@@ -49,6 +49,116 @@ export interface PendingPeginRequest {
   batchTotal?: number; // Total vaults in batch (1 or 2)
 }
 
+// Hex with optional 0x prefix and at least one byte (even-length).
+// Matches `0x<even-hex>` or `<even-hex>`; rejects bare `0x` and odd lengths.
+const NON_EMPTY_HEX_RE = /^(0x)?([0-9a-fA-F]{2})+$/;
+// Bitcoin txids are always 32 bytes = exactly 64 hex chars.
+const TXID_HEX_RE = /^[0-9a-fA-F]{64}$/;
+// scriptPubKey is variable-length but must be an even number of hex chars.
+// Intentionally distinct from NON_EMPTY_HEX_RE: raw Bitcoin script is never
+// 0x-prefixed, so the prefix option is disallowed here. Do not "dedupe" these.
+const SCRIPT_PUBKEY_HEX_RE = /^([0-9a-fA-F]{2})+$/;
+// Valid LocalStorageStatus string values. Kept in lock-step with
+// OffChainTrackingStatus in models/peginStateMachine.ts.
+const VALID_LOCAL_STORAGE_STATUSES: ReadonlySet<string> = new Set([
+  "pending",
+  "payout_signed",
+  "confirming",
+  "confirmed",
+]);
+// Vault `id` is keccak256(abi.encode(peginTxHash, depositor)) — always 32 bytes.
+// `peginTxHash` is a Bitcoin tx hash — also 32 bytes. Accept the legacy form
+// without `0x` prefix (normalizeTransactionId canonicalizes downstream).
+const BYTES32_HEX_RE = /^(0x)?[0-9a-fA-F]{64}$/;
+
+/**
+ * Validate the security-critical fields of a pending peg-in read from
+ * localStorage.
+ *
+ * localStorage is an untrusted boundary: entries can be tampered by XSS,
+ * browser extensions, or a user manually editing devtools. Every field used in
+ * a security-relevant code path (UTXO reservation, on-chain vault matching,
+ * PSBT construction, or ID normalization) must pass a strict shape check. A
+ * non-string `id`, for example, would otherwise throw inside
+ * `normalizeTransactionId`, fall into the outer catch block, and wipe the
+ * whole storage key — a DoS from a single tampered entry.
+ */
+function hasValidSecurityFields(entry: unknown): entry is PendingPeginRequest {
+  if (!entry || typeof entry !== "object") return false;
+  const pegin = entry as Record<string, unknown>;
+
+  if (typeof pegin.id !== "string" || !BYTES32_HEX_RE.test(pegin.id)) {
+    return false;
+  }
+  if (
+    typeof pegin.peginTxHash !== "string" ||
+    !BYTES32_HEX_RE.test(pegin.peginTxHash)
+  ) {
+    return false;
+  }
+  if (
+    typeof pegin.timestamp !== "number" ||
+    !Number.isFinite(pegin.timestamp) ||
+    pegin.timestamp < 0
+  ) {
+    return false;
+  }
+
+  // `status` may be missing (legacy entries — line 200 back-fills to PENDING),
+  // but if present it must be one of the known enum string values. A tampered
+  // status (e.g. a number, or a non-enum string) could otherwise slip past
+  // the `pegin.status || ...` fallback and confuse the state machine.
+  if (pegin.status !== undefined) {
+    if (
+      typeof pegin.status !== "string" ||
+      !VALID_LOCAL_STORAGE_STATUSES.has(pegin.status)
+    ) {
+      return false;
+    }
+  }
+
+  if (typeof pegin.unsignedTxHex !== "string") return false;
+  // Empty string is the explicit cross-device "no local data" marker; anything
+  // else must be non-empty, even-length hex bytes (`0x` prefix optional).
+  if (
+    pegin.unsignedTxHex !== "" &&
+    !NON_EMPTY_HEX_RE.test(pegin.unsignedTxHex)
+  ) {
+    return false;
+  }
+
+  if (pegin.selectedUTXOs !== undefined) {
+    if (!Array.isArray(pegin.selectedUTXOs)) return false;
+    for (const candidate of pegin.selectedUTXOs) {
+      if (!candidate || typeof candidate !== "object") return false;
+      const utxo = candidate as Record<string, unknown>;
+      if (typeof utxo.txid !== "string" || !TXID_HEX_RE.test(utxo.txid)) {
+        return false;
+      }
+      if (
+        typeof utxo.vout !== "number" ||
+        !Number.isInteger(utxo.vout) ||
+        utxo.vout < 0
+      ) {
+        return false;
+      }
+      if (typeof utxo.value !== "string") return false;
+      const numValue = Number(utxo.value);
+      // Bitcoin outputs must carry value — a zero-sat UTXO is not a valid
+      // spendable output (dust rules aside, the protocol requires value > 0).
+      if (!Number.isSafeInteger(numValue) || numValue <= 0) return false;
+      if (
+        typeof utxo.scriptPubKey !== "string" ||
+        !SCRIPT_PUBKEY_HEX_RE.test(utxo.scriptPubKey)
+      ) {
+        return false;
+      }
+    }
+  }
+
+  return true;
+}
+
 /**
  * Get storage key for a specific address
  */
@@ -87,11 +197,28 @@ export function getPendingPegins(ethAddress: string): PendingPeginRequest[] {
     const stored = localStorage.getItem(key);
     if (!stored) return [];
 
-    const parsed: PendingPeginRequest[] = JSON.parse(stored);
+    const parsed: unknown = JSON.parse(stored);
+    if (!Array.isArray(parsed)) return [];
+
+    // Filter out entries whose security-critical fields (unsignedTxHex,
+    // selectedUTXOs) fail a strict format check. A tampered entry would
+    // otherwise feed malformed hex into downstream consumers.
+    const validated = parsed.filter((entry): entry is PendingPeginRequest => {
+      if (hasValidSecurityFields(entry)) return true;
+      const maybeId =
+        entry && typeof entry === "object" && "id" in entry
+          ? String((entry as { id: unknown }).id)
+          : "unknown";
+      logger.warn("[peginStorage] Skipping corrupted pending pegin entry", {
+        category: "peginStorage",
+        vaultId: maybeId,
+      });
+      return false;
+    });
 
     // Normalize IDs to ensure they all have 0x prefix (handles legacy data)
     // Note: We do NOT save back to localStorage here to avoid side effects
-    const normalized = parsed.map((pegin) => ({
+    const normalized = validated.map((pegin) => ({
       ...pegin,
       id: normalizeTransactionId(pegin.id),
       // Ensure status field exists (backward compatibility)
