@@ -49,7 +49,9 @@ export function stripHexPrefix(hex: string): string {
  * @returns `0x`-prefixed hex string typed as viem Hex
  */
 export function ensureHexPrefix(hex: string): Hex {
-  return hex.startsWith("0x") ? (hex as Hex) : (`0x${hex}` as Hex);
+  if (hex.startsWith("0x")) return hex as Hex;
+  if (hex.startsWith("0X")) return `0x${hex.slice(2)}` as Hex;
+  return `0x${hex}` as Hex;
 }
 
 /**

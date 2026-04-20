@@ -11,7 +11,6 @@ import type {
 } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import {
   DaemonStatus,
-  VaultProviderRpcClient,
   VP_TRANSIENT_STATUSES,
   VpResponseValidationError,
 } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
@@ -38,6 +37,7 @@ import {
   groupDepositsByProvider,
   isTerminalPollingError,
 } from "../../utils/peginPolling";
+import { createVpClient } from "../../utils/rpc";
 
 interface UsePeginPollingQueryParams {
   activities: VaultActivity[];
@@ -85,7 +85,7 @@ interface UsePeginPollingQueryResult {
  * `requestDepositorPresignTransactions` when the VP is in the right state.
  */
 async function fetchFromProvider(
-  providerUrl: string,
+  providerAddress: string,
   deposits: DepositToPoll[],
   btcPublicKey: string,
   results: Map<string, ClaimerTransactions[]>,
@@ -94,7 +94,7 @@ async function fetchFromProvider(
   needsWotsKey: Set<string>,
   pendingIngestion: Set<string>,
 ): Promise<void> {
-  const rpcClient = new VaultProviderRpcClient(providerUrl);
+  const rpcClient = createVpClient(providerAddress);
 
   for (const deposit of deposits) {
     const depositId = deposit.activity.id;
@@ -251,9 +251,9 @@ export function usePeginPollingQuery({
 
       // Fetch from each provider in parallel
       const fetchPromises = Array.from(depositsByProvider.entries()).map(
-        ([, { providerUrl, deposits }]: [string, DepositsByProvider]) =>
+        ([, { providerAddress, deposits }]: [string, DepositsByProvider]) =>
           fetchFromProvider(
-            providerUrl,
+            providerAddress,
             deposits,
             currentBtcPubKey,
             transactions,

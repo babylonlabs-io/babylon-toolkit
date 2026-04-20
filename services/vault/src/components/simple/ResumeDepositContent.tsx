@@ -9,10 +9,6 @@
  */
 
 import { Button, Input } from "@babylonlabs-io/core-ui";
-import type {
-  ClaimerTransactions,
-  DepositorGraphTransactions,
-} from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import { useCallback, useMemo, useState } from "react";
 import type { Hex } from "viem";
 
@@ -47,8 +43,6 @@ import { DepositProgressView } from "./DepositProgressView";
 
 export interface ResumeSignContentProps {
   activity: VaultActivity;
-  transactions: ClaimerTransactions[] | null;
-  depositorGraph: DepositorGraphTransactions;
   btcPublicKey: string;
   depositorEthAddress: Hex;
   onClose: () => void;
@@ -57,8 +51,6 @@ export interface ResumeSignContentProps {
 
 export function ResumeSignContent({
   activity,
-  transactions,
-  depositorGraph,
   btcPublicKey,
   depositorEthAddress,
   onClose,
@@ -67,8 +59,6 @@ export function ResumeSignContent({
   const { signing, progress, error, isComplete, handleSign } =
     usePayoutSigningState({
       activity,
-      transactions,
-      depositorGraph,
       btcPublicKey,
       depositorEthAddress,
       onSuccess,
@@ -103,7 +93,7 @@ export function ResumeSignContent({
 }
 
 // ---------------------------------------------------------------------------
-// Broadcast BTC Content
+// Broadcast Pre-PegIn Content
 // ---------------------------------------------------------------------------
 
 export interface ResumeBroadcastContentProps {

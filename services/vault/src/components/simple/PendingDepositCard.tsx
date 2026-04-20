@@ -6,10 +6,6 @@
  */
 
 import { Button } from "@babylonlabs-io/core-ui";
-import type {
-  ClaimerTransactions,
-  DepositorGraphTransactions,
-} from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 
 import {
   getActionStatus,
@@ -31,11 +27,7 @@ interface PendingDepositCardProps {
   txHash?: string;
   providerId: string;
   vaultProviders: VaultProvider[];
-  onSignClick: (
-    depositId: string,
-    transactions: ClaimerTransactions[],
-    depositorGraph: DepositorGraphTransactions,
-  ) => void;
+  onSignClick: (depositId: string) => void;
   onBroadcastClick: (depositId: string) => void;
   onWotsKeyClick: (depositId: string) => void;
   onActivationClick: (depositId: string) => void;
@@ -61,7 +53,10 @@ export function PendingDepositCard({
 
   if (!pollingResult) return null;
 
-  const { loading, transactions, depositorGraph, peginState } = pollingResult;
+  // `transactions` is destructured for the row-local readiness UX hint
+  // (button label / disabled state below). The signing flow itself no longer
+  // consumes them — the SDK's pollAndSignPayouts re-polls the VP.
+  const { loading, transactions, peginState } = pollingResult;
   const status = getActionStatus(pollingResult);
   const isActionable = status.type === "available";
   const showArtifactDownload =
@@ -74,9 +69,7 @@ export function PendingDepositCard({
     if (action === PeginAction.SUBMIT_WOTS_KEY) {
       onWotsKeyClick(depositId);
     } else if (action === PeginAction.SIGN_PAYOUT_TRANSACTIONS) {
-      if (transactions && depositorGraph) {
-        onSignClick(depositId, transactions, depositorGraph);
-      }
+      onSignClick(depositId);
     } else if (action === PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN) {
       onBroadcastClick(depositId);
     } else if (action === PeginAction.ACTIVATE_VAULT) {
@@ -88,6 +81,8 @@ export function PendingDepositCard({
 
   const actionLabel =
     status.type === "available" ? status.action.label : peginState.displayLabel;
+  // Show "Loading..." only when this row has no transactions snapshot yet —
+  // not on every refetch of the polling query.
   const label = loading && !transactions ? "Loading..." : actionLabel;
   const buttonDisabled = !isActionable || (loading && !transactions);
   const dotColor = STATUS_DOT_COLORS[peginState.displayVariant];

@@ -23,6 +23,7 @@
 import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
 import { ensureHexPrefix } from "@babylonlabs-io/ts-sdk/tbv/core";
 import { VpResponseValidationError } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
+import { computeHashlock } from "@babylonlabs-io/ts-sdk/tbv/core/services";
 import {
   collectReservedUtxoRefs,
   selectUtxosForDeposit,
@@ -54,7 +55,6 @@ import { btcAddressToScriptPubKeyHex } from "@/utils/btc";
 import { satoshiToBtcNumber } from "@/utils/btcConversion";
 import { sanitizeErrorMessage } from "@/utils/errors/formatting";
 import { formatBtcValue } from "@/utils/formatting";
-import { hashSecret } from "@/utils/secretUtils";
 
 import {
   DepositFlowStep,
@@ -327,9 +327,11 @@ export function useDepositFlow(
 
         setCurrentStep(DepositFlowStep.SIGN_POP);
 
-        // Compute hashlocks from secrets
-        const hashlocks = htlcSecretHexes.map(
-          (hex) => hashSecret(hex).slice(2), // strip 0x prefix
+        // Compute hashlocks from secrets.
+        // SDK's computeHashlock takes 0x-prefixed hex and returns 0x-prefixed;
+        // Pre-PegIn params expect hashlocks without the 0x prefix.
+        const hashlocks = htlcSecretHexes.map((hex) =>
+          computeHashlock(ensureHexPrefix(hex)).slice(2),
         );
 
         // Filter out UTXOs reserved by in-flight deposits to prevent

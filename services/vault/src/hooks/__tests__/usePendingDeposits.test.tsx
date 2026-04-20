@@ -41,9 +41,7 @@ vi.mock("@/hooks/deposit/useAllDepositProviders", () => ({
 
 vi.mock("@/hooks/deposit/usePayoutSignModal", () => ({
   usePayoutSignModal: vi.fn(() => ({
-    isOpen: false,
-    signingActivity: null,
-    signingTransactions: null,
+    signingData: null,
     handleSignClick: vi.fn(),
     handleClose: vi.fn(),
     handleSuccess: vi.fn(),

@@ -1,8 +1,4 @@
 import { FullScreenDialog, Heading } from "@babylonlabs-io/core-ui";
-import type {
-  ClaimerTransactions,
-  DepositorGraphTransactions,
-} from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Hex } from "viem";
 
@@ -55,8 +51,6 @@ type NewDepositProps = SimpleDepositBaseProps & {
 type ResumeSignProps = SimpleDepositBaseProps & {
   resumeMode: "sign_payouts";
   activity: VaultActivity;
-  transactions: ClaimerTransactions[] | null;
-  depositorGraph: DepositorGraphTransactions;
   btcPublicKey: string;
   depositorEthAddress: Hex;
   onResumeSuccess: () => void;
@@ -466,8 +460,6 @@ export default function SimpleDeposit(props: SimpleDepositProps) {
             {resumeMode === "sign_payouts" ? (
               <ResumeSignContent
                 activity={props.activity}
-                transactions={props.transactions}
-                depositorGraph={props.depositorGraph}
                 btcPublicKey={props.btcPublicKey}
                 depositorEthAddress={props.depositorEthAddress}
                 onClose={onClose}

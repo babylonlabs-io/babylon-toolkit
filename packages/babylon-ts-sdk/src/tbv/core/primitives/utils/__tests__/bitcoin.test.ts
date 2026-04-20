@@ -4,6 +4,7 @@
 
 import { describe, expect, it } from "vitest";
 import {
+  ensureHexPrefix,
   formatSatoshisToBtc,
   hexToUint8Array,
   isValidHex,
@@ -35,6 +36,20 @@ describe("Bitcoin Utilities", () => {
     it("should handle edge cases", () => {
       expect(stripHexPrefix("0x")).toBe("");
       expect(stripHexPrefix("0X")).toBe("");
+    });
+  });
+
+  describe("ensureHexPrefix", () => {
+    it("should leave a lowercase 0x prefix untouched", () => {
+      expect(ensureHexPrefix("0xabc123")).toBe("0xabc123");
+    });
+
+    it("should normalize an uppercase 0X prefix to 0x", () => {
+      expect(ensureHexPrefix("0Xabc123")).toBe("0xabc123");
+    });
+
+    it("should add a 0x prefix when missing", () => {
+      expect(ensureHexPrefix("abc123")).toBe("0xabc123");
     });
   });
 

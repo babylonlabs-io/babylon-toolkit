@@ -61,10 +61,6 @@ vi.mock("@/utils/btc", () => ({
   stripHexPrefix: vi.fn((hex: string) => hex.replace("0x", "")),
 }));
 
-vi.mock("@/utils/htlcSecret", () => ({
-  validateSecretAgainstHashlock: vi.fn(),
-}));
-
 vi.mock("@/models/peginStateMachine", async (importOriginal) => {
   const actual =
     await importOriginal<typeof import("@/models/peginStateMachine")>();

@@ -419,7 +419,7 @@ export function getPrimaryActionButton(state: PeginState): {
     state.availableActions.includes(PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN)
   ) {
     return {
-      label: "Broadcast BTC",
+      label: "Broadcast Pre-PegIn",
       action: PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN,
     };
   }

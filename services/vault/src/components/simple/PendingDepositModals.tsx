@@ -89,8 +89,6 @@ export function PendingDepositModals({
           onClose={signModal.handleClose}
           onResumeSuccess={signModal.handleSuccess}
           activity={signModal.signingData.activity}
-          transactions={signModal.signingData.transactions}
-          depositorGraph={signModal.signingData.depositorGraph}
           btcPublicKey={btcPublicKey}
           depositorEthAddress={ethAddress as Hex}
         />
