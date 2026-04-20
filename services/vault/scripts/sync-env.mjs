@@ -43,6 +43,19 @@ const FIELD_MAP = {
   "contracts.btcPriceFeed": "NEXT_PUBLIC_TBV_BTC_PRICE_FEED",
 };
 
+/** Keys whose changes warrant a prominent warning — contract addresses and endpoints. */
+const SECURITY_CRITICAL_KEYS = new Set([
+  "NEXT_PUBLIC_TBV_BTC_VAULT_REGISTRY",
+  "NEXT_PUBLIC_TBV_AAVE_ADAPTER",
+  "NEXT_PUBLIC_TBV_BTC_PRICE_FEED",
+  "NEXT_PUBLIC_ETH_RPC_URL",
+  "NEXT_PUBLIC_TBV_VP_PROXY_URL",
+]);
+
+function formatChange({ key, from }) {
+  return `  ${key}: ${from === "(missing)" ? "added" : "changed"}`;
+}
+
 function resolve(obj, path) {
   return path.split(".").reduce((o, k) => o?.[k], obj);
 }
@@ -198,8 +211,8 @@ function main() {
       return;
     }
     console.log(`sync-env: .env is stale (${updated.length} values differ from ${network}):`);
-    for (const { key, from, to } of updated) {
-      console.log(`  ${key}: ${from} → ${to}`);
+    for (const change of updated) {
+      console.log(formatChange(change));
     }
     process.exit(1);
   }
@@ -234,9 +247,17 @@ function main() {
 
     writeFileSync(path, serializeEnv(entries));
     console.log(`sync-env: updated ${updated.length} value(s) in ${label} from ${network}:`);
-    for (const { key, from, to } of updated) {
-      console.log(`  ${key}: ${from} → ${to}`);
+    for (const change of updated) {
+      console.log(formatChange(change));
     }
+
+    const criticalChanges = updated.filter(({ key }) => SECURITY_CRITICAL_KEYS.has(key));
+    if (criticalChanges.length > 0) {
+      const names = criticalChanges.map(({ key }) => key).join(", ");
+      console.error(`\n⚠ sync-env: security-critical values changed: ${names}`);
+      console.error("  Verify these are expected. If not, restore .env from git: git checkout -- .env\n");
+    }
+
     totalUpdated += updated.length;
   }
 
