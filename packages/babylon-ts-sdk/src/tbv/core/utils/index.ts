@@ -9,3 +9,4 @@ export * from "./utxo";
 export * from "./transaction";
 export * from "./btc";
 export * from "./signing";
+export * from "./validation";
