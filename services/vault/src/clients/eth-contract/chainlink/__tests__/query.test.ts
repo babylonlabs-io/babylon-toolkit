@@ -143,12 +143,16 @@ describe("getTokenPrices", () => {
     expect(result.metadata["BTC"].fetchFailed).toBe(false);
   });
 
-  it("returns correct price using dynamic decimals for 18-decimal feed", async () => {
+  it("rejects 18-decimal feed answer that exceeds safe integer range", async () => {
     mockFeedResponse(BTC_ANSWER_18_DECIMALS, 18);
 
     const result = await getTokenPrices(["BTC"]);
 
-    expect(result.prices["BTC"]).toBe(BTC_PRICE_USD);
+    expect(result.prices["BTC"]).toBeUndefined();
+    expect(result.metadata["BTC"].fetchFailed).toBe(true);
+    expect(result.metadata["BTC"].error).toContain(
+      "exceeds safe integer range",
+    );
   });
 
   it("populates alias tokens for BTC (vBTC, sBTC)", async () => {
@@ -288,6 +292,37 @@ describe("getTokenPrices", () => {
     expect(result.prices["BTC"]).toBeUndefined();
     expect(result.metadata["BTC"].fetchFailed).toBe(true);
     expect(result.metadata["BTC"].error).toContain("price must be positive");
+  });
+
+  it("rejects price exceeding safe integer range", async () => {
+    const unsafeAnswer = BigInt(Number.MAX_SAFE_INTEGER) + 1n;
+    mockFeedResponse(unsafeAnswer, STANDARD_DECIMALS);
+
+    const result = await getTokenPrices(["BTC"]);
+
+    expect(result.prices["BTC"]).toBeUndefined();
+    expect(result.metadata["BTC"].fetchFailed).toBe(true);
+    expect(result.metadata["BTC"].error).toContain(
+      "exceeds safe integer range",
+    );
+  });
+
+  it("logs warning when BTC_PRICE_FEED env override is active", async () => {
+    const { ENV } = await import("@/config/env");
+    const { logger } = await import("@/infrastructure");
+    const originalFeed = ENV.BTC_PRICE_FEED;
+
+    ENV.BTC_PRICE_FEED =
+      "0x1234567890abcdef1234567890abcdef12345678" as `0x${string}`;
+    mockFeedResponse(BTC_ANSWER_8_DECIMALS, STANDARD_DECIMALS);
+
+    await getTokenPrices(["BTC"]);
+
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining("BTC_PRICE_FEED env override"),
+    );
+
+    ENV.BTC_PRICE_FEED = originalFeed;
   });
 
   it("skips symbols with no feed address", async () => {

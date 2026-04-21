@@ -47,6 +47,7 @@ const STATUS_MESSAGES: Record<
   "no-wallet": "Wallet not connected",
   "no-vaults": "No collateral vaults found",
   "no-price": "Waiting for BTC price...",
+  "stale-price": "BTC price is stale or unavailable",
 };
 
 const INPUT_CLASS =
