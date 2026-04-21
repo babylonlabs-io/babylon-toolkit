@@ -43,8 +43,8 @@ const FIELD_MAP = {
   "contracts.btcPriceFeed": "NEXT_PUBLIC_TBV_BTC_PRICE_FEED",
 };
 
-/** Keys whose changes warrant a prominent warning — contract addresses and endpoints. */
-const SECURITY_CRITICAL_KEYS = new Set([
+/** Contract addresses and endpoints whose changes should be called out explicitly. */
+const CONTRACT_AND_ENDPOINT_KEYS = new Set([
   "NEXT_PUBLIC_TBV_BTC_VAULT_REGISTRY",
   "NEXT_PUBLIC_TBV_AAVE_ADAPTER",
   "NEXT_PUBLIC_TBV_BTC_PRICE_FEED",
@@ -148,6 +148,11 @@ function computeDiff(content, remote, network) {
 }
 
 function main() {
+  if (process.env.NODE_ENV === "production") {
+    console.error("sync-env: this script is for local development only.");
+    process.exit(1);
+  }
+
   const args = process.argv.slice(2);
   const checkOnly = args.includes("--check");
   const includeExample = args.includes("--all");
@@ -216,11 +221,11 @@ function main() {
       console.log(formatChange(change));
     }
 
-    const criticalChanges = updated.filter(({ key }) => SECURITY_CRITICAL_KEYS.has(key));
-    if (criticalChanges.length > 0) {
-      const names = criticalChanges.map(({ key }) => key).join(", ");
-      console.error(`\n⚠ sync-env: security-critical values changed: ${names}`);
-      console.error("  Verify these are expected before running sync.\n");
+    const contractChanges = updated.filter(({ key }) => CONTRACT_AND_ENDPOINT_KEYS.has(key));
+    if (contractChanges.length > 0) {
+      const names = contractChanges.map(({ key }) => key).join(", ");
+      console.error(`\n⚠ sync-env: contract addresses or endpoints changed: ${names}`);
+      console.error("  Verify these match the expected network before running sync.\n");
     }
 
     process.exit(1);
@@ -260,11 +265,11 @@ function main() {
       console.log(formatChange(change));
     }
 
-    const criticalChanges = updated.filter(({ key }) => SECURITY_CRITICAL_KEYS.has(key));
-    if (criticalChanges.length > 0) {
-      const names = criticalChanges.map(({ key }) => key).join(", ");
-      console.error(`\n⚠ sync-env: security-critical values changed: ${names}`);
-      console.error(`  Verify these are expected. If not, restore from git: git checkout -- ${label}\n`);
+    const contractChanges = updated.filter(({ key }) => CONTRACT_AND_ENDPOINT_KEYS.has(key));
+    if (contractChanges.length > 0) {
+      const names = contractChanges.map(({ key }) => key).join(", ");
+      console.error(`\n⚠ sync-env: contract addresses or endpoints changed: ${names}`);
+      console.error(`  Verify these match the expected network. If not, restore from git: git checkout -- ${label}\n`);
     }
 
     totalUpdated += updated.length;
