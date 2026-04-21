@@ -16,6 +16,8 @@ import { getNetworkConfigBTC } from "@/config";
 import { useBtcFeeDisplay } from "@/hooks/deposit/useBtcFeeDisplay";
 import { depositService } from "@/services/deposit";
 
+import { FeesSection, type FeeRow } from "./FeesSection";
+
 const btcConfig = getNetworkConfigBTC();
 
 interface Provider {
@@ -67,6 +69,8 @@ interface DepositFormProps {
   onDeposit: () => void;
 
   partialLiquidation?: PartialLiquidationProps;
+
+  feeRows?: FeeRow[];
 }
 
 export function DepositForm({
@@ -95,6 +99,7 @@ export function DepositForm({
   isGeoBlocked,
   onDeposit,
   partialLiquidation,
+  feeRows,
 }: DepositFormProps) {
   const btcBalanceFormatted = useMemo(() => {
     if (!btcBalance) return 0;
@@ -323,6 +328,9 @@ export function DepositForm({
           <span className="text-accent-secondary">{feePrice}</span>
         </span>
       </div>
+
+      {/* Protocol & risk parameters */}
+      {feeRows && feeRows.length > 0 && <FeesSection rows={feeRows} />}
     </div>
   );
 }
