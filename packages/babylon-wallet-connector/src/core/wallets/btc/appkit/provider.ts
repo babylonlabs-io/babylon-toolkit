@@ -104,7 +104,7 @@ export class AppKitBTCProvider implements IBTCProvider {
 
       throw new Error("Window not available for AppKit modal");
     } catch (error) {
-      console.error("[AppKit Provider] Failed to connect Bitcoin wallet:", error);
+      console.error("[AppKit Provider] Failed to connect Bitcoin wallet:", error instanceof Error ? error.message : "Unknown error");
       throw new Error(`Failed to connect Bitcoin wallet: ${error instanceof Error ? error.message : "Unknown error"}`);
     }
   }
@@ -198,7 +198,7 @@ export class AppKitBTCProvider implements IBTCProvider {
 
       return Psbt.fromBase64(result.psbt).toHex();
     } catch (error) {
-      console.error("[AppKit Provider] signPsbt failed:", error);
+      console.error("[AppKit Provider] signPsbt failed:", error instanceof Error ? error.message : "Unknown error");
       throw new Error(`Failed to sign PSBT: ${error instanceof Error ? error.message : "Unknown error"}`);
     }
   }
@@ -243,7 +243,7 @@ export class AppKitBTCProvider implements IBTCProvider {
 
       return signature;
     } catch (error) {
-      console.error("[AppKit Provider] signMessage failed:", error);
+      console.error("[AppKit Provider] signMessage failed:", error instanceof Error ? error.message : "Unknown error");
       throw new Error(`Failed to sign message: ${error instanceof Error ? error.message : "Unknown error"}`);
     }
   }

@@ -42,7 +42,7 @@ export const useAppKitBtcBridge = ({ onError }: UseAppKitBtcBridgeOptions = {}) 
           const caipNetwork = networkMap[network];
           await adapter.switchNetwork({ caipNetwork });
         } catch (networkError) {
-          console.warn("[AppKit BTC Bridge] Failed to switch network:", networkError);
+          console.warn("[AppKit BTC Bridge] Failed to switch network:", networkError instanceof Error ? networkError.message : "Unknown error");
           // Don't fail the connection if network switch fails
           // Some wallets may already be on the correct network
         }
@@ -58,7 +58,7 @@ export const useAppKitBtcBridge = ({ onError }: UseAppKitBtcBridgeOptions = {}) 
             console.warn("[AppKit BTC Bridge] Public key not available in current account");
           }
         } catch (pkError) {
-          console.error("[AppKit BTC Bridge] Error fetching public key:", pkError);
+          console.error("[AppKit BTC Bridge] Error fetching public key:", pkError instanceof Error ? pkError.message : "Unknown error");
         }
 
         // Dispatch event to notify AppKitBTCProvider.connectWallet() that connection is ready
@@ -74,7 +74,7 @@ export const useAppKitBtcBridge = ({ onError }: UseAppKitBtcBridgeOptions = {}) 
           lastDispatchedAddress.current = currentAddress;
         }
       } catch (error) {
-        console.error("[AppKit BTC Bridge] Failed to process connection:", error);
+        console.error("[AppKit BTC Bridge] Failed to process connection:", error instanceof Error ? error.message : "Unknown error");
         onError?.(error as Error);
       }
     },
@@ -115,7 +115,7 @@ export const useAppKitBtcBridge = ({ onError }: UseAppKitBtcBridgeOptions = {}) 
       lastDispatchedAddress.current = null;
 
       btcConnector.disconnect().catch((error) => {
-        console.error("Failed to disconnect from babylon-wallet-connector:", error);
+        console.error("Failed to disconnect from babylon-wallet-connector:", error instanceof Error ? error.message : "Unknown error");
       });
     }
   }, [isConnected, address, btcConnector, onError, dispatchConnectionEvent]);

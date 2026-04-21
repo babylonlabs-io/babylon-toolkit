@@ -98,7 +98,7 @@ export const createWalletConnector = async <N extends string, P extends IProvide
     try {
       await connector.connect(connectedWalletId);
     } catch (error) {
-      console.error({ error })
+      console.error("Auto-reconnect failed:", error instanceof Error ? error.message : "Unknown error")
     }
   }
 

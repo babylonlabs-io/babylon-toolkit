@@ -113,8 +113,13 @@ export function createWagmiInitError(): AppError {
 }
 
 export function createEnvConfigError(details: string): AppError {
+  logger.error(new Error("Environment configuration validation failed"), {
+    data: { details },
+  });
+
   return {
     title: "Configuration Error",
-    message: `The application is missing required configuration. Please contact support. (${details})`,
+    message:
+      "The application is missing required configuration. Please contact support.",
   };
 }
