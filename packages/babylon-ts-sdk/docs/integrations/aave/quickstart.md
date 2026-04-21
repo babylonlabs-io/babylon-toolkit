@@ -21,10 +21,18 @@ import {
   // Utilities
   selectVaultsForAmount,
   aaveValueToUsd,
+  aaveRayValueToUsd,
   getHealthFactorStatus,
   FULL_REPAY_BUFFER_DIVISOR,
 } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
-import { createPublicClient, createWalletClient, http, parseUnits, type Hex } from "viem";
+import {
+  createPublicClient,
+  createWalletClient,
+  http,
+  parseUnits,
+  type Address,
+  type Hex,
+} from "viem";
 import { sepolia } from "viem/chains";
 
 const publicClient = createPublicClient({ chain: sepolia, transport: http() });

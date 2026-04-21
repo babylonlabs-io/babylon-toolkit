@@ -1,11 +1,5 @@
 /**
- * SDK Level 2 Utilities
- *
- * Transaction building utilities including:
- * - Fee calculation constants
- * - UTXO selection
- * - Transaction funding
- * - Bitcoin script utilities
+ * Pure helpers for the primitives and services layers. No wallet, no network, no contract state.
  *
  * @module utils
  */

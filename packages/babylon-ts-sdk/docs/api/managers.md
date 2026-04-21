@@ -2,70 +2,21 @@
 
 # managers
 
-# Manager Layer - Wallet Orchestration (Level 2)
+Wallet-owning orchestration for the vault lifecycle. A vault goes from creation
+to `ACTIVE` through five phases — [Managers Quickstart](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/docs/quickstart/managers.md)
+walks through them. A vault at `VERIFIED` is not done: the depositor must
+reveal the HTLC secret via `activateVault()` (services layer) or the vault
+expires.
 
-High-level managers that orchestrate complex flows using primitives and utilities.
-These managers accept wallet interfaces and handle the complete operation lifecycle.
+| # | Phase | SDK entry point | Contract status after |
+|---|-------|-----------------|-----------------------|
+| 1 | Prepare Pre-PegIn + PegIn txs | `PeginManager.preparePegin()` | n/a (off-chain) |
+| 2 | Register on Ethereum | `PeginManager.registerPeginOnChain()` | `PENDING` |
+| 3 | Broadcast Pre-PegIn on Bitcoin | `PeginManager.signAndBroadcast()` | still `PENDING` until VP observes the tx |
+| 4 | Sign payout authorisations | `pollAndSignPayouts()` (services, delegates to `PayoutManager`) | `PENDING` → `VERIFIED` |
+| 5 | Activate by revealing HTLC secret | `activateVault()` (services) | `VERIFIED` → `ACTIVE` |
 
-## Architecture
-
-Managers sit between your application and the primitives layer:
-
-```
-Your Application
-      ↓
-Managers (Level 2)    ← This module
-      ↓
-Primitives (Level 1)  ← Pure functions
-      ↓
-WASM (Rust Core)      ← Cryptographic operations
-```
-
-## When to Use Managers
-
-Use managers when you have:
-- **Frontend apps** with browser wallet integration (UniSat, OKX, etc.)
-- **Quick integration** needs with minimal code
-- **Standard flows** that don't require custom signing logic
-
-Use primitives instead when you need:
-- Backend services with KMS/HSM signing
-- Full control over every operation
-- Custom wallet integrations
-
-## Available Managers
-
-### [PeginManager](#peginmanager)
-Orchestrates the peg-in flow:
-- [preparePegin()](#preparepegin) - Build Pre-PegIn HTLC and sign PegIn input
-- [registerPeginOnChain()](#registerpeginonchain) - Submit to Ethereum
-- [signAndBroadcast()](#signandbroadcast) - Broadcast to Bitcoin
-
-### [PayoutManager](#payoutmanager)
-Signs payout authorization transactions (Step 3 of peg-in).
-- [signPayoutTransaction()](#signpayouttransaction) - Sign payout (uses Assert tx as reference)
-
-## Complete Peg-in Flow
-
-The 4-step peg-in flow uses both managers:
-
-| Step | Manager | Method |
-|------|---------|--------|
-| 1 | PeginManager | `preparePegin()` |
-| 2 | PeginManager | `registerPeginOnChain()` |
-| 3 | PayoutManager | `signPayoutTransaction()` |
-| 4 | PeginManager | `signAndBroadcast()` |
-
-**Step 3 Details:** The vault provider provides 3 transactions per claimer:
-- `claim_tx` - Claim transaction
-- `assert_tx` - Assert transaction
-- `payout_tx` - Payout transaction
-
-You must sign the Payout transaction (uses assert_tx as input reference) for each claimer.
-
-## See
-
-[Managers Quickstart](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/docs/quickstart/managers.md)
+Optional exit after the CSV timelock expires: `buildAndBroadcastRefund()` (services).
 
 ## Classes
 
@@ -1693,56 +1644,6 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:395](
 
 The BTC PoP signature used (for reference)
 
-***
-
-### UTXO
-
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/selectUtxos.ts:21](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/selectUtxos.ts#L21)
-
-Unspent Transaction Output (UTXO) for funding peg-in transactions.
-
-#### Properties
-
-##### txid
-
-```ts
-txid: string;
-```
-
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/selectUtxos.ts:25](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/selectUtxos.ts#L25)
-
-Transaction ID of the UTXO (64-char hex without 0x prefix).
-
-##### vout
-
-```ts
-vout: number;
-```
-
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/selectUtxos.ts:30](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/selectUtxos.ts#L30)
-
-Output index within the transaction.
-
-##### value
-
-```ts
-value: number;
-```
-
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/selectUtxos.ts:35](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/selectUtxos.ts#L35)
-
-Value in satoshis.
-
-##### scriptPubKey
-
-```ts
-scriptPubKey: string;
-```
-
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/selectUtxos.ts:40](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/selectUtxos.ts#L40)
-
-Script public key hex.
-
 ## Type Aliases
 
 ### BitcoinNetwork
@@ -1755,3 +1656,9 @@ Defined in: [packages/babylon-ts-sdk/src/shared/wallets/interfaces/BitcoinWallet
 
 Bitcoin network types.
 Using string literal union for maximum compatibility with wallet providers.
+
+## References
+
+### UTXO
+
+Re-exports [UTXO](utils.md#utxo)

@@ -1,8 +1,6 @@
 /**
- * Deposit Protocol Services
- *
- * Stateless composable functions for the vault deposit protocol.
- * All functions accept narrow interfaces, not concrete client classes.
+ * Stateless flow helpers that compose primitives + utils with injected I/O callbacks.
+ * Callers own the wallet; services own the orchestration.
  *
  * @module services
  */
