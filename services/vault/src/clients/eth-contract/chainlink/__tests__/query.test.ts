@@ -312,17 +312,19 @@ describe("getTokenPrices", () => {
     const { logger } = await import("@/infrastructure");
     const originalFeed = ENV.BTC_PRICE_FEED;
 
-    ENV.BTC_PRICE_FEED =
-      "0x1234567890abcdef1234567890abcdef12345678" as `0x${string}`;
-    mockFeedResponse(BTC_ANSWER_8_DECIMALS, STANDARD_DECIMALS);
+    try {
+      ENV.BTC_PRICE_FEED =
+        "0x1234567890abcdef1234567890abcdef12345678" as `0x${string}`;
+      mockFeedResponse(BTC_ANSWER_8_DECIMALS, STANDARD_DECIMALS);
 
-    await getTokenPrices(["BTC"]);
+      await getTokenPrices(["BTC"]);
 
-    expect(logger.warn).toHaveBeenCalledWith(
-      expect.stringContaining("BTC_PRICE_FEED env override"),
-    );
-
-    ENV.BTC_PRICE_FEED = originalFeed;
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("BTC_PRICE_FEED env override"),
+      );
+    } finally {
+      ENV.BTC_PRICE_FEED = originalFeed;
+    }
   });
 
   it("skips symbols with no feed address", async () => {

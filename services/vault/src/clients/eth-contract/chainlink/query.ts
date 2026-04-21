@@ -50,6 +50,8 @@ const CHAINLINK_MAX_PRICE_AGE_SECONDS = 3600;
 /** Number of seconds in one hour — used for display formatting */
 const SECONDS_PER_HOUR = 3600;
 
+let btcPriceFeedOverrideWarned = false;
+
 function getChainlinkFeedAddress(symbol: string): Address | null {
   const network = getBTCNetwork();
   const normalizedSymbol = symbol.toUpperCase();
@@ -60,9 +62,12 @@ function getChainlinkFeedAddress(symbol: string): Address | null {
     normalizedSymbol === "SBTC"
   ) {
     if (ENV.BTC_PRICE_FEED) {
-      logger.warn(
-        `Using BTC_PRICE_FEED env override (${ENV.BTC_PRICE_FEED}) instead of hardcoded Chainlink address`,
-      );
+      if (!btcPriceFeedOverrideWarned) {
+        logger.warn(
+          `Using BTC_PRICE_FEED env override (${ENV.BTC_PRICE_FEED}) instead of hardcoded Chainlink address`,
+        );
+        btcPriceFeedOverrideWarned = true;
+      }
       return ENV.BTC_PRICE_FEED;
     }
     return CHAINLINK_PRICE_FEEDS[network].BTC;

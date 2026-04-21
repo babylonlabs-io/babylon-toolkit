@@ -53,9 +53,10 @@ export function usePositionNotifications(
       return { result: null, status: "flag-off" };
     if (!splitParams || isLoading) return { result: null, status: "loading" };
     if (!connectedAddress) return { result: null, status: "no-wallet" };
-    if (btcPrice <= 0) return { result: null, status: "no-price" };
     if (btcMetadata?.isStale || btcMetadata?.fetchFailed)
       return { result: null, status: "stale-price" };
+    if (!btcMetadata || btcPrice <= 0)
+      return { result: null, status: "no-price" };
     if (collateralVaults.length === 0)
       return { result: null, status: "no-vaults" };
 
