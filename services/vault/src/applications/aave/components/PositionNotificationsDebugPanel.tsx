@@ -471,14 +471,18 @@ function ManualInputPanel({
 interface PositionNotificationsDebugPanelProps {
   /** Called whenever the debug panel's display result changes, so the main banner can update */
   onResultChange?: (result: CalculatorResult | null) => void;
+  /** Called when simulated status changes (e.g. stale-price), so the main banner can show status-based UI */
+  onStatusChange?: (status: PositionNotificationsStatus | null) => void;
 }
 
 export function PositionNotificationsDebugPanel({
   onResultChange,
+  onStatusChange,
 }: PositionNotificationsDebugPanelProps) {
   const { address } = useETHWallet();
   const { result: hookResult, status } = usePositionNotifications(address);
   const [manualMode, setManualMode] = useState(false);
+  const [simulateStalePrice, setSimulateStalePrice] = useState(false);
   const [manualParams, setManualParams] =
     useState<CalculatorParams>(makeDefaultParams);
 
@@ -489,10 +493,16 @@ export function PositionNotificationsDebugPanel({
 
   const displayResult = manualMode ? manualResult : hookResult;
 
-  // Notify parent of result changes so the main banner updates
+  // Notify parent of result and status changes so the main banner updates
   useEffect(() => {
-    onResultChange?.(displayResult);
-  }, [displayResult, onResultChange]);
+    if (simulateStalePrice) {
+      onResultChange?.(null);
+      onStatusChange?.("stale-price");
+    } else {
+      onResultChange?.(displayResult);
+      onStatusChange?.(null);
+    }
+  }, [displayResult, simulateStalePrice, onResultChange, onStatusChange]);
 
   if (status === "flag-off") return null;
 
@@ -514,6 +524,15 @@ export function PositionNotificationsDebugPanel({
               className="rounded"
             />
             Manual Mode
+          </label>
+          <label className="flex cursor-pointer items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={simulateStalePrice}
+              onChange={(e) => setSimulateStalePrice(e.target.checked)}
+              className="rounded"
+            />
+            Simulate stale price
           </label>
           {manualMode && (
             <button

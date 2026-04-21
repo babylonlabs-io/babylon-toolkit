@@ -13,6 +13,7 @@ import { PositionNotificationsDebugPanel } from "@/applications/aave/components/
 import { LOAN_TAB, type LoanTab } from "@/applications/aave/constants";
 import { useSyncPendingVaults } from "@/applications/aave/context";
 import { useAaveVaults } from "@/applications/aave/hooks";
+import type { PositionNotificationsStatus } from "@/applications/aave/hooks/usePositionNotifications";
 import type { CalculatorResult } from "@/applications/aave/positionNotifications";
 import type { Asset } from "@/applications/aave/types";
 import type { RootLayoutContext } from "@/components/pages/RootLayout";
@@ -49,6 +50,8 @@ export function DashboardPage() {
   const [isAssetModalOpen, setIsAssetModalOpen] = useState(false);
   const [debugResultOverride, setDebugResultOverride] =
     useState<CalculatorResult | null>(null);
+  const [debugStatusOverride, setDebugStatusOverride] =
+    useState<PositionNotificationsStatus | null>(null);
   const [assetModalMode, setAssetModalMode] = useState<LoanTab>(
     LOAN_TAB.BORROW,
   );
@@ -147,6 +150,7 @@ export function DashboardPage() {
           onDeposit={openDeposit}
           onRepay={handleRepay}
           result={debugResultOverride ?? undefined}
+          statusOverride={debugStatusOverride ?? undefined}
           btcBalanceBtc={btcBalanceBtc}
         />
 
@@ -181,6 +185,7 @@ export function DashboardPage() {
         {featureFlags.isPositionNotificationsEnabled && (
           <PositionNotificationsDebugPanel
             onResultChange={setDebugResultOverride}
+            onStatusChange={setDebugStatusOverride}
           />
         )}
       </div>

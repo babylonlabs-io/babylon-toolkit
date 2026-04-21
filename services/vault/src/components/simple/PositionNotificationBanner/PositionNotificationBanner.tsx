@@ -4,7 +4,10 @@ import { useCallback, useState } from "react";
 import type { Address, Hex } from "viem";
 import { useAccount } from "wagmi";
 
-import { usePositionNotifications } from "@/applications/aave/hooks/usePositionNotifications";
+import {
+  usePositionNotifications,
+  type PositionNotificationsStatus,
+} from "@/applications/aave/hooks/usePositionNotifications";
 import { useReorderVaults } from "@/applications/aave/hooks/useReorderVaults";
 import {
   deriveBannerState,
@@ -20,6 +23,8 @@ import {
   GREEN_BANNER_DETAIL,
   GREEN_BANNER_TITLE,
   SEVERITY_STYLES,
+  STALE_PRICE_BANNER_DETAIL,
+  STALE_PRICE_BANNER_TITLE,
 } from "./constants";
 
 interface PositionNotificationBannerProps {
@@ -28,6 +33,8 @@ interface PositionNotificationBannerProps {
   onRepay: () => void;
   /** Override result for debug panel — skips hook when provided */
   result?: CalculatorResult | null;
+  /** Override status for debug panel — used to simulate stale-price state */
+  statusOverride?: PositionNotificationsStatus;
   /** BTC wallet balance in BTC units — used to disable deposit buttons when insufficient */
   btcBalanceBtc?: number;
 }
@@ -37,6 +44,7 @@ export function PositionNotificationBanner({
   onDeposit,
   onRepay,
   result: resultOverride,
+  statusOverride,
   btcBalanceBtc,
 }: PositionNotificationBannerProps) {
   const {
@@ -72,9 +80,32 @@ export function PositionNotificationBanner({
     }
   }, [result, executeReorder]);
 
-  // When no override, respect feature flag and loading states
+  const effectiveStatus = statusOverride ?? status;
+
+  // When no override, respect feature flag
+  if (!hasOverride && !featureFlags.isPositionNotificationsEnabled) return null;
+
+  // Stale-price: show yellow warning regardless of result
+  if (effectiveStatus === "stale-price") {
+    return (
+      <div
+        className={`rounded-lg p-4 ${SEVERITY_STYLES.yellow}`}
+        role="status"
+        data-testid="position-notification-banner"
+        data-severity="yellow"
+      >
+        <Text variant="body2" className="text-sm font-semibold">
+          {STALE_PRICE_BANNER_TITLE}
+        </Text>
+        <Text variant="body2" className="mt-1 text-sm opacity-80">
+          {STALE_PRICE_BANNER_DETAIL}
+        </Text>
+      </div>
+    );
+  }
+
+  // When no override, respect loading states
   if (!hasOverride) {
-    if (!featureFlags.isPositionNotificationsEnabled) return null;
     if (status !== "ready" || isLoading || !result) return null;
   }
 
