@@ -6,6 +6,7 @@ import { FeatureFlags } from "@/config";
 import { useGeoFencing } from "@/context/geofencing";
 import { ProtocolParamsProvider } from "@/context/ProtocolParamsContext";
 import { useDialogStep } from "@/hooks/deposit/useDialogStep";
+import { useProtocolFeeRows } from "@/hooks/useProtocolFeeRows";
 import { depositService } from "@/services/deposit";
 import type { VaultActivity } from "@/types/activity";
 import type { VaultProvider } from "@/types/vaultProvider";
@@ -101,6 +102,7 @@ function SimpleDepositContent({
   initialAmountBtc,
 }: SimpleDepositBaseProps) {
   const { isGeoBlocked, isLoading: isGeoLoading } = useGeoFencing();
+  const { rows: feeRows } = useProtocolFeeRows();
 
   const {
     formData,
@@ -302,6 +304,7 @@ function SimpleDepositContent({
                 isGeoBlocked={isGeoBlocked || isGeoLoading}
                 onDeposit={handleDeposit}
                 partialLiquidation={partialLiquidationProps}
+                feeRows={feeRows}
               />
             </div>
           </div>
