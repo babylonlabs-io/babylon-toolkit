@@ -115,13 +115,8 @@ describe("address format validation", () => {
 describe("getAddressUtxos", () => {
   const validAddressInfo = { isvalid: true, scriptPubKey: "5120abcd" };
 
-  /**
-   * Mock responses with custom per-UTXO tx verification data.
-   * Allows tests to inject mismatches for cross-verification checks.
-   */
-  function mockUtxoResponsesWithVerification(
+  function mockUtxoResponses(
     utxoList: { txid: string; vout: number; value: number }[],
-    txVerifications: { value: number; scriptpubkey: string }[],
   ) {
     mockFetch
       .mockResolvedValueOnce(
@@ -130,25 +125,13 @@ describe("getAddressUtxos", () => {
         ),
       )
       .mockResolvedValueOnce(jsonResponse(validAddressInfo));
-
-    for (const txData of txVerifications) {
-      mockFetch.mockResolvedValueOnce(
-        jsonResponse({ vout: [txData] }),
-      );
-    }
   }
 
-  it("accepts valid satoshi values with cross-verification", async () => {
-    mockUtxoResponsesWithVerification(
-      [
-        { txid: VALID_TXID, vout: 0, value: 50000 },
-        { txid: VALID_TXID_2, vout: 0, value: 100000 },
-      ],
-      [
-        { value: 50000, scriptpubkey: "5120abcd" },
-        { value: 100000, scriptpubkey: "5120abcd" },
-      ],
-    );
+  it("returns UTXOs sorted by value descending", async () => {
+    mockUtxoResponses([
+      { txid: VALID_TXID, vout: 0, value: 50000 },
+      { txid: VALID_TXID_2, vout: 0, value: 100000 },
+    ]);
 
     const result = await getAddressUtxos(VALID_ADDRESS, API_URL);
     expect(result).toHaveLength(2);
@@ -157,12 +140,7 @@ describe("getAddressUtxos", () => {
   });
 
   it("rejects negative UTXO values", async () => {
-    const utxoList = [
-      { txid: VALID_TXID, vout: 0, value: -1, status: { confirmed: true } },
-    ];
-    mockFetch
-      .mockResolvedValueOnce(jsonResponse(utxoList))
-      .mockResolvedValueOnce(jsonResponse(validAddressInfo));
+    mockUtxoResponses([{ txid: VALID_TXID, vout: 0, value: -1 }]);
 
     await expect(getAddressUtxos(VALID_ADDRESS, API_URL)).rejects.toThrow(
       /Invalid UTXO value -1/,
@@ -170,12 +148,7 @@ describe("getAddressUtxos", () => {
   });
 
   it("rejects zero UTXO values", async () => {
-    const utxoList = [
-      { txid: VALID_TXID, vout: 0, value: 0, status: { confirmed: true } },
-    ];
-    mockFetch
-      .mockResolvedValueOnce(jsonResponse(utxoList))
-      .mockResolvedValueOnce(jsonResponse(validAddressInfo));
+    mockUtxoResponses([{ txid: VALID_TXID, vout: 0, value: 0 }]);
 
     await expect(getAddressUtxos(VALID_ADDRESS, API_URL)).rejects.toThrow(
       /Invalid UTXO value 0/,
@@ -183,12 +156,7 @@ describe("getAddressUtxos", () => {
   });
 
   it("rejects fractional UTXO values", async () => {
-    const utxoList = [
-      { txid: VALID_TXID, vout: 0, value: 1.5, status: { confirmed: true } },
-    ];
-    mockFetch
-      .mockResolvedValueOnce(jsonResponse(utxoList))
-      .mockResolvedValueOnce(jsonResponse(validAddressInfo));
+    mockUtxoResponses([{ txid: VALID_TXID, vout: 0, value: 1.5 }]);
 
     await expect(getAddressUtxos(VALID_ADDRESS, API_URL)).rejects.toThrow(
       /Invalid UTXO value 1\.5/,
@@ -197,17 +165,7 @@ describe("getAddressUtxos", () => {
 
   it("rejects values exceeding Bitcoin supply", async () => {
     const tooLarge = 21_000_000 * 1e8 + 1;
-    const utxoList = [
-      {
-        txid: VALID_TXID,
-        vout: 0,
-        value: tooLarge,
-        status: { confirmed: true },
-      },
-    ];
-    mockFetch
-      .mockResolvedValueOnce(jsonResponse(utxoList))
-      .mockResolvedValueOnce(jsonResponse(validAddressInfo));
+    mockUtxoResponses([{ txid: VALID_TXID, vout: 0, value: tooLarge }]);
 
     await expect(getAddressUtxos(VALID_ADDRESS, API_URL)).rejects.toThrow(
       /Invalid UTXO value/,
@@ -215,12 +173,7 @@ describe("getAddressUtxos", () => {
   });
 
   it("rejects negative vout from API", async () => {
-    const utxoList = [
-      { txid: VALID_TXID, vout: -1, value: 50000, status: { confirmed: true } },
-    ];
-    mockFetch
-      .mockResolvedValueOnce(jsonResponse(utxoList))
-      .mockResolvedValueOnce(jsonResponse(validAddressInfo));
+    mockUtxoResponses([{ txid: VALID_TXID, vout: -1, value: 50000 }]);
 
     await expect(getAddressUtxos(VALID_ADDRESS, API_URL)).rejects.toThrow(
       /Invalid vout -1/,
@@ -228,17 +181,7 @@ describe("getAddressUtxos", () => {
   });
 
   it("rejects fractional vout from API", async () => {
-    const utxoList = [
-      {
-        txid: VALID_TXID,
-        vout: 1.5,
-        value: 50000,
-        status: { confirmed: true },
-      },
-    ];
-    mockFetch
-      .mockResolvedValueOnce(jsonResponse(utxoList))
-      .mockResolvedValueOnce(jsonResponse(validAddressInfo));
+    mockUtxoResponses([{ txid: VALID_TXID, vout: 1.5, value: 50000 }]);
 
     await expect(getAddressUtxos(VALID_ADDRESS, API_URL)).rejects.toThrow(
       /Invalid vout 1\.5/,
@@ -247,70 +190,33 @@ describe("getAddressUtxos", () => {
 
   it("accepts the maximum valid value (21M BTC in sats)", async () => {
     const maxValue = 21_000_000 * 1e8;
-    mockUtxoResponsesWithVerification(
-      [{ txid: VALID_TXID, vout: 0, value: maxValue }],
-      [{ value: maxValue, scriptpubkey: "5120abcd" }],
-    );
+    mockUtxoResponses([{ txid: VALID_TXID, vout: 0, value: maxValue }]);
 
     const result = await getAddressUtxos(VALID_ADDRESS, API_URL);
     expect(result).toHaveLength(1);
     expect(result[0].value).toBe(maxValue);
   });
 
-  it("rejects when cross-verified value does not match listing", async () => {
-    mockUtxoResponsesWithVerification(
-      [{ txid: VALID_TXID, vout: 0, value: 50000 }],
-      [{ value: 99999, scriptpubkey: "5120abcd" }],
-    );
-
-    await expect(getAddressUtxos(VALID_ADDRESS, API_URL)).rejects.toThrow(
-      /UTXO value mismatch.*listing reports 50000.*transaction reports 99999/,
-    );
-  });
-
-  it("rejects when cross-verified scriptPubKey does not match address", async () => {
-    mockUtxoResponsesWithVerification(
-      [{ txid: VALID_TXID, vout: 0, value: 50000 }],
-      [{ value: 50000, scriptpubkey: "0014differentscript" }],
-    );
-
-    await expect(getAddressUtxos(VALID_ADDRESS, API_URL)).rejects.toThrow(
-      /UTXO scriptPubKey mismatch/,
-    );
-  });
-
-  it("rejects when cross-verified vout is out of range", async () => {
-    // UTXO claims vout=2, but tx only has 1 output
-    const utxoList = [
-      { txid: VALID_TXID, vout: 2, value: 50000, status: { confirmed: true } },
-    ];
-    mockFetch
-      .mockResolvedValueOnce(jsonResponse(utxoList))
-      .mockResolvedValueOnce(jsonResponse(validAddressInfo))
-      .mockResolvedValueOnce(
-        jsonResponse({ vout: [{ value: 50000, scriptpubkey: "5120abcd" }] }),
-      );
-
-    await expect(getAddressUtxos(VALID_ADDRESS, API_URL)).rejects.toThrow(
-      /UTXO vout 2 out of range/,
-    );
-  });
-
   it("rejects UTXO with invalid txid format from listing", async () => {
-    const utxoList = [
-      {
-        txid: "short",
-        vout: 0,
-        value: 50000,
-        status: { confirmed: true },
-      },
-    ];
-    mockFetch
-      .mockResolvedValueOnce(jsonResponse(utxoList))
-      .mockResolvedValueOnce(jsonResponse(validAddressInfo));
+    mockUtxoResponses([{ txid: "short", vout: 0, value: 50000 }]);
 
     await expect(getAddressUtxos(VALID_ADDRESS, API_URL)).rejects.toThrow(
       /Invalid transaction ID format/,
+    );
+  });
+
+  it("rejects unrecognized scriptPubKey from address validation", async () => {
+    const badAddressInfo = { isvalid: true, scriptPubKey: "ffff00112233" };
+    mockFetch
+      .mockResolvedValueOnce(
+        jsonResponse([
+          { txid: VALID_TXID, vout: 0, value: 50000, status: { confirmed: true } },
+        ]),
+      )
+      .mockResolvedValueOnce(jsonResponse(badAddressInfo));
+
+    await expect(getAddressUtxos(VALID_ADDRESS, API_URL)).rejects.toThrow(
+      /Unrecognized scriptPubKey type/,
     );
   });
 });

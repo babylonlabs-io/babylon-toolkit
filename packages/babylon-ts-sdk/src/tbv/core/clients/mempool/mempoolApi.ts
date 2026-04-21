@@ -315,7 +315,12 @@ export async function getAddressUtxos(
     }
     assertValidScriptPubKey(addressInfo.scriptPubKey, address);
 
-    // Validate listing-level fields before making any network requests.
+    // Validate UTXO fields from the listing endpoint.
+    // Per-UTXO cross-verification against /tx/{txid} is intentionally NOT done
+    // here — it would be expensive (N API calls) and redundant: the broadcast
+    // path already verifies each selected input via getUtxoInfo before signing.
+    // Both endpoints come from the same mempool API, so cross-checking one
+    // against the other on the same server does not add real security.
     for (const utxo of utxos) {
       assertValidTxid(utxo.txid);
       if (!isValidVout(utxo.vout)) {
@@ -328,50 +333,8 @@ export async function getAddressUtxos(
       }
     }
 
-    // Cross-verify each UTXO against its transaction data.
-    // The listing endpoint is treated as discovery only — each UTXO is
-    // independently verified via /tx/{txid} to confirm value and scriptPubKey.
-    // Deduplicate txid fetches: multiple UTXOs may reference the same tx.
-    const uniqueTxids = [...new Set(utxos.map((u) => u.txid))];
-    const txInfoEntries = await Promise.all(
-      uniqueTxids.map(async (txid) => {
-        const txInfo = await fetchApi<TxInfo>(`${apiUrl}/tx/${txid}`);
-        return [txid, txInfo] as const;
-      }),
-    );
-    const txInfoMap = new Map<string, TxInfo>(txInfoEntries);
-
-    const verifiedUtxos: typeof utxos = [];
-    const normalizedAddressScript = addressInfo.scriptPubKey.toLowerCase();
-    for (const utxo of utxos) {
-      const txInfo = txInfoMap.get(utxo.txid)!;
-
-      if (!isValidVout(utxo.vout, txInfo.vout.length)) {
-        throw new Error(
-          `UTXO vout ${utxo.vout} out of range for tx ${utxo.txid} (${txInfo.vout.length} outputs)`,
-        );
-      }
-
-      const output = txInfo.vout[utxo.vout];
-      if (output.value !== utxo.value) {
-        throw new Error(
-          `UTXO value mismatch for ${utxo.txid}:${utxo.vout}: ` +
-            `listing reports ${utxo.value}, transaction reports ${output.value}`,
-        );
-      }
-
-      if (output.scriptpubkey.toLowerCase() !== normalizedAddressScript) {
-        throw new Error(
-          `UTXO scriptPubKey mismatch for ${utxo.txid}:${utxo.vout}: ` +
-            `output does not pay to the requested address`,
-        );
-      }
-
-      verifiedUtxos.push(utxo);
-    }
-
     // Sort by value (largest first) and map to our UTXO format
-    const sortedUTXOs = verifiedUtxos.sort((a, b) => b.value - a.value);
+    const sortedUTXOs = utxos.sort((a, b) => b.value - a.value);
 
     return sortedUTXOs.map((utxo) => ({
       txid: utxo.txid,
