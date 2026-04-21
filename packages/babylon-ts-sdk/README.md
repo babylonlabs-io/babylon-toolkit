@@ -5,11 +5,9 @@
 
 TypeScript SDK for Trustless Bitcoin Vaults
 
-> **⚠️ Status**: Currently under active development.
-
 ## Overview
 
-The Babylon TypeScript SDK is a production-ready toolkit for integrating Trustless Bitcoin Vaults into your applications. Currently provides comprehensive support for Trustless Bitcoin Vaults (TBV) including vault management and supported application integrations.
+The Babylon TypeScript SDK is the toolkit for integrating Trustless Bitcoin Vaults into your applications. It provides vault lifecycle management (peg-in, activation, refund, payout signing) and application integrations built on top, starting with Aave v4.
 
 ## What Are Trustless Bitcoin Vaults?
 
@@ -156,9 +154,9 @@ import {
 } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
 ```
 
-## Choose Your API Level
+## Where to start
 
-The SDK provides two integration approaches:
+The SDK exposes several peer entry points — **managers**, **services**, **primitives**, **utils**, **clients**, and **integrations** — and you compose the pieces you need. The two most common starting points for a new integration are:
 
 ### Managers (High-Level)
 
@@ -174,7 +172,13 @@ The SDK provides two integration approaches:
 - **You provide**: Everything (signing logic, contract calls, broadcasting)
 - **SDK handles**: Only PSBT construction and utility functions
 
-## Trustless Bitcoin Vaults (TBV) Documentation
+For how `services`, `utils`, `clients`, and `integrations` fit in and which layer a given task belongs to, read the [Get Started](./docs/get-started/README.md) guide.
+
+## Documentation
+
+### 🏁 Start here
+
+- **[Get Started](./docs/get-started/README.md)** — five-minute orientation: what TBV is, the SDK's layer layout, prerequisites, config sourcing, glossary, vault lifecycle, and a decision table routing you to the right quickstart. **Read this first if you're new.**
 
 ### 🚀 Quickstart
 
@@ -182,6 +186,10 @@ Step-by-step tutorials:
 
 - **[Managers Quickstart](./docs/quickstart/managers.md)** - Create a Bitcoin vault with wallet integration (step-by-step)
 - **[Primitives Quickstart](./docs/quickstart/primitives.md)** - Build vault PSBTs with custom signing logic (advanced)
+
+### 🔑 Guides
+
+- **[Wallet Interfaces](./docs/guides/wallet-interfaces.md)** - Adapt any BTC/ETH wallet (browser, Node.js, KMS/HSM) to the SDK's interfaces
 
 ### 🔌 Application Integrations
 
