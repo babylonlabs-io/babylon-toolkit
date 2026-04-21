@@ -15,6 +15,7 @@ import type { Hex } from "viem";
 import { getWalletClient, switchChain } from "wagmi/actions";
 
 import {
+  ContractStatus,
   getNextLocalStatus,
   PeginAction,
   type LocalStorageStatus,
@@ -111,6 +112,12 @@ export function useVaultActions(): UseVaultActionsReturn {
 
       if (!vault) {
         throw new Error("Vault not found. Please try again.");
+      }
+
+      if (vault.status !== ContractStatus.PENDING) {
+        throw new Error(
+          `Cannot broadcast: vault is in ${ContractStatus[vault.status]} state. Broadcast is only valid during PENDING.`,
+        );
       }
 
       const graphqlUnsignedTxHex = vault.unsignedPrePeginTx;

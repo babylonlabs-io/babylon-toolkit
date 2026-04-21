@@ -8,6 +8,7 @@ import { act, renderHook } from "@testing-library/react";
 import type { Hex } from "viem";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { ContractStatus } from "@/models/peginStateMachine";
 import { broadcastPrePeginTransaction, fetchVaultById } from "@/services/vault";
 
 import { useVaultActions } from "../useVaultActions";
@@ -94,6 +95,7 @@ const baseVault = {
   unsignedPrePeginTx: GRAPHQL_TX_HEX,
   depositorBtcPubkey: "0xdepositorBtcPubkey",
   peginTxHash: "0xabcd1234",
+  status: ContractStatus.PENDING,
 };
 
 const baseBroadcastParams = {
@@ -173,6 +175,44 @@ describe("useVaultActions — handleBroadcast transaction integrity", () => {
     expect(mockBroadcastPrePeginTransaction).toHaveBeenCalledWith(
       expect.objectContaining({ unsignedTxHex: GRAPHQL_TX_HEX }),
     );
+  });
+
+  it("rejects broadcast when vault status is not PENDING", async () => {
+    mockFetchVaultById.mockResolvedValue({
+      ...baseVault,
+      status: ContractStatus.EXPIRED,
+    } as never);
+
+    const { result } = renderHook(() => useVaultActions());
+
+    await act(async () => {
+      await result.current.handleBroadcast({
+        ...baseBroadcastParams,
+        pendingPegin: undefined,
+      });
+    });
+
+    expect(result.current.broadcastError).toContain("EXPIRED");
+    expect(mockBroadcastPrePeginTransaction).not.toHaveBeenCalled();
+  });
+
+  it("rejects broadcast when vault has already progressed past PENDING", async () => {
+    mockFetchVaultById.mockResolvedValue({
+      ...baseVault,
+      status: ContractStatus.VERIFIED,
+    } as never);
+
+    const { result } = renderHook(() => useVaultActions());
+
+    await act(async () => {
+      await result.current.handleBroadcast({
+        ...baseBroadcastParams,
+        pendingPegin: undefined,
+      });
+    });
+
+    expect(result.current.broadcastError).toContain("VERIFIED");
+    expect(mockBroadcastPrePeginTransaction).not.toHaveBeenCalled();
   });
 
   it("uses GraphQL tx when pendingPegin has no unsignedTxHex (cross-device)", async () => {
