@@ -200,6 +200,25 @@ describe("useVaultActions — handleBroadcast transaction integrity", () => {
     expect(mockBroadcastPrePeginTransaction).not.toHaveBeenCalled();
   });
 
+  it("rejects broadcast when vault has already progressed past PENDING", async () => {
+    mockFetchVaultById.mockResolvedValue({
+      ...baseVault,
+      status: ContractStatus.VERIFIED,
+    } as never);
+
+    const { result } = renderHook(() => useVaultActions());
+
+    await act(async () => {
+      await result.current.handleBroadcast({
+        ...baseBroadcastParams,
+        pendingPegin: undefined,
+      });
+    });
+
+    expect(result.current.broadcastError).toContain("VERIFIED");
+    expect(mockBroadcastPrePeginTransaction).not.toHaveBeenCalled();
+  });
+
   it("uses GraphQL tx when pendingPegin has no unsignedTxHex (cross-device)", async () => {
     mockFetchVaultById.mockResolvedValue(baseVault as never);
 
