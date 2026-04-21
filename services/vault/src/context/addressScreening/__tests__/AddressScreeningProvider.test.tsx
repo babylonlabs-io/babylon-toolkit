@@ -9,6 +9,7 @@ import {
 const mockVerifyAddress = vi.fn();
 const mockGetAddressScreeningResult = vi.fn();
 const mockSetAddressScreeningResult = vi.fn();
+const mockRemoveAddressScreeningResult = vi.fn();
 
 vi.mock("@/clients/address-screening", () => ({
   verifyAddress: (...args: unknown[]) => mockVerifyAddress(...args),
@@ -25,6 +26,8 @@ vi.mock("@/storage/addressScreeningStorage", () => ({
     mockGetAddressScreeningResult(...args),
   setAddressScreeningResult: (...args: unknown[]) =>
     mockSetAddressScreeningResult(...args),
+  removeAddressScreeningResult: (...args: unknown[]) =>
+    mockRemoveAddressScreeningResult(...args),
 }));
 
 let mockBtcAddress: string | undefined;
@@ -171,5 +174,86 @@ describe("AddressScreeningProvider", () => {
       });
     });
     expect(mockVerifyAddress).not.toHaveBeenCalled();
+  });
+
+  it("evicts only the BTC cache entry when the BTC wallet disconnects", async () => {
+    mockBtcAddress = "btc1";
+    mockEthAddress = "0xeth";
+    mockVerifyAddress.mockResolvedValue(true);
+
+    const onState = vi.fn();
+    const { rerender } = renderProvider(onState);
+
+    await waitFor(() => {
+      expect(onState).toHaveBeenLastCalledWith({
+        isBlocked: false,
+        isLoading: false,
+      });
+    });
+
+    mockBtcAddress = undefined;
+    rerender(
+      <AddressScreeningProvider>
+        <Observer onState={onState} />
+      </AddressScreeningProvider>,
+    );
+
+    await waitFor(() => {
+      expect(mockRemoveAddressScreeningResult).toHaveBeenCalledWith("btc1");
+    });
+    expect(mockRemoveAddressScreeningResult).not.toHaveBeenCalledWith("0xeth");
+  });
+
+  it("evicts only the ETH cache entry when the ETH wallet disconnects", async () => {
+    mockBtcAddress = "btc1";
+    mockEthAddress = "0xeth";
+    mockVerifyAddress.mockResolvedValue(true);
+
+    const onState = vi.fn();
+    const { rerender } = renderProvider(onState);
+
+    await waitFor(() => {
+      expect(onState).toHaveBeenLastCalledWith({
+        isBlocked: false,
+        isLoading: false,
+      });
+    });
+
+    mockEthAddress = undefined;
+    rerender(
+      <AddressScreeningProvider>
+        <Observer onState={onState} />
+      </AddressScreeningProvider>,
+    );
+
+    await waitFor(() => {
+      expect(mockRemoveAddressScreeningResult).toHaveBeenCalledWith("0xeth");
+    });
+    expect(mockRemoveAddressScreeningResult).not.toHaveBeenCalledWith("btc1");
+  });
+
+  it("evicts the previous address when the BTC address changes to a new one", async () => {
+    mockBtcAddress = "btc1";
+    mockEthAddress = undefined;
+    mockVerifyAddress.mockResolvedValue(true);
+
+    const onState = vi.fn();
+    const { rerender } = renderProvider(onState);
+
+    await waitFor(() => {
+      expect(mockVerifyAddress).toHaveBeenCalledWith("btc1");
+    });
+
+    mockBtcAddress = "btc2";
+    rerender(
+      <AddressScreeningProvider>
+        <Observer onState={onState} />
+      </AddressScreeningProvider>,
+    );
+
+    await waitFor(() => {
+      expect(mockRemoveAddressScreeningResult).toHaveBeenCalledWith("btc1");
+    });
+    expect(mockRemoveAddressScreeningResult).not.toHaveBeenCalledWith("btc2");
   });
 });

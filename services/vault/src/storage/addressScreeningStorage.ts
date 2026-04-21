@@ -66,10 +66,9 @@ export function setAddressScreeningResult(
   writeMap(map);
 }
 
-export function clearAddressScreeningResults(): void {
-  try {
-    localStorage.removeItem(STORAGE_KEY);
-  } catch {
-    /* noop */
-  }
+export function removeAddressScreeningResult(address: string): void {
+  if (!address) return;
+  const map = readMap();
+  delete map[normalize(address)];
+  writeMap(map);
 }

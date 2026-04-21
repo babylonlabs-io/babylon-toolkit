@@ -3,6 +3,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type PropsWithChildren,
 } from "react";
@@ -10,6 +11,7 @@ import {
 import { logger } from "@/infrastructure";
 import {
   getAddressScreeningResult,
+  removeAddressScreeningResult,
   setAddressScreeningResult,
 } from "@/storage/addressScreeningStorage";
 
@@ -68,7 +70,21 @@ export function AddressScreeningProvider({ children }: PropsWithChildren) {
   const [btcBlocked, setBtcBlocked] = useState(false);
   const [ethBlocked, setEthBlocked] = useState(false);
 
+  const prevBtcRef = useRef<string | undefined>(undefined);
+  const prevEthRef = useRef<string | undefined>(undefined);
+
   useEffect(() => {
+    // Evict cache entries for addresses that just disconnected or changed,
+    // per-wallet — BTC disconnect clears BTC only, ETH disconnect clears ETH only.
+    if (prevBtcRef.current && prevBtcRef.current !== btcAddress) {
+      removeAddressScreeningResult(prevBtcRef.current);
+    }
+    if (prevEthRef.current && prevEthRef.current !== ethAddress) {
+      removeAddressScreeningResult(prevEthRef.current);
+    }
+    prevBtcRef.current = btcAddress;
+    prevEthRef.current = ethAddress;
+
     if (!btcAddress && !ethAddress) {
       setBtcBlocked(false);
       setEthBlocked(false);
