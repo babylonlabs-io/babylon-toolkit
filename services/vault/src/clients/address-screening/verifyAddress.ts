@@ -2,7 +2,7 @@ import { ENV } from "@/config/env";
 
 interface AddressScreeningResponse {
   data: {
-    btc_address?: {
+    address?: {
       risk: string;
     };
   };
@@ -47,6 +47,6 @@ export async function verifyAddress(address: string): Promise<boolean> {
   }
 
   const body = (await response.json()) as AddressScreeningResponse;
-  const risk = body.data?.btc_address?.risk;
+  const risk = body.data?.address?.risk;
   return risk ? ALLOWED_RISK_LEVELS.includes(risk.toLowerCase()) : false;
 }

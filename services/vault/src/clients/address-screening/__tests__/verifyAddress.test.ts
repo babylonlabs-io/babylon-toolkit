@@ -20,7 +20,7 @@ describe("verifyAddress", () => {
   it("calls the utils-api with the `address` query param and url-encodes it", async () => {
     vi.mocked(fetch).mockResolvedValueOnce({
       ok: true,
-      json: async () => ({ data: { btc_address: { risk: "low" } } }),
+      json: async () => ({ data: { address: { risk: "low" } } }),
     } as Response);
 
     await verifyAddress("bc1 test");
@@ -33,7 +33,7 @@ describe("verifyAddress", () => {
   it("returns true for risk level 'low'", async () => {
     vi.mocked(fetch).mockResolvedValueOnce({
       ok: true,
-      json: async () => ({ data: { btc_address: { risk: "low" } } }),
+      json: async () => ({ data: { address: { risk: "low" } } }),
     } as Response);
 
     await expect(verifyAddress("addr")).resolves.toBe(true);
@@ -42,7 +42,7 @@ describe("verifyAddress", () => {
   it("returns true for risk level 'medium'", async () => {
     vi.mocked(fetch).mockResolvedValueOnce({
       ok: true,
-      json: async () => ({ data: { btc_address: { risk: "medium" } } }),
+      json: async () => ({ data: { address: { risk: "medium" } } }),
     } as Response);
 
     await expect(verifyAddress("addr")).resolves.toBe(true);
@@ -51,7 +51,7 @@ describe("verifyAddress", () => {
   it("treats risk levels case-insensitively", async () => {
     vi.mocked(fetch).mockResolvedValueOnce({
       ok: true,
-      json: async () => ({ data: { btc_address: { risk: "MEDIUM" } } }),
+      json: async () => ({ data: { address: { risk: "MEDIUM" } } }),
     } as Response);
 
     await expect(verifyAddress("addr")).resolves.toBe(true);
@@ -60,7 +60,7 @@ describe("verifyAddress", () => {
   it("returns false for risk level 'high'", async () => {
     vi.mocked(fetch).mockResolvedValueOnce({
       ok: true,
-      json: async () => ({ data: { btc_address: { risk: "high" } } }),
+      json: async () => ({ data: { address: { risk: "high" } } }),
     } as Response);
 
     await expect(verifyAddress("addr")).resolves.toBe(false);
