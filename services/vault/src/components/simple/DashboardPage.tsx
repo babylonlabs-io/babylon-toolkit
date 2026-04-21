@@ -40,10 +40,10 @@ export function DashboardPage() {
   const { address } = useETHWallet();
   const { address: btcAddress } = useBTCWallet();
   const { isConnected } = useConnection();
-  const { spendableUTXOs, isLoading: isLoadingUTXOs } = useUTXOs(btcAddress);
+  const { availableUTXOs, isLoading: isLoadingUTXOs } = useUTXOs(btcAddress);
   const btcBalanceBtc = isLoadingUTXOs
     ? undefined
-    : calculateBalance(spendableUTXOs) / 100_000_000;
+    : calculateBalance(availableUTXOs) / 100_000_000;
 
   const [isWithdrawOpen, setIsWithdrawOpen] = useState(false);
   const [isAssetModalOpen, setIsAssetModalOpen] = useState(false);

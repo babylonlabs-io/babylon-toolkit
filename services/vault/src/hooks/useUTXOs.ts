@@ -84,27 +84,31 @@ export function useUTXOs(
   // Log ordinals API errors once when the error changes (not on every render)
   useEffect(() => {
     if (ordinalsError) {
-      logger.warn("Ordinals API failed, treating all UTXOs as available", {
-        data: {
-          error:
-            ordinalsError instanceof Error
-              ? ordinalsError.message
-              : String(ordinalsError),
+      logger.warn(
+        "Ordinals API failed - display UTXOs unaffected, spend paths blocked when inscriptions excluded",
+        {
+          data: {
+            error:
+              ordinalsError instanceof Error
+                ? ordinalsError.message
+                : String(ordinalsError),
+          },
         },
-      });
+      );
     }
   }, [ordinalsError]);
 
   // Filter UTXOs by inscriptions
   // Rename to match exported API naming convention (uppercase UTXO)
-  // If ordinals API fails or is still loading, treat all UTXOs as available (non-blocking)
-  // UI should use isLoading/isLoadingOrdinals flags to show loading states
+  // Display-only: if ordinals API failed or is still loading, treat all UTXOs as available for UI rendering.
+  // Spend paths use a separate fail-closed gate below (see `spendableBlockedByOrdinals`).
+  // UI should use isLoading/isLoadingOrdinals flags to show loading states.
   const { availableUTXOs, inscriptionUTXOs } = useMemo(() => {
     if (confirmedUtxosForOrdinals.length === 0) {
       return { availableUTXOs: [], inscriptionUTXOs: [] };
     }
-    // If ordinals API failed or still loading, treat all UTXOs as available
-    // Ordinals check is optional - we don't block on it
+    // Display-only fallback: treat all UTXOs as available so the UI can still render totals.
+    // Spend paths are gated separately below.
     if (ordinalsError || isLoadingOrdinals) {
       return {
         availableUTXOs: confirmedUtxosForOrdinals,
@@ -178,7 +182,13 @@ export function useUTXOs(
     allUTXOs: data || [],
     /** Only confirmed UTXOs (may include inscriptions) */
     confirmedUTXOs,
-    /** Confirmed UTXOs without inscriptions (safe to spend) */
+    /**
+     * Display-only: confirmed UTXOs with known inscriptions removed. When the
+     * ordinals classifier is loading or has errored, this falls back to all
+     * confirmed UTXOs so the UI can still render totals — so it is NOT
+     * fail-closed and must not be used for spend paths. Use `spendableUTXOs`
+     * (gated by `spendableBlockedByOrdinals`) for spending.
+     */
     availableUTXOs,
     /** Confirmed UTXOs that contain inscriptions */
     inscriptionUTXOs,

@@ -135,7 +135,7 @@ describe("useUTXOs", () => {
       expect(result.current.spendableBlockedByOrdinals).toBe(true);
 
       expect(mockLoggerWarn).toHaveBeenCalledWith(
-        "Ordinals API failed, treating all UTXOs as available",
+        "Ordinals API failed - display UTXOs unaffected, spend paths blocked when inscriptions excluded",
         expect.objectContaining({
           data: { error: "Ordinals API returned 500" },
         }),
