@@ -5,7 +5,11 @@
  * Used in PegIn flow step after vault provider verification.
  */
 
-import { pushTx } from "@babylonlabs-io/ts-sdk";
+import {
+  HEX_RE,
+  MAX_REASONABLE_FEE_SATS,
+  pushTx,
+} from "@babylonlabs-io/ts-sdk";
 import { Psbt, Transaction } from "bitcoinjs-lib";
 import { Buffer } from "buffer";
 
@@ -23,8 +27,6 @@ export interface UTXOInfo {
   value: bigint;
   scriptPubKey: string;
 }
-
-const HEX_RE = /^[0-9a-fA-F]+$/;
 
 /**
  * Convert a UTXO array into the expectedUtxos Record format
@@ -118,22 +120,29 @@ async function resolveInputUtxo(
 }
 
 /**
- * Sanity check: total input value must at least cover total output value.
- * This catches obvious manipulation (negative fees) when the mempool fallback
- * is used. The primary defense is using expectedUtxos from construction time;
- * this check is defense-in-depth for the fallback path.
+ * Sanity check: total input value must at least cover total output value,
+ * and the implied fee must not exceed a reasonable upper bound.
+ * This catches obvious manipulation (negative fees or inflated inputs) when
+ * the mempool fallback is used. The primary defense is using expectedUtxos
+ * from construction time; this check is defense-in-depth for the fallback path.
  */
 function validateInputOutputBalance(
   totalInputValue: bigint,
   totalOutputValue: bigint,
 ): void {
-  // The difference (input - output) is the miner fee. We validate that
-  // inputs are at least as large as outputs (negative fee = impossible).
   if (totalInputValue < totalOutputValue) {
     throw new Error(
       `UTXO value mismatch: total input value (${totalInputValue} sat) is less than ` +
         `total output value (${totalOutputValue} sat). ` +
         `This may indicate the mempool API returned manipulated UTXO data.`,
+    );
+  }
+
+  const impliedFee = totalInputValue - totalOutputValue;
+  if (impliedFee > MAX_REASONABLE_FEE_SATS) {
+    throw new Error(
+      `Implied transaction fee (${impliedFee} sat) exceeds maximum reasonable fee ` +
+        `(${MAX_REASONABLE_FEE_SATS} sat). This may indicate manipulated UTXO data.`,
     );
   }
 }

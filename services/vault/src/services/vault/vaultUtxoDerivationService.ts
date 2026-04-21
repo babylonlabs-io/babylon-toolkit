@@ -8,7 +8,7 @@
  * This enables cross-device pegin broadcasting without localStorage dependency.
  */
 
-import { getTxInfo } from "@babylonlabs-io/ts-sdk";
+import { getUtxoInfo } from "@babylonlabs-io/ts-sdk";
 import { Transaction } from "bitcoinjs-lib";
 import { Buffer } from "buffer";
 
@@ -77,43 +77,27 @@ export async function deriveUTXOFromUnsignedTx(
 }
 
 /**
- * Fetch UTXO data from mempool API
+ * Fetch UTXO data from mempool API via the SDK's validated getUtxoInfo.
  *
- * Queries mempool.space API to get full transaction data and extract
- * the specific output (UTXO) being spent.
+ * Delegates to getUtxoInfo which validates txid format, vout bounds,
+ * satoshi value range, and scriptPubKey format before returning.
  *
  * @param txid - Transaction ID containing the UTXO
  * @param vout - Output index of the UTXO
  * @returns UTXO data with scriptPubKey and value
- * @throws Error if transaction not found or output index invalid
+ * @throws Error if transaction not found, output index invalid, or validation fails
  */
 export async function fetchUTXOFromMempool(
   txid: string,
   vout: number,
 ): Promise<{ scriptPubKey: string; value: number }> {
   try {
-    // Fetch transaction info from mempool API
-    const txInfo = await getTxInfo(txid, getMempoolApiUrl());
-
-    // Validate output index
-    if (vout >= txInfo.vout.length) {
-      throw new Error(
-        `Invalid output index ${vout}. Transaction ${txid} only has ${txInfo.vout.length} outputs.`,
-      );
-    }
-
-    // Extract output data
-    const output = txInfo.vout[vout];
-
-    if (!output) {
-      throw new Error(
-        `Output ${vout} not found in transaction ${txid}. This should not happen after validation.`,
-      );
-    }
-
+    // Delegate to the SDK's getUtxoInfo which validates txid format,
+    // vout bounds, satoshi value, and scriptPubKey format.
+    const utxoInfo = await getUtxoInfo(txid, vout, getMempoolApiUrl());
     return {
-      scriptPubKey: output.scriptpubkey,
-      value: output.value,
+      scriptPubKey: utxoInfo.scriptPubKey,
+      value: utxoInfo.value,
     };
   } catch (error) {
     if (error instanceof Error) {

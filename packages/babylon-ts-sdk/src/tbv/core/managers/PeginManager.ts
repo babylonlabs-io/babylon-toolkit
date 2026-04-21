@@ -58,6 +58,7 @@ import {
   peginOutputCount,
   selectUtxosForPegin,
   type UTXO,
+  MAX_REASONABLE_FEE_SATS,
 } from "../utils";
 
 /** Referral code sent with pegin registration — 0 means no referral. */
@@ -394,6 +395,7 @@ export interface RegisterPeginBatchResult {
   /** The BTC PoP signature used (for reference) */
   btcPopSignature: Hex;
 }
+
 
 /**
  * Resolve prevout data for a transaction input.
@@ -739,6 +741,14 @@ export class PeginManager {
         `UTXO value mismatch: total input value (${totalInputValue} sat) is less than ` +
           `total output value (${totalOutputValue} sat). ` +
           `This may indicate the mempool API returned manipulated UTXO data.`,
+      );
+    }
+
+    const impliedFee = totalInputValue - totalOutputValue;
+    if (impliedFee > MAX_REASONABLE_FEE_SATS) {
+      throw new Error(
+        `Implied transaction fee (${impliedFee} sat) exceeds maximum reasonable fee ` +
+          `(${MAX_REASONABLE_FEE_SATS} sat). This may indicate manipulated UTXO data.`,
       );
     }
 

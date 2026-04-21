@@ -34,6 +34,8 @@ const { mockFetchUTXO, mockPsbt, mockTx, mockInput } = vi.hoisted(() => {
 
 vi.mock("@babylonlabs-io/ts-sdk", () => ({
   pushTx: vi.fn().mockResolvedValue("mock-txid"),
+  HEX_RE: /^[0-9a-fA-F]+$/,
+  MAX_REASONABLE_FEE_SATS: 1_000_000n,
 }));
 vi.mock("bitcoinjs-lib", () => {
   // Psbt must be callable as a constructor (new Psbt())
@@ -189,5 +191,21 @@ describe("broadcastPrePeginTransaction — resolveInputUtxo behavior", () => {
     await expect(
       broadcastPrePeginTransaction({ ...baseParams, expectedUtxos }),
     ).rejects.toThrow("missing entry for");
+  });
+
+  it("throws when implied fee exceeds maximum reasonable fee", async () => {
+    // Mock UTXO with hugely inflated value — implies an unreasonable fee
+    const inflatedValue = 2_000_000; // 0.02 BTC, output is 90000, so fee = 1_910_000 > 1_000_000
+    mockFetchUTXO.mockResolvedValueOnce({
+      scriptPubKey: "0014aabb",
+      value: inflatedValue,
+    });
+
+    await expect(
+      broadcastPrePeginTransaction({
+        ...baseParams,
+        expectedUtxos: undefined,
+      }),
+    ).rejects.toThrow(/exceeds maximum reasonable fee/);
   });
 });
