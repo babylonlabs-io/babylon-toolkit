@@ -35,6 +35,7 @@ const { mockFetchUTXO, mockPsbt, mockTx, mockInput } = vi.hoisted(() => {
 vi.mock("@babylonlabs-io/ts-sdk", () => ({
   pushTx: vi.fn().mockResolvedValue("mock-txid"),
   HEX_RE: /^[0-9a-fA-F]+$/,
+  TXID_RE: /^[0-9a-fA-F]{64}$/,
   MAX_REASONABLE_FEE_SATS: 1_000_000n,
 }));
 vi.mock("bitcoinjs-lib", () => {
@@ -67,17 +68,25 @@ import {
   utxosToExpectedRecord,
 } from "../vaultPeginBroadcastService";
 
+/** Valid 64-hex-char txids for tests */
+const TXID_A =
+  "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+const TXID_B =
+  "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+const TXID_UPPER =
+  "AABB00112233445566778899AABB00112233445566778899AABB001122334455";
+
 describe("utxosToExpectedRecord", () => {
   it("converts a valid UTXO array to a keyed record", () => {
     const utxos = [
       {
-        txid: "abc123",
+        txid: TXID_A,
         vout: 0,
         value: 100000,
         scriptPubKey: "0014deadbeef",
       },
       {
-        txid: "def456",
+        txid: TXID_B,
         vout: 1,
         value: "200000",
         scriptPubKey: "5120cafebabe",
@@ -87,15 +96,15 @@ describe("utxosToExpectedRecord", () => {
     const result = utxosToExpectedRecord(utxos);
 
     expect(result).toEqual({
-      "abc123:0": { scriptPubKey: "0014deadbeef", value: 100000 },
-      "def456:1": { scriptPubKey: "5120cafebabe", value: 200000 },
+      [`${TXID_A}:0`]: { scriptPubKey: "0014deadbeef", value: 100000 },
+      [`${TXID_B}:1`]: { scriptPubKey: "5120cafebabe", value: 200000 },
     });
   });
 
   it("normalizes txid to lowercase for consistent lookup", () => {
     const utxos = [
       {
-        txid: "ABC123DEF456",
+        txid: TXID_UPPER,
         vout: 0,
         value: 100000,
         scriptPubKey: "0014deadbeef",
@@ -104,23 +113,23 @@ describe("utxosToExpectedRecord", () => {
 
     const result = utxosToExpectedRecord(utxos);
 
-    expect(result["abc123def456:0"]).toEqual({
+    expect(result[`${TXID_UPPER.toLowerCase()}:0`]).toEqual({
       scriptPubKey: "0014deadbeef",
       value: 100000,
     });
-    expect(result["ABC123DEF456:0"]).toBeUndefined();
+    expect(result[`${TXID_UPPER}:0`]).toBeUndefined();
   });
 
   it("throws on NaN value", () => {
     const utxos = [
-      { txid: "abc123", vout: 0, value: "not-a-number", scriptPubKey: "0014" },
+      { txid: TXID_A, vout: 0, value: "not-a-number", scriptPubKey: "0014" },
     ];
     expect(() => utxosToExpectedRecord(utxos)).toThrow("Invalid UTXO value");
   });
 
   it("throws on negative value", () => {
     const utxos = [
-      { txid: "abc123", vout: 0, value: -100, scriptPubKey: "0014" },
+      { txid: TXID_A, vout: 0, value: -100, scriptPubKey: "0014" },
     ];
     expect(() => utxosToExpectedRecord(utxos)).toThrow("Invalid UTXO value");
   });
@@ -132,15 +141,20 @@ describe("utxosToExpectedRecord", () => {
     expect(() => utxosToExpectedRecord(utxos)).toThrow("Invalid UTXO txid");
   });
 
+  it("throws on short txid (not 64 chars)", () => {
+    const utxos = [
+      { txid: "abc123", vout: 0, value: 100, scriptPubKey: "0014" },
+    ];
+    expect(() => utxosToExpectedRecord(utxos)).toThrow("Invalid UTXO txid");
+  });
+
   it("throws on empty txid", () => {
     const utxos = [{ txid: "", vout: 0, value: 100, scriptPubKey: "0014" }];
     expect(() => utxosToExpectedRecord(utxos)).toThrow("Invalid UTXO txid");
   });
 
   it("throws on non-hex scriptPubKey", () => {
-    const utxos = [
-      { txid: "abc123", vout: 0, value: 100, scriptPubKey: "xyz!" },
-    ];
+    const utxos = [{ txid: TXID_A, vout: 0, value: 100, scriptPubKey: "xyz!" }];
     expect(() => utxosToExpectedRecord(utxos)).toThrow(
       "Invalid UTXO scriptPubKey",
     );

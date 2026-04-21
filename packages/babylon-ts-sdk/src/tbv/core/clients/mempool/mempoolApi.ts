@@ -313,14 +313,11 @@ export async function getAddressUtxos(
         `Invalid Bitcoin address: ${address}. Mempool API validation failed.`,
       );
     }
+    assertValidScriptPubKey(addressInfo.scriptPubKey, address);
 
-    // Validate and cross-verify each UTXO against its transaction data.
-    // The listing endpoint is treated as discovery only — each UTXO is
-    // independently verified via /tx/{txid} to confirm value and scriptPubKey.
-    const verifiedUtxos: typeof utxos = [];
+    // Validate listing-level fields before making any network requests.
     for (const utxo of utxos) {
       assertValidTxid(utxo.txid);
-
       if (!isValidVout(utxo.vout)) {
         throw new Error(`Invalid vout ${utxo.vout} for ${utxo.txid}`);
       }
@@ -329,9 +326,25 @@ export async function getAddressUtxos(
           `Invalid UTXO value ${utxo.value} for ${utxo.txid}:${utxo.vout}`,
         );
       }
+    }
 
-      // Cross-verify: fetch the transaction and check the specific output
-      const txInfo = await fetchApi<TxInfo>(`${apiUrl}/tx/${utxo.txid}`);
+    // Cross-verify each UTXO against its transaction data.
+    // The listing endpoint is treated as discovery only — each UTXO is
+    // independently verified via /tx/{txid} to confirm value and scriptPubKey.
+    // Deduplicate txid fetches: multiple UTXOs may reference the same tx.
+    const uniqueTxids = [...new Set(utxos.map((u) => u.txid))];
+    const txInfoEntries = await Promise.all(
+      uniqueTxids.map(async (txid) => {
+        const txInfo = await fetchApi<TxInfo>(`${apiUrl}/tx/${txid}`);
+        return [txid, txInfo] as const;
+      }),
+    );
+    const txInfoMap = new Map<string, TxInfo>(txInfoEntries);
+
+    const verifiedUtxos: typeof utxos = [];
+    const normalizedAddressScript = addressInfo.scriptPubKey.toLowerCase();
+    for (const utxo of utxos) {
+      const txInfo = txInfoMap.get(utxo.txid)!;
 
       if (!isValidVout(utxo.vout, txInfo.vout.length)) {
         throw new Error(
@@ -347,7 +360,7 @@ export async function getAddressUtxos(
         );
       }
 
-      if (output.scriptpubkey !== addressInfo.scriptPubKey) {
+      if (output.scriptpubkey.toLowerCase() !== normalizedAddressScript) {
         throw new Error(
           `UTXO scriptPubKey mismatch for ${utxo.txid}:${utxo.vout}: ` +
             `output does not pay to the requested address`,

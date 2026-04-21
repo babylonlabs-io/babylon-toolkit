@@ -8,6 +8,7 @@
 import {
   HEX_RE,
   MAX_REASONABLE_FEE_SATS,
+  TXID_RE,
   pushTx,
 } from "@babylonlabs-io/ts-sdk";
 import { Psbt, Transaction } from "bitcoinjs-lib";
@@ -47,7 +48,7 @@ export function utxosToExpectedRecord(
     if (!Number.isSafeInteger(numValue) || numValue < 0) {
       throw new Error(`Invalid UTXO value for ${u.txid}:${u.vout}: ${u.value}`);
     }
-    if (!u.txid || !HEX_RE.test(u.txid)) {
+    if (!u.txid || !TXID_RE.test(u.txid)) {
       throw new Error(`Invalid UTXO txid: ${u.txid}`);
     }
     if (!u.scriptPubKey || !HEX_RE.test(u.scriptPubKey)) {

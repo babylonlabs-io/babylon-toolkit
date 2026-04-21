@@ -12,11 +12,13 @@ export const HEX_RE = /^[0-9a-fA-F]+$/;
 export const TXID_RE = /^[0-9a-fA-F]{64}$/;
 
 /**
- * Bitcoin address format gate: 25–62 alphanumeric characters.
- * Covers legacy (P2PKH/P2SH), bech32 (P2WPKH/P2WSH), and bech32m (P2TR).
+ * Bitcoin address format gate: 25–90 alphanumeric characters.
+ * Covers legacy (P2PKH/P2SH), bech32 (P2WPKH/P2WSH), bech32m (P2TR),
+ * and regtest addresses (bcrt1... which are 62–64 chars for 32-byte witness programs).
+ * Upper bound of 90 provides headroom for future address formats.
  * This is a format gate to prevent path-traversal — not full address validation.
  */
-export const BITCOIN_ADDRESS_RE = /^[a-zA-Z0-9]{25,62}$/;
+export const BITCOIN_ADDRESS_RE = /^[a-zA-Z0-9]{25,90}$/;
 
 /**
  * Known Bitcoin scriptPubKey prefixes:
