@@ -27,6 +27,7 @@ describe("verifyAddress", () => {
 
     expect(fetch).toHaveBeenCalledWith(
       "https://utils.example.com/address/screening?address=bc1%20test",
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
     );
   });
 
@@ -93,5 +94,21 @@ describe("verifyAddress", () => {
     await expect(verifyAddress("addr")).rejects.toBeInstanceOf(
       AddressScreeningNetworkError,
     );
+  });
+
+  it("allows by default when UTILS_API_URL is not configured", async () => {
+    // Temporarily override ENV to simulate missing URL
+    const envModule = await import("@/config/env");
+    const originalUrl = envModule.ENV.UTILS_API_URL;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (envModule.ENV as any).UTILS_API_URL = undefined;
+
+    try {
+      await expect(verifyAddress("addr")).resolves.toBe(true);
+      expect(fetch).not.toHaveBeenCalled();
+    } finally {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (envModule.ENV as any).UTILS_API_URL = originalUrl;
+    }
   });
 });

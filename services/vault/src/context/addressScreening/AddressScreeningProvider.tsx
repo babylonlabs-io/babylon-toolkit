@@ -77,6 +77,10 @@ export function AddressScreeningProvider({ children }: PropsWithChildren) {
     }
 
     let cancelled = false;
+    // Clear previous results immediately so a stale "blocked" banner from
+    // the prior wallet doesn't remain visible during re-screening.
+    setBtcBlocked(false);
+    setEthBlocked(false);
     setIsLoading(true);
 
     Promise.all([
