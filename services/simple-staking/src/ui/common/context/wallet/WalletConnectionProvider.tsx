@@ -1,5 +1,4 @@
 import {
-  APPKIT_BTC_CONNECTOR_ID,
   WalletProvider,
   createWalletConfig,
   type AppKitModalConfig,
@@ -73,16 +72,6 @@ export const WalletConnectionProvider = ({ children }: PropsWithChildren) => {
       disabled.push("ledger_btc_v2"); // Disable v2, use v1 (default)
     }
 
-    // Disable AppKit BTC if:
-    // 1. No Reown project ID (AppKit won't work without it)
-    // 2. On mainnet (not mature enough for production)
-    const hasReownProjectId = !!process.env.NEXT_PUBLIC_REOWN_PROJECT_ID;
-    const isMainnet = process.env.NEXT_PUBLIC_NETWORK === "mainnet";
-
-    if (!hasReownProjectId || isMainnet) {
-      disabled.push(APPKIT_BTC_CONNECTOR_ID);
-    }
-
     return disabled;
   }, []);
 
@@ -120,10 +109,6 @@ export const WalletConnectionProvider = ({ children }: PropsWithChildren) => {
             ? `${window.location.origin}/favicon.ico`
             : "https://btcstaking.babylonlabs.io/favicon.ico",
         ],
-      },
-      btc: {
-        network:
-          getNetworkConfigBTC().network === "mainnet" ? "mainnet" : "signet",
       },
     };
   }, []);

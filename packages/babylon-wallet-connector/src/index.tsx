@@ -11,7 +11,6 @@ export { useChainConnector } from "@/hooks/useChainConnector";
 export { useVisibilityCheck } from "@/hooks/useVisibilityCheck";
 export { useWalletConnect } from "@/hooks/useWalletConnect";
 export { useWidgetState } from "@/hooks/useWidgetState";
-export { useAppKitBtcBridge } from "@/hooks/appkit/btc/useAppKitBtcBridge";
 export { useAppKitOpenListener } from "@/hooks/appkit/useAppKitOpenListener";
 
 export { type ChainConfigArr } from "@/context/Chain.context";
@@ -27,20 +26,12 @@ export { setSharedWagmiConfig, getSharedWagmiConfig, hasSharedWagmiConfig } from
 
 // Export AppKit connector IDs
 export { APPKIT_ETH_CONNECTOR_ID } from "@/core/wallets/eth/appkit";
-export { APPKIT_BTC_CONNECTOR_ID } from "@/core/wallets/btc/appkit";
 
 // Export unified AppKit modal utilities (supports both ETH and BTC)
 export {
     initializeAppKitModal,
     type AppKitModalConfig,
 } from "@/core/wallets/appkit/appKitModal";
-
-// Export BTC AppKit shared config helpers
-export {
-    setSharedBtcAppKitConfig,
-    getSharedBtcAppKitConfig,
-    hasSharedBtcAppKitConfig,
-} from "@/core/wallets/btc/appkit/sharedConfig";
 
 // Export UTXO filtering utilities
 export {

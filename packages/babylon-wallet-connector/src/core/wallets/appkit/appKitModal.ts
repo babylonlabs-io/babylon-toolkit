@@ -1,24 +1,20 @@
-import { BitcoinAdapter } from "@reown/appkit-adapter-bitcoin";
 import { WagmiAdapter } from "@reown/appkit-adapter-wagmi";
 import type { AppKitNetwork } from "@reown/appkit/networks";
-import { bitcoin, bitcoinSignet } from "@reown/appkit/networks";
 import { createAppKit } from "@reown/appkit/react";
 import { cookieStorage, createStorage } from "wagmi";
 import type { Chain } from "viem";
 
-import { setSharedBtcAppKitConfig } from "../btc/appkit/sharedConfig";
 import { setSharedWagmiConfig } from "../eth/appkit/sharedConfig";
 
 /**
  * Unified AppKit Modal Configuration
  *
- * This file provides a unified initialization point for both ETH and BTC AppKit adapters.
- * It creates a single AppKit modal instance that supports both chains.
+ * This file provides initialization for the ETH AppKit adapter.
+ * It creates a single AppKit modal instance for ETH wallet connections.
  */
 
 /**
- * Minimal AppKit configuration
- * Supports ETH-only, BTC-only, or unified ETH+BTC wallet connections
+ * AppKit configuration for ETH wallet connections
  */
 export interface AppKitModalConfig {
   projectId?: string;
@@ -39,21 +35,10 @@ export interface AppKitModalConfig {
      */
     chain: Chain;
   };
-  /**
-   * BTC configuration (optional)
-   * Required only if you want to enable BTC wallet connections
-   */
-  btc?: {
-    /**
-     * BTC network (mainnet or signet)
-     */
-    network: "mainnet" | "signet";
-  };
 }
 
 let appKitModal: ReturnType<typeof createAppKit> | null = null;
 let wagmiAdapter: WagmiAdapter | null = null;
-let bitcoinAdapter: BitcoinAdapter | null = null;
 
 /**
  * Get the AppKit modal instance (if initialized)
@@ -64,10 +49,10 @@ export function getAppKitModal() {
 }
 
 /**
- * Initialize AppKit modal with ETH and/or BTC support
- * Creates a single AppKit instance with all configured adapters
+ * Initialize AppKit modal with ETH support
+ * Creates a single AppKit instance with the wagmi adapter
  * This should be called once at the application level
- * @param config - Configuration including required metadata, optional ETH chain, and optional BTC network
+ * @param config - Configuration including required metadata and optional ETH chain
  */
 export function initializeAppKitModal(config: AppKitModalConfig) {
   // Don't reinitialize if already initialized
@@ -75,7 +60,6 @@ export function initializeAppKitModal(config: AppKitModalConfig) {
     return {
       modal: appKitModal,
       wagmiConfig: wagmiAdapter?.wagmiConfig,
-      bitcoinAdapter,
     };
   }
 
@@ -88,7 +72,7 @@ export function initializeAppKitModal(config: AppKitModalConfig) {
   const metadata = config.metadata;
 
   const allNetworks: AppKitNetwork[] = [];
-  const adapters: (WagmiAdapter | BitcoinAdapter)[] = [];
+  const adapters: WagmiAdapter[] = [];
 
   // Create Wagmi Adapter if ETH is configured
   if (config.eth?.chain) {
@@ -113,20 +97,7 @@ export function initializeAppKitModal(config: AppKitModalConfig) {
     setSharedWagmiConfig(wagmiAdapter.wagmiConfig);
   }
 
-  // Create Bitcoin Adapter if BTC is configured
-  if (config.btc?.network) {
-    const btcNetwork =
-      config.btc.network === "mainnet" ? bitcoin : bitcoinSignet;
-    allNetworks.push(btcNetwork);
-
-    bitcoinAdapter = new BitcoinAdapter({
-      networks: [btcNetwork],
-    });
-
-    adapters.push(bitcoinAdapter);
-  }
-
-  // Must have at least one network (ETH or BTC)
+  // Must have at least one network
   if (allNetworks.length === 0) {
     return null;
   }
@@ -139,18 +110,8 @@ export function initializeAppKitModal(config: AppKitModalConfig) {
     metadata,
   });
 
-  // Set the shared BTC AppKit config with the actual modal instance
-  if (bitcoinAdapter && config.btc?.network) {
-    setSharedBtcAppKitConfig({
-      modal: appKitModal,
-      adapter: bitcoinAdapter,
-      network: config.btc.network,
-    });
-  }
-
   return {
     modal: appKitModal,
     wagmiConfig: wagmiAdapter?.wagmiConfig,
-    bitcoinAdapter,
   };
 }

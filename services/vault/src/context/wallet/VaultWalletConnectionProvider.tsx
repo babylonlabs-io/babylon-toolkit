@@ -3,7 +3,6 @@ import {
   getNetworkConfigETH,
 } from "@babylonlabs-io/config";
 import {
-  APPKIT_BTC_CONNECTOR_ID,
   BTCWalletProvider,
   ETHWalletProvider,
   WalletProvider,
@@ -80,16 +79,7 @@ export const WalletConnectionProvider = ({ children }: PropsWithChildren) => {
   const { theme } = useTheme();
 
   const disabledWallets = useMemo(() => {
-    const disabled: string[] = ["ledger_btc", "ledger_btc_v2"];
-
-    const isMainnet = process.env.NEXT_PUBLIC_BTC_NETWORK === "mainnet";
-
-    // Disable AppKit BTC on mainnet
-    if (isMainnet) {
-      disabled.push(APPKIT_BTC_CONNECTOR_ID);
-    }
-
-    return disabled;
+    return ["ledger_btc", "ledger_btc_v2"];
   }, []);
 
   const config = useMemo(

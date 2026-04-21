@@ -14,11 +14,6 @@ import "../sentry.client.config";
 /**
  * Initialize the ECC library for bitcoinjs-lib before app starts.
  * This must be called before any Bitcoin operations.
- *
- * Note: We use pnpm.overrides in the workspace root package.json to ensure
- * all packages (including @reown/appkit-adapter-bitcoin) use the same
- * bitcoinjs-lib version, so this single initialization call works for the entire app.
- * Can be removed once @reown/appkit-adapter-bitcoin makes bitcoinjs-lib a peer dependency.
  */
 initBTCCurve();
 
