@@ -113,8 +113,14 @@ import {
 import { VaultProviderRpcClient } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import { type UTXO } from "@babylonlabs-io/ts-sdk/tbv/core";
 import { stripHexPrefix } from "@babylonlabs-io/ts-sdk/tbv/core/primitives";
-import type { Address, Hex } from "viem";
+import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
+import type { Address, Hex, WalletClient } from "viem";
 import { randomBytes } from "node:crypto";
+
+// The manager and wallets constructed in the Configuration section above.
+declare const peginManager: PeginManager;
+declare const btcWallet: BitcoinWallet;
+declare const ethWallet: WalletClient;
 
 // Values you source before starting — see Get Started → Where config values come from.
 declare const BTC_VAULT_REGISTRY: Address;

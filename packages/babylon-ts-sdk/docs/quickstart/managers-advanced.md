@@ -129,10 +129,25 @@ Rules to watch:
 Example (builds on the happy-path config — `peginManager`, `btcWallet`, `vpEthAddress`, etc. are the same instances you set up in [Managers Quickstart → Configuration](./managers.md#configuration)):
 
 ```typescript
+import { PeginManager } from "@babylonlabs-io/ts-sdk/tbv/core";
 import { computeHashlock } from "@babylonlabs-io/ts-sdk/tbv/core/services";
 import { stripHexPrefix } from "@babylonlabs-io/ts-sdk/tbv/core/primitives";
+import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
 import { randomBytes } from "node:crypto";
-import type { Hex } from "viem";
+import type { Address, Hex } from "viem";
+
+declare const peginManager: PeginManager;
+declare const btcWallet: BitcoinWallet;
+declare const vpEthAddress: Address;
+
+// Every non-array param is the same as the single-vault happy path — vault
+// provider pubkey, keepers, challengers, timelocks, fee rate, council
+// params, UTXO set, change address. Reuse that object minus the per-vault
+// arrays so we don't drift from the happy-path source of truth.
+declare const sharedBatchParams: Omit<
+  Parameters<typeof peginManager.preparePegin>[0],
+  "amounts" | "hashlocks"
+>;
 
 // One fresh HTLC secret per vault. PERSIST all of them — you need them
 // independently for each vault's phase-5 activation.
@@ -150,12 +165,10 @@ declare const depositorWotsPkHashes: Hex[];
 const depositorBtcPubkey = await btcWallet.getPublicKeyHex();
 
 const result = await peginManager.preparePegin({
+  ...sharedBatchParams,
   amounts: [100_000n, 250_000n],
   hashlocks: rawHashlocks,
-  // … the rest of the params are shared across all vaults in the batch
-  //   (vault provider pubkey, keepers, challengers, timelocks, fee rate,
-  //   council params, UTXO set). Copy them from the happy-path flow.
-} as never);
+});
 
 // One registerPeginOnChain call per vault; they share the same Pre-PegIn tx.
 for (let i = 0; i < result.perVault.length; i++) {
