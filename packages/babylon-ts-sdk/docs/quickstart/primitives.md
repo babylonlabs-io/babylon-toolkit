@@ -38,34 +38,50 @@ Primitives are the lowest-level SDK functions. They:
 
 The full [transaction graph](https://github.com/babylonlabs-io/btc-vault/blob/main/docs/pegin.md#2-transaction-graph-and-presigning) includes additional transaction types (Claim, Assert, ChallengeAssert, NoPayout, WronglyChallenged). When the vault provider acts as claimer, most of these are generated and managed by the vault provider. The SDK provides primitives for operations the **depositor** performs: building the peg-in transaction and signing payout authorizations. When the depositor acts as claimer (depositor-as-claimer path), the SDK also provides builders for the NoPayout and ChallengeAssert PSBTs.
 
-### 1. buildPeginPsbt
+### 1. buildPrePeginPsbt + buildPeginTxFromFundedPrePegin
 
-Builds an **unfunded** [peg-in](https://github.com/babylonlabs-io/btc-vault/blob/main/docs/pegin.md) transaction hex (0 inputs, 1 BTC vault output).
+Peg-in is a **two-step flow** on Bitcoin:
+
+1. `buildPrePeginPsbt()` — build an unfunded **Pre-PegIn** tx with one HTLC output per vault (plus a CPFP anchor). No inputs yet — the caller funds it.
+2. `buildPeginTxFromFundedPrePegin()` — once the Pre-PegIn is funded and its txid is known, derive the **PegIn** tx that spends the HTLC output back to the vault connector.
+
+See the [protocol spec](https://github.com/babylonlabs-io/btc-vault/blob/main/docs/pegin.md) for why this is split.
 
 ```typescript
-import { buildPeginPsbt } from "@babylonlabs-io/ts-sdk/tbv/core/primitives";
+import {
+  buildPrePeginPsbt,
+  buildPeginTxFromFundedPrePegin,
+} from "@babylonlabs-io/ts-sdk/tbv/core/primitives";
 
-const result = await buildPeginPsbt({
-  depositorPubkey: "abc123...", // x-only, 64 hex chars, no 0x
+// Step 1: unfunded Pre-PegIn tx
+const prePegin = await buildPrePeginPsbt({
+  depositorPubkey: "abc123...",         // x-only, 64 hex chars, no 0x
   vaultProviderPubkey: "def456...",
   vaultKeeperPubkeys: ["ghi789..."],
   universalChallengerPubkeys: ["jkl012..."],
-  pegInAmount: 100000n, // satoshis
+  hashlocks: ["aabb...cc"],             // one per vault (64-char hex, no 0x prefix)
+  timelockRefund: 144,                  // CSV blocks for refund path
+  pegInAmounts: [100_000n],             // one per vault (satoshis)
+  feeRate: 10n,                         // sat/vB, from offchain params
+  numLocalChallengers: 0,
+  councilQuorum: 3,
+  councilSize: 5,
   network: "signet",
 });
+// prePegin.psbtHex is the UNFUNDED tx hex (no inputs yet).
+// Caller funds it (selectUtxosForPegin + fundPeginTransaction), then computes
+// the funded txid.
 
-// Returns:
-// {
-//   psbtHex: "...",           // Unfunded transaction hex (you add inputs via PSBT)
-//   vaultScriptPubKey: "...", // Vault output script
-//   vaultValue: 100000n,      // Vault amount
-//   txid: "...",              // Transaction ID (will change after funding)
-// }
+// Step 2: derive PegIn tx that spends a single HTLC output
+const pegin = await buildPeginTxFromFundedPrePegin({
+  prePeginParams: { /* same params as above */ },
+  timelockPegin: 144,                   // CSV blocks for the PegIn vault output
+  fundedPrePeginTxHex: "0100...",       // Funded Pre-PegIn tx hex (no 0x prefix)
+  htlcVout: 0,                          // Index of the HTLC output to spend
+});
 ```
 
-**Note:** Despite the field name `psbtHex`, this contains raw unfunded transaction hex (not PSBT format). You must construct a PSBT from it, add UTXOs as inputs, add change output, sign, and broadcast.
-
-**You then:** Add UTXOs as inputs, add change output, sign, broadcast.
+**Full parameter shapes:** see the [API Reference](../api/primitives.md) — both `PrePeginParams` and the return type `PrePeginPsbtResult` expose additional batch fields (one entry per vault).
 
 ### 2. buildPayoutPsbt
 

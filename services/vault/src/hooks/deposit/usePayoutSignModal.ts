@@ -1,23 +1,18 @@
 import { useCallback, useState } from "react";
 
-import type {
-  ClaimerTransactions,
-  DepositorGraphTransactions,
-} from "../../clients/vault-provider-rpc/types";
 import type { VaultActivity } from "../../types/activity";
 
-/** Data for an active signing session — all fields set together */
+/** Data for an active signing session. */
 export interface SignModalData {
   activity: VaultActivity;
-  transactions: ClaimerTransactions[];
-  depositorGraph: DepositorGraphTransactions;
 }
 
 /**
- * Hook to manage payout sign modal state and actions
+ * Hook to manage payout sign modal state and actions.
  *
- * Uses a single state object so that activity, transactions, and
- * depositorGraph are always set/cleared atomically.
+ * The actual transactions + depositor graph are fetched by the SDK's
+ * `pollAndSignPayouts` (via the modal's hook) — the modal only needs to
+ * know which activity is being signed.
  */
 export function usePayoutSignModal(options: {
   allActivities: VaultActivity[];
@@ -27,27 +22,20 @@ export function usePayoutSignModal(options: {
 
   const [signingData, setSigningData] = useState<SignModalData | null>(null);
 
-  // Handle clicking "Sign" button from table row
   const handleSignClick = useCallback(
-    (
-      depositId: string,
-      transactions: ClaimerTransactions[],
-      depositorGraph: DepositorGraphTransactions,
-    ) => {
+    (depositId: string) => {
       const activity = allActivities.find((a) => a.id === depositId);
-      if (activity && transactions) {
-        setSigningData({ activity, transactions, depositorGraph });
+      if (activity) {
+        setSigningData({ activity });
       }
     },
     [allActivities],
   );
 
-  // Handle payout sign modal close
   const handleClose = useCallback(() => {
     setSigningData(null);
   }, []);
 
-  // Handle payout sign success
   const handleSuccess = useCallback(() => {
     onSuccess();
   }, [onSuccess]);

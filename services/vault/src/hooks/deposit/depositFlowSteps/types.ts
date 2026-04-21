@@ -5,11 +5,7 @@
 import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
 import type { Hex, WalletClient } from "viem";
 
-import type { DepositorGraphTransactions } from "@/clients/vault-provider-rpc/types";
-import type {
-  PreparedTransaction,
-  SigningContext,
-} from "@/services/vault/vaultPayoutSignatureService";
+import type { WotsPublicKeys } from "@/services/wots";
 
 // ============================================================================
 // Deposit Flow Steps
@@ -97,39 +93,10 @@ export interface WotsSubmissionParams {
   /** Raw BTC pegin transaction hash (for VP RPC pegin_txid) */
   peginTxHash: string;
   depositorBtcPubkey: string;
-  appContractAddress: string;
   providerAddress: string;
-  getMnemonic: () => Promise<string>;
+  /** Pre-derived WOTS block public keys (one per assert block) */
+  wotsPublicKeys: WotsPublicKeys;
   signal?: AbortSignal;
-}
-
-// ============================================================================
-// Step 3: Payout Signing
-// ============================================================================
-
-export interface PayoutSigningParams {
-  /** Derived vault ID (for contract operations in signing context) */
-  vaultId: string;
-  /** Raw BTC pegin transaction hash (for VP RPC operations) */
-  peginTxHash: string;
-  /** The pegin transaction hex from step 2 - used for signing context */
-  btcTxHex: string;
-  depositorBtcPubkey: string;
-  providerAddress: string;
-  providerBtcPubKey: string;
-  vaultKeepers: Array<{ btcPubKey: string }>;
-  universalChallengers: Array<{ btcPubKey: string }>;
-  /** Depositor's registered payout scriptPubKey (hex) — converted from BTC address before passing */
-  registeredPayoutScriptPubKey: string;
-  /** Optional AbortSignal for cancellation */
-  signal?: AbortSignal;
-}
-
-export interface PayoutSigningContext {
-  context: SigningContext;
-  vaultProviderAddress: string;
-  preparedTransactions: PreparedTransaction[];
-  depositorGraph: DepositorGraphTransactions;
 }
 
 // ============================================================================

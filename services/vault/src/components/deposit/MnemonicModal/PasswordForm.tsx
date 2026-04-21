@@ -1,4 +1,4 @@
-import { Button, Text } from "@babylonlabs-io/core-ui";
+import { Button, Input, Text } from "@babylonlabs-io/core-ui";
 import { useCallback, useState } from "react";
 
 interface PasswordFormProps {
@@ -31,11 +31,10 @@ export function PasswordForm({ error, onSubmit }: PasswordFormProps) {
           <Text variant="body2" className="text-sm text-accent-secondary">
             Password (min 8 characters)
           </Text>
-          <input
+          <Input
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="rounded-md border border-primary-main/20 bg-transparent px-3 py-2 text-sm text-accent-primary outline-none focus:border-primary-main"
             autoComplete="new-password"
           />
         </div>
@@ -44,11 +43,10 @@ export function PasswordForm({ error, onSubmit }: PasswordFormProps) {
           <Text variant="body2" className="text-sm text-accent-secondary">
             Confirm password
           </Text>
-          <input
+          <Input
             type="password"
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
-            className="rounded-md border border-primary-main/20 bg-transparent px-3 py-2 text-sm text-accent-primary outline-none focus:border-primary-main"
             autoComplete="new-password"
           />
         </div>

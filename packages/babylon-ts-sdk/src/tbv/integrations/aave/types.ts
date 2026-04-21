@@ -36,12 +36,12 @@ export interface AaveSpokeUserAccountData {
   healthFactor: bigint;
   /** Total collateral value in base currency (1e26 = $1 USD) */
   totalCollateralValue: bigint;
-  /** Total debt value in base currency (1e26 = $1 USD) */
-  totalDebtValue: bigint;
+  /** Total debt value in base currency, scaled by RAY (1e35 = $1 USD) */
+  totalDebtValueRay: bigint;
   /** Number of active collateral reserves */
   activeCollateralCount: bigint;
   /** Number of borrowed reserves */
-  borrowedCount: bigint;
+  borrowCount: bigint;
 }
 
 /**
@@ -52,9 +52,7 @@ export interface AaveSpokeUserPosition {
   drawnShares: bigint;
   /** Premium shares (interest) */
   premiumShares: bigint;
-  /** Realized premium (ray) */
-  realizedPremiumRay: bigint;
-  /** Premium offset (ray) */
+  /** Premium offset, expressed in asset units scaled by RAY (signed) */
   premiumOffsetRay: bigint;
   /** Supplied collateral shares */
   suppliedShares: bigint;
@@ -73,4 +71,15 @@ export interface TransactionParams {
   data: Hex;
   /** Value to send (optional, defaults to 0) */
   value?: bigint;
+}
+
+/**
+ * Position size parameters from the AaveIntegrationAdapter contract.
+ * Controls maximum BTC position size and vault count per user.
+ */
+export interface PositionSizeParams {
+  /** Maximum BTC position size allowed (in satoshis) */
+  maxPositionBTC: bigint;
+  /** Maximum number of vaults per position */
+  maxVaultsPerPosition: bigint;
 }

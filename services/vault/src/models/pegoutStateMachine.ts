@@ -1,30 +1,48 @@
 /**
  * Pegout status lifecycle and display state mapping.
  *
- * Maps VP-reported pegout statuses (from `vaultProvider_getPegoutStatus`)
- * to UI display labels, styling variants, and tooltip messages.
- *
- * Lifecycle:
- *   ClaimEventReceived → ClaimBroadcast → AssertBroadcast → PayoutBroadcast (success)
- *                                                          ↘ ChallengeAssertObserved → WronglyChallengedBroadcast → PayoutBroadcast
- *                                                          ↘ ChallengeAssertObserved → Failed (challenger won)
+ * Protocol-level logic (enum, terminal check) lives in @babylonlabs-io/ts-sdk.
+ * This file re-exports SDK symbols and keeps vault-only display mapping.
  */
 
-import {
-  PEGOUT_MAX_CONSECUTIVE_FAILURES,
-  PEGOUT_MAX_UNKNOWN_STATUS_POLLS,
-} from "@/config/polling";
+export {
+  ClaimerPegoutStatusValue,
+  isPegoutTerminalStatus,
+  isRecognizedPegoutStatus,
+} from "@babylonlabs-io/ts-sdk/tbv/core/services";
 
-/** Claimer-side pegout statuses reported by the VP. */
-export enum ClaimerPegoutStatusValue {
-  CLAIM_EVENT_RECEIVED = "ClaimEventReceived",
-  CLAIM_BROADCAST = "ClaimBroadcast",
-  ASSERT_BROADCAST = "AssertBroadcast",
-  CHALLENGE_ASSERT_OBSERVED = "ChallengeAssertObserved",
-  WRONGLY_CHALLENGED_BROADCAST = "WronglyChallengedBroadcast",
-  PAYOUT_BROADCAST = "PayoutBroadcast",
-  FAILED = "Failed",
+import {
+  ClaimerPegoutStatusValue,
+  isPegoutTerminalStatus,
+} from "@babylonlabs-io/ts-sdk/tbv/core/services";
+
+// ---------------------------------------------------------------------------
+// Polling thresholds — vault-specific polling policy, not protocol logic.
+// ---------------------------------------------------------------------------
+
+export const PEGOUT_MAX_CONSECUTIVE_FAILURES = 10;
+export const PEGOUT_MAX_UNKNOWN_STATUS_POLLS = 20;
+
+/**
+ * Whether a vault's pegout should be treated as terminal for polling purposes.
+ *
+ * Combines hard terminal statuses (PayoutBroadcast, Failed) with soft
+ * terminal conditions (too many consecutive failures or unknown-status polls).
+ */
+export function isPegoutEffectivelyTerminal(
+  claimerStatus: string | undefined,
+  consecutiveFailures: number,
+  consecutiveUnknownPolls: number,
+): boolean {
+  if (isPegoutTerminalStatus(claimerStatus)) return true;
+  if (consecutiveFailures >= PEGOUT_MAX_CONSECUTIVE_FAILURES) return true;
+  if (consecutiveUnknownPolls >= PEGOUT_MAX_UNKNOWN_STATUS_POLLS) return true;
+  return false;
 }
+
+// ============================================================================
+// Vault-only display mapping (UI-specific, stays here)
+// ============================================================================
 
 export type PegoutDisplayVariant = "pending" | "active" | "warning";
 
@@ -33,15 +51,6 @@ export interface PegoutDisplayState {
   variant: PegoutDisplayVariant;
   message: string;
 }
-
-/**
- * Hard terminal statuses — the VP has definitively finished processing.
- * For the full terminal check (including soft timeouts), use {@link isPegoutEffectivelyTerminal}.
- */
-const PEGOUT_TERMINAL_STATUSES = new Set<string>([
-  ClaimerPegoutStatusValue.PAYOUT_BROADCAST,
-  ClaimerPegoutStatusValue.FAILED,
-]);
 
 const PEGOUT_STATUS_MAP: Record<string, PegoutDisplayState> = {
   [ClaimerPegoutStatusValue.CLAIM_EVENT_RECEIVED]: {
@@ -98,17 +107,6 @@ export const TIMED_OUT_STATE: PegoutDisplayState = {
     "Unable to determine withdrawal status. The vault provider may be unreachable. Please try again later or contact support.",
 };
 
-/** Whether a claimer status string maps to a known pegout state. */
-export function isRecognizedPegoutStatus(status: string): boolean {
-  return Object.hasOwn(PEGOUT_STATUS_MAP, status);
-}
-
-/**
- * Map VP pegout response to a UI display state.
- *
- * @param claimerStatus - The claimer status string from the VP (undefined if not found)
- * @param found - Whether the VP has a record for this pegout
- */
 export function getPegoutDisplayState(
   claimerStatus: string | undefined,
   found: boolean,
@@ -127,30 +125,4 @@ export function getPegoutDisplayState(
     variant: "warning",
     message: `Unknown status: ${claimerStatus}. Please contact support.`,
   };
-}
-
-/**
- * Whether a vault's pegout should be treated as terminal for polling purposes.
- *
- * Returns true for hard terminal statuses (PayoutBroadcast, Failed) and
- * soft terminal conditions (too many consecutive failures or unknown-status polls).
- */
-export function isPegoutEffectivelyTerminal(
-  claimerStatus: string | undefined,
-  consecutiveFailures: number,
-  consecutiveUnknownPolls: number,
-): boolean {
-  if (claimerStatus && PEGOUT_TERMINAL_STATUSES.has(claimerStatus)) {
-    return true;
-  }
-
-  if (consecutiveFailures >= PEGOUT_MAX_CONSECUTIVE_FAILURES) {
-    return true;
-  }
-
-  if (consecutiveUnknownPolls >= PEGOUT_MAX_UNKNOWN_STATUS_POLLS) {
-    return true;
-  }
-
-  return false;
 }

@@ -5,13 +5,13 @@
  * These hooks orchestrate the deposit flow and manage state.
  */
 
-export { useMultiVaultDepositFlow } from "./useMultiVaultDepositFlow";
+export { useDepositFlow } from "./useDepositFlow";
 export type {
   MultiVaultDepositResult,
   PeginCreationResult,
-  UseMultiVaultDepositFlowParams,
-  UseMultiVaultDepositFlowReturn,
-} from "./useMultiVaultDepositFlow";
+  UseDepositFlowParams,
+  UseDepositFlowReturn,
+} from "./useDepositFlow";
 
 export { useDepositValidation } from "./useDepositValidation";
 export type { UseDepositValidationResult } from "./useDepositValidation";

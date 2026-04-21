@@ -2,9 +2,9 @@
  * Tests for error formatting utilities
  */
 
+import { JsonRpcError } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import { describe, expect, it } from "vitest";
 
-import { JsonRpcError } from "../../rpc";
 import {
   formatErrorMessage,
   formatPayoutSignatureError,

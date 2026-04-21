@@ -1,4 +1,4 @@
-import { Button, Text } from "@babylonlabs-io/core-ui";
+import { Button, Input, Text } from "@babylonlabs-io/core-ui";
 import { useCallback, useState } from "react";
 
 interface UnlockFormProps {
@@ -31,13 +31,12 @@ export function UnlockForm({ error, onSubmit, onForgot }: UnlockFormProps) {
         Enter your password to unlock your recovery phrase.
       </Text>
 
-      <input
+      <Input
         type="password"
         value={password}
         onChange={(e) => setPassword(e.target.value)}
         onKeyDown={handleKeyDown}
         placeholder="Password"
-        className="rounded-md border border-primary-main/20 bg-transparent px-3 py-2 text-sm text-accent-primary outline-none focus:border-primary-main"
         autoComplete="current-password"
         autoFocus
         aria-label="Password"

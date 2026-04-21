@@ -60,6 +60,10 @@
  *   2. Exposing it via WASM would require passing the depositor's secret seed
  *      material across the JS↔WASM boundary with no security benefit.
  */
+import type {
+  WotsBlockPublicKey,
+  WotsConfig,
+} from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import { hmac } from "@noble/hashes/hmac.js";
 import { ripemd160 } from "@noble/hashes/legacy.js";
 import { sha256, sha512 } from "@noble/hashes/sha2.js";
@@ -72,6 +76,8 @@ import {
 import { wordlist } from "@scure/bip39/wordlists/english.js";
 
 import { stripHexPrefix } from "@/utils/btc";
+
+export type { WotsBlockPublicKey, WotsConfig };
 
 /** Bits of entropy for BIP-39 mnemonic generation (128 = 12 words). */
 const MNEMONIC_ENTROPY_BITS = 128;
@@ -110,31 +116,6 @@ const CHECKSUM_MAJOR_DIGIT_INDEX = 1;
  * Two blocks of 64 message digits each (4 bits/digit → 256 bits capacity).
  */
 const ASSERT_WOTS_BLOCK_DIGIT_COUNTS: readonly number[] = [64, 64];
-
-// ---------------------------------------------------------------------------
-// WOTS types — matching Rust `babe::wots` serde format
-// ---------------------------------------------------------------------------
-
-/**
- * WOTS configuration matching Rust `babe::wots::Config`.
- * Serialized to JSON as `{"d": 4, "n": 64, "checksum_radix": 31}`.
- */
-export interface WotsConfig {
-  d: number;
-  n: number;
-  checksum_radix: number;
-}
-
-/**
- * WOTS block public key matching Rust `babe::wots::PublicKey` serde format.
- * Chain values are arrays of byte values (matching Rust `[u8; 20]` → JSON `[0,1,...,19]`).
- */
-export interface WotsBlockPublicKey {
-  config: WotsConfig;
-  message_terminals: number[][];
-  checksum_major_terminal: number[];
-  checksum_minor_terminal: number[];
-}
 
 /**
  * Array of WOTS block public keys — one per assert block.

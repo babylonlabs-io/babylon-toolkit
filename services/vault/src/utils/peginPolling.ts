@@ -2,9 +2,8 @@
  * Utility functions for Peg-In Polling
  */
 
+import type { ClaimerTransactions } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import type { Hex } from "viem";
-
-import { getVpProxyUrl } from "@/utils/rpc";
 
 import {
   ContractStatus,
@@ -12,7 +11,6 @@ import {
   LocalStorageStatus,
 } from "../models/peginStateMachine";
 import type { PendingPeginRequest } from "../storage/peginStorage";
-import type { ClaimerTransactions } from "../types";
 import type { VaultActivity } from "../types/activity";
 import type { DepositsByProvider, DepositToPoll } from "../types/peginPolling";
 
@@ -42,7 +40,12 @@ export const TRANSIENT_ERROR_PATTERNS = [
  * These errors will never resolve on their own (e.g., wallet mismatch),
  * so polling should stop immediately to avoid wasting requests.
  */
-export const TERMINAL_ERROR_PATTERNS = ["Unauthorized depositor"] as const;
+export const TERMINAL_ERROR_PATTERNS = [
+  "Unauthorized depositor",
+  "Deposit expired",
+  "Claim transaction posted",
+  "BTC has been returned to depositor",
+] as const;
 
 /**
  * Check if an error is terminal (will never resolve, polling should stop).
@@ -156,7 +159,7 @@ export function groupDepositsByProvider(
       existing.deposits.push(deposit);
     } else {
       grouped.set(providerAddress, {
-        providerUrl: getVpProxyUrl(providerAddress),
+        providerAddress,
         deposits: [deposit],
       });
     }

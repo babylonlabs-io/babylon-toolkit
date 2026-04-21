@@ -3,7 +3,7 @@
 /**
  * Syncs .env with the canonical network config from tbv-networks.
  *
- * Fetches networks.json from GitHub, maps the values to NEXT_PUBLIC_*
+ * Fetches network_info.json from GitHub, maps the values to NEXT_PUBLIC_*
  * env vars, and updates .env in-place — preserving any local-only
  * variables (e.g. REOWN_PROJECT_ID, feature flags).
  *
@@ -14,7 +14,7 @@
  */
 
 import { execFileSync } from "node:child_process";
-import { readFileSync, writeFileSync, existsSync, statSync } from "node:fs";
+import { readFileSync, writeFileSync, existsSync, statSync, mkdirSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -24,12 +24,14 @@ const ENV_EXAMPLE_PATH = join(__dirname, "..", ".env.example");
 const CACHE_PATH = join(__dirname, "..", "node_modules", ".cache", "sync-env-last-fetch");
 
 const NETWORKS_REPO = "babylonlabs-io/tbv-networks";
-const NETWORKS_FILE = "networks.json";
 
 /** Skip fetch if last successful sync was less than this many seconds ago. */
 const CACHE_TTL_SECONDS = 300; // 5 minutes
 
-/** Map from networks.json paths to env var names. */
+/** Timeout for the `gh api` fetch call in milliseconds. */
+const FETCH_TIMEOUT_MS = 15_000;
+
+/** Map from network_info.json paths to env var names. */
 const FIELD_MAP = {
   btcNetwork: "NEXT_PUBLIC_BTC_NETWORK",
   ethChainId: "NEXT_PUBLIC_ETH_CHAINID",
@@ -38,8 +40,22 @@ const FIELD_MAP = {
   vpProxyUrl: "NEXT_PUBLIC_TBV_VP_PROXY_URL",
   "contracts.btcVaultRegistry": "NEXT_PUBLIC_TBV_BTC_VAULT_REGISTRY",
   "contracts.aaveAdapter": "NEXT_PUBLIC_TBV_AAVE_ADAPTER",
-  "contracts.aaveSpoke": "NEXT_PUBLIC_TBV_AAVE_SPOKE",
+  "contracts.btcPriceFeed": "NEXT_PUBLIC_TBV_BTC_PRICE_FEED",
 };
+
+/** Contract addresses and endpoints whose changes should be called out explicitly. */
+const CONTRACT_AND_ENDPOINT_KEYS = new Set([
+  "NEXT_PUBLIC_TBV_BTC_VAULT_REGISTRY",
+  "NEXT_PUBLIC_TBV_AAVE_ADAPTER",
+  "NEXT_PUBLIC_TBV_BTC_PRICE_FEED",
+  "NEXT_PUBLIC_ETH_RPC_URL",
+  "NEXT_PUBLIC_TBV_VP_PROXY_URL",
+  "NEXT_PUBLIC_TBV_GRAPHQL_ENDPOINT",
+]);
+
+function formatChange({ key, from }) {
+  return `  ${key}: ${from === "(missing)" ? "added" : "changed"}`;
+}
 
 function resolve(obj, path) {
   return path.split(".").reduce((o, k) => o?.[k], obj);
@@ -63,12 +79,13 @@ function serializeEnv(entries) {
   return entries.map((e) => e.raw).join("\n");
 }
 
-function fetchNetworks() {
+function fetchNetworkInfo(network) {
   // Use `gh` CLI for authenticated access to private repos.
+  // Repo structure: {network}/network_info.json (e.g. devnet/network_info.json)
   const raw = execFileSync(
     "gh",
-    ["api", `repos/${NETWORKS_REPO}/contents/${NETWORKS_FILE}`, "--jq", ".content"],
-    { encoding: "utf-8", timeout: 15_000 },
+    ["api", `repos/${NETWORKS_REPO}/contents/${network}/network_info.json`, "--jq", ".content"],
+    { encoding: "utf-8", timeout: FETCH_TIMEOUT_MS },
   ).trim();
   const json = Buffer.from(raw, "base64").toString("utf-8");
   return JSON.parse(json);
@@ -87,7 +104,7 @@ function touchCache() {
   try {
     const cacheDir = dirname(CACHE_PATH);
     if (!existsSync(cacheDir)) {
-      execFileSync("mkdir", ["-p", cacheDir]);
+      mkdirSync(cacheDir, { recursive: true });
     }
     writeFileSync(CACHE_PATH, String(Date.now()));
   } catch {
@@ -131,6 +148,11 @@ function computeDiff(content, remote, network) {
 }
 
 function main() {
+  if (process.env.NODE_ENV === "production") {
+    console.error("sync-env: this script is for local development only.");
+    process.exit(1);
+  }
+
   const args = process.argv.slice(2);
   const checkOnly = args.includes("--check");
   const includeExample = args.includes("--all");
@@ -142,26 +164,29 @@ function main() {
   }
 
   // Fetch remote config via `gh` CLI (handles private repo auth)
-  let networks;
+  let config;
   try {
-    networks = fetchNetworks();
-  } catch {
+    config = fetchNetworkInfo(network);
+  } catch (err) {
     if (checkOnly) {
-      console.error("sync-env: could not fetch networks.json — cannot verify .env.");
+      console.error(`sync-env: could not fetch ${network}/network_info.json — cannot verify .env.`);
       console.error("  Install the GitHub CLI and authenticate: brew install gh && gh auth login");
       process.exit(1);
     }
-    // Don't block dev
-    console.warn("⚠ sync-env: could not fetch networks.json. Skipping.");
+    // Don't block dev — but distinguish "not found" from "auth failure".
+    // GitHub returns 404 for both unauthenticated private repo access and
+    // genuinely missing paths, so check for auth-related patterns first.
+    const combined = `${err?.stderr ?? ""}${err?.message ?? ""}`;
+    const isAuthError = /authentication|credentials|401|gh auth/i.test(combined);
+    const isNotFound = !isAuthError && (combined.includes("Not Found") || combined.includes("404"));
+    if (isNotFound) {
+      console.error(`sync-env: network "${network}" not found in tbv-networks repo.`);
+      process.exit(1);
+    }
+    console.warn(`⚠ sync-env: could not fetch ${network}/network_info.json. Skipping.`);
     console.warn("  To enable automatic .env sync, install the GitHub CLI and authenticate:");
     console.warn("    brew install gh && gh auth login");
     process.exit(0);
-  }
-
-  const config = networks[network];
-  if (!config) {
-    console.error(`Network "${network}" not found in networks.json. Available: ${Object.keys(networks).join(", ")}`);
-    process.exit(1);
   }
 
   // Build desired key-value pairs from remote
@@ -176,7 +201,7 @@ function main() {
     }
   }
   if (missingPaths.length > 0) {
-    console.warn(`⚠ sync-env: networks.json is missing expected fields: ${missingPaths.join(", ")}`);
+    console.warn(`⚠ sync-env: network_info.json is missing expected fields: ${missingPaths.join(", ")}`);
     console.warn("  The upstream schema may have changed — check tbv-networks and update FIELD_MAP.");
   }
 
@@ -192,9 +217,17 @@ function main() {
       return;
     }
     console.log(`sync-env: .env is stale (${updated.length} values differ from ${network}):`);
-    for (const { key, from, to } of updated) {
-      console.log(`  ${key}: ${from} → ${to}`);
+    for (const change of updated) {
+      console.log(formatChange(change));
     }
+
+    const contractChanges = updated.filter(({ key }) => CONTRACT_AND_ENDPOINT_KEYS.has(key));
+    if (contractChanges.length > 0) {
+      const names = contractChanges.map(({ key }) => key).join(", ");
+      console.error(`\n⚠ sync-env: contract addresses or endpoints changed: ${names}`);
+      console.error("  Verify these match the expected network before running sync.\n");
+    }
+
     process.exit(1);
   }
 
@@ -206,7 +239,7 @@ function main() {
     } else {
       const lines = Object.entries(remote).map(([k, v]) => `${k}=${v}`);
       writeFileSync(ENV_PATH, lines.join("\n") + "\n");
-      console.log("sync-env: created .env from networks.json");
+      console.log("sync-env: created .env from network_info.json");
       touchCache();
       return;
     }
@@ -228,9 +261,17 @@ function main() {
 
     writeFileSync(path, serializeEnv(entries));
     console.log(`sync-env: updated ${updated.length} value(s) in ${label} from ${network}:`);
-    for (const { key, from, to } of updated) {
-      console.log(`  ${key}: ${from} → ${to}`);
+    for (const change of updated) {
+      console.log(formatChange(change));
     }
+
+    const contractChanges = updated.filter(({ key }) => CONTRACT_AND_ENDPOINT_KEYS.has(key));
+    if (contractChanges.length > 0) {
+      const names = contractChanges.map(({ key }) => key).join(", ");
+      console.error(`\n⚠ sync-env: contract addresses or endpoints changed: ${names}`);
+      console.error(`  Verify these match the expected network. If not, restore from git: git checkout -- ${label}\n`);
+    }
+
     totalUpdated += updated.length;
   }
 

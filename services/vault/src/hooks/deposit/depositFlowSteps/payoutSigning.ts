@@ -1,148 +1,96 @@
 /**
- * Step 3: Payout signing - poll for transactions and submit signatures
+ * Step 3: Payout signing — adapter over SDK's pollAndSignPayouts
+ *
+ * Uses prepareSigningContext() to fetch VERSIONED vault keepers and
+ * universal challengers from the contract, then delegates all signing
+ * and VP submission to the SDK.
  */
 
-import type { Address, Hex } from "viem";
+import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
+import { pollAndSignPayouts } from "@babylonlabs-io/ts-sdk/tbv/core/services";
+import type { Address } from "viem";
 
-import { getVaultFromChain } from "@/clients/eth-contract/btc-vault-registry/query";
-import { getTimelockPeginByVersion } from "@/clients/eth-contract/protocol-params";
-import { VaultProviderRpcApi } from "@/clients/vault-provider-rpc";
-import type {
-  ClaimerSignatures,
-  DepositorAsClaimerPresignatures,
-} from "@/clients/vault-provider-rpc/types";
-import { getBTCNetworkForWASM } from "@/config/pegin";
-import { DaemonStatus, LocalStorageStatus } from "@/models/peginStateMachine";
+import { LocalStorageStatus } from "@/models/peginStateMachine";
 import {
-  getSortedUniversalChallengerPubkeys,
-  getSortedVaultKeeperPubkeys,
-  prepareTransactionsForSigning,
-  submitSignaturesToVaultProvider,
-  type SigningContext,
+  prepareSigningContext,
+  type PayoutSigningProgress,
 } from "@/services/vault/vaultPayoutSignatureService";
-import { waitForPeginStatus } from "@/services/vault/vaultPeginStatusService";
 import { updatePendingPeginStatus } from "@/storage/peginStorage";
 import { stripHexPrefix } from "@/utils/btc";
-import { getVpProxyUrl } from "@/utils/rpc";
+import { createVpClient } from "@/utils/rpc";
 
-import type { PayoutSigningContext, PayoutSigningParams } from "./types";
-
-// ============================================================================
-// Constants
-// ============================================================================
-
-/** Timeout for RPC requests (60 seconds) */
-const RPC_TIMEOUT_MS = 60 * 1000;
-
-/** Maximum polling timeout (20 minutes) - vault provider may take 15-20 minutes to prepare */
-const MAX_POLLING_TIMEOUT_MS = 20 * 60 * 1000;
-
-const TARGET_STATUS = new Set<string>([
-  DaemonStatus.PENDING_DEPOSITOR_SIGNATURES,
-]);
-
-// ============================================================================
-// Main Functions
-// ============================================================================
-
-/**
- * Poll for payout transactions and prepare signing context.
- *
- * First polls `getPeginStatus` until the VP reaches `PendingDepositorSignatures`,
- * then calls `requestDepositorPresignTransactions` once to fetch the actual
- * transaction data. This avoids hammering the heavy presign endpoint while the
- * VP is still in earlier states (BaBe setup, challenger presigning, etc.).
- */
-export async function pollAndPreparePayoutSigning(
-  params: PayoutSigningParams,
-): Promise<PayoutSigningContext> {
-  const {
-    vaultId,
-    peginTxHash,
-    btcTxHex,
-    depositorBtcPubkey,
-    providerAddress,
-    providerBtcPubKey,
-    vaultKeepers,
-    universalChallengers,
-    registeredPayoutScriptPubKey,
-    signal,
-  } = params;
-
-  // Phase 1: Poll status until VP is ready for depositor signatures
-  // VP RPC uses raw BTC pegin tx hash, not derived vault ID
-  await waitForPeginStatus({
-    providerAddress,
-    peginTxHash,
-    targetStatuses: TARGET_STATUS,
-    timeoutMs: MAX_POLLING_TIMEOUT_MS,
-    signal,
-  });
-
-  // Phase 2: Fetch transaction data (VP is ready)
-  const rpcClient = new VaultProviderRpcApi(
-    getVpProxyUrl(providerAddress),
-    RPC_TIMEOUT_MS,
-  );
-  const response = await rpcClient.requestDepositorPresignTransactions({
-    pegin_txid: stripHexPrefix(peginTxHash),
-    depositor_pk: stripHexPrefix(depositorBtcPubkey),
-  });
-
-  // Derive timelockPegin from the vault's locked offchainParamsVersion.
-  // Using the latest offchain params would produce invalid signatures if
-  // timelockAssert changed between vault creation and payout signing.
-  // Contract call uses derived vault ID
-  const vault = await getVaultFromChain(vaultId as Hex);
-  const timelockPegin = await getTimelockPeginByVersion(
-    vault.offchainParamsVersion,
-  );
-
-  const vaultKeeperBtcPubkeys = getSortedVaultKeeperPubkeys(vaultKeepers);
-  const universalChallengerBtcPubkeys =
-    getSortedUniversalChallengerPubkeys(universalChallengers);
-
-  const context: SigningContext = {
-    peginTxHex: btcTxHex,
-    vaultProviderBtcPubkey: stripHexPrefix(providerBtcPubKey),
-    vaultKeeperBtcPubkeys,
-    universalChallengerBtcPubkeys,
-    depositorBtcPubkey,
-    timelockPegin,
-    network: getBTCNetworkForWASM(),
-    registeredPayoutScriptPubKey,
-  };
-
-  return {
-    context,
-    vaultProviderAddress: providerAddress,
-    preparedTransactions: prepareTransactionsForSigning(response.txs),
-    depositorGraph: response.depositor_graph,
-  };
+export interface SignAndSubmitPayoutsParams {
+  /** Derived vault ID (for contract reads + localStorage) */
+  vaultId: string;
+  /** Raw BTC pegin transaction hash */
+  peginTxHash: string;
+  depositorBtcPubkey: string;
+  /** Vault provider BTC public key hint (optional — resolved from GraphQL if missing) */
+  providerBtcPubKey?: string;
+  /** Depositor's registered payout scriptPubKey (hex) */
+  registeredPayoutScriptPubKey: string;
+  /** Bitcoin wallet for signing */
+  btcWallet: BitcoinWallet;
+  /** Depositor's Ethereum address (for localStorage) */
+  depositorEthAddress: Address;
+  /** AbortSignal for cancellation */
+  signal?: AbortSignal;
+  /** Progress callback (completed, total) */
+  onProgress?: (progress: PayoutSigningProgress | null) => void;
 }
 
 /**
- * Submit payout signatures to vault provider.
+ * Poll VP, sign payout transactions + depositor graph, and submit signatures.
+ *
+ * This replaces the previous 4-step manual flow with:
+ * 1. prepareSigningContext() — fetches versioned VK/UC from contract
+ * 2. SDK pollAndSignPayouts() — handles polling, signing, submission
+ * 3. localStorage update
  */
-export async function submitPayoutSignatures(
-  vaultProviderAddress: string,
-  peginTxHash: string,
-  depositorBtcPubkey: string,
-  signatures: Record<string, ClaimerSignatures>,
-  depositorEthAddress: Address,
-  depositorClaimerPresignatures: DepositorAsClaimerPresignatures,
-  vaultId: string,
+export async function signAndSubmitPayouts(
+  params: SignAndSubmitPayoutsParams,
 ): Promise<void> {
-  // VP RPC uses raw BTC pegin tx hash
-  await submitSignaturesToVaultProvider(
-    vaultProviderAddress,
+  const {
+    vaultId,
     peginTxHash,
     depositorBtcPubkey,
-    signatures,
-    depositorClaimerPresignatures,
-  );
+    providerBtcPubKey,
+    registeredPayoutScriptPubKey,
+    btcWallet,
+    depositorEthAddress,
+    signal,
+    onProgress,
+  } = params;
 
-  // localStorage uses derived vault ID
+  // Phase 1: Build signing context from contract (versioned VK/UC)
+  // Also returns the contract-authoritative vault provider address, which
+  // must be used for RPC instead of the caller-supplied address to prevent
+  // submitting signatures to a stale/wrong VP.
+  const { context, vaultProviderAddress } = await prepareSigningContext({
+    vaultId,
+    depositorBtcPubkey,
+    vaultProviderBtcPubKey: providerBtcPubKey,
+    registeredPayoutScriptPubKey,
+  });
+
+  // Phase 2: SDK handles polling → presign fetch → signing → submission
+  const rpcClient = createVpClient(vaultProviderAddress);
+  await pollAndSignPayouts({
+    statusReader: rpcClient,
+    presignClient: rpcClient,
+    btcWallet,
+    peginTxid: stripHexPrefix(peginTxHash),
+    depositorPk: stripHexPrefix(depositorBtcPubkey),
+    signingContext: context,
+    signal,
+    onProgress: onProgress
+      ? (completed, totalClaimers) => onProgress({ completed, totalClaimers })
+      : undefined,
+  });
+
+  onProgress?.(null);
+
+  // Phase 3: Update localStorage
   updatePendingPeginStatus(
     depositorEthAddress,
     vaultId,

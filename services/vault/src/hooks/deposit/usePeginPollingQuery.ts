@@ -5,26 +5,26 @@
  * transactions from all vault providers in parallel.
  */
 
+import type {
+  ClaimerTransactions,
+  DepositorGraphTransactions,
+} from "@babylonlabs-io/ts-sdk/tbv/core/clients";
+import {
+  DaemonStatus,
+  VP_TRANSIENT_STATUSES,
+  VpResponseValidationError,
+} from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef } from "react";
 
 import { logger } from "@/infrastructure";
 
-import { VaultProviderRpcApi } from "../../clients/vault-provider-rpc";
-import type { DepositorGraphTransactions } from "../../clients/vault-provider-rpc/types";
-import { VpResponseValidationError } from "../../clients/vault-provider-rpc/validators";
 import {
   POLLING_INTERVAL_MS,
   POLLING_RETRY_COUNT,
   POLLING_RETRY_DELAY_MS,
-  RPC_TIMEOUT_MS,
 } from "../../config/polling";
-import {
-  DaemonStatus,
-  VP_TRANSIENT_STATUSES,
-} from "../../models/peginStateMachine";
 import type { PendingPeginRequest } from "../../storage/peginStorage";
-import type { ClaimerTransactions } from "../../types";
 import type { VaultActivity } from "../../types/activity";
 import type {
   DepositsByProvider,
@@ -37,6 +37,7 @@ import {
   groupDepositsByProvider,
   isTerminalPollingError,
 } from "../../utils/peginPolling";
+import { createVpClient } from "../../utils/rpc";
 
 interface UsePeginPollingQueryParams {
   activities: VaultActivity[];
@@ -84,7 +85,7 @@ interface UsePeginPollingQueryResult {
  * `requestDepositorPresignTransactions` when the VP is in the right state.
  */
 async function fetchFromProvider(
-  providerUrl: string,
+  providerAddress: string,
   deposits: DepositToPoll[],
   btcPublicKey: string,
   results: Map<string, ClaimerTransactions[]>,
@@ -93,7 +94,7 @@ async function fetchFromProvider(
   needsWotsKey: Set<string>,
   pendingIngestion: Set<string>,
 ): Promise<void> {
-  const rpcClient = new VaultProviderRpcApi(providerUrl, RPC_TIMEOUT_MS);
+  const rpcClient = createVpClient(providerAddress);
 
   for (const deposit of deposits) {
     const depositId = deposit.activity.id;
@@ -132,6 +133,18 @@ async function fetchFromProvider(
         continue;
       }
 
+      if (status === DaemonStatus.CLAIM_POSTED) {
+        errors.set(depositId, new Error("Claim transaction posted"));
+        needsWotsKey.delete(depositId);
+        continue;
+      }
+
+      if (status === DaemonStatus.PEGGED_OUT) {
+        errors.set(depositId, new Error("BTC has been returned to depositor"));
+        needsWotsKey.delete(depositId);
+        continue;
+      }
+
       // Phase 2: Status is PendingDepositorSignatures — fetch transaction data
       if (status === DaemonStatus.PENDING_DEPOSITOR_SIGNATURES) {
         const response = await rpcClient.requestDepositorPresignTransactions({
@@ -148,7 +161,7 @@ async function fetchFromProvider(
         continue;
       }
 
-      // Unhandled status (e.g. ClaimPosted, PeggedOut) — clear errors, keep polling
+      // Transient VP status — clear errors, keep polling
       errors.delete(depositId);
       needsWotsKey.delete(depositId);
     } catch (error) {
@@ -238,9 +251,9 @@ export function usePeginPollingQuery({
 
       // Fetch from each provider in parallel
       const fetchPromises = Array.from(depositsByProvider.entries()).map(
-        ([, { providerUrl, deposits }]: [string, DepositsByProvider]) =>
+        ([, { providerAddress, deposits }]: [string, DepositsByProvider]) =>
           fetchFromProvider(
-            providerUrl,
+            providerAddress,
             deposits,
             currentBtcPubKey,
             transactions,
@@ -263,25 +276,24 @@ export function usePeginPollingQuery({
     enabled: isEnabled,
     staleTime: 0,
     refetchInterval: (query) => {
-      // Stop polling if any deposit has a terminal error (e.g., wallet mismatch)
-      const errorMap = query.state.data?.errors;
-      if (errorMap && errorMap.size > 0) {
-        for (const error of errorMap.values()) {
-          if (isTerminalPollingError(error)) return false;
-        }
-      }
-
-      // Stop polling if all deposits have ready transactions
       const currentDeposits = depositsRef.current;
+      if (currentDeposits.length === 0) return false;
+
       const txMap = query.state.data?.transactions;
-      const hasAllData = txMap && txMap.size === currentDeposits.length;
-      if (hasAllData) {
-        const allReady = currentDeposits.every((d) => {
-          const txs = txMap?.get(d.activity.id);
-          return txs && areTransactionsReady(txs);
-        });
-        if (allReady) return false;
-      }
+      const errorMap = query.state.data?.errors;
+
+      // Stop polling only when every deposit is resolved:
+      // either has ready transactions or hit a terminal error.
+      const allResolved = currentDeposits.every((d) => {
+        const depositId = d.activity.id;
+        const txs = txMap?.get(depositId);
+        if (txs && areTransactionsReady(txs)) return true;
+        const error = errorMap?.get(depositId);
+        if (error && isTerminalPollingError(error)) return true;
+        return false;
+      });
+      if (allResolved) return false;
+
       return POLLING_INTERVAL_MS;
     },
     retry: POLLING_RETRY_COUNT,

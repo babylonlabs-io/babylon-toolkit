@@ -12,7 +12,6 @@ describe("debtUtils", () => {
       const position = {
         drawnShares: 100n,
         premiumShares: 0n,
-        realizedPremiumRay: 0n,
         premiumOffsetRay: 0n,
         suppliedShares: 0n,
         dynamicConfigKey: 0,
@@ -24,7 +23,6 @@ describe("debtUtils", () => {
       const position = {
         drawnShares: 0n,
         premiumShares: 50n,
-        realizedPremiumRay: 0n,
         premiumOffsetRay: 0n,
         suppliedShares: 0n,
         dynamicConfigKey: 0,
@@ -36,7 +34,6 @@ describe("debtUtils", () => {
       const position = {
         drawnShares: 100n,
         premiumShares: 50n,
-        realizedPremiumRay: 0n,
         premiumOffsetRay: 0n,
         suppliedShares: 0n,
         dynamicConfigKey: 0,
@@ -48,7 +45,6 @@ describe("debtUtils", () => {
       const position = {
         drawnShares: 0n,
         premiumShares: 0n,
-        realizedPremiumRay: 0n,
         premiumOffsetRay: 0n,
         suppliedShares: 0n,
         dynamicConfigKey: 0,
@@ -60,7 +56,6 @@ describe("debtUtils", () => {
       const position = {
         drawnShares: 0n,
         premiumShares: 0n,
-        realizedPremiumRay: 0n,
         premiumOffsetRay: 0n,
         suppliedShares: 1000n,
         dynamicConfigKey: 0,

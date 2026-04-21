@@ -19,14 +19,21 @@ export const graphqlClient = new GraphQLClient(ENV.GRAPHQL_ENDPOINT, {
     ) as AbortSignal[];
 
     try {
-      // Don't clear timeout — graphql-request parses body after this returns
-      return await fetch(url, {
+      const response = await fetch(url, {
         ...options,
         signal: AbortSignal.any(signals),
+      });
+      const body = await response.text();
+      clearTimeout(timeoutId);
+      return new Response(body, {
+        status: response.status,
+        statusText: response.statusText,
+        headers: response.headers,
       });
     } catch (error) {
       clearTimeout(timeoutId);
       if (
+        controller.signal.aborted &&
         error != null &&
         typeof error === "object" &&
         "name" in error &&

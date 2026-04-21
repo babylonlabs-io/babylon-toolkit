@@ -1,12 +1,10 @@
 // Re-export utilities from SDK
 export {
-  HEALTH_FACTOR_COLORS,
+  aaveRayValueToUsd,
   aaveValueToUsd,
   calculateBorrowRatio,
   calculateHealthFactor,
   calculateTotalVaultAmount,
-  formatHealthFactor,
-  getHealthFactorColor,
   getHealthFactorStatus,
   getHealthFactorStatusFromValue,
   hasDebtFromPosition,
@@ -16,8 +14,16 @@ export {
 } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
 
 export type {
-  HealthFactorColor,
   HealthFactorStatus,
   SelectableVault,
   VaultSelectionResult,
 } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
+
+// Display utilities (frontend-only, not in SDK)
+export {
+  HEALTH_FACTOR_COLORS,
+  formatHealthFactor,
+  getHealthFactorColor,
+} from "./healthFactorDisplay";
+
+export type { HealthFactorColor } from "./healthFactorDisplay";

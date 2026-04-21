@@ -4,6 +4,8 @@
 
 import { describe, expect, it } from "vitest";
 import {
+  ensureHexPrefix,
+  formatSatoshisToBtc,
   hexToUint8Array,
   isValidHex,
   processPublicKeyToXOnly,
@@ -33,8 +35,21 @@ describe("Bitcoin Utilities", () => {
 
     it("should handle edge cases", () => {
       expect(stripHexPrefix("0x")).toBe("");
-      // Note: only lowercase "0x" is stripped, uppercase "0X" is not a valid prefix
-      expect(stripHexPrefix("0X")).toBe("0X");
+      expect(stripHexPrefix("0X")).toBe("");
+    });
+  });
+
+  describe("ensureHexPrefix", () => {
+    it("should leave a lowercase 0x prefix untouched", () => {
+      expect(ensureHexPrefix("0xabc123")).toBe("0xabc123");
+    });
+
+    it("should normalize an uppercase 0X prefix to 0x", () => {
+      expect(ensureHexPrefix("0Xabc123")).toBe("0xabc123");
+    });
+
+    it("should add a 0x prefix when missing", () => {
+      expect(ensureHexPrefix("abc123")).toBe("0xabc123");
     });
   });
 
@@ -464,6 +479,28 @@ describe("Bitcoin Utilities", () => {
         expect(result.walletPubkeyXOnly).toBe(expectedXOnly);
         expect(result.depositorPubkey).toBe(expectedXOnly);
       });
+    });
+  });
+
+  describe("formatSatoshisToBtc", () => {
+    it("should format whole BTC amounts", () => {
+      expect(formatSatoshisToBtc(100_000_000n)).toBe("1");
+      expect(formatSatoshisToBtc(2_100_000_000_000_000n)).toBe("21000000");
+    });
+
+    it("should format fractional amounts and strip trailing zeros", () => {
+      expect(formatSatoshisToBtc(50_000_000n)).toBe("0.5");
+      expect(formatSatoshisToBtc(10_000n)).toBe("0.0001");
+      expect(formatSatoshisToBtc(1n)).toBe("0.00000001");
+    });
+
+    it("should format zero", () => {
+      expect(formatSatoshisToBtc(0n)).toBe("0");
+    });
+
+    it("should handle negative values", () => {
+      expect(formatSatoshisToBtc(-50_000_000n)).toBe("-0.5");
+      expect(formatSatoshisToBtc(-100_000_000n)).toBe("-1");
     });
   });
 });

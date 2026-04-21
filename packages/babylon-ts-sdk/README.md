@@ -5,11 +5,9 @@
 
 TypeScript SDK for Trustless Bitcoin Vaults
 
-> **⚠️ Status**: Currently under active development.
-
 ## Overview
 
-The Babylon TypeScript SDK is a production-ready toolkit for integrating Trustless Bitcoin Vaults into your applications. Currently provides comprehensive support for Trustless Bitcoin Vaults (TBV) including vault management and supported application integrations.
+The Babylon TypeScript SDK is the toolkit for integrating Trustless Bitcoin Vaults into your applications. It provides vault lifecycle management (peg-in, activation, refund, payout signing) and application integrations built on top, starting with Aave v4.
 
 ## What Are Trustless Bitcoin Vaults?
 
@@ -30,11 +28,30 @@ This SDK handles the complex Bitcoin and Ethereum interactions needed to create 
 - **🧩 Modular Design** - Use only what you need via subpath exports
 - **🔧 Extensible** - Easy to build custom integrations
 
+## Platforms
+
+This SDK runs on **both Node.js backends and browser/React frontends** — the
+entire library is framework-agnostic. The *only* difference between the two
+environments is how you supply two things: a Bitcoin wallet and an Ethereum
+wallet. The SDK provides interfaces (`BitcoinWallet`, viem's `WalletClient`)
+and you adapt whichever wallet is available on your platform.
+
+| Concern | Node.js backend | Browser / React |
+|---------|-----------------|-----------------|
+| `BitcoinWallet` | Build from a seed via `bitcoinjs-lib` + `bip32` (or call KMS/HSM) | Adapt an injected wallet (Unisat, OKX, Xverse, Leather) |
+| viem `WalletClient` | `createWalletClient({ account: privateKeyToAccount(pk), chain, transport: http(RPC_URL) })` | `createWalletClient({ account, chain, transport: custom(window.ethereum) })` via wagmi |
+| Secret storage | Your DB / KMS (required for activation later) | Session/local storage or user-supplied |
+| WASM loading | Automatic (SDK reads `.wasm` off disk with `node:fs`) | Automatic (SDK fetches `.wasm` via bundler) |
+
+If you're using a bundler (Vite, webpack, Next.js), ensure it's configured to
+handle `.wasm` assets and that `Buffer` is available on the global in browser
+targets — see the [Troubleshooting Guide](./docs/get-started/troubleshooting.md).
+
 ## Installation
 
 ### Requirements
 
-- Node.js >= 24.0.0
+- **Node.js ≥ 20.3.0** (for `AbortSignal.any()`). Works on Node 20 LTS, 22 LTS, 24 LTS.
 - Package manager: npm, yarn, or pnpm
 
 ### Install
@@ -50,27 +67,34 @@ yarn add @babylonlabs-io/ts-sdk viem bitcoinjs-lib @bitcoin-js/tiny-secp256k1-as
 pnpm add @babylonlabs-io/ts-sdk viem bitcoinjs-lib @bitcoin-js/tiny-secp256k1-asmjs
 ```
 
-### ECC Library Initialization
+### ECC Library Initialization (required, once at startup)
 
-The SDK uses `bitcoinjs-lib` for Taproot (P2TR) operations, which requires an ECC library to be initialized **before** any SDK function that touches Bitcoin addresses or PSBTs. Your application must call `initEccLib()` once at startup:
+The SDK uses `bitcoinjs-lib` for Taproot operations. Call `initEccLib()` once
+at application startup **before any SDK call that builds a PSBT or derives a
+Bitcoin address**:
 
 ```typescript
 import * as ecc from "@bitcoin-js/tiny-secp256k1-asmjs";
 import { initEccLib } from "bitcoinjs-lib";
 
-// Call once at app startup, before any SDK usage
 initEccLib(ecc);
 ```
 
-For React apps, place this call in your entry point (e.g., `main.tsx`) before `createRoot()`. Failing to initialize will cause a runtime error: `"No ECC Library provided"`.
+- **Node.js**: call this at the top of your entry point (`index.ts` / CLI entry).
+- **React**: call it in `main.tsx` / `app.tsx` before `createRoot()`.
+
+Failing to initialize produces a runtime error: `"No ECC Library provided"`.
+
+The WASM package used internally (`@babylonlabs-io/babylon-tbv-rust-wasm`)
+initializes itself lazily — no extra call needed.
 
 ### Verify Installation
 
 ```typescript
-import { buildPeginPsbt } from "@babylonlabs-io/ts-sdk/tbv/core/primitives";
+import { buildPrePeginPsbt } from "@babylonlabs-io/ts-sdk/tbv/core/primitives";
 
 console.log("✅ SDK installed successfully!");
-console.log("buildPeginPsbt type:", typeof buildPeginPsbt);
+console.log("buildPrePeginPsbt type:", typeof buildPrePeginPsbt);
 ```
 
 Run with: `npx tsx verify-install.ts`
@@ -87,34 +111,52 @@ import { PeginManager, PayoutManager } from "@babylonlabs-io/ts-sdk/tbv/core";
 
 // Low-level primitives (advanced use cases)
 import {
-  buildPeginPsbt,
+  buildPrePeginPsbt,
+  buildPeginTxFromFundedPrePegin,
   buildPayoutPsbt,
   buildDepositorPayoutPsbt,
   buildNoPayoutPsbt,
   buildChallengeAssertPsbt,
+  buildRefundPsbt,
+  formatSatoshisToBtc,
 } from "@babylonlabs-io/ts-sdk/tbv/core/primitives";
 
-// Utilities
-import { selectUtxosForPegin } from "@babylonlabs-io/ts-sdk/tbv/core";
+// Services (activation, deposit validation, protocol state)
+import {
+  activateVault,
+  getPeginProtocolState,
+  ContractStatus,
+  validateDepositAmount,
+  isPegoutTerminalStatus,
+} from "@babylonlabs-io/ts-sdk/tbv/core/services";
 
-// Shared types and wallet interfaces
-import { BitcoinWallet, UTXO } from "@babylonlabs-io/ts-sdk/shared";
+// Utilities
+import {
+  selectUtxosForPegin,
+  collectReservedUtxoRefs,
+  validateUtxosAvailable,
+} from "@babylonlabs-io/ts-sdk/tbv/core";
+
+// Shared wallet interfaces
+import { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
+// UTXO type lives in the core utils module
+import { UTXO } from "@babylonlabs-io/ts-sdk/tbv/core";
 
 // Contract ABIs
 import { BTCVaultRegistryABI } from "@babylonlabs-io/ts-sdk/tbv/core";
 
 // Protocol integrations (Aave)
 import {
-  buildAddCollateralTx,
   buildBorrowTx,
+  buildRepayTx,
   getUserAccountData,
   calculateHealthFactor,
 } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
 ```
 
-## Choose Your API Level
+## Where to start
 
-The SDK provides two integration approaches:
+The SDK exposes several peer entry points — **managers**, **services**, **primitives**, **utils**, **clients**, and **integrations** — and you compose the pieces you need. The two most common starting points for a new integration are:
 
 ### Managers (High-Level)
 
@@ -130,7 +172,13 @@ The SDK provides two integration approaches:
 - **You provide**: Everything (signing logic, contract calls, broadcasting)
 - **SDK handles**: Only PSBT construction and utility functions
 
-## Trustless Bitcoin Vaults (TBV) Documentation
+For how `services`, `utils`, `clients`, and `integrations` fit in and which layer a given task belongs to, read the [Get Started](./docs/get-started/README.md) guide.
+
+## Documentation
+
+### 🏁 Start here
+
+- **[Get Started](./docs/get-started/README.md)** — five-minute orientation: what TBV is, the SDK's layer layout, prerequisites, config sourcing, glossary, vault lifecycle, and a decision table routing you to the right quickstart. **Read this first if you're new.**
 
 ### 🚀 Quickstart
 
@@ -138,6 +186,10 @@ Step-by-step tutorials:
 
 - **[Managers Quickstart](./docs/quickstart/managers.md)** - Create a Bitcoin vault with wallet integration (step-by-step)
 - **[Primitives Quickstart](./docs/quickstart/primitives.md)** - Build vault PSBTs with custom signing logic (advanced)
+
+### 🔑 Guides
+
+- **[Wallet Interfaces](./docs/guides/wallet-interfaces.md)** - Adapt any BTC/ETH wallet (browser, Node.js, KMS/HSM) to the SDK's interfaces
 
 ### 🔌 Application Integrations
 

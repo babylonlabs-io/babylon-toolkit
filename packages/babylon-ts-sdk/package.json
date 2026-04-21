@@ -4,6 +4,10 @@
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "sideEffects": false,
+  "engines": {
+    "node": ">=20.3.0"
+  },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -29,6 +33,16 @@
       "types": "./dist/tbv/core/utils/index.d.ts",
       "require": "./dist/tbv/core/utils/index.cjs",
       "import": "./dist/tbv/core/utils/index.js"
+    },
+    "./tbv/core/clients": {
+      "types": "./dist/tbv/core/clients/index.d.ts",
+      "require": "./dist/tbv/core/clients/index.cjs",
+      "import": "./dist/tbv/core/clients/index.js"
+    },
+    "./tbv/core/services": {
+      "types": "./dist/tbv/core/services/index.d.ts",
+      "require": "./dist/tbv/core/services/index.cjs",
+      "import": "./dist/tbv/core/services/index.js"
     },
     "./tbv/integrations/aave": {
       "types": "./dist/tbv/integrations/aave/index.d.ts",

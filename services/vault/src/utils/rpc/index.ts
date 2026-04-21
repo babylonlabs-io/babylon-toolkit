@@ -1,11 +1,2 @@
-export {
-  JSON_RPC_ERROR_CODES,
-  JsonRpcClient,
-  JsonRpcError,
-  type JsonRpcClientConfig,
-  type JsonRpcErrorResponse,
-  type JsonRpcRequest,
-  type JsonRpcResponse,
-  type JsonRpcSuccessResponse,
-} from "./json-rpc-client";
+export { createVpClient } from "./vpClient";
 export { getVpProxyUrl } from "./vpProxy";

@@ -31,7 +31,7 @@ export function useVisibilityCheck(
         timeoutRef.current = setTimeout(() => {
           // Wrap async callback to catch unhandled rejections
           Promise.resolve(onVisible()).catch((error) => {
-            console.error("Error in visibility check callback:", error);
+            console.error("Error in visibility check callback:", error instanceof Error ? error.message : "Unknown error");
           });
         }, delay);
       }

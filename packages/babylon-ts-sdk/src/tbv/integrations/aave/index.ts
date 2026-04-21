@@ -6,7 +6,7 @@
  * This module provides transaction builders, query functions, and utilities for:
  * - **Transaction Builders** - Build unsigned txs for borrow, repay, and withdraw
  * - **Query Functions** - Fetch live position data, health factor, debt amounts from AAVE spoke
- * - **Utility Functions** - Calculate health factor, select vaults, format values, check safety
+ * - **Utility Functions** - Calculate health factor, select vaults, check safety
  *
  * ## Key Features
  *
@@ -47,6 +47,7 @@
 // Constants
 export {
   AAVE_BASE_CURRENCY_DECIMALS,
+  AAVE_BASE_CURRENCY_RAY_DECIMALS,
   AAVE_FUNCTION_NAMES,
   BPS_SCALE,
   BPS_TO_PERCENT_DIVISOR,
@@ -64,6 +65,7 @@ export type {
   AaveSpokeUserAccountData,
   AaveSpokeUserPosition,
   DepositorStruct,
+  PositionSizeParams,
   TransactionParams,
 } from "./types.js";
 
@@ -75,8 +77,9 @@ export {
   buildWithdrawCollateralsTx,
   getDynamicReserveConfig,
   getPosition,
-  getReserve,
   getPositionCollateral,
+  getPositionSizeParams,
+  getReserve,
   getTargetHealthFactor,
   getUserAccountData,
   getUserPosition,
@@ -87,10 +90,10 @@ export {
 
 // Utilities
 export {
-  HEALTH_FACTOR_COLORS,
   MAX_GROUPS,
   MIN_DEBT_THRESHOLD,
   SEIZURE_TOL,
+  aaveRayValueToUsd,
   aaveValueToUsd,
   calculateBorrowRatio,
   calculateHealthFactor,
@@ -102,9 +105,7 @@ export {
   computeSeizedFraction,
   computeSeizedFractionDetailed,
   computeTargetSeizureSats,
-  formatHealthFactor,
   getGroup1FromOrder,
-  getHealthFactorColor,
   getHealthFactorStatus,
   getHealthFactorStatusFromValue,
   hasDebtFromPosition,
@@ -117,7 +118,6 @@ export {
 
 export type {
   CascadeVault,
-  HealthFactorColor,
   HealthFactorStatus,
   MinDepositForSplitParams,
   OptimalSplitParams,

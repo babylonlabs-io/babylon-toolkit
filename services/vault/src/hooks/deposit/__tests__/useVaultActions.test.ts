@@ -61,10 +61,6 @@ vi.mock("@/utils/btc", () => ({
   stripHexPrefix: vi.fn((hex: string) => hex.replace("0x", "")),
 }));
 
-vi.mock("@/utils/htlcSecret", () => ({
-  validateSecretAgainstHashlock: vi.fn(),
-}));
-
 vi.mock("@/models/peginStateMachine", async (importOriginal) => {
   const actual =
     await importOriginal<typeof import("@/models/peginStateMachine")>();
@@ -97,6 +93,7 @@ const ATTACKER_TX_HEX = "0x70736274ff...attackertx";
 const baseVault = {
   unsignedPrePeginTx: GRAPHQL_TX_HEX,
   depositorBtcPubkey: "0xdepositorBtcPubkey",
+  peginTxHash: "0xabcd1234",
 };
 
 const baseBroadcastParams = {

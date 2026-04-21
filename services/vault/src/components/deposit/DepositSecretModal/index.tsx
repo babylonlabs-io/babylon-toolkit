@@ -11,10 +11,10 @@ import {
   useCopy,
   Warning,
 } from "@babylonlabs-io/core-ui";
+import { ensureHexPrefix } from "@babylonlabs-io/ts-sdk/tbv/core";
+import { computeHashlock } from "@babylonlabs-io/ts-sdk/tbv/core/services";
 import { useState } from "react";
 import type { Hex } from "viem";
-
-import { hashSecret } from "@/utils/secretUtils";
 
 interface DepositSecretModalProps {
   open: boolean;
@@ -38,7 +38,7 @@ export function DepositSecretModal({
   const copied = isCopied(secretHex);
 
   const handleContinue = () => {
-    onComplete(secretHex, hashSecret(secretHex));
+    onComplete(secretHex, computeHashlock(ensureHexPrefix(secretHex)));
   };
 
   return (

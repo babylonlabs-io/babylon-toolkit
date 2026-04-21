@@ -22,6 +22,18 @@ describe("redactIdentifier", () => {
   it("returns values shorter than threshold unchanged", () => {
     expect(redactIdentifier("abc")).toBe("abc");
   });
+
+  it("returns [REDACTED] for short values when forceRedact is true", () => {
+    expect(redactIdentifier("seed", true)).toBe("[REDACTED]");
+    expect(redactIdentifier("abc", true)).toBe("[REDACTED]");
+    expect(redactIdentifier("abcd1234", true)).toBe("[REDACTED]");
+  });
+
+  it("still truncates long values normally with forceRedact", () => {
+    expect(redactIdentifier("bc1q5hj2k3l4m5n6p7q8r9s0t1u2v3w4x5", true)).toBe(
+      "bc1q...w4x5",
+    );
+  });
 });
 
 describe("scrubString", () => {
@@ -140,6 +152,14 @@ describe("redactData", () => {
     const result = redactData({ error: err }) as { error: { message: string } };
     expect(result.error).toEqual({ message: "Failed for [ETH_ADDR]" });
   });
+
+  it("redacts short sensitive field values with [REDACTED]", () => {
+    const data = { address: "0x1", publicKey: "abc", mnemonic: "word" };
+    const result = redactData(data);
+    expect(result.address).toBe("[REDACTED]");
+    expect(result.publicKey).toBe("[REDACTED]");
+    expect(result.mnemonic).toBe("[REDACTED]");
+  });
 });
 
 describe("scrubSentryEvent", () => {
@@ -224,5 +244,50 @@ describe("scrubSentryEvent", () => {
     expect(result.message).toBe("Something went wrong");
     expect(result.level).toBe("error");
     expect(result.extra?.version).toBe("1.0.0");
+  });
+
+  it("scrubs stack frame filename, abs_path, module, and vars", () => {
+    const event: SentryEvent = {
+      exception: {
+        values: [
+          {
+            type: "Error",
+            value: "something failed",
+            stacktrace: {
+              frames: [
+                {
+                  filename:
+                    "/app/0x742d35Cc6634C0532925a3b844Bc9e7595f2bD80/index.js",
+                  abs_path:
+                    "/abs/0x742d35Cc6634C0532925a3b844Bc9e7595f2bD80/index.js",
+                  module: "module.0x742d35Cc6634C0532925a3b844Bc9e7595f2bD80",
+                  vars: {
+                    depositorBtcPubkey: "a".repeat(64),
+                    localVar: "safe value",
+                  },
+                },
+                {
+                  filename: "safe-file.js",
+                  abs_path: undefined,
+                  module: undefined,
+                },
+              ],
+            },
+          },
+        ],
+      },
+    };
+    const result = scrubSentryEvent(event);
+    const frames = result.exception?.values?.[0].stacktrace?.frames;
+
+    expect(frames?.[0].filename).toBe("/app/[ETH_ADDR]/index.js");
+    expect(frames?.[0].abs_path).toBe("/abs/[ETH_ADDR]/index.js");
+    expect(frames?.[0].module).toBe("module.[ETH_ADDR]");
+    expect(frames?.[0].vars?.depositorBtcPubkey).toBe("aaaa...aaaa");
+    expect(frames?.[0].vars?.localVar).toBe("safe value");
+
+    expect(frames?.[1].filename).toBe("safe-file.js");
+    expect(frames?.[1].abs_path).toBeUndefined();
+    expect(frames?.[1].module).toBeUndefined();
   });
 });

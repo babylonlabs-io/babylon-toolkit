@@ -12,7 +12,6 @@ import { Button, Input } from "@babylonlabs-io/core-ui";
 import { useCallback, useMemo, useState } from "react";
 import type { Hex } from "viem";
 
-import type { DepositorGraphTransactions } from "@/clients/vault-provider-rpc/types";
 import {
   computeDepositDerivedState,
   DepositFlowStep,
@@ -27,13 +26,14 @@ import { useRefundState } from "@/hooks/deposit/useRefundState";
 import { useRunOnce } from "@/hooks/useRunOnce";
 import { fetchVaultById } from "@/services/vault/fetchVaults";
 import {
+  deriveWotsBlockPublicKeys,
   getMnemonicIdForPegin,
   hasMnemonicEntry,
   isWotsMismatchError,
   linkPeginToMnemonic,
+  mnemonicToWotsSeed,
 } from "@/services/wots";
 import type { VaultActivity } from "@/types/activity";
-import type { ClaimerTransactions } from "@/types/rpc";
 
 import { DepositProgressView } from "./DepositProgressView";
 
@@ -43,8 +43,6 @@ import { DepositProgressView } from "./DepositProgressView";
 
 export interface ResumeSignContentProps {
   activity: VaultActivity;
-  transactions: ClaimerTransactions[] | null;
-  depositorGraph: DepositorGraphTransactions;
   btcPublicKey: string;
   depositorEthAddress: Hex;
   onClose: () => void;
@@ -53,8 +51,6 @@ export interface ResumeSignContentProps {
 
 export function ResumeSignContent({
   activity,
-  transactions,
-  depositorGraph,
   btcPublicKey,
   depositorEthAddress,
   onClose,
@@ -63,8 +59,6 @@ export function ResumeSignContent({
   const { signing, progress, error, isComplete, handleSign } =
     usePayoutSigningState({
       activity,
-      transactions,
-      depositorGraph,
       btcPublicKey,
       depositorEthAddress,
       onSuccess,
@@ -99,7 +93,7 @@ export function ResumeSignContent({
 }
 
 // ---------------------------------------------------------------------------
-// Broadcast BTC Content
+// Broadcast Pre-PegIn Content
 // ---------------------------------------------------------------------------
 
 export interface ResumeBroadcastContentProps {
@@ -223,12 +217,20 @@ export function ResumeWotsContent({
           );
         }
 
+        const seed = mnemonicToWotsSeed(mnemonic);
+        const wotsPublicKeys = await deriveWotsBlockPublicKeys(
+          seed,
+          peginTxHash,
+          depositorBtcPubkey,
+          activity.applicationEntryPoint,
+        );
+        seed.fill(0);
+
         await submitWotsPublicKey({
           peginTxHash,
           depositorBtcPubkey,
-          appContractAddress: activity.applicationEntryPoint,
           providerAddress,
-          getMnemonic: () => Promise.resolve(mnemonic),
+          wotsPublicKeys,
         });
 
         if (mnemonicId && ethAddress) {

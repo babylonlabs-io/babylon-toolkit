@@ -36,6 +36,52 @@ describe("graphqlClient timeout", () => {
     vi.useRealTimers();
   });
 
+  it("clears timeout after successful response", async () => {
+    const clearTimeoutSpy = vi.spyOn(globalThis, "clearTimeout");
+
+    mockFetch.mockResolvedValue(
+      new Response(JSON.stringify({ data: { vaults: [] } }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+
+    const { graphqlClient } = await import("../client");
+    await graphqlClient.request("{ vaults { id } }");
+
+    expect(clearTimeoutSpy).toHaveBeenCalled();
+    clearTimeoutSpy.mockRestore();
+  });
+
+  it("rethrows caller-initiated abort without wrapping as timeout", async () => {
+    vi.useRealTimers();
+    const callerController = new AbortController();
+    const abortError = new DOMException(
+      "The operation was aborted.",
+      "AbortError",
+    );
+
+    mockFetch.mockImplementation(
+      (_url: string, options?: RequestInit) =>
+        new Promise((_resolve, reject) => {
+          options?.signal?.addEventListener("abort", () => {
+            reject(abortError);
+          });
+        }),
+    );
+
+    const { graphqlClient } = await import("../client");
+    const customFetch = graphqlClient.requestConfig.fetch!;
+
+    const promise = customFetch("https://graphql.test/v1/graphql", {
+      signal: callerController.signal,
+    });
+    callerController.abort();
+
+    await expect(promise).rejects.toThrow("The operation was aborted.");
+    vi.useFakeTimers();
+  });
+
   it("aborts requests after 30s timeout", async () => {
     mockFetch.mockImplementation(
       (_url: string, options?: RequestInit) =>

@@ -11,9 +11,14 @@ import { useBtcPublicKey } from "@/hooks/useBtcPublicKey";
 
 import { useAaveConfig } from "../../applications/aave/context";
 import { useProtocolParamsContext } from "../../context/ProtocolParamsContext";
-import { useBTCWallet, useConnection } from "../../context/wallet";
+import {
+  useBTCWallet,
+  useConnection,
+  useETHWallet,
+} from "../../context/wallet";
 import { depositService } from "../../services/deposit";
 import { formatProviderDisplayName } from "../../utils/formatting";
+import { useApplicationCap } from "../useApplicationCap";
 import { useApplications } from "../useApplications";
 import { usePrice, usePrices } from "../usePrices";
 import { calculateBalance, useUTXOs } from "../useUTXOs";
@@ -151,7 +156,19 @@ export function useDepositPageForm(): UseDepositPageFormResult {
     () => providers.map((p: { id: string }) => p.id),
     [providers],
   );
-  const validation = useDepositValidation(providerIds);
+  const { address: ethAddress } = useETHWallet();
+  const { snapshot: capSnapshot, error: capError } = useApplicationCap(
+    isWalletConnected ? ethAddress : undefined,
+  );
+  // Only block validation when the on-chain cap read has explicitly errored.
+  // During the initial load `capSnapshot` is null but `capError` is not set —
+  // in that window the validator skips the cap check so the user can still
+  // interact with the form. The contract still enforces the cap at submit.
+  const validation = useDepositValidation({
+    availableProviders: providerIds,
+    effectiveRemaining: capSnapshot?.effectiveRemaining ?? null,
+    capUnavailable: capError !== null,
+  });
 
   // Get UTXOs for balance calculation (already respects inscription preference)
   const { spendableUTXOs, spendableMempoolUTXOs } = useUTXOs(btcAddress);

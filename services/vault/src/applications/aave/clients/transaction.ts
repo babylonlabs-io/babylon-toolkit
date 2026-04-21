@@ -15,6 +15,13 @@ import {
 } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
 import { type Address, type Chain, type Hex, type WalletClient } from "viem";
 
+import { ethClient } from "../../../clients/eth-contract/client";
+import {
+  throwRevertError,
+  type TransactionResult,
+} from "../../../clients/eth-contract/transactionFactory";
+import { mapViemErrorToContractError } from "../../../utils/errors";
+
 /**
  * Read the Core Spoke address from the controller contract.
  *
@@ -36,10 +43,6 @@ export async function getCoreSpokeAddress(
     args: [],
   }) as Promise<Address>;
 }
-
-import { ethClient } from "../../../clients/eth-contract/client";
-import { type TransactionResult } from "../../../clients/eth-contract/transactionFactory";
-import { mapViemErrorToContractError } from "../../../utils/errors";
 
 /**
  * Simulate a transaction to catch errors before sending
@@ -100,9 +103,7 @@ async function executeTx(
 
     // Check if transaction was reverted
     if (receipt.status === "reverted") {
-      throw new Error(
-        `Transaction reverted. Hash: ${hash}. Check the transaction on block explorer for details.`,
-      );
+      await throwRevertError(publicClient, receipt, hash, to, data, account);
     }
 
     return {

@@ -13,11 +13,13 @@ import { PositionNotificationsDebugPanel } from "@/applications/aave/components/
 import { LOAN_TAB, type LoanTab } from "@/applications/aave/constants";
 import { useSyncPendingVaults } from "@/applications/aave/context";
 import { useAaveVaults } from "@/applications/aave/hooks";
+import type { PositionNotificationsStatus } from "@/applications/aave/hooks/usePositionNotifications";
 import type { CalculatorResult } from "@/applications/aave/positionNotifications";
 import type { Asset } from "@/applications/aave/types";
 import type { RootLayoutContext } from "@/components/pages/RootLayout";
 import featureFlags from "@/config/featureFlags";
 import { useBTCWallet, useConnection, useETHWallet } from "@/context/wallet";
+import { useApplicationCap } from "@/hooks/useApplicationCap";
 import { useDashboardState } from "@/hooks/useDashboardState";
 import { usePegoutPolling } from "@/hooks/usePegoutPolling";
 import { calculateBalance, useUTXOs } from "@/hooks/useUTXOs";
@@ -30,6 +32,7 @@ import { OverviewSection } from "./OverviewSection";
 import { PendingDepositSection } from "./PendingDepositSection";
 import { PendingWithdrawSection } from "./PendingWithdrawSection";
 import { PositionNotificationBanner } from "./PositionNotificationBanner";
+import { SupplyCapSection } from "./SupplyCapSection";
 import WithdrawFlow from "./WithdrawFlow";
 
 export function DashboardPage() {
@@ -47,6 +50,8 @@ export function DashboardPage() {
   const [isAssetModalOpen, setIsAssetModalOpen] = useState(false);
   const [debugResultOverride, setDebugResultOverride] =
     useState<CalculatorResult | null>(null);
+  const [debugStatusOverride, setDebugStatusOverride] =
+    useState<PositionNotificationsStatus | null>(null);
   const [assetModalMode, setAssetModalMode] = useState<LoanTab>(
     LOAN_TAB.BORROW,
   );
@@ -63,6 +68,10 @@ export function DashboardPage() {
     collateralVaults,
     selectableBorrowedAssets,
   } = useDashboardState(address);
+
+  const { snapshot: capSnapshot, isLoading: isCapLoading } = useApplicationCap(
+    isConnected ? address : undefined,
+  );
 
   const { vaults: aaveVaults, redeemedVaults } = useAaveVaults(
     isConnected ? address : undefined,
@@ -126,6 +135,8 @@ export function DashboardPage() {
   return (
     <Container className="pb-6">
       <div className="space-y-6">
+        <SupplyCapSection snapshot={capSnapshot} isLoading={isCapLoading} />
+
         <OverviewSection
           healthFactor={healthFactor}
           healthFactorStatus={healthFactorStatus}
@@ -139,6 +150,7 @@ export function DashboardPage() {
           onDeposit={openDeposit}
           onRepay={handleRepay}
           result={debugResultOverride ?? undefined}
+          statusOverride={debugStatusOverride ?? undefined}
           btcBalanceBtc={btcBalanceBtc}
         />
 
@@ -173,6 +185,7 @@ export function DashboardPage() {
         {featureFlags.isPositionNotificationsEnabled && (
           <PositionNotificationsDebugPanel
             onResultChange={setDebugResultOverride}
+            onStatusChange={setDebugStatusOverride}
           />
         )}
       </div>

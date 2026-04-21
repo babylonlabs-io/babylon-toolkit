@@ -21,6 +21,7 @@ import {
   type AavePositionWithLiveData,
 } from "../services";
 import {
+  aaveRayValueToUsd,
   aaveValueToUsd,
   getHealthFactorStatus,
   wadToNumber,
@@ -175,9 +176,9 @@ export function useAaveUserPosition(
       return {
         collateralBtc: satoshiToBtcNumber(totalCollateral),
         collateralValueUsd: aaveValueToUsd(accountData.totalCollateralValue),
-        debtValueUsd: aaveValueToUsd(accountData.totalDebtValue),
+        debtValueUsd: aaveRayValueToUsd(accountData.totalDebtValueRay),
         healthFactor:
-          accountData.borrowedCount > 0n
+          accountData.borrowCount > 0n
             ? wadToNumber(accountData.healthFactor)
             : null,
       };

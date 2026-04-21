@@ -58,6 +58,7 @@ import {
   peginOutputCount,
   selectUtxosForPegin,
   type UTXO,
+  MAX_REASONABLE_FEE_SATS,
 } from "../utils";
 
 /** Referral code sent with pegin registration — 0 means no referral. */
@@ -395,6 +396,7 @@ export interface RegisterPeginBatchResult {
   btcPopSignature: Hex;
 }
 
+
 /**
  * Resolve prevout data for a transaction input.
  * Checks localPrevouts first; falls back to mempool API.
@@ -476,7 +478,7 @@ export class PeginManager {
    * 2. Build unfunded Pre-PegIn transaction (HTLC output) using primitives
    * 3. Select UTXOs to cover the HTLC value
    * 4. Fund the Pre-PegIn transaction
-   * 5. Derive the PegIn transaction from the funded Pre-PegIn txid
+   * 5. Derive the PegIn transaction from the funded Pre-PegIn tx
    * 6. Build PSBT for signing the PegIn input (HTLC leaf 0)
    * 7. Sign via BTC wallet and extract depositor signature
    *
@@ -739,6 +741,14 @@ export class PeginManager {
         `UTXO value mismatch: total input value (${totalInputValue} sat) is less than ` +
           `total output value (${totalOutputValue} sat). ` +
           `This may indicate the mempool API returned manipulated UTXO data.`,
+      );
+    }
+
+    const impliedFee = totalInputValue - totalOutputValue;
+    if (impliedFee > MAX_REASONABLE_FEE_SATS) {
+      throw new Error(
+        `Implied transaction fee (${impliedFee} sat) exceeds maximum reasonable fee ` +
+          `(${MAX_REASONABLE_FEE_SATS} sat). This may indicate manipulated UTXO data.`,
       );
     }
 

@@ -4,6 +4,8 @@
 
 import { getETHChain } from "@babylonlabs-io/config";
 import { ensureHexPrefix } from "@babylonlabs-io/ts-sdk/tbv/core";
+import { validateSecretAgainstHashlock } from "@babylonlabs-io/ts-sdk/tbv/core/services";
+import { UtxoNotAvailableError } from "@babylonlabs-io/ts-sdk/tbv/core/utils";
 import {
   getSharedWagmiConfig,
   useChainConnector,
@@ -21,13 +23,11 @@ import {
   assertUtxosAvailable,
   broadcastPrePeginTransaction,
   fetchVaultById,
-  UtxoNotAvailableError,
 } from "../../services/vault";
 import { activateVaultWithSecret } from "../../services/vault/vaultActivationService";
 import { utxosToExpectedRecord } from "../../services/vault/vaultPeginBroadcastService";
 import type { PendingPeginRequest } from "../../storage/peginStorage";
 import { stripHexPrefix } from "../../utils/btc";
-import { validateSecretAgainstHashlock } from "../../utils/htlcSecret";
 
 export interface BroadcastPrePeginParams {
   activityId: Hex;
@@ -150,8 +150,9 @@ export function useVaultActions(): UseVaultActionsReturn {
       // Get depositor's BTC address for UTXO validation
       const depositorAddress = await btcWalletProvider.getAddress();
 
-      // Validate UTXOs are still available BEFORE asking user to sign
+      // Validate UTXOs are still available BEFORE asking user to sign.
       // This prevents wasted signing effort if UTXOs have been spent
+      // by unrelated transactions.
       await assertUtxosAvailable(unsignedTxHex, depositorAddress);
 
       // Use trusted UTXO data from localStorage when available (stored at
@@ -243,10 +244,11 @@ export function useVaultActions(): UseVaultActionsReturn {
         );
       }
 
-      // Validate secret against hashlock before sending ETH tx
-      const isValid = await validateSecretAgainstHashlock(
-        secretHex,
-        vault.hashlock,
+      // Validate secret against hashlock before sending ETH tx.
+      // SDK version is sync + requires 0x-prefixed inputs.
+      const isValid = validateSecretAgainstHashlock(
+        ensureHexPrefix(secretHex),
+        ensureHexPrefix(vault.hashlock),
       );
       if (!isValid) {
         throw new Error(

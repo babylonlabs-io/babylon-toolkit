@@ -21,10 +21,18 @@ import {
   // Utilities
   selectVaultsForAmount,
   aaveValueToUsd,
+  aaveRayValueToUsd,
   getHealthFactorStatus,
   FULL_REPAY_BUFFER_DIVISOR,
 } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
-import { createPublicClient, createWalletClient, http, parseUnits, type Hex } from "viem";
+import {
+  createPublicClient,
+  createWalletClient,
+  http,
+  parseUnits,
+  type Address,
+  type Hex,
+} from "viem";
 import { sepolia } from "viem/chains";
 
 const publicClient = createPublicClient({ chain: sepolia, transport: http() });
@@ -66,7 +74,7 @@ const accountData = await getUserAccountData(publicClient, SPOKE, proxyAddress);
 const healthFactor = Number(accountData.healthFactor) / 1e18;
 const status = getHealthFactorStatus(
   healthFactor,
-  accountData.borrowedCount > 0n,
+  accountData.borrowCount > 0n,
 );
 
 if (status !== "safe" && status !== "no_debt") {
@@ -234,7 +242,7 @@ console.log(
   aaveValueToUsd(accountData.totalCollateralValue),
   "USD",
 );
-console.log("Debt:", aaveValueToUsd(accountData.totalDebtValue), "USD");
+console.log("Debt:", aaveRayValueToUsd(accountData.totalDebtValueRay), "USD");
 console.log("Health Factor:", Number(accountData.healthFactor) / 1e18);
 ```
 

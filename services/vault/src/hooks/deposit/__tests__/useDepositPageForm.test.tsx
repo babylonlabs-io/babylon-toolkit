@@ -36,6 +36,29 @@ vi.mock("@/clients/eth-contract", () => ({
   },
 }));
 
+// useDepositPageForm now pulls in useApplicationCap. The form-level test does
+// not care about cap state — stub the hook to a loaded uncapped snapshot so
+// validation isn't blocked as "cap unknown" and the test's focus stays on
+// form logic (without dragging in the viem public client).
+vi.mock("../../useApplicationCap", () => ({
+  useApplicationCap: vi.fn(() => ({
+    snapshot: {
+      totalCapBTC: 0n,
+      perAddressCapBTC: 0n,
+      totalBTC: 0n,
+      userBTC: null,
+      hasTotalCap: false,
+      hasPerAddressCap: false,
+      remainingTotal: null,
+      remainingForUser: null,
+      effectiveRemaining: null,
+    },
+    isLoading: false,
+    error: null,
+    refetch: vi.fn(),
+  })),
+}));
+
 vi.mock("../../../applications/aave/context", () => ({
   useAaveConfig: vi.fn(() => ({
     config: { adapterAddress: "0xAaveAdapter" },

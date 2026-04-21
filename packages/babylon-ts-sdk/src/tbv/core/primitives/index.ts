@@ -39,7 +39,8 @@
  * ## Key Exports
  *
  * ### PSBT Builders
- * - {@link buildPeginPsbt} - Create unfunded peg-in transaction
+ * - {@link buildPrePeginPsbt} - Create unfunded Pre-PegIn transaction (HTLC outputs)
+ * - {@link buildPeginTxFromFundedPrePegin} - Derive PegIn tx from funded Pre-PegIn
  * - {@link buildPayoutPsbt} - Create payout PSBT for signing
  * - {@link extractPayoutSignature} - Extract Schnorr signature from signed PSBT
  * - {@link buildDepositorPayoutPsbt} - Create depositor's own Payout PSBT (depositor-as-claimer path)
@@ -78,6 +79,15 @@ export { computeNumLocalChallengers } from "./challengers";
 // Core types and functions from WASM package
 export type { Network } from "@babylonlabs-io/babylon-tbv-rust-wasm";
 export { computeMinClaimValue, deriveVaultId } from "@babylonlabs-io/babylon-tbv-rust-wasm";
+
+/**
+ * 0x-prefixed bytes32, keccak256(abi.encode(peginTxHash, depositor)).
+ * On-chain vault identifier used by BTCVaultRegistry contract.
+ *
+ * Type alias for documentation — not branded.
+ * Derive with `deriveVaultId(peginTxHash, depositorAddress)`.
+ */
+export type VaultId = `0x${string}`;
 export type {
   AssertPayoutNoPayoutConnectorParams,
   ChallengeAssertConnectorParams,
@@ -129,6 +139,7 @@ export {
   isAddressFromPublicKey,
   isValidHex,
   ensureHexPrefix,
+  formatSatoshisToBtc,
   processPublicKeyToXOnly,
   stripHexPrefix,
   toXOnly,

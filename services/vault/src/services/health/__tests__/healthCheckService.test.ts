@@ -14,6 +14,14 @@ vi.mock("@/config/env", () => ({
   },
 }));
 
+vi.mock("@/infrastructure", () => ({
+  logger: {
+    error: vi.fn(),
+    warn: vi.fn(),
+  },
+}));
+
+import { logger } from "@/infrastructure";
 import { ApiError } from "@/utils/errors/types";
 
 import {
@@ -224,11 +232,22 @@ describe("healthCheckService", () => {
   });
 
   describe("createEnvConfigError", () => {
-    it("creates an error with the correct title and message", () => {
+    it("creates a generic error without leaking details to the user", () => {
       const error = createEnvConfigError("MISSING_VAR_1, MISSING_VAR_2");
 
       expect(error.title).toBe("Configuration Error");
-      expect(error.message).toContain("MISSING_VAR_1, MISSING_VAR_2");
+      expect(error.message).toBe(
+        "The application is missing required configuration. Please contact support.",
+      );
+      expect(error.message).not.toContain("MISSING_VAR_1");
+    });
+
+    it("logs details to Sentry via logger.error", () => {
+      createEnvConfigError("MISSING_VAR_1, MISSING_VAR_2");
+
+      expect(logger.error).toHaveBeenCalledWith(expect.any(Error), {
+        data: { details: "MISSING_VAR_1, MISSING_VAR_2" },
+      });
     });
   });
 

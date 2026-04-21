@@ -99,6 +99,19 @@ export function formatUsdValue(usdValue: number): string {
 }
 
 /**
+ * Format USD value without the "USD" suffix.
+ * Always renders two fractional digits (e.g., "$1,234.56" or "$0.00").
+ * Use this when the currency is clear from context and the bare "$…" form
+ * reads better than formatUsdValue's suffixed variant.
+ */
+export function formatUsd(usd: number): string {
+  return `$${usd.toLocaleString("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
+}
+
+/**
  * Format price in USD for compact display (without suffix)
  * Uses no decimals for values >= 1000, 2 decimals otherwise
  * @param priceUsd - Price in USD

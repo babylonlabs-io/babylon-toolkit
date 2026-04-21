@@ -1,4 +1,4 @@
-import { Button, Text } from "@babylonlabs-io/core-ui";
+import { Button, Input, Text } from "@babylonlabs-io/core-ui";
 import { useCallback, useState } from "react";
 
 import type { VerificationChallenge } from "@/services/wots";
@@ -51,11 +51,11 @@ export function VerificationForm({
             >
               Word #{wordIndex + 1}
             </Text>
-            <input
+            <Input
               type="text"
               value={answers[i]}
               onChange={(e) => handleAnswerChange(i, e.target.value)}
-              className="flex-1 rounded-md border border-primary-main/20 bg-transparent px-3 py-2 text-sm text-accent-primary outline-none focus:border-primary-main"
+              wrapperClassName="flex-1"
               autoComplete="off"
               autoCorrect="off"
               spellCheck={false}

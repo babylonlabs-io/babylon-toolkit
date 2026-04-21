@@ -2,15 +2,17 @@
  * Types for Peg-In Polling Context
  */
 
+import type {
+  ClaimerTransactions,
+  DepositorGraphTransactions,
+} from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import type { PropsWithChildren } from "react";
 
-import type { DepositorGraphTransactions } from "../clients/vault-provider-rpc/types";
 import type {
   LocalStorageStatus,
   PeginState,
 } from "../models/peginStateMachine";
 import type { PendingPeginRequest } from "../storage/peginStorage";
-import type { ClaimerTransactions } from "../types";
 import type { VaultActivity } from "../types/activity";
 
 /** Result of polling for a single deposit */
@@ -58,8 +60,6 @@ export interface PeginPollingProviderProps extends PropsWithChildren {
   pendingPegins: PendingPeginRequest[];
   /** Depositor's BTC public key (x-only, 32 bytes without 0x prefix) */
   btcPublicKey?: string;
-  /** Depositor's BTC address (for broadcast state auto-detection) */
-  btcAddress?: string;
 }
 
 /** Deposit prepared for polling */
@@ -70,8 +70,8 @@ export interface DepositToPoll {
   vaultProviderAddress: string | undefined;
 }
 
-/** Grouped deposits by provider URL */
+/** Grouped deposits by vault provider address */
 export interface DepositsByProvider {
-  providerUrl: string;
+  providerAddress: string;
   deposits: DepositToPoll[];
 }

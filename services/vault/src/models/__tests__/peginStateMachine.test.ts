@@ -48,6 +48,18 @@ describe("peginStateMachine", () => {
       expect(state.message).toContain("prepare Claim and Payout");
     });
 
+    it("shows signing required when CONFIRMING and transactions are ready", () => {
+      const state = getPeginState(ContractStatus.PENDING, {
+        localStatus: LocalStorageStatus.CONFIRMING,
+        pendingIngestion: false,
+        transactionsReady: true,
+      });
+      expect(state.displayLabel).toBe(PEGIN_DISPLAY_LABELS.SIGNING_REQUIRED);
+      expect(state.availableActions).toContain(
+        PeginAction.SIGN_PAYOUT_TRANSACTIONS,
+      );
+    });
+
     it("shows pending ingestion when no polling response yet (undefined)", () => {
       const state = getPeginState(ContractStatus.PENDING, {});
       expect(state.displayLabel).toBe(PEGIN_DISPLAY_LABELS.PENDING);
@@ -95,13 +107,11 @@ describe("peginStateMachine", () => {
   // getPeginState — VERIFIED contract status
   // ==========================================================================
   describe("getPeginState - VERIFIED", () => {
-    it("shows verified (ready to broadcast)", () => {
+    it("shows ready to activate by default (pre-pegin guaranteed on-chain at VERIFIED)", () => {
       const state = getPeginState(ContractStatus.VERIFIED);
-      expect(state.displayLabel).toBe(PEGIN_DISPLAY_LABELS.VERIFIED);
-      expect(state.availableActions).toContain(
-        PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN,
-      );
-      expect(state.message).toContain("Broadcast the Pre-PegIn transaction");
+      expect(state.displayLabel).toBe(PEGIN_DISPLAY_LABELS.READY_TO_ACTIVATE);
+      expect(state.availableActions).toContain(PeginAction.ACTIVATE_VAULT);
+      expect(state.message).toContain("Reveal your HTLC secret");
     });
 
     it("shows ready to activate when BTC tx is broadcast", () => {
@@ -320,12 +330,12 @@ describe("peginStateMachine", () => {
       });
     });
 
-    it("returns Broadcast for verified", () => {
+    it("returns Activate for verified (pre-pegin guaranteed on-chain)", () => {
       const state = getPeginState(ContractStatus.VERIFIED);
       const button = getPrimaryActionButton(state);
       expect(button).toEqual({
-        label: "Broadcast BTC",
-        action: PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN,
+        label: "Activate",
+        action: PeginAction.ACTIVATE_VAULT,
       });
     });
 

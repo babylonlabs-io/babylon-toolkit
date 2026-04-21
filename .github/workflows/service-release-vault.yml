@@ -95,7 +95,6 @@ jobs:
           # Trustless Bitcoin Vault (TBV) Contracts
           NEXT_PUBLIC_TBV_BTC_VAULT_REGISTRY: ${{ vars.NEXT_PUBLIC_TBV_BTC_VAULT_REGISTRY }}
           NEXT_PUBLIC_TBV_AAVE_ADAPTER: ${{ vars.NEXT_PUBLIC_TBV_AAVE_ADAPTER }}
-          NEXT_PUBLIC_TBV_AAVE_SPOKE: ${{ vars.NEXT_PUBLIC_TBV_AAVE_SPOKE }}
           # Build Metadata
           NEXT_PUBLIC_COMMIT_HASH: ${{ github.sha }}
           NEXT_PUBLIC_CANONICAL: ${{ vars.NEXT_PUBLIC_CANONICAL }}
@@ -117,6 +116,8 @@ jobs:
           NEXT_PUBLIC_SENTRY_ENVIRONMENT: ${{ matrix.environment }}
           # Analytics
           GA4_MEASUREMENT_ID: ${{ vars.GA4_MEASUREMENT_ID }}
+          # Feature Flags
+          NEXT_PUBLIC_FF_DISABLE_VAULT_CAP: ${{ vars.NEXT_PUBLIC_FF_DISABLE_VAULT_CAP }}
 
       - name: Copy all index.html to fix path for deposit, activity, app/aave
         run: |

@@ -3,7 +3,11 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { logger } from "@/infrastructure";
 
 import { graphqlClient } from "../../../clients/graphql/client";
-import { fetchVaultById, fetchVaultsByDepositor } from "../fetchVaults";
+import {
+  fetchVaultById,
+  fetchVaultRefundData,
+  fetchVaultsByDepositor,
+} from "../fetchVaults";
 
 vi.mock("../../../clients/graphql/client", () => ({
   graphqlClient: {
@@ -288,6 +292,69 @@ describe("fetchVaults", () => {
       await expect(fetchVaultById("0xabc123" as `0x${string}`)).rejects.toThrow(
         'Unknown GraphQL vault status "some_future_status"',
       );
+    });
+  });
+
+  describe("fetchVaultRefundData", () => {
+    afterEach(() => {
+      vi.clearAllMocks();
+    });
+
+    it("returns the minimal refund-needed fields, mapping to typed output", async () => {
+      mockedRequest.mockResolvedValueOnce({
+        vault: {
+          id: "0xabc123",
+          depositorBtcPubKey: "0xbtcpub",
+          amount: "150000",
+          unsignedPrePeginTx: "0xpretx",
+        },
+      });
+
+      const result = await fetchVaultRefundData("0xABC123" as `0x${string}`);
+
+      expect(result).toEqual({
+        depositorBtcPubkey: "0xbtcpub",
+        amount: 150_000n,
+        unsignedPrePeginTx: "0xpretx",
+      });
+      // GraphQL query was called with lowercased id
+      expect(mockedRequest).toHaveBeenCalledOnce();
+      expect(mockedRequest).toHaveBeenCalledWith(expect.anything(), {
+        id: "0xabc123",
+      });
+    });
+
+    it("returns null when the vault does not exist", async () => {
+      mockedRequest.mockResolvedValueOnce({ vault: null });
+
+      const result = await fetchVaultRefundData("0xnotfound" as `0x${string}`);
+
+      expect(result).toBeNull();
+    });
+
+    it("throws when unsignedPrePeginTx is missing — refund cannot be built without it", async () => {
+      mockedRequest.mockResolvedValueOnce({
+        vault: {
+          id: "0xabc123",
+          depositorBtcPubKey: "0xbtcpub",
+          amount: "150000",
+          unsignedPrePeginTx: null,
+        },
+      });
+
+      await expect(
+        fetchVaultRefundData("0xabc123" as `0x${string}`),
+      ).rejects.toThrow(
+        /Vault 0xabc123 is missing unsignedPrePeginTx; cannot build refund/,
+      );
+    });
+
+    it("propagates GraphQL request errors unchanged", async () => {
+      mockedRequest.mockRejectedValueOnce(new Error("indexer unavailable"));
+
+      await expect(
+        fetchVaultRefundData("0xabc123" as `0x${string}`),
+      ).rejects.toThrow("indexer unavailable");
     });
   });
 });

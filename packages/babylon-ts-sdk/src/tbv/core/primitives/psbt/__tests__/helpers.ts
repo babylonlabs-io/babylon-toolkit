@@ -77,7 +77,7 @@ export const TEST_AMOUNTS = {
  *
  * @example
  * ```typescript
- * describe("buildPeginPsbt", () => {
+ * describe("buildPrePeginPsbt", () => {
  *   beforeAll(async () => {
  *     await initializeWasmForTests();
  *   });

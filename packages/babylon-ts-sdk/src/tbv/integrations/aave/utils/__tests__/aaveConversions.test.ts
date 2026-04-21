@@ -4,7 +4,11 @@
 
 import { describe, expect, it } from "vitest";
 
-import { aaveValueToUsd, wadToNumber } from "../aaveConversions.js";
+import {
+  aaveRayValueToUsd,
+  aaveValueToUsd,
+  wadToNumber,
+} from "../aaveConversions.js";
 
 describe("aaveConversions", () => {
   describe("aaveValueToUsd", () => {
@@ -32,6 +36,27 @@ describe("aaveConversions", () => {
       // $1,000,000 USD
       const value = 1_000_000n * 10n ** 26n;
       expect(aaveValueToUsd(value)).toBe(1_000_000);
+    });
+  });
+
+  describe("aaveRayValueToUsd", () => {
+    it("should convert 1e35 to $1 USD", () => {
+      const value = 10n ** 35n;
+      expect(aaveRayValueToUsd(value)).toBe(1);
+    });
+
+    it("should convert 100e35 to $100 USD", () => {
+      const value = 100n * 10n ** 35n;
+      expect(aaveRayValueToUsd(value)).toBeCloseTo(100);
+    });
+
+    it("should convert 0 to $0 USD", () => {
+      expect(aaveRayValueToUsd(0n)).toBe(0);
+    });
+
+    it("should handle fractional USD values", () => {
+      const value = 5n * 10n ** 34n;
+      expect(aaveRayValueToUsd(value)).toBe(0.5);
     });
   });
 

@@ -33,7 +33,6 @@ export function PendingDepositSection() {
     pendingPegins,
     vaultProviders,
     btcPublicKey,
-    btcAddress,
     ethAddress,
     hasPendingDeposits,
     signModal,
@@ -62,7 +61,6 @@ export function PendingDepositSection() {
       activities={allActivities}
       pendingPegins={pendingPegins}
       btcPublicKey={btcPublicKey}
-      btcAddress={btcAddress}
     >
       <div className="w-full space-y-6">
         {/* Header row */}
@@ -109,7 +107,7 @@ export function PendingDepositSection() {
                   depositId={activity.id}
                   amount={activity.collateral.amount}
                   timestamp={activity.timestamp}
-                  txHash={activity.peginTxHash!}
+                  txHash={activity.peginTxHash}
                   providerId={activity.providers[0].id}
                   vaultProviders={vaultProviders}
                   onSignClick={signModal.handleSignClick}

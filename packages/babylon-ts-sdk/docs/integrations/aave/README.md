@@ -12,7 +12,7 @@ The SDK provides pure functions for Babylon's custom Aave integration:
 
 - **Transaction Builders** - Build unsigned transactions (the caller executes with their wallet)
 - **Query Functions** - Read on-chain data (health factor, debt, positions)
-- **Utilities** - Calculate health factor, select vaults, format values
+- **Utilities** - Calculate health factor, select vaults, check safety
 
 > **Note:** Since you can't interact with native BTC directly on Aave, the SDK calls go through an Adapter contract that translates BTC vault operations into standard Aave actions on the Spoke (the Aave pool contract).
 
@@ -76,8 +76,8 @@ Pure calculations and helpers.
 | ------------------------- | --------------------------------------- |
 | `selectVaultsForAmount()` | Choose optimal BTC vaults for target amount |
 | `calculateHealthFactor()` | Calculate HF from values                |
-| `formatHealthFactor()`    | Format HF for display                   |
 | `getHealthFactorStatus()` | Get status (safe/warning/danger)        |
+| `isHealthFactorHealthy()` | Check if HF >= 1.0                      |
 | `aaveValueToUsd()`        | Convert Aave base currency to USD       |
 
 ---

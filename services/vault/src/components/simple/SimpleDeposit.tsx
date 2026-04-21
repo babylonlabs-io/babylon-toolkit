@@ -2,7 +2,6 @@ import { FullScreenDialog, Heading } from "@babylonlabs-io/core-ui";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Hex } from "viem";
 
-import type { DepositorGraphTransactions } from "@/clients/vault-provider-rpc/types";
 import { FeatureFlags } from "@/config";
 import { useAddressScreening } from "@/context/addressScreening";
 import { useGeoFencing } from "@/context/geofencing";
@@ -10,7 +9,6 @@ import { ProtocolParamsProvider } from "@/context/ProtocolParamsContext";
 import { useDialogStep } from "@/hooks/deposit/useDialogStep";
 import { depositService } from "@/services/deposit";
 import type { VaultActivity } from "@/types/activity";
-import type { ClaimerTransactions } from "@/types/rpc";
 import type { VaultProvider } from "@/types/vaultProvider";
 import { generateSecretHex } from "@/utils/secretUtils";
 
@@ -54,8 +52,6 @@ type NewDepositProps = SimpleDepositBaseProps & {
 type ResumeSignProps = SimpleDepositBaseProps & {
   resumeMode: "sign_payouts";
   activity: VaultActivity;
-  transactions: ClaimerTransactions[] | null;
-  depositorGraph: DepositorGraphTransactions;
   btcPublicKey: string;
   depositorEthAddress: Hex;
   onResumeSuccess: () => void;
@@ -468,8 +464,6 @@ export default function SimpleDeposit(props: SimpleDepositProps) {
             {resumeMode === "sign_payouts" ? (
               <ResumeSignContent
                 activity={props.activity}
-                transactions={props.transactions}
-                depositorGraph={props.depositorGraph}
                 btcPublicKey={props.btcPublicKey}
                 depositorEthAddress={props.depositorEthAddress}
                 onClose={onClose}

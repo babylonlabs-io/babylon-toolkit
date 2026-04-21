@@ -36,7 +36,7 @@ export const TAPSCRIPT_LEAF_VERSION = 0xc0;
  * @returns Hex string without "0x" prefix
  */
 export function stripHexPrefix(hex: string): string {
-  return hex.startsWith("0x") ? hex.slice(2) : hex;
+  return hex.startsWith("0x") || hex.startsWith("0X") ? hex.slice(2) : hex;
 }
 
 /**
@@ -49,7 +49,9 @@ export function stripHexPrefix(hex: string): string {
  * @returns `0x`-prefixed hex string typed as viem Hex
  */
 export function ensureHexPrefix(hex: string): Hex {
-  return hex.startsWith("0x") ? (hex as Hex) : (`0x${hex}` as Hex);
+  if (hex.startsWith("0x")) return hex as Hex;
+  if (hex.startsWith("0X")) return `0x${hex.slice(2)}` as Hex;
+  return `0x${hex}` as Hex;
 }
 
 /**
@@ -205,6 +207,26 @@ export function validateWalletPubkey(
   }
 
   return { walletPubkeyRaw, walletPubkeyXOnly, depositorPubkey };
+}
+
+// ============================================================================
+// BTC formatting
+// ============================================================================
+
+const SATOSHIS_PER_BTC = 100_000_000n;
+
+/**
+ * Format satoshis as a human-readable BTC string with trailing zeros removed.
+ */
+export function formatSatoshisToBtc(satoshis: bigint): string {
+  if (satoshis < 0n) {
+    return `-${formatSatoshisToBtc(-satoshis)}`;
+  }
+  const whole = satoshis / SATOSHIS_PER_BTC;
+  const fraction = satoshis % SATOSHIS_PER_BTC;
+  let fractionStr = fraction.toString().padStart(8, "0");
+  fractionStr = fractionStr.replace(/0+$/, "");
+  return fractionStr.length > 0 ? `${whole}.${fractionStr}` : whole.toString();
 }
 
 // ============================================================================

@@ -8,6 +8,7 @@
 
 export {
   ensureHexPrefix,
+  formatSatoshisToBtc,
   hexToUint8Array,
   isValidHex,
   processPublicKeyToXOnly,
