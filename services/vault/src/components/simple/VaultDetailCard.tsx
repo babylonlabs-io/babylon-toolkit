@@ -35,6 +35,8 @@ interface VaultDetailCardProps {
   providerName: string;
   /** Vault provider icon URL */
   providerIconUrl?: string;
+  /** Vault provider Ethereum address, shown on hover over the provider label */
+  providerAddress: string;
   /** Status content — rendered as the value in the Status row */
   statusContent: ReactNode;
   /** Optional action button rendered at the bottom */
@@ -47,6 +49,7 @@ export function VaultDetailCard({
   txHash,
   providerName,
   providerIconUrl,
+  providerAddress,
   statusContent,
   action,
 }: VaultDetailCardProps) {
@@ -79,17 +82,24 @@ export function VaultDetailCard({
       {/* Vault Provider */}
       <div className="flex items-center justify-between">
         <span className="text-sm text-accent-secondary">Vault Provider</span>
-        <span className="flex items-center gap-1.5 text-sm text-accent-primary">
-          {providerIconUrl && (
-            <Avatar
-              url={providerIconUrl}
-              alt={providerName}
-              size="small"
-              className="h-4 w-4"
-            />
-          )}
-          {providerName}
-        </span>
+        <Hint
+          tooltip={providerAddress}
+          attachToChildren
+          placement="left"
+          className="text-sm text-accent-primary"
+        >
+          <span className="inline-flex items-center gap-1.5">
+            {providerIconUrl && (
+              <Avatar
+                url={providerIconUrl}
+                alt={providerName}
+                size="small"
+                className="h-4 w-4"
+              />
+            )}
+            {providerName}
+          </span>
+        </Hint>
       </div>
 
       {/* Transaction Hash */}
