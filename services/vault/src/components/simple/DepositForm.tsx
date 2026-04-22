@@ -6,6 +6,7 @@ import {
   Card,
   Loader,
   Select,
+  Warning,
 } from "@babylonlabs-io/core-ui";
 import { useMemo } from "react";
 import { IoCheckmark, IoChevronUp } from "react-icons/io5";
@@ -72,6 +73,12 @@ interface DepositFormProps {
   partialLiquidation?: PartialLiquidationProps;
 
   feeRows?: FeeRow[];
+
+  /**
+   * True when the inscription (ordinals) check could not complete. Surfaces a
+   * warning so the user knows inscription UTXOs may be included in the deposit.
+   */
+  ordinalsCheckUnavailable?: boolean;
 }
 
 export function DepositForm({
@@ -102,6 +109,7 @@ export function DepositForm({
   onDeposit,
   partialLiquidation,
   feeRows,
+  ordinalsCheckUnavailable = false,
 }: DepositFormProps) {
   const btcBalanceFormatted = useMemo(() => {
     if (!btcBalance) return 0;
@@ -306,6 +314,14 @@ export function DepositForm({
           />
         )}
       </Card>
+
+      {ordinalsCheckUnavailable && (
+        <Warning>
+          Inscription check unavailable. We couldn&apos;t verify whether your
+          UTXOs contain Ordinals/inscriptions. If you proceed, any inscription
+          UTXOs may be spent as part of this deposit.
+        </Warning>
+      )}
 
       {/* CTA button */}
       <DepositButton

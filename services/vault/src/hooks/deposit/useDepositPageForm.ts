@@ -80,6 +80,13 @@ export interface UseDepositPageFormResult {
   feeError: string | null;
   maxDepositSats: bigint | null;
 
+  /**
+   * True when the ordinals check failed or timed out AND the user has
+   * inscription-exclusion enabled. In that state, inscription UTXOs may be
+   * spent unintentionally, so the UI should surface a warning.
+   */
+  ordinalsCheckUnavailable: boolean;
+
   // Partial liquidation (multi-vault)
   isPartialLiquidation: boolean;
   setIsPartialLiquidation: (v: boolean) => void;
@@ -171,7 +178,8 @@ export function useDepositPageForm(): UseDepositPageFormResult {
   });
 
   // Get UTXOs for balance calculation (already respects inscription preference)
-  const { spendableUTXOs, spendableMempoolUTXOs } = useUTXOs(btcAddress);
+  const { spendableUTXOs, spendableMempoolUTXOs, ordinalsCheckUnavailable } =
+    useUTXOs(btcAddress);
   const btcBalance = useMemo(() => {
     return BigInt(calculateBalance(spendableUTXOs || []));
   }, [spendableUTXOs]);
@@ -344,6 +352,7 @@ export function useDepositPageForm(): UseDepositPageFormResult {
     isLoadingFee,
     feeError,
     maxDepositSats: adjustedMaxDepositSats,
+    ordinalsCheckUnavailable,
     isPartialLiquidation,
     setIsPartialLiquidation,
     canSplit,

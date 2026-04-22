@@ -140,6 +140,12 @@ export function useUTXOs(
     return new Set(inscriptionUTXOs.map((u) => `${u.txid}:${u.vout}`));
   }, [inscriptionUTXOs]);
 
+  // True when the ordinals check failed AND the user has inscription-exclusion
+  // enabled. In that state, inscription UTXOs may be spent unintentionally,
+  // so consumers should surface a warning to the user.
+  const ordinalsCheckUnavailable =
+    ordinalsExcluded && !isLoadingOrdinals && ordinalsError !== null;
+
   // Spendable UTXOs in MempoolUTXO format (for SDK functions)
   // If ordinals API failed/loading, inscriptionUTXOIds will be empty, so all UTXOs pass filter
   const spendableMempoolUTXOs = useMemo(() => {
@@ -173,6 +179,12 @@ export function useUTXOs(
     error: error as Error | null,
     /** Error state (ordinals - non-blocking) */
     ordinalsError,
+    /**
+     * True when the ordinals check failed or timed out AND the user has
+     * inscription-exclusion enabled - inscription UTXOs may be included in
+     * the spendable set unintentionally.
+     */
+    ordinalsCheckUnavailable,
     /** Refetch function */
     refetch,
   };
