@@ -69,7 +69,7 @@ const mockUsePrices = vi.fn(() => ({
   prices: {} as Record<string, number>,
   metadata: {},
   isLoading: false,
-  error: null,
+  error: null as Error | null,
   hasStalePrices: false,
   hasPriceFetchError: false,
 }));
@@ -423,5 +423,51 @@ describe("useAaveReserveDetail", () => {
     );
 
     expect(mockUseVaultSplitParams).toHaveBeenCalledWith("0xUserAddress");
+  });
+
+  // --- Error propagation ---
+
+  it("propagates error from usePrices", () => {
+    const pricesError = new Error("Chainlink RPC failure");
+    mockUsePrices.mockReturnValue({
+      prices: {},
+      metadata: {},
+      isLoading: false,
+      error: pricesError,
+      hasStalePrices: false,
+      hasPriceFetchError: true,
+    });
+
+    const { result } = renderHook(
+      () => useAaveReserveDetail({ reserveId: "USDC", address: "0xUser" }),
+      { wrapper },
+    );
+
+    expect(result.current.error).toBe(pricesError);
+  });
+
+  it("propagates error from useVaultSplitParams", () => {
+    const splitError = new Error("Contract RPC failure");
+    mockUseVaultSplitParams.mockReturnValue({
+      params: null,
+      isLoading: false,
+      error: splitError,
+    });
+
+    const { result } = renderHook(
+      () => useAaveReserveDetail({ reserveId: "USDC", address: "0xUser" }),
+      { wrapper },
+    );
+
+    expect(result.current.error).toBe(splitError);
+  });
+
+  it("returns null error when no hooks have errors", () => {
+    const { result } = renderHook(
+      () => useAaveReserveDetail({ reserveId: "USDC", address: "0xUser" }),
+      { wrapper },
+    );
+
+    expect(result.current.error).toBeNull();
   });
 });

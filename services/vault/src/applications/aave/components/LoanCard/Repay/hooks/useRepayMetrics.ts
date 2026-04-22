@@ -24,8 +24,8 @@ export interface UseRepayMetricsProps {
   liquidationThresholdBps: number;
   /** Current health factor (null if no debt) */
   currentHealthFactor: number | null;
-  /** Price of the repay token in USD */
-  tokenPriceUsd: number;
+  /** Price of the repay token in USD (null when oracle price is unavailable) */
+  tokenPriceUsd: number | null;
 }
 
 export interface UseRepayMetricsResult {
@@ -50,8 +50,8 @@ export function useRepayMetrics({
   currentHealthFactor,
   tokenPriceUsd,
 }: UseRepayMetricsProps): UseRepayMetricsResult {
-  // When no repay amount entered, show current values (no projection)
-  if (repayAmount === 0) {
+  // When no repay amount entered or price unavailable, show current values (no projection)
+  if (repayAmount === 0 || tokenPriceUsd == null) {
     const healthValue = currentHealthFactor ?? Infinity;
     return {
       borrowRatio: calculateBorrowRatio(totalDebtValueUsd, collateralValueUsd),

@@ -56,6 +56,8 @@ export interface UseAaveReserveDetailResult {
   healthFactor: number | null;
   /** Price of the selected borrow token in USD (null if unavailable) */
   tokenPriceUsd: number | null;
+  /** Error from price or split params fetch (null if no error) */
+  error: Error | null;
 }
 
 export function useAaveReserveDetail({
@@ -100,11 +102,18 @@ export function useAaveReserveDetail({
   } = useAaveUserPosition(address);
 
   // Chainlink oracle prices (cached app-wide via React Query)
-  const { prices: chainlinkPrices, isLoading: pricesLoading } = usePrices();
+  const {
+    prices: chainlinkPrices,
+    isLoading: pricesLoading,
+    error: pricesError,
+  } = usePrices();
 
   // Position-specific collateral factor from contract
-  const { params: splitParams, isLoading: splitParamsLoading } =
-    useVaultSplitParams(address);
+  const {
+    params: splitParams,
+    isLoading: splitParamsLoading,
+    error: splitParamsError,
+  } = useVaultSplitParams(address);
 
   // Calculate debt amount for selected reserve in token units
   const currentDebtAmount = useMemo(() => {
@@ -169,5 +178,6 @@ export function useAaveReserveDetail({
     totalDebtValueUsd: debtValueUsd,
     healthFactor,
     tokenPriceUsd,
+    error: pricesError ?? splitParamsError ?? null,
   };
 }

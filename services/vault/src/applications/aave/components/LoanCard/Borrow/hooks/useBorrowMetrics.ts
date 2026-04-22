@@ -22,8 +22,8 @@ export interface UseBorrowMetricsProps {
   liquidationThresholdBps: number;
   /** Current health factor (null if no debt) */
   currentHealthFactor: number | null;
-  /** Price of the borrow token in USD */
-  tokenPriceUsd: number;
+  /** Price of the borrow token in USD (null when oracle price is unavailable) */
+  tokenPriceUsd: number | null;
 }
 
 export interface UseBorrowMetricsResult {
@@ -48,8 +48,8 @@ export function useBorrowMetrics({
   currentHealthFactor,
   tokenPriceUsd,
 }: UseBorrowMetricsProps): UseBorrowMetricsResult {
-  // When no borrow amount entered, show current values (no projection)
-  if (borrowAmount === 0) {
+  // When no borrow amount entered or price unavailable, show current values (no projection)
+  if (borrowAmount === 0 || tokenPriceUsd == null) {
     // Use Infinity when no debt - represents "infinitely healthy" for UI purposes
     const healthValue = currentHealthFactor ?? Infinity;
     return {

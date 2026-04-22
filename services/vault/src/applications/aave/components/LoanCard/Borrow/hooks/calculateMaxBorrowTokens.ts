@@ -7,8 +7,8 @@ export interface CalculateMaxBorrowTokensParams {
   currentDebtUsd: number;
   /** Liquidation threshold in BPS (e.g., 8000 = 80%) */
   liquidationThresholdBps: number;
-  /** Price of the borrow token in USD */
-  tokenPriceUsd: number;
+  /** Price of the borrow token in USD (null when oracle price is unavailable) */
+  tokenPriceUsd: number | null;
 }
 
 /**
@@ -31,6 +31,10 @@ export function calculateMaxBorrowTokens({
   liquidationThresholdBps,
   tokenPriceUsd,
 }: CalculateMaxBorrowTokensParams): number {
+  if (tokenPriceUsd == null || tokenPriceUsd <= 0) {
+    return 0;
+  }
+
   const maxTotalDebtUsd =
     (collateralValueUsd * liquidationThresholdBps) /
     BPS_SCALE /
