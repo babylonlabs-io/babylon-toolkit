@@ -11,7 +11,7 @@ import { Buffer } from "buffer";
 import { Psbt, Transaction } from "bitcoinjs-lib";
 import { describe, expect, it } from "vitest";
 
-import { extractPeginInputSignature } from "../peginInput";
+import { extractPeginInputSignature, extractSchnorrSig } from "../peginInput";
 import { NULL_TXID, TEST_WITNESS_UTXO_VALUE, createDummyP2WPKH } from "./constants";
 import { TEST_KEYS } from "./helpers";
 
@@ -104,13 +104,19 @@ describe("extractPeginInputSignature — sighash validation", () => {
     );
   });
 
-  it("rejects signature with wrong length", () => {
-    // bip174 validates tapScriptSig entries, so a 63-byte signature cannot
-    // be added via Psbt.addInput. Instead, test by constructing a PSBT hex
-    // with a valid 64-byte sig and then patching the raw hex is fragile.
-    // The length check in extractSchnorrSig is a defense-in-depth guard;
-    // verify it indirectly: a 66-byte signature also fails at the PSBT layer.
-    const signature66 = Buffer.alloc(66, 0xaa);
-    expect(() => createPsbtWithSignature(signature66)).toThrow();
+  it("rejects signature with wrong length (63 bytes)", () => {
+    const signature63 = new Uint8Array(63).fill(0xaa);
+
+    expect(() => extractSchnorrSig(signature63)).toThrow(
+      /Unexpected PegIn input signature length: 63/,
+    );
+  });
+
+  it("rejects signature with wrong length (66 bytes)", () => {
+    const signature66 = new Uint8Array(66).fill(0xaa);
+
+    expect(() => extractSchnorrSig(signature66)).toThrow(
+      /Unexpected PegIn input signature length: 66/,
+    );
   });
 });

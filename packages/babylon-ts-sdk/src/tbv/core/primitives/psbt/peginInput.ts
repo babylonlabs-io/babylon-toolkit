@@ -255,12 +255,18 @@ export function finalizePeginInputPsbt(signedPsbtHex: string): string {
  * sighash types (e.g. SIGHASH_NONE).
  * @internal
  */
-function extractSchnorrSig(sig: Uint8Array): string {
+export function extractSchnorrSig(sig: Uint8Array): string {
   if (sig.length === 64) {
     return uint8ArrayToHex(new Uint8Array(sig));
   }
   if (sig.length === 65) {
     const sighashByte = sig[64];
+    // Accept both SIGHASH_DEFAULT (0x00) and SIGHASH_ALL (0x01).
+    // BIP-341 specifies that SIGHASH_DEFAULT is signaled by omitting the byte
+    // (producing a 64-byte sig), so a 65-byte sig with 0x00 is technically
+    // non-standard. We accept it defensively because some wallets may append
+    // the byte explicitly. This differs from payout.ts which only accepts
+    // SIGHASH_ALL, since payout scripts require explicit commitment to all outputs.
     if (sighashByte !== 0x00 && sighashByte !== Transaction.SIGHASH_ALL) {
       throw new Error(
         `Unexpected sighash type 0x${sighashByte.toString(16).padStart(2, "0")} in PegIn input signature. ` +
