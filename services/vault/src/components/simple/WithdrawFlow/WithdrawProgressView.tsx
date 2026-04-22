@@ -1,6 +1,8 @@
 import { Button, Heading, Text } from "@babylonlabs-io/core-ui";
 
 import { useProtocolParamsContext } from "@/context/ProtocolParamsContext";
+import { useBTCWallet } from "@/context/wallet";
+import { truncateAddress } from "@/utils/addressUtils";
 
 /** Average Bitcoin block time in minutes */
 const BTC_BLOCK_TIME_MINS = 10;
@@ -12,6 +14,7 @@ interface WithdrawProgressViewProps {
 
 export function WithdrawProgressView({ onClose }: WithdrawProgressViewProps) {
   const { timelockPegin } = useProtocolParamsContext();
+  const { address: btcAddress } = useBTCWallet();
 
   // Derive estimated wait from on-chain timelockPegin (in blocks) * avg block time
   const estimatedHours = Math.ceil(
@@ -29,6 +32,21 @@ export function WithdrawProgressView({ onClose }: WithdrawProgressViewProps) {
           Your withdrawal transaction has been successfully submitted. The vault
           provider will process your BTC and send it to your nominated address.
         </Text>
+
+        {btcAddress && (
+          <div className="flex items-center justify-between">
+            <Text variant="body2" className="text-accent-secondary">
+              Nominated Address
+            </Text>
+            <Text
+              variant="body2"
+              className="text-accent-primary"
+              title={btcAddress}
+            >
+              {truncateAddress(btcAddress)}
+            </Text>
+          </div>
+        )}
 
         <Text variant="body2" className="text-accent-secondary">
           Estimated time: ~{estimatedHours} hours

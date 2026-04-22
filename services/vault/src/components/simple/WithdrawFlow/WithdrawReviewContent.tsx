@@ -9,7 +9,9 @@ import {
 import { getWithdrawHfWarningState } from "@/applications/aave/utils";
 import { DetailsCard, type DetailRow } from "@/components/shared";
 import { useProtocolParamsContext } from "@/context/ProtocolParamsContext";
+import { useBTCWallet } from "@/context/wallet";
 import { useNetworkFees } from "@/hooks/useNetworkFees";
+import { truncateAddress } from "@/utils/addressUtils";
 import { formatBtcAmount, formatUsdValue } from "@/utils/formatting";
 
 import { HealthFactorDelta } from "./HealthFactorDelta";
@@ -35,6 +37,7 @@ export function WithdrawReviewContent({
 }: WithdrawReviewContentProps) {
   const { defaultFeeRate } = useNetworkFees();
   const { minVpCommissionBps } = useProtocolParamsContext();
+  const { address: btcAddress } = useBTCWallet();
 
   const { wouldBreachHF, isAtRisk } = getWithdrawHfWarningState(
     projectedHealthFactor,
@@ -43,6 +46,15 @@ export function WithdrawReviewContent({
   const rows: DetailRow[] = useMemo(() => {
     const vpCommissionBtc = totalAmountBtc * (minVpCommissionBps / BPS_SCALE);
     const vpCommissionUsd = totalAmountUsd * (minVpCommissionBps / BPS_SCALE);
+
+    const nominatedRow: DetailRow | null = btcAddress
+      ? {
+          label: "Nominated Address",
+          value: (
+            <span title={btcAddress}>{truncateAddress(btcAddress)}</span>
+          ),
+        }
+      : null;
 
     const hfRow: DetailRow | null =
       currentHealthFactor === null
@@ -89,7 +101,11 @@ export function WithdrawReviewContent({
       },
     ];
 
-    return hfRow ? [baseRows[0], hfRow, ...baseRows.slice(1)] : baseRows;
+    const withHf = hfRow
+      ? [baseRows[0], hfRow, ...baseRows.slice(1)]
+      : baseRows;
+
+    return nominatedRow ? [...withHf, nominatedRow] : withHf;
   }, [
     totalAmountBtc,
     totalAmountUsd,
@@ -97,6 +113,7 @@ export function WithdrawReviewContent({
     projectedHealthFactor,
     defaultFeeRate,
     minVpCommissionBps,
+    btcAddress,
   ]);
 
   return (
