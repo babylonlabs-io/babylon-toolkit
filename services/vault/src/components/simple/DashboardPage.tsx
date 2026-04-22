@@ -5,7 +5,7 @@
  */
 
 import { Container } from "@babylonlabs-io/core-ui";
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useNavigate, useOutletContext } from "react-router";
 
 import { AssetSelectionModal } from "@/applications/aave/components/AssetSelectionModal";
@@ -47,7 +47,7 @@ export function DashboardPage() {
     : calculateBalance(spendableUTXOs) / 100_000_000;
 
   const [isWithdrawOpen, setIsWithdrawOpen] = useState(false);
-  const [withdrawVaultIds, setWithdrawVaultIds] = useState<string[]>([]);
+  const [selectedVaultIds, setSelectedVaultIds] = useState<string[]>([]);
   const [isAssetModalOpen, setIsAssetModalOpen] = useState(false);
   const [debugResultOverride, setDebugResultOverride] =
     useState<CalculatorResult | null>(null);
@@ -102,10 +102,16 @@ export function DashboardPage() {
   const amountToRepay = formatUsdValue(debtValueUsd);
   const totalAmountBtc = formatBtcAmount(collateralBtc);
 
-  const handleWithdraw = (selectedVaultIds: string[]) => {
-    setWithdrawVaultIds(selectedVaultIds);
+  const handleOpenWithdraw = useCallback(() => {
     setIsWithdrawOpen(true);
-  };
+  }, []);
+
+  // Clear the list selection whenever the dialog closes (cancel or
+  // post-success) so stale checkboxes don't linger on the dashboard.
+  const handleCloseWithdraw = useCallback(() => {
+    setIsWithdrawOpen(false);
+    setSelectedVaultIds([]);
+  }, []);
 
   const handleBorrow = () => {
     setAssetModalMode(LOAN_TAB.BORROW);
@@ -169,7 +175,9 @@ export function DashboardPage() {
           isConnected={isConnected}
           collateralBtc={collateralBtc}
           currentHealthFactor={healthFactor}
-          onWithdraw={handleWithdraw}
+          selectedVaultIds={selectedVaultIds}
+          onSelectedVaultIdsChange={setSelectedVaultIds}
+          onWithdraw={handleOpenWithdraw}
           onDeposit={openDeposit}
         />
 
@@ -195,12 +203,12 @@ export function DashboardPage() {
       {/* Withdraw Flow */}
       <WithdrawFlow
         open={isWithdrawOpen}
-        onClose={() => setIsWithdrawOpen(false)}
+        onClose={handleCloseWithdraw}
         collateralVaults={collateralVaults}
         collateralBtc={collateralBtc}
         collateralValueUsd={collateralValueUsd}
         currentHealthFactor={healthFactor}
-        preSelectedVaultIds={withdrawVaultIds}
+        preSelectedVaultIds={selectedVaultIds}
       />
 
       {/* Asset Selection Modal for Borrow/Repay */}

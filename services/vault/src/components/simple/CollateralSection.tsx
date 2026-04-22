@@ -39,7 +39,13 @@ interface CollateralSectionProps {
   collateralBtc: number;
   /** User's current on-chain health factor (null when no debt). */
   currentHealthFactor: number | null;
-  onWithdraw: (selectedVaultIds: string[]) => void;
+  /**
+   * Selected vault IDs, owned by the parent so the withdraw dialog can read
+   * them as its initial selection and reset them when it closes.
+   */
+  selectedVaultIds: string[];
+  onSelectedVaultIdsChange: (selectedVaultIds: string[]) => void;
+  onWithdraw: () => void;
   onDeposit: () => void;
 }
 
@@ -53,6 +59,8 @@ export function CollateralSection({
   isConnected,
   collateralBtc,
   currentHealthFactor,
+  selectedVaultIds,
+  onSelectedVaultIdsChange,
   onWithdraw,
   onDeposit,
 }: CollateralSectionProps) {
@@ -61,7 +69,6 @@ export function CollateralSection({
     useState<ArtifactDownloadModalParams | null>(null);
   const [isReorderOpen, setIsReorderOpen] = useState(false);
   const [isReorderSuccess, setIsReorderSuccess] = useState(false);
-  const [selectedVaultIds, setSelectedVaultIds] = useState<string[]>([]);
   const { findProvider } = useVaultProviders();
   const queryClient = useQueryClient();
   const { address } = useAccount();
@@ -126,17 +133,15 @@ export function CollateralSection({
 
   const canReorder = collateralVaults.length >= 2;
 
-  const handleToggleVaultSelect = useCallback((vaultId: string) => {
-    setSelectedVaultIds((prev) =>
-      prev.includes(vaultId)
-        ? prev.filter((id) => id !== vaultId)
-        : [...prev, vaultId],
-    );
-  }, []);
-
-  const handleWithdrawClick = useCallback(() => {
-    onWithdraw(effectiveSelectedVaultIds);
-  }, [effectiveSelectedVaultIds, onWithdraw]);
+  const handleToggleVaultSelect = useCallback(
+    (vaultId: string) => {
+      const next = selectedVaultIds.includes(vaultId)
+        ? selectedVaultIds.filter((id) => id !== vaultId)
+        : [...selectedVaultIds, vaultId];
+      onSelectedVaultIdsChange(next);
+    },
+    [selectedVaultIds, onSelectedVaultIdsChange],
+  );
 
   const handleReorderSuccessClose = useCallback(() => {
     setIsReorderSuccess(false);
@@ -230,7 +235,7 @@ export function CollateralSection({
               selectedBtc={selectedBtc}
               canWithdraw={canWithdraw}
               onToggleVaultSelect={handleToggleVaultSelect}
-              onWithdraw={handleWithdrawClick}
+              onWithdraw={onWithdraw}
               disabledReason={
                 hasWithdrawableVault ? undefined : WITHDRAW_DISABLED_TOOLTIP
               }
