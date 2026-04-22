@@ -118,30 +118,33 @@ export function useAaveReserveDetail({
   // Derive token price. Returns null when the price cannot be determined,
   // in which case parent components render a fallback instead of LoanProvider.
   //
-  // Current strategy: derive from debt ratio when debt exists, otherwise use
-  // the $1 stablecoin fallback for first-borrow of known stablecoins.
+  // Current strategy: derive from debt ratio when the user holds debt in
+  // exactly one reserve, otherwise use the $1 stablecoin fallback for
+  // first-borrow of known stablecoins.
   //
-  // The debt-ratio derivation assumes exactly one borrowable reserve, because
-  // debtValueUsd is the user's total debt across all reserves. A runtime
-  // assertion below fails loudly if that assumption is ever violated.
+  // The debt-ratio derivation relies on debtValueUsd being the user's total
+  // debt across all of their reserves, so it only yields a correct price when
+  // the user has debt in a single reserve (which must be the selected one,
+  // since currentDebtAmount > 0).
   //
   // TODO: Migrate to Chainlink price feeds via
   // `services/vault/src/clients/eth-contract/chainlink/query.ts` once feeds
   // are available for borrowable reserves on our target network. That would
-  // remove the single-reserve assumption and the stablecoin fallback.
+  // remove the single-debt-reserve assumption and the stablecoin fallback.
   const tokenPriceUsd = useMemo((): number | null => {
     if (!selectedReserve) return null;
 
     if (currentDebtAmount > 0 && debtValueUsd > 0) {
-      if (borrowableReserves.length !== 1) {
+      const userDebtReserveCount = position?.debtPositions?.size ?? 0;
+      if (userDebtReserveCount !== 1) {
         logger.error(
           new Error(
-            "tokenPriceUsd debt-ratio derivation is only valid for a single borrowable reserve",
+            "tokenPriceUsd debt-ratio derivation requires the user to have debt in exactly one reserve",
           ),
           {
             data: {
               context: "useAaveReserveDetail.tokenPriceUsd",
-              borrowableReserveCount: borrowableReserves.length,
+              userDebtReserveCount,
               selectedReserveSymbol: selectedReserve.token.symbol,
             },
           },
@@ -174,7 +177,7 @@ export function useAaveReserveDetail({
     }
 
     return STABLECOIN_FALLBACK_PRICE_USD;
-  }, [currentDebtAmount, debtValueUsd, selectedReserve, borrowableReserves]);
+  }, [currentDebtAmount, debtValueUsd, selectedReserve, position]);
 
   return {
     isLoading: configLoading || positionLoading,
