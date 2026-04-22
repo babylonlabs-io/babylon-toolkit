@@ -16,6 +16,7 @@ import {
 import { walletConnect } from "wagmi/connectors";
 
 import type { ETHConfig, ETHTransactionRequest, ETHTypedData, IETHProvider, NetworkInfo } from "@/core/types";
+import { getAppKitModal } from "@/core/wallets/appkit/appKitModal";
 import { APPKIT_OPEN_EVENT } from "@/core/wallets/appkit/constants";
 
 import { getSharedWagmiConfig, hasSharedWagmiConfig } from "./sharedConfig";
@@ -124,21 +125,38 @@ export class AppKitProvider implements IETHProvider {
         window.dispatchEvent(new CustomEvent(APPKIT_OPEN_EVENT));
 
         const waitForConnection = new Promise<void>((resolve, reject) => {
-          const timeout = setTimeout(() => {
+          let modalHasOpened = false;
+
+          const cleanup = () => {
+            clearTimeout(timeout);
             unwatch();
+            unsubscribeModal?.();
+          };
+
+          const timeout = setTimeout(() => {
+            cleanup();
             reject(new Error("Connection timeout"));
           }, 60000);
 
           const unwatch = watchAccount(config, {
             onChange: (account) => {
               if (account.address) {
-                clearTimeout(timeout);
-                unwatch();
                 this.address = account.address;
                 this.chainId = account.chainId;
+                cleanup();
                 resolve();
               }
             },
+          });
+
+          const modal = getAppKitModal();
+          const unsubscribeModal = modal?.subscribeState((state) => {
+            if (state.open) {
+              modalHasOpened = true;
+            } else if (modalHasOpened) {
+              cleanup();
+              reject(new Error("Connection cancelled"));
+            }
           });
         });
 
