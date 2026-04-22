@@ -60,16 +60,15 @@ export const POSITION_REFETCH_INTERVAL_MS = 30 * 1000;
 export const POSITION_STALENESS_THRESHOLD_MS = POSITION_REFETCH_INTERVAL_MS * 3;
 
 /**
- * Fallback price for stablecoins when no oracle-derived price is available
- * (e.g., first-time borrow with no existing debt to derive price from).
- * Only used when the token is a known stablecoin — non-stablecoin tokens
- * without an oracle price will throw.
+ * Fallback price for stablecoins on testnet/signet where Chainlink does not
+ * publish price feeds. On mainnet, real Chainlink oracle prices are always used.
  */
 export const STABLECOIN_FALLBACK_PRICE_USD = 1.0;
 
 /**
- * Tokens whose USD price can safely be assumed as $1 when no oracle data
- * is available. Used as a guard for the stablecoin fallback price.
+ * Tokens eligible for the $1 testnet fallback when no Chainlink feed exists.
+ * On mainnet, Chainlink feeds exist for all these tokens and the fallback
+ * is never used.
  */
 export const KNOWN_STABLECOIN_SYMBOLS = ["USDC", "USDT", "DAI"] as const;
 
