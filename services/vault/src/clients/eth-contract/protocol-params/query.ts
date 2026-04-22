@@ -13,6 +13,11 @@ import BTCVaultRegistryAbi from "../btc-vault-registry/abis/BTCVaultRegistry.abi
 import { ethClient } from "../client";
 
 import ProtocolParamsAbi from "./abis/ProtocolParams.abi.json";
+import {
+  validateOffchainParams,
+  validatePegInConfiguration,
+  validateTBVProtocolParams,
+} from "./validation";
 
 /**
  * TBV Protocol Parameters from the contract
@@ -65,10 +70,23 @@ export interface PegInConfiguration {
 }
 
 /**
+ * TTL for the protocol params address cache.
+ * Matches the React Query stale time in ProtocolParamsContext so that
+ * a governance contract upgrade is picked up on the next re-fetch cycle.
+ */
+const ADDRESS_CACHE_TTL_MS = 5 * 60 * 1000;
+
+interface CachedAddress {
+  address: Address;
+  fetchedAt: number;
+}
+
+/**
  * Cache for protocol params address, keyed by chainId.
  * This ensures correct address is used when switching networks.
+ * Entries expire after ADDRESS_CACHE_TTL_MS so governance upgrades are detected.
  */
-const protocolParamsAddressCache = new Map<number, Address>();
+const protocolParamsAddressCache = new Map<number, CachedAddress>();
 
 /**
  * Get the ProtocolParams contract address from BTCVaultRegistry
@@ -78,8 +96,8 @@ async function getProtocolParamsAddress(): Promise<Address> {
   const chainId = await publicClient.getChainId();
 
   const cached = protocolParamsAddressCache.get(chainId);
-  if (cached) {
-    return cached;
+  if (cached && Date.now() - cached.fetchedAt < ADDRESS_CACHE_TTL_MS) {
+    return cached.address;
   }
 
   const address = await publicClient.readContract({
@@ -88,7 +106,10 @@ async function getProtocolParamsAddress(): Promise<Address> {
     functionName: "protocolParams",
   });
 
-  protocolParamsAddressCache.set(chainId, address as Address);
+  protocolParamsAddressCache.set(chainId, {
+    address: address as Address,
+    fetchedAt: Date.now(),
+  });
   return address as Address;
 }
 
@@ -107,6 +128,7 @@ export async function getTBVProtocolParams(): Promise<TBVProtocolParams> {
 
   // Viem returns named tuple components as an object with named properties
   const result = params as TBVProtocolParams;
+  validateTBVProtocolParams(result);
 
   return {
     minimumPegInAmount: result.minimumPegInAmount,
@@ -130,7 +152,9 @@ export async function getLatestOffchainParams(): Promise<VersionedOffchainParams
     functionName: "getLatestOffchainParams",
   });
 
-  return result as VersionedOffchainParams;
+  const params = result as VersionedOffchainParams;
+  validateOffchainParams(params);
+  return params;
 }
 
 /**
@@ -169,7 +193,7 @@ export async function getPegInConfiguration(): Promise<PegInConfiguration> {
 
   const timelockRefund = Number(offchainParams.tRefund);
 
-  return {
+  const config: PegInConfiguration = {
     minimumPegInAmount: params.minimumPegInAmount,
     maxPegInAmount: params.maxPegInAmount,
     pegInAckTimeout: params.pegInAckTimeout,
@@ -179,6 +203,10 @@ export async function getPegInConfiguration(): Promise<PegInConfiguration> {
     minVpCommissionBps: offchainParams.minVpCommissionBps,
     offchainParams,
   };
+
+  validatePegInConfiguration(config);
+
+  return config;
 }
 
 /**
@@ -213,7 +241,9 @@ export async function getOffchainParamsByVersion(
     args: [versionNumber],
   });
 
-  return result as VersionedOffchainParams;
+  const params = result as VersionedOffchainParams;
+  validateOffchainParams(params);
+  return params;
 }
 
 /**
@@ -269,10 +299,9 @@ export async function fetchAllOffchainParams(): Promise<AllOffchainParamsData> {
 
   const byVersion = new Map<number, VersionedOffchainParams>();
   for (let i = 0; i < versions.length; i++) {
-    byVersion.set(
-      versions[i],
-      results[i] as unknown as VersionedOffchainParams,
-    );
+    const params = results[i] as unknown as VersionedOffchainParams;
+    validateOffchainParams(params);
+    byVersion.set(versions[i], params);
   }
 
   return { byVersion, latestVersion };
