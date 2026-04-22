@@ -45,7 +45,11 @@ export function CollateralVaultItem({
       {/* Top row: BTC icon + amount + checkbox */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <Avatar url={btcConfig.icon} alt={btcConfig.coinSymbol} size="small" />
+          <Avatar
+            url={btcConfig.icon}
+            alt={btcConfig.coinSymbol}
+            size="small"
+          />
           <span className="text-base font-medium text-accent-primary">
             {formatBtcAmount(amountBtc)}
           </span>

@@ -5,8 +5,8 @@
 
 import { Button, Text } from "@babylonlabs-io/core-ui";
 
-import { formatBtcAmount } from "@/utils/formatting";
 import type { CollateralVaultEntry } from "@/types/collateral";
+import { formatBtcAmount } from "@/utils/formatting";
 
 import { CollateralVaultItem } from "./CollateralVaultItem";
 
