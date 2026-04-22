@@ -30,7 +30,7 @@ export function useRefundState({
   const [error, setError] = useState<string | null>(null);
 
   // Destructure stable primitives to avoid re-creating handleRefund on every render
-  const { id: vaultId, depositorBtcPubkey } = activity;
+  const { id: vaultId } = activity;
 
   const handleRefund = useCallback(async () => {
     if (!btcWalletProvider) {
@@ -41,15 +41,17 @@ export function useRefundState({
       setError("Missing vault ID");
       return;
     }
-    if (!depositorBtcPubkey) {
-      setError("Missing depositor BTC public key");
-      return;
-    }
 
     setRefunding(true);
     setError(null);
 
     try {
+      // Fetch the pubkey live from the wallet (not from storage). The
+      // wallet's signPsbt signInputs[].publicKey requires the wallet's
+      // native format (typically compressed 33-byte sec1), and the
+      // stored activity holds the canonical x-only form used for
+      // on-chain/indexer identification.
+      const depositorBtcPubkey = await btcWalletProvider.getPublicKeyHex();
       const txId = await buildAndBroadcastRefundTransaction({
         vaultId,
         btcWalletProvider,
@@ -74,7 +76,7 @@ export function useRefundState({
       );
       setRefunding(false);
     }
-  }, [vaultId, depositorBtcPubkey, btcWalletProvider]);
+  }, [vaultId, btcWalletProvider]);
 
   return { refunding, refundTxId, error, handleRefund };
 }

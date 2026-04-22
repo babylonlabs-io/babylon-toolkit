@@ -556,10 +556,13 @@ export class PeginManager {
   async preparePegin(
     params: PreparePeginParams,
   ): Promise<PreparePeginResult> {
-    // Step 1: Get depositor BTC public key from wallet
-    const depositorBtcPubkey = normalizeXOnlyPubkey(
-      await this.config.btcWallet.getPublicKeyHex(),
-    );
+    // Step 1: Get depositor BTC public key from wallet. Keep the raw
+    // wallet output (typically compressed sec1 66-char) for wallet sign
+    // calls — UniSat/OKX/OneKey expect their native format on
+    // signInputs[].publicKey — and derive the canonical x-only form for
+    // protocol/HTLC use.
+    const depositorBtcPubkeyRaw = await this.config.btcWallet.getPublicKeyHex();
+    const depositorBtcPubkey = normalizeXOnlyPubkey(depositorBtcPubkeyRaw);
 
     const vaultProviderBtcPubkey = stripHexPrefix(params.vaultProviderBtcPubkey);
     const vaultKeeperBtcPubkeys = params.vaultKeeperBtcPubkeys.map(stripHexPrefix);
@@ -647,7 +650,7 @@ export class PeginManager {
       peginTxResults.push(peginTxResult);
       psbtsToSign.push(peginInputPsbtResult.psbtHex);
       signOptions.push(
-        createTaprootScriptPathSignOptions(depositorBtcPubkey, 1),
+        createTaprootScriptPathSignOptions(depositorBtcPubkeyRaw, 1),
       );
     }
 

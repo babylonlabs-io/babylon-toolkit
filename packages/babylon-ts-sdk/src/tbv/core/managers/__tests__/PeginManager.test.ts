@@ -205,6 +205,37 @@ describe("PeginManager", () => {
   });
 
   describe("preparePegin", () => {
+    it("passes the wallet's raw (compressed) pubkey to signPsbts", async () => {
+      // Regression: taproot signPsbt expects the wallet's native format
+      // on signInputs[].publicKey (UniSat/OKX/OneKey reject x-only with
+      // "invalid public key in toSignInput").
+      const compressedPubkey = `02${TEST_KEYS.DEPOSITOR}`;
+      const btcWallet = new MockBitcoinWallet({
+        publicKeyHex: compressedPubkey,
+      });
+      const ethWallet = new MockEthereumWallet();
+      const signPsbtsSpy = vi.spyOn(btcWallet, "signPsbts");
+
+      const manager = new PeginManager({
+        btcNetwork: "signet",
+        btcWallet,
+        ethWallet: ethWallet as any,
+        ethChain: TEST_CHAIN,
+        vaultContracts: { btcVaultRegistry: TEST_CONTRACT_ADDRESS },
+        mempoolApiUrl: MEMPOOL_API_URLS.signet,
+      });
+
+      await manager.preparePegin({
+        amounts: [TEST_AMOUNTS.PEGIN],
+        ...BASE_PREPARE_PEGIN_PARAMS,
+      });
+
+      expect(signPsbtsSpy).toHaveBeenCalled();
+      const signOptions = signPsbtsSpy.mock.calls[0][1];
+      const publicKey = signOptions?.[0]?.signInputs?.[0]?.publicKey;
+      expect(publicKey).toBe(compressedPubkey);
+    });
+
     it("should prepare a pegin with valid params", async () => {
       const btcWallet = new MockBitcoinWallet({
         publicKeyHex: TEST_KEYS.DEPOSITOR,

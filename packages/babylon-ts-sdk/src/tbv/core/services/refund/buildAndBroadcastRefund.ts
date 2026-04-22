@@ -16,7 +16,10 @@ import type { Address, Hex } from "viem";
 
 import type { SignPsbtOptions } from "../../../../shared/wallets/interfaces/BitcoinWallet";
 import { buildRefundPsbt } from "../../primitives/psbt/refund";
-import { stripHexPrefix } from "../../primitives/utils/bitcoin";
+import {
+  processPublicKeyToXOnly,
+  stripHexPrefix,
+} from "../../primitives/utils/bitcoin";
 import { createTaprootScriptPathSignOptions } from "../../utils/signing";
 
 import { BIP68NotMatureError } from "./errors";
@@ -304,9 +307,16 @@ export async function buildAndBroadcastRefund<
   const refundFee = BigInt(Math.ceil(feeRate * REFUND_VSIZE));
   signal?.throwIfAborted();
 
+  // `vault.depositorBtcPubkey` may arrive as wallet-native compressed sec1
+  // (33 bytes) because the caller fetches it live from the wallet for
+  // signing. WASM script derivation wants x-only (32 bytes), so normalize
+  // here; the raw form is kept for the wallet sign call below.
+  const xOnlyDepositorPubkey = processPublicKeyToXOnly(
+    vault.depositorBtcPubkey,
+  );
   const { psbtHex } = await buildRefundPsbt({
     prePeginParams: {
-      depositorPubkey: stripHexPrefix(vault.depositorBtcPubkey),
+      depositorPubkey: xOnlyDepositorPubkey,
       vaultProviderPubkey: stripHexPrefix(ctx.vaultProviderPubkey),
       vaultKeeperPubkeys: ctx.vaultKeeperPubkeys.map(stripHexPrefix),
       universalChallengerPubkeys:
