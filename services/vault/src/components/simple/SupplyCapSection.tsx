@@ -82,17 +82,16 @@ export function SupplyCapSection({
   if (!snapshot || !snapshot.hasTotalCap) return null;
 
   const coinSymbol = getBtcSymbol();
-  const capDisplay = `${formatSatoshisToBtcDisplay(snapshot.totalCapBTC)} ${coinSymbol}`;
-  const depositedDisplay = `${formatSatoshisToBtcDisplay(snapshot.totalBTC)} ${coinSymbol}`;
+  const capBtc = satoshiToBtcNumber(snapshot.totalCapBTC);
+  const depositedBtc = satoshiToBtcNumber(snapshot.totalBTC);
+  // Match simple-staking's formatBTCTvl: 2 decimals for >= 1 BTC, 8 for < 1 BTC.
+  const capDecimals = capBtc >= 1 ? 2 : 8;
+  const depositedDecimals = depositedBtc >= 1 ? 2 : 8;
+  const capDisplay = `${formatSatoshisToBtcDisplay(snapshot.totalCapBTC, capDecimals)} ${coinSymbol}`;
+  const depositedDisplay = `${formatSatoshisToBtcDisplay(snapshot.totalBTC, depositedDecimals)} ${coinSymbol}`;
 
-  const capUsd =
-    btcPriceUSD > 0
-      ? satoshiToBtcNumber(snapshot.totalCapBTC) * btcPriceUSD
-      : null;
-  const depositedUsd =
-    btcPriceUSD > 0
-      ? satoshiToBtcNumber(snapshot.totalBTC) * btcPriceUSD
-      : null;
+  const capUsd = btcPriceUSD > 0 ? capBtc * btcPriceUSD : null;
+  const depositedUsd = btcPriceUSD > 0 ? depositedBtc * btcPriceUSD : null;
 
   return (
     <VaultCapFrame>
