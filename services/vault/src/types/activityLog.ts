@@ -16,6 +16,7 @@ export type ActivityType =
   | "Liquidation"
   | "Borrow"
   | "Repay"
+  | "Redeem"
   // Pending activity types (not yet confirmed on-chain)
   | "Pending Deposit";
 
