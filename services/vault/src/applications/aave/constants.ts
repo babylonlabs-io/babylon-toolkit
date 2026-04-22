@@ -38,6 +38,25 @@ export const CONFIG_RETRY_COUNT = 3;
 export const EXPECTED_HEALTH_FACTOR_AT_LIQUIDATION = 0.95;
 
 /**
+ * Block threshold for vault withdrawal: if the projected health factor
+ * after withdrawing the selected vaults would be below this value, the
+ * FE disables the Confirm button to avoid a guaranteed on-chain revert
+ * (Aave itself enforces HF >= 1.0 on withdrawal). This is the lowest HF
+ * at which the contract would still accept the call.
+ */
+export const WITHDRAW_HF_BLOCK_THRESHOLD = 1.0;
+
+/**
+ * Warning threshold for vault withdrawal: if the projected health factor
+ * after withdrawing would fall below this value (but stay above the block
+ * threshold), the withdrawal review step shows an inline at-risk warning.
+ * Narrower than the general HEALTH_FACTOR_WARNING_THRESHOLD used by the
+ * position overview — withdrawal warnings are a separate, per-action
+ * surface per product decision.
+ */
+export const WITHDRAW_HF_WARNING_THRESHOLD = 1.1;
+
+/**
  * Safety margin multiplier for sacrificial vault sizing.
  * 1.05 means the sacrificial vault is sized 5% larger than the
  * computed target seizure to account for price movements between

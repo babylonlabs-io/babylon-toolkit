@@ -5,10 +5,11 @@
 
 import { Avatar, Button, Card } from "@babylonlabs-io/core-ui";
 import { useQueryClient } from "@tanstack/react-query";
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import type { Address } from "viem";
 import { useAccount } from "wagmi";
 
+import { canWithdrawAnyVault } from "@/applications/aave/utils";
 import { ArtifactDownloadModal } from "@/components/deposit/ArtifactDownloadModal";
 import { DepositButton, ExpandMenuButton } from "@/components/shared";
 import { Connect } from "@/components/Wallet";
@@ -29,17 +30,23 @@ interface CollateralSectionProps {
   collateralVaults: CollateralVaultEntry[];
   hasCollateral: boolean;
   isConnected: boolean;
-  hasDebt: boolean;
+  collateralBtc: number;
+  /** User's current on-chain health factor (null when no debt). */
+  currentHealthFactor: number | null;
   onWithdraw: () => void;
   onDeposit: () => void;
 }
+
+const WITHDRAW_DISABLED_TOOLTIP =
+  "No vault can be released without putting your position at risk of liquidation. Repay debt first.";
 
 export function CollateralSection({
   totalAmountBtc,
   collateralVaults,
   hasCollateral,
   isConnected,
-  hasDebt,
+  collateralBtc,
+  currentHealthFactor,
   onWithdraw,
   onDeposit,
 }: CollateralSectionProps) {
@@ -51,7 +58,15 @@ export function CollateralSection({
   const { findProvider } = useVaultProviders();
   const queryClient = useQueryClient();
   const { address } = useAccount();
-  const canWithdraw = !hasDebt;
+
+  const canWithdraw = useMemo(() => {
+    if (!hasCollateral) return false;
+    return canWithdrawAnyVault(collateralVaults, {
+      collateralBtc,
+      currentHealthFactor,
+    });
+  }, [hasCollateral, collateralVaults, collateralBtc, currentHealthFactor]);
+
   const canReorder = collateralVaults.length >= 2;
 
   const handleReorderSuccessClose = useCallback(() => {
@@ -143,6 +158,7 @@ export function CollateralSection({
               vaults={collateralVaults}
               onWithdraw={onWithdraw}
               canWithdraw={canWithdraw}
+              disabledReason={WITHDRAW_DISABLED_TOOLTIP}
               onArtifactDownload={handleArtifactDownload}
             />
           )}

@@ -9,9 +9,10 @@ export enum WithdrawStep {
 export function useWithdrawFlow() {
   const [step, setStep] = useState(WithdrawStep.SELECT);
 
+  const goToSelect = useCallback(() => setStep(WithdrawStep.SELECT), []);
   const goToReview = useCallback(() => setStep(WithdrawStep.REVIEW), []);
   const goToProgress = useCallback(() => setStep(WithdrawStep.PROGRESS), []);
-  const reset = useCallback(() => setStep(WithdrawStep.SELECT), []);
+  const reset = goToSelect;
 
-  return { step, goToReview, goToProgress, reset };
+  return { step, goToSelect, goToReview, goToProgress, reset };
 }
