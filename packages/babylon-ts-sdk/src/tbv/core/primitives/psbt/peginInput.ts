@@ -248,12 +248,25 @@ export function finalizePeginInputPsbt(signedPsbtHex: string): string {
   return psbt.extractTransaction().toHex();
 }
 
-/** Extract and validate a 64-byte Schnorr signature, stripping sighash flag if present. */
+/**
+ * Extract and validate a 64-byte Schnorr signature, stripping sighash flag if present.
+ * Rejects signatures with sighash types other than SIGHASH_DEFAULT (0x00) or
+ * SIGHASH_ALL (0x01) to prevent acceptance of signatures with non-standard
+ * sighash types (e.g. SIGHASH_NONE).
+ * @internal
+ */
 function extractSchnorrSig(sig: Uint8Array): string {
   if (sig.length === 64) {
     return uint8ArrayToHex(new Uint8Array(sig));
   }
   if (sig.length === 65) {
+    const sighashByte = sig[64];
+    if (sighashByte !== 0x00 && sighashByte !== Transaction.SIGHASH_ALL) {
+      throw new Error(
+        `Unexpected sighash type 0x${sighashByte.toString(16).padStart(2, "0")} in PegIn input signature. ` +
+          `Expected SIGHASH_DEFAULT (0x00) or SIGHASH_ALL (0x01).`,
+      );
+    }
     return uint8ArrayToHex(new Uint8Array(sig.subarray(0, 64)));
   }
   throw new Error(`Unexpected PegIn input signature length: ${sig.length}`);
