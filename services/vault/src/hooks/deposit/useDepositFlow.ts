@@ -9,8 +9,10 @@
  * 0. Validation — check wallets, UTXOs, pubkeys, array alignment
  * 1. Get shared resources (ETH wallet client, mnemonic)
  * 2. Batch Pre-PegIn creation (one BTC tx with N HTLC outputs)
- * 3a. Sign BIP-322 proof-of-possession (one wallet popup per deposit session)
- * 3b. Batch ETH registration (single submitPeginRequestBatch tx for all vaults)
+ * 3a. Derive WOTS public keys for all vaults
+ * 3b. Sign BIP-322 proof-of-possession (one wallet popup per deposit session)
+ * 3c. Build batch request array
+ * 3d. Batch ETH registration (single submitPeginRequestBatch tx for all vaults)
  * 4. Broadcast Pre-PegIn transaction to Bitcoin + save to localStorage (CONFIRMING)
  * 5. Submit WOTS keys, poll VP, sign payout transactions
  * 6. Download vault artifacts (per vault, user-driven)

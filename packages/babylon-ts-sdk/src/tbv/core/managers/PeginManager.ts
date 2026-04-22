@@ -83,7 +83,16 @@ function normalizeXOnlyPubkey(raw: unknown): string {
 
 /**
  * Normalize a wallet-returned BIP-322 signature into 0x-prefixed hex.
- * Accepts 0x-hex, unprefixed hex, or canonical standard base64.
+ *
+ * Accepts:
+ *  - 0x-prefixed lowercase/uppercase hex
+ *  - unprefixed hex (wins over base64 when input is pure `[0-9a-fA-F]+`)
+ *  - canonical standard base64 (`[A-Za-z0-9+/]` with `=` padding to a
+ *    multiple of 4 and no non-canonical encodings)
+ *
+ * Rejects URL-safe base64 (`-`/`_`) and base64 without padding. Wallets
+ * known to return BIP-322 signatures (Keystone, UniSat, OKX, OneKey,
+ * Unisat) all use standard base64; URL-safe is an explicit non-goal.
  */
 function normalizePopSignature(raw: unknown): Hex {
   if (typeof raw !== "string" || raw.length === 0) {
@@ -1294,9 +1303,12 @@ export class PeginManager {
     const currentBtcPubkey = normalizeXOnlyPubkey(
       await this.config.btcWallet.getPublicKeyHex(),
     );
-    if (currentBtcPubkey !== popSignature.depositorBtcPubkey) {
+    // Normalize the PoP-embedded key the same way in case a consumer
+    // serialized it through a path that changed casing or re-added 0x.
+    const popBtcPubkey = normalizeXOnlyPubkey(popSignature.depositorBtcPubkey);
+    if (currentBtcPubkey !== popBtcPubkey) {
       throw new Error(
-        `Proof of possession was signed with BTC pubkey ${popSignature.depositorBtcPubkey} ` +
+        `Proof of possession was signed with BTC pubkey ${popBtcPubkey} ` +
           `but the BTC wallet is currently connected to ${currentBtcPubkey}. ` +
           `Reconnect the original wallet or call signProofOfPossession() again.`,
       );

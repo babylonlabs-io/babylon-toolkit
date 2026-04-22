@@ -53,7 +53,9 @@ export interface UtxoRef {
 }
 
 // ============================================================================
-// Steps 1-2: Pegin Submit
+// DepositFlowStep.SIGN_POP + SUBMIT_PEGIN — shared params for PoP signing
+// and the batch ETH tx (both operations reuse the same PopSignature and
+// Pre-PegIn tx, so the fields live on the batch params, not per-request).
 // ============================================================================
 
 export interface PeginBatchRegisterParams {
