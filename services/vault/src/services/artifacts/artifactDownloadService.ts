@@ -67,9 +67,10 @@ export async function fetchAndDownloadArtifacts(
     },
   );
 
-  const blob = await response.blob();
+  const buffer = await response.arrayBuffer();
+  const blob = new Blob([buffer], { type: "application/json" });
 
-  await validateArtifactPayload(blob);
+  validateArtifactPayload(buffer);
 
   triggerBlobDownload(blob, peginTxid);
 }
@@ -84,20 +85,12 @@ export async function fetchAndDownloadArtifacts(
  * ~450 MB payload on the main thread would likely exceed V8's string
  * length limit or freeze the tab.
  */
-async function validateArtifactPayload(blob: Blob): Promise<void> {
-  if (blob.size >= ERROR_RESPONSE_SIZE_THRESHOLD) {
+function validateArtifactPayload(buffer: ArrayBuffer): void {
+  if (buffer.byteLength >= ERROR_RESPONSE_SIZE_THRESHOLD) {
     return;
   }
 
-  let text: string;
-  try {
-    const buffer = await blob.arrayBuffer();
-    text = new TextDecoder("utf-8").decode(buffer);
-  } catch (err) {
-    throw new VpResponseValidationError(
-      `Failed to read artifact payload: ${err instanceof Error ? err.message : "unknown error"}`,
-    );
-  }
+  const text = new TextDecoder("utf-8").decode(buffer);
 
   let envelope: unknown;
   try {
