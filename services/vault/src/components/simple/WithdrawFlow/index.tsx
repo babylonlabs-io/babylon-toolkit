@@ -23,9 +23,8 @@ export interface WithdrawFlowProps {
   onClose: () => void;
   collateralVaults: CollateralVaultEntry[];
   collateralBtc: number;
+  /** Total collateral USD for display-only rendering of the selected amount. */
   collateralValueUsd: number;
-  debtValueUsd: number;
-  liquidationThresholdBps: number;
   /** User's current on-chain health factor (null when no debt). */
   currentHealthFactor: number | null;
 }
@@ -36,24 +35,21 @@ function WithdrawFlowContent({
   collateralVaults,
   collateralBtc,
   collateralValueUsd,
-  debtValueUsd,
-  liquidationThresholdBps,
   currentHealthFactor,
 }: WithdrawFlowProps) {
-  const { step, goToReview, goToProgress, reset } = useWithdrawFlow();
+  const { step, goToSelect, goToReview, goToProgress, reset } =
+    useWithdrawFlow();
   const { executeWithdraw, isProcessing } = useWithdrawCollateralTransaction();
+  // Selection state is owned here (not in the selector) so it survives
+  // back-navigation from the review step and can drive the selector's
+  // live projected-HF preview.
   const [selectedVaultIds, setSelectedVaultIds] = useState<string[]>([]);
 
   const renderedStep = useDialogStep(open, step, reset);
 
   const position: PositionSnapshot = useMemo(
-    () => ({
-      collateralBtc,
-      collateralValueUsd,
-      debtValueUsd,
-      liquidationThresholdBps,
-    }),
-    [collateralBtc, collateralValueUsd, debtValueUsd, liquidationThresholdBps],
+    () => ({ collateralBtc, currentHealthFactor }),
+    [collateralBtc, currentHealthFactor],
   );
 
   // Eligibility map: which in-use vaults can be withdrawn individually
@@ -70,19 +66,34 @@ function WithdrawFlowContent({
     return map;
   }, [collateralVaults, position]);
 
+  // Selection may contain IDs that vanished from the user's position
+  // between picks (position refreshes every 30s). Normalize before every
+  // downstream use so the projection, the selector's gating, and the
+  // transaction never see stale IDs.
+  const { effectiveSelectedVaultIds, effectiveSelectedVaults } = useMemo(() => {
+    const inUseVaults = collateralVaults.filter((v) => v.inUse);
+    const inUseIds = new Set(inUseVaults.map((v) => v.vaultId));
+    const ids = selectedVaultIds.filter((id) => inUseIds.has(id));
+    const idSet = new Set(ids);
+    const selected = inUseVaults.filter((v) => idSet.has(v.vaultId));
+    return {
+      effectiveSelectedVaultIds: ids,
+      effectiveSelectedVaults: selected,
+    };
+  }, [collateralVaults, selectedVaultIds]);
+
   // Aggregate amounts and projected HF for the current selection.
   const { selectedBtc, selectedUsd, projectedHealthFactor } = useMemo(() => {
-    const selected = collateralVaults.filter(
-      (v) => v.inUse && selectedVaultIds.includes(v.vaultId),
+    const btc = effectiveSelectedVaults.reduce(
+      (sum, v) => sum + v.amountBtc,
+      0,
     );
-    const btc = selected.reduce((sum, v) => sum + v.amountBtc, 0);
     const usd =
       collateralBtc > 0 ? collateralValueUsd * (btc / collateralBtc) : 0;
     const projectedHF = computeProjectedHealthFactor(
-      collateralValueUsd,
-      usd,
-      debtValueUsd,
-      liquidationThresholdBps,
+      currentHealthFactor,
+      collateralBtc,
+      btc,
     );
     return {
       selectedBtc: btc,
@@ -90,28 +101,22 @@ function WithdrawFlowContent({
       projectedHealthFactor: projectedHF,
     };
   }, [
-    collateralVaults,
-    selectedVaultIds,
+    effectiveSelectedVaults,
     collateralBtc,
     collateralValueUsd,
-    debtValueUsd,
-    liquidationThresholdBps,
+    currentHealthFactor,
   ]);
 
-  const handleSelectVaults = useCallback(
-    (vaultIds: string[]) => {
-      setSelectedVaultIds(vaultIds);
-      goToReview();
-    },
-    [goToReview],
-  );
+  const handleNext = useCallback(() => {
+    goToReview();
+  }, [goToReview]);
 
   const handleConfirm = useCallback(async () => {
-    const success = await executeWithdraw(selectedVaultIds);
+    const success = await executeWithdraw(effectiveSelectedVaultIds);
     if (success) {
       goToProgress();
     }
-  }, [executeWithdraw, selectedVaultIds, goToProgress]);
+  }, [executeWithdraw, effectiveSelectedVaultIds, goToProgress]);
 
   return (
     <FullScreenDialog
@@ -125,7 +130,11 @@ function WithdrawFlowContent({
             <WithdrawVaultSelector
               vaults={collateralVaults}
               vaultEligibility={vaultEligibility}
-              onNext={handleSelectVaults}
+              selectedVaultIds={effectiveSelectedVaultIds}
+              onSelectionChange={setSelectedVaultIds}
+              currentHealthFactor={currentHealthFactor}
+              projectedHealthFactor={projectedHealthFactor}
+              onNext={handleNext}
             />
           </div>
         )}
@@ -138,6 +147,7 @@ function WithdrawFlowContent({
               projectedHealthFactor={projectedHealthFactor}
               isProcessing={isProcessing}
               onConfirm={handleConfirm}
+              onEditSelection={goToSelect}
             />
           </div>
         )}

@@ -31,9 +31,8 @@ interface CollateralSectionProps {
   hasCollateral: boolean;
   isConnected: boolean;
   collateralBtc: number;
-  collateralValueUsd: number;
-  debtValueUsd: number;
-  liquidationThresholdBps: number;
+  /** User's current on-chain health factor (null when no debt). */
+  currentHealthFactor: number | null;
   onWithdraw: () => void;
   onDeposit: () => void;
 }
@@ -47,9 +46,7 @@ export function CollateralSection({
   hasCollateral,
   isConnected,
   collateralBtc,
-  collateralValueUsd,
-  debtValueUsd,
-  liquidationThresholdBps,
+  currentHealthFactor,
   onWithdraw,
   onDeposit,
 }: CollateralSectionProps) {
@@ -66,18 +63,9 @@ export function CollateralSection({
     if (!hasCollateral) return false;
     return canWithdrawAnyVault(collateralVaults, {
       collateralBtc,
-      collateralValueUsd,
-      debtValueUsd,
-      liquidationThresholdBps,
+      currentHealthFactor,
     });
-  }, [
-    hasCollateral,
-    collateralVaults,
-    collateralBtc,
-    collateralValueUsd,
-    debtValueUsd,
-    liquidationThresholdBps,
-  ]);
+  }, [hasCollateral, collateralVaults, collateralBtc, currentHealthFactor]);
 
   const canReorder = collateralVaults.length >= 2;
 

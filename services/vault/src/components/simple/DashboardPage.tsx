@@ -59,7 +59,6 @@ export function DashboardPage() {
     collateralBtc,
     collateralValueUsd,
     debtValueUsd,
-    liquidationThresholdBps,
     healthFactor,
     healthFactorStatus,
     borrowedAssets,
@@ -167,9 +166,7 @@ export function DashboardPage() {
           hasCollateral={hasCollateral}
           isConnected={isConnected}
           collateralBtc={collateralBtc}
-          collateralValueUsd={collateralValueUsd}
-          debtValueUsd={debtValueUsd}
-          liquidationThresholdBps={liquidationThresholdBps}
+          currentHealthFactor={healthFactor}
           onWithdraw={handleWithdraw}
           onDeposit={openDeposit}
         />
@@ -200,8 +197,6 @@ export function DashboardPage() {
         collateralVaults={collateralVaults}
         collateralBtc={collateralBtc}
         collateralValueUsd={collateralValueUsd}
-        debtValueUsd={debtValueUsd}
-        liquidationThresholdBps={liquidationThresholdBps}
         currentHealthFactor={healthFactor}
       />
 

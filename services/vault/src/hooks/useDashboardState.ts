@@ -6,7 +6,6 @@
 
 import { useMemo } from "react";
 
-import { useAaveConfig } from "@/applications/aave/context";
 import {
   useAaveBorrowedAssets,
   useAaveUserPosition,
@@ -29,9 +28,6 @@ export function useDashboardState(connectedAddress: string | undefined) {
     healthFactorStatus,
     isLoading,
   } = useAaveUserPosition(connectedAddress);
-
-  const { vbtcReserve } = useAaveConfig();
-  const liquidationThresholdBps = vbtcReserve?.reserve.collateralFactor ?? 0;
 
   const { borrowedAssets, hasLoans } = useAaveBorrowedAssets({
     position,
@@ -68,7 +64,6 @@ export function useDashboardState(connectedAddress: string | undefined) {
     collateralBtc,
     collateralValueUsd,
     debtValueUsd,
-    liquidationThresholdBps,
     healthFactor,
     healthFactorStatus,
     borrowedAssets,

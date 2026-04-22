@@ -32,9 +32,12 @@ export type { HealthFactorColor } from "./healthFactorDisplay";
 export {
   canWithdrawAnyVault,
   computeProjectedHealthFactor,
-  getVaultWithdrawalUsd,
+  getWithdrawHfWarningState,
   isHealthFactorAtOrAbove,
   isVaultIndividuallyWithdrawable,
 } from "./withdrawEligibility";
 
-export type { PositionSnapshot } from "./withdrawEligibility";
+export type {
+  PositionSnapshot,
+  WithdrawHfWarningState,
+} from "./withdrawEligibility";

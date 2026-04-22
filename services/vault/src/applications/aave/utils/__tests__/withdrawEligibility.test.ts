@@ -3,51 +3,18 @@ import { describe, expect, it } from "vitest";
 import {
   canWithdrawAnyVault,
   computeProjectedHealthFactor,
-  getVaultWithdrawalUsd,
+  getWithdrawHfWarningState,
   isHealthFactorAtOrAbove,
   isVaultIndividuallyWithdrawable,
   type PositionSnapshot,
 } from "../withdrawEligibility";
 
-// $10,000 collateral, $5,000 debt, 80% LT → HF = 10000*0.8/5000 = 1.6
-// Collateral is 1 BTC total, split as [0.5, 0.3, 0.2].
+// 1 BTC of collateral at current HF 1.6 (arbitrary but unambiguous).
+// Splits used by the canWithdrawAnyVault tests below are [0.5, 0.3, 0.2].
 const BASE_POSITION: PositionSnapshot = {
   collateralBtc: 1,
-  collateralValueUsd: 10000,
-  debtValueUsd: 5000,
-  liquidationThresholdBps: 8000,
+  currentHealthFactor: 1.6,
 };
-
-describe("getVaultWithdrawalUsd", () => {
-  it("returns proportional USD share of total collateral", () => {
-    expect(getVaultWithdrawalUsd(0.3, 1, 10000)).toBe(3000);
-  });
-
-  it("throws when total collateral BTC is zero", () => {
-    expect(() => getVaultWithdrawalUsd(0.1, 0, 10000)).toThrow();
-  });
-
-  it("throws when total collateral BTC is negative", () => {
-    expect(() => getVaultWithdrawalUsd(0.1, -1, 10000)).toThrow();
-  });
-});
-
-describe("computeProjectedHealthFactor", () => {
-  it("returns Infinity when there is no debt", () => {
-    expect(computeProjectedHealthFactor(10000, 3000, 0, 8000)).toBe(Infinity);
-  });
-
-  it("recomputes HF on the remaining collateral after withdrawal", () => {
-    // $10,000 - $3,000 = $7,000 remaining, $5,000 debt, 80% LT → HF = 1.12
-    const hf = computeProjectedHealthFactor(10000, 3000, 5000, 8000);
-    expect(hf).toBeCloseTo(1.12, 5);
-  });
-
-  it("clamps remaining collateral at zero (never negative)", () => {
-    // Withdrawing more than total collateral still produces HF = 0, not negative
-    expect(computeProjectedHealthFactor(10000, 12000, 5000, 8000)).toBe(0);
-  });
-});
 
 describe("isHealthFactorAtOrAbove", () => {
   it("returns true for values exactly equal to the threshold", () => {
@@ -69,45 +36,70 @@ describe("isHealthFactorAtOrAbove", () => {
   });
 });
 
+describe("computeProjectedHealthFactor", () => {
+  it("returns Infinity when there is no debt", () => {
+    expect(computeProjectedHealthFactor(null, 1, 0.3)).toBe(Infinity);
+  });
+
+  it("scales current HF by the remaining collateral ratio", () => {
+    // Withdraw 0.3 of 1 BTC → 0.7 remains → HF drops by 0.7x.
+    expect(computeProjectedHealthFactor(1.6, 1, 0.3)).toBeCloseTo(1.12, 5);
+  });
+
+  it("is zero when the full collateral is withdrawn with debt", () => {
+    expect(computeProjectedHealthFactor(1.6, 1, 1)).toBe(0);
+  });
+
+  it("clamps remaining collateral at zero (never negative)", () => {
+    expect(computeProjectedHealthFactor(1.6, 1, 2)).toBe(0);
+  });
+
+  it("returns zero when collateralBtc is zero and HF is defined", () => {
+    expect(computeProjectedHealthFactor(1.6, 0, 0)).toBe(0);
+  });
+});
+
 describe("isVaultIndividuallyWithdrawable", () => {
   it("treats any vault as withdrawable when there is no debt", () => {
-    const noDebt = { ...BASE_POSITION, debtValueUsd: 0 };
+    const noDebt: PositionSnapshot = {
+      collateralBtc: 1,
+      currentHealthFactor: null,
+    };
     expect(isVaultIndividuallyWithdrawable(0.5, noDebt)).toBe(true);
     expect(isVaultIndividuallyWithdrawable(1, noDebt)).toBe(true);
   });
 
   it("allows withdrawal when projected HF stays at or above 1.0", () => {
-    // Remove 0.3 BTC → remaining $7,000, debt $5,000, 80% LT → HF 1.12 ≥ 1.0
+    // 0.3 BTC out of 1 BTC at HF 1.6 → 1.6 * 0.7 = 1.12 ≥ 1.0
     expect(isVaultIndividuallyWithdrawable(0.3, BASE_POSITION)).toBe(true);
   });
 
   it("blocks withdrawal when projected HF would fall below 1.0", () => {
-    // Remove 0.5 BTC → remaining $5,000, debt $5,000, 80% LT → HF 0.8 < 1.0
+    // 0.5 BTC → 1.6 * 0.5 = 0.8 < 1.0
     expect(isVaultIndividuallyWithdrawable(0.5, BASE_POSITION)).toBe(false);
   });
 
   it("allows withdrawal that lands exactly at the 1.0 block threshold", () => {
-    // Choose withdrawal that leaves HF = 1.0 exactly: remaining = debt / LT
-    // debt/LT = 5000 / 0.8 = 6250; withdraw value = 10000 - 6250 = 3750
-    // → vault BTC = 3750/10000 * 1 = 0.375
+    // Choose withdrawal that leaves HF = 1.0 exactly: remaining ratio = 1/HF
+    // 1 / 1.6 = 0.625, so withdraw 0.375 leaves exactly HF 1.0.
     expect(isVaultIndividuallyWithdrawable(0.375, BASE_POSITION)).toBe(true);
   });
 
-  it("allows withdrawal at the threshold even with tiny FP noise in inputs", () => {
-    // Real oracle values come back with long decimal tails. Simulate that
-    // by perturbing inputs by ~1e-10; the exact-1.0 case must not flip
-    // to blocked purely due to float error.
+  it("allows withdrawal at the threshold even with tiny FP noise", () => {
+    // Perturb inputs so floating-point error nudges the intermediate
+    // computation; the exact-1.0 case must not flip to blocked.
     const noisy: PositionSnapshot = {
       collateralBtc: 1 + 1e-12,
-      collateralValueUsd: 10000 + 1e-8,
-      debtValueUsd: 5000 - 1e-8,
-      liquidationThresholdBps: 8000,
+      currentHealthFactor: 1.6 - 1e-12,
     };
     expect(isVaultIndividuallyWithdrawable(0.375, noisy)).toBe(true);
   });
 
   it("returns false when collateralBtc is zero (no vaults)", () => {
-    const empty: PositionSnapshot = { ...BASE_POSITION, collateralBtc: 0 };
+    const empty: PositionSnapshot = {
+      collateralBtc: 0,
+      currentHealthFactor: 1.6,
+    };
     expect(isVaultIndividuallyWithdrawable(0, empty)).toBe(false);
   });
 });
@@ -115,26 +107,26 @@ describe("isVaultIndividuallyWithdrawable", () => {
 describe("canWithdrawAnyVault", () => {
   it("returns true when at least one in-use vault is individually withdrawable", () => {
     const vaults = [
-      { amountBtc: 0.5, inUse: true }, // would drop HF to 0.8 → blocked
-      { amountBtc: 0.3, inUse: true }, // would drop HF to 1.12 → allowed
-      { amountBtc: 0.2, inUse: true }, // would drop HF to 1.28 → allowed
+      { amountBtc: 0.5, inUse: true }, // HF 0.8 → blocked
+      { amountBtc: 0.3, inUse: true }, // HF 1.12 → allowed
+      { amountBtc: 0.2, inUse: true }, // HF 1.28 → allowed
     ];
     expect(canWithdrawAnyVault(vaults, BASE_POSITION)).toBe(true);
   });
 
   it("returns false when every in-use vault would individually breach HF 1.0", () => {
-    // Shift debt up so even smallest vault breaches: debt $7,900
-    // Remove 0.2 BTC → remaining $8,000, HF = 8000*0.8/7900 ≈ 0.810 < 1.0
-    const heavyDebt: PositionSnapshot = {
-      ...BASE_POSITION,
-      debtValueUsd: 7900,
+    // Current HF low enough that even smallest vault breaches.
+    // 0.2 BTC removal on HF 1.2 → 1.2 * 0.8 = 0.96 < 1.0.
+    const lowHf: PositionSnapshot = {
+      collateralBtc: 1,
+      currentHealthFactor: 1.2,
     };
     const vaults = [
-      { amountBtc: 0.5, inUse: true },
-      { amountBtc: 0.3, inUse: true },
-      { amountBtc: 0.2, inUse: true },
+      { amountBtc: 0.5, inUse: true }, // 1.2 * 0.5 = 0.6
+      { amountBtc: 0.3, inUse: true }, // 1.2 * 0.7 = 0.84
+      { amountBtc: 0.2, inUse: true }, // 1.2 * 0.8 = 0.96
     ];
-    expect(canWithdrawAnyVault(vaults, heavyDebt)).toBe(false);
+    expect(canWithdrawAnyVault(vaults, lowHf)).toBe(false);
   });
 
   it("ignores vaults that are not in use", () => {
@@ -147,5 +139,32 @@ describe("canWithdrawAnyVault", () => {
 
   it("returns false for an empty vault list", () => {
     expect(canWithdrawAnyVault([], BASE_POSITION)).toBe(false);
+  });
+});
+
+describe("getWithdrawHfWarningState", () => {
+  it("marks HF at or above 1.1 as safe (no warning, no block)", () => {
+    expect(getWithdrawHfWarningState(1.2)).toEqual({
+      wouldBreachHF: false,
+      isAtRisk: false,
+    });
+    expect(getWithdrawHfWarningState(Infinity)).toEqual({
+      wouldBreachHF: false,
+      isAtRisk: false,
+    });
+  });
+
+  it("marks HF between 1.0 and 1.1 as at-risk", () => {
+    expect(getWithdrawHfWarningState(1.05)).toEqual({
+      wouldBreachHF: false,
+      isAtRisk: true,
+    });
+  });
+
+  it("marks HF below 1.0 as blocking", () => {
+    expect(getWithdrawHfWarningState(0.95)).toEqual({
+      wouldBreachHF: true,
+      isAtRisk: false,
+    });
   });
 });

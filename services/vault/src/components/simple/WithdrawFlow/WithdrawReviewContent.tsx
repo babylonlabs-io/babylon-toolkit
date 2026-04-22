@@ -6,14 +6,13 @@ import {
   WITHDRAW_HF_BLOCK_THRESHOLD,
   WITHDRAW_HF_WARNING_THRESHOLD,
 } from "@/applications/aave/constants";
-import {
-  formatHealthFactor,
-  isHealthFactorAtOrAbove,
-} from "@/applications/aave/utils";
+import { getWithdrawHfWarningState } from "@/applications/aave/utils";
 import { DetailsCard, type DetailRow } from "@/components/shared";
 import { useProtocolParamsContext } from "@/context/ProtocolParamsContext";
 import { useNetworkFees } from "@/hooks/useNetworkFees";
 import { formatBtcAmount, formatUsdValue } from "@/utils/formatting";
+
+import { HealthFactorDelta } from "./HealthFactorDelta";
 
 interface WithdrawReviewContentProps {
   totalAmountBtc: number;
@@ -24,6 +23,12 @@ interface WithdrawReviewContentProps {
   projectedHealthFactor: number;
   isProcessing: boolean;
   onConfirm: () => void;
+  /**
+   * Navigate back to the vault selector, preserving the current selection.
+   * Lets the user recover from a blocked or at-risk review without closing
+   * the dialog.
+   */
+  onEditSelection: () => void;
 }
 
 export function WithdrawReviewContent({
@@ -33,20 +38,14 @@ export function WithdrawReviewContent({
   projectedHealthFactor,
   isProcessing,
   onConfirm,
+  onEditSelection,
 }: WithdrawReviewContentProps) {
   const { defaultFeeRate } = useNetworkFees();
   const { minVpCommissionBps } = useProtocolParamsContext();
 
-  const wouldBreachHF = !isHealthFactorAtOrAbove(
+  const { wouldBreachHF, isAtRisk } = getWithdrawHfWarningState(
     projectedHealthFactor,
-    WITHDRAW_HF_BLOCK_THRESHOLD,
   );
-  const isAtRisk =
-    !wouldBreachHF &&
-    !isHealthFactorAtOrAbove(
-      projectedHealthFactor,
-      WITHDRAW_HF_WARNING_THRESHOLD,
-    );
 
   const rows: DetailRow[] = useMemo(() => {
     const vpCommissionBtc = totalAmountBtc * (minVpCommissionBps / BPS_SCALE);
@@ -58,13 +57,10 @@ export function WithdrawReviewContent({
         : {
             label: "Health Factor",
             value: (
-              <span>
-                {formatHealthFactor(currentHealthFactor)}
-                <span className="mx-1 text-accent-secondary">&rarr;</span>
-                {Number.isFinite(projectedHealthFactor)
-                  ? formatHealthFactor(projectedHealthFactor)
-                  : "∞"}
-              </span>
+              <HealthFactorDelta
+                current={currentHealthFactor}
+                projected={projectedHealthFactor}
+              />
             ),
           };
 
@@ -159,6 +155,16 @@ export function WithdrawReviewContent({
           ) : (
             "Confirm"
           )}
+        </Button>
+        <Button
+          variant="outlined"
+          color="primary"
+          className="w-full"
+          disabled={isProcessing}
+          onClick={onEditSelection}
+          data-testid="withdraw-change-selection"
+        >
+          Change Selection
         </Button>
       </div>
     </div>
