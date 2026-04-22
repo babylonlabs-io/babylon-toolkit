@@ -3,6 +3,7 @@
  */
 
 import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
+import type { PopSignature } from "@babylonlabs-io/ts-sdk/tbv/core";
 import type { Hex, WalletClient } from "viem";
 
 import type { WotsPublicKeys } from "@/services/wots";
@@ -60,20 +61,18 @@ export interface PeginBatchRegisterParams {
   walletClient: WalletClient;
   /** Vault provider ETH address (shared for all vaults in batch) */
   vaultProviderAddress: string;
+  /** Shared Pre-PegIn tx hex for the whole batch */
+  unsignedPrePeginTx: string;
   /** Per-vault registration data */
   requests: Array<{
-    depositorBtcPubkey: string;
-    unsignedPrePeginTx: string;
     depositorSignedPeginTx: string;
     hashlock: Hex;
     htlcVout: number;
     depositorPayoutBtcAddress: string;
     depositorWotsPkHash: Hex;
   }>;
-  /** Pre-signed BTC PoP signature (signed once, reused for all) */
-  preSignedBtcPopSignature?: Hex;
-  /** Called after PoP is signed (before ETH tx) */
-  onPopSigned?: () => void;
+  /** Proof of possession from signProofOfPossession. */
+  popSignature: PopSignature;
 }
 
 export interface PeginBatchRegisterResult {
@@ -82,7 +81,6 @@ export interface PeginBatchRegisterResult {
     vaultId: Hex;
     peginTxHash: Hex;
   }>;
-  btcPopSignature: Hex;
 }
 
 // ============================================================================
@@ -100,7 +98,7 @@ export interface WotsSubmissionParams {
 }
 
 // ============================================================================
-// Step 4: Broadcast
+// Step 3: Broadcast
 // ============================================================================
 
 export interface BroadcastParams {

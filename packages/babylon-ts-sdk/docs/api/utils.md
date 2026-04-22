@@ -1321,3 +1321,75 @@ Safety multiplier for split transaction fee validation.
 The signed PSBT's fee rate and absolute fee must not exceed this multiple
 of the planned values. 5x accounts for witness estimation variance while
 catching catastrophic wallet-side overpayment.
+
+***
+
+### HEX\_RE
+
+```ts
+const HEX_RE: RegExp;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/validation.ts:9](../../packages/babylon-ts-sdk/src/tbv/core/utils/validation.ts#L9)
+
+Non-empty string of hexadecimal characters (case-insensitive).
+
+***
+
+### TXID\_RE
+
+```ts
+const TXID_RE: RegExp;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/validation.ts:12](../../packages/babylon-ts-sdk/src/tbv/core/utils/validation.ts#L12)
+
+Bitcoin txid: exactly 64 hex characters (32 bytes).
+
+***
+
+### BITCOIN\_ADDRESS\_RE
+
+```ts
+const BITCOIN_ADDRESS_RE: RegExp;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/validation.ts:21](../../packages/babylon-ts-sdk/src/tbv/core/utils/validation.ts#L21)
+
+Bitcoin address format gate: 25–90 alphanumeric characters.
+Covers legacy (P2PKH/P2SH), bech32 (P2WPKH/P2WSH), bech32m (P2TR),
+and regtest addresses (bcrt1... which are 62–64 chars for 32-byte witness programs).
+Upper bound of 90 provides headroom for future address formats.
+This is a format gate to prevent path-traversal — not full address validation.
+
+***
+
+### KNOWN\_SCRIPT\_PREFIXES
+
+```ts
+const KNOWN_SCRIPT_PREFIXES: readonly ["76a914", "a914", "0014", "0020", "5120"];
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/validation.ts:31](../../packages/babylon-ts-sdk/src/tbv/core/utils/validation.ts#L31)
+
+Known Bitcoin scriptPubKey prefixes:
+- P2PKH:  76a914...88ac (25 bytes)
+- P2SH:   a914...87    (23 bytes)
+- P2WPKH: 0014...      (22 bytes)
+- P2WSH:  0020...      (34 bytes)
+- P2TR:   5120...      (34 bytes)
+
+***
+
+### MAX\_REASONABLE\_FEE\_SATS
+
+```ts
+const MAX_REASONABLE_FEE_SATS: 1000000n = 1_000_000n;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/validation.ts:45](../../packages/babylon-ts-sdk/src/tbv/core/utils/validation.ts#L45)
+
+Upper bound on the implied miner fee (0.01 BTC = 1,000,000 sats).
+Catches inflated input values from a compromised mempool API — if inputs are
+grossly overstated the implied fee becomes unreasonably large. The April 2024
+Runes spike saw ~450 sat/vB; at 500 vB that's ~225k sats, well under this cap.

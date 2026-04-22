@@ -162,7 +162,7 @@ const ethWallet = createWalletClient({
 
 A production Node wallet additionally handles:
 
-- **BIP-322 proof-of-possession** for `registerPeginOnChain()` (the SDK's `PeginManager` calls `signMessage(..., "bip322-simple")` over a canonical message).
+- **BIP-322 proof-of-possession** for `signProofOfPossession()` / `registerPeginOnChain()` (the SDK's `PeginManager` calls `signMessage(..., "bip322-simple")` over a canonical message).
 - **Finalizer customisation per input type** when integrating with hardware signers that don't emit a standard witness.
 - **KMS/HSM key custody** — wrap your cloud signer behind the same `signPsbt` / `signPsbts` / `signMessage` shape.
 

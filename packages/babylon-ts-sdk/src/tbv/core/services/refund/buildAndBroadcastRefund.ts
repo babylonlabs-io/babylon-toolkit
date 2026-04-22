@@ -75,7 +75,11 @@ export interface VaultRefundData {
   applicationEntryPoint: Address;
   /** Pre-PegIn HTLC output value in satoshis. */
   amount: bigint;
-  /** Funded (but pre-witness) Pre-PegIn transaction hex. 0x prefix optional. */
+  /**
+   * Funded, pre-witness Pre-PegIn transaction hex. 0x prefix optional.
+   * The name mirrors the contract/indexer schema; the bytes are the
+   * funded form (refund construction needs real outpoints).
+   */
   unsignedPrePeginTxHex: string;
   /** Depositor's BTC public key (x-only or compressed hex; 0x prefix optional). */
   depositorBtcPubkey: string;

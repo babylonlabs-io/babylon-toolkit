@@ -1,14 +1,19 @@
 /**
- * Steps 1-2: ETH wallet and Pegin submission
+ * Steps 1-3: ETH wallet acquisition, BIP-322 PoP signing, pegin submission.
  */
 
 import { getETHChain } from "@babylonlabs-io/config";
+import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
+import type { PopSignature } from "@babylonlabs-io/ts-sdk/tbv/core";
 import { getSharedWagmiConfig } from "@babylonlabs-io/wallet-connector";
 import type { Address, WalletClient } from "viem";
 import { getWalletClient, switchChain } from "wagmi/actions";
 
 import { logger } from "@/infrastructure";
-import { registerPeginBatchOnChain } from "@/services/vault/vaultTransactionService";
+import {
+  registerPeginBatchOnChain,
+  signProofOfPossession as sdkSignProofOfPossession,
+} from "@/services/vault/vaultTransactionService";
 
 import type {
   PeginBatchRegisterParams,
@@ -55,7 +60,18 @@ export async function getEthWalletClient(
 }
 
 // ============================================================================
-// Step 2b: Batch Register Pegins On-Chain (single ETH tx for N vaults)
+// Step 2: Sign BIP-322 Proof of Possession (one wallet popup per session)
+// ============================================================================
+
+export async function signProofOfPossession(
+  btcWalletProvider: BitcoinWallet,
+  walletClient: WalletClient,
+): Promise<PopSignature> {
+  return sdkSignProofOfPossession(btcWalletProvider, walletClient);
+}
+
+// ============================================================================
+// Step 3: Batch Register Pegins On-Chain (single ETH tx for N vaults)
 // ============================================================================
 
 /**
@@ -69,9 +85,9 @@ export async function registerPeginBatchAndWait(
     btcWalletProvider,
     walletClient,
     vaultProviderAddress,
+    unsignedPrePeginTx,
     requests,
-    preSignedBtcPopSignature,
-    onPopSigned,
+    popSignature,
   } = params;
 
   const result = await registerPeginBatchOnChain(
@@ -79,15 +95,14 @@ export async function registerPeginBatchAndWait(
     walletClient,
     {
       vaultProviderAddress: vaultProviderAddress as Address,
+      unsignedPrePeginTx,
       requests,
-      preSignedBtcPopSignature,
-      onPopSigned,
+      popSignature,
     },
   );
 
   return {
     ethTxHash: result.ethTxHash,
     vaults: result.vaults,
-    btcPopSignature: result.btcPopSignature,
   };
 }

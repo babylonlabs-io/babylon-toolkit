@@ -29,23 +29,25 @@ Every vault lives in one of these on-chain states. Your SDK code transitions bet
 ```
   [ off-chain ]
        │
-       │  1. peginManager.preparePegin()        — build Pre-PegIn + PegIn PSBTs locally
+       │  1. peginManager.preparePegin()            — build Pre-PegIn + PegIn PSBTs locally
        │
-       │  2. peginManager.registerPeginOnChain() — submit vault + hashlock to Ethereum
+       │  2. peginManager.signProofOfPossession()   — BIP-322 PoP, one wallet popup per session
+       │
+       │  3. peginManager.registerPeginOnChain()    — submit vault + hashlock to Ethereum
        ▼
     PENDING
        │
-       │  3. peginManager.signAndBroadcast()    — put the Pre-PegIn tx on Bitcoin
+       │  4. peginManager.signAndBroadcast()        — put the Pre-PegIn tx on Bitcoin
        │  (contract status stays PENDING until the VP observes the BTC broadcast,
        │   builds the transaction graph, and posts presigned transactions back)
        │
-       │  4. pollAndSignPayouts()                — co-sign payout authorisations
+       │  5. pollAndSignPayouts()                    — co-sign payout authorisations
        ▼
    VERIFIED
        │ ┌─── activation window expires ───▶ EXPIRED ──┐
        │ │                                             │
        │ ▼                                             │
-       │ 5. activateVault(secret)                      │
+       │ 6. activateVault(secret)                      │
        │                                               │
        ▼                                               ▼
     ACTIVE                                  buildAndBroadcastRefund()
@@ -55,7 +57,7 @@ Every vault lives in one of these on-chain states. Your SDK code transitions bet
     REDEEMED                                     via refund path)
 ```
 
-The critical transition is `VERIFIED → ACTIVE`. Until the depositor reveals the HTLC secret on Ethereum (step 5), the vault is **not live** — miss the activation window and the only exit is refund after the CSV timelock.
+The critical transition is `VERIFIED → ACTIVE`. Until the depositor reveals the HTLC secret on Ethereum (step 6), the vault is **not live** — miss the activation window and the only exit is refund after the CSV timelock.
 
 ## Decide where to start
 
