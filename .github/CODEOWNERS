@@ -3,8 +3,14 @@
 
 # -----------------------------------------------------------------------------
 # CRITICAL PATHS (see CLAUDE.md > "CRITICAL PATHS — HUMAN REVIEW REQUIRED")
-# Changes to these files require two code-owner approvals via branch
-# protection. Do not weaken ownership on these paths without review.
+# These entries designate owners for the files/directories that handle
+# irreversible value movement. CODEOWNERS alone does NOT enforce a minimum
+# approval count - it only assigns owners and (when "Require review from
+# Code Owners" is enabled in branch protection) requires at least one
+# code-owner approval. To enforce two approvals specifically on these paths,
+# configure a GitHub ruleset scoped to these path globs with
+# `required_approving_review_count: 2`. Do not weaken ownership here without
+# review.
 # -----------------------------------------------------------------------------
 
 # 1. WASM boundary (value computation)
