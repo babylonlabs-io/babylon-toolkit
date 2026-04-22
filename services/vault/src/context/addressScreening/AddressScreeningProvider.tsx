@@ -34,9 +34,7 @@ const AddressScreeningContext = createContext<AddressScreeningContextType>({
  * the screening API is unreachable (hard-block on error is intentional; the
  * result is not cached so a later retry can succeed).
  */
-async function isAddressBlocked(
-  address: string | undefined,
-): Promise<boolean> {
+async function isAddressBlocked(address: string | undefined): Promise<boolean> {
   if (!address) return false;
 
   const cached = getAddressScreeningResult(address);
