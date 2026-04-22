@@ -7,7 +7,7 @@
  *
  * The Payout transaction references the Assert transaction (input 1).
  *
- * @see {@link PeginManager} - For Steps 1, 2, and 4 of peg-in flow
+ * @see {@link PeginManager} - For Steps 1–4 of the peg-in flow
  * @see {@link buildPayoutPsbt} - Lower-level primitive for custom implementations
  * @see {@link extractPayoutSignature} - Extract signatures from signed PSBTs
  *
@@ -131,7 +131,7 @@ export interface PayoutSignatureResult {
  * High-level manager for payout transaction signing.
  *
  * @remarks
- * After registering your peg-in on Ethereum (Step 2), the vault provider prepares
+ * After registering your peg-in on Ethereum (Step 3), the vault provider prepares
  * claim/payout transaction pairs. You must sign each payout transaction using this
  * manager and submit the signatures to the vault provider's RPC API.
  *

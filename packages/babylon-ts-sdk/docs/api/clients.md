@@ -1707,7 +1707,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:152](../.
 
 ### AddressTx
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/mempool/mempoolApi.ts:326](../../packages/babylon-ts-sdk/src/tbv/core/clients/mempool/mempoolApi.ts#L326)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/mempool/mempoolApi.ts:373](../../packages/babylon-ts-sdk/src/tbv/core/clients/mempool/mempoolApi.ts#L373)
 
 Transaction summary from address transactions endpoint.
 
@@ -1719,7 +1719,7 @@ Transaction summary from address transactions endpoint.
 txid: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/mempool/mempoolApi.ts:327](../../packages/babylon-ts-sdk/src/tbv/core/clients/mempool/mempoolApi.ts#L327)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/mempool/mempoolApi.ts:374](../../packages/babylon-ts-sdk/src/tbv/core/clients/mempool/mempoolApi.ts#L374)
 
 ##### status
 
@@ -1727,7 +1727,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/mempool/mempoolApi.ts:
 status: object;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/mempool/mempoolApi.ts:328](../../packages/babylon-ts-sdk/src/tbv/core/clients/mempool/mempoolApi.ts#L328)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/mempool/mempoolApi.ts:375](../../packages/babylon-ts-sdk/src/tbv/core/clients/mempool/mempoolApi.ts#L375)
 
 ###### confirmed
 
@@ -3425,7 +3425,7 @@ Resolved contract addresses
 function pushTx(txHex, apiUrl): Promise<string>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/mempool/mempoolApi.ts:126](../../packages/babylon-ts-sdk/src/tbv/core/clients/mempool/mempoolApi.ts#L126)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/mempool/mempoolApi.ts:163](../../packages/babylon-ts-sdk/src/tbv/core/clients/mempool/mempoolApi.ts#L163)
 
 Push a signed transaction to the Bitcoin network.
 
@@ -3461,7 +3461,7 @@ Error if broadcasting fails
 function getTxInfo(txid, apiUrl): Promise<TxInfo>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/mempool/mempoolApi.ts:170](../../packages/babylon-ts-sdk/src/tbv/core/clients/mempool/mempoolApi.ts#L170)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/mempool/mempoolApi.ts:207](../../packages/babylon-ts-sdk/src/tbv/core/clients/mempool/mempoolApi.ts#L207)
 
 Get transaction information from mempool.
 
@@ -3493,7 +3493,7 @@ Transaction information
 function getTxHex(txid, apiUrl): Promise<string>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/mempool/mempoolApi.ts:182](../../packages/babylon-ts-sdk/src/tbv/core/clients/mempool/mempoolApi.ts#L182)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/mempool/mempoolApi.ts:220](../../packages/babylon-ts-sdk/src/tbv/core/clients/mempool/mempoolApi.ts#L220)
 
 Get the hex representation of a transaction.
 
@@ -3532,7 +3532,7 @@ function getUtxoInfo(
 apiUrl): Promise<UtxoInfo>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/mempool/mempoolApi.ts:213](../../packages/babylon-ts-sdk/src/tbv/core/clients/mempool/mempoolApi.ts#L213)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/mempool/mempoolApi.ts:252](../../packages/babylon-ts-sdk/src/tbv/core/clients/mempool/mempoolApi.ts#L252)
 
 Get UTXO information for a specific transaction output.
 
@@ -3573,7 +3573,7 @@ UTXO information with value and scriptPubKey
 function getAddressUtxos(address, apiUrl): Promise<MempoolUTXO[]>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/mempool/mempoolApi.ts:246](../../packages/babylon-ts-sdk/src/tbv/core/clients/mempool/mempoolApi.ts#L246)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/mempool/mempoolApi.ts:287](../../packages/babylon-ts-sdk/src/tbv/core/clients/mempool/mempoolApi.ts#L287)
 
 Get all UTXOs for a Bitcoin address.
 
@@ -3605,7 +3605,7 @@ Array of UTXOs sorted by value (largest first)
 function getMempoolApiUrl(network): string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/mempool/mempoolApi.ts:317](../../packages/babylon-ts-sdk/src/tbv/core/clients/mempool/mempoolApi.ts#L317)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/mempool/mempoolApi.ts:364](../../packages/babylon-ts-sdk/src/tbv/core/clients/mempool/mempoolApi.ts#L364)
 
 Get the mempool API URL for a given network.
 
@@ -3631,7 +3631,7 @@ The mempool API URL
 function getAddressTxs(address, apiUrl): Promise<AddressTx[]>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/mempool/mempoolApi.ts:344](../../packages/babylon-ts-sdk/src/tbv/core/clients/mempool/mempoolApi.ts#L344)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/mempool/mempoolApi.ts:391](../../packages/babylon-ts-sdk/src/tbv/core/clients/mempool/mempoolApi.ts#L391)
 
 Get recent transactions for a Bitcoin address.
 
@@ -3666,7 +3666,7 @@ Array of recent transactions
 function getNetworkFees(apiUrl): Promise<NetworkFees>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/mempool/mempoolApi.ts:360](../../packages/babylon-ts-sdk/src/tbv/core/clients/mempool/mempoolApi.ts#L360)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/mempool/mempoolApi.ts:408](../../packages/babylon-ts-sdk/src/tbv/core/clients/mempool/mempoolApi.ts#L408)
 
 Fetches Bitcoin network fee recommendations from mempool.space API.
 
@@ -3691,6 +3691,28 @@ Error if request fails or returns invalid data
 #### See
 
 https://mempool.space/docs/api/rest#get-recommended-fees
+
+***
+
+### validateRequestDepositorClaimerArtifactsResponse()
+
+```ts
+function validateRequestDepositorClaimerArtifactsResponse(response): asserts response is RequestDepositorClaimerArtifactsResponse;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/validators.ts:330](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/validators.ts#L330)
+
+Validate a requestDepositorClaimerArtifacts response.
+
+#### Parameters
+
+##### response
+
+`unknown`
+
+#### Returns
+
+`asserts response is RequestDepositorClaimerArtifactsResponse`
 
 ## Enumerations
 
@@ -3899,7 +3921,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.t
 const MEMPOOL_API_URLS: object;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/mempool/mempoolApi.ts:81](../../packages/babylon-ts-sdk/src/tbv/core/clients/mempool/mempoolApi.ts#L81)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/mempool/mempoolApi.ts:118](../../packages/babylon-ts-sdk/src/tbv/core/clients/mempool/mempoolApi.ts#L118)
 
 Default mempool API URLs by network.
 
