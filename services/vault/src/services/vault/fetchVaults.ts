@@ -13,7 +13,11 @@ import { logger } from "@/infrastructure";
 import { graphqlClient } from "../../clients/graphql/client";
 import type { ExpirationReason } from "../../models/peginStateMachine";
 import { type Vault, VaultStatus } from "../../types/vault";
-import { ETH_ADDRESS_PATTERN, VALID_HEX_PATTERN } from "../../utils/validation";
+import {
+  BTC_PUBKEY_HEX_PATTERN,
+  ETH_ADDRESS_PATTERN,
+  VALID_HEX_PATTERN,
+} from "../../utils/validation";
 
 /**
  * Common vault fields fragment
@@ -217,6 +221,24 @@ function validateRequiredHex(
 }
 
 /**
+ * Validates that a required BTC public key field from the indexer has a valid
+ * encoding length (x-only 64, compressed 66, or uncompressed 130 hex chars).
+ * Throws on invalid format.
+ */
+function validateRequiredBtcPubkey(
+  value: string,
+  fieldName: string,
+  vaultId: string,
+): Hex {
+  if (!BTC_PUBKEY_HEX_PATTERN.test(value)) {
+    throw new Error(
+      `Invalid BTC public key in field "${fieldName}" for vault ${vaultId}: "${String(value).slice(0, 20)}"`,
+    );
+  }
+  return value as Hex;
+}
+
+/**
  * Validates that a required address field from the indexer is a well-formed
  * 20-byte Ethereum address. Throws on invalid format.
  */
@@ -272,7 +294,7 @@ function transformVaultItem(item: GraphQLVaultItem): Vault {
       item.id,
     ),
     depositor: validateRequiredAddress(item.depositor, "depositor", item.id),
-    depositorBtcPubkey: validateRequiredHex(
+    depositorBtcPubkey: validateRequiredBtcPubkey(
       item.depositorBtcPubKey,
       "depositorBtcPubKey",
       item.id,
@@ -445,7 +467,7 @@ export async function fetchVaultRefundData(
     );
   }
   return {
-    depositorBtcPubkey: validateRequiredHex(
+    depositorBtcPubkey: validateRequiredBtcPubkey(
       depositorBtcPubKey,
       "depositorBtcPubKey",
       vaultId,

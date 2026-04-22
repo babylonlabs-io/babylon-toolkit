@@ -314,7 +314,7 @@ describe("fetchVaults", () => {
 
       await expect(
         fetchVaultById(VALID_VAULT_ID as `0x${string}`),
-      ).rejects.toThrow(/Malformed hex.*depositorBtcPubKey/);
+      ).rejects.toThrow(/Invalid BTC public key.*depositorBtcPubKey/);
     });
 
     it("throws when depositor has invalid address format", async () => {
@@ -355,9 +355,10 @@ describe("fetchVaults", () => {
         },
       });
 
-      const uppercaseId = VALID_VAULT_ID.replace("0x", "0x")
-        .toUpperCase()
-        .replace("0X", "0x") as `0x${string}`;
+      const uppercaseId = VALID_VAULT_ID.toUpperCase().replace(
+        "0X",
+        "0x",
+      ) as `0x${string}`;
       const result = await fetchVaultRefundData(uppercaseId);
 
       expect(result).toEqual({
@@ -410,7 +411,7 @@ describe("fetchVaults", () => {
 
       await expect(
         fetchVaultRefundData(VALID_VAULT_ID as `0x${string}`),
-      ).rejects.toThrow(/Malformed hex.*depositorBtcPubKey/);
+      ).rejects.toThrow(/Invalid BTC public key.*depositorBtcPubKey/);
     });
 
     it("propagates GraphQL request errors unchanged", async () => {

@@ -82,7 +82,7 @@ interface VaultProviderResponse {
 function validateVaultProvider(item: VaultProvider): VaultProvider | null {
   if (!ETH_ADDRESS_PATTERN.test(item.id)) {
     logger.warn(
-      `[fetchVaultProviders] Skipping provider with invalid id: "${item.id.slice(0, 20)}"`,
+      `[fetchVaultProviders] Skipping provider with invalid id: "${String(item.id).slice(0, 20)}"`,
     );
     return null;
   }
@@ -94,7 +94,7 @@ function validateVaultProvider(item: VaultProvider): VaultProvider | null {
   }
   if (!ETH_ADDRESS_PATTERN.test(item.applicationEntryPoint)) {
     logger.warn(
-      `[fetchVaultProviders] Skipping provider ${item.id}: invalid applicationEntryPoint "${item.applicationEntryPoint.slice(0, 20)}"`,
+      `[fetchVaultProviders] Skipping provider ${item.id}: invalid applicationEntryPoint "${String(item.applicationEntryPoint).slice(0, 20)}"`,
     );
     return null;
   }
