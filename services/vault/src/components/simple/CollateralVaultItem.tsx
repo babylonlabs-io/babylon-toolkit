@@ -3,57 +3,62 @@
  * Renders a single vault card within the expanded collateral view.
  */
 
-import { Avatar, Button, StatusBadge } from "@babylonlabs-io/core-ui";
+import { Avatar, Button, Checkbox, StatusBadge } from "@babylonlabs-io/core-ui";
 
 import { getNetworkConfigBTC } from "@/config";
-import { truncateHash } from "@/utils/addressUtils";
-import {
-  formatBtcAmount,
-  formatDateTime,
-  formatOrdinal,
-} from "@/utils/formatting";
+import { formatBtcAmount, formatOrdinal } from "@/utils/formatting";
 
 const btcConfig = getNetworkConfigBTC();
-
-const SECONDS_TO_MS = 1000;
 
 interface CollateralVaultItemProps {
   vaultId: string;
   amountBtc: number;
-  addedAt: number;
   inUse: boolean;
   providerName: string;
   providerIconUrl?: string;
   liquidationIndex?: number;
+  selected: boolean;
+  selectable: boolean;
+  onToggleSelect: (vaultId: string) => void;
   onArtifactDownload?: () => void;
 }
 
 export function CollateralVaultItem({
   vaultId,
   amountBtc,
-  addedAt,
   inUse,
   providerName,
   providerIconUrl,
   liquidationIndex,
+  selected,
+  selectable,
+  onToggleSelect,
   onArtifactDownload,
 }: CollateralVaultItemProps) {
-  const formattedDate = formatDateTime(new Date(addedAt * SECONDS_TO_MS));
+  const canInteract = selectable || selected;
+  const handleToggle = () => {
+    if (canInteract) onToggleSelect(vaultId);
+  };
 
   return (
     <div className="space-y-3 rounded-xl border border-secondary-strokeLight p-4">
-      {/* Top row: BTC icon + amount */}
-      <div className="flex items-center gap-2">
-        <Avatar url={btcConfig.icon} alt={btcConfig.coinSymbol} size="small" />
-        <span className="text-base font-medium text-accent-primary">
-          {formatBtcAmount(amountBtc)}
-        </span>
-      </div>
-
-      {/* Date row */}
+      {/* Top row: BTC icon + amount + checkbox */}
       <div className="flex items-center justify-between">
-        <span className="text-sm text-accent-secondary">Date</span>
-        <span className="text-sm text-accent-primary">{formattedDate}</span>
+        <div className="flex items-center gap-2">
+          <Avatar url={btcConfig.icon} alt={btcConfig.coinSymbol} size="small" />
+          <span className="text-base font-medium text-accent-primary">
+            {formatBtcAmount(amountBtc)}
+          </span>
+        </div>
+        <div onClick={(e: React.MouseEvent) => e.stopPropagation()}>
+          <Checkbox
+            checked={selected}
+            onChange={handleToggle}
+            disabled={!canInteract}
+            variant="default"
+            showLabel={false}
+          />
+        </div>
       </div>
 
       {/* Status row */}
@@ -74,14 +79,6 @@ export function CollateralVaultItem({
           )}
           <span className="text-sm text-accent-primary">{providerName}</span>
         </div>
-      </div>
-
-      {/* Transaction hash row */}
-      <div className="flex items-center justify-between">
-        <span className="text-sm text-accent-secondary">Transaction Hash</span>
-        <span className="font-mono text-sm text-accent-primary">
-          {truncateHash(vaultId)}
-        </span>
       </div>
 
       {/* Liquidation Order row */}

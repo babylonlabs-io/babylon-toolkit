@@ -9,7 +9,13 @@ import { useCallback, useMemo, useState } from "react";
 import type { Address } from "viem";
 import { useAccount } from "wagmi";
 
-import { canWithdrawAnyVault } from "@/applications/aave/utils";
+import {
+  canWithdrawAnyVault,
+  computeProjectedHealthFactor,
+  getWithdrawHfWarningState,
+  isVaultIndividuallyWithdrawable,
+  type PositionSnapshot,
+} from "@/applications/aave/utils";
 import { ArtifactDownloadModal } from "@/components/deposit/ArtifactDownloadModal";
 import { DepositButton, ExpandMenuButton } from "@/components/shared";
 import { Connect } from "@/components/Wallet";
@@ -33,7 +39,7 @@ interface CollateralSectionProps {
   collateralBtc: number;
   /** User's current on-chain health factor (null when no debt). */
   currentHealthFactor: number | null;
-  onWithdraw: () => void;
+  onWithdraw: (selectedVaultIds: string[]) => void;
   onDeposit: () => void;
 }
 
@@ -55,19 +61,82 @@ export function CollateralSection({
     useState<ArtifactDownloadModalParams | null>(null);
   const [isReorderOpen, setIsReorderOpen] = useState(false);
   const [isReorderSuccess, setIsReorderSuccess] = useState(false);
+  const [selectedVaultIds, setSelectedVaultIds] = useState<string[]>([]);
   const { findProvider } = useVaultProviders();
   const queryClient = useQueryClient();
   const { address } = useAccount();
 
-  const canWithdraw = useMemo(() => {
+  const position: PositionSnapshot = useMemo(
+    () => ({ collateralBtc, currentHealthFactor }),
+    [collateralBtc, currentHealthFactor],
+  );
+
+  // Per-vault eligibility: can this single vault be withdrawn alone without
+  // breaching HF 1.0? Drives the per-row checkbox enabled state.
+  const vaultEligibility = useMemo(() => {
+    const map = new Map<string, boolean>();
+    for (const v of collateralVaults) {
+      if (!v.inUse) continue;
+      map.set(
+        v.vaultId,
+        isVaultIndividuallyWithdrawable(v.amountBtc, position),
+      );
+    }
+    return map;
+  }, [collateralVaults, position]);
+
+  // Drop selected IDs that no longer exist in the current position (e.g. a
+  // vault just finished redemption between polls) so downstream math and
+  // transaction calls never see stale IDs.
+  const effectiveSelectedVaultIds = useMemo(() => {
+    const inUseIds = new Set(
+      collateralVaults.filter((v) => v.inUse).map((v) => v.vaultId),
+    );
+    return selectedVaultIds.filter((id) => inUseIds.has(id));
+  }, [collateralVaults, selectedVaultIds]);
+
+  const selectedBtc = useMemo(() => {
+    const idSet = new Set(effectiveSelectedVaultIds);
+    return collateralVaults
+      .filter((v) => v.inUse && idSet.has(v.vaultId))
+      .reduce((sum, v) => sum + v.amountBtc, 0);
+  }, [collateralVaults, effectiveSelectedVaultIds]);
+
+  const projectedHealthFactor = useMemo(
+    () =>
+      computeProjectedHealthFactor(
+        currentHealthFactor,
+        collateralBtc,
+        selectedBtc,
+      ),
+    [currentHealthFactor, collateralBtc, selectedBtc],
+  );
+
+  const { wouldBreachHF } = getWithdrawHfWarningState(projectedHealthFactor);
+
+  const hasWithdrawableVault = useMemo(() => {
     if (!hasCollateral) return false;
-    return canWithdrawAnyVault(collateralVaults, {
-      collateralBtc,
-      currentHealthFactor,
-    });
-  }, [hasCollateral, collateralVaults, collateralBtc, currentHealthFactor]);
+    return canWithdrawAnyVault(collateralVaults, position);
+  }, [hasCollateral, collateralVaults, position]);
+
+  const canWithdraw =
+    hasWithdrawableVault &&
+    effectiveSelectedVaultIds.length > 0 &&
+    !wouldBreachHF;
 
   const canReorder = collateralVaults.length >= 2;
+
+  const handleToggleVaultSelect = useCallback((vaultId: string) => {
+    setSelectedVaultIds((prev) =>
+      prev.includes(vaultId)
+        ? prev.filter((id) => id !== vaultId)
+        : [...prev, vaultId],
+    );
+  }, []);
+
+  const handleWithdrawClick = useCallback(() => {
+    onWithdraw(effectiveSelectedVaultIds);
+  }, [effectiveSelectedVaultIds, onWithdraw]);
 
   const handleReorderSuccessClose = useCallback(() => {
     setIsReorderSuccess(false);
@@ -156,9 +225,15 @@ export function CollateralSection({
           {isExpanded && (
             <CollateralExpandedContent
               vaults={collateralVaults}
-              onWithdraw={onWithdraw}
+              vaultEligibility={vaultEligibility}
+              selectedVaultIds={effectiveSelectedVaultIds}
+              selectedBtc={selectedBtc}
               canWithdraw={canWithdraw}
-              disabledReason={WITHDRAW_DISABLED_TOOLTIP}
+              onToggleVaultSelect={handleToggleVaultSelect}
+              onWithdraw={handleWithdrawClick}
+              disabledReason={
+                hasWithdrawableVault ? undefined : WITHDRAW_DISABLED_TOOLTIP
+              }
               onArtifactDownload={handleArtifactDownload}
             />
           )}

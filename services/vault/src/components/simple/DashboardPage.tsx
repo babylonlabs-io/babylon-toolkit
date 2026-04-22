@@ -47,6 +47,7 @@ export function DashboardPage() {
     : calculateBalance(spendableUTXOs) / 100_000_000;
 
   const [isWithdrawOpen, setIsWithdrawOpen] = useState(false);
+  const [withdrawVaultIds, setWithdrawVaultIds] = useState<string[]>([]);
   const [isAssetModalOpen, setIsAssetModalOpen] = useState(false);
   const [debugResultOverride, setDebugResultOverride] =
     useState<CalculatorResult | null>(null);
@@ -101,7 +102,8 @@ export function DashboardPage() {
   const amountToRepay = formatUsdValue(debtValueUsd);
   const totalAmountBtc = formatBtcAmount(collateralBtc);
 
-  const handleWithdraw = () => {
+  const handleWithdraw = (selectedVaultIds: string[]) => {
+    setWithdrawVaultIds(selectedVaultIds);
     setIsWithdrawOpen(true);
   };
 
@@ -198,6 +200,7 @@ export function DashboardPage() {
         collateralBtc={collateralBtc}
         collateralValueUsd={collateralValueUsd}
         currentHealthFactor={healthFactor}
+        preSelectedVaultIds={withdrawVaultIds}
       />
 
       {/* Asset Selection Modal for Borrow/Repay */}
