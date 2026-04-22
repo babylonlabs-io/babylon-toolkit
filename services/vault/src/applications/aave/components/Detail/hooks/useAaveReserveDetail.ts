@@ -23,6 +23,7 @@ import {
 } from "../../../constants";
 import { useAaveConfig } from "../../../context";
 import { useAaveUserPosition, useVaultSplitParams } from "../../../hooks";
+import type { AavePositionWithLiveData } from "../../../services";
 import type { AaveReserveConfig } from "../../../services/fetchConfig";
 import type { Asset } from "../../../types";
 
@@ -58,6 +59,10 @@ export interface UseAaveReserveDetailResult {
   tokenPriceUsd: number | null;
   /** Error from price or split params fetch (null if no error) */
   error: Error | null;
+  /** Whether position data may be stale (oracle-derived values possibly outdated) */
+  isPositionDataStale: boolean;
+  /** Refetch position data — returns fresh position (or null if unavailable) */
+  refetchPosition: () => Promise<AavePositionWithLiveData | null>;
 }
 
 export function useAaveReserveDetail({
@@ -98,7 +103,9 @@ export function useAaveReserveDetail({
     collateralValueUsd,
     debtValueUsd,
     healthFactor,
+    isPositionDataStale,
     isLoading: positionLoading,
+    refetch: refetchPosition,
   } = useAaveUserPosition(address);
 
   // Chainlink oracle prices (cached app-wide via React Query)
@@ -186,5 +193,7 @@ export function useAaveReserveDetail({
     healthFactor,
     tokenPriceUsd,
     error: pricesError ?? splitParamsError ?? null,
+    isPositionDataStale,
+    refetchPosition,
   };
 }

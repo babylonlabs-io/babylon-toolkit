@@ -6,7 +6,7 @@
  * Repaying improves the health factor.
  */
 
-import { FULL_REPAY_TOLERANCE } from "../../../../constants";
+import { NEAR_ZERO_DEBT_DISPLAY_THRESHOLD } from "../../../../constants";
 import {
   calculateBorrowRatio,
   calculateHealthFactor,
@@ -67,7 +67,8 @@ export function useRepayMetrics({
     0,
     totalDebtValueUsd - repayAmount * tokenPriceUsd,
   );
-  const isFullRepayment = projectedTotalDebtUsd < FULL_REPAY_TOLERANCE;
+  const isDebtNearZero =
+    projectedTotalDebtUsd < NEAR_ZERO_DEBT_DISPLAY_THRESHOLD;
 
   const healthFactorValue =
     projectedTotalDebtUsd > 0
@@ -94,11 +95,9 @@ export function useRepayMetrics({
         ? "-"
         : formatHealthFactor(healthFactorValue),
     healthFactorValue,
-    healthFactorOriginal: isFullRepayment
+    healthFactorOriginal: isDebtNearZero
       ? undefined
       : formatHealthFactor(currentHealthFactor),
-    healthFactorOriginalValue: isFullRepayment
-      ? undefined
-      : originalHealthValue,
+    healthFactorOriginalValue: isDebtNearZero ? undefined : originalHealthValue,
   };
 }

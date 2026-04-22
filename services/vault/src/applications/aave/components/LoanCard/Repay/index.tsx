@@ -57,6 +57,7 @@ export function Repay() {
   const {
     repayAmount,
     setRepayAmount,
+    setRepayAmountWithMode,
     resetRepayAmount,
     maxRepayAmount,
     isFullRepayment,
@@ -129,7 +130,13 @@ export function Repay() {
               label: "Max",
               value: `${formatTokenAmount(sliderMaxRepay)} ${assetConfig.symbol}`,
             }}
-            onMaxClick={() => setRepayAmount(sliderMaxRepay)}
+            onMaxClick={() => {
+              const canCoverFullDebt = maxRepayAmount >= currentDebtAmount;
+              setRepayAmountWithMode(
+                sliderMaxRepay,
+                canCoverFullDebt ? "full" : "partial",
+              );
+            }}
             rightField={{
               value:
                 tokenPriceUsd != null

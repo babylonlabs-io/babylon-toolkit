@@ -84,4 +84,27 @@ describe("validateBorrowAction", () => {
       errorMessage: null,
     });
   });
+
+  it("disables with 'Refreshing position...' when position data is stale", () => {
+    const result = validateBorrowAction(5000, 2.0, 10000, true);
+
+    expect(result).toEqual({
+      isDisabled: true,
+      buttonText: "Refreshing position...",
+      errorMessage: null,
+    });
+  });
+
+  it("does not block when isPositionDataStale is false", () => {
+    const result = validateBorrowAction(5000, 2.0, 10000, false);
+
+    expect(result.isDisabled).toBe(false);
+  });
+
+  it("prioritizes staleness check over other validations", () => {
+    // Stale AND amount is 0 — staleness should take priority
+    const result = validateBorrowAction(0, Infinity, 10000, true);
+
+    expect(result.buttonText).toBe("Refreshing position...");
+  });
 });
