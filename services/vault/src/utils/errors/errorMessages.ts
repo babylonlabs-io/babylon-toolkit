@@ -48,6 +48,10 @@ export const CONTRACT_ERROR_MESSAGES: Record<string, string> = {
   InclusionProofVerificationFailed:
     "Bitcoin inclusion proof verification failed.",
   BitcoinTransactionParsingFailed: "Failed to parse Bitcoin transaction.",
+  PrePeginOutputAlreadyUsed:
+    "This pre-pegin output has already been used to activate another vault.",
+  PeginTransactionAlreadyUsed:
+    "This pegin transaction has already been used to activate another vault.",
 
   // ============================================================================
   // Vault Provider errors
