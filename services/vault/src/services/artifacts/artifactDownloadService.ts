@@ -91,7 +91,8 @@ async function validateArtifactPayload(blob: Blob): Promise<void> {
 
   let text: string;
   try {
-    text = await blob.text();
+    const buffer = await blob.arrayBuffer();
+    text = new TextDecoder("utf-8").decode(buffer);
   } catch (err) {
     throw new VpResponseValidationError(
       `Failed to read artifact payload: ${err instanceof Error ? err.message : "unknown error"}`,
