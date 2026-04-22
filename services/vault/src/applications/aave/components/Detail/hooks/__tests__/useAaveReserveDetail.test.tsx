@@ -44,7 +44,7 @@ vi.mock("@babylonlabs-io/config", () => ({
 const mockGetBTCNetwork = vi.fn(() => 1); // Default: Network.SIGNET
 
 vi.mock("@/config", () => ({
-  getBTCNetwork: (...args: unknown[]) => mockGetBTCNetwork(...args),
+  getBTCNetwork: () => mockGetBTCNetwork(),
   getNetworkConfigBTC: vi.fn(() => ({
     network: "signet",
     mempoolApiUrl: "https://mempool.space/signet/api",
@@ -110,7 +110,7 @@ vi.mock("../../../../context", () => ({
 }));
 
 // Mock useAaveUserPosition
-const mockUseAaveUserPosition = vi.fn(() => ({
+const mockUseAaveUserPosition = vi.fn<(addr?: string) => unknown>(() => ({
   position: null,
   collateralValueUsd: 15000,
   debtValueUsd: 0,
@@ -123,15 +123,15 @@ const mockUseAaveUserPosition = vi.fn(() => ({
 }));
 
 // Mock useVaultSplitParams
-const mockUseVaultSplitParams = vi.fn(() => ({
+const mockUseVaultSplitParams = vi.fn<(addr?: string) => unknown>(() => ({
   params: { THF: 1.1, CF: 0.75, LB: 1.05 },
   isLoading: false,
   error: null,
 }));
 
 vi.mock("../../../../hooks", () => ({
-  useAaveUserPosition: (...args: unknown[]) => mockUseAaveUserPosition(...args),
-  useVaultSplitParams: (...args: unknown[]) => mockUseVaultSplitParams(...args),
+  useAaveUserPosition: (addr?: string) => mockUseAaveUserPosition(addr),
+  useVaultSplitParams: (addr?: string) => mockUseVaultSplitParams(addr),
 }));
 
 // Import after mocks
