@@ -26,6 +26,7 @@ import { useRefundState } from "@/hooks/deposit/useRefundState";
 import { useRunOnce } from "@/hooks/useRunOnce";
 import { fetchVaultById } from "@/services/vault/fetchVaults";
 import {
+  computeWotsPublicKeysHash,
   deriveWotsBlockPublicKeys,
   getMnemonicIdForPegin,
   hasMnemonicEntry,
@@ -225,6 +226,20 @@ export function ResumeWotsContent({
           activity.applicationEntryPoint,
         );
         seed.fill(0);
+
+        if (!activity.depositorWotsPkHash) {
+          throw new Error(
+            "Missing on-chain WOTS public key hash — cannot verify mnemonic. " +
+              "The vault may not be fully indexed yet. Please try again shortly.",
+          );
+        }
+
+        const computedHash = computeWotsPublicKeysHash(wotsPublicKeys);
+        if (computedHash !== activity.depositorWotsPkHash) {
+          throw new Error(
+            "WOTS public key hash does not match the on-chain commitment — the provided mnemonic is incorrect",
+          );
+        }
 
         await submitWotsPublicKey({
           peginTxHash,
