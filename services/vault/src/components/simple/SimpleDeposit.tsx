@@ -7,6 +7,7 @@ import { useAddressScreening } from "@/context/addressScreening";
 import { useGeoFencing } from "@/context/geofencing";
 import { ProtocolParamsProvider } from "@/context/ProtocolParamsContext";
 import { useDialogStep } from "@/hooks/deposit/useDialogStep";
+import { useProtocolFeeRows } from "@/hooks/useProtocolFeeRows";
 import { depositService } from "@/services/deposit";
 import type { VaultActivity } from "@/types/activity";
 import type { VaultProvider } from "@/types/vaultProvider";
@@ -104,6 +105,7 @@ function SimpleDepositContent({
   const { isGeoBlocked, isLoading: isGeoLoading } = useGeoFencing();
   const { isBlocked: isAddressBlocked, isLoading: isScreeningLoading } =
     useAddressScreening();
+  const { rows: feeRows } = useProtocolFeeRows();
 
   const {
     formData,
@@ -306,6 +308,7 @@ function SimpleDepositContent({
                 isAddressBlocked={isAddressBlocked || isScreeningLoading}
                 onDeposit={handleDeposit}
                 partialLiquidation={partialLiquidationProps}
+                feeRows={feeRows}
               />
             </div>
           </div>
