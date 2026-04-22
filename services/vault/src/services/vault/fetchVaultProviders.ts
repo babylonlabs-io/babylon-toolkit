@@ -7,7 +7,13 @@
 
 import { gql } from "graphql-request";
 
+import { logger } from "@/infrastructure";
+
 import { graphqlClient } from "../../clients/graphql/client";
+import {
+  BTC_PUBKEY_HEX_PATTERN,
+  ETH_ADDRESS_PATTERN,
+} from "../../utils/validation";
 
 const GET_VAULT_PROVIDERS = gql`
   query GetVaultProviders {
@@ -69,15 +75,49 @@ interface VaultProviderResponse {
 }
 
 /**
+ * Validate critical fields on a vault provider from GraphQL.
+ * Returns null (with a warning) if validation fails — one bad provider
+ * should not crash the entire list fetch.
+ */
+function validateVaultProvider(item: VaultProvider): VaultProvider | null {
+  if (!ETH_ADDRESS_PATTERN.test(item.id)) {
+    logger.warn(
+      `[fetchVaultProviders] Skipping provider with invalid id: "${item.id.slice(0, 20)}"`,
+    );
+    return null;
+  }
+  if (!BTC_PUBKEY_HEX_PATTERN.test(item.btcPubKey)) {
+    logger.warn(
+      `[fetchVaultProviders] Skipping provider ${item.id}: invalid btcPubKey format`,
+    );
+    return null;
+  }
+  if (!ETH_ADDRESS_PATTERN.test(item.applicationEntryPoint)) {
+    logger.warn(
+      `[fetchVaultProviders] Skipping provider ${item.id}: invalid applicationEntryPoint "${item.applicationEntryPoint.slice(0, 20)}"`,
+    );
+    return null;
+  }
+  return item;
+}
+
+/**
  * Fetch all vault providers from GraphQL
  *
- * @returns Array of vault providers
+ * @returns Array of vault providers (invalid entries are filtered out with warnings)
  */
 export async function fetchVaultProviders(): Promise<VaultProvider[]> {
   const data =
     await graphqlClient.request<VaultProvidersResponse>(GET_VAULT_PROVIDERS);
 
-  return data.vaultProviders.items;
+  const providers: VaultProvider[] = [];
+  for (const item of data.vaultProviders.items) {
+    const validated = validateVaultProvider(item);
+    if (validated) {
+      providers.push(validated);
+    }
+  }
+  return providers;
 }
 
 /**
@@ -94,5 +134,8 @@ export async function fetchVaultProviderById(
     { id: providerId.toLowerCase() },
   );
 
-  return data.vaultProvider;
+  if (!data.vaultProvider) {
+    return null;
+  }
+  return validateVaultProvider(data.vaultProvider);
 }
