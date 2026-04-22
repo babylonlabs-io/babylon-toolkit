@@ -5,7 +5,10 @@
 
 import { Avatar, AvatarGroup } from "@babylonlabs-io/core-ui";
 
-import { getTokenByAddress } from "@/services/token";
+import {
+  getCurrencyIconWithFallback,
+  getTokenByAddress,
+} from "@/services/token";
 
 import type { AaveReserveConfig } from "../../../services";
 
@@ -21,7 +24,10 @@ export function BorrowableAssetsValue({
     return {
       address: reserve.token.address,
       symbol: reserve.token.symbol,
-      icon: tokenMetadata?.icon,
+      icon: getCurrencyIconWithFallback(
+        tokenMetadata?.icon,
+        reserve.token.symbol,
+      ),
     };
   });
 

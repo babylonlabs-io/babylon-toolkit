@@ -14,7 +14,10 @@ import { formatUnits } from "viem";
 
 import { getBTCNetwork } from "@/config";
 import { usePrices } from "@/hooks/usePrices";
-import { getTokenByAddress } from "@/services/token/tokenService";
+import {
+  getCurrencyIconWithFallback,
+  getTokenByAddress,
+} from "@/services/token/tokenService";
 
 import {
   BPS_SCALE,
@@ -88,7 +91,10 @@ export function useAaveReserveDetail({
     return {
       name: selectedReserve.token.name,
       symbol: selectedReserve.token.symbol,
-      icon: tokenMetadata?.icon ?? "",
+      icon: getCurrencyIconWithFallback(
+        tokenMetadata?.icon,
+        selectedReserve.token.symbol,
+      ),
     };
   }, [selectedReserve]);
 
