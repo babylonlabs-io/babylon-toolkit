@@ -288,6 +288,7 @@ describe("Deposit Validations", () => {
       depositorClaimValue: 5000n,
       isDepositDisabled: false,
       isGeoBlocked: false,
+      isAddressBlocked: false,
       isWalletConnected: true,
       hasApplication: true,
       hasProvider: true,
@@ -322,6 +323,26 @@ describe("Deposit Validations", () => {
         disabled: true,
         label: "Service unavailable in your region",
       });
+    });
+
+    it("returns 'Wallet not eligible' when address is blocked", () => {
+      const result = getDepositCtaState({
+        ...readyParams,
+        isAddressBlocked: true,
+      });
+      expect(result).toEqual({
+        disabled: true,
+        label: "Wallet not eligible",
+      });
+    });
+
+    it("prioritizes geo-blocked over address-blocked", () => {
+      const result = getDepositCtaState({
+        ...readyParams,
+        isGeoBlocked: true,
+        isAddressBlocked: true,
+      });
+      expect(result.label).toBe("Service unavailable in your region");
     });
 
     it("returns 'Connect your wallet' when wallet is not connected", () => {

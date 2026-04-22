@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { Hex } from "viem";
 
 import { FeatureFlags } from "@/config";
+import { useAddressScreening } from "@/context/addressScreening";
 import { useGeoFencing } from "@/context/geofencing";
 import { ProtocolParamsProvider } from "@/context/ProtocolParamsContext";
 import { useDialogStep } from "@/hooks/deposit/useDialogStep";
@@ -102,6 +103,8 @@ function SimpleDepositContent({
   initialAmountBtc,
 }: SimpleDepositBaseProps) {
   const { isGeoBlocked, isLoading: isGeoLoading } = useGeoFencing();
+  const { isBlocked: isAddressBlocked, isLoading: isScreeningLoading } =
+    useAddressScreening();
   const { rows: feeRows } = useProtocolFeeRows();
 
   const {
@@ -302,6 +305,7 @@ function SimpleDepositContent({
                 feeError={feeError}
                 isDepositDisabled={FeatureFlags.isDepositDisabled}
                 isGeoBlocked={isGeoBlocked || isGeoLoading}
+                isAddressBlocked={isAddressBlocked || isScreeningLoading}
                 onDeposit={handleDeposit}
                 partialLiquidation={partialLiquidationProps}
                 feeRows={feeRows}
