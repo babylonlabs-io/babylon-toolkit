@@ -100,17 +100,27 @@ async function getProtocolParamsAddress(): Promise<Address> {
     return cached.address;
   }
 
-  const address = await publicClient.readContract({
-    address: CONTRACTS.BTC_VAULT_REGISTRY,
-    abi: BTCVaultRegistryAbi,
-    functionName: "protocolParams",
-  });
+  try {
+    const address = await publicClient.readContract({
+      address: CONTRACTS.BTC_VAULT_REGISTRY,
+      abi: BTCVaultRegistryAbi,
+      functionName: "protocolParams",
+    });
 
-  protocolParamsAddressCache.set(chainId, {
-    address: address as Address,
-    fetchedAt: Date.now(),
-  });
-  return address as Address;
+    protocolParamsAddressCache.set(chainId, {
+      address: address as Address,
+      fetchedAt: Date.now(),
+    });
+    return address as Address;
+  } catch (error) {
+    // Stale-while-revalidate: if the RPC call fails but we have a
+    // previously fetched address, return it rather than blocking the UI.
+    // Governance upgrades are rare; transient RPC failures are not.
+    if (cached) {
+      return cached.address;
+    }
+    throw error;
+  }
 }
 
 /**

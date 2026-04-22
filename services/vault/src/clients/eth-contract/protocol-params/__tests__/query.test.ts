@@ -95,6 +95,48 @@ describe("getProtocolParamsAddress cache TTL", () => {
   });
 });
 
+describe("getProtocolParamsAddress stale cache fallback", () => {
+  it("returns stale cached address when RPC refresh fails", async () => {
+    vi.useFakeTimers();
+    try {
+      mockGetChainId.mockResolvedValue(11155111);
+      mockReadContract.mockResolvedValue(PROTOCOL_PARAMS_ADDRESS);
+      mockMulticall.mockResolvedValue([
+        VALID_TBV_PARAMS,
+        VALID_OFFCHAIN_PARAMS,
+      ]);
+
+      // First call succeeds and populates the cache
+      await query.getPegInConfiguration();
+
+      // Advance past TTL
+      vi.advanceTimersByTime(5 * 60 * 1000 + 1);
+
+      // Registry read fails, but multicall still works (different contract)
+      mockReadContract.mockRejectedValueOnce(new Error("rpc unavailable"));
+      mockMulticall.mockResolvedValue([
+        VALID_TBV_PARAMS,
+        VALID_OFFCHAIN_PARAMS,
+      ]);
+
+      // Should succeed using stale cached address
+      const config = await query.getPegInConfiguration();
+      expect(config.minimumPegInAmount).toBe(100_000n);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("throws when RPC fails and there is no cached address", async () => {
+    mockGetChainId.mockResolvedValue(11155111);
+    mockReadContract.mockRejectedValue(new Error("rpc unavailable"));
+
+    await expect(query.getPegInConfiguration()).rejects.toThrow(
+      "rpc unavailable",
+    );
+  });
+});
+
 describe("getPegInConfiguration validation", () => {
   it("throws when contract returns invalid offchain params", async () => {
     mockGetChainId.mockResolvedValue(11155111);
