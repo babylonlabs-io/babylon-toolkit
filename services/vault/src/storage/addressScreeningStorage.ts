@@ -6,8 +6,9 @@
  * network-scoped map.
  */
 
-const BTC_NETWORK = process.env.NEXT_PUBLIC_BTC_NETWORK ?? "unknown";
-const STORAGE_KEY = `tbv-address-screening-${BTC_NETWORK}`;
+import { getBTCNetwork } from "@/config";
+
+const STORAGE_KEY = `tbv-address-screening-${getBTCNetwork()}`;
 
 /** Re-screen addresses after 24 hours so updated risk assessments propagate. */
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000;

@@ -29,14 +29,16 @@ const AddressScreeningContext = createContext<AddressScreeningContextType>({
 });
 
 /**
- * Screens an address, consulting the localStorage cache first.
- * Resolves to `true` when the address is blocked (failed risk assessment).
- *
- * TODO FOR REVIEW: network-error policy is hard-block (returns `true` on any
- * utils-api failure). Confirm this is the desired behavior — alternative is
- * soft-allow to avoid locking users out on transient outages.
+ * Checks whether an address is blocked, consulting the localStorage cache
+ * first. Resolves to `true` when the address failed risk assessment or when
+ * the screening API is unreachable (hard-block on error is intentional; the
+ * result is not cached so a later retry can succeed).
  */
-async function screen(address: string): Promise<boolean> {
+async function isAddressBlocked(
+  address: string | undefined,
+): Promise<boolean> {
+  if (!address) return false;
+
   const cached = getAddressScreeningResult(address);
   if (cached !== undefined) {
     return cached;
@@ -44,9 +46,9 @@ async function screen(address: string): Promise<boolean> {
 
   try {
     const allowed = await verifyAddress(address);
-    const failed = !allowed;
-    setAddressScreeningResult(address, failed);
-    return failed;
+    const blocked = !allowed;
+    setAddressScreeningResult(address, blocked);
+    return blocked;
   } catch (error) {
     if (error instanceof AddressScreeningNetworkError) {
       logger.warn("Address screening network error — hard-blocking", {
@@ -57,7 +59,6 @@ async function screen(address: string): Promise<boolean> {
         data: { context: "Address screening unexpected error", address },
       });
     }
-    // Hard-block on any failure. Not cached so a later retry can succeed.
     return true;
   }
 }
@@ -100,12 +101,12 @@ export function AddressScreeningProvider({ children }: PropsWithChildren) {
     setIsLoading(true);
 
     Promise.all([
-      btcAddress ? screen(btcAddress) : Promise.resolve(false),
-      ethAddress ? screen(ethAddress) : Promise.resolve(false),
-    ]).then(([btcFailed, ethFailed]) => {
+      isAddressBlocked(btcAddress),
+      isAddressBlocked(ethAddress),
+    ]).then(([btcIsBlocked, ethIsBlocked]) => {
       if (cancelled) return;
-      setBtcBlocked(btcFailed);
-      setEthBlocked(ethFailed);
+      setBtcBlocked(btcIsBlocked);
+      setEthBlocked(ethIsBlocked);
       setIsLoading(false);
     });
 
