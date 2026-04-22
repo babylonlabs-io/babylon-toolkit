@@ -3,7 +3,7 @@
  * Container for the scrollable vault list and withdraw button.
  */
 
-import { Button } from "@babylonlabs-io/core-ui";
+import { Button, Text } from "@babylonlabs-io/core-ui";
 
 import type { CollateralVaultEntry } from "@/types/collateral";
 
@@ -13,6 +13,8 @@ interface CollateralExpandedContentProps {
   vaults: CollateralVaultEntry[];
   onWithdraw: () => void;
   canWithdraw: boolean;
+  /** Rendered as an inline helper below the Withdraw button when it is disabled. */
+  disabledReason?: string;
   onArtifactDownload?: (vaultId: string) => void;
 }
 
@@ -20,6 +22,7 @@ export function CollateralExpandedContent({
   vaults,
   onWithdraw,
   canWithdraw,
+  disabledReason,
   onArtifactDownload,
 }: CollateralExpandedContentProps) {
   return (
@@ -45,7 +48,6 @@ export function CollateralExpandedContent({
         ))}
       </div>
 
-      {/* Withdraw button — withdraws ALL collateral (Aave constraint) */}
       <Button
         variant="outlined"
         color="primary"
@@ -55,6 +57,15 @@ export function CollateralExpandedContent({
       >
         Withdraw
       </Button>
+      {!canWithdraw && disabledReason && (
+        <Text
+          variant="body2"
+          className="text-center text-accent-secondary"
+          data-testid="withdraw-disabled-reason"
+        >
+          {disabledReason}
+        </Text>
+      )}
     </div>
   );
 }

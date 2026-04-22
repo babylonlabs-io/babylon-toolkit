@@ -27,3 +27,14 @@ export {
 } from "./healthFactorDisplay";
 
 export type { HealthFactorColor } from "./healthFactorDisplay";
+
+// Withdrawal eligibility helpers (frontend-only)
+export {
+  canWithdrawAnyVault,
+  computeProjectedHealthFactor,
+  getVaultWithdrawalUsd,
+  isHealthFactorAtOrAbove,
+  isVaultIndividuallyWithdrawable,
+} from "./withdrawEligibility";
+
+export type { PositionSnapshot } from "./withdrawEligibility";

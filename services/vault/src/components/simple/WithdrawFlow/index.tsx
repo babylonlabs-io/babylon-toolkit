@@ -2,6 +2,11 @@ import { FullScreenDialog } from "@babylonlabs-io/core-ui";
 import { useCallback, useMemo, useState } from "react";
 
 import { useWithdrawCollateralTransaction } from "@/applications/aave/hooks/useWithdrawCollateralTransaction";
+import {
+  computeProjectedHealthFactor,
+  isVaultIndividuallyWithdrawable,
+  type PositionSnapshot,
+} from "@/applications/aave/utils";
 import { ProtocolParamsProvider } from "@/context/ProtocolParamsContext";
 import { useDialogStep } from "@/hooks/deposit/useDialogStep";
 import type { CollateralVaultEntry } from "@/types/collateral";
@@ -19,6 +24,10 @@ export interface WithdrawFlowProps {
   collateralVaults: CollateralVaultEntry[];
   collateralBtc: number;
   collateralValueUsd: number;
+  debtValueUsd: number;
+  liquidationThresholdBps: number;
+  /** User's current on-chain health factor (null when no debt). */
+  currentHealthFactor: number | null;
 }
 
 function WithdrawFlowContent({
@@ -27,6 +36,9 @@ function WithdrawFlowContent({
   collateralVaults,
   collateralBtc,
   collateralValueUsd,
+  debtValueUsd,
+  liquidationThresholdBps,
+  currentHealthFactor,
 }: WithdrawFlowProps) {
   const { step, goToReview, goToProgress, reset } = useWithdrawFlow();
   const { executeWithdraw, isProcessing } = useWithdrawCollateralTransaction();
@@ -34,16 +46,57 @@ function WithdrawFlowContent({
 
   const renderedStep = useDialogStep(open, step, reset);
 
-  // Compute amounts for only the selected vaults
-  const { selectedBtc, selectedUsd } = useMemo(() => {
+  const position: PositionSnapshot = useMemo(
+    () => ({
+      collateralBtc,
+      collateralValueUsd,
+      debtValueUsd,
+      liquidationThresholdBps,
+    }),
+    [collateralBtc, collateralValueUsd, debtValueUsd, liquidationThresholdBps],
+  );
+
+  // Eligibility map: which in-use vaults can be withdrawn individually
+  // without breaching HF 1.0. Used by the selector to grey unsafe vaults.
+  const vaultEligibility = useMemo(() => {
+    const map = new Map<string, boolean>();
+    for (const v of collateralVaults) {
+      if (!v.inUse) continue;
+      map.set(
+        v.vaultId,
+        isVaultIndividuallyWithdrawable(v.amountBtc, position),
+      );
+    }
+    return map;
+  }, [collateralVaults, position]);
+
+  // Aggregate amounts and projected HF for the current selection.
+  const { selectedBtc, selectedUsd, projectedHealthFactor } = useMemo(() => {
     const selected = collateralVaults.filter(
       (v) => v.inUse && selectedVaultIds.includes(v.vaultId),
     );
     const btc = selected.reduce((sum, v) => sum + v.amountBtc, 0);
     const usd =
       collateralBtc > 0 ? collateralValueUsd * (btc / collateralBtc) : 0;
-    return { selectedBtc: btc, selectedUsd: usd };
-  }, [collateralVaults, selectedVaultIds, collateralBtc, collateralValueUsd]);
+    const projectedHF = computeProjectedHealthFactor(
+      collateralValueUsd,
+      usd,
+      debtValueUsd,
+      liquidationThresholdBps,
+    );
+    return {
+      selectedBtc: btc,
+      selectedUsd: usd,
+      projectedHealthFactor: projectedHF,
+    };
+  }, [
+    collateralVaults,
+    selectedVaultIds,
+    collateralBtc,
+    collateralValueUsd,
+    debtValueUsd,
+    liquidationThresholdBps,
+  ]);
 
   const handleSelectVaults = useCallback(
     (vaultIds: string[]) => {
@@ -71,6 +124,7 @@ function WithdrawFlowContent({
           <div className="mx-auto w-full max-w-[520px]">
             <WithdrawVaultSelector
               vaults={collateralVaults}
+              vaultEligibility={vaultEligibility}
               onNext={handleSelectVaults}
             />
           </div>
@@ -80,6 +134,8 @@ function WithdrawFlowContent({
             <WithdrawReviewContent
               totalAmountBtc={selectedBtc}
               totalAmountUsd={selectedUsd}
+              currentHealthFactor={currentHealthFactor}
+              projectedHealthFactor={projectedHealthFactor}
               isProcessing={isProcessing}
               onConfirm={handleConfirm}
             />

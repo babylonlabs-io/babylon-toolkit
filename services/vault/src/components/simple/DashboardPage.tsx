@@ -59,12 +59,12 @@ export function DashboardPage() {
     collateralBtc,
     collateralValueUsd,
     debtValueUsd,
+    liquidationThresholdBps,
     healthFactor,
     healthFactorStatus,
     borrowedAssets,
     hasLoans,
     hasCollateral,
-    hasDebt,
     collateralVaults,
     selectableBorrowedAssets,
   } = useDashboardState(address);
@@ -166,7 +166,10 @@ export function DashboardPage() {
           collateralVaults={collateralVaults}
           hasCollateral={hasCollateral}
           isConnected={isConnected}
-          hasDebt={hasDebt}
+          collateralBtc={collateralBtc}
+          collateralValueUsd={collateralValueUsd}
+          debtValueUsd={debtValueUsd}
+          liquidationThresholdBps={liquidationThresholdBps}
           onWithdraw={handleWithdraw}
           onDeposit={openDeposit}
         />
@@ -197,6 +200,9 @@ export function DashboardPage() {
         collateralVaults={collateralVaults}
         collateralBtc={collateralBtc}
         collateralValueUsd={collateralValueUsd}
+        debtValueUsd={debtValueUsd}
+        liquidationThresholdBps={liquidationThresholdBps}
+        currentHealthFactor={healthFactor}
       />
 
       {/* Asset Selection Modal for Borrow/Repay */}
