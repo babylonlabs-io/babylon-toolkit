@@ -40,7 +40,7 @@ const WARNING_TYPE_COLORS: Record<WarningType, string> = {
 };
 
 const STATUS_MESSAGES: Record<
-  Exclude<PositionNotificationsStatus, "flag-off" | "ready">,
+  Exclude<PositionNotificationsStatus, "ready">,
   string
 > = {
   loading: "Loading position data...",
@@ -503,8 +503,6 @@ export function PositionNotificationsDebugPanel({
       onStatusChange?.(null);
     }
   }, [displayResult, simulateStalePrice, onResultChange, onStatusChange]);
-
-  if (status === "flag-off") return null;
 
   return (
     <details className="rounded-lg border border-dashed border-purple-400 bg-purple-50 p-4 dark:border-purple-700 dark:bg-purple-950/30">

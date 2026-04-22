@@ -59,15 +59,15 @@ export default {
   },
 
   /**
-   * POSITION_NOTIFICATIONS feature flag
+   * POSITION_DEBUG_PANEL feature flag
    *
-   * Purpose: Enables the position notifications calculator that analyzes
-   * vault structure and shows actionable warnings (cliff, reorder, rebalance, etc.)
-   * Why needed: Feature is being developed incrementally; hidden behind flag until ready
+   * Purpose: Shows the position notifications debug panel on the dashboard,
+   * allowing manual parameter overrides and simulation of notification states.
+   * Why needed: Dev/QA tool for testing position notification scenarios
    * Default: false (disabled unless explicitly set to "true")
    */
-  get isPositionNotificationsEnabled() {
-    return process.env.NEXT_PUBLIC_FF_POSITION_NOTIFICATIONS === "true";
+  get isPositionDebugPanelEnabled() {
+    return process.env.NEXT_PUBLIC_FF_POSITION_DEBUG_PANEL === "true";
   },
 
   /**
