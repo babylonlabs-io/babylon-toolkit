@@ -133,7 +133,7 @@ export function Repay() {
             onMaxClick={() => {
               const canCoverFullDebt = maxRepayAmount >= currentDebtAmount;
               setRepayAmountWithMode(
-                sliderMaxRepay,
+                maxRepayAmount,
                 canCoverFullDebt ? "full" : "partial",
               );
             }}

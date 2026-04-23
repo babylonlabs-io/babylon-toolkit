@@ -201,6 +201,9 @@ export function useAaveUserPosition(
     error: positionsError as Error | null,
     refetch: async () => {
       const result = await refetch();
+      if (result.isError) {
+        throw result.error ?? new Error("Failed to refetch position data");
+      }
       return result.data?.[0] ?? null;
     },
   };
