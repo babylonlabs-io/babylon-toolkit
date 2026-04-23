@@ -152,6 +152,9 @@ describe("useAaveReserveDetail", () => {
     });
     vi.clearAllMocks();
 
+    // Reset network to signet (default for tests)
+    mockGetBTCNetwork.mockReturnValue(1); // Network.SIGNET
+
     // Reset to default mock values
     mockUsePrices.mockReturnValue({
       prices: {},
@@ -236,6 +239,76 @@ describe("useAaveReserveDetail", () => {
     );
 
     expect(result.current.tokenPriceUsd).toBeNull();
+  });
+
+  it("returns null when Chainlink price is stale on mainnet", () => {
+    mockGetBTCNetwork.mockReturnValue(0); // Network.MAINNET
+
+    mockUsePrices.mockReturnValue({
+      prices: { USDC: 0.9998 },
+      metadata: {
+        USDC: { isStale: true, ageSeconds: 7200, fetchFailed: false },
+      },
+      isLoading: false,
+      error: null,
+      hasStalePrices: true,
+      hasPriceFetchError: false,
+    });
+
+    const { result } = renderHook(
+      () => useAaveReserveDetail({ reserveId: "USDC", address: "0xUser" }),
+      { wrapper },
+    );
+
+    expect(result.current.tokenPriceUsd).toBeNull();
+  });
+
+  it("returns null when Chainlink fetch failed on mainnet", () => {
+    mockGetBTCNetwork.mockReturnValue(0); // Network.MAINNET
+
+    mockUsePrices.mockReturnValue({
+      prices: { USDC: 1.0 },
+      metadata: {
+        USDC: {
+          isStale: false,
+          ageSeconds: 0,
+          fetchFailed: true,
+          error: "RPC timeout",
+        },
+      },
+      isLoading: false,
+      error: null,
+      hasStalePrices: false,
+      hasPriceFetchError: true,
+    });
+
+    const { result } = renderHook(
+      () => useAaveReserveDetail({ reserveId: "USDC", address: "0xUser" }),
+      { wrapper },
+    );
+
+    expect(result.current.tokenPriceUsd).toBeNull();
+  });
+
+  it("falls back to $1 for stale stablecoin price on testnet", () => {
+    // getBTCNetwork returns signet (1) by default
+    mockUsePrices.mockReturnValue({
+      prices: { USDC: 0.9998 },
+      metadata: {
+        USDC: { isStale: true, ageSeconds: 7200, fetchFailed: false },
+      },
+      isLoading: false,
+      error: null,
+      hasStalePrices: true,
+      hasPriceFetchError: false,
+    });
+
+    const { result } = renderHook(
+      () => useAaveReserveDetail({ reserveId: "USDC", address: "0xUser" }),
+      { wrapper },
+    );
+
+    expect(result.current.tokenPriceUsd).toBe(1.0);
   });
 
   it("returns null for unknown token without Chainlink price", () => {

@@ -104,6 +104,7 @@ export function useAaveReserveDetail({
   // Chainlink oracle prices (cached app-wide via React Query)
   const {
     prices: chainlinkPrices,
+    metadata: priceMetadata,
     isLoading: pricesLoading,
     error: pricesError,
   } = usePrices();
@@ -146,8 +147,14 @@ export function useAaveReserveDetail({
 
     const symbol = selectedReserve.token.symbol.toUpperCase();
     const price = chainlinkPrices[symbol];
+    const metadata = priceMetadata[symbol];
 
-    if (price != null && price > 0) {
+    // Reject stale or failed prices — a stale feed during a depeg event
+    // would produce an inflated max-borrow / HF
+    // Treat stale/failed the same as missing.
+    const isPriceReliable = !metadata?.isStale && !metadata?.fetchFailed;
+
+    if (price != null && price > 0 && isPriceReliable) {
       return price;
     }
 
@@ -163,7 +170,7 @@ export function useAaveReserveDetail({
     }
 
     return null;
-  }, [selectedReserve, chainlinkPrices]);
+  }, [selectedReserve, chainlinkPrices, priceMetadata]);
 
   return {
     isLoading:
