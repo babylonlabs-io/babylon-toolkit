@@ -40,13 +40,13 @@ describe("aaveConversions", () => {
   });
 
   describe("aaveRayValueToUsd", () => {
-    it("should convert 1e35 to $1 USD", () => {
-      const value = 10n ** 35n;
+    it("should convert 1e53 to $1 USD", () => {
+      const value = 10n ** 53n;
       expect(aaveRayValueToUsd(value)).toBe(1);
     });
 
-    it("should convert 100e35 to $100 USD", () => {
-      const value = 100n * 10n ** 35n;
+    it("should convert 100e53 to $100 USD", () => {
+      const value = 100n * 10n ** 53n;
       expect(aaveRayValueToUsd(value)).toBeCloseTo(100);
     });
 
@@ -55,7 +55,7 @@ describe("aaveConversions", () => {
     });
 
     it("should handle fractional USD values", () => {
-      const value = 5n * 10n ** 34n;
+      const value = 5n * 10n ** 52n;
       expect(aaveRayValueToUsd(value)).toBe(0.5);
     });
   });

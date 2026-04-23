@@ -25,9 +25,9 @@ export function aaveValueToUsd(value: bigint): number {
 /**
  * Convert Aave RAY-scaled base currency value to USD
  *
- * Debt values use higher precision: 1e35 = $1 USD.
+ * Debt values use higher precision: 1e53 = $1 USD.
  *
- * @param value - Value in RAY-scaled base currency (1e35 = $1)
+ * @param value - Value in RAY-scaled base currency (1e53 = $1)
  * @returns Value in USD
  */
 export function aaveRayValueToUsd(value: bigint): number {
