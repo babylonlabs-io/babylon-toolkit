@@ -13,7 +13,6 @@ import {
   deriveBannerState,
   type CalculatorResult,
 } from "@/applications/aave/positionNotifications";
-import featureFlags from "@/config/featureFlags";
 import { invalidateVaultQueries } from "@/utils/queryKeys";
 
 import { ReorderSuccessModal } from "../ReorderVaults";
@@ -81,9 +80,6 @@ export function PositionNotificationBanner({
   }, [result, executeReorder]);
 
   const effectiveStatus = statusOverride ?? status;
-
-  // When no override, respect feature flag
-  if (!hasOverride && !featureFlags.isPositionNotificationsEnabled) return null;
 
   // Stale-price: show yellow warning regardless of result
   if (effectiveStatus === "stale-price") {

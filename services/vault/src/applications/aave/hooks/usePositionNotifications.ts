@@ -1,6 +1,5 @@
 import { useMemo } from "react";
 
-import featureFlags from "@/config/featureFlags";
 import { useDashboardState } from "@/hooks/useDashboardState";
 import { usePrices } from "@/hooks/usePrices";
 
@@ -13,7 +12,6 @@ import {
 import { useVaultSplitParams } from "./useVaultSplitParams";
 
 export type PositionNotificationsStatus =
-  | "flag-off"
   | "loading"
   | "no-wallet"
   | "no-vaults"
@@ -49,8 +47,6 @@ export function usePositionNotifications(
     result: CalculatorResult | null;
     status: PositionNotificationsStatus;
   } => {
-    if (!featureFlags.isPositionNotificationsEnabled)
-      return { result: null, status: "flag-off" };
     if (!splitParams || isLoading) return { result: null, status: "loading" };
     if (!connectedAddress) return { result: null, status: "no-wallet" };
     if (btcMetadata?.isStale || btcMetadata?.fetchFailed)
