@@ -62,6 +62,9 @@ vi.mock("@/clients/eth-contract/client", () => ({
 
 vi.mock("@/services/token/tokenService", () => ({
   getTokenByAddress: vi.fn(() => ({ icon: "usdc-icon" })),
+  getCurrencyIconWithFallback: vi.fn(
+    (icon: string | undefined) => icon ?? "fallback-icon",
+  ),
 }));
 
 // Mock usePrices — returns Chainlink oracle prices
