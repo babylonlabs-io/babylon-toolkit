@@ -57,6 +57,7 @@ vi.mock("../useVaultProviders", () => ({
 vi.mock("@/services/vault/vaultTransactionService", () => ({
   preparePeginTransaction: vi.fn(),
   registerPeginBatchOnChain: vi.fn(),
+  signProofOfPossession: vi.fn(),
 }));
 
 vi.mock("@/services/vault/vaultActivationService", () => ({
@@ -155,6 +156,7 @@ vi.mock("../depositFlowSteps", () => ({
   getEthWalletClient: vi.fn(),
   registerPeginBatchAndWait: vi.fn(),
   signAndSubmitPayouts: vi.fn(),
+  signProofOfPossession: vi.fn(),
   submitWotsPublicKey: vi.fn(),
   waitForContractVerification: vi.fn(),
 }));
@@ -193,7 +195,6 @@ const MOCK_DEPOSITOR_PUBKEY = "ab".repeat(32);
 
 const MOCK_BATCH_RESULT = {
   fundedPrePeginTxHex: "batchFundedPrePeginHex",
-  unsignedPrePeginTxHex: "batchUnsignedPrePeginHex",
   depositorBtcPubkey: MOCK_DEPOSITOR_PUBKEY,
   selectedUTXOs: [MOCK_UTXO_1, MOCK_UTXO_2],
   fee: 2000n,
@@ -272,6 +273,7 @@ async function setupDefaultMocks() {
     getEthWalletClient,
     registerPeginBatchAndWait,
     signAndSubmitPayouts,
+    signProofOfPossession,
     waitForContractVerification,
   } = vi.mocked(await import("../depositFlowSteps"));
 
@@ -316,6 +318,11 @@ async function setupDefaultMocks() {
   );
 
   vi.mocked(getEthWalletClient).mockResolvedValue(MOCK_ETH_WALLET as any);
+  vi.mocked(signProofOfPossession).mockResolvedValue({
+    btcPopSignature: "0xMockPopSignature" as Hex,
+    depositorEthAddress: "0xEthAddress123" as `0x${string}`,
+    depositorBtcPubkey: MOCK_DEPOSITOR_PUBKEY,
+  });
   vi.mocked(registerPeginBatchAndWait).mockResolvedValue({
     ethTxHash: "0xBatchEthTxHash" as Hex,
     vaults: [
@@ -328,7 +335,6 @@ async function setupDefaultMocks() {
         peginTxHash: "0xVault1BtcTxHash" as Hex,
       },
     ],
-    btcPopSignature: "0xMockPopSignature" as Hex,
   });
   vi.mocked(signAndSubmitPayouts).mockResolvedValue(undefined);
   vi.mocked(waitForContractVerification).mockResolvedValue(undefined);
@@ -391,6 +397,35 @@ describe("useDepositFlow", () => {
   });
 
   describe("Batch Registration", () => {
+    it("should sign PoP before registration and forward the artifact", async () => {
+      const { registerPeginBatchAndWait, signProofOfPossession } = vi.mocked(
+        await import("../depositFlowSteps"),
+      );
+
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+      await executeWithAutoArtifactDownload(result);
+
+      await waitFor(() => {
+        expect(signProofOfPossession).toHaveBeenCalledTimes(1);
+        expect(registerPeginBatchAndWait).toHaveBeenCalledTimes(1);
+      });
+
+      // PoP must be signed strictly before the register call.
+      const popInvocationOrder =
+        signProofOfPossession.mock.invocationCallOrder[0];
+      const registerInvocationOrder =
+        registerPeginBatchAndWait.mock.invocationCallOrder[0];
+      expect(popInvocationOrder).toBeLessThan(registerInvocationOrder);
+
+      // The artifact must be passed through to register unchanged.
+      const callArgs = registerPeginBatchAndWait.mock.calls[0]?.[0];
+      expect(callArgs?.popSignature).toEqual({
+        btcPopSignature: "0xMockPopSignature",
+        depositorEthAddress: "0xEthAddress123",
+        depositorBtcPubkey: MOCK_DEPOSITOR_PUBKEY,
+      });
+    });
+
     it("should call registerPeginBatchAndWait once with all vaults", async () => {
       const { registerPeginBatchAndWait } = vi.mocked(
         await import("../depositFlowSteps"),
@@ -405,6 +440,7 @@ describe("useDepositFlow", () => {
 
         const callArgs = registerPeginBatchAndWait.mock.calls[0]?.[0];
         expect(callArgs?.vaultProviderAddress).toBe("0xProvider123");
+        expect(callArgs?.unsignedPrePeginTx).toBe("batchFundedPrePeginHex");
         expect(callArgs?.requests).toHaveLength(2);
 
         // First vault: htlcVout = 0
@@ -412,7 +448,6 @@ describe("useDepositFlow", () => {
           expect.objectContaining({
             htlcVout: 0,
             depositorSignedPeginTx: "peginTxHex0",
-            unsignedPrePeginTx: "batchFundedPrePeginHex",
           }),
         );
 
@@ -421,7 +456,6 @@ describe("useDepositFlow", () => {
           expect.objectContaining({
             htlcVout: 1,
             depositorSignedPeginTx: "peginTxHex1",
-            unsignedPrePeginTx: "batchFundedPrePeginHex",
           }),
         );
       });
@@ -807,7 +841,6 @@ describe("useDepositFlow", () => {
             peginTxHash: "0xVault0BtcTxHash" as Hex,
           },
         ],
-        btcPopSignature: "0xPopSig" as Hex,
       });
 
       const { result } = renderHook(() => useDepositFlow(SINGLE_PARAMS));

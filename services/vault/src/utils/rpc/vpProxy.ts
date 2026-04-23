@@ -1,5 +1,7 @@
 import { ENV } from "@/config/env";
 
+import { ETH_ADDRESS_PATTERN } from "../validation";
+
 /**
  * Build the RPC URL for a vault provider via the proxy service.
  *
@@ -15,7 +17,7 @@ export function getVpProxyUrl(vpAddress: string): string {
       "VP_PROXY_URL is not configured. Set NEXT_PUBLIC_TBV_VP_PROXY_URL.",
     );
   }
-  if (!vpAddress || !/^0x[0-9a-fA-F]{40}$/.test(vpAddress)) {
+  if (!vpAddress || !ETH_ADDRESS_PATTERN.test(vpAddress)) {
     throw new Error(
       `Invalid vault provider address: "${vpAddress}". Expected a 20-byte hex address starting with 0x.`,
     );

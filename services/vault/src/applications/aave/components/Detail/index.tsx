@@ -5,7 +5,7 @@
  * Reserve is selected from the overview page and passed via URL param.
  */
 
-import { Container } from "@babylonlabs-io/core-ui";
+import { Container, Text } from "@babylonlabs-io/core-ui";
 import { useNavigate, useParams, useSearchParams } from "react-router";
 
 import { BackButton, EmptyState } from "@/components/shared";
@@ -48,6 +48,9 @@ export function AaveReserveDetail() {
     totalDebtValueUsd,
     healthFactor,
     tokenPriceUsd,
+    error,
+    isPositionDataStale,
+    refetchPosition,
   } = useAaveReserveDetail({ reserveId, address });
 
   // Modal state management
@@ -107,13 +110,8 @@ export function AaveReserveDetail() {
     );
   }
 
-  // Reserve not found or price unavailable
-  if (
-    !selectedReserve ||
-    !assetConfig ||
-    !vbtcReserve ||
-    tokenPriceUsd == null
-  ) {
+  // Reserve not found
+  if (!selectedReserve || !assetConfig || !vbtcReserve) {
     return (
       <Container className="pb-6">
         <div className="space-y-6">
@@ -137,6 +135,8 @@ export function AaveReserveDetail() {
     assetConfig,
     proxyContract,
     tokenPriceUsd,
+    isPositionDataStale,
+    refetchPosition,
     onBorrowSuccess: openBorrowSuccess,
     onRepaySuccess: openRepaySuccess,
   };
@@ -146,6 +146,12 @@ export function AaveReserveDetail() {
       <Container className="pb-6">
         <div className="space-y-6">
           <BackButton label="Home" onClick={handleBack} />
+          {error && (
+            <Text variant="body2" className="text-center text-warning-main">
+              Some data could not be loaded. Borrow functionality may be
+              limited.
+            </Text>
+          )}
           <LoanCard defaultTab={defaultTab} />
         </div>
       </Container>

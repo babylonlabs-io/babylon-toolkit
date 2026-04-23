@@ -182,7 +182,7 @@ export function DashboardPage() {
           onRepay={handleRepay}
         />
 
-        {featureFlags.isPositionNotificationsEnabled && (
+        {featureFlags.isPositionDebugPanelEnabled && (
           <PositionNotificationsDebugPanel
             onResultChange={setDebugResultOverride}
             onStatusChange={setDebugStatusOverride}

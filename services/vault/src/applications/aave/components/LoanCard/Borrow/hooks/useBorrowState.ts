@@ -16,8 +16,8 @@ export interface UseBorrowStateProps {
   currentDebtUsd: number;
   /** Liquidation threshold in BPS (e.g., 8000 = 80%) */
   liquidationThresholdBps: number;
-  /** Price of the borrow token in USD */
-  tokenPriceUsd: number;
+  /** Price of the borrow token in USD (null when oracle price is unavailable) */
+  tokenPriceUsd: number | null;
 }
 
 export interface UseBorrowStateResult {

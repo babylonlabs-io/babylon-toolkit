@@ -13,6 +13,17 @@ export default defineConfig([
       ],
     },
   },
+  // CRITICAL PATHS - see CLAUDE.md > "CRITICAL PATHS — HUMAN REVIEW REQUIRED".
+  // The WASM boundary is the highest-risk critical path - silent type coercion
+  // here can produce wrong BTC amounts.
+  {
+    files: ["src/index.ts"],
+    rules: {
+      "@typescript-eslint/no-explicit-any": "error",
+      "@typescript-eslint/no-non-null-assertion": "error",
+      "@typescript-eslint/ban-ts-comment": "error",
+    },
+  },
   {
     ignores: [
       "dist/**",

@@ -3,22 +3,27 @@
  *
  * Fetches and combines:
  * - Reserve config from Aave
- * - User position data
+ * - User position data (with position-specific collateral factor)
+ * - Chainlink oracle prices for borrow token
  * - Asset metadata for display
  */
 
+import { Network } from "@babylonlabs-io/wallet-connector";
 import { useMemo } from "react";
 import { formatUnits } from "viem";
 
-import { logger } from "@/infrastructure";
+import { getBTCNetwork } from "@/config";
+import { usePrices } from "@/hooks/usePrices";
 import { getTokenByAddress } from "@/services/token/tokenService";
 
 import {
+  BPS_SCALE,
   KNOWN_STABLECOIN_SYMBOLS,
   STABLECOIN_FALLBACK_PRICE_USD,
 } from "../../../constants";
 import { useAaveConfig } from "../../../context";
-import { useAaveUserPosition } from "../../../hooks";
+import { useAaveUserPosition, useVaultSplitParams } from "../../../hooks";
+import type { AavePositionWithLiveData } from "../../../services";
 import type { AaveReserveConfig } from "../../../services/fetchConfig";
 import type { Asset } from "../../../types";
 
@@ -52,6 +57,12 @@ export interface UseAaveReserveDetailResult {
   healthFactor: number | null;
   /** Price of the selected borrow token in USD (null if unavailable) */
   tokenPriceUsd: number | null;
+  /** Error from price or split params fetch (null if no error) */
+  error: Error | null;
+  /** Whether position data may be stale (oracle-derived values possibly outdated) */
+  isPositionDataStale: boolean;
+  /** Refetch position data — returns fresh position (or null if unavailable) */
+  refetchPosition: () => Promise<AavePositionWithLiveData | null>;
 }
 
 export function useAaveReserveDetail({
@@ -92,8 +103,25 @@ export function useAaveReserveDetail({
     collateralValueUsd,
     debtValueUsd,
     healthFactor,
+    isPositionDataStale,
     isLoading: positionLoading,
+    refetch: refetchPosition,
   } = useAaveUserPosition(address);
+
+  // Chainlink oracle prices (cached app-wide via React Query)
+  const {
+    prices: chainlinkPrices,
+    metadata: priceMetadata,
+    isLoading: pricesLoading,
+    error: pricesError,
+  } = usePrices();
+
+  // Position-specific collateral factor from contract
+  const {
+    params: splitParams,
+    isLoading: splitParamsLoading,
+    error: splitParamsError,
+  } = useVaultSplitParams(address);
 
   // Calculate debt amount for selected reserve in token units
   const currentDebtAmount = useMemo(() => {
@@ -112,75 +140,48 @@ export function useAaveReserveDetail({
     );
   }, [selectedReserve, position]);
 
-  // Get liquidation threshold from vBTC reserve
-  const liquidationThresholdBps = vbtcReserve?.reserve.collateralFactor ?? 0;
+  // Position-specific liquidation threshold from contract.
+  // Uses the user's stored dynamicConfigKey (not the indexer's reserve config)
+  // so it reflects the CF that the contract will actually use for liquidation.
+  const liquidationThresholdBps = splitParams
+    ? Math.round(splitParams.CF * BPS_SCALE)
+    : 0;
 
-  // Derive token price. Returns null when the price cannot be determined,
-  // in which case parent components render a fallback instead of LoanProvider.
-  //
-  // Current strategy: derive from debt ratio when the user holds debt in
-  // exactly one reserve, otherwise use the $1 stablecoin fallback for
-  // first-borrow of known stablecoins.
-  //
-  // The debt-ratio derivation relies on debtValueUsd being the user's total
-  // debt across all of their reserves, so it only yields a correct price when
-  // the user has debt in a single reserve (which must be the selected one,
-  // since currentDebtAmount > 0).
-  //
-  // TODO: Migrate to Chainlink price feeds via
-  // `services/vault/src/clients/eth-contract/chainlink/query.ts` once feeds
-  // are available for borrowable reserves on our target network. That would
-  // remove the single-debt-reserve assumption and the stablecoin fallback.
+  // Look up token price from Chainlink oracle. On testnet where stablecoin
+  // feeds are unavailable, fall back to $1 for known stablecoins only.
   const tokenPriceUsd = useMemo((): number | null => {
     if (!selectedReserve) return null;
 
-    if (currentDebtAmount > 0 && debtValueUsd > 0) {
-      const userDebtReserveCount = position?.debtPositions?.size ?? 0;
-      if (userDebtReserveCount !== 1) {
-        logger.error(
-          new Error(
-            "tokenPriceUsd debt-ratio derivation requires the user to have debt in exactly one reserve",
-          ),
-          {
-            data: {
-              context: "useAaveReserveDetail.tokenPriceUsd",
-              userDebtReserveCount,
-              selectedReserveSymbol: selectedReserve.token.symbol,
-            },
-          },
-        );
-        return null;
-      }
-      return debtValueUsd / currentDebtAmount;
+    const symbol = selectedReserve.token.symbol.toUpperCase();
+    const price = chainlinkPrices[symbol];
+    const metadata = priceMetadata[symbol];
+
+    // Reject stale or failed prices — a stale feed during a depeg event
+    // would produce an inflated max-borrow / HF
+    // Treat stale/failed the same as missing.
+    const isPriceReliable = !metadata?.isStale && !metadata?.fetchFailed;
+
+    if (price != null && price > 0 && isPriceReliable) {
+      return price;
     }
 
-    // First-time borrow: no debt to derive price from.
-    // Only safe for stablecoins — log and return null for unknown tokens.
-    const symbol = selectedReserve.token.symbol.toUpperCase();
+    // Testnet/signet: Chainlink doesn't publish stablecoin feeds on Sepolia.
+    // $1 is correct for mock-pegged test tokens. On mainnet a missing price
+    // is a real error — return null so the UI blocks the borrow flow.
     const isKnownStablecoin = (
       KNOWN_STABLECOIN_SYMBOLS as readonly string[]
     ).includes(symbol);
 
-    if (!isKnownStablecoin) {
-      logger.error(
-        new Error(
-          `Cannot derive token price for ${symbol}: no existing debt and token is not a known stablecoin`,
-        ),
-        {
-          data: {
-            context: "useAaveReserveDetail.tokenPriceUsd",
-            symbol,
-          },
-        },
-      );
-      return null;
+    if (getBTCNetwork() !== Network.MAINNET && isKnownStablecoin) {
+      return STABLECOIN_FALLBACK_PRICE_USD;
     }
 
-    return STABLECOIN_FALLBACK_PRICE_USD;
-  }, [currentDebtAmount, debtValueUsd, selectedReserve, position]);
+    return null;
+  }, [selectedReserve, chainlinkPrices, priceMetadata]);
 
   return {
-    isLoading: configLoading || positionLoading,
+    isLoading:
+      configLoading || positionLoading || pricesLoading || splitParamsLoading,
     selectedReserve,
     assetConfig,
     vbtcReserve,
@@ -191,5 +192,8 @@ export function useAaveReserveDetail({
     totalDebtValueUsd: debtValueUsd,
     healthFactor,
     tokenPriceUsd,
+    error: pricesError ?? splitParamsError ?? null,
+    isPositionDataStale,
+    refetchPosition,
   };
 }

@@ -1,5 +1,5 @@
 /**
- * Step 3: Payout signing — adapter over SDK's pollAndSignPayouts
+ * Step 4: Payout signing — adapter over SDK's pollAndSignPayouts
  *
  * Uses prepareSigningContext() to fetch VERSIONED vault keepers and
  * universal challengers from the contract, then delegates all signing

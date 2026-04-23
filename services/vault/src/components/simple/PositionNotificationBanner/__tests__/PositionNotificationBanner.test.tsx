@@ -87,10 +87,6 @@ vi.mock("@/applications/aave/hooks/usePositionNotifications", () => ({
   }),
 }));
 
-vi.mock("@/config/featureFlags", () => ({
-  default: { isPositionNotificationsEnabled: true },
-}));
-
 vi.mock("wagmi", () => ({
   useAccount: () => ({ address: "0xTestAddress" }),
 }));

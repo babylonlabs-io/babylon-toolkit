@@ -21,6 +21,14 @@ const { mockPreparePegin, MockPeginManager } = vi.hoisted(() => {
 vi.mock("@babylonlabs-io/ts-sdk/tbv/core", () => ({
   PeginManager: MockPeginManager,
   ensureHexPrefix: (hex: string) => (hex.startsWith("0x") ? hex : `0x${hex}`),
+  // Strip 0x, slice compressed sec1 prefix, lowercase. Matches the real
+  // primitive's contract for the shapes the tests feed in.
+  processPublicKeyToXOnly: (raw: string) => {
+    const clean = raw.startsWith("0x") ? raw.slice(2) : raw;
+    const normalized =
+      clean.length === 66 && /^0[23]/i.test(clean) ? clean.slice(2) : clean;
+    return normalized.toLowerCase();
+  },
 }));
 
 vi.mock("@babylonlabs-io/config", () => ({
@@ -93,7 +101,6 @@ describe("vaultTransactionService - preparePeginTransaction", () => {
 
     mockPreparePegin.mockResolvedValue({
       fundedPrePeginTxHex: "0x123abc",
-      unsignedPrePeginTxHex: "0xunfunded",
       selectedUTXOs: [mockUTXOs[0]],
       fee: 1000n,
       perVault: [
@@ -140,7 +147,6 @@ describe("vaultTransactionService - preparePeginTransaction", () => {
       expect(result.perVault[0].peginTxHash).toBe("0xtxhash123");
       expect(result.perVault[0].peginTxHex).toBe("0xpeginHex");
       expect(result.fundedPrePeginTxHex).toBe("0x123abc");
-      expect(result.unsignedPrePeginTxHex).toBe("0xunfunded");
     });
 
     it("should handle multi-vault params", async () => {
@@ -152,7 +158,6 @@ describe("vaultTransactionService - preparePeginTransaction", () => {
 
       mockPreparePegin.mockResolvedValue({
         fundedPrePeginTxHex: "0x123abc",
-        unsignedPrePeginTxHex: "0xunfunded",
         selectedUTXOs: [mockUTXOs[0], mockUTXOs[1]],
         fee: 2000n,
         perVault: [

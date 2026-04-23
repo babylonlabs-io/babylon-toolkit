@@ -124,6 +124,7 @@ Rules to watch:
 
 - Every vault must use the same `vaultProviderBtcPubkey`, `vaultKeeperBtcPubkeys`, `universalChallengerBtcPubkeys`, and protocol params. If you need different providers, register separately.
 - Each vault needs its own fresh HTLC secret + hashlock. Generate one per entry in the arrays, pair them by index.
+- Sign the proof-of-possession **once** (single wallet popup) and reuse the same `PopSignature` across every `registerPeginOnChain()` call in the batch.
 - `preparePegin().perVault[i]` returns one entry per vault — call `registerPeginOnChain()` for each. Broadcast the Pre-PegIn once.
 
 Example (builds on the happy-path config — `peginManager`, `btcWallet`, `vpEthAddress`, etc. are the same instances you set up in [Managers Quickstart → Configuration](./managers.md#configuration)):
@@ -150,7 +151,7 @@ declare const sharedBatchParams: Omit<
 >;
 
 // One fresh HTLC secret per vault. PERSIST all of them — you need them
-// independently for each vault's phase-5 activation.
+// independently for each vault's phase-6 activation.
 const secrets: Hex[] = [
   `0x${randomBytes(32).toString("hex")}` as Hex,
   `0x${randomBytes(32).toString("hex")}` as Hex,
@@ -170,16 +171,20 @@ const result = await peginManager.preparePegin({
   hashlocks: rawHashlocks,
 });
 
-// One registerPeginOnChain call per vault; they share the same Pre-PegIn tx.
+// Sign the BTC proof-of-possession ONCE for the whole batch.
+const popSignature = await peginManager.signProofOfPossession();
+
+// One registerPeginOnChain call per vault; they share the same Pre-PegIn
+// tx and the same PopSignature.
 for (let i = 0; i < result.perVault.length; i++) {
   await peginManager.registerPeginOnChain({
-    depositorBtcPubkey,
-    unsignedPrePeginTx: result.unsignedPrePeginTxHex,
+    unsignedPrePeginTx: result.fundedPrePeginTxHex,
     depositorSignedPeginTx: result.perVault[i].peginTxHex,
     hashlock: hashlocks[i],
     vaultProvider: vpEthAddress,
     depositorWotsPkHash: depositorWotsPkHashes[i],
     htlcVout: result.perVault[i].htlcVout,
+    popSignature,
   });
 }
 
@@ -190,7 +195,7 @@ await peginManager.signAndBroadcast({
 });
 ```
 
-Persist each `secrets[i]` alongside its `vaultId` so you can activate them independently in phase 5. Losing any one secret strands that vault at `VERIFIED` until refund.
+Persist each `secrets[i]` alongside its `vaultId` so you can activate them independently in phase 6. Losing any one secret strands that vault at `VERIFIED` until refund.
 
 ---
 

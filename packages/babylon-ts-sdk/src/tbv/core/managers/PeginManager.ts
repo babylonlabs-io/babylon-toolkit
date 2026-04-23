@@ -7,11 +7,12 @@
  * @remarks
  * PeginManager handles the peg-in flow:
  * 1. **preparePegin()** - Build Pre-PegIn HTLC, fund it, sign PegIn input
- * 2. **registerPeginOnChain()** - Submit to Ethereum contract with PoP
- * 3. *(Use {@link PayoutManager} for payout authorization signing)*
+ * 2. **signProofOfPossession()** - Sign BIP-322 PoP (one per deposit session)
+ * 3. **registerPeginOnChain()** - Submit to Ethereum contract with PoP
  * 4. **signAndBroadcast()** - Sign and broadcast Pre-PegIn tx to Bitcoin network
+ * 5. *(Use {@link PayoutManager} for payout authorization signing)*
  *
- * @see {@link PayoutManager} - For Step 3: sign payout transactions
+ * @see {@link PayoutManager} - For Step 5: sign payout transactions
  * @see {@link buildPrePeginPsbt} - Lower-level primitive used internally
  *
  * @module managers/PeginManager
@@ -24,6 +25,7 @@ import {
   createPublicClient,
   encodeFunctionData,
   http,
+  isAddressEqual,
   zeroAddress,
   type Address,
   type Chain,
@@ -48,6 +50,7 @@ import {
 import {
   ensureHexPrefix,
   isAddressFromPublicKey,
+  processPublicKeyToXOnly,
   stripHexPrefix,
 } from "../primitives/utils/bitcoin";
 import {
@@ -63,6 +66,67 @@ import {
 
 /** Referral code sent with pegin registration — 0 means no referral. */
 const NO_REFERRAL_CODE = 0;
+
+const HEX_SIGNATURE_REGEX = /^0x[0-9a-f]+$/i;
+const UNPREFIXED_HEX_SIGNATURE_REGEX = /^[0-9a-f]+$/i;
+const BASE64_SIGNATURE_REGEX = /^[A-Za-z0-9+/]+={0,2}$/;
+
+function normalizeXOnlyPubkey(raw: unknown): string {
+  if (typeof raw !== "string" || raw.length === 0) {
+    throw new Error("BTC wallet returned empty public key");
+  }
+  // Lowercase so case-sensitive equality checks downstream don't fail
+  // on uppercase wallet output (processPublicKeyToXOnly passes a 64-char
+  // input through unchanged).
+  return processPublicKeyToXOnly(raw).toLowerCase();
+}
+
+/**
+ * Normalize a wallet-returned BIP-322 signature into 0x-prefixed hex.
+ *
+ * Accepts:
+ *  - 0x-prefixed lowercase/uppercase hex
+ *  - unprefixed hex (wins over base64 when input is pure `[0-9a-fA-F]+`)
+ *  - canonical standard base64 (`[A-Za-z0-9+/]` with `=` padding to a
+ *    multiple of 4 and no non-canonical encodings)
+ *
+ * Rejects URL-safe base64 (`-`/`_`) and base64 without padding. Wallets
+ * known to return BIP-322 signatures (Keystone, UniSat, OKX, OneKey,
+ * Unisat) all use standard base64; URL-safe is an explicit non-goal.
+ */
+function normalizePopSignature(raw: unknown): Hex {
+  if (typeof raw !== "string" || raw.length === 0) {
+    throw new Error("BTC wallet returned empty BIP-322 signature");
+  }
+
+  if (raw.startsWith("0x") || raw.startsWith("0X")) {
+    if (!HEX_SIGNATURE_REGEX.test(raw) || raw.length < 4 || raw.length % 2 !== 0) {
+      throw new Error("BTC wallet returned malformed hex BIP-322 signature");
+    }
+    return raw.toLowerCase() as Hex;
+  }
+
+  // Prefer hex when the input could be either: every hex char is also a
+  // valid base64 char, so the base64 branch alone would silently misdecode
+  // a wallet returning "deadbeef" instead of "0xdeadbeef".
+  if (UNPREFIXED_HEX_SIGNATURE_REGEX.test(raw)) {
+    if (raw.length % 2 !== 0) {
+      throw new Error("BTC wallet returned malformed hex BIP-322 signature");
+    }
+    return `0x${raw.toLowerCase()}` as Hex;
+  }
+
+  if (!BASE64_SIGNATURE_REGEX.test(raw) || raw.length % 4 !== 0) {
+    throw new Error("BTC wallet returned malformed base64 BIP-322 signature");
+  }
+  const bytes = Buffer.from(raw, "base64");
+  // Round-trip to reject non-canonical base64 (e.g. "AB==" decodes but
+  // re-encodes to "AA==").
+  if (bytes.length === 0 || bytes.toString("base64") !== raw) {
+    throw new Error("BTC wallet returned malformed base64 BIP-322 signature");
+  }
+  return `0x${bytes.toString("hex")}` as Hex;
+}
 
 /**
  * Configuration for the PeginManager.
@@ -207,12 +271,14 @@ export interface PerVaultPeginData {
 }
 
 export interface PreparePeginResult {
-  /** Funded but unsigned Pre-PegIn transaction hex */
+  /**
+   * Funded, pre-witness Pre-PegIn tx hex. Pass this for register calls'
+   * `unsignedPrePeginTx` — despite the contract-side name, the registry
+   * stores the funded form so indexers can rebuild refund PSBTs.
+   */
   fundedPrePeginTxHex: string;
   /** Funded Pre-PegIn transaction ID */
   prePeginTxid: string;
-  /** Unfunded Pre-PegIn transaction hex (for contract DA submission) */
-  unsignedPrePeginTxHex: string;
   /** Per-vault PegIn data — one entry per hashlock/amount */
   perVault: PerVaultPeginData[];
   /** UTXOs selected to fund the Pre-PegIn transaction */
@@ -250,17 +316,28 @@ export interface SignAndBroadcastParams {
 }
 
 /**
+ * BIP-322 BTC Proof-of-Possession binding a depositor's BTC key to their
+ * Ethereum account. Produced by {@link PeginManager.signProofOfPossession}
+ * and reusable across every register call in the same session — the
+ * embedded identities are re-checked at register time.
+ */
+export interface PopSignature {
+  /** BIP-322 signature over the PoP message (0x-prefixed hex). */
+  btcPopSignature: Hex;
+  /** Ethereum address the PoP was signed for. */
+  depositorEthAddress: Address;
+  /** BTC x-only public key (64-char hex, no 0x prefix). */
+  depositorBtcPubkey: string;
+}
+
+/**
  * Parameters for registering a peg-in on Ethereum.
  */
 export interface RegisterPeginParams {
   /**
-   * Depositor's BTC public key (x-only, 64-char hex).
-   * Can be provided with or without "0x" prefix.
-   */
-  depositorBtcPubkey: string;
-
-  /**
-   * Unsigned Pre-PegIn transaction hex (submitted to contract for data availability).
+   * Funded, pre-witness Pre-PegIn tx hex — pass
+   * {@link PreparePeginResult.fundedPrePeginTxHex}. The contract-side
+   * parameter is named `unsignedPrePeginTx` but it stores the funded form.
    */
   unsignedPrePeginTx: string;
 
@@ -280,11 +357,6 @@ export interface RegisterPeginParams {
   hashlock: Hex;
 
   /**
-   * Optional callback invoked after PoP signing completes but before ETH transaction.
-   */
-  onPopSigned?: () => void | Promise<void>;
-
-  /**
    * Depositor's BTC payout address (e.g. bc1p..., bc1q...).
    * Converted to scriptPubKey internally via bitcoinjs-lib.
    *
@@ -296,12 +368,8 @@ export interface RegisterPeginParams {
   /** Keccak256 hash of the depositor's WOTS public key (bytes32) */
   depositorWotsPkHash: Hex;
 
-  /**
-   * Pre-signed BTC PoP signature (hex with 0x prefix).
-   * When provided, the BTC wallet signing step is skipped and this signature is used directly.
-   * Useful for multi-vault deposits where PoP only needs to be signed once.
-   */
-  preSignedBtcPopSignature?: Hex;
+  /** Proof of possession from {@link PeginManager.signProofOfPossession}. */
+  popSignature: PopSignature;
 
   /**
    * Zero-based index of the HTLC output in the Pre-PegIn transaction that
@@ -331,28 +399,19 @@ export interface RegisterPeginResult {
    * Used for VP RPC operations which key on the BTC transaction ID.
    */
   peginTxHash: Hex;
-
-  /**
-   * The BTC PoP signature used for this registration (hex with 0x prefix).
-   * Returned so callers can reuse it for subsequent pegins without re-signing.
-   */
-  btcPopSignature: Hex;
 }
 
 /**
  * Single request in a batch pegin registration.
- * All requests in a batch share the same vault provider and depositor.
+ * All requests in a batch share the same vault provider, depositor BTC
+ * pubkey, and Pre-PegIn transaction.
  */
 export interface BatchPeginRequestItem {
-  /** Depositor's BTC public key (x-only, 64-char hex or with 0x prefix) */
-  depositorBtcPubkey: string;
-  /** Unsigned Pre-PegIn tx hex (same for all vaults in batch) */
-  unsignedPrePeginTx: string;
   /** Signed PegIn tx hex for this vault */
   depositorSignedPeginTx: string;
   /** SHA256 hashlock for HTLC activation (bytes32 hex) */
   hashlock: Hex;
-  /** Zero-based HTLC output index in the Pre-PegIn tx */
+  /** Zero-based HTLC output index in the Pre-PegIn tx (unique per request) */
   htlcVout: number;
   /** Depositor's BTC payout address (required — funds are sent here on payout) */
   depositorPayoutBtcAddress: string;
@@ -366,12 +425,15 @@ export interface BatchPeginRequestItem {
 export interface RegisterPeginBatchParams {
   /** Vault provider address (shared across all vaults in batch) */
   vaultProvider: Address;
+  /**
+   * Funded, pre-witness Pre-PegIn tx hex — shared across every request in
+   * the batch. See {@link RegisterPeginParams.unsignedPrePeginTx}.
+   */
+  unsignedPrePeginTx: string;
   /** Individual pegin requests (one per vault) */
   requests: BatchPeginRequestItem[];
-  /** Pre-signed BTC PoP signature (signed once, reused for all vaults) */
-  preSignedBtcPopSignature?: Hex;
-  /** Called after PoP is signed (before ETH tx) */
-  onPopSigned?: () => void | Promise<void>;
+  /** Proof of possession from {@link PeginManager.signProofOfPossession}. */
+  popSignature: PopSignature;
 }
 
 /**
@@ -392,8 +454,6 @@ export interface RegisterPeginBatchResult {
   ethTxHash: Hex;
   /** Per-vault results (same order as input requests) */
   vaults: BatchPeginResultItem[];
-  /** The BTC PoP signature used (for reference) */
-  btcPopSignature: Hex;
 }
 
 
@@ -426,17 +486,19 @@ function resolveUtxoInfo(
  * by coordinating between SDK primitives, utilities, and wallet interfaces.
  *
  * @remarks
- * The complete peg-in flow consists of 4 steps:
+ * The complete peg-in flow consists of 5 steps:
  *
  * | Step | Method | Description |
  * |------|--------|-------------|
  * | 1 | {@link preparePegin} | Build Pre-PegIn HTLC, fund it, sign PegIn input |
- * | 2 | {@link registerPeginOnChain} | Submit to Ethereum contract with PoP |
- * | 3 | {@link PayoutManager} | Sign BOTH payout authorizations |
+ * | 2 | {@link signProofOfPossession} | Sign BIP-322 PoP (one per deposit session) |
+ * | 3 | {@link registerPeginOnChain} | Submit to Ethereum contract |
  * | 4 | {@link signAndBroadcast} | Sign and broadcast Pre-PegIn tx to Bitcoin network |
+ * | 5 | {@link PayoutManager} | Sign BOTH payout authorizations |
  *
- * **Important:** Step 3 uses {@link PayoutManager}, not this class. After step 2,
- * the vault provider prepares 3 transactions per claimer:
+ * **Important:** Step 5 uses {@link PayoutManager}, not this class. After
+ * step 4, the vault provider observes the broadcast Pre-PegIn and prepares
+ * 3 transactions per claimer:
  * - `claim_tx` - Claim transaction
  * - `assert_tx` - Assert transaction
  * - `payout_tx` - Payout transaction
@@ -444,9 +506,11 @@ function resolveUtxoInfo(
  * You must sign the Payout transaction for each claimer:
  * - {@link PayoutManager.signPayoutTransaction} - uses assert_tx as input reference
  *
- * Submit all signatures to the vault provider before proceeding to step 4.
+ * Submit all signatures to the vault provider to drive the contract to
+ * `VERIFIED` (and then activate by revealing the HTLC secret, which is a
+ * services-layer step outside this manager).
  *
- * @see {@link PayoutManager} - Required for Step 3 (payout authorization)
+ * @see {@link PayoutManager} - Required for Step 5 (payout authorization)
  * @see {@link buildPrePeginPsbt} - Lower-level primitive for custom implementations
  * @see {@link https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/docs/quickstart/managers.md | Managers Quickstart}
  */
@@ -492,13 +556,13 @@ export class PeginManager {
   async preparePegin(
     params: PreparePeginParams,
   ): Promise<PreparePeginResult> {
-    // Step 1: Get depositor BTC public key from wallet
+    // Step 1: Get depositor BTC public key from wallet. Keep the raw
+    // wallet output (typically compressed sec1 66-char) for wallet sign
+    // calls — UniSat/OKX/OneKey expect their native format on
+    // signInputs[].publicKey — and derive the canonical x-only form for
+    // protocol/HTLC use.
     const depositorBtcPubkeyRaw = await this.config.btcWallet.getPublicKeyHex();
-    // Convert 33-byte compressed (66 chars) to 32-byte x-only (64 chars) if needed
-    const depositorBtcPubkey =
-      depositorBtcPubkeyRaw.length === 66
-        ? depositorBtcPubkeyRaw.slice(2)
-        : depositorBtcPubkeyRaw;
+    const depositorBtcPubkey = normalizeXOnlyPubkey(depositorBtcPubkeyRaw);
 
     const vaultProviderBtcPubkey = stripHexPrefix(params.vaultProviderBtcPubkey);
     const vaultKeeperBtcPubkeys = params.vaultKeeperBtcPubkeys.map(stripHexPrefix);
@@ -619,7 +683,6 @@ export class PeginManager {
     return {
       fundedPrePeginTxHex,
       prePeginTxid,
-      unsignedPrePeginTxHex: prePeginResult.psbtHex,
       perVault,
       selectedUTXOs: utxoSelection.selectedUTXOs,
       fee: utxoSelection.fee,
@@ -696,22 +759,10 @@ export class PeginManager {
     psbt.setVersion(tx.version);
     psbt.setLocktime(tx.locktime);
 
-    // Strip 0x prefix if present before converting to Buffer
-    const cleanPubkey = depositorBtcPubkey.startsWith("0x")
-      ? depositorBtcPubkey.slice(2)
-      : depositorBtcPubkey;
-    // Validate x-only pubkey length and format (32 bytes = 64 hex chars)
-    if (cleanPubkey.length !== 64 || !/^[0-9a-fA-F]+$/.test(cleanPubkey)) {
-      throw new Error(
-        "Invalid depositorBtcPubkey: expected 64 hex characters (x-only pubkey)",
-      );
-    }
-    const publicKeyNoCoord = Buffer.from(cleanPubkey, "hex");
-    if (publicKeyNoCoord.length !== 32) {
-      throw new Error(
-        `Invalid depositorBtcPubkey length: expected 32 bytes, got ${publicKeyNoCoord.length}`,
-      );
-    }
+    const publicKeyNoCoord = Buffer.from(
+      normalizeXOnlyPubkey(depositorBtcPubkey),
+      "hex",
+    );
     const apiUrl = this.config.mempoolApiUrl;
 
     // Resolve prevout data for each input (local cache or mempool API)
@@ -813,53 +864,59 @@ export class PeginManager {
    * Registers a peg-in on Ethereum by calling the BTCVaultRegistry contract.
    *
    * This method:
-   * 1. Gets depositor ETH address from wallet
-   * 2. Creates proof of possession (BTC signature of ETH address)
-   * 3. Checks if vault already exists (pre-flight check)
-   * 4. Encodes the contract call using viem
-   * 5. Estimates gas (catches contract errors early with proper revert reasons)
-   * 6. Sends transaction with pre-estimated gas via ethWallet.sendTransaction()
+   * 1. Re-verifies the PopSignature against the currently connected ETH
+   *    and BTC wallets — refuses to proceed if either has changed
+   * 2. Derives vault ID and checks if it already exists (pre-flight)
+   * 3. Encodes the contract call using viem
+   * 4. Estimates gas (catches contract errors early with proper revert
+   *    reasons)
+   * 5. Sends transaction with pre-estimated gas via
+   *    ethWallet.sendTransaction()
    *
-   * @param params - Registration parameters including BTC pubkey and unsigned tx
+   * The PopSignature must be obtained via
+   * {@link signProofOfPossession} before this call.
+   *
+   * @param params - Registration parameters including the PopSignature
+   *                 and the prepared Pre-PegIn / PegIn transactions
    * @returns Result containing Ethereum transaction hash and vault ID
-   * @throws Error if signing or transaction fails
-   * @throws Error if vault already exists
-   * @throws Error if contract simulation fails (e.g., invalid signature, unauthorized)
+   * @throws Error if the PopSignature does not match the connected wallets
+   * @throws Error if the vault already exists
+   * @throws Error if contract simulation fails (e.g., invalid signature,
+   *         unauthorized)
    */
   async registerPeginOnChain(
     params: RegisterPeginParams,
   ): Promise<RegisterPeginResult> {
     const {
-      depositorBtcPubkey,
       unsignedPrePeginTx,
       depositorSignedPeginTx,
       vaultProvider,
       hashlock,
       htlcVout,
-      onPopSigned,
       depositorPayoutBtcAddress,
       depositorWotsPkHash,
-      preSignedBtcPopSignature,
+      popSignature,
     } = params;
 
-    // Step 1: Get depositor ETH address (from wallet account)
+    // Step 1: Re-verify the PoP artifact against the currently connected
+    // wallets so a mid-flow account/wallet switch fails here instead of
+    // surfacing downstream as an opaque contract revert.
     if (!this.config.ethWallet.account) {
       throw new Error("Ethereum wallet account not found");
     }
     const depositorEthAddress = this.config.ethWallet.account.address;
-
-    // Step 2: Create proof of possession (or reuse pre-signed one)
-    const btcPopSignature = await this.resolvePopSignature(
-      depositorEthAddress,
-      preSignedBtcPopSignature,
-    );
-
-    if (onPopSigned) {
-      await onPopSigned();
+    if (!isAddressEqual(popSignature.depositorEthAddress, depositorEthAddress)) {
+      throw new Error(
+        `Proof of possession was signed for ${popSignature.depositorEthAddress} ` +
+          `but the Ethereum wallet is currently connected to ${depositorEthAddress}. ` +
+          `Reconnect the original account or call signProofOfPossession() again.`,
+      );
     }
+    await this.assertPopMatchesBtcWallet(popSignature);
+    const btcPopSignature = popSignature.btcPopSignature;
 
-    // Step 3: Format parameters for contract call
-    const depositorBtcPubkeyHex = ensureHexPrefix(depositorBtcPubkey);
+    // Step 2: Format parameters for contract call
+    const depositorBtcPubkeyHex = ensureHexPrefix(popSignature.depositorBtcPubkey);
     const unsignedPrePeginTxHex = ensureHexPrefix(unsignedPrePeginTx);
     const depositorSignedPeginTxHex = ensureHexPrefix(depositorSignedPeginTx);
 
@@ -867,7 +924,7 @@ export class PeginManager {
       depositorPayoutBtcAddress,
     );
 
-    // Step 4: Calculate pegin tx hash and derive vault ID, then check if it already exists
+    // Step 3: Calculate pegin tx hash and derive vault ID, then check if it already exists
     const peginTxHash = calculateBtcTxHash(depositorSignedPeginTxHex);
     const derivedVaultIdHex = await deriveVaultId(
       stripHexPrefix(peginTxHash),
@@ -884,7 +941,7 @@ export class PeginManager {
       );
     }
 
-    // Step 5: Query required pegin fee from the contract
+    // Step 4: Query required pegin fee from the contract
     const publicClient = createPublicClient({
       chain: this.config.ethChain,
       transport: http(),
@@ -905,7 +962,7 @@ export class PeginManager {
       );
     }
 
-    // Step 6: Encode the contract call data
+    // Step 5: Encode the contract call data
     const callData = encodeFunctionData({
       abi: BTCVaultRegistryABI,
       functionName: "submitPeginRequest",
@@ -923,7 +980,7 @@ export class PeginManager {
       ],
     });
 
-    // Step 7: Estimate gas first to catch contract errors before showing wallet popup
+    // Step 6: Estimate gas first to catch contract errors before showing wallet popup
     // This ensures users see actual contract revert reasons instead of gas errors
     // The gas estimate is then passed to sendTransaction to avoid double estimation
     let gasEstimate: bigint;
@@ -939,7 +996,7 @@ export class PeginManager {
       handleContractError(error); // always throws (return type: never)
     }
 
-    // Step 8: Submit peg-in request to contract (estimation passed)
+    // Step 7: Submit peg-in request to contract (estimation passed)
     let ethTxHash: Hex;
     try {
       // Send transaction with pre-estimated gas to skip internal estimation
@@ -957,7 +1014,7 @@ export class PeginManager {
       handleContractError(error); // always throws (return type: never)
     }
 
-    // Step 9: Wait for transaction receipt and verify it was not reverted
+    // Step 8: Wait for transaction receipt and verify it was not reverted
     const receipt = await publicClient.waitForTransactionReceipt({
       hash: ethTxHash,
       timeout: RECEIPT_TIMEOUT_MS,
@@ -975,7 +1032,6 @@ export class PeginManager {
       ethTxHash: receipt.transactionHash,
       vaultId,
       peginTxHash,
-      btcPopSignature,
     };
   }
 
@@ -992,30 +1048,29 @@ export class PeginManager {
   async registerPeginBatchOnChain(
     params: RegisterPeginBatchParams,
   ): Promise<RegisterPeginBatchResult> {
-    const { vaultProvider, requests, preSignedBtcPopSignature, onPopSigned } =
+    const { vaultProvider, unsignedPrePeginTx, requests, popSignature } =
       params;
 
     if (requests.length === 0) {
       throw new Error("Batch pegin requires at least one request");
     }
 
-    // Step 1: Get depositor ETH address
+    // Step 1: Re-verify the PoP (same reasoning as registerPeginOnChain).
     if (!this.config.ethWallet.account) {
       throw new Error("Ethereum wallet account not found");
     }
     const depositorEthAddress = this.config.ethWallet.account.address;
-
-    // Step 2: Create proof of possession (or reuse pre-signed one)
-    const btcPopSignature = await this.resolvePopSignature(
-      depositorEthAddress,
-      preSignedBtcPopSignature,
-    );
-
-    if (onPopSigned) {
-      await onPopSigned();
+    if (!isAddressEqual(popSignature.depositorEthAddress, depositorEthAddress)) {
+      throw new Error(
+        `Proof of possession was signed for ${popSignature.depositorEthAddress} ` +
+          `but the Ethereum wallet is currently connected to ${depositorEthAddress}. ` +
+          `Reconnect the original account or call signProofOfPossession() again.`,
+      );
     }
+    await this.assertPopMatchesBtcWallet(popSignature);
+    const btcPopSignature = popSignature.btcPopSignature;
 
-    // Step 3: Resolve per-request payout scriptPubKey.
+    // Step 2: Resolve per-request payout scriptPubKey.
     const resolvedPayoutScripts: Hex[] = [];
     for (const req of requests) {
       resolvedPayoutScripts.push(
@@ -1023,7 +1078,7 @@ export class PeginManager {
       );
     }
 
-    // Step 4: Pre-compute vault IDs and check for duplicates
+    // Step 3: Pre-compute vault IDs and check for duplicates
     const vaultResults: BatchPeginResultItem[] = [];
     for (const req of requests) {
       const depositorSignedPeginTxHex = ensureHexPrefix(
@@ -1045,7 +1100,7 @@ export class PeginManager {
       vaultResults.push({ vaultId, peginTxHash });
     }
 
-    // Step 5: Query pegin fee and compute total
+    // Step 4: Query pegin fee and compute total
     const publicClient = createPublicClient({
       chain: this.config.ethChain,
       transport: http(),
@@ -1067,11 +1122,17 @@ export class PeginManager {
     }
     const totalFee = peginFee * BigInt(requests.length);
 
-    // Step 6: Build BatchPeginRequest[] tuple array
+    // Step 5: Build BatchPeginRequest[] tuple array. Depositor BTC pubkey,
+    // PoP, and Pre-PegIn tx hex are shared across the batch (carried on
+    // the top-level params / PopSignature, not per request).
+    const depositorBtcPubkeyHex = ensureHexPrefix(
+      popSignature.depositorBtcPubkey,
+    ) as Hex;
+    const unsignedPrePeginTxHex = ensureHexPrefix(unsignedPrePeginTx) as Hex;
     const batchRequests = requests.map((req, i) => ({
-      depositorBtcPubKey: ensureHexPrefix(req.depositorBtcPubkey) as Hex,
-      btcPopSignature: btcPopSignature as Hex,
-      unsignedPrePeginTx: ensureHexPrefix(req.unsignedPrePeginTx) as Hex,
+      depositorBtcPubKey: depositorBtcPubkeyHex,
+      btcPopSignature,
+      unsignedPrePeginTx: unsignedPrePeginTxHex,
       depositorSignedPeginTx: ensureHexPrefix(
         req.depositorSignedPeginTx,
       ) as Hex,
@@ -1082,14 +1143,14 @@ export class PeginManager {
       depositorWotsPkHash: req.depositorWotsPkHash,
     }));
 
-    // Step 7: Encode batch call data
+    // Step 6: Encode batch call data
     const callData = encodeFunctionData({
       abi: BTCVaultRegistryABI,
       functionName: "submitPeginRequestBatch",
       args: [depositorEthAddress, vaultProvider, batchRequests],
     });
 
-    // Step 8: Estimate gas
+    // Step 7: Estimate gas
     let gasEstimate: bigint;
     try {
       gasEstimate = await publicClient.estimateGas({
@@ -1102,7 +1163,7 @@ export class PeginManager {
       handleContractError(error); // always throws (return type: never)
     }
 
-    // Step 9: Submit batch transaction
+    // Step 8: Submit batch transaction
     let ethTxHash: Hex;
     try {
       ethTxHash = await this.config.ethWallet.sendTransaction({
@@ -1117,7 +1178,7 @@ export class PeginManager {
       handleContractError(error); // always throws (return type: never)
     }
 
-    // Step 10: Wait for receipt
+    // Step 9: Wait for receipt
     const receipt = await publicClient.waitForTransactionReceipt({
       hash: ethTxHash,
       timeout: RECEIPT_TIMEOUT_MS,
@@ -1134,7 +1195,6 @@ export class PeginManager {
     return {
       ethTxHash: receipt.transactionHash,
       vaults: vaultResults,
-      btcPopSignature,
     };
   }
 
@@ -1210,33 +1270,52 @@ export class PeginManager {
   }
 
   /**
-   * Resolve or create a BTC Proof-of-Possession signature.
-   *
-   * Reuses a pre-signed signature when provided (e.g. multi-vault deposits),
-   * otherwise signs a BIP-322 message with the BTC wallet.
+   * Sign a BIP-322 BTC Proof-of-Possession binding the connected BTC
+   * wallet to the connected ETH account for this chain and vault
+   * registry. The returned {@link PopSignature} can be reused across
+   * every register call in the same session.
    */
-  private async resolvePopSignature(
-    depositorEthAddress: Address,
-    preSignedBtcPopSignature?: Hex,
-  ): Promise<Hex> {
-    if (preSignedBtcPopSignature) {
-      return preSignedBtcPopSignature;
+  async signProofOfPossession(): Promise<PopSignature> {
+    if (!this.config.ethWallet.account) {
+      throw new Error("Ethereum wallet account not found");
     }
+    const depositorEthAddress = this.config.ethWallet.account.address;
+
+    const depositorBtcPubkey = normalizeXOnlyPubkey(
+      await this.config.btcWallet.getPublicKeyHex(),
+    );
 
     // Message format matches BTCProofOfPossession.sol buildMessage()
     const verifyingContract = this.config.vaultContracts.btcVaultRegistry;
     const popMessage = `${depositorEthAddress.toLowerCase()}:${this.config.ethChain.id}:pegin:${verifyingContract.toLowerCase()}`;
-    const btcPopSignatureRaw = await this.config.btcWallet.signMessage(
+    const raw = await this.config.btcWallet.signMessage(
       popMessage,
       "bip322-simple",
     );
 
-    // BTC wallets return base64, Ethereum contracts expect hex
-    if (btcPopSignatureRaw.startsWith("0x")) {
-      return btcPopSignatureRaw as Hex;
+    return {
+      btcPopSignature: normalizePopSignature(raw),
+      depositorEthAddress,
+      depositorBtcPubkey,
+    };
+  }
+
+  private async assertPopMatchesBtcWallet(
+    popSignature: PopSignature,
+  ): Promise<void> {
+    const currentBtcPubkey = normalizeXOnlyPubkey(
+      await this.config.btcWallet.getPublicKeyHex(),
+    );
+    // Normalize the PoP-embedded key the same way in case a consumer
+    // serialized it through a path that changed casing or re-added 0x.
+    const popBtcPubkey = normalizeXOnlyPubkey(popSignature.depositorBtcPubkey);
+    if (currentBtcPubkey !== popBtcPubkey) {
+      throw new Error(
+        `Proof of possession was signed with BTC pubkey ${popBtcPubkey} ` +
+          `but the BTC wallet is currently connected to ${currentBtcPubkey}. ` +
+          `Reconnect the original wallet or call signProofOfPossession() again.`,
+      );
     }
-    const signatureBytes = Buffer.from(btcPopSignatureRaw, "base64");
-    return `0x${signatureBytes.toString("hex")}` as Hex;
   }
 
   /**

@@ -2,11 +2,10 @@
  * Repay state management hook
  *
  * Manages repay amount and calculates max repay based on current debt in token units.
+ * Uses explicit mode tracking ("partial" | "full") instead of tolerance-based detection.
  */
 
-import { useMemo, useState } from "react";
-
-import { FULL_REPAY_TOLERANCE } from "../../../../constants";
+import { useCallback, useMemo, useState } from "react";
 
 export interface UseRepayStateProps {
   /** Current debt amount for selected reserve in token units */
@@ -17,10 +16,13 @@ export interface UseRepayStateProps {
 
 export interface UseRepayStateResult {
   repayAmount: number;
+  /** Sets repay amount and resets mode to partial (used by typed input / slider) */
   setRepayAmount: (amount: number) => void;
+  /** Sets repay amount and mode atomically (used by Max button) */
+  setRepayAmountWithMode: (amount: number, mode: "partial" | "full") => void;
   resetRepayAmount: () => void;
   maxRepayAmount: number;
-  /** Whether the current repay amount represents a full repayment */
+  /** Whether the current repay represents a full repayment (set explicitly, not by tolerance) */
   isFullRepayment: boolean;
 }
 
@@ -28,27 +30,40 @@ export function useRepayState({
   currentDebtAmount,
   userTokenBalance,
 }: UseRepayStateProps): UseRepayStateResult {
-  const [repayAmount, setRepayAmount] = useState(0);
+  const [repayAmount, setRepayAmountRaw] = useState(0);
+  const [repayMode, setRepayMode] = useState<"partial" | "full">("partial");
 
   // Max repay is the minimum of debt and available balance
   const maxRepayAmount = useMemo(() => {
     return Math.max(0, Math.min(currentDebtAmount, userTokenBalance));
   }, [currentDebtAmount, userTokenBalance]);
 
-  // Full repayment only when repay amount covers the actual debt, not the balance-capped max.
-  // When balance < debt, pressing Max should route to partial repay, not full repay.
-  const isFullRepayment = useMemo(() => {
-    return (
-      currentDebtAmount > 0 &&
-      Math.abs(repayAmount - currentDebtAmount) < FULL_REPAY_TOLERANCE
-    );
-  }, [repayAmount, currentDebtAmount]);
+  // Manual input / slider always sets partial mode
+  const setRepayAmount = useCallback((amount: number) => {
+    setRepayAmountRaw(amount);
+    setRepayMode("partial");
+  }, []);
 
-  const resetRepayAmount = () => setRepayAmount(0);
+  // Max button sets amount + mode atomically
+  const setRepayAmountWithMode = useCallback(
+    (amount: number, mode: "partial" | "full") => {
+      setRepayAmountRaw(amount);
+      setRepayMode(mode);
+    },
+    [],
+  );
+
+  const resetRepayAmount = useCallback(() => {
+    setRepayAmountRaw(0);
+    setRepayMode("partial");
+  }, []);
+
+  const isFullRepayment = repayMode === "full";
 
   return {
     repayAmount,
     setRepayAmount,
+    setRepayAmountWithMode,
     resetRepayAmount,
     maxRepayAmount,
     isFullRepayment,

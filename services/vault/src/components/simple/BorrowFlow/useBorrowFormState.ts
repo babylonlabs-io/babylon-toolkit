@@ -160,7 +160,10 @@ export function useBorrowFormState({
     setBorrowAmount,
     sliderMax,
     maxAmountFormatted: `${formatTokenAmount(sliderMax)} ${assetConfig.symbol}`,
-    usdValueFormatted: formatUsdValue(borrowAmount * tokenPriceUsd),
+    usdValueFormatted:
+      tokenPriceUsd != null
+        ? formatUsdValue(borrowAmount * tokenPriceUsd)
+        : "–",
 
     isDisabled,
     buttonText: resolvedButtonText,

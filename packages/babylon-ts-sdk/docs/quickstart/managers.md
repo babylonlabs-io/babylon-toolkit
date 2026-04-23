@@ -1,6 +1,6 @@
 # Managers Quickstart
 
-End-to-end peg-in flow using the SDK's high-level managers and services. A vault goes from creation to `ACTIVE` through five phases; this doc walks you through them with runnable code.
+End-to-end peg-in flow using the SDK's high-level managers and services. A vault goes from creation to `ACTIVE` through six phases; this doc walks you through them with runnable code.
 
 > **New to the SDK?** Start with [Get Started](../get-started/README.md) first — it covers the four-layer architecture, trust model, config sourcing, and glossary. Come back here when you're ready to write code.
 >
@@ -19,17 +19,18 @@ Managers are the fastest path to a working flow when you're using a standard wal
 
 ---
 
-## The full vault lifecycle (5 phases)
+## The full vault lifecycle (6 phases)
 
 | # | Phase | SDK entry point | Contract status after |
 |---|-------|-----------------|-----------------------|
 | 1 | Prepare Pre-PegIn + PegIn txs | `peginManager.preparePegin()` | n/a (off-chain) |
-| 2 | Register on Ethereum | `peginManager.registerPeginOnChain()` | `PENDING` |
-| 3 | Broadcast Pre-PegIn on Bitcoin | `peginManager.signAndBroadcast()` | still `PENDING` until VP observes the tx |
-| 4 | Sign payout authorisations | `pollAndSignPayouts()` (service, delegates to `PayoutManager`) | `PENDING` → `VERIFIED` |
-| 5 | **Activate by revealing HTLC secret** | `activateVault()` (service) | `VERIFIED` → `ACTIVE` |
+| 2 | Sign BTC proof-of-possession (once per session) | `peginManager.signProofOfPossession()` | n/a (off-chain) |
+| 3 | Register on Ethereum | `peginManager.registerPeginOnChain()` | `PENDING` |
+| 4 | Broadcast Pre-PegIn on Bitcoin | `peginManager.signAndBroadcast()` | still `PENDING` until VP observes the tx |
+| 5 | Sign payout authorisations | `pollAndSignPayouts()` (service, delegates to `PayoutManager`) | `PENDING` → `VERIFIED` |
+| 6 | **Activate by revealing HTLC secret** | `activateVault()` (service) | `VERIFIED` → `ACTIVE` |
 
-> **Wait times:** between phases 2 and 3 you usually wait 1 BTC confirmation so the VP can index the Pre-PegIn. Between 3 and 4 the VP prepares transaction graphs (minutes). Phase 4 drives the contract to `VERIFIED` once all payout signatures are posted.
+> **Wait times:** phases 1–3 (prepare, PoP, register) run back-to-back with only wallet popups between them. After phase 4 (Bitcoin broadcast) you usually wait 1 BTC confirmation so the VP can index the Pre-PegIn and prepare transaction graphs (minutes). Phase 5 drives the contract to `VERIFIED` once all payout signatures are posted.
 >
 > **Wallet requirements:** BTC wallet needs UTXOs to cover the vault amount + network fees + the depositor-claim output. ETH wallet needs gas + the per-provider peg-in fee (queried from the contract) + gas for activation.
 >
@@ -39,7 +40,7 @@ Managers are the fastest path to a working flow when you're using a standard wal
 
 ## Before you start — generate and persist an HTLC secret
 
-Every vault is gated by an HTLC. The **secret** is a 32-byte random value you generate client-side. Its SHA-256 is the **hashlock** that gets registered on Ethereum. You must **persist the secret** until activation (phase 5) — without it you cannot activate, and the vault will sit at `VERIFIED` until it expires.
+Every vault is gated by an HTLC. The **secret** is a 32-byte random value you generate client-side. Its SHA-256 is the **hashlock** that gets registered on Ethereum. You must **persist the secret** until activation (phase 6) — without it you cannot activate, and the vault will sit at `VERIFIED` until it expires.
 
 ```typescript
 import { computeHashlock } from "@babylonlabs-io/ts-sdk/tbv/core/services";
@@ -55,7 +56,7 @@ const secret = `0x${randomBytes(32).toString("hex")}` as Hex;
 
 const hashlock = computeHashlock(secret); // 0x-prefixed bytes32
 
-// Persist `secret` in your app storage. You will need it in phase 5.
+// Persist `secret` in your app storage. You will need it in phase 6.
 ```
 
 **Hex format rules:**
@@ -142,7 +143,7 @@ declare const vpEthAddress: Address;
 // Known gaps); vault apps derive this out-of-band today.
 declare const depositorWotsPkHash: Hex;
 
-// 0. Generate + persist the HTLC secret. KEEP this — you need it in phase 5.
+// 0. Generate + persist the HTLC secret. KEEP this — you need it in phase 6.
 const secret = `0x${randomBytes(32).toString("hex")}` as Hex;
 const hashlock = computeHashlock(secret);     // 0x-prefixed
 const rawHashlock = stripHexPrefix(hashlock); // 64 hex chars, no 0x
@@ -170,25 +171,30 @@ const result = await peginManager.preparePegin({
 
 const firstVault = result.perVault[0];
 
-// 2. Register on Ethereum (generates PoP, submits the vault + hashlock).
+// 2. Sign the BTC proof-of-possession — one wallet popup. The returned
+//    PopSignature is reusable across every registerPeginOnChain call in
+//    this session (same depositor = same PoP).
+const popSignature = await peginManager.signProofOfPossession();
+
+// 3. Register on Ethereum (submits the vault + hashlock).
 const { vaultId, peginTxHash } = await peginManager.registerPeginOnChain({
-  depositorBtcPubkey,
-  unsignedPrePeginTx: result.unsignedPrePeginTxHex,
+  unsignedPrePeginTx: result.fundedPrePeginTxHex,
   depositorSignedPeginTx: firstVault.peginTxHex,
   hashlock,
   vaultProvider: vpEthAddress,
   depositorWotsPkHash,
   htlcVout: firstVault.htlcVout,
+  popSignature,
 });
 // Contract status: PENDING
 
-// 3. Broadcast the Pre-PegIn tx to Bitcoin.
+// 4. Broadcast the Pre-PegIn tx to Bitcoin.
 const btcTxid = await peginManager.signAndBroadcast({
   fundedPrePeginTxHex: result.fundedPrePeginTxHex,
   depositorBtcPubkey,
 });
 
-// 4. Wait for the VP, sign payouts, submit. The service polls the VP,
+// 5. Wait for the VP, sign payouts, submit. The service polls the VP,
 //    signs with your BitcoinWallet, and posts signatures back.
 const vpClient = new VaultProviderRpcClient(vaultProviderProxyUrl);
 
@@ -214,7 +220,7 @@ await pollAndSignPayouts({
 });
 // Contract status: VERIFIED
 
-// 5. Activate — reveal the HTLC secret. `writeContract` is the adapter
+// 6. Activate — reveal the HTLC secret. `writeContract` is the adapter
 //    that hands the SDK's prepared call to your ETH transport.
 await activateVault({
   btcVaultRegistryAddress: BTC_VAULT_REGISTRY,
@@ -243,11 +249,12 @@ await activateVault({
 
 | Phase | Method / Service | Returns |
 |---|---|---|
-| 1 | `peginManager.preparePegin()` | `{ fundedPrePeginTxHex, prePeginTxid, unsignedPrePeginTxHex, perVault[], selectedUTXOs, fee, changeAmount }`; each `perVault[i]` has `{ htlcVout, htlcValue, peginTxHex, peginTxid, peginInputSignature, vaultScriptPubKey }` |
-| 2 | `peginManager.registerPeginOnChain()` | `{ ethTxHash, vaultId, peginTxHash, btcPopSignature }` |
-| 3 | `peginManager.signAndBroadcast()` | `btcTxid` (string) |
-| 4 | `pollAndSignPayouts()` | `void` — side effect: signatures posted, contract moves to `VERIFIED` |
-| 5 | `activateVault()` | Whatever `writeContract` returns (typically `{ transactionHash }`) |
+| 1 | `peginManager.preparePegin()` | `{ fundedPrePeginTxHex, prePeginTxid, perVault[], selectedUTXOs, fee, changeAmount }`; each `perVault[i]` has `{ htlcVout, htlcValue, peginTxHex, peginTxid, peginInputSignature, vaultScriptPubKey }`. Pass `fundedPrePeginTxHex` as the `unsignedPrePeginTx` register param — the registry stores the funded pre-witness form. |
+| 2 | `peginManager.signProofOfPossession()` | `{ btcPopSignature, depositorEthAddress, depositorBtcPubkey }` — reusable across every `registerPeginOnChain` call in the session |
+| 3 | `peginManager.registerPeginOnChain()` | `{ ethTxHash, vaultId, peginTxHash }` |
+| 4 | `peginManager.signAndBroadcast()` | `btcTxid` (string) |
+| 5 | `pollAndSignPayouts()` | `void` — side effect: signatures posted, contract moves to `VERIFIED` |
+| 6 | `activateVault()` | Whatever `writeContract` returns (typically `{ transactionHash }`) |
 
 ---
 

@@ -15,6 +15,24 @@ export default defineConfig([
       "nx/enforce-module-boundaries": "off",
     },
   },
+  // CRITICAL PATHS - see CLAUDE.md > "CRITICAL PATHS — HUMAN REVIEW REQUIRED".
+  // These overrides force strict typing on value-bearing code, overriding
+  // the package-wide no-explicit-any: off. Tests are excluded - non-null
+  // assertions on fixtures are legitimate there.
+  {
+    files: [
+      "src/tbv/core/utils/utxo/selectUtxos.ts",
+      "src/tbv/core/primitives/psbt/payout.ts",
+      "src/tbv/integrations/aave/utils/vaultSplit.ts",
+      "src/tbv/core/utils/signing.ts",
+    ],
+    ignores: ["**/__tests__/**", "**/*.test.{ts,tsx}"],
+    rules: {
+      "@typescript-eslint/no-explicit-any": "error",
+      "@typescript-eslint/no-non-null-assertion": "error",
+      "@typescript-eslint/ban-ts-comment": "error",
+    },
+  },
   {
     ignores: [
       "dist/**",

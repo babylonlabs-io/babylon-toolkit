@@ -205,6 +205,37 @@ describe("PeginManager", () => {
   });
 
   describe("preparePegin", () => {
+    it("passes the wallet's raw (compressed) pubkey to signPsbts", async () => {
+      // Regression: taproot signPsbt expects the wallet's native format
+      // on signInputs[].publicKey (UniSat/OKX/OneKey reject x-only with
+      // "invalid public key in toSignInput").
+      const compressedPubkey = `02${TEST_KEYS.DEPOSITOR}`;
+      const btcWallet = new MockBitcoinWallet({
+        publicKeyHex: compressedPubkey,
+      });
+      const ethWallet = new MockEthereumWallet();
+      const signPsbtsSpy = vi.spyOn(btcWallet, "signPsbts");
+
+      const manager = new PeginManager({
+        btcNetwork: "signet",
+        btcWallet,
+        ethWallet: ethWallet as any,
+        ethChain: TEST_CHAIN,
+        vaultContracts: { btcVaultRegistry: TEST_CONTRACT_ADDRESS },
+        mempoolApiUrl: MEMPOOL_API_URLS.signet,
+      });
+
+      await manager.preparePegin({
+        amounts: [TEST_AMOUNTS.PEGIN],
+        ...BASE_PREPARE_PEGIN_PARAMS,
+      });
+
+      expect(signPsbtsSpy).toHaveBeenCalled();
+      const signOptions = signPsbtsSpy.mock.calls[0][1];
+      const publicKey = signOptions?.[0]?.signInputs?.[0]?.publicKey;
+      expect(publicKey).toBe(compressedPubkey);
+    });
+
     it("should prepare a pegin with valid params", async () => {
       const btcWallet = new MockBitcoinWallet({
         publicKeyHex: TEST_KEYS.DEPOSITOR,
@@ -228,7 +259,6 @@ describe("PeginManager", () => {
       // Verify result structure
       expect(result).toHaveProperty("fundedPrePeginTxHex");
       expect(result).toHaveProperty("prePeginTxid");
-      expect(result).toHaveProperty("unsignedPrePeginTxHex");
       expect(result).toHaveProperty("perVault");
       expect(result).toHaveProperty("selectedUTXOs");
       expect(result).toHaveProperty("fee");
@@ -505,14 +535,12 @@ describe("PeginManager", () => {
     });
   });
 
-  describe("registerPeginOnChain", () => {
-    it("should call ethWallet.sendTransaction with encoded contract data", async () => {
+  describe("signProofOfPossession", () => {
+    it("returns signature bound to connected ETH and BTC identities", async () => {
       const btcWallet = new MockBitcoinWallet({
         publicKeyHex: TEST_KEYS.DEPOSITOR,
       });
       const ethWallet = new MockEthereumWallet();
-
-      const sendTxSpy = vi.spyOn(ethWallet, "sendTransaction");
       const signMessageSpy = vi.spyOn(btcWallet, "signMessage");
 
       const manager = new PeginManager({
@@ -524,41 +552,19 @@ describe("PeginManager", () => {
         mempoolApiUrl: MEMPOOL_API_URLS.signet,
       });
 
-      const mockUnsignedPrePeginTx = "0100000000010000000000";
+      const pop = await manager.signProofOfPossession();
 
-      const result = await manager.registerPeginOnChain({
-        depositorBtcPubkey: TEST_KEYS.DEPOSITOR,
-        unsignedPrePeginTx: mockUnsignedPrePeginTx,
-        depositorSignedPeginTx: MOCK_DEPOSITOR_SIGNED_PEGIN_TX,
-        vaultProvider: TEST_CONTRACT_ADDRESS,
-        hashlock: MOCK_HASHLOCK,
-        htlcVout: 0,
-        depositorPayoutBtcAddress:
-          "tb1pmfr3p9j00pfxjh0zmgp99y8zftmd3s5pmedqhyptwy6lm87hf5ssk79hv2",
-        depositorWotsPkHash: MOCK_WOTS_PK_HASH,
-      });
-
-      expect(signMessageSpy).toHaveBeenCalled();
-      const signedMessage = signMessageSpy.mock.calls[0][0];
-      expect(signedMessage.toLowerCase()).toContain("0x");
-
-      expect(sendTxSpy).toHaveBeenCalled();
-      const txRequest = sendTxSpy.mock.calls[0][0];
-      expect(txRequest.to).toBe(TEST_CONTRACT_ADDRESS);
-      expect(txRequest.data).toBeDefined();
-      expect(txRequest.data).toContain("0x");
-
-      expect(result).toBeDefined();
-      expect(result.ethTxHash).toBeDefined();
-      expect(result.ethTxHash.startsWith("0x")).toBe(true);
-      expect(result.vaultId).toBeDefined();
-      expect(result.vaultId.startsWith("0x")).toBe(true);
+      expect(signMessageSpy).toHaveBeenCalledTimes(1);
+      expect(signMessageSpy.mock.calls[0][1]).toBe("bip322-simple");
+      expect(pop.depositorBtcPubkey).toBe(TEST_KEYS.DEPOSITOR);
+      expect(pop.depositorEthAddress).toBe(ethWallet.account!.address);
+      expect(pop.btcPopSignature.startsWith("0x")).toBe(true);
+      expect(pop.btcPopSignature).toMatch(/^0x[0-9a-f]+$/);
     });
 
-    it("should handle BTC wallet signing failure", async () => {
+    it("strips 0x prefix from depositor BTC pubkey", async () => {
       const btcWallet = new MockBitcoinWallet({
-        publicKeyHex: TEST_KEYS.DEPOSITOR,
-        shouldFailSigning: true,
+        publicKeyHex: `0x${TEST_KEYS.DEPOSITOR}`,
       });
       const ethWallet = new MockEthereumWallet();
 
@@ -571,9 +577,233 @@ describe("PeginManager", () => {
         mempoolApiUrl: MEMPOOL_API_URLS.signet,
       });
 
+      const pop = await manager.signProofOfPossession();
+      expect(pop.depositorBtcPubkey).toBe(TEST_KEYS.DEPOSITOR);
+    });
+
+    it("passes through hex wallet output unchanged (lowercase)", async () => {
+      const btcWallet = new MockBitcoinWallet({
+        publicKeyHex: TEST_KEYS.DEPOSITOR,
+      });
+      vi.spyOn(btcWallet, "signMessage").mockResolvedValueOnce(
+        "0xDEADBEEF",
+      );
+      const ethWallet = new MockEthereumWallet();
+
+      const manager = new PeginManager({
+        btcNetwork: "signet",
+        btcWallet,
+        ethWallet: ethWallet as any,
+        ethChain: TEST_CHAIN,
+        vaultContracts: { btcVaultRegistry: TEST_CONTRACT_ADDRESS },
+        mempoolApiUrl: MEMPOOL_API_URLS.signet,
+      });
+
+      const pop = await manager.signProofOfPossession();
+      expect(pop.btcPopSignature).toBe("0xdeadbeef");
+    });
+
+    it("rejects an empty signature from the wallet", async () => {
+      const btcWallet = new MockBitcoinWallet({
+        publicKeyHex: TEST_KEYS.DEPOSITOR,
+      });
+      vi.spyOn(btcWallet, "signMessage").mockResolvedValueOnce("");
+      const ethWallet = new MockEthereumWallet();
+
+      const manager = new PeginManager({
+        btcNetwork: "signet",
+        btcWallet,
+        ethWallet: ethWallet as any,
+        ethChain: TEST_CHAIN,
+        vaultContracts: { btcVaultRegistry: TEST_CONTRACT_ADDRESS },
+        mempoolApiUrl: MEMPOOL_API_URLS.signet,
+      });
+
+      await expect(manager.signProofOfPossession()).rejects.toThrow(
+        /empty/i,
+      );
+    });
+
+    it("rejects a malformed (non-canonical) base64 signature", async () => {
+      const btcWallet = new MockBitcoinWallet({
+        publicKeyHex: TEST_KEYS.DEPOSITOR,
+      });
+      // "AB==" decodes to 1 byte but canonical encoding would be "AA==".
+      vi.spyOn(btcWallet, "signMessage").mockResolvedValueOnce("AB==");
+      const ethWallet = new MockEthereumWallet();
+
+      const manager = new PeginManager({
+        btcNetwork: "signet",
+        btcWallet,
+        ethWallet: ethWallet as any,
+        ethChain: TEST_CHAIN,
+        vaultContracts: { btcVaultRegistry: TEST_CONTRACT_ADDRESS },
+        mempoolApiUrl: MEMPOOL_API_URLS.signet,
+      });
+
+      await expect(manager.signProofOfPossession()).rejects.toThrow(
+        /base64/i,
+      );
+    });
+
+    it("rejects a malformed hex signature", async () => {
+      const btcWallet = new MockBitcoinWallet({
+        publicKeyHex: TEST_KEYS.DEPOSITOR,
+      });
+      vi.spyOn(btcWallet, "signMessage").mockResolvedValueOnce("0xZZ");
+      const ethWallet = new MockEthereumWallet();
+
+      const manager = new PeginManager({
+        btcNetwork: "signet",
+        btcWallet,
+        ethWallet: ethWallet as any,
+        ethChain: TEST_CHAIN,
+        vaultContracts: { btcVaultRegistry: TEST_CONTRACT_ADDRESS },
+        mempoolApiUrl: MEMPOOL_API_URLS.signet,
+      });
+
+      await expect(manager.signProofOfPossession()).rejects.toThrow(
+        /hex/i,
+      );
+    });
+
+    it("treats unprefixed hex-looking output as hex, not base64", async () => {
+      const btcWallet = new MockBitcoinWallet({
+        publicKeyHex: TEST_KEYS.DEPOSITOR,
+      });
+      vi.spyOn(btcWallet, "signMessage").mockResolvedValueOnce("deadbeef");
+      const ethWallet = new MockEthereumWallet();
+
+      const manager = new PeginManager({
+        btcNetwork: "signet",
+        btcWallet,
+        ethWallet: ethWallet as any,
+        ethChain: TEST_CHAIN,
+        vaultContracts: { btcVaultRegistry: TEST_CONTRACT_ADDRESS },
+        mempoolApiUrl: MEMPOOL_API_URLS.signet,
+      });
+
+      const pop = await manager.signProofOfPossession();
+      expect(pop.btcPopSignature).toBe("0xdeadbeef");
+    });
+
+    it("accepts a compressed sec1 pubkey and drops the prefix byte", async () => {
+      const btcWallet = new MockBitcoinWallet({
+        publicKeyHex: `02${TEST_KEYS.DEPOSITOR}`,
+      });
+      const ethWallet = new MockEthereumWallet();
+
+      const manager = new PeginManager({
+        btcNetwork: "signet",
+        btcWallet,
+        ethWallet: ethWallet as any,
+        ethChain: TEST_CHAIN,
+        vaultContracts: { btcVaultRegistry: TEST_CONTRACT_ADDRESS },
+        mempoolApiUrl: MEMPOOL_API_URLS.signet,
+      });
+
+      const pop = await manager.signProofOfPossession();
+      expect(pop.depositorBtcPubkey).toBe(TEST_KEYS.DEPOSITOR);
+    });
+
+    it("rejects a BTC pubkey of non-standard length", async () => {
+      // 40 hex chars — neither x-only, compressed, nor uncompressed.
+      const btcWallet = new MockBitcoinWallet({
+        publicKeyHex: "ab".repeat(20),
+      });
+      const ethWallet = new MockEthereumWallet();
+
+      const manager = new PeginManager({
+        btcNetwork: "signet",
+        btcWallet,
+        ethWallet: ethWallet as any,
+        ethChain: TEST_CHAIN,
+        vaultContracts: { btcVaultRegistry: TEST_CONTRACT_ADDRESS },
+        mempoolApiUrl: MEMPOOL_API_URLS.signet,
+      });
+
+      await expect(manager.signProofOfPossession()).rejects.toThrow(
+        /public key length/i,
+      );
+    });
+
+    it("throws when ETH wallet has no account", async () => {
+      const btcWallet = new MockBitcoinWallet({
+        publicKeyHex: TEST_KEYS.DEPOSITOR,
+      });
+      const ethWallet = new MockEthereumWallet();
+      (ethWallet as any).account = undefined;
+
+      const manager = new PeginManager({
+        btcNetwork: "signet",
+        btcWallet,
+        ethWallet: ethWallet as any,
+        ethChain: TEST_CHAIN,
+        vaultContracts: { btcVaultRegistry: TEST_CONTRACT_ADDRESS },
+        mempoolApiUrl: MEMPOOL_API_URLS.signet,
+      });
+
+      await expect(manager.signProofOfPossession()).rejects.toThrow(
+        /wallet account not found/i,
+      );
+    });
+  });
+
+  describe("registerPeginOnChain", () => {
+    async function makeManagerWithPop() {
+      const btcWallet = new MockBitcoinWallet({
+        publicKeyHex: TEST_KEYS.DEPOSITOR,
+      });
+      const ethWallet = new MockEthereumWallet();
+      const manager = new PeginManager({
+        btcNetwork: "signet",
+        btcWallet,
+        ethWallet: ethWallet as any,
+        ethChain: TEST_CHAIN,
+        vaultContracts: { btcVaultRegistry: TEST_CONTRACT_ADDRESS },
+        mempoolApiUrl: MEMPOOL_API_URLS.signet,
+      });
+      const popSignature = await manager.signProofOfPossession();
+      return { manager, btcWallet, ethWallet, popSignature };
+    }
+
+    it("should call ethWallet.sendTransaction with encoded contract data", async () => {
+      const { manager, ethWallet, popSignature } = await makeManagerWithPop();
+      const sendTxSpy = vi.spyOn(ethWallet, "sendTransaction");
+
+      const result = await manager.registerPeginOnChain({
+        unsignedPrePeginTx: "0100000000010000000000",
+        depositorSignedPeginTx: MOCK_DEPOSITOR_SIGNED_PEGIN_TX,
+        vaultProvider: TEST_CONTRACT_ADDRESS,
+        hashlock: MOCK_HASHLOCK,
+        htlcVout: 0,
+        depositorPayoutBtcAddress:
+          "tb1pmfr3p9j00pfxjh0zmgp99y8zftmd3s5pmedqhyptwy6lm87hf5ssk79hv2",
+        depositorWotsPkHash: MOCK_WOTS_PK_HASH,
+        popSignature,
+      });
+
+      expect(sendTxSpy).toHaveBeenCalled();
+      const txRequest = sendTxSpy.mock.calls[0][0];
+      expect(txRequest.to).toBe(TEST_CONTRACT_ADDRESS);
+      expect(txRequest.data).toBeDefined();
+      expect(txRequest.data).toContain("0x");
+
+      expect(result.ethTxHash.startsWith("0x")).toBe(true);
+      expect(result.vaultId.startsWith("0x")).toBe(true);
+      expect(result).not.toHaveProperty("btcPopSignature");
+    });
+
+    it("should throw when ETH wallet is connected to a different account than the PoP", async () => {
+      const { manager, ethWallet, popSignature } = await makeManagerWithPop();
+      // Simulate account switch between signing PoP and submitting.
+      (ethWallet as any).account = {
+        ...ethWallet.account,
+        address: "0x1111111111111111111111111111111111111111",
+      };
+
       await expect(
         manager.registerPeginOnChain({
-          depositorBtcPubkey: TEST_KEYS.DEPOSITOR,
           unsignedPrePeginTx: "0100000000010000000000",
           depositorSignedPeginTx: MOCK_DEPOSITOR_SIGNED_PEGIN_TX,
           vaultProvider: TEST_CONTRACT_ADDRESS,
@@ -582,8 +812,32 @@ describe("PeginManager", () => {
           depositorPayoutBtcAddress:
             "tb1pmfr3p9j00pfxjh0zmgp99y8zftmd3s5pmedqhyptwy6lm87hf5ssk79hv2",
           depositorWotsPkHash: MOCK_WOTS_PK_HASH,
+          popSignature,
         }),
-      ).rejects.toThrow(/Mock signing failed/);
+      ).rejects.toThrow(/Proof of possession/i);
+    });
+
+    it("should throw when BTC wallet is connected to a different pubkey than the PoP", async () => {
+      const { manager, btcWallet, popSignature } =
+        await makeManagerWithPop();
+      // Simulate BTC wallet swap between signing PoP and submitting.
+      vi.spyOn(btcWallet, "getPublicKeyHex").mockResolvedValue(
+        TEST_KEYS.VAULT_KEEPER_1,
+      );
+
+      await expect(
+        manager.registerPeginOnChain({
+          unsignedPrePeginTx: "0100000000010000000000",
+          depositorSignedPeginTx: MOCK_DEPOSITOR_SIGNED_PEGIN_TX,
+          vaultProvider: TEST_CONTRACT_ADDRESS,
+          hashlock: MOCK_HASHLOCK,
+          htlcVout: 0,
+          depositorPayoutBtcAddress:
+            "tb1pmfr3p9j00pfxjh0zmgp99y8zftmd3s5pmedqhyptwy6lm87hf5ssk79hv2",
+          depositorWotsPkHash: MOCK_WOTS_PK_HASH,
+          popSignature,
+        }),
+      ).rejects.toThrow(/BTC wallet is currently connected/i);
     });
 
     it("should handle ETH wallet transaction failure", async () => {
@@ -593,7 +847,6 @@ describe("PeginManager", () => {
       const ethWallet = new MockEthereumWallet({
         shouldFailOperations: true,
       });
-
       const manager = new PeginManager({
         btcNetwork: "signet",
         btcWallet,
@@ -602,10 +855,12 @@ describe("PeginManager", () => {
         vaultContracts: { btcVaultRegistry: TEST_CONTRACT_ADDRESS },
         mempoolApiUrl: MEMPOOL_API_URLS.signet,
       });
+      // Produce popSignature while the wallet is still healthy for signing;
+      // the mock only fails ETH ops, not BTC signing.
+      const popSignature = await manager.signProofOfPossession();
 
       await expect(
         manager.registerPeginOnChain({
-          depositorBtcPubkey: TEST_KEYS.DEPOSITOR,
           unsignedPrePeginTx: "0100000000010000000000",
           depositorSignedPeginTx: MOCK_DEPOSITOR_SIGNED_PEGIN_TX,
           vaultProvider: TEST_CONTRACT_ADDRESS,
@@ -614,28 +869,16 @@ describe("PeginManager", () => {
           depositorPayoutBtcAddress:
             "tb1pmfr3p9j00pfxjh0zmgp99y8zftmd3s5pmedqhyptwy6lm87hf5ssk79hv2",
           depositorWotsPkHash: MOCK_WOTS_PK_HASH,
+          popSignature,
         }),
       ).rejects.toThrow(/Mock transaction failed/);
     });
 
     it("should handle hex-prefixed and non-prefixed inputs", async () => {
-      const btcWallet = new MockBitcoinWallet({
-        publicKeyHex: TEST_KEYS.DEPOSITOR,
-      });
-      const ethWallet = new MockEthereumWallet();
+      const { manager, ethWallet, popSignature } = await makeManagerWithPop();
       const sendTxSpy = vi.spyOn(ethWallet, "sendTransaction");
 
-      const manager = new PeginManager({
-        btcNetwork: "signet",
-        btcWallet,
-        ethWallet: ethWallet as any,
-        ethChain: TEST_CHAIN,
-        vaultContracts: { btcVaultRegistry: TEST_CONTRACT_ADDRESS },
-        mempoolApiUrl: MEMPOOL_API_URLS.signet,
-      });
-
       await manager.registerPeginOnChain({
-        depositorBtcPubkey: `0x${TEST_KEYS.DEPOSITOR}`,
         unsignedPrePeginTx: "0x0100000000010000000000",
         depositorSignedPeginTx: `0x${MOCK_DEPOSITOR_SIGNED_PEGIN_TX}`,
         vaultProvider: TEST_CONTRACT_ADDRESS,
@@ -644,13 +887,12 @@ describe("PeginManager", () => {
         depositorPayoutBtcAddress:
           "tb1pmfr3p9j00pfxjh0zmgp99y8zftmd3s5pmedqhyptwy6lm87hf5ssk79hv2",
         depositorWotsPkHash: MOCK_WOTS_PK_HASH,
+        popSignature,
       });
-
       expect(sendTxSpy).toHaveBeenCalled();
 
       sendTxSpy.mockClear();
       await manager.registerPeginOnChain({
-        depositorBtcPubkey: TEST_KEYS.DEPOSITOR,
         unsignedPrePeginTx: "0100000000010000000000",
         depositorSignedPeginTx: MOCK_DEPOSITOR_SIGNED_PEGIN_TX,
         vaultProvider: TEST_CONTRACT_ADDRESS,
@@ -659,8 +901,8 @@ describe("PeginManager", () => {
         depositorPayoutBtcAddress:
           "tb1pmfr3p9j00pfxjh0zmgp99y8zftmd3s5pmedqhyptwy6lm87hf5ssk79hv2",
         depositorWotsPkHash: MOCK_WOTS_PK_HASH,
+        popSignature,
       });
-
       expect(sendTxSpy).toHaveBeenCalled();
     });
 
@@ -672,17 +914,12 @@ describe("PeginManager", () => {
         .fn()
         .mockImplementation(({ functionName }: { functionName: string }) => {
           if (functionName === "getPegInFee") return Promise.resolve(0n);
-          // getBtcVaultBasicInfo — return tuple with zero depositor (vault doesn't exist)
           return Promise.resolve([viem.zeroAddress]);
         });
 
-      // First call: checkVaultExists (default behavior)
       mockedCreatePublicClient.mockReturnValueOnce({
         readContract: defaultReadContract,
       } as any);
-
-      // Second call: the main publicClient in registerPeginOnChain
-      // with waitForTransactionReceipt returning "reverted"
       mockedCreatePublicClient.mockReturnValueOnce({
         estimateGas: vi.fn().mockResolvedValue(100000n),
         waitForTransactionReceipt: vi.fn().mockResolvedValue({
@@ -692,23 +929,10 @@ describe("PeginManager", () => {
         readContract: defaultReadContract,
       } as any);
 
-      const btcWallet = new MockBitcoinWallet({
-        publicKeyHex: TEST_KEYS.DEPOSITOR,
-      });
-      const ethWallet = new MockEthereumWallet();
-
-      const manager = new PeginManager({
-        btcNetwork: "signet",
-        btcWallet,
-        ethWallet: ethWallet as any,
-        ethChain: TEST_CHAIN,
-        vaultContracts: { btcVaultRegistry: TEST_CONTRACT_ADDRESS },
-        mempoolApiUrl: MEMPOOL_API_URLS.signet,
-      });
+      const { manager, popSignature } = await makeManagerWithPop();
 
       await expect(
         manager.registerPeginOnChain({
-          depositorBtcPubkey: TEST_KEYS.DEPOSITOR,
           unsignedPrePeginTx: "0100000000010000000000",
           depositorSignedPeginTx: MOCK_DEPOSITOR_SIGNED_PEGIN_TX,
           vaultProvider: TEST_CONTRACT_ADDRESS,
@@ -717,9 +941,140 @@ describe("PeginManager", () => {
           depositorPayoutBtcAddress:
             "tb1pmfr3p9j00pfxjh0zmgp99y8zftmd3s5pmedqhyptwy6lm87hf5ssk79hv2",
           depositorWotsPkHash: MOCK_WOTS_PK_HASH,
+          popSignature,
         }),
       ).rejects.toThrow(/Transaction reverted/);
     });
+  });
+
+  describe("registerPeginBatchOnChain", () => {
+    const BASE_UNSIGNED_PRE_PEGIN = "0100000000010000000000";
+    const baseRequest = {
+      depositorSignedPeginTx: MOCK_DEPOSITOR_SIGNED_PEGIN_TX,
+      hashlock: MOCK_HASHLOCK,
+      depositorPayoutBtcAddress:
+        "tb1pmfr3p9j00pfxjh0zmgp99y8zftmd3s5pmedqhyptwy6lm87hf5ssk79hv2",
+      depositorWotsPkHash: MOCK_WOTS_PK_HASH,
+    } as const;
+
+    it("rejects a batch when ETH wallet switches after PoP was signed", async () => {
+      const btcWallet = new MockBitcoinWallet({
+        publicKeyHex: TEST_KEYS.DEPOSITOR,
+      });
+      const ethWallet = new MockEthereumWallet();
+      const manager = new PeginManager({
+        btcNetwork: "signet",
+        btcWallet,
+        ethWallet: ethWallet as any,
+        ethChain: TEST_CHAIN,
+        vaultContracts: { btcVaultRegistry: TEST_CONTRACT_ADDRESS },
+        mempoolApiUrl: MEMPOOL_API_URLS.signet,
+      });
+      const popSignature = await manager.signProofOfPossession();
+
+      (ethWallet as any).account = {
+        ...ethWallet.account,
+        address: "0x1111111111111111111111111111111111111111",
+      };
+
+      await expect(
+        manager.registerPeginBatchOnChain({
+          vaultProvider: TEST_CONTRACT_ADDRESS,
+          unsignedPrePeginTx: BASE_UNSIGNED_PRE_PEGIN,
+          popSignature,
+          requests: [
+            { ...baseRequest, htlcVout: 0, depositorSignedPeginTx: "aa" },
+            {
+              ...baseRequest,
+              htlcVout: 1,
+              depositorSignedPeginTx: "bb",
+              hashlock: MOCK_HASHLOCK_ALT,
+            },
+          ],
+        }),
+      ).rejects.toThrow(/Proof of possession/i);
+    });
+
+    it("rejects a batch when BTC wallet switches after PoP was signed", async () => {
+      const btcWallet = new MockBitcoinWallet({
+        publicKeyHex: TEST_KEYS.DEPOSITOR,
+      });
+      const ethWallet = new MockEthereumWallet();
+      const manager = new PeginManager({
+        btcNetwork: "signet",
+        btcWallet,
+        ethWallet: ethWallet as any,
+        ethChain: TEST_CHAIN,
+        vaultContracts: { btcVaultRegistry: TEST_CONTRACT_ADDRESS },
+        mempoolApiUrl: MEMPOOL_API_URLS.signet,
+      });
+      const popSignature = await manager.signProofOfPossession();
+
+      vi.spyOn(btcWallet, "getPublicKeyHex").mockResolvedValue(
+        TEST_KEYS.VAULT_KEEPER_1,
+      );
+
+      await expect(
+        manager.registerPeginBatchOnChain({
+          vaultProvider: TEST_CONTRACT_ADDRESS,
+          unsignedPrePeginTx: BASE_UNSIGNED_PRE_PEGIN,
+          popSignature,
+          requests: [
+            { ...baseRequest, htlcVout: 0, depositorSignedPeginTx: "aa" },
+            {
+              ...baseRequest,
+              htlcVout: 1,
+              depositorSignedPeginTx: "bb",
+              hashlock: MOCK_HASHLOCK_ALT,
+            },
+          ],
+        }),
+      ).rejects.toThrow(/BTC wallet is currently connected/i);
+    });
+
+    const MOCK_HASHLOCK_ALT = `0x${"ef".repeat(32)}` as `0x${string}`;
+
+    it("submits submitPeginRequestBatch encoding PoP + each request", async () => {
+      const btcWallet = new MockBitcoinWallet({
+        publicKeyHex: TEST_KEYS.DEPOSITOR,
+      });
+      const ethWallet = new MockEthereumWallet();
+      const sendTxSpy = vi.spyOn(ethWallet, "sendTransaction");
+      const manager = new PeginManager({
+        btcNetwork: "signet",
+        btcWallet,
+        ethWallet: ethWallet as any,
+        ethChain: TEST_CHAIN,
+        vaultContracts: { btcVaultRegistry: TEST_CONTRACT_ADDRESS },
+        mempoolApiUrl: MEMPOOL_API_URLS.signet,
+      });
+      const popSignature = await manager.signProofOfPossession();
+
+      const result = await manager.registerPeginBatchOnChain({
+        vaultProvider: TEST_CONTRACT_ADDRESS,
+        unsignedPrePeginTx: BASE_UNSIGNED_PRE_PEGIN,
+        popSignature,
+        requests: [
+          { ...baseRequest, htlcVout: 0, depositorSignedPeginTx: "aa" },
+          {
+            ...baseRequest,
+            htlcVout: 1,
+            depositorSignedPeginTx: "bb",
+            hashlock: MOCK_HASHLOCK_ALT,
+          },
+        ],
+      });
+
+      expect(result).not.toHaveProperty("btcPopSignature");
+      expect(result.vaults).toHaveLength(2);
+
+      expect(sendTxSpy).toHaveBeenCalledTimes(1);
+      const sentData = sendTxSpy.mock.calls[0][0].data as string;
+      expect(sentData).toContain(popSignature.btcPopSignature.slice(2));
+      // Depositor BTC pubkey comes from PopSignature, not per-request.
+      expect(sentData).toContain(popSignature.depositorBtcPubkey);
+    });
+
   });
 
   describe("signAndBroadcast", () => {
