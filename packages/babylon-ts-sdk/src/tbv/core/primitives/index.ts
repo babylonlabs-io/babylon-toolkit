@@ -39,7 +39,8 @@
  * ## Key Exports
  *
  * ### PSBT Builders
- * - {@link buildPeginPsbt} - Create unfunded peg-in transaction
+ * - {@link buildPrePeginPsbt} - Create unfunded Pre-PegIn transaction (HTLC outputs)
+ * - {@link buildPeginTxFromFundedPrePegin} - Derive PegIn tx from funded Pre-PegIn
  * - {@link buildPayoutPsbt} - Create payout PSBT for signing
  * - {@link extractPayoutSignature} - Extract Schnorr signature from signed PSBT
  * - {@link buildDepositorPayoutPsbt} - Create depositor's own Payout PSBT (depositor-as-claimer path)
@@ -138,6 +139,7 @@ export {
   isAddressFromPublicKey,
   isValidHex,
   ensureHexPrefix,
+  formatSatoshisToBtc,
   processPublicKeyToXOnly,
   stripHexPrefix,
   toXOnly,

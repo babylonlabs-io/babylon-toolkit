@@ -1,0 +1,136 @@
+name: CLAUDE.md Drift Check
+
+on:
+  schedule:
+    - cron: '0 9 * * 1'  # Mondays 09:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  drift:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Analyze drift
+        id: analyze
+        run: |
+          set -e
+          # Keep in sync with CLAUDE.md > "CRITICAL PATHS", .github/CODEOWNERS,
+          # and .github/workflows/critical-path-check.yml.
+          paths=(
+            "packages/babylon-tbv-rust-wasm/src/index.ts"
+            "packages/babylon-ts-sdk/src/tbv/core/utils/utxo/selectUtxos.ts"
+            "services/vault/src/utils/fee/peginFee.ts"
+            "packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts"
+            "services/vault/src/hooks/deposit/depositFlowSteps/payoutSigning.ts"
+            "services/vault/src/services/wots/"
+            "services/vault/src/services/vault/vaultActivationService.ts"
+            "packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts"
+            "packages/babylon-ts-sdk/src/tbv/core/utils/signing.ts"
+          )
+
+          : > missing.txt
+          for p in "${paths[@]}"; do
+            [ -e "$p" ] || echo "$p" >> missing.txt
+          done
+
+          since="$(date -u -d '7 days ago' '+%Y-%m-%d' 2>/dev/null || date -u -v-7d '+%Y-%m-%d')"
+          echo "Scanning commits since $since"
+          : > touched.txt
+          for p in "${paths[@]}"; do
+            while IFS='|' read -r hash subject; do
+              [ -z "$hash" ] && continue
+              echo "${p}|${hash}|${subject}" >> touched.txt
+            done < <(git log --since="$since" --pretty=format:"%H|%s" origin/main -- "$p")
+          done
+
+          has_signal=false
+          [ -s missing.txt ] && has_signal=true
+          [ -s touched.txt ] && has_signal=true
+          echo "has_signal=${has_signal}" >> "$GITHUB_OUTPUT"
+
+          echo "=== missing paths ==="; cat missing.txt || true
+          echo "=== commits touching critical paths ==="; cat touched.txt || true
+
+      - name: Post drift report
+        if: steps.analyze.outputs.has_signal == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const missing = fs.readFileSync('missing.txt', 'utf8').trim();
+            const touched = fs.readFileSync('touched.txt', 'utf8').trim();
+            const marker = '<!-- claude-md-drift-tracker -->';
+            const title = 'CLAUDE.md drift tracker';
+            const today = new Date().toISOString().slice(0, 10);
+
+            const sections = [marker, `## Weekly drift report - ${today}`, ''];
+
+            if (missing) {
+              sections.push('### Missing paths');
+              sections.push('Paths referenced in CLAUDE.md / CODEOWNERS / CI no longer exist. Update or restore:');
+              missing.split('\n').forEach(p => sections.push(`- \`${p}\``));
+              sections.push('');
+            }
+
+            if (touched) {
+              sections.push('### Merged PRs touching critical paths (last 7 days)');
+              sections.push('Review for drift - renames, new functions needing CLAUDE.md rules, invalidated assumptions.');
+              const byCommit = {};
+              touched.split('\n').forEach(line => {
+                const [path, hash, subject] = line.split('|');
+                const key = `${hash}|${subject}`;
+                (byCommit[key] = byCommit[key] || []).push(path);
+              });
+              for (const [key, paths] of Object.entries(byCommit)) {
+                const [hash, subject] = key.split('|');
+                sections.push(`- \`${hash.slice(0, 8)}\` ${subject}`);
+                paths.forEach(p => sections.push(`  - \`${p}\``));
+              }
+              sections.push('');
+            }
+
+            sections.push('---');
+            sections.push('Run `/update-claude-md` locally for deeper analysis and proposed edits.');
+
+            const body = sections.join('\n');
+
+            const { data: issues } = await github.rest.issues.listForRepo({
+              ...context.repo,
+              state: 'open',
+              per_page: 100,
+            });
+            const tracker = issues.find(i =>
+              i.title === title || (i.body || '').includes(marker)
+            );
+
+            if (!tracker) {
+              const labels = [];
+              try {
+                await github.rest.issues.getLabel({ ...context.repo, name: 'claude-md-drift' });
+                labels.push('claude-md-drift');
+              } catch {
+                core.warning("Label 'claude-md-drift' does not exist; creating issue without it.");
+              }
+              const created = await github.rest.issues.create({
+                ...context.repo,
+                title,
+                body,
+                labels,
+              });
+              core.notice(`Created drift tracker issue #${created.data.number}`);
+            } else {
+              await github.rest.issues.createComment({
+                ...context.repo,
+                issue_number: tracker.number,
+                body,
+              });
+              core.notice(`Posted drift comment on issue #${tracker.number}`);
+            }

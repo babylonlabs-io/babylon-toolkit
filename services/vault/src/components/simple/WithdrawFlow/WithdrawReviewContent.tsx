@@ -1,33 +1,70 @@
 import { Button, Heading, Loader, Text } from "@babylonlabs-io/core-ui";
 import { useMemo } from "react";
 
-import { BPS_SCALE } from "@/applications/aave/constants";
+import {
+  BPS_SCALE,
+  WITHDRAW_HF_BLOCK_THRESHOLD,
+  WITHDRAW_HF_WARNING_THRESHOLD,
+} from "@/applications/aave/constants";
+import { getWithdrawHfWarningState } from "@/applications/aave/utils";
 import { DetailsCard, type DetailRow } from "@/components/shared";
 import { useProtocolParamsContext } from "@/context/ProtocolParamsContext";
 import { useNetworkFees } from "@/hooks/useNetworkFees";
 import { formatBtcAmount, formatUsdValue } from "@/utils/formatting";
 
+import { HealthFactorDelta } from "./HealthFactorDelta";
+
 interface WithdrawReviewContentProps {
   totalAmountBtc: number;
   totalAmountUsd: number;
+  /** User's current on-chain health factor (null when no debt). */
+  currentHealthFactor: number | null;
+  /** Health factor after the selected vaults are withdrawn. Infinity when no debt. */
+  projectedHealthFactor: number;
   isProcessing: boolean;
   onConfirm: () => void;
+  /**
+   * Navigate back to the vault selector, preserving the current selection.
+   * Lets the user recover from a blocked or at-risk review without closing
+   * the dialog.
+   */
+  onEditSelection: () => void;
 }
 
 export function WithdrawReviewContent({
   totalAmountBtc,
   totalAmountUsd,
+  currentHealthFactor,
+  projectedHealthFactor,
   isProcessing,
   onConfirm,
+  onEditSelection,
 }: WithdrawReviewContentProps) {
   const { defaultFeeRate } = useNetworkFees();
   const { minVpCommissionBps } = useProtocolParamsContext();
+
+  const { wouldBreachHF, isAtRisk } = getWithdrawHfWarningState(
+    projectedHealthFactor,
+  );
 
   const rows: DetailRow[] = useMemo(() => {
     const vpCommissionBtc = totalAmountBtc * (minVpCommissionBps / BPS_SCALE);
     const vpCommissionUsd = totalAmountUsd * (minVpCommissionBps / BPS_SCALE);
 
-    return [
+    const hfRow: DetailRow | null =
+      currentHealthFactor === null
+        ? null
+        : {
+            label: "Health Factor",
+            value: (
+              <HealthFactorDelta
+                current={currentHealthFactor}
+                projected={projectedHealthFactor}
+              />
+            ),
+          };
+
+    const baseRows: DetailRow[] = [
       {
         label: "Withdraw Amount",
         value: (
@@ -58,7 +95,16 @@ export function WithdrawReviewContent({
           ),
       },
     ];
-  }, [totalAmountBtc, totalAmountUsd, defaultFeeRate, minVpCommissionBps]);
+
+    return hfRow ? [baseRows[0], hfRow, ...baseRows.slice(1)] : baseRows;
+  }, [
+    totalAmountBtc,
+    totalAmountUsd,
+    currentHealthFactor,
+    projectedHealthFactor,
+    defaultFeeRate,
+    minVpCommissionBps,
+  ]);
 
   return (
     <div className="w-full">
@@ -69,11 +115,34 @@ export function WithdrawReviewContent({
       <div className="mt-6 flex flex-col gap-6">
         <DetailsCard rows={rows} />
 
+        {wouldBreachHF && (
+          <Text
+            variant="body2"
+            className="text-error-main"
+            data-testid="withdraw-hf-block-warning"
+          >
+            This withdrawal would drop your health factor below{" "}
+            {WITHDRAW_HF_BLOCK_THRESHOLD.toFixed(1)} and be rejected on-chain.
+            Reduce the selection or repay debt first.
+          </Text>
+        )}
+        {isAtRisk && (
+          <Text
+            variant="body2"
+            className="text-warning-main"
+            data-testid="withdraw-hf-at-risk-warning"
+          >
+            Your position will be at risk of liquidation after this withdrawal
+            (health factor below {WITHDRAW_HF_WARNING_THRESHOLD.toFixed(1)}).
+            Consider withdrawing less or repaying debt.
+          </Text>
+        )}
+
         <Button
           variant="contained"
           color="secondary"
           className="w-full"
-          disabled={isProcessing}
+          disabled={isProcessing || wouldBreachHF}
           onClick={onConfirm}
         >
           {isProcessing ? (
@@ -86,6 +155,16 @@ export function WithdrawReviewContent({
           ) : (
             "Confirm"
           )}
+        </Button>
+        <Button
+          variant="outlined"
+          color="primary"
+          className="w-full"
+          disabled={isProcessing}
+          onClick={onEditSelection}
+          data-testid="withdraw-change-selection"
+        >
+          Change Selection
         </Button>
       </div>
     </div>

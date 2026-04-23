@@ -13,6 +13,11 @@ import { logger } from "@/infrastructure";
 import { graphqlClient } from "../../clients/graphql/client";
 import type { ExpirationReason } from "../../models/peginStateMachine";
 import { type Vault, VaultStatus } from "../../types/vault";
+import {
+  BTC_PUBKEY_HEX_PATTERN,
+  ETH_ADDRESS_PATTERN,
+  VALID_HEX_PATTERN,
+} from "../../utils/validation";
 
 /**
  * Common vault fields fragment
@@ -198,11 +203,62 @@ const ZERO_HASH =
   "0x0000000000000000000000000000000000000000000000000000000000000000";
 
 /**
+ * Validates that a required hex field from the indexer is well-formed.
+ * Throws if the value does not match 0x-prefixed hex — this indicates
+ * a buggy or compromised server response.
+ */
+function validateRequiredHex(
+  value: string,
+  fieldName: string,
+  vaultId: string,
+): Hex {
+  if (!VALID_HEX_PATTERN.test(value)) {
+    throw new Error(
+      `Malformed hex in required field "${fieldName}" for vault ${vaultId}: "${value.slice(0, 20)}"`,
+    );
+  }
+  return value as Hex;
+}
+
+/**
+ * Validates that a required BTC public key field from the indexer has a valid
+ * encoding length (x-only 64, compressed 66, or uncompressed 130 hex chars).
+ * Throws on invalid format.
+ */
+function validateRequiredBtcPubkey(
+  value: string,
+  fieldName: string,
+  vaultId: string,
+): Hex {
+  if (!BTC_PUBKEY_HEX_PATTERN.test(value)) {
+    throw new Error(
+      `Invalid BTC public key in field "${fieldName}" for vault ${vaultId}: "${String(value).slice(0, 20)}"`,
+    );
+  }
+  return value as Hex;
+}
+
+/**
+ * Validates that a required address field from the indexer is a well-formed
+ * 20-byte Ethereum address. Throws on invalid format.
+ */
+function validateRequiredAddress(
+  value: string,
+  fieldName: string,
+  vaultId: string,
+): Address {
+  if (!ETH_ADDRESS_PATTERN.test(value)) {
+    throw new Error(
+      `Invalid address in field "${fieldName}" for vault ${vaultId}: "${value.slice(0, 20)}"`,
+    );
+  }
+  return value as Address;
+}
+
+/**
  * Normalize an optional hex field from the indexer.
  * Treats null, "0x" (empty bytes), and zero-hash as undefined.
  */
-const VALID_HEX_PATTERN = /^0x[0-9a-fA-F]+$/;
-
 function normalizeOptionalHex(value: string | null): Hex | undefined {
   if (!value || value === "0x" || value === ZERO_HASH) return undefined;
   if (!VALID_HEX_PATTERN.test(value)) {
@@ -231,40 +287,68 @@ function isValidExpirationReason(
  */
 function transformVaultItem(item: GraphQLVaultItem): Vault {
   return {
-    id: item.id as Hex,
-    peginTxHash: validateRequiredField(
-      item.peginTxHash,
+    id: validateRequiredHex(item.id, "id", item.id),
+    peginTxHash: validateRequiredHex(
+      validateRequiredField(item.peginTxHash, "peginTxHash", item.id),
       "peginTxHash",
       item.id,
-    ) as Hex,
-    depositor: item.depositor as Address,
-    depositorBtcPubkey: item.depositorBtcPubKey as Hex,
-    depositorSignedPeginTx: item.depositorSignedPeginTx as Hex,
-    unsignedPrePeginTx: validateRequiredField(
-      item.unsignedPrePeginTx,
+    ),
+    depositor: validateRequiredAddress(item.depositor, "depositor", item.id),
+    depositorBtcPubkey: validateRequiredBtcPubkey(
+      item.depositorBtcPubKey,
+      "depositorBtcPubKey",
+      item.id,
+    ),
+    depositorSignedPeginTx: validateRequiredHex(
+      item.depositorSignedPeginTx,
+      "depositorSignedPeginTx",
+      item.id,
+    ),
+    unsignedPrePeginTx: validateRequiredHex(
+      validateRequiredField(
+        item.unsignedPrePeginTx,
+        "unsignedPrePeginTx",
+        item.id,
+      ),
       "unsignedPrePeginTx",
       item.id,
-    ) as Hex,
+    ),
     amount: BigInt(item.amount),
-    vaultProvider: item.vaultProvider as Address,
+    vaultProvider: validateRequiredAddress(
+      item.vaultProvider,
+      "vaultProvider",
+      item.id,
+    ),
     hashlock: normalizeOptionalHex(item.hashlock),
     htlcVout: item.htlcVout,
-    secret: item.secret ? (item.secret as Hex) : undefined,
+    secret: normalizeOptionalHex(item.secret),
     peginSigsPostedAt: item.peginSigsPostedAt
       ? parseInt(item.peginSigsPostedAt, 10) * 1000
       : undefined,
     status: mapGraphQLStatusToVaultStatus(item.status),
-    applicationEntryPoint: item.applicationEntryPoint as Address,
+    applicationEntryPoint: validateRequiredAddress(
+      item.applicationEntryPoint,
+      "applicationEntryPoint",
+      item.id,
+    ),
     appVaultKeepersVersion: item.appVaultKeepersVersion,
     universalChallengersVersion: item.universalChallengersVersion,
     offchainParamsVersion: item.offchainParamsVersion,
     currentOwner: item.currentOwner
-      ? (item.currentOwner as Address)
+      ? validateRequiredAddress(item.currentOwner, "currentOwner", item.id)
       : undefined,
     referralCode: item.referralCode,
-    depositorPayoutBtcAddress: item.depositorPayoutBtcAddress as Hex,
-    depositorWotsPkHash: validateRequiredField(
-      item.depositorWotsPkHash,
+    depositorPayoutBtcAddress: validateRequiredHex(
+      item.depositorPayoutBtcAddress,
+      "depositorPayoutBtcAddress",
+      item.id,
+    ),
+    depositorWotsPkHash: validateRequiredHex(
+      validateRequiredField(
+        item.depositorWotsPkHash,
+        "depositorWotsPkHash",
+        item.id,
+      ),
       "depositorWotsPkHash",
       item.id,
     ),
@@ -323,4 +407,76 @@ export async function fetchVaultById(vaultId: Hex): Promise<Vault | null> {
   }
 
   return transformVaultItem(data.vault);
+}
+
+/**
+ * Minimal fields needed by the refund flow — excludes unrelated required
+ * fields on the full {@link Vault} projection so that indexer schema drift or
+ * partial responses on non-refund fields (e.g. `depositorWotsPkHash`) cannot
+ * block a critical recovery path.
+ */
+export interface VaultRefundIndexerData {
+  depositorBtcPubkey: Hex;
+  amount: bigint;
+  unsignedPrePeginTx: Hex;
+}
+
+const GET_VAULT_REFUND_DATA = gql`
+  query GetVaultRefundData($id: String!) {
+    vault(id: $id) {
+      id
+      depositorBtcPubKey
+      amount
+      unsignedPrePeginTx
+    }
+  }
+`;
+
+interface VaultRefundGraphQLItem {
+  id: string;
+  depositorBtcPubKey: string;
+  amount: string;
+  unsignedPrePeginTx: string | null;
+}
+
+interface VaultRefundGraphQLResponse {
+  vault: VaultRefundGraphQLItem | null;
+}
+
+/**
+ * Fetch only the indexer fields the refund flow requires.
+ * Throws if the vault or its `unsignedPrePeginTx` is missing — both are
+ * required to build a refund PSBT.
+ */
+export async function fetchVaultRefundData(
+  vaultId: Hex,
+): Promise<VaultRefundIndexerData | null> {
+  const data = await graphqlClient.request<VaultRefundGraphQLResponse>(
+    GET_VAULT_REFUND_DATA,
+    { id: vaultId.toLowerCase() },
+  );
+
+  if (!data.vault) {
+    return null;
+  }
+
+  const { depositorBtcPubKey, amount, unsignedPrePeginTx } = data.vault;
+  if (!unsignedPrePeginTx) {
+    throw new Error(
+      `Vault ${vaultId} is missing unsignedPrePeginTx; cannot build refund`,
+    );
+  }
+  return {
+    depositorBtcPubkey: validateRequiredBtcPubkey(
+      depositorBtcPubKey,
+      "depositorBtcPubKey",
+      vaultId,
+    ),
+    amount: BigInt(amount),
+    unsignedPrePeginTx: validateRequiredHex(
+      unsignedPrePeginTx,
+      "unsignedPrePeginTx",
+      vaultId,
+    ),
+  };
 }

@@ -4,6 +4,7 @@
  * and provides CTA display logic.
  */
 
+import { formatSatoshisToBtc } from "@babylonlabs-io/ts-sdk/tbv/core";
 import {
   validateMultiVaultDepositInputs as sdkValidateMultiVaultDepositInputs,
   validateProviderSelection as sdkValidateProviderSelection,
@@ -12,8 +13,6 @@ import {
   type MultiVaultDepositFlowInputs,
   type ValidationResult,
 } from "@babylonlabs-io/ts-sdk/tbv/core/services";
-
-import { formatSatoshisToBtc } from "@/utils/btcConversion";
 
 export {
   isDepositAmountValid,
@@ -96,6 +95,7 @@ export function validateMultiVaultDepositInputs(
 export interface DepositCtaParams extends DepositFormValidityParams {
   isDepositDisabled: boolean;
   isGeoBlocked: boolean;
+  isAddressBlocked: boolean;
   isWalletConnected: boolean;
   hasApplication: boolean;
   hasProvider: boolean;
@@ -103,6 +103,8 @@ export interface DepositCtaParams extends DepositFormValidityParams {
   isFeeError: boolean;
   feeError: string | null;
   feeDisabled: boolean;
+  ordinalsCheckPending: boolean;
+  ordinalsWarningUnacknowledged: boolean;
 }
 
 export interface DepositCtaState {
@@ -147,6 +149,10 @@ export function getDepositCtaState(params: DepositCtaParams): DepositCtaState {
     return { disabled: true, label: "Service unavailable in your region" };
   }
 
+  if (params.isAddressBlocked) {
+    return { disabled: true, label: "Wallet not eligible" };
+  }
+
   if (!params.isWalletConnected) {
     return { disabled: true, label: "Connect your wallet" };
   }
@@ -169,6 +175,14 @@ export function getDepositCtaState(params: DepositCtaParams): DepositCtaState {
   const amountLabel = getDepositButtonLabel(params);
   if (amountLabel !== "Deposit") {
     return { disabled: true, label: amountLabel };
+  }
+
+  if (params.ordinalsCheckPending) {
+    return { disabled: true, label: "Checking for inscriptions..." };
+  }
+
+  if (params.ordinalsWarningUnacknowledged) {
+    return { disabled: true, label: "Acknowledge warning to continue" };
   }
 
   if (params.isFeeError) {

@@ -76,7 +76,7 @@ export const CosmosWalletProvider = ({
     try {
       await callbacks?.onDisconnect?.();
     } catch (error) {
-      console.error("Error in onDisconnect callback:", error);
+      console.error("Error in onDisconnect callback:", error instanceof Error ? error.message : "Unknown error");
     }
   }, [callbacks]);
 

@@ -6,9 +6,9 @@ const REDACTED_IDENTIFIER_VISIBLE_CHARS = 4;
  * Redact a known-sensitive identifier to "first4...last4" format.
  * Preserves enough context for debugging while preventing full exposure.
  */
-export function redactIdentifier(value: string): string {
+export function redactIdentifier(value: string, forceRedact = false): string {
   if (value.length <= REDACTED_IDENTIFIER_VISIBLE_CHARS * 2) {
-    return value;
+    return forceRedact ? "[REDACTED]" : value;
   }
   const head = value.slice(0, REDACTED_IDENTIFIER_VISIBLE_CHARS);
   const tail = value.slice(-REDACTED_IDENTIFIER_VISIBLE_CHARS);
@@ -87,7 +87,7 @@ export function redactData<T>(obj: T): T {
     const result: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
       if (SENSITIVE_FIELD_NAMES.has(key) && typeof value === "string") {
-        result[key] = redactIdentifier(value);
+        result[key] = redactIdentifier(value, true);
       } else {
         result[key] = redactData(value);
       }
@@ -128,9 +128,23 @@ export function scrubSentryEvent<T extends SentryEvent>(event: T): T {
   }
 
   if (event.exception?.values) {
+    const scrubOptional = (v: string | undefined) => (v ? scrubString(v) : v);
+
     event.exception.values = event.exception.values.map((ex) => ({
       ...ex,
       value: ex.value ? scrubString(ex.value) : ex.value,
+      stacktrace: ex.stacktrace
+        ? {
+            ...ex.stacktrace,
+            frames: ex.stacktrace.frames?.map((frame) => ({
+              ...frame,
+              filename: scrubOptional(frame.filename),
+              abs_path: scrubOptional(frame.abs_path),
+              module: scrubOptional(frame.module),
+              vars: frame.vars ? redactData(frame.vars) : frame.vars,
+            })),
+          }
+        : ex.stacktrace,
     }));
   }
 

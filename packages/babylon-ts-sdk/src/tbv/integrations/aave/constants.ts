@@ -63,11 +63,12 @@ export const AAVE_BASE_CURRENCY_DECIMALS = 26;
 
 /**
  * Aave RAY-scaled base currency decimals
- * Debt values (totalDebtValueRay) use 1e35 = $1 USD
+ * Debt values (totalDebtValueRay) use 1e53 = $1 USD
+ * (base currency 1e26 scaled by RAY 1e27).
  *
  * Reference: IAaveSpoke.sol UserAccountData.totalDebtValueRay
  */
-export const AAVE_BASE_CURRENCY_RAY_DECIMALS = 35;
+export const AAVE_BASE_CURRENCY_RAY_DECIMALS = 53;
 
 /**
  * WAD decimals (1e18 = 1.0)

@@ -1,15 +1,13 @@
 import { FullScreenDialog, Heading } from "@babylonlabs-io/core-ui";
-import type {
-  ClaimerTransactions,
-  DepositorGraphTransactions,
-} from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Hex } from "viem";
 
 import { FeatureFlags } from "@/config";
+import { useAddressScreening } from "@/context/addressScreening";
 import { useGeoFencing } from "@/context/geofencing";
 import { ProtocolParamsProvider } from "@/context/ProtocolParamsContext";
 import { useDialogStep } from "@/hooks/deposit/useDialogStep";
+import { useProtocolFeeRows } from "@/hooks/useProtocolFeeRows";
 import { depositService } from "@/services/deposit";
 import type { VaultActivity } from "@/types/activity";
 import type { VaultProvider } from "@/types/vaultProvider";
@@ -55,8 +53,6 @@ type NewDepositProps = SimpleDepositBaseProps & {
 type ResumeSignProps = SimpleDepositBaseProps & {
   resumeMode: "sign_payouts";
   activity: VaultActivity;
-  transactions: ClaimerTransactions[] | null;
-  depositorGraph: DepositorGraphTransactions;
   btcPublicKey: string;
   depositorEthAddress: Hex;
   onResumeSuccess: () => void;
@@ -107,6 +103,9 @@ function SimpleDepositContent({
   initialAmountBtc,
 }: SimpleDepositBaseProps) {
   const { isGeoBlocked, isLoading: isGeoLoading } = useGeoFencing();
+  const { isBlocked: isAddressBlocked, isLoading: isScreeningLoading } =
+    useAddressScreening();
+  const { rows: feeRows } = useProtocolFeeRows();
 
   const {
     formData,
@@ -134,6 +133,8 @@ function SimpleDepositContent({
     isSplitLoading,
     splitRatioLabel,
     depositorClaimValue,
+    ordinalsCheckUnavailable,
+    ordinalsCheckPending,
     validateForm,
   } = useDepositPageForm();
 
@@ -306,8 +307,12 @@ function SimpleDepositContent({
                 feeError={feeError}
                 isDepositDisabled={FeatureFlags.isDepositDisabled}
                 isGeoBlocked={isGeoBlocked || isGeoLoading}
+                isAddressBlocked={isAddressBlocked || isScreeningLoading}
                 onDeposit={handleDeposit}
                 partialLiquidation={partialLiquidationProps}
+                feeRows={feeRows}
+                ordinalsCheckUnavailable={ordinalsCheckUnavailable}
+                ordinalsCheckPending={ordinalsCheckPending}
               />
             </div>
           </div>
@@ -466,8 +471,6 @@ export default function SimpleDeposit(props: SimpleDepositProps) {
             {resumeMode === "sign_payouts" ? (
               <ResumeSignContent
                 activity={props.activity}
-                transactions={props.transactions}
-                depositorGraph={props.depositorGraph}
                 btcPublicKey={props.btcPublicKey}
                 depositorEthAddress={props.depositorEthAddress}
                 onClose={onClose}

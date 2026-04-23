@@ -5,8 +5,6 @@
 import type { ClaimerTransactions } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import type { Hex } from "viem";
 
-import { getVpProxyUrl } from "@/utils/rpc";
-
 import {
   ContractStatus,
   isPreDepositorSignaturesError,
@@ -161,7 +159,7 @@ export function groupDepositsByProvider(
       existing.deposits.push(deposit);
     } else {
       grouped.set(providerAddress, {
-        providerUrl: getVpProxyUrl(providerAddress),
+        providerAddress,
         deposits: [deposit],
       });
     }

@@ -4,8 +4,10 @@ import { toXOnly } from "bitcoinjs-lib/src/psbt/bip371";
 
 import { Network } from "@/core/types";
 import { initBTCCurve } from "@/core/utils/initBTCCurve";
+import { COMPRESSED_PUBLIC_KEY_HEX_LENGTH, toXOnlyPublicKeyHex } from "@/core/utils/publicKey";
 import { ERROR_CODES, WalletError } from "@/error";
-export const COMPRESSED_PUBLIC_KEY_HEX_LENGTH = 66;
+
+export { COMPRESSED_PUBLIC_KEY_HEX_LENGTH, toXOnlyPublicKeyHex };
 
 const NETWORKS = {
   [Network.MAINNET]: {
@@ -38,11 +40,9 @@ const NETWORKS = {
 };
 
 export const getTaprootAddress = (publicKey: string, network: Network) => {
-  if (publicKey.length == COMPRESSED_PUBLIC_KEY_HEX_LENGTH) {
-    publicKey = publicKey.slice(2);
-  }
+  const xOnlyHex = toXOnlyPublicKeyHex(publicKey);
 
-  const internalPubkey = Buffer.from(publicKey, "hex");
+  const internalPubkey = Buffer.from(xOnlyHex, "hex");
   const { address, output: scriptPubKey } = payments.p2tr({
     internalPubkey: toXOnly(internalPubkey),
     network: NETWORKS[network].config,

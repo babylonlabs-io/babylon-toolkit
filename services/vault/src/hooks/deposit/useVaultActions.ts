@@ -4,6 +4,7 @@
 
 import { getETHChain } from "@babylonlabs-io/config";
 import { ensureHexPrefix } from "@babylonlabs-io/ts-sdk/tbv/core";
+import { validateSecretAgainstHashlock } from "@babylonlabs-io/ts-sdk/tbv/core/services";
 import { UtxoNotAvailableError } from "@babylonlabs-io/ts-sdk/tbv/core/utils";
 import {
   getSharedWagmiConfig,
@@ -14,6 +15,7 @@ import type { Hex } from "viem";
 import { getWalletClient, switchChain } from "wagmi/actions";
 
 import {
+  ContractStatus,
   getNextLocalStatus,
   PeginAction,
   type LocalStorageStatus,
@@ -27,7 +29,6 @@ import { activateVaultWithSecret } from "../../services/vault/vaultActivationSer
 import { utxosToExpectedRecord } from "../../services/vault/vaultPeginBroadcastService";
 import type { PendingPeginRequest } from "../../storage/peginStorage";
 import { stripHexPrefix } from "../../utils/btc";
-import { validateSecretAgainstHashlock } from "../../utils/htlcSecret";
 
 export interface BroadcastPrePeginParams {
   activityId: Hex;
@@ -111,6 +112,12 @@ export function useVaultActions(): UseVaultActionsReturn {
 
       if (!vault) {
         throw new Error("Vault not found. Please try again.");
+      }
+
+      if (vault.status !== ContractStatus.PENDING) {
+        throw new Error(
+          `Cannot broadcast: vault is in ${ContractStatus[vault.status]} state. Broadcast is only valid during PENDING.`,
+        );
       }
 
       const graphqlUnsignedTxHex = vault.unsignedPrePeginTx;
@@ -244,10 +251,11 @@ export function useVaultActions(): UseVaultActionsReturn {
         );
       }
 
-      // Validate secret against hashlock before sending ETH tx
-      const isValid = await validateSecretAgainstHashlock(
-        secretHex,
-        vault.hashlock,
+      // Validate secret against hashlock before sending ETH tx.
+      // SDK version is sync + requires 0x-prefixed inputs.
+      const isValid = validateSecretAgainstHashlock(
+        ensureHexPrefix(secretHex),
+        ensureHexPrefix(vault.hashlock),
       );
       if (!isValid) {
         throw new Error(

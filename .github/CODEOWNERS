@@ -1,1 +1,37 @@
+# Default owners
 * @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov
+
+# -----------------------------------------------------------------------------
+# CRITICAL PATHS (see CLAUDE.md > "CRITICAL PATHS — HUMAN REVIEW REQUIRED")
+# These entries designate owners for the files/directories that handle
+# irreversible value movement. CODEOWNERS alone does NOT enforce a minimum
+# approval count - it only assigns owners and (when "Require review from
+# Code Owners" is enabled in branch protection) requires at least one
+# code-owner approval. To enforce two approvals specifically on these paths,
+# configure a GitHub ruleset scoped to these path globs with
+# `required_approving_review_count: 2`. Do not weaken ownership here without
+# review.
+# -----------------------------------------------------------------------------
+
+# 1. WASM boundary (value computation)
+/packages/babylon-tbv-rust-wasm/src/index.ts @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov
+
+# 2. Fee calculation consistency
+/packages/babylon-ts-sdk/src/tbv/core/utils/utxo/selectUtxos.ts @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov
+/services/vault/src/utils/fee/peginFee.ts @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov
+
+# 3. Presigning payout transactions
+/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov
+/services/vault/src/hooks/deposit/depositFlowSteps/payoutSigning.ts @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov
+
+# 4. WOTS key derivation
+/services/vault/src/services/wots/ @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov
+
+# 5. HTLC secret & vault activation
+/services/vault/src/services/vault/vaultActivationService.ts @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov
+
+# 6. Multi-vault split transactions
+/packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov
+
+# 7. Non-standard wallet signing options
+/packages/babylon-ts-sdk/src/tbv/core/utils/signing.ts @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov

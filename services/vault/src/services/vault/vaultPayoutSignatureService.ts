@@ -1,10 +1,22 @@
-import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
-import { PayoutManager, type Network } from "@babylonlabs-io/ts-sdk/tbv/core";
-import type {
-  ClaimerSignatures,
-  ClaimerTransactions,
-  DepositorAsClaimerPresignatures,
-} from "@babylonlabs-io/ts-sdk/tbv/core/clients";
+/**
+ * Vault-tier helpers for payout signing.
+ *
+ * Most of the former contents of this module moved to the SDK's
+ * `pollAndSignPayouts` orchestrator. What remains is app-specific:
+ *
+ * - `prepareSigningContext` — reads version-locked vault data from the
+ *   BTCVaultRegistry contract and composes the `SigningContext` that the
+ *   SDK orchestrator requires. Not in the SDK because contract readers are
+ *   wired to vault's viem public client.
+ * - `getSorted*Pubkeys` — canonical lexicographic sort that matches the
+ *   Rust backend. Reused by `vaultRefundService`.
+ * - `resolveVaultProviderBtcPubkey` — caller hint + fallback to GraphQL.
+ * - `PayoutSigningProgress` type — UI progress shape used across deposit
+ *   components; the SDK exposes `(completed, total)` positional callbacks
+ *   and this object shape is the vault-tier adapter.
+ */
+
+import type { Network } from "@babylonlabs-io/ts-sdk/tbv/core";
 import type { Address, Hex } from "viem";
 
 import { getVaultFromChain } from "../../clients/eth-contract/btc-vault-registry/query";
@@ -14,25 +26,15 @@ import {
   getVaultKeeperReader,
 } from "../../clients/eth-contract/sdk-readers";
 import { getBTCNetworkForWASM } from "../../config/pegin";
-import {
-  deriveBip86ScriptPubKeyHex,
-  processPublicKeyToXOnly,
-  stripHexPrefix,
-  validateXOnlyPubkey,
-} from "../../utils/btc";
-import { createVpClient } from "../../utils/rpc";
+import { stripHexPrefix } from "../../utils/btc";
 
 import { fetchVaultProviderById } from "./fetchVaultProviders";
 
-/** Vault keeper info needed for payout signing */
 export interface PayoutVaultKeeper {
-  /** Vault keeper's BTC public key */
   btcPubKey: string;
 }
 
-/** Universal challenger info needed for payout signing */
 export interface PayoutUniversalChallenger {
-  /** Universal challenger's BTC public key */
   btcPubKey: string;
 }
 
@@ -46,46 +48,30 @@ export interface PrepareSigningContextParams {
   registeredPayoutScriptPubKey: string;
 }
 
+/** Context required for signing payout transactions */
+export interface SigningContext {
+  peginTxHex: string;
+  vaultProviderBtcPubkey: string;
+  vaultKeeperBtcPubkeys: string[];
+  universalChallengerBtcPubkeys: string[];
+  depositorBtcPubkey: string;
+  timelockPegin: number;
+  network: Network;
+  /** On-chain registered depositor payout scriptPubKey (hex) for payout output validation */
+  registeredPayoutScriptPubKey: string;
+}
+
 export interface PreparedSigningData {
   context: SigningContext;
   vaultProviderAddress: Hex;
 }
 
-/**
- * Validate input parameters for payout signing.
- */
-export function validatePayoutSignatureParams(params: {
-  vaultId: string;
-  depositorBtcPubkey: string;
-  claimerTransactions: ClaimerTransactions[];
-  vaultKeepers: PayoutVaultKeeper[];
-  universalChallengers: PayoutUniversalChallenger[];
-}): void {
-  const {
-    vaultId,
-    depositorBtcPubkey,
-    claimerTransactions,
-    vaultKeepers,
-    universalChallengers,
-  } = params;
-
-  if (!vaultId || typeof vaultId !== "string") {
-    throw new Error("Invalid vaultId: must be a non-empty string");
-  }
-
-  validateXOnlyPubkey(depositorBtcPubkey);
-
-  if (!claimerTransactions || claimerTransactions.length === 0) {
-    throw new Error("Invalid claimerTransactions: must be a non-empty array");
-  }
-
-  if (!vaultKeepers || vaultKeepers.length === 0) {
-    throw new Error("Invalid vaultKeepers: must be a non-empty array");
-  }
-
-  if (!universalChallengers || universalChallengers.length === 0) {
-    throw new Error("Invalid universalChallengers: must be a non-empty array");
-  }
+/** Detailed progress for payout signing (used by UI layer) */
+export interface PayoutSigningProgress {
+  /** Number of signing steps completed */
+  completed: number;
+  /** Total number of claimers */
+  totalClaimers: number;
 }
 
 /**
@@ -128,164 +114,12 @@ export function getSortedUniversalChallengerPubkeys(
 }
 
 /**
- * Submit payout signatures to vault provider RPC.
- */
-export async function submitSignaturesToVaultProvider(
-  vaultProviderAddress: string,
-  peginTxHash: string,
-  depositorBtcPubkey: string,
-  signatures: Record<string, ClaimerSignatures>,
-  depositorClaimerPresignatures: DepositorAsClaimerPresignatures,
-): Promise<void> {
-  const rpcClient = createVpClient(vaultProviderAddress, { timeout: 30000 });
-
-  // The VP expects signatures for ALL claimers (VP + VKs + depositor).
-  // The depositor's own payout signature comes from depositorClaimerPresignatures
-  // and must be included in the signatures map.
-  const allSignatures = { ...signatures };
-  const depositorXOnly = stripHexPrefix(depositorBtcPubkey);
-  allSignatures[depositorXOnly] =
-    depositorClaimerPresignatures.payout_signatures;
-
-  await rpcClient.submitDepositorPresignatures({
-    pegin_txid: stripHexPrefix(peginTxHash),
-    depositor_pk: stripHexPrefix(depositorBtcPubkey),
-    signatures: allSignatures,
-    depositor_claimer_presignatures: depositorClaimerPresignatures,
-  });
-}
-
-/** Context required for signing payout transactions */
-export interface SigningContext {
-  peginTxHex: string;
-  vaultProviderBtcPubkey: string;
-  vaultKeeperBtcPubkeys: string[];
-  universalChallengerBtcPubkeys: string[];
-  depositorBtcPubkey: string;
-  timelockPegin: number;
-  network: Network;
-  /** On-chain registered depositor payout scriptPubKey (hex) for payout output validation */
-  registeredPayoutScriptPubKey: string;
-}
-
-/**
- * A single claimer's transactions prepared for signing.
- */
-export interface PreparedTransaction {
-  claimerPubkeyXOnly: string;
-  /** Payout transaction (after Assert) */
-  payoutTxHex: string;
-  /** Assert transaction (for reference, used in Payout signing) */
-  assertTxHex: string;
-}
-
-/**
- * Prepare transactions for signing by extracting and normalizing pubkeys.
- */
-export function prepareTransactionsForSigning(
-  claimerTransactions: ClaimerTransactions[],
-): PreparedTransaction[] {
-  return claimerTransactions.map((tx) => ({
-    claimerPubkeyXOnly: processPublicKeyToXOnly(tx.claimer_pubkey),
-    payoutTxHex: tx.payout_tx.tx_hex,
-    assertTxHex: tx.assert_tx.tx_hex,
-  }));
-}
-
-/**
- * Resolve the expected payout scriptPubKey for a given claimer.
+ * Prepare the signing context by fetching all required data from the
+ * on-chain contract at the vault's locked versions.
  *
- * Matches Rust `TxGraphParams::payout_btc_address`:
- * - VP/Depositor claimer: payout goes to the depositor's registered payout address
- * - VK claimer: payout goes to a BIP-86 P2TR address derived from the VK's pubkey
- */
-function resolvePayoutScriptPubKey(
-  claimerPubkeyXOnly: string,
-  context: SigningContext,
-): string {
-  const claimer = stripHexPrefix(claimerPubkeyXOnly).toLowerCase();
-  const vpPubkey = stripHexPrefix(context.vaultProviderBtcPubkey).toLowerCase();
-  const depositorPubkey = stripHexPrefix(
-    context.depositorBtcPubkey,
-  ).toLowerCase();
-
-  if (claimer === vpPubkey || claimer === depositorPubkey) {
-    return context.registeredPayoutScriptPubKey;
-  }
-
-  // Verify claimer is a known vault keeper before deriving their BIP-86 address
-  const isVaultKeeper = context.vaultKeeperBtcPubkeys.some(
-    (vk) => stripHexPrefix(vk).toLowerCase() === claimer,
-  );
-  if (!isVaultKeeper) {
-    throw new Error(
-      `Unknown claimer pubkey ${claimer}: not VP, depositor, or a registered vault keeper`,
-    );
-  }
-
-  // VK claimer: derive BIP-86 P2TR scriptPubKey from the VK's x-only pubkey
-  return deriveBip86ScriptPubKeyHex(claimer);
-}
-
-/**
- * Sign a Payout transaction for a single claimer.
- *
- * @param btcWallet - Bitcoin wallet for signing
- * @param context - Signing context with vault data
- * @param transaction - Prepared transaction to sign
- * @returns Payout signature (64-byte hex)
- */
-export async function signPayout(
-  btcWallet: BitcoinWallet,
-  context: SigningContext,
-  transaction: PreparedTransaction,
-): Promise<string> {
-  try {
-    const payoutManager = new PayoutManager({
-      network: context.network,
-      btcWallet,
-    });
-
-    const expectedScriptPubKey = resolvePayoutScriptPubKey(
-      transaction.claimerPubkeyXOnly,
-      context,
-    );
-
-    const result = await payoutManager.signPayoutTransaction({
-      payoutTxHex: transaction.payoutTxHex,
-      peginTxHex: context.peginTxHex,
-      assertTxHex: transaction.assertTxHex,
-      vaultProviderBtcPubkey: context.vaultProviderBtcPubkey,
-      vaultKeeperBtcPubkeys: context.vaultKeeperBtcPubkeys,
-      universalChallengerBtcPubkeys: context.universalChallengerBtcPubkeys,
-      depositorBtcPubkey: context.depositorBtcPubkey,
-      timelockPegin: context.timelockPegin,
-      registeredPayoutScriptPubKey: expectedScriptPubKey,
-    });
-
-    return result.signature;
-  } catch (error) {
-    if (error instanceof Error) {
-      throw new Error(`Failed to sign Payout transaction: ${error.message}`);
-    }
-    throw new Error("Failed to sign Payout transaction: Unknown error");
-  }
-}
-
-/** Detailed progress for payout signing (used by UI layer) */
-export interface PayoutSigningProgress {
-  /** Number of signing steps completed */
-  completed: number;
-  /** Total number of claimers */
-  totalClaimers: number;
-}
-
-/**
- * Prepare the signing context by fetching all required data.
- * Call this once, then use signPayout for each transaction.
- *
- * Uses versioned vault keepers and universal challengers from on-chain contracts
- * (authoritative source) based on the versions locked when the vault was created.
+ * Never uses the GraphQL indexer for signing-critical fields — a compromised
+ * indexer could substitute different signer-set versions and obtain signatures
+ * over attacker-chosen graph parameters.
  */
 export async function prepareSigningContext(
   params: PrepareSigningContextParams,
@@ -296,12 +130,7 @@ export async function prepareSigningContext(
     vaultProviderBtcPubKey,
     registeredPayoutScriptPubKey,
   } = params;
-  // Fetch signing-critical vault fields from the contract (authoritative source).
-  // Never use the GraphQL indexer for these values — a compromised indexer could
-  // substitute a different pegin transaction or signer-set versions and obtain
-  // signatures over attacker-chosen graph parameters.
-  // Note: registeredPayoutScriptPubKey is passed in separately — the contract only
-  // emits it in the PegInSubmitted event, it's not stored in the BTCVault struct.
+
   const vault = await getVaultFromChain(vaultId as Hex);
 
   const protocolParamsReader = await getProtocolParamsReader();
@@ -309,39 +138,33 @@ export async function prepareSigningContext(
     vault.offchainParamsVersion,
   );
 
-  // Fetch versioned vault keepers from the contract (authoritative source)
   const vaultKeeperReader = await getVaultKeeperReader();
   const vaultKeepers = await vaultKeeperReader.getVaultKeepersByVersion(
     vault.applicationEntryPoint,
     vault.appVaultKeepersVersion,
   );
-
   if (vaultKeepers.length === 0) {
     throw new Error(
       `No vault keepers found for version ${vault.appVaultKeepersVersion}`,
     );
   }
 
-  // Fetch versioned universal challengers from the contract (authoritative source)
   const universalChallengerReader = await getUniversalChallengerReader();
   const universalChallengers =
     await universalChallengerReader.getUniversalChallengersByVersion(
       vault.universalChallengersVersion,
     );
-
   if (universalChallengers.length === 0) {
     throw new Error(
       `No universal challengers found for version ${vault.universalChallengersVersion}`,
     );
   }
 
-  // Resolve vault provider's BTC public key using the contract-authoritative address
   const vaultProviderBtcPubkey = await resolveVaultProviderBtcPubkey(
     vault.vaultProvider,
     vaultProviderBtcPubKey,
   );
 
-  // Get pubkeys (sorted order matches Rust backend)
   const vaultKeeperBtcPubkeys = getSortedVaultKeeperPubkeys(
     vaultKeepers.map((vk) => ({ btcPubKey: vk.btcPubKey })),
   );
@@ -349,143 +172,17 @@ export async function prepareSigningContext(
     universalChallengers.map((uc) => ({ btcPubKey: uc.btcPubKey })),
   );
 
-  const signingContext = {
-    peginTxHex: vault.depositorSignedPeginTx,
-    vaultProviderBtcPubkey,
-    vaultKeeperBtcPubkeys,
-    universalChallengerBtcPubkeys,
-    depositorBtcPubkey,
-    timelockPegin,
-    network: getBTCNetworkForWASM(),
-    registeredPayoutScriptPubKey,
-  };
-
   return {
-    context: signingContext,
+    context: {
+      peginTxHex: vault.depositorSignedPeginTx,
+      vaultProviderBtcPubkey,
+      vaultKeeperBtcPubkeys,
+      universalChallengerBtcPubkeys,
+      depositorBtcPubkey,
+      timelockPegin,
+      network: getBTCNetworkForWASM(),
+      registeredPayoutScriptPubKey,
+    },
     vaultProviderAddress: vault.vaultProvider,
   };
-}
-
-/**
- * Check if wallet supports batch signing (signPsbts).
- * Batch signing allows signing all transactions with a single wallet interaction.
- *
- * Mobile wallets may not inject signPsbts, so callers should fall back to
- * sequential signPsbt when this returns false.
- *
- * @see signPsbtsWithFallback in utils/btc for the lower-level batch-or-sequential helper.
- */
-export function walletSupportsBatchSigning(btcWallet: BitcoinWallet): boolean {
-  return typeof btcWallet.signPsbts === "function";
-}
-
-/**
- * Sign all payout transactions in batch using signPsbts (single wallet popup).
- *
- * @param btcWallet - Bitcoin wallet with signPsbts support
- * @param context - Signing context with vault data
- * @param transactions - Prepared transactions to sign
- * @returns Signatures keyed by claimer pubkey
- */
-export async function signAllTransactionsBatch(
-  btcWallet: BitcoinWallet,
-  context: SigningContext,
-  transactions: PreparedTransaction[],
-): Promise<Record<string, ClaimerSignatures>> {
-  try {
-    const payoutManager = new PayoutManager({
-      network: context.network,
-      btcWallet,
-    });
-
-    if (!payoutManager.supportsBatchSigning()) {
-      throw new Error(
-        "Wallet does not support batch signing (signPsbts method not available)",
-      );
-    }
-
-    // Build batch signing params (1 Payout PSBT per claimer).
-    // Resolve per-claimer payout address: VP/depositor → registered address,
-    // VK → BIP-86 P2TR of VK's pubkey (matches Rust TxGraphParams::payout_btc_address).
-    const results = await payoutManager.signPayoutTransactionsBatch(
-      transactions.map((tx) => ({
-        payoutTxHex: tx.payoutTxHex,
-        peginTxHex: context.peginTxHex,
-        assertTxHex: tx.assertTxHex,
-        vaultProviderBtcPubkey: context.vaultProviderBtcPubkey,
-        vaultKeeperBtcPubkeys: context.vaultKeeperBtcPubkeys,
-        universalChallengerBtcPubkeys: context.universalChallengerBtcPubkeys,
-        depositorBtcPubkey: context.depositorBtcPubkey,
-        timelockPegin: context.timelockPegin,
-        registeredPayoutScriptPubKey: resolvePayoutScriptPubKey(
-          tx.claimerPubkeyXOnly,
-          context,
-        ),
-      })),
-    );
-
-    // Map results to signatures record
-    const signatures: Record<string, ClaimerSignatures> = {};
-    for (let i = 0; i < transactions.length; i++) {
-      signatures[transactions[i].claimerPubkeyXOnly] = {
-        payout_signature: results[i].payoutSignature,
-      };
-    }
-
-    return signatures;
-  } catch (error) {
-    if (error instanceof Error) {
-      throw new Error(
-        `Failed to batch sign payout transactions: ${error.message}`,
-      );
-    }
-    throw new Error("Failed to batch sign payout transactions: Unknown error");
-  }
-}
-
-/**
- * Sign payout transactions with automatic batch/sequential detection.
- *
- * If the wallet supports batch signing (signPsbts), all transactions are signed
- * with a single wallet popup. Otherwise, transactions are signed one by one.
- *
- * @param btcWallet - Bitcoin wallet for signing
- * @param context - Signing context with vault data
- * @param transactions - Prepared transactions to sign
- * @param onProgress - Optional callback fired as signing progresses
- * @returns Signatures keyed by claimer pubkey
- */
-export async function signPayoutTransactions(
-  btcWallet: BitcoinWallet,
-  context: SigningContext,
-  transactions: PreparedTransaction[],
-  onProgress?: (progress: PayoutSigningProgress) => void,
-): Promise<Record<string, ClaimerSignatures>> {
-  const totalClaimers = transactions.length;
-
-  if (walletSupportsBatchSigning(btcWallet)) {
-    onProgress?.({ completed: 0, totalClaimers });
-    const signatures = await signAllTransactionsBatch(
-      btcWallet,
-      context,
-      transactions,
-    );
-    onProgress?.({ completed: totalClaimers, totalClaimers });
-    return signatures;
-  }
-
-  const signatures: Record<string, ClaimerSignatures> = {};
-
-  for (let i = 0; i < transactions.length; i++) {
-    const tx = transactions[i];
-    onProgress?.({ completed: i, totalClaimers });
-
-    const payoutSig = await signPayout(btcWallet, context, tx);
-    signatures[tx.claimerPubkeyXOnly] = {
-      payout_signature: payoutSig,
-    };
-  }
-
-  onProgress?.({ completed: totalClaimers, totalClaimers });
-  return signatures;
 }

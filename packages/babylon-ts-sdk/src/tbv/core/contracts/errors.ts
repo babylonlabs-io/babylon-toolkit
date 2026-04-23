@@ -60,6 +60,12 @@ export const CONTRACT_ERRORS: Record<string, string> = {
   "0x979f4518":
     "Invalid pegin fee: The ETH fee sent does not match the required amount. " +
     "This may indicate a fee rate change during the transaction.",
+  // PrePeginOutputAlreadyUsed()
+  "0x5fad9694":
+    "This pre-pegin output has already been used to activate another vault.",
+  // PeginTransactionAlreadyUsed()
+  "0x7ed061c9":
+    "This pegin transaction has already been used to activate another vault.",
 };
 
 /**

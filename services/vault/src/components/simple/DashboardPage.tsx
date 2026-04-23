@@ -13,6 +13,7 @@ import { PositionNotificationsDebugPanel } from "@/applications/aave/components/
 import { LOAN_TAB, type LoanTab } from "@/applications/aave/constants";
 import { useSyncPendingVaults } from "@/applications/aave/context";
 import { useAaveVaults } from "@/applications/aave/hooks";
+import type { PositionNotificationsStatus } from "@/applications/aave/hooks/usePositionNotifications";
 import type { CalculatorResult } from "@/applications/aave/positionNotifications";
 import type { Asset } from "@/applications/aave/types";
 import type { RootLayoutContext } from "@/components/pages/RootLayout";
@@ -40,15 +41,17 @@ export function DashboardPage() {
   const { address } = useETHWallet();
   const { address: btcAddress } = useBTCWallet();
   const { isConnected } = useConnection();
-  const { availableUTXOs, isLoading: isLoadingUTXOs } = useUTXOs(btcAddress);
+  const { spendableUTXOs, isLoading: isLoadingUTXOs } = useUTXOs(btcAddress);
   const btcBalanceBtc = isLoadingUTXOs
     ? undefined
-    : calculateBalance(availableUTXOs) / 100_000_000;
+    : calculateBalance(spendableUTXOs) / 100_000_000;
 
   const [isWithdrawOpen, setIsWithdrawOpen] = useState(false);
   const [isAssetModalOpen, setIsAssetModalOpen] = useState(false);
   const [debugResultOverride, setDebugResultOverride] =
     useState<CalculatorResult | null>(null);
+  const [debugStatusOverride, setDebugStatusOverride] =
+    useState<PositionNotificationsStatus | null>(null);
   const [assetModalMode, setAssetModalMode] = useState<LoanTab>(
     LOAN_TAB.BORROW,
   );
@@ -61,7 +64,6 @@ export function DashboardPage() {
     borrowedAssets,
     hasLoans,
     hasCollateral,
-    hasDebt,
     collateralVaults,
     selectableBorrowedAssets,
   } = useDashboardState(address);
@@ -147,6 +149,7 @@ export function DashboardPage() {
           onDeposit={openDeposit}
           onRepay={handleRepay}
           result={debugResultOverride ?? undefined}
+          statusOverride={debugStatusOverride ?? undefined}
           btcBalanceBtc={btcBalanceBtc}
         />
 
@@ -162,7 +165,8 @@ export function DashboardPage() {
           collateralVaults={collateralVaults}
           hasCollateral={hasCollateral}
           isConnected={isConnected}
-          hasDebt={hasDebt}
+          collateralBtc={collateralBtc}
+          currentHealthFactor={healthFactor}
           onWithdraw={handleWithdraw}
           onDeposit={openDeposit}
         />
@@ -178,9 +182,10 @@ export function DashboardPage() {
           onRepay={handleRepay}
         />
 
-        {featureFlags.isPositionNotificationsEnabled && (
+        {featureFlags.isPositionDebugPanelEnabled && (
           <PositionNotificationsDebugPanel
             onResultChange={setDebugResultOverride}
+            onStatusChange={setDebugStatusOverride}
           />
         )}
       </div>
@@ -192,6 +197,7 @@ export function DashboardPage() {
         collateralVaults={collateralVaults}
         collateralBtc={collateralBtc}
         collateralValueUsd={collateralValueUsd}
+        currentHealthFactor={healthFactor}
       />
 
       {/* Asset Selection Modal for Borrow/Repay */}

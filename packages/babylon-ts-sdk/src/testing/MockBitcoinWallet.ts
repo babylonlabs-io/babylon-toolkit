@@ -1,7 +1,10 @@
 import { Buffer } from "buffer";
 
 import { BitcoinNetworks, type BitcoinNetwork } from "../shared/wallets/interfaces";
-import type { BitcoinWallet } from "../shared/wallets/interfaces/BitcoinWallet";
+import type {
+  BitcoinWallet,
+  SignPsbtOptions,
+} from "../shared/wallets/interfaces/BitcoinWallet";
 
 /**
  * Configuration for MockBitcoinWallet.
@@ -54,7 +57,10 @@ export class MockBitcoinWallet implements BitcoinWallet {
     return psbtHex + "deadbeef";
   }
 
-  async signPsbts(psbtsHexes: string[]): Promise<string[]> {
+  async signPsbts(
+    psbtsHexes: string[],
+    _options?: SignPsbtOptions[],
+  ): Promise<string[]> {
     const signedPsbts: string[] = [];
     for (const psbtHex of psbtsHexes) {
       const signedPsbt = await this.signPsbt(psbtHex);

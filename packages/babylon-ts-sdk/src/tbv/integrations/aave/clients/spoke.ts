@@ -88,7 +88,7 @@ function mapPositionResult(result: PositionResult): AaveSpokeUserPosition {
  * **Return values:**
  * - `healthFactor` - WAD format (1e18 = 1.0). Below 1.0 = liquidatable
  * - `totalCollateralValue` - USD value in base currency (1e26 = $1)
- * - `totalDebtValueRay` - USD value in RAY-scaled base currency (1e35 = $1)
+ * - `totalDebtValueRay` - USD value in RAY-scaled base currency (1e53 = $1)
  * - `avgCollateralFactor` - Weighted average collateral factor in WAD (1e18 = 100%)
  * - `riskPremium` - Additional risk premium
  *

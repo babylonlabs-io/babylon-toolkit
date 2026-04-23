@@ -39,7 +39,10 @@ describe("Deposit Validations", () => {
     });
 
     it("should reject null/undefined providers", () => {
-      const result = validateProviderSelection(null as any, availableProviders);
+      const result = validateProviderSelection(
+        null as unknown as string[],
+        availableProviders,
+      );
 
       expect(result.valid).toBe(false);
       expect(result.error?.toLowerCase()).toContain("at least one");
@@ -285,6 +288,7 @@ describe("Deposit Validations", () => {
       depositorClaimValue: 5000n,
       isDepositDisabled: false,
       isGeoBlocked: false,
+      isAddressBlocked: false,
       isWalletConnected: true,
       hasApplication: true,
       hasProvider: true,
@@ -292,6 +296,8 @@ describe("Deposit Validations", () => {
       isFeeError: false,
       feeError: null,
       feeDisabled: false,
+      ordinalsCheckPending: false,
+      ordinalsWarningUnacknowledged: false,
     };
 
     it("returns enabled 'Deposit' when all conditions are met", () => {
@@ -319,6 +325,26 @@ describe("Deposit Validations", () => {
         disabled: true,
         label: "Service unavailable in your region",
       });
+    });
+
+    it("returns 'Wallet not eligible' when address is blocked", () => {
+      const result = getDepositCtaState({
+        ...readyParams,
+        isAddressBlocked: true,
+      });
+      expect(result).toEqual({
+        disabled: true,
+        label: "Wallet not eligible",
+      });
+    });
+
+    it("prioritizes geo-blocked over address-blocked", () => {
+      const result = getDepositCtaState({
+        ...readyParams,
+        isGeoBlocked: true,
+        isAddressBlocked: true,
+      });
+      expect(result.label).toBe("Service unavailable in your region");
     });
 
     it("returns 'Connect your wallet' when wallet is not connected", () => {
@@ -474,6 +500,46 @@ describe("Deposit Validations", () => {
         feeDisabled: true,
       });
       expect(result.label).toContain("Minimum");
+    });
+
+    it("disables with inscription-check label while ordinals check is pending", () => {
+      const result = getDepositCtaState({
+        ...readyParams,
+        ordinalsCheckPending: true,
+      });
+      expect(result).toEqual({
+        disabled: true,
+        label: "Checking for inscriptions...",
+      });
+    });
+
+    it("disables with ack label when ordinals warning is unacknowledged", () => {
+      const result = getDepositCtaState({
+        ...readyParams,
+        ordinalsWarningUnacknowledged: true,
+      });
+      expect(result).toEqual({
+        disabled: true,
+        label: "Acknowledge warning to continue",
+      });
+    });
+
+    it("prioritizes ordinals-pending over unacknowledged warning", () => {
+      const result = getDepositCtaState({
+        ...readyParams,
+        ordinalsCheckPending: true,
+        ordinalsWarningUnacknowledged: true,
+      });
+      expect(result.label).toBe("Checking for inscriptions...");
+    });
+
+    it("prioritizes amount label over ordinals-pending", () => {
+      const result = getDepositCtaState({
+        ...readyParams,
+        amountSats: 0n,
+        ordinalsCheckPending: true,
+      });
+      expect(result.label).toBe("Enter an amount");
     });
   });
 });

@@ -50,6 +50,8 @@ const CHAINLINK_MAX_PRICE_AGE_SECONDS = 3600;
 /** Number of seconds in one hour — used for display formatting */
 const SECONDS_PER_HOUR = 3600;
 
+let btcPriceFeedOverrideWarned = false;
+
 function getChainlinkFeedAddress(symbol: string): Address | null {
   const network = getBTCNetwork();
   const normalizedSymbol = symbol.toUpperCase();
@@ -59,7 +61,16 @@ function getChainlinkFeedAddress(symbol: string): Address | null {
     normalizedSymbol === "VBTC" ||
     normalizedSymbol === "SBTC"
   ) {
-    return ENV.BTC_PRICE_FEED ?? CHAINLINK_PRICE_FEEDS[network].BTC;
+    if (ENV.BTC_PRICE_FEED) {
+      if (!btcPriceFeedOverrideWarned) {
+        logger.warn(
+          `Using BTC_PRICE_FEED env override (${ENV.BTC_PRICE_FEED}) instead of hardcoded Chainlink address`,
+        );
+        btcPriceFeedOverrideWarned = true;
+      }
+      return ENV.BTC_PRICE_FEED;
+    }
+    return CHAINLINK_PRICE_FEEDS[network].BTC;
   }
 
   if (normalizedSymbol === "WETH" || normalizedSymbol === "ETH") {
@@ -207,6 +218,12 @@ async function fetchPriceFromFeed(
   const ageSeconds =
     Math.floor(Date.now() / 1000) - Number(roundData.updatedAt);
   const isStale = !isPriceFresh(roundData);
+
+  if (roundData.answer > BigInt(Number.MAX_SAFE_INTEGER)) {
+    throw new Error(
+      `Chainlink price exceeds safe integer range: ${roundData.answer}`,
+    );
+  }
 
   if (isStale) {
     if (roundData.answeredInRound < roundData.roundId) {

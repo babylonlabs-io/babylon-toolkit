@@ -43,6 +43,20 @@ const FIELD_MAP = {
   "contracts.btcPriceFeed": "NEXT_PUBLIC_TBV_BTC_PRICE_FEED",
 };
 
+/** Contract addresses and endpoints whose changes should be called out explicitly. */
+const CONTRACT_AND_ENDPOINT_KEYS = new Set([
+  "NEXT_PUBLIC_TBV_BTC_VAULT_REGISTRY",
+  "NEXT_PUBLIC_TBV_AAVE_ADAPTER",
+  "NEXT_PUBLIC_TBV_BTC_PRICE_FEED",
+  "NEXT_PUBLIC_ETH_RPC_URL",
+  "NEXT_PUBLIC_TBV_VP_PROXY_URL",
+  "NEXT_PUBLIC_TBV_GRAPHQL_ENDPOINT",
+]);
+
+function formatChange({ key, from }) {
+  return `  ${key}: ${from === "(missing)" ? "added" : "changed"}`;
+}
+
 function resolve(obj, path) {
   return path.split(".").reduce((o, k) => o?.[k], obj);
 }
@@ -134,6 +148,11 @@ function computeDiff(content, remote, network) {
 }
 
 function main() {
+  if (process.env.NODE_ENV === "production") {
+    console.error("sync-env: this script is for local development only.");
+    process.exit(1);
+  }
+
   const args = process.argv.slice(2);
   const checkOnly = args.includes("--check");
   const includeExample = args.includes("--all");
@@ -198,9 +217,17 @@ function main() {
       return;
     }
     console.log(`sync-env: .env is stale (${updated.length} values differ from ${network}):`);
-    for (const { key, from, to } of updated) {
-      console.log(`  ${key}: ${from} → ${to}`);
+    for (const change of updated) {
+      console.log(formatChange(change));
     }
+
+    const contractChanges = updated.filter(({ key }) => CONTRACT_AND_ENDPOINT_KEYS.has(key));
+    if (contractChanges.length > 0) {
+      const names = contractChanges.map(({ key }) => key).join(", ");
+      console.error(`\n⚠ sync-env: contract addresses or endpoints changed: ${names}`);
+      console.error("  Verify these match the expected network before running sync.\n");
+    }
+
     process.exit(1);
   }
 
@@ -234,9 +261,17 @@ function main() {
 
     writeFileSync(path, serializeEnv(entries));
     console.log(`sync-env: updated ${updated.length} value(s) in ${label} from ${network}:`);
-    for (const { key, from, to } of updated) {
-      console.log(`  ${key}: ${from} → ${to}`);
+    for (const change of updated) {
+      console.log(formatChange(change));
     }
+
+    const contractChanges = updated.filter(({ key }) => CONTRACT_AND_ENDPOINT_KEYS.has(key));
+    if (contractChanges.length > 0) {
+      const names = contractChanges.map(({ key }) => key).join(", ");
+      console.error(`\n⚠ sync-env: contract addresses or endpoints changed: ${names}`);
+      console.error(`  Verify these match the expected network. If not, restore from git: git checkout -- ${label}\n`);
+    }
+
     totalUpdated += updated.length;
   }
 

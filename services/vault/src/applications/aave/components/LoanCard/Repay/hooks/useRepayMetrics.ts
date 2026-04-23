@@ -6,7 +6,7 @@
  * Repaying improves the health factor.
  */
 
-import { FULL_REPAY_TOLERANCE } from "../../../../constants";
+import { NEAR_ZERO_DEBT_DISPLAY_THRESHOLD } from "../../../../constants";
 import {
   calculateBorrowRatio,
   calculateHealthFactor,
@@ -24,8 +24,8 @@ export interface UseRepayMetricsProps {
   liquidationThresholdBps: number;
   /** Current health factor (null if no debt) */
   currentHealthFactor: number | null;
-  /** Price of the repay token in USD */
-  tokenPriceUsd: number;
+  /** Price of the repay token in USD (null when oracle price is unavailable) */
+  tokenPriceUsd: number | null;
 }
 
 export interface UseRepayMetricsResult {
@@ -50,8 +50,8 @@ export function useRepayMetrics({
   currentHealthFactor,
   tokenPriceUsd,
 }: UseRepayMetricsProps): UseRepayMetricsResult {
-  // When no repay amount entered, show current values (no projection)
-  if (repayAmount === 0) {
+  // When no repay amount entered or price unavailable, show current values (no projection)
+  if (repayAmount === 0 || tokenPriceUsd == null) {
     const healthValue = currentHealthFactor ?? Infinity;
     return {
       borrowRatio: calculateBorrowRatio(totalDebtValueUsd, collateralValueUsd),
@@ -67,7 +67,8 @@ export function useRepayMetrics({
     0,
     totalDebtValueUsd - repayAmount * tokenPriceUsd,
   );
-  const isFullRepayment = projectedTotalDebtUsd < FULL_REPAY_TOLERANCE;
+  const isDebtNearZero =
+    projectedTotalDebtUsd < NEAR_ZERO_DEBT_DISPLAY_THRESHOLD;
 
   const healthFactorValue =
     projectedTotalDebtUsd > 0
@@ -94,11 +95,9 @@ export function useRepayMetrics({
         ? "-"
         : formatHealthFactor(healthFactorValue),
     healthFactorValue,
-    healthFactorOriginal: isFullRepayment
+    healthFactorOriginal: isDebtNearZero
       ? undefined
       : formatHealthFactor(currentHealthFactor),
-    healthFactorOriginalValue: isFullRepayment
-      ? undefined
-      : originalHealthValue,
+    healthFactorOriginalValue: isDebtNearZero ? undefined : originalHealthValue,
   };
 }

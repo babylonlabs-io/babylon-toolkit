@@ -7,6 +7,7 @@
 
 import { createContext, useContext } from "react";
 
+import type { AavePositionWithLiveData } from "../../services";
 import type { AaveReserveConfig } from "../../services/fetchConfig";
 import type { Asset } from "../../types";
 
@@ -27,8 +28,12 @@ export interface LoanContextValue {
   assetConfig: Asset;
   /** User's proxy contract address (for debt queries) */
   proxyContract: string | undefined;
-  /** Price of the selected borrow token in USD (from oracle or stablecoin fallback) */
-  tokenPriceUsd: number;
+  /** Price of the selected borrow token in USD (null when oracle price is temporarily unavailable) */
+  tokenPriceUsd: number | null;
+  /** Whether position data may be stale (oracle-derived values possibly outdated) */
+  isPositionDataStale: boolean;
+  /** Refetch position data — returns fresh position (or null if unavailable) */
+  refetchPosition: () => Promise<AavePositionWithLiveData | null>;
   /** Callback when borrow succeeds */
   onBorrowSuccess: (borrowAmount: number) => void;
   /** Callback when repay succeeds */

@@ -70,8 +70,8 @@ export interface DepositToPoll {
   vaultProviderAddress: string | undefined;
 }
 
-/** Grouped deposits by provider URL */
+/** Grouped deposits by vault provider address */
 export interface DepositsByProvider {
-  providerUrl: string;
+  providerAddress: string;
   deposits: DepositToPoll[];
 }

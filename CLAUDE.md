@@ -30,6 +30,51 @@ Run `pnpm run lint` and `pnpm run test` in the affected service before consideri
 
 ---
 
+## CRITICAL PATHS — HUMAN REVIEW REQUIRED
+
+These paths handle irreversible value movement. An AI-generated mistake here is silent: code compiles, tests pass, wrong BTC amount ships. **Any change touching these files requires two reviewers, and the author must be able to explain every changed line without an AI assistant open.**
+
+### 1. WASM boundary (value computation)
+- File: `packages/babylon-tbv-rust-wasm/src/index.ts`
+- The Rust/WASM layer computes `htlcValue = peginAmount + depositorClaimValue + minPeginFee` internally. JS receives outputs with no runtime validation.
+- **Rule:** Every WASM output consumed by JS must be asserted against expected bounds before use. If a WASM-returned value feeds a signed transaction, cross-check it against an independently computed expected value.
+
+### 2. Fee calculation consistency
+- Files:
+  - `packages/babylon-ts-sdk/src/tbv/core/utils/utxo/selectUtxos.ts` — UTXO selection with iterative fee recalculation
+  - `services/vault/src/utils/fee/peginFee.ts` — dApp-side estimate with safety margin
+- Both systems must agree before broadcast. A mismatch underfunds the transaction.
+- **Rule:** When changing either, re-verify the other produces the same fee for a representative fixture. Cross-check assertions belong at the broadcast site, not only at the estimator.
+
+### 3. Presigning payout transactions
+- Files:
+  - `packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts`
+  - `services/vault/src/hooks/deposit/depositFlowSteps/payoutSigning.ts`
+- The depositor pre-signs payout transactions built by the Vault Provider - values come from an external party with no independent verification.
+- **Rule:** Before the signature call, re-derive the expected payout amount from on-chain or WASM-computed sources and assert equality. Never sign a value handed to us verbatim.
+
+### 4. WOTS key derivation (one-time signatures)
+- File: `services/vault/src/services/wots/wotsService.ts`
+- WOTS keys are one-time-use per vault. Derivation bugs that cause key reuse across deposits completely break the security guarantee.
+- **Rule:** Any change to derivation inputs, chain counts, or HMAC ordering requires a test that generates keys for two distinct vaults with overlapping inputs and asserts they differ. Match the Rust `babe::wots` reference byte-for-byte.
+
+### 5. HTLC secret & vault activation
+- File: `services/vault/src/services/vault/vaultActivationService.ts`
+- Submits the secret that unlocks the HTLC on-chain. Wrong secret = funds permanently locked.
+- **Rule:** Verify `hash(secret) === expectedHash` immediately before submission. Do not infer the secret from UI state - derive it only from the source that generated it.
+
+### 6. Multi-vault split transactions
+- File: `packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts`
+- Split outputs must be sized exactly and broadcast in order. Incorrect sizing starves one vault or fails the whole deposit after commitment.
+- **Rule:** Assert `sum(splitOutputs) === totalDeposit - fees` before signing. Assert broadcast ordering with explicit sequence checks, not array iteration order.
+
+### 7. Non-standard wallet signing options
+- File: `packages/babylon-ts-sdk/src/tbv/core/utils/signing.ts`
+- Uses `disableTweakSigner: true` and `autoFinalized: false` for taproot script-path spends. Wallet support is inconsistent; silent failures produce invalid signatures.
+- **Rule:** Validate every signature produced with these flags against the expected sighash before treating the PSBT as signed. Do not rely on the wallet returning success.
+
+---
+
 ## ZERO DEAD CODE POLICY
 
 1. **Never leave dead code.** No unused functions, variables, imports, types, or components — in source or tests.

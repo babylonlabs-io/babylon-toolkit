@@ -4,10 +4,12 @@ import {
   AccordionSummary,
   AmountSlider,
   Card,
+  Checkbox,
   Loader,
   Select,
+  Warning,
 } from "@babylonlabs-io/core-ui";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { IoCheckmark, IoChevronUp } from "react-icons/io5";
 
 import { ApplicationLogo } from "@/components/ApplicationLogo";
@@ -15,6 +17,8 @@ import { DepositButton } from "@/components/shared";
 import { getNetworkConfigBTC } from "@/config";
 import { useBtcFeeDisplay } from "@/hooks/deposit/useBtcFeeDisplay";
 import { depositService } from "@/services/deposit";
+
+import { FeesSection, type FeeRow } from "./FeesSection";
 
 const btcConfig = getNetworkConfigBTC();
 
@@ -64,9 +68,25 @@ interface DepositFormProps {
   depositorClaimValue?: bigint;
   isDepositDisabled: boolean;
   isGeoBlocked: boolean;
+  isAddressBlocked: boolean;
   onDeposit: () => void;
 
   partialLiquidation?: PartialLiquidationProps;
+
+  feeRows?: FeeRow[];
+
+  /**
+   * True when the inscription (ordinals) check could not complete. Surfaces a
+   * warning so the user knows inscription UTXOs may be included in the deposit.
+   */
+  ordinalsCheckUnavailable?: boolean;
+
+  /**
+   * True while the inscription (ordinals) check is still in flight. Blocks
+   * submission so the user cannot deposit before the spendable set has been
+   * filtered against inscriptions.
+   */
+  ordinalsCheckPending?: boolean;
 }
 
 export function DepositForm({
@@ -93,9 +113,15 @@ export function DepositForm({
   depositorClaimValue,
   isDepositDisabled,
   isGeoBlocked,
+  isAddressBlocked,
   onDeposit,
   partialLiquidation,
+  feeRows,
+  ordinalsCheckUnavailable = false,
+  ordinalsCheckPending = false,
 }: DepositFormProps) {
+  const [ordinalsWarningAcknowledged, setOrdinalsWarningAcknowledged] =
+    useState(false);
   const btcBalanceFormatted = useMemo(() => {
     if (!btcBalance) return 0;
     return Number(depositService.formatSatoshisToBtc(btcBalance, 8));
@@ -166,6 +192,7 @@ export function DepositForm({
     depositorClaimValue,
     isDepositDisabled,
     isGeoBlocked,
+    isAddressBlocked,
     isWalletConnected,
     hasApplication: !!selectedApplication,
     hasProvider: !!selectedProvider,
@@ -173,10 +200,35 @@ export function DepositForm({
     isFeeError,
     feeError,
     feeDisabled,
+    ordinalsCheckPending,
+    ordinalsWarningUnacknowledged:
+      ordinalsCheckUnavailable && !ordinalsWarningAcknowledged,
   });
 
   return (
     <div className="flex w-full flex-col gap-4">
+      {ordinalsCheckUnavailable && (
+        <Warning className="items-start" messageClassName="flex flex-col gap-3">
+          <span>
+            Inscription check unavailable. We couldn&apos;t verify whether your
+            UTXOs contain Ordinals/inscriptions. If you proceed, any inscription
+            UTXOs may be spent as part of this deposit.
+          </span>
+          <label className="flex cursor-pointer items-center gap-3">
+            <Checkbox
+              checked={ordinalsWarningAcknowledged}
+              onChange={() => setOrdinalsWarningAcknowledged((v) => !v)}
+              variant="default"
+              showLabel={false}
+            />
+            <span>
+              I understand that inscription UTXOs may be spent as part of this
+              deposit.
+            </span>
+          </label>
+        </Warning>
+      )}
+
       <Card variant="filled" className="flex flex-col gap-4">
         {/* Amount input with slider */}
         <AmountSlider
@@ -323,6 +375,9 @@ export function DepositForm({
           <span className="text-accent-secondary">{feePrice}</span>
         </span>
       </div>
+
+      {/* Protocol & risk parameters */}
+      {feeRows && feeRows.length > 0 && <FeesSection rows={feeRows} />}
     </div>
   );
 }

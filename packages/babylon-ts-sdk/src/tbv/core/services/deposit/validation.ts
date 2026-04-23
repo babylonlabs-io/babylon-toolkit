@@ -10,7 +10,10 @@
  * @module tbv/core/services/deposit/validation
  */
 
-import { stripHexPrefix } from "../../primitives/utils/bitcoin";
+import {
+  formatSatoshisToBtc,
+  stripHexPrefix,
+} from "../../primitives/utils/bitcoin";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -85,16 +88,6 @@ export interface MultiVaultDepositFlowInputs {
 // ---------------------------------------------------------------------------
 // Private helpers
 // ---------------------------------------------------------------------------
-
-const SATOSHIS_PER_BTC = 100_000_000n;
-
-function formatSatoshisToBtc(satoshis: bigint): string {
-  const whole = satoshis / SATOSHIS_PER_BTC;
-  const fraction = satoshis % SATOSHIS_PER_BTC;
-  let fractionStr = fraction.toString().padStart(8, "0");
-  fractionStr = fractionStr.replace(/0+$/, "");
-  return fractionStr.length > 0 ? `${whole}.${fractionStr}` : whole.toString();
-}
 
 function isValidXOnlyHex(hex: string): boolean {
   return /^[0-9a-fA-F]{64}$/.test(hex);

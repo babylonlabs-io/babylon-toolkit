@@ -1,8 +1,7 @@
 import { useMemo } from "react";
 
-import featureFlags from "@/config/featureFlags";
 import { useDashboardState } from "@/hooks/useDashboardState";
-import { usePrice } from "@/hooks/usePrices";
+import { usePrices } from "@/hooks/usePrices";
 
 import {
   calculate,
@@ -13,11 +12,11 @@ import {
 import { useVaultSplitParams } from "./useVaultSplitParams";
 
 export type PositionNotificationsStatus =
-  | "flag-off"
   | "loading"
   | "no-wallet"
   | "no-vaults"
   | "no-price"
+  | "stale-price"
   | "ready";
 
 export interface UsePositionNotificationsResult {
@@ -38,7 +37,9 @@ export function usePositionNotifications(
     isLoading: dashboardLoading,
   } = useDashboardState(connectedAddress);
 
-  const btcPrice = usePrice("BTC");
+  const { prices, metadata } = usePrices();
+  const btcPrice = prices["BTC"] ?? 0;
+  const btcMetadata = metadata["BTC"];
 
   const isLoading = paramsLoading || dashboardLoading;
 
@@ -46,11 +47,12 @@ export function usePositionNotifications(
     result: CalculatorResult | null;
     status: PositionNotificationsStatus;
   } => {
-    if (!featureFlags.isPositionNotificationsEnabled)
-      return { result: null, status: "flag-off" };
     if (!splitParams || isLoading) return { result: null, status: "loading" };
     if (!connectedAddress) return { result: null, status: "no-wallet" };
-    if (btcPrice <= 0) return { result: null, status: "no-price" };
+    if (btcMetadata?.isStale || btcMetadata?.fetchFailed)
+      return { result: null, status: "stale-price" };
+    if (!btcMetadata || btcPrice <= 0)
+      return { result: null, status: "no-price" };
     if (collateralVaults.length === 0)
       return { result: null, status: "no-vaults" };
 
@@ -76,6 +78,7 @@ export function usePositionNotifications(
     isLoading,
     connectedAddress,
     btcPrice,
+    btcMetadata,
     collateralVaults,
     debtValueUsd,
   ]);

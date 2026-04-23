@@ -12,6 +12,7 @@ import {
 import { useMemo, useState } from "react";
 import { twMerge } from "tailwind-merge";
 
+import { useAddressScreening } from "@/context/addressScreening";
 import { useGeoFencing } from "@/context/geofencing";
 
 import { useBTCWallet, useETHWallet } from "../../context/wallet";
@@ -35,11 +36,10 @@ export const Connect: React.FC<ConnectProps> = ({ loading = false }) => {
   const { includeOrdinals, excludeOrdinals, ordinalsExcluded } = useAppState();
 
   const { isGeoBlocked, isLoading: isGeoLoading } = useGeoFencing();
+  const { isBlocked: isAddressBlocked, isLoading: isScreeningLoading } =
+    useAddressScreening();
 
-  const isConnected = useMemo(
-    () => btcConnected && ethConnected && !isGeoBlocked && !isGeoLoading,
-    [btcConnected, ethConnected, isGeoBlocked, isGeoLoading],
-  );
+  const isWalletConnected = btcConnected && ethConnected;
 
   const transformedWallets = useMemo(() => {
     const result: Record<string, { name: string; icon: string }> = {};
@@ -55,8 +55,9 @@ export const Connect: React.FC<ConnectProps> = ({ loading = false }) => {
     setIsWalletMenuOpen(open);
   };
 
-  // Show BtcEthWalletMenu when connected
-  if (isConnected) {
+  // Show BtcEthWalletMenu when wallets are connected and not geo-blocked.
+  // Address-blocked users still need the menu to disconnect and try a different wallet.
+  if (isWalletConnected && !isGeoBlocked && !isGeoLoading) {
     return (
       <div className="flex flex-row items-center gap-4">
         <BtcEthWalletMenu
@@ -108,9 +109,9 @@ export const Connect: React.FC<ConnectProps> = ({ loading = false }) => {
 
   const connectButton = (
     <ConnectButton
-      connected={isConnected}
-      loading={loading || isGeoLoading}
-      disabled={isGeoBlocked}
+      connected={false}
+      loading={loading || isGeoLoading || isScreeningLoading}
+      disabled={isGeoBlocked || isAddressBlocked}
       onClick={open}
     />
   );
@@ -118,6 +119,14 @@ export const Connect: React.FC<ConnectProps> = ({ loading = false }) => {
   if (isGeoBlocked) {
     return (
       <Hint tooltip="Not available in your region" attachToChildren>
+        <span>{connectButton}</span>
+      </Hint>
+    );
+  }
+
+  if (isAddressBlocked) {
+    return (
+      <Hint tooltip="Wallet not eligible" attachToChildren>
         <span>{connectButton}</span>
       </Hint>
     );

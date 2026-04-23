@@ -84,31 +84,27 @@ export function useUTXOs(
   // Log ordinals API errors once when the error changes (not on every render)
   useEffect(() => {
     if (ordinalsError) {
-      logger.warn(
-        "Ordinals API failed - display UTXOs unaffected, spend paths blocked when inscriptions excluded",
-        {
-          data: {
-            error:
-              ordinalsError instanceof Error
-                ? ordinalsError.message
-                : String(ordinalsError),
-          },
+      logger.warn("Ordinals API failed, treating all UTXOs as available", {
+        data: {
+          error:
+            ordinalsError instanceof Error
+              ? ordinalsError.message
+              : String(ordinalsError),
         },
-      );
+      });
     }
   }, [ordinalsError]);
 
   // Filter UTXOs by inscriptions
   // Rename to match exported API naming convention (uppercase UTXO)
-  // Display-only: if ordinals API failed or is still loading, treat all UTXOs as available for UI rendering.
-  // Spend paths use a separate fail-closed gate below (see `spendableBlockedByOrdinals`).
-  // UI should use isLoading/isLoadingOrdinals flags to show loading states.
+  // If ordinals API fails or is still loading, treat all UTXOs as available (non-blocking)
+  // UI should use isLoading/isLoadingOrdinals flags to show loading states
   const { availableUTXOs, inscriptionUTXOs } = useMemo(() => {
     if (confirmedUtxosForOrdinals.length === 0) {
       return { availableUTXOs: [], inscriptionUTXOs: [] };
     }
-    // Display-only fallback: treat all UTXOs as available so the UI can still render totals.
-    // Spend paths are gated separately below.
+    // If ordinals API failed or still loading, treat all UTXOs as available
+    // Ordinals check is optional - we don't block on it
     if (ordinalsError || isLoadingOrdinals) {
       return {
         availableUTXOs: confirmedUtxosForOrdinals,
@@ -130,39 +126,38 @@ export function useUTXOs(
     ordinalsError,
   ]);
 
-  // Fail-closed gate: when the user has opted to exclude inscriptions, we cannot
-  // safely classify UTXOs as spendable until the ordinals classifier has produced
-  // a result. Surfacing this separately from `availableUTXOs` keeps the existing
-  // non-blocking display semantics while preventing spend paths from consuming
-  // unclassified UTXOs.
-  const spendableBlockedByOrdinals =
-    ordinalsExcluded && (isLoadingOrdinals || Boolean(ordinalsError));
-
   // Determine spendable UTXOs based on preference
   // When ordinalsExcluded is true (default), use availableUTXOs (excludes inscriptions)
   // When ordinalsExcluded is false, use all confirmed UTXOs
-  // When ordinals classification is unknown (loading or errored) AND the user opted
-  // to exclude inscriptions, return an empty set so callers cannot spend
-  // potentially inscription-bearing UTXOs.
-  const spendableUTXOs = useMemo(() => {
-    if (spendableBlockedByOrdinals) return [];
-    return ordinalsExcluded ? availableUTXOs : confirmedUtxosForOrdinals;
-  }, [
-    spendableBlockedByOrdinals,
-    ordinalsExcluded,
-    availableUTXOs,
-    confirmedUtxosForOrdinals,
-  ]);
+  // If ordinals API failed/loading, availableUTXOs already contains all confirmed UTXOs
+  const spendableUTXOs = useMemo(
+    () => (ordinalsExcluded ? availableUTXOs : confirmedUtxosForOrdinals),
+    [ordinalsExcluded, availableUTXOs, confirmedUtxosForOrdinals],
+  );
 
   // Create a set of inscription UTXO identifiers for filtering MempoolUTXOs
   const inscriptionUTXOIds = useMemo(() => {
     return new Set(inscriptionUTXOs.map((u) => `${u.txid}:${u.vout}`));
   }, [inscriptionUTXOs]);
 
+  // True when the ordinals check failed AND the user has inscription-exclusion
+  // enabled. In that state, inscription UTXOs may be spent unintentionally,
+  // so consumers should surface a warning to the user.
+  const ordinalsCheckUnavailable =
+    ordinalsExcluded && !isLoadingOrdinals && ordinalsError !== null;
+
+  // True when the ordinals check is still running AND the user has
+  // inscription-exclusion enabled. Consumers should block submission until
+  // the check resolves, otherwise inscription UTXOs may be spent before the
+  // filter can exclude them.
+  const ordinalsCheckPending =
+    ordinalsExcluded &&
+    isLoadingOrdinals &&
+    confirmedUtxosForOrdinals.length > 0;
+
   // Spendable UTXOs in MempoolUTXO format (for SDK functions)
-  // Mirrors the fail-closed gate above.
+  // If ordinals API failed/loading, inscriptionUTXOIds will be empty, so all UTXOs pass filter
   const spendableMempoolUTXOs = useMemo(() => {
-    if (spendableBlockedByOrdinals) return [];
     if (!ordinalsExcluded) {
       return confirmedUTXOs;
     }
@@ -170,25 +165,14 @@ export function useUTXOs(
     return confirmedUTXOs.filter(
       (utxo) => !inscriptionUTXOIds.has(`${utxo.txid}:${utxo.vout}`),
     );
-  }, [
-    spendableBlockedByOrdinals,
-    ordinalsExcluded,
-    confirmedUTXOs,
-    inscriptionUTXOIds,
-  ]);
+  }, [ordinalsExcluded, confirmedUTXOs, inscriptionUTXOIds]);
 
   return {
     /** All UTXOs (including unconfirmed) */
     allUTXOs: data || [],
     /** Only confirmed UTXOs (may include inscriptions) */
     confirmedUTXOs,
-    /**
-     * Display-only: confirmed UTXOs with known inscriptions removed. When the
-     * ordinals classifier is loading or has errored, this falls back to all
-     * confirmed UTXOs so the UI can still render totals — so it is NOT
-     * fail-closed and must not be used for spend paths. Use `spendableUTXOs`
-     * (gated by `spendableBlockedByOrdinals`) for spending.
-     */
+    /** Confirmed UTXOs without inscriptions (safe to spend) */
     availableUTXOs,
     /** Confirmed UTXOs that contain inscriptions */
     inscriptionUTXOs,
@@ -196,8 +180,6 @@ export function useUTXOs(
     spendableUTXOs,
     /** Spendable UTXOs in MempoolUTXO format (for SDK functions) */
     spendableMempoolUTXOs,
-    /** True when spend paths are blocked because ordinals classification is not yet known */
-    spendableBlockedByOrdinals,
     /** Loading state */
     isLoading,
     /** Loading state (ordinals detection) */
@@ -206,6 +188,18 @@ export function useUTXOs(
     error: error as Error | null,
     /** Error state (ordinals - non-blocking) */
     ordinalsError,
+    /**
+     * True when the ordinals check failed or timed out AND the user has
+     * inscription-exclusion enabled - inscription UTXOs may be included in
+     * the spendable set unintentionally.
+     */
+    ordinalsCheckUnavailable,
+    /**
+     * True when the ordinals check is still running AND the user has
+     * inscription-exclusion enabled. The spendable set has not been filtered
+     * yet, so consumers should block submission until it resolves.
+     */
+    ordinalsCheckPending,
     /** Refetch function */
     refetch,
   };

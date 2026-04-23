@@ -17,6 +17,21 @@ import { getNetworkConfigBTC } from "../../config";
 const btcConfig = getNetworkConfigBTC();
 
 /**
+ * Canonical icon path for each known token symbol.
+ * Only include symbols whose image exists under `public/images/` — the
+ * symbol-based fallback in `getCurrencyIconWithFallback` trusts these paths
+ * to load (otherwise the browser would render a broken-image).
+ */
+const TOKEN_ICONS: Record<string, string> = {
+  BTC: btcConfig.icon,
+  SBTC: btcConfig.icon,
+  WBTC: btcConfig.icon,
+  VBTC: btcConfig.icon,
+  USDC: "/images/usdc.png",
+  USDT: "/images/usdt.png",
+};
+
+/**
  * Token metadata interface
  */
 export interface TokenMetadata {
@@ -59,7 +74,7 @@ const TOKEN_REGISTRY: Record<string, TokenMetadata> = {
     symbol: "USDC",
     name: "USD Coin",
     decimals: 6,
-    icon: "/images/usdc.png",
+    icon: TOKEN_ICONS.USDC,
   },
   // USDC - Devnet/Sepolia (Mock)
   "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238": {
@@ -67,7 +82,7 @@ const TOKEN_REGISTRY: Record<string, TokenMetadata> = {
     symbol: "USDC",
     name: "USD Coin",
     decimals: 6,
-    icon: "/images/usdc.png",
+    icon: TOKEN_ICONS.USDC,
   },
   // USDC - Vault Devnet
   "0xc137E7382AA220D59Cc25f76f9aD72De962020Db": {
@@ -75,7 +90,7 @@ const TOKEN_REGISTRY: Record<string, TokenMetadata> = {
     symbol: "USDC",
     name: "USD Coin",
     decimals: 6,
-    icon: "/images/usdc.png",
+    icon: TOKEN_ICONS.USDC,
   },
   // USDT
   "0x94b008aA00579c1307B0EF2c499aD98a8ce58e58": {
@@ -83,7 +98,7 @@ const TOKEN_REGISTRY: Record<string, TokenMetadata> = {
     symbol: "USDT",
     name: "Tether USD",
     decimals: 6,
-    icon: "/images/usdt.png",
+    icon: TOKEN_ICONS.USDT,
   },
   // DAI
   "0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1": {
@@ -195,16 +210,25 @@ function generateTokenIconFallback(symbol: string): string {
 }
 
 /**
+ * Look up a canonical icon URL by token symbol (case-insensitive).
+ * Used as a secondary fallback when address-based registry lookup misses —
+ * e.g. for USDC deployed at a testnet address not present in `TOKEN_REGISTRY`.
+ */
+function getIconForSymbol(symbol: string): string | undefined {
+  return TOKEN_ICONS[symbol.toUpperCase()];
+}
+
+/**
  * Get currency icon with fallback
- * Returns actual icon URL or generates a fallback SVG
+ * Returns actual icon URL, or a symbol-based path, or a generated letter SVG.
  *
  * @param icon - Icon URL (may be undefined)
- * @param symbol - Token symbol for fallback
+ * @param symbol - Token symbol used for symbol-based and letter fallbacks
  * @returns Icon URL or fallback data URI
  */
 export function getCurrencyIconWithFallback(
   icon: string | undefined,
   symbol: string,
 ): string {
-  return icon || generateTokenIconFallback(symbol);
+  return icon || getIconForSymbol(symbol) || generateTokenIconFallback(symbol);
 }

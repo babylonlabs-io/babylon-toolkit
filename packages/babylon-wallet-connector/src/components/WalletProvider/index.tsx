@@ -84,7 +84,7 @@ export function WalletProvider({
       // Config may have eth and/or btc properties
       initializeAppKitModal(appKitConfig);
     } catch (error) {
-      console.error("Failed to initialize AppKit modal:", error);
+      console.error("Failed to initialize AppKit modal:", error instanceof Error ? error.message : "Unknown error");
     }
   }, [appKitConfig]);
 

@@ -25,13 +25,12 @@ interface BroadcastSuccessModalProps {
 }
 
 /**
- * BroadcastSuccessModal - Success confirmation modal
+ * BroadcastSuccessModal - Pre-PegIn broadcast confirmation modal
  *
- * Displays:
- * - BTC icon
- * - "Broadcast Successful" heading
- * - Confirmation message about Bitcoin network confirmations
- * - "Done" button to close
+ * Important: this only confirms the Pre-PegIn BTC transaction is in the
+ * mempool — the vault is NOT yet active. Several depositor steps still
+ * remain (submit WOTS key, sign payouts, activate with HTLC secret).
+ * The copy below makes that explicit so users don't think they're done.
  */
 export function BroadcastSuccessModal({
   open,
@@ -51,24 +50,26 @@ export function BroadcastSuccessModal({
           variant="h4"
           className="mb-4 mt-6 text-xl text-accent-primary sm:text-2xl"
         >
-          Broadcast Successful
+          Pre-PegIn Broadcast
         </Heading>
 
         <Text
           variant="body1"
           className="text-sm text-accent-secondary sm:text-base"
         >
-          Your Bitcoin transaction has been broadcast to the network. Your
-          deposit of {amount} {btcConfig.coinSymbol} is now awaiting
-          confirmation on the Bitcoin blockchain.
+          Your Pre-PegIn Bitcoin transaction for {amount} {btcConfig.coinSymbol}{" "}
+          has been broadcast to the network. Your vault is not active yet — this
+          is just one step in the deposit lifecycle.
         </Text>
 
         <Text
           variant="body2"
           className="mt-4 text-xs text-accent-secondary sm:text-sm"
         >
-          This usually takes a few hours. You can continue using the app while
-          your deposit is being confirmed.
+          Once the Pre-PegIn confirms, the vault provider will prompt you to
+          submit a WOTS key, sign payout authorizations, and finally activate
+          the vault by revealing your HTLC secret. Check back here — the next
+          required action will appear when it's ready.
         </Text>
       </DialogBody>
 

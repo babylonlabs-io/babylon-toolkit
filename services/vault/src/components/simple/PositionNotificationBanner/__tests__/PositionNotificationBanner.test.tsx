@@ -87,10 +87,6 @@ vi.mock("@/applications/aave/hooks/usePositionNotifications", () => ({
   }),
 }));
 
-vi.mock("@/config/featureFlags", () => ({
-  default: { isPositionNotificationsEnabled: true },
-}));
-
 vi.mock("wagmi", () => ({
   useAccount: () => ({ address: "0xTestAddress" }),
 }));
@@ -597,6 +593,67 @@ describe("PositionNotificationBanner", () => {
     expect(addButton).toHaveProperty("disabled", true);
     const hint = screen.getByTestId("hint");
     expect(hint.dataset.tooltip).toBe("Insufficient BTC balance");
+  });
+
+  it("renders yellow stale-price banner when statusOverride is stale-price", () => {
+    render(
+      <Wrapper>
+        <PositionNotificationBanner
+          statusOverride="stale-price"
+          onDeposit={onDeposit}
+          onRepay={onRepay}
+        />
+      </Wrapper>,
+    );
+
+    const banner = screen.getByTestId("position-notification-banner");
+    expect(banner.dataset.severity).toBe("yellow");
+    expect(
+      screen.getByText("Position notifications temporarily unavailable"),
+    ).toBeTruthy();
+    expect(
+      screen.getByText(
+        "BTC price data is stale or unavailable. Notifications will resume when fresh price data is available.",
+      ),
+    ).toBeTruthy();
+  });
+
+  it("stale-price banner has no action buttons", () => {
+    render(
+      <Wrapper>
+        <PositionNotificationBanner
+          statusOverride="stale-price"
+          onDeposit={onDeposit}
+          onRepay={onRepay}
+        />
+      </Wrapper>,
+    );
+
+    expect(screen.queryByText("Add Collateral")).toBeNull();
+    expect(screen.queryByText("Repay Debt")).toBeNull();
+    expect(screen.queryByText("Apply Suggested Order")).toBeNull();
+  });
+
+  it("stale-price status overrides a valid result", () => {
+    const result = makeBaseResult();
+
+    render(
+      <Wrapper>
+        <PositionNotificationBanner
+          result={result}
+          statusOverride="stale-price"
+          onDeposit={onDeposit}
+          onRepay={onRepay}
+        />
+      </Wrapper>,
+    );
+
+    const banner = screen.getByTestId("position-notification-banner");
+    expect(banner.dataset.severity).toBe("yellow");
+    expect(
+      screen.getByText("Position notifications temporarily unavailable"),
+    ).toBeTruthy();
+    expect(screen.queryByText("Position optimally structured")).toBeNull();
   });
 
   it("renders nothing for dust (hidden severity)", () => {

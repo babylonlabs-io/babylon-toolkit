@@ -65,6 +65,18 @@ describe("useRepayMetrics", () => {
     expect(result.healthFactorValue).toBe(Infinity);
   });
 
+  it("shows current values when tokenPriceUsd is null", () => {
+    const result = useRepayMetrics({
+      ...baseProps,
+      repayAmount: 1000,
+      tokenPriceUsd: null,
+    });
+
+    // Should return current values with no projection, same as repayAmount=0
+    expect(result.healthFactorValue).toBe(1.6);
+    expect(result.borrowRatioOriginal).toBeUndefined();
+  });
+
   it("clamps projected debt to zero (no negative debt)", () => {
     // Repay more than total debt
     const result = useRepayMetrics({

@@ -12,6 +12,10 @@ vi.mock("@/hooks/usePrices", () => ({
 
 const BTC_1000 = 100_000_000_000n;
 const BTC_10 = 1_000_000_000n;
+// 0.62225053 BTC (sub-1 value with 8 significant fractional digits)
+const BTC_FRACTIONAL = 62_225_053n;
+// 10.12345678 BTC (>= 1 value with a noisy fraction that should be truncated)
+const BTC_10_NOISY = 1_012_345_678n;
 
 const cappedSnapshot: CapSnapshot = {
   totalCapBTC: BTC_1000,
@@ -23,6 +27,18 @@ const cappedSnapshot: CapSnapshot = {
   remainingTotal: BTC_1000 - BTC_10,
   remainingForUser: null,
   effectiveRemaining: BTC_1000 - BTC_10,
+};
+
+const fractionalSnapshot: CapSnapshot = {
+  totalCapBTC: BTC_10_NOISY,
+  perAddressCapBTC: 0n,
+  totalBTC: BTC_FRACTIONAL,
+  userBTC: null,
+  hasTotalCap: true,
+  hasPerAddressCap: false,
+  remainingTotal: BTC_10_NOISY - BTC_FRACTIONAL,
+  remainingForUser: null,
+  effectiveRemaining: BTC_10_NOISY - BTC_FRACTIONAL,
 };
 
 const unlimitedSnapshot: CapSnapshot = {
@@ -80,6 +96,15 @@ describe("SupplyCapSection", () => {
   it("renders nothing when snapshot is null", () => {
     const { container } = render(<SupplyCapSection snapshot={null} />);
     expect(container).toBeEmptyDOMElement();
+  });
+
+  it("truncates values >= 1 BTC to 2 decimals and keeps < 1 BTC values at up to 8 decimals", () => {
+    mockBtcPrice.mockReturnValue(69_003.07);
+    render(<SupplyCapSection snapshot={fractionalSnapshot} />);
+    // 10.12345678 BTC >= 1 → 2 decimals → "10.12"
+    expect(screen.getByText(/10\.12 s?BTC/)).toBeInTheDocument();
+    // 0.62225053 BTC < 1 → 8 decimals preserved
+    expect(screen.getByText(/0\.62225053 s?BTC/)).toBeInTheDocument();
   });
 
   it("renders skeleton placeholders while loading with no snapshot yet", () => {

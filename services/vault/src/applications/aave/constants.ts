@@ -38,6 +38,25 @@ export const CONFIG_RETRY_COUNT = 3;
 export const EXPECTED_HEALTH_FACTOR_AT_LIQUIDATION = 0.95;
 
 /**
+ * Block threshold for vault withdrawal: if the projected health factor
+ * after withdrawing the selected vaults would be below this value, the
+ * FE disables the Confirm button to avoid a guaranteed on-chain revert
+ * (Aave itself enforces HF >= 1.0 on withdrawal). This is the lowest HF
+ * at which the contract would still accept the call.
+ */
+export const WITHDRAW_HF_BLOCK_THRESHOLD = 1.0;
+
+/**
+ * Warning threshold for vault withdrawal: if the projected health factor
+ * after withdrawing would fall below this value (but stay above the block
+ * threshold), the withdrawal review step shows an inline at-risk warning.
+ * Narrower than the general HEALTH_FACTOR_WARNING_THRESHOLD used by the
+ * position overview — withdrawal warnings are a separate, per-action
+ * surface per product decision.
+ */
+export const WITHDRAW_HF_WARNING_THRESHOLD = 1.1;
+
+/**
  * Safety margin multiplier for sacrificial vault sizing.
  * 1.05 means the sacrificial vault is sized 5% larger than the
  * computed target seizure to account for price movements between
@@ -60,16 +79,15 @@ export const POSITION_REFETCH_INTERVAL_MS = 30 * 1000;
 export const POSITION_STALENESS_THRESHOLD_MS = POSITION_REFETCH_INTERVAL_MS * 3;
 
 /**
- * Fallback price for stablecoins when no oracle-derived price is available
- * (e.g., first-time borrow with no existing debt to derive price from).
- * Only used when the token is a known stablecoin — non-stablecoin tokens
- * without an oracle price will throw.
+ * Fallback price for stablecoins on testnet/signet where Chainlink does not
+ * publish price feeds. On mainnet, real Chainlink oracle prices are always used.
  */
 export const STABLECOIN_FALLBACK_PRICE_USD = 1.0;
 
 /**
- * Tokens whose USD price can safely be assumed as $1 when no oracle data
- * is available. Used as a guard for the stablecoin fallback price.
+ * Tokens eligible for the $1 testnet fallback when no Chainlink feed exists.
+ * On mainnet, Chainlink feeds exist for all these tokens and the fallback
+ * is never used.
  */
 export const KNOWN_STABLECOIN_SYMBOLS = ["USDC", "USDT", "DAI"] as const;
 
@@ -80,10 +98,12 @@ export const KNOWN_STABLECOIN_SYMBOLS = ["USDC", "USDT", "DAI"] as const;
 export const MIN_SLIDER_MAX = 0.0001;
 
 /**
- * Tolerance for detecting full repayment
- * If repay amount is within this tolerance of actual debt, treat as full repay
+ * Threshold (in USD) below which projected debt is treated as
+ * effectively zero for display purposes (showing "-" for health factor
+ * instead of an astronomical number). This is a display-only concern
+ * and does NOT affect repay routing (full vs partial).
  */
-export const FULL_REPAY_TOLERANCE = 0.01;
+export const NEAR_ZERO_DEBT_DISPLAY_THRESHOLD = 0.01;
 
 /**
  * BTC token display constants

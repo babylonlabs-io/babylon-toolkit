@@ -4,6 +4,10 @@
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "sideEffects": false,
+  "engines": {
+    "node": ">=20.3.0"
+  },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",

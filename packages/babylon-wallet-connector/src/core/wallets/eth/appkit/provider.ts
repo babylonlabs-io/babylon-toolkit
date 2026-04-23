@@ -166,7 +166,7 @@ export class AppKitProvider implements IETHProvider {
       this.address = result.accounts[0];
       this.chainId = result.chainId;
     } catch (error) {
-      console.error("Failed to connect wallet:", error);
+      console.error("Failed to connect wallet:", error instanceof Error ? error.message : "Unknown error");
       throw new Error(`Failed to connect wallet: ${error instanceof Error ? error.message : "Unknown error"}`);
     }
   }

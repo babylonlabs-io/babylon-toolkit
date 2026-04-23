@@ -6,7 +6,7 @@
  *
  * Exports:
  * - {@link buildPrePeginPsbt} - Create unfunded Pre-PegIn transaction (HTLC output)
- * - {@link buildPeginTxFromFundedPrePegin} - Derive PegIn tx from funded Pre-PegIn txid
+ * - {@link buildPeginTxFromFundedPrePegin} - Derive PegIn tx from funded Pre-PegIn tx
  * - {@link buildPeginInputPsbt} - Create PSBT for depositor to sign PegIn HTLC leaf 0 input
  * - {@link extractPeginInputSignature} - Extract depositor signature from signed PegIn input PSBT
  * - {@link buildPayoutPsbt} - Create payout PSBT for signing

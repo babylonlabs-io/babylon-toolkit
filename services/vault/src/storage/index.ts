@@ -5,6 +5,7 @@
  * This file re-exports for backward compatibility.
  */
 
+export * from "./addressScreeningStorage";
 export * from "./peginStorage";
 export * from "./pendingCollateralStorage";
 export * from "./usePeginStorage";

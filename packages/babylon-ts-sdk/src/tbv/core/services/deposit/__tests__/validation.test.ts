@@ -111,7 +111,7 @@ describe("Deposit Validations", () => {
 
     it("should reject null/undefined providers", () => {
       const result = validateProviderSelection(
-        null as any,
+        null as unknown as string[],
         availableProviders,
       );
 
