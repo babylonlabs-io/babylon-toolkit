@@ -741,7 +741,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/signing.ts:15](../../pac
 Create SignPsbtOptions for Taproot script-path PSBT signing.
 
 All vault protocol signing operations are Taproot script-path spends that
-require `disableTweakSigner: true` (untweaked key) and `autoFinalized: false`
+require `useTweakedSigner: false` (untweaked key) and `autoFinalized: false`
 (to preserve tapScriptSig for Schnorr signature extraction).
 
 #### Parameters

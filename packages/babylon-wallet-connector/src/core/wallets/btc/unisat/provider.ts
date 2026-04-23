@@ -4,6 +4,7 @@ import { isAccountChangeEvent, DISCONNECT_EVENT, removeProviderListener } from "
 import type { BTCConfig, IBTCProvider, InscriptionIdentifier, SignPsbtOptions, WalletInfo } from "@/core/types";
 import { Network } from "@/core/types";
 import { initBTCCurve } from "@/core/utils/initBTCCurve";
+import { resolveUseTweakedSigner } from "@/core/utils/psbtOptionsMapper";
 import { ERROR_CODES, WalletError } from "@/error";
 
 import logo from "./logo.svg";
@@ -127,13 +128,16 @@ export class UnisatProvider implements IBTCProvider {
       if (options?.signInputs && options.signInputs.length > 0) {
         signOptions = {
           autoFinalized: options.autoFinalized ?? false,
-          toSignInputs: options.signInputs.map((input) => ({
-            index: input.index,
-            publicKey: input.publicKey,
-            address: input.address,
-            sighashTypes: input.sighashTypes,
-            useTweakedSigner: input.disableTweakSigner === true ? false : undefined,
-          })),
+          toSignInputs: options.signInputs.map((input) => {
+            const useTweakedSigner = resolveUseTweakedSigner(input);
+            return {
+              index: input.index,
+              publicKey: input.publicKey,
+              address: input.address,
+              sighashTypes: input.sighashTypes,
+              ...(useTweakedSigner !== undefined && { useTweakedSigner }),
+            };
+          }),
         };
       } else {
         // Default behavior: auto-generate toSignInputs for all unsigned inputs
@@ -179,13 +183,16 @@ export class UnisatProvider implements IBTCProvider {
         if (option?.signInputs && option.signInputs.length > 0) {
           return {
             autoFinalized: option.autoFinalized ?? false,
-            toSignInputs: option.signInputs.map((input) => ({
-              index: input.index,
-              publicKey: input.publicKey,
-              address: input.address,
-              sighashTypes: input.sighashTypes,
-              useTweakedSigner: input.disableTweakSigner === true ? false : undefined,
-            })),
+            toSignInputs: option.signInputs.map((input) => {
+              const useTweakedSigner = resolveUseTweakedSigner(input);
+              return {
+                index: input.index,
+                publicKey: input.publicKey,
+                address: input.address,
+                sighashTypes: input.sighashTypes,
+                ...(useTweakedSigner !== undefined && { useTweakedSigner }),
+              };
+            }),
           };
         }
 

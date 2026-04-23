@@ -302,10 +302,12 @@ export interface SignInputOptions {
   /** Sighash types (optional) */
   sighashTypes?: number[];
   /**
-   * Disable tweak signer for Taproot script path spend.
-   * When true, sign with the untweaked internal key.
+   * Whether the wallet should sign with the tweaked (key-path) signer.
+   * Set `false` for Taproot script-path spends, where signing uses
+   * the untweaked internal key. If omitted, the wallet applies its
+   * default behavior.
    */
-  disableTweakSigner?: boolean;
+  useTweakedSigner?: boolean;
 }
 
 export interface SignPsbtOptions {

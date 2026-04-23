@@ -73,7 +73,7 @@ const ethWallet = createWalletClient({
 
 ## Node.js wallet from a seed
 
-Honour `SignPsbtOptions.signInputs[]` — the SDK uses per-input options so the same wallet works for key-path inputs (tweaked) and script-path inputs like the refund leaf or the PegIn HTLC input (untweaked, `disableTweakSigner: true`).
+Honour `SignPsbtOptions.signInputs[]` — the SDK uses per-input options so the same wallet works for key-path inputs (tweaked) and script-path inputs like the refund leaf or the PegIn HTLC input (untweaked, `useTweakedSigner: false`).
 
 ```typescript
 import * as bitcoin from "bitcoinjs-lib";
@@ -109,8 +109,8 @@ const signPsbtImpl = async (
 
   const signOne = (input: SignInputOptions) => {
     // Script-path spends (refund leaf 1, PegIn HTLC leaf 0) pass
-    // `disableTweakSigner: true` — use the raw BIP-32 node.
-    const signer = input.disableTweakSigner ? node : tweakedKey;
+    // `useTweakedSigner: false` — use the raw BIP-32 node.
+    const signer = input.useTweakedSigner === false ? node : tweakedKey;
     psbt.signInput(input.index, signer, input.sighashTypes);
   };
 

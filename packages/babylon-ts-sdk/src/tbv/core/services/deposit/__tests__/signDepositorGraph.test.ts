@@ -60,7 +60,7 @@ vi.mock("../../../utils/signing", () => ({
     signInputs: Array.from({ length: inputCount }, (_, i) => ({
       index: i,
       publicKey: pubkey,
-      disableTweakSigner: true,
+      useTweakedSigner: false,
     })),
   }),
 }));

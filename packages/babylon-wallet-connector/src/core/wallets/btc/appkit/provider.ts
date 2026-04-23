@@ -2,6 +2,7 @@ import type { BitcoinAdapter } from "@reown/appkit-adapter-bitcoin";
 import { Psbt } from "bitcoinjs-lib";
 
 import type { BTCConfig, IBTCProvider, InscriptionIdentifier, SignPsbtOptions } from "@/core/types";
+import { resolveUseTweakedSigner } from "@/core/utils/psbtOptionsMapper";
 import { APPKIT_OPEN_EVENT } from "@/core/wallets/appkit/constants";
 
 import { APPKIT_BTC_CONNECTED_EVENT } from "./constants";
@@ -17,6 +18,7 @@ interface AppKitSignInput {
   index: number;
   sighashTypes: number[];
   publicKey?: string;
+  useTweakedSigner?: boolean;
   disableTweakSigner?: boolean;
 }
 
@@ -240,13 +242,19 @@ export class AppKitBTCProvider implements IBTCProvider {
       const signInputs: AppKitSignInput[] | undefined =
         options?.autoFinalized || !options?.signInputs
           ? undefined
-          : options.signInputs.map((input) => ({
-              address: input.address ?? address,
-              index: input.index,
-              sighashTypes: input.sighashTypes ?? [],
-              ...(input.publicKey && { publicKey: input.publicKey }),
-              ...(input.disableTweakSigner && { disableTweakSigner: true }),
-            }));
+          : options.signInputs.map((input) => {
+              const useTweakedSigner = resolveUseTweakedSigner(input);
+              return {
+                address: input.address ?? address,
+                index: input.index,
+                sighashTypes: input.sighashTypes ?? [],
+                ...(input.publicKey && { publicKey: input.publicKey }),
+                ...(useTweakedSigner !== undefined && {
+                  useTweakedSigner,
+                  disableTweakSigner: !useTweakedSigner,
+                }),
+              };
+            });
 
       const result = await walletProvider.signPSBT({
         psbt: psbtBase64,
