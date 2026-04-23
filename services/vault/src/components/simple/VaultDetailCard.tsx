@@ -85,7 +85,7 @@ export function VaultDetailCard({
         <Hint
           tooltip={providerAddress}
           attachToChildren
-          placement="left"
+          placement="top"
           className="text-sm text-accent-primary"
         >
           <span className="inline-flex items-center gap-1.5">
