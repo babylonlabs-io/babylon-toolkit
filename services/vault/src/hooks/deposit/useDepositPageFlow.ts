@@ -180,7 +180,17 @@ export function useDepositPageFlow(): UseDepositPageFlowResult {
   }, []);
 
   const getMnemonic = useMemo<(() => Promise<string>) | undefined>(
-    () => (mnemonicRef.current ? async () => mnemonicRef.current! : undefined),
+    () =>
+      mnemonicRef.current
+        ? async () => {
+            const value = mnemonicRef.current;
+            mnemonicRef.current = undefined;
+            if (!value) {
+              throw new Error("Mnemonic has already been consumed");
+            }
+            return value;
+          }
+        : undefined,
     // eslint-disable-next-line react-hooks/exhaustive-deps -- mnemonicVersion triggers rebuild
     [mnemonicVersion],
   );
@@ -194,6 +204,7 @@ export function useDepositPageFlow(): UseDepositPageFlowResult {
 
   const onSignSuccess = (peginTxHash: string, ethTxHash: string) => {
     setTransactionHashes(peginTxHash, ethTxHash);
+    mnemonicRef.current = undefined;
     goToStep(DepositStep.SUCCESS);
   };
 

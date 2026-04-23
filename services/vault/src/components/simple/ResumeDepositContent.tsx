@@ -26,6 +26,7 @@ import { useRefundState } from "@/hooks/deposit/useRefundState";
 import { useRunOnce } from "@/hooks/useRunOnce";
 import { fetchVaultById } from "@/services/vault/fetchVaults";
 import {
+  computeWotsPublicKeysHash,
   deriveWotsBlockPublicKeys,
   getMnemonicIdForPegin,
   hasMnemonicEntry,
@@ -226,6 +227,13 @@ export function ResumeWotsContent({
         );
         seed.fill(0);
 
+        const computedHash = computeWotsPublicKeysHash(wotsPublicKeys);
+        if (computedHash !== activity.depositorWotsPkHash) {
+          throw new Error(
+            "WOTS public key hash does not match the on-chain commitment — the provided mnemonic is incorrect",
+          );
+        }
+
         await submitWotsPublicKey({
           peginTxHash,
           depositorBtcPubkey,
@@ -243,10 +251,10 @@ export function ResumeWotsContent({
         const msg =
           err instanceof Error ? err.message : "Failed to submit WOTS key";
 
-        // Only invalidate the stored mnemonic when the VP explicitly
-        // reports a WOTS hash mismatch (wrong mnemonic). Network
-        // errors, missing fields, etc. should not discard a potentially
-        // valid stored mnemonic.
+        // Invalidate the stored mnemonic when a WOTS hash mismatch is
+        // detected — either locally (computed vs on-chain hash) or by
+        // the VP. Network errors, missing fields, etc. should not
+        // discard a potentially valid stored mnemonic.
         if (isWotsMismatchError(err)) {
           setStoredFailed(true);
         }
@@ -262,6 +270,22 @@ export function ResumeWotsContent({
     setError(null);
     setShowMnemonic(true);
   }, []);
+
+  if (!activity.depositorWotsPkHash) {
+    return (
+      <DepositProgressView
+        currentStep={DepositFlowStep.SIGN_PAYOUTS}
+        isWaiting={false}
+        error="Vault is not fully indexed yet — WOTS key verification is not available. Please try again shortly."
+        isComplete={false}
+        isProcessing={false}
+        canClose={true}
+        canContinueInBackground={false}
+        payoutSigningProgress={null}
+        onClose={onClose}
+      />
+    );
+  }
 
   if (showMnemonic) {
     return (
