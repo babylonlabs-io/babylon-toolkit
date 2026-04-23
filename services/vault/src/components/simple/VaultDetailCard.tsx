@@ -15,7 +15,7 @@ import {
 import type { ReactNode } from "react";
 
 import { getNetworkConfigBTC } from "@/config";
-import { truncateHash } from "@/utils/addressUtils";
+import { truncateAddress, truncateHash } from "@/utils/addressUtils";
 import { formatBtcAmount, formatDateTime } from "@/utils/formatting";
 
 const btcConfig = getNetworkConfigBTC();
@@ -83,9 +83,9 @@ export function VaultDetailCard({
       <div className="flex items-center justify-between">
         <span className="text-sm text-accent-secondary">Vault Provider</span>
         <Hint
-          tooltip={providerAddress}
+          tooltip={truncateAddress(providerAddress)}
           attachToChildren
-          placement="top"
+          placement="left"
           className="text-sm text-accent-primary"
         >
           <span className="inline-flex items-center gap-1.5">

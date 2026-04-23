@@ -12,6 +12,7 @@ import {
 } from "@babylonlabs-io/core-ui";
 
 import { getNetworkConfigBTC } from "@/config";
+import { truncateAddress } from "@/utils/addressUtils";
 import { formatBtcAmount, formatOrdinal } from "@/utils/formatting";
 
 const btcConfig = getNetworkConfigBTC();
@@ -87,9 +88,9 @@ export function CollateralVaultItem({
       <div className="flex items-center justify-between">
         <span className="text-sm text-accent-secondary">Vault Provider</span>
         <Hint
-          tooltip={providerAddress}
+          tooltip={truncateAddress(providerAddress)}
           attachToChildren
-          placement="top"
+          placement="left"
           className="text-sm text-accent-primary"
         >
           <span className="inline-flex items-center gap-1.5">
