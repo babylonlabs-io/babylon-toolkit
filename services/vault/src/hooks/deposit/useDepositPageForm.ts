@@ -87,6 +87,13 @@ export interface UseDepositPageFormResult {
    */
   ordinalsCheckUnavailable: boolean;
 
+  /**
+   * True when the ordinals check is still in flight AND the user has
+   * inscription-exclusion enabled. Consumers should block submission until
+   * the check resolves.
+   */
+  ordinalsCheckPending: boolean;
+
   // Partial liquidation (multi-vault)
   isPartialLiquidation: boolean;
   setIsPartialLiquidation: (v: boolean) => void;
@@ -178,8 +185,12 @@ export function useDepositPageForm(): UseDepositPageFormResult {
   });
 
   // Get UTXOs for balance calculation (already respects inscription preference)
-  const { spendableUTXOs, spendableMempoolUTXOs, ordinalsCheckUnavailable } =
-    useUTXOs(btcAddress);
+  const {
+    spendableUTXOs,
+    spendableMempoolUTXOs,
+    ordinalsCheckUnavailable,
+    ordinalsCheckPending,
+  } = useUTXOs(btcAddress);
   const btcBalance = useMemo(() => {
     return BigInt(calculateBalance(spendableUTXOs || []));
   }, [spendableUTXOs]);
@@ -353,6 +364,7 @@ export function useDepositPageForm(): UseDepositPageFormResult {
     feeError,
     maxDepositSats: adjustedMaxDepositSats,
     ordinalsCheckUnavailable,
+    ordinalsCheckPending,
     isPartialLiquidation,
     setIsPartialLiquidation,
     canSplit,

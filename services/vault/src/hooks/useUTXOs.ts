@@ -146,6 +146,15 @@ export function useUTXOs(
   const ordinalsCheckUnavailable =
     ordinalsExcluded && !isLoadingOrdinals && ordinalsError !== null;
 
+  // True when the ordinals check is still running AND the user has
+  // inscription-exclusion enabled. Consumers should block submission until
+  // the check resolves, otherwise inscription UTXOs may be spent before the
+  // filter can exclude them.
+  const ordinalsCheckPending =
+    ordinalsExcluded &&
+    isLoadingOrdinals &&
+    confirmedUtxosForOrdinals.length > 0;
+
   // Spendable UTXOs in MempoolUTXO format (for SDK functions)
   // If ordinals API failed/loading, inscriptionUTXOIds will be empty, so all UTXOs pass filter
   const spendableMempoolUTXOs = useMemo(() => {
@@ -185,6 +194,12 @@ export function useUTXOs(
      * the spendable set unintentionally.
      */
     ordinalsCheckUnavailable,
+    /**
+     * True when the ordinals check is still running AND the user has
+     * inscription-exclusion enabled. The spendable set has not been filtered
+     * yet, so consumers should block submission until it resolves.
+     */
+    ordinalsCheckPending,
     /** Refetch function */
     refetch,
   };

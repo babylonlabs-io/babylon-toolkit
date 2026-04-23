@@ -191,6 +191,7 @@ vi.mock("../../useUTXOs", () => ({
     error: null,
     ordinalsError: null,
     ordinalsCheckUnavailable: false,
+    ordinalsCheckPending: false,
     refetch: vi.fn(),
   })),
   calculateBalance: vi.fn((utxos) => {

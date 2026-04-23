@@ -134,6 +134,7 @@ function SimpleDepositContent({
     splitRatioLabel,
     depositorClaimValue,
     ordinalsCheckUnavailable,
+    ordinalsCheckPending,
     validateForm,
   } = useDepositPageForm();
 
@@ -311,6 +312,7 @@ function SimpleDepositContent({
                 partialLiquidation={partialLiquidationProps}
                 feeRows={feeRows}
                 ordinalsCheckUnavailable={ordinalsCheckUnavailable}
+                ordinalsCheckPending={ordinalsCheckPending}
               />
             </div>
           </div>
