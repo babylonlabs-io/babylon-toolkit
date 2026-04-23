@@ -120,7 +120,10 @@ export function Borrow() {
             }}
             onMaxClick={() => setBorrowAmount(sliderMaxBorrow)}
             rightField={{
-              value: formatUsdValue(borrowAmount * tokenPriceUsd),
+              value:
+                tokenPriceUsd != null
+                  ? formatUsdValue(borrowAmount * tokenPriceUsd)
+                  : "–",
             }}
             sliderActiveColor={getTokenBrandColor(assetConfig.symbol)}
             inputClassName={AMOUNT_INPUT_CLASS_NAME}
@@ -142,10 +145,15 @@ export function Borrow() {
           <p className="text-sm text-error-main">{errorMessage}</p>
         )}
 
-        {/* Borrow Unavailable Message */}
+        {/* Borrow Unavailable Messages */}
         {FeatureFlags.isBorrowDisabled && (
           <Text variant="body2" className="text-center text-warning-main">
             Borrowing is temporarily unavailable. Please check back later.
+          </Text>
+        )}
+        {tokenPriceUsd == null && !FeatureFlags.isBorrowDisabled && (
+          <Text variant="body2" className="text-center text-warning-main">
+            Price data unavailable. Borrowing is temporarily disabled.
           </Text>
         )}
       </div>
@@ -156,7 +164,12 @@ export function Borrow() {
         color="secondary"
         size="large"
         fluid
-        disabled={isDisabled || isProcessing || FeatureFlags.isBorrowDisabled}
+        disabled={
+          isDisabled ||
+          isProcessing ||
+          FeatureFlags.isBorrowDisabled ||
+          tokenPriceUsd == null
+        }
         onClick={handleBorrow}
         className="mt-6"
       >

@@ -131,7 +131,10 @@ export function Repay() {
             }}
             onMaxClick={() => setRepayAmount(sliderMaxRepay)}
             rightField={{
-              value: formatUsdValue(repayAmount * tokenPriceUsd),
+              value:
+                tokenPriceUsd != null
+                  ? formatUsdValue(repayAmount * tokenPriceUsd)
+                  : "–",
             }}
             sliderActiveColor={getTokenBrandColor(assetConfig.symbol)}
             inputClassName={AMOUNT_INPUT_CLASS_NAME}

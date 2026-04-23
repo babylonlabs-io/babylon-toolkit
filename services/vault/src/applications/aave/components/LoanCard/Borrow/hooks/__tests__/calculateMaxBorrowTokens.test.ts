@@ -86,6 +86,28 @@ describe("calculateMaxBorrowTokens", () => {
     expect(result * 100).toBe(Math.floor(result * 100));
   });
 
+  it("returns zero when tokenPriceUsd is null", () => {
+    const result = calculateMaxBorrowTokens({
+      collateralValueUsd: 10000,
+      currentDebtUsd: 0,
+      liquidationThresholdBps: 8000,
+      tokenPriceUsd: null,
+    });
+
+    expect(result).toBe(0);
+  });
+
+  it("returns zero when tokenPriceUsd is zero", () => {
+    const result = calculateMaxBorrowTokens({
+      collateralValueUsd: 10000,
+      currentDebtUsd: 0,
+      liquidationThresholdBps: 8000,
+      tokenPriceUsd: 0,
+    });
+
+    expect(result).toBe(0);
+  });
+
   it("respects a different liquidation threshold (7500 BPS)", () => {
     // $10,000 collateral, 75% LT, no debt, $1 token
     const result = calculateMaxBorrowTokens({

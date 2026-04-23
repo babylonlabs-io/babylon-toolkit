@@ -69,6 +69,19 @@ describe("useBorrowMetrics", () => {
     expect(result.borrowRatio).toBeDefined();
   });
 
+  it("shows current values when tokenPriceUsd is null", () => {
+    const result = useBorrowMetrics({
+      ...baseProps,
+      borrowAmount: 100,
+      tokenPriceUsd: null,
+    });
+
+    // Should return current values with no projection, same as borrowAmount=0
+    expect(result.healthFactorValue).toBe(8.0);
+    expect(result.borrowRatioOriginal).toBeUndefined();
+    expect(result.healthFactorOriginal).toBeUndefined();
+  });
+
   it("returns Infinity health factor when no existing debt and borrowAmount is 0", () => {
     const result = useBorrowMetrics({
       ...baseProps,
