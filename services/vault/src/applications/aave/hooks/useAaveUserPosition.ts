@@ -63,8 +63,8 @@ export interface UseAaveUserPositionResult {
   isLoading: boolean;
   /** Error state */
   error: Error | null;
-  /** Refetch function */
-  refetch: () => Promise<void>;
+  /** Refetch function — returns fresh position data (or null if unavailable) */
+  refetch: () => Promise<AavePositionWithLiveData | null>;
 }
 
 /**
@@ -199,6 +199,12 @@ export function useAaveUserPosition(
     isPositionDataStale,
     isLoading: positionsLoading || configLoading,
     error: positionsError as Error | null,
-    refetch: async () => void refetch(),
+    refetch: async () => {
+      const result = await refetch();
+      if (result.isError) {
+        throw result.error ?? new Error("Failed to refetch position data");
+      }
+      return result.data?.[0] ?? null;
+    },
   };
 }

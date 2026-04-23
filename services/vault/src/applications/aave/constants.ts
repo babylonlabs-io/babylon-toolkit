@@ -98,10 +98,12 @@ export const KNOWN_STABLECOIN_SYMBOLS = ["USDC", "USDT", "DAI"] as const;
 export const MIN_SLIDER_MAX = 0.0001;
 
 /**
- * Tolerance for detecting full repayment
- * If repay amount is within this tolerance of actual debt, treat as full repay
+ * Threshold (in USD) below which projected debt is treated as
+ * effectively zero for display purposes (showing "-" for health factor
+ * instead of an astronomical number). This is a display-only concern
+ * and does NOT affect repay routing (full vs partial).
  */
-export const FULL_REPAY_TOLERANCE = 0.01;
+export const NEAR_ZERO_DEBT_DISPLAY_THRESHOLD = 0.01;
 
 /**
  * BTC token display constants

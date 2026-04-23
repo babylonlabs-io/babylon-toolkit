@@ -543,4 +543,49 @@ describe("useAaveReserveDetail", () => {
 
     expect(result.current.error).toBeNull();
   });
+
+  // --- Staleness passthrough (#132) ---
+
+  it("passes through isPositionDataStale from useAaveUserPosition", () => {
+    mockUseAaveUserPosition.mockReturnValue({
+      position: null,
+      collateralValueUsd: 15000,
+      debtValueUsd: 0,
+      healthFactor: null,
+      healthFactorStatus: "healthy",
+      isPositionDataStale: true,
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+    });
+
+    const { result } = renderHook(
+      () => useAaveReserveDetail({ reserveId: "USDC", address: "0xUser" }),
+      { wrapper },
+    );
+
+    expect(result.current.isPositionDataStale).toBe(true);
+  });
+
+  it("exposes refetchPosition from useAaveUserPosition", () => {
+    const mockRefetch = vi.fn();
+    mockUseAaveUserPosition.mockReturnValue({
+      position: null,
+      collateralValueUsd: 15000,
+      debtValueUsd: 0,
+      healthFactor: null,
+      healthFactorStatus: "healthy",
+      isPositionDataStale: false,
+      isLoading: false,
+      error: null,
+      refetch: mockRefetch,
+    });
+
+    const { result } = renderHook(
+      () => useAaveReserveDetail({ reserveId: "USDC", address: "0xUser" }),
+      { wrapper },
+    );
+
+    expect(result.current.refetchPosition).toBe(mockRefetch);
+  });
 });

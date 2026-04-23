@@ -18,13 +18,23 @@ export interface BorrowValidationResult {
  * @param borrowAmount - Amount user wants to borrow
  * @param projectedHealthFactor - Health factor after the borrow
  * @param maxBorrowAmount - Maximum borrowable amount based on collateral and debt
+ * @param isPositionDataStale - Whether position data may be outdated
  * @returns Validation result with disabled state, button text, and error message
  */
 export function validateBorrowAction(
   borrowAmount: number,
   projectedHealthFactor: number,
   maxBorrowAmount: number,
+  isPositionDataStale = false,
 ): BorrowValidationResult {
+  if (isPositionDataStale) {
+    return {
+      isDisabled: true,
+      buttonText: "Refreshing position...",
+      errorMessage: null,
+    };
+  }
+
   if (borrowAmount === 0) {
     return {
       isDisabled: true,
