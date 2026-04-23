@@ -103,6 +103,8 @@ export interface DepositCtaParams extends DepositFormValidityParams {
   isFeeError: boolean;
   feeError: string | null;
   feeDisabled: boolean;
+  ordinalsCheckPending: boolean;
+  ordinalsWarningUnacknowledged: boolean;
 }
 
 export interface DepositCtaState {
@@ -173,6 +175,14 @@ export function getDepositCtaState(params: DepositCtaParams): DepositCtaState {
   const amountLabel = getDepositButtonLabel(params);
   if (amountLabel !== "Deposit") {
     return { disabled: true, label: amountLabel };
+  }
+
+  if (params.ordinalsCheckPending) {
+    return { disabled: true, label: "Checking for inscriptions..." };
+  }
+
+  if (params.ordinalsWarningUnacknowledged) {
+    return { disabled: true, label: "Acknowledge warning to continue" };
   }
 
   if (params.isFeeError) {

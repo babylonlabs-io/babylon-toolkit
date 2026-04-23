@@ -296,6 +296,8 @@ describe("Deposit Validations", () => {
       isFeeError: false,
       feeError: null,
       feeDisabled: false,
+      ordinalsCheckPending: false,
+      ordinalsWarningUnacknowledged: false,
     };
 
     it("returns enabled 'Deposit' when all conditions are met", () => {
@@ -498,6 +500,46 @@ describe("Deposit Validations", () => {
         feeDisabled: true,
       });
       expect(result.label).toContain("Minimum");
+    });
+
+    it("disables with inscription-check label while ordinals check is pending", () => {
+      const result = getDepositCtaState({
+        ...readyParams,
+        ordinalsCheckPending: true,
+      });
+      expect(result).toEqual({
+        disabled: true,
+        label: "Checking for inscriptions...",
+      });
+    });
+
+    it("disables with ack label when ordinals warning is unacknowledged", () => {
+      const result = getDepositCtaState({
+        ...readyParams,
+        ordinalsWarningUnacknowledged: true,
+      });
+      expect(result).toEqual({
+        disabled: true,
+        label: "Acknowledge warning to continue",
+      });
+    });
+
+    it("prioritizes ordinals-pending over unacknowledged warning", () => {
+      const result = getDepositCtaState({
+        ...readyParams,
+        ordinalsCheckPending: true,
+        ordinalsWarningUnacknowledged: true,
+      });
+      expect(result.label).toBe("Checking for inscriptions...");
+    });
+
+    it("prioritizes amount label over ordinals-pending", () => {
+      const result = getDepositCtaState({
+        ...readyParams,
+        amountSats: 0n,
+        ordinalsCheckPending: true,
+      });
+      expect(result.label).toBe("Enter an amount");
     });
   });
 });
