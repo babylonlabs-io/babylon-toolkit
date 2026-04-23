@@ -9,9 +9,11 @@ import { useCallback, useMemo, useState } from "react";
 import type { Address } from "viem";
 import { useAccount } from "wagmi";
 
+import { WITHDRAW_HF_BLOCK_THRESHOLD } from "@/applications/aave/constants";
 import {
   canWithdrawAnyVault,
   computeProjectedHealthFactor,
+  getEffectiveVaultSelection,
   getWithdrawHfWarningState,
   isVaultIndividuallyWithdrawable,
   type PositionSnapshot,
@@ -51,6 +53,8 @@ interface CollateralSectionProps {
 
 const WITHDRAW_DISABLED_TOOLTIP =
   "No vault can be released without putting your position at risk of liquidation. Repay debt first.";
+
+const WITHDRAW_HF_BREACH_TOOLTIP = `This selection would drop your health factor below ${WITHDRAW_HF_BLOCK_THRESHOLD.toFixed(1)} and be rejected on-chain. Reduce the selection or repay debt first.`;
 
 export function CollateralSection({
   totalAmountBtc,
@@ -92,22 +96,16 @@ export function CollateralSection({
     return map;
   }, [collateralVaults, position]);
 
-  // Drop selected IDs that no longer exist in the current position (e.g. a
-  // vault just finished redemption between polls) so downstream math and
-  // transaction calls never see stale IDs.
-  const effectiveSelectedVaultIds = useMemo(() => {
-    const inUseIds = new Set(
-      collateralVaults.filter((v) => v.inUse).map((v) => v.vaultId),
+  const { selectedVaultIds: effectiveSelectedVaultIds, selectedVaults } =
+    useMemo(
+      () => getEffectiveVaultSelection(collateralVaults, selectedVaultIds),
+      [collateralVaults, selectedVaultIds],
     );
-    return selectedVaultIds.filter((id) => inUseIds.has(id));
-  }, [collateralVaults, selectedVaultIds]);
 
-  const selectedBtc = useMemo(() => {
-    const idSet = new Set(effectiveSelectedVaultIds);
-    return collateralVaults
-      .filter((v) => v.inUse && idSet.has(v.vaultId))
-      .reduce((sum, v) => sum + v.amountBtc, 0);
-  }, [collateralVaults, effectiveSelectedVaultIds]);
+  const selectedBtc = useMemo(
+    () => selectedVaults.reduce((sum, v) => sum + v.amountBtc, 0),
+    [selectedVaults],
+  );
 
   const projectedHealthFactor = useMemo(
     () =>
@@ -130,6 +128,14 @@ export function CollateralSection({
     hasWithdrawableVault &&
     effectiveSelectedVaultIds.length > 0 &&
     !wouldBreachHF;
+
+  const disabledReason = useMemo(() => {
+    if (!hasWithdrawableVault) return WITHDRAW_DISABLED_TOOLTIP;
+    if (wouldBreachHF && effectiveSelectedVaultIds.length > 0) {
+      return WITHDRAW_HF_BREACH_TOOLTIP;
+    }
+    return undefined;
+  }, [hasWithdrawableVault, wouldBreachHF, effectiveSelectedVaultIds.length]);
 
   const canReorder = collateralVaults.length >= 2;
 
@@ -236,9 +242,7 @@ export function CollateralSection({
               canWithdraw={canWithdraw}
               onToggleVaultSelect={handleToggleVaultSelect}
               onWithdraw={onWithdraw}
-              disabledReason={
-                hasWithdrawableVault ? undefined : WITHDRAW_DISABLED_TOOLTIP
-              }
+              disabledReason={disabledReason}
               onArtifactDownload={handleArtifactDownload}
             />
           )}

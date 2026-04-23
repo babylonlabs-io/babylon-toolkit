@@ -2,7 +2,10 @@ import { FullScreenDialog } from "@babylonlabs-io/core-ui";
 import { useCallback, useMemo } from "react";
 
 import { useWithdrawCollateralTransaction } from "@/applications/aave/hooks/useWithdrawCollateralTransaction";
-import { computeProjectedHealthFactor } from "@/applications/aave/utils";
+import {
+  computeProjectedHealthFactor,
+  getEffectiveVaultSelection,
+} from "@/applications/aave/utils";
 import { ProtocolParamsProvider } from "@/context/ProtocolParamsContext";
 import { useDialogStep } from "@/hooks/deposit/useDialogStep";
 import type { CollateralVaultEntry } from "@/types/collateral";
@@ -40,20 +43,13 @@ function WithdrawFlowContent({
 
   const renderedStep = useDialogStep(open, step, reset);
 
-  // Selection may contain IDs that vanished from the user's position
-  // between picks (position refreshes every 30s). Normalize before every
-  // downstream use so the projection and the transaction never see stale IDs.
-  const { effectiveSelectedVaultIds, effectiveSelectedVaults } = useMemo(() => {
-    const inUseVaults = collateralVaults.filter((v) => v.inUse);
-    const inUseIds = new Set(inUseVaults.map((v) => v.vaultId));
-    const ids = preSelectedVaultIds.filter((id) => inUseIds.has(id));
-    const idSet = new Set(ids);
-    const selected = inUseVaults.filter((v) => idSet.has(v.vaultId));
-    return {
-      effectiveSelectedVaultIds: ids,
-      effectiveSelectedVaults: selected,
-    };
-  }, [collateralVaults, preSelectedVaultIds]);
+  const {
+    selectedVaultIds: effectiveSelectedVaultIds,
+    selectedVaults: effectiveSelectedVaults,
+  } = useMemo(
+    () => getEffectiveVaultSelection(collateralVaults, preSelectedVaultIds),
+    [collateralVaults, preSelectedVaultIds],
+  );
 
   // Aggregate amounts and projected HF for the current selection.
   const { selectedBtc, selectedUsd, projectedHealthFactor } = useMemo(() => {
