@@ -20,6 +20,13 @@ vi.mock("@/config/contracts", () => ({
   },
 }));
 
+const mockLoggerWarn = vi.fn();
+vi.mock("@/infrastructure", () => ({
+  logger: {
+    warn: (...args: unknown[]) => mockLoggerWarn(...args),
+  },
+}));
+
 const PROTOCOL_PARAMS_ADDRESS = "0xProtocolParams" as `0x${string}`;
 
 const VALID_TBV_PARAMS = {
@@ -50,6 +57,7 @@ beforeEach(async () => {
   mockReadContract.mockReset();
   mockGetChainId.mockReset();
   mockMulticall.mockReset();
+  mockLoggerWarn.mockReset();
   vi.resetModules();
   query = await import("../query");
 });
@@ -133,6 +141,43 @@ describe("getProtocolParamsAddress stale cache fallback", () => {
 
     await expect(query.getPegInConfiguration()).rejects.toThrow(
       "rpc unavailable",
+    );
+  });
+});
+
+describe("fetchAllOffchainParams historical validation", () => {
+  it("omits invalid historical versions and keeps valid ones", async () => {
+    mockGetChainId.mockResolvedValue(11155111);
+    mockReadContract
+      .mockResolvedValueOnce(PROTOCOL_PARAMS_ADDRESS) // registry lookup
+      .mockResolvedValueOnce(2n); // latestVersion
+
+    const invalidParams = { ...VALID_OFFCHAIN_PARAMS, councilQuorum: 0 };
+    mockMulticall.mockResolvedValue([invalidParams, VALID_OFFCHAIN_PARAMS]);
+
+    const result = await query.fetchAllOffchainParams();
+
+    expect(result.latestVersion).toBe(2);
+    expect(result.byVersion.has(1)).toBe(false);
+    expect(result.byVersion.has(2)).toBe(true);
+    expect(result.byVersion.get(2)).toEqual(VALID_OFFCHAIN_PARAMS);
+  });
+
+  it("logs a warning for invalid historical versions", async () => {
+    mockGetChainId.mockResolvedValue(11155111);
+    mockReadContract
+      .mockResolvedValueOnce(PROTOCOL_PARAMS_ADDRESS)
+      .mockResolvedValueOnce(1n);
+
+    const invalidParams = { ...VALID_OFFCHAIN_PARAMS, feeRate: 0n };
+    mockMulticall.mockResolvedValue([invalidParams]);
+
+    const result = await query.fetchAllOffchainParams();
+
+    expect(result.byVersion.size).toBe(0);
+    expect(mockLoggerWarn).toHaveBeenCalledWith(
+      expect.stringContaining("Offchain params v1 failed validation"),
+      expect.objectContaining({ category: "protocol-params" }),
     );
   });
 });

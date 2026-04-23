@@ -8,6 +8,7 @@
 import type { Abi, Address } from "viem";
 
 import { CONTRACTS } from "@/config/contracts";
+import { logger } from "@/infrastructure";
 
 import BTCVaultRegistryAbi from "../btc-vault-registry/abis/BTCVaultRegistry.abi.json";
 import { ethClient } from "../client";
@@ -310,8 +311,15 @@ export async function fetchAllOffchainParams(): Promise<AllOffchainParamsData> {
   const byVersion = new Map<number, VersionedOffchainParams>();
   for (let i = 0; i < versions.length; i++) {
     const params = results[i] as unknown as VersionedOffchainParams;
-    validateOffchainParams(params);
-    byVersion.set(versions[i], params);
+    try {
+      validateOffchainParams(params);
+      byVersion.set(versions[i], params);
+    } catch (error) {
+      logger.warn(
+        `Offchain params v${versions[i]} failed validation, skipping: ${error instanceof Error ? error.message : String(error)}`,
+        { category: "protocol-params" },
+      );
+    }
   }
 
   return { byVersion, latestVersion };
