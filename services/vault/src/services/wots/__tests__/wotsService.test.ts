@@ -206,7 +206,7 @@ describe("wotsService", () => {
       expect(a[0].message_terminals[0]).not.toEqual(b[0].message_terminals[0]);
     });
 
-    it("handles 0x-prefixed inputs the same as unprefixed", async () => {
+    it("handles 0x-prefixed vaultId and depositorPk the same as unprefixed", async () => {
       const a = await deriveWotsBlockPublicKeys(
         freshSeed(),
         "0xdeadbeef",
@@ -218,6 +218,22 @@ describe("wotsService", () => {
         "deadbeef",
         "pk123",
         "0x1234",
+      );
+      expect(a).toEqual(b);
+    });
+
+    it("normalizes appContractAddress case (EIP-55 checksummed vs lowercase)", async () => {
+      const a = await deriveWotsBlockPublicKeys(
+        freshSeed(),
+        vaultId,
+        depositorPk,
+        "0xAbCdEf1234567890AbCdEf1234567890AbCdEf12",
+      );
+      const b = await deriveWotsBlockPublicKeys(
+        freshSeed(),
+        vaultId,
+        depositorPk,
+        "0xabcdef1234567890abcdef1234567890abcdef12",
       );
       expect(a).toEqual(b);
     });

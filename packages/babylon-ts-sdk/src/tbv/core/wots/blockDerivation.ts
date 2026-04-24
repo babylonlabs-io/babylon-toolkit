@@ -22,6 +22,7 @@ import { hmac } from "@noble/hashes/hmac.js";
 import { ripemd160 } from "@noble/hashes/legacy.js";
 import { sha256, sha512 } from "@noble/hashes/sha2.js";
 import { keccak_256 } from "@noble/hashes/sha3.js";
+import { mnemonicToSeedSync } from "@scure/bip39";
 import type { Hex } from "viem";
 
 // ---------------------------------------------------------------------------
@@ -214,6 +215,26 @@ function deriveBlockPublicKey(
 }
 
 // ---------------------------------------------------------------------------
+// Seed derivation
+// ---------------------------------------------------------------------------
+
+/**
+ * Derive a 64-byte WOTS seed from a BIP-39 mnemonic.
+ *
+ * Internally uses PBKDF2 with 2048 rounds of HMAC-SHA-512 and the passphrase
+ * `"mnemonic"` (no user password), per the BIP-39 specification.
+ *
+ * @param mnemonic - A valid 12-word BIP-39 mnemonic.
+ * @returns 64-byte seed suitable for {@link deriveWotsBlockPublicKeys}.
+ */
+export function mnemonicToWotsSeed(mnemonic: string): Uint8Array {
+  const seed = mnemonicToSeedSync(mnemonic);
+  const copy = new Uint8Array(seed);
+  seed.fill(0);
+  return copy;
+}
+
+// ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
 
@@ -256,7 +277,7 @@ export async function deriveWotsBlockPublicKeys(
     concatBytes(
       lengthPrefixed(stringToBytes(cleanVaultId)),
       lengthPrefixed(stringToBytes(cleanDepositorPk)),
-      lengthPrefixed(stringToBytes(stripHexPrefix(appContractAddress))),
+      lengthPrefixed(stringToBytes(appContractAddress.toLowerCase())),
     ),
   );
   const hmacResult = hmacSha512(chainCode, hmacPreimage);

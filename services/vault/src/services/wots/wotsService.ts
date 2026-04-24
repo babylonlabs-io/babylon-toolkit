@@ -472,7 +472,7 @@ export async function deriveWotsBlockPublicKeys(
       concatBytes(
         lengthPrefixed(stringToBytes(vaultId)),
         lengthPrefixed(stringToBytes(depositorPk)),
-        lengthPrefixed(stringToBytes(appContractAddress)),
+        lengthPrefixed(stringToBytes(appContractAddress.toLowerCase())),
       ),
     ),
   );
