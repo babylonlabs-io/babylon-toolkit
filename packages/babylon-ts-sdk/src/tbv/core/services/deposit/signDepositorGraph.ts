@@ -13,7 +13,7 @@
  * @see btc-vault docs/pegin.md — "Automatic Graph Creation & Presigning"
  */
 
-import { Psbt } from "bitcoinjs-lib";
+import { Psbt, Transaction } from "bitcoinjs-lib";
 
 import type { BitcoinWallet, SignPsbtOptions } from "../../../../shared/wallets/interfaces";
 import type {
@@ -21,8 +21,19 @@ import type {
   DepositorGraphTransactions,
   DepositorPreSigsPerChallenger,
 } from "../../clients/vault-provider/types";
+import {
+  ASSERT_NOPAYOUT_OUTPUT_INDEX,
+  ASSERT_PAYOUT_OUTPUT_INDEX,
+  DEPOSITOR_PAYOUT_INPUT_COUNT,
+  PAYOUT_ASSERT_INPUT_INDEX,
+  PEGIN_VAULT_OUTPUT_INDEX,
+} from "../../primitives/psbt/constants";
 import { extractPayoutSignature } from "../../primitives/psbt/payout";
-import { stripHexPrefix } from "../../primitives/utils/bitcoin";
+import {
+  inputTxidHex,
+  stripHexPrefix,
+  uint8ArrayToHex,
+} from "../../primitives/utils/bitcoin";
 import { createTaprootScriptPathSignOptions } from "../../utils/signing";
 
 /**
@@ -72,6 +83,65 @@ function verifyAndParsePsbt(
 }
 
 /**
+ * Verify that the PSBT input at `inputIndex` spends `parentTx:expectedVout` and
+ * that its embedded witnessUtxo (the prevout the wallet will sign over) matches
+ * the actual parent output. This binds the depositor's signature to the real
+ * parent tx instead of a VP-asserted prevout.
+ */
+function verifyInputAgainstParent(
+  psbt: Psbt,
+  childTx: Transaction,
+  inputIndex: number,
+  parentTx: Transaction,
+  expectedVout: number,
+  label: string,
+): void {
+  const txIn = childTx.ins[inputIndex];
+  const psbtInput = psbt.data.inputs[inputIndex];
+  if (!psbtInput || !txIn) {
+    throw new Error(`${label}: input ${inputIndex} missing from PSBT`);
+  }
+
+  const parentTxid = parentTx.getId();
+  const actualTxid = inputTxidHex(txIn);
+  if (actualTxid !== parentTxid || txIn.index !== expectedVout) {
+    throw new Error(
+      `${label}: input ${inputIndex} must spend ${parentTxid}:${expectedVout}, ` +
+        `got ${actualTxid}:${txIn.index}`,
+    );
+  }
+
+  const expectedPrevout = parentTx.outs[expectedVout];
+  if (!expectedPrevout) {
+    throw new Error(
+      `${label}: parent output ${parentTxid}:${expectedVout} not found`,
+    );
+  }
+
+  const witnessUtxo = psbtInput.witnessUtxo;
+  if (!witnessUtxo) {
+    throw new Error(`${label}: input ${inputIndex} has no witnessUtxo`);
+  }
+
+  if (witnessUtxo.value !== expectedPrevout.value) {
+    throw new Error(
+      `${label}: input ${inputIndex} witnessUtxo value ${witnessUtxo.value} ` +
+        `does not match parent output value ${expectedPrevout.value}`,
+    );
+  }
+
+  const witnessScriptHex = uint8ArrayToHex(new Uint8Array(witnessUtxo.script));
+  const expectedScriptHex = uint8ArrayToHex(
+    new Uint8Array(expectedPrevout.script),
+  );
+  if (witnessScriptHex !== expectedScriptHex) {
+    throw new Error(
+      `${label}: input ${inputIndex} witnessUtxo script does not match parent output script`,
+    );
+  }
+}
+
+/**
  * Sanitize a parsed PSBT for Taproot script-path signing.
  *
  * VP-provided PSBTs include tapBip32Derivation and tapMerkleRoot metadata
@@ -89,20 +159,25 @@ function sanitizePsbtForScriptPathSigning(psbt: Psbt): Psbt {
   return clone;
 }
 
+interface ValidatedPsbt {
+  psbt: Psbt;
+  childTx: Transaction;
+}
+
 /**
- * Validate, verify integrity, sanitize, and convert a PSBT to hex.
+ * Validate, verify integrity, and parse a PSBT plus its child transaction.
  */
-function validateAndConvertPsbt(
+function validateAndParsePsbt(
   psbtBase64: string | undefined,
   expectedTxHex: string,
   label: string,
-): string {
+): ValidatedPsbt {
   if (!psbtBase64) {
     throw new Error(`Missing ${label} PSBT`);
   }
   const psbt = verifyAndParsePsbt(psbtBase64, expectedTxHex, label);
-  const sanitized = sanitizePsbtForScriptPathSigning(psbt);
-  return sanitized.toHex();
+  const childTx = Transaction.fromHex(stripHexPrefix(expectedTxHex));
+  return { psbt, childTx };
 }
 
 // ============================================================================
@@ -112,40 +187,97 @@ function validateAndConvertPsbt(
 /**
  * Collect all pre-built PSBTs from the depositor graph and track their indices.
  * Layout: [Payout, NoPayout_0, NoPayout_1, ...]
+ *
+ * For every signed input the depositor will produce, the input's outpoint and
+ * embedded prevout are cross-checked against an authoritative parent
+ * transaction (peg-in tx for Payout, graph Assert tx for NoPayout). The peg-in
+ * tx is supplied by the caller from on-chain (contract) state, so a malicious
+ * VP cannot substitute it. The Assert tx still comes from the VP response, so
+ * this only catches inconsistencies between the VP-supplied Assert tx and the
+ * VP-supplied PSBT prevouts; rebuilding the Assert tx from authoritative
+ * connector parameters would close the residual trust gap.
  */
 function collectDepositorGraphPsbts(
   depositorGraph: DepositorGraphTransactions,
+  peginTxHex: string,
   walletPublicKey: string,
 ): CollectedDepositorGraphPsbts {
   const psbtHexes: string[] = [];
   const signOptions: SignPsbtOptions[] = [];
   const challengerEntries: ChallengerEntry[] = [];
 
+  const singleInputOpts = createTaprootScriptPathSignOptions(
+    walletPublicKey,
+    SINGLE_PSBT_INPUT_COUNT,
+  );
+
+  const peginTx = Transaction.fromHex(stripHexPrefix(peginTxHex));
+  const graphAssertTx = Transaction.fromHex(
+    stripHexPrefix(depositorGraph.assert_tx.tx_hex),
+  );
+
   // Index 0: Payout PSBT
-  const payoutHex = validateAndConvertPsbt(
+  // Input 0 (signed): PegIn:0  → bound to on-chain authoritative pegin tx
+  // Input 1 (unsigned but in sighash): Assert:0 → bound to graph Assert tx
+  const payoutLabel = "depositor payout";
+  const payoutValidated = validateAndParsePsbt(
     depositorGraph.payout_psbt,
     depositorGraph.payout_tx.tx_hex,
-    "depositor payout",
+    payoutLabel,
   );
+  if (payoutValidated.childTx.ins.length !== DEPOSITOR_PAYOUT_INPUT_COUNT) {
+    throw new Error(
+      `${payoutLabel}: transaction must have exactly ${DEPOSITOR_PAYOUT_INPUT_COUNT} inputs, got ${payoutValidated.childTx.ins.length}`,
+    );
+  }
+  verifyInputAgainstParent(
+    payoutValidated.psbt,
+    payoutValidated.childTx,
+    0,
+    peginTx,
+    PEGIN_VAULT_OUTPUT_INDEX,
+    payoutLabel,
+  );
+  verifyInputAgainstParent(
+    payoutValidated.psbt,
+    payoutValidated.childTx,
+    PAYOUT_ASSERT_INPUT_INDEX,
+    graphAssertTx,
+    ASSERT_PAYOUT_OUTPUT_INDEX,
+    payoutLabel,
+  );
+  const payoutHex = sanitizePsbtForScriptPathSigning(
+    payoutValidated.psbt,
+  ).toHex();
   psbtHexes.push(payoutHex);
-  signOptions.push(
-    createTaprootScriptPathSignOptions(walletPublicKey, SINGLE_PSBT_INPUT_COUNT),
-  );
+  signOptions.push(singleInputOpts);
 
   // Per-challenger: 1 NoPayout
+  // Input 0 (signed): Assert:0 → bound to graph Assert tx
   for (const challenger of depositorGraph.challenger_presign_data) {
     const challengerPubkey = stripHexPrefix(challenger.challenger_pubkey);
+    const noPayoutLabel = `nopayout (challenger ${challengerPubkey})`;
 
-    const noPayoutIdx = psbtHexes.length;
-    const noPayoutHex = validateAndConvertPsbt(
+    const noPayoutValidated = validateAndParsePsbt(
       challenger.nopayout_psbt,
       challenger.nopayout_tx.tx_hex,
-      `nopayout (challenger ${challengerPubkey})`,
+      noPayoutLabel,
     );
+    verifyInputAgainstParent(
+      noPayoutValidated.psbt,
+      noPayoutValidated.childTx,
+      0,
+      graphAssertTx,
+      ASSERT_NOPAYOUT_OUTPUT_INDEX,
+      noPayoutLabel,
+    );
+    const noPayoutHex = sanitizePsbtForScriptPathSigning(
+      noPayoutValidated.psbt,
+    ).toHex();
+
+    const noPayoutIdx = psbtHexes.length;
     psbtHexes.push(noPayoutHex);
-    signOptions.push(
-      createTaprootScriptPathSignOptions(walletPublicKey, SINGLE_PSBT_INPUT_COUNT),
-    );
+    signOptions.push(singleInputOpts);
 
     challengerEntries.push({
       challengerPubkey,
@@ -218,6 +350,15 @@ async function signPsbtsWithFallback(
 export interface SignDepositorGraphParams {
   /** The depositor graph from VP response (contains pre-built PSBTs) */
   depositorGraph: DepositorGraphTransactions;
+  /**
+   * Authoritative PegIn transaction hex.
+   *
+   * MUST come from a trusted source (the on-chain BTCVault record), not from
+   * the vault provider. Used to bind the depositor's Payout signature to the
+   * real peg-in vault UTXO so a malicious VP cannot get the depositor to sign
+   * over an attacker-chosen prevout.
+   */
+  peginTxHex: string;
   /** Depositor's BTC public key (x-only, 64-char hex, no 0x prefix) */
   depositorBtcPubkey: string;
   /** Bitcoin wallet for signing */
@@ -228,7 +369,9 @@ export interface SignDepositorGraphParams {
  * Sign all depositor graph transactions and assemble into presignatures.
  *
  * Flow:
- * 1. Collect pre-built PSBTs from VP response (base64 -> hex)
+ * 1. Collect pre-built PSBTs from VP response (base64 -> hex), cross-checking
+ *    every signed input's outpoint and prevout against the authoritative
+ *    parent transaction (peg-in tx for Payout, graph Assert tx for NoPayout)
  * 2. Batch sign via wallet.signPsbts() if available, else sequential signPsbt()
  * 3. Extract Schnorr signatures from each signed PSBT
  * 4. Assemble into DepositorAsClaimerPresignatures
@@ -236,14 +379,14 @@ export interface SignDepositorGraphParams {
 export async function signDepositorGraph(
   params: SignDepositorGraphParams,
 ): Promise<DepositorAsClaimerPresignatures> {
-  const { depositorGraph, depositorBtcPubkey, btcWallet } = params;
+  const { depositorGraph, peginTxHex, depositorBtcPubkey, btcWallet } = params;
 
   const depositorPubkey = stripHexPrefix(depositorBtcPubkey);
   const walletPublicKey = await btcWallet.getPublicKeyHex();
 
-  // 1. Collect pre-built PSBTs from VP response
+  // 1. Collect pre-built PSBTs from VP response (validated against parent txs)
   const { psbtHexes, signOptions, challengerEntries } =
-    collectDepositorGraphPsbts(depositorGraph, walletPublicKey);
+    collectDepositorGraphPsbts(depositorGraph, peginTxHex, walletPublicKey);
 
   // 2. Sign all PSBTs (batch when supported, sequential fallback for mobile)
   const signedPsbtHexes = await signPsbtsWithFallback(

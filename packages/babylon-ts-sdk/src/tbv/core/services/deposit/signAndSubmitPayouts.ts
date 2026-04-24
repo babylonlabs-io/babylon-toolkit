@@ -308,8 +308,11 @@ export async function pollAndSignPayouts(
   signal?.throwIfAborted();
 
   // Phase 4: Sign depositor-as-claimer graph
+  // Pass the authoritative pegin tx hex (from on-chain context) so signing can
+  // verify Payout input 0's outpoint and prevout against the real peg-in UTXO.
   const depositorClaimerPresignatures = await signDepositorGraph({
     depositorGraph: response.depositor_graph,
+    peginTxHex: signingContext.peginTxHex,
     depositorBtcPubkey: depositorPk,
     btcWallet,
   });

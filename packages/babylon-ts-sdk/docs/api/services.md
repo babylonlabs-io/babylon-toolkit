@@ -682,7 +682,7 @@ Optional progress callback (completed claimers, total claimers)
 
 ### SignDepositorGraphParams
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts:218](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts#L218)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts:349](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts#L349)
 
 #### Properties
 
@@ -692,9 +692,24 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositor
 depositorGraph: DepositorGraphTransactions;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts:220](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts#L220)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts:351](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts#L351)
 
 The depositor graph from VP response (contains pre-built PSBTs)
+
+##### peginTxHex
+
+```ts
+peginTxHex: string;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts:360](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts#L360)
+
+Authoritative PegIn transaction hex.
+
+MUST come from a trusted source (the on-chain BTCVault record), not from
+the vault provider. Used to bind the depositor's Payout signature to the
+real peg-in vault UTXO so a malicious VP cannot get the depositor to sign
+over an attacker-chosen prevout.
 
 ##### depositorBtcPubkey
 
@@ -702,7 +717,7 @@ The depositor graph from VP response (contains pre-built PSBTs)
 depositorBtcPubkey: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts:222](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts#L222)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts:362](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts#L362)
 
 Depositor's BTC public key (x-only, 64-char hex, no 0x prefix)
 
@@ -712,7 +727,7 @@ Depositor's BTC public key (x-only, 64-char hex, no 0x prefix)
 btcWallet: BitcoinWallet;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts:224](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts#L224)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts:364](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts#L364)
 
 Bitcoin wallet for signing
 
@@ -1655,12 +1670,14 @@ Error on timeout, abort, signing failure, or RPC error
 function signDepositorGraph(params): Promise<DepositorAsClaimerPresignatures>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts:236](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts#L236)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts:378](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts#L378)
 
 Sign all depositor graph transactions and assemble into presignatures.
 
 Flow:
-1. Collect pre-built PSBTs from VP response (base64 -> hex)
+1. Collect pre-built PSBTs from VP response (base64 -> hex), cross-checking
+   every signed input's outpoint and prevout against the authoritative
+   parent transaction (peg-in tx for Payout, graph Assert tx for NoPayout)
 2. Batch sign via wallet.signPsbts() if available, else sequential signPsbt()
 3. Extract Schnorr signatures from each signed PSBT
 4. Assemble into DepositorAsClaimerPresignatures

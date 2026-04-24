@@ -86,6 +86,21 @@ export function uint8ArrayToHex(bytes: Uint8Array): string {
 }
 
 /**
+ * Read the prevout txid (big-endian hex) from a bitcoinjs-lib transaction input.
+ *
+ * bitcoinjs-lib stores `hash` in little-endian internal byte order; txids are
+ * displayed in big-endian, so the bytes must be reversed before hex-encoding.
+ *
+ * @param input - Transaction input with a `hash` field (Buffer or Uint8Array)
+ * @returns Prevout txid as a hex string (big-endian, no 0x prefix)
+ */
+export function inputTxidHex(input: {
+  hash: Buffer | Uint8Array;
+}): string {
+  return uint8ArrayToHex(new Uint8Array(input.hash).slice().reverse());
+}
+
+/**
  * Convert a 33-byte public key to 32-byte x-only format (removes first byte).
  *
  * Used for Taproot/Schnorr signatures which only need the x-coordinate.
