@@ -33,7 +33,7 @@ const VALID_TBV_PARAMS = {
   minimumPegInAmount: 100_000n,
   maxPegInAmount: 10_000_000n,
   pegInAckTimeout: 100n,
-  peginActivationTimeout: 200n,
+  pegInActivationTimeout: 200n,
 };
 
 const VALID_OFFCHAIN_PARAMS = {

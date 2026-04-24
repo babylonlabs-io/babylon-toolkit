@@ -1,100 +1,80 @@
 [
   {
     "type": "function",
-    "name": "minimumPegInAmount",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "maxPegInAmount",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "pegInAckTimeout",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "peginActivationTimeout",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "getTBVProtocolParams",
+    "name": "getLatestOffchainParams",
     "inputs": [],
     "outputs": [
       {
         "name": "",
         "type": "tuple",
-        "internalType": "struct IProtocolParams.TBVProtocolParams",
+        "internalType": "struct IProtocolParams.VersionedOffchainParams",
         "components": [
           {
-            "name": "minimumPegInAmount",
+            "name": "timelockAssert",
             "type": "uint256",
             "internalType": "uint256"
           },
           {
-            "name": "maxPegInAmount",
+            "name": "timelockChallengeAssert",
             "type": "uint256",
             "internalType": "uint256"
           },
           {
-            "name": "pegInAckTimeout",
-            "type": "uint256",
-            "internalType": "uint256"
+            "name": "securityCouncilKeys",
+            "type": "bytes32[]",
+            "internalType": "bytes32[]"
           },
           {
-            "name": "peginActivationTimeout",
-            "type": "uint256",
-            "internalType": "uint256"
+            "name": "councilQuorum",
+            "type": "uint8",
+            "internalType": "uint8"
+          },
+          {
+            "name": "feeRate",
+            "type": "uint64",
+            "internalType": "uint64"
+          },
+          {
+            "name": "babeTotalInstances",
+            "type": "uint16",
+            "internalType": "uint16"
+          },
+          {
+            "name": "babeInstancesToFinalize",
+            "type": "uint8",
+            "internalType": "uint8"
+          },
+          {
+            "name": "minVpCommissionBps",
+            "type": "uint16",
+            "internalType": "uint16"
+          },
+          {
+            "name": "tRefund",
+            "type": "uint32",
+            "internalType": "uint32"
+          },
+          {
+            "name": "tStale",
+            "type": "uint32",
+            "internalType": "uint32"
+          },
+          {
+            "name": "minPeginFeeRate",
+            "type": "uint64",
+            "internalType": "uint64"
+          },
+          {
+            "name": "proverProgramVersion",
+            "type": "uint16",
+            "internalType": "uint16"
+          },
+          {
+            "name": "minPrepeginDepth",
+            "type": "uint32",
+            "internalType": "uint32"
           }
         ]
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "latestOffchainParamsVersion",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint16",
-        "internalType": "uint16"
       }
     ],
     "stateMutability": "view"
@@ -169,6 +149,16 @@
             "name": "minPeginFeeRate",
             "type": "uint64",
             "internalType": "uint64"
+          },
+          {
+            "name": "proverProgramVersion",
+            "type": "uint16",
+            "internalType": "uint16"
+          },
+          {
+            "name": "minPrepeginDepth",
+            "type": "uint32",
+            "internalType": "uint32"
           }
         ]
       }
@@ -177,70 +167,105 @@
   },
   {
     "type": "function",
-    "name": "getLatestOffchainParams",
+    "name": "getTBVProtocolParams",
     "inputs": [],
     "outputs": [
       {
         "name": "",
         "type": "tuple",
-        "internalType": "struct IProtocolParams.VersionedOffchainParams",
+        "internalType": "struct IProtocolParams.TBVProtocolParams",
         "components": [
           {
-            "name": "timelockAssert",
-            "type": "uint256",
-            "internalType": "uint256"
-          },
-          {
-            "name": "timelockChallengeAssert",
-            "type": "uint256",
-            "internalType": "uint256"
-          },
-          {
-            "name": "securityCouncilKeys",
-            "type": "bytes32[]",
-            "internalType": "bytes32[]"
-          },
-          {
-            "name": "councilQuorum",
-            "type": "uint8",
-            "internalType": "uint8"
-          },
-          {
-            "name": "feeRate",
+            "name": "minimumPegInAmount",
             "type": "uint64",
             "internalType": "uint64"
           },
           {
-            "name": "babeTotalInstances",
-            "type": "uint16",
-            "internalType": "uint16"
-          },
-          {
-            "name": "babeInstancesToFinalize",
-            "type": "uint8",
-            "internalType": "uint8"
-          },
-          {
-            "name": "minVpCommissionBps",
-            "type": "uint16",
-            "internalType": "uint16"
-          },
-          {
-            "name": "tRefund",
-            "type": "uint32",
-            "internalType": "uint32"
-          },
-          {
-            "name": "tStale",
-            "type": "uint32",
-            "internalType": "uint32"
-          },
-          {
-            "name": "minPeginFeeRate",
+            "name": "maxPegInAmount",
             "type": "uint64",
             "internalType": "uint64"
+          },
+          {
+            "name": "pegInAckTimeout",
+            "type": "uint64",
+            "internalType": "uint64"
+          },
+          {
+            "name": "pegInActivationTimeout",
+            "type": "uint64",
+            "internalType": "uint64"
+          },
+          {
+            "name": "maxHtlcOutputCount",
+            "type": "uint8",
+            "internalType": "uint8"
           }
         ]
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "latestOffchainParamsVersion",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint16",
+        "internalType": "uint16"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "maxPegInAmount",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "minimumPegInAmount",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "pegInAckTimeout",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "pegInActivationTimeout",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
       }
     ],
     "stateMutability": "view"

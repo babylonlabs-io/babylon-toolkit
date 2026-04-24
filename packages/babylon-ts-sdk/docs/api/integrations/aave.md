@@ -912,52 +912,13 @@ Market position data or null if position doesn't exist
 
 ***
 
-### getPositionCollateral()
-
-```ts
-function getPositionCollateral(
-   publicClient, 
-   contractAddress, 
-user): Promise<bigint>;
-```
-
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/query.ts:65](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/query.ts#L65)
-
-Get total collateral for a user's position.
-
-#### Parameters
-
-##### publicClient
-
-Viem public client for reading contracts
-
-##### contractAddress
-
-`` `0x${string}` ``
-
-AaveIntegrationAdapter contract address
-
-##### user
-
-`` `0x${string}` ``
-
-User's Ethereum address
-
-#### Returns
-
-`Promise`\<`bigint`\>
-
-Total collateral amount in satoshis
-
-***
-
 ### getPositionSizeParams()
 
 ```ts
 function getPositionSizeParams(publicClient, contractAddress): Promise<PositionSizeParams>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/query.ts:90](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/query.ts#L90)
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/query.ts:67](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/query.ts#L67)
 
 Get position size parameters from the adapter contract.
 
@@ -1053,7 +1014,7 @@ console.log("Debt (USD):", accountData.totalDebtValueRay);
 **Return values:**
 - `healthFactor` - WAD format (1e18 = 1.0). Below 1.0 = liquidatable
 - `totalCollateralValue` - USD value in base currency (1e26 = $1)
-- `totalDebtValueRay` - USD value in RAY-scaled base currency (1e35 = $1)
+- `totalDebtValueRay` - USD value in RAY-scaled base currency (1e53 = $1)
 - `avgCollateralFactor` - Weighted average collateral factor in WAD (1e18 = 100%)
 - `riskPremium` - Additional risk premium
 
@@ -1694,7 +1655,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/aaveConvers
 
 Convert Aave RAY-scaled base currency value to USD
 
-Debt values use higher precision: 1e35 = $1 USD.
+Debt values use higher precision: 1e53 = $1 USD.
 
 #### Parameters
 
@@ -1702,7 +1663,7 @@ Debt values use higher precision: 1e35 = $1 USD.
 
 `bigint`
 
-Value in RAY-scaled base currency (1e35 = $1)
+Value in RAY-scaled base currency (1e53 = $1)
 
 #### Returns
 
@@ -2709,13 +2670,14 @@ Reference: ISpoke.sol UserAccountData
 ### AAVE\_BASE\_CURRENCY\_RAY\_DECIMALS
 
 ```ts
-const AAVE_BASE_CURRENCY_RAY_DECIMALS: 35 = 35;
+const AAVE_BASE_CURRENCY_RAY_DECIMALS: 53 = 53;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/constants.ts:70](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/constants.ts#L70)
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/constants.ts:71](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/constants.ts#L71)
 
 Aave RAY-scaled base currency decimals
-Debt values (totalDebtValueRay) use 1e35 = $1 USD
+Debt values (totalDebtValueRay) use 1e53 = $1 USD
+(base currency 1e26 scaled by RAY 1e27).
 
 Reference: IAaveSpoke.sol UserAccountData.totalDebtValueRay
 
@@ -2727,7 +2689,7 @@ Reference: IAaveSpoke.sol UserAccountData.totalDebtValueRay
 const WAD_DECIMALS: 18 = 18;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/constants.ts:78](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/constants.ts#L78)
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/constants.ts:79](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/constants.ts#L79)
 
 WAD decimals (1e18 = 1.0)
 Used for health factor and collateral factor values
@@ -2742,7 +2704,7 @@ Reference: ISpoke.sol - "healthFactor expressed in WAD. 1e18 represents a health
 const HEALTH_FACTOR_WARNING_THRESHOLD: 1.5 = 1.5;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/constants.ts:84](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/constants.ts#L84)
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/constants.ts:85](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/constants.ts#L85)
 
 Health factor warning threshold
 Positions below this are considered at risk of liquidation
@@ -2755,7 +2717,7 @@ Positions below this are considered at risk of liquidation
 const MIN_HEALTH_FACTOR_FOR_BORROW: 1.2 = 1.2;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/constants.ts:90](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/constants.ts#L90)
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/constants.ts:91](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/constants.ts#L91)
 
 Minimum health factor allowed for borrowing
 Prevents users from borrowing if resulting health factor would be below this.
@@ -2768,7 +2730,7 @@ Prevents users from borrowing if resulting health factor would be below this.
 const FULL_REPAY_BUFFER_DIVISOR: 10000n = 10000n;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/constants.ts:97](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/constants.ts#L97)
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/constants.ts:98](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/constants.ts#L98)
 
 Buffer for full repayment to account for interest accrual
 between fetching debt and transaction execution.

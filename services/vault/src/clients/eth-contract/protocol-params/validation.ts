@@ -133,9 +133,9 @@ export function validateTBVProtocolParams(params: TBVProtocolParams): void {
     );
   }
 
-  if (params.peginActivationTimeout <= 0n) {
+  if (params.pegInActivationTimeout <= 0n) {
     errors.push(
-      `peginActivationTimeout must be positive, got ${params.peginActivationTimeout}`,
+      `pegInActivationTimeout must be positive, got ${params.pegInActivationTimeout}`,
     );
   }
 

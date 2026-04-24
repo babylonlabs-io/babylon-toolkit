@@ -38,7 +38,7 @@ function validPegInConfig(
     minimumPegInAmount: 100_000n,
     maxPegInAmount: 10_000_000n,
     pegInAckTimeout: 100n,
-    peginActivationTimeout: 200n,
+    pegInActivationTimeout: 200n,
     timelockPegin: 150,
     timelockRefund: 144,
     minVpCommissionBps: 500,
@@ -188,7 +188,7 @@ function validTBVParams(
     minimumPegInAmount: 100_000n,
     maxPegInAmount: 10_000_000n,
     pegInAckTimeout: 100n,
-    peginActivationTimeout: 200n,
+    pegInActivationTimeout: 200n,
     ...overrides,
   };
 }
@@ -221,10 +221,10 @@ describe("validateTBVProtocolParams", () => {
     ).toThrow(/pegInAckTimeout must be positive/);
   });
 
-  it("rejects peginActivationTimeout of zero", () => {
+  it("rejects pegInActivationTimeout of zero", () => {
     expect(() =>
-      validateTBVProtocolParams(validTBVParams({ peginActivationTimeout: 0n })),
-    ).toThrow(/peginActivationTimeout must be positive/);
+      validateTBVProtocolParams(validTBVParams({ pegInActivationTimeout: 0n })),
+    ).toThrow(/pegInActivationTimeout must be positive/);
   });
 });
 
@@ -256,12 +256,12 @@ describe("validatePegInConfiguration", () => {
     ).toThrow(/pegInAckTimeout must be positive/);
   });
 
-  it("rejects peginActivationTimeout of zero", () => {
+  it("rejects pegInActivationTimeout of zero", () => {
     expect(() =>
       validatePegInConfiguration(
-        validPegInConfig({ peginActivationTimeout: 0n }),
+        validPegInConfig({ pegInActivationTimeout: 0n }),
       ),
-    ).toThrow(/peginActivationTimeout must be positive/);
+    ).toThrow(/pegInActivationTimeout must be positive/);
   });
 
   it("also validates offchain params within the configuration", () => {
