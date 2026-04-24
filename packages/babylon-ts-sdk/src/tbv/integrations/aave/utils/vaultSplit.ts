@@ -233,25 +233,22 @@ export function computeOptimalSplit(
     sacrificialRaw > totalBtc ? totalBtc : sacrificialRaw;
   const protectedVault = totalBtc - sacrificialVault;
 
+  // If either vault is non-zero but below the effective dust threshold for
+  // HTLC outputs, the split is not viable — return zeroed vaults so the
+  // caller treats this as non-splittable. We avoid throwing because this
+  // function is called during render (useMemo) and throwing would crash
+  // the component instead of showing validation feedback.
   if (
-    sacrificialVault > 0n &&
-    sacrificialVault < HTLC_EFFECTIVE_DUST_THRESHOLD
+    (sacrificialVault > 0n &&
+      sacrificialVault < HTLC_EFFECTIVE_DUST_THRESHOLD) ||
+    (protectedVault > 0n && protectedVault < HTLC_EFFECTIVE_DUST_THRESHOLD)
   ) {
-    throw new Error(
-      `Sacrificial vault amount (${sacrificialVault} sats) is below the effective ` +
-        `dust threshold (${HTLC_EFFECTIVE_DUST_THRESHOLD} sats) for HTLC outputs. ` +
-        `This likely indicates an incorrectly configured minDeposit parameter.`,
-    );
-  }
-  if (
-    protectedVault > 0n &&
-    protectedVault < HTLC_EFFECTIVE_DUST_THRESHOLD
-  ) {
-    throw new Error(
-      `Protected vault amount (${protectedVault} sats) is below the effective ` +
-        `dust threshold (${HTLC_EFFECTIVE_DUST_THRESHOLD} sats) for HTLC outputs. ` +
-        `This likely indicates an incorrectly configured minDeposit parameter.`,
-    );
+    return {
+      sacrificialVault: 0n,
+      protectedVault: 0n,
+      seizedFraction,
+      targetSeizureBtc: 0n,
+    };
   }
 
   return {

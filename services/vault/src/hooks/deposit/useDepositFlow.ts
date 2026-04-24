@@ -12,8 +12,11 @@
  * 3a. Derive WOTS public keys for all vaults
  * 3b. Sign BIP-322 proof-of-possession (one wallet popup per deposit session)
  * 3c. Build batch request array
- * 3d. Batch ETH registration (single submitPeginRequestBatch tx for all vaults)
- * 4. Broadcast Pre-PegIn transaction to Bitcoin + save to localStorage (CONFIRMING)
+ * 3d. Re-check UTXO availability before committing to ETH
+ * 3e. Batch ETH registration (single submitPeginRequestBatch tx for all vaults)
+ * 3f. Build pegin results from batch response
+ * 4a. Save pending pegins to localStorage (PENDING status, reserves UTXOs)
+ * 4b. Broadcast Pre-PegIn transaction to Bitcoin, update status to CONFIRMING
  * 5. Submit WOTS keys, poll VP, sign payout transactions
  * 6. Download vault artifacts (per vault, user-driven)
  * 7. Wait for contract verification, then activate vaults (reveal HTLC secret)
@@ -438,7 +441,7 @@ export function useDepositFlow(
           popSignature,
         });
 
-        // 3d. Build pegin results from batch response
+        // 3f. Build pegin results from batch response
         const peginResults: PeginCreationResult[] =
           batchRegistration.vaults.map((vault, i) => ({
             vaultIndex: i,
@@ -454,7 +457,7 @@ export function useDepositFlow(
           }));
 
         // ========================================================================
-        // Step 4: Persist pending pegins BEFORE broadcast
+        // Step 4a: Persist pending pegins BEFORE broadcast
         // Saved immediately after ETH registration so the selected UTXOs are
         // reserved even if broadcast fails. Status is PENDING (not CONFIRMING)
         // — the resume flow will show a "Broadcast" button for these entries.
@@ -499,11 +502,25 @@ export function useDepositFlow(
           });
 
           if (mnemonicId) {
-            linkPeginToMnemonic(
-              peginResult.peginTxHash,
-              mnemonicId,
-              confirmedEthAddress,
-            );
+            try {
+              linkPeginToMnemonic(
+                peginResult.peginTxHash,
+                mnemonicId,
+                confirmedEthAddress,
+              );
+            } catch (linkError) {
+              // Best-effort: mnemonic link is recoverable (VP rejects wrong
+              // key, user can re-derive). Must not block broadcast.
+              logger.warn(
+                "[deposit] Failed to link pegin to mnemonic, continuing with broadcast",
+                {
+                  data: {
+                    peginTxHash: peginResult.peginTxHash,
+                    error: linkError,
+                  },
+                },
+              );
+            }
           }
         }
 

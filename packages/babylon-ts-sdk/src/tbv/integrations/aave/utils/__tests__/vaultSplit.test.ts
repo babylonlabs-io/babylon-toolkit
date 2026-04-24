@@ -222,30 +222,34 @@ describe("vaultSplit", () => {
       expect(result.sacrificialVault).toBeGreaterThan(0n);
     });
 
-    it("should throw when sacrificial vault amount is below HTLC dust threshold", () => {
+    it("should return zeroed vaults when sacrificial amount is below HTLC dust threshold", () => {
       // totalBtc = 100 sats → sacrificial ≈ 42 sats, protected ≈ 58 sats
       // Both are well below the 2000 sat HTLC dust threshold
-      expect(() =>
-        computeOptimalSplit({
-          totalBtc: 100n,
-          ...DEFAULT_PARAMS,
-        }),
-      ).toThrow(/below the effective dust threshold/);
+      const result = computeOptimalSplit({
+        totalBtc: 100n,
+        ...DEFAULT_PARAMS,
+      });
+
+      expect(result.sacrificialVault).toBe(0n);
+      expect(result.protectedVault).toBe(0n);
+      expect(result.targetSeizureBtc).toBe(0n);
     });
 
-    it("should throw when protected vault amount is below HTLC dust threshold", () => {
+    it("should return zeroed vaults when protected amount is below HTLC dust threshold", () => {
       // seizedFraction ≈ 0.8605, share ≈ 0.9035
       // totalBtc = 19739 → sacrificial ≈ 17835, protected ≈ 1904 (below 2000)
-      expect(() =>
-        computeOptimalSplit({
-          totalBtc: 19_739n,
-          CF: 0.75,
-          LB: 1.05,
-          THF: 1.1,
-          expectedHF: 0.82,
-          safetyMargin: 1.05,
-        }),
-      ).toThrow(/below the effective dust threshold/);
+      const result = computeOptimalSplit({
+        totalBtc: 19_739n,
+        CF: 0.75,
+        LB: 1.05,
+        THF: 1.1,
+        expectedHF: 0.82,
+        safetyMargin: 1.05,
+      });
+
+      expect(result.sacrificialVault).toBe(0n);
+      expect(result.protectedVault).toBe(0n);
+      expect(result.targetSeizureBtc).toBe(0n);
     });
   });
 
