@@ -9,6 +9,7 @@ import {
 import { AAVE_APP_ID } from "../../applications/aave/config";
 import { graphqlClient } from "../../clients/graphql";
 import { getNetworkConfigBTC } from "../../config";
+import { logger } from "../../infrastructure";
 import type { ActivityLog, ActivityType } from "../../types/activityLog";
 
 const btcConfig = getNetworkConfigBTC();
@@ -145,6 +146,9 @@ function mapActivityType(type: GraphQLActivityType): ActivityType {
   return mapped;
 }
 
+// Native precision of a BTC vault amount (sats).
+const BTC_DECIMALS = 8;
+
 // Cap display precision so we never round the integer part of high-decimals
 // tokens through JS number space. Fractional digits beyond this are dropped
 // (not rounded) to keep formatting deterministic.
@@ -187,6 +191,21 @@ function dedupPairedActivities(
   const dropIds = new Set<string>();
   for (const bucket of groups.values()) {
     if (bucket.length < 2) continue;
+
+    // Count occurrences per type so we can bail out of dedup for buckets that
+    // contain duplicate-type rows (e.g., two `deposit` rows in the same
+    // tx+vault with different logIndex). The indexer doesn't currently emit
+    // duplicates, but collapsing a bucket where they exist would silently
+    // discard one of them — skip dedup and surface both rows instead.
+    const typeCounts = new Map<GraphQLActivityType, number>();
+    for (const a of bucket) {
+      typeCounts.set(a.type, (typeCounts.get(a.type) ?? 0) + 1);
+    }
+    const hasDuplicateTypes = Array.from(typeCounts.values()).some(
+      (n) => n > 1,
+    );
+    if (hasDuplicateTypes) continue;
+
     const typeToActivity = new Map<
       GraphQLActivityType,
       GraphQLVaultActivityItem
@@ -233,24 +252,11 @@ export async function fetchUserActivities(
 
   const activities = dedupPairedActivities(rawActivities);
 
-  // Resolve vault app metadata for vault-scoped rows.
   const vaultIds = Array.from(
     new Set(
       activities.map((a) => a.vaultId).filter((v): v is string => v != null),
     ),
   );
-  const vaultMap = new Map<string, string>();
-  if (vaultIds.length > 0) {
-    const vaultsData = await graphqlClient.request<GraphQLVaultsResponse>(
-      GET_VAULTS_BY_IDS,
-      { vaultIds },
-    );
-    for (const v of vaultsData.vaults.items) {
-      vaultMap.set(v.id, v.applicationEntryPoint);
-    }
-  }
-
-  // Resolve debt asset metadata for borrow/repay rows.
   const reserveIds = Array.from(
     new Set(
       activities
@@ -258,17 +264,43 @@ export async function fetchUserActivities(
         .filter((v): v is string => v != null),
     ),
   );
-  // Resolve debt asset metadata with graceful degradation: if a reserve row
-  // is missing or its underlyingToken relation is null, fall back to the
-  // reserve's own decimals and an unknown-token symbol. One malformed row
-  // must never blank the whole Activity tab.
+
+  // Fetch vault + reserve metadata in parallel. Reserve enrichment degrades
+  // gracefully on both outcomes: a network/schema failure leaves reserveMap
+  // empty (per-row fallback renders "—" + raw amount), and missing
+  // underlyingToken on an individual row falls back to the reserve's own
+  // decimals. One malformed row must never blank the whole Activity tab.
+  const [vaultsResult, reservesResult] = await Promise.all([
+    vaultIds.length > 0
+      ? graphqlClient.request<GraphQLVaultsResponse>(GET_VAULTS_BY_IDS, {
+          vaultIds,
+        })
+      : Promise.resolve<GraphQLVaultsResponse | null>(null),
+    reserveIds.length > 0
+      ? graphqlClient
+          .request<GraphQLReservesResponse>(GET_RESERVES_BY_IDS, {
+            ids: reserveIds,
+          })
+          .catch((error) => {
+            logger.warn(
+              "aaveReserves fetch failed; borrow/repay amounts will render with raw values",
+              { data: { error } },
+            );
+            return null;
+          })
+      : Promise.resolve<GraphQLReservesResponse | null>(null),
+  ]);
+
+  const vaultMap = new Map<string, string>();
+  if (vaultsResult) {
+    for (const v of vaultsResult.vaults.items) {
+      vaultMap.set(v.id, v.applicationEntryPoint);
+    }
+  }
+
   const reserveMap = new Map<string, { symbol: string; decimals: number }>();
-  if (reserveIds.length > 0) {
-    const reservesData = await graphqlClient.request<GraphQLReservesResponse>(
-      GET_RESERVES_BY_IDS,
-      { ids: reserveIds },
-    );
-    for (const r of reservesData.aaveReserves.items) {
+  if (reservesResult) {
+    for (const r of reservesResult.aaveReserves.items) {
       reserveMap.set(r.id, {
         symbol: r.underlyingToken?.symbol ?? "—",
         decimals: r.underlyingToken?.decimals ?? r.decimals,
@@ -283,15 +315,17 @@ export async function fetchUserActivities(
     if (isPositionScoped) {
       // TODO: when more applications support borrow/repay, resolve via a
       // positionAccount → app mapping instead of hardcoding Aave.
+      // Fall back to Unknown App metadata (rather than throwing) if the
+      // Aave registration is missing — consistent with the per-row
+      // graceful-degradation philosophy used elsewhere in this file.
       const meta = getApplication(AAVE_APP_ID)?.metadata;
-      if (!meta) {
-        throw new Error(`Aave application metadata not registered`);
-      }
-      application = {
-        id: meta.id,
-        name: meta.name,
-        logoUrl: meta.logoUrl,
-      };
+      application = meta
+        ? { id: meta.id, name: meta.name, logoUrl: meta.logoUrl }
+        : {
+            id: "unknown",
+            name: "Unknown App",
+            logoUrl: "/images/unknown-app.svg",
+          };
     } else {
       const applicationEntryPoint = item.vaultId
         ? vaultMap.get(item.vaultId)
@@ -321,7 +355,7 @@ export async function fetchUserActivities(
         : item.amount;
       amountSymbol = reserve?.symbol ?? "—";
     } else {
-      amountValue = formatAmount(item.amount, 8);
+      amountValue = formatAmount(item.amount, BTC_DECIMALS);
       amountSymbol = btcConfig.coinSymbol;
       amountIcon = btcConfig.icon;
     }

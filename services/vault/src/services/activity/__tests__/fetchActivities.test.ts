@@ -24,6 +24,14 @@ vi.mock("@/config", () => ({
   }),
 }));
 
+vi.mock("@/infrastructure", () => ({
+  logger: {
+    warn: vi.fn(),
+    error: vi.fn(),
+    info: vi.fn(),
+  },
+}));
+
 const USER = "0x1111111111111111111111111111111111111111";
 const VAULT_A = "0x" + "a".repeat(64);
 const VAULT_B = "0x" + "b".repeat(64);
@@ -484,5 +492,118 @@ describe("fetchUserActivities borrow/repay formatting", () => {
     const result = await fetchUserActivities(USER as `0x${string}`);
     expect(result[0].application.id).toBe("aave");
     expect(result[0].application.name).toBe("Aave V4");
+  });
+
+  it("falls back to Unknown App when Aave metadata isn't registered", async () => {
+    const { getApplication } = await import("@/applications");
+
+    const rows: ActivityRow[] = [
+      activity({
+        type: "borrow",
+        logIndex: 0,
+        transactionHash: TX_BORROW,
+        vaultId: null,
+        debtReserveId: "1",
+        amount: "1000000",
+      }),
+    ];
+    await setupMocks(rows, [
+      {
+        id: "1",
+        decimals: 6,
+        underlyingToken: { symbol: "USDC", decimals: 6 },
+      },
+    ]);
+    // Override: simulate Aave app not yet registered.
+    vi.mocked(getApplication).mockReturnValue(undefined as never);
+
+    const result = await fetchUserActivities(USER as `0x${string}`);
+    expect(result).toHaveLength(1);
+    expect(result[0].application.id).toBe("unknown");
+    expect(result[0].application.name).toBe("Unknown App");
+    // Amount formatting must still work regardless of missing app metadata.
+    expect(result[0].amount.symbol).toBe("USDC");
+  });
+});
+
+describe("fetchUserActivities resilience", () => {
+  it("renders rows with raw amounts when the reserves query fails", async () => {
+    const { graphqlClient } = await import("@/clients/graphql");
+    const { getApplication, getApplicationMetadataByController } = await import(
+      "@/applications"
+    );
+    vi.mocked(getApplication).mockReturnValue({
+      metadata: AAVE_META,
+    } as never);
+    vi.mocked(getApplicationMetadataByController).mockReturnValue(
+      AAVE_META as never,
+    );
+
+    const rows: ActivityRow[] = [
+      activity({
+        type: "borrow",
+        logIndex: 0,
+        transactionHash: TX_BORROW,
+        vaultId: null,
+        debtReserveId: "1",
+        amount: "1500000000",
+      }),
+    ];
+
+    vi.mocked(graphqlClient.request).mockImplementation(
+      async (query: unknown) => {
+        const src = String(query);
+        if (src.includes("GetUserActivities")) {
+          return { vaultActivitys: { items: rows } } as never;
+        }
+        if (src.includes("GetReservesByIds")) {
+          throw new Error("reserves query failed");
+        }
+        if (src.includes("GetVaultsByIds")) {
+          return { vaults: { items: [] } } as never;
+        }
+        throw new Error(`Unexpected query: ${src}`);
+      },
+    );
+    const { logger } = await import("@/infrastructure");
+
+    const result = await fetchUserActivities(USER as `0x${string}`);
+    expect(result).toHaveLength(1);
+    expect(result[0].type).toBe("Borrow");
+    expect(result[0].amount.symbol).toBe("—");
+    expect(result[0].amount.value).toBe("1500000000");
+    expect(logger.warn).toHaveBeenCalled();
+  });
+
+  it("does not dedup buckets containing duplicate-type rows", async () => {
+    const rows: ActivityRow[] = [
+      // Two deposits on the same (tx, vaultId) with different logIndex.
+      activity({
+        type: "deposit",
+        logIndex: 3,
+        transactionHash: TX_DEPOSIT,
+        vaultId: VAULT_A,
+      }),
+      activity({
+        type: "deposit",
+        logIndex: 5,
+        transactionHash: TX_DEPOSIT,
+        vaultId: VAULT_A,
+      }),
+      // Paired add_collateral would normally collapse with `deposit`, but the
+      // duplicate-type bucket bail-out must prevent any dedup in this bucket.
+      activity({
+        type: "add_collateral",
+        logIndex: 6,
+        transactionHash: TX_DEPOSIT,
+        vaultId: VAULT_A,
+      }),
+    ];
+    await setupMocks(rows);
+
+    const result = await fetchUserActivities(USER as `0x${string}`);
+    expect(result).toHaveLength(3);
+    expect(result.filter((r) => r.type === "Deposit")).toHaveLength(2);
+    expect(result.filter((r) => r.type === "Add Collateral")).toHaveLength(1);
   });
 });
