@@ -361,6 +361,35 @@ scheme from "shared-root convenience derivation" to
 "bearer-of-derived-secret is authorized", which is a different trust
 model than the current wallet-popup-per-authorization flow.
 
+### 3.1 Non-repudiation caveat
+
+A SHA-256 commitment to a derived secret appearing on-chain (for
+example a hashlock embedded in the pre-PegIn transaction) is **not
+cryptographic proof that the publisher knows the preimage**. Any party
+who is handed the secret can compute the same commitment and sign a
+transaction carrying it; the Bitcoin signature attests to control of
+the input UTXO, not to possession of the preimage.
+
+For the three labels defined today this distinction is benign because
+each preimage is paired with an independent authorization gate
+(Ethereum access control for `hashlockSecret`, VP-side co-signing and
+contract state transitions for `authAnchor`, multi-party co-signing
+for `wotsSeed`). A future label that relied on the on-chain
+commitment as the sole proof of knowledge would violate §3's scope
+rules and require a challenge-response signature instead.
+
+### 3.2 Transparency gap
+
+Wallet UX transparency only extends as far as the value the wallet
+returns to the dApp. `deriveContextHash` exposes the root; the three
+children are HKDF-Expand outputs computed in the dApp's JavaScript
+context and are not visible to the wallet or surfaced back to the
+user at signing time. A user who wants to independently verify what
+ended up on-chain (an OP_RETURN hashlock, a WOTS commitment) must
+reconstruct the derivation by running the spec's algorithm against
+the wallet's returned root — not by reading the transaction data in
+their wallet.
+
 ---
 
 ## 4. Test Vectors
