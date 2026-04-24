@@ -20,6 +20,16 @@
 
 const MAX_SAFE_BIGINT = BigInt(Number.MAX_SAFE_INTEGER);
 
+/**
+ * Effective dust threshold for HTLC outputs in satoshis.
+ *
+ * Standard P2TR dust is 330 sats, but HTLC scripts are larger than a standard
+ * P2TR key-path spend. A conservative estimate for an HTLC script-path output
+ * is ~2000 sats. This is a defense-in-depth check — in practice, minDeposit
+ * from the on-chain contract is orders of magnitude larger.
+ */
+const HTLC_EFFECTIVE_DUST_THRESHOLD = 2000n;
+
 export function assertSafePrecision(value: bigint, name: string): void {
   if (value > MAX_SAFE_BIGINT) {
     throw new RangeError(
@@ -222,6 +232,24 @@ export function computeOptimalSplit(
   const sacrificialVault =
     sacrificialRaw > totalBtc ? totalBtc : sacrificialRaw;
   const protectedVault = totalBtc - sacrificialVault;
+
+  // If either vault is non-zero but below the effective dust threshold for
+  // HTLC outputs, the split is not viable — return zeroed vaults so the
+  // caller treats this as non-splittable. We avoid throwing because this
+  // function is called during render (useMemo) and throwing would crash
+  // the component instead of showing validation feedback.
+  if (
+    (sacrificialVault > 0n &&
+      sacrificialVault < HTLC_EFFECTIVE_DUST_THRESHOLD) ||
+    (protectedVault > 0n && protectedVault < HTLC_EFFECTIVE_DUST_THRESHOLD)
+  ) {
+    return {
+      sacrificialVault: 0n,
+      protectedVault: 0n,
+      seizedFraction,
+      targetSeizureBtc: 0n,
+    };
+  }
 
   return {
     sacrificialVault,
