@@ -33,7 +33,7 @@ export default defineConfig({
         "viem",
         "@cosmjs/stargate",
         "@babylonlabs-io/core-ui",
-        // "bitcoinjs-lib",
+        "bitcoinjs-lib",
         "@keystonehq/animated-qr",
         // Issues linking with Next.js
         // "@keystonehq/keystone-sdk",
