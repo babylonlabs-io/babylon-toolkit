@@ -1,11 +1,10 @@
 import { FullScreenDialog } from "@babylonlabs-io/core-ui";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo } from "react";
 
 import { useWithdrawCollateralTransaction } from "@/applications/aave/hooks/useWithdrawCollateralTransaction";
 import {
   computeProjectedHealthFactor,
-  isVaultIndividuallyWithdrawable,
-  type PositionSnapshot,
+  getEffectiveVaultSelection,
 } from "@/applications/aave/utils";
 import { ProtocolParamsProvider } from "@/context/ProtocolParamsContext";
 import { useDialogStep } from "@/hooks/deposit/useDialogStep";
@@ -16,7 +15,6 @@ import { FadeTransition } from "../FadeTransition";
 import { useWithdrawFlow, WithdrawStep } from "./useWithdrawFlow";
 import { WithdrawProgressView } from "./WithdrawProgressView";
 import { WithdrawReviewContent } from "./WithdrawReviewContent";
-import { WithdrawVaultSelector } from "./WithdrawVaultSelector";
 
 export interface WithdrawFlowProps {
   open: boolean;
@@ -27,6 +25,8 @@ export interface WithdrawFlowProps {
   collateralValueUsd: number;
   /** User's current on-chain health factor (null when no debt). */
   currentHealthFactor: number | null;
+  /** Vault IDs selected inline on the collateral list before opening the dialog. */
+  preSelectedVaultIds: string[];
 }
 
 function WithdrawFlowContent({
@@ -36,51 +36,20 @@ function WithdrawFlowContent({
   collateralBtc,
   collateralValueUsd,
   currentHealthFactor,
+  preSelectedVaultIds,
 }: WithdrawFlowProps) {
-  const { step, goToSelect, goToReview, goToProgress, reset } =
-    useWithdrawFlow();
+  const { step, goToProgress, reset } = useWithdrawFlow();
   const { executeWithdraw, isProcessing } = useWithdrawCollateralTransaction();
-  // Selection state is owned here (not in the selector) so it survives
-  // back-navigation from the review step and can drive the selector's
-  // live projected-HF preview.
-  const [selectedVaultIds, setSelectedVaultIds] = useState<string[]>([]);
 
   const renderedStep = useDialogStep(open, step, reset);
 
-  const position: PositionSnapshot = useMemo(
-    () => ({ collateralBtc, currentHealthFactor }),
-    [collateralBtc, currentHealthFactor],
+  const {
+    selectedVaultIds: effectiveSelectedVaultIds,
+    selectedVaults: effectiveSelectedVaults,
+  } = useMemo(
+    () => getEffectiveVaultSelection(collateralVaults, preSelectedVaultIds),
+    [collateralVaults, preSelectedVaultIds],
   );
-
-  // Eligibility map: which in-use vaults can be withdrawn individually
-  // without breaching HF 1.0. Used by the selector to grey unsafe vaults.
-  const vaultEligibility = useMemo(() => {
-    const map = new Map<string, boolean>();
-    for (const v of collateralVaults) {
-      if (!v.inUse) continue;
-      map.set(
-        v.vaultId,
-        isVaultIndividuallyWithdrawable(v.amountBtc, position),
-      );
-    }
-    return map;
-  }, [collateralVaults, position]);
-
-  // Selection may contain IDs that vanished from the user's position
-  // between picks (position refreshes every 30s). Normalize before every
-  // downstream use so the projection, the selector's gating, and the
-  // transaction never see stale IDs.
-  const { effectiveSelectedVaultIds, effectiveSelectedVaults } = useMemo(() => {
-    const inUseVaults = collateralVaults.filter((v) => v.inUse);
-    const inUseIds = new Set(inUseVaults.map((v) => v.vaultId));
-    const ids = selectedVaultIds.filter((id) => inUseIds.has(id));
-    const idSet = new Set(ids);
-    const selected = inUseVaults.filter((v) => idSet.has(v.vaultId));
-    return {
-      effectiveSelectedVaultIds: ids,
-      effectiveSelectedVaults: selected,
-    };
-  }, [collateralVaults, selectedVaultIds]);
 
   // Aggregate amounts and projected HF for the current selection.
   const { selectedBtc, selectedUsd, projectedHealthFactor } = useMemo(() => {
@@ -107,10 +76,6 @@ function WithdrawFlowContent({
     currentHealthFactor,
   ]);
 
-  const handleNext = useCallback(() => {
-    goToReview();
-  }, [goToReview]);
-
   const handleConfirm = useCallback(async () => {
     const success = await executeWithdraw(effectiveSelectedVaultIds);
     if (success) {
@@ -125,19 +90,6 @@ function WithdrawFlowContent({
       className="items-center justify-center p-6"
     >
       <FadeTransition stepKey={renderedStep}>
-        {renderedStep === WithdrawStep.SELECT && (
-          <div className="mx-auto w-full max-w-[520px]">
-            <WithdrawVaultSelector
-              vaults={collateralVaults}
-              vaultEligibility={vaultEligibility}
-              selectedVaultIds={effectiveSelectedVaultIds}
-              onSelectionChange={setSelectedVaultIds}
-              currentHealthFactor={currentHealthFactor}
-              projectedHealthFactor={projectedHealthFactor}
-              onNext={handleNext}
-            />
-          </div>
-        )}
         {renderedStep === WithdrawStep.REVIEW && (
           <div className="mx-auto w-full max-w-[520px]">
             <WithdrawReviewContent
@@ -147,7 +99,6 @@ function WithdrawFlowContent({
               projectedHealthFactor={projectedHealthFactor}
               isProcessing={isProcessing}
               onConfirm={handleConfirm}
-              onEditSelection={goToSelect}
             />
           </div>
         )}

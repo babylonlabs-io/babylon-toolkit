@@ -11,8 +11,16 @@ describe("createTaprootScriptPathSignOptions", () => {
 
     expect(opts.autoFinalized).toBe(false);
     expect(opts.signInputs).toEqual([
-      { index: 0, publicKey: TEST_PUBKEY, disableTweakSigner: true },
+      { index: 0, publicKey: TEST_PUBKEY, useTweakedSigner: false },
     ]);
+  });
+
+  it("does not emit the deprecated disableTweakSigner field", () => {
+    const opts = createTaprootScriptPathSignOptions(TEST_PUBKEY, 2);
+
+    opts.signInputs!.forEach((s) => {
+      expect(s).not.toHaveProperty("disableTweakSigner");
+    });
   });
 
   it("produces entries at indices 0, 1, 2 for inputCount = 3", () => {
@@ -22,7 +30,7 @@ describe("createTaprootScriptPathSignOptions", () => {
     expect(opts.signInputs!.map((s) => s.index)).toEqual([0, 1, 2]);
     opts.signInputs!.forEach((s) => {
       expect(s.publicKey).toBe(TEST_PUBKEY);
-      expect(s.disableTweakSigner).toBe(true);
+      expect(s.useTweakedSigner).toBe(false);
     });
   });
 

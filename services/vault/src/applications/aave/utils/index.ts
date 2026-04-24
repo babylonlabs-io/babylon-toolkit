@@ -41,3 +41,8 @@ export type {
   PositionSnapshot,
   WithdrawHfWarningState,
 } from "./withdrawEligibility";
+
+// Withdraw selection normalization (frontend-only)
+export { getEffectiveVaultSelection } from "./withdrawSelection";
+
+export type { EffectiveVaultSelection } from "./withdrawSelection";

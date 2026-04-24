@@ -28,7 +28,7 @@ Babylon BTC staking, here's what's new for TBV:
   PSBTs per deposit + payout pre-signing. Without batch
   signing, each PSBT requires a separate user approval.
 - **`SignPsbtOptions` expanded** — New field `signInputs`
-  with `disableTweakSigner` (required for Taproot script
+  with `useTweakedSigner` (set `false` for Taproot script
   path spends).
 - **`deriveContextHash()` required** — TBV derives
   hashlock secrets from wallet key material. See
@@ -46,7 +46,7 @@ Babylon BTC staking, here's what's new for TBV:
 | ETH wallet | **Required** — viem `WalletClient` | N/A |
 | Batch signing | Critical — multiple PSBTs | Delegation |
 | Message signing | `"bip322-simple"` for PoP | Same |
-| Taproot path | `disableTweakSigner: true` | Same |
+| Taproot path | `useTweakedSigner: false` | Same |
 | Hashlock | `deriveContextHash` — new | N/A |
 | Chains | **Dual**: BTC + ETH | BTC + Cosmos |
 
@@ -61,7 +61,7 @@ are in [`src/core/types.ts`](../src/core/types.ts).
 | `connectWallet` | `() => Promise<void>` | Connect to the wallet |
 | `getAddress` | `() => Promise<string>` | Get BTC address |
 | `getPublicKeyHex` | `() => Promise<string>` | Get public key hex. Taproot: x-only (32 bytes, 64 hex, no `0x`). Compressed (33 bytes) also accepted — SDK strips first byte. |
-| `signPsbt` | `(psbtHex: string, options?: SignPsbtOptions) => Promise<string>` | Sign a single PSBT. Must support `disableTweakSigner`. See [SignPsbtOptions](#signpsbtoptions). |
+| `signPsbt` | `(psbtHex: string, options?: SignPsbtOptions) => Promise<string>` | Sign a single PSBT. Must support `useTweakedSigner`. See [SignPsbtOptions](#signpsbtoptions). |
 | `signPsbts` | `(psbtsHexes: string[], options?: SignPsbtOptions[]) => Promise<string[]>` | Batch sign PSBTs in one prompt. Falls back to sequential `signPsbt()` if unavailable. |
 | `signMessage` | `(message: string, type: "bip322-simple" \| "ecdsa") => Promise<string>` | Sign a message. TBV uses `"bip322-simple"` for PoP. |
 | `deriveContextHash` | `(appName: string, context: string) => Promise<string>` | Derive 32-byte value via HKDF-SHA-256. See [deriveContextHash](#derivecontexthash) and [spec][spec]. |
@@ -85,13 +85,13 @@ interface SignInputOptions {
   address?: string;
   publicKey?: string;
   sighashTypes?: number[];
-  disableTweakSigner?: boolean;
+  useTweakedSigner?: boolean;
 }
 ```
 
-**`disableTweakSigner`**: TBV vault transactions use
+**`useTweakedSigner`**: TBV vault transactions use
 Taproot **script path** spends. When
-`disableTweakSigner: true`, the wallet must sign with the
+`useTweakedSigner: false`, the wallet must sign with the
 **untweaked** private key (raw internal key). Signing with
 the tweaked key produces an invalid signature.
 
@@ -168,7 +168,7 @@ subsequent vaults.
 The SDK constructs one PegIn input PSBT per vault in the
 deposit. All PSBTs are presented for batch signing. These
 are Taproot script path spends — `signInputs` will
-include `disableTweakSigner: true`. Falls back to
+include `useTweakedSigner: false`. Falls back to
 sequential `signPsbt()` if the wallet does not support
 batch signing.
 

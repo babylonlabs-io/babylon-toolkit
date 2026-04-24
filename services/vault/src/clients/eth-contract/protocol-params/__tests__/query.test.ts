@@ -33,7 +33,8 @@ const VALID_TBV_PARAMS = {
   minimumPegInAmount: 100_000n,
   maxPegInAmount: 10_000_000n,
   pegInAckTimeout: 100n,
-  peginActivationTimeout: 200n,
+  pegInActivationTimeout: 200n,
+  maxHtlcOutputCount: 5,
 };
 
 const VALID_OFFCHAIN_PARAMS = {
@@ -48,6 +49,8 @@ const VALID_OFFCHAIN_PARAMS = {
   tRefund: 144,
   tStale: 288,
   minPeginFeeRate: 1n,
+  proverProgramVersion: 1,
+  minPrepeginDepth: 6,
 };
 
 type QueryModule = typeof import("../query");
@@ -207,5 +210,34 @@ describe("getPegInConfiguration validation", () => {
     await expect(query.getPegInConfiguration()).rejects.toThrow(
       /maxPegInAmount.*must be >= minimumPegInAmount/,
     );
+  });
+
+  it("forwards maxHtlcOutputCount from TBV params", async () => {
+    mockGetChainId.mockResolvedValue(11155111);
+    mockReadContract.mockReset();
+    mockReadContract
+      .mockResolvedValueOnce(PROTOCOL_PARAMS_ADDRESS)
+      .mockResolvedValueOnce({ ...VALID_TBV_PARAMS, maxHtlcOutputCount: 7 });
+
+    const params = await query.getTBVProtocolParams();
+    expect(params.maxHtlcOutputCount).toBe(7);
+  });
+
+  it("forwards proverProgramVersion and minPrepeginDepth from offchain params", async () => {
+    mockGetChainId.mockResolvedValue(11155111);
+    mockReadContract.mockResolvedValue(PROTOCOL_PARAMS_ADDRESS);
+    mockMulticall.mockResolvedValue([
+      VALID_TBV_PARAMS,
+      {
+        ...VALID_OFFCHAIN_PARAMS,
+        proverProgramVersion: 3,
+        minPrepeginDepth: 12,
+      },
+    ]);
+
+    const config = await query.getPegInConfiguration();
+    expect(config.maxHtlcOutputCount).toBe(VALID_TBV_PARAMS.maxHtlcOutputCount);
+    expect(config.offchainParams.proverProgramVersion).toBe(3);
+    expect(config.offchainParams.minPrepeginDepth).toBe(12);
   });
 });

@@ -84,7 +84,7 @@ vi.mock("@/hooks/usePrices", () => ({
 // Mock useAaveConfig
 const mockUseAaveConfig = vi.fn(() => ({
   config: {
-    btcVaultCoreSpokeAddress: "0xSpokeAddress",
+    coreSpokeAddress: "0xSpokeAddress",
     btcVaultCoreVbtcReserveId: 1n,
   },
   vbtcReserve: {
@@ -317,7 +317,7 @@ describe("useAaveReserveDetail", () => {
   it("returns null for unknown token without Chainlink price", () => {
     mockUseAaveConfig.mockReturnValue({
       config: {
-        btcVaultCoreSpokeAddress: "0xSpokeAddress",
+        coreSpokeAddress: "0xSpokeAddress",
         btcVaultCoreVbtcReserveId: 1n,
       },
       vbtcReserve: {

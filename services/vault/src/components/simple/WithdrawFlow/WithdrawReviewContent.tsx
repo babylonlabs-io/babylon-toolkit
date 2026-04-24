@@ -23,12 +23,6 @@ interface WithdrawReviewContentProps {
   projectedHealthFactor: number;
   isProcessing: boolean;
   onConfirm: () => void;
-  /**
-   * Navigate back to the vault selector, preserving the current selection.
-   * Lets the user recover from a blocked or at-risk review without closing
-   * the dialog.
-   */
-  onEditSelection: () => void;
 }
 
 export function WithdrawReviewContent({
@@ -38,7 +32,6 @@ export function WithdrawReviewContent({
   projectedHealthFactor,
   isProcessing,
   onConfirm,
-  onEditSelection,
 }: WithdrawReviewContentProps) {
   const { defaultFeeRate } = useNetworkFees();
   const { minVpCommissionBps } = useProtocolParamsContext();
@@ -155,16 +148,6 @@ export function WithdrawReviewContent({
           ) : (
             "Confirm"
           )}
-        </Button>
-        <Button
-          variant="outlined"
-          color="primary"
-          className="w-full"
-          disabled={isProcessing}
-          onClick={onEditSelection}
-          data-testid="withdraw-change-selection"
-        >
-          Change Selection
         </Button>
       </div>
     </div>

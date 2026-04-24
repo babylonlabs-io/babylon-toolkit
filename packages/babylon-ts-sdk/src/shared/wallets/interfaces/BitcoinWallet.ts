@@ -25,7 +25,23 @@ export interface SignInputOptions {
   publicKey?: string;
   /** Sighash types (optional) */
   sighashTypes?: number[];
-  /** Disable tweak signer for Taproot script path spend (optional) */
+  /**
+   * Whether the wallet should sign with the tweaked (key-path) signer.
+   * Set `false` for Taproot script-path spends, where signing uses the
+   * untweaked internal key. If omitted, the wallet's default behavior
+   * applies.
+   */
+  useTweakedSigner?: boolean;
+  /**
+   * @deprecated Use `useTweakedSigner` instead. `disableTweakSigner: true`
+   * is equivalent to `useTweakedSigner: false`; `useTweakedSigner` takes
+   * precedence when both are set.
+   *
+   * `useTweakedSigner` is the canonical field used by UniSat and newer OKX
+   * wallet versions. Migrating aligns our interface with the wallet-side
+   * convention and avoids the historical divergence in OKX's
+   * `disableTweakSigner` implementation.
+   */
   disableTweakSigner?: boolean;
 }
 

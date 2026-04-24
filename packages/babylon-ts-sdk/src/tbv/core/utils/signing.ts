@@ -4,7 +4,7 @@ import type { SignPsbtOptions } from "../../../shared/wallets/interfaces";
  * Create SignPsbtOptions for Taproot script-path PSBT signing.
  *
  * All vault protocol signing operations are Taproot script-path spends that
- * require `disableTweakSigner: true` (untweaked key) and `autoFinalized: false`
+ * require `useTweakedSigner: false` (untweaked key) and `autoFinalized: false`
  * (to preserve tapScriptSig for Schnorr signature extraction).
  *
  * @param publicKey - Signer's BTC public key (hex). Accepts both compressed
@@ -25,7 +25,7 @@ export function createTaprootScriptPathSignOptions(
     signInputs: Array.from({ length: inputCount }, (_, i) => ({
       index: i,
       publicKey,
-      disableTweakSigner: true,
+      useTweakedSigner: false,
     })),
   };
 }

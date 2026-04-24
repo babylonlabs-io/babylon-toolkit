@@ -16,7 +16,7 @@ vi.mock("@/context/ProtocolParamsContext", () => ({
       minimumPegInAmount: 10000n,
       maxPegInAmount: 100_000_000n,
       pegInAckTimeout: 50400n,
-      peginActivationTimeout: 100800n,
+      pegInActivationTimeout: 100800n,
     },
     minDeposit: 10000n,
     maxDeposit: 100_000_000n,

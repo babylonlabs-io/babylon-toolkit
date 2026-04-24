@@ -5,6 +5,7 @@
  * Only includes Core Spoke operations for regular users (no Arbitrageur operations).
  */
 
+import { getETHChain } from "@babylonlabs-io/config";
 import { BTCVaultRegistryABI } from "@babylonlabs-io/ts-sdk/tbv/core";
 import {
   AaveIntegrationAdapterABI,
@@ -80,6 +81,16 @@ async function executeTx(
   data: Hex,
   errorContext: string,
 ): Promise<TransactionResult> {
+  // Reject if the wallet is connected to the wrong chain.
+  // Callers pass getETHChain() as `chain`, but the wallet itself may still be
+  // on a different network. Check the wallet's actual chain to catch this early.
+  const expectedChainId = getETHChain().id;
+  if (walletClient.chain?.id !== expectedChainId) {
+    throw new Error(
+      `Chain mismatch: expected chain ${expectedChainId}, got ${walletClient.chain?.id}. Please switch to the correct network.`,
+    );
+  }
+
   const publicClient = ethClient.getPublicClient();
   const account = walletClient.account?.address;
 

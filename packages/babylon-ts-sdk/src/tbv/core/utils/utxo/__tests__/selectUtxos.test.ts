@@ -126,6 +126,75 @@ describe("selectUtxosForPegin", () => {
     );
   });
 
+  it("should throw when availableUTXOs contains duplicate txid:vout entries", () => {
+    const duplicateUTXOs: UTXO[] = [
+      {
+        txid: "tx1",
+        vout: 0,
+        value: 100000,
+        scriptPubKey:
+          "5120abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
+      },
+      {
+        txid: "tx1",
+        vout: 0,
+        value: 100000,
+        scriptPubKey:
+          "5120abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
+      },
+    ];
+
+    expect(() => selectUtxosForPegin(duplicateUTXOs, 50000n, 10, 2)).toThrow(
+      /Duplicate UTXO detected/,
+    );
+  });
+
+  it("should treat UTXOs with same txid but different vout as distinct", () => {
+    const sameHashDifferentVout: UTXO[] = [
+      {
+        txid: "tx1",
+        vout: 0,
+        value: 100000,
+        scriptPubKey:
+          "5120abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
+      },
+      {
+        txid: "tx1",
+        vout: 1,
+        value: 50000,
+        scriptPubKey:
+          "5120abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
+      },
+    ];
+
+    expect(() =>
+      selectUtxosForPegin(sameHashDifferentVout, 50000n, 10, 2),
+    ).not.toThrow();
+  });
+
+  it("should detect duplicate UTXOs case-insensitively", () => {
+    const mixedCaseDuplicates: UTXO[] = [
+      {
+        txid: "aAbBcCdD1234567890abcdef1234567890abcdef1234567890abcdef12345678",
+        vout: 0,
+        value: 100000,
+        scriptPubKey:
+          "5120abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
+      },
+      {
+        txid: "AABBCCDD1234567890abcdef1234567890abcdef1234567890abcdef12345678",
+        vout: 0,
+        value: 100000,
+        scriptPubKey:
+          "5120abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
+      },
+    ];
+
+    expect(() =>
+      selectUtxosForPegin(mixedCaseDuplicates, 50000n, 10, 2),
+    ).toThrow(/Duplicate UTXO detected/);
+  });
+
   it("should charge higher fee for more outputs", () => {
     const feeWith2Outputs = selectUtxosForPegin(mockUTXOs, 50000n, 10, 2).fee;
     const feeWith5Outputs = selectUtxosForPegin(mockUTXOs, 50000n, 10, 5).fee;
