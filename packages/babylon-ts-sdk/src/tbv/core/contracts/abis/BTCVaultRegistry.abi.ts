@@ -305,18 +305,18 @@ export const BTCVaultRegistryABI = [
       },
       {
         name: "universalChallengersVersion",
-        type: "uint32",
-        internalType: "uint32",
+        type: "uint16",
+        internalType: "uint16",
       },
       {
         name: "appVaultKeepersVersion",
-        type: "uint32",
-        internalType: "uint32",
+        type: "uint16",
+        internalType: "uint16",
       },
       {
         name: "offchainParamsVersion",
-        type: "uint32",
-        internalType: "uint32",
+        type: "uint16",
+        internalType: "uint16",
       },
       {
         name: "verifiedAt",

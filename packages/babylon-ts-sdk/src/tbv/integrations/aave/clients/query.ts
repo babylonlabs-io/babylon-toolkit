@@ -55,29 +55,6 @@ export async function getPosition(
 }
 
 /**
- * Get total collateral for a user's position.
- *
- * @param publicClient - Viem public client for reading contracts
- * @param contractAddress - AaveIntegrationAdapter contract address
- * @param user - User's Ethereum address
- * @returns Total collateral amount in satoshis
- */
-export async function getPositionCollateral(
-  publicClient: PublicClient,
-  contractAddress: Address,
-  user: Address,
-): Promise<bigint> {
-  const result = await publicClient.readContract({
-    address: contractAddress,
-    abi: AaveIntegrationAdapterABI,
-    functionName: "getPositionCollateral",
-    args: [user],
-  });
-
-  return result as bigint;
-}
-
-/**
  * Get position size parameters from the adapter contract.
  *
  * Returns the maximum BTC position size and maximum vaults per position

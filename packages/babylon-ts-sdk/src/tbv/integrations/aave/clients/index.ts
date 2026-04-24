@@ -1,7 +1,6 @@
 // Query operations
 export {
   getPosition,
-  getPositionCollateral,
   getPositionSizeParams,
 } from "./query.js";
 

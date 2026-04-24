@@ -77,7 +77,6 @@ export {
   buildWithdrawCollateralsTx,
   getDynamicReserveConfig,
   getPosition,
-  getPositionCollateral,
   getPositionSizeParams,
   getReserve,
   getTargetHealthFactor,

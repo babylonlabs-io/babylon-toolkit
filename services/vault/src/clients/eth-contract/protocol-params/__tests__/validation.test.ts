@@ -26,6 +26,8 @@ function validOffchainParams(
     tRefund: 144,
     tStale: 288,
     minPeginFeeRate: 1n,
+    proverProgramVersion: 1,
+    minPrepeginDepth: 6,
     ...overrides,
   };
 }
@@ -38,7 +40,8 @@ function validPegInConfig(
     minimumPegInAmount: 100_000n,
     maxPegInAmount: 10_000_000n,
     pegInAckTimeout: 100n,
-    peginActivationTimeout: 200n,
+    pegInActivationTimeout: 200n,
+    maxHtlcOutputCount: 5,
     timelockPegin: 150,
     timelockRefund: 144,
     minVpCommissionBps: 500,
@@ -127,6 +130,28 @@ describe("validateOffchainParams", () => {
     ).toThrow(/minPeginFeeRate must be positive/);
   });
 
+  it("rejects proverProgramVersion above uint16 max", () => {
+    expect(() =>
+      validateOffchainParams(
+        validOffchainParams({ proverProgramVersion: 65536 }),
+      ),
+    ).toThrow(/proverProgramVersion must be a uint16/);
+  });
+
+  it("rejects minPrepeginDepth of zero", () => {
+    expect(() =>
+      validateOffchainParams(validOffchainParams({ minPrepeginDepth: 0 })),
+    ).toThrow(/minPrepeginDepth must be a uint32/);
+  });
+
+  it("rejects minPrepeginDepth above uint32 max", () => {
+    expect(() =>
+      validateOffchainParams(
+        validOffchainParams({ minPrepeginDepth: 4_294_967_296 }),
+      ),
+    ).toThrow(/minPrepeginDepth must be a uint32/);
+  });
+
   it("rejects babeTotalInstances of zero", () => {
     expect(() =>
       validateOffchainParams(
@@ -188,7 +213,8 @@ function validTBVParams(
     minimumPegInAmount: 100_000n,
     maxPegInAmount: 10_000_000n,
     pegInAckTimeout: 100n,
-    peginActivationTimeout: 200n,
+    pegInActivationTimeout: 200n,
+    maxHtlcOutputCount: 5,
     ...overrides,
   };
 }
@@ -221,10 +247,22 @@ describe("validateTBVProtocolParams", () => {
     ).toThrow(/pegInAckTimeout must be positive/);
   });
 
-  it("rejects peginActivationTimeout of zero", () => {
+  it("rejects pegInActivationTimeout of zero", () => {
     expect(() =>
-      validateTBVProtocolParams(validTBVParams({ peginActivationTimeout: 0n })),
-    ).toThrow(/peginActivationTimeout must be positive/);
+      validateTBVProtocolParams(validTBVParams({ pegInActivationTimeout: 0n })),
+    ).toThrow(/pegInActivationTimeout must be positive/);
+  });
+
+  it("rejects maxHtlcOutputCount of zero", () => {
+    expect(() =>
+      validateTBVProtocolParams(validTBVParams({ maxHtlcOutputCount: 0 })),
+    ).toThrow(/maxHtlcOutputCount must be an integer in \[1, 255\]/);
+  });
+
+  it("rejects maxHtlcOutputCount above uint8 max", () => {
+    expect(() =>
+      validateTBVProtocolParams(validTBVParams({ maxHtlcOutputCount: 256 })),
+    ).toThrow(/maxHtlcOutputCount must be an integer in \[1, 255\]/);
   });
 });
 
@@ -256,12 +294,12 @@ describe("validatePegInConfiguration", () => {
     ).toThrow(/pegInAckTimeout must be positive/);
   });
 
-  it("rejects peginActivationTimeout of zero", () => {
+  it("rejects pegInActivationTimeout of zero", () => {
     expect(() =>
       validatePegInConfiguration(
-        validPegInConfig({ peginActivationTimeout: 0n }),
+        validPegInConfig({ pegInActivationTimeout: 0n }),
       ),
-    ).toThrow(/peginActivationTimeout must be positive/);
+    ).toThrow(/pegInActivationTimeout must be positive/);
   });
 
   it("also validates offchain params within the configuration", () => {
