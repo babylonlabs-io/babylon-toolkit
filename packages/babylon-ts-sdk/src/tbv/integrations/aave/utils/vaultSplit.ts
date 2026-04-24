@@ -20,6 +20,16 @@
 
 const MAX_SAFE_BIGINT = BigInt(Number.MAX_SAFE_INTEGER);
 
+/**
+ * Effective dust threshold for HTLC outputs in satoshis.
+ *
+ * Standard P2TR dust is 330 sats, but HTLC scripts are larger than a standard
+ * P2TR key-path spend. A conservative estimate for an HTLC script-path output
+ * is ~2000 sats. This is a defense-in-depth check — in practice, minDeposit
+ * from the on-chain contract is orders of magnitude larger.
+ */
+const HTLC_EFFECTIVE_DUST_THRESHOLD = 2000n;
+
 export function assertSafePrecision(value: bigint, name: string): void {
   if (value > MAX_SAFE_BIGINT) {
     throw new RangeError(
@@ -222,6 +232,27 @@ export function computeOptimalSplit(
   const sacrificialVault =
     sacrificialRaw > totalBtc ? totalBtc : sacrificialRaw;
   const protectedVault = totalBtc - sacrificialVault;
+
+  if (
+    sacrificialVault > 0n &&
+    sacrificialVault < HTLC_EFFECTIVE_DUST_THRESHOLD
+  ) {
+    throw new Error(
+      `Sacrificial vault amount (${sacrificialVault} sats) is below the effective ` +
+        `dust threshold (${HTLC_EFFECTIVE_DUST_THRESHOLD} sats) for HTLC outputs. ` +
+        `This likely indicates an incorrectly configured minDeposit parameter.`,
+    );
+  }
+  if (
+    protectedVault > 0n &&
+    protectedVault < HTLC_EFFECTIVE_DUST_THRESHOLD
+  ) {
+    throw new Error(
+      `Protected vault amount (${protectedVault} sats) is below the effective ` +
+        `dust threshold (${HTLC_EFFECTIVE_DUST_THRESHOLD} sats) for HTLC outputs. ` +
+        `This likely indicates an incorrectly configured minDeposit parameter.`,
+    );
+  }
 
   return {
     sacrificialVault,

@@ -117,12 +117,17 @@ vi.mock("@/services/deposit/validations", () => ({
 
 vi.mock("@/models/peginStateMachine", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/models/peginStateMachine")>()),
-  LocalStorageStatus: { CONFIRMING: "CONFIRMING" },
+  LocalStorageStatus: { PENDING: "PENDING", CONFIRMING: "CONFIRMING" },
+}));
+
+vi.mock("@/services/vault/vaultUtxoValidationService", () => ({
+  assertUtxosAvailable: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock("@/storage/peginStorage", () => ({
   addPendingPegin: vi.fn(),
   getPendingPegins: vi.fn(() => []),
+  updatePendingPeginStatus: vi.fn(),
 }));
 
 vi.mock("@babylonlabs-io/ts-sdk/tbv/core/utils", () => ({
@@ -534,7 +539,7 @@ describe("useDepositFlow", () => {
       });
     });
 
-    it("should save pegins with CONFIRMING status after broadcast", async () => {
+    it("should save pegins with PENDING status before broadcast", async () => {
       const { addPendingPegin } = vi.mocked(
         await import("@/storage/peginStorage"),
       );
@@ -548,8 +553,27 @@ describe("useDepositFlow", () => {
         expect(addPendingPegin).toHaveBeenCalledWith(
           "0xEthAddress123",
           expect.objectContaining({
-            status: "CONFIRMING",
+            status: "PENDING",
           }),
+        );
+      });
+    });
+
+    it("should update pegins to CONFIRMING status after broadcast", async () => {
+      const { updatePendingPeginStatus } = vi.mocked(
+        await import("@/storage/peginStorage"),
+      );
+
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+
+      await executeWithAutoArtifactDownload(result);
+
+      await waitFor(() => {
+        expect(updatePendingPeginStatus).toHaveBeenCalledTimes(2);
+        expect(updatePendingPeginStatus).toHaveBeenCalledWith(
+          "0xEthAddress123",
+          expect.any(String),
+          "CONFIRMING",
         );
       });
     });

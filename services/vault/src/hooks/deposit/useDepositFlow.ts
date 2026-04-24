@@ -46,6 +46,7 @@ import {
   utxosToExpectedRecord,
 } from "@/services/vault/vaultPeginBroadcastService";
 import { preparePeginTransaction } from "@/services/vault/vaultTransactionService";
+import { assertUtxosAvailable } from "@/services/vault/vaultUtxoValidationService";
 import {
   computeWotsPublicKeysHash,
   deriveWotsBlockPublicKeys,
@@ -53,7 +54,11 @@ import {
   mnemonicToWotsSeed,
   type WotsPublicKeys,
 } from "@/services/wots";
-import { addPendingPegin, getPendingPegins } from "@/storage/peginStorage";
+import {
+  addPendingPegin,
+  getPendingPegins,
+  updatePendingPeginStatus,
+} from "@/storage/peginStorage";
 import { btcAddressToScriptPubKeyHex } from "@/utils/btc";
 import { satoshiToBtcNumber } from "@/utils/btcConversion";
 import { sanitizeErrorMessage } from "@/utils/errors/formatting";
@@ -412,7 +417,17 @@ export function useDepositFlow(
           depositorWotsPkHash: wotsPkHashes[i],
         }));
 
-        // 3d. Single batch ETH transaction for all vaults.
+        // 3d. Re-check UTXO availability before committing to ETH registration.
+        // This catches the common case where UTXOs were spent during the
+        // (potentially lengthy) PoP signing step. It does not eliminate the
+        // race entirely — UTXOs could still be spent between this check and
+        // the BTC broadcast — but it prevents the most likely failure mode.
+        await assertUtxosAvailable(
+          batchResult.fundedPrePeginTxHex,
+          confirmedBtcAddress,
+        );
+
+        // 3e. Single batch ETH transaction for all vaults.
         setCurrentStep(DepositFlowStep.SUBMIT_PEGIN);
         const batchRegistration = await registerPeginBatchAndWait({
           btcWalletProvider: confirmedBtcWallet,
@@ -439,37 +454,12 @@ export function useDepositFlow(
           }));
 
         // ========================================================================
-        // Step 4: Broadcast Pre-PegIn transaction to Bitcoin
-        // Broadcast immediately after ETH registration so the VP can verify
-        // the Pre-PegIn inputs on the Bitcoin network when it processes the
-        // Ethereum event. Nothing must throw between ETH registration and
-        // this broadcast — otherwise the VP has the event but no BTC tx.
-        // ========================================================================
-
-        setCurrentStep(DepositFlowStep.BROADCAST_PRE_PEGIN);
-
-        try {
-          await broadcastPrePeginTransaction({
-            unsignedTxHex: batchResult.fundedPrePeginTxHex,
-            btcWalletProvider: {
-              signPsbt: (psbtHex: string) =>
-                confirmedBtcWallet.signPsbt(psbtHex),
-            },
-            depositorBtcPubkey: batchResult.depositorBtcPubkey,
-            expectedUtxos: utxosToExpectedRecord(batchResult.selectedUTXOs),
-          });
-        } catch (error) {
-          const errorMsg =
-            error instanceof Error ? error.message : String(error);
-          throw new Error(
-            `Failed to broadcast batch Pre-PegIn transaction: ${errorMsg}`,
-          );
-        }
-
-        // ========================================================================
-        // Step 4b: Save Pegins to Storage
-        // Saved after both ETH registration and BTC broadcast succeed, so
-        // localStorage never contains ghost entries for un-broadcast pegins.
+        // Step 4: Persist pending pegins BEFORE broadcast
+        // Saved immediately after ETH registration so the selected UTXOs are
+        // reserved even if broadcast fails. Status is PENDING (not CONFIRMING)
+        // — the resume flow will show a "Broadcast" button for these entries.
+        // This prevents the race condition where a failed broadcast leaves
+        // no localStorage record, causing UTXOs to be reused in a new deposit.
         // ========================================================================
 
         for (const peginResult of peginResults) {
@@ -498,7 +488,7 @@ export function useDepositFlow(
             batchId,
             batchIndex: peginResult.vaultIndex + 1,
             batchTotal: vaultAmounts.length,
-            status: LocalStorageStatus.CONFIRMING,
+            status: LocalStorageStatus.PENDING,
             unsignedTxHex: peginResult.fundedPrePeginTxHex,
             selectedUTXOs: peginResult.selectedUTXOs.map((u) => ({
               txid: u.txid,
@@ -515,6 +505,42 @@ export function useDepositFlow(
               confirmedEthAddress,
             );
           }
+        }
+
+        // ========================================================================
+        // Step 4b: Broadcast Pre-PegIn transaction to Bitcoin
+        // Broadcast immediately after ETH registration so the VP can verify
+        // the Pre-PegIn inputs on the Bitcoin network when it processes the
+        // Ethereum event.
+        // ========================================================================
+
+        setCurrentStep(DepositFlowStep.BROADCAST_PRE_PEGIN);
+
+        try {
+          await broadcastPrePeginTransaction({
+            unsignedTxHex: batchResult.fundedPrePeginTxHex,
+            btcWalletProvider: {
+              signPsbt: (psbtHex: string) =>
+                confirmedBtcWallet.signPsbt(psbtHex),
+            },
+            depositorBtcPubkey: batchResult.depositorBtcPubkey,
+            expectedUtxos: utxosToExpectedRecord(batchResult.selectedUTXOs),
+          });
+        } catch (error) {
+          const errorMsg =
+            error instanceof Error ? error.message : String(error);
+          throw new Error(
+            `Failed to broadcast batch Pre-PegIn transaction: ${errorMsg}`,
+          );
+        }
+
+        // Broadcast succeeded — update pending pegins from PENDING to CONFIRMING
+        for (const peginResult of peginResults) {
+          updatePendingPeginStatus(
+            confirmedEthAddress,
+            peginResult.vaultId,
+            LocalStorageStatus.CONFIRMING,
+          );
         }
 
         // All vaults share the same Pre-PegIn tx — if broadcast succeeded,
