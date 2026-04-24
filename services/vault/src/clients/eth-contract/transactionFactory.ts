@@ -4,6 +4,7 @@
  * Includes pre-flight simulation to catch errors before user signs.
  */
 
+import { getETHChain } from "@babylonlabs-io/config";
 import {
   type Abi,
   type Address,
@@ -66,6 +67,14 @@ export async function executeWrite(
     args,
     errorContext,
   } = options;
+
+  // Reject if the wallet is connected to the wrong chain
+  const expectedChainId = getETHChain().id;
+  if (walletClient.chain?.id !== expectedChainId) {
+    throw new Error(
+      `Chain mismatch: expected chain ${expectedChainId}, got ${walletClient.chain?.id}. Please switch to the correct network.`,
+    );
+  }
 
   const publicClient = ethClient.getPublicClient();
   const account = walletClient.account;
