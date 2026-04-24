@@ -5,6 +5,7 @@
  * Manages React state and query invalidation.
  */
 
+import { getETHChain } from "@babylonlabs-io/config";
 import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import type { Address } from "viem";
@@ -57,7 +58,7 @@ export function useRepayTransaction({
   const { data: walletClient } = useWalletClient();
   const { address } = useAccount();
   const queryClient = useQueryClient();
-  const chain = walletClient?.chain;
+  const chain = getETHChain();
   const { handleError } = useError();
 
   const executeRepay = async (
@@ -70,7 +71,7 @@ export function useRepayTransaction({
     setIsProcessing(true);
     try {
       // Validate prerequisites
-      if (!walletClient || !chain) {
+      if (!walletClient) {
         throw new WalletError(
           "Please connect your wallet to continue",
           ErrorCode.WALLET_NOT_CONNECTED,

@@ -9,6 +9,7 @@ import { gql } from "graphql-request";
 import type { Address } from "viem";
 
 import { graphqlClient } from "../../../clients/graphql";
+import { getCoreSpokeAddress } from "../clients/transaction";
 
 /**
  * Aave configuration from GraphQL indexer
@@ -21,8 +22,8 @@ export interface AaveConfig {
   vaultBtcAddress: string;
   /** BTCVaultRegistry contract address */
   btcVaultRegistryAddress: string;
-  /** Core Spoke contract address (for user lending positions) */
-  btcVaultCoreSpokeAddress: string;
+  /** Core Spoke contract address (resolved on-chain from adapter) */
+  coreSpokeAddress: Address;
   /** vBTC reserve ID on Core Spoke */
   btcVaultCoreVbtcReserveId: bigint;
 }
@@ -102,7 +103,6 @@ interface GraphQLAaveAppConfigResponse {
     adapterAddress: string;
     vaultBtcAddress: string;
     btcVaultRegistryAddress: string;
-    btcVaultCoreSpokeAddress: string;
     btcVaultCoreVbtcReserveId: string;
   } | null;
   /** All reserves (we filter for vBTC and borrowable in code) */
@@ -123,7 +123,6 @@ const GET_AAVE_APP_CONFIG = gql`
       adapterAddress
       vaultBtcAddress
       btcVaultRegistryAddress
-      btcVaultCoreSpokeAddress
       btcVaultCoreVbtcReserveId
     }
     aaveReserves {
@@ -203,11 +202,16 @@ export async function fetchAaveAppConfig(): Promise<AaveAppConfig | null> {
 
   const vbtcReserveId = BigInt(response.aaveConfig.btcVaultCoreVbtcReserveId);
 
+  // Resolve spoke address on-chain from the trusted adapter contract,
+  // rather than relying on the untrusted GraphQL indexer (audit v2 #46).
+  const adapterAddress = response.aaveConfig.adapterAddress as Address;
+  const coreSpokeAddress = await getCoreSpokeAddress(adapterAddress);
+
   const config: AaveConfig = {
     adapterAddress: response.aaveConfig.adapterAddress,
     vaultBtcAddress: response.aaveConfig.vaultBtcAddress,
     btcVaultRegistryAddress: response.aaveConfig.btcVaultRegistryAddress,
-    btcVaultCoreSpokeAddress: response.aaveConfig.btcVaultCoreSpokeAddress,
+    coreSpokeAddress,
     btcVaultCoreVbtcReserveId: vbtcReserveId,
   };
 
@@ -236,52 +240,5 @@ export async function fetchAaveAppConfig(): Promise<AaveAppConfig | null> {
     config,
     vbtcReserve,
     borrowableReserves,
-  };
-}
-
-/** GraphQL response shape for config only */
-interface GraphQLAaveConfigResponse {
-  aaveConfig: {
-    id: number;
-    adapterAddress: string;
-    vaultBtcAddress: string;
-    btcVaultRegistryAddress: string;
-    btcVaultCoreSpokeAddress: string;
-    btcVaultCoreVbtcReserveId: string;
-  } | null;
-}
-
-const GET_AAVE_CONFIG = gql`
-  query GetAaveConfig {
-    aaveConfig(id: ${AAVE_CONFIG_ID}) {
-      id
-      adapterAddress
-      vaultBtcAddress
-      btcVaultRegistryAddress
-      btcVaultCoreSpokeAddress
-      btcVaultCoreVbtcReserveId
-    }
-  }
-`;
-
-/**
- * Fetches Aave configuration from the GraphQL indexer.
- */
-export async function fetchAaveConfig(): Promise<AaveConfig | null> {
-  const response =
-    await graphqlClient.request<GraphQLAaveConfigResponse>(GET_AAVE_CONFIG);
-
-  if (!response.aaveConfig) {
-    return null;
-  }
-
-  return {
-    adapterAddress: response.aaveConfig.adapterAddress,
-    vaultBtcAddress: response.aaveConfig.vaultBtcAddress,
-    btcVaultRegistryAddress: response.aaveConfig.btcVaultRegistryAddress,
-    btcVaultCoreSpokeAddress: response.aaveConfig.btcVaultCoreSpokeAddress,
-    btcVaultCoreVbtcReserveId: BigInt(
-      response.aaveConfig.btcVaultCoreVbtcReserveId,
-    ),
   };
 }
