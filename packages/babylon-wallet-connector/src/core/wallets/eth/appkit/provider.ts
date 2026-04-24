@@ -16,9 +16,15 @@ import {
 import { walletConnect } from "wagmi/connectors";
 
 import type { ETHConfig, ETHTransactionRequest, ETHTypedData, IETHProvider, NetworkInfo } from "@/core/types";
+import { getAppKitModal } from "@/core/wallets/appkit/appKitModal";
 import { APPKIT_OPEN_EVENT } from "@/core/wallets/appkit/constants";
 
 import { getSharedWagmiConfig, hasSharedWagmiConfig } from "./sharedConfig";
+
+// Grace period after modal close before rejecting as cancelled, to allow
+// async handoffs (WalletConnect deep-link, mobile wallet return) to publish
+// the connected account via watchAccount before we treat the close as a cancel.
+const MODAL_CLOSE_CANCEL_GRACE_MS = 1500;
 
 /**
  * AppKitProvider - ETH wallet provider using AppKit/Wagmi
@@ -121,25 +127,68 @@ export class AppKitProvider implements IETHProvider {
 
       // Open AppKit modal for manual connection
       if (typeof window !== "undefined") {
-        window.dispatchEvent(new CustomEvent(APPKIT_OPEN_EVENT));
-
         const waitForConnection = new Promise<void>((resolve, reject) => {
-          const timeout = setTimeout(() => {
+          let modalHasOpened = false;
+          let pendingCancellation: ReturnType<typeof setTimeout> | undefined;
+
+          const cleanup = () => {
+            clearTimeout(timeout);
+            if (pendingCancellation) clearTimeout(pendingCancellation);
             unwatch();
+            unsubscribeModal?.();
+          };
+
+          const timeout = setTimeout(() => {
+            cleanup();
             reject(new Error("Connection timeout"));
           }, 60000);
 
           const unwatch = watchAccount(config, {
             onChange: (account) => {
               if (account.address) {
-                clearTimeout(timeout);
-                unwatch();
                 this.address = account.address;
                 this.chainId = account.chainId;
+                cleanup();
                 resolve();
               }
             },
           });
+
+          const modal = getAppKitModal();
+          const unsubscribeModal = modal?.subscribeState((state) => {
+            if (state.open) {
+              modalHasOpened = true;
+              if (pendingCancellation) {
+                clearTimeout(pendingCancellation);
+                pendingCancellation = undefined;
+              }
+            } else if (modalHasOpened) {
+              const currentAccount = getAccount(config);
+              if (currentAccount.address) {
+                this.address = currentAccount.address;
+                this.chainId = currentAccount.chainId;
+                cleanup();
+                resolve();
+                return;
+              }
+              // Defer rejection so async handoffs (WalletConnect deep-link) can
+              // still publish the connected account before we treat the close as a cancel.
+              pendingCancellation = setTimeout(() => {
+                const latestAccount = getAccount(config);
+                if (latestAccount.address) {
+                  this.address = latestAccount.address;
+                  this.chainId = latestAccount.chainId;
+                  cleanup();
+                  resolve();
+                } else {
+                  cleanup();
+                  reject(new Error("Connection cancelled"));
+                }
+              }, MODAL_CLOSE_CANCEL_GRACE_MS);
+            }
+          });
+
+          window.dispatchEvent(new CustomEvent(APPKIT_OPEN_EVENT));
         });
 
         await waitForConnection;
