@@ -205,7 +205,15 @@ export async function fetchAaveAppConfig(): Promise<AaveAppConfig | null> {
   // Resolve spoke address on-chain from the trusted adapter contract,
   // rather than relying on the untrusted GraphQL indexer
   const adapterAddress = response.aaveConfig.adapterAddress as Address;
-  const coreSpokeAddress = await getCoreSpokeAddress(adapterAddress);
+  let coreSpokeAddress: Address;
+  try {
+    coreSpokeAddress = await getCoreSpokeAddress(adapterAddress);
+  } catch (error) {
+    throw new Error(
+      `Failed to resolve Core Spoke address from adapter ${adapterAddress}`,
+      { cause: error },
+    );
+  }
 
   const config: AaveConfig = {
     adapterAddress: response.aaveConfig.adapterAddress,
