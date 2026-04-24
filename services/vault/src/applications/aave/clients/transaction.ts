@@ -81,7 +81,7 @@ async function executeTx(
   data: Hex,
   errorContext: string,
 ): Promise<TransactionResult> {
-  // Reject if the wallet is connected to the wrong chain (audit v2 #44).
+  // Reject if the wallet is connected to the wrong chain
   const expectedChainId = getETHChain().id;
   if (chain.id !== expectedChainId) {
     throw new Error(

@@ -203,7 +203,7 @@ export async function fetchAaveAppConfig(): Promise<AaveAppConfig | null> {
   const vbtcReserveId = BigInt(response.aaveConfig.btcVaultCoreVbtcReserveId);
 
   // Resolve spoke address on-chain from the trusted adapter contract,
-  // rather than relying on the untrusted GraphQL indexer (audit v2 #46).
+  // rather than relying on the untrusted GraphQL indexer
   const adapterAddress = response.aaveConfig.adapterAddress as Address;
   const coreSpokeAddress = await getCoreSpokeAddress(adapterAddress);
 
