@@ -113,6 +113,22 @@ describe("WOTS block derivation (SDK)", () => {
       expect(a).toEqual(b);
     });
 
+    it("normalizes vaultId and depositorPk case", async () => {
+      const a = await deriveWotsBlockPublicKeys(
+        freshSeed(),
+        "0xDEADBEEF",
+        "0xABCDEF",
+        "0x1234",
+      );
+      const b = await deriveWotsBlockPublicKeys(
+        freshSeed(),
+        "0xdeadbeef",
+        "0xabcdef",
+        "0x1234",
+      );
+      expect(a).toEqual(b);
+    });
+
     it("normalizes appContractAddress case (EIP-55 checksummed vs lowercase)", async () => {
       const a = await deriveWotsBlockPublicKeys(
         freshSeed(),

@@ -267,8 +267,8 @@ export async function deriveWotsBlockPublicKeys(
     );
   }
 
-  const cleanVaultId = stripHexPrefix(vaultId);
-  const cleanDepositorPk = stripHexPrefix(depositorPk);
+  const cleanVaultId = stripHexPrefix(vaultId).toLowerCase();
+  const cleanDepositorPk = stripHexPrefix(depositorPk).toLowerCase();
 
   const chainCode = seed.slice(KEY_SIZE, SEED_SIZE);
   const parentKey = seed.slice(0, KEY_SIZE);
