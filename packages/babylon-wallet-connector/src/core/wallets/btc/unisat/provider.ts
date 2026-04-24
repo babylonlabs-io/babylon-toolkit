@@ -126,6 +126,11 @@ export class UnisatProvider implements IBTCProvider {
       // If signInputs is provided, use it directly instead of auto-generating
       // This allows callers to specify exactly which inputs to sign
       if (options?.signInputs && options.signInputs.length > 0) {
+        // UniSat's native field is `useTweakedSigner`; unlike OKX/OneKey/AppKit we
+        // intentionally do NOT forward `disableTweakSigner`. `mapSignInputsToToSignInputs`
+        // forwards both fields to cover older OKX versions that only understood the
+        // legacy field — UniSat has always understood `useTweakedSigner`, so the
+        // legacy field would be noise here.
         signOptions = {
           autoFinalized: options.autoFinalized ?? false,
           toSignInputs: options.signInputs.map((input) => {
@@ -179,7 +184,8 @@ export class UnisatProvider implements IBTCProvider {
       const signOptions = psbtsHexes.map((psbtHex, index) => {
         const option = options?.[index];
 
-        // If signInputs is provided, convert to toSignInputs format (like signPsbt does)
+        // If signInputs is provided, convert to toSignInputs format (like signPsbt does).
+        // Forwards only `useTweakedSigner` — see the note in signPsbt above.
         if (option?.signInputs && option.signInputs.length > 0) {
           return {
             autoFinalized: option.autoFinalized ?? false,

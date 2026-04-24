@@ -19,6 +19,7 @@ interface AppKitSignInput {
   sighashTypes: number[];
   publicKey?: string;
   useTweakedSigner?: boolean;
+  /** @deprecated Forwarded in sync with `useTweakedSigner` for older wallets only. */
   disableTweakSigner?: boolean;
 }
 
