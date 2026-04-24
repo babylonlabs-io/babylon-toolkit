@@ -3,8 +3,9 @@ import { describe, expect, it } from "vitest";
 import {
   computeWotsBlockPublicKeysHash,
   deriveWotsBlockPublicKeys,
+  mnemonicToWotsSeed,
 } from "../blockDerivation";
-import { mnemonicToWotsSeed } from "../blockDerivation";
+import { deriveWotsPkHash } from "../deriveWotsPkHash";
 
 const KNOWN_MNEMONIC =
   "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
@@ -322,6 +323,19 @@ describe("WOTS block derivation (SDK)", () => {
       expect(() => computeWotsBlockPublicKeysHash([badBlock])).toThrow(
         "invalid byte value -1",
       );
+    });
+
+    it("deriveWotsPkHash produces a pinned digest for known inputs", async () => {
+      const PINNED =
+        "0x59a29c3eeba687882db6388e7e27ab6b94ab96371e812c36e037dfa1b270c9ac";
+
+      const hash = await deriveWotsPkHash(
+        KNOWN_MNEMONIC,
+        "vault-1",
+        "pk-abc",
+        "0x1234",
+      );
+      expect(hash).toBe(PINNED);
     });
 
     it("rejects blocks with wrong checksum terminal length", () => {
