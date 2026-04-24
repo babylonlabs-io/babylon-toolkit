@@ -65,6 +65,7 @@ const VALID_LOCAL_STORAGE_STATUSES: ReadonlySet<string> = new Set([
   "payout_signed",
   "confirming",
   "confirmed",
+  "refund_broadcast",
 ]);
 // Vault `id` is keccak256(abi.encode(peginTxHash, depositor)) — always 32 bytes.
 // `peginTxHash` is a Bitcoin tx hash — also 32 bytes. Accept the legacy form

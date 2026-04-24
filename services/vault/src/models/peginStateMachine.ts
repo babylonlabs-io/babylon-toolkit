@@ -37,6 +37,14 @@ export enum OffChainTrackingStatus {
   PAYOUT_SIGNED = "payout_signed",
   CONFIRMING = "confirming",
   CONFIRMED = "confirmed",
+  /**
+   * Depositor has broadcast a BTC refund tx for an EXPIRED vault. Used to
+   * suppress the Refund button and surface a "Refunding" status until the
+   * indexer detects the HTLC spend and the contract transitions to
+   * DEPOSITOR_WITHDRAWN — at which point the contract becomes the source
+   * of truth again and the local marker is cleaned up.
+   */
+  REFUND_BROADCAST = "refund_broadcast",
 }
 
 export const LocalStorageStatus = OffChainTrackingStatus;
@@ -81,6 +89,7 @@ export const PEGIN_DISPLAY_LABELS = {
   REDEEMED: "Redeemed",
   LIQUIDATED: "Liquidated",
   EXPIRED: "Expired",
+  REFUNDING: "Refunding",
   FAILED: "Failed",
   INVALID: "Invalid",
   UNKNOWN: "Unknown",
@@ -238,6 +247,10 @@ function applyTrackingOverrides(
     if (localStatus === LocalStorageStatus.CONFIRMED) return [];
   }
 
+  if (contractStatus === ContractStatus.EXPIRED) {
+    if (localStatus === LocalStorageStatus.REFUND_BROADCAST) return [];
+  }
+
   return sdkActions;
 }
 
@@ -370,6 +383,14 @@ function getDisplay(
   }
 
   if (contractStatus === ContractStatus.EXPIRED) {
+    if (localStatus === LocalStorageStatus.REFUND_BROADCAST) {
+      return {
+        displayLabel: PEGIN_DISPLAY_LABELS.REFUNDING,
+        displayVariant: "pending",
+        message:
+          "Refund transaction broadcast to Bitcoin. Waiting for on-chain confirmation...",
+      };
+    }
     return {
       displayLabel: PEGIN_DISPLAY_LABELS.EXPIRED,
       displayVariant: "warning",
@@ -455,6 +476,17 @@ export function shouldRemoveFromLocalStorage(
   contractStatus: ContractStatus,
   localStatus: LocalStorageStatus,
 ): boolean {
+  // Keep the REFUND_BROADCAST marker while contract is still EXPIRED so the
+  // Refund button stays hidden across page reloads. Once the indexer detects
+  // the HTLC spend the contract moves to DEPOSITOR_WITHDRAWN and the blanket
+  // terminal-status check below cleans up the entry.
+  if (
+    contractStatus === ContractStatus.EXPIRED &&
+    localStatus === LocalStorageStatus.REFUND_BROADCAST
+  ) {
+    return false;
+  }
+
   if (
     contractStatus === ContractStatus.ACTIVE ||
     contractStatus === ContractStatus.REDEEMED ||

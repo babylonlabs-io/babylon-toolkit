@@ -22,7 +22,6 @@ import { useETHWallet } from "@/context/wallet";
 import { submitWotsPublicKey } from "@/hooks/deposit/depositFlowSteps/wotsSubmission";
 import { useActivationState } from "@/hooks/deposit/useActivationState";
 import { useBroadcastState } from "@/hooks/deposit/useBroadcastState";
-import { useRefundState } from "@/hooks/deposit/useRefundState";
 import { useRunOnce } from "@/hooks/useRunOnce";
 import { fetchVaultById } from "@/services/vault/fetchVaults";
 import {
@@ -434,62 +433,5 @@ export function ResumeActivationContent({
         </Button>
       </div>
     </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Refund HTLC Content
-// ---------------------------------------------------------------------------
-
-export interface ResumeRefundContentProps {
-  activity: VaultActivity;
-  onClose: () => void;
-  onSuccess: () => void;
-}
-
-export function ResumeRefundContent({
-  activity,
-  onClose,
-  onSuccess,
-}: ResumeRefundContentProps) {
-  const { refunding, refundTxId, error, handleRefund } = useRefundState({
-    activity,
-  });
-
-  useRunOnce(handleRefund);
-
-  const hasSucceeded = !!refundTxId && !refunding;
-  const isComplete = hasSucceeded;
-  const canClose = hasSucceeded || !!error;
-  const isProcessing = refunding && !error;
-
-  // When the refund succeeds, the user closes the dialog themselves after
-  // seeing the confirmation. We call onSuccess() at that point so the parent
-  // refetches activities only after the user has acknowledged the result.
-  const handleClose = () => {
-    if (isComplete) {
-      onSuccess();
-    }
-    onClose();
-  };
-
-  return (
-    <DepositProgressView
-      currentStep={DepositFlowStep.BROADCAST_PRE_PEGIN}
-      isWaiting={false}
-      error={error}
-      isComplete={isComplete}
-      isProcessing={isProcessing}
-      canClose={canClose}
-      canContinueInBackground={false}
-      payoutSigningProgress={null}
-      onClose={handleClose}
-      successMessage={
-        refundTxId
-          ? `Refund transaction broadcast successfully. Transaction ID: ${refundTxId}`
-          : "Your refund transaction has been broadcast to Bitcoin."
-      }
-      onRetry={error ? handleRefund : undefined}
-    />
   );
 }

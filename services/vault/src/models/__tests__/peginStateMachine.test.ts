@@ -282,6 +282,16 @@ describe("peginStateMachine", () => {
       const state = getPeginState(ContractStatus.EXPIRED);
       expect(state.availableActions).toEqual([PeginAction.NONE]);
     });
+
+    it("hides refund action and flips label to Refunding after the user has broadcast a refund", () => {
+      const state = getPeginState(ContractStatus.EXPIRED, {
+        canRefund: true,
+        localStatus: LocalStorageStatus.REFUND_BROADCAST,
+      });
+      expect(state.availableActions).toEqual([PeginAction.NONE]);
+      expect(state.displayLabel).toBe(PEGIN_DISPLAY_LABELS.REFUNDING);
+      expect(state.displayVariant).toBe("pending");
+    });
   });
 
   // ==========================================================================
@@ -416,6 +426,24 @@ describe("peginStateMachine", () => {
           LocalStorageStatus.CONFIRMING,
         ),
       ).toBe(false);
+    });
+
+    it("keeps REFUND_BROADCAST while contract is still EXPIRED", () => {
+      expect(
+        shouldRemoveFromLocalStorage(
+          ContractStatus.EXPIRED,
+          LocalStorageStatus.REFUND_BROADCAST,
+        ),
+      ).toBe(false);
+    });
+
+    it("removes REFUND_BROADCAST once contract reaches DEPOSITOR_WITHDRAWN", () => {
+      expect(
+        shouldRemoveFromLocalStorage(
+          ContractStatus.DEPOSITOR_WITHDRAWN,
+          LocalStorageStatus.REFUND_BROADCAST,
+        ),
+      ).toBe(true);
     });
   });
 });

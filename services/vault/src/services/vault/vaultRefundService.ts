@@ -45,6 +45,56 @@ export interface BroadcastRefundParams {
   };
   /** Depositor's BTC public key (compressed or x-only hex) for signing options */
   depositorBtcPubkey: string;
+  /**
+   * sat/vB fee rate to use for the refund tx. Caller chooses (defaults to
+   * mempool's `halfHourFee` in the UI; user can edit it before confirming).
+   */
+  feeRate: number;
+}
+
+/**
+ * Conservative upper bound on the refund tx vsize. Mirrors `REFUND_VSIZE = 160`
+ * in `@babylonlabs-io/ts-sdk/.../buildAndBroadcastRefund.ts`. Kept here so the
+ * UI can compute the network fee for the review card without invoking the
+ * broadcast path. Keep these two constants in lock-step.
+ */
+const REFUND_VSIZE_BYTES = 160;
+
+/**
+ * Network fee (sats) for the refund tx at the given sat/vB rate.
+ * Pure helper used by the review card to derive `BTC Network Fee` and
+ * `You'll receive` from a user-edited fee rate.
+ */
+export function getRefundNetworkFeeSats(feeRateSatsVb: number): bigint {
+  if (!Number.isFinite(feeRateSatsVb) || feeRateSatsVb <= 0) {
+    throw new Error(
+      `feeRateSatsVb must be a positive finite number, got ${feeRateSatsVb}`,
+    );
+  }
+  return BigInt(Math.ceil(feeRateSatsVb * REFUND_VSIZE_BYTES));
+}
+
+export interface RefundPreview {
+  /** Pre-PegIn HTLC output value being refunded, in sats. */
+  amountSats: bigint;
+  /** Mempool's recommended sat/vB rate for ~30-min confirmation. */
+  halfHourFeeSatsVb: number;
+}
+
+/**
+ * Fetch the data needed to render the Review Refund card: the HTLC output
+ * value (refund amount) and the current mempool half-hour fee rate.
+ */
+export async function getRefundPreview(vaultId: Hex): Promise<RefundPreview> {
+  const mempoolApiUrl = getMempoolApiUrl();
+  const [vault, { halfHourFee }] = await Promise.all([
+    readVault(vaultId),
+    getNetworkFees(mempoolApiUrl),
+  ]);
+  return {
+    amountSats: vault.amount,
+    halfHourFeeSatsVb: halfHourFee,
+  };
 }
 
 async function readVault(vaultId: Hex): Promise<VaultRefundData> {
@@ -150,12 +200,8 @@ async function readPrePeginContext(
 export async function buildAndBroadcastRefundTransaction(
   params: BroadcastRefundParams,
 ): Promise<string> {
-  const { vaultId, btcWalletProvider, depositorBtcPubkey } = params;
+  const { vaultId, btcWalletProvider, depositorBtcPubkey, feeRate } = params;
   const mempoolApiUrl = getMempoolApiUrl();
-
-  // Pre-fetch the mempool fee rate — it doesn't depend on any value the SDK
-  // computes, so passing it in keeps the SDK's orchestration honest.
-  const { halfHourFee } = await getNetworkFees(mempoolApiUrl);
 
   // Override indexer-provided depositor pubkey with the caller's wallet key —
   // the wallet is the authoritative source for the depositor's signing key.
@@ -166,7 +212,7 @@ export async function buildAndBroadcastRefundTransaction(
       return { ...data, depositorBtcPubkey };
     },
     readPrePeginContext: (vault) => readPrePeginContext(vault),
-    feeRate: halfHourFee,
+    feeRate,
     signPsbt: (psbtHex, options) =>
       btcWalletProvider.signPsbt(psbtHex, options),
     broadcastTx: async (signedTxHex) => ({
