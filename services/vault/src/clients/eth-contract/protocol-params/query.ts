@@ -28,6 +28,8 @@ export interface TBVProtocolParams {
   maxPegInAmount: bigint;
   pegInAckTimeout: bigint;
   pegInActivationTimeout: bigint;
+  /** Upper bound on HTLC outputs per Pre-PegIn tx (uint8 on-chain). */
+  maxHtlcOutputCount: number;
 }
 
 /**
@@ -46,6 +48,10 @@ export interface VersionedOffchainParams {
   tRefund: number;
   tStale: number;
   minPeginFeeRate: bigint;
+  /** Prover program (ELF) version selector (uint16 on-chain). */
+  proverProgramVersion: number;
+  /** Minimum BTC confirmations before ACK signing (uint32 on-chain). */
+  minPrepeginDepth: number;
 }
 
 /**
@@ -60,6 +66,8 @@ export interface PegInConfiguration {
   pegInAckTimeout: bigint;
   /** Timeout for pegin activation in ETH blocks */
   pegInActivationTimeout: bigint;
+  /** Upper bound on HTLC outputs per Pre-PegIn tx */
+  maxHtlcOutputCount: number;
   /** CSV timelock in blocks for the PegIn vault output (from offchain params) */
   timelockPegin: number;
   /** CSV timelock in blocks for the Pre-PegIn HTLC refund path (from offchain params tRefund) */
@@ -146,6 +154,7 @@ export async function getTBVProtocolParams(): Promise<TBVProtocolParams> {
     maxPegInAmount: result.maxPegInAmount,
     pegInAckTimeout: result.pegInAckTimeout,
     pegInActivationTimeout: result.pegInActivationTimeout,
+    maxHtlcOutputCount: result.maxHtlcOutputCount,
   };
 }
 
@@ -209,6 +218,7 @@ export async function getPegInConfiguration(): Promise<PegInConfiguration> {
     maxPegInAmount: params.maxPegInAmount,
     pegInAckTimeout: params.pegInAckTimeout,
     pegInActivationTimeout: params.pegInActivationTimeout,
+    maxHtlcOutputCount: params.maxHtlcOutputCount,
     timelockPegin,
     timelockRefund,
     minVpCommissionBps: offchainParams.minVpCommissionBps,

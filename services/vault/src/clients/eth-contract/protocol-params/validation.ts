@@ -76,6 +76,26 @@ export function validateOffchainParams(params: VersionedOffchainParams): void {
     );
   }
 
+  if (
+    !Number.isInteger(params.proverProgramVersion) ||
+    params.proverProgramVersion < 0 ||
+    params.proverProgramVersion > 65535
+  ) {
+    errors.push(
+      `proverProgramVersion must be a uint16, got ${params.proverProgramVersion}`,
+    );
+  }
+
+  if (
+    !Number.isInteger(params.minPrepeginDepth) ||
+    params.minPrepeginDepth <= 0 ||
+    params.minPrepeginDepth > 4_294_967_295
+  ) {
+    errors.push(
+      `minPrepeginDepth must be a uint32 in [1, 4294967295], got ${params.minPrepeginDepth}`,
+    );
+  }
+
   if (params.babeTotalInstances <= 0) {
     errors.push(
       `babeTotalInstances must be positive, got ${params.babeTotalInstances}`,
@@ -136,6 +156,16 @@ export function validateTBVProtocolParams(params: TBVProtocolParams): void {
   if (params.pegInActivationTimeout <= 0n) {
     errors.push(
       `pegInActivationTimeout must be positive, got ${params.pegInActivationTimeout}`,
+    );
+  }
+
+  if (
+    !Number.isInteger(params.maxHtlcOutputCount) ||
+    params.maxHtlcOutputCount <= 0 ||
+    params.maxHtlcOutputCount > 255
+  ) {
+    errors.push(
+      `maxHtlcOutputCount must be an integer in [1, 255], got ${params.maxHtlcOutputCount}`,
     );
   }
 
