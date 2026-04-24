@@ -75,9 +75,10 @@ function verifyAndParsePsbt(
  * Sanitize a parsed PSBT for Taproot script-path signing.
  *
  * VP-provided PSBTs include tapBip32Derivation and tapMerkleRoot metadata
- * that causes some wallets (notably OKX) to ignore disableTweakSigner and
- * sign with a tweaked key. Stripping these fields forces the wallet to
- * rely solely on tapLeafScript for script-path signing.
+ * that causes some wallets (notably OKX) to ignore the tweak-signer
+ * directive (`useTweakedSigner` / legacy `disableTweakSigner`) and sign
+ * with a tweaked key. Stripping these fields forces the wallet to rely
+ * solely on tapLeafScript for script-path signing.
  */
 function sanitizePsbtForScriptPathSigning(psbt: Psbt): Psbt {
   const clone = Psbt.fromHex(psbt.toHex());
@@ -120,11 +121,6 @@ function collectDepositorGraphPsbts(
   const signOptions: SignPsbtOptions[] = [];
   const challengerEntries: ChallengerEntry[] = [];
 
-  const singleInputOpts = createTaprootScriptPathSignOptions(
-    walletPublicKey,
-    SINGLE_PSBT_INPUT_COUNT,
-  );
-
   // Index 0: Payout PSBT
   const payoutHex = validateAndConvertPsbt(
     depositorGraph.payout_psbt,
@@ -132,7 +128,9 @@ function collectDepositorGraphPsbts(
     "depositor payout",
   );
   psbtHexes.push(payoutHex);
-  signOptions.push(singleInputOpts);
+  signOptions.push(
+    createTaprootScriptPathSignOptions(walletPublicKey, SINGLE_PSBT_INPUT_COUNT),
+  );
 
   // Per-challenger: 1 NoPayout
   for (const challenger of depositorGraph.challenger_presign_data) {
@@ -145,7 +143,9 @@ function collectDepositorGraphPsbts(
       `nopayout (challenger ${challengerPubkey})`,
     );
     psbtHexes.push(noPayoutHex);
-    signOptions.push(singleInputOpts);
+    signOptions.push(
+      createTaprootScriptPathSignOptions(walletPublicKey, SINGLE_PSBT_INPUT_COUNT),
+    );
 
     challengerEntries.push({
       challengerPubkey,

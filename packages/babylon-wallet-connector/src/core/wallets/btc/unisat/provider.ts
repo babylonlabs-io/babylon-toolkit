@@ -4,6 +4,7 @@ import { isAccountChangeEvent, DISCONNECT_EVENT, removeProviderListener } from "
 import type { BTCConfig, IBTCProvider, InscriptionIdentifier, SignPsbtOptions, WalletInfo } from "@/core/types";
 import { Network } from "@/core/types";
 import { initBTCCurve } from "@/core/utils/initBTCCurve";
+import { resolveUseTweakedSigner } from "@/core/utils/psbtOptionsMapper";
 import { ERROR_CODES, WalletError } from "@/error";
 
 import logo from "./logo.svg";
@@ -125,15 +126,23 @@ export class UnisatProvider implements IBTCProvider {
       // If signInputs is provided, use it directly instead of auto-generating
       // This allows callers to specify exactly which inputs to sign
       if (options?.signInputs && options.signInputs.length > 0) {
+        // UniSat's native field is `useTweakedSigner`; unlike OKX/OneKey/AppKit we
+        // intentionally do NOT forward `disableTweakSigner`. `mapSignInputsToToSignInputs`
+        // forwards both fields to cover older OKX versions that only understood the
+        // legacy field — UniSat has always understood `useTweakedSigner`, so the
+        // legacy field would be noise here.
         signOptions = {
           autoFinalized: options.autoFinalized ?? false,
-          toSignInputs: options.signInputs.map((input) => ({
-            index: input.index,
-            publicKey: input.publicKey,
-            address: input.address,
-            sighashTypes: input.sighashTypes,
-            useTweakedSigner: input.disableTweakSigner === true ? false : undefined,
-          })),
+          toSignInputs: options.signInputs.map((input) => {
+            const useTweakedSigner = resolveUseTweakedSigner(input);
+            return {
+              index: input.index,
+              publicKey: input.publicKey,
+              address: input.address,
+              sighashTypes: input.sighashTypes,
+              ...(useTweakedSigner !== undefined && { useTweakedSigner }),
+            };
+          }),
         };
       } else {
         // Default behavior: auto-generate toSignInputs for all unsigned inputs
@@ -175,17 +184,21 @@ export class UnisatProvider implements IBTCProvider {
       const signOptions = psbtsHexes.map((psbtHex, index) => {
         const option = options?.[index];
 
-        // If signInputs is provided, convert to toSignInputs format (like signPsbt does)
+        // If signInputs is provided, convert to toSignInputs format (like signPsbt does).
+        // Forwards only `useTweakedSigner` — see the note in signPsbt above.
         if (option?.signInputs && option.signInputs.length > 0) {
           return {
             autoFinalized: option.autoFinalized ?? false,
-            toSignInputs: option.signInputs.map((input) => ({
-              index: input.index,
-              publicKey: input.publicKey,
-              address: input.address,
-              sighashTypes: input.sighashTypes,
-              useTweakedSigner: input.disableTweakSigner === true ? false : undefined,
-            })),
+            toSignInputs: option.signInputs.map((input) => {
+              const useTweakedSigner = resolveUseTweakedSigner(input);
+              return {
+                index: input.index,
+                publicKey: input.publicKey,
+                address: input.address,
+                sighashTypes: input.sighashTypes,
+                ...(useTweakedSigner !== undefined && { useTweakedSigner }),
+              };
+            }),
           };
         }
 

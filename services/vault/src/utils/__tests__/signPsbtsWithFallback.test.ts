@@ -42,11 +42,11 @@ describe("signPsbtsWithFallback", () => {
     const options = [
       {
         autoFinalized: false,
-        signInputs: [{ index: 0, disableTweakSigner: true }],
+        signInputs: [{ index: 0, useTweakedSigner: false }],
       },
       {
         autoFinalized: false,
-        signInputs: [{ index: 0, disableTweakSigner: true }],
+        signInputs: [{ index: 0, useTweakedSigner: false }],
       },
     ];
 
