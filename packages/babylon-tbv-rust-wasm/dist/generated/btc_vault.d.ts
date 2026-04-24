@@ -415,7 +415,7 @@ export class WasmPrePeginTx {
      * * `council_size` - N in M-of-N council multisig (from contract params)
      * * `network` - Network name: "mainnet", "testnet", "regtest", or "signet"
      */
-    constructor(depositor: string, vault_provider: string, vault_keepers: string[], universal_challengers: string[], hashlocks: string[], pegin_amounts: BigUint64Array, timelock_refund: number, fee_rate: bigint, num_local_challengers: number, council_quorum: number, council_size: number, network: string);
+    constructor(depositor: string, vault_provider: string, vault_keepers: string[], universal_challengers: string[], hashlocks: string[], pegin_amounts: BigUint64Array, timelock_refund: number, fee_rate: bigint, num_local_challengers: number, council_quorum: number, council_size: number, network: string, auth_anchor_hash?: string | null);
     /**
      * Returns the transaction as hex-encoded bytes.
      */
@@ -659,7 +659,7 @@ export interface InitOutput {
     readonly wasmprepegintx_getNumHtlcs: (a: number) => number;
     readonly wasmprepegintx_getPeginAmountAt: (a: number, b: number) => [bigint, number, number];
     readonly wasmprepegintx_getTxid: (a: number) => [number, number];
-    readonly wasmprepegintx_new: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number, m: number, n: bigint, o: number, p: number, q: number, r: number, s: number) => [number, number, number];
+    readonly wasmprepegintx_new: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number, m: number, n: bigint, o: number, p: number, q: number, r: number, s: number, t: number, u: number) => [number, number, number];
     readonly wasmprepegintx_toHex: (a: number) => [number, number];
     readonly init_panic_hook: () => void;
     readonly rustsecp256k1_v0_10_0_context_create: (a: number) => number;

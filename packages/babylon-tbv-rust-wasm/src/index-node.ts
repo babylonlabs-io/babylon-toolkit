@@ -48,7 +48,25 @@ export async function initWasm(): Promise<void> {
 export async function createPrePeginTransaction(
   params: PrePeginParams,
 ): Promise<PrePeginResult> {
-  const tx = new WasmPrePeginTx(
+  // The 13th positional arg `auth_anchor_hash` is an Option<String> in
+  // Rust — pass `undefined` for Pre-PegIns that do not commit an auth
+  // anchor. Requires a WASM build from a btc-vault commit ≥ 1ced81e5
+  // (btc-vault #1516).
+  const tx = new (WasmPrePeginTx as unknown as new (
+    depositor: string,
+    vault_provider: string,
+    vault_keepers: string[],
+    universal_challengers: string[],
+    hashlocks: string[],
+    pegin_amounts: BigUint64Array,
+    timelock_refund: number,
+    fee_rate: bigint,
+    num_local_challengers: number,
+    council_quorum: number,
+    council_size: number,
+    network: string,
+    auth_anchor_hash?: string,
+  ) => typeof WasmPrePeginTx.prototype)(
     params.depositorPubkey,
     params.vaultProviderPubkey,
     params.vaultKeeperPubkeys,
@@ -61,6 +79,7 @@ export async function createPrePeginTransaction(
     params.councilQuorum,
     params.councilSize,
     params.network,
+    params.authAnchorHash,
   );
 
   try {
@@ -97,7 +116,21 @@ export async function buildPeginTxFromPrePegin(
   fundedPrePeginTxHex: string,
   htlcVout: number,
 ): Promise<PeginTxResult> {
-  const unfundedTx = new WasmPrePeginTx(
+  const unfundedTx = new (WasmPrePeginTx as unknown as new (
+    depositor: string,
+    vault_provider: string,
+    vault_keepers: string[],
+    universal_challengers: string[],
+    hashlocks: string[],
+    pegin_amounts: BigUint64Array,
+    timelock_refund: number,
+    fee_rate: bigint,
+    num_local_challengers: number,
+    council_quorum: number,
+    council_size: number,
+    network: string,
+    auth_anchor_hash?: string,
+  ) => typeof WasmPrePeginTx.prototype)(
     params.depositorPubkey,
     params.vaultProviderPubkey,
     params.vaultKeeperPubkeys,
@@ -110,6 +143,7 @@ export async function buildPeginTxFromPrePegin(
     params.councilQuorum,
     params.councilSize,
     params.network,
+    params.authAnchorHash,
   );
 
   let fundedTx: WasmPrePeginTx | null = null;

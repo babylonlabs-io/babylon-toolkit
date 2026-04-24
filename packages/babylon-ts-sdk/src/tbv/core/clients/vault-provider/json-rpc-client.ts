@@ -32,6 +32,28 @@ export type JsonRpcResponse<T = unknown> =
   | JsonRpcSuccessResponse<T>
   | JsonRpcErrorResponse;
 
+/**
+ * Injects bearer tokens into requests for auth-gated methods, and is
+ * notified on auth-expired responses so it can invalidate its cache.
+ *
+ * The `JsonRpcClient` is agnostic to which methods are auth-gated —
+ * the provider's `getToken(method)` decides. Returning `null` means
+ * "no auth required for this method"; the client then sends the
+ * request with no `Authorization` header.
+ */
+export interface BearerTokenProvider {
+  /**
+   * Return the bearer token to inject for `method`, or `null` if the
+   * method does not require auth.
+   */
+  getToken(method: string): Promise<string | null>;
+  /**
+   * Drop the cached token. Next call to `getToken` must re-acquire.
+   * Called by the client on reactive-refresh-trigger responses.
+   */
+  invalidate(): void;
+}
+
 export interface JsonRpcClientConfig {
   /** Base URL of the RPC service */
   baseUrl: string;
@@ -49,12 +71,39 @@ export interface JsonRpcClientConfig {
    * Write/mutating methods are NOT retried by default.
    */
   retryableFor?: (method: string) => boolean;
+  /**
+   * Optional bearer-token provider. If set, the client injects
+   * `Authorization: Bearer <token>` for every method the provider
+   * returns a non-null token for (`call` and `callRaw` alike).
+   *
+   * `call` also performs a one-shot reactive refresh when a wire-origin
+   * JSON-RPC error carries `error.data.kind === "auth_expired"` —
+   * it calls `invalidate()`, fetches a fresh token, and retries the
+   * request once. `callRaw` does NOT perform reactive refresh (its
+   * body may be unbounded; we don't parse it).
+   */
+  tokenProvider?: BearerTokenProvider;
 }
+
+/**
+ * Identifies whether an error was produced locally (timeout, network
+ * failure, malformed response) or parsed from a wire-format JSON-RPC
+ * error envelope returned by the server.
+ *
+ * This matters for anyone inspecting the shared `-32001` code: the SDK
+ * uses it internally for network failures AND the server uses it for
+ * auth-middleware rejections. The `source` field disambiguates.
+ */
+export type JsonRpcErrorSource = "wire" | "local";
 
 export class JsonRpcError extends Error {
   constructor(
     public code: number,
     message: string,
+    /** "wire" for server-returned envelopes; "local" for SDK-side failures. */
+    public source: JsonRpcErrorSource = "local",
+    /** Structured data from the server `error.data` field, if any. */
+    public data?: unknown,
   ) {
     super(message);
     this.name = "JsonRpcError";
@@ -103,6 +152,27 @@ function defaultRetryableFor(method: string): boolean {
 }
 
 /**
+ * Token-expired marker the server emits in `error.data.kind`. When
+ * present on a wire-origin error, the client invalidates its cached
+ * token and retries the request once with a freshly-acquired bearer.
+ *
+ * Kept in sync with btc-vault's auth middleware. Absence of the marker
+ * means the server does not support reactive refresh yet; we fall back
+ * to proactive-only refresh via `BearerTokenProvider.getToken()` TTL
+ * checks.
+ */
+const AUTH_EXPIRED_DATA_KIND = "auth_expired";
+
+function isAuthExpiredError(error: unknown): boolean {
+  if (!(error instanceof JsonRpcError)) return false;
+  if (error.source !== "wire") return false;
+  const data = error.data;
+  if (data === null || typeof data !== "object") return false;
+  const kind = (data as { kind?: unknown }).kind;
+  return kind === AUTH_EXPIRED_DATA_KIND;
+}
+
+/**
  * Generic JSON-RPC 2.0 HTTP client with safe retry policy.
  */
 export class JsonRpcClient {
@@ -113,6 +183,7 @@ export class JsonRpcClient {
   private retries: number;
   private retryDelay: number;
   private retryableFor: (method: string) => boolean;
+  private tokenProvider?: BearerTokenProvider;
 
   constructor(config: JsonRpcClientConfig) {
     this.baseUrl = config.baseUrl.replace(/\/$/, "");
@@ -124,10 +195,26 @@ export class JsonRpcClient {
     this.retries = config.retries ?? DEFAULT_RETRY_ATTEMPTS;
     this.retryDelay = config.retryDelay ?? DEFAULT_RETRY_DELAY_MS;
     this.retryableFor = config.retryableFor ?? defaultRetryableFor;
+    this.tokenProvider = config.tokenProvider;
+  }
+
+  private async buildHeaders(method: string): Promise<Record<string, string>> {
+    const headers: Record<string, string> = { ...this.headers };
+    if (this.tokenProvider) {
+      const token = await this.tokenProvider.getToken(method);
+      if (token) {
+        headers.Authorization = `Bearer ${token}`;
+      }
+    }
+    return headers;
   }
 
   /**
    * Make a JSON-RPC request with optional retry for safe methods.
+   *
+   * If the request fails with a wire-origin `auth_expired` error and a
+   * `tokenProvider` is configured, the client invalidates its cached
+   * token and retries the request once with a freshly-acquired bearer.
    *
    * @param method - The RPC method name
    * @param params - The method parameters
@@ -140,6 +227,22 @@ export class JsonRpcClient {
     params: TParams,
     signal?: AbortSignal,
   ): Promise<TResult> {
+    try {
+      return await this.callOnce<TParams, TResult>(method, params, signal);
+    } catch (error) {
+      if (this.tokenProvider && isAuthExpiredError(error)) {
+        this.tokenProvider.invalidate();
+        return await this.callOnce<TParams, TResult>(method, params, signal);
+      }
+      throw error;
+    }
+  }
+
+  private async callOnce<TParams, TResult>(
+    method: string,
+    params: TParams,
+    signal: AbortSignal | undefined,
+  ): Promise<TResult> {
     const response = await this.fetchWithRetry(method, params, signal);
 
     let jsonResponse: unknown;
@@ -149,6 +252,7 @@ export class JsonRpcClient {
       throw new JsonRpcError(
         JSON_RPC_ERROR_CODES.INVALID_RESPONSE,
         "Invalid JSON-RPC response: body is not valid JSON",
+        "local",
       );
     }
 
@@ -160,16 +264,23 @@ export class JsonRpcClient {
       throw new JsonRpcError(
         JSON_RPC_ERROR_CODES.INVALID_RESPONSE,
         `Invalid JSON-RPC response: expected an object, got ${typeof jsonResponse}`,
+        "local",
       );
     }
 
     const rpcResponse = jsonResponse as Record<string, unknown>;
 
     if ("error" in rpcResponse && rpcResponse.error != null) {
-      const err = rpcResponse.error as { code?: number; message?: string };
+      const err = rpcResponse.error as {
+        code?: number;
+        message?: string;
+        data?: unknown;
+      };
       throw new JsonRpcError(
         err.code ?? JSON_RPC_ERROR_CODES.INVALID_RESPONSE,
         err.message ?? "Unknown RPC error",
+        "wire",
+        err.data,
       );
     }
 
@@ -177,6 +288,7 @@ export class JsonRpcClient {
       throw new JsonRpcError(
         JSON_RPC_ERROR_CODES.INVALID_RESPONSE,
         `Invalid JSON-RPC response: missing "result" field`,
+        "local",
       );
     }
 
@@ -185,6 +297,13 @@ export class JsonRpcClient {
 
   /**
    * Make a JSON-RPC request returning the raw Response (unparsed body).
+   *
+   * Bearer tokens are injected identically to `call`. **Reactive refresh
+   * is NOT performed here** — the response body may be unbounded (e.g.
+   * claimer-artifact downloads), so the client refuses to parse it to
+   * detect auth errors. Callers relying on token-expired retries for
+   * large downloads must read the body themselves and re-invoke
+   * `callRaw` after `tokenProvider.invalidate()`.
    */
   async callRaw<TParams>(
     method: string,
@@ -227,9 +346,14 @@ export class JsonRpcClient {
       const signal = merged ? merged.signal : timeoutController.signal;
 
       try {
+        // Build headers per-attempt so the token provider can return a
+        // freshly-acquired bearer after a prior invalidate() on this
+        // request (retry loop path) without plumbing state through.
+        const headers = await this.buildHeaders(method);
+
         const response = await fetch(this.baseUrl, {
           method: "POST",
-          headers: this.headers,
+          headers,
           body,
           signal,
         });
@@ -273,6 +397,7 @@ export class JsonRpcClient {
           throw new JsonRpcError(
             JSON_RPC_ERROR_CODES.TIMEOUT,
             `Request timeout after ${this.timeout}ms (${maxRetries + 1} attempts)`,
+            "local",
           );
         }
 
@@ -286,6 +411,7 @@ export class JsonRpcClient {
           throw new JsonRpcError(
             JSON_RPC_ERROR_CODES.NETWORK,
             `Network error: ${error.message} (${maxRetries + 1} attempts)`,
+            "local",
           );
         }
 
@@ -331,10 +457,7 @@ interface MergedSignal {
  * Returns a cleanup function to remove listeners when the request completes
  * normally, preventing listener accumulation in long-lived polling flows.
  */
-function mergeAbortSignals(
-  a: AbortSignal,
-  b: AbortSignal,
-): MergedSignal {
+function mergeAbortSignals(a: AbortSignal, b: AbortSignal): MergedSignal {
   if (a.aborted) return { signal: a, cleanup: () => {} };
   if (b.aborted) return { signal: b, cleanup: () => {} };
 

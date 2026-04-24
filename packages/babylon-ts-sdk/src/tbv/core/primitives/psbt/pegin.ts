@@ -15,8 +15,8 @@
  */
 
 import {
-  createPrePeginTransaction,
   buildPeginTxFromPrePegin,
+  createPrePeginTransaction,
   type Network,
 } from "@babylonlabs-io/babylon-tbv-rust-wasm";
 
@@ -50,14 +50,43 @@ export interface PrePeginParams {
   councilSize: number;
   /** Bitcoin network */
   network: Network;
+  /**
+   * Optional 32-byte `SHA256(auth_anchor)` commitment (64-char hex, no
+   * `0x` prefix). If provided, the Pre-PegIn tx will include an
+   * `OP_RETURN <PUSH32 authAnchorHash>` output at vout =
+   * `hashlocks.length`, binding the depositor's bearer-token
+   * `auth_anchor` preimage to this Pre-PegIn.
+   */
+  authAnchorHash?: string;
 }
+
+/**
+ * Byte length of an `auth_anchor_hash` commitment when encoded as a
+ * lowercase hex string (32 bytes → 64 hex chars).
+ */
+const AUTH_ANCHOR_HASH_HEX_LEN = 64;
+
+const HEX_PATTERN = /^[0-9a-fA-F]+$/;
+
+/** Bitcoin OP_RETURN opcode as a lowercase hex byte. */
+const OP_RETURN_OPCODE_HEX = "6a";
+
+/** OP_PUSHBYTES_32 opcode (pushes exactly 32 bytes) as lowercase hex. */
+const OP_PUSHBYTES_32_HEX = "20";
+
+/**
+ * Exact scriptPubKey length for the auth-anchor OP_RETURN:
+ * `OP_RETURN (1B) || OP_PUSHBYTES_32 (1B) || 32B hash` = 34 bytes.
+ */
+const OP_RETURN_PUSH32_SCRIPT_LEN = 34;
 
 /**
  * Result of building an unfunded Pre-PegIn transaction
  */
 export interface PrePeginPsbtResult {
   /**
-   * Unfunded transaction hex (no inputs, HTLC output + CPFP anchor).
+   * Unfunded transaction hex (no inputs, HTLC outputs + optional
+   * auth-anchor OP_RETURN + CPFP anchor).
    *
    * The caller is responsible for:
    * - Selecting UTXOs covering totalOutputValue + network fees
@@ -65,7 +94,7 @@ export interface PrePeginPsbtResult {
    * - Calling buildPeginTxFromFundedPrePegin() with the funded tx hex
    */
   psbtHex: string;
-  /** Sum of all unfunded outputs (HTLC + CPFP anchor) — use this for UTXO selection */
+  /** Sum of all unfunded outputs — use this for UTXO selection */
   totalOutputValue: bigint;
   /** HTLC output values in satoshis, one per deposit (each includes peginAmount + depositorClaimValue + minPeginFee) */
   htlcValues: readonly bigint[];
@@ -77,6 +106,12 @@ export interface PrePeginPsbtResult {
   peginAmounts: readonly bigint[];
   /** Depositor claim value computed by WASM from contract parameters */
   depositorClaimValue: bigint;
+  /**
+   * Vout index of the auth-anchor `OP_RETURN` output if one was
+   * included (i.e. `authAnchorHash` was provided), or `null` if not.
+   * Always equals `htlcValues.length` when present.
+   */
+  authAnchorVout: number | null;
 }
 
 /**
@@ -121,6 +156,8 @@ export interface PeginTxResult {
 export async function buildPrePeginPsbt(
   params: PrePeginParams,
 ): Promise<PrePeginPsbtResult> {
+  const authAnchorHash = normalizeAuthAnchorHash(params.authAnchorHash);
+
   const result = await createPrePeginTransaction({
     depositorPubkey: params.depositorPubkey,
     vaultProviderPubkey: params.vaultProviderPubkey,
@@ -134,15 +171,43 @@ export async function buildPrePeginPsbt(
     councilQuorum: params.councilQuorum,
     councilSize: params.councilSize,
     network: params.network,
+    authAnchorHash,
   });
 
-  // Parse the unfunded tx to sum all output values (HTLC + CPFP anchor).
-  // This is the amount UTXOs must cover before adding network fees.
+  // Parse the unfunded tx to sum all output values
+  // (HTLCs + optional OP_RETURN + CPFP anchor). This is the amount
+  // UTXOs must cover before adding network fees.
   const parsed = parseUnfundedWasmTransaction(result.txHex);
   const totalOutputValue = parsed.outputs.reduce(
     (sum, o) => sum + BigInt(o.value),
     0n,
   );
+
+  // Defensive: if a future WASM rebuild regresses and silently drops
+  // the 13th arg, fail loud instead of emitting a Pre-PegIn without
+  // the OP_RETURN.
+  let authAnchorVout: number | null = null;
+  if (authAnchorHash !== undefined) {
+    const expectedVout = result.htlcValues.length;
+    const output = parsed.outputs[expectedVout];
+    const actualScriptHex = output ? output.script.toString("hex") : "";
+    const expectedScriptHex = `${OP_RETURN_OPCODE_HEX}${OP_PUSHBYTES_32_HEX}${authAnchorHash}`;
+    const isAuthAnchorOpReturn =
+      output !== undefined &&
+      output.value === 0 &&
+      output.script.length === OP_RETURN_PUSH32_SCRIPT_LEN &&
+      actualScriptHex === expectedScriptHex;
+    if (!isAuthAnchorOpReturn) {
+      throw new Error(
+        "buildPrePeginPsbt: authAnchorHash was provided but the WASM did " +
+          `not emit the expected OP_RETURN commitment at vout ${expectedVout}. ` +
+          `Expected script: ${expectedScriptHex}. Got: ${actualScriptHex}. ` +
+          "Rebuild the WASM artifacts from a btc-vault commit that " +
+          "includes #1516 (commit 1ced81e5 or later).",
+      );
+    }
+    authAnchorVout = expectedVout;
+  }
 
   return {
     psbtHex: result.txHex,
@@ -152,7 +217,29 @@ export async function buildPrePeginPsbt(
     htlcAddresses: result.htlcAddresses,
     peginAmounts: result.peginAmounts,
     depositorClaimValue: result.depositorClaimValue,
+    authAnchorVout,
   };
+}
+
+/**
+ * Validate and normalize an `authAnchorHash` hex string before passing
+ * it to the WASM boundary. WASM expects exactly 64 lowercase hex chars.
+ */
+function normalizeAuthAnchorHash(
+  value: string | undefined,
+): string | undefined {
+  if (value === undefined) return undefined;
+  const cleaned =
+    value.startsWith("0x") || value.startsWith("0X") ? value.slice(2) : value;
+  if (
+    cleaned.length !== AUTH_ANCHOR_HASH_HEX_LEN ||
+    !HEX_PATTERN.test(cleaned)
+  ) {
+    throw new Error(
+      `authAnchorHash must be 32-byte hex (${AUTH_ANCHOR_HASH_HEX_LEN} chars, no 0x prefix); got length ${cleaned.length}`,
+    );
+  }
+  return cleaned.toLowerCase();
 }
 
 /**
@@ -168,12 +255,18 @@ export async function buildPrePeginPsbt(
 export async function buildPeginTxFromFundedPrePegin(
   params: BuildPeginTxParams,
 ): Promise<PeginTxResult> {
+  // WASM reconstructs the Pre-PegIn template from these params to
+  // decode the funded tx. Must pass `authAnchorHash` (normalized
+  // identically to buildPrePeginPsbt) so the reconstruction matches
+  // the original outputs, including the OP_RETURN at vout =
+  // hashlocks.length.
   const result = await buildPeginTxFromPrePegin(
     {
       depositorPubkey: params.prePeginParams.depositorPubkey,
       vaultProviderPubkey: params.prePeginParams.vaultProviderPubkey,
       vaultKeeperPubkeys: params.prePeginParams.vaultKeeperPubkeys,
-      universalChallengerPubkeys: params.prePeginParams.universalChallengerPubkeys,
+      universalChallengerPubkeys:
+        params.prePeginParams.universalChallengerPubkeys,
       hashlocks: [...params.prePeginParams.hashlocks],
       timelockRefund: params.prePeginParams.timelockRefund,
       pegInAmounts: [...params.prePeginParams.pegInAmounts],
@@ -182,6 +275,9 @@ export async function buildPeginTxFromFundedPrePegin(
       councilQuorum: params.prePeginParams.councilQuorum,
       councilSize: params.prePeginParams.councilSize,
       network: params.prePeginParams.network,
+      authAnchorHash: normalizeAuthAnchorHash(
+        params.prePeginParams.authAnchorHash,
+      ),
     },
     params.timelockPegin,
     params.fundedPrePeginTxHex,

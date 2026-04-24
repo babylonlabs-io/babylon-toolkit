@@ -66,9 +66,9 @@ describe("JsonRpcClient", () => {
   }
 
   it("sends a valid JSON-RPC 2.0 request and returns the result", async () => {
-    const mockFetch = vi.fn().mockResolvedValue(
-      createSuccessResponse({ status: "Activated" }),
-    );
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValue(createSuccessResponse({ status: "Activated" }));
     vi.stubGlobal("fetch", mockFetch);
 
     const client = createClient();
@@ -99,9 +99,11 @@ describe("JsonRpcClient", () => {
   it("throws JsonRpcError on JSON-RPC error response", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn().mockResolvedValue(
-        createJsonRpcErrorResponse(RpcErrorCode.NOT_FOUND, "PegIn not found"),
-      ),
+      vi
+        .fn()
+        .mockResolvedValue(
+          createJsonRpcErrorResponse(RpcErrorCode.NOT_FOUND, "PegIn not found"),
+        ),
     );
 
     const client = createClient();
@@ -121,10 +123,13 @@ describe("JsonRpcClient", () => {
   it("retries getPeginStatus on retryable HTTP status codes", async () => {
     const mockFetch = vi
       .fn()
-      .mockResolvedValueOnce(createHttpErrorResponse(HTTP_SERVICE_UNAVAILABLE, "Service Unavailable"))
       .mockResolvedValueOnce(
-        createSuccessResponse({ status: "Activated" }),
-      );
+        createHttpErrorResponse(
+          HTTP_SERVICE_UNAVAILABLE,
+          "Service Unavailable",
+        ),
+      )
+      .mockResolvedValueOnce(createSuccessResponse({ status: "Activated" }));
     vi.stubGlobal("fetch", mockFetch);
 
     const client = createClient({ retryDelay: 100 });
@@ -143,7 +148,12 @@ describe("JsonRpcClient", () => {
   it("does NOT retry write methods like submitDepositorWotsKey", async () => {
     const mockFetch = vi
       .fn()
-      .mockResolvedValue(createHttpErrorResponse(HTTP_SERVICE_UNAVAILABLE, "Service Unavailable"));
+      .mockResolvedValue(
+        createHttpErrorResponse(
+          HTTP_SERVICE_UNAVAILABLE,
+          "Service Unavailable",
+        ),
+      );
     vi.stubGlobal("fetch", mockFetch);
 
     const client = createClient();
@@ -162,7 +172,12 @@ describe("JsonRpcClient", () => {
   it("retries requestDepositorPresignTransactions (idempotent read)", async () => {
     const mockFetch = vi
       .fn()
-      .mockResolvedValueOnce(createHttpErrorResponse(HTTP_INTERNAL_SERVER_ERROR, "Internal Server Error"))
+      .mockResolvedValueOnce(
+        createHttpErrorResponse(
+          HTTP_INTERNAL_SERVER_ERROR,
+          "Internal Server Error",
+        ),
+      )
       .mockResolvedValueOnce(createSuccessResponse({ txs: [] }));
     vi.stubGlobal("fetch", mockFetch);
 
@@ -182,7 +197,9 @@ describe("JsonRpcClient", () => {
   it("allows custom retryableFor predicate", async () => {
     const mockFetch = vi
       .fn()
-      .mockResolvedValueOnce(createHttpErrorResponse(HTTP_INTERNAL_SERVER_ERROR, "Error"))
+      .mockResolvedValueOnce(
+        createHttpErrorResponse(HTTP_INTERNAL_SERVER_ERROR, "Error"),
+      )
       .mockResolvedValueOnce(createSuccessResponse("ok"));
     vi.stubGlobal("fetch", mockFetch);
 
@@ -223,9 +240,7 @@ describe("JsonRpcClient", () => {
   });
 
   it("includes custom headers in requests", async () => {
-    const mockFetch = vi
-      .fn()
-      .mockResolvedValue(createSuccessResponse("ok"));
+    const mockFetch = vi.fn().mockResolvedValue(createSuccessResponse("ok"));
     vi.stubGlobal("fetch", mockFetch);
 
     const client = createClient({
@@ -309,10 +324,12 @@ describe("JsonRpcClient", () => {
   });
 
   it("increments request ID per call", async () => {
-    const mockFetch = vi.fn().mockImplementation((_url: string, options: RequestInit) => {
-      const body = JSON.parse(options.body as string);
-      return Promise.resolve(createSuccessResponse("ok", body.id));
-    });
+    const mockFetch = vi
+      .fn()
+      .mockImplementation((_url: string, options: RequestInit) => {
+        const body = JSON.parse(options.body as string);
+        return Promise.resolve(createSuccessResponse("ok", body.id));
+      });
     vi.stubGlobal("fetch", mockFetch);
 
     const client = createClient();
@@ -323,5 +340,268 @@ describe("JsonRpcClient", () => {
     const body2 = JSON.parse(mockFetch.mock.calls[1][1].body);
     expect(body1.id).toBe(1);
     expect(body2.id).toBe(2);
+  });
+
+  // -----------------------------------------------------------------
+  // Error source tagging — the server uses code -32001 for auth
+  // middleware failures, and the SDK uses it for local network errors.
+  // The `source` field ("wire" vs "local") disambiguates.
+  // -----------------------------------------------------------------
+
+  it('tags wire-origin JSON-RPC error responses with source="wire" and preserves data', async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: HTTP_OK,
+        statusText: "OK",
+        json: () =>
+          Promise.resolve({
+            jsonrpc: "2.0",
+            error: {
+              code: -32001,
+              message: "token expired",
+              data: { kind: "auth_expired", expiresAt: 123 },
+            },
+            id: 1,
+          }),
+      } as unknown as Response),
+    );
+
+    const client = createClient();
+    try {
+      await client.call("vaultProvider_submitDepositorWotsKey", {});
+      expect.fail("should have thrown");
+    } catch (err) {
+      expect(err).toBeInstanceOf(JsonRpcError);
+      expect((err as JsonRpcError).source).toBe("wire");
+      expect((err as JsonRpcError).code).toBe(-32001);
+      expect((err as JsonRpcError).data).toEqual({
+        kind: "auth_expired",
+        expiresAt: 123,
+      });
+    }
+  });
+
+  it('tags local network errors with source="local"', async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockRejectedValue(new TypeError("Failed to fetch")),
+    );
+
+    const client = createClient({ retries: 0 });
+    try {
+      await client.call("vaultProvider_submitDepositorWotsKey", {});
+      expect.fail("should have thrown");
+    } catch (err) {
+      expect(err).toBeInstanceOf(JsonRpcError);
+      expect((err as JsonRpcError).source).toBe("local");
+      expect((err as JsonRpcError).code).toBe(JSON_RPC_ERROR_CODES.NETWORK);
+    }
+  });
+
+  // -----------------------------------------------------------------
+  // Bearer-token injection via tokenProvider
+  // -----------------------------------------------------------------
+
+  it("injects Authorization: Bearer when tokenProvider returns a non-null token", async () => {
+    const mockFetch = vi.fn().mockResolvedValue(createSuccessResponse("ok"));
+    vi.stubGlobal("fetch", mockFetch);
+
+    const tokenProvider = {
+      getToken: vi.fn().mockResolvedValue("test-bearer-token"),
+      invalidate: vi.fn(),
+    };
+
+    const client = createClient({ tokenProvider });
+    await client.call("vaultProvider_submitDepositorWotsKey", {});
+
+    expect(tokenProvider.getToken).toHaveBeenCalledWith(
+      "vaultProvider_submitDepositorWotsKey",
+    );
+
+    const headers = mockFetch.mock.calls[0][1].headers as Record<
+      string,
+      string
+    >;
+    expect(headers.Authorization).toBe("Bearer test-bearer-token");
+  });
+
+  it("omits Authorization header when tokenProvider returns null", async () => {
+    const mockFetch = vi.fn().mockResolvedValue(createSuccessResponse("ok"));
+    vi.stubGlobal("fetch", mockFetch);
+
+    const tokenProvider = {
+      getToken: vi.fn().mockResolvedValue(null),
+      invalidate: vi.fn(),
+    };
+
+    const client = createClient({ tokenProvider });
+    await client.call("vaultProvider_getPeginStatus", {});
+
+    const headers = mockFetch.mock.calls[0][1].headers as Record<
+      string,
+      string
+    >;
+    expect(headers.Authorization).toBeUndefined();
+  });
+
+  // -----------------------------------------------------------------
+  // Reactive refresh on auth_expired wire error
+  // -----------------------------------------------------------------
+
+  it("invalidates token and retries once on wire error with data.kind=auth_expired", async () => {
+    const expiredResponse = {
+      ok: true,
+      status: HTTP_OK,
+      statusText: "OK",
+      json: () =>
+        Promise.resolve({
+          jsonrpc: "2.0",
+          error: {
+            code: -32001,
+            message: "token expired",
+            data: { kind: "auth_expired" },
+          },
+          id: 1,
+        }),
+    } as unknown as Response;
+
+    const successResponse = createSuccessResponse("ok", 2);
+
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValueOnce(expiredResponse)
+      .mockResolvedValueOnce(successResponse);
+    vi.stubGlobal("fetch", mockFetch);
+
+    let tokenCount = 0;
+    const tokenProvider = {
+      getToken: vi.fn().mockImplementation(async () => {
+        tokenCount++;
+        return `token-${tokenCount}`;
+      }),
+      invalidate: vi.fn(),
+    };
+
+    const client = createClient({ tokenProvider });
+    const result = await client.call(
+      "vaultProvider_submitDepositorWotsKey",
+      {},
+    );
+
+    expect(result).toBe("ok");
+    expect(tokenProvider.invalidate).toHaveBeenCalledOnce();
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+    expect(tokenProvider.getToken).toHaveBeenCalledTimes(2);
+
+    const firstAuth = (
+      mockFetch.mock.calls[0][1].headers as Record<string, string>
+    ).Authorization;
+    const secondAuth = (
+      mockFetch.mock.calls[1][1].headers as Record<string, string>
+    ).Authorization;
+    expect(firstAuth).toBe("Bearer token-1");
+    expect(secondAuth).toBe("Bearer token-2");
+  });
+
+  it("does NOT retry on wire error with code -32001 but no auth_expired data", async () => {
+    // Covers the "server sent -32001 for a non-auth reason" path. The
+    // SDK must not blindly retry just because the code is -32001 —
+    // the `data.kind` marker is required.
+    const response = {
+      ok: true,
+      status: HTTP_OK,
+      statusText: "OK",
+      json: () =>
+        Promise.resolve({
+          jsonrpc: "2.0",
+          error: {
+            code: -32001,
+            message: "provider not found",
+          },
+          id: 1,
+        }),
+    } as unknown as Response;
+
+    const mockFetch = vi.fn().mockResolvedValue(response);
+    vi.stubGlobal("fetch", mockFetch);
+
+    const tokenProvider = {
+      getToken: vi.fn().mockResolvedValue("tok"),
+      invalidate: vi.fn(),
+    };
+
+    const client = createClient({ tokenProvider });
+    await expect(
+      client.call("vaultProvider_submitDepositorWotsKey", {}),
+    ).rejects.toThrow(JsonRpcError);
+
+    expect(tokenProvider.invalidate).not.toHaveBeenCalled();
+    expect(mockFetch).toHaveBeenCalledOnce();
+  });
+
+  it("does NOT retry on local network error even when code is -32001", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockRejectedValue(new TypeError("Failed to fetch")),
+    );
+
+    const tokenProvider = {
+      getToken: vi.fn().mockResolvedValue("tok"),
+      invalidate: vi.fn(),
+    };
+
+    const client = createClient({ retries: 0, tokenProvider });
+    try {
+      await client.call("vaultProvider_submitDepositorWotsKey", {});
+      expect.fail("should have thrown");
+    } catch (err) {
+      expect(err).toBeInstanceOf(JsonRpcError);
+      expect((err as JsonRpcError).code).toBe(JSON_RPC_ERROR_CODES.NETWORK);
+      expect((err as JsonRpcError).source).toBe("local");
+    }
+    expect(tokenProvider.invalidate).not.toHaveBeenCalled();
+  });
+
+  it("callRaw injects Authorization but does NOT reactively refresh", async () => {
+    const expiredRaw = new Response(
+      JSON.stringify({
+        jsonrpc: "2.0",
+        error: {
+          code: -32001,
+          message: "token expired",
+          data: { kind: "auth_expired" },
+        },
+        id: 1,
+      }),
+      { status: HTTP_OK, headers: { "Content-Type": "application/json" } },
+    );
+
+    const mockFetch = vi.fn().mockResolvedValue(expiredRaw);
+    vi.stubGlobal("fetch", mockFetch);
+
+    const tokenProvider = {
+      getToken: vi.fn().mockResolvedValue("tok"),
+      invalidate: vi.fn(),
+    };
+
+    const client = createClient({ tokenProvider });
+    const raw = await client.callRaw(
+      "vaultProvider_requestDepositorClaimerArtifacts",
+      {},
+    );
+
+    // callRaw succeeds regardless of body content — it does not inspect
+    // the body, so there's no reactive refresh.
+    expect(raw).toBeInstanceOf(Response);
+    expect(tokenProvider.invalidate).not.toHaveBeenCalled();
+    expect(mockFetch).toHaveBeenCalledOnce();
+
+    const headers = mockFetch.mock.calls[0][1].headers as Record<
+      string,
+      string
+    >;
+    expect(headers.Authorization).toBe("Bearer tok");
   });
 });
