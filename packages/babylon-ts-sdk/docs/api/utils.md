@@ -577,7 +577,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/selectUtxos.ts:47](
 function getNetwork(network): Network;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/utils/bitcoin.ts:266](../../packages/babylon-ts-sdk/src/tbv/core/primitives/utils/bitcoin.ts#L266)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/utils/bitcoin.ts:281](../../packages/babylon-ts-sdk/src/tbv/core/primitives/utils/bitcoin.ts#L281)
 
 Map SDK network type to bitcoinjs-lib Network object.
 

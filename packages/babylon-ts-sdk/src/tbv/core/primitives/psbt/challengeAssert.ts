@@ -22,6 +22,7 @@ import { Psbt, Transaction } from "bitcoinjs-lib";
 import {
   TAPSCRIPT_LEAF_VERSION,
   hexToUint8Array,
+  inputTxidHex,
   stripHexPrefix,
 } from "../utils/bitcoin";
 
@@ -29,10 +30,10 @@ import {
  * Parameters for building a ChallengeAssert PSBT
  */
 export interface ChallengeAssertParams {
-  /** ChallengeAssert transaction hex (unsigned) from VP */
+  /** ChallengeAssert transaction hex (unsigned) */
   challengeAssertTxHex: string;
-  /** Prevouts for all inputs [{script_pubkey, value}] from VP (flat, one per input) */
-  prevouts: Array<{ script_pubkey: string; value: number }>;
+  /** Authoritative Assert transaction hex — every input must spend an Assert output */
+  assertTxHex: string;
   /** Per-input connector params (one per input/segment, determines the taproot script) */
   connectorParamsPerInput: ChallengeAssertConnectorParams[];
 }
@@ -42,16 +43,25 @@ export interface ChallengeAssertParams {
  *
  * The ChallengeAssert transaction has 3 inputs (one per Assert output segment).
  * Each input has its own taproot script derived from its connector params.
- * The depositor signs all inputs.
+ * The depositor signs all inputs. Every prevout is derived from the
+ * authoritative Assert transaction, never trusted from external input.
  *
  * @param params - ChallengeAssert parameters
  * @returns Unsigned PSBT hex ready for signing
+ *
+ * @throws If the number of connector params does not match the number of inputs
+ * @throws If any input does not reference assertTxHex
+ * @throws If any referenced Assert output is missing
+ * @throws If two inputs reference the same Assert output index
  */
 export async function buildChallengeAssertPsbt(
   params: ChallengeAssertParams,
 ): Promise<string> {
-  const challengeAssertTxHex = stripHexPrefix(params.challengeAssertTxHex);
-  const challengeAssertTx = Transaction.fromHex(challengeAssertTxHex);
+  const challengeAssertTx = Transaction.fromHex(
+    stripHexPrefix(params.challengeAssertTxHex),
+  );
+  const assertTx = Transaction.fromHex(stripHexPrefix(params.assertTxHex));
+  const assertTxid = assertTx.getId();
 
   if (params.connectorParamsPerInput.length !== challengeAssertTx.ins.length) {
     throw new Error(
@@ -59,7 +69,29 @@ export async function buildChallengeAssertPsbt(
     );
   }
 
-  // Get script and control block for each input from WASM
+  const seenAssertOutputs = new Set<number>();
+  for (let i = 0; i < challengeAssertTx.ins.length; i++) {
+    const input = challengeAssertTx.ins[i];
+    const inputTxid = inputTxidHex(input);
+    if (inputTxid !== assertTxid) {
+      throw new Error(
+        `ChallengeAssert input ${i} must spend an Assert output. ` +
+          `Expected txid ${assertTxid}, got ${inputTxid}`,
+      );
+    }
+    if (!assertTx.outs[input.index]) {
+      throw new Error(
+        `Assert output ${input.index} not found for ChallengeAssert input ${i} (txid: ${assertTxid})`,
+      );
+    }
+    if (seenAssertOutputs.has(input.index)) {
+      throw new Error(
+        `ChallengeAssert input ${i} duplicates Assert output index ${input.index}`,
+      );
+    }
+    seenAssertOutputs.add(input.index);
+  }
+
   const scriptInfos = await Promise.all(
     params.connectorParamsPerInput.map((cp) => getChallengeAssertScriptInfo(cp)),
   );
@@ -68,14 +100,9 @@ export async function buildChallengeAssertPsbt(
   psbt.setVersion(challengeAssertTx.version);
   psbt.setLocktime(challengeAssertTx.locktime);
 
-  // Add all inputs — depositor signs every input
   for (let i = 0; i < challengeAssertTx.ins.length; i++) {
     const input = challengeAssertTx.ins[i];
-    const prevout = params.prevouts[i];
-
-    if (!prevout) {
-      throw new Error(`Missing prevout data for input ${i}`);
-    }
+    const assertPrevOut = assertTx.outs[input.index];
 
     const { script, controlBlock } = scriptInfos[i];
     const scriptBytes = hexToUint8Array(script);
@@ -86,8 +113,8 @@ export async function buildChallengeAssertPsbt(
       index: input.index,
       sequence: input.sequence,
       witnessUtxo: {
-        script: Buffer.from(hexToUint8Array(stripHexPrefix(prevout.script_pubkey))),
-        value: prevout.value,
+        script: assertPrevOut.script,
+        value: assertPrevOut.value,
       },
       tapLeafScript: [
         {
@@ -100,7 +127,6 @@ export async function buildChallengeAssertPsbt(
     });
   }
 
-  // Add outputs
   for (const output of challengeAssertTx.outs) {
     psbt.addOutput({
       script: output.script,
