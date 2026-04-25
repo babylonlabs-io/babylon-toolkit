@@ -37,34 +37,18 @@ import {
 } from "./vaultPayoutSignatureService";
 
 export interface BroadcastRefundParams {
-  /** Vault ID: keccak256(abi.encode(peginTxHash, depositor)) */
   vaultId: Hex;
-  /** BTC wallet provider for signing */
   btcWalletProvider: {
     signPsbt: (psbtHex: string, options?: SignPsbtOptions) => Promise<string>;
   };
-  /** Depositor's BTC public key (compressed or x-only hex) for signing options */
   depositorBtcPubkey: string;
-  /**
-   * sat/vB fee rate to use for the refund tx. Caller chooses (defaults to
-   * mempool's `halfHourFee` in the UI; user can edit it before confirming).
-   */
   feeRate: number;
 }
 
-/**
- * Conservative upper bound on the refund tx vsize. Mirrors `REFUND_VSIZE = 160`
- * in `@babylonlabs-io/ts-sdk/.../buildAndBroadcastRefund.ts`. Kept here so the
- * UI can compute the network fee for the review card without invoking the
- * broadcast path. Keep these two constants in lock-step.
- */
+// Mirrors REFUND_VSIZE in @babylonlabs-io/ts-sdk/.../buildAndBroadcastRefund.ts.
+// Keep in lock-step.
 const REFUND_VSIZE_BYTES = 160;
 
-/**
- * Network fee (sats) for the refund tx at the given sat/vB rate.
- * Pure helper used by the review card to derive `BTC Network Fee` and
- * `You'll receive` from a user-edited fee rate.
- */
 export function getRefundNetworkFeeSats(feeRateSatsVb: number): bigint {
   if (!Number.isFinite(feeRateSatsVb) || feeRateSatsVb <= 0) {
     throw new Error(
@@ -75,16 +59,10 @@ export function getRefundNetworkFeeSats(feeRateSatsVb: number): bigint {
 }
 
 export interface RefundPreview {
-  /** Pre-PegIn HTLC output value being refunded, in sats. */
   amountSats: bigint;
-  /** Mempool's recommended sat/vB rate for ~30-min confirmation. */
   halfHourFeeSatsVb: number;
 }
 
-/**
- * Fetch the data needed to render the Review Refund card: the HTLC output
- * value (refund amount) and the current mempool half-hour fee rate.
- */
 export async function getRefundPreview(vaultId: Hex): Promise<RefundPreview> {
   const mempoolApiUrl = getMempoolApiUrl();
   const [vault, { halfHourFee }] = await Promise.all([

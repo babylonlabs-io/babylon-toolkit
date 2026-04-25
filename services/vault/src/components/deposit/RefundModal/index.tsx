@@ -1,16 +1,3 @@
-/**
- * RefundModal
- *
- * Controller for the BTC refund flow. Renders one of two phases depending on
- * state:
- *   - Review (FullScreenDialog + RefundReviewContent) — user sees the refund
- *     amount, edits the network fee rate, and clicks Confirm.
- *   - Success (ResponsiveDialog + RefundSuccessContent) — shown once the
- *     refund tx is broadcast; user can View on Blockchain explorer or Done.
- *
- * Auto-start was removed: the user explicitly clicks Confirm on the review.
- */
-
 import { FullScreenDialog } from "@babylonlabs-io/core-ui";
 import { useQuery } from "@tanstack/react-query";
 
@@ -53,8 +40,8 @@ export function RefundModal({
       : "Failed to load refund preview"
     : null;
 
-  // Success phase — fire onSuccess() once the user dismisses the modal so
-  // the parent refetches activities only after the result is acknowledged.
+  // Fire onSuccess only after the user acknowledges the result so the parent
+  // refetch doesn't race the success modal.
   if (refundTxId) {
     const handleDone = () => {
       onSuccess();
@@ -71,8 +58,8 @@ export function RefundModal({
     );
   }
 
-  // Review phase — block close while a broadcast is in flight to avoid the
-  // user dismissing the dialog mid-signing.
+  // Block close while a broadcast is in flight to avoid dismissing the dialog
+  // mid-signing.
   return (
     <FullScreenDialog
       open={open}

@@ -14,20 +14,12 @@ export interface UseRefundStateProps {
 }
 
 export interface UseRefundStateResult {
-  /** Whether a refund broadcast is in progress */
   refunding: boolean;
-  /** Broadcasted refund transaction ID on success */
   refundTxId: string | null;
-  /** Error message if refund failed */
   error: string | null;
-  /**
-   * Handler to initiate refund at the given sat/vB fee rate. The caller
-   * (Review card) owns the rate — the user edits it before clicking Confirm.
-   */
   handleRefund: (feeRate: number) => Promise<void>;
 }
 
-/** Stable empty array to avoid re-render cascades in usePeginStorage. */
 const EMPTY_CONFIRMED: VaultActivity[] = [];
 
 export function useRefundState({
@@ -47,7 +39,6 @@ export function useRefundState({
   const [refundTxId, setRefundTxId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // Destructure stable primitives to avoid re-creating handleRefund on every render
   const {
     id: vaultId,
     peginTxHash,
@@ -91,22 +82,6 @@ export function useRefundState({
         setRefundTxId(txId);
         setRefunding(false);
 
-        // Mark the vault as refund-broadcast so the Refund button hides and
-        // the status flips to "Refunding" until the indexer detects the HTLC
-        // spend and the contract transitions to DEPOSITOR_WITHDRAWN.
-        //
-        // In-memory optimistic update covers the current session immediately;
-        // localStorage persistence covers page reloads during the BTC
-        // confirmation + indexer-ingestion window. We persist only when the
-        // activity carries a peginTxHash + unsignedPrePeginTx (the storage
-        // validator rejects entries missing either) — without those we keep
-        // the optimistic-only behaviour rather than fabricating fields.
-        //
-        // Known limitation: if the broadcast tx is evicted from the mempool
-        // (rare: low-fee + high pressure) the marker stays set indefinitely
-        // because nothing on-chain will trigger the cleanup. Re-broadcast
-        // / RBF / fee-bump UX is intentionally deferred — the indexer-side
-        // refund-detection work would obviate it.
         setOptimisticStatus(vaultId, LocalStorageStatus.REFUND_BROADCAST);
 
         if (ethAddress && peginTxHash && unsignedPrePeginTx) {
@@ -129,11 +104,6 @@ export function useRefundState({
             });
           }
         }
-
-        // onSuccess() is intentionally NOT called here. The success screen
-        // displays the txId and the consumer (RefundModal) calls onSuccess()
-        // from its onClose handler so the parent refetches activities only
-        // after the user has acknowledged the result.
       } catch (err) {
         logger.error(err instanceof Error ? err : new Error(String(err)), {
           data: { context: "Refund failed", vaultId },

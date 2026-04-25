@@ -37,13 +37,6 @@ export enum OffChainTrackingStatus {
   PAYOUT_SIGNED = "payout_signed",
   CONFIRMING = "confirming",
   CONFIRMED = "confirmed",
-  /**
-   * Depositor has broadcast a BTC refund tx for an EXPIRED vault. Used to
-   * suppress the Refund button and surface a "Refunding" status until the
-   * indexer detects the HTLC spend and the contract transitions to
-   * DEPOSITOR_WITHDRAWN — at which point the contract becomes the source
-   * of truth again and the local marker is cleaned up.
-   */
   REFUND_BROADCAST = "refund_broadcast",
 }
 
@@ -476,10 +469,8 @@ export function shouldRemoveFromLocalStorage(
   contractStatus: ContractStatus,
   localStatus: LocalStorageStatus,
 ): boolean {
-  // Keep the REFUND_BROADCAST marker while contract is still EXPIRED so the
-  // Refund button stays hidden across page reloads. Once the indexer detects
-  // the HTLC spend the contract moves to DEPOSITOR_WITHDRAWN and the blanket
-  // terminal-status check below cleans up the entry.
+  // Exception comes before the terminal-status check so the marker survives
+  // until the contract advances past EXPIRED.
   if (
     contractStatus === ContractStatus.EXPIRED &&
     localStatus === LocalStorageStatus.REFUND_BROADCAST

@@ -1,12 +1,3 @@
-/**
- * RefundReviewContent
- *
- * "Review Refund" card shown before the user broadcasts the BTC refund tx.
- * Lists Refund Amount → Network Fee Rate (editable) → BTC Network Fee →
- * "You'll receive". Owns the user-edited fee rate; the controller passes
- * `onConfirm(feeRate)` to actually broadcast.
- */
-
 import { Button, Heading, Loader, Text } from "@babylonlabs-io/core-ui";
 import { useEffect, useState } from "react";
 import { MdInfoOutline } from "react-icons/md";
@@ -19,20 +10,12 @@ import { formatBtcValue, formatUsd, getBtcSymbol } from "@/utils/formatting";
 import { FeeRateField } from "./FeeRateField";
 
 const SATS_PER_BTC = 100_000_000n;
-
-// Standard Bitcoin policy dust limit (sats). Outputs at or below this value
-// are rejected by mempool policy, so the broadcast would fail. Set above
-// taproot's stricter ~330-sat limit to cover P2WPKH refund destinations too.
+// Bitcoin policy dust limit, set above taproot's ~330-sat floor so it also
+// covers P2WPKH refund destinations.
 const DUST_LIMIT_SATS = 546n;
-
-// Sat/vB to fall back to when the mempool fee recommendation is unavailable
-// (network error or zero response). Keeps the refund flow usable on broken
-// mempool — the user can still bump the rate manually.
 const FALLBACK_FEE_RATE_SATS_VB = 1;
 
 function satsToBtc(sats: bigint): number {
-  // bigint → number conversion is lossy beyond 2^53, but a Pre-PegIn HTLC
-  // amount fits comfortably (max BTC supply is ~21M = 2.1e15 sats < 2^53).
   return Number(sats) / Number(SATS_PER_BTC);
 }
 
@@ -60,9 +43,6 @@ export function RefundReviewContent({
 
   const [feeRate, setFeeRate] = useState<number | null>(null);
 
-  // Initialise feeRate from the preview's halfHourFee once it loads. If the
-  // mempool recommendation is unavailable (zero, missing, or fetch failed)
-  // fall back to a minimal rate so the user can still bump it and refund.
   useEffect(() => {
     if (feeRate !== null) return;
     if (defaultFeeRateSatsVb && defaultFeeRateSatsVb > 0) {
@@ -86,9 +66,6 @@ export function RefundReviewContent({
   const youReceiveBtc =
     youReceiveSats !== null ? satsToBtc(youReceiveSats) : null;
 
-  // Outputs at or below the policy dust limit are rejected by mempool and
-  // would fail the broadcast; gate Confirm so the user gets a clear inline
-  // error instead of a wallet-side rejection.
   const isDust = youReceiveSats !== null && youReceiveSats <= DUST_LIMIT_SATS;
 
   const canConfirm =

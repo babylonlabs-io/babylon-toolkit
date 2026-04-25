@@ -1,12 +1,3 @@
-/**
- * RefundSuccessContent
- *
- * "Broadcasting Refund" success card. Renders inside a FullScreenDialog so the
- * card sits on a full-screen overlay with the navbar/close affordance, exactly
- * like the Figma node 6288:85884. The card itself is a 564px-wide bordered
- * surface with the BTC icon, title, body, two buttons, and a footer caption.
- */
-
 import { Button, Heading, Text } from "@babylonlabs-io/core-ui";
 
 import { getNetworkConfigBTC } from "@/config";

@@ -1,11 +1,3 @@
-/**
- * FeeRateField
- *
- * Inline editable sat/vB control for the Review Refund card. Read-only by
- * default ("X sats/vB" + pencil affordance); clicks reveal a number input.
- * Commits the new value on blur or Enter; reverts on Escape.
- */
-
 import { Input } from "@babylonlabs-io/core-ui";
 import { useEffect, useRef, useState } from "react";
 import { MdEdit } from "react-icons/md";
@@ -13,7 +5,6 @@ import { MdEdit } from "react-icons/md";
 interface FeeRateFieldProps {
   value: number;
   onChange: (next: number) => void;
-  /** Disable editing (e.g. while broadcasting). */
   disabled?: boolean;
 }
 
@@ -35,9 +26,6 @@ export function FeeRateField({
   }, [editing]);
 
   const commit = () => {
-    // The SDK rounds via ceil(feeRate * vbytes), so fractional rates are
-    // valid. Use Number() (not parseInt) so e.g. "1.5" doesn't silently
-    // floor to 1.
     const parsed = Number(draft);
     if (Number.isFinite(parsed) && parsed > 0 && parsed !== value) {
       onChange(parsed);
