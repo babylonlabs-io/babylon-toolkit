@@ -101,6 +101,12 @@ export function useRefundState({
         // activity carries a peginTxHash + unsignedPrePeginTx (the storage
         // validator rejects entries missing either) — without those we keep
         // the optimistic-only behaviour rather than fabricating fields.
+        //
+        // Known limitation: if the broadcast tx is evicted from the mempool
+        // (rare: low-fee + high pressure) the marker stays set indefinitely
+        // because nothing on-chain will trigger the cleanup. Re-broadcast
+        // / RBF / fee-bump UX is intentionally deferred — the indexer-side
+        // refund-detection work would obviate it.
         setOptimisticStatus(vaultId, LocalStorageStatus.REFUND_BROADCAST);
 
         if (ethAddress && peginTxHash && unsignedPrePeginTx) {

@@ -20,6 +20,16 @@ import { FeeRateField } from "./FeeRateField";
 
 const SATS_PER_BTC = 100_000_000n;
 
+// Standard Bitcoin policy dust limit (sats). Outputs at or below this value
+// are rejected by mempool policy, so the broadcast would fail. Set above
+// taproot's stricter ~330-sat limit to cover P2WPKH refund destinations too.
+const DUST_LIMIT_SATS = 546n;
+
+// Sat/vB to fall back to when the mempool fee recommendation is unavailable
+// (network error or zero response). Keeps the refund flow usable on broken
+// mempool — the user can still bump the rate manually.
+const FALLBACK_FEE_RATE_SATS_VB = 1;
+
 function satsToBtc(sats: bigint): number {
   // bigint → number conversion is lossy beyond 2^53, but a Pre-PegIn HTLC
   // amount fits comfortably (max BTC supply is ~21M = 2.1e15 sats < 2^53).
@@ -50,12 +60,19 @@ export function RefundReviewContent({
 
   const [feeRate, setFeeRate] = useState<number | null>(null);
 
-  // Initialise feeRate from the preview's halfHourFee once it loads.
+  // Initialise feeRate from the preview's halfHourFee once it loads. If the
+  // mempool recommendation is unavailable (zero, missing, or fetch failed)
+  // fall back to a minimal rate so the user can still bump it and refund.
   useEffect(() => {
-    if (feeRate === null && defaultFeeRateSatsVb && defaultFeeRateSatsVb > 0) {
+    if (feeRate !== null) return;
+    if (defaultFeeRateSatsVb && defaultFeeRateSatsVb > 0) {
       setFeeRate(defaultFeeRateSatsVb);
+      return;
     }
-  }, [defaultFeeRateSatsVb, feeRate]);
+    if (!previewLoading) {
+      setFeeRate(FALLBACK_FEE_RATE_SATS_VB);
+    }
+  }, [defaultFeeRateSatsVb, feeRate, previewLoading]);
 
   const amountBtc = amountSats !== null ? satsToBtc(amountSats) : null;
   const networkFeeSats =
@@ -69,13 +86,18 @@ export function RefundReviewContent({
   const youReceiveBtc =
     youReceiveSats !== null ? satsToBtc(youReceiveSats) : null;
 
+  // Outputs at or below the policy dust limit are rejected by mempool and
+  // would fail the broadcast; gate Confirm so the user gets a clear inline
+  // error instead of a wallet-side rejection.
+  const isDust = youReceiveSats !== null && youReceiveSats <= DUST_LIMIT_SATS;
+
   const canConfirm =
     !refunding &&
     !previewLoading &&
     feeRate !== null &&
     feeRate > 0 &&
     youReceiveSats !== null &&
-    youReceiveSats > 0n;
+    !isDust;
 
   const handleConfirmClick = () => {
     if (feeRate === null || feeRate <= 0) return;
@@ -166,6 +188,12 @@ export function RefundReviewContent({
 
           {previewError && (
             <StatusBanner variant="error">{previewError}</StatusBanner>
+          )}
+          {!error && isDust && (
+            <StatusBanner variant="error">
+              Network fee is too high — your refund would be below the Bitcoin
+              dust limit. Lower the fee rate to continue.
+            </StatusBanner>
           )}
           {error && <StatusBanner variant="error">{error}</StatusBanner>}
 

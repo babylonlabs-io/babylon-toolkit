@@ -35,7 +35,10 @@ export function FeeRateField({
   }, [editing]);
 
   const commit = () => {
-    const parsed = Number.parseInt(draft, 10);
+    // The SDK rounds via ceil(feeRate * vbytes), so fractional rates are
+    // valid. Use Number() (not parseInt) so e.g. "1.5" doesn't silently
+    // floor to 1.
+    const parsed = Number(draft);
     if (Number.isFinite(parsed) && parsed > 0 && parsed !== value) {
       onChange(parsed);
     }
@@ -52,8 +55,8 @@ export function FeeRateField({
       <Input
         ref={inputRef}
         type="number"
-        min={1}
-        step={1}
+        min={0.1}
+        step={0.1}
         value={draft}
         onChange={(e) => setDraft(e.target.value)}
         onBlur={commit}

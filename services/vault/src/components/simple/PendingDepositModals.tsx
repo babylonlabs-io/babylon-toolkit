@@ -131,7 +131,7 @@ export function PendingDepositModals({
         />
       )}
 
-      {/* Refund Modal — single-action BTC timelock refund (no deposit stepper) */}
+      {/* Refund Modal */}
       {refundModal.refundingActivity && (
         <RefundModal
           open={!!refundModal.refundingActivity}

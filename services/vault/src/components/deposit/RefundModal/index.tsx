@@ -8,8 +8,7 @@
  *   - Success (ResponsiveDialog + RefundSuccessContent) — shown once the
  *     refund tx is broadcast; user can View on Blockchain explorer or Done.
  *
- * The refund is a single BTC action — there is no deposit stepper. Auto-start
- * was removed: the user explicitly clicks Confirm on the review.
+ * Auto-start was removed: the user explicitly clicks Confirm on the review.
  */
 
 import { FullScreenDialog } from "@babylonlabs-io/core-ui";

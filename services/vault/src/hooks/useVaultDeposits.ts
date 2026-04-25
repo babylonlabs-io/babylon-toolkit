@@ -13,6 +13,7 @@ import {
   ContractStatus,
   getPeginState,
   LocalStorageStatus,
+  PEGIN_DISPLAY_LABELS,
 } from "../models/peginStateMachine";
 import { getPendingPegins } from "../storage/peginStorage";
 import { usePeginStorage } from "../storage/usePeginStorage";
@@ -90,7 +91,13 @@ export function useVaultDeposits(connectedAddress: Address | undefined) {
         },
       );
 
-      return state.displayLabel === "Processing";
+      // Fast-poll while either a deposit is "Processing" or a refund has
+      // been broadcast and we're waiting for the indexer to catch up so the
+      // status can flip to "Redeemed" and the local marker auto-cleans.
+      return (
+        state.displayLabel === PEGIN_DISPLAY_LABELS.PROCESSING ||
+        state.displayLabel === PEGIN_DISPLAY_LABELS.REFUNDING
+      );
     });
 
     setNeedsFastPolling(hasProcessingActivity);
