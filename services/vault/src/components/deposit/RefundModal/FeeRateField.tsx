@@ -16,16 +16,26 @@ export function FeeRateField({
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<string>(String(value));
   const inputRef = useRef<HTMLInputElement | null>(null);
+  // Pressing Enter calls commit(), then setEditing(false) unmounts the
+  // Input — the synthetic blur React fires would re-enter commit() with the
+  // same draft and re-fire onChange. Guard so commit() runs at most once
+  // per editing session.
+  const committedRef = useRef(false);
 
   useEffect(() => {
     if (!editing) setDraft(String(value));
   }, [editing, value]);
 
   useEffect(() => {
-    if (editing) inputRef.current?.focus();
+    if (editing) {
+      committedRef.current = false;
+      inputRef.current?.focus();
+    }
   }, [editing]);
 
   const commit = () => {
+    if (committedRef.current) return;
+    committedRef.current = true;
     const parsed = Number(draft);
     if (Number.isFinite(parsed) && parsed > 0 && parsed !== value) {
       onChange(parsed);
@@ -34,6 +44,7 @@ export function FeeRateField({
   };
 
   const cancel = () => {
+    committedRef.current = true;
     setDraft(String(value));
     setEditing(false);
   };

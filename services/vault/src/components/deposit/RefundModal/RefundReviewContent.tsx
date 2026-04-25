@@ -63,8 +63,12 @@ export function RefundReviewContent({
     amountSats !== null && networkFeeSats !== null
       ? amountSats - networkFeeSats
       : null;
+  // Clamp at zero so a fee rate above the deposit doesn't render a
+  // confusing negative BTC value; Confirm is gated below by the dust check.
   const youReceiveBtc =
-    youReceiveSats !== null ? satsToBtc(youReceiveSats) : null;
+    youReceiveSats !== null
+      ? satsToBtc(youReceiveSats > 0n ? youReceiveSats : 0n)
+      : null;
 
   const isDust = youReceiveSats !== null && youReceiveSats <= DUST_LIMIT_SATS;
 

@@ -7,6 +7,15 @@ vi.mock("@babylonlabs-io/ts-sdk/tbv/core/services", () => ({
   buildAndBroadcastRefund: (...args: unknown[]) =>
     mockBuildAndBroadcastRefund(...args),
   BIP68NotMatureError: class BIP68NotMatureError extends Error {},
+  REFUND_VSIZE: 160,
+  estimateRefundFeeSats: (rate: number) => {
+    if (!Number.isFinite(rate) || rate <= 0) {
+      throw new Error(
+        `feeRateSatsVb must be a positive finite number, got ${rate}`,
+      );
+    }
+    return BigInt(Math.ceil(rate * 160));
+  },
 }));
 
 vi.mock("@babylonlabs-io/ts-sdk/tbv/core", () => ({
@@ -318,5 +327,20 @@ describe("getRefundPreview", () => {
     await expect(getRefundPreview(VAULT_ID)).rejects.toThrow(
       `Vault ${VAULT_ID} not found`,
     );
+  });
+
+  it("returns null halfHourFeeSatsVb when the fee endpoint fails (vault data still loads)", async () => {
+    (getNetworkFees as Mock).mockRejectedValue(
+      new Error("mempool unreachable"),
+    );
+    const preview = await getRefundPreview(VAULT_ID);
+    expect(preview.amountSats).toBe(INDEXER_VAULT.amount);
+    expect(preview.halfHourFeeSatsVb).toBeNull();
+  });
+
+  it("returns null halfHourFeeSatsVb when the fee endpoint reports zero", async () => {
+    (getNetworkFees as Mock).mockResolvedValue({ halfHourFee: 0 });
+    const preview = await getRefundPreview(VAULT_ID);
+    expect(preview.halfHourFeeSatsVb).toBeNull();
   });
 });

@@ -15,6 +15,7 @@ import type { SignPsbtOptions } from "@babylonlabs-io/ts-sdk/shared";
 import { getNetworkFees, pushTx } from "@babylonlabs-io/ts-sdk/tbv/core";
 import {
   buildAndBroadcastRefund,
+  estimateRefundFeeSats,
   type RefundPrePeginContext,
   type VaultRefundData,
 } from "@babylonlabs-io/ts-sdk/tbv/core/services";
@@ -45,33 +46,31 @@ export interface BroadcastRefundParams {
   feeRate: number;
 }
 
-// Mirrors REFUND_VSIZE in @babylonlabs-io/ts-sdk/.../buildAndBroadcastRefund.ts.
-// Keep in lock-step.
-const REFUND_VSIZE_BYTES = 160;
-
-export function getRefundNetworkFeeSats(feeRateSatsVb: number): bigint {
-  if (!Number.isFinite(feeRateSatsVb) || feeRateSatsVb <= 0) {
-    throw new Error(
-      `feeRateSatsVb must be a positive finite number, got ${feeRateSatsVb}`,
-    );
-  }
-  return BigInt(Math.ceil(feeRateSatsVb * REFUND_VSIZE_BYTES));
-}
+// Re-export the SDK helper so the UI can compute the same fee the SDK will
+// charge without duplicating the protocol-owned vsize constant.
+export const getRefundNetworkFeeSats = estimateRefundFeeSats;
 
 export interface RefundPreview {
   amountSats: bigint;
-  halfHourFeeSatsVb: number;
+  /**
+   * Mempool's halfHourFee, or null if the fee endpoint failed. Vault data
+   * loads independently — a fee fetch failure must not block the refund.
+   */
+  halfHourFeeSatsVb: number | null;
 }
 
 export async function getRefundPreview(vaultId: Hex): Promise<RefundPreview> {
   const mempoolApiUrl = getMempoolApiUrl();
-  const [vault, { halfHourFee }] = await Promise.all([
+  const [vault, feeRecommendation] = await Promise.all([
     readVault(vaultId),
-    getNetworkFees(mempoolApiUrl),
+    getNetworkFees(mempoolApiUrl).catch(() => null),
   ]);
   return {
     amountSats: vault.amount,
-    halfHourFeeSatsVb: halfHourFee,
+    halfHourFeeSatsVb:
+      feeRecommendation && feeRecommendation.halfHourFee > 0
+        ? feeRecommendation.halfHourFee
+        : null,
   };
 }
 
