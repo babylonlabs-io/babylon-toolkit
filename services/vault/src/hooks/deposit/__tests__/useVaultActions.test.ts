@@ -4,6 +4,7 @@
  * a malicious transaction for signing.
  */
 
+import { validateSecretAgainstHashlock } from "@babylonlabs-io/ts-sdk/tbv/core/services";
 import { act, renderHook } from "@testing-library/react";
 import type { Hex } from "viem";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -11,6 +12,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { getVaultFromChain } from "@/clients/eth-contract/btc-vault-registry/query";
 import { ContractStatus } from "@/models/peginStateMachine";
 import { broadcastPrePeginTransaction, fetchVaultById } from "@/services/vault";
+import { activateVaultWithSecret } from "@/services/vault/vaultActivationService";
 
 import { useVaultActions } from "../useVaultActions";
 
@@ -70,6 +72,17 @@ vi.mock("@/services/vault", () => ({
   },
 }));
 
+vi.mock("@babylonlabs-io/ts-sdk/tbv/core/services", async (importOriginal) => {
+  const actual =
+    await importOriginal<
+      typeof import("@babylonlabs-io/ts-sdk/tbv/core/services")
+    >();
+  return {
+    ...actual,
+    validateSecretAgainstHashlock: vi.fn(() => true),
+  };
+});
+
 vi.mock("@/services/vault/vaultActivationService", () => ({
   activateVaultWithSecret: vi.fn(),
 }));
@@ -90,6 +103,7 @@ vi.mock("@/models/peginStateMachine", async (importOriginal) => {
     getNextLocalStatus: vi.fn(() => "CONFIRMING"),
     PeginAction: {
       SIGN_AND_BROADCAST_TO_BITCOIN: "SIGN_AND_BROADCAST_TO_BITCOIN",
+      ACTIVATE_VAULT: "ACTIVATE_VAULT",
     },
     LocalStorageStatus: {
       PENDING: "PENDING",
@@ -104,6 +118,10 @@ const mockBroadcastPrePeginTransaction = vi.mocked(
   broadcastPrePeginTransaction,
 );
 const mockGetVaultFromChain = vi.mocked(getVaultFromChain);
+const mockActivateVaultWithSecret = vi.mocked(activateVaultWithSecret);
+const mockValidateSecretAgainstHashlock = vi.mocked(
+  validateSecretAgainstHashlock,
+);
 
 // Local copy produced by WASM — no 0x prefix
 const TRUSTED_TX_HEX = "70736274ff...trustedtx";
@@ -284,5 +302,54 @@ describe("useVaultActions — handleBroadcast transaction integrity", () => {
       "Transaction integrity check failed",
     );
     expect(mockBroadcastPrePeginTransaction).not.toHaveBeenCalled();
+  });
+});
+
+const baseActivationParams = {
+  vaultId: "0xvaultId" as Hex,
+  secretHex: "0xdeadbeef",
+  depositorEthAddress: "0xdepositor",
+  onRefetchActivities: vi.fn(),
+  onShowSuccessModal: vi.fn(),
+};
+
+describe("useVaultActions — handleActivation on-chain hashlock", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockGetVaultFromChain.mockResolvedValue({
+      prePeginTxHash: "0xmatching_pre_pegin_hash",
+      hashlock: "0xonchain_hashlock",
+    } as never);
+  });
+
+  it("activates vault when secret matches on-chain hashlock", async () => {
+    mockValidateSecretAgainstHashlock.mockReturnValue(true);
+
+    const { result } = renderHook(() => useVaultActions());
+
+    await act(async () => {
+      await result.current.handleActivation(baseActivationParams);
+    });
+
+    expect(result.current.activationError).toBeNull();
+    expect(mockGetVaultFromChain).toHaveBeenCalledWith(
+      baseActivationParams.vaultId,
+    );
+    expect(mockActivateVaultWithSecret).toHaveBeenCalledOnce();
+  });
+
+  it("rejects activation when secret does not match on-chain hashlock", async () => {
+    mockValidateSecretAgainstHashlock.mockReturnValue(false);
+
+    const { result } = renderHook(() => useVaultActions());
+
+    await act(async () => {
+      await result.current.handleActivation(baseActivationParams);
+    });
+
+    expect(result.current.activationError).toContain(
+      "Invalid secret: SHA256(secret) does not match",
+    );
+    expect(mockActivateVaultWithSecret).not.toHaveBeenCalled();
   });
 });
