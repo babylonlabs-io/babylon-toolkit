@@ -63,9 +63,15 @@ export interface SelectUtxosForDepositParams<
   feeRate: number;
 }
 
+/** Narrow structural type for early UTXO reservations (pre-ETH-registration). */
+export interface UtxoReservationLike {
+  unsignedTxHex: string;
+}
+
 export interface CollectReservedUtxoRefsParams {
   vaults?: VaultLike[];
   pendingPegins?: PendingPeginLike[];
+  utxoReservations?: UtxoReservationLike[];
 }
 
 // ============================================================================
@@ -163,7 +169,11 @@ export function collectReservedUtxoRefs(
   params: CollectReservedUtxoRefsParams,
 ): UtxoRef[] {
   const reserved: UtxoRef[] = [];
-  const { vaults = [], pendingPegins = [] } = params;
+  const {
+    vaults = [],
+    pendingPegins = [],
+    utxoReservations = [],
+  } = params;
 
   const onChainVaultIds = new Set(
     vaults
@@ -188,6 +198,12 @@ export function collectReservedUtxoRefs(
       continue;
     }
     reserved.push(...extractInputUtxoRefs(vault.unsignedPrePeginTx));
+  }
+
+  // Early reservations written before ETH registration to prevent cross-tab
+  // UTXO conflicts. These are cleaned up when the deposit completes or fails.
+  for (const reservation of utxoReservations) {
+    reserved.push(...extractInputUtxoRefs(reservation.unsignedTxHex));
   }
 
   return reserved;

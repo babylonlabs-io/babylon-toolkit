@@ -59,7 +59,10 @@ import {
 } from "@/services/wots";
 import {
   addPendingPegin,
+  addUtxoReservation,
   getPendingPegins,
+  getUtxoReservations,
+  removeUtxoReservation,
   updatePendingPeginStatus,
 } from "@/storage/peginStorage";
 import { btcAddressToScriptPubKeyHex } from "@/utils/btc";
@@ -274,6 +277,11 @@ export function useDepositFlow(
       // Track background operation failures
       const warnings: string[] = [];
 
+      // Declared outside try so the catch block can clean up the early
+      // UTXO reservation if the flow fails after writing it.
+      let reservationBatchId: string | null = null;
+      let reservationEthAddress: string | null = null;
+
       try {
         // ========================================================================
         // Step 0: Validation
@@ -349,7 +357,11 @@ export function useDepositFlow(
         // Filter out UTXOs reserved by in-flight deposits to prevent
         // double-spend failures across concurrent sessions/tabs.
         const pendingPegins = getPendingPegins(confirmedEthAddress);
-        const reservedUtxoRefs = collectReservedUtxoRefs({ pendingPegins });
+        const utxoReservations = getUtxoReservations(confirmedEthAddress);
+        const reservedUtxoRefs = collectReservedUtxoRefs({
+          pendingPegins,
+          utxoReservations,
+        });
         const availableUTXOs = selectUtxosForDeposit({
           availableUtxos: spendableUTXOs,
           reservedUtxoRefs,
@@ -377,6 +389,17 @@ export function useDepositFlow(
             availableUTXOs,
           },
         );
+
+        // Reserve UTXOs in localStorage immediately so other tabs see them
+        // during the (potentially lengthy) PoP signing and ETH registration.
+        // Cleaned up after pending pegin entries are written, or on failure.
+        reservationBatchId = batchId;
+        reservationEthAddress = confirmedEthAddress;
+        addUtxoReservation(confirmedEthAddress, {
+          unsignedTxHex: batchResult.fundedPrePeginTxHex,
+          timestamp: Date.now(),
+          batchId,
+        });
 
         // ========================================================================
         // Step 3: Sign PoP + batch register all vaults on Ethereum
@@ -523,6 +546,11 @@ export function useDepositFlow(
             }
           }
         }
+
+        // Early reservation is now superseded by real pending pegin entries.
+        removeUtxoReservation(confirmedEthAddress, batchId);
+        reservationBatchId = null;
+        reservationEthAddress = null;
 
         // ========================================================================
         // Step 4b: Broadcast Pre-PegIn transaction to Bitcoin
@@ -769,6 +797,11 @@ export function useDepositFlow(
           warnings: warnings.length > 0 ? warnings : undefined,
         };
       } catch (err: unknown) {
+        // Clean up early UTXO reservation so the UTXOs are released for reuse.
+        if (reservationBatchId && reservationEthAddress) {
+          removeUtxoReservation(reservationEthAddress, reservationBatchId);
+        }
+
         // Don't show error if flow was aborted (user intentionally closed modal)
         if (!signal.aborted) {
           setError(sanitizeErrorMessage(err));

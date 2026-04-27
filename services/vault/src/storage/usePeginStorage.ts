@@ -9,7 +9,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { getNetworkConfigBTC } from "../config";
-import { STORAGE_UPDATE_EVENT } from "../constants";
+import {
+  STORAGE_KEY_PREFIX,
+  STORAGE_UPDATE_EVENT,
+  UTXO_RESERVATION_KEY_PREFIX,
+} from "../constants";
 import {
   ContractStatus,
   getPeginState,
@@ -80,7 +84,6 @@ export function usePeginStorage({
     const handleCustomEvent = (e: Event) => {
       const customEvent = e as CustomEvent<{ ethAddress: string }>;
       if (customEvent.detail.ethAddress === ethAddress) {
-        // Trigger refresh by incrementing version
         setStorageVersion((v) => v + 1);
       }
     };
@@ -89,6 +92,31 @@ export function usePeginStorage({
 
     return () => {
       window.removeEventListener(STORAGE_UPDATE_EVENT, handleCustomEvent);
+    };
+  }, [ethAddress]);
+
+  // Listen for native storage events from OTHER tabs.
+  // The native StorageEvent fires cross-tab when localStorage is modified,
+  // closing the gap where Tab B wouldn't see Tab A's writes until next poll.
+  // Includes UTXO_RESERVATION_KEY_PREFIX so deposit flows in other tabs
+  // trigger a re-read of pending state (reservations are read imperatively
+  // by useDepositFlow, but the version bump ensures derived UI stays fresh).
+  useEffect(() => {
+    if (!ethAddress) return;
+
+    const handleStorageEvent = (e: StorageEvent) => {
+      if (
+        e.key?.startsWith(STORAGE_KEY_PREFIX) ||
+        e.key?.startsWith(UTXO_RESERVATION_KEY_PREFIX)
+      ) {
+        setStorageVersion((v) => v + 1);
+      }
+    };
+
+    window.addEventListener("storage", handleStorageEvent);
+
+    return () => {
+      window.removeEventListener("storage", handleStorageEvent);
     };
   }, [ethAddress]);
 
