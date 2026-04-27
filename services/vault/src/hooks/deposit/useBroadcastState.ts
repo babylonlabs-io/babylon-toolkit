@@ -45,7 +45,7 @@ export function useBroadcastState({
   const {
     broadcasting: vaultBroadcasting,
     broadcastError,
-    handleBroadcast: vaultHandleBroadcast,
+    handleBroadcastPrePegInBtcTx: vaultHandleBroadcast,
   } = useVaultActions();
   const [localBroadcasting, setLocalBroadcasting] = useState(false);
 
