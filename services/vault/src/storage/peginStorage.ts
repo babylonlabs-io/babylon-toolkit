@@ -464,7 +464,10 @@ function saveReservations(
   } else {
     localStorage.setItem(key, JSON.stringify(reservations));
   }
-  dispatchStorageUpdateEvent(ethAddress);
+  // No dispatchStorageUpdateEvent here: reservations are stored under a
+  // separate key and read imperatively by useDepositFlow, not via the
+  // pendingPegins hook. Cross-tab notification works automatically via
+  // the native StorageEvent fired by localStorage writes.
 }
 
 /**

@@ -106,8 +106,8 @@ export function usePeginStorage({
 
     const handleStorageEvent = (e: StorageEvent) => {
       if (
-        e.key?.startsWith(STORAGE_KEY_PREFIX) ||
-        e.key?.startsWith(UTXO_RESERVATION_KEY_PREFIX)
+        e.key === `${STORAGE_KEY_PREFIX}-${ethAddress}` ||
+        e.key === `${UTXO_RESERVATION_KEY_PREFIX}-${ethAddress}`
       ) {
         setStorageVersion((v) => v + 1);
       }
