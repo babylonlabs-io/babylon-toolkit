@@ -5,21 +5,34 @@
 
 import { getNetworkConfigETH } from "@babylonlabs-io/config";
 import type { ColumnProps } from "@babylonlabs-io/core-ui";
-import { Avatar, Table, trim } from "@babylonlabs-io/core-ui";
+import { Avatar, Table } from "@babylonlabs-io/core-ui";
 
-import type { ActivityLog } from "../../types/activityLog";
+import { getNetworkConfigBTC } from "@/config";
+import { stripHexPrefix } from "@/utils/btc";
+
+import type { ActivityChain, ActivityLog } from "../../types/activityLog";
 import { formatDateTime } from "../../utils/formatting";
+import { CopyableHash } from "../shared/CopyableHash";
 
 interface ActivityTableProps {
   activities: ActivityLog[];
 }
 
-/**
- * Generate block explorer URL for a transaction hash
- */
-function getExplorerTxUrl(txHash: string): string {
+/** mempoolApiUrl is shaped like "https://mempool.space/signet" — tx page is `{base}/tx/{txid}`. */
+function getBtcExplorerTxUrl(txHash: string): string {
+  const btcConfig = getNetworkConfigBTC();
+  return `${btcConfig.mempoolApiUrl}/tx/${stripHexPrefix(txHash)}`;
+}
+
+function getEthExplorerTxUrl(txHash: string): string {
   const { explorerUrl } = getNetworkConfigETH();
   return `${explorerUrl}/tx/${txHash}`;
+}
+
+function getExplorerTxUrl(chain: ActivityChain, txHash: string): string {
+  return chain === "BTC"
+    ? getBtcExplorerTxUrl(txHash)
+    : getEthExplorerTxUrl(txHash);
 }
 
 export function ActivityTable({ activities }: ActivityTableProps) {
@@ -92,21 +105,23 @@ export function ActivityTable({ activities }: ActivityTableProps) {
       header: "Transaction Hash",
       headerClassName: "w-[25%]",
       cellClassName: "w-[25%]",
-      render: (_value, row) =>
-        row.isPending || !row.transactionHash ? (
-          <span className="text-sm italic text-accent-secondary">
-            Pending...
-          </span>
-        ) : (
-          <a
-            href={getExplorerTxUrl(row.transactionHash)}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="font-mono text-sm text-accent-secondary hover:text-primary-main hover:underline"
-          >
-            {trim(row.transactionHash)}
-          </a>
-        ),
+      render: (_value, row) => {
+        if (row.isPending || !row.transactionHash) {
+          return (
+            <span className="text-sm italic text-accent-secondary">
+              Pending...
+            </span>
+          );
+        }
+        return (
+          <CopyableHash
+            hash={row.transactionHash}
+            chain={row.chain}
+            explorerUrl={getExplorerTxUrl(row.chain, row.transactionHash)}
+            showChainBadge
+          />
+        );
+      },
     },
   ];
 

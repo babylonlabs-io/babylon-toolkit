@@ -5,31 +5,23 @@
  * Used by both PendingDepositCard and PendingWithdrawSection.
  */
 
-import {
-  Avatar,
-  CheckIcon,
-  CopyIcon,
-  Hint,
-  useCopy,
-} from "@babylonlabs-io/core-ui";
+import { Avatar, Hint } from "@babylonlabs-io/core-ui";
 import type { ReactNode } from "react";
 
+import { CopyableHash } from "@/components/shared/CopyableHash";
 import { getNetworkConfigBTC } from "@/config";
-import { truncateAddress, truncateHash } from "@/utils/addressUtils";
+import { truncateAddress } from "@/utils/addressUtils";
+import { getBtcExplorerTxUrl } from "@/utils/explorer";
 import { formatBtcAmount, formatDateTime } from "@/utils/formatting";
 
 const btcConfig = getNetworkConfigBTC();
-
-function stripHexPrefix(hash: string): string {
-  return hash.startsWith("0x") ? hash.slice(2) : hash;
-}
 
 interface VaultDetailCardProps {
   /** BTC amount (already converted from satoshis) */
   amountBtc: number;
   /** Timestamp in milliseconds */
   timestamp: number;
-  /** Transaction hash (hex, may include 0x prefix) */
+  /** BTC peg-in transaction hash (hex, may include 0x prefix) */
   txHash?: string;
   /** Vault provider display name */
   providerName: string;
@@ -53,8 +45,6 @@ export function VaultDetailCard({
   statusContent,
   action,
 }: VaultDetailCardProps) {
-  const { isCopied, copyToClipboard } = useCopy();
-
   return (
     <div className="space-y-3 rounded-xl border border-secondary-strokeLight p-4">
       {/* BTC icon + amount */}
@@ -102,28 +92,17 @@ export function VaultDetailCard({
         </Hint>
       </div>
 
-      {/* Transaction Hash */}
+      {/* Transaction Hash (BTC pegin) */}
       {txHash && (
         <div className="flex items-center justify-between">
           <span className="text-sm text-accent-secondary">
             Transaction Hash
           </span>
-          <button
-            type="button"
-            className="flex cursor-pointer items-center gap-1 font-mono text-sm text-accent-primary transition-colors hover:text-accent-secondary"
-            onClick={() => {
-              const hash = stripHexPrefix(txHash);
-              copyToClipboard(txHash, hash);
-            }}
-            aria-label={`Copy transaction hash ${truncateHash(txHash)}`}
-          >
-            <span>{truncateHash(stripHexPrefix(txHash))}</span>
-            {isCopied(txHash) ? (
-              <CheckIcon size={14} variant="success" />
-            ) : (
-              <CopyIcon size={14} />
-            )}
-          </button>
+          <CopyableHash
+            hash={txHash}
+            chain="BTC"
+            explorerUrl={getBtcExplorerTxUrl(txHash)}
+          />
         </div>
       )}
 

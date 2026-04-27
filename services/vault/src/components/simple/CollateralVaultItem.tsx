@@ -11,8 +11,10 @@ import {
   StatusBadge,
 } from "@babylonlabs-io/core-ui";
 
+import { CopyableHash } from "@/components/shared/CopyableHash";
 import { getNetworkConfigBTC } from "@/config";
 import { truncateAddress } from "@/utils/addressUtils";
+import { getBtcExplorerTxUrl } from "@/utils/explorer";
 import { formatBtcAmount, formatOrdinal } from "@/utils/formatting";
 
 const btcConfig = getNetworkConfigBTC();
@@ -25,6 +27,8 @@ interface CollateralVaultItemProps {
   providerIconUrl?: string;
   /** Vault provider Ethereum address, shown on hover over the provider label */
   providerAddress: string;
+  /** BTC peg-in transaction hash (hex, may include 0x prefix) */
+  peginTxHash?: string;
   liquidationIndex?: number;
   selected: boolean;
   selectable: boolean;
@@ -39,6 +43,7 @@ export function CollateralVaultItem({
   providerName,
   providerIconUrl,
   providerAddress,
+  peginTxHash,
   liquidationIndex,
   selected,
   selectable,
@@ -101,6 +106,20 @@ export function CollateralVaultItem({
           </span>
         </Hint>
       </div>
+
+      {/* Transaction hash row (BTC pegin) */}
+      {peginTxHash && (
+        <div className="flex items-center justify-between">
+          <span className="text-sm text-accent-secondary">
+            Transaction Hash
+          </span>
+          <CopyableHash
+            hash={peginTxHash}
+            chain="BTC"
+            explorerUrl={getBtcExplorerTxUrl(peginTxHash)}
+          />
+        </div>
+      )}
 
       {/* Liquidation Order row */}
       {liquidationIndex !== undefined && (
