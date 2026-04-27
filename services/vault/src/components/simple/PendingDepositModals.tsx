@@ -8,6 +8,7 @@
 import type { Hex } from "viem";
 
 import { BroadcastSuccessModal } from "@/components/deposit/BroadcastSuccessModal";
+import { RefundModal } from "@/components/deposit/RefundModal";
 import { usePeginPolling } from "@/context/deposit/PeginPollingContext";
 import type { SignModalData } from "@/hooks/deposit/usePayoutSignModal";
 import type { VaultActivity } from "@/types/activity";
@@ -132,12 +133,11 @@ export function PendingDepositModals({
 
       {/* Refund Modal */}
       {refundModal.refundingActivity && (
-        <SimpleDeposit
+        <RefundModal
           open={!!refundModal.refundingActivity}
-          resumeMode="refund_htlc"
-          onClose={refundModal.handleClose}
-          onResumeSuccess={refundModal.handleSuccess}
           activity={refundModal.refundingActivity}
+          onClose={refundModal.handleClose}
+          onSuccess={refundModal.handleSuccess}
         />
       )}
 

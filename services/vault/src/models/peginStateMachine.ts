@@ -37,6 +37,7 @@ export enum OffChainTrackingStatus {
   PAYOUT_SIGNED = "payout_signed",
   CONFIRMING = "confirming",
   CONFIRMED = "confirmed",
+  REFUND_BROADCAST = "refund_broadcast",
 }
 
 export const LocalStorageStatus = OffChainTrackingStatus;
@@ -81,6 +82,7 @@ export const PEGIN_DISPLAY_LABELS = {
   REDEEMED: "Redeemed",
   LIQUIDATED: "Liquidated",
   EXPIRED: "Expired",
+  REFUNDING: "Refunding",
   FAILED: "Failed",
   INVALID: "Invalid",
   UNKNOWN: "Unknown",
@@ -112,7 +114,23 @@ export interface GetPeginStateOptions {
   expiredAt?: number;
   canRefund?: boolean;
   vpTerminalError?: string;
+  /**
+   * `Date.now()` value captured when the refund tx was broadcast. Anchors
+   * the TTL on the REFUND_BROADCAST optimistic suppression so a tx evicted
+   * from the mempool eventually re-exposes the refund action.
+   */
+  refundBroadcastAt?: number;
+  /** Override `Date.now()` used for the TTL check (testing only). */
+  now?: number;
 }
+
+/**
+ * How long to keep suppressing the refund action after a broadcast while the
+ * contract is still EXPIRED. Long enough to cover the realistic confirmation
+ * window with margin; short enough that a dropped/evicted tx unblocks retry
+ * before the user has to clear localStorage by hand.
+ */
+export const REFUND_BROADCAST_SUPPRESSION_MS = 6 * 60 * 60 * 1000;
 
 // ============================================================================
 // Expiration helpers
@@ -202,6 +220,8 @@ export function getPeginState(
     protocolState.availableActions,
     contractStatus,
     options.localStatus,
+    options.refundBroadcastAt,
+    options.now,
   );
   const actions = mapActions(sdkActions);
   const display = getDisplay(contractStatus, actions, options);
@@ -222,6 +242,8 @@ function applyTrackingOverrides(
   sdkActions: SdkPeginAction[],
   contractStatus: ContractStatus,
   localStatus?: LocalStorageStatus,
+  refundBroadcastAt?: number,
+  now?: number,
 ): SdkPeginAction[] {
   if (!localStatus) return sdkActions;
 
@@ -238,7 +260,28 @@ function applyTrackingOverrides(
     if (localStatus === LocalStorageStatus.CONFIRMED) return [];
   }
 
+  if (contractStatus === ContractStatus.EXPIRED) {
+    if (localStatus === LocalStorageStatus.REFUND_BROADCAST) {
+      if (isRefundBroadcastWithinTtl(refundBroadcastAt, now)) return [];
+    }
+  }
+
   return sdkActions;
+}
+
+/**
+ * The suppression must auto-expire — broadcast txs can be evicted from the
+ * mempool, and a sticky marker would otherwise hide the refund action while
+ * the vault is still EXPIRED on-chain. Legacy entries without a timestamp are
+ * treated as expired so the user can always retry.
+ */
+function isRefundBroadcastWithinTtl(
+  refundBroadcastAt: number | undefined,
+  now: number | undefined,
+): boolean {
+  if (refundBroadcastAt === undefined) return false;
+  const currentTime = now ?? Date.now();
+  return currentTime - refundBroadcastAt < REFUND_BROADCAST_SUPPRESSION_MS;
 }
 
 interface DisplayInfo {
@@ -252,8 +295,15 @@ function getDisplay(
   actions: PeginAction[],
   options: GetPeginStateOptions,
 ): DisplayInfo {
-  const { localStatus, isInUse, expirationReason, expiredAt, vpTerminalError } =
-    options;
+  const {
+    localStatus,
+    isInUse,
+    expirationReason,
+    expiredAt,
+    vpTerminalError,
+    refundBroadcastAt,
+    now,
+  } = options;
 
   if (contractStatus === ContractStatus.PENDING) {
     if (vpTerminalError) {
@@ -370,6 +420,17 @@ function getDisplay(
   }
 
   if (contractStatus === ContractStatus.EXPIRED) {
+    if (
+      localStatus === LocalStorageStatus.REFUND_BROADCAST &&
+      isRefundBroadcastWithinTtl(refundBroadcastAt, now)
+    ) {
+      return {
+        displayLabel: PEGIN_DISPLAY_LABELS.REFUNDING,
+        displayVariant: "pending",
+        message:
+          "Refund transaction broadcast to Bitcoin. Waiting for on-chain confirmation...",
+      };
+    }
     return {
       displayLabel: PEGIN_DISPLAY_LABELS.EXPIRED,
       displayVariant: "warning",
@@ -454,7 +515,21 @@ export function getNextLocalStatus(
 export function shouldRemoveFromLocalStorage(
   contractStatus: ContractStatus,
   localStatus: LocalStorageStatus,
+  refundBroadcastAt?: number,
+  now?: number,
 ): boolean {
+  // Exception comes before the terminal-status check so the marker survives
+  // until the contract advances past EXPIRED — but only while the broadcast
+  // is still within the suppression TTL. Past the TTL the marker is stale
+  // and clearing it lets the EXPIRED state surface the refund action again.
+  if (
+    contractStatus === ContractStatus.EXPIRED &&
+    localStatus === LocalStorageStatus.REFUND_BROADCAST &&
+    isRefundBroadcastWithinTtl(refundBroadcastAt, now)
+  ) {
+    return false;
+  }
+
   if (
     contractStatus === ContractStatus.ACTIVE ||
     contractStatus === ContractStatus.REDEEMED ||

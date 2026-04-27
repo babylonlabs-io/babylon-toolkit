@@ -15,6 +15,7 @@ import type { SignPsbtOptions } from "@babylonlabs-io/ts-sdk/shared";
 import { getNetworkFees, pushTx } from "@babylonlabs-io/ts-sdk/tbv/core";
 import {
   buildAndBroadcastRefund,
+  estimateRefundFeeSats,
   type RefundPrePeginContext,
   type VaultRefundData,
 } from "@babylonlabs-io/ts-sdk/tbv/core/services";
@@ -37,14 +38,40 @@ import {
 } from "./vaultPayoutSignatureService";
 
 export interface BroadcastRefundParams {
-  /** Vault ID: keccak256(abi.encode(peginTxHash, depositor)) */
   vaultId: Hex;
-  /** BTC wallet provider for signing */
   btcWalletProvider: {
     signPsbt: (psbtHex: string, options?: SignPsbtOptions) => Promise<string>;
   };
-  /** Depositor's BTC public key (compressed or x-only hex) for signing options */
   depositorBtcPubkey: string;
+  feeRate: number;
+}
+
+// Re-export the SDK helper so the UI can compute the same fee the SDK will
+// charge without duplicating the protocol-owned vsize constant.
+export const getRefundNetworkFeeSats = estimateRefundFeeSats;
+
+export interface RefundPreview {
+  amountSats: bigint;
+  /**
+   * Mempool's halfHourFee, or null if the fee endpoint failed. Vault data
+   * loads independently — a fee fetch failure must not block the refund.
+   */
+  halfHourFeeSatsVb: number | null;
+}
+
+export async function getRefundPreview(vaultId: Hex): Promise<RefundPreview> {
+  const mempoolApiUrl = getMempoolApiUrl();
+  const [vault, feeRecommendation] = await Promise.all([
+    readVault(vaultId),
+    getNetworkFees(mempoolApiUrl).catch(() => null),
+  ]);
+  return {
+    amountSats: vault.amount,
+    halfHourFeeSatsVb:
+      feeRecommendation && feeRecommendation.halfHourFee > 0
+        ? feeRecommendation.halfHourFee
+        : null,
+  };
 }
 
 async function readVault(vaultId: Hex): Promise<VaultRefundData> {
@@ -150,12 +177,8 @@ async function readPrePeginContext(
 export async function buildAndBroadcastRefundTransaction(
   params: BroadcastRefundParams,
 ): Promise<string> {
-  const { vaultId, btcWalletProvider, depositorBtcPubkey } = params;
+  const { vaultId, btcWalletProvider, depositorBtcPubkey, feeRate } = params;
   const mempoolApiUrl = getMempoolApiUrl();
-
-  // Pre-fetch the mempool fee rate — it doesn't depend on any value the SDK
-  // computes, so passing it in keeps the SDK's orchestration honest.
-  const { halfHourFee } = await getNetworkFees(mempoolApiUrl);
 
   // Override indexer-provided depositor pubkey with the caller's wallet key —
   // the wallet is the authoritative source for the depositor's signing key.
@@ -166,7 +189,7 @@ export async function buildAndBroadcastRefundTransaction(
       return { ...data, depositorBtcPubkey };
     },
     readPrePeginContext: (vault) => readPrePeginContext(vault),
-    feeRate: halfHourFee,
+    feeRate,
     signPsbt: (psbtHex, options) =>
       btcWalletProvider.signPsbt(psbtHex, options),
     broadcastTx: async (signedTxHex) => ({

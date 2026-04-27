@@ -328,4 +328,34 @@ describe("getPendingPegins integrity validation", () => {
 
     expect(getPendingPegins(ETH_ADDRESS)).toHaveLength(1);
   });
+
+  it("accepts entries with a valid refundBroadcastAt timestamp", () => {
+    const pegin: PendingPeginRequest = {
+      ...validPegin,
+      status: LocalStorageStatus.REFUND_BROADCAST,
+      refundBroadcastAt: 1_700_000_000_000,
+    };
+    localStorage.setItem(storageKey, JSON.stringify([pegin]));
+
+    const result = getPendingPegins(ETH_ADDRESS);
+    expect(result).toHaveLength(1);
+    expect(result[0].refundBroadcastAt).toBe(1_700_000_000_000);
+  });
+
+  it("filters entries whose refundBroadcastAt is non-numeric", () => {
+    const tampered = {
+      ...validPegin,
+      refundBroadcastAt: "not-a-number" as unknown as number,
+    };
+    localStorage.setItem(storageKey, JSON.stringify([tampered]));
+
+    expect(getPendingPegins(ETH_ADDRESS)).toHaveLength(0);
+  });
+
+  it("filters entries whose refundBroadcastAt is negative", () => {
+    const tampered = { ...validPegin, refundBroadcastAt: -1 };
+    localStorage.setItem(storageKey, JSON.stringify([tampered]));
+
+    expect(getPendingPegins(ETH_ADDRESS)).toHaveLength(0);
+  });
 });
