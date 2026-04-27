@@ -18,7 +18,12 @@ import type { Hex } from "viem";
 
 import { logger } from "@/infrastructure";
 
-import { STORAGE_KEY_PREFIX, STORAGE_UPDATE_EVENT } from "../constants";
+import {
+  STORAGE_KEY_PREFIX,
+  STORAGE_UPDATE_EVENT,
+  UTXO_RESERVATION_KEY_PREFIX,
+  UTXO_RESERVATION_TTL,
+} from "../constants";
 import {
   LocalStorageStatus,
   shouldRemoveFromLocalStorage,
@@ -371,4 +376,142 @@ export function filterPendingPegins(
     // This handles the logic for keeping status 0-1 and removing status 2+
     return !shouldRemoveFromLocalStorage(confirmedPegin.status, pegin.status);
   });
+}
+
+// ============================================================================
+// UTXO Reservations — early cross-tab reservation before ETH registration
+// ============================================================================
+
+/**
+ * A lightweight reservation written to localStorage immediately after
+ * transaction preparation, BEFORE wallet interaction or ETH registration.
+ * This closes the TOCTOU race window where another tab could select the
+ * same UTXOs during the 1-3 minute signing/registration process.
+ */
+export interface UtxoReservation {
+  unsignedTxHex: string;
+  timestamp: number;
+  batchId: string;
+}
+
+function getReservationStorageKey(ethAddress: string): string {
+  return `${UTXO_RESERVATION_KEY_PREFIX}-${ethAddress}`;
+}
+
+function isValidReservation(entry: unknown): entry is UtxoReservation {
+  if (!entry || typeof entry !== "object") return false;
+  const r = entry as Record<string, unknown>;
+  return (
+    typeof r.unsignedTxHex === "string" &&
+    NON_EMPTY_HEX_RE.test(r.unsignedTxHex) &&
+    typeof r.timestamp === "number" &&
+    Number.isFinite(r.timestamp) &&
+    r.timestamp > 0 &&
+    typeof r.batchId === "string" &&
+    r.batchId.length > 0
+  );
+}
+
+/**
+ * Read all UTXO reservations for an address, filtering out expired entries.
+ * Expired entries are cleaned up on read to avoid accumulation from crashed tabs.
+ */
+export function getUtxoReservations(ethAddress: string): UtxoReservation[] {
+  if (!ethAddress) return [];
+
+  try {
+    const stored = localStorage.getItem(getReservationStorageKey(ethAddress));
+    if (!stored) return [];
+
+    const parsed: unknown = JSON.parse(stored);
+    if (!Array.isArray(parsed)) return [];
+
+    const now = Date.now();
+    const valid: UtxoReservation[] = [];
+    let hadExpired = false;
+
+    for (const entry of parsed) {
+      if (!isValidReservation(entry)) continue;
+      if (now - entry.timestamp > UTXO_RESERVATION_TTL) {
+        hadExpired = true;
+        continue;
+      }
+      valid.push(entry);
+    }
+
+    // Clean up expired entries lazily on read
+    if (hadExpired) {
+      saveReservations(ethAddress, valid);
+    }
+
+    return valid;
+  } catch (error) {
+    logger.warn("[peginStorage] Failed to read UTXO reservations", {
+      category: "peginStorage",
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return [];
+  }
+}
+
+function saveReservations(
+  ethAddress: string,
+  reservations: UtxoReservation[],
+): void {
+  const key = getReservationStorageKey(ethAddress);
+  if (reservations.length === 0) {
+    localStorage.removeItem(key);
+  } else {
+    localStorage.setItem(key, JSON.stringify(reservations));
+  }
+  // No dispatchStorageUpdateEvent here: reservations are stored under a
+  // separate key and read imperatively by useDepositFlow, not via the
+  // pendingPegins hook. Cross-tab notification works automatically via
+  // the native StorageEvent fired by localStorage writes.
+}
+
+/**
+ * Reserve UTXOs by writing the prepared transaction hex to localStorage.
+ * Called immediately after `preparePeginTransaction()`, before wallet
+ * interaction or ETH registration.
+ */
+export function addUtxoReservation(
+  ethAddress: string,
+  reservation: UtxoReservation,
+): void {
+  if (!ethAddress) return;
+
+  try {
+    const existing = getUtxoReservations(ethAddress);
+    // Replace any existing reservation with the same batchId
+    const filtered = existing.filter((r) => r.batchId !== reservation.batchId);
+    saveReservations(ethAddress, [...filtered, reservation]);
+  } catch (error) {
+    logger.warn("[peginStorage] Failed to write UTXO reservation", {
+      category: "peginStorage",
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
+
+/**
+ * Remove a UTXO reservation after the deposit flow completes (success or
+ * failure). The real pending pegin entries supersede the early reservation.
+ */
+export function removeUtxoReservation(
+  ethAddress: string,
+  batchId: string,
+): void {
+  if (!ethAddress) return;
+
+  try {
+    const existing = getUtxoReservations(ethAddress);
+    const filtered = existing.filter((r) => r.batchId !== batchId);
+    saveReservations(ethAddress, filtered);
+  } catch (error) {
+    logger.warn("[peginStorage] Failed to remove UTXO reservation", {
+      category: "peginStorage",
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
 }
