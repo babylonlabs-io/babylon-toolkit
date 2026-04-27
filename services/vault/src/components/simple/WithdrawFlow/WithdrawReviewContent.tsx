@@ -50,9 +50,7 @@ export function WithdrawReviewContent({
     const nominatedRow: DetailRow | null = btcAddress
       ? {
           label: "Nominated Address",
-          value: (
-            <span title={btcAddress}>{truncateAddress(btcAddress)}</span>
-          ),
+          value: <span title={btcAddress}>{truncateAddress(btcAddress)}</span>,
         }
       : null;
 
