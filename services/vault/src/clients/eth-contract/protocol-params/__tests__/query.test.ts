@@ -69,7 +69,11 @@ describe("getProtocolParamsAddress cache TTL", () => {
   it("caches the protocol params address for subsequent calls", async () => {
     mockGetChainId.mockResolvedValue(11155111);
     mockReadContract.mockResolvedValue(PROTOCOL_PARAMS_ADDRESS);
-    mockMulticall.mockResolvedValue([VALID_TBV_PARAMS, VALID_OFFCHAIN_PARAMS]);
+    mockMulticall.mockResolvedValue([
+      VALID_TBV_PARAMS,
+      VALID_OFFCHAIN_PARAMS,
+      1,
+    ]);
 
     await query.getPegInConfiguration();
     await query.getPegInConfiguration();
@@ -88,6 +92,7 @@ describe("getProtocolParamsAddress cache TTL", () => {
       mockMulticall.mockResolvedValue([
         VALID_TBV_PARAMS,
         VALID_OFFCHAIN_PARAMS,
+        1,
       ]);
 
       await query.getPegInConfiguration();
@@ -115,6 +120,7 @@ describe("getProtocolParamsAddress stale cache fallback", () => {
       mockMulticall.mockResolvedValue([
         VALID_TBV_PARAMS,
         VALID_OFFCHAIN_PARAMS,
+        1,
       ]);
 
       // First call succeeds and populates the cache
@@ -128,6 +134,7 @@ describe("getProtocolParamsAddress stale cache fallback", () => {
       mockMulticall.mockResolvedValue([
         VALID_TBV_PARAMS,
         VALID_OFFCHAIN_PARAMS,
+        1,
       ]);
 
       // Should succeed using stale cached address
@@ -192,6 +199,7 @@ describe("getPegInConfiguration validation", () => {
     mockMulticall.mockResolvedValue([
       VALID_TBV_PARAMS,
       { ...VALID_OFFCHAIN_PARAMS, councilQuorum: 0 },
+      1,
     ]);
 
     await expect(query.getPegInConfiguration()).rejects.toThrow(
@@ -205,6 +213,7 @@ describe("getPegInConfiguration validation", () => {
     mockMulticall.mockResolvedValue([
       { ...VALID_TBV_PARAMS, minimumPegInAmount: 10n, maxPegInAmount: 5n },
       VALID_OFFCHAIN_PARAMS,
+      1,
     ]);
 
     await expect(query.getPegInConfiguration()).rejects.toThrow(
@@ -233,11 +242,13 @@ describe("getPegInConfiguration validation", () => {
         proverProgramVersion: 3,
         minPrepeginDepth: 12,
       },
+      4,
     ]);
 
     const config = await query.getPegInConfiguration();
     expect(config.maxHtlcOutputCount).toBe(VALID_TBV_PARAMS.maxHtlcOutputCount);
     expect(config.offchainParams.proverProgramVersion).toBe(3);
     expect(config.offchainParams.minPrepeginDepth).toBe(12);
+    expect(config.offchainParamsVersion).toBe(4);
   });
 });

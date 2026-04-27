@@ -38,6 +38,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { v4 as uuidv4 } from "uuid";
 import type { Address, Hex } from "viem";
 
+import { getVaultFromChain } from "@/clients/eth-contract/btc-vault-registry/query";
 import { useProtocolParamsContext } from "@/context/ProtocolParamsContext";
 import { logger } from "@/infrastructure";
 import { LocalStorageStatus } from "@/models/peginStateMachine";
@@ -455,6 +456,36 @@ export function useDepositFlow(
             depositorBtcPubkey: batchResult.depositorBtcPubkey,
             htlcSecretHex: htlcSecretHexes[i],
           }));
+
+        // 3g. Verify the on-chain vault was registered under the same offchain
+        // params version we used to build the BTC scripts. submitPeginRequestBatch
+        // does not accept an expected version, so the contract snapshots the
+        // latest version at inclusion time. If governance or an authorized update
+        // changed the latest version between context fetch and tx inclusion, the
+        // BTC scripts (timelocks, council quorum, signer set) will not match the
+        // on-chain record. Aborting before broadcast keeps BTC unspent — the
+        // user's registered ETH vault times out per protocol rules.
+        const expectedVersion = config.offchainParamsVersion;
+        const onChainVaults = await Promise.all(
+          batchRegistration.vaults.map((v) => getVaultFromChain(v.vaultId)),
+        );
+        const versionMismatches = onChainVaults
+          .map((vault, i) => ({
+            vaultId: batchRegistration.vaults[i].vaultId,
+            actualVersion: vault.offchainParamsVersion,
+          }))
+          .filter((v) => v.actualVersion !== expectedVersion);
+        if (versionMismatches.length > 0) {
+          const detail = versionMismatches
+            .map(
+              (v) =>
+                `vault ${v.vaultId}: expected v${expectedVersion}, got v${v.actualVersion}`,
+            )
+            .join("; ");
+          throw new Error(
+            `Aborting BTC broadcast: offchain params version changed during registration (${detail}). The Pre-PegIn was not broadcast; the registered ETH vault will time out per protocol rules.`,
+          );
+        }
 
         // ========================================================================
         // Step 4a: Persist pending pegins BEFORE broadcast

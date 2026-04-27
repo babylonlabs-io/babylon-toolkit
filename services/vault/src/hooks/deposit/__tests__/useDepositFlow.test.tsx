@@ -148,6 +148,10 @@ vi.mock("@/infrastructure", () => ({
   },
 }));
 
+vi.mock("@/clients/eth-contract/btc-vault-registry/query", () => ({
+  getVaultFromChain: vi.fn().mockResolvedValue({ offchainParamsVersion: 7 }),
+}));
+
 vi.mock("../depositFlowSteps", () => ({
   DepositFlowStep: {
     SIGN_POP: 1,
@@ -297,6 +301,7 @@ async function setupDefaultMocks() {
         securityCouncilKeys: ["0xcouncil1"],
         feeRate: 10n,
       },
+      offchainParamsVersion: 7,
     },
     timelockPegin: 100,
     timelockRefund: 50,
@@ -557,6 +562,34 @@ describe("useDepositFlow", () => {
           }),
         );
       });
+    });
+
+    it("aborts before broadcast when on-chain offchainParamsVersion drifted from the build version", async () => {
+      const { getVaultFromChain } = vi.mocked(
+        await import("@/clients/eth-contract/btc-vault-registry/query"),
+      );
+      const { broadcastPrePeginTransaction } = vi.mocked(
+        await import("@/services/vault/vaultPeginBroadcastService"),
+      );
+      const { addPendingPegin } = vi.mocked(
+        await import("@/storage/peginStorage"),
+      );
+
+      // Context exposes version 7; chain returns 8 for one vault — simulating
+      // a governance update between the multicall snapshot and tx inclusion.
+      vi.mocked(getVaultFromChain)
+        .mockResolvedValueOnce({ offchainParamsVersion: 7 } as any)
+        .mockResolvedValueOnce({ offchainParamsVersion: 8 } as any);
+
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+
+      await executeWithAutoArtifactDownload(result);
+
+      await waitFor(() => {
+        expect(result.current.error).toMatch(/offchain params version changed/);
+      });
+      expect(broadcastPrePeginTransaction).not.toHaveBeenCalled();
+      expect(addPendingPegin).not.toHaveBeenCalled();
     });
 
     it("should update pegins to CONFIRMING status after broadcast", async () => {
