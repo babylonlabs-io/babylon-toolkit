@@ -1,7 +1,6 @@
 // GraphQL: Aave config
 export {
   fetchAaveAppConfig,
-  fetchAaveConfig,
   type AaveAppConfig,
   type AaveConfig,
   type AaveReserveConfig,

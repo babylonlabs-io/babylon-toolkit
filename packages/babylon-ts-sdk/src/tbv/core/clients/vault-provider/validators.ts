@@ -9,6 +9,12 @@
  * construction. Only `progress.presigning` sub-fields are checked.
  */
 
+import {
+  COMPRESSED_PUBKEY_HEX_LEN,
+  X_ONLY_PUBKEY_HEX_LEN,
+} from "../../primitives/utils/bitcoin";
+import { HEX_RE } from "../../utils/validation";
+
 import { DaemonStatus } from "./types";
 import type {
   GetPeginStatusResponse,
@@ -45,14 +51,6 @@ export class VpResponseValidationError extends Error {
     this.detail = detail;
   }
 }
-
-/** Non-empty string of hexadecimal characters (case-insensitive). */
-const HEX_RE = /^[0-9a-fA-F]+$/;
-
-/** Expected length (in hex chars) of an x-only Bitcoin public key (32 bytes). */
-const X_ONLY_PUBKEY_HEX_LEN = 64;
-/** Expected length (in hex chars) of a compressed Bitcoin public key (33 bytes). */
-const COMPRESSED_PUBKEY_HEX_LEN = 66;
 
 /** Expected length (in hex chars) of a Bitcoin transaction ID (32 bytes). */
 const TXID_HEX_LEN = 64;

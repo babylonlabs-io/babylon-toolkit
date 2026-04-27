@@ -105,6 +105,20 @@ export function validateUtxosAvailable(
     throw new Error("Transaction has no inputs");
   }
 
+  // Detect duplicate inputs (same txid:vout referenced more than once).
+  // This would produce an invalid Bitcoin transaction.
+  const inputKeys = new Set<string>();
+  for (const input of inputs) {
+    const key = `${input.txid.toLowerCase()}:${input.vout}`;
+    if (inputKeys.has(key)) {
+      throw new Error(
+        `Transaction contains duplicate input ${input.txid}:${input.vout}. ` +
+          `This would produce an invalid Bitcoin transaction.`,
+      );
+    }
+    inputKeys.add(key);
+  }
+
   // Create a set of available UTXOs for O(1) lookup (lowercase for consistency with reservation.ts)
   const availableSet = new Set(
     availableUtxos.map((utxo) => `${utxo.txid.toLowerCase()}:${utxo.vout}`),

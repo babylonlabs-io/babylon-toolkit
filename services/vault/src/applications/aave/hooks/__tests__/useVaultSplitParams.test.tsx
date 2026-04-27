@@ -56,7 +56,7 @@ vi.mock("../../utils", () => ({
 vi.mock("../../context", () => ({
   useAaveConfig: vi.fn(() => ({
     config: {
-      btcVaultCoreSpokeAddress: "0xSpokeAddress",
+      coreSpokeAddress: "0xSpokeAddress",
       btcVaultCoreVbtcReserveId: 1n,
     },
     vbtcReserve: null,
@@ -213,7 +213,7 @@ describe("useVaultSplitParams", () => {
         adapterAddress: "0x1",
         vaultBtcAddress: "0x2",
         btcVaultRegistryAddress: "0x3",
-        btcVaultCoreSpokeAddress: "0xSpokeAddress",
+        coreSpokeAddress: "0xSpokeAddress",
         btcVaultCoreVbtcReserveId: 1n,
       },
       vbtcReserve: null,

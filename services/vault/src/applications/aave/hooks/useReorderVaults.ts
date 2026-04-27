@@ -5,6 +5,7 @@
  * to change the prefix ordering for liquidation priority.
  */
 
+import { getETHChain } from "@babylonlabs-io/config";
 import { useCallback, useState } from "react";
 import type { Hex } from "viem";
 import { useAccount, useWalletClient } from "wagmi";
@@ -40,14 +41,13 @@ export function useReorderVaults(): UseReorderVaultsResult {
   const [isProcessing, setIsProcessing] = useState(false);
   const { data: walletClient } = useWalletClient();
   const { address } = useAccount();
-  const chain = walletClient?.chain;
   const { handleError } = useError();
 
   const executeReorder = useCallback(
     async (permutedVaultIds: Hex[]) => {
       setIsProcessing(true);
       try {
-        if (!walletClient || !chain) {
+        if (!walletClient) {
           throw new WalletError(
             "Please connect your wallet to continue",
             ErrorCode.WALLET_NOT_CONNECTED,
@@ -61,7 +61,7 @@ export function useReorderVaults(): UseReorderVaultsResult {
           );
         }
 
-        await reorderVaultOrder(walletClient, chain, permutedVaultIds);
+        await reorderVaultOrder(walletClient, getETHChain(), permutedVaultIds);
 
         return true;
       } catch (error) {
@@ -86,7 +86,7 @@ export function useReorderVaults(): UseReorderVaultsResult {
         setIsProcessing(false);
       }
     },
-    [walletClient, chain, address, handleError],
+    [walletClient, address, handleError],
   );
 
   return {

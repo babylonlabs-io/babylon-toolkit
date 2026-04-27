@@ -44,6 +44,11 @@
       "require": "./dist/tbv/core/services/index.cjs",
       "import": "./dist/tbv/core/services/index.js"
     },
+    "./tbv/core/vault-secrets": {
+      "types": "./dist/tbv/core/vault-secrets/index.d.ts",
+      "require": "./dist/tbv/core/vault-secrets/index.cjs",
+      "import": "./dist/tbv/core/vault-secrets/index.js"
+    },
     "./tbv/integrations/aave": {
       "types": "./dist/tbv/integrations/aave/index.d.ts",
       "require": "./dist/tbv/integrations/aave/index.cjs",

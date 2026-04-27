@@ -48,6 +48,25 @@ export interface UTXOSelectionResult {
 }
 
 /**
+ * Assert that no two UTXOs share the same txid:vout outpoint.
+ * Duplicates from a buggy or compromised UTXO source would produce
+ * an invalid Bitcoin transaction that double-spends the same outpoint.
+ */
+function assertNoDuplicateUtxos(utxos: UTXO[]): void {
+  const seen = new Set<string>();
+  for (const utxo of utxos) {
+    const key = `${utxo.txid.toLowerCase()}:${utxo.vout}`;
+    if (seen.has(key)) {
+      throw new Error(
+        `Duplicate UTXO detected: ${utxo.txid}:${utxo.vout}. ` +
+          `This indicates a data integrity issue with the UTXO source.`,
+      );
+    }
+    seen.add(key);
+  }
+}
+
+/**
  * Selects UTXOs to fund a peg-in transaction with iterative fee calculation.
  *
  * This function implements the btc-staking-ts approach:
@@ -82,6 +101,8 @@ export function selectUtxosForPegin(
   if (availableUTXOs.length === 0) {
     throw new Error("Insufficient funds: no UTXOs available");
   }
+
+  assertNoDuplicateUtxos(availableUTXOs);
 
   // Filter for script validity ONLY (matching btc-staking-ts approach)
   // No minimum value filter - we accept any UTXO with valid script

@@ -577,7 +577,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/selectUtxos.ts:47](
 function getNetwork(network): Network;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/utils/bitcoin.ts:281](../../packages/babylon-ts-sdk/src/tbv/core/primitives/utils/bitcoin.ts#L281)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/utils/bitcoin.ts:307](../../packages/babylon-ts-sdk/src/tbv/core/primitives/utils/bitcoin.ts#L307)
 
 Map SDK network type to bitcoinjs-lib Network object.
 
@@ -703,16 +703,25 @@ Buffer amount in satoshis to add to the transaction fee
 ### peginOutputCount()
 
 ```ts
-function peginOutputCount(vaultCount): number;
+function peginOutputCount(vaultCount, authAnchorHash?): number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/fee/constants.ts:62](../../packages/babylon-ts-sdk/src/tbv/core/utils/fee/constants.ts#L62)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/fee/constants.ts:84](../../packages/babylon-ts-sdk/src/tbv/core/utils/fee/constants.ts#L84)
 
-Compute the total number of outputs (before change) in a Pre-PegIn transaction.
+Compute the total number of outputs (before change) in a Pre-PegIn
+transaction.
 
-A Pre-PegIn tx has: N HTLC outputs (one per vault) + fixed outputs (CPFP anchor).
-This count is used for fee estimation — the change output is handled separately
-by selectUtxosForPegin when the change amount exceeds the dust threshold.
+A Pre-PegIn tx has: N HTLC outputs (one per vault) + optional
+auth-anchor OP_RETURN output + fixed outputs (CPFP anchor). This
+count is used for fee estimation — the change output is handled
+separately by `selectUtxosForPegin` when the change amount exceeds
+the dust threshold.
+
+`authAnchorHash` is the same value forwarded into `buildPrePeginPsbt`:
+when truthy the Pre-PegIn carries an OP_RETURN commitment, so callers
+pass the same value to both functions and the fee budget stays in
+lockstep with the output set. Passing `undefined`/`null` reproduces
+the legacy single-arg behavior (HTLCs + CPFP only).
 
 #### Parameters
 
@@ -720,13 +729,25 @@ by selectUtxosForPegin when the change amount exceeds the dust threshold.
 
 `number`
 
-Number of vaults in the batch (1 for single-vault)
+Number of vaults in the batch (≥1).
+
+##### authAnchorHash?
+
+The same auth-anchor commitment passed to
+                         `buildPrePeginPsbt`. Truthy → counts the
+                         OP_RETURN output in the budget.
+
+`string` | `null`
 
 #### Returns
 
 `number`
 
-Total output count before change
+Total output count before change.
+
+#### Throws
+
+If `vaultCount` is not a positive integer.
 
 ***
 
@@ -934,7 +955,7 @@ Validation result with missing UTXO details
 function assertUtxosAvailable(unsignedTxHex, availableUtxos): void;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts:142](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts#L142)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts:156](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts#L156)
 
 Validate UTXOs and throw if any are not available.
 
@@ -1057,7 +1078,7 @@ function selectUtxosForPegin(
    numOutputs): UTXOSelectionResult;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/selectUtxos.ts:70](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/selectUtxos.ts#L70)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/selectUtxos.ts:89](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/selectUtxos.ts#L89)
 
 Selects UTXOs to fund a peg-in transaction with iterative fee calculation.
 
@@ -1115,7 +1136,7 @@ Error if insufficient funds or no valid UTXOs
 function shouldAddChangeOutput(changeAmount): boolean;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/selectUtxos.ts:160](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/selectUtxos.ts#L160)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/selectUtxos.ts:181](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/selectUtxos.ts#L181)
 
 Checks if change amount is above dust threshold.
 
@@ -1141,7 +1162,7 @@ true if change should be added as output, false if it should go to miners
 function getDustThreshold(): number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/selectUtxos.ts:169](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/selectUtxos.ts#L169)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/selectUtxos.ts:190](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/selectUtxos.ts#L190)
 
 Gets the dust threshold value.
 
@@ -1304,8 +1325,24 @@ const PEGIN_FIXED_OUTPUTS: 1 = 1;
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/fee/constants.ts:50](../../packages/babylon-ts-sdk/src/tbv/core/utils/fee/constants.ts#L50)
 
-Number of fixed (non-HTLC) outputs in a Pre-PegIn transaction.
-Currently this is 1 CPFP anchor output.
+Number of always-present fixed (non-HTLC) outputs in a Pre-PegIn
+transaction. Currently this is 1 CPFP anchor output.
+
+***
+
+### PEGIN\_AUTH\_ANCHOR\_OUTPUTS
+
+```ts
+const PEGIN_AUTH_ANCHOR_OUTPUTS: 1 = 1;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/fee/constants.ts:59](../../packages/babylon-ts-sdk/src/tbv/core/utils/fee/constants.ts#L59)
+
+Size of the auth-anchor `OP_RETURN` output when committed into a
+Pre-PegIn. The output carries `OP_RETURN <PUSH32 hash>` = 34 script
+bytes, plus 8 bytes value + 1 byte scriptLen = ~43 bytes total —
+same as [MAX\_NON\_LEGACY\_OUTPUT\_SIZE](#max_non_legacy_output_size). Counted as one output
+toward the fee-estimation output budget.
 
 ***
 
@@ -1315,7 +1352,7 @@ Currently this is 1 CPFP anchor output.
 const SPLIT_TX_FEE_SAFETY_MULTIPLIER: 5 = 5;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/fee/constants.ts:72](../../packages/babylon-ts-sdk/src/tbv/core/utils/fee/constants.ts#L72)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/fee/constants.ts:108](../../packages/babylon-ts-sdk/src/tbv/core/utils/fee/constants.ts#L108)
 
 Safety multiplier for split transaction fee validation.
 The signed PSBT's fee rate and absolute fee must not exceed this multiple

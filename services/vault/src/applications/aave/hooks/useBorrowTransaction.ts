@@ -3,6 +3,7 @@
  * Handles the transaction execution for borrowing assets against collateral
  */
 
+import { getETHChain } from "@babylonlabs-io/config";
 import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { parseUnits } from "viem";
@@ -43,7 +44,7 @@ export function useBorrowTransaction(): UseBorrowTransactionResult {
   const { data: walletClient } = useWalletClient();
   const { address } = useAccount();
   const queryClient = useQueryClient();
-  const chain = walletClient?.chain;
+  const chain = getETHChain();
   const { handleError } = useError();
 
   const executeBorrow = async (
@@ -56,7 +57,7 @@ export function useBorrowTransaction(): UseBorrowTransactionResult {
     setIsProcessing(true);
     try {
       // Validate wallet connection
-      if (!walletClient || !chain) {
+      if (!walletClient) {
         throw new WalletError(
           "Please connect your wallet to continue",
           ErrorCode.WALLET_NOT_CONNECTED,

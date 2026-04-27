@@ -48,7 +48,27 @@ export async function initWasm(): Promise<void> {
 export async function createPrePeginTransaction(
   params: PrePeginParams,
 ): Promise<PrePeginResult> {
-  const tx = new WasmPrePeginTx(
+  await initWasm();
+
+  // The 13th positional arg `auth_anchor_hash` is an Option<String> in
+  // Rust — pass `undefined` for Pre-PegIns that do not commit an auth
+  // anchor. Requires a WASM build from a btc-vault commit ≥ 1ced81e5
+  // (btc-vault #1516).
+  const tx = new (WasmPrePeginTx as unknown as new (
+    depositor: string,
+    vault_provider: string,
+    vault_keepers: string[],
+    universal_challengers: string[],
+    hashlocks: string[],
+    pegin_amounts: BigUint64Array,
+    timelock_refund: number,
+    fee_rate: bigint,
+    num_local_challengers: number,
+    council_quorum: number,
+    council_size: number,
+    network: string,
+    auth_anchor_hash?: string,
+  ) => typeof WasmPrePeginTx.prototype)(
     params.depositorPubkey,
     params.vaultProviderPubkey,
     params.vaultKeeperPubkeys,
@@ -61,6 +81,7 @@ export async function createPrePeginTransaction(
     params.councilQuorum,
     params.councilSize,
     params.network,
+    params.authAnchorHash,
   );
 
   try {
@@ -97,7 +118,23 @@ export async function buildPeginTxFromPrePegin(
   fundedPrePeginTxHex: string,
   htlcVout: number,
 ): Promise<PeginTxResult> {
-  const unfundedTx = new WasmPrePeginTx(
+  await initWasm();
+
+  const unfundedTx = new (WasmPrePeginTx as unknown as new (
+    depositor: string,
+    vault_provider: string,
+    vault_keepers: string[],
+    universal_challengers: string[],
+    hashlocks: string[],
+    pegin_amounts: BigUint64Array,
+    timelock_refund: number,
+    fee_rate: bigint,
+    num_local_challengers: number,
+    council_quorum: number,
+    council_size: number,
+    network: string,
+    auth_anchor_hash?: string,
+  ) => typeof WasmPrePeginTx.prototype)(
     params.depositorPubkey,
     params.vaultProviderPubkey,
     params.vaultKeeperPubkeys,
@@ -110,6 +147,7 @@ export async function buildPeginTxFromPrePegin(
     params.councilQuorum,
     params.councilSize,
     params.network,
+    params.authAnchorHash,
   );
 
   let fundedTx: WasmPrePeginTx | null = null;
@@ -134,6 +172,8 @@ export async function buildPeginTxFromPrePegin(
 export async function getPrePeginHtlcConnectorInfo(
   params: HtlcConnectorParams,
 ): Promise<HtlcConnectorInfo> {
+  await initWasm();
+
   const connector = new WasmPrePeginHtlcConnector(
     params.depositorPubkey,
     params.vaultProviderPubkey,
@@ -164,6 +204,7 @@ export async function computeMinClaimValue(
   councilSize: number,
   feeRate: bigint,
 ): Promise<bigint> {
+  await initWasm();
   return wasmComputeMinClaimValue(
     numLocalChallengers,
     numUniversalChallengers,
@@ -177,6 +218,8 @@ export async function createPayoutConnector(
   params: PayoutConnectorParams,
   network: Network,
 ): Promise<PayoutConnectorInfo> {
+  await initWasm();
+
   const connector = new WasmPeginPayoutConnector(
     params.depositor,
     params.vaultProvider,
@@ -201,6 +244,8 @@ export async function createPayoutConnector(
 export async function getPeginPayoutScriptInfo(
   params: PayoutConnectorParams,
 ): Promise<{ payoutScript: string; payoutControlBlock: string }> {
+  await initWasm();
+
   const connector = new WasmPeginPayoutConnector(
     params.depositor,
     params.vaultProvider,
@@ -222,6 +267,8 @@ export async function getPeginPayoutScriptInfo(
 export async function getAssertPayoutScriptInfo(
   params: AssertPayoutNoPayoutConnectorParams,
 ): Promise<AssertPayoutScriptInfo> {
+  await initWasm();
+
   const conn = new WasmAssertPayoutNoPayoutConnector(
     params.claimer,
     params.localChallengers,
@@ -245,6 +292,8 @@ export async function getAssertNoPayoutScriptInfo(
   params: AssertPayoutNoPayoutConnectorParams,
   challengerPubkey: string,
 ): Promise<AssertNoPayoutScriptInfo> {
+  await initWasm();
+
   const conn = new WasmAssertPayoutNoPayoutConnector(
     params.claimer,
     params.localChallengers,
@@ -267,6 +316,8 @@ export async function getAssertNoPayoutScriptInfo(
 export async function getChallengeAssertScriptInfo(
   params: ChallengeAssertConnectorParams,
 ): Promise<ChallengeAssertScriptInfo> {
+  await initWasm();
+
   const conn = new WasmAssertChallengeAssertConnector(
     params.claimer,
     params.challenger,
@@ -298,6 +349,7 @@ export async function deriveVaultId(
   peginTxHash: string,
   depositor: string,
 ): Promise<string> {
+  await initWasm();
   const hashBytes = hexToBytes(peginTxHash);
   if (hashBytes.length !== 32) {
     throw new Error(`peginTxHash must be 32 bytes, got ${hashBytes.length}`);

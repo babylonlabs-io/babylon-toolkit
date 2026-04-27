@@ -3,8 +3,9 @@ import { describe, expect, it } from "vitest";
 import {
   computeWotsBlockPublicKeysHash,
   deriveWotsBlockPublicKeys,
+  mnemonicToWotsSeed,
 } from "../blockDerivation";
-import { mnemonicToWotsSeed } from "../derivation";
+import { deriveWotsPkHash } from "../deriveWotsPkHash";
 
 const KNOWN_MNEMONIC =
   "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
@@ -96,7 +97,7 @@ describe("WOTS block derivation (SDK)", () => {
       );
     });
 
-    it("handles 0x-prefixed inputs the same as unprefixed", async () => {
+    it("handles 0x-prefixed vaultId and depositorPk the same as unprefixed", async () => {
       const a = await deriveWotsBlockPublicKeys(
         freshSeed(),
         "0xdeadbeef",
@@ -108,6 +109,38 @@ describe("WOTS block derivation (SDK)", () => {
         "deadbeef",
         "pk123",
         "0x1234",
+      );
+      expect(a).toEqual(b);
+    });
+
+    it("normalizes vaultId and depositorPk case", async () => {
+      const a = await deriveWotsBlockPublicKeys(
+        freshSeed(),
+        "0xDEADBEEF",
+        "0xABCDEF",
+        "0x1234",
+      );
+      const b = await deriveWotsBlockPublicKeys(
+        freshSeed(),
+        "0xdeadbeef",
+        "0xabcdef",
+        "0x1234",
+      );
+      expect(a).toEqual(b);
+    });
+
+    it("normalizes appContractAddress case (EIP-55 checksummed vs lowercase)", async () => {
+      const a = await deriveWotsBlockPublicKeys(
+        freshSeed(),
+        vaultId,
+        depositorPk,
+        "0xAbCdEf1234567890AbCdEf1234567890AbCdEf12",
+      );
+      const b = await deriveWotsBlockPublicKeys(
+        freshSeed(),
+        vaultId,
+        depositorPk,
+        "0xabcdef1234567890abcdef1234567890abcdef12",
       );
       expect(a).toEqual(b);
     });
@@ -256,7 +289,7 @@ describe("WOTS block derivation (SDK)", () => {
       // Derived from: mnemonic="abandon...about", vaultId="vault-1",
       // depositorPk="pk-abc", appContractAddress="0x1234"
       const PINNED_DIGEST =
-        "0x958560d5cf737d702391d3a4fef9bf23c597965b506740da3568f3df1f29f665";
+        "0x59a29c3eeba687882db6388e7e27ab6b94ab96371e812c36e037dfa1b270c9ac";
 
       const blocks = await deriveWotsBlockPublicKeys(
         freshSeed(),
@@ -306,6 +339,19 @@ describe("WOTS block derivation (SDK)", () => {
       expect(() => computeWotsBlockPublicKeysHash([badBlock])).toThrow(
         "invalid byte value -1",
       );
+    });
+
+    it("deriveWotsPkHash produces a pinned digest for known inputs", async () => {
+      const PINNED =
+        "0x59a29c3eeba687882db6388e7e27ab6b94ab96371e812c36e037dfa1b270c9ac";
+
+      const hash = await deriveWotsPkHash(
+        KNOWN_MNEMONIC,
+        "vault-1",
+        "pk-abc",
+        "0x1234",
+      );
+      expect(hash).toBe(PINNED);
     });
 
     it("rejects blocks with wrong checksum terminal length", () => {

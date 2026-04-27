@@ -5,6 +5,7 @@
  * Position must have zero debt before withdrawal.
  */
 
+import { getETHChain } from "@babylonlabs-io/config";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useState } from "react";
 import type { Address, Hex } from "viem";
@@ -46,7 +47,6 @@ export function useWithdrawCollateralTransaction(): UseWithdrawCollateralTransac
   const { data: walletClient } = useWalletClient();
   const { address } = useAccount();
   const queryClient = useQueryClient();
-  const chain = walletClient?.chain;
   const { handleError } = useError();
   const { markVaultsAsPending } = usePendingVaults();
 
@@ -55,7 +55,7 @@ export function useWithdrawCollateralTransaction(): UseWithdrawCollateralTransac
       setIsProcessing(true);
       try {
         // Validate wallet connection
-        if (!walletClient || !chain) {
+        if (!walletClient) {
           throw new WalletError(
             "Please connect your wallet to continue",
             ErrorCode.WALLET_NOT_CONNECTED,
@@ -72,7 +72,7 @@ export function useWithdrawCollateralTransaction(): UseWithdrawCollateralTransac
         // Execute selective withdraw transaction
         await withdrawSelectedCollateral(
           walletClient,
-          chain,
+          getETHChain(),
           vaultIds as Hex[],
         );
 
@@ -109,14 +109,7 @@ export function useWithdrawCollateralTransaction(): UseWithdrawCollateralTransac
         setIsProcessing(false);
       }
     },
-    [
-      walletClient,
-      chain,
-      address,
-      queryClient,
-      handleError,
-      markVaultsAsPending,
-    ],
+    [walletClient, address, queryClient, handleError, markVaultsAsPending],
   );
 
   return {

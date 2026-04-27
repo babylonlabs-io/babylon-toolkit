@@ -35,6 +35,16 @@ export interface PrePeginParams {
   councilSize: number;
   /** Bitcoin network */
   network: Network;
+  /**
+   * Optional 32-byte `SHA256(auth_anchor)` commitment to embed in an
+   * `OP_RETURN` output at vout = `hashlocks.length`. Required by the
+   * vault provider's bearer-token auth flow to bind a depositor's
+   * auth-anchor preimage to a specific Pre-PegIn.
+   *
+   * Hex-encoded 64 chars, no `0x` prefix. Omit (or pass `undefined`)
+   * to produce a Pre-PegIn without the OP_RETURN output.
+   */
+  authAnchorHash?: string;
 }
 
 /**

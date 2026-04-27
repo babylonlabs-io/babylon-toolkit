@@ -229,6 +229,32 @@ describe("UTXO availability validation", () => {
       expect(result.allAvailable).toBe(true);
     });
 
+    it("should throw when transaction contains duplicate inputs", () => {
+      const duplicateInputTx = createMultiInputTxHex([
+        {
+          txidLE:
+            "1111111111111111111111111111111111111111111111111111111111111111",
+          vout: 0,
+        },
+        {
+          txidLE:
+            "1111111111111111111111111111111111111111111111111111111111111111",
+          vout: 0,
+        },
+      ]);
+
+      const availableUtxos = [
+        {
+          txid: "1111111111111111111111111111111111111111111111111111111111111111",
+          vout: 0,
+        },
+      ];
+
+      expect(() =>
+        validateUtxosAvailable(duplicateInputTx, availableUtxos),
+      ).toThrow(/duplicate input/i);
+    });
+
     it("should accept UTXOs with extra properties beyond UtxoRef", () => {
       const availableUtxos = [
         {

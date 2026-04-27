@@ -9,6 +9,8 @@
  * - Contracts: Smart contract ABIs
  * - Services: Deposit validation, peg-in protocol state, pegout state
  * - WOTS: Winternitz one-time signature utilities
+ * - Vault Secrets: HKDF-Expand pipeline producing hashlock / auth-anchor /
+ *   wots-seed from a spec-opaque 32-byte root.
  *
  * @module tbv/core
  */
@@ -20,3 +22,4 @@ export * from "./clients";
 export * from "./contracts";
 export * from "./wots";
 export * from "./services";
+export * from "./vault-secrets";

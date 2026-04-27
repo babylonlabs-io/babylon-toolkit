@@ -128,10 +128,6 @@ input[type="number"] {
   @apply border-r-surface;
 }
 
-body > .tomo-social {
-  z-index: 100 !important;
-}
-
 @font-face {
   font-family: "Px Grotesk";
   src: url("/fonts/Px-Grotesk/Px-Grotesk-Black.eot");

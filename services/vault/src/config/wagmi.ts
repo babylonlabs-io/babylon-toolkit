@@ -8,7 +8,7 @@
  * the wagmi config to ensure compatibility.
  */
 
-import { getETHChain, getNetworkConfigBTC } from "@babylonlabs-io/config";
+import { getETHChain } from "@babylonlabs-io/config";
 import {
   initializeAppKitModal,
   type AppKitModalConfig,
@@ -28,7 +28,6 @@ interface WagmiInitResult {
  */
 function initializeVaultWagmi(): WagmiInitResult {
   try {
-    const btcConfig = getNetworkConfigBTC();
     const projectId = process.env.NEXT_PUBLIC_REOWN_PROJECT_ID;
 
     if (!projectId) {
@@ -57,9 +56,6 @@ function initializeVaultWagmi(): WagmiInitResult {
       },
       eth: {
         chain: getETHChain(),
-      },
-      btc: {
-        network: btcConfig.network === "mainnet" ? "mainnet" : "signet",
       },
     };
 

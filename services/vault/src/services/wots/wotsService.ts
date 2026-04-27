@@ -460,8 +460,8 @@ export async function deriveWotsBlockPublicKeys(
   depositorPk: string,
   appContractAddress: string,
 ): Promise<WotsPublicKeys> {
-  vaultId = stripHexPrefix(vaultId);
-  depositorPk = stripHexPrefix(depositorPk);
+  vaultId = stripHexPrefix(vaultId).toLowerCase();
+  depositorPk = stripHexPrefix(depositorPk).toLowerCase();
 
   const chainCode = seed.slice(KEY_SIZE, SEED_SIZE);
   const parentKey = seed.slice(0, KEY_SIZE);
@@ -472,7 +472,7 @@ export async function deriveWotsBlockPublicKeys(
       concatBytes(
         lengthPrefixed(stringToBytes(vaultId)),
         lengthPrefixed(stringToBytes(depositorPk)),
-        lengthPrefixed(stringToBytes(appContractAddress)),
+        lengthPrefixed(stringToBytes(appContractAddress.toLowerCase())),
       ),
     ),
   );
