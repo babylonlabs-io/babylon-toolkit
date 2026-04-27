@@ -404,4 +404,58 @@ export class UnisatProvider implements IBTCProvider {
   getWalletProviderIcon = async (): Promise<string> => {
     return logo;
   };
+
+  deriveContextHash = async (appName: string, context: string): Promise<string> => {
+    if (!this.walletInfo)
+      throw new WalletError({
+        code: ERROR_CODES.WALLET_NOT_CONNECTED,
+        message: "Unisat Wallet not connected",
+        wallet: WALLET_PROVIDER_NAME,
+      });
+
+    // UniSat exposes deriveContextHash on `window.unisat` per the spec
+    // at docs/specs/derive-context-hash.md §2.1. If the installed
+    // version is older than the one that shipped this method, we
+    // surface a typed `WALLET_METHOD_NOT_SUPPORTED` so the caller can
+    // gate on capability rather than receiving an opaque "X is not a
+    // function" runtime error.
+    if (typeof this.provider.deriveContextHash !== "function") {
+      throw new WalletError({
+        code: ERROR_CODES.WALLET_METHOD_NOT_SUPPORTED,
+        message:
+          "Unisat Wallet version does not support deriveContextHash. Update to a version that implements the deriveContextHash specification.",
+        wallet: WALLET_PROVIDER_NAME,
+      });
+    }
+
+    try {
+      return await this.provider.deriveContextHash(appName, context);
+    } catch (error) {
+      // Pass through user-rejection as a typed connection-rejected
+      // error so callers can distinguish "user said no" from other
+      // failures. Match the specific UniSat rejection phrasing
+      // ("user rejected"), not the bare word "rejected" — wallet-side
+      // validation errors (e.g. "context format rejected by wallet")
+      // also contain "rejected" but should keep their original
+      // diagnostic shape.
+      const message = (error as Error | undefined)?.message?.toLowerCase() ?? "";
+      const isUserRejection =
+        message.includes("user rejected") ||
+        message.includes("user denied") ||
+        message.includes("user cancelled") ||
+        message.includes("user canceled");
+      if (isUserRejection) {
+        throw new WalletError({
+          code: ERROR_CODES.CONNECTION_REJECTED,
+          message: "Unisat Wallet rejected the deriveContextHash approval",
+          wallet: WALLET_PROVIDER_NAME,
+        });
+      }
+      // Everything else is rethrown unwrapped so the underlying
+      // message and stack are preserved — collapsing wallet errors
+      // would hide spec-validation failures the wallet must surface
+      // (`appName` charset, `context` hex format, length bounds).
+      throw error;
+    }
+  };
 }

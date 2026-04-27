@@ -12,6 +12,7 @@ import type { BTCConfig, InscriptionIdentifier, SignPsbtOptions } from "@/core/t
 import { IBTCProvider, Network } from "@/core/types";
 import BIP322 from "@/core/utils/bip322";
 import { generateP2TRAddressFromXpub, toNetwork } from "@/core/utils/wallet";
+import { unsupportedDeriveContextHash } from "@/core/wallets/btc/unsupportedDeriveContextHash";
 import { ERROR_CODES, WalletError } from "@/error";
 
 import logo from "./logo.svg";
@@ -367,6 +368,8 @@ export class KeystoneProvider implements IBTCProvider {
     });
     return psbt;
   };
+
+  deriveContextHash = unsupportedDeriveContextHash(WALLET_PROVIDER_NAME);
 }
 
 /**
