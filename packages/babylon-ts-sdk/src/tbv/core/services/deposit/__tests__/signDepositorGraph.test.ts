@@ -1,3 +1,5 @@
+import { Buffer } from "buffer";
+
 import { describe, expect, it, vi } from "vitest";
 
 import type { BitcoinWallet } from "../../../../../shared/wallets/interfaces";
@@ -16,33 +18,48 @@ const SIGNED_HEX_PREFIX = "signed_";
 // Deterministic "signature" returned by extractPayoutSignature mock
 const MOCK_SIGNATURE_PREFIX = "sig_";
 
-// Mock extractPayoutSignature — returns a deterministic signature based on input index
+// Mock extractPayoutSignature and the output-script validator. The validator
+// is a no-op here so we don't need real Bitcoin transactions; its behavior is
+// covered by tests in primitives/psbt/payout.
 vi.mock("../../../primitives/psbt/payout", () => ({
   extractPayoutSignature: (signedPsbtHex: string, _depositorPubkey: string) => {
     // Use the signedPsbtHex as the key for deterministic output
     return `${MOCK_SIGNATURE_PREFIX}${signedPsbtHex}`;
   },
+  assertPayoutOutputMatchesRegistered: vi.fn(),
 }));
 
-// Mock the PSBT verification/sanitization layer so we don't need real PSBTs
+// Mock the PSBT verification/sanitization layer so we don't need real PSBTs.
+// The mocked input must satisfy the script-path shape checks in
+// verifyAndParsePsbt: witnessUtxo, tapInternalKey, and a non-empty
+// tapLeafScript, with no pre-existing signatures or finalization.
 vi.mock("bitcoinjs-lib", () => {
-  const mockPsbt = {
-    data: {
-      inputs: [{}],
-      getTransaction: () => ({
-        toString: () => "deadbeef",
-      }),
-    },
-    toHex: () => "mock_psbt_hex",
+  const buildMockPsbt = () => {
+    const mockInput = {
+      witnessUtxo: { script: Buffer.from(""), value: 0 },
+      tapInternalKey: Buffer.from(""),
+      tapLeafScript: [
+        {
+          leafVersion: 0xc0,
+          script: Buffer.from(""),
+          controlBlock: Buffer.from(""),
+        },
+      ],
+    };
+    return {
+      data: {
+        inputs: [mockInput],
+        getTransaction: () => ({
+          toString: () => "deadbeef",
+        }),
+      },
+      toHex: () => "mock_psbt_hex",
+    };
   };
   return {
     Psbt: {
-      fromBase64: () => ({ ...mockPsbt }),
-      fromHex: () => ({
-        ...mockPsbt,
-        data: { inputs: [{}] },
-        toHex: () => "mock_psbt_hex",
-      }),
+      fromBase64: () => buildMockPsbt(),
+      fromHex: () => buildMockPsbt(),
     },
   };
 });
@@ -73,6 +90,7 @@ const DEPOSITOR_PUBKEY = "d".repeat(64);
 const WALLET_PUBKEY = "w".repeat(64);
 const CHALLENGER_A = "a".repeat(64);
 const CHALLENGER_B = "b".repeat(64);
+const REGISTERED_PAYOUT_SCRIPT = `0x5120${"e".repeat(64)}`;
 
 function createMockWallet(opts?: {
   supportsBatch?: boolean;
@@ -125,6 +143,7 @@ describe("signDepositorGraph", () => {
       depositorGraph: graph,
       depositorBtcPubkey: DEPOSITOR_PUBKEY,
       btcWallet: wallet,
+      registeredPayoutScriptPubKey: REGISTERED_PAYOUT_SCRIPT,
     });
 
     // Payout signature present
@@ -153,6 +172,7 @@ describe("signDepositorGraph", () => {
       depositorGraph: graph,
       depositorBtcPubkey: DEPOSITOR_PUBKEY,
       btcWallet: wallet,
+      registeredPayoutScriptPubKey: REGISTERED_PAYOUT_SCRIPT,
     });
 
     // signPsbts should be called (batch), not signPsbt (sequential)
@@ -168,6 +188,7 @@ describe("signDepositorGraph", () => {
       depositorGraph: graph,
       depositorBtcPubkey: DEPOSITOR_PUBKEY,
       btcWallet: wallet,
+      registeredPayoutScriptPubKey: REGISTERED_PAYOUT_SCRIPT,
     });
 
     // 2 PSBTs total: 1 payout + 1 nopayout
@@ -187,6 +208,7 @@ describe("signDepositorGraph", () => {
         depositorGraph: graph,
         depositorBtcPubkey: DEPOSITOR_PUBKEY,
         btcWallet: wallet,
+        registeredPayoutScriptPubKey: REGISTERED_PAYOUT_SCRIPT,
       }),
     ).rejects.toThrow("expected 2");
   });
@@ -199,6 +221,7 @@ describe("signDepositorGraph", () => {
       depositorGraph: graph,
       depositorBtcPubkey: DEPOSITOR_PUBKEY,
       btcWallet: wallet,
+      registeredPayoutScriptPubKey: REGISTERED_PAYOUT_SCRIPT,
     });
 
     expect(result.payout_signatures.payout_signature).toBeDefined();
@@ -213,9 +236,60 @@ describe("signDepositorGraph", () => {
       depositorGraph: graph,
       depositorBtcPubkey: `0x${DEPOSITOR_PUBKEY}`,
       btcWallet: wallet,
+      registeredPayoutScriptPubKey: REGISTERED_PAYOUT_SCRIPT,
     });
 
     // Should still produce valid signatures (no error about prefix)
     expect(result.payout_signatures.payout_signature).toBeDefined();
+  });
+
+  it("validates the payout output against the registered scriptPubKey before signing", async () => {
+    const { assertPayoutOutputMatchesRegistered } = await import(
+      "../../../primitives/psbt/payout"
+    );
+    const validator = vi.mocked(assertPayoutOutputMatchesRegistered);
+    validator.mockClear();
+
+    const wallet = createMockWallet({ supportsBatch: true });
+    const graph = createDepositorGraph([CHALLENGER_A]);
+
+    await signDepositorGraph({
+      depositorGraph: graph,
+      depositorBtcPubkey: DEPOSITOR_PUBKEY,
+      btcWallet: wallet,
+      registeredPayoutScriptPubKey: REGISTERED_PAYOUT_SCRIPT,
+    });
+
+    expect(validator).toHaveBeenCalledWith(
+      graph.payout_tx.tx_hex,
+      REGISTERED_PAYOUT_SCRIPT,
+    );
+  });
+
+  it("propagates payout output validation errors and never reaches the wallet", async () => {
+    const { assertPayoutOutputMatchesRegistered } = await import(
+      "../../../primitives/psbt/payout"
+    );
+    const validator = vi.mocked(assertPayoutOutputMatchesRegistered);
+    validator.mockImplementationOnce(() => {
+      throw new Error(
+        "Payout transaction does not pay to the registered depositor payout address",
+      );
+    });
+
+    const wallet = createMockWallet({ supportsBatch: true });
+    const graph = createDepositorGraph([CHALLENGER_A]);
+
+    await expect(
+      signDepositorGraph({
+        depositorGraph: graph,
+        depositorBtcPubkey: DEPOSITOR_PUBKEY,
+        btcWallet: wallet,
+        registeredPayoutScriptPubKey: REGISTERED_PAYOUT_SCRIPT,
+      }),
+    ).rejects.toThrow("registered depositor payout address");
+
+    expect(wallet.signPsbts).not.toHaveBeenCalled();
+    expect(wallet.signPsbt).not.toHaveBeenCalled();
   });
 });

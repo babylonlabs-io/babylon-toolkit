@@ -21,7 +21,10 @@ import type {
   DepositorGraphTransactions,
   DepositorPreSigsPerChallenger,
 } from "../../clients/vault-provider/types";
-import { extractPayoutSignature } from "../../primitives/psbt/payout";
+import {
+  assertPayoutOutputMatchesRegistered,
+  extractPayoutSignature,
+} from "../../primitives/psbt/payout";
 import { stripHexPrefix } from "../../primitives/utils/bitcoin";
 import { createTaprootScriptPathSignOptions } from "../../utils/signing";
 
@@ -51,6 +54,14 @@ interface CollectedDepositorGraphPsbts {
 /**
  * Parse a base64-encoded PSBT and verify its unsigned transaction matches
  * the expected transaction hex. Catches VP serialization bugs.
+ *
+ * Also enforces PSBT-shape invariants required for safe Taproot script-path
+ * signing of a single VP-controlled input:
+ * - exactly one input
+ * - input is not finalized (no finalScriptWitness / finalScriptSig)
+ * - input has witnessUtxo, tapLeafScript, and tapInternalKey
+ * - no partial signatures or non-Taproot signing metadata that the wallet
+ *   could honor instead of the expected script path
  */
 function verifyAndParsePsbt(
   psbtBase64: string,
@@ -68,6 +79,50 @@ function verifyAndParsePsbt(
       `PSBT integrity check failed for ${label}: unsigned transaction does not match tx_hex`,
     );
   }
+
+  if (psbt.data.inputs.length !== SINGLE_PSBT_INPUT_COUNT) {
+    throw new Error(
+      `PSBT integrity check failed for ${label}: expected ${SINGLE_PSBT_INPUT_COUNT} input, got ${psbt.data.inputs.length}`,
+    );
+  }
+
+  const input = psbt.data.inputs[0];
+  if (input.finalScriptWitness || input.finalScriptSig) {
+    throw new Error(
+      `PSBT integrity check failed for ${label}: input is already finalized`,
+    );
+  }
+  if (input.partialSig && input.partialSig.length > 0) {
+    throw new Error(
+      `PSBT integrity check failed for ${label}: input contains pre-existing non-Taproot signatures`,
+    );
+  }
+  if (input.tapKeySig) {
+    throw new Error(
+      `PSBT integrity check failed for ${label}: input contains pre-existing tapKeySig (key-path signature)`,
+    );
+  }
+  if (input.tapScriptSig && input.tapScriptSig.length > 0) {
+    throw new Error(
+      `PSBT integrity check failed for ${label}: input contains pre-existing tapScriptSig`,
+    );
+  }
+  if (!input.witnessUtxo) {
+    throw new Error(
+      `PSBT integrity check failed for ${label}: input is missing witnessUtxo`,
+    );
+  }
+  if (!input.tapInternalKey) {
+    throw new Error(
+      `PSBT integrity check failed for ${label}: input is missing tapInternalKey`,
+    );
+  }
+  if (!input.tapLeafScript || input.tapLeafScript.length === 0) {
+    throw new Error(
+      `PSBT integrity check failed for ${label}: input is missing tapLeafScript (script-path required)`,
+    );
+  }
+
   return psbt;
 }
 
@@ -116,10 +171,20 @@ function validateAndConvertPsbt(
 function collectDepositorGraphPsbts(
   depositorGraph: DepositorGraphTransactions,
   walletPublicKey: string,
+  registeredPayoutScriptPubKey: string,
 ): CollectedDepositorGraphPsbts {
   const psbtHexes: string[] = [];
   const signOptions: SignPsbtOptions[] = [];
   const challengerEntries: ChallengerEntry[] = [];
+
+  // Validate the payout transaction's largest output pays to the
+  // depositor's on-chain registered payout scriptPubKey before signing.
+  // The VP-provided payout PSBT is otherwise unconstrained and could redirect
+  // funds to an attacker-controlled script.
+  assertPayoutOutputMatchesRegistered(
+    depositorGraph.payout_tx.tx_hex,
+    registeredPayoutScriptPubKey,
+  );
 
   // Index 0: Payout PSBT
   const payoutHex = validateAndConvertPsbt(
@@ -222,6 +287,13 @@ export interface SignDepositorGraphParams {
   depositorBtcPubkey: string;
   /** Bitcoin wallet for signing */
   btcWallet: BitcoinWallet;
+  /**
+   * On-chain registered depositor payout scriptPubKey (hex, with or without
+   * 0x prefix). Used to validate that the VP-provided depositor-graph payout
+   * transaction actually pays to the depositor's registered address before
+   * the wallet produces a signature.
+   */
+  registeredPayoutScriptPubKey: string;
 }
 
 /**
@@ -236,14 +308,23 @@ export interface SignDepositorGraphParams {
 export async function signDepositorGraph(
   params: SignDepositorGraphParams,
 ): Promise<DepositorAsClaimerPresignatures> {
-  const { depositorGraph, depositorBtcPubkey, btcWallet } = params;
+  const {
+    depositorGraph,
+    depositorBtcPubkey,
+    btcWallet,
+    registeredPayoutScriptPubKey,
+  } = params;
 
   const depositorPubkey = stripHexPrefix(depositorBtcPubkey);
   const walletPublicKey = await btcWallet.getPublicKeyHex();
 
   // 1. Collect pre-built PSBTs from VP response
   const { psbtHexes, signOptions, challengerEntries } =
-    collectDepositorGraphPsbts(depositorGraph, walletPublicKey);
+    collectDepositorGraphPsbts(
+      depositorGraph,
+      walletPublicKey,
+      registeredPayoutScriptPubKey,
+    );
 
   // 2. Sign all PSBTs (batch when supported, sequential fallback for mobile)
   const signedPsbtHexes = await signPsbtsWithFallback(

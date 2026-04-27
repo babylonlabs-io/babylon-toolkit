@@ -312,6 +312,7 @@ export async function pollAndSignPayouts(
     depositorGraph: response.depositor_graph,
     depositorBtcPubkey: depositorPk,
     btcWallet,
+    registeredPayoutScriptPubKey: signingContext.registeredPayoutScriptPubKey,
   });
 
   signal?.throwIfAborted();
