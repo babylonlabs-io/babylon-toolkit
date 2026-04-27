@@ -8,6 +8,7 @@ import { act, renderHook } from "@testing-library/react";
 import type { Hex } from "viem";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { getVaultFromChain } from "@/clients/eth-contract/btc-vault-registry/query";
 import { ContractStatus } from "@/models/peginStateMachine";
 import { broadcastPrePeginTransaction, fetchVaultById } from "@/services/vault";
 
@@ -19,6 +20,25 @@ vi.mock("@babylonlabs-io/config", () => ({
 
 vi.mock("@babylonlabs-io/ts-sdk/tbv/core", () => ({
   ensureHexPrefix: vi.fn((v: string) => (v.startsWith("0x") ? v : `0x${v}`)),
+}));
+
+vi.mock("@babylonlabs-io/ts-sdk/tbv/core/utils", () => ({
+  calculateBtcTxHash: vi.fn(() => "0xmatching_pre_pegin_hash"),
+  UtxoNotAvailableError: class UtxoNotAvailableError extends Error {
+    constructor(message: string) {
+      super(message);
+      this.name = "UtxoNotAvailableError";
+    }
+  },
+}));
+
+vi.mock("@/clients/eth-contract/btc-vault-registry/query", () => ({
+  getVaultFromChain: vi.fn(() =>
+    Promise.resolve({
+      prePeginTxHash: "0xmatching_pre_pegin_hash",
+      hashlock: "0xonchain_hashlock",
+    }),
+  ),
 }));
 
 vi.mock("@babylonlabs-io/wallet-connector", () => ({
@@ -83,6 +103,7 @@ const mockFetchVaultById = vi.mocked(fetchVaultById);
 const mockBroadcastPrePeginTransaction = vi.mocked(
   broadcastPrePeginTransaction,
 );
+const mockGetVaultFromChain = vi.mocked(getVaultFromChain);
 
 // Local copy produced by WASM — no 0x prefix
 const TRUSTED_TX_HEX = "70736274ff...trustedtx";
@@ -237,5 +258,31 @@ describe("useVaultActions — handleBroadcast transaction integrity", () => {
     expect(mockBroadcastPrePeginTransaction).toHaveBeenCalledWith(
       expect.objectContaining({ unsignedTxHex: GRAPHQL_TX_HEX }),
     );
+  });
+
+  it("throws when no local copy and indexer tx hash mismatches on-chain", async () => {
+    mockFetchVaultById.mockResolvedValue(baseVault as never);
+    mockGetVaultFromChain.mockResolvedValue({
+      prePeginTxHash: "0xonchain_hash",
+    } as never);
+
+    const { calculateBtcTxHash } = await import(
+      "@babylonlabs-io/ts-sdk/tbv/core/utils"
+    );
+    vi.mocked(calculateBtcTxHash).mockReturnValue("0xdifferent_hash");
+
+    const { result } = renderHook(() => useVaultActions());
+
+    await act(async () => {
+      await result.current.handleBroadcast({
+        ...baseBroadcastParams,
+        pendingPegin: undefined,
+      });
+    });
+
+    expect(result.current.broadcastError).toContain(
+      "Transaction integrity check failed",
+    );
+    expect(mockBroadcastPrePeginTransaction).not.toHaveBeenCalled();
   });
 });

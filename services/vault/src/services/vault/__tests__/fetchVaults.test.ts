@@ -350,7 +350,6 @@ describe("fetchVaults", () => {
         vault: {
           id: VALID_VAULT_ID,
           depositorBtcPubKey: btcPub,
-          amount: "150000",
           unsignedPrePeginTx: preTx,
         },
       });
@@ -363,7 +362,6 @@ describe("fetchVaults", () => {
 
       expect(result).toEqual({
         depositorBtcPubkey: btcPub,
-        amount: 150_000n,
         unsignedPrePeginTx: preTx,
       });
       expect(mockedRequest).toHaveBeenCalledOnce();
