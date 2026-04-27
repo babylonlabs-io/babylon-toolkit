@@ -68,23 +68,30 @@ export const PEGIN_AUTH_ANCHOR_OUTPUTS = 1;
  * separately by `selectUtxosForPegin` when the change amount exceeds
  * the dust threshold.
  *
- * `hasAuthAnchor` defaults to `false` so existing single-arg callers
- * get the same count they did before the flag was introduced (HTLCs +
- * CPFP anchor only). Callers that pass `authAnchorHash` into
- * `buildPrePeginPsbt` MUST pass `true` here — mismatch between the fee
- * count and the actual output set causes UTXO under-selection. The
- * canonical pattern is to forward `PrePeginPsbtResult.authAnchorVout
- * !== null`.
+ * `authAnchorHash` is the same value forwarded into `buildPrePeginPsbt`:
+ * when truthy the Pre-PegIn carries an OP_RETURN commitment, so callers
+ * pass the same value to both functions and the fee budget stays in
+ * lockstep with the output set. Passing `undefined`/`null` reproduces
+ * the legacy single-arg behavior (HTLCs + CPFP only).
  *
- * @param vaultCount     - Number of vaults in the batch (≥1).
- * @param hasAuthAnchor  - Whether the Pre-PegIn includes the auth-anchor
- *                         OP_RETURN output. Defaults to `false`.
+ * @param vaultCount      - Number of vaults in the batch (≥1).
+ * @param authAnchorHash  - The same auth-anchor commitment passed to
+ *                          `buildPrePeginPsbt`. Truthy → counts the
+ *                          OP_RETURN output in the budget.
  * @returns Total output count before change.
+ * @throws If `vaultCount` is not a positive integer.
  */
 export function peginOutputCount(
   vaultCount: number,
-  hasAuthAnchor: boolean = false,
+  authAnchorHash?: string | null,
 ): number {
+  if (!Number.isInteger(vaultCount) || vaultCount < 1) {
+    throw new Error(
+      `peginOutputCount: vaultCount must be a positive integer, got ${vaultCount}`,
+    );
+  }
+  const hasAuthAnchor =
+    typeof authAnchorHash === "string" && authAnchorHash.length > 0;
   return (
     vaultCount +
     PEGIN_FIXED_OUTPUTS +

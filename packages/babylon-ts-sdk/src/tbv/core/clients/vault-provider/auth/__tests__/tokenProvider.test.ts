@@ -7,11 +7,22 @@ import {
   VpTokenProvider,
 } from "../tokenProvider";
 
+import {
+  GOLDEN_EPHEMERAL_PUBKEY_COMPRESSED,
+  GOLDEN_EXPIRES_AT,
+  GOLDEN_SIGNATURE_HEX,
+  GOLDEN_SIGNING_KEY_XONLY,
+} from "./goldenVectors";
+
 const PEGIN_TXID = "a".repeat(64);
 const AUTH_ANCHOR = "b".repeat(64);
-const PINNED_PUBKEY = "c".repeat(64);
+// Must be a real curve point so BIP-322 verify inside verifyServerIdentity
+// can succeed on the happy-path tests below.
+const PINNED_PUBKEY = GOLDEN_SIGNING_KEY_XONLY;
 const TEST_BASE_URL = "https://vp.example.com/rpc";
-const NOW = 1_700_000_000;
+// NOW is the pinned wall-clock the tests inject. Chosen relative to the
+// golden proof's expires_at so the proof is still valid.
+const NOW = GOLDEN_EXPIRES_AT - 3600;
 
 const AUTH_GATED_METHODS = new Set(["vaultProvider_submitDepositorWotsKey"]);
 
@@ -23,9 +34,9 @@ function buildResponse(
     expires_at: NOW + 300,
     server_identity: {
       server_pubkey: PINNED_PUBKEY,
-      ephemeral_pubkey: "02" + "d".repeat(64),
-      expires_at: NOW + 3600,
-      signature: "e".repeat(128),
+      ephemeral_pubkey: GOLDEN_EPHEMERAL_PUBKEY_COMPRESSED,
+      expires_at: GOLDEN_EXPIRES_AT,
+      signature: GOLDEN_SIGNATURE_HEX,
     },
     ...overrides,
   };
@@ -54,6 +65,30 @@ function stubCallOnce(response: CreateDepositorTokenResponse) {
 describe("VpTokenProvider", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+  });
+
+  it("returns null for the token-issuing method even if misconfigured into authGatedMethods", async () => {
+    // Caller misconfiguration: `auth_createDepositorToken` accidentally
+    // included in the auth-gated set. Without the hard exemption,
+    // `getToken("auth_createDepositorToken")` would re-enter
+    // `acquireSingleFlight` from inside the JsonRpcClient header
+    // builder before `inFlight` is assigned — defeating the
+    // single-flight guard and recursing until the stack overflows.
+    const client = createClient();
+    const provider = new VpTokenProvider({
+      client,
+      peginTxid: PEGIN_TXID,
+      authAnchorHex: AUTH_ANCHOR,
+      pinnedServerPubkey: PINNED_PUBKEY,
+      authGatedMethods: new Set([
+        "vaultProvider_submitDepositorWotsKey",
+        "auth_createDepositorToken",
+      ]),
+      now: () => NOW,
+    });
+
+    const token = await provider.getToken("auth_createDepositorToken");
+    expect(token).toBeNull();
   });
 
   it("returns null for methods not in the auth-gated set", async () => {
@@ -267,5 +302,76 @@ describe("VpTokenProvider", () => {
     expect(b).toBe("test-token");
     expect(c).toBe("test-token");
     expect(mockFetch).toHaveBeenCalledOnce();
+  });
+
+  // Regression: a rejected in-flight acquire must not leave `cached`
+  // pointing at a stale value AND must not prevent the next getToken
+  // call from successfully re-acquiring. The invalidate() call during
+  // the in-flight failure is a realistic race (e.g. JsonRpcClient
+  // invalidates on a concurrent 401 from another auth-gated call).
+  it("recovers cleanly after an in-flight acquire rejects mid-invalidate", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        // First acquire: server returns malformed server_identity that
+        // trips verifyServerIdentity.
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          statusText: "OK",
+          json: () =>
+            Promise.resolve({
+              jsonrpc: "2.0",
+              result: buildResponse({
+                server_identity: {
+                  server_pubkey: "f".repeat(64), // mismatch → ServerIdentityError
+                  ephemeral_pubkey: "02" + "d".repeat(64),
+                  expires_at: NOW + 3600,
+                  signature: "e".repeat(128),
+                },
+              }),
+              id: 1,
+            }),
+        } as unknown as Response)
+        // Second acquire: server returns a valid response.
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          statusText: "OK",
+          json: () =>
+            Promise.resolve({
+              jsonrpc: "2.0",
+              result: buildResponse({ token: "recovery-token" }),
+              id: 2,
+            }),
+        } as unknown as Response),
+    );
+
+    const client = createClient();
+    const provider = new VpTokenProvider({
+      client,
+      peginTxid: PEGIN_TXID,
+      authAnchorHex: AUTH_ANCHOR,
+      pinnedServerPubkey: PINNED_PUBKEY,
+      authGatedMethods: AUTH_GATED_METHODS,
+      now: () => NOW,
+    });
+
+    // First acquire rejects — cached stays null.
+    await expect(
+      provider.getToken("vaultProvider_submitDepositorWotsKey"),
+    ).rejects.toBeInstanceOf(ServerIdentityError);
+
+    // Simulate a concurrent invalidate — should be a no-op since the
+    // failed acquire never populated cached, but must not throw or
+    // corrupt state.
+    provider.invalidate();
+
+    // Next call must successfully acquire a fresh token.
+    const recovered = await provider.getToken(
+      "vaultProvider_submitDepositorWotsKey",
+    );
+    expect(recovered).toBe("recovery-token");
   });
 });

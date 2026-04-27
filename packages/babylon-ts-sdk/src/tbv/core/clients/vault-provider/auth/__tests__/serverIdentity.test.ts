@@ -6,17 +6,28 @@ import {
   verifyServerIdentity,
 } from "../serverIdentity";
 
-const PINNED = "a".repeat(64);
-const NOW = 1_700_000_000;
+import {
+  GOLDEN_EPHEMERAL_PUBKEY_COMPRESSED,
+  GOLDEN_EXPIRES_AT,
+  GOLDEN_SIGNATURE_HEX,
+  GOLDEN_SIGNING_KEY_XONLY,
+} from "./goldenVectors";
+
+// Real curve-point fixtures: happy-path tests must use these so
+// BIP-322 verify resolves to `true`. Tests that exercise structural
+// rejections (wrong length, mismatch, expired, bad hex) can use
+// arbitrary fixtures since those checks fire before crypto.
+const PINNED = GOLDEN_SIGNING_KEY_XONLY;
+const NOW = GOLDEN_EXPIRES_AT - 3600; // 1 hour before proof expires
 
 function validProof(
   overrides: Partial<ServerIdentityResponse> = {},
 ): ServerIdentityResponse {
   return {
     server_pubkey: PINNED,
-    ephemeral_pubkey: "02" + "b".repeat(64),
-    expires_at: NOW + 3600,
-    signature: "c".repeat(128),
+    ephemeral_pubkey: GOLDEN_EPHEMERAL_PUBKEY_COMPRESSED,
+    expires_at: GOLDEN_EXPIRES_AT,
+    signature: GOLDEN_SIGNATURE_HEX,
     ...overrides,
   };
 }
@@ -42,14 +53,43 @@ describe("verifyServerIdentity", () => {
     ).not.toThrow();
   });
 
-  it("accepts ephemeral pubkey with 0x03 prefix", () => {
-    expect(() =>
+  // The 03 prefix is structurally valid (compressed pubkey, odd-Y).
+  // We reuse the golden ephemeral's x-coordinate but flip the parity
+  // byte to 03 — the resulting (x, -y) is on-curve, so this point
+  // passes both the prefix check and the secp256k1 isPoint check.
+  // Crypto verify then fails because the signature is over the 02
+  // ephemeral, proving the prefix gate itself accepted 03.
+  it("accepts 03-prefix ephemeral pubkey structurally (fails later at crypto)", () => {
+    const onCurve03 = "03" + GOLDEN_EPHEMERAL_PUBKEY_COMPRESSED.slice(2);
+    try {
       verifyServerIdentity({
-        proof: validProof({ ephemeral_pubkey: "03" + "b".repeat(64) }),
+        proof: validProof({ ephemeral_pubkey: onCurve03 }),
         pinnedServerPubkey: PINNED,
         now: NOW,
-      }),
-    ).not.toThrow();
+      });
+      expect.fail("should have thrown");
+    } catch (err) {
+      expect((err as ServerIdentityError).reason).toBe(
+        "signature_verification_failed",
+      );
+    }
+  });
+
+  it("rejects ephemeral pubkey not on the secp256k1 curve", () => {
+    // Structurally a compressed pubkey (33 bytes, 02/03 prefix, hex)
+    // but the x-coordinate is not on the curve.
+    try {
+      verifyServerIdentity({
+        proof: validProof({ ephemeral_pubkey: "02" + "00".repeat(32) }),
+        pinnedServerPubkey: PINNED,
+        now: NOW,
+      });
+      expect.fail("should have thrown");
+    } catch (err) {
+      expect((err as ServerIdentityError).reason).toBe(
+        "invalid_ephemeral_pubkey",
+      );
+    }
   });
 
   it("rejects pubkey mismatch", () => {
@@ -176,8 +216,10 @@ describe("verifyServerIdentity", () => {
 
   // Guards against relational-comparison coercion bugs where
   // `undefined <= now` silently evaluates to `false` and bypasses
-  // the expiry check.
-  it("rejects non-integer expires_at (NaN)", () => {
+  // the expiry check. Garbage data is reported as `invalid_expires_at`
+  // so a caller can tell "stale token, retry" from "wire payload is
+  // malformed, do not retry".
+  it("rejects non-integer expires_at (NaN) as invalid_expires_at", () => {
     try {
       verifyServerIdentity({
         proof: validProof({ expires_at: Number.NaN as unknown as number }),
@@ -186,11 +228,11 @@ describe("verifyServerIdentity", () => {
       });
       expect.fail("should have thrown");
     } catch (err) {
-      expect((err as ServerIdentityError).reason).toBe("expired");
+      expect((err as ServerIdentityError).reason).toBe("invalid_expires_at");
     }
   });
 
-  it("rejects undefined expires_at", () => {
+  it("rejects undefined expires_at as invalid_expires_at", () => {
     try {
       verifyServerIdentity({
         proof: validProof({ expires_at: undefined as unknown as number }),
@@ -199,11 +241,11 @@ describe("verifyServerIdentity", () => {
       });
       expect.fail("should have thrown");
     } catch (err) {
-      expect((err as ServerIdentityError).reason).toBe("expired");
+      expect((err as ServerIdentityError).reason).toBe("invalid_expires_at");
     }
   });
 
-  it("rejects string expires_at (unsafe coercion)", () => {
+  it("rejects string expires_at (unsafe coercion) as invalid_expires_at", () => {
     try {
       verifyServerIdentity({
         proof: validProof({
@@ -214,11 +256,11 @@ describe("verifyServerIdentity", () => {
       });
       expect.fail("should have thrown");
     } catch (err) {
-      expect((err as ServerIdentityError).reason).toBe("expired");
+      expect((err as ServerIdentityError).reason).toBe("invalid_expires_at");
     }
   });
 
-  it("rejects non-integer now", () => {
+  it("rejects non-integer now as invalid_expires_at", () => {
     try {
       verifyServerIdentity({
         proof: validProof(),
@@ -227,7 +269,7 @@ describe("verifyServerIdentity", () => {
       });
       expect.fail("should have thrown");
     } catch (err) {
-      expect((err as ServerIdentityError).reason).toBe("expired");
+      expect((err as ServerIdentityError).reason).toBe("invalid_expires_at");
     }
   });
 });

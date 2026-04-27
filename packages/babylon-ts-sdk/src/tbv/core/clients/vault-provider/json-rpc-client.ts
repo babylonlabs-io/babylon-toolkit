@@ -230,6 +230,16 @@ export class JsonRpcClient {
     try {
       return await this.callOnce<TParams, TResult>(method, params, signal);
     } catch (error) {
+      // The auth-expired retry fires for ALL methods, including mutating
+      // ones. This is intentional and safe: the server's auth middleware
+      // validates the bearer token BEFORE dispatching to the method
+      // handler, so an `auth_expired` error means the handler never ran
+      // and no state was mutated. Confirmed against btc-vault at
+      // `crates/btc-auth/src/middleware/jsonrpc.rs` — token validation
+      // is pre-handler only. The `retryableFor` guard on
+      // HTTP-transient-error retries doesn't apply here because that
+      // guard is about retrying after a request the server may have
+      // started processing; auth_expired is categorically different.
       if (this.tokenProvider && isAuthExpiredError(error)) {
         this.tokenProvider.invalidate();
         return await this.callOnce<TParams, TResult>(method, params, signal);

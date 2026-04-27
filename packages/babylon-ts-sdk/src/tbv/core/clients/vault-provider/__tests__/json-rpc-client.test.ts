@@ -564,6 +564,76 @@ describe("JsonRpcClient", () => {
     expect(tokenProvider.invalidate).not.toHaveBeenCalled();
   });
 
+  it("two concurrent auth_expired calls share one re-acquire when provider single-flights", async () => {
+    // Models the realistic race: two auth-gated calls fire in parallel
+    // with the same cached (now-expired) token, the server returns
+    // auth_expired for both, both reach the catch block and call
+    // invalidate(). A correctly-implemented VpTokenProvider single-flights
+    // the re-acquire — this test asserts JsonRpcClient does not depend
+    // on the provider doing so (both invalidate calls land, both retries
+    // proceed) AND verifies the contract the provider should honor.
+    const expired = (id: number) =>
+      ({
+        ok: true,
+        status: HTTP_OK,
+        statusText: "OK",
+        json: () =>
+          Promise.resolve({
+            jsonrpc: "2.0",
+            error: {
+              code: -32001,
+              message: "token expired",
+              data: { kind: "auth_expired" },
+            },
+            id,
+          }),
+      }) as unknown as Response;
+
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValueOnce(expired(1))
+      .mockResolvedValueOnce(expired(2))
+      .mockResolvedValueOnce(createSuccessResponse("ok-A", 3))
+      .mockResolvedValueOnce(createSuccessResponse("ok-B", 4));
+    vi.stubGlobal("fetch", mockFetch);
+
+    // Simulate a single-flight provider: invalidate is idempotent and
+    // concurrent getToken calls during a single in-flight acquire all
+    // resolve to the same fresh token.
+    let inFlight: Promise<string> | null = null;
+    let acquireCount = 0;
+    let nextToken = "fresh-1";
+    const tokenProvider = {
+      getToken: vi.fn().mockImplementation(async () => {
+        if (inFlight) return inFlight;
+        inFlight = (async () => {
+          acquireCount++;
+          const t = nextToken;
+          nextToken = `fresh-${acquireCount + 1}`;
+          return t;
+        })();
+        try {
+          return await inFlight;
+        } finally {
+          inFlight = null;
+        }
+      }),
+      invalidate: vi.fn(),
+    };
+
+    const client = createClient({ tokenProvider });
+    const [a, b] = await Promise.all([
+      client.call("vaultProvider_submitDepositorWotsKey", { id: "a" }),
+      client.call("vaultProvider_submitDepositorWotsKey", { id: "b" }),
+    ]);
+
+    expect(a).toBe("ok-A");
+    expect(b).toBe("ok-B");
+    // Both calls saw auth_expired and both invalidated.
+    expect(tokenProvider.invalidate).toHaveBeenCalledTimes(2);
+    expect(mockFetch).toHaveBeenCalledTimes(4);
+  });
+
   it("callRaw injects Authorization but does NOT reactively refresh", async () => {
     const expiredRaw = new Response(
       JSON.stringify({

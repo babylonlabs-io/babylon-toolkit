@@ -36,6 +36,13 @@ import {
 const CREATE_TOKEN_METHOD = "auth_createDepositorToken";
 
 /**
+ * Maximum reasonable `expires_at` value (seconds since epoch). Guards
+ * against a bogus far-future timestamp that would lock the cache on a
+ * bad token forever. Jan 1, 2100 in Unix seconds.
+ */
+const MAX_EXPIRES_AT_SECS = 4_102_444_800;
+
+/**
  * Default safety margin before `expires_at` — we treat a token as
  * expired this many seconds before its stated expiry so that in-flight
  * requests don't race the expiry boundary.
@@ -122,8 +129,16 @@ export class VpTokenProvider implements BearerTokenProvider {
    * Return a bearer token for `method`, or `null` if `method` is not
    * auth-gated. Triggers a token acquisition if no token is cached or
    * the cached token is within {@link refreshSkewSecs} of expiry.
+   *
+   * The token-issuing method itself is hard-exempted from the gate —
+   * if `auth_createDepositorToken` were ever included in
+   * `authGatedMethods` (caller misconfiguration) the provider would
+   * recurse into `acquireSingleFlight` from inside the JSON-RPC header
+   * builder before `inFlight` is assigned, defeating the single-flight
+   * guard. Returning `null` here breaks that recursion deterministically.
    */
   async getToken(method: string): Promise<string | null> {
+    if (method === CREATE_TOKEN_METHOD) return null;
     if (!this.authGatedMethods.has(method)) return null;
 
     const cached = this.cached;
@@ -166,6 +181,25 @@ export class VpTokenProvider implements BearerTokenProvider {
           pinnedServerPubkey: this.pinnedServerPubkey,
           now: this.now(),
         });
+
+        // Validate wire payload before caching so a malformed response
+        // from a compromised VP or proxy can't poison the cache with
+        // unusable values (non-string token, non-integer expiry, etc.).
+        if (typeof response.token !== "string" || response.token.length === 0) {
+          throw new Error(
+            `VpTokenProvider: invalid token in acquire response (expected non-empty string, got ${typeof response.token})`,
+          );
+        }
+        const now = this.now();
+        if (
+          !Number.isSafeInteger(response.expires_at) ||
+          response.expires_at <= now ||
+          response.expires_at > MAX_EXPIRES_AT_SECS
+        ) {
+          throw new Error(
+            `VpTokenProvider: invalid expires_at in acquire response (got ${JSON.stringify(response.expires_at)}; must be a safe integer in (${now}, ${MAX_EXPIRES_AT_SECS}])`,
+          );
+        }
 
         const fresh: CachedToken = {
           token: response.token,

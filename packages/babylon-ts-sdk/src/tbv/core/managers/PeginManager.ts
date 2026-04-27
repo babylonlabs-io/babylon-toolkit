@@ -606,7 +606,7 @@ export class PeginManager {
       params.mempoolFeeRate,
       peginOutputCount(
         prePeginResult.htlcValues.length,
-        prePeginResult.authAnchorVout !== null,
+        prePeginParams.authAnchorHash,
       ),
     );
 
