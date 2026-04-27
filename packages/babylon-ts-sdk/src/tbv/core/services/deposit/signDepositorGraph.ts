@@ -28,7 +28,10 @@ import {
   PAYOUT_ASSERT_INPUT_INDEX,
   PEGIN_VAULT_OUTPUT_INDEX,
 } from "../../primitives/psbt/constants";
-import { extractPayoutSignature } from "../../primitives/psbt/payout";
+import {
+  assertPayoutOutputMatchesRegistered,
+  extractPayoutSignature,
+} from "../../primitives/psbt/payout";
 import {
   inputTxidHex,
   stripHexPrefix,
@@ -201,6 +204,7 @@ function collectDepositorGraphPsbts(
   depositorGraph: DepositorGraphTransactions,
   peginTxHex: string,
   walletPublicKey: string,
+  registeredPayoutScriptPubKey: string,
 ): CollectedDepositorGraphPsbts {
   const psbtHexes: string[] = [];
   const signOptions: SignPsbtOptions[] = [];
@@ -214,6 +218,15 @@ function collectDepositorGraphPsbts(
   const peginTx = Transaction.fromHex(stripHexPrefix(peginTxHex));
   const graphAssertTx = Transaction.fromHex(
     stripHexPrefix(depositorGraph.assert_tx.tx_hex),
+  );
+
+  // Validate the payout transaction's largest output pays to the
+  // depositor's on-chain registered payout scriptPubKey before signing.
+  // The VP-provided payout PSBT is otherwise unconstrained and could redirect
+  // funds to an attacker-controlled script.
+  assertPayoutOutputMatchesRegistered(
+    depositorGraph.payout_tx.tx_hex,
+    registeredPayoutScriptPubKey,
   );
 
   // Index 0: Payout PSBT
@@ -363,6 +376,13 @@ export interface SignDepositorGraphParams {
   depositorBtcPubkey: string;
   /** Bitcoin wallet for signing */
   btcWallet: BitcoinWallet;
+  /**
+   * On-chain registered depositor payout scriptPubKey (hex, with or without
+   * 0x prefix). Used to validate that the VP-provided depositor-graph payout
+   * transaction actually pays to the depositor's registered address before
+   * the wallet produces a signature.
+   */
+  registeredPayoutScriptPubKey: string;
 }
 
 /**
@@ -379,14 +399,25 @@ export interface SignDepositorGraphParams {
 export async function signDepositorGraph(
   params: SignDepositorGraphParams,
 ): Promise<DepositorAsClaimerPresignatures> {
-  const { depositorGraph, peginTxHex, depositorBtcPubkey, btcWallet } = params;
+  const {
+    depositorGraph,
+    peginTxHex,
+    depositorBtcPubkey,
+    btcWallet,
+    registeredPayoutScriptPubKey,
+  } = params;
 
   const depositorPubkey = stripHexPrefix(depositorBtcPubkey);
   const walletPublicKey = await btcWallet.getPublicKeyHex();
 
   // 1. Collect pre-built PSBTs from VP response (validated against parent txs)
   const { psbtHexes, signOptions, challengerEntries } =
-    collectDepositorGraphPsbts(depositorGraph, peginTxHex, walletPublicKey);
+    collectDepositorGraphPsbts(
+      depositorGraph,
+      peginTxHex,
+      walletPublicKey,
+      registeredPayoutScriptPubKey,
+    );
 
   // 2. Sign all PSBTs (batch when supported, sequential fallback for mobile)
   const signedPsbtHexes = await signPsbtsWithFallback(

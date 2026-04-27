@@ -1,3 +1,5 @@
+import { Buffer } from "buffer";
+
 import { describe, expect, it, vi } from "vitest";
 
 import type { BitcoinWallet } from "../../../../../shared/wallets/interfaces";
@@ -97,6 +99,7 @@ function registerPsbt(
 vi.mock("../../../primitives/psbt/payout", () => ({
   extractPayoutSignature: (signedPsbtHex: string, _depositorPubkey: string) =>
     `${MOCK_SIGNATURE_PREFIX}${signedPsbtHex}`,
+  assertPayoutOutputMatchesRegistered: vi.fn(),
 }));
 
 vi.mock("../../../primitives/utils/bitcoin", () => {
@@ -169,6 +172,7 @@ const DEPOSITOR_PUBKEY = "d".repeat(64);
 const WALLET_PUBKEY = "w".repeat(64);
 const CHALLENGER_A = "a".repeat(64);
 const CHALLENGER_B = "b".repeat(64);
+const REGISTERED_PAYOUT_SCRIPT = `0x5120${"e".repeat(64)}`;
 
 function createMockWallet(opts?: { supportsBatch?: boolean }): BitcoinWallet {
   const signPsbt = vi.fn(async (hex: string) => `${SIGNED_HEX_PREFIX}${hex}`);
@@ -278,6 +282,7 @@ describe("signDepositorGraph", () => {
       peginTxHex,
       depositorBtcPubkey: DEPOSITOR_PUBKEY,
       btcWallet: wallet,
+      registeredPayoutScriptPubKey: REGISTERED_PAYOUT_SCRIPT,
     });
 
     expect(result.payout_signatures.payout_signature).toContain(
@@ -300,6 +305,7 @@ describe("signDepositorGraph", () => {
       peginTxHex,
       depositorBtcPubkey: DEPOSITOR_PUBKEY,
       btcWallet: wallet,
+      registeredPayoutScriptPubKey: REGISTERED_PAYOUT_SCRIPT,
     });
 
     expect(wallet.signPsbts).toHaveBeenCalledOnce();
@@ -315,6 +321,7 @@ describe("signDepositorGraph", () => {
       peginTxHex,
       depositorBtcPubkey: DEPOSITOR_PUBKEY,
       btcWallet: wallet,
+      registeredPayoutScriptPubKey: REGISTERED_PAYOUT_SCRIPT,
     });
 
     expect(wallet.signPsbt).toHaveBeenCalledTimes(2);
@@ -333,6 +340,7 @@ describe("signDepositorGraph", () => {
         peginTxHex,
         depositorBtcPubkey: DEPOSITOR_PUBKEY,
         btcWallet: wallet,
+        registeredPayoutScriptPubKey: REGISTERED_PAYOUT_SCRIPT,
       }),
     ).rejects.toThrow("expected 2");
   });
@@ -346,6 +354,7 @@ describe("signDepositorGraph", () => {
       peginTxHex,
       depositorBtcPubkey: DEPOSITOR_PUBKEY,
       btcWallet: wallet,
+      registeredPayoutScriptPubKey: REGISTERED_PAYOUT_SCRIPT,
     });
 
     expect(result.payout_signatures.payout_signature).toBeDefined();
@@ -375,6 +384,7 @@ describe("signDepositorGraph", () => {
         peginTxHex,
         depositorBtcPubkey: DEPOSITOR_PUBKEY,
         btcWallet: wallet,
+        registeredPayoutScriptPubKey: REGISTERED_PAYOUT_SCRIPT,
       }),
     ).rejects.toThrow(/depositor payout: input 0 must spend/);
   });
@@ -395,6 +405,7 @@ describe("signDepositorGraph", () => {
         peginTxHex,
         depositorBtcPubkey: DEPOSITOR_PUBKEY,
         btcWallet: wallet,
+        registeredPayoutScriptPubKey: REGISTERED_PAYOUT_SCRIPT,
       }),
     ).rejects.toThrow(/witnessUtxo value/);
   });
@@ -414,6 +425,7 @@ describe("signDepositorGraph", () => {
         peginTxHex,
         depositorBtcPubkey: DEPOSITOR_PUBKEY,
         btcWallet: wallet,
+        registeredPayoutScriptPubKey: REGISTERED_PAYOUT_SCRIPT,
       }),
     ).rejects.toThrow(/must have exactly 2 inputs, got 1/);
   });
@@ -440,6 +452,7 @@ describe("signDepositorGraph", () => {
         peginTxHex,
         depositorBtcPubkey: DEPOSITOR_PUBKEY,
         btcWallet: wallet,
+        registeredPayoutScriptPubKey: REGISTERED_PAYOUT_SCRIPT,
       }),
     ).rejects.toThrow(/depositor payout: input 1 must spend/);
   });
@@ -463,6 +476,7 @@ describe("signDepositorGraph", () => {
         peginTxHex,
         depositorBtcPubkey: DEPOSITOR_PUBKEY,
         btcWallet: wallet,
+        registeredPayoutScriptPubKey: REGISTERED_PAYOUT_SCRIPT,
       }),
     ).rejects.toThrow(/nopayout .*: input 0 must spend/);
   });
@@ -476,8 +490,61 @@ describe("signDepositorGraph", () => {
       peginTxHex,
       depositorBtcPubkey: `0x${DEPOSITOR_PUBKEY}`,
       btcWallet: wallet,
+      registeredPayoutScriptPubKey: REGISTERED_PAYOUT_SCRIPT,
     });
 
     expect(result.payout_signatures.payout_signature).toBeDefined();
+  });
+
+  it("validates the payout output against the registered scriptPubKey before signing", async () => {
+    const { assertPayoutOutputMatchesRegistered } = await import(
+      "../../../primitives/psbt/payout"
+    );
+    const validator = vi.mocked(assertPayoutOutputMatchesRegistered);
+    validator.mockClear();
+
+    const wallet = createMockWallet({ supportsBatch: true });
+    const { graph, peginTxHex } = setupValidGraph([CHALLENGER_A]);
+
+    await signDepositorGraph({
+      depositorGraph: graph,
+      peginTxHex,
+      depositorBtcPubkey: DEPOSITOR_PUBKEY,
+      btcWallet: wallet,
+      registeredPayoutScriptPubKey: REGISTERED_PAYOUT_SCRIPT,
+    });
+
+    expect(validator).toHaveBeenCalledWith(
+      graph.payout_tx.tx_hex,
+      REGISTERED_PAYOUT_SCRIPT,
+    );
+  });
+
+  it("propagates payout output validation errors and never reaches the wallet", async () => {
+    const { assertPayoutOutputMatchesRegistered } = await import(
+      "../../../primitives/psbt/payout"
+    );
+    const validator = vi.mocked(assertPayoutOutputMatchesRegistered);
+    validator.mockImplementationOnce(() => {
+      throw new Error(
+        "Payout transaction does not pay to the registered depositor payout address",
+      );
+    });
+
+    const wallet = createMockWallet({ supportsBatch: true });
+    const { graph, peginTxHex } = setupValidGraph([CHALLENGER_A]);
+
+    await expect(
+      signDepositorGraph({
+        depositorGraph: graph,
+        peginTxHex,
+        depositorBtcPubkey: DEPOSITOR_PUBKEY,
+        btcWallet: wallet,
+        registeredPayoutScriptPubKey: REGISTERED_PAYOUT_SCRIPT,
+      }),
+    ).rejects.toThrow("registered depositor payout address");
+
+    expect(wallet.signPsbts).not.toHaveBeenCalled();
+    expect(wallet.signPsbt).not.toHaveBeenCalled();
   });
 });

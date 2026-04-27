@@ -315,6 +315,7 @@ export async function pollAndSignPayouts(
     peginTxHex: signingContext.peginTxHex,
     depositorBtcPubkey: depositorPk,
     btcWallet,
+    registeredPayoutScriptPubKey: signingContext.registeredPayoutScriptPubKey,
   });
 
   signal?.throwIfAborted();
