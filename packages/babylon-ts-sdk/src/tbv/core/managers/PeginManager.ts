@@ -598,12 +598,16 @@ export class PeginManager {
     // Step 2: Build unfunded Pre-PegIn transaction (N HTLC outputs, no inputs)
     const prePeginResult = await buildPrePeginPsbt(prePeginParams);
 
-    // Step 3: Select UTXOs to cover ALL unfunded tx outputs (HTLCs + CPFP anchor)
+    // Step 3: Select UTXOs to cover ALL unfunded tx outputs
+    // (HTLCs + optional auth-anchor OP_RETURN + CPFP anchor).
     const utxoSelection = selectUtxosForPegin(
       [...params.availableUTXOs],
       prePeginResult.totalOutputValue,
       params.mempoolFeeRate,
-      peginOutputCount(prePeginResult.htlcValues.length),
+      peginOutputCount(
+        prePeginResult.htlcValues.length,
+        prePeginParams.authAnchorHash,
+      ),
     );
 
     // Step 4: Fund the Pre-PegIn transaction with selected UTXOs

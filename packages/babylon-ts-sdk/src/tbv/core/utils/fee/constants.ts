@@ -44,23 +44,59 @@ export function rateBasedTxBufferFee(feeRate: number): number {
 }
 
 /**
- * Number of fixed (non-HTLC) outputs in a Pre-PegIn transaction.
- * Currently this is 1 CPFP anchor output.
+ * Number of always-present fixed (non-HTLC) outputs in a Pre-PegIn
+ * transaction. Currently this is 1 CPFP anchor output.
  */
 export const PEGIN_FIXED_OUTPUTS = 1;
 
 /**
- * Compute the total number of outputs (before change) in a Pre-PegIn transaction.
- *
- * A Pre-PegIn tx has: N HTLC outputs (one per vault) + fixed outputs (CPFP anchor).
- * This count is used for fee estimation — the change output is handled separately
- * by selectUtxosForPegin when the change amount exceeds the dust threshold.
- *
- * @param vaultCount - Number of vaults in the batch (1 for single-vault)
- * @returns Total output count before change
+ * Size of the auth-anchor `OP_RETURN` output when committed into a
+ * Pre-PegIn. The output carries `OP_RETURN <PUSH32 hash>` = 34 script
+ * bytes, plus 8 bytes value + 1 byte scriptLen = ~43 bytes total —
+ * same as {@link MAX_NON_LEGACY_OUTPUT_SIZE}. Counted as one output
+ * toward the fee-estimation output budget.
  */
-export function peginOutputCount(vaultCount: number): number {
-  return vaultCount + PEGIN_FIXED_OUTPUTS;
+export const PEGIN_AUTH_ANCHOR_OUTPUTS = 1;
+
+/**
+ * Compute the total number of outputs (before change) in a Pre-PegIn
+ * transaction.
+ *
+ * A Pre-PegIn tx has: N HTLC outputs (one per vault) + optional
+ * auth-anchor OP_RETURN output + fixed outputs (CPFP anchor). This
+ * count is used for fee estimation — the change output is handled
+ * separately by `selectUtxosForPegin` when the change amount exceeds
+ * the dust threshold.
+ *
+ * `authAnchorHash` is the same value forwarded into `buildPrePeginPsbt`:
+ * when truthy the Pre-PegIn carries an OP_RETURN commitment, so callers
+ * pass the same value to both functions and the fee budget stays in
+ * lockstep with the output set. Passing `undefined`/`null` reproduces
+ * the legacy single-arg behavior (HTLCs + CPFP only).
+ *
+ * @param vaultCount      - Number of vaults in the batch (≥1).
+ * @param authAnchorHash  - The same auth-anchor commitment passed to
+ *                          `buildPrePeginPsbt`. Truthy → counts the
+ *                          OP_RETURN output in the budget.
+ * @returns Total output count before change.
+ * @throws If `vaultCount` is not a positive integer.
+ */
+export function peginOutputCount(
+  vaultCount: number,
+  authAnchorHash?: string | null,
+): number {
+  if (!Number.isInteger(vaultCount) || vaultCount < 1) {
+    throw new Error(
+      `peginOutputCount: vaultCount must be a positive integer, got ${vaultCount}`,
+    );
+  }
+  const hasAuthAnchor =
+    typeof authAnchorHash === "string" && authAnchorHash.length > 0;
+  return (
+    vaultCount +
+    PEGIN_FIXED_OUTPUTS +
+    (hasAuthAnchor ? PEGIN_AUTH_ANCHOR_OUTPUTS : 0)
+  );
 }
 
 /**

@@ -27,6 +27,29 @@ import type { Hex } from "viem";
 export const TAPSCRIPT_LEAF_VERSION = 0xc0;
 
 /**
+ * Hex-string length of a 32-byte BIP-340 x-only public key (taproot,
+ * Schnorr). Doubles the byte count: `2 * 32 = 64`.
+ */
+export const X_ONLY_PUBKEY_HEX_LEN = 64;
+
+/**
+ * Hex-string length of a 33-byte SEC1-compressed secp256k1 public key
+ * (`0x02` or `0x03` prefix + 32-byte x-coordinate). `2 * 33 = 66`.
+ */
+export const COMPRESSED_PUBKEY_HEX_LEN = 66;
+
+/**
+ * Hex-string length of a 65-byte SEC1-uncompressed secp256k1 public
+ * key (`0x04` prefix + 32-byte x + 32-byte y). `2 * 65 = 130`.
+ */
+export const UNCOMPRESSED_PUBKEY_HEX_LEN = 130;
+
+/**
+ * Hex-string length of a 64-byte BIP-340 Schnorr signature. `2 * 64 = 128`.
+ */
+export const SCHNORR_SIG_HEX_LEN = 128;
+
+/**
  * Strip "0x" prefix from hex string if present.
  *
  * Bitcoin expects plain hex (no "0x" prefix), but frontend often uses
@@ -137,14 +160,17 @@ export function processPublicKeyToXOnly(publicKeyHex: string): string {
   }
 
   // If already 64 chars (32 bytes), it's already x-only format
-  if (cleanHex.length === 64) {
+  if (cleanHex.length === X_ONLY_PUBKEY_HEX_LEN) {
     return cleanHex;
   }
 
-  // Validate public key length (should be 66 chars for compressed or 130 for uncompressed)
-  if (cleanHex.length !== 66 && cleanHex.length !== 130) {
+  // Validate public key length (compressed SEC1 or uncompressed SEC1)
+  if (
+    cleanHex.length !== COMPRESSED_PUBKEY_HEX_LEN &&
+    cleanHex.length !== UNCOMPRESSED_PUBKEY_HEX_LEN
+  ) {
     throw new Error(
-      `Invalid public key length: ${cleanHex.length} (expected 64, 66, or 130 hex chars)`,
+      `Invalid public key length: ${cleanHex.length} (expected ${X_ONLY_PUBKEY_HEX_LEN}, ${COMPRESSED_PUBKEY_HEX_LEN}, or ${UNCOMPRESSED_PUBKEY_HEX_LEN} hex chars)`,
     );
   }
 
@@ -363,9 +389,9 @@ export function isAddressFromPublicKey(
 
   // Build the list of compressed keys to try for P2WPKH
   const compressedKeys: string[] = [];
-  if (cleanHex.length === 66) {
+  if (cleanHex.length === COMPRESSED_PUBKEY_HEX_LEN) {
     compressedKeys.push(cleanHex);
-  } else if (cleanHex.length === 64) {
+  } else if (cleanHex.length === X_ONLY_PUBKEY_HEX_LEN) {
     // x-only key — try both even (02) and odd (03) y-parity
     compressedKeys.push(`02${cleanHex}`, `03${cleanHex}`);
   }

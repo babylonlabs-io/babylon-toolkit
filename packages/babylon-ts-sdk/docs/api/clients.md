@@ -694,9 +694,9 @@ Get the current pegout status from the vault provider daemon.
 
 ***
 
-### JsonRpcError
+### ServerIdentityError
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts:54](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts#L54)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts:55](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts#L55)
 
 #### Extends
 
@@ -707,10 +707,151 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rp
 ##### Constructor
 
 ```ts
-new JsonRpcError(code, message): JsonRpcError;
+new ServerIdentityError(message, reason): ServerIdentityError;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts:55](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts#L55)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts:56](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts#L56)
+
+###### Parameters
+
+###### message
+
+`string`
+
+###### reason
+
+`"pinned_pubkey_mismatch"` | `"expired"` | `"invalid_pubkey_encoding"` | `"invalid_ephemeral_pubkey"` | `"invalid_signature_encoding"`
+
+###### Returns
+
+[`ServerIdentityError`](#serveridentityerror)
+
+###### Overrides
+
+```ts
+Error.constructor
+```
+
+#### Properties
+
+##### reason
+
+```ts
+readonly reason: 
+  | "pinned_pubkey_mismatch"
+  | "expired"
+  | "invalid_pubkey_encoding"
+  | "invalid_ephemeral_pubkey"
+  | "invalid_signature_encoding";
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts:58](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts#L58)
+
+***
+
+### VpTokenProvider
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenProvider.ts:99](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenProvider.ts#L99)
+
+Acquire, cache, and refresh VP bearer tokens.
+
+Implements [BearerTokenProvider](#bearertokenprovider). Safe to pass directly into
+`JsonRpcClient` as `tokenProvider`.
+
+#### Implements
+
+- [`BearerTokenProvider`](#bearertokenprovider)
+
+#### Constructors
+
+##### Constructor
+
+```ts
+new VpTokenProvider(config): VpTokenProvider;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenProvider.ts:111](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenProvider.ts#L111)
+
+###### Parameters
+
+###### config
+
+[`VpTokenProviderConfig`](#vptokenproviderconfig)
+
+###### Returns
+
+[`VpTokenProvider`](#vptokenprovider)
+
+#### Methods
+
+##### getToken()
+
+```ts
+getToken(method): Promise<string | null>;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenProvider.ts:126](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenProvider.ts#L126)
+
+Return a bearer token for `method`, or `null` if `method` is not
+auth-gated. Triggers a token acquisition if no token is cached or
+the cached token is within refreshSkewSecs of expiry.
+
+###### Parameters
+
+###### method
+
+`string`
+
+###### Returns
+
+`Promise`\<`string` \| `null`\>
+
+###### Implementation of
+
+[`BearerTokenProvider`](#bearertokenprovider).[`getToken`](#gettoken-2)
+
+##### invalidate()
+
+```ts
+invalidate(): void;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenProvider.ts:142](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenProvider.ts#L142)
+
+Drop the cached token. Next `getToken` call re-acquires.
+Called by `JsonRpcClient` on wire `auth_expired` responses.
+
+###### Returns
+
+`void`
+
+###### Implementation of
+
+[`BearerTokenProvider`](#bearertokenprovider).[`invalidate`](#invalidate-2)
+
+***
+
+### JsonRpcError
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts:99](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts#L99)
+
+#### Extends
+
+- `Error`
+
+#### Constructors
+
+##### Constructor
+
+```ts
+new JsonRpcError(
+   code, 
+   message, 
+   source, 
+   data?): JsonRpcError;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts:100](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts#L100)
 
 ###### Parameters
 
@@ -721,6 +862,18 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rp
 ###### message
 
 `string`
+
+###### source
+
+[`JsonRpcErrorSource`](#jsonrpcerrorsource) = `"local"`
+
+"wire" for server-returned envelopes; "local" for SDK-side failures.
+
+###### data?
+
+`unknown`
+
+Structured data from the server `error.data` field, if any.
 
 ###### Returns
 
@@ -740,13 +893,33 @@ Error.constructor
 code: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts:56](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts#L56)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts:101](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts#L101)
+
+##### source
+
+```ts
+source: JsonRpcErrorSource = "local";
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts:104](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts#L104)
+
+"wire" for server-returned envelopes; "local" for SDK-side failures.
+
+##### data?
+
+```ts
+optional data: unknown;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts:106](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts#L106)
+
+Structured data from the server `error.data` field, if any.
 
 ***
 
 ### JsonRpcClient
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts:108](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts#L108)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts:178](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts#L178)
 
 Generic JSON-RPC 2.0 HTTP client with safe retry policy.
 
@@ -758,7 +931,7 @@ Generic JSON-RPC 2.0 HTTP client with safe retry policy.
 new JsonRpcClient(config): JsonRpcClient;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts:117](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts#L117)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts:188](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts#L188)
 
 ###### Parameters
 
@@ -781,9 +954,13 @@ call<TParams, TResult>(
 signal?): Promise<TResult>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts:138](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts#L138)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts:225](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts#L225)
 
 Make a JSON-RPC request with optional retry for safe methods.
+
+If the request fails with a wire-origin `auth_expired` error and a
+`tokenProvider` is configured, the client invalidates its cached
+token and retries the request once with a freshly-acquired bearer.
 
 ###### Type Parameters
 
@@ -834,9 +1011,16 @@ callRaw<TParams>(
 signal?): Promise<Response>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts:189](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts#L189)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts:308](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts#L308)
 
 Make a JSON-RPC request returning the raw Response (unparsed body).
+
+Bearer tokens are injected identically to `call`. **Reactive refresh
+is NOT performed here** — the response body may be unbounded (e.g.
+claimer-artifact downloads), so the client refuses to parse it to
+detect auth errors. Callers relying on token-expired retries for
+large downloads must read the body themselves and re-invoke
+`callRaw` after `tokenProvider.invalidate()`.
 
 ###### Type Parameters
 
@@ -868,7 +1052,7 @@ Make a JSON-RPC request returning the raw Response (unparsed body).
 getBaseUrl(): string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts:318](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts#L318)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts:444](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts#L444)
 
 ###### Returns
 
@@ -878,7 +1062,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rp
 
 ### VpResponseValidationError
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/validators.ts:39](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/validators.ts#L39)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/validators.ts:45](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/validators.ts#L45)
 
 Thrown when a VP RPC response fails runtime validation.
 
@@ -897,7 +1081,7 @@ Thrown when a VP RPC response fails runtime validation.
 new VpResponseValidationError(detail): VpResponseValidationError;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/validators.ts:42](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/validators.ts#L42)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/validators.ts:48](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/validators.ts#L48)
 
 ###### Parameters
 
@@ -923,7 +1107,7 @@ Error.constructor
 readonly detail: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/validators.ts:40](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/validators.ts#L40)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/validators.ts:46](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/validators.ts#L46)
 
 ## Interfaces
 
@@ -2247,9 +2431,279 @@ Custom headers
 
 ***
 
+### ServerIdentityResponse
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts:31](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts#L31)
+
+Wire representation from btc-vault's `ServerIdentityResponse`.
+
+#### Properties
+
+##### server\_pubkey
+
+```ts
+server_pubkey: string;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts:33](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts#L33)
+
+Hex-encoded x-only (32-byte) persistent server pubkey.
+
+##### ephemeral\_pubkey
+
+```ts
+ephemeral_pubkey: string;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts:35](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts#L35)
+
+Hex-encoded compressed (33-byte) ephemeral token-signing pubkey.
+
+##### expires\_at
+
+```ts
+expires_at: number;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts:37](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts#L37)
+
+Unix timestamp at which the ephemeral key expires.
+
+##### signature
+
+```ts
+signature: string;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts:39](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts#L39)
+
+Hex-encoded 64-byte BIP-322 Schnorr signature.
+
+***
+
+### VerifyServerIdentityInput
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts:42](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts#L42)
+
+#### Properties
+
+##### proof
+
+```ts
+proof: ServerIdentityResponse;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts:44](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts#L44)
+
+The proof returned by `auth_createDepositorToken`.
+
+##### pinnedServerPubkey
+
+```ts
+pinnedServerPubkey: string;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts:50](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts#L50)
+
+The x-only persistent server pubkey the FE expects (sourced from
+the on-chain `VaultProvider.btcPubKey` via the vault registry
+reader). 64-char lowercase hex, no `0x` prefix.
+
+##### now
+
+```ts
+now: number;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts:52](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts#L52)
+
+Current Unix timestamp in seconds. Injected for testability.
+
+***
+
+### CreateDepositorTokenResponse
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenProvider.ts:48](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenProvider.ts#L48)
+
+Wire response shape of `auth_createDepositorToken`.
+
+#### Properties
+
+##### token
+
+```ts
+token: string;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenProvider.ts:50](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenProvider.ts#L50)
+
+Base64url-encoded COSE Sign1 CWT bearer token.
+
+##### expires\_at
+
+```ts
+expires_at: number;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenProvider.ts:52](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenProvider.ts#L52)
+
+Unix timestamp at which the token expires.
+
+##### server\_identity
+
+```ts
+server_identity: ServerIdentityResponse;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenProvider.ts:54](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenProvider.ts#L54)
+
+Server identity proof bundled with every token response.
+
+***
+
+### VpTokenProviderConfig
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenProvider.ts:57](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenProvider.ts#L57)
+
+#### Properties
+
+##### client
+
+```ts
+client: JsonRpcClient;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenProvider.ts:59](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenProvider.ts#L59)
+
+VP JSON-RPC client to use for `auth_createDepositorToken` calls.
+
+##### peginTxid
+
+```ts
+peginTxid: string;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenProvider.ts:61](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenProvider.ts#L61)
+
+Pre-PegIn transaction id this token is scoped to.
+
+##### authAnchorHex
+
+```ts
+authAnchorHex: string;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenProvider.ts:67](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenProvider.ts#L67)
+
+64-char lowercase hex encoding of the 32-byte `auth_anchor`
+preimage committed in the Pre-PegIn OP_RETURN. Presenting this
+preimage is what lets the VP issue the token (the "fast path").
+
+##### pinnedServerPubkey
+
+```ts
+pinnedServerPubkey: string;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenProvider.ts:73](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenProvider.ts#L73)
+
+64-char lowercase hex x-only pubkey the FE expects the VP to
+present as its persistent server identity. Sourced from the
+on-chain `VaultProvider.btcPubKey` via the vault-registry reader.
+
+##### authGatedMethods
+
+```ts
+authGatedMethods: ReadonlySet<string>;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenProvider.ts:78](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenProvider.ts#L78)
+
+Set of method names that require authentication. `getToken()`
+returns `null` for any method not in this set.
+
+##### refreshSkewSecs?
+
+```ts
+optional refreshSkewSecs: number;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenProvider.ts:83](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenProvider.ts#L83)
+
+Seconds before `expires_at` to treat a cached token as expired.
+Default: DEFAULT\_REFRESH\_SKEW\_SECS.
+
+##### now()?
+
+```ts
+optional now: () => number;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenProvider.ts:85](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenProvider.ts#L85)
+
+Clock source (injected for testability). Default: `Date.now() / 1000`.
+
+###### Returns
+
+`number`
+
+***
+
+### BearerTokenProvider
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts:44](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts#L44)
+
+Injects bearer tokens into requests for auth-gated methods, and is
+notified on auth-expired responses so it can invalidate its cache.
+
+The `JsonRpcClient` is agnostic to which methods are auth-gated —
+the provider's `getToken(method)` decides. Returning `null` means
+"no auth required for this method"; the client then sends the
+request with no `Authorization` header.
+
+#### Methods
+
+##### getToken()
+
+```ts
+getToken(method): Promise<string | null>;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts:49](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts#L49)
+
+Return the bearer token to inject for `method`, or `null` if the
+method does not require auth.
+
+###### Parameters
+
+###### method
+
+`string`
+
+###### Returns
+
+`Promise`\<`string` \| `null`\>
+
+##### invalidate()
+
+```ts
+invalidate(): void;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts:54](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts#L54)
+
+Drop the cached token. Next call to `getToken` must re-acquire.
+Called by the client on reactive-refresh-trigger responses.
+
+###### Returns
+
+`void`
+
+***
+
 ### JsonRpcClientConfig
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts:35](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts#L35)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts:57](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts#L57)
 
 #### Properties
 
@@ -2259,7 +2713,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rp
 baseUrl: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts:37](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts#L37)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts:59](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts#L59)
 
 Base URL of the RPC service
 
@@ -2269,7 +2723,7 @@ Base URL of the RPC service
 timeout: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts:39](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts#L39)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts:61](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts#L61)
 
 Timeout in milliseconds per request attempt
 
@@ -2279,7 +2733,7 @@ Timeout in milliseconds per request attempt
 optional headers: Record<string, string>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts:41](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts#L41)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts:63](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts#L63)
 
 Optional custom headers
 
@@ -2289,7 +2743,7 @@ Optional custom headers
 optional retries: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts:43](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts#L43)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts:65](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts#L65)
 
 Number of retry attempts for transient errors (default: 3)
 
@@ -2299,7 +2753,7 @@ Number of retry attempts for transient errors (default: 3)
 optional retryDelay: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts:45](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts#L45)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts:67](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts#L67)
 
 Initial retry delay in milliseconds (default: 1000)
 
@@ -2309,7 +2763,7 @@ Initial retry delay in milliseconds (default: 1000)
 optional retryableFor: (method) => boolean;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts:51](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts#L51)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts:73](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts#L73)
 
 Predicate to determine if a method is safe to retry.
 Default: only retry `vaultProvider_getPeginStatus` and `vaultProvider_getPegoutStatus`.
@@ -2324,6 +2778,24 @@ Write/mutating methods are NOT retried by default.
 ###### Returns
 
 `boolean`
+
+##### tokenProvider?
+
+```ts
+optional tokenProvider: BearerTokenProvider;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts:85](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts#L85)
+
+Optional bearer-token provider. If set, the client injects
+`Authorization: Bearer <token>` for every method the provider
+returns a non-null token for (`call` and `callRaw` alike).
+
+`call` also performs a one-shot reactive refresh when a wire-origin
+JSON-RPC error carries `error.data.kind === "auth_expired"` —
+it calls `invalidate()`, fetches a fresh token, and retries the
+request once. `callRaw` does NOT perform reactive refresh (its
+body may be unbounded; we don't parse it).
 
 ***
 
@@ -3347,6 +3819,24 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.t
 
 ## Type Aliases
 
+### JsonRpcErrorSource
+
+```ts
+type JsonRpcErrorSource = "wire" | "local";
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts:97](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts#L97)
+
+Identifies whether an error was produced locally (timeout, network
+failure, malformed response) or parsed from a wire-format JSON-RPC
+error envelope returned by the server.
+
+This matters for anyone inspecting the shared `-32001` code: the SDK
+uses it internally for network failures AND the server uses it for
+auth-middleware rejections. The `source` field disambiguates.
+
+***
+
 ### GetPeginStatusParams
 
 ```ts
@@ -3694,13 +4184,45 @@ https://mempool.space/docs/api/rest#get-recommended-fees
 
 ***
 
+### verifyServerIdentity()
+
+```ts
+function verifyServerIdentity(input): void;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts:82](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts#L82)
+
+Verify a server identity proof against a pinned server pubkey.
+
+Checks: (1) `server_pubkey` matches the pin; (2) `expires_at > now`;
+(3) `ephemeral_pubkey` is a well-formed 33-byte compressed pubkey;
+(4) `signature` is a well-formed 64-byte hex string.
+
+Full BIP-322 signature verification is deferred to a follow-up.
+
+#### Parameters
+
+##### input
+
+[`VerifyServerIdentityInput`](#verifyserveridentityinput)
+
+#### Returns
+
+`void`
+
+#### Throws
+
+ServerIdentityError on any validation failure.
+
+***
+
 ### validateRequestDepositorClaimerArtifactsResponse()
 
 ```ts
 function validateRequestDepositorClaimerArtifactsResponse(response): asserts response is RequestDepositorClaimerArtifactsResponse;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/validators.ts:330](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/validators.ts#L330)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/validators.ts:328](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/validators.ts#L328)
 
 Validate a requestDepositorClaimerArtifacts response.
 
@@ -3953,7 +4475,7 @@ readonly signet: "https://mempool.space/signet/api" = "https://mempool.space/sig
 const JSON_RPC_ERROR_CODES: object;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts:64](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts#L64)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts:113](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts#L113)
 
 #### Type Declaration
 
