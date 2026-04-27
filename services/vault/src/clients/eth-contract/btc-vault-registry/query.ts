@@ -29,6 +29,10 @@ export interface OnChainVaultData {
   hashlock: Hex;
   /** Index of the HTLC output in the Pre-PegIn transaction */
   htlcVout: number;
+  /** Vault deposit amount in satoshis */
+  amount: bigint;
+  /** Hash of the Pre-PegIn transaction (bytes32, 0x-prefixed) */
+  prePeginTxHash: Hex;
   // Note: depositorPayoutBtcAddress is not in the BTCVault struct — only emitted
   // in the PegInSubmitted event. Source it from the indexer instead.
 }
@@ -109,5 +113,7 @@ export async function getVaultFromChain(
     offchainParamsVersion: Number(protocolInfo.offchainParamsVersion),
     hashlock: protocolInfo.hashlock,
     htlcVout: Number(protocolInfo.htlcVout),
+    amount: basicInfo.amount,
+    prePeginTxHash: protocolInfo.prePeginTxHash,
   };
 }

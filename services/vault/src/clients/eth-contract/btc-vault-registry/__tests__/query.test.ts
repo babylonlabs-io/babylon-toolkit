@@ -63,6 +63,8 @@ describe("getVaultFromChain", () => {
       offchainParamsVersion: PROTOCOL_INFO.offchainParamsVersion,
       hashlock: PROTOCOL_INFO.hashlock,
       htlcVout: PROTOCOL_INFO.htlcVout,
+      amount: BASIC_INFO.amount,
+      prePeginTxHash: PROTOCOL_INFO.prePeginTxHash,
     });
   });
 

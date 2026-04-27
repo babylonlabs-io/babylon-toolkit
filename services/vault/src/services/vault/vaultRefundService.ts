@@ -18,6 +18,7 @@ import {
   type RefundPrePeginContext,
   type VaultRefundData,
 } from "@babylonlabs-io/ts-sdk/tbv/core/services";
+import { calculateBtcTxHash } from "@babylonlabs-io/ts-sdk/tbv/core/utils";
 import type { Hex } from "viem";
 
 import { getMempoolApiUrl } from "../../clients/btc/config";
@@ -48,12 +49,12 @@ export interface BroadcastRefundParams {
 }
 
 async function readVault(vaultId: Hex): Promise<VaultRefundData> {
-  // Versioning fields, hashlock, and htlcVout come from the on-chain contract
-  // — a compromised indexer could otherwise substitute a different signer set.
-  // From the indexer we pull only what refund actually needs: amount + the
-  // funded Pre-PegIn tx hex + the depositor's BTC pubkey. Using a minimal
-  // query (not the full Vault projection) avoids refund being blocked by
-  // indexer schema drift on unrelated fields such as `depositorWotsPkHash`.
+  // Signing-critical fields come from the on-chain contract — a compromised
+  // indexer could otherwise substitute a different signer set, amount, or
+  // transaction. From the indexer we pull only the Pre-PegIn tx hex (not
+  // stored on-chain) and the depositor's BTC pubkey (overridden by the
+  // caller's wallet key before signing). The amount comes from the contract.
+  // The Pre-PegIn tx hex is validated against the on-chain prePeginTxHash.
   const [onChainVault, indexerRefundData] = await Promise.all([
     getVaultFromChain(vaultId),
     fetchVaultRefundData(vaultId),
@@ -61,6 +62,24 @@ async function readVault(vaultId: Hex): Promise<VaultRefundData> {
   if (!indexerRefundData) {
     throw new Error(`Vault ${vaultId} not found`);
   }
+
+  // Validate that the indexer-provided Pre-PegIn tx matches the on-chain hash.
+  // The tx hash commits to all inputs and outputs, so a substituted transaction
+  // would produce a different hash. SegWit txid excludes witness data, so
+  // hash(unsignedTx) === hash(signedTx) === prePeginTxHash.
+  const computedTxHash = calculateBtcTxHash(
+    indexerRefundData.unsignedPrePeginTx,
+  );
+  if (
+    computedTxHash.toLowerCase() !== onChainVault.prePeginTxHash.toLowerCase()
+  ) {
+    throw new Error(
+      `Pre-PegIn transaction hash mismatch: computed ${computedTxHash} from indexer tx, ` +
+        `but on-chain contract has ${onChainVault.prePeginTxHash}. ` +
+        `Aborting refund to prevent potential attack.`,
+    );
+  }
+
   return {
     hashlock: onChainVault.hashlock,
     htlcVout: onChainVault.htlcVout,
@@ -69,7 +88,7 @@ async function readVault(vaultId: Hex): Promise<VaultRefundData> {
     universalChallengersVersion: onChainVault.universalChallengersVersion,
     vaultProvider: onChainVault.vaultProvider,
     applicationEntryPoint: onChainVault.applicationEntryPoint,
-    amount: indexerRefundData.amount,
+    amount: onChainVault.amount,
     unsignedPrePeginTxHex: indexerRefundData.unsignedPrePeginTx,
     depositorBtcPubkey: indexerRefundData.depositorBtcPubkey,
   };
