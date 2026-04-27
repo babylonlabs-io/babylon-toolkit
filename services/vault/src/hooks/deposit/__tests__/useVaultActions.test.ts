@@ -96,6 +96,7 @@ vi.mock("@/models/peginStateMachine", async (importOriginal) => {
     getNextLocalStatus: vi.fn(() => "CONFIRMING"),
     PeginAction: {
       SIGN_AND_BROADCAST_TO_BITCOIN: "SIGN_AND_BROADCAST_TO_BITCOIN",
+      ACTIVATE_VAULT: "ACTIVATE_VAULT",
     },
     LocalStorageStatus: {
       PENDING: "PENDING",
