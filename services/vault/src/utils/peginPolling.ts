@@ -8,7 +8,6 @@ import type { Hex } from "viem";
 import {
   ContractStatus,
   isPreDepositorSignaturesError,
-  LocalStorageStatus,
 } from "../models/peginStateMachine";
 import type { PendingPeginRequest } from "../storage/peginStorage";
 import type { VaultActivity } from "../types/activity";
@@ -116,9 +115,6 @@ export function getDepositsNeedingPolling(
     .map((activity) => {
       const pendingPegin = pendingPegins.find((p) => p.id === activity.id);
       const contractStatus = (activity.contractStatus ?? 0) as ContractStatus;
-      const localStatus = pendingPegin?.status as
-        | LocalStorageStatus
-        | undefined;
       // Note: Currently only single vault provider per deposit is supported
       const vaultProviderAddress = activity.providers[0]?.id as Hex | undefined;
 

@@ -253,7 +253,11 @@ function applyTrackingOverrides(
       // If VP still needs WOTS key, has transactions ready for signing,
       // or hasn't even ingested the deposit yet, the local status is
       // stale or tampered — ignore the override.
-      if (vpState?.needsWotsKey || vpState?.transactionsReady || vpState?.pendingIngestion) {
+      if (
+        vpState?.needsWotsKey ||
+        vpState?.transactionsReady ||
+        vpState?.pendingIngestion
+      ) {
         return sdkActions;
       }
       return [];
