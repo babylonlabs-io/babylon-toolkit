@@ -42,13 +42,13 @@ describe("logoClient", () => {
 
     it("fetches logos from sidecar API with POST request", async () => {
       mockEnv.SIDECAR_API_URL = "https://sidecar-api.example.com";
-      const mockResponse = {
+      const images = {
         identity1: "https://s3-bucket/logo1.png",
         identity2: "https://s3-bucket/logo2.png",
       };
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: () => Promise.resolve(mockResponse),
+        json: () => Promise.resolve({ data: { images } }),
       });
 
       const result = await fetchLogos(["identity1", "identity2"]);
@@ -63,7 +63,7 @@ describe("logoClient", () => {
           body: JSON.stringify({ identities: ["identity1", "identity2"] }),
         },
       );
-      expect(result).toEqual(mockResponse);
+      expect(result).toEqual(images);
     });
 
     it("returns empty object when API returns error", async () => {
@@ -92,12 +92,38 @@ describe("logoClient", () => {
       mockFetch.mockResolvedValueOnce({
         ok: true,
         json: () =>
-          Promise.resolve({ identity1: "https://s3-bucket/logo1.png" }),
+          Promise.resolve({
+            data: { images: { identity1: "https://s3-bucket/logo1.png" } },
+          }),
       });
 
       const result = await fetchLogos(["identity1", "identity2"]);
 
       expect(result).toEqual({ identity1: "https://s3-bucket/logo1.png" });
+    });
+
+    it("returns empty object when sidecar returns an empty images map", async () => {
+      mockEnv.SIDECAR_API_URL = "https://sidecar-api.example.com";
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ data: { images: {} } }),
+      });
+
+      const result = await fetchLogos(["identity1"]);
+
+      expect(result).toEqual({});
+    });
+
+    it("returns empty object when envelope is malformed", async () => {
+      mockEnv.SIDECAR_API_URL = "https://sidecar-api.example.com";
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ unexpected: "shape" }),
+      });
+
+      const result = await fetchLogos(["identity1"]);
+
+      expect(result).toEqual({});
     });
   });
 });

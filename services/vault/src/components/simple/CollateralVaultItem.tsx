@@ -3,9 +3,16 @@
  * Renders a single vault card within the expanded collateral view.
  */
 
-import { Avatar, Button, Checkbox, StatusBadge } from "@babylonlabs-io/core-ui";
+import {
+  Avatar,
+  Button,
+  Checkbox,
+  Hint,
+  StatusBadge,
+} from "@babylonlabs-io/core-ui";
 
 import { getNetworkConfigBTC } from "@/config";
+import { truncateAddress } from "@/utils/addressUtils";
 import { formatBtcAmount, formatOrdinal } from "@/utils/formatting";
 
 const btcConfig = getNetworkConfigBTC();
@@ -16,6 +23,8 @@ interface CollateralVaultItemProps {
   inUse: boolean;
   providerName: string;
   providerIconUrl?: string;
+  /** Vault provider Ethereum address, shown on hover over the provider label */
+  providerAddress: string;
   liquidationIndex?: number;
   selected: boolean;
   selectable: boolean;
@@ -29,6 +38,7 @@ export function CollateralVaultItem({
   inUse,
   providerName,
   providerIconUrl,
+  providerAddress,
   liquidationIndex,
   selected,
   selectable,
@@ -77,12 +87,19 @@ export function CollateralVaultItem({
       {/* Vault Provider row */}
       <div className="flex items-center justify-between">
         <span className="text-sm text-accent-secondary">Vault Provider</span>
-        <div className="flex items-center gap-1.5">
-          {providerIconUrl && (
-            <Avatar url={providerIconUrl} alt={providerName} size="tiny" />
-          )}
-          <span className="text-sm text-accent-primary">{providerName}</span>
-        </div>
+        <Hint
+          tooltip={truncateAddress(providerAddress)}
+          attachToChildren
+          placement="left"
+          className="text-sm text-accent-primary"
+        >
+          <span className="inline-flex items-center gap-1.5">
+            {providerIconUrl && (
+              <Avatar url={providerIconUrl} alt={providerName} size="tiny" />
+            )}
+            {providerName}
+          </span>
+        </Hint>
       </div>
 
       {/* Liquidation Order row */}
