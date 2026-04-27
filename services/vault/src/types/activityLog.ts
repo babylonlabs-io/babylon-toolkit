@@ -20,6 +20,13 @@ export type ActivityType =
   | "Pending Deposit";
 
 /**
+ * Chain that the transaction hash belongs to.
+ * BTC — Bitcoin peg-in/peg-out transaction. Display without 0x; link to mempool.
+ * ETH — Ethereum on-chain event transaction. Display with 0x; link to etherscan.
+ */
+export type ActivityChain = "BTC" | "ETH";
+
+/**
  * Application information for an activity
  */
 export interface ActivityApplication {
@@ -56,7 +63,13 @@ export interface ActivityLog {
   type: ActivityType;
   /** Amount involved in the activity */
   amount: ActivityAmount;
-  /** Transaction hash on the blockchain (empty string for pending activities) */
+  /**
+   * Chain for the user-facing transaction hash.
+   * Chosen so the "Transaction Hash" column points to the most meaningful tx
+   * for the activity: BTC peg-in for deposits, EVM event tx for collateral/loan ops.
+   */
+  chain: ActivityChain;
+  /** Transaction hash to display (BTC pegin txid or EVM event tx hash). Empty string for pending without a broadcast tx. */
   transactionHash: string;
   /** Whether this is a pending transaction (not yet confirmed on-chain) */
   isPending?: boolean;

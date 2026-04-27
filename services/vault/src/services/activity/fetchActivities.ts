@@ -5,9 +5,15 @@ import { formatUnits } from "viem";
 import { getApplicationMetadataByController } from "../../applications";
 import { graphqlClient } from "../../clients/graphql";
 import { getNetworkConfigBTC } from "../../config";
-import type { ActivityLog, ActivityType } from "../../types/activityLog";
+import type {
+  ActivityChain,
+  ActivityLog,
+  ActivityType,
+} from "../../types/activityLog";
 
 const btcConfig = getNetworkConfigBTC();
+
+const BTC_DECIMALS = 8;
 
 type GraphQLActivityType =
   | "deposit"
@@ -25,6 +31,9 @@ interface GraphQLVaultActivityItem {
   timestamp: string;
   blockNumber: string;
   transactionHash: string;
+  vault: {
+    peginTxHash: string;
+  } | null;
 }
 
 interface GraphQLVaultActivitiesResponse {
@@ -60,6 +69,9 @@ const GET_USER_ACTIVITIES = gql`
         timestamp
         blockNumber
         transactionHash
+        vault {
+          peginTxHash
+        }
       }
     }
   }
@@ -76,6 +88,14 @@ const GET_VAULTS_BY_IDS = gql`
   }
 `;
 
+/**
+ * Activity types whose primary user-facing transaction is on Bitcoin (the peg-in tx).
+ * Everything else is an EVM-only action (collateral ops, loans, liquidations, withdraw).
+ */
+const BTC_PRIMARY_ACTIVITIES: ReadonlySet<GraphQLActivityType> = new Set([
+  "deposit",
+]);
+
 function mapActivityType(type: GraphQLActivityType): ActivityType {
   const typeMap: Record<GraphQLActivityType, ActivityType> = {
     deposit: "Deposit",
@@ -91,12 +111,35 @@ function mapActivityType(type: GraphQLActivityType): ActivityType {
   return mapped;
 }
 
+/**
+ * Decide which hash + chain to surface in the "Transaction Hash" column.
+ * For peg-in deposits we prefer the BTC pegin txid (matches how the rest of the
+ * dApp identifies a deposit). For all other activity types the meaningful tx is
+ * the EVM event that triggered the indexer record.
+ */
+function resolveDisplayTx(item: GraphQLVaultActivityItem): {
+  chain: ActivityChain;
+  transactionHash: string;
+} {
+  const peginTxHash = item.vault?.peginTxHash;
+  // A valid BTC peg-in hash is 0x + 64 hex chars; reject empty / placeholder
+  // values rather than silently labelling a Deposit row as ETH.
+  if (
+    BTC_PRIMARY_ACTIVITIES.has(item.type) &&
+    peginTxHash &&
+    peginTxHash !== "0x"
+  ) {
+    return { chain: "BTC", transactionHash: peginTxHash };
+  }
+  return { chain: "ETH", transactionHash: item.transactionHash };
+}
+
 function formatAmount(amount: string): string {
-  const formatted = formatUnits(BigInt(amount), 8);
+  const formatted = formatUnits(BigInt(amount), BTC_DECIMALS);
   const num = parseFloat(formatted);
   return num.toLocaleString("en-US", {
     minimumFractionDigits: 0,
-    maximumFractionDigits: 8,
+    maximumFractionDigits: BTC_DECIMALS,
   });
 }
 
@@ -128,6 +171,8 @@ export async function fetchUserActivities(
       ? getApplicationMetadataByController(applicationEntryPoint)
       : undefined;
 
+    const { chain, transactionHash } = resolveDisplayTx(item);
+
     return {
       id: item.id,
       date: new Date(parseInt(item.timestamp, 10) * 1000),
@@ -142,7 +187,8 @@ export async function fetchUserActivities(
         symbol: btcConfig.coinSymbol,
         icon: btcConfig.icon,
       },
-      transactionHash: item.transactionHash,
+      chain,
+      transactionHash,
     };
   });
 }

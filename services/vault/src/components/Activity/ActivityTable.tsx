@@ -3,23 +3,17 @@
  * Displays aggregated user activities across all applications
  */
 
-import { getNetworkConfigETH } from "@babylonlabs-io/config";
 import type { ColumnProps } from "@babylonlabs-io/core-ui";
-import { Avatar, Table, trim } from "@babylonlabs-io/core-ui";
+import { Avatar, Table } from "@babylonlabs-io/core-ui";
+
+import { getExplorerTxUrl } from "@/utils/explorer";
 
 import type { ActivityLog } from "../../types/activityLog";
 import { formatDateTime } from "../../utils/formatting";
+import { CopyableHash } from "../shared/CopyableHash";
 
 interface ActivityTableProps {
   activities: ActivityLog[];
-}
-
-/**
- * Generate block explorer URL for a transaction hash
- */
-function getExplorerTxUrl(txHash: string): string {
-  const { explorerUrl } = getNetworkConfigETH();
-  return `${explorerUrl}/tx/${txHash}`;
 }
 
 export function ActivityTable({ activities }: ActivityTableProps) {
@@ -92,21 +86,23 @@ export function ActivityTable({ activities }: ActivityTableProps) {
       header: "Transaction Hash",
       headerClassName: "w-[25%]",
       cellClassName: "w-[25%]",
-      render: (_value, row) =>
-        row.isPending || !row.transactionHash ? (
-          <span className="text-sm italic text-accent-secondary">
-            Pending...
-          </span>
-        ) : (
-          <a
-            href={getExplorerTxUrl(row.transactionHash)}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="font-mono text-sm text-accent-secondary hover:text-primary-main hover:underline"
-          >
-            {trim(row.transactionHash)}
-          </a>
-        ),
+      render: (_value, row) => {
+        if (row.isPending || !row.transactionHash) {
+          return (
+            <span className="text-sm italic text-accent-secondary">
+              Pending...
+            </span>
+          );
+        }
+        return (
+          <CopyableHash
+            hash={row.transactionHash}
+            chain={row.chain}
+            explorerUrl={getExplorerTxUrl(row.chain, row.transactionHash)}
+            showChainBadge
+          />
+        );
+      },
     },
   ];
 
