@@ -284,13 +284,37 @@ describe("peginStateMachine", () => {
     });
 
     it("hides refund action and flips label to Refunding after the user has broadcast a refund", () => {
+      const now = 1_700_000_000_000;
       const state = getPeginState(ContractStatus.EXPIRED, {
         canRefund: true,
         localStatus: LocalStorageStatus.REFUND_BROADCAST,
+        refundBroadcastAt: now - 60_000,
+        now,
       });
       expect(state.availableActions).toEqual([PeginAction.NONE]);
       expect(state.displayLabel).toBe(PEGIN_DISPLAY_LABELS.REFUNDING);
       expect(state.displayVariant).toBe("pending");
+    });
+
+    it("re-exposes refund action once the broadcast TTL has elapsed (dropped tx)", () => {
+      const now = 1_700_000_000_000;
+      const state = getPeginState(ContractStatus.EXPIRED, {
+        canRefund: true,
+        localStatus: LocalStorageStatus.REFUND_BROADCAST,
+        refundBroadcastAt: now - 7 * 60 * 60 * 1000,
+        now,
+      });
+      expect(state.availableActions).toEqual([PeginAction.REFUND_HTLC]);
+      expect(state.displayLabel).toBe(PEGIN_DISPLAY_LABELS.EXPIRED);
+    });
+
+    it("treats legacy REFUND_BROADCAST without timestamp as expired (allows retry)", () => {
+      const state = getPeginState(ContractStatus.EXPIRED, {
+        canRefund: true,
+        localStatus: LocalStorageStatus.REFUND_BROADCAST,
+      });
+      expect(state.availableActions).toEqual([PeginAction.REFUND_HTLC]);
+      expect(state.displayLabel).toBe(PEGIN_DISPLAY_LABELS.EXPIRED);
     });
   });
 
@@ -428,13 +452,37 @@ describe("peginStateMachine", () => {
       ).toBe(false);
     });
 
-    it("keeps REFUND_BROADCAST while contract is still EXPIRED", () => {
+    it("keeps REFUND_BROADCAST while contract is still EXPIRED and within TTL", () => {
+      const now = 1_700_000_000_000;
+      expect(
+        shouldRemoveFromLocalStorage(
+          ContractStatus.EXPIRED,
+          LocalStorageStatus.REFUND_BROADCAST,
+          now - 60_000,
+          now,
+        ),
+      ).toBe(false);
+    });
+
+    it("clears stale REFUND_BROADCAST past the TTL so the user can retry", () => {
+      const now = 1_700_000_000_000;
+      expect(
+        shouldRemoveFromLocalStorage(
+          ContractStatus.EXPIRED,
+          LocalStorageStatus.REFUND_BROADCAST,
+          now - 7 * 60 * 60 * 1000,
+          now,
+        ),
+      ).toBe(true);
+    });
+
+    it("clears legacy REFUND_BROADCAST without a broadcast timestamp", () => {
       expect(
         shouldRemoveFromLocalStorage(
           ContractStatus.EXPIRED,
           LocalStorageStatus.REFUND_BROADCAST,
         ),
-      ).toBe(false);
+      ).toBe(true);
     });
 
     it("removes REFUND_BROADCAST once contract reaches DEPOSITOR_WITHDRAWN", () => {

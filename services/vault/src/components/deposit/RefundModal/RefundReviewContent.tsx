@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { MdInfoOutline } from "react-icons/md";
 
 import { StatusBanner } from "@/components/deposit/DepositSignModal/StatusBanner";
+import { useProtocolParamsContext } from "@/context/ProtocolParamsContext";
 import { usePrice } from "@/hooks/usePrices";
 import { getRefundNetworkFeeSats } from "@/services/vault/vaultRefundService";
 import { formatBtcValue, formatUsd, getBtcSymbol } from "@/utils/formatting";
@@ -14,6 +15,9 @@ const SATS_PER_BTC = 100_000_000n;
 // covers P2WPKH refund destinations.
 const DUST_LIMIT_SATS = 546n;
 const FALLBACK_FEE_RATE_SATS_VB = 1;
+/** Average Bitcoin block time in minutes */
+const BTC_BLOCK_TIME_MINS = 10;
+const MINS_PER_HOUR = 60;
 
 function satsToBtc(sats: bigint): number {
   return Number(sats) / Number(SATS_PER_BTC);
@@ -40,6 +44,10 @@ export function RefundReviewContent({
 }: RefundReviewContentProps) {
   const btcPriceUSD = usePrice("BTC");
   const symbol = getBtcSymbol();
+  const { timelockRefund } = useProtocolParamsContext();
+  const estimatedHours = Math.ceil(
+    (timelockRefund * BTC_BLOCK_TIME_MINS) / MINS_PER_HOUR,
+  );
 
   const [feeRate, setFeeRate] = useState<number | null>(null);
 
@@ -162,8 +170,8 @@ export function RefundReviewContent({
               aria-hidden="true"
             />
             <Text variant="body2" className="text-accent-secondary">
-              Refund arrives within the Bitcoin challenge period — approximately
-              3 days after the transaction is confirmed.
+              Refund arrives within the Bitcoin challenge period — approximately{" "}
+              {estimatedHours} hours after the transaction is confirmed.
             </Text>
           </div>
 

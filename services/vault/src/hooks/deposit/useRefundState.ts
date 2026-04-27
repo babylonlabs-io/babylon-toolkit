@@ -29,7 +29,7 @@ export function useRefundState({
   const btcWalletProvider = btcConnector?.connectedWallet?.provider;
   const { address: ethAddress } = useETHWallet();
   const { setOptimisticStatus } = usePeginPolling();
-  const { pendingPegins, addPendingPegin, updatePendingPeginStatus } =
+  const { pendingPegins, addPendingPegin, markRefundBroadcast } =
     usePeginStorage({
       ethAddress: ethAddress ?? "",
       confirmedPegins: EMPTY_CONFIRMED,
@@ -82,15 +82,17 @@ export function useRefundState({
         setRefundTxId(txId);
         setRefunding(false);
 
-        setOptimisticStatus(vaultId, LocalStorageStatus.REFUND_BROADCAST);
+        const refundBroadcastAt = Date.now();
+        setOptimisticStatus(
+          vaultId,
+          LocalStorageStatus.REFUND_BROADCAST,
+          refundBroadcastAt,
+        );
 
         if (ethAddress && peginTxHash && unsignedPrePeginTx) {
           const existing = pendingPegins.find((p) => p.id === vaultId);
           if (existing) {
-            updatePendingPeginStatus(
-              vaultId,
-              LocalStorageStatus.REFUND_BROADCAST,
-            );
+            markRefundBroadcast(vaultId, refundBroadcastAt);
           } else {
             addPendingPegin({
               id: vaultId,
@@ -101,6 +103,7 @@ export function useRefundState({
               applicationEntryPoint,
               depositorBtcPubkey,
               status: LocalStorageStatus.REFUND_BROADCAST,
+              refundBroadcastAt,
             });
           }
         }
@@ -130,7 +133,7 @@ export function useRefundState({
       pendingPegins,
       setOptimisticStatus,
       addPendingPegin,
-      updatePendingPeginStatus,
+      markRefundBroadcast,
     ],
   );
 

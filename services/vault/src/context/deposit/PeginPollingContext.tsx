@@ -50,6 +50,22 @@ function resolveLocalStatus(
   return (optimistic ?? pendingPegin?.status) as LocalStorageStatus | undefined;
 }
 
+/**
+ * Resolve the broadcast timestamp anchoring the REFUND_BROADCAST suppression
+ * TTL. Falls back to the optimistic timestamp set right after broadcast (when
+ * localStorage has not yet been read back into `pendingPegins`).
+ */
+function resolveRefundBroadcastAt(
+  depositId: string,
+  optimisticRefundBroadcastAt: Map<string, number>,
+  pendingPegins: Array<{ id: string; refundBroadcastAt?: number }>,
+): number | undefined {
+  return (
+    optimisticRefundBroadcastAt.get(depositId) ??
+    pendingPegins.find((p) => p.id === depositId)?.refundBroadcastAt
+  );
+}
+
 const PeginPollingContext = createContext<PeginPollingContextValue | null>(
   null,
 );
@@ -70,6 +86,10 @@ export function PeginPollingProvider({
   const [optimisticStatuses, setOptimisticStatuses] = useState<
     Map<string, LocalStorageStatus>
   >(new Map());
+  // Companion timestamp for REFUND_BROADCAST so the suppression TTL is honored
+  // immediately, before localStorage is read back.
+  const [optimisticRefundBroadcastAt, setOptimisticRefundBroadcastAt] =
+    useState<Map<string, number>>(new Map());
 
   // Use the polling query hook
   const {
@@ -88,18 +108,34 @@ export function PeginPollingProvider({
 
   // Optimistic status handlers
   const setOptimisticStatus = useCallback(
-    (depositId: string, newStatus: LocalStorageStatus) => {
+    (
+      depositId: string,
+      newStatus: LocalStorageStatus,
+      refundBroadcastAt?: number,
+    ) => {
       setOptimisticStatuses((prev) => {
         const next = new Map(prev);
         next.set(depositId, newStatus);
         return next;
       });
+      if (refundBroadcastAt !== undefined) {
+        setOptimisticRefundBroadcastAt((prev) => {
+          const next = new Map(prev);
+          next.set(depositId, refundBroadcastAt);
+          return next;
+        });
+      }
     },
     [],
   );
 
   const clearOptimisticStatus = useCallback((depositId: string) => {
     setOptimisticStatuses((prev) => {
+      const next = new Map(prev);
+      next.delete(depositId);
+      return next;
+    });
+    setOptimisticRefundBroadcastAt((prev) => {
       const next = new Map(prev);
       next.delete(depositId);
       return next;
@@ -116,6 +152,11 @@ export function PeginPollingProvider({
       const localStatus = resolveLocalStatus(
         depositId,
         optimisticStatuses,
+        pendingPegins,
+      );
+      const refundBroadcastAt = resolveRefundBroadcastAt(
+        depositId,
+        optimisticRefundBroadcastAt,
         pendingPegins,
       );
 
@@ -138,6 +179,7 @@ export function PeginPollingProvider({
         expiredAt: activity.expiredAt,
         canRefund: !!activity.unsignedPrePeginTx,
         vpTerminalError,
+        refundBroadcastAt,
       });
 
       return {
@@ -164,6 +206,7 @@ export function PeginPollingProvider({
       pendingIngestion,
       isLoading,
       optimisticStatuses,
+      optimisticRefundBroadcastAt,
       btcPublicKey,
     ],
   );
