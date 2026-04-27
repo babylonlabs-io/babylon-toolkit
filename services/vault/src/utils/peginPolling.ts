@@ -125,7 +125,6 @@ export function getDepositsNeedingPolling(
       // Check if this deposit should be polled
       const shouldPoll =
         contractStatus === ContractStatus.PENDING &&
-        localStatus !== LocalStorageStatus.PAYOUT_SIGNED &&
         !!btcPublicKey &&
         !!vaultProviderAddress &&
         !!activity.peginTxHash &&

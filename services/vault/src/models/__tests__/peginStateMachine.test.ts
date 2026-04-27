@@ -123,14 +123,15 @@ describe("peginStateMachine", () => {
       expect(state.displayLabel).toBe(PEGIN_DISPLAY_LABELS.SIGNING_REQUIRED);
     });
 
-    it("ignores stale CONFIRMING when VP reports no pending ingestion", () => {
+    it("ignores stale PAYOUT_SIGNED when VP reports pending ingestion", () => {
       const state = getPeginState(ContractStatus.PENDING, {
-        localStatus: LocalStorageStatus.CONFIRMING,
-        pendingIngestion: false,
-        transactionsReady: false,
+        localStatus: LocalStorageStatus.PAYOUT_SIGNED,
+        pendingIngestion: true,
       });
+      expect(state.availableActions).toContain(
+        PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN,
+      );
       expect(state.displayLabel).toBe(PEGIN_DISPLAY_LABELS.PENDING);
-      expect(state.message).toContain("prepare Claim and Payout");
     });
   });
 

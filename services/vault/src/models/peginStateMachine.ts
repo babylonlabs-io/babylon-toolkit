@@ -250,9 +250,10 @@ function applyTrackingOverrides(
 
   if (contractStatus === ContractStatus.PENDING) {
     if (localStatus === LocalStorageStatus.PAYOUT_SIGNED) {
-      // If VP still needs WOTS key or has transactions ready for signing,
-      // the local status is stale or tampered — ignore the override.
-      if (vpState?.needsWotsKey || vpState?.transactionsReady) {
+      // If VP still needs WOTS key, has transactions ready for signing,
+      // or hasn't even ingested the deposit yet, the local status is
+      // stale or tampered — ignore the override.
+      if (vpState?.needsWotsKey || vpState?.transactionsReady || vpState?.pendingIngestion) {
         return sdkActions;
       }
       return [];
