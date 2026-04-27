@@ -10,6 +10,7 @@ import { memo, useCallback, useEffect, useMemo } from "react";
 
 import { createExternalWallet } from "@/core";
 import { HashMap, IBTCProvider, SignPsbtOptions } from "@/core/types";
+import { unsupportedDeriveContextHash } from "@/core/wallets/btc/unsupportedDeriveContextHash";
 import { useChainConnector } from "@/hooks/useChainConnector";
 
 const createProvider = (provider: BTCProvider): IBTCProvider => {
@@ -32,6 +33,8 @@ const createProvider = (provider: BTCProvider): IBTCProvider => {
           vout: ordinal.outputValue,
         })),
       ),
+    // Tomo's BTCProvider does not expose deriveContextHash.
+    deriveContextHash: unsupportedDeriveContextHash("Tomo"),
   };
 };
 

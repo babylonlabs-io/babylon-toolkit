@@ -8,6 +8,7 @@ import AppClient, { DefaultWalletPolicy, signMessage, signPsbt } from "@tomo-inc
 import type { BTCConfig, InscriptionIdentifier, SignPsbtOptions } from "@/core/types";
 import { IBTCProvider, Network } from "@/core/types";
 import { getPublicKeyFromXpub, toNetwork } from "@/core/utils/wallet";
+import { unsupportedDeriveContextHash } from "@/core/wallets/btc/unsupportedDeriveContextHash";
 
 import logo from "./logo.svg";
 import { getPolicyForTransaction } from "./policy";
@@ -252,4 +253,6 @@ export class LedgerProvider implements IBTCProvider {
   getWalletProviderIcon = async (): Promise<string> => {
     return logo;
   };
+
+  deriveContextHash = unsupportedDeriveContextHash(WALLET_PROVIDER_NAME);
 }

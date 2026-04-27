@@ -4,6 +4,7 @@ import { Psbt } from "bitcoinjs-lib";
 import type { BTCConfig, IBTCProvider, InscriptionIdentifier, SignPsbtOptions } from "@/core/types";
 import { resolveUseTweakedSigner } from "@/core/utils/psbtOptionsMapper";
 import { APPKIT_OPEN_EVENT } from "@/core/wallets/appkit/constants";
+import { unsupportedDeriveContextHash } from "@/core/wallets/btc/unsupportedDeriveContextHash";
 
 import { APPKIT_BTC_CONNECTED_EVENT } from "./constants";
 import icon from "./icon.svg";
@@ -344,6 +345,8 @@ export class AppKitBTCProvider implements IBTCProvider {
   async getInscriptions(): Promise<InscriptionIdentifier[]> {
     return [];
   }
+
+  deriveContextHash = unsupportedDeriveContextHash("AppKit Bitcoin");
 
   destroy(): void {
     this.stopListeningForAccountChanges();

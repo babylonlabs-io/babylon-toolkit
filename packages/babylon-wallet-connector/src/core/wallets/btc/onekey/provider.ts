@@ -2,6 +2,7 @@ import { isAccountChangeEvent, DISCONNECT_EVENT, removeProviderListener } from "
 import type { BTCConfig, IBTCProvider, InscriptionIdentifier, SignPsbtOptions, WalletInfo } from "@/core/types";
 import { Network } from "@/core/types";
 import { mapSignInputsToToSignInputs } from "@/core/utils/psbtOptionsMapper";
+import { unsupportedDeriveContextHash } from "@/core/wallets/btc/unsupportedDeriveContextHash";
 import { ERROR_CODES, WalletError } from "@/error";
 
 import logo from "./logo.svg";
@@ -292,4 +293,6 @@ export class OneKeyProvider implements IBTCProvider {
   getWalletProviderIcon = async (): Promise<string> => {
     return logo;
   };
+
+  deriveContextHash = unsupportedDeriveContextHash(WALLET_PROVIDER_NAME);
 }
