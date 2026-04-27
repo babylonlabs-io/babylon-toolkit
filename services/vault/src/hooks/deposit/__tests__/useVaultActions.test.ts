@@ -8,8 +8,10 @@ import { act, renderHook } from "@testing-library/react";
 import type { Hex } from "viem";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { getVaultRegistryReader } from "@/clients/eth-contract/sdk-readers";
 import { ContractStatus } from "@/models/peginStateMachine";
 import { broadcastPrePeginTransaction, fetchVaultById } from "@/services/vault";
+import { activateVaultWithSecret } from "@/services/vault/vaultActivationService";
 
 import { useVaultActions } from "../useVaultActions";
 
@@ -50,6 +52,10 @@ vi.mock("@/services/vault", () => ({
   },
 }));
 
+vi.mock("@/clients/eth-contract/sdk-readers", () => ({
+  getVaultRegistryReader: vi.fn(),
+}));
+
 vi.mock("@/services/vault/vaultActivationService", () => ({
   activateVaultWithSecret: vi.fn(),
 }));
@@ -83,6 +89,19 @@ const mockFetchVaultById = vi.mocked(fetchVaultById);
 const mockBroadcastPrePeginTransaction = vi.mocked(
   broadcastPrePeginTransaction,
 );
+const mockGetVaultRegistryReader = vi.mocked(getVaultRegistryReader);
+const mockActivateVaultWithSecret = vi.mocked(activateVaultWithSecret);
+
+/** Build a fake reader that returns a fixed protocolInfo from getVaultProtocolInfo. */
+function readerReturning(
+  protocolInfo: Record<string, unknown>,
+): ReturnType<typeof getVaultRegistryReader> {
+  return {
+    getVaultProtocolInfo: vi.fn().mockResolvedValue(protocolInfo),
+    getVaultBasicInfo: vi.fn(),
+    getVaultData: vi.fn(),
+  } as unknown as ReturnType<typeof getVaultRegistryReader>;
+}
 
 // Local copy produced by WASM — no 0x prefix
 const TRUSTED_TX_HEX = "70736274ff...trustedtx";
@@ -237,5 +256,110 @@ describe("useVaultActions — handleBroadcast transaction integrity", () => {
     expect(mockBroadcastPrePeginTransaction).toHaveBeenCalledWith(
       expect.objectContaining({ unsignedTxHex: GRAPHQL_TX_HEX }),
     );
+  });
+});
+
+describe("useVaultActions — handleActivation hashlock source", () => {
+  // SHA-256 of 0x000000...01 (32-byte preimage)
+  const SECRET =
+    "0x0000000000000000000000000000000000000000000000000000000000000001";
+  const ON_CHAIN_HASHLOCK =
+    "0xec4916dd28fc4c10d78e287ca5d9cc51ee1ae73cbfde08c6b37324cbfaac8bc5";
+
+  const baseActivationParams = {
+    vaultId: "0xvaultId" as Hex,
+    secretHex: SECRET,
+    depositorEthAddress: "0xdepositor",
+    onRefetchActivities: vi.fn(),
+    onShowSuccessModal: vi.fn(),
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("uses the on-chain hashlock and never reads the indexer hashlock", async () => {
+    const reader = readerReturning({
+      depositorSignedPeginTx: "0xdeadbeef",
+      hashlock: ON_CHAIN_HASHLOCK,
+    });
+    mockGetVaultRegistryReader.mockReturnValue(reader);
+    mockActivateVaultWithSecret.mockResolvedValue(undefined as never);
+
+    const { result } = renderHook(() => useVaultActions());
+
+    await act(async () => {
+      await result.current.handleActivation(baseActivationParams);
+    });
+
+    expect(reader.getVaultProtocolInfo).toHaveBeenCalledWith("0xvaultId");
+    // fetchVaultById must not be called for activation — indexer is untrusted
+    // for this validation step.
+    expect(mockFetchVaultById).not.toHaveBeenCalled();
+    expect(mockActivateVaultWithSecret).toHaveBeenCalledTimes(1);
+    expect(result.current.activationError).toBeNull();
+  });
+
+  it("rejects an invalid secret using the on-chain hashlock without sending the tx", async () => {
+    const reader = readerReturning({
+      depositorSignedPeginTx: "0xdeadbeef",
+      // Different hash — user's secret won't match
+      hashlock:
+        "0x1111111111111111111111111111111111111111111111111111111111111111",
+    });
+    mockGetVaultRegistryReader.mockReturnValue(reader);
+
+    const { result } = renderHook(() => useVaultActions());
+
+    await act(async () => {
+      await result.current.handleActivation(baseActivationParams);
+    });
+
+    expect(reader.getVaultProtocolInfo).toHaveBeenCalled();
+    expect(mockActivateVaultWithSecret).not.toHaveBeenCalled();
+    expect(result.current.activationError).toContain("Invalid secret");
+  });
+
+  it("rejects when on-chain hashlock is missing with a specific diagnostic", async () => {
+    const reader = readerReturning({
+      depositorSignedPeginTx: "0xdeadbeef",
+      hashlock: "0x",
+    });
+    mockGetVaultRegistryReader.mockReturnValue(reader);
+
+    const { result } = renderHook(() => useVaultActions());
+
+    await act(async () => {
+      await result.current.handleActivation(baseActivationParams);
+    });
+
+    expect(mockActivateVaultWithSecret).not.toHaveBeenCalled();
+    // Distinct error from the generic "Invalid secret" path so the user
+    // isn't misled into re-entering a correct secret.
+    expect(result.current.activationError).toBe(
+      "Vault hashlock not found. The vault may not support activation.",
+    );
+  });
+
+  it("surfaces a vault-not-found error when on-chain depositorSignedPeginTx is empty", async () => {
+    const reader = readerReturning({
+      depositorSignedPeginTx: "0x",
+      hashlock: ON_CHAIN_HASHLOCK,
+    });
+    mockGetVaultRegistryReader.mockReturnValue(reader);
+
+    const { result } = renderHook(() => useVaultActions());
+
+    await act(async () => {
+      await result.current.handleActivation(baseActivationParams);
+    });
+
+    expect(mockActivateVaultWithSecret).not.toHaveBeenCalled();
+    // Raw "not found on-chain" detail is normalized to a friendly message
+    // and the vault id is not echoed back in the UI.
+    expect(result.current.activationError).toBe(
+      "Vault not found. The vault ID may be invalid.",
+    );
+    expect(result.current.activationError).not.toContain("0xvaultId");
   });
 });
