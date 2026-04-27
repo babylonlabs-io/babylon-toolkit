@@ -121,8 +121,15 @@ function resolveDisplayTx(item: GraphQLVaultActivityItem): {
   chain: ActivityChain;
   transactionHash: string;
 } {
-  if (BTC_PRIMARY_ACTIVITIES.has(item.type) && item.vault?.peginTxHash) {
-    return { chain: "BTC", transactionHash: item.vault.peginTxHash };
+  const peginTxHash = item.vault?.peginTxHash;
+  // A valid BTC peg-in hash is 0x + 64 hex chars; reject empty / placeholder
+  // values rather than silently labelling a Deposit row as ETH.
+  if (
+    BTC_PRIMARY_ACTIVITIES.has(item.type) &&
+    peginTxHash &&
+    peginTxHash !== "0x"
+  ) {
+    return { chain: "BTC", transactionHash: peginTxHash };
   }
   return { chain: "ETH", transactionHash: item.transactionHash };
 }

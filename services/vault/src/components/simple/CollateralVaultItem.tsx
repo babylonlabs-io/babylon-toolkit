@@ -7,6 +7,7 @@ import { Avatar, Button, Checkbox, StatusBadge } from "@babylonlabs-io/core-ui";
 
 import { CopyableHash } from "@/components/shared/CopyableHash";
 import { getNetworkConfigBTC } from "@/config";
+import { getBtcExplorerTxUrl } from "@/utils/explorer";
 import { formatBtcAmount, formatOrdinal } from "@/utils/formatting";
 
 const btcConfig = getNetworkConfigBTC();
@@ -95,7 +96,11 @@ export function CollateralVaultItem({
           <span className="text-sm text-accent-secondary">
             Transaction Hash
           </span>
-          <CopyableHash hash={peginTxHash} chain="BTC" />
+          <CopyableHash
+            hash={peginTxHash}
+            chain="BTC"
+            explorerUrl={getBtcExplorerTxUrl(peginTxHash)}
+          />
         </div>
       )}
 

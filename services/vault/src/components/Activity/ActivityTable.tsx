@@ -3,36 +3,17 @@
  * Displays aggregated user activities across all applications
  */
 
-import { getNetworkConfigETH } from "@babylonlabs-io/config";
 import type { ColumnProps } from "@babylonlabs-io/core-ui";
 import { Avatar, Table } from "@babylonlabs-io/core-ui";
 
-import { getNetworkConfigBTC } from "@/config";
-import { stripHexPrefix } from "@/utils/btc";
+import { getExplorerTxUrl } from "@/utils/explorer";
 
-import type { ActivityChain, ActivityLog } from "../../types/activityLog";
+import type { ActivityLog } from "../../types/activityLog";
 import { formatDateTime } from "../../utils/formatting";
 import { CopyableHash } from "../shared/CopyableHash";
 
 interface ActivityTableProps {
   activities: ActivityLog[];
-}
-
-/** mempoolApiUrl is shaped like "https://mempool.space/signet" — tx page is `{base}/tx/{txid}`. */
-function getBtcExplorerTxUrl(txHash: string): string {
-  const btcConfig = getNetworkConfigBTC();
-  return `${btcConfig.mempoolApiUrl}/tx/${stripHexPrefix(txHash)}`;
-}
-
-function getEthExplorerTxUrl(txHash: string): string {
-  const { explorerUrl } = getNetworkConfigETH();
-  return `${explorerUrl}/tx/${txHash}`;
-}
-
-function getExplorerTxUrl(chain: ActivityChain, txHash: string): string {
-  return chain === "BTC"
-    ? getBtcExplorerTxUrl(txHash)
-    : getEthExplorerTxUrl(txHash);
 }
 
 export function ActivityTable({ activities }: ActivityTableProps) {
