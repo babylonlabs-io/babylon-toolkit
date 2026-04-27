@@ -114,6 +114,41 @@ export function btcAddressToScriptPubKeyHex(address: string): string {
 }
 
 /**
+ * Decode a scriptPubKey hex (with or without 0x prefix) back to a BTC address.
+ * Uses the current environment's BTC network configuration.
+ *
+ * Throws on invalid/unsupported scripts — this is shown to the user as a
+ * destination address, so silent fallbacks would mask a real indexer or
+ * configuration problem.
+ */
+export function scriptPubKeyHexToBtcAddress(scriptPubKeyHex: string): string {
+  const cleanHex = stripHexPrefix(scriptPubKeyHex);
+  if (cleanHex.length === 0 || cleanHex.length % 2 !== 0) {
+    throw new Error(
+      `Invalid scriptPubKey hex length: ${cleanHex.length} (must be non-empty and even)`,
+    );
+  }
+  if (!/^[0-9a-fA-F]+$/.test(cleanHex)) {
+    throw new Error("Invalid scriptPubKey hex: contains non-hex characters");
+  }
+  // Parse hex manually rather than via `Buffer.from(hex, "hex")` — the latter
+  // silently returns zero bytes under jsdom in test environments where the
+  // npm "buffer" polyfill is loaded. Reaching for `globalThis.Buffer` here
+  // sidesteps that polyfill and uses whichever Buffer implementation
+  // bitcoinjs-lib expects (Node Buffer in tests, polyfill in browser builds
+  // where they're indistinguishable to bitcoin lib).
+  const GlobalBuffer = (globalThis as { Buffer: typeof Buffer }).Buffer;
+  const bytes = GlobalBuffer.alloc(cleanHex.length / 2);
+  for (let i = 0; i < bytes.length; i++) {
+    bytes[i] = parseInt(cleanHex.slice(i * 2, i * 2 + 2), 16);
+  }
+  const { network } = getNetworkConfigBTC();
+  const btcNetwork =
+    network === "mainnet" ? bitcoin.networks.bitcoin : bitcoin.networks.testnet;
+  return bitcoin.address.fromOutputScript(bytes, btcNetwork);
+}
+
+/**
  * Derive the BIP-86 P2TR scriptPubKey (0x-prefixed hex) from an x-only public key.
  *
  * Matches Rust `Bip86KeyConnector::generate_taproot_script_pubkey`: a keypath-only
