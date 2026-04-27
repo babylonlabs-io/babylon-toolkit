@@ -5,6 +5,7 @@
 
 import { Avatar, Button, Checkbox, StatusBadge } from "@babylonlabs-io/core-ui";
 
+import { CopyableHash } from "@/components/shared/CopyableHash";
 import { getNetworkConfigBTC } from "@/config";
 import { formatBtcAmount, formatOrdinal } from "@/utils/formatting";
 
@@ -16,6 +17,8 @@ interface CollateralVaultItemProps {
   inUse: boolean;
   providerName: string;
   providerIconUrl?: string;
+  /** BTC peg-in transaction hash (hex, may include 0x prefix) */
+  peginTxHash?: string;
   liquidationIndex?: number;
   selected: boolean;
   selectable: boolean;
@@ -29,6 +32,7 @@ export function CollateralVaultItem({
   inUse,
   providerName,
   providerIconUrl,
+  peginTxHash,
   liquidationIndex,
   selected,
   selectable,
@@ -84,6 +88,16 @@ export function CollateralVaultItem({
           <span className="text-sm text-accent-primary">{providerName}</span>
         </div>
       </div>
+
+      {/* Transaction hash row (BTC pegin) */}
+      {peginTxHash && (
+        <div className="flex items-center justify-between">
+          <span className="text-sm text-accent-secondary">
+            Transaction Hash
+          </span>
+          <CopyableHash hash={peginTxHash} chain="BTC" />
+        </div>
+      )}
 
       {/* Liquidation Order row */}
       {liquidationIndex !== undefined && (
