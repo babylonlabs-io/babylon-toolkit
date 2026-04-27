@@ -113,16 +113,29 @@ function mapActivityType(type: GraphQLActivityType): ActivityType {
 
 /**
  * Decide which hash + chain to surface in the "Transaction Hash" column.
- * For peg-in deposits we prefer the BTC pegin txid (matches how the rest of the
- * dApp identifies a deposit). For all other activity types the meaningful tx is
- * the EVM event that triggered the indexer record.
+ * For peg-in deposits we surface the BTC pegin txid (matches how the rest of
+ * the dApp identifies a deposit). For all other activity types the meaningful
+ * tx is the EVM event that triggered the indexer record.
+ *
+ * Fail closed for BTC-primary rows: if the indexer ever returns a missing or
+ * malformed peg-in hash, keep chain="BTC" and emit an empty hash so the row
+ * renders as "Pending..." rather than redirecting users to the ETH explorer
+ * for what is logically a BTC operation.
  */
 function resolveDisplayTx(item: GraphQLVaultActivityItem): {
   chain: ActivityChain;
   transactionHash: string;
 } {
-  if (BTC_PRIMARY_ACTIVITIES.has(item.type) && item.vault?.peginTxHash) {
-    return { chain: "BTC", transactionHash: item.vault.peginTxHash };
+  if (BTC_PRIMARY_ACTIVITIES.has(item.type)) {
+    const peginTxHash = item.vault?.peginTxHash;
+    const isValidPeginHash =
+      typeof peginTxHash === "string" &&
+      peginTxHash.length > 0 &&
+      peginTxHash !== "0x";
+    return {
+      chain: "BTC",
+      transactionHash: isValidPeginHash ? peginTxHash : "",
+    };
   }
   return { chain: "ETH", transactionHash: item.transactionHash };
 }
