@@ -14,6 +14,7 @@ import { useState } from "react";
 import type { Hex } from "viem";
 import { getWalletClient, switchChain } from "wagmi/actions";
 
+import { getVaultRegistryReader } from "../../clients/eth-contract/sdk-readers";
 import {
   ContractStatus,
   getNextLocalStatus,
@@ -240,12 +241,18 @@ export function useVaultActions(): UseVaultActionsReturn {
     setActivationError(null);
 
     try {
-      // Fetch vault to get hashlock for client-side validation
-      const vault = await fetchVaultById(vaultId);
-      if (!vault) {
-        throw new Error("Vault not found. Please try again.");
+      // Hashlock from on-chain — indexer is untrusted for signing-critical reads.
+      const reader = getVaultRegistryReader();
+      const protocolInfo = await reader.getVaultProtocolInfo(vaultId);
+      if (
+        !protocolInfo.depositorSignedPeginTx ||
+        protocolInfo.depositorSignedPeginTx === "0x"
+      ) {
+        throw new Error(
+          `Vault ${vaultId} not found on-chain or has no pegin transaction`,
+        );
       }
-      if (!vault.hashlock) {
+      if (!protocolInfo.hashlock || protocolInfo.hashlock === "0x") {
         throw new Error(
           "Vault hashlock not found. The vault may not support activation.",
         );
@@ -255,7 +262,7 @@ export function useVaultActions(): UseVaultActionsReturn {
       // SDK version is sync + requires 0x-prefixed inputs.
       const isValid = validateSecretAgainstHashlock(
         ensureHexPrefix(secretHex),
-        ensureHexPrefix(vault.hashlock),
+        ensureHexPrefix(protocolInfo.hashlock),
       );
       if (!isValid) {
         throw new Error(
@@ -290,8 +297,13 @@ export function useVaultActions(): UseVaultActionsReturn {
 
       setActivating(false);
     } catch (err) {
-      const errorMessage =
+      const rawMessage =
         err instanceof Error ? err.message : "Failed to activate vault";
+      // Normalize the on-chain "vault not found" message so we don't leak
+      // implementation detail like the raw vault id into the UI.
+      const errorMessage = rawMessage.includes("not found on-chain")
+        ? "Vault not found. The vault ID may be invalid."
+        : rawMessage;
       setActivationError(errorMessage);
       setActivating(false);
     }
