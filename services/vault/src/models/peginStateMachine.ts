@@ -202,6 +202,11 @@ export function getPeginState(
     protocolState.availableActions,
     contractStatus,
     options.localStatus,
+    {
+      needsWotsKey: options.needsWotsKey,
+      transactionsReady: options.transactionsReady,
+      pendingIngestion: options.pendingIngestion,
+    },
   );
   const actions = mapActions(sdkActions);
   const display = getDisplay(contractStatus, actions, options);
@@ -215,19 +220,47 @@ export function getPeginState(
 }
 
 /**
+ * VP-derived signals used to reconcile localStorage status.
+ *
+ * When localStorage claims the user has completed a step but VP daemon
+ * state contradicts that claim, the override is ignored. This prevents
+ * tampered or stale localStorage from hiding the correct action buttons.
+ */
+interface VpReconciliationState {
+  needsWotsKey?: boolean;
+  transactionsReady?: boolean;
+  pendingIngestion?: boolean;
+}
+
+/**
  * Suppress protocol actions when the user has already acted (tracked in
  * localStorage) but the on-chain state hasn't caught up yet.
+ *
+ * VP state is cross-checked to detect stale or tampered localStorage:
+ * if the VP daemon contradicts the claimed local status, the override
+ * is ignored and the full SDK action set is returned.
  */
 function applyTrackingOverrides(
   sdkActions: SdkPeginAction[],
   contractStatus: ContractStatus,
   localStatus?: LocalStorageStatus,
+  vpState?: VpReconciliationState,
 ): SdkPeginAction[] {
   if (!localStatus) return sdkActions;
 
   if (contractStatus === ContractStatus.PENDING) {
-    if (localStatus === LocalStorageStatus.PAYOUT_SIGNED) return [];
+    if (localStatus === LocalStorageStatus.PAYOUT_SIGNED) {
+      // If VP still needs WOTS key or has transactions ready for signing,
+      // the local status is stale or tampered — ignore the override.
+      if (vpState?.needsWotsKey || vpState?.transactionsReady) {
+        return sdkActions;
+      }
+      return [];
+    }
     if (localStatus === LocalStorageStatus.CONFIRMING) {
+      // If VP explicitly reports no pending ingestion (broadcast not
+      // detected), the local status is stale — ignore the override.
+      if (vpState?.pendingIngestion === false) return sdkActions;
       return sdkActions.filter(
         (a) => a !== SdkPeginAction.SIGN_AND_BROADCAST_TO_BITCOIN,
       );
@@ -255,6 +288,8 @@ function getDisplay(
   const { localStatus, isInUse, expirationReason, expiredAt, vpTerminalError } =
     options;
 
+  const hasNoActions = actions.length === 1 && actions[0] === PeginAction.NONE;
+
   if (contractStatus === ContractStatus.PENDING) {
     if (vpTerminalError) {
       return {
@@ -263,7 +298,7 @@ function getDisplay(
         message: vpTerminalError,
       };
     }
-    if (localStatus === LocalStorageStatus.PAYOUT_SIGNED) {
+    if (localStatus === LocalStorageStatus.PAYOUT_SIGNED && hasNoActions) {
       return {
         displayLabel: PEGIN_DISPLAY_LABELS.PROCESSING,
         displayVariant: "pending",

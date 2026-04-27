@@ -101,6 +101,37 @@ describe("peginStateMachine", () => {
       expect(state.displayLabel).toBe(PEGIN_DISPLAY_LABELS.PROCESSING);
       expect(state.message).toContain("verifying and collecting");
     });
+
+    it("ignores stale PAYOUT_SIGNED when VP still needs WOTS key", () => {
+      const state = getPeginState(ContractStatus.PENDING, {
+        localStatus: LocalStorageStatus.PAYOUT_SIGNED,
+        needsWotsKey: true,
+      });
+      expect(state.availableActions).toContain(PeginAction.SUBMIT_WOTS_KEY);
+      expect(state.displayLabel).toBe(PEGIN_DISPLAY_LABELS.AWAITING_KEY);
+    });
+
+    it("ignores stale PAYOUT_SIGNED when VP has transactions ready", () => {
+      const state = getPeginState(ContractStatus.PENDING, {
+        localStatus: LocalStorageStatus.PAYOUT_SIGNED,
+        transactionsReady: true,
+        pendingIngestion: false,
+      });
+      expect(state.availableActions).toContain(
+        PeginAction.SIGN_PAYOUT_TRANSACTIONS,
+      );
+      expect(state.displayLabel).toBe(PEGIN_DISPLAY_LABELS.SIGNING_REQUIRED);
+    });
+
+    it("ignores stale CONFIRMING when VP reports no pending ingestion", () => {
+      const state = getPeginState(ContractStatus.PENDING, {
+        localStatus: LocalStorageStatus.CONFIRMING,
+        pendingIngestion: false,
+        transactionsReady: false,
+      });
+      expect(state.displayLabel).toBe(PEGIN_DISPLAY_LABELS.PENDING);
+      expect(state.message).toContain("prepare Claim and Payout");
+    });
   });
 
   // ==========================================================================
