@@ -101,6 +101,10 @@ function encodeBytesAsArrayOfU8(bytes: Uint8Array): Uint8Array {
  * Output bytes are byte-for-byte identical to the Rust reference,
  * pinned by the golden vector in the corresponding test file.
  *
+ * @internal Exposed only for the golden-vector test that pins this
+ * encoding against ciborium's output. Production callers reach this
+ * via `verifyServerIdentity` from `./serverIdentity`.
+ *
  * @param domain - Must be `"btc-auth.server-identity.v1"` (27 bytes)
  *                 — the constant from btc-vault's `server_identity.rs`.
  * @param ephemeralPubkeyCompressed - 33-byte SEC1-compressed pubkey.

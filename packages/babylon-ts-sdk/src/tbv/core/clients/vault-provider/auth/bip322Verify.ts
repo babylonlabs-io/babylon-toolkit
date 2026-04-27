@@ -85,6 +85,10 @@ function tweakXOnlyKey(xOnly: Uint8Array): Uint8Array | null {
  * Verify a BIP-322 "simple" P2TR key-path signature over an arbitrary
  * byte message.
  *
+ * @internal Exposed only so the golden-vector test suite can pin the
+ * verifier independently of `verifyServerIdentity`. Production callers
+ * should use `verifyServerIdentity` from `./serverIdentity` instead.
+ *
  * @param messageBytes - The bytes that were signed (e.g. a CBOR-encoded
  *                       payload). Not pre-hashed; this function applies
  *                       the BIP-322 tagged hash internally.

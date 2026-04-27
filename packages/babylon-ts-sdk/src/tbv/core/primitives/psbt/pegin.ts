@@ -68,18 +68,6 @@ const AUTH_ANCHOR_HASH_HEX_LEN = 64;
 
 const HEX_PATTERN = /^[0-9a-fA-F]+$/;
 
-/** Bitcoin OP_RETURN opcode as a lowercase hex byte. */
-const OP_RETURN_OPCODE_HEX = "6a";
-
-/** OP_PUSHBYTES_32 opcode (pushes exactly 32 bytes) as lowercase hex. */
-const OP_PUSHBYTES_32_HEX = "20";
-
-/**
- * Exact scriptPubKey length for the auth-anchor OP_RETURN:
- * `OP_RETURN (1B) || OP_PUSHBYTES_32 (1B) || 32B hash` = 34 bytes.
- */
-const OP_RETURN_PUSH32_SCRIPT_LEN = 34;
-
 /**
  * Result of building an unfunded Pre-PegIn transaction
  */
@@ -183,31 +171,10 @@ export async function buildPrePeginPsbt(
     0n,
   );
 
-  // Defensive: if a future WASM rebuild regresses and silently drops
-  // the 13th arg, fail loud instead of emitting a Pre-PegIn without
-  // the OP_RETURN.
-  let authAnchorVout: number | null = null;
-  if (authAnchorHash !== undefined) {
-    const expectedVout = result.htlcValues.length;
-    const output = parsed.outputs[expectedVout];
-    const actualScriptHex = output ? output.script.toString("hex") : "";
-    const expectedScriptHex = `${OP_RETURN_OPCODE_HEX}${OP_PUSHBYTES_32_HEX}${authAnchorHash}`;
-    const isAuthAnchorOpReturn =
-      output !== undefined &&
-      output.value === 0 &&
-      output.script.length === OP_RETURN_PUSH32_SCRIPT_LEN &&
-      actualScriptHex === expectedScriptHex;
-    if (!isAuthAnchorOpReturn) {
-      throw new Error(
-        "buildPrePeginPsbt: authAnchorHash was provided but the WASM did " +
-          `not emit the expected OP_RETURN commitment at vout ${expectedVout}. ` +
-          `Expected script: ${expectedScriptHex}. Got: ${actualScriptHex}. ` +
-          "Rebuild the WASM artifacts from a btc-vault commit that " +
-          "includes #1516 (commit 1ced81e5 or later).",
-      );
-    }
-    authAnchorVout = expectedVout;
-  }
+  // The WASM places the OP_RETURN commitment immediately after the
+  // HTLC outputs when authAnchorHash is provided.
+  const authAnchorVout =
+    authAnchorHash !== undefined ? result.htlcValues.length : null;
 
   return {
     psbtHex: result.txHex,

@@ -29,18 +29,30 @@ const MAX_CTX_LEN = 0xffff;
 /** Size of the ctx length prefix in bytes. */
 const CTX_LEN_PREFIX_SIZE = 2;
 
-/** Label for the per-HTLC hashlock preimage (Appendix A §A.2). */
+/**
+ * @internal Label for the per-HTLC hashlock preimage (Appendix A §A.2).
+ * Exported only so the spec-conformance tests can pin the literal value.
+ */
 export const LABEL_HASHLOCK = "hashlock";
 
-/** Label for the per-Pre-PegIn shared auth-anchor (Appendix A §A.2). */
+/**
+ * @internal Label for the per-Pre-PegIn shared auth-anchor (Appendix A §A.2).
+ * Exported only so the spec-conformance tests can pin the literal value.
+ */
 export const LABEL_AUTH_ANCHOR = "auth-anchor";
 
-/** Label for the per-HTLC WOTS block-derivation seed (Appendix A §A.2). */
+/**
+ * @internal Label for the per-HTLC WOTS block-derivation seed (Appendix A §A.2).
+ * Exported only so the spec-conformance tests can pin the literal value.
+ */
 export const LABEL_WOTS_SEED = "wots-seed";
 
 /**
  * Encode a 32-bit unsigned integer as 4 big-endian bytes (RFC 8017 §4.1,
  * `I2OSP(n, 4)`).
+ *
+ * @internal Helper used by `buildInfo` and the per-HTLC `expand*`
+ * functions; consumed directly only by tests.
  *
  * @throws If `value` is not a non-negative integer ≤ `0xffffffff`.
  */
@@ -58,6 +70,9 @@ export function i2osp4(value: number): Uint8Array {
 
 /**
  * Build the `info` byte-string for an HKDF-Expand invocation.
+ *
+ * @internal Used by the per-HTLC `expand*` functions; exposed for the
+ * spec-conformance tests that pin the encoded byte layout.
  *
  * @param label - ASCII label tag. Length MUST be in `[1, 255]`.
  * @param ctx   - Optional opaque context bytes. Length MUST be in `[0, 65535]`.
