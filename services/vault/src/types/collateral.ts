@@ -23,6 +23,11 @@ export interface CollateralVaultEntry {
   providerIconUrl?: string;
   /** Depositor's BTC public key (hex) */
   depositorBtcPubkey?: string;
+  /**
+   * On-chain registered payout scriptPubKey (0x-prefixed hex). Where BTC is
+   * sent on withdraw. Decoded for display via `scriptPubKeyHexToBtcAddress`.
+   */
+  depositorPayoutBtcAddress?: string;
   /** Liquidation priority index (0 = seized first) */
   liquidationIndex: number;
 }

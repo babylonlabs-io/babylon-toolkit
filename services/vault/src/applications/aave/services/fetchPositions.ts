@@ -55,6 +55,8 @@ export interface AavePositionCollateral {
     vaultProvider: string;
     inUse: boolean;
     depositorBtcPubKey: string;
+    /** On-chain registered payout scriptPubKey (0x-prefixed hex). Where BTC is sent on withdraw. */
+    depositorPayoutBtcAddress: string;
   };
 }
 
@@ -90,6 +92,7 @@ interface GraphQLCollateralItem {
     vaultProvider: string;
     inUse: boolean;
     depositorBtcPubKey: string;
+    depositorPayoutBtcAddress: string;
   };
 }
 
@@ -139,6 +142,7 @@ const GET_AAVE_ACTIVE_POSITIONS_WITH_COLLATERALS = gql`
               vaultProvider
               inUse
               depositorBtcPubKey
+              depositorPayoutBtcAddress
             }
           }
         }
@@ -164,6 +168,7 @@ const GET_AAVE_POSITION_COLLATERALS = gql`
           vaultProvider
           inUse
           depositorBtcPubKey
+          depositorPayoutBtcAddress
         }
       }
     }
@@ -219,6 +224,7 @@ function mapGraphQLCollateralToAavePositionCollateral(
           vaultProvider: item.vault.vaultProvider,
           inUse: item.vault.inUse,
           depositorBtcPubKey: item.vault.depositorBtcPubKey,
+          depositorPayoutBtcAddress: item.vault.depositorPayoutBtcAddress,
         }
       : undefined,
   };

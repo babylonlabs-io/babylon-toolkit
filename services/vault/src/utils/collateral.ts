@@ -51,6 +51,7 @@ export function toCollateralVaultEntries(
       providerName: provider?.name ?? truncateHash(providerAddress),
       providerIconUrl: provider?.iconUrl,
       depositorBtcPubkey: c.vault?.depositorBtcPubKey,
+      depositorPayoutBtcAddress: c.vault?.depositorPayoutBtcAddress,
       liquidationIndex: c.liquidationIndex,
     };
   });

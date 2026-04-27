@@ -1,5 +1,5 @@
 import { FullScreenDialog } from "@babylonlabs-io/core-ui";
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 
 import { useWithdrawCollateralTransaction } from "@/applications/aave/hooks/useWithdrawCollateralTransaction";
 import {
@@ -8,13 +8,45 @@ import {
 } from "@/applications/aave/utils";
 import { ProtocolParamsProvider } from "@/context/ProtocolParamsContext";
 import { useDialogStep } from "@/hooks/deposit/useDialogStep";
+import { logger } from "@/infrastructure";
 import type { CollateralVaultEntry } from "@/types/collateral";
+import { scriptPubKeyHexToBtcAddress } from "@/utils/btc";
 
 import { FadeTransition } from "../FadeTransition";
 
 import { useWithdrawFlow, WithdrawStep } from "./useWithdrawFlow";
 import { WithdrawProgressView } from "./WithdrawProgressView";
 import { WithdrawReviewContent } from "./WithdrawReviewContent";
+
+/**
+ * Decode each vault's registered payout scriptPubKey to a BTC address and
+ * dedupe. A vault that can't be decoded is logged and skipped — the on-chain
+ * transaction is unaffected, but the user will see fewer addresses than vaults.
+ */
+function getUniquePayoutAddresses(vaults: CollateralVaultEntry[]): string[] {
+  const seen = new Set<string>();
+  const addresses: string[] = [];
+  for (const vault of vaults) {
+    if (!vault.depositorPayoutBtcAddress) continue;
+    try {
+      const address = scriptPubKeyHexToBtcAddress(
+        vault.depositorPayoutBtcAddress,
+      );
+      if (!seen.has(address)) {
+        seen.add(address);
+        addresses.push(address);
+      }
+    } catch (error) {
+      logger.error(error instanceof Error ? error : new Error(String(error)), {
+        data: {
+          context: "Decode payout scriptPubKey for withdraw display",
+          vaultId: vault.vaultId,
+        },
+      });
+    }
+  }
+  return addresses;
+}
 
 export interface WithdrawFlowProps {
   open: boolean;
@@ -43,12 +75,25 @@ function WithdrawFlowContent({
 
   const renderedStep = useDialogStep(open, step, reset);
 
+  // Snapshot of payout addresses captured at confirm time. Needed by the
+  // Progress view because the underlying vaults are removed from the user's
+  // collateral list after withdraw — without snapshotting, the addresses
+  // would disappear by the time we navigate to PROGRESS.
+  const [submittedPayoutAddresses, setSubmittedPayoutAddresses] = useState<
+    string[]
+  >([]);
+
   const {
     selectedVaultIds: effectiveSelectedVaultIds,
     selectedVaults: effectiveSelectedVaults,
   } = useMemo(
     () => getEffectiveVaultSelection(collateralVaults, preSelectedVaultIds),
     [collateralVaults, preSelectedVaultIds],
+  );
+
+  const selectedPayoutAddresses = useMemo(
+    () => getUniquePayoutAddresses(effectiveSelectedVaults),
+    [effectiveSelectedVaults],
   );
 
   // Aggregate amounts and projected HF for the current selection.
@@ -79,9 +124,15 @@ function WithdrawFlowContent({
   const handleConfirm = useCallback(async () => {
     const success = await executeWithdraw(effectiveSelectedVaultIds);
     if (success) {
+      setSubmittedPayoutAddresses(selectedPayoutAddresses);
       goToProgress();
     }
-  }, [executeWithdraw, effectiveSelectedVaultIds, goToProgress]);
+  }, [
+    executeWithdraw,
+    effectiveSelectedVaultIds,
+    selectedPayoutAddresses,
+    goToProgress,
+  ]);
 
   return (
     <FullScreenDialog
@@ -97,6 +148,7 @@ function WithdrawFlowContent({
               totalAmountUsd={selectedUsd}
               currentHealthFactor={currentHealthFactor}
               projectedHealthFactor={projectedHealthFactor}
+              payoutAddresses={selectedPayoutAddresses}
               isProcessing={isProcessing}
               onConfirm={handleConfirm}
             />
@@ -104,7 +156,10 @@ function WithdrawFlowContent({
         )}
         {renderedStep === WithdrawStep.PROGRESS && (
           <div className="mx-auto w-full max-w-[520px]">
-            <WithdrawProgressView onClose={onClose} />
+            <WithdrawProgressView
+              payoutAddresses={submittedPayoutAddresses}
+              onClose={onClose}
+            />
           </div>
         )}
       </FadeTransition>

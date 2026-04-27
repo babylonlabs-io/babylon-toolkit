@@ -9,12 +9,11 @@ import {
 import { getWithdrawHfWarningState } from "@/applications/aave/utils";
 import { DetailsCard, type DetailRow } from "@/components/shared";
 import { useProtocolParamsContext } from "@/context/ProtocolParamsContext";
-import { useBTCWallet } from "@/context/wallet";
 import { useNetworkFees } from "@/hooks/useNetworkFees";
-import { truncateAddress } from "@/utils/addressUtils";
 import { formatBtcAmount, formatUsdValue } from "@/utils/formatting";
 
 import { HealthFactorDelta } from "./HealthFactorDelta";
+import { NominatedAddressValue } from "./NominatedAddressValue";
 
 interface WithdrawReviewContentProps {
   totalAmountBtc: number;
@@ -23,6 +22,13 @@ interface WithdrawReviewContentProps {
   currentHealthFactor: number | null;
   /** Health factor after the selected vaults are withdrawn. Infinity when no debt. */
   projectedHealthFactor: number;
+  /**
+   * Decoded BTC addresses (deduped) where this withdrawal will be paid out.
+   * Sourced from the on-chain registered `depositorPayoutBtcAddress` of each
+   * selected vault — not the connected wallet, which can differ if the user
+   * switched wallets since deposit.
+   */
+  payoutAddresses: string[];
   isProcessing: boolean;
   onConfirm: () => void;
 }
@@ -32,12 +38,12 @@ export function WithdrawReviewContent({
   totalAmountUsd,
   currentHealthFactor,
   projectedHealthFactor,
+  payoutAddresses,
   isProcessing,
   onConfirm,
 }: WithdrawReviewContentProps) {
   const { defaultFeeRate } = useNetworkFees();
   const { minVpCommissionBps } = useProtocolParamsContext();
-  const { address: btcAddress } = useBTCWallet();
 
   const { wouldBreachHF, isAtRisk } = getWithdrawHfWarningState(
     projectedHealthFactor,
@@ -47,12 +53,13 @@ export function WithdrawReviewContent({
     const vpCommissionBtc = totalAmountBtc * (minVpCommissionBps / BPS_SCALE);
     const vpCommissionUsd = totalAmountUsd * (minVpCommissionBps / BPS_SCALE);
 
-    const nominatedRow: DetailRow | null = btcAddress
-      ? {
-          label: "Nominated Address",
-          value: <span title={btcAddress}>{truncateAddress(btcAddress)}</span>,
-        }
-      : null;
+    const nominatedRow: DetailRow | null =
+      payoutAddresses.length > 0
+        ? {
+            label: "Nominated Address",
+            value: <NominatedAddressValue addresses={payoutAddresses} />,
+          }
+        : null;
 
     const hfRow: DetailRow | null =
       currentHealthFactor === null
@@ -111,7 +118,7 @@ export function WithdrawReviewContent({
     projectedHealthFactor,
     defaultFeeRate,
     minVpCommissionBps,
-    btcAddress,
+    payoutAddresses,
   ]);
 
   return (

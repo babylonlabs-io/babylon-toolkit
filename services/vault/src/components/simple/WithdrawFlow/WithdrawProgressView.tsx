@@ -1,20 +1,28 @@
 import { Button, Heading, Text } from "@babylonlabs-io/core-ui";
 
 import { useProtocolParamsContext } from "@/context/ProtocolParamsContext";
-import { useBTCWallet } from "@/context/wallet";
-import { truncateAddress } from "@/utils/addressUtils";
+
+import { NominatedAddressValue } from "./NominatedAddressValue";
 
 /** Average Bitcoin block time in minutes */
 const BTC_BLOCK_TIME_MINS = 10;
 const MINS_PER_HOUR = 60;
 
 interface WithdrawProgressViewProps {
+  /**
+   * Decoded BTC addresses (deduped) where this withdrawal is being paid out.
+   * Snapshotted at submission time from the on-chain registered
+   * `depositorPayoutBtcAddress` of each withdrawn vault.
+   */
+  payoutAddresses: string[];
   onClose: () => void;
 }
 
-export function WithdrawProgressView({ onClose }: WithdrawProgressViewProps) {
+export function WithdrawProgressView({
+  payoutAddresses,
+  onClose,
+}: WithdrawProgressViewProps) {
   const { timelockPegin } = useProtocolParamsContext();
-  const { address: btcAddress } = useBTCWallet();
 
   // Derive estimated wait from on-chain timelockPegin (in blocks) * avg block time
   const estimatedHours = Math.ceil(
@@ -33,17 +41,13 @@ export function WithdrawProgressView({ onClose }: WithdrawProgressViewProps) {
           provider will process your BTC and send it to your nominated address.
         </Text>
 
-        {btcAddress && (
+        {payoutAddresses.length > 0 && (
           <div className="flex items-center justify-between">
             <Text variant="body2" className="text-accent-secondary">
               Nominated Address
             </Text>
-            <Text
-              variant="body2"
-              className="text-accent-primary"
-              title={btcAddress}
-            >
-              {truncateAddress(btcAddress)}
+            <Text variant="body2" className="text-accent-primary">
+              <NominatedAddressValue addresses={payoutAddresses} />
             </Text>
           </div>
         )}
