@@ -589,7 +589,38 @@ describe("useDepositFlow", () => {
         expect(result.current.error).toMatch(/offchain params version changed/);
       });
       expect(broadcastPrePeginTransaction).not.toHaveBeenCalled();
-      expect(addPendingPegin).not.toHaveBeenCalled();
+      // addPendingPegin runs before the version check so the user has a
+      // resume entry; broadcast is what's gated by the version check.
+      expect(addPendingPegin).toHaveBeenCalledTimes(2);
+    });
+
+    it("persists pending pegins and skips broadcast when getVaultFromChain throws (transient RPC)", async () => {
+      const { getVaultFromChain } = vi.mocked(
+        await import("@/clients/eth-contract/btc-vault-registry/query"),
+      );
+      const { broadcastPrePeginTransaction } = vi.mocked(
+        await import("@/services/vault/vaultPeginBroadcastService"),
+      );
+      const { addPendingPegin } = vi.mocked(
+        await import("@/storage/peginStorage"),
+      );
+
+      vi.mocked(getVaultFromChain).mockRejectedValueOnce(
+        new Error("eth_call failed: connection reset"),
+      );
+
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+
+      await executeWithAutoArtifactDownload(result);
+
+      await waitFor(() => {
+        expect(result.current.error).toBeTruthy();
+      });
+      // Without the pre-check addPendingPegin, the ETH-registered vault would
+      // be orphaned (no localStorage record, UTXOs unreserved). With it, the
+      // user has a PENDING entry and a resume path.
+      expect(addPendingPegin).toHaveBeenCalledTimes(2);
+      expect(broadcastPrePeginTransaction).not.toHaveBeenCalled();
     });
 
     it("should update pegins to CONFIRMING status after broadcast", async () => {
