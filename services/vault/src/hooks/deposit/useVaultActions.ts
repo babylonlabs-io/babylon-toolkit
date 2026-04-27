@@ -5,7 +5,10 @@
 import { getETHChain } from "@babylonlabs-io/config";
 import { ensureHexPrefix } from "@babylonlabs-io/ts-sdk/tbv/core";
 import { validateSecretAgainstHashlock } from "@babylonlabs-io/ts-sdk/tbv/core/services";
-import { UtxoNotAvailableError } from "@babylonlabs-io/ts-sdk/tbv/core/utils";
+import {
+  calculateBtcTxHash,
+  UtxoNotAvailableError,
+} from "@babylonlabs-io/ts-sdk/tbv/core/utils";
 import {
   getSharedWagmiConfig,
   useChainConnector,
@@ -14,6 +17,7 @@ import { useState } from "react";
 import type { Hex } from "viem";
 import { getWalletClient, switchChain } from "wagmi/actions";
 
+import { getVaultFromChain } from "../../clients/eth-contract/btc-vault-registry/query";
 import { getVaultRegistryReader } from "../../clients/eth-contract/sdk-readers";
 import {
   ContractStatus,
@@ -136,6 +140,25 @@ export function useVaultActions(): UseVaultActionsReturn {
           "Transaction mismatch: the indexer returned a transaction that differs from the locally stored copy. Aborting to prevent a potential attack.",
         );
       }
+
+      // When no local copy exists (cross-device scenario), validate the
+      // indexer-provided transaction against the on-chain prePeginTxHash.
+      // The tx hash commits to all inputs AND outputs, so a substituted
+      // transaction would produce a different hash.
+      if (!localUnsignedTxHex) {
+        const onChainVault = await getVaultFromChain(activityId);
+        const computedHash = calculateBtcTxHash(graphqlUnsignedTxHex);
+        if (
+          computedHash.toLowerCase() !==
+          onChainVault.prePeginTxHash.toLowerCase()
+        ) {
+          throw new Error(
+            "Transaction integrity check failed: the indexer-provided Pre-PegIn transaction " +
+              "does not match the hash stored on-chain. Aborting to prevent a potential attack.",
+          );
+        }
+      }
+
       const unsignedTxHex = localUnsignedTxHex || graphqlUnsignedTxHex;
 
       // Get BTC wallet provider
@@ -254,7 +277,7 @@ export function useVaultActions(): UseVaultActionsReturn {
       }
       if (!protocolInfo.hashlock || protocolInfo.hashlock === "0x") {
         throw new Error(
-          "Vault hashlock not found. The vault may not support activation.",
+          "Vault hashlock not found on-chain. The vault may not support activation.",
         );
       }
 
