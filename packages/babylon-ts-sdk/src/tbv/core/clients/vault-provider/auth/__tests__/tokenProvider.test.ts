@@ -374,4 +374,71 @@ describe("VpTokenProvider", () => {
     );
     expect(recovered).toBe("recovery-token");
   });
+
+  // Strictly mid-await invalidate. The earlier test sequences
+  // [await reject → invalidate → next acquire]; this one inserts
+  // invalidate() *while* the in-flight is still suspended at the
+  // network await, then lets the in-flight reject. Models the realistic
+  // race where a concurrent auth-gated RPC hits auth_expired and calls
+  // invalidate() on the provider while a token acquire is still
+  // pending. End state must remain consistent: cached null, inFlight
+  // null, next acquire succeeds.
+  it("survives invalidate() fired while the in-flight acquire is still pending", async () => {
+    let rejectFirst: ((reason: unknown) => void) | undefined;
+    const firstResponse = new Promise<Response>((_resolve, reject) => {
+      rejectFirst = reject;
+    });
+
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockReturnValueOnce(firstResponse)
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          statusText: "OK",
+          json: () =>
+            Promise.resolve({
+              jsonrpc: "2.0",
+              result: buildResponse({ token: "after-race" }),
+              id: 2,
+            }),
+        } as unknown as Response),
+    );
+
+    const client = createClient();
+    const provider = new VpTokenProvider({
+      client,
+      peginTxid: PEGIN_TXID,
+      authAnchorHex: AUTH_ANCHOR,
+      pinnedServerPubkey: PINNED_PUBKEY,
+      authGatedMethods: AUTH_GATED_METHODS,
+      now: () => NOW,
+    });
+
+    // Kick off the acquire. Don't await — it parks at the fetch promise.
+    const inFlightAwait = provider.getToken(
+      "vaultProvider_submitDepositorWotsKey",
+    );
+
+    // Yield once so the IIFE actually reaches `await this.client.call(...)`.
+    await Promise.resolve();
+    await Promise.resolve();
+
+    // While in-flight is still suspended, fire invalidate(). This is
+    // the precise timing the prior test couldn't exercise.
+    provider.invalidate();
+
+    // Now reject the pending fetch, surfacing the in-flight failure.
+    rejectFirst?.(new TypeError("Failed to fetch"));
+
+    await expect(inFlightAwait).rejects.toThrow();
+
+    // Subsequent acquire must succeed cleanly.
+    const recovered = await provider.getToken(
+      "vaultProvider_submitDepositorWotsKey",
+    );
+    expect(recovered).toBe("after-race");
+  });
 });

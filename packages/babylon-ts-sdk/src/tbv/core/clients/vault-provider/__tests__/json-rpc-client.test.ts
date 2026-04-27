@@ -541,6 +541,49 @@ describe("JsonRpcClient", () => {
     expect(mockFetch).toHaveBeenCalledOnce();
   });
 
+  // Malformed `error.data` payloads (string, number, array). The
+  // `isAuthExpiredError` helper must treat anything that isn't an
+  // object with `kind === "auth_expired"` as not-an-auth-expired error,
+  // so a server bug (or a hostile proxy) can't trigger the reactive
+  // refresh path with junk data.
+  it.each([
+    ["string error.data", "auth_expired"],
+    ["number error.data", 42],
+    ["array error.data", ["auth_expired"]],
+    ["null error.data", null],
+    ["object without kind", { other: "field" }],
+    ["object with non-string kind", { kind: 42 }],
+    ["object with wrong kind value", { kind: "something_else" }],
+  ])("does NOT retry on -32001 with %s", async (_label, malformedData) => {
+    const response = {
+      ok: true,
+      status: HTTP_OK,
+      statusText: "OK",
+      json: () =>
+        Promise.resolve({
+          jsonrpc: "2.0",
+          error: { code: -32001, message: "x", data: malformedData },
+          id: 1,
+        }),
+    } as unknown as Response;
+
+    const mockFetch = vi.fn().mockResolvedValue(response);
+    vi.stubGlobal("fetch", mockFetch);
+
+    const tokenProvider = {
+      getToken: vi.fn().mockResolvedValue("tok"),
+      invalidate: vi.fn(),
+    };
+
+    const client = createClient({ tokenProvider });
+    await expect(
+      client.call("vaultProvider_submitDepositorWotsKey", {}),
+    ).rejects.toThrow(JsonRpcError);
+
+    expect(tokenProvider.invalidate).not.toHaveBeenCalled();
+    expect(mockFetch).toHaveBeenCalledOnce();
+  });
+
   it("does NOT retry on local network error even when code is -32001", async () => {
     vi.stubGlobal(
       "fetch",
