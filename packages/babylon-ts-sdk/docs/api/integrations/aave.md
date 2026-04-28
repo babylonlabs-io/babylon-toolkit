@@ -579,7 +579,7 @@ Actual total amount from selected vaults
 
 ### OptimalSplitParams
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts:34](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts#L34)
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts:44](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts#L44)
 
 Parameters for computing the optimal vault split.
 
@@ -591,7 +591,7 @@ Parameters for computing the optimal vault split.
 totalBtc: bigint;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts:36](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts#L36)
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts:46](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts#L46)
 
 Total deposit amount in satoshis
 
@@ -601,7 +601,7 @@ Total deposit amount in satoshis
 CF: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts:38](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts#L38)
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts:48](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts#L48)
 
 Collateral factor (e.g. 0.75 for 75%)
 
@@ -611,7 +611,7 @@ Collateral factor (e.g. 0.75 for 75%)
 LB: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts:40](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts#L40)
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts:50](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts#L50)
 
 Liquidation bonus (e.g. 1.05 for 5% bonus)
 
@@ -621,7 +621,7 @@ Liquidation bonus (e.g. 1.05 for 5% bonus)
 THF: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts:42](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts#L42)
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts:52](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts#L52)
 
 Target health factor (e.g. 1.10)
 
@@ -631,7 +631,7 @@ Target health factor (e.g. 1.10)
 expectedHF: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts:44](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts#L44)
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts:54](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts#L54)
 
 Expected health factor at liquidation (e.g. 0.95)
 
@@ -641,7 +641,7 @@ Expected health factor at liquidation (e.g. 0.95)
 safetyMargin: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts:46](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts#L46)
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts:56](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts#L56)
 
 Safety margin multiplier for the sacrificial vault (e.g. 1.05 for 5% buffer)
 
@@ -649,7 +649,7 @@ Safety margin multiplier for the sacrificial vault (e.g. 1.05 for 5% buffer)
 
 ### OptimalSplitResult
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts:52](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts#L52)
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts:62](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts#L62)
 
 Result of the optimal vault split computation.
 
@@ -661,7 +661,7 @@ Result of the optimal vault split computation.
 sacrificialVault: bigint;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts:54](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts#L54)
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts:64](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts#L64)
 
 Sacrificial vault amount in satoshis (index 0, seized first)
 
@@ -671,7 +671,7 @@ Sacrificial vault amount in satoshis (index 0, seized first)
 protectedVault: bigint;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts:56](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts#L56)
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts:66](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts#L66)
 
 Protected vault amount in satoshis (index 1, survives liquidation)
 
@@ -681,7 +681,7 @@ Protected vault amount in satoshis (index 1, survives liquidation)
 seizedFraction: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts:58](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts#L58)
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts:68](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts#L68)
 
 Fraction of collateral that would be seized (0–1)
 
@@ -691,7 +691,7 @@ Fraction of collateral that would be seized (0–1)
 targetSeizureBtc: bigint;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts:60](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts#L60)
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts:70](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts#L70)
 
 Raw target seizure amount in satoshis (before safety margin)
 
@@ -699,7 +699,7 @@ Raw target seizure amount in satoshis (before safety margin)
 
 ### MinDepositForSplitParams
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts:66](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts#L66)
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts:76](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts#L76)
 
 Parameters for computing the minimum deposit required for a split.
 
@@ -711,7 +711,7 @@ Parameters for computing the minimum deposit required for a split.
 minPegin: bigint;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts:68](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts#L68)
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts:78](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts#L78)
 
 Minimum peg-in amount in satoshis
 
@@ -721,7 +721,7 @@ Minimum peg-in amount in satoshis
 seizedFraction: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts:70](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts#L70)
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts:80](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts#L80)
 
 Seized fraction (0–1), from computeOptimalSplit or computeSeizedFraction
 
@@ -731,7 +731,7 @@ Seized fraction (0–1), from computeOptimalSplit or computeSeizedFraction
 safetyMargin: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts:72](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts#L72)
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts:82](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts#L82)
 
 Safety margin multiplier (e.g. 1.05)
 
@@ -739,7 +739,7 @@ Safety margin multiplier (e.g. 1.05)
 
 ### RebalanceCheckParams
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts:78](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts#L78)
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts:88](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts#L88)
 
 Parameters for checking if a vault rebalance is needed.
 
@@ -751,7 +751,7 @@ Parameters for checking if a vault rebalance is needed.
 vaultAmounts: bigint[];
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts:80](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts#L80)
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts:90](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts#L90)
 
 Ordered vault amounts in satoshis (index 0 is sacrificial)
 
@@ -761,7 +761,7 @@ Ordered vault amounts in satoshis (index 0 is sacrificial)
 CF: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts:82](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts#L82)
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts:92](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts#L92)
 
 Collateral factor (e.g. 0.75)
 
@@ -771,7 +771,7 @@ Collateral factor (e.g. 0.75)
 LB: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts:84](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts#L84)
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts:94](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts#L94)
 
 Liquidation bonus (e.g. 1.05)
 
@@ -781,7 +781,7 @@ Liquidation bonus (e.g. 1.05)
 THF: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts:86](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts#L86)
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts:96](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts#L96)
 
 Target health factor (e.g. 1.10)
 
@@ -791,7 +791,7 @@ Target health factor (e.g. 1.10)
 expectedHF: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts:88](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts#L88)
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts:98](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts#L98)
 
 Expected health factor at liquidation (e.g. 0.95)
 
@@ -801,7 +801,7 @@ Expected health factor at liquidation (e.g. 0.95)
 safetyMargin: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts:90](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts#L90)
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts:100](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts#L100)
 
 Safety margin multiplier (e.g. 1.05)
 
@@ -809,7 +809,7 @@ Safety margin multiplier (e.g. 1.05)
 
 ### RebalanceCheckResult
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts:96](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts#L96)
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts:106](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts#L106)
 
 Result of a vault rebalance check.
 
@@ -821,7 +821,7 @@ Result of a vault rebalance check.
 needsRebalance: boolean;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts:98](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts#L98)
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts:108](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts#L108)
 
 Whether the sacrificial vault needs to be increased
 
@@ -831,7 +831,7 @@ Whether the sacrificial vault needs to be increased
 deficit: bigint;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts:100](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts#L100)
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts:110](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts#L110)
 
 How much more the sacrificial vault needs in satoshis (0n if no rebalance needed)
 
@@ -841,7 +841,7 @@ How much more the sacrificial vault needs in satoshis (0n if no rebalance needed
 currentCoverage: bigint;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts:102](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts#L102)
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts:112](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts#L112)
 
 Current sacrificial vault coverage in satoshis
 
@@ -851,7 +851,7 @@ Current sacrificial vault coverage in satoshis
 targetCoverage: bigint;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts:104](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts#L104)
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts:114](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts#L114)
 
 Required sacrificial vault coverage in satoshis
 
@@ -2292,7 +2292,7 @@ function computeSeizedFractionDetailed(
    expectedHF): object;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts:126](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts#L126)
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts:136](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts#L136)
 
 Compute the fraction of collateral that would be seized during liquidation,
 returning both the raw (unclamped) and clamped values.
@@ -2362,7 +2362,7 @@ function computeSeizedFraction(
    expectedHF): number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts:164](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts#L164)
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts:174](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts#L174)
 
 Compute the fraction of collateral that would be seized during liquidation.
 
@@ -2406,7 +2406,7 @@ Seized fraction clamped to [0, 1]
 function computeOptimalSplit(params): OptimalSplitResult;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts:198](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts#L198)
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts:208](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts#L208)
 
 Compute the optimal split between a sacrificial vault and a protected vault.
 
@@ -2452,7 +2452,7 @@ const result = computeOptimalSplit({
 function computeMinDepositForSplit(params): bigint;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts:257](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts#L257)
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts:285](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts#L285)
 
 Compute the minimum total deposit required for a 2-vault split.
 
@@ -2496,7 +2496,7 @@ const minDeposit = computeMinDepositForSplit({
 function checkRebalanceNeeded(params): RebalanceCheckResult;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts:319](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts#L319)
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts:347](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts#L347)
 
 Check if the sacrificial vault (index 0) needs to be increased to cover
 the current target seizure amount.

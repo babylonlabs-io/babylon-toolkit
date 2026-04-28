@@ -159,8 +159,10 @@ const secrets: Hex[] = [
 const hashlocks = secrets.map(computeHashlock);          // 0x-prefixed bytes32
 const rawHashlocks = hashlocks.map(stripHexPrefix);      // 64-char hex, no 0x
 
-// One WOTS commitment per vault. Derivation is out of scope for this
-// snippet — supply these from wherever your app keeps WOTS material.
+// One WOTS commitment per vault. Derive each from the same
+// `deriveVaultRoot` (one wallet popup for the whole batch), then
+// `expandWotsSeed(root, htlcVout)` per vault — see the
+// [Wallet Interfaces Guide → Wallet-derived secrets](../guides/wallet-interfaces.md#wallet-derived-secrets-derivecontexthash).
 declare const depositorWotsPkHashes: Hex[];
 
 const depositorBtcPubkey = await btcWallet.getPublicKeyHex();

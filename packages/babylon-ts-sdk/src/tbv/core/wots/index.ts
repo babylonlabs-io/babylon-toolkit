@@ -1,7 +1,5 @@
 export {
-  mnemonicToWotsSeed,
-  deriveWotsBlockPublicKeys,
+  deriveWotsBlocksFromSeed,
   computeWotsBlockPublicKeysHash,
 } from "./blockDerivation";
-export { deriveWotsPkHash } from "./deriveWotsPkHash";
 export { isWotsMismatchError } from "./errors";
