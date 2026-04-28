@@ -20,10 +20,6 @@ vi.mock("@/utils/rpc", async (importOriginal) => ({
   getVpProxyUrl: (address: string) => `https://proxy.test/rpc/${address}`,
 }));
 
-vi.mock("@babylonlabs-io/ts-sdk/tbv/core", () => ({
-  ensureHexPrefix: (hex: string) => (hex.startsWith("0x") ? hex : `0x${hex}`),
-}));
-
 vi.mock("@babylonlabs-io/wallet-connector", () => ({
   useChainConnector: vi.fn(),
 }));
@@ -90,26 +86,22 @@ vi.mock("@/services/vault/vaultPeginBroadcastService", () => ({
   ),
 }));
 
-vi.mock("@/services/wots/wotsService", () => ({
-  mnemonicToWotsSeed: vi.fn().mockReturnValue(new Uint8Array(32)),
-  deriveWotsBlockPublicKeys: vi.fn().mockResolvedValue([]),
-  computeWotsPublicKeysHash: vi
-    .fn()
-    .mockReturnValue(
-      "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
-    ),
-}));
-
-vi.mock("@/services/wots", () => ({
-  mnemonicToWotsSeed: vi.fn().mockReturnValue(new Uint8Array(32)),
-  deriveWotsBlockPublicKeys: vi.fn().mockResolvedValue([]),
-  computeWotsPublicKeysHash: vi
-    .fn()
-    .mockReturnValue(
-      "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
-    ),
-  linkPeginToMnemonic: vi.fn(),
-}));
+vi.mock("@babylonlabs-io/ts-sdk/tbv/core", async () => {
+  const actual = await vi.importActual<
+    typeof import("@babylonlabs-io/ts-sdk/tbv/core")
+  >("@babylonlabs-io/ts-sdk/tbv/core");
+  return {
+    ...actual,
+    deriveVaultRoot: vi.fn().mockResolvedValue(new Uint8Array(32)),
+    expandWotsSeed: vi.fn().mockReturnValue(new Uint8Array(64)),
+    deriveWotsBlocksFromSeed: vi.fn().mockResolvedValue([]),
+    computeWotsBlockPublicKeysHash: vi
+      .fn()
+      .mockReturnValue(
+        "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+      ),
+  };
+});
 
 vi.mock("@/services/deposit/validations", () => ({
   validateMultiVaultDepositInputs: vi.fn(),
@@ -174,14 +166,14 @@ vi.mock("../depositFlowSteps", () => ({
 // ============================================================================
 
 const MOCK_UTXO_1 = {
-  txid: "utxo1txid" + "0".repeat(56),
+  txid: "aa".repeat(32),
   vout: 0,
   value: 500000,
   scriptPubKey: "0xabc123",
 };
 
 const MOCK_UTXO_2 = {
-  txid: "utxo2txid" + "0".repeat(56),
+  txid: "bb".repeat(32),
   vout: 1,
   value: 300000,
   scriptPubKey: "0xdef456",
@@ -234,7 +226,6 @@ const MOCK_PARAMS = {
   vaultProviderBtcPubkey: "ab".repeat(32),
   vaultKeeperBtcPubkeys: ["keeper1pubkey"],
   universalChallengerBtcPubkeys: ["uc1pubkey"],
-  getMnemonic: async () => "test mnemonic phrase for wots key derivation",
   htlcSecretHexes: ["ab".repeat(32), "cd".repeat(32)],
   depositorSecretHashes: [
     ("0x" + "aa".repeat(32)) as Hex,
@@ -470,8 +461,8 @@ describe("useDepositFlow", () => {
     });
 
     it("should derive WOTS public keys for all vaults before batch call", async () => {
-      const { deriveWotsBlockPublicKeys } = vi.mocked(
-        await import("@/services/wots"),
+      const { deriveWotsBlocksFromSeed } = vi.mocked(
+        await import("@babylonlabs-io/ts-sdk/tbv/core"),
       );
 
       const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
@@ -480,8 +471,52 @@ describe("useDepositFlow", () => {
 
       await waitFor(() => {
         // WOTS derivation should happen for each vault
-        expect(deriveWotsBlockPublicKeys).toHaveBeenCalledTimes(2);
+        expect(deriveWotsBlocksFromSeed).toHaveBeenCalledTimes(2);
       });
+    });
+
+    it("derives the vault root once and expands per-vault with htlcVout", async () => {
+      const { deriveVaultRoot, expandWotsSeed, hexToUint8Array } = vi.mocked(
+        await import("@babylonlabs-io/ts-sdk/tbv/core"),
+      );
+
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+
+      await executeWithAutoArtifactDownload(result);
+
+      await waitFor(() => {
+        // One popup per deposit, not per vault.
+        expect(deriveVaultRoot).toHaveBeenCalledTimes(1);
+      });
+
+      // Byte-equality on outpoints + pubkey so hex-decode or ordering
+      // regressions can't slip past a "Uint8Array, length 2" check.
+      const rootCall = deriveVaultRoot.mock.calls[0];
+      expect(rootCall?.[0]).toBe(MOCK_BTC_WALLET);
+      const ctx = rootCall?.[1] as {
+        depositorBtcPubkey: Uint8Array;
+        fundingOutpoints: Array<{ txid: Uint8Array; vout: number }>;
+      };
+      expect(ctx.depositorBtcPubkey).toEqual(
+        hexToUint8Array(MOCK_DEPOSITOR_PUBKEY),
+      );
+      expect(ctx.fundingOutpoints).toEqual([
+        { txid: hexToUint8Array(MOCK_UTXO_1.txid), vout: MOCK_UTXO_1.vout },
+        { txid: hexToUint8Array(MOCK_UTXO_2.txid), vout: MOCK_UTXO_2.vout },
+      ]);
+
+      // Per-vault domain separation via htlcVout.
+      expect(expandWotsSeed).toHaveBeenCalledTimes(2);
+      expect(expandWotsSeed).toHaveBeenNthCalledWith(
+        1,
+        expect.any(Uint8Array),
+        0,
+      );
+      expect(expandWotsSeed).toHaveBeenNthCalledWith(
+        2,
+        expect.any(Uint8Array),
+        1,
+      );
     });
   });
 

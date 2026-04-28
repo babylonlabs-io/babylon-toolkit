@@ -7,7 +7,7 @@
  *
  * Flow:
  * 0. Validation — check wallets, UTXOs, pubkeys, array alignment
- * 1. Get shared resources (ETH wallet client, mnemonic)
+ * 1. Get shared resources (ETH wallet client)
  * 2. Batch Pre-PegIn creation (one BTC tx with N HTLC outputs)
  * 3a. Derive WOTS public keys for all vaults
  * 3b. Sign BIP-322 proof-of-possession (one wallet popup per deposit session)
@@ -27,8 +27,19 @@
  */
 
 import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
-import { ensureHexPrefix } from "@babylonlabs-io/ts-sdk/tbv/core";
-import { VpResponseValidationError } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
+import {
+  computeWotsBlockPublicKeysHash,
+  deriveVaultRoot,
+  deriveWotsBlocksFromSeed,
+  ensureHexPrefix,
+  expandWotsSeed,
+  hexToUint8Array,
+  type FundingOutpoint,
+} from "@babylonlabs-io/ts-sdk/tbv/core";
+import {
+  VpResponseValidationError,
+  type WotsBlockPublicKey,
+} from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import { computeHashlock } from "@babylonlabs-io/ts-sdk/tbv/core/services";
 import {
   collectReservedUtxoRefs,
@@ -50,13 +61,6 @@ import {
 } from "@/services/vault/vaultPeginBroadcastService";
 import { preparePeginTransaction } from "@/services/vault/vaultTransactionService";
 import { assertUtxosAvailable } from "@/services/vault/vaultUtxoValidationService";
-import {
-  computeWotsPublicKeysHash,
-  deriveWotsBlockPublicKeys,
-  linkPeginToMnemonic,
-  mnemonicToWotsSeed,
-  type WotsPublicKeys,
-} from "@/services/wots";
 import {
   addPendingPegin,
   addUtxoReservation,
@@ -106,12 +110,6 @@ export interface UseDepositFlowParams {
   vaultKeeperBtcPubkeys: string[];
   /** Universal challenger BTC public keys */
   universalChallengerBtcPubkeys: string[];
-  /** Callback to retrieve the decrypted mnemonic for WOTS PK derivation
-   *  and submission to the vault provider. */
-  getMnemonic: () => Promise<string>;
-  /** UUID of the stored mnemonic, used to record the peg-in → mnemonic
-   *  mapping so the resume flow can look up the correct mnemonic. */
-  mnemonicId?: string;
   /** Per-vault raw HTLC secret hexes (no 0x prefix) — generated in the secret
    *  modal step. These are used as the HTLC preimages so the on-chain
    *  hashlocks match what was shown to the user. */
@@ -198,8 +196,6 @@ export function useDepositFlow(
     vaultProviderBtcPubkey,
     vaultKeeperBtcPubkeys,
     universalChallengerBtcPubkeys,
-    getMnemonic,
-    mnemonicId,
     htlcSecretHexes,
     depositorSecretHashes,
   } = params;
@@ -336,11 +332,6 @@ export function useDepositFlow(
         // Get ETH wallet client once (chain switch + wallet client are reusable)
         const walletClient = await getEthWalletClient(confirmedEthAddress);
 
-        // Get mnemonic once before the loop.
-        // The modal is one-time-use — calling getMnemonic() inside the loop
-        // would hang on the second vault because the modal is already closed.
-        const mnemonic = await getMnemonic();
-
         // ========================================================================
         // Step 2: Create Batch Pre-PegIn (all vaults in one BTC tx)
         // ========================================================================
@@ -405,25 +396,32 @@ export function useDepositFlow(
         // Step 3: Sign PoP + batch register all vaults on Ethereum
         // ========================================================================
 
-        // 3a. Derive WOTS public keys for all vaults (must happen before ETH tx)
-        // Keys are derived here and reused for both:
-        //   - on-chain hash commitment (depositorWotsPkHash in ETH tx)
-        //   - VP RPC submission (step 5)
-        // Note: deriveWotsBlockPublicKeys zeroes the seed in its finally block,
-        // so a fresh seed must be created per vault.
-        const perVaultWotsKeys: WotsPublicKeys[] = [];
+        // 3a. Derive WOTS keys for all vaults (one wallet popup → 32-byte
+        // root, then per-vault expand by htlcVout). Reused for both the
+        // on-chain hash commitment and the VP RPC submission. Root is
+        // zeroed in `finally`.
+        const fundingOutpoints: FundingOutpoint[] =
+          batchResult.selectedUTXOs.map((u) => ({
+            txid: hexToUint8Array(u.txid),
+            vout: u.vout,
+          }));
+        const root = await deriveVaultRoot(confirmedBtcWallet, {
+          depositorBtcPubkey: hexToUint8Array(batchResult.depositorBtcPubkey),
+          fundingOutpoints,
+        });
+
+        const perVaultWotsKeys: WotsBlockPublicKey[][] = [];
         const wotsPkHashes: Hex[] = [];
-        for (let i = 0; i < batchResult.perVault.length; i++) {
-          const vault = batchResult.perVault[i];
-          const seed = mnemonicToWotsSeed(mnemonic);
-          const wotsPublicKeys = await deriveWotsBlockPublicKeys(
-            seed,
-            vault.peginTxHash,
-            batchResult.depositorBtcPubkey,
-            selectedApplication,
-          );
-          perVaultWotsKeys.push(wotsPublicKeys);
-          wotsPkHashes.push(computeWotsPublicKeysHash(wotsPublicKeys));
+        try {
+          for (let i = 0; i < batchResult.perVault.length; i++) {
+            const vault = batchResult.perVault[i];
+            const seed = expandWotsSeed(root, vault.htlcVout);
+            const wotsPublicKeys = await deriveWotsBlocksFromSeed(seed);
+            perVaultWotsKeys.push(wotsPublicKeys);
+            wotsPkHashes.push(computeWotsBlockPublicKeysHash(wotsPublicKeys));
+          }
+        } finally {
+          root.fill(0);
         }
 
         // 3b. Sign PoP during SIGN_POP so the wallet popup is associated
@@ -523,28 +521,6 @@ export function useDepositFlow(
               scriptPubKey: u.scriptPubKey,
             })),
           });
-
-          if (mnemonicId) {
-            try {
-              linkPeginToMnemonic(
-                peginResult.peginTxHash,
-                mnemonicId,
-                confirmedEthAddress,
-              );
-            } catch (linkError) {
-              // Best-effort: mnemonic link is recoverable (VP rejects wrong
-              // key, user can re-derive). Must not block broadcast.
-              logger.warn(
-                "[deposit] Failed to link pegin to mnemonic, continuing with broadcast",
-                {
-                  data: {
-                    peginTxHash: peginResult.peginTxHash,
-                    error: linkError,
-                  },
-                },
-              );
-            }
-          }
         }
 
         // Early reservation is now superseded by real pending pegin entries.
@@ -841,8 +817,6 @@ export function useDepositFlow(
       isUTXOsLoading,
       utxoError,
       findProvider,
-      getMnemonic,
-      mnemonicId,
       htlcSecretHexes,
       depositorSecretHashes,
     ]);

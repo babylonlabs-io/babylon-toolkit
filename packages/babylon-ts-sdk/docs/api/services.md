@@ -2209,7 +2209,7 @@ SUBMIT_WOTS_KEY: "SUBMIT_WOTS_KEY";
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts:50](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts#L50)
 
-Submit WOTS key (re-enter mnemonic)
+Submit WOTS key (re-derives via wallet `deriveContextHash`)
 
 ##### SIGN\_PAYOUT\_TRANSACTIONS
 

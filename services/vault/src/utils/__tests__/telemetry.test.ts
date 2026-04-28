@@ -154,11 +154,11 @@ describe("redactData", () => {
   });
 
   it("redacts short sensitive field values with [REDACTED]", () => {
-    const data = { address: "0x1", publicKey: "abc", mnemonic: "word" };
+    const data = { address: "0x1", publicKey: "abc", secretHex: "word" };
     const result = redactData(data);
     expect(result.address).toBe("[REDACTED]");
     expect(result.publicKey).toBe("[REDACTED]");
-    expect(result.mnemonic).toBe("[REDACTED]");
+    expect(result.secretHex).toBe("[REDACTED]");
   });
 });
 
