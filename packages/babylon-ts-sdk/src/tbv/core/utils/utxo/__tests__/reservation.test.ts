@@ -364,6 +364,55 @@ describe("UTXO Reservation", () => {
       expect(reserved).toHaveLength(0);
     });
 
+    it("should collect refs from utxoReservations", () => {
+      const reservationTxid =
+        "9999999999999999999999999999999999999999999999999999999999999999";
+      const reserved = collectReservedUtxoRefs({
+        pendingPegins: [],
+        vaults: [],
+        utxoReservations: [
+          { unsignedTxHex: createValidTxHex(reservationTxid, 2) },
+        ],
+      });
+
+      expect(reserved).toHaveLength(1);
+      expect(hasRef(reserved, reservationTxid, 2)).toBe(true);
+    });
+
+    it("should combine refs from reservations with pending pegins and vaults", () => {
+      const reservationTxid =
+        "9999999999999999999999999999999999999999999999999999999999999999";
+      const vaultTxid =
+        "5555555555555555555555555555555555555555555555555555555555555555";
+      const vault = createMockVault(
+        ContractStatus.PENDING,
+        createValidTxHex(vaultTxid, 0),
+      );
+
+      const reserved = collectReservedUtxoRefs({
+        pendingPegins: [mockPendingPegin],
+        vaults: [vault],
+        utxoReservations: [
+          { unsignedTxHex: createValidTxHex(reservationTxid, 7) },
+        ],
+      });
+
+      expect(reserved).toHaveLength(3);
+      expect(hasRef(reserved, VALID_TX_PENDING_TXID_A, 3)).toBe(true);
+      expect(hasRef(reserved, vaultTxid, 0)).toBe(true);
+      expect(hasRef(reserved, reservationTxid, 7)).toBe(true);
+    });
+
+    it("should handle empty utxoReservations", () => {
+      const reserved = collectReservedUtxoRefs({
+        pendingPegins: [],
+        vaults: [],
+        utxoReservations: [],
+      });
+
+      expect(reserved).toHaveLength(0);
+    });
+
     it("logs and yields no refs when unsignedTxHex fails to parse", () => {
       const tamperedPending: PendingPeginLike = {
         id: "0xbadhex",

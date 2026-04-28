@@ -126,7 +126,10 @@ vi.mock("@/services/vault/vaultUtxoValidationService", () => ({
 
 vi.mock("@/storage/peginStorage", () => ({
   addPendingPegin: vi.fn(),
+  addUtxoReservation: vi.fn(),
   getPendingPegins: vi.fn(() => []),
+  getUtxoReservations: vi.fn(() => []),
+  removeUtxoReservation: vi.fn(),
   updatePendingPeginStatus: vi.fn(),
 }));
 
@@ -559,6 +562,31 @@ describe("useDepositFlow", () => {
       });
     });
 
+    it("should write early UTXO reservation and clean it up on success", async () => {
+      const { addUtxoReservation, removeUtxoReservation } = vi.mocked(
+        await import("@/storage/peginStorage"),
+      );
+
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+
+      await executeWithAutoArtifactDownload(result);
+
+      await waitFor(() => {
+        expect(addUtxoReservation).toHaveBeenCalledWith(
+          "0xEthAddress123",
+          expect.objectContaining({
+            unsignedTxHex: "batchFundedPrePeginHex",
+            batchId: "mock-batch-id-uuid",
+            timestamp: expect.any(Number),
+          }),
+        );
+        expect(removeUtxoReservation).toHaveBeenCalledWith(
+          "0xEthAddress123",
+          "mock-batch-id-uuid",
+        );
+      });
+    });
+
     it("should update pegins to CONFIRMING status after broadcast", async () => {
       const { updatePendingPeginStatus } = vi.mocked(
         await import("@/storage/peginStorage"),
@@ -669,9 +697,12 @@ describe("useDepositFlow", () => {
       });
     });
 
-    it("should set error when broadcast fails", async () => {
+    it("should set error when broadcast fails and clean up UTXO reservation", async () => {
       const { broadcastPrePeginTransaction } = vi.mocked(
         await import("@/services/vault/vaultPeginBroadcastService"),
+      );
+      const { removeUtxoReservation } = vi.mocked(
+        await import("@/storage/peginStorage"),
       );
       vi.mocked(broadcastPrePeginTransaction).mockRejectedValueOnce(
         new Error("Network error"),
@@ -684,6 +715,11 @@ describe("useDepositFlow", () => {
       await waitFor(() => {
         expect(result.current.error).toContain(
           "Failed to broadcast batch Pre-PegIn transaction",
+        );
+        // Catch block should clean up the early reservation
+        expect(removeUtxoReservation).toHaveBeenCalledWith(
+          "0xEthAddress123",
+          "mock-batch-id-uuid",
         );
       });
     });
@@ -932,6 +968,7 @@ describe("useDepositFlow", () => {
         expect(getPendingPegins).toHaveBeenCalledWith("0xEthAddress123");
         expect(collectReservedUtxoRefs).toHaveBeenCalledWith({
           pendingPegins: mockPendingPegins,
+          utxoReservations: [],
         });
         expect(selectUtxosForDeposit).toHaveBeenCalledWith(
           expect.objectContaining({

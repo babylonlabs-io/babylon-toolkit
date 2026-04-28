@@ -5,9 +5,20 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { logger } from "@/infrastructure";
 
-import { STORAGE_KEY_PREFIX } from "../../constants";
+import {
+  STORAGE_KEY_PREFIX,
+  UTXO_RESERVATION_KEY_PREFIX,
+  UTXO_RESERVATION_TTL,
+} from "../../constants";
 import { LocalStorageStatus } from "../../models/peginStateMachine";
-import { getPendingPegins, type PendingPeginRequest } from "../peginStorage";
+import {
+  addUtxoReservation,
+  getPendingPegins,
+  getUtxoReservations,
+  type PendingPeginRequest,
+  removeUtxoReservation,
+  type UtxoReservation,
+} from "../peginStorage";
 
 vi.mock("@/infrastructure", () => ({
   logger: {
@@ -327,5 +338,119 @@ describe("getPendingPegins integrity validation", () => {
     localStorage.setItem(storageKey, JSON.stringify([pegin]));
 
     expect(getPendingPegins(ETH_ADDRESS)).toHaveLength(1);
+  });
+});
+
+describe("UTXO reservation storage", () => {
+  const reservationKey = `${UTXO_RESERVATION_KEY_PREFIX}-${ETH_ADDRESS}`;
+
+  const validReservation: UtxoReservation = {
+    unsignedTxHex: "0xdeadbeef",
+    timestamp: Date.now(),
+    batchId: "batch-1",
+  };
+
+  beforeEach(() => {
+    localStorage.clear();
+    vi.clearAllMocks();
+  });
+
+  it("adds and retrieves a reservation", () => {
+    addUtxoReservation(ETH_ADDRESS, validReservation);
+
+    const result = getUtxoReservations(ETH_ADDRESS);
+
+    expect(result).toHaveLength(1);
+    expect(result[0].batchId).toBe("batch-1");
+    expect(result[0].unsignedTxHex).toBe("0xdeadbeef");
+  });
+
+  it("removes a reservation by batchId", () => {
+    addUtxoReservation(ETH_ADDRESS, validReservation);
+    addUtxoReservation(ETH_ADDRESS, {
+      ...validReservation,
+      batchId: "batch-2",
+    });
+
+    removeUtxoReservation(ETH_ADDRESS, "batch-1");
+
+    const result = getUtxoReservations(ETH_ADDRESS);
+    expect(result).toHaveLength(1);
+    expect(result[0].batchId).toBe("batch-2");
+  });
+
+  it("replaces existing reservation with same batchId", () => {
+    addUtxoReservation(ETH_ADDRESS, validReservation);
+    addUtxoReservation(ETH_ADDRESS, {
+      ...validReservation,
+      unsignedTxHex: "0xcafebabe",
+    });
+
+    const result = getUtxoReservations(ETH_ADDRESS);
+    expect(result).toHaveLength(1);
+    expect(result[0].unsignedTxHex).toBe("0xcafebabe");
+  });
+
+  it("filters out expired reservations on read", () => {
+    const expired: UtxoReservation = {
+      unsignedTxHex: "0xdeadbeef",
+      timestamp: Date.now() - UTXO_RESERVATION_TTL - 1,
+      batchId: "expired-batch",
+    };
+    localStorage.setItem(reservationKey, JSON.stringify([expired]));
+
+    const result = getUtxoReservations(ETH_ADDRESS);
+
+    expect(result).toHaveLength(0);
+    // Expired entry should be cleaned up from storage
+    const stored = localStorage.getItem(reservationKey);
+    expect(stored).toBeNull();
+  });
+
+  it("keeps non-expired reservations when cleaning expired ones", () => {
+    const expired: UtxoReservation = {
+      unsignedTxHex: "0xdeadbeef",
+      timestamp: Date.now() - UTXO_RESERVATION_TTL - 1,
+      batchId: "expired-batch",
+    };
+    const fresh: UtxoReservation = {
+      unsignedTxHex: "0xcafebabe",
+      timestamp: Date.now(),
+      batchId: "fresh-batch",
+    };
+    localStorage.setItem(reservationKey, JSON.stringify([expired, fresh]));
+
+    const result = getUtxoReservations(ETH_ADDRESS);
+
+    expect(result).toHaveLength(1);
+    expect(result[0].batchId).toBe("fresh-batch");
+  });
+
+  it("returns empty array for empty address", () => {
+    expect(getUtxoReservations("")).toEqual([]);
+  });
+
+  it("returns empty array when storage is empty", () => {
+    expect(getUtxoReservations(ETH_ADDRESS)).toEqual([]);
+  });
+
+  it("skips invalid entries from tampered storage", () => {
+    const tampered = [
+      { unsignedTxHex: 42, timestamp: Date.now(), batchId: "bad" },
+      validReservation,
+    ];
+    localStorage.setItem(reservationKey, JSON.stringify(tampered));
+
+    const result = getUtxoReservations(ETH_ADDRESS);
+
+    expect(result).toHaveLength(1);
+    expect(result[0].batchId).toBe("batch-1");
+  });
+
+  it("removes storage key when last reservation is removed", () => {
+    addUtxoReservation(ETH_ADDRESS, validReservation);
+    removeUtxoReservation(ETH_ADDRESS, "batch-1");
+
+    expect(localStorage.getItem(reservationKey)).toBeNull();
   });
 });
