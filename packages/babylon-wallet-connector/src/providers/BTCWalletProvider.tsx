@@ -44,6 +44,14 @@ interface BTCWalletContextProps {
     type: "ecdsa" | "bip322-simple",
   ) => Promise<string>;
   getInscriptions: () => Promise<InscriptionIdentifier[]>;
+  /**
+   * Derives a deterministic 32-byte value from the wallet per the
+   * `deriveContextHash` spec. Throws `WalletError` with code
+   * `WALLET_METHOD_NOT_SUPPORTED` for wallets that don't implement
+   * the spec — callers should branch on that error code to gate
+   * features that require this capability.
+   */
+  deriveContextHash: (appName: string, context: string) => Promise<string>;
 }
 
 const BTCWalletContext = createContext<BTCWalletContextProps>({
@@ -61,6 +69,12 @@ const BTCWalletContext = createContext<BTCWalletContextProps>({
   getNetwork: async () => ({}) as Network,
   signMessage: async () => "",
   getInscriptions: async () => [],
+  // Fail loud rather than silently returning "" — a 32-byte secret
+  // derivation must never produce an invalid value. Outside a
+  // BTCWalletProvider this throws like any other unmounted hook.
+  deriveContextHash: async () => {
+    throw new Error("BTC Wallet not connected");
+  },
 });
 
 export interface BTCWalletProviderProps extends PropsWithChildren {
@@ -317,6 +331,14 @@ export const BTCWalletProvider = ({ children, callbacks }: BTCWalletProviderProp
     return btcWalletProvider.getInscriptions();
   }, [btcWalletProvider]);
 
+  const deriveContextHash = useCallback(
+    async (appName: string, context: string) => {
+      if (!btcWalletProvider) throw new Error("BTC Wallet not connected");
+      return btcWalletProvider.deriveContextHash(appName, context);
+    },
+    [btcWalletProvider],
+  );
+
   return (
     <BTCWalletContext.Provider
       value={{
@@ -334,6 +356,7 @@ export const BTCWalletProvider = ({ children, callbacks }: BTCWalletProviderProp
         getNetwork,
         signMessage,
         getInscriptions,
+        deriveContextHash,
       }}
     >
       {children}

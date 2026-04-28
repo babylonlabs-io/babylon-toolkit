@@ -417,7 +417,6 @@ export async function fetchVaultById(vaultId: Hex): Promise<Vault | null> {
  */
 export interface VaultRefundIndexerData {
   depositorBtcPubkey: Hex;
-  amount: bigint;
   unsignedPrePeginTx: Hex;
 }
 
@@ -426,7 +425,6 @@ const GET_VAULT_REFUND_DATA = gql`
     vault(id: $id) {
       id
       depositorBtcPubKey
-      amount
       unsignedPrePeginTx
     }
   }
@@ -435,7 +433,6 @@ const GET_VAULT_REFUND_DATA = gql`
 interface VaultRefundGraphQLItem {
   id: string;
   depositorBtcPubKey: string;
-  amount: string;
   unsignedPrePeginTx: string | null;
 }
 
@@ -460,7 +457,7 @@ export async function fetchVaultRefundData(
     return null;
   }
 
-  const { depositorBtcPubKey, amount, unsignedPrePeginTx } = data.vault;
+  const { depositorBtcPubKey, unsignedPrePeginTx } = data.vault;
   if (!unsignedPrePeginTx) {
     throw new Error(
       `Vault ${vaultId} is missing unsignedPrePeginTx; cannot build refund`,
@@ -472,7 +469,6 @@ export async function fetchVaultRefundData(
       "depositorBtcPubKey",
       vaultId,
     ),
-    amount: BigInt(amount),
     unsignedPrePeginTx: validateRequiredHex(
       unsignedPrePeginTx,
       "unsignedPrePeginTx",
