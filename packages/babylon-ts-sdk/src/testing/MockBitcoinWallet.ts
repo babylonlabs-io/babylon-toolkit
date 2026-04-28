@@ -1,3 +1,4 @@
+import { sha256 } from "@noble/hashes/sha2.js";
 import { Buffer } from "buffer";
 
 import { BitcoinNetworks, type BitcoinNetwork } from "../shared/wallets/interfaces";
@@ -5,6 +6,7 @@ import type {
   BitcoinWallet,
   SignPsbtOptions,
 } from "../shared/wallets/interfaces/BitcoinWallet";
+import { uint8ArrayToHex } from "../tbv/core/primitives/utils/bitcoin";
 
 /**
  * Configuration for MockBitcoinWallet.
@@ -14,11 +16,43 @@ export interface MockBitcoinWalletConfig {
   address?: string;
   network?: BitcoinNetwork;
   shouldFailSigning?: boolean;
+  /**
+   * Optional override for `deriveContextHash`. When omitted the mock
+   * returns a deterministic 64-char lowercase hex string derived from
+   * `(appName, context)` so tests can assert pass-through wiring
+   * without pinning a specific value. Override to inject spec test
+   * vectors or to simulate failure modes.
+   */
+  deriveContextHash?: (appName: string, context: string) => Promise<string>;
 }
 
 /**
  * Mock Bitcoin wallet for testing.
  */
+/**
+ * Default `deriveContextHash` implementation: deterministic and
+ * collision-resistant via SHA-256, so tests that assert pass-through
+ * wiring (different `(appName, context)` → different output) hold
+ * without flakes. Domain-separates the two inputs by length-prefixing
+ * each as `len(name) || name || len(ctx) || ctx`, preventing
+ * `("ab", "cd")` from colliding with `("abc", "d")`.
+ */
+const defaultDeriveContextHash = async (
+  appName: string,
+  context: string,
+): Promise<string> => {
+  const enc = new TextEncoder();
+  const nameBytes = enc.encode(appName);
+  const ctxBytes = enc.encode(context);
+  const buf = new Uint8Array(4 + nameBytes.length + 4 + ctxBytes.length);
+  const view = new DataView(buf.buffer);
+  view.setUint32(0, nameBytes.length);
+  buf.set(nameBytes, 4);
+  view.setUint32(4 + nameBytes.length, ctxBytes.length);
+  buf.set(ctxBytes, 4 + nameBytes.length + 4);
+  return uint8ArrayToHex(sha256(buf));
+};
+
 export class MockBitcoinWallet implements BitcoinWallet {
   private config: Required<MockBitcoinWalletConfig>;
 
@@ -32,6 +66,7 @@ export class MockBitcoinWallet implements BitcoinWallet {
         "tb1pqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqkx6jks",
       network: config.network ?? BitcoinNetworks.SIGNET,
       shouldFailSigning: config.shouldFailSigning ?? false,
+      deriveContextHash: config.deriveContextHash ?? defaultDeriveContextHash,
     };
   }
 
@@ -93,6 +128,10 @@ export class MockBitcoinWallet implements BitcoinWallet {
     return this.config.network;
   }
 
+  async deriveContextHash(appName: string, context: string): Promise<string> {
+    return this.config.deriveContextHash(appName, context);
+  }
+
   /** Updates configuration for testing different scenarios. */
   updateConfig(updates: Partial<MockBitcoinWalletConfig>): void {
     this.config = {
@@ -109,6 +148,7 @@ export class MockBitcoinWallet implements BitcoinWallet {
       address: "tb1pqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqkx6jks",
       network: BitcoinNetworks.SIGNET,
       shouldFailSigning: false,
+      deriveContextHash: defaultDeriveContextHash,
     };
   }
 }

@@ -54,7 +54,6 @@ const SENSITIVE_FIELD_NAMES = new Set([
   "txHex",
   "peginTxHash",
   "rawTx",
-  "mnemonic",
   "seed",
   "secretHex",
   "htlcSecretHex",

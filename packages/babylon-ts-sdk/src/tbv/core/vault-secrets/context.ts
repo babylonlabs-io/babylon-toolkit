@@ -88,6 +88,10 @@ function compareBytes(a: Uint8Array, b: Uint8Array): number {
  * Outpoints are serialized as 36-byte `txid || vout_BE`, sorted
  * ascending lexicographically, concatenated, then hashed.
  *
+ * @stability frozen — on-chain-binding. Any change to layout, sort
+ * order, or serialization is a hard fork; existing deposits would no
+ * longer match their committed `depositorWotsPkHash`.
+ *
  * @throws If `outpoints` is empty or contains duplicates.
  */
 export function buildFundingOutpointsCommitment(
@@ -122,6 +126,11 @@ export function buildFundingOutpointsCommitment(
  * app side).
  *
  * Output length is always 72 bytes.
+ *
+ * @stability frozen — on-chain-binding. The 72-byte layout is the
+ * input to `deriveContextHash`; any change rotates the vault root and
+ * therefore every WOTS key, hashlock secret, and auth anchor derived
+ * from it. Existing deposits cannot be recovered after a layout change.
  */
 export function buildVaultContext(input: VaultContextInput): Uint8Array {
   if (input.depositorBtcPubkey.length !== DEPOSITOR_PUBKEY_SIZE) {
