@@ -5,7 +5,10 @@
 import { getETHChain } from "@babylonlabs-io/config";
 import { ensureHexPrefix } from "@babylonlabs-io/ts-sdk/tbv/core";
 import { validateSecretAgainstHashlock } from "@babylonlabs-io/ts-sdk/tbv/core/services";
-import { UtxoNotAvailableError } from "@babylonlabs-io/ts-sdk/tbv/core/utils";
+import {
+  calculateBtcTxHash,
+  UtxoNotAvailableError,
+} from "@babylonlabs-io/ts-sdk/tbv/core/utils";
 import {
   getSharedWagmiConfig,
   useChainConnector,
@@ -14,6 +17,7 @@ import { useState } from "react";
 import type { Hex } from "viem";
 import { getWalletClient, switchChain } from "wagmi/actions";
 
+import { getVaultFromChain } from "../../clients/eth-contract/btc-vault-registry/query";
 import { getVaultRegistryReader } from "../../clients/eth-contract/sdk-readers";
 import {
   ContractStatus,
@@ -32,10 +36,10 @@ import type { PendingPeginRequest } from "../../storage/peginStorage";
 import { stripHexPrefix } from "../../utils/btc";
 
 export interface BroadcastPrePeginParams {
-  activityId: Hex;
-  activityAmount: string;
-  activityProviders: Array<{ id: string }>;
-  activityApplicationEntryPoint?: string;
+  vaultId: Hex;
+  amount: string;
+  providers: Array<{ id: string }>;
+  applicationEntryPoint?: string;
   pendingPegin?: PendingPeginRequest;
   updatePendingPeginStatus?: (
     vaultId: string,
@@ -93,10 +97,10 @@ export function useVaultActions(): UseVaultActionsReturn {
    */
   const handleBroadcast = async (params: BroadcastPrePeginParams) => {
     const {
-      activityId,
-      activityAmount,
-      activityProviders,
-      activityApplicationEntryPoint,
+      vaultId,
+      amount,
+      providers,
+      applicationEntryPoint,
       pendingPegin,
       updatePendingPeginStatus,
       addPendingPegin,
@@ -109,7 +113,7 @@ export function useVaultActions(): UseVaultActionsReturn {
 
     try {
       // Fetch vault data from GraphQL
-      const vault = await fetchVaultById(activityId);
+      const vault = await fetchVaultById(vaultId);
 
       if (!vault) {
         throw new Error("Vault not found. Please try again.");
@@ -136,6 +140,25 @@ export function useVaultActions(): UseVaultActionsReturn {
           "Transaction mismatch: the indexer returned a transaction that differs from the locally stored copy. Aborting to prevent a potential attack.",
         );
       }
+
+      // When no local copy exists (cross-device scenario), validate the
+      // indexer-provided transaction against the on-chain prePeginTxHash.
+      // The tx hash commits to all inputs AND outputs, so a substituted
+      // transaction would produce a different hash.
+      if (!localUnsignedTxHex) {
+        const onChainVault = await getVaultFromChain(vaultId);
+        const computedHash = calculateBtcTxHash(graphqlUnsignedTxHex);
+        if (
+          computedHash.toLowerCase() !==
+          onChainVault.prePeginTxHash.toLowerCase()
+        ) {
+          throw new Error(
+            "Transaction integrity check failed: the indexer-provided Pre-PegIn transaction " +
+              "does not match the hash stored on-chain. Aborting to prevent a potential attack.",
+          );
+        }
+      }
+
       const unsignedTxHex = localUnsignedTxHex || graphqlUnsignedTxHex;
 
       // Get BTC wallet provider
@@ -186,14 +209,14 @@ export function useVaultActions(): UseVaultActionsReturn {
 
       if (pendingPegin && updatePendingPeginStatus && nextStatus) {
         // Case 1: localStorage entry EXISTS - update status
-        updatePendingPeginStatus(activityId, nextStatus);
+        updatePendingPeginStatus(vaultId, nextStatus);
       } else if (addPendingPegin && nextStatus) {
         // Case 2: NO localStorage entry (cross-device) - create one with status
         addPendingPegin({
-          id: activityId,
-          amount: activityAmount,
-          providerIds: activityProviders.map((p) => p.id),
-          applicationEntryPoint: activityApplicationEntryPoint,
+          id: vaultId,
+          amount,
+          providerIds: providers.map((p) => p.id),
+          applicationEntryPoint,
           peginTxHash: vault.peginTxHash,
           depositorBtcPubkey: vault.depositorBtcPubkey,
           unsignedTxHex: vault.unsignedPrePeginTx,

@@ -18,6 +18,10 @@ vi.mock("../../../clients/btc/config", () => ({
   getMempoolApiUrl: vi.fn().mockReturnValue("https://mempool.space/api"),
 }));
 
+vi.mock("@babylonlabs-io/ts-sdk/tbv/core/utils", () => ({
+  calculateBtcTxHash: vi.fn(() => "0xmatching_pre_pegin_hash"),
+}));
+
 vi.mock("../../../clients/eth-contract/btc-vault-registry/query", () => ({
   getVaultFromChain: vi.fn(),
 }));
@@ -53,6 +57,7 @@ vi.mock("../fetchVaults", () => ({
 }));
 
 import { getNetworkFees, pushTx } from "@babylonlabs-io/ts-sdk/tbv/core";
+import { calculateBtcTxHash } from "@babylonlabs-io/ts-sdk/tbv/core/utils";
 import { beforeEach, describe, expect, it, vi, type Mock } from "vitest";
 
 import { getVaultFromChain } from "../../../clients/eth-contract/btc-vault-registry/query";
@@ -71,6 +76,8 @@ const ON_CHAIN_VAULT = {
   universalChallengersVersion: 1,
   hashlock: "0xhashlock",
   htlcVout: 1,
+  amount: 100_000n,
+  prePeginTxHash: "0xmatching_pre_pegin_hash",
 };
 const OFFCHAIN_PARAMS = {
   tRefund: 144,
@@ -83,7 +90,6 @@ const VAULT_KEEPERS = [{ btcPubKey: "vk1" }, { btcPubKey: "vk2" }];
 const UNIVERSAL_CHALLENGERS = [{ btcPubKey: "uc1" }];
 const INDEXER_VAULT = {
   unsignedPrePeginTx: "0xrawtx",
-  amount: 100_000n,
   depositorBtcPubkey: "indexer_depositor_pubkey",
 };
 const BTC_WALLET_PROVIDER = {
@@ -94,6 +100,7 @@ describe("vaultRefundService - adapter wiring", () => {
   beforeEach(() => {
     vi.clearAllMocks();
 
+    (calculateBtcTxHash as Mock).mockReturnValue(ON_CHAIN_VAULT.prePeginTxHash);
     (getVaultFromChain as Mock).mockResolvedValue(ON_CHAIN_VAULT);
     (fetchVaultRefundData as Mock).mockResolvedValue(INDEXER_VAULT);
     mockGetOffchainParamsByVersion.mockResolvedValue(OFFCHAIN_PARAMS);
@@ -166,9 +173,22 @@ describe("vaultRefundService - adapter wiring", () => {
     expect(observed).not.toBeNull();
     expect(observed!.hashlock).toBe(ON_CHAIN_VAULT.hashlock);
     expect(observed!.htlcVout).toBe(ON_CHAIN_VAULT.htlcVout);
-    expect(observed!.amount).toBe(INDEXER_VAULT.amount);
+    // Amount must come from on-chain contract, NOT the indexer.
+    expect(observed!.amount).toBe(ON_CHAIN_VAULT.amount);
     // Must be the caller-provided wallet pubkey, NOT the indexer value.
     expect(observed!.depositorBtcPubkey).toBe(DEPOSITOR_PUBKEY);
+  });
+
+  it("throws when indexer Pre-PegIn tx hash does not match on-chain", async () => {
+    (calculateBtcTxHash as Mock).mockReturnValue("0xdifferent_hash");
+
+    await expect(
+      buildAndBroadcastRefundTransaction({
+        vaultId: VAULT_ID,
+        btcWalletProvider: BTC_WALLET_PROVIDER,
+        depositorBtcPubkey: DEPOSITOR_PUBKEY,
+      }),
+    ).rejects.toThrow("Pre-PegIn transaction hash mismatch");
   });
 
   it("throws when vault is not found in indexer", async () => {

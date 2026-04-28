@@ -63,10 +63,10 @@ export function useBroadcastState({
     setLocalBroadcasting(true);
     try {
       await vaultHandleBroadcast({
-        activityId: activity.id,
-        activityAmount: activity.collateral.amount,
-        activityProviders: activity.providers,
-        activityApplicationEntryPoint: activity.applicationEntryPoint,
+        vaultId: activity.id,
+        amount: activity.collateral.amount,
+        providers: activity.providers,
+        applicationEntryPoint: activity.applicationEntryPoint,
         pendingPegin,
         updatePendingPeginStatus,
         addPendingPegin,
