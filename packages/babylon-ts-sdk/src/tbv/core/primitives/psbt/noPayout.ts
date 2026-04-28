@@ -11,98 +11,57 @@
 
 import {
   type AssertPayoutNoPayoutConnectorParams,
+  type Network,
   getAssertNoPayoutScriptInfo,
   tapInternalPubkey,
 } from "@babylonlabs-io/babylon-tbv-rust-wasm";
 import { Buffer } from "buffer";
-import { Psbt, Transaction } from "bitcoinjs-lib";
+import { Psbt, Transaction, payments } from "bitcoinjs-lib";
 
 import {
   TAPSCRIPT_LEAF_VERSION,
+  getNetwork,
   hexToUint8Array,
-  inputTxidHex,
+  processPublicKeyToXOnly,
   stripHexPrefix,
 } from "../utils/bitcoin";
-import { ASSERT_NOPAYOUT_OUTPUT_INDEX } from "./constants";
-
-/**
- * Prevout data for inputs the depositor does not sign (e.g. VP-supplied fee inputs).
- * Used for SIGHASH_DEFAULT computation only — never for the signed input.
- */
-export interface AdditionalPrevout {
-  script_pubkey: string;
-  value: number;
-}
 
 /**
  * Parameters for building a NoPayout PSBT
  */
 export interface NoPayoutParams {
-  /** NoPayout transaction hex (unsigned) */
+  /** NoPayout transaction hex (unsigned) from VP */
   noPayoutTxHex: string;
-  /** Authoritative Assert transaction hex — input 0 must spend Assert:0 */
-  assertTxHex: string;
   /** Challenger's x-only public key (hex encoded) */
   challengerPubkey: string;
+  /** Prevouts for all inputs [{script_pubkey, value}] from VP */
+  prevouts: Array<{ script_pubkey: string; value: number }>;
   /** Parameters for the Assert Payout/NoPayout connector */
   connectorParams: AssertPayoutNoPayoutConnectorParams;
-  /**
-   * Prevouts for inputs at index >= 1 (not signed by the depositor).
-   * Required when the NoPayout tx has fee/auxiliary inputs beyond input 0.
-   */
-  additionalPrevouts?: AdditionalPrevout[];
 }
 
 /**
  * Build unsigned NoPayout PSBT.
  *
- * Input 0 spends Assert:0 (the AssertPayoutNoPayout connector) and is signed
- * by the depositor using the NoPayout taproot script path. Its prevout is
- * derived from the authoritative Assert transaction, never trusted from
- * external input.
+ * The NoPayout transaction is specific to each challenger.
+ * Input 0 is the one the depositor signs using the NoPayout taproot script path.
  *
  * @param params - NoPayout parameters
  * @returns Unsigned PSBT hex ready for signing
- *
- * @throws If input 0 does not reference assertTxHex at output index 0
- * @throws If the NoPayout tx has additional inputs but no matching prevouts
  */
 export async function buildNoPayoutPsbt(
   params: NoPayoutParams,
 ): Promise<string> {
-  const noPayoutTx = Transaction.fromHex(stripHexPrefix(params.noPayoutTxHex));
-  const assertTx = Transaction.fromHex(stripHexPrefix(params.assertTxHex));
+  const noPayoutTxHex = stripHexPrefix(params.noPayoutTxHex);
+  const noPayoutTx = Transaction.fromHex(noPayoutTxHex);
 
-  if (noPayoutTx.ins.length === 0) {
-    throw new Error("NoPayout transaction has no inputs");
-  }
-
-  const input0 = noPayoutTx.ins[0];
-  const input0Txid = inputTxidHex(input0);
-  const assertTxid = assertTx.getId();
-
-  if (input0Txid !== assertTxid || input0.index !== ASSERT_NOPAYOUT_OUTPUT_INDEX) {
-    throw new Error(
-      `NoPayout input 0 must spend Assert:${ASSERT_NOPAYOUT_OUTPUT_INDEX}. ` +
-        `Expected ${assertTxid}:${ASSERT_NOPAYOUT_OUTPUT_INDEX}, got ${input0Txid}:${input0.index}`,
-    );
-  }
-
-  const assertPrevOut = assertTx.outs[input0.index];
-
-  const additionalCount = noPayoutTx.ins.length - 1;
-  const additionalPrevouts = params.additionalPrevouts ?? [];
-  if (additionalPrevouts.length !== additionalCount) {
-    throw new Error(
-      `NoPayout has ${additionalCount} additional input(s) but ${additionalPrevouts.length} additionalPrevouts were supplied`,
-    );
-  }
-
+  // Get NoPayout script and control block for this challenger
   const { noPayoutScript, noPayoutControlBlock } =
     await getAssertNoPayoutScriptInfo(
       params.connectorParams,
       params.challengerPubkey,
     );
+
   const scriptBytes = hexToUint8Array(noPayoutScript);
   const controlBlockBytes = hexToUint8Array(noPayoutControlBlock);
 
@@ -110,28 +69,16 @@ export async function buildNoPayoutPsbt(
   psbt.setVersion(noPayoutTx.version);
   psbt.setLocktime(noPayoutTx.locktime);
 
-  psbt.addInput({
-    hash: input0.hash,
-    index: input0.index,
-    sequence: input0.sequence,
-    witnessUtxo: {
-      script: assertPrevOut.script,
-      value: assertPrevOut.value,
-    },
-    tapLeafScript: [
-      {
-        leafVersion: TAPSCRIPT_LEAF_VERSION,
-        script: Buffer.from(scriptBytes),
-        controlBlock: Buffer.from(controlBlockBytes),
-      },
-    ],
-    tapInternalKey: Buffer.from(tapInternalPubkey),
-  });
-
-  for (let i = 1; i < noPayoutTx.ins.length; i++) {
+  // Add all inputs - depositor signs input 0 only
+  for (let i = 0; i < noPayoutTx.ins.length; i++) {
     const input = noPayoutTx.ins[i];
-    const prevout = additionalPrevouts[i - 1];
-    psbt.addInput({
+    const prevout = params.prevouts[i];
+
+    if (!prevout) {
+      throw new Error(`Missing prevout data for input ${i}`);
+    }
+
+    const inputData: Parameters<typeof psbt.addInput>[0] = {
       hash: input.hash,
       index: input.index,
       sequence: input.sequence,
@@ -139,9 +86,24 @@ export async function buildNoPayoutPsbt(
         script: Buffer.from(hexToUint8Array(stripHexPrefix(prevout.script_pubkey))),
         value: prevout.value,
       },
-    });
+    };
+
+    // Input 0: depositor signs using taproot script path
+    if (i === 0) {
+      inputData.tapLeafScript = [
+        {
+          leafVersion: TAPSCRIPT_LEAF_VERSION,
+          script: Buffer.from(scriptBytes),
+          controlBlock: Buffer.from(controlBlockBytes),
+        },
+      ];
+      inputData.tapInternalKey = Buffer.from(tapInternalPubkey);
+    }
+
+    psbt.addInput(inputData);
   }
 
+  // Add outputs
   for (const output of noPayoutTx.outs) {
     psbt.addOutput({
       script: output.script,
@@ -150,4 +112,51 @@ export async function buildNoPayoutPsbt(
   }
 
   return psbt.toHex();
+}
+
+/**
+ * Validate that a NoPayout transaction pays to the challenger via the
+ * protocol-defined output structure: a single BIP-86 P2TR output derived from
+ * the challenger's x-only pubkey.
+ *
+ * Mirrors `assertPayoutOutputMatchesRegistered` for the NoPayout path, where
+ * the sink is fixed by the protocol rather than read from on-chain registration
+ * (see `crates/vault/src/transactions/nopayout.rs::NoPayoutTx::new`).
+ *
+ * @param noPayoutTxHex - Raw NoPayout transaction hex
+ * @param challengerPubkey - Challenger's x-only public key (hex)
+ * @param network - Bitcoin network used to derive the P2TR scriptPubKey
+ * @throws If the transaction does not have exactly one output
+ * @throws If the single output's scriptPubKey does not equal the BIP-86 P2TR
+ *         scriptPubKey for the challenger
+ */
+export function assertNoPayoutOutputMatchesChallenger(
+  noPayoutTxHex: string,
+  challengerPubkey: string,
+  network: Network,
+): void {
+  const tx = Transaction.fromHex(stripHexPrefix(noPayoutTxHex));
+
+  if (tx.outs.length !== 1) {
+    throw new Error(
+      `NoPayout transaction must have exactly 1 output, got ${tx.outs.length}`,
+    );
+  }
+
+  const xOnly = hexToUint8Array(processPublicKeyToXOnly(challengerPubkey));
+  const { output: expectedScript } = payments.p2tr({
+    internalPubkey: Buffer.from(xOnly),
+    network: getNetwork(network),
+  });
+  if (!expectedScript) {
+    throw new Error(
+      "Failed to derive challenger BIP-86 P2TR scriptPubKey for NoPayout output validation",
+    );
+  }
+
+  if (!tx.outs[0].script.equals(expectedScript)) {
+    throw new Error(
+      "NoPayout transaction does not pay to the expected challenger BIP-86 P2TR address",
+    );
+  }
 }
