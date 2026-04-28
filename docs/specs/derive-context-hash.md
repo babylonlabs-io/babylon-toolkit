@@ -34,7 +34,7 @@ without manual storage. Examples include:
   later revealed.
 - **One-time signature seeds** — derive seed material for
   signature schemes (WOTS, Lamport) without the user managing
-  a separate mnemonic.
+  a separate secret.
 - **Deterministic identifiers** — generate wallet-bound values
   that are stable across sessions.
 
@@ -149,8 +149,9 @@ shared derivation tree. Wallets MUST clearly document this
 behavior to users and application developers.
 
 Note: BIP-39 passphrases produce different seeds from the same
-mnemonic. Two wallets with the same mnemonic but different
-passphrases will produce different outputs.
+recovery phrase. Two wallets restored from the same recovery
+phrase but with different passphrases will produce different
+outputs.
 
 **Salt:** The fixed UTF-8 string `"derive-context-hash"`.
 Provides domain separation from BIP-32 and other HMAC-based
@@ -226,23 +227,20 @@ the hashlock, and later reconstructs the same context from
 on-chain state to derive and reveal the same preimage on
 Ethereum.
 
-A future use case is WOTS (Winternitz One-Time Signature) seed
-derivation — the wallet provides a 32-byte seed via
+WOTS (Winternitz One-Time Signature) seed derivation also uses
+this primitive — the wallet provides a 32-byte root via
 `deriveContextHash`, and the application expands it into WOTS
-keypairs in WASM. This would eliminate the separate mnemonic that users
-currently manage for Lamport key signing.
+keypairs locally. This eliminates the separate secret that
+users would otherwise have to manage for one-time-signature
+schemes.
 
 ---
 
 ## 4. Test Vectors
 
-All test vectors use the following BIP-39 mnemonic (no
+All test vectors derive the BIP-32 master key from the following
+BIP-39 seed (the canonical "abandon" recovery phrase, empty
 passphrase):
-
-```
-abandon abandon abandon abandon abandon abandon
-abandon abandon abandon abandon abandon about
-```
 
 BIP-39 seed (hex):
 ```
@@ -324,7 +322,7 @@ and a manual HMAC-based implementation.
 | HKDF RFC | [RFC 5869][rfc5869] |
 | Krawczyk 2010 | [HKDF Scheme][krawczyk] |
 | BIP-32 | [HD Wallets][bip32] |
-| BIP-39 | [Mnemonic][bip39] |
+| BIP-39 | [Recovery phrase / seed][bip39] |
 | BIP-43 | [Purpose Field][bip43] |
 | UniSat wallet PR | [wallet#2][unisat2] |
 | Salt fix PR | [wallet#3][unisat3] |

@@ -695,7 +695,7 @@ Optional 32-byte `SHA256(auth_anchor)` commitment (64-char hex, no
 
 ### PrePeginPsbtResult
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts:86](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts#L86)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts:74](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts#L74)
 
 Result of building an unfunded Pre-PegIn transaction
 
@@ -707,7 +707,7 @@ Result of building an unfunded Pre-PegIn transaction
 psbtHex: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts:96](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts#L96)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts:84](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts#L84)
 
 Unfunded transaction hex (no inputs, HTLC outputs + optional
 auth-anchor OP_RETURN + CPFP anchor).
@@ -723,7 +723,7 @@ The caller is responsible for:
 totalOutputValue: bigint;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts:98](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts#L98)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts:86](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts#L86)
 
 Sum of all unfunded outputs — use this for UTXO selection
 
@@ -733,7 +733,7 @@ Sum of all unfunded outputs — use this for UTXO selection
 htlcValues: readonly bigint[];
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts:100](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts#L100)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts:88](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts#L88)
 
 HTLC output values in satoshis, one per deposit (each includes peginAmount + depositorClaimValue + minPeginFee)
 
@@ -743,7 +743,7 @@ HTLC output values in satoshis, one per deposit (each includes peginAmount + dep
 htlcScriptPubKeys: readonly string[];
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts:102](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts#L102)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts:90](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts#L90)
 
 HTLC output scriptPubKeys (hex encoded), one per deposit
 
@@ -753,7 +753,7 @@ HTLC output scriptPubKeys (hex encoded), one per deposit
 htlcAddresses: readonly string[];
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts:104](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts#L104)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts:92](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts#L92)
 
 HTLC Taproot addresses, one per deposit
 
@@ -763,7 +763,7 @@ HTLC Taproot addresses, one per deposit
 peginAmounts: readonly bigint[];
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts:106](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts#L106)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts:94](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts#L94)
 
 Pegin amounts in satoshis, one per deposit
 
@@ -773,7 +773,7 @@ Pegin amounts in satoshis, one per deposit
 depositorClaimValue: bigint;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts:108](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts#L108)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts:96](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts#L96)
 
 Depositor claim value computed by WASM from contract parameters
 
@@ -783,7 +783,7 @@ Depositor claim value computed by WASM from contract parameters
 authAnchorVout: number | null;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts:114](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts#L114)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts:102](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts#L102)
 
 Vout index of the auth-anchor `OP_RETURN` output if one was
 included (i.e. `authAnchorHash` was provided), or `null` if not.
@@ -793,7 +793,7 @@ Always equals `htlcValues.length` when present.
 
 ### BuildPeginTxParams
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts:120](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts#L120)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts:108](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts#L108)
 
 Parameters for building the PegIn transaction from a funded Pre-PegIn tx
 
@@ -805,7 +805,7 @@ Parameters for building the PegIn transaction from a funded Pre-PegIn tx
 prePeginParams: PrePeginParams;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts:122](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts#L122)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts:110](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts#L110)
 
 Same PrePeginParams used to create the Pre-PegIn transaction
 
@@ -815,7 +815,7 @@ Same PrePeginParams used to create the Pre-PegIn transaction
 timelockPegin: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts:124](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts#L124)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts:112](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts#L112)
 
 CSV timelock in blocks for the PegIn vault output
 
@@ -825,7 +825,7 @@ CSV timelock in blocks for the PegIn vault output
 fundedPrePeginTxHex: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts:126](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts#L126)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts:114](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts#L114)
 
 Hex-encoded funded Pre-PegIn transaction
 
@@ -835,7 +835,7 @@ Hex-encoded funded Pre-PegIn transaction
 htlcVout: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts:128](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts#L128)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts:116](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts#L116)
 
 Index of the HTLC output to spend
 
@@ -843,7 +843,7 @@ Index of the HTLC output to spend
 
 ### PeginTxResult
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts:134](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts#L134)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts:122](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts#L122)
 
 Result of building the PegIn transaction
 
@@ -855,7 +855,7 @@ Result of building the PegIn transaction
 txHex: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts:136](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts#L136)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts:124](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts#L124)
 
 PegIn transaction hex (1 input spending HTLC, 1 vault output)
 
@@ -865,7 +865,7 @@ PegIn transaction hex (1 input spending HTLC, 1 vault output)
 txid: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts:138](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts#L138)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts:126](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts#L126)
 
 PegIn transaction ID
 
@@ -875,7 +875,7 @@ PegIn transaction ID
 vaultScriptPubKey: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts:140](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts#L140)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts:128](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts#L128)
 
 Vault output scriptPubKey (hex encoded)
 
@@ -885,7 +885,7 @@ Vault output scriptPubKey (hex encoded)
 vaultValue: bigint;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts:142](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts#L142)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts:130](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts#L130)
 
 Vault output value in satoshis
 
@@ -1657,7 +1657,7 @@ If the signature has an unexpected length
 function buildPrePeginPsbt(params): Promise<PrePeginPsbtResult>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts:156](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts#L156)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts:144](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts#L144)
 
 Build unfunded Pre-PegIn transaction using WASM.
 
@@ -1691,7 +1691,7 @@ If WASM initialization fails or parameters are invalid
 function buildPeginTxFromFundedPrePegin(params): Promise<PeginTxResult>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts:255](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts#L255)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts:222](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts#L222)
 
 Build the PegIn transaction from a funded Pre-PegIn transaction.
 

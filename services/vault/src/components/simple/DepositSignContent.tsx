@@ -30,8 +30,6 @@ interface DepositSignContentProps {
   vaultProviderBtcPubkey: string;
   vaultKeeperBtcPubkeys: string[];
   universalChallengerBtcPubkeys: string[];
-  getMnemonic: () => Promise<string>;
-  mnemonicId?: string;
   htlcSecretHexes: string[];
   depositorSecretHashes: Hex[];
   onSuccess: (

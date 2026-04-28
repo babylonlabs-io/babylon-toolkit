@@ -186,6 +186,73 @@ describe("buildPrePeginPsbt", () => {
       expect(result1.htlcAddresses[0]).not.toBe(result2.htlcAddresses[0]);
     });
 
+    // Load-bearing invariant for the planned two-pass Pre-PegIn ordering
+    // (sizing pass with placeholder hashlocks → UTXO selection → real
+    // hashlocks from `expandHashlockSecret` after `deriveVaultRoot`).
+    // Asserts the placeholder pass produces the same `htlcValues` and
+    // `totalOutputValue` as the real pass — i.e., values are determined
+    // by the economic parameters (peginAmount, depositorClaimValue,
+    // minPeginFee), independent of hashlock script bytes. The Rust side
+    // (btc-vault `prepegin.rs`) preserves this; pin it on the TS side
+    // so silent regressions can't slip in.
+    it("htlcValues + totalOutputValue are invariant under hashlock substitution", async () => {
+      const HASH_A = "ab".repeat(32);
+      const HASH_B = "cd".repeat(32);
+
+      const a = await buildPrePeginPsbt(
+        makePrePeginParams({ hashlocks: [HASH_A] }),
+      );
+      const b = await buildPrePeginPsbt(
+        makePrePeginParams({ hashlocks: [HASH_B] }),
+      );
+
+      // Values match across hashlock substitution.
+      expect(a.htlcValues).toEqual(b.htlcValues);
+      expect(a.totalOutputValue).toBe(b.totalOutputValue);
+      expect(a.peginAmounts).toEqual(b.peginAmounts);
+      expect(a.depositorClaimValue).toBe(b.depositorClaimValue);
+      // Scripts MUST differ — sanity check that we actually changed
+      // the hashlock and the test isn't a tautology.
+      expect(a.htlcScriptPubKeys).not.toEqual(b.htlcScriptPubKeys);
+    });
+
+    it("htlcValues invariance also holds across multi-vault batches", async () => {
+      const baseParams = makePrePeginParams();
+      const HASHES_A = [
+        "11".repeat(32),
+        "22".repeat(32),
+        "33".repeat(32),
+      ];
+      const HASHES_B = [
+        "44".repeat(32),
+        "55".repeat(32),
+        "66".repeat(32),
+      ];
+
+      const a = await buildPrePeginPsbt({
+        ...baseParams,
+        pegInAmounts: [
+          BigInt(100_000),
+          BigInt(200_000),
+          BigInt(300_000),
+        ],
+        hashlocks: HASHES_A,
+      });
+      const b = await buildPrePeginPsbt({
+        ...baseParams,
+        pegInAmounts: [
+          BigInt(100_000),
+          BigInt(200_000),
+          BigInt(300_000),
+        ],
+        hashlocks: HASHES_B,
+      });
+
+      expect(a.htlcValues).toEqual(b.htlcValues);
+      expect(a.totalOutputValue).toBe(b.totalOutputValue);
+      expect(a.htlcScriptPubKeys).not.toEqual(b.htlcScriptPubKeys);
+    });
+
     it("should produce different output for different vault keepers", async () => {
       const result1 = await buildPrePeginPsbt(
         makePrePeginParams({ vaultKeeperPubkeys: [TEST_KEYS.VAULT_KEEPER_1] }),

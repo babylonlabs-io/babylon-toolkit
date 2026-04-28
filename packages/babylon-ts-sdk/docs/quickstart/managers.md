@@ -138,9 +138,12 @@ declare const councilSize: number;
 declare const availableUTXOs: UTXO[];
 declare const changeAddress: string;
 declare const vpEthAddress: Address;
-// `depositorWotsPkHash` is the keccak256 of the depositor's WOTS public-key
-// commitment. SDK WOTS helpers are currently legacy (see Get Started →
-// Known gaps); vault apps derive this out-of-band today.
+// `depositorWotsPkHash` is the keccak256 of the depositor's WOTS
+// public-key commitment. Derive it from the wallet via
+// `deriveVaultRoot → expandWotsSeed → deriveWotsBlocksFromSeed →
+// computeWotsBlockPublicKeysHash` — see the
+// [Wallet Interfaces Guide → Wallet-derived secrets](../guides/wallet-interfaces.md#wallet-derived-secrets-derivecontexthash)
+// for the full snippet.
 declare const depositorWotsPkHash: Hex;
 
 // 0. Generate + persist the HTLC secret. KEEP this — you need it in phase 6.

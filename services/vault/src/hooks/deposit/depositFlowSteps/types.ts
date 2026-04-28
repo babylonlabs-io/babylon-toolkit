@@ -3,10 +3,11 @@
  */
 
 import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
-import type { PopSignature } from "@babylonlabs-io/ts-sdk/tbv/core";
+import type {
+  PopSignature,
+  WotsBlockPublicKey,
+} from "@babylonlabs-io/ts-sdk/tbv/core";
 import type { Hex, WalletClient } from "viem";
-
-import type { WotsPublicKeys } from "@/services/wots";
 
 // ============================================================================
 // Deposit Flow Steps
@@ -95,7 +96,7 @@ export interface WotsSubmissionParams {
   depositorBtcPubkey: string;
   providerAddress: string;
   /** Pre-derived WOTS block public keys (one per assert block) */
-  wotsPublicKeys: WotsPublicKeys;
+  wotsPublicKeys: WotsBlockPublicKey[];
   signal?: AbortSignal;
 }
 

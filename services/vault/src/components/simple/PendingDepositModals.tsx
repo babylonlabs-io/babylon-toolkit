@@ -106,7 +106,7 @@ export function PendingDepositModals({
         />
       )}
 
-      {/* WOTS Key Modal – mnemonic re-entry */}
+      {/* WOTS Key Modal – re-derives via wallet deriveContextHash */}
       {wotsKeyModal.isOpen && wotsKeyModal.activity && (
         <SimpleDeposit
           open={wotsKeyModal.isOpen}

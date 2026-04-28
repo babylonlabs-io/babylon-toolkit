@@ -53,10 +53,15 @@ These paths handle irreversible value movement. An AI-generated mistake here is 
 - The depositor pre-signs payout transactions built by the Vault Provider - values come from an external party with no independent verification.
 - **Rule:** Before the signature call, re-derive the expected payout amount from on-chain or WASM-computed sources and assert equality. Never sign a value handed to us verbatim.
 
-### 4. WOTS key derivation (one-time signatures)
-- File: `services/vault/src/services/wots/wotsService.ts`
-- WOTS keys are one-time-use per vault. Derivation bugs that cause key reuse across deposits completely break the security guarantee.
-- **Rule:** Any change to derivation inputs, chain counts, or HMAC ordering requires a test that generates keys for two distinct vaults with overlapping inputs and asserts they differ. Match the Rust `babe::wots` reference byte-for-byte.
+### 4. Vault-secret derivation (frozen on-chain-binding API)
+- Files (all marked `@stability frozen` in JSDoc):
+  - `packages/babylon-ts-sdk/src/tbv/core/vault-secrets/context.ts` — `buildVaultContext`, `buildFundingOutpointsCommitment`
+  - `packages/babylon-ts-sdk/src/tbv/core/vault-secrets/deriveVaultRoot.ts` — `deriveVaultRoot`, `VAULT_APP_NAME`
+  - `packages/babylon-ts-sdk/src/tbv/core/vault-secrets/expand.ts` — `expandWotsSeed`, `expandHashlockSecret`, `expandAuthAnchor`
+  - `packages/babylon-ts-sdk/src/tbv/core/vault-secrets/info.ts` — HKDF `info` encoding (labels + i2osp4)
+  - `packages/babylon-ts-sdk/src/tbv/core/wots/blockDerivation.ts` — `deriveWotsBlocksFromSeed`, `computeWotsBlockPublicKeysHash`
+- These functions feed `wallet.deriveContextHash` and produce on-chain commitments (`depositorWotsPkHash`, HTLC hashlock, OP_RETURN auth-anchor preimage). Any byte-level change to layout, ordering, label, or HKDF info rotates the secrets and **invalidates every existing deposit** — users cannot derive matching keys, cannot activate, cannot resume.
+- **Rule:** Treat as a hard fork. Changes require: (a) a coordinated revision of `derive-vault-secrets.md` / `derive-context-hash.md`, (b) updated golden-vector tests in both this repo and `btc-vault`, (c) a migration plan for in-flight deposits. Match the Rust `babe::wots` reference byte-for-byte. Two-vault test (overlapping inputs, distinct keys) is mandatory for any chain-logic change.
 
 ### 5. HTLC secret & vault activation
 - File: `services/vault/src/services/vault/vaultActivationService.ts`
@@ -166,7 +171,7 @@ These paths handle irreversible value movement. An AI-generated mistake here is 
 
 ## SECURITY
 
-- **Never log sensitive key material** — no `console.log` of private keys, mnemonics, or signing data.
+- **Never log sensitive key material** — no `console.log` of private keys, derived secrets, or signing data.
 - **Wallet inputs**: Validate all data received from wallet APIs before use.
 - **GraphQL/RPC responses**: Never trust external data for security decisions without validation.
 
