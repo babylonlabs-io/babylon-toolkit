@@ -7,6 +7,15 @@ vi.mock("@babylonlabs-io/ts-sdk/tbv/core/services", () => ({
   buildAndBroadcastRefund: (...args: unknown[]) =>
     mockBuildAndBroadcastRefund(...args),
   BIP68NotMatureError: class BIP68NotMatureError extends Error {},
+  REFUND_VSIZE: 160,
+  estimateRefundFeeSats: (rate: number) => {
+    if (!Number.isFinite(rate) || rate <= 0) {
+      throw new Error(
+        `feeRateSatsVb must be a positive finite number, got ${rate}`,
+      );
+    }
+    return BigInt(Math.ceil(rate * 160));
+  },
 }));
 
 vi.mock("@babylonlabs-io/ts-sdk/tbv/core", () => ({
@@ -63,7 +72,11 @@ import { beforeEach, describe, expect, it, vi, type Mock } from "vitest";
 import { getVaultFromChain } from "../../../clients/eth-contract/btc-vault-registry/query";
 import { fetchVaultProviderById } from "../fetchVaultProviders";
 import { fetchVaultRefundData } from "../fetchVaults";
-import { buildAndBroadcastRefundTransaction } from "../vaultRefundService";
+import {
+  buildAndBroadcastRefundTransaction,
+  getRefundNetworkFeeSats,
+  getRefundPreview,
+} from "../vaultRefundService";
 
 const VAULT_ID = "0xvaultid" as `0x${string}`;
 const DEPOSITOR_PUBKEY = "aabbccdd";
@@ -134,6 +147,7 @@ describe("vaultRefundService - adapter wiring", () => {
       vaultId: VAULT_ID,
       btcWalletProvider: BTC_WALLET_PROVIDER,
       depositorBtcPubkey: DEPOSITOR_PUBKEY,
+      feeRate: 10,
     });
 
     expect(mockBuildAndBroadcastRefund).toHaveBeenCalledOnce();
@@ -168,6 +182,7 @@ describe("vaultRefundService - adapter wiring", () => {
       vaultId: VAULT_ID,
       btcWalletProvider: BTC_WALLET_PROVIDER,
       depositorBtcPubkey: DEPOSITOR_PUBKEY,
+      feeRate: 10,
     });
 
     expect(observed).not.toBeNull();
@@ -187,6 +202,7 @@ describe("vaultRefundService - adapter wiring", () => {
         vaultId: VAULT_ID,
         btcWalletProvider: BTC_WALLET_PROVIDER,
         depositorBtcPubkey: DEPOSITOR_PUBKEY,
+        feeRate: 10,
       }),
     ).rejects.toThrow("Pre-PegIn transaction hash mismatch");
   });
@@ -199,6 +215,7 @@ describe("vaultRefundService - adapter wiring", () => {
         vaultId: VAULT_ID,
         btcWalletProvider: BTC_WALLET_PROVIDER,
         depositorBtcPubkey: DEPOSITOR_PUBKEY,
+        feeRate: 10,
       }),
     ).rejects.toThrow(`Vault ${VAULT_ID} not found`);
   });
@@ -211,6 +228,7 @@ describe("vaultRefundService - adapter wiring", () => {
         vaultId: VAULT_ID,
         btcWalletProvider: BTC_WALLET_PROVIDER,
         depositorBtcPubkey: DEPOSITOR_PUBKEY,
+        feeRate: 10,
       }),
     ).rejects.toThrow(
       `Vault provider ${ON_CHAIN_VAULT.vaultProvider} not found`,
@@ -225,6 +243,7 @@ describe("vaultRefundService - adapter wiring", () => {
         vaultId: VAULT_ID,
         btcWalletProvider: BTC_WALLET_PROVIDER,
         depositorBtcPubkey: DEPOSITOR_PUBKEY,
+        feeRate: 10,
       }),
     ).rejects.toThrow(
       `No vault keepers found for version ${ON_CHAIN_VAULT.appVaultKeepersVersion}`,
@@ -239,13 +258,14 @@ describe("vaultRefundService - adapter wiring", () => {
         vaultId: VAULT_ID,
         btcWalletProvider: BTC_WALLET_PROVIDER,
         depositorBtcPubkey: DEPOSITOR_PUBKEY,
+        feeRate: 10,
       }),
     ).rejects.toThrow(
       `Universal challengers not found for version ${ON_CHAIN_VAULT.universalChallengersVersion}`,
     );
   });
 
-  it("passes the mempool halfHourFee to the SDK as feeRate", async () => {
+  it("forwards the caller-provided feeRate to the SDK (no silent halfHourFee fallback)", async () => {
     let observedFeeRate = 0;
     mockBuildAndBroadcastRefund.mockImplementation(
       async (input: { feeRate: number }) => {
@@ -258,9 +278,12 @@ describe("vaultRefundService - adapter wiring", () => {
       vaultId: VAULT_ID,
       btcWalletProvider: BTC_WALLET_PROVIDER,
       depositorBtcPubkey: DEPOSITOR_PUBKEY,
+      feeRate: 42,
     });
 
-    expect(observedFeeRate).toBe(10);
+    expect(observedFeeRate).toBe(42);
+    // Broadcast path must NOT ping mempool for the fee — it uses the caller's.
+    expect(getNetworkFees).not.toHaveBeenCalled();
   });
 
   it("broadcastTx returns { txId } from mempool pushTx", async () => {
@@ -278,9 +301,67 @@ describe("vaultRefundService - adapter wiring", () => {
       vaultId: VAULT_ID,
       btcWalletProvider: BTC_WALLET_PROVIDER,
       depositorBtcPubkey: DEPOSITOR_PUBKEY,
+      feeRate: 10,
     });
 
     expect(observed).toEqual({ txId: "broadcast_txid" });
     expect(txId).toBe("broadcast_txid");
+  });
+});
+
+describe("getRefundNetworkFeeSats", () => {
+  it("returns ceil(rate * 160) in sats", () => {
+    expect(getRefundNetworkFeeSats(1)).toBe(160n);
+    expect(getRefundNetworkFeeSats(3)).toBe(480n);
+    expect(getRefundNetworkFeeSats(10)).toBe(1600n);
+  });
+
+  it("rounds up non-integer rates", () => {
+    // 1.5 × 160 = 240.0 (exact); pick a non-integer product instead
+    expect(getRefundNetworkFeeSats(1.0001)).toBe(161n);
+  });
+
+  it("rejects non-positive or non-finite rates", () => {
+    expect(() => getRefundNetworkFeeSats(0)).toThrow();
+    expect(() => getRefundNetworkFeeSats(-1)).toThrow();
+    expect(() => getRefundNetworkFeeSats(Number.NaN)).toThrow();
+    expect(() => getRefundNetworkFeeSats(Number.POSITIVE_INFINITY)).toThrow();
+  });
+});
+
+describe("getRefundPreview", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    (getVaultFromChain as Mock).mockResolvedValue(ON_CHAIN_VAULT);
+    (fetchVaultRefundData as Mock).mockResolvedValue(INDEXER_VAULT);
+    (getNetworkFees as Mock).mockResolvedValue({ halfHourFee: 7 });
+  });
+
+  it("returns the on-chain HTLC amount and mempool halfHourFee", async () => {
+    const preview = await getRefundPreview(VAULT_ID);
+    expect(preview.amountSats).toBe(ON_CHAIN_VAULT.amount);
+    expect(preview.halfHourFeeSatsVb).toBe(7);
+  });
+
+  it("throws when the vault is not found in the indexer", async () => {
+    (fetchVaultRefundData as Mock).mockResolvedValue(null);
+    await expect(getRefundPreview(VAULT_ID)).rejects.toThrow(
+      `Vault ${VAULT_ID} not found`,
+    );
+  });
+
+  it("returns null halfHourFeeSatsVb when the fee endpoint fails (vault data still loads)", async () => {
+    (getNetworkFees as Mock).mockRejectedValue(
+      new Error("mempool unreachable"),
+    );
+    const preview = await getRefundPreview(VAULT_ID);
+    expect(preview.amountSats).toBe(ON_CHAIN_VAULT.amount);
+    expect(preview.halfHourFeeSatsVb).toBeNull();
+  });
+
+  it("returns null halfHourFeeSatsVb when the fee endpoint reports zero", async () => {
+    (getNetworkFees as Mock).mockResolvedValue({ halfHourFee: 0 });
+    const preview = await getRefundPreview(VAULT_ID);
+    expect(preview.halfHourFeeSatsVb).toBeNull();
   });
 });

@@ -13,6 +13,7 @@ import {
   ContractStatus,
   getPeginState,
   LocalStorageStatus,
+  PEGIN_DISPLAY_LABELS,
 } from "../models/peginStateMachine";
 import { getPendingPegins } from "../storage/peginStorage";
 import { usePeginStorage } from "../storage/usePeginStorage";
@@ -87,10 +88,14 @@ export function useVaultDeposits(connectedAddress: Address | undefined) {
         {
           localStatus,
           isInUse: activity.isInUse,
+          refundBroadcastAt: pendingPegin?.refundBroadcastAt,
         },
       );
 
-      return state.displayLabel === "Processing";
+      return (
+        state.displayLabel === PEGIN_DISPLAY_LABELS.PROCESSING ||
+        state.displayLabel === PEGIN_DISPLAY_LABELS.REFUNDING
+      );
     });
 
     setNeedsFastPolling(hasProcessingActivity);

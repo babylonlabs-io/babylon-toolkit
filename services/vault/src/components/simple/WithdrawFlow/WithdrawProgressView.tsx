@@ -1,12 +1,9 @@
 import { Button, Heading, Text } from "@babylonlabs-io/core-ui";
 
+import { BTC_BLOCK_TIME_MINS, MINS_PER_HOUR } from "@/constants";
 import { useProtocolParamsContext } from "@/context/ProtocolParamsContext";
 
 import { NominatedAddressValue } from "./NominatedAddressValue";
-
-/** Average Bitcoin block time in minutes */
-const BTC_BLOCK_TIME_MINS = 10;
-const MINS_PER_HOUR = 60;
 
 interface WithdrawProgressViewProps {
   /**
