@@ -4,6 +4,7 @@
  * a malicious transaction for signing.
  */
 
+import { calculateBtcTxHash } from "@babylonlabs-io/ts-sdk/tbv/core/utils";
 import { act, renderHook } from "@testing-library/react";
 import type { Hex } from "viem";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -21,6 +22,16 @@ vi.mock("@babylonlabs-io/config", () => ({
 
 vi.mock("@babylonlabs-io/ts-sdk/tbv/core", () => ({
   ensureHexPrefix: vi.fn((v: string) => (v.startsWith("0x") ? v : `0x${v}`)),
+}));
+
+vi.mock("@babylonlabs-io/ts-sdk/tbv/core/utils", () => ({
+  calculateBtcTxHash: vi.fn(),
+  UtxoNotAvailableError: class UtxoNotAvailableError extends Error {
+    constructor(message: string) {
+      super(message);
+      this.name = "UtxoNotAvailableError";
+    }
+  },
 }));
 
 vi.mock("@babylonlabs-io/wallet-connector", () => ({
@@ -91,6 +102,7 @@ const mockBroadcastPrePeginTransaction = vi.mocked(
 );
 const mockGetVaultRegistryReader = vi.mocked(getVaultRegistryReader);
 const mockActivateVaultWithSecret = vi.mocked(activateVaultWithSecret);
+const mockCalculateBtcTxHash = vi.mocked(calculateBtcTxHash);
 
 /** Build a fake reader that returns a fixed protocolInfo from getVaultProtocolInfo. */
 function readerReturning(
@@ -103,6 +115,18 @@ function readerReturning(
   } as unknown as ReturnType<typeof getVaultRegistryReader>;
 }
 
+/** Build a fake reader that returns fixed basic + protocol info from getVaultData. */
+function readerWithVaultData(
+  basic: Record<string, unknown>,
+  protocol: Record<string, unknown>,
+): ReturnType<typeof getVaultRegistryReader> {
+  return {
+    getVaultProtocolInfo: vi.fn().mockResolvedValue(protocol),
+    getVaultBasicInfo: vi.fn().mockResolvedValue(basic),
+    getVaultData: vi.fn().mockResolvedValue({ basic, protocol }),
+  } as unknown as ReturnType<typeof getVaultRegistryReader>;
+}
+
 // Local copy produced by WASM — no 0x prefix
 const TRUSTED_TX_HEX = "70736274ff...trustedtx";
 // Same transaction as returned by the indexer (viem Hex always has 0x prefix)
@@ -110,12 +134,31 @@ const GRAPHQL_TX_HEX = `0x${TRUSTED_TX_HEX}`;
 // A genuinely different transaction returned by a compromised indexer
 const ATTACKER_TX_HEX = "0x70736274ff...attackertx";
 
+const ON_CHAIN_PRE_PEGIN_HASH =
+  "0xaaaa000000000000000000000000000000000000000000000000000000000001";
+const ON_CHAIN_DEPOSITOR_BTC_PUBKEY =
+  "0x000000000000000000000000000000000000000000000000000000000000beef";
+
 const baseVault = {
   unsignedPrePeginTx: GRAPHQL_TX_HEX,
   depositorBtcPubkey: "0xdepositorBtcPubkey",
   peginTxHash: "0xabcd1234",
   status: ContractStatus.PENDING,
 };
+
+/** Default reader: returns matching pre-pegin hash + on-chain depositor pubkey. */
+function defaultReader() {
+  return readerWithVaultData(
+    {
+      depositorBtcPubKey: ON_CHAIN_DEPOSITOR_BTC_PUBKEY,
+      status: 0,
+    },
+    {
+      depositorSignedPeginTx: "0xdeadbeef",
+      prePeginTxHash: ON_CHAIN_PRE_PEGIN_HASH,
+    },
+  );
+}
 
 const baseBroadcastParams = {
   activityId: "0xvaultId" as Hex,
@@ -128,9 +171,12 @@ const baseBroadcastParams = {
 describe("useVaultActions — handleBroadcast transaction integrity", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockGetVaultRegistryReader.mockReturnValue(defaultReader());
+    // Default: tx hex hashes to the on-chain prePeginTxHash (i.e. trusted).
+    mockCalculateBtcTxHash.mockReturnValue(ON_CHAIN_PRE_PEGIN_HASH);
   });
 
-  it("broadcasts using local tx when it matches GraphQL", async () => {
+  it("broadcasts the local tx when its hash matches the on-chain prePeginTxHash", async () => {
     mockFetchVaultById.mockResolvedValue(baseVault as never);
 
     const { result } = renderHook(() => useVaultActions());
@@ -149,36 +195,38 @@ describe("useVaultActions — handleBroadcast transaction integrity", () => {
     });
 
     expect(result.current.broadcastError).toBeNull();
+    expect(mockCalculateBtcTxHash).toHaveBeenCalledWith(TRUSTED_TX_HEX);
     expect(mockBroadcastPrePeginTransaction).toHaveBeenCalledWith(
       expect.objectContaining({ unsignedTxHex: TRUSTED_TX_HEX }),
     );
   });
 
-  it("throws when local tx hex differs from GraphQL tx hex", async () => {
+  it("rejects when the candidate tx hash does not match on-chain prePeginTxHash", async () => {
     mockFetchVaultById.mockResolvedValue({
       ...baseVault,
       unsignedPrePeginTx: ATTACKER_TX_HEX,
     } as never);
+    // Indexer-supplied (or tampered local) tx hashes to something else.
+    mockCalculateBtcTxHash.mockReturnValue(
+      "0xbeef000000000000000000000000000000000000000000000000000000000002",
+    );
 
     const { result } = renderHook(() => useVaultActions());
 
     await act(async () => {
       await result.current.handleBroadcast({
         ...baseBroadcastParams,
-        pendingPegin: {
-          id: "0xvaultId" as Hex,
-          timestamp: Date.now(),
-          status: "PENDING" as never,
-          peginTxHash: "0xpeginTxHash" as Hex,
-          unsignedTxHex: TRUSTED_TX_HEX,
-        },
+        pendingPegin: undefined,
       });
     });
 
-    expect(result.current.broadcastError).toContain("Transaction mismatch");
+    expect(result.current.broadcastError).toContain(
+      "does not match the on-chain registration",
+    );
+    expect(mockBroadcastPrePeginTransaction).not.toHaveBeenCalled();
   });
 
-  it("uses GraphQL tx when no local copy is available (cross-device)", async () => {
+  it("falls back to indexer tx hex on cross-device and broadcasts when the on-chain hash matches", async () => {
     mockFetchVaultById.mockResolvedValue(baseVault as never);
 
     const { result } = renderHook(() => useVaultActions());
@@ -191,8 +239,29 @@ describe("useVaultActions — handleBroadcast transaction integrity", () => {
     });
 
     expect(result.current.broadcastError).toBeNull();
+    expect(mockCalculateBtcTxHash).toHaveBeenCalledWith(GRAPHQL_TX_HEX);
     expect(mockBroadcastPrePeginTransaction).toHaveBeenCalledWith(
       expect.objectContaining({ unsignedTxHex: GRAPHQL_TX_HEX }),
+    );
+  });
+
+  it("uses the on-chain depositor BTC pubkey for signing, not the indexer-supplied value", async () => {
+    mockFetchVaultById.mockResolvedValue(baseVault as never);
+
+    const { result } = renderHook(() => useVaultActions());
+
+    await act(async () => {
+      await result.current.handleBroadcast({
+        ...baseBroadcastParams,
+        pendingPegin: undefined,
+      });
+    });
+
+    expect(mockBroadcastPrePeginTransaction).toHaveBeenCalledWith(
+      expect.objectContaining({
+        depositorBtcPubkey:
+          "000000000000000000000000000000000000000000000000000000000000beef",
+      }),
     );
   });
 
@@ -215,6 +284,35 @@ describe("useVaultActions — handleBroadcast transaction integrity", () => {
     expect(mockBroadcastPrePeginTransaction).not.toHaveBeenCalled();
   });
 
+  it("rejects broadcast when on-chain status has progressed past PENDING even if indexer still reports PENDING", async () => {
+    mockFetchVaultById.mockResolvedValue(baseVault as never);
+    mockGetVaultRegistryReader.mockReturnValue(
+      readerWithVaultData(
+        {
+          depositorBtcPubKey: ON_CHAIN_DEPOSITOR_BTC_PUBKEY,
+          status: 1, // VERIFIED on-chain
+        },
+        {
+          depositorSignedPeginTx: "0xdeadbeef",
+          prePeginTxHash: ON_CHAIN_PRE_PEGIN_HASH,
+        },
+      ),
+    );
+
+    const { result } = renderHook(() => useVaultActions());
+
+    await act(async () => {
+      await result.current.handleBroadcast({
+        ...baseBroadcastParams,
+        pendingPegin: undefined,
+      });
+    });
+
+    expect(result.current.broadcastError).toContain("on-chain vault status");
+    expect(result.current.broadcastError).toContain("VERIFIED");
+    expect(mockBroadcastPrePeginTransaction).not.toHaveBeenCalled();
+  });
+
   it("rejects broadcast when vault has already progressed past PENDING", async () => {
     mockFetchVaultById.mockResolvedValue({
       ...baseVault,
@@ -234,7 +332,7 @@ describe("useVaultActions — handleBroadcast transaction integrity", () => {
     expect(mockBroadcastPrePeginTransaction).not.toHaveBeenCalled();
   });
 
-  it("uses GraphQL tx when pendingPegin has no unsignedTxHex (cross-device)", async () => {
+  it("uses indexer tx hex when pendingPegin has no unsignedTxHex (cross-device)", async () => {
     mockFetchVaultById.mockResolvedValue(baseVault as never);
 
     const { result } = renderHook(() => useVaultActions());

@@ -5,7 +5,10 @@
 import { getETHChain } from "@babylonlabs-io/config";
 import { ensureHexPrefix } from "@babylonlabs-io/ts-sdk/tbv/core";
 import { validateSecretAgainstHashlock } from "@babylonlabs-io/ts-sdk/tbv/core/services";
-import { UtxoNotAvailableError } from "@babylonlabs-io/ts-sdk/tbv/core/utils";
+import {
+  calculateBtcTxHash,
+  UtxoNotAvailableError,
+} from "@babylonlabs-io/ts-sdk/tbv/core/utils";
 import {
   getSharedWagmiConfig,
   useChainConnector,
@@ -108,8 +111,14 @@ export function useVaultActions(): UseVaultActionsReturn {
     setBroadcastError(null);
 
     try {
-      // Fetch vault data from GraphQL
-      const vault = await fetchVaultById(activityId);
+      // Fetch indexer + on-chain in parallel. Indexer is needed for indexer-only
+      // statuses (EXPIRED/INVALID/...) which BTCVaultRegistry doesn't expose;
+      // on-chain provides the authoritative prePeginTxHash and depositorBtcPubKey
+      // for tx-integrity verification.
+      const [vault, onChain] = await Promise.all([
+        fetchVaultById(activityId),
+        getVaultRegistryReader().getVaultData(activityId),
+      ]);
 
       if (!vault) {
         throw new Error("Vault not found. Please try again.");
@@ -121,22 +130,38 @@ export function useVaultActions(): UseVaultActionsReturn {
         );
       }
 
-      const graphqlUnsignedTxHex = vault.unsignedPrePeginTx;
-
-      // Use the locally stored transaction as the source of truth when available.
-      // The local copy was saved before ETH submission and is trustworthy.
-      // A mismatch means the indexer is returning a different transaction — abort.
-      const localUnsignedTxHex = pendingPegin?.unsignedTxHex;
-      if (
-        localUnsignedTxHex &&
-        stripHexPrefix(localUnsignedTxHex).toLowerCase() !==
-          stripHexPrefix(graphqlUnsignedTxHex).toLowerCase()
-      ) {
+      // Cross-check on-chain status. Indexer is the only source for the
+      // 4-7 indexer-derived states (EXPIRED/INVALID/...) but for 0-3
+      // (Pending/Verified/Active/Redeemed) the contract is authoritative —
+      // a stale or malicious indexer reporting PENDING for a vault that's
+      // already moved past it would otherwise still trigger UTXO checks
+      // and a wallet prompt.
+      if (onChain.basic.status !== ContractStatus.PENDING) {
         throw new Error(
-          "Transaction mismatch: the indexer returned a transaction that differs from the locally stored copy. Aborting to prevent a potential attack.",
+          `Cannot broadcast: on-chain vault status is ${ContractStatus[onChain.basic.status]}. Broadcast is only valid during PENDING.`,
         );
       }
-      const unsignedTxHex = localUnsignedTxHex || graphqlUnsignedTxHex;
+
+      // Pick a candidate unsigned tx hex (prefer the local copy saved at
+      // construction time; fall back to the indexer for cross-device resume).
+      // Either source is untrusted on its own — the on-chain hash check below
+      // is the authoritative invariant.
+      const candidateUnsignedTxHex =
+        pendingPegin?.unsignedTxHex || vault.unsignedPrePeginTx;
+
+      // Authoritative integrity check: the candidate must hash to the
+      // prePeginTxHash registered on-chain. Closes the cross-device fallback
+      // gap (auditor #2) where a malicious indexer could substitute the tx.
+      const computedTxHash = calculateBtcTxHash(candidateUnsignedTxHex);
+      if (
+        computedTxHash.toLowerCase() !==
+        onChain.protocol.prePeginTxHash.toLowerCase()
+      ) {
+        throw new Error(
+          "Pre-PegIn transaction does not match the on-chain registration. Aborting to prevent broadcasting an unregistered transaction.",
+        );
+      }
+      const unsignedTxHex = candidateUnsignedTxHex;
 
       // Get BTC wallet provider
       const btcWalletProvider = btcConnector?.connectedWallet?.provider;
@@ -146,12 +171,14 @@ export function useVaultActions(): UseVaultActionsReturn {
         );
       }
 
-      // Get depositor's BTC public key (needed for Taproot signing)
-      // Strip "0x" prefix since it comes from GraphQL (Ethereum-style hex)
-      const depositorBtcPubkey = stripHexPrefix(vault.depositorBtcPubkey);
+      // Use the on-chain depositor BTC pubkey for Taproot signing options —
+      // never the indexer-supplied value.
+      const depositorBtcPubkey = stripHexPrefix(
+        onChain.basic.depositorBtcPubKey,
+      );
       if (!depositorBtcPubkey) {
         throw new Error(
-          "Depositor BTC public key not found. Please try creating the peg-in request again.",
+          "Depositor BTC public key not found on-chain. Please try creating the peg-in request again.",
         );
       }
 
@@ -188,15 +215,18 @@ export function useVaultActions(): UseVaultActionsReturn {
         // Case 1: localStorage entry EXISTS - update status
         updatePendingPeginStatus(activityId, nextStatus);
       } else if (addPendingPegin && nextStatus) {
-        // Case 2: NO localStorage entry (cross-device) - create one with status
+        // Case 2: NO localStorage entry (cross-device) - create one using the
+        // values we just validated against the contract, not the raw indexer
+        // response. Persisting indexer-tainted values would re-introduce the
+        // trust boundary on the next pending-activity flow.
         addPendingPegin({
           id: activityId,
           amount: activityAmount,
           providerIds: activityProviders.map((p) => p.id),
           applicationEntryPoint: activityApplicationEntryPoint,
           peginTxHash: vault.peginTxHash,
-          depositorBtcPubkey: vault.depositorBtcPubkey,
-          unsignedTxHex: vault.unsignedPrePeginTx,
+          depositorBtcPubkey: onChain.basic.depositorBtcPubKey,
+          unsignedTxHex,
           status: nextStatus,
         });
       }
