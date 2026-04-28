@@ -143,10 +143,9 @@ export async function prepareSigningContext(
   // Pull the version-locked offchain params once: timelockPegin (derived from
   // timelockAssert), plus the assert-period fields needed to rebuild the
   // depositor-graph NoPayout PSBT locally.
-  const offchainParams =
-    await protocolParamsReader.getOffchainParamsByVersion(
-      vault.offchainParamsVersion,
-    );
+  const offchainParams = await protocolParamsReader.getOffchainParamsByVersion(
+    vault.offchainParamsVersion,
+  );
   const timelockPegin = await protocolParamsReader.getTimelockPeginByVersion(
     vault.offchainParamsVersion,
   );
