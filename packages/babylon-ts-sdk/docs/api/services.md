@@ -1001,26 +1001,6 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts
 
 Protocol maximum deposit per vault (satoshis)
 
-##### htlcSecretHexesLength
-
-```ts
-htlcSecretHexesLength: number;
-```
-
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts:83](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts#L83)
-
-Number of HTLC secret hexes — must match vaultAmounts.length
-
-##### depositorSecretHashesLength
-
-```ts
-depositorSecretHashesLength: number;
-```
-
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts:85](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts#L85)
-
-Number of depositor secret hashes — must match vaultAmounts.length
-
 ***
 
 ### WaitForPeginStatusParams
@@ -1709,7 +1689,7 @@ Error on timeout, abort, or RPC error
 function isDepositAmountValid(params): boolean;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts:106](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts#L106)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts:102](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts#L102)
 
 Check if deposit amount is within valid range and affordable.
 
@@ -1737,7 +1717,7 @@ function validateDepositAmount(
    maxDeposit?): ValidationResult;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts:133](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts#L133)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts:129](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts#L129)
 
 Validate deposit amount against minimum and maximum constraints.
 
@@ -1767,7 +1747,7 @@ Validate deposit amount against minimum and maximum constraints.
 function validateRemainingCapacity(params): ValidationResult;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts:165](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts#L165)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts:161](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts#L161)
 
 Validate that the requested deposit fits within the effective remaining cap.
 
@@ -1789,7 +1769,7 @@ Validate that the requested deposit fits within the effective remaining cap.
 function validateProviderSelection(selectedProviders, availableProviders): ValidationResult;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts:193](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts#L193)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts:189](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts#L189)
 
 Validate that selected providers exist in the available set.
 
@@ -1820,7 +1800,7 @@ function validateVaultAmounts(
    maxDeposit?): ValidationResult;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts:227](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts#L227)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts:223](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts#L223)
 
 Validate vault amounts array for multi-vault deposits.
 Checks count, positivity, and per-vault min/max protocol limits.
@@ -1853,7 +1833,7 @@ Max vault count limits are the caller's responsibility.
 function validateVaultProviderPubkey(pubkey): ValidationResult;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts:267](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts#L267)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts:263](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts#L263)
 
 Validate vault provider BTC public key format.
 
@@ -1875,7 +1855,7 @@ Validate vault provider BTC public key format.
 function validateMultiVaultDepositInputs(params): void;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts:321](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts#L321)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts:317](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts#L317)
 
 Validate protocol-level multi-vault deposit inputs.
 Throws an error if any validation fails.

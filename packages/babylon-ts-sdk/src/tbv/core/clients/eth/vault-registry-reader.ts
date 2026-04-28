@@ -36,16 +36,24 @@ export class ViemVaultRegistryReader implements VaultRegistryReader {
       abi: BTCVaultRegistryABI,
       functionName: "getBtcVaultBasicInfo",
       args: [vaultId],
-    })) as readonly [Address, Hex, bigint, Address, number, Address, bigint];
+    })) as {
+      depositor: Address;
+      depositorBtcPubKey: Hex;
+      amount: bigint;
+      vaultProvider: Address;
+      status: number;
+      applicationEntryPoint: Address;
+      createdAt: bigint;
+    };
 
     return {
-      depositor: result[0],
-      depositorBtcPubKey: result[1],
-      amount: result[2],
-      vaultProvider: result[3],
-      status: result[4],
-      applicationEntryPoint: result[5],
-      createdAt: result[6],
+      depositor: result.depositor,
+      depositorBtcPubKey: result.depositorBtcPubKey,
+      amount: result.amount,
+      vaultProvider: result.vaultProvider,
+      status: result.status,
+      applicationEntryPoint: result.applicationEntryPoint,
+      createdAt: result.createdAt,
     };
   }
 
@@ -55,32 +63,32 @@ export class ViemVaultRegistryReader implements VaultRegistryReader {
       abi: BTCVaultRegistryABI,
       functionName: "getBtcVaultProtocolInfo",
       args: [vaultId],
-    })) as readonly [
-      Hex,
-      number,
-      number,
-      number,
-      bigint,
-      Hex,
-      Hex,
-      number,
-      Hex,
-      Hex,
-      number,
-    ];
+    })) as {
+      depositorSignedPeginTx: Hex;
+      universalChallengersVersion: number;
+      appVaultKeepersVersion: number;
+      offchainParamsVersion: number;
+      verifiedAt: bigint;
+      depositorWotsPkHash: Hex;
+      hashlock: Hex;
+      htlcVout: number;
+      depositorPopSignature: Hex;
+      prePeginTxHash: Hex;
+      vaultProviderCommissionBps: number;
+    };
 
     return {
-      depositorSignedPeginTx: result[0],
-      universalChallengersVersion: result[1],
-      appVaultKeepersVersion: result[2],
-      offchainParamsVersion: result[3],
-      verifiedAt: result[4],
-      depositorWotsPkHash: result[5],
-      hashlock: result[6],
-      htlcVout: result[7],
-      depositorPopSignature: result[8],
-      prePeginTxHash: result[9],
-      vaultProviderCommissionBps: result[10],
+      depositorSignedPeginTx: result.depositorSignedPeginTx,
+      universalChallengersVersion: result.universalChallengersVersion,
+      appVaultKeepersVersion: result.appVaultKeepersVersion,
+      offchainParamsVersion: result.offchainParamsVersion,
+      verifiedAt: result.verifiedAt,
+      depositorWotsPkHash: result.depositorWotsPkHash,
+      hashlock: result.hashlock,
+      htlcVout: result.htlcVout,
+      depositorPopSignature: result.depositorPopSignature,
+      prePeginTxHash: result.prePeginTxHash,
+      vaultProviderCommissionBps: result.vaultProviderCommissionBps,
     };
   }
 

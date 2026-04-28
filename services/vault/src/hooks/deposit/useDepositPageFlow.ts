@@ -161,7 +161,7 @@ export function useDepositPageFlow(): UseDepositPageFlowResult {
 
   const confirmReview = (confirmedFeeRate: number) => {
     setFeeRate(confirmedFeeRate);
-    goToStep(DepositStep.SECRET);
+    goToStep(DepositStep.SIGN);
   };
 
   const resetDeposit = useCallback(() => {

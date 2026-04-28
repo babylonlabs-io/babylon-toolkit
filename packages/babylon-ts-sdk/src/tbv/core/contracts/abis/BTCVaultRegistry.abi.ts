@@ -226,13 +226,36 @@ export const BTCVaultRegistryABI = [
       },
     ],
     outputs: [
-      { name: "depositor", type: "address", internalType: "address" },
-      { name: "depositorBtcPubKey", type: "bytes32", internalType: "bytes32" },
-      { name: "amount", type: "uint256", internalType: "uint256" },
-      { name: "vaultProvider", type: "address", internalType: "address" },
-      { name: "status", type: "uint8", internalType: "enum IBTCVaultRegistry.BTCVaultStatus" },
-      { name: "applicationEntryPoint", type: "address", internalType: "address" },
-      { name: "createdAt", type: "uint256", internalType: "uint256" },
+      {
+        name: "vBasic",
+        type: "tuple",
+        internalType: "struct BTCVaultTypes.BTCVaultBasicInfo",
+        components: [
+          { name: "depositor", type: "address", internalType: "address" },
+          {
+            name: "depositorBtcPubKey",
+            type: "bytes32",
+            internalType: "bytes32",
+          },
+          { name: "amount", type: "uint256", internalType: "uint256" },
+          {
+            name: "vaultProvider",
+            type: "address",
+            internalType: "address",
+          },
+          {
+            name: "status",
+            type: "uint8",
+            internalType: "enum IBTCVaultRegistry.BTCVaultStatus",
+          },
+          {
+            name: "applicationEntryPoint",
+            type: "address",
+            internalType: "address",
+          },
+          { name: "createdAt", type: "uint256", internalType: "uint256" },
+        ],
+      },
     ],
     stateMutability: "view",
   },
@@ -299,59 +322,67 @@ export const BTCVaultRegistryABI = [
     ],
     outputs: [
       {
-        name: "depositorSignedPeginTx",
-        type: "bytes",
-        internalType: "bytes",
-      },
-      {
-        name: "universalChallengersVersion",
-        type: "uint16",
-        internalType: "uint16",
-      },
-      {
-        name: "appVaultKeepersVersion",
-        type: "uint16",
-        internalType: "uint16",
-      },
-      {
-        name: "offchainParamsVersion",
-        type: "uint16",
-        internalType: "uint16",
-      },
-      {
-        name: "verifiedAt",
-        type: "uint256",
-        internalType: "uint256",
-      },
-      {
-        name: "depositorWotsPkHash",
-        type: "bytes32",
-        internalType: "bytes32",
-      },
-      {
-        name: "hashlock",
-        type: "bytes32",
-        internalType: "bytes32",
-      },
-      {
-        name: "htlcVout",
-        type: "uint8",
-        internalType: "uint8",
-      },
-      {
-        name: "depositorPopSignature",
-        type: "bytes",
-        internalType: "bytes",
-      },
-      {
-        name: "prePeginTxHash",
-        type: "bytes32",
-        internalType: "bytes32",
-      },
-      {
-        name: "vaultProviderCommissionBps",
-        type: "uint16",
-        internalType: "uint16",
+        name: "vProtocol",
+        type: "tuple",
+        internalType:
+          "struct BTCVaultRegistryTypes.BTCVaultProtocolInfo",
+        components: [
+          {
+            name: "depositorSignedPeginTx",
+            type: "bytes",
+            internalType: "bytes",
+          },
+          {
+            name: "universalChallengersVersion",
+            type: "uint16",
+            internalType: "uint16",
+          },
+          {
+            name: "appVaultKeepersVersion",
+            type: "uint16",
+            internalType: "uint16",
+          },
+          {
+            name: "offchainParamsVersion",
+            type: "uint16",
+            internalType: "uint16",
+          },
+          {
+            name: "verifiedAt",
+            type: "uint256",
+            internalType: "uint256",
+          },
+          {
+            name: "depositorWotsPkHash",
+            type: "bytes32",
+            internalType: "bytes32",
+          },
+          {
+            name: "hashlock",
+            type: "bytes32",
+            internalType: "bytes32",
+          },
+          {
+            name: "htlcVout",
+            type: "uint8",
+            internalType: "uint8",
+          },
+          {
+            name: "depositorPopSignature",
+            type: "bytes",
+            internalType: "bytes",
+          },
+          {
+            name: "prePeginTxHash",
+            type: "bytes32",
+            internalType: "bytes32",
+          },
+          {
+            name: "vaultProviderCommissionBps",
+            type: "uint16",
+            internalType: "uint16",
+          },
+        ],
       },
     ],
     stateMutability: "view",

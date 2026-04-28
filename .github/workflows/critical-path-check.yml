@@ -30,6 +30,7 @@ jobs:
             "services/vault/src/hooks/deposit/depositFlowSteps/payoutSigning.ts"
             "packages/babylon-ts-sdk/src/tbv/core/vault-secrets/"
             "packages/babylon-ts-sdk/src/tbv/core/wots/blockDerivation.ts"
+            "packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts"
             "services/vault/src/services/vault/vaultActivationService.ts"
             "packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts"
             "packages/babylon-ts-sdk/src/tbv/core/utils/signing.ts"

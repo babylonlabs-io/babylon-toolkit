@@ -1,12 +1,10 @@
 import { useCallback, useMemo, useState, type PropsWithChildren } from "react";
-import type { Hex } from "viem";
 
 import { createStateUtils } from "../../utils/createStateUtils";
 
 export enum DepositStep {
   FORM = "form",
   REVIEW = "review",
-  SECRET = "secret",
   SIGN = "sign",
   SUCCESS = "success",
 }
@@ -20,7 +18,6 @@ export interface DepositStateData {
   peginTxHash: string;
   ethTxHash: string;
   depositorBtcPubkey?: string;
-  secretHashes: Hex[];
 }
 
 interface DepositStateContext {
@@ -32,7 +29,6 @@ interface DepositStateContext {
   peginTxHash: string;
   ethTxHash: string;
   depositorBtcPubkey?: string;
-  secretHashes: Hex[];
   processing: boolean;
   isSplitDeposit: boolean;
   splitVaultAmounts: bigint[] | null;
@@ -48,7 +44,6 @@ interface DepositStateContext {
     ethTxHash: string,
     depositorBtcPubkey?: string,
   ) => void;
-  setSecretHashes: (hashes: Hex[]) => void;
   setProcessing: (processing: boolean) => void;
   setIsSplitDeposit: (v: boolean) => void;
   setSplitVaultAmounts: (amounts: bigint[] | null) => void;
@@ -65,7 +60,6 @@ const { StateProvider, useState: useDepositState } =
     peginTxHash: "",
     ethTxHash: "",
     depositorBtcPubkey: undefined,
-    secretHashes: [],
     processing: false,
     isSplitDeposit: false,
     splitVaultAmounts: null,
@@ -73,7 +67,6 @@ const { StateProvider, useState: useDepositState } =
     setDepositData: () => {},
     setFeeRate: () => {},
     setTransactionHashes: () => {},
-    setSecretHashes: () => {},
     setProcessing: () => {},
     setIsSplitDeposit: () => {},
     setSplitVaultAmounts: () => {},
@@ -89,7 +82,6 @@ export function DepositState({ children }: PropsWithChildren) {
   const [peginTxHash, setPeginTxHash] = useState("");
   const [ethTxHash, setEthTxHash] = useState("");
   const [depositorBtcPubkey, setDepositorBtcPubkey] = useState<string>();
-  const [secretHashes, setSecretHashes] = useState<Hex[]>([]);
   const [processing, setProcessing] = useState(false);
   const [isSplitDeposit, setIsSplitDeposit] = useState(false);
   const [splitVaultAmounts, setSplitVaultAmounts] = useState<bigint[] | null>(
@@ -131,7 +123,6 @@ export function DepositState({ children }: PropsWithChildren) {
     setPeginTxHash("");
     setEthTxHash("");
     setDepositorBtcPubkey(undefined);
-    setSecretHashes([]);
     setProcessing(false);
     setIsSplitDeposit(false);
     setSplitVaultAmounts(null);
@@ -147,7 +138,6 @@ export function DepositState({ children }: PropsWithChildren) {
       peginTxHash,
       ethTxHash,
       depositorBtcPubkey,
-      secretHashes,
       processing,
       isSplitDeposit,
       splitVaultAmounts,
@@ -155,7 +145,6 @@ export function DepositState({ children }: PropsWithChildren) {
       setDepositData,
       setFeeRate: updateFeeRate,
       setTransactionHashes,
-      setSecretHashes,
       setProcessing,
       setIsSplitDeposit,
       setSplitVaultAmounts,
@@ -170,7 +159,6 @@ export function DepositState({ children }: PropsWithChildren) {
       peginTxHash,
       ethTxHash,
       depositorBtcPubkey,
-      secretHashes,
       processing,
       isSplitDeposit,
       splitVaultAmounts,
@@ -178,7 +166,6 @@ export function DepositState({ children }: PropsWithChildren) {
       setDepositData,
       updateFeeRate,
       setTransactionHashes,
-      setSecretHashes,
       reset,
     ],
   );
