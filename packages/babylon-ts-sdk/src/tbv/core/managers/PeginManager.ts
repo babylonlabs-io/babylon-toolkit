@@ -619,27 +619,32 @@ export class PeginManager {
     const { perVaultWotsKeys, wotsPkHashes, htlcSecretHexes, hashlocks } =
       derived;
 
-    const transaction = await this.preparePeginCommit({
+    const commit = await this.preparePeginCommit({
       depositorBtcPubkeyRaw,
       depositorBtcPubkey,
       hashlocks,
-      availableUTXOs: sizing.selectedUTXOs,
+      sizing,
       params,
     });
 
     // Downstream consumers look up per-vault secrets by index; pin the
     // contract so a future WASM output-ordering change fails loud.
-    for (let i = 0; i < transaction.perVault.length; i++) {
-      if (transaction.perVault[i].htlcVout !== i) {
+    for (let i = 0; i < commit.perVault.length; i++) {
+      if (commit.perVault[i].htlcVout !== i) {
         throw new Error(
           `Internal invariant violation: htlcVout/index mismatch at vault ${i} ` +
-            `(expected ${i}, got ${transaction.perVault[i].htlcVout})`,
+            `(expected ${i}, got ${commit.perVault[i].htlcVout})`,
         );
       }
     }
 
     return {
-      transaction,
+      transaction: {
+        ...commit,
+        selectedUTXOs: sizing.selectedUTXOs,
+        fee: sizing.fee,
+        changeAmount: sizing.changeAmount,
+      },
       depositorBtcPubkey,
       derivedSecrets: {
         perVaultWotsKeys,
@@ -697,11 +702,20 @@ export class PeginManager {
     return { perVaultWotsKeys, wotsPkHashes, htlcSecretHexes, hashlocks };
   }
 
-  /** Build unfunded Pre-PegIn + select UTXOs. No PSBT signing. */
+  /**
+   * Build unfunded Pre-PegIn + select UTXOs. No PSBT signing.
+   *
+   * Returns the full selection result (UTXOs, fee, changeAmount) so the
+   * commit pass funds the broadcast tx with the exact same set used to
+   * build the vault-context funding-outpoints commitment. Re-running
+   * `selectUtxosForPegin` in the commit pass would be deterministic given
+   * the same inputs, but threading the result through guarantees the
+   * domain separator structurally matches the funded tx inputs.
+   */
   private async prepareSizing(
     depositorBtcPubkey: string,
     params: PreparePeginParams,
-  ): Promise<{ selectedUTXOs: UTXO[] }> {
+  ): Promise<{ selectedUTXOs: UTXO[]; fee: bigint; changeAmount: bigint }> {
     const placeholderHashlocks = params.amounts.map(
       () => PLACEHOLDER_HASHLOCK_HEX,
     );
@@ -731,7 +745,11 @@ export class PeginManager {
       peginOutputCount(prePegin.htlcValues.length),
     );
 
-    return { selectedUTXOs: selection.selectedUTXOs };
+    return {
+      selectedUTXOs: selection.selectedUTXOs,
+      fee: selection.fee,
+      changeAmount: selection.changeAmount,
+    };
   }
 
   /** Build PegIn txs and batch-sign their inputs with real hashlocks. */
@@ -739,14 +757,18 @@ export class PeginManager {
     depositorBtcPubkeyRaw: string;
     depositorBtcPubkey: string;
     hashlocks: readonly string[];
-    availableUTXOs: readonly UTXO[];
+    sizing: { selectedUTXOs: UTXO[]; fee: bigint; changeAmount: bigint };
     params: PreparePeginParams;
-  }): Promise<PreparePeginTransaction> {
+  }): Promise<{
+    fundedPrePeginTxHex: string;
+    prePeginTxid: string;
+    perVault: PerVaultPeginData[];
+  }> {
     const {
       depositorBtcPubkeyRaw,
       depositorBtcPubkey,
       hashlocks,
-      availableUTXOs,
+      sizing,
       params,
     } = args;
 
@@ -773,22 +795,12 @@ export class PeginManager {
 
     const prePeginResult = await buildPrePeginPsbt(prePeginParams);
 
-    const utxoSelection = selectUtxosForPegin(
-      [...availableUTXOs],
-      prePeginResult.totalOutputValue,
-      params.mempoolFeeRate,
-      peginOutputCount(
-        prePeginResult.htlcValues.length,
-        prePeginParams.authAnchorHash,
-      ),
-    );
-
     const network = getNetwork(this.config.btcNetwork);
     const fundedPrePeginTxHex = fundPeginTransaction({
       unfundedTxHex: prePeginResult.psbtHex,
-      selectedUTXOs: utxoSelection.selectedUTXOs,
+      selectedUTXOs: sizing.selectedUTXOs,
       changeAddress: params.changeAddress,
-      changeAmount: utxoSelection.changeAmount,
+      changeAmount: sizing.changeAmount,
       network,
     });
 
@@ -857,9 +869,6 @@ export class PeginManager {
       fundedPrePeginTxHex,
       prePeginTxid,
       perVault,
-      selectedUTXOs: utxoSelection.selectedUTXOs,
-      fee: utxoSelection.fee,
-      changeAmount: utxoSelection.changeAmount,
     };
   }
 
