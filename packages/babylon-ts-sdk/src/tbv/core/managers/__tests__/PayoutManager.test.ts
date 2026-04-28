@@ -197,6 +197,7 @@ describe("PayoutManager", () => {
         getAddress: vi.fn(),
         signMessage: vi.fn(),
         getNetwork: vi.fn().mockResolvedValue("signet"),
+        deriveContextHash: vi.fn().mockResolvedValue("0".repeat(64)),
       };
 
       const manager = new PayoutManager({
@@ -292,6 +293,7 @@ describe("PayoutManager", () => {
         getAddress: vi.fn(),
         signMessage: vi.fn(),
         getNetwork: vi.fn().mockResolvedValue("signet"),
+        deriveContextHash: vi.fn().mockResolvedValue("0".repeat(64)),
       };
 
       const manager = new PayoutManager({
@@ -348,6 +350,7 @@ describe("PayoutManager", () => {
         getAddress: vi.fn(),
         signMessage: vi.fn(),
         getNetwork: vi.fn().mockResolvedValue("signet"),
+        deriveContextHash: vi.fn().mockResolvedValue("0".repeat(64)),
       };
 
       const manager = new PayoutManager({
@@ -418,6 +421,7 @@ describe("PayoutManager", () => {
         getAddress: vi.fn(),
         signMessage: vi.fn(),
         getNetwork: vi.fn().mockResolvedValue("signet"),
+        deriveContextHash: vi.fn().mockResolvedValue("0".repeat(64)),
       };
 
       const manager = new PayoutManager({

@@ -12,7 +12,7 @@ The SDK runs on **Node.js** and in the browser. The only platform-specific thing
 
 Protocol background: [pegin spec](https://github.com/babylonlabs-io/btc-vault/blob/main/docs/pegin.md), [pegout spec](https://github.com/babylonlabs-io/btc-vault/blob/main/docs/pegout.md), [presigning API](https://github.com/babylonlabs-io/btc-vault/blob/main/docs/presigning-api.md).
 
-> **Status:** the SDK is under active development. Interfaces on the `core` layer are stable for the flows documented in the quickstarts; `integrations/aave` is new and may evolve. The WOTS helpers under `tbv/core/wots/*` are deprecated for new integrators — see [Known gaps](#known-gaps) below.
+> **Status:** the SDK is under active development. Interfaces on the `core` layer are stable for the flows documented in the quickstarts; `integrations/aave` is new and may evolve. WOTS keys now derive deterministically from the wallet's `deriveContextHash` API — see the [Wallet Interfaces Guide → Wallet-derived secrets](../guides/wallet-interfaces.md#wallet-derived-secrets-derivecontexthash).
 
 ## Trust model (read this before adopting)
 
@@ -20,7 +20,7 @@ Some properties of the protocol that directly affect your integration:
 
 - **Vault providers (VPs)** are off-chain parties that co-sign payouts and can claim vaulted BTC on your behalf. Current deployments select VPs from a curated set surfaced via the Babylon vault indexer; verify the operating model of the specific deployment you're targeting before making assumptions about governance. If your chosen VP goes offline between steps of the peg-in flow, the **refund path** is your backstop — after the refund CSV timelock expires, you reclaim BTC directly from the Pre-PegIn HTLC without VP cooperation.
 - **Indexer data is untrusted** for signing-critical decisions. Anything that influences what the user signs (script derivation, amount, hashlock, signer sets, locked protocol-param version) must come from the on-chain `BTCVaultRegistry` and `ProtocolParams` contracts. The indexer is fine for display, discovery, and non-authoritative reads.
-- **The HTLC secret** is the 32-byte preimage the depositor reveals on Ethereum to move the vault from `VERIFIED` → `ACTIVE`. Today you generate and persist it client-side before the Ethereum registration transaction; if it's lost before activation, the vault expires and the only exit is refund after the timelock. A planned wallet-side API (`deriveContextHash`, [spec](../../../../docs/specs/derive-context-hash.md)) will let the wallet re-derive this secret deterministically from its key material + on-chain context — removing the lose-it-and-lose-the-vault failure mode. See the [Wallet Interfaces Guide → Roadmap](../guides/wallet-interfaces.md#roadmap-derivecontexthash).
+- **The HTLC secret** is the 32-byte preimage the depositor reveals on Ethereum to move the vault from `VERIFIED` → `ACTIVE`. WOTS keys are already derived deterministically from `wallet.deriveContextHash` ([spec](../../../../docs/specs/derive-context-hash.md)); the HTLC secret derivation is moving to the same path so it can be re-derived from on-chain context at activation time. Until that lands, generate + persist the secret client-side as shown in the Managers Quickstart and treat loss-before-activation as the lose-it-and-lose-the-vault failure mode. See the [Wallet Interfaces Guide → Wallet-derived secrets](../guides/wallet-interfaces.md#wallet-derived-secrets-derivecontexthash).
 
 ### Vault lifecycle
 
@@ -230,8 +230,7 @@ Run with `npx tsx verify-install.ts` (npx will auto-install `tsx`). If that work
 
 ## Known gaps
 
-- **`tbv/core/wots/*`** currently exports a legacy 508-pair derivation that is incompatible with the active vault-provider shape. The vault app uses a separate Rust-style implementation. New integrators should treat the SDK's WOTS helpers as unsupported until migrated — vault apps typically derive the `depositorWotsPkHash` out-of-band for now.
-- **Wallet-derived secrets (`deriveContextHash`)** is spec'd ([spec](../../../../docs/specs/derive-context-hash.md)) and targeted for the near term but not yet implemented on the `BitcoinWallet` interface. Once it lands, the HTLC secret and the WOTS seed will both move to deterministic wallet derivation instead of client-generated + manually persisted material. Track this via the [Wallet Interfaces Guide → Roadmap](../guides/wallet-interfaces.md#roadmap-derivecontexthash).
+- **HTLC secret + auth-anchor wiring**: WOTS key derivation is fully migrated to `wallet.deriveContextHash` (see the [Wallet Interfaces Guide → Wallet-derived secrets](../guides/wallet-interfaces.md#wallet-derived-secrets-derivecontexthash)). The HTLC secret and VP auth-anchor expanders (`expandHashlockSecret`, `expandAuthAnchor`) exist in `tbv/core/vault-secrets` but are not yet wired into the deposit/activation flow — for now, the HTLC secret is still client-generated and persisted as shown in the Managers Quickstart.
 
 ## Next steps
 

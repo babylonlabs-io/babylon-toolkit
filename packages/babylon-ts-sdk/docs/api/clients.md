@@ -696,7 +696,7 @@ Get the current pegout status from the vault provider daemon.
 
 ### ServerIdentityError
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts:55](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts#L55)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts:70](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts#L70)
 
 #### Extends
 
@@ -710,7 +710,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/se
 new ServerIdentityError(message, reason): ServerIdentityError;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts:56](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts#L56)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts:71](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts#L71)
 
 ###### Parameters
 
@@ -720,7 +720,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/se
 
 ###### reason
 
-`"pinned_pubkey_mismatch"` | `"expired"` | `"invalid_pubkey_encoding"` | `"invalid_ephemeral_pubkey"` | `"invalid_signature_encoding"`
+`"pinned_pubkey_mismatch"` | `"expired"` | `"invalid_expires_at"` | `"invalid_pubkey_encoding"` | `"invalid_ephemeral_pubkey"` | `"invalid_signature_encoding"` | `"signature_verification_failed"`
 
 ###### Returns
 
@@ -740,18 +740,20 @@ Error.constructor
 readonly reason: 
   | "pinned_pubkey_mismatch"
   | "expired"
+  | "invalid_expires_at"
   | "invalid_pubkey_encoding"
   | "invalid_ephemeral_pubkey"
-  | "invalid_signature_encoding";
+  | "invalid_signature_encoding"
+  | "signature_verification_failed";
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts:58](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts#L58)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts:73](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts#L73)
 
 ***
 
 ### VpTokenProvider
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenProvider.ts:99](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenProvider.ts#L99)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenProvider.ts:106](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenProvider.ts#L106)
 
 Acquire, cache, and refresh VP bearer tokens.
 
@@ -770,7 +772,7 @@ Implements [BearerTokenProvider](#bearertokenprovider). Safe to pass directly in
 new VpTokenProvider(config): VpTokenProvider;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenProvider.ts:111](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenProvider.ts#L111)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenProvider.ts:118](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenProvider.ts#L118)
 
 ###### Parameters
 
@@ -790,11 +792,18 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/to
 getToken(method): Promise<string | null>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenProvider.ts:126](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenProvider.ts#L126)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenProvider.ts:140](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenProvider.ts#L140)
 
 Return a bearer token for `method`, or `null` if `method` is not
 auth-gated. Triggers a token acquisition if no token is cached or
 the cached token is within refreshSkewSecs of expiry.
+
+The token-issuing method itself is hard-exempted from the gate —
+if `auth_createDepositorToken` were ever included in
+`authGatedMethods` (caller misconfiguration) the provider would
+recurse into `acquireSingleFlight` from inside the JSON-RPC header
+builder before `inFlight` is assigned, defeating the single-flight
+guard. Returning `null` here breaks that recursion deterministically.
 
 ###### Parameters
 
@@ -816,7 +825,7 @@ the cached token is within refreshSkewSecs of expiry.
 invalidate(): void;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenProvider.ts:142](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenProvider.ts#L142)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenProvider.ts:157](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenProvider.ts#L157)
 
 Drop the cached token. Next `getToken` call re-acquires.
 Called by `JsonRpcClient` on wire `auth_expired` responses.
@@ -1011,7 +1020,7 @@ callRaw<TParams>(
 signal?): Promise<Response>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts:308](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts#L308)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts:318](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts#L318)
 
 Make a JSON-RPC request returning the raw Response (unparsed body).
 
@@ -1052,7 +1061,7 @@ large downloads must read the body themselves and re-invoke
 getBaseUrl(): string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts:444](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts#L444)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts:454](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts#L454)
 
 ###### Returns
 
@@ -2433,7 +2442,7 @@ Custom headers
 
 ### ServerIdentityResponse
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts:31](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts#L31)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts:46](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts#L46)
 
 Wire representation from btc-vault's `ServerIdentityResponse`.
 
@@ -2445,7 +2454,7 @@ Wire representation from btc-vault's `ServerIdentityResponse`.
 server_pubkey: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts:33](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts#L33)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts:48](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts#L48)
 
 Hex-encoded x-only (32-byte) persistent server pubkey.
 
@@ -2455,7 +2464,7 @@ Hex-encoded x-only (32-byte) persistent server pubkey.
 ephemeral_pubkey: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts:35](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts#L35)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts:50](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts#L50)
 
 Hex-encoded compressed (33-byte) ephemeral token-signing pubkey.
 
@@ -2465,7 +2474,7 @@ Hex-encoded compressed (33-byte) ephemeral token-signing pubkey.
 expires_at: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts:37](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts#L37)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts:52](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts#L52)
 
 Unix timestamp at which the ephemeral key expires.
 
@@ -2475,7 +2484,7 @@ Unix timestamp at which the ephemeral key expires.
 signature: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts:39](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts#L39)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts:54](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts#L54)
 
 Hex-encoded 64-byte BIP-322 Schnorr signature.
 
@@ -2483,7 +2492,7 @@ Hex-encoded 64-byte BIP-322 Schnorr signature.
 
 ### VerifyServerIdentityInput
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts:42](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts#L42)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts:57](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts#L57)
 
 #### Properties
 
@@ -2493,7 +2502,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/se
 proof: ServerIdentityResponse;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts:44](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts#L44)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts:59](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts#L59)
 
 The proof returned by `auth_createDepositorToken`.
 
@@ -2503,7 +2512,7 @@ The proof returned by `auth_createDepositorToken`.
 pinnedServerPubkey: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts:50](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts#L50)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts:65](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts#L65)
 
 The x-only persistent server pubkey the FE expects (sourced from
 the on-chain `VaultProvider.btcPubKey` via the vault registry
@@ -2515,7 +2524,7 @@ reader). 64-char lowercase hex, no `0x` prefix.
 now: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts:52](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts#L52)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts:67](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts#L67)
 
 Current Unix timestamp in seconds. Injected for testability.
 
@@ -2523,7 +2532,7 @@ Current Unix timestamp in seconds. Injected for testability.
 
 ### CreateDepositorTokenResponse
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenProvider.ts:48](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenProvider.ts#L48)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenProvider.ts:55](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenProvider.ts#L55)
 
 Wire response shape of `auth_createDepositorToken`.
 
@@ -2535,7 +2544,7 @@ Wire response shape of `auth_createDepositorToken`.
 token: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenProvider.ts:50](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenProvider.ts#L50)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenProvider.ts:57](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenProvider.ts#L57)
 
 Base64url-encoded COSE Sign1 CWT bearer token.
 
@@ -2545,7 +2554,7 @@ Base64url-encoded COSE Sign1 CWT bearer token.
 expires_at: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenProvider.ts:52](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenProvider.ts#L52)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenProvider.ts:59](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenProvider.ts#L59)
 
 Unix timestamp at which the token expires.
 
@@ -2555,7 +2564,7 @@ Unix timestamp at which the token expires.
 server_identity: ServerIdentityResponse;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenProvider.ts:54](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenProvider.ts#L54)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenProvider.ts:61](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenProvider.ts#L61)
 
 Server identity proof bundled with every token response.
 
@@ -2563,7 +2572,7 @@ Server identity proof bundled with every token response.
 
 ### VpTokenProviderConfig
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenProvider.ts:57](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenProvider.ts#L57)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenProvider.ts:64](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenProvider.ts#L64)
 
 #### Properties
 
@@ -2573,7 +2582,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/to
 client: JsonRpcClient;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenProvider.ts:59](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenProvider.ts#L59)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenProvider.ts:66](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenProvider.ts#L66)
 
 VP JSON-RPC client to use for `auth_createDepositorToken` calls.
 
@@ -2583,7 +2592,7 @@ VP JSON-RPC client to use for `auth_createDepositorToken` calls.
 peginTxid: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenProvider.ts:61](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenProvider.ts#L61)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenProvider.ts:68](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenProvider.ts#L68)
 
 Pre-PegIn transaction id this token is scoped to.
 
@@ -2593,7 +2602,7 @@ Pre-PegIn transaction id this token is scoped to.
 authAnchorHex: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenProvider.ts:67](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenProvider.ts#L67)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenProvider.ts:74](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenProvider.ts#L74)
 
 64-char lowercase hex encoding of the 32-byte `auth_anchor`
 preimage committed in the Pre-PegIn OP_RETURN. Presenting this
@@ -2605,7 +2614,7 @@ preimage is what lets the VP issue the token (the "fast path").
 pinnedServerPubkey: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenProvider.ts:73](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenProvider.ts#L73)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenProvider.ts:80](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenProvider.ts#L80)
 
 64-char lowercase hex x-only pubkey the FE expects the VP to
 present as its persistent server identity. Sourced from the
@@ -2617,7 +2626,7 @@ on-chain `VaultProvider.btcPubKey` via the vault-registry reader.
 authGatedMethods: ReadonlySet<string>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenProvider.ts:78](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenProvider.ts#L78)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenProvider.ts:85](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenProvider.ts#L85)
 
 Set of method names that require authentication. `getToken()`
 returns `null` for any method not in this set.
@@ -2628,7 +2637,7 @@ returns `null` for any method not in this set.
 optional refreshSkewSecs: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenProvider.ts:83](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenProvider.ts#L83)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenProvider.ts:90](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenProvider.ts#L90)
 
 Seconds before `expires_at` to treat a cached token as expired.
 Default: DEFAULT\_REFRESH\_SKEW\_SECS.
@@ -2639,7 +2648,7 @@ Default: DEFAULT\_REFRESH\_SKEW\_SECS.
 optional now: () => number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenProvider.ts:85](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenProvider.ts#L85)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenProvider.ts:92](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenProvider.ts#L92)
 
 Clock source (injected for testability). Default: `Date.now() / 1000`.
 
@@ -4190,15 +4199,23 @@ https://mempool.space/docs/api/rest#get-recommended-fees
 function verifyServerIdentity(input): void;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts:82](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts#L82)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts:116](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts#L116)
 
 Verify a server identity proof against a pinned server pubkey.
 
-Checks: (1) `server_pubkey` matches the pin; (2) `expires_at > now`;
-(3) `ephemeral_pubkey` is a well-formed 33-byte compressed pubkey;
-(4) `signature` is a well-formed 64-byte hex string.
+Checks:
+  1. `server_pubkey` matches the pin.
+  2. `expires_at > now` (with integer guards).
+  3. `ephemeral_pubkey` is a well-formed 33-byte compressed pubkey.
+  4. `signature` is a well-formed 64-byte Schnorr hex string.
+  5. The BIP-322 Schnorr signature cryptographically verifies
+     against `server_pubkey` over the CBOR-encoded tuple
+     `(SERVER_IDENTITY_DOMAIN, ephemeral_pubkey, expires_at)`.
 
-Full BIP-322 signature verification is deferred to a follow-up.
+Step 5 is what actually binds the ephemeral key to the persistent
+pubkey — without it, a TLS-MITM attacker who reads the pinned
+pubkey from the on-chain registry could substitute an arbitrary
+ephemeral pubkey paired with any lexically-valid signature.
 
 #### Parameters
 

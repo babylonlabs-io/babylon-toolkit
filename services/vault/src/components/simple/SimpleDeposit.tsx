@@ -21,7 +21,6 @@ import {
 import { useDepositPageFlow } from "../../hooks/deposit/useDepositPageFlow";
 import { useDepositPageForm } from "../../hooks/deposit/useDepositPageForm";
 import { DepositSecretModal } from "../deposit/DepositSecretModal";
-import { MnemonicModal } from "../deposit/MnemonicModal";
 
 import { DepositForm } from "./DepositForm";
 import { DepositSignContent } from "./DepositSignContent";
@@ -149,15 +148,11 @@ function SimpleDepositContent({
     selectedProviderBtcPubkey,
     vaultKeeperBtcPubkeys,
     universalChallengerBtcPubkeys,
-    hasExistingVaults,
     hasActiveVaults,
     isSplitDeposit,
     setIsSplitDeposit,
     splitVaultAmounts,
     setSplitVaultAmounts,
-    confirmMnemonic,
-    getMnemonic,
-    mnemonicId,
     resetDeposit,
     refetchActivities,
     goToStep,
@@ -186,20 +181,20 @@ function SimpleDepositContent({
   const secretHexesRef = useRef<string[]>([]);
   const [secretVaultIndex, setSecretVaultIndex] = useState(0);
 
-  const handleMnemonicComplete = useCallback(
-    (mnemonic?: string, mnemonicId?: string) => {
-      confirmMnemonic(mnemonic, mnemonicId);
-      // Always generate secrets — the pegin flow requires an HTLC preimage.
-      // The feature flag only controls whether the user sees the secret modal.
-      const vaultCount =
-        isSplitDeposit && splitVaultAmounts ? splitVaultAmounts.length : 1;
+  // Caller passes the split intent + amounts directly because
+  // `setIsSplitDeposit`/`setSplitVaultAmounts` haven't flushed yet when
+  // `handleDeposit` invokes this synchronously — reading from `isSplitDeposit`
+  // would yield the previous render's value and under-generate secrets in the
+  // split case, then trip `validateMultiVaultDepositInputs` later.
+  const startSecretStep = useCallback(
+    (vaultCount: number) => {
       secretHexesRef.current = Array.from({ length: vaultCount }, () =>
         generateSecretHex(),
       );
       setSecretVaultIndex(0);
       goToStep(DepositStep.SECRET);
     },
-    [confirmMnemonic, goToStep, isSplitDeposit, splitVaultAmounts],
+    [goToStep],
   );
 
   const isSupplementalDeposit = !!initialAmountBtc;
@@ -255,7 +250,8 @@ function SimpleDepositContent({
       if (shouldSplit && vaultAmounts) {
         setSplitVaultAmounts([...vaultAmounts]);
       }
-      goToStep(DepositStep.MNEMONIC);
+      const vaultCount = shouldSplit && vaultAmounts ? vaultAmounts.length : 1;
+      startSecretStep(vaultCount);
     }
   };
 
@@ -318,16 +314,6 @@ function SimpleDepositContent({
           </div>
         )}
 
-        {renderedStep === DepositStep.MNEMONIC && (
-          <MnemonicModal
-            open
-            onClose={onClose}
-            onComplete={handleMnemonicComplete}
-            hasExistingVaults={hasExistingVaults}
-            scope={ethAddress}
-          />
-        )}
-
         {renderedStep === DepositStep.SECRET &&
           secretHexesRef.current.length > 0 && (
             <DepositSecretModal
@@ -353,34 +339,30 @@ function SimpleDepositContent({
             />
           )}
 
-        {renderedStep === DepositStep.SIGN &&
-          getMnemonic &&
-          btcWalletProvider && (
-            <div className="mx-auto w-full max-w-[520px]">
-              <DepositSignContent
-                vaultAmounts={
-                  isSplitDeposit && splitVaultAmounts
-                    ? splitVaultAmounts
-                    : [depositAmount]
-                }
-                mempoolFeeRate={feeRate}
-                btcWalletProvider={btcWalletProvider}
-                depositorEthAddress={ethAddress}
-                selectedApplication={selectedApplication}
-                selectedProviders={selectedProviders}
-                vaultProviderBtcPubkey={selectedProviderBtcPubkey}
-                vaultKeeperBtcPubkeys={vaultKeeperBtcPubkeys}
-                universalChallengerBtcPubkeys={universalChallengerBtcPubkeys}
-                getMnemonic={getMnemonic}
-                mnemonicId={mnemonicId}
-                htlcSecretHexes={secretHexesRef.current}
-                depositorSecretHashes={secretHashes}
-                onSuccess={handleSignSuccess}
-                onClose={onClose}
-                onRefetchActivities={refetchActivities}
-              />
-            </div>
-          )}
+        {renderedStep === DepositStep.SIGN && btcWalletProvider && (
+          <div className="mx-auto w-full max-w-[520px]">
+            <DepositSignContent
+              vaultAmounts={
+                isSplitDeposit && splitVaultAmounts
+                  ? splitVaultAmounts
+                  : [depositAmount]
+              }
+              mempoolFeeRate={feeRate}
+              btcWalletProvider={btcWalletProvider}
+              depositorEthAddress={ethAddress}
+              selectedApplication={selectedApplication}
+              selectedProviders={selectedProviders}
+              vaultProviderBtcPubkey={selectedProviderBtcPubkey}
+              vaultKeeperBtcPubkeys={vaultKeeperBtcPubkeys}
+              universalChallengerBtcPubkeys={universalChallengerBtcPubkeys}
+              htlcSecretHexes={secretHexesRef.current}
+              depositorSecretHashes={secretHashes}
+              onSuccess={handleSignSuccess}
+              onClose={onClose}
+              onRefetchActivities={refetchActivities}
+            />
+          </div>
+        )}
 
         {renderedStep === DepositStep.SUCCESS && (
           <div className="mx-auto w-full max-w-[520px]">

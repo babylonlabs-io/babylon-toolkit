@@ -16,6 +16,7 @@ import {
   ViemProtocolParamsReader,
   ViemUniversalChallengerReader,
   ViemVaultKeeperReader,
+  ViemVaultRegistryReader,
 } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 
 import { CONTRACTS } from "../../config/contracts";
@@ -25,6 +26,7 @@ import { ethClient } from "./client";
 let protocolParamsReader: ViemProtocolParamsReader | null = null;
 let vaultKeeperReader: ViemVaultKeeperReader | null = null;
 let universalChallengerReader: ViemUniversalChallengerReader | null = null;
+let vaultRegistryReader: ViemVaultRegistryReader | null = null;
 let initPromise: Promise<void> | null = null;
 
 /**
@@ -96,4 +98,22 @@ export async function getVaultKeeperReader(): Promise<ViemVaultKeeperReader> {
 export async function getUniversalChallengerReader(): Promise<ViemUniversalChallengerReader> {
   await ensureReaders();
   return universalChallengerReader!;
+}
+
+/**
+ * Get the vault registry reader (contract-based).
+ *
+ * Synchronous construction: the BTCVaultRegistry address is known statically
+ * via CONTRACTS, so this reader does NOT depend on `resolveProtocolAddresses`
+ * and skips the shared init path. That keeps activation a true one-RPC
+ * operation on cold start (just `getBtcVaultProtocolInfo`).
+ */
+export function getVaultRegistryReader(): ViemVaultRegistryReader {
+  if (!vaultRegistryReader) {
+    vaultRegistryReader = new ViemVaultRegistryReader(
+      ethClient.getPublicClient(),
+      CONTRACTS.BTC_VAULT_REGISTRY,
+    );
+  }
+  return vaultRegistryReader;
 }

@@ -133,4 +133,13 @@ export interface BitcoinWallet {
    * @returns BitcoinNetwork enum value (MAINNET, TESTNET, SIGNET)
    */
   getNetwork(): Promise<BitcoinNetwork>;
+
+  /**
+   * Derives a deterministic 32-byte value per
+   * `docs/specs/derive-context-hash.md` rev 1.0. Throws with code
+   * `WALLET_METHOD_NOT_SUPPORTED` if unimplemented.
+   *
+   * @returns 64-char lowercase hex (32 bytes).
+   */
+  deriveContextHash(appName: string, context: string): Promise<string>;
 }
