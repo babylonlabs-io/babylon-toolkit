@@ -79,7 +79,6 @@ Honour `SignPsbtOptions.signInputs[]` — the SDK uses per-input options so the 
 import * as bitcoin from "bitcoinjs-lib";
 import * as ecc from "@bitcoin-js/tiny-secp256k1-asmjs";
 import { BIP32Factory } from "bip32";
-import * as bip39 from "bip39";
 import type {
   BitcoinWallet,
   SignInputOptions,
@@ -90,7 +89,9 @@ import type {
 const bip32 = BIP32Factory(ecc);
 const network = bitcoin.networks.testnet;
 
-const seed = await bip39.mnemonicToSeed(process.env.BTC_MNEMONIC!);
+// Supply a 64-byte seed from your KMS, HSM, env-injected raw bytes,
+// or any other source you control. `BTC_SEED_HEX` here is a placeholder.
+const seed = Buffer.from(process.env.BTC_SEED_HEX!, "hex");
 const root = bip32.fromSeed(seed, network);
 const node = root.derivePath("m/86'/1'/0'/0/0"); // BIP-86 taproot
 const internalPubkey = node.publicKey.subarray(1, 33); // x-only 32 bytes
@@ -184,26 +185,74 @@ const btcWallet = new MockBitcoinWallet({
 const ethWallet = new MockEthereumWallet({ chainId: 11155111 }); // sepolia
 ```
 
-## Roadmap: `deriveContextHash`
+## Wallet-derived secrets: `deriveContextHash`
 
-A new wallet API method, **`deriveContextHash(appName, context)`**, is spec'd and targeted for landing in the SDK and partner BTC wallets in the near term (not yet implemented). It's the single biggest upcoming change to how integrators handle secrets.
+`BitcoinWallet.deriveContextHash(appName, context)` is the canonical entrypoint for any wallet-bound secret in the vault flow. The wallet derives a deterministic 32-byte value from its key material + app name + application context per the [`derive-context-hash.md`](../../../../docs/specs/derive-context-hash.md) spec; any conforming wallet returns the same output for the same inputs, so secrets are re-derivable on demand instead of generated and persisted in the browser.
 
-**What it does.** The wallet derives a deterministic 32-byte value from the wallet's key material + an app name + an application-provided context, using HKDF-SHA-256 on a dedicated BIP-32 path (`m/73681862'`). Any conforming wallet produces the same output for the same inputs, so applications get a wallet-bound secret they can re-derive on demand instead of generating one in the browser and persisting it.
+Vault flows do not call `deriveContextHash` directly. Use the helpers in `tbv/core/vault-secrets`, which forward to the wallet with the canonical `appName` and `vaultContext` encoding.
 
-**Why it matters for vault flows.** Today the Managers Quickstart warns that losing the HTLC secret between registration and activation strands the vault until refund. With `deriveContextHash`, the HTLC secret becomes a wallet derivation — you rebuild the context from on-chain state and re-derive the same secret at activation time. No browser-side generation, no persistence step, no recovery-path loss. The same primitive is also slated to replace the separate WOTS mnemonic currently managed out-of-band.
-
-**Status.** The method is not yet on the `BitcoinWallet` interface. When it lands, expect:
+### WOTS key derivation (canonical flow)
 
 ```typescript
-interface BitcoinWallet {
-  // … existing methods …
-  deriveContextHash?(appName: string, context: string): Promise<string>;
+import {
+  deriveVaultRoot,
+  expandWotsSeed,
+  deriveWotsBlocksFromSeed,
+  computeWotsBlockPublicKeysHash,
+  hexToUint8Array,
+  type FundingOutpoint,
+} from "@babylonlabs-io/ts-sdk/tbv/core";
+
+// 1. Build vaultContext from the depositor pubkey + the UTXOs the
+//    pre-pegin will spend. These uniquely identify the deposit.
+const fundingOutpoints: FundingOutpoint[] = selectedUTXOs.map((u) => ({
+  txid: hexToUint8Array(u.txid), // display-order bytes
+  vout: u.vout,
+}));
+
+// 2. One wallet popup per deposit. Returns 32 bytes of root entropy.
+const root = await deriveVaultRoot(btcWallet, {
+  depositorBtcPubkey: hexToUint8Array(depositorBtcPubkeyHex),
+  fundingOutpoints,
+});
+
+try {
+  // 3. Per vault: expand a 64-byte WOTS seed using htlcVout as the
+  //    domain separator, then derive the 2 WOTS block public keys.
+  const seed = expandWotsSeed(root, htlcVout);
+  const wotsPublicKeys = await deriveWotsBlocksFromSeed(seed);
+
+  // 4. keccak256 hash → committed on-chain as `depositorWotsPkHash`.
+  const wotsPkHash = computeWotsBlockPublicKeysHash(wotsPublicKeys);
+} finally {
+  // Zero the root before it leaves scope.
+  root.fill(0);
 }
 ```
 
-For now, keep generating + persisting the HTLC secret as shown in the Managers Quickstart. When `deriveContextHash` lands, the secret-generation step becomes a deterministic wallet call instead of a random-bytes-plus-storage pattern, and vault apps can stop managing the Lamport mnemonic separately.
+**Determinism guarantee.** Same wallet + same `(depositorBtcPubkey, fundingOutpoints, htlcVout)` always produces the same WOTS keys. This is what lets the resume flow re-derive the keys without persisting them — re-build `vaultContext` (e.g. by parsing the pre-pegin tx inputs) and call the same chain again.
 
-**Reference.** [deriveContextHash spec](../../../../docs/specs/derive-context-hash.md) — full algorithm, test vectors, and security notes.
+**Per-vault uniqueness.** `htlcVout` is the per-vault domain separator inside `expandWotsSeed`. Two vaults in the same batch (same root) get cryptographically independent seeds.
+
+**Capability check.** Wallets that don't implement the spec throw `WALLET_METHOD_NOT_SUPPORTED` (or equivalent) from `deriveContextHash`. Branch on this if you need a fallback path.
+
+### Other vault secrets
+
+The same root drives the other two domain-separated secrets via sibling expanders in the SDK:
+
+```typescript
+import {
+  expandHashlockSecret,
+  expandAuthAnchor,
+} from "@babylonlabs-io/ts-sdk/tbv/core";
+
+const hashlockSecret = expandHashlockSecret(root, htlcVout); // 32 bytes
+const authAnchor = expandAuthAnchor(root); // 32 bytes
+```
+
+`expandHashlockSecret` replaces the previously browser-generated HTLC preimage; `expandAuthAnchor` produces the OP_RETURN preimage used for the VP bearer-token flow. Both follow the same canonical pipeline as WOTS — call `deriveVaultRoot` once, then expand per-purpose.
+
+**Reference.** [`derive-vault-secrets.md`](../../../../docs/specs/derive-vault-secrets.md) — root-to-leaf algorithm and test vectors. [`derive-context-hash.md`](../../../../docs/specs/derive-context-hash.md) — wallet-side spec.
 
 ## See also
 

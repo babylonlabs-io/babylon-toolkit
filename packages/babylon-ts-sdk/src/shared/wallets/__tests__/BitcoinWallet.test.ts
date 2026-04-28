@@ -109,6 +109,52 @@ describe("BitcoinWallet Interface", () => {
     });
   });
 
+  describe("deriveContextHash", () => {
+    it("should return a 64-char lowercase hex string", async () => {
+      const out = await wallet.deriveContextHash("babylon-vault", "deadbeef");
+      expect(typeof out).toBe("string");
+      expect(out).toHaveLength(64);
+      expect(out).toMatch(/^[0-9a-f]+$/);
+    });
+
+    it("returns the same value for the same inputs", async () => {
+      const a = await wallet.deriveContextHash("babylon-vault", "deadbeef");
+      const b = await wallet.deriveContextHash("babylon-vault", "deadbeef");
+      expect(a).toBe(b);
+    });
+
+    it("returns different values when context changes", async () => {
+      const a = await wallet.deriveContextHash("babylon-vault", "aa".repeat(36));
+      const b = await wallet.deriveContextHash("babylon-vault", "bb".repeat(36));
+      expect(a).not.toBe(b);
+    });
+
+    it("returns different values when appName changes", async () => {
+      const a = await wallet.deriveContextHash("app-one", "deadbeef");
+      const b = await wallet.deriveContextHash("app-two", "deadbeef");
+      expect(a).not.toBe(b);
+    });
+
+    it("does not collide on inputs with shared concatenation but different boundaries", async () => {
+      // Regression: an earlier mock implementation produced the same
+      // output for `("ab", "cd")` and `("abc", "d")` because it joined
+      // inputs without a length prefix. Length-delimited domain
+      // separation keeps these distinct.
+      const a = await wallet.deriveContextHash("ab", "cd");
+      const b = await wallet.deriveContextHash("abc", "d");
+      expect(a).not.toBe(b);
+    });
+
+    it("supports config override of the underlying implementation", async () => {
+      const sentinel = "c".repeat(64);
+      const overridden = new MockBitcoinWallet({
+        deriveContextHash: async () => sentinel,
+      });
+      const out = await overridden.deriveContextHash("babylon-vault", "00");
+      expect(out).toBe(sentinel);
+    });
+  });
+
   describe("getNetwork", () => {
     it("should return a valid network", async () => {
       const network = await wallet.getNetwork();

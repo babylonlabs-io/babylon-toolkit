@@ -9,32 +9,32 @@
  */
 
 import { Button, Input } from "@babylonlabs-io/core-ui";
-import { useCallback, useMemo, useState } from "react";
+import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
+import {
+  computeWotsBlockPublicKeysHash,
+  deriveVaultRoot,
+  deriveWotsBlocksFromSeed,
+  expandWotsSeed,
+  hexToUint8Array,
+  isWotsMismatchError,
+} from "@babylonlabs-io/ts-sdk/tbv/core";
+import { useChainConnector } from "@babylonlabs-io/wallet-connector";
+import { useCallback, useState } from "react";
 import type { Hex } from "viem";
 
 import {
   computeDepositDerivedState,
   DepositFlowStep,
 } from "@/components/deposit/DepositSignModal/depositStepHelpers";
-import { MnemonicModal } from "@/components/deposit/MnemonicModal";
 import { usePayoutSigningState } from "@/components/deposit/PayoutSignModal/usePayoutSigningState";
-import { useETHWallet } from "@/context/wallet";
 import { submitWotsPublicKey } from "@/hooks/deposit/depositFlowSteps/wotsSubmission";
 import { useActivationState } from "@/hooks/deposit/useActivationState";
 import { useBroadcastState } from "@/hooks/deposit/useBroadcastState";
 import { useRefundState } from "@/hooks/deposit/useRefundState";
 import { useRunOnce } from "@/hooks/useRunOnce";
 import { fetchVaultById } from "@/services/vault/fetchVaults";
-import {
-  computeWotsPublicKeysHash,
-  deriveWotsBlockPublicKeys,
-  getMnemonicIdForPegin,
-  hasMnemonicEntry,
-  isWotsMismatchError,
-  linkPeginToMnemonic,
-  mnemonicToWotsSeed,
-} from "@/services/wots";
 import type { VaultActivity } from "@/types/activity";
+import { parseFundingOutpointsFromTx } from "@/utils/parseFundingOutpoints";
 
 import { DepositProgressView } from "./DepositProgressView";
 
@@ -161,115 +161,111 @@ export function ResumeWotsContent({
   onClose,
   onSuccess,
 }: ResumeWotsContentProps) {
-  const { address: ethAddress } = useETHWallet();
-  const [submitting, setSubmitting] = useState(false);
+  const btcConnector = useChainConnector("BTC");
+  const btcWalletProvider =
+    (btcConnector?.connectedWallet?.provider as BitcoinWallet | undefined) ??
+    null;
+
+  // Starts true: useRunOnce auto-fires handleSubmit on mount, so the
+  // first render must show processing — not a false-success banner from
+  // `isComplete = !submitting && !error`.
+  const [submitting, setSubmitting] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [showMnemonic, setShowMnemonic] = useState(true);
-  const [storedFailed, setStoredFailed] = useState(false);
 
-  const mappedMnemonicId = useMemo(
-    () =>
-      activity.peginTxHash && ethAddress
-        ? getMnemonicIdForPegin(activity.peginTxHash, ethAddress)
-        : null,
-    [activity.peginTxHash, ethAddress],
-  );
+  const handleSubmit = useCallback(async () => {
+    // useRunOnce fires on mount before the depositorWotsPkHash guard
+    // returns; bail to avoid a wallet popup the UI is telling the user
+    // to wait on.
+    if (!activity.depositorWotsPkHash) {
+      setSubmitting(false);
+      return;
+    }
+    if (!btcWalletProvider) {
+      setError("BTC wallet is not connected");
+      setSubmitting(false);
+      return;
+    }
+    setSubmitting(true);
+    setError(null);
 
-  const canUseStoredMnemonic =
-    !storedFailed &&
-    !!mappedMnemonicId &&
-    !!ethAddress &&
-    hasMnemonicEntry(mappedMnemonicId, ethAddress);
-
-  const handleMnemonicComplete = useCallback(
-    async (mnemonic?: string, mnemonicId?: string) => {
-      if (!mnemonic) return;
-
-      setShowMnemonic(false);
-      setSubmitting(true);
-      setError(null);
-
-      try {
-        const providerAddress = resolveProviderAddress(activity);
-        if (!providerAddress) {
-          throw new Error("Could not resolve vault provider address");
-        }
-
-        const peginTxHash = activity.peginTxHash ?? null;
-        if (!peginTxHash) {
-          throw new Error("Missing pegin transaction hash");
-        }
-
-        // Resolve depositorBtcPubkey — available on confirmed vaults from indexer,
-        // but may be missing on pending (localStorage-only) activities.
-        let depositorBtcPubkey = activity.depositorBtcPubkey;
-        if (!depositorBtcPubkey) {
-          const vault = await fetchVaultById(activity.id);
-          depositorBtcPubkey = vault?.depositorBtcPubkey;
-        }
-        if (!depositorBtcPubkey) {
-          throw new Error(
-            "Missing depositor BTC public key; vault may not be indexed yet. Please try again shortly.",
-          );
-        }
-        if (!activity.applicationEntryPoint) {
-          throw new Error(
-            "Missing application controller address on activity; cannot derive WOTS keypair",
-          );
-        }
-
-        const seed = mnemonicToWotsSeed(mnemonic);
-        const wotsPublicKeys = await deriveWotsBlockPublicKeys(
-          seed,
-          peginTxHash,
-          depositorBtcPubkey,
-          activity.applicationEntryPoint,
+    let root: Uint8Array | null = null;
+    try {
+      const providerAddress = resolveProviderAddress(activity);
+      if (!providerAddress) {
+        throw new Error("Could not resolve vault provider address");
+      }
+      const peginTxHash = activity.peginTxHash ?? null;
+      if (!peginTxHash) {
+        throw new Error("Missing pegin transaction hash");
+      }
+      if (!activity.unsignedPrePeginTx) {
+        throw new Error(
+          "Missing pre-pegin transaction; cannot recover WOTS seed inputs",
         );
-        seed.fill(0);
+      }
 
-        const computedHash = computeWotsPublicKeysHash(wotsPublicKeys);
-        if (computedHash !== activity.depositorWotsPkHash) {
-          throw new Error(
-            "WOTS public key hash does not match the on-chain commitment — the provided mnemonic is incorrect",
-          );
-        }
+      // Indexer carries htlcVout (per-vault domain separator) and the
+      // canonical depositor pubkey.
+      const vault = await fetchVaultById(activity.id);
+      const depositorBtcPubkey =
+        activity.depositorBtcPubkey ?? vault?.depositorBtcPubkey;
+      if (!depositorBtcPubkey) {
+        throw new Error(
+          "Missing depositor BTC public key; vault may not be indexed yet. Please try again shortly.",
+        );
+      }
+      if (vault?.htlcVout === undefined) {
+        throw new Error(
+          "Missing htlcVout from vault details; vault may not be indexed yet. Please try again shortly.",
+        );
+      }
 
-        await submitWotsPublicKey({
-          peginTxHash,
-          depositorBtcPubkey,
-          providerAddress,
-          wotsPublicKeys,
-        });
+      const fundingOutpoints = parseFundingOutpointsFromTx(
+        activity.unsignedPrePeginTx,
+      );
 
-        if (mnemonicId && ethAddress) {
-          linkPeginToMnemonic(peginTxHash, mnemonicId, ethAddress);
-        }
+      root = await deriveVaultRoot(btcWalletProvider, {
+        depositorBtcPubkey: hexToUint8Array(depositorBtcPubkey),
+        fundingOutpoints,
+      });
+      const seed = expandWotsSeed(root, vault.htlcVout);
+      const wotsPublicKeys = await deriveWotsBlocksFromSeed(seed);
 
-        setSubmitting(false);
-        onSuccess();
-      } catch (err) {
-        const msg =
-          err instanceof Error ? err.message : "Failed to submit WOTS key";
+      const computedHash = computeWotsBlockPublicKeysHash(wotsPublicKeys);
+      if (computedHash !== activity.depositorWotsPkHash) {
+        throw new Error(
+          "WOTS public key hash does not match the on-chain commitment — the wrong wallet is connected.",
+        );
+      }
 
-        // Invalidate the stored mnemonic when a WOTS hash mismatch is
-        // detected — either locally (computed vs on-chain hash) or by
-        // the VP. Network errors, missing fields, etc. should not
-        // discard a potentially valid stored mnemonic.
-        if (isWotsMismatchError(err)) {
-          setStoredFailed(true);
-        }
+      await submitWotsPublicKey({
+        peginTxHash,
+        depositorBtcPubkey,
+        providerAddress,
+        wotsPublicKeys,
+      });
 
-        setSubmitting(false);
+      setSubmitting(false);
+      onSuccess();
+    } catch (err) {
+      const msg =
+        err instanceof Error ? err.message : "Failed to submit WOTS key";
+      // VP-side mismatch gets the same wording as the local pre-flight
+      // so the user can act on either path.
+      if (isWotsMismatchError(err)) {
+        setError(
+          "WOTS public key hash does not match the on-chain commitment — the wrong wallet is connected.",
+        );
+      } else {
         setError(msg);
       }
-    },
-    [activity, ethAddress, onSuccess],
-  );
+      setSubmitting(false);
+    } finally {
+      root?.fill(0);
+    }
+  }, [activity, btcWalletProvider, onSuccess]);
 
-  const handleRetry = useCallback(() => {
-    setError(null);
-    setShowMnemonic(true);
-  }, []);
+  useRunOnce(handleSubmit);
 
   if (!activity.depositorWotsPkHash) {
     return (
@@ -287,24 +283,6 @@ export function ResumeWotsContent({
     );
   }
 
-  if (showMnemonic) {
-    return (
-      <MnemonicModal
-        open
-        onClose={onClose}
-        onComplete={handleMnemonicComplete}
-        // canUseStoredMnemonic doubles as hasExistingVaults here because
-        // when it is false, importMode is set to true which overrides
-        // the hasExistingVaults behaviour inside MnemonicModal.
-        hasExistingVaults={canUseStoredMnemonic}
-        scope={ethAddress}
-        mnemonicId={canUseStoredMnemonic ? mappedMnemonicId : undefined}
-        importMode={!canUseStoredMnemonic}
-        allowCreateNewMnemonic={false}
-      />
-    );
-  }
-
   return (
     <DepositProgressView
       currentStep={DepositFlowStep.SIGN_PAYOUTS}
@@ -317,7 +295,7 @@ export function ResumeWotsContent({
       payoutSigningProgress={null}
       onClose={onClose}
       successMessage="Your WOTS public key has been submitted. The deposit will continue processing."
-      onRetry={error ? handleRetry : undefined}
+      onRetry={error ? handleSubmit : undefined}
     />
   );
 }

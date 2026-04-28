@@ -46,7 +46,7 @@ export type ExpirationReason =
  * Available actions user can take
  */
 export enum PeginAction {
-  /** Submit WOTS key (re-enter mnemonic) */
+  /** Submit WOTS key (re-derives via wallet `deriveContextHash`) */
   SUBMIT_WOTS_KEY = "SUBMIT_WOTS_KEY",
   /** Sign payout transactions */
   SIGN_PAYOUT_TRANSACTIONS = "SIGN_PAYOUT_TRANSACTIONS",
