@@ -36,10 +36,10 @@ import type { PendingPeginRequest } from "../../storage/peginStorage";
 import { stripHexPrefix } from "../../utils/btc";
 
 export interface BroadcastPrePeginParams {
-  activityId: Hex;
-  activityAmount: string;
-  activityProviders: Array<{ id: string }>;
-  activityApplicationEntryPoint?: string;
+  vaultId: Hex;
+  amount: string;
+  providers: Array<{ id: string }>;
+  applicationEntryPoint?: string;
   pendingPegin?: PendingPeginRequest;
   updatePendingPeginStatus?: (
     vaultId: string,
@@ -97,10 +97,10 @@ export function useVaultActions(): UseVaultActionsReturn {
    */
   const handleBroadcast = async (params: BroadcastPrePeginParams) => {
     const {
-      activityId,
-      activityAmount,
-      activityProviders,
-      activityApplicationEntryPoint,
+      vaultId,
+      amount,
+      providers,
+      applicationEntryPoint,
       pendingPegin,
       updatePendingPeginStatus,
       addPendingPegin,
@@ -113,7 +113,7 @@ export function useVaultActions(): UseVaultActionsReturn {
 
     try {
       // Fetch vault data from GraphQL
-      const vault = await fetchVaultById(activityId);
+      const vault = await fetchVaultById(vaultId);
 
       if (!vault) {
         throw new Error("Vault not found. Please try again.");
@@ -146,7 +146,7 @@ export function useVaultActions(): UseVaultActionsReturn {
       // The tx hash commits to all inputs AND outputs, so a substituted
       // transaction would produce a different hash.
       if (!localUnsignedTxHex) {
-        const onChainVault = await getVaultFromChain(activityId);
+        const onChainVault = await getVaultFromChain(vaultId);
         const computedHash = calculateBtcTxHash(graphqlUnsignedTxHex);
         if (
           computedHash.toLowerCase() !==
@@ -209,14 +209,14 @@ export function useVaultActions(): UseVaultActionsReturn {
 
       if (pendingPegin && updatePendingPeginStatus && nextStatus) {
         // Case 1: localStorage entry EXISTS - update status
-        updatePendingPeginStatus(activityId, nextStatus);
+        updatePendingPeginStatus(vaultId, nextStatus);
       } else if (addPendingPegin && nextStatus) {
         // Case 2: NO localStorage entry (cross-device) - create one with status
         addPendingPegin({
-          id: activityId,
-          amount: activityAmount,
-          providerIds: activityProviders.map((p) => p.id),
-          applicationEntryPoint: activityApplicationEntryPoint,
+          id: vaultId,
+          amount,
+          providerIds: providers.map((p) => p.id),
+          applicationEntryPoint,
           peginTxHash: vault.peginTxHash,
           depositorBtcPubkey: vault.depositorBtcPubkey,
           unsignedTxHex: vault.unsignedPrePeginTx,
@@ -277,7 +277,7 @@ export function useVaultActions(): UseVaultActionsReturn {
       }
       if (!protocolInfo.hashlock || protocolInfo.hashlock === "0x") {
         throw new Error(
-          "Vault hashlock not found on-chain. The vault may not support activation.",
+          "Vault hashlock not found. The vault may not support activation.",
         );
       }
 

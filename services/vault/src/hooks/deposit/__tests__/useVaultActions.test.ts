@@ -140,9 +140,9 @@ const baseVault = {
 };
 
 const baseBroadcastParams = {
-  activityId: "0xvaultId" as Hex,
-  activityAmount: "0.01",
-  activityProviders: [{ id: "0xprovider" }],
+  vaultId: "0xvaultId" as Hex,
+  amount: "0.01",
+  providers: [{ id: "0xprovider" }],
   onRefetchActivities: vi.fn(),
   onShowSuccessModal: vi.fn(),
 };
