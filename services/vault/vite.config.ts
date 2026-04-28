@@ -30,6 +30,11 @@ export default defineConfig({
   },
   optimizeDeps: {
     exclude: ["ws"],
+    include: [
+      "bitcoinjs-lib",
+      "@bitcoin-js/tiny-secp256k1-asmjs",
+      "@babylonlabs-io/wallet-connector",
+    ],
   },
   build: {
     outDir: "dist",
