@@ -29,7 +29,7 @@ const RESERVE_ID = 7n;
 function reserveResult(underlying: Address) {
   return {
     underlying,
-    hub: "0xhub" as Address,
+    hub: "0x000000000000000000000000000000000000beef" as Address,
     assetId: 1,
     decimals: 6,
     collateralRisk: 0,

@@ -162,6 +162,9 @@ export function useRepayTransaction({
             ? mapViemErrorToContractError(error, "Repay")
             : new Error("An unexpected error occurred while repaying");
 
+      // Repay deliberately has no `retryAction`. If one is added later, mirror
+      // the borrow hook and gate it on `!(error instanceof ReserveMismatchError)`
+      // — retrying can't help against a compromised indexer.
       handleError({
         error: mappedError,
         displayOptions: {
