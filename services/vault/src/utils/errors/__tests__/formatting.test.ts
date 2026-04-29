@@ -11,6 +11,15 @@ import {
   sanitizeErrorMessage,
 } from "../formatting";
 
+class FakeWalletError extends Error {
+  constructor(
+    public readonly code: string,
+    message: string,
+  ) {
+    super(message);
+  }
+}
+
 describe("Error Formatting", () => {
   describe("formatErrorMessage", () => {
     it("should handle string errors", () => {
@@ -88,6 +97,29 @@ describe("Error Formatting", () => {
       expect(result.title).toBe("Payout Signing Error");
       expect(result.message).not.toContain("internal detail");
       expect(result.message).toContain("unexpected error");
+    });
+
+    it("shows wallet rejection message when error has CONNECTION_REJECTED code", () => {
+      const error = new FakeWalletError(
+        "CONNECTION_REJECTED",
+        "User rejected the PSBT signing request",
+      );
+
+      const result = formatPayoutSignatureError(error);
+
+      expect(result.title).toBe("Signing Rejected");
+      expect(result.message).toContain("rejected the signing request");
+    });
+
+    it("does not treat other wallet error codes as user rejection", () => {
+      const error = new FakeWalletError(
+        "SIGNATURE_EXTRACT_ERROR",
+        "User rejected the request",
+      );
+
+      const result = formatPayoutSignatureError(error);
+
+      expect(result.title).not.toBe("Signing Rejected");
     });
   });
 });

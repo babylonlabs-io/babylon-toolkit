@@ -5,7 +5,7 @@ import type { BTCConfig, IBTCProvider, InscriptionIdentifier, SignPsbtOptions, W
 import { Network } from "@/core/types";
 import { initBTCCurve } from "@/core/utils/initBTCCurve";
 import { resolveUseTweakedSigner } from "@/core/utils/psbtOptionsMapper";
-import { ERROR_CODES, WalletError } from "@/error";
+import { ERROR_CODES, WalletError, isUserRejectionMessage } from "@/error";
 
 import logo from "./logo.svg";
 
@@ -156,6 +156,13 @@ export class UnisatProvider implements IBTCProvider {
       const signedHex = await this.provider.signPsbt(psbtHex, signOptions);
       return signedHex;
     } catch (error: Error | any) {
+      if (isUserRejectionMessage(error?.message)) {
+        throw new WalletError({
+          code: ERROR_CODES.CONNECTION_REJECTED,
+          message: "User rejected the PSBT signing request in Unisat Wallet",
+          wallet: WALLET_PROVIDER_NAME,
+        });
+      }
       throw new WalletError({
         code: ERROR_CODES.SIGNATURE_EXTRACT_ERROR,
         message: error?.message || "Failed to sign PSBT with Unisat Wallet",
@@ -208,6 +215,13 @@ export class UnisatProvider implements IBTCProvider {
 
       return await this.provider.signPsbts(psbtsHexes, signOptions);
     } catch (error: Error | any) {
+      if (isUserRejectionMessage(error?.message)) {
+        throw new WalletError({
+          code: ERROR_CODES.CONNECTION_REJECTED,
+          message: "User rejected the PSBT signing request in Unisat Wallet",
+          wallet: WALLET_PROVIDER_NAME,
+        });
+      }
       throw new WalletError({
         code: ERROR_CODES.SIGNATURE_EXTRACT_ERROR,
         message: error?.message || "Failed to sign PSBTs with Unisat Wallet",
@@ -433,18 +447,12 @@ export class UnisatProvider implements IBTCProvider {
     } catch (error) {
       // Pass through user-rejection as a typed connection-rejected
       // error so callers can distinguish "user said no" from other
-      // failures. Match the specific UniSat rejection phrasing
-      // ("user rejected"), not the bare word "rejected" — wallet-side
-      // validation errors (e.g. "context format rejected by wallet")
-      // also contain "rejected" but should keep their original
-      // diagnostic shape.
-      const message = (error as Error | undefined)?.message?.toLowerCase() ?? "";
-      const isUserRejection =
-        message.includes("user rejected") ||
-        message.includes("user denied") ||
-        message.includes("user cancelled") ||
-        message.includes("user canceled");
-      if (isUserRejection) {
+      // failures. isUserRejectionMessage matches the specific phrasings
+      // wallets use ("user rejected", "user denied", ...) — not the bare
+      // word "rejected", since wallet-side validation errors (e.g.
+      // "context format rejected by wallet") also contain "rejected"
+      // but should keep their original diagnostic shape.
+      if (isUserRejectionMessage((error as Error | undefined)?.message)) {
         throw new WalletError({
           code: ERROR_CODES.CONNECTION_REJECTED,
           message: "Unisat Wallet rejected the deriveContextHash approval",

@@ -5,6 +5,7 @@ import type { BTCConfig, IBTCProvider, InscriptionIdentifier, SignPsbtOptions } 
 import { resolveUseTweakedSigner } from "@/core/utils/psbtOptionsMapper";
 import { APPKIT_OPEN_EVENT } from "@/core/wallets/appkit/constants";
 import { unsupportedDeriveContextHash } from "@/core/wallets/btc/unsupportedDeriveContextHash";
+import { ERROR_CODES, WalletError, isUserRejectionMessage } from "@/error";
 
 import { APPKIT_BTC_CONNECTED_EVENT } from "./constants";
 import icon from "./icon.svg";
@@ -270,8 +271,16 @@ export class AppKitBTCProvider implements IBTCProvider {
 
       return Psbt.fromBase64(result.psbt).toHex();
     } catch (error) {
-      console.error("[AppKit Provider] signPsbt failed:", error instanceof Error ? error.message : "Unknown error");
-      throw new Error(`Failed to sign PSBT: ${error instanceof Error ? error.message : "Unknown error"}`);
+      const message = error instanceof Error ? error.message : "Unknown error";
+      console.error("[AppKit Provider] signPsbt failed:", message);
+      if (isUserRejectionMessage(message)) {
+        throw new WalletError({
+          code: ERROR_CODES.CONNECTION_REJECTED,
+          message: "User rejected the PSBT signing request in AppKit",
+          wallet: "AppKit",
+        });
+      }
+      throw new Error(`Failed to sign PSBT: ${message}`);
     }
   }
 
