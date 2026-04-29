@@ -11,7 +11,7 @@ export interface SignModalData {
  * Hook to manage payout sign modal state and actions.
  *
  * The actual transactions + depositor graph are fetched by the SDK's
- * `pollAndSignPayouts` (via the modal's hook) — the modal only needs to
+ * `runDepositorPresignFlow` (via the modal's hook) — the modal only needs to
  * know which activity is being signed.
  */
 export function usePayoutSignModal(options: {

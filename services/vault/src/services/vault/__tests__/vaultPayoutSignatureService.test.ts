@@ -2,7 +2,7 @@
  * Vault-tier payout signing helper tests.
  *
  * After the SDK migration, the bulk of signing orchestration lives in the
- * SDK (`pollAndSignPayouts`) and has its own test suite. What remains here
+ * SDK (`runDepositorPresignFlow`) and has its own test suite. What remains here
  * is app-specific wiring: pubkey sorting, VP pubkey resolution, and the
  * on-chain signing-context builder.
  */

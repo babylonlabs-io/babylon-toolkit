@@ -29,7 +29,11 @@
 
 import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
 import { ensureHexPrefix } from "@babylonlabs-io/ts-sdk/tbv/core";
-import { VpResponseValidationError } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
+import {
+  primeVpTokenRegistry,
+  VpResponseValidationError,
+  vpTokenRegistry,
+} from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import { computeHashlock } from "@babylonlabs-io/ts-sdk/tbv/core/services";
 import {
   collectReservedUtxoRefs,
@@ -40,6 +44,7 @@ import { v4 as uuidv4 } from "uuid";
 import type { Address, Hex } from "viem";
 
 import { getOffchainParamsVersionsFromChain } from "@/clients/eth-contract/btc-vault-registry/query";
+import { getVaultRegistryReader } from "@/clients/eth-contract/sdk-readers";
 import { useProtocolParamsContext } from "@/context/ProtocolParamsContext";
 import { logger } from "@/infrastructure";
 import { LocalStorageStatus } from "@/models/peginStateMachine";
@@ -60,10 +65,11 @@ import {
   removeUtxoReservation,
   updatePendingPeginStatus,
 } from "@/storage/peginStorage";
-import { btcAddressToScriptPubKeyHex } from "@/utils/btc";
+import { btcAddressToScriptPubKeyHex, stripHexPrefix } from "@/utils/btc";
 import { satoshiToBtcNumber } from "@/utils/btcConversion";
 import { sanitizeErrorMessage } from "@/utils/errors/formatting";
 import { formatBtcValue } from "@/utils/formatting";
+import { getVpProxyUrl } from "@/utils/rpc";
 
 import {
   DepositFlowStep,
@@ -376,7 +382,12 @@ export function useDepositFlow(
             availableUTXOs,
           },
         );
-        const { perVaultWotsKeys, wotsPkHashes, htlcSecretHexes } = batchResult;
+        const {
+          perVaultWotsKeys,
+          wotsPkHashes,
+          htlcSecretHexes,
+          authAnchorHex,
+        } = batchResult;
 
         // Reserve UTXOs in localStorage immediately so other tabs see them
         // during the (potentially lengthy) PoP signing and ETH registration.
@@ -600,6 +611,37 @@ export function useDepositFlow(
           throw new Error("Vault provider not found");
         }
 
+        // Best-effort: lazy provider recovers if priming fails. All
+        // sibling vaults in a batch share one VP, so fetch the on-chain
+        // pubkey once and pass it into each per-vault registry entry.
+        const vpBaseUrl = getVpProxyUrl(provider.id);
+        try {
+          const pinnedServerPubkey =
+            await getVaultRegistryReader().getVaultProviderBtcPubKey(
+              provider.id as `0x${string}`,
+            );
+          await Promise.all(
+            broadcastedResults.map((r) =>
+              primeVpTokenRegistry({
+                baseUrl: vpBaseUrl,
+                peginTxid: stripHexPrefix(r.peginTxHash),
+                authAnchorHex,
+                pinnedServerPubkey,
+              }).catch((err) => {
+                logger.warn("Failed to prime VP token registry", {
+                  peginTxHash: r.peginTxHash,
+                  error: err instanceof Error ? err.message : String(err),
+                });
+              }),
+            ),
+          );
+        } catch (err) {
+          logger.warn("Failed to fetch VP pubkey for registry priming", {
+            providerId: provider.id,
+            error: err instanceof Error ? err.message : String(err),
+          });
+        }
+
         // ========================================================================
         // Step 5: Submit WOTS Keys + Sign Payout Transactions
         // ========================================================================
@@ -624,6 +666,8 @@ export function useDepositFlow(
                 depositorBtcPubkey: result.depositorBtcPubkey,
                 providerAddress: provider.id,
                 wotsPublicKeys: perVaultWotsKeys[result.vaultIndex],
+                btcWallet: confirmedBtcWallet,
+                unsignedPrePeginTxHex: batchResult.fundedPrePeginTxHex,
                 signal,
               });
               wotsSuccess = true;
@@ -693,6 +737,7 @@ export function useDepositFlow(
                 btcAddressToScriptPubKeyHex(confirmedBtcAddress),
               btcWallet: confirmedBtcWallet,
               depositorEthAddress: confirmedEthAddress,
+              unsignedPrePeginTxHex: batchResult.fundedPrePeginTxHex,
               signal,
               onProgress: setPayoutSigningProgress,
             });
@@ -778,6 +823,7 @@ export function useDepositFlow(
                 walletClient,
                 signal,
               });
+              vpTokenRegistry.release(stripHexPrefix(result.peginTxHash));
             } catch (error) {
               if (signal.aborted) throw error;
 

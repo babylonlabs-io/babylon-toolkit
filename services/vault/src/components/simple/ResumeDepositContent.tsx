@@ -13,12 +13,15 @@ import {
   computeWotsBlockPublicKeysHash,
   deriveVaultRoot,
   deriveWotsBlocksFromSeed,
+  expandAuthAnchor,
   expandHashlockSecret,
   expandWotsSeed,
   hexToUint8Array,
   isWotsMismatchError,
+  parseFundingOutpointsFromTx,
   uint8ArrayToHex,
 } from "@babylonlabs-io/ts-sdk/tbv/core";
+import { primeVpTokenRegistry } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import { useChainConnector } from "@babylonlabs-io/wallet-connector";
 import { useCallback, useState } from "react";
 import type { Hex } from "viem";
@@ -33,8 +36,10 @@ import { submitWotsPublicKey } from "@/hooks/deposit/depositFlowSteps/wotsSubmis
 import { useActivationState } from "@/hooks/deposit/useActivationState";
 import { useBroadcastState } from "@/hooks/deposit/useBroadcastState";
 import { useRunOnce } from "@/hooks/useRunOnce";
+import { logger } from "@/infrastructure";
 import type { VaultActivity } from "@/types/activity";
-import { parseFundingOutpointsFromTx } from "@/utils/parseFundingOutpoints";
+import { stripHexPrefix } from "@/utils/btc";
+import { getVpProxyUrl } from "@/utils/rpc";
 
 import { DepositProgressView } from "./DepositProgressView";
 
@@ -216,6 +221,17 @@ export function ResumeWotsContent({
         depositorBtcPubkey: hexToUint8Array(depositorBtcPubkey),
         fundingOutpoints,
       });
+
+      // Reuse the derived root for the auth anchor so submitWotsPublicKey
+      // doesn't trigger a second wallet popup.
+      const authAnchorBytes = expandAuthAnchor(root);
+      let authAnchorHex: string;
+      try {
+        authAnchorHex = uint8ArrayToHex(authAnchorBytes);
+      } finally {
+        authAnchorBytes.fill(0);
+      }
+
       const seed = expandWotsSeed(root, htlcVout);
       let wotsPublicKeys;
       try {
@@ -231,11 +247,29 @@ export function ResumeWotsContent({
         );
       }
 
+      // Best-effort: lazy provider recovers if priming fails.
+      try {
+        await primeVpTokenRegistry({
+          baseUrl: getVpProxyUrl(providerAddress),
+          vpAddress: providerAddress as `0x${string}`,
+          peginTxid: stripHexPrefix(peginTxHash),
+          authAnchorHex,
+          vaultRegistryReader: reader,
+        });
+      } catch (err) {
+        logger.warn("Failed to prime VP token registry", {
+          peginTxHash,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+
       await submitWotsPublicKey({
         peginTxHash,
         depositorBtcPubkey,
         providerAddress,
         wotsPublicKeys,
+        btcWallet: btcWalletProvider,
+        unsignedPrePeginTxHex: activity.unsignedPrePeginTx,
       });
 
       setLoading(false);

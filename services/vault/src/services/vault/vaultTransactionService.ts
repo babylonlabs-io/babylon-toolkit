@@ -100,6 +100,12 @@ export interface PreparePeginResult {
   wotsPkHashes: Hex[];
   /** Per-vault HTLC preimage hex (no 0x prefix). Sensitive — do not log. */
   htlcSecretHexes: string[];
+  /**
+   * Raw 32-byte auth-anchor preimage as 64-char lowercase hex (no 0x).
+   * Sent to the VP via `auth_createDepositorToken` to obtain a CWT
+   * bearer token. Sensitive — do not log; do not persist.
+   */
+  authAnchorHex: string;
 }
 
 /**
@@ -194,6 +200,7 @@ export async function preparePeginTransaction(
     perVaultWotsKeys: derivedSecrets.perVaultWotsKeys,
     wotsPkHashes: derivedSecrets.wotsPkHashes,
     htlcSecretHexes: derivedSecrets.htlcSecretHexes,
+    authAnchorHex: derivedSecrets.authAnchorHex,
   };
 }
 

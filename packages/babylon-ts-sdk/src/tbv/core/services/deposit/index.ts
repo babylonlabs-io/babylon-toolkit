@@ -13,11 +13,11 @@ export type {
   DepositorGraphSigningContext,
   SignDepositorGraphParams,
 } from "./signDepositorGraph";
-export { pollAndSignPayouts } from "./signAndSubmitPayouts";
+export { runDepositorPresignFlow } from "./runDepositorPresignFlow";
 export type {
   PayoutSigningContext,
-  PollAndSignPayoutsParams,
-} from "./signAndSubmitPayouts";
+  RunDepositorPresignFlowParams,
+} from "./runDepositorPresignFlow";
 export {
   ContractStatus,
   PeginAction,

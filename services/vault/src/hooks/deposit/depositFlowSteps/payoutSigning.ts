@@ -1,15 +1,13 @@
 /**
- * Step 4: Payout signing — adapter over SDK's pollAndSignPayouts
- *
- * Uses prepareSigningContext() to fetch VERSIONED vault keepers and
- * universal challengers from the contract, then delegates all signing
- * and VP submission to the SDK.
+ * Step 4: Payout signing — adapter over SDK's runDepositorPresignFlow.
  */
 
 import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
-import { pollAndSignPayouts } from "@babylonlabs-io/ts-sdk/tbv/core/services";
+import { createAuthenticatedVpClient } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
+import { runDepositorPresignFlow } from "@babylonlabs-io/ts-sdk/tbv/core/services";
 import type { Address } from "viem";
 
+import { getVaultRegistryReader } from "@/clients/eth-contract/sdk-readers";
 import { LocalStorageStatus } from "@/models/peginStateMachine";
 import {
   prepareSigningContext,
@@ -17,35 +15,27 @@ import {
 } from "@/services/vault/vaultPayoutSignatureService";
 import { updatePendingPeginStatus } from "@/storage/peginStorage";
 import { stripHexPrefix } from "@/utils/btc";
-import { createVpClient } from "@/utils/rpc";
+import { getVpProxyUrl } from "@/utils/rpc";
 
 export interface SignAndSubmitPayoutsParams {
-  /** Derived vault ID (for contract reads + localStorage) */
   vaultId: string;
-  /** Raw BTC pegin transaction hash */
   peginTxHash: string;
   depositorBtcPubkey: string;
-  /** Vault provider BTC public key hint (optional — resolved from GraphQL if missing) */
+  /** Optional hint; resolved from GraphQL if missing. */
   providerBtcPubKey?: string;
-  /** Depositor's registered payout scriptPubKey (hex) */
   registeredPayoutScriptPubKey: string;
-  /** Bitcoin wallet for signing */
   btcWallet: BitcoinWallet;
-  /** Depositor's Ethereum address (for localStorage) */
   depositorEthAddress: Address;
-  /** AbortSignal for cancellation */
+  unsignedPrePeginTxHex: string;
   signal?: AbortSignal;
-  /** Progress callback (completed, total) */
   onProgress?: (progress: PayoutSigningProgress | null) => void;
 }
 
 /**
- * Poll VP, sign payout transactions + depositor graph, and submit signatures.
- *
- * This replaces the previous 4-step manual flow with:
- * 1. prepareSigningContext() — fetches versioned VK/UC from contract
- * 2. SDK pollAndSignPayouts() — handles polling, signing, submission
- * 3. localStorage update
+ * Poll the VP for presign transactions, sign them with the BTC wallet,
+ * and submit the signatures back. Auth-gated VP RPCs acquire bearer
+ * tokens transparently via `createAuthenticatedVpClient`; the caller
+ * passes the wallet + Pre-PegIn tx hex, never the auth anchor.
  */
 export async function signAndSubmitPayouts(
   params: SignAndSubmitPayoutsParams,
@@ -58,14 +48,11 @@ export async function signAndSubmitPayouts(
     registeredPayoutScriptPubKey,
     btcWallet,
     depositorEthAddress,
+    unsignedPrePeginTxHex,
     signal,
     onProgress,
   } = params;
 
-  // Phase 1: Build signing context from contract (versioned VK/UC)
-  // Also returns the contract-authoritative vault provider address, which
-  // must be used for RPC instead of the caller-supplied address to prevent
-  // submitting signatures to a stale/wrong VP.
   const { context, vaultProviderAddress } = await prepareSigningContext({
     vaultId,
     depositorBtcPubkey,
@@ -73,13 +60,22 @@ export async function signAndSubmitPayouts(
     registeredPayoutScriptPubKey,
   });
 
-  // Phase 2: SDK handles polling → presign fetch → signing → submission
-  const rpcClient = createVpClient(vaultProviderAddress);
-  await pollAndSignPayouts({
+  const peginTxid = stripHexPrefix(peginTxHash);
+  const rpcClient = createAuthenticatedVpClient({
+    baseUrl: getVpProxyUrl(vaultProviderAddress),
+    vpAddress: vaultProviderAddress as `0x${string}`,
+    peginTxid,
+    unsignedPrePeginTxHex,
+    depositorBtcPubkey,
+    btcWallet,
+    vaultRegistryReader: getVaultRegistryReader(),
+  });
+
+  await runDepositorPresignFlow({
     statusReader: rpcClient,
     presignClient: rpcClient,
     btcWallet,
-    peginTxid: stripHexPrefix(peginTxHash),
+    peginTxid,
     depositorPk: stripHexPrefix(depositorBtcPubkey),
     signingContext: context,
     signal,
@@ -90,7 +86,6 @@ export async function signAndSubmitPayouts(
 
   onProgress?.(null);
 
-  // Phase 3: Update localStorage
   updatePendingPeginStatus(
     depositorEthAddress,
     vaultId,

@@ -9,7 +9,7 @@ import {
   type RequestDepositorPresignTransactionsResponse,
 } from "../../../clients/vault-provider/types";
 import type { PeginStatusReader, PresignClient } from "../interfaces";
-import { pollAndSignPayouts, type PayoutSigningContext } from "../signAndSubmitPayouts";
+import { runDepositorPresignFlow, type PayoutSigningContext } from "../runDepositorPresignFlow";
 
 // ---------------------------------------------------------------------------
 // Mocks — we test the orchestration, not PSBT internals or PayoutManager
@@ -154,7 +154,7 @@ function createSigningContext(): PayoutSigningContext {
 // Tests
 // ---------------------------------------------------------------------------
 
-describe("pollAndSignPayouts", () => {
+describe("runDepositorPresignFlow", () => {
   beforeEach(() => {
     vi.useFakeTimers();
   });
@@ -167,7 +167,7 @@ describe("pollAndSignPayouts", () => {
     const reader = createMockStatusReader([DaemonStatus.ACTIVATED]);
     const presignClient = createMockPresignClient();
 
-    await pollAndSignPayouts({
+    await runDepositorPresignFlow({
       statusReader: reader,
       presignClient,
       btcWallet: createMockWallet(),
@@ -188,7 +188,7 @@ describe("pollAndSignPayouts", () => {
     const reader = createMockStatusReader([DaemonStatus.PENDING_ACKS]);
     const presignClient = createMockPresignClient();
 
-    await pollAndSignPayouts({
+    await runDepositorPresignFlow({
       statusReader: reader,
       presignClient,
       btcWallet: createMockWallet(),
@@ -209,7 +209,7 @@ describe("pollAndSignPayouts", () => {
     const presignClient = createMockPresignClient();
     const wallet = createMockWallet();
 
-    await pollAndSignPayouts({
+    await runDepositorPresignFlow({
       statusReader: reader,
       presignClient,
       btcWallet: wallet,
@@ -249,7 +249,7 @@ describe("pollAndSignPayouts", () => {
     ]);
     const presignClient = createMockPresignClient();
 
-    const resultPromise = pollAndSignPayouts({
+    const resultPromise = runDepositorPresignFlow({
       statusReader: reader,
       presignClient,
       btcWallet: createMockWallet(),
@@ -274,7 +274,7 @@ describe("pollAndSignPayouts", () => {
     const presignClient = createMockPresignClient();
     const onProgress = vi.fn();
 
-    await pollAndSignPayouts({
+    await runDepositorPresignFlow({
       statusReader: reader,
       presignClient,
       btcWallet: createMockWallet(),
@@ -325,7 +325,7 @@ describe("pollAndSignPayouts", () => {
       submitDepositorPresignatures: vi.fn(async () => {}),
     };
 
-    await pollAndSignPayouts({
+    await runDepositorPresignFlow({
       statusReader: reader,
       presignClient,
       btcWallet: createMockWallet(),
@@ -349,7 +349,7 @@ describe("pollAndSignPayouts", () => {
     controller.abort();
 
     await expect(
-      pollAndSignPayouts({
+      runDepositorPresignFlow({
         statusReader: createMockStatusReader([]),
         presignClient: createMockPresignClient(),
         btcWallet: createMockWallet(),

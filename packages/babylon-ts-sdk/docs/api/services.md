@@ -479,7 +479,7 @@ Whether the vault provider reported a terminal failure
 
 ### PayoutSigningContext
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signAndSubmitPayouts.ts:38](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signAndSubmitPayouts.ts#L38)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts:38](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts#L38)
 
 Context required for signing payout transactions.
 Caller builds this from on-chain data (contract queries, GraphQL, config).
@@ -492,7 +492,7 @@ Caller builds this from on-chain data (contract queries, GraphQL, config).
 peginTxHex: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signAndSubmitPayouts.ts:40](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signAndSubmitPayouts.ts#L40)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts:40](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts#L40)
 
 Raw pegin BTC transaction hex (for PSBT construction)
 
@@ -502,7 +502,7 @@ Raw pegin BTC transaction hex (for PSBT construction)
 vaultProviderBtcPubkey: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signAndSubmitPayouts.ts:42](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signAndSubmitPayouts.ts#L42)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts:42](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts#L42)
 
 Vault provider's BTC public key (x-only hex, no prefix)
 
@@ -512,7 +512,7 @@ Vault provider's BTC public key (x-only hex, no prefix)
 vaultKeeperBtcPubkeys: string[];
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signAndSubmitPayouts.ts:44](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signAndSubmitPayouts.ts#L44)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts:44](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts#L44)
 
 Sorted vault keeper BTC public keys (x-only hex, no prefix)
 
@@ -522,7 +522,7 @@ Sorted vault keeper BTC public keys (x-only hex, no prefix)
 universalChallengerBtcPubkeys: string[];
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signAndSubmitPayouts.ts:46](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signAndSubmitPayouts.ts#L46)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts:46](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts#L46)
 
 Sorted universal challenger BTC public keys (x-only hex, no prefix)
 
@@ -532,7 +532,7 @@ Sorted universal challenger BTC public keys (x-only hex, no prefix)
 depositorBtcPubkey: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signAndSubmitPayouts.ts:48](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signAndSubmitPayouts.ts#L48)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts:48](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts#L48)
 
 Depositor's BTC public key (x-only hex, no prefix)
 
@@ -542,7 +542,7 @@ Depositor's BTC public key (x-only hex, no prefix)
 timelockPegin: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signAndSubmitPayouts.ts:50](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signAndSubmitPayouts.ts#L50)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts:50](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts#L50)
 
 Pegin timelock from the locked offchain params version
 
@@ -552,7 +552,7 @@ Pegin timelock from the locked offchain params version
 network: Network;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signAndSubmitPayouts.ts:52](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signAndSubmitPayouts.ts#L52)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts:52](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts#L52)
 
 BTC network (Mainnet, Testnet, etc.)
 
@@ -562,15 +562,15 @@ BTC network (Mainnet, Testnet, etc.)
 registeredPayoutScriptPubKey: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signAndSubmitPayouts.ts:54](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signAndSubmitPayouts.ts#L54)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts:54](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts#L54)
 
 On-chain registered depositor payout scriptPubKey (hex)
 
 ***
 
-### PollAndSignPayoutsParams
+### RunDepositorPresignFlowParams
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signAndSubmitPayouts.ts:57](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signAndSubmitPayouts.ts#L57)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts:57](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts#L57)
 
 #### Properties
 
@@ -580,7 +580,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signAndSubmit
 statusReader: PeginStatusReader;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signAndSubmitPayouts.ts:59](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signAndSubmitPayouts.ts#L59)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts:59](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts#L59)
 
 VP client implementing the status reader interface
 
@@ -590,7 +590,7 @@ VP client implementing the status reader interface
 presignClient: PresignClient;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signAndSubmitPayouts.ts:61](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signAndSubmitPayouts.ts#L61)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts:61](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts#L61)
 
 VP client implementing the presign transaction flow interface
 
@@ -600,7 +600,7 @@ VP client implementing the presign transaction flow interface
 btcWallet: BitcoinWallet;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signAndSubmitPayouts.ts:63](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signAndSubmitPayouts.ts#L63)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts:63](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts#L63)
 
 Bitcoin wallet for signing
 
@@ -610,7 +610,7 @@ Bitcoin wallet for signing
 peginTxid: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signAndSubmitPayouts.ts:65](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signAndSubmitPayouts.ts#L65)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts:65](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts#L65)
 
 BTC pegin transaction ID (unprefixed hex, 64 chars)
 
@@ -620,7 +620,7 @@ BTC pegin transaction ID (unprefixed hex, 64 chars)
 depositorPk: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signAndSubmitPayouts.ts:67](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signAndSubmitPayouts.ts#L67)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts:67](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts#L67)
 
 Depositor's x-only BTC public key (unprefixed hex, 64 chars)
 
@@ -630,7 +630,7 @@ Depositor's x-only BTC public key (unprefixed hex, 64 chars)
 signingContext: PayoutSigningContext;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signAndSubmitPayouts.ts:69](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signAndSubmitPayouts.ts#L69)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts:69](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts#L69)
 
 Signing context built from on-chain data
 
@@ -640,7 +640,7 @@ Signing context built from on-chain data
 optional timeoutMs: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signAndSubmitPayouts.ts:71](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signAndSubmitPayouts.ts#L71)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts:71](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts#L71)
 
 Maximum polling timeout in milliseconds (default: 20 min)
 
@@ -650,7 +650,7 @@ Maximum polling timeout in milliseconds (default: 20 min)
 optional signal: AbortSignal;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signAndSubmitPayouts.ts:73](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signAndSubmitPayouts.ts#L73)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts:73](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts#L73)
 
 AbortSignal for cancellation
 
@@ -660,7 +660,7 @@ AbortSignal for cancellation
 optional onProgress: (completed, total) => void;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signAndSubmitPayouts.ts:75](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signAndSubmitPayouts.ts#L75)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts:75](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts#L75)
 
 Optional progress callback (completed claimers, total claimers)
 
@@ -1615,13 +1615,13 @@ Check if a specific action is available in the current state
 
 ***
 
-### pollAndSignPayouts()
+### runDepositorPresignFlow()
 
 ```ts
-function pollAndSignPayouts(params): Promise<void>;
+function runDepositorPresignFlow(params): Promise<void>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signAndSubmitPayouts.ts:249](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signAndSubmitPayouts.ts#L249)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts:249](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts#L249)
 
 Poll for payout transactions, sign them, sign the depositor graph,
 and submit all signatures to the vault provider.
@@ -1632,7 +1632,7 @@ This is the main deposit protocol step between registration and activation.
 
 ##### params
 
-[`PollAndSignPayoutsParams`](#pollandsignpayoutsparams)
+[`RunDepositorPresignFlowParams`](#rundepositorpresignflowparams)
 
 #### Returns
 

@@ -15,3 +15,15 @@ export type {
   CreateDepositorTokenResponse,
   VpTokenProviderConfig,
 } from "./tokenProvider";
+
+export {
+  VpTokenRegistry,
+  vpTokenRegistry,
+  type VpTokenRegistryInput,
+} from "./tokenRegistry";
+
+export { createAuthenticatedVpClient } from "./createAuthenticatedVpClient";
+export type { AuthenticatedVpClientConfig } from "./createAuthenticatedVpClient";
+
+export { primeVpTokenRegistry } from "./primeVpAuth";
+export type { PrimeVpAuthInput } from "./primeVpAuth";

@@ -67,7 +67,10 @@ export interface JsonRpcClientConfig {
   retryDelay?: number;
   /**
    * Predicate to determine if a method is safe to retry.
-   * Default: only retry `vaultProvider_getPeginStatus` and `vaultProvider_getPegoutStatus`.
+   * Default ({@link DEFAULT_RETRYABLE_METHODS}): only retry the
+   * idempotent read-style VP methods —
+   * `vaultProvider_getPeginStatus`, `vaultProvider_getPegoutStatus`,
+   * and `vaultProvider_requestDepositorPresignTransactions`.
    * Write/mutating methods are NOT retried by default.
    */
   retryableFor?: (method: string) => boolean;

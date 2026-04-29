@@ -26,6 +26,7 @@
  * @module tbv/core/clients/vault-provider/auth/tokenProvider
  */
 
+import type { OnChainBtcPubkey } from "../../eth/types";
 import type { BearerTokenProvider, JsonRpcClient } from "../json-rpc-client";
 import {
   type ServerIdentityResponse,
@@ -64,7 +65,14 @@ export interface CreateDepositorTokenResponse {
 export interface VpTokenProviderConfig {
   /** VP JSON-RPC client to use for `auth_createDepositorToken` calls. */
   client: JsonRpcClient;
-  /** Pre-PegIn transaction id this token is scoped to. */
+  /**
+   * Per-vault PegIn transaction id this token is scoped to. In a
+   * batch deposit, each vault has its own depositor-signed PegIn tx
+   * (spending a distinct HTLC output of the shared Pre-PegIn), so
+   * each vault gets its own `peginTxid` and its own
+   * `VpTokenProvider`/registry entry. Tokens are NOT shared across
+   * sibling vaults in a batch.
+   */
   peginTxid: string;
   /**
    * 64-char lowercase hex encoding of the 32-byte `auth_anchor`
@@ -74,10 +82,12 @@ export interface VpTokenProviderConfig {
   authAnchorHex: string;
   /**
    * 64-char lowercase hex x-only pubkey the FE expects the VP to
-   * present as its persistent server identity. Sourced from the
-   * on-chain `VaultProvider.btcPubKey` via the vault-registry reader.
+   * present as its persistent server identity. Branded as
+   * {@link OnChainBtcPubkey} so callers cannot accidentally pass a
+   * value sourced from the indexer mirror — the only legitimate
+   * supplier is `VaultRegistryReader.getVaultProviderBtcPubKey`.
    */
-  pinnedServerPubkey: string;
+  pinnedServerPubkey: OnChainBtcPubkey;
   /**
    * Set of method names that require authentication. `getToken()`
    * returns `null` for any method not in this set.
@@ -107,7 +117,7 @@ export class VpTokenProvider implements BearerTokenProvider {
   private readonly client: JsonRpcClient;
   private readonly peginTxid: string;
   private readonly authAnchorHex: string;
-  private readonly pinnedServerPubkey: string;
+  private readonly pinnedServerPubkey: OnChainBtcPubkey;
   private readonly authGatedMethods: ReadonlySet<string>;
   private readonly refreshSkewSecs: number;
   private readonly now: () => number;

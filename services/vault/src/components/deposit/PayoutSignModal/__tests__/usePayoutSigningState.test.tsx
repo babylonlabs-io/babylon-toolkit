@@ -56,6 +56,7 @@ const ACTIVITY = {
   applicationEntryPoint: "0xapp",
   depositorPayoutBtcAddress: "0xpayoutscript" as Hex,
   providers: [{ id: "0xprovider" as Hex }],
+  unsignedPrePeginTx: "0xdeadbeef",
 };
 const PROVIDER = { btcPubKey: "0xvpkey" };
 const BTC_WALLET = { signPsbt: vi.fn() };
@@ -81,7 +82,7 @@ function renderHookWithProps(
     usePayoutSigningState({
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       activity: ACTIVITY as any,
-      btcPublicKey: "0xbtcpub",
+      btcPublicKey: "0x" + "ab".repeat(32),
       depositorEthAddress: "0xeth" as Hex,
       onSuccess,
       ...overrides,
@@ -301,7 +302,7 @@ describe("usePayoutSigningState", () => {
         {
           initialProps: {
             activity: badActivity,
-            btcPublicKey: "0xbtcpub",
+            btcPublicKey: "0x" + "ab".repeat(32),
             depositorEthAddress: "0xeth" as Hex,
             onSuccess,
           },
@@ -321,7 +322,7 @@ describe("usePayoutSigningState", () => {
       rerender({
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         activity: ACTIVITY as any,
-        btcPublicKey: "0xbtcpub",
+        btcPublicKey: "0x" + "ab".repeat(32),
         depositorEthAddress: "0xeth" as Hex,
         onSuccess,
       });
@@ -423,7 +424,7 @@ describe("usePayoutSigningState", () => {
           usePayoutSigningState({
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             activity: ACTIVITY as any,
-            btcPublicKey: "0xbtcpub",
+            btcPublicKey: "0x" + "ab".repeat(32),
             depositorEthAddress: "0xeth" as Hex,
             onSuccess,
           }),

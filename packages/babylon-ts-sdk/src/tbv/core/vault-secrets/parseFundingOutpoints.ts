@@ -1,12 +1,17 @@
 /**
- * Parse pre-pegin tx inputs into vault-context fundingOutpoints.
- * Used by the resume flow. Reverses prev-txid bytes from wire (LE) to
- * display order so resume matches deposit-time encoding byte-for-byte.
+ * Parse a Pre-PegIn transaction's inputs into the vault-context
+ * `fundingOutpoints` shape consumed by `deriveVaultRoot`. Reverses
+ * the prev-txid bytes from wire-internal little-endian to display
+ * order so the derivation is byte-for-byte identical to the
+ * deposit-time computation.
+ *
+ * @module vault-secrets/parseFundingOutpoints
  */
 
-import type { FundingOutpoint } from "@babylonlabs-io/ts-sdk/tbv/core";
 import { Transaction } from "bitcoinjs-lib";
 import { Buffer } from "buffer";
+
+import type { FundingOutpoint } from "./context";
 
 export function parseFundingOutpointsFromTx(
   unsignedTxHex: string,

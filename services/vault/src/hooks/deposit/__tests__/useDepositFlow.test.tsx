@@ -20,6 +20,12 @@ vi.mock("@/utils/rpc", async (importOriginal) => ({
   getVpProxyUrl: (address: string) => `https://proxy.test/rpc/${address}`,
 }));
 
+vi.mock("@/clients/eth-contract/sdk-readers", () => ({
+  getVaultRegistryReader: vi.fn(() => ({
+    getVaultProviderBtcPubKey: vi.fn(async () => "ab".repeat(32)),
+  })),
+}));
+
 vi.mock("@babylonlabs-io/wallet-connector", () => ({
   useChainConnector: vi.fn(),
 }));
@@ -212,6 +218,7 @@ const MOCK_BATCH_RESULT = {
     "0xdeadbeef1234567890abcdef1234567890abcdef1234567890abcdef12345678" as Hex,
   ],
   htlcSecretHexes: ["11".repeat(32), "22".repeat(32)],
+  authAnchorHex: "ee".repeat(32),
 };
 
 const MOCK_PARAMS = {

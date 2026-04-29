@@ -1,3 +1,10 @@
+/**
+ * Unauthenticated VP RPC client factory. Auth-gated flows use the
+ * SDK's `createAuthenticatedVpClient` instead.
+ *
+ * @module utils/rpc/vpClient
+ */
+
 import { VaultProviderRpcClient } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 
 import { getVpProxyUrl } from "./vpProxy";

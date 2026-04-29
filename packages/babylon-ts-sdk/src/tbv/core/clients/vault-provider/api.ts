@@ -13,7 +13,11 @@
 
 import type { PeginStatusReader, WotsKeySubmitter, PresignClient, ClaimerArtifactsReader } from "../../services/deposit/interfaces";
 
-import { JsonRpcClient, type JsonRpcClientConfig } from "./json-rpc-client";
+import {
+  type BearerTokenProvider,
+  JsonRpcClient,
+  type JsonRpcClientConfig,
+} from "./json-rpc-client";
 import type {
   GetPeginStatusParams,
   GetPeginStatusResponse,
@@ -40,10 +44,24 @@ export interface VaultProviderRpcClientOptions {
   retries?: number;
   /** Initial retry delay in milliseconds (default: 1000) */
   retryDelay?: number;
-  /** Custom retry predicate (default: only retry get* status methods) */
+  /**
+   * Custom retry predicate. Default (`DEFAULT_RETRYABLE_METHODS` in
+   * `json-rpc-client.ts`): only retry the idempotent read-style VP
+   * methods — `vaultProvider_getPeginStatus`,
+   * `vaultProvider_getPegoutStatus`, and
+   * `vaultProvider_requestDepositorPresignTransactions`.
+   */
   retryableFor?: (method: string) => boolean;
   /** Custom headers */
   headers?: Record<string, string>;
+  /**
+   * Bearer-token provider invoked once per request before sending. If
+   * a token is returned, it is attached as `Authorization: Bearer
+   * <token>`; if `null`, the method is treated as unauthenticated.
+   * Wire {@link VpTokenProvider} (or a registry-managed instance) here
+   * to authenticate the depositor-side methods that require it.
+   */
+  tokenProvider?: BearerTokenProvider;
 }
 
 const DEFAULT_TIMEOUT_MS = 60_000;
@@ -70,6 +88,7 @@ export class VaultProviderRpcClient
       retryDelay: options?.retryDelay,
       retryableFor: options?.retryableFor,
       headers: options?.headers,
+      tokenProvider: options?.tokenProvider,
     };
     this.client = new JsonRpcClient(config);
   }

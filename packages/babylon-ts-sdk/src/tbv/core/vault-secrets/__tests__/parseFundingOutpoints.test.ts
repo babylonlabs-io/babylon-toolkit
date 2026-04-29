@@ -40,7 +40,6 @@ function buildTxHex(inputs: Array<{ txid: string; vout: number }>): string {
   const inputCountByte = inputs.length.toString(16).padStart(2, "0");
   const inputsHex = inputs
     .map(({ txid, vout }) => {
-      // prev_txid in WIRE order = reverse of display hex
       const prevTxidWire = reverseHex(txid);
       const voutLe = uint32LeHex(vout);
       const scriptSigLen = "00";
@@ -48,10 +47,9 @@ function buildTxHex(inputs: Array<{ txid: string; vout: number }>): string {
       return prevTxidWire + voutLe + scriptSigLen + sequence;
     })
     .join("");
-  // 1 output: 100000 satoshis to a P2WPKH-shaped scriptPubKey
   const outputCount = "01";
-  const value = "a086010000000000"; // 100000 LE
-  const scriptPubKey = "16" + "0014" + "00".repeat(20); // len + script
+  const value = "a086010000000000";
+  const scriptPubKey = "16" + "0014" + "00".repeat(20);
   const locktime = "00000000";
   return (
     version +
@@ -97,7 +95,7 @@ describe("parseFundingOutpointsFromTx", () => {
   it("matches the deposit-time encoding (display-order bytes)", () => {
     // Resume MUST produce the same bytes as deposit's
     // `hexToUint8Array(selectedUTXO.txid)` so the wallet derives the
-    // same vault root. Mempool-style display hex → forward bytes.
+    // same vault root.
     const txHex = buildTxHex([{ txid: TXID_DISPLAY_HEX_1, vout: 3 }]);
     const [outpoint] = parseFundingOutpointsFromTx(txHex);
     expect(Array.from(outpoint.txid)).toEqual(
@@ -112,10 +110,6 @@ describe("parseFundingOutpointsFromTx", () => {
   });
 
   it("throws on a transaction with no inputs", () => {
-    // Manually craft a 0-input tx:
-    //   version(4) || marker(1)? || flag(1)? || vin_count(varint) || ...
-    // Skip witness fields for simplicity — version=2, vin_count=0,
-    // vout_count=0, locktime=0.
     const noInputsTxHex = "02000000" + "00" + "00" + "00000000";
     expect(() => parseFundingOutpointsFromTx(noInputsTxHex)).toThrow(
       /no inputs/i,
