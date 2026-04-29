@@ -21,7 +21,13 @@ import {
   mapViemErrorToContractError,
 } from "@/utils/errors";
 
-import { repayFull, repayPartial } from "../services";
+import { getAaveAdapterAddress } from "../config";
+import {
+  ReserveMismatchError,
+  assertReserveMatchesOnChain,
+  repayFull,
+  repayPartial,
+} from "../services";
 import type { AaveReserveConfig } from "../services/fetchConfig";
 
 export interface UseRepayTransactionProps {
@@ -85,6 +91,16 @@ export function useRepayTransaction({
         );
       }
 
+      // Verify the indexer-supplied (reserveId, token.address) pair maps to
+      // the same reserve on-chain via the env-pinned adapter the tx will
+      // execute against. Without this, a compromised indexer could redirect
+      // a repayment to a different asset.
+      await assertReserveMatchesOnChain(
+        getAaveAdapterAddress(),
+        reserve.reserveId,
+        reserve.token.address,
+      );
+
       // Call appropriate service based on repayment type
       // The borrower address is resolved from the connected wallet (self-repay)
       // Adapter and spoke addresses are pinned from trusted environment config
@@ -135,11 +151,20 @@ export function useRepayTransaction({
       logger.error(error instanceof Error ? error : new Error(String(error)), {
         data: { context: "Repay failed" },
       });
+      // Surface the on-chain reserve-mismatch as its own user-facing error so
+      // the user sees an integrity warning, not a generic repay failure.
       const mappedError =
-        error instanceof Error
-          ? mapViemErrorToContractError(error, "Repay")
-          : new Error("An unexpected error occurred while repaying");
+        error instanceof ReserveMismatchError
+          ? new Error(
+              "Asset integrity check failed: the debt asset returned by the indexer does not match what's registered on-chain. Refresh and try again. If this persists, do not proceed.",
+            )
+          : error instanceof Error
+            ? mapViemErrorToContractError(error, "Repay")
+            : new Error("An unexpected error occurred while repaying");
 
+      // Repay deliberately has no `retryAction`. If one is added later, mirror
+      // the borrow hook and gate it on `!(error instanceof ReserveMismatchError)`
+      // — retrying can't help against a compromised indexer.
       handleError({
         error: mappedError,
         displayOptions: {
