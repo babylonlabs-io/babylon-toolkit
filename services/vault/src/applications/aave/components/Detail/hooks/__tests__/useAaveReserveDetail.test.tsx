@@ -104,6 +104,18 @@ const mockUseAaveConfig = vi.fn(() => ({
       },
     },
   ],
+  allBorrowReserves: [
+    {
+      reserveId: 2n,
+      reserve: { collateralFactor: 0 },
+      token: {
+        symbol: "USDC",
+        name: "USD Coin",
+        decimals: 6,
+        address: "0xUSDC" as Address,
+      },
+    },
+  ],
   isLoading: false,
   error: null,
 }));
@@ -331,6 +343,18 @@ describe("useAaveReserveDetail", () => {
         },
       },
       borrowableReserves: [
+        {
+          reserveId: 3n,
+          reserve: { collateralFactor: 0 },
+          token: {
+            symbol: "WBTC",
+            name: "Wrapped Bitcoin",
+            decimals: 8,
+            address: "0xWBTC" as Address,
+          },
+        },
+      ],
+      allBorrowReserves: [
         {
           reserveId: 3n,
           reserve: { collateralFactor: 0 },

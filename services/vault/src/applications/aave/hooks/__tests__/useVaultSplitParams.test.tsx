@@ -218,6 +218,7 @@ describe("useVaultSplitParams", () => {
       },
       vbtcReserve: null,
       borrowableReserves: [],
+      allBorrowReserves: [],
       isLoading: false,
       error: null,
     });
@@ -260,6 +261,7 @@ describe("useVaultSplitParams", () => {
       config: null,
       vbtcReserve: null,
       borrowableReserves: [],
+      allBorrowReserves: [],
       isLoading: false,
       error: null,
     });
