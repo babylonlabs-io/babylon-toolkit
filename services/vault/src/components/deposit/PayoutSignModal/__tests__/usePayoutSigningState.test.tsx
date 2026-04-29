@@ -181,6 +181,25 @@ describe("usePayoutSigningState", () => {
       expect(mockSignAndSubmitPayouts).not.toHaveBeenCalled();
     });
 
+    it("rejects signing when the wallet address is unavailable instead of skipping the payout-address check", async () => {
+      // Regression: previously the wallet-vs-indexer scriptPubKey comparison
+      // was wrapped in `if (connectedBtcAddress)`, so a wallet with a connector
+      // but no readable address would silently bypass the security guard.
+      mockBtcConnector = {
+        connectedWallet: { provider: BTC_WALLET },
+      };
+
+      const { result } = renderHookWithProps();
+
+      await act(async () => {
+        await result.current.handleSign();
+      });
+
+      expect(result.current.error?.title).toBe("Wallet Address Unavailable");
+      expect(mockBtcAddressToScriptPubKeyHex).not.toHaveBeenCalled();
+      expect(mockSignAndSubmitPayouts).not.toHaveBeenCalled();
+    });
+
     it("errors when vault provider is not found", async () => {
       mockFindProvider.mockReturnValue(undefined);
 

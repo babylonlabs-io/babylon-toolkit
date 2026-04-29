@@ -115,30 +115,38 @@ export function usePayoutSigningState({
 
       // Security: the indexer-sourced payout scriptPubKey must match the
       // connected wallet. A compromised indexer could otherwise trick signing
-      // over an attacker-chosen payout address.
+      // over an attacker-chosen payout address. Mandatory — never skip this
+      // guard if the wallet address can't be read; reject upfront instead.
       const connectedBtcAddress =
         btcConnector?.connectedWallet?.account?.address;
-      if (connectedBtcAddress) {
-        let walletScriptPubKey: string;
-        try {
-          walletScriptPubKey = btcAddressToScriptPubKeyHex(connectedBtcAddress);
-        } catch {
-          setError({
-            title: "Wallet Address Error",
-            message:
-              "Could not read your Bitcoin wallet address. Please reconnect the wallet and make sure it is on the correct Bitcoin network.",
-          });
-          return;
-        }
-        if (walletScriptPubKey !== activity.depositorPayoutBtcAddress) {
-          setError({
-            title: "Payout Address Mismatch",
-            message:
-              "The payout address from the indexer does not match your connected wallet. " +
-              "This may indicate a data integrity issue. Please verify your wallet connection.",
-          });
-          return;
-        }
+      if (!connectedBtcAddress) {
+        setError({
+          title: "Wallet Address Unavailable",
+          message:
+            "Connect the BTC wallet you used at deposit to verify the payout address before signing.",
+        });
+        return;
+      }
+
+      let walletScriptPubKey: string;
+      try {
+        walletScriptPubKey = btcAddressToScriptPubKeyHex(connectedBtcAddress);
+      } catch {
+        setError({
+          title: "Wallet Address Error",
+          message:
+            "Could not read your Bitcoin wallet address. Please reconnect the wallet and make sure it is on the correct Bitcoin network.",
+        });
+        return;
+      }
+      if (walletScriptPubKey !== activity.depositorPayoutBtcAddress) {
+        setError({
+          title: "Payout Address Mismatch",
+          message:
+            "The payout address from the indexer does not match your connected wallet. " +
+            "This may indicate a data integrity issue. Please verify your wallet connection.",
+        });
+        return;
       }
 
       // Guard `providers[0]` explicitly rather than casting a possibly-undefined
