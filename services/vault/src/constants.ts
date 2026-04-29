@@ -28,3 +28,8 @@ export const MAX_UINT256 = 2n ** 256n - 1n;
 export const REPLAYS_ON_ERROR_RATE = Number.parseFloat(
   process.env.NEXT_PUBLIC_REPLAYS_RATE ?? "0.05",
 );
+
+// Bitcoin protocol constants
+export const BTC_BLOCK_TIME_MINS = 10;
+export const MINS_PER_HOUR = 60;
+export const FALLBACK_FEE_RATE_SATS_VB = 1;

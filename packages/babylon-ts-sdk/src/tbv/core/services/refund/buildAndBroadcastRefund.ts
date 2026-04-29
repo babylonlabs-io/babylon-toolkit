@@ -39,7 +39,22 @@ const PUBKEY_HEX_RE = /^(?:0x)?(?:[0-9a-fA-F]{64}|[0-9a-fA-F]{66})$/;
 // input spending the HTLC refund leaf → 1 P2TR/P2WPKH output). Taproot
 // script-path witness: 64-byte Schnorr sig + refund script + control block.
 // This is protocol-owned knowledge; callers don't parameterise it.
-const REFUND_VSIZE = 160;
+export const REFUND_VSIZE = 160;
+
+/**
+ * Network fee (sats) the SDK will charge for a refund tx at the given
+ * sat/vB rate. Mirrors the internal computation in
+ * {@link buildAndBroadcastRefund} so callers (e.g. UI fee previews) don't
+ * have to duplicate the constant.
+ */
+export function estimateRefundFeeSats(feeRateSatsVb: number): bigint {
+  if (!Number.isFinite(feeRateSatsVb) || feeRateSatsVb <= 0) {
+    throw new Error(
+      `feeRateSatsVb must be a positive finite number, got ${feeRateSatsVb}`,
+    );
+  }
+  return BigInt(Math.ceil(feeRateSatsVb * REFUND_VSIZE));
+}
 // Refund tx has exactly one input — the HTLC output at htlcVout from the
 // Pre-PegIn tx. Used to tell the signer how many sign entries to generate.
 // (Not the taproot leaf index; the leaf is encoded into the PSBT by the

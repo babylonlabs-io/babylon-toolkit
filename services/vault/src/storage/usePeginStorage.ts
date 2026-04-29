@@ -26,6 +26,7 @@ import {
   addPendingPegin as addPendingPeginToStorage,
   filterPendingPegins,
   getPendingPegins,
+  markRefundBroadcast as markRefundBroadcastInStorage,
   type PendingPeginRequest,
   savePendingPegins,
   updatePendingPeginStatus as updatePendingPeginStatusInStorage,
@@ -52,6 +53,11 @@ export interface UsePeginStorageResult {
     vaultId: string,
     status: LocalStorageStatus,
   ) => void;
+  /**
+   * Mark a pegin as REFUND_BROADCAST and stamp the broadcast time used by the
+   * optimistic-suppression TTL.
+   */
+  markRefundBroadcast: (vaultId: string, refundBroadcastAt: number) => void;
 }
 
 /**
@@ -200,6 +206,7 @@ export function usePeginStorage({
             {
               localStatus: pendingPegin.status,
               isInUse: activity.isInUse,
+              refundBroadcastAt: pendingPegin.refundBroadcastAt,
             },
           );
           return {
@@ -240,10 +247,19 @@ export function usePeginStorage({
     [ethAddress],
   );
 
+  const markRefundBroadcast = useCallback(
+    (vaultId: string, refundBroadcastAt: number) => {
+      if (!ethAddress) return;
+      markRefundBroadcastInStorage(ethAddress, vaultId, refundBroadcastAt);
+    },
+    [ethAddress],
+  );
+
   return {
     allActivities,
     pendingPegins,
     addPendingPegin,
     updatePendingPeginStatus,
+    markRefundBroadcast,
   };
 }

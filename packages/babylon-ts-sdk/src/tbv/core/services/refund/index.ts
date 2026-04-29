@@ -7,6 +7,8 @@
 export { BIP68NotMatureError } from "./errors";
 export {
   buildAndBroadcastRefund,
+  estimateRefundFeeSats,
+  REFUND_VSIZE,
   type BtcBroadcastResult,
   type BtcBroadcaster,
   type RefundInput,

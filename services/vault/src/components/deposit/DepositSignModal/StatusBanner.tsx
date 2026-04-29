@@ -1,13 +1,14 @@
 import { Text } from "@babylonlabs-io/core-ui";
 
 interface StatusBannerProps {
-  variant: "error" | "success";
+  variant: "error" | "success" | "warning";
   children: React.ReactNode;
 }
 
 const VARIANT_STYLES = {
   error: "bg-error-main/10 text-error-main",
   success: "bg-success-main/10 text-success-main",
+  warning: "bg-warning-main/10 text-warning-main",
 } as const;
 
 /**
