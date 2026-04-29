@@ -331,6 +331,8 @@ function getDisplay(
       return {
         displayLabel: PEGIN_DISPLAY_LABELS.SIGNING_REQUIRED,
         displayVariant: "pending",
+        message:
+          "Vault provider has prepared payout transactions. Click 'Sign Payouts' to pre-authorize your Bitcoin claim transactions.",
       };
     }
     if (
@@ -453,7 +455,10 @@ export function getPrimaryActionButton(state: PeginState): {
     return { label: "Submit WOTS Key", action: PeginAction.SUBMIT_WOTS_KEY };
   }
   if (state.availableActions.includes(PeginAction.SIGN_PAYOUT_TRANSACTIONS)) {
-    return { label: "Sign", action: PeginAction.SIGN_PAYOUT_TRANSACTIONS };
+    return {
+      label: "Sign Payouts",
+      action: PeginAction.SIGN_PAYOUT_TRANSACTIONS,
+    };
   }
   if (
     state.availableActions.includes(PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN)
