@@ -32,12 +32,16 @@ export interface ActivateVaultParams {
   secret: Hex;
   /** Ethereum wallet client for signing the transaction */
   walletClient: WalletClient;
+  /** Abort signal — checked before issuing the contract write */
+  signal?: AbortSignal;
 }
 
 export async function activateVaultWithSecret(
   params: ActivateVaultParams,
 ): Promise<TransactionResult> {
-  const { vaultId, secret, walletClient } = params;
+  const { vaultId, secret, walletClient, signal } = params;
+
+  signal?.throwIfAborted();
 
   const writer: EthContractWriter<TransactionResult> = (call) =>
     executeWrite({
