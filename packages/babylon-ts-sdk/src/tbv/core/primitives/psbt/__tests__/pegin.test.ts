@@ -358,6 +358,57 @@ describe("buildPrePeginPsbt", () => {
       expect(with_.htlcScriptPubKeys).toEqual(without.htlcScriptPubKeys);
       expect(with_.htlcValues).toEqual(without.htlcValues);
     });
+
+    it("totalOutputValue and tx structure are invariant under hashlock content", async () => {
+      // The sizing pass uses 32-byte placeholder hashlocks because the
+      // wallet popup that produces real ones hasn't run yet. The commit
+      // pass swaps in real values. UTXO selection MUST be invariant
+      // under that swap — otherwise sizing's fee/changeAmount would be
+      // wrong for the funded broadcast tx and broadcast underfunding
+      // (or change misaccounting) becomes possible. Mirrors the
+      // auth-anchor invariance test below.
+      const placeholderHashlocks = ["00".repeat(32), "00".repeat(32)];
+      const realHashlocks = ["ab".repeat(32), "cd".repeat(32)];
+      const sized = await buildPrePeginPsbt(
+        makePrePeginParams({
+          hashlocks: placeholderHashlocks,
+          pegInAmounts: [50_000n, 60_000n],
+        }),
+      );
+      const committed = await buildPrePeginPsbt(
+        makePrePeginParams({
+          hashlocks: realHashlocks,
+          pegInAmounts: [50_000n, 60_000n],
+        }),
+      );
+      expect(committed.totalOutputValue).toBe(sized.totalOutputValue);
+      expect(committed.htlcValues).toEqual(sized.htlcValues);
+      // HTLC scriptPubKey is a tweaked taproot output key that depends
+      // on the hashlock — these legitimately differ between sized and
+      // committed. We don't assert equality on htlcScriptPubKeys here.
+    });
+
+    it("totalOutputValue and fee sizing are invariant under authAnchorHash content", async () => {
+      // The sizing pass uses a 32-byte placeholder for `authAnchorHash`
+      // because the wallet popup that produces the real anchor hasn't
+      // run yet. The commit pass swaps in the real hash. UTXO selection
+      // and fee computation MUST be identical between the two so the
+      // funding outpoints used to derive the vault root are the same as
+      // the ones funding the broadcast tx — otherwise the resume flow
+      // re-derives a different root and activation fails.
+      const placeholderHash = "00".repeat(32);
+      const realHash = VALID_AUTH_ANCHOR_HASH;
+      const sized = await buildPrePeginPsbt(
+        makePrePeginParams({ authAnchorHash: placeholderHash }),
+      );
+      const committed = await buildPrePeginPsbt(
+        makePrePeginParams({ authAnchorHash: realHash }),
+      );
+      expect(committed.totalOutputValue).toBe(sized.totalOutputValue);
+      expect(committed.htlcValues).toEqual(sized.htlcValues);
+      expect(committed.htlcScriptPubKeys).toEqual(sized.htlcScriptPubKeys);
+      expect(committed.authAnchorVout).toBe(sized.authAnchorVout);
+    });
   });
 
   describe("Error handling", () => {

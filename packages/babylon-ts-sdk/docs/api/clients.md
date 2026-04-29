@@ -438,7 +438,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/vault-registry-rea
 getVaultProtocolInfo(vaultId): Promise<VaultProtocolInfo>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/vault-registry-reader.ts:52](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/vault-registry-reader.ts#L52)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/vault-registry-reader.ts:60](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/vault-registry-reader.ts#L60)
 
 ###### Parameters
 
@@ -460,7 +460,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/vault-registry-rea
 getVaultData(vaultId): Promise<VaultData>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/vault-registry-reader.ts:87](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/vault-registry-reader.ts#L87)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/vault-registry-reader.ts:95](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/vault-registry-reader.ts#L95)
 
 ###### Parameters
 

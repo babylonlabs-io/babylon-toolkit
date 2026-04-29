@@ -302,6 +302,7 @@ describe("PeginManager", () => {
       expect(result.derivedSecrets.wotsPkHashes[0]).toMatch(
         /^0x[0-9a-f]{64}$/,
       );
+      expect(result.derivedSecrets.authAnchorHex).toMatch(/^[0-9a-f]{64}$/);
 
       // Pubkey snapshot returned at top level (safe to persist).
       expect(result.depositorBtcPubkey).toBe(TEST_KEYS.DEPOSITOR);
@@ -1286,6 +1287,201 @@ describe("PeginManager", () => {
           ...BASE_PREPARE_PEGIN_PARAMS,
         }),
       ).rejects.toThrow(/htlcVout\/index mismatch/);
+    });
+
+    it("emits OP_RETURN at vout=N with SHA256(authAnchor) push payload", async () => {
+      // Structural binding for the depositor bearer-token flow: the
+      // broadcast Pre-PegIn must commit to the auth anchor at a fixed
+      // location with a fixed encoding. A drifted layout (different
+      // vout, missing OP_RETURN, swapped script-prefix bytes) would let
+      // a depositor obtain a token whose on-chain witness doesn't bind
+      // their preimage to this Pre-PegIn.
+      const { sha256 } = await import("@noble/hashes/sha2.js");
+      const bitcoin = await import("bitcoinjs-lib");
+
+      const btcWallet = new MockBitcoinWallet({
+        publicKeyHex: TEST_KEYS.DEPOSITOR,
+      });
+      const ethWallet = new MockEthereumWallet();
+      const manager = new PeginManager({
+        btcNetwork: "signet",
+        btcWallet,
+        ethWallet: ethWallet as any,
+        ethChain: TEST_CHAIN,
+        vaultContracts: { btcVaultRegistry: TEST_CONTRACT_ADDRESS },
+        mempoolApiUrl: MEMPOOL_API_URLS.signet,
+      });
+
+      const result = await manager.preparePegin({
+        amounts: [TEST_AMOUNTS.PEGIN, TEST_AMOUNTS.PEGIN_SMALL],
+        ...BASE_PREPARE_PEGIN_PARAMS,
+      });
+
+      const tx = bitcoin.Transaction.fromHex(result.transaction.fundedPrePeginTxHex);
+      const opReturnVout = 2; // vault outputs at 0, 1; OP_RETURN at vaultCount
+      const script = tx.outs[opReturnVout].script;
+
+      // OP_RETURN (0x6a) || PUSH32 (0x20) || 32-byte hash
+      expect(script.length).toBe(34);
+      expect(script[0]).toBe(0x6a);
+      expect(script[1]).toBe(0x20);
+      expect(tx.outs[opReturnVout].value).toBe(0);
+
+      const pushedHashHex = script.slice(2).toString("hex");
+      const expectedHashHex = Buffer.from(
+        sha256(Buffer.from(result.derivedSecrets.authAnchorHex, "hex")),
+      ).toString("hex");
+      expect(pushedHashHex).toBe(expectedHashHex);
+    });
+
+    it("refuses to commit-build with sizing-pass placeholder values", async () => {
+      // Defense-in-depth against an orchestrator bug where the commit
+      // pass receives placeholder zeros instead of real wallet-derived
+      // hashlocks or auth anchor. A placeholder-zero hashlock would
+      // produce an unspendable HTLC; a placeholder auth anchor would
+      // let the depositor reveal a known-public preimage. Fail before
+      // signing, not after broadcast.
+      const btcWallet = new MockBitcoinWallet({
+        publicKeyHex: TEST_KEYS.DEPOSITOR,
+      });
+      const ethWallet = new MockEthereumWallet();
+      const manager = new PeginManager({
+        btcNetwork: "signet",
+        btcWallet,
+        ethWallet: ethWallet as any,
+        ethChain: TEST_CHAIN,
+        vaultContracts: { btcVaultRegistry: TEST_CONTRACT_ADDRESS },
+        mempoolApiUrl: MEMPOOL_API_URLS.signet,
+      });
+
+      // Force the placeholder all-zero auth-anchor hash to reach the
+      // commit pass by mocking expandAuthAnchor to return 32 zero bytes.
+      // SHA256(0x00..00) is not the placeholder, so we bypass that and
+      // mock the sha256 call too — actually simpler: directly inject by
+      // bypassing the orchestrator's substitution via a spy on the
+      // private commit method.
+      const placeholder = "00".repeat(32);
+      const original = (manager as any).preparePeginCommit.bind(manager);
+      (manager as any).preparePeginCommit = async (args: any) =>
+        original({ ...args, authAnchorHash: placeholder });
+
+      await expect(
+        manager.preparePegin({
+          amounts: [TEST_AMOUNTS.PEGIN],
+          ...BASE_PREPARE_PEGIN_PARAMS,
+        }),
+      ).rejects.toThrow(/placeholder auth-anchor hash/);
+    });
+
+    it("refuses to commit-build with sizing-pass placeholder hashlock", async () => {
+      const btcWallet = new MockBitcoinWallet({
+        publicKeyHex: TEST_KEYS.DEPOSITOR,
+      });
+      const ethWallet = new MockEthereumWallet();
+      const manager = new PeginManager({
+        btcNetwork: "signet",
+        btcWallet,
+        ethWallet: ethWallet as any,
+        ethChain: TEST_CHAIN,
+        vaultContracts: { btcVaultRegistry: TEST_CONTRACT_ADDRESS },
+        mempoolApiUrl: MEMPOOL_API_URLS.signet,
+      });
+
+      const placeholder = "00".repeat(32);
+      const original = (manager as any).preparePeginCommit.bind(manager);
+      (manager as any).preparePeginCommit = async (args: any) =>
+        original({ ...args, hashlocks: [placeholder] });
+
+      await expect(
+        manager.preparePegin({
+          amounts: [TEST_AMOUNTS.PEGIN],
+          ...BASE_PREPARE_PEGIN_PARAMS,
+        }),
+      ).rejects.toThrow(/placeholder.*hashlock/);
+    });
+
+    it("zeros the wallet root if auth-anchor expansion throws mid-flow", async () => {
+      // Memory-hygiene guard: `expandPerVaultSecrets` is what normally
+      // wipes the root. If `expandAuthAnchor` (which runs first) throws,
+      // `expandPerVaultSecrets` never runs — so `preparePegin` itself
+      // must wipe the root on the throw path. This pins that contract.
+      const vaultSecrets = await import("../../vault-secrets");
+      const expandAuthAnchorSpy = vi.spyOn(vaultSecrets, "expandAuthAnchor");
+      let capturedRoot: Uint8Array | null = null;
+      expandAuthAnchorSpy.mockImplementationOnce((root) => {
+        // Snapshot the root reference before throwing so the test can
+        // verify it gets zeroed by the catch block.
+        capturedRoot = root;
+        throw new Error("simulated auth-anchor failure");
+      });
+
+      const btcWallet = new MockBitcoinWallet({
+        publicKeyHex: TEST_KEYS.DEPOSITOR,
+      });
+      const ethWallet = new MockEthereumWallet();
+      const manager = new PeginManager({
+        btcNetwork: "signet",
+        btcWallet,
+        ethWallet: ethWallet as any,
+        ethChain: TEST_CHAIN,
+        vaultContracts: { btcVaultRegistry: TEST_CONTRACT_ADDRESS },
+        mempoolApiUrl: MEMPOOL_API_URLS.signet,
+      });
+
+      await expect(
+        manager.preparePegin({
+          amounts: [TEST_AMOUNTS.PEGIN],
+          ...BASE_PREPARE_PEGIN_PARAMS,
+        }),
+      ).rejects.toThrow(/simulated auth-anchor failure/);
+
+      expect(capturedRoot).not.toBeNull();
+      expect(capturedRoot!.every((b) => b === 0)).toBe(true);
+
+      expandAuthAnchorSpy.mockRestore();
+    });
+
+    it("throws when the broadcast tx is missing the OP_RETURN output", async () => {
+      // Defense against a non-conformant WASM build that fails to emit
+      // the OP_RETURN. Without this assertion the depositor would
+      // produce a Pre-PegIn whose on-chain content lacks the auth
+      // anchor commitment, but the vault flow would still try to mint
+      // a bearer token bound to that anchor — the VP rejects, but only
+      // after the user has burned BTC fees broadcasting.
+      const btcWallet = new MockBitcoinWallet({
+        publicKeyHex: TEST_KEYS.DEPOSITOR,
+      });
+      const ethWallet = new MockEthereumWallet();
+      const manager = new PeginManager({
+        btcNetwork: "signet",
+        btcWallet,
+        ethWallet: ethWallet as any,
+        ethChain: TEST_CHAIN,
+        vaultContracts: { btcVaultRegistry: TEST_CONTRACT_ADDRESS },
+        mempoolApiUrl: MEMPOOL_API_URLS.signet,
+      });
+
+      // Reach into the commit pass and surgically remove the OP_RETURN
+      // from the funded tx hex. Triggers the assertion in `preparePegin`.
+      const original = (manager as any).preparePeginCommit.bind(manager);
+      (manager as any).preparePeginCommit = async (args: any) => {
+        const result = await original(args);
+        const bitcoin = await import("bitcoinjs-lib");
+        const tx = bitcoin.Transaction.fromHex(result.fundedPrePeginTxHex);
+        // Drop the OP_RETURN output (vout = vaultCount = 1 in this test).
+        tx.outs = tx.outs.filter((_o, i) => i !== 1);
+        return {
+          ...result,
+          fundedPrePeginTxHex: tx.toHex(),
+        };
+      };
+
+      await expect(
+        manager.preparePegin({
+          amounts: [TEST_AMOUNTS.PEGIN],
+          ...BASE_PREPARE_PEGIN_PARAMS,
+        }),
+      ).rejects.toThrow(/auth-anchor OP_RETURN/);
     });
   });
 });
