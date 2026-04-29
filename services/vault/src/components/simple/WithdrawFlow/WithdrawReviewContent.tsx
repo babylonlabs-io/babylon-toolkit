@@ -13,6 +13,7 @@ import { useNetworkFees } from "@/hooks/useNetworkFees";
 import { formatBtcAmount, formatUsdValue } from "@/utils/formatting";
 
 import { HealthFactorDelta } from "./HealthFactorDelta";
+import { NominatedAddressValue } from "./NominatedAddressValue";
 
 interface WithdrawReviewContentProps {
   totalAmountBtc: number;
@@ -21,6 +22,13 @@ interface WithdrawReviewContentProps {
   currentHealthFactor: number | null;
   /** Health factor after the selected vaults are withdrawn. Infinity when no debt. */
   projectedHealthFactor: number;
+  /**
+   * Decoded BTC addresses (deduped) where this withdrawal will be paid out.
+   * Sourced from the on-chain registered `depositorPayoutBtcAddress` of each
+   * selected vault — not the connected wallet, which can differ if the user
+   * switched wallets since deposit.
+   */
+  payoutAddresses: string[];
   isProcessing: boolean;
   onConfirm: () => void;
 }
@@ -30,6 +38,7 @@ export function WithdrawReviewContent({
   totalAmountUsd,
   currentHealthFactor,
   projectedHealthFactor,
+  payoutAddresses,
   isProcessing,
   onConfirm,
 }: WithdrawReviewContentProps) {
@@ -43,6 +52,14 @@ export function WithdrawReviewContent({
   const rows: DetailRow[] = useMemo(() => {
     const vpCommissionBtc = totalAmountBtc * (minVpCommissionBps / BPS_SCALE);
     const vpCommissionUsd = totalAmountUsd * (minVpCommissionBps / BPS_SCALE);
+
+    const nominatedRow: DetailRow | null =
+      payoutAddresses.length > 0
+        ? {
+            label: "Nominated Address",
+            value: <NominatedAddressValue addresses={payoutAddresses} />,
+          }
+        : null;
 
     const hfRow: DetailRow | null =
       currentHealthFactor === null
@@ -89,7 +106,11 @@ export function WithdrawReviewContent({
       },
     ];
 
-    return hfRow ? [baseRows[0], hfRow, ...baseRows.slice(1)] : baseRows;
+    const withHf = hfRow
+      ? [baseRows[0], hfRow, ...baseRows.slice(1)]
+      : baseRows;
+
+    return nominatedRow ? [...withHf, nominatedRow] : withHf;
   }, [
     totalAmountBtc,
     totalAmountUsd,
@@ -97,6 +118,7 @@ export function WithdrawReviewContent({
     projectedHealthFactor,
     defaultFeeRate,
     minVpCommissionBps,
+    payoutAddresses,
   ]);
 
   return (

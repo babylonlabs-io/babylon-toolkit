@@ -23,6 +23,7 @@ function makeCollateral(
       vaultProvider: "0xprovider1",
       inUse: true,
       depositorBtcPubKey: "0xbtcpubkey1",
+      depositorPayoutBtcAddress: "0xpayout1",
     },
     ...overrides,
   };
@@ -46,6 +47,7 @@ describe("Collateral Utilities", () => {
           providerName: "0xprov...der1",
           providerIconUrl: undefined,
           depositorBtcPubkey: "0xbtcpubkey1",
+          depositorPayoutBtcAddress: "0xpayout1",
           liquidationIndex: 0,
         },
       ]);
@@ -76,6 +78,7 @@ describe("Collateral Utilities", () => {
             vaultProvider: "0xprovider1",
             inUse: false,
             depositorBtcPubKey: "0xbtcpubkey1",
+            depositorPayoutBtcAddress: "0xpayout1",
           },
         }),
       ];
@@ -95,6 +98,7 @@ describe("Collateral Utilities", () => {
             vaultProvider: "0xprovider1",
             inUse: false,
             depositorBtcPubKey: "0xbtcpubkey1",
+            depositorPayoutBtcAddress: "0xpayout1",
           },
         }),
       ];
@@ -114,6 +118,7 @@ describe("Collateral Utilities", () => {
         providerName: "",
         providerIconUrl: undefined,
         depositorBtcPubkey: undefined,
+        depositorPayoutBtcAddress: undefined,
       });
     });
 

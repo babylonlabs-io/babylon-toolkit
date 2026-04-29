@@ -9,6 +9,7 @@ export {
   btcAddressToScriptPubKeyHex,
   deriveBip86ScriptPubKeyHex,
   processPublicKeyToXOnly,
+  scriptPubKeyHexToBtcAddress,
   signPsbtsWithFallback,
   stripHexPrefix,
   toXOnly,
