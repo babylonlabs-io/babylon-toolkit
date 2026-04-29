@@ -266,6 +266,7 @@ async function setupDefaultMocks() {
     spendableUTXOs: [MOCK_UTXO_1, MOCK_UTXO_2],
     isUTXOsLoading: false,
     utxoError: null,
+    spendableBlockedByOrdinals: false,
   } as any);
 
   vi.mocked(useProtocolParamsContext).mockReturnValue({
