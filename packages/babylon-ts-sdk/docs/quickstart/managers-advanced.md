@@ -118,86 +118,72 @@ The `pollAndSignPayouts()` service does this automatically.
 
 ## Multi-vault batching (single Pre-PegIn tx)
 
-`preparePegin()` accepts `amounts` and `hashlocks` arrays, which lets you batch N vaults into one Pre-PegIn transaction. This saves BTC fees (single funding tx covering many HTLC outputs) and reduces wallet interactions.
+`preparePegin()` accepts an `amounts` array, batching N vaults into one Pre-PegIn transaction. This saves BTC fees (single funding tx covering many HTLC outputs) and reduces wallet interactions. Per-vault WOTS keys and HTLC preimages are derived internally from one wallet root — there's no per-vault popup.
 
 Rules to watch:
 
 - Every vault must use the same `vaultProviderBtcPubkey`, `vaultKeeperBtcPubkeys`, `universalChallengerBtcPubkeys`, and protocol params. If you need different providers, register separately.
-- Each vault needs its own fresh HTLC secret + hashlock. Generate one per entry in the arrays, pair them by index.
+- The SDK derives a unique HTLC preimage per vault deterministically from the wallet root (`expandHashlockSecret(root, htlcVout)`). Callers don't generate or pass hashlocks.
 - Sign the proof-of-possession **once** (single wallet popup) and reuse the same `PopSignature` across every `registerPeginOnChain()` call in the batch.
-- `preparePegin().perVault[i]` returns one entry per vault — call `registerPeginOnChain()` for each. Broadcast the Pre-PegIn once.
+- `result.transaction.perVault[i]` returns one entry per vault — call `registerPeginOnChain()` for each. Broadcast the Pre-PegIn once.
 
 Example (builds on the happy-path config — `peginManager`, `btcWallet`, `vpEthAddress`, etc. are the same instances you set up in [Managers Quickstart → Configuration](./managers.md#configuration)):
 
 ```typescript
 import { PeginManager } from "@babylonlabs-io/ts-sdk/tbv/core";
 import { computeHashlock } from "@babylonlabs-io/ts-sdk/tbv/core/services";
-import { stripHexPrefix } from "@babylonlabs-io/ts-sdk/tbv/core/primitives";
 import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
-import { randomBytes } from "node:crypto";
 import type { Address, Hex } from "viem";
 
 declare const peginManager: PeginManager;
 declare const btcWallet: BitcoinWallet;
 declare const vpEthAddress: Address;
 
-// Every non-array param is the same as the single-vault happy path — vault
-// provider pubkey, keepers, challengers, timelocks, fee rate, council
-// params, UTXO set, change address. Reuse that object minus the per-vault
-// arrays so we don't drift from the happy-path source of truth.
+// Every non-array param is the same as the single-vault happy path —
+// vault provider pubkey, keepers, challengers, timelocks, fee rate,
+// council params, UTXO set, change address.
 declare const sharedBatchParams: Omit<
   Parameters<typeof peginManager.preparePegin>[0],
-  "amounts" | "hashlocks"
+  "amounts"
 >;
-
-// One fresh HTLC secret per vault. PERSIST all of them — you need them
-// independently for each vault's phase-6 activation.
-const secrets: Hex[] = [
-  `0x${randomBytes(32).toString("hex")}` as Hex,
-  `0x${randomBytes(32).toString("hex")}` as Hex,
-];
-const hashlocks = secrets.map(computeHashlock);          // 0x-prefixed bytes32
-const rawHashlocks = hashlocks.map(stripHexPrefix);      // 64-char hex, no 0x
-
-// One WOTS commitment per vault. Derive each from the same
-// `deriveVaultRoot` (one wallet popup for the whole batch), then
-// `expandWotsSeed(root, htlcVout)` per vault — see the
-// [Wallet Interfaces Guide → Wallet-derived secrets](../guides/wallet-interfaces.md#wallet-derived-secrets-derivecontexthash).
-declare const depositorWotsPkHashes: Hex[];
-
-const depositorBtcPubkey = await btcWallet.getPublicKeyHex();
 
 const result = await peginManager.preparePegin({
   ...sharedBatchParams,
   amounts: [100_000n, 250_000n],
-  hashlocks: rawHashlocks,
 });
+
+const { transaction, depositorBtcPubkey, derivedSecrets } = result;
+// `derivedSecrets.htlcSecretHexes[i]` is the per-vault preimage — keep
+// in memory; do not log or persist beyond the activation flow.
+const hashlocks = derivedSecrets.htlcSecretHexes.map((hex) =>
+  computeHashlock(`0x${hex}`),
+);
 
 // Sign the BTC proof-of-possession ONCE for the whole batch.
 const popSignature = await peginManager.signProofOfPossession();
 
 // One registerPeginOnChain call per vault; they share the same Pre-PegIn
 // tx and the same PopSignature.
-for (let i = 0; i < result.perVault.length; i++) {
+for (let i = 0; i < transaction.perVault.length; i++) {
   await peginManager.registerPeginOnChain({
-    unsignedPrePeginTx: result.fundedPrePeginTxHex,
-    depositorSignedPeginTx: result.perVault[i].peginTxHex,
+    unsignedPrePeginTx: transaction.fundedPrePeginTxHex,
+    depositorSignedPeginTx: transaction.perVault[i].peginTxHex,
     hashlock: hashlocks[i],
     vaultProvider: vpEthAddress,
-    depositorWotsPkHash: depositorWotsPkHashes[i],
-    htlcVout: result.perVault[i].htlcVout,
+    depositorWotsPkHash: derivedSecrets.wotsPkHashes[i],
+    htlcVout: transaction.perVault[i].htlcVout,
     popSignature,
   });
 }
 
 // Broadcast the Pre-PegIn once — all vaults share it.
 await peginManager.signAndBroadcast({
-  fundedPrePeginTxHex: result.fundedPrePeginTxHex,
+  fundedPrePeginTxHex: transaction.fundedPrePeginTxHex,
   depositorBtcPubkey,
 });
 ```
 
-Persist each `secrets[i]` alongside its `vaultId` so you can activate them independently in phase 6. Losing any one secret strands that vault at `VERIFIED` until refund.
+Each per-vault HTLC preimage is re-derivable from the wallet root at activation time, so there's nothing for the caller to persist — the wallet is the source of truth.
 
 ---
 

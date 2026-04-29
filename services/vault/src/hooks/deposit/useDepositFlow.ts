@@ -8,13 +8,14 @@
  * Flow:
  * 0. Validation — check wallets, UTXOs, pubkeys, array alignment
  * 1. Get shared resources (ETH wallet client)
- * 2. Batch Pre-PegIn creation (one BTC tx with N HTLC outputs)
- * 3a. Derive WOTS public keys for all vaults
- * 3b. Sign BIP-322 proof-of-possession (one wallet popup per deposit session)
- * 3c. Build batch request array
- * 3d. Re-check UTXO availability before committing to ETH
- * 3e. Batch ETH registration (single submitPeginRequestBatch tx for all vaults)
- * 3f. Build pegin results from batch response
+ * 2. Prepare pegin via SDK orchestrator (sizing pass + wallet root popup +
+ *    per-vault WOTS / hashlock derivation + commit pass with batch PSBT signing).
+ *    Returns broadcast-ready Pre-PegIn + per-vault derived secrets.
+ * 3a. Sign BIP-322 proof-of-possession (one wallet popup per deposit session)
+ * 3b. Build batch request array (recompute hashlocks from returned secrets)
+ * 3c. Re-check UTXO availability before committing to ETH
+ * 3d. Batch ETH registration (single submitPeginRequestBatch tx for all vaults)
+ * 3e. Build pegin results from batch response
  * 4a. Save pending pegins to localStorage (PENDING status, reserves UTXOs)
  * 4b. Broadcast Pre-PegIn transaction to Bitcoin, update status to CONFIRMING
  * 5. Submit WOTS keys, poll VP, sign payout transactions
@@ -27,19 +28,8 @@
  */
 
 import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
-import {
-  computeWotsBlockPublicKeysHash,
-  deriveVaultRoot,
-  deriveWotsBlocksFromSeed,
-  ensureHexPrefix,
-  expandWotsSeed,
-  hexToUint8Array,
-  type FundingOutpoint,
-} from "@babylonlabs-io/ts-sdk/tbv/core";
-import {
-  VpResponseValidationError,
-  type WotsBlockPublicKey,
-} from "@babylonlabs-io/ts-sdk/tbv/core/clients";
+import { ensureHexPrefix } from "@babylonlabs-io/ts-sdk/tbv/core";
+import { VpResponseValidationError } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import { computeHashlock } from "@babylonlabs-io/ts-sdk/tbv/core/services";
 import {
   collectReservedUtxoRefs,
@@ -110,12 +100,6 @@ export interface UseDepositFlowParams {
   vaultKeeperBtcPubkeys: string[];
   /** Universal challenger BTC public keys */
   universalChallengerBtcPubkeys: string[];
-  /** Per-vault raw HTLC secret hexes (no 0x prefix) — generated in the secret
-   *  modal step. These are used as the HTLC preimages so the on-chain
-   *  hashlocks match what was shown to the user. */
-  htlcSecretHexes: string[];
-  /** Per-vault SHA-256 secret hashes for the new peg-in flow (one per vault) */
-  depositorSecretHashes: Hex[];
 }
 
 export interface ArtifactDownloadInfo {
@@ -166,8 +150,6 @@ export interface PeginCreationResult {
   fee: bigint;
   /** Depositor's BTC public key (x-only) */
   depositorBtcPubkey: string;
-  /** HTLC secret hex (no 0x prefix) — shown to the user for safekeeping */
-  htlcSecretHex: string;
 }
 
 export interface MultiVaultDepositResult {
@@ -196,8 +178,6 @@ export function useDepositFlow(
     vaultProviderBtcPubkey,
     vaultKeeperBtcPubkeys,
     universalChallengerBtcPubkeys,
-    htlcSecretHexes,
-    depositorSecretHashes,
   } = params;
 
   // State
@@ -307,8 +287,6 @@ export function useDepositFlow(
           universalChallengerBtcPubkeys,
           minDeposit,
           maxDeposit,
-          htlcSecretHexesLength: htlcSecretHexes.length,
-          depositorSecretHashesLength: depositorSecretHashes.length,
         });
 
         // After validation, these values are guaranteed to be defined
@@ -338,13 +316,6 @@ export function useDepositFlow(
 
         setCurrentStep(DepositFlowStep.SIGN_POP);
 
-        // Compute hashlocks from secrets.
-        // SDK's computeHashlock takes 0x-prefixed hex and returns 0x-prefixed;
-        // Pre-PegIn params expect hashlocks without the 0x prefix.
-        const hashlocks = htlcSecretHexes.map((hex) =>
-          computeHashlock(ensureHexPrefix(hex)).slice(2),
-        );
-
         // Filter out UTXOs reserved by in-flight deposits to prevent
         // double-spend failures across concurrent sessions/tabs.
         const pendingPegins = getPendingPegins(confirmedEthAddress);
@@ -360,7 +331,6 @@ export function useDepositFlow(
           feeRate: mempoolFeeRate,
         });
 
-        // ONE Pre-PegIn tx with N HTLC outputs (one per vault)
         const batchResult = await preparePeginTransaction(
           confirmedBtcWallet,
           walletClient,
@@ -374,12 +344,12 @@ export function useDepositFlow(
             universalChallengerBtcPubkeys,
             timelockPegin,
             timelockRefund,
-            hashlocks,
             councilQuorum: config.offchainParams.councilQuorum,
             councilSize: config.offchainParams.securityCouncilKeys.length,
             availableUTXOs,
           },
         );
+        const { perVaultWotsKeys, wotsPkHashes, htlcSecretHexes } = batchResult;
 
         // Reserve UTXOs in localStorage immediately so other tabs see them
         // during the (potentially lengthy) PoP signing and ETH registration.
@@ -396,34 +366,6 @@ export function useDepositFlow(
         // Step 3: Sign PoP + batch register all vaults on Ethereum
         // ========================================================================
 
-        // 3a. Derive WOTS keys for all vaults (one wallet popup → 32-byte
-        // root, then per-vault expand by htlcVout). Reused for both the
-        // on-chain hash commitment and the VP RPC submission. Root is
-        // zeroed in `finally`.
-        const fundingOutpoints: FundingOutpoint[] =
-          batchResult.selectedUTXOs.map((u) => ({
-            txid: hexToUint8Array(u.txid),
-            vout: u.vout,
-          }));
-        const root = await deriveVaultRoot(confirmedBtcWallet, {
-          depositorBtcPubkey: hexToUint8Array(batchResult.depositorBtcPubkey),
-          fundingOutpoints,
-        });
-
-        const perVaultWotsKeys: WotsBlockPublicKey[][] = [];
-        const wotsPkHashes: Hex[] = [];
-        try {
-          for (let i = 0; i < batchResult.perVault.length; i++) {
-            const vault = batchResult.perVault[i];
-            const seed = expandWotsSeed(root, vault.htlcVout);
-            const wotsPublicKeys = await deriveWotsBlocksFromSeed(seed);
-            perVaultWotsKeys.push(wotsPublicKeys);
-            wotsPkHashes.push(computeWotsBlockPublicKeysHash(wotsPublicKeys));
-          }
-        } finally {
-          root.fill(0);
-        }
-
         // 3b. Sign PoP during SIGN_POP so the wallet popup is associated
         // with this step, not the following SUBMIT_PEGIN.
         setCurrentStep(DepositFlowStep.SIGN_POP);
@@ -435,7 +377,7 @@ export function useDepositFlow(
         // 3c. Build batch request array.
         const batchRequests = batchResult.perVault.map((vault, i) => ({
           depositorSignedPeginTx: vault.peginTxHex,
-          hashlock: ensureHexPrefix(hashlocks[i]) as Hex,
+          hashlock: computeHashlock(ensureHexPrefix(htlcSecretHexes[i])) as Hex,
           htlcVout: vault.htlcVout,
           depositorPayoutBtcAddress: confirmedBtcAddress,
           depositorWotsPkHash: wotsPkHashes[i],
@@ -474,7 +416,6 @@ export function useDepositFlow(
             selectedUTXOs: batchResult.selectedUTXOs,
             fee: batchResult.fee,
             depositorBtcPubkey: batchResult.depositorBtcPubkey,
-            htlcSecretHex: htlcSecretHexes[i],
           }));
 
         // ========================================================================
@@ -741,7 +682,7 @@ export function useDepositFlow(
             try {
               await activateVaultWithSecret({
                 vaultId: result.vaultId,
-                secret: ensureHexPrefix(result.htlcSecretHex),
+                secret: ensureHexPrefix(htlcSecretHexes[result.vaultIndex]),
                 walletClient,
               });
             } catch (error) {
@@ -817,8 +758,6 @@ export function useDepositFlow(
       isUTXOsLoading,
       utxoError,
       findProvider,
-      htlcSecretHexes,
-      depositorSecretHashes,
     ]);
 
   return {

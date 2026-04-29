@@ -27,9 +27,6 @@ export interface MockBitcoinWalletConfig {
 }
 
 /**
- * Mock Bitcoin wallet for testing.
- */
-/**
  * Default `deriveContextHash` implementation: deterministic and
  * collision-resistant via SHA-256, so tests that assert pass-through
  * wiring (different `(appName, context)` → different output) hold
@@ -53,20 +50,31 @@ const defaultDeriveContextHash = async (
   return uint8ArrayToHex(sha256(buf));
 };
 
+const DEFAULT_CONFIG: Required<MockBitcoinWalletConfig> = {
+  publicKeyHex:
+    "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2",
+  address: "tb1pqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqkx6jks",
+  network: BitcoinNetworks.SIGNET,
+  shouldFailSigning: false,
+  deriveContextHash: defaultDeriveContextHash,
+};
+
+/** Mock Bitcoin wallet for testing. */
 export class MockBitcoinWallet implements BitcoinWallet {
   private config: Required<MockBitcoinWalletConfig>;
 
   constructor(config: MockBitcoinWalletConfig = {}) {
     this.config = {
-      publicKeyHex:
-        config.publicKeyHex ||
-        "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2",
-      address:
-        config.address ||
-        "tb1pqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqkx6jks",
-      network: config.network ?? BitcoinNetworks.SIGNET,
-      shouldFailSigning: config.shouldFailSigning ?? false,
-      deriveContextHash: config.deriveContextHash ?? defaultDeriveContextHash,
+      ...DEFAULT_CONFIG,
+      ...(config.publicKeyHex ? { publicKeyHex: config.publicKeyHex } : {}),
+      ...(config.address ? { address: config.address } : {}),
+      ...(config.network !== undefined ? { network: config.network } : {}),
+      ...(config.shouldFailSigning !== undefined
+        ? { shouldFailSigning: config.shouldFailSigning }
+        : {}),
+      ...(config.deriveContextHash
+        ? { deriveContextHash: config.deriveContextHash }
+        : {}),
     };
   }
 
@@ -142,13 +150,6 @@ export class MockBitcoinWallet implements BitcoinWallet {
 
   /** Resets to default configuration. */
   reset(): void {
-    this.config = {
-      publicKeyHex:
-        "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2",
-      address: "tb1pqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqkx6jks",
-      network: BitcoinNetworks.SIGNET,
-      shouldFailSigning: false,
-      deriveContextHash: defaultDeriveContextHash,
-    };
+    this.config = { ...DEFAULT_CONFIG };
   }
 }

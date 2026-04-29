@@ -90,7 +90,6 @@ describe("vaultTransactionService - preparePeginTransaction", () => {
     universalChallengerBtcPubkeys: ["challenger1"],
     timelockPegin: 100,
     timelockRefund: 50,
-    hashlocks: ["ab".repeat(32)],
     councilQuorum: 2,
     councilSize: 3,
     availableUTXOs: mockUTXOs,
@@ -100,17 +99,25 @@ describe("vaultTransactionService - preparePeginTransaction", () => {
     vi.clearAllMocks();
 
     mockPreparePegin.mockResolvedValue({
-      fundedPrePeginTxHex: "0x123abc",
-      selectedUTXOs: [mockUTXOs[0]],
-      fee: 1000n,
-      perVault: [
-        {
-          htlcVout: 0,
-          peginTxid: "txhash123",
-          peginTxHex: "0xpeginHex",
-          peginInputSignature: "a".repeat(128),
-        },
-      ],
+      transaction: {
+        fundedPrePeginTxHex: "0x123abc",
+        selectedUTXOs: [mockUTXOs[0]],
+        fee: 1000n,
+        perVault: [
+          {
+            htlcVout: 0,
+            peginTxid: "txhash123",
+            peginTxHex: "0xpeginHex",
+            peginInputSignature: "a".repeat(128),
+          },
+        ],
+      },
+      depositorBtcPubkey: "a".repeat(64),
+      derivedSecrets: {
+        perVaultWotsKeys: [[]],
+        wotsPkHashes: ["0x" + "00".repeat(32)],
+        htlcSecretHexes: ["00".repeat(32)],
+      },
     });
 
     mockBtcWallet = {
@@ -153,27 +160,34 @@ describe("vaultTransactionService - preparePeginTransaction", () => {
       const multiParams: PreparePeginParams = {
         ...baseParams,
         pegInAmounts: [100000n, 200000n],
-        hashlocks: ["ab".repeat(32), "cd".repeat(32)],
       };
 
       mockPreparePegin.mockResolvedValue({
-        fundedPrePeginTxHex: "0x123abc",
-        selectedUTXOs: [mockUTXOs[0], mockUTXOs[1]],
-        fee: 2000n,
-        perVault: [
-          {
-            htlcVout: 0,
-            peginTxid: "txhash0",
-            peginTxHex: "peginHex0",
-            peginInputSignature: "a".repeat(128),
-          },
-          {
-            htlcVout: 1,
-            peginTxid: "txhash1",
-            peginTxHex: "peginHex1",
-            peginInputSignature: "b".repeat(128),
-          },
-        ],
+        transaction: {
+          fundedPrePeginTxHex: "0x123abc",
+          selectedUTXOs: [mockUTXOs[0], mockUTXOs[1]],
+          fee: 2000n,
+          perVault: [
+            {
+              htlcVout: 0,
+              peginTxid: "txhash0",
+              peginTxHex: "peginHex0",
+              peginInputSignature: "a".repeat(128),
+            },
+            {
+              htlcVout: 1,
+              peginTxid: "txhash1",
+              peginTxHex: "peginHex1",
+              peginInputSignature: "b".repeat(128),
+            },
+          ],
+        },
+        depositorBtcPubkey: "a".repeat(64),
+        derivedSecrets: {
+          perVaultWotsKeys: [[], []],
+          wotsPkHashes: ["0x" + "00".repeat(32), "0x" + "11".repeat(32)],
+          htlcSecretHexes: ["00".repeat(32), "11".repeat(32)],
+        },
       });
 
       const result = await preparePeginTransaction(

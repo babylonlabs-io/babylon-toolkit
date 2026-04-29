@@ -27,6 +27,7 @@
 # 4. Vault-secret derivation (frozen on-chain-binding API)
 /packages/babylon-ts-sdk/src/tbv/core/vault-secrets/ @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov
 /packages/babylon-ts-sdk/src/tbv/core/wots/blockDerivation.ts @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov
+/packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov
 
 # 5. HTLC secret & vault activation
 /services/vault/src/services/vault/vaultActivationService.ts @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov

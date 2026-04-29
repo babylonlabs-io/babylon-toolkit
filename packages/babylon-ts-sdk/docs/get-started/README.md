@@ -29,7 +29,10 @@ Every vault lives in one of these on-chain states. Your SDK code transitions bet
 ```
   [ off-chain ]
        │
-       │  1. peginManager.preparePegin()            — build Pre-PegIn + PegIn PSBTs locally
+       │  1. peginManager.preparePegin()            — sizing + wallet root + per-vault
+       │                                              expand + batch PSBT signing
+       │                                              (2 BTC popups: deriveContextHash,
+       │                                              signPsbts)
        │
        │  2. peginManager.signProofOfPossession()   — BIP-322 PoP, one wallet popup per session
        │
@@ -56,6 +59,38 @@ Every vault lives in one of these on-chain states. Your SDK code transitions bet
        ▼                                        (BTC reclaimed
     REDEEMED                                     via refund path)
 ```
+
+Inside step 1 (`preparePegin`):
+
+```
+  amounts, council params, availableUTXOs, changeAddress
+              │
+              ▼
+   ┌─ pubkey snapshot ──────── btcWallet.getPublicKeyHex() (no popup, read)
+   │          │
+   │          ▼
+   ├─ sizing pass ──────────── buildPrePeginPsbt + selectUtxosForPegin
+   │  placeholder hashlocks    (pure JS / WASM, no signing)
+   │          │ → selectedUTXOs
+   │          ▼
+   ├─ vault root ──────────── deriveVaultRoot(wallet, vaultContext)
+   │                          ┃ POPUP 1: deriveContextHash
+   │          │ → 32-byte root
+   │          ▼
+   ├─ per-vault expand ───── for each htlcVout i:
+   │                            expandWotsSeed(root, i) → WOTS keys + hash
+   │                            expandHashlockSecret(root, i) → preimage + hashlock
+   │          │
+   │          ▼
+   └─ commit pass ──────────── buildPrePeginPsbt (real hashlocks)
+                               + per-vault PegIn tx + signPsbts
+                               ┃ POPUP 2: batch PSBT signing
+              │
+              ▼
+   { transaction, depositorBtcPubkey, derivedSecrets }
+```
+
+The two popups in step 1 are **fixed regardless of vault count** — a single batch yields one `deriveContextHash` and one `signPsbts` call. Per-vault secret expansion is pure local crypto; no extra popups.
 
 The critical transition is `VERIFIED → ACTIVE`. Until the depositor reveals the HTLC secret on Ethereum (step 6), the vault is **not live** — miss the activation window and the only exit is refund after the CSV timelock.
 

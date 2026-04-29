@@ -8,7 +8,7 @@
 
 import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
 import { useCallback } from "react";
-import type { Address, Hex } from "viem";
+import type { Address } from "viem";
 
 import { ArtifactDownloadModal } from "@/components/deposit/ArtifactDownloadModal";
 import {
@@ -30,8 +30,6 @@ interface DepositSignContentProps {
   vaultProviderBtcPubkey: string;
   vaultKeeperBtcPubkeys: string[];
   universalChallengerBtcPubkeys: string[];
-  htlcSecretHexes: string[];
-  depositorSecretHashes: Hex[];
   onSuccess: (
     peginTxHash: string,
     ethTxHash: string,
@@ -46,8 +44,6 @@ export function DepositSignContent({
   onSuccess,
   onRefetchActivities,
   vaultAmounts,
-  htlcSecretHexes,
-  depositorSecretHashes,
   ...flowParams
 }: DepositSignContentProps) {
   const {
@@ -63,8 +59,6 @@ export function DepositSignContent({
     continueAfterArtifactDownload,
   } = useDepositFlow({
     vaultAmounts,
-    htlcSecretHexes,
-    depositorSecretHashes,
     ...flowParams,
   });
 

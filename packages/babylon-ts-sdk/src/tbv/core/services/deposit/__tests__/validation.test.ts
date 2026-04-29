@@ -314,8 +314,6 @@ describe("Deposit Validations", () => {
       universalChallengerBtcPubkeys: ["c".repeat(64)],
       minDeposit: 10_000n,
       maxDeposit: 100_000n,
-      htlcSecretHexesLength: 2,
-      depositorSecretHashesLength: 2,
     };
 
     it("passes when all vault amounts are within min/max range", () => {
@@ -348,26 +346,6 @@ describe("Deposit Validations", () => {
           vaultAmounts: [50_000n, 500_000n],
         }),
       ).not.toThrow();
-    });
-
-    it("throws when htlcSecretHexesLength mismatches vaultAmounts length", () => {
-      expect(() =>
-        validateMultiVaultDepositInputs({
-          ...validInputs,
-          htlcSecretHexesLength: 3,
-        }),
-      ).toThrow("htlcSecretHexes length (3) must match vaultAmounts length (2)");
-    });
-
-    it("throws when depositorSecretHashesLength mismatches vaultAmounts length", () => {
-      expect(() =>
-        validateMultiVaultDepositInputs({
-          ...validInputs,
-          depositorSecretHashesLength: 1,
-        }),
-      ).toThrow(
-        "depositorSecretHashes length (1) must match vaultAmounts length (2)",
-      );
     });
 
     it("throws when vaultProviderBtcPubkey is invalid", () => {

@@ -79,10 +79,6 @@ export interface MultiVaultDepositFlowInputs {
   minDeposit: bigint;
   /** Protocol maximum deposit per vault (satoshis) */
   maxDeposit?: bigint;
-  /** Number of HTLC secret hexes — must match vaultAmounts.length */
-  htlcSecretHexesLength: number;
-  /** Number of depositor secret hashes — must match vaultAmounts.length */
-  depositorSecretHashesLength: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -329,22 +325,7 @@ export function validateMultiVaultDepositInputs(
     universalChallengerBtcPubkeys,
     minDeposit,
     maxDeposit,
-    htlcSecretHexesLength,
-    depositorSecretHashesLength,
   } = params;
-
-  // Array alignment: all per-vault arrays must have the same length
-  const vaultCount = vaultAmounts.length;
-  if (htlcSecretHexesLength !== vaultCount) {
-    throw new Error(
-      `htlcSecretHexes length (${htlcSecretHexesLength}) must match vaultAmounts length (${vaultCount})`,
-    );
-  }
-  if (depositorSecretHashesLength !== vaultCount) {
-    throw new Error(
-      `depositorSecretHashes length (${depositorSecretHashesLength}) must match vaultAmounts length (${vaultCount})`,
-    );
-  }
 
   const amountsValidation = validateVaultAmounts(
     vaultAmounts,
