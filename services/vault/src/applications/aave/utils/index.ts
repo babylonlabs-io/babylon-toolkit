@@ -46,3 +46,6 @@ export type {
 export { getEffectiveVaultSelection } from "./withdrawSelection";
 
 export type { EffectiveVaultSelection } from "./withdrawSelection";
+
+// Payout-address derivation for withdraw display (frontend-only)
+export { getUniquePayoutAddresses } from "./payoutAddresses";

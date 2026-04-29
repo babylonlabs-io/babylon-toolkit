@@ -5,48 +5,17 @@ import { useWithdrawCollateralTransaction } from "@/applications/aave/hooks/useW
 import {
   computeProjectedHealthFactor,
   getEffectiveVaultSelection,
+  getUniquePayoutAddresses,
 } from "@/applications/aave/utils";
 import { ProtocolParamsProvider } from "@/context/ProtocolParamsContext";
 import { useDialogStep } from "@/hooks/deposit/useDialogStep";
-import { logger } from "@/infrastructure";
 import type { CollateralVaultEntry } from "@/types/collateral";
-import { scriptPubKeyHexToBtcAddress } from "@/utils/btc";
 
 import { FadeTransition } from "../FadeTransition";
 
 import { useWithdrawFlow, WithdrawStep } from "./useWithdrawFlow";
 import { WithdrawProgressView } from "./WithdrawProgressView";
 import { WithdrawReviewContent } from "./WithdrawReviewContent";
-
-/**
- * Decode each vault's registered payout scriptPubKey to a BTC address and
- * dedupe. A vault that can't be decoded is logged and skipped — the on-chain
- * transaction is unaffected, but the user will see fewer addresses than vaults.
- */
-function getUniquePayoutAddresses(vaults: CollateralVaultEntry[]): string[] {
-  const seen = new Set<string>();
-  const addresses: string[] = [];
-  for (const vault of vaults) {
-    if (!vault.depositorPayoutBtcAddress) continue;
-    try {
-      const address = scriptPubKeyHexToBtcAddress(
-        vault.depositorPayoutBtcAddress,
-      );
-      if (!seen.has(address)) {
-        seen.add(address);
-        addresses.push(address);
-      }
-    } catch (error) {
-      logger.error(error instanceof Error ? error : new Error(String(error)), {
-        data: {
-          context: "Decode payout scriptPubKey for withdraw display",
-          vaultId: vault.vaultId,
-        },
-      });
-    }
-  }
-  return addresses;
-}
 
 export interface WithdrawFlowProps {
   open: boolean;

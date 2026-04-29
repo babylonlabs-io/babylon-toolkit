@@ -1,7 +1,10 @@
 import * as bitcoin from "bitcoinjs-lib";
 import { describe, expect, it } from "vitest";
 
-import { scriptPubKeyHexToBtcAddress } from "../btc";
+import {
+  btcAddressToScriptPubKeyHex,
+  scriptPubKeyHexToBtcAddress,
+} from "../btc";
 
 /**
  * Build the test fixture via bitcoinjs-lib's own payment helper so the script
@@ -45,5 +48,13 @@ describe("scriptPubKeyHexToBtcAddress", () => {
 
   it("throws on an empty script", () => {
     expect(() => scriptPubKeyHexToBtcAddress("0x")).toThrow();
+  });
+
+  it("round-trips through btcAddressToScriptPubKeyHex without changing the address", () => {
+    expect(
+      scriptPubKeyHexToBtcAddress(
+        btcAddressToScriptPubKeyHex(EXPECTED_TESTNET_ADDRESS),
+      ),
+    ).toBe(EXPECTED_TESTNET_ADDRESS);
   });
 });
