@@ -186,8 +186,6 @@ export function DashboardPage() {
           hasCollateral={hasCollateral}
           isConnected={isConnected}
           borrowedAssets={borrowedAssets}
-          healthFactor={healthFactor}
-          healthFactorStatus={healthFactorStatus}
           onBorrow={handleBorrow}
           onRepay={handleRepay}
         />

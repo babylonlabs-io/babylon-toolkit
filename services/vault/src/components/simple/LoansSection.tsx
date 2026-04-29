@@ -5,12 +5,6 @@
 
 import { Avatar, Button, Card } from "@babylonlabs-io/core-ui";
 
-import {
-  formatHealthFactor,
-  getHealthFactorColor,
-  type HealthFactorStatus,
-} from "@/applications/aave/utils";
-import { HeartIcon } from "@/components/shared";
 import { Connect } from "@/components/Wallet";
 import { getNetworkConfigBTC } from "@/config";
 
@@ -27,8 +21,6 @@ interface LoansSectionProps {
   hasCollateral: boolean;
   isConnected: boolean;
   borrowedAssets: LoanAsset[];
-  healthFactor: number | null;
-  healthFactorStatus: HealthFactorStatus;
   onBorrow: () => void;
   onRepay: () => void;
 }
@@ -38,14 +30,9 @@ export function LoansSection({
   hasCollateral,
   isConnected,
   borrowedAssets,
-  healthFactor,
-  healthFactorStatus,
   onBorrow,
   onRepay,
 }: LoansSectionProps) {
-  const healthFactorFormatted = formatHealthFactor(healthFactor);
-  const healthFactorColor = getHealthFactorColor(healthFactorStatus);
-
   return (
     <div className="w-full space-y-6">
       <div className="flex items-center justify-between">
@@ -93,17 +80,6 @@ export function LoansSection({
                 </div>
               </div>
             ))}
-
-            {/* Health Factor Row */}
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-accent-secondary">
-                Health Factor
-              </span>
-              <span className="flex items-center gap-2 text-base text-accent-primary">
-                <HeartIcon color={healthFactorColor} />
-                {healthFactorFormatted}
-              </span>
-            </div>
           </div>
         ) : (
           <div className="flex flex-col items-center justify-center gap-2 py-20">
