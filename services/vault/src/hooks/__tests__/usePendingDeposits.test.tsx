@@ -66,12 +66,14 @@ function makeActivity(
   id: string,
   contractStatus: ContractStatus,
   amount = "0.1",
+  unsignedPrePeginTx?: string,
 ) {
   return {
     id,
     contractStatus,
     collateral: { amount },
     providers: [],
+    unsignedPrePeginTx,
   };
 }
 
@@ -140,6 +142,25 @@ describe("usePendingDeposits", () => {
     expect(result.current.btcAddress).toBe("bc1qtest");
     expect(result.current.ethAddress).toBe("0xethtest");
     expect(result.current.btcPublicKey).toBe("btcpubkey123");
+  });
+
+  it("places EXPIRED activities with unsignedPrePeginTx into expiredActivities, not pendingActivities", () => {
+    mockActivities.mockReturnValue([
+      makeActivity("a1", ContractStatus.PENDING),
+      makeActivity("a2", ContractStatus.EXPIRED, "0.1", "0200000001abcd"),
+      makeActivity("a3", ContractStatus.EXPIRED, "0.1"),
+    ]);
+
+    const { result } = renderHook(() => usePendingDeposits());
+
+    expect(result.current.pendingActivities.map((a: any) => a.id)).toEqual([
+      "a1",
+    ]);
+    expect(result.current.expiredActivities.map((a: any) => a.id)).toEqual([
+      "a2",
+    ]);
+    expect(result.current.hasPendingDeposits).toBe(true);
+    expect(result.current.hasExpiredDeposits).toBe(true);
   });
 
   it("returns sign and broadcast modal handlers", () => {

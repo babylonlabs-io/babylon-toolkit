@@ -1,7 +1,11 @@
 /**
  * usePendingDeposits hook
  *
- * Fetches vault deposits and filters to only pending ones (contractStatus 0, 1, or 7).
+ * Fetches vault deposits and splits them into two lists:
+ *  - pendingActivities: in-flight deposits (contractStatus 0=PENDING or 1=VERIFIED).
+ *  - expiredActivities: refundable expired deposits (contractStatus 7=EXPIRED with
+ *    unsignedPrePeginTx — the only indexer-sourced field required to build the
+ *    refund PSBT; hashlock and htlcVout come from the on-chain contract).
  * Provides polling infrastructure, wallet state, and modal handlers for
  * sign/broadcast/refund actions on pending and expired deposits.
  */
@@ -32,18 +36,21 @@ export function usePendingDeposits() {
 
   const { vaultProviders } = useAllDepositProviders(activities);
 
-  // Filter to pending deposits (0=PENDING, 1=VERIFIED) and refundable expired ones (7=EXPIRED).
-  // Only EXPIRED vaults with unsignedPrePeginTx are included — it is the only
-  // indexer-sourced field required to build the refund PSBT (hashlock and htlcVout
-  // come from the on-chain contract and are always available).
   const pendingActivities = useMemo(
     () =>
       activities.filter(
         (a) =>
           a.contractStatus === ContractStatus.PENDING ||
-          a.contractStatus === ContractStatus.VERIFIED ||
-          (a.contractStatus === ContractStatus.EXPIRED &&
-            !!a.unsignedPrePeginTx),
+          a.contractStatus === ContractStatus.VERIFIED,
+      ),
+    [activities],
+  );
+
+  const expiredActivities = useMemo(
+    () =>
+      activities.filter(
+        (a) =>
+          a.contractStatus === ContractStatus.EXPIRED && !!a.unsignedPrePeginTx,
       ),
     [activities],
   );
@@ -80,6 +87,7 @@ export function usePendingDeposits() {
 
   return {
     pendingActivities,
+    expiredActivities,
     allActivities: activities,
     pendingPegins,
     vaultProviders,
@@ -88,6 +96,7 @@ export function usePendingDeposits() {
     btcConnected,
     ethAddress,
     hasPendingDeposits: btcConnected && pendingActivities.length > 0,
+    hasExpiredDeposits: btcConnected && expiredActivities.length > 0,
     refetchActivities,
     signModal,
     broadcastModal,
