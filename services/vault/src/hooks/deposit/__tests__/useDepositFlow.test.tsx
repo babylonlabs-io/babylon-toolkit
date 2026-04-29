@@ -905,6 +905,60 @@ describe("useDepositFlow", () => {
     });
   });
 
+  describe("Pubkey Consistency (Issue #3)", () => {
+    it("rejects when PoP pubkey differs from preparePegin pubkey", async () => {
+      const { signProofOfPossession } = vi.mocked(
+        await import("../depositFlowSteps"),
+      );
+      const { registerPeginBatchAndWait } = vi.mocked(
+        await import("../depositFlowSteps"),
+      );
+
+      // PoP returns a different pubkey than preparePeginTransaction
+      vi.mocked(signProofOfPossession).mockResolvedValueOnce({
+        btcPopSignature: "0xMockPopSignature" as Hex,
+        depositorEthAddress: "0xEthAddress123" as `0x${string}`,
+        depositorBtcPubkey: "ff".repeat(32), // different from MOCK_DEPOSITOR_PUBKEY
+      });
+
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+
+      await executeWithAutoArtifactDownload(result);
+
+      await waitFor(() => {
+        expect(result.current.error).toContain(
+          "BTC wallet account changed during deposit flow",
+        );
+      });
+
+      // Registration must never be attempted with mismatched keys
+      expect(registerPeginBatchAndWait).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("Abort Signal (Issue #4)", () => {
+    it("stops activation loop when signal is aborted after first vault", async () => {
+      const { activateVaultWithSecret } = vi.mocked(
+        await import("@/services/vault/vaultActivationService"),
+      );
+
+      // First activation succeeds but triggers abort
+      vi.mocked(activateVaultWithSecret).mockImplementation(async () => {
+        // After vault 1 activates, abort the flow
+        result.current.abort();
+        return { hash: "0xActivationTxHash" } as any;
+      });
+
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+
+      await executeWithAutoArtifactDownload(result);
+
+      // Only vault 1 should have been activated — vault 2 should be skipped
+      // because signal.aborted is checked at the top of the loop
+      expect(activateVaultWithSecret).toHaveBeenCalledTimes(1);
+    });
+  });
+
   describe("UTXO Reservation", () => {
     it("should filter reserved UTXOs before preparing pegin transaction", async () => {
       const { getPendingPegins } = vi.mocked(

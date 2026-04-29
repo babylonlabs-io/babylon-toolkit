@@ -374,6 +374,21 @@ export function useDepositFlow(
           walletClient,
         );
 
+        // Guard: the BTC pubkey used for WOTS derivation (in preparePegin)
+        // must match the pubkey that signed the PoP. A mismatch means the
+        // wallet account changed between the two steps — registering would
+        // bind WOTS keys to one identity and the PoP to another, making the
+        // vault unactivatable.
+        if (
+          popSignature.depositorBtcPubkey !== batchResult.depositorBtcPubkey
+        ) {
+          throw new Error(
+            "BTC wallet account changed during deposit flow. " +
+              "The signing key no longer matches the key used for vault setup. " +
+              "Please restart the deposit.",
+          );
+        }
+
         // 3c. Build batch request array.
         const batchRequests = batchResult.perVault.map((vault, i) => ({
           depositorSignedPeginTx: vault.peginTxHex,
@@ -527,6 +542,8 @@ export function useDepositFlow(
         const MAX_WOTS_ATTEMPTS = 2;
 
         for (const result of broadcastedResults) {
+          if (signal.aborted) break;
+
           let wotsSuccess = false;
 
           for (let attempt = 1; attempt <= MAX_WOTS_ATTEMPTS; attempt++) {
@@ -589,6 +606,8 @@ export function useDepositFlow(
           // Skip vaults whose WOTS key submission failed — the VP won't have
           // the keys needed, so payout signing would timeout.
           if (wotsFailedVaultIds.has(result.vaultId)) continue;
+
+          if (signal.aborted) break;
 
           try {
             setCurrentVaultIndex(vi);
@@ -679,11 +698,14 @@ export function useDepositFlow(
           setIsWaiting(false);
 
           for (const result of readyResults) {
+            if (signal.aborted) break;
+
             try {
               await activateVaultWithSecret({
                 vaultId: result.vaultId,
                 secret: ensureHexPrefix(htlcSecretHexes[result.vaultIndex]),
                 walletClient,
+                signal,
               });
             } catch (error) {
               if (signal.aborted) throw error;
