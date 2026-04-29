@@ -542,7 +542,7 @@ export function useDepositFlow(
         const MAX_WOTS_ATTEMPTS = 2;
 
         for (const result of broadcastedResults) {
-          if (signal.aborted) break;
+          signal.throwIfAborted();
 
           let wotsSuccess = false;
 
@@ -603,11 +603,11 @@ export function useDepositFlow(
         for (let vi = 0; vi < broadcastedResults.length; vi++) {
           const result = broadcastedResults[vi];
 
+          signal.throwIfAborted();
+
           // Skip vaults whose WOTS key submission failed — the VP won't have
           // the keys needed, so payout signing would timeout.
           if (wotsFailedVaultIds.has(result.vaultId)) continue;
-
-          if (signal.aborted) break;
 
           try {
             setCurrentVaultIndex(vi);
@@ -698,7 +698,7 @@ export function useDepositFlow(
           setIsWaiting(false);
 
           for (const result of readyResults) {
-            if (signal.aborted) break;
+            signal.throwIfAborted();
 
             try {
               await activateVaultWithSecret({

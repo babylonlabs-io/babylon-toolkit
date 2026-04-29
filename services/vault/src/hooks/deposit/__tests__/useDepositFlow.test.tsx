@@ -942,6 +942,8 @@ describe("useDepositFlow", () => {
         await import("@/services/vault/vaultActivationService"),
       );
 
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+
       // First activation succeeds but triggers abort
       vi.mocked(activateVaultWithSecret).mockImplementation(async () => {
         // After vault 1 activates, abort the flow
@@ -949,12 +951,10 @@ describe("useDepositFlow", () => {
         return { hash: "0xActivationTxHash" } as any;
       });
 
-      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
-
       await executeWithAutoArtifactDownload(result);
 
-      // Only vault 1 should have been activated — vault 2 should be skipped
-      // because signal.aborted is checked at the top of the loop
+      // Only vault 1 should have been activated — vault 2 is skipped
+      // because signal.throwIfAborted() fires at the top of the next iteration
       expect(activateVaultWithSecret).toHaveBeenCalledTimes(1);
     });
   });
