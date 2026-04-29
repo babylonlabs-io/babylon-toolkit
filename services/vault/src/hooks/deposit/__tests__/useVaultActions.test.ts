@@ -294,7 +294,7 @@ describe("useVaultActions — handleBroadcastPrePegInBtcTx transaction integrity
     const { result } = renderHook(() => useVaultActions());
 
     await act(async () => {
-      await result.current.handleBroadcast({
+      await result.current.handleBroadcastPrePegInBtcTx({
         ...baseBroadcastParams,
         pendingPegin: undefined,
       });
