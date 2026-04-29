@@ -14,20 +14,15 @@
  * @module managers/PayoutManager
  */
 
-import { Buffer } from "buffer";
-
-import { Transaction } from "bitcoinjs-lib";
-
 import type {
   BitcoinWallet,
   SignPsbtOptions,
 } from "../../../shared/wallets";
 import { createTaprootScriptPathSignOptions } from "../utils/signing";
 import {
+  assertPayoutOutputMatchesRegistered,
   buildPayoutPsbt,
   extractPayoutSignature,
-  isValidHex,
-  stripHexPrefix,
   validateWalletPubkey,
   type Network,
 } from "../primitives";
@@ -358,32 +353,9 @@ export class PayoutManager {
     payoutTxHex: string,
     registeredPayoutScriptPubKey: string,
   ): void {
-    if (!isValidHex(registeredPayoutScriptPubKey)) {
-      throw new Error(
-        "Invalid registeredPayoutScriptPubKey: not valid hex",
-      );
-    }
-
-    const expectedScript = Buffer.from(
-      stripHexPrefix(registeredPayoutScriptPubKey),
-      "hex",
+    assertPayoutOutputMatchesRegistered(
+      payoutTxHex,
+      registeredPayoutScriptPubKey,
     );
-    const payoutTx = Transaction.fromHex(stripHexPrefix(payoutTxHex));
-
-    if (payoutTx.outs.length === 0) {
-      throw new Error("Payout transaction has no outputs");
-    }
-
-    // Find the largest output by value — this must pay to the registered address.
-    // A dust output to the correct address with funds routed elsewhere is rejected.
-    const largestOutput = payoutTx.outs.reduce((max, output) =>
-      output.value > max.value ? output : max,
-    );
-
-    if (!largestOutput.script.equals(expectedScript)) {
-      throw new Error(
-        "Payout transaction does not pay to the registered depositor payout address",
-      );
-    }
   }
 }

@@ -11,15 +11,18 @@
 
 import {
   type AssertPayoutNoPayoutConnectorParams,
+  type Network,
   getAssertNoPayoutScriptInfo,
   tapInternalPubkey,
 } from "@babylonlabs-io/babylon-tbv-rust-wasm";
 import { Buffer } from "buffer";
-import { Psbt, Transaction } from "bitcoinjs-lib";
+import { Psbt, Transaction, payments } from "bitcoinjs-lib";
 
 import {
   TAPSCRIPT_LEAF_VERSION,
+  getNetwork,
   hexToUint8Array,
+  processPublicKeyToXOnly,
   stripHexPrefix,
 } from "../utils/bitcoin";
 
@@ -109,4 +112,51 @@ export async function buildNoPayoutPsbt(
   }
 
   return psbt.toHex();
+}
+
+/**
+ * Validate that a NoPayout transaction pays to the challenger via the
+ * protocol-defined output structure: a single BIP-86 P2TR output derived from
+ * the challenger's x-only pubkey.
+ *
+ * Mirrors `assertPayoutOutputMatchesRegistered` for the NoPayout path, where
+ * the sink is fixed by the protocol rather than read from on-chain registration
+ * (see `crates/vault/src/transactions/nopayout.rs::NoPayoutTx::new`).
+ *
+ * @param noPayoutTxHex - Raw NoPayout transaction hex
+ * @param challengerPubkey - Challenger's x-only public key (hex)
+ * @param network - Bitcoin network used to derive the P2TR scriptPubKey
+ * @throws If the transaction does not have exactly one output
+ * @throws If the single output's scriptPubKey does not equal the BIP-86 P2TR
+ *         scriptPubKey for the challenger
+ */
+export function assertNoPayoutOutputMatchesChallenger(
+  noPayoutTxHex: string,
+  challengerPubkey: string,
+  network: Network,
+): void {
+  const tx = Transaction.fromHex(stripHexPrefix(noPayoutTxHex));
+
+  if (tx.outs.length !== 1) {
+    throw new Error(
+      `NoPayout transaction must have exactly 1 output, got ${tx.outs.length}`,
+    );
+  }
+
+  const xOnly = hexToUint8Array(processPublicKeyToXOnly(challengerPubkey));
+  const { output: expectedScript } = payments.p2tr({
+    internalPubkey: Buffer.from(xOnly),
+    network: getNetwork(network),
+  });
+  if (!expectedScript) {
+    throw new Error(
+      "Failed to derive challenger BIP-86 P2TR scriptPubKey for NoPayout output validation",
+    );
+  }
+
+  if (!tx.outs[0].script.equals(expectedScript)) {
+    throw new Error(
+      "NoPayout transaction does not pay to the expected challenger BIP-86 P2TR address",
+    );
+  }
 }

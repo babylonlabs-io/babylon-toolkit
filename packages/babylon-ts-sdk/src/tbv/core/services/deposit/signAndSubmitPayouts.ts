@@ -48,6 +48,27 @@ export interface PayoutSigningContext {
   depositorBtcPubkey: string;
   /** Pegin timelock from the locked offchain params version */
   timelockPegin: number;
+  /**
+   * Assert CSV timelock from the locked offchain params version (blocks).
+   * Source: ProtocolParams contract via
+   * `ViemProtocolParamsReader.getOffchainParamsByVersion(...).timelockAssert`.
+   * Required for the depositor-graph NoPayout local rebuild.
+   */
+  timelockAssert: number;
+  /**
+   * Security council member x-only public keys (hex, no prefix).
+   * Source: ProtocolParams contract via
+   * `getOffchainParamsByVersion(...).securityCouncilKeys`.
+   * Required for the depositor-graph NoPayout local rebuild.
+   */
+  councilMembers: string[];
+  /**
+   * M-of-N council quorum threshold.
+   * Source: ProtocolParams contract via
+   * `getOffchainParamsByVersion(...).councilQuorum`.
+   * Required for the depositor-graph NoPayout local rebuild.
+   */
+  councilQuorum: number;
   /** BTC network (Mainnet, Testnet, etc.) */
   network: Network;
   /** On-chain registered depositor payout scriptPubKey (hex) */
@@ -307,11 +328,26 @@ export async function pollAndSignPayouts(
 
   signal?.throwIfAborted();
 
-  // Phase 4: Sign depositor-as-claimer graph
+  // Phase 4: Sign depositor-as-claimer graph. Both Payout and per-challenger
+  // NoPayout PSBTs are rebuilt locally inside signDepositorGraph from these
+  // authoritative connector params and the on-chain protocol parameters.
   const depositorClaimerPresignatures = await signDepositorGraph({
     depositorGraph: response.depositor_graph,
-    depositorBtcPubkey: depositorPk,
     btcWallet,
+    signingContext: {
+      peginTxHex: signingContext.peginTxHex,
+      depositorBtcPubkey: depositorPk,
+      vaultProviderBtcPubkey: signingContext.vaultProviderBtcPubkey,
+      vaultKeeperBtcPubkeys: signingContext.vaultKeeperBtcPubkeys,
+      universalChallengerBtcPubkeys:
+        signingContext.universalChallengerBtcPubkeys,
+      timelockPegin: signingContext.timelockPegin,
+      timelockAssert: signingContext.timelockAssert,
+      councilMembers: signingContext.councilMembers,
+      councilQuorum: signingContext.councilQuorum,
+      network: signingContext.network,
+      registeredPayoutScriptPubKey: signingContext.registeredPayoutScriptPubKey,
+    },
   });
 
   signal?.throwIfAborted();

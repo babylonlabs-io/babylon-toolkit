@@ -142,6 +142,9 @@ function createSigningContext(): PayoutSigningContext {
     universalChallengerBtcPubkeys: [CHALLENGER_PK],
     depositorBtcPubkey: DEPOSITOR_PK,
     timelockPegin: 100,
+    timelockAssert: 144,
+    councilMembers: ["c".repeat(64)],
+    councilQuorum: 1,
     network: "Testnet4" as never,
     registeredPayoutScriptPubKey: "0x5120" + DEPOSITOR_PK,
   };

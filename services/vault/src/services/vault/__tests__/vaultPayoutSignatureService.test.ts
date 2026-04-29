@@ -18,12 +18,15 @@ vi.mock("../../../config/pegin", () => ({
 }));
 
 const mockGetTimelockPeginByVersion = vi.fn();
+const mockGetOffchainParamsByVersion = vi.fn();
 const mockGetVaultKeepersByVersion = vi.fn();
 const mockGetUniversalChallengersByVersion = vi.fn();
 vi.mock("../../../clients/eth-contract/sdk-readers", () => ({
   getProtocolParamsReader: vi.fn().mockResolvedValue({
     getTimelockPeginByVersion: (...args: unknown[]) =>
       mockGetTimelockPeginByVersion(...args),
+    getOffchainParamsByVersion: (...args: unknown[]) =>
+      mockGetOffchainParamsByVersion(...args),
   }),
   getVaultKeeperReader: vi.fn().mockResolvedValue({
     getVaultKeepersByVersion: (...args: unknown[]) =>
@@ -118,6 +121,11 @@ describe("vaultPayoutSignatureService", () => {
       vi.clearAllMocks();
       (getVaultFromChain as Mock).mockResolvedValue(ON_CHAIN_VAULT);
       mockGetTimelockPeginByVersion.mockResolvedValue(100);
+      mockGetOffchainParamsByVersion.mockResolvedValue({
+        timelockAssert: 144n,
+        securityCouncilKeys: ["0xcouncil2", "0xcouncil1"],
+        councilQuorum: 1,
+      });
       mockGetVaultKeepersByVersion.mockResolvedValue([
         { btcPubKey: "vk1" },
         { btcPubKey: "vk2" },
@@ -140,6 +148,9 @@ describe("vaultPayoutSignatureService", () => {
       expect(vaultProviderAddress).toBe(ON_CHAIN_VAULT.vaultProvider);
       expect(context.peginTxHex).toBe(ON_CHAIN_VAULT.depositorSignedPeginTx);
       expect(context.timelockPegin).toBe(100);
+      expect(context.timelockAssert).toBe(144);
+      expect(context.councilMembers).toEqual(["council1", "council2"]);
+      expect(context.councilQuorum).toBe(1);
       expect(context.vaultKeeperBtcPubkeys).toEqual(["vk1", "vk2"]);
       expect(context.universalChallengerBtcPubkeys).toEqual(["uc1"]);
       expect(context.vaultProviderBtcPubkey).toBe("vp_pubkey");

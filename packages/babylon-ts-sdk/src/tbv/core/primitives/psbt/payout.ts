@@ -20,6 +20,7 @@ import { createPayoutScript } from "../scripts/payout";
 import {
   TAPSCRIPT_LEAF_VERSION,
   hexToUint8Array,
+  isValidHex,
   stripHexPrefix,
   uint8ArrayToHex,
 } from "../utils/bitcoin";
@@ -257,6 +258,49 @@ export async function buildPayoutPsbt(
   return {
     psbtHex: psbt.toHex(),
   };
+}
+
+/**
+ * Validate that a payout transaction's largest output pays to the registered
+ * depositor payout scriptPubKey.
+ *
+ * Prevents a malicious vault provider from substituting the payout destination
+ * (or routing funds through a dust output to the correct address while sending
+ * the actual value to an attacker-controlled script).
+ *
+ * @param payoutTxHex - Raw payout transaction hex
+ * @param registeredPayoutScriptPubKey - On-chain registered scriptPubKey (hex, with or without 0x prefix)
+ * @throws If scriptPubKey is invalid hex
+ * @throws If the transaction has no outputs
+ * @throws If the largest output does not pay to the registered scriptPubKey
+ */
+export function assertPayoutOutputMatchesRegistered(
+  payoutTxHex: string,
+  registeredPayoutScriptPubKey: string,
+): void {
+  if (!isValidHex(registeredPayoutScriptPubKey)) {
+    throw new Error("Invalid registeredPayoutScriptPubKey: not valid hex");
+  }
+
+  const expectedScript = Buffer.from(
+    stripHexPrefix(registeredPayoutScriptPubKey),
+    "hex",
+  );
+  const payoutTx = Transaction.fromHex(stripHexPrefix(payoutTxHex));
+
+  if (payoutTx.outs.length === 0) {
+    throw new Error("Payout transaction has no outputs");
+  }
+
+  const largestOutput = payoutTx.outs.reduce((max, output) =>
+    output.value > max.value ? output : max,
+  );
+
+  if (!largestOutput.script.equals(expectedScript)) {
+    throw new Error(
+      "Payout transaction does not pay to the registered depositor payout address",
+    );
+  }
 }
 
 /**

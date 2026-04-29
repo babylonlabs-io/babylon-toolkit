@@ -9,7 +9,10 @@ export type { WaitForPeginStatusParams } from "./waitForPeginStatus";
 export { submitWotsPublicKey } from "./submitWotsPublicKey";
 export type { SubmitWotsPublicKeyParams } from "./submitWotsPublicKey";
 export { signDepositorGraph } from "./signDepositorGraph";
-export type { SignDepositorGraphParams } from "./signDepositorGraph";
+export type {
+  DepositorGraphSigningContext,
+  SignDepositorGraphParams,
+} from "./signDepositorGraph";
 export { pollAndSignPayouts } from "./signAndSubmitPayouts";
 export type {
   PayoutSigningContext,

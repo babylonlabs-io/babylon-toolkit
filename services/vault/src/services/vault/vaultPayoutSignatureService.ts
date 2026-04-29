@@ -56,6 +56,12 @@ export interface SigningContext {
   universalChallengerBtcPubkeys: string[];
   depositorBtcPubkey: string;
   timelockPegin: number;
+  /** Assert CSV timelock (blocks) — required for depositor-graph NoPayout local rebuild */
+  timelockAssert: number;
+  /** Security council member x-only pubkeys (hex, no prefix) */
+  councilMembers: string[];
+  /** M-of-N council quorum threshold */
+  councilQuorum: number;
   network: Network;
   /** On-chain registered depositor payout scriptPubKey (hex) for payout output validation */
   registeredPayoutScriptPubKey: string;
@@ -134,9 +140,18 @@ export async function prepareSigningContext(
   const vault = await getVaultFromChain(vaultId as Hex);
 
   const protocolParamsReader = await getProtocolParamsReader();
+  // Pull the version-locked offchain params once: timelockPegin (derived from
+  // timelockAssert), plus the assert-period fields needed to rebuild the
+  // depositor-graph NoPayout PSBT locally.
+  const offchainParams = await protocolParamsReader.getOffchainParamsByVersion(
+    vault.offchainParamsVersion,
+  );
   const timelockPegin = await protocolParamsReader.getTimelockPeginByVersion(
     vault.offchainParamsVersion,
   );
+  const councilMembers = offchainParams.securityCouncilKeys
+    .map((k) => stripHexPrefix(k))
+    .sort();
 
   const vaultKeeperReader = await getVaultKeeperReader();
   const vaultKeepers = await vaultKeeperReader.getVaultKeepersByVersion(
@@ -180,6 +195,9 @@ export async function prepareSigningContext(
       universalChallengerBtcPubkeys,
       depositorBtcPubkey,
       timelockPegin,
+      timelockAssert: Number(offchainParams.timelockAssert),
+      councilMembers,
+      councilQuorum: offchainParams.councilQuorum,
       network: getBTCNetworkForWASM(),
       registeredPayoutScriptPubKey,
     },
