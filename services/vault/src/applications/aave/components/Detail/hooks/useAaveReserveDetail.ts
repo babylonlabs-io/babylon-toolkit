@@ -75,19 +75,21 @@ export function useAaveReserveDetail({
   // Fetch reserves from Aave config
   const {
     vbtcReserve,
-    borrowableReserves,
+    allBorrowReserves,
     isLoading: configLoading,
   } = useAaveConfig();
 
-  // Find the selected reserve by symbol (from URL param)
+  // Find the selected reserve by symbol (from URL param). Match against the
+  // full reserve set, not just borrowable ones - a user reaching this page
+  // for repay may have debt in a reserve that is no longer borrowable.
   const selectedReserve = useMemo(() => {
     if (!reserveId) return null;
     return (
-      borrowableReserves.find(
+      allBorrowReserves.find(
         (r) => r.token.symbol.toLowerCase() === reserveId.toLowerCase(),
       ) ?? null
     );
-  }, [borrowableReserves, reserveId]);
+  }, [allBorrowReserves, reserveId]);
 
   // Build asset config from reserve
   const assetConfig = useMemo((): Asset | null => {

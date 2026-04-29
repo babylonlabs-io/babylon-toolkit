@@ -65,8 +65,15 @@ export interface AaveAppConfig {
   config: AaveConfig;
   /** vBTC reserve configuration (collateral reserve) */
   vbtcReserve: AaveReserveConfig | null;
-  /** List of reserves that can be borrowed */
+  /** Reserves available for new borrows (filtered by borrowable/paused/frozen) */
   borrowableReserves: AaveReserveConfig[];
+  /**
+   * All non-vBTC reserves regardless of borrowable/paused/frozen flags.
+   * Used for resolving existing debt positions: a user can have debt in a
+   * reserve that has since been frozen/paused/un-borrowable, and still needs
+   * to repay it.
+   */
+  allBorrowReserves: AaveReserveConfig[];
 }
 
 /**
@@ -232,21 +239,24 @@ export async function fetchAaveAppConfig(): Promise<AaveAppConfig | null> {
   const vbtcReserve =
     allReserves.find((r) => r.reserveId === vbtcReserveId) ?? null;
 
+  // All non-vBTC reserves (no flag filters). Used for resolving existing debt
+  // positions in reserves that may have since been frozen/paused/un-borrowable.
+  const allBorrowReserves = allReserves.filter(
+    (r) => r.reserveId !== vbtcReserveId,
+  );
+
   // Filter borrowable reserves:
   // - borrowable flag is true
   // - not paused or frozen
   // - NOT the vBTC reserve (vBTC is collateral-only, users deposit it but can't borrow it)
-  const borrowableReserves = allReserves.filter(
-    (r) =>
-      r.reserve.borrowable &&
-      !r.reserve.paused &&
-      !r.reserve.frozen &&
-      r.reserveId !== vbtcReserveId,
+  const borrowableReserves = allBorrowReserves.filter(
+    (r) => r.reserve.borrowable && !r.reserve.paused && !r.reserve.frozen,
   );
 
   return {
     config,
     vbtcReserve,
     borrowableReserves,
+    allBorrowReserves,
   };
 }

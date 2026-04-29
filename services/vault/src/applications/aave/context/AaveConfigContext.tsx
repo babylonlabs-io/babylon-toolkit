@@ -24,8 +24,15 @@ interface AaveConfigContextValue {
   config: AaveConfig | null;
   /** vBTC reserve configuration (collateral reserve) */
   vbtcReserve: AaveReserveConfig | null;
-  /** List of reserves that can be borrowed */
+  /** Reserves available for new borrows (filtered by borrowable/paused/frozen) */
   borrowableReserves: AaveReserveConfig[];
+  /**
+   * All non-vBTC reserves regardless of borrowable/paused/frozen flags.
+   * Use this when resolving existing debt positions; users may have debt in a
+   * reserve that has since been frozen/paused/un-borrowable, and still need
+   * to be able to view and repay it.
+   */
+  allBorrowReserves: AaveReserveConfig[];
   /** Whether config is still loading */
   isLoading: boolean;
   /** Error if config fetch failed */
@@ -68,6 +75,7 @@ export function AaveConfigProvider({ children }: AaveConfigProviderProps) {
     config: data?.config ?? null,
     vbtcReserve: data?.vbtcReserve ?? null,
     borrowableReserves: data?.borrowableReserves ?? [],
+    allBorrowReserves: data?.allBorrowReserves ?? [],
     isLoading: false,
     error: error as Error | null,
   };
