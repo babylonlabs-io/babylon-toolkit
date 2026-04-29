@@ -18,9 +18,18 @@
  * @module managers/PeginManager
  */
 
+import { sha256 } from "@noble/hashes/sha2.js";
 import * as bitcoin from "bitcoinjs-lib";
 import { Psbt, Transaction } from "bitcoinjs-lib";
 import { Buffer } from "buffer";
+
+import {
+  assertAuthAnchorOpReturn,
+  expandPerVaultSecrets,
+  normalizePopSignature,
+  normalizeXOnlyPubkey,
+  signPsbtsWithFallback,
+} from "./pegin";
 import {
   createPublicClient,
   encodeFunctionData,
@@ -51,11 +60,9 @@ import {
   ensureHexPrefix,
   hexToUint8Array,
   isAddressFromPublicKey,
-  processPublicKeyToXOnly,
   stripHexPrefix,
   uint8ArrayToHex,
 } from "../primitives/utils/bitcoin";
-import { computeHashlock } from "../services";
 import {
   calculateBtcTxHash,
   fundPeginTransaction,
@@ -69,81 +76,23 @@ import {
 import { createTaprootScriptPathSignOptions } from "../utils/signing";
 import {
   deriveVaultRoot,
-  expandHashlockSecret,
-  expandWotsSeed,
+  expandAuthAnchor,
   type FundingOutpoint,
 } from "../vault-secrets";
-import {
-  computeWotsBlockPublicKeysHash,
-  deriveWotsBlocksFromSeed,
-} from "../wots";
 
 /** Referral code sent with pegin registration — 0 means no referral. */
 const NO_REFERRAL_CODE = 0;
 
-const HEX_SIGNATURE_REGEX = /^0x[0-9a-f]+$/i;
-const UNPREFIXED_HEX_SIGNATURE_REGEX = /^[0-9a-f]+$/i;
-const BASE64_SIGNATURE_REGEX = /^[A-Za-z0-9+/]+={0,2}$/;
-
-/** Sizing-pass placeholder; substitution invariance pinned in `pegin.test.ts`. */
-const PLACEHOLDER_HASHLOCK_HEX = "00".repeat(32);
-
-function normalizeXOnlyPubkey(raw: unknown): string {
-  if (typeof raw !== "string" || raw.length === 0) {
-    throw new Error("BTC wallet returned empty public key");
-  }
-  // Lowercase so case-sensitive equality checks downstream don't fail
-  // on uppercase wallet output (processPublicKeyToXOnly passes a 64-char
-  // input through unchanged).
-  return processPublicKeyToXOnly(raw).toLowerCase();
-}
-
 /**
- * Normalize a wallet-returned BIP-322 signature into 0x-prefixed hex.
- *
- * Accepts:
- *  - 0x-prefixed lowercase/uppercase hex
- *  - unprefixed hex (wins over base64 when input is pure `[0-9a-fA-F]+`)
- *  - canonical standard base64 (`[A-Za-z0-9+/]` with `=` padding to a
- *    multiple of 4 and no non-canonical encodings)
- *
- * Rejects URL-safe base64 (`-`/`_`) and base64 without padding. Wallets
- * known to return BIP-322 signatures (Keystone, UniSat, OKX, OneKey,
- * Unisat) all use standard base64; URL-safe is an explicit non-goal.
+ * 32-byte zero hex used as a placeholder during the sizing pass for any
+ * value whose content does not affect output sizes — currently the
+ * per-vault hashlocks and the auth-anchor commitment. The commit pass
+ * substitutes real values; UTXO selection and fee sizing are invariant
+ * under the swap because all four (placeholder hashlock, real
+ * SHA256(secret), placeholder anchor, real SHA256(authAnchor)) are
+ * 32-byte pushes. Substitution invariance is pinned in `pegin.test.ts`.
  */
-function normalizePopSignature(raw: unknown): Hex {
-  if (typeof raw !== "string" || raw.length === 0) {
-    throw new Error("BTC wallet returned empty BIP-322 signature");
-  }
-
-  if (raw.startsWith("0x") || raw.startsWith("0X")) {
-    if (!HEX_SIGNATURE_REGEX.test(raw) || raw.length < 4 || raw.length % 2 !== 0) {
-      throw new Error("BTC wallet returned malformed hex BIP-322 signature");
-    }
-    return raw.toLowerCase() as Hex;
-  }
-
-  // Prefer hex when the input could be either: every hex char is also a
-  // valid base64 char, so the base64 branch alone would silently misdecode
-  // a wallet returning "deadbeef" instead of "0xdeadbeef".
-  if (UNPREFIXED_HEX_SIGNATURE_REGEX.test(raw)) {
-    if (raw.length % 2 !== 0) {
-      throw new Error("BTC wallet returned malformed hex BIP-322 signature");
-    }
-    return `0x${raw.toLowerCase()}` as Hex;
-  }
-
-  if (!BASE64_SIGNATURE_REGEX.test(raw) || raw.length % 4 !== 0) {
-    throw new Error("BTC wallet returned malformed base64 BIP-322 signature");
-  }
-  const bytes = Buffer.from(raw, "base64");
-  // Round-trip to reject non-canonical base64 (e.g. "AB==" decodes but
-  // re-encodes to "AA==").
-  if (bytes.length === 0 || bytes.toString("base64") !== raw) {
-    throw new Error("BTC wallet returned malformed base64 BIP-322 signature");
-  }
-  return `0x${bytes.toString("hex")}` as Hex;
-}
+const SIZING_PASS_PLACEHOLDER_BYTES32_HEX = "00".repeat(32);
 
 /**
  * Configuration for the PeginManager.
@@ -318,6 +267,17 @@ export interface PreparePeginDerivedSecrets {
    * via `expandHashlockSecret(root, htlcVout)`; not persisted.
    */
   htlcSecretHexes: string[];
+  /**
+   * Raw 32-byte auth-anchor preimage as 64-char lowercase hex (no `0x`).
+   * Sent to the VP via `auth_createDepositorToken` to obtain a bearer
+   * token; the VP validates `SHA256(authAnchorHex) === OP_RETURN_PUSH32`
+   * in the broadcast Pre-PegIn. Reveal is intentional: once exposed
+   * the anchor is public, but its scope is bound to a single
+   * `peginTxid`. Domain-separated from `htlcSecretHexes` and
+   * `perVaultWotsKeys` via the HKDF `info` label, so revealing it does
+   * not weaken the other derived secrets.
+   */
+  authAnchorHex: string;
 }
 
 export interface PreparePeginResult {
@@ -602,6 +562,10 @@ export class PeginManager {
       await this.config.btcWallet.getPublicKeyHex();
     const depositorBtcPubkey = normalizeXOnlyPubkey(depositorBtcPubkeyRaw);
 
+    // Sizing pass uses a placeholder for the auth-anchor hash because
+    // the wallet popup that produces the real anchor hasn't run yet.
+    // The OP_RETURN's byte length is invariant under content swap, so
+    // UTXO selection and fees match the commit pass.
     const sizing = await this.prepareSizing(depositorBtcPubkey, params);
 
     const fundingOutpoints: FundingOutpoint[] = sizing.selectedUTXOs.map(
@@ -615,7 +579,28 @@ export class PeginManager {
       fundingOutpoints,
     });
 
-    const derived = await this.expandPerVaultSecrets(root, params.amounts.length);
+    // Take ownership of the auth anchor before per-vault expansion (which
+    // zeros `root`). Convert to hex immediately, then zero the buffer.
+    // `authAnchorHex` is a JS string — immutable, GC-only — and lives
+    // until the result is dropped. If anything in this window throws,
+    // `expandPerVaultSecrets` won't run to zero `root`, so we wipe it
+    // here on the throw path.
+    let authAnchorHex: string;
+    let authAnchorHash: string;
+    try {
+      const authAnchorBytes = expandAuthAnchor(root);
+      try {
+        authAnchorHex = uint8ArrayToHex(authAnchorBytes);
+        authAnchorHash = uint8ArrayToHex(sha256(authAnchorBytes));
+      } finally {
+        authAnchorBytes.fill(0);
+      }
+    } catch (err) {
+      root.fill(0);
+      throw err;
+    }
+
+    const derived = await expandPerVaultSecrets(root, params.amounts.length);
     const { perVaultWotsKeys, wotsPkHashes, htlcSecretHexes, hashlocks } =
       derived;
 
@@ -623,6 +608,7 @@ export class PeginManager {
       depositorBtcPubkeyRaw,
       depositorBtcPubkey,
       hashlocks,
+      authAnchorHash,
       sizing,
       params,
     });
@@ -638,6 +624,18 @@ export class PeginManager {
       }
     }
 
+    // Structural guarantee that the broadcast tx actually carries the
+    // OP_RETURN we'll later reveal a preimage for. Without this assertion
+    // a malicious WASM build could emit no OP_RETURN, the VP would still
+    // issue a token (if mis-configured) on a tx with no on-chain
+    // commitment, and the auth flow would degrade to a pure shared
+    // secret. Fail closed.
+    assertAuthAnchorOpReturn(
+      commit.fundedPrePeginTxHex,
+      params.amounts.length,
+      authAnchorHash,
+    );
+
     return {
       transaction: {
         ...commit,
@@ -650,56 +648,9 @@ export class PeginManager {
         perVaultWotsKeys,
         wotsPkHashes,
         htlcSecretHexes,
+        authAnchorHex,
       },
     };
-  }
-
-  /**
-   * Derive per-vault WOTS keys + HTLC preimages from the wallet root.
-   * Takes ownership of `root`: zeros the buffer (and per-vault secret
-   * buffers) before returning, regardless of how the caller exits.
-   */
-  private async expandPerVaultSecrets(
-    root: Uint8Array,
-    vaultCount: number,
-  ): Promise<{
-    perVaultWotsKeys: WotsBlockPublicKey[][];
-    wotsPkHashes: Hex[];
-    htlcSecretHexes: string[];
-    hashlocks: string[];
-  }> {
-    const perVaultWotsKeys: WotsBlockPublicKey[][] = [];
-    const wotsPkHashes: Hex[] = [];
-    const htlcSecretHexes: string[] = [];
-    const hashlocks: string[] = [];
-
-    try {
-      for (let i = 0; i < vaultCount; i++) {
-        const wotsSeed = expandWotsSeed(root, i);
-        try {
-          const wotsPublicKeys = await deriveWotsBlocksFromSeed(wotsSeed);
-          perVaultWotsKeys.push(wotsPublicKeys);
-          wotsPkHashes.push(computeWotsBlockPublicKeysHash(wotsPublicKeys));
-        } finally {
-          wotsSeed.fill(0);
-        }
-
-        const secretBytes = expandHashlockSecret(root, i);
-        try {
-          const secretHex = uint8ArrayToHex(secretBytes);
-          htlcSecretHexes.push(secretHex);
-          hashlocks.push(
-            computeHashlock(ensureHexPrefix(secretHex)).slice(2),
-          );
-        } finally {
-          secretBytes.fill(0);
-        }
-      }
-    } finally {
-      root.fill(0);
-    }
-
-    return { perVaultWotsKeys, wotsPkHashes, htlcSecretHexes, hashlocks };
   }
 
   /**
@@ -711,13 +662,19 @@ export class PeginManager {
    * `selectUtxosForPegin` in the commit pass would be deterministic given
    * the same inputs, but threading the result through guarantees the
    * domain separator structurally matches the funded tx inputs.
+   *
+   * Sizing runs before the wallet popup, so neither the real per-vault
+   * hashlocks nor the real `authAnchorHash` are known yet. Both slots
+   * are filled with a 32-byte placeholder; the commit pass swaps in the
+   * real values. Output budget is identical (32-byte push regardless of
+   * content), so UTXO selection is invariant under substitution.
    */
   private async prepareSizing(
     depositorBtcPubkey: string,
     params: PreparePeginParams,
   ): Promise<{ selectedUTXOs: UTXO[]; fee: bigint; changeAmount: bigint }> {
     const placeholderHashlocks = params.amounts.map(
-      () => PLACEHOLDER_HASHLOCK_HEX,
+      () => SIZING_PASS_PLACEHOLDER_BYTES32_HEX,
     );
     const numLocalChallengers = params.vaultKeeperBtcPubkeys.length;
 
@@ -735,14 +692,17 @@ export class PeginManager {
       councilQuorum: params.councilQuorum,
       councilSize: params.councilSize,
       network: this.config.btcNetwork,
+      authAnchorHash: SIZING_PASS_PLACEHOLDER_BYTES32_HEX,
     });
 
     const selection = selectUtxosForPegin(
       [...params.availableUTXOs],
       prePegin.totalOutputValue,
       params.mempoolFeeRate,
-      // No auth-anchor OP_RETURN in this PR (deferred to PR5).
-      peginOutputCount(prePegin.htlcValues.length),
+      peginOutputCount(
+        prePegin.htlcValues.length,
+        SIZING_PASS_PLACEHOLDER_BYTES32_HEX,
+      ),
     );
 
     return {
@@ -757,6 +717,7 @@ export class PeginManager {
     depositorBtcPubkeyRaw: string;
     depositorBtcPubkey: string;
     hashlocks: readonly string[];
+    authAnchorHash: string;
     sizing: { selectedUTXOs: UTXO[]; fee: bigint; changeAmount: bigint };
     params: PreparePeginParams;
   }): Promise<{
@@ -768,9 +729,32 @@ export class PeginManager {
       depositorBtcPubkeyRaw,
       depositorBtcPubkey,
       hashlocks,
+      authAnchorHash,
       sizing,
       params,
     } = args;
+
+    // Refuse to build the broadcast tx if the orchestrator forgot to
+    // substitute real values for the sizing-pass placeholder. A
+    // placeholder-zero hashlock would produce an HTLC that no real
+    // preimage can spend; a placeholder-zero auth anchor would let
+    // the depositor reveal a known-public preimage to the VP. Fail
+    // before signing, not after broadcast.
+    const placeholderLower = SIZING_PASS_PLACEHOLDER_BYTES32_HEX.toLowerCase();
+    for (let i = 0; i < hashlocks.length; i++) {
+      if (hashlocks[i].toLowerCase() === placeholderLower) {
+        throw new Error(
+          `preparePeginCommit refusing to build with sizing-pass placeholder ` +
+            `hashlock at vault ${i} — internal substitution bug`,
+        );
+      }
+    }
+    if (authAnchorHash.toLowerCase() === placeholderLower) {
+      throw new Error(
+        `preparePeginCommit refusing to build with sizing-pass placeholder ` +
+          `auth-anchor hash — internal substitution bug`,
+      );
+    }
 
     const vaultProviderBtcPubkey = stripHexPrefix(params.vaultProviderBtcPubkey);
     const vaultKeeperBtcPubkeys = params.vaultKeeperBtcPubkeys.map(stripHexPrefix);
@@ -791,6 +775,7 @@ export class PeginManager {
       councilQuorum: params.councilQuorum,
       councilSize: params.councilSize,
       network: this.config.btcNetwork,
+      authAnchorHash,
     };
 
     const prePeginResult = await buildPrePeginPsbt(prePeginParams);
@@ -841,7 +826,8 @@ export class PeginManager {
       );
     }
 
-    const signedPsbts = await this.signPsbtsWithFallback(
+    const signedPsbts = await signPsbtsWithFallback(
+      this.config.btcWallet,
       psbtsToSign,
       signOptions,
     );
@@ -872,41 +858,6 @@ export class PeginManager {
     };
   }
 
-  /**
-   * Signs multiple PSBTs using batch signing if available, falling back to sequential signing.
-   *
-   * Wallets that support native batch signing (e.g. UniSat) will sign all PSBTs
-   * in a single interaction. Others (e.g. Ledger, AppKit) implement signPsbts
-   * by looping signPsbt internally, so the UX depends on the wallet adapter.
-   */
-  private async signPsbtsWithFallback(
-    psbtsHexes: string[],
-    options: SignPsbtOptions[],
-  ): Promise<string[]> {
-    if (typeof this.config.btcWallet.signPsbts === "function") {
-      const signedPsbts = await this.config.btcWallet.signPsbts(
-        psbtsHexes,
-        options,
-      );
-      if (signedPsbts.length !== psbtsHexes.length) {
-        throw new Error(
-          `Expected ${psbtsHexes.length} signed PSBTs but received ${signedPsbts.length}`,
-        );
-      }
-      return signedPsbts;
-    }
-
-    // Fallback: sign sequentially
-    const signedPsbts: string[] = [];
-    for (let i = 0; i < psbtsHexes.length; i++) {
-      const signed = await this.config.btcWallet.signPsbt(
-        psbtsHexes[i],
-        options[i],
-      );
-      signedPsbts.push(signed);
-    }
-    return signedPsbts;
-  }
 
   /**
    * Signs and broadcasts a funded peg-in transaction to the Bitcoin network.
