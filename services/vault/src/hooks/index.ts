@@ -25,12 +25,6 @@ export {
   useProtocolParams,
   type UseProtocolParamsResult,
 } from "./useProtocolParams";
-export {
-  STATS_QUERY_KEY,
-  useStats,
-  type StatsData,
-  type UseStatsResult,
-} from "./useStats";
 export { UTXOS_QUERY_KEY, useUTXOs } from "./useUTXOs";
 export { useVaultDeposits } from "./useVaultDeposits";
 export { VAULTS_QUERY_KEY, useVaults } from "./useVaults";
