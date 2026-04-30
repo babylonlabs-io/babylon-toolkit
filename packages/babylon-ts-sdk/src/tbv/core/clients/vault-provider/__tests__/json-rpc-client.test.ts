@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { VaultProviderRpcClient } from "../api";
+
 import {
   JSON_RPC_ERROR_CODES,
   JsonRpcClient,
@@ -15,10 +17,11 @@ const HTTP_INTERNAL_SERVER_ERROR = 500;
 const HTTP_SERVICE_UNAVAILABLE = 503;
 
 function createJsonResponse(body: unknown, init?: ResponseInit): Response {
+  const { headers: initHeaders, ...restInit } = init ?? {};
   return new Response(JSON.stringify(body), {
     status: HTTP_OK,
-    headers: { "Content-Type": "application/json" },
-    ...init,
+    ...restInit,
+    headers: { "Content-Type": "application/json", ...initHeaders },
   });
 }
 
@@ -340,6 +343,32 @@ describe("JsonRpcClient", () => {
 
     await expect(
       client.call("vaultProvider_getPeginStatus", { pegin_txid: "abc" }),
+    ).rejects.toMatchObject({
+      code: JSON_RPC_ERROR_CODES.RESPONSE_TOO_LARGE,
+      source: "local",
+    });
+  });
+
+  it("threads maxResponseBytes through VaultProviderRpcClient", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValue(
+          createStreamedTextResponse([
+            '{"jsonrpc":"2.0","result":{"health_info":"',
+            "x".repeat(80),
+            '"},"id":1}',
+          ]),
+        ),
+    );
+
+    const client = new VaultProviderRpcClient(TEST_BASE_URL, {
+      maxResponseBytes: 64,
+    });
+
+    await expect(
+      client.getPeginStatus({ pegin_txid: "abc" }),
     ).rejects.toMatchObject({
       code: JSON_RPC_ERROR_CODES.RESPONSE_TOO_LARGE,
       source: "local",

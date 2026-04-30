@@ -531,8 +531,9 @@ async function readResponseTextWithLimit(
   }
 
   const reader = response.body.getReader();
-  const chunks: Uint8Array[] = [];
+  const decoder = new TextDecoder();
   let totalBytes = 0;
+  let responseText = "";
 
   try {
     for (;;) {
@@ -545,20 +546,13 @@ async function readResponseTextWithLimit(
         await reader.cancel();
         throw responseTooLargeError(maxBytes);
       }
-      chunks.push(value);
+      responseText += decoder.decode(value, { stream: true });
     }
   } finally {
     reader.releaseLock();
   }
 
-  const body = new Uint8Array(totalBytes);
-  let offset = 0;
-  for (const chunk of chunks) {
-    body.set(chunk, offset);
-    offset += chunk.byteLength;
-  }
-
-  return new TextDecoder().decode(body);
+  return responseText + decoder.decode();
 }
 
 function responseTooLargeError(maxBytes: number): JsonRpcError {
