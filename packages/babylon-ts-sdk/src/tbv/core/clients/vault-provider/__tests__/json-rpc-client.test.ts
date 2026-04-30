@@ -14,22 +14,23 @@ const HTTP_OK = 200;
 const HTTP_INTERNAL_SERVER_ERROR = 500;
 const HTTP_SERVICE_UNAVAILABLE = 503;
 
-function createSuccessResponse(result: unknown, id: number = 1) {
-  return {
-    ok: true,
+function createJsonResponse(body: unknown, init?: ResponseInit): Response {
+  return new Response(JSON.stringify(body), {
     status: HTTP_OK,
-    statusText: "OK",
-    json: () => Promise.resolve({ jsonrpc: "2.0", result, id }),
-  } as unknown as Response;
+    headers: { "Content-Type": "application/json" },
+    ...init,
+  });
+}
+
+function createSuccessResponse(result: unknown, id: number = 1) {
+  return createJsonResponse({ jsonrpc: "2.0", result, id });
 }
 
 function createHttpErrorResponse(status: number, statusText: string) {
-  return {
-    ok: false,
-    status,
+  return new Response(JSON.stringify({}), {
     statusText,
-    json: () => Promise.resolve({}),
-  } as unknown as Response;
+    status,
+  });
 }
 
 function createJsonRpcErrorResponse(
@@ -37,13 +38,22 @@ function createJsonRpcErrorResponse(
   message: string,
   id: number = 1,
 ) {
-  return {
-    ok: true,
-    status: HTTP_OK,
-    statusText: "OK",
-    json: () =>
-      Promise.resolve({ jsonrpc: "2.0", error: { code, message }, id }),
-  } as unknown as Response;
+  return createJsonResponse({ jsonrpc: "2.0", error: { code, message }, id });
+}
+
+function createStreamedTextResponse(chunks: string[]): Response {
+  const encoder = new TextEncoder();
+  return new Response(
+    new ReadableStream<Uint8Array>({
+      start(controller) {
+        for (const chunk of chunks) {
+          controller.enqueue(encoder.encode(chunk));
+        }
+        controller.close();
+      },
+    }),
+    { status: HTTP_OK, headers: { "Content-Type": "application/json" } },
+  );
 }
 
 describe("JsonRpcClient", () => {
@@ -101,8 +111,13 @@ describe("JsonRpcClient", () => {
       "fetch",
       vi
         .fn()
-        .mockResolvedValue(
-          createJsonRpcErrorResponse(RpcErrorCode.NOT_FOUND, "PegIn not found"),
+        .mockImplementation(() =>
+          Promise.resolve(
+            createJsonRpcErrorResponse(
+              RpcErrorCode.NOT_FOUND,
+              "PegIn not found",
+            ),
+          ),
         ),
     );
 
@@ -259,12 +274,7 @@ describe("JsonRpcClient", () => {
   it("throws INVALID_RESPONSE when result field is missing", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn().mockResolvedValue({
-        ok: true,
-        status: HTTP_OK,
-        statusText: "OK",
-        json: () => Promise.resolve({ jsonrpc: "2.0", id: 1 }),
-      } as unknown as Response),
+      vi.fn().mockResolvedValue(createJsonResponse({ jsonrpc: "2.0", id: 1 })),
     );
 
     const client = createClient();
@@ -283,6 +293,57 @@ describe("JsonRpcClient", () => {
     });
 
     expect(response).toBe(rawResponse);
+  });
+
+  it("rejects typed calls before reading when Content-Length exceeds the response cap", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValue(
+          createJsonResponse(
+            { jsonrpc: "2.0", result: { status: "Activated" }, id: 1 },
+            { headers: { "Content-Length": "65" } },
+          ),
+        ),
+    );
+
+    const client = createClient({ maxResponseBytes: 64 });
+
+    try {
+      await client.call("vaultProvider_getPeginStatus", { pegin_txid: "abc" });
+      expect.fail("should have thrown");
+    } catch (err) {
+      expect(err).toBeInstanceOf(JsonRpcError);
+      expect((err as JsonRpcError).code).toBe(
+        JSON_RPC_ERROR_CODES.RESPONSE_TOO_LARGE,
+      );
+      expect((err as JsonRpcError).source).toBe("local");
+    }
+  });
+
+  it("rejects typed calls while streaming once the response cap is exceeded", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValue(
+          createStreamedTextResponse([
+            '{"jsonrpc":"2.0","result":{"health_info":"',
+            "x".repeat(80),
+            '"},"id":1}',
+          ]),
+        ),
+    );
+
+    const client = createClient({ maxResponseBytes: 64 });
+
+    await expect(
+      client.call("vaultProvider_getPeginStatus", { pegin_txid: "abc" }),
+    ).rejects.toMatchObject({
+      code: JSON_RPC_ERROR_CODES.RESPONSE_TOO_LARGE,
+      source: "local",
+    });
   });
 
   it("throws timeout error after max retries on AbortError for retryable methods", async () => {
@@ -351,21 +412,17 @@ describe("JsonRpcClient", () => {
   it('tags wire-origin JSON-RPC error responses with source="wire" and preserves data', async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn().mockResolvedValue({
-        ok: true,
-        status: HTTP_OK,
-        statusText: "OK",
-        json: () =>
-          Promise.resolve({
-            jsonrpc: "2.0",
-            error: {
-              code: -32001,
-              message: "token expired",
-              data: { kind: "auth_expired", expiresAt: 123 },
-            },
-            id: 1,
-          }),
-      } as unknown as Response),
+      vi.fn().mockResolvedValue(
+        createJsonResponse({
+          jsonrpc: "2.0",
+          error: {
+            code: -32001,
+            message: "token expired",
+            data: { kind: "auth_expired", expiresAt: 123 },
+          },
+          id: 1,
+        }),
+      ),
     );
 
     const client = createClient();
@@ -451,21 +508,15 @@ describe("JsonRpcClient", () => {
   // -----------------------------------------------------------------
 
   it("invalidates token and retries once on wire error with data.kind=auth_expired", async () => {
-    const expiredResponse = {
-      ok: true,
-      status: HTTP_OK,
-      statusText: "OK",
-      json: () =>
-        Promise.resolve({
-          jsonrpc: "2.0",
-          error: {
-            code: -32001,
-            message: "token expired",
-            data: { kind: "auth_expired" },
-          },
-          id: 1,
-        }),
-    } as unknown as Response;
+    const expiredResponse = createJsonResponse({
+      jsonrpc: "2.0",
+      error: {
+        code: -32001,
+        message: "token expired",
+        data: { kind: "auth_expired" },
+      },
+      id: 1,
+    });
 
     const successResponse = createSuccessResponse("ok", 2);
 
@@ -509,20 +560,14 @@ describe("JsonRpcClient", () => {
     // Covers the "server sent -32001 for a non-auth reason" path. The
     // SDK must not blindly retry just because the code is -32001 —
     // the `data.kind` marker is required.
-    const response = {
-      ok: true,
-      status: HTTP_OK,
-      statusText: "OK",
-      json: () =>
-        Promise.resolve({
-          jsonrpc: "2.0",
-          error: {
-            code: -32001,
-            message: "provider not found",
-          },
-          id: 1,
-        }),
-    } as unknown as Response;
+    const response = createJsonResponse({
+      jsonrpc: "2.0",
+      error: {
+        code: -32001,
+        message: "provider not found",
+      },
+      id: 1,
+    });
 
     const mockFetch = vi.fn().mockResolvedValue(response);
     vi.stubGlobal("fetch", mockFetch);
@@ -555,17 +600,11 @@ describe("JsonRpcClient", () => {
     ["object with non-string kind", { kind: 42 }],
     ["object with wrong kind value", { kind: "something_else" }],
   ])("does NOT retry on -32001 with %s", async (_label, malformedData) => {
-    const response = {
-      ok: true,
-      status: HTTP_OK,
-      statusText: "OK",
-      json: () =>
-        Promise.resolve({
-          jsonrpc: "2.0",
-          error: { code: -32001, message: "x", data: malformedData },
-          id: 1,
-        }),
-    } as unknown as Response;
+    const response = createJsonResponse({
+      jsonrpc: "2.0",
+      error: { code: -32001, message: "x", data: malformedData },
+      id: 1,
+    });
 
     const mockFetch = vi.fn().mockResolvedValue(response);
     vi.stubGlobal("fetch", mockFetch);
@@ -616,21 +655,15 @@ describe("JsonRpcClient", () => {
     // on the provider doing so (both invalidate calls land, both retries
     // proceed) AND verifies the contract the provider should honor.
     const expired = (id: number) =>
-      ({
-        ok: true,
-        status: HTTP_OK,
-        statusText: "OK",
-        json: () =>
-          Promise.resolve({
-            jsonrpc: "2.0",
-            error: {
-              code: -32001,
-              message: "token expired",
-              data: { kind: "auth_expired" },
-            },
-            id,
-          }),
-      }) as unknown as Response;
+      createJsonResponse({
+        jsonrpc: "2.0",
+        error: {
+          code: -32001,
+          message: "token expired",
+          data: { kind: "auth_expired" },
+        },
+        id,
+      });
 
     const mockFetch = vi
       .fn()

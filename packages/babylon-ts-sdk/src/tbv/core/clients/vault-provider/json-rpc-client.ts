@@ -66,6 +66,12 @@ export interface JsonRpcClientConfig {
   /** Initial retry delay in milliseconds (default: 1000) */
   retryDelay?: number;
   /**
+   * Maximum response body size, in bytes, for typed JSON-RPC calls.
+   * `callRaw` intentionally returns the unparsed Response and is not capped here.
+   * Default: 2 MiB.
+   */
+  maxResponseBytes?: number;
+  /**
    * Predicate that decides which methods retry on transient errors.
    * Default retries only `getPeginStatus`, `getPegoutStatus`, and
    * `requestDepositorPresignTransactions`. Write methods are not
@@ -115,6 +121,8 @@ export const JSON_RPC_ERROR_CODES = {
   PROXY_UNAVAILABLE: -32003,
   /** SDK client: response missing "result" field (malformed JSON-RPC) */
   INVALID_RESPONSE: -32700,
+  /** SDK client: response body exceeded the configured byte limit */
+  RESPONSE_TOO_LARGE: -32701,
 } as const;
 
 /** JSON-RPC protocol version */
@@ -125,6 +133,9 @@ const DEFAULT_RETRY_ATTEMPTS = 3;
 
 /** Default initial retry delay in milliseconds */
 const DEFAULT_RETRY_DELAY_MS = 1000;
+
+/** Default maximum JSON-RPC response size for typed calls (2 MiB) */
+const DEFAULT_MAX_RESPONSE_BYTES = 2 * 1024 * 1024;
 
 /** HTTP status codes that indicate transient server errors and are safe to retry */
 const RETRYABLE_HTTP_STATUS_CODES: ReadonlySet<number> = new Set([
@@ -178,6 +189,7 @@ export class JsonRpcClient {
   private requestId = 0;
   private retries: number;
   private retryDelay: number;
+  private maxResponseBytes: number;
   private retryableFor: (method: string) => boolean;
   private tokenProvider?: BearerTokenProvider;
 
@@ -190,6 +202,11 @@ export class JsonRpcClient {
     };
     this.retries = config.retries ?? DEFAULT_RETRY_ATTEMPTS;
     this.retryDelay = config.retryDelay ?? DEFAULT_RETRY_DELAY_MS;
+    this.maxResponseBytes =
+      config.maxResponseBytes ?? DEFAULT_MAX_RESPONSE_BYTES;
+    if (!Number.isFinite(this.maxResponseBytes) || this.maxResponseBytes <= 0) {
+      throw new Error("maxResponseBytes must be a positive finite number");
+    }
     this.retryableFor = config.retryableFor ?? defaultRetryableFor;
     this.tokenProvider = config.tokenProvider;
   }
@@ -253,8 +270,15 @@ export class JsonRpcClient {
 
     let jsonResponse: unknown;
     try {
-      jsonResponse = await response.json();
-    } catch {
+      const responseText = await readResponseTextWithLimit(
+        response,
+        this.maxResponseBytes,
+      );
+      jsonResponse = JSON.parse(responseText);
+    } catch (error) {
+      if (error instanceof JsonRpcError) {
+        throw error;
+      }
       throw new JsonRpcError(
         JSON_RPC_ERROR_CODES.INVALID_RESPONSE,
         "Invalid JSON-RPC response: body is not valid JSON",
@@ -485,4 +509,62 @@ function mergeAbortSignals(a: AbortSignal, b: AbortSignal): MergedSignal {
   };
 
   return { signal: controller.signal, cleanup };
+}
+
+async function readResponseTextWithLimit(
+  response: Response,
+  maxBytes: number,
+): Promise<string> {
+  const contentLength = response.headers.get("content-length");
+  if (contentLength !== null) {
+    const parsedContentLength = Number(contentLength);
+    if (
+      Number.isFinite(parsedContentLength) &&
+      parsedContentLength > maxBytes
+    ) {
+      throw responseTooLargeError(maxBytes);
+    }
+  }
+
+  if (!response.body) {
+    return "";
+  }
+
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let totalBytes = 0;
+
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (!value) continue;
+
+      totalBytes += value.byteLength;
+      if (totalBytes > maxBytes) {
+        await reader.cancel();
+        throw responseTooLargeError(maxBytes);
+      }
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  const body = new Uint8Array(totalBytes);
+  let offset = 0;
+  for (const chunk of chunks) {
+    body.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+
+  return new TextDecoder().decode(body);
+}
+
+function responseTooLargeError(maxBytes: number): JsonRpcError {
+  return new JsonRpcError(
+    JSON_RPC_ERROR_CODES.RESPONSE_TOO_LARGE,
+    `JSON-RPC response exceeds maximum size of ${maxBytes} bytes`,
+    "local",
+  );
 }
