@@ -94,11 +94,12 @@ Inputs:
 - `vaultContext`: opaque bytes composed per
   [§2.3](#23-context-encoding-guidance). Keyed per Pre-PegIn
   transaction, not per HTLC.
-- `htlcVout`: 32-bit HTLC output index within the Pre-PegIn. Required
-  input to the per-HTLC children (`hashlockSecret`, `wotsSeed`); not
-  used by the shared `authAnchor`. Carried through the HKDF-Expand
-  `info` label rather than the wallet context, so a single wallet
-  popup per Pre-PegIn serves every vault in a multi-HTLC batch.
+- `htlcVout`: HTLC output index within the Pre-PegIn. On-chain it's
+  `uint8` (`BTCVaultProtocolInfo.htlcVout`); encoded as 4 bytes
+  big-endian in the HKDF `info` label for clean PRF input. Required
+  for the per-HTLC children (`hashlockSecret`, `wotsSeed`); carried
+  through `info` rather than the wallet context so one wallet popup
+  per Pre-PegIn serves every vault in a multi-HTLC batch.
 
 Outputs (conceptual — SDK API shapes vary, see §2.5):
 
@@ -194,7 +195,8 @@ The canonical fields for `vaultContext`, in order, are:
 
    ```
    Each funding outpoint serialized as:
-     outpoint := txid (32 bytes, display order)
+     outpoint := txid (32 bytes, display/RPC order — i.e. the form
+                       shown in block explorers, NOT internal little-endian)
               || vout (4 bytes, u32 big-endian)
      // 36 bytes total
 
@@ -329,13 +331,23 @@ Rationale:
 
 ## 3. Scope
 
-This scheme is scoped to secrets whose disclosure or deterministic
-derivation does not, on its own, authorize fund movement or
-irreversible on-chain state change. The three defined labels satisfy
-this property:
+This scheme is scoped to secrets whose disclosure does NOT let a
+third party redirect funds, impersonate the depositor in an
+application-layer authorization call, or release private artifacts.
+A secret in scope MAY still be sufficient to complete a *fixed,
+pre-authorized* Bitcoin spend when combined with public on-chain
+data; such cases MUST be called out per-label below.
 
-- `hashlockSecret` — activation requires `msg.sender == depositor`
-  (Ethereum access control) in addition to the preimage.
+The three defined labels satisfy these properties:
+
+- `hashlockSecret` — cannot impersonate the depositor on Ethereum
+  (`activateVaultWithSecret` requires `msg.sender == depositor`) or
+  redirect BTC outputs (participant sigs commit to fixed outputs).
+  Caveat: once `VERIFIED` is reached, all participant pegin sigs are
+  public on-chain, so the preimage alone is sufficient to broadcast
+  the pre-authorized pegin tx and consume the HTLC — destroying the
+  depositor's refund path. No vBTC theft (depositor retains the
+  secret too and can still mint via activation).
 - `authAnchor` — all token-gated RPCs are off-chain state
   accumulators; fund movement and state change remain gated by
   on-chain access control and co-signing requirements.
@@ -345,9 +357,11 @@ this property:
 A secret MUST NOT be added to this scheme if any of the following
 hold:
 
-1. Knowledge of the secret alone authorizes a single on-chain call
-   that moves funds or changes vault state without independent
-   signature, access-control, or co-signing checks.
+1. Knowledge of the secret alone lets a third party redirect funds,
+   impersonate the depositor in an application-layer call (e.g. an
+   Ethereum function gated by `msg.sender`), or complete an
+   *unauthorized* Bitcoin spend (i.e. one whose required signatures
+   are not already on-chain at the time of leakage).
 2. Knowledge of the secret alone authorizes a control-plane action
    with monetary, state-change, or privacy consequences (e.g.
    releasing a redemption artifact, revoking a vault, or reading
@@ -370,13 +384,13 @@ who is handed the secret can compute the same commitment and sign a
 transaction carrying it; the Bitcoin signature attests to control of
 the input UTXO, not to possession of the preimage.
 
-For the three labels defined today this distinction is benign because
-each preimage is paired with an independent authorization gate
-(Ethereum access control for `hashlockSecret`, VP-side co-signing and
-contract state transitions for `authAnchor`, multi-party co-signing
-for `wotsSeed`). A future label that relied on the on-chain
-commitment as the sole proof of knowledge would violate §3's scope
-rules and require a challenge-response signature instead.
+For `authAnchor` and `wotsSeed`, this distinction is benign — each is
+paired with an independent authorization gate. For `hashlockSecret`,
+the ETH activation gate is depositor-only but the BTC-side pegin
+spend is not (see §3). A future label that relied on the on-chain
+commitment as sole proof of knowledge would violate §3's scope and
+require a
+challenge-response signature instead.
 
 ### 3.2 Transparency gap
 
