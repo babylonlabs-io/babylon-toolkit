@@ -39,6 +39,10 @@ export interface PendingPeginRequest {
   status: LocalStorageStatus; // Track user actions (required, defaults to PENDING)
   peginTxHash: Hex; // Raw BTC pegin transaction hash
   depositorBtcPubkey?: string; // Depositor's BTC public key (x-only, for WOTS derivation in resume flow)
+  // Anchor for the REFUND_BROADCAST optimistic suppression TTL: a broadcast tx
+  // can be evicted from the mempool and never confirm, so the suppression must
+  // expire to let the user retry instead of permanently hiding the action.
+  refundBroadcastAt?: number;
   // Fields for cross-device broadcasting support
   unsignedTxHex: string; // Funded Pre-PegIn tx hex (for broadcasting later)
   selectedUTXOs?: Array<{
@@ -70,6 +74,7 @@ const VALID_LOCAL_STORAGE_STATUSES: ReadonlySet<string> = new Set([
   "payout_signed",
   "confirming",
   "confirmed",
+  "refund_broadcast",
 ]);
 // Vault `id` is keccak256(abi.encode(peginTxHash, depositor)) — always 32 bytes.
 // `peginTxHash` is a Bitcoin tx hash — also 32 bytes. Accept the legacy form
@@ -117,6 +122,16 @@ function hasValidSecurityFields(entry: unknown): entry is PendingPeginRequest {
     if (
       typeof pegin.status !== "string" ||
       !VALID_LOCAL_STORAGE_STATUSES.has(pegin.status)
+    ) {
+      return false;
+    }
+  }
+
+  if (pegin.refundBroadcastAt !== undefined) {
+    if (
+      typeof pegin.refundBroadcastAt !== "number" ||
+      !Number.isFinite(pegin.refundBroadcastAt) ||
+      pegin.refundBroadcastAt < 0
     ) {
       return false;
     }
@@ -339,6 +354,31 @@ export function updatePendingPeginStatus(
 }
 
 /**
+ * Mark a pending peg-in as having broadcast its refund tx, anchoring the
+ * timestamp used by the optimistic-suppression TTL.
+ */
+export function markRefundBroadcast(
+  ethAddress: string,
+  vaultId: string,
+  refundBroadcastAt: number,
+): void {
+  const existingPegins = getPendingPegins(ethAddress);
+  const normalizedId = normalizeTransactionId(vaultId);
+
+  const updatedPegins = existingPegins.map((pegin) =>
+    pegin.id === normalizedId
+      ? {
+          ...pegin,
+          status: LocalStorageStatus.REFUND_BROADCAST,
+          refundBroadcastAt,
+        }
+      : pegin,
+  );
+
+  savePendingPegins(ethAddress, updatedPegins);
+}
+
+/**
  * Filter and clean up old pending peg-ins
  *
  * Uses peginStateMachine.shouldRemoveFromLocalStorage() for cleanup logic:
@@ -374,7 +414,11 @@ export function filterPendingPegins(
 
     // If it exists on blockchain, use peginStateMachine to determine if we should remove it
     // This handles the logic for keeping status 0-1 and removing status 2+
-    return !shouldRemoveFromLocalStorage(confirmedPegin.status, pegin.status);
+    return !shouldRemoveFromLocalStorage(
+      confirmedPegin.status,
+      pegin.status,
+      pegin.refundBroadcastAt,
+    );
   });
 }
 

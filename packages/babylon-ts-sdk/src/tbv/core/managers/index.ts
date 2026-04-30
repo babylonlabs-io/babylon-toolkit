@@ -25,7 +25,10 @@ export { PeginManager } from "./PeginManager";
 export type {
   PopSignature,
   PreparePeginResult,
+  PreparePeginTransaction,
+  PreparePeginDerivedSecrets,
   PreparePeginParams,
+  PerVaultPeginData,
   PeginManagerConfig,
   RegisterPeginParams,
   RegisterPeginResult,

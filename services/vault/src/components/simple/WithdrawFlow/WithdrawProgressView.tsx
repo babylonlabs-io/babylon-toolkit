@@ -1,16 +1,24 @@
 import { Button, Heading, Text } from "@babylonlabs-io/core-ui";
 
+import { BTC_BLOCK_TIME_MINS, MINS_PER_HOUR } from "@/constants";
 import { useProtocolParamsContext } from "@/context/ProtocolParamsContext";
 
-/** Average Bitcoin block time in minutes */
-const BTC_BLOCK_TIME_MINS = 10;
-const MINS_PER_HOUR = 60;
+import { NominatedAddressValue } from "./NominatedAddressValue";
 
 interface WithdrawProgressViewProps {
+  /**
+   * Decoded BTC addresses (deduped) where this withdrawal is being paid out.
+   * Snapshotted at submission time from the on-chain registered
+   * `depositorPayoutBtcAddress` of each withdrawn vault.
+   */
+  payoutAddresses: string[];
   onClose: () => void;
 }
 
-export function WithdrawProgressView({ onClose }: WithdrawProgressViewProps) {
+export function WithdrawProgressView({
+  payoutAddresses,
+  onClose,
+}: WithdrawProgressViewProps) {
   const { timelockPegin } = useProtocolParamsContext();
 
   // Derive estimated wait from on-chain timelockPegin (in blocks) * avg block time
@@ -29,6 +37,17 @@ export function WithdrawProgressView({ onClose }: WithdrawProgressViewProps) {
           Your withdrawal transaction has been successfully submitted. The vault
           provider will process your BTC and send it to your nominated address.
         </Text>
+
+        {payoutAddresses.length > 0 && (
+          <div className="flex items-center justify-between">
+            <Text variant="body2" className="text-accent-secondary">
+              Nominated Address
+            </Text>
+            <Text variant="body2" className="text-accent-primary">
+              <NominatedAddressValue addresses={payoutAddresses} />
+            </Text>
+          </div>
+        )}
 
         <Text variant="body2" className="text-accent-secondary">
           Estimated time: ~{estimatedHours} hours

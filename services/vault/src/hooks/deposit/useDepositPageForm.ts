@@ -184,16 +184,20 @@ export function useDepositPageForm(): UseDepositPageFormResult {
     capUnavailable: capError !== null,
   });
 
-  // Get UTXOs for balance calculation (already respects inscription preference)
+  // Display balance uses `availableUTXOs` so the user sees their real funds
+  // even while the ordinals classifier is loading or has errored. Actual
+  // spending uses `spendableMempoolUTXOs` (fee estimation) and the fail-closed
+  // gate inside `useDepositFlow`, which refuses to submit while classification
+  // is unavailable.
   const {
-    spendableUTXOs,
+    availableUTXOs,
     spendableMempoolUTXOs,
     ordinalsCheckUnavailable,
     ordinalsCheckPending,
   } = useUTXOs(btcAddress);
   const btcBalance = useMemo(() => {
-    return BigInt(calculateBalance(spendableUTXOs || []));
-  }, [spendableUTXOs]);
+    return BigInt(calculateBalance(availableUTXOs || []));
+  }, [availableUTXOs]);
 
   const btcBalanceFormatted = useMemo(() => {
     if (!btcBalance) return 0;

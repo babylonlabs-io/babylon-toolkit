@@ -18,7 +18,12 @@ import {
   mapViemErrorToContractError,
 } from "@/utils/errors";
 
-import { borrow } from "../services";
+import { getAaveAdapterAddress } from "../config";
+import {
+  ReserveMismatchError,
+  assertReserveMatchesOnChain,
+  borrow,
+} from "../services";
 import type { AaveReserveConfig } from "../services/fetchConfig";
 
 export interface UseBorrowTransactionResult {
@@ -71,9 +76,16 @@ export function useBorrowTransaction(): UseBorrowTransactionResult {
         );
       }
 
-      // Fetch decimals on-chain to prevent a compromised GraphQL indexer from
-      // supplying a falsified value that would cause parseUnits to produce a
-      // materially different amount than the user intended.
+      // Verify the indexer-supplied (reserveId, token.address) pair maps to
+      // the same reserve on-chain via the env-pinned adapter the tx will
+      // execute against. Run before the decimals fetch so a mismatch surfaces
+      // its specific error instead of being masked by a parallel rejection.
+      await assertReserveMatchesOnChain(
+        getAaveAdapterAddress(),
+        reserve.reserveId,
+        reserve.token.address,
+      );
+
       const onChainDecimals = await ERC20.getERC20Decimals(
         reserve.token.address,
       ).catch(() => {
@@ -110,8 +122,16 @@ export function useBorrowTransaction(): UseBorrowTransactionResult {
       logger.error(error instanceof Error ? error : new Error(String(error)), {
         data: { context: "Borrow failed" },
       });
-      const mappedError =
-        error instanceof Error
+      // Surface the on-chain reserve-mismatch as its own user-facing error so
+      // the user sees an integrity warning, not a generic borrow failure.
+      // Retry is suppressed because retrying can't help against a compromised
+      // indexer.
+      const isReserveMismatch = error instanceof ReserveMismatchError;
+      const mappedError = isReserveMismatch
+        ? new Error(
+            "Asset integrity check failed: the borrowable asset returned by the indexer does not match what's registered on-chain. Refresh and try again. If this persists, do not proceed.",
+          )
+        : error instanceof Error
           ? mapViemErrorToContractError(error, "Borrow")
           : new Error("An unexpected error occurred while borrowing");
 
@@ -119,8 +139,9 @@ export function useBorrowTransaction(): UseBorrowTransactionResult {
         error: mappedError,
         displayOptions: {
           showModal: true,
-          retryAction: () =>
-            executeBorrow(borrowAmount, reserve, preSignValidation),
+          retryAction: isReserveMismatch
+            ? undefined
+            : () => executeBorrow(borrowAmount, reserve, preSignValidation),
         },
       });
 

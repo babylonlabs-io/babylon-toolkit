@@ -4,12 +4,6 @@ export interface LogoResponse {
   [identity: string]: string;
 }
 
-interface SidecarLogoEnvelope {
-  data?: {
-    images?: LogoResponse;
-  };
-}
-
 export async function fetchLogos(identities: string[]): Promise<LogoResponse> {
   if (!ENV.SIDECAR_API_URL || identities.length === 0) {
     return {};
@@ -28,8 +22,8 @@ export async function fetchLogos(identities: string[]): Promise<LogoResponse> {
       return {};
     }
 
-    const body: SidecarLogoEnvelope = await response.json();
-    return body.data?.images ?? {};
+    const data: LogoResponse = await response.json();
+    return data;
   } catch {
     return {};
   }

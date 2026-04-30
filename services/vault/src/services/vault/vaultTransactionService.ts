@@ -11,12 +11,9 @@ import type {
   BatchPeginRequestItem,
   PopSignature,
   UTXO as SDKUtxo,
+  WotsBlockPublicKey,
 } from "@babylonlabs-io/ts-sdk/tbv/core";
-import {
-  ensureHexPrefix,
-  PeginManager,
-  processPublicKeyToXOnly,
-} from "@babylonlabs-io/ts-sdk/tbv/core";
+import { ensureHexPrefix, PeginManager } from "@babylonlabs-io/ts-sdk/tbv/core";
 import type { Address, Hex, WalletClient } from "viem";
 
 import { getMempoolApiUrl } from "../../clients/btc/config";
@@ -41,7 +38,10 @@ export type UTXO = SDKUtxo;
 
 /**
  * Parameters for preparing a pegin transaction (always batch-shaped).
- * Single-vault callers pass single-element arrays for pegInAmounts and hashlocks.
+ * Single-vault callers pass a single-element `pegInAmounts` array.
+ *
+ * Hashlocks are NOT a caller input — the SDK derives them from the
+ * wallet root via `expandHashlockSecret`.
  */
 export interface PreparePeginParams {
   /** Amounts to peg in per vault (satoshis), one per HTLC output */
@@ -58,8 +58,6 @@ export interface PreparePeginParams {
   timelockPegin: number;
   /** CSV timelock in blocks for the Pre-PegIn HTLC refund path */
   timelockRefund: number;
-  /** SHA256 hash commitments, one per vault (64 hex chars each, no 0x prefix) */
-  hashlocks: readonly string[];
   /** M in M-of-N council multisig */
   councilQuorum: number;
   /** N in M-of-N council multisig */
@@ -94,7 +92,14 @@ export interface PreparePeginResult {
   perVault: PeginVaultResult[];
   selectedUTXOs: UTXO[];
   fee: bigint;
+  /** x-only depositor pubkey snapshot used end-to-end across both passes. */
   depositorBtcPubkey: string;
+  /** Per-vault WOTS public keys derived from the wallet root. */
+  perVaultWotsKeys: WotsBlockPublicKey[][];
+  /** Per-vault keccak256 of WOTS keys (for `depositorWotsPkHash`). */
+  wotsPkHashes: Hex[];
+  /** Per-vault HTLC preimage hex (no 0x prefix). Sensitive — do not log. */
+  htlcSecretHexes: string[];
 }
 
 /**
@@ -148,7 +153,8 @@ function createPeginManager(
  * Build and fund the pegin transactions without submitting to Ethereum.
  *
  * Creates ONE Pre-PegIn tx with N HTLC outputs (one per vault), derives N PegIn txs,
- * and signs each PegIn input. Single-vault deposits pass single-element arrays.
+ * signs each PegIn input, and derives per-vault WOTS keys + HTLC secrets from the
+ * wallet root. Single-vault deposits pass a single-element `pegInAmounts` array.
  */
 export async function preparePeginTransaction(
   btcWallet: BitcoinWallet,
@@ -157,40 +163,37 @@ export async function preparePeginTransaction(
 ): Promise<PreparePeginResult> {
   const peginManager = createPeginManager(btcWallet, ethWallet);
 
-  const result = await peginManager.preparePegin({
-    amounts: params.pegInAmounts,
-    vaultProviderBtcPubkey: params.vaultProviderBtcPubkey,
-    vaultKeeperBtcPubkeys: params.vaultKeeperBtcPubkeys,
-    universalChallengerBtcPubkeys: params.universalChallengerBtcPubkeys,
-    timelockPegin: params.timelockPegin,
-    timelockRefund: params.timelockRefund,
-    hashlocks: params.hashlocks,
-    protocolFeeRate: params.protocolFeeRate,
-    mempoolFeeRate: params.mempoolFeeRate,
-    councilQuorum: params.councilQuorum,
-    councilSize: params.councilSize,
-    availableUTXOs: params.availableUTXOs,
-    changeAddress: params.changeAddress,
-  });
-
-  // Lowercase: processPublicKeyToXOnly passes 64-char input through
-  // unchanged, and downstream equality checks are case-sensitive.
-  const depositorBtcPubkey = processPublicKeyToXOnly(
-    await btcWallet.getPublicKeyHex(),
-  ).toLowerCase();
+  const { transaction, depositorBtcPubkey, derivedSecrets } =
+    await peginManager.preparePegin({
+      amounts: params.pegInAmounts,
+      vaultProviderBtcPubkey: params.vaultProviderBtcPubkey,
+      vaultKeeperBtcPubkeys: params.vaultKeeperBtcPubkeys,
+      universalChallengerBtcPubkeys: params.universalChallengerBtcPubkeys,
+      timelockPegin: params.timelockPegin,
+      timelockRefund: params.timelockRefund,
+      protocolFeeRate: params.protocolFeeRate,
+      mempoolFeeRate: params.mempoolFeeRate,
+      councilQuorum: params.councilQuorum,
+      councilSize: params.councilSize,
+      availableUTXOs: params.availableUTXOs,
+      changeAddress: params.changeAddress,
+    });
 
   return {
-    fundedPrePeginTxHex: result.fundedPrePeginTxHex,
-    perVault: result.perVault.map((v) => ({
+    fundedPrePeginTxHex: transaction.fundedPrePeginTxHex,
+    perVault: transaction.perVault.map((v) => ({
       htlcVout: v.htlcVout,
       peginTxHash: ensureHexPrefix(v.peginTxid),
       peginTxHex: v.peginTxHex,
       peginTxid: v.peginTxid,
       peginInputSignature: v.peginInputSignature,
     })),
-    selectedUTXOs: result.selectedUTXOs,
-    fee: result.fee,
+    selectedUTXOs: transaction.selectedUTXOs,
+    fee: transaction.fee,
     depositorBtcPubkey,
+    perVaultWotsKeys: derivedSecrets.perVaultWotsKeys,
+    wotsPkHashes: derivedSecrets.wotsPkHashes,
+    htlcSecretHexes: derivedSecrets.htlcSecretHexes,
   };
 }
 

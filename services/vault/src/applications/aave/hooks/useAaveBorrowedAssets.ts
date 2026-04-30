@@ -116,7 +116,7 @@ export function useAaveBorrowedAssets({
   position,
   debtValueUsd,
 }: UseAaveBorrowedAssetsProps): UseAaveBorrowedAssetsResult {
-  const { borrowableReserves } = useAaveConfig();
+  const { allBorrowReserves } = useAaveConfig();
 
   const debtPositions = position?.debtPositions;
 
@@ -125,7 +125,9 @@ export function useAaveBorrowedAssets({
       return [];
     }
 
-    const reservesWithDebt: ReserveWithDebt[] = borrowableReserves
+    // Resolve debts against the full reserve set, not just borrowable ones,
+    // so existing debt in a frozen/paused/un-borrowable reserve still surfaces.
+    const reservesWithDebt: ReserveWithDebt[] = allBorrowReserves
       .filter((r) => debtPositions.has(r.reserveId))
       .map((reserve) => ({
         reserve,
@@ -137,7 +139,7 @@ export function useAaveBorrowedAssets({
     }
 
     return reservesWithDebt.map(transformToBorrowedAsset);
-  }, [debtPositions, borrowableReserves]);
+  }, [debtPositions, allBorrowReserves]);
 
   return {
     borrowedAssets,

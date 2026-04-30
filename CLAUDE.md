@@ -60,6 +60,8 @@ These paths handle irreversible value movement. An AI-generated mistake here is 
   - `packages/babylon-ts-sdk/src/tbv/core/vault-secrets/expand.ts` — `expandWotsSeed`, `expandHashlockSecret`, `expandAuthAnchor`
   - `packages/babylon-ts-sdk/src/tbv/core/vault-secrets/info.ts` — HKDF `info` encoding (labels + i2osp4)
   - `packages/babylon-ts-sdk/src/tbv/core/wots/blockDerivation.ts` — `deriveWotsBlocksFromSeed`, `computeWotsBlockPublicKeysHash`
+- The orchestrator that composes these primitives:
+  - `packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts` — `PeginManager.preparePegin` (sizing → `deriveVaultRoot` → per-vault expand → commit pass with `htlcVout === index` invariant). The wrapper API may evolve; the underlying frozen primitives must not.
 - These functions feed `wallet.deriveContextHash` and produce on-chain commitments (`depositorWotsPkHash`, HTLC hashlock, OP_RETURN auth-anchor preimage). Any byte-level change to layout, ordering, label, or HKDF info rotates the secrets and **invalidates every existing deposit** — users cannot derive matching keys, cannot activate, cannot resume.
 - **Rule:** Treat as a hard fork. Changes require: (a) a coordinated revision of `derive-vault-secrets.md` / `derive-context-hash.md`, (b) updated golden-vector tests in both this repo and `btc-vault`, (c) a migration plan for in-flight deposits. Match the Rust `babe::wots` reference byte-for-byte. Two-vault test (overlapping inputs, distinct keys) is mandatory for any chain-logic change.
 

@@ -86,23 +86,6 @@ vi.mock("@/services/vault/vaultPeginBroadcastService", () => ({
   ),
 }));
 
-vi.mock("@babylonlabs-io/ts-sdk/tbv/core", async () => {
-  const actual = await vi.importActual<
-    typeof import("@babylonlabs-io/ts-sdk/tbv/core")
-  >("@babylonlabs-io/ts-sdk/tbv/core");
-  return {
-    ...actual,
-    deriveVaultRoot: vi.fn().mockResolvedValue(new Uint8Array(32)),
-    expandWotsSeed: vi.fn().mockReturnValue(new Uint8Array(64)),
-    deriveWotsBlocksFromSeed: vi.fn().mockResolvedValue([]),
-    computeWotsBlockPublicKeysHash: vi
-      .fn()
-      .mockReturnValue(
-        "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
-      ),
-  };
-});
-
 vi.mock("@/services/deposit/validations", () => ({
   validateMultiVaultDepositInputs: vi.fn(),
 }));
@@ -214,6 +197,13 @@ const MOCK_BATCH_RESULT = {
       peginInputSignature: "b".repeat(128),
     },
   ],
+  // Per-vault derived secrets (returned by SDK orchestrator post-extraction).
+  perVaultWotsKeys: [[], []],
+  wotsPkHashes: [
+    "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef" as Hex,
+    "0xdeadbeef1234567890abcdef1234567890abcdef1234567890abcdef12345678" as Hex,
+  ],
+  htlcSecretHexes: ["11".repeat(32), "22".repeat(32)],
 };
 
 const MOCK_PARAMS = {
@@ -226,11 +216,6 @@ const MOCK_PARAMS = {
   vaultProviderBtcPubkey: "ab".repeat(32),
   vaultKeeperBtcPubkeys: ["keeper1pubkey"],
   universalChallengerBtcPubkeys: ["uc1pubkey"],
-  htlcSecretHexes: ["ab".repeat(32), "cd".repeat(32)],
-  depositorSecretHashes: [
-    ("0x" + "aa".repeat(32)) as Hex,
-    ("0x" + "bb".repeat(32)) as Hex,
-  ],
 };
 
 // ============================================================================
@@ -281,6 +266,7 @@ async function setupDefaultMocks() {
     spendableUTXOs: [MOCK_UTXO_1, MOCK_UTXO_2],
     isUTXOsLoading: false,
     utxoError: null,
+    spendableBlockedByOrdinals: false,
   } as any);
 
   vi.mocked(useProtocolParamsContext).mockReturnValue({
@@ -379,7 +365,7 @@ describe("useDepositFlow", () => {
       });
     });
 
-    it("should compute hashlocks from secret hexes", async () => {
+    it("does not pass hashlocks to preparePeginTransaction (SDK derives them)", async () => {
       const { preparePeginTransaction } = vi.mocked(
         await import("@/services/vault/vaultTransactionService"),
       );
@@ -390,7 +376,8 @@ describe("useDepositFlow", () => {
 
       await waitFor(() => {
         const callArgs = preparePeginTransaction.mock.calls[0]?.[2];
-        expect(callArgs?.hashlocks).toHaveLength(2);
+        expect(callArgs).toBeDefined();
+        expect("hashlocks" in (callArgs ?? {})).toBe(false);
       });
     });
   });
@@ -460,9 +447,14 @@ describe("useDepositFlow", () => {
       });
     });
 
-    it("should derive WOTS public keys for all vaults before batch call", async () => {
-      const { deriveWotsBlocksFromSeed } = vi.mocked(
-        await import("@babylonlabs-io/ts-sdk/tbv/core"),
+    it("auto-activates each vault with the per-vault htlcSecretHex returned by the SDK", async () => {
+      // The SDK orchestrator owns secret derivation; the vault-side
+      // hook just plumbs the returned `htlcSecretHexes[i]` into the
+      // per-vault activation call. This test pins THAT plumbing —
+      // vault i must activate with the secret from index i, never
+      // a crossed/stale value.
+      const { activateVaultWithSecret } = vi.mocked(
+        await import("@/services/vault/vaultActivationService"),
       );
 
       const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
@@ -470,53 +462,12 @@ describe("useDepositFlow", () => {
       await executeWithAutoArtifactDownload(result);
 
       await waitFor(() => {
-        // WOTS derivation should happen for each vault
-        expect(deriveWotsBlocksFromSeed).toHaveBeenCalledTimes(2);
+        expect(activateVaultWithSecret).toHaveBeenCalledTimes(2);
       });
-    });
-
-    it("derives the vault root once and expands per-vault with htlcVout", async () => {
-      const { deriveVaultRoot, expandWotsSeed, hexToUint8Array } = vi.mocked(
-        await import("@babylonlabs-io/ts-sdk/tbv/core"),
-      );
-
-      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
-
-      await executeWithAutoArtifactDownload(result);
-
-      await waitFor(() => {
-        // One popup per deposit, not per vault.
-        expect(deriveVaultRoot).toHaveBeenCalledTimes(1);
-      });
-
-      // Byte-equality on outpoints + pubkey so hex-decode or ordering
-      // regressions can't slip past a "Uint8Array, length 2" check.
-      const rootCall = deriveVaultRoot.mock.calls[0];
-      expect(rootCall?.[0]).toBe(MOCK_BTC_WALLET);
-      const ctx = rootCall?.[1] as {
-        depositorBtcPubkey: Uint8Array;
-        fundingOutpoints: Array<{ txid: Uint8Array; vout: number }>;
-      };
-      expect(ctx.depositorBtcPubkey).toEqual(
-        hexToUint8Array(MOCK_DEPOSITOR_PUBKEY),
-      );
-      expect(ctx.fundingOutpoints).toEqual([
-        { txid: hexToUint8Array(MOCK_UTXO_1.txid), vout: MOCK_UTXO_1.vout },
-        { txid: hexToUint8Array(MOCK_UTXO_2.txid), vout: MOCK_UTXO_2.vout },
-      ]);
-
-      // Per-vault domain separation via htlcVout.
-      expect(expandWotsSeed).toHaveBeenCalledTimes(2);
-      expect(expandWotsSeed).toHaveBeenNthCalledWith(
-        1,
-        expect.any(Uint8Array),
-        0,
-      );
-      expect(expandWotsSeed).toHaveBeenNthCalledWith(
-        2,
-        expect.any(Uint8Array),
-        1,
-      );
+      const calls = activateVaultWithSecret.mock.calls;
+      // MOCK_BATCH_RESULT.htlcSecretHexes = ["11"*32, "22"*32].
+      expect(calls[0][0]?.secret).toBe("0x" + "11".repeat(32));
+      expect(calls[1][0]?.secret).toBe("0x" + "22".repeat(32));
     });
   });
 
@@ -686,12 +637,10 @@ describe("useDepositFlow", () => {
           pegins: expect.arrayContaining([
             expect.objectContaining({
               vaultIndex: 0,
-              htlcSecretHex: "ab".repeat(32),
               fundedPrePeginTxHex: "batchFundedPrePeginHex",
             }),
             expect.objectContaining({
               vaultIndex: 1,
-              htlcSecretHex: "cd".repeat(32),
               fundedPrePeginTxHex: "batchFundedPrePeginHex",
             }),
           ]),
@@ -909,8 +858,6 @@ describe("useDepositFlow", () => {
     const SINGLE_PARAMS = {
       ...MOCK_PARAMS,
       vaultAmounts: [100000n],
-      htlcSecretHexes: ["ab".repeat(32)],
-      depositorSecretHashes: [("0x" + "aa".repeat(32)) as Hex],
     };
 
     it("should create batch with single vault amount", async () => {
@@ -956,6 +903,60 @@ describe("useDepositFlow", () => {
         const callArgs = registerPeginBatchAndWait.mock.calls[0]?.[0];
         expect(callArgs?.requests).toHaveLength(1);
       });
+    });
+  });
+
+  describe("Pubkey Consistency (Issue #3)", () => {
+    it("rejects when PoP pubkey differs from preparePegin pubkey", async () => {
+      const { signProofOfPossession } = vi.mocked(
+        await import("../depositFlowSteps"),
+      );
+      const { registerPeginBatchAndWait } = vi.mocked(
+        await import("../depositFlowSteps"),
+      );
+
+      // PoP returns a different pubkey than preparePeginTransaction
+      vi.mocked(signProofOfPossession).mockResolvedValueOnce({
+        btcPopSignature: "0xMockPopSignature" as Hex,
+        depositorEthAddress: "0xEthAddress123" as `0x${string}`,
+        depositorBtcPubkey: "ff".repeat(32), // different from MOCK_DEPOSITOR_PUBKEY
+      });
+
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+
+      await executeWithAutoArtifactDownload(result);
+
+      await waitFor(() => {
+        expect(result.current.error).toContain(
+          "BTC wallet account changed during deposit flow",
+        );
+      });
+
+      // Registration must never be attempted with mismatched keys
+      expect(registerPeginBatchAndWait).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("Abort Signal (Issue #4)", () => {
+    it("stops activation loop when signal is aborted after first vault", async () => {
+      const { activateVaultWithSecret } = vi.mocked(
+        await import("@/services/vault/vaultActivationService"),
+      );
+
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+
+      // First activation succeeds but triggers abort
+      vi.mocked(activateVaultWithSecret).mockImplementation(async () => {
+        // After vault 1 activates, abort the flow
+        result.current.abort();
+        return { hash: "0xActivationTxHash" } as any;
+      });
+
+      await executeWithAutoArtifactDownload(result);
+
+      // Only vault 1 should have been activated — vault 2 is skipped
+      // because signal.throwIfAborted() fires at the top of the next iteration
+      expect(activateVaultWithSecret).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -1011,7 +1012,9 @@ describe("useDepositFlow", () => {
             reservedUtxoRefs: mockReservedRefs,
           }),
         );
-        // preparePeginTransaction should receive filtered UTXOs
+        // preparePeginTransaction (which delegates to the SDK's
+        // PeginManager.preparePegin and owns UTXO selection internally)
+        // should receive the filtered UTXOs.
         expect(preparePeginTransaction).toHaveBeenCalledWith(
           expect.anything(),
           expect.anything(),

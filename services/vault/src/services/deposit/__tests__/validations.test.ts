@@ -91,8 +91,6 @@ describe("Deposit Validations", () => {
       universalChallengerBtcPubkeys: ["c".repeat(64)],
       minDeposit: 10_000n,
       maxDeposit: 100_000n,
-      htlcSecretHexesLength: 2,
-      depositorSecretHashesLength: 2,
     };
 
     it("passes when all vault amounts are within min/max range", () => {
@@ -132,8 +130,6 @@ describe("Deposit Validations", () => {
         validateMultiVaultDepositInputs({
           ...validInputs,
           vaultAmounts: [30_000n, 30_000n, 30_000n],
-          htlcSecretHexesLength: 3,
-          depositorSecretHashesLength: 3,
         }),
       ).toThrow("Maximum 2 vaults supported");
     });

@@ -1,5 +1,5 @@
 import { FullScreenDialog, Heading } from "@babylonlabs-io/core-ui";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import type { Hex } from "viem";
 
 import { FeatureFlags } from "@/config";
@@ -11,16 +11,10 @@ import { useProtocolFeeRows } from "@/hooks/useProtocolFeeRows";
 import { depositService } from "@/services/deposit";
 import type { VaultActivity } from "@/types/activity";
 import type { VaultProvider } from "@/types/vaultProvider";
-import { generateSecretHex } from "@/utils/secretUtils";
 
-import {
-  DepositState,
-  DepositStep,
-  useDepositState,
-} from "../../context/deposit/DepositState";
+import { DepositState, DepositStep } from "../../context/deposit/DepositState";
 import { useDepositPageFlow } from "../../hooks/deposit/useDepositPageFlow";
 import { useDepositPageForm } from "../../hooks/deposit/useDepositPageForm";
-import { DepositSecretModal } from "../deposit/DepositSecretModal";
 
 import { DepositForm } from "./DepositForm";
 import { DepositSignContent } from "./DepositSignContent";
@@ -29,7 +23,6 @@ import { FadeTransition } from "./FadeTransition";
 import {
   ResumeActivationContent,
   ResumeBroadcastContent,
-  ResumeRefundContent,
   ResumeSignContent,
   ResumeWotsContent,
 } from "./ResumeDepositContent";
@@ -78,19 +71,12 @@ type ResumeActivationProps = SimpleDepositBaseProps & {
   onResumeSuccess: () => void;
 };
 
-type ResumeRefundProps = SimpleDepositBaseProps & {
-  resumeMode: "refund_htlc";
-  activity: VaultActivity;
-  onResumeSuccess: () => void;
-};
-
 export type SimpleDepositProps =
   | NewDepositProps
   | ResumeSignProps
   | ResumeBroadcastProps
   | ResumeWotsProps
-  | ResumeActivationProps
-  | ResumeRefundProps;
+  | ResumeActivationProps;
 
 // ---------------------------------------------------------------------------
 // New deposit flow content (form → sign → success)
@@ -161,8 +147,6 @@ function SimpleDepositContent({
     setTransactionHashes,
   } = useDepositPageFlow();
 
-  const { setSecretHashes, secretHashes } = useDepositState();
-
   // Pre-fill amount when opening with a suggested amount from notifications
   const hasPrefilled = useRef(false);
   useEffect(() => {
@@ -174,28 +158,6 @@ function SimpleDepositContent({
       hasPrefilled.current = false;
     }
   }, [open, initialAmountBtc, setFormData]);
-
-  // Per-vault secrets generated when the SECRET step is entered.
-  // Using a ref (not state) avoids re-renders and keeps sensitive data
-  // out of React DevTools.
-  const secretHexesRef = useRef<string[]>([]);
-  const [secretVaultIndex, setSecretVaultIndex] = useState(0);
-
-  // Caller passes the split intent + amounts directly because
-  // `setIsSplitDeposit`/`setSplitVaultAmounts` haven't flushed yet when
-  // `handleDeposit` invokes this synchronously — reading from `isSplitDeposit`
-  // would yield the previous render's value and under-generate secrets in the
-  // split case, then trip `validateMultiVaultDepositInputs` later.
-  const startSecretStep = useCallback(
-    (vaultCount: number) => {
-      secretHexesRef.current = Array.from({ length: vaultCount }, () =>
-        generateSecretHex(),
-      );
-      setSecretVaultIndex(0);
-      goToStep(DepositStep.SECRET);
-    },
-    [goToStep],
-  );
 
   const isSupplementalDeposit = !!initialAmountBtc;
   const allowSplit =
@@ -222,8 +184,6 @@ function SimpleDepositContent({
       };
 
   const resetAll = useCallback(() => {
-    secretHexesRef.current = [];
-    setSecretVaultIndex(0);
     hasAutoChecked.current = false;
     setIsPartialLiquidation(false);
     resetDeposit();
@@ -250,8 +210,9 @@ function SimpleDepositContent({
       if (shouldSplit && vaultAmounts) {
         setSplitVaultAmounts([...vaultAmounts]);
       }
-      const vaultCount = shouldSplit && vaultAmounts ? vaultAmounts.length : 1;
-      startSecretStep(vaultCount);
+      // Wallet derives per-vault HTLC secrets via `expandHashlockSecret`
+      // inside the SIGN step — no pre-sign secret step needed.
+      goToStep(DepositStep.SIGN);
     }
   };
 
@@ -314,31 +275,6 @@ function SimpleDepositContent({
           </div>
         )}
 
-        {renderedStep === DepositStep.SECRET &&
-          secretHexesRef.current.length > 0 && (
-            <DepositSecretModal
-              key={secretVaultIndex}
-              open
-              onClose={onClose}
-              secretHex={secretHexesRef.current[secretVaultIndex]}
-              vaultLabel={
-                secretHexesRef.current.length > 1
-                  ? `Vault ${secretVaultIndex + 1} of ${secretHexesRef.current.length}`
-                  : undefined
-              }
-              onComplete={(_secretHex, hash) => {
-                const updated = [...secretHashes, hash];
-                if (secretVaultIndex + 1 < secretHexesRef.current.length) {
-                  setSecretHashes(updated);
-                  setSecretVaultIndex((i) => i + 1);
-                } else {
-                  setSecretHashes(updated);
-                  goToStep(DepositStep.SIGN);
-                }
-              }}
-            />
-          )}
-
         {renderedStep === DepositStep.SIGN && btcWalletProvider && (
           <div className="mx-auto w-full max-w-[520px]">
             <DepositSignContent
@@ -355,8 +291,6 @@ function SimpleDepositContent({
               vaultProviderBtcPubkey={selectedProviderBtcPubkey}
               vaultKeeperBtcPubkeys={vaultKeeperBtcPubkeys}
               universalChallengerBtcPubkeys={universalChallengerBtcPubkeys}
-              htlcSecretHexes={secretHexesRef.current}
-              depositorSecretHashes={secretHashes}
               onSuccess={handleSignSuccess}
               onClose={onClose}
               onRefetchActivities={refetchActivities}
@@ -421,24 +355,6 @@ export default function SimpleDeposit(props: SimpleDepositProps) {
             </div>
           </FullScreenDialog>
         </ProtocolParamsProvider>
-      );
-    }
-
-    if (resumeMode === "refund_htlc") {
-      return (
-        <FullScreenDialog
-          open={open}
-          onClose={onClose}
-          className="items-center justify-center p-6"
-        >
-          <div className="mx-auto w-full max-w-[520px]">
-            <ResumeRefundContent
-              activity={props.activity}
-              onClose={onClose}
-              onSuccess={props.onResumeSuccess}
-            />
-          </div>
-        </FullScreenDialog>
       );
     }
 

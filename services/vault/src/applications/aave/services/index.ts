@@ -54,3 +54,9 @@ export {
   repayPartial,
   withdrawSelectedCollateral,
 } from "./positionTransactions";
+
+// On-chain integrity guards
+export {
+  ReserveMismatchError,
+  assertReserveMatchesOnChain,
+} from "./assertReserveMatchesOnChain";

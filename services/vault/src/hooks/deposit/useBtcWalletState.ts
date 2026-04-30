@@ -9,6 +9,17 @@ export function useBtcWalletState() {
     spendableUTXOs,
     isLoading: isUTXOsLoading,
     error: utxoError,
+    spendableBlockedByOrdinals,
+    isLoadingOrdinals,
+    ordinalsError,
   } = useUTXOs(btcAddress);
-  return { btcAddress, spendableUTXOs, isUTXOsLoading, utxoError };
+  return {
+    btcAddress,
+    spendableUTXOs,
+    isUTXOsLoading,
+    utxoError,
+    spendableBlockedByOrdinals,
+    isLoadingOrdinals,
+    ordinalsError,
+  };
 }

@@ -72,6 +72,7 @@ describe("getPendingActivities", () => {
           id: "aave",
           name: "Aave",
         },
+        chain: "BTC",
         transactionHash: "0xpeginTxHash123",
       });
     });

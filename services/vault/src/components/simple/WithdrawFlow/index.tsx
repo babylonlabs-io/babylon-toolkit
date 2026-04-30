@@ -1,10 +1,11 @@
 import { FullScreenDialog } from "@babylonlabs-io/core-ui";
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 
 import { useWithdrawCollateralTransaction } from "@/applications/aave/hooks/useWithdrawCollateralTransaction";
 import {
   computeProjectedHealthFactor,
   getEffectiveVaultSelection,
+  getUniquePayoutAddresses,
 } from "@/applications/aave/utils";
 import { ProtocolParamsProvider } from "@/context/ProtocolParamsContext";
 import { useDialogStep } from "@/hooks/deposit/useDialogStep";
@@ -43,12 +44,25 @@ function WithdrawFlowContent({
 
   const renderedStep = useDialogStep(open, step, reset);
 
+  // Snapshot of payout addresses captured at confirm time. Needed by the
+  // Progress view because the underlying vaults are removed from the user's
+  // collateral list after withdraw — without snapshotting, the addresses
+  // would disappear by the time we navigate to PROGRESS.
+  const [submittedPayoutAddresses, setSubmittedPayoutAddresses] = useState<
+    string[]
+  >([]);
+
   const {
     selectedVaultIds: effectiveSelectedVaultIds,
     selectedVaults: effectiveSelectedVaults,
   } = useMemo(
     () => getEffectiveVaultSelection(collateralVaults, preSelectedVaultIds),
     [collateralVaults, preSelectedVaultIds],
+  );
+
+  const selectedPayoutAddresses = useMemo(
+    () => getUniquePayoutAddresses(effectiveSelectedVaults),
+    [effectiveSelectedVaults],
   );
 
   // Aggregate amounts and projected HF for the current selection.
@@ -79,9 +93,15 @@ function WithdrawFlowContent({
   const handleConfirm = useCallback(async () => {
     const success = await executeWithdraw(effectiveSelectedVaultIds);
     if (success) {
+      setSubmittedPayoutAddresses(selectedPayoutAddresses);
       goToProgress();
     }
-  }, [executeWithdraw, effectiveSelectedVaultIds, goToProgress]);
+  }, [
+    executeWithdraw,
+    effectiveSelectedVaultIds,
+    selectedPayoutAddresses,
+    goToProgress,
+  ]);
 
   return (
     <FullScreenDialog
@@ -97,6 +117,7 @@ function WithdrawFlowContent({
               totalAmountUsd={selectedUsd}
               currentHealthFactor={currentHealthFactor}
               projectedHealthFactor={projectedHealthFactor}
+              payoutAddresses={selectedPayoutAddresses}
               isProcessing={isProcessing}
               onConfirm={handleConfirm}
             />
@@ -104,7 +125,10 @@ function WithdrawFlowContent({
         )}
         {renderedStep === WithdrawStep.PROGRESS && (
           <div className="mx-auto w-full max-w-[520px]">
-            <WithdrawProgressView onClose={onClose} />
+            <WithdrawProgressView
+              payoutAddresses={submittedPayoutAddresses}
+              onClose={onClose}
+            />
           </div>
         )}
       </FadeTransition>

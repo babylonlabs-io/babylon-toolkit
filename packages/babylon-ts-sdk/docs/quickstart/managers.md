@@ -21,14 +21,14 @@ Managers are the fastest path to a working flow when you're using a standard wal
 
 ## The full vault lifecycle (6 phases)
 
-| # | Phase | SDK entry point | Contract status after |
-|---|-------|-----------------|-----------------------|
-| 1 | Prepare Pre-PegIn + PegIn txs | `peginManager.preparePegin()` | n/a (off-chain) |
-| 2 | Sign BTC proof-of-possession (once per session) | `peginManager.signProofOfPossession()` | n/a (off-chain) |
-| 3 | Register on Ethereum | `peginManager.registerPeginOnChain()` | `PENDING` |
-| 4 | Broadcast Pre-PegIn on Bitcoin | `peginManager.signAndBroadcast()` | still `PENDING` until VP observes the tx |
-| 5 | Sign payout authorisations | `pollAndSignPayouts()` (service, delegates to `PayoutManager`) | `PENDING` → `VERIFIED` |
-| 6 | **Activate by revealing HTLC secret** | `activateVault()` (service) | `VERIFIED` → `ACTIVE` |
+| # | Phase | SDK entry point | Contract status after | Wallet popups |
+|---|-------|-----------------|-----------------------|---------------|
+| 1 | Prepare Pre-PegIn + PegIn txs (sizing + wallet root + per-vault expand + batch sign) | `peginManager.preparePegin()` | n/a (off-chain) | 2 BTC (`deriveContextHash`, `signPsbts`) |
+| 2 | Sign BTC proof-of-possession (once per session) | `peginManager.signProofOfPossession()` | n/a (off-chain) | 1 BTC (`signMessage`) |
+| 3 | Register on Ethereum | `peginManager.registerPeginOnChain()` | `PENDING` | 1 ETH |
+| 4 | Broadcast Pre-PegIn on Bitcoin | `peginManager.signAndBroadcast()` | still `PENDING` until VP observes the tx | 1 BTC (`signPsbt`) |
+| 5 | Sign payout authorisations | `pollAndSignPayouts()` (service, delegates to `PayoutManager`) | `PENDING` → `VERIFIED` | 1 BTC (`signPsbts`) |
+| 6 | **Activate by revealing HTLC secret** | `activateVault()` (service) | `VERIFIED` → `ACTIVE` | 1 ETH |
 
 > **Wait times:** phases 1–3 (prepare, PoP, register) run back-to-back with only wallet popups between them. After phase 4 (Bitcoin broadcast) you usually wait 1 BTC confirmation so the VP can index the Pre-PegIn and prepare transaction graphs (minutes). Phase 5 drives the contract to `VERIFIED` once all payout signatures are posted.
 >
@@ -38,36 +38,25 @@ Managers are the fastest path to a working flow when you're using a standard wal
 
 ---
 
-## Before you start — generate and persist an HTLC secret
+## What the SDK derives for you
 
-Every vault is gated by an HTLC. The **secret** is a 32-byte random value you generate client-side. Its SHA-256 is the **hashlock** that gets registered on Ethereum. You must **persist the secret** until activation (phase 6) — without it you cannot activate, and the vault will sit at `VERIFIED` until it expires.
+You do **not** generate or persist HTLC secrets. `preparePegin()` derives them deterministically from the wallet via `deriveContextHash` → `expandHashlockSecret(root, htlcVout)`. The same `(wallet, vaultContext, htlcVout)` always yields the same secret, so resume + activation can re-derive on demand.
+
+`preparePegin()` returns:
 
 ```typescript
-import { computeHashlock } from "@babylonlabs-io/ts-sdk/tbv/core/services";
-import type { Hex } from "viem";
-
-// Node.js
-import { randomBytes } from "node:crypto";
-const secret = `0x${randomBytes(32).toString("hex")}` as Hex;
-
-// Browser — use the Web Crypto API
-// const bytes = crypto.getRandomValues(new Uint8Array(32));
-// const secret = `0x${Array.from(bytes).map(b => b.toString(16).padStart(2, "0")).join("")}` as Hex;
-
-const hashlock = computeHashlock(secret); // 0x-prefixed bytes32
-
-// Persist `secret` in your app storage. You will need it in phase 6.
+{
+  transaction: { fundedPrePeginTxHex, prePeginTxid, perVault[], selectedUTXOs, fee, changeAmount },
+  depositorBtcPubkey: string,         // x-only pubkey snapshot — safe to persist
+  derivedSecrets: {                   // sensitive — do not log / persist
+    perVaultWotsKeys: WotsBlockPublicKey[][],
+    wotsPkHashes: Hex[],              // for `registerPeginOnChain.depositorWotsPkHash`
+    htlcSecretHexes: string[],        // 64-char hex, no 0x; SHA256 → on-chain hashlock
+  },
+}
 ```
 
-**Hex format rules:**
-
-| Value | Passed to | Format |
-|---|---|---|
-| `secret` | `activateVault()` | 0x-prefixed bytes32 (66 chars) |
-| `hashlock` | `registerPeginOnChain()` | 0x-prefixed bytes32 (66 chars) |
-| `hashlocks[i]` | `preparePegin()` | **no** 0x prefix, 64 hex chars |
-
-The hashlock without the `0x` is what the Bitcoin HTLC commits to; the `0x`-prefixed form is what the contract stores. They're the same bytes.
+The `secret` you pass to `activateVault()` is `0x${derivedSecrets.htlcSecretHexes[i]}`. The `hashlock` you pass to `registerPeginOnChain()` is `computeHashlock(secret)`.
 
 ---
 
@@ -138,27 +127,14 @@ declare const councilSize: number;
 declare const availableUTXOs: UTXO[];
 declare const changeAddress: string;
 declare const vpEthAddress: Address;
-// `depositorWotsPkHash` is the keccak256 of the depositor's WOTS
-// public-key commitment. Derive it from the wallet via
-// `deriveVaultRoot → expandWotsSeed → deriveWotsBlocksFromSeed →
-// computeWotsBlockPublicKeysHash` — see the
-// [Wallet Interfaces Guide → Wallet-derived secrets](../guides/wallet-interfaces.md#wallet-derived-secrets-derivecontexthash)
-// for the full snippet.
-declare const depositorWotsPkHash: Hex;
-
-// 0. Generate + persist the HTLC secret. KEEP this — you need it in phase 6.
-const secret = `0x${randomBytes(32).toString("hex")}` as Hex;
-const hashlock = computeHashlock(secret);     // 0x-prefixed
-const rawHashlock = stripHexPrefix(hashlock); // 64 hex chars, no 0x
-
-const depositorBtcPubkey = await btcWallet.getPublicKeyHex();
-
-// 1. Prepare Pre-PegIn + PegIn transactions. The arrays let you batch
-//    multiple vaults into a single Pre-PegIn tx; most callers pass single
-//    elements for a one-vault flow.
+// 1. Prepare Pre-PegIn + PegIn transactions. The SDK orchestrator
+//    snapshots the wallet pubkey, runs a sizing pass, fires ONE
+//    `deriveContextHash` popup, derives per-vault WOTS keys + HTLC
+//    secrets from the same root, and signs the PegIn-input PSBTs.
+//    Returns broadcast-ready txs + the depositor pubkey snapshot +
+//    sensitive derived secrets (treat with care).
 const result = await peginManager.preparePegin({
   amounts: [100_000n],               // satoshis, one per vault
-  hashlocks: [rawHashlock],          // 64-char hex, no 0x, one per vault
   vaultProviderBtcPubkey,
   vaultKeeperBtcPubkeys,
   universalChallengerBtcPubkeys,
@@ -172,7 +148,11 @@ const result = await peginManager.preparePegin({
   changeAddress,
 });
 
-const firstVault = result.perVault[0];
+const firstVault = result.transaction.perVault[0];
+const depositorBtcPubkey = result.depositorBtcPubkey;
+const secret = `0x${result.derivedSecrets.htlcSecretHexes[0]}` as Hex;
+const hashlock = computeHashlock(secret);     // 0x-prefixed
+const depositorWotsPkHash = result.derivedSecrets.wotsPkHashes[0];
 
 // 2. Sign the BTC proof-of-possession — one wallet popup. The returned
 //    PopSignature is reusable across every registerPeginOnChain call in
@@ -181,7 +161,7 @@ const popSignature = await peginManager.signProofOfPossession();
 
 // 3. Register on Ethereum (submits the vault + hashlock).
 const { vaultId, peginTxHash } = await peginManager.registerPeginOnChain({
-  unsignedPrePeginTx: result.fundedPrePeginTxHex,
+  unsignedPrePeginTx: result.transaction.fundedPrePeginTxHex,
   depositorSignedPeginTx: firstVault.peginTxHex,
   hashlock,
   vaultProvider: vpEthAddress,
@@ -193,7 +173,7 @@ const { vaultId, peginTxHash } = await peginManager.registerPeginOnChain({
 
 // 4. Broadcast the Pre-PegIn tx to Bitcoin.
 const btcTxid = await peginManager.signAndBroadcast({
-  fundedPrePeginTxHex: result.fundedPrePeginTxHex,
+  fundedPrePeginTxHex: result.transaction.fundedPrePeginTxHex,
   depositorBtcPubkey,
 });
 
@@ -252,7 +232,7 @@ await activateVault({
 
 | Phase | Method / Service | Returns |
 |---|---|---|
-| 1 | `peginManager.preparePegin()` | `{ fundedPrePeginTxHex, prePeginTxid, perVault[], selectedUTXOs, fee, changeAmount }`; each `perVault[i]` has `{ htlcVout, htlcValue, peginTxHex, peginTxid, peginInputSignature, vaultScriptPubKey }`. Pass `fundedPrePeginTxHex` as the `unsignedPrePeginTx` register param — the registry stores the funded pre-witness form. |
+| 1 | `peginManager.preparePegin()` | `{ transaction, depositorBtcPubkey, derivedSecrets }`. `transaction` is broadcast-safe: `{ fundedPrePeginTxHex, prePeginTxid, perVault[], selectedUTXOs, fee, changeAmount }`. `depositorBtcPubkey` is the x-only pubkey snapshot used end-to-end. `derivedSecrets` is sensitive: `{ perVaultWotsKeys, wotsPkHashes, htlcSecretHexes }` — do not log or persist. Pass `transaction.fundedPrePeginTxHex` as the `unsignedPrePeginTx` register param. |
 | 2 | `peginManager.signProofOfPossession()` | `{ btcPopSignature, depositorEthAddress, depositorBtcPubkey }` — reusable across every `registerPeginOnChain` call in the session |
 | 3 | `peginManager.registerPeginOnChain()` | `{ ethTxHash, vaultId, peginTxHash }` |
 | 4 | `peginManager.signAndBroadcast()` | `btcTxid` (string) |

@@ -457,9 +457,27 @@ Fee rate in sat/vB. Used to estimate fee buffer for sufficiency check.
 
 ***
 
+### UtxoReservationLike
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts:67](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts#L67)
+
+Narrow structural type for early UTXO reservations (pre-ETH-registration).
+
+#### Properties
+
+##### unsignedTxHex
+
+```ts
+unsignedTxHex: string;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts:68](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts#L68)
+
+***
+
 ### CollectReservedUtxoRefsParams
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts:66](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts#L66)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts:71](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts#L71)
 
 #### Properties
 
@@ -469,7 +487,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts:66](
 optional vaults: VaultLike[];
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts:67](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts#L67)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts:72](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts#L72)
 
 ##### pendingPegins?
 
@@ -477,7 +495,15 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts:67](
 optional pendingPegins: PendingPeginLike[];
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts:68](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts#L68)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts:73](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts#L73)
+
+##### utxoReservations?
+
+```ts
+optional utxoReservations: UtxoReservationLike[];
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts:74](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts#L74)
 
 ***
 
@@ -995,7 +1021,7 @@ Error if validation fails
 function collectReservedUtxoRefs(params): UtxoRef[];
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts:162](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts#L162)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts:168](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts#L168)
 
 Collect UTXO refs from in-flight deposits (PENDING/VERIFIED vaults and
 pending pegins).
@@ -1032,7 +1058,7 @@ source of truth here.
 function selectUtxosForDeposit<T>(params): T[];
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts:209](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts#L209)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts:225](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts#L225)
 
 Select UTXOs for a deposit, filtering out reserved ones.
 

@@ -80,16 +80,18 @@ export function useAaveUserPosition(
 ): UseAaveUserPositionResult {
   const {
     config,
-    borrowableReserves,
+    allBorrowReserves,
     isLoading: configLoading,
   } = useAaveConfig();
   const spokeAddress = config?.coreSpokeAddress;
   const vbtcReserveId = config?.btcVaultCoreVbtcReserveId;
 
-  // Extract reserve IDs for fetching debt positions
+  // Query debt positions across all non-vBTC reserves, not just currently
+  // borrowable ones. A user may carry debt in a reserve that has since been
+  // frozen/paused/un-borrowable, and that debt must still surface here.
   const borrowableReserveIds = useMemo(
-    () => borrowableReserves.map((r) => r.reserveId),
-    [borrowableReserves],
+    () => allBorrowReserves.map((r) => r.reserveId),
+    [allBorrowReserves],
   );
 
   // Convert BigInt to string for React Query key serialization
