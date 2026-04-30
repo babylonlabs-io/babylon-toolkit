@@ -243,8 +243,17 @@ async function signAndFinalizePsbt(
   // Finalize inputs if not already finalized
   try {
     signedPsbt.finalizeAllInputs();
-  } catch {
-    // Some wallets finalize automatically, ignore errors
+  } catch (error) {
+    // Some wallets finalize automatically, but only skip the error when every
+    // input is already finalized.
+    const allFinalized = signedPsbt.data.inputs.every(
+      (input) => input.finalScriptWitness || input.finalScriptSig,
+    );
+    if (!allFinalized) {
+      throw new Error(
+        `PSBT finalization failed and wallet did not auto-finalize: ${error}`,
+      );
+    }
   }
 
   return signedPsbt.extractTransaction().toHex();
