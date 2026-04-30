@@ -2,10 +2,9 @@
  * Tests for error formatting utilities
  */
 
+import { JsonRpcError } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import { readFileSync } from "fs";
 import { resolve } from "path";
-
-import { JsonRpcError } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import { describe, expect, it } from "vitest";
 
 import {
