@@ -9,6 +9,24 @@ import {
 } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 
 /**
+ * Wallet-connector error code emitted by BTC providers when the user rejects
+ * a signing prompt. Mirrors `ERROR_CODES.CONNECTION_REJECTED` from
+ * `@babylonlabs-io/wallet-connector`. Inlined to avoid pulling the full
+ * wallet-connector bundle into this file (and its test transform); the
+ * constant is the public contract - if it ever changes upstream, this string
+ * must change too.
+ */
+const WALLET_CONNECTION_REJECTED_CODE = "CONNECTION_REJECTED";
+
+function isWalletRejectionError(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    "code" in error &&
+    (error as { code: unknown }).code === WALLET_CONNECTION_REJECTED_CODE
+  );
+}
+
+/**
  * Extract a safe error message from an unknown error value.
  * Never serializes arbitrary objects — only extracts .message from Error instances.
  */
@@ -97,6 +115,14 @@ export function formatPayoutSignatureError(error: unknown): {
     return {
       title: "Signature Submission Failed",
       message: `The vault provider rejected the request (error code: ${error.code}). Please try again or contact support.`,
+    };
+  }
+
+  if (isWalletRejectionError(error)) {
+    return {
+      title: "Signing Rejected",
+      message:
+        "You rejected the signing request in your wallet. Approve the request to continue, or click Retry to try again.",
     };
   }
 

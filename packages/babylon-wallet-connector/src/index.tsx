@@ -76,3 +76,6 @@ export {
 
 // Export wallet event constants
 export { COSMOS_KEYSTORE_CHANGE_EVENTS } from "@/constants/walletEvents";
+
+// Export error types so consumers can match on typed error codes
+export { WalletError, ERROR_CODES, isUserRejectionMessage } from "@/error";
