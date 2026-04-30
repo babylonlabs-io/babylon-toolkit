@@ -10,12 +10,6 @@ export type {
   VerifyServerIdentityInput,
 } from "./serverIdentity";
 
-export { VpTokenProvider } from "./tokenProvider";
-export type {
-  CreateDepositorTokenResponse,
-  VpTokenProviderConfig,
-} from "./tokenProvider";
-
 export {
   VpTokenRegistry,
   vpTokenRegistry,

@@ -2,13 +2,11 @@
  * Step 2.5: WOTS public key RPC submission — adapter over SDK.
  */
 
-import { createAuthenticatedVpClient } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import { submitWotsPublicKey as sdkSubmitWotsPublicKey } from "@babylonlabs-io/ts-sdk/tbv/core/services";
 
-import { getVaultRegistryReader } from "@/clients/eth-contract/sdk-readers";
 import { stripHexPrefix } from "@/utils/btc";
-import { getVpProxyUrl } from "@/utils/rpc";
 
+import { ensureAuthenticatedVpClient } from "./ensureAuthenticatedVpClient";
 import type { WotsSubmissionParams } from "./types";
 
 /**
@@ -32,14 +30,12 @@ export async function submitWotsPublicKey(
   } = params;
 
   const peginTxid = stripHexPrefix(peginTxHash);
-  const rpcClient = createAuthenticatedVpClient({
-    baseUrl: getVpProxyUrl(providerAddress),
-    vpAddress: providerAddress as `0x${string}`,
-    peginTxid,
-    unsignedPrePeginTxHex,
-    depositorBtcPubkey,
+  const rpcClient = await ensureAuthenticatedVpClient({
     btcWallet,
-    vaultRegistryReader: getVaultRegistryReader(),
+    unsignedPrePeginTxHex,
+    peginTxHash,
+    providerAddress,
+    depositorBtcPubkey,
   });
 
   await sdkSubmitWotsPublicKey({

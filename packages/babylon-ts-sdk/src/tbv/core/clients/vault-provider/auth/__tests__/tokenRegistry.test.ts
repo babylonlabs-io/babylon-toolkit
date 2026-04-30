@@ -88,7 +88,7 @@ describe("VpTokenRegistry", () => {
     registry.getOrCreate(buildInput({ authAnchorHex: AUTH_ANCHOR_HEX }));
     expect(() =>
       registry.getOrCreate(buildInput({ authAnchorHex: ALT_AUTH_ANCHOR_HEX })),
-    ).toThrow(/different authAnchorHex/);
+    ).toThrow(/already bound to authAnchorHex/);
   });
 
   it("throws on getOrCreate with the same peginTxid but a different pinnedServerPubkey", () => {
@@ -101,7 +101,22 @@ describe("VpTokenRegistry", () => {
       registry.getOrCreate(
         buildInput({ pinnedServerPubkey: ALT_PINNED_PUBKEY }),
       ),
-    ).toThrow(/different pinnedServerPubkey/);
+    ).toThrow(/already bound to pinnedServerPubkey/);
+  });
+
+  it("getOrCreate cache-hit swaps in the new client so URL changes don't leave a stale transport", () => {
+    // VP URL change mid-session: same identity, new transport. The
+    // cached provider's token (bound to identity, not URL) stays
+    // valid, but token refreshes must hit the new URL.
+    const firstClient = buildClient();
+    const provider = registry.getOrCreate(buildInput({ client: firstClient }));
+    const setClientSpy = vi.spyOn(provider, "setClient");
+
+    const secondClient = buildClient();
+    const reused = registry.getOrCreate(buildInput({ client: secondClient }));
+
+    expect(reused).toBe(provider);
+    expect(setClientSpy).toHaveBeenCalledExactlyOnceWith(secondClient);
   });
 
   it("scopes entries by peginTxid — distinct pegins get distinct providers", () => {
@@ -145,61 +160,6 @@ describe("VpTokenRegistry", () => {
     ).not.toThrow();
   });
 
-  it("peekOrPending returns the resolved provider when one exists", () => {
-    const provider = registry.getOrCreate(buildInput());
-    expect(registry.peekOrPending(PEGIN_TXID_A)).toBe(provider);
-  });
-
-  it("peekOrPending returns the in-flight promise before it resolves", async () => {
-    let resolveDerivation: (p: VpTokenProvider) => void = () => {};
-    const inFlight = new Promise<VpTokenProvider>((res) => {
-      resolveDerivation = res;
-    });
-    registry.registerInFlight(PEGIN_TXID_A, inFlight);
-
-    const pending = registry.peekOrPending(PEGIN_TXID_A);
-    expect(pending).toBe(inFlight);
-
-    // Resolve so the test cleans up its in-flight slot.
-    resolveDerivation(registry.getOrCreate(buildInput()));
-    await inFlight;
-  });
-
-  it("registerInFlight: concurrent first-callers share a single derivation promise", () => {
-    // The whole point of in-flight tracking — two LazyVpTokenProviders
-    // for the same peginTxid must not both fire their own derivation.
-    const inFlight = new Promise<VpTokenProvider>(() => {});
-    registry.registerInFlight(PEGIN_TXID_A, inFlight);
-    // Second registration is ignored (idempotent on first registration).
-    const competing = new Promise<VpTokenProvider>(() => {});
-    registry.registerInFlight(PEGIN_TXID_A, competing);
-    expect(registry.peekOrPending(PEGIN_TXID_A)).toBe(inFlight);
-  });
-
-  it("registerInFlight: slot auto-clears when the promise settles", async () => {
-    const provider = new VpTokenProvider({
-      client: buildClient(),
-      peginTxid: PEGIN_TXID_A,
-      authAnchorHex: AUTH_ANCHOR_HEX,
-      pinnedServerPubkey: PINNED_PUBKEY,
-      authGatedMethods: new Set(),
-    });
-    const inFlight = Promise.resolve(provider);
-    registry.registerInFlight(PEGIN_TXID_A, inFlight);
-    await inFlight;
-    // Yield once more to let the .finally() callback fire.
-    await Promise.resolve();
-    expect(registry.peekOrPending(PEGIN_TXID_A)).toBeUndefined();
-  });
-
-  it("clear() also wipes pending in-flight slots", () => {
-    const inFlight = new Promise<VpTokenProvider>(() => {});
-    registry.registerInFlight(PEGIN_TXID_A, inFlight);
-    expect(registry.peekOrPending(PEGIN_TXID_A)).toBe(inFlight);
-    registry.clear();
-    expect(registry.peekOrPending(PEGIN_TXID_A)).toBeUndefined();
-  });
-
   it("does not touch localStorage or sessionStorage", () => {
     // Tokens in browser-readable storage are an XSS exposure with no
     // offsetting benefit. Pin the no-persistence contract by stubbing
@@ -239,7 +199,7 @@ describe("VpTokenRegistry", () => {
 describe("vpTokenRegistry singleton", () => {
   // Ensure singleton tests don't leak state into one another.
   afterEach(() => {
-    vpTokenRegistry.clear();
+    (vpTokenRegistry as VpTokenRegistry).clear();
   });
 
   it("is a singleton: subsequent imports share state", () => {
@@ -252,7 +212,7 @@ describe("vpTokenRegistry singleton", () => {
     vpTokenRegistry.getOrCreate(buildInput({ peginTxid: PEGIN_TXID_A }));
     vpTokenRegistry.getOrCreate(buildInput({ peginTxid: PEGIN_TXID_B }));
     expect(vpTokenRegistry.size).toBe(2);
-    vpTokenRegistry.clear();
+    (vpTokenRegistry as VpTokenRegistry).clear();
     expect(vpTokenRegistry.size).toBe(0);
   });
 });

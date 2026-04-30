@@ -349,7 +349,7 @@ Parameters for the PeginPayout connector (depositor, VP, VKs, UCs, timelock)
 
 ### NoPayoutParams
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/noPayout.ts:40](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/noPayout.ts#L40)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/noPayout.ts:32](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/noPayout.ts#L32)
 
 Parameters for building a NoPayout PSBT
 
@@ -361,19 +361,9 @@ Parameters for building a NoPayout PSBT
 noPayoutTxHex: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/noPayout.ts:42](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/noPayout.ts#L42)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/noPayout.ts:34](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/noPayout.ts#L34)
 
-NoPayout transaction hex (unsigned)
-
-##### assertTxHex
-
-```ts
-assertTxHex: string;
-```
-
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/noPayout.ts:44](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/noPayout.ts#L44)
-
-Authoritative Assert transaction hex — input 0 must spend Assert:0
+NoPayout transaction hex (unsigned) from VP
 
 ##### challengerPubkey
 
@@ -381,9 +371,31 @@ Authoritative Assert transaction hex — input 0 must spend Assert:0
 challengerPubkey: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/noPayout.ts:46](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/noPayout.ts#L46)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/noPayout.ts:36](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/noPayout.ts#L36)
 
 Challenger's x-only public key (hex encoded)
+
+##### prevouts
+
+```ts
+prevouts: object[];
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/noPayout.ts:38](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/noPayout.ts#L38)
+
+Prevouts for all inputs [{script_pubkey, value}] from VP
+
+###### script\_pubkey
+
+```ts
+script_pubkey: string;
+```
+
+###### value
+
+```ts
+value: number;
+```
 
 ##### connectorParams
 
@@ -391,26 +403,15 @@ Challenger's x-only public key (hex encoded)
 connectorParams: AssertPayoutNoPayoutConnectorParams;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/noPayout.ts:48](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/noPayout.ts#L48)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/noPayout.ts:40](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/noPayout.ts#L40)
 
 Parameters for the Assert Payout/NoPayout connector
-
-##### additionalPrevouts?
-
-```ts
-optional additionalPrevouts: AdditionalPrevout[];
-```
-
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/noPayout.ts:53](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/noPayout.ts#L53)
-
-Prevouts for inputs at index >= 1 (not signed by the depositor).
-Required when the NoPayout tx has fee/auxiliary inputs beyond input 0.
 
 ***
 
 ### PayoutParams
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:44](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts#L44)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:45](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts#L45)
 
 Parameters for building an unsigned Payout PSBT
 
@@ -425,7 +426,7 @@ Input 1 references the Assert transaction.
 payoutTxHex: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:49](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts#L49)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:50](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts#L50)
 
 Payout transaction hex (unsigned)
 This is the transaction that needs to be signed by the depositor
@@ -436,7 +437,7 @@ This is the transaction that needs to be signed by the depositor
 assertTxHex: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:55](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts#L55)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:56](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts#L56)
 
 Assert transaction hex
 Payout input 1 references Assert output 0
@@ -447,7 +448,7 @@ Payout input 1 references Assert output 0
 peginTxHex: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:61](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts#L61)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:62](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts#L62)
 
 Peg-in transaction hex
 This transaction created the vault output that we're spending
@@ -458,7 +459,7 @@ This transaction created the vault output that we're spending
 depositorBtcPubkey: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:66](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts#L66)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:67](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts#L67)
 
 Depositor's BTC public key (x-only, 64-char hex without 0x prefix)
 
@@ -468,7 +469,7 @@ Depositor's BTC public key (x-only, 64-char hex without 0x prefix)
 vaultProviderBtcPubkey: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:71](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts#L71)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:72](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts#L72)
 
 Vault provider's BTC public key (x-only, 64-char hex)
 
@@ -478,7 +479,7 @@ Vault provider's BTC public key (x-only, 64-char hex)
 vaultKeeperBtcPubkeys: string[];
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:76](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts#L76)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:77](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts#L77)
 
 Vault keeper BTC public keys (x-only, 64-char hex)
 
@@ -488,7 +489,7 @@ Vault keeper BTC public keys (x-only, 64-char hex)
 universalChallengerBtcPubkeys: string[];
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:81](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts#L81)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:82](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts#L82)
 
 Universal challenger BTC public keys (x-only, 64-char hex)
 
@@ -498,7 +499,7 @@ Universal challenger BTC public keys (x-only, 64-char hex)
 timelockPegin: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:86](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts#L86)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:87](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts#L87)
 
 CSV timelock in blocks for the PegIn output.
 
@@ -508,7 +509,7 @@ CSV timelock in blocks for the PegIn output.
 network: Network;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:91](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts#L91)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:92](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts#L92)
 
 Bitcoin network
 
@@ -516,7 +517,7 @@ Bitcoin network
 
 ### PayoutPsbtResult
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:97](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts#L97)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:98](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts#L98)
 
 Result of building an unsigned payout PSBT
 
@@ -528,7 +529,7 @@ Result of building an unsigned payout PSBT
 psbtHex: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:101](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts#L101)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:102](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts#L102)
 
 Unsigned PSBT hex ready for signing
 
@@ -1538,14 +1539,12 @@ If input 1 does not reference assertTxHex at output index 0
 function buildNoPayoutPsbt(params): Promise<string>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/noPayout.ts:70](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/noPayout.ts#L70)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/noPayout.ts:52](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/noPayout.ts#L52)
 
 Build unsigned NoPayout PSBT.
 
-Input 0 spends Assert:0 (the AssertPayoutNoPayout connector) and is signed
-by the depositor using the NoPayout taproot script path. Its prevout is
-derived from the authoritative Assert transaction, never trusted from
-external input.
+The NoPayout transaction is specific to each challenger.
+Input 0 is the one the depositor signs using the NoPayout taproot script path.
 
 #### Parameters
 
@@ -1561,14 +1560,6 @@ NoPayout parameters
 
 Unsigned PSBT hex ready for signing
 
-#### Throws
-
-If input 0 does not reference assertTxHex at output index 0
-
-#### Throws
-
-If the NoPayout tx has additional inputs but no matching prevouts
-
 ***
 
 ### buildPayoutPsbt()
@@ -1577,7 +1568,7 @@ If the NoPayout tx has additional inputs but no matching prevouts
 function buildPayoutPsbt(params): Promise<PayoutPsbtResult>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:125](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts#L125)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:126](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts#L126)
 
 Build unsigned Payout PSBT for depositor to sign.
 
@@ -1623,6 +1614,53 @@ If previous output is not found for either input
 
 ***
 
+### assertPayoutOutputMatchesRegistered()
+
+```ts
+function assertPayoutOutputMatchesRegistered(payoutTxHex, registeredPayoutScriptPubKey): void;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:277](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts#L277)
+
+Validate that a payout transaction's largest output pays to the registered
+depositor payout scriptPubKey.
+
+Prevents a malicious vault provider from substituting the payout destination
+(or routing funds through a dust output to the correct address while sending
+the actual value to an attacker-controlled script).
+
+#### Parameters
+
+##### payoutTxHex
+
+`string`
+
+Raw payout transaction hex
+
+##### registeredPayoutScriptPubKey
+
+`string`
+
+On-chain registered scriptPubKey (hex, with or without 0x prefix)
+
+#### Returns
+
+`void`
+
+#### Throws
+
+If scriptPubKey is invalid hex
+
+#### Throws
+
+If the transaction has no outputs
+
+#### Throws
+
+If the largest output does not pay to the registered scriptPubKey
+
+***
+
 ### extractPayoutSignature()
 
 ```ts
@@ -1632,7 +1670,7 @@ function extractPayoutSignature(
    inputIndex): string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:280](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts#L280)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:324](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts#L324)
 
 Extract Schnorr signature from signed payout PSBT.
 

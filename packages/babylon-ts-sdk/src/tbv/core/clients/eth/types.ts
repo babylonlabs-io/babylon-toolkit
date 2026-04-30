@@ -61,9 +61,7 @@ export interface VaultRegistryReader {
   getVaultBasicInfo(vaultId: Hex): Promise<VaultBasicInfo>;
   getVaultProtocolInfo(vaultId: Hex): Promise<VaultProtocolInfo>;
   getVaultData(vaultId: Hex): Promise<VaultData>;
-  getVaultProviderBtcPubKey(
-    vpAddress: `0x${string}`,
-  ): Promise<OnChainBtcPubkey>;
+  getVaultProviderBtcPubKey(vpAddress: Address): Promise<OnChainBtcPubkey>;
 }
 
 // ============================================================================

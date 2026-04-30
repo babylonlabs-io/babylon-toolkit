@@ -3,11 +3,9 @@
  */
 
 import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
-import { createAuthenticatedVpClient } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import { runDepositorPresignFlow } from "@babylonlabs-io/ts-sdk/tbv/core/services";
 import type { Address } from "viem";
 
-import { getVaultRegistryReader } from "@/clients/eth-contract/sdk-readers";
 import { LocalStorageStatus } from "@/models/peginStateMachine";
 import {
   prepareSigningContext,
@@ -15,7 +13,8 @@ import {
 } from "@/services/vault/vaultPayoutSignatureService";
 import { updatePendingPeginStatus } from "@/storage/peginStorage";
 import { stripHexPrefix } from "@/utils/btc";
-import { getVpProxyUrl } from "@/utils/rpc";
+
+import { ensureAuthenticatedVpClient } from "./ensureAuthenticatedVpClient";
 
 export interface SignAndSubmitPayoutsParams {
   vaultId: string;
@@ -34,8 +33,8 @@ export interface SignAndSubmitPayoutsParams {
 /**
  * Poll the VP for presign transactions, sign them with the BTC wallet,
  * and submit the signatures back. Auth-gated VP RPCs acquire bearer
- * tokens transparently via `createAuthenticatedVpClient`; the caller
- * passes the wallet + Pre-PegIn tx hex, never the auth anchor.
+ * tokens transparently via the registry; if the registry isn't already
+ * primed for this peginTxid, derivation happens here (one popup).
  */
 export async function signAndSubmitPayouts(
   params: SignAndSubmitPayoutsParams,
@@ -61,14 +60,12 @@ export async function signAndSubmitPayouts(
   });
 
   const peginTxid = stripHexPrefix(peginTxHash);
-  const rpcClient = createAuthenticatedVpClient({
-    baseUrl: getVpProxyUrl(vaultProviderAddress),
-    vpAddress: vaultProviderAddress as `0x${string}`,
-    peginTxid,
-    unsignedPrePeginTxHex,
-    depositorBtcPubkey,
+  const rpcClient = await ensureAuthenticatedVpClient({
     btcWallet,
-    vaultRegistryReader: getVaultRegistryReader(),
+    unsignedPrePeginTxHex,
+    peginTxHash,
+    providerAddress: vaultProviderAddress,
+    depositorBtcPubkey,
   });
 
   await runDepositorPresignFlow({

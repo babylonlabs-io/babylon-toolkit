@@ -51,7 +51,7 @@ export class ViemVaultRegistryReader implements VaultRegistryReader {
     const lowered = result.toLowerCase();
     if (!/^0x[0-9a-f]{64}$/.test(lowered)) {
       throw new Error(
-        `getVaultProviderBTCKey returned an unexpected value (length ${lowered.length}, prefix "${lowered.slice(0, 2)}")`,
+        `getVaultProviderBTCKey returned an unexpected value (vp=${vpAddress}, length ${lowered.length}, prefix "${lowered.slice(0, 2)}")`,
       );
     }
     const stripped = lowered.slice(2);

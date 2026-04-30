@@ -27,7 +27,6 @@ interface RegistryEntry {
 
 export class VpTokenRegistry {
   private readonly entries = new Map<string, RegistryEntry>();
-  private readonly inFlight = new Map<string, Promise<VpTokenProvider>>();
 
   /**
    * Return the cached `VpTokenProvider` for `peginTxid` if one exists
@@ -41,14 +40,18 @@ export class VpTokenRegistry {
     if (existing) {
       if (existing.authAnchorHex !== input.authAnchorHex) {
         throw new Error(
-          `VpTokenRegistry: peginTxid ${input.peginTxid} is already bound to a different authAnchorHex`,
+          `VpTokenRegistry: peginTxid ${input.peginTxid} already bound to authAnchorHex ${existing.authAnchorHex.slice(0, 8)}…; got ${input.authAnchorHex.slice(0, 8)}…`,
         );
       }
       if (existing.pinnedServerPubkey !== input.pinnedServerPubkey) {
         throw new Error(
-          `VpTokenRegistry: peginTxid ${input.peginTxid} is already bound to a different pinnedServerPubkey`,
+          `VpTokenRegistry: peginTxid ${input.peginTxid} already bound to pinnedServerPubkey ${existing.pinnedServerPubkey.slice(0, 8)}…; got ${input.pinnedServerPubkey.slice(0, 8)}…`,
         );
       }
+      // Refresh the inner transport on every reuse so a VP URL
+      // change between calls doesn't leave the cached provider
+      // pinned to a dead URL for token refresh.
+      existing.provider.setClient(input.client);
       return existing.provider;
     }
 
@@ -73,55 +76,22 @@ export class VpTokenRegistry {
   }
 
   /**
-   * Return either the resolved provider or an in-flight derivation
-   * promise. Lazy callers use this to share a single wallet popup
-   * across concurrent first-call gated methods for the same vault.
-   */
-  peekOrPending(
-    peginTxid: string,
-  ): VpTokenProvider | Promise<VpTokenProvider> | undefined {
-    const resolved = this.entries.get(peginTxid)?.provider;
-    if (resolved) return resolved;
-    return this.inFlight.get(peginTxid);
-  }
-
-  /**
-   * Track an in-flight derivation so concurrent `peekOrPending` callers
-   * await the same promise. First registration wins; the slot
-   * auto-clears when the promise settles.
-   */
-  registerInFlight(
-    peginTxid: string,
-    promise: Promise<VpTokenProvider>,
-  ): void {
-    if (this.inFlight.has(peginTxid)) return;
-    this.inFlight.set(peginTxid, promise);
-    // Swallow the rejection on this internal chain — the producing
-    // caller has its own consumer that propagates the error. Without
-    // the explicit `.catch`, a `void promise.finally(...)` chain
-    // would surface as an unhandled rejection if no other consumer
-    // is attached at the moment the promise rejects.
-    promise
-      .finally(() => {
-        if (this.inFlight.get(peginTxid) === promise) {
-          this.inFlight.delete(peginTxid);
-        }
-      })
-      .catch(() => {});
-  }
-
-  /**
-   * Evict the entry for `peginTxid`. Idempotent. Vault flows call this
-   * after activation so `authAnchorHex` doesn't outlive the session.
+   * Evict the entry for `peginTxid`. Idempotent. Called on terminal
+   * paths — activation success, user-cancel, or component unmount —
+   * so `authAnchorHex` doesn't outlive the deposit session.
    */
   release(peginTxid: string): void {
     this.entries.delete(peginTxid);
   }
 
-  /** Test-only. */
+  /**
+   * Wipe every cached entry. Test-only escape hatch — not exposed on
+   * the public {@link VpTokenRegistryPublic} singleton type.
+   *
+   * @internal
+   */
   clear(): void {
     this.entries.clear();
-    this.inFlight.clear();
   }
 
   get size(): number {
@@ -129,4 +99,15 @@ export class VpTokenRegistry {
   }
 }
 
-export const vpTokenRegistry = new VpTokenRegistry();
+/**
+ * Public surface of the singleton — excludes the test-only `clear`
+ * method.
+ */
+export interface VpTokenRegistryPublic {
+  getOrCreate(input: VpTokenRegistryInput): VpTokenProvider;
+  peek(peginTxid: string): VpTokenProvider | undefined;
+  release(peginTxid: string): void;
+  readonly size: number;
+}
+
+export const vpTokenRegistry: VpTokenRegistryPublic = new VpTokenRegistry();

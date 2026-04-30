@@ -271,6 +271,9 @@ export function useDepositFlow(
       // UTXO reservation if the flow fails after writing it.
       let reservationBatchId: string | null = null;
       let reservationEthAddress: string | null = null;
+      // Track registry entries we primed so we can release them on
+      // user-cancel (bound `authAnchorHex` lifetime to the flow).
+      const primedRegistryTxids: string[] = [];
 
       try {
         // ========================================================================
@@ -611,30 +614,25 @@ export function useDepositFlow(
           throw new Error("Vault provider not found");
         }
 
-        // Best-effort: lazy provider recovers if priming fails. All
-        // sibling vaults in a batch share one VP, so fetch the on-chain
-        // pubkey once and pass it into each per-vault registry entry.
+        // Best-effort: subsequent gated calls re-derive on cache miss
+        // if priming fails. All sibling vaults share one VP, so fetch
+        // the pubkey once and seed each per-vault registry entry.
         const vpBaseUrl = getVpProxyUrl(provider.id);
         try {
           const pinnedServerPubkey =
             await getVaultRegistryReader().getVaultProviderBtcPubKey(
-              provider.id as `0x${string}`,
+              provider.id as Address,
             );
-          await Promise.all(
-            broadcastedResults.map((r) =>
-              primeVpTokenRegistry({
-                baseUrl: vpBaseUrl,
-                peginTxid: stripHexPrefix(r.peginTxHash),
-                authAnchorHex,
-                pinnedServerPubkey,
-              }).catch((err) => {
-                logger.warn("Failed to prime VP token registry", {
-                  peginTxHash: r.peginTxHash,
-                  error: err instanceof Error ? err.message : String(err),
-                });
-              }),
-            ),
-          );
+          for (const r of broadcastedResults) {
+            const peginTxid = stripHexPrefix(r.peginTxHash);
+            primeVpTokenRegistry({
+              baseUrl: vpBaseUrl,
+              peginTxid,
+              authAnchorHex,
+              pinnedServerPubkey,
+            });
+            primedRegistryTxids.push(peginTxid);
+          }
         } catch (err) {
           logger.warn("Failed to fetch VP pubkey for registry priming", {
             providerId: provider.id,
@@ -856,6 +854,16 @@ export function useDepositFlow(
         // Clean up early UTXO reservation so the UTXOs are released for reuse.
         if (reservationBatchId && reservationEthAddress) {
           removeUtxoReservation(reservationEthAddress, reservationBatchId);
+        }
+
+        // On user-cancel, release any registry entries we primed so
+        // `authAnchorHex` doesn't outlive the abandoned flow. On other
+        // errors keep the entries — the user may retry, in which case
+        // the cache hit avoids a second wallet popup.
+        if (signal.aborted) {
+          for (const peginTxid of primedRegistryTxids) {
+            vpTokenRegistry.release(peginTxid);
+          }
         }
 
         // Don't show error if flow was aborted (user intentionally closed modal)

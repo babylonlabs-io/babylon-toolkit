@@ -45,21 +45,17 @@ export interface VaultProviderRpcClientOptions {
   /** Initial retry delay in milliseconds (default: 1000) */
   retryDelay?: number;
   /**
-   * Custom retry predicate. Default (`DEFAULT_RETRYABLE_METHODS` in
-   * `json-rpc-client.ts`): only retry the idempotent read-style VP
-   * methods — `vaultProvider_getPeginStatus`,
-   * `vaultProvider_getPegoutStatus`, and
-   * `vaultProvider_requestDepositorPresignTransactions`.
+   * Custom retry predicate. Default retries only the idempotent read
+   * methods: `getPeginStatus`, `getPegoutStatus`,
+   * `requestDepositorPresignTransactions`.
    */
   retryableFor?: (method: string) => boolean;
-  /** Custom headers */
+  /** Custom headers. */
   headers?: Record<string, string>;
   /**
-   * Bearer-token provider invoked once per request before sending. If
-   * a token is returned, it is attached as `Authorization: Bearer
-   * <token>`; if `null`, the method is treated as unauthenticated.
-   * Wire {@link VpTokenProvider} (or a registry-managed instance) here
-   * to authenticate the depositor-side methods that require it.
+   * Per-request bearer-token source. A non-null return attaches
+   * `Authorization: Bearer <token>`; `null` skips auth. Wire a
+   * {@link VpTokenProvider} for depositor-gated methods.
    */
   tokenProvider?: BearerTokenProvider;
 }

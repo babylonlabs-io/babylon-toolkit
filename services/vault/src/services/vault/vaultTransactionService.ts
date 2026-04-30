@@ -102,8 +102,13 @@ export interface PreparePeginResult {
   htlcSecretHexes: string[];
   /**
    * Raw 32-byte auth-anchor preimage as 64-char lowercase hex (no 0x).
-   * Sent to the VP via `auth_createDepositorToken` to obtain a CWT
-   * bearer token. Sensitive — do not log; do not persist.
+   * Sent to the VP via `auth_createDepositorToken`. Sensitive — do
+   * not log; do not persist.
+   *
+   * Known limitation: JS strings can't be wiped, so this value is
+   * visible in any closure that captures it (incl. React DevTools)
+   * until GC. Lifetime is bounded by `vpTokenRegistry.release` on
+   * terminal flow paths.
    */
   authAnchorHex: string;
 }
