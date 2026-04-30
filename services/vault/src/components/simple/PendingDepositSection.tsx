@@ -18,6 +18,7 @@ import { PeginPollingProvider } from "@/context/deposit/PeginPollingContext";
 import { usePendingDeposits } from "@/hooks/usePendingDeposits";
 import { formatBtcAmount } from "@/utils/formatting";
 
+import { ExpiredDepositSection } from "./ExpiredDepositSection";
 import { PendingDepositActionBadge } from "./PendingDepositActionBadge";
 import { PendingDepositCard } from "./PendingDepositCard";
 import { PendingDepositModals } from "./PendingDepositModals";
@@ -29,12 +30,14 @@ export function PendingDepositSection() {
 
   const {
     pendingActivities,
+    expiredActivities,
     allActivities,
     pendingPegins,
     vaultProviders,
     btcPublicKey,
     ethAddress,
     hasPendingDeposits,
+    hasExpiredDeposits,
     signModal,
     broadcastModal,
     wotsKeyModal,
@@ -52,7 +55,7 @@ export function PendingDepositSection() {
     [pendingActivities],
   );
 
-  if (!hasPendingDeposits) return null;
+  if (!hasPendingDeposits && !hasExpiredDeposits) return null;
 
   const count = pendingActivities.length;
 
@@ -63,66 +66,83 @@ export function PendingDepositSection() {
       btcPublicKey={btcPublicKey}
     >
       <div className="w-full space-y-6">
-        {/* Header row */}
-        <div className="flex items-center gap-3">
-          <h2 className="text-[24px] font-normal text-accent-primary">
-            Pending Deposits ({count})
-          </h2>
-          <div className="h-[18px] w-[18px] animate-spin rounded-full border-2 border-accent-primary border-t-transparent" />
-        </div>
+        {hasPendingDeposits && (
+          <>
+            {/* Header row */}
+            <div className="flex items-center gap-3">
+              <h2 className="text-[24px] font-normal text-accent-primary">
+                Pending Deposits ({count})
+              </h2>
+              <div className="h-[18px] w-[18px] animate-spin rounded-full border-2 border-accent-primary border-t-transparent" />
+            </div>
 
-        {/* Summary card */}
-        <Card variant="filled" className="w-full">
-          {/* Summary row: BTC icon + amount | action badge (when collapsed) + expand toggle */}
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex min-w-0 flex-1 items-center gap-2">
-              <Avatar
-                url={btcConfig.icon}
-                alt={btcConfig.coinSymbol}
-                size="small"
-              />
-              <span className="text-base text-accent-primary">
-                {formatBtcAmount(totalBtcAmount)}
-              </span>
-            </div>
-            <div className="flex flex-shrink-0 items-center gap-2">
-              <PendingDepositActionBadge
-                pendingActivityIds={pendingActivities.map((a) => a.id)}
-                isExpanded={isExpanded}
-              />
-              <ExpandMenuButton
-                isExpanded={isExpanded}
-                onToggle={() => setIsExpanded((prev) => !prev)}
-                aria-label="Pending deposit details"
-              />
-            </div>
-          </div>
+            {/* Summary card */}
+            <Card variant="filled" className="w-full">
+              {/* Summary row: BTC icon + amount | action badge (when collapsed) + expand toggle */}
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex min-w-0 flex-1 items-center gap-2">
+                  <Avatar
+                    url={btcConfig.icon}
+                    alt={btcConfig.coinSymbol}
+                    size="small"
+                  />
+                  <span className="text-base text-accent-primary">
+                    {formatBtcAmount(totalBtcAmount)}
+                  </span>
+                </div>
+                <div className="flex flex-shrink-0 items-center gap-2">
+                  <PendingDepositActionBadge
+                    pendingActivityIds={pendingActivities.map((a) => a.id)}
+                    isExpanded={isExpanded}
+                  />
+                  <ExpandMenuButton
+                    isExpanded={isExpanded}
+                    onToggle={() => setIsExpanded((prev) => !prev)}
+                    aria-label="Pending deposit details"
+                  />
+                </div>
+              </div>
 
-          {/* Expanded deposit list */}
-          {isExpanded && (
-            <div className="mt-4 max-h-[400px] space-y-3 overflow-y-auto">
-              {pendingActivities.map((activity) => (
-                <PendingDepositCard
-                  key={activity.id}
-                  depositId={activity.id}
-                  amount={activity.collateral.amount}
-                  timestamp={activity.timestamp}
-                  txHash={activity.peginTxHash}
-                  providerId={activity.providers[0].id}
-                  vaultProviders={vaultProviders}
-                  onSignClick={signModal.handleSignClick}
-                  onBroadcastClick={broadcastModal.handleBroadcastClick}
-                  onWotsKeyClick={wotsKeyModal.handleWotsKeyClick}
-                  onActivationClick={activationModal.handleActivationClick}
-                  onRefundClick={refundModal.handleRefundClick}
-                  onArtifactDownloadClick={
-                    artifactDownloadModal.handleArtifactDownloadClick
-                  }
-                />
-              ))}
-            </div>
-          )}
-        </Card>
+              {/* Expanded deposit list */}
+              {isExpanded && (
+                <div className="mt-4 max-h-[400px] space-y-3 overflow-y-auto">
+                  {pendingActivities.map((activity) => (
+                    <PendingDepositCard
+                      key={activity.id}
+                      depositId={activity.id}
+                      amount={activity.collateral.amount}
+                      timestamp={activity.timestamp}
+                      txHash={activity.peginTxHash}
+                      providerId={activity.providers[0].id}
+                      vaultProviders={vaultProviders}
+                      onSignClick={signModal.handleSignClick}
+                      onBroadcastClick={broadcastModal.handleBroadcastClick}
+                      onWotsKeyClick={wotsKeyModal.handleWotsKeyClick}
+                      onActivationClick={activationModal.handleActivationClick}
+                      onRefundClick={refundModal.handleRefundClick}
+                      onArtifactDownloadClick={
+                        artifactDownloadModal.handleArtifactDownloadClick
+                      }
+                    />
+                  ))}
+                </div>
+              )}
+            </Card>
+          </>
+        )}
+
+        <ExpiredDepositSection
+          expiredActivities={expiredActivities}
+          vaultProviders={vaultProviders}
+          onSignClick={signModal.handleSignClick}
+          onBroadcastClick={broadcastModal.handleBroadcastClick}
+          onWotsKeyClick={wotsKeyModal.handleWotsKeyClick}
+          onActivationClick={activationModal.handleActivationClick}
+          onRefundClick={refundModal.handleRefundClick}
+          onArtifactDownloadClick={
+            artifactDownloadModal.handleArtifactDownloadClick
+          }
+        />
       </div>
 
       {artifactDownloadModal.isOpen && artifactDownloadModal.params && (
