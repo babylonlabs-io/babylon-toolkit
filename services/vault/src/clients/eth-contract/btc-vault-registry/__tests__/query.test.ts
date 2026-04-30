@@ -21,6 +21,7 @@ vi.mock("@/config/contracts", () => ({
 import {
   getOffchainParamsVersionsFromChain,
   getVaultFromChain,
+  getVaultProviderBtcPubkeyFromChain,
 } from "../query";
 
 const VAULT_ID =
@@ -115,6 +116,45 @@ describe("getVaultFromChain", () => {
 
     await expect(getVaultFromChain(VAULT_ID)).rejects.toThrow(
       `Vault ${VAULT_ID} not found on-chain or has no pegin transaction`,
+    );
+  });
+});
+
+describe("getVaultProviderBtcPubkeyFromChain", () => {
+  it("returns the registered VP BTC pubkey from the contract", async () => {
+    mockReadContract.mockResolvedValueOnce("0xabc123");
+
+    const result = await getVaultProviderBtcPubkeyFromChain("0xVaultProvider");
+
+    expect(result).toBe("0xabc123");
+    expect(mockReadContract).toHaveBeenCalledWith(
+      expect.objectContaining({
+        address: "0xBTCVaultRegistry",
+        functionName: "getVaultProviderBTCKey",
+        args: ["0xVaultProvider"],
+      }),
+    );
+  });
+
+  it("throws when the VP has no registered BTC pubkey", async () => {
+    mockReadContract.mockResolvedValueOnce(
+      "0x0000000000000000000000000000000000000000000000000000000000000000",
+    );
+
+    await expect(
+      getVaultProviderBtcPubkeyFromChain("0xVaultProvider"),
+    ).rejects.toThrow(
+      "Vault provider 0xVaultProvider has no registered BTC pubkey on-chain",
+    );
+  });
+
+  it("throws when the VP BTC pubkey is empty bytes", async () => {
+    mockReadContract.mockResolvedValueOnce("0x");
+
+    await expect(
+      getVaultProviderBtcPubkeyFromChain("0xVaultProvider"),
+    ).rejects.toThrow(
+      "Vault provider 0xVaultProvider has no registered BTC pubkey on-chain",
     );
   });
 });
