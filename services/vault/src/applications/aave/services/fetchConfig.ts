@@ -10,6 +10,7 @@ import type { Address } from "viem";
 
 import { graphqlClient } from "../../../clients/graphql";
 import { getCoreSpokeAddress } from "../clients/transaction";
+import { getAaveAdapterAddress } from "../config";
 
 /**
  * Aave configuration from GraphQL indexer
@@ -209,9 +210,16 @@ export async function fetchAaveAppConfig(): Promise<AaveAppConfig | null> {
 
   const vbtcReserveId = BigInt(response.aaveConfig.btcVaultCoreVbtcReserveId);
 
-  // Resolve spoke address on-chain from the trusted adapter contract,
-  // rather than relying on the untrusted GraphQL indexer
-  const adapterAddress = response.aaveConfig.adapterAddress as Address;
+  const adapterAddress = getAaveAdapterAddress();
+  const indexedAdapterAddress = response.aaveConfig.adapterAddress as Address;
+  if (indexedAdapterAddress.toLowerCase() !== adapterAddress.toLowerCase()) {
+    throw new Error(
+      `Aave adapter mismatch: indexer returned ${indexedAdapterAddress}, expected ${adapterAddress}`,
+    );
+  }
+
+  // Resolve spoke address on-chain from the env-pinned adapter contract,
+  // rather than trusting a GraphQL-supplied adapter.
   let coreSpokeAddress: Address;
   try {
     coreSpokeAddress = await getCoreSpokeAddress(adapterAddress);
@@ -223,7 +231,7 @@ export async function fetchAaveAppConfig(): Promise<AaveAppConfig | null> {
   }
 
   const config: AaveConfig = {
-    adapterAddress: response.aaveConfig.adapterAddress,
+    adapterAddress,
     vaultBtcAddress: response.aaveConfig.vaultBtcAddress,
     btcVaultRegistryAddress: response.aaveConfig.btcVaultRegistryAddress,
     coreSpokeAddress,
