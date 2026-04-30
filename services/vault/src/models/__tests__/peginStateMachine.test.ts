@@ -384,14 +384,14 @@ describe("peginStateMachine", () => {
       });
     });
 
-    it("returns Sign for payout transactions", () => {
+    it("returns Sign Payouts for payout transactions", () => {
       const state = getPeginState(ContractStatus.PENDING, {
         pendingIngestion: false,
         transactionsReady: true,
       });
       const button = getPrimaryActionButton(state);
       expect(button).toEqual({
-        label: "Sign",
+        label: "Sign Payouts",
         action: PeginAction.SIGN_PAYOUT_TRANSACTIONS,
       });
     });
