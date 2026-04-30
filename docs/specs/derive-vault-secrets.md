@@ -331,49 +331,39 @@ Rationale:
 
 ## 3. Scope
 
-This scheme is scoped to secrets whose disclosure does NOT let a
-third party redirect funds, impersonate the depositor in an
-application-layer authorization call, or release private artifacts.
+A secret MUST NOT be added to this scheme if any of the following
+hold:
+
+1. **Unilateral fund movement or unauthorized spend.** Knowledge of
+   the secret alone redirects funds, satisfies an `msg.sender`-gated
+   ETH call, or completes a Bitcoin spend whose required
+   participant signatures aren't already on-chain. *(Out of scope:
+   the depositor's BTC/ETH private key.)*
+2. **Control-plane action with monetary, state-change, or
+   third-party privacy consequence.** Knowledge of the secret alone
+   releases a redemption artifact to a non-depositor, authorizes a
+   vault revocation, or discloses another party's private data.
+   Read access to the *depositor's own* operational artifacts
+   (e.g. their own presign transactions or claimer artifacts) is
+   not by itself in scope of this rule. *(Out of scope: a
+   decryption key for an encrypted payout PSBT.)*
+3. **Sole gate on key material.** The secret is the only factor
+   gating release of a private key or encrypted backup. *(Out of
+   scope: an envelope key for an encrypted recovery file.)*
+
 A secret in scope MAY still be sufficient to complete a *fixed,
 pre-authorized* Bitcoin spend when combined with public on-chain
 data; such cases MUST be called out per-label below.
 
-The three defined labels satisfy these properties:
+The three current labels are evaluated against each rule. Each
+cell names the specific protocol component that prevents the rule
+from being violated.
 
-- `hashlockSecret` — cannot impersonate the depositor on Ethereum
-  (`activateVaultWithSecret` requires `msg.sender == depositor`) or
-  redirect BTC outputs (participant sigs commit to fixed outputs).
-  Caveat: once `VERIFIED` is reached, all participant pegin sigs are
-  public on-chain, so the preimage alone is sufficient to broadcast
-  the pre-authorized pegin tx and consume the HTLC — destroying the
-  depositor's refund path. No vBTC theft (depositor retains the
-  secret too and can still mint via activation).
-- `authAnchor` — all token-gated RPCs are off-chain state
-  accumulators; fund movement and state change remain gated by
-  on-chain access control and co-signing requirements.
-- `wotsSeed` — WOTS signatures participate in a multi-party co-signed
-  transaction graph; unilateral authority over funds is not conferred.
-
-A secret MUST NOT be added to this scheme if any of the following
-hold:
-
-1. Knowledge of the secret alone lets a third party redirect funds,
-   impersonate the depositor in an application-layer call (e.g. an
-   Ethereum function gated by `msg.sender`), or complete an
-   *unauthorized* Bitcoin spend (i.e. one whose required signatures
-   are not already on-chain at the time of leakage).
-2. Knowledge of the secret alone authorizes a control-plane action
-   with monetary, state-change, or privacy consequences (e.g.
-   releasing a redemption artifact, revoking a vault, or reading
-   another party's private data).
-3. The secret is the sole factor gating release of key material
-   (e.g. a decryption key for a wallet backup or a user-specific
-   encrypted archive).
-
-Adding a secret that violates these properties would upgrade this
-scheme from "shared-root convenience derivation" to
-"bearer-of-derived-secret is authorized", which is a different trust
-model than the current wallet-popup-per-authorization flow.
+| Label | Rule 1 | Rule 2 | Rule 3 |
+|-------|--------|--------|--------|
+| `hashlockSecret` | **Partial — pre-authorized spend, no theft.** Pegin sigs use `SIGHASH_ALL`/`SIGHASH_DEFAULT` (fixed outputs); `activateVaultWithSecret` re-checks `msg.sender == depositor`. Once `VERIFIED`, all participant sigs are public in `peginInputSignatures`, so a leaked preimage can broadcast the pegin tx and destroy the depositor's refund leaf — but the depositor still holds the same preimage and can mint vBTC, so no theft. | No. Only on-chain consumer is the depositor-bound `activateVaultWithSecret`. | No. |
+| `authAnchor`     | No. Token gates depositor-scoped RPCs only; fund-moving calls require wallet sigs + on-chain `msg.sender` checks. | No. Artifacts returned (e.g. presign transactions, claimer artifacts) are the depositor's own operational data, not third-party-sensitive; mutations go through independent contract checks. | No. |
+| `wotsSeed`       | No. WOTS signs one leaf of a multi-party co-signed graph; cannot unilaterally produce a valid spend. | No. The seed has no downstream RPC or contract gate; WOTS commitments are public. | No. |
 
 ### 3.1 Non-repudiation caveat
 
