@@ -3,6 +3,10 @@
  */
 
 import { JsonRpcError } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
+import {
+  ERROR_CODES,
+  WalletError,
+} from "@babylonlabs-io/wallet-connector";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -120,6 +124,18 @@ describe("Error Formatting", () => {
       const result = formatPayoutSignatureError(error);
 
       expect(result.title).not.toBe("Signing Rejected");
+    });
+
+    it("matches the real WalletError + ERROR_CODES.CONNECTION_REJECTED from wallet-connector", () => {
+      const error = new WalletError({
+        code: ERROR_CODES.CONNECTION_REJECTED,
+        message: "User rejected the PSBT signing request",
+      });
+
+      const result = formatPayoutSignatureError(error);
+
+      expect(result.title).toBe("Signing Rejected");
+      expect(result.message).toContain("rejected the signing request");
     });
   });
 });
