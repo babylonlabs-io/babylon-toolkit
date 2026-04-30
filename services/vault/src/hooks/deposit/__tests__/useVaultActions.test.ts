@@ -1,6 +1,6 @@
 /**
- * Tests for useVaultActions — focusing on transaction integrity validation
- * in handleBroadcastPrePegInBtcTx to prevent a compromised indexer from substituting
+ * Tests for useVaultActions - focusing on transaction integrity validation
+ * in handleBroadcast to prevent a compromised indexer from substituting
  * a malicious transaction for signing.
  */
 
@@ -147,7 +147,7 @@ const baseBroadcastParams = {
   onShowSuccessModal: vi.fn(),
 };
 
-describe("useVaultActions — handleBroadcastPrePegInBtcTx transaction integrity", () => {
+describe("useVaultActions - handleBroadcast transaction integrity", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
@@ -158,7 +158,7 @@ describe("useVaultActions — handleBroadcastPrePegInBtcTx transaction integrity
     const { result } = renderHook(() => useVaultActions());
 
     await act(async () => {
-      await result.current.handleBroadcastPrePegInBtcTx({
+      await result.current.handleBroadcast({
         ...baseBroadcastParams,
         pendingPegin: {
           id: "0xvaultId" as Hex,
@@ -185,7 +185,7 @@ describe("useVaultActions — handleBroadcastPrePegInBtcTx transaction integrity
     const { result } = renderHook(() => useVaultActions());
 
     await act(async () => {
-      await result.current.handleBroadcastPrePegInBtcTx({
+      await result.current.handleBroadcast({
         ...baseBroadcastParams,
         pendingPegin: {
           id: "0xvaultId" as Hex,
@@ -206,7 +206,7 @@ describe("useVaultActions — handleBroadcastPrePegInBtcTx transaction integrity
     const { result } = renderHook(() => useVaultActions());
 
     await act(async () => {
-      await result.current.handleBroadcastPrePegInBtcTx({
+      await result.current.handleBroadcast({
         ...baseBroadcastParams,
         pendingPegin: undefined,
       });
@@ -227,7 +227,7 @@ describe("useVaultActions — handleBroadcastPrePegInBtcTx transaction integrity
     const { result } = renderHook(() => useVaultActions());
 
     await act(async () => {
-      await result.current.handleBroadcastPrePegInBtcTx({
+      await result.current.handleBroadcast({
         ...baseBroadcastParams,
         pendingPegin: undefined,
       });
@@ -246,7 +246,7 @@ describe("useVaultActions — handleBroadcastPrePegInBtcTx transaction integrity
     const { result } = renderHook(() => useVaultActions());
 
     await act(async () => {
-      await result.current.handleBroadcastPrePegInBtcTx({
+      await result.current.handleBroadcast({
         ...baseBroadcastParams,
         pendingPegin: undefined,
       });
@@ -262,7 +262,7 @@ describe("useVaultActions — handleBroadcastPrePegInBtcTx transaction integrity
     const { result } = renderHook(() => useVaultActions());
 
     await act(async () => {
-      await result.current.handleBroadcastPrePegInBtcTx({
+      await result.current.handleBroadcast({
         ...baseBroadcastParams,
         pendingPegin: {
           id: "0xvaultId" as Hex,
@@ -294,7 +294,7 @@ describe("useVaultActions — handleBroadcastPrePegInBtcTx transaction integrity
     const { result } = renderHook(() => useVaultActions());
 
     await act(async () => {
-      await result.current.handleBroadcastPrePegInBtcTx({
+      await result.current.handleBroadcast({
         ...baseBroadcastParams,
         pendingPegin: undefined,
       });

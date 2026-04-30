@@ -70,9 +70,7 @@ export interface UseVaultActionsReturn {
   // Broadcast state
   broadcasting: boolean;
   broadcastError: string | null;
-  handleBroadcastPrePegInBtcTx: (
-    params: BroadcastPrePeginParams,
-  ) => Promise<void>;
+  handleBroadcast: (params: BroadcastPrePeginParams) => Promise<void>;
   // Activation state
   activating: boolean;
   activationError: string | null;
@@ -97,9 +95,7 @@ export function useVaultActions(): UseVaultActionsReturn {
   /**
    * Handle broadcasting BTC transaction
    */
-  const handleBroadcastPrePegInBtcTx = async (
-    params: BroadcastPrePeginParams,
-  ) => {
+  const handleBroadcast = async (params: BroadcastPrePeginParams) => {
     const {
       vaultId,
       amount,
@@ -339,7 +335,7 @@ export function useVaultActions(): UseVaultActionsReturn {
   return {
     broadcasting,
     broadcastError,
-    handleBroadcastPrePegInBtcTx,
+    handleBroadcast,
     activating,
     activationError,
     handleActivation,
