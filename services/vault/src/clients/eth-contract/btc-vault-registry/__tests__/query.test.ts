@@ -1,11 +1,13 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockReadContract = vi.fn();
+const mockMulticall = vi.fn();
 
 vi.mock("@/clients/eth-contract/client", () => ({
   ethClient: {
     getPublicClient: () => ({
       readContract: mockReadContract,
+      multicall: mockMulticall,
     }),
   },
 }));
@@ -16,7 +18,10 @@ vi.mock("@/config/contracts", () => ({
   },
 }));
 
-import { getVaultFromChain } from "../query";
+import {
+  getOffchainParamsVersionsFromChain,
+  getVaultFromChain,
+} from "../query";
 
 const VAULT_ID =
   "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef";
@@ -111,5 +116,58 @@ describe("getVaultFromChain", () => {
     await expect(getVaultFromChain(VAULT_ID)).rejects.toThrow(
       `Vault ${VAULT_ID} not found on-chain or has no pegin transaction`,
     );
+  });
+});
+
+describe("getOffchainParamsVersionsFromChain", () => {
+  beforeEach(() => {
+    mockMulticall.mockReset();
+  });
+
+  const VAULT_ID_A =
+    "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+  const VAULT_ID_B =
+    "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+
+  it("returns versions in input order from a single multicall", async () => {
+    mockMulticall.mockResolvedValueOnce([
+      { ...PROTOCOL_INFO, offchainParamsVersion: 5 },
+      { ...PROTOCOL_INFO, offchainParamsVersion: 6 },
+    ]);
+
+    const versions = await getOffchainParamsVersionsFromChain([
+      VAULT_ID_A,
+      VAULT_ID_B,
+    ]);
+
+    expect(versions).toEqual([5, 6]);
+    expect(mockMulticall).toHaveBeenCalledTimes(1);
+    const call = mockMulticall.mock.calls[0][0];
+    expect(call.allowFailure).toBe(false);
+    expect(call.contracts).toHaveLength(2);
+    expect(call.contracts[0]).toMatchObject({
+      address: "0xBTCVaultRegistry",
+      functionName: "getBtcVaultProtocolInfo",
+      args: [VAULT_ID_A],
+    });
+    expect(call.contracts[1].args).toEqual([VAULT_ID_B]);
+  });
+
+  it("short-circuits without an RPC for an empty input", async () => {
+    const versions = await getOffchainParamsVersionsFromChain([]);
+
+    expect(versions).toEqual([]);
+    expect(mockMulticall).not.toHaveBeenCalled();
+  });
+
+  it("throws when any vault is missing on-chain", async () => {
+    mockMulticall.mockResolvedValueOnce([
+      { ...PROTOCOL_INFO, offchainParamsVersion: 5 },
+      { ...PROTOCOL_INFO, depositorSignedPeginTx: "0x" },
+    ]);
+
+    await expect(
+      getOffchainParamsVersionsFromChain([VAULT_ID_A, VAULT_ID_B]),
+    ).rejects.toThrow(/not found on-chain/);
   });
 });

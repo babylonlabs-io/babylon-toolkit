@@ -49,7 +49,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { v4 as uuidv4 } from "uuid";
 import type { Address, Hex } from "viem";
 
-import { getVaultFromChain } from "@/clients/eth-contract/btc-vault-registry/query";
+import { getOffchainParamsVersionsFromChain } from "@/clients/eth-contract/btc-vault-registry/query";
 import { useProtocolParamsContext } from "@/context/ProtocolParamsContext";
 import { logger } from "@/infrastructure";
 import { LocalStorageStatus } from "@/models/peginStateMachine";
@@ -541,14 +541,19 @@ export function useDepositFlow(
         // Runs AFTER step 4a so an RPC failure here doesn't orphan the
         // ETH-registered vault: localStorage already has a PENDING entry the
         // user can resume from.
+        //
+        // Reads only `offchainParamsVersion` for all vaults in a single
+        // multicall (one RPC round-trip, one read per vault) instead of fanning
+        // out 2N parallel `getBtcVaultBasicInfo` + `getBtcVaultProtocolInfo`
+        // calls.
         const expectedVersion = config.offchainParamsVersion;
-        const onChainVaults = await Promise.all(
-          batchRegistration.vaults.map((v) => getVaultFromChain(v.vaultId)),
+        const actualVersions = await getOffchainParamsVersionsFromChain(
+          batchRegistration.vaults.map((v) => v.vaultId),
         );
-        const versionMismatches = onChainVaults
-          .map((vault, i) => ({
+        const versionMismatches = actualVersions
+          .map((actualVersion, i) => ({
             vaultId: batchRegistration.vaults[i].vaultId,
-            actualVersion: vault.offchainParamsVersion,
+            actualVersion,
           }))
           .filter((v) => v.actualVersion !== expectedVersion);
         if (versionMismatches.length > 0) {

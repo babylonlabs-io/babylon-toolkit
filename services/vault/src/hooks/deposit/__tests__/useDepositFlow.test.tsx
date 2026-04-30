@@ -144,7 +144,11 @@ vi.mock("@/infrastructure", () => ({
 }));
 
 vi.mock("@/clients/eth-contract/btc-vault-registry/query", () => ({
-  getVaultFromChain: vi.fn().mockResolvedValue({ offchainParamsVersion: 7 }),
+  getOffchainParamsVersionsFromChain: vi
+    .fn()
+    .mockImplementation((vaultIds: readonly string[]) =>
+      Promise.resolve(vaultIds.map(() => 7)),
+    ),
 }));
 
 vi.mock("../depositFlowSteps", () => ({
@@ -628,7 +632,7 @@ describe("useDepositFlow", () => {
     });
 
     it("aborts before broadcast when on-chain offchainParamsVersion drifted from the build version", async () => {
-      const { getVaultFromChain } = vi.mocked(
+      const { getOffchainParamsVersionsFromChain } = vi.mocked(
         await import("@/clients/eth-contract/btc-vault-registry/query"),
       );
       const { broadcastPrePeginTransaction } = vi.mocked(
@@ -640,9 +644,9 @@ describe("useDepositFlow", () => {
 
       // Context exposes version 7; chain returns 8 for one vault - simulating
       // a governance update between the multicall snapshot and tx inclusion.
-      vi.mocked(getVaultFromChain)
-        .mockResolvedValueOnce({ offchainParamsVersion: 7 } as any)
-        .mockResolvedValueOnce({ offchainParamsVersion: 8 } as any);
+      vi.mocked(getOffchainParamsVersionsFromChain).mockResolvedValueOnce([
+        7, 8,
+      ]);
 
       const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
 
@@ -657,8 +661,8 @@ describe("useDepositFlow", () => {
       expect(addPendingPegin).toHaveBeenCalledTimes(2);
     });
 
-    it("persists pending pegins and skips broadcast when getVaultFromChain throws (transient RPC)", async () => {
-      const { getVaultFromChain } = vi.mocked(
+    it("persists pending pegins and skips broadcast when the version multicall throws (transient RPC)", async () => {
+      const { getOffchainParamsVersionsFromChain } = vi.mocked(
         await import("@/clients/eth-contract/btc-vault-registry/query"),
       );
       const { broadcastPrePeginTransaction } = vi.mocked(
@@ -668,7 +672,7 @@ describe("useDepositFlow", () => {
         await import("@/storage/peginStorage"),
       );
 
-      vi.mocked(getVaultFromChain).mockRejectedValueOnce(
+      vi.mocked(getOffchainParamsVersionsFromChain).mockRejectedValueOnce(
         new Error("eth_call failed: connection reset"),
       );
 
