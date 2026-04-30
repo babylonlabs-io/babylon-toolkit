@@ -5,7 +5,7 @@
  * Use this for signing-critical data that must not be sourced from the indexer.
  */
 
-import type { Address, Hex } from "viem";
+import type { Abi, Address, Hex } from "viem";
 
 import { CONTRACTS } from "@/config/contracts";
 
@@ -116,4 +116,45 @@ export async function getVaultFromChain(
     amount: basicInfo.amount,
     prePeginTxHash: protocolInfo.prePeginTxHash,
   };
+}
+
+/**
+ * Read `offchainParamsVersion` for many vaults in a single multicall.
+ *
+ * Used by the deposit flow to verify, after batch ETH registration, that every
+ * registered vault was stamped under the same offchain params version the BTC
+ * scripts were built against. Reads only `getBtcVaultProtocolInfo` (one read
+ * per vault) and runs them through `publicClient.multicall`, so an N-vault
+ * batch costs one RPC round-trip instead of 2N parallel `eth_call`s.
+ *
+ * @param vaultIds - Vault IDs in the order versions should be returned.
+ */
+export async function getOffchainParamsVersionsFromChain(
+  vaultIds: readonly Hex[],
+): Promise<number[]> {
+  if (vaultIds.length === 0) return [];
+
+  const publicClient = ethClient.getPublicClient();
+  const results = await publicClient.multicall({
+    contracts: vaultIds.map((vaultId) => ({
+      address: CONTRACTS.BTC_VAULT_REGISTRY,
+      abi: BTCVaultRegistryAbi as Abi,
+      functionName: "getBtcVaultProtocolInfo" as const,
+      args: [vaultId] as const,
+    })),
+    allowFailure: false,
+  });
+
+  return results.map((info) => {
+    const protocolInfo = info as unknown as OnChainVaultProtocolInfo;
+    if (
+      !protocolInfo.depositorSignedPeginTx ||
+      protocolInfo.depositorSignedPeginTx === "0x"
+    ) {
+      throw new Error(
+        "Vault not found on-chain or has no pegin transaction while reading offchain params version",
+      );
+    }
+    return Number(protocolInfo.offchainParamsVersion);
+  });
 }

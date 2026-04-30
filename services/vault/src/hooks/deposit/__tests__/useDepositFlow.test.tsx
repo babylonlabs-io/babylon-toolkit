@@ -126,6 +126,14 @@ vi.mock("@/infrastructure", () => ({
   },
 }));
 
+vi.mock("@/clients/eth-contract/btc-vault-registry/query", () => ({
+  getOffchainParamsVersionsFromChain: vi
+    .fn()
+    .mockImplementation((vaultIds: readonly string[]) =>
+      Promise.resolve(vaultIds.map(() => 7)),
+    ),
+}));
+
 vi.mock("../depositFlowSteps", () => ({
   DepositFlowStep: {
     SIGN_POP: 1,
@@ -277,6 +285,7 @@ async function setupDefaultMocks() {
         securityCouncilKeys: ["0xcouncil1"],
         feeRate: 10n,
       },
+      offchainParamsVersion: 7,
     },
     timelockPegin: 100,
     timelockRefund: 50,
@@ -571,6 +580,65 @@ describe("useDepositFlow", () => {
           "mock-batch-id-uuid",
         );
       });
+    });
+
+    it("aborts before broadcast when on-chain offchainParamsVersion drifted from the build version", async () => {
+      const { getOffchainParamsVersionsFromChain } = vi.mocked(
+        await import("@/clients/eth-contract/btc-vault-registry/query"),
+      );
+      const { broadcastPrePeginTransaction } = vi.mocked(
+        await import("@/services/vault/vaultPeginBroadcastService"),
+      );
+      const { addPendingPegin } = vi.mocked(
+        await import("@/storage/peginStorage"),
+      );
+
+      // Context exposes version 7; chain returns 8 for one vault - simulating
+      // a governance update between the multicall snapshot and tx inclusion.
+      vi.mocked(getOffchainParamsVersionsFromChain).mockResolvedValueOnce([
+        7, 8,
+      ]);
+
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+
+      await executeWithAutoArtifactDownload(result);
+
+      await waitFor(() => {
+        expect(result.current.error).toMatch(/offchain params version changed/);
+      });
+      expect(broadcastPrePeginTransaction).not.toHaveBeenCalled();
+      // addPendingPegin runs before the version check so the user has a
+      // resume entry; broadcast is what's gated by the version check.
+      expect(addPendingPegin).toHaveBeenCalledTimes(2);
+    });
+
+    it("persists pending pegins and skips broadcast when the version multicall throws (transient RPC)", async () => {
+      const { getOffchainParamsVersionsFromChain } = vi.mocked(
+        await import("@/clients/eth-contract/btc-vault-registry/query"),
+      );
+      const { broadcastPrePeginTransaction } = vi.mocked(
+        await import("@/services/vault/vaultPeginBroadcastService"),
+      );
+      const { addPendingPegin } = vi.mocked(
+        await import("@/storage/peginStorage"),
+      );
+
+      vi.mocked(getOffchainParamsVersionsFromChain).mockRejectedValueOnce(
+        new Error("eth_call failed: connection reset"),
+      );
+
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+
+      await executeWithAutoArtifactDownload(result);
+
+      await waitFor(() => {
+        expect(result.current.error).toBeTruthy();
+      });
+      // Without the pre-check addPendingPegin, the ETH-registered vault would
+      // be orphaned (no localStorage record, UTXOs unreserved). With it, the
+      // user has a PENDING entry and a resume path.
+      expect(addPendingPegin).toHaveBeenCalledTimes(2);
+      expect(broadcastPrePeginTransaction).not.toHaveBeenCalled();
     });
 
     it("should update pegins to CONFIRMING status after broadcast", async () => {

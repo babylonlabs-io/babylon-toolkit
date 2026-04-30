@@ -46,6 +46,7 @@ function validPegInConfig(
     timelockRefund: 144,
     minVpCommissionBps: 500,
     offchainParams: validOffchainParams(offchainOverrides),
+    offchainParamsVersion: 1,
     ...overrides,
   };
 }

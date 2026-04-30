@@ -39,8 +39,15 @@ vi.mock("@/clients/eth-contract/btc-vault-registry/query", () => ({
     Promise.resolve({
       prePeginTxHash: "0xmatching_pre_pegin_hash",
       hashlock: "0xonchain_hashlock",
+      offchainParamsVersion: 7,
     }),
   ),
+}));
+
+vi.mock("@/context/ProtocolParamsContext", () => ({
+  useProtocolParamsContext: vi.fn(() => ({
+    config: { offchainParamsVersion: 7 },
+  })),
 }));
 
 vi.mock("@babylonlabs-io/wallet-connector", () => ({
@@ -280,10 +287,63 @@ describe("useVaultActions — handleBroadcast transaction integrity", () => {
     );
   });
 
+  it("aborts before broadcast when on-chain offchainParamsVersion drifted from local config (resume, same-device)", async () => {
+    mockFetchVaultById.mockResolvedValue(baseVault as never);
+    // Local config still v7; on-chain vault locked under v8 (governance moved
+    // between build and registration).
+    mockGetVaultFromChain.mockResolvedValue({
+      prePeginTxHash: "0xmatching_pre_pegin_hash",
+      offchainParamsVersion: 8,
+    } as never);
+
+    const { result } = renderHook(() => useVaultActions());
+
+    await act(async () => {
+      await result.current.handleBroadcast({
+        ...baseBroadcastParams,
+        pendingPegin: {
+          id: "0xvaultId" as Hex,
+          timestamp: Date.now(),
+          status: "PENDING" as never,
+          peginTxHash: "0xpeginTxHash" as Hex,
+          unsignedTxHex: TRUSTED_TX_HEX,
+        },
+      });
+    });
+
+    expect(result.current.broadcastError).toContain(
+      "offchain params version mismatch",
+    );
+    expect(mockBroadcastPrePeginTransaction).not.toHaveBeenCalled();
+  });
+
+  it("aborts before broadcast when on-chain offchainParamsVersion drifted from local config (cross-device)", async () => {
+    mockFetchVaultById.mockResolvedValue(baseVault as never);
+    mockGetVaultFromChain.mockResolvedValue({
+      prePeginTxHash: "0xmatching_pre_pegin_hash",
+      offchainParamsVersion: 8,
+    } as never);
+
+    const { result } = renderHook(() => useVaultActions());
+
+    await act(async () => {
+      await result.current.handleBroadcast({
+        ...baseBroadcastParams,
+        pendingPegin: undefined,
+      });
+    });
+
+    expect(result.current.broadcastError).toContain(
+      "offchain params version mismatch",
+    );
+    expect(mockBroadcastPrePeginTransaction).not.toHaveBeenCalled();
+  });
+
   it("throws when no local copy and indexer tx hash mismatches on-chain", async () => {
     mockFetchVaultById.mockResolvedValue(baseVault as never);
     mockGetVaultFromChain.mockResolvedValue({
       prePeginTxHash: "0xonchain_hash",
+      offchainParamsVersion: 7,
     } as never);
 
     const { calculateBtcTxHash } = await import(

@@ -76,6 +76,15 @@ export interface PegInConfiguration {
   minVpCommissionBps: number;
   /** Latest offchain params (for council quorum, fee rate, etc.) */
   offchainParams: VersionedOffchainParams;
+  /**
+   * Version number paired atomically with `offchainParams`.
+   * Read in the same multicall as the params struct so that, if a parameter
+   * update lands between separate reads, the script-construction code and
+   * the version label stay consistent. Used by the deposit flow to verify
+   * that the on-chain vault was registered under this same version before
+   * broadcasting BTC.
+   */
+  offchainParamsVersion: number;
 }
 
 /**
@@ -186,27 +195,36 @@ export async function getPegInConfiguration(): Promise<PegInConfiguration> {
   const publicClient = ethClient.getPublicClient();
   const protocolParamsAddress = await getProtocolParamsAddress();
 
-  // Fetch both param sets in a single multicall to guarantee same-block atomicity.
-  // Separate RPC calls risk TOCTOU inconsistency if governance updates params between reads.
-  const [rawParams, rawOffchainParams] = await publicClient.multicall({
-    contracts: [
-      {
-        address: protocolParamsAddress,
-        abi: ProtocolParamsAbi,
-        functionName: "getTBVProtocolParams",
-      },
-      {
-        address: protocolParamsAddress,
-        abi: ProtocolParamsAbi,
-        functionName: "getLatestOffchainParams",
-      },
-    ],
-    allowFailure: false,
-  });
+  // Fetch all three reads in a single multicall to guarantee same-block atomicity.
+  // The version must pair with the offchain params struct, otherwise a governance
+  // update between separate reads would let JS build BTC scripts with version N
+  // params while the contract registers the vault under version N+1.
+  const [rawParams, rawOffchainParams, rawVersion] =
+    await publicClient.multicall({
+      contracts: [
+        {
+          address: protocolParamsAddress,
+          abi: ProtocolParamsAbi,
+          functionName: "getTBVProtocolParams",
+        },
+        {
+          address: protocolParamsAddress,
+          abi: ProtocolParamsAbi,
+          functionName: "getLatestOffchainParams",
+        },
+        {
+          address: protocolParamsAddress,
+          abi: ProtocolParamsAbi,
+          functionName: "latestOffchainParamsVersion",
+        },
+      ],
+      allowFailure: false,
+    });
 
   const params = rawParams as unknown as TBVProtocolParams;
   const offchainParams =
     rawOffchainParams as unknown as VersionedOffchainParams;
+  const offchainParamsVersion = Number(rawVersion);
 
   // timelockPegin = uint16(timelockAssert), matching PeginLogic.sol:115
   const timelockPegin = Number(offchainParams.timelockAssert);
@@ -223,6 +241,7 @@ export async function getPegInConfiguration(): Promise<PegInConfiguration> {
     timelockRefund,
     minVpCommissionBps: offchainParams.minVpCommissionBps,
     offchainParams,
+    offchainParamsVersion,
   };
 
   validatePegInConfiguration(config);

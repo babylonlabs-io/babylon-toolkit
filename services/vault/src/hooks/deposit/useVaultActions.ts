@@ -19,6 +19,7 @@ import { getWalletClient, switchChain } from "wagmi/actions";
 
 import { getVaultFromChain } from "../../clients/eth-contract/btc-vault-registry/query";
 import { getVaultRegistryReader } from "../../clients/eth-contract/sdk-readers";
+import { useProtocolParamsContext } from "../../context/ProtocolParamsContext";
 import {
   ContractStatus,
   getNextLocalStatus,
@@ -91,6 +92,7 @@ export function useVaultActions(): UseVaultActionsReturn {
 
   // Connectors
   const btcConnector = useChainConnector("BTC");
+  const { config } = useProtocolParamsContext();
 
   /**
    * Handle broadcasting BTC transaction
@@ -129,7 +131,7 @@ export function useVaultActions(): UseVaultActionsReturn {
 
       // Use the locally stored transaction as the source of truth when available.
       // The local copy was saved before ETH submission and is trustworthy.
-      // A mismatch means the indexer is returning a different transaction — abort.
+      // A mismatch means the indexer is returning a different transaction - abort.
       const localUnsignedTxHex = pendingPegin?.unsignedTxHex;
       if (
         localUnsignedTxHex &&
@@ -141,12 +143,19 @@ export function useVaultActions(): UseVaultActionsReturn {
         );
       }
 
+      // Fetch on-chain vault for both the cross-device tx integrity check and
+      // the offchain-params version check. Same TOCTOU concern as the
+      // same-device deposit flow: a tx whose BTC scripts were built under
+      // version v(N) must not be broadcast against an on-chain vault locked
+      // under v(N+1), or the scripts (timelocks, council quorum, signer set)
+      // will not match the on-chain record.
+      const onChainVault = await getVaultFromChain(vaultId);
+
       // When no local copy exists (cross-device scenario), validate the
       // indexer-provided transaction against the on-chain prePeginTxHash.
       // The tx hash commits to all inputs AND outputs, so a substituted
       // transaction would produce a different hash.
       if (!localUnsignedTxHex) {
-        const onChainVault = await getVaultFromChain(vaultId);
         const computedHash = calculateBtcTxHash(graphqlUnsignedTxHex);
         if (
           computedHash.toLowerCase() !==
@@ -157,6 +166,18 @@ export function useVaultActions(): UseVaultActionsReturn {
               "does not match the hash stored on-chain. Aborting to prevent a potential attack.",
           );
         }
+      }
+
+      // Verify the local environment's offchain params version matches the
+      // version the on-chain vault was registered under. A mismatch indicates
+      // governance updated the version between build and registration (or
+      // since), so the BTC scripts encoded in the tx may not reflect the
+      // on-chain locked parameters. Aborting keeps BTC unspent; the user can
+      // refresh and retry once the environment is consistent.
+      if (onChainVault.offchainParamsVersion !== config.offchainParamsVersion) {
+        throw new Error(
+          `Aborting BTC broadcast: offchain params version mismatch (on-chain v${onChainVault.offchainParamsVersion}, local v${config.offchainParamsVersion}). Refresh and retry once the environment matches the on-chain vault version.`,
+        );
       }
 
       const unsignedTxHex = localUnsignedTxHex || graphqlUnsignedTxHex;

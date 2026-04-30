@@ -39,6 +39,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { v4 as uuidv4 } from "uuid";
 import type { Address, Hex } from "viem";
 
+import { getOffchainParamsVersionsFromChain } from "@/clients/eth-contract/btc-vault-registry/query";
 import { useProtocolParamsContext } from "@/context/ProtocolParamsContext";
 import { logger } from "@/infrastructure";
 import { LocalStorageStatus } from "@/models/peginStateMachine";
@@ -460,12 +461,17 @@ export function useDepositFlow(
           }));
 
         // ========================================================================
-        // Step 4a: Persist pending pegins BEFORE broadcast
-        // Saved immediately after ETH registration so the selected UTXOs are
-        // reserved even if broadcast fails. Status is PENDING (not CONFIRMING)
-        // — the resume flow will show a "Broadcast" button for these entries.
-        // This prevents the race condition where a failed broadcast leaves
-        // no localStorage record, causing UTXOs to be reused in a new deposit.
+        // Step 4a: Persist pending pegins BEFORE broadcast and before any
+        // further network calls. Saved immediately after ETH registration so
+        // the selected UTXOs are reserved and a resume entry exists even if
+        // the version check (3g) or broadcast fails. Status is PENDING (not
+        // CONFIRMING) — the resume flow will show a "Broadcast" button for
+        // these entries. This prevents two failure modes:
+        // 1. A failed broadcast leaving no localStorage record, causing UTXOs
+        //    to be reused in a new deposit.
+        // 2. A transient RPC error during the on-chain version check (3g)
+        //    leaving an ETH-registered vault with no localStorage entry,
+        //    silently orphaning it.
         // ========================================================================
 
         for (const peginResult of peginResults) {
@@ -503,6 +509,45 @@ export function useDepositFlow(
               scriptPubKey: u.scriptPubKey,
             })),
           });
+        }
+
+        // 3g. Verify the on-chain vault was registered under the same offchain
+        // params version we used to build the BTC scripts. submitPeginRequestBatch
+        // does not accept an expected version, so the contract snapshots the
+        // latest version at inclusion time. If governance or an authorized update
+        // changed the latest version between context fetch and tx inclusion, the
+        // BTC scripts (timelocks, council quorum, signer set) will not match the
+        // on-chain record. Aborting before broadcast keeps BTC unspent - the
+        // user's registered ETH vault times out per protocol rules.
+        //
+        // Runs AFTER step 4a so an RPC failure here doesn't orphan the
+        // ETH-registered vault: localStorage already has a PENDING entry the
+        // user can resume from.
+        //
+        // Reads only `offchainParamsVersion` for all vaults in a single
+        // multicall (one RPC round-trip, one read per vault) instead of fanning
+        // out 2N parallel `getBtcVaultBasicInfo` + `getBtcVaultProtocolInfo`
+        // calls.
+        const expectedVersion = config.offchainParamsVersion;
+        const actualVersions = await getOffchainParamsVersionsFromChain(
+          batchRegistration.vaults.map((v) => v.vaultId),
+        );
+        const versionMismatches = actualVersions
+          .map((actualVersion, i) => ({
+            vaultId: batchRegistration.vaults[i].vaultId,
+            actualVersion,
+          }))
+          .filter((v) => v.actualVersion !== expectedVersion);
+        if (versionMismatches.length > 0) {
+          const detail = versionMismatches
+            .map(
+              (v) =>
+                `vault ${v.vaultId}: expected v${expectedVersion}, got v${v.actualVersion}`,
+            )
+            .join("; ");
+          throw new Error(
+            `Aborting BTC broadcast: offchain params version changed during registration (${detail}). The Pre-PegIn was not broadcast; the registered ETH vault will time out per protocol rules.`,
+          );
         }
 
         // Early reservation is now superseded by real pending pegin entries.
