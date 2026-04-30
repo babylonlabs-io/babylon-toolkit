@@ -177,7 +177,6 @@ export function useVaultActions(): UseVaultActionsReturn {
         );
       }
 
-
       // Get BTC wallet provider
       const btcWalletProvider = btcConnector?.connectedWallet?.provider;
       if (!btcWalletProvider) {
