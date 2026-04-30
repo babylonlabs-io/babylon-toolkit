@@ -456,9 +456,7 @@ describe("extractPayoutSignature", () => {
       expect(extracted.length).toBe(128); // 64 bytes = 128 hex chars
     });
 
-    it("should extract 64-byte signature from 65-byte signature (strip sighash)", () => {
-      // Some wallets append a sighash flag byte (0x01) to Schnorr signatures
-      // We need to strip this to get the pure 64-byte signature
+    it("should reject 65-byte signature with SIGHASH_ALL", () => {
       const signature65 = Buffer.alloc(65);
       signature65.fill(0xbb, 0, 64); // Fill first 64 bytes
       signature65[64] = Transaction.SIGHASH_ALL;
@@ -481,12 +479,12 @@ describe("extractPayoutSignature", () => {
       });
 
       const psbtHex = psbt.toHex();
-      const extracted = extractPayoutSignature(psbtHex, TEST_KEYS.DEPOSITOR);
 
-      // Should strip the sighash flag and return only 64 bytes
-      const expected64 = Buffer.alloc(64, 0xbb).toString("hex");
-      expect(extracted).toBe(expected64);
-      expect(extracted.length).toBe(128); // 64 bytes = 128 hex chars
+      expect(() =>
+        extractPayoutSignature(psbtHex, TEST_KEYS.DEPOSITOR),
+      ).toThrow(
+        /Unexpected sighash byte 0x01 at input 0\. Expected implicit SIGHASH_DEFAULT as a 64-byte signature\./,
+      );
     });
 
     it("should reject 65-byte signature with SIGHASH_NONE", () => {
@@ -515,7 +513,9 @@ describe("extractPayoutSignature", () => {
 
       expect(() =>
         extractPayoutSignature(psbtHex, TEST_KEYS.DEPOSITOR),
-      ).toThrow(/Unexpected sighash type 0x02 at input 0\. Expected SIGHASH_ALL/);
+      ).toThrow(
+        /Unexpected sighash byte 0x02 at input 0\. Expected implicit SIGHASH_DEFAULT as a 64-byte signature\./,
+      );
     });
 
     it("should reject 65-byte signature with SIGHASH_SINGLE|ANYONECANPAY", () => {
@@ -544,7 +544,9 @@ describe("extractPayoutSignature", () => {
 
       expect(() =>
         extractPayoutSignature(psbtHex, TEST_KEYS.DEPOSITOR),
-      ).toThrow(/Unexpected sighash type 0x83 at input 0\. Expected SIGHASH_ALL/);
+      ).toThrow(
+        /Unexpected sighash byte 0x83 at input 0\. Expected implicit SIGHASH_DEFAULT as a 64-byte signature\./,
+      );
     });
   });
 
@@ -566,7 +568,7 @@ describe("extractPayoutSignature", () => {
       expect(extracted.length).toBe(128);
     });
 
-    it("strips SIGHASH_ALL flag from 65-byte signature in finalized witness", () => {
+    it("rejects SIGHASH_ALL flag in 65-byte signature from finalized witness", () => {
       const signature = Buffer.alloc(65);
       signature.fill(0xdd, 0, 64);
       signature[64] = Transaction.SIGHASH_ALL;
@@ -579,9 +581,11 @@ describe("extractPayoutSignature", () => {
       ]);
       const psbtHex = makeFinalizedPayoutPsbtHex(finalScriptWitness);
 
-      const extracted = extractPayoutSignature(psbtHex, TEST_KEYS.DEPOSITOR);
-
-      expect(extracted).toBe(Buffer.alloc(64, 0xdd).toString("hex"));
+      expect(() =>
+        extractPayoutSignature(psbtHex, TEST_KEYS.DEPOSITOR),
+      ).toThrow(
+        /Unexpected sighash byte 0x01 at input 0\. Expected implicit SIGHASH_DEFAULT as a 64-byte signature\./,
+      );
     });
 
     it("rejects finalized witness with fewer than 3 items", () => {

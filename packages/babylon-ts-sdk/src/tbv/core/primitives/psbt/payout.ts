@@ -310,8 +310,9 @@ export function assertPayoutOutputMatchesRegistered(
  * 1. Non-finalized PSBT: Extracts from tapScriptSig field
  * 2. Finalized PSBT: Extracts from witness data
  *
- * The signature is returned as a 64-byte hex string (128 hex characters)
- * with any sighash flag byte removed if present.
+ * The signature is returned as a 64-byte hex string (128 hex characters).
+ * Payout signatures must use implicit Taproot SIGHASH_DEFAULT, which is
+ * encoded by omitting the sighash byte.
  *
  * @param signedPsbtHex - Signed PSBT hex
  * @param depositorPubkey - Depositor's public key (x-only, 64-char hex)
@@ -375,22 +376,21 @@ export function extractPayoutSignature(
 }
 
 /**
- * Extract and validate a 64-byte Schnorr signature, stripping sighash flag if present.
- * Rejects signatures with sighash types other than SIGHASH_ALL (0x01) to prevent
- * acceptance of signatures that don't commit to all outputs (e.g. SIGHASH_NONE).
+ * Extract and validate a 64-byte Schnorr signature.
+ * Rejects 65-byte signatures because the appended sighash byte changes the
+ * Taproot message being signed; stripping it would produce an unverifiable
+ * SIGHASH_DEFAULT signature.
  * @internal
  */
 function extractSchnorrSig(sig: Uint8Array, inputIndex: number): string {
   if (sig.length === 64) {
     return uint8ArrayToHex(new Uint8Array(sig));
-  } else if (sig.length === 65) {
-    const sighashByte = sig[64];
-    if (sighashByte !== Transaction.SIGHASH_ALL) {
-      throw new Error(
-        `Unexpected sighash type 0x${sighashByte.toString(16).padStart(2, "0")} at input ${inputIndex}. Expected SIGHASH_ALL (0x01).`,
-      );
-    }
-    return uint8ArrayToHex(new Uint8Array(sig.subarray(0, 64)));
+  }
+  if (sig.length === 65) {
+    throw new Error(
+      `Unexpected sighash byte 0x${sig[64].toString(16).padStart(2, "0")} at input ${inputIndex}. ` +
+        "Expected implicit SIGHASH_DEFAULT as a 64-byte signature.",
+    );
   }
   throw new Error(
     `Unexpected signature length at input ${inputIndex}: ${sig.length}`,

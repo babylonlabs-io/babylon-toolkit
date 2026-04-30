@@ -2,9 +2,9 @@
  * Tests for extractPeginInputSignature sighash validation
  *
  * Verifies that the signature extraction correctly validates sighash types,
- * accepting implicit SIGHASH_DEFAULT (64-byte sig) and SIGHASH_ALL (0x01)
- * while rejecting all other types including explicit 0x00 (consensus-invalid
- * per BIP-342).
+ * accepting implicit SIGHASH_DEFAULT (64-byte sig) while rejecting signatures
+ * with appended sighash bytes. Per BIP-341, the sighash byte changes the
+ * Taproot message, so it must not be stripped.
  */
 
 import { Buffer } from "buffer";
@@ -60,21 +60,22 @@ describe("extractPeginInputSignature — sighash validation", () => {
     expect(() =>
       extractPeginInputSignature(psbtHex, TEST_KEYS.DEPOSITOR),
     ).toThrow(
-      /Unexpected sighash type 0x00 in PegIn input signature\. Expected SIGHASH_DEFAULT \(64-byte sig\) or SIGHASH_ALL \(0x01\)/,
+      /Unexpected sighash byte 0x00 in PegIn input signature\. Expected implicit SIGHASH_DEFAULT as a 64-byte signature\./,
     );
   });
 
-  it("accepts 65-byte signature with SIGHASH_ALL (0x01) and strips it", () => {
+  it("rejects 65-byte signature with SIGHASH_ALL (0x01)", () => {
     const signature65 = Buffer.alloc(65);
     signature65.fill(0xcc, 0, 64);
     signature65[64] = Transaction.SIGHASH_ALL;
 
     const psbtHex = createPsbtWithSignature(signature65);
 
-    const extracted = extractPeginInputSignature(psbtHex, TEST_KEYS.DEPOSITOR);
-
-    expect(extracted).toBe(Buffer.alloc(64, 0xcc).toString("hex"));
-    expect(extracted.length).toBe(128);
+    expect(() =>
+      extractPeginInputSignature(psbtHex, TEST_KEYS.DEPOSITOR),
+    ).toThrow(
+      /Unexpected sighash byte 0x01 in PegIn input signature\. Expected implicit SIGHASH_DEFAULT as a 64-byte signature\./,
+    );
   });
 
   it("rejects 65-byte signature with SIGHASH_NONE (0x02)", () => {
@@ -87,7 +88,7 @@ describe("extractPeginInputSignature — sighash validation", () => {
     expect(() =>
       extractPeginInputSignature(psbtHex, TEST_KEYS.DEPOSITOR),
     ).toThrow(
-      /Unexpected sighash type 0x02 in PegIn input signature\. Expected SIGHASH_DEFAULT \(64-byte sig\) or SIGHASH_ALL \(0x01\)/,
+      /Unexpected sighash byte 0x02 in PegIn input signature\. Expected implicit SIGHASH_DEFAULT as a 64-byte signature\./,
     );
   });
 
@@ -102,7 +103,7 @@ describe("extractPeginInputSignature — sighash validation", () => {
     expect(() =>
       extractPeginInputSignature(psbtHex, TEST_KEYS.DEPOSITOR),
     ).toThrow(
-      /Unexpected sighash type 0x83 in PegIn input signature\. Expected SIGHASH_DEFAULT \(64-byte sig\) or SIGHASH_ALL \(0x01\)/,
+      /Unexpected sighash byte 0x83 in PegIn input signature\. Expected implicit SIGHASH_DEFAULT as a 64-byte signature\./,
     );
   });
 
