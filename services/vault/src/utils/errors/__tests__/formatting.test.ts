@@ -2,11 +2,10 @@
  * Tests for error formatting utilities
  */
 
+import { readFileSync } from "fs";
+import { resolve } from "path";
+
 import { JsonRpcError } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
-import {
-  ERROR_CODES,
-  WalletError,
-} from "@babylonlabs-io/wallet-connector";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -126,16 +125,29 @@ describe("Error Formatting", () => {
       expect(result.title).not.toBe("Signing Rejected");
     });
 
-    it("matches the real WalletError + ERROR_CODES.CONNECTION_REJECTED from wallet-connector", () => {
-      const error = new WalletError({
-        code: ERROR_CODES.CONNECTION_REJECTED,
-        message: "User rejected the PSBT signing request",
-      });
+    // Drift guard: production code inlines "CONNECTION_REJECTED" instead of
+    // importing ERROR_CODES from @babylonlabs-io/wallet-connector (the package
+    // pulls TSX/runtime that breaks this test transform). Read the upstream
+    // codes.ts source directly so a rename there fails this test instead of
+    // silently degrading the user-rejection branch.
+    it("inlined CONNECTION_REJECTED code matches wallet-connector source", () => {
+      const codesPath = resolve(
+        __dirname,
+        "../../../../../../packages/babylon-wallet-connector/src/error/codes.ts",
+      );
+      const source = readFileSync(codesPath, "utf8");
+      const match = source.match(/CONNECTION_REJECTED:\s*"([^"]+)"/);
 
-      const result = formatPayoutSignatureError(error);
+      expect(match).not.toBeNull();
+      expect(match?.[1]).toBe("CONNECTION_REJECTED");
 
-      expect(result.title).toBe("Signing Rejected");
-      expect(result.message).toContain("rejected the signing request");
+      const rejection = new FakeWalletError(
+        match![1],
+        "User rejected the PSBT signing request",
+      );
+      expect(formatPayoutSignatureError(rejection).title).toBe(
+        "Signing Rejected",
+      );
     });
   });
 });
