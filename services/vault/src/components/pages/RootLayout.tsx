@@ -11,7 +11,7 @@ import { useCallback, useState } from "react";
 import { NavLink, Outlet } from "react-router";
 import { twJoin } from "tailwind-merge";
 
-import { DepositButton } from "@/components/shared";
+import { DepositButton, RouteErrorBoundary } from "@/components/shared";
 import { getNetworkConfigBTC, shouldDisplayTestingMsg } from "@/config";
 import { useAddressScreening } from "@/context/addressScreening";
 import { useAddressType } from "@/context/addressType";
@@ -135,13 +135,15 @@ export default function RootLayout() {
             </div>
           }
         />
-        <Outlet
-          context={
-            {
-              openDeposit,
-            } satisfies RootLayoutContext
-          }
-        />
+        <RouteErrorBoundary>
+          <Outlet
+            context={
+              {
+                openDeposit,
+              } satisfies RootLayoutContext
+            }
+          />
+        </RouteErrorBoundary>
         <AaveConfigProvider>
           <SimpleDeposit
             open={isDepositOpen}

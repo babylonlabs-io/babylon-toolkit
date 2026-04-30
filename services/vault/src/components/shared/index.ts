@@ -11,4 +11,5 @@ export { HeartIcon, InfoIcon } from "./icons";
 export { MenuButton } from "./MenuButton";
 export { NotificationContainer } from "./NotificationContainer";
 export { PriceWarningBanner } from "./PriceWarningBanner";
+export { RouteErrorBoundary } from "./RouteErrorBoundary";
 export { SubmitModal } from "./SubmitModal";
