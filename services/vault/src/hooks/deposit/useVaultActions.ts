@@ -129,9 +129,8 @@ export function useVaultActions(): UseVaultActionsReturn {
 
       const graphqlUnsignedTxHex = vault.unsignedPrePeginTx;
 
-      // Use the locally stored transaction as the source of truth when available.
-      // The local copy was saved before ETH submission and is trustworthy.
-      // A mismatch means the indexer is returning a different transaction - abort.
+      // Prefer the locally stored transaction when available, while keeping the
+      // indexer comparison as a sanity check for drift or substitution.
       const localUnsignedTxHex = pendingPegin?.unsignedTxHex;
       if (
         localUnsignedTxHex &&
@@ -143,7 +142,9 @@ export function useVaultActions(): UseVaultActionsReturn {
         );
       }
 
-      // Fetch on-chain vault for both the cross-device tx integrity check and
+      const unsignedTxHex = localUnsignedTxHex || graphqlUnsignedTxHex;
+
+      // Fetch on-chain vault for both the transaction integrity check and
       // the offchain-params version check. Same TOCTOU concern as the
       // same-device deposit flow: a tx whose BTC scripts were built under
       // version v(N) must not be broadcast against an on-chain vault locked
@@ -151,21 +152,17 @@ export function useVaultActions(): UseVaultActionsReturn {
       // will not match the on-chain record.
       const onChainVault = await getVaultFromChain(vaultId);
 
-      // When no local copy exists (cross-device scenario), validate the
-      // indexer-provided transaction against the on-chain prePeginTxHash.
+      // Validate the selected transaction against the on-chain prePeginTxHash.
       // The tx hash commits to all inputs AND outputs, so a substituted
       // transaction would produce a different hash.
-      if (!localUnsignedTxHex) {
-        const computedHash = calculateBtcTxHash(graphqlUnsignedTxHex);
-        if (
-          computedHash.toLowerCase() !==
-          onChainVault.prePeginTxHash.toLowerCase()
-        ) {
-          throw new Error(
-            "Transaction integrity check failed: the indexer-provided Pre-PegIn transaction " +
-              "does not match the hash stored on-chain. Aborting to prevent a potential attack.",
-          );
-        }
+      const computedHash = calculateBtcTxHash(unsignedTxHex);
+      if (
+        computedHash.toLowerCase() !== onChainVault.prePeginTxHash.toLowerCase()
+      ) {
+        throw new Error(
+          "Transaction integrity check failed: the Pre-PegIn transaction " +
+            "does not match the hash stored on-chain. Aborting to prevent a potential attack.",
+        );
       }
 
       // Verify the local environment's offchain params version matches the
@@ -180,7 +177,6 @@ export function useVaultActions(): UseVaultActionsReturn {
         );
       }
 
-      const unsignedTxHex = localUnsignedTxHex || graphqlUnsignedTxHex;
 
       // Get BTC wallet provider
       const btcWalletProvider = btcConnector?.connectedWallet?.provider;

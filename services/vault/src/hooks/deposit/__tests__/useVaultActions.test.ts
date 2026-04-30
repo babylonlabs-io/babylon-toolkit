@@ -16,6 +16,11 @@ import { activateVaultWithSecret } from "@/services/vault/vaultActivationService
 
 import { useVaultActions } from "../useVaultActions";
 
+const mockSignPsbt = vi.hoisted(() => vi.fn().mockResolvedValue("signedPsbt"));
+const mockCalculateBtcTxHash = vi.hoisted(() =>
+  vi.fn(() => "0xmatching_pre_pegin_hash"),
+);
+
 vi.mock("@babylonlabs-io/config", () => ({
   getETHChain: vi.fn(() => ({ id: 11155111 })),
 }));
@@ -25,7 +30,7 @@ vi.mock("@babylonlabs-io/ts-sdk/tbv/core", () => ({
 }));
 
 vi.mock("@babylonlabs-io/ts-sdk/tbv/core/utils", () => ({
-  calculateBtcTxHash: vi.fn(() => "0xmatching_pre_pegin_hash"),
+  calculateBtcTxHash: mockCalculateBtcTxHash,
   UtxoNotAvailableError: class UtxoNotAvailableError extends Error {
     constructor(message: string) {
       super(message);
@@ -56,7 +61,7 @@ vi.mock("@babylonlabs-io/wallet-connector", () => ({
     connectedWallet: {
       provider: {
         getAddress: vi.fn().mockResolvedValue("bc1qdepositor"),
-        signPsbt: vi.fn().mockResolvedValue("signedPsbt"),
+        signPsbt: mockSignPsbt,
       },
     },
   })),
@@ -157,6 +162,12 @@ const baseBroadcastParams = {
 describe("useVaultActions — handleBroadcast transaction integrity", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockCalculateBtcTxHash.mockReturnValue("0xmatching_pre_pegin_hash");
+    mockGetVaultFromChain.mockResolvedValue({
+      prePeginTxHash: "0xmatching_pre_pegin_hash",
+      hashlock: "0xonchain_hashlock",
+      offchainParamsVersion: 7,
+    } as never);
   });
 
   it("broadcasts using local tx when it matches GraphQL", async () => {
@@ -178,6 +189,7 @@ describe("useVaultActions — handleBroadcast transaction integrity", () => {
     });
 
     expect(result.current.broadcastError).toBeNull();
+    expect(mockGetVaultFromChain).toHaveBeenCalledWith("0xvaultId");
     expect(mockBroadcastPrePeginTransaction).toHaveBeenCalledWith(
       expect.objectContaining({ unsignedTxHex: TRUSTED_TX_HEX }),
     );
@@ -205,6 +217,36 @@ describe("useVaultActions — handleBroadcast transaction integrity", () => {
     });
 
     expect(result.current.broadcastError).toContain("Transaction mismatch");
+  });
+
+  it("throws when cached local tx matches GraphQL but mismatches on-chain hash", async () => {
+    mockFetchVaultById.mockResolvedValue(baseVault as never);
+    mockGetVaultFromChain.mockResolvedValue({
+      prePeginTxHash: "0xonchain_hash",
+    } as never);
+
+    mockCalculateBtcTxHash.mockReturnValue("0xdifferent_hash");
+
+    const { result } = renderHook(() => useVaultActions());
+
+    await act(async () => {
+      await result.current.handleBroadcast({
+        ...baseBroadcastParams,
+        pendingPegin: {
+          id: "0xvaultId" as Hex,
+          timestamp: Date.now(),
+          status: "PENDING" as never,
+          peginTxHash: "0xpeginTxHash" as Hex,
+          unsignedTxHex: TRUSTED_TX_HEX,
+        },
+      });
+    });
+
+    expect(result.current.broadcastError).toContain(
+      "Transaction integrity check failed",
+    );
+    expect(mockBroadcastPrePeginTransaction).not.toHaveBeenCalled();
+    expect(mockSignPsbt).not.toHaveBeenCalled();
   });
 
   it("uses GraphQL tx when no local copy is available (cross-device)", async () => {
@@ -346,10 +388,7 @@ describe("useVaultActions — handleBroadcast transaction integrity", () => {
       offchainParamsVersion: 7,
     } as never);
 
-    const { calculateBtcTxHash } = await import(
-      "@babylonlabs-io/ts-sdk/tbv/core/utils"
-    );
-    vi.mocked(calculateBtcTxHash).mockReturnValue("0xdifferent_hash");
+    mockCalculateBtcTxHash.mockReturnValue("0xdifferent_hash");
 
     const { result } = renderHook(() => useVaultActions());
 
