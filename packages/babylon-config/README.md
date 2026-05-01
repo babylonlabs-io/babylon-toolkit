@@ -32,9 +32,14 @@ console.log(network); // 'mainnet', 'testnet', or 'localhost'
 
 ### Environment Variables
 
+Required:
+- `NEXT_PUBLIC_BTC_NETWORK` - `mainnet` or `signet`
+- `NEXT_PUBLIC_ETH_CHAINID` - `1` (mainnet) or `11155111` (sepolia)
+- `NEXT_PUBLIC_ETH_RPC_URL` - Ethereum RPC endpoint that can see the deployed contracts. No default — public RPCs do not see contracts on private/devnet deployments.
+
+Optional:
 - `NEXT_PUBLIC_NETWORK` - Network selection: `mainnet`, `testnet`, `localhost`, etc.
-- `NEXT_PUBLIC_ETH_CHAIN_ID` - Override chain ID
-- `NEXT_PUBLIC_ETH_RPC_URL` - Override RPC URL
+- `NEXT_PUBLIC_MEMPOOL_API` - Custom mempool API URL (default: `https://mempool.space`)
 
 ## Supported Networks
 

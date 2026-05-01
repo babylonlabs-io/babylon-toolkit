@@ -224,20 +224,28 @@ export interface WalletPubkeyValidationResult {
  *
  * This function:
  * 1. Converts the wallet pubkey to x-only format
- * 2. Uses the expected depositor pubkey if provided, otherwise falls back to wallet pubkey
- * 3. Validates they match (case-insensitive)
+ * 2. Validates the wallet x-only pubkey matches the expected depositor pubkey
+ *    (case-insensitive)
  *
  * @param walletPubkeyRaw - Raw public key from wallet (may be compressed 66 chars or x-only 64 chars)
- * @param expectedDepositorPubkey - Expected depositor public key (x-only, optional)
+ * @param expectedDepositorPubkey - Expected depositor public key (x-only).
+ *   Required: omitting it would degrade this check to a self-comparison.
  * @returns Validation result with both pubkey formats
+ * @throws If `expectedDepositorPubkey` is missing/empty
  * @throws If wallet pubkey doesn't match expected depositor pubkey
  */
 export function validateWalletPubkey(
   walletPubkeyRaw: string,
-  expectedDepositorPubkey?: string,
+  expectedDepositorPubkey: string,
 ): WalletPubkeyValidationResult {
+  if (!expectedDepositorPubkey) {
+    throw new Error(
+      "validateWalletPubkey requires expectedDepositorPubkey. Pass the on-chain registered depositor pubkey to avoid a self-comparison.",
+    );
+  }
+
   const walletPubkeyXOnly = processPublicKeyToXOnly(walletPubkeyRaw);
-  const depositorPubkey = expectedDepositorPubkey ?? walletPubkeyXOnly;
+  const depositorPubkey = expectedDepositorPubkey;
 
   if (walletPubkeyXOnly.toLowerCase() !== depositorPubkey.toLowerCase()) {
     throw new Error(

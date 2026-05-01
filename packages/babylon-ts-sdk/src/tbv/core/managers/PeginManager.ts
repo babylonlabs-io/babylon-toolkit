@@ -31,14 +31,13 @@ import {
   signPsbtsWithFallback,
 } from "./pegin";
 import {
-  createPublicClient,
   encodeFunctionData,
-  http,
   isAddressEqual,
   zeroAddress,
   type Address,
   type Chain,
   type Hex,
+  type PublicClient,
   type WalletClient,
 } from "viem";
 
@@ -119,6 +118,14 @@ export interface PeginManagerConfig {
    * Required for proper gas estimation in contract calls.
    */
   ethChain: Chain;
+
+  /**
+   * Public client used for read calls (`readContract`, `estimateGas`,
+   * `waitForTransactionReceipt`). Pass a client configured with the
+   * caller's RPC URL so reads hit the same endpoint as the rest of the
+   * application instead of viem's stock chain default.
+   */
+  publicClient: PublicClient;
 
   /**
    * Vault contract addresses.
@@ -1075,10 +1082,7 @@ export class PeginManager {
     }
 
     // Step 4: Query required pegin fee from the contract
-    const publicClient = createPublicClient({
-      chain: this.config.ethChain,
-      transport: http(),
-    });
+    const publicClient = this.config.publicClient;
 
     let peginFee: bigint;
     try {
@@ -1088,10 +1092,11 @@ export class PeginManager {
         functionName: "getPegInFee",
         args: [vaultProvider],
       })) as bigint;
-    } catch {
+    } catch (error) {
       throw new Error(
         "Failed to query pegin fee from the contract. " +
           "Please check your network connection and that the contract address is correct.",
+        { cause: error },
       );
     }
 
@@ -1234,10 +1239,7 @@ export class PeginManager {
     }
 
     // Step 4: Query pegin fee and compute total
-    const publicClient = createPublicClient({
-      chain: this.config.ethChain,
-      transport: http(),
-    });
+    const publicClient = this.config.publicClient;
 
     let peginFee: bigint;
     try {
@@ -1247,10 +1249,11 @@ export class PeginManager {
         functionName: "getPegInFee",
         args: [vaultProvider],
       })) as bigint;
-    } catch {
+    } catch (error) {
       throw new Error(
         "Failed to query pegin fee from the contract. " +
           "Please check your network connection and that the contract address is correct.",
+        { cause: error },
       );
     }
     const totalFee = peginFee * BigInt(requests.length);
@@ -1334,29 +1337,27 @@ export class PeginManager {
   /**
    * Check if a vault already exists for a given vault ID.
    *
+   * The contract returns a default struct (with `depositor === zeroAddress`)
+   * when no vault is registered, so existence is signalled in the response,
+   * not via a thrown error. RPC/network failures are propagated rather than
+   * silently treated as "vault doesn't exist", which would otherwise let
+   * downstream calls run with stale assumptions.
+   *
    * @param vaultId - The Bitcoin transaction hash (vault ID)
    * @returns True if vault exists, false otherwise
+   * @throws If the underlying RPC read fails
    */
   private async checkVaultExists(vaultId: Hex): Promise<boolean> {
-    try {
-      // Create a public client to read from the contract
-      const publicClient = createPublicClient({
-        chain: this.config.ethChain,
-        transport: http(),
-      });
+    const publicClient = this.config.publicClient;
 
-      const result = (await publicClient.readContract({
-        address: this.config.vaultContracts.btcVaultRegistry,
-        abi: BTCVaultRegistryABI,
-        functionName: "getBtcVaultBasicInfo",
-        args: [vaultId],
-      })) as { depositor: Address };
+    const result = (await publicClient.readContract({
+      address: this.config.vaultContracts.btcVaultRegistry,
+      abi: BTCVaultRegistryABI,
+      functionName: "getBtcVaultBasicInfo",
+      args: [vaultId],
+    })) as { depositor: Address };
 
-      return result.depositor !== zeroAddress;
-    } catch {
-      // If reading fails, assume vault doesn't exist and let contract handle it
-      return false;
-    }
+    return result.depositor !== zeroAddress;
   }
 
   /**

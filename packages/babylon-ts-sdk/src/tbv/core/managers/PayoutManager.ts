@@ -73,11 +73,15 @@ interface SignPayoutBaseParams {
   timelockPegin: number;
 
   /**
-   * Depositor's BTC public key (x-only, 64-char hex).
-   * This should be the public key that was used when creating the vault,
-   * as stored on-chain. If not provided, will be fetched from the wallet.
+   * Depositor's BTC public key (x-only, 64-char hex). This MUST be the
+   * key registered on-chain for the vault — typically read from
+   * `BTCVaultRegistry.getBtcVaultBasicInfo(...).depositorBtcPubKey`.
+   *
+   * Required: omitting it would degrade `validateWalletPubkey` to a
+   * self-comparison, allowing the wrong wallet to produce a signature
+   * over a script tree that doesn't match the on-chain UTXO.
    */
-  depositorBtcPubkey?: string;
+  depositorBtcPubkey: string;
 
   /**
    * The on-chain registered depositor payout scriptPubKey (hex, with or without 0x prefix).

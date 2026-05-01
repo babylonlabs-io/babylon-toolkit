@@ -3,8 +3,8 @@ import { WagmiAdapter } from "@reown/appkit-adapter-wagmi";
 import type { AppKitNetwork } from "@reown/appkit/networks";
 import { bitcoin, bitcoinSignet } from "@reown/appkit/networks";
 import { createAppKit } from "@reown/appkit/react";
+import { http, type Chain } from "viem";
 import { cookieStorage, createStorage } from "wagmi";
-import type { Chain } from "viem";
 
 import { setSharedBtcAppKitConfig } from "../btc/appkit/sharedConfig";
 import { setSharedWagmiConfig } from "../eth/appkit/sharedConfig";
@@ -100,11 +100,18 @@ export function initializeAppKitModal(config: AppKitModalConfig) {
       storage: cookieStorage,
     });
 
+    // Pin the transport to the chain's configured RPC URL. Without this,
+    // wagmi falls back to viem's bundled public RPC (e.g. sepolia.drpc.org)
+    // which doesn't see contracts on private/devnet deployments.
+    const ethRpcUrl = config.eth.chain.rpcUrls.default.http[0];
     wagmiAdapter = new WagmiAdapter({
       networks: ethNetworks,
       projectId,
       ssr: false,
       storage,
+      transports: {
+        [config.eth.chain.id]: http(ethRpcUrl),
+      },
     });
 
     adapters.push(wagmiAdapter);

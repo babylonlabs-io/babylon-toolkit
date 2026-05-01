@@ -68,17 +68,26 @@ The `btcVaultRegistry` is the Ethereum contract that handles BTC vault registrat
 import { PeginManager } from "@babylonlabs-io/ts-sdk/tbv/core";
 import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
 import { sepolia } from "viem/chains";
-import type { WalletClient } from "viem";
+import { createPublicClient, http, type WalletClient } from "viem";
 
 // You provide these — see the Wallet Interfaces guide linked below.
 declare const btcWallet: BitcoinWallet;
 declare const ethWallet: WalletClient;
+
+// Pass a public client configured with your RPC URL so SDK reads
+// hit the same endpoint as the rest of your app, not viem's
+// stock chain default.
+const publicClient = createPublicClient({
+  chain: sepolia,
+  transport: http("https://your-eth-rpc.example/"),
+});
 
 const peginManager = new PeginManager({
   btcNetwork: "signet",
   btcWallet,
   ethWallet,
   ethChain: sepolia,
+  publicClient,
   vaultContracts: {
     btcVaultRegistry: "0x...",
   },

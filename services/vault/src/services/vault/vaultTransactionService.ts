@@ -17,6 +17,7 @@ import { ensureHexPrefix, PeginManager } from "@babylonlabs-io/ts-sdk/tbv/core";
 import type { Address, Hex, WalletClient } from "viem";
 
 import { getMempoolApiUrl } from "../../clients/btc/config";
+import { ethClient } from "../../clients/eth-contract/client";
 import { CONTRACTS } from "../../config/contracts";
 import { getBTCNetworkForWASM } from "../../config/pegin";
 
@@ -153,6 +154,7 @@ function createPeginManager(
     btcWallet,
     ethWallet,
     ethChain: getETHChain(),
+    publicClient: ethClient.getPublicClient(),
     vaultContracts: {
       btcVaultRegistry: CONTRACTS.BTC_VAULT_REGISTRY,
     },
