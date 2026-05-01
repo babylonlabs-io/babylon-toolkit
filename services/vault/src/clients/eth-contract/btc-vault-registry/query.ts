@@ -160,7 +160,7 @@ export async function getVaultProviderBtcPubkeyFromChain(
  * per vault) and runs them through `publicClient.multicall`, so an N-vault
  * batch costs one RPC round-trip instead of 2N parallel `eth_call`s.
  *
- *  vaultIds - Vault IDs in the order versions should be returned.
+ * @param vaultIds - Vault IDs in the order versions should be returned.
  */
 export async function getOffchainParamsVersionsFromChain(
   vaultIds: readonly Hex[],

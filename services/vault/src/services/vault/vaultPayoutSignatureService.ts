@@ -17,7 +17,10 @@
  *   and this object shape is the vault-tier adapter.
  */
 
-import type { Network } from "@babylonlabs-io/ts-sdk/tbv/core";
+import {
+  processPublicKeyToXOnly,
+  type Network,
+} from "@babylonlabs-io/ts-sdk/tbv/core";
 import type { Address, Hex } from "viem";
 
 import {
@@ -91,13 +94,13 @@ export async function resolveVaultProviderBtcPubkey(
   address: Address,
   btcPubKey?: string,
 ): Promise<string> {
-  const onChainBtcPubkey = stripHexPrefix(
+  const onChainBtcPubkey = processPublicKeyToXOnly(
     await getVaultProviderBtcPubkeyFromChain(address),
-  );
+  ).toLowerCase();
 
   if (btcPubKey) {
-    const hintedBtcPubkey = stripHexPrefix(btcPubKey);
-    if (hintedBtcPubkey.toLowerCase() !== onChainBtcPubkey.toLowerCase()) {
+    const hintedBtcPubkey = processPublicKeyToXOnly(btcPubKey).toLowerCase();
+    if (hintedBtcPubkey !== onChainBtcPubkey) {
       throw new Error(
         `Vault provider BTC pubkey mismatch for ${address}: indexer hint does not match on-chain registry`,
       );
