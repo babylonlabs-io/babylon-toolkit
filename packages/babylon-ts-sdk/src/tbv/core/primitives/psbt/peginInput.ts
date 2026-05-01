@@ -166,7 +166,13 @@ export async function buildPeginInputPsbt(
 /**
  * Extract the depositor's Schnorr signature from a signed PegIn input PSBT.
  *
- * Supports both non-finalized PSBTs (tapScriptSig) and finalized PSBTs (witness).
+ * Supports non-finalized PSBTs with tapScriptSig entries. Finalized PSBTs are
+ * rejected because the witness stack does not reliably identify the depositor
+ * signature by public key.
+ *
+ * PegIn input signatures must use implicit Taproot SIGHASH_DEFAULT, which is
+ * encoded by omitting the sighash byte. Signatures with an appended sighash byte
+ * are rejected rather than stripped.
  *
  * @param signedPsbtHex - Signed PSBT hex
  * @param depositorPubkey - Depositor's x-only public key (64-char hex)
@@ -249,10 +255,10 @@ export function finalizePeginInputPsbt(signedPsbtHex: string): string {
 }
 
 /**
- * Extract and validate a 64-byte Schnorr signature, stripping sighash flag if present.
- * Accepts 64-byte sigs (implicit SIGHASH_DEFAULT) and 65-byte sigs with
- * SIGHASH_ALL (0x01). Rejects all other sighash types including 0x00, which
- * is consensus-invalid per BIP-342 when explicitly appended.
+ * Extract and validate a 64-byte Schnorr signature.
+ * PegIn input signatures must use implicit Taproot SIGHASH_DEFAULT, which is
+ * encoded by omitting the sighash byte. Reject 65-byte signatures instead of
+ * stripping the sighash byte because it changes the signed Taproot message.
  * @internal
  */
 export function extractSchnorrSig(sig: Uint8Array): string {
@@ -260,22 +266,10 @@ export function extractSchnorrSig(sig: Uint8Array): string {
     return uint8ArrayToHex(new Uint8Array(sig));
   }
   if (sig.length === 65) {
-    const sighashByte = sig[64];
-    // Only accept SIGHASH_ALL (0x01). Per BIP-342, SIGHASH_DEFAULT is signaled
-    // by omitting the sighash byte (64-byte sig). A 65-byte sig with byte 64
-    // set to 0x00 is consensus-invalid: Bitcoin Core rejects it with
-    // SCRIPT_ERR_SCHNORR_SIG_HASHTYPE. Accepting 0x00 here would let
-    // extractPeginInputSignature succeed (stripping the byte) while
-    // finalizePeginInputPsbt passes the raw 65-byte sig into the witness,
-    // producing a BTC transaction that can never confirm.
-    if (sighashByte !== Transaction.SIGHASH_ALL) {
-      throw new Error(
-        `Unexpected sighash type 0x${sighashByte.toString(16).padStart(2, "0")} in PegIn input signature. ` +
-          `Expected SIGHASH_DEFAULT (64-byte sig) or SIGHASH_ALL (0x01).`,
-      );
-    }
-    return uint8ArrayToHex(new Uint8Array(sig.subarray(0, 64)));
+    throw new Error(
+      `Unexpected sighash byte 0x${sig[64].toString(16).padStart(2, "0")} in PegIn input signature. ` +
+        "Expected implicit SIGHASH_DEFAULT as a 64-byte signature.",
+    );
   }
   throw new Error(`Unexpected PegIn input signature length: ${sig.length}`);
 }
-

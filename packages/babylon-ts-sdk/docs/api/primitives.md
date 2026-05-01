@@ -1670,7 +1670,7 @@ function extractPayoutSignature(
    inputIndex): string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:324](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts#L324)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:325](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts#L325)
 
 Extract Schnorr signature from signed payout PSBT.
 
@@ -1678,8 +1678,9 @@ This function supports two cases:
 1. Non-finalized PSBT: Extracts from tapScriptSig field
 2. Finalized PSBT: Extracts from witness data
 
-The signature is returned as a 64-byte hex string (128 hex characters)
-with any sighash flag byte removed if present.
+The signature is returned as a 64-byte hex string (128 hex characters).
+Payout signatures must use implicit Taproot SIGHASH_DEFAULT, which is
+encoded by omitting the sighash byte.
 
 #### Parameters
 
@@ -1838,11 +1839,17 @@ If Pre-PegIn tx output 0 is not found
 function extractPeginInputSignature(signedPsbtHex, depositorPubkey): string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/peginInput.ts:176](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/peginInput.ts#L176)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/peginInput.ts:182](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/peginInput.ts#L182)
 
 Extract the depositor's Schnorr signature from a signed PegIn input PSBT.
 
-Supports both non-finalized PSBTs (tapScriptSig) and finalized PSBTs (witness).
+Supports non-finalized PSBTs with tapScriptSig entries. Finalized PSBTs are
+rejected because the witness stack does not reliably identify the depositor
+signature by public key.
+
+PegIn input signatures must use implicit Taproot SIGHASH_DEFAULT, which is
+encoded by omitting the sighash byte. Signatures with an appended sighash byte
+are rejected rather than stripped.
 
 #### Parameters
 
@@ -1876,7 +1883,7 @@ If no signature is found for the depositor's key
 function finalizePeginInputPsbt(signedPsbtHex): string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/peginInput.ts:229](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/peginInput.ts#L229)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/peginInput.ts:235](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/peginInput.ts#L235)
 
 Finalize a signed PegIn input PSBT and return the depositor-signed transaction hex.
 
