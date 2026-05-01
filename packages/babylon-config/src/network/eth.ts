@@ -1,59 +1,21 @@
 /**
  * Ethereum Network Configuration
  *
- * Provides network configuration for Ethereum based on NEXT_PUBLIC_ETH_CHAINID.
- * Supports mainnet (1) and sepolia testnet (11155111).
- *
- * Required environment variables:
- * - NEXT_PUBLIC_ETH_CHAINID: Must be "1" (mainnet) or "11155111" (sepolia)
- * - NEXT_PUBLIC_ETH_RPC_URL: Ethereum RPC endpoint that can see the deployed
- *   contracts. No default — public RPCs (drpc.org, publicnode.com) do not see
- *   contracts on private/devnet deployments and silently produce misleading
- *   "contract call failed" errors.
+ * Reads from the runtime configured via {@link configureBabylonConfig}.
+ * The library does NOT touch `process.env`; the host application is
+ * responsible for plumbing env vars into `configureBabylonConfig` once
+ * at startup.
  */
 
 import type { ETHConfig } from "@babylonlabs-io/wallet-connector";
 import { mainnet, sepolia } from "viem/chains";
 import type { Chain } from "viem";
 
-// Enforce required environment variable
-const chainIdStr = process.env.NEXT_PUBLIC_ETH_CHAINID;
+import { getBabylonConfigState } from "../runtime";
 
-if (!chainIdStr) {
-  throw new Error(
-    "NEXT_PUBLIC_ETH_CHAINID environment variable is required. Must be set to '1' (mainnet) or '11155111' (sepolia).",
-  );
-}
+import { ETH_MAINNET_CHAIN_ID, ETH_SEPOLIA_CHAIN_ID } from "./constants";
 
-const rawEthRpcUrl = process.env.NEXT_PUBLIC_ETH_RPC_URL;
-
-if (!rawEthRpcUrl) {
-  throw new Error(
-    "NEXT_PUBLIC_ETH_RPC_URL environment variable is required. Set it to an RPC endpoint that can see the deployed contracts (e.g. your devnet RPC). Public RPCs do not see contracts on private deployments.",
-  );
-}
-
-const ethRpcUrl: string = rawEthRpcUrl;
-
-const chainIdRaw = parseInt(chainIdStr, 10);
-
-if (isNaN(chainIdRaw)) {
-  throw new Error(
-    `Invalid NEXT_PUBLIC_ETH_CHAINID value: "${chainIdStr}". Must be a valid number.`,
-  );
-}
-
-export const ETH_MAINNET_CHAIN_ID = 1 as const;
-export const ETH_SEPOLIA_CHAIN_ID = 11155111 as const;
-
-if (chainIdRaw !== ETH_MAINNET_CHAIN_ID && chainIdRaw !== ETH_SEPOLIA_CHAIN_ID) {
-  throw new Error(
-    `Unsupported NEXT_PUBLIC_ETH_CHAINID value: ${chainIdRaw}. Must be either 1 (mainnet) or 11155111 (sepolia).`,
-  );
-}
-
-// Type is now narrowed to 1 | 11155111 after validation
-export const chainId = chainIdRaw as typeof ETH_MAINNET_CHAIN_ID | typeof ETH_SEPOLIA_CHAIN_ID;
+export { ETH_MAINNET_CHAIN_ID, ETH_SEPOLIA_CHAIN_ID } from "./constants";
 
 // Extended config type for UI-specific properties
 export type ExtendedETHConfig = ETHConfig & {
@@ -63,12 +25,14 @@ export type ExtendedETHConfig = ETHConfig & {
 
 type Config = ExtendedETHConfig;
 
-const config: Record<typeof ETH_MAINNET_CHAIN_ID | typeof ETH_SEPOLIA_CHAIN_ID, Config> = {
+const STATIC_CONFIG: Record<
+  typeof ETH_MAINNET_CHAIN_ID | typeof ETH_SEPOLIA_CHAIN_ID,
+  Omit<Config, "rpcUrl">
+> = {
   [ETH_MAINNET_CHAIN_ID]: {
     name: "Ethereum Mainnet",
     chainId: ETH_MAINNET_CHAIN_ID,
     chainName: "Ethereum Mainnet",
-    rpcUrl: ethRpcUrl,
     explorerUrl: "https://etherscan.io",
     nativeCurrency: {
       name: "Ether",
@@ -81,7 +45,6 @@ const config: Record<typeof ETH_MAINNET_CHAIN_ID | typeof ETH_SEPOLIA_CHAIN_ID, 
     name: "Ethereum Sepolia",
     chainId: ETH_SEPOLIA_CHAIN_ID,
     chainName: "Sepolia Testnet",
-    rpcUrl: ethRpcUrl,
     explorerUrl: "https://sepolia.etherscan.io",
     nativeCurrency: {
       name: "Sepolia ETH",
@@ -93,30 +56,29 @@ const config: Record<typeof ETH_MAINNET_CHAIN_ID | typeof ETH_SEPOLIA_CHAIN_ID, 
 };
 
 /**
- * Get ETH network configuration based on NEXT_PUBLIC_ETH_CHAINID
- * @returns ETH network config (mainnet or sepolia)
+ * Get ETH network configuration. Requires {@link configureBabylonConfig}
+ * to have been called first.
  */
 export function getNetworkConfigETH(): Config {
-  return config[chainId];
+  const { ethChainId, ethRpcUrl } = getBabylonConfigState();
+  return {
+    ...STATIC_CONFIG[ethChainId],
+    rpcUrl: ethRpcUrl,
+  };
 }
 
 /**
- * Get viem Chain object for the current network configuration.
+ * Get viem Chain object for the configured network.
  *
- * Returns the stock viem chain with `rpcUrls.default` overridden by
- * `NEXT_PUBLIC_ETH_RPC_URL`, so any downstream code that calls
- * `http()` without an explicit URL still routes to the configured RPC
- * instead of viem's bundled public default (e.g. `sepolia.drpc.org`).
- *
- * @returns viem Chain object with the configured RPC URL baked in
- * @throws Error if chain ID is not supported
+ * Patches both `rpcUrls.default` and `rpcUrls.public` so any downstream
+ * code that calls bare `http()` or that builds RPC namespace maps from
+ * `rpcUrls.public` (e.g. Reown/AppKit internals) routes to the
+ * configured RPC instead of viem's bundled public default.
  */
 export function getETHChain(): Chain {
+  const { ethChainId, ethRpcUrl } = getBabylonConfigState();
   const baseChain =
-    chainId === ETH_MAINNET_CHAIN_ID ? mainnet : sepolia;
-  // Patch both `default` and `public` so any wagmi/AppKit/Reown internals
-  // that build RPC namespace maps from `rpcUrls.public` route through the
-  // configured endpoint instead of viem's bundled public RPC.
+    ethChainId === ETH_MAINNET_CHAIN_ID ? mainnet : sepolia;
   return {
     ...baseChain,
     rpcUrls: {
@@ -126,4 +88,3 @@ export function getETHChain(): Chain {
     },
   };
 }
-

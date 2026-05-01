@@ -1,3 +1,7 @@
+// Must come first — env validation initializes @babylonlabs-io/config
+// at module load, before any other module reads from it.
+import "@/config/env";
+
 import * as ecc from "@bitcoin-js/tiny-secp256k1-asmjs";
 import { initEccLib } from "bitcoinjs-lib";
 import { StrictMode } from "react";

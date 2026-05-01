@@ -1,74 +1,58 @@
 /**
  * Bitcoin Network Configuration
  *
- * Provides network configuration for Bitcoin based on NEXT_PUBLIC_BTC_NETWORK.
- * Supports only mainnet and signet (used for development/testing).
- *
- * Required environment variable:
- * - NEXT_PUBLIC_BTC_NETWORK: Must be "mainnet" or "signet"
- *
- * Optional environment variable:
- * - NEXT_PUBLIC_MEMPOOL_API: Custom mempool API URL (default: "https://mempool.space")
+ * Reads from the runtime configured via {@link configureBabylonConfig}.
+ * The library does NOT touch `process.env`; the host application is
+ * responsible for plumbing env vars into `configureBabylonConfig` once
+ * at startup.
  */
 
 import type { BTCConfig } from "@babylonlabs-io/wallet-connector";
 import { Network } from "@babylonlabs-io/wallet-connector";
 
-const MEMPOOL_API =
-  process.env.NEXT_PUBLIC_MEMPOOL_API || "https://mempool.space";
+import { getBabylonConfigState } from "../runtime";
 
-// Enforce required environment variable
-const btcNetworkRaw = process.env.NEXT_PUBLIC_BTC_NETWORK;
+import { BTC_MAINNET, BTC_SIGNET } from "./constants";
 
-if (!btcNetworkRaw) {
-  throw new Error(
-    "NEXT_PUBLIC_BTC_NETWORK environment variable is required. Must be set to 'mainnet' or 'signet'.",
-  );
-}
+export { BTC_MAINNET, BTC_SIGNET } from "./constants";
 
-export const BTC_MAINNET = "mainnet" as const;
-export const BTC_SIGNET = "signet" as const;
-
-if (btcNetworkRaw !== BTC_MAINNET && btcNetworkRaw !== BTC_SIGNET) {
-  throw new Error(
-    `Invalid NEXT_PUBLIC_BTC_NETWORK value: "${btcNetworkRaw}". Must be either 'mainnet' or 'signet'.`,
-  );
-}
-
-// Type is now narrowed to "mainnet" | "signet" after validation
-export const btcNetwork = btcNetworkRaw as typeof BTC_MAINNET | typeof BTC_SIGNET;
-
-// Export for vault pegin usage
+// Re-exported for vault pegin usage
 export type BTCNetwork = Network;
 
-const config: Record<typeof BTC_MAINNET | typeof BTC_SIGNET, BTCConfig> = {
+const STATIC_CONFIG: Record<
+  typeof BTC_MAINNET | typeof BTC_SIGNET,
+  Omit<BTCConfig, "mempoolApiUrl">
+> = {
   [BTC_MAINNET]: {
     coinName: "BTC",
     coinSymbol: "BTC",
     networkName: "BTC",
-    mempoolApiUrl: MEMPOOL_API,
     network: Network.MAINNET,
   },
   [BTC_SIGNET]: {
     coinName: "Signet BTC",
     coinSymbol: "sBTC",
     networkName: "BTC signet",
-    mempoolApiUrl: `${MEMPOOL_API}/signet`,
     network: Network.SIGNET,
   },
 };
 
 /**
- * Get BTC network configuration based on NEXT_PUBLIC_BTC_NETWORK
- * @returns BTC network config (mainnet or signet)
+ * Get BTC network configuration. Requires {@link configureBabylonConfig}
+ * to have been called first.
  */
 export function getNetworkConfigBTC(): BTCConfig {
-  return config[btcNetwork];
+  const { btcNetwork, mempoolApiUrl } = getBabylonConfigState();
+  const base = STATIC_CONFIG[btcNetwork];
+  return {
+    ...base,
+    mempoolApiUrl:
+      btcNetwork === BTC_SIGNET ? `${mempoolApiUrl}/signet` : mempoolApiUrl,
+  };
 }
 
 /**
- * Get the BTC network type for the current environment
- * @returns BTC Network enum value (Network.MAINNET or Network.SIGNET)
+ * Get the BTC network type for the current environment.
  */
 export function getBTCNetwork(): BTCNetwork {
   return getNetworkConfigBTC().network;

@@ -26,8 +26,11 @@ vi.mock("@/config", async () => {
   };
 });
 
-// Mock @babylonlabs-io/config just in case something imports it directly
+// Mock @babylonlabs-io/config — tests bypass the real runtime so they
+// don't depend on env vars or `configureBabylonConfig` having been called.
 vi.mock("@babylonlabs-io/config", () => ({
+  configureBabylonConfig: vi.fn(),
+  _resetBabylonConfigForTests: vi.fn(),
   getNetworkConfigBTC: () => ({
     coinName: "Signet BTC",
     coinSymbol: "sBTC",
@@ -42,7 +45,19 @@ vi.mock("@babylonlabs-io/config", () => ({
     rpcUrl: "https://sepolia.infura.io",
     blockExplorerUrl: "https://sepolia.etherscan.io",
   }),
-  getETHChainId: () => 11155111,
+  getETHChain: () => ({
+    id: 11155111,
+    name: "Sepolia",
+    nativeCurrency: { name: "Sepolia ETH", symbol: "ETH", decimals: 18 },
+    rpcUrls: {
+      default: { http: ["https://sepolia.infura.io"] },
+      public: { http: ["https://sepolia.infura.io"] },
+    },
+  }),
+  ETH_MAINNET_CHAIN_ID: 1,
+  ETH_SEPOLIA_CHAIN_ID: 11155111,
+  BTC_MAINNET: "mainnet",
+  BTC_SIGNET: "signet",
 }));
 
 // Mock the WASM module to avoid syntax errors in tests

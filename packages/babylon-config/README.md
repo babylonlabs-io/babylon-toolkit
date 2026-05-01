@@ -1,69 +1,66 @@
 # @babylonlabs-io/config
 
-Shared configuration package for Babylon Labs applications.
+Shared network configuration for Babylon Labs applications.
 
 ## Purpose
 
-Centralized network configurations for ETH, BTC, and BBN chains used across all Babylon services and routes.
-
-## Installation
-
-```bash
-npm install @babylonlabs-io/config
-```
+Centralized ETH and BTC network configuration. The package itself reads no
+environment variables — the host application validates its own env and
+passes values in via `configureBabylonConfig`.
 
 ## Usage
 
-### ETH Configuration
+### Initialize once at startup
 
 ```typescript
-import { getNetworkConfigETH, getETHChain, network } from '@babylonlabs-io/config';
+import { configureBabylonConfig } from "@babylonlabs-io/config";
 
-// Get current network configuration
-const config = getNetworkConfigETH();
-console.log(config.chainId); // 1, 11155111, or 31337
-
-// Get viem Chain object
-const chain = getETHChain();
-
-// Get current network name
-console.log(network); // 'mainnet', 'testnet', or 'localhost'
+configureBabylonConfig({
+  ethChainId: 11155111,         // 1 (mainnet) or 11155111 (sepolia)
+  ethRpcUrl: "https://...",     // RPC that can see your deployed contracts
+  btcNetwork: "signet",         // "mainnet" or "signet"
+  mempoolApiUrl: "https://...", // optional, default https://mempool.space
+});
 ```
 
-### Environment Variables
+The host application is responsible for plumbing its env vars into this call.
+Calling any reader before `configureBabylonConfig` throws.
 
-Required:
-- `NEXT_PUBLIC_BTC_NETWORK` - `mainnet` or `signet`
-- `NEXT_PUBLIC_ETH_CHAINID` - `1` (mainnet) or `11155111` (sepolia)
-- `NEXT_PUBLIC_ETH_RPC_URL` - Ethereum RPC endpoint that can see the deployed contracts. No default — public RPCs do not see contracts on private/devnet deployments.
+### Read configuration
 
-Optional:
-- `NEXT_PUBLIC_NETWORK` - Network selection: `mainnet`, `testnet`, `localhost`, etc.
-- `NEXT_PUBLIC_MEMPOOL_API` - Custom mempool API URL (default: `https://mempool.space`)
+```typescript
+import {
+  getETHChain,
+  getNetworkConfigETH,
+  getNetworkConfigBTC,
+  getBTCNetwork,
+} from "@babylonlabs-io/config";
+
+const chain = getETHChain();           // viem Chain with rpcUrls pinned
+const ethConfig = getNetworkConfigETH();
+const btcConfig = getNetworkConfigBTC();
+const btcNet = getBTCNetwork();
+```
 
 ## Supported Networks
 
-### ETH
-- **Mainnet** (chainId: 1)
-- **Sepolia Testnet** (chainId: 11155111)
-- **Localhost/Anvil** (chainId: 31337)
+| ETH chainId | BTC network |
+| --- | --- |
+| 1 (mainnet) | mainnet |
+| 11155111 (sepolia) | signet |
 
-## Architecture
+Other pairings are rejected at init time.
 
-This package provides the base configuration that can be extended by services:
+## Why no `process.env` access?
 
-```
-packages/babylon-config (base)
-  └── services/simple-staking (extends with UI-specific properties like icons)
-  └── routes/vault (uses base directly)
-```
+Reading `process.env` from a library couples it to a specific host (Next.js),
+makes it unimportable in tests without env stubbing, and runs side effects on
+import. Explicit init keeps the library host-agnostic and pushes env validation
+to the layer that actually owns those variables.
 
 ## Development
 
 ```bash
 # Type check
-npm run typecheck
-
-# Lint
-npm run lint
+pnpm run typecheck
 ```

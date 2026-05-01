@@ -6,6 +6,11 @@
  * via a blocking modal instead of crashing the application.
  */
 
+import {
+  configureBabylonConfig,
+  type BtcNetworkName,
+  type EthChainId,
+} from "@babylonlabs-io/config";
 import { isAddress, type Address } from "viem";
 
 import { logger } from "@/infrastructure";
@@ -114,6 +119,40 @@ export function validateRequiredUrl(
   return trimmed;
 }
 
+const ETH_MAINNET_CHAIN_ID = 1;
+const ETH_SEPOLIA_CHAIN_ID = 11155111;
+
+function validateEthChainId(
+  value: string | undefined,
+  errors: string[],
+): EthChainId {
+  if (!value) {
+    errors.push("NEXT_PUBLIC_ETH_CHAINID is missing");
+    return ETH_SEPOLIA_CHAIN_ID;
+  }
+  const parsed = parseInt(value, 10);
+  if (parsed !== ETH_MAINNET_CHAIN_ID && parsed !== ETH_SEPOLIA_CHAIN_ID) {
+    errors.push(
+      `NEXT_PUBLIC_ETH_CHAINID must be '1' (mainnet) or '11155111' (sepolia), got "${value}"`,
+    );
+    return ETH_SEPOLIA_CHAIN_ID;
+  }
+  return parsed;
+}
+
+function validateBtcNetwork(
+  value: string | undefined,
+  errors: string[],
+): BtcNetworkName {
+  if (value !== "mainnet" && value !== "signet") {
+    errors.push(
+      `NEXT_PUBLIC_BTC_NETWORK must be "mainnet" or "signet", got "${value ?? ""}"`,
+    );
+    return "signet";
+  }
+  return value;
+}
+
 /**
  * Validate and extract all required environment variables
  */
@@ -147,6 +186,40 @@ function validateEnvVars(): EnvValidationResult {
   const BTC_PRICE_FEED = parseOptionalAddress(
     process.env.NEXT_PUBLIC_TBV_BTC_PRICE_FEED,
   );
+
+  const ethChainId = validateEthChainId(
+    process.env.NEXT_PUBLIC_ETH_CHAINID,
+    errors,
+  );
+  const ethRpcUrl = validateRequiredUrl(
+    process.env.NEXT_PUBLIC_ETH_RPC_URL,
+    "NEXT_PUBLIC_ETH_RPC_URL",
+    errors,
+  );
+  const btcNetwork = validateBtcNetwork(
+    process.env.NEXT_PUBLIC_BTC_NETWORK,
+    errors,
+  );
+  const mempoolApiUrl = parseOptionalUrl(
+    process.env.NEXT_PUBLIC_MEMPOOL_API,
+  );
+
+  // Initialize @babylonlabs-io/config from validated env values. When
+  // validation failed we still call init with the placeholder values so
+  // module loads (e.g. ethClient singleton) succeed; the blocking error
+  // modal then surfaces `envInitError` to the user before any RPC fires.
+  // Pairing-mismatch errors from configureBabylonConfig are folded back
+  // into the errors array via the same modal path.
+  try {
+    configureBabylonConfig({
+      ethChainId,
+      ethRpcUrl: ethRpcUrl || "http://invalid.local",
+      btcNetwork,
+      mempoolApiUrl,
+    });
+  } catch (e) {
+    errors.push(e instanceof Error ? e.message : String(e));
+  }
 
   const env: EnvVars = {
     BTC_VAULT_REGISTRY,
