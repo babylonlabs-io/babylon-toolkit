@@ -212,6 +212,16 @@ function addOutputsToPsbt(psbt: Psbt, tx: Transaction): void {
   }
 }
 
+function formatError(error: unknown, includeErrorName = false): string {
+  if (error instanceof Error) {
+    const message = includeErrorName ? String(error) : error.message;
+    return error.cause
+      ? `${message}: ${formatError(error.cause, true)}`
+      : message;
+  }
+  return String(error);
+}
+
 /**
  * Convert unsigned transaction to PSBT format
  */
@@ -243,8 +253,18 @@ async function signAndFinalizePsbt(
   // Finalize inputs if not already finalized
   try {
     signedPsbt.finalizeAllInputs();
-  } catch {
-    // Some wallets finalize automatically, ignore errors
+  } catch (error) {
+    // Some wallets finalize automatically, but only skip the error when every
+    // input is already finalized.
+    const allFinalized = signedPsbt.data.inputs.every(
+      (input) => input.finalScriptWitness || input.finalScriptSig,
+    );
+    if (!allFinalized) {
+      throw new Error(
+        "PSBT finalization failed and wallet did not auto-finalize",
+        { cause: error },
+      );
+    }
   }
 
   return signedPsbt.extractTransaction().toHex();
@@ -297,7 +317,7 @@ export async function broadcastPrePeginTransaction(
     // Broadcast to network
     return await pushTx(signedTxHex, getMempoolApiUrl());
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown error";
+    const message = error == null ? "Unknown error" : formatError(error);
     throw new Error(`Failed to broadcast Pre-PegIn transaction: ${message}`);
   }
 }

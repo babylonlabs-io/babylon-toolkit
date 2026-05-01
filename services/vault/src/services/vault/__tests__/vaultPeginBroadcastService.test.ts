@@ -1,36 +1,47 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // Use vi.hoisted so mocks can reference these before module initialization
-const { mockFetchUTXO, mockPsbt, mockTx, mockInput } = vi.hoisted(() => {
-  const input = {
-    hash: Buffer.from(
-      "abc123def456abc123def456abc123def456abc123def456abc123def456abc1",
-      "hex",
-    ),
-    index: 0,
-    sequence: 0xffffffff,
-  };
+const { mockFetchUTXO, mockPsbt, mockSignedPsbt, mockTx, mockInput } =
+  vi.hoisted(() => {
+    const input = {
+      hash: Buffer.from(
+        "abc123def456abc123def456abc123def456abc123def456abc123def456abc1",
+        "hex",
+      ),
+      index: 0,
+      sequence: 0xffffffff,
+    };
 
-  return {
-    mockFetchUTXO: vi
-      .fn()
-      .mockResolvedValue({ scriptPubKey: "0014aabb", value: 100000 }),
-    mockPsbt: {
-      setVersion: vi.fn(),
-      setLocktime: vi.fn(),
-      addInput: vi.fn(),
-      addOutput: vi.fn(),
-      toHex: vi.fn().mockReturnValue("mock-psbt-hex"),
-    },
-    mockTx: {
-      ins: [input],
-      outs: [{ script: Buffer.from("0014deadbeef", "hex"), value: 90000 }],
-      version: 2,
-      locktime: 0,
-    },
-    mockInput: input,
-  };
-});
+    return {
+      mockFetchUTXO: vi
+        .fn()
+        .mockResolvedValue({ scriptPubKey: "0014aabb", value: 100000 }),
+      mockPsbt: {
+        setVersion: vi.fn(),
+        setLocktime: vi.fn(),
+        addInput: vi.fn(),
+        addOutput: vi.fn(),
+        toHex: vi.fn().mockReturnValue("mock-psbt-hex"),
+      },
+      mockSignedPsbt: {
+        finalizeAllInputs: vi.fn(),
+        extractTransaction: vi.fn(() => ({ toHex: vi.fn(() => "signed-hex") })),
+        data: {
+          inputs: [{ finalScriptWitness: Buffer.from("00", "hex") }] as Array<{
+            finalScriptWitness?: Buffer;
+            finalScriptSig?: Buffer;
+          }>,
+        },
+      },
+      mockTx: {
+        ins: [input],
+        outs: [{ script: Buffer.from("0014deadbeef", "hex"), value: 90000 }],
+        version: 2,
+        locktime: 0,
+      },
+      mockInput: input,
+    };
+  });
 
 vi.mock("@babylonlabs-io/ts-sdk", () => ({
   pushTx: vi.fn().mockResolvedValue("mock-txid"),
@@ -43,11 +54,7 @@ vi.mock("bitcoinjs-lib", () => {
   function PsbtCtor() {
     return mockPsbt;
   }
-  PsbtCtor.fromHex = vi.fn(() => ({
-    finalizeAllInputs: vi.fn(),
-    extractTransaction: vi.fn(() => ({ toHex: vi.fn(() => "signed-hex") })),
-    data: { inputs: [{ finalScriptWitness: Buffer.from("00", "hex") }] },
-  }));
+  PsbtCtor.fromHex = vi.fn(() => mockSignedPsbt);
   return {
     Psbt: PsbtCtor,
     Transaction: { fromHex: vi.fn(() => mockTx) },
@@ -75,6 +82,17 @@ const TXID_B =
   "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
 const TXID_UPPER =
   "AABB00112233445566778899AABB00112233445566778899AABB001122334455";
+
+beforeEach(() => {
+  mockSignedPsbt.finalizeAllInputs.mockReset();
+  mockSignedPsbt.extractTransaction.mockReset();
+  mockSignedPsbt.extractTransaction.mockReturnValue({
+    toHex: vi.fn(() => "signed-hex"),
+  });
+  mockSignedPsbt.data = {
+    inputs: [{ finalScriptWitness: Buffer.from("00", "hex") }],
+  };
+});
 
 describe("utxosToExpectedRecord", () => {
   it("converts a valid UTXO array to a keyed record", () => {
@@ -221,5 +239,43 @@ describe("broadcastPrePeginTransaction — resolveInputUtxo behavior", () => {
         expectedUtxos: undefined,
       }),
     ).rejects.toThrow(/exceeds maximum reasonable fee/);
+  });
+
+  it("succeeds when finalizeAllInputs throws but all inputs are already finalized by the wallet", async () => {
+    mockSignedPsbt.finalizeAllInputs.mockImplementationOnce(() => {
+      throw new Error("Already finalized");
+    });
+
+    await expect(
+      broadcastPrePeginTransaction({
+        ...baseParams,
+        expectedUtxos: undefined,
+      }),
+    ).resolves.toBe("mock-txid");
+
+    expect(mockSignedPsbt.extractTransaction).toHaveBeenCalled();
+  });
+
+  it("preserves PSBT finalization errors when the wallet returns a partially signed PSBT", async () => {
+    mockSignedPsbt.finalizeAllInputs.mockImplementationOnce(() => {
+      throw new Error("Input #1 is not signed");
+    });
+    mockSignedPsbt.data = {
+      inputs: [
+        { finalScriptWitness: Buffer.from("00", "hex") },
+        {} as { finalScriptWitness?: Buffer; finalScriptSig?: Buffer },
+      ],
+    };
+
+    await expect(
+      broadcastPrePeginTransaction({
+        ...baseParams,
+        expectedUtxos: undefined,
+      }),
+    ).rejects.toThrow(
+      "PSBT finalization failed and wallet did not auto-finalize: Error: Input #1 is not signed",
+    );
+
+    expect(mockSignedPsbt.extractTransaction).not.toHaveBeenCalled();
   });
 });
