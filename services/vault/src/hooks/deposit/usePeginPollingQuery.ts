@@ -11,9 +11,8 @@
 
 import type { GetPeginStatusResponse } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import {
-  attributeBatchResults,
+  batchPollByProvider,
   DaemonStatus,
-  VP_BATCH_MAX_SIZE,
   VP_TRANSIENT_STATUSES,
   VpResponseValidationError,
 } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
@@ -77,12 +76,13 @@ interface UsePeginPollingQueryResult {
 }
 
 /**
- * Fetch status from a single vault provider for many deposits in one
- * `batchGetPeginStatus` round trip per chunk of `VP_BATCH_MAX_SIZE`.
+ * Fetch status from a single vault provider via `batchGetPeginStatus`,
+ * chunked at `VP_BATCH_MAX_SIZE`. Defensive attribution + duplicate-skip
+ * + per-item dispatch live in the SDK's `batchPollByProvider`; this
+ * function only declares the per-item handlers.
  *
- * Uses only the lightweight, unauthenticated `batchGetPeginStatus` RPC.
- * The presign transaction payload is fetched at signing time by the SDK's
- * `runDepositorPresignFlow`.
+ * Unauthenticated RPC. The presign transaction payload is fetched at
+ * signing time by the SDK's `runDepositorPresignFlow`.
  */
 async function fetchFromProvider(
   providerAddress: string,
@@ -93,34 +93,49 @@ async function fetchFromProvider(
   pendingDepositorSignatures: Set<string>,
 ): Promise<void> {
   const rpcClient = createVpClient(providerAddress);
-
-  // Index the chunked deposits by lowercased txid so per-result attribution
-  // never relies on response ordering.
-  for (let i = 0; i < deposits.length; i += VP_BATCH_MAX_SIZE) {
-    const chunk = deposits.slice(i, i + VP_BATCH_MAX_SIZE);
-    const txidToDeposit = new Map<string, DepositToPoll>();
-    const txids: string[] = [];
-    for (const deposit of chunk) {
-      const lowerTxid = stripHexPrefix(
-        deposit.activity.peginTxHash!,
-      ).toLowerCase();
-      txidToDeposit.set(lowerTxid, deposit);
-      txids.push(lowerTxid);
-    }
-
-    let attribution;
-    try {
-      const response = await rpcClient.batchGetPeginStatus({
-        pegin_txids: txids,
+  await batchPollByProvider<DepositToPoll, GetPeginStatusResponse>({
+    items: deposits,
+    getTxid: (deposit) => stripHexPrefix(deposit.activity.peginTxHash!),
+    batchCall: (pegin_txids) => rpcClient.batchGetPeginStatus({ pegin_txids }),
+    onItem: (deposit, envelope) => {
+      const depositId = deposit.activity.id;
+      if (envelope.error !== null) {
+        // "PegIn not found" is a routine pre-ingest signal, not a fault.
+        if (!envelope.error.includes("PegIn not found")) {
+          logger.warn(`Failed to poll deposit ${depositId}`, {
+            error: envelope.error,
+          });
+        }
+        applyPerDepositError(envelope.error, depositId, {
+          errors,
+          needsWotsKey,
+          pendingIngestion,
+        });
+        return;
+      }
+      // envelope.result is non-null here by the validator's XOR invariant.
+      applyPerDepositStatus(envelope.result!, depositId, {
+        errors,
+        needsWotsKey,
+        pendingIngestion,
+        pendingDepositorSignatures,
       });
-      attribution = attributeBatchResults<GetPeginStatusResponse>(
-        txids,
-        response.results,
-      );
-    } catch (error) {
-      // Whole-batch failure: every deposit in the chunk gets the same error.
-      // Mirrors the prior per-deposit catch behaviour, just shared across
-      // the batch.
+    },
+    onMissing: (deposit) =>
+      errors.set(
+        deposit.activity.id,
+        new Error("Provider omitted status entry"),
+      ),
+    onDuplicate: (deposit) =>
+      errors.set(
+        deposit.activity.id,
+        new Error("Provider returned duplicate status entry"),
+      ),
+    onDuplicateBatch: (count) =>
+      logger.warn(
+        `VP ${providerAddress} returned ${count} duplicate pegin txid(s); marking those deposits errored`,
+      ),
+    onWholeBatchError: (chunk, error) => {
       const errorObj =
         error instanceof Error ? error : new Error("Provider unreachable");
       const detail =
@@ -134,81 +149,12 @@ async function fetchFromProvider(
       for (const deposit of chunk) {
         errors.set(deposit.activity.id, errorObj);
       }
-      continue;
-    }
-
-    if (attribution.unexpected.length > 0) {
+    },
+    onUnexpected: (echoed) =>
       logger.warn(
-        `VP ${providerAddress} returned ${attribution.unexpected.length} unexpected pegin txid(s); ignoring`,
-      );
-    }
-
-    // Missing or duplicated entries indicate a server protocol violation.
-    // Surface them as per-deposit errors so the affected rows show a
-    // failure state instead of silently retaining stale data.
-    const duplicateTxids = new Set(attribution.duplicate);
-    if (duplicateTxids.size > 0) {
-      logger.warn(
-        `VP ${providerAddress} returned ${duplicateTxids.size} duplicate pegin txid(s); marking those deposits errored`,
-      );
-      for (const txid of duplicateTxids) {
-        const deposit = txidToDeposit.get(txid);
-        if (deposit) {
-          errors.set(
-            deposit.activity.id,
-            new Error("Provider returned duplicate status entry"),
-          );
-        }
-      }
-    }
-    for (const txid of attribution.missing) {
-      const deposit = txidToDeposit.get(txid);
-      if (deposit) {
-        errors.set(
-          deposit.activity.id,
-          new Error("Provider omitted status entry"),
-        );
-      }
-    }
-
-    for (const [txid, envelope] of attribution.byTxid) {
-      // Skip txids that the server duplicated — already marked errored
-      // above. Re-processing the first envelope here would silently
-      // overwrite that error.
-      if (duplicateTxids.has(txid)) continue;
-
-      const deposit = txidToDeposit.get(txid);
-      if (!deposit) continue;
-      const depositId = deposit.activity.id;
-
-      if (envelope.error !== null) {
-        // Per-pegin errors are surfaced in logs even when other items in
-        // the same batch succeed, mirroring the prior single-pegin
-        // try/catch behaviour. "PegIn not found" is a routine pre-ingest
-        // signal, not a fault — skip the warn for that case.
-        if (!envelope.error.includes("PegIn not found")) {
-          logger.warn(`Failed to poll deposit ${depositId}`, {
-            error: envelope.error,
-          });
-        }
-        applyPerDepositError(envelope.error, depositId, {
-          errors,
-          needsWotsKey,
-          pendingIngestion,
-        });
-        continue;
-      }
-
-      // envelope.error === null && envelope.result !== null — guaranteed by
-      // the SDK validator (rejects both-null / both-present envelopes).
-      applyPerDepositStatus(envelope.result!, depositId, {
-        errors,
-        needsWotsKey,
-        pendingIngestion,
-        pendingDepositorSignatures,
-      });
-    }
-  }
+        `VP ${providerAddress} returned ${echoed.length} unexpected pegin txid(s); ignoring`,
+      ),
+  });
 }
 
 interface DepositSets {

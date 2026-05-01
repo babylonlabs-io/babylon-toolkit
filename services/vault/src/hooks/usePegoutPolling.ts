@@ -9,8 +9,7 @@
  */
 
 import {
-  attributeBatchResults,
-  VP_BATCH_MAX_SIZE,
+  batchPollByProvider,
   VpResponseValidationError,
   type GetPegoutStatusResponse,
 } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
@@ -93,27 +92,30 @@ async function fetchPegoutStatusesFromProvider(
   counters: VaultPollCounters,
 ): Promise<void> {
   const rpcClient = createVpClient(providerAddress);
-
-  for (let i = 0; i < vaults.length; i += VP_BATCH_MAX_SIZE) {
-    const chunk = vaults.slice(i, i + VP_BATCH_MAX_SIZE);
-    const txidToVault = new Map<string, VaultToPoll>();
-    const txids: string[] = [];
-    for (const entry of chunk) {
-      const lowerTxid = stripHexPrefix(entry.vault.peginTxHash).toLowerCase();
-      txidToVault.set(lowerTxid, entry);
-      txids.push(lowerTxid);
-    }
-
-    let attribution;
-    try {
-      const response = await rpcClient.batchGetPegoutStatus({
-        pegin_txids: txids,
-      });
-      attribution = attributeBatchResults<GetPegoutStatusResponse>(
-        txids,
-        response.results,
-      );
-    } catch (error) {
+  await batchPollByProvider<VaultToPoll, GetPegoutStatusResponse>({
+    items: vaults,
+    getTxid: (entry) => stripHexPrefix(entry.vault.peginTxHash),
+    batchCall: (pegin_txids) => rpcClient.batchGetPegoutStatus({ pegin_txids }),
+    onItem: (entry, envelope) => {
+      const vaultId = entry.vault.id;
+      if (envelope.error !== null) {
+        logger.warn(`Failed to poll pegout status for ${vaultId}`, {
+          data: { error: envelope.error },
+        });
+        applyPegoutFailure(vaultId, results, counters);
+        return;
+      }
+      // envelope.result is non-null here by the validator's XOR invariant.
+      applyPegoutResult(vaultId, envelope.result!, results, counters);
+    },
+    onMissing: (entry) => applyPegoutFailure(entry.vault.id, results, counters),
+    onDuplicate: (entry) =>
+      applyPegoutFailure(entry.vault.id, results, counters),
+    onDuplicateBatch: (count) =>
+      logger.warn(
+        `VP ${providerAddress} returned ${count} duplicate pegout txid(s); marking those vaults as failed`,
+      ),
+    onWholeBatchError: (chunk, error) => {
       const message = error instanceof Error ? error.message : String(error);
       const detail =
         error instanceof VpResponseValidationError ? error.detail : message;
@@ -124,52 +126,12 @@ async function fetchPegoutStatusesFromProvider(
       for (const { vault } of chunk) {
         applyPegoutFailure(vault.id, results, counters);
       }
-      continue;
-    }
-
-    if (attribution.unexpected.length > 0) {
+    },
+    onUnexpected: (echoed) =>
       logger.warn(
-        `VP ${providerAddress} returned ${attribution.unexpected.length} unexpected pegout txid(s); ignoring`,
-      );
-    }
-    const duplicateTxids = new Set(attribution.duplicate);
-    if (duplicateTxids.size > 0) {
-      logger.warn(
-        `VP ${providerAddress} returned ${duplicateTxids.size} duplicate pegout txid(s); marking those vaults as failed`,
-      );
-      for (const txid of duplicateTxids) {
-        const entry = txidToVault.get(txid);
-        if (entry) applyPegoutFailure(entry.vault.id, results, counters);
-      }
-    }
-    for (const txid of attribution.missing) {
-      const entry = txidToVault.get(txid);
-      if (entry) applyPegoutFailure(entry.vault.id, results, counters);
-    }
-
-    for (const [txid, envelope] of attribution.byTxid) {
-      // Skip txids that the server duplicated — already marked failed
-      // above. Re-processing the first envelope would silently overwrite
-      // that failure (and reset failureCounts via applyPegoutResult).
-      if (duplicateTxids.has(txid)) continue;
-
-      const entry = txidToVault.get(txid);
-      if (!entry) continue;
-      const vaultId = entry.vault.id;
-
-      if (envelope.error !== null) {
-        logger.warn(`Failed to poll pegout status for ${vaultId}`, {
-          data: { error: envelope.error },
-        });
-        applyPegoutFailure(vaultId, results, counters);
-        continue;
-      }
-
-      // envelope.error === null && envelope.result !== null — guaranteed by
-      // the SDK validator (rejects both-null / both-present envelopes).
-      applyPegoutResult(vaultId, envelope.result!, results, counters);
-    }
-  }
+        `VP ${providerAddress} returned ${echoed.length} unexpected pegout txid(s); ignoring`,
+      ),
+  });
 }
 
 function applyPegoutFailure(
