@@ -1,13 +1,19 @@
 /**
  * Hook for polling pegout status from vault providers.
  *
- * Polls `vaultProvider_getPegoutStatus` for each redeemed vault,
- * batching requests by vault provider. Stops polling when all
- * vaults reach a terminal status (PayoutBroadcast or Failed) or
- * exceed consecutive failure / unknown-status thresholds.
+ * Issues one `vaultProvider_batchGetPegoutStatus` per provider per cycle
+ * (chunked at `VP_BATCH_MAX_SIZE`), grouping redeemed vaults by their
+ * vault provider. Stops polling when all vaults reach a terminal status
+ * (PayoutBroadcast or Failed) or exceed consecutive failure /
+ * unknown-status thresholds.
  */
 
-import { type GetPegoutStatusResponse } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
+import {
+  attributeBatchResults,
+  VP_BATCH_MAX_SIZE,
+  VpResponseValidationError,
+  type GetPegoutStatusResponse,
+} from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef } from "react";
 
@@ -88,57 +94,134 @@ async function fetchPegoutStatusesFromProvider(
 ): Promise<void> {
   const rpcClient = createVpClient(providerAddress);
 
-  for (const { vault } of vaults) {
+  for (let i = 0; i < vaults.length; i += VP_BATCH_MAX_SIZE) {
+    const chunk = vaults.slice(i, i + VP_BATCH_MAX_SIZE);
+    const txidToVault = new Map<string, VaultToPoll>();
+    const txids: string[] = [];
+    for (const entry of chunk) {
+      const lowerTxid = stripHexPrefix(entry.vault.peginTxHash).toLowerCase();
+      txidToVault.set(lowerTxid, entry);
+      txids.push(lowerTxid);
+    }
+
+    let attribution;
     try {
-      const response = await rpcClient.getPegoutStatus({
-        pegin_txid: stripHexPrefix(vault.peginTxHash),
+      const response = await rpcClient.batchGetPegoutStatus({
+        pegin_txids: txids,
       });
-
-      const claimerStatus = response.claimer?.status;
-
-      // Reset failure counter on successful RPC call
-      counters.failureCounts.set(vault.id, 0);
-
-      if (!claimerStatus || !isRecognizedPegoutStatus(claimerStatus)) {
-        const prevUnknown = counters.unknownCounts.get(vault.id) ?? 0;
-        const newUnknown = prevUnknown + 1;
-        counters.unknownCounts.set(vault.id, newUnknown);
-
-        if (newUnknown >= PEGOUT_MAX_UNKNOWN_STATUS_POLLS) {
-          logger.warn(
-            `Pegout polling for ${vault.id} timed out after ${newUnknown} consecutive unknown status polls (last status: "${claimerStatus ?? ""}")`,
-          );
-          results.set(vault.id, { displayState: TIMED_OUT_STATE, response });
-          continue;
-        }
-      } else {
-        counters.unknownCounts.set(vault.id, 0);
-      }
-
-      const displayState = getPegoutDisplayState(claimerStatus, response.found);
-
-      results.set(vault.id, { displayState, response });
+      attribution = attributeBatchResults<GetPegoutStatusResponse>(
+        txids,
+        response.results,
+      );
     } catch (error) {
-      logger.warn(`Failed to poll pegout status for ${vault.id}`, {
-        data: { error: error instanceof Error ? error.message : String(error) },
-      });
+      const message = error instanceof Error ? error.message : String(error);
+      const detail =
+        error instanceof VpResponseValidationError ? error.detail : message;
+      logger.warn(
+        `Failed to poll ${chunk.length} pegout(s) from VP ${providerAddress}`,
+        { data: { error: detail } },
+      );
+      for (const { vault } of chunk) {
+        applyPegoutFailure(vault.id, results, counters);
+      }
+      continue;
+    }
 
-      const prevFailures = counters.failureCounts.get(vault.id) ?? 0;
-      const newFailures = prevFailures + 1;
-      counters.failureCounts.set(vault.id, newFailures);
-
-      if (newFailures >= PEGOUT_MAX_CONSECUTIVE_FAILURES) {
-        logger.warn(
-          `Pegout polling for ${vault.id} timed out after ${newFailures} consecutive failures`,
-        );
-        results.set(vault.id, { displayState: TIMED_OUT_STATE });
-      } else {
-        results.set(vault.id, {
-          displayState: getPegoutDisplayState(undefined, false),
-        });
+    if (attribution.unexpected.length > 0) {
+      logger.warn(
+        `VP ${providerAddress} returned ${attribution.unexpected.length} unexpected pegout txid(s); ignoring`,
+      );
+    }
+    const duplicateTxids = new Set(attribution.duplicate);
+    if (duplicateTxids.size > 0) {
+      logger.warn(
+        `VP ${providerAddress} returned ${duplicateTxids.size} duplicate pegout txid(s); marking those vaults as failed`,
+      );
+      for (const txid of duplicateTxids) {
+        const entry = txidToVault.get(txid);
+        if (entry) applyPegoutFailure(entry.vault.id, results, counters);
       }
     }
+    for (const txid of attribution.missing) {
+      const entry = txidToVault.get(txid);
+      if (entry) applyPegoutFailure(entry.vault.id, results, counters);
+    }
+
+    for (const [txid, envelope] of attribution.byTxid) {
+      // Skip txids that the server duplicated — already marked failed
+      // above. Re-processing the first envelope would silently overwrite
+      // that failure (and reset failureCounts via applyPegoutResult).
+      if (duplicateTxids.has(txid)) continue;
+
+      const entry = txidToVault.get(txid);
+      if (!entry) continue;
+      const vaultId = entry.vault.id;
+
+      if (envelope.error !== null) {
+        logger.warn(`Failed to poll pegout status for ${vaultId}`, {
+          data: { error: envelope.error },
+        });
+        applyPegoutFailure(vaultId, results, counters);
+        continue;
+      }
+
+      // envelope.error === null && envelope.result !== null — guaranteed by
+      // the SDK validator (rejects both-null / both-present envelopes).
+      applyPegoutResult(vaultId, envelope.result!, results, counters);
+    }
   }
+}
+
+function applyPegoutFailure(
+  vaultId: string,
+  results: Map<string, PegoutPollingResult>,
+  counters: VaultPollCounters,
+): void {
+  const prevFailures = counters.failureCounts.get(vaultId) ?? 0;
+  const newFailures = prevFailures + 1;
+  counters.failureCounts.set(vaultId, newFailures);
+
+  if (newFailures >= PEGOUT_MAX_CONSECUTIVE_FAILURES) {
+    logger.warn(
+      `Pegout polling for ${vaultId} timed out after ${newFailures} consecutive failures`,
+    );
+    results.set(vaultId, { displayState: TIMED_OUT_STATE });
+  } else {
+    results.set(vaultId, {
+      displayState: getPegoutDisplayState(undefined, false),
+    });
+  }
+}
+
+function applyPegoutResult(
+  vaultId: string,
+  response: GetPegoutStatusResponse,
+  results: Map<string, PegoutPollingResult>,
+  counters: VaultPollCounters,
+): void {
+  const claimerStatus = response.claimer?.status;
+
+  // Reset failure counter on successful RPC call
+  counters.failureCounts.set(vaultId, 0);
+
+  if (!claimerStatus || !isRecognizedPegoutStatus(claimerStatus)) {
+    const prevUnknown = counters.unknownCounts.get(vaultId) ?? 0;
+    const newUnknown = prevUnknown + 1;
+    counters.unknownCounts.set(vaultId, newUnknown);
+
+    if (newUnknown >= PEGOUT_MAX_UNKNOWN_STATUS_POLLS) {
+      logger.warn(
+        `Pegout polling for ${vaultId} timed out after ${newUnknown} consecutive unknown status polls (last status: "${claimerStatus ?? ""}")`,
+      );
+      results.set(vaultId, { displayState: TIMED_OUT_STATE, response });
+      return;
+    }
+  } else {
+    counters.unknownCounts.set(vaultId, 0);
+  }
+
+  const displayState = getPegoutDisplayState(claimerStatus, response.found);
+  results.set(vaultId, { displayState, response });
 }
 
 interface UsePegoutPollingParams {

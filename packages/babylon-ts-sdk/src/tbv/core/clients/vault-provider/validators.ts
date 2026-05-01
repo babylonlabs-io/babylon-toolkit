@@ -17,6 +17,8 @@ import { HEX_RE } from "../../utils/validation";
 
 import { DaemonStatus } from "./types";
 import type {
+  BatchGetPeginStatusResponse,
+  BatchGetPegoutStatusResponse,
   GetPeginStatusResponse,
   GetPegoutStatusResponse,
   RequestDepositorClaimerArtifactsResponse,
@@ -372,14 +374,16 @@ export function validateRequestDepositorClaimerArtifactsResponse(
 }
 
 /**
- * Validate a getPegoutStatus response.
+ * Validate a single pegout status payload. Embedded by
+ * `validateBatchGetPegoutStatusResponse`. Mirrors btc-vault
+ * `crates/vaultd/src/rpc/server/pegout_status.rs::GetPegoutStatusResponse`.
  */
 export function validateGetPegoutStatusResponse(
   response: unknown,
 ): asserts response is GetPegoutStatusResponse {
   if (response === null || typeof response !== "object") {
     throw new VpResponseValidationError(
-      `VP response validation failed: getPegoutStatus response is not an object`,
+      `VP response validation failed: pegout status payload is not an object`,
     );
   }
 
@@ -397,37 +401,178 @@ export function validateGetPegoutStatusResponse(
     );
   }
 
-  if (r.claimer !== undefined) {
-    if (r.claimer === null || typeof r.claimer !== "object") {
+  // `claimer` is `Option<ClaimerPegoutStatus>` server-side; null when absent.
+  if (r.claimer !== null) {
+    if (typeof r.claimer !== "object") {
       throw new VpResponseValidationError(
-        `VP response validation failed: "claimer" must be an object if present`,
+        `VP response validation failed: "claimer" must be an object or null, got ${preview(r.claimer)}`,
       );
     }
-    const claimer = r.claimer as Record<string, unknown>;
-    if (typeof claimer.status !== "string") {
-      throw new VpResponseValidationError(
-        `VP response validation failed: "claimer.status" must be a string, got ${preview(claimer.status)}`,
-      );
-    }
-    if (typeof claimer.failed !== "boolean") {
-      throw new VpResponseValidationError(
-        `VP response validation failed: "claimer.failed" must be a boolean, got ${preview(claimer.failed)}`,
-      );
-    }
+    validateClaimerPegoutStatus(r.claimer as Record<string, unknown>);
   }
 
-  if (r.challenger !== undefined) {
-    if (r.challenger === null || typeof r.challenger !== "object") {
+  // `challengers: Vec<ChallengerStatus>` server-side; always present (possibly empty).
+  if (!Array.isArray(r.challengers)) {
+    throw new VpResponseValidationError(
+      `VP response validation failed: "challengers" must be an array, got ${preview(r.challengers)}`,
+    );
+  }
+  for (let i = 0; i < r.challengers.length; i++) {
+    validateChallengerStatus(r.challengers[i], i);
+  }
+}
+
+function validateClaimerPegoutStatus(value: Record<string, unknown>): void {
+  assertNonEmptyString(value.status, "claimer.status");
+  if (typeof value.failed !== "boolean") {
+    throw new VpResponseValidationError(
+      `VP response validation failed: "claimer.failed" must be a boolean, got ${preview(value.failed)}`,
+    );
+  }
+  assertNonEmptyString(value.claim_txid, "claimer.claim_txid");
+  assertNonEmptyString(value.claimer_pubkey, "claimer.claimer_pubkey");
+  assertNonEmptyString(value.assert_txid, "claimer.assert_txid");
+  // `challenger_pubkey: Option<String>` — null when no challenge yet.
+  if (value.challenger_pubkey !== null && typeof value.challenger_pubkey !== "string") {
+    throw new VpResponseValidationError(
+      `VP response validation failed: "claimer.challenger_pubkey" must be a string or null, got ${preview(value.challenger_pubkey)}`,
+    );
+  }
+  if (typeof value.created_at !== "number") {
+    throw new VpResponseValidationError(
+      `VP response validation failed: "claimer.created_at" must be a number, got ${preview(value.created_at)}`,
+    );
+  }
+  if (typeof value.updated_at !== "number") {
+    throw new VpResponseValidationError(
+      `VP response validation failed: "claimer.updated_at" must be a number, got ${preview(value.updated_at)}`,
+    );
+  }
+}
+
+function validateChallengerStatus(value: unknown, index: number): void {
+  if (value === null || typeof value !== "object") {
+    throw new VpResponseValidationError(
+      `VP response validation failed: "challengers[${index}]" must be an object, got ${preview(value)}`,
+    );
+  }
+  const c = value as Record<string, unknown>;
+  assertNonEmptyString(c.status, `challengers[${index}].status`);
+  assertNonEmptyString(c.claim_txid, `challengers[${index}].claim_txid`);
+  assertNonEmptyString(c.claimer_pubkey, `challengers[${index}].claimer_pubkey`);
+  assertNullableString(c.assert_txid, `challengers[${index}].assert_txid`);
+  assertNullableString(
+    c.challenge_assert_x_txid,
+    `challengers[${index}].challenge_assert_x_txid`,
+  );
+  assertNullableString(
+    c.challenge_assert_y_txid,
+    `challengers[${index}].challenge_assert_y_txid`,
+  );
+  assertNullableString(c.nopayout_txid, `challengers[${index}].nopayout_txid`);
+  if (typeof c.created_at !== "number") {
+    throw new VpResponseValidationError(
+      `VP response validation failed: "challengers[${index}].created_at" must be a number, got ${preview(c.created_at)}`,
+    );
+  }
+  if (typeof c.updated_at !== "number") {
+    throw new VpResponseValidationError(
+      `VP response validation failed: "challengers[${index}].updated_at" must be a number, got ${preview(c.updated_at)}`,
+    );
+  }
+}
+
+function assertNullableString(value: unknown, field: string): void {
+  if (value !== null && typeof value !== "string") {
+    throw new VpResponseValidationError(
+      `VP response validation failed: "${field}" must be a string or null, got ${preview(value)}`,
+    );
+  }
+}
+
+/**
+ * Validate a `batchGetPeginStatus` response. Per-result envelope shape:
+ * `{ pegin_txid, result: GetPeginStatusResponse | null, error: string | null }`.
+ * The inner result (when non-null) is validated via the single-item validator.
+ */
+export function validateBatchGetPeginStatusResponse(
+  response: unknown,
+): asserts response is BatchGetPeginStatusResponse {
+  validateBatchEnvelope(response, "batchGetPeginStatus", (entry) => {
+    if (entry.result !== null) {
+      validateGetPeginStatusResponse(entry.result);
+    }
+  });
+}
+
+/** Validate a `batchGetPegoutStatus` response. Same envelope as peginStatus. */
+export function validateBatchGetPegoutStatusResponse(
+  response: unknown,
+): asserts response is BatchGetPegoutStatusResponse {
+  validateBatchEnvelope(response, "batchGetPegoutStatus", (entry) => {
+    if (entry.result !== null) {
+      validateGetPegoutStatusResponse(entry.result);
+    }
+  });
+}
+
+interface BatchResultEnvelope {
+  pegin_txid: string;
+  result: unknown;
+  error: string | null;
+}
+
+function validateBatchEnvelope(
+  response: unknown,
+  rpcName: string,
+  validateInnerResult: (entry: BatchResultEnvelope, index: number) => void,
+): void {
+  if (response === null || typeof response !== "object") {
+    throw new VpResponseValidationError(
+      `VP response validation failed: ${rpcName} response is not an object`,
+    );
+  }
+  const r = response as Record<string, unknown>;
+  if (!Array.isArray(r.results)) {
+    throw new VpResponseValidationError(
+      `VP response validation failed: "${rpcName}.results" must be an array, got ${preview(r.results)}`,
+    );
+  }
+  for (let i = 0; i < r.results.length; i++) {
+    const entry = r.results[i];
+    if (entry === null || typeof entry !== "object") {
       throw new VpResponseValidationError(
-        `VP response validation failed: "challenger" must be an object if present`,
+        `VP response validation failed: "${rpcName}.results[${i}]" must be an object, got ${preview(entry)}`,
       );
     }
-    const challenger = r.challenger as Record<string, unknown>;
-    if (typeof challenger.status !== "string") {
+    const e = entry as Record<string, unknown>;
+    if (
+      !isNonEmptyHex(e.pegin_txid) ||
+      e.pegin_txid.length !== TXID_HEX_LEN
+    ) {
       throw new VpResponseValidationError(
-        `VP response validation failed: "challenger.status" must be a string, got ${preview(challenger.status)}`,
+        `VP response validation failed: "${rpcName}.results[${i}].pegin_txid" must be a ${TXID_HEX_LEN}-char hex string, got ${preview(e.pegin_txid)}`,
       );
     }
+    if (e.error !== null && typeof e.error !== "string") {
+      throw new VpResponseValidationError(
+        `VP response validation failed: "${rpcName}.results[${i}].error" must be a string or null, got ${preview(e.error)}`,
+      );
+    }
+    // Exactly one of `result` / `error` must be populated. The server only
+    // ever sets one per item; treating both-null as a protocol violation
+    // surfaces server bugs early instead of letting them silently degrade.
+    if (e.result === null && e.error === null) {
+      throw new VpResponseValidationError(
+        `VP response validation failed: "${rpcName}.results[${i}]" has neither "result" nor "error" populated`,
+      );
+    }
+    if (e.result !== null && e.error !== null) {
+      throw new VpResponseValidationError(
+        `VP response validation failed: "${rpcName}.results[${i}]" has both "result" and "error" populated`,
+      );
+    }
+    validateInnerResult(e as unknown as BatchResultEnvelope, i);
   }
 }
 

@@ -9,8 +9,11 @@
  * re-fetches it at click-time.
  */
 
+import type { GetPeginStatusResponse } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import {
+  attributeBatchResults,
   DaemonStatus,
+  VP_BATCH_MAX_SIZE,
   VP_TRANSIENT_STATUSES,
   VpResponseValidationError,
 } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
@@ -74,10 +77,11 @@ interface UsePeginPollingQueryResult {
 }
 
 /**
- * Fetch status from a single vault provider for multiple deposits.
+ * Fetch status from a single vault provider for many deposits in one
+ * `batchGetPeginStatus` round trip per chunk of `VP_BATCH_MAX_SIZE`.
  *
- * Uses only the lightweight, unauthenticated `getPeginStatus` RPC. The actual
- * presign transaction payload is fetched at signing time by the SDK's
+ * Uses only the lightweight, unauthenticated `batchGetPeginStatus` RPC.
+ * The presign transaction payload is fetched at signing time by the SDK's
  * `runDepositorPresignFlow`.
  */
 async function fetchFromProvider(
@@ -90,89 +94,197 @@ async function fetchFromProvider(
 ): Promise<void> {
   const rpcClient = createVpClient(providerAddress);
 
-  for (const deposit of deposits) {
-    const depositId = deposit.activity.id;
-    const strippedTxid = stripHexPrefix(deposit.activity.peginTxHash!);
+  // Index the chunked deposits by lowercased txid so per-result attribution
+  // never relies on response ordering.
+  for (let i = 0; i < deposits.length; i += VP_BATCH_MAX_SIZE) {
+    const chunk = deposits.slice(i, i + VP_BATCH_MAX_SIZE);
+    const txidToDeposit = new Map<string, DepositToPoll>();
+    const txids: string[] = [];
+    for (const deposit of chunk) {
+      const lowerTxid = stripHexPrefix(
+        deposit.activity.peginTxHash!,
+      ).toLowerCase();
+      txidToDeposit.set(lowerTxid, deposit);
+      txids.push(lowerTxid);
+    }
 
+    let attribution;
     try {
-      const statusResponse = await rpcClient.getPeginStatus({
-        pegin_txid: strippedTxid,
+      const response = await rpcClient.batchGetPeginStatus({
+        pegin_txids: txids,
       });
-
-      const status = statusResponse.status;
-
-      if (status === DaemonStatus.PENDING_DEPOSITOR_WOTS_PK) {
-        needsWotsKey.add(depositId);
-        errors.delete(depositId);
-        continue;
-      }
-
-      if (status === DaemonStatus.PENDING_INGESTION) {
-        pendingIngestion.add(depositId);
-        errors.delete(depositId);
-        needsWotsKey.delete(depositId);
-        continue;
-      }
-
-      if (VP_TRANSIENT_STATUSES.has(status as DaemonStatus)) {
-        errors.delete(depositId);
-        needsWotsKey.delete(depositId);
-        continue;
-      }
-
-      if (status === DaemonStatus.EXPIRED) {
-        errors.set(depositId, new Error("Deposit expired"));
-        needsWotsKey.delete(depositId);
-        continue;
-      }
-
-      if (status === DaemonStatus.CLAIM_POSTED) {
-        errors.set(depositId, new Error("Claim transaction posted"));
-        needsWotsKey.delete(depositId);
-        continue;
-      }
-
-      if (status === DaemonStatus.PEGGED_OUT) {
-        errors.set(depositId, new Error("BTC has been returned to depositor"));
-        needsWotsKey.delete(depositId);
-        continue;
-      }
-
-      // VP daemon reached the depositor-signing state. The status alone is
-      // a sufficient readiness signal — the daemon only enters this state
-      // after `all_presigning_phases_complete`, so the depositor-presign RPC
-      // is guaranteed to succeed when the user clicks Sign Payouts.
-      if (status === DaemonStatus.PENDING_DEPOSITOR_SIGNATURES) {
-        pendingDepositorSignatures.add(depositId);
-        errors.delete(depositId);
-        needsWotsKey.delete(depositId);
-        continue;
-      }
-
-      // Transient VP status — clear errors, keep polling
-      errors.delete(depositId);
-      needsWotsKey.delete(depositId);
+      attribution = attributeBatchResults<GetPeginStatusResponse>(
+        txids,
+        response.results,
+      );
     } catch (error) {
-      // "PegIn not found" — VP hasn't ingested yet, keep polling
-      if (error instanceof Error && error.message.includes("PegIn not found")) {
-        errors.delete(depositId);
-        needsWotsKey.delete(depositId);
-        pendingIngestion.add(depositId);
-        continue;
-      }
-
+      // Whole-batch failure: every deposit in the chunk gets the same error.
+      // Mirrors the prior per-deposit catch behaviour, just shared across
+      // the batch.
       const errorObj =
         error instanceof Error ? error : new Error("Provider unreachable");
-      errors.set(depositId, errorObj);
-      logger.warn(`Failed to poll deposit ${depositId}`, {
-        error:
-          error instanceof VpResponseValidationError
-            ? error.detail
-            : error instanceof Error
-              ? error.message
-              : String(error),
+      const detail =
+        error instanceof VpResponseValidationError
+          ? error.detail
+          : errorObj.message;
+      logger.warn(
+        `Failed to poll ${chunk.length} deposit(s) from VP ${providerAddress}`,
+        { error: detail },
+      );
+      for (const deposit of chunk) {
+        errors.set(deposit.activity.id, errorObj);
+      }
+      continue;
+    }
+
+    if (attribution.unexpected.length > 0) {
+      logger.warn(
+        `VP ${providerAddress} returned ${attribution.unexpected.length} unexpected pegin txid(s); ignoring`,
+      );
+    }
+
+    // Missing or duplicated entries indicate a server protocol violation.
+    // Surface them as per-deposit errors so the affected rows show a
+    // failure state instead of silently retaining stale data.
+    const duplicateTxids = new Set(attribution.duplicate);
+    if (duplicateTxids.size > 0) {
+      logger.warn(
+        `VP ${providerAddress} returned ${duplicateTxids.size} duplicate pegin txid(s); marking those deposits errored`,
+      );
+      for (const txid of duplicateTxids) {
+        const deposit = txidToDeposit.get(txid);
+        if (deposit) {
+          errors.set(
+            deposit.activity.id,
+            new Error("Provider returned duplicate status entry"),
+          );
+        }
+      }
+    }
+    for (const txid of attribution.missing) {
+      const deposit = txidToDeposit.get(txid);
+      if (deposit) {
+        errors.set(
+          deposit.activity.id,
+          new Error("Provider omitted status entry"),
+        );
+      }
+    }
+
+    for (const [txid, envelope] of attribution.byTxid) {
+      // Skip txids that the server duplicated — already marked errored
+      // above. Re-processing the first envelope here would silently
+      // overwrite that error.
+      if (duplicateTxids.has(txid)) continue;
+
+      const deposit = txidToDeposit.get(txid);
+      if (!deposit) continue;
+      const depositId = deposit.activity.id;
+
+      if (envelope.error !== null) {
+        // Per-pegin errors are surfaced in logs even when other items in
+        // the same batch succeed, mirroring the prior single-pegin
+        // try/catch behaviour. "PegIn not found" is a routine pre-ingest
+        // signal, not a fault — skip the warn for that case.
+        if (!envelope.error.includes("PegIn not found")) {
+          logger.warn(`Failed to poll deposit ${depositId}`, {
+            error: envelope.error,
+          });
+        }
+        applyPerDepositError(envelope.error, depositId, {
+          errors,
+          needsWotsKey,
+          pendingIngestion,
+        });
+        continue;
+      }
+
+      // envelope.error === null && envelope.result !== null — guaranteed by
+      // the SDK validator (rejects both-null / both-present envelopes).
+      applyPerDepositStatus(envelope.result!, depositId, {
+        errors,
+        needsWotsKey,
+        pendingIngestion,
+        pendingDepositorSignatures,
       });
     }
+  }
+}
+
+interface DepositSets {
+  errors: Map<string, Error>;
+  needsWotsKey: Set<string>;
+  pendingIngestion: Set<string>;
+}
+
+function applyPerDepositError(
+  errorMessage: string,
+  depositId: string,
+  sets: DepositSets,
+): void {
+  // "PegIn not found" — VP hasn't ingested yet, treat as still-pending.
+  if (errorMessage.includes("PegIn not found")) {
+    sets.errors.delete(depositId);
+    sets.needsWotsKey.delete(depositId);
+    sets.pendingIngestion.add(depositId);
+    return;
+  }
+  sets.errors.set(depositId, new Error(errorMessage));
+}
+
+function applyPerDepositStatus(
+  statusResponse: GetPeginStatusResponse,
+  depositId: string,
+  sets: DepositSets & { pendingDepositorSignatures: Set<string> },
+): void {
+  const status = statusResponse.status;
+
+  if (status === DaemonStatus.PENDING_DEPOSITOR_WOTS_PK) {
+    sets.needsWotsKey.add(depositId);
+    sets.errors.delete(depositId);
+    return;
+  }
+
+  if (status === DaemonStatus.PENDING_INGESTION) {
+    sets.pendingIngestion.add(depositId);
+    sets.errors.delete(depositId);
+    sets.needsWotsKey.delete(depositId);
+    return;
+  }
+
+  if (VP_TRANSIENT_STATUSES.has(status as DaemonStatus)) {
+    sets.errors.delete(depositId);
+    sets.needsWotsKey.delete(depositId);
+    return;
+  }
+
+  if (status === DaemonStatus.EXPIRED) {
+    sets.errors.set(depositId, new Error("Deposit expired"));
+    sets.needsWotsKey.delete(depositId);
+    return;
+  }
+
+  if (status === DaemonStatus.CLAIM_POSTED) {
+    sets.errors.set(depositId, new Error("Claim transaction posted"));
+    sets.needsWotsKey.delete(depositId);
+    return;
+  }
+
+  if (status === DaemonStatus.PEGGED_OUT) {
+    sets.errors.set(depositId, new Error("BTC has been returned to depositor"));
+    sets.needsWotsKey.delete(depositId);
+    return;
+  }
+
+  // VP daemon reached the depositor-signing state. The status alone is
+  // a sufficient readiness signal — the daemon only enters this state
+  // after `all_presigning_phases_complete`, so the depositor-presign RPC
+  // is guaranteed to succeed when the user clicks Sign Payouts.
+  if (status === DaemonStatus.PENDING_DEPOSITOR_SIGNATURES) {
+    sets.pendingDepositorSignatures.add(depositId);
+    sets.errors.delete(depositId);
+    sets.needsWotsKey.delete(depositId);
+    return;
   }
 }
 

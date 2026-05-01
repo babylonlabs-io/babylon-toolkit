@@ -507,7 +507,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/vault-registry-rea
 
 ### VaultProviderRpcClient
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/api.ts:74](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/api.ts#L74)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/api.ts:79](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/api.ts#L79)
 
 Concrete VP RPC client implementing all service interfaces.
 
@@ -532,7 +532,7 @@ const status = await client.getPeginStatus({ pegin_txid: "abc..." });
 new VaultProviderRpcClient(baseUrl, options?): VaultProviderRpcClient;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/api.ts:79](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/api.ts#L79)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/api.ts:84](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/api.ts#L84)
 
 ###### Parameters
 
@@ -556,7 +556,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/api.ts:
 requestDepositorPresignTransactions(params, signal?): Promise<RequestDepositorPresignTransactionsResponse>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/api.ts:96](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/api.ts#L96)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/api.ts:102](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/api.ts#L102)
 
 Request the payout/claim/assert transactions that the depositor
 needs to pre-sign before the vault can be activated on Bitcoin.
@@ -585,7 +585,7 @@ needs to pre-sign before the vault can be activated on Bitcoin.
 submitDepositorPresignatures(params, signal?): Promise<void>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/api.ts:112](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/api.ts#L112)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/api.ts:118](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/api.ts#L118)
 
 Submit the depositor's pre-signatures for the payout transactions
 and the depositor-as-claimer graph.
@@ -614,7 +614,7 @@ and the depositor-as-claimer graph.
 submitDepositorWotsKey(params, signal?): Promise<void>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/api.ts:128](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/api.ts#L128)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/api.ts:134](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/api.ts#L134)
 
 Submit the depositor's WOTS public key to the vault provider.
 Called after the pegin is finalized on Ethereum, when the VP is in
@@ -644,7 +644,7 @@ Called after the pegin is finalized on Ethereum, when the VP is in
 requestDepositorClaimerArtifacts(params, signal?): Promise<RequestDepositorClaimerArtifactsResponse>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/api.ts:143](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/api.ts#L143)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/api.ts:149](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/api.ts#L149)
 
 Request the BaBe DecryptorArtifacts needed for the depositor to
 independently evaluate garbled circuits during a challenge.
@@ -673,7 +673,7 @@ independently evaluate garbled circuits during a challenge.
 getPeginStatus(params, signal?): Promise<GetPeginStatusResponse>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/api.ts:156](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/api.ts#L156)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/api.ts:162](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/api.ts#L162)
 
 Get the current pegin status from the vault provider daemon.
 
@@ -695,21 +695,23 @@ Get the current pegin status from the vault provider daemon.
 
 [`PeginStatusReader`](services.md#peginstatusreader).[`getPeginStatus`](services.md#getpeginstatus)
 
-##### getPegoutStatus()
+##### batchGetPeginStatus()
 
 ```ts
-getPegoutStatus(params, signal?): Promise<GetPegoutStatusResponse>;
+batchGetPeginStatus(params, signal?): Promise<BatchGetPeginStatusResponse>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/api.ts:170](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/api.ts#L170)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/api.ts:180](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/api.ts#L180)
 
-Get the current pegout status from the vault provider daemon.
+Get pegin status for many txids in one round trip. Per-result envelope
+isolates per-pegin failures from the overall RPC. Caller must chunk
+inputs at `VP_BATCH_MAX_SIZE`.
 
 ###### Parameters
 
 ###### params
 
-[`GetPegoutStatusParams`](#getpegoutstatusparams)
+[`BatchGetPeginStatusParams`](#batchgetpeginstatusparams)
 
 ###### signal?
 
@@ -717,7 +719,32 @@ Get the current pegout status from the vault provider daemon.
 
 ###### Returns
 
-`Promise`\<[`GetPegoutStatusResponse`](#getpegoutstatusresponse)\>
+`Promise`\<[`BatchGetPeginStatusResponse`](#batchgetpeginstatusresponse)\>
+
+##### batchGetPegoutStatus()
+
+```ts
+batchGetPegoutStatus(params, signal?): Promise<BatchGetPegoutStatusResponse>;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/api.ts:196](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/api.ts#L196)
+
+Get pegout status for many txids in one round trip. Same per-result
+envelope semantics as `batchGetPeginStatus`.
+
+###### Parameters
+
+###### params
+
+[`BatchGetPegoutStatusParams`](#batchgetpegoutstatusparams)
+
+###### signal?
+
+`AbortSignal`
+
+###### Returns
+
+`Promise`\<[`BatchGetPegoutStatusResponse`](#batchgetpegoutstatusresponse)\>
 
 ***
 
@@ -882,7 +909,7 @@ so `authAnchorHex` doesn't outlive the deposit session.
 
 ### JsonRpcError
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts:95](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts#L95)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts:101](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts#L101)
 
 #### Extends
 
@@ -900,7 +927,7 @@ new JsonRpcError(
    data?): JsonRpcError;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts:96](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts#L96)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts:102](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts#L102)
 
 ###### Parameters
 
@@ -942,7 +969,7 @@ Error.constructor
 code: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts:97](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts#L97)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts:103](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts#L103)
 
 ##### source
 
@@ -950,7 +977,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rp
 source: JsonRpcErrorSource = "local";
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts:100](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts#L100)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts:106](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts#L106)
 
 "wire" for server-returned envelopes; "local" for SDK-side failures.
 
@@ -960,7 +987,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rp
 optional data: unknown;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts:102](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts#L102)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts:108](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts#L108)
 
 Structured data from the server `error.data` field, if any.
 
@@ -968,7 +995,7 @@ Structured data from the server `error.data` field, if any.
 
 ### JsonRpcClient
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts:174](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts#L174)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts:194](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts#L194)
 
 Generic JSON-RPC 2.0 HTTP client with safe retry policy.
 
@@ -980,7 +1007,7 @@ Generic JSON-RPC 2.0 HTTP client with safe retry policy.
 new JsonRpcClient(config): JsonRpcClient;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts:184](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts#L184)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts:205](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts#L205)
 
 ###### Parameters
 
@@ -1003,7 +1030,7 @@ call<TParams, TResult>(
 signal?): Promise<TResult>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts:221](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts#L221)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts:247](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts#L247)
 
 Make a JSON-RPC request with optional retry for safe methods.
 
@@ -1060,7 +1087,7 @@ callRaw<TParams>(
 signal?): Promise<Response>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts:314](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts#L314)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts:346](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts#L346)
 
 Make a JSON-RPC request returning the raw Response (unparsed body).
 
@@ -1101,7 +1128,7 @@ large downloads must read the body themselves and re-invoke
 getBaseUrl(): string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts:450](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts#L450)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts:482](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts#L482)
 
 ###### Returns
 
@@ -1111,7 +1138,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rp
 
 ### VpResponseValidationError
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/validators.ts:45](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/validators.ts#L45)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/validators.ts:47](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/validators.ts#L47)
 
 Thrown when a VP RPC response fails runtime validation.
 
@@ -1130,7 +1157,7 @@ Thrown when a VP RPC response fails runtime validation.
 new VpResponseValidationError(detail): VpResponseValidationError;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/validators.ts:48](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/validators.ts#L48)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/validators.ts:50](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/validators.ts#L50)
 
 ###### Parameters
 
@@ -1156,7 +1183,7 @@ Error.constructor
 readonly detail: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/validators.ts:46](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/validators.ts#L46)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/validators.ts:48](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/validators.ts#L48)
 
 ## Interfaces
 
@@ -2432,7 +2459,7 @@ Minimum network fee
 
 ### VaultProviderRpcClientOptions
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/api.ts:40](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/api.ts#L40)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/api.ts:43](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/api.ts#L43)
 
 #### Properties
 
@@ -2442,7 +2469,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/api.ts:
 optional timeout: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/api.ts:42](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/api.ts#L42)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/api.ts:45](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/api.ts#L45)
 
 Timeout in milliseconds per request (default: 60000)
 
@@ -2452,7 +2479,7 @@ Timeout in milliseconds per request (default: 60000)
 optional retries: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/api.ts:44](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/api.ts#L44)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/api.ts:47](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/api.ts#L47)
 
 Number of retry attempts for safe methods (default: 3)
 
@@ -2462,7 +2489,7 @@ Number of retry attempts for safe methods (default: 3)
 optional retryDelay: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/api.ts:46](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/api.ts#L46)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/api.ts:49](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/api.ts#L49)
 
 Initial retry delay in milliseconds (default: 1000)
 
@@ -2472,10 +2499,10 @@ Initial retry delay in milliseconds (default: 1000)
 optional retryableFor: (method) => boolean;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/api.ts:52](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/api.ts#L52)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/api.ts:55](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/api.ts#L55)
 
 Custom retry predicate. Default retries only the idempotent read
-methods: `getPeginStatus`, `getPegoutStatus`,
+methods: `getPeginStatus`, `batchGetPeginStatus`, `batchGetPegoutStatus`,
 `requestDepositorPresignTransactions`.
 
 ###### Parameters
@@ -2494,7 +2521,7 @@ methods: `getPeginStatus`, `getPegoutStatus`,
 optional headers: Record<string, string>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/api.ts:54](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/api.ts#L54)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/api.ts:57](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/api.ts#L57)
 
 Custom headers.
 
@@ -2504,11 +2531,21 @@ Custom headers.
 optional tokenProvider: BearerTokenProvider;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/api.ts:60](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/api.ts#L60)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/api.ts:63](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/api.ts#L63)
 
 Per-request bearer-token source. A non-null return attaches
 `Authorization: Bearer <token>`; `null` skips auth. Wire a
 VpTokenProvider for depositor-gated methods.
+
+##### maxResponseBytes?
+
+```ts
+optional maxResponseBytes: number;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/api.ts:65](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/api.ts#L65)
+
+Maximum response body size, in bytes, for typed JSON-RPC calls
 
 ***
 
@@ -2750,6 +2787,105 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/to
 
 ***
 
+### BatchResultEntry
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/batchAttribution.ts:15](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/batchAttribution.ts#L15)
+
+Per-item entry in a VP batch response.
+
+#### Type Parameters
+
+##### T
+
+`T`
+
+#### Properties
+
+##### pegin\_txid
+
+```ts
+pegin_txid: string;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/batchAttribution.ts:16](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/batchAttribution.ts#L16)
+
+##### result
+
+```ts
+result: T | null;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/batchAttribution.ts:17](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/batchAttribution.ts#L17)
+
+##### error
+
+```ts
+error: string | null;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/batchAttribution.ts:18](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/batchAttribution.ts#L18)
+
+***
+
+### BatchAttributionResult
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/batchAttribution.ts:22](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/batchAttribution.ts#L22)
+
+Output of [attributeBatchResults](#attributebatchresults).
+
+#### Type Parameters
+
+##### T
+
+`T`
+
+#### Properties
+
+##### byTxid
+
+```ts
+byTxid: Map<string, {
+  result: T | null;
+  error: string | null;
+}>;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/batchAttribution.ts:24](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/batchAttribution.ts#L24)
+
+Lowercase requested txid -> per-item envelope.
+
+##### missing
+
+```ts
+missing: string[];
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/batchAttribution.ts:26](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/batchAttribution.ts#L26)
+
+Requested txids that did not appear in the response.
+
+##### unexpected
+
+```ts
+unexpected: string[];
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/batchAttribution.ts:28](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/batchAttribution.ts#L28)
+
+Echoed txids that were not in the request — logged + dropped.
+
+##### duplicate
+
+```ts
+duplicate: string[];
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/batchAttribution.ts:30](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/batchAttribution.ts#L30)
+
+Echoed txids that appeared more than once — first kept, rest dropped.
+
+***
+
 ### BearerTokenProvider
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts:44](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts#L44)
@@ -2858,18 +2994,30 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rp
 
 Initial retry delay in milliseconds (default: 1000)
 
+##### maxResponseBytes?
+
+```ts
+optional maxResponseBytes: number;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts:73](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts#L73)
+
+Maximum response body size, in bytes, for typed JSON-RPC calls.
+`callRaw` intentionally returns the unparsed Response and is not capped here.
+Default: 2 MiB.
+
 ##### retryableFor()?
 
 ```ts
 optional retryableFor: (method) => boolean;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts:74](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts#L74)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts:80](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts#L80)
 
 Predicate that decides which methods retry on transient errors.
-Default retries only `getPeginStatus`, `getPegoutStatus`, and
-`requestDepositorPresignTransactions`. Write methods are not
-retried by default.
+Default retries only `getPeginStatus`, `batchGetPeginStatus`,
+`batchGetPegoutStatus`, and `requestDepositorPresignTransactions`.
+Write methods are not retried by default.
 
 ###### Parameters
 
@@ -2887,7 +3035,7 @@ retried by default.
 optional tokenProvider: BearerTokenProvider;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts:81](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts#L81)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts:87](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts#L87)
 
 Per-request bearer-token source. A non-null return attaches
 `Authorization: Bearer <token>`; `null` skips auth. `call`
@@ -3716,29 +3864,12 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.t
 
 ***
 
-### GetPegoutStatusParams
-
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts:290](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts#L290)
-
-Params for querying pegout status from the VP daemon.
-
-#### Properties
-
-##### pegin\_txid
-
-```ts
-pegin_txid: string;
-```
-
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts:291](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts#L291)
-
-***
-
 ### ClaimerPegoutStatus
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts:295](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts#L295)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts:293](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts#L293)
 
 Claimer-side pegout progress.
+Source: btc-vault crates/vaultd/src/rpc/server/pegout_status.rs ClaimerPegoutStatus.
 
 #### Properties
 
@@ -3748,7 +3879,7 @@ Claimer-side pegout progress.
 status: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts:296](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts#L296)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts:294](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts#L294)
 
 ##### failed
 
@@ -3756,55 +3887,68 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.t
 failed: boolean;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts:297](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts#L297)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts:295](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts#L295)
 
-##### claim\_txid?
+##### claim\_txid
 
 ```ts
-optional claim_txid: string;
+claim_txid: string;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts:296](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts#L296)
+
+##### claimer\_pubkey
+
+```ts
+claimer_pubkey: string;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts:297](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts#L297)
+
+##### assert\_txid
+
+```ts
+assert_txid: string;
 ```
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts:298](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts#L298)
 
-##### claimer\_pubkey?
+##### challenger\_pubkey
 
 ```ts
-optional claimer_pubkey: string;
+challenger_pubkey: string | null;
 ```
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts:299](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts#L299)
 
-##### challenger\_pubkey?
+##### created\_at
 
 ```ts
-optional challenger_pubkey: string;
-```
-
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts:300](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts#L300)
-
-##### created\_at?
-
-```ts
-optional created_at: string;
+created_at: number;
 ```
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts:301](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts#L301)
 
-##### updated\_at?
+Unix epoch seconds.
+
+##### updated\_at
 
 ```ts
-optional updated_at: string;
+updated_at: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts:302](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts#L302)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts:303](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts#L303)
+
+Unix epoch seconds.
 
 ***
 
-### ChallengerPegoutStatus
+### ChallengerStatus
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts:306](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts#L306)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts:310](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts#L310)
 
 Challenger-side pegout progress.
+Source: btc-vault crates/vaultd/src/rpc/server/pegout_status.rs ChallengerStatus.
 
 #### Properties
 
@@ -3814,71 +3958,80 @@ Challenger-side pegout progress.
 status: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts:307](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts#L307)
-
-##### claim\_txid?
-
-```ts
-optional claim_txid: string;
-```
-
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts:308](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts#L308)
-
-##### claimer\_pubkey?
-
-```ts
-optional claimer_pubkey: string;
-```
-
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts:309](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts#L309)
-
-##### assert\_txid?
-
-```ts
-optional assert_txid: string;
-```
-
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts:310](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts#L310)
-
-##### challenge\_assert\_txid?
-
-```ts
-optional challenge_assert_txid: string;
-```
-
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts:311](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts#L311)
 
-##### nopayout\_txid?
+##### claim\_txid
 
 ```ts
-optional nopayout_txid: string;
+claim_txid: string;
 ```
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts:312](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts#L312)
 
-##### created\_at?
+##### claimer\_pubkey
 
 ```ts
-optional created_at: string;
+claimer_pubkey: string;
 ```
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts:313](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts#L313)
 
-##### updated\_at?
+##### assert\_txid
 
 ```ts
-optional updated_at: string;
+assert_txid: string | null;
 ```
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts:314](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts#L314)
+
+##### challenge\_assert\_x\_txid
+
+```ts
+challenge_assert_x_txid: string | null;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts:315](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts#L315)
+
+##### challenge\_assert\_y\_txid
+
+```ts
+challenge_assert_y_txid: string | null;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts:316](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts#L316)
+
+##### nopayout\_txid
+
+```ts
+nopayout_txid: string | null;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts:317](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts#L317)
+
+##### created\_at
+
+```ts
+created_at: number;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts:318](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts#L318)
+
+##### updated\_at
+
+```ts
+updated_at: number;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts:319](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts#L319)
 
 ***
 
 ### GetPegoutStatusResponse
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts:318](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts#L318)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts:326](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts#L326)
 
-Response from `getPegoutStatus`.
+Pegout status response. Embedded by `batchGetPegoutStatus` per-result
+envelopes. Mirrors btc-vault `GetPegoutStatusResponse`.
 
 #### Properties
 
@@ -3888,7 +4041,7 @@ Response from `getPegoutStatus`.
 pegin_txid: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts:319](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts#L319)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts:327](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts#L327)
 
 ##### found
 
@@ -3896,23 +4049,165 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.t
 found: boolean;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts:320](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts#L320)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts:328](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts#L328)
 
-##### claimer?
-
-```ts
-optional claimer: ClaimerPegoutStatus;
-```
-
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts:321](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts#L321)
-
-##### challenger?
+##### claimer
 
 ```ts
-optional challenger: ChallengerPegoutStatus;
+claimer: ClaimerPegoutStatus | null;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts:322](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts#L322)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts:329](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts#L329)
+
+##### challengers
+
+```ts
+challengers: ChallengerStatus[];
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts:330](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts#L330)
+
+***
+
+### BatchGetPeginStatusParams
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts:338](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts#L338)
+
+Params for `batchGetPeginStatus`.
+
+#### Properties
+
+##### pegin\_txids
+
+```ts
+pegin_txids: string[];
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts:340](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts#L340)
+
+Up to MAX_BATCH_SIZE (50) txids per call.
+
+***
+
+### BatchPeginStatusResult
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts:344](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts#L344)
+
+Per-pegin entry in a `batchGetPeginStatus` response.
+
+#### Properties
+
+##### pegin\_txid
+
+```ts
+pegin_txid: string;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts:345](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts#L345)
+
+##### result
+
+```ts
+result: GetPeginStatusResponse | null;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts:346](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts#L346)
+
+##### error
+
+```ts
+error: string | null;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts:347](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts#L347)
+
+***
+
+### BatchGetPeginStatusResponse
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts:351](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts#L351)
+
+Response from `batchGetPeginStatus`. Results are returned in request order.
+
+#### Properties
+
+##### results
+
+```ts
+results: BatchPeginStatusResult[];
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts:352](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts#L352)
+
+***
+
+### BatchGetPegoutStatusParams
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts:356](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts#L356)
+
+Params for `batchGetPegoutStatus`.
+
+#### Properties
+
+##### pegin\_txids
+
+```ts
+pegin_txids: string[];
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts:357](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts#L357)
+
+***
+
+### BatchPegoutStatusResult
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts:361](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts#L361)
+
+Per-vault entry in a `batchGetPegoutStatus` response.
+
+#### Properties
+
+##### pegin\_txid
+
+```ts
+pegin_txid: string;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts:362](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts#L362)
+
+##### result
+
+```ts
+result: GetPegoutStatusResponse | null;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts:363](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts#L363)
+
+##### error
+
+```ts
+error: string | null;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts:364](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts#L364)
+
+***
+
+### BatchGetPegoutStatusResponse
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts:368](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts#L368)
+
+Response from `batchGetPegoutStatus`. Results are returned in request order.
+
+#### Properties
+
+##### results
+
+```ts
+results: BatchPegoutStatusResult[];
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts:369](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts#L369)
 
 ## Type Aliases
 
@@ -3948,7 +4243,7 @@ frozen
 type JsonRpcErrorSource = "wire" | "local";
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts:93](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts#L93)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts:99](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts#L99)
 
 Identifies whether an error was produced locally (timeout, network
 failure, malformed response) or parsed from a wire-format JSON-RPC
@@ -4387,13 +4682,53 @@ ServerIdentityError on any validation failure.
 
 ***
 
+### attributeBatchResults()
+
+```ts
+function attributeBatchResults<T>(requestedTxids, results): BatchAttributionResult<T>;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/batchAttribution.ts:44](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/batchAttribution.ts#L44)
+
+Attribute batch results to requested txids defensively.
+
+Both `requestedTxids` and the echoed `pegin_txid` field on each result
+are lowercased before lookup. Duplicates and unexpected echoes are
+surfaced so callers can flag the affected items as errored rather than
+silently overwriting state.
+
+`requestedTxids` may contain duplicates; they are de-duplicated for the
+purposes of map keys (each unique txid becomes a single map entry).
+
+#### Type Parameters
+
+##### T
+
+`T`
+
+#### Parameters
+
+##### requestedTxids
+
+`string`[]
+
+##### results
+
+readonly [`BatchResultEntry`](#batchresultentry)\<`T`\>[]
+
+#### Returns
+
+[`BatchAttributionResult`](#batchattributionresult)\<`T`\>
+
+***
+
 ### validateRequestDepositorClaimerArtifactsResponse()
 
 ```ts
 function validateRequestDepositorClaimerArtifactsResponse(response): asserts response is RequestDepositorClaimerArtifactsResponse;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/validators.ts:328](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/validators.ts#L328)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/validators.ts:330](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/validators.ts#L330)
 
 Validate a requestDepositorClaimerArtifacts response.
 
@@ -4536,7 +4871,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.t
 
 ### RpcErrorCode
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts:330](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts#L330)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts:384](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts#L384)
 
 JSON-RPC error codes returned by the vault provider.
 
@@ -4548,7 +4883,7 @@ JSON-RPC error codes returned by the vault provider.
 DATABASE_ERROR: -32005;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts:331](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts#L331)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts:385](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts#L385)
 
 ##### PRESIGN\_ERROR
 
@@ -4556,7 +4891,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.t
 PRESIGN_ERROR: -32006;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts:332](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts#L332)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts:386](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts#L386)
 
 ##### JSON\_SERIALIZATION\_ERROR
 
@@ -4564,7 +4899,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.t
 JSON_SERIALIZATION_ERROR: -32007;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts:333](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts#L333)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts:387](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts#L387)
 
 ##### TX\_GRAPH\_ERROR
 
@@ -4572,7 +4907,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.t
 TX_GRAPH_ERROR: -32008;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts:334](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts#L334)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts:388](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts#L388)
 
 ##### INVALID\_GRAPH
 
@@ -4580,7 +4915,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.t
 INVALID_GRAPH: -32009;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts:335](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts#L335)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts:389](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts#L389)
 
 ##### VALIDATION\_ERROR
 
@@ -4588,7 +4923,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.t
 VALIDATION_ERROR: -32010;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts:336](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts#L336)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts:390](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts#L390)
 
 ##### NOT\_FOUND
 
@@ -4596,7 +4931,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.t
 NOT_FOUND: -32011;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts:337](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts#L337)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts:391](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts#L391)
 
 ##### INTERNAL\_ERROR
 
@@ -4604,7 +4939,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.t
 INTERNAL_ERROR: -32603;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts:338](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts#L338)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts:392](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts#L392)
 
 ## Variables
 
@@ -4656,7 +4991,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/to
 const JSON_RPC_ERROR_CODES: object;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts:109](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts#L109)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts:115](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts#L115)
 
 #### Type Declaration
 
@@ -4695,6 +5030,14 @@ readonly INVALID_RESPONSE: -32700 = -32700;
 ```
 
 SDK client: response missing "result" field (malformed JSON-RPC)
+
+##### RESPONSE\_TOO\_LARGE
+
+```ts
+readonly RESPONSE_TOO_LARGE: -32701 = -32701;
+```
+
+SDK client: response body exceeded the configured byte limit
 
 ***
 
@@ -4749,3 +5092,17 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.t
 Statuses that come after WOTS key submission.
 If the VP is already in one of these states, the WOTS key was already
 submitted and we can skip.
+
+***
+
+### VP\_BATCH\_MAX\_SIZE
+
+```ts
+const VP_BATCH_MAX_SIZE: 50 = 50;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts:377](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts#L377)
+
+Maximum number of items per batch call. Mirrors the server-side
+`MAX_BATCH_SIZE` in btc-vault (`crates/vaultd/src/rpc/server/vault_provider.rs:7`).
+Callers must chunk requests larger than this.

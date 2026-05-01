@@ -10,5 +10,10 @@ export {
   VpResponseValidationError,
   validateRequestDepositorClaimerArtifactsResponse,
 } from "./validators";
+export {
+  attributeBatchResults,
+  type BatchAttributionResult,
+  type BatchResultEntry,
+} from "./batchAttribution";
 export * from "./types";
 export * from "./auth";

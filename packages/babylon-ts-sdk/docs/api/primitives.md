@@ -2205,17 +2205,17 @@ true if valid hex string
 ### validateWalletPubkey()
 
 ```ts
-function validateWalletPubkey(walletPubkeyRaw, expectedDepositorPubkey?): WalletPubkeyValidationResult;
+function validateWalletPubkey(walletPubkeyRaw, expectedDepositorPubkey): WalletPubkeyValidationResult;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/utils/bitcoin.ts:235](../../packages/babylon-ts-sdk/src/tbv/core/primitives/utils/bitcoin.ts#L235)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/utils/bitcoin.ts:237](../../packages/babylon-ts-sdk/src/tbv/core/primitives/utils/bitcoin.ts#L237)
 
 Validate that a wallet's public key matches the expected depositor public key.
 
 This function:
 1. Converts the wallet pubkey to x-only format
-2. Uses the expected depositor pubkey if provided, otherwise falls back to wallet pubkey
-3. Validates they match (case-insensitive)
+2. Validates the wallet x-only pubkey matches the expected depositor pubkey
+   (case-insensitive)
 
 #### Parameters
 
@@ -2225,17 +2225,22 @@ This function:
 
 Raw public key from wallet (may be compressed 66 chars or x-only 64 chars)
 
-##### expectedDepositorPubkey?
+##### expectedDepositorPubkey
 
 `string`
 
-Expected depositor public key (x-only, optional)
+Expected depositor public key (x-only).
+  Required: omitting it would degrade this check to a self-comparison.
 
 #### Returns
 
 [`WalletPubkeyValidationResult`](#walletpubkeyvalidationresult)
 
 Validation result with both pubkey formats
+
+#### Throws
+
+If `expectedDepositorPubkey` is missing/empty
 
 #### Throws
 
@@ -2249,7 +2254,7 @@ If wallet pubkey doesn't match expected depositor pubkey
 function formatSatoshisToBtc(satoshis): string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/utils/bitcoin.ts:262](../../packages/babylon-ts-sdk/src/tbv/core/primitives/utils/bitcoin.ts#L262)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/utils/bitcoin.ts:270](../../packages/babylon-ts-sdk/src/tbv/core/primitives/utils/bitcoin.ts#L270)
 
 Format satoshis as a human-readable BTC string with trailing zeros removed.
 
@@ -2271,7 +2276,7 @@ Format satoshis as a human-readable BTC string with trailing zeros removed.
 function deriveTaprootAddress(publicKeyHex, network): string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/utils/bitcoin.ts:328](../../packages/babylon-ts-sdk/src/tbv/core/primitives/utils/bitcoin.ts#L328)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/utils/bitcoin.ts:336](../../packages/babylon-ts-sdk/src/tbv/core/primitives/utils/bitcoin.ts#L336)
 
 Derive a Taproot (P2TR) address from a public key.
 
@@ -2303,7 +2308,7 @@ Taproot address (bc1p... / tb1p... / bcrt1p...)
 function deriveNativeSegwitAddress(publicKeyHex, network): string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/utils/bitcoin.ts:352](../../packages/babylon-ts-sdk/src/tbv/core/primitives/utils/bitcoin.ts#L352)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/utils/bitcoin.ts:360](../../packages/babylon-ts-sdk/src/tbv/core/primitives/utils/bitcoin.ts#L360)
 
 Derive a Native SegWit (P2WPKH) address from a compressed public key.
 
@@ -2342,7 +2347,7 @@ function isAddressFromPublicKey(
    network): boolean;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/utils/bitcoin.ts:389](../../packages/babylon-ts-sdk/src/tbv/core/primitives/utils/bitcoin.ts#L389)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/utils/bitcoin.ts:397](../../packages/babylon-ts-sdk/src/tbv/core/primitives/utils/bitcoin.ts#L397)
 
 Validate that a BTC address was derived from the given public key.
 

@@ -1,7 +1,7 @@
 /**
  * Pegout state definitions and protocol-level terminal checks.
  *
- * Maps VP-reported pegout statuses from `vaultProvider_getPegoutStatus`
+ * Maps VP-reported pegout statuses from `vaultProvider_batchGetPegoutStatus`
  * to protocol lifecycle states.
  *
  * Lifecycle:

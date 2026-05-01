@@ -19,10 +19,12 @@ import {
   type JsonRpcClientConfig,
 } from "./json-rpc-client";
 import type {
+  BatchGetPeginStatusParams,
+  BatchGetPeginStatusResponse,
+  BatchGetPegoutStatusParams,
+  BatchGetPegoutStatusResponse,
   GetPeginStatusParams,
   GetPeginStatusResponse,
-  GetPegoutStatusParams,
-  GetPegoutStatusResponse,
   RequestDepositorClaimerArtifactsParams,
   RequestDepositorClaimerArtifactsResponse,
   RequestDepositorPresignTransactionsParams,
@@ -31,8 +33,9 @@ import type {
   SubmitDepositorWotsKeyParams,
 } from "./types";
 import {
+  validateBatchGetPeginStatusResponse,
+  validateBatchGetPegoutStatusResponse,
   validateGetPeginStatusResponse,
-  validateGetPegoutStatusResponse,
   validateRequestDepositorClaimerArtifactsResponse,
   validateRequestDepositorPresignTransactionsResponse,
 } from "./validators";
@@ -46,7 +49,7 @@ export interface VaultProviderRpcClientOptions {
   retryDelay?: number;
   /**
    * Custom retry predicate. Default retries only the idempotent read
-   * methods: `getPeginStatus`, `getPegoutStatus`,
+   * methods: `getPeginStatus`, `batchGetPeginStatus`, `batchGetPegoutStatus`,
    * `requestDepositorPresignTransactions`.
    */
   retryableFor?: (method: string) => boolean;
@@ -169,17 +172,36 @@ export class VaultProviderRpcClient
     return response;
   }
 
-  /** Get the current pegout status from the vault provider daemon. */
-  async getPegoutStatus(
-    params: GetPegoutStatusParams,
+  /**
+   * Get pegin status for many txids in one round trip. Per-result envelope
+   * isolates per-pegin failures from the overall RPC. Caller must chunk
+   * inputs at `VP_BATCH_MAX_SIZE`.
+   */
+  async batchGetPeginStatus(
+    params: BatchGetPeginStatusParams,
     signal?: AbortSignal,
-  ): Promise<GetPegoutStatusResponse> {
-    const response = await this.client.call<GetPegoutStatusParams, unknown>(
-      "vaultProvider_getPegoutStatus",
-      params,
-      signal,
-    );
-    validateGetPegoutStatusResponse(response);
+  ): Promise<BatchGetPeginStatusResponse> {
+    const response = await this.client.call<
+      BatchGetPeginStatusParams,
+      unknown
+    >("vaultProvider_batchGetPeginStatus", params, signal);
+    validateBatchGetPeginStatusResponse(response);
+    return response;
+  }
+
+  /**
+   * Get pegout status for many txids in one round trip. Same per-result
+   * envelope semantics as `batchGetPeginStatus`.
+   */
+  async batchGetPegoutStatus(
+    params: BatchGetPegoutStatusParams,
+    signal?: AbortSignal,
+  ): Promise<BatchGetPegoutStatusResponse> {
+    const response = await this.client.call<
+      BatchGetPegoutStatusParams,
+      unknown
+    >("vaultProvider_batchGetPegoutStatus", params, signal);
+    validateBatchGetPegoutStatusResponse(response);
     return response;
   }
 }

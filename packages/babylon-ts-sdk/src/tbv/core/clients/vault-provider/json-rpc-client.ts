@@ -73,9 +73,9 @@ export interface JsonRpcClientConfig {
   maxResponseBytes?: number;
   /**
    * Predicate that decides which methods retry on transient errors.
-   * Default retries only `getPeginStatus`, `getPegoutStatus`, and
-   * `requestDepositorPresignTransactions`. Write methods are not
-   * retried by default.
+   * Default retries only `getPeginStatus`, `batchGetPeginStatus`,
+   * `batchGetPegoutStatus`, and `requestDepositorPresignTransactions`.
+   * Write methods are not retried by default.
    */
   retryableFor?: (method: string) => boolean;
   /**
@@ -158,7 +158,8 @@ const RETRYABLE_HTTP_STATUS_CODES: ReadonlySet<number> = new Set([
 /** Default retry predicate: only retry read-only / idempotent methods */
 const DEFAULT_RETRYABLE_METHODS: ReadonlySet<string> = new Set([
   "vaultProvider_getPeginStatus",
-  "vaultProvider_getPegoutStatus",
+  "vaultProvider_batchGetPeginStatus",
+  "vaultProvider_batchGetPegoutStatus",
   "vaultProvider_requestDepositorPresignTransactions",
 ]);
 
