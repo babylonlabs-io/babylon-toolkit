@@ -119,6 +119,39 @@ export async function getVaultFromChain(
 }
 
 /**
+ * Read a vault provider's registered BTC public key from BTCVaultRegistry.
+ *
+ * The VP BTC key is signing-critical because it participates in the Taproot
+ * script tree used for payout signing. Callers may use GraphQL values as hints
+ * for UX, but signing must use/cross-check this contract value.
+ */
+export async function getVaultProviderBtcPubkeyFromChain(
+  vaultProvider: Address,
+): Promise<Hex> {
+  const publicClient = ethClient.getPublicClient();
+
+  const btcPubkey = (await publicClient.readContract({
+    address: CONTRACTS.BTC_VAULT_REGISTRY,
+    abi: BTCVaultRegistryAbi,
+    functionName: "getVaultProviderBTCKey",
+    args: [vaultProvider],
+  })) as Hex;
+
+  if (
+    !btcPubkey ||
+    btcPubkey === "0x" ||
+    btcPubkey ===
+      "0x0000000000000000000000000000000000000000000000000000000000000000"
+  ) {
+    throw new Error(
+      `Vault provider ${vaultProvider} has no registered BTC pubkey on-chain`,
+    );
+  }
+
+  return btcPubkey;
+}
+
+/**
  * Read `offchainParamsVersion` for many vaults in a single multicall.
  *
  * Used by the deposit flow to verify, after batch ETH registration, that every

@@ -10,16 +10,23 @@
  *   wired to vault's viem public client.
  * - `getSorted*Pubkeys` — canonical lexicographic sort that matches the
  *   Rust backend. Reused by `vaultRefundService`.
- * - `resolveVaultProviderBtcPubkey` — caller hint + fallback to GraphQL.
+ * - `resolveVaultProviderBtcPubkey` — reads the VP BTC key from chain and
+ *   treats a caller hint as an untrusted cross-check.
  * - `PayoutSigningProgress` type — UI progress shape used across deposit
  *   components; the SDK exposes `(completed, total)` positional callbacks
  *   and this object shape is the vault-tier adapter.
  */
 
-import type { Network } from "@babylonlabs-io/ts-sdk/tbv/core";
+import {
+  processPublicKeyToXOnly,
+  type Network,
+} from "@babylonlabs-io/ts-sdk/tbv/core";
 import type { Address, Hex } from "viem";
 
-import { getVaultFromChain } from "../../clients/eth-contract/btc-vault-registry/query";
+import {
+  getVaultFromChain,
+  getVaultProviderBtcPubkeyFromChain,
+} from "../../clients/eth-contract/btc-vault-registry/query";
 import {
   getProtocolParamsReader,
   getUniversalChallengerReader,
@@ -27,8 +34,6 @@ import {
 } from "../../clients/eth-contract/sdk-readers";
 import { getBTCNetworkForWASM } from "../../config/pegin";
 import { stripHexPrefix } from "../../utils/btc";
-
-import { fetchVaultProviderById } from "./fetchVaultProviders";
 
 export interface PayoutVaultKeeper {
   btcPubKey: string;
@@ -42,7 +47,7 @@ export interface PrepareSigningContextParams {
   /** Derived vault ID (for contract calls) */
   vaultId: string;
   depositorBtcPubkey: string;
-  /** Vault provider's BTC public key hint (optional — resolved from GraphQL if missing) */
+  /** Optional GraphQL/indexer hint; cross-checked against the on-chain VP BTC key */
   vaultProviderBtcPubKey?: string;
   /** Depositor's registered payout scriptPubKey (hex) for payout output validation */
   registeredPayoutScriptPubKey: string;
@@ -82,21 +87,27 @@ export interface PayoutSigningProgress {
 
 /**
  * Resolve vault provider's BTC public key.
- * Uses provided key or fetches from GraphQL if not provided.
+ * Reads the authoritative value from BTCVaultRegistry and treats the provided
+ * value only as an untrusted hint that must match.
  */
 export async function resolveVaultProviderBtcPubkey(
   address: Address,
   btcPubKey?: string,
 ): Promise<string> {
+  const onChainBtcPubkey = processPublicKeyToXOnly(
+    await getVaultProviderBtcPubkeyFromChain(address),
+  ).toLowerCase();
+
   if (btcPubKey) {
-    return stripHexPrefix(btcPubKey);
+    const hintedBtcPubkey = processPublicKeyToXOnly(btcPubKey).toLowerCase();
+    if (hintedBtcPubkey !== onChainBtcPubkey) {
+      throw new Error(
+        `Vault provider BTC pubkey mismatch for ${address}: indexer hint does not match on-chain registry`,
+      );
+    }
   }
 
-  const provider = await fetchVaultProviderById(address);
-  if (!provider) {
-    throw new Error("Vault provider not found");
-  }
-  return stripHexPrefix(provider.btcPubKey);
+  return onChainBtcPubkey;
 }
 
 /**
@@ -123,9 +134,9 @@ export function getSortedUniversalChallengerPubkeys(
  * Prepare the signing context by fetching all required data from the
  * on-chain contract at the vault's locked versions.
  *
- * Never uses the GraphQL indexer for signing-critical fields — a compromised
- * indexer could substitute different signer-set versions and obtain signatures
- * over attacker-chosen graph parameters.
+ * Never trusts the GraphQL indexer for signing-critical fields. The optional
+ * vault-provider BTC pubkey supplied by callers is only a hint and must match
+ * BTCVaultRegistry before it is used for payout signing.
  */
 export async function prepareSigningContext(
   params: PrepareSigningContextParams,

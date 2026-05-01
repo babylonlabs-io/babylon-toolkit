@@ -11,6 +11,7 @@ import { beforeEach, describe, expect, it, vi, type Mock } from "vitest";
 
 vi.mock("../../../clients/eth-contract/btc-vault-registry/query", () => ({
   getVaultFromChain: vi.fn(),
+  getVaultProviderBtcPubkeyFromChain: vi.fn(),
 }));
 
 vi.mock("../../../config/pegin", () => ({
@@ -38,18 +39,21 @@ vi.mock("../../../clients/eth-contract/sdk-readers", () => ({
   }),
 }));
 
-vi.mock("../fetchVaultProviders", () => ({
-  fetchVaultProviderById: vi.fn(),
-}));
-
-import { getVaultFromChain } from "../../../clients/eth-contract/btc-vault-registry/query";
-import { fetchVaultProviderById } from "../fetchVaultProviders";
+import {
+  getVaultFromChain,
+  getVaultProviderBtcPubkeyFromChain,
+} from "../../../clients/eth-contract/btc-vault-registry/query";
 import {
   getSortedUniversalChallengerPubkeys,
   getSortedVaultKeeperPubkeys,
   prepareSigningContext,
   resolveVaultProviderBtcPubkey,
 } from "../vaultPayoutSignatureService";
+
+const ON_CHAIN_VP_PUBKEY = "a".repeat(64);
+const COMPRESSED_VP_PUBKEY = `02${ON_CHAIN_VP_PUBKEY}`;
+const UNCOMPRESSED_VP_PUBKEY = `04${ON_CHAIN_VP_PUBKEY}${"b".repeat(64)}`;
+const DIFFERENT_VP_PUBKEY = "b".repeat(64);
 
 describe("vaultPayoutSignatureService", () => {
   describe("getSortedVaultKeeperPubkeys", () => {
@@ -78,31 +82,70 @@ describe("vaultPayoutSignatureService", () => {
       vi.clearAllMocks();
     });
 
-    it("returns the provided hint stripped of 0x prefix", async () => {
+    it("returns the on-chain key when the provided hint matches", async () => {
+      (getVaultProviderBtcPubkeyFromChain as Mock).mockResolvedValue(
+        `0x${ON_CHAIN_VP_PUBKEY}`,
+      );
+
       const result = await resolveVaultProviderBtcPubkey(
         "0xprovider",
-        "0xaabbcc",
+        `0x${ON_CHAIN_VP_PUBKEY}`,
       );
-      expect(result).toBe("aabbcc");
-      expect(fetchVaultProviderById).not.toHaveBeenCalled();
+
+      expect(result).toBe(ON_CHAIN_VP_PUBKEY);
+      expect(getVaultProviderBtcPubkeyFromChain).toHaveBeenCalledWith(
+        "0xprovider",
+      );
     });
 
-    it("fetches from GraphQL when no hint is provided", async () => {
-      (fetchVaultProviderById as Mock).mockResolvedValue({
-        btcPubKey: "0xddeeff",
-      });
+    it("accepts a compressed hint that matches the on-chain x-only key", async () => {
+      (getVaultProviderBtcPubkeyFromChain as Mock).mockResolvedValue(
+        `0x${ON_CHAIN_VP_PUBKEY}`,
+      );
+
+      const result = await resolveVaultProviderBtcPubkey(
+        "0xprovider",
+        COMPRESSED_VP_PUBKEY,
+      );
+
+      expect(result).toBe(ON_CHAIN_VP_PUBKEY);
+    });
+
+    it("accepts an uncompressed hint that matches the on-chain x-only key", async () => {
+      (getVaultProviderBtcPubkeyFromChain as Mock).mockResolvedValue(
+        `0x${ON_CHAIN_VP_PUBKEY}`,
+      );
+
+      const result = await resolveVaultProviderBtcPubkey(
+        "0xprovider",
+        UNCOMPRESSED_VP_PUBKEY,
+      );
+
+      expect(result).toBe(ON_CHAIN_VP_PUBKEY);
+    });
+
+    it("reads from chain when no hint is provided", async () => {
+      (getVaultProviderBtcPubkeyFromChain as Mock).mockResolvedValue(
+        `0x${ON_CHAIN_VP_PUBKEY}`,
+      );
 
       const result = await resolveVaultProviderBtcPubkey("0xprovider");
 
-      expect(result).toBe("ddeeff");
-      expect(fetchVaultProviderById).toHaveBeenCalledWith("0xprovider");
+      expect(result).toBe(ON_CHAIN_VP_PUBKEY);
+      expect(getVaultProviderBtcPubkeyFromChain).toHaveBeenCalledWith(
+        "0xprovider",
+      );
     });
 
-    it("throws when the provider is not found", async () => {
-      (fetchVaultProviderById as Mock).mockResolvedValue(null);
+    it("throws when the provided hint does not match the on-chain key", async () => {
+      (getVaultProviderBtcPubkeyFromChain as Mock).mockResolvedValue(
+        `0x${ON_CHAIN_VP_PUBKEY}`,
+      );
 
-      await expect(resolveVaultProviderBtcPubkey("0xprovider")).rejects.toThrow(
-        "Vault provider not found",
+      await expect(
+        resolveVaultProviderBtcPubkey("0xprovider", DIFFERENT_VP_PUBKEY),
+      ).rejects.toThrow(
+        "Vault provider BTC pubkey mismatch for 0xprovider: indexer hint does not match on-chain registry",
       );
     });
   });
@@ -133,9 +176,9 @@ describe("vaultPayoutSignatureService", () => {
       mockGetUniversalChallengersByVersion.mockResolvedValue([
         { btcPubKey: "uc1" },
       ]);
-      (fetchVaultProviderById as Mock).mockResolvedValue({
-        btcPubKey: "0xvp_pubkey",
-      });
+      (getVaultProviderBtcPubkeyFromChain as Mock).mockResolvedValue(
+        `0x${ON_CHAIN_VP_PUBKEY}`,
+      );
     });
 
     it("builds a SigningContext from on-chain data and returns provider address", async () => {
@@ -153,21 +196,44 @@ describe("vaultPayoutSignatureService", () => {
       expect(context.councilQuorum).toBe(1);
       expect(context.vaultKeeperBtcPubkeys).toEqual(["vk1", "vk2"]);
       expect(context.universalChallengerBtcPubkeys).toEqual(["uc1"]);
-      expect(context.vaultProviderBtcPubkey).toBe("vp_pubkey");
+      expect(context.vaultProviderBtcPubkey).toBe(ON_CHAIN_VP_PUBKEY);
       expect(context.network).toBe("signet");
       expect(context.registeredPayoutScriptPubKey).toBe("0xscript");
     });
 
-    it("prefers the caller-provided VP pubkey hint over the indexer", async () => {
+    it("accepts a caller-provided VP pubkey hint when it matches on-chain", async () => {
+      (getVaultProviderBtcPubkeyFromChain as Mock).mockResolvedValue(
+        `0x${ON_CHAIN_VP_PUBKEY}`,
+      );
+
       const { context } = await prepareSigningContext({
         vaultId: "vault_id",
         depositorBtcPubkey: "depositor_pubkey",
-        vaultProviderBtcPubKey: "0xhint_pubkey",
+        vaultProviderBtcPubKey: COMPRESSED_VP_PUBKEY,
         registeredPayoutScriptPubKey: "0xscript",
       });
 
-      expect(context.vaultProviderBtcPubkey).toBe("hint_pubkey");
-      expect(fetchVaultProviderById).not.toHaveBeenCalled();
+      expect(context.vaultProviderBtcPubkey).toBe(ON_CHAIN_VP_PUBKEY);
+      expect(getVaultProviderBtcPubkeyFromChain).toHaveBeenCalledWith(
+        ON_CHAIN_VAULT.vaultProvider,
+      );
+    });
+
+    it("throws when a poisoned GraphQL VP pubkey hint differs from on-chain", async () => {
+      (getVaultProviderBtcPubkeyFromChain as Mock).mockResolvedValue(
+        `0x${ON_CHAIN_VP_PUBKEY}`,
+      );
+
+      await expect(
+        prepareSigningContext({
+          vaultId: "vault_id",
+          depositorBtcPubkey: "depositor_pubkey",
+          vaultProviderBtcPubKey: DIFFERENT_VP_PUBKEY,
+          registeredPayoutScriptPubKey: "0xscript",
+        }),
+      ).rejects.toThrow(
+        "Vault provider BTC pubkey mismatch for 0xprovider: indexer hint does not match on-chain registry",
+      );
     });
 
     it("throws when vault keepers version returns empty list", async () => {
