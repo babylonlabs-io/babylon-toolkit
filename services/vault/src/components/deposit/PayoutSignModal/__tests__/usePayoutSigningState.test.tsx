@@ -22,6 +22,12 @@ vi.mock("../../../../context/deposit/PeginPollingContext", () => ({
   }),
 }));
 
+vi.mock("../../../../models/peginStateMachine", () => ({
+  LocalStorageStatus: {
+    PAYOUT_SIGNED: "payout_signed",
+  },
+}));
+
 const mockFindProvider = vi.fn();
 vi.mock("../../../../hooks/deposit/useVaultProviders", () => ({
   useVaultProviders: () => ({ findProvider: mockFindProvider }),
@@ -41,6 +47,8 @@ const mockBtcAddressToScriptPubKeyHex = vi.fn();
 vi.mock("../../../../utils/btc", () => ({
   btcAddressToScriptPubKeyHex: (addr: string) =>
     mockBtcAddressToScriptPubKeyHex(addr),
+  stripHexPrefix: (hex: string) =>
+    hex.startsWith("0x") || hex.startsWith("0X") ? hex.slice(2) : hex,
 }));
 
 vi.mock("../../../../utils/errors/formatting", () => ({
@@ -180,6 +188,25 @@ describe("usePayoutSigningState", () => {
 
       expect(result.current.error?.title).toBe("Payout Address Mismatch");
       expect(mockSignAndSubmitPayouts).not.toHaveBeenCalled();
+    });
+
+    it("accepts byte-equal payout scripts when the indexer hex uses upper or mixed case", async () => {
+      mockBtcAddressToScriptPubKeyHex.mockReturnValue("0xabcdef1234");
+
+      const { result } = renderHookWithProps({
+        activity: {
+          ...ACTIVITY,
+          depositorPayoutBtcAddress: "0xABCdef1234" as Hex,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        } as any,
+      });
+
+      await act(async () => {
+        await result.current.handleSign();
+      });
+
+      expect(result.current.error).toBeNull();
+      expect(mockSignAndSubmitPayouts).toHaveBeenCalledOnce();
     });
 
     it("rejects signing when the wallet address is unavailable instead of skipping the payout-address check", async () => {

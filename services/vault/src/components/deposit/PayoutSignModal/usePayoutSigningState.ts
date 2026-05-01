@@ -15,7 +15,10 @@ import { signAndSubmitPayouts } from "../../../hooks/deposit/depositFlowSteps/pa
 import { useVaultProviders } from "../../../hooks/deposit/useVaultProviders";
 import { LocalStorageStatus } from "../../../models/peginStateMachine";
 import type { VaultActivity } from "../../../types/activity";
-import { btcAddressToScriptPubKeyHex } from "../../../utils/btc";
+import {
+  btcAddressToScriptPubKeyHex,
+  stripHexPrefix,
+} from "../../../utils/btc";
 import { formatPayoutSignatureError } from "../../../utils/errors/formatting";
 
 import type { SigningProgressProps } from "./SigningProgress";
@@ -43,6 +46,10 @@ export interface UsePayoutSigningStateResult {
   isComplete: boolean;
   /** Handler to initiate signing */
   handleSign: () => Promise<void>;
+}
+
+function normalizeScriptPubKeyHex(scriptPubKey: string): string {
+  return stripHexPrefix(scriptPubKey).toLowerCase();
 }
 
 export function usePayoutSigningState({
@@ -139,7 +146,10 @@ export function usePayoutSigningState({
         });
         return;
       }
-      if (walletScriptPubKey !== activity.depositorPayoutBtcAddress) {
+      if (
+        normalizeScriptPubKeyHex(walletScriptPubKey) !==
+        normalizeScriptPubKeyHex(activity.depositorPayoutBtcAddress)
+      ) {
         setError({
           title: "Payout Address Mismatch",
           message:
