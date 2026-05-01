@@ -237,15 +237,8 @@ export function useDepositFlow(
   }, [abort]);
 
   // Hooks
-  const {
-    btcAddress,
-    spendableUTXOs,
-    isUTXOsLoading,
-    utxoError,
-    spendableBlockedByOrdinals,
-    isLoadingOrdinals,
-    ordinalsError,
-  } = useBtcWalletState();
+  const { btcAddress, spendableUTXOs, isUTXOsLoading, utxoError } =
+    useBtcWalletState();
   const { findProvider } = useVaultProviders(selectedApplication);
   const { config, timelockPegin, timelockRefund, minDeposit, maxDeposit } =
     useProtocolParamsContext();
@@ -285,25 +278,6 @@ export function useDepositFlow(
         }
         if (utxoError) {
           throw new Error(`Failed to load UTXOs: ${utxoError.message}`);
-        }
-        if (spendableBlockedByOrdinals) {
-          if (ordinalsError) {
-            const ordinalsMessage =
-              ordinalsError instanceof Error
-                ? ordinalsError.message
-                : String(ordinalsError);
-            throw new Error(
-              `Inscription detection failed: ${ordinalsMessage}. Depositing is blocked until the ordinals classifier is available again.`,
-            );
-          }
-          if (isLoadingOrdinals) {
-            throw new Error(
-              "Inscription detection is still in progress. Please wait for the ordinals check to complete before depositing.",
-            );
-          }
-          throw new Error(
-            "Inscription detection is unavailable. Depositing is blocked until the ordinals classifier produces a result.",
-          );
         }
 
         if (!spendableUTXOs) {
@@ -904,9 +878,6 @@ export function useDepositFlow(
       spendableUTXOs,
       isUTXOsLoading,
       utxoError,
-      spendableBlockedByOrdinals,
-      isLoadingOrdinals,
-      ordinalsError,
       findProvider,
     ]);
 

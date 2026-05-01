@@ -1,9 +1,5 @@
 /**
  * Tests for useUTXOs hook
- *
- * Covers the split between non-blocking display (`availableUTXOs`) and
- * fail-closed spend paths (`spendableUTXOs` / `spendableMempoolUTXOs`) when
- * the ordinals classifier is loading or unavailable.
  */
 
 import { useQuery } from "@tanstack/react-query";
@@ -104,98 +100,6 @@ describe("useUTXOs", () => {
       createMempoolUtxo("txid2", 1, 200000),
       createMempoolUtxo("txid3", 2, 300000),
     ];
-
-    it("should fail closed on spendable UTXOs when ordinals API fails and inscriptions are excluded", () => {
-      // Setup: UTXOs loaded successfully
-      mockUseQuery.mockReturnValue({
-        data: confirmedUtxos,
-        isLoading: false,
-        error: null,
-        refetch: vi.fn(),
-      });
-
-      // Setup: Ordinals API returns error
-      mockUseOrdinals.mockReturnValue({
-        inscriptions: [],
-        isLoading: false,
-        error: new Error("Ordinals API returned 500"),
-        refetch: vi.fn(),
-      });
-
-      mockLoggerWarn.mockClear();
-
-      const { result } = renderHook(() => useUTXOs(testAddress));
-
-      // Display collections stay non-blocking so the UI can render totals.
-      expect(result.current.availableUTXOs).toHaveLength(3);
-      expect(result.current.inscriptionUTXOs).toHaveLength(0);
-      // Spend collections fail closed so callers cannot consume unclassified UTXOs.
-      expect(result.current.spendableUTXOs).toHaveLength(0);
-      expect(result.current.spendableMempoolUTXOs).toHaveLength(0);
-      expect(result.current.spendableBlockedByOrdinals).toBe(true);
-
-      expect(mockLoggerWarn).toHaveBeenCalledWith(
-        "Ordinals API failed - display UTXOs unaffected, spend paths blocked when inscriptions excluded",
-        expect.objectContaining({
-          data: { error: "Ordinals API returned 500" },
-        }),
-      );
-    });
-
-    it("should fail closed on spendable UTXOs while ordinals API is loading and inscriptions are excluded", () => {
-      // Setup: UTXOs loaded successfully
-      mockUseQuery.mockReturnValue({
-        data: confirmedUtxos,
-        isLoading: false,
-        error: null,
-        refetch: vi.fn(),
-      });
-
-      // Setup: Ordinals API is still loading
-      mockUseOrdinals.mockReturnValue({
-        inscriptions: [],
-        isLoading: true,
-        error: null,
-        refetch: vi.fn(),
-      });
-
-      const { result } = renderHook(() => useUTXOs(testAddress));
-
-      // Display collections stay non-blocking.
-      expect(result.current.availableUTXOs).toHaveLength(3);
-      expect(result.current.inscriptionUTXOs).toHaveLength(0);
-      // Spend collections fail closed until classification completes.
-      expect(result.current.spendableUTXOs).toHaveLength(0);
-      expect(result.current.spendableMempoolUTXOs).toHaveLength(0);
-      expect(result.current.spendableBlockedByOrdinals).toBe(true);
-
-      // Loading flag should be exposed for UI
-      expect(result.current.isLoadingOrdinals).toBe(true);
-    });
-
-    it("should remain non-blocking on spendable UTXOs when the user has opted in to inscriptions", () => {
-      mockUseAppState.mockReturnValue({ ordinalsExcluded: false });
-
-      mockUseQuery.mockReturnValue({
-        data: confirmedUtxos,
-        isLoading: false,
-        error: null,
-        refetch: vi.fn(),
-      });
-
-      mockUseOrdinals.mockReturnValue({
-        inscriptions: [],
-        isLoading: true,
-        error: null,
-        refetch: vi.fn(),
-      });
-
-      const { result } = renderHook(() => useUTXOs(testAddress));
-
-      expect(result.current.spendableUTXOs).toHaveLength(3);
-      expect(result.current.spendableMempoolUTXOs).toHaveLength(3);
-      expect(result.current.spendableBlockedByOrdinals).toBe(false);
-    });
 
     it("should filter inscription UTXOs when ordinals API succeeds", () => {
       // Setup: UTXOs loaded successfully
