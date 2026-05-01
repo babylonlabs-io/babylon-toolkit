@@ -62,7 +62,7 @@ See the `services/vault` package in [babylon-toolkit](https://github.com/babylon
 
 ## PayoutManager — single-claimer payout signing
 
-Most applications don't drive `PayoutManager` directly. During phase 4 of the peg-in, the [`pollAndSignPayouts()`](../api/services.md) service polls the VP, fetches per-claimer payout transactions, delegates signing to `PayoutManager` (batching through `signPsbts` when the wallet supports it), and submits signatures back to the VP. See the [Managers Quickstart end-to-end flow](./managers.md#end-to-end-flow) for the common path.
+Most applications don't drive `PayoutManager` directly. During phase 4 of the peg-in, the [`runDepositorPresignFlow()`](../api/services.md) service polls the VP, fetches per-claimer payout transactions, delegates signing to `PayoutManager` (batching through `signPsbts` when the wallet supports it), and submits signatures back to the VP. See the [Managers Quickstart end-to-end flow](./managers.md#end-to-end-flow) for the common path.
 
 Use `PayoutManager` directly only when you need to sign a single claimer's payout in isolation — e.g. a test harness, an out-of-band recovery, or a custom orchestration loop.
 
@@ -112,7 +112,7 @@ if (payoutManager.supportsBatchSigning()) {
 }
 ```
 
-The `pollAndSignPayouts()` service does this automatically.
+The `runDepositorPresignFlow()` service does this automatically.
 
 ---
 
@@ -191,5 +191,5 @@ Each per-vault HTLC preimage is re-derivable from the wallet root at activation 
 
 - [Managers Quickstart](./managers.md) — the happy path
 - [Wallet Interfaces Guide](../guides/wallet-interfaces.md) — KMS/HSM + hardware wallet adapters
-- [Services API reference](../api/services.md) — full signatures for `activateVault`, `buildAndBroadcastRefund`, `pollAndSignPayouts`
+- [Services API reference](../api/services.md) — full signatures for `activateVault`, `buildAndBroadcastRefund`, `runDepositorPresignFlow`
 - [Managers API reference](../api/managers.md) — full signatures for `PeginManager` + `PayoutManager`

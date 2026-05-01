@@ -11,6 +11,19 @@ import type { Address, Hex } from "viem";
 // Vault Registry Types
 // ============================================================================
 
+declare const onChainBtcPubkeyBrand: unique symbol;
+
+/**
+ * 64-char lowercase hex (no `0x`) x-only BTC pubkey sourced from the
+ * on-chain BTCVaultRegistry. The only legitimate producer is
+ * {@link VaultRegistryReader.getVaultProviderBtcPubKey}.
+ *
+ * @stability frozen
+ */
+export type OnChainBtcPubkey = string & {
+  readonly [onChainBtcPubkeyBrand]: true;
+};
+
 /** Basic vault info from BTCVaultRegistry.getBtcVaultBasicInfo */
 export interface VaultBasicInfo {
   depositor: Address;
@@ -48,6 +61,7 @@ export interface VaultRegistryReader {
   getVaultBasicInfo(vaultId: Hex): Promise<VaultBasicInfo>;
   getVaultProtocolInfo(vaultId: Hex): Promise<VaultProtocolInfo>;
   getVaultData(vaultId: Hex): Promise<VaultData>;
+  getVaultProviderBtcPubKey(vpAddress: Address): Promise<OnChainBtcPubkey>;
 }
 
 // ============================================================================

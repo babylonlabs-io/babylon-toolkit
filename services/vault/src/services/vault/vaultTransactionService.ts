@@ -100,6 +100,17 @@ export interface PreparePeginResult {
   wotsPkHashes: Hex[];
   /** Per-vault HTLC preimage hex (no 0x prefix). Sensitive — do not log. */
   htlcSecretHexes: string[];
+  /**
+   * Raw 32-byte auth-anchor preimage as 64-char lowercase hex (no 0x).
+   * Sent to the VP via `auth_createDepositorToken`. Sensitive — do
+   * not log; do not persist.
+   *
+   * Known limitation: JS strings can't be wiped, so this value is
+   * visible in any closure that captures it (incl. React DevTools)
+   * until GC. Lifetime is bounded by `vpTokenRegistry.release` on
+   * terminal flow paths.
+   */
+  authAnchorHex: string;
 }
 
 /**
@@ -194,6 +205,7 @@ export async function preparePeginTransaction(
     perVaultWotsKeys: derivedSecrets.perVaultWotsKeys,
     wotsPkHashes: derivedSecrets.wotsPkHashes,
     htlcSecretHexes: derivedSecrets.htlcSecretHexes,
+    authAnchorHex: derivedSecrets.authAnchorHex,
   };
 }
 

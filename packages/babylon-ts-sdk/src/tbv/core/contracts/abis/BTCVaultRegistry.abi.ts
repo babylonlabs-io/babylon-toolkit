@@ -217,6 +217,17 @@ export const BTCVaultRegistryABI = [
   },
   {
     type: "function",
+    name: "getVaultProviderBTCKey",
+    inputs: [
+      { name: "vpAddr", type: "address", internalType: "address" },
+    ],
+    outputs: [
+      { name: "", type: "bytes32", internalType: "bytes32" },
+    ],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
     name: "getBtcVaultBasicInfo",
     inputs: [
       {

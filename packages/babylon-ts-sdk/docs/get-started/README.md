@@ -44,7 +44,7 @@ Every vault lives in one of these on-chain states. Your SDK code transitions bet
        │  (contract status stays PENDING until the VP observes the BTC broadcast,
        │   builds the transaction graph, and posts presigned transactions back)
        │
-       │  5. pollAndSignPayouts()                    — co-sign payout authorisations
+       │  5. runDepositorPresignFlow()                    — co-sign payout authorisations
        ▼
    VERIFIED
        │ ┌─── activation window expires ───▶ EXPIRED ──┐
@@ -131,7 +131,7 @@ Each maps to a public subpath like `@babylonlabs-io/ts-sdk/tbv/core/<name>` (see
 
 - **primitives** — Pure PSBT builders. No wallet, no network. You control everything. Examples: `buildPrePeginPsbt`, `buildPayoutPsbt`, `buildRefundPsbt`.
 - **utils** — Pure helpers for UTXO selection/reservation, fee constants, transaction funding, BTC/script utilities, taproot signing options.
-- **services** — Stateless flow helpers that compose primitives with **injected** I/O callbacks (sign, broadcast, contract write). They don't own the wallet. Examples: `activateVault`, `buildAndBroadcastRefund`, `pollAndSignPayouts`, `getPeginProtocolState`, `BIP68NotMatureError`.
+- **services** — Stateless flow helpers that compose primitives with **injected** I/O callbacks (sign, broadcast, contract write). They don't own the wallet. Examples: `activateVault`, `buildAndBroadcastRefund`, `runDepositorPresignFlow`, `getPeginProtocolState`, `BIP68NotMatureError`.
 - **managers** — Stateful classes that take a wallet interface and run a full flow. Examples: `PeginManager` (vault creation), `PayoutManager` (payout signing).
 - **integrations** — Application-specific modules built on top of the lower layers. Current: Aave v4.
 - **clients** — Optional on-chain reader classes for authoritative contract data at the version the vault pinned. Examples: `ViemProtocolParamsReader`, `ViemVaultKeeperReader`, `ViemUniversalChallengerReader`, `ViemVaultRegistryReader`, plus the `resolveProtocolAddresses` helper.
@@ -178,7 +178,7 @@ Import from specific subpaths for best tree-shaking:
 | `@babylonlabs-io/ts-sdk/shared` | `BitcoinWallet` interface, `SignPsbtOptions` |
 | `@babylonlabs-io/ts-sdk/tbv/core` | `PeginManager`, `PayoutManager`, and re-exports of the core layer |
 | `@babylonlabs-io/ts-sdk/tbv/core/primitives` | PSBT builders |
-| `@babylonlabs-io/ts-sdk/tbv/core/services` | `activateVault`, `buildAndBroadcastRefund`, `pollAndSignPayouts`, protocol-state helpers |
+| `@babylonlabs-io/ts-sdk/tbv/core/services` | `activateVault`, `buildAndBroadcastRefund`, `runDepositorPresignFlow`, protocol-state helpers |
 | `@babylonlabs-io/ts-sdk/tbv/core/clients` | On-chain reader classes (`Viem*Reader`) |
 | `@babylonlabs-io/ts-sdk/tbv/integrations/aave` | Aave v4 transaction + position helpers |
 | `@babylonlabs-io/ts-sdk/testing` | Mock wallet implementations for tests |

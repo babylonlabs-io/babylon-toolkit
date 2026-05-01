@@ -66,21 +66,17 @@ export interface JsonRpcClientConfig {
   /** Initial retry delay in milliseconds (default: 1000) */
   retryDelay?: number;
   /**
-   * Predicate to determine if a method is safe to retry.
-   * Default: only retry `vaultProvider_getPeginStatus` and `vaultProvider_getPegoutStatus`.
-   * Write/mutating methods are NOT retried by default.
+   * Predicate that decides which methods retry on transient errors.
+   * Default retries only `getPeginStatus`, `getPegoutStatus`, and
+   * `requestDepositorPresignTransactions`. Write methods are not
+   * retried by default.
    */
   retryableFor?: (method: string) => boolean;
   /**
-   * Optional bearer-token provider. If set, the client injects
-   * `Authorization: Bearer <token>` for every method the provider
-   * returns a non-null token for (`call` and `callRaw` alike).
-   *
-   * `call` also performs a one-shot reactive refresh when a wire-origin
-   * JSON-RPC error carries `error.data.kind === "auth_expired"` —
-   * it calls `invalidate()`, fetches a fresh token, and retries the
-   * request once. `callRaw` does NOT perform reactive refresh (its
-   * body may be unbounded; we don't parse it).
+   * Per-request bearer-token source. A non-null return attaches
+   * `Authorization: Bearer <token>`; `null` skips auth. `call`
+   * additionally retries once on wire `auth_expired` (invalidate +
+   * refetch + retry). `callRaw` skips reactive refresh.
    */
   tokenProvider?: BearerTokenProvider;
 }

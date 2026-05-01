@@ -209,6 +209,7 @@ export function usePayoutSigningState({
           registeredPayoutScriptPubKey: activity.depositorPayoutBtcAddress,
           btcWallet: btcWalletProvider,
           depositorEthAddress,
+          unsignedPrePeginTxHex: activity.unsignedPrePeginTx,
           signal: abortRef.current.signal,
           onProgress: (next) => {
             if (next === null) return;
@@ -241,6 +242,7 @@ export function usePayoutSigningState({
     activity.peginTxHash,
     activity.id,
     activity.depositorPayoutBtcAddress,
+    activity.unsignedPrePeginTx,
     findProvider,
     btcConnector?.connectedWallet?.account?.address,
     btcConnector?.connectedWallet?.provider,

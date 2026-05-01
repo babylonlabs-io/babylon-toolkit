@@ -2,7 +2,7 @@
  * Vault-tier helpers for payout signing.
  *
  * Most of the former contents of this module moved to the SDK's
- * `pollAndSignPayouts` orchestrator. What remains is app-specific:
+ * `runDepositorPresignFlow` orchestrator. What remains is app-specific:
  *
  * - `prepareSigningContext` — reads version-locked vault data from the
  *   BTCVaultRegistry contract and composes the `SigningContext` that the

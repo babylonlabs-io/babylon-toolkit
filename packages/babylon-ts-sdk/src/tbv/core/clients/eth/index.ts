@@ -10,6 +10,7 @@ export {
 export { ViemVaultRegistryReader } from "./vault-registry-reader";
 export type {
   AddressBTCKeyPair,
+  OnChainBtcPubkey,
   PegInConfiguration,
   ProtocolParamsReader,
   TBVProtocolParams,

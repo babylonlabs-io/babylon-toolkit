@@ -27,7 +27,7 @@ Managers are the fastest path to a working flow when you're using a standard wal
 | 2 | Sign BTC proof-of-possession (once per session) | `peginManager.signProofOfPossession()` | n/a (off-chain) | 1 BTC (`signMessage`) |
 | 3 | Register on Ethereum | `peginManager.registerPeginOnChain()` | `PENDING` | 1 ETH |
 | 4 | Broadcast Pre-PegIn on Bitcoin | `peginManager.signAndBroadcast()` | still `PENDING` until VP observes the tx | 1 BTC (`signPsbt`) |
-| 5 | Sign payout authorisations | `pollAndSignPayouts()` (service, delegates to `PayoutManager`) | `PENDING` → `VERIFIED` | 1 BTC (`signPsbts`) |
+| 5 | Sign payout authorisations | `runDepositorPresignFlow()` (service, delegates to `PayoutManager`) | `PENDING` → `VERIFIED` | 1 BTC (`signPsbts`) |
 | 6 | **Activate by revealing HTLC secret** | `activateVault()` (service) | `VERIFIED` → `ACTIVE` | 1 ETH |
 
 > **Wait times:** phases 1–3 (prepare, PoP, register) run back-to-back with only wallet popups between them. After phase 4 (Bitcoin broadcast) you usually wait 1 BTC confirmation so the VP can index the Pre-PegIn and prepare transaction graphs (minutes). Phase 5 drives the contract to `VERIFIED` once all payout signatures are posted.
@@ -97,7 +97,7 @@ import { PeginManager } from "@babylonlabs-io/ts-sdk/tbv/core";
 import {
   activateVault,
   computeHashlock,
-  pollAndSignPayouts,
+  runDepositorPresignFlow,
   type PayoutSigningContext,
 } from "@babylonlabs-io/ts-sdk/tbv/core/services";
 import { VaultProviderRpcClient } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
@@ -192,7 +192,7 @@ const signingContext: PayoutSigningContext = {
   registeredPayoutScriptPubKey: "0x...",   // from PegInSubmitted event / indexer
 };
 
-await pollAndSignPayouts({
+await runDepositorPresignFlow({
   statusReader: vpClient,
   presignClient: vpClient,
   btcWallet,
@@ -236,7 +236,7 @@ await activateVault({
 | 2 | `peginManager.signProofOfPossession()` | `{ btcPopSignature, depositorEthAddress, depositorBtcPubkey }` — reusable across every `registerPeginOnChain` call in the session |
 | 3 | `peginManager.registerPeginOnChain()` | `{ ethTxHash, vaultId, peginTxHash }` |
 | 4 | `peginManager.signAndBroadcast()` | `btcTxid` (string) |
-| 5 | `pollAndSignPayouts()` | `void` — side effect: signatures posted, contract moves to `VERIFIED` |
+| 5 | `runDepositorPresignFlow()` | `void` — side effect: signatures posted, contract moves to `VERIFIED` |
 | 6 | `activateVault()` | Whatever `writeContract` returns (typically `{ transactionHash }`) |
 
 ---

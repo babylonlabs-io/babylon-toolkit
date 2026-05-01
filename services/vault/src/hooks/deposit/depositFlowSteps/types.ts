@@ -91,12 +91,12 @@ export interface PeginBatchRegisterResult {
 // ============================================================================
 
 export interface WotsSubmissionParams {
-  /** Raw BTC pegin transaction hash (for VP RPC pegin_txid) */
   peginTxHash: string;
   depositorBtcPubkey: string;
   providerAddress: string;
-  /** Pre-derived WOTS block public keys (one per assert block) */
   wotsPublicKeys: WotsBlockPublicKey[];
+  btcWallet: BitcoinWallet;
+  unsignedPrePeginTxHex: string;
   signal?: AbortSignal;
 }
 

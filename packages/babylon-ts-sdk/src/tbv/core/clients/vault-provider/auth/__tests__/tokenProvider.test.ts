@@ -18,7 +18,10 @@ const PEGIN_TXID = "a".repeat(64);
 const AUTH_ANCHOR = "b".repeat(64);
 // Must be a real curve point so BIP-322 verify inside verifyServerIdentity
 // can succeed on the happy-path tests below.
-const PINNED_PUBKEY = GOLDEN_SIGNING_KEY_XONLY;
+// `OnChainBtcPubkey` is brand-only — production callers receive it
+// from the on-chain reader. Tests mint it via cast at the boundary.
+const PINNED_PUBKEY =
+  GOLDEN_SIGNING_KEY_XONLY as unknown as import("../../../eth").OnChainBtcPubkey;
 const TEST_BASE_URL = "https://vp.example.com/rpc";
 // NOW is the pinned wall-clock the tests inject. Chosen relative to the
 // golden proof's expires_at so the proof is still valid.

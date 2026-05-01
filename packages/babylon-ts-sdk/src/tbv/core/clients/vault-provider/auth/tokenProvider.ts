@@ -26,14 +26,13 @@
  * @module tbv/core/clients/vault-provider/auth/tokenProvider
  */
 
+import type { OnChainBtcPubkey } from "../../eth/types";
 import type { BearerTokenProvider, JsonRpcClient } from "../json-rpc-client";
+import { TOKEN_ISSUE_METHOD } from "./innerTokenClient";
 import {
   type ServerIdentityResponse,
   verifyServerIdentity,
 } from "./serverIdentity";
-
-/** Method name on the VP that issues depositor tokens (fast path). */
-const CREATE_TOKEN_METHOD = "auth_createDepositorToken";
 
 /**
  * Maximum reasonable `expires_at` value (seconds since epoch). Guards
@@ -62,33 +61,18 @@ export interface CreateDepositorTokenResponse {
 }
 
 export interface VpTokenProviderConfig {
-  /** VP JSON-RPC client to use for `auth_createDepositorToken` calls. */
   client: JsonRpcClient;
-  /** Pre-PegIn transaction id this token is scoped to. */
+  /** Per-vault depositor-signed PegIn tx id. NOT shared across sibling vaults in a batch. */
   peginTxid: string;
-  /**
-   * 64-char lowercase hex encoding of the 32-byte `auth_anchor`
-   * preimage committed in the Pre-PegIn OP_RETURN. Presenting this
-   * preimage is what lets the VP issue the token (the "fast path").
-   */
+  /** 64-char hex of the 32-byte OP_RETURN auth-anchor preimage. */
   authAnchorHex: string;
-  /**
-   * 64-char lowercase hex x-only pubkey the FE expects the VP to
-   * present as its persistent server identity. Sourced from the
-   * on-chain `VaultProvider.btcPubKey` via the vault-registry reader.
-   */
-  pinnedServerPubkey: string;
-  /**
-   * Set of method names that require authentication. `getToken()`
-   * returns `null` for any method not in this set.
-   */
+  /** Pinned VP pubkey from the on-chain registry; branded so indexer mirrors can't substitute. */
+  pinnedServerPubkey: OnChainBtcPubkey;
+  /** Methods that require a bearer; `getToken` returns `null` for anything outside this set. */
   authGatedMethods: ReadonlySet<string>;
-  /**
-   * Seconds before `expires_at` to treat a cached token as expired.
-   * Default: {@link DEFAULT_REFRESH_SKEW_SECS}.
-   */
+  /** Default {@link DEFAULT_REFRESH_SKEW_SECS}. */
   refreshSkewSecs?: number;
-  /** Clock source (injected for testability). Default: `Date.now() / 1000`. */
+  /** Clock source for testability. */
   now?: () => number;
 }
 
@@ -104,10 +88,14 @@ interface CachedToken {
  * `JsonRpcClient` as `tokenProvider`.
  */
 export class VpTokenProvider implements BearerTokenProvider {
-  private readonly client: JsonRpcClient;
+  // `client` is the only mutable field — see `setClient`. The
+  // identity-bearing fields (peginTxid/authAnchorHex/pinnedServerPubkey)
+  // remain readonly and are checked against re-registration in the
+  // registry's `getOrCreate`.
+  private client: JsonRpcClient;
   private readonly peginTxid: string;
   private readonly authAnchorHex: string;
-  private readonly pinnedServerPubkey: string;
+  private readonly pinnedServerPubkey: OnChainBtcPubkey;
   private readonly authGatedMethods: ReadonlySet<string>;
   private readonly refreshSkewSecs: number;
   private readonly now: () => number;
@@ -138,7 +126,7 @@ export class VpTokenProvider implements BearerTokenProvider {
    * guard. Returning `null` here breaks that recursion deterministically.
    */
   async getToken(method: string): Promise<string | null> {
-    if (method === CREATE_TOKEN_METHOD) return null;
+    if (method === TOKEN_ISSUE_METHOD) return null;
     if (!this.authGatedMethods.has(method)) return null;
 
     const cached = this.cached;
@@ -162,6 +150,18 @@ export class VpTokenProvider implements BearerTokenProvider {
     // a fresh `cached` on completion.
   }
 
+  /**
+   * Swap in a different transport for subsequent token-issuing calls.
+   * Used by the registry when a later caller registers the same
+   * `peginTxid` against a different `baseUrl` — the cached token
+   * (bound to identity, not transport) stays valid, but future
+   * refreshes hit the new URL. An in-flight acquire keeps using the
+   * old client (it captured the reference); next call uses the new.
+   */
+  setClient(client: JsonRpcClient): void {
+    this.client = client;
+  }
+
   private acquireSingleFlight(): Promise<CachedToken> {
     const existing = this.inFlight;
     if (existing) return existing;
@@ -171,7 +171,7 @@ export class VpTokenProvider implements BearerTokenProvider {
         const response = await this.client.call<
           { pegin_txid: string; auth_anchor: string },
           CreateDepositorTokenResponse
-        >(CREATE_TOKEN_METHOD, {
+        >(TOKEN_ISSUE_METHOD, {
           pegin_txid: this.peginTxid,
           auth_anchor: this.authAnchorHex,
         });

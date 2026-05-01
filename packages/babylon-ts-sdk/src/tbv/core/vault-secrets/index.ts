@@ -25,3 +25,5 @@ export type { FundingOutpoint, VaultContextInput } from "./context";
 export { deriveVaultRoot, VAULT_APP_NAME } from "./deriveVaultRoot";
 
 export type { DeriveContextHashCapableWallet } from "./deriveVaultRoot";
+
+export { parseFundingOutpointsFromTx } from "./parseFundingOutpoints";

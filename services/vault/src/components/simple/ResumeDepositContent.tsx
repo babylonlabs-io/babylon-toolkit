@@ -13,15 +13,18 @@ import {
   computeWotsBlockPublicKeysHash,
   deriveVaultRoot,
   deriveWotsBlocksFromSeed,
+  expandAuthAnchor,
   expandHashlockSecret,
   expandWotsSeed,
   hexToUint8Array,
   isWotsMismatchError,
+  parseFundingOutpointsFromTx,
   uint8ArrayToHex,
 } from "@babylonlabs-io/ts-sdk/tbv/core";
+import { primeVpTokenRegistry } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import { useChainConnector } from "@babylonlabs-io/wallet-connector";
 import { useCallback, useState } from "react";
-import type { Hex } from "viem";
+import type { Address, Hex } from "viem";
 
 import { getVaultRegistryReader } from "@/clients/eth-contract/sdk-readers";
 import {
@@ -32,9 +35,12 @@ import { usePayoutSigningState } from "@/components/deposit/PayoutSignModal/useP
 import { submitWotsPublicKey } from "@/hooks/deposit/depositFlowSteps/wotsSubmission";
 import { useActivationState } from "@/hooks/deposit/useActivationState";
 import { useBroadcastState } from "@/hooks/deposit/useBroadcastState";
+import { useReleaseVpTokenOnUnmount } from "@/hooks/deposit/useReleaseVpTokenOnUnmount";
 import { useRunOnce } from "@/hooks/useRunOnce";
+import { logger } from "@/infrastructure";
 import type { VaultActivity } from "@/types/activity";
-import { parseFundingOutpointsFromTx } from "@/utils/parseFundingOutpoints";
+import { stripHexPrefix } from "@/utils/btc";
+import { getVpProxyUrl } from "@/utils/rpc";
 
 import { DepositProgressView } from "./DepositProgressView";
 
@@ -172,6 +178,11 @@ export function ResumeWotsContent({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Release the primed registry entry on unmount if activation didn't
+  // happen (the normal release point in `useVaultActions`). Bounds
+  // `authAnchorHex` lifetime when the user abandons the resume flow.
+  const trackPrimedTxid = useReleaseVpTokenOnUnmount();
+
   const handleSubmit = useCallback(async () => {
     if (!btcWalletProvider) {
       setError("BTC wallet is not connected");
@@ -200,10 +211,20 @@ export function ResumeWotsContent({
       // Read signing-critical inputs (depositor pubkey, htlcVout,
       // depositorWotsPkHash) directly from the registry. Indexer data is
       // untrusted for derivation domain separators and on-chain commitments.
+      // Fire the VP pubkey fetch in parallel — it's needed later for
+      // registry priming and is independent of the vault data read.
       const reader = getVaultRegistryReader();
-      const { basic, protocol } = await reader.getVaultData(
-        activity.id as `0x${string}`,
-      );
+      const vaultDataPromise = reader.getVaultData(activity.id as Hex);
+      const pinnedServerPubkeyPromise = reader
+        .getVaultProviderBtcPubKey(providerAddress as Address)
+        .catch((err: unknown) => {
+          logger.warn("Failed to fetch VP pubkey for registry priming", {
+            peginTxHash,
+            error: err instanceof Error ? err.message : String(err),
+          });
+          return null;
+        });
+      const { basic, protocol } = await vaultDataPromise;
       const depositorBtcPubkey = basic.depositorBtcPubKey;
       const htlcVout = protocol.htlcVout;
       const onChainWotsPkHash = protocol.depositorWotsPkHash;
@@ -216,6 +237,17 @@ export function ResumeWotsContent({
         depositorBtcPubkey: hexToUint8Array(depositorBtcPubkey),
         fundingOutpoints,
       });
+
+      // Reuse the derived root for the auth anchor so submitWotsPublicKey
+      // doesn't trigger a second wallet popup.
+      const authAnchorBytes = expandAuthAnchor(root);
+      let authAnchorHex: string;
+      try {
+        authAnchorHex = uint8ArrayToHex(authAnchorBytes);
+      } finally {
+        authAnchorBytes.fill(0);
+      }
+
       const seed = expandWotsSeed(root, htlcVout);
       let wotsPublicKeys;
       try {
@@ -231,11 +263,27 @@ export function ResumeWotsContent({
         );
       }
 
+      // Best-effort: if the parallel pubkey fetch failed, skip
+      // priming — submitWotsPublicKey re-derives on cache miss.
+      const pinnedServerPubkey = await pinnedServerPubkeyPromise;
+      if (pinnedServerPubkey) {
+        const primedTxid = stripHexPrefix(peginTxHash);
+        primeVpTokenRegistry({
+          baseUrl: getVpProxyUrl(providerAddress),
+          peginTxid: primedTxid,
+          authAnchorHex,
+          pinnedServerPubkey,
+        });
+        trackPrimedTxid(primedTxid);
+      }
+
       await submitWotsPublicKey({
         peginTxHash,
         depositorBtcPubkey,
         providerAddress,
         wotsPublicKeys,
+        btcWallet: btcWalletProvider,
+        unsignedPrePeginTxHex: activity.unsignedPrePeginTx,
       });
 
       setLoading(false);
@@ -256,7 +304,7 @@ export function ResumeWotsContent({
     } finally {
       root?.fill(0);
     }
-  }, [activity, btcWalletProvider, onSuccess]);
+  }, [activity, btcWalletProvider, onSuccess, trackPrimedTxid]);
 
   useRunOnce(handleSubmit);
 
@@ -337,9 +385,7 @@ export function ResumeActivationContent({
       // from the registry. Indexer data is untrusted for derivation domain
       // separators.
       const reader = getVaultRegistryReader();
-      const { basic, protocol } = await reader.getVaultData(
-        activity.id as `0x${string}`,
-      );
+      const { basic, protocol } = await reader.getVaultData(activity.id as Hex);
       const depositorBtcPubkey = basic.depositorBtcPubKey;
       const htlcVout = protocol.htlcVout;
 

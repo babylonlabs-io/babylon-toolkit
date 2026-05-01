@@ -55,7 +55,7 @@ export function PendingDepositCard({
 
   // `transactions` is destructured for the row-local readiness UX hint
   // (button label / disabled state below). The signing flow itself no longer
-  // consumes them — the SDK's pollAndSignPayouts re-polls the VP.
+  // consumes them — the SDK's runDepositorPresignFlow re-polls the VP.
   const { loading, transactions, peginState } = pollingResult;
   const status = getActionStatus(pollingResult);
   const isActionable = status.type === "available";

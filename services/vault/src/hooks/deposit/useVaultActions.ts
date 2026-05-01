@@ -4,6 +4,7 @@
 
 import { getETHChain } from "@babylonlabs-io/config";
 import { ensureHexPrefix } from "@babylonlabs-io/ts-sdk/tbv/core";
+import { vpTokenRegistry } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import { validateSecretAgainstHashlock } from "@babylonlabs-io/ts-sdk/tbv/core/services";
 import {
   calculateBtcTxHash,
@@ -328,6 +329,15 @@ export function useVaultActions(): UseVaultActionsReturn {
         secret: ensureHexPrefix(secretHex),
         walletClient,
       });
+
+      // Cross-device resume has no `pendingPegin`; fall back to the
+      // contract-authoritative signed pegin tx so the entry doesn't leak.
+      const peginTxidForRelease = pendingPegin?.peginTxHash
+        ? stripHexPrefix(pendingPegin.peginTxHash)
+        : stripHexPrefix(
+            calculateBtcTxHash(protocolInfo.depositorSignedPeginTx),
+          );
+      vpTokenRegistry.release(peginTxidForRelease);
 
       // Update localStorage status
       const nextStatus = getNextLocalStatus(PeginAction.ACTIVATE_VAULT);

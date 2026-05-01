@@ -35,6 +35,7 @@ const MOCK_PROTOCOL_INFO_RESULT = {
 function createMockPublicClient(overrides?: {
   basicInfoResult?: unknown;
   protocolInfoResult?: unknown;
+  vpBtcKeyResult?: unknown;
 }) {
   return {
     readContract: vi.fn(async ({ functionName }: { functionName: string }) => {
@@ -44,10 +45,18 @@ function createMockPublicClient(overrides?: {
       if (functionName === "getBtcVaultProtocolInfo") {
         return overrides?.protocolInfoResult ?? MOCK_PROTOCOL_INFO_RESULT;
       }
+      if (functionName === "getVaultProviderBTCKey") {
+        return overrides?.vpBtcKeyResult;
+      }
       throw new Error(`Unknown function: ${functionName}`);
     }),
   };
 }
+
+// A real x-only secp256k1 point (the x-coordinate of the standard
+// generator G). Used as a "valid" pubkey fixture.
+const VALID_XONLY_HEX =
+  "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798";
 
 describe("ViemVaultRegistryReader", () => {
   it("returns basic info with correct field mapping", async () => {
@@ -124,6 +133,51 @@ describe("ViemVaultRegistryReader", () => {
     await expect(reader.getVaultData(MOCK_VAULT_ID)).rejects.toThrow(
       "not found on-chain",
     );
+  });
+
+  it("getVaultProviderBtcPubKey returns the prefix-stripped lowercase hex for a valid x-only point", async () => {
+    const publicClient = createMockPublicClient({
+      vpBtcKeyResult: `0x${VALID_XONLY_HEX}` as Hex,
+    });
+    const reader = new ViemVaultRegistryReader(
+      publicClient as never,
+      MOCK_ADDRESS,
+    );
+
+    const key = await reader.getVaultProviderBtcPubKey(MOCK_ADDRESS);
+    expect(key).toBe(VALID_XONLY_HEX);
+  });
+
+  it("getVaultProviderBtcPubKey throws on a malformed (non-hex / wrong length) value", async () => {
+    const publicClient = createMockPublicClient({
+      vpBtcKeyResult: "0xdeadbeef" as Hex,
+    });
+    const reader = new ViemVaultRegistryReader(
+      publicClient as never,
+      MOCK_ADDRESS,
+    );
+
+    await expect(
+      reader.getVaultProviderBtcPubKey(MOCK_ADDRESS),
+    ).rejects.toThrow(/unexpected value/);
+  });
+
+  it("getVaultProviderBtcPubKey throws when the bytes32 is not a valid x-only secp256k1 point", async () => {
+    // 32-byte all-zeros is well-formed bytes32 but not on the curve.
+    // Without the curve check, this would have branded as a trusted
+    // OnChainBtcPubkey and degraded into a generic BIP-322 verify
+    // failure later. The brand should mean "validated x-only pubkey".
+    const publicClient = createMockPublicClient({
+      vpBtcKeyResult: `0x${"00".repeat(32)}` as Hex,
+    });
+    const reader = new ViemVaultRegistryReader(
+      publicClient as never,
+      MOCK_ADDRESS,
+    );
+
+    await expect(
+      reader.getVaultProviderBtcPubKey(MOCK_ADDRESS),
+    ).rejects.toThrow(/not on the secp256k1 curve/);
   });
 
   it("passes correct contract address and vault ID to readContract", async () => {

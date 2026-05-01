@@ -5,10 +5,13 @@
  * of the VaultRegistryReader interface.
  */
 
+import * as ecc from "@bitcoin-js/tiny-secp256k1-asmjs";
 import type { Address, Hex, PublicClient } from "viem";
 
+import { hexToUint8Array } from "../../primitives/utils/bitcoin";
 import { BTCVaultRegistryABI } from "../../contracts/abis/BTCVaultRegistry.abi";
 import type {
+  OnChainBtcPubkey,
   VaultBasicInfo,
   VaultData,
   VaultProtocolInfo,
@@ -29,6 +32,36 @@ export class ViemVaultRegistryReader implements VaultRegistryReader {
     private publicClient: PublicClient,
     private contractAddress: Address,
   ) {}
+
+  /**
+   * Read the VP's persistent x-only BTC pubkey from the on-chain
+   * registry. Validates length, hex form, and secp256k1 curve
+   * membership before minting the brand. Returns 64-char lowercase
+   * hex without the `0x` prefix.
+   */
+  async getVaultProviderBtcPubKey(
+    vpAddress: Address,
+  ): Promise<OnChainBtcPubkey> {
+    const result = (await this.publicClient.readContract({
+      address: this.contractAddress,
+      abi: BTCVaultRegistryABI,
+      functionName: "getVaultProviderBTCKey",
+      args: [vpAddress],
+    })) as Hex;
+    const lowered = result.toLowerCase();
+    if (!/^0x[0-9a-f]{64}$/.test(lowered)) {
+      throw new Error(
+        `getVaultProviderBTCKey returned an unexpected value (vp=${vpAddress}, length ${lowered.length}, prefix "${lowered.slice(0, 2)}")`,
+      );
+    }
+    const stripped = lowered.slice(2);
+    if (!ecc.isXOnlyPoint(hexToUint8Array(stripped))) {
+      throw new Error(
+        `getVaultProviderBTCKey returned a value that is not on the secp256k1 curve (vp=${vpAddress})`,
+      );
+    }
+    return stripped as OnChainBtcPubkey;
+  }
 
   async getVaultBasicInfo(vaultId: Hex): Promise<VaultBasicInfo> {
     const result = (await this.publicClient.readContract({

@@ -75,7 +75,7 @@ export interface PayoutSigningContext {
   registeredPayoutScriptPubKey: string;
 }
 
-export interface PollAndSignPayoutsParams {
+export interface RunDepositorPresignFlowParams {
   /** VP client implementing the status reader interface */
   statusReader: PeginStatusReader;
   /** VP client implementing the presign transaction flow interface */
@@ -267,8 +267,8 @@ async function signPayoutTransactions(
  *
  * @throws Error on timeout, abort, signing failure, or RPC error
  */
-export async function pollAndSignPayouts(
-  params: PollAndSignPayoutsParams,
+export async function runDepositorPresignFlow(
+  params: RunDepositorPresignFlowParams,
 ): Promise<void> {
   const {
     statusReader,
