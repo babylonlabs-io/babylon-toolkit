@@ -64,6 +64,7 @@ export {
     fetchOrdinals,
     getOrdinalsQueryKey,
     ORDINALS_QUERY_KEY,
+    OrdinalsClassifierUnavailableError,
     type FetchOrdinalsOptions,
 } from "@/hooks/useOrdinals";
 

@@ -19,6 +19,16 @@ const WALLET_INSCRIPTIONS_TIMEOUT = 3000;
 /** Query key for ordinals fetching */
 export const ORDINALS_QUERY_KEY = "ordinals";
 
+export class OrdinalsClassifierUnavailableError extends Error {
+  constructor() {
+    super(
+      "Ordinals classifier unavailable: wallet getInscriptions did not return inscriptions and no ordinalsApiUrl is configured",
+    );
+    this.name = "OrdinalsClassifierUnavailableError";
+    Object.setPrototypeOf(this, OrdinalsClassifierUnavailableError.prototype);
+  }
+}
+
 /**
  * Options for fetching ordinals.
  */
@@ -41,6 +51,7 @@ export interface FetchOrdinalsOptions {
  * Wait for a specified duration.
  */
 function wait(ms: number): Promise<undefined> {
+  if (ms <= 0) return Promise.resolve(undefined);
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
@@ -86,11 +97,7 @@ export async function fetchOrdinals(
 
   // Step 2: Fall back to backend API verification
   if (!ordinalsApiUrl) {
-    // No API URL configured, return empty (app should work without ordinals)
-    console.warn(
-      "[useOrdinals] Wallet does not support getInscriptions and no ordinalsApiUrl configured",
-    );
-    return [];
+    throw new OrdinalsClassifierUnavailableError();
   }
 
   // Optionally filter dust before API call to reduce payload
