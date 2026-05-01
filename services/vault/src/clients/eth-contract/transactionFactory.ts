@@ -4,7 +4,6 @@
  * Includes pre-flight simulation to catch errors before user signs.
  */
 
-import { getETHChain } from "@babylonlabs-io/config";
 import {
   type Abi,
   type Address,
@@ -17,6 +16,7 @@ import {
   encodeFunctionData,
 } from "viem";
 
+import { getETHChain } from "@/config/network";
 import { logger } from "@/infrastructure";
 
 import { mapViemErrorToContractError } from "../../utils/errors";

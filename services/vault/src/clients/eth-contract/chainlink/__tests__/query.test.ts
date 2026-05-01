@@ -25,14 +25,14 @@ vi.mock("@/config/env", () => ({
 
 vi.mock("@babylonlabs-io/wallet-connector", () => ({
   Network: {
-    MAINNET: 0,
-    SIGNET: 1,
-    TESTNET: 2,
+    MAINNET: "mainnet",
+    SIGNET: "signet",
+    TESTNET: "testnet",
   },
 }));
 
-vi.mock("@babylonlabs-io/config", () => ({
-  getBTCNetwork: vi.fn(() => 1), // Network.SIGNET
+vi.mock("@/config/network", () => ({
+  getBTCNetwork: vi.fn(() => "signet"),
 }));
 
 import type { ChainlinkRoundData } from "../query";

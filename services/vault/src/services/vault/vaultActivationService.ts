@@ -12,7 +12,6 @@
  * receipt handling stay in the app tier.
  */
 
-import { getETHChain } from "@babylonlabs-io/config";
 import {
   activateVault,
   type EthContractWriter,
@@ -24,6 +23,7 @@ import {
   type TransactionResult,
 } from "@/clients/eth-contract/transactionFactory";
 import { CONTRACTS } from "@/config/contracts";
+import { getETHChain } from "@/config/network";
 
 export interface ActivateVaultParams {
   /** Vault ID (bytes32, 0x-prefixed) */

@@ -6,13 +6,13 @@
  * via a blocking modal instead of crashing the application.
  */
 
+import { isAddress, type Address } from "viem";
+
 import {
   configureBabylonConfig,
   type BtcNetworkName,
   type EthChainId,
-} from "@babylonlabs-io/config";
-import { isAddress, type Address } from "viem";
-
+} from "@/config/network";
 import { logger } from "@/infrastructure";
 
 /**
@@ -200,25 +200,42 @@ function validateEnvVars(): EnvValidationResult {
     process.env.NEXT_PUBLIC_BTC_NETWORK,
     errors,
   );
-  const mempoolApiUrl = parseOptionalUrl(
-    process.env.NEXT_PUBLIC_MEMPOOL_API,
-  );
+  const mempoolApiUrl = parseOptionalUrl(process.env.NEXT_PUBLIC_MEMPOOL_API);
 
-  // Initialize @babylonlabs-io/config from validated env values. When
-  // validation failed we still call init with the placeholder values so
-  // module loads (e.g. ethClient singleton) succeed; the blocking error
-  // modal then surfaces `envInitError` to the user before any RPC fires.
-  // Pairing-mismatch errors from configureBabylonConfig are folded back
-  // into the errors array via the same modal path.
+  // Initialize the vault network config runtime from validated env
+  // values. The runtime MUST end up initialized after this point even
+  // when validation fails — module loads later in the import graph
+  // (e.g. ethClient singleton) read config at evaluation time, and an
+  // uninitialized runtime would crash the app before the blocking
+  // error modal could render.
+  //
+  // Strategy: try the real values; on any throw (e.g. invalid pairing),
+  // record the message and re-init with a known-valid signet/sepolia
+  // fallback so downstream readers succeed. `envInitError` then drives
+  // the blocking error modal.
+  const FALLBACK_ETH_CHAIN_ID: EthChainId = ETH_SEPOLIA_CHAIN_ID;
+  const FALLBACK_BTC_NETWORK: BtcNetworkName = "signet";
+  const FALLBACK_RPC_URL = "http://invalid.local";
   try {
     configureBabylonConfig({
       ethChainId,
-      ethRpcUrl: ethRpcUrl || "http://invalid.local",
+      ethRpcUrl: ethRpcUrl || FALLBACK_RPC_URL,
       btcNetwork,
       mempoolApiUrl,
     });
   } catch (e) {
     errors.push(e instanceof Error ? e.message : String(e));
+    try {
+      configureBabylonConfig({
+        ethChainId: FALLBACK_ETH_CHAIN_ID,
+        ethRpcUrl: FALLBACK_RPC_URL,
+        btcNetwork: FALLBACK_BTC_NETWORK,
+        mempoolApiUrl,
+      });
+    } catch {
+      // Already initialized by a partial earlier call (e.g. the
+      // double-init guard fired). Safe to ignore — runtime is set.
+    }
   }
 
   const env: EnvVars = {

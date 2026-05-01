@@ -5,11 +5,11 @@
  * to change the prefix ordering for liquidation priority.
  */
 
-import { getETHChain } from "@babylonlabs-io/config";
 import { useCallback, useState } from "react";
 import type { Hex } from "viem";
 import { useAccount, useWalletClient } from "wagmi";
 
+import { getETHChain } from "@/config/network";
 import { useError } from "@/context/error";
 import { logger } from "@/infrastructure";
 import {

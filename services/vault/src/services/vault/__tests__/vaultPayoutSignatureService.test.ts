@@ -15,7 +15,7 @@ vi.mock("../../../clients/eth-contract/btc-vault-registry/query", () => ({
 }));
 
 vi.mock("../../../config/pegin", () => ({
-  getBTCNetworkForWASM: vi.fn().mockReturnValue("signet"),
+  getBTCNetworkForWASM: vi.fn().mockReturnValue("testnet"),
 }));
 
 const mockGetTimelockPeginByVersion = vi.fn();
@@ -197,7 +197,7 @@ describe("vaultPayoutSignatureService", () => {
       expect(context.vaultKeeperBtcPubkeys).toEqual(["vk1", "vk2"]);
       expect(context.universalChallengerBtcPubkeys).toEqual(["uc1"]);
       expect(context.vaultProviderBtcPubkey).toBe(ON_CHAIN_VP_PUBKEY);
-      expect(context.network).toBe("signet");
+      expect(context.network).toBe("testnet");
       expect(context.registeredPayoutScriptPubKey).toBe("0xscript");
     });
 

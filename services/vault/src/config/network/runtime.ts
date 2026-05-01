@@ -1,42 +1,45 @@
 /**
- * Runtime configuration for `@babylonlabs-io/config`.
+ * Vault network configuration runtime.
  *
- * The library no longer reads `process.env` directly. The host application
- * (e.g. the vault service) must call {@link configureBabylonConfig} once at
- * startup, before any other consumer reads from this package.
+ * Reads no environment variables on its own. The host (vault `main.tsx` /
+ * `config/env.ts`) calls {@link configureBabylonConfig} once at startup
+ * with values it has already validated, then any `getX()` reader can be
+ * used elsewhere in the app.
  *
- * Calling any `getX()` from `network/eth` or `network/btc` before
- * `configureBabylonConfig` throws an explicit error. This makes
- * misconfiguration loud at the boundary instead of silently routing to
- * a viem default RPC or a hard-coded public mempool.
+ * Lives inside the vault service rather than in a workspace package
+ * because vault is the only consumer. If a second consumer ever appears
+ * the same shape can be promoted to a package without rewriting it.
  */
 
-import { ETH_MAINNET_CHAIN_ID, ETH_SEPOLIA_CHAIN_ID } from "./network/constants";
-import { BTC_MAINNET, BTC_SIGNET } from "./network/constants";
+import type { BtcNetworkName } from "./btc";
+import {
+  BTC_MAINNET,
+  BTC_SIGNET,
+  ETH_MAINNET_CHAIN_ID,
+  ETH_SEPOLIA_CHAIN_ID,
+} from "./constants";
 
 export type EthChainId =
   | typeof ETH_MAINNET_CHAIN_ID
   | typeof ETH_SEPOLIA_CHAIN_ID;
 
-export type BtcNetworkName = typeof BTC_MAINNET | typeof BTC_SIGNET;
+export type { BtcNetworkName };
 
 export interface BabylonConfigOptions {
   /** Ethereum chain ID. Must be 1 (mainnet) or 11155111 (sepolia). */
   ethChainId: EthChainId;
 
   /**
-   * Ethereum RPC endpoint. Required — must point at an RPC that can see the
-   * deployed contracts. Public RPCs (drpc.org, publicnode.com) do not see
-   * contracts on private/devnet deployments.
+   * Ethereum RPC endpoint. Required — must point at an RPC that can see
+   * the deployed contracts. Public RPCs (drpc.org, publicnode.com) do
+   * not see contracts on private/devnet deployments.
    */
   ethRpcUrl: string;
 
   /** Bitcoin network. Must be "mainnet" or "signet". */
   btcNetwork: BtcNetworkName;
 
-  /**
-   * Optional mempool API base URL. Defaults to `https://mempool.space`.
-   */
+  /** Optional mempool API base URL. Defaults to `https://mempool.space`. */
   mempoolApiUrl?: string;
 }
 
@@ -60,13 +63,23 @@ const VALID_PAIRINGS: Array<{
 ];
 
 /**
- * Initialize the library. Call this once at host application startup,
- * before any other module reads from `@babylonlabs-io/config`.
+ * Initialize the runtime. Call once at startup before any reader runs.
  *
- * @throws if any required field is missing or if the BTC/ETH pairing is
- *   not a known safe combination (mainnet+1, signet+11155111).
+ * Calling more than once throws — silent re-init would let cached
+ * singletons (e.g. `ethClient`) drift from the new state. Tests that
+ * need to reconfigure must call `_resetBabylonConfigForTests` first.
+ *
+ * @throws if `configureBabylonConfig` has already been called.
+ * @throws if any field is invalid or if the BTC/ETH pairing is not a known
+ *   safe combination (mainnet+1, signet+11155111).
  */
 export function configureBabylonConfig(opts: BabylonConfigOptions): void {
+  if (state !== null) {
+    throw new Error(
+      "configureBabylonConfig() has already been called. " +
+        "Call `_resetBabylonConfigForTests()` first if you need to reconfigure in tests.",
+    );
+  }
   if (
     opts.ethChainId !== ETH_MAINNET_CHAIN_ID &&
     opts.ethChainId !== ETH_SEPOLIA_CHAIN_ID
@@ -106,26 +119,20 @@ export function configureBabylonConfig(opts: BabylonConfigOptions): void {
 
 /**
  * Read the runtime config. Throws if `configureBabylonConfig` has not run.
- * Library internals (network/eth, network/btc) call this; consumers
- * should use the public `getX()` helpers instead.
  *
  * @internal
  */
 export function getBabylonConfigState(): BabylonConfigState {
   if (!state) {
     throw new Error(
-      "@babylonlabs-io/config: configureBabylonConfig() has not been called. " +
+      "vault network config: configureBabylonConfig() has not been called. " +
         "Call it once at application startup before reading any config value.",
     );
   }
   return state;
 }
 
-/**
- * Reset the runtime state. For tests only.
- *
- * @internal
- */
+/** @internal — for tests only. */
 export function _resetBabylonConfigForTests(): void {
   state = null;
 }

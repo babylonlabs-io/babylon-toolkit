@@ -1,8 +1,4 @@
 import {
-  getNetworkConfigBTC,
-  getNetworkConfigETH,
-} from "@babylonlabs-io/config";
-import {
   APPKIT_BTC_CONNECTOR_ID,
   BTCWalletProvider,
   ETHWalletProvider,
@@ -13,7 +9,9 @@ import {
 import { useTheme } from "next-themes";
 import { useCallback, useMemo, useRef, type PropsWithChildren } from "react";
 
+import { getNetworkConfigBTC } from "@/config";
 import featureFlags from "@/config/featureFlags";
+import { getNetworkConfigETH } from "@/config/network";
 import { logger } from "@/infrastructure";
 
 // Vault deposits require the connected BTC wallet to implement the

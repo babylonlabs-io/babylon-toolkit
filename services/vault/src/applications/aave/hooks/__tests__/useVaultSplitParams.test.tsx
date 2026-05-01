@@ -11,7 +11,7 @@ vi.mock("@/config/env", () => ({
   },
 }));
 
-vi.mock("@babylonlabs-io/config", () => ({
+vi.mock("@/config/network", () => ({
   getNetworkConfigETH: vi.fn(() => ({
     chainId: 11155111,
     name: "sepolia",

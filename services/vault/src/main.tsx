@@ -1,5 +1,6 @@
-// Must come first — env validation initializes @babylonlabs-io/config
-// at module load, before any other module reads from it.
+// Must come first — env validation initializes the network config
+// runtime (`@/config/network`) at module load, before any other module
+// reads from it.
 import "@/config/env";
 
 import * as ecc from "@bitcoin-js/tiny-secp256k1-asmjs";

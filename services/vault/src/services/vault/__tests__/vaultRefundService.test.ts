@@ -36,7 +36,7 @@ vi.mock("../../../clients/eth-contract/btc-vault-registry/query", () => ({
 }));
 
 vi.mock("../../../config/pegin", () => ({
-  getBTCNetworkForWASM: vi.fn().mockReturnValue("signet"),
+  getBTCNetworkForWASM: vi.fn().mockReturnValue("testnet"),
 }));
 
 const mockGetOffchainParamsByVersion = vi.fn();
