@@ -137,6 +137,14 @@ const DEFAULT_RETRY_DELAY_MS = 1000;
 /** Default maximum JSON-RPC response size for typed calls (2 MiB) */
 const DEFAULT_MAX_RESPONSE_BYTES = 2 * 1024 * 1024;
 
+/**
+ * Temporary typed-call exceptions for methods that currently return large
+ * artifact payloads as JSON-RPC results.
+ */
+const UNCAPPED_TYPED_RESPONSE_METHODS: ReadonlySet<string> = new Set([
+  "vaultProvider_requestDepositorClaimerArtifacts",
+]);
+
 /** HTTP status codes that indicate transient server errors and are safe to retry */
 const RETRYABLE_HTTP_STATUS_CODES: ReadonlySet<number> = new Set([
   408, // Request Timeout
@@ -270,10 +278,9 @@ export class JsonRpcClient {
 
     let jsonResponse: unknown;
     try {
-      const responseText = await readResponseTextWithLimit(
-        response,
-        this.maxResponseBytes,
-      );
+      const responseText = UNCAPPED_TYPED_RESPONSE_METHODS.has(method)
+        ? await response.text()
+        : await readResponseTextWithLimit(response, this.maxResponseBytes);
       jsonResponse = JSON.parse(responseText);
     } catch (error) {
       if (error instanceof JsonRpcError) {

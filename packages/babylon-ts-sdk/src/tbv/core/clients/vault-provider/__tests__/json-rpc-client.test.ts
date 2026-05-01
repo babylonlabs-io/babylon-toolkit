@@ -375,6 +375,37 @@ describe("JsonRpcClient", () => {
     });
   });
 
+  it("temporarily exempts depositor claimer artifact downloads from the typed response cap", async () => {
+    const artifactResponse = {
+      tx_graph_json: "x".repeat(80),
+      verifying_key_hex: "aabb",
+      babe_sessions: {
+        challenger1: { decryptor_artifacts_hex: "ccdd" },
+      },
+    };
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        createJsonResponse(
+          { jsonrpc: "2.0", result: artifactResponse, id: 1 },
+          { headers: { "Content-Length": "512" } },
+        ),
+      ),
+    );
+
+    const client = new VaultProviderRpcClient(TEST_BASE_URL, {
+      maxResponseBytes: 64,
+    });
+
+    await expect(
+      client.requestDepositorClaimerArtifacts({
+        pegin_txid: "abc",
+        depositor_pk: "def",
+      }),
+    ).resolves.toEqual(artifactResponse);
+  });
+
   it("throws timeout error after max retries on AbortError for retryable methods", async () => {
     const abortError = new DOMException("signal timed out", "AbortError");
     const mockFetch = vi.fn().mockRejectedValue(abortError);
