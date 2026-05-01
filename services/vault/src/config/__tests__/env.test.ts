@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { validateRequiredAddress, validateRequiredUrl } from "@/config/env";
+import {
+  parseOptionalAddress,
+  validateRequiredAddress,
+  validateRequiredUrl,
+} from "@/config/env";
 
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 const VALID_ADDRESS = "0x1234567890abcdef1234567890abcdef12345678";
@@ -62,6 +66,28 @@ describe("validateRequiredAddress", () => {
       errors,
     );
     expect(errors[0]).toContain("NEXT_PUBLIC_TBV_AAVE_CONTROLLER");
+  });
+});
+
+describe("parseOptionalAddress", () => {
+  it("accepts a valid EVM address", () => {
+    expect(parseOptionalAddress(VALID_ADDRESS)).toBe(VALID_ADDRESS);
+  });
+
+  it("returns undefined for a missing value", () => {
+    expect(parseOptionalAddress(undefined)).toBeUndefined();
+  });
+
+  it("returns undefined for an empty string", () => {
+    expect(parseOptionalAddress("")).toBeUndefined();
+  });
+
+  it("returns undefined for a malformed address", () => {
+    expect(parseOptionalAddress("0x1234")).toBeUndefined();
+  });
+
+  it("returns undefined for the zero address", () => {
+    expect(parseOptionalAddress(ZERO_ADDRESS)).toBeUndefined();
   });
 });
 

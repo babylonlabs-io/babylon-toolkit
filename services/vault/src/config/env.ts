@@ -51,11 +51,17 @@ function parseOptionalUrl(value: string | undefined): string | undefined {
   return trimmed;
 }
 
-function parseOptionalAddress(value: string | undefined): Address | undefined {
+export function parseOptionalAddress(
+  value: string | undefined,
+): Address | undefined {
   const trimmed = value?.trim();
   if (!trimmed) return undefined;
   if (!isAddress(trimmed, { strict: false })) {
     logger.warn(`Invalid address in env config: "${trimmed}", ignoring.`);
+    return undefined;
+  }
+  if (trimmed.toLowerCase() === ZERO_ADDRESS) {
+    logger.warn(`Zero address in env config: "${trimmed}", ignoring.`);
     return undefined;
   }
   return trimmed as Address;
