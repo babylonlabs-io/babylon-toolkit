@@ -1020,6 +1020,17 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:121](
 Ethereum chain configuration.
 Required for proper gas estimation in contract calls.
 
+##### publicClient
+
+```ts
+publicClient: PublicClient;
+```
+
+Public client used for read calls (`readContract`, `estimateGas`,
+`waitForTransactionReceipt`). Pass a client configured with the
+caller's RPC URL so reads hit the same endpoint as the rest of the
+application instead of viem's stock chain default.
+
 ##### vaultContracts
 
 ```ts

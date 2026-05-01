@@ -8,7 +8,7 @@
  * the wagmi config to ensure compatibility.
  */
 
-import { getETHChain } from "@babylonlabs-io/config";
+import { getETHChain, getNetworkConfigETH } from "@babylonlabs-io/config";
 import {
   initializeAppKitModal,
   type AppKitModalConfig,
@@ -84,14 +84,19 @@ function initializeVaultWagmi(): WagmiInitResult {
 }
 
 /**
- * Create a minimal fallback wagmi config for error states
+ * Create a minimal fallback wagmi config for error states.
+ *
+ * Uses the env-configured RPC URL rather than viem's stock chain default,
+ * so reads/writes hit the same endpoint that can see the deployed
+ * contracts even when AppKit initialization fails.
  */
 function createFallbackConfig() {
   const chain = getETHChain();
+  const { rpcUrl } = getNetworkConfigETH();
   return createConfig({
     chains: [chain],
     transports: {
-      [chain.id]: http(),
+      [chain.id]: http(rpcUrl),
     },
   });
 }

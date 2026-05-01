@@ -63,6 +63,9 @@ vi.mock("../../../clients/eth-contract/client", () => ({
       getPublicClient: vi.fn(),
     })),
   },
+  ethClient: {
+    getPublicClient: vi.fn(() => ({})),
+  },
 }));
 
 describe("vaultTransactionService - preparePeginTransaction", () => {

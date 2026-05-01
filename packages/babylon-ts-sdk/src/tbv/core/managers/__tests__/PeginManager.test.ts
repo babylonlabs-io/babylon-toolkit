@@ -6,7 +6,7 @@
  */
 
 import { beforeAll, describe, expect, it, vi } from "vitest";
-import type { Address, Chain } from "viem";
+import { zeroAddress, type Address, type Chain, type PublicClient } from "viem";
 
 import {
   MockBitcoinWallet,
@@ -37,28 +37,6 @@ vi.mock("../../primitives/psbt/peginInput", async (importOriginal) => {
   };
 });
 
-// Mock viem's createPublicClient to avoid HTTP requests during gas estimation
-vi.mock("viem", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("viem")>();
-  return {
-    ...actual,
-    createPublicClient: vi.fn(() => ({
-      estimateGas: vi.fn().mockResolvedValue(100000n),
-      waitForTransactionReceipt: vi.fn().mockResolvedValue({
-        status: "success",
-        transactionHash: "0x" + "ab".repeat(32),
-      }),
-      readContract: vi
-        .fn()
-        .mockImplementation(({ functionName }: { functionName: string }) => {
-          if (functionName === "getPegInFee") return Promise.resolve(0n);
-          // getBtcVaultBasicInfo — return struct with zero depositor (vault doesn't exist)
-          return Promise.resolve({ depositor: actual.zeroAddress });
-        }),
-    })),
-  };
-});
-
 // Test chain configuration (minimal viem Chain)
 const TEST_CHAIN: Chain = {
   id: 11155111,
@@ -68,6 +46,23 @@ const TEST_CHAIN: Chain = {
     default: { http: ["https://rpc.sepolia.org"] },
   },
 };
+
+// Mock public client passed into PeginManager config so tests don't
+// hit HTTP. Mirrors viem's PublicClient surface used by the manager.
+const TEST_PUBLIC_CLIENT = {
+  estimateGas: vi.fn().mockResolvedValue(100000n),
+  waitForTransactionReceipt: vi.fn().mockResolvedValue({
+    status: "success",
+    transactionHash: "0x" + "ab".repeat(32),
+  }),
+  readContract: vi
+    .fn()
+    .mockImplementation(({ functionName }: { functionName: string }) => {
+      if (functionName === "getPegInFee") return Promise.resolve(0n);
+      // getBtcVaultBasicInfo — return struct with zero depositor (vault doesn't exist)
+      return Promise.resolve({ depositor: zeroAddress });
+    }),
+} as unknown as PublicClient;
 
 // Test constants - use valid secp256k1 x-only public keys
 const TEST_KEYS = {
@@ -167,6 +162,7 @@ describe("PeginManager", () => {
         btcWallet,
         ethWallet: ethWallet as any,
         ethChain: TEST_CHAIN,
+        publicClient: TEST_PUBLIC_CLIENT,
         vaultContracts: {
           btcVaultRegistry: TEST_CONTRACT_ADDRESS,
         },
@@ -192,6 +188,7 @@ describe("PeginManager", () => {
           btcWallet,
           ethWallet: ethWallet as any,
           ethChain: TEST_CHAIN,
+          publicClient: TEST_PUBLIC_CLIENT,
           vaultContracts: { btcVaultRegistry: TEST_CONTRACT_ADDRESS },
           mempoolApiUrl: MEMPOOL_API_URLS.signet,
         });
@@ -218,6 +215,7 @@ describe("PeginManager", () => {
         btcWallet,
         ethWallet: ethWallet as any,
         ethChain: TEST_CHAIN,
+        publicClient: TEST_PUBLIC_CLIENT,
         vaultContracts: { btcVaultRegistry: TEST_CONTRACT_ADDRESS },
         mempoolApiUrl: MEMPOOL_API_URLS.signet,
       });
@@ -244,6 +242,7 @@ describe("PeginManager", () => {
         btcWallet,
         ethWallet: ethWallet as any,
         ethChain: TEST_CHAIN,
+        publicClient: TEST_PUBLIC_CLIENT,
         vaultContracts: { btcVaultRegistry: TEST_CONTRACT_ADDRESS },
         mempoolApiUrl: MEMPOOL_API_URLS.signet,
       });
@@ -319,6 +318,7 @@ describe("PeginManager", () => {
         btcWallet,
         ethWallet: ethWallet as any,
         ethChain: TEST_CHAIN,
+        publicClient: TEST_PUBLIC_CLIENT,
         vaultContracts: { btcVaultRegistry: TEST_CONTRACT_ADDRESS },
         mempoolApiUrl: MEMPOOL_API_URLS.signet,
       });
@@ -353,6 +353,7 @@ describe("PeginManager", () => {
         btcWallet,
         ethWallet: ethWallet as any,
         ethChain: TEST_CHAIN,
+        publicClient: TEST_PUBLIC_CLIENT,
         vaultContracts: { btcVaultRegistry: TEST_CONTRACT_ADDRESS },
         mempoolApiUrl: MEMPOOL_API_URLS.signet,
       });
@@ -380,6 +381,7 @@ describe("PeginManager", () => {
         btcWallet,
         ethWallet: ethWallet as any,
         ethChain: TEST_CHAIN,
+        publicClient: TEST_PUBLIC_CLIENT,
         vaultContracts: { btcVaultRegistry: TEST_CONTRACT_ADDRESS },
         mempoolApiUrl: MEMPOOL_API_URLS.signet,
       });
@@ -412,6 +414,7 @@ describe("PeginManager", () => {
         btcWallet,
         ethWallet: ethWallet as any,
         ethChain: TEST_CHAIN,
+        publicClient: TEST_PUBLIC_CLIENT,
         vaultContracts: { btcVaultRegistry: TEST_CONTRACT_ADDRESS },
         mempoolApiUrl: MEMPOOL_API_URLS.signet,
       });
@@ -441,6 +444,7 @@ describe("PeginManager", () => {
         btcWallet,
         ethWallet: ethWallet as any,
         ethChain: TEST_CHAIN,
+        publicClient: TEST_PUBLIC_CLIENT,
         vaultContracts: { btcVaultRegistry: TEST_CONTRACT_ADDRESS },
         mempoolApiUrl: MEMPOOL_API_URLS.signet,
       });
@@ -465,6 +469,7 @@ describe("PeginManager", () => {
         btcWallet,
         ethWallet: ethWallet as any,
         ethChain: TEST_CHAIN,
+        publicClient: TEST_PUBLIC_CLIENT,
         vaultContracts: { btcVaultRegistry: TEST_CONTRACT_ADDRESS },
         mempoolApiUrl: MEMPOOL_API_URLS.signet,
       });
@@ -489,6 +494,7 @@ describe("PeginManager", () => {
         btcWallet,
         ethWallet: ethWallet as any,
         ethChain: TEST_CHAIN,
+        publicClient: TEST_PUBLIC_CLIENT,
         vaultContracts: { btcVaultRegistry: TEST_CONTRACT_ADDRESS },
         mempoolApiUrl: MEMPOOL_API_URLS.signet,
       });
@@ -517,6 +523,7 @@ describe("PeginManager", () => {
         btcWallet,
         ethWallet: ethWallet as any,
         ethChain: TEST_CHAIN,
+        publicClient: TEST_PUBLIC_CLIENT,
         vaultContracts: { btcVaultRegistry: TEST_CONTRACT_ADDRESS },
         mempoolApiUrl: MEMPOOL_API_URLS.signet,
       });
@@ -547,6 +554,7 @@ describe("PeginManager", () => {
         btcWallet,
         ethWallet: ethWallet as any,
         ethChain: TEST_CHAIN,
+        publicClient: TEST_PUBLIC_CLIENT,
         vaultContracts: { btcVaultRegistry: TEST_CONTRACT_ADDRESS },
         mempoolApiUrl: MEMPOOL_API_URLS.signet,
       });
@@ -573,6 +581,7 @@ describe("PeginManager", () => {
         btcWallet,
         ethWallet: ethWallet as any,
         ethChain: TEST_CHAIN,
+        publicClient: TEST_PUBLIC_CLIENT,
         vaultContracts: { btcVaultRegistry: TEST_CONTRACT_ADDRESS },
         mempoolApiUrl: MEMPOOL_API_URLS.signet,
       });
@@ -598,6 +607,7 @@ describe("PeginManager", () => {
         btcWallet,
         ethWallet: ethWallet as any,
         ethChain: TEST_CHAIN,
+        publicClient: TEST_PUBLIC_CLIENT,
         vaultContracts: { btcVaultRegistry: TEST_CONTRACT_ADDRESS },
         mempoolApiUrl: MEMPOOL_API_URLS.signet,
       });
@@ -620,6 +630,7 @@ describe("PeginManager", () => {
         btcWallet,
         ethWallet: ethWallet as any,
         ethChain: TEST_CHAIN,
+        publicClient: TEST_PUBLIC_CLIENT,
         vaultContracts: { btcVaultRegistry: TEST_CONTRACT_ADDRESS },
         mempoolApiUrl: MEMPOOL_API_URLS.signet,
       });
@@ -640,6 +651,7 @@ describe("PeginManager", () => {
         btcWallet,
         ethWallet: ethWallet as any,
         ethChain: TEST_CHAIN,
+        publicClient: TEST_PUBLIC_CLIENT,
         vaultContracts: { btcVaultRegistry: TEST_CONTRACT_ADDRESS },
         mempoolApiUrl: MEMPOOL_API_URLS.signet,
       });
@@ -662,6 +674,7 @@ describe("PeginManager", () => {
         btcWallet,
         ethWallet: ethWallet as any,
         ethChain: TEST_CHAIN,
+        publicClient: TEST_PUBLIC_CLIENT,
         vaultContracts: { btcVaultRegistry: TEST_CONTRACT_ADDRESS },
         mempoolApiUrl: MEMPOOL_API_URLS.signet,
       });
@@ -683,6 +696,7 @@ describe("PeginManager", () => {
         btcWallet,
         ethWallet: ethWallet as any,
         ethChain: TEST_CHAIN,
+        publicClient: TEST_PUBLIC_CLIENT,
         vaultContracts: { btcVaultRegistry: TEST_CONTRACT_ADDRESS },
         mempoolApiUrl: MEMPOOL_API_URLS.signet,
       });
@@ -704,6 +718,7 @@ describe("PeginManager", () => {
         btcWallet,
         ethWallet: ethWallet as any,
         ethChain: TEST_CHAIN,
+        publicClient: TEST_PUBLIC_CLIENT,
         vaultContracts: { btcVaultRegistry: TEST_CONTRACT_ADDRESS },
         mempoolApiUrl: MEMPOOL_API_URLS.signet,
       });
@@ -723,6 +738,7 @@ describe("PeginManager", () => {
         btcWallet,
         ethWallet: ethWallet as any,
         ethChain: TEST_CHAIN,
+        publicClient: TEST_PUBLIC_CLIENT,
         vaultContracts: { btcVaultRegistry: TEST_CONTRACT_ADDRESS },
         mempoolApiUrl: MEMPOOL_API_URLS.signet,
       });
@@ -743,6 +759,7 @@ describe("PeginManager", () => {
         btcWallet,
         ethWallet: ethWallet as any,
         ethChain: TEST_CHAIN,
+        publicClient: TEST_PUBLIC_CLIENT,
         vaultContracts: { btcVaultRegistry: TEST_CONTRACT_ADDRESS },
         mempoolApiUrl: MEMPOOL_API_URLS.signet,
       });
@@ -764,6 +781,7 @@ describe("PeginManager", () => {
         btcWallet,
         ethWallet: ethWallet as any,
         ethChain: TEST_CHAIN,
+        publicClient: TEST_PUBLIC_CLIENT,
         vaultContracts: { btcVaultRegistry: TEST_CONTRACT_ADDRESS },
         mempoolApiUrl: MEMPOOL_API_URLS.signet,
       });
@@ -785,6 +803,7 @@ describe("PeginManager", () => {
         btcWallet,
         ethWallet: ethWallet as any,
         ethChain: TEST_CHAIN,
+        publicClient: TEST_PUBLIC_CLIENT,
         vaultContracts: { btcVaultRegistry: TEST_CONTRACT_ADDRESS },
         mempoolApiUrl: MEMPOOL_API_URLS.signet,
       });
@@ -877,6 +896,7 @@ describe("PeginManager", () => {
         btcWallet,
         ethWallet: ethWallet as any,
         ethChain: TEST_CHAIN,
+        publicClient: TEST_PUBLIC_CLIENT,
         vaultContracts: { btcVaultRegistry: TEST_CONTRACT_ADDRESS },
         mempoolApiUrl: MEMPOOL_API_URLS.signet,
       });
@@ -932,27 +952,10 @@ describe("PeginManager", () => {
     });
 
     it("should throw when transaction receipt status is reverted", async () => {
-      const viem = await import("viem");
-      const mockedCreatePublicClient = vi.mocked(viem.createPublicClient);
-
-      const defaultReadContract = vi
-        .fn()
-        .mockImplementation(({ functionName }: { functionName: string }) => {
-          if (functionName === "getPegInFee") return Promise.resolve(0n);
-          return Promise.resolve({ depositor: viem.zeroAddress });
-        });
-
-      mockedCreatePublicClient.mockReturnValueOnce({
-        readContract: defaultReadContract,
-      } as any);
-      mockedCreatePublicClient.mockReturnValueOnce({
-        estimateGas: vi.fn().mockResolvedValue(100000n),
-        waitForTransactionReceipt: vi.fn().mockResolvedValue({
-          status: "reverted",
-          transactionHash: "0x" + "ab".repeat(32),
-        }),
-        readContract: defaultReadContract,
-      } as any);
+      vi.mocked(TEST_PUBLIC_CLIENT.waitForTransactionReceipt).mockResolvedValueOnce({
+        status: "reverted",
+        transactionHash: `0x${"ab".repeat(32)}`,
+      } as never);
 
       const { manager, popSignature } = await makeManagerWithPop();
 
@@ -992,6 +995,7 @@ describe("PeginManager", () => {
         btcWallet,
         ethWallet: ethWallet as any,
         ethChain: TEST_CHAIN,
+        publicClient: TEST_PUBLIC_CLIENT,
         vaultContracts: { btcVaultRegistry: TEST_CONTRACT_ADDRESS },
         mempoolApiUrl: MEMPOOL_API_URLS.signet,
       });
@@ -1030,6 +1034,7 @@ describe("PeginManager", () => {
         btcWallet,
         ethWallet: ethWallet as any,
         ethChain: TEST_CHAIN,
+        publicClient: TEST_PUBLIC_CLIENT,
         vaultContracts: { btcVaultRegistry: TEST_CONTRACT_ADDRESS },
         mempoolApiUrl: MEMPOOL_API_URLS.signet,
       });
@@ -1070,6 +1075,7 @@ describe("PeginManager", () => {
         btcWallet,
         ethWallet: ethWallet as any,
         ethChain: TEST_CHAIN,
+        publicClient: TEST_PUBLIC_CLIENT,
         vaultContracts: { btcVaultRegistry: TEST_CONTRACT_ADDRESS },
         mempoolApiUrl: MEMPOOL_API_URLS.signet,
       });
@@ -1114,6 +1120,7 @@ describe("PeginManager", () => {
         btcWallet,
         ethWallet: ethWallet as any,
         ethChain: TEST_CHAIN,
+        publicClient: TEST_PUBLIC_CLIENT,
         vaultContracts: { btcVaultRegistry: TEST_CONTRACT_ADDRESS },
         mempoolApiUrl: MEMPOOL_API_URLS.signet,
       });
@@ -1139,6 +1146,7 @@ describe("PeginManager", () => {
         btcWallet,
         ethWallet: ethWallet as any,
         ethChain: TEST_CHAIN,
+        publicClient: TEST_PUBLIC_CLIENT,
         vaultContracts: { btcVaultRegistry: TEST_CONTRACT_ADDRESS },
         mempoolApiUrl: MEMPOOL_API_URLS.signet,
       });
@@ -1190,6 +1198,7 @@ describe("PeginManager", () => {
         btcWallet: btcWallet1,
         ethWallet: ethWallet as any,
         ethChain: TEST_CHAIN,
+        publicClient: TEST_PUBLIC_CLIENT,
         vaultContracts: { btcVaultRegistry: TEST_CONTRACT_ADDRESS },
         mempoolApiUrl: MEMPOOL_API_URLS.signet,
       });
@@ -1199,6 +1208,7 @@ describe("PeginManager", () => {
         btcWallet: btcWallet2,
         ethWallet: ethWallet as any,
         ethChain: TEST_CHAIN,
+        publicClient: TEST_PUBLIC_CLIENT,
         vaultContracts: { btcVaultRegistry: TEST_CONTRACT_ADDRESS },
         mempoolApiUrl: MEMPOOL_API_URLS.signet,
       });
@@ -1236,6 +1246,7 @@ describe("PeginManager", () => {
         btcWallet,
         ethWallet: ethWallet as any,
         ethChain: TEST_CHAIN,
+        publicClient: TEST_PUBLIC_CLIENT,
         vaultContracts: { btcVaultRegistry: TEST_CONTRACT_ADDRESS },
         mempoolApiUrl: MEMPOOL_API_URLS.signet,
       });
@@ -1262,6 +1273,7 @@ describe("PeginManager", () => {
         btcWallet,
         ethWallet: ethWallet as any,
         ethChain: TEST_CHAIN,
+        publicClient: TEST_PUBLIC_CLIENT,
         vaultContracts: { btcVaultRegistry: TEST_CONTRACT_ADDRESS },
         mempoolApiUrl: MEMPOOL_API_URLS.signet,
       });
@@ -1308,6 +1320,7 @@ describe("PeginManager", () => {
         btcWallet,
         ethWallet: ethWallet as any,
         ethChain: TEST_CHAIN,
+        publicClient: TEST_PUBLIC_CLIENT,
         vaultContracts: { btcVaultRegistry: TEST_CONTRACT_ADDRESS },
         mempoolApiUrl: MEMPOOL_API_URLS.signet,
       });
@@ -1350,6 +1363,7 @@ describe("PeginManager", () => {
         btcWallet,
         ethWallet: ethWallet as any,
         ethChain: TEST_CHAIN,
+        publicClient: TEST_PUBLIC_CLIENT,
         vaultContracts: { btcVaultRegistry: TEST_CONTRACT_ADDRESS },
         mempoolApiUrl: MEMPOOL_API_URLS.signet,
       });
@@ -1383,6 +1397,7 @@ describe("PeginManager", () => {
         btcWallet,
         ethWallet: ethWallet as any,
         ethChain: TEST_CHAIN,
+        publicClient: TEST_PUBLIC_CLIENT,
         vaultContracts: { btcVaultRegistry: TEST_CONTRACT_ADDRESS },
         mempoolApiUrl: MEMPOOL_API_URLS.signet,
       });
@@ -1424,6 +1439,7 @@ describe("PeginManager", () => {
         btcWallet,
         ethWallet: ethWallet as any,
         ethChain: TEST_CHAIN,
+        publicClient: TEST_PUBLIC_CLIENT,
         vaultContracts: { btcVaultRegistry: TEST_CONTRACT_ADDRESS },
         mempoolApiUrl: MEMPOOL_API_URLS.signet,
       });
@@ -1457,6 +1473,7 @@ describe("PeginManager", () => {
         btcWallet,
         ethWallet: ethWallet as any,
         ethChain: TEST_CHAIN,
+        publicClient: TEST_PUBLIC_CLIENT,
         vaultContracts: { btcVaultRegistry: TEST_CONTRACT_ADDRESS },
         mempoolApiUrl: MEMPOOL_API_URLS.signet,
       });

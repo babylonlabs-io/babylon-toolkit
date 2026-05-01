@@ -21,6 +21,7 @@ export default defineConfig({
     env: {
       NEXT_PUBLIC_BTC_NETWORK: "signet",
       NEXT_PUBLIC_ETH_CHAINID: "11155111", // Sepolia
+      NEXT_PUBLIC_ETH_RPC_URL: "https://test.example/eth",
     },
     exclude: [
       "**/node_modules/**",
