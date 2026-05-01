@@ -34,6 +34,14 @@ export default defineConfig({
           __dirname,
           "src/tbv/core/services/index.ts",
         ),
+        "tbv/core/managers/index": path.resolve(
+          __dirname,
+          "src/tbv/core/managers/index.ts",
+        ),
+        "tbv/core/contracts/index": path.resolve(
+          __dirname,
+          "src/tbv/core/contracts/index.ts",
+        ),
         "tbv/integrations/aave/index": path.resolve(
           __dirname,
           "src/tbv/integrations/aave/index.ts",
