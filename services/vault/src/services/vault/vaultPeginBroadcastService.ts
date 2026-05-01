@@ -251,7 +251,8 @@ async function signAndFinalizePsbt(
     );
     if (!allFinalized) {
       throw new Error(
-        `PSBT finalization failed and wallet did not auto-finalize: ${error}`,
+        "PSBT finalization failed and wallet did not auto-finalize",
+        { cause: error },
       );
     }
   }
