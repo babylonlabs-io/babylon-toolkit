@@ -53,10 +53,7 @@ export function PendingDepositCard({
 
   if (!pollingResult) return null;
 
-  // `transactions` is destructured for the row-local readiness UX hint
-  // (button label / disabled state below). The signing flow itself no longer
-  // consumes them — the SDK's runDepositorPresignFlow re-polls the VP.
-  const { loading, transactions, peginState } = pollingResult;
+  const { loading, peginState } = pollingResult;
   const status = getActionStatus(pollingResult);
   const isActionable = status.type === "available";
   const showArtifactDownload =
@@ -81,10 +78,11 @@ export function PendingDepositCard({
 
   const actionLabel =
     status.type === "available" ? status.action.label : peginState.displayLabel;
-  // Show "Loading..." only when this row has no transactions snapshot yet —
-  // not on every refetch of the polling query.
-  const label = loading && !transactions ? "Loading..." : actionLabel;
-  const buttonDisabled = !isActionable || (loading && !transactions);
+  // `loading` is React Query's `isLoading` — true only on the very first fetch,
+  // not on subsequent polling refetches — so this gives a one-shot "Loading..."
+  // on initial mount without flickering on every poll cycle.
+  const label = loading ? "Loading..." : actionLabel;
+  const buttonDisabled = !isActionable || loading;
   const dotColor = STATUS_DOT_COLORS[peginState.displayVariant];
 
   // Resolve provider name

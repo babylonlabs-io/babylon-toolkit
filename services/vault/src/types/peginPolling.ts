@@ -2,10 +2,6 @@
  * Types for Peg-In Polling Context
  */
 
-import type {
-  ClaimerTransactions,
-  DepositorGraphTransactions,
-} from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import type { PropsWithChildren } from "react";
 
 import type {
@@ -19,12 +15,6 @@ import type { VaultActivity } from "../types/activity";
 export interface DepositPollingResult {
   /** Deposit/activity ID (txHash) */
   depositId: string;
-  /** Claim and payout transactions (null if not ready) */
-  transactions: ClaimerTransactions[] | null;
-  /** Depositor graph transactions (depositor-as-claimer, optional) */
-  depositorGraph: DepositorGraphTransactions | null;
-  /** Whether transactions are ready for signing */
-  isReady: boolean;
   /** Loading state for this deposit */
   loading: boolean;
   /** Error state for this deposit */

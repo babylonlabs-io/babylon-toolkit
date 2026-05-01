@@ -1,14 +1,14 @@
 /**
  * Hook for polling peg-in transactions from vault providers
  *
- * Manages the React Query polling loop for fetching claim/payout
- * transactions from all vault providers in parallel.
+ * Manages the React Query polling loop for fetching the per-deposit VP daemon
+ * status. The cheap, unauthenticated `getPeginStatus` RPC is the readiness
+ * signal — once the daemon reports `PendingDepositorSignatures`, the deposit
+ * is marked ready and the heavy auth-gated `requestDepositorPresignTransactions`
+ * is deferred to the actual signing flow (`runDepositorPresignFlow`), which
+ * re-fetches it at click-time.
  */
 
-import type {
-  ClaimerTransactions,
-  DepositorGraphTransactions,
-} from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import {
   DaemonStatus,
   VP_TRANSIENT_STATUSES,
@@ -32,7 +32,6 @@ import type {
 } from "../../types/peginPolling";
 import { stripHexPrefix } from "../../utils/btc";
 import {
-  areTransactionsReady,
   getDepositsNeedingPolling,
   groupDepositsByProvider,
   isTerminalPollingError,
@@ -47,29 +46,25 @@ interface UsePeginPollingQueryParams {
 
 /** Result from polling query */
 interface PollingQueryData {
-  /** Map of depositId -> transactions */
-  transactions: Map<string, ClaimerTransactions[]>;
-  /** Map of depositId -> depositor graph (depositor-as-claimer) */
-  depositorGraphs: Map<string, DepositorGraphTransactions>;
   /** Map of depositId -> error (for deposits with provider connectivity issues) */
   errors: Map<string, Error>;
   /** Set of depositIds where vault provider needs the depositor's WOTS key */
   needsWotsKey: Set<string>;
   /** Set of depositIds where VP hasn't ingested the peg-in yet */
   pendingIngestion: Set<string>;
+  /** Set of depositIds where VP daemon reports `PendingDepositorSignatures` */
+  pendingDepositorSignatures: Set<string>;
 }
 
 interface UsePeginPollingQueryResult {
-  /** Map of depositId -> transactions */
-  data: Map<string, ClaimerTransactions[]> | undefined;
-  /** Map of depositId -> depositor graph */
-  depositorGraphs: Map<string, DepositorGraphTransactions> | undefined;
   /** Map of depositId -> error */
   errors: Map<string, Error> | undefined;
   /** Set of depositIds needing WOTS key submission */
   needsWotsKey: Set<string> | undefined;
   /** Set of depositIds where VP hasn't ingested the peg-in yet */
   pendingIngestion: Set<string> | undefined;
+  /** Set of depositIds where VP is ready for depositor presignatures */
+  pendingDepositorSignatures: Set<string> | undefined;
   /** Whether any polling is in progress */
   isLoading: boolean;
   /** Trigger manual refetch */
@@ -79,20 +74,19 @@ interface UsePeginPollingQueryResult {
 }
 
 /**
- * Fetch status and transactions from a single vault provider for multiple deposits.
+ * Fetch status from a single vault provider for multiple deposits.
  *
- * Uses the lightweight `getPeginStatus` RPC first, then only calls
- * `requestDepositorPresignTransactions` when the VP is in the right state.
+ * Uses only the lightweight, unauthenticated `getPeginStatus` RPC. The actual
+ * presign transaction payload is fetched at signing time by the SDK's
+ * `runDepositorPresignFlow`.
  */
 async function fetchFromProvider(
   providerAddress: string,
   deposits: DepositToPoll[],
-  btcPublicKey: string,
-  results: Map<string, ClaimerTransactions[]>,
-  depositorGraphs: Map<string, DepositorGraphTransactions>,
   errors: Map<string, Error>,
   needsWotsKey: Set<string>,
   pendingIngestion: Set<string>,
+  pendingDepositorSignatures: Set<string>,
 ): Promise<void> {
   const rpcClient = createVpClient(providerAddress);
 
@@ -101,7 +95,6 @@ async function fetchFromProvider(
     const strippedTxid = stripHexPrefix(deposit.activity.peginTxHash!);
 
     try {
-      // Phase 1: Lightweight status check
       const statusResponse = await rpcClient.getPeginStatus({
         pegin_txid: strippedTxid,
       });
@@ -145,17 +138,12 @@ async function fetchFromProvider(
         continue;
       }
 
-      // Phase 2: Status is PendingDepositorSignatures — fetch transaction data
+      // VP daemon reached the depositor-signing state. The status alone is
+      // a sufficient readiness signal — the daemon only enters this state
+      // after `all_presigning_phases_complete`, so the depositor-presign RPC
+      // is guaranteed to succeed when the user clicks Sign Payouts.
       if (status === DaemonStatus.PENDING_DEPOSITOR_SIGNATURES) {
-        const response = await rpcClient.requestDepositorPresignTransactions({
-          pegin_txid: strippedTxid,
-          depositor_pk: btcPublicKey,
-        });
-
-        if (response.txs && response.txs.length > 0) {
-          results.set(depositId, response.txs);
-        }
-        depositorGraphs.set(depositId, response.depositor_graph);
+        pendingDepositorSignatures.add(depositId);
         errors.delete(depositId);
         needsWotsKey.delete(depositId);
         continue;
@@ -232,22 +220,20 @@ export function usePeginPollingQuery({
 
       if (!currentBtcPubKey || currentDeposits.length === 0) {
         return {
-          transactions: new Map<string, ClaimerTransactions[]>(),
-          depositorGraphs: new Map<string, DepositorGraphTransactions>(),
           errors: new Map<string, Error>(),
           needsWotsKey: new Set<string>(),
           pendingIngestion: new Set<string>(),
+          pendingDepositorSignatures: new Set<string>(),
         };
       }
 
       // Group by provider using current values
       const depositsByProvider = groupDepositsByProvider(currentDeposits);
 
-      const transactions = new Map<string, ClaimerTransactions[]>();
-      const depositorGraphs = new Map<string, DepositorGraphTransactions>();
       const errors = new Map<string, Error>();
       const needsWotsKey = new Set<string>();
       const pendingIngestion = new Set<string>();
+      const pendingDepositorSignatures = new Set<string>();
 
       // Fetch from each provider in parallel
       const fetchPromises = Array.from(depositsByProvider.entries()).map(
@@ -255,22 +241,19 @@ export function usePeginPollingQuery({
           fetchFromProvider(
             providerAddress,
             deposits,
-            currentBtcPubKey,
-            transactions,
-            depositorGraphs,
             errors,
             needsWotsKey,
             pendingIngestion,
+            pendingDepositorSignatures,
           ),
       );
 
       await Promise.all(fetchPromises);
       return {
-        transactions,
-        depositorGraphs,
         errors,
         needsWotsKey,
         pendingIngestion,
+        pendingDepositorSignatures,
       };
     },
     enabled: isEnabled,
@@ -279,15 +262,15 @@ export function usePeginPollingQuery({
       const currentDeposits = depositsRef.current;
       if (currentDeposits.length === 0) return false;
 
-      const txMap = query.state.data?.transactions;
+      const readySet = query.state.data?.pendingDepositorSignatures;
       const errorMap = query.state.data?.errors;
 
       // Stop polling only when every deposit is resolved:
-      // either has ready transactions or hit a terminal error.
+      // either reached the depositor-signing state (VP has presign txs ready)
+      // or hit a terminal error.
       const allResolved = currentDeposits.every((d) => {
         const depositId = d.activity.id;
-        const txs = txMap?.get(depositId);
-        if (txs && areTransactionsReady(txs)) return true;
+        if (readySet?.has(depositId)) return true;
         const error = errorMap?.get(depositId);
         if (error && isTerminalPollingError(error)) return true;
         return false;
@@ -312,11 +295,10 @@ export function usePeginPollingQuery({
   }, [isEnabled, refetch]);
 
   return {
-    data: data?.transactions,
-    depositorGraphs: data?.depositorGraphs,
     errors: data?.errors,
     needsWotsKey: data?.needsWotsKey,
     pendingIngestion: data?.pendingIngestion,
+    pendingDepositorSignatures: data?.pendingDepositorSignatures,
     isLoading,
     refetch,
     depositsToPoll,

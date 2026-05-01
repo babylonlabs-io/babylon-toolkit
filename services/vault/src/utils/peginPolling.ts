@@ -2,7 +2,6 @@
  * Utility functions for Peg-In Polling
  */
 
-import type { ClaimerTransactions } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import type { Hex } from "viem";
 
 import {
@@ -82,22 +81,6 @@ export function isTransientPollingError(error: unknown): boolean {
   // Check for other transient patterns
   return TRANSIENT_ERROR_PATTERNS.some((pattern) =>
     error.message.includes(pattern),
-  );
-}
-
-/**
- * Check if transactions response has all required data for signing
- */
-export function areTransactionsReady(txs: ClaimerTransactions[]): boolean {
-  if (!txs || txs.length === 0) return false;
-  return txs.every(
-    (tx) =>
-      tx.claim_tx?.tx_hex &&
-      tx.payout_tx?.tx_hex &&
-      tx.assert_tx?.tx_hex &&
-      tx.claim_tx.tx_hex.length > 0 &&
-      tx.payout_tx.tx_hex.length > 0 &&
-      tx.assert_tx.tx_hex.length > 0,
   );
 }
 
