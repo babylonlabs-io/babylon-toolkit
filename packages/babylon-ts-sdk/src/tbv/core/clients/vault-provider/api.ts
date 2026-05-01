@@ -58,6 +58,8 @@ export interface VaultProviderRpcClientOptions {
    * {@link VpTokenProvider} for depositor-gated methods.
    */
   tokenProvider?: BearerTokenProvider;
+  /** Maximum response body size, in bytes, for typed JSON-RPC calls */
+  maxResponseBytes?: number;
 }
 
 const DEFAULT_TIMEOUT_MS = 60_000;
@@ -85,6 +87,7 @@ export class VaultProviderRpcClient
       retryableFor: options?.retryableFor,
       headers: options?.headers,
       tokenProvider: options?.tokenProvider,
+      maxResponseBytes: options?.maxResponseBytes,
     };
     this.client = new JsonRpcClient(config);
   }

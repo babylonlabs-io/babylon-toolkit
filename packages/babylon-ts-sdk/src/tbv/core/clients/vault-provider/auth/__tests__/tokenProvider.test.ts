@@ -29,6 +29,13 @@ const NOW = GOLDEN_EXPIRES_AT - 3600;
 
 const AUTH_GATED_METHODS = new Set(["vaultProvider_submitDepositorWotsKey"]);
 
+function createJsonRpcSuccessResponse(result: unknown, id: number = 1) {
+  return new Response(JSON.stringify({ jsonrpc: "2.0", result, id }), {
+    status: 200,
+    headers: { "Content-Type": "application/json" },
+  });
+}
+
 function buildResponse(
   overrides: Partial<CreateDepositorTokenResponse> = {},
 ): CreateDepositorTokenResponse {
@@ -56,12 +63,7 @@ function createClient(): JsonRpcClient {
 function stubCallOnce(response: CreateDepositorTokenResponse) {
   vi.stubGlobal(
     "fetch",
-    vi.fn().mockResolvedValueOnce({
-      ok: true,
-      status: 200,
-      statusText: "OK",
-      json: () => Promise.resolve({ jsonrpc: "2.0", result: response, id: 1 }),
-    } as unknown as Response),
+    vi.fn().mockResolvedValueOnce(createJsonRpcSuccessResponse(response)),
   );
 }
 
@@ -143,28 +145,12 @@ describe("VpTokenProvider", () => {
       "fetch",
       vi
         .fn()
-        .mockResolvedValueOnce({
-          ok: true,
-          status: 200,
-          statusText: "OK",
-          json: () =>
-            Promise.resolve({
-              jsonrpc: "2.0",
-              result: buildResponse({ token: "token-1" }),
-              id: 1,
-            }),
-        } as unknown as Response)
-        .mockResolvedValueOnce({
-          ok: true,
-          status: 200,
-          statusText: "OK",
-          json: () =>
-            Promise.resolve({
-              jsonrpc: "2.0",
-              result: buildResponse({ token: "token-2" }),
-              id: 2,
-            }),
-        } as unknown as Response),
+        .mockResolvedValueOnce(
+          createJsonRpcSuccessResponse(buildResponse({ token: "token-1" })),
+        )
+        .mockResolvedValueOnce(
+          createJsonRpcSuccessResponse(buildResponse({ token: "token-2" }), 2),
+        ),
     );
 
     const client = createClient();
@@ -195,31 +181,17 @@ describe("VpTokenProvider", () => {
       "fetch",
       vi
         .fn()
-        .mockResolvedValueOnce({
-          ok: true,
-          status: 200,
-          statusText: "OK",
-          json: () =>
-            Promise.resolve({
-              jsonrpc: "2.0",
-              result: buildResponse({
-                token: "token-1",
-                expires_at: NOW + 40, // close to now
-              }),
-              id: 1,
+        .mockResolvedValueOnce(
+          createJsonRpcSuccessResponse(
+            buildResponse({
+              token: "token-1",
+              expires_at: NOW + 40, // close to now
             }),
-        } as unknown as Response)
-        .mockResolvedValueOnce({
-          ok: true,
-          status: 200,
-          statusText: "OK",
-          json: () =>
-            Promise.resolve({
-              jsonrpc: "2.0",
-              result: buildResponse({ token: "token-2" }),
-              id: 2,
-            }),
-        } as unknown as Response),
+          ),
+        )
+        .mockResolvedValueOnce(
+          createJsonRpcSuccessResponse(buildResponse({ token: "token-2" }), 2),
+        ),
     );
 
     const client = createClient();
@@ -276,13 +248,9 @@ describe("VpTokenProvider", () => {
   });
 
   it("single-flights concurrent acquires", async () => {
-    const mockFetch = vi.fn().mockResolvedValue({
-      ok: true,
-      status: 200,
-      statusText: "OK",
-      json: () =>
-        Promise.resolve({ jsonrpc: "2.0", result: buildResponse(), id: 1 }),
-    } as unknown as Response);
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValue(createJsonRpcSuccessResponse(buildResponse()));
     vi.stubGlobal("fetch", mockFetch);
 
     const client = createClient();
@@ -319,36 +287,25 @@ describe("VpTokenProvider", () => {
         .fn()
         // First acquire: server returns malformed server_identity that
         // trips verifyServerIdentity.
-        .mockResolvedValueOnce({
-          ok: true,
-          status: 200,
-          statusText: "OK",
-          json: () =>
-            Promise.resolve({
-              jsonrpc: "2.0",
-              result: buildResponse({
-                server_identity: {
-                  server_pubkey: "f".repeat(64), // mismatch → ServerIdentityError
-                  ephemeral_pubkey: "02" + "d".repeat(64),
-                  expires_at: NOW + 3600,
-                  signature: "e".repeat(128),
-                },
-              }),
-              id: 1,
+        .mockResolvedValueOnce(
+          createJsonRpcSuccessResponse(
+            buildResponse({
+              server_identity: {
+                server_pubkey: "f".repeat(64), // mismatch → ServerIdentityError
+                ephemeral_pubkey: "02" + "d".repeat(64),
+                expires_at: NOW + 3600,
+                signature: "e".repeat(128),
+              },
             }),
-        } as unknown as Response)
+          ),
+        )
         // Second acquire: server returns a valid response.
-        .mockResolvedValueOnce({
-          ok: true,
-          status: 200,
-          statusText: "OK",
-          json: () =>
-            Promise.resolve({
-              jsonrpc: "2.0",
-              result: buildResponse({ token: "recovery-token" }),
-              id: 2,
-            }),
-        } as unknown as Response),
+        .mockResolvedValueOnce(
+          createJsonRpcSuccessResponse(
+            buildResponse({ token: "recovery-token" }),
+            2,
+          ),
+        ),
     );
 
     const client = createClient();
@@ -397,17 +354,9 @@ describe("VpTokenProvider", () => {
       vi
         .fn()
         .mockReturnValueOnce(firstResponse)
-        .mockResolvedValueOnce({
-          ok: true,
-          status: 200,
-          statusText: "OK",
-          json: () =>
-            Promise.resolve({
-              jsonrpc: "2.0",
-              result: buildResponse({ token: "after-race" }),
-              id: 2,
-            }),
-        } as unknown as Response),
+        .mockResolvedValueOnce(
+          createJsonRpcSuccessResponse(buildResponse({ token: "after-race" })),
+        ),
     );
 
     const client = createClient();
