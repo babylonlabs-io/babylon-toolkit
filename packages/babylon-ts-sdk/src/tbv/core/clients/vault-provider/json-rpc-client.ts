@@ -138,7 +138,7 @@ const DEFAULT_RETRY_DELAY_MS = 1000;
 const DEFAULT_MAX_RESPONSE_BYTES = 2 * 1024 * 1024;
 
 /**
- * Temporary typed-call exceptions for methods that currently return large
+ * TODO: Temporary typed-call exceptions for methods that currently return large
  * artifact payloads as JSON-RPC results.
  */
 const UNCAPPED_TYPED_RESPONSE_METHODS: ReadonlySet<string> = new Set([
