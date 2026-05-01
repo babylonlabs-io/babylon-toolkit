@@ -166,7 +166,13 @@ export async function buildPeginInputPsbt(
 /**
  * Extract the depositor's Schnorr signature from a signed PegIn input PSBT.
  *
- * Supports both non-finalized PSBTs (tapScriptSig) and finalized PSBTs (witness).
+ * Supports non-finalized PSBTs with tapScriptSig entries. Finalized PSBTs are
+ * rejected because the witness stack does not reliably identify the depositor
+ * signature by public key.
+ *
+ * PegIn input signatures must use implicit Taproot SIGHASH_DEFAULT, which is
+ * encoded by omitting the sighash byte. Signatures with an appended sighash byte
+ * are rejected rather than stripped.
  *
  * @param signedPsbtHex - Signed PSBT hex
  * @param depositorPubkey - Depositor's x-only public key (64-char hex)
@@ -267,4 +273,3 @@ export function extractSchnorrSig(sig: Uint8Array): string {
   }
   throw new Error(`Unexpected PegIn input signature length: ${sig.length}`);
 }
-
