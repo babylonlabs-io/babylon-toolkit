@@ -2,7 +2,7 @@
  * SupplyCapSection — dashboard card visualizing protocol BTC supply cap state.
  * Shows the configured total cap and the current total deposited, each with a
  * USD equivalent. When no total cap is configured on-chain the cap card
- * displays "Unlimited" while the deposited card continues to show usage.
+ * displays "Uncapped" while the deposited card continues to show usage.
  */
 
 import { Card } from "@babylonlabs-io/core-ui";
@@ -100,7 +100,7 @@ export function SupplyCapSection({
     capDisplay = `${formatSatoshisToBtcDisplay(snapshot.totalCapBTC, capDecimals)} ${coinSymbol}`;
     capUsd = btcPriceUSD > 0 ? capBtc * btcPriceUSD : null;
   } else {
-    capDisplay = "Unlimited";
+    capDisplay = "Uncapped";
     capUsd = null;
   }
 

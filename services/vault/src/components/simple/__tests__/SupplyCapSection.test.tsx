@@ -85,15 +85,15 @@ describe("SupplyCapSection", () => {
     expect(screen.queryByText(/\$/)).not.toBeInTheDocument();
   });
 
-  it("shows 'Unlimited' for the cap and the actual deposited value when hasTotalCap = false", () => {
+  it("shows 'Uncapped' for the cap and the actual deposited value when hasTotalCap = false", () => {
     mockBtcPrice.mockReturnValue(69_003.07);
     render(<SupplyCapSection snapshot={unlimitedSnapshot} />);
     expect(screen.getByText("Protocol Cap")).toBeInTheDocument();
-    expect(screen.getByText("Unlimited")).toBeInTheDocument();
+    expect(screen.getByText("Uncapped")).toBeInTheDocument();
     // Deposited still renders normally (10 BTC * 69,003.07 = 690,030.70).
     expect(screen.getByText(/10 s?BTC/)).toBeInTheDocument();
     expect(screen.getByText(/\$690,030\.70/)).toBeInTheDocument();
-    // The "Unlimited" cap has no USD equivalent; only the deposited card does.
+    // The "Uncapped" cap has no USD equivalent; only the deposited card does.
     expect(screen.getAllByText(/\$/)).toHaveLength(1);
   });
 
