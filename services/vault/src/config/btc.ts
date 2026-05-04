@@ -1,8 +1,8 @@
 /**
  * Extended Bitcoin Network Configuration
  *
- * Extends the base BTC config from @babylonlabs-io/config with additional
- * display properties (icon, name, displayUSD) for UI rendering.
+ * Adapter between vault's plain network config (`@/config/network`) and
+ * wallet-connector's `BTCConfig` shape, with extra UI display props.
  *
  * For signet network:
  * - Uses purple signet bitcoin icon
@@ -15,12 +15,15 @@
  * - USD display is enabled
  */
 
-import {
-  getNetworkConfigBTC as getBaseBTCConfig,
-  getBTCNetwork,
-} from "@babylonlabs-io/config";
 import type { BTCConfig } from "@babylonlabs-io/wallet-connector";
 import { Network } from "@babylonlabs-io/wallet-connector";
+
+import {
+  BTC_SIGNET,
+  getNetworkConfigBTC as getBaseBTCConfig,
+  getBTCNetwork as getBtcNetworkName,
+  type BtcNetworkName,
+} from "@/config/network";
 
 /**
  * Extended BTC configuration type with UI display properties
@@ -34,23 +37,35 @@ export type ExtendedBTCConfig = BTCConfig & {
   displayUSD: boolean;
 };
 
+const NETWORK_BY_NAME: Record<BtcNetworkName, Network> = {
+  mainnet: Network.MAINNET,
+  signet: Network.SIGNET,
+};
+
 /**
- * Get extended BTC network configuration with UI display properties
- *
- * @returns Extended BTC config based on current network
+ * Get extended BTC network configuration with UI display properties.
+ * Adapts the local plain config into wallet-connector's `BTCConfig` shape.
  */
 export function getNetworkConfigBTC(): ExtendedBTCConfig {
-  const baseConfig = getBaseBTCConfig();
-  const network = getBTCNetwork();
-  const isSignet = network === Network.SIGNET;
+  const base = getBaseBTCConfig();
+  const isSignet = base.network === BTC_SIGNET;
 
   return {
-    ...baseConfig,
+    coinName: base.coinName,
+    coinSymbol: base.coinSymbol,
+    networkName: base.networkName,
+    mempoolApiUrl: base.mempoolApiUrl,
+    network: NETWORK_BY_NAME[base.network],
     icon: isSignet ? "/images/signet_bitcoin.svg" : "/images/btc.png",
     name: isSignet ? "Signet Bitcoin" : "Bitcoin",
     displayUSD: !isSignet,
   };
 }
 
-// Export the base getBTCNetwork for direct usage
-export { getBTCNetwork };
+/**
+ * Get the BTC network as wallet-connector's `Network` enum value.
+ * Adapter for downstream code that types against `Network`.
+ */
+export function getBTCNetwork(): Network {
+  return NETWORK_BY_NAME[getBtcNetworkName()];
+}

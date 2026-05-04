@@ -5,7 +5,6 @@
  * Only includes Core Spoke operations for regular users (no Arbitrageur operations).
  */
 
-import { getETHChain } from "@babylonlabs-io/config";
 import { BTCVaultRegistryABI } from "@babylonlabs-io/ts-sdk/tbv/core";
 import {
   AaveIntegrationAdapterABI,
@@ -15,6 +14,8 @@ import {
   buildWithdrawCollateralsTx,
 } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
 import { type Address, type Chain, type Hex, type WalletClient } from "viem";
+
+import { getETHChain } from "@/config/network";
 
 import { ethClient } from "../../../clients/eth-contract/client";
 import {

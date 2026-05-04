@@ -8,6 +8,11 @@
 
 import { isAddress, type Address } from "viem";
 
+import {
+  configureBabylonConfig,
+  type BtcNetworkName,
+  type EthChainId,
+} from "@/config/network";
 import { logger } from "@/infrastructure";
 
 /**
@@ -114,6 +119,40 @@ export function validateRequiredUrl(
   return trimmed;
 }
 
+const ETH_MAINNET_CHAIN_ID = 1;
+const ETH_SEPOLIA_CHAIN_ID = 11155111;
+
+function validateEthChainId(
+  value: string | undefined,
+  errors: string[],
+): EthChainId {
+  if (!value) {
+    errors.push("NEXT_PUBLIC_ETH_CHAINID is missing");
+    return ETH_SEPOLIA_CHAIN_ID;
+  }
+  const parsed = parseInt(value, 10);
+  if (parsed !== ETH_MAINNET_CHAIN_ID && parsed !== ETH_SEPOLIA_CHAIN_ID) {
+    errors.push(
+      `NEXT_PUBLIC_ETH_CHAINID must be '1' (mainnet) or '11155111' (sepolia), got "${value}"`,
+    );
+    return ETH_SEPOLIA_CHAIN_ID;
+  }
+  return parsed;
+}
+
+function validateBtcNetwork(
+  value: string | undefined,
+  errors: string[],
+): BtcNetworkName {
+  if (value !== "mainnet" && value !== "signet") {
+    errors.push(
+      `NEXT_PUBLIC_BTC_NETWORK must be "mainnet" or "signet", got "${value ?? ""}"`,
+    );
+    return "signet";
+  }
+  return value;
+}
+
 /**
  * Validate and extract all required environment variables
  */
@@ -147,6 +186,57 @@ function validateEnvVars(): EnvValidationResult {
   const BTC_PRICE_FEED = parseOptionalAddress(
     process.env.NEXT_PUBLIC_TBV_BTC_PRICE_FEED,
   );
+
+  const ethChainId = validateEthChainId(
+    process.env.NEXT_PUBLIC_ETH_CHAINID,
+    errors,
+  );
+  const ethRpcUrl = validateRequiredUrl(
+    process.env.NEXT_PUBLIC_ETH_RPC_URL,
+    "NEXT_PUBLIC_ETH_RPC_URL",
+    errors,
+  );
+  const btcNetwork = validateBtcNetwork(
+    process.env.NEXT_PUBLIC_BTC_NETWORK,
+    errors,
+  );
+  const mempoolApiUrl = parseOptionalUrl(process.env.NEXT_PUBLIC_MEMPOOL_API);
+
+  // Initialize the vault network config runtime from validated env
+  // values. The runtime MUST end up initialized after this point even
+  // when validation fails — module loads later in the import graph
+  // (e.g. ethClient singleton) read config at evaluation time, and an
+  // uninitialized runtime would crash the app before the blocking
+  // error modal could render.
+  //
+  // Strategy: try the real values; on any throw (e.g. invalid pairing),
+  // record the message and re-init with a known-valid signet/sepolia
+  // fallback so downstream readers succeed. `envInitError` then drives
+  // the blocking error modal.
+  const FALLBACK_ETH_CHAIN_ID: EthChainId = ETH_SEPOLIA_CHAIN_ID;
+  const FALLBACK_BTC_NETWORK: BtcNetworkName = "signet";
+  const FALLBACK_RPC_URL = "http://invalid.local";
+  try {
+    configureBabylonConfig({
+      ethChainId,
+      ethRpcUrl: ethRpcUrl || FALLBACK_RPC_URL,
+      btcNetwork,
+      mempoolApiUrl,
+    });
+  } catch (e) {
+    errors.push(e instanceof Error ? e.message : String(e));
+    try {
+      configureBabylonConfig({
+        ethChainId: FALLBACK_ETH_CHAIN_ID,
+        ethRpcUrl: FALLBACK_RPC_URL,
+        btcNetwork: FALLBACK_BTC_NETWORK,
+        mempoolApiUrl,
+      });
+    } catch {
+      // Already initialized by a partial earlier call (e.g. the
+      // double-init guard fired). Safe to ignore — runtime is set.
+    }
+  }
 
   const env: EnvVars = {
     BTC_VAULT_REGISTRY,

@@ -5,7 +5,6 @@
  * Manages React state and query invalidation.
  */
 
-import { getETHChain } from "@babylonlabs-io/config";
 import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import type { Address } from "viem";
@@ -13,6 +12,7 @@ import { parseUnits } from "viem";
 import { useAccount, useWalletClient } from "wagmi";
 
 import { ERC20 } from "@/clients/eth-contract";
+import { getETHChain } from "@/config/network";
 import { useError } from "@/context/error";
 import { logger } from "@/infrastructure";
 import {

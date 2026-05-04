@@ -2,13 +2,13 @@
  * Steps 1-3: ETH wallet acquisition, BIP-322 PoP signing, pegin submission.
  */
 
-import { getETHChain } from "@babylonlabs-io/config";
 import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
 import type { PopSignature } from "@babylonlabs-io/ts-sdk/tbv/core";
 import { getSharedWagmiConfig } from "@babylonlabs-io/wallet-connector";
 import type { Address, WalletClient } from "viem";
 import { getWalletClient, switchChain } from "wagmi/actions";
 
+import { getETHChain } from "@/config/network";
 import { logger } from "@/infrastructure";
 import {
   registerPeginBatchOnChain,

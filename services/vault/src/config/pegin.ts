@@ -1,35 +1,26 @@
 /**
- * Peg-in Configuration for Local Development
+ * Peg-in network configuration helpers.
  */
 
-import { getBTCNetwork, type BTCNetwork } from "@babylonlabs-io/config";
-import { Network } from "@babylonlabs-io/wallet-connector";
+import { getBTCNetwork, type BtcNetworkName } from "@/config/network";
 
 /**
- * WASM network format (different from standard Bitcoin network names)
+ * WASM network format (different from standard Bitcoin network names).
+ * WASM expects: "bitcoin" (not "mainnet"), "testnet", "regtest".
  */
 type WASMNetwork = "bitcoin" | "testnet" | "regtest";
 
-/**
- * Convert standard BTC network to WASM-friendly format
- * WASM expects: "bitcoin" (not "mainnet"), "testnet", "regtest"
- */
-function toWASMNetwork(network: BTCNetwork): WASMNetwork {
+function toWASMNetwork(network: BtcNetworkName): WASMNetwork {
   switch (network) {
-    case Network.MAINNET:
+    case "mainnet":
       return "bitcoin";
-    case Network.SIGNET:
-    case Network.TESTNET:
-      return "testnet";
-    default:
-      // Default to testnet for any unknown network
+    case "signet":
       return "testnet";
   }
 }
 
 /**
- * Get BTC network in WASM-friendly format
- * Convenience function for getting the network directly in WASM format
+ * Get BTC network in WASM-friendly format.
  */
 export function getBTCNetworkForWASM(): WASMNetwork {
   return toWASMNetwork(getBTCNetwork());

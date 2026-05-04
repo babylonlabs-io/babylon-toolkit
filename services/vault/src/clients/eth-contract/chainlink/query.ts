@@ -7,11 +7,11 @@
  * Supported tokens: BTC, ETH, USDC, USDT, DAI
  */
 
-import { getBTCNetwork } from "@babylonlabs-io/config";
 import { Network } from "@babylonlabs-io/wallet-connector";
 import type { Address } from "viem";
 
 import { ENV } from "@/config/env";
+import { getBTCNetwork } from "@/config/network";
 import { logger } from "@/infrastructure";
 
 import { ethClient } from "../client";

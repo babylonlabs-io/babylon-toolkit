@@ -5,7 +5,8 @@
 import "@testing-library/jest-dom";
 import { afterAll, beforeAll, vi } from "vitest";
 
-// Mock local @/config to avoid importing the problematic @babylonlabs-io/config package
+// Mock the local `@/config` adapter so tests don't pull in env.ts (which
+// reads NEXT_PUBLIC_* and triggers the live network runtime).
 vi.mock("@/config", async () => {
   return {
     getNetworkConfigBTC: () => ({
@@ -13,12 +14,13 @@ vi.mock("@/config", async () => {
       coinSymbol: "sBTC",
       networkName: "BTC signet",
       mempoolApiUrl: "https://mempool.space/signet",
-      network: 1, // Network.SIGNET
+      // Adapter returns wallet-connector's Network enum (string-valued).
+      network: "signet",
       icon: "/images/signet_bitcoin.svg",
       name: "Signet Bitcoin",
       displayUSD: false,
     }),
-    getBTCNetwork: () => 1, // Network.SIGNET
+    getBTCNetwork: () => "signet",
     CONTRACTS: {}, // Mock other exports as needed
     ENV: {},
     isProductionEnv: () => false,
@@ -26,23 +28,41 @@ vi.mock("@/config", async () => {
   };
 });
 
-// Mock @babylonlabs-io/config just in case something imports it directly
-vi.mock("@babylonlabs-io/config", () => ({
+// Mock @/config/network — tests bypass the real runtime so they don't
+// depend on env vars or `configureBabylonConfig` having been called.
+vi.mock("@/config/network", () => ({
+  configureBabylonConfig: vi.fn(),
+  _resetBabylonConfigForTests: vi.fn(),
   getNetworkConfigBTC: () => ({
     coinName: "Signet BTC",
     coinSymbol: "sBTC",
     networkName: "BTC signet",
     mempoolApiUrl: "https://mempool.space/signet",
-    network: 1, // Network.SIGNET
+    network: "signet",
   }),
-  getBTCNetwork: () => 1, // Network.SIGNET
+  getBTCNetwork: () => "signet",
   getNetworkConfigETH: () => ({
+    name: "Ethereum Sepolia",
     chainId: 11155111,
-    chainName: "Sepolia",
+    chainName: "Sepolia Testnet",
     rpcUrl: "https://sepolia.infura.io",
-    blockExplorerUrl: "https://sepolia.etherscan.io",
+    explorerUrl: "https://sepolia.etherscan.io",
+    nativeCurrency: { name: "Sepolia ETH", symbol: "ETH", decimals: 18 },
+    displayUSD: false,
   }),
-  getETHChainId: () => 11155111,
+  getETHChain: () => ({
+    id: 11155111,
+    name: "Sepolia",
+    nativeCurrency: { name: "Sepolia ETH", symbol: "ETH", decimals: 18 },
+    rpcUrls: {
+      default: { http: ["https://sepolia.infura.io"] },
+      public: { http: ["https://sepolia.infura.io"] },
+    },
+  }),
+  ETH_MAINNET_CHAIN_ID: 1,
+  ETH_SEPOLIA_CHAIN_ID: 11155111,
+  BTC_MAINNET: "mainnet",
+  BTC_SIGNET: "signet",
 }));
 
 // Mock the WASM module to avoid syntax errors in tests

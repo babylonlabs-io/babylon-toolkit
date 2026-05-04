@@ -12,8 +12,9 @@ vi.mock("@/config/env", () => ({
   },
 }));
 
-// Mock babylon-config to avoid env var requirements
-vi.mock("@babylonlabs-io/config", () => ({
+// Mock the vault network config runtime to avoid requiring env vars / a
+// `configureBabylonConfig` call in tests.
+vi.mock("@/config/network", () => ({
   getNetworkConfigETH: vi.fn(() => ({
     chainId: 11155111,
     name: "sepolia",

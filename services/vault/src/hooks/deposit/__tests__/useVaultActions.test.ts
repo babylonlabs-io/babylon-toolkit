@@ -21,7 +21,7 @@ const mockCalculateBtcTxHash = vi.hoisted(() =>
   vi.fn(() => "0xmatching_pre_pegin_hash"),
 );
 
-vi.mock("@babylonlabs-io/config", () => ({
+vi.mock("@/config/network", () => ({
   getETHChain: vi.fn(() => ({ id: 11155111 })),
 }));
 

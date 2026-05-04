@@ -5,12 +5,12 @@
  * Position must have zero debt before withdrawal.
  */
 
-import { getETHChain } from "@babylonlabs-io/config";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useState } from "react";
 import type { Address, Hex } from "viem";
 import { useAccount, useWalletClient } from "wagmi";
 
+import { getETHChain } from "@/config/network";
 import { useError } from "@/context/error";
 import { logger } from "@/infrastructure";
 import {

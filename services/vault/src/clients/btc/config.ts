@@ -1,16 +1,17 @@
 /**
- * Configuration for Bitcoin/Mempool API client
+ * Configuration for Bitcoin/Mempool API client.
  *
- * Uses babylon-config for network-aware mempool API URLs
+ * Reads from the vault network config runtime (`@/config/network`) so the
+ * mempool URL tracks the configured BTC network.
  */
 
-import { getNetworkConfigBTC } from "@babylonlabs-io/config";
+import { getNetworkConfigBTC } from "@/config/network";
 
 /**
- * Get the Mempool API base URL from babylon-config
+ * Get the Mempool API base URL.
  *
- * This automatically uses the correct network (mainnet/signet) based on
- * NEXT_PUBLIC_BTC_NETWORK environment variable.
+ * Uses the correct network (mainnet/signet) based on the value passed to
+ * `configureBabylonConfig` at startup (sourced from `NEXT_PUBLIC_BTC_NETWORK`).
  *
  * @returns Mempool API URL with `/api` suffix (e.g., https://mempool.space/signet/api)
  */

@@ -16,13 +16,13 @@ vi.mock("@/config/env", () => ({
 
 vi.mock("@babylonlabs-io/wallet-connector", () => ({
   Network: {
-    MAINNET: 0,
-    SIGNET: 1,
-    TESTNET: 2,
+    MAINNET: "mainnet",
+    SIGNET: "signet",
+    TESTNET: "testnet",
   },
 }));
 
-vi.mock("@babylonlabs-io/config", () => ({
+vi.mock("@/config/network", () => ({
   getNetworkConfigETH: vi.fn(() => ({
     chainId: 11155111,
     name: "sepolia",
@@ -38,10 +38,10 @@ vi.mock("@babylonlabs-io/config", () => ({
     id: 11155111,
     name: "Sepolia",
   })),
-  getBTCNetwork: vi.fn(() => 1), // Network.SIGNET = 1
+  getBTCNetwork: vi.fn(() => "signet"),
 }));
 
-const mockGetBTCNetwork = vi.fn(() => 1); // Default: Network.SIGNET
+const mockGetBTCNetwork = vi.fn(() => "signet"); // Default: Network.SIGNET
 
 vi.mock("@/config", () => ({
   getBTCNetwork: () => mockGetBTCNetwork(),
@@ -168,7 +168,7 @@ describe("useAaveReserveDetail", () => {
     vi.clearAllMocks();
 
     // Reset network to signet (default for tests)
-    mockGetBTCNetwork.mockReturnValue(1); // Network.SIGNET
+    mockGetBTCNetwork.mockReturnValue("signet");
 
     // Reset to default mock values
     mockUsePrices.mockReturnValue({
@@ -237,7 +237,7 @@ describe("useAaveReserveDetail", () => {
   });
 
   it("returns null for stablecoin on mainnet when Chainlink price is missing", () => {
-    mockGetBTCNetwork.mockReturnValue(0); // Network.MAINNET = 0
+    mockGetBTCNetwork.mockReturnValue("mainnet");
 
     mockUsePrices.mockReturnValue({
       prices: {},
@@ -257,7 +257,7 @@ describe("useAaveReserveDetail", () => {
   });
 
   it("returns null when Chainlink price is stale on mainnet", () => {
-    mockGetBTCNetwork.mockReturnValue(0); // Network.MAINNET
+    mockGetBTCNetwork.mockReturnValue("mainnet");
 
     mockUsePrices.mockReturnValue({
       prices: { USDC: 0.9998 },
@@ -279,7 +279,7 @@ describe("useAaveReserveDetail", () => {
   });
 
   it("returns null when Chainlink fetch failed on mainnet", () => {
-    mockGetBTCNetwork.mockReturnValue(0); // Network.MAINNET
+    mockGetBTCNetwork.mockReturnValue("mainnet");
 
     mockUsePrices.mockReturnValue({
       prices: { USDC: 1.0 },

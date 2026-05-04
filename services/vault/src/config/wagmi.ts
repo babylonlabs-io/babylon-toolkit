@@ -8,12 +8,13 @@
  * the wagmi config to ensure compatibility.
  */
 
-import { getETHChain, getNetworkConfigETH } from "@babylonlabs-io/config";
 import {
   initializeAppKitModal,
   type AppKitModalConfig,
 } from "@babylonlabs-io/wallet-connector";
 import { createConfig, http } from "wagmi";
+
+import { getETHChain, getNetworkConfigETH } from "@/config/network";
 
 interface WagmiInitResult {
   wagmiConfig: ReturnType<typeof createConfig>;

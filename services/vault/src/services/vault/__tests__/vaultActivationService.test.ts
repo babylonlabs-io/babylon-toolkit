@@ -12,7 +12,7 @@ vi.mock("@/clients/eth-contract/transactionFactory", () => ({
   executeWrite: (...args: unknown[]) => mockExecuteWrite(...args),
 }));
 
-vi.mock("@babylonlabs-io/config", () => ({
+vi.mock("@/config/network", () => ({
   getETHChain: () => ({ id: 11155111, name: "sepolia" }),
 }));
 

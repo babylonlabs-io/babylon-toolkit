@@ -5,9 +5,8 @@
  * ETH:  <chain explorer>/tx/<hash>                      (hash with 0x)
  */
 
-import { getNetworkConfigETH } from "@babylonlabs-io/config";
-
 import { getNetworkConfigBTC } from "@/config";
+import { getNetworkConfigETH } from "@/config/network";
 import type { ActivityChain } from "@/types/activityLog";
 import { stripHexPrefix } from "@/utils/btc";
 

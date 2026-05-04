@@ -31,7 +31,7 @@ vi.mock("@babylonlabs-io/ts-sdk/tbv/core", () => ({
   },
 }));
 
-vi.mock("@babylonlabs-io/config", () => ({
+vi.mock("@/config/network", () => ({
   getETHChain: vi.fn(() => ({ id: 1, name: "Ethereum" })),
   getNetworkConfigETH: vi.fn(() => ({
     chain: { id: 1, name: "Ethereum" },
@@ -48,7 +48,7 @@ vi.mock("../../../clients/btc/config", () => ({
 }));
 
 vi.mock("../../../config/pegin", () => ({
-  getBTCNetworkForWASM: vi.fn(() => "mainnet"),
+  getBTCNetworkForWASM: vi.fn(() => "bitcoin"),
 }));
 
 vi.mock("../../../config/contracts", () => ({

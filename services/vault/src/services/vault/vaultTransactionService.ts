@@ -5,7 +5,6 @@
  * or fetching data before executing transactions.
  */
 
-import { getETHChain } from "@babylonlabs-io/config";
 import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
 import type {
   BatchPeginRequestItem,
@@ -15,6 +14,8 @@ import type {
 } from "@babylonlabs-io/ts-sdk/tbv/core";
 import { ensureHexPrefix, PeginManager } from "@babylonlabs-io/ts-sdk/tbv/core";
 import type { Address, Hex, WalletClient } from "viem";
+
+import { getETHChain } from "@/config/network";
 
 import { getMempoolApiUrl } from "../../clients/btc/config";
 import { ethClient } from "../../clients/eth-contract/client";

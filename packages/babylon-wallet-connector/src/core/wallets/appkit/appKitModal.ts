@@ -35,7 +35,7 @@ export interface AppKitModalConfig {
   eth?: {
     /**
      * ETH network chain configuration
-     * Provide from your network config (e.g., @babylonlabs-io/config)
+     * Provide from your host application's network config.
      */
     chain: Chain;
   };
