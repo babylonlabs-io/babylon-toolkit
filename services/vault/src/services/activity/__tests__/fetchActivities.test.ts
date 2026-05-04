@@ -180,6 +180,35 @@ describe("fetchUserActivities type mapping", () => {
     );
     expect(result).toHaveLength(6);
   });
+
+  it("drops unrecognised types instead of crashing the tab", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const rows: ActivityRow[] = [
+      activity({
+        type: "deposit",
+        logIndex: 0,
+        transactionHash: "0x" + "a".repeat(64),
+        vaultId: VAULT_A,
+      }),
+      activity({
+        type: "add_collateral",
+        logIndex: 1,
+        transactionHash: "0x" + "a".repeat(64),
+        vaultId: VAULT_A,
+      }),
+    ];
+    await setupGraphqlMock(rows);
+
+    const result = await fetchUserActivities(
+      USER as `0x${string}`,
+      buildDeps(),
+    );
+
+    expect(result).toHaveLength(1);
+    expect(result[0].type).toBe("Deposit");
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
+  });
 });
 
 describe("fetchUserActivities position-scoped enrichment", () => {

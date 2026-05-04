@@ -112,20 +112,17 @@ const BTC_PRIMARY_ACTIVITIES: ReadonlySet<GraphQLActivityType> = new Set([
   "deposit",
 ]);
 
-function mapActivityType(type: GraphQLActivityType): ActivityType {
-  const typeMap: Record<GraphQLActivityType, ActivityType> = {
-    deposit: "Deposit",
-    withdrawal: "Withdraw",
-    liquidation: "Liquidation",
-    borrow: "Borrow",
-    repay: "Repay",
-    redeem: "Redeem",
-  };
-  const mapped = typeMap[type];
-  if (!mapped) {
-    throw new Error(`Unknown activity type from GraphQL API: ${type}`);
-  }
-  return mapped;
+const TYPE_MAP: Record<GraphQLActivityType, ActivityType> = {
+  deposit: "Deposit",
+  withdrawal: "Withdraw",
+  liquidation: "Liquidation",
+  borrow: "Borrow",
+  repay: "Repay",
+  redeem: "Redeem",
+};
+
+function mapActivityType(type: string): ActivityType | undefined {
+  return TYPE_MAP[type as GraphQLActivityType];
 }
 
 /**
@@ -215,69 +212,73 @@ export async function fetchUserActivities(
     peginTxHashByVaultId.set(v.id, v.peginTxHash);
   }
 
-  const rows = activities.map((item): ActivityLog => {
-    const isPositionScoped = item.type === "borrow" || item.type === "repay";
+  const rows = activities.flatMap(
+    (item): Array<{ row: ActivityLog; raw: GraphQLVaultActivityItem }> => {
+      const displayType = mapActivityType(item.type);
+      if (!displayType) {
+        console.warn(`[activity] dropping unrecognised type "${item.type}"`);
+        return [];
+      }
 
-    let application: ActivityApplication;
-    if (isPositionScoped) {
-      // TODO: when more applications support borrow/repay, resolve via a
-      // positionAccount → app mapping instead of a single injected metadata.
-      application = deps.borrowAppMetadata;
-    } else {
-      const applicationEntryPoint = item.vaultId
-        ? vaultMap.get(item.vaultId)
-        : undefined;
-      application = applicationEntryPoint
-        ? (deps.resolveVaultApp(applicationEntryPoint) ?? UNKNOWN_APP)
-        : UNKNOWN_APP;
-    }
+      const isPositionScoped = item.type === "borrow" || item.type === "repay";
 
-    let amountValue: string;
-    let amountSymbol: string;
-    let amountIcon: string | undefined;
-    if (isPositionScoped) {
-      // Fall back gracefully for malformed / partially-indexed rows so a single
-      // bad row doesn't blank the whole Activity tab.
-      const reserve =
-        item.debtReserveId != null
-          ? deps.reserves.get(item.debtReserveId)
+      let application: ActivityApplication;
+      if (isPositionScoped) {
+        application = deps.borrowAppMetadata;
+      } else {
+        const applicationEntryPoint = item.vaultId
+          ? vaultMap.get(item.vaultId)
           : undefined;
-      amountValue = reserve
-        ? formatAmount(item.amount, reserve.decimals)
-        : item.amount;
-      amountSymbol = reserve?.symbol ?? "—";
-    } else {
-      amountValue = formatAmount(item.amount, BTC_DECIMALS);
-      amountSymbol = btcConfig.coinSymbol;
-      amountIcon = btcConfig.icon;
-    }
+        application = applicationEntryPoint
+          ? (deps.resolveVaultApp(applicationEntryPoint) ?? UNKNOWN_APP)
+          : UNKNOWN_APP;
+      }
 
-    const { chain, transactionHash } = resolveDisplayTx(
-      item,
-      peginTxHashByVaultId,
-    );
+      let amountValue: string;
+      let amountSymbol: string;
+      let amountIcon: string | undefined;
+      if (isPositionScoped) {
+        const reserve =
+          item.debtReserveId != null
+            ? deps.reserves.get(item.debtReserveId)
+            : undefined;
+        amountValue = reserve
+          ? formatAmount(item.amount, reserve.decimals)
+          : item.amount;
+        amountSymbol = reserve?.symbol ?? "—";
+      } else {
+        amountValue = formatAmount(item.amount, BTC_DECIMALS);
+        amountSymbol = btcConfig.coinSymbol;
+        amountIcon = btcConfig.icon;
+      }
 
-    return {
-      id: item.id,
-      date: new Date(parseInt(item.timestamp, 10) * 1000),
-      application,
-      type: mapActivityType(item.type),
-      amount: {
-        value: amountValue,
-        symbol: amountSymbol,
-        icon: amountIcon,
-      },
-      chain,
-      transactionHash,
-    };
-  });
+      const { chain, transactionHash } = resolveDisplayTx(
+        item,
+        peginTxHashByVaultId,
+      );
 
-  // Stable ordering for same-tx rows: (timestamp, blockNumber, logIndex) desc.
-  // logIndex is parsed from the indexer-generated id so we don't need a
-  // dedicated column. The GraphQL response is already sorted by timestamp
-  // desc; this enforces a deterministic tiebreaker on rows sharing a timestamp.
+      return [
+        {
+          row: {
+            id: item.id,
+            date: new Date(parseInt(item.timestamp, 10) * 1000),
+            application,
+            type: displayType,
+            amount: {
+              value: amountValue,
+              symbol: amountSymbol,
+              icon: amountIcon,
+            },
+            chain,
+            transactionHash,
+          },
+          raw: item,
+        },
+      ];
+    },
+  );
+
   return rows
-    .map((row, idx) => ({ row, raw: activities[idx] }))
     .sort((a, b) => {
       const tsDiff =
         parseInt(b.raw.timestamp, 10) - parseInt(a.raw.timestamp, 10);
