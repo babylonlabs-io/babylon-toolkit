@@ -44,6 +44,16 @@
       "require": "./dist/tbv/core/services/index.cjs",
       "import": "./dist/tbv/core/services/index.js"
     },
+    "./tbv/core/managers": {
+      "types": "./dist/tbv/core/managers/index.d.ts",
+      "require": "./dist/tbv/core/managers/index.cjs",
+      "import": "./dist/tbv/core/managers/index.js"
+    },
+    "./tbv/core/contracts": {
+      "types": "./dist/tbv/core/contracts/index.d.ts",
+      "require": "./dist/tbv/core/contracts/index.cjs",
+      "import": "./dist/tbv/core/contracts/index.js"
+    },
     "./tbv/core/vault-secrets": {
       "types": "./dist/tbv/core/vault-secrets/index.d.ts",
       "require": "./dist/tbv/core/vault-secrets/index.cjs",
