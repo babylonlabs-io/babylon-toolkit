@@ -30,10 +30,7 @@ import type {
   PeginPollingContextValue,
   PeginPollingProviderProps,
 } from "../../types/peginPolling";
-import {
-  areTransactionsReady,
-  isTerminalPollingError,
-} from "../../utils/peginPolling";
+import { isTerminalPollingError } from "../../utils/peginPolling";
 import { isVaultOwnedByWallet } from "../../utils/vaultWarnings";
 
 /**
@@ -93,11 +90,10 @@ export function PeginPollingProvider({
 
   // Use the polling query hook
   const {
-    data,
-    depositorGraphs,
     errors,
     needsWotsKey,
     pendingIngestion,
+    pendingDepositorSignatures,
     isLoading,
     refetch,
   } = usePeginPollingQuery({
@@ -160,9 +156,6 @@ export function PeginPollingProvider({
         pendingPegins,
       );
 
-      const transactions = data?.get(depositId) ?? null;
-      const isReady = transactions ? areTransactionsReady(transactions) : false;
-
       const depositError = errors?.get(depositId);
       const vpTerminalError =
         depositError && isTerminalPollingError(depositError)
@@ -171,7 +164,7 @@ export function PeginPollingProvider({
 
       const peginState = getPeginState(contractStatus, {
         localStatus,
-        transactionsReady: isReady,
+        transactionsReady: pendingDepositorSignatures?.has(depositId) ?? false,
         isInUse: activity.isInUse,
         needsWotsKey: needsWotsKey?.has(depositId),
         pendingIngestion: pendingIngestion?.has(depositId),
@@ -184,9 +177,6 @@ export function PeginPollingProvider({
 
       return {
         depositId,
-        transactions,
-        depositorGraph: depositorGraphs?.get(depositId) ?? null,
-        isReady,
         loading: isLoading,
         error: errors?.get(depositId) ?? null,
         peginState,
@@ -199,8 +189,7 @@ export function PeginPollingProvider({
     [
       activities,
       pendingPegins,
-      data,
-      depositorGraphs,
+      pendingDepositorSignatures,
       errors,
       needsWotsKey,
       pendingIngestion,

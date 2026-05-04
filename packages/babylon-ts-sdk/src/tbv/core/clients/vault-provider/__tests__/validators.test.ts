@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 import { DaemonStatus } from "../types";
 import {
   VpResponseValidationError,
+  validateBatchGetPeginStatusResponse,
+  validateBatchGetPegoutStatusResponse,
   validateGetPeginStatusResponse,
   validateGetPegoutStatusResponse,
   validateRequestDepositorClaimerArtifactsResponse,
@@ -409,22 +411,48 @@ describe("VP Response Validators", () => {
   });
 
   describe("validateGetPegoutStatusResponse", () => {
-    it("accepts a valid response with no claimer/challenger", () => {
+    const VALID_PUBKEY = "a".repeat(64);
+    const ANOTHER_TXID = "b".repeat(64);
+    const VALID_CLAIMER = {
+      status: "pending",
+      failed: false,
+      claim_txid: ANOTHER_TXID,
+      claimer_pubkey: VALID_PUBKEY,
+      assert_txid: ANOTHER_TXID,
+      challenger_pubkey: null,
+      created_at: 1700000000,
+      updated_at: 1700000001,
+    };
+    const VALID_CHALLENGER = {
+      status: "active",
+      claim_txid: ANOTHER_TXID,
+      claimer_pubkey: VALID_PUBKEY,
+      assert_txid: null,
+      challenge_assert_x_txid: null,
+      challenge_assert_y_txid: null,
+      nopayout_txid: null,
+      created_at: 1700000000,
+      updated_at: 1700000001,
+    };
+
+    it("accepts a valid not-found response (null claimer, empty challengers)", () => {
       expect(() =>
         validateGetPegoutStatusResponse({
           pegin_txid: VALID_TXID,
           found: false,
+          claimer: null,
+          challengers: [],
         }),
       ).not.toThrow();
     });
 
-    it("accepts a valid response with claimer and challenger", () => {
+    it("accepts a valid response with claimer and one challenger", () => {
       expect(() =>
         validateGetPegoutStatusResponse({
           pegin_txid: VALID_TXID,
           found: true,
-          claimer: { status: "pending", failed: false },
-          challenger: { status: "active" },
+          claimer: VALID_CLAIMER,
+          challengers: [VALID_CHALLENGER],
         }),
       ).not.toThrow();
     });
@@ -440,6 +468,8 @@ describe("VP Response Validators", () => {
         validateGetPegoutStatusResponse({
           pegin_txid: "short",
           found: false,
+          claimer: null,
+          challengers: [],
         }),
       ).toThrow(VpResponseValidationError);
     });
@@ -449,58 +479,72 @@ describe("VP Response Validators", () => {
         validateGetPegoutStatusResponse({
           pegin_txid: VALID_TXID,
           found: "yes",
+          claimer: null,
+          challengers: [],
         }),
       ).toThrow(VpResponseValidationError);
     });
 
-    it("rejects claimer with missing status", () => {
+    it("rejects claimer with missing mandatory fields", () => {
       expect(() =>
         validateGetPegoutStatusResponse({
           pegin_txid: VALID_TXID,
           found: true,
-          claimer: { failed: false },
+          claimer: { ...VALID_CLAIMER, claim_txid: undefined },
+          challengers: [],
         }),
       ).toThrow(VpResponseValidationError);
     });
 
-    it("rejects claimer with missing failed field", () => {
+    it("rejects claimer with non-numeric created_at (Rust returns i64)", () => {
       expect(() =>
         validateGetPegoutStatusResponse({
           pegin_txid: VALID_TXID,
           found: true,
-          claimer: { status: "pending" },
+          claimer: { ...VALID_CLAIMER, created_at: "1700000000" },
+          challengers: [],
         }),
       ).toThrow(VpResponseValidationError);
     });
 
-    it("rejects null claimer", () => {
+    it("rejects challengers when not an array", () => {
       expect(() =>
         validateGetPegoutStatusResponse({
           pegin_txid: VALID_TXID,
           found: true,
           claimer: null,
+          challengers: { status: "active" },
         }),
       ).toThrow(VpResponseValidationError);
     });
 
-    it("rejects challenger with missing status", () => {
+    it("rejects challenger entry with missing mandatory status", () => {
+      const bad = { ...VALID_CHALLENGER, status: undefined };
       expect(() =>
         validateGetPegoutStatusResponse({
           pegin_txid: VALID_TXID,
           found: true,
-          challenger: {},
+          claimer: null,
+          challengers: [bad],
         }),
       ).toThrow(VpResponseValidationError);
     });
 
-    it("rejects null challenger", () => {
+    it("accepts the optional split-assert txid fields when present", () => {
       expect(() =>
         validateGetPegoutStatusResponse({
           pegin_txid: VALID_TXID,
           found: true,
-          challenger: null,
+          claimer: null,
+          challengers: [
+            {
+              ...VALID_CHALLENGER,
+              challenge_assert_x_txid: ANOTHER_TXID,
+              challenge_assert_y_txid: ANOTHER_TXID,
+            },
+          ],
         }),
-      ).toThrow(VpResponseValidationError);
+      ).not.toThrow();
     });
   });
 
@@ -592,6 +636,161 @@ describe("VP Response Validators", () => {
           babe_sessions: {
             challenger1: { decryptor_artifacts_hex: "xyz" },
           },
+        }),
+      ).toThrow(VpResponseValidationError);
+    });
+  });
+
+  describe("validateBatchGetPeginStatusResponse", () => {
+    const validInner = {
+      pegin_txid: VALID_TXID,
+      status: DaemonStatus.ACTIVATED,
+      progress: {},
+      health_info: "ok",
+    };
+
+    it("accepts an empty results array", () => {
+      expect(() =>
+        validateBatchGetPeginStatusResponse({ results: [] }),
+      ).not.toThrow();
+    });
+
+    it("accepts a result entry with only `result` populated", () => {
+      expect(() =>
+        validateBatchGetPeginStatusResponse({
+          results: [
+            { pegin_txid: VALID_TXID, result: validInner, error: null },
+          ],
+        }),
+      ).not.toThrow();
+    });
+
+    it("accepts a result entry with only `error` populated", () => {
+      expect(() =>
+        validateBatchGetPeginStatusResponse({
+          results: [
+            { pegin_txid: VALID_TXID, result: null, error: "PegIn not found" },
+          ],
+        }),
+      ).not.toThrow();
+    });
+
+    it("rejects when response is not an object", () => {
+      expect(() => validateBatchGetPeginStatusResponse(null)).toThrow(
+        VpResponseValidationError,
+      );
+    });
+
+    it("rejects when results is not an array", () => {
+      expect(() =>
+        validateBatchGetPeginStatusResponse({ results: { foo: 1 } }),
+      ).toThrow(VpResponseValidationError);
+    });
+
+    it("rejects entry that is not an object", () => {
+      expect(() =>
+        validateBatchGetPeginStatusResponse({ results: ["not-an-object"] }),
+      ).toThrow(VpResponseValidationError);
+    });
+
+    it("rejects entry with missing pegin_txid", () => {
+      expect(() =>
+        validateBatchGetPeginStatusResponse({
+          results: [{ result: null, error: "boom" }],
+        }),
+      ).toThrow(VpResponseValidationError);
+    });
+
+    it("rejects entry with wrong-length pegin_txid", () => {
+      expect(() =>
+        validateBatchGetPeginStatusResponse({
+          results: [{ pegin_txid: "abcd", result: null, error: "boom" }],
+        }),
+      ).toThrow(VpResponseValidationError);
+    });
+
+    it("rejects entry where both result and error are populated", () => {
+      expect(() =>
+        validateBatchGetPeginStatusResponse({
+          results: [
+            { pegin_txid: VALID_TXID, result: validInner, error: "boom" },
+          ],
+        }),
+      ).toThrow(VpResponseValidationError);
+    });
+
+    it("rejects entry where neither result nor error is populated", () => {
+      expect(() =>
+        validateBatchGetPeginStatusResponse({
+          results: [{ pegin_txid: VALID_TXID, result: null, error: null }],
+        }),
+      ).toThrow(VpResponseValidationError);
+    });
+
+    it("rejects entry where error is not a string-or-null", () => {
+      expect(() =>
+        validateBatchGetPeginStatusResponse({
+          results: [{ pegin_txid: VALID_TXID, result: null, error: 42 }],
+        }),
+      ).toThrow(VpResponseValidationError);
+    });
+
+    it("propagates inner result validation failures", () => {
+      expect(() =>
+        validateBatchGetPeginStatusResponse({
+          results: [
+            {
+              pegin_txid: VALID_TXID,
+              result: {
+                pegin_txid: VALID_TXID,
+                status: "BogusStatus",
+                progress: {},
+                health_info: "ok",
+              },
+              error: null,
+            },
+          ],
+        }),
+      ).toThrow(VpResponseValidationError);
+    });
+  });
+
+  describe("validateBatchGetPegoutStatusResponse", () => {
+    const validInner = {
+      pegin_txid: VALID_TXID,
+      found: false,
+      claimer: null,
+      challengers: [],
+    };
+
+    it("accepts a happy-path batch", () => {
+      expect(() =>
+        validateBatchGetPegoutStatusResponse({
+          results: [
+            { pegin_txid: VALID_TXID, result: validInner, error: null },
+          ],
+        }),
+      ).not.toThrow();
+    });
+
+    it("rejects entry where both result and error are null", () => {
+      expect(() =>
+        validateBatchGetPegoutStatusResponse({
+          results: [{ pegin_txid: VALID_TXID, result: null, error: null }],
+        }),
+      ).toThrow(VpResponseValidationError);
+    });
+
+    it("propagates inner result validation failures (missing challengers array)", () => {
+      expect(() =>
+        validateBatchGetPegoutStatusResponse({
+          results: [
+            {
+              pegin_txid: VALID_TXID,
+              result: { ...validInner, challengers: undefined },
+              error: null,
+            },
+          ],
         }),
       ).toThrow(VpResponseValidationError);
     });

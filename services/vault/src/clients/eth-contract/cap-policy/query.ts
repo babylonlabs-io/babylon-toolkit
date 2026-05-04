@@ -104,6 +104,12 @@ export async function getApplicationCap(
 
 /**
  * Read current BTC usage for an application, optionally scoped to a user.
+ *
+ * When a user is provided, the protocol-total and per-user reads are
+ * collapsed into a single multicall round-trip — they target the same
+ * `CapPolicy` contract with no inter-dependency. `allowFailure: false`
+ * preserves the prior throw-on-revert semantics of the two separate
+ * `readContract` calls.
  */
 export async function getApplicationUsage(
   appEntryPoint: Address,
@@ -112,23 +118,33 @@ export async function getApplicationUsage(
   const publicClient = ethClient.getPublicClient();
   const capPolicy = await getCapPolicyAddress();
 
-  const totalBTC = (await publicClient.readContract({
-    address: capPolicy,
-    abi: CapPolicyAbi,
-    functionName: "getApplicationTotalBTC",
-    args: [appEntryPoint],
-  })) as bigint;
-
   if (!user) {
+    const totalBTC = (await publicClient.readContract({
+      address: capPolicy,
+      abi: CapPolicyAbi,
+      functionName: "getApplicationTotalBTC",
+      args: [appEntryPoint],
+    })) as bigint;
     return { totalBTC, userBTC: null };
   }
 
-  const userBTC = (await publicClient.readContract({
-    address: capPolicy,
-    abi: CapPolicyAbi,
-    functionName: "getApplicationUserBTC",
-    args: [appEntryPoint, user],
-  })) as bigint;
+  const [totalBTC, userBTC] = (await publicClient.multicall({
+    contracts: [
+      {
+        address: capPolicy,
+        abi: CapPolicyAbi,
+        functionName: "getApplicationTotalBTC",
+        args: [appEntryPoint],
+      },
+      {
+        address: capPolicy,
+        abi: CapPolicyAbi,
+        functionName: "getApplicationUserBTC",
+        args: [appEntryPoint, user],
+      },
+    ],
+    allowFailure: false,
+  })) as [bigint, bigint];
 
   return { totalBTC, userBTC };
 }

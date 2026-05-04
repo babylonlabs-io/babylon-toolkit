@@ -1,12 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockReadContract = vi.fn();
+const mockMulticall = vi.fn();
 const mockGetChainId = vi.fn();
 
 vi.mock("@/clients/eth-contract/client", () => ({
   ethClient: {
     getPublicClient: () => ({
       readContract: mockReadContract,
+      multicall: mockMulticall,
       getChainId: mockGetChainId,
     }),
   },
@@ -29,6 +31,7 @@ let query: QueryModule;
 
 beforeEach(async () => {
   mockReadContract.mockReset();
+  mockMulticall.mockReset();
   mockGetChainId.mockReset();
   // Reset module registry so the internal CapPolicy address cache starts
   // empty for each test without exposing a test-only reset helper.
@@ -146,22 +149,49 @@ describe("getApplicationUsage", () => {
     expect(userCalls).toHaveLength(0);
   });
 
-  it("returns total and user BTC when a user address is supplied", async () => {
+  it("returns total and user BTC via a single multicall when a user address is supplied", async () => {
     mockGetChainId.mockResolvedValue(11155111);
-    mockReadContract
-      .mockResolvedValueOnce(REGISTRY_CAP_POLICY)
-      .mockResolvedValueOnce(50n)
-      .mockResolvedValueOnce(3n);
+    mockReadContract.mockResolvedValueOnce(REGISTRY_CAP_POLICY);
+    mockMulticall.mockResolvedValueOnce([50n, 3n]);
 
     const usage = await query.getApplicationUsage(APP, USER);
 
     expect(usage).toEqual({ totalBTC: 50n, userBTC: 3n });
-    expect(mockReadContract).toHaveBeenCalledWith(
+    expect(mockMulticall).toHaveBeenCalledTimes(1);
+    expect(mockMulticall).toHaveBeenCalledWith(
       expect.objectContaining({
-        address: REGISTRY_CAP_POLICY,
-        functionName: "getApplicationUserBTC",
-        args: [APP, USER],
+        allowFailure: false,
+        contracts: [
+          expect.objectContaining({
+            address: REGISTRY_CAP_POLICY,
+            functionName: "getApplicationTotalBTC",
+            args: [APP],
+          }),
+          expect.objectContaining({
+            address: REGISTRY_CAP_POLICY,
+            functionName: "getApplicationUserBTC",
+            args: [APP, USER],
+          }),
+        ],
       }),
+    );
+    // No per-read readContract calls for the usage path when user is set.
+    const usageReadContractCalls = mockReadContract.mock.calls.filter(
+      (c) =>
+        c[0].functionName === "getApplicationTotalBTC" ||
+        c[0].functionName === "getApplicationUserBTC",
+    );
+    expect(usageReadContractCalls).toHaveLength(0);
+  });
+
+  it("propagates the multicall error so callers cannot treat a revert as success", async () => {
+    mockGetChainId.mockResolvedValue(11155111);
+    mockReadContract.mockResolvedValueOnce(REGISTRY_CAP_POLICY);
+    const multicallError = new Error("multicall reverted");
+    mockMulticall.mockRejectedValueOnce(multicallError);
+
+    await expect(query.getApplicationUsage(APP, USER)).rejects.toThrow(
+      multicallError,
     );
   });
 });

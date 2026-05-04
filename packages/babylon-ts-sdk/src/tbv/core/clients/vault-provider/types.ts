@@ -286,41 +286,95 @@ export interface GetPeginStatusResponse {
 // Pegout Types
 // ============================================================================
 
-/** Params for querying pegout status from the VP daemon. */
-export interface GetPegoutStatusParams {
-  pegin_txid: string;
-}
-
-/** Claimer-side pegout progress. */
+/**
+ * Claimer-side pegout progress.
+ * Source: btc-vault crates/vaultd/src/rpc/server/pegout_status.rs ClaimerPegoutStatus.
+ */
 export interface ClaimerPegoutStatus {
   status: string;
   failed: boolean;
-  claim_txid?: string;
-  claimer_pubkey?: string;
-  challenger_pubkey?: string;
-  created_at?: string;
-  updated_at?: string;
+  claim_txid: string;
+  claimer_pubkey: string;
+  assert_txid: string;
+  challenger_pubkey: string | null;
+  /** Unix epoch seconds. */
+  created_at: number;
+  /** Unix epoch seconds. */
+  updated_at: number;
 }
 
-/** Challenger-side pegout progress. */
-export interface ChallengerPegoutStatus {
+/**
+ * Challenger-side pegout progress.
+ * Source: btc-vault crates/vaultd/src/rpc/server/pegout_status.rs ChallengerStatus.
+ */
+export interface ChallengerStatus {
   status: string;
-  claim_txid?: string;
-  claimer_pubkey?: string;
-  assert_txid?: string;
-  challenge_assert_txid?: string;
-  nopayout_txid?: string;
-  created_at?: string;
-  updated_at?: string;
+  claim_txid: string;
+  claimer_pubkey: string;
+  assert_txid: string | null;
+  challenge_assert_x_txid: string | null;
+  challenge_assert_y_txid: string | null;
+  nopayout_txid: string | null;
+  created_at: number;
+  updated_at: number;
 }
 
-/** Response from `getPegoutStatus`. */
+/**
+ * Pegout status response. Embedded by `batchGetPegoutStatus` per-result
+ * envelopes. Mirrors btc-vault `GetPegoutStatusResponse`.
+ */
 export interface GetPegoutStatusResponse {
   pegin_txid: string;
   found: boolean;
-  claimer?: ClaimerPegoutStatus;
-  challenger?: ChallengerPegoutStatus;
+  claimer: ClaimerPegoutStatus | null;
+  challengers: ChallengerStatus[];
 }
+
+// ============================================================================
+// Batch Status Types (peginStatus + pegoutStatus)
+// ============================================================================
+
+/** Params for `batchGetPeginStatus`. */
+export interface BatchGetPeginStatusParams {
+  /** Up to MAX_BATCH_SIZE (50) txids per call. */
+  pegin_txids: string[];
+}
+
+/** Per-pegin entry in a `batchGetPeginStatus` response. */
+export interface BatchPeginStatusResult {
+  pegin_txid: string;
+  result: GetPeginStatusResponse | null;
+  error: string | null;
+}
+
+/** Response from `batchGetPeginStatus`. Results are returned in request order. */
+export interface BatchGetPeginStatusResponse {
+  results: BatchPeginStatusResult[];
+}
+
+/** Params for `batchGetPegoutStatus`. */
+export interface BatchGetPegoutStatusParams {
+  pegin_txids: string[];
+}
+
+/** Per-vault entry in a `batchGetPegoutStatus` response. */
+export interface BatchPegoutStatusResult {
+  pegin_txid: string;
+  result: GetPegoutStatusResponse | null;
+  error: string | null;
+}
+
+/** Response from `batchGetPegoutStatus`. Results are returned in request order. */
+export interface BatchGetPegoutStatusResponse {
+  results: BatchPegoutStatusResult[];
+}
+
+/**
+ * Maximum number of items per batch call. Mirrors the server-side
+ * `MAX_BATCH_SIZE` in btc-vault (`crates/vaultd/src/rpc/server/vault_provider.rs:7`).
+ * Callers must chunk requests larger than this.
+ */
+export const VP_BATCH_MAX_SIZE = 50;
 
 // ============================================================================
 // Error Codes

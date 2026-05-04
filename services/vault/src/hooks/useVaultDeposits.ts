@@ -35,26 +35,18 @@ export function useVaultDeposits(connectedAddress: Address | undefined) {
     ? FAST_POLL_INTERVAL
     : NORMAL_POLL_INTERVAL;
 
-  // Fetch vault data from GraphQL
-  const { data, isLoading, error, refetch } = useVaults(connectedAddress);
+  const { data, isLoading, error, refetch } = useVaults(connectedAddress, {
+    poll: true,
+    interval: pollingInterval,
+  });
 
-  // Trigger refetch when wallet connects (address changes from undefined to a value)
+  // Forces a refresh on `undefined → sameAddress` reconnect, which RQ
+  // would otherwise serve from cache while still within `staleTime`.
   useEffect(() => {
     if (connectedAddress) {
       refetch();
     }
   }, [connectedAddress, refetch]);
-
-  // Set up dynamic polling interval
-  useEffect(() => {
-    if (!connectedAddress) return;
-
-    const interval = setInterval(() => {
-      refetch();
-    }, pollingInterval);
-
-    return () => clearInterval(interval);
-  }, [connectedAddress, pollingInterval, refetch]);
 
   // Transform vaults to vault activities
   const confirmedActivities = useMemo(() => {

@@ -47,13 +47,22 @@ export function useApplicationCap(user?: string): UseApplicationCapResult {
     enabled,
   });
 
+  // Usage RPCs are skipped for uncapped deployments — the snapshot logic below
+  // ignores usage data when both cap parameters are 0 (CapPolicy.sol treats
+  // 0 as unlimited), so polling them is pure waste. Gating on caps being
+  // resolved AND non-zero adds one cap-RTT of latency for capped deployments
+  // on first load, but eliminates the polling stream entirely when uncapped.
+  const isCapped =
+    capsQuery.data !== undefined &&
+    (capsQuery.data.totalCapBTC > 0n || capsQuery.data.perAddressCapBTC > 0n);
+
   const usageQuery = useQuery({
     queryKey: [APPLICATION_CAP_KEY, "usage", app, userAddress ?? null],
     queryFn: () => getApplicationUsage(app, userAddress),
     staleTime: CAP_STALE_TIME_MS,
     refetchInterval: CAP_REFETCH_INTERVAL_MS,
     refetchOnWindowFocus: false,
-    enabled,
+    enabled: enabled && isCapped,
   });
 
   const snapshot = useMemo<CapSnapshot | null>(() => {

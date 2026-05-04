@@ -11,9 +11,6 @@ function pollingResultWithAction(
 ): DepositPollingResult {
   return {
     depositId,
-    transactions: null,
-    depositorGraph: null,
-    isReady: false,
     loading: false,
     error: null,
     peginState,
