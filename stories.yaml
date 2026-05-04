@@ -1,0 +1,363 @@
+stories:
+  # ──────────────────────────────────────────────
+  # WALLET CONNECTION
+  # ──────────────────────────────────────────────
+
+  - id: BT-01
+    title: "User can connect a Bitcoin wallet"
+    description: >
+      The user selects one of eight supported Bitcoin wallets (OKX, Unisat, Ledger,
+      Ledger v2, Keystone, OneKey, AppKit, or injectable window.bitcoin providers)
+      and authorises the connection to obtain a Taproot address and public key.
+      Without this step no deposit or signing action is possible.
+    section: Wallet Connection
+    status: implemented
+    acceptance_criteria:
+      - Wallet selection modal lists all supported BTC wallets with their icons and names.
+      - After authorisation the app displays the connected Taproot (P2TR) address.
+      - If the user rejects the connection prompt, the modal closes without error and no address is stored.
+      - Disconnecting the wallet clears the address and public key from app state.
+
+  - id: BT-02
+    title: "User can connect an Ethereum wallet"
+    description: >
+      The user connects an Ethereum-compatible wallet through WalletConnect / AppKit
+      (covering 600+ wallets) to enable on-chain vault registration, WOTS key submission,
+      vault activation, borrowing, and repayment on Ethereum.
+    section: Wallet Connection
+    status: implemented
+    acceptance_criteria:
+      - The connect flow launches the AppKit modal showing available Ethereum wallets.
+      - After connection the app displays the connected Ethereum address.
+      - The Ethereum wallet is required before any Ethereum transaction can be submitted.
+      - Disconnecting removes the Ethereum address from app state without affecting the BTC wallet.
+
+  - id: BT-03
+    title: "User can connect a Babylon chain wallet"
+    description: >
+      The user connects a Babylon (BBN / Cosmos) wallet — Keplr, Leap, OKX, or an
+      injectable provider — to satisfy any Babylon-chain protocol steps in the deposit
+      lifecycle.
+    section: Wallet Connection
+    status: implemented
+    acceptance_criteria:
+      - The wallet list shows at least Keplr, Leap, and OKX as options.
+      - After authorisation the Babylon address is displayed in the connection UI.
+      - If the chain the wallet is connected to does not match the expected Babylon chain, the app surfaces a mismatch error.
+
+  # ──────────────────────────────────────────────
+  # DEPOSIT FLOW (BTC → Vault)
+  # ──────────────────────────────────────────────
+
+  - id: BT-04
+    title: "User can enter a BTC deposit amount and select a vault provider"
+    description: >
+      From the deposit page the user types a BTC amount, selects a vault provider
+      from the available registry, and sees real-time validation (minimum amount,
+      remaining capacity, UTXO availability) before proceeding to the signing steps.
+    section: Deposit
+    status: implemented
+    acceptance_criteria:
+      - The form rejects amounts below the protocol minimum and above remaining vault capacity.
+      - The vault provider list is populated from the on-chain registry, not hardcoded.
+      - Fee estimates are shown before the user commits.
+      - The "Continue" action is disabled while any validation error is active.
+
+  - id: BT-05
+    title: "User can sign a proof-of-possession over their Bitcoin public key"
+    description: >
+      As the first step of the deposit signing ceremony, the user signs a BIP-322
+      message with their connected Bitcoin wallet. This binds the Bitcoin public key
+      to the deposit session and is required by the protocol before vault registration.
+    section: Deposit
+    status: implemented
+    acceptance_criteria:
+      - The signing modal presents a human-readable explanation of what is being signed.
+      - The app calls the wallet's BIP-322 signing method, not a generic message-sign fallback.
+      - If the wallet rejects or times out, the user is returned to the previous step with an actionable error.
+      - A valid signature advances the flow to vault registration automatically.
+
+  - id: BT-06
+    title: "User can register the peg-in on Ethereum"
+    description: >
+      After proof-of-possession, the app submits an Ethereum transaction to the
+      BTCVaultRegistry contract to register one or more vaults atomically. For
+      multi-vault (Aave split) deposits this is a single batch registration call.
+      The user signs via their connected Ethereum wallet.
+    section: Deposit
+    status: implemented
+    acceptance_criteria:
+      - A single Ethereum transaction registers all vaults in the deposit batch.
+      - The transaction is submitted only after a valid proof-of-possession exists.
+      - On-chain confirmation is awaited before the flow advances.
+      - If the transaction reverts, the user sees the reason and can retry.
+
+  - id: BT-07
+    title: "User can broadcast the pre-peg-in transaction to Bitcoin"
+    description: >
+      The user signs the Pre-PegIn PSBT with their Bitcoin wallet and the app broadcasts
+      it to the Bitcoin network. This funds the HTLC output(s) that lock the user's BTC.
+      UTXOs are selected automatically by the SDK; the user only approves the signing request.
+    section: Deposit
+    status: implemented
+    acceptance_criteria:
+      - The PSBT is constructed before presenting the signing request.
+      - UTXO selection accounts for fees iteratively and is not hardcoded.
+      - After broadcast, the resulting TXID is persisted in local storage so the flow can be resumed if the page is refreshed.
+      - The app surfaces a confirmation once the transaction appears in the mempool.
+
+  - id: BT-08
+    title: "User can sign payout transactions for vault payouts"
+    description: >
+      The vault provider sends pre-built payout PSBT(s); the user reviews and signs each
+      one via their Bitcoin wallet. These pre-authorized payouts define how BTC will be
+      returned to the user at withdrawal time.
+    section: Deposit
+    status: implemented
+    acceptance_criteria:
+      - The payout amounts displayed in the modal are derived from on-chain or WASM-computed values, not taken verbatim from the vault provider.
+      - Each payout PSBT is signed individually with the user's Bitcoin wallet.
+      - If the user rejects any payout signature, the flow pauses and presents a retry option.
+      - Successfully signed payouts are confirmed before the flow advances to artifact download.
+
+  - id: BT-09
+    title: "User can download vault artifacts"
+    description: >
+      After payout signing, the user is offered a download of the vault artifacts (WOTS
+      keys, hashlock secrets, signed payouts) needed for future recovery. This is the only
+      point in the flow where these can be exported.
+    section: Deposit
+    status: implemented
+    acceptance_criteria:
+      - The download prompt is shown after payout signing and before vault activation.
+      - The downloaded file is in a documented format (JSON) and includes all recovery-critical data.
+      - The user can choose to skip the download but receives a warning about irrecoverability.
+      - The flow can proceed to vault activation whether or not the user downloads the file.
+
+  - id: BT-10
+    title: "User can activate a vault by revealing the HTLC secret"
+    description: >
+      The final deposit step: the user submits the HTLC hashlock preimage to the Ethereum
+      BTCVaultRegistry, transitioning the vault from VERIFIED to ACTIVE and making the BTC
+      collateral available for DeFi use.
+    section: Deposit
+    status: implemented
+    acceptance_criteria:
+      - The secret is derived from the vault's own seed, not read from UI state.
+      - The app verifies hash(secret) === expectedHash before submitting the transaction.
+      - After the Ethereum transaction confirms, the vault status updates to ACTIVE.
+      - If the vault is already active (e.g. resumed session), the step is skipped automatically.
+
+  # ──────────────────────────────────────────────
+  # VAULT LIFECYCLE
+  # ──────────────────────────────────────────────
+
+  - id: BT-11
+    title: "User can view the status of all their vaults"
+    description: >
+      The dashboard shows every vault the user owns, its lifecycle status (Pending,
+      Signing Required, Awaiting Key, Processing, Ready to Activate, Available, In Use,
+      Redeemed, Liquidated, Expired, Refunding, Failed, Invalid), and the BTC value locked.
+    section: Vault Lifecycle
+    status: implemented
+    acceptance_criteria:
+      - Vault statuses are derived from on-chain contract state combined with off-chain tracking state.
+      - Each of the 14 display labels maps to a distinct combination of contract and off-chain states.
+      - Status polling refreshes automatically without a page reload.
+      - Vaults in terminal states (Redeemed, Liquidated, Invalid) are still visible but clearly marked as inactive.
+
+  - id: BT-12
+    title: "User can refund an expired pre-peg-in HTLC"
+    description: >
+      If a deposit's HTLC times out before activation (e.g. the user abandoned the flow),
+      the user can claim a refund. The app builds and broadcasts a refund transaction to
+      the Bitcoin network that returns the locked BTC minus fees.
+    section: Vault Lifecycle
+    status: implemented
+    acceptance_criteria:
+      - The Refund option is presented only when the vault's HTLC timeout has elapsed.
+      - The refund fee is estimated before the user confirms.
+      - The refund PSBT is signed by the user's Bitcoin wallet before broadcast.
+      - After broadcast, the vault status transitions to Refunding and the TXID is recorded.
+
+  # ──────────────────────────────────────────────
+  # AAVE APPLICATION — COLLATERAL
+  # ──────────────────────────────────────────────
+
+  - id: BT-13
+    title: "User can view their BTC collateral position on Aave"
+    description: >
+      The dashboard shows the user's total BTC locked as Aave collateral, its USD value,
+      total outstanding debt, and current health factor. This gives the user a complete
+      picture of their DeFi position before taking any action.
+    section: Aave - Collateral
+    status: implemented
+    acceptance_criteria:
+      - Collateral value is computed from on-chain Aave reserve data, not hardcoded prices.
+      - Health factor is displayed numerically and colour-coded (healthy / warning / critical).
+      - The collateral section updates when new vaults become ACTIVE.
+      - Each individual vault contributing to collateral is listed with its BTC amount.
+
+  - id: BT-14
+    title: "User can reorder collateral vaults to optimise withdrawal"
+    description: >
+      When multiple vaults are deposited as collateral, the user can drag-and-drop to
+      reorder them. The order determines which vaults are withdrawn first and affects
+      liquidation cascade risk.
+    section: Aave - Collateral
+    status: implemented
+    acceptance_criteria:
+      - The reorder UI displays each vault's BTC value and current Aave status.
+      - Saving a new order submits it to the Aave adapter contract.
+      - The UI reflects the updated order after the transaction confirms.
+      - Reordering is disabled when no vaults are in the ACTIVE state.
+
+  # ──────────────────────────────────────────────
+  # AAVE APPLICATION — BORROW
+  # ──────────────────────────────────────────────
+
+  - id: BT-15
+    title: "User can borrow ERC-20 assets against BTC collateral"
+    description: >
+      From the Aave reserve detail page the user selects an asset (USDC, WETH, USDT, etc.),
+      enters a borrow amount, reviews the resulting health factor, and submits the borrow
+      transaction via their Ethereum wallet.
+    section: Aave - Borrow
+    status: implemented
+    acceptance_criteria:
+      - The available borrow limit is calculated from collateral value and liquidation threshold, not hardcoded.
+      - The health factor preview updates in real time as the user types.
+      - Borrowing is blocked if the resulting health factor would fall below 1.25.
+      - The borrow transaction is submitted to Aave and the new loan appears in the loans section on confirmation.
+
+  - id: BT-16
+    title: "User can repay borrowed ERC-20 assets"
+    description: >
+      From the loan card the user enters a partial or full repayment amount for any
+      borrowed asset and submits an Ethereum repay transaction. Repaying improves the
+      health factor and reduces liquidation risk.
+    section: Aave - Borrow
+    status: implemented
+    acceptance_criteria:
+      - The user can select full repayment with a single click.
+      - The health factor preview updates to reflect the post-repayment state.
+      - A successful repay transaction reduces the displayed debt balance.
+      - Repaying more than the outstanding debt is prevented before transaction submission.
+
+  # ──────────────────────────────────────────────
+  # AAVE APPLICATION — POSITION MONITORING
+  # ──────────────────────────────────────────────
+
+  - id: BT-17
+    title: "User can see real-time health factor warnings"
+    description: >
+      A persistent banner appears when the health factor approaches or breaches the
+      liquidation threshold (1.25). The banner severity (info / warning / critical) changes
+      with the calculated risk level and tells the user what action to take.
+    section: Aave - Position Monitoring
+    status: implemented
+    acceptance_criteria:
+      - The banner is absent when health factor is above 2.0 and no risk exists.
+      - A warning banner appears when health factor is between 1.25 and 2.0.
+      - A critical banner appears when health factor is at or below 1.25.
+      - The banner message includes the current health factor value and the suggested remediation.
+
+  - id: BT-18
+    title: "User can see a cascading liquidation risk simulation"
+    description: >
+      When multiple vaults are used as collateral, the position notification system simulates
+      the sequential seizure of vaults to predict whether a single liquidation event could
+      cascade and consume additional collateral. This is surfaced in the notification banner.
+    section: Aave - Position Monitoring
+    status: implemented
+    acceptance_criteria:
+      - The simulation runs over the user's ordered vault list and debt at the current price.
+      - If one vault seizure still leaves health factor below 1.25, the cascade warning is shown.
+      - The cascade warning identifies how many vaults are at risk, not just that risk exists.
+      - The simulation result updates whenever collateral value, debt, or vault order changes.
+
+  # ──────────────────────────────────────────────
+  # WITHDRAW FLOW (Vault → BTC)
+  # ──────────────────────────────────────────────
+
+  - id: BT-19
+    title: "User can initiate a vault withdrawal (pegout)"
+    description: >
+      From the withdraw flow the user selects one or more ACTIVE vaults to redeem and
+      triggers the pegout process. The vault provider then orchestrates the on-chain claim
+      and payout broadcast back to the user's Bitcoin address.
+    section: Withdraw
+    status: implemented
+    acceptance_criteria:
+      - Only vaults in ACTIVE state with signed payouts on file are selectable for withdrawal.
+      - The user sees the expected BTC return amount (net of fees) before confirming.
+      - Initiating withdrawal transitions the vault to a pending-pegout state on the Ethereum side.
+      - The UI reflects the updated status without requiring a page reload.
+
+  - id: BT-20
+    title: "User can monitor the progress of an in-flight withdrawal"
+    description: >
+      After initiating a withdrawal, the user can see the pegout lifecycle progressing through
+      its seven states (ClaimEventReceived → ClaimBroadcast → AssertBroadcast → PayoutBroadcast
+      or Failed). Polling continues automatically until a terminal state is reached.
+    section: Withdraw
+    status: implemented
+    acceptance_criteria:
+      - The current pegout state is displayed next to each withdrawing vault.
+      - Polling stops automatically when a terminal status (PayoutBroadcast or Failed) is reached.
+      - After 10 consecutive polling failures or 20 unknown-status responses, the UI marks the withdrawal as effectively stalled and prompts the user to contact support.
+      - When PayoutBroadcast is confirmed, the vault status updates to REDEEMED and the BTC TXID is shown.
+
+  # ──────────────────────────────────────────────
+  # ACTIVITY
+  # ──────────────────────────────────────────────
+
+  - id: BT-21
+    title: "User can view a chronological activity log of all vault events"
+    description: >
+      The Activity page lists every significant event across the user's vaults — peg-in
+      creation, confirmation, activation, peg-out initiation and completion, Aave borrow
+      and repay operations, liquidations, and expirations — with timestamps and amounts.
+    section: Activity
+    status: implemented
+    acceptance_criteria:
+      - All event types (deposit, withdraw, borrow, repay, liquidation, expiration) appear in a single unified list.
+      - Each row shows the event type, amount, status, and timestamp.
+      - Events are fetched from the indexer, not reconstructed from local storage alone.
+      - The list is ordered most-recent-first.
+
+  # ──────────────────────────────────────────────
+  # GEOFENCING & COMPLIANCE
+  # ──────────────────────────────────────────────
+
+  - id: BT-22
+    title: "User is blocked from accessing the dApp from restricted jurisdictions"
+    description: >
+      The app checks the user's geolocation and screens their wallet addresses against
+      sanctions lists on load. Users in restricted regions or with flagged addresses are
+      shown a block screen rather than the dApp.
+    section: Compliance
+    status: implemented
+    acceptance_criteria:
+      - Geolocation check runs before any wallet connection is permitted.
+      - A blocked user sees a clear explanation that the service is unavailable in their region.
+      - Wallet address screening runs after connection and blocks interaction if the address is flagged.
+      - Neither the geolocation result nor the sanctions result is stored in a way the user can tamper with on the client side to bypass the check.
+
+  # ──────────────────────────────────────────────
+  # APPLICATION SELECTION
+  # ──────────────────────────────────────────────
+
+  - id: BT-23
+    title: "User can choose which DeFi application to use for their deposit"
+    description: >
+      Before starting a deposit the user lands on an application selector page that shows
+      available integrations (currently Aave). Selecting an application determines the
+      vault split logic, collateral adapter, and downstream borrow/repay flows.
+    section: Application Selection
+    status: implemented
+    acceptance_criteria:
+      - The application selector page is the entry point to the deposit flow.
+      - Each application card shows its name, a brief description, and its supported assets.
+      - Selecting an application routes the user to the deposit form pre-scoped to that application.
+      - Applications that are unavailable (e.g. at capacity) are shown as disabled, not hidden.
