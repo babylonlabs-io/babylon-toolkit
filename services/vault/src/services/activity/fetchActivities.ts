@@ -24,8 +24,6 @@ const MAX_DISPLAY_FRACTION_DIGITS = 8;
 type GraphQLActivityType =
   | "deposit"
   | "withdrawal"
-  | "add_collateral"
-  | "remove_collateral"
   | "liquidation"
   | "borrow"
   | "repay"
@@ -41,14 +39,12 @@ interface GraphQLVaultActivityItem {
   timestamp: string;
   blockNumber: string;
   transactionHash: string;
-  vault: {
-    peginTxHash: string;
-  } | null;
 }
 
 interface GraphQLVaultItem {
   id: string;
   applicationEntryPoint: string;
+  peginTxHash: string;
 }
 
 interface GraphQLActivityPageResponse {
@@ -96,15 +92,13 @@ const GET_ACTIVITIES_PAGE = gql`
         timestamp
         blockNumber
         transactionHash
-        vault {
-          peginTxHash
-        }
       }
     }
     vaults(where: { depositor: $depositor }) {
       items {
         id
         applicationEntryPoint
+        peginTxHash
       }
     }
   }
@@ -122,8 +116,6 @@ function mapActivityType(type: GraphQLActivityType): ActivityType {
   const typeMap: Record<GraphQLActivityType, ActivityType> = {
     deposit: "Deposit",
     withdrawal: "Withdraw",
-    add_collateral: "Add Collateral",
-    remove_collateral: "Remove Collateral",
     liquidation: "Liquidation",
     borrow: "Borrow",
     repay: "Repay",
@@ -147,12 +139,17 @@ function mapActivityType(type: GraphQLActivityType): ActivityType {
  * renders as "Pending..." rather than redirecting users to the ETH explorer
  * for what is logically a BTC operation.
  */
-function resolveDisplayTx(item: GraphQLVaultActivityItem): {
+function resolveDisplayTx(
+  item: GraphQLVaultActivityItem,
+  peginTxHashByVaultId: ReadonlyMap<string, string>,
+): {
   chain: ActivityChain;
   transactionHash: string;
 } {
   if (BTC_PRIMARY_ACTIVITIES.has(item.type)) {
-    const peginTxHash = item.vault?.peginTxHash;
+    const peginTxHash = item.vaultId
+      ? peginTxHashByVaultId.get(item.vaultId)
+      : undefined;
     const isValidPeginHash =
       typeof peginTxHash === "string" &&
       peginTxHash.length > 0 &&
@@ -212,8 +209,10 @@ export async function fetchUserActivities(
   if (activities.length === 0) return [];
 
   const vaultMap = new Map<string, string>();
+  const peginTxHashByVaultId = new Map<string, string>();
   for (const v of data.vaults.items) {
     vaultMap.set(v.id, v.applicationEntryPoint);
+    peginTxHashByVaultId.set(v.id, v.peginTxHash);
   }
 
   const rows = activities.map((item): ActivityLog => {
@@ -253,7 +252,10 @@ export async function fetchUserActivities(
       amountIcon = btcConfig.icon;
     }
 
-    const { chain, transactionHash } = resolveDisplayTx(item);
+    const { chain, transactionHash } = resolveDisplayTx(
+      item,
+      peginTxHashByVaultId,
+    );
 
     return {
       id: item.id,

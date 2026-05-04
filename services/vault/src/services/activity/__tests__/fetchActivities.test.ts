@@ -102,6 +102,7 @@ async function setupGraphqlMock(rows: ActivityRow[]) {
             items: ids.map((id) => ({
               id,
               applicationEntryPoint: "0xcontroller",
+              peginTxHash: `0xpegin-${id.slice(2, 10)}`,
             })),
           },
         } as never;
@@ -116,7 +117,7 @@ beforeEach(() => {
 });
 
 describe("fetchUserActivities type mapping", () => {
-  it("maps all 8 indexer types to display labels", async () => {
+  it("maps every emitted indexer type to its display label", async () => {
     const rows: ActivityRow[] = [
       activity({
         type: "deposit",
@@ -128,18 +129,6 @@ describe("fetchUserActivities type mapping", () => {
         type: "withdrawal",
         logIndex: 0,
         transactionHash: "0x" + "b".repeat(64),
-        vaultId: VAULT_A,
-      }),
-      activity({
-        type: "add_collateral",
-        logIndex: 0,
-        transactionHash: "0x" + "c".repeat(64),
-        vaultId: VAULT_A,
-      }),
-      activity({
-        type: "remove_collateral",
-        logIndex: 0,
-        transactionHash: "0x" + "d".repeat(64),
         vaultId: VAULT_A,
       }),
       activity({
@@ -183,15 +172,13 @@ describe("fetchUserActivities type mapping", () => {
       expect.arrayContaining([
         "Deposit",
         "Withdraw",
-        "Add Collateral",
-        "Remove Collateral",
         "Liquidation",
         "Borrow",
         "Repay",
         "Redeem",
       ]),
     );
-    expect(result).toHaveLength(8);
+    expect(result).toHaveLength(6);
   });
 });
 
