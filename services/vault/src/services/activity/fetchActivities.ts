@@ -4,6 +4,7 @@ import { formatUnits } from "viem";
 
 import { graphqlClient } from "../../clients/graphql";
 import { getNetworkConfigBTC } from "../../config";
+import { logger } from "../../infrastructure";
 import type {
   ActivityApplication,
   ActivityChain,
@@ -212,11 +213,16 @@ export async function fetchUserActivities(
     peginTxHashByVaultId.set(v.id, v.peginTxHash);
   }
 
+  const droppedTypeCounts = new Map<string, number>();
+
   const rows = activities.flatMap(
     (item): Array<{ row: ActivityLog; raw: GraphQLVaultActivityItem }> => {
       const displayType = mapActivityType(item.type);
       if (!displayType) {
-        console.warn(`[activity] dropping unrecognised type "${item.type}"`);
+        droppedTypeCounts.set(
+          item.type,
+          (droppedTypeCounts.get(item.type) ?? 0) + 1,
+        );
         return [];
       }
 
@@ -277,6 +283,12 @@ export async function fetchUserActivities(
       ];
     },
   );
+
+  if (droppedTypeCounts.size > 0) {
+    logger.warn("[fetchActivities] dropped unrecognised activity types", {
+      counts: Object.fromEntries(droppedTypeCounts),
+    });
+  }
 
   return rows
     .sort((a, b) => {

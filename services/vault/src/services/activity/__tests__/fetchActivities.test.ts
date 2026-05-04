@@ -18,6 +18,10 @@ vi.mock("@/config", () => ({
   }),
 }));
 
+vi.mock("@/infrastructure", () => ({
+  logger: { warn: vi.fn(), info: vi.fn(), error: vi.fn() },
+}));
+
 const USER = "0x1111111111111111111111111111111111111111";
 const VAULT_A = "0x" + "a".repeat(64);
 const TX_DEPOSIT = "0x" + "1".repeat(64);
@@ -182,7 +186,7 @@ describe("fetchUserActivities type mapping", () => {
   });
 
   it("drops unrecognised types instead of crashing the tab", async () => {
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const { logger } = await import("@/infrastructure");
     const rows: ActivityRow[] = [
       activity({
         type: "deposit",
@@ -196,6 +200,12 @@ describe("fetchUserActivities type mapping", () => {
         transactionHash: "0x" + "a".repeat(64),
         vaultId: VAULT_A,
       }),
+      activity({
+        type: "add_collateral",
+        logIndex: 2,
+        transactionHash: "0x" + "b".repeat(64),
+        vaultId: VAULT_A,
+      }),
     ];
     await setupGraphqlMock(rows);
 
@@ -206,8 +216,10 @@ describe("fetchUserActivities type mapping", () => {
 
     expect(result).toHaveLength(1);
     expect(result[0].type).toBe("Deposit");
-    expect(warn).toHaveBeenCalled();
-    warn.mockRestore();
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining("dropped unrecognised activity types"),
+      { counts: { add_collateral: 2 } },
+    );
   });
 });
 
