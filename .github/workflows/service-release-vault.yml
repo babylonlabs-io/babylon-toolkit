@@ -119,10 +119,9 @@ jobs:
           # Feature Flags
           NEXT_PUBLIC_FF_DISABLE_VAULT_CAP: ${{ vars.NEXT_PUBLIC_FF_DISABLE_VAULT_CAP }}
 
-      - name: Copy all index.html to fix path for deposit, activity, app/aave
+      - name: Copy all index.html to fix path for activity, app/aave
         run: |
           cd services/vault/dist
-          cp index.html deposit
           cp index.html activity
           mkdir -p app
           cp index.html app/aave

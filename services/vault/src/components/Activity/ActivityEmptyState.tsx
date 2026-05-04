@@ -4,7 +4,9 @@
  */
 
 import { Button } from "@babylonlabs-io/core-ui";
-import { useNavigate } from "react-router";
+import { useOutletContext } from "react-router";
+
+import type { RootLayoutContext } from "@/components/pages/RootLayout";
 
 import { getNetworkConfigBTC } from "../../config";
 
@@ -15,7 +17,7 @@ interface ActivityEmptyStateProps {
 }
 
 export function ActivityEmptyState({ isConnected }: ActivityEmptyStateProps) {
-  const navigate = useNavigate();
+  const { openDeposit } = useOutletContext<RootLayoutContext>();
 
   if (!isConnected) {
     return (
@@ -32,7 +34,7 @@ export function ActivityEmptyState({ isConnected }: ActivityEmptyStateProps) {
       <p className="text-lg text-accent-secondary">
         No activity yet. Make your first deposit to get started.
       </p>
-      <Button color="secondary" rounded onClick={() => navigate("/deposit")}>
+      <Button color="secondary" rounded onClick={() => openDeposit()}>
         Deposit {btcConfig.coinSymbol}
       </Button>
     </div>

@@ -12,9 +12,6 @@ import RootLayout from "./components/pages/RootLayout";
 import NotFound from "./components/pages/not-found";
 
 const Activity = lazy(() => import("./components/pages/Activity"));
-const ApplicationsHome = lazy(
-  () => import("./components/pages/ApplicationsHome"),
-);
 const DashboardPage = lazy(() =>
   import("./components/simple/DashboardPage").then((m) => ({
     default: m.DashboardPage,
@@ -55,14 +52,6 @@ export const Router = () => {
           element={
             <Suspense fallback={<RouteFallback />}>
               <Activity />
-            </Suspense>
-          }
-        />
-        <Route
-          path="deposit"
-          element={
-            <Suspense fallback={<RouteFallback />}>
-              <ApplicationsHome />
             </Suspense>
           }
         />
