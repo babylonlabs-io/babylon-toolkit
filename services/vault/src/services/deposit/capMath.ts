@@ -20,18 +20,16 @@ export interface CapSnapshot {
   /**
    * Current total BTC locked in the application, in satoshis.
    *
-   * Only meaningful when `hasTotalCap || hasPerAddressCap`. When both caps are
-   * 0 (uncapped), `useApplicationCap` short-circuits without waiting on the
-   * usage query and fills this with a placeholder `0n` — consumers that
-   * display actual usage must gate on one of the `has*Cap` flags.
+   * Reflects the live usage query result for both capped and uncapped
+   * deployments — the dashboard's SupplyCapSection shows it as
+   * "Total Deposited" even when the protocol is uncapped. Falls back to `0n`
+   * only if the usage RPC errored, in which case `useApplicationCap` shields
+   * the error from the deposit form so the cap card still renders.
    */
   totalBTC: bigint;
   /**
    * Current BTC locked by the user, in satoshis, or null when no user is
-   * connected.
-   *
-   * Only meaningful when `hasTotalCap || hasPerAddressCap`. When uncapped,
-   * this is a placeholder `null` — see the note on `totalBTC`.
+   * connected (or when the usage query errored on an uncapped deployment).
    */
   userBTC: bigint | null;
   hasTotalCap: boolean;
