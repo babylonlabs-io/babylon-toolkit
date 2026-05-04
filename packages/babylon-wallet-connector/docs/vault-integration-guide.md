@@ -97,10 +97,11 @@ the tweaked key produces an invalid signature.
 
 ### deriveContextHash
 
-TBV uses `deriveContextHash("babylon-vault", context)` to
-derive hashlock secrets for HTLC deposits. The derived
-value is committed as a SHA-256 hashlock during vault
-creation and later revealed during activation.
+TBV uses `deriveContextHash` to derive on-chain-binding
+secrets for vault deposits. **Each secret type uses its
+own `appName` label** so a single phishing approval can
+compromise at most one secret type — never all three at
+once.
 
 ```ts
 deriveContextHash(
@@ -109,12 +110,23 @@ deriveContextHash(
 ): Promise<string>
 ```
 
-- **`appName`** — `"babylon-vault"`. Must be
-  `[a-z0-9\-]`, 1–64 bytes. The wallet MUST display
-  this in the approval dialog alongside the requesting
-  origin.
-- **`context`** — Hex-encoded application-specific data
-  (e.g., transaction ID + output index + public key).
+The four `appName` labels TBV will request:
+
+| Label | Purpose | Per |
+|---|---|---|
+| `babylon-btc-vault-auth` | Auth anchor preimage (OP_RETURN commitment, VP token) | Pre-PegIn tx |
+| `babylon-btc-vault-hashlock` | HTLC hashlock preimage | BTC vault |
+| `babylon-btc-vault-wots-lo` | Low half of the per-vault WOTS seed | BTC vault |
+| `babylon-btc-vault-wots-hi` | High half of the per-vault WOTS seed | BTC vault |
+
+- **`appName`** — Must be `[a-z0-9\-]`, 1–64 bytes. The
+  wallet MUST display the full label in the approval
+  dialog alongside the requesting origin so the user
+  can distinguish the four request types. Wallets that
+  truncate long labels in the UI risk hiding the
+  `-auth` / `-hashlock` / `-wots-*` suffix that
+  identifies which secret is being derived.
+- **`context`** — Hex-encoded application-specific data.
   Must be non-empty, lowercase hex, even-length, no
   `0x` prefix, max 1024 bytes. Different contexts
   produce independent outputs.
@@ -143,14 +155,16 @@ The full `IETHProvider` interface is documented in the
 From the wallet's perspective, a deposit triggers these
 signing prompts in order:
 
-### Step 1: Derive Hashlock Secret
+### Step 1: Derive Per-Purpose Vault Secrets
 
-**Method**: `deriveContextHash("babylon-vault", context)`
+**Methods (per BTC vault funded by the Pre-PegIn):**
 
-The SDK derives a deterministic secret for each vault's
-hashlock. The secret is hashed (SHA-256) to produce the
-hashlock committed in the Bitcoin HTLC script and later
-revealed on Ethereum during activation.
+1. `deriveContextHash("babylon-btc-vault-auth", ctx)` — once per Pre-PegIn (shared across every BTC vault in the same Pre-PegIn).
+2. `deriveContextHash("babylon-btc-vault-hashlock", ctx + htlcVout)` — per BTC vault.
+3. `deriveContextHash("babylon-btc-vault-wots-lo", ctx + htlcVout)` — per BTC vault.
+4. `deriveContextHash("babylon-btc-vault-wots-hi", ctx + htlcVout)` — per BTC vault.
+
+The wallet shows a separate approval dialog for each. A single-vault deposit takes 4 approvals at this step; a 3-vault batch takes 10 (1 auth + 9 per-vault). The hashlock preimage is later revealed on Ethereum during activation; the WOTS seed feeds the on-chain `depositorWotsPkHash` commitment; the auth anchor is committed in the Pre-PegIn `OP_RETURN` and is exchanged off-chain for a short-lived VP bearer token.
 
 ### Step 2: Sign Proof-of-Possession
 
@@ -210,8 +224,11 @@ sequential `signPsbt()` if batch signing is unavailable.
 
 After vault verification completes (~12 min), the wallet
 sends an `activateVaultWithSecret` transaction per vault
-to finalize activation. The hashlock secret derived in
-Step 1 is revealed on-chain.
+to finalize activation. The per-vault hashlock secret
+derived in Step 1 (`babylon-btc-vault-hashlock`) is
+revealed on-chain. If the user resumed in a fresh tab,
+the wallet will be re-prompted to derive the hashlock
+secret again before this step.
 
 ## Source Code References
 

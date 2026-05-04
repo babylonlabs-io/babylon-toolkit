@@ -5,12 +5,12 @@
  * keys from a per-vault 64-byte seed, matching the Rust `babe::wots`
  * chain logic.
  *
- * Callers obtain the seed from `expandWotsSeed(root, htlcVout)` in the
- * vault-secrets module, where
- * `root = await deriveVaultRoot(wallet, vaultContextInput)`. Per-vault
- * uniqueness is already encoded in the seed via `htlcVout`, so this
- * module only handles the chain derivation — no further key splitting
- * by `(vaultId, depositorPk, appContract)` is needed.
+ * Callers obtain the seed from `deriveWotsSeed(wallet, ctx, htlcVout)` in
+ * the `vault-secrets` module — a thin wrapper around two per-purpose
+ * `wallet.deriveContextHash` calls that returns the 64-byte concat. Per-vault
+ * uniqueness is encoded in the seed via `htlcVout` (passed into the wallet
+ * context), so this module only handles the chain derivation — no further
+ * key splitting by `(vaultId, depositorPk, appContract)` is needed.
  *
  * @module wots/blockDerivation
  */
@@ -170,7 +170,7 @@ function deriveBlockPublicKey(
 /**
  * Derive deterministic WOTS block public keys from a per-vault 64-byte seed.
  *
- * The seed must come from `expandWotsSeed(root, htlcVout)` (vault-secrets
+ * The seed must come from `deriveWotsSeed(wallet, ctx, htlcVout)` (vault-secrets
  * module). Per-vault uniqueness is encoded in `htlcVout`; this function
  * only handles the chain derivation. Per-block 20-byte seeds are derived
  * as `hash160(seed || blockIdx)` and fed into the standard Rust

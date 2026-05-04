@@ -43,7 +43,7 @@ export type UTXO = SDKUtxo;
  * Single-vault callers pass a single-element `pegInAmounts` array.
  *
  * Hashlocks are NOT a caller input — the SDK derives them from the
- * wallet root via `expandHashlockSecret`.
+ * wallet root via `deriveHashlockSecret`.
  */
 export interface PreparePeginParams {
   /** Amounts to peg in per vault (satoshis), one per HTLC output */

@@ -1,12 +1,21 @@
 /**
- * Canonical `vaultContext` byte encoding per
- * `derive-vault-secrets.md` §2.3.
+ * Canonical context byte encodings fed into the wallet's
+ * `deriveContextHash` for per-purpose vault-secret derivations.
  *
- * ```
- * vaultContext :=
- *     I2OSP(32, 4) || depositorBtcPubkey            // 32B x-only
- *  || I2OSP(32, 4) || fundingOutpointsCommitment    // 32B SHA-256
- * ```
+ * Two shapes:
+ *
+ * - **Per-Pre-PegIn** (used by `deriveAuthAnchor`):
+ *   ```
+ *   vaultContext :=
+ *       I2OSP(32, 4) || depositorBtcPubkey            // 32B x-only
+ *    || I2OSP(32, 4) || fundingOutpointsCommitment    // 32B SHA-256
+ *   ```
+ *
+ * - **Per BTC vault** (used by `deriveHashlockSecret`, `deriveWotsSeed`):
+ *   the per-Pre-PegIn bytes above, suffixed with the HTLC vout:
+ *   ```
+ *   perVaultContext := vaultContext || I2OSP(htlcVout, 4)
+ *   ```
  *
  * `fundingOutpointsCommitment` is SHA-256 over the canonically-sorted
  * funding outpoints of the Pre-PegIn transaction, serialized as
@@ -25,11 +34,13 @@ const TXID_SIZE = 32;
 const OUTPOINT_SIZE = 36;
 const COMMITMENT_SIZE = 32;
 const FIELD_LEN_PREFIX_SIZE = 4;
+const HTLC_VOUT_SIZE = 4;
 const VAULT_CONTEXT_SIZE =
   FIELD_LEN_PREFIX_SIZE +
   DEPOSITOR_PUBKEY_SIZE +
   FIELD_LEN_PREFIX_SIZE +
   COMMITMENT_SIZE;
+const PER_VAULT_CONTEXT_SIZE = VAULT_CONTEXT_SIZE + HTLC_VOUT_SIZE;
 
 export interface FundingOutpoint {
   /**
@@ -121,16 +132,16 @@ export function buildFundingOutpointsCommitment(
 }
 
 /**
- * Build the canonical `vaultContext` byte string fed into the wallet's
- * `deriveContextHash` (or a locally-implemented equivalent on the
- * app side).
+ * Build the per-Pre-PegIn `vaultContext` byte string fed into the
+ * wallet's `deriveContextHash` for derivations that are shared across
+ * every BTC vault funded by the same Pre-PegIn (currently:
+ * `deriveAuthAnchor`).
  *
  * Output length is always 72 bytes.
  *
  * @stability frozen — on-chain-binding. The 72-byte layout is the
- * input to `deriveContextHash`; any change rotates the vault root and
- * therefore every WOTS key, hashlock secret, and auth anchor derived
- * from it. Existing deposits cannot be recovered after a layout change.
+ * input to `deriveContextHash`; any change rotates the auth anchor and
+ * invalidates the OP_RETURN commitment for existing Pre-PegIns.
  */
 export function buildVaultContext(input: VaultContextInput): Uint8Array {
   if (input.depositorBtcPubkey.length !== DEPOSITOR_PUBKEY_SIZE) {
@@ -152,5 +163,35 @@ export function buildVaultContext(input: VaultContextInput): Uint8Array {
   offset += FIELD_LEN_PREFIX_SIZE;
   out.set(commitment, offset);
 
+  return out;
+}
+
+/**
+ * Build the per-BTC-vault context — `vaultContext` suffixed with the
+ * HTLC output index encoded as 4 bytes big-endian. Used by
+ * `deriveHashlockSecret` and `deriveWotsSeed` to derive a distinct
+ * secret per vault while sharing the same Pre-PegIn-level context.
+ *
+ * Output length is always 76 bytes.
+ *
+ * @stability frozen — on-chain-binding for hashlock and WOTS secrets.
+ * Changing the layout (including the htlcVout encoding) rotates every
+ * derived per-vault secret.
+ */
+export function buildPerVaultContext(
+  input: VaultContextInput,
+  htlcVout: number,
+): Uint8Array {
+  if (
+    !Number.isInteger(htlcVout) ||
+    htlcVout < 0 ||
+    htlcVout > 0xffffffff
+  ) {
+    throw new Error(`perVaultContext: htlcVout must be a u32, got ${htlcVout}`);
+  }
+  const base = buildVaultContext(input);
+  const out = new Uint8Array(PER_VAULT_CONTEXT_SIZE);
+  out.set(base, 0);
+  writeUint32BE(out, VAULT_CONTEXT_SIZE, htlcVout);
   return out;
 }

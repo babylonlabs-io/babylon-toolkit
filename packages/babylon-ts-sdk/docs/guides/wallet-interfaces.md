@@ -189,14 +189,27 @@ const ethWallet = new MockEthereumWallet({ chainId: 11155111 }); // sepolia
 
 `BitcoinWallet.deriveContextHash(appName, context)` is the canonical entrypoint for any wallet-bound secret in the vault flow. The wallet derives a deterministic 32-byte value from its key material + app name + application context per the [`derive-context-hash.md`](../../../../docs/specs/derive-context-hash.md) spec; any conforming wallet returns the same output for the same inputs, so secrets are re-derivable on demand instead of generated and persisted in the browser.
 
-Vault flows do not call `deriveContextHash` directly. Use the helpers in `tbv/core/vault-secrets`, which forward to the wallet with the canonical `appName` and `vaultContext` encoding.
+Vault flows do not call `deriveContextHash` directly. Use the per-purpose helpers in `tbv/core/vault-secrets`, each of which forwards a single `deriveContextHash` call to the wallet with a distinct `appName` label. Per-purpose isolation is the security property: a single phishing approval can compromise at most one secret type — never all three at once.
 
-### WOTS key derivation (canonical flow)
+### Per-purpose helpers
+
+Three helpers, one per Babylon BTC vault secret type:
+
+| Helper | `appName` label | Returns | Scope |
+|---|---|---|---|
+| `deriveAuthAnchor(wallet, ctx)` | `"babylon-btc-vault-auth"` | 32 bytes | per Pre-PegIn |
+| `deriveHashlockSecret(wallet, ctx, htlcVout)` | `"babylon-btc-vault-hashlock"` | 32 bytes | per BTC vault |
+| `deriveWotsSeed(wallet, ctx, htlcVout)` | `"babylon-btc-vault-wots-lo"` + `"babylon-btc-vault-wots-hi"` | 64 bytes | per BTC vault |
+
+`deriveWotsSeed` makes **two** wallet calls (`-lo` + `-hi`) because `deriveContextHash` returns 32 bytes per call and the WOTS algorithm needs 64. Phishing one half doesn't compromise the seed.
+
+### Example: WOTS key derivation
 
 ```typescript
 import {
-  deriveVaultRoot,
-  expandWotsSeed,
+  deriveAuthAnchor,
+  deriveHashlockSecret,
+  deriveWotsSeed,
   deriveWotsBlocksFromSeed,
   computeWotsBlockPublicKeysHash,
   hexToUint8Array,
@@ -209,50 +222,37 @@ const fundingOutpoints: FundingOutpoint[] = selectedUTXOs.map((u) => ({
   txid: hexToUint8Array(u.txid), // display-order bytes
   vout: u.vout,
 }));
-
-// 2. One wallet popup per deposit. Returns 32 bytes of root entropy.
-const root = await deriveVaultRoot(btcWallet, {
+const ctx = {
   depositorBtcPubkey: hexToUint8Array(depositorBtcPubkeyHex),
   fundingOutpoints,
-});
+};
 
+// 2. Derive the 64-byte WOTS seed for this vault. Two wallet popups
+//    (-wots-lo, -wots-hi). Per-vault uniqueness via htlcVout in the
+//    wallet context.
+const seed = await deriveWotsSeed(btcWallet, ctx, htlcVout);
 try {
-  // 3. Per vault: expand a 64-byte WOTS seed using htlcVout as the
-  //    domain separator, then derive the 2 WOTS block public keys.
-  const seed = expandWotsSeed(root, htlcVout);
   const wotsPublicKeys = await deriveWotsBlocksFromSeed(seed);
-
-  // 4. keccak256 hash → committed on-chain as `depositorWotsPkHash`.
+  // 3. keccak256 hash → committed on-chain as `depositorWotsPkHash`.
   const wotsPkHash = computeWotsBlockPublicKeysHash(wotsPublicKeys);
 } finally {
-  // Zero the root before it leaves scope.
-  root.fill(0);
+  seed.fill(0);
 }
+
+// Other secrets — each is a separate wallet popup.
+const hashlockSecret = await deriveHashlockSecret(btcWallet, ctx, htlcVout); // 32 bytes
+const authAnchor = await deriveAuthAnchor(btcWallet, ctx); // 32 bytes
 ```
 
-**Determinism guarantee.** Same wallet + same `(depositorBtcPubkey, fundingOutpoints, htlcVout)` always produces the same WOTS keys. This is what lets the resume flow re-derive the keys without persisting them — re-build `vaultContext` (e.g. by parsing the pre-pegin tx inputs) and call the same chain again.
+**Determinism guarantee.** Same wallet + same `(depositorBtcPubkey, fundingOutpoints, htlcVout)` always produces the same secrets. This is what lets the resume flow re-derive on demand without persisting — re-build `ctx` (e.g. by parsing the pre-pegin tx inputs) and call the same helper again.
 
-**Per-vault uniqueness.** `htlcVout` is the per-vault domain separator inside `expandWotsSeed`. Two vaults in the same batch (same root) get cryptographically independent seeds.
+**Per-vault uniqueness.** `htlcVout` is appended to the wallet context for `deriveHashlockSecret` and `deriveWotsSeed`. Two vaults in the same Pre-PegIn get distinct contexts → distinct secrets.
 
 **Capability check.** Wallets that don't implement the spec throw `WALLET_METHOD_NOT_SUPPORTED` (or equivalent) from `deriveContextHash`. Branch on this if you need a fallback path.
 
-### Other vault secrets
+**UX cost.** A single-vault deposit takes 4 derive popups (1 auth + 1 hashlock + 2 wots-halves). A 3-vault batch takes 10 (1 + 3 + 6). The popup count grows linearly with vault count; the per-purpose isolation is the trade.
 
-The same root drives the other two domain-separated secrets via sibling expanders in the SDK:
-
-```typescript
-import {
-  expandHashlockSecret,
-  expandAuthAnchor,
-} from "@babylonlabs-io/ts-sdk/tbv/core";
-
-const hashlockSecret = expandHashlockSecret(root, htlcVout); // 32 bytes
-const authAnchor = expandAuthAnchor(root); // 32 bytes
-```
-
-`expandHashlockSecret` replaces the previously browser-generated HTLC preimage; `expandAuthAnchor` produces the OP_RETURN preimage used for the VP bearer-token flow. Both follow the same canonical pipeline as WOTS — call `deriveVaultRoot` once, then expand per-purpose.
-
-**Reference.** [`derive-vault-secrets.md`](../../../../docs/specs/derive-vault-secrets.md) — root-to-leaf algorithm and test vectors. [`derive-context-hash.md`](../../../../docs/specs/derive-context-hash.md) — wallet-side spec.
+**Reference.** [`derive-context-hash.md`](../../../../docs/specs/derive-context-hash.md) — wallet-side spec.
 
 ## See also
 

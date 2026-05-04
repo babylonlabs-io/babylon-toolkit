@@ -1369,11 +1369,10 @@ describe("PeginManager", () => {
       });
 
       // Force the placeholder all-zero auth-anchor hash to reach the
-      // commit pass by mocking expandAuthAnchor to return 32 zero bytes.
-      // SHA256(0x00..00) is not the placeholder, so we bypass that and
-      // mock the sha256 call too — actually simpler: directly inject by
-      // bypassing the orchestrator's substitution via a spy on the
-      // private commit method.
+      // commit pass by spying on the private `preparePeginCommit` and
+      // injecting `authAnchorHash: "00"*32` directly. This bypasses the
+      // sizing → derive → commit substitution so we can prove the commit
+      // pass refuses to build with the sizing placeholder.
       const placeholder = "00".repeat(32);
       const original = (manager as any).preparePeginCommit.bind(manager);
       (manager as any).preparePeginCommit = async (args: any) =>
@@ -1413,48 +1412,6 @@ describe("PeginManager", () => {
           ...BASE_PREPARE_PEGIN_PARAMS,
         }),
       ).rejects.toThrow(/placeholder.*hashlock/);
-    });
-
-    it("zeros the wallet root if auth-anchor expansion throws mid-flow", async () => {
-      // Memory-hygiene guard: `expandPerVaultSecrets` is what normally
-      // wipes the root. If `expandAuthAnchor` (which runs first) throws,
-      // `expandPerVaultSecrets` never runs — so `preparePegin` itself
-      // must wipe the root on the throw path. This pins that contract.
-      const vaultSecrets = await import("../../vault-secrets");
-      const expandAuthAnchorSpy = vi.spyOn(vaultSecrets, "expandAuthAnchor");
-      let capturedRoot: Uint8Array | null = null;
-      expandAuthAnchorSpy.mockImplementationOnce((root) => {
-        // Snapshot the root reference before throwing so the test can
-        // verify it gets zeroed by the catch block.
-        capturedRoot = root;
-        throw new Error("simulated auth-anchor failure");
-      });
-
-      const btcWallet = new MockBitcoinWallet({
-        publicKeyHex: TEST_KEYS.DEPOSITOR,
-      });
-      const ethWallet = new MockEthereumWallet();
-      const manager = new PeginManager({
-        btcNetwork: "signet",
-        btcWallet,
-        ethWallet: ethWallet as any,
-        ethChain: TEST_CHAIN,
-        publicClient: TEST_PUBLIC_CLIENT,
-        vaultContracts: { btcVaultRegistry: TEST_CONTRACT_ADDRESS },
-        mempoolApiUrl: MEMPOOL_API_URLS.signet,
-      });
-
-      await expect(
-        manager.preparePegin({
-          amounts: [TEST_AMOUNTS.PEGIN],
-          ...BASE_PREPARE_PEGIN_PARAMS,
-        }),
-      ).rejects.toThrow(/simulated auth-anchor failure/);
-
-      expect(capturedRoot).not.toBeNull();
-      expect(capturedRoot!.every((b) => b === 0)).toBe(true);
-
-      expandAuthAnchorSpy.mockRestore();
     });
 
     it("throws when the broadcast tx is missing the OP_RETURN output", async () => {

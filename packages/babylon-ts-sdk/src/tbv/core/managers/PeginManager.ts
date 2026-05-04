@@ -25,7 +25,7 @@ import { Buffer } from "buffer";
 
 import {
   assertAuthAnchorOpReturn,
-  expandPerVaultSecrets,
+  derivePerVaultSecrets,
   normalizePopSignature,
   normalizeXOnlyPubkey,
   signPsbtsWithFallback,
@@ -74,9 +74,9 @@ import {
 } from "../utils";
 import { createTaprootScriptPathSignOptions } from "../utils/signing";
 import {
-  deriveVaultRoot,
-  expandAuthAnchor,
+  deriveAuthAnchor,
   type FundingOutpoint,
+  type VaultContextInput,
 } from "../vault-secrets";
 
 /** Referral code sent with pegin registration — 0 means no referral. */
@@ -271,7 +271,7 @@ export interface PreparePeginDerivedSecrets {
   wotsPkHashes: Hex[];
   /**
    * Per-vault HTLC preimage hex (no 0x prefix). Re-derivable any time
-   * via `expandHashlockSecret(root, htlcVout)`; not persisted.
+   * via `deriveHashlockSecret(wallet, ctx, htlcVout)`; not persisted.
    */
   htlcSecretHexes: string[];
   /**
@@ -581,33 +581,32 @@ export class PeginManager {
         vout: u.vout,
       }),
     );
-    const root = await deriveVaultRoot(this.config.btcWallet, {
+    const contextInput: VaultContextInput = {
       depositorBtcPubkey: hexToUint8Array(depositorBtcPubkey),
       fundingOutpoints,
-    });
+    };
 
-    // Take ownership of the auth anchor before per-vault expansion (which
-    // zeros `root`). Convert to hex immediately, then zero the buffer.
-    // `authAnchorHex` is a JS string — immutable, GC-only — and lives
-    // until the result is dropped. If anything in this window throws,
-    // `expandPerVaultSecrets` won't run to zero `root`, so we wipe it
-    // here on the throw path.
+    // Per-purpose derivations: one wallet popup for auth anchor, then
+    // per-vault popups for hashlock + WOTS (the latter is two popups
+    // per vault). No raw root is ever returned to the SDK.
+    const authAnchorBytes = await deriveAuthAnchor(
+      this.config.btcWallet,
+      contextInput,
+    );
     let authAnchorHex: string;
     let authAnchorHash: string;
     try {
-      const authAnchorBytes = expandAuthAnchor(root);
-      try {
-        authAnchorHex = uint8ArrayToHex(authAnchorBytes);
-        authAnchorHash = uint8ArrayToHex(sha256(authAnchorBytes));
-      } finally {
-        authAnchorBytes.fill(0);
-      }
-    } catch (err) {
-      root.fill(0);
-      throw err;
+      authAnchorHex = uint8ArrayToHex(authAnchorBytes);
+      authAnchorHash = uint8ArrayToHex(sha256(authAnchorBytes));
+    } finally {
+      authAnchorBytes.fill(0);
     }
 
-    const derived = await expandPerVaultSecrets(root, params.amounts.length);
+    const derived = await derivePerVaultSecrets(
+      this.config.btcWallet,
+      contextInput,
+      params.amounts.length,
+    );
     const { perVaultWotsKeys, wotsPkHashes, htlcSecretHexes, hashlocks } =
       derived;
 

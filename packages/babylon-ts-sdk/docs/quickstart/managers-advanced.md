@@ -118,12 +118,14 @@ The `runDepositorPresignFlow()` service does this automatically.
 
 ## Multi-vault batching (single Pre-PegIn tx)
 
-`preparePegin()` accepts an `amounts` array, batching N vaults into one Pre-PegIn transaction. This saves BTC fees (single funding tx covering many HTLC outputs) and reduces wallet interactions. Per-vault WOTS keys and HTLC preimages are derived internally from one wallet root — there's no per-vault popup.
+`preparePegin()` accepts an `amounts` array, batching N vaults into one Pre-PegIn transaction. This saves BTC fees (single funding tx covering many HTLC outputs).
+
+**Wallet popup count grows linearly with `N`.** Each per-vault secret type uses its own `deriveContextHash` call so a phishing approval can compromise at most one secret type. For `N` vaults inside `preparePegin`: `1 + 3*N` derive popups (1 auth anchor + per-vault: 1 hashlock + 2 WOTS halves), plus PegIn signing — `1` `signPsbts` if the wallet supports batch, otherwise `N` sequential `signPsbt` calls. A 3-vault batch is 10 derive popups + 1 (batch) or 3 (fallback). A 1-vault deposit is 4 + 1 = 5. See [Wallet Interfaces → Wallet-derived secrets](../guides/wallet-interfaces.md#wallet-derived-secrets-derivecontexthash) for why per-purpose isolation matters.
 
 Rules to watch:
 
 - Every vault must use the same `vaultProviderBtcPubkey`, `vaultKeeperBtcPubkeys`, `universalChallengerBtcPubkeys`, and protocol params. If you need different providers, register separately.
-- The SDK derives a unique HTLC preimage per vault deterministically from the wallet root (`expandHashlockSecret(root, htlcVout)`). Callers don't generate or pass hashlocks.
+- The SDK derives a unique HTLC preimage per vault deterministically from the wallet via `deriveHashlockSecret(wallet, ctx, htlcVout)`. Callers don't generate or pass hashlocks.
 - Sign the proof-of-possession **once** (single wallet popup) and reuse the same `PopSignature` across every `registerPeginOnChain()` call in the batch.
 - `result.transaction.perVault[i]` returns one entry per vault — call `registerPeginOnChain()` for each. Broadcast the Pre-PegIn once.
 
@@ -183,7 +185,7 @@ await peginManager.signAndBroadcast({
 });
 ```
 
-Each per-vault HTLC preimage is re-derivable from the wallet root at activation time, so there's nothing for the caller to persist — the wallet is the source of truth.
+Each per-vault HTLC preimage is re-derivable on demand via `deriveHashlockSecret(wallet, ctx, htlcVout)` at activation time, so there's nothing for the caller to persist — the wallet is the source of truth. `ctx` (depositor pubkey + funding outpoints) is recoverable from the broadcast Pre-PegIn tx; `htlcVout` is read from the on-chain registry.
 
 ---
 

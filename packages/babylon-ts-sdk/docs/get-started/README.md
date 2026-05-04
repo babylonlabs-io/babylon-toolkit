@@ -12,7 +12,7 @@ The SDK runs on **Node.js** and in the browser. The only platform-specific thing
 
 Protocol background: [pegin spec](https://github.com/babylonlabs-io/btc-vault/blob/main/docs/pegin.md), [pegout spec](https://github.com/babylonlabs-io/btc-vault/blob/main/docs/pegout.md), [presigning API](https://github.com/babylonlabs-io/btc-vault/blob/main/docs/presigning-api.md).
 
-> **Status:** the SDK is under active development. Interfaces on the `core` layer are stable for the flows documented in the quickstarts; `integrations/aave` is new and may evolve. WOTS keys now derive deterministically from the wallet's `deriveContextHash` API — see the [Wallet Interfaces Guide → Wallet-derived secrets](../guides/wallet-interfaces.md#wallet-derived-secrets-derivecontexthash).
+> **Status:** the SDK is under active development. Interfaces on the `core` layer are stable for the flows documented in the quickstarts; `integrations/aave` is new and may evolve. All three on-chain-binding vault secrets (auth anchor, hashlock preimage, WOTS seed) now derive deterministically from the wallet's `deriveContextHash` API via per-purpose helpers — see the [Wallet Interfaces Guide → Wallet-derived secrets](../guides/wallet-interfaces.md#wallet-derived-secrets-derivecontexthash).
 
 ## Trust model (read this before adopting)
 
@@ -20,7 +20,7 @@ Some properties of the protocol that directly affect your integration:
 
 - **Vault providers (VPs)** are off-chain parties that co-sign payouts and can claim vaulted BTC on your behalf. Current deployments select VPs from a curated set surfaced via the Babylon vault indexer; verify the operating model of the specific deployment you're targeting before making assumptions about governance. If your chosen VP goes offline between steps of the peg-in flow, the **refund path** is your backstop — after the refund CSV timelock expires, you reclaim BTC directly from the Pre-PegIn HTLC without VP cooperation.
 - **Indexer data is untrusted** for signing-critical decisions. Anything that influences what the user signs (script derivation, amount, hashlock, signer sets, locked protocol-param version) must come from the on-chain `BTCVaultRegistry` and `ProtocolParams` contracts. The indexer is fine for display, discovery, and non-authoritative reads.
-- **The HTLC secret** is the 32-byte preimage the depositor reveals on Ethereum to move the vault from `VERIFIED` → `ACTIVE`. WOTS keys are already derived deterministically from `wallet.deriveContextHash` ([spec](../../../../docs/specs/derive-context-hash.md)); the HTLC secret derivation is moving to the same path so it can be re-derived from on-chain context at activation time. Until that lands, generate + persist the secret client-side as shown in the Managers Quickstart and treat loss-before-activation as the lose-it-and-lose-the-vault failure mode. See the [Wallet Interfaces Guide → Wallet-derived secrets](../guides/wallet-interfaces.md#wallet-derived-secrets-derivecontexthash).
+- **The HTLC secret** is the 32-byte preimage the depositor reveals on Ethereum to move the vault from `VERIFIED` → `ACTIVE`. It now derives deterministically from `wallet.deriveContextHash` ([spec](../../../../docs/specs/derive-context-hash.md)) via the per-purpose helper `deriveHashlockSecret(wallet, ctx, htlcVout)`. **Do not generate or persist the secret client-side.** It can be re-derived on demand from `(wallet, depositorPubkey, fundingOutpoints, htlcVout)` — `fundingOutpoints` and `htlcVout` are recoverable from the broadcast Pre-PegIn tx, so resume after a tab close just re-prompts the wallet for the same derivation. See the [Wallet Interfaces Guide → Wallet-derived secrets](../guides/wallet-interfaces.md#wallet-derived-secrets-derivecontexthash).
 
 ### Vault lifecycle
 
@@ -29,10 +29,10 @@ Every vault lives in one of these on-chain states. Your SDK code transitions bet
 ```
   [ off-chain ]
        │
-       │  1. peginManager.preparePegin()            — sizing + wallet root + per-vault
-       │                                              expand + batch PSBT signing
-       │                                              (2 BTC popups: deriveContextHash,
-       │                                              signPsbts)
+       │  1. peginManager.preparePegin()            — sizing + per-purpose wallet
+       │                                              derives + PegIn PSBT signing
+       │                                              (BTC popups grow linearly with
+       │                                              vault count — see below)
        │
        │  2. peginManager.signProofOfPossession()   — BIP-322 PoP, one wallet popup per session
        │
@@ -73,24 +73,45 @@ Inside step 1 (`preparePegin`):
    │  placeholder hashlocks    (pure JS / WASM, no signing)
    │          │ → selectedUTXOs
    │          ▼
-   ├─ vault root ──────────── deriveVaultRoot(wallet, vaultContext)
-   │                          ┃ POPUP 1: deriveContextHash
-   │          │ → 32-byte root
+   ├─ auth anchor ─────────── deriveAuthAnchor(wallet, vaultContext)
+   │                          ┃ POPUP: deriveContextHash("babylon-btc-vault-auth")
+   │          │ → 32-byte anchor
    │          ▼
-   ├─ per-vault expand ───── for each htlcVout i:
-   │                            expandWotsSeed(root, i) → WOTS keys + hash
-   │                            expandHashlockSecret(root, i) → preimage + hashlock
+   ├─ per-vault derive ────── for each htlcVout i:
+   │                            deriveHashlockSecret(wallet, ctx, i) → preimage
+   │                              ┃ POPUP: deriveContextHash("babylon-btc-vault-hashlock")
+   │                            deriveWotsSeed(wallet, ctx, i) → 64-byte seed
+   │                              ┃ POPUP: deriveContextHash("babylon-btc-vault-wots-lo")
+   │                              ┃ POPUP: deriveContextHash("babylon-btc-vault-wots-hi")
+   │                            deriveWotsBlocksFromSeed(seed) → WOTS keys + hash
    │          │
    │          ▼
    └─ commit pass ──────────── buildPrePeginPsbt (real hashlocks)
                                + per-vault PegIn tx + signPsbts
-                               ┃ POPUP 2: batch PSBT signing
+                               ┃ POPUP: batch PSBT signing
               │
               ▼
    { transaction, depositorBtcPubkey, derivedSecrets }
 ```
 
-The two popups in step 1 are **fixed regardless of vault count** — a single batch yields one `deriveContextHash` and one `signPsbts` call. Per-vault secret expansion is pure local crypto; no extra popups.
+**Per-purpose derivation, per-vault popups.** Each secret type uses its own
+`deriveContextHash` label so a single phishing approval can compromise at most
+one secret type — never all three at once. There is no shared "vault root"
+returned to JavaScript. Per-vault secret count: 1 hashlock + 2 WOTS halves
+(the WOTS algorithm needs 64 bytes; `deriveContextHash` returns 32, so the
+seed is split across two distinct labels).
+
+**Popup count formulas.**
+
+- Derive popups: `1 (auth) + 3*N (per-vault hashlock + 2 WOTS halves)`. Always
+  this exact count.
+- PegIn PSBT signing: `1` if the wallet implements `signPsbts` (batch);
+  otherwise `N` sequential `signPsbt` calls (fallback). See
+  `signPsbtsWithFallback` in the SDK.
+
+So a 1-vault deposit is `4 + 1 = 5` popups (batch wallet) or `4 + 1 = 5`
+(fallback, since N=1 collapses). A 3-vault batch is `10 + 1 = 11` (batch
+wallet) or `10 + 3 = 13` (fallback). See [`vault-secrets`](https://github.com/babylonlabs-io/babylon-toolkit/tree/main/packages/babylon-ts-sdk/src/tbv/core/vault-secrets) for the per-purpose helpers.
 
 The critical transition is `VERIFIED → ACTIVE`. Until the depositor reveals the HTLC secret on Ethereum (step 6), the vault is **not live** — miss the activation window and the only exit is refund after the CSV timelock.
 
@@ -262,10 +283,6 @@ console.log("buildPrePeginPsbt type:", typeof buildPrePeginPsbt);
 ```
 
 Run with `npx tsx verify-install.ts` (npx will auto-install `tsx`). If that works, your environment is ready for any of the quickstarts.
-
-## Known gaps
-
-- **HTLC secret + auth-anchor wiring**: WOTS key derivation is fully migrated to `wallet.deriveContextHash` (see the [Wallet Interfaces Guide → Wallet-derived secrets](../guides/wallet-interfaces.md#wallet-derived-secrets-derivecontexthash)). The HTLC secret and VP auth-anchor expanders (`expandHashlockSecret`, `expandAuthAnchor`) exist in `tbv/core/vault-secrets` but are not yet wired into the deposit/activation flow — for now, the HTLC secret is still client-generated and persisted as shown in the Managers Quickstart.
 
 ## Next steps
 

@@ -8,9 +8,9 @@
 
 export { assertAuthAnchorOpReturn } from "./assertAuthAnchorOpReturn";
 export {
-  expandPerVaultSecrets,
-  type PerVaultExpansionResult,
-} from "./expandPerVaultSecrets";
+  derivePerVaultSecrets,
+  type PerVaultDerivationResult,
+} from "./derivePerVaultSecrets";
 export {
   normalizePopSignature,
   normalizeXOnlyPubkey,

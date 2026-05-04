@@ -5,9 +5,11 @@
  * vault deposit protocol's HTLC (Hash Time Lock Contract).
  *
  * The SDK does NOT generate secrets — that is the caller's responsibility.
- * Today callers use `crypto.getRandomValues(32)`; when the `deriveContextHash`
- * wallet API ships, callers will use `wallet.deriveContextHash("babylon-vault", ctx)`.
- * These utilities work identically regardless of how the secret was produced.
+ * Production callers derive the secret via the `vault-secrets` module's
+ * `deriveHashlockSecret(wallet, ctx, htlcVout)` helper, which calls
+ * `wallet.deriveContextHash("babylon-btc-vault-hashlock", perVaultContext)`
+ * directly. These utilities work identically regardless of how the secret
+ * was produced (e.g. tests use `crypto.getRandomValues(32)`).
  *
  * On-chain contract validation (BTCVaultRegistry.activateVaultWithSecret):
  *   if (sha256(abi.encodePacked(s)) != hashlock) revert InvalidSecret();

@@ -210,7 +210,7 @@ function SimpleDepositContent({
       if (shouldSplit && vaultAmounts) {
         setSplitVaultAmounts([...vaultAmounts]);
       }
-      // Wallet derives per-vault HTLC secrets via `expandHashlockSecret`
+      // Wallet derives per-vault HTLC secrets via `deriveHashlockSecret`
       // inside the SIGN step — no pre-sign secret step needed.
       goToStep(DepositStep.SIGN);
     }

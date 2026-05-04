@@ -23,11 +23,11 @@ Managers are the fastest path to a working flow when you're using a standard wal
 
 | # | Phase | SDK entry point | Contract status after | Wallet popups |
 |---|-------|-----------------|-----------------------|---------------|
-| 1 | Prepare Pre-PegIn + PegIn txs (sizing + wallet root + per-vault expand + batch sign) | `peginManager.preparePegin()` | n/a (off-chain) | 2 BTC (`deriveContextHash`, `signPsbts`) |
+| 1 | Prepare Pre-PegIn + PegIn txs (sizing + per-purpose wallet derives + sign) | `peginManager.preparePegin()` | n/a (off-chain) | BTC: `1 + 3*N` `deriveContextHash` calls (1 auth + 1 hashlock and 2 WOTS halves per vault) + PegIn signing (1 `signPsbts` if the wallet supports batch, else `N` sequential `signPsbt`) |
 | 2 | Sign BTC proof-of-possession (once per session) | `peginManager.signProofOfPossession()` | n/a (off-chain) | 1 BTC (`signMessage`) |
 | 3 | Register on Ethereum | `peginManager.registerPeginOnChain()` | `PENDING` | 1 ETH |
 | 4 | Broadcast Pre-PegIn on Bitcoin | `peginManager.signAndBroadcast()` | still `PENDING` until VP observes the tx | 1 BTC (`signPsbt`) |
-| 5 | Sign payout authorisations | `runDepositorPresignFlow()` (service, delegates to `PayoutManager`) | `PENDING` → `VERIFIED` | 1 BTC (`signPsbts`) |
+| 5 | Sign payout authorisations | `runDepositorPresignFlow()` (service, delegates to `PayoutManager`) | `PENDING` → `VERIFIED` | BTC: payout PSBTs and the depositor-graph PSBTs each use 1 `signPsbts` if the wallet supports batch, else sequential `signPsbt` calls — count depends on the number of claimers + challengers in the graph |
 | 6 | **Activate by revealing HTLC secret** | `activateVault()` (service) | `VERIFIED` → `ACTIVE` | 1 ETH |
 
 > **Wait times:** phases 1–3 (prepare, PoP, register) run back-to-back with only wallet popups between them. After phase 4 (Bitcoin broadcast) you usually wait 1 BTC confirmation so the VP can index the Pre-PegIn and prepare transaction graphs (minutes). Phase 5 drives the contract to `VERIFIED` once all payout signatures are posted.
@@ -40,7 +40,7 @@ Managers are the fastest path to a working flow when you're using a standard wal
 
 ## What the SDK derives for you
 
-You do **not** generate or persist HTLC secrets. `preparePegin()` derives them deterministically from the wallet via `deriveContextHash` → `expandHashlockSecret(root, htlcVout)`. The same `(wallet, vaultContext, htlcVout)` always yields the same secret, so resume + activation can re-derive on demand.
+You do **not** generate or persist HTLC secrets. `preparePegin()` derives them deterministically from the wallet via per-purpose `deriveContextHash` calls (`deriveAuthAnchor`, `deriveHashlockSecret`, `deriveWotsSeed` in `tbv/core/vault-secrets`). The same `(wallet, vaultContext, htlcVout)` always yields the same secrets, so resume + activation can re-derive on demand.
 
 `preparePegin()` returns:
 

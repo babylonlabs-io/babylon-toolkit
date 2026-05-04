@@ -12,8 +12,7 @@
 
 import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
 import {
-  deriveVaultRoot,
-  expandAuthAnchor,
+  deriveAuthAnchor,
   hexToUint8Array,
   parseFundingOutpointsFromTx,
   uint8ArrayToHex,
@@ -50,23 +49,15 @@ export async function ensureAuthenticatedVpClient(
 
   // Cold-start: derive auth anchor from the wallet (popup) and fetch
   // the pinned VP pubkey from chain.
-  let root: Uint8Array | null = null;
+  const authAnchorBytes = await deriveAuthAnchor(params.btcWallet, {
+    depositorBtcPubkey: hexToUint8Array(params.depositorBtcPubkey),
+    fundingOutpoints: parseFundingOutpointsFromTx(params.unsignedPrePeginTxHex),
+  });
   let authAnchorHex: string;
   try {
-    root = await deriveVaultRoot(params.btcWallet, {
-      depositorBtcPubkey: hexToUint8Array(params.depositorBtcPubkey),
-      fundingOutpoints: parseFundingOutpointsFromTx(
-        params.unsignedPrePeginTxHex,
-      ),
-    });
-    const authAnchorBytes = expandAuthAnchor(root);
-    try {
-      authAnchorHex = uint8ArrayToHex(authAnchorBytes);
-    } finally {
-      authAnchorBytes.fill(0);
-    }
+    authAnchorHex = uint8ArrayToHex(authAnchorBytes);
   } finally {
-    root?.fill(0);
+    authAnchorBytes.fill(0);
   }
 
   const pinnedServerPubkey =

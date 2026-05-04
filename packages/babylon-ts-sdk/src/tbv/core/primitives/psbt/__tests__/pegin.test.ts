@@ -186,9 +186,9 @@ describe("buildPrePeginPsbt", () => {
       expect(result1.htlcAddresses[0]).not.toBe(result2.htlcAddresses[0]);
     });
 
-    // Load-bearing invariant for the planned two-pass Pre-PegIn ordering
+    // Load-bearing invariant for the two-pass Pre-PegIn ordering
     // (sizing pass with placeholder hashlocks → UTXO selection → real
-    // hashlocks from `expandHashlockSecret` after `deriveVaultRoot`).
+    // hashlocks from `deriveHashlockSecret` per vault).
     // Asserts the placeholder pass produces the same `htlcValues` and
     // `totalOutputValue` as the real pass — i.e., values are determined
     // by the economic parameters (peginAmount, depositorClaimValue,

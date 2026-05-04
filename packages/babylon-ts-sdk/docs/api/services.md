@@ -2078,7 +2078,7 @@ Error on timeout, abort, or non-transient RPC error
 function computeHashlock(secret): `0x${string}`;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/htlc/index.ts:77](../../packages/babylon-ts-sdk/src/tbv/core/services/htlc/index.ts#L77)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/htlc/index.ts:79](../../packages/babylon-ts-sdk/src/tbv/core/services/htlc/index.ts#L79)
 
 Compute the SHA-256 hashlock from a secret preimage.
 
@@ -2111,7 +2111,7 @@ if secret is not exactly 32 bytes
 function validateSecretAgainstHashlock(secret, hashlock): boolean;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/htlc/index.ts:95](../../packages/babylon-ts-sdk/src/tbv/core/services/htlc/index.ts#L95)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/htlc/index.ts:97](../../packages/babylon-ts-sdk/src/tbv/core/services/htlc/index.ts#L97)
 
 Validate that a secret's SHA-256 hash matches the expected hashlock.
 

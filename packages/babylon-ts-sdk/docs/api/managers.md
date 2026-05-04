@@ -251,7 +251,7 @@ If the wallet rejects, insufficient funds, or an internal
 signAndBroadcast(params): Promise<string>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:884](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L884)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:883](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L883)
 
 Signs and broadcasts a funded peg-in transaction to the Bitcoin network.
 
@@ -287,7 +287,7 @@ Error if signing or broadcasting fails
 registerPeginOnChain(params): Promise<RegisterPeginResult>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:1027](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L1027)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:1026](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L1026)
 
 Registers a peg-in on Ethereum by calling the BTCVaultRegistry contract.
 
@@ -338,7 +338,7 @@ Error if contract simulation fails (e.g., invalid signature,
 registerPeginBatchOnChain(params): Promise<RegisterPeginBatchResult>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:1186](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L1186)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:1185](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L1185)
 
 Register multiple pegins on Ethereum in a single transaction.
 
@@ -366,7 +366,7 @@ Batch result with per-vault IDs and single ETH tx hash
 signProofOfPossession(): Promise<PopSignature>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:1411](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L1411)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:1410](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L1410)
 
 Sign a BIP-322 BTC Proof-of-Possession binding the connected BTC
 wallet to the connected ETH account for this chain and vault
@@ -383,7 +383,7 @@ every register call in the same session.
 getNetwork(): Network;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:1459](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L1459)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:1458](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L1458)
 
 Gets the configured Bitcoin network.
 
@@ -399,7 +399,7 @@ The Bitcoin network (mainnet, testnet, signet, regtest)
 getVaultContractAddress(): `0x${string}`;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:1468](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L1468)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:1467](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L1467)
 
 Gets the configured BTCVaultRegistry contract address.
 
@@ -1388,7 +1388,7 @@ htlcSecretHexes: string[];
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:276](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L276)
 
 Per-vault HTLC preimage hex (no 0x prefix). Re-derivable any time
-via `expandHashlockSecret(root, htlcVout)`; not persisted.
+via `deriveHashlockSecret(wallet, ctx, htlcVout)`; not persisted.
 
 ##### authAnchorHex
 

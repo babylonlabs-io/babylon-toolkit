@@ -55,15 +55,15 @@ These paths handle irreversible value movement. An AI-generated mistake here is 
 
 ### 4. Vault-secret derivation (frozen on-chain-binding API)
 - Files (all marked `@stability frozen` in JSDoc):
-  - `packages/babylon-ts-sdk/src/tbv/core/vault-secrets/context.ts` — `buildVaultContext`, `buildFundingOutpointsCommitment`
-  - `packages/babylon-ts-sdk/src/tbv/core/vault-secrets/deriveVaultRoot.ts` — `deriveVaultRoot`, `VAULT_APP_NAME`
-  - `packages/babylon-ts-sdk/src/tbv/core/vault-secrets/expand.ts` — `expandWotsSeed`, `expandHashlockSecret`, `expandAuthAnchor`
-  - `packages/babylon-ts-sdk/src/tbv/core/vault-secrets/info.ts` — HKDF `info` encoding (labels + i2osp4)
+  - `packages/babylon-ts-sdk/src/tbv/core/vault-secrets/context.ts` — `buildVaultContext` (per-Pre-PegIn, 72 bytes), `buildPerVaultContext` (per-vault, 76 bytes), `buildFundingOutpointsCommitment`
+  - `packages/babylon-ts-sdk/src/tbv/core/vault-secrets/deriveAuthAnchor.ts` — `deriveAuthAnchor`, `AUTH_ANCHOR_APP_NAME` (`"babylon-btc-vault-auth"`)
+  - `packages/babylon-ts-sdk/src/tbv/core/vault-secrets/deriveHashlockSecret.ts` — `deriveHashlockSecret`, `HASHLOCK_APP_NAME` (`"babylon-btc-vault-hashlock"`)
+  - `packages/babylon-ts-sdk/src/tbv/core/vault-secrets/deriveWotsSeed.ts` — `deriveWotsSeed`, `WOTS_SEED_LO_APP_NAME` (`"babylon-btc-vault-wots-lo"`), `WOTS_SEED_HI_APP_NAME` (`"babylon-btc-vault-wots-hi"`)
   - `packages/babylon-ts-sdk/src/tbv/core/wots/blockDerivation.ts` — `deriveWotsBlocksFromSeed`, `computeWotsBlockPublicKeysHash`
 - The orchestrator that composes these primitives:
-  - `packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts` — `PeginManager.preparePegin` (sizing → `deriveVaultRoot` → per-vault expand → commit pass with `htlcVout === index` invariant). The wrapper API may evolve; the underlying frozen primitives must not.
-- These functions feed `wallet.deriveContextHash` and produce on-chain commitments (`depositorWotsPkHash`, HTLC hashlock, OP_RETURN auth-anchor preimage). Any byte-level change to layout, ordering, label, or HKDF info rotates the secrets and **invalidates every existing deposit** — users cannot derive matching keys, cannot activate, cannot resume.
-- **Rule:** Treat as a hard fork. Changes require: (a) a coordinated revision of `derive-vault-secrets.md` / `derive-context-hash.md`, (b) updated golden-vector tests in both this repo and `btc-vault`, (c) a migration plan for in-flight deposits. Match the Rust `babe::wots` reference byte-for-byte. Two-vault test (overlapping inputs, distinct keys) is mandatory for any chain-logic change.
+  - `packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts` — `PeginManager.preparePegin` (sizing → `deriveAuthAnchor` → per-vault `deriveHashlockSecret` + `deriveWotsSeed` → commit pass with `htlcVout === index` invariant). The wrapper API may evolve; the underlying frozen primitives must not.
+- These functions call `wallet.deriveContextHash` directly (one per-purpose label per secret type — no JS-side HKDF) and produce on-chain commitments (`depositorWotsPkHash`, HTLC hashlock, OP_RETURN auth-anchor preimage). Any byte-level change to a label, the per-vault context layout, or the WOTS lo/hi concat order rotates the secrets and **invalidates every existing deposit** — users cannot derive matching keys, cannot activate, cannot resume.
+- **Rule:** Treat as a hard fork. Changes require: (a) updated golden-vector tests in both this repo and `btc-vault`, (b) a migration plan for in-flight deposits. Match the Rust `babe::wots` reference byte-for-byte for WOTS chain logic. Two-vault test (overlapping inputs, distinct keys) is mandatory for any chain-logic change. Per-purpose isolation is the security property: never combine multiple secret types under one `deriveContextHash` call (that would re-introduce the blast-radius issue from the security audit).
 
 ### 5. HTLC secret & vault activation
 - File: `services/vault/src/services/vault/vaultActivationService.ts`

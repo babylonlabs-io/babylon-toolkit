@@ -6,7 +6,7 @@
  * (e.g., resume flow), submission is skipped.
  *
  * The caller is responsible for deriving WOTS keys externally using
- * `expandWotsSeed` + `deriveWotsBlocksFromSeed` from the SDK's
+ * `deriveWotsSeed` + `deriveWotsBlocksFromSeed` from the SDK's
  * `tbv/core/vault-secrets` and `tbv/core/wots` modules respectively.
  */
 

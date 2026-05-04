@@ -2827,62 +2827,229 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/batchAt
 
 ***
 
-### BatchAttributionResult
+### BatchPollByProviderOptions
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/batchAttribution.ts:22](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/batchAttribution.ts#L22)
-
-Output of [attributeBatchResults](#attributebatchresults).
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/batchPoll.ts:20](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/batchPoll.ts#L20)
 
 #### Type Parameters
 
-##### T
+##### TItem
 
-`T`
+`TItem`
+
+##### TResult
+
+`TResult`
 
 #### Properties
 
-##### byTxid
+##### items
 
 ```ts
-byTxid: Map<string, {
-  result: T | null;
-  error: string | null;
+items: TItem[];
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/batchPoll.ts:22](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/batchPoll.ts#L22)
+
+Items to poll for this provider, e.g. `DepositToPoll[]`.
+
+##### getTxid()
+
+```ts
+getTxid: (item) => string;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/batchPoll.ts:24](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/batchPoll.ts#L24)
+
+Extract the canonical txid for each item. Helper lowercases it.
+
+###### Parameters
+
+###### item
+
+`TItem`
+
+###### Returns
+
+`string`
+
+##### batchCall()
+
+```ts
+batchCall: (txids) => Promise<{
+  results: readonly BatchResultEntry<TResult>[];
 }>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/batchAttribution.ts:24](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/batchAttribution.ts#L24)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/batchPoll.ts:29](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/batchPoll.ts#L29)
 
-Lowercase requested txid -> per-item envelope.
+Per-chunk RPC call. Receives lowercased txids; returns the batch
+envelope. Caller wraps `rpcClient.batchGet*Status({ pegin_txids })`.
 
-##### missing
+###### Parameters
 
-```ts
-missing: string[];
-```
+###### txids
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/batchAttribution.ts:26](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/batchAttribution.ts#L26)
+`string`[]
 
-Requested txids that did not appear in the response.
+###### Returns
 
-##### unexpected
+`Promise`\<\{
+  `results`: readonly [`BatchResultEntry`](#batchresultentry)\<`TResult`\>[];
+\}\>
 
-```ts
-unexpected: string[];
-```
-
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/batchAttribution.ts:28](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/batchAttribution.ts#L28)
-
-Echoed txids that were not in the request — logged + dropped.
-
-##### duplicate
+##### onItem()
 
 ```ts
-duplicate: string[];
+onItem: (item, envelope) => void;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/batchAttribution.ts:30](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/batchAttribution.ts#L30)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/batchPoll.ts:40](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/batchPoll.ts#L40)
 
-Echoed txids that appeared more than once — first kept, rest dropped.
+Handle a per-item envelope. Exactly one of `result` / `error` is
+populated (validator invariant). Caller decides UI state, logging,
+etc. Not invoked for txids surfaced via [onDuplicate](#onduplicate).
+
+Note: `envelope.pegin_txid` is the lowercased txid the helper
+sent in the request, not whatever case/encoding the server echoed.
+
+###### Parameters
+
+###### item
+
+`TItem`
+
+###### envelope
+
+[`BatchResultEntry`](#batchresultentry)\<`TResult`\>
+
+###### Returns
+
+`void`
+
+##### onMissing()
+
+```ts
+onMissing: (item) => void;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/batchPoll.ts:42](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/batchPoll.ts#L42)
+
+Server omitted this item from the response.
+
+###### Parameters
+
+###### item
+
+`TItem`
+
+###### Returns
+
+`void`
+
+##### onDuplicate()
+
+```ts
+onDuplicate: (item) => void;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/batchPoll.ts:44](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/batchPoll.ts#L44)
+
+Server returned this item more than once. Caller picks UI state.
+
+###### Parameters
+
+###### item
+
+`TItem`
+
+###### Returns
+
+`void`
+
+##### onDuplicateBatch()?
+
+```ts
+optional onDuplicateBatch: (count) => void;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/batchPoll.ts:51](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/batchPoll.ts#L51)
+
+Optional aggregate signal for an entire chunk where the server
+returned duplicates. Fires once per chunk (only if `count > 0`)
+AFTER all per-item `onDuplicate` dispatches. Caller typically logs
+the count alongside the provider name.
+
+###### Parameters
+
+###### count
+
+`number`
+
+###### Returns
+
+`void`
+
+##### onWholeBatchError()
+
+```ts
+onWholeBatchError: (chunk, error) => void;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/batchPoll.ts:57](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/batchPoll.ts#L57)
+
+The whole chunk's RPC call failed (transport or response
+validation). Receives the chunk and the error. Caller decides how
+to project that onto per-item state.
+
+###### Parameters
+
+###### chunk
+
+`TItem`[]
+
+###### error
+
+`unknown`
+
+###### Returns
+
+`void`
+
+##### onUnexpected()?
+
+```ts
+optional onUnexpected: (echoedTxids) => void;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/batchPoll.ts:64](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/batchPoll.ts#L64)
+
+Server returned txids that were not in the request. Caller
+typically logs the count for observability — there's no recovery
+action since the original request items are unaffected. Optional;
+defaults to no-op.
+
+###### Parameters
+
+###### echoedTxids
+
+`string`[]
+
+###### Returns
+
+`void`
+
+##### batchSize?
+
+```ts
+optional batchSize: number;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/batchPoll.ts:70](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/batchPoll.ts#L70)
+
+Maximum items per RPC call. Defaults to [VP\_BATCH\_MAX\_SIZE](#vp_batch_max_size).
+Exposed for tests so chunking can be exercised without 50+
+fixtures.
 
 ***
 
@@ -4682,43 +4849,33 @@ ServerIdentityError on any validation failure.
 
 ***
 
-### attributeBatchResults()
+### batchPollByProvider()
 
 ```ts
-function attributeBatchResults<T>(requestedTxids, results): BatchAttributionResult<T>;
+function batchPollByProvider<TItem, TResult>(options): Promise<void>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/batchAttribution.ts:44](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/batchAttribution.ts#L44)
-
-Attribute batch results to requested txids defensively.
-
-Both `requestedTxids` and the echoed `pegin_txid` field on each result
-are lowercased before lookup. Duplicates and unexpected echoes are
-surfaced so callers can flag the affected items as errored rather than
-silently overwriting state.
-
-`requestedTxids` may contain duplicates; they are de-duplicated for the
-purposes of map keys (each unique txid becomes a single map entry).
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/batchPoll.ts:73](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/batchPoll.ts#L73)
 
 #### Type Parameters
 
-##### T
+##### TItem
 
-`T`
+`TItem`
+
+##### TResult
+
+`TResult`
 
 #### Parameters
 
-##### requestedTxids
+##### options
 
-`string`[]
-
-##### results
-
-readonly [`BatchResultEntry`](#batchresultentry)\<`T`\>[]
+[`BatchPollByProviderOptions`](#batchpollbyprovideroptions)\<`TItem`, `TResult`\>
 
 #### Returns
 
-[`BatchAttributionResult`](#batchattributionresult)\<`T`\>
+`Promise`\<`void`\>
 
 ***
 

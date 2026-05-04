@@ -1,6 +1,6 @@
+import { sha256 } from "@noble/hashes/sha2.js";
 import { describe, expect, it } from "vitest";
 
-import { expandWotsSeed } from "../../vault-secrets";
 import {
   computeWotsBlockPublicKeysHash,
   deriveWotsBlocksFromSeed,
@@ -9,8 +9,33 @@ import {
 const ROOT_A = new Uint8Array(32).fill(0xaa);
 const ROOT_B = new Uint8Array(32).fill(0xbb);
 
-const seedFor = (root: Uint8Array, htlcVout: number) =>
-  expandWotsSeed(root, htlcVout);
+/**
+ * Test-only deterministic 64-byte seed factory. Standalone — does not
+ * depend on the production wallet derivation path. Lets these WOTS
+ * block-derivation tests pin behaviour without coupling to whatever
+ * mechanism happens to feed the seed in production.
+ */
+function seedFor(root: Uint8Array, htlcVout: number): Uint8Array {
+  const voutBE = new Uint8Array(4);
+  voutBE[0] = (htlcVout >>> 24) & 0xff;
+  voutBE[1] = (htlcVout >>> 16) & 0xff;
+  voutBE[2] = (htlcVout >>> 8) & 0xff;
+  voutBE[3] = htlcVout & 0xff;
+  const lo = sha256(concat(new Uint8Array([0]), root, voutBE));
+  const hi = sha256(concat(new Uint8Array([1]), root, voutBE));
+  return concat(lo, hi);
+}
+
+function concat(...parts: Uint8Array[]): Uint8Array {
+  const total = parts.reduce((n, p) => n + p.length, 0);
+  const out = new Uint8Array(total);
+  let off = 0;
+  for (const p of parts) {
+    out.set(p, off);
+    off += p.length;
+  }
+  return out;
+}
 
 describe("WOTS block derivation (SDK)", () => {
   describe("deriveWotsBlocksFromSeed", () => {
@@ -191,11 +216,12 @@ describe("WOTS block derivation (SDK)", () => {
       );
     });
 
-    it("produces a pinned digest for a known root and htlcVout (regression)", async () => {
-      // Pinned: root=0xaa…aa, htlcVout=0. Catches drift in chain logic,
+    it("produces a pinned digest for the test seed (regression)", async () => {
+      // Pinned for the local test-seed factory above with
+      // (root=0xaa…aa, htlcVout=0). Catches drift in chain logic,
       // per-block seed derivation, or keccak256 ordering.
       const PINNED_DIGEST =
-        "0x203a4f7d054249aea1785833315628894f4b3fdc17b04aec4e1a3d80c80ef024";
+        "0x5444ee5cfaaac218ce3250b8354c97375936a8a97143eef1426b772a36357a20";
       const blocks = await deriveWotsBlocksFromSeed(seedFor(ROOT_A, 0));
       expect(computeWotsBlockPublicKeysHash(blocks)).toBe(PINNED_DIGEST);
     });

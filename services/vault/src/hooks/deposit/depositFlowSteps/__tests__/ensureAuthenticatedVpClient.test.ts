@@ -1,7 +1,4 @@
-import {
-  deriveVaultRoot,
-  expandAuthAnchor,
-} from "@babylonlabs-io/ts-sdk/tbv/core";
+import { deriveAuthAnchor } from "@babylonlabs-io/ts-sdk/tbv/core";
 import {
   VpTokenRegistry,
   vpTokenRegistry,
@@ -27,8 +24,7 @@ vi.mock("@babylonlabs-io/ts-sdk/tbv/core", async (importOriginal) => {
   return {
     ...actual,
     parseFundingOutpointsFromTx: () => [{ txid: new Uint8Array(32), vout: 0 }],
-    deriveVaultRoot: vi.fn(),
-    expandAuthAnchor: vi.fn(() => new Uint8Array(32).fill(0xab)),
+    deriveAuthAnchor: vi.fn(),
   };
 });
 
@@ -46,10 +42,7 @@ describe("ensureAuthenticatedVpClient", () => {
   beforeEach(() => {
     (vpTokenRegistry as VpTokenRegistry).clear();
     mockGetVaultProviderBtcPubKey.mockResolvedValue(VALID_XONLY);
-    (deriveVaultRoot as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(
-      new Uint8Array(32).fill(0xcc),
-    );
-    (expandAuthAnchor as unknown as ReturnType<typeof vi.fn>).mockReturnValue(
+    (deriveAuthAnchor as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(
       new Uint8Array(32).fill(0xab),
     );
   });
@@ -68,7 +61,7 @@ describe("ensureAuthenticatedVpClient", () => {
       depositorBtcPubkey: "ab".repeat(32),
     });
 
-    expect(deriveVaultRoot).toHaveBeenCalledOnce();
+    expect(deriveAuthAnchor).toHaveBeenCalledOnce();
     expect(mockGetVaultProviderBtcPubKey).toHaveBeenCalledOnce();
     expect(vpTokenRegistry.peek(PEGIN_TXID)).toBeDefined();
   });
@@ -91,7 +84,7 @@ describe("ensureAuthenticatedVpClient", () => {
       depositorBtcPubkey: "ab".repeat(32),
     });
 
-    expect(deriveVaultRoot).not.toHaveBeenCalled();
+    expect(deriveAuthAnchor).not.toHaveBeenCalled();
     expect(mockGetVaultProviderBtcPubKey).not.toHaveBeenCalled();
   });
 });

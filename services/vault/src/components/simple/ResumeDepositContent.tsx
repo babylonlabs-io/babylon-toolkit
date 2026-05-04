@@ -11,11 +11,10 @@
 import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
 import {
   computeWotsBlockPublicKeysHash,
-  deriveVaultRoot,
+  deriveAuthAnchor,
+  deriveHashlockSecret,
   deriveWotsBlocksFromSeed,
-  expandAuthAnchor,
-  expandHashlockSecret,
-  expandWotsSeed,
+  deriveWotsSeed,
   hexToUint8Array,
   isWotsMismatchError,
   parseFundingOutpointsFromTx,
@@ -192,7 +191,6 @@ export function ResumeWotsContent({
     setLoading(true);
     setError(null);
 
-    let root: Uint8Array | null = null;
     try {
       const providerAddress = resolveProviderAddress(activity);
       if (!providerAddress) {
@@ -233,14 +231,17 @@ export function ResumeWotsContent({
         activity.unsignedPrePeginTx,
       );
 
-      root = await deriveVaultRoot(btcWalletProvider, {
+      const contextInput = {
         depositorBtcPubkey: hexToUint8Array(depositorBtcPubkey),
         fundingOutpoints,
-      });
+      };
 
-      // Reuse the derived root for the auth anchor so submitWotsPublicKey
-      // doesn't trigger a second wallet popup.
-      const authAnchorBytes = expandAuthAnchor(root);
+      // Per-purpose: one popup for auth anchor (cached for submitWotsPublicKey)
+      // and two popups for the WOTS seed (low + high halves).
+      const authAnchorBytes = await deriveAuthAnchor(
+        btcWalletProvider,
+        contextInput,
+      );
       let authAnchorHex: string;
       try {
         authAnchorHex = uint8ArrayToHex(authAnchorBytes);
@@ -248,7 +249,11 @@ export function ResumeWotsContent({
         authAnchorBytes.fill(0);
       }
 
-      const seed = expandWotsSeed(root, htlcVout);
+      const seed = await deriveWotsSeed(
+        btcWalletProvider,
+        contextInput,
+        htlcVout,
+      );
       let wotsPublicKeys;
       try {
         wotsPublicKeys = await deriveWotsBlocksFromSeed(seed);
@@ -301,8 +306,6 @@ export function ResumeWotsContent({
         setError(msg);
       }
       setLoading(false);
-    } finally {
-      root?.fill(0);
     }
   }, [activity, btcWalletProvider, onSuccess, trackPrimedTxid]);
 
@@ -378,7 +381,6 @@ export function ResumeActivationContent({
     setLoading(true);
     setLocalError(null);
 
-    let root: Uint8Array | null = null;
     let secretBytes: Uint8Array | null = null;
     try {
       // Read signing-critical inputs (depositor pubkey, htlcVout) directly
@@ -393,12 +395,15 @@ export function ResumeActivationContent({
         activity.unsignedPrePeginTx,
       );
 
-      root = await deriveVaultRoot(btcWalletProvider, {
-        depositorBtcPubkey: hexToUint8Array(depositorBtcPubkey),
-        fundingOutpoints,
-      });
-
-      secretBytes = expandHashlockSecret(root, htlcVout);
+      // Per-purpose: one popup, scoped to the hashlock label only.
+      secretBytes = await deriveHashlockSecret(
+        btcWalletProvider,
+        {
+          depositorBtcPubkey: hexToUint8Array(depositorBtcPubkey),
+          fundingOutpoints,
+        },
+        htlcVout,
+      );
       const secretHex = uint8ArrayToHex(secretBytes);
 
       // Hand off to the existing activation state machine. It fetches
@@ -411,7 +416,6 @@ export function ResumeActivationContent({
         err instanceof Error ? err.message : "Failed to activate vault";
       setLocalError(msg);
     } finally {
-      root?.fill(0);
       secretBytes?.fill(0);
       setLoading(false);
     }

@@ -1,6 +1,6 @@
 /**
  * Parse a Pre-PegIn transaction's inputs into the vault-context
- * `fundingOutpoints` shape consumed by `deriveVaultRoot`. Reverses
+ * `fundingOutpoints` shape consumed by `deriveAuthAnchor` / `deriveHashlockSecret` / `deriveWotsSeed`. Reverses
  * the prev-txid bytes from wire-internal little-endian to display
  * order so the derivation is byte-for-byte identical to the
  * deposit-time computation.
