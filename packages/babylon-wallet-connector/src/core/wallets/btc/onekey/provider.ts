@@ -6,12 +6,7 @@ import { unsupportedDeriveContextHash } from "@/core/wallets/btc/unsupportedDeri
 import { ERROR_CODES, WalletError } from "@/error";
 
 import logo from "./logo.svg";
-
-const INTERNAL_NETWORK_NAMES = {
-  [Network.MAINNET]: "livenet",
-  [Network.TESTNET]: "testnet",
-  [Network.SIGNET]: "signet",
-};
+import { mapOneKeyNetwork } from "./network";
 
 export const WALLET_PROVIDER_NAME = "OneKey";
 
@@ -163,19 +158,14 @@ export class OneKeyProvider implements IBTCProvider {
   getNetwork = async (): Promise<Network> => {
     const internalNetwork = await this.provider.getNetwork();
 
-    for (const [key, value] of Object.entries(INTERNAL_NETWORK_NAMES)) {
-      // TODO remove as soon as OneKey implements
-      if (value === "testnet") {
-        // in case of testnet return signet
-        return Network.SIGNET;
-      } else if (value === internalNetwork) {
-        return key as Network;
-      }
+    const mapped = mapOneKeyNetwork(internalNetwork);
+    if (mapped !== null) {
+      return mapped;
     }
 
     throw new WalletError({
       code: ERROR_CODES.UNSUPPORTED_NETWORK,
-      message: "Unsupported network from OneKey Wallet",
+      message: `Unsupported network from OneKey Wallet: "${internalNetwork}"`,
       wallet: WALLET_PROVIDER_NAME,
     });
   };
