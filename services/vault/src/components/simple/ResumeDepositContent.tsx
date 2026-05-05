@@ -231,12 +231,8 @@ export function ResumeWotsContent({
       const onChainWotsPkHash = protocol.depositorWotsPkHash;
       const onChainPrePeginTxHash = protocol.prePeginTxHash;
 
-      // Validate that the indexer-provided Pre-PegIn tx matches the on-chain
-      // hash before feeding its outpoints into the wallet's deriveContextHash.
-      // Without this check, a compromised indexer can ask the wallet to derive
-      // over attacker-chosen funding outpoints; the downstream WOTS-hash
-      // compare would still reject, but the wallet has already produced a
-      // derivation over an attacker-chosen 72-byte context.
+      // Indexer-supplied tx is untrusted. Verify against on-chain
+      // prePeginTxHash before deriveVaultRoot fires the wallet popup.
       const computedTxHash = calculateBtcTxHash(activity.unsignedPrePeginTx);
       if (
         computedTxHash.toLowerCase() !== onChainPrePeginTxHash.toLowerCase()
@@ -410,12 +406,8 @@ export function ResumeActivationContent({
       const htlcVout = protocol.htlcVout;
       const onChainPrePeginTxHash = protocol.prePeginTxHash;
 
-      // Validate that the indexer-provided Pre-PegIn tx matches the on-chain
-      // hash before feeding its outpoints into the wallet's deriveContextHash.
-      // Without this check, a compromised indexer can ask the wallet to derive
-      // over attacker-chosen funding outpoints; the downstream hashlock check
-      // would still reject, but the wallet has already produced a derivation
-      // over an attacker-chosen 72-byte context.
+      // Indexer-supplied tx is untrusted. Verify against on-chain
+      // prePeginTxHash before deriveVaultRoot fires the wallet popup.
       const computedTxHash = calculateBtcTxHash(activity.unsignedPrePeginTx);
       if (
         computedTxHash.toLowerCase() !== onChainPrePeginTxHash.toLowerCase()
