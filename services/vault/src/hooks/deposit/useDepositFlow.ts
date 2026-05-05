@@ -634,6 +634,7 @@ export function useDepositFlow(
           for (let attempt = 1; attempt <= MAX_WOTS_ATTEMPTS; attempt++) {
             try {
               await submitWotsPublicKey({
+                vaultId: result.vaultId,
                 peginTxHash: result.peginTxHash,
                 depositorBtcPubkey: result.depositorBtcPubkey,
                 providerAddress: provider.id,

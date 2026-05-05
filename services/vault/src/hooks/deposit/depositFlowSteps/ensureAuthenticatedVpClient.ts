@@ -23,7 +23,8 @@ import {
   VaultProviderRpcClient,
   vpTokenRegistry,
 } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
-import type { Address } from "viem";
+import { calculateBtcTxHash } from "@babylonlabs-io/ts-sdk/tbv/core/utils";
+import type { Address, Hex } from "viem";
 
 import { getVaultRegistryReader } from "@/clients/eth-contract/sdk-readers";
 import { stripHexPrefix } from "@/utils/btc";
@@ -31,6 +32,12 @@ import { getVpProxyUrl } from "@/utils/rpc";
 
 export interface EnsureAuthenticatedVpClientParams {
   btcWallet: BitcoinWallet;
+  /**
+   * On-chain vault id. Used on the cold path to fetch `prePeginTxHash`
+   * and validate `unsignedPrePeginTxHex` before the wallet's
+   * `deriveContextHash` is invoked over its funding outpoints.
+   */
+  vaultId: Hex;
   unsignedPrePeginTxHex: string;
   peginTxHash: string;
   providerAddress: string;
@@ -46,6 +53,25 @@ export async function ensureAuthenticatedVpClient(
   const cached = vpTokenRegistry.peek(peginTxid);
   if (cached) {
     return new VaultProviderRpcClient(baseUrl, { tokenProvider: cached });
+  }
+
+  // Cold path only: validate the indexer-supplied Pre-PegIn tx against
+  // the on-chain `prePeginTxHash` BEFORE invoking the wallet's
+  // `deriveContextHash`. Without this, a compromised indexer can ask
+  // the wallet to derive over attacker-chosen funding outpoints. Lives
+  // here (not at every caller) so every cold-path entry — payout
+  // signing on cross-device resume, WOTS submit on cache miss, future
+  // callers — fails closed by default. The cache-hit short-circuit
+  // above keeps the same-device hot path free of any extra read.
+  const reader = getVaultRegistryReader();
+  const protocol = await reader.getVaultProtocolInfo(params.vaultId);
+  const computedTxHash = calculateBtcTxHash(params.unsignedPrePeginTxHex);
+  if (computedTxHash.toLowerCase() !== protocol.prePeginTxHash.toLowerCase()) {
+    throw new Error(
+      `Pre-PegIn transaction hash mismatch: computed ${computedTxHash} from indexer tx, ` +
+        `but on-chain contract has ${protocol.prePeginTxHash}. ` +
+        `Aborting to prevent potential attack.`,
+    );
   }
 
   // Cold-start: derive auth anchor from the wallet (popup) and fetch

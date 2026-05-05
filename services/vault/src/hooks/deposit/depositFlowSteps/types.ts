@@ -91,6 +91,8 @@ export interface PeginBatchRegisterResult {
 // ============================================================================
 
 export interface WotsSubmissionParams {
+  /** On-chain vault id — needed to validate `unsignedPrePeginTxHex` against `prePeginTxHash` on the cold-cache VP-auth path. */
+  vaultId: Hex;
   peginTxHash: string;
   depositorBtcPubkey: string;
   providerAddress: string;
