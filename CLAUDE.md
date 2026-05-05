@@ -30,6 +30,25 @@ Run `pnpm run lint` and `pnpm run test` in the affected service before consideri
 
 ---
 
+## SPEC-DRIVEN DEVELOPMENT
+
+This repo uses [GitHub Spec Kit](https://github.com/github/spec-kit). Every feature lives under `specs/NNN-feature-name/` with a `spec.md` describing user scenarios, acceptance scenarios, functional requirements, and success criteria.
+
+- Project principles: [`.specify/memory/constitution.md`](./.specify/memory/constitution.md)
+- Existing feature specs: [`specs/`](./specs/)
+- Templates and scripts: [`.specify/`](./.specify/)
+
+E2E tests reference user-story IDs (`BT-XX`) defined inside each `spec.md`. When changing behavior covered by a spec, update the spec first, then code, then tests.
+
+Slash commands (Claude Code):
+- `/speckit-constitution` - amend project principles
+- `/speckit-specify` - create or update a feature spec
+- `/speckit-plan` - derive an implementation plan from a spec
+- `/speckit-tasks` - break a plan into tasks
+- `/speckit-implement` - execute tasks against the codebase
+
+---
+
 ## CRITICAL PATHS — HUMAN REVIEW REQUIRED
 
 These paths handle irreversible value movement. An AI-generated mistake here is silent: code compiles, tests pass, wrong BTC amount ships. **Any change touching these files requires two reviewers, and the author must be able to explain every changed line without an AI assistant open.**
@@ -188,3 +207,8 @@ These paths handle irreversible value movement. An AI-generated mistake here is 
 - **Naming**: Descriptive variable and function names. Avoid abbreviations unless domain-standard (tx, UTXO, PSBT).
 - **Components**: One component per file. File name matches component name.
 - **After changes**: Check for comments/docs that reference old behavior and update them.
+
+<!-- SPECKIT START -->
+For additional context about technologies to be used, project structure,
+shell commands, and other important information, read the current plan
+<!-- SPECKIT END -->
