@@ -22,6 +22,7 @@ import {
   uint8ArrayToHex,
 } from "@babylonlabs-io/ts-sdk/tbv/core";
 import { primeVpTokenRegistry } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
+import { calculateBtcTxHash } from "@babylonlabs-io/ts-sdk/tbv/core/utils";
 import { useChainConnector } from "@babylonlabs-io/wallet-connector";
 import { useCallback, useState } from "react";
 import type { Address, Hex } from "viem";
@@ -228,6 +229,20 @@ export function ResumeWotsContent({
       const depositorBtcPubkey = basic.depositorBtcPubKey;
       const htlcVout = protocol.htlcVout;
       const onChainWotsPkHash = protocol.depositorWotsPkHash;
+      const onChainPrePeginTxHash = protocol.prePeginTxHash;
+
+      // Indexer-supplied tx is untrusted. Verify against on-chain
+      // prePeginTxHash before deriveVaultRoot fires the wallet popup.
+      const computedTxHash = calculateBtcTxHash(activity.unsignedPrePeginTx);
+      if (
+        computedTxHash.toLowerCase() !== onChainPrePeginTxHash.toLowerCase()
+      ) {
+        throw new Error(
+          `Pre-PegIn transaction hash mismatch: computed ${computedTxHash} from indexer tx, ` +
+            `but on-chain contract has ${onChainPrePeginTxHash}. ` +
+            `Aborting to prevent potential attack.`,
+        );
+      }
 
       const fundingOutpoints = parseFundingOutpointsFromTx(
         activity.unsignedPrePeginTx,
@@ -278,6 +293,7 @@ export function ResumeWotsContent({
       }
 
       await submitWotsPublicKey({
+        vaultId: activity.id,
         peginTxHash,
         depositorBtcPubkey,
         providerAddress,
@@ -388,6 +404,20 @@ export function ResumeActivationContent({
       const { basic, protocol } = await reader.getVaultData(activity.id as Hex);
       const depositorBtcPubkey = basic.depositorBtcPubKey;
       const htlcVout = protocol.htlcVout;
+      const onChainPrePeginTxHash = protocol.prePeginTxHash;
+
+      // Indexer-supplied tx is untrusted. Verify against on-chain
+      // prePeginTxHash before deriveVaultRoot fires the wallet popup.
+      const computedTxHash = calculateBtcTxHash(activity.unsignedPrePeginTx);
+      if (
+        computedTxHash.toLowerCase() !== onChainPrePeginTxHash.toLowerCase()
+      ) {
+        throw new Error(
+          `Pre-PegIn transaction hash mismatch: computed ${computedTxHash} from indexer tx, ` +
+            `but on-chain contract has ${onChainPrePeginTxHash}. ` +
+            `Aborting to prevent potential attack.`,
+        );
+      }
 
       const fundingOutpoints = parseFundingOutpointsFromTx(
         activity.unsignedPrePeginTx,

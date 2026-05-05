@@ -4,7 +4,7 @@
 
 import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
 import { runDepositorPresignFlow } from "@babylonlabs-io/ts-sdk/tbv/core/services";
-import type { Address } from "viem";
+import type { Address, Hex } from "viem";
 
 import { LocalStorageStatus } from "@/models/peginStateMachine";
 import {
@@ -17,7 +17,7 @@ import { stripHexPrefix } from "@/utils/btc";
 import { ensureAuthenticatedVpClient } from "./ensureAuthenticatedVpClient";
 
 export interface SignAndSubmitPayoutsParams {
-  vaultId: string;
+  vaultId: Hex;
   peginTxHash: string;
   depositorBtcPubkey: string;
   /** Optional hint; resolved from GraphQL if missing. */
@@ -62,6 +62,7 @@ export async function signAndSubmitPayouts(
   const peginTxid = stripHexPrefix(peginTxHash);
   const rpcClient = await ensureAuthenticatedVpClient({
     btcWallet,
+    vaultId,
     unsignedPrePeginTxHex,
     peginTxHash,
     providerAddress: vaultProviderAddress,

@@ -20,6 +20,7 @@ export async function submitWotsPublicKey(
   params: WotsSubmissionParams,
 ): Promise<void> {
   const {
+    vaultId,
     peginTxHash,
     depositorBtcPubkey,
     providerAddress,
@@ -32,6 +33,7 @@ export async function submitWotsPublicKey(
   const peginTxid = stripHexPrefix(peginTxHash);
   const rpcClient = await ensureAuthenticatedVpClient({
     btcWallet,
+    vaultId,
     unsignedPrePeginTxHex,
     peginTxHash,
     providerAddress,
