@@ -110,21 +110,20 @@ deriveContextHash(
 ): Promise<string>
 ```
 
-The four `appName` labels TBV will request:
+The three `appName` labels TBV will request:
 
 | Label | Purpose | Per |
 |---|---|---|
 | `babylon-btc-vault-auth` | Auth anchor preimage (OP_RETURN commitment, VP token) | Pre-PegIn tx |
 | `babylon-btc-vault-hashlock` | HTLC hashlock preimage | BTC vault |
-| `babylon-btc-vault-wots-lo` | Low half of the per-vault WOTS seed | BTC vault |
-| `babylon-btc-vault-wots-hi` | High half of the per-vault WOTS seed | BTC vault |
+| `babylon-btc-vault-wots` | 32-byte root for the per-vault WOTS seed (SDK expands to 64 bytes via HKDF-Expand-SHA-256 with info `"babylon-btc-vault-wots-seed"`, contained to this purpose label) | BTC vault |
 
 - **`appName`** — Must be `[a-z0-9\-]`, 1–64 bytes. The
   wallet MUST display the full label in the approval
   dialog alongside the requesting origin so the user
-  can distinguish the four request types. Wallets that
+  can distinguish the three request types. Wallets that
   truncate long labels in the UI risk hiding the
-  `-auth` / `-hashlock` / `-wots-*` suffix that
+  `-auth` / `-hashlock` / `-wots` suffix that
   identifies which secret is being derived.
 - **`context`** — Hex-encoded application-specific data.
   Must be non-empty, lowercase hex, even-length, no
@@ -161,10 +160,9 @@ signing prompts in order:
 
 1. `deriveContextHash("babylon-btc-vault-auth", ctx)` — once per Pre-PegIn (shared across every BTC vault in the same Pre-PegIn).
 2. `deriveContextHash("babylon-btc-vault-hashlock", ctx + htlcVout)` — per BTC vault.
-3. `deriveContextHash("babylon-btc-vault-wots-lo", ctx + htlcVout)` — per BTC vault.
-4. `deriveContextHash("babylon-btc-vault-wots-hi", ctx + htlcVout)` — per BTC vault.
+3. `deriveContextHash("babylon-btc-vault-wots", ctx + htlcVout)` — per BTC vault.
 
-The wallet shows a separate approval dialog for each. A single-vault deposit takes 4 approvals at this step; a 3-vault batch takes 10 (1 auth + 9 per-vault). The hashlock preimage is later revealed on Ethereum during activation; the WOTS seed feeds the on-chain `depositorWotsPkHash` commitment; the auth anchor is committed in the Pre-PegIn `OP_RETURN` and is exchanged off-chain for a short-lived VP bearer token.
+The wallet shows a separate approval dialog for each. A single-vault deposit takes 3 approvals at this step; a 2-vault batch takes 5 (1 auth + 4 per-vault); a 3-vault batch takes 7 (1 auth + 6 per-vault). The hashlock preimage is later revealed on Ethereum during activation; the WOTS root is HKDF-expanded inside the SDK to 64 bytes and feeds the on-chain `depositorWotsPkHash` commitment; the auth anchor is committed in the Pre-PegIn `OP_RETURN` and is exchanged off-chain for a short-lived VP bearer token.
 
 ### Step 2: Sign Proof-of-Possession
 

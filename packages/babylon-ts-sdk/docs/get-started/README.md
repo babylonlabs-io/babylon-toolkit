@@ -81,8 +81,8 @@ Inside step 1 (`preparePegin`):
    │                            deriveHashlockSecret(wallet, ctx, i) → preimage
    │                              ┃ POPUP: deriveContextHash("babylon-btc-vault-hashlock")
    │                            deriveWotsSeed(wallet, ctx, i) → 64-byte seed
-   │                              ┃ POPUP: deriveContextHash("babylon-btc-vault-wots-lo")
-   │                              ┃ POPUP: deriveContextHash("babylon-btc-vault-wots-hi")
+   │                              ┃ POPUP: deriveContextHash("babylon-btc-vault-wots")
+   │                              ┃ (32-byte root → HKDF-Expand-SHA-256 → 64 bytes, in-SDK)
    │                            deriveWotsBlocksFromSeed(seed) → WOTS keys + hash
    │          │
    │          ▼
@@ -97,21 +97,24 @@ Inside step 1 (`preparePegin`):
 **Per-purpose derivation, per-vault popups.** Each secret type uses its own
 `deriveContextHash` label so a single phishing approval can compromise at most
 one secret type — never all three at once. There is no shared "vault root"
-returned to JavaScript. Per-vault secret count: 1 hashlock + 2 WOTS halves
-(the WOTS algorithm needs 64 bytes; `deriveContextHash` returns 32, so the
-seed is split across two distinct labels).
+returned to JavaScript. The WOTS helper does perform a JS-side HKDF-Expand
+on the wallet's 32-byte output to reach the 64 bytes `babe::wots` requires,
+but the expansion stays bound to the WOTS purpose label — auth and hashlock
+material is not derivable from it. Per-vault secret count: 1 hashlock + 1
+WOTS root.
 
 **Popup count formulas.**
 
-- Derive popups: `1 (auth) + 3*N (per-vault hashlock + 2 WOTS halves)`. Always
+- Derive popups: `1 (auth) + 2*N (per-vault hashlock + WOTS root)`. Always
   this exact count.
 - PegIn PSBT signing: `1` if the wallet implements `signPsbts` (batch);
   otherwise `N` sequential `signPsbt` calls (fallback). See
   `signPsbtsWithFallback` in the SDK.
 
-So a 1-vault deposit is `4 + 1 = 5` popups (batch wallet) or `4 + 1 = 5`
-(fallback, since N=1 collapses). A 3-vault batch is `10 + 1 = 11` (batch
-wallet) or `10 + 3 = 13` (fallback). See [`vault-secrets`](https://github.com/babylonlabs-io/babylon-toolkit/tree/main/packages/babylon-ts-sdk/src/tbv/core/vault-secrets) for the per-purpose helpers.
+So a 1-vault deposit is `3 + 1 = 4` popups (batch wallet) or `3 + 1 = 4`
+(fallback, since N=1 collapses). A 2-vault batch is `5 + 1 = 6` (batch
+wallet) or `5 + 2 = 7` (fallback). A 3-vault batch is `7 + 1 = 8` (batch
+wallet) or `7 + 3 = 10` (fallback). See [`vault-secrets`](https://github.com/babylonlabs-io/babylon-toolkit/tree/main/packages/babylon-ts-sdk/src/tbv/core/vault-secrets) for the per-purpose helpers.
 
 The critical transition is `VERIFIED → ACTIVE`. Until the depositor reveals the HTLC secret on Ethereum (step 6), the vault is **not live** — miss the activation window and the only exit is refund after the CSV timelock.
 

@@ -237,7 +237,7 @@ export function ResumeWotsContent({
       };
 
       // Per-purpose: one popup for auth anchor (cached for submitWotsPublicKey)
-      // and two popups for the WOTS seed (low + high halves).
+      // and one popup for the WOTS root (HKDF-expanded in-SDK to 64 bytes).
       const authAnchorBytes = await deriveAuthAnchor(
         btcWalletProvider,
         contextInput,

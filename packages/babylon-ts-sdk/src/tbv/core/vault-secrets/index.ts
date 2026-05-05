@@ -13,11 +13,7 @@ export type { FundingOutpoint, VaultContextInput } from "./context";
 
 export { deriveAuthAnchor, AUTH_ANCHOR_APP_NAME } from "./deriveAuthAnchor";
 export { deriveHashlockSecret, HASHLOCK_APP_NAME } from "./deriveHashlockSecret";
-export {
-  deriveWotsSeed,
-  WOTS_SEED_LO_APP_NAME,
-  WOTS_SEED_HI_APP_NAME,
-} from "./deriveWotsSeed";
+export { deriveWotsSeed, WOTS_SEED_APP_NAME } from "./deriveWotsSeed";
 
 export type { DeriveContextHashCapableWallet } from "./walletDerive";
 

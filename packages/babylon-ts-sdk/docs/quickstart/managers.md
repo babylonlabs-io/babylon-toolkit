@@ -23,7 +23,7 @@ Managers are the fastest path to a working flow when you're using a standard wal
 
 | # | Phase | SDK entry point | Contract status after | Wallet popups |
 |---|-------|-----------------|-----------------------|---------------|
-| 1 | Prepare Pre-PegIn + PegIn txs (sizing + per-purpose wallet derives + sign) | `peginManager.preparePegin()` | n/a (off-chain) | BTC: `1 + 3*N` `deriveContextHash` calls (1 auth + 1 hashlock and 2 WOTS halves per vault) + PegIn signing (1 `signPsbts` if the wallet supports batch, else `N` sequential `signPsbt`) |
+| 1 | Prepare Pre-PegIn + PegIn txs (sizing + per-purpose wallet derives + sign) | `peginManager.preparePegin()` | n/a (off-chain) | BTC: `1 + 2*N` `deriveContextHash` calls (1 auth + 1 hashlock + 1 WOTS root per vault; SDK HKDF-expands the WOTS root to 64 bytes in-process) + PegIn signing (1 `signPsbts` if the wallet supports batch, else `N` sequential `signPsbt`) |
 | 2 | Sign BTC proof-of-possession (once per session) | `peginManager.signProofOfPossession()` | n/a (off-chain) | 1 BTC (`signMessage`) |
 | 3 | Register on Ethereum | `peginManager.registerPeginOnChain()` | `PENDING` | 1 ETH |
 | 4 | Broadcast Pre-PegIn on Bitcoin | `peginManager.signAndBroadcast()` | still `PENDING` until VP observes the tx | 1 BTC (`signPsbt`) |
@@ -137,11 +137,13 @@ declare const availableUTXOs: UTXO[];
 declare const changeAddress: string;
 declare const vpEthAddress: Address;
 // 1. Prepare Pre-PegIn + PegIn transactions. The SDK orchestrator
-//    snapshots the wallet pubkey, runs a sizing pass, fires ONE
-//    `deriveContextHash` popup, derives per-vault WOTS keys + HTLC
-//    secrets from the same root, and signs the PegIn-input PSBTs.
-//    Returns broadcast-ready txs + the depositor pubkey snapshot +
-//    sensitive derived secrets (treat with care).
+//    snapshots the wallet pubkey, runs a sizing pass, fires
+//    `1 + 2*N` `deriveContextHash` popups (1 auth + 1 hashlock + 1
+//    WOTS root per vault; the WOTS root is HKDF-expanded in-SDK to
+//    the 64 bytes `babe::wots` requires), derives the per-vault WOTS
+//    keys + HTLC secrets, and signs the PegIn-input PSBTs. Returns
+//    broadcast-ready txs + the depositor pubkey snapshot + sensitive
+//    derived secrets (treat with care).
 const result = await peginManager.preparePegin({
   amounts: [100_000n],               // satoshis, one per vault
   vaultProviderBtcPubkey,

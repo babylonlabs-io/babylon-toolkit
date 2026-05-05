@@ -6,12 +6,24 @@
  * - the correct `appName` label is used per helper
  * - the context bytes match the per-Pre-PegIn vs per-vault shape
  * - per-vault secrets vary with `htlcVout`
- * - the WOTS seed concatenates the lo + hi calls in the right order
+ * - the WOTS seed is HKDF-Expand-SHA-256 over the wallet's 32-byte
+ *   output with a fixed info string, pinned against drift
  * - wallet-side validation rejects non-conforming responses
  */
 
+import { expand as hkdfExpand } from "@noble/hashes/hkdf.js";
 import { sha256 } from "@noble/hashes/sha2.js";
 import { describe, expect, it, vi } from "vitest";
+
+// Wrap @noble/hashes/hkdf.js so that the real `expand` runs (the
+// pinned-vector test depends on real HKDF output) but the call is
+// observable via `vi.mocked(hkdfExpand).mock.calls` for the
+// memory-zeroing test.
+vi.mock("@noble/hashes/hkdf.js", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("@noble/hashes/hkdf.js")>();
+  return { ...actual, expand: vi.fn(actual.expand) };
+});
 
 import { uint8ArrayToHex } from "../../primitives/utils/bitcoin";
 import {
@@ -29,8 +41,7 @@ import {
   deriveHashlockSecret,
 } from "../deriveHashlockSecret";
 import {
-  WOTS_SEED_HI_APP_NAME,
-  WOTS_SEED_LO_APP_NAME,
+  WOTS_SEED_APP_NAME,
   deriveWotsSeed,
 } from "../deriveWotsSeed";
 
@@ -95,77 +106,78 @@ describe("deriveHashlockSecret", () => {
 });
 
 describe("deriveWotsSeed", () => {
-  it("makes two deriveContextHash calls (lo + hi) with the same per-vault context", async () => {
+  it("makes one deriveContextHash call with the WOTS label and per-vault context", async () => {
     const wallet = deterministicWallet();
     await deriveWotsSeed(wallet, INPUT, 3);
 
-    expect(wallet.seen).toHaveLength(2);
-    const expectedContext = uint8ArrayToHex(buildPerVaultContext(INPUT, 3));
+    expect(wallet.seen).toHaveLength(1);
     expect(wallet.seen[0]).toEqual({
-      appName: WOTS_SEED_LO_APP_NAME,
-      context: expectedContext,
-    });
-    expect(wallet.seen[1]).toEqual({
-      appName: WOTS_SEED_HI_APP_NAME,
-      context: expectedContext,
+      appName: WOTS_SEED_APP_NAME,
+      context: uint8ArrayToHex(buildPerVaultContext(INPUT, 3)),
     });
   });
 
-  it("returns a 64-byte seed that concatenates lo || hi in order", async () => {
+  it("returns a 64-byte seed", async () => {
     const wallet = deterministicWallet();
     const seed = await deriveWotsSeed(wallet, INPUT, 0);
     expect(seed.length).toBe(64);
-
-    // Reconstruct what each call should have returned and verify the
-    // seed layout matches lo (first 32) then hi (last 32).
-    const loCall = wallet.deriveContextHash.mock.results[0]
-      .value as Promise<string>;
-    const hiCall = wallet.deriveContextHash.mock.results[1]
-      .value as Promise<string>;
-    const loHex = await loCall;
-    const hiHex = await hiCall;
-    expect(uint8ArrayToHex(seed.subarray(0, 32))).toBe(loHex);
-    expect(uint8ArrayToHex(seed.subarray(32, 64))).toBe(hiHex);
   });
 
-  it("zeroes both half-buffers on the success path (memory hygiene)", async () => {
-    const wallet = deterministicWallet();
-    const fillSpy = vi.spyOn(Uint8Array.prototype, "fill");
-    try {
-      await deriveWotsSeed(wallet, INPUT, 0);
-      // Two `.fill(0)` calls on the success path: lo + hi half-buffers.
-      // The seed itself is the function's return value and not zeroed
-      // here — that's the caller's responsibility.
-      const zeroFillCalls = fillSpy.mock.calls.filter(
-        (args) => args[0] === 0,
-      );
-      expect(zeroFillCalls.length).toBeGreaterThanOrEqual(2);
-    } finally {
-      fillSpy.mockRestore();
-    }
-  });
-
-  it("zeroes the lo half if the hi derivation throws", async () => {
+  it("HKDF-expands the 32-byte wallet output rather than returning it verbatim", async () => {
+    // The seed is HKDF-Expand of a 32-byte PRK with a fixed info
+    // string. The first 32 bytes of the seed must NOT equal the raw
+    // wallet output — that would mean expansion was a no-op.
+    const knownRoot = new Uint8Array(32).fill(0xab);
     const wallet = {
-      deriveContextHash: vi
-        .fn()
-        .mockResolvedValueOnce("ab".repeat(32))
-        .mockRejectedValueOnce(new Error("simulated wallet rejection")),
+      deriveContextHash: vi.fn(async () => uint8ArrayToHex(knownRoot)),
     };
-    const fillSpy = vi.spyOn(Uint8Array.prototype, "fill");
-    try {
-      await expect(deriveWotsSeed(wallet, INPUT, 0)).rejects.toThrow(
-        /simulated wallet rejection/,
-      );
-      // The lo buffer is allocated, the hi call throws, the lo finally
-      // must still zero it.
-      const zeroFillCalls = fillSpy.mock.calls.filter(
-        (args) => args[0] === 0,
-      );
-      expect(zeroFillCalls.length).toBeGreaterThanOrEqual(1);
-    } finally {
-      fillSpy.mockRestore();
-    }
+    const seed = await deriveWotsSeed(wallet, INPUT, 0);
+    expect(uint8ArrayToHex(seed.subarray(0, 32))).not.toBe(
+      uint8ArrayToHex(knownRoot),
+    );
+  });
+
+  it("produces distinct seeds for different htlcVout values", async () => {
+    const wallet = deterministicWallet();
+    const a = await deriveWotsSeed(wallet, INPUT, 0);
+    const b = await deriveWotsSeed(wallet, INPUT, 1);
+    expect(uint8ArrayToHex(a)).not.toBe(uint8ArrayToHex(b));
+  });
+
+  it("matches a pinned HKDF-Expand vector for a known wallet output (catches info-string drift)", async () => {
+    // If the wallet returns 0xaa repeated 32 times, HKDF-Expand-SHA-256
+    // (PRK = wallet output, info = "babylon-btc-vault-wots-seed",
+    // L=64) must produce this exact 64-byte hex. Any change to the
+    // info string, hash function, expansion length, or a switch back
+    // to full HKDF (Extract+Expand) breaks this.
+    const knownRoot = new Uint8Array(32).fill(0xaa);
+    const wallet = {
+      deriveContextHash: vi.fn(async () => uint8ArrayToHex(knownRoot)),
+    };
+    const seed = await deriveWotsSeed(wallet, INPUT, 0);
+    expect(uint8ArrayToHex(seed)).toBe(
+      "3223c445424c9f5cfe601c31482d28a8962465356f42193d5bc6b342e87c4516" +
+        "d66e00ef3e3bb8473b415268869906c44d9801feb6925a83eef100d2f75e388b",
+    );
+  });
+
+  it("zeroes the 32-byte root buffer after expansion (memory hygiene)", async () => {
+    // Capture the exact PRK Uint8Array the helper allocated via the
+    // wrapped HKDF-Expand call. That buffer must be all-zero by the
+    // time the helper returns.
+    vi.mocked(hkdfExpand).mockClear();
+    const knownRoot = new Uint8Array(32).fill(0xab);
+    const wallet = {
+      deriveContextHash: vi.fn(async () => uint8ArrayToHex(knownRoot)),
+    };
+    await deriveWotsSeed(wallet, INPUT, 0);
+
+    const calls = vi.mocked(hkdfExpand).mock.calls;
+    expect(calls.length).toBe(1);
+    const prk = calls[0][1] as Uint8Array;
+    expect(prk).toBeInstanceOf(Uint8Array);
+    expect(prk.length).toBe(32);
+    expect(Array.from(prk)).toEqual(new Array(32).fill(0));
   });
 });
 

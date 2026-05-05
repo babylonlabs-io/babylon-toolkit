@@ -14,7 +14,10 @@ describe("aaveConversions", () => {
   describe("aaveValueToUsd", () => {
     it("should convert 1e26 to $1 USD", () => {
       const value = 10n ** 26n;
-      expect(aaveValueToUsd(value)).toBe(1);
+      // Float division of a value above Number.MAX_SAFE_INTEGER loses
+      // ~1 ulp of precision; toBeCloseTo with default 2-decimal
+      // tolerance is correct for the display-only use case.
+      expect(aaveValueToUsd(value)).toBeCloseTo(1);
     });
 
     it("should convert 100e26 to $100 USD", () => {
@@ -29,13 +32,13 @@ describe("aaveConversions", () => {
     it("should handle fractional USD values", () => {
       // 0.5 USD = 0.5 * 1e26
       const value = 5n * 10n ** 25n;
-      expect(aaveValueToUsd(value)).toBe(0.5);
+      expect(aaveValueToUsd(value)).toBeCloseTo(0.5);
     });
 
     it("should handle large values", () => {
       // $1,000,000 USD
       const value = 1_000_000n * 10n ** 26n;
-      expect(aaveValueToUsd(value)).toBe(1_000_000);
+      expect(aaveValueToUsd(value)).toBeCloseTo(1_000_000);
     });
   });
 

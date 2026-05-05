@@ -199,9 +199,9 @@ Three helpers, one per Babylon BTC vault secret type:
 |---|---|---|---|
 | `deriveAuthAnchor(wallet, ctx)` | `"babylon-btc-vault-auth"` | 32 bytes | per Pre-PegIn |
 | `deriveHashlockSecret(wallet, ctx, htlcVout)` | `"babylon-btc-vault-hashlock"` | 32 bytes | per BTC vault |
-| `deriveWotsSeed(wallet, ctx, htlcVout)` | `"babylon-btc-vault-wots-lo"` + `"babylon-btc-vault-wots-hi"` | 64 bytes | per BTC vault |
+| `deriveWotsSeed(wallet, ctx, htlcVout)` | `"babylon-btc-vault-wots"` | 64 bytes | per BTC vault |
 
-`deriveWotsSeed` makes **two** wallet calls (`-lo` + `-hi`) because `deriveContextHash` returns 32 bytes per call and the WOTS algorithm needs 64. Phishing one half doesn't compromise the seed.
+`deriveWotsSeed` makes **one** wallet call. The 32-byte wallet output is treated as a PRK and stretched to the 64 bytes `babe::wots` requires via HKDF-Expand-SHA-256 (info string `"babylon-btc-vault-wots-seed"`). The expansion is contained to the WOTS purpose label — auth and hashlock material is not derivable from it. Per-purpose isolation across secret types is preserved.
 
 ### Example: WOTS key derivation
 
@@ -227,9 +227,10 @@ const ctx = {
   fundingOutpoints,
 };
 
-// 2. Derive the 64-byte WOTS seed for this vault. Two wallet popups
-//    (-wots-lo, -wots-hi). Per-vault uniqueness via htlcVout in the
-//    wallet context.
+// 2. Derive the 64-byte WOTS seed for this vault. One wallet popup
+//    (`babylon-btc-vault-wots`); the SDK HKDF-Expands the 32-byte
+//    wallet output to 64 bytes. Per-vault uniqueness via htlcVout in
+//    the wallet context.
 const seed = await deriveWotsSeed(btcWallet, ctx, htlcVout);
 try {
   const wotsPublicKeys = await deriveWotsBlocksFromSeed(seed);

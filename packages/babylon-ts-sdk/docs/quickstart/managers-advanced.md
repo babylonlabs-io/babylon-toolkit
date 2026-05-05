@@ -120,7 +120,7 @@ The `runDepositorPresignFlow()` service does this automatically.
 
 `preparePegin()` accepts an `amounts` array, batching N vaults into one Pre-PegIn transaction. This saves BTC fees (single funding tx covering many HTLC outputs).
 
-**Wallet popup count grows linearly with `N`.** Each per-vault secret type uses its own `deriveContextHash` call so a phishing approval can compromise at most one secret type. For `N` vaults inside `preparePegin`: `1 + 3*N` derive popups (1 auth anchor + per-vault: 1 hashlock + 2 WOTS halves), plus PegIn signing — `1` `signPsbts` if the wallet supports batch, otherwise `N` sequential `signPsbt` calls. A 3-vault batch is 10 derive popups + 1 (batch) or 3 (fallback). A 1-vault deposit is 4 + 1 = 5. See [Wallet Interfaces → Wallet-derived secrets](../guides/wallet-interfaces.md#wallet-derived-secrets-derivecontexthash) for why per-purpose isolation matters.
+**Wallet popup count grows linearly with `N`.** Each per-vault secret type uses its own `deriveContextHash` call so a phishing approval can compromise at most one secret type. For `N` vaults inside `preparePegin`: `1 + 2*N` derive popups (1 auth anchor + per-vault: 1 hashlock + 1 WOTS root; the WOTS root is HKDF-Expanded in-SDK to the 64 bytes `babe::wots` requires, contained to the WOTS purpose label), plus PegIn signing — `1` `signPsbts` if the wallet supports batch, otherwise `N` sequential `signPsbt` calls. A 3-vault batch is 7 derive popups + 1 (batch) or 3 (fallback). A 2-vault batch is 5 + 1 = 6 (batch) or 5 + 2 = 7 (fallback). A 1-vault deposit is 3 + 1 = 4. See [Wallet Interfaces → Wallet-derived secrets](../guides/wallet-interfaces.md#wallet-derived-secrets-derivecontexthash) for why per-purpose isolation matters.
 
 Rules to watch:
 

@@ -30,6 +30,11 @@ export interface DeriveContextHashCapableWallet {
  *
  * Errors from the wallet (user rejection, method not supported, etc.)
  * propagate unchanged.
+ *
+ * Memory note: the wallet's `Promise<string>` resolves to an
+ * immutable JS string, which cannot be zeroed — it remains resident
+ * until GC. Callers that need best-effort hygiene should zero the
+ * returned `Uint8Array` after use.
  */
 export async function deriveContextHashBytes(
   wallet: DeriveContextHashCapableWallet,

@@ -4,7 +4,8 @@
  * Loops over each BTC vault funded by the Pre-PegIn and calls the
  * per-purpose `deriveWotsSeed` and `deriveHashlockSecret` helpers,
  * which in turn touch the wallet via `deriveContextHash` (one popup
- * for hashlock + two for WOTS per vault, by spec).
+ * for hashlock + one for the WOTS root per vault; the WOTS root is
+ * HKDF-expanded in-SDK to the 64 bytes `babe::wots` requires).
  *
  * @module managers/pegin/derivePerVaultSecrets
  */

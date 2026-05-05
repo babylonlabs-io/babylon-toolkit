@@ -6,11 +6,12 @@
  * chain logic.
  *
  * Callers obtain the seed from `deriveWotsSeed(wallet, ctx, htlcVout)` in
- * the `vault-secrets` module — a thin wrapper around two per-purpose
- * `wallet.deriveContextHash` calls that returns the 64-byte concat. Per-vault
- * uniqueness is encoded in the seed via `htlcVout` (passed into the wallet
- * context), so this module only handles the chain derivation — no further
- * key splitting by `(vaultId, depositorPk, appContract)` is needed.
+ * the `vault-secrets` module — one `wallet.deriveContextHash` call (label
+ * `babylon-btc-vault-wots`) followed by HKDF-Expand-SHA-256 to stretch the
+ * 32-byte wallet output to 64 bytes. Per-vault uniqueness is encoded via
+ * `htlcVout` (passed into the wallet context), so this module only handles
+ * the chain derivation — no further key splitting by
+ * `(vaultId, depositorPk, appContract)` is needed.
  *
  * @module wots/blockDerivation
  */
