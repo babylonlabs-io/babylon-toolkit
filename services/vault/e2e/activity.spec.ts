@@ -64,7 +64,7 @@ async function connectWallets(page: Page): Promise<void> {
   await expect(walletModal).not.toBeVisible({ timeout: 15_000 });
 }
 
-test.describe("Activity Log — BT-21", () => {
+test.describe("Activity Log — BT-21", { tag: ["@spec:009-activity", "@story:BT-21"] }, () => {
   test("[BT-21-AC1] A disconnected user sees the connect-to-view-activity empty state", async ({
     page,
   }) => {

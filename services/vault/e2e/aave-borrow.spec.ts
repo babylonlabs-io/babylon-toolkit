@@ -34,7 +34,7 @@ async function connectWallets(page: Page): Promise<void> {
 // BT-15: User can borrow ERC-20 assets against BTC collateral
 // ---------------------------------------------------------------------------
 
-test.describe("Aave Borrow — BT-15", () => {
+test.describe("Aave Borrow — BT-15", { tag: ["@spec:006-aave-borrow", "@story:BT-15"] }, () => {
   test.beforeEach(async ({ page }) => {
     await injectWalletMocks(page);
     await setupHealthyInfra(page);
@@ -86,7 +86,7 @@ test.describe("Aave Borrow — BT-15", () => {
 // BT-16: User can repay borrowed ERC-20 assets
 // ---------------------------------------------------------------------------
 
-test.describe("Aave Repay — BT-16", () => {
+test.describe("Aave Repay — BT-16", { tag: ["@spec:006-aave-borrow", "@story:BT-16"] }, () => {
   test.beforeEach(async ({ page }) => {
     await injectWalletMocks(page);
     await setupHealthyInfra(page);

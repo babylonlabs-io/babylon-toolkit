@@ -37,7 +37,7 @@ async function connectWallets(page: Page): Promise<void> {
 // BT-19: User can initiate a vault withdrawal (pegout)
 // ---------------------------------------------------------------------------
 
-test.describe("Pegout Initiation — BT-19", () => {
+test.describe("Pegout Initiation — BT-19", { tag: ["@spec:008-withdraw", "@story:BT-19"] }, () => {
   test.beforeEach(async ({ page }) => {
     await injectWalletMocks(page);
     await setupHealthyInfra(page);
@@ -80,7 +80,7 @@ test.describe("Pegout Initiation — BT-19", () => {
 // BT-20: User can monitor the progress of an in-flight withdrawal
 // ---------------------------------------------------------------------------
 
-test.describe("Pegout Progress Monitoring — BT-20", () => {
+test.describe("Pegout Progress Monitoring — BT-20", { tag: ["@spec:008-withdraw", "@story:BT-20"] }, () => {
   test.beforeEach(async ({ page }) => {
     await injectWalletMocks(page);
     await setupHealthyInfra(page);

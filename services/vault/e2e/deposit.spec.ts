@@ -403,7 +403,7 @@ async function openDepositDialog(page: Page): Promise<void> {
 // BT-04: User can enter a BTC deposit amount and select a vault provider
 // ---------------------------------------------------------------------------
 
-test.describe("Deposit Form — BT-04", () => {
+test.describe("Deposit Form — BT-04", { tag: ["@spec:003-deposit", "@story:BT-04"] }, () => {
   test("[BT-04-AC1] Form rejects amounts below the protocol minimum — CTA is disabled with a minimum-amount label", async ({
     page,
   }) => {
@@ -480,7 +480,7 @@ test.describe("Deposit Form — BT-04", () => {
 // BT-05: User can sign a proof-of-possession over their Bitcoin public key
 // ---------------------------------------------------------------------------
 
-test.describe("Proof of Possession — BT-05", () => {
+test.describe("Proof of Possession — BT-05", { tag: ["@spec:003-deposit", "@story:BT-05"] }, () => {
   test("[BT-05-AC1] The signing modal presents a human-readable explanation of the PoP step", async ({
     page,
   }) => {
@@ -627,7 +627,7 @@ test.describe("Proof of Possession — BT-05", () => {
 // BT-06: User can register the peg-in on Ethereum
 // ---------------------------------------------------------------------------
 
-test.describe("Ethereum Peg-in Registration — BT-06", () => {
+test.describe("Ethereum Peg-in Registration — BT-06", { tag: ["@spec:003-deposit", "@story:BT-06"] }, () => {
   test("[BT-06-AC1] A single Ethereum transaction registers all vaults in the deposit batch", async ({
     page,
   }) => {
@@ -824,7 +824,7 @@ test.describe("Ethereum Peg-in Registration — BT-06", () => {
 // BT-07: User can broadcast the pre-peg-in transaction to Bitcoin
 // ---------------------------------------------------------------------------
 
-test.describe("Bitcoin Pre-PegIn Broadcast — BT-07", () => {
+test.describe("Bitcoin Pre-PegIn Broadcast — BT-07", { tag: ["@spec:003-deposit", "@story:BT-07"] }, () => {
   test("[BT-07-AC1] UTXO selection accounts for fees before presenting the signing request", async ({
     page,
   }) => {
@@ -885,7 +885,7 @@ test.describe("Bitcoin Pre-PegIn Broadcast — BT-07", () => {
 // BT-08: User can sign payout transactions for vault payouts
 // ---------------------------------------------------------------------------
 
-test.describe("Payout Signing — BT-08", () => {
+test.describe("Payout Signing — BT-08", { tag: ["@spec:003-deposit", "@story:BT-08"] }, () => {
   test("[BT-08-AC1] Payout amounts are derived from on-chain or WASM-computed values, not taken verbatim from the VP", async ({
     page,
   }) => {
@@ -950,7 +950,7 @@ test.describe("Payout Signing — BT-08", () => {
 // BT-09: User can download vault artifacts
 // ---------------------------------------------------------------------------
 
-test.describe("Vault Artifact Download — BT-09", () => {
+test.describe("Vault Artifact Download — BT-09", { tag: ["@spec:003-deposit", "@story:BT-09"] }, () => {
   test("[BT-09-AC1] The Download Vault Artifacts dialog appears after payout signing and before activation", async ({
     page,
   }) => {
@@ -1025,7 +1025,7 @@ test.describe("Vault Artifact Download — BT-09", () => {
 // BT-10: User can activate a vault by revealing the HTLC secret
 // ---------------------------------------------------------------------------
 
-test.describe("Vault Activation — BT-10", () => {
+test.describe("Vault Activation — BT-10", { tag: ["@spec:003-deposit", "@story:BT-10"] }, () => {
   test("[BT-10-AC1] The HTLC secret submitted is derived from the vault seed, not read from UI state", async ({
     page,
   }) => {

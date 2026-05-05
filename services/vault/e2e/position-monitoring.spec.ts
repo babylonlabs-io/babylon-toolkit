@@ -33,7 +33,7 @@ async function connectWallets(page: Page): Promise<void> {
 // BT-17: User can see real-time health factor warnings
 // ---------------------------------------------------------------------------
 
-test.describe("Health Factor Warnings — BT-17", () => {
+test.describe("Health Factor Warnings — BT-17", { tag: ["@spec:007-aave-position-monitoring", "@story:BT-17"] }, () => {
   test.beforeEach(async ({ page }) => {
     await injectWalletMocks(page);
     await setupHealthyInfra(page);
@@ -82,7 +82,7 @@ test.describe("Health Factor Warnings — BT-17", () => {
 // BT-18: User can see a cascading liquidation risk simulation
 // ---------------------------------------------------------------------------
 
-test.describe("Cascade Liquidation Simulation — BT-18", () => {
+test.describe("Cascade Liquidation Simulation — BT-18", { tag: ["@spec:007-aave-position-monitoring", "@story:BT-18"] }, () => {
   test.beforeEach(async ({ page }) => {
     await injectWalletMocks(page);
     await setupHealthyInfra(page);

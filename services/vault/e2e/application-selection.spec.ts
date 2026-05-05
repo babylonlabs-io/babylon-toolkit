@@ -65,7 +65,7 @@ async function connectWallets(page: Page): Promise<void> {
   await expect(walletModal).not.toBeVisible({ timeout: 15_000 });
 }
 
-test.describe("Application Selection — BT-23", () => {
+test.describe("Application Selection — BT-23", { tag: ["@spec:002-application-selection", "@story:BT-23"] }, () => {
   test.beforeEach(async ({ page }) => {
     await injectWalletMocks(page);
     await setupHealthyInfra(page);

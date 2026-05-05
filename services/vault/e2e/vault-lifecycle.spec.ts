@@ -144,7 +144,7 @@ async function seedExpiredPegin(page: Page): Promise<void> {
 // BT-11: User can view the status of all their vaults
 // ---------------------------------------------------------------------------
 
-test.describe("Vault Status Dashboard — BT-11", () => {
+test.describe("Vault Status Dashboard — BT-11", { tag: ["@spec:004-vault-lifecycle", "@story:BT-11"] }, () => {
   test.beforeEach(async ({ page }) => {
     await injectWalletMocks(page);
     await setupHealthyInfra(page);
@@ -219,7 +219,7 @@ test.describe("Vault Status Dashboard — BT-11", () => {
 // BT-12: User can refund an expired pre-peg-in HTLC
 // ---------------------------------------------------------------------------
 
-test.describe("HTLC Refund — BT-12", () => {
+test.describe("HTLC Refund — BT-12", { tag: ["@spec:004-vault-lifecycle", "@story:BT-12"] }, () => {
   test.beforeEach(async ({ page }) => {
     await injectWalletMocks(page);
     await setupHealthyInfra(page);

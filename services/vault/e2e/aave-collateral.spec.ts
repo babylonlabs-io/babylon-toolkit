@@ -34,7 +34,7 @@ async function connectWallets(page: Page): Promise<void> {
 // BT-13: User can view their BTC collateral position on Aave
 // ---------------------------------------------------------------------------
 
-test.describe("Aave Collateral Position View — BT-13", () => {
+test.describe("Aave Collateral Position View — BT-13", { tag: ["@spec:005-aave-collateral", "@story:BT-13"] }, () => {
   test.beforeEach(async ({ page }) => {
     await injectWalletMocks(page);
     await setupHealthyInfra(page);
@@ -99,7 +99,7 @@ test.describe("Aave Collateral Position View — BT-13", () => {
 // BT-14: User can reorder collateral vaults to optimise withdrawal
 // ---------------------------------------------------------------------------
 
-test.describe("Reorder Collateral Vaults — BT-14", () => {
+test.describe("Reorder Collateral Vaults — BT-14", { tag: ["@spec:005-aave-collateral", "@story:BT-14"] }, () => {
   test.beforeEach(async ({ page }) => {
     await injectWalletMocks(page);
     await setupHealthyInfra(page);

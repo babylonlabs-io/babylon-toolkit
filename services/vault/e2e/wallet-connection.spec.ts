@@ -107,7 +107,7 @@ async function connectBothWallets(page: Page): Promise<void> {
 // BT-01: User can connect a Bitcoin wallet
 // ---------------------------------------------------------------------------
 
-test.describe("Bitcoin Wallet Connection — BT-01", () => {
+test.describe("Bitcoin Wallet Connection — BT-01", { tag: ["@spec:001-wallet-connection", "@story:BT-01"] }, () => {
   test.beforeEach(async ({ page }) => {
     await injectWalletMocks(page);
     await setupHealthyInfra(page);
@@ -201,7 +201,7 @@ test.describe("Bitcoin Wallet Connection — BT-01", () => {
 // BT-02: User can connect an Ethereum wallet
 // ---------------------------------------------------------------------------
 
-test.describe("Ethereum Wallet Connection — BT-02", () => {
+test.describe("Ethereum Wallet Connection — BT-02", { tag: ["@spec:001-wallet-connection", "@story:BT-02"] }, () => {
   test.beforeEach(async ({ page }) => {
     await injectWalletMocks(page);
     await setupHealthyInfra(page);

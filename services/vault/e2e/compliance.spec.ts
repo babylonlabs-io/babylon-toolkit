@@ -60,7 +60,7 @@ async function mockHealthyScreening(page: Page): Promise<void> {
 // BT-22: User is blocked from accessing the dApp from restricted jurisdictions
 // ---------------------------------------------------------------------------
 
-test.describe("Compliance — BT-22", () => {
+test.describe("Compliance — BT-22", { tag: ["@spec:010-compliance", "@story:BT-22"] }, () => {
   test("[BT-22-AC1] Geolocation check runs before wallet connection is permitted — geo-blocked users cannot connect", async ({
     page,
   }) => {
