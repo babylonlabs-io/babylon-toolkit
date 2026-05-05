@@ -67,17 +67,22 @@ export function useApplicationCap(user?: string): UseApplicationCapResult {
 
   const snapshot = useMemo<CapSnapshot | null>(() => {
     if (!enabled || !capsQuery.data) return null;
-    // Uncapped deployments resolve immediately once caps are known; usage data
-    // is irrelevant when no cap exists, so the UI can hide without waiting on
-    // the usage query to finish loading.
     const uncapped =
       capsQuery.data.totalCapBTC === 0n &&
       capsQuery.data.perAddressCapBTC === 0n;
     if (uncapped) {
+      // The dashboard's SupplyCapSection still surfaces the live "Total
+      // Deposited" value when the protocol is uncapped, so wait for the
+      // usage query to settle before resolving. On a usage error fall back
+      // to a synthetic 0n so the card stays renderable; the error itself is
+      // shielded below to keep the deposit form unblocked.
+      const usageSettled =
+        usageQuery.data !== undefined || usageQuery.error !== null;
+      if (!usageSettled) return null;
       return computeCapSnapshot({
         caps: capsQuery.data,
-        totalBTC: 0n,
-        userBTC: null,
+        totalBTC: usageQuery.data?.totalBTC ?? 0n,
+        userBTC: usageQuery.data?.userBTC ?? null,
       });
     }
     if (!usageQuery.data) return null;
@@ -86,7 +91,7 @@ export function useApplicationCap(user?: string): UseApplicationCapResult {
       totalBTC: usageQuery.data.totalBTC,
       userBTC: usageQuery.data.userBTC,
     });
-  }, [enabled, capsQuery.data, usageQuery.data]);
+  }, [enabled, capsQuery.data, usageQuery.data, usageQuery.error]);
 
   const capsRefetch = capsQuery.refetch;
   const usageRefetch = usageQuery.refetch;
@@ -95,10 +100,13 @@ export function useApplicationCap(user?: string): UseApplicationCapResult {
     usageRefetch();
   }, [capsRefetch, usageRefetch]);
 
-  // Once an uncapped snapshot resolves, the usage query is irrelevant — its
-  // pending/error state must not bleed into the public surface, otherwise an
-  // unrelated usage RPC failure would set `capUnavailable: true` in the
-  // deposit form and block all deposits with "Unable to verify supply cap".
+  // Once an uncapped snapshot resolves, the usage query's error state must not
+  // bleed into the public surface, otherwise an unrelated usage RPC failure
+  // would set `capUnavailable: true` in the deposit form and block all
+  // deposits with "Unable to verify supply cap". (Pending state, on the other
+  // hand, is intentionally surfaced via `isLoading` so the dashboard's
+  // SupplyCapSection skeleton waits for usage data before showing the
+  // "Total Deposited" card.)
   const uncappedSnapshot =
     snapshot !== null && !snapshot.hasTotalCap && !snapshot.hasPerAddressCap;
 

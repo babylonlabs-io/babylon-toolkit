@@ -1,7 +1,8 @@
 /**
  * SupplyCapSection — dashboard card visualizing protocol BTC supply cap state.
  * Shows the configured total cap and the current total deposited, each with a
- * USD equivalent. Hides entirely when no cap is configured.
+ * USD equivalent. When no total cap is configured on-chain the cap card
+ * displays "Uncapped" while the deposited card continues to show usage.
  */
 
 import { Card } from "@babylonlabs-io/core-ui";
@@ -79,19 +80,29 @@ export function SupplyCapSection({
     );
   }
 
-  if (!snapshot || !snapshot.hasTotalCap) return null;
+  if (!snapshot) return null;
 
   const coinSymbol = getBtcSymbol();
-  const capBtc = satoshiToBtcNumber(snapshot.totalCapBTC);
   const depositedBtc = satoshiToBtcNumber(snapshot.totalBTC);
   // Match simple-staking's formatBTCTvl: 2 decimals for >= 1 BTC, 8 for < 1 BTC.
-  const capDecimals = capBtc >= 1 ? 2 : 8;
   const depositedDecimals = depositedBtc >= 1 ? 2 : 8;
-  const capDisplay = `${formatSatoshisToBtcDisplay(snapshot.totalCapBTC, capDecimals)} ${coinSymbol}`;
   const depositedDisplay = `${formatSatoshisToBtcDisplay(snapshot.totalBTC, depositedDecimals)} ${coinSymbol}`;
-
-  const capUsd = btcPriceUSD > 0 ? capBtc * btcPriceUSD : null;
   const depositedUsd = btcPriceUSD > 0 ? depositedBtc * btcPriceUSD : null;
+
+  // When the on-chain cap is zero the protocol is uncapped; surface that
+  // explicitly instead of hiding the card so depositors still see the
+  // current total locked.
+  let capDisplay: string;
+  let capUsd: number | null;
+  if (snapshot.hasTotalCap) {
+    const capBtc = satoshiToBtcNumber(snapshot.totalCapBTC);
+    const capDecimals = capBtc >= 1 ? 2 : 8;
+    capDisplay = `${formatSatoshisToBtcDisplay(snapshot.totalCapBTC, capDecimals)} ${coinSymbol}`;
+    capUsd = btcPriceUSD > 0 ? capBtc * btcPriceUSD : null;
+  } else {
+    capDisplay = "Uncapped";
+    capUsd = null;
+  }
 
   return (
     <VaultCapFrame>

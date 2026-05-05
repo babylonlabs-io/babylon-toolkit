@@ -85,12 +85,16 @@ describe("SupplyCapSection", () => {
     expect(screen.queryByText(/\$/)).not.toBeInTheDocument();
   });
 
-  it("renders nothing when the cap is unlimited (hasTotalCap = false)", () => {
+  it("shows 'Uncapped' for the cap and the actual deposited value when hasTotalCap = false", () => {
     mockBtcPrice.mockReturnValue(69_003.07);
-    const { container } = render(
-      <SupplyCapSection snapshot={unlimitedSnapshot} />,
-    );
-    expect(container).toBeEmptyDOMElement();
+    render(<SupplyCapSection snapshot={unlimitedSnapshot} />);
+    expect(screen.getByText("Protocol Cap")).toBeInTheDocument();
+    expect(screen.getByText("Uncapped")).toBeInTheDocument();
+    // Deposited still renders normally (10 BTC * 69,003.07 = 690,030.70).
+    expect(screen.getByText(/10 s?BTC/)).toBeInTheDocument();
+    expect(screen.getByText(/\$690,030\.70/)).toBeInTheDocument();
+    // The "Uncapped" cap has no USD equivalent; only the deposited card does.
+    expect(screen.getAllByText(/\$/)).toHaveLength(1);
   });
 
   it("renders nothing when snapshot is null", () => {
