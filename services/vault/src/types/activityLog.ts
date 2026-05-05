@@ -11,12 +11,10 @@
 export type ActivityType =
   | "Deposit"
   | "Withdraw"
-  | "Add Collateral"
-  | "Remove Collateral"
   | "Liquidation"
   | "Borrow"
   | "Repay"
-  // Pending activity types (not yet confirmed on-chain)
+  | "Redeem"
   | "Pending Deposit";
 
 /**
