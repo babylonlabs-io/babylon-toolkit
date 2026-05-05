@@ -95,10 +95,9 @@ export async function ensureAuthenticatedVpClient(
     root?.fill(0);
   }
 
-  const pinnedServerPubkey =
-    await getVaultRegistryReader().getVaultProviderBtcPubKey(
-      params.providerAddress as Address,
-    );
+  const pinnedServerPubkey = await reader.getVaultProviderBtcPubKey(
+    params.providerAddress as Address,
+  );
 
   return createAuthenticatedVpClient({
     baseUrl,

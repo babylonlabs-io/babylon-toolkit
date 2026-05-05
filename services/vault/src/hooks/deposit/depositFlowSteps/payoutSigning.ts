@@ -17,7 +17,7 @@ import { stripHexPrefix } from "@/utils/btc";
 import { ensureAuthenticatedVpClient } from "./ensureAuthenticatedVpClient";
 
 export interface SignAndSubmitPayoutsParams {
-  vaultId: string;
+  vaultId: Hex;
   peginTxHash: string;
   depositorBtcPubkey: string;
   /** Optional hint; resolved from GraphQL if missing. */
@@ -62,7 +62,7 @@ export async function signAndSubmitPayouts(
   const peginTxid = stripHexPrefix(peginTxHash);
   const rpcClient = await ensureAuthenticatedVpClient({
     btcWallet,
-    vaultId: vaultId as Hex,
+    vaultId,
     unsignedPrePeginTxHex,
     peginTxHash,
     providerAddress: vaultProviderAddress,
