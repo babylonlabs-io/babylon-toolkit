@@ -1,3 +1,7 @@
+import {
+  AAVE_BASE_CURRENCY_DECIMALS,
+  AAVE_BASE_CURRENCY_RAY_DECIMALS,
+} from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
 import { act, renderHook } from "@testing-library/react";
 import { type ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
@@ -51,11 +55,8 @@ const ASSET = {
   icon: "/usdc.svg",
 } as LoanContextValue["assetConfig"];
 
-// Aave SDK conventions:
-//   totalCollateralValue is scaled by 1e26 per USD,
-//   totalDebtValueRay is scaled by 1e53 per USD.
-const USD_BASE = 10n ** 26n;
-const USD_RAY = 10n ** 53n;
+const USD_BASE = 10n ** BigInt(AAVE_BASE_CURRENCY_DECIMALS);
+const USD_RAY = 10n ** BigInt(AAVE_BASE_CURRENCY_RAY_DECIMALS);
 
 function buildAccountData(collateralUsd: bigint, debtUsd: bigint) {
   return {
