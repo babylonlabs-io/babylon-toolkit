@@ -12,6 +12,7 @@
     "lint": "nx run-many --target=lint --all --verbose",
     "test": "nx run-many --target=test --all --verbose",
     "nx:sync": "nx sync",
+    "spec-coverage": "tsx scripts/spec-coverage.ts",
     "prepare": "husky",
     "ci:release": "nx run @internal/release:run"
   },

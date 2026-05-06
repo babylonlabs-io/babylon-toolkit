@@ -38,7 +38,18 @@ This repo uses [GitHub Spec Kit](https://github.com/github/spec-kit). Every feat
 - Existing feature specs: [`specs/`](./specs/)
 - Templates and scripts: [`.specify/`](./.specify/)
 
-E2E tests reference user-story IDs (`BT-XX`) defined inside each `spec.md`. When changing behavior covered by a spec, update the spec first, then code, then tests.
+E2E tests are linked to specs by two mechanisms, both required for new tests:
+
+1. **Test names** include the AC marker `[BT-XX-ACn]`. Each acceptance scenario in a spec is the numbered list under `**Acceptance Scenarios**:`; AC1 is the first item, AC2 the second, and so on.
+2. **Playwright tags** on every `test.describe` block: `{ tag: ["@spec:NNN-folder-slug", "@story:BT-XX"] }`. These let you run a single spec's tests with `playwright test --grep @spec:003-deposit`.
+
+When changing behavior covered by a spec, update the spec first, then code, then tests.
+
+**Coverage check**: `pnpm spec-coverage` (root) parses every `specs/**/spec.md` and every `services/vault/e2e/**/*.spec.ts`, then reports per-story AC coverage. It exits non-zero when:
+- A story has zero e2e tests
+- A test references a story or spec slug that doesn't exist
+- A spec defines an acceptance scenario that no test covers (each numbered scenario must be covered by at least one `[BT-XX-ACn]` test)
+
 
 Slash commands (Claude Code):
 - `/speckit-constitution` - amend project principles
