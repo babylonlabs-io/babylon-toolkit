@@ -26,6 +26,7 @@ import { BorrowDetailsCard } from "../Borrow/BorrowDetailsCard";
 import { useRepayMetrics } from "./hooks/useRepayMetrics";
 import { useRepayState } from "./hooks/useRepayState";
 import { validateRepayAction } from "./hooks/validateRepayAction";
+import { validateRepayPreSign } from "./hooks/validateRepayPreSign";
 
 export function Repay() {
   const {
@@ -38,6 +39,7 @@ export function Repay() {
     assetConfig,
     proxyContract,
     tokenPriceUsd,
+    refetchSplitParams,
     onRepaySuccess,
   } = useLoanContext();
 
@@ -89,6 +91,11 @@ export function Repay() {
       repayAmount,
       selectedReserve,
       isFullRepayment,
+      () =>
+        validateRepayPreSign({
+          liquidationThresholdBps,
+          refetchSplitParams,
+        }),
     );
     if (success) {
       resetRepayAmount();

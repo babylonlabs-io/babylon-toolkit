@@ -45,6 +45,7 @@ export function BorrowFlow({ open, onClose }: BorrowFlowProps) {
     tokenPriceUsd,
     isPositionDataStale,
     refetchPosition,
+    refetchSplitParams,
   } = useAaveReserveDetail({
     reserveId: selectedAssetSymbol ?? undefined,
     address,
@@ -93,6 +94,7 @@ export function BorrowFlow({ open, onClose }: BorrowFlowProps) {
             tokenPriceUsd={tokenPriceUsd}
             isPositionDataStale={isPositionDataStale}
             refetchPosition={refetchPosition}
+            refetchSplitParams={refetchSplitParams}
             onChangeAsset={goBack}
             onBorrowSuccess={completeBorrow}
           />
@@ -122,6 +124,7 @@ function BorrowFormStep({
   tokenPriceUsd,
   isPositionDataStale,
   refetchPosition,
+  refetchSplitParams,
   onChangeAsset,
   onBorrowSuccess,
 }: {
@@ -137,6 +140,9 @@ function BorrowFormStep({
   tokenPriceUsd: number | null;
   isPositionDataStale: boolean;
   refetchPosition: ReturnType<typeof useAaveReserveDetail>["refetchPosition"];
+  refetchSplitParams: ReturnType<
+    typeof useAaveReserveDetail
+  >["refetchSplitParams"];
   onChangeAsset: () => void;
   onBorrowSuccess: (amount: number, symbol: string, icon: string) => void;
 }) {
@@ -162,6 +168,7 @@ function BorrowFormStep({
         tokenPriceUsd,
         isPositionDataStale,
         refetchPosition,
+        refetchSplitParams,
         // These callbacks are handled by the BorrowFlow orchestrator
         onBorrowSuccess: () => {},
         onRepaySuccess: () => {},

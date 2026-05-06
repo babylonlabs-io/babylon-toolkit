@@ -52,6 +52,14 @@ export interface UseVaultSplitParamsResult {
   params: VaultSplitParams | null;
   isLoading: boolean;
   error: Error | null;
+  /**
+   * Force a fresh contract round-trip for `getDynamicReserveConfig` and
+   * `getTargetHealthFactor`. Use immediately before signing a borrow or
+   * repay so the projected-HF math runs against current on-chain values
+   * even when the cache is still within `staleTime` and the
+   * `dynamicConfigKey` has not changed.
+   */
+  refetch: () => Promise<VaultSplitParams | null>;
 }
 
 async function fetchSplitParams(
@@ -110,7 +118,7 @@ export function useVaultSplitParams(
   // key only to re-fetch a moment later with the position key.
   const isPositionResolved = !connectedAddress || !positionLoading;
 
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: [
       "vaultSplitParams",
       spokeAddress,
@@ -129,5 +137,12 @@ export function useVaultSplitParams(
     params: data ?? null,
     isLoading: isLoading || (!!connectedAddress && positionLoading),
     error: error as Error | null,
+    refetch: async () => {
+      const result = await refetch();
+      if (result.isError) {
+        throw result.error ?? new Error("Failed to refetch vault split params");
+      }
+      return result.data ?? null;
+    },
   };
 }

@@ -95,7 +95,9 @@ describe("useVaultSplitParams", () => {
 
   beforeEach(() => {
     queryClient = new QueryClient({
-      defaultOptions: { queries: { retry: false } },
+      // retryDelay: 0 makes the hook's `retry: CONFIG_RETRY_COUNT` overrides
+      // resolve quickly in the rejected-mock test below.
+      defaultOptions: { queries: { retry: false, retryDelay: 0 } },
     });
     vi.clearAllMocks();
 
@@ -267,5 +269,80 @@ describe("useVaultSplitParams", () => {
     // Query is disabled when no spoke address — stays in initial state
     expect(result.current.params).toBeNull();
     expect(result.current.error).toBeNull();
+  });
+
+  it("exposes refetch that re-runs the contract calls and returns fresh values", async () => {
+    // Earlier tests in this file null out the spoke address; restore it so
+    // the query is enabled here.
+    const { useAaveConfig } = vi.mocked(await import("../../context"));
+    useAaveConfig.mockReturnValue({
+      config: {
+        adapterAddress: "0x1",
+        vaultBtcAddress: "0x2",
+        btcVaultRegistryAddress: "0x3",
+        coreSpokeAddress: "0xSpokeAddress",
+        btcVaultCoreVbtcReserveId: 1n,
+      },
+      vbtcReserve: null,
+      borrowableReserves: [],
+      allBorrowReserves: [],
+      isLoading: false,
+      error: null,
+    });
+
+    // beforeEach default has CF=0.75 (7500 BPS). Initial load picks that up.
+    const { result } = renderHook(() => useVaultSplitParams(), { wrapper });
+
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false);
+    });
+    expect(result.current.params?.CF).toBe(0.75);
+    expect(mockGetDynamicReserveConfig).toHaveBeenCalledTimes(1);
+
+    // Simulate a governance-driven CF reduction for the same
+    // dynamicConfigKey. The query key never changes, so without an
+    // explicit refetch React Query would keep the cached 0.75 — the bug
+    // auditor finding #260 calls out.
+    mockGetDynamicReserveConfig.mockResolvedValue({
+      collateralFactor: 7000n,
+      maxLiquidationBonus: 10500n,
+      liquidationFee: 100n,
+    });
+
+    const refreshed = await result.current.refetch();
+
+    expect(mockGetDynamicReserveConfig).toHaveBeenCalledTimes(2);
+    expect(refreshed?.CF).toBe(0.7);
+    await waitFor(() => {
+      expect(result.current.params?.CF).toBe(0.7);
+    });
+  });
+
+  it("refetch surfaces underlying errors instead of returning stale data", async () => {
+    const { useAaveConfig } = vi.mocked(await import("../../context"));
+    useAaveConfig.mockReturnValue({
+      config: {
+        adapterAddress: "0x1",
+        vaultBtcAddress: "0x2",
+        btcVaultRegistryAddress: "0x3",
+        coreSpokeAddress: "0xSpokeAddress",
+        btcVaultCoreVbtcReserveId: 1n,
+      },
+      vbtcReserve: null,
+      borrowableReserves: [],
+      allBorrowReserves: [],
+      isLoading: false,
+      error: null,
+    });
+
+    const { result } = renderHook(() => useVaultSplitParams(), { wrapper });
+
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false);
+    });
+
+    mockGetDynamicReserveConfig.mockRejectedValue(new Error("RPC failure"));
+
+    await expect(result.current.refetch()).rejects.toThrow("RPC failure");
   });
 });

@@ -53,6 +53,7 @@ export function AaveReserveDetail() {
     ancillaryError,
     isPositionDataStale,
     refetchPosition,
+    refetchSplitParams,
   } = useAaveReserveDetail({ reserveId, address });
 
   // Modal state management
@@ -139,6 +140,7 @@ export function AaveReserveDetail() {
     tokenPriceUsd,
     isPositionDataStale,
     refetchPosition,
+    refetchSplitParams,
     onBorrowSuccess: openBorrowSuccess,
     onRepaySuccess: openRepaySuccess,
   };

@@ -22,23 +22,15 @@ import {
   formatTokenAmount,
   formatUsdValue,
 } from "../../../../../utils/formatting";
-import {
-  AMOUNT_INPUT_CLASS_NAME,
-  MIN_HEALTH_FACTOR_FOR_BORROW,
-  MIN_SLIDER_MAX,
-} from "../../../constants";
+import { AMOUNT_INPUT_CLASS_NAME, MIN_SLIDER_MAX } from "../../../constants";
 import { useBorrowTransaction } from "../../../hooks";
-import {
-  aaveRayValueToUsd,
-  aaveValueToUsd,
-  calculateHealthFactor,
-} from "../../../utils";
 import { useLoanContext } from "../../context/LoanContext";
 
 import { BorrowDetailsCard } from "./BorrowDetailsCard";
 import { useBorrowMetrics } from "./hooks/useBorrowMetrics";
 import { useBorrowState } from "./hooks/useBorrowState";
 import { validateBorrowAction } from "./hooks/validateBorrowAction";
+import { validateBorrowPreSign } from "./hooks/validateBorrowPreSign";
 
 export function Borrow() {
   const {
@@ -51,6 +43,7 @@ export function Borrow() {
     tokenPriceUsd,
     isPositionDataStale,
     refetchPosition,
+    refetchSplitParams,
     onBorrowSuccess,
   } = useLoanContext();
 
@@ -83,39 +76,14 @@ export function Borrow() {
   const sliderMaxBorrow = Math.max(maxBorrowAmount, MIN_SLIDER_MAX);
 
   const handleBorrow = async () => {
-    const preSignValidation = async () => {
-      if (tokenPriceUsd == null) {
-        throw new Error("Token price unavailable. Cannot validate borrow.");
-      }
-
-      const freshPosition = await refetchPosition();
-      if (!freshPosition) return; // No position = first borrow, skip revalidation
-
-      const freshCollateralUsd = aaveValueToUsd(
-        freshPosition.accountData.totalCollateralValue,
-      );
-      const freshDebtUsd = aaveRayValueToUsd(
-        freshPosition.accountData.totalDebtValueRay,
-      );
-      const projectedDebtUsd = freshDebtUsd + borrowAmount * tokenPriceUsd;
-      const projectedHF = calculateHealthFactor(
-        freshCollateralUsd,
-        projectedDebtUsd,
+    const success = await executeBorrow(borrowAmount, selectedReserve, () =>
+      validateBorrowPreSign({
+        borrowAmount,
+        tokenPriceUsd,
         liquidationThresholdBps,
-      );
-
-      if (isFinite(projectedHF) && projectedHF < MIN_HEALTH_FACTOR_FOR_BORROW) {
-        throw new Error(
-          `Position data has changed. Projected health factor (${projectedHF.toFixed(2)}) ` +
-            `would be below ${MIN_HEALTH_FACTOR_FOR_BORROW}. Please reduce the borrow amount.`,
-        );
-      }
-    };
-
-    const success = await executeBorrow(
-      borrowAmount,
-      selectedReserve,
-      preSignValidation,
+        refetchSplitParams,
+        refetchPosition,
+      }),
     );
     if (success) {
       resetBorrowAmount();
