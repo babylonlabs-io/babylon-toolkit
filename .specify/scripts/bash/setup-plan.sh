@@ -40,9 +40,11 @@ fi
 # Ensure the feature directory exists
 mkdir -p "$FEATURE_DIR"
 
-# Copy plan template if it exists
+# Copy plan template if it exists, but never clobber a hand-edited plan
 TEMPLATE=$(resolve_template "plan-template" "$REPO_ROOT") || true
-if [[ -n "$TEMPLATE" ]] && [[ -f "$TEMPLATE" ]]; then
+if [[ -f "$IMPL_PLAN" ]]; then
+    echo "Plan already exists at $IMPL_PLAN; leaving it untouched"
+elif [[ -n "$TEMPLATE" ]] && [[ -f "$TEMPLATE" ]]; then
     cp "$TEMPLATE" "$IMPL_PLAN"
     echo "Copied plan template to $IMPL_PLAN"
 else
