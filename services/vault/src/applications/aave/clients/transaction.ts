@@ -47,6 +47,51 @@ export async function getCoreSpokeAddress(
 }
 
 /**
+ * Read the vBTC collateral reserve ID from the trusted adapter.
+ *
+ * BTC_VAULT_CORE_VAULT_BTC_RESERVE_ID is immutable on the
+ * AaveIntegrationAdapter. Sourcing it on-chain prevents an indexer-supplied
+ * value from steering the UI's risk math toward the wrong reserve's
+ * collateral factor / liquidation threshold.
+ *
+ * @param controllerAddress - Trusted AaveIntegrationAdapter address
+ * @returns vBTC reserve ID on Core Spoke
+ */
+export async function getVaultBtcReserveId(
+  controllerAddress: Address,
+): Promise<bigint> {
+  const publicClient = ethClient.getPublicClient();
+  return publicClient.readContract({
+    address: controllerAddress,
+    abi: AaveIntegrationAdapterABI,
+    functionName: "BTC_VAULT_CORE_VAULT_BTC_RESERVE_ID",
+    args: [],
+  }) as Promise<bigint>;
+}
+
+/**
+ * Read the VaultBTC token address from the trusted adapter.
+ *
+ * VAULT_BTC is immutable on the AaveIntegrationAdapter. Sourcing it on-chain
+ * lets us cross-check the reserve's `underlying` returned by the Core Spoke
+ * against the token the trusted adapter actually targets.
+ *
+ * @param controllerAddress - Trusted AaveIntegrationAdapter address
+ * @returns VaultBTC token contract address
+ */
+export async function getVaultBtcAddress(
+  controllerAddress: Address,
+): Promise<Address> {
+  const publicClient = ethClient.getPublicClient();
+  return publicClient.readContract({
+    address: controllerAddress,
+    abi: AaveIntegrationAdapterABI,
+    functionName: "VAULT_BTC",
+    args: [],
+  }) as Promise<Address>;
+}
+
+/**
  * Simulate a transaction to catch errors before sending
  *
  * Uses eth_call to simulate the transaction against current blockchain state.
