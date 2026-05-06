@@ -11,6 +11,9 @@ import { useBorrowTransaction } from "@/applications/aave/hooks";
 import type { AaveReserveConfig } from "@/applications/aave/services/fetchConfig";
 import type { Asset } from "@/applications/aave/types";
 import {
+  aaveRayValueToUsd,
+  aaveValueToUsd,
+  calculateHealthFactor,
   getHealthFactorColor,
   getHealthFactorStatusFromValue,
   type HealthFactorColor,
@@ -75,6 +78,8 @@ export function useBorrowFormState({
     selectedReserve,
     assetConfig,
     tokenPriceUsd,
+    isPositionDataStale,
+    refetchPosition,
   } = useLoanContext();
 
   const { executeBorrow, isProcessing } = useBorrowTransaction();
@@ -99,6 +104,7 @@ export function useBorrowFormState({
     borrowAmount,
     metrics.healthFactorValue,
     maxBorrowAmount,
+    isPositionDataStale,
   );
 
   const sliderMax = Math.max(maxBorrowAmount, MIN_SLIDER_MAX);
@@ -129,9 +135,39 @@ export function useBorrowFormState({
   const handleMaxClick = () => setBorrowAmount(sliderMax);
 
   const handleBorrow = async () => {
+    const preSignValidation = async () => {
+      if (tokenPriceUsd == null) {
+        throw new Error("Token price unavailable. Cannot validate borrow.");
+      }
+
+      const freshPosition = await refetchPosition();
+      if (!freshPosition) return;
+
+      const freshCollateralUsd = aaveValueToUsd(
+        freshPosition.accountData.totalCollateralValue,
+      );
+      const freshDebtUsd = aaveRayValueToUsd(
+        freshPosition.accountData.totalDebtValueRay,
+      );
+      const projectedDebtUsd = freshDebtUsd + borrowAmount * tokenPriceUsd;
+      const projectedHF = calculateHealthFactor(
+        freshCollateralUsd,
+        projectedDebtUsd,
+        liquidationThresholdBps,
+      );
+
+      if (isFinite(projectedHF) && projectedHF < MIN_HEALTH_FACTOR_FOR_BORROW) {
+        throw new Error(
+          `Position data has changed. Projected health factor (${projectedHF.toFixed(2)}) ` +
+            `would be below ${MIN_HEALTH_FACTOR_FOR_BORROW}. Please reduce the borrow amount.`,
+        );
+      }
+    };
+
     const success = await executeBorrow(
       borrowAmount,
       selectedReserve as AaveReserveConfig,
+      preSignValidation,
     );
     if (success) {
       onBorrowSuccess(
