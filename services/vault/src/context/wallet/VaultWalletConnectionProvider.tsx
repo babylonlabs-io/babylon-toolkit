@@ -29,7 +29,6 @@ const DISABLED_WALLETS: string[] = [
   "ledger_btc",
   "ledger_btc_v2",
   "okx",
-  "onekey",
 ];
 
 const context = typeof window !== "undefined" ? window : {};

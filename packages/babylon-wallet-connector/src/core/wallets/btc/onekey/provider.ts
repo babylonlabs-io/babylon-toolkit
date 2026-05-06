@@ -2,8 +2,7 @@ import { isAccountChangeEvent, DISCONNECT_EVENT, removeProviderListener } from "
 import type { BTCConfig, IBTCProvider, InscriptionIdentifier, SignPsbtOptions, WalletInfo } from "@/core/types";
 import { Network } from "@/core/types";
 import { mapSignInputsToToSignInputs } from "@/core/utils/psbtOptionsMapper";
-import { unsupportedDeriveContextHash } from "@/core/wallets/btc/unsupportedDeriveContextHash";
-import { ERROR_CODES, WalletError } from "@/error";
+import { ERROR_CODES, WalletError, isUserRejectionMessage } from "@/error";
 
 import logo from "./logo.svg";
 
@@ -17,6 +16,13 @@ export const WALLET_PROVIDER_NAME = "OneKey";
 
 export class OneKeyProvider implements IBTCProvider {
   private provider: any;
+  // The injected OneKey root (`window.$onekey`). Held so we can
+  // lazily resolve sibling sub-providers like `wallet.btc` (which
+  // hosts the `deriveContextHash` spec method via its `_request`
+  // proxy) — the OneKey extension can populate sub-providers
+  // asynchronously after the constructor runs, so capturing them
+  // upfront would lock in stale `undefined` references.
+  private wallet: any;
   private walletInfo: WalletInfo | undefined;
   private config: BTCConfig;
 
@@ -32,6 +38,7 @@ export class OneKeyProvider implements IBTCProvider {
       });
     }
 
+    this.wallet = wallet;
     this.provider = wallet.btcwallet;
   }
 
@@ -294,5 +301,62 @@ export class OneKeyProvider implements IBTCProvider {
     return logo;
   };
 
-  deriveContextHash = unsupportedDeriveContextHash(WALLET_PROVIDER_NAME);
+  deriveContextHash = async (appName: string, context: string): Promise<string> => {
+    if (!this.walletInfo)
+      throw new WalletError({
+        code: ERROR_CODES.WALLET_NOT_CONNECTED,
+        message: "OneKey Wallet not connected",
+        wallet: WALLET_PROVIDER_NAME,
+      });
+
+    // OneKey routes spec methods through the generic `_request` proxy
+    // on its `btc` sub-provider, rather than exposing
+    // deriveContextHash as a top-level field. Resolve `btc` lazily
+    // here because the OneKey extension can populate it after the
+    // adapter constructor runs. Prefer the top-level
+    // `deriveContextHash` if a future OneKey version surfaces it
+    // directly; fall back to the `_request` proxy that the current
+    // version supports per docs/specs/derive-context-hash.md §2.1.
+    const btc = this.wallet?.btc;
+    const directFn = btc?.deriveContextHash;
+    if (typeof directFn === "function") {
+      try {
+        return await directFn.call(btc, appName, context);
+      } catch (error) {
+        if (isUserRejectionMessage((error as Error | undefined)?.message)) {
+          throw new WalletError({
+            code: ERROR_CODES.CONNECTION_REJECTED,
+            message: "OneKey Wallet rejected the deriveContextHash approval",
+            wallet: WALLET_PROVIDER_NAME,
+          });
+        }
+        throw error;
+      }
+    }
+
+    if (typeof btc?._request !== "function") {
+      throw new WalletError({
+        code: ERROR_CODES.WALLET_METHOD_NOT_SUPPORTED,
+        message:
+          "OneKey Wallet version does not support deriveContextHash. Update to a version that implements the deriveContextHash specification.",
+        wallet: WALLET_PROVIDER_NAME,
+      });
+    }
+
+    try {
+      return await btc._request({
+        method: "deriveContextHash",
+        params: { appName, context },
+      });
+    } catch (error) {
+      if (isUserRejectionMessage((error as Error | undefined)?.message)) {
+        throw new WalletError({
+          code: ERROR_CODES.CONNECTION_REJECTED,
+          message: "OneKey Wallet rejected the deriveContextHash approval",
+          wallet: WALLET_PROVIDER_NAME,
+        });
+      }
+      throw error;
+    }
+  };
 }
