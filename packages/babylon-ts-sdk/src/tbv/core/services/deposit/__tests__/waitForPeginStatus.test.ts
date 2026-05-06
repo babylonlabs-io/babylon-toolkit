@@ -12,7 +12,7 @@ const TEST_POLL_INTERVAL_MS = 100;
 const MOCK_RESPONSES_COUNT = 100;
 
 function createMockStatusReader(
-  responses: Array<{ status: string } | Error>,
+  responses: Array<{ status: string; pegin_txid?: string } | Error>,
 ): PeginStatusReader {
   let callIdx = 0;
   return {
@@ -20,7 +20,7 @@ function createMockStatusReader(
       const response = responses[callIdx++];
       if (response instanceof Error) throw response;
       return {
-        pegin_txid: VALID_TXID,
+        pegin_txid: response.pegin_txid ?? VALID_TXID,
         status: response.status,
         progress: {},
         health_info: "ok",
@@ -232,6 +232,65 @@ describe("waitForPeginStatus", () => {
         DaemonStatus.PENDING_DEPOSITOR_SIGNATURES,
         DaemonStatus.ACTIVATED,
       ]),
+      timeoutMs: TEST_TIMEOUT_MS,
+    });
+
+    expect(result).toBe(DaemonStatus.ACTIVATED);
+  });
+
+  it("rejects post-WOTS status echoed for the wrong pegin txid (audit #310)", async () => {
+    const OTHER_TXID = "b".repeat(64);
+    const reader = createMockStatusReader([
+      {
+        status: DaemonStatus.PENDING_DEPOSITOR_SIGNATURES,
+        pegin_txid: OTHER_TXID,
+      },
+    ]);
+
+    await expect(
+      waitForPeginStatus({
+        statusReader: reader,
+        peginTxid: VALID_TXID,
+        targetStatuses: new Set([DaemonStatus.PENDING_DEPOSITOR_SIGNATURES]),
+        timeoutMs: TEST_TIMEOUT_MS,
+        pollIntervalMs: TEST_POLL_INTERVAL_MS,
+      }),
+    ).rejects.toThrow(/returned status for pegin/);
+    // Polling must abort on the first mismatch, not retry — guards
+    // against a future regression that catches and re-polls.
+    expect(reader.getPeginStatus).toHaveBeenCalledOnce();
+  });
+
+  it("rejects post-payout status echoed for the wrong pegin txid (audit #310)", async () => {
+    const OTHER_TXID = "c".repeat(64);
+    const reader = createMockStatusReader([
+      { status: DaemonStatus.ACTIVATED, pegin_txid: OTHER_TXID },
+    ]);
+
+    await expect(
+      waitForPeginStatus({
+        statusReader: reader,
+        peginTxid: VALID_TXID,
+        targetStatuses: new Set([DaemonStatus.ACTIVATED]),
+        timeoutMs: TEST_TIMEOUT_MS,
+        pollIntervalMs: TEST_POLL_INTERVAL_MS,
+      }),
+    ).rejects.toThrow(/returned status for pegin/);
+    expect(reader.getPeginStatus).toHaveBeenCalledOnce();
+  });
+
+  it("matches case-insensitively on echoed pegin txid", async () => {
+    const reader = createMockStatusReader([
+      {
+        status: DaemonStatus.ACTIVATED,
+        pegin_txid: VALID_TXID.toUpperCase(),
+      },
+    ]);
+
+    const result = await waitForPeginStatus({
+      statusReader: reader,
+      peginTxid: VALID_TXID,
+      targetStatuses: new Set([DaemonStatus.ACTIVATED]),
       timeoutMs: TEST_TIMEOUT_MS,
     });
 

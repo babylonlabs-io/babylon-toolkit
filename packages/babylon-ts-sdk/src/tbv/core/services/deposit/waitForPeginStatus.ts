@@ -70,6 +70,13 @@ export async function waitForPeginStatus(
         signal,
       );
 
+      // Reject responses echoing a different pegin txid.
+      if (response.pegin_txid.toLowerCase() !== peginTxid.toLowerCase()) {
+        throw new Error(
+          `getPeginStatus returned status for pegin ${response.pegin_txid.slice(0, 8)}…, requested ${peginTxid.slice(0, 8)}…`,
+        );
+      }
+
       const status = response.status as DaemonStatus;
       if (targetStatuses.has(status)) {
         return status;
