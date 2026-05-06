@@ -78,11 +78,7 @@ export interface UseAaveUserPositionResult {
 export function useAaveUserPosition(
   connectedAddress: string | undefined,
 ): UseAaveUserPositionResult {
-  const {
-    config,
-    allBorrowReserves,
-    isLoading: configLoading,
-  } = useAaveConfig();
+  const { config, allBorrowReserves } = useAaveConfig();
   const spokeAddress = config?.coreSpokeAddress;
   const vbtcReserveId = config?.btcVaultCoreVbtcReserveId;
 
@@ -198,7 +194,7 @@ export function useAaveUserPosition(
     healthFactor,
     healthFactorStatus,
     isPositionDataStale,
-    isLoading: positionsLoading || configLoading,
+    isLoading: positionsLoading,
     error: positionsError as Error | null,
     refetch: async () => {
       const result = await refetch();

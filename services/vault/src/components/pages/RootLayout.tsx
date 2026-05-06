@@ -1,10 +1,12 @@
 import {
   DEFAULT_SOCIAL_LINKS,
   Footer,
+  FullScreenDialog,
   Header,
   Nav,
   StandardSettingsMenu,
   TestingBanner,
+  Text,
 } from "@babylonlabs-io/core-ui";
 import { useTheme } from "next-themes";
 import { useCallback, useState } from "react";
@@ -142,7 +144,28 @@ export default function RootLayout() {
             } satisfies RootLayoutContext
           }
         />
-        <AaveConfigProvider>
+        {/* On config failure, suppress the default panel (would leak
+            into page chrome) and instead surface an error modal only
+            when the user has actually opened the deposit dialog, so
+            the click has a visible recovery path. */}
+        <AaveConfigProvider
+          errorFallback={
+            <FullScreenDialog
+              open={isDepositOpen}
+              onClose={closeDeposit}
+              className="items-center justify-center p-6"
+            >
+              <div className="mx-auto flex w-full max-w-[520px] flex-col items-center gap-3 text-center">
+                <Text variant="body1" className="font-medium">
+                  Something went wrong
+                </Text>
+                <Text variant="body2" className="text-accent-secondary">
+                  Please close this and try again in a moment.
+                </Text>
+              </div>
+            </FullScreenDialog>
+          }
+        >
           <SimpleDeposit
             open={isDepositOpen}
             onClose={closeDeposit}

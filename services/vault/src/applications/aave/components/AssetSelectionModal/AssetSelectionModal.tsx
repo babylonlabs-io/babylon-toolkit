@@ -49,9 +49,8 @@ export function AssetSelectionModal({
   mode = LOAN_TAB.BORROW,
   assets,
 }: AssetSelectionModalProps) {
-  const { borrowableReserves, isLoading: configLoading } = useAaveConfig();
-  const { prices, isLoading: pricesLoading } = usePrices();
-  const isLoading = configLoading || pricesLoading;
+  const { borrowableReserves } = useAaveConfig();
+  const { prices, isLoading } = usePrices();
   const config = MODE_CONFIG[mode];
 
   const handleAssetClick = (assetSymbol: string) => {
