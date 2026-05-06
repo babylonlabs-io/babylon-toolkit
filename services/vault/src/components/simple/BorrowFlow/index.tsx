@@ -4,6 +4,7 @@ import { useAccount } from "wagmi";
 
 import { LoanProvider } from "@/applications/aave/components/context/LoanContext";
 import { useAaveReserveDetail } from "@/applications/aave/components/Detail/hooks/useAaveReserveDetail";
+import { isDebtDiscoveryError } from "@/applications/aave/services";
 import { FadeTransition } from "@/components/simple/FadeTransition";
 import { useDialogStep } from "@/hooks/deposit/useDialogStep";
 
@@ -45,10 +46,22 @@ export function BorrowFlow({ open, onClose }: BorrowFlowProps) {
     tokenPriceUsd,
     isPositionDataStale,
     refetchPosition,
+    positionError,
   } = useAaveReserveDetail({
     reserveId: selectedAssetSymbol ?? undefined,
     address,
   });
+
+  const isDebtDiscoveryIncomplete = isDebtDiscoveryError(positionError);
+
+  const debtDiscoveryBanner = (
+    <div className="mx-auto w-full max-w-[520px] py-8">
+      <div className="rounded-md border border-error-main/40 bg-error-main/10 p-4 text-error-main">
+        Cannot determine your full debt right now. Borrowing is temporarily
+        unavailable. Please try again.
+      </div>
+    </div>
+  );
 
   const handleClose = () => {
     onClose();
@@ -75,28 +88,34 @@ export function BorrowFlow({ open, onClose }: BorrowFlowProps) {
       )}
 
       <FadeTransition stepKey={renderedStep}>
-        {renderedStep === BorrowFlowStep.ASSET_SELECTION && (
-          <BorrowAssetSelection onSelectAsset={selectAsset} />
-        )}
+        {renderedStep === BorrowFlowStep.ASSET_SELECTION &&
+          (isDebtDiscoveryIncomplete ? (
+            debtDiscoveryBanner
+          ) : (
+            <BorrowAssetSelection onSelectAsset={selectAsset} />
+          ))}
 
-        {renderedStep === BorrowFlowStep.BORROW_FORM && (
-          <BorrowFormStep
-            isLoading={isLoading}
-            selectedReserve={selectedReserve}
-            assetConfig={assetConfig}
-            liquidationThresholdBps={liquidationThresholdBps}
-            proxyContract={proxyContract}
-            collateralValueUsd={collateralValueUsd}
-            currentDebtAmount={currentDebtAmount}
-            totalDebtValueUsd={totalDebtValueUsd}
-            healthFactor={healthFactor}
-            tokenPriceUsd={tokenPriceUsd}
-            isPositionDataStale={isPositionDataStale}
-            refetchPosition={refetchPosition}
-            onChangeAsset={goBack}
-            onBorrowSuccess={completeBorrow}
-          />
-        )}
+        {renderedStep === BorrowFlowStep.BORROW_FORM &&
+          (isDebtDiscoveryIncomplete ? (
+            debtDiscoveryBanner
+          ) : (
+            <BorrowFormStep
+              isLoading={isLoading}
+              selectedReserve={selectedReserve}
+              assetConfig={assetConfig}
+              liquidationThresholdBps={liquidationThresholdBps}
+              proxyContract={proxyContract}
+              collateralValueUsd={collateralValueUsd}
+              currentDebtAmount={currentDebtAmount}
+              totalDebtValueUsd={totalDebtValueUsd}
+              healthFactor={healthFactor}
+              tokenPriceUsd={tokenPriceUsd}
+              isPositionDataStale={isPositionDataStale}
+              refetchPosition={refetchPosition}
+              onChangeAsset={goBack}
+              onBorrowSuccess={completeBorrow}
+            />
+          ))}
 
         {renderedStep === BorrowFlowStep.SUCCESS && successData && (
           <BorrowSuccess data={successData} onClose={handleClose} />

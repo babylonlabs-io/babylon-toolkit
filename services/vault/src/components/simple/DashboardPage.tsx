@@ -67,6 +67,7 @@ export function DashboardPage() {
     hasCollateral,
     collateralVaults,
     selectableBorrowedAssets,
+    debtDiscoveryFailed,
   } = useDashboardState(address);
 
   const { snapshot: capSnapshot, isLoading: isCapLoading } = useApplicationCap(
@@ -186,6 +187,7 @@ export function DashboardPage() {
           hasCollateral={hasCollateral}
           isConnected={isConnected}
           borrowedAssets={borrowedAssets}
+          debtDiscoveryFailed={debtDiscoveryFailed}
           onBorrow={handleBorrow}
           onRepay={handleRepay}
         />

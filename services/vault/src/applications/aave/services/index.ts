@@ -37,10 +37,14 @@ export {
 
 // Position service (hybrid indexer + RPC)
 export {
+  DebtPositionFetchError,
+  IncompleteDebtDiscoveryError,
   canWithdrawCollateral,
   getPositionWithLiveData,
   getUserPositionsWithLiveData,
+  isDebtDiscoveryError,
   type AavePositionWithLiveData,
+  type DebtDiscoveryError,
   type DebtPosition,
   type GetUserPositionsOptions,
 } from "./positionService";

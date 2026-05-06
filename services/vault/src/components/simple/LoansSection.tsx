@@ -21,6 +21,8 @@ interface LoansSectionProps {
   hasCollateral: boolean;
   isConnected: boolean;
   borrowedAssets: LoanAsset[];
+  /** Block borrow/repay and show a banner; the borrowed-assets list is incomplete. */
+  debtDiscoveryFailed: boolean;
   onBorrow: () => void;
   onRepay: () => void;
 }
@@ -30,6 +32,7 @@ export function LoansSection({
   hasCollateral,
   isConnected,
   borrowedAssets,
+  debtDiscoveryFailed,
   onBorrow,
   onRepay,
 }: LoansSectionProps) {
@@ -44,18 +47,18 @@ export function LoansSection({
             size="medium"
             onClick={onBorrow}
             className="rounded-full"
-            disabled={!isConnected || !hasCollateral}
+            disabled={!isConnected || !hasCollateral || debtDiscoveryFailed}
           >
             Borrow
           </Button>
-          {hasLoans && (
+          {(hasLoans || debtDiscoveryFailed) && (
             <Button
               variant="outlined"
               color="primary"
               size="medium"
               onClick={onRepay}
               className="rounded-full"
-              disabled={!isConnected}
+              disabled={!isConnected || debtDiscoveryFailed}
             >
               Repay
             </Button>
@@ -64,7 +67,12 @@ export function LoansSection({
       </div>
 
       <Card variant="filled" className="w-full">
-        {hasLoans ? (
+        {debtDiscoveryFailed ? (
+          <div className="rounded-md border border-error-main/40 bg-error-main/10 p-4 text-error-main">
+            Cannot determine your full debt right now. Borrowing and repayment
+            are temporarily unavailable. Please try again.
+          </div>
+        ) : hasLoans ? (
           <div className="space-y-4">
             {borrowedAssets.map((asset) => (
               <div

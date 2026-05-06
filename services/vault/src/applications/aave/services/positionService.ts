@@ -18,6 +18,57 @@ import {
   type AavePositionCollateral,
 } from "./fetchPositions";
 
+export class DebtPositionFetchError extends Error {
+  readonly code = "DEBT_POSITION_FETCH_FAILED";
+  readonly reserveId: bigint;
+
+  constructor(reserveId: bigint, cause: unknown) {
+    super(
+      `Failed to fetch debt position for reserve ${reserveId}: ${
+        cause instanceof Error ? cause.message : String(cause)
+      }`,
+      { cause },
+    );
+    this.name = "DebtPositionFetchError";
+    this.reserveId = reserveId;
+  }
+}
+
+export class IncompleteDebtDiscoveryError extends Error {
+  readonly code = "INCOMPLETE_DEBT_DISCOVERY";
+  readonly discovered: number;
+  readonly expected: bigint;
+  readonly queriedReserveIds: bigint[];
+
+  constructor(
+    discovered: number,
+    expected: bigint,
+    queriedReserveIds: bigint[],
+  ) {
+    super(
+      `Discovered ${discovered} debt reserves but on-chain borrowCount is ${expected}. ` +
+        `Aborting to prevent the repay UI from omitting unrepayable debt.`,
+    );
+    this.name = "IncompleteDebtDiscoveryError";
+    this.discovered = discovered;
+    this.expected = expected;
+    this.queriedReserveIds = queriedReserveIds;
+  }
+}
+
+export type DebtDiscoveryError =
+  | DebtPositionFetchError
+  | IncompleteDebtDiscoveryError;
+
+export function isDebtDiscoveryError(
+  error: unknown,
+): error is DebtDiscoveryError {
+  return (
+    error instanceof DebtPositionFetchError ||
+    error instanceof IncompleteDebtDiscoveryError
+  );
+}
+
 /**
  * Debt position data for a single reserve
  */
@@ -134,21 +185,24 @@ export async function getUserPositionsWithLiveData(
 
   let debtPositions: Map<bigint, DebtPosition> | undefined;
   if (accountData.borrowCount > 0n) {
-    // Fail closed: a stale or skipped reserve list would otherwise let
-    // a debt reserve drop out of the repay picker.
     if (!borrowableReserveIds || borrowableReserveIds.length === 0) {
-      throw new Error(
-        `Aave debt reserve discovery: on-chain reports ${accountData.borrowCount} debt reserve(s) but no reserve IDs were provided to probe.`,
-      );
+      throw new IncompleteDebtDiscoveryError(0, accountData.borrowCount, []);
     }
+
     debtPositions = await fetchDebtPositionsForReserves(
       proxyAddress,
       spokeAddress,
       borrowableReserveIds,
     );
+
+    // `<` not `!==`: surplus discovery (e.g. dust-only positions that
+    // `hasDebtFromPosition` flags but `borrowCount` doesn't) is fine —
+    // only a deficit can hide repayable debt from the UI.
     if (BigInt(debtPositions.size) < accountData.borrowCount) {
-      throw new Error(
-        `Aave debt reserve discovery: on-chain reports ${accountData.borrowCount} debt reserve(s), found ${debtPositions.size}. The reserve list is likely incomplete.`,
+      throw new IncompleteDebtDiscoveryError(
+        debtPositions.size,
+        accountData.borrowCount,
+        borrowableReserveIds,
       );
     }
   }
@@ -188,38 +242,40 @@ async function fetchDebtPositionsForReserves(
           proxyAddress,
         );
         return { reserveId, position };
-      } catch {
-        return { reserveId, position: null };
+      } catch (cause) {
+        throw new DebtPositionFetchError(reserveId, cause);
       }
     }),
   );
 
-  const reservesWithDebt = positions.filter(
-    ({ position }) => position && hasDebtFromPosition(position),
+  const reservesWithDebt = positions.filter(({ position }) =>
+    hasDebtFromPosition(position),
   );
 
   const totalDebts = await Promise.all(
     reservesWithDebt.map(async ({ reserveId }) => {
-      const totalDebt = await AaveSpoke.getUserTotalDebt(
-        spokeAddress,
-        reserveId,
-        proxyAddress,
-      );
-      return { reserveId, totalDebt };
+      try {
+        const totalDebt = await AaveSpoke.getUserTotalDebt(
+          spokeAddress,
+          reserveId,
+          proxyAddress,
+        );
+        return { reserveId, totalDebt };
+      } catch (cause) {
+        throw new DebtPositionFetchError(reserveId, cause);
+      }
     }),
   );
 
   const debtMap = new Map(totalDebts.map((d) => [d.reserveId, d.totalDebt]));
 
   for (const { reserveId, position } of reservesWithDebt) {
-    if (position) {
-      results.set(reserveId, {
-        reserveId,
-        drawnShares: position.drawnShares,
-        premiumShares: position.premiumShares,
-        totalDebt: debtMap.get(reserveId) ?? 0n,
-      });
-    }
+    results.set(reserveId, {
+      reserveId,
+      drawnShares: position.drawnShares,
+      premiumShares: position.premiumShares,
+      totalDebt: debtMap.get(reserveId) ?? 0n,
+    });
   }
 
   return results;

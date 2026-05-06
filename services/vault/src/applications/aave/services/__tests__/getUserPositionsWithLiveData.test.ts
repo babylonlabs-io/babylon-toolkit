@@ -26,7 +26,10 @@ vi.mock("../fetchPositions", () => ({
   fetchAavePositionCollaterals: vi.fn(),
 }));
 
-import { getUserPositionsWithLiveData } from "../positionService";
+import {
+  IncompleteDebtDiscoveryError,
+  getUserPositionsWithLiveData,
+} from "../positionService";
 
 const DEPOSITOR = ("0x" + "1".repeat(40)) as `0x${string}`;
 const SPOKE = ("0x" + "2".repeat(40)) as `0x${string}`;
@@ -88,7 +91,7 @@ describe("getUserPositionsWithLiveData — fail-closed debt reserve discovery (a
         borrowableReserveIds: [],
         vbtcReserveId: VBTC_RESERVE_ID,
       }),
-    ).rejects.toThrow(/no reserve IDs were provided/);
+    ).rejects.toBeInstanceOf(IncompleteDebtDiscoveryError);
   });
 
   it("throws when fewer debt reserves are found than on-chain borrowCount", async () => {
@@ -107,7 +110,7 @@ describe("getUserPositionsWithLiveData — fail-closed debt reserve discovery (a
         borrowableReserveIds: [USDC_RESERVE_ID, DAI_RESERVE_ID],
         vbtcReserveId: VBTC_RESERVE_ID,
       }),
-    ).rejects.toThrow(/found 1.*incomplete/i);
+    ).rejects.toBeInstanceOf(IncompleteDebtDiscoveryError);
   });
 
   it("does not throw when borrowCount is 0 even with an empty reserve list", async () => {

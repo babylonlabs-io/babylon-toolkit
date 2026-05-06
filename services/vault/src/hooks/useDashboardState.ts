@@ -10,6 +10,7 @@ import {
   useAaveBorrowedAssets,
   useAaveUserPosition,
 } from "@/applications/aave/hooks";
+import { isDebtDiscoveryError } from "@/applications/aave/services";
 import type { Asset } from "@/applications/aave/types";
 import { useVaultProviders } from "@/hooks/deposit/useVaultProviders";
 import type { CollateralVaultEntry } from "@/types/collateral";
@@ -27,7 +28,10 @@ export function useDashboardState(connectedAddress: string | undefined) {
     healthFactor,
     healthFactorStatus,
     isLoading,
+    error: positionError,
   } = useAaveUserPosition(connectedAddress);
+
+  const debtDiscoveryFailed = isDebtDiscoveryError(positionError);
 
   const { borrowedAssets, hasLoans } = useAaveBorrowedAssets({
     position,
@@ -73,5 +77,6 @@ export function useDashboardState(connectedAddress: string | undefined) {
     collateralVaults,
     selectableBorrowedAssets,
     isLoading,
+    debtDiscoveryFailed,
   };
 }
