@@ -23,12 +23,20 @@ import { invalidateVaultQueries } from "@/utils/queryKeys";
 import { usePendingVaults } from "../context";
 import { withdrawSelectedCollateral } from "../services";
 
+import { WithdrawPreSignValidationError } from "./withdrawPreSignValidationError";
+
 export interface UseWithdrawCollateralTransactionResult {
   /**
    * Execute the withdraw collateral transaction
    * @param vaultIds - IDs of vaults currently used as collateral (to mark as pending)
+   * @param preSignValidation - Optional async check run after wallet validation
+   *   and immediately before broadcast. Throws to abort with the thrown error
+   *   surfaced through the standard error modal.
    */
-  executeWithdraw: (vaultIds: string[]) => Promise<boolean>;
+  executeWithdraw: (
+    vaultIds: string[],
+    preSignValidation?: () => Promise<void>,
+  ) => Promise<boolean>;
   /** Whether transaction is currently processing */
   isProcessing: boolean;
 }
@@ -51,7 +59,7 @@ export function useWithdrawCollateralTransaction(): UseWithdrawCollateralTransac
   const { markVaultsAsPending } = usePendingVaults();
 
   const executeWithdraw = useCallback(
-    async (vaultIds: string[]) => {
+    async (vaultIds: string[], preSignValidation?: () => Promise<void>) => {
       setIsProcessing(true);
       try {
         // Validate wallet connection
@@ -67,6 +75,12 @@ export function useWithdrawCollateralTransaction(): UseWithdrawCollateralTransac
             "Wallet address not available",
             ErrorCode.WALLET_NOT_CONNECTED,
           );
+        }
+
+        // Pre-sign revalidation: refetch position and recheck health factor
+        // before submitting the on-chain transaction. Throws if unsafe.
+        if (preSignValidation) {
+          await preSignValidation();
         }
 
         // Execute selective withdraw transaction
@@ -90,8 +104,15 @@ export function useWithdrawCollateralTransaction(): UseWithdrawCollateralTransac
           error instanceof Error ? error : new Error(String(error)),
           { data: { context: "Withdraw collateral failed" } },
         );
-        const mappedError =
-          error instanceof Error
+        // Pre-sign validation errors are user-facing copy ("Position data has
+        // changed…") that describes a client-side abort, not an on-chain
+        // failure. Pass them through unwrapped so the modal doesn't prepend
+        // a misleading "Withdraw Collateral failed:" prefix.
+        const isPreSignValidation =
+          error instanceof WithdrawPreSignValidationError;
+        const mappedError = isPreSignValidation
+          ? error
+          : error instanceof Error
             ? mapViemErrorToContractError(error, "Withdraw Collateral")
             : new Error(
                 "An unexpected error occurred while withdrawing collateral",

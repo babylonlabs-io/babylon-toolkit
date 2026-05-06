@@ -2,6 +2,7 @@ import { FullScreenDialog } from "@babylonlabs-io/core-ui";
 import { useCallback, useMemo, useState } from "react";
 
 import { useWithdrawCollateralTransaction } from "@/applications/aave/hooks/useWithdrawCollateralTransaction";
+import type { AavePositionWithLiveData } from "@/applications/aave/services";
 import {
   computeProjectedHealthFactor,
   getEffectiveVaultSelection,
@@ -14,6 +15,7 @@ import type { CollateralVaultEntry } from "@/types/collateral";
 import { FadeTransition } from "../FadeTransition";
 
 import { useWithdrawFlow, WithdrawStep } from "./useWithdrawFlow";
+import { validateFreshWithdraw } from "./withdrawPreSignValidation";
 import { WithdrawProgressView } from "./WithdrawProgressView";
 import { WithdrawReviewContent } from "./WithdrawReviewContent";
 
@@ -28,6 +30,18 @@ export interface WithdrawFlowProps {
   currentHealthFactor: number | null;
   /** Vault IDs selected inline on the collateral list before opening the dialog. */
   preSelectedVaultIds: string[];
+  /**
+   * True when the cached Aave position used for the projected-HF computation
+   * exceeded the staleness threshold. Drives the Confirm button's disabled
+   * state so the user cannot sign on stale safety data.
+   */
+  isPositionDataStale: boolean;
+  /**
+   * Refetch the Aave position. Resolves to the freshly fetched position (or
+   * null if the user has no position). Invoked at the pre-sign boundary to
+   * re-validate the projected HF against on-chain values before broadcast.
+   */
+  refetchPosition: () => Promise<AavePositionWithLiveData | null>;
 }
 
 function WithdrawFlowContent({
@@ -38,6 +52,8 @@ function WithdrawFlowContent({
   collateralValueUsd,
   currentHealthFactor,
   preSelectedVaultIds,
+  isPositionDataStale,
+  refetchPosition,
 }: WithdrawFlowProps) {
   const { step, goToProgress, reset } = useWithdrawFlow();
   const { executeWithdraw, isProcessing } = useWithdrawCollateralTransaction();
@@ -91,7 +107,20 @@ function WithdrawFlowContent({
   ]);
 
   const handleConfirm = useCallback(async () => {
-    const success = await executeWithdraw(effectiveSelectedVaultIds);
+    // Pre-sign re-validation: refetch the position and re-check the projected
+    // HF against fresh on-chain values immediately before broadcast. Throws
+    // abort the in-flight confirm; `executeWithdraw`'s catch surfaces the
+    // error through the standard modal. The refetch also updates React Query
+    // so the dialog re-renders with fresh `currentHealthFactor` for re-review.
+    const preSignValidation = async () => {
+      const fresh = await refetchPosition();
+      validateFreshWithdraw(fresh, selectedBtc);
+    };
+
+    const success = await executeWithdraw(
+      effectiveSelectedVaultIds,
+      preSignValidation,
+    );
     if (success) {
       setSubmittedPayoutAddresses(selectedPayoutAddresses);
       goToProgress();
@@ -99,6 +128,8 @@ function WithdrawFlowContent({
   }, [
     executeWithdraw,
     effectiveSelectedVaultIds,
+    selectedBtc,
+    refetchPosition,
     selectedPayoutAddresses,
     goToProgress,
   ]);
@@ -119,6 +150,7 @@ function WithdrawFlowContent({
               projectedHealthFactor={projectedHealthFactor}
               payoutAddresses={selectedPayoutAddresses}
               isProcessing={isProcessing}
+              isPositionDataStale={isPositionDataStale}
               onConfirm={handleConfirm}
             />
           </div>

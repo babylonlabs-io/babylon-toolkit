@@ -62,6 +62,8 @@ export function DashboardPage() {
     debtValueUsd,
     healthFactor,
     healthFactorStatus,
+    isPositionDataStale,
+    refetchPosition,
     borrowedAssets,
     hasLoans,
     hasCollateral,
@@ -207,6 +209,8 @@ export function DashboardPage() {
         collateralValueUsd={collateralValueUsd}
         currentHealthFactor={healthFactor}
         preSelectedVaultIds={selectedVaultIds}
+        isPositionDataStale={isPositionDataStale}
+        refetchPosition={refetchPosition}
       />
 
       {/* Asset Selection Modal for Borrow/Repay */}

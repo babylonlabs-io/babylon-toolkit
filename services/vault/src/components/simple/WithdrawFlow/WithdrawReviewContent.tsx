@@ -30,6 +30,11 @@ interface WithdrawReviewContentProps {
    */
   payoutAddresses: string[];
   isProcessing: boolean;
+  /**
+   * Cached position data is stale (>90s since last fetch). Confirm is disabled
+   * and the button shows a refresh hint until the next refetch lands.
+   */
+  isPositionDataStale: boolean;
   onConfirm: () => void;
 }
 
@@ -40,6 +45,7 @@ export function WithdrawReviewContent({
   projectedHealthFactor,
   payoutAddresses,
   isProcessing,
+  isPositionDataStale,
   onConfirm,
 }: WithdrawReviewContentProps) {
   const { defaultFeeRate } = useNetworkFees();
@@ -157,7 +163,7 @@ export function WithdrawReviewContent({
           variant="contained"
           color="secondary"
           className="w-full"
-          disabled={isProcessing || wouldBreachHF}
+          disabled={isProcessing || isPositionDataStale || wouldBreachHF}
           onClick={onConfirm}
         >
           {isProcessing ? (
@@ -167,6 +173,8 @@ export function WithdrawReviewContent({
                 Processing
               </Text>
             </span>
+          ) : isPositionDataStale ? (
+            "Refreshing position..."
           ) : (
             "Confirm"
           )}

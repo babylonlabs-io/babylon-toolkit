@@ -26,7 +26,9 @@ export function useDashboardState(connectedAddress: string | undefined) {
     debtValueUsd,
     healthFactor,
     healthFactorStatus,
+    isPositionDataStale,
     isLoading,
+    refetch: refetchPosition,
   } = useAaveUserPosition(connectedAddress);
 
   const { borrowedAssets, hasLoans } = useAaveBorrowedAssets({
@@ -66,6 +68,8 @@ export function useDashboardState(connectedAddress: string | undefined) {
     debtValueUsd,
     healthFactor,
     healthFactorStatus,
+    isPositionDataStale,
+    refetchPosition,
     borrowedAssets,
     hasLoans,
     hasCollateral,
