@@ -1,6 +1,7 @@
 import { FullScreenDialog } from "@babylonlabs-io/core-ui";
 import { useQuery } from "@tanstack/react-query";
 
+import { ProtocolParamsProvider } from "@/context/ProtocolParamsContext";
 import { useRefundState } from "@/hooks/deposit/useRefundState";
 import { getRefundPreview } from "@/services/vault/vaultRefundService";
 import type { VaultActivity } from "@/types/activity";
@@ -66,15 +67,17 @@ export function RefundModal({
       onClose={refunding ? undefined : onClose}
       className="items-center justify-center p-6"
     >
-      <RefundReviewContent
-        amountSats={previewQuery.data?.amountSats ?? null}
-        defaultFeeRateSatsVb={previewQuery.data?.halfHourFeeSatsVb ?? null}
-        previewLoading={previewQuery.isLoading}
-        previewError={previewError}
-        refunding={refunding}
-        error={error}
-        onConfirm={handleRefund}
-      />
+      <ProtocolParamsProvider>
+        <RefundReviewContent
+          amountSats={previewQuery.data?.amountSats ?? null}
+          defaultFeeRateSatsVb={previewQuery.data?.halfHourFeeSatsVb ?? null}
+          previewLoading={previewQuery.isLoading}
+          previewError={previewError}
+          refunding={refunding}
+          error={error}
+          onConfirm={handleRefund}
+        />
+      </ProtocolParamsProvider>
     </FullScreenDialog>
   );
 }
