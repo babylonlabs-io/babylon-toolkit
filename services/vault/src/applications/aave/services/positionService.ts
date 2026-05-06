@@ -132,18 +132,25 @@ export async function getUserPositionsWithLiveData(
     AaveSpoke.getUserAccountData(spokeAddress, proxyAddress),
   ]);
 
-  // Optionally fetch debt positions if borrowable reserves provided and user has debt
   let debtPositions: Map<bigint, DebtPosition> | undefined;
-  if (
-    borrowableReserveIds &&
-    borrowableReserveIds.length > 0 &&
-    accountData.borrowCount > 0n
-  ) {
+  if (accountData.borrowCount > 0n) {
+    // Fail closed: a stale or skipped reserve list would otherwise let
+    // a debt reserve drop out of the repay picker.
+    if (!borrowableReserveIds || borrowableReserveIds.length === 0) {
+      throw new Error(
+        `Aave debt reserve discovery: on-chain reports ${accountData.borrowCount} debt reserve(s) but no reserve IDs were provided to probe.`,
+      );
+    }
     debtPositions = await fetchDebtPositionsForReserves(
       proxyAddress,
       spokeAddress,
       borrowableReserveIds,
     );
+    if (BigInt(debtPositions.size) < accountData.borrowCount) {
+      throw new Error(
+        `Aave debt reserve discovery: on-chain reports ${accountData.borrowCount} debt reserve(s), found ${debtPositions.size}. The reserve list is likely incomplete.`,
+      );
+    }
   }
 
   return [

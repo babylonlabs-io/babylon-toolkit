@@ -5,7 +5,7 @@
  * Reserve is selected from the overview page and passed via URL param.
  */
 
-import { Container, Text } from "@babylonlabs-io/core-ui";
+import { Container } from "@babylonlabs-io/core-ui";
 import { useNavigate, useParams, useSearchParams } from "react-router";
 
 import { BackButton, EmptyState } from "@/components/shared";
@@ -19,6 +19,7 @@ import { BorrowSuccessModal } from "../LoanCard/Borrow/SuccessModal";
 import { RepaySuccessModal } from "../LoanCard/Repay/SuccessModal";
 
 import { useAaveReserveDetail, useBorrowRepayModals } from "./hooks";
+import { PositionGate } from "./PositionGate";
 
 const btcConfig = getNetworkConfigBTC();
 
@@ -48,7 +49,8 @@ export function AaveReserveDetail() {
     totalDebtValueUsd,
     healthFactor,
     tokenPriceUsd,
-    error,
+    positionError,
+    ancillaryError,
     isPositionDataStale,
     refetchPosition,
   } = useAaveReserveDetail({ reserveId, address });
@@ -146,13 +148,13 @@ export function AaveReserveDetail() {
       <Container className="pb-6">
         <div className="space-y-6">
           <BackButton label="Home" onClick={handleBack} />
-          {error && (
-            <Text variant="body2" className="text-center text-warning-main">
-              Some data could not be loaded. Borrow functionality may be
-              limited.
-            </Text>
-          )}
-          <LoanCard defaultTab={defaultTab} />
+          <PositionGate
+            positionError={positionError}
+            ancillaryError={ancillaryError}
+            refetchPosition={refetchPosition}
+          >
+            <LoanCard defaultTab={defaultTab} />
+          </PositionGate>
         </div>
       </Container>
 
