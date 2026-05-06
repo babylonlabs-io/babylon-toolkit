@@ -8,6 +8,7 @@ import { getNetworkConfigBTC } from "@/config";
 
 import {
   formatBtcAmount,
+  formatCompactUsd,
   formatDateTime,
   formatLLTV,
   formatOrdinal,
@@ -305,6 +306,30 @@ describe("Formatting Utilities", () => {
       expect(formatTimeAgo(NOW + 1000)).toBe("just now");
       expect(formatTimeAgo(NOW + 60 * 60 * 1000)).toBe("just now");
       expect(formatTimeAgo(NOW + 365 * 24 * 60 * 60 * 1000)).toBe("just now");
+    });
+  });
+
+  describe("formatCompactUsd", () => {
+    it("returns '$0' for zero", () => {
+      expect(formatCompactUsd(0)).toBe("$0");
+    });
+
+    it("returns '$0' for negative input", () => {
+      expect(formatCompactUsd(-1)).toBe("$0");
+    });
+
+    it("delegates to non-compact format below 1000", () => {
+      expect(formatCompactUsd(999)).toBe("$999.00");
+      expect(formatCompactUsd(99.5)).toBe("$99.50");
+    });
+
+    it("formats thousands as '$Nk' with one decimal", () => {
+      expect(formatCompactUsd(1_000)).toBe("$1k");
+      expect(formatCompactUsd(63_600)).toBe("$63.6k");
+    });
+
+    it("formats millions as '$Nm'", () => {
+      expect(formatCompactUsd(1_500_000)).toBe("$1.5m");
     });
   });
 });

@@ -125,6 +125,22 @@ export function formatPriceUsd(priceUsd: number): string {
 }
 
 /**
+ * Format a USD value in compact notation (e.g., "$63.6k", "$1.2M").
+ * Uses one fractional digit for k/M/B magnitudes; for values below 1000
+ * falls back to the same formatting as `formatPriceUsd` for consistency.
+ * Returns `$0` for zero or negative input.
+ */
+export function formatCompactUsd(usd: number): string {
+  if (usd <= 0) return "$0";
+  if (usd < 1000) return formatPriceUsd(usd);
+  const compact = new Intl.NumberFormat("en-US", {
+    notation: "compact",
+    maximumFractionDigits: 1,
+  }).format(usd);
+  return `$${compact.toLowerCase()}`;
+}
+
+/**
  * Format a number amount for display with locale-aware formatting
  * @param amount - The numeric amount to format
  * @param maxDecimals - Maximum decimal places (default: 2)
