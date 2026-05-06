@@ -2,6 +2,7 @@ import type { BitcoinAdapter } from "@reown/appkit-adapter-bitcoin";
 import { Psbt } from "bitcoinjs-lib";
 
 import type { BTCConfig, IBTCProvider, InscriptionIdentifier, SignPsbtOptions } from "@/core/types";
+import { Network } from "@/core/types";
 import { resolveUseTweakedSigner } from "@/core/utils/psbtOptionsMapper";
 import { APPKIT_OPEN_EVENT } from "@/core/wallets/appkit/constants";
 import { unsupportedDeriveContextHash } from "@/core/wallets/btc/unsupportedDeriveContextHash";
@@ -9,7 +10,10 @@ import { ERROR_CODES, WalletError, isUserRejectionMessage } from "@/error";
 
 import { APPKIT_BTC_CONNECTED_EVENT } from "./constants";
 import icon from "./icon.svg";
+import { caipNetworkIdToNetwork } from "./network";
 import { getSharedBtcAppKitConfig, hasSharedBtcAppKitConfig } from "./sharedConfig";
+
+const APPKIT_PROVIDER_NAME = "AppKit";
 
 interface BtcConnectedEvent extends Event {
   detail?: { address?: string; publicKey?: string };
@@ -40,6 +44,7 @@ interface AppKitBtcWalletProvider {
 
 interface AdapterConnection {
   account?: { address?: string; publicKey?: string };
+  caipNetwork?: { caipNetworkId?: string };
 }
 
 function getAdapterConnections(adapter: BitcoinAdapter): AdapterConnection[] {
@@ -326,9 +331,63 @@ export class AppKitBTCProvider implements IBTCProvider {
     return signedPsbts;
   }
 
-  async getNetwork(): Promise<import("@/core/types").Network> {
-    // Return the configured network
-    return this.config.network;
+  async getNetwork(): Promise<Network> {
+    // Read the live network from the adapter, not config.network — if
+    // the wallet's network drifted (modal change, silent switchNetwork
+    // failure), signing a PSBT prepared for the configured chain
+    // against a wallet on a different chain would broadcast nowhere.
+    if (!hasSharedBtcAppKitConfig()) {
+      throw new WalletError({
+        code: ERROR_CODES.WALLET_NOT_CONNECTED,
+        message: "AppKit Bitcoin adapter is not initialized",
+        wallet: APPKIT_PROVIDER_NAME,
+      });
+    }
+
+    const { adapter } = this.getAppKitConfig();
+    const connections = getAdapterConnections(adapter);
+
+    if (connections.length === 0) {
+      throw new WalletError({
+        code: ERROR_CODES.WALLET_NOT_CONNECTED,
+        message: "AppKit Bitcoin wallet is not connected",
+        wallet: APPKIT_PROVIDER_NAME,
+      });
+    }
+
+    // Defense-in-depth — not every AppKit BTC connector keeps
+    // `connections[].caipNetwork` in sync after switchNetwork, so we
+    // only catch the ones that do.
+    const caipNetworkId = connections[0]?.caipNetwork?.caipNetworkId;
+
+    // Silent connector → trust config. Only throw below on a defined-
+    // but-unknown id (active "wrong chain" signal, not silence).
+    if (caipNetworkId === undefined) {
+      return this.config.network;
+    }
+
+    const liveNetwork = caipNetworkIdToNetwork(caipNetworkId);
+    if (liveNetwork === null) {
+      throw new WalletError({
+        code: ERROR_CODES.UNSUPPORTED_NETWORK,
+        message:
+          `AppKit Bitcoin wallet is on an unsupported network ` +
+          `(caipNetworkId="${caipNetworkId}")`,
+        wallet: APPKIT_PROVIDER_NAME,
+      });
+    }
+
+    if (liveNetwork !== this.config.network) {
+      throw new WalletError({
+        code: ERROR_CODES.UNSUPPORTED_NETWORK,
+        message:
+          `AppKit Bitcoin wallet network mismatch: app expects ` +
+          `${this.config.network}, wallet is on ${liveNetwork}`,
+        wallet: APPKIT_PROVIDER_NAME,
+      });
+    }
+
+    return liveNetwork;
   }
 
   async signMessage(message: string, type: "bip322-simple" | "ecdsa"): Promise<string> {

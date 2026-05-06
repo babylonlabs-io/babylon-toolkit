@@ -39,24 +39,19 @@ export const useAppKitBtcBridge = ({ onError }: UseAppKitBtcBridgeOptions = {}) 
   const dispatchConnectionEvent = useCallback(
     async (currentAddress: string) => {
       try {
-        // Resolve the shared config once — we need both the adapter (for
-        // network switching) and the private connection-events bus.
+        // Switch to the configured network. We do NOT swallow failures
+        // here: a wallet that refuses the switch leaves the adapter on
+        // the wrong chain, and `AppKitBTCProvider.getNetwork()` rejects
+        // a network mismatch later. Surface the failure to onError and
+        // skip the connection-event dispatch so downstream code never
+        // sees a connected-but-wrong-network state.
         const { adapter, network, connectionEvents } = getSharedBtcAppKitConfig();
-
-        // Switch to the configured network
-        try {
-          // Map the network config to AppKit's network types
-          const networkMap = {
-            mainnet: bitcoin,
-            signet: bitcoinSignet,
-          } as const;
-          const caipNetwork = networkMap[network];
-          await adapter.switchNetwork({ caipNetwork });
-        } catch (networkError) {
-          console.warn("[AppKit BTC Bridge] Failed to switch network:", networkError instanceof Error ? networkError.message : "Unknown error");
-          // Don't fail the connection if network switch fails
-          // Some wallets may already be on the correct network
-        }
+        const networkMap = {
+          mainnet: bitcoin,
+          signet: bitcoinSignet,
+        } as const;
+        const caipNetwork = networkMap[network];
+        await adapter.switchNetwork({ caipNetwork });
 
         // Fetch publicKey from allAccounts (this is where AppKit stores it)
         let publicKey: string | undefined;
@@ -87,6 +82,13 @@ export const useAppKitBtcBridge = ({ onError }: UseAppKitBtcBridgeOptions = {}) 
       } catch (error) {
         console.error("[AppKit BTC Bridge] Failed to process connection:", error instanceof Error ? error.message : "Unknown error");
         onError?.(error as Error);
+        // Mark this address as "handled" so the effect at the bottom of
+        // the hook does not re-fire `dispatchConnectionEvent` on every
+        // re-render of the AppKit hook (allAccounts identity churn).
+        // Without this, a failed switchNetwork would call onError on
+        // every render. The user must explicitly disconnect/reconnect
+        // (or change account) to retry.
+        lastDispatchedAddress.current = currentAddress;
       }
     },
     [allAccounts, onError],
