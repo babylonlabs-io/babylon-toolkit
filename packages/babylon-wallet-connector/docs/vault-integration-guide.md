@@ -40,7 +40,7 @@ nice-to-have.
 | 64-byte Schnorr signatures (implicit `SIGHASH_DEFAULT`) | MUST | SDK rejects 65-byte sigs; the appended sighash byte changes the signed message and cannot be stripped ([`peginInput.ts`][peginInput], [`payout.ts`][payout]) |
 | Non-finalized PSBT return for PegIn input PSBTs | MUST | SDK extracts the depositor signature from `tapScriptSig`; finalized PegIn PSBTs throw outright ([`peginInput.ts`][peginInput]) |
 | BIP-322 simple message signing | MUST | Used for proof-of-possession ([`PeginManager.ts`][peginManager]) |
-| `deriveContextHash` (HKDF-SHA-256, BIP-32 hardened path `m/73681862'`) | MUST | Hashlock secret derivation — see [spec][spec] for derivation algorithm and test vectors |
+| `deriveContextHash` (HKDF-SHA-256, IKM = connected leaf private key) | MUST | Hashlock secret derivation — see [spec][spec] for derivation algorithm and test vectors |
 | `signPsbts` (batch signing) | STRONGLY RECOMMENDED | Without it, depositors approve N PSBTs one-by-one |
 | `getInscriptions` | OPTIONAL | UTXO filtering only |
 
@@ -146,7 +146,7 @@ creation and revealed during activation.
 Implementation requirements (see [spec][spec] for full
 detail and test vectors):
 
-- BIP-32 hardened derivation path `m/73681862'`.
+- IKM is the **connected leaf's** 32-byte private key (the BIP-32 leaf at the receive-address path the dApp is connected to, e.g. `m/86'/0'/0'/0/0`). For imported wallets, the raw imported private key. Output is per-public-key.
 - HKDF-SHA-256 with the spec's fixed salt and `info` constructed from `appName` + `context`.
 - 32-byte output (64 lowercase hex chars).
 - `appName` must match `[a-z0-9\-]`, 1–64 bytes.
