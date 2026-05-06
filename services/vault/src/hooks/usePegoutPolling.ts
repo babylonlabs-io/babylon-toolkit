@@ -15,8 +15,10 @@ import {
 } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef } from "react";
+import type { Address, Hex } from "viem";
 
 import type { RedeemedVaultInfo } from "@/applications/aave/hooks/useAaveVaults";
+import { getVaultRegistryReader } from "@/clients/eth-contract/sdk-readers";
 import {
   POLLING_INTERVAL_MS,
   POLLING_RETRY_COUNT,
@@ -56,19 +58,33 @@ interface VaultPollCounters {
   unknownCounts: Map<string, number>;
 }
 
-function groupVaultsByProvider(
+// Always use the on-chain registry provider; never fall back to the
+// indexer-supplied address (audit #281). Vaults missing on-chain are
+// skipped — the polling query's "Initiating" seed loop then surfaces
+// them as warning-state and times them out after the standard window.
+export function groupVaultsByProvider(
   vaults: RedeemedVaultInfo[],
+  onChainProviders: Map<Hex, Address>,
 ): Map<string, VaultsByProvider> {
   const grouped = new Map<string, VaultsByProvider>();
 
   for (const vault of vaults) {
-    const providerAddress = vault.vaultProviderAddress;
-    if (!providerAddress || !providerAddress.startsWith("0x")) {
+    const providerAddress = onChainProviders.get(vault.id as Hex);
+    if (!providerAddress) {
       logger.warn(
-        `Invalid or missing provider address for vault ${vault.id}, skipping pegout poll`,
+        `On-chain provider for vault ${vault.id} is unavailable; skipping pegout poll (audit #281).`,
       );
       continue;
     }
+    if (
+      vault.vaultProviderAddress &&
+      vault.vaultProviderAddress.toLowerCase() !== providerAddress.toLowerCase()
+    ) {
+      logger.warn(
+        `Provider mismatch for vault ${vault.id}: indexer="${vault.vaultProviderAddress}", on-chain="${providerAddress}". Using on-chain (audit #281).`,
+      );
+    }
+
     const existing = grouped.get(providerAddress);
     const entry: VaultToPoll = { vault, providerAddress };
 
@@ -210,10 +226,43 @@ export function usePegoutPolling({
 
   const isEnabled = redeemedVaults.length > 0;
 
-  const queryKey = useMemo(
-    () => ["pegoutPolling", redeemedVaults.map((v) => v.id).join(",")],
+  const vaultIdsKey = useMemo(
+    () =>
+      redeemedVaults
+        .map((v) => v.id)
+        .sort()
+        .join(","),
     [redeemedVaults],
   );
+
+  // Vault → on-chain provider is immutable after registration, so cache
+  // forever.
+  const { data: onChainProviders } = useQuery({
+    queryKey: ["onChainVaultProviders", vaultIdsKey],
+    queryFn: async () => {
+      const reader = getVaultRegistryReader();
+      const ids = redeemedVaults.map((v) => v.id as Hex);
+      const settled = await Promise.allSettled(
+        ids.map((id) => reader.getVaultBasicInfo(id)),
+      );
+      const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
+      const out = new Map<Hex, Address>();
+      settled.forEach((res, i) => {
+        if (res.status !== "fulfilled") return;
+        const provider = res.value.vaultProvider as Address;
+        // `getBtcVaultBasicInfo` returns a zeroed struct for unknown
+        // vault ids; drop those rather than poll the zero address.
+        if (provider.toLowerCase() === ZERO_ADDRESS) return;
+        out.set(ids[i]!, provider);
+      });
+      return out;
+    },
+    enabled: isEnabled,
+    staleTime: Infinity,
+    gcTime: Infinity,
+  });
+
+  const queryKey = useMemo(() => ["pegoutPolling", vaultIdsKey], [vaultIdsKey]);
 
   const { data, isLoading } = useQuery({
     queryKey,
@@ -224,7 +273,10 @@ export function usePegoutPolling({
         return new Map();
       }
 
-      const vaultsByProvider = groupVaultsByProvider(currentVaults);
+      const vaultsByProvider = groupVaultsByProvider(
+        currentVaults,
+        onChainProviders ?? new Map(),
+      );
 
       const results = new Map<string, PegoutPollingResult>();
 
@@ -264,7 +316,7 @@ export function usePegoutPolling({
 
       return results;
     },
-    enabled: isEnabled,
+    enabled: isEnabled && onChainProviders !== undefined,
     staleTime: 0,
     refetchInterval: (query) => {
       const statusMap = query.state.data;
