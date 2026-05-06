@@ -51,7 +51,7 @@ const ASSET = {
   icon: "/usdc.svg",
 } as LoanContextValue["assetConfig"];
 
-// Aave SDK conventions (see packages/babylon-ts-sdk/src/tbv/integrations/aave/constants.ts):
+// Aave SDK conventions:
 //   totalCollateralValue is scaled by 1e26 per USD,
 //   totalDebtValueRay is scaled by 1e53 per USD.
 const USD_BASE = 10n ** 26n;
