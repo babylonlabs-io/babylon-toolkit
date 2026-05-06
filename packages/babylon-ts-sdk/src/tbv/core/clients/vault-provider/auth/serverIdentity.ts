@@ -41,6 +41,14 @@ const SERVER_IDENTITY_DOMAIN = new TextEncoder().encode(
 );
 
 /**
+ * Cap on `proof.expires_at - now`. Bounds how long a leaked VP
+ * ephemeral key stays usable; the bearer token's own TTL does not
+ * (different trust boundary). 2h = Rust ref VP's 1h rotation × 2 for
+ * clock skew. Override per call via `maxLifetimeSecs`.
+ */
+export const DEFAULT_MAX_PROOF_LIFETIME_SECS = 2 * 3600;
+
+/**
  * Wire representation from btc-vault's `ServerIdentityResponse`.
  */
 export interface ServerIdentityResponse {
@@ -65,6 +73,8 @@ export interface VerifyServerIdentityInput {
   pinnedServerPubkey: string;
   /** Current Unix timestamp in seconds. Injected for testability. */
   now: number;
+  /** Cap on `proof.expires_at - now` (seconds). Defaults to {@link DEFAULT_MAX_PROOF_LIFETIME_SECS}. */
+  maxLifetimeSecs?: number;
 }
 
 export class ServerIdentityError extends Error {
@@ -73,7 +83,9 @@ export class ServerIdentityError extends Error {
     public readonly reason:
       | "pinned_pubkey_mismatch"
       | "expired"
+      | "expires_too_far"
       | "invalid_expires_at"
+      | "invalid_max_lifetime"
       | "invalid_pubkey_encoding"
       | "invalid_ephemeral_pubkey"
       | "invalid_signature_encoding"
@@ -99,7 +111,7 @@ function hexToBytes(hex: string): Uint8Array {
  *
  * Checks:
  *   1. `server_pubkey` matches the pin.
- *   2. `expires_at > now` (with integer guards).
+ *   2. `now < expires_at <= now + maxLifetimeSecs` (with integer guards).
  *   3. `ephemeral_pubkey` is a well-formed 33-byte compressed pubkey.
  *   4. `signature` is a well-formed 64-byte Schnorr hex string.
  *   5. The BIP-322 Schnorr signature cryptographically verifies
@@ -115,6 +127,8 @@ function hexToBytes(hex: string): Uint8Array {
  */
 export function verifyServerIdentity(input: VerifyServerIdentityInput): void {
   const { proof, pinnedServerPubkey, now } = input;
+  const maxLifetimeSecs =
+    input.maxLifetimeSecs ?? DEFAULT_MAX_PROOF_LIFETIME_SECS;
 
   const pinned = stripHexPrefix(pinnedServerPubkey).toLowerCase();
   if (pinned.length !== X_ONLY_PUBKEY_HEX_LEN || !HEX_RE.test(pinned)) {
@@ -162,6 +176,19 @@ export function verifyServerIdentity(input: VerifyServerIdentityInput): void {
     throw new ServerIdentityError(
       `server identity proof expired at ${proof.expires_at}, now ${now}`,
       "expired",
+    );
+  }
+  if (!Number.isSafeInteger(maxLifetimeSecs) || maxLifetimeSecs <= 0) {
+    throw new ServerIdentityError(
+      `maxLifetimeSecs must be a positive safe integer; got ${JSON.stringify(maxLifetimeSecs)}`,
+      "invalid_max_lifetime",
+    );
+  }
+  if (proof.expires_at - now > maxLifetimeSecs) {
+    throw new ServerIdentityError(
+      `server identity proof expires too far in the future: ` +
+        `expires_at=${proof.expires_at}, now=${now}, max lifetime=${maxLifetimeSecs}s`,
+      "expires_too_far",
     );
   }
 
