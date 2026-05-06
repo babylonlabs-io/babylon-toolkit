@@ -66,11 +66,16 @@ export const createAccountStorage = (ttl: number, networkMap?: Record<string, st
   function isExpired(map: Record<string, unknown>, scoped: string): boolean {
     const timestamps = getTimestamps(map);
     const ts = timestamps[scoped];
-    if (ts != null) {
-      return Date.now() - ts > ttl;
-    }
-    // No timestamp — treat as expired
-    return true;
+    if (typeof ts !== "number" || !Number.isFinite(ts)) return true;
+
+    const now = Date.now();
+    // Clamp to a sane window. Without these, an XSS-tier write of
+    // ts=Number.MAX_SAFE_INTEGER (or any far-future value) makes
+    // `now - ts` negative and the entry never expires; a backwards
+    // clock jump similarly extends entries past the intended TTL.
+    if (ts < 0) return true;
+    if (ts > now + ttl) return true;
+    return now - ts > ttl;
   }
 
   return {

@@ -94,6 +94,91 @@ test("entry without timestamp is treated as expired", () => {
   expect(storage.has("BTC")).toBe(false);
 });
 
+test("rejects far-future poisoned timestamp (audit #248)", () => {
+  // Same-origin XSS or compromised localStorage writer setting
+  // ts=MAX_SAFE_INTEGER would otherwise make the entry valid forever
+  // (Date.now() - MAX_SAFE_INTEGER is negative, never > ttl).
+  const baseTime = 1_000_000_000_000;
+  Date.now = () => baseTime;
+
+  localStorage.setItem(
+    STORAGE_KEY,
+    JSON.stringify({
+      BTC: "unisat",
+      _timestamps: { BTC: Number.MAX_SAFE_INTEGER },
+    }),
+  );
+
+  const storage = createAccountStorage(ONE_HOUR_MS);
+  expect(storage.get("BTC")).toBeUndefined();
+  expect(storage.has("BTC")).toBe(false);
+});
+
+test("rejects negative timestamp", () => {
+  const baseTime = 1_000_000_000_000;
+  Date.now = () => baseTime;
+
+  localStorage.setItem(
+    STORAGE_KEY,
+    JSON.stringify({ BTC: "unisat", _timestamps: { BTC: -1 } }),
+  );
+
+  const storage = createAccountStorage(ONE_HOUR_MS);
+  expect(storage.get("BTC")).toBeUndefined();
+});
+
+test("rejects non-number timestamp (string, object, null)", () => {
+  // NaN/Infinity are intentionally not in this loop: JSON.stringify
+  // serializes them to `null`, so they round-trip to the same bytes
+  // as the explicit `null` entry. The `Number.isFinite` branch is
+  // exercised separately below using a hand-written JSON literal.
+  const baseTime = 1_000_000_000_000;
+  Date.now = () => baseTime;
+
+  for (const bogus of ["forever", { evil: true }, null]) {
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({ BTC: "unisat", _timestamps: { BTC: bogus } }),
+    );
+    const storage = createAccountStorage(ONE_HOUR_MS);
+    expect(storage.get("BTC")).toBeUndefined();
+  }
+});
+
+test("rejects Infinity timestamp (raw JSON literal that parses to Infinity)", () => {
+  // JSON.parse coerces out-of-range numerics like `1e400` to Infinity
+  // — the only realistic path for Infinity to reach the storage layer
+  // through the localStorage round-trip. Tests the `!Number.isFinite`
+  // branch in storage.ts:isExpired without going through JSON.stringify.
+  const baseTime = 1_000_000_000_000;
+  Date.now = () => baseTime;
+
+  localStorage.setItem(
+    STORAGE_KEY,
+    '{"BTC":"unisat","_timestamps":{"BTC":1e400}}',
+  );
+
+  const storage = createAccountStorage(ONE_HOUR_MS);
+  expect(storage.get("BTC")).toBeUndefined();
+});
+
+test("rejects timestamp more than ttl in the future", () => {
+  // A small clock-skew tolerance is OK; arbitrarily-far future is not.
+  const baseTime = 1_000_000_000_000;
+  Date.now = () => baseTime;
+
+  localStorage.setItem(
+    STORAGE_KEY,
+    JSON.stringify({
+      BTC: "unisat",
+      _timestamps: { BTC: baseTime + ONE_HOUR_MS * 24 },
+    }),
+  );
+
+  const storage = createAccountStorage(ONE_HOUR_MS);
+  expect(storage.get("BTC")).toBeUndefined();
+});
+
 test("network-scoped keys have independent TTLs", () => {
   const baseTime = 1_000_000_000_000;
   Date.now = () => baseTime;
