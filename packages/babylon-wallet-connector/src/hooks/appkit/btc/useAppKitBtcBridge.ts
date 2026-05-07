@@ -1,9 +1,9 @@
-import { bitcoin, bitcoinSignet } from "@reown/appkit/networks";
 import { useAppKitAccount } from "@reown/appkit/react";
 import { useCallback, useEffect, useRef } from "react";
 
 import { APPKIT_BTC_CONNECTOR_ID } from "@/core/wallets/btc/appkit";
 import { APPKIT_BTC_CONNECTED_EVENT } from "@/core/wallets/btc/appkit/constants";
+import { getCaipNetworkForNetwork } from "@/core/wallets/btc/appkit/network";
 import { getSharedBtcAppKitConfig } from "@/core/wallets/btc/appkit/sharedConfig";
 import { APPKIT_OPEN_EVENT } from "@/core/wallets/appkit/constants";
 import { useChainConnector } from "@/hooks/useChainConnector";
@@ -46,12 +46,9 @@ export const useAppKitBtcBridge = ({ onError }: UseAppKitBtcBridgeOptions = {}) 
         // skip the connection-event dispatch so downstream code never
         // sees a connected-but-wrong-network state.
         const { adapter, network, connectionEvents } = getSharedBtcAppKitConfig();
-        const networkMap = {
-          mainnet: bitcoin,
-          signet: bitcoinSignet,
-        } as const;
-        const caipNetwork = networkMap[network];
-        await adapter.switchNetwork({ caipNetwork });
+        await adapter.switchNetwork({
+          caipNetwork: getCaipNetworkForNetwork(network),
+        });
 
         // Fetch publicKey from allAccounts (this is where AppKit stores it)
         let publicKey: string | undefined;
