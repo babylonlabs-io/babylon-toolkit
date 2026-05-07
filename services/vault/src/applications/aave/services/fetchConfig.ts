@@ -10,11 +10,7 @@ import type { Address } from "viem";
 
 import { graphqlClient } from "../../../clients/graphql";
 import { getReserve } from "../clients/spoke";
-import {
-  getCoreSpokeAddress,
-  getVaultBtcAddress,
-  getVaultBtcReserveId,
-} from "../clients/transaction";
+import { getAdapterImmutables } from "../clients/transaction";
 import { getAaveAdapterAddress } from "../config";
 
 /**
@@ -24,8 +20,6 @@ import { getAaveAdapterAddress } from "../config";
 export interface AaveConfig {
   /** AaveIntegrationAdapter contract address */
   adapterAddress: string;
-  /** VaultBTC token address */
-  vaultBtcAddress: string;
   /** BTCVaultRegistry contract address */
   btcVaultRegistryAddress: string;
   /** Core Spoke contract address (resolved on-chain from adapter) */
@@ -114,7 +108,6 @@ interface GraphQLAaveAppConfigResponse {
   aaveConfig: {
     id: number;
     adapterAddress: string;
-    vaultBtcAddress: string;
     btcVaultRegistryAddress: string;
     btcVaultCoreVbtcReserveId: string;
   } | null;
@@ -134,7 +127,6 @@ const GET_AAVE_APP_CONFIG = gql`
     aaveConfig(id: ${AAVE_CONFIG_ID}) {
       id
       adapterAddress
-      vaultBtcAddress
       btcVaultRegistryAddress
       btcVaultCoreVbtcReserveId
     }
@@ -222,28 +214,24 @@ export async function fetchAaveAppConfig(): Promise<AaveAppConfig | null> {
   }
 
   // Resolve spoke address, vBTC reserve id, and vBTC token on-chain from the
-  // env-pinned adapter. Treating these as the source of truth (rather than the
-  // GraphQL row) prevents a poisoned indexer from steering the UI's risk math
-  // toward a different reserve's collateral factor / liquidation threshold.
-  let coreSpokeAddress: Address;
-  let vbtcReserveId: bigint;
-  let vaultBtcAddress: Address;
+  // env-pinned adapter in a single multicall (same-block atomicity, single
+  // round-trip). Treating these as the source of truth — rather than the
+  // GraphQL row — prevents a poisoned indexer from steering the UI's risk
+  // math toward a different reserve's collateral factor / liquidation
+  // threshold.
+  let immutables;
   try {
-    [coreSpokeAddress, vbtcReserveId, vaultBtcAddress] = await Promise.all([
-      getCoreSpokeAddress(adapterAddress),
-      getVaultBtcReserveId(adapterAddress),
-      getVaultBtcAddress(adapterAddress),
-    ]);
+    immutables = await getAdapterImmutables(adapterAddress);
   } catch (error) {
     throw new Error(
       `Failed to resolve Aave config from adapter ${adapterAddress}`,
       { cause: error },
     );
   }
+  const { spoke: coreSpokeAddress, vbtcReserveId, vaultBtc } = immutables;
 
-  // Fail closed if the indexer disagrees with the adapter. Operationally
-  // surfaces poisoned/stale GraphQL config rather than silently overwriting
-  // them.
+  // Fail closed if the indexer's reserve id disagrees with the adapter's
+  // immutable. Surfaces poisoned/stale GraphQL config loudly during ops.
   const indexedVbtcReserveId = BigInt(
     response.aaveConfig.btcVaultCoreVbtcReserveId,
   );
@@ -251,13 +239,6 @@ export async function fetchAaveAppConfig(): Promise<AaveAppConfig | null> {
     throw new Error(
       `Aave vBTC reserve id mismatch: indexer returned ${indexedVbtcReserveId}, ` +
         `adapter ${adapterAddress} reports ${vbtcReserveId}`,
-    );
-  }
-  const indexedVaultBtcAddress = response.aaveConfig.vaultBtcAddress as Address;
-  if (indexedVaultBtcAddress.toLowerCase() !== vaultBtcAddress.toLowerCase()) {
-    throw new Error(
-      `Aave vBTC token mismatch: indexer returned ${indexedVaultBtcAddress}, ` +
-        `adapter ${adapterAddress} reports ${vaultBtcAddress}`,
     );
   }
 
@@ -273,19 +254,16 @@ export async function fetchAaveAppConfig(): Promise<AaveAppConfig | null> {
       { cause: error },
     );
   }
-  if (
-    onChainReserve.underlying.toLowerCase() !== vaultBtcAddress.toLowerCase()
-  ) {
+  if (onChainReserve.underlying.toLowerCase() !== vaultBtc.toLowerCase()) {
     throw new Error(
       `Aave vBTC reserve underlying mismatch: spoke ${coreSpokeAddress} ` +
         `reserve ${vbtcReserveId} has underlying ${onChainReserve.underlying}, ` +
-        `expected ${vaultBtcAddress}`,
+        `expected ${vaultBtc}`,
     );
   }
 
   const config: AaveConfig = {
     adapterAddress,
-    vaultBtcAddress,
     btcVaultRegistryAddress: response.aaveConfig.btcVaultRegistryAddress,
     coreSpokeAddress,
     btcVaultCoreVbtcReserveId: vbtcReserveId,
