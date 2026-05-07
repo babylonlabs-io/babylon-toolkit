@@ -2,6 +2,7 @@ import { FullScreenDialog } from "@babylonlabs-io/core-ui";
 import { useCallback, useMemo, useState } from "react";
 
 import { useWithdrawCollateralTransaction } from "@/applications/aave/hooks/useWithdrawCollateralTransaction";
+import { WithdrawPreSignValidationError } from "@/applications/aave/hooks/withdrawPreSignValidationError";
 import type { AavePositionWithLiveData } from "@/applications/aave/services";
 import {
   computeProjectedHealthFactor,
@@ -113,7 +114,14 @@ function WithdrawFlowContent({
     // error through the standard modal. The refetch also updates React Query
     // so the dialog re-renders with fresh `currentHealthFactor` for re-review.
     const preSignValidation = async () => {
-      const fresh = await refetchPosition();
+      let fresh: AavePositionWithLiveData | null;
+      try {
+        fresh = await refetchPosition();
+      } catch (error) {
+        throw new WithdrawPreSignValidationError(
+          error instanceof Error ? error.message : String(error),
+        );
+      }
       validateFreshWithdraw(fresh, selectedBtc);
     };
 
