@@ -24,7 +24,7 @@ import {
 import { primeVpTokenRegistry } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import { calculateBtcTxHash } from "@babylonlabs-io/ts-sdk/tbv/core/utils";
 import { useChainConnector } from "@babylonlabs-io/wallet-connector";
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import type { Address, Hex } from "viem";
 
 import { getVaultRegistryReader } from "@/clients/eth-contract/sdk-readers";
@@ -64,18 +64,52 @@ export function ResumeSignContent({
   onClose,
   onSuccess,
 }: ResumeSignContentProps) {
+  const btcConnector = useChainConnector("BTC");
+  const rawBtcWallet =
+    (btcConnector?.connectedWallet?.provider as BitcoinWallet | undefined) ??
+    null;
+
+  const [currentStep, setCurrentStep] = useState<DepositFlowStep>(
+    DepositFlowStep.SIGN_AUTH_ANCHOR,
+  );
+
+  const phaseTrackingWallet = useMemo<BitcoinWallet | undefined>(() => {
+    if (!rawBtcWallet) return undefined;
+    return {
+      ...rawBtcWallet,
+      deriveContextHash: (appName, context) => {
+        setCurrentStep(DepositFlowStep.SIGN_AUTH_ANCHOR);
+        return rawBtcWallet.deriveContextHash(appName, context);
+      },
+      signPsbt: (psbtHex, opts) => {
+        setCurrentStep(DepositFlowStep.SIGN_PAYOUTS);
+        return rawBtcWallet.signPsbt(psbtHex, opts);
+      },
+      ...(rawBtcWallet.signPsbts
+        ? {
+            signPsbts: (psbtHexes, opts) => {
+              setCurrentStep(DepositFlowStep.SIGN_PAYOUTS);
+              return rawBtcWallet.signPsbts!(psbtHexes, opts);
+            },
+          }
+        : {}),
+    };
+  }, [rawBtcWallet]);
+
   const { signing, progress, error, isComplete, handleSign } =
     usePayoutSigningState({
       activity,
       btcPublicKey,
       depositorEthAddress,
       onSuccess,
+      btcWalletOverride: phaseTrackingWallet,
     });
 
   useRunOnce(handleSign);
 
+  const renderStep = isComplete ? DepositFlowStep.COMPLETED : currentStep;
   const derived = computeDepositDerivedState(
-    isComplete ? DepositFlowStep.COMPLETED : DepositFlowStep.SIGN_PAYOUTS,
+    renderStep,
     signing,
     false,
     error?.message ?? null,
@@ -83,9 +117,7 @@ export function ResumeSignContent({
 
   return (
     <DepositProgressView
-      currentStep={
-        isComplete ? DepositFlowStep.COMPLETED : DepositFlowStep.SIGN_PAYOUTS
-      }
+      currentStep={renderStep}
       isWaiting={false}
       error={error?.message ?? null}
       isComplete={derived.isComplete}
@@ -303,7 +335,6 @@ export function ResumeWotsContent({
       });
 
       setLoading(false);
-      onSuccess();
     } catch (err) {
       const msg =
         err instanceof Error ? err.message : "Failed to submit WOTS key";
@@ -320,21 +351,23 @@ export function ResumeWotsContent({
     } finally {
       root?.fill(0);
     }
-  }, [activity, btcWalletProvider, onSuccess, trackPrimedTxid]);
+  }, [activity, btcWalletProvider, trackPrimedTxid]);
 
   useRunOnce(handleSubmit);
 
+  const isSuccess = !loading && !error;
+
   return (
     <DepositProgressView
-      currentStep={DepositFlowStep.SIGN_PAYOUTS}
+      currentStep={DepositFlowStep.SUBMIT_WOTS_KEYS}
       isWaiting={false}
       error={error}
-      isComplete={!loading && !error}
+      isComplete={isSuccess}
       isProcessing={loading}
       canClose={!loading}
       canContinueInBackground={false}
       payoutSigningProgress={null}
-      onClose={onClose}
+      onClose={isSuccess ? onSuccess : onClose}
       successMessage="Your WOTS public key has been submitted. The deposit will continue processing."
       onRetry={error ? handleSubmit : undefined}
     />

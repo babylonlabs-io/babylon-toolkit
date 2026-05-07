@@ -6,6 +6,7 @@
  * only the React state, guard checks, and optimistic localStorage updates.
  */
 
+import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
 import { useChainConnector } from "@babylonlabs-io/wallet-connector";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Hex } from "viem";
@@ -33,6 +34,12 @@ export interface UsePayoutSigningStateProps {
   btcPublicKey: string;
   depositorEthAddress: Hex;
   onSuccess: () => void;
+  /**
+   * Optional override used to wrap the BTC wallet with phase-tracking
+   * proxies (e.g. so `deriveContextHash` advances the deposit-progress
+   * stepper). When omitted, the connector's wallet is used directly.
+   */
+  btcWalletOverride?: BitcoinWallet;
 }
 
 export interface UsePayoutSigningStateResult {
@@ -57,6 +64,7 @@ export function usePayoutSigningState({
   btcPublicKey,
   depositorEthAddress,
   onSuccess,
+  btcWalletOverride,
 }: UsePayoutSigningStateProps): UsePayoutSigningStateResult {
   const [signing, setSigning] = useState(false);
   const [isComplete, setIsComplete] = useState(false);
@@ -180,7 +188,8 @@ export function usePayoutSigningState({
         return;
       }
 
-      const btcWalletProvider = btcConnector?.connectedWallet?.provider;
+      const btcWalletProvider =
+        btcWalletOverride ?? btcConnector?.connectedWallet?.provider;
       if (!btcWalletProvider) {
         setError({
           title: "Wallet Not Connected",
@@ -256,6 +265,7 @@ export function usePayoutSigningState({
     findProvider,
     btcConnector?.connectedWallet?.account?.address,
     btcConnector?.connectedWallet?.provider,
+    btcWalletOverride,
     btcPublicKey,
     depositorEthAddress,
     setOptimisticStatus,

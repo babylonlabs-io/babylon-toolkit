@@ -10,7 +10,6 @@ import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
 import { useCallback } from "react";
 import type { Address } from "viem";
 
-import { ArtifactDownloadModal } from "@/components/deposit/ArtifactDownloadModal";
 import {
   computeDepositDerivedState,
   DEPOSIT_SUCCESS_MESSAGE,
@@ -30,18 +29,12 @@ interface DepositSignContentProps {
   vaultProviderBtcPubkey: string;
   vaultKeeperBtcPubkeys: string[];
   universalChallengerBtcPubkeys: string[];
-  onSuccess: (
-    peginTxHash: string,
-    ethTxHash: string,
-    depositorBtcPubkey: string,
-  ) => void;
   onClose: () => void;
   onRefetchActivities?: () => Promise<void>;
 }
 
 export function DepositSignContent({
   onClose,
-  onSuccess,
   onRefetchActivities,
   vaultAmounts,
   ...flowParams
@@ -55,28 +48,17 @@ export function DepositSignContent({
     error,
     isWaiting,
     payoutSigningProgress,
-    artifactDownloadInfo,
-    continueAfterArtifactDownload,
   } = useDepositFlow({
     vaultAmounts,
     ...flowParams,
   });
 
-  // Auto-start the flow on mount
   const startFlow = useCallback(async () => {
     const result = await executeDeposit();
     if (result) {
       onRefetchActivities?.();
-      const firstPegin = result.pegins[0];
-      if (firstPegin) {
-        onSuccess(
-          firstPegin.peginTxHash,
-          firstPegin.ethTxHash,
-          firstPegin.depositorBtcPubkey,
-        );
-      }
     }
-  }, [executeDeposit, onRefetchActivities, onSuccess]);
+  }, [executeDeposit, onRefetchActivities]);
 
   useRunOnce(startFlow);
 
@@ -120,16 +102,6 @@ export function DepositSignContent({
           payoutSigningProgress={payoutSigningProgress}
           onClose={handleClose}
           successMessage={DEPOSIT_SUCCESS_MESSAGE}
-        />
-      )}
-      {artifactDownloadInfo && (
-        <ArtifactDownloadModal
-          open={!!artifactDownloadInfo}
-          onClose={handleClose}
-          onComplete={continueAfterArtifactDownload}
-          providerAddress={artifactDownloadInfo.providerAddress}
-          peginTxid={artifactDownloadInfo.peginTxid}
-          depositorPk={artifactDownloadInfo.depositorPk}
         />
       )}
     </>

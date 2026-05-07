@@ -147,7 +147,6 @@ function SimpleDepositContent({
     goToStep,
     setDepositData,
     setFeeRate,
-    setTransactionHashes,
   } = useDepositPageFlow();
 
   // Pre-fill amount when opening with a suggested amount from notifications
@@ -219,14 +218,6 @@ function SimpleDepositContent({
     }
   };
 
-  const handleSignSuccess = useCallback(
-    (peginTxHash: string, ethTxHash: string, _depositorBtcPubkey: string) => {
-      setTransactionHashes(peginTxHash, ethTxHash, _depositorBtcPubkey);
-      goToStep(DepositStep.SUCCESS);
-    },
-    [setTransactionHashes, goToStep],
-  );
-
   const showForm = !renderedStep || renderedStep === DepositStep.FORM;
   const stepKey = renderedStep ?? "form";
 
@@ -295,7 +286,6 @@ function SimpleDepositContent({
               vaultProviderBtcPubkey={selectedProviderBtcPubkey}
               vaultKeeperBtcPubkeys={vaultKeeperBtcPubkeys}
               universalChallengerBtcPubkeys={universalChallengerBtcPubkeys}
-              onSuccess={handleSignSuccess}
               onClose={onClose}
               onRefetchActivities={refetchActivities}
             />
