@@ -134,6 +134,91 @@ describe("verifyServerIdentity", () => {
     }
   });
 
+  // Audit #244: a proof's expires_at must be bounded above so a
+  // compromised VP key isn't trusted indefinitely.
+  it("rejects a proof whose expiry is 50 years in the future (audit #244)", () => {
+    const FIFTY_YEARS_SECS = 50 * 365 * 24 * 3600;
+    try {
+      verifyServerIdentity({
+        proof: validProof({ expires_at: NOW + FIFTY_YEARS_SECS }),
+        pinnedServerPubkey: PINNED,
+        now: NOW,
+      });
+      expect.fail("should have thrown");
+    } catch (err) {
+      expect((err as ServerIdentityError).reason).toBe("expires_too_far");
+    }
+  });
+
+  it("rejects a proof one second past the default 2h cap", () => {
+    const TWO_HOURS = 2 * 3600;
+    try {
+      verifyServerIdentity({
+        proof: validProof({ expires_at: NOW + TWO_HOURS + 1 }),
+        pinnedServerPubkey: PINNED,
+        now: NOW,
+      });
+      expect.fail("should have thrown");
+    } catch (err) {
+      expect((err as ServerIdentityError).reason).toBe("expires_too_far");
+    }
+  });
+
+  it("accepts a proof at the default cap (2h boundary, exactly)", () => {
+    // expires_at - now === maxLifetimeSecs is allowed; only strictly
+    // greater than the cap is rejected. Crypto verify will fail (we
+    // didn't re-sign for the new expiry), so we expect that distinct
+    // failure — proving the cap check passed.
+    const TWO_HOURS = 2 * 3600;
+    try {
+      verifyServerIdentity({
+        proof: validProof({ expires_at: NOW + TWO_HOURS }),
+        pinnedServerPubkey: PINNED,
+        now: NOW,
+      });
+      expect.fail("should have thrown");
+    } catch (err) {
+      expect((err as ServerIdentityError).reason).toBe(
+        "signature_verification_failed",
+      );
+    }
+  });
+
+  it("respects a caller-supplied maxLifetimeSecs override", () => {
+    // Tighten to 30 minutes; the golden 1h-into-future proof now fails.
+    const HALF_HOUR = 30 * 60;
+    try {
+      verifyServerIdentity({
+        proof: validProof(),
+        pinnedServerPubkey: PINNED,
+        now: NOW,
+        maxLifetimeSecs: HALF_HOUR,
+      });
+      expect.fail("should have thrown");
+    } catch (err) {
+      expect((err as ServerIdentityError).reason).toBe("expires_too_far");
+    }
+  });
+
+  it.each([0, -1, -3600])(
+    "rejects non-positive maxLifetimeSecs=%s as invalid_max_lifetime",
+    (badCap) => {
+      try {
+        verifyServerIdentity({
+          proof: validProof(),
+          pinnedServerPubkey: PINNED,
+          now: NOW,
+          maxLifetimeSecs: badCap,
+        });
+        expect.fail(`should have thrown for maxLifetimeSecs=${badCap}`);
+      } catch (err) {
+        expect((err as ServerIdentityError).reason).toBe(
+          "invalid_max_lifetime",
+        );
+      }
+    },
+  );
+
   it("rejects wrong-length pinned pubkey", () => {
     expect(() =>
       verifyServerIdentity({
