@@ -527,7 +527,30 @@ describe("useAaveReserveDetail", () => {
 
   // --- Error propagation ---
 
-  it("propagates error from usePrices", () => {
+  it("propagates useAaveUserPosition error as positionError (audit #311 hard-block)", () => {
+    const debtError = new Error("Debt reserve fetch failure");
+    mockUseAaveUserPosition.mockReturnValue({
+      position: null,
+      collateralValueUsd: 0,
+      debtValueUsd: 0,
+      healthFactor: null,
+      healthFactorStatus: "healthy",
+      isPositionDataStale: false,
+      isLoading: false,
+      error: debtError,
+      refetch: vi.fn(),
+    });
+
+    const { result } = renderHook(
+      () => useAaveReserveDetail({ reserveId: "USDC", address: "0xUser" }),
+      { wrapper },
+    );
+
+    expect(result.current.positionError).toBe(debtError);
+    expect(result.current.ancillaryError).toBeNull();
+  });
+
+  it("propagates pricesError as ancillaryError (soft-warn, not a hard block)", () => {
     const pricesError = new Error("Chainlink RPC failure");
     mockUsePrices.mockReturnValue({
       prices: {},
@@ -543,10 +566,11 @@ describe("useAaveReserveDetail", () => {
       { wrapper },
     );
 
-    expect(result.current.error).toBe(pricesError);
+    expect(result.current.ancillaryError).toBe(pricesError);
+    expect(result.current.positionError).toBeNull();
   });
 
-  it("propagates error from useVaultSplitParams", () => {
+  it("propagates splitParams error as ancillaryError (soft-warn, not a hard block)", () => {
     const splitError = new Error("Contract RPC failure");
     mockUseVaultSplitParams.mockReturnValue({
       params: null,
@@ -559,16 +583,18 @@ describe("useAaveReserveDetail", () => {
       { wrapper },
     );
 
-    expect(result.current.error).toBe(splitError);
+    expect(result.current.ancillaryError).toBe(splitError);
+    expect(result.current.positionError).toBeNull();
   });
 
-  it("returns null error when no hooks have errors", () => {
+  it("returns null for both errors when no hooks have errors", () => {
     const { result } = renderHook(
       () => useAaveReserveDetail({ reserveId: "USDC", address: "0xUser" }),
       { wrapper },
     );
 
-    expect(result.current.error).toBeNull();
+    expect(result.current.positionError).toBeNull();
+    expect(result.current.ancillaryError).toBeNull();
   });
 
   // --- Staleness passthrough (#132) ---

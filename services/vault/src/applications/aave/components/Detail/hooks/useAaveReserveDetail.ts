@@ -60,8 +60,18 @@ export interface UseAaveReserveDetailResult {
   healthFactor: number | null;
   /** Price of the selected borrow token in USD (null if unavailable) */
   tokenPriceUsd: number | null;
-  /** Error from price or split params fetch (null if no error) */
-  error: Error | null;
+  /**
+   * Position/debt-discovery error — hard-block the LoanCard (audit
+   * #311 fail-closed). A failure here means we can't trust the debt
+   * amount, so signing repay against it would risk under-/over-paying.
+   */
+  positionError: Error | null;
+  /**
+   * Ancillary errors from price or split-params fetches — soft-warn
+   * only. Repay can still validate from loaded debt + wallet balance,
+   * so unrelated infra failures should not remove the action path.
+   */
+  ancillaryError: Error | null;
   /** Whether position data may be stale (oracle-derived values possibly outdated) */
   isPositionDataStale: boolean;
   /** Refetch position data — returns fresh position (or null if unavailable) */
@@ -113,6 +123,7 @@ export function useAaveReserveDetail({
     healthFactor,
     isPositionDataStale,
     isLoading: positionLoading,
+    error: positionError,
     refetch: refetchPosition,
   } = useAaveUserPosition(address);
 
@@ -200,7 +211,8 @@ export function useAaveReserveDetail({
     totalDebtValueUsd: debtValueUsd,
     healthFactor,
     tokenPriceUsd,
-    error: pricesError ?? splitParamsError ?? null,
+    positionError: positionError ?? null,
+    ancillaryError: pricesError ?? splitParamsError ?? null,
     isPositionDataStale,
     refetchPosition,
   };
