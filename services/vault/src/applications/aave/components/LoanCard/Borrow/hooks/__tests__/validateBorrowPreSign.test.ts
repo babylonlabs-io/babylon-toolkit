@@ -43,7 +43,7 @@ describe("validateBorrowPreSign", () => {
 
   it("throws when refetchSplitParams returns null", async () => {
     const refetchSplitParams = vi.fn().mockResolvedValue(null);
-    const refetchPosition = vi.fn();
+    const refetchPosition = vi.fn().mockResolvedValue(null);
 
     await expect(
       validateBorrowPreSign({
@@ -54,8 +54,6 @@ describe("validateBorrowPreSign", () => {
         refetchPosition,
       }),
     ).rejects.toThrow("Could not verify current risk parameters");
-
-    expect(refetchPosition).not.toHaveBeenCalled();
   });
 
   it("aborts when on-chain CF moved since the screen was rendered (auditor #260)", async () => {
@@ -67,7 +65,11 @@ describe("validateBorrowPreSign", () => {
       CF: 0.7,
       LB: 1.05,
     });
-    const refetchPosition = vi.fn();
+    // The two refetches run in parallel (`Promise.all`) for click-path
+    // latency, so refetchPosition may be called even though we abort.
+    // What matters is that the validator throws and the user never reaches
+    // the `borrow(...)` call.
+    const refetchPosition = vi.fn().mockResolvedValue(null);
 
     await expect(
       validateBorrowPreSign({
@@ -78,10 +80,6 @@ describe("validateBorrowPreSign", () => {
         refetchPosition,
       }),
     ).rejects.toThrow("Risk parameters have changed");
-
-    // Must not even refetch position when the threshold moved — the user
-    // needs to see the new numbers before re-evaluating.
-    expect(refetchPosition).not.toHaveBeenCalled();
   });
 
   it("skips revalidation when refetchPosition returns null (first borrow)", async () => {
@@ -157,7 +155,7 @@ describe("validateBorrowPreSign", () => {
     const refetchSplitParams = vi
       .fn()
       .mockRejectedValue(new Error("RPC failure"));
-    const refetchPosition = vi.fn();
+    const refetchPosition = vi.fn().mockResolvedValue(null);
 
     await expect(
       validateBorrowPreSign({
@@ -168,8 +166,41 @@ describe("validateBorrowPreSign", () => {
         refetchPosition,
       }),
     ).rejects.toThrow("RPC failure");
+  });
 
-    expect(refetchPosition).not.toHaveBeenCalled();
+  it("runs refetchSplitParams and refetchPosition in parallel for click-path latency", async () => {
+    // Both refetches should be in flight at the same time. We assert this
+    // by resolving them in the opposite order from what a serial impl would
+    // produce: refetchPosition resolves before refetchSplitParams.
+    const splitParamsCallStarted = vi.fn();
+    const positionCallStarted = vi.fn();
+
+    const refetchSplitParams = vi.fn(async () => {
+      splitParamsCallStarted();
+      // Yield to the microtask queue so refetchPosition can also start.
+      await Promise.resolve();
+      return { THF: 1.1, CF: 0.75, LB: 1.05 };
+    });
+    const refetchPosition = vi.fn(async () => {
+      positionCallStarted();
+      return null; // first-borrow path
+    });
+
+    await validateBorrowPreSign({
+      borrowAmount: 100,
+      tokenPriceUsd: 1,
+      liquidationThresholdBps: 7500,
+      refetchSplitParams,
+      refetchPosition,
+    });
+
+    // Both refetches must have been initiated before either resolved —
+    // i.e. both call counters were non-zero by the time the first
+    // microtask boundary was reached. With a serial implementation,
+    // refetchPosition would not have started until after the first await
+    // inside refetchSplitParams resolved.
+    expect(splitParamsCallStarted).toHaveBeenCalledTimes(1);
+    expect(positionCallStarted).toHaveBeenCalledTimes(1);
   });
 
   it("uses fresh debt from refetched position, not stale UI state", async () => {

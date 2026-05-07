@@ -341,4 +341,35 @@ describe("useVaultSplitParams", () => {
 
     await expect(result.current.refetch()).rejects.toThrow("RPC failure");
   });
+
+  it("refetch({ retry: 0 }) does not retry on RPC failure (fast pre-sign feedback)", async () => {
+    const { useAaveConfig } = vi.mocked(await import("../../context"));
+    useAaveConfig.mockReturnValue({
+      config: {
+        adapterAddress: "0x1",
+        vaultBtcAddress: "0x2",
+        btcVaultRegistryAddress: "0x3",
+        coreSpokeAddress: "0xSpokeAddress",
+        btcVaultCoreVbtcReserveId: 1n,
+      },
+      vbtcReserve: null,
+      borrowableReserves: [],
+      allBorrowReserves: [],
+    });
+
+    const { result } = renderHook(() => useVaultSplitParams(), { wrapper });
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false);
+    });
+
+    // Default for refetch (no opts) inherits CONFIG_RETRY_COUNT = 3 → 4 calls.
+    // Pre-sign callers pass retry: 0 → exactly 1 call before surfacing the error.
+    mockGetDynamicReserveConfig.mockReset();
+    mockGetDynamicReserveConfig.mockRejectedValue(new Error("RPC failure"));
+
+    await expect(result.current.refetch({ retry: 0 })).rejects.toThrow(
+      "RPC failure",
+    );
+    expect(mockGetDynamicReserveConfig).toHaveBeenCalledTimes(1);
+  });
 });

@@ -10,8 +10,8 @@
  * user sign a repay whose displayed risk-improvement projection ran against
  * an obsolete threshold (auditor finding #260).
  */
-import { BPS_SCALE } from "../../../../constants";
 import type { VaultSplitParams } from "../../../../hooks/useVaultSplitParams";
+import { assertCfUnchanged } from "../../../../utils";
 
 export interface ValidateRepayPreSignDeps {
   /**
@@ -32,19 +32,5 @@ export async function validateRepayPreSign({
   liquidationThresholdBps,
   refetchSplitParams,
 }: ValidateRepayPreSignDeps): Promise<void> {
-  const freshSplitParams = await refetchSplitParams();
-  if (!freshSplitParams) {
-    throw new Error(
-      "Could not verify current risk parameters. Please try again.",
-    );
-  }
-  const freshLiquidationThresholdBps = Math.round(
-    freshSplitParams.CF * BPS_SCALE,
-  );
-
-  if (freshLiquidationThresholdBps !== liquidationThresholdBps) {
-    throw new Error(
-      "Risk parameters have changed. Please review the updated values and try again.",
-    );
-  }
+  await assertCfUnchanged({ liquidationThresholdBps, refetchSplitParams });
 }

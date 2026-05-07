@@ -143,8 +143,15 @@ export function useAaveReserveDetail({
     params: splitParams,
     isLoading: splitParamsLoading,
     error: splitParamsError,
-    refetch: refetchSplitParams,
+    refetch: refetchSplitParamsRaw,
   } = useVaultSplitParams(address);
+
+  // Pre-sign path — pass retry: 0 so a transient RPC blip surfaces fast
+  // instead of stalling the click for ~7s through the default retry backoff.
+  // All current consumers of this exposed refetch are pre-sign validators
+  // (`validateBorrowPreSign`, `validateRepayPreSign`); the background query
+  // inside `useVaultSplitParams` keeps `CONFIG_RETRY_COUNT` for resilience.
+  const refetchSplitParams = () => refetchSplitParamsRaw({ retry: 0 });
 
   // Calculate debt amount for selected reserve in token units
   const currentDebtAmount = useMemo(() => {

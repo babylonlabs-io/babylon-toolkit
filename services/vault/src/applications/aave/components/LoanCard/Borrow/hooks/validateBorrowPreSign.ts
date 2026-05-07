@@ -10,12 +10,13 @@
  * borrow whose UI safety check ran against an obsolete threshold (auditor
  * finding #260).
  */
-import { BPS_SCALE, MIN_HEALTH_FACTOR_FOR_BORROW } from "../../../../constants";
+import { MIN_HEALTH_FACTOR_FOR_BORROW } from "../../../../constants";
 import type { VaultSplitParams } from "../../../../hooks/useVaultSplitParams";
 import type { AavePositionWithLiveData } from "../../../../services";
 import {
   aaveRayValueToUsd,
   aaveValueToUsd,
+  assertCfUnchanged,
   calculateHealthFactor,
 } from "../../../../utils";
 
@@ -50,23 +51,15 @@ export async function validateBorrowPreSign({
     throw new Error("Token price unavailable. Cannot validate borrow.");
   }
 
-  const freshSplitParams = await refetchSplitParams();
-  if (!freshSplitParams) {
-    throw new Error(
-      "Could not verify current risk parameters. Please try again.",
-    );
-  }
-  const freshLiquidationThresholdBps = Math.round(
-    freshSplitParams.CF * BPS_SCALE,
-  );
+  // The two refetches are independent contract reads. Parallelizing halves
+  // the click-path latency. If `assertCfUnchanged` aborts, the in-flight
+  // position refetch result is discarded — one wasted eth_call in the rare
+  // CF-changed path is cheaper than serializing every borrow click.
+  const [{ freshLiquidationThresholdBps }, freshPosition] = await Promise.all([
+    assertCfUnchanged({ liquidationThresholdBps, refetchSplitParams }),
+    refetchPosition(),
+  ]);
 
-  if (freshLiquidationThresholdBps !== liquidationThresholdBps) {
-    throw new Error(
-      "Risk parameters have changed. Please review the updated values and try again.",
-    );
-  }
-
-  const freshPosition = await refetchPosition();
   if (!freshPosition) return; // No position = first borrow, skip revalidation
 
   const freshCollateralUsd = aaveValueToUsd(
