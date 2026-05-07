@@ -211,7 +211,6 @@ describe("useVaultSplitParams", () => {
     useAaveConfig.mockReturnValue({
       config: {
         adapterAddress: "0x1",
-        vaultBtcAddress: "0x2",
         btcVaultRegistryAddress: "0x3",
         coreSpokeAddress: "0xSpokeAddress",
         btcVaultCoreVbtcReserveId: 1n,

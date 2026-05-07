@@ -47,48 +47,56 @@ export async function getCoreSpokeAddress(
 }
 
 /**
- * Read the vBTC collateral reserve ID from the trusted adapter.
- *
- * BTC_VAULT_CORE_VAULT_BTC_RESERVE_ID is immutable on the
- * AaveIntegrationAdapter. Sourcing it on-chain prevents an indexer-supplied
- * value from steering the UI's risk math toward the wrong reserve's
- * collateral factor / liquidation threshold.
- *
- * @param controllerAddress - Trusted AaveIntegrationAdapter address
- * @returns vBTC reserve ID on Core Spoke
+ * Immutable adapter constants used to anchor the Aave config to on-chain truth.
  */
-export async function getVaultBtcReserveId(
-  controllerAddress: Address,
-): Promise<bigint> {
-  const publicClient = ethClient.getPublicClient();
-  return publicClient.readContract({
-    address: controllerAddress,
-    abi: AaveIntegrationAdapterABI,
-    functionName: "BTC_VAULT_CORE_VAULT_BTC_RESERVE_ID",
-    args: [],
-  }) as Promise<bigint>;
+export interface AdapterImmutables {
+  /** Core Spoke contract address (`BTC_VAULT_CORE_SPOKE`). */
+  spoke: Address;
+  /** vBTC collateral reserve ID (`BTC_VAULT_CORE_VAULT_BTC_RESERVE_ID`). */
+  vbtcReserveId: bigint;
+  /** VaultBTC token contract address (`VAULT_BTC`). */
+  vaultBtc: Address;
 }
 
 /**
- * Read the VaultBTC token address from the trusted adapter.
+ * Read the adapter's immutable spoke / vBTC reserve id / vBTC token in a
+ * single multicall.
  *
- * VAULT_BTC is immutable on the AaveIntegrationAdapter. Sourcing it on-chain
- * lets us cross-check the reserve's `underlying` returned by the Core Spoke
- * against the token the trusted adapter actually targets.
- *
- * @param controllerAddress - Trusted AaveIntegrationAdapter address
- * @returns VaultBTC token contract address
+ * Batched together for the same reason `getPegInConfiguration` batches its
+ * reads: same-block atomicity, plus one HTTP round-trip instead of three.
+ * All three are `immutable` properties on the AaveIntegrationAdapter, so
+ * sourcing them on-chain prevents an indexer-supplied value from steering
+ * downstream risk math toward the wrong reserve.
  */
-export async function getVaultBtcAddress(
+export async function getAdapterImmutables(
   controllerAddress: Address,
-): Promise<Address> {
+): Promise<AdapterImmutables> {
   const publicClient = ethClient.getPublicClient();
-  return publicClient.readContract({
-    address: controllerAddress,
-    abi: AaveIntegrationAdapterABI,
-    functionName: "VAULT_BTC",
-    args: [],
-  }) as Promise<Address>;
+  const [spoke, vbtcReserveId, vaultBtc] = await publicClient.multicall({
+    contracts: [
+      {
+        address: controllerAddress,
+        abi: AaveIntegrationAdapterABI,
+        functionName: "BTC_VAULT_CORE_SPOKE",
+      },
+      {
+        address: controllerAddress,
+        abi: AaveIntegrationAdapterABI,
+        functionName: "BTC_VAULT_CORE_VAULT_BTC_RESERVE_ID",
+      },
+      {
+        address: controllerAddress,
+        abi: AaveIntegrationAdapterABI,
+        functionName: "VAULT_BTC",
+      },
+    ],
+    allowFailure: false,
+  });
+  return {
+    spoke: spoke as Address,
+    vbtcReserveId: vbtcReserveId as bigint,
+    vaultBtc: vaultBtc as Address,
+  };
 }
 
 /**

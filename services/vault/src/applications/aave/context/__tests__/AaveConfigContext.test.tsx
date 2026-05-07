@@ -144,7 +144,6 @@ describe("AaveConfigProvider — fail-closed on fetch failure (audit #312)", () 
     mockFetch.mockResolvedValueOnce({
       config: {
         adapterAddress: "0x1",
-        vaultBtcAddress: "0x2",
         btcVaultRegistryAddress: "0x3",
         coreSpokeAddress: "0x4" as `0x${string}`,
         btcVaultCoreVbtcReserveId: 1n,
