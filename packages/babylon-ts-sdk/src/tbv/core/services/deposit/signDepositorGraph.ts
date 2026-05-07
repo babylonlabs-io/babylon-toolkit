@@ -40,6 +40,7 @@ import {
 import {
   stripHexPrefix,
   uint8ArrayToHex,
+  validateWalletPubkey,
 } from "../../primitives/utils/bitcoin";
 import { createTaprootScriptPathSignOptions } from "../../utils/signing";
 
@@ -465,8 +466,14 @@ export async function signDepositorGraph(
 ): Promise<DepositorAsClaimerPresignatures> {
   const { depositorGraph, btcWallet, signingContext } = params;
 
-  const depositorPubkey = stripHexPrefix(signingContext.depositorBtcPubkey);
   const walletPublicKey = await btcWallet.getPublicKeyHex();
+  // Fail fast if the connected wallet doesn't match the on-chain registered
+  // depositor key — otherwise extractPayoutSignature later fails after
+  // multiple wallet popups with an opaque "no signature found" error.
+  const { depositorPubkey } = validateWalletPubkey(
+    walletPublicKey,
+    stripHexPrefix(signingContext.depositorBtcPubkey),
+  );
 
   // 1. Build all PSBTs locally
   const { psbtHexes, signOptions, challengerEntries } =

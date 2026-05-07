@@ -76,6 +76,20 @@ vi.mock("../../../primitives/utils/bitcoin", () => ({
   stripHexPrefix: (s: string) => (s.startsWith("0x") ? s.slice(2) : s),
   uint8ArrayToHex: (bytes: Uint8Array) =>
     Buffer.from(bytes).toString("hex"),
+  validateWalletPubkey: (walletRaw: string, expectedDepositor: string) => {
+    const stripped = walletRaw.startsWith("0x") ? walletRaw.slice(2) : walletRaw;
+    const walletXOnly = stripped.length === 66 ? stripped.slice(2) : stripped;
+    if (walletXOnly.toLowerCase() !== expectedDepositor.toLowerCase()) {
+      throw new Error(
+        `Wallet public key does not match vault depositor. Expected: ${expectedDepositor}, Got: ${walletXOnly}.`,
+      );
+    }
+    return {
+      walletPubkeyRaw: walletRaw,
+      walletPubkeyXOnly: walletXOnly,
+      depositorPubkey: expectedDepositor,
+    };
+  },
 }));
 
 vi.mock("../../../utils/signing", () => ({
@@ -94,7 +108,10 @@ vi.mock("../../../utils/signing", () => ({
 // ---------------------------------------------------------------------------
 
 const DEPOSITOR_PUBKEY = "d".repeat(64);
-const WALLET_PUBKEY = "w".repeat(64);
+// Wallet returns the depositor key in compressed (33-byte) form. The new
+// validateWalletPubkey at the entry of signDepositorGraph strips the prefix
+// byte to compare x-only with depositorBtcPubkey.
+const WALLET_PUBKEY = `02${DEPOSITOR_PUBKEY}`;
 const VP_PUBKEY = "f".repeat(64);
 const VK_PUBKEY = "1".repeat(64);
 const UC_PUBKEY = "2".repeat(64);
@@ -179,7 +196,11 @@ function registerStandardMocks(challengerPubkeys: string[]): void {
   }
 }
 
-function createMockWallet(opts?: { supportsBatch?: boolean }): BitcoinWallet {
+function createMockWallet(opts?: {
+  supportsBatch?: boolean;
+  pubkey?: string;
+}): BitcoinWallet {
+  const pubkey = opts?.pubkey ?? WALLET_PUBKEY;
   const signPsbt = vi.fn(async (hex: string) => `${SIGNED_HEX_PREFIX}${hex}`);
   const signPsbts = opts?.supportsBatch
     ? vi.fn(async (hexes: string[]) =>
@@ -188,7 +209,7 @@ function createMockWallet(opts?: { supportsBatch?: boolean }): BitcoinWallet {
     : undefined;
 
   return {
-    getPublicKeyHex: vi.fn(async () => WALLET_PUBKEY),
+    getPublicKeyHex: vi.fn(async () => pubkey),
     signPsbt,
     ...(signPsbts ? { signPsbts } : {}),
   } as unknown as BitcoinWallet;
@@ -489,7 +510,11 @@ describe("signDepositorGraph", () => {
     const builder = vi.mocked(buildNoPayoutPsbt);
     builder.mockClear();
 
-    const wallet = createMockWallet({ supportsBatch: true });
+    // Wallet returns the depositor key (here = VK_PUBKEY) in compressed form.
+    const wallet = createMockWallet({
+      supportsBatch: true,
+      pubkey: `02${VK_PUBKEY}`,
+    });
     const graph = createDepositorGraph([CHALLENGER_A]);
 
     // Make the depositor also one of the vault keepers - it should be filtered.
@@ -654,6 +679,31 @@ describe("signDepositorGraph", () => {
         signingContext: createSigningContext(),
       }),
     ).rejects.toThrow("registered depositor payout address");
+
+    expect(wallet.signPsbts).not.toHaveBeenCalled();
+    expect(wallet.signPsbt).not.toHaveBeenCalled();
+  });
+
+  // Audit #245: signDepositorGraph must validate the connected wallet's key
+  // matches the on-chain registered depositor key BEFORE asking the wallet to
+  // sign. Otherwise a rotated wallet account silently produces tapScriptSigs
+  // keyed by the wrong pubkey and extractPayoutSignature throws an opaque
+  // "no signature found" error after multiple wallet popups.
+  it("rejects when wallet pubkey does not match registered depositor pubkey", async () => {
+    registerStandardMocks([CHALLENGER_A]);
+    const otherDepositor = "e".repeat(64);
+    const wallet = createMockWallet({ supportsBatch: true });
+    const graph = createDepositorGraph([CHALLENGER_A]);
+
+    await expect(
+      signDepositorGraph({
+        depositorGraph: graph,
+        btcWallet: wallet,
+        signingContext: createSigningContext({
+          depositorBtcPubkey: otherDepositor,
+        }),
+      }),
+    ).rejects.toThrow("Wallet public key does not match vault depositor");
 
     expect(wallet.signPsbts).not.toHaveBeenCalled();
     expect(wallet.signPsbt).not.toHaveBeenCalled();
