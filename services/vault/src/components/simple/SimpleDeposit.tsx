@@ -6,6 +6,7 @@ import { FeatureFlags } from "@/config";
 import { useAddressScreening } from "@/context/addressScreening";
 import { useGeoFencing } from "@/context/geofencing";
 import { ProtocolParamsProvider } from "@/context/ProtocolParamsContext";
+import { useETHWallet } from "@/context/wallet";
 import { useDialogStep } from "@/hooks/deposit/useDialogStep";
 import { useProtocolFeeRows } from "@/hooks/useProtocolFeeRows";
 import { depositService } from "@/services/deposit";
@@ -90,7 +91,9 @@ function SimpleDepositContent({
   const { isGeoBlocked, isLoading: isGeoLoading } = useGeoFencing();
   const { isBlocked: isAddressBlocked, isLoading: isScreeningLoading } =
     useAddressScreening();
-  const { rows: feeRows } = useProtocolFeeRows();
+  const { address: connectedEthAddress } = useETHWallet();
+  const { rows: feeRows, collateralFactor } =
+    useProtocolFeeRows(connectedEthAddress);
 
   const {
     formData,
@@ -267,6 +270,7 @@ function SimpleDepositContent({
                 isAddressBlocked={isAddressBlocked || isScreeningLoading}
                 onDeposit={handleDeposit}
                 partialLiquidation={partialLiquidationProps}
+                collateralFactor={collateralFactor}
                 feeRows={feeRows}
                 ordinalsCheckUnavailable={ordinalsCheckUnavailable}
                 ordinalsCheckPending={ordinalsCheckPending}

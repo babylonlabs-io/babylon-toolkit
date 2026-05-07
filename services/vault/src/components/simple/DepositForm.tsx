@@ -18,6 +18,7 @@ import { getNetworkConfigBTC } from "@/config";
 import { useBtcFeeDisplay } from "@/hooks/deposit/useBtcFeeDisplay";
 import { depositService } from "@/services/deposit";
 
+import { CollateralFactorRow } from "./CollateralFactorRow";
 import { FeesSection, type FeeRow } from "./FeesSection";
 
 const btcConfig = getNetworkConfigBTC();
@@ -73,6 +74,8 @@ interface DepositFormProps {
 
   partialLiquidation?: PartialLiquidationProps;
 
+  collateralFactor?: number | null;
+
   feeRows?: FeeRow[];
 
   /**
@@ -116,6 +119,7 @@ export function DepositForm({
   isAddressBlocked,
   onDeposit,
   partialLiquidation,
+  collateralFactor = null,
   feeRows,
   ordinalsCheckUnavailable = false,
   ordinalsCheckPending = false,
@@ -246,6 +250,12 @@ export function DepositForm({
           leftField={{ label: "Max", value: `${btcBalanceFormatted} BTC` }}
           rightField={{ value: usdValue }}
           onMaxClick={onMaxClick}
+        />
+        <CollateralFactorRow
+          collateralFactor={collateralFactor}
+          amountBtc={amount}
+          btcPrice={btcPrice}
+          hasPriceFetchError={hasPriceFetchError}
         />
       </Card>
 

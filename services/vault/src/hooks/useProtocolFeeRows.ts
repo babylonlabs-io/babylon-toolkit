@@ -85,6 +85,7 @@ function buildFeeRows(
 export function useProtocolFeeRows(connectedAddress?: string): {
   rows: FeeRow[];
   isLoading: boolean;
+  collateralFactor: number | null;
 } {
   const { minDeposit } = useProtocolParamsContext();
   const { params, isLoading } = useVaultSplitParams(connectedAddress);
@@ -94,5 +95,5 @@ export function useProtocolFeeRows(connectedAddress?: string): {
     [minDeposit, params],
   );
 
-  return { rows, isLoading };
+  return { rows, isLoading, collateralFactor: params?.CF ?? null };
 }
