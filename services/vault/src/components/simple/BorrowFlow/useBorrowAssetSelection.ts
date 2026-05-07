@@ -21,9 +21,8 @@ export interface BorrowAssetSelectionState {
 }
 
 export function useBorrowAssetSelection(): BorrowAssetSelectionState {
-  const { borrowableReserves, isLoading: configLoading } = useAaveConfig();
-  const { prices, isLoading: pricesLoading } = usePrices();
-  const isLoading = configLoading || pricesLoading;
+  const { borrowableReserves } = useAaveConfig();
+  const { prices, isLoading } = usePrices();
 
   const assets: BorrowableAssetItem[] = borrowableReserves.map((reserve) => {
     const tokenMetadata = getTokenByAddress(reserve.token.address);

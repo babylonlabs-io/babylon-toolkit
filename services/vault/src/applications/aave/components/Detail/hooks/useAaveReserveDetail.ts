@@ -82,12 +82,7 @@ export function useAaveReserveDetail({
   reserveId,
   address,
 }: UseAaveReserveDetailProps): UseAaveReserveDetailResult {
-  // Fetch reserves from Aave config
-  const {
-    vbtcReserve,
-    allBorrowReserves,
-    isLoading: configLoading,
-  } = useAaveConfig();
+  const { vbtcReserve, allBorrowReserves } = useAaveConfig();
 
   // Find the selected reserve by symbol (from URL param). Match against the
   // full reserve set, not just borrowable ones - a user reaching this page
@@ -199,8 +194,7 @@ export function useAaveReserveDetail({
   }, [selectedReserve, chainlinkPrices, priceMetadata]);
 
   return {
-    isLoading:
-      configLoading || positionLoading || pricesLoading || splitParamsLoading,
+    isLoading: positionLoading || pricesLoading || splitParamsLoading,
     selectedReserve,
     assetConfig,
     vbtcReserve,

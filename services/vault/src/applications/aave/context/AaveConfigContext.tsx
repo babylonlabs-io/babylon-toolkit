@@ -8,7 +8,7 @@
  * - Borrowable reserves list (for asset selection)
  */
 
-import { Loader } from "@babylonlabs-io/core-ui";
+import { Button, Loader } from "@babylonlabs-io/core-ui";
 import { useQuery } from "@tanstack/react-query";
 import { createContext, useContext, type ReactNode } from "react";
 
@@ -20,49 +20,32 @@ import {
 } from "../services";
 
 interface AaveConfigContextValue {
-  /** Aave contract addresses and reserve IDs */
   config: AaveConfig | null;
-  /** vBTC reserve configuration (collateral reserve) */
   vbtcReserve: AaveReserveConfig | null;
-  /** Reserves available for new borrows (filtered by borrowable/paused/frozen) */
   borrowableReserves: AaveReserveConfig[];
-  /**
-   * All non-vBTC reserves regardless of borrowable/paused/frozen flags.
-   * Use this when resolving existing debt positions; users may have debt in a
-   * reserve that has since been frozen/paused/un-borrowable, and still need
-   * to be able to view and repay it.
-   */
+  /** Includes frozen/paused reserves so users can still repay legacy debt. */
   allBorrowReserves: AaveReserveConfig[];
-  /** Whether config is still loading */
-  isLoading: boolean;
-  /** Error if config fetch failed */
-  error: Error | null;
 }
 
 const AaveConfigContext = createContext<AaveConfigContextValue | null>(null);
 
 interface AaveConfigProviderProps {
   children: ReactNode;
+  /** Override the default unavailable panel. Pass `null` to suppress. */
+  errorFallback?: ReactNode;
 }
 
-/**
- * Provider that fetches Aave config on mount and provides it to children.
- * Wrap this around the Aave routes to ensure config is available.
- *
- * Children are not rendered until config is loaded, ensuring all child
- * components have access to valid config values (no undefined spokeAddress, etc.)
- */
-export function AaveConfigProvider({ children }: AaveConfigProviderProps) {
-  // Fetch all Aave config in a single GraphQL request
-  const { data, isLoading, error } = useQuery({
+export function AaveConfigProvider({
+  children,
+  errorFallback,
+}: AaveConfigProviderProps) {
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: ["aaveAppConfig"],
     queryFn: () => fetchAaveAppConfig(),
     staleTime: CONFIG_STALE_TIME_MS,
     refetchOnWindowFocus: false,
   });
 
-  // Don't render children until config is loaded.
-  // This ensures all child components have valid config values.
   if (isLoading) {
     return (
       <div className="flex min-h-[400px] items-center justify-center">
@@ -71,13 +54,28 @@ export function AaveConfigProvider({ children }: AaveConfigProviderProps) {
     );
   }
 
+  // Fail closed: a null config + empty reserves looks like "no position"
+  // while an on-chain position may still exist (audit #312).
+  if (error || data == null) {
+    if (errorFallback !== undefined) return <>{errorFallback}</>;
+    return (
+      <div className="flex min-h-[400px] flex-col items-center justify-center gap-3 px-4 text-center">
+        <p className="text-base font-medium">Something went wrong</p>
+        <p className="max-w-md text-sm text-accent-secondary">
+          Please try again in a moment.
+        </p>
+        <Button variant="contained" onClick={() => refetch()}>
+          Retry
+        </Button>
+      </div>
+    );
+  }
+
   const value: AaveConfigContextValue = {
-    config: data?.config ?? null,
-    vbtcReserve: data?.vbtcReserve ?? null,
-    borrowableReserves: data?.borrowableReserves ?? [],
-    allBorrowReserves: data?.allBorrowReserves ?? [],
-    isLoading: false,
-    error: error as Error | null,
+    config: data.config,
+    vbtcReserve: data.vbtcReserve,
+    borrowableReserves: data.borrowableReserves,
+    allBorrowReserves: data.allBorrowReserves,
   };
 
   return (
@@ -87,10 +85,6 @@ export function AaveConfigProvider({ children }: AaveConfigProviderProps) {
   );
 }
 
-/**
- * Hook to access Aave config from context.
- * Must be used within an AaveConfigProvider.
- */
 export function useAaveConfig(): AaveConfigContextValue {
   const ctx = useContext(AaveConfigContext);
   if (!ctx) {

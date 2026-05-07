@@ -116,8 +116,6 @@ const mockUseAaveConfig = vi.fn(() => ({
       },
     },
   ],
-  isLoading: false,
-  error: null,
 }));
 
 vi.mock("../../../../context", () => ({
@@ -366,8 +364,6 @@ describe("useAaveReserveDetail", () => {
           },
         },
       ],
-      isLoading: false,
-      error: null,
     });
     mockUsePrices.mockReturnValue({
       prices: {},

@@ -219,8 +219,6 @@ describe("useVaultSplitParams", () => {
       vbtcReserve: null,
       borrowableReserves: [],
       allBorrowReserves: [],
-      isLoading: false,
-      error: null,
     });
 
     mockGetReserve.mockResolvedValue({
@@ -262,8 +260,6 @@ describe("useVaultSplitParams", () => {
       vbtcReserve: null,
       borrowableReserves: [],
       allBorrowReserves: [],
-      isLoading: false,
-      error: null,
     });
 
     const { result } = renderHook(() => useVaultSplitParams(), { wrapper });
