@@ -162,9 +162,15 @@ export function PeginPollingProvider({
           ? depositError.message
           : undefined;
 
+      const justSignedPayoutsThisSession =
+        optimisticStatuses.get(depositId) === LocalStorageStatus.PAYOUT_SIGNED;
+      const transactionsReady = justSignedPayoutsThisSession
+        ? false
+        : (pendingDepositorSignatures?.has(depositId) ?? false);
+
       const peginState = getPeginState(contractStatus, {
         localStatus,
-        transactionsReady: pendingDepositorSignatures?.has(depositId) ?? false,
+        transactionsReady,
         isInUse: activity.isInUse,
         needsWotsKey: needsWotsKey?.has(depositId),
         pendingIngestion: pendingIngestion?.has(depositId),
