@@ -286,8 +286,6 @@ describe("useVaultSplitParams", () => {
       vbtcReserve: null,
       borrowableReserves: [],
       allBorrowReserves: [],
-      isLoading: false,
-      error: null,
     });
 
     // beforeEach default has CF=0.75 (7500 BPS). Initial load picks that up.
@@ -331,8 +329,6 @@ describe("useVaultSplitParams", () => {
       vbtcReserve: null,
       borrowableReserves: [],
       allBorrowReserves: [],
-      isLoading: false,
-      error: null,
     });
 
     const { result } = renderHook(() => useVaultSplitParams(), { wrapper });
