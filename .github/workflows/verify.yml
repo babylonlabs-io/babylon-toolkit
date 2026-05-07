@@ -2,7 +2,12 @@ name: Verify PR
 
 on:
   pull_request:
-    branches: [main] # or your default branch
+    branches: [main]
+
+# Cancel any in-flight run when a new commit is pushed to the same PR/branch.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   verify:
@@ -22,8 +27,20 @@ jobs:
       - name: Install Corepack
         run: npm install -g corepack && corepack enable
 
+      - name: Resolve pnpm store path
+        shell: bash
+        run: echo "STORE_PATH=$(pnpm store path --silent)" >> "$GITHUB_ENV"
+
+      - name: Cache pnpm store
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0 https://github.com/actions/cache/releases/tag/v4.3.0
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile --prefer-offline
 
       - name: Single Version Policy
         run: |-
@@ -38,6 +55,14 @@ jobs:
             exit 1
           fi
 
+      # Note: a dedicated `nx typecheck` step is intentionally omitted.
+      # The auto-generated `typecheck` target is disabled by @nx/js for
+      # projects with `noEmit: true` in their tsconfig graph (vault, core-ui,
+      # wallet-connector). Each service's `build` script runs
+      # `tsc --noEmit -p tsconfig.lib.json` before bundling, so types are
+      # still validated below. A separate ticket should untangle the
+      # `noEmit` references so a fast typecheck step is possible.
+
       - name: Build all
         run: pnpm build
 
@@ -45,7 +70,29 @@ jobs:
         run: pnpm run lint
 
       - name: Test affected
-        run: pnpm exec nx affected --target=test --base=origin/main --verbose
+        id: tests
+        shell: bash
+        run: |
+          set -o pipefail
+          pnpm exec nx affected --target=test --base=origin/main --verbose 2>&1 | tee /tmp/test-output.log
+
+      - name: Append test summary
+        if: always() && steps.tests.conclusion != 'skipped'
+        shell: bash
+        run: |
+          {
+            echo "## Test results"
+            echo ""
+            if [ "${{ steps.tests.outcome }}" = "success" ]; then
+              echo ":white_check_mark: All affected tests passed."
+            else
+              echo ":x: Tests failed. Tail of output:"
+              echo ""
+              echo '```'
+              tail -n 200 /tmp/test-output.log || true
+              echo '```'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Validate TypeDoc
         run: |
