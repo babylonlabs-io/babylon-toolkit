@@ -12,7 +12,11 @@
  */
 
 import type { SignPsbtOptions } from "@babylonlabs-io/ts-sdk/shared";
-import { getNetworkFees, pushTx } from "@babylonlabs-io/ts-sdk/tbv/core";
+import {
+  getNetworkFees,
+  processPublicKeyToXOnly,
+  pushTx,
+} from "@babylonlabs-io/ts-sdk/tbv/core";
 import {
   buildAndBroadcastRefund,
   estimateRefundFeeSats,
@@ -20,7 +24,7 @@ import {
   type VaultRefundData,
 } from "@babylonlabs-io/ts-sdk/tbv/core/services";
 import { calculateBtcTxHash } from "@babylonlabs-io/ts-sdk/tbv/core/utils";
-import type { Hex } from "viem";
+import type { Address, Hex } from "viem";
 
 import { getMempoolApiUrl } from "../../clients/btc/config";
 import { getVaultFromChain } from "../../clients/eth-contract/btc-vault-registry/query";
@@ -28,6 +32,7 @@ import {
   getProtocolParamsReader,
   getUniversalChallengerReader,
   getVaultKeeperReader,
+  getVaultRegistryReader,
 } from "../../clients/eth-contract/sdk-readers";
 import { getBTCNetworkForWASM } from "../../config/pegin";
 
@@ -134,11 +139,15 @@ async function readPrePeginContext(
   const [
     offchainParams,
     vaultProvider,
+    vaultProviderOnChainPubkey,
     vaultKeepers,
     universalChallengersList,
   ] = await Promise.all([
     protocolReader.getOffchainParamsByVersion(vault.offchainParamsVersion),
     fetchVaultProviderById(vault.vaultProvider),
+    getVaultRegistryReader().getVaultProviderBtcPubKey(
+      vault.vaultProvider as Address,
+    ),
     keeperReader.getVaultKeepersByVersion(
       vault.applicationEntryPoint,
       vault.appVaultKeepersVersion,
@@ -164,6 +173,19 @@ async function readPrePeginContext(
     );
   }
 
+  // Cross-check the GraphQL-supplied VP pubkey against the chain-registered
+  // value. A stale or compromised indexer could otherwise substitute a
+  // different key and produce a refund signed against a Taproot script tree
+  // that doesn't match the actual vault.
+  const indexerXOnly = processPublicKeyToXOnly(
+    vaultProvider.btcPubKey,
+  ).toLowerCase();
+  if (indexerXOnly !== vaultProviderOnChainPubkey.toLowerCase()) {
+    throw new Error(
+      `Indexer vault provider key for ${vault.vaultProvider} does not match on-chain registry. Aborting refund.`,
+    );
+  }
+
   const vaultKeeperPubkeys = getSortedVaultKeeperPubkeys(
     vaultKeepers.map((vk) => ({ btcPubKey: vk.btcPubKey })),
   );
@@ -172,7 +194,7 @@ async function readPrePeginContext(
   );
 
   return {
-    vaultProviderPubkey: vaultProvider.btcPubKey,
+    vaultProviderPubkey: vaultProviderOnChainPubkey,
     vaultKeeperPubkeys,
     universalChallengerPubkeys,
     timelockRefund: offchainParams.tRefund,

@@ -18,7 +18,8 @@ vi.mock("@babylonlabs-io/ts-sdk/tbv/core/services", () => ({
   },
 }));
 
-vi.mock("@babylonlabs-io/ts-sdk/tbv/core", () => ({
+vi.mock("@babylonlabs-io/ts-sdk/tbv/core", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@babylonlabs-io/ts-sdk/tbv/core")>()),
   getNetworkFees: vi.fn().mockResolvedValue({ halfHourFee: 10 }),
   pushTx: vi.fn().mockResolvedValue("broadcast_txid"),
 }));
@@ -42,6 +43,7 @@ vi.mock("../../../config/pegin", () => ({
 const mockGetOffchainParamsByVersion = vi.fn();
 const mockGetVaultKeepersByVersion = vi.fn();
 const mockGetUniversalChallengersByVersion = vi.fn();
+const mockGetVaultProviderBtcPubKey = vi.fn();
 vi.mock("../../../clients/eth-contract/sdk-readers", () => ({
   getProtocolParamsReader: vi.fn().mockResolvedValue({
     getOffchainParamsByVersion: (...args: unknown[]) =>
@@ -54,6 +56,10 @@ vi.mock("../../../clients/eth-contract/sdk-readers", () => ({
   getUniversalChallengerReader: vi.fn().mockResolvedValue({
     getUniversalChallengersByVersion: (...args: unknown[]) =>
       mockGetUniversalChallengersByVersion(...args),
+  }),
+  getVaultRegistryReader: vi.fn().mockReturnValue({
+    getVaultProviderBtcPubKey: (...args: unknown[]) =>
+      mockGetVaultProviderBtcPubKey(...args),
   }),
 }));
 
@@ -98,7 +104,10 @@ const OFFCHAIN_PARAMS = {
   councilQuorum: 3,
   securityCouncilKeys: ["k1", "k2", "k3"],
 };
-const VAULT_PROVIDER = { btcPubKey: "vp_pubkey" };
+// Indexer GraphQL field is 0x-prefixed; on-chain reader returns the same
+// 32 bytes as bare lowercase x-only hex. Both must agree for the cross-check.
+const VP_BTC_PUBKEY_X_ONLY = "f".repeat(64);
+const VAULT_PROVIDER = { btcPubKey: `0x${VP_BTC_PUBKEY_X_ONLY}` };
 const VAULT_KEEPERS = [{ btcPubKey: "vk1" }, { btcPubKey: "vk2" }];
 const UNIVERSAL_CHALLENGERS = [{ btcPubKey: "uc1" }];
 const INDEXER_VAULT = {
@@ -118,6 +127,7 @@ describe("vaultRefundService - adapter wiring", () => {
     (fetchVaultRefundData as Mock).mockResolvedValue(INDEXER_VAULT);
     mockGetOffchainParamsByVersion.mockResolvedValue(OFFCHAIN_PARAMS);
     (fetchVaultProviderById as Mock).mockResolvedValue(VAULT_PROVIDER);
+    mockGetVaultProviderBtcPubKey.mockResolvedValue(VP_BTC_PUBKEY_X_ONLY);
     mockGetVaultKeepersByVersion.mockResolvedValue(VAULT_KEEPERS);
     mockGetUniversalChallengersByVersion.mockResolvedValue(
       UNIVERSAL_CHALLENGERS,
@@ -263,6 +273,49 @@ describe("vaultRefundService - adapter wiring", () => {
     ).rejects.toThrow(
       `Universal challengers not found for version ${ON_CHAIN_VAULT.universalChallengersVersion}`,
     );
+  });
+
+  // Audit #216: indexer-provided VP key is cross-checked against the
+  // on-chain registry. A stale or compromised indexer that substitutes a
+  // different key must not produce a refund signed against a wrong Taproot
+  // script tree.
+  it("throws when indexer VP pubkey does not match the on-chain registry", async () => {
+    mockGetVaultProviderBtcPubKey.mockResolvedValue("a".repeat(64));
+
+    await expect(
+      buildAndBroadcastRefundTransaction({
+        vaultId: VAULT_ID,
+        btcWalletProvider: BTC_WALLET_PROVIDER,
+        depositorBtcPubkey: DEPOSITOR_PUBKEY,
+        feeRate: 10,
+      }),
+    ).rejects.toThrow(/does not match on-chain registry/);
+  });
+
+  it("uses the on-chain VP pubkey in the returned refund context", async () => {
+    let observed: { vaultProviderPubkey: string } | null = null;
+    mockBuildAndBroadcastRefund.mockImplementation(
+      async (input: {
+        readVault: () => Promise<unknown>;
+        readPrePeginContext: (
+          v: unknown,
+        ) => Promise<{ vaultProviderPubkey: string }>;
+      }) => {
+        const vault = await input.readVault();
+        observed = await input.readPrePeginContext(vault);
+        return { txId: "ok" };
+      },
+    );
+
+    await buildAndBroadcastRefundTransaction({
+      vaultId: VAULT_ID,
+      btcWalletProvider: BTC_WALLET_PROVIDER,
+      depositorBtcPubkey: DEPOSITOR_PUBKEY,
+      feeRate: 10,
+    });
+
+    expect(observed).not.toBeNull();
+    expect(observed!.vaultProviderPubkey).toBe(VP_BTC_PUBKEY_X_ONLY);
   });
 
   it("forwards the caller-provided feeRate to the SDK (no silent halfHourFee fallback)", async () => {
