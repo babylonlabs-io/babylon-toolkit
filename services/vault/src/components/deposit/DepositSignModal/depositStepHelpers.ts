@@ -33,6 +33,7 @@ export const STEP_DESCRIPTIONS: Partial<
   },
   [DepositFlowStep.SUBMIT_WOTS_KEYS]: {
     active: "Submitting your WOTS public key to the Vault Provider.",
+    waiting: "Waiting for the Vault Provider to prepare payout transactions...",
   },
   [DepositFlowStep.SIGN_AUTH_ANCHOR]: {
     active:

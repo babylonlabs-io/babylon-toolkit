@@ -107,18 +107,21 @@ export function ResumeSignContent({
 
   useRunOnce(handleSign);
 
-  const renderStep = isComplete ? DepositFlowStep.COMPLETED : currentStep;
+  const renderStep = isComplete
+    ? DepositFlowStep.ARTIFACT_DOWNLOAD
+    : currentStep;
+  const renderIsWaiting = isComplete;
   const derived = computeDepositDerivedState(
     renderStep,
     signing,
-    false,
+    renderIsWaiting,
     error?.message ?? null,
   );
 
   return (
     <DepositProgressView
       currentStep={renderStep}
-      isWaiting={false}
+      isWaiting={renderIsWaiting}
       error={error?.message ?? null}
       isComplete={derived.isComplete}
       isProcessing={derived.isProcessing}
@@ -126,7 +129,6 @@ export function ResumeSignContent({
       canContinueInBackground={derived.canContinueInBackground}
       payoutSigningProgress={signing ? progress : null}
       onClose={onClose}
-      successMessage="Your payout transactions have been signed and submitted successfully. Your deposit is now being processed."
       onRetry={error ? handleSign : undefined}
     />
   );
@@ -356,19 +358,25 @@ export function ResumeWotsContent({
   useRunOnce(handleSubmit);
 
   const isSuccess = !loading && !error;
+  const renderIsWaiting = isSuccess;
+  const derived = computeDepositDerivedState(
+    DepositFlowStep.SUBMIT_WOTS_KEYS,
+    loading,
+    renderIsWaiting,
+    error,
+  );
 
   return (
     <DepositProgressView
       currentStep={DepositFlowStep.SUBMIT_WOTS_KEYS}
-      isWaiting={false}
+      isWaiting={renderIsWaiting}
       error={error}
-      isComplete={isSuccess}
-      isProcessing={loading}
-      canClose={!loading}
-      canContinueInBackground={false}
+      isComplete={derived.isComplete}
+      isProcessing={derived.isProcessing}
+      canClose={derived.canClose}
+      canContinueInBackground={derived.canContinueInBackground}
       payoutSigningProgress={null}
       onClose={isSuccess ? onSuccess : onClose}
-      successMessage="Your WOTS public key has been submitted. The deposit will continue processing."
       onRetry={error ? handleSubmit : undefined}
     />
   );
