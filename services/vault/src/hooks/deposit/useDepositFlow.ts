@@ -111,6 +111,7 @@ export interface ArtifactDownloadInfo {
   providerAddress: string;
   peginTxid: string;
   depositorPk: string;
+  vaultId: string;
 }
 
 export interface UseDepositFlowReturn {
@@ -834,6 +835,7 @@ export function useDepositFlow(
             providerAddress: provider.id,
             peginTxid: result.peginTxHash,
             depositorPk: result.depositorBtcPubkey,
+            vaultId: result.vaultId,
           });
 
           await new Promise<void>((resolve) => {

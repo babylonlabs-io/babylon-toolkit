@@ -18,6 +18,7 @@ interface ArtifactDownloadModalProps {
   providerAddress: string;
   peginTxid: string;
   depositorPk: string;
+  vaultId: string;
 }
 
 export function ArtifactDownloadModal({
@@ -27,9 +28,10 @@ export function ArtifactDownloadModal({
   providerAddress,
   peginTxid,
   depositorPk,
+  vaultId,
 }: ArtifactDownloadModalProps) {
   const { loading, progress, error, downloaded, download, cancel, reset } =
-    useArtifactDownload();
+    useArtifactDownload({ vaultId });
 
   const handleDownload = () => {
     download(providerAddress, peginTxid, depositorPk);
