@@ -37,10 +37,12 @@ export enum DepositFlowStep {
   /** Step 7: Submit WOTS public key to the Vault Provider. */
   SUBMIT_WOTS_KEYS = 7,
   /**
-   * Step 8: `deriveContextHash` for the VP auth anchor. Fires whenever
-   * the per-pegin VP-token cache misses inside `submitWotsPublicKey` or
-   * `signAndSubmitPayouts`. The wallet popup is identical to step 1 but
-   * binds a different context (auth anchor vs. vault root).
+   * Step 8: `deriveContextHash` for the VP auth anchor during payout
+   * signing. Fires whenever the per-pegin VP-token cache misses inside
+   * `signAndSubmitPayouts`. (Cache misses inside `submitWotsPublicKey`
+   * still surface a wallet popup, but the stepper stays on
+   * SUBMIT_WOTS_KEYS for that path.) The wallet popup is identical to
+   * step 1 but binds a different context (auth anchor vs. vault root).
    */
   SIGN_AUTH_ANCHOR = 8,
   /** Step 9: Sign payout transactions in BTC wallet */

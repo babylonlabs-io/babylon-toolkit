@@ -839,6 +839,12 @@ export function useDepositFlow(
           await new Promise<void>((resolve) => {
             artifactResolverRef.current = resolve;
           });
+
+          // The X button on ArtifactDownloadModal calls abort(), which
+          // resolves the resolver above. Re-check here so a dismissal
+          // exits the loop (and triggers the abort branch below)
+          // instead of advancing as if the artifact were downloaded.
+          signal.throwIfAborted();
         }
 
         setIsWaiting(true);

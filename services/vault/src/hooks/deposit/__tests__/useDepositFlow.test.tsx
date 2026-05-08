@@ -9,6 +9,7 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import type { Address, Hex } from "viem";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { DepositFlowStep } from "../depositFlowSteps";
 import { useDepositFlow } from "../useDepositFlow";
 
 // ============================================================================
@@ -140,26 +141,20 @@ vi.mock("@/clients/eth-contract/btc-vault-registry/query", () => ({
     ),
 }));
 
-vi.mock("../depositFlowSteps", () => ({
-  DepositFlowStep: {
-    SIGN_POP: 1,
-    SUBMIT_PEGIN: 2,
-    BROADCAST_PRE_PEGIN: 3,
-    AWAIT_BTC_CONFIRMATION: 4,
-    SUBMIT_WOTS_KEYS: 5,
-    SIGN_AUTH_ANCHOR: 6,
-    SIGN_PAYOUTS: 7,
-    ARTIFACT_DOWNLOAD: 8,
-    ACTIVATE_VAULT: 9,
-    COMPLETED: 10,
-  },
-  getEthWalletClient: vi.fn(),
-  registerPeginBatchAndWait: vi.fn(),
-  signAndSubmitPayouts: vi.fn(),
-  signProofOfPossession: vi.fn(),
-  submitWotsPublicKey: vi.fn(),
-  waitForContractVerification: vi.fn(),
-}));
+vi.mock("../depositFlowSteps", async () => {
+  const actual = await vi.importActual<typeof import("../depositFlowSteps")>(
+    "../depositFlowSteps",
+  );
+  return {
+    ...actual,
+    getEthWalletClient: vi.fn(),
+    registerPeginBatchAndWait: vi.fn(),
+    signAndSubmitPayouts: vi.fn(),
+    signProofOfPossession: vi.fn(),
+    submitWotsPublicKey: vi.fn(),
+    waitForContractVerification: vi.fn(),
+  };
+});
 
 // ============================================================================
 // Test Data
@@ -710,8 +705,9 @@ describe("useDepositFlow", () => {
         expect(result.current.processing).toBe(false);
       });
 
-      // DepositFlowStep.ARTIFACT_DOWNLOAD = 8 in the test mock.
-      expect(result.current.currentStep).toBe(8);
+      expect(result.current.currentStep).toBe(
+        DepositFlowStep.ARTIFACT_DOWNLOAD,
+      );
       expect(result.current.isWaiting).toBe(true);
     });
   });

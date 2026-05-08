@@ -19,7 +19,6 @@ import { useDepositPageForm } from "../../hooks/deposit/useDepositPageForm";
 
 import { DepositForm } from "./DepositForm";
 import { DepositSignContent } from "./DepositSignContent";
-import { DepositSuccessContent } from "./DepositSuccessContent";
 import { FadeTransition } from "./FadeTransition";
 import {
   ResumeActivationContent,
@@ -289,12 +288,6 @@ function SimpleDepositContent({
               onClose={onClose}
               onRefetchActivities={refetchActivities}
             />
-          </div>
-        )}
-
-        {renderedStep === DepositStep.SUCCESS && (
-          <div className="mx-auto w-full max-w-[520px]">
-            <DepositSuccessContent onClose={onClose} />
           </div>
         )}
       </FadeTransition>

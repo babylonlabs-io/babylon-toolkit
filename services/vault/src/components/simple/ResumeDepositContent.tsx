@@ -302,6 +302,9 @@ export function ResumeWotsContent({
       });
 
       setLoading(false);
+      // Refetch dashboard activities so the next action surfaces while
+      // the modal stays parked on "Close & continue later".
+      onSuccess();
     } catch (err) {
       const msg =
         err instanceof Error ? err.message : "Failed to submit WOTS key";
@@ -318,7 +321,7 @@ export function ResumeWotsContent({
     } finally {
       root?.fill(0);
     }
-  }, [activity, btcWalletProvider, trackPrimedTxid]);
+  }, [activity, btcWalletProvider, trackPrimedTxid, onSuccess]);
 
   useRunOnce(handleSubmit);
 
@@ -341,7 +344,7 @@ export function ResumeWotsContent({
       canClose={derived.canClose}
       canContinueInBackground={derived.canContinueInBackground}
       payoutSigningProgress={null}
-      onClose={isSuccess ? onSuccess : onClose}
+      onClose={onClose}
       onRetry={error ? handleSubmit : undefined}
     />
   );

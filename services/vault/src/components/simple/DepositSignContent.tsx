@@ -1,9 +1,10 @@
 /**
  * DepositSignContent
  *
- * Renders the signing modal content for deposits (single or multi-vault).
- * Always uses array-based props — single vault is an array of 1.
- * Dynamically adjusts progress steps based on vault count.
+ * Renders the signing modal content for deposits. Always uses array-based
+ * props — single vault is an array of 1. Multi-vault renders the same
+ * stepper rows as single-vault; per-vault progress is surfaced via
+ * `payoutSigningProgress`.
  */
 
 import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
@@ -41,7 +42,6 @@ export function DepositSignContent({
     executeDeposit,
     abort,
     currentStep,
-    currentVaultIndex,
     processing,
     error,
     isWaiting,
@@ -71,42 +71,23 @@ export function DepositSignContent({
     onClose();
   }, [abort, onClose]);
 
-  const vaultCount = vaultAmounts.length;
-
   return (
     <>
-      {vaultCount > 1 ? (
-        <DepositProgressView
-          variant="multi"
-          currentVaultIndex={currentVaultIndex}
-          currentStep={currentStep}
-          isWaiting={isWaiting}
-          error={error}
-          isComplete={isComplete}
-          isProcessing={isProcessing}
-          canClose={canClose}
-          canContinueInBackground={canContinueInBackground}
-          payoutSigningProgress={payoutSigningProgress}
-          onClose={handleClose}
-        />
-      ) : (
-        <DepositProgressView
-          currentStep={currentStep}
-          isWaiting={isWaiting}
-          error={error}
-          isComplete={isComplete}
-          isProcessing={isProcessing}
-          canClose={canClose}
-          canContinueInBackground={canContinueInBackground}
-          payoutSigningProgress={payoutSigningProgress}
-          onClose={handleClose}
-        />
-      )}
+      <DepositProgressView
+        currentStep={currentStep}
+        error={error}
+        isComplete={isComplete}
+        isProcessing={isProcessing}
+        canClose={canClose}
+        canContinueInBackground={canContinueInBackground}
+        payoutSigningProgress={payoutSigningProgress}
+        onClose={handleClose}
+      />
 
       {artifactDownloadInfo && (
         <ArtifactDownloadModal
           open
-          onClose={continueAfterArtifactDownload}
+          onClose={handleClose}
           onComplete={continueAfterArtifactDownload}
           providerAddress={artifactDownloadInfo.providerAddress}
           peginTxid={artifactDownloadInfo.peginTxid}

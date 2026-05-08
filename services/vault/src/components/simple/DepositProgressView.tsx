@@ -26,11 +26,7 @@ import type { PayoutSigningProgress } from "@/services/vault/vaultPayoutSignatur
  * Visual step indexing (1-based, matches buildStepItems order).
  * Every row is backed by a real `DepositFlowStep`, so the mapping is 1-to-1.
  */
-export function getVisualStep(
-  currentStep: DepositFlowStep,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- preserved for API compatibility
-  _isWaiting: boolean,
-): number {
+export function getVisualStep(currentStep: DepositFlowStep): number {
   switch (currentStep) {
     case DepositFlowStep.DERIVE_VAULT_SECRET:
       return 1;
@@ -54,8 +50,6 @@ export function getVisualStep(
       return 10;
     case DepositFlowStep.ACTIVATE_VAULT:
       return 11;
-    case DepositFlowStep.COMPLETED:
-      return 12;
     default:
       return 1;
   }
@@ -74,8 +68,8 @@ export function buildStepItems(
     { label: "Sign and broadcast ETH registration" },
     { label: "Sign and broadcast BTC pre-pegIn transaction" },
     { label: "Awaiting Bitcoin confirmation", description: "(~ 15 min)" },
-    { label: "Confirm deposit secret and submit to Vault Provider" },
-    { label: "Confirm deposit secret" },
+    { label: "Submit WOTS public key to Vault Provider" },
+    { label: "Authenticate session with Vault Provider" },
     {
       label: "Sign payout transactions",
       description:
@@ -86,9 +80,8 @@ export function buildStepItems(
   ];
 }
 
-interface BaseProgressViewProps {
+export interface DepositProgressViewProps {
   currentStep: DepositFlowStep;
-  isWaiting: boolean;
   error: string | null;
   isComplete: boolean;
   isProcessing: boolean;
@@ -102,43 +95,9 @@ interface BaseProgressViewProps {
   onRetry?: () => void;
 }
 
-interface SingleVaultProps extends BaseProgressViewProps {
-  variant?: "single";
-}
-
-interface MultiVaultProps extends BaseProgressViewProps {
-  variant: "multi";
-  currentVaultIndex: number | null;
-}
-
-export type DepositProgressViewProps = SingleVaultProps | MultiVaultProps;
-
-/**
- * Multi-vault uses the same row layout. The previous split into
- * "Sign PoP + Register 1/2" / "Register 2/2" was misleading —
- * `submitPeginRequestBatch` is a single atomic ETH tx, not a per-vault
- * loop, and the second row never highlighted because `currentVaultIndex`
- * is only set during payout signing.
- */
-export function getMultiVaultVisualStep(
-  currentStep: DepositFlowStep,
-  isWaiting: boolean,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- preserved for API compatibility
-  _currentVaultIndex: number | null,
-): number {
-  return getVisualStep(currentStep, isWaiting);
-}
-
-export function buildMultiVaultStepItems(
-  progress: PayoutSigningProgress | null,
-): StepperItem[] {
-  return buildStepItems(progress);
-}
-
 export function DepositProgressView(props: DepositProgressViewProps) {
   const {
     currentStep,
-    isWaiting,
     error,
     isComplete,
     isProcessing,
@@ -150,18 +109,11 @@ export function DepositProgressView(props: DepositProgressViewProps) {
     onRetry,
   } = props;
 
-  const isMulti = props.variant === "multi";
-
-  const visualStep = isMulti
-    ? getMultiVaultVisualStep(currentStep, isWaiting, props.currentVaultIndex)
-    : getVisualStep(currentStep, isWaiting);
+  const visualStep = getVisualStep(currentStep);
 
   const steps = useMemo(
-    () =>
-      isMulti
-        ? buildMultiVaultStepItems(payoutSigningProgress)
-        : buildStepItems(payoutSigningProgress),
-    [isMulti, payoutSigningProgress],
+    () => buildStepItems(payoutSigningProgress),
+    [payoutSigningProgress],
   );
 
   return (
