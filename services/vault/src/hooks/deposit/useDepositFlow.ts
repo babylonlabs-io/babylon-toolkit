@@ -49,6 +49,7 @@ import { useProtocolParamsContext } from "@/context/ProtocolParamsContext";
 import { logger } from "@/infrastructure";
 import { LocalStorageStatus } from "@/models/peginStateMachine";
 import { validateMultiVaultDepositInputs } from "@/services/deposit/validations";
+import { fetchVaultsByDepositor } from "@/services/vault/fetchVaults";
 import type { PayoutSigningProgress } from "@/services/vault/vaultPayoutSignatureService";
 import {
   broadcastPrePeginTransaction,
@@ -344,10 +345,28 @@ export function useDepositFlow(
         };
 
         // Filter out UTXOs reserved by in-flight deposits to prevent
-        // double-spend failures across concurrent sessions/tabs.
+        // double-spend failures across concurrent sessions/tabs and across
+        // browser contexts (cleared storage, second profile, second device).
+        // Local browser state covers the same-context case; the indexer-supplied
+        // vault list covers the cross-context case where localStorage is empty
+        // but a PENDING/VERIFIED vault is already registered on Ethereum.
+        // Force a fresh read here (do NOT rely on the React Query cache) so
+        // staleness cannot reintroduce the cross-context double-spend window.
+        // Indexer unavailability is fail-closed: better to block the deposit
+        // than to silently skip the on-chain reservation set.
         const pendingPegins = getPendingPegins(confirmedEthAddress);
         const utxoReservations = getUtxoReservations(confirmedEthAddress);
+        let depositorVaults;
+        try {
+          depositorVaults = await fetchVaultsByDepositor(confirmedEthAddress);
+        } catch (err) {
+          const errorMsg = err instanceof Error ? err.message : String(err);
+          throw new Error(
+            `Failed to fetch existing vaults for cross-context UTXO reservation; aborting to avoid stranding a duplicate registration. Indexer error: ${errorMsg}`,
+          );
+        }
         const reservedUtxoRefs = collectReservedUtxoRefs({
+          vaults: depositorVaults,
           pendingPegins,
           utxoReservations,
         });
