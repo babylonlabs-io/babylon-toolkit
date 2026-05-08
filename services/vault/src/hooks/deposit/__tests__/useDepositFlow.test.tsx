@@ -70,7 +70,7 @@ vi.mock("@/services/vault/vaultActivationService", () => ({
 }));
 
 vi.mock("@/services/vault/fetchVaults", () => ({
-  fetchVaultsByDepositor: vi.fn().mockResolvedValue([]),
+  fetchVaultsByDepositorStrict: vi.fn().mockResolvedValue([]),
 }));
 
 vi.mock("@/services/vault/vaultPeginBroadcastService", () => ({
@@ -1059,7 +1059,7 @@ describe("useDepositFlow", () => {
       // inputs participate in the reservation set; otherwise the same UTXOs
       // would be re-selected and the second registered vault would be
       // unfundable.
-      const { fetchVaultsByDepositor } = vi.mocked(
+      const { fetchVaultsByDepositorStrict } = vi.mocked(
         await import("@/services/vault/fetchVaults"),
       );
       const { collectReservedUtxoRefs } = vi.mocked(
@@ -1073,7 +1073,7 @@ describe("useDepositFlow", () => {
           unsignedPrePeginTx: "0xexistingvaultprepeginhex",
         },
       ];
-      vi.mocked(fetchVaultsByDepositor).mockResolvedValueOnce(
+      vi.mocked(fetchVaultsByDepositorStrict).mockResolvedValueOnce(
         indexerVaults as any,
       );
 
@@ -1082,7 +1082,9 @@ describe("useDepositFlow", () => {
       await executeWithAutoArtifactDownload(result);
 
       await waitFor(() => {
-        expect(fetchVaultsByDepositor).toHaveBeenCalledWith("0xEthAddress123");
+        expect(fetchVaultsByDepositorStrict).toHaveBeenCalledWith(
+          "0xEthAddress123",
+        );
         expect(collectReservedUtxoRefs).toHaveBeenCalledWith({
           vaults: indexerVaults,
           pendingPegins: [],
@@ -1091,12 +1093,12 @@ describe("useDepositFlow", () => {
       });
     });
 
-    it("fails closed and skips UTXO selection when fetchVaultsByDepositor throws (indexer outage)", async () => {
+    it("fails closed and skips UTXO selection when fetchVaultsByDepositorStrict throws (indexer outage)", async () => {
       // If the indexer is unavailable we can't prove a registered-but-
       // unbroadcast Pre-PegIn doesn't already encumber these UTXOs. Block
       // the deposit instead of silently degrading to the local-only
       // reservation set — that's the failure mode the audit is about.
-      const { fetchVaultsByDepositor } = vi.mocked(
+      const { fetchVaultsByDepositorStrict } = vi.mocked(
         await import("@/services/vault/fetchVaults"),
       );
       const { collectReservedUtxoRefs } = vi.mocked(
@@ -1109,7 +1111,7 @@ describe("useDepositFlow", () => {
         await import("../depositFlowSteps"),
       );
 
-      vi.mocked(fetchVaultsByDepositor).mockRejectedValueOnce(
+      vi.mocked(fetchVaultsByDepositorStrict).mockRejectedValueOnce(
         new Error("indexer 503"),
       );
 
@@ -1119,7 +1121,7 @@ describe("useDepositFlow", () => {
 
       await waitFor(() => {
         expect(result.current.error).toMatch(
-          /Failed to fetch existing vaults for cross-context UTXO reservation/,
+          /Unable to verify existing deposits/,
         );
       });
       expect(collectReservedUtxoRefs).not.toHaveBeenCalled();

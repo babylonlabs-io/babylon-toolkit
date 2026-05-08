@@ -49,7 +49,7 @@ import { useProtocolParamsContext } from "@/context/ProtocolParamsContext";
 import { logger } from "@/infrastructure";
 import { LocalStorageStatus } from "@/models/peginStateMachine";
 import { validateMultiVaultDepositInputs } from "@/services/deposit/validations";
-import { fetchVaultsByDepositor } from "@/services/vault/fetchVaults";
+import { fetchVaultsByDepositorStrict } from "@/services/vault/fetchVaults";
 import type { PayoutSigningProgress } from "@/services/vault/vaultPayoutSignatureService";
 import {
   broadcastPrePeginTransaction,
@@ -65,6 +65,7 @@ import {
   removeUtxoReservation,
   updatePendingPeginStatus,
 } from "@/storage/peginStorage";
+import type { Vault } from "@/types/vault";
 import { btcAddressToScriptPubKeyHex, stripHexPrefix } from "@/utils/btc";
 import { satoshiToBtcNumber } from "@/utils/btcConversion";
 import { sanitizeErrorMessage } from "@/utils/errors/formatting";
@@ -356,13 +357,21 @@ export function useDepositFlow(
         // than to silently skip the on-chain reservation set.
         const pendingPegins = getPendingPegins(confirmedEthAddress);
         const utxoReservations = getUtxoReservations(confirmedEthAddress);
-        let depositorVaults;
+        let depositorVaults: Vault[];
         try {
-          depositorVaults = await fetchVaultsByDepositor(confirmedEthAddress);
+          depositorVaults =
+            await fetchVaultsByDepositorStrict(confirmedEthAddress);
         } catch (err) {
           const errorMsg = err instanceof Error ? err.message : String(err);
+          logger.error(err instanceof Error ? err : new Error(errorMsg), {
+            tags: {
+              component: "useDepositFlow",
+              phase: "reservation-fetch",
+            },
+            data: { ethAddress: confirmedEthAddress },
+          });
           throw new Error(
-            `Failed to fetch existing vaults for cross-context UTXO reservation; aborting to avoid stranding a duplicate registration. Indexer error: ${errorMsg}`,
+            `Unable to verify existing deposits. Please try again. (${errorMsg})`,
           );
         }
         const reservedUtxoRefs = collectReservedUtxoRefs({
