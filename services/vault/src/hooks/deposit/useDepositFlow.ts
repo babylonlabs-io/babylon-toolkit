@@ -49,7 +49,6 @@ import { useProtocolParamsContext } from "@/context/ProtocolParamsContext";
 import { logger } from "@/infrastructure";
 import { LocalStorageStatus } from "@/models/peginStateMachine";
 import { validateMultiVaultDepositInputs } from "@/services/deposit/validations";
-import { activateVaultWithSecret } from "@/services/vault/vaultActivationService";
 import type { PayoutSigningProgress } from "@/services/vault/vaultPayoutSignatureService";
 import {
   broadcastPrePeginTransaction,
@@ -78,7 +77,6 @@ import {
   signAndSubmitPayouts,
   signProofOfPossession,
   submitWotsPublicKey,
-  waitForContractVerification,
   type DepositUtxo,
 } from "./depositFlowSteps";
 import { useBtcWalletState } from "./useBtcWalletState";
@@ -189,7 +187,7 @@ export function useDepositFlow(
 
   // State
   const [currentStep, setCurrentStep] = useState<DepositFlowStep>(
-    DepositFlowStep.SIGN_POP,
+    DepositFlowStep.DERIVE_VAULT_SECRET,
   );
   const [currentVaultIndex, setCurrentVaultIndex] = useState<number | null>(
     null,
@@ -255,7 +253,7 @@ export function useDepositFlow(
 
       setProcessing(true);
       setError(null);
-      setCurrentStep(DepositFlowStep.SIGN_POP);
+      setCurrentStep(DepositFlowStep.DERIVE_VAULT_SECRET);
 
       // Track background operation failures
       const warnings: string[] = [];
@@ -324,7 +322,26 @@ export function useDepositFlow(
         // Step 2: Create Batch Pre-PegIn (all vaults in one BTC tx)
         // ========================================================================
 
-        setCurrentStep(DepositFlowStep.SIGN_POP);
+        setCurrentStep(DepositFlowStep.DERIVE_VAULT_SECRET);
+        const phaseTrackingBtcWallet: typeof confirmedBtcWallet = {
+          ...confirmedBtcWallet,
+          deriveContextHash: (appName, context) => {
+            setCurrentStep(DepositFlowStep.DERIVE_VAULT_SECRET);
+            return confirmedBtcWallet.deriveContextHash(appName, context);
+          },
+          signPsbt: (psbtHex, opts) => {
+            setCurrentStep(DepositFlowStep.SIGN_PEGIN_BTC);
+            return confirmedBtcWallet.signPsbt(psbtHex, opts);
+          },
+          ...(confirmedBtcWallet.signPsbts
+            ? {
+                signPsbts: (psbtHexes, opts) => {
+                  setCurrentStep(DepositFlowStep.SIGN_PEGIN_BTC);
+                  return confirmedBtcWallet.signPsbts!(psbtHexes, opts);
+                },
+              }
+            : {}),
+        };
 
         // Filter out UTXOs reserved by in-flight deposits to prevent
         // double-spend failures across concurrent sessions/tabs.
@@ -342,7 +359,7 @@ export function useDepositFlow(
         });
 
         const batchResult = await preparePeginTransaction(
-          confirmedBtcWallet,
+          phaseTrackingBtcWallet,
           walletClient,
           {
             pegInAmounts: vaultAmounts,
@@ -615,16 +632,64 @@ export function useDepositFlow(
         }
 
         // ========================================================================
-        // Step 5: Submit WOTS Keys + Sign Payout Transactions
+        // Step 5: WOTS + Payout signing
         // ========================================================================
 
-        setCurrentStep(DepositFlowStep.SIGN_PAYOUTS);
+        setCurrentStep(DepositFlowStep.AWAIT_BTC_CONFIRMATION);
         setIsWaiting(true);
+
+        let baseStep: DepositFlowStep = DepositFlowStep.AWAIT_BTC_CONFIRMATION;
+        const postBroadcastBtcWallet: typeof confirmedBtcWallet = {
+          ...confirmedBtcWallet,
+          // `isWaiting` flips to `false` while a popup is open and back
+          // to `true` after it closes, so the SDK polling that follows
+          // remains "Close & continue later"-able.
+          deriveContextHash: async (appName, context) => {
+            if (baseStep === DepositFlowStep.SIGN_PAYOUTS) {
+              setCurrentStep(DepositFlowStep.SIGN_AUTH_ANCHOR);
+            } else if (baseStep === DepositFlowStep.SUBMIT_WOTS_KEYS) {
+              setCurrentStep(DepositFlowStep.SUBMIT_WOTS_KEYS);
+            }
+            setIsWaiting(false);
+            try {
+              return await confirmedBtcWallet.deriveContextHash(
+                appName,
+                context,
+              );
+            } finally {
+              setIsWaiting(true);
+            }
+          },
+          signPsbt: async (psbtHex, opts) => {
+            setCurrentStep(DepositFlowStep.SIGN_PAYOUTS);
+            setIsWaiting(false);
+            try {
+              return await confirmedBtcWallet.signPsbt(psbtHex, opts);
+            } finally {
+              setIsWaiting(true);
+            }
+          },
+          ...(confirmedBtcWallet.signPsbts
+            ? {
+                signPsbts: async (psbtHexes, opts) => {
+                  setCurrentStep(DepositFlowStep.SIGN_PAYOUTS);
+                  setIsWaiting(false);
+                  try {
+                    return await confirmedBtcWallet.signPsbts!(psbtHexes, opts);
+                  } finally {
+                    setIsWaiting(true);
+                  }
+                },
+              }
+            : {}),
+        };
 
         // Track per-vault outcomes so failed lanes don't block healthy siblings
         const wotsFailedVaultIds = new Set<string>();
 
         const MAX_WOTS_ATTEMPTS = 2;
+
+        baseStep = DepositFlowStep.SUBMIT_WOTS_KEYS;
 
         for (const result of broadcastedResults) {
           signal.throwIfAborted();
@@ -639,7 +704,7 @@ export function useDepositFlow(
                 depositorBtcPubkey: result.depositorBtcPubkey,
                 providerAddress: provider.id,
                 wotsPublicKeys: perVaultWotsKeys[result.vaultIndex],
-                btcWallet: confirmedBtcWallet,
+                btcWallet: postBroadcastBtcWallet,
                 unsignedPrePeginTxHex: batchResult.fundedPrePeginTxHex,
                 signal,
               });
@@ -682,9 +747,10 @@ export function useDepositFlow(
         }
 
         // ========================================================================
-        // Step 5 (cont): Sign Payout Transactions
-        // VP waits for Pre-PegIn BTC confirmation before being ready.
+        // Step 5b: Sign Payout Transactions
         // ========================================================================
+
+        baseStep = DepositFlowStep.SIGN_PAYOUTS;
 
         const payoutSignedVaultIds = new Set<string>();
 
@@ -699,6 +765,14 @@ export function useDepositFlow(
 
           try {
             setCurrentVaultIndex(vi);
+            const peginTxidNoPrefix = stripHexPrefix(result.peginTxHash);
+            const cacheHit =
+              vpTokenRegistry.peek(peginTxidNoPrefix) !== undefined;
+            setCurrentStep(
+              cacheHit
+                ? DepositFlowStep.SIGN_PAYOUTS
+                : DepositFlowStep.SIGN_AUTH_ANCHOR,
+            );
             setIsWaiting(true);
 
             await signAndSubmitPayouts({
@@ -708,14 +782,13 @@ export function useDepositFlow(
               providerBtcPubKey: provider.btcPubKey,
               registeredPayoutScriptPubKey:
                 btcAddressToScriptPubKeyHex(confirmedBtcAddress),
-              btcWallet: confirmedBtcWallet,
+              btcWallet: postBroadcastBtcWallet,
               depositorEthAddress: confirmedEthAddress,
               unsignedPrePeginTxHex: batchResult.fundedPrePeginTxHex,
               signal,
               onProgress: setPayoutSigningProgress,
             });
 
-            setIsWaiting(false);
             payoutSignedVaultIds.add(result.vaultId);
           } catch (error) {
             // If the user cancelled, stop immediately — don't continue with other vaults
@@ -743,18 +816,16 @@ export function useDepositFlow(
         setPayoutSigningProgress(null);
         setCurrentVaultIndex(null);
 
-        // Only proceed with vaults that completed payout signing.
-        // Vaults that failed WOTS submission or payout signing will never
-        // reach VERIFIED — waiting for them would block healthy siblings.
-        const readyResults = broadcastedResults.filter((r) =>
-          payoutSignedVaultIds.has(r.vaultId),
-        );
-
         // ========================================================================
         // Step 6: Download Vault Artifacts (per vault, sequential)
         // ========================================================================
 
+        const readyResults = broadcastedResults.filter((r) =>
+          payoutSignedVaultIds.has(r.vaultId),
+        );
+
         setCurrentStep(DepositFlowStep.ARTIFACT_DOWNLOAD);
+        setIsWaiting(false);
 
         for (const result of readyResults) {
           if (signal.aborted) break;
@@ -765,59 +836,18 @@ export function useDepositFlow(
             depositorPk: result.depositorBtcPubkey,
           });
 
-          // Wait for user to download and click "Continue"
           await new Promise<void>((resolve) => {
             artifactResolverRef.current = resolve;
           });
+
+          // The X button on ArtifactDownloadModal calls abort(), which
+          // resolves the resolver above. Re-check here so a dismissal
+          // exits the loop (and triggers the abort branch below)
+          // instead of advancing as if the artifact were downloaded.
+          signal.throwIfAborted();
         }
 
-        // ========================================================================
-        // Step 7: Activate Vaults — wait for contract VERIFIED, then
-        // reveal HTLC secret on Ethereum
-        // ========================================================================
-
-        if (readyResults.length > 0) {
-          setCurrentStep(DepositFlowStep.ACTIVATE_VAULT);
-          setIsWaiting(true);
-          await Promise.all(
-            readyResults.map((r) =>
-              waitForContractVerification({ vaultId: r.vaultId, signal }),
-            ),
-          );
-          setIsWaiting(false);
-
-          for (const result of readyResults) {
-            signal.throwIfAborted();
-
-            try {
-              await activateVaultWithSecret({
-                vaultId: result.vaultId,
-                secret: ensureHexPrefix(htlcSecretHexes[result.vaultIndex]),
-                walletClient,
-                signal,
-              });
-              vpTokenRegistry.release(stripHexPrefix(result.peginTxHash));
-            } catch (error) {
-              if (signal.aborted) throw error;
-
-              const errorMsg =
-                error instanceof Error ? error.message : String(error);
-              const warning = `Vault ${result.vaultIndex + 1}: Activation failed - ${errorMsg}`;
-              warnings.push(warning);
-              logger.error(
-                error instanceof Error ? error : new Error(String(error)),
-                {
-                  data: {
-                    context: "[Multi-Vault] Failed to activate vault",
-                    vaultId: result.vaultId,
-                  },
-                },
-              );
-            }
-          }
-        }
-
-        setCurrentStep(DepositFlowStep.COMPLETED);
+        setIsWaiting(true);
 
         // Return result
         return {
@@ -856,8 +886,9 @@ export function useDepositFlow(
         return null;
       } finally {
         setProcessing(false);
-        setIsWaiting(false);
-        setCurrentVaultIndex(null);
+        if (!signal.aborted) {
+          setCurrentVaultIndex(null);
+        }
         abortControllerRef.current = null;
       }
     }, [

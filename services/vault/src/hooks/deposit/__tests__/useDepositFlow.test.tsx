@@ -9,6 +9,7 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import type { Address, Hex } from "viem";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { DepositFlowStep } from "../depositFlowSteps";
 import { useDepositFlow } from "../useDepositFlow";
 
 // ============================================================================
@@ -140,23 +141,20 @@ vi.mock("@/clients/eth-contract/btc-vault-registry/query", () => ({
     ),
 }));
 
-vi.mock("../depositFlowSteps", () => ({
-  DepositFlowStep: {
-    SIGN_POP: 1,
-    SUBMIT_PEGIN: 2,
-    BROADCAST_PRE_PEGIN: 3,
-    SIGN_PAYOUTS: 4,
-    ARTIFACT_DOWNLOAD: 5,
-    ACTIVATE_VAULT: 6,
-    COMPLETED: 7,
-  },
-  getEthWalletClient: vi.fn(),
-  registerPeginBatchAndWait: vi.fn(),
-  signAndSubmitPayouts: vi.fn(),
-  signProofOfPossession: vi.fn(),
-  submitWotsPublicKey: vi.fn(),
-  waitForContractVerification: vi.fn(),
-}));
+vi.mock("../depositFlowSteps", async () => {
+  const actual = await vi.importActual<typeof import("../depositFlowSteps")>(
+    "../depositFlowSteps",
+  );
+  return {
+    ...actual,
+    getEthWalletClient: vi.fn(),
+    registerPeginBatchAndWait: vi.fn(),
+    signAndSubmitPayouts: vi.fn(),
+    signProofOfPossession: vi.fn(),
+    submitWotsPublicKey: vi.fn(),
+    waitForContractVerification: vi.fn(),
+  };
+});
 
 // ============================================================================
 // Test Data
@@ -240,19 +238,27 @@ const MOCK_PARAMS = {
 async function executeWithAutoArtifactDownload(result: {
   current: ReturnType<typeof useDepositFlow>;
 }) {
-  const pollId = setInterval(() => {
-    if (result.current.artifactDownloadInfo) {
-      void act(() => {
-        result.current.continueAfterArtifactDownload();
-      });
-    }
-  }, 10);
+  const promise = result.current.executeDeposit();
 
-  try {
-    return await result.current.executeDeposit();
-  } finally {
-    clearInterval(pollId);
-  }
+  const drainArtifactPrompts = async () => {
+    while (true) {
+      const settled = await Promise.race([
+        promise.then(() => "settled" as const),
+        new Promise<"pending">((resolve) =>
+          setTimeout(() => resolve("pending"), 0),
+        ),
+      ]);
+      if (settled === "settled") return;
+      if (result.current.artifactDownloadInfo) {
+        await act(async () => {
+          result.current.continueAfterArtifactDownload();
+        });
+      }
+    }
+  };
+
+  await drainArtifactPrompts();
+  return promise;
 }
 
 async function setupDefaultMocks() {
@@ -366,8 +372,15 @@ describe("useDepositFlow", () => {
 
       await waitFor(() => {
         expect(preparePeginTransaction).toHaveBeenCalledTimes(1);
+        // The hook hands `preparePegin` a phase-tracking wrapper that
+        // forwards to MOCK_BTC_WALLET, so match on the behavioural
+        // surface rather than the exact wallet reference.
         expect(preparePeginTransaction).toHaveBeenCalledWith(
-          MOCK_BTC_WALLET,
+          expect.objectContaining({
+            getPublicKeyHex: MOCK_BTC_WALLET.getPublicKeyHex,
+            getAddress: MOCK_BTC_WALLET.getAddress,
+            getNetwork: MOCK_BTC_WALLET.getNetwork,
+          }),
           MOCK_ETH_WALLET,
           expect.objectContaining({
             pegInAmounts: [100000n, 100000n],
@@ -460,29 +473,6 @@ describe("useDepositFlow", () => {
           }),
         );
       });
-    });
-
-    it("auto-activates each vault with the per-vault htlcSecretHex returned by the SDK", async () => {
-      // The SDK orchestrator owns secret derivation; the vault-side
-      // hook just plumbs the returned `htlcSecretHexes[i]` into the
-      // per-vault activation call. This test pins THAT plumbing —
-      // vault i must activate with the secret from index i, never
-      // a crossed/stale value.
-      const { activateVaultWithSecret } = vi.mocked(
-        await import("@/services/vault/vaultActivationService"),
-      );
-
-      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
-
-      await executeWithAutoArtifactDownload(result);
-
-      await waitFor(() => {
-        expect(activateVaultWithSecret).toHaveBeenCalledTimes(2);
-      });
-      const calls = activateVaultWithSecret.mock.calls;
-      // MOCK_BATCH_RESULT.htlcSecretHexes = ["11"*32, "22"*32].
-      expect(calls[0][0]?.secret).toBe("0x" + "11".repeat(32));
-      expect(calls[1][0]?.secret).toBe("0x" + "22".repeat(32));
     });
   });
 
@@ -683,22 +673,6 @@ describe("useDepositFlow", () => {
     });
   });
 
-  describe("Vault Activation", () => {
-    it("should activate each vault with its HTLC secret", async () => {
-      const { activateVaultWithSecret } = vi.mocked(
-        await import("@/services/vault/vaultActivationService"),
-      );
-
-      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
-
-      await executeWithAutoArtifactDownload(result);
-
-      await waitFor(() => {
-        expect(activateVaultWithSecret).toHaveBeenCalledTimes(2);
-      });
-    });
-  });
-
   describe("Result", () => {
     it("should return result with pegins for each vault", async () => {
       const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
@@ -722,7 +696,7 @@ describe("useDepositFlow", () => {
       );
     });
 
-    it("should set currentStep to COMPLETED on success", async () => {
+    it("should park on ARTIFACT_DOWNLOAD with isWaiting after payout signing", async () => {
       const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
 
       await executeWithAutoArtifactDownload(result);
@@ -731,8 +705,10 @@ describe("useDepositFlow", () => {
         expect(result.current.processing).toBe(false);
       });
 
-      // DepositFlowStep.COMPLETED = 7
-      expect(result.current.currentStep).toBe(7);
+      expect(result.current.currentStep).toBe(
+        DepositFlowStep.ARTIFACT_DOWNLOAD,
+      );
+      expect(result.current.isWaiting).toBe(true);
     });
   });
 
@@ -782,12 +758,9 @@ describe("useDepositFlow", () => {
       });
     });
 
-    it("should only verify and activate vaults whose payout signing succeeded", async () => {
-      const { signAndSubmitPayouts, waitForContractVerification } = vi.mocked(
+    it("should continue past payout-signing failures with warnings", async () => {
+      const { signAndSubmitPayouts } = vi.mocked(
         await import("../depositFlowSteps"),
-      );
-      const { activateVaultWithSecret } = vi.mocked(
-        await import("@/services/vault/vaultActivationService"),
       );
 
       // First vault fails payout signing, second succeeds
@@ -804,26 +777,14 @@ describe("useDepositFlow", () => {
       expect(depositResult?.warnings).toHaveLength(1);
       expect(depositResult?.warnings?.[0]).toContain("Payout signing failed");
 
-      // Second vault should still succeed
+      // Second vault should still attempt
       expect(signAndSubmitPayouts).toHaveBeenCalledTimes(2);
-
-      // Only the successful vault (vault 2) should be verified and activated
-      expect(waitForContractVerification).toHaveBeenCalledTimes(1);
-      expect(waitForContractVerification).toHaveBeenCalledWith(
-        expect.objectContaining({ vaultId: "0xVault1Id" }),
-      );
-      expect(activateVaultWithSecret).toHaveBeenCalledTimes(1);
-      expect(activateVaultWithSecret).toHaveBeenCalledWith(
-        expect.objectContaining({ vaultId: "0xVault1Id" }),
-      );
     });
 
     it("should skip payout signing for vaults whose WOTS key submission failed", async () => {
-      const {
-        submitWotsPublicKey,
-        signAndSubmitPayouts,
-        waitForContractVerification,
-      } = vi.mocked(await import("../depositFlowSteps"));
+      const { submitWotsPublicKey, signAndSubmitPayouts } = vi.mocked(
+        await import("../depositFlowSteps"),
+      );
 
       // First vault's WOTS submission fails both attempts (retry exhausted)
       vi.mocked(submitWotsPublicKey)
@@ -844,12 +805,6 @@ describe("useDepositFlow", () => {
       // Payout signing should only be attempted for vault 2 (vault 1 skipped)
       expect(signAndSubmitPayouts).toHaveBeenCalledTimes(1);
       expect(signAndSubmitPayouts).toHaveBeenCalledWith(
-        expect.objectContaining({ vaultId: "0xVault1Id" }),
-      );
-
-      // Only vault 2 should be verified
-      expect(waitForContractVerification).toHaveBeenCalledTimes(1);
-      expect(waitForContractVerification).toHaveBeenCalledWith(
         expect.objectContaining({ vaultId: "0xVault1Id" }),
       );
     });
@@ -879,11 +834,8 @@ describe("useDepositFlow", () => {
     });
 
     it("should complete with warnings when all payout signings fail", async () => {
-      const { signAndSubmitPayouts, waitForContractVerification } = vi.mocked(
+      const { signAndSubmitPayouts } = vi.mocked(
         await import("../depositFlowSteps"),
-      );
-      const { activateVaultWithSecret } = vi.mocked(
-        await import("@/services/vault/vaultActivationService"),
       );
 
       // Both vaults fail payout signing
@@ -897,10 +849,6 @@ describe("useDepositFlow", () => {
 
       expect(depositResult).not.toBeNull();
       expect(depositResult?.warnings).toHaveLength(2);
-
-      // No verification or activation should be attempted
-      expect(waitForContractVerification).not.toHaveBeenCalled();
-      expect(activateVaultWithSecret).not.toHaveBeenCalled();
     });
 
     it("should not show error when flow is aborted", async () => {
@@ -1008,29 +956,6 @@ describe("useDepositFlow", () => {
 
       // Registration must never be attempted with mismatched keys
       expect(registerPeginBatchAndWait).not.toHaveBeenCalled();
-    });
-  });
-
-  describe("Abort Signal (Issue #4)", () => {
-    it("stops activation loop when signal is aborted after first vault", async () => {
-      const { activateVaultWithSecret } = vi.mocked(
-        await import("@/services/vault/vaultActivationService"),
-      );
-
-      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
-
-      // First activation succeeds but triggers abort
-      vi.mocked(activateVaultWithSecret).mockImplementation(async () => {
-        // After vault 1 activates, abort the flow
-        result.current.abort();
-        return { hash: "0xActivationTxHash" } as any;
-      });
-
-      await executeWithAutoArtifactDownload(result);
-
-      // Only vault 1 should have been activated — vault 2 is skipped
-      // because signal.throwIfAborted() fires at the top of the next iteration
-      expect(activateVaultWithSecret).toHaveBeenCalledTimes(1);
     });
   });
 

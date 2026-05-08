@@ -24,8 +24,11 @@ export function useWotsKeyModal(options: {
     setActivity(null);
   }, []);
 
+  // Refetches activities without closing the modal. The WOTS resume
+  // flow parks on a "Close & continue later" state after submission, so
+  // the modal stays mounted until the user explicitly dismisses via
+  // handleClose.
   const handleSuccess = useCallback(() => {
-    setActivity(null);
     onSuccess();
   }, [onSuccess]);
 

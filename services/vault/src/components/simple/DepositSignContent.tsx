@@ -1,9 +1,10 @@
 /**
  * DepositSignContent
  *
- * Renders the signing modal content for deposits (single or multi-vault).
- * Always uses array-based props — single vault is an array of 1.
- * Dynamically adjusts progress steps based on vault count.
+ * Renders the signing modal content for deposits. Always uses array-based
+ * props — single vault is an array of 1. Multi-vault renders the same
+ * stepper rows as single-vault; per-vault progress is surfaced via
+ * `payoutSigningProgress`.
  */
 
 import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
@@ -11,10 +12,7 @@ import { useCallback } from "react";
 import type { Address } from "viem";
 
 import { ArtifactDownloadModal } from "@/components/deposit/ArtifactDownloadModal";
-import {
-  computeDepositDerivedState,
-  DEPOSIT_SUCCESS_MESSAGE,
-} from "@/components/deposit/DepositSignModal/depositStepHelpers";
+import { computeDepositDerivedState } from "@/components/deposit/DepositSignModal/depositStepHelpers";
 import { useDepositFlow } from "@/hooks/deposit/useDepositFlow";
 import { useRunOnce } from "@/hooks/useRunOnce";
 
@@ -30,18 +28,12 @@ interface DepositSignContentProps {
   vaultProviderBtcPubkey: string;
   vaultKeeperBtcPubkeys: string[];
   universalChallengerBtcPubkeys: string[];
-  onSuccess: (
-    peginTxHash: string,
-    ethTxHash: string,
-    depositorBtcPubkey: string,
-  ) => void;
   onClose: () => void;
   onRefetchActivities?: () => Promise<void>;
 }
 
 export function DepositSignContent({
   onClose,
-  onSuccess,
   onRefetchActivities,
   vaultAmounts,
   ...flowParams
@@ -50,7 +42,6 @@ export function DepositSignContent({
     executeDeposit,
     abort,
     currentStep,
-    currentVaultIndex,
     processing,
     error,
     isWaiting,
@@ -62,21 +53,12 @@ export function DepositSignContent({
     ...flowParams,
   });
 
-  // Auto-start the flow on mount
   const startFlow = useCallback(async () => {
     const result = await executeDeposit();
     if (result) {
       onRefetchActivities?.();
-      const firstPegin = result.pegins[0];
-      if (firstPegin) {
-        onSuccess(
-          firstPegin.peginTxHash,
-          firstPegin.ethTxHash,
-          firstPegin.depositorBtcPubkey,
-        );
-      }
     }
-  }, [executeDeposit, onRefetchActivities, onSuccess]);
+  }, [executeDeposit, onRefetchActivities]);
 
   useRunOnce(startFlow);
 
@@ -89,42 +71,22 @@ export function DepositSignContent({
     onClose();
   }, [abort, onClose]);
 
-  const vaultCount = vaultAmounts.length;
-
   return (
     <>
-      {vaultCount > 1 ? (
-        <DepositProgressView
-          variant="multi"
-          currentVaultIndex={currentVaultIndex}
-          currentStep={currentStep}
-          isWaiting={isWaiting}
-          error={error}
-          isComplete={isComplete}
-          isProcessing={isProcessing}
-          canClose={canClose}
-          canContinueInBackground={canContinueInBackground}
-          payoutSigningProgress={payoutSigningProgress}
-          onClose={handleClose}
-          successMessage={DEPOSIT_SUCCESS_MESSAGE}
-        />
-      ) : (
-        <DepositProgressView
-          currentStep={currentStep}
-          isWaiting={isWaiting}
-          error={error}
-          isComplete={isComplete}
-          isProcessing={isProcessing}
-          canClose={canClose}
-          canContinueInBackground={canContinueInBackground}
-          payoutSigningProgress={payoutSigningProgress}
-          onClose={handleClose}
-          successMessage={DEPOSIT_SUCCESS_MESSAGE}
-        />
-      )}
+      <DepositProgressView
+        currentStep={currentStep}
+        error={error}
+        isComplete={isComplete}
+        isProcessing={isProcessing}
+        canClose={canClose}
+        canContinueInBackground={canContinueInBackground}
+        payoutSigningProgress={payoutSigningProgress}
+        onClose={handleClose}
+      />
+
       {artifactDownloadInfo && (
         <ArtifactDownloadModal
-          open={!!artifactDownloadInfo}
+          open
           onClose={handleClose}
           onComplete={continueAfterArtifactDownload}
           providerAddress={artifactDownloadInfo.providerAddress}

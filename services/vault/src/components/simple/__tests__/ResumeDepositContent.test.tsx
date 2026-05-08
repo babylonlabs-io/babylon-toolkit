@@ -63,11 +63,16 @@ vi.mock("@/components/deposit/DepositSignModal/depositStepHelpers", () => ({
     canClose: true,
     canContinueInBackground: false,
   })),
+}));
+
+vi.mock("@/hooks/deposit/depositFlowSteps", () => ({
   DepositFlowStep: {
     SIGN_PAYOUTS: "SIGN_PAYOUTS",
     BROADCAST_PRE_PEGIN: "BROADCAST_PRE_PEGIN",
     ACTIVATE_VAULT: "ACTIVATE_VAULT",
     COMPLETED: "COMPLETED",
+    SUBMIT_WOTS_KEYS: "SUBMIT_WOTS_KEYS",
+    ARTIFACT_DOWNLOAD: "ARTIFACT_DOWNLOAD",
   },
 }));
 

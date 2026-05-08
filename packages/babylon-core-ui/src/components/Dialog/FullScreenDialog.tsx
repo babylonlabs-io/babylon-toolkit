@@ -17,25 +17,28 @@ export const FullScreenDialog = ({ children, open = false, className, onClose, .
   return (
     <Portal mounted={mounted}>
       <div
-        {...restProps}
         className={twJoin(
           "bbn-dialog-fullscreen",
           open ? "animate-modal-in" : "animate-modal-out",
-          className,
         )}
         onAnimationEnd={unmount}
       >
         {onClose && (
           <button
             onClick={onClose}
-            className="absolute top-4 left-4 z-10 flex h-8 w-8 items-center justify-center"
+            className="fixed top-4 left-4 z-10 flex h-8 w-8 items-center justify-center"
             aria-label="Close"
           >
             <CloseIcon size={16} variant="accent-primary" />
           </button>
         )}
 
-        {children}
+        <div
+          {...restProps}
+          className={twJoin("flex min-h-full w-full flex-col", className)}
+        >
+          {children}
+        </div>
       </div>
 
       <Backdrop open={open} onClick={onClose} />
