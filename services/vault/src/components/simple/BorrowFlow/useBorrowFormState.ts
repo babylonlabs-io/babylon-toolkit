@@ -3,11 +3,13 @@ import { useBorrowMetrics } from "@/applications/aave/components/LoanCard/Borrow
 import { useBorrowState } from "@/applications/aave/components/LoanCard/Borrow/hooks/useBorrowState";
 import { validateBorrowAction } from "@/applications/aave/components/LoanCard/Borrow/hooks/validateBorrowAction";
 import { validateBorrowPreSign } from "@/applications/aave/components/LoanCard/Borrow/hooks/validateBorrowPreSign";
+import { getAaveAdapterAddress } from "@/applications/aave/config";
 import {
   BPS_TO_PERCENT_DIVISOR,
   MIN_HEALTH_FACTOR_FOR_BORROW,
   MIN_SLIDER_MAX,
 } from "@/applications/aave/constants";
+import { useAaveConfig } from "@/applications/aave/context";
 import { useBorrowTransaction } from "@/applications/aave/hooks";
 import type { AaveReserveConfig } from "@/applications/aave/services/fetchConfig";
 import type { Asset } from "@/applications/aave/types";
@@ -83,6 +85,8 @@ export function useBorrowFormState({
 
   const { executeBorrow, isProcessing } = useBorrowTransaction();
 
+  const { config: aaveConfig } = useAaveConfig();
+
   const { borrowAmount, setBorrowAmount, maxBorrowAmount } = useBorrowState({
     collateralValueUsd,
     currentDebtUsd: totalDebtValueUsd,
@@ -137,14 +141,20 @@ export function useBorrowFormState({
     const success = await executeBorrow(
       borrowAmount,
       selectedReserve as AaveReserveConfig,
-      () =>
-        validateBorrowPreSign({
+      () => {
+        if (aaveConfig == null) {
+          throw new Error("Aave config unavailable. Cannot validate borrow.");
+        }
+        return validateBorrowPreSign({
           borrowAmount,
           tokenPriceUsd,
           liquidationThresholdBps,
           refetchSplitParams,
           refetchPosition,
-        }),
+          adapterAddress: getAaveAdapterAddress(),
+          displayedVbtcReserveId: aaveConfig.btcVaultCoreVbtcReserveId,
+        });
+      },
     );
     if (success) {
       onBorrowSuccess(

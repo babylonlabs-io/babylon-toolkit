@@ -17,6 +17,19 @@ vi.mock("@/applications/aave/hooks", () => ({
   }),
 }));
 
+// Stub the AaveConfig context — pulling in the real module would drag
+// `@tanstack/react-query` and `@babylonlabs-io/core-ui` into this isolated
+// hook test. The pre-sign validator only reads `btcVaultCoreVbtcReserveId`.
+vi.mock("@/applications/aave/context", () => ({
+  useAaveConfig: () => ({
+    config: { btcVaultCoreVbtcReserveId: 1n },
+  }),
+}));
+
+vi.mock("@/applications/aave/config", () => ({
+  getAaveAdapterAddress: () => "0x000000000000000000000000000000000000ada9",
+}));
+
 // The shared test setup mocks "@/config" without FeatureFlags. Extend that
 // mock here so the hook's FeatureFlags.isBorrowDisabled read does not crash.
 vi.mock("@/config", () => ({

@@ -2,10 +2,22 @@ import {
   AAVE_BASE_CURRENCY_DECIMALS,
   AAVE_BASE_CURRENCY_RAY_DECIMALS,
 } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
-import { describe, expect, it, vi } from "vitest";
+import type { Address } from "viem";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+vi.mock("../../../../../services/assertVbtcReserveAnchoredToAdapter", () => ({
+  assertVbtcReserveAnchoredToAdapter: vi.fn(),
+}));
 
 import type { AavePositionWithLiveData } from "../../../../../services";
+import { ReserveMismatchError } from "../../../../../services/assertReserveMatchesOnChain";
+import { assertVbtcReserveAnchoredToAdapter } from "../../../../../services/assertVbtcReserveAnchoredToAdapter";
 import { validateBorrowPreSign } from "../validateBorrowPreSign";
+
+const mockAssertAnchored = vi.mocked(assertVbtcReserveAnchoredToAdapter);
+
+const ADAPTER = "0x000000000000000000000000000000000000ada9" as Address;
+const VBTC_RESERVE_ID = 1n;
 
 const USD_COLLATERAL = 10n ** BigInt(AAVE_BASE_CURRENCY_DECIMALS);
 const USD_DEBT_RAY = 10n ** BigInt(AAVE_BASE_CURRENCY_RAY_DECIMALS);
@@ -22,64 +34,80 @@ function makePosition(
   } as unknown as AavePositionWithLiveData;
 }
 
+function baseDeps(
+  overrides: Partial<Parameters<typeof validateBorrowPreSign>[0]> = {},
+) {
+  return {
+    borrowAmount: 100,
+    tokenPriceUsd: 1 as number | null,
+    liquidationThresholdBps: 7500,
+    refetchSplitParams: vi.fn().mockResolvedValue({
+      THF: 1.1,
+      CF: 0.75,
+      LB: 1.05,
+    }),
+    refetchPosition: vi.fn().mockResolvedValue(null),
+    adapterAddress: ADAPTER,
+    displayedVbtcReserveId: VBTC_RESERVE_ID,
+    ...overrides,
+  };
+}
+
 describe("validateBorrowPreSign", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockAssertAnchored.mockResolvedValue();
+  });
+
   it("throws when token price is unavailable", async () => {
     const refetchSplitParams = vi.fn();
     const refetchPosition = vi.fn();
 
     await expect(
-      validateBorrowPreSign({
-        borrowAmount: 100,
-        tokenPriceUsd: null,
-        liquidationThresholdBps: 7500,
-        refetchSplitParams,
-        refetchPosition,
-      }),
+      validateBorrowPreSign(
+        baseDeps({
+          tokenPriceUsd: null,
+          refetchSplitParams,
+          refetchPosition,
+        }),
+      ),
     ).rejects.toThrow("Token price unavailable");
 
     expect(refetchSplitParams).not.toHaveBeenCalled();
     expect(refetchPosition).not.toHaveBeenCalled();
+    expect(mockAssertAnchored).not.toHaveBeenCalled();
   });
 
   it("throws when refetchSplitParams returns null", async () => {
     const refetchSplitParams = vi.fn().mockResolvedValue(null);
-    const refetchPosition = vi.fn().mockResolvedValue(null);
 
     await expect(
-      validateBorrowPreSign({
-        borrowAmount: 100,
-        tokenPriceUsd: 1,
-        liquidationThresholdBps: 7500,
-        refetchSplitParams,
-        refetchPosition,
-      }),
+      validateBorrowPreSign(baseDeps({ refetchSplitParams })),
     ).rejects.toThrow("Could not verify current risk parameters");
   });
 
   it("aborts when on-chain CF moved since the screen was rendered (auditor #260)", async () => {
-    // User's screen was rendered with CF=0.75 (=7500 BPS). Governance has
-    // since lowered CF to 0.70 — same dynamicConfigKey, so React Query
-    // would have kept the cached 0.75 without an explicit refetch.
     const refetchSplitParams = vi.fn().mockResolvedValue({
       THF: 1.1,
       CF: 0.7,
       LB: 1.05,
     });
-    // The two refetches run in parallel (`Promise.all`) for click-path
-    // latency, so refetchPosition may be called even though we abort.
-    // What matters is that the validator throws and the user never reaches
-    // the `borrow(...)` call.
-    const refetchPosition = vi.fn().mockResolvedValue(null);
 
     await expect(
-      validateBorrowPreSign({
-        borrowAmount: 100,
-        tokenPriceUsd: 1,
-        liquidationThresholdBps: 7500,
-        refetchSplitParams,
-        refetchPosition,
-      }),
+      validateBorrowPreSign(baseDeps({ refetchSplitParams })),
     ).rejects.toThrow("Risk parameters have changed");
+  });
+
+  it("aborts when the displayed reserve id does not match the adapter (auditor #230)", async () => {
+    mockAssertAnchored.mockRejectedValue(
+      new ReserveMismatchError("vBTC reserve id mismatch"),
+    );
+
+    await expect(
+      validateBorrowPreSign(baseDeps({ displayedVbtcReserveId: 999n })),
+    ).rejects.toBeInstanceOf(ReserveMismatchError);
+
+    expect(mockAssertAnchored).toHaveBeenCalledWith(ADAPTER, 999n);
   });
 
   it("skips revalidation when refetchPosition returns null (first borrow)", async () => {
@@ -91,17 +119,12 @@ describe("validateBorrowPreSign", () => {
     const refetchPosition = vi.fn().mockResolvedValue(null);
 
     await expect(
-      validateBorrowPreSign({
-        borrowAmount: 100,
-        tokenPriceUsd: 1,
-        liquidationThresholdBps: 7500,
-        refetchSplitParams,
-        refetchPosition,
-      }),
+      validateBorrowPreSign(baseDeps({ refetchSplitParams, refetchPosition })),
     ).resolves.toBeUndefined();
 
     expect(refetchSplitParams).toHaveBeenCalledTimes(1);
     expect(refetchPosition).toHaveBeenCalledTimes(1);
+    expect(mockAssertAnchored).toHaveBeenCalledWith(ADAPTER, VBTC_RESERVE_ID);
   });
 
   it("uses fresh liquidationThresholdBps for HF computation", async () => {
@@ -118,13 +141,13 @@ describe("validateBorrowPreSign", () => {
       .mockResolvedValue(makePosition(10000n * USD_COLLATERAL, 0n));
 
     await expect(
-      validateBorrowPreSign({
-        borrowAmount: 1000,
-        tokenPriceUsd: 1,
-        liquidationThresholdBps: 7500,
-        refetchSplitParams,
-        refetchPosition,
-      }),
+      validateBorrowPreSign(
+        baseDeps({
+          borrowAmount: 1000,
+          refetchSplitParams,
+          refetchPosition,
+        }),
+      ),
     ).resolves.toBeUndefined();
   });
 
@@ -141,13 +164,13 @@ describe("validateBorrowPreSign", () => {
       .mockResolvedValue(makePosition(1000n * USD_COLLATERAL, 0n));
 
     await expect(
-      validateBorrowPreSign({
-        borrowAmount: 999,
-        tokenPriceUsd: 1,
-        liquidationThresholdBps: 7500,
-        refetchSplitParams,
-        refetchPosition,
-      }),
+      validateBorrowPreSign(
+        baseDeps({
+          borrowAmount: 999,
+          refetchSplitParams,
+          refetchPosition,
+        }),
+      ),
     ).rejects.toThrow(/Projected health factor/);
   });
 
@@ -155,52 +178,41 @@ describe("validateBorrowPreSign", () => {
     const refetchSplitParams = vi
       .fn()
       .mockRejectedValue(new Error("RPC failure"));
-    const refetchPosition = vi.fn().mockResolvedValue(null);
 
     await expect(
-      validateBorrowPreSign({
-        borrowAmount: 100,
-        tokenPriceUsd: 1,
-        liquidationThresholdBps: 7500,
-        refetchSplitParams,
-        refetchPosition,
-      }),
+      validateBorrowPreSign(baseDeps({ refetchSplitParams })),
     ).rejects.toThrow("RPC failure");
   });
 
-  it("runs refetchSplitParams and refetchPosition in parallel for click-path latency", async () => {
-    // Both refetches should be in flight at the same time. We assert this
-    // by resolving them in the opposite order from what a serial impl would
-    // produce: refetchPosition resolves before refetchSplitParams.
+  it("runs refetchSplitParams, refetchPosition, and the reserve anchor in parallel", async () => {
+    // All three reads should be in flight at the same time. We assert this
+    // by checking that each one's call counter is non-zero by the time the
+    // first microtask boundary is reached — a serial impl would only have
+    // started the first one by then.
     const splitParamsCallStarted = vi.fn();
     const positionCallStarted = vi.fn();
+    const anchorCallStarted = vi.fn();
 
     const refetchSplitParams = vi.fn(async () => {
       splitParamsCallStarted();
-      // Yield to the microtask queue so refetchPosition can also start.
       await Promise.resolve();
       return { THF: 1.1, CF: 0.75, LB: 1.05 };
     });
     const refetchPosition = vi.fn(async () => {
       positionCallStarted();
-      return null; // first-borrow path
+      return null;
+    });
+    mockAssertAnchored.mockImplementation(async () => {
+      anchorCallStarted();
     });
 
-    await validateBorrowPreSign({
-      borrowAmount: 100,
-      tokenPriceUsd: 1,
-      liquidationThresholdBps: 7500,
-      refetchSplitParams,
-      refetchPosition,
-    });
+    await validateBorrowPreSign(
+      baseDeps({ refetchSplitParams, refetchPosition }),
+    );
 
-    // Both refetches must have been initiated before either resolved —
-    // i.e. both call counters were non-zero by the time the first
-    // microtask boundary was reached. With a serial implementation,
-    // refetchPosition would not have started until after the first await
-    // inside refetchSplitParams resolved.
     expect(splitParamsCallStarted).toHaveBeenCalledTimes(1);
     expect(positionCallStarted).toHaveBeenCalledTimes(1);
+    expect(anchorCallStarted).toHaveBeenCalledTimes(1);
   });
 
   it("uses fresh debt from refetched position, not stale UI state", async () => {
@@ -220,13 +232,13 @@ describe("validateBorrowPreSign", () => {
       );
 
     await expect(
-      validateBorrowPreSign({
-        borrowAmount: 100,
-        tokenPriceUsd: 1,
-        liquidationThresholdBps: 7500,
-        refetchSplitParams,
-        refetchPosition,
-      }),
+      validateBorrowPreSign(
+        baseDeps({
+          borrowAmount: 100,
+          refetchSplitParams,
+          refetchPosition,
+        }),
+      ),
     ).rejects.toThrow(/Projected health factor/);
   });
 });

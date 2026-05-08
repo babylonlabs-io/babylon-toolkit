@@ -22,7 +22,9 @@ import {
   formatTokenAmount,
   formatUsdValue,
 } from "../../../../../utils/formatting";
+import { getAaveAdapterAddress } from "../../../config";
 import { AMOUNT_INPUT_CLASS_NAME, MIN_SLIDER_MAX } from "../../../constants";
+import { useAaveConfig } from "../../../context";
 import { useBorrowTransaction } from "../../../hooks";
 import { useLoanContext } from "../../context/LoanContext";
 
@@ -48,6 +50,8 @@ export function Borrow() {
   } = useLoanContext();
 
   const { executeBorrow, isProcessing } = useBorrowTransaction();
+
+  const { config: aaveConfig } = useAaveConfig();
 
   const { borrowAmount, setBorrowAmount, resetBorrowAmount, maxBorrowAmount } =
     useBorrowState({
@@ -76,15 +80,20 @@ export function Borrow() {
   const sliderMaxBorrow = Math.max(maxBorrowAmount, MIN_SLIDER_MAX);
 
   const handleBorrow = async () => {
-    const success = await executeBorrow(borrowAmount, selectedReserve, () =>
-      validateBorrowPreSign({
+    const success = await executeBorrow(borrowAmount, selectedReserve, () => {
+      if (aaveConfig == null) {
+        throw new Error("Aave config unavailable. Cannot validate borrow.");
+      }
+      return validateBorrowPreSign({
         borrowAmount,
         tokenPriceUsd,
         liquidationThresholdBps,
         refetchSplitParams,
         refetchPosition,
-      }),
-    );
+        adapterAddress: getAaveAdapterAddress(),
+        displayedVbtcReserveId: aaveConfig.btcVaultCoreVbtcReserveId,
+      });
+    });
     if (success) {
       resetBorrowAmount();
       onBorrowSuccess(borrowAmount);

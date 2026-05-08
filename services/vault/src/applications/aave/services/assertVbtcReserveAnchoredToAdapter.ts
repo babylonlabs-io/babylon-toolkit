@@ -1,13 +1,18 @@
 /**
- * Fetch the fresh vBTC collateral factor (CF) at sign time, anchored to the
- * adapter's on-chain immutables — defending the projected-HF check from a
- * tampered indexer. Mirrors the dynamicConfigKey selection used by
- * `useVaultSplitParams` so the CF matches what Aave will actually use.
+ * Pre-sign anchor: prove the displayed vBTC reserve id matches the trusted
+ * adapter's `BTC_VAULT_CORE_VAULT_BTC_RESERVE_ID`, and that the on-chain
+ * reserve at that id has `underlying === VAULT_BTC`.
+ *
+ * Defends against a tampered indexer pointing the UI at a different reserve
+ * (auditor finding #230). The CF-staleness gate (`assertCfUnchanged`,
+ * auditor finding #260) sits next to this in the borrow / repay pre-sign
+ * flow but solves a different problem; the two are complementary, not
+ * redundant.
  */
 
 import type { Address } from "viem";
 
-import { getDynamicReserveConfig, getReserve } from "../clients/spoke";
+import { getReserve } from "../clients/spoke";
 import {
   type AdapterImmutables,
   getAdapterImmutables,
@@ -15,6 +20,13 @@ import {
 
 import { ReserveMismatchError } from "./assertReserveMatchesOnChain";
 
+/**
+ * Memoize the adapter's immutables — `BTC_VAULT_CORE_SPOKE`,
+ * `BTC_VAULT_CORE_VAULT_BTC_RESERVE_ID`, `VAULT_BTC` are all Solidity
+ * `immutable`, so the multicall result is safe to cache for the lifetime
+ * of the page. A failed read clears the cache so we retry on the next
+ * call rather than poisoning every subsequent borrow.
+ */
 const adapterImmutablesCache = new Map<Address, Promise<AdapterImmutables>>();
 
 function getCachedAdapterImmutables(
@@ -23,7 +35,6 @@ function getCachedAdapterImmutables(
   const cached = adapterImmutablesCache.get(adapterAddress);
   if (cached) return cached;
   const pending = getAdapterImmutables(adapterAddress).catch((err) => {
-    // Don't poison the cache on transient failures.
     adapterImmutablesCache.delete(adapterAddress);
     throw err;
   });
@@ -37,17 +48,18 @@ export function _resetAdapterImmutablesCacheForTests(): void {
 }
 
 /**
- * Pass the user's `position.dynamicConfigKey` when one exists — that's the
- * key Aave actually uses for their liquidation math. Omit on first borrow.
- *
- * @throws {ReserveMismatchError} when the displayed reserve id or its
- *   on-chain underlying disagree with the adapter's immutables.
+ * @param trustedAdapterAddress - Env-pinned Aave adapter (the same address
+ *   the borrow/repay tx is sent to).
+ * @param displayedVbtcReserveId - The reserve id the UI currently believes
+ *   is vBTC (came from the GraphQL indexer via `useAaveConfig`).
+ * @throws {ReserveMismatchError} if the displayed reserve id doesn't match
+ *   the adapter's immutable, or if the spoke's reserve at that id has a
+ *   different underlying than the adapter's `VAULT_BTC`.
  */
-export async function fetchFreshCollateralFactorOnChain(
+export async function assertVbtcReserveAnchoredToAdapter(
   trustedAdapterAddress: Address,
   displayedVbtcReserveId: bigint,
-  positionDynamicConfigKey?: number,
-): Promise<{ collateralFactor: number }> {
+): Promise<void> {
   const { spoke, vbtcReserveId, vaultBtc } = await getCachedAdapterImmutables(
     trustedAdapterAddress,
   );
@@ -64,17 +76,4 @@ export async function fetchFreshCollateralFactorOnChain(
       `vBTC reserve underlying mismatch: spoke ${spoke} reserve ${vbtcReserveId} underlying ${reserve.underlying}, expected ${vaultBtc}.`,
     );
   }
-
-  // Prefer the position's stored dynamicConfigKey — that's what Aave uses
-  // for an existing user's liquidation math. Fall back to the reserve's
-  // current key for first-borrow flows (no position yet).
-  const dynamicConfigKey = positionDynamicConfigKey ?? reserve.dynamicConfigKey;
-
-  const config = await getDynamicReserveConfig(
-    spoke,
-    vbtcReserveId,
-    dynamicConfigKey,
-  );
-
-  return { collateralFactor: Number(config.collateralFactor) };
 }

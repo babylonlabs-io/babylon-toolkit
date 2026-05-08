@@ -18,7 +18,9 @@ import {
   formatTokenAmount,
   formatUsdValue,
 } from "../../../../../utils/formatting";
+import { getAaveAdapterAddress } from "../../../config";
 import { AMOUNT_INPUT_CLASS_NAME, MIN_SLIDER_MAX } from "../../../constants";
+import { useAaveConfig } from "../../../context";
 import { useRepayTransaction } from "../../../hooks";
 import { useLoanContext } from "../../context/LoanContext";
 import { BorrowDetailsCard } from "../Borrow/BorrowDetailsCard";
@@ -56,6 +58,8 @@ export function Repay() {
     proxyContract,
   });
 
+  const { config: aaveConfig } = useAaveConfig();
+
   const {
     repayAmount,
     setRepayAmount,
@@ -91,11 +95,17 @@ export function Repay() {
       repayAmount,
       selectedReserve,
       isFullRepayment,
-      () =>
-        validateRepayPreSign({
+      () => {
+        if (aaveConfig == null) {
+          throw new Error("Aave config unavailable. Cannot validate repay.");
+        }
+        return validateRepayPreSign({
           liquidationThresholdBps,
           refetchSplitParams,
-        }),
+          adapterAddress: getAaveAdapterAddress(),
+          displayedVbtcReserveId: aaveConfig.btcVaultCoreVbtcReserveId,
+        });
+      },
     );
     if (success) {
       resetRepayAmount();

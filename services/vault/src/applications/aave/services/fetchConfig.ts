@@ -193,9 +193,9 @@ function mapReserveConfig(raw: GraphQLReserveItem): AaveReserveConfig | null {
  * - Borrowable reserves (for asset selection)
  *
  * The values returned here are display-tier: a tampered indexer at most
- * causes a misleading UI. Borrow signing re-derives the collateral factor
- * (and verifies the reserve id / underlying) on-chain at the moment of
- * consequence; see `fetchFreshCollateralFactorOnChain`.
+ * causes a misleading UI. Borrow / repay signing re-anchors the displayed
+ * reserve id to the adapter's on-chain immutable at the moment of
+ * consequence; see `assertVbtcReserveAnchoredToAdapter`.
  *
  * @returns Combined app config or null if config not found
  */
