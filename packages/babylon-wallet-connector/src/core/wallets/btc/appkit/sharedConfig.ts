@@ -57,7 +57,14 @@ export function setSharedBtcAppKitConfig(config: SharedBtcAppKitConfigInput): vo
     modal: config.modal,
     adapter: config.adapter,
     network: config.network,
-    connectionEvents: config.connectionEvents ?? new EventTarget(),
+    // Preserve the existing bus across repeated setter calls (e.g. HMR,
+    // network switch, re-init). Replacing it would strand any
+    // `AppKitBTCProvider` already listening on the prior `EventTarget`
+    // while the bridge dispatches on the new one — account-change events
+    // would silently stop propagating. An explicit caller override still
+    // wins for tests that need a deterministic instance.
+    connectionEvents:
+      config.connectionEvents ?? sharedBtcAppKitConfig?.connectionEvents ?? new EventTarget(),
   };
 }
 
@@ -78,6 +85,8 @@ export function hasSharedBtcAppKitConfig(): boolean {
 /**
  * Test-only helper that wipes the singleton between tests. Not part of
  * the public API surface.
+ *
+ * @internal
  */
 export function __resetSharedBtcAppKitConfigForTests(): void {
   sharedBtcAppKitConfig = null;
