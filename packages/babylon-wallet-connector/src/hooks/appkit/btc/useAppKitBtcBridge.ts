@@ -15,12 +15,20 @@ interface UseAppKitBtcBridgeOptions {
 /**
  * Bridge AppKit Bitcoin connection state with babylon-wallet-connector
  *
- * This hook monitors AppKit's Bitcoin connection state and dispatches connection events
- * that AppKitBTCProvider.connectWallet() is waiting for. It does NOT call btcConnector.connect()
- * to avoid circular dependency issues.
+ * This hook monitors AppKit's Bitcoin connection state and dispatches
+ * connection events on the shared private `EventTarget` that
+ * `AppKitBTCProvider.connectWallet()` is waiting on. It does NOT call
+ * `btcConnector.connect()` to avoid circular dependency issues.
  *
- * To prevent race conditions, it listens for "babylon:open-appkit" events to coordinate
- * event dispatch timing with the provider's event listener registration.
+ * The connection-events bus is intentionally NOT `window` — see
+ * {@link SharedBtcAppKitConfig.connectionEvents}. A same-origin attacker
+ * (XSS or malicious extension) cannot dispatch on the private bus, so
+ * the cached connected address/pubkey on `AppKitBTCProvider` cannot be
+ * spoofed via `window.dispatchEvent`.
+ *
+ * To prevent race conditions, it listens for "babylon:open-appkit" events
+ * (a UI trigger, not a state source) to coordinate event dispatch timing
+ * with the provider's event-listener registration.
  */
 export const useAppKitBtcBridge = ({ onError }: UseAppKitBtcBridgeOptions = {}) => {
   const { isConnected, address, allAccounts } = useAppKitAccount({ namespace: "bip122" });
@@ -31,9 +39,12 @@ export const useAppKitBtcBridge = ({ onError }: UseAppKitBtcBridgeOptions = {}) 
   const dispatchConnectionEvent = useCallback(
     async (currentAddress: string) => {
       try {
+        // Resolve the shared config once — we need both the adapter (for
+        // network switching) and the private connection-events bus.
+        const { adapter, network, connectionEvents } = getSharedBtcAppKitConfig();
+
         // Switch to the configured network
         try {
-          const { adapter, network } = getSharedBtcAppKitConfig();
           // Map the network config to AppKit's network types
           const networkMap = {
             mainnet: bitcoin,
@@ -61,18 +72,18 @@ export const useAppKitBtcBridge = ({ onError }: UseAppKitBtcBridgeOptions = {}) 
           console.error("[AppKit BTC Bridge] Error fetching public key:", pkError instanceof Error ? pkError.message : "Unknown error");
         }
 
-        // Dispatch event to notify AppKitBTCProvider.connectWallet() that connection is ready
-        if (typeof window !== "undefined") {
-          const eventDetail = { address: currentAddress, publicKey };
-          window.dispatchEvent(
-            new CustomEvent(APPKIT_BTC_CONNECTED_EVENT, {
-              detail: eventDetail,
-            }),
-          );
+        // Dispatch on the private EventTarget so AppKitBTCProvider can pick
+        // up the change. We do NOT dispatch on `window` — that channel is
+        // reachable by any same-origin script and was the spoof vector.
+        const eventDetail = { address: currentAddress, publicKey };
+        connectionEvents.dispatchEvent(
+          new CustomEvent(APPKIT_BTC_CONNECTED_EVENT, {
+            detail: eventDetail,
+          }),
+        );
 
-          // Mark this address as dispatched to prevent duplicate events
-          lastDispatchedAddress.current = currentAddress;
-        }
+        // Mark this address as dispatched to prevent duplicate events
+        lastDispatchedAddress.current = currentAddress;
       } catch (error) {
         console.error("[AppKit BTC Bridge] Failed to process connection:", error instanceof Error ? error.message : "Unknown error");
         onError?.(error as Error);
