@@ -86,7 +86,6 @@ export function ResumeSignContent({
   return (
     <DepositProgressView
       currentStep={renderStep}
-      isWaiting={renderIsWaiting}
       error={error?.message ?? null}
       isComplete={derived.isComplete}
       isProcessing={derived.isProcessing}
@@ -134,7 +133,6 @@ export function ResumeBroadcastContent({
   return (
     <DepositProgressView
       currentStep={DepositFlowStep.BROADCAST_PRE_PEGIN}
-      isWaiting={false}
       error={error}
       isComplete={derived.isComplete}
       isProcessing={derived.isProcessing}
@@ -337,7 +335,6 @@ export function ResumeWotsContent({
   return (
     <DepositProgressView
       currentStep={DepositFlowStep.SUBMIT_WOTS_KEYS}
-      isWaiting={renderIsWaiting}
       error={error}
       isComplete={derived.isComplete}
       isProcessing={derived.isProcessing}
@@ -469,7 +466,6 @@ export function ResumeActivationContent({
   return (
     <DepositProgressView
       currentStep={DepositFlowStep.ACTIVATE_VAULT}
-      isWaiting={false}
       error={error}
       isComplete={derived.isComplete}
       isProcessing={derived.isProcessing}
