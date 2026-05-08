@@ -3,7 +3,7 @@
  *
  * ```
  * info(label, ctx) :=
- *        "babylonvault"           // fixed 12-byte ASCII domain tag
+ *        "babylonbtcvault"        // fixed 15-byte ASCII domain tag
  *     || I2OSP(len(label), 1)     // 1-byte label length
  *     || label                    // ASCII bytes of the label
  *     || I2OSP(len(ctx),   2)     // 2-byte big-endian ctx length
@@ -18,7 +18,7 @@
  * @module vault-secrets/info
  */
 
-const DOMAIN_TAG_BYTES = new TextEncoder().encode("babylonvault");
+const DOMAIN_TAG_BYTES = new TextEncoder().encode("babylonbtcvault");
 
 /** Max label length (1-byte prefix). */
 const MAX_LABEL_LEN = 0xff;

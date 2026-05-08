@@ -40,10 +40,9 @@ describe("i2osp4", () => {
 
 describe("buildInfo — golden vectors from derive-vault-secrets.md §4", () => {
   it("encodes auth-anchor with empty ctx", () => {
-    // "babylonvault" || 0b || "auth-anchor" || 00 00
+    // "babylonbtcvault" || 0b || "auth-anchor" || 00 00
     const expected =
-      "62616279" +
-      "6c6f6e76" +
+      "626162796c6f6e62746376" +
       "61756c74" +
       "0b" +
       "617574682d616e63686f72" +
@@ -52,10 +51,9 @@ describe("buildInfo — golden vectors from derive-vault-secrets.md §4", () => 
   });
 
   it("encodes hashlock with htlcVout = 0", () => {
-    // "babylonvault" || 08 || "hashlock" || 00 04 || 00 00 00 00
+    // "babylonbtcvault" || 08 || "hashlock" || 00 04 || 00 00 00 00
     const expected =
-      "62616279" +
-      "6c6f6e76" +
+      "626162796c6f6e62746376" +
       "61756c74" +
       "08" +
       "686173686c6f636b" +
@@ -65,10 +63,9 @@ describe("buildInfo — golden vectors from derive-vault-secrets.md §4", () => 
   });
 
   it("encodes wots-seed with htlcVout = 0", () => {
-    // "babylonvault" || 09 || "wots-seed" || 00 04 || 00 00 00 00
+    // "babylonbtcvault" || 09 || "wots-seed" || 00 04 || 00 00 00 00
     const expected =
-      "62616279" +
-      "6c6f6e76" +
+      "626162796c6f6e62746376" +
       "61756c74" +
       "09" +
       "776f74732d73656564" +
@@ -79,8 +76,7 @@ describe("buildInfo — golden vectors from derive-vault-secrets.md §4", () => 
 
   it("encodes hashlock with htlcVout = 2", () => {
     const expected =
-      "62616279" +
-      "6c6f6e76" +
+      "626162796c6f6e62746376" +
       "61756c74" +
       "08" +
       "686173686c6f636b" +
@@ -120,8 +116,8 @@ describe("buildInfo — injectivity", () => {
     const a = buildInfo("hashlock");
     const b = buildInfo("hashlock-v2");
     expect(toHex(a)).not.toBe(toHex(b));
-    // Label-length byte differs first
-    expect(a[12]).not.toBe(b[12]);
+    // Label-length byte differs first (offset = length of "babylonbtcvault")
+    expect(a[15]).not.toBe(b[15]);
   });
 
   it("same label with empty ctx vs 4-byte-zero ctx produces distinct encodings", () => {
