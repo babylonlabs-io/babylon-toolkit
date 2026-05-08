@@ -5,7 +5,7 @@
  * transaction with multiple HTLC outputs (one per vault).
  */
 
-import { act, renderHook, waitFor } from "@testing-library/react";
+import { renderHook, waitFor } from "@testing-library/react";
 import type { Address, Hex } from "viem";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -459,7 +459,6 @@ describe("useDepositFlow", () => {
         );
       });
     });
-
   });
 
   describe("Storage", () => {
