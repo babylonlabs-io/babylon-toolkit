@@ -22,7 +22,7 @@ export function BorrowFlow({ open, onClose }: BorrowFlowProps) {
 
   const {
     step,
-    selectedAssetSymbol,
+    selectedReserveId,
     successData,
     selectAsset,
     goBack,
@@ -47,7 +47,7 @@ export function BorrowFlow({ open, onClose }: BorrowFlowProps) {
     refetchPosition,
     refetchSplitParams,
   } = useAaveReserveDetail({
-    reserveId: selectedAssetSymbol ?? undefined,
+    reserveId: selectedReserveId ?? undefined,
     address,
   });
 

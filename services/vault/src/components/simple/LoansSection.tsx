@@ -11,6 +11,8 @@ import { getNetworkConfigBTC } from "@/config";
 const btcConfig = getNetworkConfigBTC();
 
 interface LoanAsset {
+  /** Unique on-chain reserve id; required because token symbols can collide. */
+  reserveId: string;
   symbol: string;
   amount: string;
   icon: string;
@@ -68,7 +70,7 @@ export function LoansSection({
           <div className="space-y-4">
             {borrowedAssets.map((asset) => (
               <div
-                key={asset.symbol}
+                key={asset.reserveId}
                 className="flex items-center justify-between"
               >
                 <span className="text-sm text-accent-secondary">Borrowed</span>

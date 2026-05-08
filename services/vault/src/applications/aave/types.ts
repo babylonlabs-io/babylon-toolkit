@@ -1,6 +1,13 @@
 import type { PeginDisplayLabel } from "@/models/peginStateMachine";
 
 export interface Asset {
+  /**
+   * Unique on-chain reserve identifier (stringified bigint).
+   * Required because token symbols are not unique within a Core Spoke
+   * (e.g. bridged vs. native variants of the same stablecoin can collide).
+   * The borrow/repay flows must dispatch by this id, not by `symbol`.
+   */
+  reserveId: string;
   name: string;
   symbol: string;
   icon: string;

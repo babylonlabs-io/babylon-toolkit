@@ -14,9 +14,9 @@ export interface BorrowSuccessData {
 
 export interface UseBorrowFlowResult {
   step: BorrowFlowStep;
-  selectedAssetSymbol: string | null;
+  selectedReserveId: string | null;
   successData: BorrowSuccessData | null;
-  selectAsset: (symbol: string) => void;
+  selectAsset: (reserveId: string) => void;
   goBack: () => void;
   completeBorrow: (amount: number, symbol: string, icon: string) => void;
   reset: () => void;
@@ -24,15 +24,15 @@ export interface UseBorrowFlowResult {
 
 export function useBorrowFlow(): UseBorrowFlowResult {
   const [step, setStep] = useState(BorrowFlowStep.ASSET_SELECTION);
-  const [selectedAssetSymbol, setSelectedAssetSymbol] = useState<string | null>(
+  const [selectedReserveId, setSelectedReserveId] = useState<string | null>(
     null,
   );
   const [successData, setSuccessData] = useState<BorrowSuccessData | null>(
     null,
   );
 
-  const selectAsset = useCallback((symbol: string) => {
-    setSelectedAssetSymbol(symbol);
+  const selectAsset = useCallback((reserveId: string) => {
+    setSelectedReserveId(reserveId);
     setStep(BorrowFlowStep.BORROW_FORM);
   }, []);
 
@@ -50,13 +50,13 @@ export function useBorrowFlow(): UseBorrowFlowResult {
 
   const reset = useCallback(() => {
     setStep(BorrowFlowStep.ASSET_SELECTION);
-    setSelectedAssetSymbol(null);
+    setSelectedReserveId(null);
     setSuccessData(null);
   }, []);
 
   return {
     step,
-    selectedAssetSymbol,
+    selectedReserveId,
     successData,
     selectAsset,
     goBack,

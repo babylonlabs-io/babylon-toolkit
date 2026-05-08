@@ -49,10 +49,14 @@ export function useDashboardState(connectedAddress: string | undefined) {
     [position?.collaterals, findProvider],
   );
 
-  // Transform borrowed assets for the asset selection modal
+  // Transform borrowed assets for the asset selection modal.
+  // `reserveId` is the canonical identifier the modal must emit on click —
+  // symbol alone is not unique within a Core Spoke, so the user's clicked
+  // row could otherwise collapse to a different reserve at the tx site.
   const selectableBorrowedAssets = useMemo(
     (): Asset[] =>
       borrowedAssets.map((asset) => ({
+        reserveId: asset.reserveId,
         symbol: asset.symbol,
         name: asset.symbol,
         icon: asset.icon,

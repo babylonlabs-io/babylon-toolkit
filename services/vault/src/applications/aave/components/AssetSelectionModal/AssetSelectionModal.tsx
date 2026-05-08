@@ -21,7 +21,13 @@ import { AssetListItem } from "./AssetListItem";
 interface AssetSelectionModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSelectAsset: (assetSymbol: string) => void;
+  /**
+   * Called with the on-chain reserve id (stringified bigint) of the row the
+   * user clicked. The id must round-trip into the borrow/repay tx — passing
+   * a non-unique identifier such as `token.symbol` here can dispatch against
+   * the wrong reserve when two reserves share a symbol.
+   */
+  onSelectAsset: (reserveId: string) => void;
   /** Mode determines the modal title and description */
   mode?: LoanTab;
   /**
@@ -53,8 +59,8 @@ export function AssetSelectionModal({
   const { prices, isLoading } = usePrices();
   const config = MODE_CONFIG[mode];
 
-  const handleAssetClick = (assetSymbol: string) => {
-    onSelectAsset(assetSymbol);
+  const handleAssetClick = (reserveId: string) => {
+    onSelectAsset(reserveId);
     onClose();
   };
 
@@ -70,12 +76,12 @@ export function AssetSelectionModal({
 
       return assets.map((asset) => (
         <AssetListItem
-          key={asset.symbol}
+          key={asset.reserveId}
           symbol={asset.symbol}
           name={asset.name}
           icon={asset.icon}
           priceUsd={asset.priceUsd}
-          onClick={() => handleAssetClick(asset.symbol)}
+          onClick={() => handleAssetClick(asset.reserveId)}
         />
       ));
     }
@@ -98,14 +104,15 @@ export function AssetSelectionModal({
     return borrowableReserves.map((reserve) => {
       const tokenMetadata = getTokenByAddress(reserve.token.address);
       const priceUsd = prices[reserve.token.symbol];
+      const reserveId = reserve.reserveId.toString();
       return (
         <AssetListItem
-          key={reserve.reserveId.toString()}
+          key={reserveId}
           symbol={reserve.token.symbol}
           name={reserve.token.name}
           icon={tokenMetadata?.icon}
           priceUsd={priceUsd}
-          onClick={() => handleAssetClick(reserve.token.symbol)}
+          onClick={() => handleAssetClick(reserveId)}
         />
       );
     });

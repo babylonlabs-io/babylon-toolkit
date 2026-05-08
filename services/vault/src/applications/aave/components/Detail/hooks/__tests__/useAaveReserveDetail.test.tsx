@@ -210,7 +210,7 @@ describe("useAaveReserveDetail", () => {
     });
 
     const { result } = renderHook(
-      () => useAaveReserveDetail({ reserveId: "USDC", address: "0xUser" }),
+      () => useAaveReserveDetail({ reserveId: "2", address: "0xUser" }),
       { wrapper },
     );
 
@@ -229,7 +229,7 @@ describe("useAaveReserveDetail", () => {
     });
 
     const { result } = renderHook(
-      () => useAaveReserveDetail({ reserveId: "USDC", address: "0xUser" }),
+      () => useAaveReserveDetail({ reserveId: "2", address: "0xUser" }),
       { wrapper },
     );
 
@@ -249,7 +249,7 @@ describe("useAaveReserveDetail", () => {
     });
 
     const { result } = renderHook(
-      () => useAaveReserveDetail({ reserveId: "USDC", address: "0xUser" }),
+      () => useAaveReserveDetail({ reserveId: "2", address: "0xUser" }),
       { wrapper },
     );
 
@@ -271,7 +271,7 @@ describe("useAaveReserveDetail", () => {
     });
 
     const { result } = renderHook(
-      () => useAaveReserveDetail({ reserveId: "USDC", address: "0xUser" }),
+      () => useAaveReserveDetail({ reserveId: "2", address: "0xUser" }),
       { wrapper },
     );
 
@@ -298,7 +298,7 @@ describe("useAaveReserveDetail", () => {
     });
 
     const { result } = renderHook(
-      () => useAaveReserveDetail({ reserveId: "USDC", address: "0xUser" }),
+      () => useAaveReserveDetail({ reserveId: "2", address: "0xUser" }),
       { wrapper },
     );
 
@@ -319,7 +319,7 @@ describe("useAaveReserveDetail", () => {
     });
 
     const { result } = renderHook(
-      () => useAaveReserveDetail({ reserveId: "USDC", address: "0xUser" }),
+      () => useAaveReserveDetail({ reserveId: "2", address: "0xUser" }),
       { wrapper },
     );
 
@@ -377,7 +377,7 @@ describe("useAaveReserveDetail", () => {
     });
 
     const { result } = renderHook(
-      () => useAaveReserveDetail({ reserveId: "WBTC", address: "0xUser" }),
+      () => useAaveReserveDetail({ reserveId: "3", address: "0xUser" }),
       { wrapper },
     );
 
@@ -394,6 +394,99 @@ describe("useAaveReserveDetail", () => {
     expect(result.current.selectedReserve).toBeNull();
   });
 
+  // --- Reserve identity resolution (audit #234) ---
+  // Two reserves on the same Core Spoke can share `token.symbol` (e.g.
+  // bridged-USDC and native-USDC). Selection must dispatch by on-chain
+  // reserve id, not by symbol — otherwise the user can sign a borrow/repay
+  // against a different reserve than the one they clicked.
+
+  it("resolves the second same-symbol reserve by its reserveId, not the first symbol match", () => {
+    mockUseAaveConfig.mockReturnValue({
+      config: {
+        coreSpokeAddress: "0xSpokeAddress",
+        btcVaultCoreVbtcReserveId: 1n,
+      },
+      vbtcReserve: {
+        reserveId: 1n,
+        reserve: { collateralFactor: 8000 },
+        token: {
+          symbol: "vBTC",
+          name: "vBTC",
+          decimals: 8,
+          address: "0xvBTC",
+        },
+      },
+      borrowableReserves: [
+        {
+          reserveId: 7n,
+          reserve: { collateralFactor: 0 },
+          token: {
+            symbol: "USDC",
+            name: "Bridged USD Coin",
+            decimals: 6,
+            address: "0xBridgedUSDC" as Address,
+          },
+        },
+        {
+          reserveId: 9n,
+          reserve: { collateralFactor: 0 },
+          token: {
+            symbol: "USDC",
+            name: "Native USD Coin",
+            decimals: 6,
+            address: "0xNativeUSDC" as Address,
+          },
+        },
+      ],
+      allBorrowReserves: [
+        {
+          reserveId: 7n,
+          reserve: { collateralFactor: 0 },
+          token: {
+            symbol: "USDC",
+            name: "Bridged USD Coin",
+            decimals: 6,
+            address: "0xBridgedUSDC" as Address,
+          },
+        },
+        {
+          reserveId: 9n,
+          reserve: { collateralFactor: 0 },
+          token: {
+            symbol: "USDC",
+            name: "Native USD Coin",
+            decimals: 6,
+            address: "0xNativeUSDC" as Address,
+          },
+        },
+      ],
+    });
+
+    const { result } = renderHook(
+      () => useAaveReserveDetail({ reserveId: "9", address: "0xUser" }),
+      { wrapper },
+    );
+
+    expect(result.current.selectedReserve?.reserveId).toBe(9n);
+    expect(result.current.selectedReserve?.token.address).toBe("0xNativeUSDC");
+    // assetConfig must echo the same id so downstream consumers cannot
+    // re-collapse the selection to a symbol later in the flow.
+    expect(result.current.assetConfig?.reserveId).toBe("9");
+  });
+
+  it("returns null when the URL param is the symbol of an existing reserve (no id match)", () => {
+    // Symbol-based legacy URLs must NOT resolve to a reserve once we switch
+    // to id-keyed routing. Otherwise the symbol-collision bug remains via
+    // the URL surface even after the modal/selection callbacks are fixed.
+    const { result } = renderHook(
+      () => useAaveReserveDetail({ reserveId: "USDC", address: "0xUser" }),
+      { wrapper },
+    );
+
+    expect(result.current.selectedReserve).toBeNull();
+    expect(result.current.assetConfig).toBeNull();
+  });
+
   // --- Position-specific collateral factor (#147) ---
 
   it("uses CF from useVaultSplitParams for liquidationThresholdBps", () => {
@@ -405,7 +498,7 @@ describe("useAaveReserveDetail", () => {
     });
 
     const { result } = renderHook(
-      () => useAaveReserveDetail({ reserveId: "USDC", address: "0xUser" }),
+      () => useAaveReserveDetail({ reserveId: "2", address: "0xUser" }),
       { wrapper },
     );
 
@@ -420,7 +513,7 @@ describe("useAaveReserveDetail", () => {
     });
 
     const { result } = renderHook(
-      () => useAaveReserveDetail({ reserveId: "USDC", address: "0xUser" }),
+      () => useAaveReserveDetail({ reserveId: "2", address: "0xUser" }),
       { wrapper },
     );
 
@@ -436,7 +529,7 @@ describe("useAaveReserveDetail", () => {
     });
 
     const { result } = renderHook(
-      () => useAaveReserveDetail({ reserveId: "USDC", address: "0xUser" }),
+      () => useAaveReserveDetail({ reserveId: "2", address: "0xUser" }),
       { wrapper },
     );
 
@@ -456,7 +549,7 @@ describe("useAaveReserveDetail", () => {
     });
 
     const { result } = renderHook(
-      () => useAaveReserveDetail({ reserveId: "USDC", address: "0xUser" }),
+      () => useAaveReserveDetail({ reserveId: "2", address: "0xUser" }),
       { wrapper },
     );
 
@@ -471,7 +564,7 @@ describe("useAaveReserveDetail", () => {
     });
 
     const { result } = renderHook(
-      () => useAaveReserveDetail({ reserveId: "USDC", address: "0xUser" }),
+      () => useAaveReserveDetail({ reserveId: "2", address: "0xUser" }),
       { wrapper },
     );
 
@@ -506,7 +599,7 @@ describe("useAaveReserveDetail", () => {
     });
 
     const { result } = renderHook(
-      () => useAaveReserveDetail({ reserveId: "USDC", address: "0xUser" }),
+      () => useAaveReserveDetail({ reserveId: "2", address: "0xUser" }),
       { wrapper },
     );
 
@@ -517,8 +610,7 @@ describe("useAaveReserveDetail", () => {
 
   it("passes user address to useVaultSplitParams for position-specific CF lookup", () => {
     renderHook(
-      () =>
-        useAaveReserveDetail({ reserveId: "USDC", address: "0xUserAddress" }),
+      () => useAaveReserveDetail({ reserveId: "2", address: "0xUserAddress" }),
       { wrapper },
     );
 
@@ -542,7 +634,7 @@ describe("useAaveReserveDetail", () => {
     });
 
     const { result } = renderHook(
-      () => useAaveReserveDetail({ reserveId: "USDC", address: "0xUser" }),
+      () => useAaveReserveDetail({ reserveId: "2", address: "0xUser" }),
       { wrapper },
     );
 
@@ -562,7 +654,7 @@ describe("useAaveReserveDetail", () => {
     });
 
     const { result } = renderHook(
-      () => useAaveReserveDetail({ reserveId: "USDC", address: "0xUser" }),
+      () => useAaveReserveDetail({ reserveId: "2", address: "0xUser" }),
       { wrapper },
     );
 
@@ -579,7 +671,7 @@ describe("useAaveReserveDetail", () => {
     });
 
     const { result } = renderHook(
-      () => useAaveReserveDetail({ reserveId: "USDC", address: "0xUser" }),
+      () => useAaveReserveDetail({ reserveId: "2", address: "0xUser" }),
       { wrapper },
     );
 
@@ -589,7 +681,7 @@ describe("useAaveReserveDetail", () => {
 
   it("returns null for both errors when no hooks have errors", () => {
     const { result } = renderHook(
-      () => useAaveReserveDetail({ reserveId: "USDC", address: "0xUser" }),
+      () => useAaveReserveDetail({ reserveId: "2", address: "0xUser" }),
       { wrapper },
     );
 
@@ -613,7 +705,7 @@ describe("useAaveReserveDetail", () => {
     });
 
     const { result } = renderHook(
-      () => useAaveReserveDetail({ reserveId: "USDC", address: "0xUser" }),
+      () => useAaveReserveDetail({ reserveId: "2", address: "0xUser" }),
       { wrapper },
     );
 
@@ -635,7 +727,7 @@ describe("useAaveReserveDetail", () => {
     });
 
     const { result } = renderHook(
-      () => useAaveReserveDetail({ reserveId: "USDC", address: "0xUser" }),
+      () => useAaveReserveDetail({ reserveId: "2", address: "0xUser" }),
       { wrapper },
     );
 

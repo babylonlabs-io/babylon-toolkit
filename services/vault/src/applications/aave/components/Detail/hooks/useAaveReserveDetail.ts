@@ -32,7 +32,12 @@ import type { AaveReserveConfig } from "../../../services/fetchConfig";
 import type { Asset } from "../../../types";
 
 export interface UseAaveReserveDetailProps {
-  /** Reserve symbol from URL param */
+  /**
+   * On-chain reserve id (stringified bigint) from URL param.
+   * Resolution is by id, not by `token.symbol`, because symbols are not
+   * unique within a Core Spoke and would let two distinct reserves
+   * (e.g. bridged-USDC and native-USDC) collapse to the same selection.
+   */
   reserveId: string | undefined;
   /** User's wallet address */
   address: string | undefined;
@@ -92,15 +97,16 @@ export function useAaveReserveDetail({
 }: UseAaveReserveDetailProps): UseAaveReserveDetailResult {
   const { vbtcReserve, allBorrowReserves } = useAaveConfig();
 
-  // Find the selected reserve by symbol (from URL param). Match against the
-  // full reserve set, not just borrowable ones - a user reaching this page
-  // for repay may have debt in a reserve that is no longer borrowable.
+  // Find the selected reserve by on-chain reserveId (from URL param). Match
+  // against the full reserve set, not just borrowable ones - a user reaching
+  // this page for repay may have debt in a reserve that is no longer
+  // borrowable. Resolving by id (not token.symbol) is required because two
+  // reserves on the same Core Spoke can share a symbol (audit #234).
   const selectedReserve = useMemo(() => {
     if (!reserveId) return null;
     return (
-      allBorrowReserves.find(
-        (r) => r.token.symbol.toLowerCase() === reserveId.toLowerCase(),
-      ) ?? null
+      allBorrowReserves.find((r) => r.reserveId.toString() === reserveId) ??
+      null
     );
   }, [allBorrowReserves, reserveId]);
 
@@ -109,6 +115,7 @@ export function useAaveReserveDetail({
     if (!selectedReserve) return null;
     const tokenMetadata = getTokenByAddress(selectedReserve.token.address);
     return {
+      reserveId: selectedReserve.reserveId.toString(),
       name: selectedReserve.token.name,
       symbol: selectedReserve.token.symbol,
       icon: getCurrencyIconWithFallback(

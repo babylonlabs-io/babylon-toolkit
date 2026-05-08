@@ -6,7 +6,7 @@ import {
 } from "./useBorrowAssetSelection";
 
 interface BorrowAssetSelectionProps {
-  onSelectAsset: (symbol: string) => void;
+  onSelectAsset: (reserveId: string) => void;
 }
 
 export function BorrowAssetSelection({
@@ -21,7 +21,7 @@ export function BorrowAssetSelection({
 
 interface BorrowAssetSelectionViewProps {
   state: BorrowAssetSelectionState;
-  onSelectAsset: (symbol: string) => void;
+  onSelectAsset: (reserveId: string) => void;
 }
 
 function BorrowAssetSelectionView({
@@ -59,7 +59,7 @@ function BorrowAssetSelectionView({
           state.assets.map((asset) => (
             <button
               key={asset.reserveId}
-              onClick={() => onSelectAsset(asset.symbol)}
+              onClick={() => onSelectAsset(asset.reserveId)}
               className="bg-primary-surface hover:bg-primary-surface/80 grid grid-cols-3 items-center rounded-lg p-4 transition-colors dark:bg-[#202020] dark:hover:bg-[#2a2a2a]"
             >
               {/* Asset */}

@@ -25,6 +25,12 @@ import type { AaveReserveConfig } from "../services/fetchConfig";
  * Borrowed asset for display
  */
 export interface BorrowedAsset {
+  /**
+   * On-chain reserve identifier (stringified bigint).
+   * Used as the canonical key for repay routing and modal selection so that
+   * two debts sharing a token symbol cannot collapse to the same UI entry.
+   */
+  reserveId: string;
   /** Token symbol */
   symbol: string;
   /** Display amount (formatted native token amount) */
@@ -100,7 +106,7 @@ function transformToBorrowedAsset(
   );
   const amount = formatAmount(tokenAmount);
 
-  return { symbol, amount, icon };
+  return { reserveId: reserve.reserveId.toString(), symbol, amount, icon };
 }
 
 /**

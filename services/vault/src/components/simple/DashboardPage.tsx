@@ -120,18 +120,19 @@ export function DashboardPage() {
 
   const handleRepay = () => {
     if (borrowedAssets.length === 1) {
-      const assetSymbol = borrowedAssets[0].symbol;
-      navigate(
-        `/app/aave/reserve/${assetSymbol.toLowerCase()}?tab=${LOAN_TAB.REPAY}`,
-      );
+      // Route by `reserveId`, not symbol — symbols are not unique within a
+      // Core Spoke and would let the detail page resolve to a different
+      // (same-symbol) reserve than the one the user has debt in.
+      const reserveId = borrowedAssets[0].reserveId;
+      navigate(`/app/aave/reserve/${reserveId}?tab=${LOAN_TAB.REPAY}`);
       return;
     }
     setAssetModalMode(LOAN_TAB.REPAY);
     setIsAssetModalOpen(true);
   };
 
-  const handleSelectAsset = (assetSymbol: string) => {
-    const basePath = `/app/aave/reserve/${assetSymbol.toLowerCase()}`;
+  const handleSelectAsset = (reserveId: string) => {
+    const basePath = `/app/aave/reserve/${reserveId}`;
     const path =
       assetModalMode === LOAN_TAB.REPAY
         ? `${basePath}?tab=${LOAN_TAB.REPAY}`
