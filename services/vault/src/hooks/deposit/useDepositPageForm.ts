@@ -18,6 +18,7 @@ import {
 } from "../../context/wallet";
 import { depositService } from "../../services/deposit";
 import { formatProviderDisplayName } from "../../utils/formatting";
+import { vaultProviderUnavailableReason } from "../../utils/vaultProviderStatus";
 import { useApplicationCap } from "../useApplicationCap";
 import { useApplications } from "../useApplications";
 import { usePrice, usePrices } from "../usePrices";
@@ -67,6 +68,10 @@ export interface UseDepositPageFormResult {
     name: string;
     btcPubkey: string;
     iconUrl?: string;
+    /** True when the provider's registered rpcUrl was rejected by the indexer. */
+    unavailable?: boolean;
+    /** Tooltip explaining why the provider is unavailable. */
+    unavailableReason?: string;
   }>;
   isLoadingProviders: boolean;
 
@@ -148,12 +153,17 @@ export function useDepositPageForm(): UseDepositPageFormResult {
     loading: isLoadingProviders,
   } = useVaultProviders(effectiveSelectedApplication || undefined);
   const providers = useMemo(() => {
-    return rawProviders.map((p) => ({
-      id: p.id,
-      name: formatProviderDisplayName(p.name, p.id),
-      btcPubkey: p.btcPubKey || "",
-      iconUrl: p.iconUrl,
-    }));
+    return rawProviders.map((p) => {
+      const unavailableReason = vaultProviderUnavailableReason(p);
+      return {
+        id: p.id,
+        name: formatProviderDisplayName(p.name, p.id),
+        btcPubkey: p.btcPubKey || "",
+        iconUrl: p.iconUrl,
+        unavailable: unavailableReason !== undefined,
+        unavailableReason,
+      };
+    });
   }, [rawProviders]);
 
   // Derive selected VP's BTC pubkey and VK BTC pubkeys for challenger count

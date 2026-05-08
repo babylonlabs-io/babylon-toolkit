@@ -38,6 +38,19 @@ export interface UniversalChallenger {
 }
 
 /**
+ * Static rpcUrl validation status from the indexer (mirrors the
+ * pre-DNS rules in vault-provider-proxy). DNS-based checks still
+ * happen at the proxy at request time.
+ */
+export type VaultProviderMetadataStatus =
+  | "ok"
+  | "missing"
+  | "invalid_url"
+  | "unsupported_scheme"
+  | "private_host"
+  | "ipv6_literal_unsupported";
+
+/**
  * Vault provider information
  *
  * Note: Providers are immediately active upon registration (no pending state).
@@ -55,6 +68,10 @@ export interface VaultProvider {
   iconUrl?: string;
   /** Whether the provider is verified (from registry, optional) */
   verified?: boolean;
+  /** Static rpcUrl validation outcome from the indexer */
+  metadataStatus: VaultProviderMetadataStatus;
+  /** Human-readable reason when metadataStatus !== "ok" */
+  metadataRejectionReason?: string;
 }
 
 /**
