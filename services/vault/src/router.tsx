@@ -33,6 +33,12 @@ const DashboardWithProviders = () => (
   </AaveConfigProvider>
 );
 
+const ActivityWithProviders = () => (
+  <AaveConfigProvider>
+    <Activity />
+  </AaveConfigProvider>
+);
+
 export const Router = () => {
   const apps = getAllApplications();
 
@@ -51,7 +57,7 @@ export const Router = () => {
           path="activity"
           element={
             <Suspense fallback={<RouteFallback />}>
-              <Activity />
+              <ActivityWithProviders />
             </Suspense>
           }
         />
