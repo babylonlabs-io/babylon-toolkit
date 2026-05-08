@@ -24,7 +24,7 @@
  * potentially-stale source for a value that gates liquidation correctness.
  */
 
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { Address } from "viem";
 
 import { AaveSpoke } from "../clients";
@@ -52,6 +52,19 @@ export interface UseVaultSplitParamsResult {
   params: VaultSplitParams | null;
   isLoading: boolean;
   error: Error | null;
+  /**
+   * Force a fresh contract round-trip for `getDynamicReserveConfig` and
+   * `getTargetHealthFactor`. Use immediately before signing a borrow or
+   * repay so the projected-HF math runs against current on-chain values
+   * even when the cache is still within `staleTime` and the
+   * `dynamicConfigKey` has not changed.
+   *
+   * Pre-sign callers should pass `retry: 0` so a transient RPC blip surfaces
+   * fast instead of stalling the click for ~7s through the default retry
+   * backoff. Background callers (none today) can omit and inherit
+   * `CONFIG_RETRY_COUNT`.
+   */
+  refetch: (opts?: { retry?: number }) => Promise<VaultSplitParams | null>;
 }
 
 async function fetchSplitParams(
@@ -110,13 +123,15 @@ export function useVaultSplitParams(
   // key only to re-fetch a moment later with the position key.
   const isPositionResolved = !connectedAddress || !positionLoading;
 
+  const queryKey = [
+    "vaultSplitParams",
+    spokeAddress,
+    reserveId?.toString(),
+    positionDynamicConfigKey,
+  ];
+
   const { data, isLoading, error } = useQuery({
-    queryKey: [
-      "vaultSplitParams",
-      spokeAddress,
-      reserveId?.toString(),
-      positionDynamicConfigKey,
-    ],
+    queryKey,
     queryFn: () =>
       fetchSplitParams(spokeAddress!, reserveId!, positionDynamicConfigKey),
     enabled: !!spokeAddress && reserveId != null && isPositionResolved,
@@ -125,9 +140,28 @@ export function useVaultSplitParams(
     retry: CONFIG_RETRY_COUNT,
   });
 
+  const queryClient = useQueryClient();
+
   return {
     params: data ?? null,
     isLoading: isLoading || (!!connectedAddress && positionLoading),
     error: error as Error | null,
+    // Use fetchQuery (not the useQuery refetch) so callers can pass
+    // `retry: 0` and short-circuit the default retry backoff. Without this,
+    // a pre-sign refetch on a transient RPC blip stalls the click for ~7s
+    // through `CONFIG_RETRY_COUNT` retries before surfacing the error.
+    // Both paths populate the same cache key, so the displayed value
+    // updates regardless of which one ran.
+    refetch: async (opts?: { retry?: number }) => {
+      if (!spokeAddress || reserveId == null) return null;
+      const result = await queryClient.fetchQuery({
+        queryKey,
+        queryFn: () =>
+          fetchSplitParams(spokeAddress, reserveId, positionDynamicConfigKey),
+        retry: opts?.retry ?? CONFIG_RETRY_COUNT,
+        staleTime: 0, // force a fresh round-trip; this is the whole point
+      });
+      return result;
+    },
   };
 }

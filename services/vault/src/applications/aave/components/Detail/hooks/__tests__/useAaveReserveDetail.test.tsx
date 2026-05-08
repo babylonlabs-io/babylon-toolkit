@@ -140,6 +140,7 @@ const mockUseVaultSplitParams = vi.fn<(addr?: string) => unknown>(() => ({
   params: { THF: 1.1, CF: 0.75, LB: 1.05 },
   isLoading: false,
   error: null,
+  refetch: vi.fn(),
 }));
 
 vi.mock("../../../../hooks", () => ({
@@ -181,6 +182,7 @@ describe("useAaveReserveDetail", () => {
       params: { THF: 1.1, CF: 0.75, LB: 1.05 },
       isLoading: false,
       error: null,
+      refetch: vi.fn(),
     });
     mockUseAaveUserPosition.mockReturnValue({
       position: null,
@@ -399,6 +401,7 @@ describe("useAaveReserveDetail", () => {
       params: { THF: 1.1, CF: 0.75, LB: 1.05 },
       isLoading: false,
       error: null,
+      refetch: vi.fn(),
     });
 
     const { result } = renderHook(
@@ -488,6 +491,7 @@ describe("useAaveReserveDetail", () => {
       params: { THF: 1.1, CF: 0.75, LB: 1.05 },
       isLoading: false,
       error: null,
+      refetch: vi.fn(),
     });
     mockUseAaveUserPosition.mockReturnValue({
       position: null,

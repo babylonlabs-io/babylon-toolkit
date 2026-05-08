@@ -2,6 +2,7 @@ import { useLoanContext } from "@/applications/aave/components/context/LoanConte
 import { useBorrowMetrics } from "@/applications/aave/components/LoanCard/Borrow/hooks/useBorrowMetrics";
 import { useBorrowState } from "@/applications/aave/components/LoanCard/Borrow/hooks/useBorrowState";
 import { validateBorrowAction } from "@/applications/aave/components/LoanCard/Borrow/hooks/validateBorrowAction";
+import { validateBorrowPreSign } from "@/applications/aave/components/LoanCard/Borrow/hooks/validateBorrowPreSign";
 import {
   BPS_TO_PERCENT_DIVISOR,
   MIN_HEALTH_FACTOR_FOR_BORROW,
@@ -75,6 +76,9 @@ export function useBorrowFormState({
     selectedReserve,
     assetConfig,
     tokenPriceUsd,
+    isPositionDataStale,
+    refetchPosition,
+    refetchSplitParams,
   } = useLoanContext();
 
   const { executeBorrow, isProcessing } = useBorrowTransaction();
@@ -99,6 +103,7 @@ export function useBorrowFormState({
     borrowAmount,
     metrics.healthFactorValue,
     maxBorrowAmount,
+    isPositionDataStale,
   );
 
   const sliderMax = Math.max(maxBorrowAmount, MIN_SLIDER_MAX);
@@ -132,6 +137,14 @@ export function useBorrowFormState({
     const success = await executeBorrow(
       borrowAmount,
       selectedReserve as AaveReserveConfig,
+      () =>
+        validateBorrowPreSign({
+          borrowAmount,
+          tokenPriceUsd,
+          liquidationThresholdBps,
+          refetchSplitParams,
+          refetchPosition,
+        }),
     );
     if (success) {
       onBorrowSuccess(

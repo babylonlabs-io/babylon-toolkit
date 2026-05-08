@@ -41,11 +41,16 @@ export interface UseRepayTransactionResult {
    * @param repayAmount - Amount to repay in token units (e.g., 100 for 100 USDC)
    * @param reserve - Reserve config for the debt token
    * @param isFullRepayment - If true, fetches exact debt from contract and repays all
+   * @param preSignValidation - Optional callback that runs after the on-chain
+   *   reserve-mismatch check and before any repay tx. Throwing aborts the
+   *   submission. Used by the Repay UI to refetch position + split params and
+   *   recompute the projected post-repay HF against current on-chain values.
    */
   executeRepay: (
     repayAmount: number,
     reserve: AaveReserveConfig,
     isFullRepayment?: boolean,
+    preSignValidation?: () => Promise<void>,
   ) => Promise<boolean>;
   /** Whether transaction is currently processing */
   isProcessing: boolean;
@@ -71,6 +76,7 @@ export function useRepayTransaction({
     repayAmount: number,
     reserve: AaveReserveConfig,
     isFullRepayment = false,
+    preSignValidation?: () => Promise<void>,
   ) => {
     if (repayAmount <= 0) return false;
 
@@ -100,6 +106,14 @@ export function useRepayTransaction({
         reserve.reserveId,
         reserve.token.address,
       );
+
+      // Pre-sign revalidation: refetch position + risk parameters and
+      // recheck projected post-repay HF before submitting. Throws if the
+      // on-chain risk parameters have moved since the displayed metrics
+      // were computed.
+      if (preSignValidation) {
+        await preSignValidation();
+      }
 
       // Call appropriate service based on repayment type
       // The borrower address is resolved from the connected wallet (self-repay)

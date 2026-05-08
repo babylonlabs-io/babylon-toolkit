@@ -49,3 +49,11 @@ export type { EffectiveVaultSelection } from "./withdrawSelection";
 
 // Payout-address derivation for withdraw display (frontend-only)
 export { getUniquePayoutAddresses } from "./payoutAddresses";
+
+// Pre-sign CF freshness check shared by borrow and repay validators
+export { assertCfUnchanged } from "./assertCfUnchanged";
+
+export type {
+  AssertCfUnchangedDeps,
+  AssertCfUnchangedResult,
+} from "./assertCfUnchanged";

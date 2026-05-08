@@ -26,6 +26,7 @@ import {
 } from "../../../constants";
 import { useAaveConfig } from "../../../context";
 import { useAaveUserPosition, useVaultSplitParams } from "../../../hooks";
+import type { VaultSplitParams } from "../../../hooks/useVaultSplitParams";
 import type { AavePositionWithLiveData } from "../../../services";
 import type { AaveReserveConfig } from "../../../services/fetchConfig";
 import type { Asset } from "../../../types";
@@ -76,6 +77,13 @@ export interface UseAaveReserveDetailResult {
   isPositionDataStale: boolean;
   /** Refetch position data — returns fresh position (or null if unavailable) */
   refetchPosition: () => Promise<AavePositionWithLiveData | null>;
+  /**
+   * Force a fresh contract round-trip for vault split params
+   * (`getDynamicReserveConfig` + `getTargetHealthFactor`). Use immediately
+   * before signing a borrow or repay so the projected-HF math runs against
+   * current on-chain values, not the React Query cache.
+   */
+  refetchSplitParams: () => Promise<VaultSplitParams | null>;
 }
 
 export function useAaveReserveDetail({
@@ -135,7 +143,15 @@ export function useAaveReserveDetail({
     params: splitParams,
     isLoading: splitParamsLoading,
     error: splitParamsError,
+    refetch: refetchSplitParamsRaw,
   } = useVaultSplitParams(address);
+
+  // Pre-sign path — pass retry: 0 so a transient RPC blip surfaces fast
+  // instead of stalling the click for ~7s through the default retry backoff.
+  // All current consumers of this exposed refetch are pre-sign validators
+  // (`validateBorrowPreSign`, `validateRepayPreSign`); the background query
+  // inside `useVaultSplitParams` keeps `CONFIG_RETRY_COUNT` for resilience.
+  const refetchSplitParams = () => refetchSplitParamsRaw({ retry: 0 });
 
   // Calculate debt amount for selected reserve in token units
   const currentDebtAmount = useMemo(() => {
@@ -209,5 +225,6 @@ export function useAaveReserveDetail({
     ancillaryError: pricesError ?? splitParamsError ?? null,
     isPositionDataStale,
     refetchPosition,
+    refetchSplitParams,
   };
 }
