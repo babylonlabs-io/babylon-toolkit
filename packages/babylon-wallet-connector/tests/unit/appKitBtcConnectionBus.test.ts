@@ -1,7 +1,5 @@
 /**
- * Regression tests for audit finding #242 — "AppKit BTC adapter trusts
- * addresses/pubkeys from a same-origin window CustomEvent — spoofable
- * by XSS or malicious extension".
+ * Regression tests for the AppKit BTC connection-events bus.
  *
  * Before the fix, `useAppKitBtcBridge` dispatched `babylon:appkit-btc-connected`
  * on `window`, and `AppKitBTCProvider` listened on `window` for that
@@ -125,7 +123,7 @@ test.describe("setSharedBtcAppKitConfig — connection-events bus", () => {
   });
 });
 
-test.describe("connection-events bus is NOT reachable from window (audit #242)", () => {
+test.describe("connection-events bus is NOT reachable from window", () => {
   test("a listener on connectionEvents receives events dispatched on connectionEvents", () => {
     setSharedBtcAppKitConfig({
       modal: fakeModal,

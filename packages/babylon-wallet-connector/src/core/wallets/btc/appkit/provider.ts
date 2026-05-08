@@ -91,9 +91,9 @@ export class AppKitBTCProvider implements IBTCProvider {
    * script) could `window.dispatchEvent` a forged event with attacker-chosen
    * values and overwrite this provider's cached address/pubkey, which then
    * propagated through `accountsChanged` into `BTCWalletProvider` React
-   * state and downstream consumers (audit finding #242). Listening on a
-   * private `EventTarget` instance closes that channel — there is no
-   * global handle for an attacker to dispatch on.
+   * state and downstream consumers. Listening on a private `EventTarget`
+   * instance closes that channel — there is no global handle for an attacker
+   * to dispatch on.
    */
   private startListeningForAccountChanges(): void {
     if (this.listeningForChanges) return;
