@@ -1,9 +1,8 @@
+import { processPublicKeyToXOnly } from "@babylonlabs-io/ts-sdk/tbv/core";
 import { useChainConnector } from "@babylonlabs-io/wallet-connector";
 import { useEffect, useState } from "react";
 
 import { logger } from "@/infrastructure";
-
-import { processPublicKeyToXOnly } from "../utils/btc";
 
 /**
  * Hook to fetch and manage BTC public key from wallet

@@ -272,8 +272,8 @@ vi.mock("../../../services/deposit", () => ({
       if (isNaN(num) || num <= 0) return 0n;
       return BigInt(Math.floor(num * 100000000));
     }),
-    formatSatoshisToBtc: vi.fn((sats: bigint, decimals: number) => {
-      return (Number(sats) / 100000000).toFixed(decimals);
+    formatSatoshisToBtc: vi.fn((sats: bigint) => {
+      return (Number(sats) / 100000000).toString();
     }),
     isDepositAmountValid: vi.fn(
       (params: {

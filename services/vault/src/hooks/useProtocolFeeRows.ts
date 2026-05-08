@@ -1,3 +1,4 @@
+import { formatSatoshisToBtc } from "@babylonlabs-io/ts-sdk/tbv/core";
 import {
   computeMinDepositForSplit,
   computeSeizedFraction,
@@ -6,7 +7,6 @@ import { useMemo } from "react";
 
 import type { FeeRow } from "@/components/simple/FeesSection";
 import { useProtocolParamsContext } from "@/context/ProtocolParamsContext";
-import { formatSatoshisToBtc } from "@/utils/btcConversion";
 
 import {
   EXPECTED_HEALTH_FACTOR_AT_LIQUIDATION,

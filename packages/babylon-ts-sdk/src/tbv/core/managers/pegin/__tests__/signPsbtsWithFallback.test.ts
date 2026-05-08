@@ -6,9 +6,7 @@ import type {
 } from "../../../../../shared/wallets";
 import { signPsbtsWithFallback } from "../signPsbtsWithFallback";
 
-function makeWallet(
-  overrides: Partial<BitcoinWallet> = {},
-): BitcoinWallet {
+function makeWallet(overrides: Partial<BitcoinWallet> = {}): BitcoinWallet {
   // Construct a minimal stub satisfying the structural shape used by
   // signPsbtsWithFallback. Other BitcoinWallet methods are not invoked
   // and are therefore left as throwing placeholders.
@@ -50,10 +48,11 @@ describe("signPsbtsWithFallback", () => {
     const wallet = makeWallet({ signPsbts });
 
     await expect(
-      signPsbtsWithFallback(wallet, ["a", "b"], [
-        { autoFinalized: false },
-        { autoFinalized: false },
-      ]),
+      signPsbtsWithFallback(
+        wallet,
+        ["a", "b"],
+        [{ autoFinalized: false }, { autoFinalized: false }],
+      ),
     ).rejects.toThrow(/Expected 2 signed PSBTs but received 1/);
   });
 
@@ -82,15 +81,39 @@ describe("signPsbtsWithFallback", () => {
       .fn<NonNullable<BitcoinWallet["signPsbts"]>>()
       .mockResolvedValue([]);
     const batchWallet = makeWallet({ signPsbts });
-    expect(
-      await signPsbtsWithFallback(batchWallet, [], []),
-    ).toEqual([]);
+    expect(await signPsbtsWithFallback(batchWallet, [], [])).toEqual([]);
 
     const signPsbt = vi.fn<BitcoinWallet["signPsbt"]>();
     const fallbackWallet = makeWallet({ signPsbts: undefined, signPsbt });
-    expect(
-      await signPsbtsWithFallback(fallbackWallet, [], []),
-    ).toEqual([]);
+    expect(await signPsbtsWithFallback(fallbackWallet, [], [])).toEqual([]);
     expect(signPsbt).not.toHaveBeenCalled();
+  });
+
+  it("propagates errors from the batch path", async () => {
+    const signPsbts = vi
+      .fn<NonNullable<BitcoinWallet["signPsbts"]>>()
+      .mockRejectedValue(new Error("user rejected"));
+    const wallet = makeWallet({ signPsbts });
+
+    await expect(
+      signPsbtsWithFallback(wallet, ["a"], [{ autoFinalized: false }]),
+    ).rejects.toThrow("user rejected");
+  });
+
+  it("propagates errors from the sequential fallback path", async () => {
+    const signPsbt = vi
+      .fn<BitcoinWallet["signPsbt"]>()
+      .mockResolvedValueOnce("signed-a")
+      .mockRejectedValueOnce(new Error("wallet locked"));
+    const wallet = makeWallet({ signPsbts: undefined, signPsbt });
+
+    await expect(
+      signPsbtsWithFallback(
+        wallet,
+        ["a", "b"],
+        [{ autoFinalized: false }, { autoFinalized: false }],
+      ),
+    ).rejects.toThrow("wallet locked");
+    expect(signPsbt).toHaveBeenCalledTimes(2);
   });
 });

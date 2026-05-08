@@ -3,11 +3,12 @@
  * Converts blockchain/GraphQL vault data to UI-friendly formats
  */
 
+import { formatSatoshisToBtc } from "@babylonlabs-io/ts-sdk/tbv/core";
+
 import { getNetworkConfigBTC } from "../config";
 import { getPeginState } from "../models/peginStateMachine";
 import type { Vault, VaultActivity } from "../types";
 
-import { formatSatoshisToBtc } from "./btcConversion";
 import { formatUSDCAmount } from "./tokenConversion";
 
 const btcConfig = getNetworkConfigBTC();

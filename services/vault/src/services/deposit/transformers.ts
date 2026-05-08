@@ -3,12 +3,10 @@
  * Convert between different data formats without side effects
  */
 
+import { formatSatoshisToBtc } from "@babylonlabs-io/ts-sdk/tbv/core";
 import type { Hex } from "viem";
 
-import {
-  formatSatoshisToBtc,
-  parseBtcToSatoshis,
-} from "../../utils/btcConversion";
+import { parseBtcToSatoshis } from "../../utils/btcConversion";
 import type { UTXO } from "../vault/vaultTransactionService";
 
 export interface DepositFormData {

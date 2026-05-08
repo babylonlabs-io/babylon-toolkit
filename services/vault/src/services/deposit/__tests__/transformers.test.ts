@@ -2,6 +2,7 @@
  * Tests for deposit transformer functions
  */
 
+import { formatSatoshisToBtc } from "@babylonlabs-io/ts-sdk/tbv/core";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -9,10 +10,7 @@ import {
   LocalStorageStatus,
   getPeginState,
 } from "../../../models/peginStateMachine";
-import {
-  formatSatoshisToBtc,
-  parseBtcToSatoshis,
-} from "../../../utils/btcConversion";
+import { parseBtcToSatoshis } from "../../../utils/btcConversion";
 import {
   transformFormToTransactionData,
   type DepositFormData,
@@ -125,7 +123,7 @@ describe("Deposit Transformers", () => {
     });
   });
 
-  describe("formatSatoshisToBtc", () => {
+  describe("formatSatoshisToBtc (re-exported from SDK)", () => {
     it("should format satoshis to BTC correctly", () => {
       expect(formatSatoshisToBtc(100000000n)).toBe("1");
       expect(formatSatoshisToBtc(50000000n)).toBe("0.5");
@@ -142,16 +140,10 @@ describe("Deposit Transformers", () => {
       expect(formatSatoshisToBtc(maxBtc)).toBe("21000000");
     });
 
-    it("should respect decimal parameter", () => {
-      expect(formatSatoshisToBtc(12345678n, 2)).toBe("0.12");
-      expect(formatSatoshisToBtc(12345678n, 4)).toBe("0.1234");
-      expect(formatSatoshisToBtc(100000000n, 0)).toBe("1");
-    });
-
     it("should remove trailing zeros", () => {
-      expect(formatSatoshisToBtc(100000000n, 8)).toBe("1");
-      expect(formatSatoshisToBtc(150000000n, 8)).toBe("1.5");
-      expect(formatSatoshisToBtc(123000000n, 8)).toBe("1.23");
+      expect(formatSatoshisToBtc(100000000n)).toBe("1");
+      expect(formatSatoshisToBtc(150000000n)).toBe("1.5");
+      expect(formatSatoshisToBtc(123000000n)).toBe("1.23");
     });
 
     it("should handle values larger than Number.MAX_SAFE_INTEGER", () => {

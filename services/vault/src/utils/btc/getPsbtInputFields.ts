@@ -6,9 +6,11 @@
  * the appropriate PSBT input fields required for that UTXO.
  */
 
+import {
+  BitcoinScriptType,
+  getScriptType,
+} from "@babylonlabs-io/ts-sdk/tbv/core";
 import { Buffer } from "buffer";
-
-import { BitcoinScriptType, getScriptType } from "./btcScriptType";
 
 /**
  * PSBT input fields (subset of PsbtInputExtended from bip174)
