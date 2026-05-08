@@ -110,12 +110,14 @@ describe("fetchProviders", () => {
           btcPubKey: VALID_BTC_PUBKEY_1,
           name: "provider-1",
           url: "https://rpc.example.com",
+          metadataStatus: "ok",
         },
         {
           id: VALID_ETH_ADDR_3,
           btcPubKey: VALID_BTC_PUBKEY_3,
           name: undefined,
           url: "https://rpc3.example.com",
+          metadataStatus: "ok",
         },
       ]);
     });
@@ -162,6 +164,7 @@ describe("fetchProviders", () => {
           btcPubKey: VALID_BTC_PUBKEY_1,
           name: "good-provider",
           url: "https://rpc.example.com",
+          metadataStatus: "ok",
         },
       ]);
     });
@@ -195,7 +198,89 @@ describe("fetchProviders", () => {
           btcPubKey: VALID_BTC_PUBKEY_2,
           name: "good-provider",
           url: "https://rpc.example.com",
+          metadataStatus: "ok",
         },
+      ]);
+    });
+
+    it("preserves metadataStatus and metadataRejectionReason from indexer", async () => {
+      mockRequest.mockResolvedValueOnce({
+        vaultProviders: {
+          items: [
+            {
+              id: VALID_ETH_ADDR_1,
+              btcPubKey: VALID_BTC_PUBKEY_1,
+              name: "ok-provider",
+              rpcUrl: "https://rpc.example.com",
+              metadataStatus: "ok",
+              metadataRejectionReason: null,
+            },
+            {
+              id: VALID_ETH_ADDR_2,
+              btcPubKey: VALID_BTC_PUBKEY_2,
+              name: "private-host-provider",
+              rpcUrl: "http://10.0.0.1",
+              metadataStatus: "private_host",
+              metadataRejectionReason:
+                "host is a private/loopback/link-local IP: 10.0.0.1",
+            },
+          ],
+        },
+        vaultKeeperApplications: { items: [] },
+      });
+
+      const result = await fetchAppProviders("0xAppController");
+
+      expect(result.vaultProviders).toEqual([
+        {
+          id: VALID_ETH_ADDR_1,
+          btcPubKey: VALID_BTC_PUBKEY_1,
+          name: "ok-provider",
+          url: "https://rpc.example.com",
+          metadataStatus: "ok",
+        },
+        {
+          id: VALID_ETH_ADDR_2,
+          btcPubKey: VALID_BTC_PUBKEY_2,
+          name: "private-host-provider",
+          url: "http://10.0.0.1",
+          metadataStatus: "private_host",
+          metadataRejectionReason:
+            "host is a private/loopback/link-local IP: 10.0.0.1",
+        },
+      ]);
+    });
+
+    it("falls back to metadataStatus 'ok' on null/unknown indexer values", async () => {
+      mockRequest.mockResolvedValueOnce({
+        vaultProviders: {
+          items: [
+            {
+              id: VALID_ETH_ADDR_1,
+              btcPubKey: VALID_BTC_PUBKEY_1,
+              name: "legacy-provider",
+              rpcUrl: "https://rpc.example.com",
+              metadataStatus: null,
+              metadataRejectionReason: null,
+            },
+            {
+              id: VALID_ETH_ADDR_2,
+              btcPubKey: VALID_BTC_PUBKEY_2,
+              name: "future-provider",
+              rpcUrl: "https://rpc.example.com",
+              metadataStatus: "some_future_status",
+              metadataRejectionReason: null,
+            },
+          ],
+        },
+        vaultKeeperApplications: { items: [] },
+      });
+
+      const result = await fetchAppProviders("0xAppController");
+
+      expect(result.vaultProviders.map((p) => p.metadataStatus)).toEqual([
+        "ok",
+        "ok",
       ]);
     });
 

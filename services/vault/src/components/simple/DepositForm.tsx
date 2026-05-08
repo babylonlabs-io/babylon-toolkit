@@ -26,6 +26,10 @@ const btcConfig = getNetworkConfigBTC();
 interface Provider {
   id: string;
   name: string;
+  /** When true, the provider renders disabled in the picker and is not selectable. */
+  unavailable?: boolean;
+  /** Tooltip text shown on hover when the provider is unavailable. */
+  unavailableReason?: string;
 }
 
 interface Application {
@@ -149,6 +153,8 @@ export function DepositForm({
   const providerOptions = providers.map((p) => ({
     value: p.id,
     label: p.name,
+    disabled: p.unavailable,
+    tooltip: p.unavailableReason,
   }));
 
   const {

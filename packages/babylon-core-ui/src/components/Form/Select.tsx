@@ -8,7 +8,9 @@ import {
   useImperativeHandle,
 } from "react";
 import { twJoin } from "tailwind-merge";
-import { RiArrowDownSLine } from "react-icons/ri";
+import { RiArrowDownSLine, RiErrorWarningLine } from "react-icons/ri";
+
+import { Hint } from "../Hint/Hint";
 
 import { Popover } from "@/components/Popover";
 import { useControlledState } from "@/hooks/useControlledState";
@@ -20,6 +22,14 @@ type Value = string | number;
 export interface Option {
   value: string;
   label: string;
+  /** When true, the option renders greyed out and is not selectable. */
+  disabled?: boolean;
+  /**
+   * Native title-attribute tooltip on the option row. If provided alongside
+   * `disabled`, a small warning icon is rendered next to the label so the
+   * row is visually distinct as the source of the tooltip.
+   */
+  tooltip?: string;
 }
 
 export interface SelectProps {
@@ -101,6 +111,7 @@ export const Select = forwardRef<HTMLDivElement, SelectProps>(
 
     const handleSelect = useCallback(
       (option: Option) => {
+        if (option.disabled) return;
         setSelectedValue(option.value);
         setIsOpen(false);
       },
@@ -152,11 +163,28 @@ export const Select = forwardRef<HTMLDivElement, SelectProps>(
               className={twJoin(
                 "bbn-select-option",
                 selectedOption?.value === option.value && "bbn-select-option-selected",
+                option.disabled && "bbn-select-option-disabled",
                 optionClassName,
               )}
               onClick={() => handleSelect(option)}
+              aria-disabled={option.disabled || undefined}
             >
-              {option.label}
+              <span className="bbn-select-option-label">{option.label}</span>
+              {option.disabled && option.tooltip && (
+                <Hint
+                  tooltip={option.tooltip}
+                  status="warning"
+                  placement="left"
+                  className="bbn-select-option-hint"
+                  attachToChildren
+                >
+                  <RiErrorWarningLine
+                    className="bbn-select-option-warning"
+                    size={16}
+                    aria-label="Provider unavailable"
+                  />
+                </Hint>
+              )}
             </div>
           ))}
         </Popover>
