@@ -5,6 +5,8 @@
  * Only convert to strings/numbers at the UI boundary for display purposes.
  */
 
+import { formatSatoshisToBtc } from "@babylonlabs-io/ts-sdk/tbv/core";
+
 /**
  * Satoshis per Bitcoin constant
  * 1 BTC = 100,000,000 satoshis
@@ -64,47 +66,28 @@ export function btcNumberToSatoshi(btc: number): bigint {
 }
 
 /**
- * Transform satoshi amounts to display format
- * Removes trailing zeros for cleaner display
+ * Format satoshis as a comma-grouped BTC display string with optional
+ * fractional truncation.
+ *
+ * Uses SDK's lossless `formatSatoshisToBtc` for the base conversion, then
+ * truncates the fractional part to `decimals` digits and adds thousands
+ * separators on the integer part — e.g. 100_000_000_000n → "1,000".
  *
  * @param satoshis - Amount in satoshis
- * @param decimals - Number of decimal places (default: 8)
- * @returns Formatted BTC string
- */
-export function formatSatoshisToBtc(
-  satoshis: bigint,
-  decimals: number = 8,
-): string {
-  const whole = satoshis / SATOSHIS_PER_BTC;
-  const fraction = satoshis % SATOSHIS_PER_BTC;
-
-  // Get fractional part as string, pad with leading zeros to 8 digits
-  let fractionStr = fraction.toString().padStart(8, "0").slice(0, decimals);
-  // Remove trailing zeros from fractional part
-  fractionStr = fractionStr.replace(/0+$/, "");
-
-  return fractionStr.length > 0
-    ? `${whole.toString()}.${fractionStr}`
-    : whole.toString();
-}
-
-/**
- * Format satoshis as a comma-grouped BTC display string (lossless).
- * Same output as formatSatoshisToBtc but with thousands separators on the
- * integer part — e.g. 100_000_000_000n → "1,000" instead of "1000".
- *
- * @param satoshis - Amount in satoshis
- * @param decimals - Number of decimal places (default: 8)
- * @returns Formatted BTC string with thousands separators
+ * @param decimals - Number of fractional digits to keep (default: 8 = lossless)
+ * @returns Formatted BTC display string
  */
 export function formatSatoshisToBtcDisplay(
   satoshis: bigint,
   decimals: number = 8,
 ): string {
-  const raw = formatSatoshisToBtc(satoshis, decimals);
-  const [whole, frac] = raw.split(".");
+  const raw = formatSatoshisToBtc(satoshis);
+  const [whole, fraction = ""] = raw.split(".");
+  const truncatedFraction = fraction.slice(0, decimals).replace(/0+$/, "");
   const wholeWithCommas = whole.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
-  return frac ? `${wholeWithCommas}.${frac}` : wholeWithCommas;
+  return truncatedFraction.length > 0
+    ? `${wholeWithCommas}.${truncatedFraction}`
+    : wholeWithCommas;
 }
 
 /**

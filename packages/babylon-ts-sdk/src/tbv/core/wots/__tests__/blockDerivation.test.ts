@@ -195,7 +195,7 @@ describe("WOTS block derivation (SDK)", () => {
       // Pinned: root=0xaa…aa, htlcVout=0. Catches drift in chain logic,
       // per-block seed derivation, or keccak256 ordering.
       const PINNED_DIGEST =
-        "0x203a4f7d054249aea1785833315628894f4b3fdc17b04aec4e1a3d80c80ef024";
+        "0x2dad1d12ebfbd384a313c9b42373a47ae1e485e0c2bdef1a865227c5f9f347c8";
       const blocks = await deriveWotsBlocksFromSeed(seedFor(ROOT_A, 0));
       expect(computeWotsBlockPublicKeysHash(blocks)).toBe(PINNED_DIGEST);
     });

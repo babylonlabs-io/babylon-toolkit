@@ -4,10 +4,6 @@
  * Common utility functions for Bitcoin operations
  */
 
-import type {
-  BitcoinWallet,
-  SignPsbtOptions,
-} from "@babylonlabs-io/ts-sdk/shared";
 import * as bitcoin from "bitcoinjs-lib";
 import { Buffer } from "buffer";
 
@@ -28,78 +24,6 @@ import { getNetworkConfigBTC } from "../../config";
  */
 export function stripHexPrefix(hex: string): string {
   return hex.startsWith("0x") || hex.startsWith("0X") ? hex.slice(2) : hex;
-}
-
-/**
- * Convert a 33-byte public key to 32-byte x-only format (removes first byte)
- * Used for Taproot/Schnorr signatures which only need the x-coordinate
- *
- * @param pubKey - 33-byte or 32-byte public key buffer
- * @returns 32-byte x-only public key buffer
- */
-export const toXOnly = (pubKey: Buffer): Buffer =>
-  pubKey.length === 32 ? pubKey : pubKey.slice(1, 33);
-
-/**
- * Validate that a public key is in x-only format (32 bytes = 64 hex chars)
- * Used for Taproot/Schnorr signatures which require x-only pubkeys
- *
- * @param pubkey - Public key to validate (should be 64 hex chars, no 0x prefix)
- * @throws Error if pubkey is not valid x-only format
- *
- * @example
- * ```ts
- * validateXOnlyPubkey('aa'.repeat(32)) // OK
- * validateXOnlyPubkey('0x' + 'aa'.repeat(32)) // throws
- * validateXOnlyPubkey('aa'.repeat(33)) // throws (66 chars)
- * ```
- */
-export function validateXOnlyPubkey(pubkey: string): void {
-  if (!pubkey || typeof pubkey !== "string") {
-    throw new Error("Invalid pubkey: must be a non-empty string");
-  }
-
-  if (!/^[0-9a-fA-F]{64}$/.test(pubkey)) {
-    throw new Error(
-      "Invalid pubkey format: must be 64 hex characters (32-byte x-only public key, no 0x prefix)",
-    );
-  }
-}
-
-/**
- * Process and convert a public key to x-only format (32 bytes hex)
- * Handles 0x prefix removal, validation, and conversion to x-only format
- *
- * @param publicKeyHex - Public key in hex format (with or without 0x prefix)
- * @returns X-only public key as 32 bytes hex string (without 0x prefix)
- * @throws Error if public key format is invalid
- */
-/**
- * Sign multiple PSBTs, using batch signing when the wallet supports it.
- *
- * Mobile wallets may not inject `signPsbts`, so this falls back to
- * sequential `signPsbt` calls when batch signing is unavailable.
- *
- * @param wallet - Bitcoin wallet (from wallet-connector)
- * @param psbtHexes - Array of unsigned PSBT hex strings
- * @param options - Optional per-PSBT signing options (e.g., autoFinalized, signInputs).
- *                  When provided, must have the same length as psbtHexes.
- * @returns Array of signed PSBT hex strings (same order as input)
- */
-export async function signPsbtsWithFallback(
-  wallet: BitcoinWallet,
-  psbtHexes: string[],
-  options?: SignPsbtOptions[],
-): Promise<string[]> {
-  if (typeof wallet.signPsbts === "function") {
-    return wallet.signPsbts(psbtHexes, options);
-  }
-
-  const signed: string[] = [];
-  for (let i = 0; i < psbtHexes.length; i++) {
-    signed.push(await wallet.signPsbt(psbtHexes[i], options?.[i]));
-  }
-  return signed;
 }
 
 /**
@@ -166,7 +90,11 @@ export function scriptPubKeyHexToBtcAddress(scriptPubKeyHex: string): string {
  */
 export function deriveBip86ScriptPubKeyHex(xOnlyPubkeyHex: string): string {
   const cleanHex = stripHexPrefix(xOnlyPubkeyHex);
-  validateXOnlyPubkey(cleanHex);
+  if (!/^[0-9a-fA-F]{64}$/.test(cleanHex)) {
+    throw new Error(
+      "Invalid x-only pubkey: must be 64 hex characters (32 bytes, no 0x prefix)",
+    );
+  }
   const { output } = bitcoin.payments.p2tr({
     internalPubkey: Buffer.from(cleanHex, "hex"),
     network: getBitcoinJsNetwork(),
@@ -175,24 +103,4 @@ export function deriveBip86ScriptPubKeyHex(xOnlyPubkeyHex: string): string {
     throw new Error("Failed to derive BIP-86 P2TR scriptPubKey");
   }
   return `0x${output.toString("hex")}`;
-}
-
-export function processPublicKeyToXOnly(publicKeyHex: string): string {
-  // Remove '0x' prefix if present
-  const cleanHex = stripHexPrefix(publicKeyHex);
-
-  // If already 64 chars (32 bytes), it's already x-only format
-  if (cleanHex.length === 64) {
-    return cleanHex;
-  }
-
-  // Validate public key length (should be 66 chars for compressed key or 130 for uncompressed)
-  if (cleanHex.length !== 66 && cleanHex.length !== 130) {
-    throw new Error(
-      `Invalid public key length: ${cleanHex.length} (expected 64, 66, or 130 hex chars)`,
-    );
-  }
-
-  const pubkeyBuffer = Buffer.from(cleanHex, "hex");
-  return toXOnly(pubkeyBuffer).toString("hex");
 }

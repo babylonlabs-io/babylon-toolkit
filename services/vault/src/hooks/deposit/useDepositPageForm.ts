@@ -201,7 +201,7 @@ export function useDepositPageForm(): UseDepositPageFormResult {
 
   const btcBalanceFormatted = useMemo(() => {
     if (!btcBalance) return 0;
-    return Number(depositService.formatSatoshisToBtc(btcBalance, 8));
+    return Number(depositService.formatSatoshisToBtc(btcBalance));
   }, [btcBalance]);
 
   const { errors, setErrors, clearFieldError, resetErrors } =
