@@ -11,10 +11,7 @@ import { useCallback } from "react";
 import type { Address } from "viem";
 
 import { ArtifactDownloadModal } from "@/components/deposit/ArtifactDownloadModal";
-import {
-  computeDepositDerivedState,
-  DEPOSIT_SUCCESS_MESSAGE,
-} from "@/components/deposit/DepositSignModal/depositStepHelpers";
+import { computeDepositDerivedState } from "@/components/deposit/DepositSignModal/depositStepHelpers";
 import { useDepositFlow } from "@/hooks/deposit/useDepositFlow";
 import { useRunOnce } from "@/hooks/useRunOnce";
 
@@ -91,7 +88,6 @@ export function DepositSignContent({
           canContinueInBackground={canContinueInBackground}
           payoutSigningProgress={payoutSigningProgress}
           onClose={handleClose}
-          successMessage={DEPOSIT_SUCCESS_MESSAGE}
         />
       ) : (
         <DepositProgressView
@@ -104,7 +100,6 @@ export function DepositSignContent({
           canContinueInBackground={canContinueInBackground}
           payoutSigningProgress={payoutSigningProgress}
           onClose={handleClose}
-          successMessage={DEPOSIT_SUCCESS_MESSAGE}
         />
       )}
 

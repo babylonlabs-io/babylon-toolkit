@@ -19,7 +19,7 @@ import {
 import { useMemo } from "react";
 
 import { StatusBanner } from "@/components/deposit/DepositSignModal/StatusBanner";
-import { DepositFlowStep } from "@/components/deposit/DepositSignModal/depositStepHelpers";
+import { DepositFlowStep } from "@/hooks/deposit/depositFlowSteps";
 import type { PayoutSigningProgress } from "@/services/vault/vaultPayoutSignatureService";
 
 /**

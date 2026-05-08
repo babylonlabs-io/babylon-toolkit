@@ -24,15 +24,13 @@ import {
 import { primeVpTokenRegistry } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import { calculateBtcTxHash } from "@babylonlabs-io/ts-sdk/tbv/core/utils";
 import { useChainConnector } from "@babylonlabs-io/wallet-connector";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useState } from "react";
 import type { Address, Hex } from "viem";
 
 import { getVaultRegistryReader } from "@/clients/eth-contract/sdk-readers";
-import {
-  computeDepositDerivedState,
-  DepositFlowStep,
-} from "@/components/deposit/DepositSignModal/depositStepHelpers";
+import { computeDepositDerivedState } from "@/components/deposit/DepositSignModal/depositStepHelpers";
 import { usePayoutSigningState } from "@/components/deposit/PayoutSignModal/usePayoutSigningState";
+import { DepositFlowStep } from "@/hooks/deposit/depositFlowSteps";
 import { submitWotsPublicKey } from "@/hooks/deposit/depositFlowSteps/wotsSubmission";
 import { useActivationState } from "@/hooks/deposit/useActivationState";
 import { useBroadcastState } from "@/hooks/deposit/useBroadcastState";
@@ -64,52 +62,19 @@ export function ResumeSignContent({
   onClose,
   onSuccess,
 }: ResumeSignContentProps) {
-  const btcConnector = useChainConnector("BTC");
-  const rawBtcWallet =
-    (btcConnector?.connectedWallet?.provider as BitcoinWallet | undefined) ??
-    null;
-
-  const [currentStep, setCurrentStep] = useState<DepositFlowStep>(
-    DepositFlowStep.SIGN_AUTH_ANCHOR,
-  );
-
-  const phaseTrackingWallet = useMemo<BitcoinWallet | undefined>(() => {
-    if (!rawBtcWallet) return undefined;
-    return {
-      ...rawBtcWallet,
-      deriveContextHash: (appName, context) => {
-        setCurrentStep(DepositFlowStep.SIGN_AUTH_ANCHOR);
-        return rawBtcWallet.deriveContextHash(appName, context);
-      },
-      signPsbt: (psbtHex, opts) => {
-        setCurrentStep(DepositFlowStep.SIGN_PAYOUTS);
-        return rawBtcWallet.signPsbt(psbtHex, opts);
-      },
-      ...(rawBtcWallet.signPsbts
-        ? {
-            signPsbts: (psbtHexes, opts) => {
-              setCurrentStep(DepositFlowStep.SIGN_PAYOUTS);
-              return rawBtcWallet.signPsbts!(psbtHexes, opts);
-            },
-          }
-        : {}),
-    };
-  }, [rawBtcWallet]);
-
   const { signing, progress, error, isComplete, handleSign } =
     usePayoutSigningState({
       activity,
       btcPublicKey,
       depositorEthAddress,
       onSuccess,
-      btcWalletOverride: phaseTrackingWallet,
     });
 
   useRunOnce(handleSign);
 
   const renderStep = isComplete
     ? DepositFlowStep.ARTIFACT_DOWNLOAD
-    : currentStep;
+    : DepositFlowStep.SIGN_PAYOUTS;
   const renderIsWaiting = isComplete;
   const derived = computeDepositDerivedState(
     renderStep,

@@ -1,9 +1,6 @@
 import { DepositFlowStep } from "@/hooks/deposit/depositFlowSteps";
 import type { PayoutSigningProgress } from "@/services/vault/vaultPayoutSignatureService";
 
-// Re-export for convenience
-export { DepositFlowStep };
-
 /**
  * Step descriptions for deposit flow
  */
@@ -109,12 +106,6 @@ export function canCloseModal(
     return true;
   return false;
 }
-
-/**
- * Default success message for deposit completion
- */
-export const DEPOSIT_SUCCESS_MESSAGE =
-  "Your deposit has been signed. Activate your vault from the dashboard to complete the deposit.";
 
 /**
  * Compute derived UI state from flow state.
