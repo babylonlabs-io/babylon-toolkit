@@ -62,6 +62,14 @@ export interface VaultRegistryReader {
   getVaultProtocolInfo(vaultId: Hex): Promise<VaultProtocolInfo>;
   getVaultData(vaultId: Hex): Promise<VaultData>;
   getVaultProviderBtcPubKey(vpAddress: Address): Promise<OnChainBtcPubkey>;
+  /**
+   * Read `offchainParamsVersion` for many vaults in a single multicall.
+   * Returns versions in the same order as the input. Throws if any vault
+   * is missing on-chain.
+   */
+  getOffchainParamsVersionsByVaultIds(
+    vaultIds: readonly Hex[],
+  ): Promise<number[]>;
 }
 
 // ============================================================================
@@ -120,7 +128,35 @@ export interface PegInConfiguration {
   timelockRefund: number;
   minVpCommissionBps: number;
   offchainParams: VersionedOffchainParams;
+  /**
+   * Version label paired atomically with `offchainParams`.
+   * Read in the same multicall as the params struct so that, if a parameter
+   * update lands between separate reads, the script-construction code and
+   * the version label stay consistent.
+   */
+  offchainParamsVersion: number;
 }
+
+/**
+ * All offchain params snapshots indexed by version, plus the latest version
+ * number known when the snapshot was taken. Used by consumers that need to
+ * resolve any historical version (e.g. signing for an existing vault locked
+ * to an older version).
+ */
+export interface AllOffchainParamsData {
+  byVersion: Map<number, VersionedOffchainParams>;
+  latestVersion: number;
+}
+
+/**
+ * Optional observer invoked by `fetchAllOffchainParams` when a historical
+ * version fails validation. Called once per skipped version so callers can
+ * log/telemeter without coupling the SDK to a specific logger.
+ */
+export type OnSkippedOffchainParamsVersion = (
+  version: number,
+  error: Error,
+) => void;
 
 /** Interface for reading protocol parameters from the ProtocolParams contract. */
 export interface ProtocolParamsReader {
@@ -130,6 +166,9 @@ export interface ProtocolParamsReader {
   getLatestOffchainParamsVersion(): Promise<number>;
   getTimelockPeginByVersion(version: number): Promise<number>;
   getPegInConfiguration(): Promise<PegInConfiguration>;
+  fetchAllOffchainParams(
+    onSkippedVersion?: OnSkippedOffchainParamsVersion,
+  ): Promise<AllOffchainParamsData>;
 }
 
 // ============================================================================

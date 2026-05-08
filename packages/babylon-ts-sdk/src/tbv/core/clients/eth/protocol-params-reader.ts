@@ -5,10 +5,18 @@
  * of the ProtocolParamsReader interface.
  */
 
-import type { Address, Hex, PublicClient } from "viem";
+import type { Abi, Address, Hex, PublicClient } from "viem";
 
 import { ProtocolParamsABI } from "../../contracts/abis/ProtocolParams.abi";
+import {
+  assertValidOffchainParamsVersion,
+  validateOffchainParams,
+  validatePegInConfiguration,
+  validateTBVProtocolParams,
+} from "./protocol-params-validation";
 import type {
+  AllOffchainParamsData,
+  OnSkippedOffchainParamsVersion,
   PegInConfiguration,
   ProtocolParamsReader,
   TBVProtocolParams,
@@ -20,6 +28,7 @@ import type {
  * PeginLogic.sol casts timelockAssert to uint16, so values above this are invalid.
  */
 const UINT16_MAX = 65535;
+
 
 /**
  * Raw shape viem returns for VersionedOffchainParams struct.
@@ -102,6 +111,10 @@ function deriveTimelockPegin(timelockAssert: bigint): number {
 /**
  * Concrete protocol params reader using viem.
  *
+ * Every read method runs the matching validator from
+ * `protocol-params-validation` before returning, so callers don't have to
+ * remember to validate.
+ *
  * Usage:
  * ```ts
  * const reader = new ViemProtocolParamsReader(publicClient, protocolParamsAddress);
@@ -121,7 +134,9 @@ export class ViemProtocolParamsReader implements ProtocolParamsReader {
       functionName: "getTBVProtocolParams",
     })) as RawTBVParams;
 
-    return mapTBVParams(result);
+    const params = mapTBVParams(result);
+    validateTBVProtocolParams(params);
+    return params;
   }
 
   async getLatestOffchainParams(): Promise<VersionedOffchainParams> {
@@ -131,7 +146,9 @@ export class ViemProtocolParamsReader implements ProtocolParamsReader {
       functionName: "getLatestOffchainParams",
     })) as RawOffchainParams;
 
-    return mapOffchainParams(result);
+    const params = mapOffchainParams(result);
+    validateOffchainParams(params);
+    return params;
   }
 
   async getOffchainParamsByVersion(
@@ -144,17 +161,20 @@ export class ViemProtocolParamsReader implements ProtocolParamsReader {
       args: [version],
     })) as RawOffchainParams;
 
-    return mapOffchainParams(result);
+    const params = mapOffchainParams(result);
+    validateOffchainParams(params);
+    return params;
   }
 
   async getLatestOffchainParamsVersion(): Promise<number> {
-    const result = (await this.publicClient.readContract({
+    const raw = await this.publicClient.readContract({
       address: this.contractAddress,
       abi: ProtocolParamsABI,
       functionName: "latestOffchainParamsVersion",
-    })) as number;
-
-    return result;
+    });
+    const version = Number(raw);
+    assertValidOffchainParamsVersion(version);
+    return version;
   }
 
   async getTimelockPeginByVersion(version: number): Promise<number> {
@@ -163,8 +183,11 @@ export class ViemProtocolParamsReader implements ProtocolParamsReader {
   }
 
   /**
-   * Read TBV protocol params and latest offchain params atomically via multicall.
-   * Prevents TOCTOU inconsistency if governance updates params between reads.
+   * Read TBV protocol params, latest offchain params, and the latest version
+   * label atomically via multicall. The version is paired with the params so
+   * that a governance update between separate reads cannot let JS build BTC
+   * scripts with version N params while the contract registers the vault
+   * under version N+1.
    */
   async getPegInConfiguration(): Promise<PegInConfiguration> {
     const results = await this.publicClient.multicall({
@@ -179,14 +202,20 @@ export class ViemProtocolParamsReader implements ProtocolParamsReader {
           abi: ProtocolParamsABI,
           functionName: "getLatestOffchainParams",
         },
+        {
+          address: this.contractAddress,
+          abi: ProtocolParamsABI,
+          functionName: "latestOffchainParamsVersion",
+        },
       ],
       allowFailure: false,
     });
 
     const tbvParams = mapTBVParams(results[0] as RawTBVParams);
     const offchainParams = mapOffchainParams(results[1] as RawOffchainParams);
+    const offchainParamsVersion = Number(results[2]);
 
-    return {
+    const config: PegInConfiguration = {
       minimumPegInAmount: tbvParams.minimumPegInAmount,
       maxPegInAmount: tbvParams.maxPegInAmount,
       pegInAckTimeout: tbvParams.pegInAckTimeout,
@@ -196,6 +225,60 @@ export class ViemProtocolParamsReader implements ProtocolParamsReader {
       timelockRefund: offchainParams.tRefund,
       minVpCommissionBps: offchainParams.minVpCommissionBps,
       offchainParams,
+      offchainParamsVersion,
     };
+
+    validatePegInConfiguration(config);
+    return config;
+  }
+
+  /**
+   * Fetch every historical offchain params version in a single multicall.
+   * Iterates 1..latestVersion and calls `getOffchainParamsByVersion` for each.
+   * Versions whose payload fails validation are skipped (not included in the
+   * returned map) so a single bad historical version doesn't block the
+   * lookup of the rest.
+   *
+   * @param onSkippedVersion - optional observer invoked once per skipped
+   *   version. Use to log/telemeter without coupling the SDK to a logger.
+   */
+  async fetchAllOffchainParams(
+    onSkippedVersion?: OnSkippedOffchainParamsVersion,
+  ): Promise<AllOffchainParamsData> {
+    const latestVersion = await this.getLatestOffchainParamsVersion();
+    if (latestVersion === 0) {
+      return { byVersion: new Map(), latestVersion: 0 };
+    }
+
+    const versions = Array.from({ length: latestVersion }, (_, i) => i + 1);
+    const contracts = versions.map((v) => ({
+      address: this.contractAddress,
+      abi: ProtocolParamsABI as Abi,
+      functionName: "getOffchainParamsByVersion" as const,
+      args: [v] as const,
+    }));
+
+    const results = await this.publicClient.multicall({
+      contracts,
+      allowFailure: false,
+    });
+
+    const byVersion = new Map<number, VersionedOffchainParams>();
+    for (let i = 0; i < versions.length; i++) {
+      const params = mapOffchainParams(results[i] as RawOffchainParams);
+      try {
+        validateOffchainParams(params);
+        byVersion.set(versions[i], params);
+      } catch (error) {
+        // A malformed historical version mustn't block lookup of the rest.
+        // Surface the skip to the caller's observer if one was supplied.
+        onSkippedVersion?.(
+          versions[i],
+          error instanceof Error ? error : new Error(String(error)),
+        );
+      }
+    }
+
+    return { byVersion, latestVersion };
   }
 }

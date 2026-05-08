@@ -35,6 +35,7 @@ const MOCK_PROTOCOL_INFO_RESULT = {
 function createMockPublicClient(overrides?: {
   basicInfoResult?: unknown;
   protocolInfoResult?: unknown;
+  protocolInfoByVaultId?: Map<Hex, unknown>;
   vpBtcKeyResult?: unknown;
 }) {
   return {
@@ -50,6 +51,28 @@ function createMockPublicClient(overrides?: {
       }
       throw new Error(`Unknown function: ${functionName}`);
     }),
+    multicall: vi.fn(
+      async ({
+        contracts,
+      }: {
+        contracts: Array<{
+          functionName: string;
+          args?: readonly unknown[];
+        }>;
+      }) => {
+        return contracts.map((c) => {
+          if (c.functionName === "getBtcVaultProtocolInfo") {
+            const id = c.args?.[0] as Hex | undefined;
+            const byId =
+              id && overrides?.protocolInfoByVaultId?.get(id);
+            return (
+              byId ?? overrides?.protocolInfoResult ?? MOCK_PROTOCOL_INFO_RESULT
+            );
+          }
+          throw new Error(`Unknown function in multicall: ${c.functionName}`);
+        });
+      },
+    ),
   };
 }
 
@@ -196,5 +219,91 @@ describe("ViemVaultRegistryReader", () => {
         args: [MOCK_VAULT_ID],
       }),
     );
+  });
+
+  describe("getOffchainParamsVersionsByVaultIds", () => {
+    const VAULT_ID_A =
+      "0x1111111111111111111111111111111111111111111111111111111111111111" as Hex;
+    const VAULT_ID_B =
+      "0x2222222222222222222222222222222222222222222222222222222222222222" as Hex;
+
+    it("returns versions in input order via a single multicall", async () => {
+      const publicClient = createMockPublicClient({
+        protocolInfoByVaultId: new Map([
+          [VAULT_ID_A, { ...MOCK_PROTOCOL_INFO_RESULT, offchainParamsVersion: 7 }],
+          [VAULT_ID_B, { ...MOCK_PROTOCOL_INFO_RESULT, offchainParamsVersion: 3 }],
+        ]),
+      });
+      const reader = new ViemVaultRegistryReader(
+        publicClient as never,
+        MOCK_ADDRESS,
+      );
+
+      const versions = await reader.getOffchainParamsVersionsByVaultIds([
+        VAULT_ID_A,
+        VAULT_ID_B,
+      ]);
+
+      expect(versions).toEqual([7, 3]);
+      expect(publicClient.multicall).toHaveBeenCalledTimes(1);
+    });
+
+    it("returns an empty array for an empty input without making any RPC", async () => {
+      const publicClient = createMockPublicClient();
+      const reader = new ViemVaultRegistryReader(
+        publicClient as never,
+        MOCK_ADDRESS,
+      );
+
+      const versions = await reader.getOffchainParamsVersionsByVaultIds([]);
+
+      expect(versions).toEqual([]);
+      expect(publicClient.multicall).not.toHaveBeenCalled();
+      expect(publicClient.readContract).not.toHaveBeenCalled();
+    });
+
+    it("throws if any vault has no pegin transaction", async () => {
+      const publicClient = createMockPublicClient({
+        protocolInfoByVaultId: new Map([
+          [VAULT_ID_A, MOCK_PROTOCOL_INFO_RESULT],
+          [
+            VAULT_ID_B,
+            { ...MOCK_PROTOCOL_INFO_RESULT, depositorSignedPeginTx: "0x" as Hex },
+          ],
+        ]),
+      });
+      const reader = new ViemVaultRegistryReader(
+        publicClient as never,
+        MOCK_ADDRESS,
+      );
+
+      await expect(
+        reader.getOffchainParamsVersionsByVaultIds([VAULT_ID_A, VAULT_ID_B]),
+      ).rejects.toThrow(/not found on-chain/);
+    });
+
+    it("throws if a vault's offchainParamsVersion is not a valid uint32", async () => {
+      // Same hardening as `getLatestOffchainParamsVersion`: a malformed
+      // RPC payload mustn't propagate as a NaN/fractional version label.
+      const publicClient = createMockPublicClient({
+        protocolInfoByVaultId: new Map([
+          [
+            VAULT_ID_A,
+            {
+              ...MOCK_PROTOCOL_INFO_RESULT,
+              offchainParamsVersion: -1,
+            },
+          ],
+        ]),
+      });
+      const reader = new ViemVaultRegistryReader(
+        publicClient as never,
+        MOCK_ADDRESS,
+      );
+
+      await expect(
+        reader.getOffchainParamsVersionsByVaultIds([VAULT_ID_A]),
+      ).rejects.toThrow(/Invalid offchainParamsVersion from contract/);
+    });
   });
 });

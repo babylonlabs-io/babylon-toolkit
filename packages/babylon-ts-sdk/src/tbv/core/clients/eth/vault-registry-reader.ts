@@ -6,10 +6,11 @@
  */
 
 import * as ecc from "@bitcoin-js/tiny-secp256k1-asmjs";
-import type { Address, Hex, PublicClient } from "viem";
+import type { Abi, Address, Hex, PublicClient } from "viem";
 
 import { hexToUint8Array } from "../../primitives/utils/bitcoin";
 import { BTCVaultRegistryABI } from "../../contracts/abis/BTCVaultRegistry.abi";
+import { assertValidOffchainParamsVersion } from "./protocol-params-validation";
 import type {
   OnChainBtcPubkey,
   VaultBasicInfo,
@@ -110,11 +111,14 @@ export class ViemVaultRegistryReader implements VaultRegistryReader {
       vaultProviderCommissionBps: number;
     };
 
+    const offchainParamsVersion = Number(result.offchainParamsVersion);
+    assertValidOffchainParamsVersion(offchainParamsVersion);
+
     return {
       depositorSignedPeginTx: result.depositorSignedPeginTx,
       universalChallengersVersion: result.universalChallengersVersion,
       appVaultKeepersVersion: result.appVaultKeepersVersion,
-      offchainParamsVersion: result.offchainParamsVersion,
+      offchainParamsVersion,
       verifiedAt: result.verifiedAt,
       depositorWotsPkHash: result.depositorWotsPkHash,
       hashlock: result.hashlock,
@@ -141,5 +145,41 @@ export class ViemVaultRegistryReader implements VaultRegistryReader {
     }
 
     return { basic, protocol };
+  }
+
+  /**
+   * Read `offchainParamsVersion` for many vaults in a single multicall.
+   * Reads only `getBtcVaultProtocolInfo` (one read per vault), so an N-vault
+   * batch costs one RPC round-trip instead of 2N parallel `eth_call`s.
+   */
+  async getOffchainParamsVersionsByVaultIds(
+    vaultIds: readonly Hex[],
+  ): Promise<number[]> {
+    if (vaultIds.length === 0) return [];
+
+    const results = await this.publicClient.multicall({
+      contracts: vaultIds.map((vaultId) => ({
+        address: this.contractAddress,
+        abi: BTCVaultRegistryABI as Abi,
+        functionName: "getBtcVaultProtocolInfo" as const,
+        args: [vaultId] as const,
+      })),
+      allowFailure: false,
+    });
+
+    return results.map((info) => {
+      const protocolInfo = info as unknown as VaultProtocolInfo;
+      if (
+        !protocolInfo.depositorSignedPeginTx ||
+        protocolInfo.depositorSignedPeginTx === "0x"
+      ) {
+        throw new Error(
+          "Vault not found on-chain or has no pegin transaction while reading offchain params version",
+        );
+      }
+      const version = Number(protocolInfo.offchainParamsVersion);
+      assertValidOffchainParamsVersion(version);
+      return version;
+    });
   }
 }

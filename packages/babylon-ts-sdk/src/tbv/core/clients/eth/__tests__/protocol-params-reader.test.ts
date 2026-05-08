@@ -18,8 +18,10 @@ const MOCK_OFFCHAIN_PARAMS = {
   timelockChallengeAssert: 300n,
   securityCouncilKeys: [
     "0xaaaa000000000000000000000000000000000000000000000000000000000000" as Hex,
+    "0xbbbb000000000000000000000000000000000000000000000000000000000000" as Hex,
+    "0xcccc000000000000000000000000000000000000000000000000000000000000" as Hex,
   ],
-  councilQuorum: 3,
+  councilQuorum: 2,
   feeRate: 2n,
   babeTotalInstances: 128,
   babeInstancesToFinalize: 64,
@@ -35,11 +37,13 @@ function createMockPublicClient(overrides?: {
   tbvParams?: unknown;
   offchainParams?: unknown;
   version?: unknown;
+  perVersionOffchainParams?: Map<number, unknown>;
 }) {
   return {
     readContract: vi.fn(
       async ({
         functionName,
+        args,
       }: {
         functionName: string;
         args?: unknown[];
@@ -47,11 +51,16 @@ function createMockPublicClient(overrides?: {
         if (functionName === "getTBVProtocolParams") {
           return overrides?.tbvParams ?? MOCK_TBV_PARAMS;
         }
-        if (
-          functionName === "getLatestOffchainParams" ||
-          functionName === "getOffchainParamsByVersion"
-        ) {
+        if (functionName === "getLatestOffchainParams") {
           return overrides?.offchainParams ?? MOCK_OFFCHAIN_PARAMS;
+        }
+        if (functionName === "getOffchainParamsByVersion") {
+          const v = (args?.[0] as number) ?? 0;
+          return (
+            overrides?.perVersionOffchainParams?.get(v) ??
+            overrides?.offchainParams ??
+            MOCK_OFFCHAIN_PARAMS
+          );
         }
         if (functionName === "latestOffchainParamsVersion") {
           return overrides?.version ?? 3;
@@ -59,10 +68,37 @@ function createMockPublicClient(overrides?: {
         throw new Error(`Unknown function: ${functionName}`);
       },
     ),
-    multicall: vi.fn(async () => [
-      overrides?.tbvParams ?? MOCK_TBV_PARAMS,
-      overrides?.offchainParams ?? MOCK_OFFCHAIN_PARAMS,
-    ]),
+    multicall: vi.fn(
+      async ({
+        contracts,
+      }: {
+        contracts: Array<{
+          functionName: string;
+          args?: readonly unknown[];
+        }>;
+      }) => {
+        return contracts.map((c) => {
+          if (c.functionName === "getTBVProtocolParams") {
+            return overrides?.tbvParams ?? MOCK_TBV_PARAMS;
+          }
+          if (c.functionName === "getLatestOffchainParams") {
+            return overrides?.offchainParams ?? MOCK_OFFCHAIN_PARAMS;
+          }
+          if (c.functionName === "latestOffchainParamsVersion") {
+            return overrides?.version ?? 3;
+          }
+          if (c.functionName === "getOffchainParamsByVersion") {
+            const v = (c.args?.[0] as number) ?? 0;
+            return (
+              overrides?.perVersionOffchainParams?.get(v) ??
+              overrides?.offchainParams ??
+              MOCK_OFFCHAIN_PARAMS
+            );
+          }
+          throw new Error(`Unknown function in multicall: ${c.functionName}`);
+        });
+      },
+    ),
   };
 }
 
@@ -94,8 +130,8 @@ describe("ViemProtocolParamsReader", () => {
 
     expect(params.timelockAssert).toBe(150n);
     expect(params.timelockChallengeAssert).toBe(300n);
-    expect(params.securityCouncilKeys).toHaveLength(1);
-    expect(params.councilQuorum).toBe(3);
+    expect(params.securityCouncilKeys).toHaveLength(3);
+    expect(params.councilQuorum).toBe(2);
     expect(params.feeRate).toBe(2n);
     expect(params.babeTotalInstances).toBe(128);
     expect(params.babeInstancesToFinalize).toBe(64);
@@ -158,7 +194,7 @@ describe("ViemProtocolParamsReader", () => {
 
     const config = await reader.getPegInConfiguration();
 
-    // Verify multicall was used (single call, not two separate readContract calls)
+    // Verify multicall was used (single call, not separate readContract calls)
     expect(publicClient.multicall).toHaveBeenCalledTimes(1);
     expect(publicClient.readContract).not.toHaveBeenCalled();
 
@@ -170,6 +206,175 @@ describe("ViemProtocolParamsReader", () => {
     expect(config.minVpCommissionBps).toBe(500);
     expect(config.offchainParams.proverProgramVersion).toBe(1);
     expect(config.offchainParams.minPrepeginDepth).toBe(6);
+    // offchainParamsVersion is paired atomically with offchainParams.
+    expect(config.offchainParamsVersion).toBe(3);
+  });
+
+  it("getLatestOffchainParamsVersion throws on a malformed (non-uint32) payload", async () => {
+    // Same hardening as `getPegInConfiguration`, but for the standalone
+    // version reader — `fetchAllOffchainParams` consumes this to size its
+    // multicall, so a NaN here would silently produce an empty result.
+    const publicClient = createMockPublicClient({ version: NaN });
+    const reader = new ViemProtocolParamsReader(
+      publicClient as never,
+      MOCK_ADDRESS,
+    );
+
+    await expect(reader.getLatestOffchainParamsVersion()).rejects.toThrow(
+      /Invalid offchainParamsVersion from contract/,
+    );
+  });
+
+  it("getPegInConfiguration throws when the version is not a valid uint32", async () => {
+    // The reader produces `offchainParamsVersion` via `Number(results[2])`.
+    // If multicall yields a non-integer (e.g. NaN from a malformed
+    // payload), the validator must reject it rather than letting NaN
+    // propagate into downstream consumers.
+    const publicClient = createMockPublicClient({ version: NaN });
+    const reader = new ViemProtocolParamsReader(
+      publicClient as never,
+      MOCK_ADDRESS,
+    );
+
+    await expect(reader.getPegInConfiguration()).rejects.toThrow(
+      /offchainParamsVersion must be a uint32/,
+    );
+  });
+
+  it("getPegInConfiguration multicalls TBV params + offchain params + version atomically", async () => {
+    const publicClient = createMockPublicClient();
+    const reader = new ViemProtocolParamsReader(
+      publicClient as never,
+      MOCK_ADDRESS,
+    );
+
+    await reader.getPegInConfiguration();
+
+    const callArgs = publicClient.multicall.mock.calls[0][0] as {
+      contracts: Array<{ functionName: string }>;
+    };
+    expect(callArgs.contracts.map((c) => c.functionName)).toEqual([
+      "getTBVProtocolParams",
+      "getLatestOffchainParams",
+      "latestOffchainParamsVersion",
+    ]);
+  });
+
+  it("getTBVProtocolParams throws on invalid params via the auto-validator", async () => {
+    const publicClient = createMockPublicClient({
+      tbvParams: { ...MOCK_TBV_PARAMS, minimumPegInAmount: 0n },
+    });
+    const reader = new ViemProtocolParamsReader(
+      publicClient as never,
+      MOCK_ADDRESS,
+    );
+
+    await expect(reader.getTBVProtocolParams()).rejects.toThrow(
+      /minimumPegInAmount must be positive/,
+    );
+  });
+
+  it("getLatestOffchainParams throws on invalid params via the auto-validator", async () => {
+    const publicClient = createMockPublicClient({
+      offchainParams: { ...MOCK_OFFCHAIN_PARAMS, councilQuorum: 0 },
+    });
+    const reader = new ViemProtocolParamsReader(
+      publicClient as never,
+      MOCK_ADDRESS,
+    );
+
+    await expect(reader.getLatestOffchainParams()).rejects.toThrow(
+      /councilQuorum must be positive/,
+    );
+  });
+
+  it("fetchAllOffchainParams returns one snapshot per version", async () => {
+    const v1 = { ...MOCK_OFFCHAIN_PARAMS, timelockAssert: 100n };
+    const v2 = { ...MOCK_OFFCHAIN_PARAMS, timelockAssert: 200n };
+    const v3 = { ...MOCK_OFFCHAIN_PARAMS, timelockAssert: 300n };
+    const publicClient = createMockPublicClient({
+      version: 3,
+      perVersionOffchainParams: new Map([
+        [1, v1],
+        [2, v2],
+        [3, v3],
+      ]),
+    });
+    const reader = new ViemProtocolParamsReader(
+      publicClient as never,
+      MOCK_ADDRESS,
+    );
+
+    const result = await reader.fetchAllOffchainParams();
+
+    expect(result.latestVersion).toBe(3);
+    expect(result.byVersion.size).toBe(3);
+    expect(result.byVersion.get(1)?.timelockAssert).toBe(100n);
+    expect(result.byVersion.get(2)?.timelockAssert).toBe(200n);
+    expect(result.byVersion.get(3)?.timelockAssert).toBe(300n);
+  });
+
+  it("fetchAllOffchainParams returns an empty map when latestVersion is 0", async () => {
+    const publicClient = createMockPublicClient({ version: 0 });
+    const reader = new ViemProtocolParamsReader(
+      publicClient as never,
+      MOCK_ADDRESS,
+    );
+
+    const result = await reader.fetchAllOffchainParams();
+
+    expect(result.latestVersion).toBe(0);
+    expect(result.byVersion.size).toBe(0);
+  });
+
+  it("fetchAllOffchainParams skips historical versions that fail validation", async () => {
+    const v1 = { ...MOCK_OFFCHAIN_PARAMS, timelockAssert: 100n };
+    const v2_bad = { ...MOCK_OFFCHAIN_PARAMS, councilQuorum: 0 };
+    const v3 = { ...MOCK_OFFCHAIN_PARAMS, timelockAssert: 300n };
+    const publicClient = createMockPublicClient({
+      version: 3,
+      perVersionOffchainParams: new Map([
+        [1, v1],
+        [2, v2_bad],
+        [3, v3],
+      ]),
+    });
+    const reader = new ViemProtocolParamsReader(
+      publicClient as never,
+      MOCK_ADDRESS,
+    );
+
+    const result = await reader.fetchAllOffchainParams();
+
+    expect(result.latestVersion).toBe(3);
+    expect(result.byVersion.has(1)).toBe(true);
+    expect(result.byVersion.has(2)).toBe(false);
+    expect(result.byVersion.has(3)).toBe(true);
+  });
+
+  it("fetchAllOffchainParams notifies the optional onSkippedVersion observer", async () => {
+    const v1 = { ...MOCK_OFFCHAIN_PARAMS, timelockAssert: 100n };
+    const v2_bad = { ...MOCK_OFFCHAIN_PARAMS, councilQuorum: 0 };
+    const publicClient = createMockPublicClient({
+      version: 2,
+      perVersionOffchainParams: new Map([
+        [1, v1],
+        [2, v2_bad],
+      ]),
+    });
+    const reader = new ViemProtocolParamsReader(
+      publicClient as never,
+      MOCK_ADDRESS,
+    );
+
+    const onSkippedVersion = vi.fn();
+    await reader.fetchAllOffchainParams(onSkippedVersion);
+
+    expect(onSkippedVersion).toHaveBeenCalledTimes(1);
+    expect(onSkippedVersion).toHaveBeenCalledWith(2, expect.any(Error));
+    expect(onSkippedVersion.mock.calls[0][1].message).toMatch(
+      /councilQuorum must be positive/,
+    );
   });
 
   it("throws when timelockAssert exceeds uint16 max (65535)", async () => {

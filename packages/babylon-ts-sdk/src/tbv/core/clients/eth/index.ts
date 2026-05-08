@@ -2,6 +2,11 @@ export {
   resolveProtocolAddresses,
   type ProtocolAddresses,
 } from "./contract-address-resolver";
+export {
+  validateOffchainParams,
+  validatePegInConfiguration,
+  validateTBVProtocolParams,
+} from "./protocol-params-validation";
 export { ViemProtocolParamsReader } from "./protocol-params-reader";
 export {
   ViemUniversalChallengerReader,
@@ -10,7 +15,9 @@ export {
 export { ViemVaultRegistryReader } from "./vault-registry-reader";
 export type {
   AddressBTCKeyPair,
+  AllOffchainParamsData,
   OnChainBtcPubkey,
+  OnSkippedOffchainParamsVersion,
   PegInConfiguration,
   ProtocolParamsReader,
   TBVProtocolParams,

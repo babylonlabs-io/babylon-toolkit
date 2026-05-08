@@ -18,10 +18,25 @@ import type { Address } from "viem";
 
 import { CONTRACTS } from "@/config/contracts";
 
-import BTCVaultRegistryAbi from "../btc-vault-registry/abis/BTCVaultRegistry.abi.json";
 import { ethClient } from "../client";
 
 import CapPolicyAbi from "./abis/CapPolicy.abi.json";
+
+/**
+ * Single-function ABI for `BTCVaultRegistry.capPolicy()`.
+ * The full registry ABI in `@babylonlabs-io/ts-sdk/tbv/core` is the
+ * signing/registration subset — it does not expose this getter — so we
+ * keep the cap-policy address resolver self-contained.
+ */
+const REGISTRY_CAP_POLICY_ABI = [
+  {
+    type: "function",
+    name: "capPolicy",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "address" }],
+  },
+] as const;
 
 const ZERO_ADDRESS: Address = "0x0000000000000000000000000000000000000000";
 const CAP_POLICY_ADDRESS_TTL_MS = 60_000;
@@ -60,7 +75,7 @@ async function getCapPolicyAddress(): Promise<Address> {
   try {
     address = (await publicClient.readContract({
       address: CONTRACTS.BTC_VAULT_REGISTRY,
-      abi: BTCVaultRegistryAbi,
+      abi: REGISTRY_CAP_POLICY_ABI,
       functionName: "capPolicy",
     })) as Address;
   } catch (error) {
