@@ -40,7 +40,7 @@ nice-to-have.
 | 64-byte Schnorr signatures (implicit `SIGHASH_DEFAULT`) | MUST | SDK rejects 65-byte sigs; the appended sighash byte changes the signed message and cannot be stripped ([`peginInput.ts`][peginInput], [`payout.ts`][payout]) |
 | Non-finalized PSBT return for PegIn input PSBTs | MUST | SDK extracts the depositor signature from `tapScriptSig`; finalized PegIn PSBTs throw outright ([`peginInput.ts`][peginInput]) |
 | BIP-322 simple message signing | MUST | Used for proof-of-possession ([`PeginManager.ts`][peginManager]) |
-| `deriveContextHash` (HKDF-SHA-256, IKM = connected leaf private key) | MUST | Hashlock secret derivation — see [spec][spec] for derivation algorithm and test vectors |
+| `deriveContextHash` (HKDF-SHA-256, IKM = key at `m/73681862'/coin'/account'/change/index`) | MUST | Hashlock secret derivation — see [spec][spec] for derivation algorithm and test vectors |
 | `signPsbts` (batch signing) | STRONGLY RECOMMENDED | Without it, depositors approve N PSBTs one-by-one |
 | `getInscriptions` | OPTIONAL | UTXO filtering only |
 
@@ -146,7 +146,7 @@ creation and revealed during activation.
 Implementation requirements (see [spec][spec] for full
 detail and test vectors):
 
-- IKM is the **connected leaf's** 32-byte private key (the BIP-32 leaf at the receive-address path the dApp is connected to, e.g. `m/86'/0'/0'/0/0`). For imported wallets, the raw imported private key. Output is per-public-key.
+- IKM is derived at the BIP-44-shaped path `m/73681862'/coin_type'/account'/change/address_index`, reusing the connected user leaf's `(coin_type, account, change, address_index)` quad — e.g. a wallet connected to user leaf `m/86'/0'/0'/0/0` derives IKM at `m/73681862'/0'/0'/0/0`. The connected leaf's signing key is never used as direct HKDF input. For imported wallets and master-less HD wallets, IKM is the leftmost 32 bytes of `HMAC-SHA-512("derive-context-hash-from-k", connected_privkey)`.
 - HKDF-SHA-256 with the spec's fixed salt and `info` constructed from `appName` + `context`.
 - 32-byte output (64 lowercase hex chars).
 - `appName` must match `[a-z0-9\-]`, 1–64 bytes.

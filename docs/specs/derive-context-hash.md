@@ -2,20 +2,19 @@
 
 **Spec revision**: 2.0
 **Algorithm version**: 1 (salt: `"derive-context-hash"`, no suffix)
-**Date**: 2026-05-06
+**Date**: 2026-05-09
 **Authors**: Jerome Wang (Babylon Labs)
-**Status**: Draft — supersedes revision 1.0 (changes IKM source from a fixed BIP-32 path to the connected leaf's private key)
+**Status**: Draft — supersedes revision 1.0 (per-position outputs; IKM cryptographically separated from spend-authorizing keys)
 
 ---
 
 ## Changes from revision 1.0
 
-- **IKM source changed.** In v1.0, HD wallets derived IKM from a fixed BIP-32 path `m/73681862'` from the seed root, making the output wallet-level (identical across all accounts under the same seed). In v2.0, HD wallets derive IKM from the **connected leaf private key** at the BIP-32 receive-address path (e.g. `m/44'/0'/0'/0/0` for the first receive address of BIP-44 account 0). Output is **per-public-key**: different connected receive addresses (different leaf pubkeys) produce different outputs.
-- **Imported wallets unchanged.** They already used the raw imported private key as IKM. v2.0 keeps this. HD and imported are symmetric: one connected public key = one IKM = one output.
-- **Salt unchanged**: `"derive-context-hash"`. The IKM-source change alone produces different outputs from v1.0; no salt domain separation needed. The API is `@experimental` and the rollout is coordinated, so no version-discovery mechanism is added.
-- **Test vectors restructured.** §4.1 keeps function-level KAT vectors that pin the HKDF composition; §4.2 gives a new HD-wallet integration KAT for the v2.0 IKM source.
+- **IKM source changed.** v1.0 derived IKM from a fixed wallet-level path `m/73681862'`. v2.0 derives IKM at `m/73681862' / coin_type' / account' / change / address_index`, where the `coin_type / account / change / address_index` segments are taken from the connected user leaf. Output rotates per-position. Imported (non-HD) wallets and HD wallets without master-seed access derive IKM via an HMAC-SHA-512 wrap of the connected key ([BIP-85][bip85] pattern).
+- **Salt unchanged**: `"derive-context-hash"`.
+- **Test vectors restructured.** §4.1 HKDF function-level KAT (unchanged). §4.2 HD-wallet integration KAT (sibling path). §4.3 imported-wallet integration KAT (HMAC wrap).
 
-A wallet that conformed to v1.0 will produce different outputs than a wallet that conforms to v2.0 for the same recovery phrase and `(appName, context)`. dApps that persisted v1.0 outputs must re-derive against v2.0.
+dApps that persisted v1.0 outputs must re-derive against v2.0.
 
 ---
 
@@ -105,7 +104,7 @@ dialog SHOULD also display the context bytes.
 ### 2.2 Derivation Algorithm
 
 ```
-ikm    = the connected leaf's 32-byte private key
+ikm    = derive_ikm(wallet)           (see "IKM" below)
 salt   = "derive-context-hash"        (UTF-8 encoded)
 info   = SHA-256(UTF8(appName)) || context  (raw bytes)
 length = 32
@@ -121,51 +120,98 @@ length-confusion collisions between different `appName`/`context`
 combinations (e.g. appName `"foobar"` + context `0x01` vs
 appName `"foo"` + context `0x626172_01` can never collide).
 
-**IKM (Input Key Material):** the **connected leaf's** raw
-32-byte private key scalar (big-endian, excluding chain code,
-depth, fingerprint, child number, and any serialization prefix).
-Specifically:
+**IKM (Input Key Material):** a 32-byte value cryptographically
+separated from any spend-authorizing key. Construction depends on
+wallet type:
 
-- **HD wallets (mnemonic / xpriv):** the BIP-32 leaf private key
-  at the receive-address path the dApp is connected to — e.g.
-  `m/44'/0'/0'/0/0` for the first receive address of BIP-44
-  account 0; `m/86'/0'/0'/0/0` for the first Taproot receive
-  address. The IKM is the 32-byte private key scalar at that
-  leaf. The wallet selects the path from its currently active
-  receive address.
-- **Imported (raw) private key wallets:** the raw 32-byte
-  imported private key, used directly as IKM (no BIP-32
-  derivation — imported keys lack a hierarchy).
+- **HD wallets with verified master-seed access (typically
+  mnemonic-imported):** the BIP-32 private key scalar at the
+  dedicated 5-level BIP-44-shaped path
+
+  ```
+  m / 73681862' / coin_type' / account' / change / address_index
+  ```
+
+  where `coin_type / account / change / address_index` are taken
+  from the connected user leaf. Example: connected leaf
+  `m/44'/0'/0'/0/0` → IKM at `m/73681862'/0'/0'/0/0`. The IKM
+  segments `coin_type'` and `account'` are always hardened
+  regardless of how the user-leaf path expresses them; only the
+  numeric values are reused. The IKM is the raw 32-byte scalar at
+  the leaf, big-endian.
+
+- **Imported (raw) private key wallets, and HD wallets that
+  cannot verify master-seed access to the BIP-32 tree that
+  produced the connected leaf (e.g. xpriv imports — including
+  depth-0 xprivs whose original `(coin_type, account, change)`
+  context the wallet does not preserve):** the leftmost 32 bytes
+  of an HMAC-SHA-512 wrap of the connected key under a fixed
+  domain label ([BIP-85][bip85] pattern):
+
+  ```
+  ikm = HMAC-SHA-512(
+          key = "derive-context-hash-from-k"  (UTF-8, 26 bytes),
+          msg = connected_privkey             (32 bytes)
+        ) [leftmost 32 bytes]
+  ```
+
+  Argument order matches BIP-85: the label is the HMAC key, the
+  private key is the HMAC message. (BIP-85 takes the rightmost
+  32 bytes of its HMAC output for xprv key material; this spec
+  takes the leftmost 32 bytes — the two are not interchangeable.)
+  Outputs from this construction are not interoperable with HD
+  wallets that have master-seed access; wallets MUST document
+  this to users.
+
+The connected leaf's signing key is never used as direct HKDF
+input.
 
 If BIP-32 derivation produces an invalid child key (IL ≥ curve
 order or resulting key is zero), the wallet MUST return an error
 rather than skip to the next index.
 
-**Output is per-public-key.** Each unique connected leaf public
-key produces a unique output for the same `(appName, context)`.
-Switching the connected receive address — to a different index,
-account, address type, network, or wallet — yields a different
-output. The same connected leaf called twice yields the same
-output. Two wallets that share the same recovery phrase, the
-same BIP-39 passphrase, and connect to the same leaf path
-produce the same output.
+**Wallet support requirement.** Wallets with master-seed access
+to the root that produced the connected leaf MUST use the
+5-level sibling path; falling back to the HMAC-wrap construction
+when sibling derivation fails (e.g. firmware policy blocks
+purpose `73681862'`) is NOT permitted. The HMAC-wrap construction
+is reserved for raw-imported private keys and HD wallets that
+genuinely lack master-seed access (e.g. sub-path xpriv imports).
+Wallets to which neither construction applies — for example,
+watch-only / xpub-only wallets with no private material, or
+hardware wallets whose firmware blocks the required derivation —
+MUST report this method as unsupported.
+
+**Constant pinning.** `73681862'` is fixed as the 31-bit integer
+obtained from the leftmost four bytes of `SHA-256(UTF8("derive-context-hash"))`,
+interpreted big-endian and masked with `0x7fffffff`; this
+evaluates to `73681862`. This avoids collision with registered
+BIP-43 purpose values.
+
+**BIP-39 passphrase.** Wallets that derive seeds from a BIP-39
+mnemonic MUST honor the active BIP-39 passphrase, if any, when
+deriving IKM. Two wallets restored from the same recovery
+phrase but with different passphrases will produce different
+outputs; ignoring the passphrase produces incompatible output.
+
+**Output is per-position.** For HD wallets with master access,
+IKM rotates with the `(coin_type, account, change,
+address_index)` quad of the connected user leaf. Switching the
+index, account, or coin yields a different output. Switching
+only the BIP-43 purpose (e.g. BIP-44 ↔ BIP-86) at the same
+`(coin, account, change, index)` does not rotate IKM, because
+the user's purpose segment is replaced by `73681862'` in the IKM
+path. The same connected leaf called twice yields the same
+output. Imported and master-less HD wallets follow the analogous
+property at the per-imported-key level.
 
 **Hardware wallets.** A hardware wallet that supports
 `deriveContextHash` MUST run the derivation internally; the
-private key MUST NOT leave the secure element. The IKM is the
-BIP-32 leaf private key at the receive-address path specified by
-the host (the same path the device is willing to sign for). If
-the host-supplied path is outside the device's allowed
-set, the device MUST refuse. WebAuthn's PRF / `hmac-secret`
-extension is a related precedent.
+private key MUST NOT leave the secure element. The device MUST
+allow derivation under custom BIP-43 purpose `73681862'`
+(devices that gate by purpose must allowlist it).
 
 **Salt:** The fixed UTF-8 string `"derive-context-hash"`.
-Provides domain separation from BIP-32 and other HMAC-based
-derivation schemes. For future revisions, a `-v2`, `-v3`, etc.
-suffix can be appended to the salt to indicate the version of
-the scheme. The current `derive-context-hash` salt covers both
-revisions 1.0 and 2.0 of this spec — they differ in IKM source
-only, which already produces independent outputs.
 
 **Length:** 32 bytes (256 bits).
 
@@ -245,17 +291,11 @@ schemes.
 
 ## 4. Test Vectors
 
-The vectors in this section pin the HKDF function-level
-composition (i.e. the mathematical mapping from
-`(ikm, appName, context)` to output). They are independent of
-how a wallet sources `ikm` at runtime — the `ikm` value below is
-just an opaque fixed 32-byte test value treated as already-known
-input. Wallet integration tests SHOULD NOT target the §4.1
-fixture — that value exists only to pin the HKDF math. See §4.2
-for the canonical HD-wallet integration vector (mnemonic →
-BIP-32 leaf private key → output) that wallets should reproduce.
-
 ### 4.1 HKDF function-level vectors
+
+These vectors pin the pure HKDF composition (the mathematical
+mapping from `(ikm, appName, context)` to output). They are
+independent of how the wallet sources `ikm` at runtime.
 
 `ikm` (hex, fixed test value):
 ```
@@ -274,7 +314,7 @@ d3fe48f1
 The `info` field for each vector is:
 `SHA-256(UTF8("test-app")) || decode_hex(context)`.
 
-### Vector 1
+#### Vector 1
 
 ```
 appName:        test-app
@@ -287,7 +327,7 @@ output (hex):   3b0e2d90a01122eed8a520648073892f
                 6b2d8f4419216023d63cdbd49500fca3
 ```
 
-### Vector 2
+#### Vector 2
 
 ```
 appName:        test-app
@@ -299,7 +339,7 @@ output (hex):   50775126782c1a5e4d60daa4666b2c75
                 90f0b5a445a4115b0abd411467c92597
 ```
 
-### Vector 3
+#### Vector 3
 
 ```
 appName:        test-app
@@ -321,46 +361,52 @@ output (hex):   d81e4a91f32eabd34df0e55ca36f26f2
 Vectors verified against Node.js `crypto.hkdf('sha256', ...)`
 and a manual HMAC-based implementation.
 
-### 4.2 HD-wallet integration example
+### 4.2 HD-wallet integration vector
 
-The following example shows how a conforming HD wallet derives
-IKM from the canonical "abandon" recovery phrase (empty
-passphrase). Normative for any wallet connected to the first
-receive address of BIP-44 account 0; informative for other paths.
-
-BIP-39 mnemonic:
-```
-abandon abandon abandon abandon abandon abandon abandon
-abandon abandon abandon abandon about
-```
-
-BIP-39 seed (no passphrase, hex):
+Canonical "abandon" mnemonic, empty BIP-39 passphrase. BIP-39
+seed (hex):
 ```
 5eb00bbddcf069084889a8ab9155568165f5c453ccb85e70811aaed6
 f6da5fc19a5ac40b389cd370d086206dec8aa6c43daea6690f20ad3d
 8d48b2d2ce9e38e4
 ```
 
-For a wallet connected to the first receive address of BIP-44
-Bitcoin account 0, the leaf is at `m/44'/0'/0'/0/0` and its
-private key (hex) is:
+For a connected user leaf at `(coin=0, account=0, change=0,
+index=0)` (e.g. `m/44'/0'/0'/0/0`), the IKM is the BIP-32 private
+key scalar at `m/73681862'/0'/0'/0/0` (hex):
 ```
-e284129cc0922579a535bbf4d1a3b25773090d28c909bc0fed73b5e0
-222cc372
-```
-
-Using that private key as `ikm`, with `appName = "test-app"`
-and `context = "deadbeef"`:
-```
-output (hex):   650b3fa2cf958ecd258544af2b812c3e
-                8a3f4f75ea5d030cb4dd175da551e356
+e8be9d66f2e9634904c07a4e5f663ac1
+4a614011780ee5c110b1988223ddd059
 ```
 
-A wallet that connects to a different receive address under
-the same account (e.g. `m/44'/0'/0'/0/1`) yields a different
-leaf private key and a different output. Same for switching
-the address type (`m/86'/0'/0'/0/0`), network (`m/44'/1'/...`),
-account index (`m/44'/0'/1'/0/0`), or BIP-39 passphrase.
+With `appName = "test-app"`, `context = "deadbeef"`:
+```
+output (hex):   7cf4ad428083057fb3c344795b8e124b
+                e7f3ef521929b1531909e682c1072f29
+```
+
+### 4.3 Imported-wallet integration vector
+
+For an imported (or master-less HD) wallet whose connected
+private key is (hex):
+```
+e284129cc0922579a535bbf4d1a3b257
+73090d28c909bc0fed73b5e0222cc372
+```
+
+The IKM is the leftmost 32 bytes of
+`HMAC-SHA-512("derive-context-hash-from-k", connected_privkey)`
+(hex):
+```
+350c0933c706cc78ddef8ba38abcafd1
+4f1cc5f94dee7004e994a97455a30863
+```
+
+With `appName = "test-app"`, `context = "deadbeef"`:
+```
+output (hex):   83a44b4012ec2e92831da086b092ace3
+                77698bbede4fd4dc54bc162663ed6a7d
+```
 
 ---
 
@@ -373,6 +419,7 @@ account index (`m/44'/0'/1'/0/0`), or BIP-39 passphrase.
 | BIP-32 | [HD Wallets][bip32] |
 | BIP-39 | [Recovery phrase / seed][bip39] |
 | BIP-43 | [Purpose Field][bip43] |
+| BIP-85 | [Deterministic Entropy From BIP-32 Keychains][bip85] |
 | UniSat wallet PR | [wallet#2][unisat2] |
 | Salt fix PR | [wallet#3][unisat3] |
 
@@ -381,5 +428,6 @@ account index (`m/44'/0'/1'/0/0`), or BIP-39 passphrase.
 [bip32]: https://github.com/bitcoin/bips/blob/master/bip-0032.mediawiki
 [bip39]: https://github.com/bitcoin/bips/blob/master/bip-0039.mediawiki
 [bip43]: https://github.com/bitcoin/bips/blob/master/bip-0043.mediawiki
+[bip85]: https://github.com/bitcoin/bips/blob/master/bip-0085.mediawiki
 [unisat2]: https://github.com/unisat-wallet/wallet/pull/2
 [unisat3]: https://github.com/unisat-wallet/wallet/pull/3
