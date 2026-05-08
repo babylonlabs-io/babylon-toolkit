@@ -5,7 +5,7 @@
  * transaction with multiple HTLC outputs (one per vault).
  */
 
-import { renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import type { Address, Hex } from "viem";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -243,7 +243,27 @@ const MOCK_PARAMS = {
 async function executeWithAutoArtifactDownload(result: {
   current: ReturnType<typeof useDepositFlow>;
 }) {
-  return result.current.executeDeposit();
+  const promise = result.current.executeDeposit();
+
+  const drainArtifactPrompts = async () => {
+    while (true) {
+      const settled = await Promise.race([
+        promise.then(() => "settled" as const),
+        new Promise<"pending">((resolve) =>
+          setTimeout(() => resolve("pending"), 0),
+        ),
+      ]);
+      if (settled === "settled") return;
+      if (result.current.artifactDownloadInfo) {
+        await act(async () => {
+          result.current.continueAfterArtifactDownload();
+        });
+      }
+    }
+  };
+
+  await drainArtifactPrompts();
+  return promise;
 }
 
 async function setupDefaultMocks() {

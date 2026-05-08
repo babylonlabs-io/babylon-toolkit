@@ -10,6 +10,7 @@ import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
 import { useCallback } from "react";
 import type { Address } from "viem";
 
+import { ArtifactDownloadModal } from "@/components/deposit/ArtifactDownloadModal";
 import {
   computeDepositDerivedState,
   DEPOSIT_SUCCESS_MESSAGE,
@@ -48,6 +49,8 @@ export function DepositSignContent({
     error,
     isWaiting,
     payoutSigningProgress,
+    artifactDownloadInfo,
+    continueAfterArtifactDownload,
   } = useDepositFlow({
     vaultAmounts,
     ...flowParams,
@@ -102,6 +105,17 @@ export function DepositSignContent({
           payoutSigningProgress={payoutSigningProgress}
           onClose={handleClose}
           successMessage={DEPOSIT_SUCCESS_MESSAGE}
+        />
+      )}
+
+      {artifactDownloadInfo && (
+        <ArtifactDownloadModal
+          open
+          onClose={continueAfterArtifactDownload}
+          onComplete={continueAfterArtifactDownload}
+          providerAddress={artifactDownloadInfo.providerAddress}
+          peginTxid={artifactDownloadInfo.peginTxid}
+          depositorPk={artifactDownloadInfo.depositorPk}
         />
       )}
     </>

@@ -107,6 +107,12 @@ export interface UseDepositFlowParams {
   universalChallengerBtcPubkeys: string[];
 }
 
+export interface ArtifactDownloadInfo {
+  providerAddress: string;
+  peginTxid: string;
+  depositorPk: string;
+}
+
 export interface UseDepositFlowReturn {
   /** Execute the batch deposit flow */
   executeDeposit: () => Promise<MultiVaultDepositResult | null>;
@@ -124,6 +130,10 @@ export interface UseDepositFlowReturn {
   isWaiting: boolean;
   /** Payout signing progress (X of Y signings) */
   payoutSigningProgress: PayoutSigningProgress | null;
+  /** Artifact download info (when set, the UI should show the download modal) */
+  artifactDownloadInfo: ArtifactDownloadInfo | null;
+  /** Callback to continue the flow after artifact download */
+  continueAfterArtifactDownload: () => void;
 }
 
 export interface PeginCreationResult {
@@ -187,6 +197,16 @@ export function useDepositFlow(
   const [isWaiting, setIsWaiting] = useState(false);
   const [payoutSigningProgress, setPayoutSigningProgress] =
     useState<PayoutSigningProgress | null>(null);
+  const [artifactDownloadInfo, setArtifactDownloadInfo] =
+    useState<ArtifactDownloadInfo | null>(null);
+
+  const artifactResolverRef = useRef<(() => void) | null>(null);
+
+  const continueAfterArtifactDownload = useCallback(() => {
+    setArtifactDownloadInfo(null);
+    artifactResolverRef.current?.();
+    artifactResolverRef.current = null;
+  }, []);
 
   // Abort controller for cancelling the flow
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -194,6 +214,8 @@ export function useDepositFlow(
   const abort = useCallback(() => {
     abortControllerRef.current?.abort();
     abortControllerRef.current = null;
+    artifactResolverRef.current?.();
+    artifactResolverRef.current = null;
   }, []);
 
   // Abort on real unmount (route change, browser back) but survive StrictMode
@@ -730,6 +752,8 @@ export function useDepositFlow(
 
         baseStep = DepositFlowStep.SIGN_PAYOUTS;
 
+        const payoutSignedVaultIds = new Set<string>();
+
         for (let vi = 0; vi < broadcastedResults.length; vi++) {
           const result = broadcastedResults[vi];
 
@@ -764,6 +788,8 @@ export function useDepositFlow(
               signal,
               onProgress: setPayoutSigningProgress,
             });
+
+            payoutSignedVaultIds.add(result.vaultId);
           } catch (error) {
             // If the user cancelled, stop immediately — don't continue with other vaults
             if (signal.aborted) throw error;
@@ -790,7 +816,31 @@ export function useDepositFlow(
         setPayoutSigningProgress(null);
         setCurrentVaultIndex(null);
 
+        // ========================================================================
+        // Step 6: Download Vault Artifacts (per vault, sequential)
+        // ========================================================================
+
+        const readyResults = broadcastedResults.filter((r) =>
+          payoutSignedVaultIds.has(r.vaultId),
+        );
+
         setCurrentStep(DepositFlowStep.ARTIFACT_DOWNLOAD);
+        setIsWaiting(false);
+
+        for (const result of readyResults) {
+          if (signal.aborted) break;
+
+          setArtifactDownloadInfo({
+            providerAddress: provider.id,
+            peginTxid: result.peginTxHash,
+            depositorPk: result.depositorBtcPubkey,
+          });
+
+          await new Promise<void>((resolve) => {
+            artifactResolverRef.current = resolve;
+          });
+        }
+
         setIsWaiting(true);
 
         // Return result
@@ -866,5 +916,7 @@ export function useDepositFlow(
     error,
     isWaiting,
     payoutSigningProgress,
+    artifactDownloadInfo,
+    continueAfterArtifactDownload,
   };
 }
