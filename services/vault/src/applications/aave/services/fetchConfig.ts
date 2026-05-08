@@ -9,8 +9,7 @@ import { gql } from "graphql-request";
 import type { Address } from "viem";
 
 import { graphqlClient } from "../../../clients/graphql";
-import { getReserve } from "../clients/spoke";
-import { getAdapterImmutables } from "../clients/transaction";
+import { getCoreSpokeAddress } from "../clients/transaction";
 import { getAaveAdapterAddress } from "../config";
 
 /**
@@ -193,6 +192,11 @@ function mapReserveConfig(raw: GraphQLReserveItem): AaveReserveConfig | null {
  * - vBTC reserve config (for liquidation threshold)
  * - Borrowable reserves (for asset selection)
  *
+ * The values returned here are display-tier: a tampered indexer at most
+ * causes a misleading UI. Borrow signing re-derives the collateral factor
+ * (and verifies the reserve id / underlying) on-chain at the moment of
+ * consequence; see `fetchFreshCollateralFactorOnChain`.
+ *
  * @returns Combined app config or null if config not found
  */
 export async function fetchAaveAppConfig(): Promise<AaveAppConfig | null> {
@@ -205,6 +209,8 @@ export async function fetchAaveAppConfig(): Promise<AaveAppConfig | null> {
     return null;
   }
 
+  const vbtcReserveId = BigInt(response.aaveConfig.btcVaultCoreVbtcReserveId);
+
   const adapterAddress = getAaveAdapterAddress();
   const indexedAdapterAddress = response.aaveConfig.adapterAddress as Address;
   if (indexedAdapterAddress.toLowerCase() !== adapterAddress.toLowerCase()) {
@@ -213,52 +219,15 @@ export async function fetchAaveAppConfig(): Promise<AaveAppConfig | null> {
     );
   }
 
-  // Resolve spoke address, vBTC reserve id, and vBTC token on-chain from the
-  // env-pinned adapter in a single multicall (same-block atomicity, single
-  // round-trip). Treating these as the source of truth — rather than the
-  // GraphQL row — prevents a poisoned indexer from steering the UI's risk
-  // math toward a different reserve's collateral factor / liquidation
-  // threshold.
-  let immutables;
+  // Resolve spoke address on-chain from the env-pinned adapter contract,
+  // rather than trusting a GraphQL-supplied adapter.
+  let coreSpokeAddress: Address;
   try {
-    immutables = await getAdapterImmutables(adapterAddress);
+    coreSpokeAddress = await getCoreSpokeAddress(adapterAddress);
   } catch (error) {
     throw new Error(
-      `Failed to resolve Aave config from adapter ${adapterAddress}`,
+      `Failed to resolve Core Spoke address from adapter ${adapterAddress}`,
       { cause: error },
-    );
-  }
-  const { spoke: coreSpokeAddress, vbtcReserveId, vaultBtc } = immutables;
-
-  // Fail closed if the indexer's reserve id disagrees with the adapter's
-  // immutable. Surfaces poisoned/stale GraphQL config loudly during ops.
-  const indexedVbtcReserveId = BigInt(
-    response.aaveConfig.btcVaultCoreVbtcReserveId,
-  );
-  if (indexedVbtcReserveId !== vbtcReserveId) {
-    throw new Error(
-      `Aave vBTC reserve id mismatch: indexer returned ${indexedVbtcReserveId}, ` +
-        `adapter ${adapterAddress} reports ${vbtcReserveId}`,
-    );
-  }
-
-  // Cross-check that the on-chain reserve at the adapter's reserve id actually
-  // points to VAULT_BTC. Without this, the spoke could (in theory) hold a
-  // reserve at the same id whose underlying is a different asset.
-  let onChainReserve: Awaited<ReturnType<typeof getReserve>>;
-  try {
-    onChainReserve = await getReserve(coreSpokeAddress, vbtcReserveId);
-  } catch (error) {
-    throw new Error(
-      `Failed to read vBTC reserve ${vbtcReserveId} from spoke ${coreSpokeAddress}`,
-      { cause: error },
-    );
-  }
-  if (onChainReserve.underlying.toLowerCase() !== vaultBtc.toLowerCase()) {
-    throw new Error(
-      `Aave vBTC reserve underlying mismatch: spoke ${coreSpokeAddress} ` +
-        `reserve ${vbtcReserveId} has underlying ${onChainReserve.underlying}, ` +
-        `expected ${vaultBtc}`,
     );
   }
 

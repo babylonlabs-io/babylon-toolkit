@@ -46,27 +46,16 @@ export async function getCoreSpokeAddress(
   }) as Promise<Address>;
 }
 
-/**
- * Immutable adapter constants used to anchor the Aave config to on-chain truth.
- */
 export interface AdapterImmutables {
-  /** Core Spoke contract address (`BTC_VAULT_CORE_SPOKE`). */
   spoke: Address;
-  /** vBTC collateral reserve ID (`BTC_VAULT_CORE_VAULT_BTC_RESERVE_ID`). */
   vbtcReserveId: bigint;
-  /** VaultBTC token contract address (`VAULT_BTC`). */
   vaultBtc: Address;
 }
 
 /**
- * Read the adapter's immutable spoke / vBTC reserve id / vBTC token in a
- * single multicall.
- *
- * Batched together for the same reason `getPegInConfiguration` batches its
- * reads: same-block atomicity, plus one HTTP round-trip instead of three.
- * All three are `immutable` properties on the AaveIntegrationAdapter, so
- * sourcing them on-chain prevents an indexer-supplied value from steering
- * downstream risk math toward the wrong reserve.
+ * Read `BTC_VAULT_CORE_SPOKE`, `BTC_VAULT_CORE_VAULT_BTC_RESERVE_ID`, and
+ * `VAULT_BTC` from the trusted adapter in one multicall. These are Solidity
+ * `immutable` so the result is safe to memoize per adapter.
  */
 export async function getAdapterImmutables(
   controllerAddress: Address,

@@ -22,12 +22,15 @@ import {
   formatTokenAmount,
   formatUsdValue,
 } from "../../../../../utils/formatting";
+import { getAaveAdapterAddress } from "../../../config";
 import {
   AMOUNT_INPUT_CLASS_NAME,
   MIN_HEALTH_FACTOR_FOR_BORROW,
   MIN_SLIDER_MAX,
 } from "../../../constants";
+import { useAaveConfig } from "../../../context";
 import { useBorrowTransaction } from "../../../hooks";
+import { fetchFreshCollateralFactorOnChain } from "../../../services/fetchFreshCollateralFactorOnChain";
 import {
   aaveRayValueToUsd,
   aaveValueToUsd,
@@ -55,6 +58,8 @@ export function Borrow() {
   } = useLoanContext();
 
   const { executeBorrow, isProcessing } = useBorrowTransaction();
+
+  const { config: aaveConfig } = useAaveConfig();
 
   const { borrowAmount, setBorrowAmount, resetBorrowAmount, maxBorrowAmount } =
     useBorrowState({
@@ -87,9 +92,23 @@ export function Borrow() {
       if (tokenPriceUsd == null) {
         throw new Error("Token price unavailable. Cannot validate borrow.");
       }
+      if (aaveConfig == null) {
+        throw new Error("Aave config unavailable. Cannot validate borrow.");
+      }
 
       const freshPosition = await refetchPosition();
-      if (!freshPosition) return; // No position = first borrow, skip revalidation
+
+      // Anchor the projected-HF check to the on-chain CF so a tampered
+      // indexer can't steer it toward "safe". Runs unconditionally so the
+      // reserve-id / underlying assertions still fire on first borrow.
+      const { collateralFactor: freshCollateralFactor } =
+        await fetchFreshCollateralFactorOnChain(
+          getAaveAdapterAddress(),
+          aaveConfig.btcVaultCoreVbtcReserveId,
+          freshPosition?.liveData.dynamicConfigKey,
+        );
+
+      if (!freshPosition) return; // No position = first borrow, no HF math to project
 
       const freshCollateralUsd = aaveValueToUsd(
         freshPosition.accountData.totalCollateralValue,
@@ -101,7 +120,7 @@ export function Borrow() {
       const projectedHF = calculateHealthFactor(
         freshCollateralUsd,
         projectedDebtUsd,
-        liquidationThresholdBps,
+        freshCollateralFactor,
       );
 
       if (isFinite(projectedHF) && projectedHF < MIN_HEALTH_FACTOR_FOR_BORROW) {
