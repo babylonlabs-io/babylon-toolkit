@@ -32,6 +32,10 @@
       @apply min-w-0 flex-1 truncate;
     }
 
+    &-hint {
+      @apply flex-shrink-0;
+    }
+
     &-warning {
       @apply text-warning-main flex-shrink-0;
     }

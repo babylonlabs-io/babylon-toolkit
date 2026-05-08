@@ -10,6 +10,8 @@ import {
 import { twJoin } from "tailwind-merge";
 import { RiArrowDownSLine, RiErrorWarningLine } from "react-icons/ri";
 
+import { Hint } from "../Hint/Hint";
+
 import { Popover } from "@/components/Popover";
 import { useControlledState } from "@/hooks/useControlledState";
 import "./Select.css";
@@ -165,16 +167,23 @@ export const Select = forwardRef<HTMLDivElement, SelectProps>(
                 optionClassName,
               )}
               onClick={() => handleSelect(option)}
-              title={option.tooltip}
               aria-disabled={option.disabled || undefined}
             >
               <span className="bbn-select-option-label">{option.label}</span>
               {option.disabled && option.tooltip && (
-                <RiErrorWarningLine
-                  className="bbn-select-option-warning"
-                  size={16}
-                  aria-label="Provider unavailable"
-                />
+                <Hint
+                  tooltip={option.tooltip}
+                  status="warning"
+                  placement="left"
+                  className="bbn-select-option-hint"
+                  attachToChildren
+                >
+                  <RiErrorWarningLine
+                    className="bbn-select-option-warning"
+                    size={16}
+                    aria-label="Provider unavailable"
+                  />
+                </Hint>
               )}
             </div>
           ))}
