@@ -97,7 +97,6 @@ export interface DepositCtaParams extends DepositFormValidityParams {
   isGeoBlocked: boolean;
   isAddressBlocked: boolean;
   isWalletConnected: boolean;
-  hasApplication: boolean;
   hasProvider: boolean;
   splitNotReady: boolean;
   isFeeError: boolean;
@@ -155,10 +154,6 @@ export function getDepositCtaState(params: DepositCtaParams): DepositCtaState {
 
   if (!params.isWalletConnected) {
     return { disabled: true, label: "Connect your wallet" };
-  }
-
-  if (!params.hasApplication) {
-    return { disabled: true, label: "Select an application" };
   }
 
   if (!params.hasProvider) {
