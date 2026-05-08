@@ -159,10 +159,6 @@ export interface ResumeWotsContentProps {
   onSuccess: () => void;
 }
 
-function resolveProviderAddress(activity: VaultActivity): string | null {
-  return activity.providers[0]?.id ?? null;
-}
-
 export function ResumeWotsContent({
   activity,
   onClose,
@@ -195,10 +191,6 @@ export function ResumeWotsContent({
 
     let root: Uint8Array | null = null;
     try {
-      const providerAddress = resolveProviderAddress(activity);
-      if (!providerAddress) {
-        throw new Error("Could not resolve vault provider address");
-      }
       const peginTxHash = activity.peginTxHash ?? null;
       if (!peginTxHash) {
         throw new Error("Missing pegin transaction hash");
@@ -210,12 +202,19 @@ export function ResumeWotsContent({
       }
 
       // Read signing-critical inputs (depositor pubkey, htlcVout,
-      // depositorWotsPkHash) directly from the registry. Indexer data is
-      // untrusted for derivation domain separators and on-chain commitments.
-      // Fire the VP pubkey fetch in parallel — it's needed later for
-      // registry priming and is independent of the vault data read.
+      // depositorWotsPkHash, vault provider address) directly from the
+      // registry. The activity row's providers[]/depositorBtcPubkey are
+      // localStorage-backed and untrusted for routing decisions.
       const reader = getVaultRegistryReader();
-      const vaultDataPromise = reader.getVaultData(activity.id as Hex);
+      const { basic, protocol } = await reader.getVaultData(activity.id as Hex);
+      const providerAddress = basic.vaultProvider;
+      const depositorBtcPubkey = basic.depositorBtcPubKey;
+      const htlcVout = protocol.htlcVout;
+      const onChainWotsPkHash = protocol.depositorWotsPkHash;
+      const onChainPrePeginTxHash = protocol.prePeginTxHash;
+
+      // Best-effort priming: VP pubkey fetch can fail without blocking the
+      // resume flow because submitWotsPublicKey re-derives on cache miss.
       const pinnedServerPubkeyPromise = reader
         .getVaultProviderBtcPubKey(providerAddress as Address)
         .catch((err: unknown) => {
@@ -225,11 +224,6 @@ export function ResumeWotsContent({
           });
           return null;
         });
-      const { basic, protocol } = await vaultDataPromise;
-      const depositorBtcPubkey = basic.depositorBtcPubKey;
-      const htlcVout = protocol.htlcVout;
-      const onChainWotsPkHash = protocol.depositorWotsPkHash;
-      const onChainPrePeginTxHash = protocol.prePeginTxHash;
 
       // Indexer-supplied tx is untrusted. Verify against on-chain
       // prePeginTxHash before deriveVaultRoot fires the wallet popup.
