@@ -2,6 +2,7 @@ import { useCallback, useRef, useState } from "react";
 
 import { isPreDepositorSignaturesError } from "@/models/peginStateMachine";
 import { fetchAndDownloadArtifacts } from "@/services/artifacts";
+import { markArtifactsDownloaded } from "@/utils/artifactDownloadStorage";
 
 const ARTIFACT_RETRY_INTERVAL_MS = 10_000;
 
@@ -12,7 +13,8 @@ interface ArtifactDownloadState {
   downloaded: boolean;
 }
 
-export function useArtifactDownload() {
+export function useArtifactDownload(options?: { vaultId?: string }) {
+  const vaultId = options?.vaultId;
   const [state, setState] = useState<ArtifactDownloadState>({
     loading: false,
     progress: "",
@@ -46,6 +48,9 @@ export function useArtifactDownload() {
           );
 
           if (cancelledRef.current) return;
+          if (vaultId) {
+            markArtifactsDownloaded(vaultId);
+          }
           setState({
             loading: false,
             progress: "",
@@ -76,7 +81,7 @@ export function useArtifactDownload() {
         }
       }
     },
-    [],
+    [vaultId],
   );
 
   const cancel = useCallback(() => {

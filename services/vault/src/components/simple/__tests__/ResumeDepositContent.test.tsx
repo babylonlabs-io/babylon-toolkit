@@ -93,6 +93,7 @@ vi.mock("@/hooks/deposit/depositFlowSteps/wotsSubmission", () => ({
 vi.mock("@/hooks/deposit/useActivationState", () => ({
   useActivationState: vi.fn(() => ({
     activating: false,
+    activated: false,
     error: null,
     handleActivation: mockHandleActivation,
   })),

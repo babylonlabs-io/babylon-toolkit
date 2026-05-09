@@ -370,12 +370,12 @@ export function ResumeActivationContent({
 
   const {
     activating,
+    activated,
     error: activationError,
     handleActivation,
   } = useActivationState({
     activity,
     depositorEthAddress,
-    onSuccess,
   });
 
   const handleSubmit = useCallback(async () => {
@@ -457,16 +457,27 @@ export function ResumeActivationContent({
     error,
   );
 
+  // After the on-chain activation lands, hold the modal open so the user
+  // sees the success banner. The Done button (onClose path of the view)
+  // routes to the parent's success handler, which dismisses + refetches.
+  const handleDone = useCallback(() => {
+    if (activated) {
+      onSuccess();
+    } else {
+      onClose();
+    }
+  }, [activated, onSuccess, onClose]);
+
   return (
     <DepositProgressView
       currentStep={DepositFlowStep.ACTIVATE_VAULT}
       error={error}
-      isComplete={derived.isComplete}
+      isComplete={activated}
       isProcessing={derived.isProcessing}
-      canClose={derived.canClose}
+      canClose={activated || derived.canClose}
       canContinueInBackground={false}
       payoutSigningProgress={null}
-      onClose={onClose}
+      onClose={handleDone}
       successMessage="Your vault has been activated. The vault provider can now claim the HTLC on Bitcoin."
       onRetry={error ? handleSubmit : undefined}
     />

@@ -109,7 +109,8 @@ export function DepositProgressView(props: DepositProgressViewProps) {
     onRetry,
   } = props;
 
-  const visualStep = getVisualStep(currentStep);
+  // On completion, advance past the last row so every circle renders as ✓.
+  const visualStep = getVisualStep(currentStep) + (isComplete ? 1 : 0);
 
   const steps = useMemo(
     () => buildStepItems(payoutSigningProgress),

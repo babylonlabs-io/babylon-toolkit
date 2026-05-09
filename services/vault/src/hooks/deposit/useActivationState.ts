@@ -22,12 +22,13 @@ const EMPTY_CONFIRMED: VaultActivity[] = [];
 export interface UseActivationStateProps {
   activity: VaultActivity;
   depositorEthAddress: string;
-  onSuccess: () => void;
 }
 
 export interface UseActivationStateResult {
   /** Whether activation is in progress */
   activating: boolean;
+  /** Whether activation has completed successfully */
+  activated: boolean;
   /** Error message if activation failed */
   error: string | null;
   /** Handler to initiate activation with the user-entered secret */
@@ -37,7 +38,6 @@ export interface UseActivationStateResult {
 export function useActivationState({
   activity,
   depositorEthAddress,
-  onSuccess,
 }: UseActivationStateProps): UseActivationStateResult {
   const {
     activating: vaultActivating,
@@ -45,6 +45,7 @@ export function useActivationState({
     handleActivation: vaultHandleActivation,
   } = useVaultActions();
   const [localActivating, setLocalActivating] = useState(false);
+  const [activated, setActivated] = useState(false);
 
   const { setOptimisticStatus } = usePeginPolling();
   const { pendingPegins, updatePendingPeginStatus } = usePeginStorage({
@@ -65,12 +66,12 @@ export function useActivationState({
           pendingPegin,
           updatePendingPeginStatus,
           onRefetchActivities: () => {
-            // No-op: onSuccess() unmounts the component before this could run.
+            // No-op: dashboard refetches after the user clicks Done.
           },
           onShowSuccessModal: () => {
             setOptimisticStatus(activity.id, LocalStorageStatus.CONFIRMED);
             setLocalActivating(false);
-            onSuccess();
+            setActivated(true);
           },
         });
       } catch (err) {
@@ -87,7 +88,6 @@ export function useActivationState({
       updatePendingPeginStatus,
       vaultHandleActivation,
       setOptimisticStatus,
-      onSuccess,
     ],
   );
 
@@ -95,6 +95,7 @@ export function useActivationState({
 
   return {
     activating: isActivating,
+    activated,
     error: activationError,
     handleActivation,
   };

@@ -69,8 +69,9 @@ export function CollateralSection({
   onDeposit,
 }: CollateralSectionProps) {
   const [isExpanded, setIsExpanded] = useState(false);
-  const [artifactParams, setArtifactParams] =
-    useState<ArtifactDownloadModalParams | null>(null);
+  const [artifactParams, setArtifactParams] = useState<
+    (ArtifactDownloadModalParams & { vaultId: string }) | null
+  >(null);
   const [isReorderOpen, setIsReorderOpen] = useState(false);
   const [isReorderSuccess, setIsReorderSuccess] = useState(false);
   const { findProvider } = useVaultProviders();
@@ -176,6 +177,7 @@ export function CollateralSection({
         providerAddress: vault.providerAddress,
         peginTxid: vault.peginTxHash,
         depositorPk: vault.depositorBtcPubkey,
+        vaultId: vault.vaultId,
       });
     },
     [collateralVaults, findProvider],
@@ -289,6 +291,7 @@ export function CollateralSection({
           providerAddress={artifactParams.providerAddress}
           peginTxid={artifactParams.peginTxid}
           depositorPk={artifactParams.depositorPk}
+          vaultId={artifactParams.vaultId}
         />
       )}
 

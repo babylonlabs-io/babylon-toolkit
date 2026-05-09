@@ -92,6 +92,7 @@ export function DepositSignContent({
           providerAddress={artifactDownloadInfo.providerAddress}
           peginTxid={artifactDownloadInfo.peginTxid}
           depositorPk={artifactDownloadInfo.depositorPk}
+          vaultId={artifactDownloadInfo.vaultId}
         />
       )}
     </>
