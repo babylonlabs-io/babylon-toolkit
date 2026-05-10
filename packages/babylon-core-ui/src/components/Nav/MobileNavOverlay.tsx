@@ -15,6 +15,12 @@ export const MobileNavOverlay = ({
 }: MobileNavOverlayProps) => {
   if (!open) return null;
 
+  const handleNavClick = (event: React.MouseEvent<HTMLElement>) => {
+    if ((event.target as HTMLElement).closest("a")) {
+      onClose();
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-surface">
       <div className="container mx-auto flex h-20 items-center gap-4 px-4 sm:px-0">
@@ -29,7 +35,10 @@ export const MobileNavOverlay = ({
         </button>
       </div>
 
-      <nav className="container m-auto flex flex-col gap-9 px-4 pb-20 sm:px-0">
+      <nav
+        className="container m-auto flex flex-col gap-9 px-4 pb-20 sm:px-0"
+        onClick={handleNavClick}
+      >
         {children}
       </nav>
     </div>

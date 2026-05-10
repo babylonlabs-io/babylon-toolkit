@@ -51,7 +51,9 @@ export const Router = () => {
           path="activity"
           element={
             <Suspense fallback={<RouteFallback />}>
-              <Activity />
+              <AaveConfigProvider>
+                <Activity />
+              </AaveConfigProvider>
             </Suspense>
           }
         />
