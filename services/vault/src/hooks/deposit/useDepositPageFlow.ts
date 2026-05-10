@@ -50,7 +50,6 @@ export interface UseDepositPageFlowResult {
     providers: string[],
   ) => void;
   confirmReview: (feeRate: number) => void;
-  onSignSuccess: (peginTxHash: string, ethTxHash: string) => void;
   resetDeposit: () => void;
   refetchActivities: () => Promise<void>;
 
@@ -68,11 +67,6 @@ export interface UseDepositPageFlowResult {
     providers: string[],
   ) => void;
   setFeeRate: (feeRate: number) => void;
-  setTransactionHashes: (
-    peginTxHash: string,
-    ethTxHash: string,
-    depositorBtcPubkey?: string,
-  ) => void;
 }
 
 export function useDepositPageFlow(): UseDepositPageFlowResult {
@@ -94,7 +88,6 @@ export function useDepositPageFlow(): UseDepositPageFlowResult {
     goToStep,
     setDepositData,
     setFeeRate,
-    setTransactionHashes,
     isSplitDeposit,
     setIsSplitDeposit,
     splitVaultAmounts,
@@ -168,11 +161,6 @@ export function useDepositPageFlow(): UseDepositPageFlowResult {
     resetDepositState();
   }, [resetDepositState]);
 
-  const onSignSuccess = (peginTxHash: string, ethTxHash: string) => {
-    setTransactionHashes(peginTxHash, ethTxHash);
-    goToStep(DepositStep.SUCCESS);
-  };
-
   return {
     depositStep,
     depositAmount,
@@ -192,12 +180,10 @@ export function useDepositPageFlow(): UseDepositPageFlowResult {
     setSplitVaultAmounts,
     startDeposit,
     confirmReview,
-    onSignSuccess,
     resetDeposit,
     refetchActivities,
     goToStep,
     setDepositData,
     setFeeRate,
-    setTransactionHashes,
   };
 }

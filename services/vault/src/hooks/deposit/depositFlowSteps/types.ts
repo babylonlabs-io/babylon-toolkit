@@ -19,20 +19,40 @@ import type { Hex, WalletClient } from "viem";
  * Numeric values enable ordered comparisons (e.g. `currentStep >= SIGN_PAYOUTS`).
  */
 export enum DepositFlowStep {
-  /** Step 1: Sign proof of possession in BTC wallet */
-  SIGN_POP = 1,
-  /** Step 2: Submit peg-in to Ethereum (registers vault on-chain) */
-  SUBMIT_PEGIN = 2,
-  /** Step 3: Sign and broadcast Pre-PegIn transaction to Bitcoin */
-  BROADCAST_PRE_PEGIN = 3,
-  /** Step 4: Sign payout transactions in BTC wallet */
-  SIGN_PAYOUTS = 4,
-  /** Step 5: Download vault artifacts */
-  ARTIFACT_DOWNLOAD = 5,
-  /** Step 6: Reveal HTLC secret on Ethereum to activate the vault */
-  ACTIVATE_VAULT = 6,
-  /** Step 7: Deposit completed */
-  COMPLETED = 7,
+  /** Step 1: Derive vault secret in BTC wallet (deriveContextHash popup) */
+  DERIVE_VAULT_SECRET = 1,
+  /** Step 2: Sign the per-vault peg-in BTC PSBT (does NOT broadcast) */
+  SIGN_PEGIN_BTC = 2,
+  /** Step 3: Sign proof of possession in BTC wallet */
+  SIGN_POP = 3,
+  /** Step 4: Submit peg-in to Ethereum (registers vault on-chain) */
+  SUBMIT_PEGIN = 4,
+  /** Step 5: Sign and broadcast Pre-PegIn transaction to Bitcoin */
+  BROADCAST_PRE_PEGIN = 5,
+  /**
+   * Step 6: Awaiting Bitcoin confirmation of the Pre-PegIn tx before the
+   * Vault Provider will accept WOTS keys / return payout PSBTs.
+   */
+  AWAIT_BTC_CONFIRMATION = 6,
+  /** Step 7: Submit WOTS public key to the Vault Provider. */
+  SUBMIT_WOTS_KEYS = 7,
+  /**
+   * Step 8: `deriveContextHash` for the VP auth anchor during payout
+   * signing. Fires whenever the per-pegin VP-token cache misses inside
+   * `signAndSubmitPayouts`. (Cache misses inside `submitWotsPublicKey`
+   * still surface a wallet popup, but the stepper stays on
+   * SUBMIT_WOTS_KEYS for that path.) The wallet popup is identical to
+   * step 1 but binds a different context (auth anchor vs. vault root).
+   */
+  SIGN_AUTH_ANCHOR = 8,
+  /** Step 9: Sign payout transactions in BTC wallet */
+  SIGN_PAYOUTS = 9,
+  /** Step 10: Download vault artifacts */
+  ARTIFACT_DOWNLOAD = 10,
+  /** Step 11: Reveal HTLC secret on Ethereum to activate the vault */
+  ACTIVATE_VAULT = 11,
+  /** Step 12: Deposit completed */
+  COMPLETED = 12,
 }
 
 // ============================================================================

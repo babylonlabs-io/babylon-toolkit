@@ -1,6 +1,6 @@
 import { Loader, Text } from "@babylonlabs-io/core-ui";
 
-import { DepositFlowStep } from "../DepositSignModal/depositStepHelpers";
+import { DepositFlowStep } from "@/hooks/deposit/depositFlowSteps";
 
 /** Progress display modes for the signing flow */
 enum ProgressMode {

@@ -26,10 +26,26 @@
   }
 
   &-option {
-    @apply text-accent-secondary hover:bg-accent-secondary/5 cursor-pointer px-4 py-3 text-sm transition-colors;
+    @apply text-accent-secondary hover:bg-accent-secondary/5 flex cursor-pointer items-center justify-between gap-2 px-4 py-3 text-sm transition-colors;
+
+    &-label {
+      @apply min-w-0 flex-1 truncate;
+    }
+
+    &-hint {
+      @apply flex-shrink-0;
+    }
+
+    &-warning {
+      @apply text-warning-main flex-shrink-0;
+    }
 
     &-selected {
       @apply bg-accent-secondary/5;
+    }
+
+    &-disabled {
+      @apply text-accent-secondary/50 cursor-not-allowed hover:bg-transparent;
     }
   }
 

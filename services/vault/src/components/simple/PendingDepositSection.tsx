@@ -145,16 +145,19 @@ export function PendingDepositSection() {
         />
       </div>
 
-      {artifactDownloadModal.isOpen && artifactDownloadModal.params && (
-        <ArtifactDownloadModal
-          open={artifactDownloadModal.isOpen}
-          onClose={artifactDownloadModal.handleClose}
-          onComplete={artifactDownloadModal.handleComplete}
-          providerAddress={artifactDownloadModal.params.providerAddress}
-          peginTxid={artifactDownloadModal.params.peginTxid}
-          depositorPk={artifactDownloadModal.params.depositorPk}
-        />
-      )}
+      {artifactDownloadModal.isOpen &&
+        artifactDownloadModal.params &&
+        artifactDownloadModal.activity && (
+          <ArtifactDownloadModal
+            open={artifactDownloadModal.isOpen}
+            onClose={artifactDownloadModal.handleClose}
+            onComplete={artifactDownloadModal.handleComplete}
+            providerAddress={artifactDownloadModal.params.providerAddress}
+            peginTxid={artifactDownloadModal.params.peginTxid}
+            depositorPk={artifactDownloadModal.params.depositorPk}
+            vaultId={artifactDownloadModal.activity.id}
+          />
+        )}
 
       {/* Sign / Broadcast / WOTS Key / Activation / Refund / Success modals */}
       <PendingDepositModals

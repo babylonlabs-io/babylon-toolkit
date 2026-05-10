@@ -56,6 +56,30 @@ export const Disabled: Story = {
   },
 };
 
+export const DisabledOptionsWithTooltip: Story = {
+  args: {
+    options: [
+      { value: "vp-1", label: "Vault Provider Alpha" },
+      {
+        value: "vp-2",
+        label: "Vault Provider Bravo",
+        disabled: true,
+        tooltip:
+          "This provider's RPC URL points to a private or internal address that the proxy will reject.",
+      },
+      { value: "vp-3", label: "Vault Provider Charlie" },
+      {
+        value: "vp-4",
+        label: "Vault Provider Delta",
+        disabled: true,
+        tooltip:
+          "This provider's RPC URL uses an unsupported scheme (only http/https are accepted).",
+      },
+    ],
+    placeholder: "Select Vault Provider",
+  },
+};
+
 export const CustomSelectedDisplay: Story = {
   args: {
     options,

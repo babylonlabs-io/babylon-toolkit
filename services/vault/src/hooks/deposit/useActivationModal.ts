@@ -3,10 +3,11 @@ import { useCallback, useState } from "react";
 import type { VaultActivity } from "../../types/activity";
 
 /**
- * Hook to manage activation modal state and actions
+ * Hook to manage activation modal state and actions.
  *
- * Provides state and callbacks for opening/closing the activation modal
- * and handling successful vault activation.
+ * The success banner now lives inside the modal itself (DepositProgressView),
+ * so this hook just tracks which activity is being activated and forwards
+ * the dismiss + refetch on the user's "Done" click.
  */
 export function useActivationModal(options: {
   allActivities: VaultActivity[];
@@ -16,7 +17,6 @@ export function useActivationModal(options: {
 
   const [activatingActivity, setActivatingActivity] =
     useState<VaultActivity | null>(null);
-  const [successOpen, setSuccessOpen] = useState(false);
 
   const handleActivationClick = useCallback(
     (depositId: string) => {
@@ -34,21 +34,14 @@ export function useActivationModal(options: {
 
   const handleSuccess = useCallback(() => {
     setActivatingActivity(null);
-    setSuccessOpen(true);
     onSuccess();
   }, [onSuccess]);
-
-  const handleSuccessClose = useCallback(() => {
-    setSuccessOpen(false);
-  }, []);
 
   return {
     activatingActivity,
     isOpen: !!activatingActivity,
-    successOpen,
     handleActivationClick,
     handleClose,
     handleSuccess,
-    handleSuccessClose,
   };
 }

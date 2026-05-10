@@ -92,7 +92,10 @@ export function useVaultProviders(
     toIdentity(p.btcPubKey),
   );
 
-  // Filtered list for selection UI — excludes unhealthy VPs.
+  // Filtered list for selection UI — excludes runtime-unhealthy VPs (those
+  // can recover, so hiding is the existing pattern). Metadata-rejected VPs
+  // (bad rpcUrl per the indexer's static check) are kept in the list so the
+  // picker can render them disabled with a tooltip explaining why.
   const vaultProvidersWithLogos = useMemo(() => {
     if (unhealthyVps.size === 0) return allProvidersWithLogos;
     return allProvidersWithLogos.filter(
@@ -100,9 +103,10 @@ export function useVaultProviders(
     );
   }, [allProvidersWithLogos, unhealthyVps]);
 
-  // Find provider by address — searches ALL providers (including unhealthy)
-  // so that vault management flows (payout signing, dashboard) still work
-  // for existing vaults on temporarily degraded VPs.
+  // Find provider by address — searches ALL providers (including unhealthy
+  // and metadata-rejected) so that vault management flows (payout signing,
+  // dashboard, refund) still work for existing vaults bound to a provider
+  // whose rpcUrl later went bad.
   const findProvider = useCallback(
     (address: string): VaultProvider | undefined => {
       return allProvidersWithLogos.find(

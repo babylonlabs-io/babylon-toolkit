@@ -8,6 +8,7 @@ import type {
   VaultKeeper,
   VaultKeeperItem,
   VaultProvider,
+  VaultProviderMetadataStatus,
 } from "../../types/vaultProvider";
 import {
   BTC_PUBKEY_HEX_PATTERN,
@@ -22,6 +23,8 @@ interface GraphQLAppProvidersResponse {
       btcPubKey: string;
       name: string | null;
       rpcUrl: string | null;
+      metadataStatus: string | null;
+      metadataRejectionReason: string | null;
     }>;
   };
   vaultKeeperApplications: {
@@ -43,6 +46,8 @@ const GET_APP_PROVIDERS = gql`
         btcPubKey
         name
         rpcUrl
+        metadataStatus
+        metadataRejectionReason
       }
     }
     vaultKeeperApplications(where: { applicationEntryPoint: $appController }) {
@@ -56,6 +61,33 @@ const GET_APP_PROVIDERS = gql`
     }
   }
 `;
+
+const KNOWN_METADATA_STATUSES: ReadonlySet<VaultProviderMetadataStatus> =
+  new Set([
+    "ok",
+    "missing",
+    "invalid_url",
+    "unsupported_scheme",
+    "private_host",
+    "ipv6_literal_unsupported",
+  ]);
+
+/**
+ * Map an indexer-provided metadataStatus string to the typed union.
+ * Unknown / null values fall back to "ok" so legacy rows (or temporary
+ * indexer drift) don't accidentally hide working providers from the UI.
+ */
+function normalizeMetadataStatus(
+  status: string | null | undefined,
+): VaultProviderMetadataStatus {
+  if (
+    status != null &&
+    KNOWN_METADATA_STATUSES.has(status as VaultProviderMetadataStatus)
+  ) {
+    return status as VaultProviderMetadataStatus;
+  }
+  return "ok";
+}
 
 /**
  * Validate critical fields on an app provider from GraphQL.
@@ -154,6 +186,8 @@ export async function fetchAppProviders(
       btcPubKey: provider.btcPubKey,
       name: provider.name ?? undefined,
       url: provider.rpcUrl,
+      metadataStatus: normalizeMetadataStatus(provider.metadataStatus),
+      metadataRejectionReason: provider.metadataRejectionReason ?? undefined,
     }));
 
   const vaultKeeperItems: VaultKeeperItem[] =

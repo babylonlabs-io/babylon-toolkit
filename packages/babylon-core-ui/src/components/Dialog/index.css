@@ -40,6 +40,6 @@
   }
 
   &-fullscreen {
-    @apply fixed inset-0 z-50 flex flex-col bg-surface overflow-y-auto;
+    @apply fixed inset-0 z-50 bg-surface overflow-y-auto;
   }
 }

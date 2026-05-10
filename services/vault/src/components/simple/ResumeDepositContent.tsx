@@ -28,11 +28,9 @@ import { useCallback, useState } from "react";
 import type { Address, Hex } from "viem";
 
 import { getVaultRegistryReader } from "@/clients/eth-contract/sdk-readers";
-import {
-  computeDepositDerivedState,
-  DepositFlowStep,
-} from "@/components/deposit/DepositSignModal/depositStepHelpers";
+import { computeDepositDerivedState } from "@/components/deposit/DepositSignModal/depositStepHelpers";
 import { usePayoutSigningState } from "@/components/deposit/PayoutSignModal/usePayoutSigningState";
+import { DepositFlowStep } from "@/hooks/deposit/depositFlowSteps";
 import { submitWotsPublicKey } from "@/hooks/deposit/depositFlowSteps/wotsSubmission";
 import { useActivationState } from "@/hooks/deposit/useActivationState";
 import { useBroadcastState } from "@/hooks/deposit/useBroadcastState";
@@ -74,19 +72,20 @@ export function ResumeSignContent({
 
   useRunOnce(handleSign);
 
+  const renderStep = isComplete
+    ? DepositFlowStep.ARTIFACT_DOWNLOAD
+    : DepositFlowStep.SIGN_PAYOUTS;
+  const renderIsWaiting = isComplete;
   const derived = computeDepositDerivedState(
-    isComplete ? DepositFlowStep.COMPLETED : DepositFlowStep.SIGN_PAYOUTS,
+    renderStep,
     signing,
-    false,
+    renderIsWaiting,
     error?.message ?? null,
   );
 
   return (
     <DepositProgressView
-      currentStep={
-        isComplete ? DepositFlowStep.COMPLETED : DepositFlowStep.SIGN_PAYOUTS
-      }
-      isWaiting={false}
+      currentStep={renderStep}
       error={error?.message ?? null}
       isComplete={derived.isComplete}
       isProcessing={derived.isProcessing}
@@ -94,7 +93,6 @@ export function ResumeSignContent({
       canContinueInBackground={derived.canContinueInBackground}
       payoutSigningProgress={signing ? progress : null}
       onClose={onClose}
-      successMessage="Your payout transactions have been signed and submitted successfully. Your deposit is now being processed."
       onRetry={error ? handleSign : undefined}
     />
   );
@@ -135,7 +133,6 @@ export function ResumeBroadcastContent({
   return (
     <DepositProgressView
       currentStep={DepositFlowStep.BROADCAST_PRE_PEGIN}
-      isWaiting={false}
       error={error}
       isComplete={derived.isComplete}
       isProcessing={derived.isProcessing}
@@ -297,6 +294,8 @@ export function ResumeWotsContent({
       });
 
       setLoading(false);
+      // Refetch dashboard activities so the next action surfaces while
+      // the modal stays parked on "Close & continue later".
       onSuccess();
     } catch (err) {
       const msg =
@@ -314,22 +313,29 @@ export function ResumeWotsContent({
     } finally {
       root?.fill(0);
     }
-  }, [activity, btcWalletProvider, onSuccess, trackPrimedTxid]);
+  }, [activity, btcWalletProvider, trackPrimedTxid, onSuccess]);
 
   useRunOnce(handleSubmit);
 
+  const isSuccess = !loading && !error;
+  const renderIsWaiting = isSuccess;
+  const derived = computeDepositDerivedState(
+    DepositFlowStep.SUBMIT_WOTS_KEYS,
+    loading,
+    renderIsWaiting,
+    error,
+  );
+
   return (
     <DepositProgressView
-      currentStep={DepositFlowStep.SIGN_PAYOUTS}
-      isWaiting={false}
+      currentStep={DepositFlowStep.SUBMIT_WOTS_KEYS}
       error={error}
-      isComplete={!loading && !error}
-      isProcessing={loading}
-      canClose={!loading}
-      canContinueInBackground={false}
+      isComplete={derived.isComplete}
+      isProcessing={derived.isProcessing}
+      canClose={derived.canClose}
+      canContinueInBackground={derived.canContinueInBackground}
       payoutSigningProgress={null}
       onClose={onClose}
-      successMessage="Your WOTS public key has been submitted. The deposit will continue processing."
       onRetry={error ? handleSubmit : undefined}
     />
   );
@@ -364,12 +370,12 @@ export function ResumeActivationContent({
 
   const {
     activating,
+    activated,
     error: activationError,
     handleActivation,
   } = useActivationState({
     activity,
     depositorEthAddress,
-    onSuccess,
   });
 
   const handleSubmit = useCallback(async () => {
@@ -451,17 +457,27 @@ export function ResumeActivationContent({
     error,
   );
 
+  // After the on-chain activation lands, hold the modal open so the user
+  // sees the success banner. The Done button (onClose path of the view)
+  // routes to the parent's success handler, which dismisses + refetches.
+  const handleDone = useCallback(() => {
+    if (activated) {
+      onSuccess();
+    } else {
+      onClose();
+    }
+  }, [activated, onSuccess, onClose]);
+
   return (
     <DepositProgressView
       currentStep={DepositFlowStep.ACTIVATE_VAULT}
-      isWaiting={false}
       error={error}
-      isComplete={derived.isComplete}
+      isComplete={activated}
       isProcessing={derived.isProcessing}
-      canClose={derived.canClose}
+      canClose={activated || derived.canClose}
       canContinueInBackground={false}
       payoutSigningProgress={null}
-      onClose={onClose}
+      onClose={handleDone}
       successMessage="Your vault has been activated. The vault provider can now claim the HTLC on Bitcoin."
       onRetry={error ? handleSubmit : undefined}
     />
