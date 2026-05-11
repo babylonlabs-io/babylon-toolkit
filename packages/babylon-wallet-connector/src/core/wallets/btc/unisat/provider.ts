@@ -23,6 +23,30 @@ interface UnisatChainResponse {
 
 export const WALLET_PROVIDER_NAME = "Unisat";
 
+const mapUnisatChainToNetwork = (chain: UnisatChainEnum): Network | null => {
+  switch (chain) {
+    case UnisatChainEnum.BITCOIN_MAINNET:
+      return Network.MAINNET;
+    case UnisatChainEnum.BITCOIN_SIGNET:
+      return Network.SIGNET;
+    case UnisatChainEnum.BITCOIN_TESTNET:
+      return Network.TESTNET;
+    default:
+      return null;
+  }
+};
+
+const mapNetworkToUnisatChain = (network: Network): UnisatChainEnum => {
+  switch (network) {
+    case Network.MAINNET:
+      return UnisatChainEnum.BITCOIN_MAINNET;
+    case Network.SIGNET:
+      return UnisatChainEnum.BITCOIN_SIGNET;
+    case Network.TESTNET:
+      return UnisatChainEnum.BITCOIN_TESTNET;
+  }
+};
+
 // Unisat derivation path for BTC Signet
 // Taproot: `m/86'/1'/0'/0`
 // Native Segwit: `m/84'/1'/0'/0`
@@ -47,9 +71,8 @@ export class UnisatProvider implements IBTCProvider {
   }
 
   connectWallet = async (): Promise<void> => {
-    let accounts;
     try {
-      accounts = await this.provider.requestAccounts();
+      await this.provider.requestAccounts();
     } catch (error) {
       if ((error as Error)?.message?.includes("rejected")) {
         throw new WalletError({
@@ -66,6 +89,16 @@ export class UnisatProvider implements IBTCProvider {
       }
     }
 
+    // Unisat silently returns a wrong-network (or empty) account if the wallet
+    // is on a chain the dApp does not target. Align the wallet to the configured
+    // network before reading the address/pubkey so the connection cannot succeed
+    // with a stale mainnet account when signet is required (and vice-versa).
+    await this.ensureExpectedChain();
+
+    // Use requestAccounts (not getAccounts) so per-chain dApp approval is
+    // re-established after a chain switch. requestAccounts is idempotent on
+    // already-authorized chains, so this does not produce an extra prompt.
+    const accounts: string[] = await this.provider.requestAccounts();
     const address = accounts[0];
     const publicKeyHex = await this.provider.getPublicKey();
 
@@ -78,6 +111,50 @@ export class UnisatProvider implements IBTCProvider {
       throw new WalletError({
         code: ERROR_CODES.CONNECTION_FAILED,
         message: "Could not connect to Unisat Wallet",
+        wallet: WALLET_PROVIDER_NAME,
+      });
+    }
+  };
+
+  private ensureExpectedChain = async (): Promise<void> => {
+    let currentChain: UnisatChainResponse;
+    try {
+      currentChain = await this.provider.getChain();
+    } catch (error) {
+      throw new WalletError({
+        code: ERROR_CODES.CONNECTION_FAILED,
+        message: (error as Error)?.message || "Failed to read Unisat Wallet network",
+        wallet: WALLET_PROVIDER_NAME,
+      });
+    }
+
+    if (mapUnisatChainToNetwork(currentChain.enum) === this.config.network) return;
+
+    const expectedChain = mapNetworkToUnisatChain(this.config.network);
+    const targetLabel = this.config.networkName || this.config.network;
+
+    if (typeof this.provider.switchChain !== "function") {
+      throw new WalletError({
+        code: ERROR_CODES.UNSUPPORTED_NETWORK,
+        message: `Unisat Wallet is on ${currentChain.name}, but ${targetLabel} is required. Switch networks in your Unisat extension and try again.`,
+        wallet: WALLET_PROVIDER_NAME,
+      });
+    }
+
+    try {
+      await this.provider.switchChain(expectedChain);
+    } catch (error) {
+      const errorMessage = (error as Error)?.message || "";
+      if (isUserRejectionMessage(errorMessage)) {
+        throw new WalletError({
+          code: ERROR_CODES.CONNECTION_REJECTED,
+          message: `Switching Unisat Wallet to ${targetLabel} was rejected`,
+          wallet: WALLET_PROVIDER_NAME,
+        });
+      }
+      throw new WalletError({
+        code: ERROR_CODES.UNSUPPORTED_NETWORK,
+        message: errorMessage || `Failed to switch Unisat Wallet to ${targetLabel}`,
         wallet: WALLET_PROVIDER_NAME,
       });
     }
