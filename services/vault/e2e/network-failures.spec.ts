@@ -1,26 +1,55 @@
 /**
- * Network / chain failure-mode regression coverage. Pins how the app
- * behaves when external dependencies fail - ETH RPC, the Vault Provider
- * proxy, or a slow response. The existing `catastrophic-errors.spec.ts`
- * covers GraphQL and missing-env failures; this spec complements it by
- * targeting the surfaces above.
+ * Network / chain failure-mode BASELINE coverage - regression only.
  *
- * Each test asserts two invariants:
- *   1. The app must not throw an unhandled error (`pageerror`).
- *   2. The app must not get stuck on an indefinite loading spinner -
- *      it either renders an error state or empty state within a
- *      bounded timeout.
+ * Pins the bare-minimum invariant: when ETH RPC, the Vault Provider
+ * proxy, or a slow ETH response fails, the app does not throw an
+ * unhandled `pageerror` and the document still renders (title set,
+ * shell paints text). That is the entirety of what this spec verifies.
  *
- * Specific error-text assertions are intentionally avoided where the
- * UX surface is fragile - the goal is regression coverage, not UX
- * specification. Where the existing app exposes well-known error
- * banners (e.g. catastrophic-errors), specific text is asserted.
+ * Catastrophic surfaces (GraphQL unreachable, GraphQL 5xx, missing env,
+ * app paused) DO have user-visible blocking modals and are covered in
+ * `catastrophic-errors.spec.ts`.
+ *
+ * What this spec deliberately does NOT verify - and why
+ * -----------------------------------------------------
+ * Issue #1599 acceptance criteria require:
+ *   (a) Each failure mode produces a user-visible message naming the
+ *       operation and the failure type.
+ *   (b) Retries don't hang the UI (no infinite loaders).
+ *   (c) When the network recovers mid-flow, the app continues without
+ *       manual reload.
+ *
+ * None of (a), (b), or (c) currently exist in the app for transient
+ * (non-catastrophic) failures:
+ *   - ETH RPC timeout / 5xx: contract-read Suspense fallback stays
+ *     mounted indefinitely; no top-level error banner, no toast.
+ *   - VP proxy 5xx: `fetchVpHealth` returns `[]` on any failure as
+ *     "graceful degradation" with no user signal
+ *     (services/vault/src/services/vpHealth/fetchVpHealth.ts).
+ *   - No spinner-timeout component / bounded Suspense wrapper exists.
+ *
+ * AC-compliant coverage requires building the missing UX first and is
+ * tracked as follow-up work. Until then, this spec's value is catching
+ * regressions where a previously silent failure starts throwing or
+ * blanking the page.
  */
 
 import { type Page, expect, test } from "@playwright/test";
 
 const PORT = 5175;
 const BASE_URL = `http://localhost:${PORT}`;
+
+// Upper bound for any unhandled error to surface after navigation. The
+// wait completes early if the network goes idle, which is the
+// "all retries exhausted" signal for failing RPC routes.
+const PAGEERROR_SETTLE_TIMEOUT_MS = 10_000;
+
+// How long the app shell has to render text before we consider it
+// frozen by a slow RPC.
+const SHELL_RENDER_TIMEOUT_MS = 3_000;
+
+// Artificial RPC delay used by the slow-response test.
+const SLOW_RPC_DELAY_MS = 5_000;
 
 const GRAPHQL_HEALTHY_BODY = JSON.stringify({
   data: { __typename: "Query" },
@@ -29,6 +58,20 @@ const GRAPHQL_HEALTHY_BODY = JSON.stringify({
 const PAUSED_FALSE_RESULT =
   "0x0000000000000000000000000000000000000000000000000000000000000000";
 const PAUSED_SELECTOR_PREFIX = "0x5c975abb";
+
+function buildPausedFalseResponseBody(id: unknown): string {
+  return JSON.stringify({
+    jsonrpc: "2.0",
+    id,
+    result: PAUSED_FALSE_RESULT,
+  });
+}
+
+async function settleAfterNavigation(page: Page): Promise<void> {
+  await page
+    .waitForLoadState("networkidle", { timeout: PAGEERROR_SETTLE_TIMEOUT_MS })
+    .catch(() => undefined);
+}
 
 async function stubGraphqlHealthy(page: Page) {
   await page.route("**/graphql", async (route) => {
@@ -52,11 +95,7 @@ async function stubPausedCheckHealthy(page: Page) {
         await route.fulfill({
           status: 200,
           contentType: "application/json",
-          body: JSON.stringify({
-            jsonrpc: "2.0",
-            id: postData.id,
-            result: PAUSED_FALSE_RESULT,
-          }),
+          body: buildPausedFalseResponseBody(postData.id),
         });
         return;
       }
@@ -80,11 +119,7 @@ test.describe("Network failure mode coverage", () => {
             await route.fulfill({
               status: 200,
               contentType: "application/json",
-              body: JSON.stringify({
-                jsonrpc: "2.0",
-                id: postData.id,
-                result: PAUSED_FALSE_RESULT,
-              }),
+              body: buildPausedFalseResponseBody(postData.id),
             });
             return;
           }
@@ -98,7 +133,7 @@ test.describe("Network failure mode coverage", () => {
       });
 
       await page.goto(`${BASE_URL}/`);
-      await page.waitForTimeout(5_000);
+      await settleAfterNavigation(page);
 
       // Existing behaviour: vault may stall on indefinite RPC failures
       // (the React tree under the contract-read Suspense boundary stays
@@ -120,11 +155,7 @@ test.describe("Network failure mode coverage", () => {
             await route.fulfill({
               status: 200,
               contentType: "application/json",
-              body: JSON.stringify({
-                jsonrpc: "2.0",
-                id: postData.id,
-                result: PAUSED_FALSE_RESULT,
-              }),
+              body: buildPausedFalseResponseBody(postData.id),
             });
             return;
           }
@@ -142,7 +173,7 @@ test.describe("Network failure mode coverage", () => {
       });
 
       await page.goto(`${BASE_URL}/`);
-      await page.waitForTimeout(5_000);
+      await settleAfterNavigation(page);
 
       expect(unhandled).toBe(false);
       await expect(page).toHaveTitle(/Babylon|Vault/i);
@@ -171,7 +202,7 @@ test.describe("Network failure mode coverage", () => {
       });
 
       await page.goto(`${BASE_URL}/`);
-      await page.waitForTimeout(5_000);
+      await settleAfterNavigation(page);
 
       expect(unhandled).toBe(false);
       await expect(page).toHaveTitle(/Babylon|Vault/i);
@@ -182,7 +213,6 @@ test.describe("Network failure mode coverage", () => {
     test("slow ETH RPC does not freeze the app shell", async ({ page }) => {
       await stubGraphqlHealthy(page);
 
-      const SLOW_DELAY_MS = 5_000;
       await page.route(/.*eth.*|.*rpc.*/, async (route) => {
         const postData = route.request().postDataJSON();
         if (postData?.method === "eth_call") {
@@ -191,16 +221,12 @@ test.describe("Network failure mode coverage", () => {
             await route.fulfill({
               status: 200,
               contentType: "application/json",
-              body: JSON.stringify({
-                jsonrpc: "2.0",
-                id: postData.id,
-                result: PAUSED_FALSE_RESULT,
-              }),
+              body: buildPausedFalseResponseBody(postData.id),
             });
             return;
           }
         }
-        await new Promise((resolve) => setTimeout(resolve, SLOW_DELAY_MS));
+        await new Promise((resolve) => setTimeout(resolve, SLOW_RPC_DELAY_MS));
         await route.continue();
       });
 
@@ -210,7 +236,7 @@ test.describe("Network failure mode coverage", () => {
       // must render even though ETH reads are still in-flight.
       const bodyText = await page
         .locator("body")
-        .innerText({ timeout: 3_000 });
+        .innerText({ timeout: SHELL_RENDER_TIMEOUT_MS });
       expect(bodyText.length).toBeGreaterThan(0);
     });
   });
