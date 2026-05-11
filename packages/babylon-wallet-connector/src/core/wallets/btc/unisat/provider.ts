@@ -28,8 +28,9 @@ const mapUnisatChainToNetwork = (chain: UnisatChainEnum): Network | null => {
     case UnisatChainEnum.BITCOIN_MAINNET:
       return Network.MAINNET;
     case UnisatChainEnum.BITCOIN_SIGNET:
-    case UnisatChainEnum.BITCOIN_TESTNET:
       return Network.SIGNET;
+    case UnisatChainEnum.BITCOIN_TESTNET:
+      return Network.TESTNET;
     default:
       return null;
   }
@@ -94,7 +95,10 @@ export class UnisatProvider implements IBTCProvider {
     // with a stale mainnet account when signet is required (and vice-versa).
     await this.ensureExpectedChain();
 
-    const accounts: string[] = await this.provider.getAccounts();
+    // Use requestAccounts (not getAccounts) so per-chain dApp approval is
+    // re-established after a chain switch. requestAccounts is idempotent on
+    // already-authorized chains, so this does not produce an extra prompt.
+    const accounts: string[] = await this.provider.requestAccounts();
     const address = accounts[0];
     const publicKeyHex = await this.provider.getPublicKey();
 
