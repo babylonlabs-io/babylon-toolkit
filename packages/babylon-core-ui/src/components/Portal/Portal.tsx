@@ -34,13 +34,15 @@ export function Portal({
     
     if (inheritViewport) {
       if (!rootClassName.includes('popover')) {
+        // Intentionally no z-index: a stacking context here traps third-party
+        // overlays (e.g. Reown AppKit's w3m-modal) underneath. The dialog and
+        // backdrop children manage their own stacking via position: fixed.
         const styles = {
           position: "fixed" as const,
           top: "0",
-          left: "0", 
+          left: "0",
           width: "100vw",
           height: "100vh",
-          zIndex: "9999",
           pointerEvents: shouldDisablePointerEvents ? "none" as const : "auto" as const
         };
         Object.assign(root.style, styles);
