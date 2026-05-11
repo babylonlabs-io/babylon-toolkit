@@ -15,7 +15,7 @@ import { MemoryRouter, Outlet } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("../components/pages/RootLayout", () => ({
-  default: () => <Outlet />,
+  default: () => <Outlet context={{ openDeposit: () => {} }} />,
 }));
 
 vi.mock("../applications", () => ({
