@@ -69,6 +69,10 @@ vi.mock("@/services/vault/vaultActivationService", () => ({
     .mockResolvedValue({ hash: "0xActivationTxHash" }),
 }));
 
+vi.mock("@/services/vault/fetchVaults", () => ({
+  fetchVaultsByDepositorStrict: vi.fn().mockResolvedValue([]),
+}));
+
 vi.mock("@/services/vault/vaultPeginBroadcastService", () => ({
   broadcastPrePeginTransaction: vi.fn().mockResolvedValue("mockBroadcastTxId"),
   utxosToExpectedRecord: vi.fn(
@@ -1110,6 +1114,7 @@ describe("useDepositFlow", () => {
       await waitFor(() => {
         expect(getPendingPegins).toHaveBeenCalledWith("0xEthAddress123");
         expect(collectReservedUtxoRefs).toHaveBeenCalledWith({
+          vaults: [],
           pendingPegins: mockPendingPegins,
           utxoReservations: [],
         });
@@ -1152,6 +1157,84 @@ describe("useDepositFlow", () => {
           "All available UTXOs are reserved",
         );
       });
+    });
+
+    it("forwards indexer-supplied PENDING/VERIFIED vaults to collectReservedUtxoRefs (cross-context reservation)", async () => {
+      // Cleared-localStorage / second-browser scenario: getPendingPegins and
+      // getUtxoReservations are empty, but the indexer reports a PENDING vault
+      // already registered for this depositor. The deposit flow must hand
+      // those vaults to collectReservedUtxoRefs so their on-chain Pre-PegIn
+      // inputs participate in the reservation set; otherwise the same UTXOs
+      // would be re-selected and the second registered vault would be
+      // unfundable.
+      const { fetchVaultsByDepositorStrict } = vi.mocked(
+        await import("@/services/vault/fetchVaults"),
+      );
+      const { collectReservedUtxoRefs } = vi.mocked(
+        await import("@babylonlabs-io/ts-sdk/tbv/core/utils"),
+      );
+
+      const indexerVaults = [
+        {
+          id: "0xexistingvault",
+          status: 0, // ContractStatus.PENDING
+          unsignedPrePeginTx: "0xexistingvaultprepeginhex",
+        },
+      ];
+      vi.mocked(fetchVaultsByDepositorStrict).mockResolvedValueOnce(
+        indexerVaults as any,
+      );
+
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+
+      await executeWithAutoArtifactDownload(result);
+
+      await waitFor(() => {
+        expect(fetchVaultsByDepositorStrict).toHaveBeenCalledWith(
+          "0xEthAddress123",
+        );
+        expect(collectReservedUtxoRefs).toHaveBeenCalledWith({
+          vaults: indexerVaults,
+          pendingPegins: [],
+          utxoReservations: [],
+        });
+      });
+    });
+
+    it("fails closed and skips UTXO selection when fetchVaultsByDepositorStrict throws (indexer outage)", async () => {
+      // If the indexer is unavailable we can't prove a registered-but-
+      // unbroadcast Pre-PegIn doesn't already encumber these UTXOs. Block
+      // the deposit instead of silently degrading to the local-only
+      // reservation set — that's the failure mode the audit is about.
+      const { fetchVaultsByDepositorStrict } = vi.mocked(
+        await import("@/services/vault/fetchVaults"),
+      );
+      const { collectReservedUtxoRefs } = vi.mocked(
+        await import("@babylonlabs-io/ts-sdk/tbv/core/utils"),
+      );
+      const { preparePeginTransaction } = vi.mocked(
+        await import("@/services/vault/vaultTransactionService"),
+      );
+      const { registerPeginBatchAndWait } = vi.mocked(
+        await import("../depositFlowSteps"),
+      );
+
+      vi.mocked(fetchVaultsByDepositorStrict).mockRejectedValueOnce(
+        new Error("indexer 503"),
+      );
+
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+
+      await executeWithAutoArtifactDownload(result);
+
+      await waitFor(() => {
+        expect(result.current.error).toMatch(
+          /Unable to verify existing deposits/,
+        );
+      });
+      expect(collectReservedUtxoRefs).not.toHaveBeenCalled();
+      expect(preparePeginTransaction).not.toHaveBeenCalled();
+      expect(registerPeginBatchAndWait).not.toHaveBeenCalled();
     });
   });
 });

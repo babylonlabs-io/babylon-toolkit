@@ -49,6 +49,7 @@ import { useProtocolParamsContext } from "@/context/ProtocolParamsContext";
 import { logger } from "@/infrastructure";
 import { LocalStorageStatus } from "@/models/peginStateMachine";
 import { validateMultiVaultDepositInputs } from "@/services/deposit/validations";
+import { fetchVaultsByDepositorStrict } from "@/services/vault/fetchVaults";
 import type { PayoutSigningProgress } from "@/services/vault/vaultPayoutSignatureService";
 import {
   broadcastPrePeginTransaction,
@@ -64,6 +65,7 @@ import {
   removeUtxoReservation,
   updatePendingPeginStatus,
 } from "@/storage/peginStorage";
+import type { Vault } from "@/types/vault";
 import { btcAddressToScriptPubKeyHex, stripHexPrefix } from "@/utils/btc";
 import { satoshiToBtcNumber } from "@/utils/btcConversion";
 import { sanitizeErrorMessage } from "@/utils/errors/formatting";
@@ -354,10 +356,36 @@ export function useDepositFlow(
         };
 
         // Filter out UTXOs reserved by in-flight deposits to prevent
-        // double-spend failures across concurrent sessions/tabs.
+        // double-spend failures across concurrent sessions/tabs and across
+        // browser contexts (cleared storage, second profile, second device).
+        // Local browser state covers the same-context case; the indexer-supplied
+        // vault list covers the cross-context case where localStorage is empty
+        // but a PENDING/VERIFIED vault is already registered on Ethereum.
+        // Force a fresh read here (do NOT rely on the React Query cache) so
+        // staleness cannot reintroduce the cross-context double-spend window.
+        // Indexer unavailability is fail-closed: better to block the deposit
+        // than to silently skip the on-chain reservation set.
         const pendingPegins = getPendingPegins(confirmedEthAddress);
         const utxoReservations = getUtxoReservations(confirmedEthAddress);
+        let depositorVaults: Vault[];
+        try {
+          depositorVaults =
+            await fetchVaultsByDepositorStrict(confirmedEthAddress);
+        } catch (err) {
+          const errorMsg = err instanceof Error ? err.message : String(err);
+          logger.error(err instanceof Error ? err : new Error(errorMsg), {
+            tags: {
+              component: "useDepositFlow",
+              phase: "reservation-fetch",
+            },
+            data: { ethAddress: confirmedEthAddress },
+          });
+          throw new Error(
+            `Unable to verify existing deposits. Please try again. (${errorMsg})`,
+          );
+        }
         const reservedUtxoRefs = collectReservedUtxoRefs({
+          vaults: depositorVaults,
           pendingPegins,
           utxoReservations,
         });
