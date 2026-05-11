@@ -1,7 +1,24 @@
 /**
  * `window.__BABYLON_E2E_WALLETS__` is the contract between Playwright
- * and the running app. Tests set it via `page.addInitScript(...)`
- * before navigation; the app reads it via `getInjectedWallets()`.
+ * and the running app. The app reads it via `getInjectedWallets()`.
+ *
+ * Populating it from a Playwright test is NOT a matter of passing
+ * `createMockBtcWallet()` to `page.addInitScript` - that helper
+ * structured-clones its argument across the Node/browser process
+ * boundary, which strips the closures inside `provider` and `script`
+ * and leaves empty objects on the page side. The mocks must be
+ * constructed inside the page context. Two viable approaches:
+ *
+ *   1. Inline factory: pass the addInitScript callback a plain config
+ *      object and rebuild the mock there (the callback body runs in
+ *      the page context, so its closures stay intact).
+ *   2. Bundled script: build the fixture module to a single file and
+ *      inject it with `page.addScriptTag({ path })` so the page can
+ *      call the factory directly.
+ *
+ * `wallet-mocks.spec.ts` exercises only the global itself with a
+ * plain-data sentinel; the full page-side injection wiring lands
+ * with the single-vault deposit happy-path ticket.
  *
  * The injection point is gated on `import.meta.env.NEXT_PUBLIC_E2E_MODE`
  * - reading from this global in any other build mode throws, so a
@@ -66,8 +83,13 @@ export function getInjectedWallets(): InjectedWallets | undefined {
   return window[E2E_WALLETS_GLOBAL];
 }
 
-/** Remove any injected mocks. Safe to call between tests. */
+/**
+ * Remove any injected mocks. Safe to call between tests. No-op outside
+ * e2e mode so a stray production cleanup hook can't silently touch
+ * the (never-populated) global.
+ */
 export function clearInjectedWallets(): void {
+  if (!isE2EMode()) return;
   if (typeof window === "undefined") return;
   delete window[E2E_WALLETS_GLOBAL];
 }

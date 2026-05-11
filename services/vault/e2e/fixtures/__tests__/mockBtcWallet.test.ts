@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createMockBtcWallet } from "../mockBtcWallet";
 
@@ -106,5 +106,49 @@ describe("MockBtcScript", () => {
     script.returnNext("getAddress", "second");
     expect(await provider.getAddress()).toBe("first");
     expect(await provider.getAddress()).toBe("second");
+  });
+});
+
+describe("MockBtcScript.timeoutNext", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("rejects only after the scheduled delay elapses", async () => {
+    const { provider, script } = createMockBtcWallet();
+    script.timeoutNext("signPsbt", 5_000);
+
+    const pending = provider.signPsbt("00ff");
+    const settled = { value: false };
+    const assertion = expect(pending).rejects.toThrow(
+      "mock BTC wallet signPsbt timed out after 5000ms",
+    );
+    pending.catch(() => {
+      settled.value = true;
+    });
+
+    await vi.advanceTimersByTimeAsync(4_999);
+    expect(settled.value).toBe(false);
+
+    await vi.advanceTimersByTimeAsync(1);
+    await assertion;
+    expect(settled.value).toBe(true);
+  });
+
+  it("consumes the queue entry so a subsequent call falls back to default", async () => {
+    const { provider, script } = createMockBtcWallet({
+      address: "tb1qfallback",
+    });
+    script.timeoutNext("getAddress", 1_000);
+
+    const timedOut = provider.getAddress();
+    const assertion = expect(timedOut).rejects.toThrow(/timed out/);
+    await vi.advanceTimersByTimeAsync(1_000);
+    await assertion;
+
+    await expect(provider.getAddress()).resolves.toBe("tb1qfallback");
   });
 });
