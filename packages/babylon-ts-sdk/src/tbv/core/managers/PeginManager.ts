@@ -1166,7 +1166,7 @@ export class PeginManager {
     if (receipt.status === "reverted") {
       handleContractError(
         new Error(
-          `Transaction reverted. Hash: ${ethTxHash}. ` +
+          `Transaction reverted. Hash: ${receipt.transactionHash}. ` +
             `Check the transaction on block explorer for details.`,
         ),
       );
@@ -1334,7 +1334,7 @@ export class PeginManager {
     if (receipt.status === "reverted") {
       handleContractError(
         new Error(
-          `Batch transaction reverted. Hash: ${ethTxHash}. ` +
+          `Batch transaction reverted. Hash: ${receipt.transactionHash}. ` +
             `Check the transaction on block explorer for details.`,
         ),
       );

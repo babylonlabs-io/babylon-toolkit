@@ -124,7 +124,7 @@ export async function executeWrite(
       await throwRevertError(
         publicClient,
         receipt,
-        hash,
+        receipt.transactionHash,
         address,
         callData,
         account.address,
@@ -132,7 +132,7 @@ export async function executeWrite(
     }
 
     return {
-      transactionHash: hash,
+      transactionHash: receipt.transactionHash,
       receipt,
     };
   } catch (error) {

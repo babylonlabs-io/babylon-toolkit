@@ -124,11 +124,18 @@ async function executeTx(
 
     // Check if transaction was reverted
     if (receipt.status === "reverted") {
-      await throwRevertError(publicClient, receipt, hash, to, data, account);
+      await throwRevertError(
+        publicClient,
+        receipt,
+        receipt.transactionHash,
+        to,
+        data,
+        account,
+      );
     }
 
     return {
-      transactionHash: hash,
+      transactionHash: receipt.transactionHash,
       receipt,
     };
   } catch (error) {
