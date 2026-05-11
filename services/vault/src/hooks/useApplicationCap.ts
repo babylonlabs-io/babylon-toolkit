@@ -47,22 +47,25 @@ export function useApplicationCap(user?: string): UseApplicationCapResult {
     enabled,
   });
 
-  // Usage RPCs are skipped for uncapped deployments — the snapshot logic below
-  // ignores usage data when both cap parameters are 0 (CapPolicy.sol treats
-  // 0 as unlimited), so polling them is pure waste. Gating on caps being
-  // resolved AND non-zero adds one cap-RTT of latency for capped deployments
-  // on first load, but eliminates the polling stream entirely when uncapped.
-  const isCapped =
-    capsQuery.data !== undefined &&
-    (capsQuery.data.totalCapBTC > 0n || capsQuery.data.perAddressCapBTC > 0n);
+  // Usage is fetched whenever caps are known — both capped and uncapped
+  // deployments need the live `totalBTC` for the dashboard's
+  // SupplyCapSection ("Total Deposited"). The per-user leg of the multicall
+  // is only consumed by `remainingForUser` (gated on `hasPerAddressCap`), so
+  // when there is no per-address cap we drop the user from the call to skip
+  // an unused on-chain read.
+  const capsResolved = capsQuery.data !== undefined;
+  const userAddressForUsage =
+    capsQuery.data !== undefined && capsQuery.data.perAddressCapBTC > 0n
+      ? userAddress
+      : undefined;
 
   const usageQuery = useQuery({
-    queryKey: [APPLICATION_CAP_KEY, "usage", app, userAddress ?? null],
-    queryFn: () => getApplicationUsage(app, userAddress),
+    queryKey: [APPLICATION_CAP_KEY, "usage", app, userAddressForUsage ?? null],
+    queryFn: () => getApplicationUsage(app, userAddressForUsage),
     staleTime: CAP_STALE_TIME_MS,
     refetchInterval: CAP_REFETCH_INTERVAL_MS,
     refetchOnWindowFocus: false,
-    enabled: enabled && isCapped,
+    enabled: enabled && capsResolved,
   });
 
   const snapshot = useMemo<CapSnapshot | null>(() => {

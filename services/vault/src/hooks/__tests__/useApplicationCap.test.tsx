@@ -92,16 +92,7 @@ describe("useApplicationCap", () => {
     });
   });
 
-  // Skipped: the new uncapped path waits for the usage query to settle, but
-  // this scenario is environment-flaky in CI (passes locally and via
-  // `nx affected --target=test`, times out in the GitHub Actions vitest run
-  // even after `mockReset()` and 4s waitFor). The production behaviour is
-  // covered by the live dashboard render against the devnet CapPolicy and
-  // by the capped-path tests above. Re-enable once the CI/vitest discrepancy
-  // is understood.
-  it.skip("uses real usage data when computing an uncapped snapshot", async () => {
-    vi.mocked(getApplicationCap).mockReset();
-    vi.mocked(getApplicationUsage).mockReset();
+  it("uses real usage data when computing an uncapped snapshot", async () => {
     vi.mocked(getApplicationCap).mockResolvedValue({
       totalCapBTC: 0n,
       perAddressCapBTC: 0n,
@@ -116,6 +107,10 @@ describe("useApplicationCap", () => {
     });
 
     await waitFor(() => expect(result.current.snapshot).not.toBeNull());
+    expect(getApplicationUsage).toHaveBeenCalledWith(
+      "0xaaveadapter",
+      undefined,
+    );
     expect(result.current.snapshot).toMatchObject({
       hasTotalCap: false,
       hasPerAddressCap: false,
@@ -140,12 +135,7 @@ describe("useApplicationCap", () => {
     expect(result.current.isLoading).toBe(true);
   });
 
-  // Skipped: see note on the test above. The error-shielding behaviour is
-  // already covered by the deposit-form contract (see `useDepositPageForm`,
-  // which only blocks on `capError !== null`).
-  it.skip("falls back to a synthetic snapshot and shields usage errors on an uncapped deployment", async () => {
-    vi.mocked(getApplicationCap).mockReset();
-    vi.mocked(getApplicationUsage).mockReset();
+  it("falls back to a synthetic snapshot and shields usage errors on an uncapped deployment", async () => {
     vi.mocked(getApplicationCap).mockResolvedValue({
       totalCapBTC: 0n,
       perAddressCapBTC: 0n,
