@@ -758,6 +758,114 @@ describe("useDepositFlow", () => {
       });
     });
 
+    it("keeps the early UTXO reservation when registerPeginBatchAndWait throws (receipt timeout window)", async () => {
+      // Regression: a post-`sendTransaction` receipt timeout
+      // means the ETH registration may already be live or pending, but no
+      // durable `addPendingPegin` record was written. Releasing the early
+      // reservation in that window would let a second deposit reuse the
+      // same outpoints and strand one ETH-registered vault. The reservation
+      // must remain so its TTL keeps the UTXOs excluded.
+      const { registerPeginBatchAndWait } = vi.mocked(
+        await import("../depositFlowSteps"),
+      );
+      const { addPendingPegin, removeUtxoReservation } = vi.mocked(
+        await import("@/storage/peginStorage"),
+      );
+
+      vi.mocked(registerPeginBatchAndWait).mockRejectedValueOnce(
+        new Error(
+          "Timed out while waiting for transaction with hash 0xabc to be confirmed.",
+        ),
+      );
+
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+
+      await executeWithAutoArtifactDownload(result);
+
+      await waitFor(() => {
+        expect(result.current.error).toBeTruthy();
+        expect(result.current.processing).toBe(false);
+      });
+
+      // No durable resume entry was written (registration threw before
+      // pending pegins are persisted).
+      expect(addPendingPegin).not.toHaveBeenCalled();
+      // And — the bug being fixed — the early reservation must not be
+      // released.
+      expect(removeUtxoReservation).not.toHaveBeenCalled();
+    });
+
+    it("releases the early UTXO reservation for failures BEFORE registration is started", async () => {
+      // Pre-send failures (e.g. UTXO availability re-check) are safe to
+      // release because no ETH transaction was submitted, so there is no
+      // ambiguity about on-chain state.
+      const { assertUtxosAvailable } = vi.mocked(
+        await import("@/services/vault/vaultUtxoValidationService"),
+      );
+      const { registerPeginBatchAndWait } = vi.mocked(
+        await import("../depositFlowSteps"),
+      );
+      const { removeUtxoReservation } = vi.mocked(
+        await import("@/storage/peginStorage"),
+      );
+
+      vi.mocked(assertUtxosAvailable).mockRejectedValueOnce(
+        new Error("UTXO no longer available"),
+      );
+
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+
+      await executeWithAutoArtifactDownload(result);
+
+      await waitFor(() => {
+        expect(result.current.error).toBeTruthy();
+      });
+
+      // Sanity: registration must not have started for this case.
+      expect(registerPeginBatchAndWait).not.toHaveBeenCalled();
+      // Pre-send failure: reservation IS released.
+      expect(removeUtxoReservation).toHaveBeenCalledWith(
+        "0xEthAddress123",
+        "mock-batch-id-uuid",
+      );
+    });
+
+    it("releases the early UTXO reservation when a post-pending failure occurs (records supersede the reservation)", async () => {
+      // Once `addPendingPegin` has persisted per-vault records, the
+      // selected UTXOs are protected by those entries. A failure after
+      // that point can safely release the early reservation.
+      const { getOffchainParamsVersionsFromChain } = vi.mocked(
+        await import("@/clients/eth-contract/btc-vault-registry/query"),
+      );
+      const { addPendingPegin, removeUtxoReservation } = vi.mocked(
+        await import("@/storage/peginStorage"),
+      );
+
+      // Force an RPC error on the version check AFTER pending pegins are
+      // written and BEFORE the success-path removeUtxoReservation call.
+      // This simulates a connection failure rather than a true version
+      // mismatch — both paths reach the catch block, so the assertion
+      // holds either way.
+      vi.mocked(getOffchainParamsVersionsFromChain).mockRejectedValueOnce(
+        new Error("eth_call failed: connection reset"),
+      );
+
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+
+      await executeWithAutoArtifactDownload(result);
+
+      await waitFor(() => {
+        expect(result.current.error).toBeTruthy();
+      });
+
+      expect(addPendingPegin).toHaveBeenCalledTimes(2);
+      // Catch path released the now-redundant reservation.
+      expect(removeUtxoReservation).toHaveBeenCalledWith(
+        "0xEthAddress123",
+        "mock-batch-id-uuid",
+      );
+    });
+
     it("should continue past payout-signing failures with warnings", async () => {
       const { signAndSubmitPayouts } = vi.mocked(
         await import("../depositFlowSteps"),

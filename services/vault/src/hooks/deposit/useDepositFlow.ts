@@ -263,6 +263,15 @@ export function useDepositFlow(
       // UTXO reservation if the flow fails after writing it.
       let reservationBatchId: string | null = null;
       let reservationEthAddress: string | null = null;
+      // True once `registerPeginBatchAndWait` has been invoked, meaning the
+      // SDK may have submitted the ETH registration tx. Used in the catch
+      // path to avoid releasing the early UTXO reservation before we know
+      // whether the registration landed on-chain.
+      let registrationStarted = false;
+      // True once durable per-vault `addPendingPegin` records have been
+      // persisted. Once set, the early reservation is fully superseded and
+      // safe to remove on failure.
+      let pendingPersisted = false;
       // Track registry entries we primed so we can release them on
       // user-cancel (bound `authAnchorHex` lifetime to the flow).
       const primedRegistryTxids: string[] = [];
@@ -443,6 +452,13 @@ export function useDepositFlow(
 
         // 3e. Single batch ETH transaction for all vaults.
         setCurrentStep(DepositFlowStep.SUBMIT_PEGIN);
+        // Mark registration as started BEFORE the SDK call. From this point
+        // forward the ETH tx may be in the mempool or mined even if the call
+        // throws (e.g. `waitForTransactionReceipt` timeout after
+        // `sendTransaction` returned). The catch path uses this flag to keep
+        // the early UTXO reservation in place so the same outpoints cannot
+        // back a second deposit while the registration outcome is unknown.
+        registrationStarted = true;
         const batchRegistration = await registerPeginBatchAndWait({
           btcWalletProvider: confirmedBtcWallet,
           walletClient,
@@ -515,6 +531,12 @@ export function useDepositFlow(
               scriptPubKey: u.scriptPubKey,
             })),
           });
+          // At least one durable pending-pegin record now covers the
+          // same UTXOs as the early reservation (all vaults in a batch
+          // share `batchResult.selectedUTXOs`), so any subsequent failure
+          // can safely release the reservation. Set inside the loop so
+          // the flag is never `true` with zero records written.
+          pendingPersisted = true;
         }
 
         // 3g. Verify the on-chain vault was registered under the same offchain
@@ -858,8 +880,23 @@ export function useDepositFlow(
           warnings: warnings.length > 0 ? warnings : undefined,
         };
       } catch (err: unknown) {
-        // Clean up early UTXO reservation so the UTXOs are released for reuse.
-        if (reservationBatchId && reservationEthAddress) {
+        // Clean up the early UTXO reservation so the UTXOs are released for
+        // reuse — but ONLY when it is safe to do so. If
+        // `registerPeginBatchAndWait` was invoked and no durable pending
+        // pegin records were written, the ETH registration outcome is
+        // unknown (the failure can be a post-`sendTransaction` receipt
+        // timeout while the tx is still in the mempool or already mined).
+        // Releasing the reservation in that window would let the same
+        // outpoints back a second deposit, leaving one ETH-registered vault
+        // unbroadcastable. Leave the reservation in place and let the
+        // existing 5-minute TTL handle cleanup; the user can retry after
+        // expiry. The trade-off is a UX delay for genuine pre-receipt
+        // failures, which is acceptable versus a stranded vault.
+        if (
+          reservationBatchId &&
+          reservationEthAddress &&
+          (!registrationStarted || pendingPersisted)
+        ) {
           removeUtxoReservation(reservationEthAddress, reservationBatchId);
         }
 
