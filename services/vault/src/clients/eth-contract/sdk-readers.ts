@@ -1,14 +1,12 @@
 /**
  * SDK Reader Factory
  *
- * Provides lazy-initialized singleton instances of SDK contract readers
- * for transaction-critical paths (payout signing, refund tx construction).
+ * Provides cached SDK contract reader instances per chain id, with a
+ * short TTL so a governance upgrade or a network switch is picked up
+ * without requiring a page reload.
  *
  * Resolves ProtocolParams and ApplicationRegistry addresses from
  * BTCVaultRegistry on first use, then caches the reader instances.
- *
- * Display-only data (ProtocolParamsContext, provider listings) continues
- * to use the existing GraphQL/contract modules for performance.
  */
 
 import {
@@ -23,54 +21,106 @@ import { CONTRACTS } from "../../config/contracts";
 
 import { ethClient } from "./client";
 
-let protocolParamsReader: ViemProtocolParamsReader | null = null;
-let vaultKeeperReader: ViemVaultKeeperReader | null = null;
-let universalChallengerReader: ViemUniversalChallengerReader | null = null;
-let vaultRegistryReader: ViemVaultRegistryReader | null = null;
-let initPromise: Promise<void> | null = null;
+/**
+ * TTL for the resolved-readers cache.
+ * Short enough that a governance upgrade (re-pointing
+ * `BTCVaultRegistry.protocolParams()` / `applicationRegistry()`) propagates
+ * without a page reload; long enough to keep RPC traffic low for normal
+ * read-heavy workflows.
+ */
+const READER_CACHE_TTL_MS = 5 * 60 * 1000;
+
+interface ResolvedReaders {
+  protocolParamsReader: ViemProtocolParamsReader;
+  vaultKeeperReader: ViemVaultKeeperReader;
+  universalChallengerReader: ViemUniversalChallengerReader;
+  fetchedAt: number;
+}
 
 /**
- * Resolve addresses and construct all readers. Called once on first use.
- * Uses promise memoization to prevent redundant RPC calls when multiple
- * getters are called concurrently (e.g. Promise.all in refund service).
- * Resets on failure so transient RPC errors can be retried.
+ * Cache of resolved readers, keyed by chainId. Per-chain keying ensures a
+ * mid-session network switch yields a fresh resolution against the new
+ * chain's BTCVaultRegistry rather than reusing addresses pinned to the
+ * previous chain.
  */
-async function ensureReaders(): Promise<void> {
-  if (protocolParamsReader && vaultKeeperReader && universalChallengerReader) {
-    return;
+const resolvedReadersCache = new Map<number, ResolvedReaders>();
+
+/**
+ * In-flight resolve, keyed by chainId, so concurrent first-callers dedupe
+ * to a single RPC round-trip.
+ */
+const initPromises = new Map<number, Promise<ResolvedReaders>>();
+
+const vaultRegistryReadersByChainId = new Map<
+  number,
+  ViemVaultRegistryReader
+>();
+
+async function getResolvedReaders(): Promise<ResolvedReaders> {
+  const publicClient = ethClient.getPublicClient();
+  const chainId = await publicClient.getChainId();
+
+  const cached = resolvedReadersCache.get(chainId);
+  if (cached && Date.now() - cached.fetchedAt < READER_CACHE_TTL_MS) {
+    return cached;
   }
-  if (initPromise) return initPromise;
 
-  initPromise = (async () => {
-    const publicClient = ethClient.getPublicClient();
-    const addresses = await resolveProtocolAddresses(
-      publicClient,
-      CONTRACTS.BTC_VAULT_REGISTRY,
-    );
+  const inFlight = initPromises.get(chainId);
+  if (inFlight) return inFlight;
 
-    // Construct all readers before assigning to singletons (atomic swap)
-    const ppReader = new ViemProtocolParamsReader(
-      publicClient,
-      addresses.protocolParams,
-    );
-    const vkReader = new ViemVaultKeeperReader(
-      publicClient,
-      addresses.applicationRegistry,
-    );
-    const ucReader = new ViemUniversalChallengerReader(
-      publicClient,
-      addresses.protocolParams,
-    );
+  const pending = (async (): Promise<ResolvedReaders> => {
+    try {
+      const addresses = await resolveProtocolAddresses(
+        publicClient,
+        CONTRACTS.BTC_VAULT_REGISTRY,
+      );
 
-    protocolParamsReader = ppReader;
-    vaultKeeperReader = vkReader;
-    universalChallengerReader = ucReader;
-  })().catch((error) => {
-    initPromise = null;
-    throw error;
-  });
+      const resolved: ResolvedReaders = {
+        protocolParamsReader: new ViemProtocolParamsReader(
+          publicClient,
+          addresses.protocolParams,
+        ),
+        vaultKeeperReader: new ViemVaultKeeperReader(
+          publicClient,
+          addresses.applicationRegistry,
+        ),
+        universalChallengerReader: new ViemUniversalChallengerReader(
+          publicClient,
+          addresses.protocolParams,
+        ),
+        fetchedAt: Date.now(),
+      };
 
-  return initPromise;
+      resolvedReadersCache.set(chainId, resolved);
+      return resolved;
+    } catch (error) {
+      // Stale-while-revalidate: if a re-resolve fails but we have a
+      // previously fetched (now-expired) entry, hand that back rather
+      // than block the UI on a transient RPC failure. Governance
+      // upgrades are rare; transient RPC errors are not.
+      //
+      // Bump `fetchedAt` so we don't hammer RPC on every subsequent
+      // call during a sustained outage — the next refresh attempt is
+      // gated by the same TTL window.
+      if (cached) {
+        cached.fetchedAt = Date.now();
+        return cached;
+      }
+      throw error;
+    } finally {
+      initPromises.delete(chainId);
+    }
+  })();
+
+  initPromises.set(chainId, pending);
+  return pending;
+}
+
+/** Test-only: clear all caches so each test starts from a clean slate. */
+export function _resetSdkReadersCacheForTests(): void {
+  resolvedReadersCache.clear();
+  initPromises.clear();
+  vaultRegistryReadersByChainId.clear();
 }
 
 /**
@@ -78,8 +128,7 @@ async function ensureReaders(): Promise<void> {
  * Use for transaction-critical timelock and offchain param lookups.
  */
 export async function getProtocolParamsReader(): Promise<ViemProtocolParamsReader> {
-  await ensureReaders();
-  return protocolParamsReader!;
+  return (await getResolvedReaders()).protocolParamsReader;
 }
 
 /**
@@ -87,8 +136,7 @@ export async function getProtocolParamsReader(): Promise<ViemProtocolParamsReade
  * Use for transaction-critical versioned keeper lookups.
  */
 export async function getVaultKeeperReader(): Promise<ViemVaultKeeperReader> {
-  await ensureReaders();
-  return vaultKeeperReader!;
+  return (await getResolvedReaders()).vaultKeeperReader;
 }
 
 /**
@@ -96,24 +144,39 @@ export async function getVaultKeeperReader(): Promise<ViemVaultKeeperReader> {
  * Use for transaction-critical versioned challenger lookups.
  */
 export async function getUniversalChallengerReader(): Promise<ViemUniversalChallengerReader> {
-  await ensureReaders();
-  return universalChallengerReader!;
+  return (await getResolvedReaders()).universalChallengerReader;
 }
 
 /**
- * Get the vault registry reader (contract-based).
- *
- * Synchronous construction: the BTCVaultRegistry address is known statically
- * via CONTRACTS, so this reader does NOT depend on `resolveProtocolAddresses`
- * and skips the shared init path. That keeps activation a true one-RPC
- * operation on cold start (just `getBtcVaultProtocolInfo`).
+ * Get the vault registry reader (contract-based), keyed by the active
+ * chain's id. Construction is sync because the BTCVaultRegistry address
+ * is known statically via CONTRACTS.
  */
 export function getVaultRegistryReader(): ViemVaultRegistryReader {
-  if (!vaultRegistryReader) {
-    vaultRegistryReader = new ViemVaultRegistryReader(
-      ethClient.getPublicClient(),
+  const publicClient = ethClient.getPublicClient();
+  const chainId = publicClient.chain?.id;
+  if (chainId == null) {
+    // No chain pinned on the public client (test/early-init path) — fall
+    // back to a single shared reader keyed by `0`, matching the previous
+    // pre-chain-id behavior.
+    let shared = vaultRegistryReadersByChainId.get(0);
+    if (!shared) {
+      shared = new ViemVaultRegistryReader(
+        publicClient,
+        CONTRACTS.BTC_VAULT_REGISTRY,
+      );
+      vaultRegistryReadersByChainId.set(0, shared);
+    }
+    return shared;
+  }
+
+  let reader = vaultRegistryReadersByChainId.get(chainId);
+  if (!reader) {
+    reader = new ViemVaultRegistryReader(
+      publicClient,
       CONTRACTS.BTC_VAULT_REGISTRY,
     );
+    vaultRegistryReadersByChainId.set(chainId, reader);
   }
-  return vaultRegistryReader;
+  return reader;
 }
