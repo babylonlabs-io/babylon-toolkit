@@ -114,6 +114,15 @@ export const NEAR_ZERO_DEBT_DISPLAY_THRESHOLD = 0.01;
 export const NEAR_ZERO_DEBT_RELATIVE_THRESHOLD = 0.005;
 
 /**
+ * Absolute ceiling (in USD) on the relative-threshold contribution.
+ * Without this cap, a 0.5% relative threshold on a $100k debt would mask
+ * a $300 deliberate residual the user intentionally left unpaid. The cap
+ * keeps slider-snap masking effective on small positions without hiding
+ * meaningful residual debt on large ones.
+ */
+export const NEAR_ZERO_DEBT_RELATIVE_CAP_USD = 5;
+
+/**
  * BTC token display constants
  * Uses network-aware config (BTC for mainnet, sBTC for signet)
  */

@@ -104,4 +104,22 @@ describe("useRepayMetrics", () => {
     expect(result.healthFactor).toBe("-");
     expect(result.healthFactorOriginal).toBeUndefined();
   });
+
+  it("does not mask deliberate residual debt on large positions", () => {
+    // $100k debt, user deliberately repays down to $300 remaining.
+    // Without an absolute cap on the relative threshold ($500 at 0.5%),
+    // the $300 residual would be hidden behind "-" / 0% borrow ratio.
+    const result = useRepayMetrics({
+      collateralValueUsd: 200000,
+      totalDebtValueUsd: 100000,
+      liquidationThresholdBps: 8000,
+      currentHealthFactor: 1.6,
+      repayAmount: 99700,
+      tokenPriceUsd: 1,
+    });
+
+    expect(result.healthFactorValue).not.toBe(Infinity);
+    expect(result.healthFactor).not.toBe("-");
+    expect(result.healthFactorOriginal).toBeDefined();
+  });
 });

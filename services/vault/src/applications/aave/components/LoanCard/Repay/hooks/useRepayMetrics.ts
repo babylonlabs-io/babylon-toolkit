@@ -8,6 +8,7 @@
 
 import {
   NEAR_ZERO_DEBT_DISPLAY_THRESHOLD,
+  NEAR_ZERO_DEBT_RELATIVE_CAP_USD,
   NEAR_ZERO_DEBT_RELATIVE_THRESHOLD,
 } from "../../../../constants";
 import {
@@ -72,7 +73,10 @@ export function useRepayMetrics({
   );
   const nearZeroAbsoluteThreshold = Math.max(
     NEAR_ZERO_DEBT_DISPLAY_THRESHOLD,
-    totalDebtValueUsd * NEAR_ZERO_DEBT_RELATIVE_THRESHOLD,
+    Math.min(
+      totalDebtValueUsd * NEAR_ZERO_DEBT_RELATIVE_THRESHOLD,
+      NEAR_ZERO_DEBT_RELATIVE_CAP_USD,
+    ),
   );
   const isDebtNearZero = projectedTotalDebtUsd < nearZeroAbsoluteThreshold;
 
