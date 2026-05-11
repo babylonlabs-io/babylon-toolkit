@@ -51,6 +51,11 @@ const TEST_CHAIN: Chain = {
 // hit HTTP. Mirrors viem's PublicClient surface used by the manager.
 const TEST_PUBLIC_CLIENT = {
   estimateGas: vi.fn().mockResolvedValue(100000n),
+  // Empty bytecode marks the connected wallet as an Externally Owned Account
+  // (EOA — controlled by a single private key, e.g. MetaMask), so the
+  // smart-account-aware receipt wait delegates directly to
+  // waitForTransactionReceipt.
+  getCode: vi.fn().mockResolvedValue("0x"),
   waitForTransactionReceipt: vi.fn().mockResolvedValue({
     status: "success",
     transactionHash: "0x" + "ab".repeat(32),
