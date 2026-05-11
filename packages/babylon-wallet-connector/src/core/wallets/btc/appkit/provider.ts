@@ -53,6 +53,13 @@ export class AppKitBTCProvider implements IBTCProvider {
   private eventHandlers: Map<string, Set<(...args: unknown[]) => void>> = new Map();
   private listeningForChanges = false;
   private boundHandleAccountChange: ((event: Event) => void) | null = null;
+  /**
+   * The {@link EventTarget} we currently have a persistent listener on.
+   * Captured at registration time so we always remove the listener from
+   * the same target we added it to, even if the shared config singleton
+   * is replaced mid-session.
+   */
+  private boundConnectionEventsTarget: EventTarget | null = null;
 
   constructor(config: BTCConfig) {
     this.config = config;
@@ -75,11 +82,24 @@ export class AppKitBTCProvider implements IBTCProvider {
 
   /**
    * Start listening for account changes from the bridge hook.
-   * Sets up a persistent window listener for APPKIT_BTC_CONNECTED_EVENT
-   * so account switches are propagated to BTCWalletProvider via event handlers.
+   *
+   * The listener is attached to the private `connectionEvents`
+   * {@link EventTarget} held inside {@link SharedBtcAppKitConfig}, NOT on
+   * `window`. The previous implementation listened on `window` for
+   * `APPKIT_BTC_CONNECTED_EVENT` and adopted `event.detail.{address, publicKey}`
+   * as truth. Any same-origin script (XSS, malicious extension content
+   * script) could `window.dispatchEvent` a forged event with attacker-chosen
+   * values and overwrite this provider's cached address/pubkey, which then
+   * propagated through `accountsChanged` into `BTCWalletProvider` React
+   * state and downstream consumers. Listening on a private `EventTarget`
+   * instance closes that channel — there is no global handle for an attacker
+   * to dispatch on.
    */
   private startListeningForAccountChanges(): void {
-    if (this.listeningForChanges || typeof window === "undefined") return;
+    if (this.listeningForChanges) return;
+    if (!hasSharedBtcAppKitConfig()) return;
+
+    const { connectionEvents } = getSharedBtcAppKitConfig();
 
     this.boundHandleAccountChange = (event: Event) => {
       const detail = (event as BtcConnectedEvent).detail;
@@ -102,17 +122,22 @@ export class AppKitBTCProvider implements IBTCProvider {
       this.emit("accountsChanged", [detail.address]);
     };
 
-    window.addEventListener(APPKIT_BTC_CONNECTED_EVENT, this.boundHandleAccountChange);
+    connectionEvents.addEventListener(APPKIT_BTC_CONNECTED_EVENT, this.boundHandleAccountChange);
+    this.boundConnectionEventsTarget = connectionEvents;
     this.listeningForChanges = true;
   }
 
   private stopListeningForAccountChanges(): void {
-    if (!this.listeningForChanges || typeof window === "undefined" || !this.boundHandleAccountChange) {
+    if (!this.listeningForChanges || !this.boundHandleAccountChange || !this.boundConnectionEventsTarget) {
       return;
     }
 
-    window.removeEventListener(APPKIT_BTC_CONNECTED_EVENT, this.boundHandleAccountChange);
+    this.boundConnectionEventsTarget.removeEventListener(
+      APPKIT_BTC_CONNECTED_EVENT,
+      this.boundHandleAccountChange,
+    );
     this.boundHandleAccountChange = null;
+    this.boundConnectionEventsTarget = null;
     this.listeningForChanges = false;
   }
 
@@ -131,44 +156,51 @@ export class AppKitBTCProvider implements IBTCProvider {
 
   async connectWallet(): Promise<void> {
     try {
-      // Open AppKit modal for Bitcoin wallet connection
-      if (typeof window !== "undefined") {
-        window.dispatchEvent(new CustomEvent(APPKIT_OPEN_EVENT));
-
-        // Wait for connection to complete
-        const waitForConnection = new Promise<void>((resolve, reject) => {
-          const timeout = setTimeout(() => {
-            console.error("[AppKit Provider] Connection timeout after 60 seconds");
-            cleanup();
-            reject(new Error("Connection timeout"));
-          }, 60000);
-
-          const handleAccountChange = (event: Event) => {
-            const detail = (event as BtcConnectedEvent).detail;
-            if (detail?.address) {
-              cleanup();
-              this.address = detail.address;
-              this.publicKey = detail.publicKey;
-              resolve();
-            } else {
-              console.warn("[AppKit Provider] Event received but no address in detail");
-            }
-          };
-
-          const cleanup = () => {
-            clearTimeout(timeout);
-            window.removeEventListener(APPKIT_BTC_CONNECTED_EVENT, handleAccountChange);
-          };
-
-          window.addEventListener(APPKIT_BTC_CONNECTED_EVENT, handleAccountChange);
-        });
-
-        await waitForConnection;
-        this.startListeningForAccountChanges();
-        return;
+      if (typeof window === "undefined") {
+        throw new Error("Window not available for AppKit modal");
       }
 
-      throw new Error("Window not available for AppKit modal");
+      // Resolve the shared config up front so we listen on the private
+      // connection-events bus, not on `window`. If the modal hasn't been
+      // initialized yet, fail loudly rather than fall back to a spoofable
+      // global channel.
+      const { connectionEvents } = this.getAppKitConfig();
+
+      // The modal-open trigger remains a window event because it is
+      // intentionally a UI hook (not a state source). It carries no
+      // payload that downstream code adopts as truth.
+      window.dispatchEvent(new CustomEvent(APPKIT_OPEN_EVENT));
+
+      // Wait for connection to complete
+      const waitForConnection = new Promise<void>((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          console.error("[AppKit Provider] Connection timeout after 60 seconds");
+          cleanup();
+          reject(new Error("Connection timeout"));
+        }, 60000);
+
+        const handleAccountChange = (event: Event) => {
+          const detail = (event as BtcConnectedEvent).detail;
+          if (detail?.address) {
+            cleanup();
+            this.address = detail.address;
+            this.publicKey = detail.publicKey;
+            resolve();
+          } else {
+            console.warn("[AppKit Provider] Event received but no address in detail");
+          }
+        };
+
+        const cleanup = () => {
+          clearTimeout(timeout);
+          connectionEvents.removeEventListener(APPKIT_BTC_CONNECTED_EVENT, handleAccountChange);
+        };
+
+        connectionEvents.addEventListener(APPKIT_BTC_CONNECTED_EVENT, handleAccountChange);
+      });
+
+      await waitForConnection;
+      this.startListeningForAccountChanges();
     } catch (error) {
       console.error("[AppKit Provider] Failed to connect Bitcoin wallet:", error instanceof Error ? error.message : "Unknown error");
       throw new Error(`Failed to connect Bitcoin wallet: ${error instanceof Error ? error.message : "Unknown error"}`);
