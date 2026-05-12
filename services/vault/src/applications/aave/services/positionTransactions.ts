@@ -243,9 +243,17 @@ export async function repayFull(
     throw new Error("No debt to repay");
   }
 
-  // Add 0.01% buffer to account for interest accrual between fetching and tx execution
-  // The contract will only take what's actually owed, excess stays in user's wallet
-  const amountToRepay = currentDebt + currentDebt / FULL_REPAY_BUFFER_DIVISOR;
+  // Buffer for interest accrual between fetching debt and tx execution.
+  // The adapter only pulls what's actually owed; excess stays with the user.
+  //
+  // Uses **ceiling division** so any non-zero debt gets at least 1 base unit
+  // of buffer. Floor division (currentDebt / FULL_REPAY_BUFFER_DIVISOR) silently
+  // returns 0 for `currentDebt < FULL_REPAY_BUFFER_DIVISOR` — exactly the
+  // dust-scale case where a residual could otherwise linger forever as each
+  // repay sends the exact debt and the next block re-introduces a microcent.
+  const bufferDelta =
+    (currentDebt + FULL_REPAY_BUFFER_DIVISOR - 1n) / FULL_REPAY_BUFFER_DIVISOR;
+  const amountToRepay = currentDebt + bufferDelta;
 
   // Check user's token balance before proceeding
   const userBalance = await ERC20.getERC20Balance(tokenAddress, userAddress);

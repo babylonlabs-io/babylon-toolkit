@@ -425,6 +425,80 @@ describe("positionTransactions", () => {
         ),
       ).rejects.toThrow("Wallet address not available");
     });
+
+    // The buffer uses ceiling division so dust-scale debts (currentDebt <
+    // FULL_REPAY_BUFFER_DIVISOR, where percentage math floors to zero) still
+    // get at least 1 base unit of buffer. Without this, micro-cent residuals
+    // can persist forever because each repay sends the exact debt and the
+    // next block re-introduces a unit of interest.
+    describe("ceiling-division buffer for dust-scale debts", () => {
+      const runWithDebt = async (debt: bigint) => {
+        mockGetUserTotalDebt.mockResolvedValue(debt);
+        mockGetERC20Balance.mockResolvedValue(1_000_000_000n); // plenty of headroom
+        await repayFull(
+          mockWalletClient,
+          mockChain,
+          1n,
+          "0xtoken" as any,
+          "0xproxy" as any,
+        );
+      };
+
+      it("currentDebt = 1n → approves 2n (1 base unit of buffer, not 0)", async () => {
+        await runWithDebt(1n);
+        expect(mockApproveERC20).toHaveBeenCalledWith(
+          mockWalletClient,
+          mockChain,
+          "0xtoken",
+          "0xadapter",
+          2n,
+        );
+      });
+
+      it("currentDebt = 3n (the reported 3 µUSDC case) → approves 4n", async () => {
+        await runWithDebt(3n);
+        expect(mockApproveERC20).toHaveBeenCalledWith(
+          mockWalletClient,
+          mockChain,
+          "0xtoken",
+          "0xadapter",
+          4n,
+        );
+      });
+
+      it("currentDebt = 199n (just below divisor) → approves 200n", async () => {
+        await runWithDebt(199n);
+        expect(mockApproveERC20).toHaveBeenCalledWith(
+          mockWalletClient,
+          mockChain,
+          "0xtoken",
+          "0xadapter",
+          200n,
+        );
+      });
+
+      it("currentDebt = 200n (exact divisor) → approves 201n", async () => {
+        await runWithDebt(200n);
+        expect(mockApproveERC20).toHaveBeenCalledWith(
+          mockWalletClient,
+          mockChain,
+          "0xtoken",
+          "0xadapter",
+          201n,
+        );
+      });
+
+      it("currentDebt = 201n (just above divisor) → approves 203n (ceiling rounds up)", async () => {
+        await runWithDebt(201n);
+        expect(mockApproveERC20).toHaveBeenCalledWith(
+          mockWalletClient,
+          mockChain,
+          "0xtoken",
+          "0xadapter",
+          203n,
+        );
+      });
+    });
   });
 
   // ============================================================================
