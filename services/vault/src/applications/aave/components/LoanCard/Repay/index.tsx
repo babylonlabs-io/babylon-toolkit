@@ -95,7 +95,11 @@ export function Repay() {
       userTokenBalance,
     );
 
-  const sliderMaxRepay = Math.max(maxRepayAmount, MIN_SLIDER_MAX);
+  // Cosmetic minimum only — keeps the slider track from rendering at zero
+  // width when there is nothing to repay. The displayed "Max" label and the
+  // slider's accept range use the real `maxRepayAmount` so the UI doesn't
+  // advertise an amount that validation will reject.
+  const sliderTrackMax = maxRepayAmount > 0 ? maxRepayAmount : MIN_SLIDER_MAX;
 
   // Max click: refresh debt and balance from chain so we don't decide the
   // repay path on stale React Query data (up to 30s old). Then pick the
@@ -216,20 +220,20 @@ export function Repay() {
               setRepayAmount(parseFloat(e.target.value) || 0)
             }
             balanceDetails={{
-              balance: formatTokenAmount(sliderMaxRepay),
+              balance: formatTokenAmount(maxRepayAmount),
               symbol: assetConfig.symbol,
               displayUSD: false,
             }}
             sliderValue={repayAmount}
             sliderMin={0}
-            sliderMax={sliderMaxRepay}
-            sliderStep={sliderMaxRepay / 1000}
+            sliderMax={sliderTrackMax}
+            sliderStep={sliderTrackMax / 1000}
             sliderSteps={[]}
             onSliderChange={setRepayAmount}
             sliderVariant="rainbow"
             leftField={{
               label: "Max",
-              value: `${formatTokenAmount(sliderMaxRepay)} ${assetConfig.symbol}`,
+              value: `${formatTokenAmount(maxRepayAmount)} ${assetConfig.symbol}`,
             }}
             onMaxClick={handleMaxClick}
             rightField={{

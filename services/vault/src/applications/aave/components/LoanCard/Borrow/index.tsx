@@ -73,7 +73,11 @@ export function Borrow() {
     isPositionDataStale,
   );
 
-  const sliderMaxBorrow = Math.max(maxBorrowAmount, MIN_SLIDER_MAX);
+  // Cosmetic minimum only — keeps the slider track from rendering at zero
+  // width when there is nothing to borrow. The "Max" label and the slider's
+  // accept range use the real `maxBorrowAmount` so the UI doesn't advertise
+  // a value that validation will reject.
+  const sliderTrackMax = maxBorrowAmount > 0 ? maxBorrowAmount : MIN_SLIDER_MAX;
 
   const handleBorrow = async () => {
     const success = await executeBorrow(borrowAmount, selectedReserve, () =>
@@ -116,22 +120,22 @@ export function Borrow() {
               setBorrowAmount(parseFloat(e.target.value) || 0)
             }
             balanceDetails={{
-              balance: formatTokenAmount(sliderMaxBorrow),
+              balance: formatTokenAmount(maxBorrowAmount),
               symbol: assetConfig.symbol,
               displayUSD: false,
             }}
             sliderValue={borrowAmount}
             sliderMin={0}
-            sliderMax={sliderMaxBorrow}
-            sliderStep={sliderMaxBorrow / 1000}
+            sliderMax={sliderTrackMax}
+            sliderStep={sliderTrackMax / 1000}
             sliderSteps={[]}
             onSliderChange={setBorrowAmount}
             sliderVariant="rainbow"
             leftField={{
               label: "Max",
-              value: `${formatTokenAmount(sliderMaxBorrow)} ${assetConfig.symbol}`,
+              value: `${formatTokenAmount(maxBorrowAmount)} ${assetConfig.symbol}`,
             }}
-            onMaxClick={() => setBorrowAmount(sliderMaxBorrow)}
+            onMaxClick={() => setBorrowAmount(maxBorrowAmount)}
             rightField={{
               value:
                 tokenPriceUsd != null
