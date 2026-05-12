@@ -286,7 +286,6 @@ describe("Deposit Validations", () => {
       isGeoBlocked: false,
       isAddressBlocked: false,
       isWalletConnected: true,
-      hasApplication: true,
       hasProvider: true,
       splitNotReady: false,
       isFeeError: false,
@@ -351,17 +350,6 @@ describe("Deposit Validations", () => {
       expect(result).toEqual({
         disabled: true,
         label: "Connect your wallet",
-      });
-    });
-
-    it("returns 'Select an application' when application is missing", () => {
-      const result = getDepositCtaState({
-        ...readyParams,
-        hasApplication: false,
-      });
-      expect(result).toEqual({
-        disabled: true,
-        label: "Select an application",
       });
     });
 

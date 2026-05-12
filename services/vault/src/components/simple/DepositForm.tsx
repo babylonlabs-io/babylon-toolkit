@@ -204,7 +204,6 @@ export function DepositForm({
     isGeoBlocked,
     isAddressBlocked,
     isWalletConnected,
-    hasApplication: !!selectedApplication,
     hasProvider: !!selectedProvider,
     splitNotReady: !!splitNotReady,
     isFeeError,
