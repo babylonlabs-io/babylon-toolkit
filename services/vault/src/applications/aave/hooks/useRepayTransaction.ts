@@ -26,9 +26,23 @@ import {
   ReserveMismatchError,
   assertReserveMatchesOnChain,
   repayFull,
+  repayMaxCapped,
   repayPartial,
 } from "../services";
 import type { AaveReserveConfig } from "../services/fetchConfig";
+
+/**
+ * Which repay path the user is invoking.
+ *
+ * - `"partial"` — user typed a specific amount; send it verbatim, no buffer.
+ * - `"full"` — user wants to clear the debt and balance covers debt × (1 + buffer);
+ *   service refetches debt at broadcast time and adds the buffer.
+ * - `"max-capped"` — user wants to clear the debt but balance is between
+ *   `debt` and `debt × (1 + buffer)`; approve and send the user's full balance,
+ *   adapter pulls `min(balance, actualDebt)`. Residual ≤ accrual during
+ *   broadcast (sub-cent in practice).
+ */
+export type RepayMode = "partial" | "full" | "max-capped";
 
 export interface UseRepayTransactionProps {
   /** User's proxy contract address (for debt queries) */
@@ -38,9 +52,10 @@ export interface UseRepayTransactionProps {
 export interface UseRepayTransactionResult {
   /**
    * Execute the repay transaction (handles approval if needed)
-   * @param repayAmount - Amount to repay in token units (e.g., 100 for 100 USDC)
+   * @param repayAmount - Amount to repay in token units (e.g., 100 for 100 USDC).
+   *   In `"max-capped"` mode this is the user's full balance, which becomes the cap.
    * @param reserve - Reserve config for the debt token
-   * @param isFullRepayment - If true, fetches exact debt from contract and repays all
+   * @param mode - Which repay path to take. Defaults to `"partial"`.
    * @param preSignValidation - Optional callback that runs after the on-chain
    *   reserve-mismatch check and before any repay tx. Throwing aborts the
    *   submission. Used by the Repay UI to refetch position + split params and
@@ -49,7 +64,7 @@ export interface UseRepayTransactionResult {
   executeRepay: (
     repayAmount: number,
     reserve: AaveReserveConfig,
-    isFullRepayment?: boolean,
+    mode?: RepayMode,
     preSignValidation?: () => Promise<void>,
   ) => Promise<boolean>;
   /** Whether transaction is currently processing */
@@ -75,7 +90,7 @@ export function useRepayTransaction({
   const executeRepay = async (
     repayAmount: number,
     reserve: AaveReserveConfig,
-    isFullRepayment = false,
+    mode: RepayMode = "partial",
     preSignValidation?: () => Promise<void>,
   ) => {
     if (repayAmount <= 0) return false;
@@ -118,7 +133,7 @@ export function useRepayTransaction({
       // Call appropriate service based on repayment type
       // The borrower address is resolved from the connected wallet (self-repay)
       // Adapter and spoke addresses are pinned from trusted environment config
-      if (isFullRepayment) {
+      if (mode === "full") {
         if (!proxyContract) {
           throw new Error(
             "Cannot perform full repayment: position data not available",
@@ -141,18 +156,30 @@ export function useRepayTransaction({
           );
         });
         const SAFE_TOFIXED_PRECISION = 15;
-        await repayPartial(
-          walletClient,
-          chain,
-          reserve.reserveId,
-          reserve.token.address,
-          parseUnits(
-            repayAmount.toFixed(
-              Math.min(onChainDecimals, SAFE_TOFIXED_PRECISION),
-            ),
-            onChainDecimals,
+        const amountBigInt = parseUnits(
+          repayAmount.toFixed(
+            Math.min(onChainDecimals, SAFE_TOFIXED_PRECISION),
           ),
+          onChainDecimals,
         );
+
+        if (mode === "max-capped") {
+          await repayMaxCapped(
+            walletClient,
+            chain,
+            reserve.reserveId,
+            reserve.token.address,
+            amountBigInt,
+          );
+        } else {
+          await repayPartial(
+            walletClient,
+            chain,
+            reserve.reserveId,
+            reserve.token.address,
+            amountBigInt,
+          );
+        }
       }
 
       // Invalidate position queries to refresh data

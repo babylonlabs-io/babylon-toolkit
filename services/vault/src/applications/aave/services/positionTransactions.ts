@@ -148,6 +148,63 @@ export async function repayPartial(
 }
 
 /**
+ * Repay as much as the user's balance permits, when balance is less than
+ * `debt × (1 + buffer)` (so `repayFull` would refuse).
+ *
+ * The adapter pulls `min(amount, currentDebtAtExecution)`, so sending the
+ * user's full balance leaves at most `currentDebtAtExecution - balance` of
+ * residual debt — which is the interest accrued between the caller's
+ * balance check and the broadcast block (sub-cent in practice).
+ *
+ * Callers must have already verified `balanceAmount >= currentDebt` against
+ * fresh on-chain values; this function does not refetch debt to keep the
+ * pulled amount strictly capped at the user's balance.
+ *
+ * @param walletClient - Connected wallet client
+ * @param chain - Chain configuration
+ * @param debtReserveId - Reserve ID for the debt token
+ * @param tokenAddress - Token address for the debt
+ * @param balanceAmount - The user's full token balance (the cap); approved and sent verbatim
+ * @returns Transaction result
+ */
+export async function repayMaxCapped(
+  walletClient: WalletClient,
+  chain: Chain,
+  debtReserveId: bigint,
+  tokenAddress: Address,
+  balanceAmount: bigint,
+): Promise<{ transactionHash: Hash; receipt: TransactionReceipt }> {
+  const userAddress = walletClient.account?.address;
+  if (!userAddress) {
+    throw new Error("Wallet address not available");
+  }
+
+  if (balanceAmount <= 0n) {
+    throw new Error("Repay amount must be greater than 0");
+  }
+
+  const adapterAddress = getAaveAdapterAddress();
+
+  const currentAllowance = await ERC20.getERC20Allowance(
+    tokenAddress,
+    userAddress,
+    adapterAddress,
+  );
+
+  if (currentAllowance < balanceAmount) {
+    await ERC20.approveERC20(
+      walletClient,
+      chain,
+      tokenAddress,
+      adapterAddress,
+      balanceAmount,
+    );
+  }
+
+  return repay(walletClient, chain, userAddress, debtReserveId, balanceAmount);
+}
+
+/**
  * Repay all debt for a reserve
  *
  * Fetches exact debt from contract, handles approval, then repays.

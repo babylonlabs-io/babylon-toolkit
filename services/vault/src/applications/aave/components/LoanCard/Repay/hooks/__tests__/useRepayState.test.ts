@@ -157,6 +157,77 @@ describe("useRepayState", () => {
     });
   });
 
+  describe("repayMode (tri-state)", () => {
+    it("defaults to 'partial'", () => {
+      const { result } = renderHook(() =>
+        useRepayState({ currentDebtAmount: 100, userTokenBalance: 100 }),
+      );
+
+      expect(result.current.repayMode).toBe("partial");
+    });
+
+    it("is 'full' when setRepayAmountWithMode('full') is called", () => {
+      const { result } = renderHook(() =>
+        useRepayState({ currentDebtAmount: 100, userTokenBalance: 100 }),
+      );
+
+      act(() => {
+        result.current.setRepayAmountWithMode(100, "full");
+      });
+
+      expect(result.current.repayMode).toBe("full");
+      expect(result.current.isFullRepayment).toBe(true);
+    });
+
+    it("is 'max-capped' when balance covers debt but not the safety buffer", () => {
+      // Caller has decided "balance < debt × (1 + buffer)" so we send the
+      // full balance and let the adapter pull min(balance, actualDebt).
+      const { result } = renderHook(() =>
+        useRepayState({ currentDebtAmount: 100.001, userTokenBalance: 100 }),
+      );
+
+      act(() => {
+        result.current.setRepayAmountWithMode(100, "max-capped");
+      });
+
+      expect(result.current.repayMode).toBe("max-capped");
+      // max-capped is NOT a full repayment — adapter may leave sub-cent dust.
+      expect(result.current.isFullRepayment).toBe(false);
+      expect(result.current.repayAmount).toBe(100);
+    });
+
+    it("resets to 'partial' when setRepayAmount is called (manual input)", () => {
+      const { result } = renderHook(() =>
+        useRepayState({ currentDebtAmount: 100, userTokenBalance: 100 }),
+      );
+
+      act(() => {
+        result.current.setRepayAmountWithMode(100, "max-capped");
+      });
+      expect(result.current.repayMode).toBe("max-capped");
+
+      act(() => {
+        result.current.setRepayAmount(50);
+      });
+      expect(result.current.repayMode).toBe("partial");
+    });
+
+    it("resets mode on resetRepayAmount", () => {
+      const { result } = renderHook(() =>
+        useRepayState({ currentDebtAmount: 100, userTokenBalance: 100 }),
+      );
+
+      act(() => {
+        result.current.setRepayAmountWithMode(100, "max-capped");
+      });
+      act(() => {
+        result.current.resetRepayAmount();
+      });
+
+      expect(result.current.repayMode).toBe("partial");
+    });
+  });
+
   describe("repayAmount state", () => {
     it("should initialize to zero", () => {
       const { result } = renderHook(() =>

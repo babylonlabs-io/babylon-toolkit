@@ -6,6 +6,8 @@
  */
 
 import { AmountSlider, Button, SubSection } from "@babylonlabs-io/core-ui";
+import { useCallback } from "react";
+import { formatUnits } from "viem";
 
 import { useETHWallet } from "@/context/wallet";
 import { useERC20Balance } from "@/hooks";
@@ -18,7 +20,11 @@ import {
   formatTokenAmount,
   formatUsdValue,
 } from "../../../../../utils/formatting";
-import { AMOUNT_INPUT_CLASS_NAME, MIN_SLIDER_MAX } from "../../../constants";
+import {
+  AMOUNT_INPUT_CLASS_NAME,
+  FULL_REPAY_BUFFER_FRACTION,
+  MIN_SLIDER_MAX,
+} from "../../../constants";
 import { useRepayTransaction } from "../../../hooks";
 import { useLoanContext } from "../../context/LoanContext";
 import { BorrowDetailsCard } from "../Borrow/BorrowDetailsCard";
@@ -39,6 +45,7 @@ export function Repay() {
     assetConfig,
     proxyContract,
     tokenPriceUsd,
+    refetchPosition,
     refetchSplitParams,
     onRepaySuccess,
   } = useLoanContext();
@@ -46,11 +53,12 @@ export function Repay() {
   const { address } = useETHWallet();
 
   // Fetch user's token balance for repayment
-  const { balance: userTokenBalance } = useERC20Balance(
-    selectedReserve.token.address,
-    address,
-    selectedReserve.token.decimals,
-  );
+  const { balance: userTokenBalance, refetch: refetchUserBalance } =
+    useERC20Balance(
+      selectedReserve.token.address,
+      address,
+      selectedReserve.token.decimals,
+    );
 
   const { executeRepay, isProcessing } = useRepayTransaction({
     proxyContract,
@@ -62,7 +70,7 @@ export function Repay() {
     setRepayAmountWithMode,
     resetRepayAmount,
     maxRepayAmount,
-    isFullRepayment,
+    repayMode,
   } = useRepayState({
     currentDebtAmount,
     userTokenBalance,
@@ -77,20 +85,75 @@ export function Repay() {
     tokenPriceUsd,
   });
 
-  const { isDisabled, buttonText, errorMessage } = validateRepayAction(
-    repayAmount,
-    maxRepayAmount,
-    currentDebtAmount,
-    userTokenBalance,
-  );
+  const { isDisabled, buttonText, errorMessage, warningMessage } =
+    validateRepayAction(
+      repayAmount,
+      maxRepayAmount,
+      currentDebtAmount,
+      userTokenBalance,
+    );
 
   const sliderMaxRepay = Math.max(maxRepayAmount, MIN_SLIDER_MAX);
+
+  // Max click: refresh debt and balance from chain so we don't decide the
+  // repay path on stale React Query data (up to 30s old). Then pick the
+  // cheapest path that actually clears the debt:
+  //
+  // - balance ≥ debt × (1 + buffer)   → "full" (repayFull adds the buffer)
+  // - debt ≤ balance < debt × (1+buf) → "max-capped" (send full balance;
+  //                                      adapter pulls min(balance, debt))
+  // - balance < debt                  → partial Max; validateRepayAction
+  //                                      will surface a "need more tokens"
+  //                                      message and keep submit disabled
+  //                                      for amount > maxRepayAmount.
+  const handleMaxClick = useCallback(async () => {
+    const [freshPosition, freshBalanceResult] = await Promise.all([
+      refetchPosition(),
+      refetchUserBalance(),
+    ]);
+
+    const freshDebtRaw =
+      freshPosition?.debtPositions?.get(selectedReserve.reserveId)?.totalDebt ??
+      0n;
+    const freshDebtAmount = Number(
+      formatUnits(freshDebtRaw, selectedReserve.token.decimals),
+    );
+    const freshBalanceRaw = freshBalanceResult?.data ?? 0n;
+    const freshBalanceAmount = Number(
+      formatUnits(freshBalanceRaw, selectedReserve.token.decimals),
+    );
+
+    if (freshDebtAmount <= 0 || freshBalanceAmount <= 0) {
+      setRepayAmountWithMode(
+        Math.min(freshDebtAmount, freshBalanceAmount),
+        "partial",
+      );
+      return;
+    }
+
+    const fullRepayThreshold =
+      freshDebtAmount * (1 + FULL_REPAY_BUFFER_FRACTION);
+
+    if (freshBalanceAmount >= fullRepayThreshold) {
+      setRepayAmountWithMode(freshDebtAmount, "full");
+    } else if (freshBalanceAmount >= freshDebtAmount) {
+      setRepayAmountWithMode(freshBalanceAmount, "max-capped");
+    } else {
+      setRepayAmountWithMode(freshBalanceAmount, "partial");
+    }
+  }, [
+    refetchPosition,
+    refetchUserBalance,
+    selectedReserve.reserveId,
+    selectedReserve.token.decimals,
+    setRepayAmountWithMode,
+  ]);
 
   const handleRepay = async () => {
     const success = await executeRepay(
       repayAmount,
       selectedReserve,
-      isFullRepayment,
+      repayMode,
       () =>
         validateRepayPreSign({
           liquidationThresholdBps,
@@ -137,13 +200,7 @@ export function Repay() {
               label: "Max",
               value: `${formatTokenAmount(sliderMaxRepay)} ${assetConfig.symbol}`,
             }}
-            onMaxClick={() => {
-              const canCoverFullDebt = maxRepayAmount >= currentDebtAmount;
-              setRepayAmountWithMode(
-                maxRepayAmount,
-                canCoverFullDebt ? "full" : "partial",
-              );
-            }}
+            onMaxClick={handleMaxClick}
             rightField={{
               value:
                 tokenPriceUsd != null
@@ -166,6 +223,9 @@ export function Repay() {
 
         {errorMessage && (
           <p className="text-sm text-error-main">{errorMessage}</p>
+        )}
+        {!errorMessage && warningMessage && (
+          <p className="text-sm text-warning-main">{warningMessage}</p>
         )}
       </div>
 

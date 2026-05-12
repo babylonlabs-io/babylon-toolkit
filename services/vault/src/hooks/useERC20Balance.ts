@@ -5,7 +5,7 @@
  * Automatically refetches periodically to keep the balance up to date.
  */
 
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, type QueryObserverResult } from "@tanstack/react-query";
 import { useMemo } from "react";
 import type { Address } from "viem";
 import { formatUnits } from "viem";
@@ -24,8 +24,13 @@ export interface UseERC20BalanceResult {
   isLoading: boolean;
   /** Error state */
   error: Error | null;
-  /** Function to manually refetch the balance */
-  refetch: () => Promise<unknown>;
+  /**
+   * Manually refetch the balance. Resolves with the fresh `QueryObserverResult`
+   * whose `.data` is the up-to-date raw balance — useful when the caller needs
+   * a fresh on-chain read inside a synchronous flow (e.g. computing a Max
+   * repay amount on click) without waiting for a re-render.
+   */
+  refetch: () => Promise<QueryObserverResult<bigint, Error>>;
 }
 
 /**

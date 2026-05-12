@@ -57,6 +57,7 @@ import {
   borrow,
   repay,
   repayFull,
+  repayMaxCapped,
   repayPartial,
   withdrawSelectedCollateral,
 } from "../positionTransactions";
@@ -219,6 +220,95 @@ describe("positionTransactions", () => {
 
       await expect(
         repayPartial(noAccountWallet, mockChain, 1n, "0xtoken" as any, 1000n),
+      ).rejects.toThrow("Wallet address not available");
+    });
+  });
+
+  // ============================================================================
+  // repayMaxCapped
+  // ============================================================================
+  describe("repayMaxCapped", () => {
+    beforeEach(() => {
+      mockGetERC20Allowance.mockResolvedValue(0n);
+    });
+
+    it("should approve and send the user's full balance verbatim (no buffer math)", async () => {
+      const balanceAmount = 200_000_000n;
+
+      await repayMaxCapped(
+        mockWalletClient,
+        mockChain,
+        1n,
+        "0xtoken" as any,
+        balanceAmount,
+      );
+
+      // The whole point of this path: approve exactly the cap, not cap × (1+buffer).
+      expect(mockApproveERC20).toHaveBeenCalledWith(
+        mockWalletClient,
+        mockChain,
+        "0xtoken",
+        "0xadapter",
+        balanceAmount,
+      );
+
+      expect(mockRepayToCorePosition).toHaveBeenCalledWith(
+        mockWalletClient,
+        mockChain,
+        "0xadapter",
+        "0xuser",
+        1n,
+        balanceAmount,
+      );
+    });
+
+    it("should skip approval when allowance is sufficient", async () => {
+      const balanceAmount = 200_000_000n;
+      mockGetERC20Allowance.mockResolvedValue(balanceAmount + 1n);
+
+      await repayMaxCapped(
+        mockWalletClient,
+        mockChain,
+        1n,
+        "0xtoken" as any,
+        balanceAmount,
+      );
+
+      expect(mockApproveERC20).not.toHaveBeenCalled();
+      expect(mockRepayToCorePosition).toHaveBeenCalled();
+    });
+
+    it("should not refetch debt — the cap is the user's balance, period", async () => {
+      // If this path fetched debt, an interest-accrual race could push the
+      // approval above the user's balance and break the failure-mode-A fix.
+      await repayMaxCapped(
+        mockWalletClient,
+        mockChain,
+        1n,
+        "0xtoken" as any,
+        1_000_000n,
+      );
+
+      expect(mockGetUserTotalDebt).not.toHaveBeenCalled();
+    });
+
+    it("should throw error when balanceAmount is 0", async () => {
+      await expect(
+        repayMaxCapped(mockWalletClient, mockChain, 1n, "0xtoken" as any, 0n),
+      ).rejects.toThrow("Repay amount must be greater than 0");
+    });
+
+    it("should throw error when wallet has no account", async () => {
+      const noAccountWallet = { account: undefined } as any;
+
+      await expect(
+        repayMaxCapped(
+          noAccountWallet,
+          mockChain,
+          1n,
+          "0xtoken" as any,
+          1_000n,
+        ),
       ).rejects.toThrow("Wallet address not available");
     });
   });

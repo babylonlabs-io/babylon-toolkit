@@ -1,11 +1,13 @@
 /**
  * Repay state management hook
  *
- * Manages repay amount and calculates max repay based on current debt in token units.
- * Uses explicit mode tracking ("partial" | "full") instead of tolerance-based detection.
+ * Manages repay amount and tracks which repay path the user is invoking.
+ * Uses explicit mode tracking instead of tolerance-based detection.
  */
 
 import { useCallback, useMemo, useState } from "react";
+
+import type { RepayMode } from "../../../../hooks/useRepayTransaction";
 
 export interface UseRepayStateProps {
   /** Current debt amount for selected reserve in token units */
@@ -19,10 +21,12 @@ export interface UseRepayStateResult {
   /** Sets repay amount and resets mode to partial (used by typed input / slider) */
   setRepayAmount: (amount: number) => void;
   /** Sets repay amount and mode atomically (used by Max button) */
-  setRepayAmountWithMode: (amount: number, mode: "partial" | "full") => void;
+  setRepayAmountWithMode: (amount: number, mode: RepayMode) => void;
   resetRepayAmount: () => void;
   maxRepayAmount: number;
-  /** Whether the current repay represents a full repayment (set explicitly, not by tolerance) */
+  /** Which repay path the current amount should use. Set explicitly. */
+  repayMode: RepayMode;
+  /** Whether the current repay clears the full debt (mode === "full"). */
   isFullRepayment: boolean;
 }
 
@@ -31,7 +35,7 @@ export function useRepayState({
   userTokenBalance,
 }: UseRepayStateProps): UseRepayStateResult {
   const [repayAmount, setRepayAmountRaw] = useState(0);
-  const [repayMode, setRepayMode] = useState<"partial" | "full">("partial");
+  const [repayMode, setRepayMode] = useState<RepayMode>("partial");
 
   // Max repay is the minimum of debt and available balance
   const maxRepayAmount = useMemo(() => {
@@ -46,7 +50,7 @@ export function useRepayState({
 
   // Max button sets amount + mode atomically
   const setRepayAmountWithMode = useCallback(
-    (amount: number, mode: "partial" | "full") => {
+    (amount: number, mode: RepayMode) => {
       setRepayAmountRaw(amount);
       setRepayMode(mode);
     },
@@ -66,6 +70,7 @@ export function useRepayState({
     setRepayAmountWithMode,
     resetRepayAmount,
     maxRepayAmount,
+    repayMode,
     isFullRepayment,
   };
 }
