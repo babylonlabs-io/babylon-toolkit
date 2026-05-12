@@ -103,6 +103,7 @@ describe("waitForTransactionReceiptSmartAware", () => {
     expect(fetch).toHaveBeenNthCalledWith(
       1,
       `https://safe-transaction-sepolia.safe.global/api/v1/multisig-transactions/${SAFE_TX_HASH}/`,
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
     );
     expect(publicClient.waitForTransactionReceipt).toHaveBeenCalledWith({
       hash: REAL_TX_HASH,
@@ -180,6 +181,47 @@ describe("waitForTransactionReceiptSmartAware", () => {
         safePollTimeoutMs: 5,
       }),
     ).rejects.toThrow(/Timed out.*waiting for Safe transaction/);
+  });
+
+  it("retries when a single fetch hangs / aborts, without consuming the overall budget", async () => {
+    const expectedReceipt = {
+      status: "success" as const,
+      transactionHash: REAL_TX_HASH,
+    };
+    const publicClient = makePublicClient({
+      getCode: vi.fn().mockResolvedValue("0x60806040"),
+      waitForTransactionReceipt: vi.fn().mockResolvedValue(expectedReceipt),
+    });
+
+    // First poll: simulate the AbortController firing (transient timeout).
+    // Second poll: succeed.
+    const abortError = new Error("The operation was aborted.");
+    abortError.name = "AbortError";
+
+    (fetch as ReturnType<typeof vi.fn>)
+      .mockRejectedValueOnce(abortError)
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          isExecuted: true,
+          isSuccessful: true,
+          transactionHash: REAL_TX_HASH,
+        }),
+      });
+
+    await waitForTransactionReceiptSmartAware({
+      publicClient,
+      walletAddress: SAFE_ADDRESS,
+      hash: SAFE_TX_HASH,
+      safePollIntervalMs: 1,
+    });
+
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(publicClient.waitForTransactionReceipt).toHaveBeenCalledWith({
+      hash: REAL_TX_HASH,
+      confirmations: undefined,
+    });
   });
 
   it("retries on 404 (proposal not yet indexed) without surfacing an error", async () => {

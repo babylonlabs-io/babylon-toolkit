@@ -35,6 +35,7 @@ const SAFE_TX_SERVICE_BASE_URLS: Record<number, string> = {
 
 const DEFAULT_SAFE_POLL_INTERVAL_MS = 5_000;
 const DEFAULT_SAFE_POLL_TIMEOUT_MS = 4 * 60 * 60 * 1_000;
+const SAFE_TX_SERVICE_FETCH_TIMEOUT_MS = 10_000;
 
 export interface WaitForTransactionReceiptSmartAwareParams {
   publicClient: PublicClient;
@@ -121,13 +122,30 @@ async function pollSafeTransactionServiceUntilExecuted({
   const deadline = Date.now() + timeoutMs;
 
   while (Date.now() < deadline) {
-    const response = await fetch(url).catch((err: unknown) => {
-      throw new Error(
-        `Network error while polling Safe Transaction Service: ${
-          err instanceof Error ? err.message : String(err)
-        }`,
+    const controller = new AbortController();
+    const fetchTimeoutId = setTimeout(
+      () => controller.abort(),
+      SAFE_TX_SERVICE_FETCH_TIMEOUT_MS,
+    );
+
+    let response: Response;
+    try {
+      response = await fetch(url, { signal: controller.signal });
+    } catch (err) {
+      // Transient failure (AbortError on per-request timeout, DNS hiccup,
+      // connection reset, etc.). Log and continue to the next poll iteration
+      // instead of consuming the entire safePollTimeoutMs budget on one blip.
+      // The outer `while (Date.now() < deadline)` is what enforces the overall
+      // budget; this catch deliberately preserves it.
+      console.warn(
+        `Safe Transaction Service request failed (will retry in ${pollIntervalMs}ms): ` +
+          (err instanceof Error ? err.message : String(err)),
       );
-    });
+      await sleep(pollIntervalMs);
+      continue;
+    } finally {
+      clearTimeout(fetchTimeoutId);
+    }
 
     if (response.ok) {
       const data = (await response.json()) as SafeMultisigTransaction;
@@ -142,7 +160,15 @@ async function pollSafeTransactionServiceUntilExecuted({
           return data.transactionHash;
         }
       }
-    } else if (response.status !== 404) {
+    } else if (response.status === 404) {
+      // Proposal not yet indexed — keep polling silently.
+    } else if (response.status >= 500) {
+      // Transient server error — same treatment as a hung connection: log and retry.
+      console.warn(
+        `Safe Transaction Service returned ${response.status} for ${safeTxHash}; retrying in ${pollIntervalMs}ms.`,
+      );
+    } else {
+      // Other 4xx (403, 410, etc.) is likely permanent — surface immediately.
       throw new Error(
         `Safe Transaction Service returned ${response.status} for ${safeTxHash}.`,
       );
