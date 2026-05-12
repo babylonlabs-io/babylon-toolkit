@@ -23,6 +23,8 @@ import { fetchLogos, type LogoResponse } from "@/clients/logo";
 
 const STORAGE_KEY = "vault_logos_cache";
 
+const EMPTY_LOGOS: LogoResponse = {};
+
 /** Cache TTL: 30 days in milliseconds */
 const CACHE_TTL_DAYS = 30;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
@@ -168,7 +170,7 @@ export function useLogos(identities: string[]): UseLogosResult {
   });
 
   return {
-    logos: data ?? {},
+    logos: data ?? EMPTY_LOGOS,
     isLoading,
     error: error as Error | null,
   };

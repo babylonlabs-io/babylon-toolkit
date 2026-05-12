@@ -31,6 +31,10 @@ import { toIdentity } from "../useLogos";
 import { useUnhealthyVps } from "../useUnhealthyVps";
 import { useWithLogos } from "../useWithLogos";
 
+const EMPTY_VAULT_PROVIDERS: VaultProvider[] = [];
+const EMPTY_VAULT_KEEPERS: VaultKeeper[] = [];
+const getProviderIdentity = (p: VaultProvider) => toIdentity(p.btcPubKey);
+
 export interface UseVaultProvidersResult {
   /** Array of vault providers */
   vaultProviders: VaultProvider[];
@@ -87,10 +91,8 @@ export function useVaultProviders(
 
   // All providers with logos (unfiltered) — used by findProvider so that
   // existing vaults on temporarily unhealthy VPs remain resolvable.
-  const allProviders = data?.vaultProviders ?? [];
-  const allProvidersWithLogos = useWithLogos(allProviders, (p) =>
-    toIdentity(p.btcPubKey),
-  );
+  const allProviders = data?.vaultProviders ?? EMPTY_VAULT_PROVIDERS;
+  const allProvidersWithLogos = useWithLogos(allProviders, getProviderIdentity);
 
   // Filtered list for selection UI — excludes runtime-unhealthy VPs (those
   // can recover, so hiding is the existing pattern). Metadata-rejected VPs
@@ -123,7 +125,7 @@ export function useVaultProviders(
 
   return {
     vaultProviders: vaultProvidersWithLogos,
-    vaultKeepers: data?.vaultKeepers ?? [],
+    vaultKeepers: data?.vaultKeepers ?? EMPTY_VAULT_KEEPERS,
     loading: isLoading,
     error: error as Error | null,
     refetch: wrappedRefetch,
