@@ -219,7 +219,7 @@ const root = await deriveVaultRoot(btcWallet, {
 try {
   // 3. Per vault: expand a 64-byte WOTS seed using htlcVout as the
   //    domain separator, then derive the 2 WOTS block public keys.
-  const seed = expandWotsSeed(root, htlcVout);
+  const seed = await expandWotsSeed(root, htlcVout);
   const wotsPublicKeys = await deriveWotsBlocksFromSeed(seed);
 
   // 4. keccak256 hash → committed on-chain as `depositorWotsPkHash`.
@@ -246,8 +246,8 @@ import {
   expandAuthAnchor,
 } from "@babylonlabs-io/ts-sdk/tbv/core";
 
-const hashlockSecret = expandHashlockSecret(root, htlcVout); // 32 bytes
-const authAnchor = expandAuthAnchor(root); // 32 bytes
+const hashlockSecret = await expandHashlockSecret(root, htlcVout); // 32 bytes
+const authAnchor = await expandAuthAnchor(root); // 32 bytes
 ```
 
 `expandHashlockSecret` replaces the previously browser-generated HTLC preimage; `expandAuthAnchor` produces the OP_RETURN preimage used for the VP bearer-token flow. Both follow the same canonical pipeline as WOTS — call `deriveVaultRoot` once, then expand per-purpose.

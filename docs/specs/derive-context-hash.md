@@ -68,7 +68,7 @@ wallet.deriveContextHash(
   application can choose any allowed string. Wallets MUST
   reject `appName` values containing characters outside the
   allowed set.
-  Examples: `"babylon-vault"`, `"ordinals-market"`.
+  Examples: `"babylon-btc-vault"`, `"ordinals-market"`.
 - `context` — hex-encoded byte string (even-length, lowercase,
   no `0x` prefix). Application-specific data that determines the
   output within the app's namespace. Different contexts produce
@@ -221,8 +221,8 @@ context = (dummyPrePeginTxid, htlcVout, depositorPubkey)
 ```
 
 The application calls
-`deriveContextHash("babylon-vault", context)`, computes
-`SHA-256(deriveContextHash("babylon-vault", context))` to get
+`deriveContextHash("babylon-btc-vault", context)`, computes
+`SHA-256(deriveContextHash("babylon-btc-vault", context))` to get
 the hashlock, and later reconstructs the same context from
 on-chain state to derive and reveal the same preimage on
 Ethereum.

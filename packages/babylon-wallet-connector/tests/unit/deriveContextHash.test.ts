@@ -56,11 +56,11 @@ test.describe("unsupportedDeriveContextHash helper", () => {
     const stub = unsupportedDeriveContextHash("AnyWallet");
     let caught: WalletError | undefined;
     try {
-      await stub("babylon-vault", "deadbeef");
+      await stub("babylon-btc-vault", "deadbeef");
     } catch (e) {
       caught = e as WalletError;
     }
-    expect(caught?.message).toContain("babylon-vault");
+    expect(caught?.message).toContain("babylon-btc-vault");
   });
 
   test("error includes the context length for debugging", async () => {

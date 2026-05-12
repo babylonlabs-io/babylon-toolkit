@@ -1527,6 +1527,59 @@ export function deriveVaultId(pegin_tx_hash, depositor) {
 }
 
 /**
+ * Derive the 32-byte `authAnchor` shared across a Pre-PegIn (frozen, on-chain-binding).
+ * @param {Uint8Array} root
+ * @returns {Uint8Array}
+ */
+export function expandAuthAnchor(root) {
+    const ptr0 = passArray8ToWasm0(root, wasm.__wbindgen_malloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ret = wasm.expandAuthAnchor(ptr0, len0);
+    if (ret[3]) {
+        throw takeFromExternrefTable0(ret[2]);
+    }
+    var v2 = getArrayU8FromWasm0(ret[0], ret[1]).slice();
+    wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
+    return v2;
+}
+
+/**
+ * Derive the 32-byte `hashlockSecret` for HTLC `htlcVout` (frozen, on-chain-binding).
+ * @param {Uint8Array} root
+ * @param {number} htlc_vout
+ * @returns {Uint8Array}
+ */
+export function expandHashlockSecret(root, htlc_vout) {
+    const ptr0 = passArray8ToWasm0(root, wasm.__wbindgen_malloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ret = wasm.expandHashlockSecret(ptr0, len0, htlc_vout);
+    if (ret[3]) {
+        throw takeFromExternrefTable0(ret[2]);
+    }
+    var v2 = getArrayU8FromWasm0(ret[0], ret[1]).slice();
+    wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
+    return v2;
+}
+
+/**
+ * Derive the 64-byte `wotsSeed` for HTLC `htlcVout` (frozen, on-chain-binding).
+ * @param {Uint8Array} root
+ * @param {number} htlc_vout
+ * @returns {Uint8Array}
+ */
+export function expandWotsSeed(root, htlc_vout) {
+    const ptr0 = passArray8ToWasm0(root, wasm.__wbindgen_malloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ret = wasm.expandWotsSeed(ptr0, len0, htlc_vout);
+    if (ret[3]) {
+        throw takeFromExternrefTable0(ret[2]);
+    }
+    var v2 = getArrayU8FromWasm0(ret[0], ret[1]).slice();
+    wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
+    return v2;
+}
+
+/**
  * Initialize panic hook for better error messages in the browser console.
  */
 export function init_panic_hook() {

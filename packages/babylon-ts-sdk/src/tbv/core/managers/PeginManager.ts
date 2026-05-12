@@ -595,7 +595,7 @@ export class PeginManager {
     let authAnchorHex: string;
     let authAnchorHash: string;
     try {
-      const authAnchorBytes = expandAuthAnchor(root);
+      const authAnchorBytes = await expandAuthAnchor(root);
       try {
         authAnchorHex = uint8ArrayToHex(authAnchorBytes);
         authAnchorHash = uint8ArrayToHex(sha256(authAnchorBytes));

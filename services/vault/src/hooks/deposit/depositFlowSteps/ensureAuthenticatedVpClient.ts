@@ -77,7 +77,6 @@ export async function ensureAuthenticatedVpClient(
   // Cold-start: derive auth anchor from the wallet (popup) and fetch
   // the pinned VP pubkey from chain.
   let root: Uint8Array | null = null;
-  let authAnchorHex: string;
   try {
     root = await deriveVaultRoot(params.btcWallet, {
       depositorBtcPubkey: hexToUint8Array(params.depositorBtcPubkey),
@@ -85,24 +84,23 @@ export async function ensureAuthenticatedVpClient(
         params.unsignedPrePeginTxHex,
       ),
     });
-    const authAnchorBytes = expandAuthAnchor(root);
-    try {
-      authAnchorHex = uint8ArrayToHex(authAnchorBytes);
-    } finally {
-      authAnchorBytes.fill(0);
-    }
+    const authAnchorBytes = await expandAuthAnchor(root);
+    const authAnchorHex = uint8ArrayToHex(authAnchorBytes);
+    authAnchorBytes.fill(0);
+    root.fill(0);
+    root = null;
+
+    const pinnedServerPubkey = await reader.getVaultProviderBtcPubKey(
+      params.providerAddress as Address,
+    );
+
+    return createAuthenticatedVpClient({
+      baseUrl,
+      peginTxid,
+      authAnchorHex,
+      pinnedServerPubkey,
+    });
   } finally {
     root?.fill(0);
   }
-
-  const pinnedServerPubkey = await reader.getVaultProviderBtcPubKey(
-    params.providerAddress as Address,
-  );
-
-  return createAuthenticatedVpClient({
-    baseUrl,
-    peginTxid,
-    authAnchorHex,
-    pinnedServerPubkey,
-  });
 }

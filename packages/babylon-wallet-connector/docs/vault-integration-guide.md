@@ -74,7 +74,7 @@ these signing prompts in order. Steps interleaved between
 these are Ethereum transactions handled by the user's ETH
 wallet — not this wallet's concern.
 
-1. **Derive vault root** — `deriveContextHash("babylon-vault", context)`, once per deposit batch (regardless of vault count). The SDK expands per-vault secrets locally from this root.
+1. **Derive vault root** — `deriveContextHash("babylon-btc-vault", context)`, once per deposit batch (regardless of vault count). The SDK expands per-vault secrets locally from this root.
 2. **Sign Proof-of-Possession** — `signMessage(message, "bip322-simple")`, once per deposit session.
 3. **Batch-sign PegIn input PSBTs** — `signPsbts(psbtsHexes, options)` (Taproot script-path, untweaked, non-finalized). Falls back to sequential `signPsbt()` if batch unavailable.
 4. **Sign Pre-PegIn funding transaction** — `signPsbt(psbtHex)` after Ethereum registration succeeds. Standard funding-input signing across whatever UTXO types the wallet contributes.
@@ -138,7 +138,7 @@ deriveContextHash(
 ): Promise<string>
 ```
 
-TBV uses `deriveContextHash("babylon-vault", context)` to
+TBV uses `deriveContextHash("babylon-btc-vault", context)` to
 derive hashlock secrets for HTLC deposits. The derived
 value is committed as a SHA-256 hashlock during vault
 creation and revealed during activation.
@@ -151,7 +151,7 @@ detail and test vectors):
 - 32-byte output (64 lowercase hex chars).
 - `appName` must match `[a-z0-9\-]`, 1–64 bytes.
 - `context` must be lowercase hex, even-length, non-empty, no `0x` prefix, max 1024 bytes.
-- Wallet MUST require user approval and display `appName` ("babylon-vault") and the requesting origin.
+- Wallet MUST require user approval and display `appName` ("babylon-btc-vault") and the requesting origin.
 
 ### PoP Message Format
 

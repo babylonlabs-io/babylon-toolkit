@@ -1420,10 +1420,13 @@ describe("PeginManager", () => {
       // wipes the root. If `expandAuthAnchor` (which runs first) throws,
       // `expandPerVaultSecrets` never runs — so `preparePegin` itself
       // must wipe the root on the throw path. This pins that contract.
-      const vaultSecrets = await import("../../vault-secrets");
-      const expandAuthAnchorSpy = vi.spyOn(vaultSecrets, "expandAuthAnchor");
+      // Spy on the WASM package — `vault-secrets/index.ts` re-exports
+      // `expandAuthAnchor` directly from there with no SDK-side wrapper,
+      // so the WASM module owns the live binding.
+      const wasmPkg = await import("@babylonlabs-io/babylon-tbv-rust-wasm");
+      const expandAuthAnchorSpy = vi.spyOn(wasmPkg, "expandAuthAnchor");
       let capturedRoot: Uint8Array | null = null;
-      expandAuthAnchorSpy.mockImplementationOnce((root) => {
+      expandAuthAnchorSpy.mockImplementationOnce(async (root) => {
         // Snapshot the root reference before throwing so the test can
         // verify it gets zeroed by the catch block.
         capturedRoot = root;
