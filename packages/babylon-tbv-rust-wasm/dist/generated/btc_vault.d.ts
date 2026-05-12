@@ -531,6 +531,21 @@ export function computePeginInputSighash(pegin_json: string, htlc_connector_json
 export function deriveVaultId(pegin_tx_hash: Uint8Array, depositor: Uint8Array): string;
 
 /**
+ * Derive the 32-byte `authAnchor` shared across a Pre-PegIn (frozen, on-chain-binding).
+ */
+export function expandAuthAnchor(root: Uint8Array): Uint8Array;
+
+/**
+ * Derive the 32-byte `hashlockSecret` for HTLC `htlcVout` (frozen, on-chain-binding).
+ */
+export function expandHashlockSecret(root: Uint8Array, htlc_vout: number): Uint8Array;
+
+/**
+ * Derive the 64-byte `wotsSeed` for HTLC `htlcVout` (frozen, on-chain-binding).
+ */
+export function expandWotsSeed(root: Uint8Array, htlc_vout: number): Uint8Array;
+
+/**
  * Initialize panic hook for better error messages in the browser console.
  */
 export function init_panic_hook(): void;
@@ -609,6 +624,9 @@ export interface InitOutput {
     readonly computePayoutDepositorSighash: (a: number, b: number) => [number, number, number, number];
     readonly computePeginInputSighash: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number, number, number];
     readonly deriveVaultId: (a: number, b: number, c: number, d: number) => [number, number, number, number];
+    readonly expandAuthAnchor: (a: number, b: number) => [number, number, number, number];
+    readonly expandHashlockSecret: (a: number, b: number, c: number) => [number, number, number, number];
+    readonly expandWotsSeed: (a: number, b: number, c: number) => [number, number, number, number];
     readonly validateTxGraphParams: (a: number, b: number) => [number, number];
     readonly verifyClaimerPresignatures: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number];
     readonly verifyDepositorSignature: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number];

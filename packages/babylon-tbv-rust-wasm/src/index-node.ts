@@ -10,7 +10,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 // @ts-expect-error - WASM files are in dist/generated/ (checked into git), not src/generated/
-import { initSync, WasmPrePeginTx, WasmPeginTx, WasmPrePeginHtlcConnector, WasmPeginPayoutConnector, WasmAssertPayoutNoPayoutConnector, WasmAssertChallengeAssertConnector, computeMinClaimValue as wasmComputeMinClaimValue, deriveVaultId as wasmDeriveVaultId } from "./generated/btc_vault.js";
+import { initSync, WasmPrePeginTx, WasmPeginTx, WasmPrePeginHtlcConnector, WasmPeginPayoutConnector, WasmAssertPayoutNoPayoutConnector, WasmAssertChallengeAssertConnector, computeMinClaimValue as wasmComputeMinClaimValue, deriveVaultId as wasmDeriveVaultId, expandAuthAnchor as wasmExpandAuthAnchor, expandHashlockSecret as wasmExpandHashlockSecret, expandWotsSeed as wasmExpandWotsSeed } from "./generated/btc_vault.js";
 
 import type {
   PrePeginParams,
@@ -332,6 +332,64 @@ export async function getChallengeAssertScriptInfo(
     };
   } finally {
     conn.free();
+  }
+}
+
+// wasm-bindgen rethrows Rust `JsValue::from_str(...)` errors as bare strings,
+// which break `err instanceof Error` and structured error handling. Normalize
+// to `Error` so the JS API surface is consistent with idiomatic JS rejection.
+function toError(err: unknown, fnName: string): Error {
+  if (err instanceof Error) return err;
+  const msg = typeof err === "string" ? err : String(err);
+  return new Error(`${fnName}: ${msg}`);
+}
+
+/**
+ * Derive the 32-byte `authAnchor` shared across a single Pre-PegIn transaction.
+ *
+ * @stability frozen — on-chain-binding. The HKDF info encoding lives in the
+ * btc-vault Rust crate; do not reimplement on the JS side.
+ */
+export async function expandAuthAnchor(root: Uint8Array): Promise<Uint8Array> {
+  await initWasm();
+  try {
+    return wasmExpandAuthAnchor(root);
+  } catch (err) {
+    throw toError(err, "expandAuthAnchor");
+  }
+}
+
+/**
+ * Derive the 32-byte `hashlockSecret` for the HTLC at output index `htlcVout`.
+ *
+ * @stability frozen — on-chain-binding.
+ */
+export async function expandHashlockSecret(
+  root: Uint8Array,
+  htlcVout: number,
+): Promise<Uint8Array> {
+  await initWasm();
+  try {
+    return wasmExpandHashlockSecret(root, htlcVout);
+  } catch (err) {
+    throw toError(err, "expandHashlockSecret");
+  }
+}
+
+/**
+ * Derive the 64-byte `wotsSeed` for the vault at output index `htlcVout`.
+ *
+ * @stability frozen — on-chain-binding.
+ */
+export async function expandWotsSeed(
+  root: Uint8Array,
+  htlcVout: number,
+): Promise<Uint8Array> {
+  await initWasm();
+  try {
+    return wasmExpandWotsSeed(root, htlcVout);
+  } catch (err) {
+    throw toError(err, "expandWotsSeed");
   }
 }
 

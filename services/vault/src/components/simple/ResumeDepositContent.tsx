@@ -246,15 +246,16 @@ export function ResumeWotsContent({
 
       // Reuse the derived root for the auth anchor so submitWotsPublicKey
       // doesn't trigger a second wallet popup.
-      const authAnchorBytes = expandAuthAnchor(root);
-      let authAnchorHex: string;
-      try {
-        authAnchorHex = uint8ArrayToHex(authAnchorBytes);
-      } finally {
-        authAnchorBytes.fill(0);
-      }
+      const authAnchorBytes = await expandAuthAnchor(root);
+      const authAnchorHex = uint8ArrayToHex(authAnchorBytes);
+      authAnchorBytes.fill(0);
 
-      const seed = expandWotsSeed(root, htlcVout);
+      const seed = await expandWotsSeed(root, htlcVout);
+      // Root is no longer needed; zero it before any unrelated awaits below
+      // so a long-lived `root` doesn't sit in memory through the VP pubkey
+      // fetch and submitWotsPublicKey call.
+      root.fill(0);
+      root = null;
       let wotsPublicKeys;
       try {
         wotsPublicKeys = await deriveWotsBlocksFromSeed(seed);
@@ -428,8 +429,16 @@ export function ResumeActivationContent({
         fundingOutpoints,
       });
 
-      secretBytes = expandHashlockSecret(root, htlcVout);
+      secretBytes = await expandHashlockSecret(root, htlcVout);
       const secretHex = uint8ArrayToHex(secretBytes);
+
+      // Wipe before the unrelated `handleActivation` await — neither buffer
+      // is needed past secretHex extraction. Keeps live secret material out
+      // of memory while the activation state machine runs its on-chain calls.
+      secretBytes.fill(0);
+      secretBytes = null;
+      root.fill(0);
+      root = null;
 
       // Hand off to the existing activation state machine. It fetches
       // the canonical hashlock from the on-chain registry and rejects

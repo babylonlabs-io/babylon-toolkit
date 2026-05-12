@@ -5,7 +5,7 @@
  * §2.2:
  *
  * ```
- * rootDerivation = deriveContextHash("babylon-vault", hex(vaultContext))
+ * rootDerivation = deriveContextHash("babylon-btc-vault", hex(vaultContext))
  * ```
  *
  * The 32-byte output is fed directly into the {@link expandAuthAnchor},
@@ -27,7 +27,7 @@ import { buildVaultContext, type VaultContextInput } from "./context";
  * migration plan, as it provides app-level domain separation across
  * applications using the same wallet.
  */
-export const VAULT_APP_NAME = "babylon-vault";
+export const VAULT_APP_NAME = "babylon-btc-vault";
 
 /** Expected length of the wallet output in bytes per spec §2.1. */
 const ROOT_OUTPUT_BYTES = 32;

@@ -55,7 +55,7 @@ export async function expandPerVaultSecrets(
 
   try {
     for (let i = 0; i < vaultCount; i++) {
-      const wotsSeed = expandWotsSeed(root, i);
+      const wotsSeed = await expandWotsSeed(root, i);
       try {
         const wotsPublicKeys = await deriveWotsBlocksFromSeed(wotsSeed);
         perVaultWotsKeys.push(wotsPublicKeys);
@@ -64,7 +64,7 @@ export async function expandPerVaultSecrets(
         wotsSeed.fill(0);
       }
 
-      const secretBytes = expandHashlockSecret(root, i);
+      const secretBytes = await expandHashlockSecret(root, i);
       try {
         const secretHex = uint8ArrayToHex(secretBytes);
         htlcSecretHexes.push(secretHex);

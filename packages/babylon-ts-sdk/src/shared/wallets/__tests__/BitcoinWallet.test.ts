@@ -111,21 +111,21 @@ describe("BitcoinWallet Interface", () => {
 
   describe("deriveContextHash", () => {
     it("should return a 64-char lowercase hex string", async () => {
-      const out = await wallet.deriveContextHash("babylon-vault", "deadbeef");
+      const out = await wallet.deriveContextHash("babylon-btc-vault", "deadbeef");
       expect(typeof out).toBe("string");
       expect(out).toHaveLength(64);
       expect(out).toMatch(/^[0-9a-f]+$/);
     });
 
     it("returns the same value for the same inputs", async () => {
-      const a = await wallet.deriveContextHash("babylon-vault", "deadbeef");
-      const b = await wallet.deriveContextHash("babylon-vault", "deadbeef");
+      const a = await wallet.deriveContextHash("babylon-btc-vault", "deadbeef");
+      const b = await wallet.deriveContextHash("babylon-btc-vault", "deadbeef");
       expect(a).toBe(b);
     });
 
     it("returns different values when context changes", async () => {
-      const a = await wallet.deriveContextHash("babylon-vault", "aa".repeat(36));
-      const b = await wallet.deriveContextHash("babylon-vault", "bb".repeat(36));
+      const a = await wallet.deriveContextHash("babylon-btc-vault", "aa".repeat(36));
+      const b = await wallet.deriveContextHash("babylon-btc-vault", "bb".repeat(36));
       expect(a).not.toBe(b);
     });
 
@@ -150,7 +150,7 @@ describe("BitcoinWallet Interface", () => {
       const overridden = new MockBitcoinWallet({
         deriveContextHash: async () => sentinel,
       });
-      const out = await overridden.deriveContextHash("babylon-vault", "00");
+      const out = await overridden.deriveContextHash("babylon-btc-vault", "00");
       expect(out).toBe(sentinel);
     });
   });

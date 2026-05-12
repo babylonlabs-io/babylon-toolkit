@@ -3,7 +3,7 @@
  * `deriveContextHash` API to the canonical `vaultContext` encoding.
  *
  * The helper is a thin pass-through; tests pin the wiring contract:
- *  - Forwards the hardcoded `appName` "babylon-vault" verbatim.
+ *  - Forwards the hardcoded `appName` "babylon-btc-vault" verbatim.
  *  - Forwards the hex of the 72-byte `vaultContext` (lowercase, 144 chars).
  *  - Decodes the wallet's 64-char hex output to 32 bytes.
  *  - Rejects malformed wallet output (wrong length / non-hex / uppercase).
@@ -39,11 +39,11 @@ function makeMockWallet(
 }
 
 describe("deriveVaultRoot — happy path wiring", () => {
-  it("forwards the canonical appName 'babylon-vault'", async () => {
+  it("forwards the canonical appName 'babylon-btc-vault'", async () => {
     const spy = vi.fn(async () => VALID_ROOT_HEX);
     await deriveVaultRoot({ deriveContextHash: spy }, SAMPLE_INPUT);
     expect(spy).toHaveBeenCalledWith(VAULT_APP_NAME, expect.any(String));
-    expect(VAULT_APP_NAME).toBe("babylon-vault");
+    expect(VAULT_APP_NAME).toBe("babylon-btc-vault");
   });
 
   it("forwards hex of buildVaultContext output as the context arg", async () => {

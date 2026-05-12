@@ -6,7 +6,7 @@
  *
  * The SDK does NOT generate secrets — that is the caller's responsibility.
  * Today callers use `crypto.getRandomValues(32)`; when the `deriveContextHash`
- * wallet API ships, callers will use `wallet.deriveContextHash("babylon-vault", ctx)`.
+ * wallet API ships, callers will use `wallet.deriveContextHash("babylon-btc-vault", ctx)`.
  * These utilities work identically regardless of how the secret was produced.
  *
  * On-chain contract validation (BTCVaultRegistry.activateVaultWithSecret):

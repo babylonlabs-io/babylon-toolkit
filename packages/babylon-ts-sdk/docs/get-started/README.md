@@ -77,9 +77,9 @@ Inside step 1 (`preparePegin`):
    │                          ┃ POPUP 1: deriveContextHash
    │          │ → 32-byte root
    │          ▼
-   ├─ per-vault expand ───── for each htlcVout i:
-   │                            expandWotsSeed(root, i) → WOTS keys + hash
-   │                            expandHashlockSecret(root, i) → preimage + hashlock
+   ├─ per-vault expand ───── for each htlcVout i (await; WASM-backed):
+   │                            await expandWotsSeed(root, i) → WOTS keys + hash
+   │                            await expandHashlockSecret(root, i) → preimage + hashlock
    │          │
    │          ▼
    └─ commit pass ──────────── buildPrePeginPsbt (real hashlocks)
@@ -262,10 +262,6 @@ console.log("buildPrePeginPsbt type:", typeof buildPrePeginPsbt);
 ```
 
 Run with `npx tsx verify-install.ts` (npx will auto-install `tsx`). If that works, your environment is ready for any of the quickstarts.
-
-## Known gaps
-
-- **HTLC secret + auth-anchor wiring**: WOTS key derivation is fully migrated to `wallet.deriveContextHash` (see the [Wallet Interfaces Guide → Wallet-derived secrets](../guides/wallet-interfaces.md#wallet-derived-secrets-derivecontexthash)). The HTLC secret and VP auth-anchor expanders (`expandHashlockSecret`, `expandAuthAnchor`) exist in `tbv/core/vault-secrets` but are not yet wired into the deposit/activation flow — for now, the HTLC secret is still client-generated and persisted as shown in the Managers Quickstart.
 
 ## Next steps
 

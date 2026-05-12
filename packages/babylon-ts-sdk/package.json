@@ -112,7 +112,6 @@
   "dependencies": {
     "@babylonlabs-io/babylon-tbv-rust-wasm": "workspace:*",
     "@noble/hashes": "2.0.1",
-    "@scure/bip39": "2.0.1",
     "buffer": "6.0.3"
   },
   "peerDependencies": {
