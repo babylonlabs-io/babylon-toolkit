@@ -489,7 +489,7 @@ info("hashlock", I2OSP(2, 4)) :=
 ```
 vaultContext (hex): deadbeef
 
-rootDerivation (from sister spec §4 Vector 1, verbatim):
+rootDerivation (from sister spec §4.1 Vector 1, verbatim):
   3b0e2d90a01122eed8a520648073892f6b2d8f4419216023d63cdbd49500fca3
 
 authAnchor        := HKDF-Expand-SHA-256(
@@ -505,7 +505,7 @@ wotsSeed[0]       := HKDF-Expand-SHA-256(
 ```
 vaultContext (hex): 00
 
-rootDerivation (from sister spec §4 Vector 2, verbatim):
+rootDerivation (from sister spec §4.1 Vector 2, verbatim):
   50775126782c1a5e4d60daa4666b2c7590f0b5a445a4115b0abd411467c92597
 
 authAnchor        := HKDF-Expand-SHA-256(

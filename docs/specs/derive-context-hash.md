@@ -1,21 +1,48 @@
 # `deriveContextHash` Specification
 
-**Spec revision**: 1.0
-**Algorithm version**: 0 (salt: `"derive-context-hash"`, no suffix)
-**Date**: 2026-04-07
+**Spec revision**: 2.0
+**Algorithm version**: 1 (salt: `"derive-context-hash"`, no suffix)
+**Date**: 2026-05-11
 **Authors**: Jerome Wang (Babylon Labs)
-**Status**: Draft — incorporates auditor feedback (Coinspect)
+**Status**: Draft — supersedes revision 1.0 (wallet auto-injects network and connected public key into `info`)
+
+---
+
+## Changes from revision 1.0
+
+- **`info` extended with wallet-injected discriminators.** v1.0 used
+  `info = SHA-256(appName) || context`. v2.0 makes the wallet inject
+  `SHA-256(UTF8(canonicalNetworkName))` (32 bytes) and the 33-byte
+  compressed connected public key between the hashed `appName` and the
+  dApp-supplied context. The dApp's `deriveContextHash(appName, context)`
+  call signature is unchanged; the change is internal to the wallet's
+  HKDF input construction. Output becomes per-(key-material, network,
+  connected-pubkey, appName, context) automatically — dApps no longer
+  need to encode the network or pubkey into context for that scope.
+  **Migration property:** the new bytes land in exactly the same
+  position as bytes a v1.0 dApp would manually prepend to its context,
+  so an app that prepends
+  `SHA-256(UTF8(canonicalNetworkName)) || connectedPubkey` to its
+  context on a v1.0 wallet produces the bit-identical output as the
+  same app on a v2.0 wallet with the prepending removed.
+- **IKM source unchanged.** Still `m/73681862'` (HD) or the raw
+  imported private key. The user's spending key is still never used
+  as direct HKDF input.
+- **Salt unchanged**: `"derive-context-hash"`.
+- **dApps that persisted v1.0 outputs must re-derive against v2.0.**
 
 ---
 
 ## Abstract
 
 `deriveContextHash` is a wallet API method that derives a
-deterministic 32-byte value from the wallet's key material, an
+deterministic 32-byte value from the wallet's key material, the
+wallet's current network, the connected public key, an
 application name, and an application-provided context string. It
 uses HKDF-SHA-256 (IETF RFC 5869) and is designed for cross-wallet
 compatibility — any conforming implementation produces the same
-output for the same key material, application name, and context.
+output for the same `(key material, network, connected pubkey,
+appName, context)` tuple.
 
 The method is generic. The wallet has no knowledge of what the
 derived value is used for. Applications provide an application
@@ -83,6 +110,12 @@ wallet.deriveContextHash(
 - Context is empty, odd-length, contains non-hex characters
   (including uppercase `A–F`), has a `0x` prefix, or exceeds
   1024 bytes (2048 hex characters).
+- Wallet's current network is not one of the canonical Bitcoin
+  networks enumerated in [§2.2](#22-derivation-algorithm)
+  (`"bitcoin-mainnet"`, `"bitcoin-testnet"`, `"bitcoin-signet"`,
+  `"bitcoin-regtest"`). Returned as a distinct error so dApps can
+  surface "switch your wallet to a supported Bitcoin network"
+  rather than the generic "method not supported".
 - User rejects the approval dialog.
 - Wallet does not support the method.
 
@@ -95,20 +128,67 @@ dialog SHOULD also display the context bytes.
 
 ```
 ikm    = BIP-32 private key at path m/73681862'
-salt   = "derive-context-hash"        (UTF-8 encoded)
-info   = SHA-256(UTF8(appName)) || context  (raw bytes)
+salt   = "derive-context-hash"                          (UTF-8 encoded)
+info   = SHA-256(UTF8(appName))                         (32 bytes, fixed)
+      || SHA-256(UTF8(canonicalNetworkName))            (32 bytes, fixed)
+      || connectedPubkey                                (33 bytes, fixed)
+      || context                                        (variable, raw bytes)
 length = 32
 
 output = HKDF-SHA-256(ikm, salt, info, length)
 ```
 
-The `info` field is constructed by concatenating the SHA-256
-hash of the UTF-8 encoded `appName` (32 bytes, fixed-length)
-with the raw context bytes decoded from hex. Hashing `appName`
-ensures it occupies a fixed 32-byte prefix, eliminating
-length-confusion collisions between different `appName`/`context`
-combinations (e.g. appName `"foobar"` + context `0x01` vs
-appName `"foo"` + context `0x626172_01` can never collide).
+`info` begins with three fixed-length prefixes — hashed `appName`
+(32 bytes, dApp-supplied), hashed canonical network name (32 bytes,
+wallet-supplied), and the raw compressed connected public key
+(33 bytes, wallet-supplied) — followed by the variable-length context
+bytes decoded from hex. The three fixed prefixes occupy a total of
+97 bytes at fixed offsets, eliminating length-confusion collisions
+across
+distinct `(appName, network, connectedPubkey, context)`
+combinations.
+
+**`canonicalNetworkName`** is the wallet's current Bitcoin
+network, one of:
+
+| Wallet network | `canonicalNetworkName` |
+|---|---|
+| Bitcoin mainnet | `"bitcoin-mainnet"` |
+| Bitcoin testnet (testnet3 / testnet4) | `"bitcoin-testnet"` |
+| Bitcoin signet | `"bitcoin-signet"` |
+| Bitcoin regtest | `"bitcoin-regtest"` |
+
+A wallet that implements `deriveContextHash` but is currently
+connected to a network outside this table (e.g. a Bitcoin-derived
+sidechain, or a regional chain the spec doesn't enumerate) MUST
+report this as a **distinct "unsupported network" error**, not as
+"method not supported" (see [§2.1](#21-api)). This lets a dApp tell
+the user "switch your wallet to a supported Bitcoin network"
+instead of the unactionable "this wallet doesn't implement the API"
+— which would be the wrong diagnosis: the wallet does implement it,
+just not for the network the user is currently on. Cross-wallet
+portability of `deriveContextHash` outputs is only defined for the
+canonical networks above.
+
+Testnet3 and testnet4 share a single `bitcoin-testnet` canonical
+name on purpose: BIP-32 derivation is identical across the two
+networks, so a wallet that has migrated from testnet3 to testnet4
+intentionally produces the same outputs for the same context.
+Neither testnet carries production funds, so this stability
+preserves recoverable test-state at the cost of a distinction with
+no security value.
+
+**`connectedPubkey`** is the **33-byte compressed SEC1
+encoding** (`0x02 || x` or `0x03 || x`) of the exact secp256k1
+public key returned to the dApp and treated as the active
+connected key for this `deriveContextHash` request. If the
+wallet exposes multiple accounts/addresses in one session, the
+key bound here MUST be the one the wallet considers "currently
+selected" at the moment the dApp invokes `deriveContextHash`,
+and the approval dialog SHOULD make that explicit to the user.
+The compressed form is canonical across Bitcoin wallet APIs
+(UniSat, OKX, Phantom, Leather, Magic Eden, Xverse all expose
+compressed via their `getPublicKey()` equivalents).
 
 **IKM (Input Key Material):** The raw 32-byte private key scalar
 at BIP-32 derivation path `m/73681862'` (hardened), using
@@ -133,20 +213,27 @@ the secure element without exporting the private key. This
 requires a dedicated device app; the stock Bitcoin app on
 Ledger/Trezor does not support this operation.
 
-The derivation path is fixed regardless of the wallet's active
-account or network. All accounts derived from the same seed
-share the same `deriveContextHash` root. Applications that need
-per-account isolation MUST encode an account identifier in
-their context.
+The IKM derivation path is fixed regardless of the wallet's
+active account or network — all accounts derived from the
+same seed share the same IKM. Per-network and per-connected-
+public-key rotation is provided automatically by the
+wallet-injected `SHA-256(UTF8(canonicalNetworkName))` and
+`connectedPubkey` prefixes in `info` (see above) — dApps do
+not need to encode either in their `context`. Only
+finer-grained app-level rotation (per-deposit, per-session,
+per-vault, etc.) belongs in `context`.
 
 **Imported private keys:** Wallets that support imported (non-HD)
 private keys MAY offer `deriveContextHash` for those keys. Since
-imported keys lack a BIP-32 hierarchy, the wallet SHOULD use the
-raw 32-byte private key directly as IKM, skipping BIP-32
-derivation. Outputs from imported keys are not cross-wallet
-compatible — this is inherent to imported keys, which have no
-shared derivation tree. Wallets MUST clearly document this
-behavior to users and application developers.
+imported keys lack a BIP-32 hierarchy, the wallet MUST use the
+raw 32-byte imported private key directly as IKM, skipping BIP-32
+derivation. The `info` construction is unchanged — `connectedPubkey`
+is the compressed SEC1 form of the imported key's public point.
+Outputs from imported keys are not cross-wallet compatible with
+HD wallets restored from the same recovery phrase — this is
+inherent to imported keys, which have no shared derivation tree.
+Wallets MUST clearly document this behavior to users and
+application developers.
 
 Note: BIP-39 passphrases produce different seeds from the same
 recovery phrase. Two wallets restored from the same recovery
@@ -155,10 +242,9 @@ outputs.
 
 **Salt:** The fixed UTF-8 string `"derive-context-hash"`.
 Provides domain separation from BIP-32 and other HMAC-based
-derivation schemes. For future revisions, a `-v1`, `-v2`, etc.
-suffix can be appended to the salt to indicate the version of
-the scheme. The current `derive-context-hash` salt is version 0
-without a suffix.
+derivation schemes. The salt is unchanged across revisions
+1.0 and 2.0; v2.0 outputs differ because `info` extends v1.0's
+`info` with two new fixed-length wallet-injected prefixes.
 
 **Length:** 32 bytes (256 bits).
 
@@ -214,11 +300,16 @@ SHA-256 hash embedded in a Bitcoin hashlock script.
 
 Babylon constructs the context from deterministic values that
 are available both when creating the deposit and later when
-revealing the secret, for example:
-
-```
-context = (dummyPrePeginTxid, htlcVout, depositorPubkey)
-```
+revealing the secret. The canonical layout — specified in
+[`derive-vault-secrets.md`][derive-vault-secrets-spec] — encodes
+the depositor's x-only BTC public key together with a commitment
+over the Pre-PegIn funding outpoints. The per-vault HTLC output
+index is NOT carried in the wallet context; it's mixed in through
+a separate HKDF-Expand step in the SDK, so a single wallet popup
+serves every BTC vault funded by the same Pre-PegIn. The wallet
+additionally injects the connected pubkey and network name into
+`info` as defense-in-depth on top of the protocol-level pubkey
+binding in `context`.
 
 The application calls
 `deriveContextHash("babylon-vault", context)`, computes
@@ -238,40 +329,25 @@ schemes.
 
 ## 4. Test Vectors
 
-All test vectors derive the BIP-32 master key from the following
-BIP-39 seed (the canonical "abandon" recovery phrase, empty
-passphrase):
+### 4.1 HKDF function-level vectors
 
-BIP-39 seed (hex):
-```
-5eb00bbddcf069084889a8ab9155568165f5c453ccb85e70811aaed6
-f6da5fc19a5ac40b389cd370d086206dec8aa6c43daea6690f20ad3d
-8d48b2d2ce9e38e4
-```
+These vectors pin the pure HKDF composition (the mathematical
+mapping from `(ikm, salt, info, length)` to output). They are
+independent of how a v2.0 wallet builds `info` at runtime —
+the `info` bytes are given as opaque inputs. Wallet integration
+tests SHOULD target the §4.2 vector instead.
 
-BIP-32 private key at `m/73681862'` (hex):
+`ikm` (hex, fixed test value):
 ```
 391cdb922097ec9c96fc13cadb01d5745ccf31f5dbec3a3810344071
 4779ec85
 ```
 
-All vectors use `appName = "test-app"`.
+salt: UTF-8 `"derive-context-hash"`.
 
-SHA-256(UTF8("test-app")) (hex):
-```
-b58b0cb4ecdea3c65311b4ca8833fe47b6ae0a7500f87a8eb31e8379
-d3fe48f1
-```
-
-The `info` field for each vector is:
-`SHA-256(UTF8("test-app")) || decode_hex(context)`.
-
-### Vector 1
+#### Vector 1
 
 ```
-appName:        test-app
-context (hex):  deadbeef
-salt (utf-8):   derive-context-hash
 info (hex):     b58b0cb4ecdea3c65311b4ca8833fe47
                 b6ae0a7500f87a8eb31e8379d3fe48f1
                 deadbeef
@@ -279,11 +355,9 @@ output (hex):   3b0e2d90a01122eed8a520648073892f
                 6b2d8f4419216023d63cdbd49500fca3
 ```
 
-### Vector 2
+#### Vector 2
 
 ```
-appName:        test-app
-context (hex):  00
 info (hex):     b58b0cb4ecdea3c65311b4ca8833fe47
                 b6ae0a7500f87a8eb31e8379d3fe48f1
                 00
@@ -291,15 +365,9 @@ output (hex):   50775126782c1a5e4d60daa4666b2c75
                 90f0b5a445a4115b0abd411467c92597
 ```
 
-### Vector 3
+#### Vector 3
 
 ```
-appName:        test-app
-context (hex):  00000000000000000000000000000000
-                00000000000000000000000000000000
-                00000000000000000000000000000000
-                00000000000000000000000000000000
-                (64 zero bytes)
 info (hex):     b58b0cb4ecdea3c65311b4ca8833fe47
                 b6ae0a7500f87a8eb31e8379d3fe48f1
                 00000000000000000000000000000000
@@ -312,6 +380,74 @@ output (hex):   d81e4a91f32eabd34df0e55ca36f26f2
 
 Vectors verified against Node.js `crypto.hkdf('sha256', ...)`
 and a manual HMAC-based implementation.
+
+### 4.2 Wallet integration vector
+
+This vector pins the full v2.0 `info` construction
+(`SHA-256(UTF8(appName)) || SHA-256(UTF8(canonicalNetworkName)) || connectedPubkey || context`). Any conforming
+wallet on Bitcoin mainnet, restored from the canonical "abandon"
+BIP-39 recovery phrase with an empty passphrase, with the dApp
+connected to the BIP-44 leaf `m/44'/0'/0'/0/0`, MUST reproduce
+this output.
+
+BIP-39 mnemonic:
+```
+abandon abandon abandon abandon abandon abandon abandon
+abandon abandon abandon abandon about
+```
+
+BIP-39 seed (no passphrase, hex):
+```
+5eb00bbddcf069084889a8ab9155568165f5c453ccb85e70811aaed6
+f6da5fc19a5ac40b389cd370d086206dec8aa6c43daea6690f20ad3d
+8d48b2d2ce9e38e4
+```
+
+`ikm` = BIP-32 private key at `m/73681862'` (hex):
+```
+391cdb922097ec9c96fc13cadb01d5745ccf31f5dbec3a3810344071
+4779ec85
+```
+
+`connectedPubkey` = compressed SEC1 public key of the BIP-44
+receive leaf `m/44'/0'/0'/0/0` (hex):
+```
+03aaeb52dd7494c361049de67cc680e83ebcbbbdbeb13637d92cd845
+f70308af5e
+```
+
+Wallet inputs:
+- `appName = "test-app"`
+- `canonicalNetworkName = "bitcoin-mainnet"`
+- `context (hex) = "deadbeef"`
+
+Intermediates:
+```
+SHA-256(UTF8("test-app")):
+  b58b0cb4ecdea3c65311b4ca8833fe47
+  b6ae0a7500f87a8eb31e8379d3fe48f1
+
+SHA-256(UTF8("bitcoin-mainnet")):
+  6ccb47297786bba7fff572abf0cc32bb
+  50881925bf01d67a50a981d9774b82dd
+```
+
+`info` (hex, 101 bytes = 32 + 32 + 33 + 4, one line per component):
+```
+b58b0cb4ecdea3c65311b4ca8833fe47b6ae0a7500f87a8eb31e8379d3fe48f1   // SHA-256(UTF8("test-app"))         — 32 bytes
+6ccb47297786bba7fff572abf0cc32bb50881925bf01d67a50a981d9774b82dd   // SHA-256(UTF8("bitcoin-mainnet"))  — 32 bytes
+03aaeb52dd7494c361049de67cc680e83ebcbbbdbeb13637d92cd845f70308af5e // connectedPubkey                    — 33 bytes
+deadbeef                                                            // context                            —  4 bytes
+```
+
+`output` (hex):
+```
+f82ced3be0e29591a7863ece03d65f79
+fb494fe0de7203549855f462455df008
+```
+
+Vector verified against Node.js `crypto.hkdfSync('sha256',
+...)` with `@scure/bip32` BIP-32 derivation.
 
 ---
 
@@ -334,3 +470,4 @@ and a manual HMAC-based implementation.
 [bip43]: https://github.com/bitcoin/bips/blob/master/bip-0043.mediawiki
 [unisat2]: https://github.com/unisat-wallet/wallet/pull/2
 [unisat3]: https://github.com/unisat-wallet/wallet/pull/3
+[derive-vault-secrets-spec]: ./derive-vault-secrets.md
