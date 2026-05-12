@@ -6,14 +6,16 @@
 import { Card, Container, Loader } from "@babylonlabs-io/core-ui";
 import type { Hex } from "viem";
 
-import { useETHWallet } from "../../context/wallet";
+import { useBTCWallet, useETHWallet } from "../../context/wallet";
 import { useActivitiesWithPending } from "../../hooks/useActivitiesWithPending";
 import { ActivityEmptyState, ActivityTable } from "../Activity";
 
 export default function Activity() {
-  const { address, connected } = useETHWallet();
+  const { address, connected: ethConnected } = useETHWallet();
+  const { connected: btcConnected } = useBTCWallet();
+  const connected = btcConnected && ethConnected;
   const { data: activities, isLoading } = useActivitiesWithPending(
-    address as Hex,
+    connected ? (address as Hex) : undefined,
   );
 
   const hasActivities = activities && activities.length > 0;
@@ -36,7 +38,7 @@ export default function Activity() {
           ) : hasActivities ? (
             <ActivityTable activities={activities} />
           ) : (
-            <ActivityEmptyState isConnected={connected} />
+            <ActivityEmptyState isConnected={Boolean(connected)} />
           )}
         </div>
       </Card>
