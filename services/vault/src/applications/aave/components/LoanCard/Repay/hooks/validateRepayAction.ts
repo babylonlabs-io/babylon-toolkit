@@ -4,6 +4,8 @@
  * Validates whether user can perform the repay action based on amount.
  */
 
+import { formatTokenAmount } from "../../../../../../utils/formatting";
+
 export interface RepayValidationResult {
   isDisabled: boolean;
   buttonText: string;
@@ -40,8 +42,13 @@ export function validateRepayAction(
     userTokenBalance > 0 &&
     userTokenBalance < currentDebtAmount;
 
+  // Use `formatTokenAmount` for all three numbers so the precision per number
+  // is adaptive (min 2, max 6 decimals, trailing zeros trimmed). A blanket
+  // `.toFixed(2)` would hide sub-cent dust ("leave 0.000001 in debt" → "0.00"),
+  // producing a self-contradicting message. A blanket `.toFixed(6)` would
+  // pad normal amounts with noisy zeros.
   const shortfallMessage = balanceShortfall
-    ? `Your balance (${(userTokenBalance as number).toFixed(2)}) is less than your debt (${(currentDebtAmount as number).toFixed(2)}). Repaying now will leave ${((currentDebtAmount as number) - (userTokenBalance as number)).toFixed(6)} in debt; acquire more tokens to fully clear it.`
+    ? `Your balance (${formatTokenAmount(userTokenBalance as number)}) is less than your debt (${formatTokenAmount(currentDebtAmount as number)}). Repaying now will leave ${formatTokenAmount((currentDebtAmount as number) - (userTokenBalance as number))} in debt; acquire more tokens to fully clear it.`
     : null;
 
   if (repayAmount === 0) {
@@ -58,7 +65,7 @@ export function validateRepayAction(
       return {
         isDisabled: true,
         buttonText: "Insufficient balance",
-        errorMessage: `You only have ${(userTokenBalance as number).toFixed(2)} tokens available. You need more tokens to fully repay your debt.`,
+        errorMessage: `You only have ${formatTokenAmount(userTokenBalance as number)} tokens available. You need more tokens to fully repay your debt.`,
         warningMessage: null,
       };
     }

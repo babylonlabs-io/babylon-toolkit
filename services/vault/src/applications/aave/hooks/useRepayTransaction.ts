@@ -49,6 +49,30 @@ export interface UseRepayTransactionProps {
   proxyContract: string | undefined;
 }
 
+/**
+ * Optional, non-default parameters for `executeRepay`. Kept as an options
+ * object so callers don't need to remember positional defaults.
+ */
+export interface ExecuteRepayOptions {
+  /**
+   * Callback that runs after the on-chain reserve-mismatch check and before
+   * any repay tx. Throwing aborts the submission. Used by the Repay UI to
+   * refetch position + split params and recompute the projected post-repay
+   * HF against current on-chain values.
+   */
+  preSignValidation?: () => Promise<void>;
+  /**
+   * Exact bigint amount (in the token's smallest unit) to use instead of
+   * deriving it from `repayAmount` via `parseUnits`. In `"max-capped"` mode
+   * the float `repayAmount` is just a display value, and the float round-trip
+   * can round up by 1 ULP for high-precision raw values — which would produce
+   * an approval larger than the user's actual balance and revert. When
+   * provided in `"max-capped"` mode this bigint is used verbatim. Ignored in
+   * other modes.
+   */
+  repayAmountRaw?: bigint | null;
+}
+
 export interface UseRepayTransactionResult {
   /**
    * Execute the repay transaction (handles approval if needed)
@@ -56,16 +80,13 @@ export interface UseRepayTransactionResult {
    *   In `"max-capped"` mode this is the user's full balance, which becomes the cap.
    * @param reserve - Reserve config for the debt token
    * @param mode - Which repay path to take. Defaults to `"partial"`.
-   * @param preSignValidation - Optional callback that runs after the on-chain
-   *   reserve-mismatch check and before any repay tx. Throwing aborts the
-   *   submission. Used by the Repay UI to refetch position + split params and
-   *   recompute the projected post-repay HF against current on-chain values.
+   * @param options - Optional pre-sign hook and exact bigint amount.
    */
   executeRepay: (
     repayAmount: number,
     reserve: AaveReserveConfig,
     mode?: RepayMode,
-    preSignValidation?: () => Promise<void>,
+    options?: ExecuteRepayOptions,
   ) => Promise<boolean>;
   /** Whether transaction is currently processing */
   isProcessing: boolean;
@@ -91,8 +112,10 @@ export function useRepayTransaction({
     repayAmount: number,
     reserve: AaveReserveConfig,
     mode: RepayMode = "partial",
-    preSignValidation?: () => Promise<void>,
+    options: ExecuteRepayOptions = {},
   ) => {
+    const { preSignValidation, repayAmountRaw } = options;
+
     if (repayAmount <= 0) return false;
 
     setIsProcessing(true);
@@ -148,20 +171,34 @@ export function useRepayTransaction({
           proxyContract as Address,
         );
       } else {
-        const onChainDecimals = await ERC20.getERC20Decimals(
-          reserve.token.address,
-        ).catch(() => {
-          throw new Error(
-            `Failed to fetch on-chain decimals for ${reserve.token.address}`,
+        // In max-capped mode, prefer the caller-supplied exact bigint over the
+        // float `repayAmount`. The float round-trip via `parseUnits` can round
+        // up by 1 ULP for ≥16-significant-digit raw values (any 18-decimal
+        // token with > ~10 tokens in the wallet), producing an approval
+        // strictly greater than the user's balance and reverting the tx.
+        let amountBigInt: bigint;
+        if (
+          mode === "max-capped" &&
+          repayAmountRaw != null &&
+          repayAmountRaw > 0n
+        ) {
+          amountBigInt = repayAmountRaw;
+        } else {
+          const onChainDecimals = await ERC20.getERC20Decimals(
+            reserve.token.address,
+          ).catch(() => {
+            throw new Error(
+              `Failed to fetch on-chain decimals for ${reserve.token.address}`,
+            );
+          });
+          const SAFE_TOFIXED_PRECISION = 15;
+          amountBigInt = parseUnits(
+            repayAmount.toFixed(
+              Math.min(onChainDecimals, SAFE_TOFIXED_PRECISION),
+            ),
+            onChainDecimals,
           );
-        });
-        const SAFE_TOFIXED_PRECISION = 15;
-        const amountBigInt = parseUnits(
-          repayAmount.toFixed(
-            Math.min(onChainDecimals, SAFE_TOFIXED_PRECISION),
-          ),
-          onChainDecimals,
-        );
+        }
 
         if (mode === "max-capped") {
           await repayMaxCapped(

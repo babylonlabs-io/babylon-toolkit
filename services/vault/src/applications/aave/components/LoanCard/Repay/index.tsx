@@ -11,6 +11,7 @@ import { formatUnits } from "viem";
 
 import { useETHWallet } from "@/context/wallet";
 import { useERC20Balance } from "@/hooks";
+import { logger } from "@/infrastructure";
 
 import {
   getCurrencyIconWithFallback,
@@ -66,6 +67,7 @@ export function Repay() {
 
   const {
     repayAmount,
+    repayAmountRaw,
     setRepayAmount,
     setRepayAmountWithMode,
     resetRepayAmount,
@@ -106,22 +108,41 @@ export function Repay() {
   //                                      will surface a "need more tokens"
   //                                      message and keep submit disabled
   //                                      for amount > maxRepayAmount.
+  //
+  // If either refetch fails (RPC blip, timeout), fall back to the cached
+  // context values rather than letting the click be a silent no-op.
+  // useRepayTransaction does its own on-chain checks at broadcast, so the
+  // user still gets a correct tx; they just don't get the freshest mode
+  // decision.
   const handleMaxClick = useCallback(async () => {
-    const [freshPosition, freshBalanceResult] = await Promise.all([
-      refetchPosition(),
-      refetchUserBalance(),
-    ]);
+    let freshDebtAmount = currentDebtAmount;
+    let freshBalanceAmount = userTokenBalance;
+    let freshBalanceRaw: bigint | undefined;
 
-    const freshDebtRaw =
-      freshPosition?.debtPositions?.get(selectedReserve.reserveId)?.totalDebt ??
-      0n;
-    const freshDebtAmount = Number(
-      formatUnits(freshDebtRaw, selectedReserve.token.decimals),
-    );
-    const freshBalanceRaw = freshBalanceResult?.data ?? 0n;
-    const freshBalanceAmount = Number(
-      formatUnits(freshBalanceRaw, selectedReserve.token.decimals),
-    );
+    try {
+      const [freshPosition, freshBalanceResult] = await Promise.all([
+        refetchPosition(),
+        refetchUserBalance(),
+      ]);
+
+      const freshDebtRaw =
+        freshPosition?.debtPositions?.get(selectedReserve.reserveId)
+          ?.totalDebt ?? 0n;
+      freshDebtAmount = Number(
+        formatUnits(freshDebtRaw, selectedReserve.token.decimals),
+      );
+      freshBalanceRaw = freshBalanceResult?.data ?? 0n;
+      freshBalanceAmount = Number(
+        formatUnits(freshBalanceRaw, selectedReserve.token.decimals),
+      );
+    } catch (error) {
+      logger.warn("Max click refetch failed; using cached debt/balance", {
+        data: {
+          context: "Aave repay Max click",
+          error: error instanceof Error ? error.message : String(error),
+        },
+      });
+    }
 
     if (freshDebtAmount <= 0 || freshBalanceAmount <= 0) {
       setRepayAmountWithMode(
@@ -137,11 +158,18 @@ export function Repay() {
     if (freshBalanceAmount >= fullRepayThreshold) {
       setRepayAmountWithMode(freshDebtAmount, "full");
     } else if (freshBalanceAmount >= freshDebtAmount) {
-      setRepayAmountWithMode(freshBalanceAmount, "max-capped");
+      // Pass the raw bigint cap so the float round-trip in useRepayTransaction
+      // can never produce an approval amount > the user's actual balance.
+      // For ≥16-significant-digit raw balances (any 18-decimal token with > ~10
+      // tokens in the wallet) the round-trip can round up by 1 ULP, which
+      // would revert the tx. Sending the bigint sidesteps the conversion.
+      setRepayAmountWithMode(freshBalanceAmount, "max-capped", freshBalanceRaw);
     } else {
       setRepayAmountWithMode(freshBalanceAmount, "partial");
     }
   }, [
+    currentDebtAmount,
+    userTokenBalance,
     refetchPosition,
     refetchUserBalance,
     selectedReserve.reserveId,
@@ -154,11 +182,14 @@ export function Repay() {
       repayAmount,
       selectedReserve,
       repayMode,
-      () =>
-        validateRepayPreSign({
-          liquidationThresholdBps,
-          refetchSplitParams,
-        }),
+      {
+        preSignValidation: () =>
+          validateRepayPreSign({
+            liquidationThresholdBps,
+            refetchSplitParams,
+          }),
+        repayAmountRaw,
+      },
     );
     if (success) {
       resetRepayAmount();

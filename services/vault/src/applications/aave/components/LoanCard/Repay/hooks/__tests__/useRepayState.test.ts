@@ -267,4 +267,77 @@ describe("useRepayState", () => {
       expect(result.current.repayAmount).toBe(0);
     });
   });
+
+  describe("repayAmountRaw (exact bigint cap)", () => {
+    it("defaults to null", () => {
+      const { result } = renderHook(() =>
+        useRepayState({ currentDebtAmount: 100, userTokenBalance: 100 }),
+      );
+
+      expect(result.current.repayAmountRaw).toBeNull();
+    });
+
+    it("stores the bigint when passed to setRepayAmountWithMode", () => {
+      const { result } = renderHook(() =>
+        useRepayState({ currentDebtAmount: 100.001, userTokenBalance: 100 }),
+      );
+
+      // 100 USDC at 6 decimals
+      const cap = 100_000_000n;
+      act(() => {
+        result.current.setRepayAmountWithMode(100, "max-capped", cap);
+      });
+
+      // The float is just for display; the raw bigint is the source of truth
+      // for the actual approval/transfer amount.
+      expect(result.current.repayAmountRaw).toBe(cap);
+      expect(result.current.repayAmount).toBe(100);
+      expect(result.current.repayMode).toBe("max-capped");
+    });
+
+    it("remains null when setRepayAmountWithMode is called without the bigint", () => {
+      const { result } = renderHook(() =>
+        useRepayState({ currentDebtAmount: 100, userTokenBalance: 100 }),
+      );
+
+      act(() => {
+        result.current.setRepayAmountWithMode(100, "full");
+      });
+
+      expect(result.current.repayAmountRaw).toBeNull();
+    });
+
+    it("is cleared by setRepayAmount (manual typed input)", () => {
+      const { result } = renderHook(() =>
+        useRepayState({ currentDebtAmount: 100.001, userTokenBalance: 100 }),
+      );
+
+      act(() => {
+        result.current.setRepayAmountWithMode(100, "max-capped", 100_000_000n);
+      });
+      expect(result.current.repayAmountRaw).toBe(100_000_000n);
+
+      // User typed something else — the bigint cap is no longer the source of truth
+      act(() => {
+        result.current.setRepayAmount(50);
+      });
+
+      expect(result.current.repayAmountRaw).toBeNull();
+    });
+
+    it("is cleared by resetRepayAmount", () => {
+      const { result } = renderHook(() =>
+        useRepayState({ currentDebtAmount: 100.001, userTokenBalance: 100 }),
+      );
+
+      act(() => {
+        result.current.setRepayAmountWithMode(100, "max-capped", 100_000_000n);
+      });
+      act(() => {
+        result.current.resetRepayAmount();
+      });
+
+      expect(result.current.repayAmountRaw).toBeNull();
+    });
+  });
 });
