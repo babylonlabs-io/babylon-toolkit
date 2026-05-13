@@ -2,10 +2,7 @@
  * Custom hook for vault actions (broadcast, activation)
  */
 
-import {
-  ensureHexPrefix,
-  verifyResumeBroadcastSnapshot,
-} from "@babylonlabs-io/ts-sdk/tbv/core";
+import { ensureHexPrefix } from "@babylonlabs-io/ts-sdk/tbv/core";
 import { vpTokenRegistry } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import { validateSecretAgainstHashlock } from "@babylonlabs-io/ts-sdk/tbv/core/services";
 import {
@@ -122,19 +119,6 @@ export function useVaultActions(): UseVaultActionsReturn {
         );
       }
 
-      if (!pendingPegin) {
-        throw new Error(
-          "Cannot resume broadcast: pending pegin entry not found locally. Refresh and try again, or wait for the ETH vault to time out per protocol rules.",
-        );
-      }
-
-      const { buildSnapshot } = pendingPegin;
-      if (!buildSnapshot) {
-        throw new Error(
-          "Cannot resume broadcast: pending pegin entry lacks build-time snapshot. The ETH vault will time out per protocol rules.",
-        );
-      }
-
       const graphqlUnsignedTxHex = vault.unsignedPrePeginTx;
 
       // Prefer the locally stored transaction when available, while keeping the
@@ -152,17 +136,9 @@ export function useVaultActions(): UseVaultActionsReturn {
 
       const unsignedTxHex = localUnsignedTxHex || graphqlUnsignedTxHex;
 
-      // Fetch on-chain vault for both the transaction integrity check and
-      // the offchain-params version check. Same TOCTOU concern as the
-      // same-device deposit flow: a tx whose BTC scripts were built under
-      // version v(N) must not be broadcast against an on-chain vault locked
-      // under v(N+1), or the scripts (timelocks, council quorum, signer set)
-      // will not match the on-chain record.
+      // prePeginTxHash on-chain commits to all inputs/outputs — any tx
+      // substitution between build and broadcast produces a different hash.
       const onChainVault = await getVaultFromChain(vaultId);
-
-      // Validate the selected transaction against the on-chain prePeginTxHash.
-      // The tx hash commits to all inputs AND outputs, so a substituted
-      // transaction would produce a different hash.
       const computedHash = calculateBtcTxHash(unsignedTxHex);
       if (
         computedHash.toLowerCase() !== onChainVault.prePeginTxHash.toLowerCase()
@@ -172,17 +148,6 @@ export function useVaultActions(): UseVaultActionsReturn {
             "does not match the hash stored on-chain. Aborting to prevent a potential attack.",
         );
       }
-
-      await verifyResumeBroadcastSnapshot({
-        vaultRegistryReader: getVaultRegistryReader(),
-        onChain: {
-          offchainParamsVersion: onChainVault.offchainParamsVersion,
-          appVaultKeepersVersion: onChainVault.appVaultKeepersVersion,
-          universalChallengersVersion: onChainVault.universalChallengersVersion,
-          vaultProvider: onChainVault.vaultProvider,
-        },
-        buildSnapshot,
-      });
 
       // Get BTC wallet provider
       const btcWalletProvider = btcConnector?.connectedWallet?.provider;

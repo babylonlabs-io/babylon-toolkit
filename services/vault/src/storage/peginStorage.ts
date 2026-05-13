@@ -14,7 +14,6 @@
  * - Status field tracks user actions: pending → payout_signed → confirming
  */
 
-import type { PeginBuildSnapshot } from "@babylonlabs-io/ts-sdk/tbv/core";
 import type { Hex } from "viem";
 
 import { logger } from "@/infrastructure";
@@ -57,9 +56,6 @@ export interface PendingPeginRequest {
   batchId?: string; // UUID linking vaults created together
   batchIndex?: number; // Position in batch (1-based: 1 or 2)
   batchTotal?: number; // Total vaults in batch (1 or 2)
-  // Set only by the same-device deposit flow; absent on cross-device-broadcast
-  // and refund-only entries. Resume-broadcast aborts when missing.
-  buildSnapshot?: PeginBuildSnapshot;
 }
 
 // Hex with optional 0x prefix and at least one byte (even-length).
@@ -84,26 +80,6 @@ const VALID_LOCAL_STORAGE_STATUSES: ReadonlySet<string> = new Set([
 // `peginTxHash` is a Bitcoin tx hash — also 32 bytes. Accept the legacy form
 // without `0x` prefix (normalizeTransactionId canonicalizes downstream).
 const BYTES32_HEX_RE = /^(0x)?[0-9a-fA-F]{64}$/;
-// Snapshotted on-chain VP x-only key: 32-byte lowercase hex, no 0x prefix.
-const X_ONLY_PUBKEY_LOWERCASE_RE = /^[0-9a-f]{64}$/;
-
-function isNonNegativeInteger(value: unknown): value is number {
-  return typeof value === "number" && Number.isInteger(value) && value >= 0;
-}
-
-function isValidPeginBuildSnapshot(
-  value: unknown,
-): value is PeginBuildSnapshot {
-  if (!value || typeof value !== "object") return false;
-  const snapshot = value as Record<string, unknown>;
-  return (
-    isNonNegativeInteger(snapshot.offchainParamsVersion) &&
-    isNonNegativeInteger(snapshot.appVaultKeepersVersion) &&
-    isNonNegativeInteger(snapshot.universalChallengersVersion) &&
-    typeof snapshot.vaultProviderBtcPubkeyXOnly === "string" &&
-    X_ONLY_PUBKEY_LOWERCASE_RE.test(snapshot.vaultProviderBtcPubkeyXOnly)
-  );
-}
 
 function isValidSelectedUTXOs(
   value: unknown,
@@ -191,13 +167,6 @@ function hasValidSecurityFields(entry: unknown): entry is PendingPeginRequest {
     ) {
       return false;
     }
-  }
-
-  if (
-    pegin.buildSnapshot !== undefined &&
-    !isValidPeginBuildSnapshot(pegin.buildSnapshot)
-  ) {
-    return false;
   }
 
   if (typeof pegin.unsignedTxHex !== "string") return false;

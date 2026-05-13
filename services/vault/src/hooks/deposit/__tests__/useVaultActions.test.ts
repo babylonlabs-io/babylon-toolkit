@@ -8,10 +8,7 @@ import { act, renderHook } from "@testing-library/react";
 import type { Hex } from "viem";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import {
-  getVaultFromChain,
-  getVaultProviderBtcPubkeyFromChain,
-} from "@/clients/eth-contract/btc-vault-registry/query";
+import { getVaultFromChain } from "@/clients/eth-contract/btc-vault-registry/query";
 import { getVaultRegistryReader } from "@/clients/eth-contract/sdk-readers";
 import { ContractStatus } from "@/models/peginStateMachine";
 import { broadcastPrePeginTransaction, fetchVaultById } from "@/services/vault";
@@ -49,14 +46,7 @@ vi.mock("@/clients/eth-contract/btc-vault-registry/query", () => ({
     Promise.resolve({
       prePeginTxHash: "0xmatching_pre_pegin_hash",
       hashlock: "0xonchain_hashlock",
-      offchainParamsVersion: 7,
-      appVaultKeepersVersion: 3,
-      universalChallengersVersion: 5,
-      vaultProvider: "0xvaultProvider" as `0x${string}`,
     }),
-  ),
-  getVaultProviderBtcPubkeyFromChain: vi.fn(() =>
-    Promise.resolve(`0x${"a".repeat(64)}`),
   ),
 }));
 
@@ -128,9 +118,6 @@ const mockBroadcastPrePeginTransaction = vi.mocked(
   broadcastPrePeginTransaction,
 );
 const mockGetVaultFromChain = vi.mocked(getVaultFromChain);
-const mockGetVaultProviderBtcPubkeyFromChain = vi.mocked(
-  getVaultProviderBtcPubkeyFromChain,
-);
 const mockGetVaultRegistryReader = vi.mocked(getVaultRegistryReader);
 const mockActivateVaultWithSecret = vi.mocked(activateVaultWithSecret);
 
@@ -152,8 +139,6 @@ const GRAPHQL_TX_HEX = `0x${TRUSTED_TX_HEX}`;
 // A genuinely different transaction returned by a compromised indexer
 const ATTACKER_TX_HEX = "0x70736274ff...attackertx";
 
-const VP_KEY_X_ONLY = "a".repeat(64);
-
 const baseVault = {
   unsignedPrePeginTx: GRAPHQL_TX_HEX,
   depositorBtcPubkey: "0xdepositorBtcPubkey",
@@ -167,12 +152,6 @@ const basePendingPegin = {
   status: "PENDING" as never,
   peginTxHash: "0xpeginTxHash" as Hex,
   unsignedTxHex: TRUSTED_TX_HEX,
-  buildSnapshot: {
-    offchainParamsVersion: 7,
-    appVaultKeepersVersion: 3,
-    universalChallengersVersion: 5,
-    vaultProviderBtcPubkeyXOnly: VP_KEY_X_ONLY,
-  },
 };
 
 const baseBroadcastParams = {
@@ -188,21 +167,7 @@ describe("useVaultActions — handleBroadcast transaction integrity", () => {
     mockGetVaultFromChain.mockResolvedValue({
       prePeginTxHash: "0xmatching_pre_pegin_hash",
       hashlock: "0xonchain_hashlock",
-      offchainParamsVersion: 7,
-      appVaultKeepersVersion: 3,
-      universalChallengersVersion: 5,
-      vaultProvider: "0xvaultProvider" as `0x${string}`,
     } as never);
-    mockGetVaultProviderBtcPubkeyFromChain.mockResolvedValue(
-      `0x${VP_KEY_X_ONLY}` as never,
-    );
-    mockGetVaultRegistryReader.mockReturnValue({
-      getVaultProtocolInfo: vi.fn(),
-      getVaultBasicInfo: vi.fn(),
-      getProtocolInfoBatch: vi.fn(),
-      getVaultData: vi.fn(),
-      getVaultProviderBtcPubKey: vi.fn().mockResolvedValue(VP_KEY_X_ONLY),
-    } as unknown as ReturnType<typeof getVaultRegistryReader>);
   });
 
   it("broadcasts using local tx when it matches GraphQL", async () => {
@@ -305,123 +270,6 @@ describe("useVaultActions — handleBroadcast transaction integrity", () => {
     });
 
     expect(result.current.broadcastError).toContain("VERIFIED");
-    expect(mockBroadcastPrePeginTransaction).not.toHaveBeenCalled();
-  });
-
-  it("aborts when pendingPegin is missing with a clear 'Cannot resume' error", async () => {
-    mockFetchVaultById.mockResolvedValue(baseVault as never);
-
-    const { result } = renderHook(() => useVaultActions());
-
-    await act(async () => {
-      await result.current.handleBroadcast({
-        ...baseBroadcastParams,
-        pendingPegin: undefined,
-      });
-    });
-
-    expect(result.current.broadcastError).toContain("Cannot resume broadcast");
-    expect(mockBroadcastPrePeginTransaction).not.toHaveBeenCalled();
-  });
-
-  it("aborts before broadcast when on-chain offchainParamsVersion drifted from the build snapshot", async () => {
-    mockFetchVaultById.mockResolvedValue(baseVault as never);
-    // Snapshot built at v7; on-chain registered at v8.
-    mockGetVaultFromChain.mockResolvedValue({
-      prePeginTxHash: "0xmatching_pre_pegin_hash",
-      offchainParamsVersion: 8,
-      appVaultKeepersVersion: 3,
-      universalChallengersVersion: 5,
-      vaultProvider: "0xvaultProvider" as `0x${string}`,
-    } as never);
-
-    const { result } = renderHook(() => useVaultActions());
-
-    await act(async () => {
-      await result.current.handleBroadcast({
-        ...baseBroadcastParams,
-        pendingPegin: { ...basePendingPegin },
-      });
-    });
-
-    expect(result.current.broadcastError).toContain(
-      "offchain params version mismatch",
-    );
-    expect(mockBroadcastPrePeginTransaction).not.toHaveBeenCalled();
-  });
-
-  it("aborts before broadcast when on-chain appVaultKeepersVersion drifted from the build snapshot", async () => {
-    mockFetchVaultById.mockResolvedValue(baseVault as never);
-    mockGetVaultFromChain.mockResolvedValue({
-      prePeginTxHash: "0xmatching_pre_pegin_hash",
-      offchainParamsVersion: 7,
-      appVaultKeepersVersion: 4,
-      universalChallengersVersion: 5,
-      vaultProvider: "0xvaultProvider" as `0x${string}`,
-    } as never);
-
-    const { result } = renderHook(() => useVaultActions());
-
-    await act(async () => {
-      await result.current.handleBroadcast({
-        ...baseBroadcastParams,
-        pendingPegin: { ...basePendingPegin },
-      });
-    });
-
-    expect(result.current.broadcastError).toContain(
-      "vault keeper version mismatch",
-    );
-    expect(mockBroadcastPrePeginTransaction).not.toHaveBeenCalled();
-  });
-
-  it("aborts before broadcast when on-chain universalChallengersVersion drifted from the build snapshot", async () => {
-    mockFetchVaultById.mockResolvedValue(baseVault as never);
-    mockGetVaultFromChain.mockResolvedValue({
-      prePeginTxHash: "0xmatching_pre_pegin_hash",
-      offchainParamsVersion: 7,
-      appVaultKeepersVersion: 3,
-      universalChallengersVersion: 6,
-      vaultProvider: "0xvaultProvider" as `0x${string}`,
-    } as never);
-
-    const { result } = renderHook(() => useVaultActions());
-
-    await act(async () => {
-      await result.current.handleBroadcast({
-        ...baseBroadcastParams,
-        pendingPegin: { ...basePendingPegin },
-      });
-    });
-
-    expect(result.current.broadcastError).toContain(
-      "universal challenger version mismatch",
-    );
-    expect(mockBroadcastPrePeginTransaction).not.toHaveBeenCalled();
-  });
-
-  it("aborts before broadcast when on-chain VP BTC pubkey changed since build time", async () => {
-    mockFetchVaultById.mockResolvedValue(baseVault as never);
-    mockGetVaultRegistryReader.mockReturnValue({
-      getVaultProtocolInfo: vi.fn(),
-      getVaultBasicInfo: vi.fn(),
-      getProtocolInfoBatch: vi.fn(),
-      getVaultData: vi.fn(),
-      getVaultProviderBtcPubKey: vi.fn().mockResolvedValue("b".repeat(64)),
-    } as unknown as ReturnType<typeof getVaultRegistryReader>);
-
-    const { result } = renderHook(() => useVaultActions());
-
-    await act(async () => {
-      await result.current.handleBroadcast({
-        ...baseBroadcastParams,
-        pendingPegin: { ...basePendingPegin },
-      });
-    });
-
-    expect(result.current.broadcastError).toContain(
-      "vault provider BTC pubkey changed",
-    );
     expect(mockBroadcastPrePeginTransaction).not.toHaveBeenCalled();
   });
 });

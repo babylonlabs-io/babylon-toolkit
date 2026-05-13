@@ -584,15 +584,6 @@ export function useDepositFlow(
               value: String(u.value),
               scriptPubKey: u.scriptPubKey,
             })),
-            buildSnapshot: {
-              offchainParamsVersion: config.offchainParamsVersion,
-              appVaultKeepersVersion:
-                validatedKeys.expectedAppVaultKeepersVersion,
-              universalChallengersVersion:
-                validatedKeys.expectedUniversalChallengersVersion,
-              vaultProviderBtcPubkeyXOnly:
-                validatedKeys.vaultProviderBtcPubkeyXOnly,
-            },
           });
           // At least one durable pending-pegin record now covers the
           // same UTXOs as the early reservation (all vaults in a batch
