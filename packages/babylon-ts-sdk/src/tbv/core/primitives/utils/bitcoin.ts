@@ -431,9 +431,12 @@ export function deriveNativeSegwitAddress(
  * Derives Taproot (P2TR) and Native SegWit (P2WPKH) addresses from the
  * public key and checks if the provided address matches any of them.
  *
- * When the input is an x-only key (64 hex chars), both possible compressed
- * keys (`02` + x and `03` + x) are tried for Native SegWit derivation,
- * since the y-parity is unknown.
+ * P2WPKH derivation requires the full compressed key with explicit y-parity.
+ * When only an x-only key is supplied, the y-parity is unknown and trying
+ * both `02|x` and `03|x` would let an opposite-parity P2WPKH address — a
+ * script the caller does NOT control — pass validation. We fail closed for
+ * P2WPKH in that case; P2TR (which depends only on the x-coordinate) is
+ * still validated and remains the supported path for Taproot wallets.
  *
  * @param address - BTC address to validate
  * @param publicKeyHex - Public key from the wallet (x-only 64 or compressed 66 hex chars)
@@ -456,18 +459,11 @@ export function isAddressFromPublicKey(
     // derivation failed, continue
   }
 
-  // Build the list of compressed keys to try for P2WPKH
-  const compressedKeys: string[] = [];
+  // P2WPKH — only attempt when the caller supplied a parity-bearing
+  // compressed key. An x-only input is fail-closed here on purpose.
   if (cleanHex.length === COMPRESSED_PUBKEY_HEX_LEN) {
-    compressedKeys.push(cleanHex);
-  } else if (cleanHex.length === X_ONLY_PUBKEY_HEX_LEN) {
-    // x-only key — try both even (02) and odd (03) y-parity
-    compressedKeys.push(`02${cleanHex}`, `03${cleanHex}`);
-  }
-
-  for (const key of compressedKeys) {
     try {
-      if (address === deriveNativeSegwitAddress(key, network)) {
+      if (address === deriveNativeSegwitAddress(cleanHex, network)) {
         return true;
       }
     } catch {
