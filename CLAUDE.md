@@ -57,13 +57,15 @@ These paths handle irreversible value movement. An AI-generated mistake here is 
 - Files (all marked `@stability frozen` in JSDoc):
   - `packages/babylon-ts-sdk/src/tbv/core/vault-secrets/context.ts` — `buildVaultContext`, `buildFundingOutpointsCommitment`
   - `packages/babylon-ts-sdk/src/tbv/core/vault-secrets/deriveVaultRoot.ts` — `deriveVaultRoot`, `VAULT_APP_NAME`
-  - `packages/babylon-ts-sdk/src/tbv/core/vault-secrets/expand.ts` — `expandWotsSeed`, `expandHashlockSecret`, `expandAuthAnchor`
-  - `packages/babylon-ts-sdk/src/tbv/core/vault-secrets/info.ts` — HKDF `info` encoding (labels + i2osp4)
+  - `packages/babylon-ts-sdk/src/tbv/core/vault-secrets/index.ts` — re-exports `expandAuthAnchor`, `expandHashlockSecret`, `expandWotsSeed` from the WASM package
+  - `packages/babylon-tbv-rust-wasm/src/index.ts` — browser-side async wrappers for the three expanders
+  - `packages/babylon-tbv-rust-wasm/src/index-node.ts` — node-side async wrappers for the three expanders
+  - `packages/babylon-tbv-rust-wasm/scripts/build-wasm.js` — `BTC_VAULT_COMMIT` pin (the Rust crate at this commit is the byte-level source of truth for the HKDF `info` encoding, labels, and i2osp prefixes)
   - `packages/babylon-ts-sdk/src/tbv/core/wots/blockDerivation.ts` — `deriveWotsBlocksFromSeed`, `computeWotsBlockPublicKeysHash`
 - The orchestrator that composes these primitives:
   - `packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts` — `PeginManager.preparePegin` (sizing → `deriveVaultRoot` → per-vault expand → commit pass with `htlcVout === index` invariant). The wrapper API may evolve; the underlying frozen primitives must not.
 - These functions feed `wallet.deriveContextHash` and produce on-chain commitments (`depositorWotsPkHash`, HTLC hashlock, OP_RETURN auth-anchor preimage). Any byte-level change to layout, ordering, label, or HKDF info rotates the secrets and **invalidates every existing deposit** — users cannot derive matching keys, cannot activate, cannot resume.
-- **Rule:** Treat as a hard fork. Changes require: (a) a coordinated revision of `derive-vault-secrets.md` / `derive-context-hash.md`, (b) updated golden-vector tests in both this repo and `btc-vault`, (c) a migration plan for in-flight deposits. Match the Rust `babe::wots` reference byte-for-byte. Two-vault test (overlapping inputs, distinct keys) is mandatory for any chain-logic change.
+- **Rule:** Treat as a hard fork. Changes require: (a) a coordinated revision of `derive-vault-secrets.md` / `derive-context-hash.md`, (b) updated golden-vector tests in `btc-vault` (`crates/vault/src/wasm.rs` `golden_vectors_pinned`) — the byte-level `info` encoding now lives Rust-side and that test is the source of truth, (c) a migration plan for in-flight deposits. A bump of `BTC_VAULT_COMMIT` in `build-wasm.js` that changes any expander output is equivalent to changing this list. Match the Rust `babe::wots` reference byte-for-byte. Two-vault test (overlapping inputs, distinct keys) is mandatory for any chain-logic change.
 
 ### 5. HTLC secret & vault activation
 - File: `services/vault/src/services/vault/vaultActivationService.ts`
