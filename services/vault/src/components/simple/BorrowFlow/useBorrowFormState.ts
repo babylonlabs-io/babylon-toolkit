@@ -106,7 +106,11 @@ export function useBorrowFormState({
     isPositionDataStale,
   );
 
-  const sliderMax = Math.max(maxBorrowAmount, MIN_SLIDER_MAX);
+  // Cosmetic minimum only — keeps the slider track from rendering at zero
+  // width when there is nothing to borrow. The displayed "Max" label and
+  // the Max click both use the real `maxBorrowAmount` so the UI doesn't
+  // advertise an amount that validation will reject.
+  const sliderTrackMax = maxBorrowAmount > 0 ? maxBorrowAmount : MIN_SLIDER_MAX;
   const hasDebt = totalDebtValueUsd > 0 || borrowAmount > 0;
   const liquidationLtv = liquidationThresholdBps / BPS_TO_PERCENT_DIVISOR;
 
@@ -131,7 +135,7 @@ export function useBorrowFormState({
     }
   };
 
-  const handleMaxClick = () => setBorrowAmount(sliderMax);
+  const handleMaxClick = () => setBorrowAmount(maxBorrowAmount);
 
   const handleBorrow = async () => {
     const success = await executeBorrow(
@@ -171,8 +175,8 @@ export function useBorrowFormState({
 
     borrowAmount,
     setBorrowAmount,
-    sliderMax,
-    maxAmountFormatted: `${formatTokenAmount(sliderMax)} ${assetConfig.symbol}`,
+    sliderMax: sliderTrackMax,
+    maxAmountFormatted: `${formatTokenAmount(maxBorrowAmount)} ${assetConfig.symbol}`,
     usdValueFormatted:
       tokenPriceUsd != null
         ? formatUsdValue(borrowAmount * tokenPriceUsd)

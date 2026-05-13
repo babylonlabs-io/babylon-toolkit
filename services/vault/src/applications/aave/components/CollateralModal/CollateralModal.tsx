@@ -56,7 +56,12 @@ export function CollateralModal({ isOpen, onClose }: CollateralModalProps) {
     }
   };
 
-  const sliderMax = Math.max(maxCollateralAmount, MIN_SLIDER_MAX);
+  // Cosmetic minimum only — keeps the slider track from rendering at zero
+  // width when there's nothing to withdraw. Cap the slider's accept range
+  // at the real `maxCollateralAmount` so the user can't position it above
+  // a valid value.
+  const sliderTrackMax =
+    maxCollateralAmount > 0 ? maxCollateralAmount : MIN_SLIDER_MAX;
 
   return (
     <ResponsiveDialog open={isOpen} onClose={onClose}>
@@ -93,8 +98,8 @@ export function CollateralModal({ isOpen, onClose }: CollateralModalProps) {
             }
             sliderValue={collateralAmount}
             sliderMin={0}
-            sliderMax={sliderMax}
-            sliderStep={sliderMax / 1000}
+            sliderMax={sliderTrackMax}
+            sliderStep={sliderTrackMax / 1000}
             sliderSteps={collateralSteps}
             onSliderChange={setCollateralAmount}
             sliderVariant="primary"

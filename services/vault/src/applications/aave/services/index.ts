@@ -51,6 +51,7 @@ export {
   reorderVaultOrder,
   repay,
   repayFull,
+  repayMaxCapped,
   repayPartial,
   withdrawSelectedCollateral,
 } from "./positionTransactions";

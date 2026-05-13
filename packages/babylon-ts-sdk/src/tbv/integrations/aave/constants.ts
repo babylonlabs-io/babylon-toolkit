@@ -93,7 +93,22 @@ export const MIN_HEALTH_FACTOR_FOR_BORROW = 1.2;
 /**
  * Buffer for full repayment to account for interest accrual
  * between fetching debt and transaction execution.
- * 0.01% buffer (1 basis point) - the contract only takes what's owed.
+ *
+ * 0.5% buffer (50 basis points). Sized to absorb hours of execution delay
+ * (e.g. Safe-multisig quorum collection) without leaving residual dust.
+ * The adapter only pulls what's actually owed; excess approval/balance
+ * stays with the user.
+ *
+ * Users whose wallet balance covers the debt but not the full buffer are
+ * routed through the "max-capped" repay path instead of `repayFull`, so
+ * a larger buffer never blocks a legitimate max-repay.
  */
-export const FULL_REPAY_BUFFER_DIVISOR = 10000n; // 1/10000 = 0.01% buffer
+export const FULL_REPAY_BUFFER_DIVISOR = 200n; // 1/200 = 0.5% buffer
+
+/**
+ * Same buffer as `FULL_REPAY_BUFFER_DIVISOR`, expressed as a float fraction
+ * for UI-side comparisons that operate in `number` rather than `bigint`.
+ */
+export const FULL_REPAY_BUFFER_FRACTION =
+  1 / Number(FULL_REPAY_BUFFER_DIVISOR);
 

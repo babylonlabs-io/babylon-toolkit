@@ -26,31 +26,67 @@ import {
   ReserveMismatchError,
   assertReserveMatchesOnChain,
   repayFull,
+  repayMaxCapped,
   repayPartial,
 } from "../services";
 import type { AaveReserveConfig } from "../services/fetchConfig";
+
+/**
+ * Which repay path the user is invoking.
+ *
+ * - `"partial"` — user typed a specific amount; send it verbatim, no buffer.
+ * - `"full"` — user wants to clear the debt and balance covers debt × (1 + buffer);
+ *   service refetches debt at broadcast time and adds the buffer.
+ * - `"max-capped"` — user wants to clear the debt but balance is between
+ *   `debt` and `debt × (1 + buffer)`; approve and send the user's full balance,
+ *   adapter pulls `min(balance, actualDebt)`. Residual ≤ accrual during
+ *   broadcast (sub-cent in practice).
+ */
+export type RepayMode = "partial" | "full" | "max-capped";
 
 export interface UseRepayTransactionProps {
   /** User's proxy contract address (for debt queries) */
   proxyContract: string | undefined;
 }
 
+/**
+ * Optional, non-default parameters for `executeRepay`. Kept as an options
+ * object so callers don't need to remember positional defaults.
+ */
+export interface ExecuteRepayOptions {
+  /**
+   * Callback that runs after the on-chain reserve-mismatch check and before
+   * any repay tx. Throwing aborts the submission. Used by the Repay UI to
+   * refetch position + split params and recompute the projected post-repay
+   * HF against current on-chain values.
+   */
+  preSignValidation?: () => Promise<void>;
+  /**
+   * Exact bigint amount (in the token's smallest unit) to use instead of
+   * deriving it from `repayAmount` via `parseUnits`. In `"max-capped"` mode
+   * the float `repayAmount` is just a display value, and the float round-trip
+   * can round up by 1 ULP for high-precision raw values — which would produce
+   * an approval larger than the user's actual balance and revert. When
+   * provided in `"max-capped"` mode this bigint is used verbatim. Ignored in
+   * other modes.
+   */
+  repayAmountRaw?: bigint | null;
+}
+
 export interface UseRepayTransactionResult {
   /**
    * Execute the repay transaction (handles approval if needed)
-   * @param repayAmount - Amount to repay in token units (e.g., 100 for 100 USDC)
+   * @param repayAmount - Amount to repay in token units (e.g., 100 for 100 USDC).
+   *   In `"max-capped"` mode this is the user's full balance, which becomes the cap.
    * @param reserve - Reserve config for the debt token
-   * @param isFullRepayment - If true, fetches exact debt from contract and repays all
-   * @param preSignValidation - Optional callback that runs after the on-chain
-   *   reserve-mismatch check and before any repay tx. Throwing aborts the
-   *   submission. Used by the Repay UI to refetch position + split params and
-   *   recompute the projected post-repay HF against current on-chain values.
+   * @param mode - Which repay path to take. Defaults to `"partial"`.
+   * @param options - Optional pre-sign hook and exact bigint amount.
    */
   executeRepay: (
     repayAmount: number,
     reserve: AaveReserveConfig,
-    isFullRepayment?: boolean,
-    preSignValidation?: () => Promise<void>,
+    mode?: RepayMode,
+    options?: ExecuteRepayOptions,
   ) => Promise<boolean>;
   /** Whether transaction is currently processing */
   isProcessing: boolean;
@@ -75,9 +111,11 @@ export function useRepayTransaction({
   const executeRepay = async (
     repayAmount: number,
     reserve: AaveReserveConfig,
-    isFullRepayment = false,
-    preSignValidation?: () => Promise<void>,
+    mode: RepayMode = "partial",
+    options: ExecuteRepayOptions = {},
   ) => {
+    const { preSignValidation, repayAmountRaw } = options;
+
     if (repayAmount <= 0) return false;
 
     setIsProcessing(true);
@@ -118,7 +156,7 @@ export function useRepayTransaction({
       // Call appropriate service based on repayment type
       // The borrower address is resolved from the connected wallet (self-repay)
       // Adapter and spoke addresses are pinned from trusted environment config
-      if (isFullRepayment) {
+      if (mode === "full") {
         if (!proxyContract) {
           throw new Error(
             "Cannot perform full repayment: position data not available",
@@ -132,7 +170,31 @@ export function useRepayTransaction({
           reserve.token.address,
           proxyContract as Address,
         );
+      } else if (mode === "max-capped") {
+        // max-capped requires the caller-supplied exact bigint. The float
+        // round-trip via `parseUnits` can round up by 1 ULP for ≥16-significant
+        // -digit raw values (any 18-decimal token with > ~10 tokens in the
+        // wallet), producing an approval strictly greater than the user's
+        // balance and reverting the tx. Refuse to proceed without the raw
+        // bigint instead of silently degrading.
+        if (repayAmountRaw == null || repayAmountRaw <= 0n) {
+          throw new Error(
+            "max-capped mode requires repayAmountRaw (the exact bigint balance). Caller must pass it from a fresh on-chain read.",
+          );
+        }
+
+        await repayMaxCapped(
+          walletClient,
+          chain,
+          reserve.reserveId,
+          reserve.token.address,
+          repayAmountRaw,
+        );
       } else {
+        // partial path: convert the user-typed float to bigint. Float rounding
+        // is bounded by the input value itself (the user typed it), so a 1-ULP
+        // overshoot here can't exceed the user's balance the way it can for
+        // max-capped where the input *is* the balance.
         const onChainDecimals = await ERC20.getERC20Decimals(
           reserve.token.address,
         ).catch(() => {
@@ -141,17 +203,19 @@ export function useRepayTransaction({
           );
         });
         const SAFE_TOFIXED_PRECISION = 15;
+        const amountBigInt = parseUnits(
+          repayAmount.toFixed(
+            Math.min(onChainDecimals, SAFE_TOFIXED_PRECISION),
+          ),
+          onChainDecimals,
+        );
+
         await repayPartial(
           walletClient,
           chain,
           reserve.reserveId,
           reserve.token.address,
-          parseUnits(
-            repayAmount.toFixed(
-              Math.min(onChainDecimals, SAFE_TOFIXED_PRECISION),
-            ),
-            onChainDecimals,
-          ),
+          amountBigInt,
         );
       }
 

@@ -148,10 +148,84 @@ export async function repayPartial(
 }
 
 /**
+ * Repay as much as the user's balance permits, when balance is less than
+ * `debt × (1 + buffer)` (so `repayFull` would refuse).
+ *
+ * The adapter pulls `min(amount, currentDebtAtExecution)`, so sending the
+ * user's full balance leaves at most `currentDebtAtExecution - balance` of
+ * residual debt — which is the interest accrued between the caller's
+ * balance check and the broadcast block (sub-cent in practice).
+ *
+ * Callers must have already verified `balanceAmount >= currentDebt` against
+ * fresh on-chain values; this function does not refetch debt to keep the
+ * pulled amount strictly capped at the user's balance.
+ *
+ * Residual-allowance note: we approve the full `balanceAmount` but the
+ * adapter typically pulls less (≤ debt at execution). Leftover allowance
+ * = `balanceAmount - debtPulled`, bounded by ~0.5 % of balance because we
+ * only enter this path when `balance ≈ debt`. The pinned-adapter trust
+ * model treats this residual as acceptable; eliminating it entirely would
+ * require the adapter contract to accept a sentinel "repay all" amount so
+ * the dApp can approve exactly what's owed.
+ *
+ * @param walletClient - Connected wallet client
+ * @param chain - Chain configuration
+ * @param debtReserveId - Reserve ID for the debt token
+ * @param tokenAddress - Token address for the debt
+ * @param balanceAmount - The user's full token balance (the cap); approved and sent verbatim
+ * @returns Transaction result
+ */
+export async function repayMaxCapped(
+  walletClient: WalletClient,
+  chain: Chain,
+  debtReserveId: bigint,
+  tokenAddress: Address,
+  balanceAmount: bigint,
+): Promise<{ transactionHash: Hash; receipt: TransactionReceipt }> {
+  const userAddress = walletClient.account?.address;
+  if (!userAddress) {
+    throw new Error("Wallet address not available");
+  }
+
+  if (balanceAmount <= 0n) {
+    throw new Error("Repay amount must be greater than 0");
+  }
+
+  const adapterAddress = getAaveAdapterAddress();
+
+  const currentAllowance = await ERC20.getERC20Allowance(
+    tokenAddress,
+    userAddress,
+    adapterAddress,
+  );
+
+  if (currentAllowance < balanceAmount) {
+    await ERC20.approveERC20(
+      walletClient,
+      chain,
+      tokenAddress,
+      adapterAddress,
+      balanceAmount,
+    );
+  }
+
+  return repay(walletClient, chain, userAddress, debtReserveId, balanceAmount);
+}
+
+/**
  * Repay all debt for a reserve
  *
  * Fetches exact debt from contract, handles approval, then repays.
  * Uses pinned adapter and spoke addresses from trusted environment config.
+ *
+ * Residual-allowance note: we approve `currentDebt × (1 + buffer)` to absorb
+ * interest accrual between fetch and execution, but the adapter pulls only
+ * what's actually owed. Leftover allowance ≈ `buffer × currentDebt − accrual`
+ * — for a 200 USDC repay with the 0.5 % buffer this is ~1 USDC of lingering
+ * allowance on the pinned adapter. The pinned-adapter trust model treats
+ * this residual as acceptable; eliminating it would require the adapter to
+ * read on-chain debt at execution so the dApp can approve exactly what's
+ * owed.
  *
  * @param walletClient - Connected wallet client
  * @param chain - Chain configuration
@@ -186,9 +260,17 @@ export async function repayFull(
     throw new Error("No debt to repay");
   }
 
-  // Add 0.01% buffer to account for interest accrual between fetching and tx execution
-  // The contract will only take what's actually owed, excess stays in user's wallet
-  const amountToRepay = currentDebt + currentDebt / FULL_REPAY_BUFFER_DIVISOR;
+  // Buffer for interest accrual between fetching debt and tx execution.
+  // The adapter only pulls what's actually owed; excess stays with the user.
+  //
+  // Uses **ceiling division** so any non-zero debt gets at least 1 base unit
+  // of buffer. Floor division (currentDebt / FULL_REPAY_BUFFER_DIVISOR) silently
+  // returns 0 for `currentDebt < FULL_REPAY_BUFFER_DIVISOR` — exactly the
+  // dust-scale case where a residual could otherwise linger forever as each
+  // repay sends the exact debt and the next block re-introduces a microcent.
+  const bufferDelta =
+    (currentDebt + FULL_REPAY_BUFFER_DIVISOR - 1n) / FULL_REPAY_BUFFER_DIVISOR;
+  const amountToRepay = currentDebt + bufferDelta;
 
   // Check user's token balance before proceeding
   const userBalance = await ERC20.getERC20Balance(tokenAddress, userAddress);

@@ -57,6 +57,7 @@ import {
   borrow,
   repay,
   repayFull,
+  repayMaxCapped,
   repayPartial,
   withdrawSelectedCollateral,
 } from "../positionTransactions";
@@ -224,6 +225,95 @@ describe("positionTransactions", () => {
   });
 
   // ============================================================================
+  // repayMaxCapped
+  // ============================================================================
+  describe("repayMaxCapped", () => {
+    beforeEach(() => {
+      mockGetERC20Allowance.mockResolvedValue(0n);
+    });
+
+    it("should approve and send the user's full balance verbatim (no buffer math)", async () => {
+      const balanceAmount = 200_000_000n;
+
+      await repayMaxCapped(
+        mockWalletClient,
+        mockChain,
+        1n,
+        "0xtoken" as any,
+        balanceAmount,
+      );
+
+      // The whole point of this path: approve exactly the cap, not cap × (1+buffer).
+      expect(mockApproveERC20).toHaveBeenCalledWith(
+        mockWalletClient,
+        mockChain,
+        "0xtoken",
+        "0xadapter",
+        balanceAmount,
+      );
+
+      expect(mockRepayToCorePosition).toHaveBeenCalledWith(
+        mockWalletClient,
+        mockChain,
+        "0xadapter",
+        "0xuser",
+        1n,
+        balanceAmount,
+      );
+    });
+
+    it("should skip approval when allowance is sufficient", async () => {
+      const balanceAmount = 200_000_000n;
+      mockGetERC20Allowance.mockResolvedValue(balanceAmount + 1n);
+
+      await repayMaxCapped(
+        mockWalletClient,
+        mockChain,
+        1n,
+        "0xtoken" as any,
+        balanceAmount,
+      );
+
+      expect(mockApproveERC20).not.toHaveBeenCalled();
+      expect(mockRepayToCorePosition).toHaveBeenCalled();
+    });
+
+    it("should not refetch debt — the cap is the user's balance, period", async () => {
+      // If this path fetched debt, an interest-accrual race could push the
+      // approval above the user's balance and break the failure-mode-A fix.
+      await repayMaxCapped(
+        mockWalletClient,
+        mockChain,
+        1n,
+        "0xtoken" as any,
+        1_000_000n,
+      );
+
+      expect(mockGetUserTotalDebt).not.toHaveBeenCalled();
+    });
+
+    it("should throw error when balanceAmount is 0", async () => {
+      await expect(
+        repayMaxCapped(mockWalletClient, mockChain, 1n, "0xtoken" as any, 0n),
+      ).rejects.toThrow("Repay amount must be greater than 0");
+    });
+
+    it("should throw error when wallet has no account", async () => {
+      const noAccountWallet = { account: undefined } as any;
+
+      await expect(
+        repayMaxCapped(
+          noAccountWallet,
+          mockChain,
+          1n,
+          "0xtoken" as any,
+          1_000n,
+        ),
+      ).rejects.toThrow("Wallet address not available");
+    });
+  });
+
+  // ============================================================================
   // repayFull - Token Approval Security
   // ============================================================================
   describe("repayFull", () => {
@@ -334,6 +424,80 @@ describe("positionTransactions", () => {
           "0xproxy" as any,
         ),
       ).rejects.toThrow("Wallet address not available");
+    });
+
+    // The buffer uses ceiling division so dust-scale debts (currentDebt <
+    // FULL_REPAY_BUFFER_DIVISOR, where percentage math floors to zero) still
+    // get at least 1 base unit of buffer. Without this, micro-cent residuals
+    // can persist forever because each repay sends the exact debt and the
+    // next block re-introduces a unit of interest.
+    describe("ceiling-division buffer for dust-scale debts", () => {
+      const runWithDebt = async (debt: bigint) => {
+        mockGetUserTotalDebt.mockResolvedValue(debt);
+        mockGetERC20Balance.mockResolvedValue(1_000_000_000n); // plenty of headroom
+        await repayFull(
+          mockWalletClient,
+          mockChain,
+          1n,
+          "0xtoken" as any,
+          "0xproxy" as any,
+        );
+      };
+
+      it("currentDebt = 1n → approves 2n (1 base unit of buffer, not 0)", async () => {
+        await runWithDebt(1n);
+        expect(mockApproveERC20).toHaveBeenCalledWith(
+          mockWalletClient,
+          mockChain,
+          "0xtoken",
+          "0xadapter",
+          2n,
+        );
+      });
+
+      it("currentDebt = 3n (the reported 3 µUSDC case) → approves 4n", async () => {
+        await runWithDebt(3n);
+        expect(mockApproveERC20).toHaveBeenCalledWith(
+          mockWalletClient,
+          mockChain,
+          "0xtoken",
+          "0xadapter",
+          4n,
+        );
+      });
+
+      it("currentDebt = 199n (just below divisor) → approves 200n", async () => {
+        await runWithDebt(199n);
+        expect(mockApproveERC20).toHaveBeenCalledWith(
+          mockWalletClient,
+          mockChain,
+          "0xtoken",
+          "0xadapter",
+          200n,
+        );
+      });
+
+      it("currentDebt = 200n (exact divisor) → approves 201n", async () => {
+        await runWithDebt(200n);
+        expect(mockApproveERC20).toHaveBeenCalledWith(
+          mockWalletClient,
+          mockChain,
+          "0xtoken",
+          "0xadapter",
+          201n,
+        );
+      });
+
+      it("currentDebt = 201n (just above divisor) → approves 203n (ceiling rounds up)", async () => {
+        await runWithDebt(201n);
+        expect(mockApproveERC20).toHaveBeenCalledWith(
+          mockWalletClient,
+          mockChain,
+          "0xtoken",
+          "0xadapter",
+          203n,
+        );
+      });
     });
   });
 
