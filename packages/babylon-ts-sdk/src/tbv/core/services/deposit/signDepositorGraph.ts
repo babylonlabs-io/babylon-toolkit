@@ -96,7 +96,50 @@ function deriveLocalChallengers(
       "Cannot derive localChallengers: removing depositor from {vaultProvider, vaultKeepers} left an empty set",
     );
   }
+  // Catch upstream misconfiguration (VP key === a VK key) at its source.
+  // Otherwise downstream set comparisons would silently dedupe and report
+  // a misleading "missing challenger" error.
+  if (new Set(filtered).size !== filtered.length) {
+    throw new Error(
+      "Cannot derive localChallengers: vaultProvider key duplicates a vaultKeeper key — signing context is misconfigured",
+    );
+  }
   return filtered;
+}
+
+/**
+ * Reject VP-supplied `challenger_presign_data` whose pubkey set does not
+ * exactly equal `localChallengers`.
+ *
+ * Threat model: a malicious or buggy VP could omit, duplicate, or inject
+ * unrelated entries. Missing entries → depositor activates with incomplete
+ * recovery material (omitted challenger later becomes unenforceable).
+ * Duplicates or extras → wallet signs PSBTs for challengers the protocol
+ * doesn't recognize, handing the VP signatures it shouldn't have.
+ */
+function assertChallengerSetMatchesLocalChallengers(
+  challengerPresignData: PresignDataPerChallenger[],
+  localChallengers: string[],
+): void {
+  const suppliedList = challengerPresignData.map((c) =>
+    stripHexPrefix(c.challenger_pubkey).toLowerCase(),
+  );
+  const suppliedSet = new Set(suppliedList);
+  if (suppliedSet.size !== suppliedList.length) {
+    throw new Error(
+      "Depositor graph contains duplicate challenger entries in challenger_presign_data",
+    );
+  }
+  const expectedSet = new Set(localChallengers);
+  const missing = localChallengers.filter((c) => !suppliedSet.has(c));
+  const extra = suppliedList.filter((c) => !expectedSet.has(c));
+  if (missing.length > 0 || extra.length > 0) {
+    throw new Error(
+      `Depositor graph challenger set does not match localChallengers` +
+        (missing.length > 0 ? ` (missing: ${missing.join(", ")})` : "") +
+        (extra.length > 0 ? ` (unexpected: ${extra.join(", ")})` : ""),
+    );
+  }
 }
 
 /**
@@ -156,7 +199,19 @@ async function collectDepositorGraphPsbts(
   const signOptions: SignPsbtOptions[] = [];
   const challengerEntries: ChallengerEntry[] = [];
 
-  // 1. Validate the payout transaction's largest output pays to the
+  // 1. Fail-fast on a malformed VP response BEFORE doing any PSBT-build
+  //    work that would be wasted if the challenger set is wrong.
+  const localChallengers = deriveLocalChallengers(
+    ctx.vaultProviderBtcPubkey,
+    ctx.vaultKeeperBtcPubkeys,
+    ctx.depositorBtcPubkey,
+  );
+  assertChallengerSetMatchesLocalChallengers(
+    depositorGraph.challenger_presign_data,
+    localChallengers,
+  );
+
+  // 2. Validate the payout transaction's largest output pays to the
   //    depositor's on-chain registered payout scriptPubKey. The payout tx
   //    hex is supplied by the VP and otherwise unconstrained; this assertion
   //    pins the destination of the funds.
@@ -165,7 +220,7 @@ async function collectDepositorGraphPsbts(
     ctx.registeredPayoutScriptPubKey,
   );
 
-  // 2. Build the payout PSBT locally. Every sighash-relevant field
+  // 3. Build the payout PSBT locally. Every sighash-relevant field
   //    (witnessUtxo, tapLeafScript, controlBlock, tapInternalKey) is derived
   //    from on-chain trusted connector params, not from the VP. The VP-
   //    supplied assert tx hex is implicitly pinned by buildPayoutPsbt's
@@ -189,12 +244,7 @@ async function collectDepositorGraphPsbts(
     ),
   );
 
-  // 3. Per-challenger: build the NoPayout PSBT locally too.
-  const localChallengers = deriveLocalChallengers(
-    ctx.vaultProviderBtcPubkey,
-    ctx.vaultKeeperBtcPubkeys,
-    ctx.depositorBtcPubkey,
-  );
+  // 4. Per-challenger: build the NoPayout PSBT locally too.
   const claimerPubkey = stripHexPrefix(ctx.depositorBtcPubkey);
   const assertTxParsed = Transaction.fromHex(
     stripHexPrefix(depositorGraph.assert_tx.tx_hex),

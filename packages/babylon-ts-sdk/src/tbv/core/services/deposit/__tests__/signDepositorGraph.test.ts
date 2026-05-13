@@ -116,8 +116,11 @@ const VP_PUBKEY = "f".repeat(64);
 const VK_PUBKEY = "1".repeat(64);
 const UC_PUBKEY = "2".repeat(64);
 const COUNCIL_MEMBER = "c".repeat(64);
-const CHALLENGER_A = "a".repeat(64);
-const CHALLENGER_B = "b".repeat(64);
+// Local challengers (per protocol: {VP, VKs} \ {depositor}). Tests use these
+// two as the canonical challenger pair so the supplied `challenger_presign_data`
+// matches `localChallengers` derived from the signing context.
+const CHALLENGER_A = VP_PUBKEY;
+const CHALLENGER_B = VK_PUBKEY;
 const REGISTERED_PAYOUT_SCRIPT = `0x5120${"e".repeat(64)}`;
 const PEGIN_TX_HEX = "cafebabe";
 const TIMELOCK_PEGIN = 50;
@@ -239,6 +242,7 @@ function createDepositorGraph(
 function createSigningContext(
   overrides?: Partial<DepositorGraphSigningContext>,
 ): DepositorGraphSigningContext {
+  // Default matches production: localChallengers = [VP_PUBKEY, VK_PUBKEY].
   return {
     peginTxHex: PEGIN_TX_HEX,
     depositorBtcPubkey: DEPOSITOR_PUBKEY,
@@ -261,7 +265,7 @@ function createSigningContext(
 
 describe("signDepositorGraph", () => {
   it("rebuilds the payout PSBT locally from authoritative connector params", async () => {
-    registerStandardMocks([CHALLENGER_A]);
+    registerStandardMocks([CHALLENGER_A, CHALLENGER_B]);
     const { buildPayoutPsbt } = await import(
       "../../../primitives/psbt/payout"
     );
@@ -269,7 +273,7 @@ describe("signDepositorGraph", () => {
     builder.mockClear();
 
     const wallet = createMockWallet({ supportsBatch: true });
-    const graph = createDepositorGraph([CHALLENGER_A]);
+    const graph = createDepositorGraph([CHALLENGER_A, CHALLENGER_B]);
     const ctx = createSigningContext();
 
     await signDepositorGraph({
@@ -340,7 +344,7 @@ describe("signDepositorGraph", () => {
   });
 
   it("validates the NoPayout output sink before signing each challenger", async () => {
-    registerStandardMocks([CHALLENGER_A]);
+    registerStandardMocks([CHALLENGER_A, CHALLENGER_B]);
     const { assertNoPayoutOutputMatchesChallenger } = await import(
       "../../../primitives/psbt/noPayout"
     );
@@ -348,7 +352,7 @@ describe("signDepositorGraph", () => {
     sinkValidator.mockClear();
 
     const wallet = createMockWallet({ supportsBatch: true });
-    const graph = createDepositorGraph([CHALLENGER_A]);
+    const graph = createDepositorGraph([CHALLENGER_A, CHALLENGER_B]);
 
     await signDepositorGraph({
       depositorGraph: graph,
@@ -364,7 +368,7 @@ describe("signDepositorGraph", () => {
   });
 
   it("propagates NoPayout output sink errors and never reaches the wallet", async () => {
-    registerStandardMocks([CHALLENGER_A]);
+    registerStandardMocks([CHALLENGER_A, CHALLENGER_B]);
     const { assertNoPayoutOutputMatchesChallenger } = await import(
       "../../../primitives/psbt/noPayout"
     );
@@ -377,7 +381,7 @@ describe("signDepositorGraph", () => {
     );
 
     const wallet = createMockWallet({ supportsBatch: true });
-    const graph = createDepositorGraph([CHALLENGER_A]);
+    const graph = createDepositorGraph([CHALLENGER_A, CHALLENGER_B]);
 
     await expect(
       signDepositorGraph({
@@ -392,7 +396,7 @@ describe("signDepositorGraph", () => {
   });
 
   it("rejects a NoPayout that doesn't have exactly 3 inputs", async () => {
-    registerStandardMocks([CHALLENGER_A]);
+    registerStandardMocks([CHALLENGER_A, CHALLENGER_B]);
     // Replace the nopayout tx with a 2-input variant
     registerMockTx(nopayoutTxHex(CHALLENGER_A), {
       ins: [
@@ -412,7 +416,7 @@ describe("signDepositorGraph", () => {
     });
 
     const wallet = createMockWallet({ supportsBatch: true });
-    const graph = createDepositorGraph([CHALLENGER_A]);
+    const graph = createDepositorGraph([CHALLENGER_A, CHALLENGER_B]);
 
     await expect(
       signDepositorGraph({
@@ -426,7 +430,7 @@ describe("signDepositorGraph", () => {
   });
 
   it("rejects a NoPayout whose Assert input references a different parent txid", async () => {
-    registerStandardMocks([CHALLENGER_A]);
+    registerStandardMocks([CHALLENGER_A, CHALLENGER_B]);
     registerMockTx(nopayoutTxHex(CHALLENGER_A), {
       ins: [
         {
@@ -453,7 +457,7 @@ describe("signDepositorGraph", () => {
     });
 
     const wallet = createMockWallet({ supportsBatch: true });
-    const graph = createDepositorGraph([CHALLENGER_A]);
+    const graph = createDepositorGraph([CHALLENGER_A, CHALLENGER_B]);
 
     await expect(
       signDepositorGraph({
@@ -467,7 +471,7 @@ describe("signDepositorGraph", () => {
   });
 
   it("rejects a NoPayout input that spends a non-zero vout of its parent", async () => {
-    registerStandardMocks([CHALLENGER_A]);
+    registerStandardMocks([CHALLENGER_A, CHALLENGER_B]);
     registerMockTx(nopayoutTxHex(CHALLENGER_A), {
       ins: [
         {
@@ -491,7 +495,7 @@ describe("signDepositorGraph", () => {
     });
 
     const wallet = createMockWallet({ supportsBatch: true });
-    const graph = createDepositorGraph([CHALLENGER_A]);
+    const graph = createDepositorGraph([CHALLENGER_A, CHALLENGER_B]);
 
     await expect(
       signDepositorGraph({
@@ -503,7 +507,8 @@ describe("signDepositorGraph", () => {
   });
 
   it("derives localChallengers as {VP, VKs} \\ {depositor}", async () => {
-    registerStandardMocks([CHALLENGER_A]);
+    const EXTRA_KEEPER = "9".repeat(64);
+    registerStandardMocks([VP_PUBKEY, EXTRA_KEEPER]);
     const { buildNoPayoutPsbt } = await import(
       "../../../primitives/psbt/noPayout"
     );
@@ -515,7 +520,7 @@ describe("signDepositorGraph", () => {
       supportsBatch: true,
       pubkey: `02${VK_PUBKEY}`,
     });
-    const graph = createDepositorGraph([CHALLENGER_A]);
+    const graph = createDepositorGraph([VP_PUBKEY, EXTRA_KEEPER]);
 
     // Make the depositor also one of the vault keepers - it should be filtered.
     await signDepositorGraph({
@@ -557,9 +562,9 @@ describe("signDepositorGraph", () => {
   });
 
   it("uses batch signing when wallet supports signPsbts", async () => {
-    registerStandardMocks([CHALLENGER_A]);
+    registerStandardMocks([CHALLENGER_A, CHALLENGER_B]);
     const wallet = createMockWallet({ supportsBatch: true });
-    const graph = createDepositorGraph([CHALLENGER_A]);
+    const graph = createDepositorGraph([CHALLENGER_A, CHALLENGER_B]);
 
     await signDepositorGraph({
       depositorGraph: graph,
@@ -572,9 +577,9 @@ describe("signDepositorGraph", () => {
   });
 
   it("falls back to sequential signPsbt when signPsbts is not available", async () => {
-    registerStandardMocks([CHALLENGER_A]);
+    registerStandardMocks([CHALLENGER_A, CHALLENGER_B]);
     const wallet = createMockWallet({ supportsBatch: false });
-    const graph = createDepositorGraph([CHALLENGER_A]);
+    const graph = createDepositorGraph([CHALLENGER_A, CHALLENGER_B]);
 
     await signDepositorGraph({
       depositorGraph: graph,
@@ -582,16 +587,17 @@ describe("signDepositorGraph", () => {
       signingContext: createSigningContext(),
     });
 
-    expect(wallet.signPsbt).toHaveBeenCalledTimes(2);
+    // 1 payout + 2 nopayouts (one per challenger).
+    expect(wallet.signPsbt).toHaveBeenCalledTimes(3);
   });
 
   it("throws when wallet returns wrong number of signed PSBTs", async () => {
-    registerStandardMocks([CHALLENGER_A]);
+    registerStandardMocks([CHALLENGER_A, CHALLENGER_B]);
     const wallet = createMockWallet({ supportsBatch: true });
     (wallet.signPsbts as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
       "only_one",
     ]);
-    const graph = createDepositorGraph([CHALLENGER_A]);
+    const graph = createDepositorGraph([CHALLENGER_A, CHALLENGER_B]);
 
     await expect(
       signDepositorGraph({
@@ -599,28 +605,13 @@ describe("signDepositorGraph", () => {
         btcWallet: wallet,
         signingContext: createSigningContext(),
       }),
-    ).rejects.toThrow("expected 2");
-  });
-
-  it("handles graph with no challengers (payout only)", async () => {
-    registerStandardMocks([]);
-    const wallet = createMockWallet({ supportsBatch: true });
-    const graph = createDepositorGraph([]);
-
-    const result = await signDepositorGraph({
-      depositorGraph: graph,
-      btcWallet: wallet,
-      signingContext: createSigningContext(),
-    });
-
-    expect(result.payout_signatures.payout_signature).toBeDefined();
-    expect(Object.keys(result.per_challenger)).toHaveLength(0);
+    ).rejects.toThrow("expected 3");
   });
 
   it("strips 0x prefix from depositor pubkey", async () => {
-    registerStandardMocks([CHALLENGER_A]);
+    registerStandardMocks([CHALLENGER_A, CHALLENGER_B]);
     const wallet = createMockWallet({ supportsBatch: true });
-    const graph = createDepositorGraph([CHALLENGER_A]);
+    const graph = createDepositorGraph([CHALLENGER_A, CHALLENGER_B]);
 
     const result = await signDepositorGraph({
       depositorGraph: graph,
@@ -634,7 +625,7 @@ describe("signDepositorGraph", () => {
   });
 
   it("validates the payout output against the registered scriptPubKey before signing", async () => {
-    registerStandardMocks([CHALLENGER_A]);
+    registerStandardMocks([CHALLENGER_A, CHALLENGER_B]);
     const { assertPayoutOutputMatchesRegistered } = await import(
       "../../../primitives/psbt/payout"
     );
@@ -642,7 +633,7 @@ describe("signDepositorGraph", () => {
     validator.mockClear();
 
     const wallet = createMockWallet({ supportsBatch: true });
-    const graph = createDepositorGraph([CHALLENGER_A]);
+    const graph = createDepositorGraph([CHALLENGER_A, CHALLENGER_B]);
 
     await signDepositorGraph({
       depositorGraph: graph,
@@ -657,7 +648,7 @@ describe("signDepositorGraph", () => {
   });
 
   it("propagates payout output validation errors and never reaches the wallet", async () => {
-    registerStandardMocks([CHALLENGER_A]);
+    registerStandardMocks([CHALLENGER_A, CHALLENGER_B]);
     const { assertPayoutOutputMatchesRegistered } = await import(
       "../../../primitives/psbt/payout"
     );
@@ -670,7 +661,7 @@ describe("signDepositorGraph", () => {
     );
 
     const wallet = createMockWallet({ supportsBatch: true });
-    const graph = createDepositorGraph([CHALLENGER_A]);
+    const graph = createDepositorGraph([CHALLENGER_A, CHALLENGER_B]);
 
     await expect(
       signDepositorGraph({
@@ -690,10 +681,10 @@ describe("signDepositorGraph", () => {
   // keyed by the wrong pubkey and extractPayoutSignature throws an opaque
   // "no signature found" error after multiple wallet popups.
   it("rejects when wallet pubkey does not match registered depositor pubkey", async () => {
-    registerStandardMocks([CHALLENGER_A]);
+    registerStandardMocks([CHALLENGER_A, CHALLENGER_B]);
     const otherDepositor = "e".repeat(64);
     const wallet = createMockWallet({ supportsBatch: true });
-    const graph = createDepositorGraph([CHALLENGER_A]);
+    const graph = createDepositorGraph([CHALLENGER_A, CHALLENGER_B]);
 
     await expect(
       signDepositorGraph({
@@ -704,6 +695,105 @@ describe("signDepositorGraph", () => {
         }),
       }),
     ).rejects.toThrow("Wallet public key does not match vault depositor");
+
+    expect(wallet.signPsbts).not.toHaveBeenCalled();
+    expect(wallet.signPsbt).not.toHaveBeenCalled();
+  });
+
+  // Audit #303: VP-supplied challenger_presign_data must be exactly the
+  // localChallengers set. Missing entries → activation with incomplete
+  // recovery material. Extra/duplicate entries → wallet signs PSBTs for
+  // challengers the protocol doesn't recognize.
+  it("rejects when VP omits a required local challenger", async () => {
+    // localChallengers = [CHALLENGER_A, CHALLENGER_B]; graph only supplies A.
+    registerStandardMocks([CHALLENGER_A]);
+    const wallet = createMockWallet({ supportsBatch: true });
+    const graph = createDepositorGraph([CHALLENGER_A]);
+
+    await expect(
+      signDepositorGraph({
+        depositorGraph: graph,
+        btcWallet: wallet,
+        signingContext: createSigningContext(),
+      }),
+    ).rejects.toThrow(/challenger set does not match localChallengers/);
+
+    expect(wallet.signPsbts).not.toHaveBeenCalled();
+    expect(wallet.signPsbt).not.toHaveBeenCalled();
+  });
+
+  it("rejects when VP returns an empty challenger_presign_data array", async () => {
+    registerStandardMocks([]);
+    const wallet = createMockWallet({ supportsBatch: true });
+    const graph = createDepositorGraph([]);
+
+    await expect(
+      signDepositorGraph({
+        depositorGraph: graph,
+        btcWallet: wallet,
+        signingContext: createSigningContext(),
+      }),
+    ).rejects.toThrow(/challenger set does not match localChallengers/);
+
+    expect(wallet.signPsbts).not.toHaveBeenCalled();
+    expect(wallet.signPsbt).not.toHaveBeenCalled();
+  });
+
+  it("rejects when VP injects a duplicate challenger entry", async () => {
+    registerStandardMocks([CHALLENGER_A, CHALLENGER_B]);
+    const wallet = createMockWallet({ supportsBatch: true });
+    // Two entries for CHALLENGER_A would otherwise produce two NoPayout
+    // signatures the protocol doesn't recognize.
+    const graph = createDepositorGraph([CHALLENGER_A, CHALLENGER_A]);
+
+    await expect(
+      signDepositorGraph({
+        depositorGraph: graph,
+        btcWallet: wallet,
+        signingContext: createSigningContext(),
+      }),
+    ).rejects.toThrow(/duplicate challenger entries/);
+
+    expect(wallet.signPsbts).not.toHaveBeenCalled();
+    expect(wallet.signPsbt).not.toHaveBeenCalled();
+  });
+
+  it("rejects when VP supplies an unexpected challenger not in localChallengers", async () => {
+    const STRANGER = "9".repeat(64);
+    registerStandardMocks([CHALLENGER_A, CHALLENGER_B, STRANGER]);
+    const wallet = createMockWallet({ supportsBatch: true });
+    const graph = createDepositorGraph([CHALLENGER_A, CHALLENGER_B, STRANGER]);
+
+    await expect(
+      signDepositorGraph({
+        depositorGraph: graph,
+        btcWallet: wallet,
+        signingContext: createSigningContext(),
+      }),
+    ).rejects.toThrow(/unexpected:.*9{64}/);
+
+    expect(wallet.signPsbts).not.toHaveBeenCalled();
+    expect(wallet.signPsbt).not.toHaveBeenCalled();
+  });
+
+  it("rejects misconfigured context where vault provider key equals a vault keeper key", async () => {
+    registerStandardMocks([CHALLENGER_A, CHALLENGER_B]);
+    const wallet = createMockWallet({ supportsBatch: true });
+    const graph = createDepositorGraph([CHALLENGER_A, CHALLENGER_B]);
+
+    // VP key == VK key: deriveLocalChallengers must fail loudly rather
+    // than producing a deduped set that downstream comparisons misread
+    // as a missing-challenger error.
+    await expect(
+      signDepositorGraph({
+        depositorGraph: graph,
+        btcWallet: wallet,
+        signingContext: createSigningContext({
+          vaultProviderBtcPubkey: VP_PUBKEY,
+          vaultKeeperBtcPubkeys: [VP_PUBKEY],
+        }),
+      }),
+    ).rejects.toThrow(/duplicates a vaultKeeper key/);
 
     expect(wallet.signPsbts).not.toHaveBeenCalled();
     expect(wallet.signPsbt).not.toHaveBeenCalled();
