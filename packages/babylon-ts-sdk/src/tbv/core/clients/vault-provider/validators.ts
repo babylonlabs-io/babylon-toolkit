@@ -370,7 +370,7 @@ export function validateRequestDepositorClaimerArtifactsResponse(
   }
 
   for (const [key, session] of sessionEntries) {
-    assertBtcPubkey(key, `babe_sessions key "${key}"`);
+    assertBtcPubkey(key, `babe_sessions["${key}"]`);
     if (session === null || typeof session !== "object") {
       throw new VpResponseValidationError(
         `VP response validation failed: "babe_sessions.${key}" must be an object`,
