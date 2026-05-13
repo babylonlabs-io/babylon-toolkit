@@ -31,6 +31,16 @@ interface BTCWalletContextProps {
   connected: boolean;
   disconnect: () => void;
   open: () => void;
+  /**
+   * Re-runs the underlying provider's `connectWallet()` flow against the
+   * currently-selected BTC wallet without re-opening the wallet picker.
+   * Triggers an unlock / re-authorization prompt if the extension has
+   * lost permission for the dApp, then refreshes the cached address and
+   * public key from the provider. Throws when no wallet is selected,
+   * when the provider returns an empty address / pubkey, or when the
+   * underlying `connectWallet()` call itself fails.
+   */
+  reconnect: () => Promise<void>;
   getAddress: () => Promise<string>;
   getPublicKeyHex: () => Promise<string>;
   signPsbt: (psbtHex: string, options?: SignPsbtOptions) => Promise<string>;
@@ -62,6 +72,9 @@ const BTCWalletContext = createContext<BTCWalletContextProps>({
   address: "",
   disconnect: () => {},
   open: () => {},
+  reconnect: async () => {
+    throw new Error("BTC Wallet not connected");
+  },
   getAddress: async () => "",
   getPublicKeyHex: async () => "",
   signPsbt: async () => "",
@@ -282,6 +295,35 @@ export const BTCWalletProvider = ({ children, callbacks }: BTCWalletProviderProp
     enabled: Boolean(btcWalletProvider && address),
   });
 
+  const reconnect = useCallback(async () => {
+    if (!btcWalletProvider) {
+      throw new Error("BTC Wallet not connected");
+    }
+
+    await btcWalletProvider.connectWallet();
+
+    const refreshedAddress = await btcWalletProvider.getAddress();
+    if (!refreshedAddress) {
+      throw new Error("BTC wallet provider returned an empty address");
+    }
+
+    const refreshedPublicKeyHex = await btcWalletProvider.getPublicKeyHex();
+    if (!refreshedPublicKeyHex) {
+      throw new Error("BTC wallet provider returned an empty public key");
+    }
+
+    const refreshedPublicKeyNoCoord = toXOnlyPublicKeyHex(refreshedPublicKeyHex);
+    if (!refreshedPublicKeyNoCoord) {
+      throw new Error("Processed BTC public key (no coordinates) is empty");
+    }
+
+    if (refreshedAddress !== address) {
+      setAddress(refreshedAddress);
+      setPublicKeyNoCoord(refreshedPublicKeyNoCoord);
+      await callbacks?.onAddressChange?.(refreshedAddress, refreshedPublicKeyNoCoord);
+    }
+  }, [btcWalletProvider, address, callbacks]);
+
   const connected = useMemo(
     () => Boolean(btcWalletProvider && address && publicKeyNoCoord),
     [btcWalletProvider, address, publicKeyNoCoord],
@@ -349,6 +391,7 @@ export const BTCWalletProvider = ({ children, callbacks }: BTCWalletProviderProp
         address,
         disconnect,
         open,
+        reconnect,
         getAddress,
         getPublicKeyHex,
         signPsbt,

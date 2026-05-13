@@ -75,7 +75,11 @@ import {
   updatePendingPeginStatus,
 } from "@/storage/peginStorage";
 import type { Vault } from "@/types/vault";
-import { btcAddressToScriptPubKeyHex, stripHexPrefix } from "@/utils/btc";
+import {
+  btcAddressToScriptPubKeyHex,
+  stripHexPrefix,
+  verifyBtcWalletLiveness,
+} from "@/utils/btc";
 import { satoshiToBtcNumber } from "@/utils/btcConversion";
 import { sanitizeErrorMessage } from "@/utils/errors/formatting";
 import { formatBtcValue } from "@/utils/formatting";
@@ -303,6 +307,16 @@ export function useDepositFlow(
           throw new Error(
             "Spendable UTXOs unavailable after loading completed",
           );
+        }
+
+        // Defense-in-depth wallet liveness probe. The click-time check in
+        // SimpleDeposit.handleDeposit already gates this flow, but a stale
+        // Unisat session can still surface here if the user opened the SIGN
+        // step through any other path or if the wallet went dead between
+        // click and modal mount. Probing here surfaces a clear, actionable
+        // error before any irreversible state is written.
+        if (btcWalletProvider && btcAddress) {
+          await verifyBtcWalletLiveness(btcWalletProvider, btcAddress);
         }
 
         validateMultiVaultDepositInputs({

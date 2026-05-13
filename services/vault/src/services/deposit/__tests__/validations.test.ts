@@ -293,6 +293,8 @@ describe("Deposit Validations", () => {
       feeDisabled: false,
       ordinalsCheckPending: false,
       ordinalsWarningUnacknowledged: false,
+      hasWalletConnectionError: false,
+      isReconnectingWallet: false,
     };
 
     it("returns enabled 'Deposit' when all conditions are met", () => {

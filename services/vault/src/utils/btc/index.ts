@@ -16,3 +16,7 @@ export {
   type PsbtInputFields,
   type UTXO,
 } from "./getPsbtInputFields";
+export {
+  BtcWalletLivenessError,
+  verifyBtcWalletLiveness,
+} from "./verifyBtcWalletLiveness";

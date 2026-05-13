@@ -94,6 +94,25 @@ interface DepositFormProps {
    * filtered against inscriptions.
    */
   ordinalsCheckPending?: boolean;
+
+  /**
+   * True when the click-time wallet-liveness probe (or a prior reconnect
+   * attempt) failed. Promotes the CTA from "Deposit" to "Reconnect Wallet";
+   * the click handler upstream branches to the reconnect flow.
+   */
+  hasWalletConnectionError?: boolean;
+
+  /**
+   * True while the click-time wallet liveness probe is running. Used to
+   * disable the Deposit button so the user cannot double-trigger the check.
+   */
+  isVerifyingWallet?: boolean;
+
+  /**
+   * True while a reconnect attempt is in flight. Disables the CTA and
+   * swaps its label to a progress indicator.
+   */
+  isReconnectingWallet?: boolean;
 }
 
 export function DepositForm({
@@ -127,6 +146,9 @@ export function DepositForm({
   feeRows,
   ordinalsCheckUnavailable = false,
   ordinalsCheckPending = false,
+  hasWalletConnectionError = false,
+  isVerifyingWallet = false,
+  isReconnectingWallet = false,
 }: DepositFormProps) {
   const [ordinalsWarningAcknowledged, setOrdinalsWarningAcknowledged] =
     useState(false);
@@ -212,6 +234,8 @@ export function DepositForm({
     ordinalsCheckPending,
     ordinalsWarningUnacknowledged:
       ordinalsCheckUnavailable && !ordinalsWarningAcknowledged,
+    hasWalletConnectionError,
+    isReconnectingWallet,
   });
 
   return (
@@ -372,10 +396,10 @@ export function DepositForm({
         color="primary"
         size="large"
         fluid
-        disabled={cta.disabled}
+        disabled={cta.disabled || isVerifyingWallet}
         onClick={onDeposit}
       >
-        {cta.label}
+        {isVerifyingWallet ? "Checking wallet..." : cta.label}
       </DepositButton>
 
       {/* Fee breakdown */}

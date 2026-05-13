@@ -104,6 +104,15 @@ export interface DepositCtaParams extends DepositFormValidityParams {
   feeDisabled: boolean;
   ordinalsCheckPending: boolean;
   ordinalsWarningUnacknowledged: boolean;
+  /**
+   * True when the click-time BTC-wallet liveness probe (or a prior reconnect
+   * attempt) failed. Promotes the CTA to a "Reconnect Wallet" action so the
+   * user can re-authorize the wallet in one click instead of navigating an
+   * inline warning.
+   */
+  hasWalletConnectionError: boolean;
+  /** True while a reconnect attempt is in flight. Forces the CTA disabled. */
+  isReconnectingWallet: boolean;
 }
 
 export interface DepositCtaState {
@@ -154,6 +163,18 @@ export function getDepositCtaState(params: DepositCtaParams): DepositCtaState {
 
   if (!params.isWalletConnected) {
     return { disabled: true, label: "Connect your wallet" };
+  }
+
+  // Promote wallet-liveness failure to the CTA so the user can recover in one
+  // click. The button stays enabled (clicking triggers reconnection) unless a
+  // reconnect attempt is already running.
+  if (params.hasWalletConnectionError) {
+    return {
+      disabled: params.isReconnectingWallet,
+      label: params.isReconnectingWallet
+        ? "Reconnecting Wallet..."
+        : "Reconnect Wallet",
+    };
   }
 
   if (!params.hasProvider) {
