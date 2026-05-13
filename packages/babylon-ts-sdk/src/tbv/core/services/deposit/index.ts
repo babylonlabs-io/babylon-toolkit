@@ -4,30 +4,32 @@ export type {
   PresignClient,
   ClaimerArtifactsReader,
 } from "./interfaces";
-export { waitForPeginStatus } from "./waitForPeginStatus";
-export type { WaitForPeginStatusParams } from "./waitForPeginStatus";
-export { submitWotsPublicKey } from "./submitWotsPublicKey";
-export type { SubmitWotsPublicKeyParams } from "./submitWotsPublicKey";
-export { signDepositorGraph } from "./signDepositorGraph";
-export type {
-  DepositorGraphSigningContext,
-  SignDepositorGraphParams,
+export {
+  waitForPeginStatus,
+  type WaitForPeginStatusParams,
+} from "./waitForPeginStatus";
+export {
+  submitWotsPublicKey,
+  type SubmitWotsPublicKeyParams,
+} from "./submitWotsPublicKey";
+export {
+  signDepositorGraph,
+  type DepositorGraphSigningContext,
+  type SignDepositorGraphParams,
 } from "./signDepositorGraph";
-export { runDepositorPresignFlow } from "./runDepositorPresignFlow";
-export type {
-  PayoutSigningContext,
-  RunDepositorPresignFlowParams,
+export {
+  runDepositorPresignFlow,
+  type PayoutSigningContext,
+  type RunDepositorPresignFlowParams,
 } from "./runDepositorPresignFlow";
 export {
   ContractStatus,
   PeginAction,
   canPerformAction,
   getPeginProtocolState,
-} from "./peginState";
-export type {
-  ExpirationReason,
-  GetPeginProtocolStateOptions,
-  PeginProtocolState,
+  type ExpirationReason,
+  type GetPeginProtocolStateOptions,
+  type PeginProtocolState,
 } from "./peginState";
 export {
   isDepositAmountValid,
@@ -37,10 +39,19 @@ export {
   validateVaultAmounts,
   validateVaultProviderPubkey,
   validateMultiVaultDepositInputs,
+  type ValidationResult,
+  type DepositFormValidityParams,
+  type RemainingCapacityParams,
+  type MultiVaultDepositFlowInputs,
 } from "./validation";
-export type {
-  ValidationResult,
-  DepositFormValidityParams,
-  RemainingCapacityParams,
-  MultiVaultDepositFlowInputs,
-} from "./validation";
+export {
+  validateOnChainParticipantKeys,
+  type ValidateOnChainParticipantKeysParams,
+  type ValidatedOnChainParticipantKeys,
+} from "./validateOnChainParticipantKeys";
+export {
+  RegisteredVaultVersionMismatchError,
+  isRegisteredVaultVersionMismatchError,
+  verifyRegisteredVaultVersions,
+  type VerifyRegisteredVaultVersionsParams,
+} from "./verifyRegisteredVaultVersions";

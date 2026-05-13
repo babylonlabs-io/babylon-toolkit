@@ -28,7 +28,12 @@
  */
 
 import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
-import { ensureHexPrefix } from "@babylonlabs-io/ts-sdk/tbv/core";
+import {
+  ensureHexPrefix,
+  isRegisteredVaultVersionMismatchError,
+  validateOnChainParticipantKeys,
+  verifyRegisteredVaultVersions,
+} from "@babylonlabs-io/ts-sdk/tbv/core";
 import {
   primeVpTokenRegistry,
   VpResponseValidationError,
@@ -43,8 +48,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { v4 as uuidv4 } from "uuid";
 import type { Address, Hex } from "viem";
 
-import { getOffchainParamsVersionsFromChain } from "@/clients/eth-contract/btc-vault-registry/query";
-import { getVaultRegistryReader } from "@/clients/eth-contract/sdk-readers";
+import {
+  getUniversalChallengerReader,
+  getVaultKeeperReader,
+  getVaultRegistryReader,
+} from "@/clients/eth-contract/sdk-readers";
 import { useProtocolParamsContext } from "@/context/ProtocolParamsContext";
 import { logger } from "@/infrastructure";
 import { LocalStorageStatus } from "@/models/peginStateMachine";
@@ -62,6 +70,7 @@ import {
   addUtxoReservation,
   getPendingPegins,
   getUtxoReservations,
+  removePendingPegin,
   removeUtxoReservation,
   updatePendingPeginStatus,
 } from "@/storage/peginStorage";
@@ -396,6 +405,22 @@ export function useDepositFlow(
           feeRate: mempoolFeeRate,
         });
 
+        const [vaultKeeperReader, universalChallengerReader] =
+          await Promise.all([
+            getVaultKeeperReader(),
+            getUniversalChallengerReader(),
+          ]);
+        const validatedKeys = await validateOnChainParticipantKeys({
+          vaultRegistryReader: getVaultRegistryReader(),
+          vaultKeeperReader,
+          universalChallengerReader,
+          vaultProviderEthAddress: selectedProviders[0] as Address,
+          applicationEntryPoint: selectedApplication as Address,
+          expectedVaultProviderBtcPubkey: vaultProviderBtcPubkey,
+          expectedVaultKeeperBtcPubkeys: vaultKeeperBtcPubkeys,
+          expectedUniversalChallengerBtcPubkeys: universalChallengerBtcPubkeys,
+        });
+
         const batchResult = await preparePeginTransaction(
           phaseTrackingBtcWallet,
           walletClient,
@@ -404,9 +429,10 @@ export function useDepositFlow(
             protocolFeeRate: config.offchainParams.feeRate,
             mempoolFeeRate,
             changeAddress: confirmedBtcAddress,
-            vaultProviderBtcPubkey,
-            vaultKeeperBtcPubkeys,
-            universalChallengerBtcPubkeys,
+            vaultProviderBtcPubkey: validatedKeys.vaultProviderBtcPubkeyXOnly,
+            vaultKeeperBtcPubkeys: validatedKeys.vaultKeeperBtcPubkeysSorted,
+            universalChallengerBtcPubkeys:
+              validatedKeys.universalChallengerBtcPubkeysSorted,
             timelockPegin,
             timelockRefund,
             councilQuorum: config.offchainParams.councilQuorum,
@@ -567,43 +593,26 @@ export function useDepositFlow(
           pendingPersisted = true;
         }
 
-        // 3g. Verify the on-chain vault was registered under the same offchain
-        // params version we used to build the BTC scripts. submitPeginRequestBatch
-        // does not accept an expected version, so the contract snapshots the
-        // latest version at inclusion time. If governance or an authorized update
-        // changed the latest version between context fetch and tx inclusion, the
-        // BTC scripts (timelocks, council quorum, signer set) will not match the
-        // on-chain record. Aborting before broadcast keeps BTC unspent - the
-        // user's registered ETH vault times out per protocol rules.
-        //
-        // Runs AFTER step 4a so an RPC failure here doesn't orphan the
-        // ETH-registered vault: localStorage already has a PENDING entry the
-        // user can resume from.
-        //
-        // Reads only `offchainParamsVersion` for all vaults in a single
-        // multicall (one RPC round-trip, one read per vault) instead of fanning
-        // out 2N parallel `getBtcVaultBasicInfo` + `getBtcVaultProtocolInfo`
-        // calls.
-        const expectedVersion = config.offchainParamsVersion;
-        const actualVersions = await getOffchainParamsVersionsFromChain(
-          batchRegistration.vaults.map((v) => v.vaultId),
-        );
-        const versionMismatches = actualVersions
-          .map((actualVersion, i) => ({
-            vaultId: batchRegistration.vaults[i].vaultId,
-            actualVersion,
-          }))
-          .filter((v) => v.actualVersion !== expectedVersion);
-        if (versionMismatches.length > 0) {
-          const detail = versionMismatches
-            .map(
-              (v) =>
-                `vault ${v.vaultId}: expected v${expectedVersion}, got v${v.actualVersion}`,
-            )
-            .join("; ");
-          throw new Error(
-            `Aborting BTC broadcast: offchain params version changed during registration (${detail}). The Pre-PegIn was not broadcast; the registered ETH vault will time out per protocol rules.`,
-          );
+        // Verify on-chain registration locked under the same versions we built scripts against.
+        try {
+          await verifyRegisteredVaultVersions({
+            vaultRegistryReader: getVaultRegistryReader(),
+            vaultIds: batchRegistration.vaults.map((v) => v.vaultId as Hex),
+            expectedOffchainParamsVersion: config.offchainParamsVersion,
+            expectedAppVaultKeepersVersion:
+              validatedKeys.expectedAppVaultKeepersVersion,
+            expectedUniversalChallengersVersion:
+              validatedKeys.expectedUniversalChallengersVersion,
+          });
+        } catch (err) {
+          // Only a confirmed mismatch removes pending entries — transient RPC
+          // failures keep them so the user can resume.
+          if (isRegisteredVaultVersionMismatchError(err)) {
+            for (const v of batchRegistration.vaults) {
+              removePendingPegin(confirmedEthAddress, v.vaultId as Hex);
+            }
+          }
+          throw err;
         }
 
         // Early reservation is now superseded by real pending pegin entries.

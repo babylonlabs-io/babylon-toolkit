@@ -12,10 +12,12 @@ import {
 } from "../../constants";
 import { LocalStorageStatus } from "../../models/peginStateMachine";
 import {
+  addPendingPegin,
   addUtxoReservation,
   getPendingPegins,
   getUtxoReservations,
   type PendingPeginRequest,
+  removePendingPegin,
   removeUtxoReservation,
   type UtxoReservation,
 } from "../peginStorage";
@@ -368,6 +370,32 @@ describe("getPendingPegins integrity validation", () => {
     localStorage.setItem(storageKey, JSON.stringify([tampered]));
 
     expect(getPendingPegins(ETH_ADDRESS)).toHaveLength(0);
+  });
+});
+
+describe("removePendingPegin", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    vi.clearAllMocks();
+  });
+
+  it("removes a single entry by id and leaves siblings intact", () => {
+    addPendingPegin(ETH_ADDRESS, {
+      id: VALID_VAULT_ID,
+      peginTxHash: VALID_PEGIN_TXHASH,
+      unsignedTxHex: "0xdeadbeef",
+    });
+    addPendingPegin(ETH_ADDRESS, {
+      id: VALID_VAULT_ID_2,
+      peginTxHash: VALID_PEGIN_TXHASH,
+      unsignedTxHex: "0xcafebabe",
+    });
+
+    removePendingPegin(ETH_ADDRESS, VALID_VAULT_ID);
+
+    const result = getPendingPegins(ETH_ADDRESS);
+    expect(result).toHaveLength(1);
+    expect(result[0].id).toBe(VALID_VAULT_ID_2);
   });
 });
 

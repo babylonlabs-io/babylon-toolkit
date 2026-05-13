@@ -25,8 +25,10 @@ vi.mock("@/config/network", () => ({
   getETHChain: vi.fn(() => ({ id: 11155111 })),
 }));
 
-vi.mock("@babylonlabs-io/ts-sdk/tbv/core", () => ({
+vi.mock("@babylonlabs-io/ts-sdk/tbv/core", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@babylonlabs-io/ts-sdk/tbv/core")>()),
   ensureHexPrefix: vi.fn((v: string) => (v.startsWith("0x") ? v : `0x${v}`)),
+  processPublicKeyToXOnly: vi.fn((v: string) => v.replace(/^0x/, "")),
 }));
 
 vi.mock("@babylonlabs-io/ts-sdk/tbv/core/utils", () => ({
@@ -44,15 +46,8 @@ vi.mock("@/clients/eth-contract/btc-vault-registry/query", () => ({
     Promise.resolve({
       prePeginTxHash: "0xmatching_pre_pegin_hash",
       hashlock: "0xonchain_hashlock",
-      offchainParamsVersion: 7,
     }),
   ),
-}));
-
-vi.mock("@/context/ProtocolParamsContext", () => ({
-  useProtocolParamsContext: vi.fn(() => ({
-    config: { offchainParamsVersion: 7 },
-  })),
 }));
 
 vi.mock("@babylonlabs-io/wallet-connector", () => ({
@@ -151,10 +146,16 @@ const baseVault = {
   status: ContractStatus.PENDING,
 };
 
+const basePendingPegin = {
+  id: "0xvaultId" as Hex,
+  timestamp: Date.now(),
+  status: "PENDING" as never,
+  peginTxHash: "0xpeginTxHash" as Hex,
+  unsignedTxHex: TRUSTED_TX_HEX,
+};
+
 const baseBroadcastParams = {
   vaultId: "0xvaultId" as Hex,
-  amount: "0.01",
-  providers: [{ id: "0xprovider" }],
   onRefetchActivities: vi.fn(),
   onShowSuccessModal: vi.fn(),
 };
@@ -166,7 +167,6 @@ describe("useVaultActions — handleBroadcast transaction integrity", () => {
     mockGetVaultFromChain.mockResolvedValue({
       prePeginTxHash: "0xmatching_pre_pegin_hash",
       hashlock: "0xonchain_hashlock",
-      offchainParamsVersion: 7,
     } as never);
   });
 
@@ -178,13 +178,7 @@ describe("useVaultActions — handleBroadcast transaction integrity", () => {
     await act(async () => {
       await result.current.handleBroadcast({
         ...baseBroadcastParams,
-        pendingPegin: {
-          id: "0xvaultId" as Hex,
-          timestamp: Date.now(),
-          status: "PENDING" as never,
-          peginTxHash: "0xpeginTxHash" as Hex,
-          unsignedTxHex: TRUSTED_TX_HEX,
-        },
+        pendingPegin: { ...basePendingPegin },
       });
     });
 
@@ -206,13 +200,7 @@ describe("useVaultActions — handleBroadcast transaction integrity", () => {
     await act(async () => {
       await result.current.handleBroadcast({
         ...baseBroadcastParams,
-        pendingPegin: {
-          id: "0xvaultId" as Hex,
-          timestamp: Date.now(),
-          status: "PENDING" as never,
-          peginTxHash: "0xpeginTxHash" as Hex,
-          unsignedTxHex: TRUSTED_TX_HEX,
-        },
+        pendingPegin: { ...basePendingPegin },
       });
     });
 
@@ -223,6 +211,10 @@ describe("useVaultActions — handleBroadcast transaction integrity", () => {
     mockFetchVaultById.mockResolvedValue(baseVault as never);
     mockGetVaultFromChain.mockResolvedValue({
       prePeginTxHash: "0xonchain_hash",
+      offchainParamsVersion: 7,
+      appVaultKeepersVersion: 3,
+      universalChallengersVersion: 5,
+      vaultProvider: "0xvaultProvider" as `0x${string}`,
     } as never);
 
     mockCalculateBtcTxHash.mockReturnValue("0xdifferent_hash");
@@ -232,13 +224,7 @@ describe("useVaultActions — handleBroadcast transaction integrity", () => {
     await act(async () => {
       await result.current.handleBroadcast({
         ...baseBroadcastParams,
-        pendingPegin: {
-          id: "0xvaultId" as Hex,
-          timestamp: Date.now(),
-          status: "PENDING" as never,
-          peginTxHash: "0xpeginTxHash" as Hex,
-          unsignedTxHex: TRUSTED_TX_HEX,
-        },
+        pendingPegin: { ...basePendingPegin },
       });
     });
 
@@ -247,24 +233,6 @@ describe("useVaultActions — handleBroadcast transaction integrity", () => {
     );
     expect(mockBroadcastPrePeginTransaction).not.toHaveBeenCalled();
     expect(mockSignPsbt).not.toHaveBeenCalled();
-  });
-
-  it("uses GraphQL tx when no local copy is available (cross-device)", async () => {
-    mockFetchVaultById.mockResolvedValue(baseVault as never);
-
-    const { result } = renderHook(() => useVaultActions());
-
-    await act(async () => {
-      await result.current.handleBroadcast({
-        ...baseBroadcastParams,
-        pendingPegin: undefined,
-      });
-    });
-
-    expect(result.current.broadcastError).toBeNull();
-    expect(mockBroadcastPrePeginTransaction).toHaveBeenCalledWith(
-      expect.objectContaining({ unsignedTxHex: GRAPHQL_TX_HEX }),
-    );
   });
 
   it("rejects broadcast when vault status is not PENDING", async () => {
@@ -278,7 +246,7 @@ describe("useVaultActions — handleBroadcast transaction integrity", () => {
     await act(async () => {
       await result.current.handleBroadcast({
         ...baseBroadcastParams,
-        pendingPegin: undefined,
+        pendingPegin: { ...basePendingPegin },
       });
     });
 
@@ -297,111 +265,11 @@ describe("useVaultActions — handleBroadcast transaction integrity", () => {
     await act(async () => {
       await result.current.handleBroadcast({
         ...baseBroadcastParams,
-        pendingPegin: undefined,
+        pendingPegin: { ...basePendingPegin },
       });
     });
 
     expect(result.current.broadcastError).toContain("VERIFIED");
-    expect(mockBroadcastPrePeginTransaction).not.toHaveBeenCalled();
-  });
-
-  it("uses GraphQL tx when pendingPegin has no unsignedTxHex (cross-device)", async () => {
-    mockFetchVaultById.mockResolvedValue(baseVault as never);
-
-    const { result } = renderHook(() => useVaultActions());
-
-    await act(async () => {
-      await result.current.handleBroadcast({
-        ...baseBroadcastParams,
-        pendingPegin: {
-          id: "0xvaultId" as Hex,
-          timestamp: Date.now(),
-          status: "PENDING" as never,
-          peginTxHash: "0xpeginTxHash" as Hex,
-          unsignedTxHex: "",
-        },
-      });
-    });
-
-    expect(result.current.broadcastError).toBeNull();
-    expect(mockBroadcastPrePeginTransaction).toHaveBeenCalledWith(
-      expect.objectContaining({ unsignedTxHex: GRAPHQL_TX_HEX }),
-    );
-  });
-
-  it("aborts before broadcast when on-chain offchainParamsVersion drifted from local config (resume, same-device)", async () => {
-    mockFetchVaultById.mockResolvedValue(baseVault as never);
-    // Local config still v7; on-chain vault locked under v8 (governance moved
-    // between build and registration).
-    mockGetVaultFromChain.mockResolvedValue({
-      prePeginTxHash: "0xmatching_pre_pegin_hash",
-      offchainParamsVersion: 8,
-    } as never);
-
-    const { result } = renderHook(() => useVaultActions());
-
-    await act(async () => {
-      await result.current.handleBroadcast({
-        ...baseBroadcastParams,
-        pendingPegin: {
-          id: "0xvaultId" as Hex,
-          timestamp: Date.now(),
-          status: "PENDING" as never,
-          peginTxHash: "0xpeginTxHash" as Hex,
-          unsignedTxHex: TRUSTED_TX_HEX,
-        },
-      });
-    });
-
-    expect(result.current.broadcastError).toContain(
-      "offchain params version mismatch",
-    );
-    expect(mockBroadcastPrePeginTransaction).not.toHaveBeenCalled();
-  });
-
-  it("aborts before broadcast when on-chain offchainParamsVersion drifted from local config (cross-device)", async () => {
-    mockFetchVaultById.mockResolvedValue(baseVault as never);
-    mockGetVaultFromChain.mockResolvedValue({
-      prePeginTxHash: "0xmatching_pre_pegin_hash",
-      offchainParamsVersion: 8,
-    } as never);
-
-    const { result } = renderHook(() => useVaultActions());
-
-    await act(async () => {
-      await result.current.handleBroadcast({
-        ...baseBroadcastParams,
-        pendingPegin: undefined,
-      });
-    });
-
-    expect(result.current.broadcastError).toContain(
-      "offchain params version mismatch",
-    );
-    expect(mockBroadcastPrePeginTransaction).not.toHaveBeenCalled();
-  });
-
-  it("throws when no local copy and indexer tx hash mismatches on-chain", async () => {
-    mockFetchVaultById.mockResolvedValue(baseVault as never);
-    mockGetVaultFromChain.mockResolvedValue({
-      prePeginTxHash: "0xonchain_hash",
-      offchainParamsVersion: 7,
-    } as never);
-
-    mockCalculateBtcTxHash.mockReturnValue("0xdifferent_hash");
-
-    const { result } = renderHook(() => useVaultActions());
-
-    await act(async () => {
-      await result.current.handleBroadcast({
-        ...baseBroadcastParams,
-        pendingPegin: undefined,
-      });
-    });
-
-    expect(result.current.broadcastError).toContain(
-      "Transaction integrity check failed",
-    );
     expect(mockBroadcastPrePeginTransaction).not.toHaveBeenCalled();
   });
 });

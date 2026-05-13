@@ -21,7 +21,6 @@ import { getETHChain } from "@/config/network";
 
 import { getVaultFromChain } from "../../clients/eth-contract/btc-vault-registry/query";
 import { getVaultRegistryReader } from "../../clients/eth-contract/sdk-readers";
-import { useProtocolParamsContext } from "../../context/ProtocolParamsContext";
 import {
   ContractStatus,
   getNextLocalStatus,
@@ -40,15 +39,11 @@ import { stripHexPrefix } from "../../utils/btc";
 
 export interface BroadcastPrePeginParams {
   vaultId: Hex;
-  amount: string;
-  providers: Array<{ id: string }>;
-  applicationEntryPoint?: string;
   pendingPegin?: PendingPeginRequest;
   updatePendingPeginStatus?: (
     vaultId: string,
     status: LocalStorageStatus,
   ) => void;
-  addPendingPegin?: (pegin: Omit<PendingPeginRequest, "timestamp">) => void;
   onRefetchActivities: () => void;
   onShowSuccessModal: () => void;
 }
@@ -94,7 +89,6 @@ export function useVaultActions(): UseVaultActionsReturn {
 
   // Connectors
   const btcConnector = useChainConnector("BTC");
-  const { config } = useProtocolParamsContext();
 
   /**
    * Handle broadcasting BTC transaction
@@ -102,12 +96,8 @@ export function useVaultActions(): UseVaultActionsReturn {
   const handleBroadcast = async (params: BroadcastPrePeginParams) => {
     const {
       vaultId,
-      amount,
-      providers,
-      applicationEntryPoint,
       pendingPegin,
       updatePendingPeginStatus,
-      addPendingPegin,
       onRefetchActivities,
       onShowSuccessModal,
     } = params;
@@ -146,17 +136,9 @@ export function useVaultActions(): UseVaultActionsReturn {
 
       const unsignedTxHex = localUnsignedTxHex || graphqlUnsignedTxHex;
 
-      // Fetch on-chain vault for both the transaction integrity check and
-      // the offchain-params version check. Same TOCTOU concern as the
-      // same-device deposit flow: a tx whose BTC scripts were built under
-      // version v(N) must not be broadcast against an on-chain vault locked
-      // under v(N+1), or the scripts (timelocks, council quorum, signer set)
-      // will not match the on-chain record.
+      // prePeginTxHash on-chain commits to all inputs/outputs — any tx
+      // substitution between build and broadcast produces a different hash.
       const onChainVault = await getVaultFromChain(vaultId);
-
-      // Validate the selected transaction against the on-chain prePeginTxHash.
-      // The tx hash commits to all inputs AND outputs, so a substituted
-      // transaction would produce a different hash.
       const computedHash = calculateBtcTxHash(unsignedTxHex);
       if (
         computedHash.toLowerCase() !== onChainVault.prePeginTxHash.toLowerCase()
@@ -164,18 +146,6 @@ export function useVaultActions(): UseVaultActionsReturn {
         throw new Error(
           "Transaction integrity check failed: the Pre-PegIn transaction " +
             "does not match the hash stored on-chain. Aborting to prevent a potential attack.",
-        );
-      }
-
-      // Verify the local environment's offchain params version matches the
-      // version the on-chain vault was registered under. A mismatch indicates
-      // governance updated the version between build and registration (or
-      // since), so the BTC scripts encoded in the tx may not reflect the
-      // on-chain locked parameters. Aborting keeps BTC unspent; the user can
-      // refresh and retry once the environment is consistent.
-      if (onChainVault.offchainParamsVersion !== config.offchainParamsVersion) {
-        throw new Error(
-          `Aborting BTC broadcast: offchain params version mismatch (on-chain v${onChainVault.offchainParamsVersion}, local v${config.offchainParamsVersion}). Refresh and retry once the environment matches the on-chain vault version.`,
         );
       }
 
@@ -219,27 +189,12 @@ export function useVaultActions(): UseVaultActionsReturn {
         expectedUtxos,
       });
 
-      // Update or create localStorage entry for status tracking
-      // Use state machine to determine next status
       const nextStatus = getNextLocalStatus(
         PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN,
       );
 
-      if (pendingPegin && updatePendingPeginStatus && nextStatus) {
-        // Case 1: localStorage entry EXISTS - update status
+      if (updatePendingPeginStatus && nextStatus) {
         updatePendingPeginStatus(vaultId, nextStatus);
-      } else if (addPendingPegin && nextStatus) {
-        // Case 2: NO localStorage entry (cross-device) - create one with status
-        addPendingPegin({
-          id: vaultId,
-          amount,
-          providerIds: providers.map((p) => p.id),
-          applicationEntryPoint,
-          peginTxHash: vault.peginTxHash,
-          depositorBtcPubkey: vault.depositorBtcPubkey,
-          unsignedTxHex: vault.unsignedPrePeginTx,
-          status: nextStatus,
-        });
       }
 
       // Show success modal and refetch

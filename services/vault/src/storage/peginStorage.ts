@@ -81,6 +81,38 @@ const VALID_LOCAL_STORAGE_STATUSES: ReadonlySet<string> = new Set([
 // without `0x` prefix (normalizeTransactionId canonicalizes downstream).
 const BYTES32_HEX_RE = /^(0x)?[0-9a-fA-F]{64}$/;
 
+function isValidSelectedUTXOs(
+  value: unknown,
+): value is PendingPeginRequest["selectedUTXOs"] {
+  if (!Array.isArray(value)) return false;
+  for (const candidate of value) {
+    if (!candidate || typeof candidate !== "object") return false;
+    const utxo = candidate as Record<string, unknown>;
+    if (typeof utxo.txid !== "string" || !TXID_HEX_RE.test(utxo.txid)) {
+      return false;
+    }
+    if (
+      typeof utxo.vout !== "number" ||
+      !Number.isInteger(utxo.vout) ||
+      utxo.vout < 0
+    ) {
+      return false;
+    }
+    if (typeof utxo.value !== "string") return false;
+    // Bitcoin outputs must carry value — a zero-sat UTXO is not a valid
+    // spendable output (dust rules aside, the protocol requires value > 0).
+    const numValue = Number(utxo.value);
+    if (!Number.isSafeInteger(numValue) || numValue <= 0) return false;
+    if (
+      typeof utxo.scriptPubKey !== "string" ||
+      !SCRIPT_PUBKEY_HEX_RE.test(utxo.scriptPubKey)
+    ) {
+      return false;
+    }
+  }
+  return true;
+}
+
 /**
  * Validate the security-critical fields of a pending peg-in read from
  * localStorage.
@@ -147,33 +179,11 @@ function hasValidSecurityFields(entry: unknown): entry is PendingPeginRequest {
     return false;
   }
 
-  if (pegin.selectedUTXOs !== undefined) {
-    if (!Array.isArray(pegin.selectedUTXOs)) return false;
-    for (const candidate of pegin.selectedUTXOs) {
-      if (!candidate || typeof candidate !== "object") return false;
-      const utxo = candidate as Record<string, unknown>;
-      if (typeof utxo.txid !== "string" || !TXID_HEX_RE.test(utxo.txid)) {
-        return false;
-      }
-      if (
-        typeof utxo.vout !== "number" ||
-        !Number.isInteger(utxo.vout) ||
-        utxo.vout < 0
-      ) {
-        return false;
-      }
-      if (typeof utxo.value !== "string") return false;
-      const numValue = Number(utxo.value);
-      // Bitcoin outputs must carry value — a zero-sat UTXO is not a valid
-      // spendable output (dust rules aside, the protocol requires value > 0).
-      if (!Number.isSafeInteger(numValue) || numValue <= 0) return false;
-      if (
-        typeof utxo.scriptPubKey !== "string" ||
-        !SCRIPT_PUBKEY_HEX_RE.test(utxo.scriptPubKey)
-      ) {
-        return false;
-      }
-    }
+  if (
+    pegin.selectedUTXOs !== undefined &&
+    !isValidSelectedUTXOs(pegin.selectedUTXOs)
+  ) {
+    return false;
   }
 
   return true;
@@ -351,6 +361,16 @@ export function updatePendingPeginStatus(
   );
 
   savePendingPegins(ethAddress, updatedPegins);
+}
+
+/**
+ * Remove a single pending peg-in entry by its vault id.
+ */
+export function removePendingPegin(ethAddress: string, vaultId: Hex): void {
+  const existingPegins = getPendingPegins(ethAddress);
+  const normalizedId = normalizeTransactionId(vaultId);
+  const filtered = existingPegins.filter((p) => p.id !== normalizedId);
+  savePendingPegins(ethAddress, filtered);
 }
 
 /**

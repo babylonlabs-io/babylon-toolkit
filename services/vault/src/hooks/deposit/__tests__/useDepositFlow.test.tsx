@@ -25,6 +25,8 @@ vi.mock("@/clients/eth-contract/sdk-readers", () => ({
   getVaultRegistryReader: vi.fn(() => ({
     getVaultProviderBtcPubKey: vi.fn(async () => "ab".repeat(32)),
   })),
+  getVaultKeeperReader: vi.fn(async () => ({})),
+  getUniversalChallengerReader: vi.fn(async () => ({})),
 }));
 
 vi.mock("@babylonlabs-io/wallet-connector", () => ({
@@ -115,6 +117,7 @@ vi.mock("@/storage/peginStorage", () => ({
   addUtxoReservation: vi.fn(),
   getPendingPegins: vi.fn(() => []),
   getUtxoReservations: vi.fn(() => []),
+  removePendingPegin: vi.fn(),
   removeUtxoReservation: vi.fn(),
   updatePendingPeginStatus: vi.fn(),
 }));
@@ -137,12 +140,26 @@ vi.mock("@/infrastructure", () => ({
   },
 }));
 
-vi.mock("@/clients/eth-contract/btc-vault-registry/query", () => ({
-  getOffchainParamsVersionsFromChain: vi
-    .fn()
-    .mockImplementation((vaultIds: readonly string[]) =>
-      Promise.resolve(vaultIds.map(() => 7)),
-    ),
+const { MockRegisteredVaultVersionMismatchError } = vi.hoisted(() => ({
+  MockRegisteredVaultVersionMismatchError: class extends Error {
+    constructor(message: string) {
+      super(message);
+      this.name = "RegisteredVaultVersionMismatchError";
+    }
+  },
+}));
+
+vi.mock("@babylonlabs-io/ts-sdk/tbv/core", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@babylonlabs-io/ts-sdk/tbv/core")>()),
+  RegisteredVaultVersionMismatchError: MockRegisteredVaultVersionMismatchError,
+  validateOnChainParticipantKeys: vi.fn().mockResolvedValue({
+    vaultProviderBtcPubkeyXOnly: "ab".repeat(32),
+    vaultKeeperBtcPubkeysSorted: ["keeper1pubkey"],
+    universalChallengerBtcPubkeysSorted: ["uc1pubkey"],
+    expectedAppVaultKeepersVersion: 3,
+    expectedUniversalChallengersVersion: 5,
+  }),
+  verifyRegisteredVaultVersions: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock("../depositFlowSteps", async () => {
@@ -583,38 +600,41 @@ describe("useDepositFlow", () => {
     });
 
     it("aborts before broadcast when on-chain offchainParamsVersion drifted from the build version", async () => {
-      const { getOffchainParamsVersionsFromChain } = vi.mocked(
-        await import("@/clients/eth-contract/btc-vault-registry/query"),
+      const { verifyRegisteredVaultVersions } = vi.mocked(
+        await import("@babylonlabs-io/ts-sdk/tbv/core"),
       );
       const { broadcastPrePeginTransaction } = vi.mocked(
         await import("@/services/vault/vaultPeginBroadcastService"),
       );
-      const { addPendingPegin } = vi.mocked(
+      const { addPendingPegin, removePendingPegin } = vi.mocked(
         await import("@/storage/peginStorage"),
       );
 
-      // Context exposes version 7; chain returns 8 for one vault - simulating
-      // a governance update between the multicall snapshot and tx inclusion.
-      vi.mocked(getOffchainParamsVersionsFromChain).mockResolvedValueOnce([
-        7, 8,
-      ]);
+      vi.mocked(verifyRegisteredVaultVersions).mockRejectedValueOnce(
+        new MockRegisteredVaultVersionMismatchError(
+          "Aborting BTC broadcast: signer-set or offchain-params versions changed during registration (vault 0xVault1: offchainParams expected v7, got v8). The Pre-PegIn was not broadcast; the registered ETH vault will time out per protocol rules.",
+        ),
+      );
 
       const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
 
       await executeWithAutoArtifactDownload(result);
 
       await waitFor(() => {
-        expect(result.current.error).toMatch(/offchain params version changed/);
+        expect(result.current.error).toMatch(
+          /signer-set or offchain-params versions changed/,
+        );
       });
       expect(broadcastPrePeginTransaction).not.toHaveBeenCalled();
       // addPendingPegin runs before the version check so the user has a
-      // resume entry; broadcast is what's gated by the version check.
+      // resume entry; the mismatch path then removes those entries.
       expect(addPendingPegin).toHaveBeenCalledTimes(2);
+      expect(removePendingPegin).toHaveBeenCalledTimes(2);
     });
 
     it("persists pending pegins and skips broadcast when the version multicall throws (transient RPC)", async () => {
-      const { getOffchainParamsVersionsFromChain } = vi.mocked(
-        await import("@/clients/eth-contract/btc-vault-registry/query"),
+      const { verifyRegisteredVaultVersions } = vi.mocked(
+        await import("@babylonlabs-io/ts-sdk/tbv/core"),
       );
       const { broadcastPrePeginTransaction } = vi.mocked(
         await import("@/services/vault/vaultPeginBroadcastService"),
@@ -623,7 +643,7 @@ describe("useDepositFlow", () => {
         await import("@/storage/peginStorage"),
       );
 
-      vi.mocked(getOffchainParamsVersionsFromChain).mockRejectedValueOnce(
+      vi.mocked(verifyRegisteredVaultVersions).mockRejectedValueOnce(
         new Error("eth_call failed: connection reset"),
       );
 
@@ -638,6 +658,39 @@ describe("useDepositFlow", () => {
       // be orphaned (no localStorage record, UTXOs unreserved). With it, the
       // user has a PENDING entry and a resume path.
       expect(addPendingPegin).toHaveBeenCalledTimes(2);
+      expect(broadcastPrePeginTransaction).not.toHaveBeenCalled();
+    });
+
+    it("aborts before any side effects when validateOnChainParticipantKeys rejects", async () => {
+      const { validateOnChainParticipantKeys } = vi.mocked(
+        await import("@babylonlabs-io/ts-sdk/tbv/core"),
+      );
+      const { preparePeginTransaction } = vi.mocked(
+        await import("@/services/vault/vaultTransactionService"),
+      );
+      const { registerPeginBatchAndWait, signProofOfPossession } = vi.mocked(
+        await import("../depositFlowSteps"),
+      );
+      const { broadcastPrePeginTransaction } = vi.mocked(
+        await import("@/services/vault/vaultPeginBroadcastService"),
+      );
+
+      vi.mocked(validateOnChainParticipantKeys).mockRejectedValueOnce(
+        new Error("Vault keeper BTC pubkeys do not match"),
+      );
+
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+
+      await executeWithAutoArtifactDownload(result);
+
+      await waitFor(() => {
+        expect(result.current.error).toContain(
+          "Vault keeper BTC pubkeys do not match",
+        );
+      });
+      expect(preparePeginTransaction).not.toHaveBeenCalled();
+      expect(signProofOfPossession).not.toHaveBeenCalled();
+      expect(registerPeginBatchAndWait).not.toHaveBeenCalled();
       expect(broadcastPrePeginTransaction).not.toHaveBeenCalled();
     });
 
@@ -838,8 +891,8 @@ describe("useDepositFlow", () => {
       // Once `addPendingPegin` has persisted per-vault records, the
       // selected UTXOs are protected by those entries. A failure after
       // that point can safely release the early reservation.
-      const { getOffchainParamsVersionsFromChain } = vi.mocked(
-        await import("@/clients/eth-contract/btc-vault-registry/query"),
+      const { verifyRegisteredVaultVersions } = vi.mocked(
+        await import("@babylonlabs-io/ts-sdk/tbv/core"),
       );
       const { addPendingPegin, removeUtxoReservation } = vi.mocked(
         await import("@/storage/peginStorage"),
@@ -850,7 +903,7 @@ describe("useDepositFlow", () => {
       // This simulates a connection failure rather than a true version
       // mismatch — both paths reach the catch block, so the assertion
       // holds either way.
-      vi.mocked(getOffchainParamsVersionsFromChain).mockRejectedValueOnce(
+      vi.mocked(verifyRegisteredVaultVersions).mockRejectedValueOnce(
         new Error("eth_call failed: connection reset"),
       );
 
