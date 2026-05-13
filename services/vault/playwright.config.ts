@@ -16,6 +16,11 @@ const MOCK_ENV_VARS = {
   NEXT_PUBLIC_SENTRY_DSN: "https://test@o12345.ingest.sentry.io/12345",
   NEXT_PUBLIC_SIDECAR_API_URL: "http://localhost:8092",
   NEXT_PUBLIC_SENTRY_ENVIRONMENT: "e2e-test",
+  // Gate that the page-side `getInjectedWallets()` helper reads to
+  // decide whether to surface `window.__BABYLON_E2E_WALLETS__`.
+  // Vite's EnvironmentPlugin inlines NEXT_PUBLIC_* from process.env at
+  // build time, so this must be set when the dev server is spawned.
+  NEXT_PUBLIC_E2E_MODE: "1",
 };
 
 export default defineConfig({

@@ -93,7 +93,10 @@ export function createMockEthWallet(
   };
 
   function consume(method: EthRpcMethod): ScriptedAction | undefined {
-    counts[method] += 1;
+    // `method` is asserted as EthRpcMethod by the caller but viem could
+    // legitimately issue methods outside this union; coalesce the
+    // possibly-undefined slot so we never produce NaN.
+    counts[method] = (counts[method] ?? 0) + 1;
     return queues[method]?.shift();
   }
 
@@ -103,7 +106,10 @@ export function createMockEthWallet(
         return chainIdHex;
       case "eth_accounts":
       case "eth_requestAccounts":
-        return [account.address.toLowerCase()];
+        // Return the checksummed Address verbatim. Real wallet
+        // providers return EIP-55 checksums and consumers commonly use
+        // strict equality on `address`, which would mis-match lowercase.
+        return [account.address];
       case "eth_sendTransaction":
       case "eth_sendRawTransaction":
         return DEFAULT_TX_HASH;

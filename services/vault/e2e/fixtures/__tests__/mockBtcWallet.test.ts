@@ -1,6 +1,12 @@
+import * as bitcoin from "bitcoinjs-lib";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createMockBtcWallet } from "../mockBtcWallet";
+
+const SIGNET_NETWORK: bitcoin.networks.Network = {
+  ...bitcoin.networks.testnet,
+  bech32: "tb",
+};
 
 describe("createMockBtcWallet defaults", () => {
   it("returns the same address every call", async () => {
@@ -37,20 +43,34 @@ describe("createMockBtcWallet defaults", () => {
     expect(a).not.toBe(c);
   });
 
-  it("signPsbt appends a deterministic suffix to the input PSBT", async () => {
+  it("signPsbt returns the input PSBT unchanged so it stays decodable", async () => {
     const { provider } = createMockBtcWallet();
-    const signed = await provider.signPsbt("00ff");
-    expect(signed.startsWith("00ff")).toBe(true);
-    expect(signed.length - "00ff".length).toBe(64);
-    expect(await provider.signPsbt("00ff")).toBe(signed);
+    const psbt = "70736274ff0100";
+    expect(await provider.signPsbt(psbt)).toBe(psbt);
   });
 
-  it("signPsbts maps over the array", async () => {
+  it("signPsbts returns the input array unchanged", async () => {
     const { provider } = createMockBtcWallet();
-    const out = await provider.signPsbts(["aa", "bb", "cc"]);
-    expect(out).toHaveLength(3);
-    expect(out[0].startsWith("aa")).toBe(true);
-    expect(out[1].startsWith("bb")).toBe(true);
+    const inputs = ["aa", "bb", "cc"];
+    const out = await provider.signPsbts(inputs);
+    expect(out).toEqual(inputs);
+    expect(out).not.toBe(inputs);
+  });
+
+  it("default address is a valid signet bech32 derived from the default pubkey", async () => {
+    const { provider } = createMockBtcWallet();
+    const address = await provider.getAddress();
+    const pubkey = Buffer.from(await provider.getPublicKeyHex(), "hex");
+    const expected = bitcoin.payments.p2wpkh({
+      pubkey,
+      network: SIGNET_NETWORK,
+    }).address;
+    expect(address).toBe(expected);
+    // toOutputScript would throw on a malformed bech32; round-tripping
+    // proves the constant is decodable, not just a string.
+    expect(() =>
+      bitcoin.address.toOutputScript(address, SIGNET_NETWORK),
+    ).not.toThrow();
   });
 });
 

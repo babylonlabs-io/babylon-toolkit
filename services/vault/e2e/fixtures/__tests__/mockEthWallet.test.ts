@@ -55,11 +55,21 @@ describe("MockEthScript", () => {
     );
   });
 
-  it("revertNextTransaction queues a revert on both send paths", () => {
-    const { script } = createMockEthWallet();
+  it("revertNextTransaction makes both send paths reject with the configured reason", async () => {
+    const { walletClient, script } = createMockEthWallet();
     script.revertNextTransaction("custom revert");
-    expect(script.callCount("eth_sendTransaction")).toBe(0);
-    expect(script.callCount("eth_sendRawTransaction")).toBe(0);
+    await expect(
+      walletClient.request({
+        method: "eth_sendTransaction",
+        params: [{}] as never,
+      }),
+    ).rejects.toThrow("custom revert");
+    await expect(
+      walletClient.request({
+        method: "eth_sendRawTransaction",
+        params: ["0x"],
+      }),
+    ).rejects.toThrow("custom revert");
   });
 
   it("callCount tracks chainId calls across invocations", async () => {

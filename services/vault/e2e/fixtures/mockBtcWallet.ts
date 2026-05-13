@@ -26,11 +26,19 @@ async function sha256Hex(input: string): Promise<string> {
 }
 
 const DEFAULT_PUBLIC_KEY_HEX = `02${"ab".repeat(32)}`;
-const DEFAULT_ADDRESS = "tb1qe2etestmockaddressmockaddressmockaddrx";
+// Real signet bech32 (p2wpkh) derived from `DEFAULT_PUBLIC_KEY_HEX`.
+// Hard-coded so this module has no runtime dependency on bitcoinjs-lib;
+// the value is verified by a unit test that re-derives it.
+const DEFAULT_ADDRESS = "tb1qce0n0rv27dwx37dfvhxaaly4lnwelqjuqywvka";
+// `Network` is a string enum; "signet" is its SIGNET member. We use the
+// literal instead of `Network.SIGNET` so this fixture stays a type-only
+// importer of wallet-connector. A value import here pulls the package's
+// source into the vitest transform pipeline and trips a parse error
+// that the existing tests in this project work around by mocking
+// `@babylonlabs-io/wallet-connector` entirely.
 const DEFAULT_NETWORK: Network = "signet" as Network;
 const DEFAULT_PROVIDER_NAME = "E2E Mock BTC";
 const DEFAULT_PROVIDER_ICON = "data:image/svg+xml;base64,PHN2Zy8+";
-const FAKE_SIG_SUFFIX = "ab".repeat(32);
 const SIGNED_MESSAGE_HEX = "cd".repeat(64);
 
 export interface MockBtcWalletOptions {
@@ -156,12 +164,15 @@ export function createMockBtcWallet(
     // SignPsbtOptions is part of the IBTCProvider contract but the mock
     // does not consume it; TypeScript bivariance lets a narrower
     // signature satisfy the interface.
-    signPsbt: (psbtHex: string) =>
-      applyScript("signPsbt", () => `${psbtHex}${FAKE_SIG_SUFFIX}`),
+    //
+    // Returns the input PSBT verbatim so it remains decodable by
+    // Psbt.fromHex(...). The mock therefore covers flows that pass the
+    // signed PSBT through unchanged; flows that need a real partial
+    // signature (broadcast, WASM-side cross-checks) must script a
+    // valid signed PSBT via `script.returnNext("signPsbt", ...)`.
+    signPsbt: (psbtHex: string) => applyScript("signPsbt", () => psbtHex),
     signPsbts: (psbtsHexes: string[]) =>
-      applyScript("signPsbts", () =>
-        psbtsHexes.map((hex) => `${hex}${FAKE_SIG_SUFFIX}`),
-      ),
+      applyScript("signPsbts", () => [...psbtsHexes]),
     signMessage: () => applyScript("signMessage", () => SIGNED_MESSAGE_HEX),
     deriveContextHash: (appName: string, context: string) =>
       applyScript("deriveContextHash", () =>

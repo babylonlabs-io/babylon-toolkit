@@ -24,6 +24,11 @@
  * - reading from this global in any other build mode throws, so a
  * stray production reference fails loudly instead of silently
  * returning mock data.
+ *
+ * The gate is intentionally per-build, not per-environment: a build
+ * produced with `NEXT_PUBLIC_E2E_MODE=1` (the Playwright dev server,
+ * staging-style e2e bundles) is allowed to read the global. Production
+ * builds must never set this var.
  */
 
 import type { MockBtcWallet } from "./mockBtcWallet";
@@ -44,10 +49,12 @@ declare global {
 }
 
 function isE2EMode(): boolean {
-  // Vite inlines `import.meta.env.MODE` and `NEXT_PUBLIC_*` at build time.
-  // Vitest sets NODE_ENV=test, which we treat as e2e-equivalent for unit
-  // tests of the injection helpers themselves.
-  if (typeof process !== "undefined" && process.env?.NODE_ENV === "test") {
+  // Vitest-only escape hatch for the helper's own unit tests. We use
+  // `process.env.VITEST` (set by vitest itself) rather than
+  // `NODE_ENV === "test"` because the latter is set globally for any
+  // vitest run and would let unrelated `src/` code under test toggle
+  // the gate by transitively importing this module.
+  if (typeof process !== "undefined" && process.env?.VITEST === "true") {
     return true;
   }
   if (typeof import.meta === "undefined") return false;
