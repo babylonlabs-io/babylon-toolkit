@@ -42,11 +42,12 @@ describe("useActivitiesWithPending", () => {
     const pending = [makePending("pending-1", 1_000)];
     getPendingActivitiesMock.mockReturnValue(pending);
 
-    const { result, rerender } = renderHook(
-      ({ addr }: { addr: typeof ADDR | undefined }) =>
-        useActivitiesWithPending(addr),
-      { initialProps: { addr: ADDR } },
-    );
+    type Props = { addr: typeof ADDR | undefined };
+    const initialProps: Props = { addr: ADDR };
+    const { result, rerender } = renderHook<
+      ReturnType<typeof useActivitiesWithPending>,
+      Props
+    >(({ addr }) => useActivitiesWithPending(addr), { initialProps });
 
     expect(result.current.data).toEqual(pending);
 
