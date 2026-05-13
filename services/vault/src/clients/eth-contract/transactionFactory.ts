@@ -4,6 +4,7 @@
  * Includes pre-flight simulation to catch errors before user signs.
  */
 
+import { waitForTransactionReceiptSmartAware } from "@babylonlabs-io/ts-sdk/tbv/core/utils";
 import {
   type Abi,
   type Address,
@@ -103,7 +104,15 @@ export async function executeWrite(
       account,
     });
 
-    const receipt = await publicClient.waitForTransactionReceipt({ hash });
+    // Smart-account-aware: Externally Owned Account (EOA) wallets — controlled
+    // by a single private key, e.g. MetaMask — resolve via the real tx hash
+    // directly. Safe-style multisigs return a `safeTxHash` here that requires
+    // polling the Safe Transaction Service before the on-chain receipt exists.
+    const receipt = await waitForTransactionReceiptSmartAware({
+      publicClient,
+      walletAddress: account.address,
+      hash,
+    });
 
     // Check if transaction was reverted
     if (receipt.status === "reverted") {
@@ -115,7 +124,7 @@ export async function executeWrite(
       await throwRevertError(
         publicClient,
         receipt,
-        hash,
+        receipt.transactionHash,
         address,
         callData,
         account.address,
@@ -123,7 +132,7 @@ export async function executeWrite(
     }
 
     return {
-      transactionHash: hash,
+      transactionHash: receipt.transactionHash,
       receipt,
     };
   } catch (error) {

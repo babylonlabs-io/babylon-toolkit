@@ -71,6 +71,7 @@ import {
   selectUtxosForPegin,
   type UTXO,
   MAX_REASONABLE_FEE_SATS,
+  waitForTransactionReceiptSmartAware,
 } from "../utils";
 import { createTaprootScriptPathSignOptions } from "../utils/signing";
 import {
@@ -1152,15 +1153,20 @@ export class PeginManager {
       handleContractError(error); // always throws (return type: never)
     }
 
-    // Step 8: Wait for transaction receipt and verify it was not reverted
-    const receipt = await publicClient.waitForTransactionReceipt({
+    // Step 8: Wait for transaction receipt and verify it was not reverted.
+    // Smart-account-aware wrapper so Safe-style multisigs work alongside
+    // Externally Owned Accounts (EOAs — wallets controlled by a single
+    // private key, e.g. MetaMask). The EOA path is unchanged.
+    const receipt = await waitForTransactionReceiptSmartAware({
+      publicClient,
+      walletAddress: this.config.ethWallet.account.address,
       hash: ethTxHash,
       timeout: RECEIPT_TIMEOUT_MS,
     });
     if (receipt.status === "reverted") {
       handleContractError(
         new Error(
-          `Transaction reverted. Hash: ${ethTxHash}. ` +
+          `Transaction reverted. Hash: ${receipt.transactionHash}. ` +
             `Check the transaction on block explorer for details.`,
         ),
       );
@@ -1315,14 +1321,20 @@ export class PeginManager {
     }
 
     // Step 9: Wait for receipt
-    const receipt = await publicClient.waitForTransactionReceipt({
+    // Use the smart-account-aware wrapper so Safe-style wallets (whose
+    // `eth_sendTransaction` returns a `safeTxHash`, not a real tx hash) work
+    // alongside Externally Owned Accounts (EOAs — wallets controlled by a
+    // single private key, e.g. MetaMask). The EOA path is unchanged.
+    const receipt = await waitForTransactionReceiptSmartAware({
+      publicClient,
+      walletAddress: this.config.ethWallet.account.address,
       hash: ethTxHash,
       timeout: RECEIPT_TIMEOUT_MS,
     });
     if (receipt.status === "reverted") {
       handleContractError(
         new Error(
-          `Batch transaction reverted. Hash: ${ethTxHash}. ` +
+          `Batch transaction reverted. Hash: ${receipt.transactionHash}. ` +
             `Check the transaction on block explorer for details.`,
         ),
       );

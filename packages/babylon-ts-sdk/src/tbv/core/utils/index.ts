@@ -10,3 +10,4 @@ export * from "./transaction";
 export * from "./btc";
 export * from "./signing";
 export * from "./validation";
+export * from "./eth";
