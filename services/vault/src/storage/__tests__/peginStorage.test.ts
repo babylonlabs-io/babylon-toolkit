@@ -552,8 +552,8 @@ describe("UTXO reservation storage", () => {
   });
 
   it("silently drops legacy unsignedTxHex-only entries (schema rotation)", () => {
-    // Pre-#293 fix entries with only `unsignedTxHex` no longer validate. The
-    // 5-min TTL would have dropped them anyway; this just shortens the gap.
+    // Legacy entries with only `unsignedTxHex` no longer validate. The 5-min
+    // TTL would have dropped them anyway; this just shortens the gap.
     const legacy = [
       { unsignedTxHex: "0xdeadbeef", timestamp: Date.now(), batchId: "old" },
     ];

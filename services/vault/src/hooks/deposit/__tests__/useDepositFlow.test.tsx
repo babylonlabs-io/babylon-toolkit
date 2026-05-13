@@ -604,8 +604,8 @@ describe("useDepositFlow", () => {
         expect(addUtxoReservation).toHaveBeenCalledTimes(2);
       });
 
-      // The whole point of #293: pre-claim must precede preparePegin so a
-      // sibling tab cannot select these outpoints during the wallet popup.
+      // Pre-claim must precede preparePegin so a sibling tab cannot select
+      // these outpoints during the wallet popup window.
       const preClaimOrder = addUtxoReservation.mock.invocationCallOrder[0];
       const prepareOrder = preparePeginTransaction.mock.invocationCallOrder[0];
       const narrowOrder = addUtxoReservation.mock.invocationCallOrder[1];
