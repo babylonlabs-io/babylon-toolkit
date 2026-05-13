@@ -6,7 +6,7 @@
  */
 
 import { AmountSlider, Button, SubSection } from "@babylonlabs-io/core-ui";
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 import { formatUnits } from "viem";
 
 import { useETHWallet } from "@/context/wallet";
@@ -101,6 +101,15 @@ export function Repay() {
   // advertise an amount that validation will reject.
   const sliderTrackMax = maxRepayAmount > 0 ? maxRepayAmount : MIN_SLIDER_MAX;
 
+  // Inline error surfaced when the Max-click refetch fails. We deliberately
+  // do not silently fall back to cached values — at boundaries that could
+  // pick the wrong repay mode (e.g. land in `max-capped` with a stale balance
+  // when fresh data would have been `full`, missing the safety buffer) or
+  // even leave `repayAmountRaw` undefined and fall through to the broken
+  // float round-trip. Better to ask the user to retry: React Query's 30s
+  // background refresh has typically refilled the cache by then anyway.
+  const [maxClickError, setMaxClickError] = useState<string | null>(null);
+
   // Max click: refresh debt and balance from chain so we don't decide the
   // repay path on stale React Query data (up to 30s old). Then pick the
   // cheapest path that actually clears the debt:
@@ -113,15 +122,17 @@ export function Repay() {
   //                                      message and keep submit disabled
   //                                      for amount > maxRepayAmount.
   //
-  // If either refetch fails (RPC blip, timeout), fall back to the cached
-  // context values rather than letting the click be a silent no-op.
-  // useRepayTransaction does its own on-chain checks at broadcast, so the
-  // user still gets a correct tx; they just don't get the freshest mode
-  // decision.
+  // If either refetch fails (RPC blip, timeout), surface an explicit error
+  // and bail without touching state. Falling back to cached values can pick
+  // the wrong mode at boundaries — and worse, would leave `freshBalanceRaw`
+  // undefined for the `max-capped` branch, which would then degrade to the
+  // float round-trip we explicitly fixed.
   const handleMaxClick = useCallback(async () => {
-    let freshDebtAmount = currentDebtAmount;
-    let freshBalanceAmount = userTokenBalance;
-    let freshBalanceRaw: bigint | undefined;
+    setMaxClickError(null);
+
+    let freshDebtAmount: number;
+    let freshBalanceAmount: number;
+    let freshBalanceRaw: bigint;
 
     try {
       const [freshPosition, freshBalanceResult] = await Promise.all([
@@ -140,12 +151,14 @@ export function Repay() {
         formatUnits(freshBalanceRaw, selectedReserve.token.decimals),
       );
     } catch (error) {
-      logger.warn("Max click refetch failed; using cached debt/balance", {
+      logger.warn("Max click refetch failed", {
         data: {
           context: "Aave repay Max click",
           error: error instanceof Error ? error.message : String(error),
         },
       });
+      setMaxClickError("Couldn't refresh balance/debt — please try again.");
+      return;
     }
 
     if (freshDebtAmount <= 0 || freshBalanceAmount <= 0) {
@@ -172,8 +185,6 @@ export function Repay() {
       setRepayAmountWithMode(freshBalanceAmount, "partial");
     }
   }, [
-    currentDebtAmount,
-    userTokenBalance,
     refetchPosition,
     refetchUserBalance,
     selectedReserve.reserveId,
@@ -259,7 +270,10 @@ export function Repay() {
         {errorMessage && (
           <p className="text-sm text-error-main">{errorMessage}</p>
         )}
-        {!errorMessage && warningMessage && (
+        {!errorMessage && maxClickError && (
+          <p className="text-sm text-warning-main">{maxClickError}</p>
+        )}
+        {!errorMessage && !maxClickError && warningMessage && (
           <p className="text-sm text-warning-main">{warningMessage}</p>
         )}
       </div>

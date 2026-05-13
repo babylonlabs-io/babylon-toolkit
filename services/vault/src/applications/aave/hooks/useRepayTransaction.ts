@@ -170,53 +170,53 @@ export function useRepayTransaction({
           reserve.token.address,
           proxyContract as Address,
         );
-      } else {
-        // In max-capped mode, prefer the caller-supplied exact bigint over the
-        // float `repayAmount`. The float round-trip via `parseUnits` can round
-        // up by 1 ULP for ≥16-significant-digit raw values (any 18-decimal
-        // token with > ~10 tokens in the wallet), producing an approval
-        // strictly greater than the user's balance and reverting the tx.
-        let amountBigInt: bigint;
-        if (
-          mode === "max-capped" &&
-          repayAmountRaw != null &&
-          repayAmountRaw > 0n
-        ) {
-          amountBigInt = repayAmountRaw;
-        } else {
-          const onChainDecimals = await ERC20.getERC20Decimals(
-            reserve.token.address,
-          ).catch(() => {
-            throw new Error(
-              `Failed to fetch on-chain decimals for ${reserve.token.address}`,
-            );
-          });
-          const SAFE_TOFIXED_PRECISION = 15;
-          amountBigInt = parseUnits(
-            repayAmount.toFixed(
-              Math.min(onChainDecimals, SAFE_TOFIXED_PRECISION),
-            ),
-            onChainDecimals,
+      } else if (mode === "max-capped") {
+        // max-capped requires the caller-supplied exact bigint. The float
+        // round-trip via `parseUnits` can round up by 1 ULP for ≥16-significant
+        // -digit raw values (any 18-decimal token with > ~10 tokens in the
+        // wallet), producing an approval strictly greater than the user's
+        // balance and reverting the tx. Refuse to proceed without the raw
+        // bigint instead of silently degrading.
+        if (repayAmountRaw == null || repayAmountRaw <= 0n) {
+          throw new Error(
+            "max-capped mode requires repayAmountRaw (the exact bigint balance). Caller must pass it from a fresh on-chain read.",
           );
         }
 
-        if (mode === "max-capped") {
-          await repayMaxCapped(
-            walletClient,
-            chain,
-            reserve.reserveId,
-            reserve.token.address,
-            amountBigInt,
+        await repayMaxCapped(
+          walletClient,
+          chain,
+          reserve.reserveId,
+          reserve.token.address,
+          repayAmountRaw,
+        );
+      } else {
+        // partial path: convert the user-typed float to bigint. Float rounding
+        // is bounded by the input value itself (the user typed it), so a 1-ULP
+        // overshoot here can't exceed the user's balance the way it can for
+        // max-capped where the input *is* the balance.
+        const onChainDecimals = await ERC20.getERC20Decimals(
+          reserve.token.address,
+        ).catch(() => {
+          throw new Error(
+            `Failed to fetch on-chain decimals for ${reserve.token.address}`,
           );
-        } else {
-          await repayPartial(
-            walletClient,
-            chain,
-            reserve.reserveId,
-            reserve.token.address,
-            amountBigInt,
-          );
-        }
+        });
+        const SAFE_TOFIXED_PRECISION = 15;
+        const amountBigInt = parseUnits(
+          repayAmount.toFixed(
+            Math.min(onChainDecimals, SAFE_TOFIXED_PRECISION),
+          ),
+          onChainDecimals,
+        );
+
+        await repayPartial(
+          walletClient,
+          chain,
+          reserve.reserveId,
+          reserve.token.address,
+          amountBigInt,
+        );
       }
 
       // Invalidate position queries to refresh data

@@ -160,6 +160,14 @@ export async function repayPartial(
  * fresh on-chain values; this function does not refetch debt to keep the
  * pulled amount strictly capped at the user's balance.
  *
+ * Residual-allowance note: we approve the full `balanceAmount` but the
+ * adapter typically pulls less (≤ debt at execution). Leftover allowance
+ * = `balanceAmount - debtPulled`, bounded by ~0.5 % of balance because we
+ * only enter this path when `balance ≈ debt`. The pinned-adapter trust
+ * model treats this residual as acceptable; eliminating it entirely would
+ * require the adapter contract to accept a sentinel "repay all" amount so
+ * the dApp can approve exactly what's owed.
+ *
  * @param walletClient - Connected wallet client
  * @param chain - Chain configuration
  * @param debtReserveId - Reserve ID for the debt token
@@ -209,6 +217,15 @@ export async function repayMaxCapped(
  *
  * Fetches exact debt from contract, handles approval, then repays.
  * Uses pinned adapter and spoke addresses from trusted environment config.
+ *
+ * Residual-allowance note: we approve `currentDebt × (1 + buffer)` to absorb
+ * interest accrual between fetch and execution, but the adapter pulls only
+ * what's actually owed. Leftover allowance ≈ `buffer × currentDebt − accrual`
+ * — for a 200 USDC repay with the 0.5 % buffer this is ~1 USDC of lingering
+ * allowance on the pinned adapter. The pinned-adapter trust model treats
+ * this residual as acceptable; eliminating it would require the adapter to
+ * read on-chain debt at execution so the dApp can approve exactly what's
+ * owed.
  *
  * @param walletClient - Connected wallet client
  * @param chain - Chain configuration
