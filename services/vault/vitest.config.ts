@@ -26,7 +26,10 @@ export default defineConfig({
     exclude: [
       "**/node_modules/**",
       "**/dist/**",
-      "**/e2e/**",
+      // Playwright specs and helpers - not vitest. Fixture unit tests
+      // under `e2e/fixtures/__tests__/` are intentionally NOT excluded.
+      "**/e2e/**/*.spec.ts",
+      "**/e2e/helpers/**",
     ],
     coverage: {
       provider: "v8",

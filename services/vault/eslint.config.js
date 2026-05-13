@@ -14,7 +14,9 @@ export default tseslint.config(
       ".next",
       "node_modules",
       "tests",
-      "e2e",
+      // Playwright specs and helpers are not linted; fixture units are.
+      "e2e/**/*.spec.ts",
+      "e2e/helpers/**",
       "test-results",
       "playwright-report",
       "blob-report",
