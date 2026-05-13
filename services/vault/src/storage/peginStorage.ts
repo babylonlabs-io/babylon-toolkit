@@ -634,6 +634,12 @@ async function withReservationLock<T>(
  *
  * @throws {UtxoReservationConflictError} when an outpoint is already
  * claimed by another in-flight deposit.
+ * @throws {Error} with an actionable message when localStorage cannot be
+ * written (quota exceeded, blocked by private-browsing, etc.). We
+ * intentionally do not swallow these — silently degrading would let two
+ * concurrent tabs both pick the same outpoint and reintroduce the cross-
+ * tab race this function exists to prevent, for the exact users a
+ * fallback would supposedly help.
  */
 export async function addUtxoReservation(
   ethAddress: string,
@@ -641,22 +647,35 @@ export async function addUtxoReservation(
 ): Promise<void> {
   if (!ethAddress) return;
 
-  await withReservationLock(ethAddress, () => {
-    const existing = getUtxoReservations(ethAddress);
-    const conflict = findOutpointConflict(
-      existing,
-      reservation.batchId,
-      reservation.outpoints,
-    );
-    if (conflict) {
-      throw new UtxoReservationConflictError(
-        conflict.conflictingBatchId,
-        conflict.outpoint,
+  try {
+    await withReservationLock(ethAddress, () => {
+      const existing = getUtxoReservations(ethAddress);
+      const conflict = findOutpointConflict(
+        existing,
+        reservation.batchId,
+        reservation.outpoints,
       );
-    }
-    const filtered = existing.filter((r) => r.batchId !== reservation.batchId);
-    saveReservations(ethAddress, [...filtered, reservation]);
-  });
+      if (conflict) {
+        throw new UtxoReservationConflictError(
+          conflict.conflictingBatchId,
+          conflict.outpoint,
+        );
+      }
+      const filtered = existing.filter(
+        (r) => r.batchId !== reservation.batchId,
+      );
+      saveReservations(ethAddress, [...filtered, reservation]);
+    });
+  } catch (error) {
+    if (error instanceof UtxoReservationConflictError) throw error;
+    logger.warn("[peginStorage] Failed to write UTXO reservation", {
+      category: "peginStorage",
+      error: error instanceof Error ? error.message : String(error),
+    });
+    throw new Error(
+      "Unable to record the deposit reservation locally. Your browser may be blocking local storage (private browsing or quota). Try in a standard browser tab.",
+    );
+  }
 }
 
 /**

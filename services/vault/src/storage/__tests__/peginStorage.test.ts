@@ -625,6 +625,52 @@ describe("UTXO reservation storage", () => {
     });
   });
 
+  describe("storage failure handling", () => {
+    // Aborting the deposit (instead of silently swallowing the storage error)
+    // prevents the cross-tab race from re-emerging: a swallowed write would
+    // let two concurrent tabs both pick the same outpoint and one would end
+    // up with an orphaned ETH vault. We translate the raw browser error to
+    // a clean, actionable message at the storage boundary so the caller's
+    // sanitizeErrorMessage path surfaces something readable.
+    it("throws a friendly error (not the raw browser error) when localStorage.setItem fails", async () => {
+      const quotaError = new DOMException(
+        "QuotaExceededError: storage is full",
+        "QuotaExceededError",
+      );
+      const setItemSpy = vi
+        .spyOn(Storage.prototype, "setItem")
+        .mockImplementationOnce(() => {
+          throw quotaError;
+        });
+
+      const err = await addUtxoReservation(ETH_ADDRESS, validReservation).catch(
+        (e: unknown) => e,
+      );
+
+      expect(err).toBeInstanceOf(Error);
+      expect(err).not.toBeInstanceOf(UtxoReservationConflictError);
+      expect((err as Error).message).toMatch(/Unable to record/i);
+      expect(vi.mocked(logger).warn).toHaveBeenCalledWith(
+        "[peginStorage] Failed to write UTXO reservation",
+        expect.objectContaining({ category: "peginStorage" }),
+      );
+
+      setItemSpy.mockRestore();
+    });
+
+    it("does not translate UtxoReservationConflictError (caller must detect by instanceof)", async () => {
+      await addUtxoReservation(ETH_ADDRESS, validReservation);
+
+      const err = await addUtxoReservation(ETH_ADDRESS, {
+        outpoints: [outpointA],
+        timestamp: Date.now(),
+        batchId: "batch-2",
+      }).catch((e: unknown) => e);
+
+      expect(err).toBeInstanceOf(UtxoReservationConflictError);
+    });
+  });
+
   describe("assertNoReservationConflict", () => {
     it("throws when another batch claims one of our outpoints", async () => {
       await addUtxoReservation(ETH_ADDRESS, validReservation);
