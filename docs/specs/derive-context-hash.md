@@ -1,10 +1,20 @@
 # `deriveContextHash` Specification
 
-**Spec revision**: 2.0
+**Spec revision**: 2.1
 **Algorithm version**: 1 (salt: `"derive-context-hash"`, no suffix)
-**Date**: 2026-05-11
+**Date**: 2026-05-13
 **Authors**: Jerome Wang (Babylon Labs)
-**Status**: Draft — supersedes revision 1.0 (wallet auto-injects network and connected public key into `info`)
+**Status**: Draft — additive over revision 2.0 (clarifies MPC and other non-HD wallet implementations)
+
+---
+
+## Changes from revision 2.0
+
+- **MPC and other non-HD wallets clarified.** Extends §2.2 with
+  guidance for wallets whose architecture prevents materializing a
+  single private key (threshold MPC, TEE-resident keys, DKG-based
+  wallets). HD-wallet outputs and the §4 test vectors are unchanged —
+  this revision is additive.
 
 ---
 
@@ -38,11 +48,15 @@
 `deriveContextHash` is a wallet API method that derives a
 deterministic 32-byte value from the wallet's key material, the
 wallet's current network, the connected public key, an
-application name, and an application-provided context string. It
-uses HKDF-SHA-256 (IETF RFC 5869) and is designed for cross-wallet
-compatibility — any conforming implementation produces the same
-output for the same `(key material, network, connected pubkey,
-appName, context)` tuple.
+application name, and an application-provided context string.
+The default construction uses HKDF-SHA-256 (IETF RFC 5869) and is
+designed for cross-wallet compatibility — any HD or imported-key
+wallet that follows the §2.2 default construction produces the
+same output for the same `(key material, network, connected
+pubkey, appName, context)` tuple. MPC and other non-HD wallets
+(see §2.2) MAY use their own deterministic derivation; their
+outputs are deterministic per-wallet but are not cross-wallet
+compatible with the default construction.
 
 The method is generic. The wallet has no knowledge of what the
 derived value is used for. Applications provide an application
@@ -233,6 +247,35 @@ Outputs from imported keys are not cross-wallet compatible with
 HD wallets restored from the same recovery phrase — this is
 inherent to imported keys, which have no shared derivation tree.
 Wallets MUST clearly document this behavior to users and
+application developers.
+
+**MPC and other non-HD wallets:** Wallets that cannot follow the
+BIP-32 + HKDF construction above — including threshold MPC,
+TEE-resident keys, and DKG-based wallets — MAY implement
+`deriveContextHash` using their own deterministic derivation. The
+API in §2.1 is unchanged, and the output MUST be 32 bytes that
+deterministically depend on the wallet's secret key material and
+on all four of `appName`, `canonicalNetworkName`, `connectedPubkey`,
+and `context` (so different inputs produce independent outputs).
+
+The output MUST remain stable across calls whenever the wallet
+returns the same `connectedPubkey` (i.e. the same logical signing
+key) and `appName`, `canonicalNetworkName`, and `context` are
+unchanged — regardless of any change to the wallet's internal
+secret-share representation. Share-index reordering, proactive
+refresh, and resharing that preserves the same aggregate public
+key MUST NOT change the output; implementations that incorporate per-call
+randomness, or that change output after such state-only refreshes,
+are non-conformant. (A true re-key that produces a different
+aggregate `connectedPubkey` MAY produce a different output —
+the new key is logically a different wallet.) This determinism
+is load-bearing for the hashlock and one-time-signature use cases
+in §1: the caller must be able to reconstruct the same value to
+spend or claim funds.
+
+Cross-wallet compatibility with HD wallets restored from the same
+recovery phrase is not provided — same caveat as imported keys
+above. Wallets MUST clearly document this behavior to users and
 application developers.
 
 Note: BIP-39 passphrases produce different seeds from the same
