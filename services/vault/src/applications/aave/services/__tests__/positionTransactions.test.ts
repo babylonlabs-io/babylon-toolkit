@@ -74,9 +74,29 @@ describe("positionTransactions", () => {
     receipt: { status: "success" },
   };
 
+  // Shared mutable allowance state — simulates the on-chain allowance moving
+  // from its starting value to the just-approved amount. `ensureAllowance`
+  // verifies the post-approve allowance, so the mock must reflect that
+  // transition or every test would throw "Approval did not take effect".
+  let simulatedAllowance: bigint;
+
+  /**
+   * Override the simulated on-chain allowance for the current test. Use this
+   * instead of `mockGetERC20Allowance.mockResolvedValue(X)` so that
+   * approveERC20 calls still update the value (mimicking real chain state).
+   */
+  const setSimulatedAllowance = (value: bigint) => {
+    simulatedAllowance = value;
+  };
+
   beforeEach(() => {
     vi.clearAllMocks();
-    mockApproveERC20.mockResolvedValue(mockTxResult);
+    simulatedAllowance = 0n;
+    mockGetERC20Allowance.mockImplementation(async () => simulatedAllowance);
+    mockApproveERC20.mockImplementation(async (...args) => {
+      simulatedAllowance = args[4] as bigint;
+      return mockTxResult;
+    });
     mockBorrowFromCorePosition.mockResolvedValue(mockTxResult);
     mockRepayToCorePosition.mockResolvedValue(mockTxResult);
     mockWithdrawCollaterals.mockResolvedValue(mockTxResult);
@@ -164,7 +184,8 @@ describe("positionTransactions", () => {
   // ============================================================================
   describe("repayPartial", () => {
     beforeEach(() => {
-      mockGetERC20Allowance.mockResolvedValue(0n);
+      // Global default already starts simulatedAllowance at 0; only the
+      // balance needs to be set here.
       mockGetERC20Balance.mockResolvedValue(2000000n);
     });
 
@@ -201,7 +222,7 @@ describe("positionTransactions", () => {
 
     it("should skip approval when allowance sufficient", async () => {
       const amount = 1000000n;
-      mockGetERC20Allowance.mockResolvedValue(amount + 1000n);
+      setSimulatedAllowance(amount + 1000n);
 
       await repayPartial(
         mockWalletClient,
@@ -228,9 +249,8 @@ describe("positionTransactions", () => {
   // repayMaxCapped
   // ============================================================================
   describe("repayMaxCapped", () => {
-    beforeEach(() => {
-      mockGetERC20Allowance.mockResolvedValue(0n);
-    });
+    // Global default already starts simulatedAllowance at 0; no per-block
+    // setup needed.
 
     it("should approve and send the user's full balance verbatim (no buffer math)", async () => {
       const balanceAmount = 200_000_000n;
@@ -264,7 +284,7 @@ describe("positionTransactions", () => {
 
     it("should skip approval when allowance is sufficient", async () => {
       const balanceAmount = 200_000_000n;
-      mockGetERC20Allowance.mockResolvedValue(balanceAmount + 1n);
+      setSimulatedAllowance(balanceAmount + 1n);
 
       await repayMaxCapped(
         mockWalletClient,
@@ -321,8 +341,8 @@ describe("positionTransactions", () => {
     const amountToRepay = defaultDebt + defaultDebt / FULL_REPAY_BUFFER_DIVISOR;
 
     beforeEach(() => {
+      // Global default already starts simulatedAllowance at 0.
       mockGetUserTotalDebt.mockResolvedValue(defaultDebt);
-      mockGetERC20Allowance.mockResolvedValue(0n);
       mockGetERC20Balance.mockResolvedValue(amountToRepay + 1000n);
     });
 
@@ -369,7 +389,7 @@ describe("positionTransactions", () => {
       const currentDebt = 1000000n;
       const amountToRepay =
         currentDebt + currentDebt / FULL_REPAY_BUFFER_DIVISOR;
-      mockGetERC20Allowance.mockResolvedValue(amountToRepay + 1000n);
+      setSimulatedAllowance(amountToRepay + 1000n);
 
       await repayFull(
         mockWalletClient,
@@ -410,6 +430,30 @@ describe("positionTransactions", () => {
       ).rejects.toThrow(
         "insufficient balance to fully repay: not enough stablecoin to cover the debt plus interest",
       );
+    });
+
+    it("throws when post-approve allowance verification fails (RPC lag defense)", async () => {
+      // Override the global simulation: approveERC20 succeeds but the
+      // on-chain allowance state doesn't update — this is what a stale RPC
+      // response (the bug we're defending against) looks like to the caller.
+      // ensureAllowance should catch it pre-broadcast and surface a clear
+      // error instead of letting the user sign a doomed repay tx.
+      mockApproveERC20.mockReset();
+      mockApproveERC20.mockResolvedValue(mockTxResult);
+
+      await expect(
+        repayFull(
+          mockWalletClient,
+          mockChain,
+          1n,
+          "0xtoken" as any,
+          "0xproxy" as any,
+        ),
+      ).rejects.toThrow(/Approval did not take effect/);
+
+      // Crucially, the repay was never broadcast — the user would have signed
+      // a doomed tx if we'd skipped the verification.
+      expect(mockRepayToCorePosition).not.toHaveBeenCalled();
     });
 
     it("should throw error when wallet has no account", async () => {

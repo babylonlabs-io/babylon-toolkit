@@ -95,40 +95,26 @@ export function Repay() {
       userTokenBalance,
     );
 
-  // Cosmetic minimum only — keeps the slider track from rendering at zero
-  // width when there is nothing to repay. The displayed "Max" label and the
-  // slider's accept range use the real `maxRepayAmount` so the UI doesn't
-  // advertise an amount that validation will reject.
+  // Cosmetic floor only: keeps the slider track from collapsing to zero
+  // width when there's nothing to repay. Label + accept range use the real
+  // `maxRepayAmount`.
   const sliderTrackMax = maxRepayAmount > 0 ? maxRepayAmount : MIN_SLIDER_MAX;
 
-  // Inline error surfaced when the Max-click refetch fails. We deliberately
-  // do not silently fall back to cached values — at boundaries that could
-  // pick the wrong repay mode (e.g. land in `max-capped` with a stale balance
-  // when fresh data would have been `full`, missing the safety buffer) or
-  // even leave `repayAmountRaw` undefined and fall through to the broken
-  // float round-trip. Better to ask the user to retry: React Query's 30s
-  // background refresh has typically refilled the cache by then anyway.
   const [maxClickError, setMaxClickError] = useState<string | null>(null);
 
-  // Max click: refresh debt and balance from chain so we don't decide the
-  // repay path on stale React Query data (up to 30s old). Then pick the
-  // cheapest path that actually clears the debt:
-  //
-  // - balance ≥ debt × (1 + buffer)   → "full" (repayFull adds the buffer)
-  // - debt ≤ balance < debt × (1+buf) → "max-capped" (send full balance;
-  //                                      adapter pulls min(balance, debt))
-  // - balance < debt                  → partial Max; validateRepayAction
-  //                                      will surface a "need more tokens"
-  //                                      message and keep submit disabled
-  //                                      for amount > maxRepayAmount.
-  //
-  // If either refetch fails (RPC blip, timeout), surface an explicit error
-  // and bail without touching state. Falling back to cached values can pick
-  // the wrong mode at boundaries — and worse, would leave `freshBalanceRaw`
-  // undefined for the `max-capped` branch, which would then degrade to the
-  // float round-trip we explicitly fixed.
+  // Refetch fresh debt + balance before picking the repay mode. Stale values
+  // can land us in the wrong branch (e.g. `max-capped` without a raw bigint
+  // → broken float round-trip), so on any read failure we surface an error
+  // and bail rather than silently use cached values.
   const handleMaxClick = useCallback(async () => {
     setMaxClickError(null);
+
+    // React Query's default networkMode pauses queries when offline rather
+    // than throwing, so the try/catch alone would silently use stale data.
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      setMaxClickError("Couldn't refresh balance/debt — please try again.");
+      return;
+    }
 
     let freshDebtAmount: number;
     let freshBalanceAmount: number;
@@ -140,13 +126,19 @@ export function Repay() {
         refetchUserBalance(),
       ]);
 
+      // React Query refetches don't reject on queryFn error — they surface
+      // it on the result. Treat as a failure here.
+      if (freshBalanceResult.isError) {
+        throw freshBalanceResult.error ?? new Error("Balance refetch failed");
+      }
+
       const freshDebtRaw =
         freshPosition?.debtPositions?.get(selectedReserve.reserveId)
           ?.totalDebt ?? 0n;
       freshDebtAmount = Number(
         formatUnits(freshDebtRaw, selectedReserve.token.decimals),
       );
-      freshBalanceRaw = freshBalanceResult?.data ?? 0n;
+      freshBalanceRaw = freshBalanceResult.data ?? 0n;
       freshBalanceAmount = Number(
         formatUnits(freshBalanceRaw, selectedReserve.token.decimals),
       );
@@ -175,11 +167,8 @@ export function Repay() {
     if (freshBalanceAmount >= fullRepayThreshold) {
       setRepayAmountWithMode(freshDebtAmount, "full");
     } else if (freshBalanceAmount >= freshDebtAmount) {
-      // Pass the raw bigint cap so the float round-trip in useRepayTransaction
-      // can never produce an approval amount > the user's actual balance.
-      // For ≥16-significant-digit raw balances (any 18-decimal token with > ~10
-      // tokens in the wallet) the round-trip can round up by 1 ULP, which
-      // would revert the tx. Sending the bigint sidesteps the conversion.
+      // Pass the raw bigint so the parseUnits round-trip in useRepayTransaction
+      // can't round up by 1 ULP and produce an approval > balance.
       setRepayAmountWithMode(freshBalanceAmount, "max-capped", freshBalanceRaw);
     } else {
       setRepayAmountWithMode(freshBalanceAmount, "partial");
