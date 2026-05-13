@@ -129,6 +129,59 @@ export class ViemVaultRegistryReader implements VaultRegistryReader {
     };
   }
 
+  async getProtocolInfoBatch(
+    vaultIds: readonly Hex[],
+  ): Promise<VaultProtocolInfo[]> {
+    if (vaultIds.length === 0) return [];
+
+    const results = await this.publicClient.multicall({
+      contracts: vaultIds.map((vaultId) => ({
+        address: this.contractAddress,
+        abi: BTCVaultRegistryABI as Abi,
+        functionName: "getBtcVaultProtocolInfo" as const,
+        args: [vaultId] as const,
+      })),
+      allowFailure: false,
+    });
+
+    return results.map((info, i) => {
+      const result = info as unknown as {
+        depositorSignedPeginTx: Hex;
+        universalChallengersVersion: number;
+        appVaultKeepersVersion: number;
+        offchainParamsVersion: number;
+        verifiedAt: bigint;
+        depositorWotsPkHash: Hex;
+        hashlock: Hex;
+        htlcVout: number;
+        depositorPopSignature: Hex;
+        prePeginTxHash: Hex;
+        vaultProviderCommissionBps: number;
+      };
+      if (
+        !result.depositorSignedPeginTx ||
+        result.depositorSignedPeginTx === "0x"
+      ) {
+        throw new Error(
+          `Vault ${vaultIds[i]} not found on-chain or has no pegin transaction`,
+        );
+      }
+      return {
+        depositorSignedPeginTx: result.depositorSignedPeginTx,
+        universalChallengersVersion: result.universalChallengersVersion,
+        appVaultKeepersVersion: result.appVaultKeepersVersion,
+        offchainParamsVersion: result.offchainParamsVersion,
+        verifiedAt: result.verifiedAt,
+        depositorWotsPkHash: result.depositorWotsPkHash,
+        hashlock: result.hashlock,
+        htlcVout: result.htlcVout,
+        depositorPopSignature: result.depositorPopSignature,
+        prePeginTxHash: result.prePeginTxHash,
+        vaultProviderCommissionBps: result.vaultProviderCommissionBps,
+      };
+    });
+  }
+
   async getVaultData(vaultId: Hex): Promise<VaultData> {
     const [basic, protocol] = await Promise.all([
       this.getVaultBasicInfo(vaultId),

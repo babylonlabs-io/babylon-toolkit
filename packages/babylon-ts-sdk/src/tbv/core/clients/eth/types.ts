@@ -60,6 +60,7 @@ export interface VaultData {
 export interface VaultRegistryReader {
   getVaultBasicInfo(vaultId: Hex): Promise<VaultBasicInfo>;
   getVaultProtocolInfo(vaultId: Hex): Promise<VaultProtocolInfo>;
+  getProtocolInfoBatch(vaultIds: readonly Hex[]): Promise<VaultProtocolInfo[]>;
   getVaultData(vaultId: Hex): Promise<VaultData>;
   getVaultProviderBtcPubKey(vpAddress: Address): Promise<OnChainBtcPubkey>;
   /**

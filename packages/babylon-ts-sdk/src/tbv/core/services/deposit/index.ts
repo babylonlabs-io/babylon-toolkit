@@ -44,3 +44,17 @@ export type {
   RemainingCapacityParams,
   MultiVaultDepositFlowInputs,
 } from "./validation";
+export { validateOnChainParticipantKeys } from "./validateOnChainParticipantKeys";
+export type {
+  ValidateOnChainParticipantKeysParams,
+  ValidatedOnChainParticipantKeys,
+} from "./validateOnChainParticipantKeys";
+export {
+  RegisteredVaultVersionMismatchError,
+  isRegisteredVaultVersionMismatchError,
+  verifyRegisteredVaultVersions,
+} from "./verifyRegisteredVaultVersions";
+export type { VerifyRegisteredVaultVersionsParams } from "./verifyRegisteredVaultVersions";
+export { verifyResumeBroadcastSnapshot } from "./verifyResumeBroadcastSnapshot";
+export type { VerifyResumeBroadcastSnapshotParams } from "./verifyResumeBroadcastSnapshot";
+export type { PeginBuildSnapshot } from "./peginBuildSnapshot";

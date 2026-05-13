@@ -12,10 +12,12 @@ import {
 } from "../../constants";
 import { LocalStorageStatus } from "../../models/peginStateMachine";
 import {
+  addPendingPegin,
   addUtxoReservation,
   getPendingPegins,
   getUtxoReservations,
   type PendingPeginRequest,
+  removePendingPegin,
   removeUtxoReservation,
   type UtxoReservation,
 } from "../peginStorage";
@@ -39,6 +41,8 @@ const VALID_VAULT_ID: Hex = `0x${"1".repeat(64)}`;
 const VALID_VAULT_ID_2: Hex = `0x${"2".repeat(64)}`;
 const VALID_PEGIN_TXHASH: Hex = `0x${"3".repeat(64)}`;
 
+const VALID_VP_KEY_X_ONLY = "a".repeat(64);
+
 const validPegin: PendingPeginRequest = {
   id: VALID_VAULT_ID,
   peginTxHash: VALID_PEGIN_TXHASH,
@@ -53,6 +57,12 @@ const validPegin: PendingPeginRequest = {
       scriptPubKey: "deadbeef",
     },
   ],
+  buildSnapshot: {
+    offchainParamsVersion: 7,
+    appVaultKeepersVersion: 3,
+    universalChallengersVersion: 5,
+    vaultProviderBtcPubkeyXOnly: VALID_VP_KEY_X_ONLY,
+  },
 };
 
 describe("getPendingPegins integrity validation", () => {
@@ -368,6 +378,117 @@ describe("getPendingPegins integrity validation", () => {
     localStorage.setItem(storageKey, JSON.stringify([tampered]));
 
     expect(getPendingPegins(ETH_ADDRESS)).toHaveLength(0);
+  });
+});
+
+describe("build-time snapshot fields", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    vi.clearAllMocks();
+  });
+
+  it("addPendingPegin persists buildSnapshot verbatim", () => {
+    addPendingPegin(ETH_ADDRESS, {
+      id: VALID_VAULT_ID,
+      peginTxHash: VALID_PEGIN_TXHASH,
+      unsignedTxHex: "0xdeadbeef",
+      buildSnapshot: {
+        offchainParamsVersion: 7,
+        appVaultKeepersVersion: 3,
+        universalChallengersVersion: 5,
+        vaultProviderBtcPubkeyXOnly: VALID_VP_KEY_X_ONLY,
+      },
+    });
+
+    const result = getPendingPegins(ETH_ADDRESS);
+    expect(result).toHaveLength(1);
+    expect(result[0].buildSnapshot).toEqual({
+      offchainParamsVersion: 7,
+      appVaultKeepersVersion: 3,
+      universalChallengersVersion: 5,
+      vaultProviderBtcPubkeyXOnly: VALID_VP_KEY_X_ONLY,
+    });
+  });
+
+  it("keeps legacy entries that lack buildSnapshot (resume guard rejects them at handleBroadcast)", () => {
+    const legacy = {
+      id: VALID_VAULT_ID,
+      peginTxHash: VALID_PEGIN_TXHASH,
+      timestamp: 1700000000000,
+      status: LocalStorageStatus.PENDING,
+      unsignedTxHex: "0xdeadbeef",
+    };
+    localStorage.setItem(storageKey, JSON.stringify([legacy]));
+
+    const result = getPendingPegins(ETH_ADDRESS);
+    expect(result).toHaveLength(1);
+    expect(result[0].buildSnapshot).toBeUndefined();
+  });
+
+  it("filters entries whose buildSnapshot VP key fails the lowercase 64-hex check", () => {
+    const tampered = {
+      ...validPegin,
+      buildSnapshot: {
+        ...validPegin.buildSnapshot,
+        vaultProviderBtcPubkeyXOnly: "A".repeat(64), // uppercase rejected
+      },
+    };
+    localStorage.setItem(storageKey, JSON.stringify([tampered]));
+
+    expect(getPendingPegins(ETH_ADDRESS)).toHaveLength(0);
+  });
+
+  it("filters entries whose buildSnapshot version is non-integer", () => {
+    const tampered = {
+      ...validPegin,
+      buildSnapshot: {
+        ...validPegin.buildSnapshot,
+        offchainParamsVersion: 1.5,
+      },
+    };
+    localStorage.setItem(storageKey, JSON.stringify([tampered]));
+
+    expect(getPendingPegins(ETH_ADDRESS)).toHaveLength(0);
+  });
+
+  it("filters entries whose buildSnapshot version is negative", () => {
+    const tampered = {
+      ...validPegin,
+      buildSnapshot: {
+        ...validPegin.buildSnapshot,
+        appVaultKeepersVersion: -1,
+      },
+    };
+    localStorage.setItem(storageKey, JSON.stringify([tampered]));
+
+    expect(getPendingPegins(ETH_ADDRESS)).toHaveLength(0);
+  });
+
+  it("removePendingPegin removes a single entry by id and leaves siblings intact", () => {
+    const snapshot = {
+      offchainParamsVersion: 7,
+      appVaultKeepersVersion: 3,
+      universalChallengersVersion: 5,
+      vaultProviderBtcPubkeyXOnly: VALID_VP_KEY_X_ONLY,
+    };
+    addPendingPegin(ETH_ADDRESS, {
+      id: VALID_VAULT_ID,
+      peginTxHash: VALID_PEGIN_TXHASH,
+      unsignedTxHex: "0xdeadbeef",
+      buildSnapshot: snapshot,
+    });
+    addPendingPegin(ETH_ADDRESS, {
+      id: VALID_VAULT_ID_2,
+      peginTxHash: VALID_PEGIN_TXHASH,
+      unsignedTxHex: "0xcafebabe",
+      buildSnapshot: snapshot,
+    });
+
+    removePendingPegin(ETH_ADDRESS, VALID_VAULT_ID);
+
+    const result = getPendingPegins(ETH_ADDRESS);
+    expect(result).toHaveLength(1);
+    expect(result[0].id).toBe(VALID_VAULT_ID_2);
   });
 });
 
