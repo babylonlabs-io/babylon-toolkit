@@ -93,10 +93,18 @@ describe("positionTransactions", () => {
     vi.clearAllMocks();
     simulatedAllowance = 0n;
     mockGetERC20Allowance.mockImplementation(async () => simulatedAllowance);
-    mockApproveERC20.mockImplementation(async (...args) => {
-      simulatedAllowance = args[4] as bigint;
-      return mockTxResult;
-    });
+    mockApproveERC20.mockImplementation(
+      async (
+        _walletClient: unknown,
+        _chain: unknown,
+        _tokenAddress: unknown,
+        _spenderAddress: unknown,
+        amount: bigint,
+      ) => {
+        simulatedAllowance = amount;
+        return mockTxResult;
+      },
+    );
     mockBorrowFromCorePosition.mockResolvedValue(mockTxResult);
     mockRepayToCorePosition.mockResolvedValue(mockTxResult);
     mockWithdrawCollaterals.mockResolvedValue(mockTxResult);
