@@ -42,6 +42,11 @@ vi.mock("../applications/aave/services", () => ({
 vi.mock("@/context/wallet", () => ({
   useETHWallet: () => ({ address: "0xethtest", connected: true }),
   useBTCWallet: () => ({ connected: true }),
+  useConnection: () => ({
+    isConnected: true,
+    btcConnected: true,
+    ethConnected: true,
+  }),
 }));
 
 vi.mock("../services/activity", async () => {

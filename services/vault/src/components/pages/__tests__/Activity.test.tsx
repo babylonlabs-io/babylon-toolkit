@@ -11,12 +11,12 @@ import { render, screen } from "@testing-library/react";
 import { MemoryRouter, Outlet, Route, Routes } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const useBTCWalletMock = vi.fn();
+const useConnectionMock = vi.fn();
 const useETHWalletMock = vi.fn();
 const useActivitiesWithPendingMock = vi.fn();
 
-vi.mock("@/context/wallet", () => ({
-  useBTCWallet: () => useBTCWalletMock(),
+vi.mock("../../../context/wallet", () => ({
+  useConnection: () => useConnectionMock(),
   useETHWallet: () => useETHWalletMock(),
 }));
 
@@ -48,7 +48,11 @@ describe("Activity page — wallet gating", () => {
   });
 
   it("treats BTC-disconnected + ETH-stale-address as disconnected, skipping the indexer query", () => {
-    useBTCWalletMock.mockReturnValue({ connected: false, address: "" });
+    useConnectionMock.mockReturnValue({
+      isConnected: false,
+      btcConnected: false,
+      ethConnected: true,
+    });
     useETHWalletMock.mockReturnValue({
       address: "0xabc0000000000000000000000000000000000001",
       connected: true,
@@ -69,7 +73,11 @@ describe("Activity page — wallet gating", () => {
   });
 
   it("treats ETH-disconnected + BTC-connected as disconnected, skipping the indexer query", () => {
-    useBTCWalletMock.mockReturnValue({ connected: true, address: "bc1qtest" });
+    useConnectionMock.mockReturnValue({
+      isConnected: false,
+      btcConnected: true,
+      ethConnected: false,
+    });
     useETHWalletMock.mockReturnValue({
       address: undefined,
       connected: false,
@@ -90,9 +98,10 @@ describe("Activity page — wallet gating", () => {
   });
 
   it("treats both wallets connected as connected and renders the connected empty state", () => {
-    useBTCWalletMock.mockReturnValue({
-      connected: true,
-      address: "bc1qtest",
+    useConnectionMock.mockReturnValue({
+      isConnected: true,
+      btcConnected: true,
+      ethConnected: true,
     });
     useETHWalletMock.mockReturnValue({
       address: "0xabc0000000000000000000000000000000000001",
