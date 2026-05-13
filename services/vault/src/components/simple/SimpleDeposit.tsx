@@ -1,12 +1,13 @@
 import { FullScreenDialog, Heading } from "@babylonlabs-io/core-ui";
 import { useCallback, useEffect, useRef } from "react";
-import type { Hex } from "viem";
+import type { Address, Hex } from "viem";
 
 import { FeatureFlags } from "@/config";
 import { useAddressScreening } from "@/context/addressScreening";
 import { useGeoFencing } from "@/context/geofencing";
 import { ProtocolParamsProvider } from "@/context/ProtocolParamsContext";
 import { useETHWallet } from "@/context/wallet";
+import { useDepositPeginFee } from "@/hooks/deposit/useDepositPeginFee";
 import { useDialogStep } from "@/hooks/deposit/useDialogStep";
 import { useProtocolFeeRows } from "@/hooks/useProtocolFeeRows";
 import { depositService } from "@/services/deposit";
@@ -124,6 +125,15 @@ function SimpleDepositContent({
     ordinalsCheckPending,
     validateForm,
   } = useDepositPageForm();
+
+  const {
+    feeEthFormatted: protocolFeeAmount,
+    feeUsdFormatted: protocolFeePrice,
+  } = useDepositPeginFee(
+    formData.selectedProvider
+      ? (formData.selectedProvider as Address)
+      : undefined,
+  );
 
   const {
     depositStep,
@@ -261,6 +271,8 @@ function SimpleDepositContent({
                 onDeposit={handleDeposit}
                 partialLiquidation={partialLiquidationProps}
                 collateralFactor={collateralFactor}
+                protocolFeeAmount={protocolFeeAmount}
+                protocolFeePrice={protocolFeePrice}
                 feeRows={feeRows}
                 ordinalsCheckUnavailable={ordinalsCheckUnavailable}
                 ordinalsCheckPending={ordinalsCheckPending}
