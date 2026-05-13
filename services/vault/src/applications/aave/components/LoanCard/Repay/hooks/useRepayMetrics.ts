@@ -6,7 +6,11 @@
  * Repaying improves the health factor.
  */
 
-import { NEAR_ZERO_DEBT_DISPLAY_THRESHOLD } from "../../../../constants";
+import {
+  NEAR_ZERO_DEBT_DISPLAY_THRESHOLD,
+  NEAR_ZERO_DEBT_RELATIVE_CAP_USD,
+  NEAR_ZERO_DEBT_RELATIVE_THRESHOLD,
+} from "../../../../constants";
 import {
   calculateBorrowRatio,
   calculateHealthFactor,
@@ -67,23 +71,28 @@ export function useRepayMetrics({
     0,
     totalDebtValueUsd - repayAmount * tokenPriceUsd,
   );
-  const isDebtNearZero =
-    projectedTotalDebtUsd < NEAR_ZERO_DEBT_DISPLAY_THRESHOLD;
+  const nearZeroAbsoluteThreshold = Math.max(
+    NEAR_ZERO_DEBT_DISPLAY_THRESHOLD,
+    Math.min(
+      totalDebtValueUsd * NEAR_ZERO_DEBT_RELATIVE_THRESHOLD,
+      NEAR_ZERO_DEBT_RELATIVE_CAP_USD,
+    ),
+  );
+  const isDebtNearZero = projectedTotalDebtUsd < nearZeroAbsoluteThreshold;
 
-  const healthFactorValue =
-    projectedTotalDebtUsd > 0
-      ? calculateHealthFactor(
-          collateralValueUsd,
-          projectedTotalDebtUsd,
-          liquidationThresholdBps,
-        )
-      : Infinity;
+  const healthFactorValue = isDebtNearZero
+    ? Infinity
+    : calculateHealthFactor(
+        collateralValueUsd,
+        projectedTotalDebtUsd,
+        liquidationThresholdBps,
+      );
 
   const originalHealthValue = currentHealthFactor ?? Infinity;
 
   return {
     borrowRatio: calculateBorrowRatio(
-      projectedTotalDebtUsd,
+      isDebtNearZero ? 0 : projectedTotalDebtUsd,
       collateralValueUsd,
     ),
     borrowRatioOriginal: calculateBorrowRatio(
