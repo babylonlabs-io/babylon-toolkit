@@ -447,33 +447,74 @@ export function filterPendingPegins(
 // ============================================================================
 
 /**
- * A lightweight reservation written to localStorage immediately after
- * transaction preparation, BEFORE wallet interaction or ETH registration.
- * This closes the TOCTOU race window where another tab could select the
- * same UTXOs during the 1-3 minute signing/registration process.
+ * A lightweight reservation written to localStorage BEFORE any wallet
+ * popup or Ethereum registration. Stored as outpoint pairs (`txid:vout`)
+ * since at pre-claim time no transaction has been built yet. Closes the
+ * TOCTOU race where a sibling tab could select the same funding outpoint
+ * during the 1-3 minute wallet-signing window inside `preparePegin`.
  */
 export interface UtxoReservation {
-  unsignedTxHex: string;
+  outpoints: Array<{ txid: string; vout: number }>;
   timestamp: number;
   batchId: string;
+}
+
+/**
+ * Thrown when `addUtxoReservation` detects an overlapping outpoint claim
+ * under a different `batchId`. Carries the conflicting batch and the
+ * offending outpoint so callers can surface a useful message.
+ */
+export class UtxoReservationConflictError extends Error {
+  readonly conflictingBatchId: string;
+  readonly outpoint: { txid: string; vout: number };
+
+  constructor(
+    conflictingBatchId: string,
+    outpoint: { txid: string; vout: number },
+  ) {
+    super(
+      `UTXO ${outpoint.txid}:${outpoint.vout} is already reserved by another in-flight deposit (batch ${conflictingBatchId}).`,
+    );
+    this.name = "UtxoReservationConflictError";
+    this.conflictingBatchId = conflictingBatchId;
+    this.outpoint = outpoint;
+  }
 }
 
 function getReservationStorageKey(ethAddress: string): string {
   return `${UTXO_RESERVATION_KEY_PREFIX}-${ethAddress}`;
 }
 
+function isValidOutpoint(
+  value: unknown,
+): value is { txid: string; vout: number } {
+  if (!value || typeof value !== "object") return false;
+  const o = value as Record<string, unknown>;
+  if (typeof o.txid !== "string" || !TXID_HEX_RE.test(o.txid)) return false;
+  if (typeof o.vout !== "number" || !Number.isInteger(o.vout) || o.vout < 0) {
+    return false;
+  }
+  return true;
+}
+
 function isValidReservation(entry: unknown): entry is UtxoReservation {
   if (!entry || typeof entry !== "object") return false;
   const r = entry as Record<string, unknown>;
+  if (!Array.isArray(r.outpoints) || r.outpoints.length === 0) return false;
+  for (const op of r.outpoints) {
+    if (!isValidOutpoint(op)) return false;
+  }
   return (
-    typeof r.unsignedTxHex === "string" &&
-    NON_EMPTY_HEX_RE.test(r.unsignedTxHex) &&
     typeof r.timestamp === "number" &&
     Number.isFinite(r.timestamp) &&
     r.timestamp > 0 &&
     typeof r.batchId === "string" &&
     r.batchId.length > 0
   );
+}
+
+function outpointKey(o: { txid: string; vout: number }): string {
+  return `${o.txid.toLowerCase()}:${o.vout}`;
 }
 
 /**
@@ -534,27 +575,111 @@ function saveReservations(
   // the native StorageEvent fired by localStorage writes.
 }
 
+function findOutpointConflict(
+  reservations: UtxoReservation[],
+  batchId: string,
+  outpoints: ReadonlyArray<{ txid: string; vout: number }>,
+):
+  | { conflictingBatchId: string; outpoint: { txid: string; vout: number } }
+  | undefined {
+  const claimed = new Map<string, string>(); // outpoint key -> batchId
+  for (const r of reservations) {
+    if (r.batchId === batchId) continue;
+    for (const op of r.outpoints) {
+      claimed.set(outpointKey(op), r.batchId);
+    }
+  }
+  for (const op of outpoints) {
+    const owner = claimed.get(outpointKey(op));
+    if (owner !== undefined) {
+      return {
+        conflictingBatchId: owner,
+        outpoint: { txid: op.txid, vout: op.vout },
+      };
+    }
+  }
+  return undefined;
+}
+
+async function withReservationLock<T>(
+  ethAddress: string,
+  fn: () => T,
+): Promise<T> {
+  // Web Locks API serializes the read-modify-write cross-tab. When the API
+  // is unavailable (very old browsers, jsdom test runners) we fall back to
+  // inline execution — still atomic within a single JS task; cross-tab
+  // races are then caught by the final-pass `assertNoReservationConflict`.
+  const locks = (
+    globalThis as {
+      navigator?: {
+        locks?: {
+          request?: (name: string, cb: () => unknown) => Promise<unknown>;
+        };
+      };
+    }
+  ).navigator?.locks;
+  if (locks?.request) {
+    const lockName = `pegin-reservation-${ethAddress}`;
+    return locks.request(lockName, () => fn()) as Promise<T>;
+  }
+  return fn();
+}
+
 /**
- * Reserve UTXOs by writing the prepared transaction hex to localStorage.
- * Called immediately after `preparePeginTransaction()`, before wallet
- * interaction or ETH registration.
+ * Reserve UTXOs by writing their outpoints to localStorage BEFORE wallet
+ * signing or Ethereum registration. Rejects any reservation whose
+ * outpoints overlap an existing entry under a different `batchId`.
+ * Same-`batchId` writes always overwrite in place (used by the
+ * pre-claim → narrow-after-preparePegin refresh).
+ *
+ * @throws {UtxoReservationConflictError} when an outpoint is already
+ * claimed by another in-flight deposit.
  */
-export function addUtxoReservation(
+export async function addUtxoReservation(
   ethAddress: string,
   reservation: UtxoReservation,
-): void {
+): Promise<void> {
   if (!ethAddress) return;
 
-  try {
+  await withReservationLock(ethAddress, () => {
     const existing = getUtxoReservations(ethAddress);
-    // Replace any existing reservation with the same batchId
+    const conflict = findOutpointConflict(
+      existing,
+      reservation.batchId,
+      reservation.outpoints,
+    );
+    if (conflict) {
+      throw new UtxoReservationConflictError(
+        conflict.conflictingBatchId,
+        conflict.outpoint,
+      );
+    }
     const filtered = existing.filter((r) => r.batchId !== reservation.batchId);
     saveReservations(ethAddress, [...filtered, reservation]);
-  } catch (error) {
-    logger.warn("[peginStorage] Failed to write UTXO reservation", {
-      category: "peginStorage",
-      error: error instanceof Error ? error.message : String(error),
-    });
+  });
+}
+
+/**
+ * Final-pass conflict check, invoked right before Ethereum registration.
+ * Defense-in-depth: catches the residual race where two tabs without
+ * Web Locks both wrote a reservation in the same microtask.
+ *
+ * @throws {UtxoReservationConflictError} when an outpoint is already
+ * claimed by another batch.
+ */
+export function assertNoReservationConflict(
+  ethAddress: string,
+  batchId: string,
+  outpoints: ReadonlyArray<{ txid: string; vout: number }>,
+): void {
+  if (!ethAddress) return;
+  const existing = getUtxoReservations(ethAddress);
+  const conflict = findOutpointConflict(existing, batchId, outpoints);
+  if (conflict) {
+    throw new UtxoReservationConflictError(
+      conflict.conflictingBatchId,
+      conflict.outpoint,
+    );
   }
 }
 
