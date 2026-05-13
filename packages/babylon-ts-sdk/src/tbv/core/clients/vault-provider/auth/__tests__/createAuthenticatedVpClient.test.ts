@@ -77,6 +77,7 @@ describe("createAuthenticatedVpClient", () => {
   it("AUTH_GATED_METHODS pins the canonical protocol-invariant set", () => {
     expect(Array.from(AUTH_GATED_METHODS).sort()).toEqual(
       [
+        "vaultProvider_requestDepositorClaimerArtifacts",
         "vaultProvider_requestDepositorPresignTransactions",
         "vaultProvider_submitDepositorPresignatures",
         "vaultProvider_submitDepositorWotsKey",

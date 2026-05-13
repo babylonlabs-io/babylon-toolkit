@@ -11,4 +11,5 @@ export const AUTH_GATED_METHODS: ReadonlySet<string> = new Set([
   "vaultProvider_submitDepositorWotsKey",
   "vaultProvider_submitDepositorPresignatures",
   "vaultProvider_requestDepositorPresignTransactions",
+  "vaultProvider_requestDepositorClaimerArtifacts",
 ]);
