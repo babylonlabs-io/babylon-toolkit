@@ -170,6 +170,13 @@ just not for the network the user is currently on. Cross-wallet
 portability of `deriveContextHash` outputs is only defined for the
 canonical networks above.
 
+**Why the network name on top of `connectedPubkey`?** For BIP-44 HD
+wallets the pubkey already differs by `coin_type` (mainnet `0'` vs
+testnet `1'`). The network name covers the cases it doesn't:
+imported / raw-key wallets (same scalar across networks → same
+pubkey), chains sharing a `coin_type` (testnet, signet, and regtest
+all `1'`), and wallets using non-BIP-44 derivations.
+
 Testnet3 and testnet4 share a single `bitcoin-testnet` canonical
 name on purpose: BIP-32 derivation is identical across the two
 networks, so a wallet that has migrated from testnet3 to testnet4
