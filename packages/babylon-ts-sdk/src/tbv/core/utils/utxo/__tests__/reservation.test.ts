@@ -371,12 +371,36 @@ describe("UTXO Reservation", () => {
         pendingPegins: [],
         vaults: [],
         utxoReservations: [
-          { unsignedTxHex: createValidTxHex(reservationTxid, 2) },
+          { outpoints: [{ txid: reservationTxid, vout: 2 }] },
         ],
       });
 
       expect(reserved).toHaveLength(1);
       expect(hasRef(reserved, reservationTxid, 2)).toBe(true);
+    });
+
+    it("should collect every outpoint from a multi-input reservation", () => {
+      const txidA =
+        "1111111111111111111111111111111111111111111111111111111111111111";
+      const txidB =
+        "2222222222222222222222222222222222222222222222222222222222222222";
+
+      const reserved = collectReservedUtxoRefs({
+        pendingPegins: [],
+        vaults: [],
+        utxoReservations: [
+          {
+            outpoints: [
+              { txid: txidA, vout: 0 },
+              { txid: txidB, vout: 5 },
+            ],
+          },
+        ],
+      });
+
+      expect(reserved).toHaveLength(2);
+      expect(hasRef(reserved, txidA, 0)).toBe(true);
+      expect(hasRef(reserved, txidB, 5)).toBe(true);
     });
 
     it("should combine refs from reservations with pending pegins and vaults", () => {
@@ -393,7 +417,7 @@ describe("UTXO Reservation", () => {
         pendingPegins: [mockPendingPegin],
         vaults: [vault],
         utxoReservations: [
-          { unsignedTxHex: createValidTxHex(reservationTxid, 7) },
+          { outpoints: [{ txid: reservationTxid, vout: 7 }] },
         ],
       });
 
