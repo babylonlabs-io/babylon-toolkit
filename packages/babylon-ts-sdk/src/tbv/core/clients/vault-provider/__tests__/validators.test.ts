@@ -549,11 +549,12 @@ describe("VP Response Validators", () => {
   });
 
   describe("validateRequestDepositorClaimerArtifactsResponse", () => {
+    const CHALLENGER_PUBKEY = "d".repeat(64);
     const validResponse = {
       tx_graph_json: "{ }",
       verifying_key_hex: "aabb",
       babe_sessions: {
-        challenger1: { decryptor_artifacts_hex: "ccdd" },
+        [CHALLENGER_PUBKEY]: { decryptor_artifacts_hex: "ccdd" },
       },
     };
 
@@ -563,13 +564,66 @@ describe("VP Response Validators", () => {
       ).not.toThrow();
     });
 
-    it("accepts response with empty babe_sessions", () => {
+    it("accepts compressed-pubkey-keyed sessions", () => {
+      expect(() =>
+        validateRequestDepositorClaimerArtifactsResponse({
+          ...validResponse,
+          babe_sessions: {
+            [VALID_COMPRESSED_PUBKEY]: { decryptor_artifacts_hex: "ccdd" },
+          },
+        }),
+      ).not.toThrow();
+    });
+
+    it("rejects empty babe_sessions", () => {
       expect(() =>
         validateRequestDepositorClaimerArtifactsResponse({
           ...validResponse,
           babe_sessions: {},
         }),
-      ).not.toThrow();
+      ).toThrow(VpResponseValidationError);
+    });
+
+    it("rejects babe_sessions whose keys are not BTC pubkeys", () => {
+      expect(() =>
+        validateRequestDepositorClaimerArtifactsResponse({
+          ...validResponse,
+          babe_sessions: {
+            attacker_label: { decryptor_artifacts_hex: "deadbeef" },
+          },
+        }),
+      ).toThrow(VpResponseValidationError);
+    });
+
+    it("rejects babe_sessions keyed by non-hex strings", () => {
+      expect(() =>
+        validateRequestDepositorClaimerArtifactsResponse({
+          ...validResponse,
+          babe_sessions: {
+            ["z".repeat(64)]: { decryptor_artifacts_hex: "deadbeef" },
+          },
+        }),
+      ).toThrow(VpResponseValidationError);
+    });
+
+    it("rejects babe_sessions keyed by wrong-length hex", () => {
+      expect(() =>
+        validateRequestDepositorClaimerArtifactsResponse({
+          ...validResponse,
+          babe_sessions: {
+            ["a".repeat(40)]: { decryptor_artifacts_hex: "deadbeef" },
+          },
+        }),
+      ).toThrow(VpResponseValidationError);
+    });
+
+    it("rejects babe_sessions when it is an array", () => {
+      expect(() =>
+        validateRequestDepositorClaimerArtifactsResponse({
+          ...validResponse,
+          babe_sessions: [],
+        }),
+      ).toThrow(VpResponseValidationError);
     });
 
     it("rejects null response", () => {
@@ -624,7 +678,7 @@ describe("VP Response Validators", () => {
       expect(() =>
         validateRequestDepositorClaimerArtifactsResponse({
           ...validResponse,
-          babe_sessions: { challenger1: null },
+          babe_sessions: { [CHALLENGER_PUBKEY]: null },
         }),
       ).toThrow(VpResponseValidationError);
     });
@@ -634,7 +688,7 @@ describe("VP Response Validators", () => {
         validateRequestDepositorClaimerArtifactsResponse({
           ...validResponse,
           babe_sessions: {
-            challenger1: { decryptor_artifacts_hex: "xyz" },
+            [CHALLENGER_PUBKEY]: { decryptor_artifacts_hex: "xyz" },
           },
         }),
       ).toThrow(VpResponseValidationError);
