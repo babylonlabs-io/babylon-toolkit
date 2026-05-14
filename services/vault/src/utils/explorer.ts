@@ -5,10 +5,11 @@
  * ETH:  <chain explorer>/tx/<hash>                      (hash with 0x)
  */
 
+import { stripHexPrefix } from "@babylonlabs-io/ts-sdk/tbv/core";
+
 import { getNetworkConfigBTC } from "@/config";
 import { getNetworkConfigETH } from "@/config/network";
 import type { ActivityChain } from "@/types/activityLog";
-import { stripHexPrefix } from "@/utils/btc";
 
 export function getBtcExplorerTxUrl(txHash: string): string {
   const btcConfig = getNetworkConfigBTC();

@@ -31,6 +31,7 @@ import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
 import {
   ensureHexPrefix,
   isRegisteredVaultVersionMismatchError,
+  stripHexPrefix,
   validateOnChainParticipantKeys,
   verifyRegisteredVaultVersions,
 } from "@babylonlabs-io/ts-sdk/tbv/core";
@@ -76,7 +77,7 @@ import {
   updatePendingPeginStatus,
 } from "@/storage/peginStorage";
 import type { Vault } from "@/types/vault";
-import { btcAddressToScriptPubKeyHex, stripHexPrefix } from "@/utils/btc";
+import { btcAddressToScriptPubKeyHex } from "@/utils/btc";
 import { satoshiToBtcNumber } from "@/utils/btcConversion";
 import { sanitizeErrorMessage } from "@/utils/errors/formatting";
 import { formatBtcValue } from "@/utils/formatting";

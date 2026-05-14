@@ -2,9 +2,8 @@
  * Step 2.5: WOTS public key RPC submission — adapter over SDK.
  */
 
+import { stripHexPrefix } from "@babylonlabs-io/ts-sdk/tbv/core";
 import { submitWotsPublicKey as sdkSubmitWotsPublicKey } from "@babylonlabs-io/ts-sdk/tbv/core/services";
-
-import { stripHexPrefix } from "@/utils/btc";
 
 import { ensureAuthenticatedVpClient } from "./ensureAuthenticatedVpClient";
 import type { WotsSubmissionParams } from "./types";
