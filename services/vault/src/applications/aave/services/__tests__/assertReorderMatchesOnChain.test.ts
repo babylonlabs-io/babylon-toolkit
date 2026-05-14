@@ -21,8 +21,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { getBtcVaultBasicInfoFromChain } from "@/clients/eth-contract/btc-vault-registry/query";
 
 import {
+  PositionChangedError,
   ReorderMembershipMismatchError,
   SuggestedReorderMismatchError,
+  assertReorderBaseline,
   assertReorderMembership,
   assertSuggestedOrderMatchesOnChain,
   type ReorderVerificationContext,
@@ -375,5 +377,37 @@ describe("assertSuggestedOrderMatchesOnChain", () => {
         CONTEXT_BASE,
       ),
     ).rejects.toBeInstanceOf(SuggestedReorderMismatchError);
+  });
+});
+
+describe("assertReorderBaseline", () => {
+  it("resolves when live ordering equals the expected baseline", () => {
+    expect(() =>
+      assertReorderBaseline([VAULT_A, VAULT_B], [VAULT_A, VAULT_B]),
+    ).not.toThrow();
+  });
+
+  it("matches case-insensitively on the bytes32 hex", () => {
+    expect(() =>
+      assertReorderBaseline(
+        [VAULT_A.toLowerCase() as Hex, VAULT_B.toUpperCase() as Hex],
+        [VAULT_A.toUpperCase() as Hex, VAULT_B.toLowerCase() as Hex],
+      ),
+    ).not.toThrow();
+  });
+
+  it("throws PositionChangedError on same-set/different-order — the #262 PoC", () => {
+    // User opened modal at [A, B]. Live ordering raced to [B, A]. The
+    // multiset still matches (Guard A would pass), but the order
+    // differs — Guard C must catch it.
+    expect(() =>
+      assertReorderBaseline([VAULT_B, VAULT_A], [VAULT_A, VAULT_B]),
+    ).toThrow(PositionChangedError);
+  });
+
+  it("throws PositionChangedError when lengths differ", () => {
+    expect(() => assertReorderBaseline([VAULT_A], [VAULT_A, VAULT_B])).toThrow(
+      PositionChangedError,
+    );
   });
 });

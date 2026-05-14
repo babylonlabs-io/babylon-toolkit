@@ -58,8 +58,10 @@ export {
 
 // On-chain integrity guards
 export {
+  PositionChangedError,
   ReorderMembershipMismatchError,
   SuggestedReorderMismatchError,
+  assertReorderBaseline,
   assertReorderMembership,
   assertSuggestedOrderMatchesOnChain,
   type ReorderVerificationContext,
