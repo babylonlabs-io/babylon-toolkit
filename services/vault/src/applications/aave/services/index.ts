@@ -58,6 +58,13 @@ export {
 
 // On-chain integrity guards
 export {
+  ReorderMembershipMismatchError,
+  SuggestedReorderMismatchError,
+  assertReorderMembership,
+  assertSuggestedOrderMatchesOnChain,
+  type ReorderVerificationContext,
+} from "./assertReorderMatchesOnChain";
+export {
   ReserveMismatchError,
   assertReserveMatchesOnChain,
 } from "./assertReserveMatchesOnChain";
