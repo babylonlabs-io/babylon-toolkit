@@ -119,6 +119,12 @@ export function useAaveUserPosition(
     enabled: !!connectedAddress && !!spokeAddress && vbtcReserveId != null,
     refetchOnMount: true,
     refetchInterval: POSITION_REFETCH_INTERVAL_MS,
+    // `"online"` (the default) pauses queries when `navigator.onLine` is
+    // false rather than running queryFn — `refetch()` then resolves with
+    // stale data and `isError` never flips. `"always"` lets real network
+    // failures surface through `isError`, which the repay submit path
+    // relies on to fail loudly instead of using stale debt values.
+    networkMode: "always",
   });
 
   // Track staleness: re-evaluate when dataUpdatedAt changes or on a timer

@@ -1,7 +1,18 @@
 import type React from "react";
+import { useEffect, useState } from "react";
 import { twJoin, twMerge } from "tailwind-merge";
 import { Slider, type SliderStep } from "../../../components/Slider";
 import { sanitizeNumericInput } from "../../../utils/helpers";
+
+function toNumber(amount: string | number): number {
+  return typeof amount === "number" ? amount : parseFloat(amount);
+}
+
+function formatForInput(amount: string | number): string {
+  const num = toNumber(amount);
+  if (!Number.isFinite(num) || num === 0) return "";
+  return String(num);
+}
 
 interface BalanceDetails {
   balance: number | string;
@@ -72,6 +83,24 @@ export function AmountSlider({
   className,
   inputClassName,
 }: AmountSliderProps) {
+  // Local string mirror so partial decimals like "0." survive a re-render
+  // (a controlled `value={amount}` would collapse "0." back to "0").
+  const [rawInput, setRawInput] = useState<string>(() => formatForInput(amount));
+
+  // Sync from external amount changes (Max, slider, reset). Skip when the
+  // current string already parses to the same number — that's the user
+  // mid-typing case.
+  useEffect(() => {
+    const external = toNumber(amount);
+    const current = parseFloat(rawInput);
+    const sameNumber =
+      (Number.isFinite(current) && current === external) ||
+      (!Number.isFinite(current) && !Number.isFinite(external));
+    if (sameNumber) return;
+    setRawInput(formatForInput(amount));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [amount]);
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "ArrowUp" || e.key === "ArrowDown") {
       e.preventDefault();
@@ -81,9 +110,10 @@ export function AmountSlider({
   const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = sanitizeNumericInput(e.target.value);
     if (value === undefined) {
-      e.target.value = String(amount);
+      e.target.value = rawInput;
       return;
     }
+    setRawInput(value);
     e.target.value = value;
     onAmountChange?.(e);
   };
@@ -109,7 +139,7 @@ export function AmountSlider({
         <input
           type="text"
           inputMode="decimal"
-          value={amount}
+          value={rawInput}
           onChange={handleAmountChange}
           onKeyDown={handleKeyDown}
           disabled={disabled}

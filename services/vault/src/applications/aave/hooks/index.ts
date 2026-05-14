@@ -25,6 +25,7 @@ export {
 } from "./useReorderVaults";
 export {
   useRepayTransaction,
+  type RepayMode,
   type UseRepayTransactionProps,
   type UseRepayTransactionResult,
 } from "./useRepayTransaction";
