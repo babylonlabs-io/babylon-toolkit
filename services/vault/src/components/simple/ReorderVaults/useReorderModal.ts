@@ -25,6 +25,13 @@ export function useReorderModal({
 }: UseReorderModalParams): UseReorderModalResult {
   const [orderedVaults, setOrderedVaults] =
     useState<CollateralVaultEntry[]>(vaults);
+  // The vault ordering the user reviewed at modal open. Drag mutations
+  // only touch `orderedVaults`; this baseline stays put so the signing
+  // guard can detect concurrent live-state changes during the user's
+  // think-time.
+  const [baselineVaultIds, setBaselineVaultIds] = useState<readonly Hex[]>(() =>
+    vaults.map((v) => v.vaultId as Hex),
+  );
   const { executeReorder, isProcessing } = useReorderVaults();
 
   // Initialize order only when modal opens — intentionally excludes `vaults`
@@ -32,6 +39,7 @@ export function useReorderModal({
   useEffect(() => {
     if (isOpen) {
       setOrderedVaults(vaults);
+      setBaselineVaultIds(vaults.map((v) => v.vaultId as Hex));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
@@ -54,8 +62,10 @@ export function useReorderModal({
 
   const handleConfirm = useCallback(async () => {
     const permutedVaultIds = orderedVaults.map((v) => v.vaultId as Hex);
-    return executeReorder(permutedVaultIds);
-  }, [orderedVaults, executeReorder]);
+    return executeReorder(permutedVaultIds, {
+      expectedCurrentVaultIds: baselineVaultIds,
+    });
+  }, [orderedVaults, baselineVaultIds, executeReorder]);
 
   return {
     orderedVaults,

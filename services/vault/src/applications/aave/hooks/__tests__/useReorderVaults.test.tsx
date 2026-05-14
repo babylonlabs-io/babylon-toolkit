@@ -48,11 +48,22 @@ vi.mock("../../config", () => ({
 }));
 
 const mockAssertMembership = vi.fn();
+const mockAssertBaseline = vi.fn();
 const mockAssertSuggestedOrder = vi.fn();
 const mockReorderVaultOrder = vi.fn();
+
+const { FakePositionChangedError } = vi.hoisted(() => {
+  class FakePositionChangedError extends Error {
+    readonly code = "POSITION_CHANGED_REFRESH_REQUIRED";
+  }
+  return { FakePositionChangedError };
+});
+
 vi.mock("../../services", () => ({
+  PositionChangedError: FakePositionChangedError,
   assertReorderMembership: (...args: unknown[]) =>
     mockAssertMembership(...args),
+  assertReorderBaseline: (...args: unknown[]) => mockAssertBaseline(...args),
   assertSuggestedOrderMatchesOnChain: (...args: unknown[]) =>
     mockAssertSuggestedOrder(...args),
   reorderVaultOrder: (...args: unknown[]) => mockReorderVaultOrder(...args),
@@ -90,6 +101,7 @@ describe("useReorderVaults — on-chain integrity guards", () => {
     // into calculate(...). Default mock returns the same IDs the test
     // submits — individual tests can override.
     mockAssertMembership.mockResolvedValue([VAULT_A, VAULT_B]);
+    mockAssertBaseline.mockReturnValue(undefined);
     mockAssertSuggestedOrder.mockResolvedValue(undefined);
     mockReorderVaultOrder.mockResolvedValue({
       transactionHash: "0xtx",
@@ -191,5 +203,58 @@ describe("useReorderVaults — on-chain integrity guards", () => {
     expect(resolved).toBe(false);
     expect(mockAssertMembership).not.toHaveBeenCalled();
     expect(mockReorderVaultOrder).not.toHaveBeenCalled();
+  });
+
+  it("forwards Guard A's live ordering into the baseline check when expectedCurrentVaultIds is provided", async () => {
+    mockAssertMembership.mockResolvedValue([VAULT_A, VAULT_B]);
+
+    const { result } = renderHook(() => useReorderVaults());
+
+    await act(async () => {
+      await result.current.executeReorder([VAULT_B, VAULT_A], {
+        expectedCurrentVaultIds: [VAULT_A, VAULT_B],
+      });
+    });
+
+    expect(mockAssertBaseline).toHaveBeenCalledTimes(1);
+    expect(mockAssertBaseline).toHaveBeenCalledWith(
+      [VAULT_A, VAULT_B],
+      [VAULT_A, VAULT_B],
+    );
+    expect(mockReorderVaultOrder).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not call the baseline check on the banner CTA path (no expectedCurrentVaultIds)", async () => {
+    const { result } = renderHook(() => useReorderVaults());
+
+    await act(async () => {
+      await result.current.executeReorder([VAULT_A, VAULT_B]);
+    });
+
+    expect(mockAssertBaseline).not.toHaveBeenCalled();
+    expect(mockReorderVaultOrder).toHaveBeenCalledTimes(1);
+  });
+
+  it("blocks the reorder tx and surfaces PositionChangedError unwrapped when the baseline differs", async () => {
+    const positionChangedError = new FakePositionChangedError(
+      "collateral order changed",
+    );
+    mockAssertBaseline.mockImplementation(() => {
+      throw positionChangedError;
+    });
+
+    const { result } = renderHook(() => useReorderVaults());
+
+    let resolved: boolean | undefined;
+    await act(async () => {
+      resolved = await result.current.executeReorder([VAULT_B, VAULT_A], {
+        expectedCurrentVaultIds: [VAULT_A, VAULT_B],
+      });
+    });
+
+    expect(resolved).toBe(false);
+    expect(mockReorderVaultOrder).not.toHaveBeenCalled();
+    expect(mockHandleError).toHaveBeenCalledTimes(1);
+    expect(mockHandleError.mock.calls[0][0].error).toBe(positionChangedError);
   });
 });

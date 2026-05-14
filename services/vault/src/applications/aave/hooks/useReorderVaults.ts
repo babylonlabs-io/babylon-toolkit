@@ -20,6 +20,8 @@ import {
 
 import { getAaveAdapterAddress } from "../config";
 import {
+  PositionChangedError,
+  assertReorderBaseline,
   assertReorderMembership,
   assertSuggestedOrderMatchesOnChain,
   reorderVaultOrder,
@@ -34,6 +36,14 @@ export interface ExecuteReorderOptions {
    * drag-and-drop reorders omit this so users can pick non-optimal orders.
    */
   suggestedOrderContext?: ReorderVerificationContext;
+  /**
+   * The on-chain vault ordering the caller observed at the time it built
+   * the submission (e.g. the modal-open snapshot). When provided, the hook
+   * refuses to sign if the live ordering has drifted from this baseline
+   * — closes the same-set/different-order race the on-chain
+   * `InvalidVaultsPermutation` check cannot catch.
+   */
+  expectedCurrentVaultIds?: readonly Hex[];
 }
 
 export interface UseReorderVaultsResult {
@@ -90,6 +100,13 @@ export function useReorderVaults(): UseReorderVaultsResult {
           permutedVaultIds,
         );
 
+        if (options?.expectedCurrentVaultIds) {
+          assertReorderBaseline(
+            currentVaultIds,
+            options.expectedCurrentVaultIds,
+          );
+        }
+
         if (options?.suggestedOrderContext) {
           await assertSuggestedOrderMatchesOnChain(
             permutedVaultIds,
@@ -107,8 +124,13 @@ export function useReorderVaults(): UseReorderVaultsResult {
           error instanceof Error ? error : new Error(String(error)),
           { data: { context: "Reorder vaults failed" } },
         );
-        const mappedError =
-          error instanceof Error
+        // Surface a stale-baseline mismatch as its own user-facing error so
+        // the user understands they need to refresh, not retry. Retry with
+        // the same stale baseline cannot help.
+        const isPositionChanged = error instanceof PositionChangedError;
+        const mappedError = isPositionChanged
+          ? error
+          : error instanceof Error
             ? mapViemErrorToContractError(error, "Reorder Vaults")
             : new Error("An unexpected error occurred while reordering vaults");
 

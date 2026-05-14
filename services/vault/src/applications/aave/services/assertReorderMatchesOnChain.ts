@@ -44,6 +44,10 @@ export class SuggestedReorderMismatchError extends Error {
   readonly code = "SUGGESTED_REORDER_MISMATCH";
 }
 
+export class PositionChangedError extends Error {
+  readonly code = "POSITION_CHANGED_REFRESH_REQUIRED";
+}
+
 /**
  * Trusted calculator inputs for the suggested-order recompute. All values
  * must be on-chain-anchored — the whole point of the guard is to refuse
@@ -221,6 +225,44 @@ export async function assertSuggestedOrderMatchesOnChain(
   if (!sameOrderedSequence(submittedVaultIds, expectedOrder)) {
     throw new SuggestedReorderMismatchError(
       "Suggested reorder does not match the calculator's output under on-chain amounts. Aborting to avoid signing an indexer-steered permutation.",
+    );
+  }
+}
+
+/**
+ * Guard C — verify the live on-chain vault ordering still matches the
+ * caller's modal-open baseline.
+ *
+ * The drag-and-drop reorder modal snapshots the indexer-derived vault
+ * list when it opens (so the user's drag state isn't stomped by
+ * background refetches). If live state changes while the modal is open
+ * — sibling-tab confirm, position-manager action, partial liquidation —
+ * the signed `bytes32[]` can still be a valid permutation of the live
+ * multiset and silently overwrites the new on-chain order with the
+ * stale one. The on-chain `InvalidVaultsPermutation` check is
+ * multiset-only and `eth_call` simulates the already-built calldata,
+ * so neither catches this.
+ *
+ * This guard is a pure function over the live ordering already returned
+ * by {@link assertReorderMembership}, so the modal path does not pay an
+ * extra `getPosition` RPC for the check.
+ *
+ * @param liveVaultIds - Ordering returned by
+ *   `AaveIntegrationAdapter.getPosition(user).vaultIds` — typically the
+ *   value `assertReorderMembership` just returned.
+ * @param expectedCurrentVaultIds - The vault order the caller believes
+ *   is live (e.g. the modal-open snapshot the user reviewed before
+ *   dragging).
+ * @throws {PositionChangedError} when the two orderings disagree in
+ *   length or strict order (case-insensitive on the bytes32 hex).
+ */
+export function assertReorderBaseline(
+  liveVaultIds: readonly Hex[],
+  expectedCurrentVaultIds: readonly Hex[],
+): void {
+  if (!sameOrderedSequence(liveVaultIds, expectedCurrentVaultIds)) {
+    throw new PositionChangedError(
+      "Your collateral order changed since you opened this dialog. Close it, review the refreshed order, and try again.",
     );
   }
 }
