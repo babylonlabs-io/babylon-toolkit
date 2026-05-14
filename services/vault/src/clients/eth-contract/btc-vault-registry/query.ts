@@ -6,11 +6,8 @@
  * The actual contract reads, validations, and multicalls live in the SDK.
  */
 
-import { BTCVaultRegistryABI } from "@babylonlabs-io/ts-sdk/tbv/core";
-import { type Abi, type Address, type Hex, zeroAddress } from "viem";
+import { type Address, type Hex, zeroAddress } from "viem";
 
-import { CONTRACTS } from "../../../config/contracts";
-import { ethClient } from "../client";
 import { getVaultRegistryReader } from "../sdk-readers";
 
 /**
@@ -101,12 +98,17 @@ export interface OnChainVaultBasicInfo {
 }
 
 /**
- * Read per-vault signing-critical fields for many vaults in a single
- * multicall against `BTCVaultRegistry.getBtcVaultBasicInfo`.
+ * Read per-vault signing-critical fields for many vaults in parallel
+ * via the SDK's strongly-typed `ViemVaultRegistryReader.getVaultBasicInfo`.
  *
  * Returned map keys are lowercased vault IDs (case-insensitive lookup);
  * the same key form is used by the reorder integrity guard so the caller
  * does not need to worry about checksum casing.
+ *
+ * Delegates to the SDK's typed reader rather than running its own
+ * multicall+cast — the strongly-typed path catches ABI shape
+ * regressions at compile time instead of through a late `TypeError` in
+ * a downstream consumer.
  *
  * @throws if any input vault is unregistered on-chain (`depositor` is the
  * zero address). The reorder guard treats an unregistered vault as
@@ -117,35 +119,22 @@ export async function getBtcVaultBasicInfoFromChain(
 ): Promise<Map<Hex, OnChainVaultBasicInfo>> {
   if (vaultIds.length === 0) return new Map();
 
-  const publicClient = ethClient.getPublicClient();
-
-  const results = await publicClient.multicall({
-    contracts: vaultIds.map((vaultId) => ({
-      address: CONTRACTS.BTC_VAULT_REGISTRY,
-      abi: BTCVaultRegistryABI as Abi,
-      functionName: "getBtcVaultBasicInfo" as const,
-      args: [vaultId] as const,
-    })),
-    allowFailure: false,
-  });
+  const reader = getVaultRegistryReader();
+  const results = await Promise.all(
+    vaultIds.map((vaultId) => reader.getVaultBasicInfo(vaultId)),
+  );
 
   const out = new Map<Hex, OnChainVaultBasicInfo>();
   results.forEach((info, i) => {
-    const result = info as unknown as {
-      depositor: Address;
-      amount: bigint;
-      status: number;
-      applicationEntryPoint: Address;
-    };
-    if (result.depositor === zeroAddress) {
+    if (info.depositor === zeroAddress) {
       throw new Error(
         `Vault ${vaultIds[i]} not registered on-chain — refusing to recompute reorder against unverified basic info`,
       );
     }
     out.set(vaultIds[i].toLowerCase() as Hex, {
-      amount: result.amount,
-      status: result.status,
-      applicationEntryPoint: result.applicationEntryPoint,
+      amount: info.amount,
+      status: info.status,
+      applicationEntryPoint: info.applicationEntryPoint,
     });
   });
   return out;

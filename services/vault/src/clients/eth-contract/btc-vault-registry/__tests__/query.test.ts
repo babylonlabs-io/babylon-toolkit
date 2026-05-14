@@ -1,6 +1,6 @@
 /**
- * Tests for getBtcVaultBasicInfoFromChain — the on-chain per-vault basic
- * info multicall used by the reorder integrity guard.
+ * Tests for getBtcVaultBasicInfoFromChain — the per-vault basic info
+ * lookup used by the reorder integrity guard.
  */
 
 import type { Address, Hex } from "viem";
@@ -15,11 +15,11 @@ vi.mock("@/config/env", () => ({
   },
 }));
 
-const mockMulticall = vi.fn();
-vi.mock("../../client", () => ({
-  ethClient: {
-    getPublicClient: () => ({ multicall: mockMulticall }),
-  },
+const mockGetVaultBasicInfo = vi.fn();
+vi.mock("../../sdk-readers", () => ({
+  getVaultRegistryReader: () => ({
+    getVaultBasicInfo: mockGetVaultBasicInfo,
+  }),
 }));
 
 import { getBtcVaultBasicInfoFromChain } from "../query";
@@ -31,74 +31,67 @@ const VAULT_B =
 const DEPOSITOR = "0x000000000000000000000000000000000000beef" as Address;
 const AAVE_ADAPTER = "0x000000000000000000000000000000000000ada9" as Address;
 
+function basicInfo(amount: bigint) {
+  return {
+    depositor: DEPOSITOR,
+    depositorBtcPubKey: ("0x" + "0".repeat(64)) as Hex,
+    amount,
+    vaultProvider: ("0x" + "1".repeat(40)) as Address,
+    status: 2,
+    applicationEntryPoint: AAVE_ADAPTER,
+    createdAt: 0n,
+  };
+}
+
 describe("getBtcVaultBasicInfoFromChain", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
   it("returns amount, status, and applicationEntryPoint keyed by lowercased vault ID", async () => {
-    mockMulticall.mockResolvedValue([
-      {
-        depositor: DEPOSITOR,
-        amount: 60_000_000n,
-        status: 2,
-        applicationEntryPoint: AAVE_ADAPTER,
-      },
-      {
-        depositor: DEPOSITOR,
-        amount: 10_000_000n,
-        status: 2,
-        applicationEntryPoint: AAVE_ADAPTER,
-      },
-    ]);
+    mockGetVaultBasicInfo.mockImplementation(async (vaultId: Hex) => {
+      if (vaultId === VAULT_A) return basicInfo(60_000_000n);
+      if (vaultId === VAULT_B) return basicInfo(10_000_000n);
+      throw new Error(`unexpected vault ${vaultId}`);
+    });
 
     const result = await getBtcVaultBasicInfoFromChain([VAULT_A, VAULT_B]);
 
-    const a = result.get(VAULT_A.toLowerCase() as Hex);
-    expect(a).toEqual({
+    expect(result.get(VAULT_A.toLowerCase() as Hex)).toEqual({
       amount: 60_000_000n,
       status: 2,
       applicationEntryPoint: AAVE_ADAPTER,
     });
-    const b = result.get(VAULT_B.toLowerCase() as Hex);
-    expect(b).toEqual({
+    expect(result.get(VAULT_B.toLowerCase() as Hex)).toEqual({
       amount: 10_000_000n,
       status: 2,
       applicationEntryPoint: AAVE_ADAPTER,
     });
-    expect(mockMulticall).toHaveBeenCalledTimes(1);
-    const call = mockMulticall.mock.calls[0][0] as {
-      contracts: Array<{ functionName: string; args: readonly Hex[] }>;
-      allowFailure: boolean;
-    };
-    expect(call.allowFailure).toBe(false);
-    expect(call.contracts).toHaveLength(2);
-    expect(call.contracts[0].functionName).toBe("getBtcVaultBasicInfo");
-    expect(call.contracts[0].args).toEqual([VAULT_A]);
+    expect(mockGetVaultBasicInfo).toHaveBeenCalledTimes(2);
+    expect(mockGetVaultBasicInfo).toHaveBeenNthCalledWith(1, VAULT_A);
+    expect(mockGetVaultBasicInfo).toHaveBeenNthCalledWith(2, VAULT_B);
   });
 
   it("returns an empty map and skips RPC when no vault IDs are supplied", async () => {
     const result = await getBtcVaultBasicInfoFromChain([]);
 
     expect(result.size).toBe(0);
-    expect(mockMulticall).not.toHaveBeenCalled();
+    expect(mockGetVaultBasicInfo).not.toHaveBeenCalled();
   });
 
   it("throws when any returned vault has a zero depositor (unregistered)", async () => {
-    mockMulticall.mockResolvedValue([
-      {
-        depositor: DEPOSITOR,
-        amount: 60_000_000n,
-        status: 2,
-        applicationEntryPoint: AAVE_ADAPTER,
-      },
-      {
-        depositor: zeroAddress,
-        amount: 0n,
-        status: 0,
-        applicationEntryPoint: zeroAddress,
-      },
-    ]);
+    mockGetVaultBasicInfo.mockImplementation(async (vaultId: Hex) => {
+      if (vaultId === VAULT_A) return basicInfo(60_000_000n);
+      if (vaultId === VAULT_B) {
+        return {
+          ...basicInfo(0n),
+          depositor: zeroAddress,
+          applicationEntryPoint: zeroAddress,
+          status: 0,
+        };
+      }
+      throw new Error(`unexpected vault ${vaultId}`);
+    });
 
     await expect(
       getBtcVaultBasicInfoFromChain([VAULT_A, VAULT_B]),

@@ -72,14 +72,11 @@ export function PositionNotificationBanner({
   }, [address, queryClient]);
 
   const handleApplyOrder = useCallback(async () => {
-    if (!result?.suggestedVaultOrder) return;
+    if (!result?.suggestedVaultOrder || !reorderVerificationContext) return;
     const vaultIds = result.suggestedVaultOrder.map((v) => v.id as Hex);
-    const success = await executeReorder(
-      vaultIds,
-      reorderVerificationContext
-        ? { suggestedOrderContext: reorderVerificationContext }
-        : undefined,
-    );
+    const success = await executeReorder(vaultIds, {
+      suggestedOrderContext: reorderVerificationContext,
+    });
     if (success) {
       setIsReorderSuccess(true);
     }

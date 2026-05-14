@@ -87,13 +87,17 @@ const mockReorderVerificationContext = {
   totalDebtUsd: 10_000,
 };
 
+const mockUsePositionNotifications = vi.fn(() => ({
+  result: null,
+  status: "ready" as const,
+  isLoading: false,
+  reorderVerificationContext: mockReorderVerificationContext as
+    | typeof mockReorderVerificationContext
+    | null,
+}));
+
 vi.mock("@/applications/aave/hooks/usePositionNotifications", () => ({
-  usePositionNotifications: () => ({
-    result: null,
-    status: "ready" as const,
-    isLoading: false,
-    reorderVerificationContext: mockReorderVerificationContext,
-  }),
+  usePositionNotifications: () => mockUsePositionNotifications(),
 }));
 
 vi.mock("wagmi", () => ({
@@ -461,6 +465,46 @@ describe("PositionNotificationBanner", () => {
     expect(mockExecuteReorder).toHaveBeenCalledWith(["0xabc", "0xdef"], {
       suggestedOrderContext: mockReorderVerificationContext,
     });
+  });
+
+  it("does not call executeReorder when the verification context is unavailable (debug-override path)", () => {
+    // resultOverride bypasses the hook's "ready" gate, but the hook can
+    // still expose a null verification context. Without it, Guard B can
+    // never run on the signing path — refuse to even attempt the tx.
+    mockUsePositionNotifications.mockReturnValueOnce({
+      result: null,
+      status: "ready" as const,
+      isLoading: false,
+      reorderVerificationContext: null,
+    });
+
+    const suggestedOrder = [
+      { id: "0xabc", name: "Vault 2", btc: 0.6 },
+      { id: "0xdef", name: "Vault 1", btc: 0.1 },
+    ];
+    const result = makeBaseResult({
+      warnings: [
+        {
+          type: "reorder",
+          title: "Better ordering",
+          detail: "Reorder reduces seizure.",
+        },
+      ],
+      suggestedVaultOrder: suggestedOrder,
+    });
+
+    render(
+      <Wrapper>
+        <PositionNotificationBanner
+          result={result}
+          onDeposit={onDeposit}
+          onRepay={onRepay}
+        />
+      </Wrapper>,
+    );
+
+    fireEvent.click(screen.getByText("Apply Suggested Order"));
+    expect(mockExecuteReorder).not.toHaveBeenCalled();
   });
 
   it("renders secondary warnings below primary", () => {
