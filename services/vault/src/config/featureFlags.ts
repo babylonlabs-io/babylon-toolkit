@@ -34,17 +34,6 @@ export default {
   },
 
   /**
-   * SIMPLIFIED_TERMS feature flag
-   *
-   * Purpose: Controls whether the wallet connection dialog shows simplified terms
-   * Why needed: When enabled, only the T&C checkbox is shown instead of all three
-   * Default: false (all three checkboxes are shown unless explicitly set to "true")
-   */
-  get isSimplifiedTermsEnabled() {
-    return process.env.NEXT_PUBLIC_FF_SIMPLIFIED_TERMS === "true";
-  },
-
-  /**
    * FORCE_PARTIAL_LIQUIDATION feature flag
    *
    * Purpose: Forces partial liquidation split to always be suggested,

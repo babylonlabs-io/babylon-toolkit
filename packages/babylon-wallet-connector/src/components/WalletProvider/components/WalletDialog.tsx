@@ -16,22 +16,17 @@ interface WalletDialogProps {
   storage: HashMap;
   config: any;
   persistent: boolean;
-  simplifiedTerms?: boolean;
 }
 
 const ANIMATION_DELAY = 1000;
 
-export function WalletDialog({ persistent, storage, config, onError, simplifiedTerms }: WalletDialogProps) {
+export function WalletDialog({ persistent, storage, config, onError }: WalletDialogProps) {
   const { visible, screen, confirmed, close, confirm, displayChains } = useWidgetState();
   const { toggleShowAgain, toggleLockInscriptions } = useInscriptionProvider();
   const connectors = useChainProviders();
   const walletWidgets = useWalletWidgets(connectors, config, onError);
   const { connect, disconnect } = useWalletConnectors({ persistent, accountStorage: storage, onError });
   const { disconnect: disconnectAll } = useWalletConnect();
-
-  const handleAccepTermsOfService = useCallback(() => {
-    displayChains?.();
-  }, [displayChains]);
 
   const handleToggleInscriptions = useCallback(
     (lockInscriptions: boolean, showAgain: boolean) => {
@@ -63,10 +58,8 @@ export function WalletDialog({ persistent, storage, config, onError, simplifiedT
         onClose={handleClose}
         onConfirm={handleConfirm}
         onSelectWallet={connect}
-        onAccepTermsOfService={handleAccepTermsOfService}
         onToggleInscriptions={handleToggleInscriptions}
         onDisconnectWallet={disconnect}
-        simplifiedTerms={simplifiedTerms}
       />
     </ResponsiveDialog>
   );

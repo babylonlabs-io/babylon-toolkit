@@ -10,7 +10,6 @@ import { useTheme } from "next-themes";
 import { useCallback, useMemo, useRef, type PropsWithChildren } from "react";
 
 import { getNetworkConfigBTC } from "@/config";
-import featureFlags from "@/config/featureFlags";
 import { getNetworkConfigETH } from "@/config/network";
 import { logger } from "@/infrastructure";
 
@@ -116,7 +115,6 @@ export const WalletConnectionProvider = ({ children }: PropsWithChildren) => {
       onError={onError}
       disabledWallets={DISABLED_WALLETS}
       requiredChains={["BTC", "ETH"]}
-      simplifiedTerms={featureFlags.isSimplifiedTermsEnabled}
       disableTomo
     >
       <WalletProviders>{children}</WalletProviders>

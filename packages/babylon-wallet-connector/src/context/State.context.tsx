@@ -9,7 +9,6 @@ export type Screen<T extends string = string> = {
 
 export type Screens =
   | Screen<"LOADER">
-  | Screen<"TERMS_OF_SERVICE">
   | Screen<"CHAINS">
   | Screen<"WALLETS">
   | Screen<"INSCRIPTIONS">
@@ -30,7 +29,6 @@ export interface Actions {
   displayChains?: () => void;
   displayWallets?: (chain: string) => void;
   displayInscriptions?: () => void;
-  displayTermsOfService?: () => void;
   displayError?: (params: {
     icon?: JSX.Element;
     title: string;
@@ -49,7 +47,7 @@ export interface Actions {
 const defaultState: State = {
   confirmed: false,
   visible: false,
-  screen: { type: "TERMS_OF_SERVICE" },
+  screen: { type: "CHAINS" },
   chains: {},
   selectedWallets: {},
 };
@@ -103,10 +101,6 @@ export function StateProvider({ children, chains }: PropsWithChildren<StateProvi
 
       displayLoader: (message = "") => {
         setState((state) => ({ ...state, screen: { type: "LOADER", params: { message } } }));
-      },
-
-      displayTermsOfService: () => {
-        setState((state) => ({ ...state, screen: { type: "TERMS_OF_SERVICE" } }));
       },
 
       displayChains: () => {

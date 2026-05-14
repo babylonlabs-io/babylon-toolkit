@@ -1,9 +1,10 @@
-import { Button, DialogBody, DialogFooter, DialogHeader, Text } from "@babylonlabs-io/core-ui";
-import { memo } from "react";
+import { Button, Checkbox, DialogBody, DialogFooter, DialogHeader, Text } from "@babylonlabs-io/core-ui";
+import { memo, useState } from "react";
 import { twMerge } from "tailwind-merge";
 
 import { ChainButton } from "@/components/ChainButton";
 import { ConnectedWallet } from "@/components/ConnectedWallet";
+import { FieldControl } from "@/components/FieldControl";
 import type { IChain, IWallet } from "@/core/types";
 
 interface ChainsProps {
@@ -28,6 +29,7 @@ export const Chains = memo(
     onSelectChain,
     onDisconnectWallet,
   }: ChainsProps) => {
+    const [termsAccepted, setTermsAccepted] = useState(false);
     const chainNames = chains.map((chain) => chain.name).join(" and ");
     const subtitle = `Connect to both ${chainNames} Wallets`;
 
@@ -62,6 +64,34 @@ export const Chains = memo(
               </ChainButton>
             );
           })}
+
+          <FieldControl
+            label={
+              <div className="block">
+                I certify that I have read and accept the updated{" "}
+                <a
+                  href="https://babylonlabs.io/terms-of-use"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline"
+                >
+                  Terms of Use
+                </a>{" "}
+                and{" "}
+                <a
+                  href="https://babylonlabs.io/privacy-policy"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline"
+                >
+                  Privacy Policy
+                </a>
+                .
+              </div>
+            }
+          >
+            <Checkbox checked={termsAccepted} onChange={(value = false) => setTermsAccepted(value)} />
+          </FieldControl>
         </DialogBody>
 
         <DialogFooter className="mt-auto flex gap-4 pt-10">
@@ -69,7 +99,12 @@ export const Chains = memo(
             Cancel
           </Button>
 
-          <Button disabled={disabled} fluid onClick={onConfirm} data-testid="chains-done-button">
+          <Button
+            disabled={disabled || !termsAccepted}
+            fluid
+            onClick={onConfirm}
+            data-testid="chains-done-button"
+          >
             Done
           </Button>
         </DialogFooter>
