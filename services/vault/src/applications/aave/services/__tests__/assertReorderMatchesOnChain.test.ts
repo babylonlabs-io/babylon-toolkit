@@ -396,7 +396,7 @@ describe("assertReorderBaseline", () => {
     ).not.toThrow();
   });
 
-  it("throws PositionChangedError on same-set/different-order — the #262 PoC", () => {
+  it("throws PositionChangedError on same-set/different-order (concurrent-modification race)", () => {
     // User opened modal at [A, B]. Live ordering raced to [B, A]. The
     // multiset still matches (Guard A would pass), but the order
     // differs — Guard C must catch it.

@@ -47,7 +47,7 @@ const VAULT_A = makeVault("a", VAULT_A_ID, 0);
 const VAULT_B = makeVault("b", VAULT_B_ID, 1);
 const VAULT_C = makeVault("c", VAULT_C_ID, 2);
 
-describe("useReorderModal — baseline capture for the #262 guard", () => {
+describe("useReorderModal — baseline capture for the signing-time staleness guard", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockExecuteReorder.mockResolvedValue(true);
