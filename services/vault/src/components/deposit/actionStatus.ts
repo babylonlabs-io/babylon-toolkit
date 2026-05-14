@@ -5,6 +5,8 @@
  * and what warnings to display.
  */
 
+import { COPY } from "@/copy";
+
 import type { DepositPollingResult } from "../../context/deposit/PeginPollingContext";
 import {
   ContractStatus,
@@ -133,11 +135,14 @@ const ACTION_REQUIRED_BADGE_PRIORITY: PeginAction[] = [
 ];
 
 const ACTION_REQUIRED_BADGE_LABELS: Record<PeginAction, string> = {
-  [PeginAction.SUBMIT_WOTS_KEY]: "Key required",
-  [PeginAction.SIGN_PAYOUT_TRANSACTIONS]: "Signing Required",
-  [PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN]: "Broadcast required",
-  [PeginAction.ACTIVATE_VAULT]: "Activation required",
-  [PeginAction.REFUND_HTLC]: "Refund available",
+  [PeginAction.SUBMIT_WOTS_KEY]:
+    COPY.pegin.actionRequiredBadges.SUBMIT_WOTS_KEY,
+  [PeginAction.SIGN_PAYOUT_TRANSACTIONS]:
+    COPY.pegin.actionRequiredBadges.SIGN_PAYOUT_TRANSACTIONS,
+  [PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN]:
+    COPY.pegin.actionRequiredBadges.SIGN_AND_BROADCAST_TO_BITCOIN,
+  [PeginAction.ACTIVATE_VAULT]: COPY.pegin.actionRequiredBadges.ACTIVATE_VAULT,
+  [PeginAction.REFUND_HTLC]: COPY.pegin.actionRequiredBadges.REFUND_HTLC,
   [PeginAction.NONE]: "",
 };
 

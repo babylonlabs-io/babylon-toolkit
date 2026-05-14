@@ -35,7 +35,7 @@ describe("getSectionActionRequiredLabel", () => {
     expect(getSectionActionRequiredLabel(results)).toBeNull();
   });
 
-  it("returns Signing Required when one deposit needs signing", () => {
+  it("returns Signing required when one deposit needs signing", () => {
     const signState = getPeginState(ContractStatus.PENDING, {
       pendingIngestion: false,
       transactionsReady: true,
@@ -43,7 +43,7 @@ describe("getSectionActionRequiredLabel", () => {
     const results: (DepositPollingResult | undefined)[] = [
       pollingResultWithAction("id1", signState),
     ];
-    expect(getSectionActionRequiredLabel(results)).toBe("Signing Required");
+    expect(getSectionActionRequiredLabel(results)).toBe("Signing required");
   });
 
   it("returns Activation required when one deposit is verified", () => {
@@ -76,7 +76,7 @@ describe("getSectionActionRequiredLabel", () => {
       pollingResultWithAction("id1", keyState),
       pollingResultWithAction("id2", signState),
     ];
-    expect(getSectionActionRequiredLabel(results)).toBe("Signing Required");
+    expect(getSectionActionRequiredLabel(results)).toBe("Signing required");
   });
 
   it("skips undefined results and uses defined ones", () => {
@@ -88,6 +88,6 @@ describe("getSectionActionRequiredLabel", () => {
       undefined,
       pollingResultWithAction("id2", signState),
     ];
-    expect(getSectionActionRequiredLabel(results)).toBe("Signing Required");
+    expect(getSectionActionRequiredLabel(results)).toBe("Signing required");
   });
 });

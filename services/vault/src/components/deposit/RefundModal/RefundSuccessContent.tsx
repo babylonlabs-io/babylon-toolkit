@@ -1,6 +1,7 @@
 import { Button, Heading, Text } from "@babylonlabs-io/core-ui";
 
 import { getNetworkConfigBTC } from "@/config";
+import { COPY } from "@/copy";
 import { getBtcSymbol } from "@/utils/formatting";
 
 const btcConfig = getNetworkConfigBTC();
@@ -27,10 +28,10 @@ export function RefundSuccessContent({
         />
         <div className="flex w-full flex-col items-center gap-4 text-center">
           <Heading variant="h5" className="text-accent-primary">
-            Broadcasting Refund
+            {COPY.deposit.refundSuccess.heading}
           </Heading>
           <Text variant="body1" className="text-accent-secondary">
-            Refund transaction broadcast successfully.
+            {COPY.deposit.refundSuccess.body}
           </Text>
         </div>
       </div>
@@ -45,7 +46,7 @@ export function RefundSuccessContent({
               window.open(explorerUrl, "_blank", "noopener,noreferrer");
             }}
           >
-            View on Blockchain explorer
+            {COPY.deposit.refundSuccess.viewExplorerButton}
           </Button>
           <Button
             variant="contained"
@@ -53,15 +54,14 @@ export function RefundSuccessContent({
             className="flex-1 whitespace-nowrap"
             onClick={onDone}
           >
-            Done
+            {COPY.deposit.refundSuccess.doneButton}
           </Button>
         </div>
         <Text
           variant="body2"
           className="text-center text-xs text-accent-secondary"
         >
-          Do not spend the {btcSymbol} used for this deposit until the
-          transactions are confirmed
+          {COPY.deposit.refundSuccess.doNotSpendWarning(btcSymbol)}
         </Text>
       </div>
     </div>

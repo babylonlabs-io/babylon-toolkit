@@ -171,6 +171,14 @@ These paths handle irreversible value movement. An AI-generated mistake here is 
 - Memoize derived data with `useMemo`/`useCallback` with correct dependency arrays.
 - Don't create new objects/arrays in render without memoization.
 
+### User-Facing Copy
+- **All user-visible strings in the vault app live in `services/vault/src/copy.ts`.** That includes JSX text, button labels, modal headings, status/badge labels, step descriptions, toast messages, and any other text a depositor sees.
+- **Never inline a new user-facing string in a component or hook.** Add it to `copy.ts` under the appropriate section (or create a new section) and import `COPY` from `@/copy`.
+- When editing existing user-facing text, edit it in `copy.ts`. If you find a string still inlined in a component, migrate it to `copy.ts` as part of your change.
+- **Exception:** Contract / on-chain error messages live in `services/vault/src/utils/errors/errorMessages.ts`, keyed by ABI error name. Treat that file as part of the copy surface — same review rules apply.
+- Follow the style rules documented at the top of `copy.ts` (Pre-Pegin / peg-in conventions, sentence-case status labels, "has been broadcast" tense, American English, vault provider lowercase mid-sentence).
+- When adding strings that interpolate values, prefer a function (`(amount: string) => \`Your ${amount}...\``) in `copy.ts` over building the string in the component.
+
 ---
 
 ## SECURITY

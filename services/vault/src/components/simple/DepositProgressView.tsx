@@ -19,6 +19,7 @@ import {
 import { useMemo } from "react";
 
 import { StatusBanner } from "@/components/deposit/DepositSignModal/StatusBanner";
+import { COPY } from "@/copy";
 import { DepositFlowStep } from "@/hooks/deposit/depositFlowSteps";
 import type { PayoutSigningProgress } from "@/services/vault/vaultPayoutSignatureService";
 
@@ -62,21 +63,24 @@ export function buildStepItems(
   const payoutCompleted = progress?.completed ?? 0;
 
   return [
-    { label: "Generate secret for the deposit" },
-    { label: "Sign the pegIn BTC transaction" },
-    { label: "Sign proofs to link your Bitcoin and ETH addresses" },
-    { label: "Sign and broadcast ETH registration" },
-    { label: "Sign and broadcast BTC pre-pegIn transaction" },
-    { label: "Awaiting Bitcoin confirmation", description: "(~ 15 min)" },
-    { label: "Submit WOTS public key to Vault Provider" },
-    { label: "Authenticate session with Vault Provider" },
+    { label: COPY.deposit.steps.generateSecret },
+    { label: COPY.deposit.steps.signPeginBtc },
+    { label: COPY.deposit.steps.signLinkProofs },
+    { label: COPY.deposit.steps.signAndBroadcastEth },
+    { label: COPY.deposit.steps.signAndBroadcastPrePegin },
     {
-      label: "Sign payout transactions",
+      label: COPY.deposit.steps.awaitBtcConfirmation,
+      description: COPY.deposit.steps.awaitBtcConfirmationDuration,
+    },
+    { label: COPY.deposit.steps.submitWotsKey },
+    { label: COPY.deposit.steps.authenticateSession },
+    {
+      label: COPY.deposit.steps.signPayouts,
       description:
         payoutTotal > 0 ? `(${payoutCompleted} of ${payoutTotal})` : undefined,
     },
-    { label: "Download artifact" },
-    { label: "Sign and broadcast reveal secret" },
+    { label: COPY.deposit.steps.downloadArtifact },
+    { label: COPY.deposit.steps.revealSecret },
   ];
 }
 
@@ -105,7 +109,7 @@ export function DepositProgressView(props: DepositProgressViewProps) {
     canContinueInBackground,
     payoutSigningProgress,
     onClose,
-    successMessage = "Your Bitcoin transaction has been broadcast to the network. It will be confirmed after receiving the required number of Bitcoin confirmations.",
+    successMessage = COPY.deposit.progress.defaultSuccessMessage,
     onRetry,
   } = props;
 
@@ -120,9 +124,9 @@ export function DepositProgressView(props: DepositProgressViewProps) {
   return (
     <div className="w-full max-w-[520px]">
       <Heading variant="h5" className="text-accent-primary">
-        Deposit Progress{" "}
+        {COPY.deposit.progress.heading}{" "}
         <Text as="span" variant="body1" className="text-accent-secondary">
-          (~60 min)
+          {COPY.deposit.progress.durationEstimate}
         </Text>
       </Heading>
 
@@ -143,24 +147,24 @@ export function DepositProgressView(props: DepositProgressViewProps) {
           onClick={error && onRetry ? onRetry : onClose}
         >
           {canContinueInBackground ? (
-            "Close & continue later"
+            COPY.deposit.progress.buttons.closeContinueLater
           ) : error ? (
             onRetry ? (
-              "Retry"
+              COPY.deposit.progress.buttons.retry
             ) : (
-              "Close"
+              COPY.deposit.progress.buttons.close
             )
           ) : isComplete ? (
-            "Done"
+            COPY.deposit.progress.buttons.done
           ) : isProcessing ? (
             <span className="flex items-center justify-center gap-2">
               <Loader size={16} className="text-accent-contrast" />
               <Text as="span" variant="body2" className="text-accent-contrast">
-                Sign
+                {COPY.deposit.progress.buttons.sign}
               </Text>
             </span>
           ) : (
-            "Sign"
+            COPY.deposit.progress.buttons.sign
           )}
         </Button>
 
@@ -168,8 +172,7 @@ export function DepositProgressView(props: DepositProgressViewProps) {
           variant="body2"
           className="text-center text-xs text-accent-secondary"
         >
-          Do not spend the Bitcoin used for this deposit until the transaction
-          is confirmed on the network.
+          {COPY.deposit.progress.doNotSpendWarning}
         </Text>
       </div>
     </div>

@@ -35,7 +35,9 @@ describe("peginStateMachine", () => {
       });
       expect(state.displayLabel).toBe(PEGIN_DISPLAY_LABELS.PENDING);
       expect(state.availableActions).toEqual([PeginAction.NONE]);
-      expect(state.message).toContain("Pre-PegIn transaction broadcast");
+      expect(state.message).toContain(
+        "Pre-Pegin transaction has been broadcast",
+      );
     });
 
     it("shows preparing transactions when CONFIRMING and VP has ingested", () => {
@@ -45,7 +47,7 @@ describe("peginStateMachine", () => {
         transactionsReady: false,
       });
       expect(state.displayLabel).toBe(PEGIN_DISPLAY_LABELS.PENDING);
-      expect(state.message).toContain("prepare Claim and Payout");
+      expect(state.message).toContain("prepare claim and payout");
     });
 
     it("shows signing required when CONFIRMING and transactions are ready", () => {
@@ -80,7 +82,7 @@ describe("peginStateMachine", () => {
         transactionsReady: false,
       });
       expect(state.displayLabel).toBe(PEGIN_DISPLAY_LABELS.PENDING);
-      expect(state.message).toContain("prepare Claim and Payout");
+      expect(state.message).toContain("prepare claim and payout");
     });
 
     it("shows signing required when transactions are ready", () => {
