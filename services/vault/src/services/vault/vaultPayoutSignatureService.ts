@@ -18,7 +18,9 @@
  */
 
 import {
+  getSortedXOnlyPubkeys,
   processPublicKeyToXOnly,
+  stripHexPrefix,
   type Network,
 } from "@babylonlabs-io/ts-sdk/tbv/core";
 import type { Address, Hex } from "viem";
@@ -33,7 +35,6 @@ import {
   getVaultKeeperReader,
 } from "../../clients/eth-contract/sdk-readers";
 import { getBTCNetworkForWASM } from "../../config/pegin";
-import { stripHexPrefix } from "../../utils/btc";
 
 export interface PayoutVaultKeeper {
   btcPubKey: string;
@@ -111,26 +112,6 @@ export async function resolveVaultProviderBtcPubkey(
 }
 
 /**
- * Get sorted vault keeper pubkeys.
- * Matches Rust backend behavior (lexicographic sort).
- */
-export function getSortedVaultKeeperPubkeys(
-  vaultKeepers: PayoutVaultKeeper[],
-): string[] {
-  return vaultKeepers.map((vk) => stripHexPrefix(vk.btcPubKey)).sort();
-}
-
-/**
- * Get sorted universal challenger pubkeys.
- * Matches Rust backend behavior (lexicographic sort).
- */
-export function getSortedUniversalChallengerPubkeys(
-  universalChallengers: PayoutUniversalChallenger[],
-): string[] {
-  return universalChallengers.map((uc) => stripHexPrefix(uc.btcPubKey)).sort();
-}
-
-/**
  * Prepare the signing context by fetching all required data from the
  * on-chain contract at the vault's locked versions.
  *
@@ -191,11 +172,11 @@ export async function prepareSigningContext(
     vaultProviderBtcPubKey,
   );
 
-  const vaultKeeperBtcPubkeys = getSortedVaultKeeperPubkeys(
-    vaultKeepers.map((vk) => ({ btcPubKey: vk.btcPubKey })),
+  const vaultKeeperBtcPubkeys = getSortedXOnlyPubkeys(
+    vaultKeepers.map((vk) => vk.btcPubKey),
   );
-  const universalChallengerBtcPubkeys = getSortedUniversalChallengerPubkeys(
-    universalChallengers.map((uc) => ({ btcPubKey: uc.btcPubKey })),
+  const universalChallengerBtcPubkeys = getSortedXOnlyPubkeys(
+    universalChallengers.map((uc) => uc.btcPubKey),
   );
 
   return {

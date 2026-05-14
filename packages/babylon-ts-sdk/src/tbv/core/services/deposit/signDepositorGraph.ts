@@ -74,34 +74,35 @@ interface CollectedDepositorGraphPsbts {
 /**
  * Compute the local-challenger set for the depositor-as-claimer flow.
  *
- * Per the protocol (see btc-vault crates/vault/src/lib.rs - `LocalChallengers`):
- *   localChallengers = {VaultProvider, VaultKeepers} \ {Claimer}
+ * Per btc-vault `crates/vault/src/tx_graph/graph.rs:144-150` (introduced in
+ * PR #1092 / commit 3133b698, 2026-02-18):
+ *   Depositor-as-claimer: LocalChallengers = VKs only (VP excluded)
  *
- * For the depositor-as-claimer flow the claimer is the depositor, so this
- * removes the depositor from the union if present (it usually isn't).
- * The protocol guarantees the result is non-empty by construction.
+ * Note: the docstring at `crates/vault/src/lib.rs:332` still says
+ * `{VaultProvider, VaultKeepers} - {Claimer}` — that wording is stale and
+ * predates the depositor-as-claimer special case. This function follows the
+ * actual implementation, not the stale docstring.
+ *
+ * The protocol guarantees the depositor is not a vault keeper
+ * (`TxGraphParams::validate` enforces it), so the depositor filter here is
+ * defense-in-depth; it surfaces a clear error if a misconfigured context
+ * ever violates the invariant.
  */
 function deriveLocalChallengers(
-  vaultProviderBtcPubkey: string,
   vaultKeeperBtcPubkeys: string[],
   depositorBtcPubkey: string,
 ): string[] {
   const depositor = stripHexPrefix(depositorBtcPubkey).toLowerCase();
-  const all = [vaultProviderBtcPubkey, ...vaultKeeperBtcPubkeys].map((k) =>
-    stripHexPrefix(k).toLowerCase(),
-  );
-  const filtered = all.filter((k) => k !== depositor);
+  const vks = vaultKeeperBtcPubkeys.map((k) => stripHexPrefix(k).toLowerCase());
+  const filtered = vks.filter((k) => k !== depositor);
   if (filtered.length === 0) {
     throw new Error(
-      "Cannot derive localChallengers: removing depositor from {vaultProvider, vaultKeepers} left an empty set",
+      "Cannot derive localChallengers: vault keeper set is empty (or contains only the depositor)",
     );
   }
-  // Catch upstream misconfiguration (VP key === a VK key) at its source.
-  // Otherwise downstream set comparisons would silently dedupe and report
-  // a misleading "missing challenger" error.
   if (new Set(filtered).size !== filtered.length) {
     throw new Error(
-      "Cannot derive localChallengers: vaultProvider key duplicates a vaultKeeper key — signing context is misconfigured",
+      "Cannot derive localChallengers: duplicate vaultKeeper key — signing context is misconfigured",
     );
   }
   return filtered;
@@ -109,7 +110,12 @@ function deriveLocalChallengers(
 
 /**
  * Reject VP-supplied `challenger_presign_data` whose pubkey set does not
- * exactly equal `localChallengers`.
+ * exactly equal `localChallengers ∪ universalChallengers`.
+ *
+ * The daemon's `challenger_presign_data` contains one entry per challenger
+ * in `Challengers::all_sorted() = local + universal` (per
+ * btc-vault `crates/vault/src/tx_graph/graph.rs:438-458`). For the
+ * depositor-as-claimer flow this is `VKs + UCs`.
  *
  * Threat model: a malicious or buggy VP could omit, duplicate, or inject
  * unrelated entries. Missing entries → depositor activates with incomplete
@@ -117,10 +123,24 @@ function deriveLocalChallengers(
  * Duplicates or extras → wallet signs PSBTs for challengers the protocol
  * doesn't recognize, handing the VP signatures it shouldn't have.
  */
-function assertChallengerSetMatchesLocalChallengers(
+function assertChallengerSetMatchesExpected(
   challengerPresignData: PresignDataPerChallenger[],
   localChallengers: string[],
+  universalChallengerBtcPubkeys: string[],
 ): void {
+  const universal = universalChallengerBtcPubkeys.map((k) =>
+    stripHexPrefix(k).toLowerCase(),
+  );
+  // Protocol guarantee: local and universal sets are disjoint. Reject
+  // overlap so the depositor doesn't sign for an ambiguous challenger role.
+  const overlap = localChallengers.filter((k) => universal.includes(k));
+  if (overlap.length > 0) {
+    throw new Error(
+      `Cannot validate challenger set: vault keepers and universal challengers overlap (${overlap.join(", ")})`,
+    );
+  }
+  const expected = [...localChallengers, ...universal];
+
   const suppliedList = challengerPresignData.map((c) =>
     stripHexPrefix(c.challenger_pubkey).toLowerCase(),
   );
@@ -130,12 +150,12 @@ function assertChallengerSetMatchesLocalChallengers(
       "Depositor graph contains duplicate challenger entries in challenger_presign_data",
     );
   }
-  const expectedSet = new Set(localChallengers);
-  const missing = localChallengers.filter((c) => !suppliedSet.has(c));
+  const expectedSet = new Set(expected);
+  const missing = expected.filter((c) => !suppliedSet.has(c));
   const extra = suppliedList.filter((c) => !expectedSet.has(c));
   if (missing.length > 0 || extra.length > 0) {
     throw new Error(
-      `Depositor graph challenger set does not match localChallengers` +
+      `Depositor graph challenger set does not match expected (local ∪ universal)` +
         (missing.length > 0 ? ` (missing: ${missing.join(", ")})` : "") +
         (extra.length > 0 ? ` (unexpected: ${extra.join(", ")})` : ""),
     );
@@ -202,13 +222,13 @@ async function collectDepositorGraphPsbts(
   // 1. Fail-fast on a malformed VP response BEFORE doing any PSBT-build
   //    work that would be wasted if the challenger set is wrong.
   const localChallengers = deriveLocalChallengers(
-    ctx.vaultProviderBtcPubkey,
     ctx.vaultKeeperBtcPubkeys,
     ctx.depositorBtcPubkey,
   );
-  assertChallengerSetMatchesLocalChallengers(
+  assertChallengerSetMatchesExpected(
     depositorGraph.challenger_presign_data,
     localChallengers,
+    ctx.universalChallengerBtcPubkeys,
   );
 
   // 2. Validate the payout transaction's largest output pays to the

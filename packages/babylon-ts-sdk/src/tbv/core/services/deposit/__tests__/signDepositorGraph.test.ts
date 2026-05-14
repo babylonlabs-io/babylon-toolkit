@@ -113,14 +113,18 @@ const DEPOSITOR_PUBKEY = "d".repeat(64);
 // byte to compare x-only with depositorBtcPubkey.
 const WALLET_PUBKEY = `02${DEPOSITOR_PUBKEY}`;
 const VP_PUBKEY = "f".repeat(64);
-const VK_PUBKEY = "1".repeat(64);
 const UC_PUBKEY = "2".repeat(64);
 const COUNCIL_MEMBER = "c".repeat(64);
 // Local challengers (per protocol: {VP, VKs} \ {depositor}). Tests use these
 // two as the canonical challenger pair so the supplied `challenger_presign_data`
 // matches `localChallengers` derived from the signing context.
-const CHALLENGER_A = VP_PUBKEY;
-const CHALLENGER_B = VK_PUBKEY;
+// CHALLENGER_A / CHALLENGER_B are two vault keepers. The depositor-graph
+// challenger set per btc-vault is `LocalChallengers + UniversalChallengers`,
+// where for the depositor-as-claimer flow LocalChallengers = VKs only
+// (VP excluded). VK_PUBKEY remains a third, distinct vault keeper for tests
+// that need overlap with the default context.
+const CHALLENGER_A = "a".repeat(64);
+const CHALLENGER_B = "b".repeat(64);
 const REGISTERED_PAYOUT_SCRIPT = `0x5120${"e".repeat(64)}`;
 const PEGIN_TX_HEX = "cafebabe";
 const TIMELOCK_PEGIN = 50;
@@ -242,13 +246,16 @@ function createDepositorGraph(
 function createSigningContext(
   overrides?: Partial<DepositorGraphSigningContext>,
 ): DepositorGraphSigningContext {
-  // Default matches production: localChallengers = [VP_PUBKEY, VK_PUBKEY].
+  // Default matches the depositor-as-claimer protocol: the daemon's
+  // `challenger_presign_data` contains LocalChallengers (= VKs only, VP
+  // excluded) ∪ UniversalChallengers. Default fixture uses 2 VKs and 0 UCs
+  // so most tests can build a 2-entry graph; tests that need a UC override.
   return {
     peginTxHex: PEGIN_TX_HEX,
     depositorBtcPubkey: DEPOSITOR_PUBKEY,
     vaultProviderBtcPubkey: VP_PUBKEY,
-    vaultKeeperBtcPubkeys: [VK_PUBKEY],
-    universalChallengerBtcPubkeys: [UC_PUBKEY],
+    vaultKeeperBtcPubkeys: [CHALLENGER_A, CHALLENGER_B],
+    universalChallengerBtcPubkeys: [],
     timelockPegin: TIMELOCK_PEGIN,
     timelockAssert: TIMELOCK_ASSERT,
     councilMembers: [COUNCIL_MEMBER],
@@ -316,9 +323,9 @@ describe("signDepositorGraph", () => {
 
     expect(builder).toHaveBeenCalledTimes(2);
 
-    // localChallengers = {VP, VK} - {depositor}. Depositor isn't VP or VK
-    // here, so both stay.
-    const expectedLocalChallengers = [VP_PUBKEY, VK_PUBKEY];
+    // localChallengers = VKs - {depositor} (depositor-as-claimer special
+    // case per btc-vault). Depositor isn't a VK here, so both stay.
+    const expectedLocalChallengers = [CHALLENGER_A, CHALLENGER_B];
 
     // Per-challenger payload should pin parent prevouts (Assert:0, CAX:0, CAY:0)
     // and pass the assert-period connector params.
@@ -506,37 +513,42 @@ describe("signDepositorGraph", () => {
     ).rejects.toThrow("expected to spend Assert vout 0, got vout 1");
   });
 
-  it("derives localChallengers as {VP, VKs} \\ {depositor}", async () => {
-    const EXTRA_KEEPER = "9".repeat(64);
-    registerStandardMocks([VP_PUBKEY, EXTRA_KEEPER]);
+  it("derives localChallengers as VKs \\ {depositor} (depositor-as-claimer special case)", async () => {
+    // Per btc-vault `crates/vault/src/tx_graph/graph.rs:144-150`:
+    // depositor-as-claimer ⇒ LocalChallengers = VKs only (VP excluded).
+    // Defensively filter the depositor if it accidentally appears in the
+    // VK list, even though `TxGraphParams::validate` forbids it on-chain.
+    const OTHER_KEEPER = "9".repeat(64);
+    registerStandardMocks([OTHER_KEEPER]);
     const { buildNoPayoutPsbt } = await import(
       "../../../primitives/psbt/noPayout"
     );
     const builder = vi.mocked(buildNoPayoutPsbt);
     builder.mockClear();
 
-    // Wallet returns the depositor key (here = VK_PUBKEY) in compressed form.
     const wallet = createMockWallet({
       supportsBatch: true,
-      pubkey: `02${VK_PUBKEY}`,
+      pubkey: `02${DEPOSITOR_PUBKEY}`,
     });
-    const graph = createDepositorGraph([VP_PUBKEY, EXTRA_KEEPER]);
+    const graph = createDepositorGraph([OTHER_KEEPER]);
 
-    // Make the depositor also one of the vault keepers - it should be filtered.
     await signDepositorGraph({
       depositorGraph: graph,
       btcWallet: wallet,
       signingContext: createSigningContext({
-        depositorBtcPubkey: VK_PUBKEY,
-        vaultKeeperBtcPubkeys: [VK_PUBKEY, "9".repeat(64)],
+        // Depositor is also accidentally listed as a VK; should be filtered.
+        vaultKeeperBtcPubkeys: [DEPOSITOR_PUBKEY, OTHER_KEEPER],
       }),
     });
 
     const noPayoutCall = builder.mock.calls[0][0];
     expect(noPayoutCall.connectorParams.localChallengers).toEqual([
-      VP_PUBKEY,
-      "9".repeat(64),
+      OTHER_KEEPER,
     ]);
+    // VP is intentionally NOT in localChallengers for the depositor flow.
+    expect(noPayoutCall.connectorParams.localChallengers).not.toContain(
+      VP_PUBKEY,
+    );
   });
 
   it("signs payout and nopayout PSBTs and returns per-challenger signatures", async () => {
@@ -700,12 +712,12 @@ describe("signDepositorGraph", () => {
     expect(wallet.signPsbt).not.toHaveBeenCalled();
   });
 
-  // Audit #303: VP-supplied challenger_presign_data must be exactly the
-  // localChallengers set. Missing entries → activation with incomplete
-  // recovery material. Extra/duplicate entries → wallet signs PSBTs for
-  // challengers the protocol doesn't recognize.
+  // Audit #303: VP-supplied challenger_presign_data must exactly equal
+  // `LocalChallengers ∪ UniversalChallengers`. Missing entries → activation
+  // with incomplete recovery material. Extra/duplicate entries → wallet
+  // signs PSBTs for challengers the protocol doesn't recognize.
   it("rejects when VP omits a required local challenger", async () => {
-    // localChallengers = [CHALLENGER_A, CHALLENGER_B]; graph only supplies A.
+    // expected = [CHALLENGER_A, CHALLENGER_B]; graph only supplies A.
     registerStandardMocks([CHALLENGER_A]);
     const wallet = createMockWallet({ supportsBatch: true });
     const graph = createDepositorGraph([CHALLENGER_A]);
@@ -716,7 +728,29 @@ describe("signDepositorGraph", () => {
         btcWallet: wallet,
         signingContext: createSigningContext(),
       }),
-    ).rejects.toThrow(/challenger set does not match localChallengers/);
+    ).rejects.toThrow(/challenger set does not match expected/);
+
+    expect(wallet.signPsbts).not.toHaveBeenCalled();
+    expect(wallet.signPsbt).not.toHaveBeenCalled();
+  });
+
+  it("rejects when VP omits a required universal challenger", async () => {
+    // expected = [CHALLENGER_A, CHALLENGER_B, UC_PUBKEY]; graph drops UC.
+    registerStandardMocks([CHALLENGER_A, CHALLENGER_B]);
+    const wallet = createMockWallet({ supportsBatch: true });
+    const graph = createDepositorGraph([CHALLENGER_A, CHALLENGER_B]);
+
+    await expect(
+      signDepositorGraph({
+        depositorGraph: graph,
+        btcWallet: wallet,
+        signingContext: createSigningContext({
+          universalChallengerBtcPubkeys: [UC_PUBKEY],
+        }),
+      }),
+    ).rejects.toThrow(
+      new RegExp(`challenger set does not match expected.*missing.*${UC_PUBKEY}`),
+    );
 
     expect(wallet.signPsbts).not.toHaveBeenCalled();
     expect(wallet.signPsbt).not.toHaveBeenCalled();
@@ -733,7 +767,7 @@ describe("signDepositorGraph", () => {
         btcWallet: wallet,
         signingContext: createSigningContext(),
       }),
-    ).rejects.toThrow(/challenger set does not match localChallengers/);
+    ).rejects.toThrow(/challenger set does not match expected/);
 
     expect(wallet.signPsbts).not.toHaveBeenCalled();
     expect(wallet.signPsbt).not.toHaveBeenCalled();
@@ -758,7 +792,7 @@ describe("signDepositorGraph", () => {
     expect(wallet.signPsbt).not.toHaveBeenCalled();
   });
 
-  it("rejects when VP supplies an unexpected challenger not in localChallengers", async () => {
+  it("rejects when VP supplies an unexpected challenger not in the expected set", async () => {
     const STRANGER = "9".repeat(64);
     registerStandardMocks([CHALLENGER_A, CHALLENGER_B, STRANGER]);
     const wallet = createMockWallet({ supportsBatch: true });
@@ -776,24 +810,44 @@ describe("signDepositorGraph", () => {
     expect(wallet.signPsbt).not.toHaveBeenCalled();
   });
 
-  it("rejects misconfigured context where vault provider key equals a vault keeper key", async () => {
+  it("rejects misconfigured context where a vault keeper duplicates a universal challenger", async () => {
+    // Local and universal challenger sets must be disjoint per the protocol.
+    // If the same key appears in both, depositor would sign for an ambiguous
+    // role; reject loudly rather than silently dedupe.
     registerStandardMocks([CHALLENGER_A, CHALLENGER_B]);
     const wallet = createMockWallet({ supportsBatch: true });
     const graph = createDepositorGraph([CHALLENGER_A, CHALLENGER_B]);
 
-    // VP key == VK key: deriveLocalChallengers must fail loudly rather
-    // than producing a deduped set that downstream comparisons misread
-    // as a missing-challenger error.
     await expect(
       signDepositorGraph({
         depositorGraph: graph,
         btcWallet: wallet,
         signingContext: createSigningContext({
-          vaultProviderBtcPubkey: VP_PUBKEY,
-          vaultKeeperBtcPubkeys: [VP_PUBKEY],
+          vaultKeeperBtcPubkeys: [CHALLENGER_A, CHALLENGER_B],
+          // CHALLENGER_A also appears in universal — overlap.
+          universalChallengerBtcPubkeys: [CHALLENGER_A],
         }),
       }),
-    ).rejects.toThrow(/duplicates a vaultKeeper key/);
+    ).rejects.toThrow(/vault keepers and universal challengers overlap/);
+
+    expect(wallet.signPsbts).not.toHaveBeenCalled();
+    expect(wallet.signPsbt).not.toHaveBeenCalled();
+  });
+
+  it("rejects misconfigured context where vault keepers contain a duplicate", async () => {
+    registerStandardMocks([CHALLENGER_A]);
+    const wallet = createMockWallet({ supportsBatch: true });
+    const graph = createDepositorGraph([CHALLENGER_A]);
+
+    await expect(
+      signDepositorGraph({
+        depositorGraph: graph,
+        btcWallet: wallet,
+        signingContext: createSigningContext({
+          vaultKeeperBtcPubkeys: [CHALLENGER_A, CHALLENGER_A],
+        }),
+      }),
+    ).rejects.toThrow(/duplicate vaultKeeper key/);
 
     expect(wallet.signPsbts).not.toHaveBeenCalled();
     expect(wallet.signPsbt).not.toHaveBeenCalled();

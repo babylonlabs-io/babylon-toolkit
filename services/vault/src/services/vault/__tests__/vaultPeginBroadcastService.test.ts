@@ -60,9 +60,16 @@ vi.mock("bitcoinjs-lib", () => {
     Transaction: { fromHex: vi.fn(() => mockTx) },
   };
 });
-vi.mock("../../../utils/btc", () => ({
-  getPsbtInputFields: vi.fn(() => ({ witnessUtxo: {} })),
-}));
+vi.mock("@babylonlabs-io/ts-sdk/tbv/core/utils", async (importOriginal) => {
+  const actual =
+    await importOriginal<
+      typeof import("@babylonlabs-io/ts-sdk/tbv/core/utils")
+    >();
+  return {
+    ...actual,
+    getPsbtInputFields: vi.fn(() => ({ witnessUtxo: {} })),
+  };
+});
 vi.mock("../../../clients/btc/config", () => ({
   getMempoolApiUrl: vi.fn(() => "https://mempool.test"),
 }));

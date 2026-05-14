@@ -84,13 +84,9 @@ function buildCtx(
 }
 
 describe("buildAndBroadcastRefund", () => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let readVault: any;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let readPrePeginContext: any;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let signPsbt: any;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let broadcastTx: any;
   const FEE_RATE = 10;
 

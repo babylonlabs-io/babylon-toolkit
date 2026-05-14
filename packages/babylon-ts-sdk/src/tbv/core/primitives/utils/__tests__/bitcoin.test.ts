@@ -4,8 +4,10 @@
 
 import { describe, expect, it } from "vitest";
 import {
+  deriveBip86ScriptPubKeyHex,
   ensureHexPrefix,
   formatSatoshisToBtc,
+  getSortedXOnlyPubkeys,
   hexToUint8Array,
   isValidHex,
   processPublicKeyToXOnly,
@@ -501,6 +503,104 @@ describe("Bitcoin Utilities", () => {
     it("should handle negative values", () => {
       expect(formatSatoshisToBtc(-50_000_000n)).toBe("-0.5");
       expect(formatSatoshisToBtc(-100_000_000n)).toBe("-1");
+    });
+  });
+
+  describe("getSortedXOnlyPubkeys", () => {
+    it("should strip 0x prefix from each pubkey", () => {
+      const result = getSortedXOnlyPubkeys([
+        "0x" + "a".repeat(64),
+        "0x" + "b".repeat(64),
+      ]);
+      expect(result).toEqual(["a".repeat(64), "b".repeat(64)]);
+    });
+
+    it("should sort lexicographically", () => {
+      const result = getSortedXOnlyPubkeys([
+        "c".repeat(64),
+        "a".repeat(64),
+        "b".repeat(64),
+      ]);
+      expect(result).toEqual(["a".repeat(64), "b".repeat(64), "c".repeat(64)]);
+    });
+
+    it("should produce stable order on already-clean already-sorted keys", () => {
+      const sorted = ["a".repeat(64), "b".repeat(64), "c".repeat(64)];
+      expect(getSortedXOnlyPubkeys(sorted)).toEqual(sorted);
+    });
+
+    it("should normalize mixed prefixed and unprefixed inputs before sorting", () => {
+      const result = getSortedXOnlyPubkeys([
+        "0x" + "c".repeat(64),
+        "a".repeat(64),
+        "0x" + "b".repeat(64),
+      ]);
+      expect(result).toEqual(["a".repeat(64), "b".repeat(64), "c".repeat(64)]);
+    });
+
+    it("should return empty array for empty input", () => {
+      expect(getSortedXOnlyPubkeys([])).toEqual([]);
+    });
+  });
+
+  describe("deriveBip86ScriptPubKeyHex", () => {
+    // BIP-86 test vector (first receive address, account 0):
+    // https://github.com/bitcoin/bips/blob/master/bip-0086.mediawiki#test-vectors
+    const bip86InternalKey =
+      "cc8a4bc64d897bddc5fbc2f670f7a8ba0b386779106cf1223c6fc5d7cd6fc115";
+    const bip86ScriptPubKey =
+      "0x5120a60869f0dbcf1dc659c9cecbaf8050135ea9e8cdc487053f1dc6880949dc684c";
+
+    it("should derive the BIP-86 P2TR scriptPubKey from a known x-only pubkey", () => {
+      expect(deriveBip86ScriptPubKeyHex(bip86InternalKey)).toBe(
+        bip86ScriptPubKey,
+      );
+    });
+
+    it("should accept a 0x-prefixed x-only pubkey", () => {
+      expect(deriveBip86ScriptPubKeyHex(`0x${bip86InternalKey}`)).toBe(
+        bip86ScriptPubKey,
+      );
+    });
+
+    it("should be case-insensitive on input hex", () => {
+      expect(deriveBip86ScriptPubKeyHex(bip86InternalKey.toUpperCase())).toBe(
+        bip86ScriptPubKey,
+      );
+    });
+
+    it("should return a 0x-prefixed 34-byte (OP_1 OP_PUSH32 + 32-byte key) script", () => {
+      const result = deriveBip86ScriptPubKeyHex(bip86InternalKey);
+      // 0x + 2 bytes (5120) + 32 bytes (64 hex) = 68 hex chars + "0x" prefix
+      expect(result).toHaveLength(2 + 4 + 64);
+      expect(result.startsWith("0x5120")).toBe(true);
+    });
+
+    it("should reject pubkey with wrong length", () => {
+      expect(() => deriveBip86ScriptPubKeyHex("a".repeat(63))).toThrow(
+        /must be 64 hex characters/,
+      );
+      expect(() => deriveBip86ScriptPubKeyHex("a".repeat(65))).toThrow(
+        /must be 64 hex characters/,
+      );
+      expect(() => deriveBip86ScriptPubKeyHex("a".repeat(66))).toThrow(
+        /must be 64 hex characters/,
+      );
+    });
+
+    it("should reject pubkey with non-hex characters", () => {
+      expect(() => deriveBip86ScriptPubKeyHex("z".repeat(64))).toThrow(
+        /must be 64 hex characters/,
+      );
+      expect(() =>
+        deriveBip86ScriptPubKeyHex("xyz" + "a".repeat(61)),
+      ).toThrow(/must be 64 hex characters/);
+    });
+
+    it("should reject empty string", () => {
+      expect(() => deriveBip86ScriptPubKeyHex("")).toThrow(
+        /must be 64 hex characters/,
+      );
     });
   });
 });

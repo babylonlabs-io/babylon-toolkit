@@ -350,6 +350,52 @@ export function deriveTaprootAddress(
 }
 
 /**
+ * Strip `0x` prefixes and lex-sort an array of x-only public keys.
+ *
+ * Used to produce the canonical (Rust-parity) keeper / challenger ordering
+ * the protocol expects in payout and refund signing contexts.
+ *
+ * @param pubkeys - Array of x-only public keys (with or without `0x` prefix)
+ * @returns Lex-sorted array of pubkeys with `0x` prefix stripped
+ */
+export function getSortedXOnlyPubkeys(pubkeys: string[]): string[] {
+  return pubkeys.map(stripHexPrefix).sort();
+}
+
+/**
+ * Derive the BIP-86 P2TR scriptPubKey (`0x`-prefixed hex) from an x-only
+ * public key.
+ *
+ * Matches Rust `Bip86KeyConnector::generate_taproot_script_pubkey`: a
+ * keypath-only P2TR output with no script tree. Used to compute the expected
+ * payout address for vault keeper claimers, whose payout goes to their own
+ * BIP-86 address rather than the depositor's registered payout address.
+ *
+ * Network-agnostic: P2TR scriptPubKey bytes are `OP_1 <32-byte tweaked-key>`
+ * regardless of network.
+ *
+ * @param xOnlyPubkeyHex - X-only public key (64 hex chars, with or without `0x` prefix)
+ * @returns `0x`-prefixed P2TR scriptPubKey hex
+ * @throws If `xOnlyPubkeyHex` is not exactly 64 hex chars after prefix stripping
+ */
+export function deriveBip86ScriptPubKeyHex(xOnlyPubkeyHex: string): string {
+  assertEccInitialized();
+  const cleanHex = stripHexPrefix(xOnlyPubkeyHex);
+  if (!/^[0-9a-fA-F]{64}$/.test(cleanHex)) {
+    throw new Error(
+      "Invalid x-only pubkey: must be 64 hex characters (32 bytes, no 0x prefix)",
+    );
+  }
+  const { output } = payments.p2tr({
+    internalPubkey: Buffer.from(cleanHex, "hex"),
+  });
+  if (!output) {
+    throw new Error("Failed to derive BIP-86 P2TR scriptPubKey");
+  }
+  return `0x${output.toString("hex")}`;
+}
+
+/**
  * Derive a Native SegWit (P2WPKH) address from a compressed public key.
  *
  * @param publicKeyHex - Compressed public key (66 hex chars, with or without 0x prefix)

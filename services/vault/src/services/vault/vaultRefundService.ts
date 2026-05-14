@@ -14,12 +14,12 @@
 import type { SignPsbtOptions } from "@babylonlabs-io/ts-sdk/shared";
 import {
   getNetworkFees,
+  getSortedXOnlyPubkeys,
   processPublicKeyToXOnly,
   pushTx,
 } from "@babylonlabs-io/ts-sdk/tbv/core";
 import {
   buildAndBroadcastRefund,
-  estimateRefundFeeSats,
   type RefundPrePeginContext,
   type VaultRefundData,
 } from "@babylonlabs-io/ts-sdk/tbv/core/services";
@@ -38,10 +38,6 @@ import { getBTCNetworkForWASM } from "../../config/pegin";
 
 import { fetchVaultProviderById } from "./fetchVaultProviders";
 import { fetchVaultRefundData } from "./fetchVaults";
-import {
-  getSortedUniversalChallengerPubkeys,
-  getSortedVaultKeeperPubkeys,
-} from "./vaultPayoutSignatureService";
 
 export interface BroadcastRefundParams {
   vaultId: Hex;
@@ -52,10 +48,6 @@ export interface BroadcastRefundParams {
   feeRate: number;
   signal?: AbortSignal;
 }
-
-// Re-export the SDK helper so the UI can compute the same fee the SDK will
-// charge without duplicating the protocol-owned vsize constant.
-export const getRefundNetworkFeeSats = estimateRefundFeeSats;
 
 export interface RefundPreview {
   amountSats: bigint;
@@ -186,11 +178,11 @@ async function readPrePeginContext(
     );
   }
 
-  const vaultKeeperPubkeys = getSortedVaultKeeperPubkeys(
-    vaultKeepers.map((vk) => ({ btcPubKey: vk.btcPubKey })),
+  const vaultKeeperPubkeys = getSortedXOnlyPubkeys(
+    vaultKeepers.map((vk) => vk.btcPubKey),
   );
-  const universalChallengerPubkeys = getSortedUniversalChallengerPubkeys(
-    universalChallengersList.map((uc) => ({ btcPubKey: uc.btcPubKey })),
+  const universalChallengerPubkeys = getSortedXOnlyPubkeys(
+    universalChallengersList.map((uc) => uc.btcPubKey),
   );
 
   return {
