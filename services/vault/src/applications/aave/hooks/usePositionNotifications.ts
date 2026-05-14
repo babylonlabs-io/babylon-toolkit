@@ -7,6 +7,7 @@ import {
   calculate,
   type CalculatorResult,
   type Vault,
+  type Warning,
 } from "../positionNotifications";
 import type { ReorderVerificationContext } from "../services";
 
@@ -32,6 +33,28 @@ export interface UsePositionNotificationsResult {
   reorderVerificationContext: ReorderVerificationContext | null;
 }
 
+/**
+ * Health-factor threshold at which the live-HF guardrail forces an
+ * `urgent` warning into the calculator result.
+ *
+ * Aligned with the calculator's own `URGENT_DISTANCE_PCT = 5%` rule —
+ * a position whose live oracle health factor sits at or below 1.05 is
+ * within the same band the calculator already considers urgent, so we
+ * surface the warning even when stale indexed data inflated `totalBtc`
+ * enough to suppress it.
+ */
+const LIVE_HF_URGENT_THRESHOLD = 1.05;
+
+function buildLiveHfUrgentWarning(healthFactor: number): Warning {
+  return {
+    type: "urgent",
+    title: `Critical — health factor ${healthFactor.toFixed(2)}`,
+    detail: `On-chain health factor is at or below ${LIVE_HF_URGENT_THRESHOLD.toFixed(2)}. The position can be liquidated at the current price.`,
+    suggestion:
+      "Add collateral or repay part of the debt to restore a safe Health Factor.",
+  };
+}
+
 export function usePositionNotifications(
   connectedAddress: string | undefined,
 ): UsePositionNotificationsResult {
@@ -41,6 +64,7 @@ export function usePositionNotifications(
   const {
     collateralVaults,
     debtValueUsd,
+    healthFactor,
     isLoading: dashboardLoading,
   } = useDashboardState(connectedAddress);
 
@@ -92,15 +116,39 @@ export function usePositionNotifications(
       name: `Vault ${entry.liquidationIndex + 1}`,
     }));
 
+    const calculatorResult = calculate({
+      btcPrice,
+      totalDebtUsd: debtValueUsd,
+      vaults,
+      CF: splitParams.CF,
+      THF: splitParams.THF,
+      maxLB: splitParams.LB,
+    });
+
+    // Live-HF urgency guardrail. Even when the calculator's own
+    // distance check did not surface urgent (e.g. because stale indexed
+    // rows inflated `totalBtc`), force one based on the on-chain
+    // oracle's health factor. Trigger window aligns with the
+    // calculator's `URGENT_DISTANCE_PCT`. No duplicate if the
+    // calculator already produced an `urgent` warning.
+    const hasUrgent = calculatorResult.warnings.some(
+      (w) => w.type === "urgent",
+    );
+    const resultWithLiveHf: CalculatorResult =
+      !hasUrgent &&
+      healthFactor !== null &&
+      healthFactor <= LIVE_HF_URGENT_THRESHOLD
+        ? {
+            ...calculatorResult,
+            warnings: [
+              buildLiveHfUrgentWarning(healthFactor),
+              ...calculatorResult.warnings,
+            ],
+          }
+        : calculatorResult;
+
     return {
-      result: calculate({
-        btcPrice,
-        totalDebtUsd: debtValueUsd,
-        vaults,
-        CF: splitParams.CF,
-        THF: splitParams.THF,
-        maxLB: splitParams.LB,
-      }),
+      result: resultWithLiveHf,
       status: "ready",
       reorderVerificationContext: {
         CF: splitParams.CF,
@@ -118,6 +166,7 @@ export function usePositionNotifications(
     btcMetadata,
     collateralVaults,
     debtValueUsd,
+    healthFactor,
   ]);
 
   return { result, status, isLoading, reorderVerificationContext };
