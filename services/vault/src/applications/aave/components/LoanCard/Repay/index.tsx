@@ -7,11 +7,9 @@
 
 import { AmountSlider, Button, SubSection } from "@babylonlabs-io/core-ui";
 import { useCallback, useState } from "react";
-import { formatUnits } from "viem";
 
 import { useETHWallet } from "@/context/wallet";
 import { useERC20Balance } from "@/hooks";
-import { logger } from "@/infrastructure";
 
 import {
   getCurrencyIconWithFallback,
@@ -21,15 +19,12 @@ import {
   formatTokenAmount,
   formatUsdValue,
 } from "../../../../../utils/formatting";
-import {
-  AMOUNT_INPUT_CLASS_NAME,
-  FULL_REPAY_BUFFER_FRACTION,
-  MIN_SLIDER_MAX,
-} from "../../../constants";
-import { useRepayTransaction } from "../../../hooks";
+import { AMOUNT_INPUT_CLASS_NAME, MIN_SLIDER_MAX } from "../../../constants";
+import { useRepayTransaction, type RepayMode } from "../../../hooks";
 import { useLoanContext } from "../../context/LoanContext";
 import { BorrowDetailsCard } from "../Borrow/BorrowDetailsCard";
 
+import { pickRepayParams } from "./hooks/pickRepayParams";
 import { useRepayMetrics } from "./hooks/useRepayMetrics";
 import { useRepayState } from "./hooks/useRepayState";
 import { validateRepayAction } from "./hooks/validateRepayAction";
@@ -67,12 +62,11 @@ export function Repay() {
 
   const {
     repayAmount,
-    repayAmountRaw,
     setRepayAmount,
-    setRepayAmountWithMode,
+    setRepayAmountMax,
     resetRepayAmount,
     maxRepayAmount,
-    repayMode,
+    isMaxIntent,
   } = useRepayState({
     currentDebtAmount,
     userTokenBalance,
@@ -100,104 +94,52 @@ export function Repay() {
   // `maxRepayAmount`.
   const sliderTrackMax = maxRepayAmount > 0 ? maxRepayAmount : MIN_SLIDER_MAX;
 
-  const [maxClickError, setMaxClickError] = useState<string | null>(null);
+  const [refetchError, setRefetchError] = useState<string | null>(null);
 
-  // Refetch fresh debt + balance before picking the repay mode. Stale values
-  // can land us in the wrong branch (e.g. `max-capped` without a raw bigint
-  // → broken float round-trip), so on any read failure we surface an error
-  // and bail rather than silently use cached values.
-  const handleMaxClick = useCallback(async () => {
-    setMaxClickError(null);
-
-    // React Query's default networkMode pauses queries when offline rather
-    // than throwing, so the try/catch alone would silently use stale data.
-    if (typeof navigator !== "undefined" && !navigator.onLine) {
-      setMaxClickError("Couldn't refresh balance/debt — please try again.");
-      return;
-    }
-
-    let freshDebtAmount: number;
-    let freshBalanceAmount: number;
-    let freshBalanceRaw: bigint;
-
-    try {
-      const [freshPosition, freshBalanceResult] = await Promise.all([
-        refetchPosition(),
-        refetchUserBalance(),
-      ]);
-
-      // React Query refetches don't reject on queryFn error — they surface
-      // it on the result. Treat as a failure here.
-      if (freshBalanceResult.isError) {
-        throw freshBalanceResult.error ?? new Error("Balance refetch failed");
-      }
-
-      const freshDebtRaw =
-        freshPosition?.debtPositions?.get(selectedReserve.reserveId)
-          ?.totalDebt ?? 0n;
-      freshDebtAmount = Number(
-        formatUnits(freshDebtRaw, selectedReserve.token.decimals),
-      );
-      freshBalanceRaw = freshBalanceResult.data ?? 0n;
-      freshBalanceAmount = Number(
-        formatUnits(freshBalanceRaw, selectedReserve.token.decimals),
-      );
-    } catch (error) {
-      logger.warn("Max click refetch failed", {
-        data: {
-          context: "Aave repay Max click",
-          error: error instanceof Error ? error.message : String(error),
-        },
-      });
-      setMaxClickError("Couldn't refresh balance/debt — please try again.");
-      return;
-    }
-
-    if (freshDebtAmount <= 0 || freshBalanceAmount <= 0) {
-      setRepayAmountWithMode(
-        Math.min(freshDebtAmount, freshBalanceAmount),
-        "partial",
-      );
-      return;
-    }
-
-    const fullRepayThreshold =
-      freshDebtAmount * (1 + FULL_REPAY_BUFFER_FRACTION);
-
-    if (freshBalanceAmount >= fullRepayThreshold) {
-      setRepayAmountWithMode(freshDebtAmount, "full");
-    } else if (freshBalanceAmount >= freshDebtAmount) {
-      // Pass the raw bigint so the parseUnits round-trip in useRepayTransaction
-      // can't round up by 1 ULP and produce an approval > balance.
-      setRepayAmountWithMode(freshBalanceAmount, "max-capped", freshBalanceRaw);
-    } else {
-      setRepayAmountWithMode(freshBalanceAmount, "partial");
-    }
-  }, [
-    refetchPosition,
-    refetchUserBalance,
-    selectedReserve.reserveId,
-    selectedReserve.token.decimals,
-    setRepayAmountWithMode,
-  ]);
+  // Pure UI action: pre-fill the input with the cached max so the user sees
+  // a number, and flag Max intent. The actual refetch + mode selection
+  // happens at submit time (see `handleRepay`) so the bigint we feed into
+  // `repayMaxCapped` is read from chain in the same tick we ask the wallet
+  // to sign — eliminating the click→submit stale-snapshot window.
+  const handleMaxClick = useCallback(() => {
+    setRefetchError(null);
+    setRepayAmountMax(maxRepayAmount);
+  }, [maxRepayAmount, setRepayAmountMax]);
 
   const handleRepay = async () => {
-    const success = await executeRepay(
-      repayAmount,
-      selectedReserve,
-      repayMode,
-      {
-        preSignValidation: () =>
-          validateRepayPreSign({
-            liquidationThresholdBps,
-            refetchSplitParams,
-          }),
-        repayAmountRaw,
-      },
-    );
+    let mode: RepayMode = "partial";
+    let amount = repayAmount;
+    let amountRaw: bigint | null = null;
+
+    if (isMaxIntent) {
+      const params = await pickRepayParams({
+        refetchPosition,
+        refetchUserBalance,
+        reserveId: selectedReserve.reserveId,
+        tokenDecimals: selectedReserve.token.decimals,
+      });
+      if (params.kind === "error") {
+        setRefetchError(params.message);
+        return;
+      }
+      mode = params.mode;
+      amount = params.amount;
+      amountRaw = params.amountRaw;
+    }
+
+    setRefetchError(null);
+
+    const success = await executeRepay(amount, selectedReserve, mode, {
+      preSignValidation: () =>
+        validateRepayPreSign({
+          liquidationThresholdBps,
+          refetchSplitParams,
+        }),
+      repayAmountRaw: amountRaw,
+    });
     if (success) {
       resetRepayAmount();
-      onRepaySuccess(repayAmount, 0);
+      onRepaySuccess(amount, 0);
     }
   };
 
@@ -259,10 +201,10 @@ export function Repay() {
         {errorMessage && (
           <p className="text-sm text-error-main">{errorMessage}</p>
         )}
-        {!errorMessage && maxClickError && (
-          <p className="text-sm text-warning-main">{maxClickError}</p>
+        {!errorMessage && refetchError && (
+          <p className="text-sm text-warning-main">{refetchError}</p>
         )}
-        {!errorMessage && !maxClickError && warningMessage && (
+        {!errorMessage && !refetchError && warningMessage && (
           <p className="text-sm text-warning-main">{warningMessage}</p>
         )}
       </div>

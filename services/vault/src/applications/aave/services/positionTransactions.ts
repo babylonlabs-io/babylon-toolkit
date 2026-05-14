@@ -192,9 +192,11 @@ export async function repayPartial(
  * residual debt — which is the interest accrued between the caller's
  * balance check and the broadcast block (sub-cent in practice).
  *
- * Callers must have already verified `balanceAmount >= currentDebt` against
- * fresh on-chain values; this function does not refetch debt to keep the
- * pulled amount strictly capped at the user's balance.
+ * `balanceAmount` is treated as the user's full on-chain balance at submit
+ * time — the submit path resolves it via `pickRepayParams`, which refetches
+ * debt + balance in the same tick as the wallet sign request. This function
+ * deliberately does not refetch balance, so the pulled amount stays strictly
+ * capped at whatever the caller passed.
  *
  * Approval/refund: the adapter pulls the full approved amount, routes the
  * debt, and refunds the excess in the same tx. Residual allowance after the

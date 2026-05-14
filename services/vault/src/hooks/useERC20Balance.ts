@@ -60,6 +60,12 @@ export function useERC20Balance(
     enabled: Boolean(tokenAddress && walletAddress),
     // Refetch periodically to keep balance up to date
     refetchInterval: 30000,
+    // `"online"` (the default) pauses queries when `navigator.onLine` is
+    // false instead of running queryFn — silently returning stale data to
+    // callers awaiting `refetch()`. `"always"` runs the queryFn regardless
+    // so real network failures surface via `isError`, which is the contract
+    // the repay submit path depends on.
+    networkMode: "always",
   });
 
   const balance = useMemo(() => {
