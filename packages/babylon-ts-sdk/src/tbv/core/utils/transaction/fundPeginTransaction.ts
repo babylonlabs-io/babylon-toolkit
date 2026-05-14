@@ -153,8 +153,24 @@ export function fundPeginTransaction(
     tx.addOutput(output.script, output.value);
   }
 
-  // Add change output if above dust threshold
-  if (changeAmount > DUST_THRESHOLD) {
+  // Trust the selector's change decision: `selectUtxosForPegin` runs every
+  // candidate set through `applyChangeOutputPolicy` and returns
+  // `changeAmount = 0n` whenever the residual would be at-or-below dust
+  // after paying the change-output fee. Validate the contract at this
+  // boundary — a hand-built or stale `changeAmount` in (0, DUST_THRESHOLD]
+  // would produce a non-relayable dust output, and emitting one would also
+  // bypass the canonical fee policy that the selector applied.
+  if (changeAmount < 0n) {
+    throw new Error(
+      `fundPeginTransaction: changeAmount cannot be negative, got ${changeAmount}`,
+    );
+  }
+  if (changeAmount > 0n && changeAmount <= DUST_THRESHOLD) {
+    throw new Error(
+      `fundPeginTransaction: changeAmount must be 0 or strictly above DUST_THRESHOLD (${DUST_THRESHOLD}), got ${changeAmount}`,
+    );
+  }
+  if (changeAmount > 0n) {
     const changeScript = bitcoin.address.toOutputScript(changeAddress, network);
     tx.addOutput(changeScript, Number(changeAmount));
   }

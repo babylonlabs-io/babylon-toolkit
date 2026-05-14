@@ -11,11 +11,11 @@ import {
   TXID_RE,
   pushTx,
 } from "@babylonlabs-io/ts-sdk";
+import { getPsbtInputFields } from "@babylonlabs-io/ts-sdk/tbv/core/utils";
 import { Psbt, Transaction } from "bitcoinjs-lib";
 import { Buffer } from "buffer";
 
 import { getMempoolApiUrl } from "../../clients/btc/config";
-import { getPsbtInputFields } from "../../utils/btc";
 
 import { fetchUTXOFromMempool } from "./vaultUtxoDerivationService";
 

@@ -137,8 +137,10 @@ export type { PayoutScriptParams, PayoutScriptResult } from "./scripts/payout";
 
 // Bitcoin utilities
 export {
+  deriveBip86ScriptPubKeyHex,
   deriveNativeSegwitAddress,
   deriveTaprootAddress,
+  getSortedXOnlyPubkeys,
   hexToUint8Array,
   isAddressFromPublicKey,
   isValidHex,

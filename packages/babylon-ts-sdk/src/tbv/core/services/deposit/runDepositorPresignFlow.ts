@@ -9,8 +9,6 @@
  */
 
 import type { Network } from "@babylonlabs-io/babylon-tbv-rust-wasm";
-import * as bitcoin from "bitcoinjs-lib";
-import { Buffer } from "buffer";
 
 import type { BitcoinWallet } from "../../../../shared/wallets/interfaces";
 import { DaemonStatus } from "../../clients/vault-provider/types";
@@ -20,6 +18,7 @@ import type {
 } from "../../clients/vault-provider/types";
 import { PayoutManager } from "../../managers/PayoutManager";
 import {
+  deriveBip86ScriptPubKeyHex,
   processPublicKeyToXOnly,
   stripHexPrefix,
 } from "../../primitives/utils/bitcoin";
@@ -136,20 +135,6 @@ function prepareTransactionsForSigning(
 }
 
 /**
- * Derive BIP-86 P2TR scriptPubKey hex from an x-only public key.
- * Requires bitcoinjs-lib ECC to be initialized by the caller.
- */
-function deriveBip86ScriptPubKey(xOnlyPubkeyHex: string): string {
-  const { output } = bitcoin.payments.p2tr({
-    internalPubkey: Buffer.from(xOnlyPubkeyHex, "hex"),
-  });
-  if (!output) {
-    throw new Error("Failed to derive BIP-86 P2TR scriptPubKey");
-  }
-  return output.toString("hex");
-}
-
-/**
  * Resolve the expected payout scriptPubKey for a given claimer.
  *
  * - VP/Depositor claimer: payout goes to the depositor's registered payout address
@@ -184,8 +169,7 @@ function resolvePayoutScriptPubKey(
   }
 
   // VK claimer: derive BIP-86 P2TR scriptPubKey from the VK's x-only pubkey
-  const scriptPubKey = deriveBip86ScriptPubKey(claimer);
-  return `0x${scriptPubKey}`;
+  return deriveBip86ScriptPubKeyHex(claimer);
 }
 
 function buildPayoutSigningInput(

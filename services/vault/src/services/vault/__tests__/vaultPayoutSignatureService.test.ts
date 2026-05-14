@@ -44,8 +44,6 @@ import {
   getVaultProviderBtcPubkeyFromChain,
 } from "../../../clients/eth-contract/btc-vault-registry/query";
 import {
-  getSortedUniversalChallengerPubkeys,
-  getSortedVaultKeeperPubkeys,
   prepareSigningContext,
   resolveVaultProviderBtcPubkey,
 } from "../vaultPayoutSignatureService";
@@ -56,27 +54,6 @@ const UNCOMPRESSED_VP_PUBKEY = `04${ON_CHAIN_VP_PUBKEY}${"b".repeat(64)}`;
 const DIFFERENT_VP_PUBKEY = "b".repeat(64);
 
 describe("vaultPayoutSignatureService", () => {
-  describe("getSortedVaultKeeperPubkeys", () => {
-    it("strips 0x and sorts lexicographically", () => {
-      const result = getSortedVaultKeeperPubkeys([
-        { btcPubKey: "0xccc" },
-        { btcPubKey: "aaa" },
-        { btcPubKey: "0xbbb" },
-      ]);
-      expect(result).toEqual(["aaa", "bbb", "ccc"]);
-    });
-  });
-
-  describe("getSortedUniversalChallengerPubkeys", () => {
-    it("strips 0x and sorts lexicographically", () => {
-      const result = getSortedUniversalChallengerPubkeys([
-        { btcPubKey: "0xzzz" },
-        { btcPubKey: "aaa" },
-      ]);
-      expect(result).toEqual(["aaa", "zzz"]);
-    });
-  });
-
   describe("resolveVaultProviderBtcPubkey", () => {
     beforeEach(() => {
       vi.clearAllMocks();

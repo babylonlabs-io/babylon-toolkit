@@ -125,7 +125,6 @@ export default tseslint.config(
   // Tests are excluded - non-null assertions on fixtures are legitimate there.
   {
     files: [
-      "src/utils/fee/peginFee.ts",
       "src/hooks/deposit/depositFlowSteps/payoutSigning.ts",
       "src/services/wots/**/*.ts",
       "src/services/vault/vaultActivationService.ts",

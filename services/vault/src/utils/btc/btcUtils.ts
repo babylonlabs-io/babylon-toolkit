@@ -4,27 +4,11 @@
  * Common utility functions for Bitcoin operations
  */
 
+import { stripHexPrefix } from "@babylonlabs-io/ts-sdk/tbv/core";
 import * as bitcoin from "bitcoinjs-lib";
 import { Buffer } from "buffer";
 
 import { getNetworkConfigBTC } from "../../config";
-
-/**
- * Strip "0x" prefix from hex string if present
- * Bitcoin expects plain hex (no "0x" prefix), but frontend uses Ethereum-style "0x"-prefixed hex
- *
- * @param hex - Hex string with or without "0x" prefix
- * @returns Hex string without "0x" prefix
- *
- * @example
- * ```ts
- * stripHexPrefix('0xabc123') // 'abc123'
- * stripHexPrefix('abc123')   // 'abc123'
- * ```
- */
-export function stripHexPrefix(hex: string): string {
-  return hex.startsWith("0x") || hex.startsWith("0X") ? hex.slice(2) : hex;
-}
 
 /**
  * Resolve the bitcoinjs-lib `Network` object from the current environment's
@@ -78,29 +62,4 @@ export function scriptPubKeyHexToBtcAddress(scriptPubKeyHex: string): string {
     bytes[i] = parseInt(cleanHex.slice(i * 2, i * 2 + 2), 16);
   }
   return bitcoin.address.fromOutputScript(bytes, getBitcoinJsNetwork());
-}
-
-/**
- * Derive the BIP-86 P2TR scriptPubKey (0x-prefixed hex) from an x-only public key.
- *
- * Matches Rust `Bip86KeyConnector::generate_taproot_script_pubkey`: a keypath-only
- * P2TR output with no script tree. Used to compute the expected payout address for
- * vault keeper claimers, whose payout goes to their own BIP-86 address rather than
- * the depositor's registered payout address.
- */
-export function deriveBip86ScriptPubKeyHex(xOnlyPubkeyHex: string): string {
-  const cleanHex = stripHexPrefix(xOnlyPubkeyHex);
-  if (!/^[0-9a-fA-F]{64}$/.test(cleanHex)) {
-    throw new Error(
-      "Invalid x-only pubkey: must be 64 hex characters (32 bytes, no 0x prefix)",
-    );
-  }
-  const { output } = bitcoin.payments.p2tr({
-    internalPubkey: Buffer.from(cleanHex, "hex"),
-    network: getBitcoinJsNetwork(),
-  });
-  if (!output) {
-    throw new Error("Failed to derive BIP-86 P2TR scriptPubKey");
-  }
-  return `0x${output.toString("hex")}`;
 }

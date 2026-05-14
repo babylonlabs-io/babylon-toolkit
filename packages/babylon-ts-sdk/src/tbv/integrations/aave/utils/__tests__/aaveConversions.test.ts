@@ -14,7 +14,7 @@ describe("aaveConversions", () => {
   describe("aaveValueToUsd", () => {
     it("should convert 1e26 to $1 USD", () => {
       const value = 10n ** 26n;
-      expect(aaveValueToUsd(value)).toBe(1);
+      expect(aaveValueToUsd(value)).toBeCloseTo(1);
     });
 
     it("should convert 100e26 to $100 USD", () => {
@@ -28,14 +28,16 @@ describe("aaveConversions", () => {
 
     it("should handle fractional USD values", () => {
       // 0.5 USD = 0.5 * 1e26
+      // toBeCloseTo: dividing a 25+ digit BigInt by 1e26 rounds to the
+      // nearest representable double, which loses sub-cent precision.
       const value = 5n * 10n ** 25n;
-      expect(aaveValueToUsd(value)).toBe(0.5);
+      expect(aaveValueToUsd(value)).toBeCloseTo(0.5);
     });
 
     it("should handle large values", () => {
       // $1,000,000 USD
       const value = 1_000_000n * 10n ** 26n;
-      expect(aaveValueToUsd(value)).toBe(1_000_000);
+      expect(aaveValueToUsd(value)).toBeCloseTo(1_000_000);
     });
   });
 
@@ -55,8 +57,10 @@ describe("aaveConversions", () => {
     });
 
     it("should handle fractional USD values", () => {
+      // toBeCloseTo: dividing a 52+ digit BigInt by 1e53 rounds to the
+      // nearest representable double, which loses sub-cent precision.
       const value = 5n * 10n ** 52n;
-      expect(aaveRayValueToUsd(value)).toBe(0.5);
+      expect(aaveRayValueToUsd(value)).toBeCloseTo(0.5);
     });
   });
 

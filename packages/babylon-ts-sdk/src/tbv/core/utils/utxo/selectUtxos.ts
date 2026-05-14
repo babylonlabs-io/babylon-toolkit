@@ -6,14 +6,12 @@
 import { script as bitcoinScript } from "bitcoinjs-lib";
 import { Buffer } from "buffer";
 
+import { BTC_DUST_SAT, DUST_THRESHOLD } from "../fee/constants";
 import {
-  BTC_DUST_SAT,
-  DUST_THRESHOLD,
-  MAX_NON_LEGACY_OUTPUT_SIZE,
-  P2TR_INPUT_SIZE,
-  rateBasedTxBufferFee,
-  TX_BUFFER_SIZE_OVERHEAD,
-} from "../fee/constants";
+  applyChangeOutputPolicy,
+  computeChangeOutputFeeSats,
+  computePeginBaseFeeSats,
+} from "../fee/peginFeeMath";
 
 /**
  * Unspent Transaction Output (UTXO) for funding peg-in transactions.
@@ -126,44 +124,41 @@ export function selectUtxosForPegin(
   let accumulatedValue = 0n;
   let estimatedFee = 0n;
 
-  // Iteratively select UTXOs and recalculate fee
+  // Iteratively select UTXOs, recalculating the fee through the shared
+  // `applyChangeOutputPolicy` helper so the selector and the funder
+  // agree on (fee, change output emission, change amount) for the same
+  // inputs. Without that, the funder can omit a change output the
+  // selector charged for — silent depositor overpayment at the dust
+  // boundary.
   for (const utxo of sortedUTXOs) {
     selectedUTXOs.push(utxo);
     accumulatedValue += BigInt(utxo.value);
 
-    // Recalculate fee based on CURRENT number of inputs
-    const inputSize = selectedUTXOs.length * P2TR_INPUT_SIZE;
-    const outputSize = numOutputs * MAX_NON_LEGACY_OUTPUT_SIZE;
-    const baseTxSize = inputSize + outputSize + TX_BUFFER_SIZE_OVERHEAD;
+    const baseFee = computePeginBaseFeeSats({
+      numInputs: selectedUTXOs.length,
+      numOutputs,
+      feeRate,
+    });
+    const changeOutputFee = computeChangeOutputFeeSats(feeRate);
 
-    // Calculate base fee with buffer
-    estimatedFee =
-      BigInt(Math.ceil(baseTxSize * feeRate)) +
-      BigInt(rateBasedTxBufferFee(feeRate));
-
-    // Check if there will be change left after pegin amount and fee
-    const changeAmount = accumulatedValue - peginAmount - estimatedFee;
-
-    // If change is above dust, add fee for change output
-    if (changeAmount > DUST_THRESHOLD) {
-      const changeOutputFee = BigInt(
-        Math.ceil(MAX_NON_LEGACY_OUTPUT_SIZE * feeRate),
-      );
-      estimatedFee += changeOutputFee;
+    if (accumulatedValue < peginAmount + baseFee) {
+      estimatedFee = baseFee;
+      continue;
     }
 
-    // Check if we have enough to cover pegin amount + fees
-    if (accumulatedValue >= peginAmount + estimatedFee) {
-      // Success! We have enough funds
-      const finalChangeAmount = accumulatedValue - peginAmount - estimatedFee;
+    const policy = applyChangeOutputPolicy({
+      totalInputValue: accumulatedValue,
+      peginAmount,
+      baseFee,
+      changeOutputFee,
+    });
 
-      return {
-        selectedUTXOs,
-        totalValue: accumulatedValue,
-        fee: estimatedFee,
-        changeAmount: finalChangeAmount,
-      };
-    }
+    return {
+      selectedUTXOs,
+      totalValue: accumulatedValue,
+      fee: policy.fee,
+      changeAmount: policy.changeAmount,
+    };
   }
 
   // If we get here, we don't have enough funds
