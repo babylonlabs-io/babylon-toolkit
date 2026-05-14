@@ -6,8 +6,11 @@
  * The actual contract reads, validations, and multicalls live in the SDK.
  */
 
-import type { Address, Hex } from "viem";
+import { BTCVaultRegistryABI } from "@babylonlabs-io/ts-sdk/tbv/core";
+import { type Abi, type Address, type Hex, zeroAddress } from "viem";
 
+import { CONTRACTS } from "../../../config/contracts";
+import { ethClient } from "../client";
 import { getVaultRegistryReader } from "../sdk-readers";
 
 /**
@@ -81,4 +84,69 @@ export async function getOffchainParamsVersionsFromChain(
   vaultIds: readonly Hex[],
 ): Promise<number[]> {
   return getVaultRegistryReader().getOffchainParamsVersionsByVaultIds(vaultIds);
+}
+
+/**
+ * Signing-critical subset of `getBtcVaultBasicInfo` used by the reorder
+ * integrity guard. Returned by `getBtcVaultBasicInfoFromChain` in a map
+ * keyed by lowercased vault ID.
+ */
+export interface OnChainVaultBasicInfo {
+  /** Vault deposit amount in satoshis. */
+  amount: bigint;
+  /** Numeric `BTCVaultStatus` (see `ContractStatus`). 2 = ACTIVE. */
+  status: number;
+  /** Application controller bound at vault creation. */
+  applicationEntryPoint: Address;
+}
+
+/**
+ * Read per-vault signing-critical fields for many vaults in a single
+ * multicall against `BTCVaultRegistry.getBtcVaultBasicInfo`.
+ *
+ * Returned map keys are lowercased vault IDs (case-insensitive lookup);
+ * the same key form is used by the reorder integrity guard so the caller
+ * does not need to worry about checksum casing.
+ *
+ * @throws if any input vault is unregistered on-chain (`depositor` is the
+ * zero address). The reorder guard treats an unregistered vault as
+ * untrusted membership and refuses to sign.
+ */
+export async function getBtcVaultBasicInfoFromChain(
+  vaultIds: readonly Hex[],
+): Promise<Map<Hex, OnChainVaultBasicInfo>> {
+  if (vaultIds.length === 0) return new Map();
+
+  const publicClient = ethClient.getPublicClient();
+
+  const results = await publicClient.multicall({
+    contracts: vaultIds.map((vaultId) => ({
+      address: CONTRACTS.BTC_VAULT_REGISTRY,
+      abi: BTCVaultRegistryABI as Abi,
+      functionName: "getBtcVaultBasicInfo" as const,
+      args: [vaultId] as const,
+    })),
+    allowFailure: false,
+  });
+
+  const out = new Map<Hex, OnChainVaultBasicInfo>();
+  results.forEach((info, i) => {
+    const result = info as unknown as {
+      depositor: Address;
+      amount: bigint;
+      status: number;
+      applicationEntryPoint: Address;
+    };
+    if (result.depositor === zeroAddress) {
+      throw new Error(
+        `Vault ${vaultIds[i]} not registered on-chain — refusing to recompute reorder against unverified basic info`,
+      );
+    }
+    out.set(vaultIds[i].toLowerCase() as Hex, {
+      amount: result.amount,
+      status: result.status,
+      applicationEntryPoint: result.applicationEntryPoint,
+    });
+  });
+  return out;
 }

@@ -50,6 +50,7 @@ export function PositionNotificationBanner({
     result: hookResult,
     status,
     isLoading,
+    reorderVerificationContext,
   } = usePositionNotifications(connectedAddress);
 
   const hasOverride = resultOverride !== undefined;
@@ -73,11 +74,16 @@ export function PositionNotificationBanner({
   const handleApplyOrder = useCallback(async () => {
     if (!result?.suggestedVaultOrder) return;
     const vaultIds = result.suggestedVaultOrder.map((v) => v.id as Hex);
-    const success = await executeReorder(vaultIds);
+    const success = await executeReorder(
+      vaultIds,
+      reorderVerificationContext
+        ? { suggestedOrderContext: reorderVerificationContext }
+        : undefined,
+    );
     if (success) {
       setIsReorderSuccess(true);
     }
-  }, [result, executeReorder]);
+  }, [result, executeReorder, reorderVerificationContext]);
 
   const effectiveStatus = statusOverride ?? status;
 
