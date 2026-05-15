@@ -5,8 +5,18 @@ import { useInscriptionProvider } from "@/context/Inscriptions.context";
 import { useLifeCycleHooks } from "@/context/LifecycleHooks.context";
 import { HashMap, IChain, IWallet } from "@/core/types";
 import { validateAddress, validateAddressWithPK } from "@/core/utils/wallet";
+import { ERROR_CODES, WalletError } from "@/error";
 
 import { useWidgetState } from "./useWidgetState";
+
+/**
+ * Connection-time WalletError codes that the user must see in-dialog —
+ * silently bouncing back to chain selection would leave the user with no
+ * idea why their wallet didn't connect.
+ */
+const TERMINAL_CONNECT_ERROR_CODES: ReadonlySet<string> = new Set([
+  ERROR_CODES.INCOMPATIBLE_WALLET_VERSION,
+]);
 
 interface Props {
   persistent: boolean;
@@ -201,12 +211,39 @@ export function useWalletConnectors({ persistent, accountStorage, onError }: Pro
     const unsubscribeArr = connectorArr.filter(Boolean).map((connector) =>
       connector.on("error", (error: Error) => {
         onError?.(error);
+
+        // Terminal errors (e.g. the wallet extension is too old) need an
+        // in-dialog message so the user can act on them. Anything else
+        // falls through to the existing "bounce back to chains" behaviour
+        // — host apps' `onError` callbacks still get the raw error.
+        // Guard on `displayError` directly so we still fall through to
+        // `displayChains?.()` below if the dialog state isn't wired up;
+        // otherwise the user could be stranded on the current screen.
+        if (
+          error instanceof WalletError &&
+          TERMINAL_CONNECT_ERROR_CODES.has(error.code) &&
+          displayError
+        ) {
+          const walletName = error.wallet ?? "your wallet";
+          displayError({
+            title: `Update ${walletName}`,
+            description:
+              error.message || `${walletName} needs to be updated before you can connect.`,
+            submitButton: "",
+            cancelButton: "Done",
+            onCancel: () => {
+              displayChains?.();
+            },
+          });
+          return;
+        }
+
         displayChains?.();
       }),
     );
 
     return () => unsubscribeArr.forEach((unsubscribe) => unsubscribe());
-  }, [onError, displayChains, connectors]);
+  }, [onError, displayChains, displayError, connectors]);
 
   useEffect(() => {
     const requiredChainIds = Object.values(chainMap).filter(Boolean).map(chain => chain.id);
