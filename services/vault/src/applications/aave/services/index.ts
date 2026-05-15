@@ -9,7 +9,6 @@ export {
 // GraphQL: Positions
 export {
   fetchAaveActivePositionsWithCollaterals,
-  fetchAavePositionByDepositor,
   type AavePosition,
   type AavePositionCollateral,
   type AavePositionWithCollaterals,

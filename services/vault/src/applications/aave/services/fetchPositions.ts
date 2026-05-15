@@ -144,18 +144,6 @@ const GET_AAVE_ACTIVE_POSITIONS_WITH_COLLATERALS = gql`
   }
 `;
 
-const GET_AAVE_POSITION_BY_DEPOSITOR = gql`
-  query GetAavePositionByDepositor($depositorAddress: String!) {
-    aavePosition(depositorAddress: $depositorAddress) {
-      depositorAddress
-      proxyContract
-      totalCollateral
-      createdAt
-      updatedAt
-    }
-  }
-`;
-
 /**
  * Maps a GraphQL position item to AavePosition
  */
@@ -221,26 +209,4 @@ export async function fetchAaveActivePositionsWithCollaterals(
       mapGraphQLCollateralToAavePositionCollateral,
     ),
   }));
-}
-
-/**
- * Fetches a single Aave position by depositor address from the GraphQL indexer.
- *
- * @param depositorAddress - User's Ethereum address
- * @returns Aave position or null if not found
- */
-export async function fetchAavePositionByDepositor(
-  depositorAddress: string,
-): Promise<AavePosition | null> {
-  const response = await graphqlClient.request<{
-    aavePosition: GraphQLPositionItem | null;
-  }>(GET_AAVE_POSITION_BY_DEPOSITOR, {
-    depositorAddress: depositorAddress.toLowerCase(),
-  });
-
-  if (!response.aavePosition) {
-    return null;
-  }
-
-  return mapGraphQLPositionToAavePosition(response.aavePosition);
 }

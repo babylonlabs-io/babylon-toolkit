@@ -430,6 +430,11 @@ function extractDepositorGraphSignatures(
   challengerEntries: ChallengerEntry[],
   depositorPubkey: string,
 ): DepositorAsClaimerPresignatures {
+  // Positional invariant: psbtPairs[0] is the payout PSBT; per-challenger
+  // nopayouts live at indices recorded in `challengerEntries[].noPayoutIdx`.
+  // Set up by `collectDepositorGraphPsbts` (payout pushed first, then each
+  // nopayout). A future refactor that reorders the array would silently
+  // extract the wrong signature for the wrong slot — Critical Path #3.
   assertPsbtUnsignedTxMatches(psbtPairs[0]);
   const payoutSignature = extractPayoutSignature(
     psbtPairs[0].returnedPsbtHex,
