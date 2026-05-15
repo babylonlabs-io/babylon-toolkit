@@ -29,6 +29,10 @@ import type {
   PresignDataPerChallenger,
 } from "../../clients/vault-provider/types";
 import {
+  assertPsbtUnsignedTxMatches,
+  type AssertPsbtUnsignedTxMatchesParams,
+} from "../../primitives/psbt/assertPsbtUnsignedTxMatches";
+import {
   assertNoPayoutOutputMatchesChallenger,
   buildNoPayoutPsbt,
 } from "../../primitives/psbt/noPayout";
@@ -412,24 +416,32 @@ async function buildLocalNoPayoutPsbt(
 // Extract phase
 // ============================================================================
 
+/** A pair of a locally-built PSBT and the wallet-returned PSBT for it. */
+type PsbtPair = AssertPsbtUnsignedTxMatchesParams;
+
 /**
  * Extract all signatures from signed PSBTs and assemble into presignatures.
+ * Each pair is asserted to encode the same unsigned tx before its signature
+ * is extracted — defends against a wallet that returns a signature for a
+ * substituted transaction.
  */
 function extractDepositorGraphSignatures(
-  signedPsbtHexes: string[],
+  psbtPairs: PsbtPair[],
   challengerEntries: ChallengerEntry[],
   depositorPubkey: string,
 ): DepositorAsClaimerPresignatures {
+  assertPsbtUnsignedTxMatches(psbtPairs[0]);
   const payoutSignature = extractPayoutSignature(
-    signedPsbtHexes[0],
+    psbtPairs[0].returnedPsbtHex,
     depositorPubkey,
   );
 
   const perChallenger: Record<string, DepositorPreSigsPerChallenger> = {};
   for (const entry of challengerEntries) {
+    assertPsbtUnsignedTxMatches(psbtPairs[entry.noPayoutIdx]);
     perChallenger[entry.challengerPubkey] = {
       nopayout_signature: extractPayoutSignature(
-        signedPsbtHexes[entry.noPayoutIdx],
+        psbtPairs[entry.noPayoutIdx].returnedPsbtHex,
         depositorPubkey,
       ),
     };
@@ -566,9 +578,13 @@ export async function signDepositorGraph(
     );
   }
 
-  // 3. Extract signatures and assemble presignatures
+  // 3. Pair requested with signed and extract signatures
+  const psbtPairs: PsbtPair[] = psbtHexes.map((requestedPsbtHex, i) => ({
+    requestedPsbtHex,
+    returnedPsbtHex: signedPsbtHexes[i],
+  }));
   return extractDepositorGraphSignatures(
-    signedPsbtHexes,
+    psbtPairs,
     challengerEntries,
     depositorPubkey,
   );
