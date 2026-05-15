@@ -1629,6 +1629,47 @@ describe("PeginManager", () => {
       );
     });
 
+    it("registerPeginOnChain rejects any P2WPKH payout address when wallet exposes only an x-only key", async () => {
+      // Taproot wallets return x-only per the BitcoinWallet interface
+      // contract. With only an x-only key in hand, y-parity is unknowable;
+      // accepting any P2WPKH derived from 02|x or 03|x would let an attacker
+      // bind a script the wallet doesn't control. Both parities must be
+      // rejected at the helper level (parity-swap finding follow-up).
+      const xOnly = TEST_KEYS.DEPOSITOR;
+      const evenAddr = deriveNativeSegwitAddress(`02${xOnly}`, "signet");
+      const oddAddr = deriveNativeSegwitAddress(`03${xOnly}`, "signet");
+
+      const btcWallet = new MockBitcoinWallet({ publicKeyHex: xOnly });
+      const ethWallet = new MockEthereumWallet();
+      const manager = new PeginManager({
+        btcNetwork: "signet",
+        btcWallet,
+        ethWallet: ethWallet as any,
+        ethChain: TEST_CHAIN,
+        publicClient: TEST_PUBLIC_CLIENT,
+        vaultContracts: { btcVaultRegistry: TEST_CONTRACT_ADDRESS },
+        mempoolApiUrl: MEMPOOL_API_URLS.signet,
+      });
+      const popSignature = await manager.signProofOfPossession();
+
+      for (const addr of [evenAddr, oddAddr]) {
+        await expect(
+          manager.registerPeginOnChain({
+            unsignedPrePeginTx: "0100000000010000000000",
+            depositorSignedPeginTx: MOCK_DEPOSITOR_SIGNED_PEGIN_TX,
+            vaultProvider: TEST_CONTRACT_ADDRESS,
+            hashlock: MOCK_HASHLOCK,
+            htlcVout: 0,
+            depositorPayoutBtcAddress: addr,
+            depositorWotsPkHash: MOCK_WOTS_PK_HASH,
+            popSignature,
+          }),
+        ).rejects.toThrow(
+          /BTC payout address .* is not derived from the connected wallet/i,
+        );
+      }
+    });
+
     it("registerPeginBatchOnChain rejects when any single request has a foreign payout address", async () => {
       const { manager } = makeManager();
       const popSignature = await manager.signProofOfPossession();

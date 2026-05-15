@@ -1410,14 +1410,13 @@ export class PeginManager {
   /**
    * Resolve the BTC scriptPubKey to register as the depositor's payout sink.
    *
-   * `address` is validated against the verified depositor pubkey, which MUST
-   * be the *raw* (parity-preserving) form returned by the wallet adapter —
-   * the caller should source it from `assertPopMatchesBtcWallet`'s return
-   * value, not from `popSignature.depositorBtcPubkey` (x-only, parity
-   * stripped). P2WPKH addresses are derived from a parity-bearing compressed
-   * key; passing the x-only form here would let `isAddressFromPublicKey`
-   * try both `02|x` and `03|x` and accept an opposite-parity P2WPKH
-   * address the wallet does not actually control.
+   * `address` is validated against the verified depositor pubkey, sourced
+   * from `assertPopMatchesBtcWallet`'s return value rather than
+   * `popSignature.depositorBtcPubkey` (which is x-only, parity stripped).
+   * For wallets that expose a compressed key this preserves y-parity end to
+   * end. For Taproot wallets that only expose an x-only key, the helper
+   * itself fails closed for P2WPKH — the parity is unknowable, so the
+   * payout sink must be a P2TR address derived from that same x.
    *
    * The helper does not call into the wallet so the batch path can resolve
    * many requests without any extra adapter reads. Threat closed: a
