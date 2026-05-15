@@ -43,3 +43,9 @@ export type { NoPayoutParams } from "./noPayout";
 
 export { buildChallengeAssertPsbt } from "./challengeAssert";
 export type { ChallengeAssertParams } from "./challengeAssert";
+
+export {
+  assertPsbtUnsignedTxMatches,
+  PsbtSubstitutionError,
+} from "./assertPsbtUnsignedTxMatches";
+export type { AssertPsbtUnsignedTxMatchesParams } from "./assertPsbtUnsignedTxMatches";
