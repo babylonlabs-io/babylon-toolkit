@@ -1,3 +1,5 @@
+import { pushTx } from "@babylonlabs-io/ts-sdk";
+import { assertPsbtUnsignedTxMatches } from "@babylonlabs-io/ts-sdk/tbv/core/primitives";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // Use vi.hoisted so mocks can reference these before module initialization
@@ -70,6 +72,19 @@ vi.mock("@babylonlabs-io/ts-sdk/tbv/core/utils", async (importOriginal) => {
     getPsbtInputFields: vi.fn(() => ({ witnessUtxo: {} })),
   };
 });
+vi.mock(
+  "@babylonlabs-io/ts-sdk/tbv/core/primitives",
+  async (importOriginal) => {
+    const actual =
+      await importOriginal<
+        typeof import("@babylonlabs-io/ts-sdk/tbv/core/primitives")
+      >();
+    return {
+      ...actual,
+      assertPsbtUnsignedTxMatches: vi.fn(),
+    };
+  },
+);
 vi.mock("../../../clients/btc/config", () => ({
   getMempoolApiUrl: vi.fn(() => "https://mempool.test"),
 }));
@@ -261,6 +276,44 @@ describe("broadcastPrePeginTransaction — resolveInputUtxo behavior", () => {
     ).resolves.toBe("mock-txid");
 
     expect(mockSignedPsbt.extractTransaction).toHaveBeenCalled();
+  });
+
+  it("rebinds the wallet-signed PSBT against the requested PSBT before broadcasting", async () => {
+    vi.mocked(assertPsbtUnsignedTxMatches).mockClear();
+    vi.mocked(pushTx).mockClear();
+
+    const customWallet = {
+      signPsbt: vi.fn().mockResolvedValue("wallet-returned-psbt-hex"),
+    };
+
+    await broadcastPrePeginTransaction({
+      ...baseParams,
+      btcWalletProvider: customWallet,
+      expectedUtxos: undefined,
+    });
+
+    expect(assertPsbtUnsignedTxMatches).toHaveBeenCalledTimes(1);
+    expect(assertPsbtUnsignedTxMatches).toHaveBeenCalledWith({
+      requestedPsbtHex: "mock-psbt-hex",
+      returnedPsbtHex: "wallet-returned-psbt-hex",
+    });
+  });
+
+  it("aborts before broadcast when the rebind helper rejects the wallet's PSBT", async () => {
+    vi.mocked(assertPsbtUnsignedTxMatches).mockImplementationOnce(() => {
+      throw new Error("output 0 script differs");
+    });
+    vi.mocked(pushTx).mockClear();
+
+    await expect(
+      broadcastPrePeginTransaction({
+        ...baseParams,
+        expectedUtxos: undefined,
+      }),
+    ).rejects.toThrow(/output 0 script differs/);
+
+    expect(pushTx).not.toHaveBeenCalled();
+    expect(mockSignedPsbt.extractTransaction).not.toHaveBeenCalled();
   });
 
   it("preserves PSBT finalization errors when the wallet returns a partially signed PSBT", async () => {

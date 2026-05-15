@@ -15,6 +15,7 @@ import { Psbt } from "bitcoinjs-lib";
 import type { Address, Hex } from "viem";
 
 import type { SignPsbtOptions } from "../../../../shared/wallets/interfaces/BitcoinWallet";
+import { assertPsbtUnsignedTxMatches } from "../../primitives/psbt/assertPsbtUnsignedTxMatches";
 import { buildRefundPsbt } from "../../primitives/psbt/refund";
 import {
   processPublicKeyToXOnly,
@@ -361,6 +362,12 @@ export async function buildAndBroadcastRefund<
     REFUND_INPUT_COUNT,
   );
   const signedPsbtHex = await signPsbt(psbtHex, signOptions);
+
+  assertPsbtUnsignedTxMatches({
+    requestedPsbtHex: psbtHex,
+    returnedPsbtHex: signedPsbtHex,
+  });
+
   const signedTxHex = finalizeAndExtract(signedPsbtHex);
   signal?.throwIfAborted();
 
