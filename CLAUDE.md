@@ -46,12 +46,13 @@ These paths handle irreversible value movement. An AI-generated mistake here is 
 - Both systems must agree before broadcast. A mismatch underfunds the transaction.
 - **Rule:** When changing either, re-verify the other produces the same fee for a representative fixture. Cross-check assertions belong at the broadcast site, not only at the estimator.
 
-### 3. Presigning payout transactions
+### 3. Presigning depositor-graph transactions (Payout + NoPayout)
 - Files:
   - `packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts`
+  - `packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts` — orchestrator that derives `LocalChallengers`, asserts the VP-returned `challenger_presign_data` set equals `local ∪ universal`, and decides which per-challenger NoPayout PSBTs get pre-signed
   - `services/vault/src/hooks/deposit/depositFlowSteps/payoutSigning.ts`
-- The depositor pre-signs payout transactions built by the Vault Provider - values come from an external party with no independent verification.
-- **Rule:** Before the signature call, re-derive the expected payout amount from on-chain or WASM-computed sources and assert equality. Never sign a value handed to us verbatim.
+- The depositor pre-signs payout (and per-challenger NoPayout) transactions built by the Vault Provider — values and challenger sets come from an external party with no independent verification. Asymmetric failure: undersigning leaves recovery material missing for an active challenger; oversigning hands signatures to a key the protocol doesn't recognize.
+- **Rule:** Before the signature call, re-derive the expected payout amount from on-chain or WASM-computed sources and assert equality. For the challenger set, derive `LocalChallengers` from on-chain VK list (matching the Rust reference in `btc-vault crates/vault/src/tx_graph/graph.rs`) and assert the VP-returned set equals `local ∪ universal` exactly — no missing entries, no extras. Never sign a value or accept a challenger key handed to us verbatim.
 
 ### 4. Vault-secret derivation (frozen on-chain-binding API)
 - Files (all marked `@stability frozen` in JSDoc):

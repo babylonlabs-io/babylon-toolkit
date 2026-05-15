@@ -15,6 +15,7 @@
  * parsed and validated.
  */
 
+import { stripHexPrefix } from "@babylonlabs-io/ts-sdk/tbv/core";
 import {
   JSON_RPC_ERROR_CODES,
   JsonRpcClient,
@@ -24,7 +25,6 @@ import {
   vpTokenRegistry,
 } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 
-import { stripHexPrefix } from "@/utils/btc";
 import { getVpProxyUrl } from "@/utils/rpc";
 
 /** Timeout for the artifact request RPC call (artifacts can be large). */

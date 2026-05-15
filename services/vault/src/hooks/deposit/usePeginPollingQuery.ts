@@ -9,6 +9,7 @@
  * re-fetches it at click-time.
  */
 
+import { stripHexPrefix } from "@babylonlabs-io/ts-sdk/tbv/core";
 import type { GetPeginStatusResponse } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import {
   batchPollByProvider,
@@ -32,7 +33,6 @@ import type {
   DepositsByProvider,
   DepositToPoll,
 } from "../../types/peginPolling";
-import { stripHexPrefix } from "../../utils/btc";
 import {
   getDepositsNeedingPolling,
   groupDepositsByProvider,
