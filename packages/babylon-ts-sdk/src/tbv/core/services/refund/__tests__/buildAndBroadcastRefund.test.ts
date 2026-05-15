@@ -18,6 +18,21 @@ vi.mock("../../../primitives/psbt/refund", () => ({
     .mockResolvedValue({ psbtHex: "70736274ff01mock" }),
 }));
 
+// Mocked: bitcoinjs-lib is mocked below, real helper would fail to parse.
+vi.mock(
+  "../../../primitives/psbt/assertPsbtUnsignedTxMatches",
+  async (importOriginal) => {
+    const actual =
+      await importOriginal<
+        typeof import("../../../primitives/psbt/assertPsbtUnsignedTxMatches")
+      >();
+    return {
+      ...actual,
+      assertPsbtUnsignedTxMatches: vi.fn(),
+    };
+  },
+);
+
 // Finalize + extract uses bitcoinjs-lib. We stub Psbt.fromHex to return an
 // object with controllable `finalizeAllInputs` / `extractTransaction`.
 vi.mock("bitcoinjs-lib", async () => {
@@ -134,6 +149,63 @@ describe("buildAndBroadcastRefund", () => {
       "signPsbt",
       "broadcastTx",
     ]);
+  });
+
+  it("rebinds the wallet-signed PSBT against the requested PSBT before broadcasting", async () => {
+    const { assertPsbtUnsignedTxMatches } = await import(
+      "../../../primitives/psbt/assertPsbtUnsignedTxMatches"
+    );
+    const rebind = vi.mocked(assertPsbtUnsignedTxMatches);
+    rebind.mockClear();
+
+    readVault.mockResolvedValue(buildVault());
+    readPrePeginContext.mockResolvedValue(buildCtx());
+    signPsbt.mockResolvedValue("signedpsbthex");
+    broadcastTx.mockResolvedValue({ txId: "0xrefundtxid" });
+
+    await buildAndBroadcastRefund({
+      vaultId: VAULT_ID,
+      readVault,
+      readPrePeginContext,
+      feeRate: FEE_RATE,
+      signPsbt,
+      broadcastTx,
+    });
+
+    expect(rebind).toHaveBeenCalledTimes(1);
+    expect(rebind).toHaveBeenCalledWith({
+      requestedPsbtHex: "70736274ff01mock",
+      returnedPsbtHex: "signedpsbthex",
+    });
+  });
+
+  it("aborts before broadcast when the rebind helper rejects the wallet's PSBT", async () => {
+    const { assertPsbtUnsignedTxMatches } = await import(
+      "../../../primitives/psbt/assertPsbtUnsignedTxMatches"
+    );
+    const rebind = vi.mocked(assertPsbtUnsignedTxMatches);
+    rebind.mockClear();
+    rebind.mockImplementationOnce(() => {
+      throw new Error("output 0 script differs");
+    });
+
+    readVault.mockResolvedValue(buildVault());
+    readPrePeginContext.mockResolvedValue(buildCtx());
+    signPsbt.mockResolvedValue("signedpsbthex");
+    broadcastTx.mockClear();
+
+    await expect(
+      buildAndBroadcastRefund({
+        vaultId: VAULT_ID,
+        readVault,
+        readPrePeginContext,
+        feeRate: FEE_RATE,
+        signPsbt,
+        broadcastTx,
+      }),
+    ).rejects.toThrow(/output 0 script differs/);
+
+    expect(broadcastTx).not.toHaveBeenCalled();
   });
 
   it("forwards broadcastTx rich result unchanged (generic pass-through)", async () => {

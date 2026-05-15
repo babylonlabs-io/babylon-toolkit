@@ -46,6 +46,7 @@ import type { WotsBlockPublicKey } from "../clients/vault-provider/types";
 import { type UtxoInfo, getUtxoInfo, pushTx } from "../clients/mempool";
 import { BTCVaultRegistryABI, handleContractError } from "../contracts";
 import {
+  assertPsbtUnsignedTxMatches,
   buildPrePeginPsbt,
   buildPeginTxFromFundedPrePegin,
   buildPeginInputPsbt,
@@ -862,6 +863,11 @@ export class PeginManager {
 
     const perVault: PerVaultPeginData[] = [];
     for (let i = 0; i < signedPsbts.length; i++) {
+      assertPsbtUnsignedTxMatches({
+        requestedPsbtHex: psbtsToSign[i],
+        returnedPsbtHex: signedPsbts[i],
+      });
+
       const peginInputSignature = extractPeginInputSignature(
         signedPsbts[i],
         depositorBtcPubkey,
@@ -993,7 +999,15 @@ export class PeginManager {
     }
 
     // Step 4: Sign PSBT via wallet
-    const signedPsbtHex = await this.config.btcWallet.signPsbt(psbt.toHex());
+    const requestedPsbtHex = psbt.toHex();
+    const signedPsbtHex =
+      await this.config.btcWallet.signPsbt(requestedPsbtHex);
+
+    assertPsbtUnsignedTxMatches({
+      requestedPsbtHex,
+      returnedPsbtHex: signedPsbtHex,
+    });
+
     const signedPsbt = Psbt.fromHex(signedPsbtHex);
 
     // Step 5: Finalize and extract transaction

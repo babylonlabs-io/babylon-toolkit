@@ -41,6 +41,21 @@ vi.mock("../../primitives/psbt/peginInput", async (importOriginal) => {
   };
 });
 
+// Mocked for the same reason: mock wallet returns non-PSBT hex.
+vi.mock(
+  "../../primitives/psbt/assertPsbtUnsignedTxMatches",
+  async (importOriginal) => {
+    const actual =
+      await importOriginal<
+        typeof import("../../primitives/psbt/assertPsbtUnsignedTxMatches")
+      >();
+    return {
+      ...actual,
+      assertPsbtUnsignedTxMatches: vi.fn(),
+    };
+  },
+);
+
 // Test chain configuration (minimal viem Chain)
 const TEST_CHAIN: Chain = {
   id: 11155111,
@@ -247,6 +262,93 @@ describe("PeginManager", () => {
       const signOptions = signPsbtsSpy.mock.calls[0][1];
       const publicKey = signOptions?.[0]?.signInputs?.[0]?.publicKey;
       expect(publicKey).toBe(compressedPubkey);
+    });
+
+    it("rebinds every wallet-signed PegIn PSBT against the requested one — one call per vault, paired by index", async () => {
+      const { assertPsbtUnsignedTxMatches } = await import(
+        "../../primitives/psbt/assertPsbtUnsignedTxMatches"
+      );
+      const { buildPeginInputPsbt } = await import(
+        "../../primitives/psbt/peginInput"
+      );
+      const rebind = vi.mocked(assertPsbtUnsignedTxMatches);
+      const builder = vi.mocked(buildPeginInputPsbt);
+      rebind.mockClear();
+      // Distinct per-call PSBT hex so we can prove each rebind call gets
+      // its own (requested, returned) pair instead of all calls being
+      // validated against index 0.
+      let buildCount = 0;
+      builder.mockImplementation(async () => ({
+        psbtHex: `requested_${buildCount++}`,
+      }));
+
+      const btcWallet = new MockBitcoinWallet({
+        publicKeyHex: TEST_KEYS.DEPOSITOR,
+      });
+      const ethWallet = new MockEthereumWallet();
+      const manager = new PeginManager({
+        btcNetwork: "signet",
+        btcWallet,
+        ethWallet: ethWallet as any,
+        ethChain: TEST_CHAIN,
+        publicClient: TEST_PUBLIC_CLIENT,
+        vaultContracts: { btcVaultRegistry: TEST_CONTRACT_ADDRESS },
+        mempoolApiUrl: MEMPOOL_API_URLS.signet,
+      });
+
+      // 2 vaults so we exercise the per-vault loop, not just index 0.
+      await manager.preparePegin({
+        amounts: [TEST_AMOUNTS.PEGIN, TEST_AMOUNTS.PEGIN],
+        ...BASE_PREPARE_PEGIN_PARAMS,
+      });
+
+      expect(rebind).toHaveBeenCalledTimes(2);
+      // Each rebind call must pair the per-vault request with the wallet's
+      // response for THAT vault — MockBitcoinWallet.signPsbts produces
+      // `<requested>deadbeef`, so `returned[i]` must be `requested[i]deadbeef`.
+      rebind.mock.calls.forEach(([params], i) => {
+        expect(params.requestedPsbtHex).toBe(`requested_${i}`);
+        expect(params.returnedPsbtHex).toBe(`requested_${i}deadbeef`);
+      });
+    });
+
+    it("aborts preparePegin before sig extraction when the rebind helper rejects", async () => {
+      const { assertPsbtUnsignedTxMatches } = await import(
+        "../../primitives/psbt/assertPsbtUnsignedTxMatches"
+      );
+      const { extractPeginInputSignature } = await import(
+        "../../primitives/psbt/peginInput"
+      );
+      const rebind = vi.mocked(assertPsbtUnsignedTxMatches);
+      const extract = vi.mocked(extractPeginInputSignature);
+      rebind.mockClear();
+      extract.mockClear();
+      rebind.mockImplementationOnce(() => {
+        throw new Error("input 0 prevout txid differs (requested=ab… …)");
+      });
+
+      const btcWallet = new MockBitcoinWallet({
+        publicKeyHex: TEST_KEYS.DEPOSITOR,
+      });
+      const ethWallet = new MockEthereumWallet();
+      const manager = new PeginManager({
+        btcNetwork: "signet",
+        btcWallet,
+        ethWallet: ethWallet as any,
+        ethChain: TEST_CHAIN,
+        publicClient: TEST_PUBLIC_CLIENT,
+        vaultContracts: { btcVaultRegistry: TEST_CONTRACT_ADDRESS },
+        mempoolApiUrl: MEMPOOL_API_URLS.signet,
+      });
+
+      await expect(
+        manager.preparePegin({
+          amounts: [TEST_AMOUNTS.PEGIN],
+          ...BASE_PREPARE_PEGIN_PARAMS,
+        }),
+      ).rejects.toThrow(/prevout txid differs/);
+
+      expect(extract).not.toHaveBeenCalled();
     });
 
     it("should prepare a pegin with valid params", async () => {
@@ -1152,6 +1254,62 @@ describe("PeginManager", () => {
           depositorBtcPubkey: TEST_KEYS.DEPOSITOR,
         }),
       ).rejects.toThrow();
+    });
+
+    it("aborts before broadcast when the rebind helper rejects the wallet's PSBT", async () => {
+      const { assertPsbtUnsignedTxMatches } = await import(
+        "../../primitives/psbt/assertPsbtUnsignedTxMatches"
+      );
+      const rebind = vi.mocked(assertPsbtUnsignedTxMatches);
+
+      const btcWallet = new MockBitcoinWallet({
+        publicKeyHex: TEST_KEYS.DEPOSITOR,
+      });
+      const ethWallet = new MockEthereumWallet();
+      const manager = new PeginManager({
+        btcNetwork: "signet",
+        btcWallet,
+        ethWallet: ethWallet as any,
+        ethChain: TEST_CHAIN,
+        publicClient: TEST_PUBLIC_CLIENT,
+        vaultContracts: { btcVaultRegistry: TEST_CONTRACT_ADDRESS },
+        mempoolApiUrl: MEMPOOL_API_URLS.signet,
+      });
+
+      const prepared = await manager.preparePegin({
+        amounts: [TEST_AMOUNTS.PEGIN],
+        ...BASE_PREPARE_PEGIN_PARAMS,
+      });
+
+      // Provide localPrevouts so we don't hit the mempool. The funded tx's
+      // input set is a subset of TEST_UTXOS.
+      const localPrevouts = TEST_UTXOS.reduce<
+        Record<string, { scriptPubKey: string; value: number }>
+      >((acc, u) => {
+        acc[`${u.txid}:${u.vout}`] = {
+          scriptPubKey: u.scriptPubKey,
+          value: u.value,
+        };
+        return acc;
+      }, {});
+
+      // Fail the next rebind call so signAndBroadcast aborts before
+      // finalize/extract/pushTx. mockClear keeps prior preparePegin calls
+      // from leaking into our assertion.
+      rebind.mockClear();
+      rebind.mockImplementationOnce(() => {
+        throw new Error("output 0 scriptPubKey differs");
+      });
+
+      await expect(
+        manager.signAndBroadcast({
+          fundedPrePeginTxHex: prepared.transaction.fundedPrePeginTxHex,
+          depositorBtcPubkey: TEST_KEYS.DEPOSITOR,
+          localPrevouts,
+        }),
+      ).rejects.toThrow(/scriptPubKey differs/);
+
+      expect(rebind).toHaveBeenCalledTimes(1);
     });
   });
 
