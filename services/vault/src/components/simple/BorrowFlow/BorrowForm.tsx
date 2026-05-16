@@ -2,6 +2,11 @@ import { Avatar, Button, Slider } from "@babylonlabs-io/core-ui";
 import { IoChevronDown, IoWarningOutline } from "react-icons/io5";
 
 import { HeartIcon, InfoIcon } from "@/components/shared";
+import {
+  BORROW_GAS_UNITS,
+  type DepositGasEstimate,
+  useDepositGasEstimate,
+} from "@/hooks/deposit/useDepositGasEstimate";
 
 import { type BorrowFormState, useBorrowFormState } from "./useBorrowFormState";
 
@@ -24,16 +29,31 @@ export function BorrowForm({
   onBorrowSuccess,
 }: BorrowFormProps) {
   const state = useBorrowFormState({ onBorrowSuccess });
+  const ethereumNetworkFee = useDepositGasEstimate({
+    gasUnits: BORROW_GAS_UNITS,
+    enabled: state.borrowAmount > 0,
+  });
 
-  return <BorrowFormView state={state} onChangeAsset={onChangeAsset} />;
+  return (
+    <BorrowFormView
+      state={state}
+      ethereumNetworkFee={ethereumNetworkFee}
+      onChangeAsset={onChangeAsset}
+    />
+  );
 }
 
 interface BorrowFormViewProps {
   state: BorrowFormState;
+  ethereumNetworkFee: DepositGasEstimate;
   onChangeAsset: () => void;
 }
 
-function BorrowFormView({ state, onChangeAsset }: BorrowFormViewProps) {
+function BorrowFormView({
+  state,
+  ethereumNetworkFee,
+  onChangeAsset,
+}: BorrowFormViewProps) {
   return (
     <div className="mx-auto w-full max-w-[520px]">
       {/* Token Input Card */}
@@ -201,8 +221,20 @@ function BorrowFormView({ state, onChangeAsset }: BorrowFormViewProps) {
       <div className="mt-4 space-y-2 text-sm text-accent-secondary">
         <div className="flex items-center justify-between">
           <span>Ethereum Network Fee</span>
-          {/* TODO: Add network fee */}
-          <span>0 ETH ($0 USD)</span>
+          <span>
+            <span
+              className={
+                ethereumNetworkFee.isError
+                  ? "text-error-main"
+                  : "text-accent-secondary"
+              }
+            >
+              {ethereumNetworkFee.feeEth}
+            </span>
+            {ethereumNetworkFee.feeUsd && (
+              <span> {ethereumNetworkFee.feeUsd}</span>
+            )}
+          </span>
         </div>
         <div className="flex items-center justify-between">
           <span>Protocol Fee</span>

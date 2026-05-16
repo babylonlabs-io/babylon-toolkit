@@ -7,6 +7,10 @@ import { useAddressScreening } from "@/context/addressScreening";
 import { useGeoFencing } from "@/context/geofencing";
 import { ProtocolParamsProvider } from "@/context/ProtocolParamsContext";
 import { useETHWallet } from "@/context/wallet";
+import {
+  DEPOSIT_PEGIN_BATCH_GAS_UNITS,
+  useDepositGasEstimate,
+} from "@/hooks/deposit/useDepositGasEstimate";
 import { useDepositPeginFee } from "@/hooks/deposit/useDepositPeginFee";
 import { useDialogStep } from "@/hooks/deposit/useDialogStep";
 import { useProtocolFeeRows } from "@/hooks/useProtocolFeeRows";
@@ -134,6 +138,14 @@ function SimpleDepositContent({
       ? (formData.selectedProvider as Address)
       : undefined,
   );
+
+  const ethereumNetworkFee = useDepositGasEstimate({
+    gasUnits: DEPOSIT_PEGIN_BATCH_GAS_UNITS,
+    enabled:
+      !!formData.selectedProvider &&
+      !!formData.amountBtc &&
+      formData.amountBtc !== "0",
+  });
 
   const {
     depositStep,
@@ -273,6 +285,9 @@ function SimpleDepositContent({
                 collateralFactor={collateralFactor}
                 protocolFeeAmount={protocolFeeAmount}
                 protocolFeePrice={protocolFeePrice}
+                ethereumNetworkFeeAmount={ethereumNetworkFee.feeEth}
+                ethereumNetworkFeePrice={ethereumNetworkFee.feeUsd}
+                ethereumNetworkFeeIsError={ethereumNetworkFee.isError}
                 feeRows={feeRows}
                 ordinalsCheckUnavailable={ordinalsCheckUnavailable}
                 ordinalsCheckPending={ordinalsCheckPending}

@@ -7,8 +7,6 @@ import { formatBtcValue } from "@/utils/formatting";
 const TRANSACTION_RESERVE_TOOLTIP =
   "A small portion of your deposit is reserved in a dedicated output to fund a future protocol claim transaction. It remains locked until claim conditions are met and is returned to you if unused.";
 
-const ETH_FEE_PENDING_VALUE = "--";
-
 interface DepositFeesBreakdownProps {
   depositorClaimValue?: bigint;
   btcPrice: number;
@@ -16,6 +14,9 @@ interface DepositFeesBreakdownProps {
   bitcoinNetworkFeeAmount: string;
   bitcoinNetworkFeePrice: string;
   bitcoinNetworkFeeIsError: boolean;
+  ethereumNetworkFeeAmount: string;
+  ethereumNetworkFeePrice: string;
+  ethereumNetworkFeeIsError: boolean;
   protocolFeeAmount: string;
   protocolFeePrice: string;
 }
@@ -67,6 +68,9 @@ export function DepositFeesBreakdown({
   bitcoinNetworkFeeAmount,
   bitcoinNetworkFeePrice,
   bitcoinNetworkFeeIsError,
+  ethereumNetworkFeeAmount,
+  ethereumNetworkFeePrice,
+  ethereumNetworkFeeIsError,
   protocolFeeAmount,
   protocolFeePrice,
 }: DepositFeesBreakdownProps) {
@@ -101,8 +105,9 @@ export function DepositFeesBreakdown({
       />
       <FeeLine
         label="Ethereum Network Fee"
-        amount={ETH_FEE_PENDING_VALUE}
-        price=""
+        amount={ethereumNetworkFeeAmount}
+        amountIsError={ethereumNetworkFeeIsError}
+        price={ethereumNetworkFeePrice}
       />
       <FeeLine
         label="Protocol Fee"

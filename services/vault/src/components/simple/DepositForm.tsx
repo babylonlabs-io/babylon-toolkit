@@ -84,6 +84,10 @@ interface DepositFormProps {
   protocolFeeAmount?: string;
   protocolFeePrice?: string;
 
+  ethereumNetworkFeeAmount?: string;
+  ethereumNetworkFeePrice?: string;
+  ethereumNetworkFeeIsError?: boolean;
+
   feeRows?: FeeRow[];
 
   /**
@@ -130,6 +134,9 @@ export function DepositForm({
   collateralFactor = null,
   protocolFeeAmount = "--",
   protocolFeePrice = "",
+  ethereumNetworkFeeAmount = "--",
+  ethereumNetworkFeePrice = "",
+  ethereumNetworkFeeIsError = false,
   feeRows,
   ordinalsCheckUnavailable = false,
   ordinalsCheckPending = false,
@@ -392,6 +399,9 @@ export function DepositForm({
         bitcoinNetworkFeeAmount={feeAmount}
         bitcoinNetworkFeePrice={feePrice}
         bitcoinNetworkFeeIsError={isFeeError}
+        ethereumNetworkFeeAmount={ethereumNetworkFeeAmount}
+        ethereumNetworkFeePrice={ethereumNetworkFeePrice}
+        ethereumNetworkFeeIsError={ethereumNetworkFeeIsError}
         protocolFeeAmount={protocolFeeAmount}
         protocolFeePrice={protocolFeePrice}
       />

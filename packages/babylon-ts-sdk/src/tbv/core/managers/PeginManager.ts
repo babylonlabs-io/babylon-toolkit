@@ -1305,6 +1305,13 @@ export class PeginManager {
       handleContractError(error); // always throws (return type: never)
     }
 
+    // Diagnostic: lets the dApp calibrate the representative gas-units
+    // constant used by `useDepositGasEstimate` for the pre-sign fee display.
+    // See babylon-toolkit#1657.
+    console.info(
+      `[PeginManager] submitPeginRequestBatch gasEstimate=${gasEstimate} units (batchSize=${requests.length})`,
+    );
+
     // Step 8: Submit batch transaction
     let ethTxHash: Hex;
     try {
