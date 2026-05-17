@@ -15,12 +15,14 @@ const PEGIN_TXID =
   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 const DEPOSITOR_PK =
   "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+const CHALLENGER_PUBKEY =
+  "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc";
 
 const VALID_ARTIFACT_RESULT = {
   tx_graph_json: "{}",
   verifying_key_hex: "aabb",
   babe_sessions: {
-    challenger1: { decryptor_artifacts_hex: "ccdd" },
+    [CHALLENGER_PUBKEY]: { decryptor_artifacts_hex: "ccdd" },
   },
 };
 
@@ -130,7 +132,42 @@ describe("fetchAndDownloadArtifacts", () => {
         result: {
           ...VALID_ARTIFACT_RESULT,
           babe_sessions: {
-            challenger1: { decryptor_artifacts_hex: "not-hex!" },
+            [CHALLENGER_PUBKEY]: { decryptor_artifacts_hex: "not-hex!" },
+          },
+        },
+        id: 1,
+      }),
+    );
+
+    await expect(
+      fetchAndDownloadArtifacts(PROVIDER_ADDRESS, PEGIN_TXID, DEPOSITOR_PK),
+    ).rejects.toBeInstanceOf(VpResponseValidationError);
+    expect(triggerDownloadSpy).not.toHaveBeenCalled();
+  });
+
+  it("rejects empty babe_sessions without triggering download", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      responseFor({
+        jsonrpc: "2.0",
+        result: { ...VALID_ARTIFACT_RESULT, babe_sessions: {} },
+        id: 1,
+      }),
+    );
+
+    await expect(
+      fetchAndDownloadArtifacts(PROVIDER_ADDRESS, PEGIN_TXID, DEPOSITOR_PK),
+    ).rejects.toBeInstanceOf(VpResponseValidationError);
+    expect(triggerDownloadSpy).not.toHaveBeenCalled();
+  });
+
+  it("rejects babe_sessions keyed by an arbitrary non-pubkey label without triggering download", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      responseFor({
+        jsonrpc: "2.0",
+        result: {
+          ...VALID_ARTIFACT_RESULT,
+          babe_sessions: {
+            attacker_label: { decryptor_artifacts_hex: "deadbeef" },
           },
         },
         id: 1,

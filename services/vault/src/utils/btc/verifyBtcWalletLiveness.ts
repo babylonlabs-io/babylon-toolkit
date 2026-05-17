@@ -22,11 +22,7 @@ export async function verifyBtcWalletLiveness(
 ): Promise<void> {
   let observedAddress: string;
   try {
-    const [addressResult] = await Promise.all([
-      wallet.getAddress(),
-      wallet.getNetwork(),
-    ]);
-    observedAddress = addressResult;
+    observedAddress = await wallet.getAddress();
   } catch {
     throw new BtcWalletLivenessError(UNRESPONSIVE_MESSAGE);
   }

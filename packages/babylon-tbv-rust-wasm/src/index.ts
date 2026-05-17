@@ -250,10 +250,8 @@ function toError(err: unknown, fnName: string): Error {
 }
 
 /**
- * Derive the 32-byte `authAnchor` shared across a single Pre-PegIn transaction.
- *
- * @stability frozen — on-chain-binding. The HKDF info encoding lives in the
- * btc-vault Rust crate; do not reimplement on the JS side.
+ * Derive 32-byte `authAnchor` (OP_RETURN preimage → VP bearer token).
+ * @stability frozen — owned by btc-vault Rust (`BTC_VAULT_COMMIT`); rotation breaks VP auth for existing deposits.
  */
 export async function expandAuthAnchor(root: Uint8Array): Promise<Uint8Array> {
   await initWasm();
@@ -265,9 +263,8 @@ export async function expandAuthAnchor(root: Uint8Array): Promise<Uint8Array> {
 }
 
 /**
- * Derive the 32-byte `hashlockSecret` for the HTLC at output index `htlcVout`.
- *
- * @stability frozen — on-chain-binding.
+ * Derive 32-byte `hashlockSecret` for HTLC `htlcVout` (preimage → `activateVaultWithSecret`).
+ * @stability frozen — owned by btc-vault Rust; rotation means affected vaults can never activate.
  */
 export async function expandHashlockSecret(
   root: Uint8Array,
@@ -282,9 +279,8 @@ export async function expandHashlockSecret(
 }
 
 /**
- * Derive the 64-byte `wotsSeed` for the vault at output index `htlcVout`.
- *
- * @stability frozen — on-chain-binding.
+ * Derive 64-byte `wotsSeed` for HTLC `htlcVout` (→ WOTS keys, hashed as `depositorWotsPkHash`).
+ * @stability frozen — owned by btc-vault Rust; rotation breaks existing `depositorWotsPkHash` → no claim path.
  */
 export async function expandWotsSeed(
   root: Uint8Array,

@@ -350,15 +350,27 @@ export function validateRequestDepositorClaimerArtifactsResponse(
     );
   }
 
-  if (r.babe_sessions === null || typeof r.babe_sessions !== "object") {
+  if (
+    r.babe_sessions === null ||
+    typeof r.babe_sessions !== "object" ||
+    Array.isArray(r.babe_sessions)
+  ) {
     throw new VpResponseValidationError(
       `VP response validation failed: "babe_sessions" must be an object`,
     );
   }
 
-  for (const [key, session] of Object.entries(
+  const sessionEntries = Object.entries(
     r.babe_sessions as Record<string, unknown>,
-  )) {
+  );
+  if (sessionEntries.length === 0) {
+    throw new VpResponseValidationError(
+      `VP response validation failed: "babe_sessions" must contain at least one challenger entry`,
+    );
+  }
+
+  for (const [key, session] of sessionEntries) {
+    assertBtcPubkey(key, `babe_sessions["${key}"]`);
     if (session === null || typeof session !== "object") {
       throw new VpResponseValidationError(
         `VP response validation failed: "babe_sessions.${key}" must be an object`,

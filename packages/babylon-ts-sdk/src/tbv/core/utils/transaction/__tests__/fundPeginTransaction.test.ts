@@ -61,25 +61,64 @@ describe("fundPeginTransaction", () => {
     expect(tx.outs[1].value).toBe(10000);
   });
 
-  it("should fund transaction without change output when change <= dust", () => {
+  it("should fund transaction without change output when changeAmount is 0n", () => {
+    // The selector signals "no change emitted" by returning 0n. The funder
+    // trusts that decision rather than re-checking the dust threshold —
+    // re-checking would let a hand-built `changeAmount` between 0 and dust
+    // bypass the canonical fee policy and silently underpay.
     const result = fundPeginTransaction({
       unfundedTxHex: mockUnfundedTxHex,
       selectedUTXOs: mockUTXOs,
       changeAddress: "tb1qw508d6qejxtdg4y5r3zarvary0c5xw7kxpjzsx",
-      changeAmount: 500n, // Below dust threshold
+      changeAmount: 0n,
       network: bitcoin.networks.testnet,
     });
 
     const tx = bitcoin.Transaction.fromHex(result);
 
-    // Should have 1 input
     expect(tx.ins.length).toBe(1);
-
-    // Should have only 1 output (vault, no change)
+    // Only the vault output — no change emitted.
     expect(tx.outs.length).toBe(1);
-
-    // Output should be vault output
     expect(tx.outs[0].value).toBe(100000);
+  });
+
+  it("rejects negative changeAmount (selector contract violation)", () => {
+    expect(() =>
+      fundPeginTransaction({
+        unfundedTxHex: mockUnfundedTxHex,
+        selectedUTXOs: mockUTXOs,
+        changeAddress: "tb1qw508d6qejxtdg4y5r3zarvary0c5xw7kxpjzsx",
+        changeAmount: -1n,
+        network: bitcoin.networks.testnet,
+      }),
+    ).toThrow(/changeAmount cannot be negative/);
+  });
+
+  it("rejects sub-dust positive changeAmount (would produce a non-relayable output)", () => {
+    // Public-API contract guard: a hand-built or stale changeAmount in
+    // (0, DUST_THRESHOLD] must throw rather than silently produce a dust
+    // output — otherwise relays drop the tx and the user sees a confusing
+    // failure later in the broadcast pipeline.
+    expect(() =>
+      fundPeginTransaction({
+        unfundedTxHex: mockUnfundedTxHex,
+        selectedUTXOs: mockUTXOs,
+        changeAddress: "tb1qw508d6qejxtdg4y5r3zarvary0c5xw7kxpjzsx",
+        changeAmount: 100n,
+        network: bitcoin.networks.testnet,
+      }),
+    ).toThrow(/strictly above DUST_THRESHOLD/);
+
+    // Boundary: exactly at DUST_THRESHOLD also rejected.
+    expect(() =>
+      fundPeginTransaction({
+        unfundedTxHex: mockUnfundedTxHex,
+        selectedUTXOs: mockUTXOs,
+        changeAddress: "tb1qw508d6qejxtdg4y5r3zarvary0c5xw7kxpjzsx",
+        changeAmount: 546n,
+        network: bitcoin.networks.testnet,
+      }),
+    ).toThrow(/strictly above DUST_THRESHOLD/);
   });
 
   it("should fund transaction with multiple UTXOs", () => {

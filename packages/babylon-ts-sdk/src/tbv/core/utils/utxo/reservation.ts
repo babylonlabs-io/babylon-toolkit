@@ -65,7 +65,7 @@ export interface SelectUtxosForDepositParams<
 
 /** Narrow structural type for early UTXO reservations (pre-ETH-registration). */
 export interface UtxoReservationLike {
-  unsignedTxHex: string;
+  outpoints: ReadonlyArray<{ txid: string; vout: number }>;
 }
 
 export interface CollectReservedUtxoRefsParams {
@@ -203,7 +203,9 @@ export function collectReservedUtxoRefs(
   // Early reservations written before ETH registration to prevent cross-tab
   // UTXO conflicts. These are cleaned up when the deposit completes or fails.
   for (const reservation of utxoReservations) {
-    reserved.push(...extractInputUtxoRefs(reservation.unsignedTxHex));
+    for (const op of reservation.outpoints) {
+      reserved.push({ txid: op.txid, vout: op.vout });
+    }
   }
 
   return reserved;

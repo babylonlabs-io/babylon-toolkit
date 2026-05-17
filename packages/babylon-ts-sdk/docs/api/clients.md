@@ -11,9 +11,13 @@ at registration — signing-critical values must not come from the indexer mirro
 
 ### ViemProtocolParamsReader
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/protocol-params-reader.ts:111](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/protocol-params-reader.ts#L111)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/protocol-params-reader.ts:124](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/protocol-params-reader.ts#L124)
 
 Concrete protocol params reader using viem.
+
+Every read method runs the matching validator from
+`protocol-params-validation` before returning, so callers don't have to
+remember to validate.
 
 Usage:
 ```ts
@@ -33,7 +37,7 @@ const config = await reader.getPegInConfiguration();
 new ViemProtocolParamsReader(publicClient, contractAddress): ViemProtocolParamsReader;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/protocol-params-reader.ts:112](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/protocol-params-reader.ts#L112)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/protocol-params-reader.ts:125](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/protocol-params-reader.ts#L125)
 
 ###### Parameters
 
@@ -55,7 +59,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/protocol-params-re
 getTBVProtocolParams(): Promise<TBVProtocolParams>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/protocol-params-reader.ts:117](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/protocol-params-reader.ts#L117)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/protocol-params-reader.ts:130](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/protocol-params-reader.ts#L130)
 
 ###### Returns
 
@@ -71,7 +75,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/protocol-params-re
 getLatestOffchainParams(): Promise<VersionedOffchainParams>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/protocol-params-reader.ts:127](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/protocol-params-reader.ts#L127)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/protocol-params-reader.ts:142](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/protocol-params-reader.ts#L142)
 
 ###### Returns
 
@@ -87,7 +91,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/protocol-params-re
 getOffchainParamsByVersion(version): Promise<VersionedOffchainParams>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/protocol-params-reader.ts:137](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/protocol-params-reader.ts#L137)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/protocol-params-reader.ts:154](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/protocol-params-reader.ts#L154)
 
 ###### Parameters
 
@@ -109,7 +113,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/protocol-params-re
 getLatestOffchainParamsVersion(): Promise<number>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/protocol-params-reader.ts:150](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/protocol-params-reader.ts#L150)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/protocol-params-reader.ts:169](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/protocol-params-reader.ts#L169)
 
 ###### Returns
 
@@ -125,7 +129,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/protocol-params-re
 getTimelockPeginByVersion(version): Promise<number>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/protocol-params-reader.ts:160](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/protocol-params-reader.ts#L160)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/protocol-params-reader.ts:180](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/protocol-params-reader.ts#L180)
 
 ###### Parameters
 
@@ -147,10 +151,13 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/protocol-params-re
 getPegInConfiguration(): Promise<PegInConfiguration>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/protocol-params-reader.ts:169](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/protocol-params-reader.ts#L169)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/protocol-params-reader.ts:192](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/protocol-params-reader.ts#L192)
 
-Read TBV protocol params and latest offchain params atomically via multicall.
-Prevents TOCTOU inconsistency if governance updates params between reads.
+Read TBV protocol params, latest offchain params, and the latest version
+label atomically via multicall. The version is paired with the params so
+that a governance update between separate reads cannot let JS build BTC
+scripts with version N params while the contract registers the vault
+under version N+1.
 
 ###### Returns
 
@@ -159,6 +166,37 @@ Prevents TOCTOU inconsistency if governance updates params between reads.
 ###### Implementation of
 
 [`ProtocolParamsReader`](#protocolparamsreader).[`getPegInConfiguration`](#getpeginconfiguration-2)
+
+##### fetchAllOffchainParams()
+
+```ts
+fetchAllOffchainParams(onSkippedVersion?): Promise<AllOffchainParamsData>;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/protocol-params-reader.ts:245](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/protocol-params-reader.ts#L245)
+
+Fetch every historical offchain params version in a single multicall.
+Iterates 1..latestVersion and calls `getOffchainParamsByVersion` for each.
+Versions whose payload fails validation are skipped (not included in the
+returned map) so a single bad historical version doesn't block the
+lookup of the rest.
+
+###### Parameters
+
+###### onSkippedVersion?
+
+[`OnSkippedOffchainParamsVersion`](#onskippedoffchainparamsversion)
+
+optional observer invoked once per skipped
+  version. Use to log/telemeter without coupling the SDK to a logger.
+
+###### Returns
+
+`Promise`\<[`AllOffchainParamsData`](#alloffchainparamsdata)\>
+
+###### Implementation of
+
+[`ProtocolParamsReader`](#protocolparamsreader).[`fetchAllOffchainParams`](#fetchalloffchainparams-2)
 
 ***
 
@@ -372,7 +410,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/signer-set-reader.
 
 ### ViemVaultRegistryReader
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/vault-registry-reader.ts:30](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/vault-registry-reader.ts#L30)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/vault-registry-reader.ts:31](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/vault-registry-reader.ts#L31)
 
 Concrete vault registry reader using viem.
 
@@ -394,7 +432,7 @@ const data = await reader.getVaultData(vaultId);
 new ViemVaultRegistryReader(publicClient, contractAddress): ViemVaultRegistryReader;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/vault-registry-reader.ts:31](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/vault-registry-reader.ts#L31)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/vault-registry-reader.ts:32](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/vault-registry-reader.ts#L32)
 
 ###### Parameters
 
@@ -416,7 +454,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/vault-registry-rea
 getVaultProviderBtcPubKey(vpAddress): Promise<OnChainBtcPubkey>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/vault-registry-reader.ts:42](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/vault-registry-reader.ts#L42)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/vault-registry-reader.ts:43](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/vault-registry-reader.ts#L43)
 
 Read the VP's persistent x-only BTC pubkey from the on-chain
 registry. Validates length, hex form, and secp256k1 curve
@@ -443,7 +481,7 @@ hex without the `0x` prefix.
 getVaultBasicInfo(vaultId): Promise<VaultBasicInfo>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/vault-registry-reader.ts:66](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/vault-registry-reader.ts#L66)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/vault-registry-reader.ts:67](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/vault-registry-reader.ts#L67)
 
 ###### Parameters
 
@@ -465,7 +503,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/vault-registry-rea
 getVaultProtocolInfo(vaultId): Promise<VaultProtocolInfo>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/vault-registry-reader.ts:93](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/vault-registry-reader.ts#L93)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/vault-registry-reader.ts:94](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/vault-registry-reader.ts#L94)
 
 ###### Parameters
 
@@ -481,13 +519,35 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/vault-registry-rea
 
 [`VaultRegistryReader`](#vaultregistryreader).[`getVaultProtocolInfo`](#getvaultprotocolinfo)
 
+##### getProtocolInfoBatch()
+
+```ts
+getProtocolInfoBatch(vaultIds): Promise<VaultProtocolInfo[]>;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/vault-registry-reader.ts:132](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/vault-registry-reader.ts#L132)
+
+###### Parameters
+
+###### vaultIds
+
+readonly `` `0x${string}` ``[]
+
+###### Returns
+
+`Promise`\<[`VaultProtocolInfo`](#vaultprotocolinfo)[]\>
+
+###### Implementation of
+
+[`VaultRegistryReader`](#vaultregistryreader).[`getProtocolInfoBatch`](#getprotocolinfobatch)
+
 ##### getVaultData()
 
 ```ts
 getVaultData(vaultId): Promise<VaultData>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/vault-registry-reader.ts:128](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/vault-registry-reader.ts#L128)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/vault-registry-reader.ts:185](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/vault-registry-reader.ts#L185)
 
 ###### Parameters
 
@@ -502,6 +562,32 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/vault-registry-rea
 ###### Implementation of
 
 [`VaultRegistryReader`](#vaultregistryreader).[`getVaultData`](#getvaultdata)
+
+##### getOffchainParamsVersionsByVaultIds()
+
+```ts
+getOffchainParamsVersionsByVaultIds(vaultIds): Promise<number[]>;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/vault-registry-reader.ts:208](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/vault-registry-reader.ts#L208)
+
+Read `offchainParamsVersion` for many vaults in a single multicall.
+Reads only `getBtcVaultProtocolInfo` (one read per vault), so an N-vault
+batch costs one RPC round-trip instead of 2N parallel `eth_call`s.
+
+###### Parameters
+
+###### vaultIds
+
+readonly `` `0x${string}` ``[]
+
+###### Returns
+
+`Promise`\<`number`[]\>
+
+###### Implementation of
+
+[`VaultRegistryReader`](#vaultregistryreader).[`getOffchainParamsVersionsByVaultIds`](#getoffchainparamsversionsbyvaultids)
 
 ***
 
@@ -750,7 +836,7 @@ envelope semantics as `batchGetPeginStatus`.
 
 ### ServerIdentityError
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts:70](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts#L70)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts:80](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts#L80)
 
 #### Extends
 
@@ -764,7 +850,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/se
 new ServerIdentityError(message, reason): ServerIdentityError;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts:71](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts#L71)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts:81](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts#L81)
 
 ###### Parameters
 
@@ -774,7 +860,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/se
 
 ###### reason
 
-`"pinned_pubkey_mismatch"` | `"expired"` | `"invalid_expires_at"` | `"invalid_pubkey_encoding"` | `"invalid_ephemeral_pubkey"` | `"invalid_signature_encoding"` | `"signature_verification_failed"`
+`"pinned_pubkey_mismatch"` | `"expired"` | `"expires_too_far"` | `"invalid_expires_at"` | `"invalid_max_lifetime"` | `"invalid_pubkey_encoding"` | `"invalid_ephemeral_pubkey"` | `"invalid_signature_encoding"` | `"signature_verification_failed"`
 
 ###### Returns
 
@@ -794,14 +880,16 @@ Error.constructor
 readonly reason: 
   | "pinned_pubkey_mismatch"
   | "expired"
+  | "expires_too_far"
   | "invalid_expires_at"
+  | "invalid_max_lifetime"
   | "invalid_pubkey_encoding"
   | "invalid_ephemeral_pubkey"
   | "invalid_signature_encoding"
   | "signature_verification_failed";
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts:73](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts#L73)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts:83](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts#L83)
 
 ***
 
@@ -1449,13 +1537,31 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:62](../..
 
 `Promise`\<[`VaultProtocolInfo`](#vaultprotocolinfo)\>
 
+##### getProtocolInfoBatch()
+
+```ts
+getProtocolInfoBatch(vaultIds): Promise<VaultProtocolInfo[]>;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:63](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts#L63)
+
+###### Parameters
+
+###### vaultIds
+
+readonly `` `0x${string}` ``[]
+
+###### Returns
+
+`Promise`\<[`VaultProtocolInfo`](#vaultprotocolinfo)[]\>
+
 ##### getVaultData()
 
 ```ts
 getVaultData(vaultId): Promise<VaultData>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:63](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts#L63)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:64](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts#L64)
 
 ###### Parameters
 
@@ -1473,7 +1579,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:63](../..
 getVaultProviderBtcPubKey(vpAddress): Promise<OnChainBtcPubkey>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:64](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts#L64)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:65](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts#L65)
 
 ###### Parameters
 
@@ -1485,11 +1591,33 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:64](../..
 
 `Promise`\<[`OnChainBtcPubkey`](#onchainbtcpubkey)\>
 
+##### getOffchainParamsVersionsByVaultIds()
+
+```ts
+getOffchainParamsVersionsByVaultIds(vaultIds): Promise<number[]>;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:71](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts#L71)
+
+Read `offchainParamsVersion` for many vaults in a single multicall.
+Returns versions in the same order as the input. Throws if any vault
+is missing on-chain.
+
+###### Parameters
+
+###### vaultIds
+
+readonly `` `0x${string}` ``[]
+
+###### Returns
+
+`Promise`\<`number`[]\>
+
 ***
 
 ### TBVProtocolParams
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:78](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts#L78)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:87](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts#L87)
 
 TBV protocol parameters from the ProtocolParams contract.
 Matches Solidity struct `IProtocolParams.TBVProtocolParams` exactly.
@@ -1505,7 +1633,7 @@ uint8 uses number (bounded, max 255).
 minimumPegInAmount: bigint;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:79](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts#L79)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:88](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts#L88)
 
 ##### maxPegInAmount
 
@@ -1513,7 +1641,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:79](../..
 maxPegInAmount: bigint;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:80](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts#L80)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:89](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts#L89)
 
 ##### pegInAckTimeout
 
@@ -1521,7 +1649,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:80](../..
 pegInAckTimeout: bigint;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:81](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts#L81)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:90](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts#L90)
 
 ##### pegInActivationTimeout
 
@@ -1529,7 +1657,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:81](../..
 pegInActivationTimeout: bigint;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:82](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts#L82)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:91](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts#L91)
 
 ##### maxHtlcOutputCount
 
@@ -1537,13 +1665,13 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:82](../..
 maxHtlcOutputCount: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:83](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts#L83)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:92](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts#L92)
 
 ***
 
 ### VersionedOffchainParams
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:93](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts#L93)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:102](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts#L102)
 
 Versioned offchain parameters from the ProtocolParams contract.
 Matches Solidity struct `IProtocolParams.VersionedOffchainParams` exactly.
@@ -1559,7 +1687,7 @@ number for: uint8/uint16/uint32 fields (bounded, safe for JS arithmetic).
 timelockAssert: bigint;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:94](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts#L94)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:103](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts#L103)
 
 ##### timelockChallengeAssert
 
@@ -1567,7 +1695,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:94](../..
 timelockChallengeAssert: bigint;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:95](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts#L95)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:104](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts#L104)
 
 ##### securityCouncilKeys
 
@@ -1575,7 +1703,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:95](../..
 securityCouncilKeys: `0x${string}`[];
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:96](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts#L96)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:105](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts#L105)
 
 ##### councilQuorum
 
@@ -1583,7 +1711,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:96](../..
 councilQuorum: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:97](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts#L97)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:106](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts#L106)
 
 ##### feeRate
 
@@ -1591,7 +1719,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:97](../..
 feeRate: bigint;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:98](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts#L98)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:107](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts#L107)
 
 ##### babeTotalInstances
 
@@ -1599,7 +1727,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:98](../..
 babeTotalInstances: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:99](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts#L99)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:108](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts#L108)
 
 ##### babeInstancesToFinalize
 
@@ -1607,7 +1735,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:99](../..
 babeInstancesToFinalize: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:100](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts#L100)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:109](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts#L109)
 
 ##### minVpCommissionBps
 
@@ -1615,7 +1743,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:100](../.
 minVpCommissionBps: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:101](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts#L101)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:110](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts#L110)
 
 ##### tRefund
 
@@ -1623,7 +1751,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:101](../.
 tRefund: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:102](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts#L102)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:111](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts#L111)
 
 ##### tStale
 
@@ -1631,7 +1759,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:102](../.
 tStale: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:103](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts#L103)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:112](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts#L112)
 
 ##### minPeginFeeRate
 
@@ -1639,7 +1767,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:103](../.
 minPeginFeeRate: bigint;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:104](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts#L104)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:113](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts#L113)
 
 ##### proverProgramVersion
 
@@ -1647,7 +1775,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:104](../.
 proverProgramVersion: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:105](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts#L105)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:114](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts#L114)
 
 ##### minPrepeginDepth
 
@@ -1655,13 +1783,13 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:105](../.
 minPrepeginDepth: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:106](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts#L106)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:115](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts#L115)
 
 ***
 
 ### PegInConfiguration
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:113](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts#L113)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:122](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts#L122)
 
 Combined peg-in configuration read atomically via multicall.
 Prevents TOCTOU inconsistency if governance updates params between reads.
@@ -1674,7 +1802,7 @@ Prevents TOCTOU inconsistency if governance updates params between reads.
 minimumPegInAmount: bigint;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:114](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts#L114)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:123](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts#L123)
 
 ##### maxPegInAmount
 
@@ -1682,7 +1810,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:114](../.
 maxPegInAmount: bigint;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:115](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts#L115)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:124](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts#L124)
 
 ##### pegInAckTimeout
 
@@ -1690,7 +1818,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:115](../.
 pegInAckTimeout: bigint;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:116](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts#L116)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:125](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts#L125)
 
 ##### pegInActivationTimeout
 
@@ -1698,7 +1826,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:116](../.
 pegInActivationTimeout: bigint;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:117](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts#L117)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:126](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts#L126)
 
 ##### maxHtlcOutputCount
 
@@ -1706,7 +1834,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:117](../.
 maxHtlcOutputCount: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:118](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts#L118)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:127](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts#L127)
 
 ##### timelockPegin
 
@@ -1714,7 +1842,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:118](../.
 timelockPegin: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:119](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts#L119)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:128](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts#L128)
 
 ##### timelockRefund
 
@@ -1722,7 +1850,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:119](../.
 timelockRefund: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:120](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts#L120)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:129](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts#L129)
 
 ##### minVpCommissionBps
 
@@ -1730,7 +1858,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:120](../.
 minVpCommissionBps: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:121](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts#L121)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:130](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts#L130)
 
 ##### offchainParams
 
@@ -1738,13 +1866,55 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:121](../.
 offchainParams: VersionedOffchainParams;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:122](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts#L122)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:131](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts#L131)
+
+##### offchainParamsVersion
+
+```ts
+offchainParamsVersion: number;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:138](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts#L138)
+
+Version label paired atomically with `offchainParams`.
+Read in the same multicall as the params struct so that, if a parameter
+update lands between separate reads, the script-construction code and
+the version label stay consistent.
+
+***
+
+### AllOffchainParamsData
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:147](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts#L147)
+
+All offchain params snapshots indexed by version, plus the latest version
+number known when the snapshot was taken. Used by consumers that need to
+resolve any historical version (e.g. signing for an existing vault locked
+to an older version).
+
+#### Properties
+
+##### byVersion
+
+```ts
+byVersion: Map<number, VersionedOffchainParams>;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:148](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts#L148)
+
+##### latestVersion
+
+```ts
+latestVersion: number;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:149](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts#L149)
 
 ***
 
 ### ProtocolParamsReader
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:126](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts#L126)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:163](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts#L163)
 
 Interface for reading protocol parameters from the ProtocolParams contract.
 
@@ -1756,7 +1926,7 @@ Interface for reading protocol parameters from the ProtocolParams contract.
 getTBVProtocolParams(): Promise<TBVProtocolParams>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:127](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts#L127)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:164](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts#L164)
 
 ###### Returns
 
@@ -1768,7 +1938,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:127](../.
 getOffchainParamsByVersion(version): Promise<VersionedOffchainParams>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:128](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts#L128)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:165](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts#L165)
 
 ###### Parameters
 
@@ -1786,7 +1956,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:128](../.
 getLatestOffchainParams(): Promise<VersionedOffchainParams>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:129](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts#L129)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:166](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts#L166)
 
 ###### Returns
 
@@ -1798,7 +1968,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:129](../.
 getLatestOffchainParamsVersion(): Promise<number>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:130](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts#L130)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:167](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts#L167)
 
 ###### Returns
 
@@ -1810,7 +1980,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:130](../.
 getTimelockPeginByVersion(version): Promise<number>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:131](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts#L131)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:168](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts#L168)
 
 ###### Parameters
 
@@ -1828,17 +1998,35 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:131](../.
 getPegInConfiguration(): Promise<PegInConfiguration>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:132](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts#L132)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:169](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts#L169)
 
 ###### Returns
 
 `Promise`\<[`PegInConfiguration`](#peginconfiguration)\>
 
+##### fetchAllOffchainParams()
+
+```ts
+fetchAllOffchainParams(onSkippedVersion?): Promise<AllOffchainParamsData>;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:170](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts#L170)
+
+###### Parameters
+
+###### onSkippedVersion?
+
+[`OnSkippedOffchainParamsVersion`](#onskippedoffchainparamsversion)
+
+###### Returns
+
+`Promise`\<[`AllOffchainParamsData`](#alloffchainparamsdata)\>
+
 ***
 
 ### AddressBTCKeyPair
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:143](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts#L143)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:183](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts#L183)
 
 Matches Solidity struct `BTCVaultTypes.AddressBTCKeyPair` exactly.
 Used for vault keepers and universal challengers.
@@ -1851,7 +2039,7 @@ Used for vault keepers and universal challengers.
 ethAddress: `0x${string}`;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:144](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts#L144)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:184](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts#L184)
 
 ##### btcPubKey
 
@@ -1859,13 +2047,13 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:144](../.
 btcPubKey: `0x${string}`;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:145](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts#L145)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:185](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts#L185)
 
 ***
 
 ### VaultKeeperReader
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:149](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts#L149)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:189](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts#L189)
 
 Interface for reading vault keepers from the ApplicationRegistry contract.
 
@@ -1877,7 +2065,7 @@ Interface for reading vault keepers from the ApplicationRegistry contract.
 getVaultKeepersByVersion(appEntryPoint, version): Promise<AddressBTCKeyPair[]>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:150](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts#L150)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:190](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts#L190)
 
 ###### Parameters
 
@@ -1899,7 +2087,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:150](../.
 getCurrentVaultKeepers(appEntryPoint): Promise<AddressBTCKeyPair[]>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:154](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts#L154)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:194](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts#L194)
 
 ###### Parameters
 
@@ -1917,7 +2105,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:154](../.
 getCurrentVaultKeepersVersion(appEntryPoint): Promise<number>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:157](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts#L157)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:197](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts#L197)
 
 ###### Parameters
 
@@ -1933,7 +2121,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:157](../.
 
 ### UniversalChallengerReader
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:161](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts#L161)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:201](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts#L201)
 
 Interface for reading universal challengers from the ProtocolParams contract.
 
@@ -1945,7 +2133,7 @@ Interface for reading universal challengers from the ProtocolParams contract.
 getUniversalChallengersByVersion(version): Promise<AddressBTCKeyPair[]>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:162](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts#L162)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:202](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts#L202)
 
 ###### Parameters
 
@@ -1963,7 +2151,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:162](../.
 getCurrentUniversalChallengers(): Promise<AddressBTCKeyPair[]>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:165](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts#L165)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:205](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts#L205)
 
 ###### Returns
 
@@ -1975,7 +2163,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:165](../.
 getLatestUniversalChallengersVersion(): Promise<number>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:166](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts#L166)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:206](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts#L206)
 
 ###### Returns
 
@@ -2659,7 +2847,7 @@ Optional headers forwarded to the inner token client (e.g. gateway auth).
 
 ### ServerIdentityResponse
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts:46](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts#L46)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts:54](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts#L54)
 
 Wire representation from btc-vault's `ServerIdentityResponse`.
 
@@ -2671,7 +2859,7 @@ Wire representation from btc-vault's `ServerIdentityResponse`.
 server_pubkey: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts:48](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts#L48)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts:56](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts#L56)
 
 Hex-encoded x-only (32-byte) persistent server pubkey.
 
@@ -2681,7 +2869,7 @@ Hex-encoded x-only (32-byte) persistent server pubkey.
 ephemeral_pubkey: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts:50](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts#L50)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts:58](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts#L58)
 
 Hex-encoded compressed (33-byte) ephemeral token-signing pubkey.
 
@@ -2691,7 +2879,7 @@ Hex-encoded compressed (33-byte) ephemeral token-signing pubkey.
 expires_at: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts:52](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts#L52)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts:60](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts#L60)
 
 Unix timestamp at which the ephemeral key expires.
 
@@ -2701,7 +2889,7 @@ Unix timestamp at which the ephemeral key expires.
 signature: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts:54](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts#L54)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts:62](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts#L62)
 
 Hex-encoded 64-byte BIP-322 Schnorr signature.
 
@@ -2709,7 +2897,7 @@ Hex-encoded 64-byte BIP-322 Schnorr signature.
 
 ### VerifyServerIdentityInput
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts:57](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts#L57)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts:65](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts#L65)
 
 #### Properties
 
@@ -2719,7 +2907,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/se
 proof: ServerIdentityResponse;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts:59](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts#L59)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts:67](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts#L67)
 
 The proof returned by `auth_createDepositorToken`.
 
@@ -2729,7 +2917,7 @@ The proof returned by `auth_createDepositorToken`.
 pinnedServerPubkey: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts:65](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts#L65)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts:73](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts#L73)
 
 The x-only persistent server pubkey the FE expects (sourced from
 the on-chain `VaultProvider.btcPubKey` via the vault registry
@@ -2741,9 +2929,19 @@ reader). 64-char lowercase hex, no `0x` prefix.
 now: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts:67](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts#L67)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts:75](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts#L75)
 
 Current Unix timestamp in seconds. Injected for testability.
+
+##### maxLifetimeSecs?
+
+```ts
+optional maxLifetimeSecs: number;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts:77](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts#L77)
+
+Cap on `proof.expires_at - now` (seconds). Defaults to DEFAULT\_MAX\_PROOF\_LIFETIME\_SECS.
 
 ***
 
@@ -2827,62 +3025,229 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/batchAt
 
 ***
 
-### BatchAttributionResult
+### BatchPollByProviderOptions
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/batchAttribution.ts:22](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/batchAttribution.ts#L22)
-
-Output of [attributeBatchResults](#attributebatchresults).
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/batchPoll.ts:20](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/batchPoll.ts#L20)
 
 #### Type Parameters
 
-##### T
+##### TItem
 
-`T`
+`TItem`
+
+##### TResult
+
+`TResult`
 
 #### Properties
 
-##### byTxid
+##### items
 
 ```ts
-byTxid: Map<string, {
-  result: T | null;
-  error: string | null;
+items: TItem[];
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/batchPoll.ts:22](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/batchPoll.ts#L22)
+
+Items to poll for this provider, e.g. `DepositToPoll[]`.
+
+##### getTxid()
+
+```ts
+getTxid: (item) => string;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/batchPoll.ts:24](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/batchPoll.ts#L24)
+
+Extract the canonical txid for each item. Helper lowercases it.
+
+###### Parameters
+
+###### item
+
+`TItem`
+
+###### Returns
+
+`string`
+
+##### batchCall()
+
+```ts
+batchCall: (txids) => Promise<{
+  results: readonly BatchResultEntry<TResult>[];
 }>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/batchAttribution.ts:24](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/batchAttribution.ts#L24)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/batchPoll.ts:29](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/batchPoll.ts#L29)
 
-Lowercase requested txid -> per-item envelope.
+Per-chunk RPC call. Receives lowercased txids; returns the batch
+envelope. Caller wraps `rpcClient.batchGet*Status({ pegin_txids })`.
 
-##### missing
+###### Parameters
 
-```ts
-missing: string[];
-```
+###### txids
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/batchAttribution.ts:26](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/batchAttribution.ts#L26)
+`string`[]
 
-Requested txids that did not appear in the response.
+###### Returns
 
-##### unexpected
+`Promise`\<\{
+  `results`: readonly [`BatchResultEntry`](#batchresultentry)\<`TResult`\>[];
+\}\>
 
-```ts
-unexpected: string[];
-```
-
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/batchAttribution.ts:28](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/batchAttribution.ts#L28)
-
-Echoed txids that were not in the request — logged + dropped.
-
-##### duplicate
+##### onItem()
 
 ```ts
-duplicate: string[];
+onItem: (item, envelope) => void;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/batchAttribution.ts:30](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/batchAttribution.ts#L30)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/batchPoll.ts:40](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/batchPoll.ts#L40)
 
-Echoed txids that appeared more than once — first kept, rest dropped.
+Handle a per-item envelope. Exactly one of `result` / `error` is
+populated (validator invariant). Caller decides UI state, logging,
+etc. Not invoked for txids surfaced via [onDuplicate](#onduplicate).
+
+Note: `envelope.pegin_txid` is the lowercased txid the helper
+sent in the request, not whatever case/encoding the server echoed.
+
+###### Parameters
+
+###### item
+
+`TItem`
+
+###### envelope
+
+[`BatchResultEntry`](#batchresultentry)\<`TResult`\>
+
+###### Returns
+
+`void`
+
+##### onMissing()
+
+```ts
+onMissing: (item) => void;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/batchPoll.ts:42](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/batchPoll.ts#L42)
+
+Server omitted this item from the response.
+
+###### Parameters
+
+###### item
+
+`TItem`
+
+###### Returns
+
+`void`
+
+##### onDuplicate()
+
+```ts
+onDuplicate: (item) => void;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/batchPoll.ts:44](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/batchPoll.ts#L44)
+
+Server returned this item more than once. Caller picks UI state.
+
+###### Parameters
+
+###### item
+
+`TItem`
+
+###### Returns
+
+`void`
+
+##### onDuplicateBatch()?
+
+```ts
+optional onDuplicateBatch: (count) => void;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/batchPoll.ts:51](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/batchPoll.ts#L51)
+
+Optional aggregate signal for an entire chunk where the server
+returned duplicates. Fires once per chunk (only if `count > 0`)
+AFTER all per-item `onDuplicate` dispatches. Caller typically logs
+the count alongside the provider name.
+
+###### Parameters
+
+###### count
+
+`number`
+
+###### Returns
+
+`void`
+
+##### onWholeBatchError()
+
+```ts
+onWholeBatchError: (chunk, error) => void;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/batchPoll.ts:57](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/batchPoll.ts#L57)
+
+The whole chunk's RPC call failed (transport or response
+validation). Receives the chunk and the error. Caller decides how
+to project that onto per-item state.
+
+###### Parameters
+
+###### chunk
+
+`TItem`[]
+
+###### error
+
+`unknown`
+
+###### Returns
+
+`void`
+
+##### onUnexpected()?
+
+```ts
+optional onUnexpected: (echoedTxids) => void;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/batchPoll.ts:64](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/batchPoll.ts#L64)
+
+Server returned txids that were not in the request. Caller
+typically logs the count for observability — there's no recovery
+action since the original request items are unaffected. Optional;
+defaults to no-op.
+
+###### Parameters
+
+###### echoedTxids
+
+`string`[]
+
+###### Returns
+
+`void`
+
+##### batchSize?
+
+```ts
+optional batchSize: number;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/batchPoll.ts:70](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/batchPoll.ts#L70)
+
+Maximum items per RPC call. Defaults to [VP\_BATCH\_MAX\_SIZE](#vp_batch_max_size).
+Exposed for tests so chunking can be exercised without 50+
+fixtures.
 
 ***
 
@@ -4237,6 +4602,34 @@ frozen
 
 ***
 
+### OnSkippedOffchainParamsVersion()
+
+```ts
+type OnSkippedOffchainParamsVersion = (version, error) => void;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts:157](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts#L157)
+
+Optional observer invoked by `fetchAllOffchainParams` when a historical
+version fails validation. Called once per skipped version so callers can
+log/telemeter without coupling the SDK to a specific logger.
+
+#### Parameters
+
+##### version
+
+`number`
+
+##### error
+
+`Error`
+
+#### Returns
+
+`void`
+
+***
+
 ### JsonRpcErrorSource
 
 ```ts
@@ -4324,6 +4717,84 @@ Address of the BTCVaultRegistry contract
 `Promise`\<[`ProtocolAddresses`](#protocoladdresses)\>
 
 Resolved contract addresses
+
+***
+
+### validateOffchainParams()
+
+```ts
+function validateOffchainParams(params): void;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/protocol-params-validation.ts:56](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/protocol-params-validation.ts#L56)
+
+Validate offchain params consistency and bounds.
+
+#### Parameters
+
+##### params
+
+[`VersionedOffchainParams`](#versionedoffchainparams)
+
+#### Returns
+
+`void`
+
+#### Throws
+
+Error on invalid values to prevent constructing invalid Bitcoin scripts.
+
+***
+
+### validateTBVProtocolParams()
+
+```ts
+function validateTBVProtocolParams(params): void;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/protocol-params-validation.ts:163](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/protocol-params-validation.ts#L163)
+
+Validate TBV protocol params returned from the contract.
+
+#### Parameters
+
+##### params
+
+[`TBVProtocolParams`](#tbvprotocolparams)
+
+#### Returns
+
+`void`
+
+#### Throws
+
+Error on invalid amounts or out-of-range bounded fields.
+
+***
+
+### validatePegInConfiguration()
+
+```ts
+function validatePegInConfiguration(config): void;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/protocol-params-validation.ts:212](../../packages/babylon-ts-sdk/src/tbv/core/clients/eth/protocol-params-validation.ts#L212)
+
+Validate the full peg-in configuration after assembly.
+Checks both TBV params and offchain params consistency, and the
+top-level `offchainParamsVersion` (which originates from a separate
+multicall result and so must be range-checked alongside the params it
+names).
+
+#### Parameters
+
+##### config
+
+[`PegInConfiguration`](#peginconfiguration)
+
+#### Returns
+
+`void`
 
 ***
 
@@ -4648,13 +5119,13 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/pr
 function verifyServerIdentity(input): void;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts:116](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts#L116)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts:128](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts#L128)
 
 Verify a server identity proof against a pinned server pubkey.
 
 Checks:
   1. `server_pubkey` matches the pin.
-  2. `expires_at > now` (with integer guards).
+  2. `now < expires_at <= now + maxLifetimeSecs` (with integer guards).
   3. `ephemeral_pubkey` is a well-formed 33-byte compressed pubkey.
   4. `signature` is a well-formed 64-byte Schnorr hex string.
   5. The BIP-322 Schnorr signature cryptographically verifies
@@ -4682,43 +5153,33 @@ ServerIdentityError on any validation failure.
 
 ***
 
-### attributeBatchResults()
+### batchPollByProvider()
 
 ```ts
-function attributeBatchResults<T>(requestedTxids, results): BatchAttributionResult<T>;
+function batchPollByProvider<TItem, TResult>(options): Promise<void>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/batchAttribution.ts:44](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/batchAttribution.ts#L44)
-
-Attribute batch results to requested txids defensively.
-
-Both `requestedTxids` and the echoed `pegin_txid` field on each result
-are lowercased before lookup. Duplicates and unexpected echoes are
-surfaced so callers can flag the affected items as errored rather than
-silently overwriting state.
-
-`requestedTxids` may contain duplicates; they are de-duplicated for the
-purposes of map keys (each unique txid becomes a single map entry).
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/batchPoll.ts:73](../../packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/batchPoll.ts#L73)
 
 #### Type Parameters
 
-##### T
+##### TItem
 
-`T`
+`TItem`
+
+##### TResult
+
+`TResult`
 
 #### Parameters
 
-##### requestedTxids
+##### options
 
-`string`[]
-
-##### results
-
-readonly [`BatchResultEntry`](#batchresultentry)\<`T`\>[]
+[`BatchPollByProviderOptions`](#batchpollbyprovideroptions)\<`TItem`, `TResult`\>
 
 #### Returns
 
-[`BatchAttributionResult`](#batchattributionresult)\<`T`\>
+`Promise`\<`void`\>
 
 ***
 

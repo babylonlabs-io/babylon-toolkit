@@ -31,6 +31,7 @@ import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
 import {
   ensureHexPrefix,
   isRegisteredVaultVersionMismatchError,
+  stripHexPrefix,
   validateOnChainParticipantKeys,
   verifyRegisteredVaultVersions,
 } from "@babylonlabs-io/ts-sdk/tbv/core";
@@ -68,6 +69,7 @@ import { assertUtxosAvailable } from "@/services/vault/vaultUtxoValidationServic
 import {
   addPendingPegin,
   addUtxoReservation,
+  assertNoReservationConflict,
   getPendingPegins,
   getUtxoReservations,
   removePendingPegin,
@@ -77,7 +79,6 @@ import {
 import type { Vault } from "@/types/vault";
 import {
   btcAddressToScriptPubKeyHex,
-  stripHexPrefix,
   verifyBtcWalletLiveness,
 } from "@/utils/btc";
 import { satoshiToBtcNumber } from "@/utils/btcConversion";
@@ -419,6 +420,24 @@ export function useDepositFlow(
           feeRate: mempoolFeeRate,
         });
 
+        // Claim the candidate outpoints BEFORE `preparePeginTransaction`.
+        // That call drives `deriveVaultRoot` (wallet popup #1) and the batch
+        // PSBT commit pass (wallet popup #2) — together a 1-3 minute window
+        // during which a sibling tab must not be able to pick the same
+        // outpoints. The actually-used subset is decided inside
+        // `preparePegin` and the reservation is narrowed below; same batchId
+        // overwrites in place. Conflict throws and aborts before any popup.
+        reservationBatchId = batchId;
+        reservationEthAddress = confirmedEthAddress;
+        await addUtxoReservation(confirmedEthAddress, {
+          outpoints: availableUTXOs.map((u) => ({
+            txid: u.txid,
+            vout: u.vout,
+          })),
+          timestamp: Date.now(),
+          batchId,
+        });
+
         const [vaultKeeperReader, universalChallengerReader] =
           await Promise.all([
             getVaultKeeperReader(),
@@ -461,13 +480,14 @@ export function useDepositFlow(
           authAnchorHex,
         } = batchResult;
 
-        // Reserve UTXOs in localStorage immediately so other tabs see them
-        // during the (potentially lengthy) PoP signing and ETH registration.
-        // Cleaned up after pending pegin entries are written, or on failure.
-        reservationBatchId = batchId;
-        reservationEthAddress = confirmedEthAddress;
-        addUtxoReservation(confirmedEthAddress, {
-          unsignedTxHex: batchResult.fundedPrePeginTxHex,
+        // Narrow the pre-claim to the actually-selected inputs now that
+        // `preparePegin` has decided which subset to spend. Same batchId
+        // overwrites in place; same-batch writes never conflict.
+        await addUtxoReservation(confirmedEthAddress, {
+          outpoints: batchResult.selectedUTXOs.map((u) => ({
+            txid: u.txid,
+            vout: u.vout,
+          })),
           timestamp: Date.now(),
           batchId,
         });
@@ -516,6 +536,20 @@ export function useDepositFlow(
         await assertUtxosAvailable(
           batchResult.fundedPrePeginTxHex,
           confirmedBtcAddress,
+        );
+
+        // Final-pass conflict re-check. Defense in depth: catches the
+        // residual race where two tabs without `navigator.locks` both wrote
+        // a reservation in the same microtask. Any overlap from another
+        // batch aborts the flow before we bind an ETH vault to contended
+        // outpoints.
+        assertNoReservationConflict(
+          confirmedEthAddress,
+          batchId,
+          batchResult.selectedUTXOs.map((u) => ({
+            txid: u.txid,
+            vout: u.vout,
+          })),
         );
 
         // 3e. Single batch ETH transaction for all vaults.

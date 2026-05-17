@@ -25,15 +25,10 @@ export {
 } from "./useReorderVaults";
 export {
   useRepayTransaction,
+  type RepayMode,
   type UseRepayTransactionProps,
   type UseRepayTransactionResult,
 } from "./useRepayTransaction";
-export {
-  useSeizureSimulation,
-  type UseSeizureSimulationResult,
-  type VaultAmountMap,
-} from "./useSeizureSimulation";
-export { useVaultOrder, type UseVaultOrderResult } from "./useVaultOrder";
 export {
   useVaultSplitParams,
   type UseVaultSplitParamsResult,

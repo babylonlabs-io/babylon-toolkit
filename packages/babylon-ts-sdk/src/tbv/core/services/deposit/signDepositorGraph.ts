@@ -29,6 +29,10 @@ import type {
   PresignDataPerChallenger,
 } from "../../clients/vault-provider/types";
 import {
+  assertPsbtUnsignedTxMatches,
+  type AssertPsbtUnsignedTxMatchesParams,
+} from "../../primitives/psbt/assertPsbtUnsignedTxMatches";
+import {
   assertNoPayoutOutputMatchesChallenger,
   buildNoPayoutPsbt,
 } from "../../primitives/psbt/noPayout";
@@ -74,29 +78,92 @@ interface CollectedDepositorGraphPsbts {
 /**
  * Compute the local-challenger set for the depositor-as-claimer flow.
  *
- * Per the protocol (see btc-vault crates/vault/src/lib.rs - `LocalChallengers`):
- *   localChallengers = {VaultProvider, VaultKeepers} \ {Claimer}
+ * Per btc-vault `crates/vault/src/tx_graph/graph.rs:144-150` (introduced in
+ * PR #1092 / commit 3133b698, 2026-02-18):
+ *   Depositor-as-claimer: LocalChallengers = VKs only (VP excluded)
  *
- * For the depositor-as-claimer flow the claimer is the depositor, so this
- * removes the depositor from the union if present (it usually isn't).
- * The protocol guarantees the result is non-empty by construction.
+ * Note: the docstring at `crates/vault/src/lib.rs:332` still says
+ * `{VaultProvider, VaultKeepers} - {Claimer}` — that wording is stale and
+ * predates the depositor-as-claimer special case. This function follows the
+ * actual implementation, not the stale docstring.
+ *
+ * The protocol guarantees the depositor is not a vault keeper
+ * (`TxGraphParams::validate` enforces it), so the depositor filter here is
+ * defense-in-depth; it surfaces a clear error if a misconfigured context
+ * ever violates the invariant.
  */
 function deriveLocalChallengers(
-  vaultProviderBtcPubkey: string,
   vaultKeeperBtcPubkeys: string[],
   depositorBtcPubkey: string,
 ): string[] {
   const depositor = stripHexPrefix(depositorBtcPubkey).toLowerCase();
-  const all = [vaultProviderBtcPubkey, ...vaultKeeperBtcPubkeys].map((k) =>
-    stripHexPrefix(k).toLowerCase(),
-  );
-  const filtered = all.filter((k) => k !== depositor);
+  const vks = vaultKeeperBtcPubkeys.map((k) => stripHexPrefix(k).toLowerCase());
+  const filtered = vks.filter((k) => k !== depositor);
   if (filtered.length === 0) {
     throw new Error(
-      "Cannot derive localChallengers: removing depositor from {vaultProvider, vaultKeepers} left an empty set",
+      "Cannot derive localChallengers: vault keeper set is empty (or contains only the depositor)",
+    );
+  }
+  if (new Set(filtered).size !== filtered.length) {
+    throw new Error(
+      "Cannot derive localChallengers: duplicate vaultKeeper key — signing context is misconfigured",
     );
   }
   return filtered;
+}
+
+/**
+ * Reject VP-supplied `challenger_presign_data` whose pubkey set does not
+ * exactly equal `localChallengers ∪ universalChallengers`.
+ *
+ * The daemon's `challenger_presign_data` contains one entry per challenger
+ * in `Challengers::all_sorted() = local + universal` (per
+ * btc-vault `crates/vault/src/tx_graph/graph.rs:438-458`). For the
+ * depositor-as-claimer flow this is `VKs + UCs`.
+ *
+ * Threat model: a malicious or buggy VP could omit, duplicate, or inject
+ * unrelated entries. Missing entries → depositor activates with incomplete
+ * recovery material (omitted challenger later becomes unenforceable).
+ * Duplicates or extras → wallet signs PSBTs for challengers the protocol
+ * doesn't recognize, handing the VP signatures it shouldn't have.
+ */
+function assertChallengerSetMatchesExpected(
+  challengerPresignData: PresignDataPerChallenger[],
+  localChallengers: string[],
+  universalChallengerBtcPubkeys: string[],
+): void {
+  const universal = universalChallengerBtcPubkeys.map((k) =>
+    stripHexPrefix(k).toLowerCase(),
+  );
+  // Protocol guarantee: local and universal sets are disjoint. Reject
+  // overlap so the depositor doesn't sign for an ambiguous challenger role.
+  const overlap = localChallengers.filter((k) => universal.includes(k));
+  if (overlap.length > 0) {
+    throw new Error(
+      `Cannot validate challenger set: vault keepers and universal challengers overlap (${overlap.join(", ")})`,
+    );
+  }
+  const expected = [...localChallengers, ...universal];
+
+  const suppliedList = challengerPresignData.map((c) =>
+    stripHexPrefix(c.challenger_pubkey).toLowerCase(),
+  );
+  const suppliedSet = new Set(suppliedList);
+  if (suppliedSet.size !== suppliedList.length) {
+    throw new Error(
+      "Depositor graph contains duplicate challenger entries in challenger_presign_data",
+    );
+  }
+  const expectedSet = new Set(expected);
+  const missing = expected.filter((c) => !suppliedSet.has(c));
+  const extra = suppliedList.filter((c) => !expectedSet.has(c));
+  if (missing.length > 0 || extra.length > 0) {
+    throw new Error(
+      `Depositor graph challenger set does not match expected (local ∪ universal)` +
+        (missing.length > 0 ? ` (missing: ${missing.join(", ")})` : "") +
+        (extra.length > 0 ? ` (unexpected: ${extra.join(", ")})` : ""),
+    );
+  }
 }
 
 /**
@@ -156,7 +223,19 @@ async function collectDepositorGraphPsbts(
   const signOptions: SignPsbtOptions[] = [];
   const challengerEntries: ChallengerEntry[] = [];
 
-  // 1. Validate the payout transaction's largest output pays to the
+  // 1. Fail-fast on a malformed VP response BEFORE doing any PSBT-build
+  //    work that would be wasted if the challenger set is wrong.
+  const localChallengers = deriveLocalChallengers(
+    ctx.vaultKeeperBtcPubkeys,
+    ctx.depositorBtcPubkey,
+  );
+  assertChallengerSetMatchesExpected(
+    depositorGraph.challenger_presign_data,
+    localChallengers,
+    ctx.universalChallengerBtcPubkeys,
+  );
+
+  // 2. Validate the payout transaction's largest output pays to the
   //    depositor's on-chain registered payout scriptPubKey. The payout tx
   //    hex is supplied by the VP and otherwise unconstrained; this assertion
   //    pins the destination of the funds.
@@ -165,7 +244,7 @@ async function collectDepositorGraphPsbts(
     ctx.registeredPayoutScriptPubKey,
   );
 
-  // 2. Build the payout PSBT locally. Every sighash-relevant field
+  // 3. Build the payout PSBT locally. Every sighash-relevant field
   //    (witnessUtxo, tapLeafScript, controlBlock, tapInternalKey) is derived
   //    from on-chain trusted connector params, not from the VP. The VP-
   //    supplied assert tx hex is implicitly pinned by buildPayoutPsbt's
@@ -189,12 +268,7 @@ async function collectDepositorGraphPsbts(
     ),
   );
 
-  // 3. Per-challenger: build the NoPayout PSBT locally too.
-  const localChallengers = deriveLocalChallengers(
-    ctx.vaultProviderBtcPubkey,
-    ctx.vaultKeeperBtcPubkeys,
-    ctx.depositorBtcPubkey,
-  );
+  // 4. Per-challenger: build the NoPayout PSBT locally too.
   const claimerPubkey = stripHexPrefix(ctx.depositorBtcPubkey);
   const assertTxParsed = Transaction.fromHex(
     stripHexPrefix(depositorGraph.assert_tx.tx_hex),
@@ -342,24 +416,32 @@ async function buildLocalNoPayoutPsbt(
 // Extract phase
 // ============================================================================
 
+/** A pair of a locally-built PSBT and the wallet-returned PSBT for it. */
+type PsbtPair = AssertPsbtUnsignedTxMatchesParams;
+
 /**
  * Extract all signatures from signed PSBTs and assemble into presignatures.
+ * Each pair is asserted to encode the same unsigned tx before its signature
+ * is extracted — defends against a wallet that returns a signature for a
+ * substituted transaction.
  */
 function extractDepositorGraphSignatures(
-  signedPsbtHexes: string[],
+  psbtPairs: PsbtPair[],
   challengerEntries: ChallengerEntry[],
   depositorPubkey: string,
 ): DepositorAsClaimerPresignatures {
+  assertPsbtUnsignedTxMatches(psbtPairs[0]);
   const payoutSignature = extractPayoutSignature(
-    signedPsbtHexes[0],
+    psbtPairs[0].returnedPsbtHex,
     depositorPubkey,
   );
 
   const perChallenger: Record<string, DepositorPreSigsPerChallenger> = {};
   for (const entry of challengerEntries) {
+    assertPsbtUnsignedTxMatches(psbtPairs[entry.noPayoutIdx]);
     perChallenger[entry.challengerPubkey] = {
       nopayout_signature: extractPayoutSignature(
-        signedPsbtHexes[entry.noPayoutIdx],
+        psbtPairs[entry.noPayoutIdx].returnedPsbtHex,
         depositorPubkey,
       ),
     };
@@ -496,9 +578,13 @@ export async function signDepositorGraph(
     );
   }
 
-  // 3. Extract signatures and assemble presignatures
+  // 3. Pair requested with signed and extract signatures
+  const psbtPairs: PsbtPair[] = psbtHexes.map((requestedPsbtHex, i) => ({
+    requestedPsbtHex,
+    returnedPsbtHex: signedPsbtHexes[i],
+  }));
   return extractDepositorGraphSignatures(
-    signedPsbtHexes,
+    psbtPairs,
     challengerEntries,
     depositorPubkey,
   );

@@ -28,11 +28,28 @@ function isWalletRejectionError(error: unknown): boolean {
 
 /**
  * Extract a safe error message from an unknown error value.
- * Never serializes arbitrary objects — only extracts .message from Error instances.
+ * Falls back to "Unknown error" for empty messages and for the literal
+ * "[object Object]" — the latter shows up when upstream code wrapped a
+ * plain object via template-literal interpolation.
  */
 export function sanitizeErrorMessage(err: unknown): string {
-  if (err instanceof Error) return err.message;
-  if (typeof err === "string") return err;
+  if (err instanceof Error) {
+    return err.message && err.message !== "[object Object]"
+      ? err.message
+      : "Unknown error";
+  }
+  if (typeof err === "string") {
+    return err && err !== "[object Object]" ? err : "Unknown error";
+  }
+  if (
+    err !== null &&
+    typeof err === "object" &&
+    "message" in err &&
+    typeof (err as { message: unknown }).message === "string"
+  ) {
+    const m = (err as { message: string }).message;
+    if (m && m !== "[object Object]") return m;
+  }
   return "Unknown error";
 }
 
@@ -180,11 +197,26 @@ export function formatPayoutSignatureError(error: unknown): {
     };
   }
 
-  // WASM panics and some wallet providers throw strings or plain objects
-  const msg = typeof error === "string" ? error : String(error);
+  // WASM panics and some wallet providers throw strings or plain objects.
+  // Extract a real string — never let `String(plainObject)` surface as
+  // "[object Object]" in the UI.
+  let msg = "";
+  if (typeof error === "string") {
+    msg = error;
+  } else if (
+    error !== null &&
+    typeof error === "object" &&
+    "message" in error &&
+    typeof (error as { message: unknown }).message === "string"
+  ) {
+    msg = (error as { message: string }).message;
+  }
   return {
     title: "Payout Signing Error",
-    message: msg || "An unexpected error occurred while signing payouts.",
+    message:
+      msg && msg !== "[object Object]"
+        ? msg
+        : "An unexpected error occurred while signing payouts.",
   };
 }
 

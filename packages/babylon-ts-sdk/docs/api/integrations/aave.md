@@ -2727,14 +2727,35 @@ Prevents users from borrowing if resulting health factor would be below this.
 ### FULL\_REPAY\_BUFFER\_DIVISOR
 
 ```ts
-const FULL_REPAY_BUFFER_DIVISOR: 10000n = 10000n;
+const FULL_REPAY_BUFFER_DIVISOR: 200n = 200n;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/constants.ts:98](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/constants.ts#L98)
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/constants.ts:106](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/constants.ts#L106)
 
 Buffer for full repayment to account for interest accrual
 between fetching debt and transaction execution.
-0.01% buffer (1 basis point) - the contract only takes what's owed.
+
+0.5% buffer (50 basis points). Sized to absorb hours of execution delay
+(e.g. Safe-multisig quorum collection) without leaving residual dust.
+The adapter only pulls what's actually owed; excess approval/balance
+stays with the user.
+
+Users whose wallet balance covers the debt but not the full buffer are
+routed through the "max-capped" repay path instead of `repayFull`, so
+a larger buffer never blocks a legitimate max-repay.
+
+***
+
+### FULL\_REPAY\_BUFFER\_FRACTION
+
+```ts
+const FULL_REPAY_BUFFER_FRACTION: number;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/constants.ts:112](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/constants.ts#L112)
+
+Same buffer as `FULL_REPAY_BUFFER_DIVISOR`, expressed as a float fraction
+for UI-side comparisons that operate in `number` rather than `bigint`.
 
 ***
 

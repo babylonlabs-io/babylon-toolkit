@@ -7,11 +7,9 @@
 
 import { AmountSlider, Button, SubSection } from "@babylonlabs-io/core-ui";
 import { useCallback, useState } from "react";
-import { formatUnits } from "viem";
 
 import { useETHWallet } from "@/context/wallet";
 import { useERC20Balance } from "@/hooks";
-import { logger } from "@/infrastructure";
 
 import {
   getCurrencyIconWithFallback,
@@ -21,15 +19,12 @@ import {
   formatTokenAmount,
   formatUsdValue,
 } from "../../../../../utils/formatting";
-import {
-  AMOUNT_INPUT_CLASS_NAME,
-  FULL_REPAY_BUFFER_FRACTION,
-  MIN_SLIDER_MAX,
-} from "../../../constants";
-import { useRepayTransaction } from "../../../hooks";
+import { AMOUNT_INPUT_CLASS_NAME, MIN_SLIDER_MAX } from "../../../constants";
+import { useRepayTransaction, type RepayMode } from "../../../hooks";
 import { useLoanContext } from "../../context/LoanContext";
 import { BorrowDetailsCard } from "../Borrow/BorrowDetailsCard";
 
+import { pickRepayParams } from "./hooks/pickRepayParams";
 import { useRepayMetrics } from "./hooks/useRepayMetrics";
 import { useRepayState } from "./hooks/useRepayState";
 import { validateRepayAction } from "./hooks/validateRepayAction";
@@ -67,12 +62,11 @@ export function Repay() {
 
   const {
     repayAmount,
-    repayAmountRaw,
     setRepayAmount,
-    setRepayAmountWithMode,
+    setRepayAmountMax,
     resetRepayAmount,
     maxRepayAmount,
-    repayMode,
+    isMaxIntent,
   } = useRepayState({
     currentDebtAmount,
     userTokenBalance,
@@ -95,120 +89,57 @@ export function Repay() {
       userTokenBalance,
     );
 
-  // Cosmetic minimum only — keeps the slider track from rendering at zero
-  // width when there is nothing to repay. The displayed "Max" label and the
-  // slider's accept range use the real `maxRepayAmount` so the UI doesn't
-  // advertise an amount that validation will reject.
+  // Cosmetic floor only: keeps the slider track from collapsing to zero
+  // width when there's nothing to repay. Label + accept range use the real
+  // `maxRepayAmount`.
   const sliderTrackMax = maxRepayAmount > 0 ? maxRepayAmount : MIN_SLIDER_MAX;
 
-  // Inline error surfaced when the Max-click refetch fails. We deliberately
-  // do not silently fall back to cached values — at boundaries that could
-  // pick the wrong repay mode (e.g. land in `max-capped` with a stale balance
-  // when fresh data would have been `full`, missing the safety buffer) or
-  // even leave `repayAmountRaw` undefined and fall through to the broken
-  // float round-trip. Better to ask the user to retry: React Query's 30s
-  // background refresh has typically refilled the cache by then anyway.
-  const [maxClickError, setMaxClickError] = useState<string | null>(null);
+  const [refetchError, setRefetchError] = useState<string | null>(null);
 
-  // Max click: refresh debt and balance from chain so we don't decide the
-  // repay path on stale React Query data (up to 30s old). Then pick the
-  // cheapest path that actually clears the debt:
-  //
-  // - balance ≥ debt × (1 + buffer)   → "full" (repayFull adds the buffer)
-  // - debt ≤ balance < debt × (1+buf) → "max-capped" (send full balance;
-  //                                      adapter pulls min(balance, debt))
-  // - balance < debt                  → partial Max; validateRepayAction
-  //                                      will surface a "need more tokens"
-  //                                      message and keep submit disabled
-  //                                      for amount > maxRepayAmount.
-  //
-  // If either refetch fails (RPC blip, timeout), surface an explicit error
-  // and bail without touching state. Falling back to cached values can pick
-  // the wrong mode at boundaries — and worse, would leave `freshBalanceRaw`
-  // undefined for the `max-capped` branch, which would then degrade to the
-  // float round-trip we explicitly fixed.
-  const handleMaxClick = useCallback(async () => {
-    setMaxClickError(null);
-
-    let freshDebtAmount: number;
-    let freshBalanceAmount: number;
-    let freshBalanceRaw: bigint;
-
-    try {
-      const [freshPosition, freshBalanceResult] = await Promise.all([
-        refetchPosition(),
-        refetchUserBalance(),
-      ]);
-
-      const freshDebtRaw =
-        freshPosition?.debtPositions?.get(selectedReserve.reserveId)
-          ?.totalDebt ?? 0n;
-      freshDebtAmount = Number(
-        formatUnits(freshDebtRaw, selectedReserve.token.decimals),
-      );
-      freshBalanceRaw = freshBalanceResult?.data ?? 0n;
-      freshBalanceAmount = Number(
-        formatUnits(freshBalanceRaw, selectedReserve.token.decimals),
-      );
-    } catch (error) {
-      logger.warn("Max click refetch failed", {
-        data: {
-          context: "Aave repay Max click",
-          error: error instanceof Error ? error.message : String(error),
-        },
-      });
-      setMaxClickError("Couldn't refresh balance/debt — please try again.");
-      return;
-    }
-
-    if (freshDebtAmount <= 0 || freshBalanceAmount <= 0) {
-      setRepayAmountWithMode(
-        Math.min(freshDebtAmount, freshBalanceAmount),
-        "partial",
-      );
-      return;
-    }
-
-    const fullRepayThreshold =
-      freshDebtAmount * (1 + FULL_REPAY_BUFFER_FRACTION);
-
-    if (freshBalanceAmount >= fullRepayThreshold) {
-      setRepayAmountWithMode(freshDebtAmount, "full");
-    } else if (freshBalanceAmount >= freshDebtAmount) {
-      // Pass the raw bigint cap so the float round-trip in useRepayTransaction
-      // can never produce an approval amount > the user's actual balance.
-      // For ≥16-significant-digit raw balances (any 18-decimal token with > ~10
-      // tokens in the wallet) the round-trip can round up by 1 ULP, which
-      // would revert the tx. Sending the bigint sidesteps the conversion.
-      setRepayAmountWithMode(freshBalanceAmount, "max-capped", freshBalanceRaw);
-    } else {
-      setRepayAmountWithMode(freshBalanceAmount, "partial");
-    }
-  }, [
-    refetchPosition,
-    refetchUserBalance,
-    selectedReserve.reserveId,
-    selectedReserve.token.decimals,
-    setRepayAmountWithMode,
-  ]);
+  // Pure UI action: pre-fill the input with the cached max so the user sees
+  // a number, and flag Max intent. The actual refetch + mode selection
+  // happens at submit time (see `handleRepay`) so the bigint we feed into
+  // `repayMaxCapped` is read from chain in the same tick we ask the wallet
+  // to sign — eliminating the click→submit stale-snapshot window.
+  const handleMaxClick = useCallback(() => {
+    setRefetchError(null);
+    setRepayAmountMax(maxRepayAmount);
+  }, [maxRepayAmount, setRepayAmountMax]);
 
   const handleRepay = async () => {
-    const success = await executeRepay(
-      repayAmount,
-      selectedReserve,
-      repayMode,
-      {
-        preSignValidation: () =>
-          validateRepayPreSign({
-            liquidationThresholdBps,
-            refetchSplitParams,
-          }),
-        repayAmountRaw,
-      },
-    );
+    let mode: RepayMode = "partial";
+    let amount = repayAmount;
+    let amountRaw: bigint | null = null;
+
+    if (isMaxIntent) {
+      const params = await pickRepayParams({
+        refetchPosition,
+        refetchUserBalance,
+        reserveId: selectedReserve.reserveId,
+        tokenDecimals: selectedReserve.token.decimals,
+      });
+      if (params.kind === "error") {
+        setRefetchError(params.message);
+        return;
+      }
+      mode = params.mode;
+      amount = params.amount;
+      amountRaw = params.amountRaw;
+    }
+
+    setRefetchError(null);
+
+    const success = await executeRepay(amount, selectedReserve, mode, {
+      preSignValidation: () =>
+        validateRepayPreSign({
+          liquidationThresholdBps,
+          refetchSplitParams,
+        }),
+      repayAmountRaw: amountRaw,
+    });
     if (success) {
       resetRepayAmount();
-      onRepaySuccess(repayAmount, 0);
+      onRepaySuccess(amount, 0);
     }
   };
 
@@ -270,10 +201,10 @@ export function Repay() {
         {errorMessage && (
           <p className="text-sm text-error-main">{errorMessage}</p>
         )}
-        {!errorMessage && maxClickError && (
-          <p className="text-sm text-warning-main">{maxClickError}</p>
+        {!errorMessage && refetchError && (
+          <p className="text-sm text-warning-main">{refetchError}</p>
         )}
-        {!errorMessage && !maxClickError && warningMessage && (
+        {!errorMessage && !refetchError && warningMessage && (
           <p className="text-sm text-warning-main">{warningMessage}</p>
         )}
       </div>

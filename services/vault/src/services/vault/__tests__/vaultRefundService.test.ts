@@ -80,7 +80,6 @@ import { fetchVaultProviderById } from "../fetchVaultProviders";
 import { fetchVaultRefundData } from "../fetchVaults";
 import {
   buildAndBroadcastRefundTransaction,
-  getRefundNetworkFeeSats,
   getRefundPreview,
 } from "../vaultRefundService";
 
@@ -359,26 +358,6 @@ describe("vaultRefundService - adapter wiring", () => {
 
     expect(observed).toEqual({ txId: "broadcast_txid" });
     expect(txId).toBe("broadcast_txid");
-  });
-});
-
-describe("getRefundNetworkFeeSats", () => {
-  it("returns ceil(rate * 160) in sats", () => {
-    expect(getRefundNetworkFeeSats(1)).toBe(160n);
-    expect(getRefundNetworkFeeSats(3)).toBe(480n);
-    expect(getRefundNetworkFeeSats(10)).toBe(1600n);
-  });
-
-  it("rounds up non-integer rates", () => {
-    // 1.5 × 160 = 240.0 (exact); pick a non-integer product instead
-    expect(getRefundNetworkFeeSats(1.0001)).toBe(161n);
-  });
-
-  it("rejects non-positive or non-finite rates", () => {
-    expect(() => getRefundNetworkFeeSats(0)).toThrow();
-    expect(() => getRefundNetworkFeeSats(-1)).toThrow();
-    expect(() => getRefundNetworkFeeSats(Number.NaN)).toThrow();
-    expect(() => getRefundNetworkFeeSats(Number.POSITIVE_INFINITY)).toThrow();
   });
 });
 

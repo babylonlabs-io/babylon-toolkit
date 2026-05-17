@@ -3,6 +3,7 @@
  */
 
 import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
+import { stripHexPrefix } from "@babylonlabs-io/ts-sdk/tbv/core";
 import { runDepositorPresignFlow } from "@babylonlabs-io/ts-sdk/tbv/core/services";
 import type { Address, Hex } from "viem";
 
@@ -12,7 +13,6 @@ import {
   type PayoutSigningProgress,
 } from "@/services/vault/vaultPayoutSignatureService";
 import { updatePendingPeginStatus } from "@/storage/peginStorage";
-import { stripHexPrefix } from "@/utils/btc";
 
 import { ensureAuthenticatedVpClient } from "./ensureAuthenticatedVpClient";
 

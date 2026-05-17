@@ -8,6 +8,7 @@
  * unknown-status thresholds.
  */
 
+import { stripHexPrefix } from "@babylonlabs-io/ts-sdk/tbv/core";
 import {
   batchPollByProvider,
   VpResponseValidationError,
@@ -32,7 +33,6 @@ import {
   TIMED_OUT_STATE,
   type PegoutDisplayState,
 } from "@/models/pegoutStateMachine";
-import { stripHexPrefix } from "@/utils/btc";
 import { createVpClient } from "@/utils/rpc";
 
 export interface PegoutPollingResult {

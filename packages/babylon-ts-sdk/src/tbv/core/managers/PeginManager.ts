@@ -46,6 +46,7 @@ import type { WotsBlockPublicKey } from "../clients/vault-provider/types";
 import { type UtxoInfo, getUtxoInfo, pushTx } from "../clients/mempool";
 import { BTCVaultRegistryABI, handleContractError } from "../contracts";
 import {
+  assertPsbtUnsignedTxMatches,
   buildPrePeginPsbt,
   buildPeginTxFromFundedPrePegin,
   buildPeginInputPsbt,
@@ -570,6 +571,26 @@ export class PeginManager {
       await this.config.btcWallet.getPublicKeyHex();
     const depositorBtcPubkey = normalizeXOnlyPubkey(depositorBtcPubkeyRaw);
 
+    // Pre-PegIn change pays back to the depositor. The wallet will sign
+    // whatever output the PSBT carries; nothing downstream proves the
+    // change address belongs to the signing key, so a state-race / stale
+    // FE / hostile adapter that puts an attacker-controlled address here
+    // would drain the change after signing. Bind once at entry using the
+    // pubkey snapshot above (no second wallet read).
+    if (
+      !isAddressFromPublicKey(
+        params.changeAddress,
+        depositorBtcPubkeyRaw,
+        this.config.btcNetwork,
+      )
+    ) {
+      throw new Error(
+        `Pre-PegIn changeAddress "${params.changeAddress}" is not derived ` +
+          `from the connected wallet's public key. Refusing to build a tx ` +
+          `that would send change to an address the signing key doesn't control.`,
+      );
+    }
+
     // Sizing pass uses a placeholder for the auth-anchor hash because
     // the wallet popup that produces the real anchor hasn't run yet.
     // The OP_RETURN's byte length is invariant under content swap, so
@@ -842,6 +863,11 @@ export class PeginManager {
 
     const perVault: PerVaultPeginData[] = [];
     for (let i = 0; i < signedPsbts.length; i++) {
+      assertPsbtUnsignedTxMatches({
+        requestedPsbtHex: psbtsToSign[i],
+        returnedPsbtHex: signedPsbts[i],
+      });
+
       const peginInputSignature = extractPeginInputSignature(
         signedPsbts[i],
         depositorBtcPubkey,
@@ -973,7 +999,15 @@ export class PeginManager {
     }
 
     // Step 4: Sign PSBT via wallet
-    const signedPsbtHex = await this.config.btcWallet.signPsbt(psbt.toHex());
+    const requestedPsbtHex = psbt.toHex();
+    const signedPsbtHex =
+      await this.config.btcWallet.signPsbt(requestedPsbtHex);
+
+    assertPsbtUnsignedTxMatches({
+      requestedPsbtHex,
+      returnedPsbtHex: signedPsbtHex,
+    });
+
     const signedPsbt = Psbt.fromHex(signedPsbtHex);
 
     // Step 5: Finalize and extract transaction
@@ -1053,7 +1087,11 @@ export class PeginManager {
           `Reconnect the original account or call signProofOfPossession() again.`,
       );
     }
-    await this.assertPopMatchesBtcWallet(popSignature);
+    // The raw (parity-preserving) pubkey is required to validate P2WPKH
+    // payout addresses; the x-only form on `popSignature` would let an
+    // attacker substitute the opposite-parity P2WPKH address.
+    const verifiedBtcPubkeyRaw =
+      await this.assertPopMatchesBtcWallet(popSignature);
     const btcPopSignature = popSignature.btcPopSignature;
 
     // Step 2: Format parameters for contract call
@@ -1061,8 +1099,13 @@ export class PeginManager {
     const unsignedPrePeginTxHex = ensureHexPrefix(unsignedPrePeginTx);
     const depositorSignedPeginTxHex = ensureHexPrefix(depositorSignedPeginTx);
 
-    const payoutScriptPubKey = await this.resolvePayoutScriptPubKey(
-      depositorPayoutBtcAddress,
+    // Only read the wallet address if the caller didn't supply one — avoids
+    // an unnecessary adapter prompt on the common explicit-address path.
+    const resolvedPayoutAddress =
+      depositorPayoutBtcAddress ?? (await this.config.btcWallet.getAddress());
+    const payoutScriptPubKey = this.resolvePayoutScriptPubKey(
+      verifiedBtcPubkeyRaw,
+      resolvedPayoutAddress,
     );
 
     // Step 3: Calculate pegin tx hash and derive vault ID, then check if it already exists
@@ -1211,16 +1254,22 @@ export class PeginManager {
           `Reconnect the original account or call signProofOfPossession() again.`,
       );
     }
-    await this.assertPopMatchesBtcWallet(popSignature);
+    // The raw (parity-preserving) pubkey is required to validate P2WPKH
+    // payout addresses; the x-only form on `popSignature` would let an
+    // attacker substitute the opposite-parity P2WPKH address.
+    const verifiedBtcPubkeyRaw =
+      await this.assertPopMatchesBtcWallet(popSignature);
     const btcPopSignature = popSignature.btcPopSignature;
 
-    // Step 2: Resolve per-request payout scriptPubKey.
-    const resolvedPayoutScripts: Hex[] = [];
-    for (const req of requests) {
-      resolvedPayoutScripts.push(
-        await this.resolvePayoutScriptPubKey(req.depositorPayoutBtcAddress),
-      );
-    }
+    // Step 2: Resolve per-request payout scriptPubKey. The verified pubkey
+    // comes from the just-checked PoP; `depositorPayoutBtcAddress` is
+    // required per-request, so no wallet read is needed here.
+    const resolvedPayoutScripts: Hex[] = requests.map((req) =>
+      this.resolvePayoutScriptPubKey(
+        verifiedBtcPubkeyRaw,
+        req.depositorPayoutBtcAddress,
+      ),
+    );
 
     // Step 3: Pre-compute vault IDs and check for duplicates
     const vaultResults: BatchPeginResultItem[] = [];
@@ -1373,34 +1422,37 @@ export class PeginManager {
   }
 
   /**
-   * Resolve the BTC payout address to a scriptPubKey hex for the contract.
+   * Resolve the BTC scriptPubKey to register as the depositor's payout sink.
    *
-   * If a payout address is provided, converts it directly.
-   * If omitted, uses the wallet's address and validates it against the
-   * wallet's public key to guard against a compromised wallet provider.
+   * `address` is validated against the verified depositor pubkey, sourced
+   * from `assertPopMatchesBtcWallet`'s return value rather than
+   * `popSignature.depositorBtcPubkey` (which is x-only, parity stripped).
+   * For wallets that expose a compressed key this preserves y-parity end to
+   * end. For Taproot wallets that only expose an x-only key, the helper
+   * itself fails closed for P2WPKH — the parity is unknowable, so the
+   * payout sink must be a P2TR address derived from that same x.
+   *
+   * The helper does not call into the wallet so the batch path can resolve
+   * many requests without any extra adapter reads. Threat closed: a
+   * state-race or stale FE state that lets a non-wallet address reach the
+   * on-chain payout-script registration.
    */
-  private async resolvePayoutScriptPubKey(
-    depositorPayoutBtcAddress?: string,
-  ): Promise<Hex> {
-    let address: string;
-
-    if (depositorPayoutBtcAddress) {
-      address = depositorPayoutBtcAddress;
-    } else {
-      address = await this.config.btcWallet.getAddress();
-      const walletPubkey = await this.config.btcWallet.getPublicKeyHex();
-      if (
-        !isAddressFromPublicKey(
-          address,
-          walletPubkey,
-          this.config.btcNetwork,
-        )
-      ) {
-        throw new Error(
-          "The BTC address from your wallet does not match the wallet's public key. " +
-            "Please ensure your wallet is using a supported address type (Taproot or Native SegWit).",
-        );
-      }
+  private resolvePayoutScriptPubKey(
+    verifiedDepositorBtcPubkeyRaw: string,
+    address: string,
+  ): Hex {
+    if (
+      !isAddressFromPublicKey(
+        address,
+        verifiedDepositorBtcPubkeyRaw,
+        this.config.btcNetwork,
+      )
+    ) {
+      throw new Error(
+        `BTC payout address "${address}" is not derived from the connected ` +
+          `wallet's public key. The payout sink must be controlled by the same ` +
+          `key that signs the pegin; refusing to register a mismatched address.`,
+      );
     }
 
     const network = getNetwork(this.config.btcNetwork);
@@ -1445,12 +1497,19 @@ export class PeginManager {
     };
   }
 
+  /**
+   * Confirm the connected BTC wallet still matches the PoP it produced, and
+   * return the wallet's *raw* pubkey hex (parity-preserving form, as the
+   * wallet adapter returns it). The raw form is required by callers that
+   * validate Native SegWit / P2WPKH addresses, since P2WPKH is derived from
+   * a parity-bearing compressed key — an x-only form would let an attacker
+   * substitute the opposite-parity P2WPKH address.
+   */
   private async assertPopMatchesBtcWallet(
     popSignature: PopSignature,
-  ): Promise<void> {
-    const currentBtcPubkey = normalizeXOnlyPubkey(
-      await this.config.btcWallet.getPublicKeyHex(),
-    );
+  ): Promise<string> {
+    const currentBtcPubkeyRaw = await this.config.btcWallet.getPublicKeyHex();
+    const currentBtcPubkey = normalizeXOnlyPubkey(currentBtcPubkeyRaw);
     // Normalize the PoP-embedded key the same way in case a consumer
     // serialized it through a path that changed casing or re-added 0x.
     const popBtcPubkey = normalizeXOnlyPubkey(popSignature.depositorBtcPubkey);
@@ -1461,6 +1520,7 @@ export class PeginManager {
           `Reconnect the original wallet or call signProofOfPossession() again.`,
       );
     }
+    return currentBtcPubkeyRaw;
   }
 
   /**

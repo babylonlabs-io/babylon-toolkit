@@ -35,6 +35,7 @@ vi.mock("@babylonlabs-io/ts-sdk/tbv/core", () => ({
   hexToUint8Array: vi.fn(() => new Uint8Array(32)),
   isWotsMismatchError: vi.fn(() => false),
   parseFundingOutpointsFromTx: mockParseFundingOutpointsFromTx,
+  stripHexPrefix: vi.fn((hex: string) => hex.replace(/^0x/, "")),
   uint8ArrayToHex: vi.fn(() => "00".repeat(32)),
 }));
 
@@ -113,10 +114,6 @@ vi.mock("@/hooks/deposit/useReleaseVpTokenOnUnmount", () => ({
 
 vi.mock("@/infrastructure", () => ({
   logger: { warn: vi.fn(), error: vi.fn(), info: vi.fn() },
-}));
-
-vi.mock("@/utils/btc", () => ({
-  stripHexPrefix: vi.fn((hex: string) => hex.replace(/^0x/, "")),
 }));
 
 vi.mock("@/utils/rpc", () => ({

@@ -380,7 +380,7 @@ describe("JsonRpcClient", () => {
       tx_graph_json: "x".repeat(80),
       verifying_key_hex: "aabb",
       babe_sessions: {
-        challenger1: { decryptor_artifacts_hex: "ccdd" },
+        ["d".repeat(64)]: { decryptor_artifacts_hex: "ccdd" },
       },
     };
 

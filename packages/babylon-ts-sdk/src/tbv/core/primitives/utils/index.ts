@@ -7,8 +7,10 @@
  */
 
 export {
+  deriveBip86ScriptPubKeyHex,
   ensureHexPrefix,
   formatSatoshisToBtc,
+  getSortedXOnlyPubkeys,
   hexToUint8Array,
   isValidHex,
   processPublicKeyToXOnly,
