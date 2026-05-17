@@ -15,6 +15,7 @@ import { IoCheckmark, IoChevronUp } from "react-icons/io5";
 import { ApplicationLogo } from "@/components/ApplicationLogo";
 import { DepositButton } from "@/components/shared";
 import { getNetworkConfigBTC } from "@/config";
+import { COPY } from "@/copy";
 import { useBtcFeeDisplay } from "@/hooks/deposit/useBtcFeeDisplay";
 import { depositService } from "@/services/deposit";
 
@@ -175,13 +176,13 @@ export function DepositForm({
 
   const splitStatusText = useMemo(() => {
     if (!partialLiquidation?.canSplit) {
-      if (partialLiquidation?.isLoading) return "Computing allocation...";
-      return amountSats > 0n
-        ? "Deposit amount too low for 2-vault split"
-        : null;
+      if (partialLiquidation?.isLoading)
+        return COPY.deposit.form.computingAllocation;
+      return amountSats > 0n ? COPY.deposit.form.splitTooLow : null;
     }
-    if (partialLiquidation.isLoading) return "Computing allocation...";
-    return "Your BTC will be deposited into 2 vaults";
+    if (partialLiquidation.isLoading)
+      return COPY.deposit.form.computingAllocation;
+    return COPY.deposit.form.splitInfo;
   }, [partialLiquidation, amountSats]);
 
   const splitNotReady =
@@ -287,7 +288,7 @@ export function DepositForm({
               >
                 {partialLiquidation.isEnabled
                   ? splitSummaryLabel
-                  : "Do not split"}
+                  : COPY.deposit.form.doNotSplit}
               </span>
             </AccordionSummary>
             <AccordionDetails className="flex flex-col px-0 pb-3">
@@ -302,7 +303,7 @@ export function DepositForm({
                 className="flex w-full items-center justify-between py-3 text-sm text-accent-primary"
                 onClick={() => partialLiquidation.onChange(false)}
               >
-                Do not split
+                {COPY.deposit.form.doNotSplit}
                 {!partialLiquidation.isEnabled && (
                   <IoCheckmark className="text-secondary-main" size={20} />
                 )}

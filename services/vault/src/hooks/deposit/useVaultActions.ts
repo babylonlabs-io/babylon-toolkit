@@ -21,6 +21,7 @@ import { getETHChain } from "@/config/network";
 
 import { getVaultFromChain } from "../../clients/eth-contract/btc-vault-registry/query";
 import { getVaultRegistryReader } from "../../clients/eth-contract/sdk-readers";
+import { COPY } from "../../copy";
 import {
   ContractStatus,
   getNextLocalStatus,
@@ -261,9 +262,7 @@ export function useVaultActions(): UseVaultActionsReturn {
         ensureHexPrefix(protocolInfo.hashlock),
       );
       if (!isValid) {
-        throw new Error(
-          "Invalid secret: SHA256(secret) does not match the vault's hashlock. Please check your secret and try again.",
-        );
+        throw new Error(COPY.deposit.errors.invalidSecret);
       }
 
       // Get ETH wallet client

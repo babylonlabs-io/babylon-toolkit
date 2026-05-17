@@ -11,6 +11,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { Hex } from "viem";
 
 import { usePeginPolling } from "../../../context/deposit/PeginPollingContext";
+import { COPY } from "../../../copy";
 import { signAndSubmitPayouts } from "../../../hooks/deposit/depositFlowSteps/payoutSigning";
 import { useVaultProviders } from "../../../hooks/deposit/useVaultProviders";
 import { LocalStorageStatus } from "../../../models/peginStateMachine";
@@ -112,11 +113,7 @@ export function usePayoutSigningState({
     // component remounts.
     try {
       if (!activity.depositorPayoutBtcAddress) {
-        setError({
-          title: "Missing Payout Address",
-          message:
-            "Depositor payout address not available. Please wait for indexer sync and try again.",
-        });
+        setError(COPY.deposit.payoutSigningGuards.missingPayoutAddress);
         return;
       }
 
@@ -127,11 +124,7 @@ export function usePayoutSigningState({
       const connectedBtcAddress =
         btcConnector?.connectedWallet?.account?.address;
       if (!connectedBtcAddress) {
-        setError({
-          title: "Wallet Address Unavailable",
-          message:
-            "Connect the BTC wallet you used at deposit to verify the payout address before signing.",
-        });
+        setError(COPY.deposit.payoutSigningGuards.walletAddressUnavailable);
         return;
       }
 
@@ -139,23 +132,14 @@ export function usePayoutSigningState({
       try {
         walletScriptPubKey = btcAddressToScriptPubKeyHex(connectedBtcAddress);
       } catch {
-        setError({
-          title: "Wallet Address Error",
-          message:
-            "Could not read your Bitcoin wallet address. Please reconnect the wallet and make sure it is on the correct Bitcoin network.",
-        });
+        setError(COPY.deposit.payoutSigningGuards.walletAddressError);
         return;
       }
       if (
         normalizeScriptPubKeyHex(walletScriptPubKey) !==
         normalizeScriptPubKeyHex(activity.depositorPayoutBtcAddress)
       ) {
-        setError({
-          title: "Payout Address Mismatch",
-          message:
-            "The payout address from the indexer does not match your connected wallet. " +
-            "This may indicate a data integrity issue. Please verify your wallet connection.",
-        });
+        setError(COPY.deposit.payoutSigningGuards.payoutAddressMismatch);
         return;
       }
 
@@ -164,28 +148,18 @@ export function usePayoutSigningState({
       // `undefined` into `findProvider`.
       const vaultProviderAddress = activity.providers[0]?.id;
       if (!vaultProviderAddress) {
-        setError({
-          title: "Provider Not Assigned",
-          message:
-            "No vault provider is associated with this deposit. Please wait for indexer sync and try again.",
-        });
+        setError(COPY.deposit.payoutSigningGuards.providerNotAssigned);
         return;
       }
       const provider = findProvider(vaultProviderAddress);
       if (!provider) {
-        setError({
-          title: "Provider Not Found",
-          message: "Vault provider not found.",
-        });
+        setError(COPY.deposit.payoutSigningGuards.providerNotFound);
         return;
       }
 
       const btcWalletProvider = btcConnector?.connectedWallet?.provider;
       if (!btcWalletProvider) {
-        setError({
-          title: "Wallet Not Connected",
-          message: "BTC wallet not connected.",
-        });
+        setError(COPY.deposit.payoutSigningGuards.walletNotConnected);
         return;
       }
 
@@ -193,11 +167,7 @@ export function usePayoutSigningState({
       // cannot proceed without it — the SDK keys the VP poll by this txid.
       // Guard explicitly instead of relying on a non-null assertion below.
       if (!activity.peginTxHash) {
-        setError({
-          title: "Missing Pegin Transaction",
-          message:
-            "Pegin transaction hash not available yet. Please wait for indexer sync and try again.",
-        });
+        setError(COPY.deposit.payoutSigningGuards.missingPeginTransaction);
         return;
       }
 

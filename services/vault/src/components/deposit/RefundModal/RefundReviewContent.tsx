@@ -10,6 +10,7 @@ import {
   MINS_PER_HOUR,
 } from "@/constants";
 import { useProtocolParamsContext } from "@/context/ProtocolParamsContext";
+import { COPY } from "@/copy";
 import { usePrice } from "@/hooks/usePrices";
 import { satoshiToBtcNumber } from "@/utils/btcConversion";
 import { formatBtcValue, formatUsd, getBtcSymbol } from "@/utils/formatting";
@@ -211,7 +212,7 @@ export function RefundReviewContent({
             {refunding ? (
               <span className="flex items-center justify-center gap-2">
                 <Loader size={16} className="text-accent-contrast" />
-                <span>Confirming…</span>
+                <span>{COPY.deposit.refundReview.confirming}</span>
               </span>
             ) : error ? (
               "Retry"

@@ -7,6 +7,7 @@ import type {
   WarningType,
 } from "@/applications/aave/positionNotifications";
 import { fmt } from "@/applications/aave/positionNotifications/format";
+import { COPY } from "@/copy";
 
 interface BannerActionsProps {
   result: CalculatorResult;
@@ -106,7 +107,7 @@ export function BannerActions({
           disabled={isReordering}
           className="rounded-full"
         >
-          {isReordering ? "Applying..." : "Apply Suggested Order"}
+          {isReordering ? COPY.common.applying : "Apply Suggested Order"}
         </Button>
       </div>
     );
@@ -128,7 +129,7 @@ export function BannerActions({
         >
           {suggestedBtc
             ? `Add ${formatSuggestedBtc(suggestedBtc)} BTC Vault`
-            : "Add Vault"}
+            : COPY.banner.addVault}
         </DepositButton>
       </div>
     );
@@ -150,7 +151,7 @@ export function BannerActions({
         >
           {suggestedBtc
             ? `Add ${formatSuggestedBtc(suggestedBtc)} BTC Collateral`
-            : "Add Collateral"}
+            : COPY.banner.addCollateral}
         </DepositButton>
         <Button
           variant="outlined"
@@ -168,7 +169,7 @@ export function BannerActions({
             disabled={isReordering}
             className="rounded-full"
           >
-            {isReordering ? "Applying..." : "Apply Suggested Order"}
+            {isReordering ? COPY.common.applying : "Apply Suggested Order"}
           </Button>
         )}
       </div>

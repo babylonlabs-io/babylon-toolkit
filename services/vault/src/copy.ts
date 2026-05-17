@@ -180,5 +180,126 @@ export const COPY = {
       doNotSpendWarning: (symbol: string) =>
         `Do not spend the ${symbol} used for this deposit until the transactions are confirmed.`,
     },
+    refundReview: {
+      confirming: "Confirming…",
+    },
+    activateConfirmation: {
+      title: "Activate your vault",
+      body: "Activating your vault reveals the HTLC secret on Ethereum and finalizes your deposit. Before continuing, make sure you have downloaded your vault artifacts — these files let you independently claim your funds if the vault provider is unavailable.",
+      alreadyDownloadedWarning:
+        "We've already recorded that you downloaded artifacts for this vault from this browser. If you've since cleared site data or switched devices, download them again before activating.",
+      notDownloadedWarning:
+        "You haven't downloaded the artifacts for this vault yet on this browser. If you lose them and the vault provider goes offline, you will not be able to independently claim your funds.",
+      riskAcknowledgement:
+        "I understand the risk of activating without downloading my artifacts.",
+      activateButton: "Activate",
+      downloadArtifactsButton: "Download Artifacts",
+      activateWithoutDownloadingButton: "Activate without downloading",
+    },
+    artifactDownload: {
+      title: "Download Vault Artifacts",
+      body: "Before broadcasting your Bitcoin transaction, you need to download your vault artifacts. These files are required to independently claim your funds if the vault provider is unavailable.",
+      storeSafelyWarning:
+        "Store these files safely on your local disk or external drive. If you lose them and the vault provider goes offline, you will not be able to independently claim your funds.",
+      downloadedBody:
+        "Artifacts downloaded successfully. Please save the file to a safe location before continuing.",
+      downloading: "Downloading...",
+      downloadButton: "Download Artifacts",
+      cancelButton: "Cancel",
+      continueButton: "Continue",
+    },
+    form: {
+      computingAllocation: "Computing allocation...",
+      splitTooLow: "Deposit amount too low for 2-vault split",
+      splitInfo: "Your BTC will be deposited into 2 vaults",
+      doNotSplit: "Do not split",
+    },
+    resume: {
+      broadcastSuccessMessage:
+        "Your Bitcoin transaction has been broadcast to the network. It will be confirmed after receiving the required number of Bitcoin confirmations.",
+      activationSuccessMessage:
+        "Your vault has been activated. The vault provider can now claim the HTLC on Bitcoin.",
+      wotsMismatchError:
+        "WOTS public key hash does not match the on-chain commitment — the wrong wallet is connected.",
+    },
+    errors: {
+      invalidSecret:
+        "Invalid secret: SHA256(secret) does not match the vault's hashlock. Please check your secret and try again.",
+      chainSwitchRequired: (network: string) =>
+        `Please switch to ${network} in your wallet`,
+      ethereumMainnet: "Ethereum Mainnet",
+      sepoliaTestnet: "Sepolia Testnet",
+    },
+    payoutSigningGuards: {
+      missingPayoutAddress: {
+        title: "Missing Payout Address",
+        message:
+          "Depositor payout address not available. Please wait for indexer sync and try again.",
+      },
+      walletAddressUnavailable: {
+        title: "Wallet Address Unavailable",
+        message:
+          "Connect the BTC wallet you used at deposit to verify the payout address before signing.",
+      },
+      walletAddressError: {
+        title: "Wallet Address Error",
+        message:
+          "Could not read your Bitcoin wallet address. Please reconnect the wallet and make sure it is on the correct Bitcoin network.",
+      },
+      payoutAddressMismatch: {
+        title: "Payout Address Mismatch",
+        message:
+          "The payout address from the indexer does not match your connected wallet. This may indicate a data integrity issue. Please verify your wallet connection.",
+      },
+      providerNotAssigned: {
+        title: "Provider Not Assigned",
+        message:
+          "No vault provider is associated with this deposit. Please wait for indexer sync and try again.",
+      },
+      providerNotFound: {
+        title: "Provider Not Found",
+        message: "Vault provider not found.",
+      },
+      walletNotConnected: {
+        title: "Wallet Not Connected",
+        message: "BTC wallet not connected.",
+      },
+      missingPeginTransaction: {
+        title: "Missing Pegin Transaction",
+        message:
+          "Pegin transaction hash not available yet. Please wait for indexer sync and try again.",
+      },
+    },
+  },
+  common: {
+    loading: "Loading...",
+    confirming: "Confirming...",
+    applying: "Applying...",
+    checking: "Checking...",
+    somethingWentWrong: {
+      heading: "Something went wrong",
+      body: "Please close this and try again in a moment.",
+    },
+    globalError: {
+      heading: "Something went wrong",
+      body: "An unexpected error occurred. Please try again later.",
+      retryButton: "Try again",
+    },
+  },
+  wallet: {
+    geoBlockedTooltip: "Not available in your region",
+    walletNotEligibleTooltip: "Wallet not eligible",
+  },
+  collateral: {
+    releaseDisabledTooltip:
+      "No vault can be released without putting your position at risk of liquidation. Repay debt first.",
+    uncapped: "Uncapped",
+  },
+  banner: {
+    addVault: "Add Vault",
+    addCollateral: "Add Collateral",
+  },
+  reorder: {
+    confirmButton: "Confirm",
   },
 } as const;
