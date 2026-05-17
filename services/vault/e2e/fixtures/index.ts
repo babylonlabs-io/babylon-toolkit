@@ -14,6 +14,7 @@ export {
   mockEthRpc,
   mockEthRpcForSeededWallet,
   mockGraphql,
+  mockHealthCheck,
   mockMempoolForSeededBtcWallet,
   mockVpProxy,
 } from "./networkRoutes";
@@ -35,3 +36,8 @@ export {
   injectWallets,
 } from "./walletInjection";
 export type { InjectedWallets } from "./walletInjection";
+export {
+  btcWalletConfigFromSeeded,
+  injectBtcWalletProvider,
+} from "./walletPageInjection";
+export type { BtcWalletPageConfig } from "./walletPageInjection";

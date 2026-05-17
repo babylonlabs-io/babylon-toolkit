@@ -36,6 +36,10 @@ import {
   type SeededEthWalletOptions,
 } from "./seededWallets";
 import { E2E_WALLETS_GLOBAL } from "./walletInjection";
+import {
+  btcWalletConfigFromSeeded,
+  injectBtcWalletProvider,
+} from "./walletPageInjection";
 
 export interface VaultE2EFixtures {
   /** Build a seeded BTC wallet with a declared balance. */
@@ -78,18 +82,24 @@ async function installWalletSentinelOnPage(
   globalName: string,
   payload: WalletSentinelPayload,
 ): Promise<void> {
-  // The full mocks contain closures that don't survive structured-clone
-  // across the Node/browser boundary, so we install a JSON-only
-  // sentinel here. Reconstructing the live mock provider page-side is
-  // the single-vault deposit happy-path ticket's responsibility
-  // (#1592). For #1589 the install proves the bridge fires before
-  // navigation - enough to unblock per-flow tickets.
+  // The sentinel records that a wallet was requested by the test, for
+  // diagnostic / introspection use. Actual `window.btcwallet` wiring
+  // happens via `installBtcOnPage` below - the wallet-connector reads
+  // from that exact global. ETH provider injection still waits on
+  // mocking Reown's AppKit (deferred to a follow-up).
   await page.addInitScript(
     ({ globalName: name, sentinel }) => {
       (window as unknown as Record<string, unknown>)[name] = sentinel;
     },
     { globalName, sentinel: payload },
   );
+}
+
+async function installBtcOnPage(
+  page: Page,
+  wallet: SeededBtcWallet,
+): Promise<void> {
+  await injectBtcWalletProvider(page, btcWalletConfigFromSeeded(wallet));
 }
 
 function toSentinel(
@@ -118,6 +128,9 @@ export const test = base.extend<VaultE2EFixtures>({
         btc: toSentinel(wallets.btc, "seeded-btc"),
         eth: toSentinel(wallets.eth, "seeded-eth"),
       });
+      if (wallets.btc) {
+        await installBtcOnPage(page, wallets.btc);
+      }
     });
   },
   appShell: async ({ page }, use) => {

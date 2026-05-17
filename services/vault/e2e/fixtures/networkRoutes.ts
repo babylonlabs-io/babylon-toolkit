@@ -90,7 +90,11 @@ export async function mockVpProxy(
 ): Promise<void> {
   const snapshots = options.healthSnapshots ?? [];
   await page.route("**/vp-health", (route) => jsonResponse(route, snapshots));
-  await page.route("**/rpc/*", async (route) => {
+  // Scope the per-VP rpc route to the proxy port so we don't shadow
+  // the eth-rpc endpoint (also at /rpc). playwright.config.ts pins
+  // VP_PROXY_URL to localhost:9998; if you re-point that env var,
+  // update this pattern.
+  await page.route("http://localhost:9998/rpc/*", async (route) => {
     if (!options.rpcHandler) {
       return jsonResponse(
         route,
@@ -176,6 +180,33 @@ export async function mockEthRpcForSeededWallet(
       return "0x0";
     }
     return handler ? handler(method, params) : null;
+  });
+}
+
+/**
+ * Mock the `/health` endpoint that `checkGeofencing` calls. The check
+ * lives at `${graphqlOrigin}/health` and is gated on HTTP status:
+ *   - 200    -> not blocked
+ *   - 451    -> geo-blocked, surfaces "Not available in your region"
+ *   - other  -> treated as healthy (only 451 hard-blocks)
+ *
+ * The default 200 unblocks the connect-button path. Tests that need
+ * geo-blocking pass `status: 451`.
+ */
+export async function mockHealthCheck(
+  page: Page,
+  options: { status?: number; delayMs?: number } = {},
+): Promise<void> {
+  const status = options.status ?? 200;
+  await page.route("**/health", async (route) => {
+    if (options.delayMs) {
+      await new Promise((resolve) => setTimeout(resolve, options.delayMs));
+    }
+    await route.fulfill({
+      status,
+      contentType: "application/json",
+      body: status === 200 ? "{}" : `{"error":"status ${status}"}`,
+    });
   });
 }
 
