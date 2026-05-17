@@ -3,6 +3,7 @@ import { useCallback } from "react";
 import { ResponsiveDialog } from "@/components/ResponsiveDialog/ResponsiveDialog";
 import { useChainProviders } from "@/context/Chain.context";
 import { useInscriptionProvider } from "@/context/Inscriptions.context";
+import { useLifeCycleHooks } from "@/context/LifecycleHooks.context";
 import { HashMap } from "@/core/types";
 import { useWalletConnect } from "@/hooks/useWalletConnect";
 import { useWalletConnectors } from "@/hooks/useWalletConnectors";
@@ -21,8 +22,9 @@ interface WalletDialogProps {
 const ANIMATION_DELAY = 1000;
 
 export function WalletDialog({ persistent, storage, config, onError }: WalletDialogProps) {
-  const { visible, screen, confirmed, close, confirm, displayChains } = useWidgetState();
+  const { visible, screen, confirmed, selectedWallets, close, confirm, displayChains } = useWidgetState();
   const { toggleShowAgain, toggleLockInscriptions } = useInscriptionProvider();
+  const { acceptTermsOfService } = useLifeCycleHooks();
   const connectors = useChainProviders();
   const walletWidgets = useWalletWidgets(connectors, config, onError);
   const { connect, disconnect } = useWalletConnectors({ persistent, accountStorage: storage, onError });
@@ -44,10 +46,22 @@ export function WalletDialog({ persistent, storage, config, onError }: WalletDia
     }
   }, [close, disconnectAll, confirmed]);
 
-  const handleConfirm = useCallback(() => {
+  const handleConfirm = useCallback(async () => {
+    const btcWallet = selectedWallets["BTC"];
+    if (btcWallet?.account?.address && btcWallet.account.publicKeyHex) {
+      try {
+        await acceptTermsOfService?.({
+          address: btcWallet.account.address,
+          public_key: btcWallet.account.publicKeyHex,
+        });
+      } catch (e) {
+        onError?.(e as Error);
+        return;
+      }
+    }
     confirm?.();
     close?.();
-  }, [confirm]);
+  }, [confirm, close, selectedWallets, acceptTermsOfService, onError]);
 
   return (
     <ResponsiveDialog className="min-h-[80%]" open={visible} onClose={handleClose}>

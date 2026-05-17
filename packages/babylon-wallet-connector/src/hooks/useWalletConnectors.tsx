@@ -30,7 +30,7 @@ export function useWalletConnectors({ persistent, accountStorage, onError }: Pro
     chains: chainMap,
   } = useWidgetState();
   const { showAgain } = useInscriptionProvider();
-  const { verifyBTCAddress, acceptTermsOfService } = useLifeCycleHooks();
+  const { verifyBTCAddress } = useLifeCycleHooks();
 
   // Connecting event
   useEffect(() => {
@@ -65,11 +65,6 @@ export function useWalletConnectors({ persistent, accountStorage, onError }: Pro
           if (!visible) return;
 
           validateAddress(connector.config.network, connectedWallet.account.address);
-
-          await acceptTermsOfService?.({
-            address: connectedWallet.account.address,
-            public_key: connectedWallet.account.publicKeyHex,
-          });
 
           const goToNextScreen = () => void (showAgain ? displayInscriptions?.() : displayChains?.());
 
