@@ -266,7 +266,7 @@ export function DepositForm({
 
       {/* Partial liquidation split selector */}
       {partialLiquidation && (
-        <Card variant="filled" className="py-0">
+        <Card variant="filled" className="py-0 pr-5">
           <Accordion>
             <AccordionSummary
               className="flex items-center justify-between px-0 py-3"
@@ -346,7 +346,7 @@ export function DepositForm({
       )}
 
       {/* Vault provider dropdown */}
-      <Card variant="filled" className="py-3">
+      <Card variant="filled" className="px-2.5 py-3">
         {isLoadingProviders ? (
           <div className="flex items-center justify-center py-2">
             <Loader size={24} className="text-primary-main" />
