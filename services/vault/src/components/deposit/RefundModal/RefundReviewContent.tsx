@@ -1,4 +1,5 @@
 import { Button, Heading, Loader, Text } from "@babylonlabs-io/core-ui";
+import { estimateRefundFeeSats } from "@babylonlabs-io/ts-sdk/tbv/core/services";
 import { useEffect, useState } from "react";
 import { MdInfoOutline } from "react-icons/md";
 
@@ -10,7 +11,6 @@ import {
 } from "@/constants";
 import { useProtocolParamsContext } from "@/context/ProtocolParamsContext";
 import { usePrice } from "@/hooks/usePrices";
-import { getRefundNetworkFeeSats } from "@/services/vault/vaultRefundService";
 import { satoshiToBtcNumber } from "@/utils/btcConversion";
 import { formatBtcValue, formatUsd, getBtcSymbol } from "@/utils/formatting";
 
@@ -72,7 +72,7 @@ export function RefundReviewContent({
 
   const amountBtc = amountSats !== null ? satoshiToBtcNumber(amountSats) : null;
   const networkFeeSats =
-    feeRate !== null && feeRate > 0 ? getRefundNetworkFeeSats(feeRate) : null;
+    feeRate !== null && feeRate > 0 ? estimateRefundFeeSats(feeRate) : null;
   const networkFeeBtc =
     networkFeeSats !== null ? satoshiToBtcNumber(networkFeeSats) : null;
   const youReceiveSats =

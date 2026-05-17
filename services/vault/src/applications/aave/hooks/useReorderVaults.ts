@@ -18,11 +18,40 @@ import {
   mapViemErrorToContractError,
 } from "@/utils/errors";
 
-import { reorderVaultOrder } from "../services";
+import { getAaveAdapterAddress } from "../config";
+import {
+  PositionChangedError,
+  assertReorderBaseline,
+  assertReorderMembership,
+  assertSuggestedOrderMatchesOnChain,
+  reorderVaultOrder,
+  type ReorderVerificationContext,
+} from "../services";
+
+export interface ExecuteReorderOptions {
+  /**
+   * Trusted calculator inputs from the auto-suggestion CTA. When provided,
+   * the hook re-runs the optimizer against on-chain amounts and refuses to
+   * sign if the result diverges from the submitted permutation. Manual
+   * drag-and-drop reorders omit this so users can pick non-optimal orders.
+   */
+  suggestedOrderContext?: ReorderVerificationContext;
+  /**
+   * The on-chain vault ordering the caller observed at the time it built
+   * the submission (e.g. the modal-open snapshot). When provided, the hook
+   * refuses to sign if the live ordering has drifted from this baseline
+   * — closes the same-set/different-order race the on-chain
+   * `InvalidVaultsPermutation` check cannot catch.
+   */
+  expectedCurrentVaultIds?: readonly Hex[];
+}
 
 export interface UseReorderVaultsResult {
   /** Execute the reorder transaction */
-  executeReorder: (permutedVaultIds: Hex[]) => Promise<boolean>;
+  executeReorder: (
+    permutedVaultIds: Hex[],
+    options?: ExecuteReorderOptions,
+  ) => Promise<boolean>;
   /** Whether transaction is currently processing */
   isProcessing: boolean;
 }
@@ -32,7 +61,9 @@ export interface UseReorderVaultsResult {
  *
  * Handles:
  * 1. Wallet validation
- * 2. Reorder transaction execution
+ * 2. On-chain integrity guards (membership; optimal-order recompute when
+ *    invoked from the auto-suggestion CTA)
+ * 3. Reorder transaction execution
  *
  * Cache invalidation is deferred to the success modal close handler
  * to give the indexer time to process the block.
@@ -44,7 +75,7 @@ export function useReorderVaults(): UseReorderVaultsResult {
   const { handleError } = useError();
 
   const executeReorder = useCallback(
-    async (permutedVaultIds: Hex[]) => {
+    async (permutedVaultIds: Hex[], options?: ExecuteReorderOptions) => {
       setIsProcessing(true);
       try {
         if (!walletClient) {
@@ -61,6 +92,30 @@ export function useReorderVaults(): UseReorderVaultsResult {
           );
         }
 
+        const adapterAddress = getAaveAdapterAddress();
+
+        const currentVaultIds = await assertReorderMembership(
+          adapterAddress,
+          address,
+          permutedVaultIds,
+        );
+
+        if (options?.expectedCurrentVaultIds) {
+          assertReorderBaseline(
+            currentVaultIds,
+            options.expectedCurrentVaultIds,
+          );
+        }
+
+        if (options?.suggestedOrderContext) {
+          await assertSuggestedOrderMatchesOnChain(
+            permutedVaultIds,
+            currentVaultIds,
+            adapterAddress,
+            options.suggestedOrderContext,
+          );
+        }
+
         await reorderVaultOrder(walletClient, getETHChain(), permutedVaultIds);
 
         return true;
@@ -69,8 +124,13 @@ export function useReorderVaults(): UseReorderVaultsResult {
           error instanceof Error ? error : new Error(String(error)),
           { data: { context: "Reorder vaults failed" } },
         );
-        const mappedError =
-          error instanceof Error
+        // Surface a stale-baseline mismatch as its own user-facing error so
+        // the user understands they need to refresh, not retry. Retry with
+        // the same stale baseline cannot help.
+        const isPositionChanged = error instanceof PositionChangedError;
+        const mappedError = isPositionChanged
+          ? error
+          : error instanceof Error
             ? mapViemErrorToContractError(error, "Reorder Vaults")
             : new Error("An unexpected error occurred while reordering vaults");
 

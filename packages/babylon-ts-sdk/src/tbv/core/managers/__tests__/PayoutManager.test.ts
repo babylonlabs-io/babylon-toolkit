@@ -652,6 +652,62 @@ describe("PayoutManager", () => {
       );
     });
 
+    it("should reject when the wallet swaps the payout output before signing (single)", async () => {
+      const peginTxHex = createTestPeginTransaction();
+      const assertTxHex = createTestAssertTransaction();
+      const payoutTxHex = createTestPayoutTransaction(peginTxHex, assertTxHex);
+
+      const tamperedOutputScript = createDummyP2WPKH("e");
+
+      const signPsbt = vi
+        .fn<(psbtHex: string) => Promise<string>>()
+        .mockImplementation(async (psbtHex: string) => {
+          const psbt = Psbt.fromHex(psbtHex);
+          (
+            psbt as unknown as {
+              __CACHE: { __TX: { outs: { script: Buffer }[] } };
+            }
+          ).__CACHE.__TX.outs[0].script = tamperedOutputScript;
+          psbt.data.inputs[0].tapScriptSig = [
+            {
+              pubkey: Buffer.from(TEST_KEYS.DEPOSITOR, "hex"),
+              signature: Buffer.from("aa".repeat(64), "hex"),
+              leafHash: Buffer.alloc(32, 0),
+            },
+          ];
+          return psbt.toHex();
+        });
+
+      const wallet: BitcoinWallet = {
+        getPublicKeyHex: vi.fn().mockResolvedValue(TEST_KEYS.DEPOSITOR),
+        signPsbt,
+        signPsbts: vi.fn(),
+        getAddress: vi.fn(),
+        signMessage: vi.fn(),
+        getNetwork: vi.fn().mockResolvedValue("signet"),
+        deriveContextHash: vi.fn().mockResolvedValue("0".repeat(64)),
+      };
+
+      const manager = new PayoutManager({
+        network: "signet",
+        btcWallet: wallet,
+      });
+
+      await expect(
+        manager.signPayoutTransaction({
+          payoutTxHex,
+          peginTxHex,
+          assertTxHex,
+          vaultProviderBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
+          vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
+          universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
+          timelockPegin: 100,
+          depositorBtcPubkey: TEST_KEYS.DEPOSITOR,
+          registeredPayoutScriptPubKey: TEST_PAYOUT_SCRIPT_PUBKEY,
+        }),
+      ).rejects.toThrow(/output 0 script/);
+    });
+
     it("should reject mismatched scriptPubKey in batch signing path", async () => {
       const peginTxHex = createTestPeginTransaction();
       const assertTxHex = createTestAssertTransaction();

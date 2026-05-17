@@ -6,7 +6,7 @@
  * The actual contract reads, validations, and multicalls live in the SDK.
  */
 
-import type { Address, Hex } from "viem";
+import { type Address, type Hex, zeroAddress } from "viem";
 
 import { CONTRACTS } from "@/config/contracts";
 
@@ -113,4 +113,61 @@ export async function getPegInFeeFromChain(
     functionName: "getPegInFee",
     args: [vaultProvider],
   });
+}
+
+/**
+ * Signing-critical subset of `getBtcVaultBasicInfo` used by the reorder
+ * integrity guard. Returned by `getBtcVaultBasicInfoFromChain` in a map
+ * keyed by lowercased vault ID.
+ */
+export interface OnChainVaultBasicInfo {
+  /** Vault deposit amount in satoshis. */
+  amount: bigint;
+  /** Numeric `BTCVaultStatus` (see `ContractStatus`). 2 = ACTIVE. */
+  status: number;
+  /** Application controller bound at vault creation. */
+  applicationEntryPoint: Address;
+}
+
+/**
+ * Read per-vault signing-critical fields for many vaults in parallel
+ * via the SDK's strongly-typed `ViemVaultRegistryReader.getVaultBasicInfo`.
+ *
+ * Returned map keys are lowercased vault IDs (case-insensitive lookup);
+ * the same key form is used by the reorder integrity guard so the caller
+ * does not need to worry about checksum casing.
+ *
+ * Delegates to the SDK's typed reader rather than running its own
+ * multicall+cast — the strongly-typed path catches ABI shape
+ * regressions at compile time instead of through a late `TypeError` in
+ * a downstream consumer.
+ *
+ * @throws if any input vault is unregistered on-chain (`depositor` is the
+ * zero address). The reorder guard treats an unregistered vault as
+ * untrusted membership and refuses to sign.
+ */
+export async function getBtcVaultBasicInfoFromChain(
+  vaultIds: readonly Hex[],
+): Promise<Map<Hex, OnChainVaultBasicInfo>> {
+  if (vaultIds.length === 0) return new Map();
+
+  const reader = getVaultRegistryReader();
+  const results = await Promise.all(
+    vaultIds.map((vaultId) => reader.getVaultBasicInfo(vaultId)),
+  );
+
+  const out = new Map<Hex, OnChainVaultBasicInfo>();
+  results.forEach((info, i) => {
+    if (info.depositor === zeroAddress) {
+      throw new Error(
+        `Vault ${vaultIds[i]} not registered on-chain — refusing to recompute reorder against unverified basic info`,
+      );
+    }
+    out.set(vaultIds[i].toLowerCase() as Hex, {
+      amount: info.amount,
+      status: info.status,
+      applicationEntryPoint: info.applicationEntryPoint,
+    });
+  });
+  return out;
 }

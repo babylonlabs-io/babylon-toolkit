@@ -114,12 +114,26 @@ vi.mock("@/services/vault/vaultUtxoValidationService", () => ({
 
 vi.mock("@/storage/peginStorage", () => ({
   addPendingPegin: vi.fn(),
-  addUtxoReservation: vi.fn(),
+  addUtxoReservation: vi.fn(() => Promise.resolve()),
+  assertNoReservationConflict: vi.fn(),
   getPendingPegins: vi.fn(() => []),
   getUtxoReservations: vi.fn(() => []),
   removePendingPegin: vi.fn(),
   removeUtxoReservation: vi.fn(),
   updatePendingPeginStatus: vi.fn(),
+  UtxoReservationConflictError: class extends Error {
+    readonly conflictingBatchId: string;
+    readonly outpoint: { txid: string; vout: number };
+    constructor(
+      conflictingBatchId: string,
+      outpoint: { txid: string; vout: number },
+    ) {
+      super(`UTXO conflict (batch ${conflictingBatchId})`);
+      this.name = "UtxoReservationConflictError";
+      this.conflictingBatchId = conflictingBatchId;
+      this.outpoint = outpoint;
+    }
+  },
 }));
 
 vi.mock("@babylonlabs-io/ts-sdk/tbv/core/utils", () => ({
@@ -574,9 +588,12 @@ describe("useDepositFlow", () => {
       });
     });
 
-    it("should write early UTXO reservation and clean it up on success", async () => {
+    it("pre-claims candidate outpoints before preparePeginTransaction and narrows after", async () => {
       const { addUtxoReservation, removeUtxoReservation } = vi.mocked(
         await import("@/storage/peginStorage"),
+      );
+      const { preparePeginTransaction } = vi.mocked(
+        await import("@/services/vault/vaultTransactionService"),
       );
 
       const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
@@ -584,19 +601,109 @@ describe("useDepositFlow", () => {
       await executeWithAutoArtifactDownload(result);
 
       await waitFor(() => {
-        expect(addUtxoReservation).toHaveBeenCalledWith(
-          "0xEthAddress123",
-          expect.objectContaining({
-            unsignedTxHex: "batchFundedPrePeginHex",
-            batchId: "mock-batch-id-uuid",
-            timestamp: expect.any(Number),
-          }),
-        );
-        expect(removeUtxoReservation).toHaveBeenCalledWith(
-          "0xEthAddress123",
-          "mock-batch-id-uuid",
-        );
+        expect(addUtxoReservation).toHaveBeenCalledTimes(2);
       });
+
+      // Pre-claim must precede preparePegin so a sibling tab cannot select
+      // these outpoints during the wallet popup window.
+      const preClaimOrder = addUtxoReservation.mock.invocationCallOrder[0];
+      const prepareOrder = preparePeginTransaction.mock.invocationCallOrder[0];
+      const narrowOrder = addUtxoReservation.mock.invocationCallOrder[1];
+      expect(preClaimOrder).toBeLessThan(prepareOrder);
+      expect(prepareOrder).toBeLessThan(narrowOrder);
+
+      // First write: candidate outpoints from selectUtxosForDeposit.
+      expect(addUtxoReservation).toHaveBeenNthCalledWith(
+        1,
+        "0xEthAddress123",
+        expect.objectContaining({
+          batchId: "mock-batch-id-uuid",
+          outpoints: [
+            { txid: MOCK_UTXO_1.txid, vout: MOCK_UTXO_1.vout },
+            { txid: MOCK_UTXO_2.txid, vout: MOCK_UTXO_2.vout },
+          ],
+        }),
+      );
+
+      // Second write: narrowed to batchResult.selectedUTXOs (same batchId).
+      expect(addUtxoReservation).toHaveBeenNthCalledWith(
+        2,
+        "0xEthAddress123",
+        expect.objectContaining({
+          batchId: "mock-batch-id-uuid",
+          outpoints: [
+            { txid: MOCK_UTXO_1.txid, vout: MOCK_UTXO_1.vout },
+            { txid: MOCK_UTXO_2.txid, vout: MOCK_UTXO_2.vout },
+          ],
+        }),
+      );
+
+      expect(removeUtxoReservation).toHaveBeenCalledWith(
+        "0xEthAddress123",
+        "mock-batch-id-uuid",
+      );
+    });
+
+    it("aborts before preparePeginTransaction when the pre-claim conflicts with another batch", async () => {
+      const { addUtxoReservation, UtxoReservationConflictError } = vi.mocked(
+        await import("@/storage/peginStorage"),
+      );
+      const { preparePeginTransaction } = vi.mocked(
+        await import("@/services/vault/vaultTransactionService"),
+      );
+      const { registerPeginBatchAndWait, signProofOfPossession } = vi.mocked(
+        await import("../depositFlowSteps"),
+      );
+
+      addUtxoReservation.mockRejectedValueOnce(
+        new UtxoReservationConflictError("other-batch", {
+          txid: MOCK_UTXO_1.txid,
+          vout: MOCK_UTXO_1.vout,
+        }),
+      );
+
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+
+      await executeWithAutoArtifactDownload(result);
+
+      await waitFor(() => {
+        expect(result.current.error).toBeTruthy();
+      });
+
+      // Pre-claim threw → no wallet popup, no ETH registration.
+      expect(preparePeginTransaction).not.toHaveBeenCalled();
+      expect(signProofOfPossession).not.toHaveBeenCalled();
+      expect(registerPeginBatchAndWait).not.toHaveBeenCalled();
+    });
+
+    it("aborts before ETH registration when assertNoReservationConflict throws (defense in depth)", async () => {
+      const { assertNoReservationConflict, UtxoReservationConflictError } =
+        vi.mocked(await import("@/storage/peginStorage"));
+      const { registerPeginBatchAndWait } = vi.mocked(
+        await import("../depositFlowSteps"),
+      );
+      const { broadcastPrePeginTransaction } = vi.mocked(
+        await import("@/services/vault/vaultPeginBroadcastService"),
+      );
+
+      assertNoReservationConflict.mockImplementationOnce(() => {
+        throw new UtxoReservationConflictError("rival-batch", {
+          txid: MOCK_UTXO_1.txid,
+          vout: MOCK_UTXO_1.vout,
+        });
+      });
+
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+
+      await executeWithAutoArtifactDownload(result);
+
+      await waitFor(() => {
+        expect(result.current.error).toBeTruthy();
+      });
+
+      // The final-pass re-check fires after PoP signing but before ETH send.
+      expect(registerPeginBatchAndWait).not.toHaveBeenCalled();
+      expect(broadcastPrePeginTransaction).not.toHaveBeenCalled();
     });
 
     it("aborts before broadcast when on-chain offchainParamsVersion drifted from the build version", async () => {

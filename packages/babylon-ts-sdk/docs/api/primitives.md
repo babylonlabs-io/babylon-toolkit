@@ -1364,7 +1364,7 @@ based on the protocol parameters.
 function deriveVaultId(peginTxHash, depositor): Promise<string>;
 ```
 
-Defined in: packages/babylon-tbv-rust-wasm/dist/index.d.ts:61
+Defined in: packages/babylon-tbv-rust-wasm/dist/index.d.ts:76
 
 Derives the vault ID from a PegIn transaction hash and depositor ETH address.
 
@@ -2302,13 +2302,81 @@ Taproot address (bc1p... / tb1p... / bcrt1p...)
 
 ***
 
+### getSortedXOnlyPubkeys()
+
+```ts
+function getSortedXOnlyPubkeys(pubkeys): string[];
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/utils/bitcoin.ts:361](../../packages/babylon-ts-sdk/src/tbv/core/primitives/utils/bitcoin.ts#L361)
+
+Strip `0x` prefixes and lex-sort an array of x-only public keys.
+
+Used to produce the canonical (Rust-parity) keeper / challenger ordering
+the protocol expects in payout and refund signing contexts.
+
+#### Parameters
+
+##### pubkeys
+
+`string`[]
+
+Array of x-only public keys (with or without `0x` prefix)
+
+#### Returns
+
+`string`[]
+
+Lex-sorted array of pubkeys with `0x` prefix stripped
+
+***
+
+### deriveBip86ScriptPubKeyHex()
+
+```ts
+function deriveBip86ScriptPubKeyHex(xOnlyPubkeyHex): string;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/utils/bitcoin.ts:381](../../packages/babylon-ts-sdk/src/tbv/core/primitives/utils/bitcoin.ts#L381)
+
+Derive the BIP-86 P2TR scriptPubKey (`0x`-prefixed hex) from an x-only
+public key.
+
+Matches Rust `Bip86KeyConnector::generate_taproot_script_pubkey`: a
+keypath-only P2TR output with no script tree. Used to compute the expected
+payout address for vault keeper claimers, whose payout goes to their own
+BIP-86 address rather than the depositor's registered payout address.
+
+Network-agnostic: P2TR scriptPubKey bytes are `OP_1 <32-byte tweaked-key>`
+regardless of network.
+
+#### Parameters
+
+##### xOnlyPubkeyHex
+
+`string`
+
+X-only public key (64 hex chars, with or without `0x` prefix)
+
+#### Returns
+
+`string`
+
+`0x`-prefixed P2TR scriptPubKey hex
+
+#### Throws
+
+If `xOnlyPubkeyHex` is not exactly 64 hex chars after prefix stripping
+
+***
+
 ### deriveNativeSegwitAddress()
 
 ```ts
 function deriveNativeSegwitAddress(publicKeyHex, network): string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/utils/bitcoin.ts:360](../../packages/babylon-ts-sdk/src/tbv/core/primitives/utils/bitcoin.ts#L360)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/utils/bitcoin.ts:405](../../packages/babylon-ts-sdk/src/tbv/core/primitives/utils/bitcoin.ts#L405)
 
 Derive a Native SegWit (P2WPKH) address from a compressed public key.
 
@@ -2347,7 +2415,7 @@ function isAddressFromPublicKey(
    network): boolean;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/utils/bitcoin.ts:397](../../packages/babylon-ts-sdk/src/tbv/core/primitives/utils/bitcoin.ts#L397)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/utils/bitcoin.ts:442](../../packages/babylon-ts-sdk/src/tbv/core/primitives/utils/bitcoin.ts#L442)
 
 Validate that a BTC address was derived from the given public key.
 

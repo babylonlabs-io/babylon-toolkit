@@ -1,10 +1,7 @@
 import type { MempoolUTXO } from "@babylonlabs-io/ts-sdk";
 import {
-  MAX_NON_LEGACY_OUTPUT_SIZE,
-  P2TR_INPUT_SIZE,
-  rateBasedTxBufferFee,
+  computeMaxDeposit,
   selectUtxosForPegin,
-  TX_BUFFER_SIZE_OVERHEAD,
 } from "@babylonlabs-io/ts-sdk/tbv/core";
 import { useMemo } from "react";
 
@@ -21,31 +18,6 @@ export interface EstimatedBtcFeeResult {
   error: string | null;
   /** Maximum depositable amount in satoshis (balance minus fee for all UTXOs) */
   maxDeposit: bigint | null;
-}
-
-/**
- * Compute the maximum depositable amount.
- *
- * For a max deposit all UTXOs are spent and there is no change output,
- * so the fee is deterministic: (numInputs × P2TR_INPUT_SIZE + numOutputs × output + overhead) × feeRate.
- */
-function computeMaxDeposit(
-  numInputs: number,
-  totalBalance: bigint,
-  feeRate: number,
-  numOutputs: number,
-): bigint | null {
-  if (totalBalance <= 0n) return null;
-
-  const txVsize =
-    numInputs * P2TR_INPUT_SIZE +
-    numOutputs * MAX_NON_LEGACY_OUTPUT_SIZE +
-    TX_BUFFER_SIZE_OVERHEAD;
-  const fee =
-    BigInt(Math.ceil(txVsize * feeRate)) +
-    BigInt(rateBasedTxBufferFee(feeRate));
-  const max = totalBalance - fee;
-  return max > 0n ? max : 0n;
 }
 
 /**
@@ -76,12 +48,12 @@ export function useEstimatedBtcFee(
   const maxDeposit = useMemo(() => {
     if (isLoading || defaultFeeRate === 0 || !utxos?.length) return null;
     const totalBalance = utxos.reduce((sum, u) => sum + BigInt(u.value), 0n);
-    return computeMaxDeposit(
-      utxos.length,
-      totalBalance,
-      defaultFeeRate,
+    return computeMaxDeposit({
+      numInputs: utxos.length,
       numOutputs,
-    );
+      totalBalance,
+      feeRate: defaultFeeRate,
+    });
   }, [utxos, defaultFeeRate, numOutputs, isLoading]);
 
   const result = useMemo((): EstimatedBtcFeeResult => {

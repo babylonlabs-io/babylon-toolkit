@@ -202,6 +202,34 @@ describe("selectUtxosForPegin", () => {
     // More outputs → larger tx → higher fee
     expect(feeWith5Outputs).toBeGreaterThan(feeWith2Outputs);
   });
+
+  it("does NOT charge for a change output it then omits at the dust boundary (regression)", () => {
+    // Build inputs such that, with 2 outputs (vault + CPFP) at 5 sat/vB:
+    //   baseFee = (58 + 86 + 11) * 5 = 775
+    //   changeOutputFee = 43 * 5 = 215
+    // Pick totalInputValue = 100_000 and choose peginAmount so that the
+    // residual after baseFee is 750 sats — change-output fee would push
+    // it to 535 ≤ 546 (dust). The selector must dust-revert (no change
+    // output emitted), and the reported fee is the actual on-wire fee
+    // (baseFee + the absorbed 750 sats).
+    const single: UTXO[] = [
+      {
+        txid:
+          "0000000000000000000000000000000000000000000000000000000000000001",
+        vout: 0,
+        value: 100_000,
+        scriptPubKey:
+          "5120abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
+      },
+    ];
+    const baseFee = 775n;
+    const peginAmount = 100_000n - baseFee - 750n;
+
+    const result = selectUtxosForPegin(single, peginAmount, 5, 2);
+
+    expect(result.fee).toBe(baseFee + 750n);
+    expect(result.changeAmount).toBe(0n);
+  });
 });
 
 describe("shouldAddChangeOutput", () => {

@@ -74,11 +74,28 @@ describe("Error Formatting", () => {
       expect(sanitizeErrorMessage("a string error")).toBe("a string error");
     });
 
-    it("returns 'Unknown error' for non-Error objects", () => {
+    it("returns 'Unknown error' for non-Error objects without string message", () => {
       expect(sanitizeErrorMessage({ key: "value" })).toBe("Unknown error");
       expect(sanitizeErrorMessage(42)).toBe("Unknown error");
       expect(sanitizeErrorMessage(null)).toBe("Unknown error");
       expect(sanitizeErrorMessage(undefined)).toBe("Unknown error");
+    });
+
+    it("extracts .message from plain objects with a string message", () => {
+      expect(sanitizeErrorMessage({ message: "wallet rejected" })).toBe(
+        "wallet rejected",
+      );
+    });
+
+    it("returns 'Unknown error' when message is '[object Object]'", () => {
+      // Guards against an upstream wrap that did `new Error(\`...: ${obj}\`)`.
+      expect(sanitizeErrorMessage(new Error("[object Object]"))).toBe(
+        "Unknown error",
+      );
+      expect(sanitizeErrorMessage("[object Object]")).toBe("Unknown error");
+      expect(sanitizeErrorMessage({ message: "[object Object]" })).toBe(
+        "Unknown error",
+      );
     });
   });
 
@@ -122,6 +139,41 @@ describe("Error Formatting", () => {
       const result = formatPayoutSignatureError(error);
 
       expect(result.title).not.toBe("Signing Rejected");
+    });
+
+    it("extracts .message from plain objects (some wallets throw object literals)", () => {
+      const result = formatPayoutSignatureError({
+        code: -32603,
+        message: "VP rejected the signature",
+      });
+      expect(result.title).toBe("Payout Signing Error");
+      expect(result.message).toBe("VP rejected the signature");
+    });
+
+    it("falls back to static message for plain objects without string .message", () => {
+      const result = formatPayoutSignatureError({});
+      expect(result.message).not.toBe("[object Object]");
+      expect(result.message).toContain("unexpected error");
+    });
+
+    it("falls back to static message for null/undefined", () => {
+      expect(formatPayoutSignatureError(null).message).toContain(
+        "unexpected error",
+      );
+      expect(formatPayoutSignatureError(undefined).message).toContain(
+        "unexpected error",
+      );
+    });
+
+    it("falls back to static message when .message itself is '[object Object]'", () => {
+      const result = formatPayoutSignatureError({ message: "[object Object]" });
+      expect(result.message).not.toBe("[object Object]");
+      expect(result.message).toContain("unexpected error");
+    });
+
+    it("passes through string throws (WASM panics)", () => {
+      const result = formatPayoutSignatureError("wasm panic: out of bounds");
+      expect(result.message).toBe("wasm panic: out of bounds");
     });
 
     // Drift guard: production code inlines "CONNECTION_REJECTED" instead of
