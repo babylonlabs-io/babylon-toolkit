@@ -19,6 +19,7 @@ interface DepositFeesBreakdownProps {
   ethereumNetworkFeeIsError: boolean;
   protocolFeeAmount: string;
   protocolFeePrice: string;
+  protocolFeeIsError: boolean;
 }
 
 interface FeeLineProps {
@@ -73,6 +74,7 @@ export function DepositFeesBreakdown({
   ethereumNetworkFeeIsError,
   protocolFeeAmount,
   protocolFeePrice,
+  protocolFeeIsError,
 }: DepositFeesBreakdownProps) {
   const transactionReserve = useMemo(() => {
     if (depositorClaimValue === undefined) {
@@ -112,6 +114,7 @@ export function DepositFeesBreakdown({
       <FeeLine
         label="Protocol Fee"
         amount={protocolFeeAmount}
+        amountIsError={protocolFeeIsError}
         price={protocolFeePrice}
       />
     </div>

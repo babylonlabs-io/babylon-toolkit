@@ -133,6 +133,7 @@ function SimpleDepositContent({
   const {
     feeEthFormatted: protocolFeeAmount,
     feeUsdFormatted: protocolFeePrice,
+    isError: protocolFeeIsError,
   } = useDepositPeginFee(
     formData.selectedProvider
       ? (formData.selectedProvider as Address)
@@ -285,6 +286,7 @@ function SimpleDepositContent({
                 collateralFactor={collateralFactor}
                 protocolFeeAmount={protocolFeeAmount}
                 protocolFeePrice={protocolFeePrice}
+                protocolFeeIsError={protocolFeeIsError}
                 ethereumNetworkFeeAmount={ethereumNetworkFee.feeEth}
                 ethereumNetworkFeePrice={ethereumNetworkFee.feeUsd}
                 ethereumNetworkFeeIsError={ethereumNetworkFee.isError}

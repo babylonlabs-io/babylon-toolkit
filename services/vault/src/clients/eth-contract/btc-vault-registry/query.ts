@@ -107,10 +107,10 @@ export async function getPegInFeeFromChain(
   vaultProvider: Address,
 ): Promise<bigint> {
   const publicClient = ethClient.getPublicClient();
-  return (await publicClient.readContract({
+  return await publicClient.readContract({
     address: CONTRACTS.BTC_VAULT_REGISTRY,
     abi: REGISTRY_GET_PEGIN_FEE_ABI,
     functionName: "getPegInFee",
     args: [vaultProvider],
-  })) as bigint;
+  });
 }

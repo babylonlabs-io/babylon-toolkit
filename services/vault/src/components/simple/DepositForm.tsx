@@ -83,6 +83,7 @@ interface DepositFormProps {
 
   protocolFeeAmount?: string;
   protocolFeePrice?: string;
+  protocolFeeIsError?: boolean;
 
   ethereumNetworkFeeAmount?: string;
   ethereumNetworkFeePrice?: string;
@@ -134,6 +135,7 @@ export function DepositForm({
   collateralFactor = null,
   protocolFeeAmount = "--",
   protocolFeePrice = "",
+  protocolFeeIsError = false,
   ethereumNetworkFeeAmount = "--",
   ethereumNetworkFeePrice = "",
   ethereumNetworkFeeIsError = false,
@@ -404,6 +406,7 @@ export function DepositForm({
         ethereumNetworkFeeIsError={ethereumNetworkFeeIsError}
         protocolFeeAmount={protocolFeeAmount}
         protocolFeePrice={protocolFeePrice}
+        protocolFeeIsError={protocolFeeIsError}
       />
 
       {/* Protocol & risk parameters */}
