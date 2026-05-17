@@ -11,6 +11,23 @@ export type {
   MockEthWalletOptions,
 } from "./mockEthWallet";
 export {
+  mockEthRpc,
+  mockGraphql,
+  mockMempoolForSeededBtcWallet,
+  mockVpProxy,
+} from "./networkRoutes";
+export { seededBtcWallet, seededEthWallet } from "./seededWallets";
+export type {
+  SeededBtcWallet,
+  SeededBtcWalletOptions,
+  SeededEthWallet,
+  SeededEthWalletOptions,
+  SeededMempoolAddressInfo,
+  SeededMempoolUtxo,
+} from "./seededWallets";
+export { expect, test } from "./test";
+export type { VaultE2EFixtures } from "./test";
+export {
   E2E_WALLETS_GLOBAL,
   clearInjectedWallets,
   getInjectedWallets,
