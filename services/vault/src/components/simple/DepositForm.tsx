@@ -266,7 +266,7 @@ export function DepositForm({
 
       {/* Partial liquidation split selector */}
       {partialLiquidation && (
-        <Card variant="filled" className="py-0 pr-5">
+        <Card variant="filled" className="py-0.5 pr-5">
           <Accordion>
             <AccordionSummary
               className="flex items-center justify-between px-0 py-3"
