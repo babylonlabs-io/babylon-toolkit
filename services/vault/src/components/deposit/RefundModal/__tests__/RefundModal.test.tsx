@@ -1,12 +1,12 @@
+import type {
+  PegInConfiguration,
+  VersionedOffchainParams,
+} from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
 import { useMemo, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type {
-  PegInConfiguration,
-  VersionedOffchainParams,
-} from "@/clients/eth-contract/protocol-params";
 import type { VaultActivity } from "@/types/activity";
 
 import { RefundModal } from "../index";
@@ -42,13 +42,8 @@ const { OFFCHAIN_PARAMS, PEGIN_CONFIG } = vi.hoisted(() => {
   return { OFFCHAIN_PARAMS: offchain, PEGIN_CONFIG: config };
 });
 
-vi.mock("@/clients/eth-contract/protocol-params", async (importOriginal) => {
-  const actual =
-    await importOriginal<
-      typeof import("@/clients/eth-contract/protocol-params")
-    >();
-  return {
-    ...actual,
+vi.mock("@/clients/eth-contract/sdk-readers", () => ({
+  getProtocolParamsReader: vi.fn(async () => ({
     getPegInConfiguration: vi.fn(async () => PEGIN_CONFIG),
     fetchAllOffchainParams: vi.fn(async () => ({
       byVersion: new Map<number, VersionedOffchainParams>([
@@ -56,8 +51,8 @@ vi.mock("@/clients/eth-contract/protocol-params", async (importOriginal) => {
       ]),
       latestVersion: 1,
     })),
-  };
-});
+  })),
+}));
 
 vi.mock("@/services/providers", () => ({
   fetchAllUniversalChallengers: vi.fn(async () => ({
