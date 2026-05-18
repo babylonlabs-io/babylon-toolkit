@@ -1,8 +1,6 @@
 /**
  * Tests for the SDK-readers cache (TTL, per-chain keying, dedupe,
- * stale-while-revalidate). The new factory replaced the old per-chain
- * `protocolParamsAddressCache` in `protocol-params/query.ts` and these
- * tests carry the cache-semantics coverage forward.
+ * stale-while-revalidate).
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";

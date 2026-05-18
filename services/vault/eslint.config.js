@@ -66,7 +66,7 @@ export default tseslint.config(
           paths: [
             {
               name: "@uidotdev/usehooks",
-              message: "Use usehooks-ts instead of @uidotdev/usehooks.",
+              message: "@uidotdev/usehooks is banned in this workspace.",
             },
           ],
         },

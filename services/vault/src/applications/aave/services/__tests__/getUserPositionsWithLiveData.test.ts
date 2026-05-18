@@ -22,8 +22,6 @@ vi.mock("../../clients", () => ({
 
 vi.mock("../fetchPositions", () => ({
   fetchAaveActivePositionsWithCollaterals: mockFetchActive,
-  fetchAavePositionByDepositor: vi.fn(),
-  fetchAavePositionCollaterals: vi.fn(),
 }));
 
 import { getUserPositionsWithLiveData } from "../positionService";

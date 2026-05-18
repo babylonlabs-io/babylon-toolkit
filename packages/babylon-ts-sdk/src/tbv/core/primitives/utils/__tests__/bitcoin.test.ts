@@ -5,10 +5,13 @@
 import { describe, expect, it } from "vitest";
 import {
   deriveBip86ScriptPubKeyHex,
+  deriveNativeSegwitAddress,
+  deriveTaprootAddress,
   ensureHexPrefix,
   formatSatoshisToBtc,
   getSortedXOnlyPubkeys,
   hexToUint8Array,
+  isAddressFromPublicKey,
   isValidHex,
   processPublicKeyToXOnly,
   stripHexPrefix,
@@ -481,6 +484,62 @@ describe("Bitcoin Utilities", () => {
         expect(result.walletPubkeyXOnly).toBe(expectedXOnly);
         expect(result.depositorPubkey).toBe(expectedXOnly);
       });
+    });
+  });
+
+  describe("isAddressFromPublicKey", () => {
+    // Using the secp256k1 generator point's x-coordinate (G.x); any valid
+    // 32-byte x-only key would do — the test only depends on derivation
+    // parity, not the value.
+    const xOnly =
+      "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798";
+    const evenParity = `02${xOnly}`;
+    const oddParity = `03${xOnly}`;
+
+    it("matches a P2TR address derived from the same x-only key", () => {
+      const addr = deriveTaprootAddress(xOnly, "signet");
+      expect(isAddressFromPublicKey(addr, xOnly, "signet")).toBe(true);
+    });
+
+    it("matches a P2WPKH address derived from an even-parity compressed key", () => {
+      const addr = deriveNativeSegwitAddress(evenParity, "signet");
+      expect(isAddressFromPublicKey(addr, evenParity, "signet")).toBe(true);
+    });
+
+    it("matches a P2WPKH address derived from an odd-parity compressed key", () => {
+      const addr = deriveNativeSegwitAddress(oddParity, "signet");
+      expect(isAddressFromPublicKey(addr, oddParity, "signet")).toBe(true);
+    });
+
+    it("rejects an opposite-parity P2WPKH address for an even-parity key", () => {
+      const wrongAddr = deriveNativeSegwitAddress(oddParity, "signet");
+      expect(isAddressFromPublicKey(wrongAddr, evenParity, "signet")).toBe(
+        false,
+      );
+    });
+
+    it("rejects an opposite-parity P2WPKH address for an odd-parity key", () => {
+      const wrongAddr = deriveNativeSegwitAddress(evenParity, "signet");
+      expect(isAddressFromPublicKey(wrongAddr, oddParity, "signet")).toBe(
+        false,
+      );
+    });
+
+    it("fails closed when an x-only key is paired with a P2WPKH address", () => {
+      // y-parity is unknowable from x-only; accepting any P2WPKH derived from
+      // 02|x or 03|x would let an attacker bind a script the wallet does not
+      // actually control. Both parities must be rejected.
+      const evenAddr = deriveNativeSegwitAddress(evenParity, "signet");
+      const oddAddr = deriveNativeSegwitAddress(oddParity, "signet");
+      expect(isAddressFromPublicKey(evenAddr, xOnly, "signet")).toBe(false);
+      expect(isAddressFromPublicKey(oddAddr, xOnly, "signet")).toBe(false);
+    });
+
+    it("rejects an unrelated address", () => {
+      const otherXOnly =
+        "0000000000000000000000000000000000000000000000000000000000000001";
+      const unrelated = deriveTaprootAddress(otherXOnly, "signet");
+      expect(isAddressFromPublicKey(unrelated, xOnly, "signet")).toBe(false);
     });
   });
 

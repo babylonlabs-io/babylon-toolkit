@@ -19,6 +19,7 @@ import {
   hexToUint8Array,
   isWotsMismatchError,
   parseFundingOutpointsFromTx,
+  stripHexPrefix,
   uint8ArrayToHex,
 } from "@babylonlabs-io/ts-sdk/tbv/core";
 import { primeVpTokenRegistry } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
@@ -39,7 +40,6 @@ import { useReleaseVpTokenOnUnmount } from "@/hooks/deposit/useReleaseVpTokenOnU
 import { useRunOnce } from "@/hooks/useRunOnce";
 import { logger } from "@/infrastructure";
 import type { VaultActivity } from "@/types/activity";
-import { stripHexPrefix } from "@/utils/btc";
 import { getVpProxyUrl } from "@/utils/rpc";
 
 import { DepositProgressView } from "./DepositProgressView";

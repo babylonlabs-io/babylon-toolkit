@@ -124,7 +124,7 @@ export const COPY = {
       signAndBroadcastEth: "Sign and broadcast ETH registration",
       signAndBroadcastPrePegin: "Sign and broadcast BTC Pre-Pegin transaction",
       awaitBtcConfirmation: "Awaiting Bitcoin confirmation",
-      awaitBtcConfirmationDuration: "(~15 min)",
+      awaitBtcConfirmationDuration: (minutes: number) => `(~${minutes} min)`,
       submitWotsKey: "Submit WOTS public key to vault provider",
       authenticateSession: "Authenticate session with vault provider",
       signPayouts: "Sign payout transactions",

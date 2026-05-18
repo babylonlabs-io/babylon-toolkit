@@ -2,7 +2,10 @@
  * Custom hook for vault actions (broadcast, activation)
  */
 
-import { ensureHexPrefix } from "@babylonlabs-io/ts-sdk/tbv/core";
+import {
+  ensureHexPrefix,
+  stripHexPrefix,
+} from "@babylonlabs-io/ts-sdk/tbv/core";
 import { vpTokenRegistry } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import { validateSecretAgainstHashlock } from "@babylonlabs-io/ts-sdk/tbv/core/services";
 import {
@@ -36,7 +39,6 @@ import {
 import { activateVaultWithSecret } from "../../services/vault/vaultActivationService";
 import { utxosToExpectedRecord } from "../../services/vault/vaultPeginBroadcastService";
 import type { PendingPeginRequest } from "../../storage/peginStorage";
-import { stripHexPrefix } from "../../utils/btc";
 
 export interface BroadcastPrePeginParams {
   vaultId: Hex;

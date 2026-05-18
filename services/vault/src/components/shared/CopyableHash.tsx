@@ -7,9 +7,9 @@
  */
 
 import { CheckIcon, CopyIcon, useCopy } from "@babylonlabs-io/core-ui";
+import { stripHexPrefix } from "@babylonlabs-io/ts-sdk/tbv/core";
 
 import { truncateHash } from "@/utils/addressUtils";
-import { stripHexPrefix } from "@/utils/btc";
 
 const COPY_ICON_SIZE = 14;
 

@@ -46,6 +46,7 @@ import type { WotsBlockPublicKey } from "../clients/vault-provider/types";
 import { type UtxoInfo, getUtxoInfo, pushTx } from "../clients/mempool";
 import { BTCVaultRegistryABI, handleContractError } from "../contracts";
 import {
+  assertPsbtUnsignedTxMatches,
   buildPrePeginPsbt,
   buildPeginTxFromFundedPrePegin,
   buildPeginInputPsbt,
@@ -61,6 +62,7 @@ import {
   isAddressFromPublicKey,
   stripHexPrefix,
   uint8ArrayToHex,
+  X_ONLY_PUBKEY_HEX_LEN,
 } from "../primitives/utils/bitcoin";
 import {
   calculateBtcTxHash,
@@ -472,6 +474,32 @@ export interface RegisterPeginBatchResult {
 
 
 /**
+ * Detect a P2WPKH (Native SegWit) bech32 address for the configured network,
+ * used purely for diagnostic routing. Distinguishes P2WPKH (witness v0,
+ * 20-byte program) from P2WSH (v0, 32-byte program) and any other bech32
+ * shape, so the specific "use a P2TR" error fires only when the user
+ * actually has a P2WPKH address.
+ */
+function isP2wpkhAddressForNetwork(address: string, network: Network): boolean {
+  const expectedHrp: Record<Network, string> = {
+    bitcoin: "bc",
+    testnet: "tb",
+    signet: "tb",
+    regtest: "bcrt",
+  };
+  try {
+    const decoded = bitcoin.address.fromBech32(address);
+    return (
+      decoded.prefix === expectedHrp[network] &&
+      decoded.version === 0 &&
+      decoded.data.length === 20
+    );
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Resolve prevout data for a transaction input.
  * Checks localPrevouts first; falls back to mempool API.
  */
@@ -862,6 +890,11 @@ export class PeginManager {
 
     const perVault: PerVaultPeginData[] = [];
     for (let i = 0; i < signedPsbts.length; i++) {
+      assertPsbtUnsignedTxMatches({
+        requestedPsbtHex: psbtsToSign[i],
+        returnedPsbtHex: signedPsbts[i],
+      });
+
       const peginInputSignature = extractPeginInputSignature(
         signedPsbts[i],
         depositorBtcPubkey,
@@ -993,7 +1026,15 @@ export class PeginManager {
     }
 
     // Step 4: Sign PSBT via wallet
-    const signedPsbtHex = await this.config.btcWallet.signPsbt(psbt.toHex());
+    const requestedPsbtHex = psbt.toHex();
+    const signedPsbtHex =
+      await this.config.btcWallet.signPsbt(requestedPsbtHex);
+
+    assertPsbtUnsignedTxMatches({
+      requestedPsbtHex,
+      returnedPsbtHex: signedPsbtHex,
+    });
+
     const signedPsbt = Psbt.fromHex(signedPsbtHex);
 
     // Step 5: Finalize and extract transaction
@@ -1410,14 +1451,13 @@ export class PeginManager {
   /**
    * Resolve the BTC scriptPubKey to register as the depositor's payout sink.
    *
-   * `address` is validated against the verified depositor pubkey, which MUST
-   * be the *raw* (parity-preserving) form returned by the wallet adapter —
-   * the caller should source it from `assertPopMatchesBtcWallet`'s return
-   * value, not from `popSignature.depositorBtcPubkey` (x-only, parity
-   * stripped). P2WPKH addresses are derived from a parity-bearing compressed
-   * key; passing the x-only form here would let `isAddressFromPublicKey`
-   * try both `02|x` and `03|x` and accept an opposite-parity P2WPKH
-   * address the wallet does not actually control.
+   * `address` is validated against the verified depositor pubkey, sourced
+   * from `assertPopMatchesBtcWallet`'s return value rather than
+   * `popSignature.depositorBtcPubkey` (which is x-only, parity stripped).
+   * For wallets that expose a compressed key this preserves y-parity end to
+   * end. For Taproot wallets that only expose an x-only key, the helper
+   * itself fails closed for P2WPKH — the parity is unknowable, so the
+   * payout sink must be a P2TR address derived from that same x.
    *
    * The helper does not call into the wallet so the batch path can resolve
    * many requests without any extra adapter reads. Threat closed: a
@@ -1435,6 +1475,23 @@ export class PeginManager {
         this.config.btcNetwork,
       )
     ) {
+      // Diagnostic carve-out: x-only key + P2WPKH address always fails (y-parity
+      // is unknowable from x-only). Surface a specific, actionable message so
+      // Taproot-wallet integrators don't have to chase the generic mismatch.
+      const isXOnlyKey =
+        stripHexPrefix(verifiedDepositorBtcPubkeyRaw).length ===
+        X_ONLY_PUBKEY_HEX_LEN;
+      if (
+        isXOnlyKey &&
+        isP2wpkhAddressForNetwork(address, this.config.btcNetwork)
+      ) {
+        throw new Error(
+          `BTC payout address "${address}" is a P2WPKH (Native SegWit) address, ` +
+            `but the connected wallet only exposes an x-only public key. ` +
+            `P2WPKH validation requires a compressed key with known y-parity. ` +
+            `Use a P2TR (Taproot) payout address instead.`,
+        );
+      }
       throw new Error(
         `BTC payout address "${address}" is not derived from the connected ` +
           `wallet's public key. The payout sink must be controlled by the same ` +

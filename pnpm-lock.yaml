@@ -906,9 +906,6 @@ importers:
       '@dnd-kit/utilities':
         specifier: 3.2.2
         version: 3.2.2(react@18.3.1)
-      '@metamask/browser-passworder':
-        specifier: 6.0.0
-        version: 6.0.0
       '@noble/hashes':
         specifier: 2.0.1
         version: 2.0.1
@@ -957,9 +954,6 @@ importers:
       tailwind-merge:
         specifier: 2.5.4
         version: 2.5.4
-      usehooks-ts:
-        specifier: ^3.1.1
-        version: 3.1.1(react@18.3.1)
       uuid:
         specifier: 11.1.0
         version: 11.1.0
@@ -1057,9 +1051,6 @@ importers:
       tailwindcss:
         specifier: ^3.4.14
         version: 3.4.17(ts-node@10.9.2(@swc/core@1.5.29(@swc/helpers@0.5.17))(@types/node@22.17.0)(typescript@5.9.2))
-      ts-node:
-        specifier: ^10.9.2
-        version: 10.9.2(@swc/core@1.5.29(@swc/helpers@0.5.17))(@types/node@22.17.0)(typescript@5.9.2)
       typescript:
         specifier: ^5.8.3
         version: 5.9.2
@@ -2831,10 +2822,6 @@ packages:
     peerDependencies:
       '@types/react': '>=16'
       react: '>=16'
-
-  '@metamask/browser-passworder@6.0.0':
-    resolution: {integrity: sha512-/LhNSOu8ThLtIOLKrHhXS4D0SuseK731tWH+1GxI6FO9j0XQtJvPdMw89EEXwCd8mA5iFUK/cU6kxsszfH7GaQ==}
-    engines: {node: ^18.18 || ^20.14 || >=22}
 
   '@metamask/eth-json-rpc-provider@1.0.1':
     resolution: {integrity: sha512-whiUMPlAOrVGmX8aKYVPvlKyG4CpQXiNNyt74vE1xb5sPvmx5oA7B/kOi/JdBvhGQq97U1/AVdXEdk2zkP8qyA==}
@@ -12989,12 +12976,6 @@ snapshots:
       '@types/mdx': 2.0.13
       '@types/react': 18.3.23
       react: 18.3.1
-
-  '@metamask/browser-passworder@6.0.0':
-    dependencies:
-      '@metamask/utils': 11.8.1
-    transitivePeerDependencies:
-      - supports-color
 
   '@metamask/eth-json-rpc-provider@1.0.1':
     dependencies:

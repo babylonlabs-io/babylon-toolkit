@@ -21,6 +21,7 @@ import type {
 import { createTaprootScriptPathSignOptions } from "../utils/signing";
 import {
   assertPayoutOutputMatchesRegistered,
+  assertPsbtUnsignedTxMatches,
   buildPayoutPsbt,
   extractPayoutSignature,
   validateWalletPubkey,
@@ -216,6 +217,11 @@ export class PayoutManager {
       createTaprootScriptPathSignOptions(walletPubkeyRaw, 1),
     );
 
+    assertPsbtUnsignedTxMatches({
+      requestedPsbtHex: payoutPsbt.psbtHex,
+      returnedPsbtHex: signedPsbtHex,
+    });
+
     // Extract Schnorr signature
     const signature = extractPayoutSignature(signedPsbtHex, depositorPubkey);
 
@@ -325,6 +331,10 @@ export class PayoutManager {
 
     for (let i = 0; i < transactions.length; i++) {
       const depositorPubkey = depositorPubkeys[i];
+      assertPsbtUnsignedTxMatches({
+        requestedPsbtHex: psbtsToSign[i],
+        returnedPsbtHex: signedPsbts[i],
+      });
       const payoutSignature = extractPayoutSignature(
         signedPsbts[i],
         depositorPubkey,

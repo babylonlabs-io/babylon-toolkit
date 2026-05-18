@@ -122,6 +122,12 @@ export {
 } from "./psbt/payout";
 export type { PayoutParams, PayoutPsbtResult } from "./psbt/payout";
 
+export {
+  assertPsbtUnsignedTxMatches,
+  PsbtSubstitutionError,
+} from "./psbt/assertPsbtUnsignedTxMatches";
+export type { AssertPsbtUnsignedTxMatchesParams } from "./psbt/assertPsbtUnsignedTxMatches";
+
 export { buildDepositorPayoutPsbt } from "./psbt/depositorPayout";
 export type { DepositorPayoutParams } from "./psbt/depositorPayout";
 

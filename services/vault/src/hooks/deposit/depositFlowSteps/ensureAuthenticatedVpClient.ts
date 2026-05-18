@@ -16,6 +16,7 @@ import {
   expandAuthAnchor,
   hexToUint8Array,
   parseFundingOutpointsFromTx,
+  stripHexPrefix,
   uint8ArrayToHex,
 } from "@babylonlabs-io/ts-sdk/tbv/core";
 import {
@@ -27,7 +28,6 @@ import { calculateBtcTxHash } from "@babylonlabs-io/ts-sdk/tbv/core/utils";
 import type { Address, Hex } from "viem";
 
 import { getVaultRegistryReader } from "@/clients/eth-contract/sdk-readers";
-import { stripHexPrefix } from "@/utils/btc";
 import { getVpProxyUrl } from "@/utils/rpc";
 
 export interface EnsureAuthenticatedVpClientParams {

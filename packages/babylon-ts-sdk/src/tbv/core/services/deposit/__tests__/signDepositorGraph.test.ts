@@ -103,6 +103,14 @@ vi.mock("../../../utils/signing", () => ({
   }),
 }));
 
+// Mock the substitution defense as a no-op. The PSBT hexes used in this
+// test file are mock strings that don't parse as real PSBTs (the underlying
+// build* primitives are mocked too); the substitution defense gets its own
+// dedicated tests against real PSBTs in primitives/psbt/__tests__/.
+vi.mock("../../../primitives/psbt/assertPsbtUnsignedTxMatches", () => ({
+  assertPsbtUnsignedTxMatches: vi.fn(),
+}));
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------

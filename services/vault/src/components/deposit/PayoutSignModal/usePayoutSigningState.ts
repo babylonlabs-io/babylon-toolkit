@@ -6,6 +6,7 @@
  * only the React state, guard checks, and optimistic localStorage updates.
  */
 
+import { stripHexPrefix } from "@babylonlabs-io/ts-sdk/tbv/core";
 import { useChainConnector } from "@babylonlabs-io/wallet-connector";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Hex } from "viem";
@@ -17,10 +18,7 @@ import { signAndSubmitPayouts } from "../../../hooks/deposit/depositFlowSteps/pa
 import { useVaultProviders } from "../../../hooks/deposit/useVaultProviders";
 import { LocalStorageStatus } from "../../../models/peginStateMachine";
 import type { VaultActivity } from "../../../types/activity";
-import {
-  btcAddressToScriptPubKeyHex,
-  stripHexPrefix,
-} from "../../../utils/btc";
+import { btcAddressToScriptPubKeyHex } from "../../../utils/btc";
 import { formatPayoutSignatureError } from "../../../utils/errors/formatting";
 
 import type { SigningProgressProps } from "./SigningProgress";

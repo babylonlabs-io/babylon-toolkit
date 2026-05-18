@@ -5,6 +5,8 @@
  * using primitives, utilities, and mock wallets.
  */
 
+import * as bitcoin from "bitcoinjs-lib";
+import { Buffer } from "buffer";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import { zeroAddress, type Address, type Chain, type PublicClient } from "viem";
 
@@ -40,6 +42,21 @@ vi.mock("../../primitives/psbt/peginInput", async (importOriginal) => {
     finalizePeginInputPsbt: vi.fn().mockReturnValue("mock-depositor-signed-pegin-tx"),
   };
 });
+
+// Mocked for the same reason: mock wallet returns non-PSBT hex.
+vi.mock(
+  "../../primitives/psbt/assertPsbtUnsignedTxMatches",
+  async (importOriginal) => {
+    const actual =
+      await importOriginal<
+        typeof import("../../primitives/psbt/assertPsbtUnsignedTxMatches")
+      >();
+    return {
+      ...actual,
+      assertPsbtUnsignedTxMatches: vi.fn(),
+    };
+  },
+);
 
 // Test chain configuration (minimal viem Chain)
 const TEST_CHAIN: Chain = {
@@ -247,6 +264,93 @@ describe("PeginManager", () => {
       const signOptions = signPsbtsSpy.mock.calls[0][1];
       const publicKey = signOptions?.[0]?.signInputs?.[0]?.publicKey;
       expect(publicKey).toBe(compressedPubkey);
+    });
+
+    it("rebinds every wallet-signed PegIn PSBT against the requested one — one call per vault, paired by index", async () => {
+      const { assertPsbtUnsignedTxMatches } = await import(
+        "../../primitives/psbt/assertPsbtUnsignedTxMatches"
+      );
+      const { buildPeginInputPsbt } = await import(
+        "../../primitives/psbt/peginInput"
+      );
+      const rebind = vi.mocked(assertPsbtUnsignedTxMatches);
+      const builder = vi.mocked(buildPeginInputPsbt);
+      rebind.mockClear();
+      // Distinct per-call PSBT hex so we can prove each rebind call gets
+      // its own (requested, returned) pair instead of all calls being
+      // validated against index 0.
+      let buildCount = 0;
+      builder.mockImplementation(async () => ({
+        psbtHex: `requested_${buildCount++}`,
+      }));
+
+      const btcWallet = new MockBitcoinWallet({
+        publicKeyHex: TEST_KEYS.DEPOSITOR,
+      });
+      const ethWallet = new MockEthereumWallet();
+      const manager = new PeginManager({
+        btcNetwork: "signet",
+        btcWallet,
+        ethWallet: ethWallet as any,
+        ethChain: TEST_CHAIN,
+        publicClient: TEST_PUBLIC_CLIENT,
+        vaultContracts: { btcVaultRegistry: TEST_CONTRACT_ADDRESS },
+        mempoolApiUrl: MEMPOOL_API_URLS.signet,
+      });
+
+      // 2 vaults so we exercise the per-vault loop, not just index 0.
+      await manager.preparePegin({
+        amounts: [TEST_AMOUNTS.PEGIN, TEST_AMOUNTS.PEGIN],
+        ...BASE_PREPARE_PEGIN_PARAMS,
+      });
+
+      expect(rebind).toHaveBeenCalledTimes(2);
+      // Each rebind call must pair the per-vault request with the wallet's
+      // response for THAT vault — MockBitcoinWallet.signPsbts produces
+      // `<requested>deadbeef`, so `returned[i]` must be `requested[i]deadbeef`.
+      rebind.mock.calls.forEach(([params], i) => {
+        expect(params.requestedPsbtHex).toBe(`requested_${i}`);
+        expect(params.returnedPsbtHex).toBe(`requested_${i}deadbeef`);
+      });
+    });
+
+    it("aborts preparePegin before sig extraction when the rebind helper rejects", async () => {
+      const { assertPsbtUnsignedTxMatches } = await import(
+        "../../primitives/psbt/assertPsbtUnsignedTxMatches"
+      );
+      const { extractPeginInputSignature } = await import(
+        "../../primitives/psbt/peginInput"
+      );
+      const rebind = vi.mocked(assertPsbtUnsignedTxMatches);
+      const extract = vi.mocked(extractPeginInputSignature);
+      rebind.mockClear();
+      extract.mockClear();
+      rebind.mockImplementationOnce(() => {
+        throw new Error("input 0 prevout txid differs (requested=ab… …)");
+      });
+
+      const btcWallet = new MockBitcoinWallet({
+        publicKeyHex: TEST_KEYS.DEPOSITOR,
+      });
+      const ethWallet = new MockEthereumWallet();
+      const manager = new PeginManager({
+        btcNetwork: "signet",
+        btcWallet,
+        ethWallet: ethWallet as any,
+        ethChain: TEST_CHAIN,
+        publicClient: TEST_PUBLIC_CLIENT,
+        vaultContracts: { btcVaultRegistry: TEST_CONTRACT_ADDRESS },
+        mempoolApiUrl: MEMPOOL_API_URLS.signet,
+      });
+
+      await expect(
+        manager.preparePegin({
+          amounts: [TEST_AMOUNTS.PEGIN],
+          ...BASE_PREPARE_PEGIN_PARAMS,
+        }),
+      ).rejects.toThrow(/prevout txid differs/);
+
+      expect(extract).not.toHaveBeenCalled();
     });
 
     it("should prepare a pegin with valid params", async () => {
@@ -1153,6 +1257,62 @@ describe("PeginManager", () => {
         }),
       ).rejects.toThrow();
     });
+
+    it("aborts before broadcast when the rebind helper rejects the wallet's PSBT", async () => {
+      const { assertPsbtUnsignedTxMatches } = await import(
+        "../../primitives/psbt/assertPsbtUnsignedTxMatches"
+      );
+      const rebind = vi.mocked(assertPsbtUnsignedTxMatches);
+
+      const btcWallet = new MockBitcoinWallet({
+        publicKeyHex: TEST_KEYS.DEPOSITOR,
+      });
+      const ethWallet = new MockEthereumWallet();
+      const manager = new PeginManager({
+        btcNetwork: "signet",
+        btcWallet,
+        ethWallet: ethWallet as any,
+        ethChain: TEST_CHAIN,
+        publicClient: TEST_PUBLIC_CLIENT,
+        vaultContracts: { btcVaultRegistry: TEST_CONTRACT_ADDRESS },
+        mempoolApiUrl: MEMPOOL_API_URLS.signet,
+      });
+
+      const prepared = await manager.preparePegin({
+        amounts: [TEST_AMOUNTS.PEGIN],
+        ...BASE_PREPARE_PEGIN_PARAMS,
+      });
+
+      // Provide localPrevouts so we don't hit the mempool. The funded tx's
+      // input set is a subset of TEST_UTXOS.
+      const localPrevouts = TEST_UTXOS.reduce<
+        Record<string, { scriptPubKey: string; value: number }>
+      >((acc, u) => {
+        acc[`${u.txid}:${u.vout}`] = {
+          scriptPubKey: u.scriptPubKey,
+          value: u.value,
+        };
+        return acc;
+      }, {});
+
+      // Fail the next rebind call so signAndBroadcast aborts before
+      // finalize/extract/pushTx. mockClear keeps prior preparePegin calls
+      // from leaking into our assertion.
+      rebind.mockClear();
+      rebind.mockImplementationOnce(() => {
+        throw new Error("output 0 scriptPubKey differs");
+      });
+
+      await expect(
+        manager.signAndBroadcast({
+          fundedPrePeginTxHex: prepared.transaction.fundedPrePeginTxHex,
+          depositorBtcPubkey: TEST_KEYS.DEPOSITOR,
+          localPrevouts,
+        }),
+      ).rejects.toThrow(/scriptPubKey differs/);
+
+      expect(rebind).toHaveBeenCalledTimes(1);
+    });
   });
 
   describe("Deterministic output", () => {
@@ -1621,6 +1781,90 @@ describe("PeginManager", () => {
           hashlock: MOCK_HASHLOCK,
           htlcVout: 0,
           depositorPayoutBtcAddress: oddParityWrongAddress,
+          depositorWotsPkHash: MOCK_WOTS_PK_HASH,
+          popSignature,
+        }),
+      ).rejects.toThrow(
+        /BTC payout address .* is not derived from the connected wallet/i,
+      );
+    });
+
+    it("registerPeginOnChain rejects any P2WPKH payout address when wallet exposes only an x-only key", async () => {
+      // Taproot wallets return x-only per the BitcoinWallet interface
+      // contract. With only an x-only key in hand, y-parity is unknowable;
+      // accepting any P2WPKH derived from 02|x or 03|x would let an attacker
+      // bind a script the wallet doesn't control. Both parities must be
+      // rejected at the helper level (parity-swap finding follow-up). The
+      // diagnostic message points integrators at the actual fix (use P2TR).
+      const xOnly = TEST_KEYS.DEPOSITOR;
+      const evenAddr = deriveNativeSegwitAddress(`02${xOnly}`, "signet");
+      const oddAddr = deriveNativeSegwitAddress(`03${xOnly}`, "signet");
+
+      const btcWallet = new MockBitcoinWallet({ publicKeyHex: xOnly });
+      const ethWallet = new MockEthereumWallet();
+      const manager = new PeginManager({
+        btcNetwork: "signet",
+        btcWallet,
+        ethWallet: ethWallet as any,
+        ethChain: TEST_CHAIN,
+        publicClient: TEST_PUBLIC_CLIENT,
+        vaultContracts: { btcVaultRegistry: TEST_CONTRACT_ADDRESS },
+        mempoolApiUrl: MEMPOOL_API_URLS.signet,
+      });
+      const popSignature = await manager.signProofOfPossession();
+
+      for (const addr of [evenAddr, oddAddr]) {
+        await expect(
+          manager.registerPeginOnChain({
+            unsignedPrePeginTx: "0100000000010000000000",
+            depositorSignedPeginTx: MOCK_DEPOSITOR_SIGNED_PEGIN_TX,
+            vaultProvider: TEST_CONTRACT_ADDRESS,
+            hashlock: MOCK_HASHLOCK,
+            htlcVout: 0,
+            depositorPayoutBtcAddress: addr,
+            depositorWotsPkHash: MOCK_WOTS_PK_HASH,
+            popSignature,
+          }),
+        ).rejects.toThrow(
+          /P2WPKH .* x-only public key.*Use a P2TR/i,
+        );
+      }
+    });
+
+    it("registerPeginOnChain falls back to the generic mismatch error for an x-only key paired with a non-P2WPKH bech32 address (P2WSH)", async () => {
+      // Regression guard: the diagnostic carve-out must distinguish P2WPKH
+      // (witness v0, 20-byte program) from other v0 segwit shapes like
+      // P2WSH (32-byte program). A misfire here would tell a user with a
+      // P2WSH payout address to "use a P2TR" when the real problem is that
+      // their address simply isn't derived from the connected wallet.
+      const xOnly = TEST_KEYS.DEPOSITOR;
+      const p2wshAddress = bitcoin.payments.p2wsh({
+        hash: Buffer.alloc(32, 0xab),
+        network: bitcoin.networks.testnet,
+      }).address!;
+      expect(p2wshAddress.startsWith("tb1q")).toBe(true);
+
+      const btcWallet = new MockBitcoinWallet({ publicKeyHex: xOnly });
+      const ethWallet = new MockEthereumWallet();
+      const manager = new PeginManager({
+        btcNetwork: "signet",
+        btcWallet,
+        ethWallet: ethWallet as any,
+        ethChain: TEST_CHAIN,
+        publicClient: TEST_PUBLIC_CLIENT,
+        vaultContracts: { btcVaultRegistry: TEST_CONTRACT_ADDRESS },
+        mempoolApiUrl: MEMPOOL_API_URLS.signet,
+      });
+      const popSignature = await manager.signProofOfPossession();
+
+      await expect(
+        manager.registerPeginOnChain({
+          unsignedPrePeginTx: "0100000000010000000000",
+          depositorSignedPeginTx: MOCK_DEPOSITOR_SIGNED_PEGIN_TX,
+          vaultProvider: TEST_CONTRACT_ADDRESS,
+          hashlock: MOCK_HASHLOCK,
+          htlcVout: 0,
+          depositorPayoutBtcAddress: p2wshAddress,
           depositorWotsPkHash: MOCK_WOTS_PK_HASH,
           popSignature,
         }),

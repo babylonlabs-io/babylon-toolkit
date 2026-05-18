@@ -12,8 +12,6 @@ import { hasDebtFromPosition } from "../utils";
 
 import {
   fetchAaveActivePositionsWithCollaterals,
-  fetchAavePositionByDepositor,
-  fetchAavePositionCollaterals,
   type AavePosition,
   type AavePositionCollateral,
 } from "./fetchPositions";
@@ -223,75 +221,4 @@ async function fetchDebtPositionsForReserves(
   }
 
   return results;
-}
-
-/**
- * Get a single position with live data by depositor address
- *
- * @param depositorAddress - User's Ethereum address
- * @param spokeAddress - Spoke contract address (from config context)
- * @param vbtcReserveId - vBTC reserve ID (from config)
- * @returns Position with live data or null if not found
- */
-export async function getPositionWithLiveData(
-  depositorAddress: string,
-  spokeAddress: Address,
-  vbtcReserveId: bigint,
-): Promise<AavePositionWithLiveData | null> {
-  // Fetch position and collaterals from indexer in parallel
-  const [position, collaterals] = await Promise.all([
-    fetchAavePositionByDepositor(depositorAddress),
-    fetchAavePositionCollaterals(depositorAddress),
-  ]);
-
-  if (!position) {
-    return null;
-  }
-
-  const proxyAddress = position.proxyContract as Address;
-
-  // Fetch live data from Spoke in parallel
-  const [spokePosition, accountData] = await Promise.all([
-    AaveSpoke.getUserPosition(spokeAddress, vbtcReserveId, proxyAddress),
-    AaveSpoke.getUserAccountData(spokeAddress, proxyAddress),
-  ]);
-
-  return {
-    ...position,
-    collaterals,
-    liveData: {
-      drawnShares: spokePosition.drawnShares,
-      premiumShares: spokePosition.premiumShares,
-      suppliedShares: spokePosition.suppliedShares,
-      hasDebt: hasDebtFromPosition(spokePosition),
-      dynamicConfigKey: spokePosition.dynamicConfigKey,
-    },
-    accountData,
-  };
-}
-
-/**
- * Check if a position can withdraw collateral
- *
- * Position can only withdraw if it has no debt.
- *
- * @param depositorAddress - User's Ethereum address
- * @param spokeAddress - Spoke contract address (from config context)
- * @param vbtcReserveId - vBTC reserve ID (from config)
- * @returns true if position can withdraw
- */
-export async function canWithdrawCollateral(
-  depositorAddress: string,
-  spokeAddress: Address,
-  vbtcReserveId: bigint,
-): Promise<boolean> {
-  const position = await getPositionWithLiveData(
-    depositorAddress,
-    spokeAddress,
-    vbtcReserveId,
-  );
-  if (!position) {
-    return false;
-  }
-  return !position.liveData.hasDebt;
 }

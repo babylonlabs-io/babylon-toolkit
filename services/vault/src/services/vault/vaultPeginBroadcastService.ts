@@ -11,6 +11,7 @@ import {
   TXID_RE,
   pushTx,
 } from "@babylonlabs-io/ts-sdk";
+import { assertPsbtUnsignedTxMatches } from "@babylonlabs-io/ts-sdk/tbv/core/primitives";
 import { getPsbtInputFields } from "@babylonlabs-io/ts-sdk/tbv/core/utils";
 import { Psbt, Transaction } from "bitcoinjs-lib";
 import { Buffer } from "buffer";
@@ -248,6 +249,12 @@ async function signAndFinalizePsbt(
   btcWalletProvider: { signPsbt: (psbtHex: string) => Promise<string> },
 ): Promise<string> {
   const signedPsbtHex = await btcWalletProvider.signPsbt(psbtHex);
+
+  assertPsbtUnsignedTxMatches({
+    requestedPsbtHex: psbtHex,
+    returnedPsbtHex: signedPsbtHex,
+  });
+
   const signedPsbt = Psbt.fromHex(signedPsbtHex);
 
   // Finalize inputs if not already finalized

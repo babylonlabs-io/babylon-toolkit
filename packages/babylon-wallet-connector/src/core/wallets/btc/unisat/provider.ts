@@ -8,6 +8,7 @@ import { resolveUseTweakedSigner } from "@/core/utils/psbtOptionsMapper";
 import { ERROR_CODES, WalletError, isUserRejectionMessage } from "@/error";
 
 import logo from "./logo.svg";
+import { MIN_UNISAT_VERSION, checkUnisatVersion } from "./version";
 
 enum UnisatChainEnum {
   BITCOIN_SIGNET = "BITCOIN_SIGNET",
@@ -89,6 +90,11 @@ export class UnisatProvider implements IBTCProvider {
       }
     }
 
+    // Run after requestAccounts so origin permission is already granted —
+    // getVersion() then resolves synchronously off PlatformEnv.VERSION with
+    // no further user prompt.
+    await this.ensureSupportedVersion();
+
     // Unisat silently returns a wrong-network (or empty) account if the wallet
     // is on a chain the dApp does not target. Align the wallet to the configured
     // network before reading the address/pubkey so the connection cannot succeed
@@ -114,6 +120,51 @@ export class UnisatProvider implements IBTCProvider {
         wallet: WALLET_PROVIDER_NAME,
       });
     }
+  };
+
+  private ensureSupportedVersion = async (): Promise<void> => {
+    // Missing method = an old build that pre-dates getVersion().
+    if (typeof this.provider.getVersion !== "function") {
+      throw new WalletError({
+        code: ERROR_CODES.INCOMPATIBLE_WALLET_VERSION,
+        message: `Your Unisat Wallet extension is out of date. Please update to version ${MIN_UNISAT_VERSION} or later and try again.`,
+        wallet: WALLET_PROVIDER_NAME,
+      });
+    }
+
+    // Locked wallet / busy / transient RPC error — not an upgrade issue, so
+    // surface as CONNECTION_FAILED rather than telling the user to update.
+    let raw: unknown;
+    try {
+      raw = await this.provider.getVersion();
+    } catch (error) {
+      throw new WalletError({
+        code: ERROR_CODES.CONNECTION_FAILED,
+        message: (error as Error)?.message || "Failed to read Unisat Wallet version",
+        wallet: WALLET_PROVIDER_NAME,
+      });
+    }
+
+    const result = checkUnisatVersion(raw);
+    if (result === "ok") return;
+
+    if (result === "below") {
+      throw new WalletError({
+        code: ERROR_CODES.INCOMPATIBLE_WALLET_VERSION,
+        message: `Your Unisat Wallet extension is out of date (${raw}). Please update to version ${MIN_UNISAT_VERSION} or later and try again.`,
+        wallet: WALLET_PROVIDER_NAME,
+        version: raw as string,
+      });
+    }
+
+    // Non-canonical version string (e.g. `v1.7.14`, `1.7.14-beta`, fork
+    // build): fail closed without claiming "out of date" — could be a fresh
+    // build that happens to emit a non-standard format.
+    throw new WalletError({
+      code: ERROR_CODES.INCOMPATIBLE_WALLET_VERSION,
+      message: `Unable to verify your Unisat Wallet version${typeof raw === "string" ? ` (got "${raw}")` : ""}. Please install the official Unisat Wallet ${MIN_UNISAT_VERSION} or later and try again.`,
+      wallet: WALLET_PROVIDER_NAME,
+    });
   };
 
   private ensureExpectedChain = async (): Promise<void> => {

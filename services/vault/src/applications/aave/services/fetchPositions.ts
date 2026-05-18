@@ -110,13 +110,6 @@ interface GraphQLUserPositionsWithCollateralsResponse {
   };
 }
 
-/** GraphQL response for position collaterals */
-interface GraphQLPositionCollateralsResponse {
-  aavePositionCollaterals: {
-    items: GraphQLCollateralItem[];
-  };
-}
-
 const GET_AAVE_ACTIVE_POSITIONS_WITH_COLLATERALS = gql`
   query GetAaveActivePositionsWithCollaterals($depositorAddress: String!) {
     aavePositions(where: { depositorAddress: $depositorAddress }) {
@@ -147,42 +140,6 @@ const GET_AAVE_ACTIVE_POSITIONS_WITH_COLLATERALS = gql`
           }
         }
       }
-    }
-  }
-`;
-
-const GET_AAVE_POSITION_COLLATERALS = gql`
-  query GetAavePositionCollaterals($depositorAddress: String!) {
-    aavePositionCollaterals(where: { depositorAddress: $depositorAddress }) {
-      items {
-        depositorAddress
-        vaultId
-        amount
-        addedAt
-        removedAt
-        liquidationIndex
-        vault {
-          id
-          amount
-          status
-          vaultProvider
-          inUse
-          depositorBtcPubKey
-          depositorPayoutBtcAddress
-        }
-      }
-    }
-  }
-`;
-
-const GET_AAVE_POSITION_BY_DEPOSITOR = gql`
-  query GetAavePositionByDepositor($depositorAddress: String!) {
-    aavePosition(depositorAddress: $depositorAddress) {
-      depositorAddress
-      proxyContract
-      totalCollateral
-      createdAt
-      updatedAt
     }
   }
 `;
@@ -252,86 +209,4 @@ export async function fetchAaveActivePositionsWithCollaterals(
       mapGraphQLCollateralToAavePositionCollateral,
     ),
   }));
-}
-
-/**
- * Fetches a single Aave position by depositor address from the GraphQL indexer.
- *
- * @param depositorAddress - User's Ethereum address
- * @returns Aave position or null if not found
- */
-export async function fetchAavePositionByDepositor(
-  depositorAddress: string,
-): Promise<AavePosition | null> {
-  const response = await graphqlClient.request<{
-    aavePosition: GraphQLPositionItem | null;
-  }>(GET_AAVE_POSITION_BY_DEPOSITOR, {
-    depositorAddress: depositorAddress.toLowerCase(),
-  });
-
-  if (!response.aavePosition) {
-    return null;
-  }
-
-  return mapGraphQLPositionToAavePosition(response.aavePosition);
-}
-
-/**
- * Fetches collateral entries for a position from the GraphQL indexer.
- *
- * @param depositorAddress - Depositor's Ethereum address
- * @returns Array of collateral entries with vault data
- */
-export async function fetchAavePositionCollaterals(
-  depositorAddress: string,
-): Promise<AavePositionCollateral[]> {
-  const response =
-    await graphqlClient.request<GraphQLPositionCollateralsResponse>(
-      GET_AAVE_POSITION_COLLATERALS,
-      { depositorAddress: depositorAddress.toLowerCase() },
-    );
-
-  return response.aavePositionCollaterals.items.map(
-    mapGraphQLCollateralToAavePositionCollateral,
-  );
-}
-
-/**
- * Fetches a position with its collateral entries from the GraphQL indexer.
- * Combines position data with collateral data in a single response.
- *
- * @param depositorAddress - User's Ethereum address
- * @returns Position with collaterals or null if not found
- */
-export async function fetchAavePositionWithCollaterals(
-  depositorAddress: string,
-): Promise<AavePositionWithCollaterals | null> {
-  // Fetch position and collaterals in parallel
-  const [positionResponse, collateralsResponse] = await Promise.all([
-    graphqlClient.request<{
-      aavePosition: GraphQLPositionItem | null;
-    }>(GET_AAVE_POSITION_BY_DEPOSITOR, {
-      depositorAddress: depositorAddress.toLowerCase(),
-    }),
-    graphqlClient.request<GraphQLPositionCollateralsResponse>(
-      GET_AAVE_POSITION_COLLATERALS,
-      { depositorAddress: depositorAddress.toLowerCase() },
-    ),
-  ]);
-
-  if (!positionResponse.aavePosition) {
-    return null;
-  }
-
-  const position = mapGraphQLPositionToAavePosition(
-    positionResponse.aavePosition,
-  );
-  const collaterals = collateralsResponse.aavePositionCollaterals.items.map(
-    mapGraphQLCollateralToAavePositionCollateral,
-  );
-
-  return {
-    ...position,
-    collaterals,
-  };
 }

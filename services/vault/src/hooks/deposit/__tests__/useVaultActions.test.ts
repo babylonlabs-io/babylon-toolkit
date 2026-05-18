@@ -91,10 +91,6 @@ vi.mock("@/services/vault/vaultPeginBroadcastService", () => ({
   utxosToExpectedRecord: vi.fn(() => ({})),
 }));
 
-vi.mock("@/utils/btc", () => ({
-  stripHexPrefix: vi.fn((hex: string) => hex.replace("0x", "")),
-}));
-
 vi.mock("@/models/peginStateMachine", async (importOriginal) => {
   const actual =
     await importOriginal<typeof import("@/models/peginStateMachine")>();
