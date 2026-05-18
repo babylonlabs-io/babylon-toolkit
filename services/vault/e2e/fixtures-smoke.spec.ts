@@ -1,12 +1,15 @@
 /**
  * Smoke spec for the e2e fixture scaffold introduced in #1589.
  *
- * Verifies:
- *   - the typed seeded-wallet factories return values that satisfy the
- *     mempool wire shape the dApp's `useUTXOs` consumes;
+ * Verifies the bits that genuinely need a browser:
  *   - `installWalletSentinel` writes a sentinel to
  *     `window.__BABYLON_E2E_WALLETS__` before navigation completes;
  *   - the page-object scaffold reaches the running app (AppShell on `/`).
+ *
+ * Pure-factory invariants (seededBtcWallet / seededEthWallet output
+ * shape) live alongside the other fixture unit tests under
+ * `fixtures/__tests__/seededWallets.test.ts` so they run under vitest
+ * instead of spinning up the Playwright webServer + browser context.
  *
  * The deeper page interactions (clicking through the deposit modal,
  * asserting a position appears) belong to the per-flow tickets.
@@ -19,34 +22,6 @@ import {
   mockVpProxy,
   test,
 } from "./fixtures";
-
-test("seededBtcWallet exposes mempool-wire payloads that sum to the seeded amount", ({
-  seededBtcWallet,
-}) => {
-  const wallet = seededBtcWallet({ amount: 250_000n });
-  expect(wallet.balanceSats).toBe(250_000n);
-  const totalValue = wallet.mempoolUtxos.reduce((s, u) => s + u.value, 0);
-  expect(BigInt(totalValue)).toBe(250_000n);
-  expect(wallet.mempoolAddressInfo.isvalid).toBe(true);
-  // Default address is signet P2WPKH (`tb1q...`), so the scriptPubKey
-  // is 0014 (OP_0 push-20) + 20-byte hash placeholder (40 hex).
-  expect(wallet.mempoolAddressInfo.scriptPubKey).toMatch(/^0014[0-9a-f]{40}$/);
-});
-
-test("seededBtcWallet rejects utxoSplit that doesn't sum to amount", ({
-  seededBtcWallet,
-}) => {
-  expect(() =>
-    seededBtcWallet({ amount: 100n, utxoSplit: [40n, 50n] }),
-  ).toThrow(/sum to 90n, expected 100n/);
-});
-
-test("seededEthWallet exposes balanceWeiHex as a valid quantity", ({
-  seededEthWallet,
-}) => {
-  const wallet = seededEthWallet({ balanceWei: 5n * 10n ** 18n });
-  expect(wallet.balanceWeiHex).toBe(`0x${(5n * 10n ** 18n).toString(16)}`);
-});
 
 test("installWalletSentinel sets the e2e wallet global before navigation", async ({
   page,

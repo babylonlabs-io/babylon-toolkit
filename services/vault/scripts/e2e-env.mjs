@@ -31,12 +31,31 @@ const PORTS = {
 
 const DEFAULT_BTC_ADDRESS = "tb1qce0n0rv27dwx37dfvhxaaly4lnwelqjuqywvka";
 const DEFAULT_BALANCE_SATS = 100_000_000;
-// Placeholder P2WPKH scriptPubKey matching DEFAULT_BTC_ADDRESS's witness
-// version 0 (`tb1q...`): 0014 (OP_0 + push-20) + 20-byte hash placeholder.
-// Real bech32 characters are not hex, so this hex placeholder is a
-// stand-in that satisfies assertValidScriptPubKey in the dApp; tests
-// that need a real address-derived script must wire one explicitly.
-const DEFAULT_SCRIPT_PUBKEY = `0014${"ab".repeat(20)}`;
+
+// Mirrors `deriveScriptPubKey` in `services/vault/e2e/fixtures/seededWallets.ts`
+// so the standalone dev backend and the Playwright fixtures hand the
+// dApp byte-identical placeholders for the same address. When changing
+// the algorithm, update both sites.
+function hashAddressToHex(address, hexChars) {
+  let hash = 0n;
+  for (const ch of address) {
+    hash = (hash * 1315423911n) ^ BigInt(ch.charCodeAt(0));
+  }
+  return hash.toString(16).padStart(hexChars, "0").slice(-hexChars);
+}
+
+function deriveScriptPubKey(address) {
+  const lower = address.toLowerCase();
+  if (lower.startsWith("bc1q") || lower.startsWith("tb1q")) {
+    return `0014${hashAddressToHex(address, 40)}`;
+  }
+  if (lower.startsWith("bc1p") || lower.startsWith("tb1p")) {
+    return `5120${hashAddressToHex(address, 64)}`;
+  }
+  return `5120${hashAddressToHex(address, 64)}`;
+}
+
+const DEFAULT_SCRIPT_PUBKEY = deriveScriptPubKey(DEFAULT_BTC_ADDRESS);
 
 function jsonResponse(res, body, status = 200) {
   res.writeHead(status, {
@@ -124,8 +143,14 @@ const ethServer = http.createServer(async (req, res) => {
 const mempoolServer = http.createServer((req, res) => {
   if (handlePreflight(req, res)) return;
   const url = new URL(req.url ?? "/", `http://localhost:${PORTS.mempool}`);
-  const path = url.pathname.replace(/^\/mempool/, "");
-  if (path === `/address/${DEFAULT_BTC_ADDRESS}/utxo`) {
+  // The dApp emits URLs of the form
+  //   `${NEXT_PUBLIC_MEMPOOL_API}/<network>/api/...`
+  // on signet and `${NEXT_PUBLIC_MEMPOOL_API}/api/...` on mainnet.
+  // Suffix-match the path so a single handler covers both shapes and
+  // every supported BTC network. Mirrors the Playwright glob in
+  // `networkRoutes.ts` (`**/address/{addr}/utxo`, etc.).
+  const path = url.pathname;
+  if (path.endsWith(`/address/${DEFAULT_BTC_ADDRESS}/utxo`)) {
     jsonResponse(res, [
       {
         txid: `ee${"00".repeat(30)}0000`,
@@ -136,11 +161,11 @@ const mempoolServer = http.createServer((req, res) => {
     ]);
     return;
   }
-  if (path === `/v1/validate-address/${DEFAULT_BTC_ADDRESS}`) {
+  if (path.endsWith(`/v1/validate-address/${DEFAULT_BTC_ADDRESS}`)) {
     jsonResponse(res, { isvalid: true, scriptPubKey: DEFAULT_SCRIPT_PUBKEY });
     return;
   }
-  if (path === "/v1/fees/recommended") {
+  if (path.endsWith("/v1/fees/recommended")) {
     jsonResponse(res, {
       fastestFee: 5,
       halfHourFee: 4,

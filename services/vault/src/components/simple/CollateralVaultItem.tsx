@@ -56,7 +56,10 @@ export function CollateralVaultItem({
   };
 
   return (
-    <div className="space-y-3 rounded-xl border border-secondary-strokeLight p-4">
+    <div
+      data-testid="vault-card"
+      className="space-y-3 rounded-xl border border-secondary-strokeLight p-4"
+    >
       {/* Top row: BTC icon + amount + checkbox */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">

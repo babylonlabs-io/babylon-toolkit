@@ -11,12 +11,14 @@ export type {
   MockEthWalletOptions,
 } from "./mockEthWallet";
 export {
+  ETH_RPC_METHOD_NOT_HANDLED,
   mockEthRpc,
   mockEthRpcForSeededWallet,
   mockGraphql,
   mockMempoolForSeededBtcWallet,
   mockVpProxy,
 } from "./networkRoutes";
+export type { MockEthRpcOptions } from "./networkRoutes";
 export { seededBtcWallet, seededEthWallet } from "./seededWallets";
 export type {
   SeededBtcWallet,

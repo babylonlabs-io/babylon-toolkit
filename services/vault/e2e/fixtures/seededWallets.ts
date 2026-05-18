@@ -92,6 +92,9 @@ function hashAddressToHex(address: string, hexChars: number): string {
   return hash.toString(16).padStart(hexChars, "0").slice(-hexChars);
 }
 
+// NOTE: when this algorithm changes, mirror the update in
+// `services/vault/scripts/e2e-env.mjs` (`deriveScriptPubKey`) so the
+// Playwright fixtures and the standalone dev script stay consistent.
 function deriveScriptPubKey(address: string): string {
   // Emit a placeholder scriptPubKey that matches the address's witness
   // type so consumers that branch on script shape (P2WPKH 20-byte hash

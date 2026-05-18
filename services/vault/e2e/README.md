@@ -52,7 +52,7 @@ Use this when you want to point a regular browser at the vault dApp
 with deterministic backend responses (no Playwright).
 
 ```bash
-pnpm --filter vault run e2e:env           # starts the four mock listeners
+pnpm --filter vault run e2e:env           # starts the four mock listeners; Ctrl-C tears down cleanly
 NEXT_PUBLIC_E2E_MODE=1 pnpm --filter vault run dev
 ```
 
@@ -93,7 +93,7 @@ test("dashboard reflects seeded BTC balance", async ({
   await installWalletSentinel({ btc: wallet });
 
   await appShell.goto();
-  await expect(dashboard.collateralSectionHeading).toBeVisible();
+  await expect(dashboard.vaultCard(/BTC/i)).toBeVisible();
 });
 ```
 
