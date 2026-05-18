@@ -28,9 +28,11 @@ test("seededBtcWallet exposes mempool-wire payloads that sum to the seeded amoun
   const totalValue = wallet.mempoolUtxos.reduce((s, u) => s + u.value, 0);
   expect(BigInt(totalValue)).toBe(250_000n);
   expect(wallet.mempoolAddressInfo.isvalid).toBe(true);
-  // Default address is signet P2WPKH (`tb1q...`), so the scriptPubKey
-  // is 0014 (OP_0 push-20) + 20-byte hash placeholder (40 hex).
-  expect(wallet.mempoolAddressInfo.scriptPubKey).toMatch(/^0014[0-9a-f]{40}$/);
+  // Default address is signet P2TR (`tb1p...`) - the vault deposit CTA
+  // is gated on Taproot, so the seeded fixture must default there.
+  // P2TR scriptPubKey: 5120 (OP_1 push-32) + 32-byte x-only key
+  // placeholder (64 hex).
+  expect(wallet.mempoolAddressInfo.scriptPubKey).toMatch(/^5120[0-9a-f]{64}$/);
 });
 
 test("seededBtcWallet rejects utxoSplit that doesn't sum to amount", ({

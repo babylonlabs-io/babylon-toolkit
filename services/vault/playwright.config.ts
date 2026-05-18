@@ -20,6 +20,10 @@ const MOCK_ENV_VARS = {
   // signet/mainnet default and tests would have to intercept the live
   // hostname.
   NEXT_PUBLIC_MEMPOOL_API: "http://localhost:9996/mempool",
+  // Pin the network so fixture pre-seed of
+  // `baby-connected-wallet-accounts` (which scopes by chain:network)
+  // matches what the dApp reads at boot.
+  NEXT_PUBLIC_BTC_NETWORK: "signet",
   NEXT_PUBLIC_REOWN_PROJECT_ID: "test-project-id-12345",
   NEXT_PUBLIC_SENTRY_DSN: "https://test@o12345.ingest.sentry.io/12345",
   NEXT_PUBLIC_SIDECAR_API_URL: "http://localhost:8092",

@@ -22,9 +22,16 @@ import { logger } from "@/infrastructure";
 // throws `WALLET_METHOD_NOT_SUPPORTED` at the connector layer; this
 // list just keeps them out of the connection UI in the first place so
 // users don't pick something that can't complete a deposit.
+//
+// In e2e mode we keep `"injectable"` enabled so Playwright can install
+// a `window.btcwallet` mock that does expose `deriveContextHash`. The
+// gate flips at build time via Vite's `NEXT_PUBLIC_E2E_MODE`; a
+// production build never sets this var, so users still see only the
+// UniSat-and-friends list.
+const IS_E2E_MODE = process.env.NEXT_PUBLIC_E2E_MODE === "1";
 const DISABLED_WALLETS: string[] = [
   APPKIT_BTC_CONNECTOR_ID,
-  "injectable",
+  ...(IS_E2E_MODE ? [] : ["injectable"]),
   "keystone",
   "ledger_btc",
   "ledger_btc_v2",

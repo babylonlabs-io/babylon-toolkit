@@ -26,7 +26,15 @@ import {
   type MockEthWalletOptions,
 } from "./mockEthWallet";
 
-const DEFAULT_BTC_ADDRESS = "tb1qce0n0rv27dwx37dfvhxaaly4lnwelqjuqywvka";
+// Signet Taproot address derived from the all-`ab` test key (matches
+// `mockBtcWallet.ts`'s publicKey). Required: the vault's
+// AddressTypeProvider only treats `tb1p...` / `bc1p...` (P2TR) as
+// supported, and the dApp's "Deposit BTC" CTA is gated on that. A
+// non-Taproot address would render the CTA disabled with a "switch
+// to Taproot" tooltip, breaking any test that drives the deposit
+// flow.
+const DEFAULT_BTC_ADDRESS =
+  "tb1pwumwrmky0y5m5vsarnxs5fz37gvaxfcgxrf5zu3slg48pzsdn8zqfcxywh";
 
 /** Wire payload from `GET /api/address/{addr}/utxo`. */
 export interface SeededMempoolUtxo {

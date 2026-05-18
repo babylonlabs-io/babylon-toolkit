@@ -1,3 +1,5 @@
+export { preConnectWallets } from "./connectedWallets";
+export type { PreConnectOptions } from "./connectedWallets";
 export { createMockBtcWallet } from "./mockBtcWallet";
 export type {
   MockBtcScript,
