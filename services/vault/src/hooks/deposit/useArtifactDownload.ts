@@ -162,12 +162,7 @@ export function useArtifactDownload(options?: {
             continue;
           }
 
-          const wasCold = !vpTokenRegistry.peek(normalizedPeginTxid);
-          if (
-            !primeAttempted &&
-            (wasCold || isAuthFailure(err)) &&
-            !cancelledRef.current
-          ) {
+          if (!primeAttempted && isAuthFailure(err) && !cancelledRef.current) {
             primeAttempted = true;
             try {
               const primed = await tryPrimeAndRetry();
