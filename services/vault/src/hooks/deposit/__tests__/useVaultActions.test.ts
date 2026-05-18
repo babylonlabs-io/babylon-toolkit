@@ -406,6 +406,33 @@ describe("useVaultActions — handleActivation hashlock source", () => {
     expect(result.current.activationError).toContain("PENDING");
   });
 
+  // The on-chain BTCVaultStatus enum has Expired = 4. The app-side
+  // `ContractStatus` enum reassigns 4 to LIQUIDATED (indexer-only), so a
+  // naive `ContractStatus[status]` lookup mislabels on-chain Expired as
+  // LIQUIDATED — sending users / support down the wrong recovery path.
+  // handleActivation must use the on-chain label, not the app-side one.
+  it("labels on-chain status 4 as EXPIRED (not LIQUIDATED) in the activation error", async () => {
+    const reader = readerReturning(
+      {
+        depositorSignedPeginTx: "0xdeadbeef",
+        hashlock: ON_CHAIN_HASHLOCK,
+      },
+      // 4 = on-chain BTCVaultStatus.Expired
+      { status: 4 },
+    );
+    mockGetVaultRegistryReader.mockReturnValue(reader);
+
+    const { result } = renderHook(() => useVaultActions());
+
+    await act(async () => {
+      await result.current.handleActivation(baseActivationParams);
+    });
+
+    expect(mockActivateVaultWithSecret).not.toHaveBeenCalled();
+    expect(result.current.activationError).toContain("EXPIRED");
+    expect(result.current.activationError).not.toContain("LIQUIDATED");
+  });
+
   it("forwards the on-chain hashlock to activateVaultWithSecret for SDK-side defense in depth", async () => {
     const reader = readerReturning({
       depositorSignedPeginTx: "0xdeadbeef",

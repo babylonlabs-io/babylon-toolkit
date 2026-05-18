@@ -6,7 +6,10 @@ import {
   ensureHexPrefix,
   stripHexPrefix,
 } from "@babylonlabs-io/ts-sdk/tbv/core";
-import { vpTokenRegistry } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
+import {
+  OnChainBtcVaultStatus,
+  vpTokenRegistry,
+} from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import { validateSecretAgainstHashlock } from "@babylonlabs-io/ts-sdk/tbv/core/services";
 import {
   calculateBtcTxHash,
@@ -261,10 +264,16 @@ export function useVaultActions(): UseVaultActionsReturn {
       // reporting VERIFIED while the contract is still PENDING would let the
       // secret reach `simulateContract` calldata and leak to the RPC layer.
       // Exact-match VERIFIED (not >= 1) — ACTIVE/REDEEMED/etc. must not pass.
+      // Compare AND label against `OnChainBtcVaultStatus` (not the app-side
+      // `ContractStatus`, which reassigns the contract's Expired(4) value to
+      // the indexer-only LIQUIDATED and would mislabel on-chain Expired).
       const basicInfo = await reader.getVaultBasicInfo(vaultId);
-      if (basicInfo.status !== ContractStatus.VERIFIED) {
+      if (basicInfo.status !== OnChainBtcVaultStatus.VERIFIED) {
+        const label =
+          OnChainBtcVaultStatus[basicInfo.status] ??
+          `UNKNOWN(${basicInfo.status})`;
         throw new Error(
-          `Cannot activate: vault is in ${ContractStatus[basicInfo.status]} state. Activation is only valid when VERIFIED.`,
+          `Cannot activate: vault is in ${label} state. Activation is only valid when VERIFIED.`,
         );
       }
 

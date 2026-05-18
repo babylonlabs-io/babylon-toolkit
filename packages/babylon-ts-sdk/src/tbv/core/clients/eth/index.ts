@@ -13,6 +13,7 @@ export {
   ViemVaultKeeperReader,
 } from "./signer-set-reader";
 export { ViemVaultRegistryReader } from "./vault-registry-reader";
+export { OnChainBtcVaultStatus } from "./types";
 export type {
   AddressBTCKeyPair,
   AllOffchainParamsData,
