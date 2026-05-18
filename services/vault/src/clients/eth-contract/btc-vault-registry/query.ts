@@ -37,6 +37,13 @@ export interface OnChainVaultData {
    * Required by `buildPayoutPsbt` to cap the VP-claimer commission output.
    */
   vaultProviderCommissionBps: number;
+  /**
+   * Live `BTCVaultStatus` enum value from `basic.status`. Compare against
+   * `OnChainBtcVaultStatus`, not the app-side `ContractStatus` — the
+   * indexer enum reassigns the contract's Expired(4) to LIQUIDATED and
+   * would mislabel a chain read.
+   */
+  status: number;
 }
 
 /**
@@ -64,6 +71,7 @@ export async function getVaultFromChain(
     amount: basic.amount,
     prePeginTxHash: protocol.prePeginTxHash,
     vaultProviderCommissionBps: Number(protocol.vaultProviderCommissionBps),
+    status: basic.status,
   };
 }
 
