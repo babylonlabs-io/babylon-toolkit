@@ -28,7 +28,8 @@ type GraphQLActivityType =
   | "liquidation"
   | "borrow"
   | "repay"
-  | "redeem";
+  | "redeem"
+  | "claim_expired";
 
 interface GraphQLVaultActivityItem {
   id: string;
@@ -120,6 +121,7 @@ const TYPE_MAP: Record<GraphQLActivityType, ActivityType> = {
   borrow: "Borrow",
   repay: "Repay",
   redeem: "Redeem",
+  claim_expired: "Claim Expired",
 };
 
 function mapActivityType(type: string): ActivityType | undefined {

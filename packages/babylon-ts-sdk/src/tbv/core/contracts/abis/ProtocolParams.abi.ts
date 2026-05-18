@@ -43,6 +43,11 @@ export const ProtocolParamsABI = [
             type: "uint8",
             internalType: "uint8",
           },
+          {
+            name: "expiredPegInGraceBlocks",
+            type: "uint64",
+            internalType: "uint64",
+          },
         ],
       },
     ],
@@ -114,7 +119,7 @@ export const ProtocolParamsABI = [
             internalType: "uint64",
           },
           {
-            name: "proverProgramVersion",
+            name: "proverCircuitVersion",
             type: "uint16",
             internalType: "uint16",
           },
@@ -200,7 +205,7 @@ export const ProtocolParamsABI = [
             internalType: "uint64",
           },
           {
-            name: "proverProgramVersion",
+            name: "proverCircuitVersion",
             type: "uint16",
             internalType: "uint16",
           },

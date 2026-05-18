@@ -2,11 +2,13 @@
  * Tests for pegin polling utilities
  */
 
+import { DaemonStatus } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import { describe, expect, it } from "vitest";
 
 import {
   isTerminalPollingError,
   isTransientPollingError,
+  TerminalPeginPollingError,
 } from "../peginPolling";
 
 describe("isTransientPollingError", () => {
@@ -43,39 +45,28 @@ describe("isTransientPollingError", () => {
 });
 
 describe("isTerminalPollingError", () => {
-  it("should return true for 'Unauthorized depositor'", () => {
+  it("returns false for plain Errors (no daemon status)", () => {
     expect(isTerminalPollingError(new Error("Unauthorized depositor"))).toBe(
-      true,
-    );
-  });
-
-  it("should return true when message contains the pattern", () => {
-    expect(
-      isTerminalPollingError(
-        new Error(
-          "Unauthorized depositor: Depositor public key does not match payout receiver for claimer",
-        ),
-      ),
-    ).toBe(true);
-  });
-
-  it("should return false for transient errors", () => {
-    expect(isTerminalPollingError(new Error("PegIn not found"))).toBe(false);
-    expect(
-      isTerminalPollingError(new Error("No transaction graphs found")),
-    ).toBe(false);
-  });
-
-  it("should return false for generic errors", () => {
-    expect(isTerminalPollingError(new Error("Network error"))).toBe(false);
-    expect(isTerminalPollingError(new Error("Provider unreachable"))).toBe(
       false,
     );
+    expect(isTerminalPollingError(new Error("Network error"))).toBe(false);
   });
 
-  it("should return false for non-Error values", () => {
+  it("returns false for non-Error values", () => {
     expect(isTerminalPollingError("string error")).toBe(false);
     expect(isTerminalPollingError(null)).toBe(false);
     expect(isTerminalPollingError(undefined)).toBe(false);
+  });
+
+  it.each([
+    DaemonStatus.EXPIRED_IN_CLAIM,
+    DaemonStatus.INVALID_SIG_IN_CONTRACT,
+    DaemonStatus.AML_REJECTED,
+    DaemonStatus.EXPIRED,
+    DaemonStatus.EXPIRED_CLEANED_UP,
+  ])("returns true for TerminalPeginPollingError(%s)", (status) => {
+    expect(
+      isTerminalPollingError(new TerminalPeginPollingError(status, "anything")),
+    ).toBe(true);
   });
 });

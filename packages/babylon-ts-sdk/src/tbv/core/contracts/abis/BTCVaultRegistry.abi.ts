@@ -9,7 +9,7 @@
 
 /**
  * Minimal ABI for BTCVaultRegistry contract.
- * Contains submitPeginRequest, submitPeginRequestBatch, activateVaultWithSecret, getPegInFee, and getBtcVaultBasicInfo.
+ * Contains submitPeginRequest, submitPeginRequestBatch, activateVaultWithSecret, getPegInFee, getBtcVaultBasicInfo, and getVaultProviderCommission.
  */
 export const BTCVaultRegistryABI = [
   {
@@ -45,6 +45,11 @@ export const BTCVaultRegistryABI = [
         name: "vaultProvider",
         type: "address",
         internalType: "address",
+      },
+      {
+        name: "maxAcceptableCommissionBps",
+        type: "uint16",
+        internalType: "uint16",
       },
       {
         name: "hashlock",
@@ -109,6 +114,11 @@ export const BTCVaultRegistryABI = [
         name: "vaultProvider",
         type: "address",
         internalType: "address",
+      },
+      {
+        name: "maxAcceptableCommissionBps",
+        type: "uint16",
+        internalType: "uint16",
       },
       {
         name: "hashlock",
@@ -152,9 +162,14 @@ export const BTCVaultRegistryABI = [
       { name: "depositor", type: "address", internalType: "address" },
       { name: "vaultProvider", type: "address", internalType: "address" },
       {
+        name: "maxAcceptableCommissionBps",
+        type: "uint16",
+        internalType: "uint16",
+      },
+      {
         name: "requests",
         type: "tuple[]",
-        internalType: "struct IBTCVaultRegistry.BatchPeginRequest[]",
+        internalType: "struct BTCVaultRegistryTypes.BatchPeginRequest[]",
         components: [
           { name: "depositorBtcPubKey", type: "bytes32", internalType: "bytes32" },
           { name: "btcPopSignature", type: "bytes", internalType: "bytes" },
@@ -223,6 +238,17 @@ export const BTCVaultRegistryABI = [
     ],
     outputs: [
       { name: "", type: "bytes32", internalType: "bytes32" },
+    ],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "getVaultProviderCommission",
+    inputs: [
+      { name: "vpAddr", type: "address", internalType: "address" },
+    ],
+    outputs: [
+      { name: "", type: "uint16", internalType: "uint16" },
     ],
     stateMutability: "view",
   },
@@ -390,6 +416,16 @@ export const BTCVaultRegistryABI = [
           },
           {
             name: "vaultProviderCommissionBps",
+            type: "uint16",
+            internalType: "uint16",
+          },
+          {
+            name: "claimExpiredUntil",
+            type: "uint256",
+            internalType: "uint256",
+          },
+          {
+            name: "vaultCoreVersion",
             type: "uint16",
             internalType: "uint16",
           },

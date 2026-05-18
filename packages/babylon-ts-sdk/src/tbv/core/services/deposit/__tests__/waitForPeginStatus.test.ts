@@ -77,31 +77,9 @@ describe("waitForPeginStatus", () => {
     expect(reader.getPeginStatus).toHaveBeenCalledTimes(3);
   });
 
-  it("treats 'PegIn not found' error message as transient and keeps polling", async () => {
+  it("treats PEGIN_NOT_FOUND RPC error code as transient and keeps polling", async () => {
     const reader = createMockStatusReader([
-      new Error("PegIn not found"),
-      new Error("PegIn not found"),
-      { status: DaemonStatus.PENDING_DEPOSITOR_WOTS_PK },
-    ]);
-
-    const resultPromise = waitForPeginStatus({
-      statusReader: reader,
-      peginTxid: VALID_TXID,
-      targetStatuses: new Set([DaemonStatus.PENDING_DEPOSITOR_WOTS_PK]),
-      timeoutMs: TEST_TIMEOUT_MS,
-      pollIntervalMs: TEST_POLL_INTERVAL_MS,
-    });
-
-    await vi.advanceTimersByTimeAsync(250);
-
-    const result = await resultPromise;
-    expect(result).toBe(DaemonStatus.PENDING_DEPOSITOR_WOTS_PK);
-    expect(reader.getPeginStatus).toHaveBeenCalledTimes(3);
-  });
-
-  it("treats NOT_FOUND RPC error code as transient and keeps polling", async () => {
-    const reader = createMockStatusReader([
-      new JsonRpcError(RpcErrorCode.NOT_FOUND, "not found"),
+      new JsonRpcError(RpcErrorCode.PEGIN_NOT_FOUND, "pegin not found"),
       { status: DaemonStatus.PENDING_DEPOSITOR_WOTS_PK },
     ]);
 
@@ -186,7 +164,7 @@ describe("waitForPeginStatus", () => {
   it("throws immediately when VP reaches a terminal status", async () => {
     const reader = createMockStatusReader([
       { status: DaemonStatus.PENDING_INGESTION },
-      { status: DaemonStatus.EXPIRED },
+      { status: DaemonStatus.EXPIRED_CLEANED_UP },
     ]);
 
     const resultPromise = waitForPeginStatus({
@@ -202,22 +180,22 @@ describe("waitForPeginStatus", () => {
     const error = await resultPromise;
     expect(error).toBeInstanceOf(Error);
     expect((error as Error).message).toContain("terminal status");
-    expect((error as Error).message).toContain("Expired");
+    expect((error as Error).message).toContain("ExpiredCleanedUp");
   });
 
   it("does not treat terminal status as error when it is in the target set", async () => {
     const reader = createMockStatusReader([
-      { status: DaemonStatus.EXPIRED },
+      { status: DaemonStatus.EXPIRED_CLEANED_UP },
     ]);
 
     const result = await waitForPeginStatus({
       statusReader: reader,
       peginTxid: VALID_TXID,
-      targetStatuses: new Set([DaemonStatus.EXPIRED]),
+      targetStatuses: new Set([DaemonStatus.EXPIRED_CLEANED_UP]),
       timeoutMs: TEST_TIMEOUT_MS,
     });
 
-    expect(result).toBe(DaemonStatus.EXPIRED);
+    expect(result).toBe(DaemonStatus.EXPIRED_CLEANED_UP);
   });
 
   it("accepts any status from the target set", async () => {
@@ -276,6 +254,25 @@ describe("waitForPeginStatus", () => {
         pollIntervalMs: TEST_POLL_INTERVAL_MS,
       }),
     ).rejects.toThrow(/returned status for pegin/);
+    expect(reader.getPeginStatus).toHaveBeenCalledOnce();
+  });
+
+  it("returns ACTIVATED as success-via-overshoot when target was an earlier state", async () => {
+    // Caller asked to wait for PENDING_ACTIVATION but VP raced past to
+    // ACTIVATED. The goal (reach some earlier state) is satisfied; the
+    // function should return rather than time out.
+    const reader = createMockStatusReader([
+      { status: DaemonStatus.ACTIVATED },
+    ]);
+
+    const result = await waitForPeginStatus({
+      statusReader: reader,
+      peginTxid: VALID_TXID,
+      targetStatuses: new Set([DaemonStatus.PENDING_ACTIVATION]),
+      timeoutMs: TEST_TIMEOUT_MS,
+    });
+
+    expect(result).toBe(DaemonStatus.ACTIVATED);
     expect(reader.getPeginStatus).toHaveBeenCalledOnce();
   });
 

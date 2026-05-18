@@ -7,14 +7,21 @@
 
 import * as bitcoin from "bitcoinjs-lib";
 import { Buffer } from "buffer";
-import { beforeAll, describe, expect, it, vi } from "vitest";
-import { zeroAddress, type Address, type Chain, type PublicClient } from "viem";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import {
+  decodeFunctionData,
+  zeroAddress,
+  type Address,
+  type Chain,
+  type PublicClient,
+} from "viem";
 
 import {
   MockBitcoinWallet,
   MockEthereumWallet,
 } from "../../../../testing";
 import { MEMPOOL_API_URLS } from "../../clients/mempool";
+import { BTCVaultRegistryABI } from "../../contracts";
 import {
   deriveNativeSegwitAddress,
   deriveTaprootAddress,
@@ -85,6 +92,9 @@ const TEST_PUBLIC_CLIENT = {
     .fn()
     .mockImplementation(({ functionName }: { functionName: string }) => {
       if (functionName === "getPegInFee") return Promise.resolve(0n);
+      // viem returns uint16 as a JS number — emulate that for the mock.
+      if (functionName === "getVaultProviderCommission")
+        return Promise.resolve(0);
       // getBtcVaultBasicInfo — return struct with zero depositor (vault doesn't exist)
       return Promise.resolve({ depositor: zeroAddress });
     }),
@@ -1097,6 +1107,121 @@ describe("PeginManager", () => {
           popSignature,
         }),
       ).rejects.toThrow(/Transaction reverted/);
+    });
+
+    describe("resolveMaxAcceptableCommissionBps (boundary cases)", () => {
+      // The shared TEST_PUBLIC_CLIENT.readContract mock is reset to its
+      // default after each case so per-test overrides don't leak.
+      const DEFAULT_READ_CONTRACT_IMPL = (
+        { functionName }: { functionName: string },
+      ) => {
+        if (functionName === "getPegInFee") return Promise.resolve(0n);
+        if (functionName === "getVaultProviderCommission")
+          return Promise.resolve(0);
+        return Promise.resolve({ depositor: zeroAddress });
+      };
+
+      afterEach(() => {
+        vi.mocked(TEST_PUBLIC_CLIENT.readContract).mockImplementation(
+          DEFAULT_READ_CONTRACT_IMPL,
+        );
+      });
+
+      // Decode the submitPeginRequest call data emitted by registerPeginOnChain
+      // and return the encoded maxAcceptableCommissionBps (7th arg, 0-indexed 6).
+      async function captureMaxAcceptableCommissionBps(
+        currentBpsMockReturn: unknown,
+        quotedCommissionBps?: number,
+      ): Promise<number> {
+        const readContractMock = vi.mocked(TEST_PUBLIC_CLIENT.readContract);
+        readContractMock.mockImplementation(
+          ({ functionName }: { functionName: string }) => {
+            if (functionName === "getPegInFee") return Promise.resolve(0n);
+            if (functionName === "getVaultProviderCommission")
+              return Promise.resolve(currentBpsMockReturn);
+            return Promise.resolve({ depositor: zeroAddress });
+          },
+        );
+
+        const { manager, ethWallet, popSignature } = await makeManagerWithPop();
+        const sendTxSpy = vi.spyOn(ethWallet, "sendTransaction");
+
+        await manager.registerPeginOnChain({
+          unsignedPrePeginTx: "0100000000010000000000",
+          depositorSignedPeginTx: MOCK_DEPOSITOR_SIGNED_PEGIN_TX,
+          vaultProvider: TEST_CONTRACT_ADDRESS,
+          hashlock: MOCK_HASHLOCK,
+          htlcVout: 0,
+          depositorPayoutBtcAddress: TEST_PAYOUT_ADDRESS,
+          depositorWotsPkHash: MOCK_WOTS_PK_HASH,
+          popSignature,
+          quotedCommissionBps,
+        });
+
+        const txData = sendTxSpy.mock.calls[0][0].data as `0x${string}`;
+        const decoded = decodeFunctionData({
+          abi: BTCVaultRegistryABI,
+          data: txData,
+        });
+        // submitPeginRequest args: [depositorEthAddress, depositorBtcPubkeyHex,
+        // btcPopSignature, unsignedPrePeginTxHex, depositorSignedPeginTxHex,
+        // vaultProvider, maxAcceptableCommissionBps, hashlock, htlcVout,
+        // payoutScriptPubKey, depositorWotsPkHash]
+        expect(decoded.functionName).toBe("submitPeginRequest");
+        return Number((decoded.args as readonly unknown[])[6]);
+      }
+
+      it("returns 25 when currentBps is 0 (HEADROOM only)", async () => {
+        expect(await captureMaxAcceptableCommissionBps(0)).toBe(25);
+      });
+
+      it("returns currentBps + HEADROOM just below the cap (9974 -> 9999)", async () => {
+        expect(await captureMaxAcceptableCommissionBps(9974)).toBe(9999);
+      });
+
+      it("clamps to the 9999 cap when currentBps + HEADROOM would exceed it (9975 -> 9999)", async () => {
+        expect(await captureMaxAcceptableCommissionBps(9975)).toBe(9999);
+      });
+
+      it("clamps to 9999 at the contract maximum (9999 -> 9999)", async () => {
+        expect(await captureMaxAcceptableCommissionBps(9999)).toBe(9999);
+      });
+
+      it("anchors to quoted + HEADROOM when quotedCommissionBps is supplied and chain is within drift", async () => {
+        expect(await captureMaxAcceptableCommissionBps(110, 100)).toBe(125);
+      });
+
+      it("anchors to quoted + HEADROOM even when chain reports below quote (no race-down adjustment)", async () => {
+        expect(await captureMaxAcceptableCommissionBps(50, 100)).toBe(125);
+      });
+
+      it("throws when chain drifted past quoted + HEADROOM since quote-display", async () => {
+        const readContractMock = vi.mocked(TEST_PUBLIC_CLIENT.readContract);
+        readContractMock.mockImplementation(
+          ({ functionName }: { functionName: string }) => {
+            if (functionName === "getPegInFee") return Promise.resolve(0n);
+            if (functionName === "getVaultProviderCommission")
+              return Promise.resolve(200);
+            return Promise.resolve({ depositor: zeroAddress });
+          },
+        );
+        const { manager, popSignature } = await makeManagerWithPop();
+
+        await expect(
+          manager.registerPeginOnChain({
+            unsignedPrePeginTx: "0100000000010000000000",
+            depositorSignedPeginTx: MOCK_DEPOSITOR_SIGNED_PEGIN_TX,
+            vaultProvider: TEST_CONTRACT_ADDRESS,
+            hashlock: MOCK_HASHLOCK,
+            htlcVout: 0,
+            depositorPayoutBtcAddress: TEST_PAYOUT_ADDRESS,
+            depositorWotsPkHash: MOCK_WOTS_PK_HASH,
+            popSignature,
+            quotedCommissionBps: 100,
+          }),
+        ).rejects.toThrow(/commission changed since quote/);
+      });
+
     });
   });
 

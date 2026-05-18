@@ -15,6 +15,7 @@ export type ActivityType =
   | "Borrow"
   | "Repay"
   | "Redeem"
+  | "Claim Expired"
   | "Pending Deposit";
 
 /**

@@ -24,7 +24,7 @@ const { OFFCHAIN_PARAMS, PEGIN_CONFIG } = vi.hoisted(() => {
     tRefund: 36,
     tStale: 0,
     minPeginFeeRate: 0n,
-    proverProgramVersion: 0,
+    proverCircuitVersion: 0,
     minPrepeginDepth: 0,
   };
   const config: PegInConfiguration = {
@@ -33,6 +33,7 @@ const { OFFCHAIN_PARAMS, PEGIN_CONFIG } = vi.hoisted(() => {
     pegInAckTimeout: 0n,
     pegInActivationTimeout: 0n,
     maxHtlcOutputCount: 1,
+    expiredPegInGraceBlocks: 144n,
     timelockPegin: 144,
     timelockRefund: 36,
     minVpCommissionBps: 0,

@@ -107,7 +107,7 @@ export function useVaultSplitParams(
 ): UseVaultSplitParamsResult {
   const { config } = useAaveConfig();
   const spokeAddress = config?.coreSpokeAddress;
-  const reserveId = config?.btcVaultCoreVbtcReserveId;
+  const reserveId = config?.vaultBtcReserveId;
 
   // Reuses the cached query inside useAaveUserPosition — no duplicate RPCs.
   const { position, isLoading: positionLoading } =

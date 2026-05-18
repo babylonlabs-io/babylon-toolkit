@@ -86,6 +86,24 @@ import {
 const NO_REFERRAL_CODE = 0;
 
 /**
+ * Headroom (in basis points) added to the current VP commission to compute
+ * `maxAcceptableCommissionBps` at submit time. Lets the VP raise its
+ * commission by up to this amount between read and submit without forcing
+ * a re-quote. Capped by {@link MAX_ACCEPTABLE_COMMISSION_BPS_CAP}.
+ *
+ * Contract check is strict `>` (PeginLogic.sol:182-190), so +25 allows up
+ * to +25 bps of drift.
+ */
+const COMMISSION_BPS_HEADROOM = 25;
+
+/**
+ * Hard ceiling for `maxAcceptableCommissionBps`. The contract enforces
+ * `commissionBps < 10000`, so any value at/above that is unreachable;
+ * `9999` is the maximum useful cap.
+ */
+const MAX_ACCEPTABLE_COMMISSION_BPS_CAP = 9999;
+
+/**
  * 32-byte zero hex used as a placeholder during the sizing pass for any
  * value whose content does not affect output sizes — currently the
  * per-vault hashlocks and the auth-anchor commitment. The commit pass
@@ -393,6 +411,9 @@ export interface RegisterPeginParams {
    * registration references a different htlcVout (0..N-1).
    */
   htlcVout: number;
+
+  /** VP commission (bps) shown to the user — bounds maxAcceptableCommissionBps. See #1691. */
+  quotedCommissionBps?: number;
 }
 
 /**
@@ -450,6 +471,8 @@ export interface RegisterPeginBatchParams {
   requests: BatchPeginRequestItem[];
   /** Proof of possession from {@link PeginManager.signProofOfPossession}. */
   popSignature: PopSignature;
+  /** See {@link RegisterPeginParams.quotedCommissionBps}. */
+  quotedCommissionBps?: number;
 }
 
 /**
@@ -1152,7 +1175,9 @@ export class PeginManager {
       );
     }
 
-    // Step 4: Query required pegin fee from the contract
+    // Step 4: Query required pegin fee and current VP commission from chain.
+    // Both reads happen at submit time to minimise drift between display and
+    // consequence; per the validation-layer rule, no caching.
     const publicClient = this.config.publicClient;
 
     let peginFee: bigint;
@@ -1171,6 +1196,12 @@ export class PeginManager {
       );
     }
 
+    const maxAcceptableCommissionBps =
+      await this.resolveMaxAcceptableCommissionBps(
+        vaultProvider,
+        params.quotedCommissionBps,
+      );
+
     // Step 5: Encode the contract call data
     const callData = encodeFunctionData({
       abi: BTCVaultRegistryABI,
@@ -1182,6 +1213,7 @@ export class PeginManager {
         unsignedPrePeginTxHex,
         depositorSignedPeginTxHex,
         vaultProvider,
+        maxAcceptableCommissionBps,
         hashlock,
         htlcVout,
         payoutScriptPubKey,
@@ -1320,7 +1352,8 @@ export class PeginManager {
       vaultResults.push({ vaultId, peginTxHash });
     }
 
-    // Step 4: Query pegin fee and compute total
+    // Step 4: Query pegin fee, compute total, and read current VP commission.
+    // Commission read happens at submit time per the validation-layer rule.
     const publicClient = this.config.publicClient;
 
     let peginFee: bigint;
@@ -1339,6 +1372,12 @@ export class PeginManager {
       );
     }
     const totalFee = peginFee * BigInt(requests.length);
+
+    const maxAcceptableCommissionBps =
+      await this.resolveMaxAcceptableCommissionBps(
+        vaultProvider,
+        params.quotedCommissionBps,
+      );
 
     // Step 5: Build BatchPeginRequest[] tuple array. Depositor BTC pubkey,
     // PoP, and Pre-PegIn tx hex are shared across the batch (carried on
@@ -1365,7 +1404,12 @@ export class PeginManager {
     const callData = encodeFunctionData({
       abi: BTCVaultRegistryABI,
       functionName: "submitPeginRequestBatch",
-      args: [depositorEthAddress, vaultProvider, batchRequests],
+      args: [
+        depositorEthAddress,
+        vaultProvider,
+        maxAcceptableCommissionBps,
+        batchRequests,
+      ],
     });
 
     // Step 7: Estimate gas
@@ -1420,6 +1464,49 @@ export class PeginManager {
       ethTxHash: receipt.transactionHash,
       vaults: vaultResults,
     };
+  }
+
+  // Anchor to quoted+headroom when supplied (refuse if chain drifted past it);
+  // otherwise fall back to chain-current+headroom — see #1691.
+  private async resolveMaxAcceptableCommissionBps(
+    vaultProvider: Address,
+    quotedCommissionBps?: number,
+  ): Promise<number> {
+    let currentBps: number;
+    try {
+      // viem infers `number` from the uint16 return in the `as const` ABI.
+      currentBps = await this.config.publicClient.readContract({
+        address: this.config.vaultContracts.btcVaultRegistry,
+        abi: BTCVaultRegistryABI,
+        functionName: "getVaultProviderCommission",
+        args: [vaultProvider],
+      });
+    } catch (error) {
+      throw new Error(
+        "Failed to query vault provider commission from the contract. " +
+          "Please check your network connection and that the contract address is correct.",
+        { cause: error },
+      );
+    }
+
+    if (quotedCommissionBps !== undefined) {
+      if (currentBps > quotedCommissionBps + COMMISSION_BPS_HEADROOM) {
+        throw new Error(
+          `Vault provider commission changed since quote: quoted ${quotedCommissionBps} bps, ` +
+            `chain currently reports ${currentBps} bps (allowed drift ${COMMISSION_BPS_HEADROOM} bps). ` +
+            `Please refresh to see the new commission and try again.`,
+        );
+      }
+      return Math.min(
+        quotedCommissionBps + COMMISSION_BPS_HEADROOM,
+        MAX_ACCEPTABLE_COMMISSION_BPS_CAP,
+      );
+    }
+
+    return Math.min(
+      currentBps + COMMISSION_BPS_HEADROOM,
+      MAX_ACCEPTABLE_COMMISSION_BPS_CAP,
+    );
   }
 
   /**

@@ -71,26 +71,16 @@ const PEGOUT_STATUS_MAP: Record<string, PegoutDisplayState> = {
     message:
       "Waiting for Bitcoin network confirmations. This may take a few hours.",
   },
-  [ClaimerPegoutStatusValue.CHALLENGE_ASSERT_OBSERVED]: {
-    label: "Under Review",
-    variant: "warning",
-    message:
-      "Your withdrawal is being reviewed for security. This may take additional time.",
-  },
-  [ClaimerPegoutStatusValue.WRONGLY_CHALLENGED_BROADCAST]: {
-    label: "Resuming",
-    variant: "pending",
-    message: "Security review passed. Your withdrawal is being finalized.",
-  },
   [ClaimerPegoutStatusValue.PAYOUT_BROADCAST]: {
     label: "BTC Sent",
     variant: "active",
     message: "Your BTC has been sent to your nominated address.",
   },
-  [ClaimerPegoutStatusValue.FAILED]: {
-    label: "Failed",
+  [ClaimerPegoutStatusValue.PAYOUT_BLOCKED]: {
+    label: "Blocked",
     variant: "warning",
-    message: "Withdrawal failed. Please contact support.",
+    message:
+      "Withdrawal was blocked on-chain (challenger or council override). Please contact support.",
   },
 };
 

@@ -77,7 +77,7 @@ export interface GetUserPositionsOptions {
    */
   borrowableReserveIds?: bigint[];
   /**
-   * vBTC reserve ID on Core Spoke (from config: btcVaultCoreVbtcReserveId).
+   * vBTC reserve ID on Core Spoke (from config: vaultBtcReserveId).
    * Required for fetching collateral position data from Spoke.
    */
   vbtcReserveId: bigint;

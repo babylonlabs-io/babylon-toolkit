@@ -39,7 +39,7 @@ function makeResponse(adapterAddress: Address = ENV_ADAPTER) {
       adapterAddress,
       vaultBtcAddress: VAULT_BTC,
       btcVaultRegistryAddress: BTC_VAULT_REGISTRY,
-      btcVaultCoreVbtcReserveId: "1",
+      vaultBtcReserveId: "1",
     },
     aaveReserves: {
       items: [

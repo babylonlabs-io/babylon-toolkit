@@ -85,7 +85,7 @@ vi.mock("@/hooks/usePrices", () => ({
 const mockUseAaveConfig = vi.fn(() => ({
   config: {
     coreSpokeAddress: "0xSpokeAddress",
-    btcVaultCoreVbtcReserveId: 1n,
+    vaultBtcReserveId: 1n,
   },
   vbtcReserve: {
     reserveId: 1n,
@@ -330,7 +330,7 @@ describe("useAaveReserveDetail", () => {
     mockUseAaveConfig.mockReturnValue({
       config: {
         coreSpokeAddress: "0xSpokeAddress",
-        btcVaultCoreVbtcReserveId: 1n,
+        vaultBtcReserveId: 1n,
       },
       vbtcReserve: {
         reserveId: 1n,
