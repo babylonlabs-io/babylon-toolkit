@@ -12,6 +12,7 @@ export type {
 } from "./mockEthWallet";
 export {
   mockEthRpc,
+  mockEthRpcForSeededWallet,
   mockGraphql,
   mockMempoolForSeededBtcWallet,
   mockVpProxy,

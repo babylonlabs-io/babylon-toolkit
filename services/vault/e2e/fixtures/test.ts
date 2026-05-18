@@ -43,10 +43,17 @@ export interface VaultE2EFixtures {
   /** Build a seeded ETH wallet with a declared balance. */
   seededEthWallet: (options: SeededEthWalletOptions) => SeededEthWallet;
   /**
-   * Install the given wallets on `window.__BABYLON_E2E_WALLETS__`
-   * before the next navigation. Omit fields to skip.
+   * Install a JSON-only sentinel describing the seeded wallets on
+   * `window.__BABYLON_E2E_WALLETS__` before the next navigation. This
+   * does NOT install usable provider objects: closures (provider
+   * methods, script queues) do not survive structured-clone across the
+   * Node/browser boundary, so the page-side payload is the sentinel
+   * shape `{ kind, address }`, not the full `MockBtcWallet`/
+   * `MockEthWallet`. Full page-side provider construction is the
+   * responsibility of #1592 (single-vault deposit happy-path); here
+   * the sentinel proves the bridge fires before navigation.
    */
-  installWallets: (wallets: {
+  installWalletSentinel: (wallets: {
     btc?: SeededBtcWallet | null;
     eth?: SeededEthWallet | null;
   }) => Promise<void>;
@@ -66,7 +73,7 @@ interface WalletSentinelPayload {
   eth?: WalletSentinel;
 }
 
-async function installWalletsOnPage(
+async function installWalletSentinelOnPage(
   page: Page,
   globalName: string,
   payload: WalletSentinelPayload,
@@ -105,9 +112,9 @@ export const test = base.extend<VaultE2EFixtures>({
   seededEthWallet: async ({}, use) => {
     await use(seededEthWallet);
   },
-  installWallets: async ({ page }, use) => {
+  installWalletSentinel: async ({ page }, use) => {
     await use(async (wallets) => {
-      await installWalletsOnPage(page, E2E_WALLETS_GLOBAL, {
+      await installWalletSentinelOnPage(page, E2E_WALLETS_GLOBAL, {
         btc: toSentinel(wallets.btc, "seeded-btc"),
         eth: toSentinel(wallets.eth, "seeded-eth"),
       });

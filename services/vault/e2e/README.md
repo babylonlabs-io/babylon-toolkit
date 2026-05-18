@@ -83,14 +83,14 @@ import {
 test("dashboard reflects seeded BTC balance", async ({
   page,
   seededBtcWallet,
-  installWallets,
+  installWalletSentinel,
   appShell,
   dashboard,
 }) => {
   const wallet = seededBtcWallet({ amount: 250_000n });
   await mockMempoolForSeededBtcWallet(page, wallet);
   await mockVpProxy(page);
-  await installWallets({ btc: wallet });
+  await installWalletSentinel({ btc: wallet });
 
   await appShell.goto();
   await expect(dashboard.collateralSectionHeading).toBeVisible();

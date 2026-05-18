@@ -18,13 +18,19 @@ export class Dashboard {
   }
 
   get withdrawButton(): Locator {
-    // Per-row withdraw entry inside the collateral list. Tests with
-    // multiple positions should narrow via `vaultRow(...)` first.
+    // Per-card withdraw entry inside the collateral list. Tests with
+    // multiple positions should narrow via `vaultCard(...)` first.
     return this.page.getByRole("button", { name: /^Withdraw/i });
   }
 
-  /** Locator for a vault row matched by visible text (vault address / id). */
-  vaultRow(matcher: string | RegExp): Locator {
-    return this.page.getByRole("row", { name: matcher });
+  /**
+   * Locator for a vault card matched by visible text (truncated pegin
+   * tx hash, provider name, BTC amount, etc.). The collateral list
+   * renders each position as a `<div>` card (see
+   * `CollateralVaultItem`), not an ARIA row, so we filter by text
+   * rather than `getByRole("row")`.
+   */
+  vaultCard(matcher: string | RegExp): Locator {
+    return this.page.locator("div").filter({ hasText: matcher }).first();
   }
 }

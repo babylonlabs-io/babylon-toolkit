@@ -4,8 +4,8 @@
  * Verifies:
  *   - the typed seeded-wallet factories return values that satisfy the
  *     mempool wire shape the dApp's `useUTXOs` consumes;
- *   - `installWallets` writes a sentinel to `window.__BABYLON_E2E_WALLETS__`
- *     before navigation completes;
+ *   - `installWalletSentinel` writes a sentinel to
+ *     `window.__BABYLON_E2E_WALLETS__` before navigation completes;
  *   - the page-object scaffold reaches the running app (AppShell on `/`).
  *
  * The deeper page interactions (clicking through the deposit modal,
@@ -28,8 +28,9 @@ test("seededBtcWallet exposes mempool-wire payloads that sum to the seeded amoun
   const totalValue = wallet.mempoolUtxos.reduce((s, u) => s + u.value, 0);
   expect(BigInt(totalValue)).toBe(250_000n);
   expect(wallet.mempoolAddressInfo.isvalid).toBe(true);
-  // P2TR scriptPubKey: 0x5120 (OP_1 push-32) + 32-byte x-only pubkey (64 hex)
-  expect(wallet.mempoolAddressInfo.scriptPubKey).toMatch(/^5120[0-9a-f]{64}$/);
+  // Default address is signet P2WPKH (`tb1q...`), so the scriptPubKey
+  // is 0014 (OP_0 push-20) + 20-byte hash placeholder (40 hex).
+  expect(wallet.mempoolAddressInfo.scriptPubKey).toMatch(/^0014[0-9a-f]{40}$/);
 });
 
 test("seededBtcWallet rejects utxoSplit that doesn't sum to amount", ({
@@ -47,15 +48,15 @@ test("seededEthWallet exposes balanceWeiHex as a valid quantity", ({
   expect(wallet.balanceWeiHex).toBe(`0x${(5n * 10n ** 18n).toString(16)}`);
 });
 
-test("installWallets sets the e2e wallet global before navigation", async ({
+test("installWalletSentinel sets the e2e wallet global before navigation", async ({
   page,
   seededBtcWallet,
-  installWallets,
+  installWalletSentinel,
 }) => {
   const wallet = seededBtcWallet({ amount: 100_000n });
   await mockMempoolForSeededBtcWallet(page, wallet);
   await mockVpProxy(page);
-  await installWallets({ btc: wallet });
+  await installWalletSentinel({ btc: wallet });
   await page.goto("/");
 
   const installed = await page.evaluate((name) => {

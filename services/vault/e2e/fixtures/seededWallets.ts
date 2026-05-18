@@ -80,9 +80,7 @@ function deriveTxid(index: number): string {
   return `ee${"00".repeat(30)}${index.toString(16).padStart(4, "0")}`;
 }
 
-function deriveScriptPubKey(address: string): string {
-  // Placeholder P2TR scriptPubKey: `5120` (OP_1 + push-32) plus a
-  // synthetic 32-byte x-only pubkey derived from the address.
+function hashAddressToHex(address: string, hexChars: number): string {
   // assertValidScriptPubKey requires hex bytes, so we hash the address
   // into hex rather than reusing the bech32 characters directly. The
   // value is not a real signing key - tests that exercise PSBT
@@ -91,8 +89,26 @@ function deriveScriptPubKey(address: string): string {
   for (const ch of address) {
     hash = (hash * 1315423911n) ^ BigInt(ch.charCodeAt(0));
   }
-  const hex = hash.toString(16).padStart(64, "0").slice(-64);
-  return `5120${hex}`;
+  return hash.toString(16).padStart(hexChars, "0").slice(-hexChars);
+}
+
+function deriveScriptPubKey(address: string): string {
+  // Emit a placeholder scriptPubKey that matches the address's witness
+  // type so consumers that branch on script shape (P2WPKH 20-byte hash
+  // vs P2TR 32-byte x-only pubkey) see a self-consistent fixture.
+  const lower = address.toLowerCase();
+  if (lower.startsWith("bc1q") || lower.startsWith("tb1q")) {
+    // P2WPKH: 0014 (OP_0 + push-20) + 20-byte hash160 placeholder.
+    return `0014${hashAddressToHex(address, 40)}`;
+  }
+  if (lower.startsWith("bc1p") || lower.startsWith("tb1p")) {
+    // P2TR: 5120 (OP_1 + push-32) + 32-byte x-only pubkey placeholder.
+    return `5120${hashAddressToHex(address, 64)}`;
+  }
+  // Unrecognized witness type - fall back to P2TR placeholder so the
+  // value still passes assertValidScriptPubKey. Tests that need an
+  // exact match must override via the wallet `script` API.
+  return `5120${hashAddressToHex(address, 64)}`;
 }
 
 function buildUtxos(
@@ -106,12 +122,22 @@ function buildUtxos(
       `seededBtcWallet: utxoSplit values sum to ${total}n, expected ${amount}n`,
     );
   }
-  return values.map((value, index) => ({
-    txid: deriveTxid(index),
-    vout: 0,
-    value: Number(value),
-    status: { confirmed: true },
-  }));
+  const maxSafe = BigInt(Number.MAX_SAFE_INTEGER);
+  return values.map((value, index) => {
+    if (value > maxSafe) {
+      throw new Error(
+        `seededBtcWallet: utxo value ${value}n exceeds Number.MAX_SAFE_INTEGER ` +
+          `(${Number.MAX_SAFE_INTEGER}); mempool wire payload uses number, ` +
+          `splitting into smaller UTXOs is required`,
+      );
+    }
+    return {
+      txid: deriveTxid(index),
+      vout: 0,
+      value: Number(value),
+      status: { confirmed: true },
+    };
+  });
 }
 
 export function seededBtcWallet(

@@ -16,6 +16,7 @@ import type { VpHealthSnapshot } from "../../src/types/vpHealth";
 
 import type {
   SeededBtcWallet,
+  SeededEthWallet,
   SeededMempoolAddressInfo,
   SeededMempoolUtxo,
 } from "./seededWallets";
@@ -105,12 +106,16 @@ export async function mockVpProxy(
   });
 }
 
+const SEPOLIA_CHAIN_ID_HEX = "0xaa36a7";
+
 /**
  * Mock the ETH JSON-RPC endpoint. The dApp issues `eth_chainId`,
  * `eth_call`, `eth_getBalance`, etc. to `NEXT_PUBLIC_ETH_RPC_URL`. The
  * default handler answers `eth_chainId` with sepolia and returns null
  * for everything else - tests that need contract reads must supply a
- * handler keyed on `(method, params)`.
+ * handler keyed on `(method, params)`. Use
+ * `mockEthRpcForSeededWallet` when the seeded ETH balance must be
+ * reflected in `eth_getBalance` responses.
  */
 export async function mockEthRpc(
   page: Page,
@@ -132,13 +137,45 @@ export async function mockEthRpc(
     if (handler) {
       result = handler(method, params);
     } else if (method === "eth_chainId") {
-      result = "0xaa36a7";
+      result = SEPOLIA_CHAIN_ID_HEX;
     }
     await jsonResponse(route, {
       jsonrpc: "2.0",
       id: body.id ?? 1,
       result,
     });
+  });
+}
+
+/**
+ * ETH JSON-RPC routes for a single seeded ETH wallet. Answers
+ * `eth_chainId`, `eth_blockNumber`, and `eth_getBalance` (for the
+ * wallet's account address) from the seeded fixture so simple
+ * connect/balance flows resolve without per-test handler wiring. Any
+ * other method falls through to `handler` if supplied, otherwise
+ * returns null - tests that exercise contract reads must pass a
+ * handler keyed on `(method, params)`.
+ */
+export async function mockEthRpcForSeededWallet(
+  page: Page,
+  wallet: Pick<SeededEthWallet, "account" | "balanceWeiHex">,
+  handler?: (method: string, params: unknown[]) => unknown,
+): Promise<void> {
+  const accountAddress = wallet.account.address.toLowerCase();
+  await mockEthRpc(page, (method, params) => {
+    if (method === "eth_chainId") return SEPOLIA_CHAIN_ID_HEX;
+    if (method === "eth_blockNumber") return "0x1";
+    if (method === "eth_getBalance") {
+      const [target] = params as [string | undefined];
+      if (
+        typeof target === "string" &&
+        target.toLowerCase() === accountAddress
+      ) {
+        return wallet.balanceWeiHex;
+      }
+      return "0x0";
+    }
+    return handler ? handler(method, params) : null;
   });
 }
 

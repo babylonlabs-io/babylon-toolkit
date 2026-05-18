@@ -31,9 +31,12 @@ const PORTS = {
 
 const DEFAULT_BTC_ADDRESS = "tb1qce0n0rv27dwx37dfvhxaaly4lnwelqjuqywvka";
 const DEFAULT_BALANCE_SATS = 100_000_000;
-const DEFAULT_SCRIPT_PUBKEY = `5120${DEFAULT_BTC_ADDRESS
-  .slice(-40)
-  .padStart(40, "0")}`;
+// Placeholder P2WPKH scriptPubKey matching DEFAULT_BTC_ADDRESS's witness
+// version 0 (`tb1q...`): 0014 (OP_0 + push-20) + 20-byte hash placeholder.
+// Real bech32 characters are not hex, so this hex placeholder is a
+// stand-in that satisfies assertValidScriptPubKey in the dApp; tests
+// that need a real address-derived script must wire one explicitly.
+const DEFAULT_SCRIPT_PUBKEY = `0014${"ab".repeat(20)}`;
 
 function jsonResponse(res, body, status = 200) {
   res.writeHead(status, {
