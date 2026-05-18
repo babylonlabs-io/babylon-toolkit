@@ -256,6 +256,18 @@ export function useVaultActions(): UseVaultActionsReturn {
         );
       }
 
+      // Gate on a fresh on-chain status read. The UI surfaces the "Activate"
+      // button based on indexer-reported status; a poisoned or lagging indexer
+      // reporting VERIFIED while the contract is still PENDING would let the
+      // secret reach `simulateContract` calldata and leak to the RPC layer.
+      // Exact-match VERIFIED (not >= 1) — ACTIVE/REDEEMED/etc. must not pass.
+      const basicInfo = await reader.getVaultBasicInfo(vaultId);
+      if (basicInfo.status !== ContractStatus.VERIFIED) {
+        throw new Error(
+          `Cannot activate: vault is in ${ContractStatus[basicInfo.status]} state. Activation is only valid when VERIFIED.`,
+        );
+      }
+
       // Validate secret against hashlock before sending ETH tx.
       // SDK version is sync + requires 0x-prefixed inputs.
       const isValid = validateSecretAgainstHashlock(
@@ -276,10 +288,13 @@ export function useVaultActions(): UseVaultActionsReturn {
         account: depositorEthAddress as Hex,
       });
 
-      // Call activateVaultWithSecret on the contract
+      // Call activateVaultWithSecret on the contract. Hashlock is forwarded
+      // so the SDK re-checks `sha256(secret) === hashlock` as the last gate
+      // before calldata is assembled.
       await activateVaultWithSecret({
         vaultId: ensureHexPrefix(vaultId),
         secret: ensureHexPrefix(secretHex),
+        hashlock: ensureHexPrefix(protocolInfo.hashlock) as Hex,
         walletClient,
       });
 

@@ -5,14 +5,10 @@
 import type { Address } from "viem";
 
 import { LocalStorageStatus } from "@/models/peginStateMachine";
-import { waitForContractVerification } from "@/services/deposit/polling";
 import { broadcastPrePeginTransaction } from "@/services/vault";
 import { updatePendingPeginStatus } from "@/storage/peginStorage";
 
 import type { BroadcastParams } from "./types";
-
-// Re-export for convenience - caller uses this before broadcastBtcTransaction
-export { waitForContractVerification };
 
 /**
  * Sign and broadcast the funded Pre-PegIn transaction to Bitcoin.

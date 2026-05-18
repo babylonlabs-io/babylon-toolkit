@@ -13,7 +13,7 @@
  * 2c. Register pegin batch - registerPeginBatchAndWait (single ETH tx for all vaults)
  * 3. Broadcast Pre-PegIn - broadcastBtcTransaction
  * 3.5. WOTS key RPC submission - submitWotsPublicKey
- * 4. Payout signing - waitForContractVerification, signAndSubmitPayouts
+ * 4. Payout signing - signAndSubmitPayouts
  */
 
 // Types and enums
@@ -39,10 +39,7 @@ export {
 } from "./ethereumSubmit";
 
 // Step 3: Broadcast Pre-PegIn on Bitcoin
-export {
-  broadcastBtcTransaction,
-  waitForContractVerification,
-} from "./broadcast";
+export { broadcastBtcTransaction } from "./broadcast";
 
 // Step 3.5: WOTS key submission (RPC, happens after broadcast + VP indexing)
 export { submitWotsPublicKey } from "./wotsSubmission";
