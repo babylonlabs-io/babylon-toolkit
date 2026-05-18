@@ -4,6 +4,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   BIP68NotMatureError,
   buildAndBroadcastRefund,
+  REFUND_MAX_FEE_FRACTION_DENOMINATOR,
+  REFUND_MAX_FEE_FRACTION_NUMERATOR,
+  REFUND_MAX_FEE_RATE_SATS_VB,
+  REFUND_VSIZE,
   type BtcBroadcaster,
   type RefundPrePeginContext,
   type VaultRefundData,
@@ -526,6 +530,93 @@ describe("buildAndBroadcastRefund", () => {
         }),
       ).rejects.toThrow(/feeRate must be a positive number/);
       expect(mockedBuildRefundPsbt).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("fee safety caps", () => {
+    it("rejects feeRate above REFUND_MAX_FEE_RATE_SATS_VB before PSBT construction", async () => {
+      await expect(
+        buildAndBroadcastRefund({
+          vaultId: VAULT_ID,
+          readVault,
+          readPrePeginContext,
+          feeRate: REFUND_MAX_FEE_RATE_SATS_VB + 1,
+          signPsbt,
+          broadcastTx,
+        }),
+      ).rejects.toThrow(
+        new RegExp(
+          `feeRate ${REFUND_MAX_FEE_RATE_SATS_VB + 1} sat/vB exceeds refund safety cap ${REFUND_MAX_FEE_RATE_SATS_VB} sat/vB`,
+        ),
+      );
+      expect(mockedBuildRefundPsbt).not.toHaveBeenCalled();
+      expect(signPsbt).not.toHaveBeenCalled();
+      expect(broadcastTx).not.toHaveBeenCalled();
+    });
+
+    it("rejects refund whose fee exceeds the fraction cap of vault.amount", async () => {
+      // Rate inside the per-vbyte ceiling but absolute fee > 10% of vault.
+      // Default vault.amount = 100_000n → fraction cap = 10_000 sats.
+      // feeRate=100 → refundFee = 100 * 160 = 16_000 > 10_000.
+      await expect(
+        buildAndBroadcastRefund({
+          vaultId: VAULT_ID,
+          readVault,
+          readPrePeginContext,
+          feeRate: 100,
+          signPsbt,
+          broadcastTx,
+        }),
+      ).rejects.toThrow(
+        /Refund fee 16000 sats exceeds the per-vault safety cap of 10000 sats/,
+      );
+      expect(mockedBuildRefundPsbt).not.toHaveBeenCalled();
+      expect(signPsbt).not.toHaveBeenCalled();
+      expect(broadcastTx).not.toHaveBeenCalled();
+    });
+
+    it("allows refund at exactly the rate cap when the vault is large enough to clear the fraction cap", async () => {
+      // refundFee at rate cap = REFUND_MAX_FEE_RATE_SATS_VB * REFUND_VSIZE.
+      // Pick vault.amount such that fraction cap >= refundFee.
+      const refundFeeAtRateCap = BigInt(REFUND_MAX_FEE_RATE_SATS_VB * REFUND_VSIZE);
+      const minVaultAmount =
+        (refundFeeAtRateCap * REFUND_MAX_FEE_FRACTION_DENOMINATOR) /
+        REFUND_MAX_FEE_FRACTION_NUMERATOR;
+      readVault.mockResolvedValue(buildVault({ amount: minVaultAmount }));
+
+      await buildAndBroadcastRefund({
+        vaultId: VAULT_ID,
+        readVault,
+        readPrePeginContext,
+        feeRate: REFUND_MAX_FEE_RATE_SATS_VB,
+        signPsbt,
+        broadcastTx,
+      });
+
+      expect(mockedBuildRefundPsbt).toHaveBeenCalledWith(
+        expect.objectContaining({ refundFee: refundFeeAtRateCap }),
+      );
+      expect(broadcastTx).toHaveBeenCalled();
+    });
+
+    it("allows refund whose fee exactly equals the fraction cap", async () => {
+      // vault.amount = 160_000 → fraction cap = 16_000 sats.
+      // feeRate=100 → refundFee = 16_000. Equality must pass (cap is `>`, not `>=`).
+      readVault.mockResolvedValue(buildVault({ amount: 160_000n }));
+
+      await buildAndBroadcastRefund({
+        vaultId: VAULT_ID,
+        readVault,
+        readPrePeginContext,
+        feeRate: 100,
+        signPsbt,
+        broadcastTx,
+      });
+
+      expect(mockedBuildRefundPsbt).toHaveBeenCalledWith(
+        expect.objectContaining({ refundFee: 16_000n }),
+      );
+      expect(broadcastTx).toHaveBeenCalled();
     });
   });
 

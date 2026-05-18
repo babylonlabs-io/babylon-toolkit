@@ -8,6 +8,9 @@ export { BIP68NotMatureError } from "./errors";
 export {
   buildAndBroadcastRefund,
   estimateRefundFeeSats,
+  REFUND_MAX_FEE_FRACTION_DENOMINATOR,
+  REFUND_MAX_FEE_FRACTION_NUMERATOR,
+  REFUND_MAX_FEE_RATE_SATS_VB,
   REFUND_VSIZE,
   type BtcBroadcastResult,
   type BtcBroadcaster,

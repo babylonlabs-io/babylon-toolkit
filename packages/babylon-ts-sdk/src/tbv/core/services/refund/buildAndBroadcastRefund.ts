@@ -42,6 +42,24 @@ const PUBKEY_HEX_RE = /^(?:0x)?(?:[0-9a-fA-F]{64}|[0-9a-fA-F]{66})$/;
 // This is protocol-owned knowledge; callers don't parameterise it.
 export const REFUND_VSIZE = 160;
 
+// Hard upper bound on the per-vbyte fee rate the SDK will sign a refund at.
+// Defense-in-depth: a compromised mempool endpoint can legally return up to
+// 10_000 sat/vB (see mempoolApi.ts `MAX_FEE_RATE`), which on a 160-vbyte
+// refund would burn up to 1.6M sats in miner fees. April 2024 Runes peak
+// `fastestFee` ≈ 1,805 sat/vB; `halfHourFee` at that peak was ~600. 500
+// covers realistic congestion with margin and blocks the pathological-
+// default attack 20× over.
+export const REFUND_MAX_FEE_RATE_SATS_VB = 500;
+
+// Hard upper bound on the absolute refund fee as a fraction of the vault
+// amount. Protects small vaults where even a moderate fee rate burns a
+// disproportionate share (e.g. on a 100k-sat vault, 500 sat/vB would burn
+// 80%). The fraction cap binds before the rate cap whenever the vault is
+// small. Expressed as numerator/denominator to keep arithmetic in bigint
+// and avoid float-precision drift in the comparison.
+export const REFUND_MAX_FEE_FRACTION_NUMERATOR = 10n;
+export const REFUND_MAX_FEE_FRACTION_DENOMINATOR = 100n;
+
 /**
  * Network fee (sats) the SDK will charge for a refund tx at the given
  * sat/vB rate. Mirrors the internal computation in
@@ -320,7 +338,31 @@ export async function buildAndBroadcastRefund<
   if (!Number.isFinite(feeRate) || feeRate <= 0) {
     throw new Error(`feeRate must be a positive number, got ${feeRate}`);
   }
+  // Rate cap: fail closed before PSBT construction if the seeded value
+  // exceeds the safety ceiling. A compromised mempool API (or upstream
+  // proxy / BGP hijack) can otherwise drive `halfHourFee` to the API's
+  // 10_000 sat/vB ceiling and burn the refund as miner fee.
+  if (feeRate > REFUND_MAX_FEE_RATE_SATS_VB) {
+    throw new Error(
+      `feeRate ${feeRate} sat/vB exceeds refund safety cap ` +
+        `${REFUND_MAX_FEE_RATE_SATS_VB} sat/vB; refusing to sign refund.`,
+    );
+  }
   const refundFee = BigInt(Math.ceil(feeRate * REFUND_VSIZE));
+  // Fraction cap: even within the rate ceiling, refuse to sign if the
+  // absolute fee would consume more than the configured percentage of the
+  // vault amount. Protects small vaults from disproportionate burn.
+  const maxFeeByFraction =
+    (vault.amount * REFUND_MAX_FEE_FRACTION_NUMERATOR) /
+    REFUND_MAX_FEE_FRACTION_DENOMINATOR;
+  if (refundFee > maxFeeByFraction) {
+    throw new Error(
+      `Refund fee ${refundFee} sats exceeds the per-vault safety cap ` +
+        `of ${maxFeeByFraction} sats ` +
+        `(${REFUND_MAX_FEE_FRACTION_NUMERATOR}/${REFUND_MAX_FEE_FRACTION_DENOMINATOR} ` +
+        `of vault.amount=${vault.amount}); refusing to sign refund.`,
+    );
+  }
   signal?.throwIfAborted();
 
   // `vault.depositorBtcPubkey` may arrive as wallet-native compressed sec1
