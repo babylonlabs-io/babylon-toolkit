@@ -5,6 +5,8 @@
  * using primitives, utilities, and mock wallets.
  */
 
+import * as bitcoin from "bitcoinjs-lib";
+import { Buffer } from "buffer";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import { zeroAddress, type Address, type Chain, type PublicClient } from "viem";
 
@@ -1792,7 +1794,8 @@ describe("PeginManager", () => {
       // contract. With only an x-only key in hand, y-parity is unknowable;
       // accepting any P2WPKH derived from 02|x or 03|x would let an attacker
       // bind a script the wallet doesn't control. Both parities must be
-      // rejected at the helper level (parity-swap finding follow-up).
+      // rejected at the helper level (parity-swap finding follow-up). The
+      // diagnostic message points integrators at the actual fix (use P2TR).
       const xOnly = TEST_KEYS.DEPOSITOR;
       const evenAddr = deriveNativeSegwitAddress(`02${xOnly}`, "signet");
       const oddAddr = deriveNativeSegwitAddress(`03${xOnly}`, "signet");
@@ -1823,9 +1826,51 @@ describe("PeginManager", () => {
             popSignature,
           }),
         ).rejects.toThrow(
-          /BTC payout address .* is not derived from the connected wallet/i,
+          /P2WPKH .* x-only public key.*Use a P2TR/i,
         );
       }
+    });
+
+    it("registerPeginOnChain falls back to the generic mismatch error for an x-only key paired with a non-P2WPKH bech32 address (P2WSH)", async () => {
+      // Regression guard: the diagnostic carve-out must distinguish P2WPKH
+      // (witness v0, 20-byte program) from other v0 segwit shapes like
+      // P2WSH (32-byte program). A misfire here would tell a user with a
+      // P2WSH payout address to "use a P2TR" when the real problem is that
+      // their address simply isn't derived from the connected wallet.
+      const xOnly = TEST_KEYS.DEPOSITOR;
+      const p2wshAddress = bitcoin.payments.p2wsh({
+        hash: Buffer.alloc(32, 0xab),
+        network: bitcoin.networks.testnet,
+      }).address!;
+      expect(p2wshAddress.startsWith("tb1q")).toBe(true);
+
+      const btcWallet = new MockBitcoinWallet({ publicKeyHex: xOnly });
+      const ethWallet = new MockEthereumWallet();
+      const manager = new PeginManager({
+        btcNetwork: "signet",
+        btcWallet,
+        ethWallet: ethWallet as any,
+        ethChain: TEST_CHAIN,
+        publicClient: TEST_PUBLIC_CLIENT,
+        vaultContracts: { btcVaultRegistry: TEST_CONTRACT_ADDRESS },
+        mempoolApiUrl: MEMPOOL_API_URLS.signet,
+      });
+      const popSignature = await manager.signProofOfPossession();
+
+      await expect(
+        manager.registerPeginOnChain({
+          unsignedPrePeginTx: "0100000000010000000000",
+          depositorSignedPeginTx: MOCK_DEPOSITOR_SIGNED_PEGIN_TX,
+          vaultProvider: TEST_CONTRACT_ADDRESS,
+          hashlock: MOCK_HASHLOCK,
+          htlcVout: 0,
+          depositorPayoutBtcAddress: p2wshAddress,
+          depositorWotsPkHash: MOCK_WOTS_PK_HASH,
+          popSignature,
+        }),
+      ).rejects.toThrow(
+        /BTC payout address .* is not derived from the connected wallet/i,
+      );
     });
 
     it("registerPeginBatchOnChain rejects when any single request has a foreign payout address", async () => {

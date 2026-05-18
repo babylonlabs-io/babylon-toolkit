@@ -488,8 +488,9 @@ describe("Bitcoin Utilities", () => {
   });
 
   describe("isAddressFromPublicKey", () => {
-    // Any valid 32-byte x-only key works as a fixture; the exact value
-    // doesn't matter, only the derivation parity does.
+    // Using the secp256k1 generator point's x-coordinate (G.x); any valid
+    // 32-byte x-only key would do — the test only depends on derivation
+    // parity, not the value.
     const xOnly =
       "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798";
     const evenParity = `02${xOnly}`;
@@ -500,14 +501,26 @@ describe("Bitcoin Utilities", () => {
       expect(isAddressFromPublicKey(addr, xOnly, "signet")).toBe(true);
     });
 
-    it("matches a P2WPKH address derived from the same compressed key", () => {
+    it("matches a P2WPKH address derived from an even-parity compressed key", () => {
       const addr = deriveNativeSegwitAddress(evenParity, "signet");
       expect(isAddressFromPublicKey(addr, evenParity, "signet")).toBe(true);
     });
 
-    it("rejects an opposite-parity P2WPKH address for a compressed key", () => {
+    it("matches a P2WPKH address derived from an odd-parity compressed key", () => {
+      const addr = deriveNativeSegwitAddress(oddParity, "signet");
+      expect(isAddressFromPublicKey(addr, oddParity, "signet")).toBe(true);
+    });
+
+    it("rejects an opposite-parity P2WPKH address for an even-parity key", () => {
       const wrongAddr = deriveNativeSegwitAddress(oddParity, "signet");
       expect(isAddressFromPublicKey(wrongAddr, evenParity, "signet")).toBe(
+        false,
+      );
+    });
+
+    it("rejects an opposite-parity P2WPKH address for an odd-parity key", () => {
+      const wrongAddr = deriveNativeSegwitAddress(evenParity, "signet");
+      expect(isAddressFromPublicKey(wrongAddr, oddParity, "signet")).toBe(
         false,
       );
     });

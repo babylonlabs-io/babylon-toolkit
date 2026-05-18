@@ -62,6 +62,7 @@ import {
   isAddressFromPublicKey,
   stripHexPrefix,
   uint8ArrayToHex,
+  X_ONLY_PUBKEY_HEX_LEN,
 } from "../primitives/utils/bitcoin";
 import {
   calculateBtcTxHash,
@@ -471,6 +472,32 @@ export interface RegisterPeginBatchResult {
   vaults: BatchPeginResultItem[];
 }
 
+
+/**
+ * Detect a P2WPKH (Native SegWit) bech32 address for the configured network,
+ * used purely for diagnostic routing. Distinguishes P2WPKH (witness v0,
+ * 20-byte program) from P2WSH (v0, 32-byte program) and any other bech32
+ * shape, so the specific "use a P2TR" error fires only when the user
+ * actually has a P2WPKH address.
+ */
+function isP2wpkhAddressForNetwork(address: string, network: Network): boolean {
+  const expectedHrp: Record<Network, string> = {
+    bitcoin: "bc",
+    testnet: "tb",
+    signet: "tb",
+    regtest: "bcrt",
+  };
+  try {
+    const decoded = bitcoin.address.fromBech32(address);
+    return (
+      decoded.prefix === expectedHrp[network] &&
+      decoded.version === 0 &&
+      decoded.data.length === 20
+    );
+  } catch {
+    return false;
+  }
+}
 
 /**
  * Resolve prevout data for a transaction input.
@@ -1448,6 +1475,23 @@ export class PeginManager {
         this.config.btcNetwork,
       )
     ) {
+      // Diagnostic carve-out: x-only key + P2WPKH address always fails (y-parity
+      // is unknowable from x-only). Surface a specific, actionable message so
+      // Taproot-wallet integrators don't have to chase the generic mismatch.
+      const isXOnlyKey =
+        stripHexPrefix(verifiedDepositorBtcPubkeyRaw).length ===
+        X_ONLY_PUBKEY_HEX_LEN;
+      if (
+        isXOnlyKey &&
+        isP2wpkhAddressForNetwork(address, this.config.btcNetwork)
+      ) {
+        throw new Error(
+          `BTC payout address "${address}" is a P2WPKH (Native SegWit) address, ` +
+            `but the connected wallet only exposes an x-only public key. ` +
+            `P2WPKH validation requires a compressed key with known y-parity. ` +
+            `Use a P2TR (Taproot) payout address instead.`,
+        );
+      }
       throw new Error(
         `BTC payout address "${address}" is not derived from the connected ` +
           `wallet's public key. The payout sink must be controlled by the same ` +
