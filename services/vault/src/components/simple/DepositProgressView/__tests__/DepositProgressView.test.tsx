@@ -57,7 +57,8 @@ describe("DepositProgressView", () => {
       );
 
       const bar = screen.getByRole("progressbar");
-      expect(bar).toHaveAttribute("aria-valuenow", String(5 / 11));
+      expect(bar).toHaveAttribute("aria-valuenow", "45");
+      expect(bar).toHaveAttribute("aria-valuemax", "100");
     });
 
     it("renders the 'X of 11 steps completed' pill", () => {
@@ -158,8 +159,110 @@ describe("DepositProgressView", () => {
       expect(screen.getByText("11 of 11 steps completed")).toBeInTheDocument();
       expect(screen.getByRole("progressbar")).toHaveAttribute(
         "aria-valuenow",
-        "1",
+        "100",
       );
+    });
+
+    it("reports 11 of 11 when currentStep is COMPLETED", () => {
+      render(
+        <DepositProgressView
+          {...baseProps}
+          currentStep={DepositFlowStep.COMPLETED}
+          isComplete
+        />,
+      );
+
+      expect(screen.getByText("11 of 11 steps completed")).toBeInTheDocument();
+      expect(screen.getByRole("progressbar")).toHaveAttribute(
+        "aria-valuenow",
+        "100",
+      );
+    });
+  });
+
+  describe("BTC confirmation detail panel", () => {
+    const PEGIN_TX_HASH =
+      "1b2c3d4e5f00000000000000000000000000000000000000000000000000000000";
+
+    it("renders Started at, Est. Remaining, and Bitcoin TX when the active step is AWAIT_BTC_CONFIRMATION", () => {
+      const startedAt = new Date("2026-01-01T13:44:00Z").getTime();
+      render(
+        <DepositProgressView
+          {...baseProps}
+          currentStep={DepositFlowStep.AWAIT_BTC_CONFIRMATION}
+          btcConfirmationDetail={{
+            startedAt,
+            peginTxHash: PEGIN_TX_HASH,
+          }}
+        />,
+      );
+
+      expect(screen.getByText("Started at:")).toBeInTheDocument();
+      expect(screen.getByText("Est. Remaining:")).toBeInTheDocument();
+      expect(screen.getByText("Bitcoin TX:")).toBeInTheDocument();
+      expect(screen.getByText(/^~\d+ min$/)).toBeInTheDocument();
+    });
+
+    it("counts down Est. Remaining based on elapsed time", () => {
+      const elevenMinutesAgo = Date.now() - 11 * 60 * 1000;
+      render(
+        <DepositProgressView
+          {...baseProps}
+          currentStep={DepositFlowStep.AWAIT_BTC_CONFIRMATION}
+          btcConfirmationDetail={{
+            startedAt: elevenMinutesAgo,
+            peginTxHash: PEGIN_TX_HASH,
+          }}
+        />,
+      );
+
+      // 15 expected - 11 elapsed = 4 remaining
+      expect(screen.getByText("~4 min")).toBeInTheDocument();
+    });
+
+    it("floors Est. Remaining at 0 once the expected wait has elapsed", () => {
+      const longAgo = Date.now() - 60 * 60 * 1000;
+      render(
+        <DepositProgressView
+          {...baseProps}
+          currentStep={DepositFlowStep.AWAIT_BTC_CONFIRMATION}
+          btcConfirmationDetail={{
+            startedAt: longAgo,
+            peginTxHash: PEGIN_TX_HASH,
+          }}
+        />,
+      );
+
+      expect(screen.getByText("~0 min")).toBeInTheDocument();
+    });
+
+    it("does not render the detail panel for steps other than AWAIT_BTC_CONFIRMATION", () => {
+      render(
+        <DepositProgressView
+          {...baseProps}
+          currentStep={DepositFlowStep.SUBMIT_WOTS_KEYS}
+          btcConfirmationDetail={{
+            startedAt: Date.now(),
+            peginTxHash: PEGIN_TX_HASH,
+          }}
+        />,
+      );
+
+      expect(screen.queryByText("Started at:")).not.toBeInTheDocument();
+      expect(screen.queryByText("Bitcoin TX:")).not.toBeInTheDocument();
+    });
+
+    it("does not render the detail panel when btcConfirmationDetail is null", () => {
+      render(
+        <DepositProgressView
+          {...baseProps}
+          currentStep={DepositFlowStep.AWAIT_BTC_CONFIRMATION}
+          btcConfirmationDetail={null}
+        />,
+      );
+
+      expect(screen.queryByText("Started at:")).not.toBeInTheDocument();
+      expect(screen.queryByText("Bitcoin TX:")).not.toBeInTheDocument();
     });
   });
 });
