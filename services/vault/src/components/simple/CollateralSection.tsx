@@ -52,8 +52,6 @@ interface CollateralSectionProps {
   onDeposit: () => void;
 }
 
-const WITHDRAW_HF_BREACH_TOOLTIP = `This selection would drop your health factor below ${WITHDRAW_HF_BLOCK_THRESHOLD.toFixed(1)} and be rejected on-chain. Reduce the selection or repay debt first.`;
-
 export function CollateralSection({
   totalAmountBtc,
   collateralVaults,
@@ -131,7 +129,9 @@ export function CollateralSection({
   const disabledReason = useMemo(() => {
     if (!hasWithdrawableVault) return COPY.collateral.releaseDisabledTooltip;
     if (wouldBreachHF && effectiveSelectedVaultIds.length > 0) {
-      return WITHDRAW_HF_BREACH_TOOLTIP;
+      return COPY.collateral.releaseHfBreachTooltip(
+        WITHDRAW_HF_BLOCK_THRESHOLD,
+      );
     }
     return undefined;
   }, [hasWithdrawableVault, wouldBreachHF, effectiveSelectedVaultIds.length]);

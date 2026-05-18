@@ -10,8 +10,9 @@ import { useChainConnector } from "@babylonlabs-io/wallet-connector";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Hex } from "viem";
 
+import { COPY } from "@/copy";
+
 import { usePeginPolling } from "../../../context/deposit/PeginPollingContext";
-import { COPY } from "../../../copy";
 import { signAndSubmitPayouts } from "../../../hooks/deposit/depositFlowSteps/payoutSigning";
 import { useVaultProviders } from "../../../hooks/deposit/useVaultProviders";
 import { LocalStorageStatus } from "../../../models/peginStateMachine";

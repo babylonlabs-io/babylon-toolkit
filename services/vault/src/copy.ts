@@ -24,7 +24,19 @@
  *   "broadcast" as a participle.
  * - American English spelling (e.g. "acknowledgments", not
  *   "acknowledgements").
+ * - Button labels are intentionally per-context: primary CTAs use Title
+ *   Case (e.g. "Submit WOTS Key", "Broadcast Pre-Pegin", "Add Vault"),
+ *   while in-flow / dialog buttons use sentence case (e.g. "Activate",
+ *   "Do not split", "View on blockchain explorer"). Match the
+ *   surrounding screen rather than imposing a single rule.
  */
+
+// Shared strings that legitimately appear in multiple places. Hoisting them
+// here prevents wording drift if one site is later reworded but the other is
+// missed.
+const PRE_PEGIN_BROADCAST_CONFIRMATION_MESSAGE =
+  "Your Bitcoin transaction has been broadcast to the network. It will be confirmed after receiving the required number of Bitcoin confirmations.";
+const SOMETHING_WENT_WRONG_HEADING = "Something went wrong";
 
 export const COPY = {
   pegin: {
@@ -152,8 +164,7 @@ export const COPY = {
     progress: {
       heading: "Deposit Progress",
       durationEstimate: "(~60 min)",
-      defaultSuccessMessage:
-        "Your Bitcoin transaction has been broadcast to the network. It will be confirmed after receiving the required number of Bitcoin confirmations.",
+      defaultSuccessMessage: PRE_PEGIN_BROADCAST_CONFIRMATION_MESSAGE,
       doNotSpendWarning:
         "Do not spend the Bitcoin used for this deposit until the transaction is confirmed on the network.",
       buttons: {
@@ -181,7 +192,19 @@ export const COPY = {
         `Do not spend the ${symbol} used for this deposit until the transactions are confirmed.`,
     },
     refundReview: {
-      confirming: "Confirming…",
+      heading: "Review Refund",
+      refundAmount: "Refund Amount",
+      networkFeeRate: "Network Fee Rate",
+      btcNetworkFee: "BTC Network Fee",
+      youReceive: "You'll receive",
+      challengePeriodInfo: (estimatedHours: number) =>
+        `Refund arrives within the Bitcoin challenge period — approximately ${estimatedHours} hours after the transaction is confirmed.`,
+      fallbackFeeWarning:
+        "Could not fetch the mempool fee rate. The minimum relay fee may not get your refund confirmed. Set a fee rate above to continue.",
+      dustError:
+        "Network fee is too high — your refund would be below the Bitcoin dust limit. Lower the fee rate to continue.",
+      retryButton: "Retry",
+      confirmButton: "Confirm",
     },
     activateConfirmation: {
       title: "Activate your vault",
@@ -215,8 +238,7 @@ export const COPY = {
       doNotSplit: "Do not split",
     },
     resume: {
-      broadcastSuccessMessage:
-        "Your Bitcoin transaction has been broadcast to the network. It will be confirmed after receiving the required number of Bitcoin confirmations.",
+      broadcastSuccessMessage: PRE_PEGIN_BROADCAST_CONFIRMATION_MESSAGE,
       activationSuccessMessage:
         "Your vault has been activated. The vault provider can now claim the HTLC on Bitcoin.",
       wotsMismatchError:
@@ -277,11 +299,11 @@ export const COPY = {
     applying: "Applying...",
     checking: "Checking...",
     somethingWentWrong: {
-      heading: "Something went wrong",
+      heading: SOMETHING_WENT_WRONG_HEADING,
       body: "Please close this and try again in a moment.",
     },
     globalError: {
-      heading: "Something went wrong",
+      heading: SOMETHING_WENT_WRONG_HEADING,
       body: "An unexpected error occurred. Please try again later.",
       retryButton: "Try again",
     },
@@ -293,11 +315,17 @@ export const COPY = {
   collateral: {
     releaseDisabledTooltip:
       "No vault can be released without putting your position at risk of liquidation. Repay debt first.",
+    releaseHfBreachTooltip: (threshold: number) =>
+      `This selection would drop your health factor below ${threshold.toFixed(1)} and be rejected on-chain. Reduce the selection or repay debt first.`,
     uncapped: "Uncapped",
   },
   banner: {
     addVault: "Add Vault",
     addCollateral: "Add Collateral",
+    addVaultWithAmount: (amountBtc: string) => `Add ${amountBtc} BTC Vault`,
+    addCollateralWithAmount: (amountBtc: string) =>
+      `Add ${amountBtc} BTC Collateral`,
+    applySuggestedOrder: "Apply Suggested Order",
   },
   reorder: {
     confirmButton: "Confirm",

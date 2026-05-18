@@ -107,14 +107,14 @@ export function RefundReviewContent({
     <div className="mx-auto w-full max-w-[540px]">
       <div className="rounded-t-2xl border border-b-0 border-secondary-strokeLight bg-surface p-6">
         <Heading variant="h5" className="text-accent-primary">
-          Review Refund
+          {COPY.deposit.refundReview.heading}
         </Heading>
       </div>
 
       <div className="rounded-b-2xl border border-secondary-strokeLight bg-surface p-6">
         <div className="flex flex-col gap-4">
           <DetailRow
-            label="Refund Amount"
+            label={COPY.deposit.refundReview.refundAmount}
             primary={
               amountBtc !== null
                 ? `${formatBtcValue(amountBtc)} ${symbol}`
@@ -128,7 +128,7 @@ export function RefundReviewContent({
           />
 
           <DetailRow
-            label="Network Fee Rate"
+            label={COPY.deposit.refundReview.networkFeeRate}
             primaryNode={
               feeRate !== null ? (
                 <FeeRateField
@@ -143,7 +143,7 @@ export function RefundReviewContent({
           />
 
           <DetailRow
-            label="BTC Network Fee"
+            label={COPY.deposit.refundReview.btcNetworkFee}
             primary={
               networkFeeBtc !== null
                 ? `${formatBtcValue(networkFeeBtc)} ${symbol}`
@@ -159,7 +159,7 @@ export function RefundReviewContent({
           <div className="my-1 border-t border-secondary-strokeLight" />
 
           <DetailRow
-            label="You'll receive"
+            label={COPY.deposit.refundReview.youReceive}
             primary={
               youReceiveBtc !== null
                 ? `${formatBtcValue(youReceiveBtc)} ${symbol}`
@@ -180,8 +180,7 @@ export function RefundReviewContent({
               aria-hidden="true"
             />
             <Text variant="body2" className="text-accent-secondary">
-              Refund arrives within the Bitcoin challenge period — approximately{" "}
-              {estimatedHours} hours after the transaction is confirmed.
+              {COPY.deposit.refundReview.challengePeriodInfo(estimatedHours)}
             </Text>
           </div>
 
@@ -190,14 +189,12 @@ export function RefundReviewContent({
           )}
           {!error && !isDust && usingFallback && (
             <StatusBanner variant="warning">
-              Could not fetch the mempool fee rate. The minimum relay fee may
-              not get your refund confirmed. Set a fee rate above to continue.
+              {COPY.deposit.refundReview.fallbackFeeWarning}
             </StatusBanner>
           )}
           {!error && isDust && (
             <StatusBanner variant="error">
-              Network fee is too high — your refund would be below the Bitcoin
-              dust limit. Lower the fee rate to continue.
+              {COPY.deposit.refundReview.dustError}
             </StatusBanner>
           )}
           {error && <StatusBanner variant="error">{error}</StatusBanner>}
@@ -212,12 +209,12 @@ export function RefundReviewContent({
             {refunding ? (
               <span className="flex items-center justify-center gap-2">
                 <Loader size={16} className="text-accent-contrast" />
-                <span>{COPY.deposit.refundReview.confirming}</span>
+                <span>{COPY.common.confirming}</span>
               </span>
             ) : error ? (
-              "Retry"
+              COPY.deposit.refundReview.retryButton
             ) : (
-              "Confirm"
+              COPY.deposit.refundReview.confirmButton
             )}
           </Button>
         </div>

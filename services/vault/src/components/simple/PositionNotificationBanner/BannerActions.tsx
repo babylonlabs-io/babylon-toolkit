@@ -107,7 +107,9 @@ export function BannerActions({
           disabled={isReordering}
           className="rounded-full"
         >
-          {isReordering ? COPY.common.applying : "Apply Suggested Order"}
+          {isReordering
+            ? COPY.common.applying
+            : COPY.banner.applySuggestedOrder}
         </Button>
       </div>
     );
@@ -128,7 +130,7 @@ export function BannerActions({
           }
         >
           {suggestedBtc
-            ? `Add ${formatSuggestedBtc(suggestedBtc)} BTC Vault`
+            ? COPY.banner.addVaultWithAmount(formatSuggestedBtc(suggestedBtc))
             : COPY.banner.addVault}
         </DepositButton>
       </div>
@@ -150,7 +152,9 @@ export function BannerActions({
           }
         >
           {suggestedBtc
-            ? `Add ${formatSuggestedBtc(suggestedBtc)} BTC Collateral`
+            ? COPY.banner.addCollateralWithAmount(
+                formatSuggestedBtc(suggestedBtc),
+              )
             : COPY.banner.addCollateral}
         </DepositButton>
         <Button
@@ -169,7 +173,9 @@ export function BannerActions({
             disabled={isReordering}
             className="rounded-full"
           >
-            {isReordering ? COPY.common.applying : "Apply Suggested Order"}
+            {isReordering
+              ? COPY.common.applying
+              : COPY.banner.applySuggestedOrder}
           </Button>
         )}
       </div>

@@ -18,10 +18,10 @@ import type { Hex } from "viem";
 import { getWalletClient, switchChain } from "wagmi/actions";
 
 import { getETHChain } from "@/config/network";
+import { COPY } from "@/copy";
 
 import { getVaultFromChain } from "../../clients/eth-contract/btc-vault-registry/query";
 import { getVaultRegistryReader } from "../../clients/eth-contract/sdk-readers";
-import { COPY } from "../../copy";
 import {
   ContractStatus,
   getNextLocalStatus,
