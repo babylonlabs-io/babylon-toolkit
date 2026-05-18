@@ -215,11 +215,12 @@ function SimpleDepositContent({
     try {
       await reconnectBtcWallet();
       setWalletConnectionError(null);
-    } catch (err) {
+    } catch {
+      // The underlying provider throws dev-facing strings (e.g. "BTC wallet
+      // provider returned an empty address"). Surface a single polished
+      // message so users always see a consistent recovery instruction.
       setWalletConnectionError(
-        err instanceof Error
-          ? err.message
-          : "Failed to reconnect BTC wallet. Please try again.",
+        "Could not reconnect your BTC wallet. Please open the wallet extension to confirm it is unlocked and authorized, then try again.",
       );
     } finally {
       setIsReconnectingWallet(false);
@@ -254,6 +255,16 @@ function SimpleDepositContent({
       } finally {
         setIsVerifyingWallet(false);
       }
+    } else {
+      // The `!isWalletConnected` branch in getDepositCtaState should prevent
+      // a click from reaching here without a provider + address, and the
+      // defense-in-depth probe in useDepositFlow runs again at SIGN time.
+      // Bail loudly if that contract is ever broken so we don't silently
+      // skip the click-time liveness check.
+      setWalletConnectionError(
+        "BTC wallet is not connected. Please reconnect your wallet and try again.",
+      );
+      return;
     }
 
     setWalletConnectionError(null);
@@ -319,6 +330,7 @@ function SimpleDepositContent({
                 ordinalsCheckUnavailable={ordinalsCheckUnavailable}
                 ordinalsCheckPending={ordinalsCheckPending}
                 hasWalletConnectionError={Boolean(walletConnectionError)}
+                walletConnectionErrorMessage={walletConnectionError}
                 isVerifyingWallet={isVerifyingWallet}
                 isReconnectingWallet={isReconnectingWallet}
               />

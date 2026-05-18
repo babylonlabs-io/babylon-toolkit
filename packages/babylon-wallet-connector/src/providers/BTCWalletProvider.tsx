@@ -300,29 +300,38 @@ export const BTCWalletProvider = ({ children, callbacks }: BTCWalletProviderProp
       throw new Error("BTC Wallet not connected");
     }
 
-    await btcWalletProvider.connectWallet();
+    try {
+      await btcWalletProvider.connectWallet();
 
-    const refreshedAddress = await btcWalletProvider.getAddress();
-    if (!refreshedAddress) {
-      throw new Error("BTC wallet provider returned an empty address");
-    }
+      const refreshedAddress = await btcWalletProvider.getAddress();
+      if (!refreshedAddress) {
+        throw new Error("BTC wallet provider returned an empty address");
+      }
 
-    const refreshedPublicKeyHex = await btcWalletProvider.getPublicKeyHex();
-    if (!refreshedPublicKeyHex) {
-      throw new Error("BTC wallet provider returned an empty public key");
-    }
+      const refreshedPublicKeyHex = await btcWalletProvider.getPublicKeyHex();
+      if (!refreshedPublicKeyHex) {
+        throw new Error("BTC wallet provider returned an empty public key");
+      }
 
-    const refreshedPublicKeyNoCoord = toXOnlyPublicKeyHex(refreshedPublicKeyHex);
-    if (!refreshedPublicKeyNoCoord) {
-      throw new Error("Processed BTC public key (no coordinates) is empty");
-    }
+      const refreshedPublicKeyNoCoord = toXOnlyPublicKeyHex(refreshedPublicKeyHex);
+      if (!refreshedPublicKeyNoCoord) {
+        throw new Error("Processed BTC public key (no coordinates) is empty");
+      }
 
-    if (refreshedAddress !== address) {
+      // Always refresh the cached pubkey alongside the address. Wallets that
+      // derive pubkeys lazily can return a different pubkey for the same
+      // address after re-auth, and connectBTC sets both unconditionally.
       setAddress(refreshedAddress);
       setPublicKeyNoCoord(refreshedPublicKeyNoCoord);
-      await callbacks?.onAddressChange?.(refreshedAddress, refreshedPublicKeyNoCoord);
+      if (refreshedAddress !== address) {
+        await callbacks?.onAddressChange?.(refreshedAddress, refreshedPublicKeyNoCoord);
+      }
+    } catch (error: unknown) {
+      const err = error instanceof Error ? error : new Error(String(error));
+      callbacks?.onError?.(err, { address, publicKeyNoCoord });
+      throw error;
     }
-  }, [btcWalletProvider, address, callbacks]);
+  }, [btcWalletProvider, address, publicKeyNoCoord, callbacks]);
 
   const connected = useMemo(
     () => Boolean(btcWalletProvider && address && publicKeyNoCoord),

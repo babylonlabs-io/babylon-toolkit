@@ -103,6 +103,14 @@ interface DepositFormProps {
   hasWalletConnectionError?: boolean;
 
   /**
+   * Detail string for the current wallet connection error. Rendered inline
+   * above the CTA so the user sees the underlying cause (locked extension,
+   * permission revoked, account changed) instead of just the generic
+   * "Reconnect Wallet" button label.
+   */
+  walletConnectionErrorMessage?: string | null;
+
+  /**
    * True while the click-time wallet liveness probe is running. Used to
    * disable the Deposit button so the user cannot double-trigger the check.
    */
@@ -147,6 +155,7 @@ export function DepositForm({
   ordinalsCheckUnavailable = false,
   ordinalsCheckPending = false,
   hasWalletConnectionError = false,
+  walletConnectionErrorMessage = null,
   isVerifyingWallet = false,
   isReconnectingWallet = false,
 }: DepositFormProps) {
@@ -391,6 +400,11 @@ export function DepositForm({
       </Card>
 
       {/* CTA button */}
+      {hasWalletConnectionError && walletConnectionErrorMessage && (
+        <p className="text-sm text-error-main" role="alert">
+          {walletConnectionErrorMessage}
+        </p>
+      )}
       <DepositButton
         variant="contained"
         color="primary"
