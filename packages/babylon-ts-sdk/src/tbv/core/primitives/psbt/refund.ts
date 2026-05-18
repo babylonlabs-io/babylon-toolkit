@@ -21,7 +21,7 @@ import { Buffer } from "buffer";
 import { Psbt, Transaction } from "bitcoinjs-lib";
 
 import { TAPSCRIPT_LEAF_VERSION, hexToUint8Array, uint8ArrayToHex } from "../utils/bitcoin";
-import type { PrePeginParams } from "./pegin";
+import { normalizeAuthAnchorHash, type PrePeginParams } from "./pegin";
 
 /**
  * Parameters for building a refund PSBT
@@ -77,7 +77,13 @@ export async function buildRefundPsbt(
   // commit an OP_RETURN <PUSH32 SHA256(authAnchor)> output at
   // `vout = hashlocks.length`; the unfunded template must include it so
   // `fromFundedTransaction` aligns with the funded tx's output shape.
-  // Pass `undefined` only for legacy non-auth-anchored Pre-PegIns.
+  // Normalize identically to the peg-in primitives (`0x` strip,
+  // lowercase, length/charset validation) so a direct primitive caller
+  // reusing successful peg-in params doesn't hand unnormalized bytes to
+  // WASM. Pass `undefined` for legacy non-auth-anchored Pre-PegIns.
+  const normalizedAuthAnchorHash = normalizeAuthAnchorHash(
+    prePeginParams.authAnchorHash,
+  );
   const unfundedTx = new (WasmPrePeginTx as unknown as new (
     depositor: string,
     vault_provider: string,
@@ -105,7 +111,7 @@ export async function buildRefundPsbt(
     prePeginParams.councilQuorum,
     prePeginParams.councilSize,
     prePeginParams.network,
-    prePeginParams.authAnchorHash,
+    normalizedAuthAnchorHash,
   );
 
   let fundedTx: WasmPrePeginTx | null = null;

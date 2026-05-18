@@ -144,4 +144,79 @@ describe("buildRefundPsbt", () => {
       ).rejects.toThrow();
     });
   });
+
+  describe("authAnchorHash normalization (parity with peg-in primitives)", () => {
+    // PrePeginParams is shared with buildPrePeginPsbt and
+    // buildPeginTxFromFundedPrePegin, both of which normalize
+    // `authAnchorHash` (strip 0x, lowercase, validate length/charset)
+    // before crossing the WASM boundary. The refund primitive must
+    // behave identically — a direct caller reusing successful peg-in
+    // params shouldn't get a different validation surface.
+
+    it("accepts a 0x-prefixed authAnchorHash and matches the funded tx", async () => {
+      const { txHex, params } = await buildFundedPrePegin({
+        authAnchorHash: TEST_AUTH_ANCHOR_HASH,
+      });
+
+      const result = await buildRefundPsbt({
+        prePeginParams: { ...params, authAnchorHash: `0x${TEST_AUTH_ANCHOR_HASH}` },
+        fundedPrePeginTxHex: txHex,
+        htlcVout: 0,
+        refundFee: TEST_REFUND_FEE,
+        hashlock: TEST_HASH_H,
+      });
+
+      expect(typeof result.psbtHex).toBe("string");
+      expect(result.psbtHex.length).toBeGreaterThan(0);
+    });
+
+    it("accepts uppercase hex in authAnchorHash and matches the funded tx", async () => {
+      const { txHex, params } = await buildFundedPrePegin({
+        authAnchorHash: TEST_AUTH_ANCHOR_HASH,
+      });
+
+      const result = await buildRefundPsbt({
+        prePeginParams: { ...params, authAnchorHash: TEST_AUTH_ANCHOR_HASH.toUpperCase() },
+        fundedPrePeginTxHex: txHex,
+        htlcVout: 0,
+        refundFee: TEST_REFUND_FEE,
+        hashlock: TEST_HASH_H,
+      });
+
+      expect(typeof result.psbtHex).toBe("string");
+      expect(result.psbtHex.length).toBeGreaterThan(0);
+    });
+
+    it("rejects an authAnchorHash with the wrong length", async () => {
+      const { txHex, params } = await buildFundedPrePegin({
+        authAnchorHash: TEST_AUTH_ANCHOR_HASH,
+      });
+
+      await expect(
+        buildRefundPsbt({
+          prePeginParams: { ...params, authAnchorHash: "ab".repeat(31) },
+          fundedPrePeginTxHex: txHex,
+          htlcVout: 0,
+          refundFee: TEST_REFUND_FEE,
+          hashlock: TEST_HASH_H,
+        }),
+      ).rejects.toThrow(/authAnchorHash/);
+    });
+
+    it("rejects an authAnchorHash with non-hex characters", async () => {
+      const { txHex, params } = await buildFundedPrePegin({
+        authAnchorHash: TEST_AUTH_ANCHOR_HASH,
+      });
+
+      await expect(
+        buildRefundPsbt({
+          prePeginParams: { ...params, authAnchorHash: "zz".repeat(32) },
+          fundedPrePeginTxHex: txHex,
+          htlcVout: 0,
+          refundFee: TEST_REFUND_FEE,
+          hashlock: TEST_HASH_H,
+        }),
+      ).rejects.toThrow(/authAnchorHash/);
+    });
+  });
 });

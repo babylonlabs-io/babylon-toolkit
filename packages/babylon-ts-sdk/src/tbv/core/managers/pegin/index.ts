@@ -8,6 +8,7 @@
 
 export {
   assertAuthAnchorOpReturn,
+  findAuthAnchorOpReturn,
   readAuthAnchorOpReturn,
 } from "./assertAuthAnchorOpReturn";
 export {
