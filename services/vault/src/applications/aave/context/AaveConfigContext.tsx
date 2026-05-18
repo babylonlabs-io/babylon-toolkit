@@ -29,6 +29,23 @@ interface AaveConfigContextValue {
 
 const AaveConfigContext = createContext<AaveConfigContextValue | null>(null);
 
+/**
+ * Playwright e2e escape hatch: when `NEXT_PUBLIC_E2E_MODE=1` and the
+ * test has set `window.__BABYLON_E2E_AAVE_CONFIG__`, return that
+ * verbatim instead of running the GraphQL fetch + on-chain resolve.
+ * Production builds never set the env var, so the override is
+ * unreachable outside e2e.
+ */
+function readE2EAaveConfig(): AaveConfigContextValue | undefined {
+  if (process.env.NEXT_PUBLIC_E2E_MODE !== "1") return undefined;
+  if (typeof window === "undefined") return undefined;
+  return (
+    window as unknown as {
+      __BABYLON_E2E_AAVE_CONFIG__?: AaveConfigContextValue;
+    }
+  ).__BABYLON_E2E_AAVE_CONFIG__;
+}
+
 interface AaveConfigProviderProps {
   children: ReactNode;
   /** Override the default unavailable panel. Pass `null` to suppress. */
@@ -36,6 +53,31 @@ interface AaveConfigProviderProps {
 }
 
 export function AaveConfigProvider({
+  children,
+  errorFallback,
+}: AaveConfigProviderProps) {
+  const e2eOverride = readE2EAaveConfig();
+  if (e2eOverride) {
+    return (
+      <AaveConfigContext.Provider value={e2eOverride}>
+        {children}
+      </AaveConfigContext.Provider>
+    );
+  }
+  return (
+    <AaveConfigProviderImpl errorFallback={errorFallback}>
+      {children}
+    </AaveConfigProviderImpl>
+  );
+}
+
+/**
+ * Production-path provider. Wrapped so the e2e override branch in
+ * `AaveConfigProvider` can early-return without breaking
+ * rules-of-hooks (`useQuery` below would otherwise be conditionally
+ * called).
+ */
+function AaveConfigProviderImpl({
   children,
   errorFallback,
 }: AaveConfigProviderProps) {

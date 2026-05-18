@@ -1,5 +1,10 @@
 export { preConnectWallets } from "./connectedWallets";
 export type { PreConnectOptions } from "./connectedWallets";
+export { installDepositModalBackend } from "./depositModalBackend";
+export type {
+  DepositModalBackendOptions,
+  ProviderSeed,
+} from "./depositModalBackend";
 export { createMockBtcWallet } from "./mockBtcWallet";
 export type {
   MockBtcScript,

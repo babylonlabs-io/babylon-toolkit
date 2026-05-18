@@ -32,6 +32,25 @@ const PROTOCOL_PARAMS_QUERY_KEY = "protocolParams";
 const STALE_TIME_MS = 5 * 60 * 1000;
 const RETRY_COUNT = 3;
 
+/**
+ * Read a Playwright-provided override from `window` in e2e mode. Tests
+ * skip the contract reads entirely and inject a deterministic context
+ * value via this global. The branch is gated on
+ * `NEXT_PUBLIC_E2E_MODE`, which the production build never sets - so
+ * the runtime cost is a single string-compare in non-e2e builds and
+ * the override is unreachable in production.
+ */
+function readE2EOverride(): ProtocolParamsContextValue | undefined {
+  if (process.env.NEXT_PUBLIC_E2E_MODE !== "1") return undefined;
+  if (typeof window === "undefined") return undefined;
+  const override = (
+    window as unknown as {
+      __BABYLON_E2E_PROTOCOL_PARAMS__?: ProtocolParamsContextValue;
+    }
+  ).__BABYLON_E2E_PROTOCOL_PARAMS__;
+  return override;
+}
+
 interface ProtocolParamsContextValue {
   /** Peg-in configuration from contract */
   config: PegInConfiguration;
@@ -73,6 +92,24 @@ interface ProtocolParamsProviderProps {
 export function ProtocolParamsProvider({
   children,
 }: ProtocolParamsProviderProps) {
+  const e2eOverride = readE2EOverride();
+  if (e2eOverride) {
+    return (
+      <ProtocolParamsContext.Provider value={e2eOverride}>
+        {children}
+      </ProtocolParamsContext.Provider>
+    );
+  }
+  return <ProtocolParamsProviderImpl>{children}</ProtocolParamsProviderImpl>;
+}
+
+/**
+ * Production-path provider. Lives in its own component so that the
+ * e2e override branch in `ProtocolParamsProvider` can early-return
+ * without violating React's rules-of-hooks (hooks below would
+ * otherwise be skipped on the e2e branch).
+ */
+function ProtocolParamsProviderImpl({ children }: ProtocolParamsProviderProps) {
   const {
     data: configData,
     isLoading: configLoading,
