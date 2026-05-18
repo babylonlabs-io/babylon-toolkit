@@ -1,43 +1,27 @@
 /**
- * Hook for estimating gas cost of a deposit-related Ethereum transaction.
+ * Hook for estimating gas cost of the deposit submitPeginRequestBatch
+ * Ethereum transaction. Powers the Ethereum Network Fee row on the deposit
+ * form.
  *
- * Powers the Ethereum Network Fee row on the deposit form (where the actual
- * `submitPeginRequestBatch` calldata is not available until the user signs,
- * so a representative gas-units constant is used instead of a live
- * `estimateGas` call) and the borrow form.
+ * The estimate is produced before the depositor has signed anything, so the
+ * SDK helper {@link estimateSubmitPeginRequestBatchGas} synthesizes calldata
+ * with representative dummy bytes for the per-vault signature/tx fields. The
+ * resulting gas value is approximate but is a real on-chain estimate, not a
+ * hardcoded constant.
  */
 
+import { estimateSubmitPeginRequestBatchGas } from "@babylonlabs-io/ts-sdk/tbv/core";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
+import type { Address } from "viem";
 
 import { ethClient } from "@/clients/eth-contract/client";
+import { CONTRACTS } from "@/config/contracts";
+import { useETHWallet } from "@/context/wallet";
 import { usePrice } from "@/hooks/usePrices";
 
 const WEI_PER_ETH = 10n ** 18n;
 const GAS_ESTIMATE_STALE_TIME_MS = 30_000;
-
-/**
- * Representative gas units for the `submitPeginRequestBatch` ETH transaction
- * that finalizes a deposit. Used because the real calldata (signed pegin tx,
- * PoP signature, depositor wots pk hash) is not assembled until the user
- * has signed - so a live `estimateGas` is not possible at fee-display time.
- *
- * TODO(#1657): Replace with an observed value. Source: log emitted by
- * `PeginManager.registerPeginBatchOnChain` (see the `[gasEstimate]` console
- * line just before `sendTransaction`). Run a real deposit on devnet/testnet
- * and copy the printed value here.
- */
-export const DEPOSIT_PEGIN_BATCH_GAS_UNITS = 500_000n;
-
-/**
- * Representative gas units for the borrow ETH transaction. Calldata differs
- * from `submitPeginRequestBatch`, so the constant is kept separate even if
- * the numeric value turns out to be similar.
- *
- * TODO(#1657): Replace with an observed value from a real borrow on
- * devnet/testnet.
- */
-export const BORROW_GAS_UNITS = 500_000n;
 
 export interface DepositGasEstimate {
   /** Formatted ETH fee string (e.g. "0.000123 ETH"). */
@@ -51,36 +35,56 @@ export interface DepositGasEstimate {
 }
 
 interface UseDepositGasEstimateParams {
-  /** Representative gas-units constant for the target ETH transaction. */
-  gasUnits: bigint;
+  /** Selected vault provider address; estimate is skipped when undefined. */
+  vaultProvider: Address | undefined;
+  /** Number of vaults in the batch (1 for single deposits). */
+  batchSize: number;
   /** Whether estimation should run. */
   enabled: boolean;
 }
 
-/**
- * Multiplies a representative gas-units constant by the current gas price
- * and converts to formatted ETH + USD strings.
- */
+function weiToEth(weiCost: bigint): number {
+  const wholePart = weiCost / WEI_PER_ETH;
+  const remainder = weiCost % WEI_PER_ETH;
+  return Number(wholePart) + Number(remainder) / Number(WEI_PER_ETH);
+}
+
 export function useDepositGasEstimate({
-  gasUnits,
+  vaultProvider,
+  batchSize,
   enabled,
 }: UseDepositGasEstimateParams): DepositGasEstimate {
   const ethPrice = usePrice("ETH");
+  const { address: depositorEthAddress } = useETHWallet();
+
+  const canEstimate =
+    enabled && !!vaultProvider && !!depositorEthAddress && batchSize > 0;
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ["depositGasEstimate", gasUnits.toString()],
+    queryKey: [
+      "depositGasEstimate",
+      vaultProvider ?? null,
+      depositorEthAddress ?? null,
+      batchSize,
+    ],
     queryFn: async () => {
+      if (!vaultProvider || !depositorEthAddress) {
+        throw new Error("Missing inputs for deposit gas estimate");
+      }
       const publicClient = ethClient.getPublicClient();
-      const gasPrice = await publicClient.getGasPrice();
-
-      const gasCostWei = gasUnits * gasPrice;
-      // Split into whole + remainder to avoid BigInt-to-Number precision loss
-      // (gasCostWei can exceed Number.MAX_SAFE_INTEGER at high gas prices).
-      const wholePart = gasCostWei / WEI_PER_ETH;
-      const remainder = gasCostWei % WEI_PER_ETH;
-      return Number(wholePart) + Number(remainder) / Number(WEI_PER_ETH);
+      const [gasUnits, gasPrice] = await Promise.all([
+        estimateSubmitPeginRequestBatchGas({
+          publicClient,
+          btcVaultRegistry: CONTRACTS.BTC_VAULT_REGISTRY,
+          depositorEthAddress: depositorEthAddress as Address,
+          vaultProvider,
+          batchSize,
+        }),
+        publicClient.getGasPrice(),
+      ]);
+      return weiToEth(gasUnits * gasPrice);
     },
-    enabled,
+    enabled: canEstimate,
     staleTime: GAS_ESTIMATE_STALE_TIME_MS,
     retry: 1,
   });

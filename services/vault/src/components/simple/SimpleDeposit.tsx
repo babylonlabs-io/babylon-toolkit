@@ -7,10 +7,7 @@ import { useAddressScreening } from "@/context/addressScreening";
 import { useGeoFencing } from "@/context/geofencing";
 import { ProtocolParamsProvider } from "@/context/ProtocolParamsContext";
 import { useETHWallet } from "@/context/wallet";
-import {
-  DEPOSIT_PEGIN_BATCH_GAS_UNITS,
-  useDepositGasEstimate,
-} from "@/hooks/deposit/useDepositGasEstimate";
+import { useDepositGasEstimate } from "@/hooks/deposit/useDepositGasEstimate";
 import { useDepositPeginFee } from "@/hooks/deposit/useDepositPeginFee";
 import { useDialogStep } from "@/hooks/deposit/useDialogStep";
 import { useProtocolFeeRows } from "@/hooks/useProtocolFeeRows";
@@ -140,8 +137,13 @@ function SimpleDepositContent({
       : undefined,
   );
 
+  const depositBatchSize =
+    isPartialLiquidation && vaultAmounts ? vaultAmounts.length : 1;
   const ethereumNetworkFee = useDepositGasEstimate({
-    gasUnits: DEPOSIT_PEGIN_BATCH_GAS_UNITS,
+    vaultProvider: formData.selectedProvider
+      ? (formData.selectedProvider as Address)
+      : undefined,
+    batchSize: depositBatchSize,
     enabled:
       !!formData.selectedProvider &&
       !!formData.amountBtc &&
