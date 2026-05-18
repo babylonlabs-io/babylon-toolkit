@@ -219,4 +219,33 @@ describe("fetchAndDownloadArtifacts", () => {
     ).rejects.toBeInstanceOf(JsonRpcError);
     expect(triggerDownloadSpy).not.toHaveBeenCalled();
   });
+
+  it("propagates wire source and structured error.data on RPC error envelopes", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      responseFor({
+        jsonrpc: "2.0",
+        error: {
+          code: -32001,
+          message: "auth token expired",
+          data: { kind: "auth_expired", expiresAt: 1700000000 },
+        },
+        id: 1,
+      }),
+    );
+
+    const err = await fetchAndDownloadArtifacts(
+      PROVIDER_ADDRESS,
+      PEGIN_TXID,
+      DEPOSITOR_PK,
+    ).catch((e: unknown) => e);
+
+    expect(err).toBeInstanceOf(JsonRpcError);
+    const jsonRpcErr = err as JsonRpcError;
+    expect(jsonRpcErr.source).toBe("wire");
+    expect(jsonRpcErr.data).toEqual({
+      kind: "auth_expired",
+      expiresAt: 1700000000,
+    });
+    expect(triggerDownloadSpy).not.toHaveBeenCalled();
+  });
 });
