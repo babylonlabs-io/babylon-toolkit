@@ -148,6 +148,15 @@ export interface UseDepositFlowReturn {
   artifactDownloadInfo: ArtifactDownloadInfo | null;
   /** Callback to continue the flow after artifact download */
   continueAfterArtifactDownload: () => void;
+  /**
+   * Data backing the "Awaiting Bitcoin confirmation" detail panel: the
+   * timestamp the step was first entered and the pegin tx hash of the
+   * deposit. `null` until the BTC broadcast completes.
+   */
+  btcConfirmationDetail: {
+    startedAt: number;
+    peginTxHash: string;
+  } | null;
 }
 
 export interface PeginCreationResult {
@@ -213,6 +222,10 @@ export function useDepositFlow(
     useState<PayoutSigningProgress | null>(null);
   const [artifactDownloadInfo, setArtifactDownloadInfo] =
     useState<ArtifactDownloadInfo | null>(null);
+  const [btcConfirmationDetail, setBtcConfirmationDetail] = useState<{
+    startedAt: number;
+    peginTxHash: string;
+  } | null>(null);
 
   const artifactResolverRef = useRef<(() => void) | null>(null);
 
@@ -731,6 +744,17 @@ export function useDepositFlow(
         // ========================================================================
 
         setCurrentStep(DepositFlowStep.AWAIT_BTC_CONFIRMATION);
+        // Snapshot the moment we enter the BTC-wait so the detail panel
+        // can render a stable "Started at" / "Est. Remaining" pair. Pick
+        // the first broadcasted pegin tx hash — multi-vault deposits all
+        // share the same Pre-PegIn broadcast, but per-vault hashes are
+        // what the rest of the app surfaces to the user.
+        if (broadcastedResults[0]) {
+          setBtcConfirmationDetail({
+            startedAt: Date.now(),
+            peginTxHash: broadcastedResults[0].peginTxHash,
+          });
+        }
         setIsWaiting(true);
 
         let baseStep: DepositFlowStep = DepositFlowStep.AWAIT_BTC_CONFIRMATION;
@@ -1035,5 +1059,6 @@ export function useDepositFlow(
     payoutSigningProgress,
     artifactDownloadInfo,
     continueAfterArtifactDownload,
+    btcConfirmationDetail,
   };
 }
