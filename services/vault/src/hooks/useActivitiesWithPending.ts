@@ -71,6 +71,8 @@ export function useActivitiesWithPending(userAddress: Address | undefined) {
 
   // Merge confirmed and pending activities, deduplicating by ID
   const allActivities = useMemo(() => {
+    if (!userAddress) return [];
+
     const confirmed = confirmedActivities ?? [];
 
     // Create set of confirmed IDs for deduplication
@@ -85,7 +87,7 @@ export function useActivitiesWithPending(userAddress: Address | undefined) {
     return [...uniquePending, ...confirmed].sort(
       (a, b) => b.date.getTime() - a.date.getTime(),
     );
-  }, [confirmedActivities, pendingActivities]);
+  }, [confirmedActivities, pendingActivities, userAddress]);
 
   return {
     data: allActivities,
