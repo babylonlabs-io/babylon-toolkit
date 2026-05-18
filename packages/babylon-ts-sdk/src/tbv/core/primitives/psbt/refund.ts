@@ -72,7 +72,27 @@ export async function buildRefundPsbt(
   const { prePeginParams, fundedPrePeginTxHex, htlcVout, refundFee, hashlock } =
     params;
 
-  const unfundedTx = new WasmPrePeginTx(
+  // The 13th positional arg `auth_anchor_hash` is `Option<String>` in
+  // the Rust WASM constructor. Production peg-ins (PeginManager) always
+  // commit an OP_RETURN <PUSH32 SHA256(authAnchor)> output at
+  // `vout = hashlocks.length`; the unfunded template must include it so
+  // `fromFundedTransaction` aligns with the funded tx's output shape.
+  // Pass `undefined` only for legacy non-auth-anchored Pre-PegIns.
+  const unfundedTx = new (WasmPrePeginTx as unknown as new (
+    depositor: string,
+    vault_provider: string,
+    vault_keepers: string[],
+    universal_challengers: string[],
+    hashlocks: string[],
+    pegin_amounts: BigUint64Array,
+    timelock_refund: number,
+    fee_rate: bigint,
+    num_local_challengers: number,
+    council_quorum: number,
+    council_size: number,
+    network: string,
+    auth_anchor_hash?: string,
+  ) => typeof WasmPrePeginTx.prototype)(
     prePeginParams.depositorPubkey,
     prePeginParams.vaultProviderPubkey,
     prePeginParams.vaultKeeperPubkeys,
@@ -85,6 +105,7 @@ export async function buildRefundPsbt(
     prePeginParams.councilQuorum,
     prePeginParams.councilSize,
     prePeginParams.network,
+    prePeginParams.authAnchorHash,
   );
 
   let fundedTx: WasmPrePeginTx | null = null;

@@ -1,3 +1,4 @@
+import * as bitcoin from "bitcoinjs-lib";
 import type { Address, Hex } from "viem";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -35,7 +36,11 @@ vi.mock(
 
 // Finalize + extract uses bitcoinjs-lib. We stub Psbt.fromHex to return an
 // object with controllable `finalizeAllInputs` / `extractTransaction`.
-vi.mock("bitcoinjs-lib", async () => {
+// `Transaction` is kept real because the orchestrator also parses the
+// funded Pre-PegIn hex via `readAuthAnchorOpReturn` to extract the
+// auth-anchor commitment.
+vi.mock("bitcoinjs-lib", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("bitcoinjs-lib")>();
   const psbtInstance = {
     finalizeAllInputs: vi.fn(),
     extractTransaction: vi.fn(() => ({
@@ -43,6 +48,7 @@ vi.mock("bitcoinjs-lib", async () => {
     })),
   };
   return {
+    ...actual,
     Psbt: {
       fromHex: vi.fn(() => psbtInstance),
     },
@@ -304,6 +310,99 @@ describe("buildAndBroadcastRefund", () => {
     expect(call[0].hashlock).toBe(HASHLOCK.slice(2));
     expect(call[0].hashlock).not.toMatch(/^0x/);
     expect(call[0].fundedPrePeginTxHex).not.toMatch(/^0x/);
+  });
+
+  describe("auth-anchor extraction", () => {
+    // Build a minimal funded Pre-PegIn tx hex with a configurable shape:
+    // optional OP_RETURN at vout=1 carrying a 32-byte payload. The HTLC
+    // output at vout=0 is a placeholder — the orchestrator does not
+    // re-derive HTLC content here; the WASM primitive is mocked. We
+    // only care that `readAuthAnchorOpReturn` sees the right output
+    // shape.
+    function buildMinimalFundedPrePeginHex(opts?: {
+      authAnchorHashHex?: string;
+    }): string {
+      const tx = new bitcoin.Transaction();
+      tx.addInput(Buffer.alloc(32, 0xaa), 0);
+      // HTLC placeholder at vout 0 (P2WPKH script — any 22-byte script is
+      // fine; the parser only inspects vout 1 for the OP_RETURN).
+      tx.addOutput(Buffer.from("0014" + "11".repeat(20), "hex"), 100_000);
+      if (opts?.authAnchorHashHex !== undefined) {
+        // OP_RETURN (0x6a) || PUSH32 (0x20) || <32-byte hash>
+        tx.addOutput(
+          Buffer.from(`6a20${opts.authAnchorHashHex}`, "hex"),
+          0,
+        );
+      }
+      return tx.toHex();
+    }
+
+    it("extracts authAnchorHash from vout=1 OP_RETURN and forwards it into prePeginParams", async () => {
+      const ANCHOR_HASH = "cd".repeat(32);
+      const fundedHex = buildMinimalFundedPrePeginHex({
+        authAnchorHashHex: ANCHOR_HASH,
+      });
+      readVault.mockResolvedValue(
+        buildVault({ unsignedPrePeginTxHex: "0x" + fundedHex }),
+      );
+
+      await buildAndBroadcastRefund({
+        vaultId: VAULT_ID,
+        readVault,
+        readPrePeginContext,
+        feeRate: FEE_RATE,
+        signPsbt,
+        broadcastTx,
+      });
+
+      const [call] = mockedBuildRefundPsbt.mock.calls;
+      expect(call[0].prePeginParams.authAnchorHash).toBe(ANCHOR_HASH);
+    });
+
+    it("passes authAnchorHash = undefined when the funded tx has no OP_RETURN at vout 1 (legacy shape)", async () => {
+      const fundedHex = buildMinimalFundedPrePeginHex();
+      readVault.mockResolvedValue(
+        buildVault({ unsignedPrePeginTxHex: "0x" + fundedHex }),
+      );
+
+      await buildAndBroadcastRefund({
+        vaultId: VAULT_ID,
+        readVault,
+        readPrePeginContext,
+        feeRate: FEE_RATE,
+        signPsbt,
+        broadcastTx,
+      });
+
+      const [call] = mockedBuildRefundPsbt.mock.calls;
+      expect(call[0].prePeginParams.authAnchorHash).toBeUndefined();
+    });
+
+    it("normalizes the extracted hash to lowercase (matches WASM hex convention)", async () => {
+      // OP_RETURN payloads are raw bytes — they don't have an intrinsic
+      // case. The reader normalizes its hex output to lowercase so the
+      // unfunded WASM template and any expected-hash comparison stay
+      // byte-identical regardless of how callers spell their input.
+      const UPPER_ANCHOR_HASH = "AB".repeat(32);
+      const fundedHex = buildMinimalFundedPrePeginHex({
+        authAnchorHashHex: UPPER_ANCHOR_HASH,
+      });
+      readVault.mockResolvedValue(
+        buildVault({ unsignedPrePeginTxHex: "0x" + fundedHex }),
+      );
+
+      await buildAndBroadcastRefund({
+        vaultId: VAULT_ID,
+        readVault,
+        readPrePeginContext,
+        feeRate: FEE_RATE,
+        signPsbt,
+        broadcastTx,
+      });
+
+      const [call] = mockedBuildRefundPsbt.mock.calls;
+      expect(call[0].prePeginParams.authAnchorHash).toBe("ab".repeat(32));
+    });
   });
 
   describe("validation", () => {

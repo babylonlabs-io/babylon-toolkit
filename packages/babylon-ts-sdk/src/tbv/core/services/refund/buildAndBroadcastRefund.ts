@@ -15,6 +15,7 @@ import { Psbt } from "bitcoinjs-lib";
 import type { Address, Hex } from "viem";
 
 import type { SignPsbtOptions } from "../../../../shared/wallets/interfaces/BitcoinWallet";
+import { readAuthAnchorOpReturn } from "../../managers/pegin";
 import { assertPsbtUnsignedTxMatches } from "../../primitives/psbt/assertPsbtUnsignedTxMatches";
 import { buildRefundPsbt } from "../../primitives/psbt/refund";
 import {
@@ -330,6 +331,23 @@ export async function buildAndBroadcastRefund<
   const xOnlyDepositorPubkey = processPublicKeyToXOnly(
     vault.depositorBtcPubkey,
   );
+
+  const cleanFundedPrePeginTxHex = stripHexPrefix(vault.unsignedPrePeginTxHex);
+
+  // Production peg-ins (PeginManager) commit an OP_RETURN <PUSH32
+  // SHA256(authAnchor)> output at `vout = hashlocks.length`. The refund
+  // reconstructs the unfunded WASM template for a single vault here
+  // (hashlocks: [vault.hashlock]), so the anchor output — if present —
+  // sits at vout 1. Forwarding the parsed hash makes the unfunded
+  // template's output shape match the funded tx; legacy
+  // non-auth-anchored deposits return `undefined` and use the
+  // 12-output template instead.
+  const SINGLE_VAULT_AUTH_ANCHOR_VOUT = 1;
+  const authAnchorHash = readAuthAnchorOpReturn(
+    cleanFundedPrePeginTxHex,
+    SINGLE_VAULT_AUTH_ANCHOR_VOUT,
+  );
+
   const { psbtHex } = await buildRefundPsbt({
     prePeginParams: {
       depositorPubkey: xOnlyDepositorPubkey,
@@ -345,8 +363,9 @@ export async function buildAndBroadcastRefund<
       councilQuorum: ctx.councilQuorum,
       councilSize: ctx.councilSize,
       network: ctx.network,
+      authAnchorHash,
     },
-    fundedPrePeginTxHex: stripHexPrefix(vault.unsignedPrePeginTxHex),
+    fundedPrePeginTxHex: cleanFundedPrePeginTxHex,
     htlcVout: vault.htlcVout,
     refundFee,
     // buildRefundPsbt's top-level `hashlock` param is documented as "no 0x
