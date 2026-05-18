@@ -4,12 +4,8 @@ import { useEffect, useState } from "react";
 import { CopyableHash } from "@/components/shared/CopyableHash";
 import { getBtcExplorerTxUrl } from "@/utils/explorer";
 
-/**
- * Expected wall-clock time to a Bitcoin confirmation, in minutes.
- * Mirrors the "(~ 15 min)" copy on the corresponding stepper row; if the
- * actual wait runs longer, the countdown floors at 0.
- */
-const EXPECTED_CONFIRMATION_MINUTES = 15;
+import { EXPECTED_CONFIRMATION_MINUTES } from "./steps";
+
 const TICK_INTERVAL_MS = 30 * 1000;
 const MS_PER_MINUTE = 60 * 1000;
 

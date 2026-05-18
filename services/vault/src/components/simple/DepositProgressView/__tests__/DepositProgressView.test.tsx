@@ -1,5 +1,5 @@
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { DepositFlowStep } from "@/hooks/deposit/depositFlowSteps/types";
 
@@ -183,6 +183,16 @@ describe("DepositProgressView", () => {
   describe("BTC confirmation detail panel", () => {
     const PEGIN_TX_HASH =
       "1b2c3d4e5f00000000000000000000000000000000000000000000000000000000";
+    const FIXED_NOW = new Date("2026-01-01T14:00:00Z").getTime();
+
+    beforeEach(() => {
+      vi.useFakeTimers();
+      vi.setSystemTime(FIXED_NOW);
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
 
     it("renders Started at, Est. Remaining, and Bitcoin TX when the active step is AWAIT_BTC_CONFIRMATION", () => {
       const startedAt = new Date("2026-01-01T13:44:00Z").getTime();
@@ -204,7 +214,7 @@ describe("DepositProgressView", () => {
     });
 
     it("counts down Est. Remaining based on elapsed time", () => {
-      const elevenMinutesAgo = Date.now() - 11 * 60 * 1000;
+      const elevenMinutesAgo = FIXED_NOW - 11 * 60 * 1000;
       render(
         <DepositProgressView
           {...baseProps}
@@ -221,7 +231,7 @@ describe("DepositProgressView", () => {
     });
 
     it("floors Est. Remaining at 0 once the expected wait has elapsed", () => {
-      const longAgo = Date.now() - 60 * 60 * 1000;
+      const longAgo = FIXED_NOW - 60 * 60 * 1000;
       render(
         <DepositProgressView
           {...baseProps}
@@ -242,7 +252,7 @@ describe("DepositProgressView", () => {
           {...baseProps}
           currentStep={DepositFlowStep.SUBMIT_WOTS_KEYS}
           btcConfirmationDetail={{
-            startedAt: Date.now(),
+            startedAt: FIXED_NOW,
             peginTxHash: PEGIN_TX_HASH,
           }}
         />,

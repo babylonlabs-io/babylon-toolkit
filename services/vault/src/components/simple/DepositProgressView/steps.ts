@@ -3,7 +3,37 @@ import type { StepperItem } from "@babylonlabs-io/core-ui";
 import { DepositFlowStep } from "@/hooks/deposit/depositFlowSteps/types";
 import type { PayoutSigningProgress } from "@/services/vault/vaultPayoutSignatureService";
 
-export const TOTAL_VISUAL_STEPS = 11;
+export const EXPECTED_CONFIRMATION_MINUTES = 15;
+
+export function buildStepItems(
+  progress: PayoutSigningProgress | null,
+): StepperItem[] {
+  const payoutTotal = progress?.totalClaimers ?? 0;
+  const payoutCompleted = progress?.completed ?? 0;
+
+  return [
+    { label: "Generate secret for the deposit" },
+    { label: "Sign the pegIn BTC transaction" },
+    { label: "Sign proofs to link your Bitcoin and ETH addresses" },
+    { label: "Sign and broadcast ETH registration" },
+    { label: "Sign and broadcast BTC pre-pegIn transaction" },
+    {
+      label: "Awaiting Bitcoin confirmation",
+      description: `(~ ${EXPECTED_CONFIRMATION_MINUTES} min)`,
+    },
+    { label: "Submit WOTS public key to Vault Provider" },
+    { label: "Authenticate session with Vault Provider" },
+    {
+      label: "Sign payout transactions",
+      description:
+        payoutTotal > 0 ? `(${payoutCompleted} of ${payoutTotal})` : undefined,
+    },
+    { label: "Download artifact" },
+    { label: "Sign and broadcast reveal secret" },
+  ];
+}
+
+export const TOTAL_VISUAL_STEPS = buildStepItems(null).length;
 
 export function getVisualStep(currentStep: DepositFlowStep): number {
   switch (currentStep) {
@@ -31,32 +61,9 @@ export function getVisualStep(currentStep: DepositFlowStep): number {
       return 11;
     case DepositFlowStep.COMPLETED:
       return TOTAL_VISUAL_STEPS + 1;
-    default:
-      return 1;
+    default: {
+      const _exhaustive: never = currentStep;
+      return _exhaustive;
+    }
   }
-}
-
-export function buildStepItems(
-  progress: PayoutSigningProgress | null,
-): StepperItem[] {
-  const payoutTotal = progress?.totalClaimers ?? 0;
-  const payoutCompleted = progress?.completed ?? 0;
-
-  return [
-    { label: "Generate secret for the deposit" },
-    { label: "Sign the pegIn BTC transaction" },
-    { label: "Sign proofs to link your Bitcoin and ETH addresses" },
-    { label: "Sign and broadcast ETH registration" },
-    { label: "Sign and broadcast BTC pre-pegIn transaction" },
-    { label: "Awaiting Bitcoin confirmation", description: "(~ 15 min)" },
-    { label: "Submit WOTS public key to Vault Provider" },
-    { label: "Authenticate session with Vault Provider" },
-    {
-      label: "Sign payout transactions",
-      description:
-        payoutTotal > 0 ? `(${payoutCompleted} of ${payoutTotal})` : undefined,
-    },
-    { label: "Download artifact" },
-    { label: "Sign and broadcast reveal secret" },
-  ];
 }
