@@ -1,10 +1,10 @@
 import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
 import { stripHexPrefix } from "@babylonlabs-io/ts-sdk/tbv/core";
 import {
+  AUTH_EXPIRED_DATA_KIND,
   JsonRpcError,
   vpTokenRegistry,
 } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
-import { useChainConnector } from "@babylonlabs-io/wallet-connector";
 import { useCallback, useRef, useState } from "react";
 import type { Hex } from "viem";
 
@@ -14,9 +14,6 @@ import { fetchAndDownloadArtifacts } from "@/services/artifacts";
 import { markArtifactsDownloaded } from "@/utils/artifactDownloadStorage";
 
 const ARTIFACT_RETRY_INTERVAL_MS = 10_000;
-
-/** Wire-format marker the VP server emits when a previously-issued bearer expires. */
-const AUTH_EXPIRED_DATA_KIND = "auth_expired";
 
 interface ArtifactDownloadState {
   loading: boolean;
@@ -58,16 +55,11 @@ function isAuthFailure(err: unknown): boolean {
 }
 
 export function useArtifactDownload(options?: {
-  vaultId?: string;
+  vaultId?: Hex;
   primeContext?: PrimeContext | null;
 }) {
   const vaultId = options?.vaultId;
   const primeContext = options?.primeContext ?? null;
-
-  const btcConnector = useChainConnector("BTC");
-  const btcWalletFromConnector =
-    (btcConnector?.connectedWallet?.provider as BitcoinWallet | undefined) ??
-    null;
 
   const [state, setState] = useState<ArtifactDownloadState>({
     loading: false,
@@ -98,13 +90,7 @@ export function useArtifactDownload(options?: {
         // Prime context isn't always available (e.g. collateral re-download
         // path that lacks `unsignedPrePeginTx`); fall through to the raw
         // error in that case.
-        const wallet = primeContext?.btcWallet ?? btcWalletFromConnector;
-        if (
-          !primeContext ||
-          !wallet ||
-          !primeContext.vaultId ||
-          !primeContext.unsignedPrePeginTxHex
-        ) {
+        if (!primeContext) {
           return false;
         }
 
@@ -118,7 +104,7 @@ export function useArtifactDownload(options?: {
         vpTokenRegistry.peek(normalizedPeginTxid)?.invalidate();
 
         await ensureAuthenticatedVpClient({
-          btcWallet: wallet,
+          btcWallet: primeContext.btcWallet,
           vaultId: primeContext.vaultId,
           unsignedPrePeginTxHex: primeContext.unsignedPrePeginTxHex,
           peginTxHash: peginTxid,
@@ -199,7 +185,7 @@ export function useArtifactDownload(options?: {
         }
       }
     },
-    [vaultId, primeContext, btcWalletFromConnector],
+    [vaultId, primeContext],
   );
 
   const cancel = useCallback(() => {

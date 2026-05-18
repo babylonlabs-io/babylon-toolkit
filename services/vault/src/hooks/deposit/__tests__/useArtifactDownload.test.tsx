@@ -1,14 +1,12 @@
 import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
 import {
+  createAuthenticatedVpClient,
   JsonRpcError,
+  VpResponseValidationError,
   vpTokenRegistry,
 } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-
-vi.mock("@babylonlabs-io/wallet-connector", () => ({
-  useChainConnector: () => null,
-}));
 
 vi.mock("@/services/artifacts", () => ({
   fetchAndDownloadArtifacts: vi.fn(),
@@ -174,6 +172,101 @@ describe("useArtifactDownload — optimistic-then-prime-and-retry", () => {
     );
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(ensureAuthMock).toHaveBeenCalledTimes(1);
+    expect(result.current.downloaded).toBe(false);
+  });
+
+  it("invalidates the cached token provider when the registry has a hot-but-stale entry", async () => {
+    // Pre-seed the singleton registry against the same peginTxid the hook
+    // will use (post-stripHexPrefix). This exercises the hot-but-stale
+    // branch of tryPrimeAndRetry: peek must return a provider whose
+    // invalidate() gets called before we re-acquire a fresh bearer.
+    createAuthenticatedVpClient({
+      baseUrl: "https://vp.test/rpc",
+      peginTxid: PEGIN_TXID,
+      authAnchorHex: "c".repeat(64),
+      pinnedServerPubkey: "ab".repeat(32) as unknown as Parameters<
+        typeof createAuthenticatedVpClient
+      >[0]["pinnedServerPubkey"],
+    });
+    const seededProvider = vpTokenRegistry.peek(PEGIN_TXID);
+    expect(seededProvider).toBeDefined();
+    const invalidateSpy = vi.spyOn(
+      seededProvider as { invalidate: () => void },
+      "invalidate",
+    );
+
+    fetchMock
+      .mockRejectedValueOnce(
+        new JsonRpcError(-32001, "auth expired", "wire", {
+          kind: "auth_expired",
+        }),
+      )
+      .mockResolvedValueOnce(undefined);
+    ensureAuthMock.mockResolvedValueOnce(
+      undefined as unknown as Awaited<
+        ReturnType<typeof ensureAuthenticatedVpClient>
+      >,
+    );
+
+    const { result } = renderHook(() => useArtifactDownload({ primeContext }));
+
+    await act(async () => {
+      await result.current.download(PROVIDER_ADDRESS, PEGIN_TXID, DEPOSITOR_PK);
+    });
+
+    await waitFor(() => expect(result.current.downloaded).toBe(true));
+    expect(invalidateSpy).toHaveBeenCalledTimes(1);
+    expect(ensureAuthMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not prime on a non-auth wire error", async () => {
+    fetchMock.mockRejectedValueOnce(
+      new JsonRpcError(-32001, "internal error", "wire"),
+    );
+
+    const { result } = renderHook(() => useArtifactDownload({ primeContext }));
+
+    await act(async () => {
+      await result.current.download(PROVIDER_ADDRESS, PEGIN_TXID, DEPOSITOR_PK);
+    });
+
+    await waitFor(() => expect(result.current.error).toBe("internal error"));
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(ensureAuthMock).not.toHaveBeenCalled();
+    expect(result.current.downloaded).toBe(false);
+  });
+
+  it("does not prime on a local JsonRpcError (transport / SDK failure)", async () => {
+    fetchMock.mockRejectedValueOnce(
+      new JsonRpcError(-32000, "request timed out", "local"),
+    );
+
+    const { result } = renderHook(() => useArtifactDownload({ primeContext }));
+
+    await act(async () => {
+      await result.current.download(PROVIDER_ADDRESS, PEGIN_TXID, DEPOSITOR_PK);
+    });
+
+    await waitFor(() => expect(result.current.error).toBe("request timed out"));
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(ensureAuthMock).not.toHaveBeenCalled();
+    expect(result.current.downloaded).toBe(false);
+  });
+
+  it("does not prime on a VpResponseValidationError", async () => {
+    fetchMock.mockRejectedValueOnce(
+      new VpResponseValidationError("shape mismatch"),
+    );
+
+    const { result } = renderHook(() => useArtifactDownload({ primeContext }));
+
+    await act(async () => {
+      await result.current.download(PROVIDER_ADDRESS, PEGIN_TXID, DEPOSITOR_PK);
+    });
+
+    await waitFor(() => expect(result.current.error).not.toBeNull());
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(ensureAuthMock).not.toHaveBeenCalled();
     expect(result.current.downloaded).toBe(false);
   });
 });

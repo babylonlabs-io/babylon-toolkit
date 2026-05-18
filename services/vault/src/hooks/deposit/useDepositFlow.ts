@@ -124,7 +124,7 @@ export interface ArtifactDownloadInfo {
   providerAddress: string;
   peginTxid: string;
   depositorPk: string;
-  vaultId: string;
+  vaultId: Hex;
   /** Funded (pre-signing) Pre-PegIn tx hex - lets the modal re-derive
    * an auth anchor and re-prime the VP token registry on a cold cache. */
   unsignedPrePeginTxHex: string;

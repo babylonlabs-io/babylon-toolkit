@@ -22,7 +22,7 @@ interface ArtifactDownloadModalProps {
   providerAddress: string;
   peginTxid: string;
   depositorPk: string;
-  vaultId: string;
+  vaultId: Hex;
   /**
    * Unsigned Pre-PegIn tx hex (from indexer). When provided alongside a
    * connected BTC wallet, the modal can transparently re-authenticate
@@ -52,7 +52,7 @@ export function ArtifactDownloadModal({
   const primeContext = useMemo(() => {
     if (!btcWallet || !unsignedPrePeginTxHex) return null;
     return {
-      vaultId: vaultId as Hex,
+      vaultId,
       unsignedPrePeginTxHex,
       btcWallet,
     };

@@ -6,7 +6,7 @@
 import { Avatar, Button, Card } from "@babylonlabs-io/core-ui";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useMemo, useState } from "react";
-import type { Address } from "viem";
+import { isHex, type Address, type Hex } from "viem";
 import { useAccount } from "wagmi";
 
 import { WITHDRAW_HF_BLOCK_THRESHOLD } from "@/applications/aave/constants";
@@ -70,7 +70,7 @@ export function CollateralSection({
 }: CollateralSectionProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [artifactParams, setArtifactParams] = useState<
-    (ArtifactDownloadModalParams & { vaultId: string }) | null
+    (ArtifactDownloadModalParams & { vaultId: Hex }) | null
   >(null);
   const [isReorderOpen, setIsReorderOpen] = useState(false);
   const [isReorderSuccess, setIsReorderSuccess] = useState(false);
@@ -169,6 +169,12 @@ export function CollateralSection({
       if (!provider || !vault.depositorBtcPubkey || !vault.peginTxHash) {
         logger.warn(
           `[CollateralSection] Cannot download artifacts: missing provider, depositor public key, or peginTxHash for vault ${vaultEntryId}`,
+        );
+        return;
+      }
+      if (!isHex(vault.vaultId)) {
+        logger.warn(
+          `[CollateralSection] Cannot download artifacts: malformed vaultId ${vault.vaultId} for vault ${vaultEntryId}`,
         );
         return;
       }
