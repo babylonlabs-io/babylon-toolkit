@@ -99,7 +99,7 @@ describe("DepositProgressView", () => {
       expect(
         screen.getByText("Awaiting Bitcoin confirmation"),
       ).toBeInTheDocument();
-      expect(screen.getByText("(~ 15 min)")).toBeInTheDocument();
+      expect(screen.getByText("(~15 min)")).toBeInTheDocument();
     });
 
     it("renders pending steps as label-only (no descriptions)", () => {
@@ -128,7 +128,7 @@ describe("DepositProgressView", () => {
 
       expect(
         screen.getByRole("button", {
-          name: "You can close and come back later",
+          name: "Close & continue later",
         }),
       ).toBeInTheDocument();
     });

@@ -14,6 +14,8 @@ import {
   type ExpirationReason,
 } from "@babylonlabs-io/ts-sdk/tbv/core/services";
 
+import { COPY } from "@/copy";
+
 export { ContractStatus } from "@babylonlabs-io/ts-sdk/tbv/core/services";
 export type {
   ExpirationReason,
@@ -70,23 +72,7 @@ export enum PeginAction {
 // Display labels & types
 // ============================================================================
 
-export const PEGIN_DISPLAY_LABELS = {
-  PENDING: "Pending",
-  SIGNING_REQUIRED: "Signing required",
-  AWAITING_KEY: "Awaiting key",
-  PROCESSING: "Processing",
-  READY_TO_ACTIVATE: "Ready to Activate",
-  AVAILABLE: "Available",
-  IN_USE: "In Use",
-  REDEEM_IN_PROGRESS: "Redeem in Progress",
-  REDEEMED: "Redeemed",
-  LIQUIDATED: "Liquidated",
-  EXPIRED: "Expired",
-  REFUNDING: "Refunding",
-  FAILED: "Failed",
-  INVALID: "Invalid",
-  UNKNOWN: "Unknown",
-} as const;
+export const PEGIN_DISPLAY_LABELS = COPY.pegin.labels;
 
 export type PeginDisplayLabel =
   (typeof PEGIN_DISPLAY_LABELS)[keyof typeof PEGIN_DISPLAY_LABELS];
@@ -136,17 +122,14 @@ export const REFUND_BROADCAST_SUPPRESSION_MS = 6 * 60 * 60 * 1000;
 // Expiration helpers
 // ============================================================================
 
-export const EXPIRATION_REASON_LABELS: Record<ExpirationReason, string> = {
-  ack_timeout: "The vault provider did not acknowledge in time",
-  proof_timeout: "The inclusion proof was not submitted in time",
-  activation_timeout: "The vault was not activated in time",
-};
+export const EXPIRATION_REASON_LABELS: Record<ExpirationReason, string> =
+  COPY.pegin.expiration.reasons;
 
 export function formatExpiredTimeAgo(timestamp: number): string {
   const diff = Date.now() - timestamp;
-  if (diff < 0) return "just now";
+  if (diff < 0) return COPY.pegin.expiration.timeAgo.justNow;
   const minutes = Math.floor(diff / 60_000);
-  if (minutes < 1) return "just now";
+  if (minutes < 1) return COPY.pegin.expiration.timeAgo.justNow;
   if (minutes < 60) return `${minutes}m ago`;
   const hours = Math.floor(minutes / 60);
   if (hours < 24) return `${hours}h ago`;
@@ -162,9 +145,11 @@ export function buildExpiredMessage(
     ? EXPIRATION_REASON_LABELS[expirationReason]
     : undefined;
   const parts = [
-    "This vault has expired.",
+    COPY.pegin.expiration.heading,
     reason ? `${reason}.` : null,
-    expiredAt ? `Expired ${formatExpiredTimeAgo(expiredAt)}.` : null,
+    expiredAt
+      ? `${COPY.pegin.expiration.timeAgo.prefix} ${formatExpiredTimeAgo(expiredAt)}.`
+      : null,
   ].filter(Boolean);
   return parts.join(" ");
 }
@@ -357,32 +342,28 @@ function getDisplay(
       return {
         displayLabel: PEGIN_DISPLAY_LABELS.PROCESSING,
         displayVariant: "pending",
-        message:
-          "Payout signatures submitted. Vault provider is verifying and collecting acknowledgements...",
+        message: COPY.pegin.messages.payoutSignaturesSubmitted,
       };
     }
     if (actions.includes(PeginAction.SUBMIT_WOTS_KEY)) {
       return {
         displayLabel: PEGIN_DISPLAY_LABELS.AWAITING_KEY,
         displayVariant: "pending",
-        message:
-          "Vault provider is waiting for your WOTS public key. Click 'Submit WOTS Key' to continue.",
+        message: COPY.pegin.messages.awaitingWotsKey,
       };
     }
     if (actions.includes(PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN)) {
       return {
         displayLabel: PEGIN_DISPLAY_LABELS.PENDING,
         displayVariant: "pending",
-        message:
-          "Vault provider has not detected your deposit. The Pre-PegIn transaction may not have been broadcast. Click 'Broadcast' to retry.",
+        message: COPY.pegin.messages.broadcastMayHaveFailed,
       };
     }
     if (actions.includes(PeginAction.SIGN_PAYOUT_TRANSACTIONS)) {
       return {
         displayLabel: PEGIN_DISPLAY_LABELS.SIGNING_REQUIRED,
         displayVariant: "pending",
-        message:
-          "Vault provider has prepared payout transactions. Click 'Sign Payouts' to pre-authorize your Bitcoin claim transactions.",
+        message: COPY.pegin.messages.payoutsReadyForSigning,
       };
     }
     if (
@@ -392,22 +373,20 @@ function getDisplay(
       return {
         displayLabel: PEGIN_DISPLAY_LABELS.PENDING,
         displayVariant: "pending",
-        message:
-          "Pre-PegIn transaction broadcast. Waiting for vault provider to detect your deposit...",
+        message: COPY.pegin.messages.prePeginBroadcast,
       };
     }
     if (options.pendingIngestion === undefined && !options.transactionsReady) {
       return {
         displayLabel: PEGIN_DISPLAY_LABELS.PENDING,
         displayVariant: "pending",
-        message: "Waiting for vault provider to detect your deposit...",
+        message: COPY.pegin.messages.waitingForDetection,
       };
     }
     return {
       displayLabel: PEGIN_DISPLAY_LABELS.PENDING,
       displayVariant: "pending",
-      message:
-        "Waiting for vault provider to prepare Claim and Payout transactions...",
+      message: COPY.pegin.messages.waitingForPayoutPrep,
     };
   }
 
@@ -416,15 +395,13 @@ function getDisplay(
       return {
         displayLabel: PEGIN_DISPLAY_LABELS.PROCESSING,
         displayVariant: "pending",
-        message:
-          "Vault activation submitted. Waiting for on-chain confirmation...",
+        message: COPY.pegin.messages.activationSubmitted,
       };
     }
     return {
       displayLabel: PEGIN_DISPLAY_LABELS.READY_TO_ACTIVATE,
       displayVariant: "pending",
-      message:
-        "Bitcoin transaction confirmed. Reveal your HTLC secret to activate the vault.",
+      message: COPY.pegin.messages.readyToActivate,
     };
   }
 
@@ -433,8 +410,7 @@ function getDisplay(
       return {
         displayLabel: PEGIN_DISPLAY_LABELS.IN_USE,
         displayVariant: "active",
-        message:
-          "Vault is currently being used as collateral. Repay all debt before redeeming.",
+        message: COPY.pegin.messages.inUseCannotRedeem,
       };
     }
     return {
@@ -447,8 +423,7 @@ function getDisplay(
     return {
       displayLabel: PEGIN_DISPLAY_LABELS.REDEEM_IN_PROGRESS,
       displayVariant: "pending",
-      message:
-        "Your redemption is being processed. The vault provider is preparing your BTC withdrawal. This typically takes up to 3 days.",
+      message: COPY.pegin.messages.redemptionInProgress,
     };
   }
 
@@ -456,8 +431,7 @@ function getDisplay(
     return {
       displayLabel: PEGIN_DISPLAY_LABELS.LIQUIDATED,
       displayVariant: "warning",
-      message:
-        "This vault was liquidated. The collateral was seized to cover unpaid debt.",
+      message: COPY.pegin.messages.liquidated,
     };
   }
 
@@ -469,8 +443,7 @@ function getDisplay(
       return {
         displayLabel: PEGIN_DISPLAY_LABELS.REFUNDING,
         displayVariant: "pending",
-        message:
-          "Refund transaction broadcast to Bitcoin. Waiting for on-chain confirmation...",
+        message: COPY.pegin.messages.refundBroadcast,
       };
     }
     return {
@@ -484,8 +457,7 @@ function getDisplay(
     return {
       displayLabel: PEGIN_DISPLAY_LABELS.INVALID,
       displayVariant: "warning",
-      message:
-        "This vault is invalid. The BTC UTXOs were spent in a different transaction.",
+      message: COPY.pegin.messages.invalid,
     };
   }
 
@@ -493,8 +465,7 @@ function getDisplay(
     return {
       displayLabel: PEGIN_DISPLAY_LABELS.REDEEMED,
       displayVariant: "inactive",
-      message:
-        "Redemption complete. Your BTC has been returned to your wallet.",
+      message: COPY.pegin.messages.redemptionComplete,
     };
   }
 
@@ -513,11 +484,14 @@ export function getPrimaryActionButton(state: PeginState): {
   action: PeginAction;
 } | null {
   if (state.availableActions.includes(PeginAction.SUBMIT_WOTS_KEY)) {
-    return { label: "Submit WOTS Key", action: PeginAction.SUBMIT_WOTS_KEY };
+    return {
+      label: COPY.pegin.primaryAction.SUBMIT_WOTS_KEY,
+      action: PeginAction.SUBMIT_WOTS_KEY,
+    };
   }
   if (state.availableActions.includes(PeginAction.SIGN_PAYOUT_TRANSACTIONS)) {
     return {
-      label: "Sign Payouts",
+      label: COPY.pegin.primaryAction.SIGN_PAYOUT_TRANSACTIONS,
       action: PeginAction.SIGN_PAYOUT_TRANSACTIONS,
     };
   }
@@ -525,15 +499,21 @@ export function getPrimaryActionButton(state: PeginState): {
     state.availableActions.includes(PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN)
   ) {
     return {
-      label: "Broadcast Pre-PegIn",
+      label: COPY.pegin.primaryAction.SIGN_AND_BROADCAST_TO_BITCOIN,
       action: PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN,
     };
   }
   if (state.availableActions.includes(PeginAction.ACTIVATE_VAULT)) {
-    return { label: "Activate", action: PeginAction.ACTIVATE_VAULT };
+    return {
+      label: COPY.pegin.primaryAction.ACTIVATE_VAULT,
+      action: PeginAction.ACTIVATE_VAULT,
+    };
   }
   if (state.availableActions.includes(PeginAction.REFUND_HTLC)) {
-    return { label: "Refund", action: PeginAction.REFUND_HTLC };
+    return {
+      label: COPY.pegin.primaryAction.REFUND_HTLC,
+      action: PeginAction.REFUND_HTLC,
+    };
   }
   return null;
 }

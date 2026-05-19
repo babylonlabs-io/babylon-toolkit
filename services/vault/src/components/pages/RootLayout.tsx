@@ -18,6 +18,7 @@ import { getNetworkConfigBTC, shouldDisplayTestingMsg } from "@/config";
 import { useAddressScreening } from "@/context/addressScreening";
 import { useAddressType } from "@/context/addressType";
 import { useGeoFencing } from "@/context/geofencing";
+import { COPY } from "@/copy";
 
 import { AaveConfigProvider } from "../../applications/aave/context";
 import { useBTCWallet, useETHWallet } from "../../context/wallet";
@@ -157,10 +158,10 @@ export default function RootLayout() {
             >
               <div className="mx-auto flex w-full max-w-[520px] flex-col items-center gap-3 text-center">
                 <Text variant="body1" className="font-medium">
-                  Something went wrong
+                  {COPY.common.somethingWentWrong.heading}
                 </Text>
                 <Text variant="body2" className="text-accent-secondary">
-                  Please close this and try again in a moment.
+                  {COPY.common.somethingWentWrong.body}
                 </Text>
               </div>
             </FullScreenDialog>

@@ -69,16 +69,16 @@ describe("Deposit Transformers", () => {
         "Pending",
       );
       expect(getPeginState(ContractStatus.VERIFIED).displayLabel).toBe(
-        "Ready to Activate",
+        "Ready to activate",
       );
       expect(getPeginState(ContractStatus.ACTIVE).displayLabel).toBe(
         "Available",
       );
       expect(
         getPeginState(ContractStatus.ACTIVE, { isInUse: true }).displayLabel,
-      ).toBe("In Use");
+      ).toBe("In use");
       expect(getPeginState(ContractStatus.REDEEMED).displayLabel).toBe(
-        "Redeem in Progress",
+        "Redeem in progress",
       );
       expect(getPeginState(ContractStatus.LIQUIDATED).displayLabel).toBe(
         "Liquidated",
@@ -109,7 +109,7 @@ describe("Deposit Transformers", () => {
         getPeginState(ContractStatus.VERIFIED, {
           localStatus: LocalStorageStatus.CONFIRMING,
         }).displayLabel,
-      ).toBe("Ready to Activate");
+      ).toBe("Ready to activate");
     });
 
     it("should handle undefined local status", () => {

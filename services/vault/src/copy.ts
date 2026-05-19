@@ -1,0 +1,333 @@
+/**
+ * Centralized user-facing copy for the vault dApp.
+ *
+ * All user-visible text (labels, status messages, button text, step
+ * descriptions, modal copy) lives here. Components and hooks should import
+ * strings from this file rather than inlining them.
+ *
+ * Why a single file:
+ * - One place to audit for English correctness and tone.
+ * - Eliminates capitalization / phrasing drift across screens.
+ * - Easier to wire up future i18n without hunting strings across the tree.
+ *
+ * Contract / on-chain error messages live in
+ * `src/utils/errors/errorMessages.ts` because they are keyed by ABI error
+ * name. Treat that file as part of "copy" for editing purposes.
+ *
+ * Style rules used here:
+ * - "Pre-Pegin" (proper-noun form) for the broadcast phase / transaction.
+ * - "peg-in" (lowercase, hyphenated) in regular prose.
+ * - "vault provider" lowercase mid-sentence; capitalized only when
+ *   sentence-leading.
+ * - Status labels use sentence case (e.g. "Signing required").
+ * - Past-tense broadcast statements use "has been broadcast", never bare
+ *   "broadcast" as a participle.
+ * - American English spelling (e.g. "acknowledgments", not
+ *   "acknowledgements").
+ * - Button labels are intentionally per-context: primary CTAs use Title
+ *   Case (e.g. "Submit WOTS Key", "Broadcast Pre-Pegin", "Add Vault"),
+ *   while in-flow / dialog buttons use sentence case (e.g. "Activate",
+ *   "Do not split", "View on blockchain explorer"). Match the
+ *   surrounding screen rather than imposing a single rule.
+ */
+
+// Shared strings that legitimately appear in multiple places. Hoisting them
+// here prevents wording drift if one site is later reworded but the other is
+// missed.
+const PRE_PEGIN_BROADCAST_CONFIRMATION_MESSAGE =
+  "Your Bitcoin transaction has been broadcast to the network. It will be confirmed after receiving the required number of Bitcoin confirmations.";
+const SOMETHING_WENT_WRONG_HEADING = "Something went wrong";
+
+export const COPY = {
+  pegin: {
+    labels: {
+      PENDING: "Pending",
+      SIGNING_REQUIRED: "Signing required",
+      AWAITING_KEY: "Awaiting key",
+      PROCESSING: "Processing",
+      READY_TO_ACTIVATE: "Ready to activate",
+      AVAILABLE: "Available",
+      IN_USE: "In use",
+      REDEEM_IN_PROGRESS: "Redeem in progress",
+      REDEEMED: "Redeemed",
+      LIQUIDATED: "Liquidated",
+      EXPIRED: "Expired",
+      REFUNDING: "Refunding",
+      FAILED: "Failed",
+      INVALID: "Invalid",
+      UNKNOWN: "Unknown",
+    },
+    messages: {
+      payoutSignaturesSubmitted:
+        "Payout signatures submitted. Vault provider is verifying and collecting acknowledgments...",
+      awaitingWotsKey:
+        "Vault provider is waiting for your WOTS public key. Click 'Submit WOTS Key' to continue.",
+      broadcastMayHaveFailed:
+        "Vault provider has not detected your deposit. The Pre-Pegin transaction may not have been broadcast. Click 'Broadcast' to retry.",
+      payoutsReadyForSigning:
+        "Vault provider has prepared payout transactions. Click 'Sign Payouts' to pre-authorize your Bitcoin claim transactions.",
+      prePeginBroadcast:
+        "Pre-Pegin transaction has been broadcast. Waiting for vault provider to detect your deposit...",
+      waitingForDetection:
+        "Waiting for vault provider to detect your deposit...",
+      waitingForPayoutPrep:
+        "Waiting for vault provider to prepare claim and payout transactions...",
+      activationSubmitted:
+        "Vault activation submitted. Waiting for on-chain confirmation...",
+      readyToActivate:
+        "Bitcoin transaction confirmed. Reveal your HTLC secret to activate the vault.",
+      inUseCannotRedeem:
+        "Vault is currently being used as collateral. Repay all debt before redeeming.",
+      redemptionInProgress:
+        "Your redemption is being processed. The vault provider is preparing your BTC withdrawal. This typically takes up to 3 days.",
+      liquidated:
+        "This vault was liquidated. The collateral was seized to cover unpaid debt.",
+      refundBroadcast:
+        "Refund transaction has been broadcast to Bitcoin. Waiting for on-chain confirmation...",
+      invalid:
+        "This vault is invalid. The BTC UTXOs were spent in a different transaction.",
+      redemptionComplete:
+        "Redemption complete. Your BTC has been returned to your wallet.",
+    },
+    primaryAction: {
+      SUBMIT_WOTS_KEY: "Submit WOTS Key",
+      SIGN_PAYOUT_TRANSACTIONS: "Sign Payouts",
+      SIGN_AND_BROADCAST_TO_BITCOIN: "Broadcast Pre-Pegin",
+      ACTIVATE_VAULT: "Activate",
+      REFUND_HTLC: "Refund",
+    },
+    actionRequiredBadges: {
+      SUBMIT_WOTS_KEY: "Key required",
+      SIGN_PAYOUT_TRANSACTIONS: "Signing required",
+      SIGN_AND_BROADCAST_TO_BITCOIN: "Broadcast required",
+      ACTIVATE_VAULT: "Activation required",
+      REFUND_HTLC: "Refund available",
+    },
+    expiration: {
+      reasons: {
+        ack_timeout: "The vault provider did not acknowledge in time",
+        proof_timeout: "The inclusion proof was not submitted in time",
+        activation_timeout: "The vault was not activated in time",
+      },
+      heading: "This vault has expired.",
+      timeAgo: {
+        justNow: "just now",
+        prefix: "Expired",
+      },
+    },
+  },
+  deposit: {
+    steps: {
+      generateSecret: "Generate secret for the deposit",
+      signPeginBtc: "Sign the peg-in BTC transaction",
+      signLinkProofs: "Sign proofs to link your Bitcoin and ETH addresses",
+      signAndBroadcastEth: "Sign and broadcast ETH registration",
+      signAndBroadcastPrePegin: "Sign and broadcast BTC Pre-Pegin transaction",
+      awaitBtcConfirmation: "Awaiting Bitcoin confirmation",
+      awaitBtcConfirmationDuration: (minutes: number) => `(~${minutes} min)`,
+      submitWotsKey: "Submit WOTS public key to vault provider",
+      authenticateSession: "Authenticate session with vault provider",
+      signPayouts: "Sign payout transactions",
+      downloadArtifact: "Download artifact",
+      revealSecret: "Sign and broadcast reveal secret",
+    },
+    stepDescriptions: {
+      deriveVaultSecret:
+        "Approve the deterministic signature in your BTC wallet to derive your vault's HTLC secret.",
+      signPeginBtc: "Sign the peg-in transaction in your BTC wallet.",
+      signPop: "Please sign the proof of possession (PoP) in your BTC wallet.",
+      submitPegin:
+        "Please sign and submit the peg-in transaction in your ETH wallet.",
+      broadcastPrePeginActive:
+        "Please sign the Pre-Pegin transaction in your BTC wallet. It will be broadcast to Bitcoin immediately after.",
+      awaitBtcConfirmation:
+        "Waiting for Bitcoin to confirm the Pre-Pegin transaction...",
+      submitWotsActive:
+        "Submitting your WOTS public key to the vault provider.",
+      submitWotsWaiting:
+        "Waiting for the vault provider to prepare payout transactions...",
+      signAuthAnchor:
+        "Approve the deterministic signature in your BTC wallet to authenticate with the vault provider.",
+      signPayoutsActive:
+        "Please sign the payout transaction(s) in your BTC wallet.",
+      signPayoutsWaiting:
+        "Waiting for the vault provider to prepare payout transaction(s)...",
+      artifactDownloadActive:
+        "Download your vault artifacts before continuing.",
+      artifactDownloadWaiting:
+        "Waiting for the vault provider to verify your deposit on-chain...",
+      activateVaultActive:
+        "Revealing HTLC secret on Ethereum to activate the vault.",
+      activateVaultWaiting: "Waiting for on-chain verification...",
+      completed: "Deposit successfully submitted!",
+    },
+    progress: {
+      heading: "Deposit Progress",
+      durationEstimate: "(~60 min)",
+      defaultSuccessMessage: PRE_PEGIN_BROADCAST_CONFIRMATION_MESSAGE,
+      doNotSpendWarning:
+        "Do not spend the Bitcoin used for this deposit until the transaction is confirmed on the network.",
+      buttons: {
+        closeContinueLater: "Close & continue later",
+        retry: "Retry",
+        close: "Close",
+        done: "Done",
+        sign: "Sign",
+      },
+    },
+    broadcastSuccess: {
+      heading: "Pre-Pegin Broadcast",
+      body: (amount: string, symbol: string) =>
+        `Your Pre-Pegin Bitcoin transaction for ${amount} ${symbol} has been broadcast to the network. Your vault is not active yet — this is just one step in the deposit lifecycle.`,
+      footnote:
+        "Once the Pre-Pegin confirms, the vault provider will prompt you to submit a WOTS key, sign payout authorizations, and finally activate the vault by revealing your HTLC secret. Check back here — the next required action will appear when it's ready.",
+      doneButton: "Done",
+    },
+    refundSuccess: {
+      heading: "Broadcasting Refund",
+      body: "Refund transaction has been broadcast successfully.",
+      viewExplorerButton: "View on blockchain explorer",
+      doneButton: "Done",
+      doNotSpendWarning: (symbol: string) =>
+        `Do not spend the ${symbol} used for this deposit until the transactions are confirmed.`,
+    },
+    refundReview: {
+      heading: "Review Refund",
+      refundAmount: "Refund Amount",
+      networkFeeRate: "Network Fee Rate",
+      btcNetworkFee: "BTC Network Fee",
+      youReceive: "You'll receive",
+      challengePeriodInfo: (estimatedHours: number) =>
+        `Refund arrives within the Bitcoin challenge period — approximately ${estimatedHours} hours after the transaction is confirmed.`,
+      fallbackFeeWarning:
+        "Could not fetch the mempool fee rate. The minimum relay fee may not get your refund confirmed. Set a fee rate above to continue.",
+      dustError:
+        "Network fee is too high — your refund would be below the Bitcoin dust limit. Lower the fee rate to continue.",
+      retryButton: "Retry",
+      confirmButton: "Confirm",
+    },
+    activateConfirmation: {
+      title: "Activate your vault",
+      body: "Activating your vault reveals the HTLC secret on Ethereum and finalizes your deposit. Before continuing, make sure you have downloaded your vault artifacts — these files let you independently claim your funds if the vault provider is unavailable.",
+      alreadyDownloadedWarning:
+        "We've already recorded that you downloaded artifacts for this vault from this browser. If you've since cleared site data or switched devices, download them again before activating.",
+      notDownloadedWarning:
+        "You haven't downloaded the artifacts for this vault yet on this browser. If you lose them and the vault provider goes offline, you will not be able to independently claim your funds.",
+      riskAcknowledgement:
+        "I understand the risk of activating without downloading my artifacts.",
+      activateButton: "Activate",
+      downloadArtifactsButton: "Download Artifacts",
+      activateWithoutDownloadingButton: "Activate without downloading",
+    },
+    artifactDownload: {
+      title: "Download Vault Artifacts",
+      body: "Before broadcasting your Bitcoin transaction, you need to download your vault artifacts. These files are required to independently claim your funds if the vault provider is unavailable.",
+      storeSafelyWarning:
+        "Store these files safely on your local disk or external drive. If you lose them and the vault provider goes offline, you will not be able to independently claim your funds.",
+      downloadedBody:
+        "Artifacts downloaded successfully. Please save the file to a safe location before continuing.",
+      downloading: "Downloading...",
+      downloadButton: "Download Artifacts",
+      cancelButton: "Cancel",
+      continueButton: "Continue",
+    },
+    form: {
+      computingAllocation: "Computing allocation...",
+      splitTooLow: "Deposit amount too low for 2-vault split",
+      splitInfo: "Your BTC will be deposited into 2 vaults",
+      doNotSplit: "Do not split",
+    },
+    resume: {
+      broadcastSuccessMessage: PRE_PEGIN_BROADCAST_CONFIRMATION_MESSAGE,
+      activationSuccessMessage:
+        "Your vault has been activated. The vault provider can now claim the HTLC on Bitcoin.",
+      wotsMismatchError:
+        "WOTS public key hash does not match the on-chain commitment — the wrong wallet is connected.",
+    },
+    errors: {
+      invalidSecret:
+        "Invalid secret: SHA256(secret) does not match the vault's hashlock. Please check your secret and try again.",
+      chainSwitchRequired: (network: string) =>
+        `Please switch to ${network} in your wallet`,
+      ethereumMainnet: "Ethereum Mainnet",
+      sepoliaTestnet: "Sepolia Testnet",
+    },
+    payoutSigningGuards: {
+      missingPayoutAddress: {
+        title: "Missing Payout Address",
+        message:
+          "Depositor payout address not available. Please wait for indexer sync and try again.",
+      },
+      walletAddressUnavailable: {
+        title: "Wallet Address Unavailable",
+        message:
+          "Connect the BTC wallet you used at deposit to verify the payout address before signing.",
+      },
+      walletAddressError: {
+        title: "Wallet Address Error",
+        message:
+          "Could not read your Bitcoin wallet address. Please reconnect the wallet and make sure it is on the correct Bitcoin network.",
+      },
+      payoutAddressMismatch: {
+        title: "Payout Address Mismatch",
+        message:
+          "The payout address from the indexer does not match your connected wallet. This may indicate a data integrity issue. Please verify your wallet connection.",
+      },
+      providerNotAssigned: {
+        title: "Provider Not Assigned",
+        message:
+          "No vault provider is associated with this deposit. Please wait for indexer sync and try again.",
+      },
+      providerNotFound: {
+        title: "Provider Not Found",
+        message: "Vault provider not found.",
+      },
+      walletNotConnected: {
+        title: "Wallet Not Connected",
+        message: "BTC wallet not connected.",
+      },
+      missingPeginTransaction: {
+        title: "Missing Pegin Transaction",
+        message:
+          "Pegin transaction hash not available yet. Please wait for indexer sync and try again.",
+      },
+    },
+  },
+  common: {
+    loading: "Loading...",
+    confirming: "Confirming...",
+    applying: "Applying...",
+    checking: "Checking...",
+    somethingWentWrong: {
+      heading: SOMETHING_WENT_WRONG_HEADING,
+      body: "Please close this and try again in a moment.",
+    },
+    globalError: {
+      heading: SOMETHING_WENT_WRONG_HEADING,
+      body: "An unexpected error occurred. Please try again later.",
+      retryButton: "Try again",
+    },
+  },
+  wallet: {
+    geoBlockedTooltip: "Not available in your region",
+    walletNotEligibleTooltip: "Wallet not eligible",
+  },
+  collateral: {
+    releaseDisabledTooltip:
+      "No vault can be released without putting your position at risk of liquidation. Repay debt first.",
+    releaseHfBreachTooltip: (threshold: number) =>
+      `This selection would drop your health factor below ${threshold.toFixed(1)} and be rejected on-chain. Reduce the selection or repay debt first.`,
+    uncapped: "Uncapped",
+  },
+  banner: {
+    addVault: "Add Vault",
+    addCollateral: "Add Collateral",
+    addVaultWithAmount: (amountBtc: string) => `Add ${amountBtc} BTC Vault`,
+    addCollateralWithAmount: (amountBtc: string) =>
+      `Add ${amountBtc} BTC Collateral`,
+    applySuggestedOrder: "Apply Suggested Order",
+  },
+  reorder: {
+    confirmButton: "Confirm",
+  },
+} as const;

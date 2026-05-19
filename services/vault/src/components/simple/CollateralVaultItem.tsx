@@ -13,6 +13,7 @@ import {
 
 import { CopyableHash } from "@/components/shared/CopyableHash";
 import { getNetworkConfigBTC } from "@/config";
+import { COPY } from "@/copy";
 import { truncateAddress } from "@/utils/addressUtils";
 import { getBtcExplorerTxUrl } from "@/utils/explorer";
 import { formatBtcAmount, formatOrdinal } from "@/utils/formatting";
@@ -85,7 +86,7 @@ export function CollateralVaultItem({
         <span className="text-sm text-accent-secondary">Status</span>
         <StatusBadge
           status={inUse ? "active" : "inactive"}
-          label={inUse ? "In use" : "Available"}
+          label={inUse ? COPY.pegin.labels.IN_USE : COPY.pegin.labels.AVAILABLE}
         />
       </div>
 

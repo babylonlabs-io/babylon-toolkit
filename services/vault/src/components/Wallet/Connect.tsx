@@ -14,6 +14,7 @@ import { twMerge } from "tailwind-merge";
 
 import { useAddressScreening } from "@/context/addressScreening";
 import { useGeoFencing } from "@/context/geofencing";
+import { COPY } from "@/copy";
 
 import { useBTCWallet, useETHWallet } from "../../context/wallet";
 import { useAppState } from "../../state/AppState";
@@ -118,7 +119,7 @@ export const Connect: React.FC<ConnectProps> = ({ loading = false }) => {
 
   if (isGeoBlocked) {
     return (
-      <Hint tooltip="Not available in your region" attachToChildren>
+      <Hint tooltip={COPY.wallet.geoBlockedTooltip} attachToChildren>
         <span>{connectButton}</span>
       </Hint>
     );
@@ -126,7 +127,7 @@ export const Connect: React.FC<ConnectProps> = ({ loading = false }) => {
 
   if (isAddressBlocked) {
     return (
-      <Hint tooltip="Wallet not eligible" attachToChildren>
+      <Hint tooltip={COPY.wallet.walletNotEligibleTooltip} attachToChildren>
         <span>{connectButton}</span>
       </Hint>
     );

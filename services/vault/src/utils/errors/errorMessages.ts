@@ -44,14 +44,14 @@ export const CONTRACT_ERROR_MESSAGES: Record<string, string> = {
   InvalidBTCProofOfPossession: "Invalid BTC proof of possession signature.",
   BtcKeyMismatch: "BTC key mismatch.",
   InvalidTransactionHashLength: "Invalid transaction hash length.",
-  PeginTransactionExpired: "The pegin transaction has expired.",
+  PeginTransactionExpired: "The peg-in transaction has expired.",
   InclusionProofVerificationFailed:
     "Bitcoin inclusion proof verification failed.",
   BitcoinTransactionParsingFailed: "Failed to parse Bitcoin transaction.",
   PrePeginOutputAlreadyUsed:
-    "This pre-pegin output has already been used to activate another vault.",
+    "This Pre-Pegin output has already been used to activate another vault.",
   PeginTransactionAlreadyUsed:
-    "This pegin transaction has already been used to activate another vault.",
+    "This peg-in transaction has already been used to activate another vault.",
 
   // ============================================================================
   // Vault Provider errors

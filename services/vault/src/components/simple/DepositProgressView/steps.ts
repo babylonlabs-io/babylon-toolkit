@@ -1,5 +1,6 @@
 import type { StepperItem } from "@babylonlabs-io/core-ui";
 
+import { COPY } from "@/copy";
 import { DepositFlowStep } from "@/hooks/deposit/depositFlowSteps/types";
 import type { PayoutSigningProgress } from "@/services/vault/vaultPayoutSignatureService";
 
@@ -12,24 +13,26 @@ export function buildStepItems(
   const payoutCompleted = progress?.completed ?? 0;
 
   return [
-    { label: "Generate secret for the deposit" },
-    { label: "Sign the pegIn BTC transaction" },
-    { label: "Sign proofs to link your Bitcoin and ETH addresses" },
-    { label: "Sign and broadcast ETH registration" },
-    { label: "Sign and broadcast BTC pre-pegIn transaction" },
+    { label: COPY.deposit.steps.generateSecret },
+    { label: COPY.deposit.steps.signPeginBtc },
+    { label: COPY.deposit.steps.signLinkProofs },
+    { label: COPY.deposit.steps.signAndBroadcastEth },
+    { label: COPY.deposit.steps.signAndBroadcastPrePegin },
     {
-      label: "Awaiting Bitcoin confirmation",
-      description: `(~ ${EXPECTED_CONFIRMATION_MINUTES} min)`,
+      label: COPY.deposit.steps.awaitBtcConfirmation,
+      description: COPY.deposit.steps.awaitBtcConfirmationDuration(
+        EXPECTED_CONFIRMATION_MINUTES,
+      ),
     },
-    { label: "Submit WOTS public key to Vault Provider" },
-    { label: "Authenticate session with Vault Provider" },
+    { label: COPY.deposit.steps.submitWotsKey },
+    { label: COPY.deposit.steps.authenticateSession },
     {
-      label: "Sign payout transactions",
+      label: COPY.deposit.steps.signPayouts,
       description:
         payoutTotal > 0 ? `(${payoutCompleted} of ${payoutTotal})` : undefined,
     },
-    { label: "Download artifact" },
-    { label: "Sign and broadcast reveal secret" },
+    { label: COPY.deposit.steps.downloadArtifact },
+    { label: COPY.deposit.steps.revealSecret },
   ];
 }
 

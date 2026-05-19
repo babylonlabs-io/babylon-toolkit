@@ -9,6 +9,7 @@ import type { Address, WalletClient } from "viem";
 import { getWalletClient, switchChain } from "wagmi/actions";
 
 import { getETHChain } from "@/config/network";
+import { COPY } from "@/copy";
 import { logger } from "@/infrastructure";
 import {
   registerPeginBatchOnChain,
@@ -43,7 +44,11 @@ export async function getEthWalletClient(
       { data: { context: "Failed to switch chain" } },
     );
     throw new Error(
-      `Please switch to ${expectedChainId === 1 ? "Ethereum Mainnet" : "Sepolia Testnet"} in your wallet`,
+      COPY.deposit.errors.chainSwitchRequired(
+        expectedChainId === 1
+          ? COPY.deposit.errors.ethereumMainnet
+          : COPY.deposit.errors.sepoliaTestnet,
+      ),
     );
   }
 
