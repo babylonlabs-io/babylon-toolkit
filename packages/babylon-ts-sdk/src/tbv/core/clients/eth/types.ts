@@ -63,6 +63,8 @@ export interface VaultRegistryReader {
   getProtocolInfoBatch(vaultIds: readonly Hex[]): Promise<VaultProtocolInfo[]>;
   getVaultData(vaultId: Hex): Promise<VaultData>;
   getVaultProviderBtcPubKey(vpAddress: Address): Promise<OnChainBtcPubkey>;
+  /** Read the protocol pegin fee (in wei) for a given vault provider. */
+  getPegInFee(vaultProvider: Address): Promise<bigint>;
   /**
    * Read `offchainParamsVersion` for many vaults in a single multicall.
    * Returns versions in the same order as the input. Throws if any vault

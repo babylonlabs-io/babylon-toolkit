@@ -8,20 +8,7 @@
 
 import { type Address, type Hex, zeroAddress } from "viem";
 
-import { CONTRACTS } from "@/config/contracts";
-
-import { ethClient } from "../client";
 import { getVaultRegistryReader } from "../sdk-readers";
-
-const REGISTRY_GET_PEGIN_FEE_ABI = [
-  {
-    type: "function",
-    name: "getPegInFee",
-    stateMutability: "view",
-    inputs: [{ name: "vaultProvider", type: "address" }],
-    outputs: [{ name: "totalFee", type: "uint256" }],
-  },
-] as const;
 
 /**
  * Signing-critical fields read directly from the BTCVaultRegistry contract.
@@ -106,13 +93,7 @@ export async function getOffchainParamsVersionsFromChain(
 export async function getPegInFeeFromChain(
   vaultProvider: Address,
 ): Promise<bigint> {
-  const publicClient = ethClient.getPublicClient();
-  return await publicClient.readContract({
-    address: CONTRACTS.BTC_VAULT_REGISTRY,
-    abi: REGISTRY_GET_PEGIN_FEE_ABI,
-    functionName: "getPegInFee",
-    args: [vaultProvider],
-  });
+  return getVaultRegistryReader().getPegInFee(vaultProvider);
 }
 
 /**

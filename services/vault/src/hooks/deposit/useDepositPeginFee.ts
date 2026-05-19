@@ -32,8 +32,13 @@ export function useDepositPeginFee(
   const ethPrice = usePrice("ETH");
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ["depositPeginFee", vaultProvider],
-    queryFn: () => getPegInFeeFromChain(vaultProvider as Address),
+    queryKey: ["depositPeginFee", vaultProvider?.toLowerCase() ?? null],
+    queryFn: () => {
+      if (!vaultProvider) {
+        throw new Error("vaultProvider is required for pegin fee query");
+      }
+      return getPegInFeeFromChain(vaultProvider);
+    },
     enabled: !!vaultProvider,
     staleTime: STALE_TIME_MS,
     retry: 1,

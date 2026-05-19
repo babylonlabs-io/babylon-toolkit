@@ -146,8 +146,8 @@ function SimpleDepositContent({
     batchSize: depositBatchSize,
     enabled:
       !!formData.selectedProvider &&
-      !!formData.amountBtc &&
-      formData.amountBtc !== "0",
+      Number.isFinite(Number(formData.amountBtc)) &&
+      Number(formData.amountBtc) > 0,
   });
 
   const {

@@ -90,6 +90,18 @@ export function useDepositGasEstimate({
   });
 
   return useMemo(() => {
+    // Idle: query is disabled (no provider/amount yet). react-query returns
+    // { data: undefined, isLoading: false, isError: false } in this state —
+    // surface a neutral placeholder rather than the red error treatment.
+    if (!canEstimate) {
+      return {
+        feeEth: "--",
+        feeUsd: "",
+        isLoading: false,
+        isError: false,
+      };
+    }
+
     if (isLoading) {
       return {
         feeEth: "Estimating...",
@@ -110,17 +122,17 @@ export function useDepositGasEstimate({
 
     const feeUsd =
       ethPrice > 0
-        ? `($${(data * ethPrice).toLocaleString("en-US", {
+        ? `(~$${(data * ethPrice).toLocaleString("en-US", {
             minimumFractionDigits: 2,
             maximumFractionDigits: 2,
           })} USD)`
         : "";
 
     return {
-      feeEth: `${data.toFixed(6)} ETH`,
+      feeEth: `~${data.toFixed(6)} ETH`,
       feeUsd,
       isLoading: false,
       isError: false,
     };
-  }, [isLoading, isError, data, ethPrice]);
+  }, [canEstimate, isLoading, isError, data, ethPrice]);
 }

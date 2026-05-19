@@ -182,6 +182,19 @@ export class ViemVaultRegistryReader implements VaultRegistryReader {
     });
   }
 
+  /**
+   * Read the protocol pegin fee (in wei) for a given vault provider.
+   * Mirrors the `getPegInFee(address)` view on BTCVaultRegistry.
+   */
+  async getPegInFee(vaultProvider: Address): Promise<bigint> {
+    return (await this.publicClient.readContract({
+      address: this.contractAddress,
+      abi: BTCVaultRegistryABI,
+      functionName: "getPegInFee",
+      args: [vaultProvider],
+    })) as bigint;
+  }
+
   async getVaultData(vaultId: Hex): Promise<VaultData> {
     const [basic, protocol] = await Promise.all([
       this.getVaultBasicInfo(vaultId),
