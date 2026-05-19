@@ -136,6 +136,17 @@ function prepareTransactionsForSigning(
 }
 
 /**
+ * Canonical x-only lowercase form, used for all claimer pubkey set-equality
+ * comparisons in this module. `processPublicKeyToXOnly` already strips any
+ * `0x` prefix; the lowercase here removes case-sensitivity (the VP-response
+ * schema validator accepts uppercase hex, and `processPublicKeyToXOnly`
+ * preserves the case of already-x-only 64-char input).
+ */
+function normalizeClaimerPubkey(pubkey: string): string {
+  return processPublicKeyToXOnly(pubkey).toLowerCase();
+}
+
+/**
  * Reject VP-supplied `response.txs` whose non-depositor claimer set does not
  * exactly equal `{vaultProviderBtcPubkey} ∪ vaultKeeperBtcPubkeys`.
  *
@@ -149,7 +160,9 @@ function prepareTransactionsForSigning(
  * The depositor's own claimer entry (if present in `response.txs`) is
  * filtered out before diffing — its Payout PSBT is built locally and signed
  * separately via signDepositorGraph, so its presence in `response.txs` is
- * permitted but not required.
+ * permitted but not required. Duplicate detection runs on the full supplied
+ * list *before* the depositor filter, so a response containing
+ * `[VP, VK, depositor, depositor]` is rejected as malformed.
  */
 function assertNonDepositorClaimerSetMatches(
   suppliedTxs: ClaimerTransactions[],
@@ -157,11 +170,11 @@ function assertNonDepositorClaimerSetMatches(
   expectedVkPubkeys: string[],
   depositorPubkeyXOnly: string,
 ): void {
-  const norm = (k: string) =>
-    stripHexPrefix(processPublicKeyToXOnly(k)).toLowerCase();
-
-  const depositor = norm(depositorPubkeyXOnly);
-  const expectedList = [norm(expectedVpPubkey), ...expectedVkPubkeys.map(norm)];
+  const depositor = normalizeClaimerPubkey(depositorPubkeyXOnly);
+  const expectedList = [
+    normalizeClaimerPubkey(expectedVpPubkey),
+    ...expectedVkPubkeys.map(normalizeClaimerPubkey),
+  ];
   const expected = new Set(expectedList);
   if (expected.size !== expectedList.length) {
     throw new Error(
@@ -174,18 +187,19 @@ function assertNonDepositorClaimerSetMatches(
     );
   }
 
-  const supplied = suppliedTxs
-    .map((tx) => norm(tx.claimer_pubkey))
-    .filter((k) => k !== depositor);
-  const suppliedSet = new Set(supplied);
-  if (suppliedSet.size !== supplied.length) {
+  const suppliedAll = suppliedTxs.map((tx) =>
+    normalizeClaimerPubkey(tx.claimer_pubkey),
+  );
+  if (new Set(suppliedAll).size !== suppliedAll.length) {
     throw new Error(
       "Presign response contains duplicate claimer entries",
     );
   }
 
+  const suppliedNonDepositor = suppliedAll.filter((k) => k !== depositor);
+  const suppliedSet = new Set(suppliedNonDepositor);
   const missing = expectedList.filter((c) => !suppliedSet.has(c));
-  const extra = supplied.filter((c) => !expected.has(c));
+  const extra = suppliedNonDepositor.filter((c) => !expected.has(c));
   if (missing.length > 0 || extra.length > 0) {
     throw new Error(
       `Presign response claimer set does not match expected (vault provider ∪ vault keepers)` +
@@ -359,7 +373,7 @@ export async function runDepositorPresignFlow(
   // the on-chain-derived {VP} ∪ {VKs} before any wallet prompts run. The
   // depositor's own entry is permitted but not required (its payout is
   // signed separately via signDepositorGraph in Phase 4).
-  const depositorPkNormalized = processPublicKeyToXOnly(depositorPk);
+  const depositorPkNormalized = normalizeClaimerPubkey(depositorPk);
   assertNonDepositorClaimerSetMatches(
     response.txs,
     signingContext.vaultProviderBtcPubkey,
@@ -370,8 +384,10 @@ export async function runDepositorPresignFlow(
   // separately via signDepositorGraph (Phase 4) using VP-provided PSBTs.
   // Including it here would cause a redundant wallet signing prompt whose
   // result is discarded when the depositor graph signature overwrites it.
+  // Compare on the normalized form so an uppercase-hex depositor entry in
+  // the VP response is still filtered out consistently with the assertion.
   const nonDepositorTxs = response.txs.filter(
-    (tx) => processPublicKeyToXOnly(tx.claimer_pubkey) !== depositorPkNormalized,
+    (tx) => normalizeClaimerPubkey(tx.claimer_pubkey) !== depositorPkNormalized,
   );
   const preparedTransactions = prepareTransactionsForSigning(nonDepositorTxs);
   const claimerSignatures = await signPayoutTransactions(

@@ -495,5 +495,50 @@ describe("runDepositorPresignFlow", () => {
         presignClient.submitDepositorPresignatures,
       ).toHaveBeenCalledOnce();
     });
+
+    it("filters out an uppercase-hex depositor entry consistently with the assertion", async () => {
+      // VP returns the depositor's claimer entry as uppercase hex (allowed
+      // by the VP-response schema validator) while signing context has it
+      // lowercase. Both the assertion and the depositor filter must
+      // normalize case identically, so:
+      //  - the assertion passes (set still equals {VP, VK})
+      //  - the depositor entry is filtered out before Phase 3 signing
+      //  - the submitted signatures map contains only the lowercase
+      //    depositor key, never the uppercase variant
+      const uppercaseDepositorEntry: ClaimerTransactions = {
+        ...depositorEntry,
+        claimer_pubkey: DEPOSITOR_PK.toUpperCase(),
+      };
+      const { promise, presignClient } = runWith([
+        vpEntry,
+        vkEntry,
+        uppercaseDepositorEntry,
+      ]);
+      await promise;
+
+      const submitCall = (
+        presignClient.submitDepositorPresignatures as ReturnType<typeof vi.fn>
+      ).mock.calls[0][0];
+      const keys = Object.keys(submitCall.signatures);
+      expect(keys).toContain(DEPOSITOR_PK);
+      expect(keys).not.toContain(DEPOSITOR_PK.toUpperCase());
+      // {VP, VK, depositor} = 3 keys, no duplicate cased-variant of the depositor
+      expect(keys).toHaveLength(3);
+    });
+
+    it("rejects [VP, VK, depositor, depositor] with a duplicate depositor entry", async () => {
+      // Duplicate detection must run on the full supplied list before the
+      // depositor entries are filtered out, otherwise a duplicated
+      // depositor entry slips through silently.
+      const { promise, presignClient, wallet } = runWith([
+        vpEntry,
+        vkEntry,
+        depositorEntry,
+        depositorEntry,
+      ]);
+      await expect(promise).rejects.toThrow(/duplicate/i);
+      expect(presignClient.submitDepositorPresignatures).not.toHaveBeenCalled();
+      expect(wallet.signPsbts).not.toHaveBeenCalled();
+    });
   });
 });
