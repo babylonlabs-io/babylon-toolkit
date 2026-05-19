@@ -28,7 +28,13 @@ export function UtxoSplitSelector({
   expanded,
   onExpandedChange,
 }: UtxoSplitSelectorProps) {
-  const handleSelectSplit = () => partialLiquidation.onChange(true);
+  const splitDisabled =
+    !partialLiquidation.canSplit || partialLiquidation.isLoading;
+
+  const handleSelectSplit = () => {
+    if (splitDisabled) return;
+    partialLiquidation.onChange(true);
+  };
   const handleSelectNoSplit = () => partialLiquidation.onChange(false);
 
   const splitTitleColor = partialLiquidation.isEnabled
@@ -71,8 +77,9 @@ export function UtxoSplitSelector({
         >
           <div
             role="button"
-            tabIndex={0}
-            className="flex w-full cursor-pointer items-start justify-between gap-3 text-left"
+            tabIndex={splitDisabled ? -1 : 0}
+            aria-disabled={splitDisabled}
+            className={`flex w-full items-start justify-between gap-3 text-left ${splitDisabled ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`}
             onClick={handleSelectSplit}
             onKeyDown={(event) => {
               if (event.key === "Enter" || event.key === " ") {

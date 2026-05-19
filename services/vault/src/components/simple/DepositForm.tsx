@@ -230,7 +230,6 @@ export function DepositForm({
           leftField={{ label: "Max", value: `${btcBalanceFormatted} BTC` }}
           rightField={{ value: usdValue }}
           onMaxClick={onMaxClick}
-          readOnly
           inputClassName="h-10 w-auto rounded-lg bg-primary-contrast px-4 [field-sizing:content]"
         />
         <CollateralFactorRow
