@@ -14,16 +14,10 @@ describe("pegout state", () => {
       );
       expect(ClaimerPegoutStatusValue.CLAIM_BROADCAST).toBe("ClaimBroadcast");
       expect(ClaimerPegoutStatusValue.ASSERT_BROADCAST).toBe("AssertBroadcast");
-      expect(ClaimerPegoutStatusValue.CHALLENGE_ASSERT_OBSERVED).toBe(
-        "ChallengeAssertObserved",
-      );
-      expect(ClaimerPegoutStatusValue.WRONGLY_CHALLENGED_BROADCAST).toBe(
-        "WronglyChallengedBroadcast",
-      );
       expect(ClaimerPegoutStatusValue.PAYOUT_BROADCAST).toBe(
         "PayoutBroadcast",
       );
-      expect(ClaimerPegoutStatusValue.FAILED).toBe("Failed");
+      expect(ClaimerPegoutStatusValue.PAYOUT_BLOCKED).toBe("PayoutBlocked");
     });
   });
 
@@ -32,16 +26,14 @@ describe("pegout state", () => {
       expect(isRecognizedPegoutStatus("ClaimEventReceived")).toBe(true);
       expect(isRecognizedPegoutStatus("ClaimBroadcast")).toBe(true);
       expect(isRecognizedPegoutStatus("AssertBroadcast")).toBe(true);
-      expect(isRecognizedPegoutStatus("ChallengeAssertObserved")).toBe(true);
-      expect(isRecognizedPegoutStatus("WronglyChallengedBroadcast")).toBe(true);
       expect(isRecognizedPegoutStatus("PayoutBroadcast")).toBe(true);
-      expect(isRecognizedPegoutStatus("Failed")).toBe(true);
+      expect(isRecognizedPegoutStatus("PayoutBlocked")).toBe(true);
     });
 
     it("returns false for unrecognized statuses", () => {
       expect(isRecognizedPegoutStatus("SomeNewStatus")).toBe(false);
       expect(isRecognizedPegoutStatus("")).toBe(false);
-      expect(isRecognizedPegoutStatus("FAILED")).toBe(false);
+      expect(isRecognizedPegoutStatus("Failed")).toBe(false);
     });
 
     it("returns false for Object.prototype keys", () => {
@@ -55,8 +47,8 @@ describe("pegout state", () => {
       expect(isPegoutTerminalStatus("PayoutBroadcast")).toBe(true);
     });
 
-    it("returns true for Failed", () => {
-      expect(isPegoutTerminalStatus("Failed")).toBe(true);
+    it("returns true for PayoutBlocked", () => {
+      expect(isPegoutTerminalStatus("PayoutBlocked")).toBe(true);
     });
 
     it("returns false for in-progress statuses", () => {

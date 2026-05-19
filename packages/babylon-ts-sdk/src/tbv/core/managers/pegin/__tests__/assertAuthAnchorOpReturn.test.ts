@@ -1,7 +1,10 @@
 import * as bitcoin from "bitcoinjs-lib";
 import { describe, expect, it } from "vitest";
 
-import { assertAuthAnchorOpReturn } from "../assertAuthAnchorOpReturn";
+import {
+  assertAuthAnchorOpReturn,
+  findAuthAnchorOpReturn,
+} from "../assertAuthAnchorOpReturn";
 
 const ANCHOR_HASH = "ab".repeat(32);
 const OTHER_HASH = "cd".repeat(32);
@@ -127,5 +130,102 @@ describe("assertAuthAnchorOpReturn", () => {
     expect(() =>
       assertAuthAnchorOpReturn(txHex, 1, ANCHOR_HASH),
     ).toThrow(/non-zero value/);
+  });
+});
+
+describe("findAuthAnchorOpReturn", () => {
+  it("returns {vout, hash} for a single-vault tx (HTLC@0, OP_RETURN@1)", () => {
+    const txHex = buildTxHex([htlcOutput(), opReturnOutput(ANCHOR_HASH)]);
+    expect(findAuthAnchorOpReturn(txHex)).toEqual({
+      vout: 1,
+      hash: ANCHOR_HASH,
+    });
+  });
+
+  it("returns {vout, hash} for a two-vault tx (HTLCs@0,1, OP_RETURN@2)", () => {
+    const txHex = buildTxHex([
+      htlcOutput(),
+      htlcOutput(),
+      opReturnOutput(ANCHOR_HASH),
+    ]);
+    expect(findAuthAnchorOpReturn(txHex)).toEqual({
+      vout: 2,
+      hash: ANCHOR_HASH,
+    });
+  });
+
+  it("returns {vout, hash} even when followed by a CPFP-anchor-like output", () => {
+    // Real funded Pre-PegIns also carry a CPFP anchor / change output
+    // after the OP_RETURN. The finder must locate the anchor regardless
+    // of what comes after.
+    const txHex = buildTxHex([
+      htlcOutput(),
+      opReturnOutput(ANCHOR_HASH),
+      htlcOutput(),
+    ]);
+    expect(findAuthAnchorOpReturn(txHex)).toEqual({
+      vout: 1,
+      hash: ANCHOR_HASH,
+    });
+  });
+
+  it("strips a leading 0x prefix from the funded tx hex", () => {
+    const txHex = buildTxHex([htlcOutput(), opReturnOutput(ANCHOR_HASH)]);
+    expect(findAuthAnchorOpReturn(`0x${txHex}`)).toEqual({
+      vout: 1,
+      hash: ANCHOR_HASH,
+    });
+  });
+
+  it("returns undefined for a legacy (non-auth-anchored) tx with no OP_RETURN", () => {
+    const txHex = buildTxHex([htlcOutput(), htlcOutput()]);
+    expect(findAuthAnchorOpReturn(txHex)).toBeUndefined();
+  });
+
+  it("returns undefined when more than one OP_RETURN+PUSH32 output is present (ambiguous)", () => {
+    // A well-formed Pre-PegIn carries exactly one auth-anchor commitment.
+    // Two would either be a malformed tx or someone trying to confuse the
+    // reader; refuse to guess.
+    const txHex = buildTxHex([
+      htlcOutput(),
+      opReturnOutput(ANCHOR_HASH),
+      opReturnOutput(OTHER_HASH),
+    ]);
+    expect(findAuthAnchorOpReturn(txHex)).toBeUndefined();
+  });
+
+  it("ignores OP_RETURN outputs with non-zero value", () => {
+    // Non-standard OP_RETURNs (non-zero value) cannot have been emitted
+    // by the WASM builder — skip them rather than treat them as a hit.
+    const txHex = buildTxHex([
+      htlcOutput(),
+      opReturnOutput(ANCHOR_HASH, /* value */ 546),
+    ]);
+    expect(findAuthAnchorOpReturn(txHex)).toBeUndefined();
+  });
+
+  it("ignores OP_RETURN outputs with non-32-byte payloads", () => {
+    // OP_RETURN PUSH16 <16 bytes> — wrong push opcode, shorter payload.
+    const tooShort = {
+      scriptHex: `6a10${"ab".repeat(16)}`,
+      value: 0,
+    };
+    const txHex = buildTxHex([htlcOutput(), tooShort]);
+    expect(findAuthAnchorOpReturn(txHex)).toBeUndefined();
+  });
+
+  it("returns undefined for unparseable hex", () => {
+    expect(findAuthAnchorOpReturn("not a real tx hex")).toBeUndefined();
+  });
+
+  it("normalizes the hash to lowercase regardless of input case", () => {
+    // OP_RETURN payloads are raw bytes; the hex serialization picks a
+    // case. Normalize at the boundary so downstream byte-equality holds.
+    const upperHash = "CD".repeat(32);
+    const txHex = buildTxHex([htlcOutput(), opReturnOutput(upperHash)]);
+    expect(findAuthAnchorOpReturn(txHex)).toEqual({
+      vout: 1,
+      hash: "cd".repeat(32),
+    });
   });
 });

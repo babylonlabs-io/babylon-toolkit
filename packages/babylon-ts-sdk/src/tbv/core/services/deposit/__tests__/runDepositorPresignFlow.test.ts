@@ -202,6 +202,29 @@ describe("runDepositorPresignFlow", () => {
     ).not.toHaveBeenCalled();
   });
 
+  it("skips when VP is in ACTIVATED_PENDING_BROADCAST (resume past payout)", async () => {
+    const reader = createMockStatusReader([
+      DaemonStatus.ACTIVATED_PENDING_BROADCAST,
+    ]);
+    const presignClient = createMockPresignClient();
+
+    await runDepositorPresignFlow({
+      statusReader: reader,
+      presignClient,
+      btcWallet: createMockWallet(),
+      peginTxid: VALID_TXID,
+      depositorPk: DEPOSITOR_PK,
+      signingContext: createSigningContext(),
+    });
+
+    expect(
+      presignClient.requestDepositorPresignTransactions,
+    ).not.toHaveBeenCalled();
+    expect(
+      presignClient.submitDepositorPresignatures,
+    ).not.toHaveBeenCalled();
+  });
+
   it("fetches presign txs, signs, and submits when VP is ready", async () => {
     const reader = createMockStatusReader([
       DaemonStatus.PENDING_DEPOSITOR_SIGNATURES,

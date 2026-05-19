@@ -9,6 +9,7 @@ import {
   Warning,
 } from "@babylonlabs-io/core-ui";
 
+import { COPY } from "@/copy";
 import { useArtifactDownload } from "@/hooks/deposit/useArtifactDownload";
 
 interface ArtifactDownloadModalProps {
@@ -59,7 +60,7 @@ export function ArtifactDownloadModal({
   return (
     <ResponsiveDialog open={open} onClose={handleClose}>
       <DialogHeader
-        title="Download Vault Artifacts"
+        title={COPY.deposit.artifactDownload.title}
         onClose={handleClose}
         className="text-accent-primary"
       />
@@ -68,15 +69,11 @@ export function ArtifactDownloadModal({
         {!downloaded && !loading && (
           <>
             <Text variant="body2" className="text-accent-secondary">
-              Before broadcasting your Bitcoin transaction, you need to download
-              your vault artifacts. These files are required to independently
-              claim your funds if the vault provider is unavailable.
+              {COPY.deposit.artifactDownload.body}
             </Text>
 
             <Warning>
-              Store these files safely on your local disk or external drive. If
-              you lose them and the vault provider goes offline, you will not be
-              able to independently claim your funds.
+              {COPY.deposit.artifactDownload.storeSafelyWarning}
             </Warning>
           </>
         )}
@@ -93,8 +90,7 @@ export function ArtifactDownloadModal({
         {downloaded && (
           <div className="flex flex-col gap-3 py-4">
             <Text variant="body2" className="text-accent-secondary">
-              Artifacts downloaded successfully. Please save the file to a safe
-              location before continuing.
+              {COPY.deposit.artifactDownload.downloadedBody}
             </Text>
           </div>
         )}
@@ -115,7 +111,9 @@ export function ArtifactDownloadModal({
               onClick={handleDownload}
               disabled={loading}
             >
-              {loading ? "Downloading..." : "Download Artifacts"}
+              {loading
+                ? COPY.deposit.artifactDownload.downloading
+                : COPY.deposit.artifactDownload.downloadButton}
             </Button>
             {/* TODO: Remove Cancel button once backend streaming is implemented (see handleCancel above) */}
             {loading && (
@@ -124,7 +122,7 @@ export function ArtifactDownloadModal({
                 className="w-full"
                 onClick={handleCancel}
               >
-                Cancel
+                {COPY.deposit.artifactDownload.cancelButton}
               </Button>
             )}
           </>
@@ -134,7 +132,7 @@ export function ArtifactDownloadModal({
             className="w-full"
             onClick={handleComplete}
           >
-            Continue
+            {COPY.deposit.artifactDownload.continueButton}
           </Button>
         )}
       </DialogFooter>

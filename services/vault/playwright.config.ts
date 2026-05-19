@@ -14,6 +14,12 @@ const MOCK_ENV_VARS = {
   NEXT_PUBLIC_TBV_GRAPHQL_ENDPOINT: "http://localhost:9999/graphql",
   NEXT_PUBLIC_TBV_VP_PROXY_URL: "http://localhost:9998",
   NEXT_PUBLIC_ETH_RPC_URL: "http://localhost:9997/rpc",
+  // Pinned mempool base so route handlers in
+  // `services/vault/e2e/fixtures/networkRoutes.ts` can match
+  // deterministic paths. Without this the dApp falls through to a
+  // signet/mainnet default and tests would have to intercept the live
+  // hostname.
+  NEXT_PUBLIC_MEMPOOL_API: "http://localhost:9996/mempool",
   NEXT_PUBLIC_REOWN_PROJECT_ID: "test-project-id-12345",
   NEXT_PUBLIC_SENTRY_DSN: "https://test@o12345.ingest.sentry.io/12345",
   NEXT_PUBLIC_SIDECAR_API_URL: "http://localhost:8092",
@@ -27,6 +33,13 @@ const MOCK_ENV_VARS = {
 
 export default defineConfig({
   testDir: path.join(__dirname, "e2e"),
+  // Match only Playwright specs. The fixtures themselves have
+  // colocated vitest unit tests under `e2e/fixtures/__tests__/`; those
+  // are run by vitest (`pnpm test`), not Playwright. Loading them here
+  // double-instantiates @vitest/expect alongside @playwright/test's
+  // expect and crashes discovery with a `Symbol($$jest-matchers-object)`
+  // collision.
+  testMatch: "**/*.spec.ts",
   fullyParallel: false,
   forbidOnly: false,
   retries: 2,

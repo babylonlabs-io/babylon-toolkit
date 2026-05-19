@@ -6,7 +6,11 @@
  * @module managers/pegin
  */
 
-export { assertAuthAnchorOpReturn } from "./assertAuthAnchorOpReturn";
+export {
+  assertAuthAnchorOpReturn,
+  findAuthAnchorOpReturn,
+  readAuthAnchorOpReturn,
+} from "./assertAuthAnchorOpReturn";
 export {
   expandPerVaultSecrets,
   type PerVaultExpansionResult,

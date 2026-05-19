@@ -10,6 +10,7 @@ import {
 } from "@babylonlabs-io/core-ui";
 import { useEffect, useState } from "react";
 
+import { COPY } from "@/copy";
 import { hasArtifactsDownloaded } from "@/utils/artifactDownloadStorage";
 
 interface ActivateConfirmationModalProps {
@@ -44,31 +45,24 @@ export function ActivateConfirmationModal({
   return (
     <ResponsiveDialog open={open} onClose={onClose}>
       <DialogHeader
-        title="Activate your vault"
+        title={COPY.deposit.activateConfirmation.title}
         onClose={onClose}
         className="text-accent-primary"
       />
 
       <DialogBody className="flex flex-col gap-4 px-4 pb-4 pt-4 text-accent-primary sm:px-6">
         <Text variant="body2" className="text-accent-secondary">
-          Activating your vault reveals the HTLC secret on Ethereum and
-          finalizes your deposit. Before continuing, make sure you have
-          downloaded your vault artifacts — these files let you independently
-          claim your funds if the vault provider is unavailable.
+          {COPY.deposit.activateConfirmation.body}
         </Text>
 
         {downloaded ? (
           <Warning>
-            We&apos;ve already recorded that you downloaded artifacts for this
-            vault from this browser. If you&apos;ve since cleared site data or
-            switched devices, download them again before activating.
+            {COPY.deposit.activateConfirmation.alreadyDownloadedWarning}
           </Warning>
         ) : (
           <>
             <Warning>
-              You haven&apos;t downloaded the artifacts for this vault yet on
-              this browser. If you lose them and the vault provider goes
-              offline, you will not be able to independently claim your funds.
+              {COPY.deposit.activateConfirmation.notDownloadedWarning}
             </Warning>
             <label className="flex cursor-pointer items-start gap-3">
               <Checkbox
@@ -78,8 +72,7 @@ export function ActivateConfirmationModal({
                 showLabel={false}
               />
               <span className="text-accent-primary">
-                I understand the risk of activating without downloading my
-                artifacts.
+                {COPY.deposit.activateConfirmation.riskAcknowledgement}
               </span>
             </label>
           </>
@@ -89,7 +82,7 @@ export function ActivateConfirmationModal({
       <DialogFooter className="flex flex-col gap-3 px-4 pb-6 sm:px-6">
         {downloaded ? (
           <Button variant="contained" className="w-full" onClick={onConfirm}>
-            Activate
+            {COPY.deposit.activateConfirmation.activateButton}
           </Button>
         ) : (
           <>
@@ -98,7 +91,7 @@ export function ActivateConfirmationModal({
               className="w-full"
               onClick={onDownloadArtifacts}
             >
-              Download Artifacts
+              {COPY.deposit.activateConfirmation.downloadArtifactsButton}
             </Button>
             <Button
               variant="outlined"
@@ -106,7 +99,10 @@ export function ActivateConfirmationModal({
               onClick={onConfirm}
               disabled={!acknowledged}
             >
-              Activate without downloading
+              {
+                COPY.deposit.activateConfirmation
+                  .activateWithoutDownloadingButton
+              }
             </Button>
           </>
         )}

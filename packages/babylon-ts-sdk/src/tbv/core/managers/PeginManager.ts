@@ -62,6 +62,7 @@ import {
   isAddressFromPublicKey,
   stripHexPrefix,
   uint8ArrayToHex,
+  X_ONLY_PUBKEY_HEX_LEN,
 } from "../primitives/utils/bitcoin";
 import {
   calculateBtcTxHash,
@@ -83,6 +84,24 @@ import {
 
 /** Referral code sent with pegin registration — 0 means no referral. */
 const NO_REFERRAL_CODE = 0;
+
+/**
+ * Headroom (in basis points) added to the current VP commission to compute
+ * `maxAcceptableCommissionBps` at submit time. Lets the VP raise its
+ * commission by up to this amount between read and submit without forcing
+ * a re-quote. Capped by {@link MAX_ACCEPTABLE_COMMISSION_BPS_CAP}.
+ *
+ * Contract check is strict `>` (PeginLogic.sol:182-190), so +25 allows up
+ * to +25 bps of drift.
+ */
+const COMMISSION_BPS_HEADROOM = 25;
+
+/**
+ * Hard ceiling for `maxAcceptableCommissionBps`. The contract enforces
+ * `commissionBps < 10000`, so any value at/above that is unreachable;
+ * `9999` is the maximum useful cap.
+ */
+const MAX_ACCEPTABLE_COMMISSION_BPS_CAP = 9999;
 
 /**
  * 32-byte zero hex used as a placeholder during the sizing pass for any
@@ -392,6 +411,9 @@ export interface RegisterPeginParams {
    * registration references a different htlcVout (0..N-1).
    */
   htlcVout: number;
+
+  /** VP commission (bps) shown to the user — bounds maxAcceptableCommissionBps. See #1691. */
+  quotedCommissionBps?: number;
 }
 
 /**
@@ -449,6 +471,8 @@ export interface RegisterPeginBatchParams {
   requests: BatchPeginRequestItem[];
   /** Proof of possession from {@link PeginManager.signProofOfPossession}. */
   popSignature: PopSignature;
+  /** See {@link RegisterPeginParams.quotedCommissionBps}. */
+  quotedCommissionBps?: number;
 }
 
 /**
@@ -471,6 +495,32 @@ export interface RegisterPeginBatchResult {
   vaults: BatchPeginResultItem[];
 }
 
+
+/**
+ * Detect a P2WPKH (Native SegWit) bech32 address for the configured network,
+ * used purely for diagnostic routing. Distinguishes P2WPKH (witness v0,
+ * 20-byte program) from P2WSH (v0, 32-byte program) and any other bech32
+ * shape, so the specific "use a P2TR" error fires only when the user
+ * actually has a P2WPKH address.
+ */
+function isP2wpkhAddressForNetwork(address: string, network: Network): boolean {
+  const expectedHrp: Record<Network, string> = {
+    bitcoin: "bc",
+    testnet: "tb",
+    signet: "tb",
+    regtest: "bcrt",
+  };
+  try {
+    const decoded = bitcoin.address.fromBech32(address);
+    return (
+      decoded.prefix === expectedHrp[network] &&
+      decoded.version === 0 &&
+      decoded.data.length === 20
+    );
+  } catch {
+    return false;
+  }
+}
 
 /**
  * Resolve prevout data for a transaction input.
@@ -1125,7 +1175,9 @@ export class PeginManager {
       );
     }
 
-    // Step 4: Query required pegin fee from the contract
+    // Step 4: Query required pegin fee and current VP commission from chain.
+    // Both reads happen at submit time to minimise drift between display and
+    // consequence; per the validation-layer rule, no caching.
     const publicClient = this.config.publicClient;
 
     let peginFee: bigint;
@@ -1144,6 +1196,12 @@ export class PeginManager {
       );
     }
 
+    const maxAcceptableCommissionBps =
+      await this.resolveMaxAcceptableCommissionBps(
+        vaultProvider,
+        params.quotedCommissionBps,
+      );
+
     // Step 5: Encode the contract call data
     const callData = encodeFunctionData({
       abi: BTCVaultRegistryABI,
@@ -1155,6 +1213,7 @@ export class PeginManager {
         unsignedPrePeginTxHex,
         depositorSignedPeginTxHex,
         vaultProvider,
+        maxAcceptableCommissionBps,
         hashlock,
         htlcVout,
         payoutScriptPubKey,
@@ -1293,7 +1352,8 @@ export class PeginManager {
       vaultResults.push({ vaultId, peginTxHash });
     }
 
-    // Step 4: Query pegin fee and compute total
+    // Step 4: Query pegin fee, compute total, and read current VP commission.
+    // Commission read happens at submit time per the validation-layer rule.
     const publicClient = this.config.publicClient;
 
     let peginFee: bigint;
@@ -1312,6 +1372,12 @@ export class PeginManager {
       );
     }
     const totalFee = peginFee * BigInt(requests.length);
+
+    const maxAcceptableCommissionBps =
+      await this.resolveMaxAcceptableCommissionBps(
+        vaultProvider,
+        params.quotedCommissionBps,
+      );
 
     // Step 5: Build BatchPeginRequest[] tuple array. Depositor BTC pubkey,
     // PoP, and Pre-PegIn tx hex are shared across the batch (carried on
@@ -1338,7 +1404,12 @@ export class PeginManager {
     const callData = encodeFunctionData({
       abi: BTCVaultRegistryABI,
       functionName: "submitPeginRequestBatch",
-      args: [depositorEthAddress, vaultProvider, batchRequests],
+      args: [
+        depositorEthAddress,
+        vaultProvider,
+        maxAcceptableCommissionBps,
+        batchRequests,
+      ],
     });
 
     // Step 7: Estimate gas
@@ -1395,6 +1466,49 @@ export class PeginManager {
     };
   }
 
+  // Anchor to quoted+headroom when supplied (refuse if chain drifted past it);
+  // otherwise fall back to chain-current+headroom — see #1691.
+  private async resolveMaxAcceptableCommissionBps(
+    vaultProvider: Address,
+    quotedCommissionBps?: number,
+  ): Promise<number> {
+    let currentBps: number;
+    try {
+      // viem infers `number` from the uint16 return in the `as const` ABI.
+      currentBps = await this.config.publicClient.readContract({
+        address: this.config.vaultContracts.btcVaultRegistry,
+        abi: BTCVaultRegistryABI,
+        functionName: "getVaultProviderCommission",
+        args: [vaultProvider],
+      });
+    } catch (error) {
+      throw new Error(
+        "Failed to query vault provider commission from the contract. " +
+          "Please check your network connection and that the contract address is correct.",
+        { cause: error },
+      );
+    }
+
+    if (quotedCommissionBps !== undefined) {
+      if (currentBps > quotedCommissionBps + COMMISSION_BPS_HEADROOM) {
+        throw new Error(
+          `Vault provider commission changed since quote: quoted ${quotedCommissionBps} bps, ` +
+            `chain currently reports ${currentBps} bps (allowed drift ${COMMISSION_BPS_HEADROOM} bps). ` +
+            `Please refresh to see the new commission and try again.`,
+        );
+      }
+      return Math.min(
+        quotedCommissionBps + COMMISSION_BPS_HEADROOM,
+        MAX_ACCEPTABLE_COMMISSION_BPS_CAP,
+      );
+    }
+
+    return Math.min(
+      currentBps + COMMISSION_BPS_HEADROOM,
+      MAX_ACCEPTABLE_COMMISSION_BPS_CAP,
+    );
+  }
+
   /**
    * Check if a vault already exists for a given vault ID.
    *
@@ -1448,6 +1562,23 @@ export class PeginManager {
         this.config.btcNetwork,
       )
     ) {
+      // Diagnostic carve-out: x-only key + P2WPKH address always fails (y-parity
+      // is unknowable from x-only). Surface a specific, actionable message so
+      // Taproot-wallet integrators don't have to chase the generic mismatch.
+      const isXOnlyKey =
+        stripHexPrefix(verifiedDepositorBtcPubkeyRaw).length ===
+        X_ONLY_PUBKEY_HEX_LEN;
+      if (
+        isXOnlyKey &&
+        isP2wpkhAddressForNetwork(address, this.config.btcNetwork)
+      ) {
+        throw new Error(
+          `BTC payout address "${address}" is a P2WPKH (Native SegWit) address, ` +
+            `but the connected wallet only exposes an x-only public key. ` +
+            `P2WPKH validation requires a compressed key with known y-parity. ` +
+            `Use a P2TR (Taproot) payout address instead.`,
+        );
+      }
       throw new Error(
         `BTC payout address "${address}" is not derived from the connected ` +
           `wallet's public key. The payout sink must be controlled by the same ` +

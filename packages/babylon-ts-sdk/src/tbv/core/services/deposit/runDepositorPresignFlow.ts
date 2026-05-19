@@ -106,6 +106,7 @@ const MAX_POLLING_TIMEOUT_MS = 20 * 60 * 1000;
 const POST_PAYOUT_STATUSES: ReadonlySet<DaemonStatus> = new Set([
   DaemonStatus.PENDING_ACKS,
   DaemonStatus.PENDING_ACTIVATION,
+  DaemonStatus.ACTIVATED_PENDING_BROADCAST,
   DaemonStatus.ACTIVATED,
 ]);
 

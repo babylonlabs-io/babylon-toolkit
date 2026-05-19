@@ -39,6 +39,7 @@ export async function getPosition(
   type PositionResult = {
     proxyContract: Address;
     vaultIds: Hex[];
+    totalCollateralBTC: bigint;
   };
 
   const position = result as PositionResult;
@@ -51,6 +52,7 @@ export async function getPosition(
   return {
     proxyContract: position.proxyContract,
     vaultIds: position.vaultIds,
+    totalCollateralBTC: position.totalCollateralBTC,
   };
 }
 

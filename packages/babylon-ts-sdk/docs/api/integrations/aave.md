@@ -98,11 +98,23 @@ vaultIds: `0x${string}`[];
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts:23](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts#L23)
 
+##### totalCollateralBTC
+
+```ts
+totalCollateralBTC: bigint;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts:29](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts#L29)
+
+Sum (in satoshis) of all vault amounts collateralised in this position.
+Mirrors `MarketPosition.totalCollateralBTC` returned by
+`AaveIntegrationAdapter.getPosition`.
+
 ***
 
 ### AaveSpokeUserAccountData
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts:30](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts#L30)
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts:36](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts#L36)
 
 User account data from the Spoke
 Contains aggregated position health data calculated by Aave using on-chain oracle prices.
@@ -115,7 +127,7 @@ Contains aggregated position health data calculated by Aave using on-chain oracl
 riskPremium: bigint;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts:32](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts#L32)
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts:38](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts#L38)
 
 Risk premium
 
@@ -125,7 +137,7 @@ Risk premium
 avgCollateralFactor: bigint;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts:34](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts#L34)
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts:40](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts#L40)
 
 Weighted average collateral factor in WAD (1e18 = 100%)
 
@@ -135,7 +147,7 @@ Weighted average collateral factor in WAD (1e18 = 100%)
 healthFactor: bigint;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts:36](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts#L36)
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts:42](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts#L42)
 
 Health factor in WAD (1e18 = 1.00)
 
@@ -145,7 +157,7 @@ Health factor in WAD (1e18 = 1.00)
 totalCollateralValue: bigint;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts:38](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts#L38)
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts:44](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts#L44)
 
 Total collateral value in base currency (1e26 = $1 USD)
 
@@ -155,7 +167,7 @@ Total collateral value in base currency (1e26 = $1 USD)
 totalDebtValueRay: bigint;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts:40](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts#L40)
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts:46](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts#L46)
 
 Total debt value in base currency, scaled by RAY (1e35 = $1 USD)
 
@@ -165,7 +177,7 @@ Total debt value in base currency, scaled by RAY (1e35 = $1 USD)
 activeCollateralCount: bigint;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts:42](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts#L42)
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts:48](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts#L48)
 
 Number of active collateral reserves
 
@@ -175,7 +187,7 @@ Number of active collateral reserves
 borrowCount: bigint;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts:44](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts#L44)
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts:50](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts#L50)
 
 Number of borrowed reserves
 
@@ -183,7 +195,7 @@ Number of borrowed reserves
 
 ### AaveSpokeUserPosition
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts:50](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts#L50)
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts:56](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts#L56)
 
 User position data from the Spoke
 
@@ -195,7 +207,7 @@ User position data from the Spoke
 drawnShares: bigint;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts:52](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts#L52)
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts:58](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts#L58)
 
 Drawn debt shares
 
@@ -205,7 +217,7 @@ Drawn debt shares
 premiumShares: bigint;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts:54](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts#L54)
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts:60](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts#L60)
 
 Premium shares (interest)
 
@@ -215,7 +227,7 @@ Premium shares (interest)
 premiumOffsetRay: bigint;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts:56](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts#L56)
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts:62](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts#L62)
 
 Premium offset, expressed in asset units scaled by RAY (signed)
 
@@ -225,7 +237,7 @@ Premium offset, expressed in asset units scaled by RAY (signed)
 suppliedShares: bigint;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts:58](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts#L58)
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts:64](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts#L64)
 
 Supplied collateral shares
 
@@ -235,7 +247,7 @@ Supplied collateral shares
 dynamicConfigKey: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts:60](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts#L60)
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts:66](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts#L66)
 
 Dynamic config key
 
@@ -243,7 +255,7 @@ Dynamic config key
 
 ### TransactionParams
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts:67](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts#L67)
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts:73](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts#L73)
 
 Transaction parameters for unsigned transactions
 Compatible with viem's transaction format
@@ -256,7 +268,7 @@ Compatible with viem's transaction format
 to: `0x${string}`;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts:69](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts#L69)
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts:75](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts#L75)
 
 Contract address to call
 
@@ -266,7 +278,7 @@ Contract address to call
 data: `0x${string}`;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts:71](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts#L71)
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts:77](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts#L77)
 
 Encoded function data
 
@@ -276,7 +288,7 @@ Encoded function data
 optional value: bigint;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts:73](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts#L73)
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts:79](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts#L79)
 
 Value to send (optional, defaults to 0)
 
@@ -284,7 +296,7 @@ Value to send (optional, defaults to 0)
 
 ### PositionSizeParams
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts:80](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts#L80)
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts:86](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts#L86)
 
 Position size parameters from the AaveIntegrationAdapter contract.
 Controls maximum BTC position size and vault count per user.
@@ -297,7 +309,7 @@ Controls maximum BTC position size and vault count per user.
 maxPositionBTC: bigint;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts:82](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts#L82)
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts:88](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts#L88)
 
 Maximum BTC position size allowed (in satoshis)
 
@@ -307,7 +319,7 @@ Maximum BTC position size allowed (in satoshis)
 maxVaultsPerPosition: bigint;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts:84](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts#L84)
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts:90](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts#L90)
 
 Maximum number of vaults per position
 
@@ -918,7 +930,7 @@ Market position data or null if position doesn't exist
 function getPositionSizeParams(publicClient, contractAddress): Promise<PositionSizeParams>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/query.ts:67](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/query.ts#L67)
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/query.ts:69](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/query.ts#L69)
 
 Get position size parameters from the adapter contract.
 

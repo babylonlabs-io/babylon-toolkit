@@ -11,6 +11,7 @@ const MOCK_TBV_PARAMS = {
   pegInAckTimeout: 7200n,
   pegInActivationTimeout: 14400n,
   maxHtlcOutputCount: 5,
+  expiredPegInGraceBlocks: 100n,
 };
 
 const MOCK_OFFCHAIN_PARAMS = {
@@ -29,7 +30,7 @@ const MOCK_OFFCHAIN_PARAMS = {
   tRefund: 1008,
   tStale: 288,
   minPeginFeeRate: 1n,
-  proverProgramVersion: 1,
+  proverCircuitVersion: 1,
   minPrepeginDepth: 6,
 };
 
@@ -139,7 +140,7 @@ describe("ViemProtocolParamsReader", () => {
     expect(params.tRefund).toBe(1008);
     expect(params.tStale).toBe(288);
     expect(params.minPeginFeeRate).toBe(1n);
-    expect(params.proverProgramVersion).toBe(1);
+    expect(params.proverCircuitVersion).toBe(1);
     expect(params.minPrepeginDepth).toBe(6);
   });
 
@@ -204,7 +205,7 @@ describe("ViemProtocolParamsReader", () => {
     expect(config.timelockPegin).toBe(150);
     expect(config.timelockRefund).toBe(1008);
     expect(config.minVpCommissionBps).toBe(500);
-    expect(config.offchainParams.proverProgramVersion).toBe(1);
+    expect(config.offchainParams.proverCircuitVersion).toBe(1);
     expect(config.offchainParams.minPrepeginDepth).toBe(6);
     // offchainParamsVersion is paired atomically with offchainParams.
     expect(config.offchainParamsVersion).toBe(3);

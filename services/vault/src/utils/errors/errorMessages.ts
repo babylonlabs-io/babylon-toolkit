@@ -44,14 +44,14 @@ export const CONTRACT_ERROR_MESSAGES: Record<string, string> = {
   InvalidBTCProofOfPossession: "Invalid BTC proof of possession signature.",
   BtcKeyMismatch: "BTC key mismatch.",
   InvalidTransactionHashLength: "Invalid transaction hash length.",
-  PeginTransactionExpired: "The pegin transaction has expired.",
+  PeginTransactionExpired: "The peg-in transaction has expired.",
   InclusionProofVerificationFailed:
     "Bitcoin inclusion proof verification failed.",
   BitcoinTransactionParsingFailed: "Failed to parse Bitcoin transaction.",
   PrePeginOutputAlreadyUsed:
-    "This pre-pegin output has already been used to activate another vault.",
+    "This Pre-Pegin output has already been used to activate another vault.",
   PeginTransactionAlreadyUsed:
-    "This pegin transaction has already been used to activate another vault.",
+    "This peg-in transaction has already been used to activate another vault.",
 
   // ============================================================================
   // Vault Provider errors
@@ -206,4 +206,26 @@ export const CONTRACT_ERROR_MESSAGES: Record<string, string> = {
   ERC20InvalidReceiver: "Invalid receiver address.",
   ERC20InvalidSender: "Invalid sender address.",
   ERC20InvalidSpender: "Invalid spender address.",
+
+  // ============================================================================
+  // Pegin / commission / VP-management errors (aave-v4)
+  // ============================================================================
+  VaultProviderCommissionExceeded:
+    "The vault provider's commission rate exceeds your acceptable maximum. Please try again.",
+  ApplicationNotActive:
+    "This application is currently paused. Vault operations are temporarily disabled.",
+  BlocklistedVaultKeeper:
+    "This vault keeper has been blocklisted and cannot perform this action.",
+  PostExpiryGraceWindowElapsed:
+    "The grace window to reclaim this expired vault has elapsed.",
+  BtcKeyAlreadyRegistered: "This Bitcoin public key is already registered.",
+  CommissionAboveMaximum:
+    "The proposed commission exceeds the protocol maximum.",
+  CommissionBelowMinimum:
+    "The proposed commission is below the protocol minimum.",
+  CommissionUnchanged: "The new commission is the same as the current value.",
+  PeginInputSignatureAlreadySubmitted:
+    "This peg-in input signature has already been submitted.",
+  InvalidShortDelayArrays:
+    "Timelock configuration contains invalid short-delay arrays.",
 };

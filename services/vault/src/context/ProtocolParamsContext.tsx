@@ -10,6 +10,10 @@
  */
 
 import { Loader } from "@babylonlabs-io/core-ui";
+import type {
+  PegInConfiguration,
+  VersionedOffchainParams,
+} from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import { useQuery } from "@tanstack/react-query";
 import {
   createContext,
@@ -19,12 +23,8 @@ import {
   type ReactNode,
 } from "react";
 
-import {
-  fetchAllOffchainParams,
-  getPegInConfiguration,
-  type PegInConfiguration,
-  type VersionedOffchainParams,
-} from "@/clients/eth-contract/protocol-params";
+import { getProtocolParamsReader } from "@/clients/eth-contract/sdk-readers";
+import { logger } from "@/infrastructure";
 import { fetchAllUniversalChallengers } from "@/services/providers";
 import type { UniversalChallenger } from "@/types";
 
@@ -79,7 +79,10 @@ export function ProtocolParamsProvider({
     error: configError,
   } = useQuery({
     queryKey: [PROTOCOL_PARAMS_QUERY_KEY, "pegInConfig"],
-    queryFn: getPegInConfiguration,
+    queryFn: async () => {
+      const reader = await getProtocolParamsReader();
+      return reader.getPegInConfiguration();
+    },
     staleTime: STALE_TIME_MS,
     refetchOnWindowFocus: false,
     retry: RETRY_COUNT,
@@ -103,7 +106,15 @@ export function ProtocolParamsProvider({
     error: offchainError,
   } = useQuery({
     queryKey: [PROTOCOL_PARAMS_QUERY_KEY, "allOffchainParams"],
-    queryFn: fetchAllOffchainParams,
+    queryFn: async () => {
+      const reader = await getProtocolParamsReader();
+      return reader.fetchAllOffchainParams((version, error) => {
+        logger.warn(
+          `Offchain params v${version} failed validation, skipping: ${error.message}`,
+          { category: "protocol-params" },
+        );
+      });
+    },
     staleTime: STALE_TIME_MS,
     refetchOnWindowFocus: false,
     retry: RETRY_COUNT,

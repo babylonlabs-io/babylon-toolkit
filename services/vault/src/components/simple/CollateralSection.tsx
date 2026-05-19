@@ -22,6 +22,7 @@ import { ArtifactDownloadModal } from "@/components/deposit/ArtifactDownloadModa
 import { DepositButton, ExpandMenuButton } from "@/components/shared";
 import { Connect } from "@/components/Wallet";
 import { getNetworkConfigBTC } from "@/config";
+import { COPY } from "@/copy";
 import type { ArtifactDownloadModalParams } from "@/hooks/deposit/useArtifactDownloadModal";
 import { useVaultProviders } from "@/hooks/deposit/useVaultProviders";
 import { logger } from "@/infrastructure";
@@ -50,11 +51,6 @@ interface CollateralSectionProps {
   onWithdraw: () => void;
   onDeposit: () => void;
 }
-
-const WITHDRAW_DISABLED_TOOLTIP =
-  "No vault can be released without putting your position at risk of liquidation. Repay debt first.";
-
-const WITHDRAW_HF_BREACH_TOOLTIP = `This selection would drop your health factor below ${WITHDRAW_HF_BLOCK_THRESHOLD.toFixed(1)} and be rejected on-chain. Reduce the selection or repay debt first.`;
 
 export function CollateralSection({
   totalAmountBtc,
@@ -131,9 +127,11 @@ export function CollateralSection({
     !wouldBreachHF;
 
   const disabledReason = useMemo(() => {
-    if (!hasWithdrawableVault) return WITHDRAW_DISABLED_TOOLTIP;
+    if (!hasWithdrawableVault) return COPY.collateral.releaseDisabledTooltip;
     if (wouldBreachHF && effectiveSelectedVaultIds.length > 0) {
-      return WITHDRAW_HF_BREACH_TOOLTIP;
+      return COPY.collateral.releaseHfBreachTooltip(
+        WITHDRAW_HF_BLOCK_THRESHOLD,
+      );
     }
     return undefined;
   }, [hasWithdrawableVault, wouldBreachHF, effectiveSelectedVaultIds.length]);

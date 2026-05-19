@@ -21,6 +21,12 @@ export interface DepositorStruct {
 export interface AaveMarketPosition {
   proxyContract: Address;
   vaultIds: Hex[];
+  /**
+   * Sum (in satoshis) of all vault amounts collateralised in this position.
+   * Mirrors `MarketPosition.totalCollateralBTC` returned by
+   * `AaveIntegrationAdapter.getPosition`.
+   */
+  totalCollateralBTC: bigint;
 }
 
 /**

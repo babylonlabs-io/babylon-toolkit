@@ -144,6 +144,30 @@ describe("assertPsbtUnsignedTxMatches", () => {
     ).toThrow(/input 0 prevout txid differs/);
   });
 
+  it("throws when an input prevout vout has been changed", () => {
+    const requestedHex = buildBasePsbt({ prevoutVout: 0 }).toHex();
+    const returnedHex = buildBasePsbt({ prevoutVout: 1 }).toHex();
+    expect(() =>
+      assertPsbtUnsignedTxMatches({
+        requestedPsbtHex: requestedHex,
+        returnedPsbtHex: returnedHex,
+      }),
+    ).toThrow(/input 0 prevout vout differs \(requested=0, returned=1\)/);
+  });
+
+  it("throws when tx version differs", () => {
+    const requested = buildBasePsbt();
+    requested.setVersion(1);
+    const returned = buildBasePsbt();
+    returned.setVersion(2);
+    expect(() =>
+      assertPsbtUnsignedTxMatches({
+        requestedPsbtHex: requested.toHex(),
+        returnedPsbtHex: returned.toHex(),
+      }),
+    ).toThrow(/tx version differs \(requested=1, returned=2\)/);
+  });
+
   it("throws when input count differs", () => {
     const requestedHex = buildBasePsbt().toHex();
     const returned = buildBasePsbt();

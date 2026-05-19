@@ -117,7 +117,7 @@ describe("JsonRpcClient", () => {
         .mockImplementation(() =>
           Promise.resolve(
             createJsonRpcErrorResponse(
-              RpcErrorCode.NOT_FOUND,
+              RpcErrorCode.PEGIN_NOT_FOUND,
               "PegIn not found",
             ),
           ),
@@ -133,7 +133,7 @@ describe("JsonRpcClient", () => {
       await client.call("vaultProvider_getPeginStatus", { pegin_txid: "abc" });
     } catch (err) {
       expect(err).toBeInstanceOf(JsonRpcError);
-      expect((err as JsonRpcError).code).toBe(RpcErrorCode.NOT_FOUND);
+      expect((err as JsonRpcError).code).toBe(RpcErrorCode.PEGIN_NOT_FOUND);
       expect((err as JsonRpcError).message).toBe("PegIn not found");
     }
   });

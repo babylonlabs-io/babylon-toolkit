@@ -48,6 +48,10 @@ export interface VaultProtocolInfo {
   depositorPopSignature: Hex;
   prePeginTxHash: Hex;
   vaultProviderCommissionBps: number;
+  /** Block deadline (uint256) for depositor reclaim. TODO(#1690): wire to refund flow. */
+  claimExpiredUntil: bigint;
+  /** Vault core version (uint16) stamped at registration. VP-side gating only — see #1690. */
+  vaultCoreVersion: number;
 }
 
 /** Combined vault data (basic + protocol) */
@@ -90,6 +94,12 @@ export interface TBVProtocolParams {
   pegInAckTimeout: bigint;
   pegInActivationTimeout: bigint;
   maxHtlcOutputCount: number;
+  /**
+   * Number of blocks added to the activation deadline as a grace window
+   * during which a depositor may still reclaim an expired pegin via the
+   * HTLC preimage. Source: `IProtocolParams.TBVProtocolParams.expiredPegInGraceBlocks`.
+   */
+  expiredPegInGraceBlocks: bigint;
 }
 
 /**
@@ -111,7 +121,7 @@ export interface VersionedOffchainParams {
   tRefund: number;
   tStale: number;
   minPeginFeeRate: bigint;
-  proverProgramVersion: number;
+  proverCircuitVersion: number;
   minPrepeginDepth: number;
 }
 
@@ -125,6 +135,7 @@ export interface PegInConfiguration {
   pegInAckTimeout: bigint;
   pegInActivationTimeout: bigint;
   maxHtlcOutputCount: number;
+  expiredPegInGraceBlocks: bigint;
   timelockPegin: number;
   timelockRefund: number;
   minVpCommissionBps: number;
