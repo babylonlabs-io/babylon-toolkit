@@ -80,7 +80,7 @@ export function useAaveUserPosition(
 ): UseAaveUserPositionResult {
   const { config, allBorrowReserves } = useAaveConfig();
   const spokeAddress = config?.coreSpokeAddress;
-  const vbtcReserveId = config?.btcVaultCoreVbtcReserveId;
+  const vbtcReserveId = config?.vaultBtcReserveId;
 
   // Query debt positions across all non-vBTC reserves, not just currently
   // borrowable ones. A user may carry debt in a reserve that has since been

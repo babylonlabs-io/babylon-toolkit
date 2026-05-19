@@ -103,6 +103,7 @@ describe("assertReorderMembership", () => {
     mockGetPosition.mockResolvedValue({
       proxyContract: "0x1" as Address,
       vaultIds: [VAULT_A.toLowerCase() as Hex, VAULT_B.toUpperCase() as Hex],
+      totalCollateralBTC: 0n,
     });
 
     const onChain = await assertReorderMembership(ADAPTER, USER, [
@@ -117,6 +118,7 @@ describe("assertReorderMembership", () => {
     mockGetPosition.mockResolvedValue({
       proxyContract: "0x1" as Address,
       vaultIds: [VAULT_A],
+      totalCollateralBTC: 0n,
     });
 
     await assertReorderMembership(ADAPTER, USER, [VAULT_A]);
@@ -130,6 +132,7 @@ describe("assertReorderMembership", () => {
     mockGetPosition.mockResolvedValue({
       proxyContract: "0x1" as Address,
       vaultIds: [VAULT_A, VAULT_B],
+      totalCollateralBTC: 0n,
     });
 
     await expect(
@@ -141,6 +144,7 @@ describe("assertReorderMembership", () => {
     mockGetPosition.mockResolvedValue({
       proxyContract: "0x1" as Address,
       vaultIds: [VAULT_A, VAULT_B],
+      totalCollateralBTC: 0n,
     });
 
     await expect(
@@ -152,6 +156,7 @@ describe("assertReorderMembership", () => {
     mockGetPosition.mockResolvedValue({
       proxyContract: "0x1" as Address,
       vaultIds: [VAULT_A, VAULT_B],
+      totalCollateralBTC: 0n,
     });
 
     await expect(

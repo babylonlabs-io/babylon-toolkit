@@ -105,12 +105,12 @@ export function validateOffchainParams(params: VersionedOffchainParams): void {
   }
 
   if (
-    !Number.isInteger(params.proverProgramVersion) ||
-    params.proverProgramVersion < 0 ||
-    params.proverProgramVersion > UINT16_MAX
+    !Number.isInteger(params.proverCircuitVersion) ||
+    params.proverCircuitVersion < 0 ||
+    params.proverCircuitVersion > UINT16_MAX
   ) {
     errors.push(
-      `proverProgramVersion must be a uint16, got ${params.proverProgramVersion}`,
+      `proverCircuitVersion must be a uint16, got ${params.proverCircuitVersion}`,
     );
   }
 
@@ -194,6 +194,15 @@ export function validateTBVProtocolParams(params: TBVProtocolParams): void {
   ) {
     errors.push(
       `maxHtlcOutputCount must be an integer in [1, ${UINT8_MAX}], got ${params.maxHtlcOutputCount}`,
+    );
+  }
+
+  if (
+    typeof params.expiredPegInGraceBlocks !== "bigint" ||
+    params.expiredPegInGraceBlocks <= 0n
+  ) {
+    errors.push(
+      `expiredPegInGraceBlocks must be a positive bigint, got ${params.expiredPegInGraceBlocks}`,
     );
   }
 

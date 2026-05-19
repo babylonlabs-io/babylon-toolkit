@@ -87,15 +87,7 @@ export interface JsonRpcClientConfig {
   tokenProvider?: BearerTokenProvider;
 }
 
-/**
- * Identifies whether an error was produced locally (timeout, network
- * failure, malformed response) or parsed from a wire-format JSON-RPC
- * error envelope returned by the server.
- *
- * This matters for anyone inspecting the shared `-32001` code: the SDK
- * uses it internally for network failures AND the server uses it for
- * auth-middleware rejections. The `source` field disambiguates.
- */
+// "wire" = parsed from a JSON-RPC error envelope; "local" = timeout/network/parse failure.
 export type JsonRpcErrorSource = "wire" | "local";
 
 export class JsonRpcError extends Error {

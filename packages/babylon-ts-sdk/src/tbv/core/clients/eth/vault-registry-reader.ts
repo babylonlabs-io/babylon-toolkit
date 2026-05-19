@@ -109,6 +109,8 @@ export class ViemVaultRegistryReader implements VaultRegistryReader {
       depositorPopSignature: Hex;
       prePeginTxHash: Hex;
       vaultProviderCommissionBps: number;
+      claimExpiredUntil: bigint;
+      vaultCoreVersion: number;
     };
 
     const offchainParamsVersion = Number(result.offchainParamsVersion);
@@ -126,6 +128,8 @@ export class ViemVaultRegistryReader implements VaultRegistryReader {
       depositorPopSignature: result.depositorPopSignature,
       prePeginTxHash: result.prePeginTxHash,
       vaultProviderCommissionBps: result.vaultProviderCommissionBps,
+      claimExpiredUntil: result.claimExpiredUntil,
+      vaultCoreVersion: result.vaultCoreVersion,
     };
   }
 
@@ -157,6 +161,8 @@ export class ViemVaultRegistryReader implements VaultRegistryReader {
         depositorPopSignature: Hex;
         prePeginTxHash: Hex;
         vaultProviderCommissionBps: number;
+        claimExpiredUntil: bigint;
+        vaultCoreVersion: number;
       };
       if (
         !result.depositorSignedPeginTx ||
@@ -166,11 +172,13 @@ export class ViemVaultRegistryReader implements VaultRegistryReader {
           `Vault ${vaultIds[i]} not found on-chain or has no pegin transaction`,
         );
       }
+      const offchainParamsVersion = Number(result.offchainParamsVersion);
+      assertValidOffchainParamsVersion(offchainParamsVersion);
       return {
         depositorSignedPeginTx: result.depositorSignedPeginTx,
         universalChallengersVersion: result.universalChallengersVersion,
         appVaultKeepersVersion: result.appVaultKeepersVersion,
-        offchainParamsVersion: result.offchainParamsVersion,
+        offchainParamsVersion,
         verifiedAt: result.verifiedAt,
         depositorWotsPkHash: result.depositorWotsPkHash,
         hashlock: result.hashlock,
@@ -178,6 +186,8 @@ export class ViemVaultRegistryReader implements VaultRegistryReader {
         depositorPopSignature: result.depositorPopSignature,
         prePeginTxHash: result.prePeginTxHash,
         vaultProviderCommissionBps: result.vaultProviderCommissionBps,
+        claimExpiredUntil: result.claimExpiredUntil,
+        vaultCoreVersion: result.vaultCoreVersion,
       };
     });
   }

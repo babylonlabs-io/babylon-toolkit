@@ -19,12 +19,19 @@
  * State flow (happy path):
  * PendingIngestion -> PendingDepositorWotsPK -> PendingBabeSetup -> PendingChallengerPresigning
  *   -> PendingPeginSigsAvailability -> PendingPrePegInConfirmations
- *   -> PendingDepositorSignatures -> PendingACKs -> PendingActivation -> Activated
+ *   -> PendingDepositorSignatures -> PendingACKs -> PendingActivation
+ *   -> ActivatedPendingBroadcast -> Activated
  *
- * Terminal / branching states:
- * - Expired: vault timed out before activation
- * - ClaimPosted: claim transaction posted on-chain
- * - PeggedOut: BTC has been returned to the depositor
+ * Branching / terminal states:
+ * - Expired: activation timed out; non-terminal during the grace window
+ *   (RFC 003) — transitions to ExpiredCleanedUp or ExpiredInClaim.
+ * - InvalidSigInContract: terminal — pegin input signature posted on
+ *   chain failed verification.
+ * - AmlRejected: terminal — AML address screening rejected the pegin.
+ * - ExpiredCleanedUp: terminal — grace window expired, per-pegin
+ *   artifacts deleted.
+ * - ExpiredInClaim: terminal at the pegin-state-machine level; pegout-side
+ *   work continues on the pegout_tracking row.
  */
 export enum DaemonStatus {
   PENDING_INGESTION = "PendingIngestion",
@@ -36,10 +43,13 @@ export enum DaemonStatus {
   PENDING_DEPOSITOR_SIGNATURES = "PendingDepositorSignatures",
   PENDING_ACKS = "PendingACKs",
   PENDING_ACTIVATION = "PendingActivation",
+  ACTIVATED_PENDING_BROADCAST = "ActivatedPendingBroadcast",
   ACTIVATED = "Activated",
   EXPIRED = "Expired",
-  CLAIM_POSTED = "ClaimPosted",
-  PEGGED_OUT = "PeggedOut",
+  INVALID_SIG_IN_CONTRACT = "InvalidSigInContract",
+  AML_REJECTED = "AmlRejected",
+  EXPIRED_CLEANED_UP = "ExpiredCleanedUp",
+  EXPIRED_IN_CLAIM = "ExpiredInClaim",
 }
 
 // ============================================================================
@@ -62,6 +72,7 @@ export const PRE_DEPOSITOR_SIGNATURES_STATES: readonly DaemonStatus[] = [
 const POST_PAYOUT_SIGNATURE_STATUSES: readonly DaemonStatus[] = [
   DaemonStatus.PENDING_ACKS,
   DaemonStatus.PENDING_ACTIVATION,
+  DaemonStatus.ACTIVATED_PENDING_BROADCAST,
   DaemonStatus.ACTIVATED,
 ];
 
@@ -78,14 +89,26 @@ export const VP_TRANSIENT_STATUSES: ReadonlySet<DaemonStatus> = new Set([
 ]);
 
 /**
- * Terminal VP statuses where no further progress is possible.
- * If the VP reaches one of these states while polling, polling should
- * stop immediately with an error rather than waiting for timeout.
+ * Terminal VP statuses that represent failure outcomes — polling should
+ * stop immediately with an error rather than wait for timeout.
+ *
+ * Mirrors the failure subset of the server-side terminals
+ * (`allowed_transitions()` empty, see
+ * `btc-vault/crates/vaultd/src/workers/claimer/mod.rs:230-242`).
+ * `Activated` IS terminal on-chain but is the success outcome, so it is
+ * intentionally excluded — a caller polling for an earlier state that
+ * races straight to `Activated` should treat that as success-via-overshoot,
+ * not failure. `Expired` is also excluded — under RFC 003 it is a
+ * grace-window interim that transitions to `ExpiredCleanedUp` or
+ * `ExpiredInClaim`. Callers that want to stop polling on any expiry
+ * should check `status === DaemonStatus.EXPIRED ||
+ * VP_TERMINAL_FAILURE_STATUSES.has(status)`.
  */
-export const VP_TERMINAL_STATUSES: ReadonlySet<DaemonStatus> = new Set([
-  DaemonStatus.EXPIRED,
-  DaemonStatus.CLAIM_POSTED,
-  DaemonStatus.PEGGED_OUT,
+export const VP_TERMINAL_FAILURE_STATUSES: ReadonlySet<DaemonStatus> = new Set([
+  DaemonStatus.INVALID_SIG_IN_CONTRACT,
+  DaemonStatus.AML_REJECTED,
+  DaemonStatus.EXPIRED_CLEANED_UP,
+  DaemonStatus.EXPIRED_IN_CLAIM,
 ]);
 
 /**
@@ -291,12 +314,12 @@ export interface GetPeginStatusResponse {
  * Source: btc-vault crates/vaultd/src/rpc/server/pegout_status.rs ClaimerPegoutStatus.
  */
 export interface ClaimerPegoutStatus {
+  /** Wire string from PegoutStatus enum. */
   status: string;
   failed: boolean;
   claim_txid: string;
   claimer_pubkey: string;
   assert_txid: string;
-  challenger_pubkey: string | null;
   /** Unix epoch seconds. */
   created_at: number;
   /** Unix epoch seconds. */
@@ -380,14 +403,10 @@ export const VP_BATCH_MAX_SIZE = 50;
 // Error Codes
 // ============================================================================
 
-/** JSON-RPC error codes returned by the vault provider. */
+/**
+ * JSON-RPC error codes returned by the vault provider.
+ * Source: btc-vault `crates/vaultd/src/rpc/error.rs::RpcError::error_code`.
+ */
 export enum RpcErrorCode {
-  DATABASE_ERROR = -32005,
-  PRESIGN_ERROR = -32006,
-  JSON_SERIALIZATION_ERROR = -32007,
-  TX_GRAPH_ERROR = -32008,
-  INVALID_GRAPH = -32009,
-  VALIDATION_ERROR = -32010,
-  NOT_FOUND = -32011,
-  INTERNAL_ERROR = -32603,
+  PEGIN_NOT_FOUND = 4001,
 }

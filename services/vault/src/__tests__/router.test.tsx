@@ -31,7 +31,7 @@ vi.mock("../applications/aave/services", () => ({
       vaultBtcAddress: "0x2",
       btcVaultRegistryAddress: "0x3",
       coreSpokeAddress: "0x4" as `0x${string}`,
-      btcVaultCoreVbtcReserveId: 1n,
+      vaultBtcReserveId: 1n,
     },
     vbtcReserve: null,
     borrowableReserves: [],

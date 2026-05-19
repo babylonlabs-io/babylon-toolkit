@@ -2,6 +2,10 @@
  * Utility functions for Peg-In Polling
  */
 
+import {
+  DaemonStatus,
+  VP_TERMINAL_FAILURE_STATUSES,
+} from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import type { Hex } from "viem";
 
 import {
@@ -33,30 +37,39 @@ export const TRANSIENT_ERROR_PATTERNS = [
 // Terminal Error Detection
 // ============================================================================
 
-/**
- * Terminal error patterns that indicate a permanent failure.
- * These errors will never resolve on their own (e.g., wallet mismatch),
- * so polling should stop immediately to avoid wasting requests.
- */
-export const TERMINAL_ERROR_PATTERNS = [
-  "Unauthorized depositor",
-  "Deposit expired",
-  "Claim transaction posted",
-  "BTC has been returned to depositor",
-] as const;
+/** Polling error tagged with the daemon status that produced it. */
+export class TerminalPeginPollingError extends Error {
+  readonly daemonStatus: DaemonStatus;
+  constructor(daemonStatus: DaemonStatus, message: string) {
+    super(message);
+    this.name = "TerminalPeginPollingError";
+    this.daemonStatus = daemonStatus;
+  }
+}
 
-/**
- * Check if an error is terminal (will never resolve, polling should stop).
- *
- * Terminal errors occur when there is a fundamental mismatch that cannot
- * be fixed by retrying, such as using different BTC and ETH wallets
- * for vaults.
- */
+// EXPIRED is grace-window interim — refund path remains; polling can stop.
+function isTerminalDaemonStatus(status: DaemonStatus): boolean {
+  return (
+    VP_TERMINAL_FAILURE_STATUSES.has(status) || status === DaemonStatus.EXPIRED
+  );
+}
+
+// VP rpc/error.rs `RpcError::UnauthorizedDepositor` — arrives as a plain
+// Error (JSON-RPC -32001 envelope), not a daemon-status, so it bypasses
+// the TerminalPeginPollingError path. Fail-fast here so a wrong-wallet
+// pairing doesn't hang the UI on indefinite polling.
+const UNAUTHORIZED_DEPOSITOR_PATTERN = "Unauthorized depositor";
+
 export function isTerminalPollingError(error: unknown): boolean {
-  if (!(error instanceof Error)) return false;
-
-  return TERMINAL_ERROR_PATTERNS.some((pattern) =>
-    error.message.includes(pattern),
+  if (
+    error instanceof TerminalPeginPollingError &&
+    isTerminalDaemonStatus(error.daemonStatus)
+  ) {
+    return true;
+  }
+  return (
+    error instanceof Error &&
+    error.message.includes(UNAUTHORIZED_DEPOSITOR_PATTERN)
   );
 }
 

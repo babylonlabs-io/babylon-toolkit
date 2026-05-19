@@ -6,6 +6,7 @@
 import {
   JSON_RPC_ERROR_CODES,
   JsonRpcError,
+  RpcErrorCode,
 } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 
 /**
@@ -88,6 +89,13 @@ export function formatPayoutSignatureError(error: unknown): {
   message: string;
 } {
   if (error instanceof JsonRpcError) {
+    if (error.code === RpcErrorCode.PEGIN_NOT_FOUND) {
+      return {
+        title: "Vault Provider Syncing",
+        message:
+          "The vault provider hasn't ingested your peg-in yet. Please wait a moment and try again.",
+      };
+    }
     if (error.code === JSON_RPC_ERROR_CODES.TIMEOUT) {
       return {
         title: "Request Timeout",

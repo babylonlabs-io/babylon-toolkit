@@ -7,9 +7,9 @@
 
 import { JsonRpcError } from "../../clients/vault-provider/json-rpc-client";
 import {
+  DaemonStatus,
   RpcErrorCode,
-  VP_TERMINAL_STATUSES,
-  type DaemonStatus,
+  VP_TERMINAL_FAILURE_STATUSES,
 } from "../../clients/vault-provider/types";
 import type { PeginStatusReader } from "./interfaces";
 
@@ -34,8 +34,10 @@ export interface WaitForPeginStatusParams {
 /**
  * Poll `getPeginStatus` until the VP reaches one of the target statuses.
  *
- * @returns The DaemonStatus string that matched one of the targets
- * @throws Error on timeout, abort, or non-transient RPC error
+ * @returns The DaemonStatus that matched one of the targets, OR
+ *   `DaemonStatus.ACTIVATED` if the VP raced past the requested target into the
+ *   happy-path terminal (success-via-overshoot — the goal is satisfied).
+ * @throws Error on timeout, abort, non-transient RPC error, or any terminal status (`Expired` + `VP_TERMINAL_FAILURE_STATUSES`) not in `targetStatuses`.
  */
 export async function waitForPeginStatus(
   params: WaitForPeginStatusParams,
@@ -81,19 +83,26 @@ export async function waitForPeginStatus(
       if (targetStatuses.has(status)) {
         return status;
       }
-      // Fail fast on terminal statuses to avoid waiting for timeout
-      if (VP_TERMINAL_STATUSES.has(status) && !targetStatuses.has(status)) {
+      // Happy-path overshoot: VP raced past the requested target to ACTIVATED.
+      // The caller's goal (reach some earlier state) is satisfied — return
+      // success rather than time out waiting for a state the VP already left.
+      if (status === DaemonStatus.ACTIVATED) {
+        return status;
+      }
+      // EXPIRED is included — depositor has no path forward once VP marks the pegin Expired.
+      if (
+        status === DaemonStatus.EXPIRED ||
+        VP_TERMINAL_FAILURE_STATUSES.has(status)
+      ) {
         throw new Error(
           `Pegin ${peginTxid.slice(0, 8)}… reached terminal status "${status}" while waiting for ${[...targetStatuses].join(", ")}`,
         );
       }
     } catch (error) {
       // "PegIn not found" is transient — VP hasn't ingested the pegin yet.
-      // Check structured error code first, fall back to message matching.
       const isNotFound =
-        (error instanceof JsonRpcError &&
-          error.code === RpcErrorCode.NOT_FOUND) ||
-        (error instanceof Error && error.message.includes("PegIn not found"));
+        error instanceof JsonRpcError &&
+        error.code === RpcErrorCode.PEGIN_NOT_FOUND;
       if (!isNotFound) {
         throw error;
       }

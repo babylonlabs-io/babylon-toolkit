@@ -45,27 +45,15 @@ describe("pegoutStateMachine", () => {
       expect(state.variant).toBe("pending");
     });
 
-    it("returns Under Review for ChallengeAssertObserved", () => {
-      const state = getPegoutDisplayState("ChallengeAssertObserved", true);
-      expect(state.label).toBe("Under Review");
-      expect(state.variant).toBe("warning");
-    });
-
-    it("returns Resuming for WronglyChallengedBroadcast", () => {
-      const state = getPegoutDisplayState("WronglyChallengedBroadcast", true);
-      expect(state.label).toBe("Resuming");
-      expect(state.variant).toBe("pending");
-    });
-
     it("returns BTC Sent for PayoutBroadcast", () => {
       const state = getPegoutDisplayState("PayoutBroadcast", true);
       expect(state.label).toBe("BTC Sent");
       expect(state.variant).toBe("active");
     });
 
-    it("returns Failed for Failed status", () => {
-      const state = getPegoutDisplayState("Failed", true);
-      expect(state.label).toBe("Failed");
+    it("returns Blocked for PayoutBlocked status", () => {
+      const state = getPegoutDisplayState("PayoutBlocked", true);
+      expect(state.label).toBe("Blocked");
       expect(state.variant).toBe("warning");
     });
 
@@ -90,16 +78,14 @@ describe("pegoutStateMachine", () => {
       expect(isRecognizedPegoutStatus("ClaimEventReceived")).toBe(true);
       expect(isRecognizedPegoutStatus("ClaimBroadcast")).toBe(true);
       expect(isRecognizedPegoutStatus("AssertBroadcast")).toBe(true);
-      expect(isRecognizedPegoutStatus("ChallengeAssertObserved")).toBe(true);
-      expect(isRecognizedPegoutStatus("WronglyChallengedBroadcast")).toBe(true);
       expect(isRecognizedPegoutStatus("PayoutBroadcast")).toBe(true);
-      expect(isRecognizedPegoutStatus("Failed")).toBe(true);
+      expect(isRecognizedPegoutStatus("PayoutBlocked")).toBe(true);
     });
 
     it("returns false for unrecognized statuses", () => {
       expect(isRecognizedPegoutStatus("SomeNewStatus")).toBe(false);
       expect(isRecognizedPegoutStatus("")).toBe(false);
-      expect(isRecognizedPegoutStatus("FAILED")).toBe(false);
+      expect(isRecognizedPegoutStatus("Failed")).toBe(false);
     });
 
     it("returns false for Object.prototype keys", () => {
@@ -113,8 +99,8 @@ describe("pegoutStateMachine", () => {
       expect(isPegoutEffectivelyTerminal("PayoutBroadcast", 0, 0)).toBe(true);
     });
 
-    it("returns true for Failed", () => {
-      expect(isPegoutEffectivelyTerminal("Failed", 0, 0)).toBe(true);
+    it("returns true for PayoutBlocked", () => {
+      expect(isPegoutEffectivelyTerminal("PayoutBlocked", 0, 0)).toBe(true);
     });
 
     it("returns false for in-progress status with low counters", () => {

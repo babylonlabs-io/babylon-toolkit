@@ -26,7 +26,7 @@ export interface AaveConfig {
   /** Core Spoke contract address (resolved on-chain from adapter) */
   coreSpokeAddress: Address;
   /** vBTC reserve ID on Core Spoke */
-  btcVaultCoreVbtcReserveId: bigint;
+  vaultBtcReserveId: bigint;
 }
 
 /**
@@ -111,7 +111,7 @@ interface GraphQLAaveAppConfigResponse {
     adapterAddress: string;
     vaultBtcAddress: string;
     btcVaultRegistryAddress: string;
-    btcVaultCoreVbtcReserveId: string;
+    vaultBtcReserveId: string;
   } | null;
   /** All reserves (we filter for vBTC and borrowable in code) */
   aaveReserves: {
@@ -131,7 +131,7 @@ const GET_AAVE_APP_CONFIG = gql`
       adapterAddress
       vaultBtcAddress
       btcVaultRegistryAddress
-      btcVaultCoreVbtcReserveId
+      vaultBtcReserveId
     }
     aaveReserves {
       items {
@@ -208,7 +208,7 @@ export async function fetchAaveAppConfig(): Promise<AaveAppConfig | null> {
     return null;
   }
 
-  const vbtcReserveId = BigInt(response.aaveConfig.btcVaultCoreVbtcReserveId);
+  const vbtcReserveId = BigInt(response.aaveConfig.vaultBtcReserveId);
 
   const adapterAddress = getAaveAdapterAddress();
   const indexedAdapterAddress = response.aaveConfig.adapterAddress as Address;
@@ -235,7 +235,7 @@ export async function fetchAaveAppConfig(): Promise<AaveAppConfig | null> {
     vaultBtcAddress: response.aaveConfig.vaultBtcAddress,
     btcVaultRegistryAddress: response.aaveConfig.btcVaultRegistryAddress,
     coreSpokeAddress,
-    btcVaultCoreVbtcReserveId: vbtcReserveId,
+    vaultBtcReserveId: vbtcReserveId,
   };
 
   // Map all reserves
