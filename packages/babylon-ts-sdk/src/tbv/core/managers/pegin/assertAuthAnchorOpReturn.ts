@@ -78,3 +78,95 @@ export function assertAuthAnchorOpReturn(
     );
   }
 }
+
+/**
+ * Best-effort reader for the auth-anchor OP_RETURN payload at `vout` of
+ * a funded Pre-PegIn transaction.
+ *
+ * Returns the 32-byte payload as lowercase hex (no `0x` prefix) if the
+ * output at `vout` is exactly `OP_RETURN || PUSH32 || <32 bytes>` with
+ * a zero value. Returns `undefined` for any structural mismatch —
+ * missing output, wrong script shape, non-zero value — so legacy
+ * non-auth-anchored Pre-PegIns parse as "no anchor" rather than
+ * raising.
+ *
+ * Used by the refund flow to reconstruct the unfunded WASM template
+ * with the same output shape as the on-chain funded transaction.
+ * Assertion semantics (compare against an expected value, throw on
+ * mismatch) live in {@link assertAuthAnchorOpReturn}.
+ */
+export function readAuthAnchorOpReturn(
+  fundedPrePeginTxHex: string,
+  vout: number,
+): string | undefined {
+  let tx: bitcoin.Transaction;
+  try {
+    tx = bitcoin.Transaction.fromHex(stripHexPrefix(fundedPrePeginTxHex));
+  } catch {
+    // Best-effort: unparseable hex is also "no extractable anchor".
+    // The same hex flows into the refund PSBT primitive immediately
+    // after, where Transaction.fromHex will surface a real parse error.
+    return undefined;
+  }
+
+  if (tx.outs.length <= vout) return undefined;
+
+  const output = tx.outs[vout];
+  const script = output.script;
+  if (
+    script.length !== OP_RETURN_PUSH32_SCRIPT_LEN ||
+    script[0] !== OP_RETURN ||
+    script[1] !== OP_PUSH32
+  ) {
+    return undefined;
+  }
+  if (output.value !== 0) return undefined;
+
+  return script.slice(2).toString("hex").toLowerCase();
+}
+
+/**
+ * Scan a funded Pre-PegIn transaction for its auth-anchor commitment
+ * (an `OP_RETURN || PUSH32 || <32 bytes>` output with value 0).
+ *
+ * Returns `{ vout, hash }` when exactly one such output is found.
+ * Returns `undefined` when:
+ *   - the hex is unparseable,
+ *   - no matching output exists (legacy non-auth-anchored Pre-PegIn),
+ *   - more than one matching output exists (ambiguous / malformed).
+ *
+ * Used by the refund orchestrator to (a) locate the on-chain anchor
+ * regardless of how many HTLCs preceded it and (b) detect multi-vault
+ * funded transactions structurally: the single-vault refund path
+ * reconstructs only one hashlock and expects the anchor at vout 1, so
+ * any other vout signals a layout this call cannot safely refund.
+ */
+export function findAuthAnchorOpReturn(
+  fundedPrePeginTxHex: string,
+): { vout: number; hash: string } | undefined {
+  let tx: bitcoin.Transaction;
+  try {
+    tx = bitcoin.Transaction.fromHex(stripHexPrefix(fundedPrePeginTxHex));
+  } catch {
+    return undefined;
+  }
+
+  const hits: { vout: number; hash: string }[] = [];
+  for (let i = 0; i < tx.outs.length; i++) {
+    const output = tx.outs[i];
+    const script = output.script;
+    if (
+      script.length === OP_RETURN_PUSH32_SCRIPT_LEN &&
+      script[0] === OP_RETURN &&
+      script[1] === OP_PUSH32 &&
+      output.value === 0
+    ) {
+      hits.push({
+        vout: i,
+        hash: script.slice(2).toString("hex").toLowerCase(),
+      });
+    }
+  }
+
+  return hits.length === 1 ? hits[0] : undefined;
+}

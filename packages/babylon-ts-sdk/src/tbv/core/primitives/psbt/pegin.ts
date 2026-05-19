@@ -192,7 +192,7 @@ export async function buildPrePeginPsbt(
  * Validate and normalize an `authAnchorHash` hex string before passing
  * it to the WASM boundary. WASM expects exactly 64 lowercase hex chars.
  */
-function normalizeAuthAnchorHash(
+export function normalizeAuthAnchorHash(
   value: string | undefined,
 ): string | undefined {
   if (value === undefined) return undefined;

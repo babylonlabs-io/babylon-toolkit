@@ -1,3 +1,4 @@
+import * as bitcoin from "bitcoinjs-lib";
 import type { Address, Hex } from "viem";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -35,7 +36,11 @@ vi.mock(
 
 // Finalize + extract uses bitcoinjs-lib. We stub Psbt.fromHex to return an
 // object with controllable `finalizeAllInputs` / `extractTransaction`.
-vi.mock("bitcoinjs-lib", async () => {
+// `Transaction` is kept real because the orchestrator also parses the
+// funded Pre-PegIn hex via `readAuthAnchorOpReturn` to extract the
+// auth-anchor commitment.
+vi.mock("bitcoinjs-lib", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("bitcoinjs-lib")>();
   const psbtInstance = {
     finalizeAllInputs: vi.fn(),
     extractTransaction: vi.fn(() => ({
@@ -43,6 +48,7 @@ vi.mock("bitcoinjs-lib", async () => {
     })),
   };
   return {
+    ...actual,
     Psbt: {
       fromHex: vi.fn(() => psbtInstance),
     },
@@ -68,7 +74,7 @@ const UC_PUBKEY = "d".repeat(64);
 function buildVault(overrides?: Partial<VaultRefundData>): VaultRefundData {
   return {
     hashlock: HASHLOCK,
-    htlcVout: 1,
+    htlcVout: 0,
     offchainParamsVersion: 1,
     appVaultKeepersVersion: 1,
     universalChallengersVersion: 1,
@@ -306,6 +312,153 @@ describe("buildAndBroadcastRefund", () => {
     expect(call[0].fundedPrePeginTxHex).not.toMatch(/^0x/);
   });
 
+  describe("auth-anchor extraction", () => {
+    // Build a minimal funded Pre-PegIn tx hex with a configurable
+    // shape: N HTLC-placeholder outputs followed by an optional
+    // OP_RETURN. The HTLC outputs are placeholders — the orchestrator
+    // does not re-derive HTLC content here; the WASM primitive is
+    // mocked. We only care that the auth-anchor finder sees the right
+    // output layout.
+    function buildMinimalFundedPrePeginHex(opts?: {
+      authAnchorHashHex?: string;
+      numHtlcs?: number;
+    }): string {
+      const numHtlcs = opts?.numHtlcs ?? 1;
+      const tx = new bitcoin.Transaction();
+      tx.addInput(Buffer.alloc(32, 0xaa), 0);
+      // HTLC placeholders (P2WPKH script — any 22-byte script is fine).
+      for (let i = 0; i < numHtlcs; i++) {
+        tx.addOutput(Buffer.from("0014" + "11".repeat(20), "hex"), 100_000);
+      }
+      if (opts?.authAnchorHashHex !== undefined) {
+        // OP_RETURN (0x6a) || PUSH32 (0x20) || <32-byte hash>
+        tx.addOutput(
+          Buffer.from(`6a20${opts.authAnchorHashHex}`, "hex"),
+          0,
+        );
+      }
+      return tx.toHex();
+    }
+
+    it("extracts authAnchorHash from vout=1 OP_RETURN and forwards it into prePeginParams", async () => {
+      const ANCHOR_HASH = "cd".repeat(32);
+      const fundedHex = buildMinimalFundedPrePeginHex({
+        authAnchorHashHex: ANCHOR_HASH,
+      });
+      readVault.mockResolvedValue(
+        buildVault({ unsignedPrePeginTxHex: "0x" + fundedHex }),
+      );
+
+      await buildAndBroadcastRefund({
+        vaultId: VAULT_ID,
+        readVault,
+        readPrePeginContext,
+        feeRate: FEE_RATE,
+        signPsbt,
+        broadcastTx,
+      });
+
+      const [call] = mockedBuildRefundPsbt.mock.calls;
+      expect(call[0].prePeginParams.authAnchorHash).toBe(ANCHOR_HASH);
+    });
+
+    it("passes authAnchorHash = undefined when the funded tx has no OP_RETURN at vout 1 (legacy shape)", async () => {
+      const fundedHex = buildMinimalFundedPrePeginHex();
+      readVault.mockResolvedValue(
+        buildVault({ unsignedPrePeginTxHex: "0x" + fundedHex }),
+      );
+
+      await buildAndBroadcastRefund({
+        vaultId: VAULT_ID,
+        readVault,
+        readPrePeginContext,
+        feeRate: FEE_RATE,
+        signPsbt,
+        broadcastTx,
+      });
+
+      const [call] = mockedBuildRefundPsbt.mock.calls;
+      expect(call[0].prePeginParams.authAnchorHash).toBeUndefined();
+    });
+
+    it("normalizes the extracted hash to lowercase (matches WASM hex convention)", async () => {
+      // OP_RETURN payloads are raw bytes — they don't have an intrinsic
+      // case. The reader normalizes its hex output to lowercase so the
+      // unfunded WASM template and any expected-hash comparison stay
+      // byte-identical regardless of how callers spell their input.
+      const UPPER_ANCHOR_HASH = "AB".repeat(32);
+      const fundedHex = buildMinimalFundedPrePeginHex({
+        authAnchorHashHex: UPPER_ANCHOR_HASH,
+      });
+      readVault.mockResolvedValue(
+        buildVault({ unsignedPrePeginTxHex: "0x" + fundedHex }),
+      );
+
+      await buildAndBroadcastRefund({
+        vaultId: VAULT_ID,
+        readVault,
+        readPrePeginContext,
+        feeRate: FEE_RATE,
+        signPsbt,
+        broadcastTx,
+      });
+
+      const [call] = mockedBuildRefundPsbt.mock.calls;
+      expect(call[0].prePeginParams.authAnchorHash).toBe("ab".repeat(32));
+    });
+
+    it("refuses a 2-vault funded tx (OP_RETURN at vout 2) and does not call buildRefundPsbt", async () => {
+      // Multi-vault Pre-PegIn: HTLCs at 0 & 1, OP_RETURN at vout 2.
+      // The single-vault refund path reconstructs only one hashlock —
+      // the template would not match the funded tx's shape. Refuse
+      // structurally instead of producing a wrong refund.
+      const fundedHex = buildMinimalFundedPrePeginHex({
+        numHtlcs: 2,
+        authAnchorHashHex: "cd".repeat(32),
+      });
+      readVault.mockResolvedValue(
+        buildVault({ unsignedPrePeginTxHex: "0x" + fundedHex }),
+      );
+
+      await expect(
+        buildAndBroadcastRefund({
+          vaultId: VAULT_ID,
+          readVault,
+          readPrePeginContext,
+          feeRate: FEE_RATE,
+          signPsbt,
+          broadcastTx,
+        }),
+      ).rejects.toThrow(/Multi-vault Pre-PegIn refund is not supported/);
+
+      expect(mockedBuildRefundPsbt).not.toHaveBeenCalled();
+      expect(broadcastTx).not.toHaveBeenCalled();
+    });
+
+    it("refuses a 3-vault funded tx (OP_RETURN at vout 3) and does not call buildRefundPsbt", async () => {
+      const fundedHex = buildMinimalFundedPrePeginHex({
+        numHtlcs: 3,
+        authAnchorHashHex: "cd".repeat(32),
+      });
+      readVault.mockResolvedValue(
+        buildVault({ unsignedPrePeginTxHex: "0x" + fundedHex }),
+      );
+
+      await expect(
+        buildAndBroadcastRefund({
+          vaultId: VAULT_ID,
+          readVault,
+          readPrePeginContext,
+          feeRate: FEE_RATE,
+          signPsbt,
+          broadcastTx,
+        }),
+      ).rejects.toThrow(/auth-anchor OP_RETURN at vout 3/);
+
+      expect(mockedBuildRefundPsbt).not.toHaveBeenCalled();
+    });
+  });
+
   describe("validation", () => {
     it("rejects vaultId that is not 32 bytes", async () => {
       await expect(
@@ -339,8 +492,12 @@ describe("buildAndBroadcastRefund", () => {
       expect(readPrePeginContext).not.toHaveBeenCalled();
     });
 
-    it("rejects htlcVout out of range", async () => {
-      readVault.mockResolvedValue(buildVault({ htlcVout: 70000 }));
+    it("rejects htlcVout = 1 with the multi-vault message", async () => {
+      // This SDK call reconstructs a single-hashlock template — any
+      // non-zero htlcVout implies a batched (multi-vault) Pre-PegIn
+      // whose sibling HTLCs would be silently dropped. Refuse at the
+      // input layer before reading any state.
+      readVault.mockResolvedValue(buildVault({ htlcVout: 1 }));
 
       await expect(
         buildAndBroadcastRefund({
@@ -351,8 +508,29 @@ describe("buildAndBroadcastRefund", () => {
           signPsbt,
           broadcastTx,
         }),
-      ).rejects.toThrow(/htlcVout must be an integer/);
+      ).rejects.toThrow(/Multi-vault Pre-PegIn refund is not supported/);
+      expect(readPrePeginContext).not.toHaveBeenCalled();
     });
+
+    it.each([Number.NaN, -1, 1.5, 70_000])(
+      "rejects non-integer or non-zero htlcVout (%s)",
+      async (htlcVout) => {
+        readVault.mockResolvedValue(
+          buildVault({ htlcVout: htlcVout as number }),
+        );
+
+        await expect(
+          buildAndBroadcastRefund({
+            vaultId: VAULT_ID,
+            readVault,
+            readPrePeginContext,
+            feeRate: FEE_RATE,
+            signPsbt,
+            broadcastTx,
+          }),
+        ).rejects.toThrow(/Multi-vault Pre-PegIn refund is not supported/);
+      },
+    );
 
     // Version fields flow directly into on-chain script derivation via
     // readPrePeginContext — NaN, negative, or non-integer values would
