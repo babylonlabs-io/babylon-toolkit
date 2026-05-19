@@ -37,6 +37,7 @@ import {
   getDepositsNeedingPolling,
   groupDepositsByProvider,
   isTerminalPollingError,
+  TerminalPeginPollingError,
 } from "../../utils/peginPolling";
 import { createVpClient } from "../../utils/rpc";
 
@@ -205,19 +206,64 @@ function applyPerDepositStatus(
   }
 
   if (status === DaemonStatus.EXPIRED) {
-    sets.errors.set(depositId, new Error("Deposit expired"));
+    // RFC 003: EXPIRED is a grace-window interim where the depositor can
+    // still reclaim the HTLC via the refund preimage. Surfaces a
+    // recoverable hint rather than a hard-terminal failure.
+    sets.errors.set(
+      depositId,
+      new TerminalPeginPollingError(
+        DaemonStatus.EXPIRED,
+        "This deposit has expired. You may still reclaim within the grace window — see refund options.",
+      ),
+    );
     sets.needsWotsKey.delete(depositId);
     return;
   }
 
-  if (status === DaemonStatus.CLAIM_POSTED) {
-    sets.errors.set(depositId, new Error("Claim transaction posted"));
+  if (status === DaemonStatus.EXPIRED_CLEANED_UP) {
+    sets.errors.set(
+      depositId,
+      new TerminalPeginPollingError(
+        DaemonStatus.EXPIRED_CLEANED_UP,
+        "This deposit expired and the grace window has elapsed. No further action is possible.",
+      ),
+    );
     sets.needsWotsKey.delete(depositId);
     return;
   }
 
-  if (status === DaemonStatus.PEGGED_OUT) {
-    sets.errors.set(depositId, new Error("BTC has been returned to depositor"));
+  if (status === DaemonStatus.EXPIRED_IN_CLAIM) {
+    sets.errors.set(
+      depositId,
+      new TerminalPeginPollingError(
+        DaemonStatus.EXPIRED_IN_CLAIM,
+        "Deposit expired; claim transaction broadcast",
+      ),
+    );
+    sets.needsWotsKey.delete(depositId);
+    return;
+  }
+
+  if (status === DaemonStatus.INVALID_SIG_IN_CONTRACT) {
+    sets.errors.set(
+      depositId,
+      new TerminalPeginPollingError(
+        DaemonStatus.INVALID_SIG_IN_CONTRACT,
+        "Vault provider posted an invalid pegin signature on-chain; this deposit cannot proceed.",
+      ),
+    );
+    sets.needsWotsKey.delete(depositId);
+    return;
+  }
+
+  if (status === DaemonStatus.AML_REJECTED) {
+    sets.errors.set(
+      depositId,
+      new TerminalPeginPollingError(
+        DaemonStatus.AML_REJECTED,
+        "This deposit was rejected by AML screening.",
+      ),
+    );
     sets.needsWotsKey.delete(depositId);
     return;
   }

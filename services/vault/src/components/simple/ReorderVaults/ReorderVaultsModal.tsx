@@ -24,6 +24,7 @@ import {
 } from "@dnd-kit/sortable";
 import type { Hex } from "viem";
 
+import { COPY } from "@/copy";
 import type { CollateralVaultEntry } from "@/types/collateral";
 
 import {
@@ -127,7 +128,7 @@ export function ReorderVaultsModal({
           onClick={handleConfirmClick}
           disabled={!hasOrderChanged || isProcessing}
         >
-          {isProcessing ? "Confirming..." : "Confirm"}
+          {isProcessing ? COPY.common.confirming : COPY.reorder.confirmButton}
         </Button>
         {hasOrderChanged && (
           <div className="flex items-center justify-between pt-3 text-sm text-accent-secondary">

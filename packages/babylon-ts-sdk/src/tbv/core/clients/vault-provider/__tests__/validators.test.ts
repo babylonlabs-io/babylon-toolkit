@@ -419,7 +419,6 @@ describe("VP Response Validators", () => {
       claim_txid: ANOTHER_TXID,
       claimer_pubkey: VALID_PUBKEY,
       assert_txid: ANOTHER_TXID,
-      challenger_pubkey: null,
       created_at: 1700000000,
       updated_at: 1700000001,
     };
@@ -546,6 +545,7 @@ describe("VP Response Validators", () => {
         }),
       ).not.toThrow();
     });
+
   });
 
   describe("validateRequestDepositorClaimerArtifactsResponse", () => {

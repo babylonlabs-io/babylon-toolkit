@@ -8,12 +8,10 @@
  * which blocks rendering until params are loaded.
  */
 
+import type { TBVProtocolParams } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import { useQuery } from "@tanstack/react-query";
 
-import {
-  getTBVProtocolParams,
-  type TBVProtocolParams,
-} from "@/clients/eth-contract/protocol-params";
+import { getProtocolParamsReader } from "@/clients/eth-contract/sdk-readers";
 
 const PROTOCOL_PARAMS_QUERY_KEY = "protocolParams";
 const FIVE_MINUTES = 5 * 60 * 1000;
@@ -38,7 +36,10 @@ export interface UseProtocolParamsResult {
 export function useProtocolParams(): UseProtocolParamsResult {
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: [PROTOCOL_PARAMS_QUERY_KEY, "full"],
-    queryFn: getTBVProtocolParams,
+    queryFn: async () => {
+      const reader = await getProtocolParamsReader();
+      return reader.getTBVProtocolParams();
+    },
     staleTime: FIVE_MINUTES,
     refetchOnWindowFocus: false,
     retry: 2,

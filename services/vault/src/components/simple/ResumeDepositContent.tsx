@@ -31,6 +31,7 @@ import type { Address, Hex } from "viem";
 import { getVaultRegistryReader } from "@/clients/eth-contract/sdk-readers";
 import { computeDepositDerivedState } from "@/components/deposit/DepositSignModal/depositStepHelpers";
 import { usePayoutSigningState } from "@/components/deposit/PayoutSignModal/usePayoutSigningState";
+import { COPY } from "@/copy";
 import { DepositFlowStep } from "@/hooks/deposit/depositFlowSteps";
 import { submitWotsPublicKey } from "@/hooks/deposit/depositFlowSteps/wotsSubmission";
 import { useActivationState } from "@/hooks/deposit/useActivationState";
@@ -140,7 +141,7 @@ export function ResumeBroadcastContent({
       canContinueInBackground={derived.canContinueInBackground}
       payoutSigningProgress={null}
       onClose={onClose}
-      successMessage="Your Bitcoin transaction has been broadcast to the network. It will be confirmed after receiving the required number of Bitcoin confirmations."
+      successMessage={COPY.deposit.resume.broadcastSuccessMessage}
       onRetry={error ? handleBroadcast : undefined}
     />
   );
@@ -265,9 +266,7 @@ export function ResumeWotsContent({
 
       const computedHash = computeWotsBlockPublicKeysHash(wotsPublicKeys);
       if (computedHash.toLowerCase() !== onChainWotsPkHash.toLowerCase()) {
-        throw new Error(
-          "WOTS public key hash does not match the on-chain commitment — the wrong wallet is connected.",
-        );
+        throw new Error(COPY.deposit.resume.wotsMismatchError);
       }
 
       // Best-effort: if the parallel pubkey fetch failed, skip
@@ -304,9 +303,7 @@ export function ResumeWotsContent({
       // VP-side mismatch gets the same wording as the local pre-flight
       // so the user can act on either path.
       if (isWotsMismatchError(err)) {
-        setError(
-          "WOTS public key hash does not match the on-chain commitment — the wrong wallet is connected.",
-        );
+        setError(COPY.deposit.resume.wotsMismatchError);
       } else {
         setError(msg);
       }
@@ -487,7 +484,7 @@ export function ResumeActivationContent({
       canContinueInBackground={false}
       payoutSigningProgress={null}
       onClose={handleDone}
-      successMessage="Your vault has been activated. The vault provider can now claim the HTLC on Bitcoin."
+      successMessage={COPY.deposit.resume.activationSuccessMessage}
       onRetry={error ? handleSubmit : undefined}
     />
   );

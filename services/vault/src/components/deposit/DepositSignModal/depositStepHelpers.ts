@@ -1,3 +1,4 @@
+import { COPY } from "@/copy";
 import { DepositFlowStep } from "@/hooks/deposit/depositFlowSteps";
 import type { PayoutSigningProgress } from "@/services/vault/vaultPayoutSignatureService";
 
@@ -8,49 +9,45 @@ export const STEP_DESCRIPTIONS: Partial<
   Record<DepositFlowStep, { active: string; waiting?: string }>
 > = {
   [DepositFlowStep.DERIVE_VAULT_SECRET]: {
-    active:
-      "Approve the deterministic signature in your BTC wallet to derive your vault's HTLC secret.",
+    active: COPY.deposit.stepDescriptions.deriveVaultSecret,
   },
   [DepositFlowStep.SIGN_PEGIN_BTC]: {
-    active: "Sign the peg-in transaction in your BTC wallet.",
+    active: COPY.deposit.stepDescriptions.signPeginBtc,
   },
   [DepositFlowStep.SIGN_POP]: {
-    active: "Please sign the proof of possession (PoP) in your BTC wallet.",
+    active: COPY.deposit.stepDescriptions.signPop,
   },
   [DepositFlowStep.SUBMIT_PEGIN]: {
-    active: "Please sign and submit the peg-in transaction in your ETH wallet.",
+    active: COPY.deposit.stepDescriptions.submitPegin,
   },
   [DepositFlowStep.BROADCAST_PRE_PEGIN]: {
-    active:
-      "Please sign the Pre-PegIn transaction in your BTC wallet. It will be broadcast to Bitcoin immediately after.",
+    active: COPY.deposit.stepDescriptions.broadcastPrePeginActive,
   },
   [DepositFlowStep.AWAIT_BTC_CONFIRMATION]: {
-    active: "Waiting for Bitcoin to confirm the Pre-PegIn transaction...",
-    waiting: "Waiting for Bitcoin to confirm the Pre-PegIn transaction...",
+    active: COPY.deposit.stepDescriptions.awaitBtcConfirmation,
+    waiting: COPY.deposit.stepDescriptions.awaitBtcConfirmation,
   },
   [DepositFlowStep.SUBMIT_WOTS_KEYS]: {
-    active: "Submitting your WOTS public key to the Vault Provider.",
-    waiting: "Waiting for the Vault Provider to prepare payout transactions...",
+    active: COPY.deposit.stepDescriptions.submitWotsActive,
+    waiting: COPY.deposit.stepDescriptions.submitWotsWaiting,
   },
   [DepositFlowStep.SIGN_AUTH_ANCHOR]: {
-    active:
-      "Approve the deterministic signature in your BTC wallet to authenticate with the Vault Provider.",
+    active: COPY.deposit.stepDescriptions.signAuthAnchor,
   },
   [DepositFlowStep.SIGN_PAYOUTS]: {
-    active: "Please sign the payout transaction(s) in your BTC wallet.",
-    waiting: "Waiting for Vault Provider to prepare payout transaction(s)...",
+    active: COPY.deposit.stepDescriptions.signPayoutsActive,
+    waiting: COPY.deposit.stepDescriptions.signPayoutsWaiting,
   },
   [DepositFlowStep.ARTIFACT_DOWNLOAD]: {
-    active: "Download your vault artifacts before continuing.",
-    waiting:
-      "Waiting for the Vault Provider to verify your deposit on-chain...",
+    active: COPY.deposit.stepDescriptions.artifactDownloadActive,
+    waiting: COPY.deposit.stepDescriptions.artifactDownloadWaiting,
   },
   [DepositFlowStep.ACTIVATE_VAULT]: {
-    active: "Revealing HTLC secret on Ethereum to activate the vault.",
-    waiting: "Waiting for on-chain verification...",
+    active: COPY.deposit.stepDescriptions.activateVaultActive,
+    waiting: COPY.deposit.stepDescriptions.activateVaultWaiting,
   },
   [DepositFlowStep.COMPLETED]: {
-    active: "Deposit successfully submitted!",
+    active: COPY.deposit.stepDescriptions.completed,
   },
 };
 

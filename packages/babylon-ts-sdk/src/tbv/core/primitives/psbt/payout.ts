@@ -24,6 +24,10 @@ import {
   stripHexPrefix,
   uint8ArrayToHex,
 } from "../utils/bitcoin";
+import {
+  ASSERT_PAYOUT_OUTPUT_INDEX,
+  PEGIN_VAULT_OUTPUT_INDEX,
+} from "./constants";
 
 /**
  * Number of items in a Taproot script-path spend witness stack for a
@@ -119,8 +123,8 @@ export interface PayoutPsbtResult {
  * @returns Unsigned PSBT ready for depositor to sign
  *
  * @throws If payout transaction does not have exactly 2 inputs
- * @throws If input 0 does not reference the pegin transaction
- * @throws If input 1 does not reference the assert transaction
+ * @throws If input 0 does not spend PegIn:0 (vault UTXO)
+ * @throws If input 1 does not spend Assert:0 (proof output)
  * @throws If previous output is not found for either input
  */
 export async function buildPayoutPsbt(
@@ -172,29 +176,32 @@ export async function buildPayoutPsbt(
   const input0 = payoutTx.ins[0];
   const input1 = payoutTx.ins[1];
 
-  // Verify input 0 references the pegin transaction
+  // Verify input 0 spends PegIn:0 (the vault UTXO).
+  // Both txid AND vout must match the protocol contract — the vout is the
+  // input-side anchor that prevents a malicious VP from binding the
+  // depositor's signature to a different output of the same parent.
   const input0Txid = uint8ArrayToHex(
     new Uint8Array(input0.hash).slice().reverse(),
   );
   const peginTxid = peginTx.getId();
 
-  if (input0Txid !== peginTxid) {
+  if (input0Txid !== peginTxid || input0.index !== PEGIN_VAULT_OUTPUT_INDEX) {
     throw new Error(
-      `Input 0 does not reference pegin transaction. ` +
-        `Expected ${peginTxid}, got ${input0Txid}`,
+      `Input 0 must spend PegIn:${PEGIN_VAULT_OUTPUT_INDEX}. ` +
+        `Expected ${peginTxid}:${PEGIN_VAULT_OUTPUT_INDEX}, got ${input0Txid}:${input0.index}`,
     );
   }
 
-  // Verify input 1 references the assert transaction
+  // Verify input 1 spends Assert:0 (the proof output).
   const input1Txid = uint8ArrayToHex(
     new Uint8Array(input1.hash).slice().reverse(),
   );
-  const expectedInput1Txid = assertTx.getId();
+  const assertTxid = assertTx.getId();
 
-  if (input1Txid !== expectedInput1Txid) {
+  if (input1Txid !== assertTxid || input1.index !== ASSERT_PAYOUT_OUTPUT_INDEX) {
     throw new Error(
-      `Input 1 does not reference assert transaction. ` +
-        `Expected ${expectedInput1Txid}, got ${input1Txid}`,
+      `Input 1 must spend Assert:${ASSERT_PAYOUT_OUTPUT_INDEX}. ` +
+        `Expected ${assertTxid}:${ASSERT_PAYOUT_OUTPUT_INDEX}, got ${input1Txid}:${input1.index}`,
     );
   }
 

@@ -46,7 +46,7 @@ interface RawOffchainParams {
   tRefund: number;
   tStale: number;
   minPeginFeeRate: bigint;
-  proverProgramVersion: number;
+  proverCircuitVersion: number;
   minPrepeginDepth: number;
 }
 
@@ -57,6 +57,7 @@ interface RawTBVParams {
   pegInAckTimeout: bigint;
   pegInActivationTimeout: bigint;
   maxHtlcOutputCount: number;
+  expiredPegInGraceBlocks: bigint;
 }
 
 /** Map viem struct result to VersionedOffchainParams. */
@@ -73,7 +74,7 @@ function mapOffchainParams(result: RawOffchainParams): VersionedOffchainParams {
     tRefund: result.tRefund,
     tStale: result.tStale,
     minPeginFeeRate: result.minPeginFeeRate,
-    proverProgramVersion: result.proverProgramVersion,
+    proverCircuitVersion: result.proverCircuitVersion,
     minPrepeginDepth: result.minPrepeginDepth,
   };
 }
@@ -86,6 +87,7 @@ function mapTBVParams(result: RawTBVParams): TBVProtocolParams {
     pegInAckTimeout: result.pegInAckTimeout,
     pegInActivationTimeout: result.pegInActivationTimeout,
     maxHtlcOutputCount: result.maxHtlcOutputCount,
+    expiredPegInGraceBlocks: result.expiredPegInGraceBlocks,
   };
 }
 
@@ -221,6 +223,7 @@ export class ViemProtocolParamsReader implements ProtocolParamsReader {
       pegInAckTimeout: tbvParams.pegInAckTimeout,
       pegInActivationTimeout: tbvParams.pegInActivationTimeout,
       maxHtlcOutputCount: tbvParams.maxHtlcOutputCount,
+      expiredPegInGraceBlocks: tbvParams.expiredPegInGraceBlocks,
       timelockPegin: deriveTimelockPegin(offchainParams.timelockAssert),
       timelockRefund: offchainParams.tRefund,
       minVpCommissionBps: offchainParams.minVpCommissionBps,

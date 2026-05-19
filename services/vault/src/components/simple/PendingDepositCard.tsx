@@ -13,6 +13,7 @@ import {
   PeginAction,
 } from "@/components/deposit/actionStatus";
 import { useDepositPollingResult } from "@/context/deposit/PeginPollingContext";
+import { COPY } from "@/copy";
 import type { VaultProvider } from "@/types/vaultProvider";
 import { truncateAddress } from "@/utils/addressUtils";
 
@@ -81,7 +82,7 @@ export function PendingDepositCard({
   // `loading` is React Query's `isLoading` — true only on the very first fetch,
   // not on subsequent polling refetches — so this gives a one-shot "Loading..."
   // on initial mount without flickering on every poll cycle.
-  const label = loading ? "Loading..." : actionLabel;
+  const label = loading ? COPY.common.loading : actionLabel;
   const buttonDisabled = !isActionable || loading;
   const dotColor = STATUS_DOT_COLORS[peginState.displayVariant];
 

@@ -15,6 +15,7 @@ import {
 } from "@babylonlabs-io/core-ui";
 
 import { getNetworkConfigBTC } from "@/config";
+import { COPY } from "@/copy";
 
 const btcConfig = getNetworkConfigBTC();
 
@@ -50,26 +51,21 @@ export function BroadcastSuccessModal({
           variant="h4"
           className="mb-4 mt-6 text-xl text-accent-primary sm:text-2xl"
         >
-          Pre-PegIn Broadcast
+          {COPY.deposit.broadcastSuccess.heading}
         </Heading>
 
         <Text
           variant="body1"
           className="text-sm text-accent-secondary sm:text-base"
         >
-          Your Pre-PegIn Bitcoin transaction for {amount} {btcConfig.coinSymbol}{" "}
-          has been broadcast to the network. Your vault is not active yet — this
-          is just one step in the deposit lifecycle.
+          {COPY.deposit.broadcastSuccess.body(amount, btcConfig.coinSymbol)}
         </Text>
 
         <Text
           variant="body2"
           className="mt-4 text-xs text-accent-secondary sm:text-sm"
         >
-          Once the Pre-PegIn confirms, the vault provider will prompt you to
-          submit a WOTS key, sign payout authorizations, and finally activate
-          the vault by revealing your HTLC secret. Check back here — the next
-          required action will appear when it's ready.
+          {COPY.deposit.broadcastSuccess.footnote}
         </Text>
       </DialogBody>
 
@@ -80,7 +76,7 @@ export function BroadcastSuccessModal({
           onClick={onClose}
           className="w-full"
         >
-          Done
+          {COPY.deposit.broadcastSuccess.doneButton}
         </Button>
       </DialogFooter>
     </ResponsiveDialog>

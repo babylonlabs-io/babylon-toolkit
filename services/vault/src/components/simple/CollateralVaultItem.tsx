@@ -13,6 +13,7 @@ import {
 
 import { CopyableHash } from "@/components/shared/CopyableHash";
 import { getNetworkConfigBTC } from "@/config";
+import { COPY } from "@/copy";
 import { truncateAddress } from "@/utils/addressUtils";
 import { getBtcExplorerTxUrl } from "@/utils/explorer";
 import { formatBtcAmount, formatOrdinal } from "@/utils/formatting";
@@ -56,7 +57,10 @@ export function CollateralVaultItem({
   };
 
   return (
-    <div className="space-y-3 rounded-xl border border-secondary-strokeLight p-4">
+    <div
+      data-testid="vault-card"
+      className="space-y-3 rounded-xl border border-secondary-strokeLight p-4"
+    >
       {/* Top row: BTC icon + amount + checkbox */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
@@ -85,7 +89,7 @@ export function CollateralVaultItem({
         <span className="text-sm text-accent-secondary">Status</span>
         <StatusBadge
           status={inUse ? "active" : "inactive"}
-          label={inUse ? "In use" : "Available"}
+          label={inUse ? COPY.pegin.labels.IN_USE : COPY.pegin.labels.AVAILABLE}
         />
       </div>
 

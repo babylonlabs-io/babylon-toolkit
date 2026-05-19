@@ -288,19 +288,24 @@ describe("buildPayoutPsbt", () => {
       );
     });
 
-    it("should throw error when previous output not found", async () => {
-      const peginTxHex = createTestPeginTransaction();
+    it("rejects payout when input 0 references the correct PegIn txid but a non-zero vout", async () => {
+      // Multi-output PegIn so vout 1 exists and the vout check is what fires
+      // (not the "Previous output not found" defensive check).
+      const peginTx = new Transaction();
+      peginTx.addInput(NULL_TXID, 0xffffffff, SEQUENCE_MAX);
+      peginTx.addOutput(createDummyP2TR(), Number(TEST_PEGIN_VALUE));
+      peginTx.addOutput(createDummyP2TR(), Number(TEST_PEGIN_VALUE));
+      const peginTxHex = peginTx.toHex();
+
       const assertTxHex = createTestAssertTransaction();
       const assertTx = Transaction.fromHex(assertTxHex);
 
-      // Create a payout transaction that references an invalid output index for pegin
-      const peginTx = Transaction.fromHex(peginTxHex);
       const wrongTx = new Transaction();
       wrongTx.addInput(
         Buffer.from(peginTx.getId(), "hex").reverse(),
-        99,
+        1, // Correct PegIn txid, wrong vout
         SEQUENCE_MAX,
-      ); // Invalid index 99
+      );
       wrongTx.addInput(
         Buffer.from(assertTx.getId(), "hex").reverse(),
         0,
@@ -322,7 +327,49 @@ describe("buildPayoutPsbt", () => {
       };
 
       await expect(buildPayoutPsbt(params)).rejects.toThrow(
-        /Previous output not found/,
+        /Input 0 must spend PegIn:0/,
+      );
+    });
+
+    it("rejects payout when input 1 references the correct Assert txid but a non-zero vout", async () => {
+      // Multi-output Assert so vout 1 exists.
+      const peginTxHex = createTestPeginTransaction();
+      const peginTx = Transaction.fromHex(peginTxHex);
+
+      const assertTx = new Transaction();
+      assertTx.addInput(DUMMY_TXID_2, 0xffffffff, SEQUENCE_MAX);
+      assertTx.addOutput(createDummyP2WPKH("c"), Number(TEST_CLAIM_VALUE));
+      assertTx.addOutput(createDummyP2WPKH("e"), Number(TEST_CLAIM_VALUE));
+      const assertTxHex = assertTx.toHex();
+
+      const wrongTx = new Transaction();
+      wrongTx.addInput(
+        Buffer.from(peginTx.getId(), "hex").reverse(),
+        0,
+        SEQUENCE_MAX,
+      );
+      wrongTx.addInput(
+        Buffer.from(assertTx.getId(), "hex").reverse(),
+        1, // Correct Assert txid, wrong vout
+        SEQUENCE_MAX,
+      );
+      wrongTx.addOutput(createDummyP2WPKH("f"), Number(TEST_PAYOUT_VALUE));
+      const payoutTxHex = wrongTx.toHex();
+
+      const params: PayoutParams = {
+        payoutTxHex,
+        peginTxHex,
+        assertTxHex,
+        depositorBtcPubkey: TEST_KEYS.DEPOSITOR,
+        vaultProviderBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
+        vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
+        universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
+        timelockPegin: 100,
+        network: "signet" as Network,
+      };
+
+      await expect(buildPayoutPsbt(params)).rejects.toThrow(
+        /Input 1 must spend Assert:0/,
       );
     });
   });

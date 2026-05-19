@@ -8,6 +8,7 @@
 import { Card } from "@babylonlabs-io/core-ui";
 import type { ReactNode } from "react";
 
+import { COPY } from "@/copy";
 import { usePrice } from "@/hooks/usePrices";
 import type { CapSnapshot } from "@/services/deposit";
 import {
@@ -100,7 +101,7 @@ export function SupplyCapSection({
     capDisplay = `${formatSatoshisToBtcDisplay(snapshot.totalCapBTC, capDecimals)} ${coinSymbol}`;
     capUsd = btcPriceUSD > 0 ? capBtc * btcPriceUSD : null;
   } else {
-    capDisplay = "Uncapped";
+    capDisplay = COPY.collateral.uncapped;
     capUsd = null;
   }
 

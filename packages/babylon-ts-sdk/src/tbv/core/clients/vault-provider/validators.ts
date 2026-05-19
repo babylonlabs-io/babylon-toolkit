@@ -444,12 +444,6 @@ function validateClaimerPegoutStatus(value: Record<string, unknown>): void {
   assertNonEmptyString(value.claim_txid, "claimer.claim_txid");
   assertNonEmptyString(value.claimer_pubkey, "claimer.claimer_pubkey");
   assertNonEmptyString(value.assert_txid, "claimer.assert_txid");
-  // `challenger_pubkey: Option<String>` — null when no challenge yet.
-  if (value.challenger_pubkey !== null && typeof value.challenger_pubkey !== "string") {
-    throw new VpResponseValidationError(
-      `VP response validation failed: "claimer.challenger_pubkey" must be a string or null, got ${preview(value.challenger_pubkey)}`,
-    );
-  }
   if (typeof value.created_at !== "number") {
     throw new VpResponseValidationError(
       `VP response validation failed: "claimer.created_at" must be a number, got ${preview(value.created_at)}`,

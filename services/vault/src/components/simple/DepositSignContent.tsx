@@ -48,6 +48,7 @@ export function DepositSignContent({
     payoutSigningProgress,
     artifactDownloadInfo,
     continueAfterArtifactDownload,
+    btcConfirmationDetail,
   } = useDepositFlow({
     vaultAmounts,
     ...flowParams,
@@ -82,6 +83,7 @@ export function DepositSignContent({
         canContinueInBackground={canContinueInBackground}
         payoutSigningProgress={payoutSigningProgress}
         onClose={handleClose}
+        btcConfirmationDetail={btcConfirmationDetail}
       />
 
       {artifactDownloadInfo && (

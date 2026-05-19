@@ -15,6 +15,7 @@ import { Psbt } from "bitcoinjs-lib";
 import type { Address, Hex } from "viem";
 
 import type { SignPsbtOptions } from "../../../../shared/wallets/interfaces/BitcoinWallet";
+import { findAuthAnchorOpReturn } from "../../managers/pegin";
 import { assertPsbtUnsignedTxMatches } from "../../primitives/psbt/assertPsbtUnsignedTxMatches";
 import { buildRefundPsbt } from "../../primitives/psbt/refund";
 import {
@@ -61,7 +62,6 @@ export function estimateRefundFeeSats(feeRateSatsVb: number): bigint {
 // (Not the taproot leaf index; the leaf is encoded into the PSBT by the
 // WASM PSBT builder based on the refund script path.)
 const REFUND_INPUT_COUNT = 1;
-const MAX_VOUT = 0xffff;
 const BIP68_ERROR_RE = /non-BIP68-final/i;
 
 function assertBytes32(value: string, label: string): void {
@@ -182,13 +182,19 @@ function assertNonNegativeInteger(value: number, label: string): void {
 
 function validateVaultRefundData(v: VaultRefundData): void {
   assertBytes32(v.hashlock, "hashlock");
-  if (
-    !Number.isInteger(v.htlcVout) ||
-    v.htlcVout < 0 ||
-    v.htlcVout > MAX_VOUT
-  ) {
+  // This SDK call reconstructs a single-hashlock unfunded template
+  // ([single]) and so only supports refund of the HTLC at vout 0. A
+  // multi-vault Pre-PegIn places HTLCs at 0..hashlocks.length-1 — any
+  // htlcVout != 0 implies a batched deposit whose sibling HTLCs would
+  // be missing from the reconstructed template. The orchestrator's
+  // structural OP_RETURN scan below catches auth-anchored multi-vault
+  // txs; this assertion additionally catches legacy (no OP_RETURN)
+  // multi-vault txs and documents the contract at the input boundary.
+  if (!Number.isInteger(v.htlcVout) || v.htlcVout !== 0) {
     throw new Error(
-      `htlcVout must be an integer 0-${MAX_VOUT}, got ${v.htlcVout}`,
+      `Multi-vault Pre-PegIn refund is not supported by this SDK call ` +
+        `(htlcVout=${v.htlcVout}, expected 0). Refund of batched-deposit ` +
+        `vaults requires reconstructing all sibling HTLCs.`,
     );
   }
   // Version fields flow directly into on-chain script derivation via
@@ -330,6 +336,32 @@ export async function buildAndBroadcastRefund<
   const xOnlyDepositorPubkey = processPublicKeyToXOnly(
     vault.depositorBtcPubkey,
   );
+
+  const cleanFundedPrePeginTxHex = stripHexPrefix(vault.unsignedPrePeginTxHex);
+
+  // Production peg-ins (PeginManager) commit an OP_RETURN <PUSH32
+  // SHA256(authAnchor)> output at `vout = hashlocks.length`. The refund
+  // reconstructs the unfunded WASM template for a single vault here
+  // (hashlocks: [vault.hashlock]), so the anchor output — if present —
+  // must be at vout 1. Scan the funded tx structurally rather than
+  // peeking at a hardcoded vout: that way a batched (multi-vault) tx,
+  // where the anchor lives at vout N > 1, is detected and refused
+  // explicitly rather than silently reconstructing a single-hashlock
+  // template against an N-HTLC funded tx. Legacy non-auth-anchored
+  // deposits return `undefined` from the finder and use the 12-output
+  // template.
+  const SINGLE_VAULT_AUTH_ANCHOR_VOUT = 1;
+  const found = findAuthAnchorOpReturn(cleanFundedPrePeginTxHex);
+  if (found !== undefined && found.vout !== SINGLE_VAULT_AUTH_ANCHOR_VOUT) {
+    throw new Error(
+      `Multi-vault Pre-PegIn refund is not supported by this SDK call ` +
+        `(auth-anchor OP_RETURN at vout ${found.vout}; single-vault refund ` +
+        `expects vout ${SINGLE_VAULT_AUTH_ANCHOR_VOUT}). Refund of ` +
+        `batched-deposit vaults requires reconstructing all sibling HTLCs.`,
+    );
+  }
+  const authAnchorHash = found?.hash;
+
   const { psbtHex } = await buildRefundPsbt({
     prePeginParams: {
       depositorPubkey: xOnlyDepositorPubkey,
@@ -345,8 +377,9 @@ export async function buildAndBroadcastRefund<
       councilQuorum: ctx.councilQuorum,
       councilSize: ctx.councilSize,
       network: ctx.network,
+      authAnchorHash,
     },
-    fundedPrePeginTxHex: stripHexPrefix(vault.unsignedPrePeginTxHex),
+    fundedPrePeginTxHex: cleanFundedPrePeginTxHex,
     htlcVout: vault.htlcVout,
     refundFee,
     // buildRefundPsbt's top-level `hashlock` param is documented as "no 0x

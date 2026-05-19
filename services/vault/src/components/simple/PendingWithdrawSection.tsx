@@ -12,6 +12,7 @@ import { useState } from "react";
 import type { RedeemedVaultInfo } from "@/applications/aave/hooks/useAaveVaults";
 import { ExpandMenuButton } from "@/components/shared";
 import { getNetworkConfigBTC } from "@/config";
+import { COPY } from "@/copy";
 import type { PegoutPollingResult } from "@/hooks/usePegoutPolling";
 import { formatBtcAmount } from "@/utils/formatting";
 
@@ -75,7 +76,7 @@ export function PendingWithdrawSection({
             {pendingWithdrawVaults.map((vault) => {
               const pollingResult = pegoutStatuses.get(vault.id);
               const displayState = pollingResult?.displayState;
-              const label = displayState?.label ?? "Checking...";
+              const label = displayState?.label ?? COPY.common.checking;
               const variant = displayState?.variant ?? "pending";
               const tooltip = displayState?.message;
 

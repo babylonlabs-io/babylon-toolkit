@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import type { FallbackProps } from "react-error-boundary";
 
+import { COPY } from "@/copy";
 import { logger } from "@/infrastructure";
 
 export default function GlobalError({
@@ -19,16 +20,14 @@ export default function GlobalError({
     <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4">
       <div className="w-full max-w-md rounded-lg bg-white p-8 shadow-lg">
         <h1 className="mb-4 text-2xl font-bold text-red-600">
-          Something went wrong
+          {COPY.common.globalError.heading}
         </h1>
-        <p className="mb-4 text-gray-700">
-          An unexpected error occurred. Please try again later.
-        </p>
+        <p className="mb-4 text-gray-700">{COPY.common.globalError.body}</p>
         <button
           onClick={resetErrorBoundary}
           className="w-full rounded-md bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
         >
-          Try again
+          {COPY.common.globalError.retryButton}
         </button>
       </div>
     </div>

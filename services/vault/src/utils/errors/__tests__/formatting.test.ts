@@ -2,7 +2,10 @@
  * Tests for error formatting utilities
  */
 
-import { JsonRpcError } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
+import {
+  JsonRpcError,
+  RpcErrorCode,
+} from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import { readFileSync } from "fs";
 import { resolve } from "path";
 import { describe, expect, it } from "vitest";
@@ -100,6 +103,17 @@ describe("Error Formatting", () => {
   });
 
   describe("formatPayoutSignatureError", () => {
+    it("maps PEGIN_NOT_FOUND (4001) to a transient-syncing message", () => {
+      const error = new JsonRpcError(
+        RpcErrorCode.PEGIN_NOT_FOUND,
+        "PegIn not found",
+      );
+      const result = formatPayoutSignatureError(error);
+
+      expect(result.title).toBe("Vault Provider Syncing");
+      expect(result.message).toContain("hasn't ingested");
+    });
+
     it("shows error code instead of raw message for unknown JsonRpcError codes", () => {
       const error = new JsonRpcError(-32099, "internal: secret key data here");
       const result = formatPayoutSignatureError(error);

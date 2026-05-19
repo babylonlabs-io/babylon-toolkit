@@ -73,6 +73,45 @@ the managers module instead (PeginManager and PayoutManager).
 
 [Primitives Quickstart](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/docs/quickstart/primitives.md)
 
+## Classes
+
+### PsbtSubstitutionError
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/assertPsbtUnsignedTxMatches.ts:19](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/assertPsbtUnsignedTxMatches.ts#L19)
+
+Thrown when a wallet-returned PSBT encodes a different unsigned
+transaction than the one the caller asked the wallet to sign.
+
+#### Extends
+
+- `Error`
+
+#### Constructors
+
+##### Constructor
+
+```ts
+new PsbtSubstitutionError(detail): PsbtSubstitutionError;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/assertPsbtUnsignedTxMatches.ts:20](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/assertPsbtUnsignedTxMatches.ts#L20)
+
+###### Parameters
+
+###### detail
+
+`string`
+
+###### Returns
+
+[`PsbtSubstitutionError`](#psbtsubstitutionerror)
+
+###### Overrides
+
+```ts
+Error.constructor
+```
+
 ## Interfaces
 
 ### PayoutConnectorParams
@@ -257,6 +296,34 @@ JSON string of GC WOTS public keys (array of arrays) from VP
 
 ***
 
+### AssertPsbtUnsignedTxMatchesParams
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/assertPsbtUnsignedTxMatches.ts:28](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/assertPsbtUnsignedTxMatches.ts#L28)
+
+#### Properties
+
+##### requestedPsbtHex
+
+```ts
+requestedPsbtHex: string;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/assertPsbtUnsignedTxMatches.ts:30](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/assertPsbtUnsignedTxMatches.ts#L30)
+
+PSBT we built locally and asked the wallet to sign.
+
+##### returnedPsbtHex
+
+```ts
+returnedPsbtHex: string;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/assertPsbtUnsignedTxMatches.ts:32](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/assertPsbtUnsignedTxMatches.ts#L32)
+
+PSBT the wallet returned after signing.
+
+***
+
 ### ChallengeAssertParams
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/challengeAssert.ts:32](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/challengeAssert.ts#L32)
@@ -411,7 +478,7 @@ Parameters for the Assert Payout/NoPayout connector
 
 ### PayoutParams
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:45](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts#L45)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:49](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts#L49)
 
 Parameters for building an unsigned Payout PSBT
 
@@ -426,7 +493,7 @@ Input 1 references the Assert transaction.
 payoutTxHex: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:50](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts#L50)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:54](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts#L54)
 
 Payout transaction hex (unsigned)
 This is the transaction that needs to be signed by the depositor
@@ -437,7 +504,7 @@ This is the transaction that needs to be signed by the depositor
 assertTxHex: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:56](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts#L56)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:60](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts#L60)
 
 Assert transaction hex
 Payout input 1 references Assert output 0
@@ -448,7 +515,7 @@ Payout input 1 references Assert output 0
 peginTxHex: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:62](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts#L62)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:66](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts#L66)
 
 Peg-in transaction hex
 This transaction created the vault output that we're spending
@@ -459,7 +526,7 @@ This transaction created the vault output that we're spending
 depositorBtcPubkey: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:67](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts#L67)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:71](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts#L71)
 
 Depositor's BTC public key (x-only, 64-char hex without 0x prefix)
 
@@ -469,7 +536,7 @@ Depositor's BTC public key (x-only, 64-char hex without 0x prefix)
 vaultProviderBtcPubkey: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:72](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts#L72)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:76](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts#L76)
 
 Vault provider's BTC public key (x-only, 64-char hex)
 
@@ -479,7 +546,7 @@ Vault provider's BTC public key (x-only, 64-char hex)
 vaultKeeperBtcPubkeys: string[];
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:77](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts#L77)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:81](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts#L81)
 
 Vault keeper BTC public keys (x-only, 64-char hex)
 
@@ -489,7 +556,7 @@ Vault keeper BTC public keys (x-only, 64-char hex)
 universalChallengerBtcPubkeys: string[];
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:82](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts#L82)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:86](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts#L86)
 
 Universal challenger BTC public keys (x-only, 64-char hex)
 
@@ -499,7 +566,7 @@ Universal challenger BTC public keys (x-only, 64-char hex)
 timelockPegin: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:87](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts#L87)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:91](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts#L91)
 
 CSV timelock in blocks for the PegIn output.
 
@@ -509,7 +576,7 @@ CSV timelock in blocks for the PegIn output.
 network: Network;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:92](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts#L92)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:96](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts#L96)
 
 Bitcoin network
 
@@ -517,7 +584,7 @@ Bitcoin network
 
 ### PayoutPsbtResult
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:98](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts#L98)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:102](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts#L102)
 
 Result of building an unsigned payout PSBT
 
@@ -529,7 +596,7 @@ Result of building an unsigned payout PSBT
 psbtHex: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:102](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts#L102)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:106](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts#L106)
 
 Unsigned PSBT hex ready for signing
 
@@ -1440,6 +1507,37 @@ Number of local challengers
 
 ***
 
+### assertPsbtUnsignedTxMatches()
+
+```ts
+function assertPsbtUnsignedTxMatches(params): void;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/assertPsbtUnsignedTxMatches.ts:73](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/assertPsbtUnsignedTxMatches.ts#L73)
+
+Compare two PSBTs and throw `PsbtSubstitutionError` unless they encode
+the same unsigned transaction (version, locktime, inputs, outputs).
+
+#### Parameters
+
+##### params
+
+[`AssertPsbtUnsignedTxMatchesParams`](#assertpsbtunsignedtxmatchesparams)
+
+#### Returns
+
+`void`
+
+#### Throws
+
+PsbtSubstitutionError on any mismatch in the unsigned tx
+
+#### Throws
+
+Error if either PSBT cannot be parsed
+
+***
+
 ### buildChallengeAssertPsbt()
 
 ```ts
@@ -1568,7 +1666,7 @@ Unsigned PSBT hex ready for signing
 function buildPayoutPsbt(params): Promise<PayoutPsbtResult>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:126](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts#L126)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:130](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts#L130)
 
 Build unsigned Payout PSBT for depositor to sign.
 
@@ -1602,11 +1700,11 @@ If payout transaction does not have exactly 2 inputs
 
 #### Throws
 
-If input 0 does not reference the pegin transaction
+If input 0 does not spend PegIn:0 (vault UTXO)
 
 #### Throws
 
-If input 1 does not reference the assert transaction
+If input 1 does not spend Assert:0 (proof output)
 
 #### Throws
 
@@ -1620,7 +1718,7 @@ If previous output is not found for either input
 function assertPayoutOutputMatchesRegistered(payoutTxHex, registeredPayoutScriptPubKey): void;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:277](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts#L277)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:284](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts#L284)
 
 Validate that a payout transaction's largest output pays to the registered
 depositor payout scriptPubKey.
@@ -1670,7 +1768,7 @@ function extractPayoutSignature(
    inputIndex): string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:325](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts#L325)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:332](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts#L332)
 
 Extract Schnorr signature from signed payout PSBT.
 
@@ -2376,7 +2474,7 @@ If `xOnlyPubkeyHex` is not exactly 64 hex chars after prefix stripping
 function deriveNativeSegwitAddress(publicKeyHex, network): string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/utils/bitcoin.ts:405](../../packages/babylon-ts-sdk/src/tbv/core/primitives/utils/bitcoin.ts#L405)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/utils/bitcoin.ts:406](../../packages/babylon-ts-sdk/src/tbv/core/primitives/utils/bitcoin.ts#L406)
 
 Derive a Native SegWit (P2WPKH) address from a compressed public key.
 
@@ -2415,16 +2513,19 @@ function isAddressFromPublicKey(
    network): boolean;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/utils/bitcoin.ts:442](../../packages/babylon-ts-sdk/src/tbv/core/primitives/utils/bitcoin.ts#L442)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/utils/bitcoin.ts:446](../../packages/babylon-ts-sdk/src/tbv/core/primitives/utils/bitcoin.ts#L446)
 
 Validate that a BTC address was derived from the given public key.
 
 Derives Taproot (P2TR) and Native SegWit (P2WPKH) addresses from the
 public key and checks if the provided address matches any of them.
 
-When the input is an x-only key (64 hex chars), both possible compressed
-keys (`02` + x and `03` + x) are tried for Native SegWit derivation,
-since the y-parity is unknown.
+P2WPKH derivation requires the full compressed key with explicit y-parity.
+When only an x-only key is supplied, the y-parity is unknown and trying
+both `02|x` and `03|x` would let an opposite-parity P2WPKH address — a
+script the caller does NOT control — pass validation. We fail closed for
+P2WPKH in that case; P2TR (which depends only on the x-coordinate) is
+still validated and remains the supported path for Taproot wallets.
 
 #### Parameters
 
