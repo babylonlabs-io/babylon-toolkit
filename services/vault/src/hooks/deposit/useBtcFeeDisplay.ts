@@ -51,7 +51,7 @@ export function useBtcFeeDisplay(params: {
       return {
         btcFee: null,
         btcFeeUsd: null,
-        feeAmount: "-- BTC",
+        feeAmount: "--",
         feePrice: "",
         isError: false,
       };
@@ -78,7 +78,7 @@ export function useBtcFeeDisplay(params: {
       return {
         btcFee: null,
         btcFeeUsd: null,
-        feeAmount: "-- BTC",
+        feeAmount: "--",
         feePrice: "",
         isError: false,
       };
