@@ -129,17 +129,9 @@ export function readAuthAnchorOpReturn(
  * Scan a funded Pre-PegIn transaction for its auth-anchor commitment
  * (an `OP_RETURN || PUSH32 || <32 bytes>` output with value 0).
  *
- * Returns `{ vout, hash }` when exactly one such output is found.
- * Returns `undefined` when:
- *   - the hex is unparseable,
- *   - no matching output exists (legacy non-auth-anchored Pre-PegIn),
- *   - more than one matching output exists (ambiguous / malformed).
- *
- * Used by the refund orchestrator to (a) locate the on-chain anchor
- * regardless of how many HTLCs preceded it and (b) detect multi-vault
- * funded transactions structurally: the single-vault refund path
- * reconstructs only one hashlock and expects the anchor at vout 1, so
- * any other vout signals a layout this call cannot safely refund.
+ * Returns `{ vout, hash }` for exactly one match, `undefined` for zero
+ * matches (legacy / unparseable). Throws on multiple matches — that
+ * shape is malformed and must not silently collapse to "no anchor".
  */
 export function findAuthAnchorOpReturn(
   fundedPrePeginTxHex: string,
@@ -168,5 +160,10 @@ export function findAuthAnchorOpReturn(
     }
   }
 
-  return hits.length === 1 ? hits[0] : undefined;
+  if (hits.length > 1) {
+    throw new Error(
+      `Funded Pre-PegIn has ${hits.length} OP_RETURN PUSH32 outputs (vouts ${hits.map((h) => h.vout).join(", ")}); expected at most 1.`,
+    );
+  }
+  return hits[0];
 }
