@@ -11,6 +11,7 @@ import type { Network } from "@babylonlabs-io/babylon-tbv-rust-wasm";
 import { Psbt, Transaction } from "bitcoinjs-lib";
 import { beforeAll, describe, expect, it } from "vitest";
 import {
+  assertPayoutOutputMatchesRegistered,
   buildPayoutPsbt,
   extractPayoutSignature,
   type PayoutParams,
@@ -717,5 +718,194 @@ describe("extractPayoutSignature", () => {
         extractPayoutSignature(psbtHex, TEST_KEYS.DEPOSITOR),
       ).toThrow(/trailing byte/);
     });
+  });
+});
+
+/**
+ * Regression coverage for [baby-auditor-findings#147]. The pre-fix
+ * `largestOutput` reducer accepted a payout tx whose registered output stayed
+ * the largest while extra attacker outputs drained the remainder, and a
+ * value-burn variant where outputs were deflated and the difference went to
+ * miner fee. These tests pin the new contract: exact output count, registered
+ * script anchored at vout 0, implicit fee bounded.
+ */
+describe("assertPayoutOutputMatchesRegistered — output-structure guard (#147)", () => {
+  // Use the same dummy P2WPKH that the existing test payout transactions use.
+  // The hex (one byte differs per `seed`) is the registered script we anchor
+  // the check against.
+  const REGISTERED_SCRIPT = createDummyP2WPKH("a");
+  const REGISTERED_SCRIPT_HEX = REGISTERED_SCRIPT.toString("hex");
+  const ATTACKER_SCRIPT = createDummyP2WPKH("b");
+
+  /**
+   * Builds a payout-shaped transaction with the given outputs. Inputs are
+   * placeholder — this function only exercises the output-side guard, not the
+   * full sighash machinery.
+   */
+  function makePayoutTxHex(
+    outputs: { script: Buffer; value: number }[],
+  ): string {
+    const tx = new Transaction();
+    tx.addInput(NULL_TXID, 0, SEQUENCE_MAX);
+    tx.addInput(DUMMY_TXID_2, 0, SEQUENCE_MAX);
+    for (const out of outputs) tx.addOutput(out.script, out.value);
+    return tx.toHex();
+  }
+
+  it("accepts a VP-claimer 3-output payout with registered script at vout 0", () => {
+    // [depositor payout, VP commission, CPFP anchor] — protocol shape.
+    const payoutHex = makePayoutTxHex([
+      { script: REGISTERED_SCRIPT, value: 90_000 },
+      { script: createDummyP2TR(), value: 1_000 },
+      { script: createDummyP2TR(), value: 546 },
+    ]);
+    expect(() =>
+      assertPayoutOutputMatchesRegistered(payoutHex, REGISTERED_SCRIPT_HEX, 3),
+    ).not.toThrow();
+  });
+
+  it("accepts a depositor-as-claimer 2-output payout with registered script at vout 0", () => {
+    // [payout, CPFP anchor] — no VP commission for depositor-as-claimer.
+    const payoutHex = makePayoutTxHex([
+      { script: REGISTERED_SCRIPT, value: 90_000 },
+      { script: createDummyP2TR(), value: 546 },
+    ]);
+    expect(() =>
+      assertPayoutOutputMatchesRegistered(payoutHex, REGISTERED_SCRIPT_HEX, 2),
+    ).not.toThrow();
+  });
+
+  it("rejects the #147 PoC: registered output is largest but extra attacker outputs are appended", () => {
+    // Mirrors the audit PoC: registered output (51% of inputs) is largest,
+    // attacker outputs make up the rest. Pre-fix `largestOutput` reducer
+    // accepted this; the new count check rejects it.
+    const payoutHex = makePayoutTxHex([
+      { script: REGISTERED_SCRIPT, value: 51_000 },
+      { script: ATTACKER_SCRIPT, value: 24_000 },
+      { script: ATTACKER_SCRIPT, value: 24_000 },
+      { script: createDummyP2TR(), value: 546 },
+    ]);
+    expect(() =>
+      assertPayoutOutputMatchesRegistered(payoutHex, REGISTERED_SCRIPT_HEX, 3),
+    ).toThrow(/has 4 output\(s\), expected exactly 3/);
+  });
+
+  it("rejects when output count matches but registered script is at vout 1 instead of vout 0", () => {
+    // Pre-fix would have passed this (registered output is largest).
+    // Anchoring the check at index 0 closes it.
+    const payoutHex = makePayoutTxHex([
+      { script: ATTACKER_SCRIPT, value: 1_000 },
+      { script: REGISTERED_SCRIPT, value: 90_000 },
+      { script: createDummyP2TR(), value: 546 },
+    ]);
+    expect(() =>
+      assertPayoutOutputMatchesRegistered(payoutHex, REGISTERED_SCRIPT_HEX, 3),
+    ).toThrow(/output 0 does not pay to the registered depositor payout/);
+  });
+
+  it("rejects when output count is too low (e.g. 2 outputs supplied for a VP-claimer 3-output role)", () => {
+    const payoutHex = makePayoutTxHex([
+      { script: REGISTERED_SCRIPT, value: 90_000 },
+      { script: createDummyP2TR(), value: 546 },
+    ]);
+    expect(() =>
+      assertPayoutOutputMatchesRegistered(payoutHex, REGISTERED_SCRIPT_HEX, 3),
+    ).toThrow(/has 2 output\(s\), expected exactly 3/);
+  });
+
+  it("rejects a zero or non-integer expectedOutputCount as a programming-error guard", () => {
+    const payoutHex = makePayoutTxHex([
+      { script: REGISTERED_SCRIPT, value: 90_000 },
+    ]);
+    expect(() =>
+      assertPayoutOutputMatchesRegistered(payoutHex, REGISTERED_SCRIPT_HEX, 0),
+    ).toThrow(/expectedOutputCount must be a positive integer/);
+    expect(() =>
+      assertPayoutOutputMatchesRegistered(
+        payoutHex,
+        REGISTERED_SCRIPT_HEX,
+        1.5,
+      ),
+    ).toThrow(/expectedOutputCount must be a positive integer/);
+  });
+});
+
+/**
+ * Regression coverage for the value-burn half of [#147]. The output-structure
+ * guard alone is not enough: a VP could keep the registered script at vout 0
+ * and the right output count, then deflate the values so the missing amount
+ * is paid to miners as implicit fee. The bound inside `buildPayoutPsbt`
+ * catches this once the input amounts are pinned by the prevout binding
+ * (PR #1673).
+ */
+describe("buildPayoutPsbt — implicit-fee bound (#147 value-burn variant)", () => {
+  beforeAll(async () => {
+    await initializeWasmForTests();
+  });
+
+  function makeDeflatedPayoutTxHex(
+    peginTxHex: string,
+    assertTxHex: string,
+    outputs: { script: Buffer; value: number }[],
+  ): string {
+    const peginTx = Transaction.fromHex(peginTxHex);
+    const assertTx = Transaction.fromHex(assertTxHex);
+    const tx = new Transaction();
+    tx.addInput(Buffer.from(peginTx.getId(), "hex").reverse(), 0, SEQUENCE_MAX);
+    tx.addInput(
+      Buffer.from(assertTx.getId(), "hex").reverse(),
+      0,
+      SEQUENCE_MAX,
+    );
+    for (const out of outputs) tx.addOutput(out.script, out.value);
+    return tx.toHex();
+  }
+
+  it("rejects a payout whose implicit fee exceeds 10% of inputs (value-burn variant)", async () => {
+    // Inputs = TEST_PEGIN_VALUE (100_000) + TEST_CLAIM_VALUE (50_000) = 150_000.
+    // 10% cap → max fee 15_000. Output sum 100_000 → fee 50_000 → trip the bound.
+    const peginTxHex = createTestPeginTransaction();
+    const assertTxHex = createTestAssertTransaction();
+    const payoutTxHex = makeDeflatedPayoutTxHex(peginTxHex, assertTxHex, [
+      { script: createDummyP2WPKH("a"), value: 100_000 },
+    ]);
+
+    await expect(
+      buildPayoutPsbt({
+        payoutTxHex,
+        assertTxHex,
+        peginTxHex,
+        depositorBtcPubkey: TEST_KEYS.DEPOSITOR,
+        vaultProviderBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
+        vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
+        universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
+        timelockPegin: 100,
+        network: "signet" as Network,
+      }),
+    ).rejects.toThrow(/implicit fee 50000 sats exceeds the safety cap/);
+  });
+
+  it("rejects a payout whose outputs exceed inputs (negative implicit fee)", async () => {
+    // Outputs (200_000) > inputs (150_000) — invalid Bitcoin transaction,
+    // caught before any signing.
+    const peginTxHex = createTestPeginTransaction();
+    const assertTxHex = createTestAssertTransaction();
+    const payoutTxHex = makeDeflatedPayoutTxHex(peginTxHex, assertTxHex, [
+      { script: createDummyP2WPKH("a"), value: 200_000 },
+    ]);
+
+    await expect(
+      buildPayoutPsbt({
+        payoutTxHex,
+        assertTxHex,
+        peginTxHex,
+        depositorBtcPubkey: TEST_KEYS.DEPOSITOR,
+        vaultProviderBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
+        vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
+        universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
+        timelockPegin: 100,
+        network: "signet" as Network,
+      }),
+    ).rejects.toThrow(/outputs \(200000 sats\) exceed inputs/);
   });
 });

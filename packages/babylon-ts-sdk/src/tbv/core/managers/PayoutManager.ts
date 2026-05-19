@@ -29,6 +29,13 @@ import {
 } from "../primitives";
 
 /**
+ * Protocol-canonical output count for a VP-claimer payout transaction:
+ * `[depositor payout, VP commission, CPFP anchor]` — see
+ * `btc-vault crates/vault/src/transactions/payout.rs` and `mod.rs::build_payout_outputs`.
+ */
+const VP_CLAIMER_PAYOUT_OUTPUT_COUNT = 3;
+
+/**
  * Configuration for the PayoutManager.
  */
 export interface PayoutManagerConfig {
@@ -353,15 +360,23 @@ export class PayoutManager {
    * Validates that the payout transaction's largest output pays to the
    * registered depositor payout address (scriptPubKey).
    *
-   * This prevents two attack vectors from a malicious vault provider:
+   * This prevents three attack vectors from a malicious vault provider:
    * 1. Substituting a completely different payout address
    * 2. Including a dust output to the correct address while routing
    *    the actual funds to an attacker-controlled address
+   * 3. Adding extra attacker outputs alongside the registered output
+   *    (closes [baby-auditor-findings#147])
+   *
+   * VP-claimer payout is fixed at 3 outputs by the protocol:
+   * `[depositor payout, VP commission, CPFP anchor]`. Anything else is
+   * rejected. The implicit-fee bound (value-burn variant of the same
+   * finding) is enforced inside `buildPayoutPsbt`.
    *
    * @param payoutTxHex - Raw payout transaction hex
    * @param registeredPayoutScriptPubKey - On-chain registered scriptPubKey (hex, with or without 0x prefix)
    * @throws Error if scriptPubKey is invalid hex
-   * @throws Error if the largest output does not pay to the registered address
+   * @throws Error if the transaction does not have exactly 3 outputs
+   * @throws Error if output 0 does not pay to the registered scriptPubKey
    */
   private validatePayoutOutputs(
     payoutTxHex: string,
@@ -370,6 +385,7 @@ export class PayoutManager {
     assertPayoutOutputMatchesRegistered(
       payoutTxHex,
       registeredPayoutScriptPubKey,
+      VP_CLAIMER_PAYOUT_OUTPUT_COUNT,
     );
   }
 }

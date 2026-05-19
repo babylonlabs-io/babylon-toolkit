@@ -41,6 +41,20 @@ import {
 const TAPROOT_SINGLE_SIG_WITNESS_STACK_SIZE = 3;
 
 /**
+ * Upper bound on the implicit fee (inputs − outputs) of a payout transaction,
+ * expressed as a fraction of total input value. With input prevouts pinned
+ * (see {@link buildPayoutPsbt}) the SDK knows the exact value entering the
+ * transaction; any value that doesn't reappear as an output is implicit miner
+ * fee. A malicious VP could otherwise return a payout tx with the registered
+ * output script at vout 0 but deflated values, burning the remainder as fee.
+ * Closes the value-burn variant of [baby-auditor-findings#147]. 10% is well
+ * above any realistic fee for a ~200-vbyte payout tx, so legitimate flows
+ * are never blocked.
+ */
+const MAX_PAYOUT_FEE_FRACTION_NUMERATOR = 10;
+const MAX_PAYOUT_FEE_FRACTION_DENOMINATOR = 100;
+
+/**
  * Parameters for building an unsigned Payout PSBT
  *
  * Payout is used in the challenge path after Assert, when the claimer proves validity.
@@ -126,6 +140,9 @@ export interface PayoutPsbtResult {
  * @throws If input 0 does not spend PegIn:0 (vault UTXO)
  * @throws If input 1 does not spend Assert:0 (proof output)
  * @throws If previous output is not found for either input
+ * @throws If sum of output values exceeds sum of input values (invalid tx)
+ * @throws If implicit fee (inputs − outputs) exceeds the configured fraction
+ *   of total input value — see {@link MAX_PAYOUT_FEE_FRACTION_NUMERATOR}
  */
 export async function buildPayoutPsbt(
   params: PayoutParams,
@@ -219,6 +236,35 @@ export async function buildPayoutPsbt(
     );
   }
 
+  // Bound the implicit fee. With input prevouts pinned (PR #1673) the SDK
+  // knows the exact value entering the transaction; any value that doesn't
+  // reappear as an output is implicit miner fee. A malicious VP could
+  // otherwise return a payout tx with the registered output script at vout 0
+  // but deflated values, burning the remainder as fee — see
+  // [baby-auditor-findings#147].
+  const inputValueSats = peginPrevOut.value + input1PrevOut.value;
+  let outputValueSats = 0;
+  for (const out of payoutTx.outs) outputValueSats += out.value;
+  if (outputValueSats > inputValueSats) {
+    throw new Error(
+      `Payout outputs (${outputValueSats} sats) exceed inputs ` +
+        `(${inputValueSats} sats); invalid transaction.`,
+    );
+  }
+  const implicitFeeSats = inputValueSats - outputValueSats;
+  const maxFeeSats = Math.floor(
+    (inputValueSats * MAX_PAYOUT_FEE_FRACTION_NUMERATOR) /
+      MAX_PAYOUT_FEE_FRACTION_DENOMINATOR,
+  );
+  if (implicitFeeSats > maxFeeSats) {
+    throw new Error(
+      `Payout implicit fee ${implicitFeeSats} sats exceeds the safety cap ` +
+        `of ${maxFeeSats} sats ` +
+        `(${MAX_PAYOUT_FEE_FRACTION_NUMERATOR}/${MAX_PAYOUT_FEE_FRACTION_DENOMINATOR} ` +
+        `of inputs=${inputValueSats}); refusing to sign payout.`,
+    );
+  }
+
   // Input 0: Depositor signs using Taproot script path spend
   // This input includes tapLeafScript for signing
   psbt.addInput({
@@ -268,25 +314,47 @@ export async function buildPayoutPsbt(
 }
 
 /**
- * Validate that a payout transaction's largest output pays to the registered
- * depositor payout scriptPubKey.
+ * Validate that a payout transaction's output structure matches the protocol
+ * contract: exactly `expectedOutputCount` outputs, with output 0 paying to
+ * the registered depositor payout scriptPubKey.
  *
- * Prevents a malicious vault provider from substituting the payout destination
- * (or routing funds through a dust output to the correct address while sending
- * the actual value to an attacker-controlled script).
+ * Closes the "extra attacker output" half of [baby-auditor-findings#147].
+ * The prior `largestOutput` check accepted a transaction with the registered
+ * script as the largest output while additional smaller attacker outputs
+ * drained the remainder. The protocol fixes the output count (see below),
+ * so any deviation is rejected; and the depositor payout always sits at
+ * vout 0, so the script check is anchored to that index.
  *
- * @param payoutTxHex - Raw payout transaction hex
+ * The "value-burn via implicit fee" half of the same finding is enforced
+ * separately inside {@link buildPayoutPsbt}, where the input amounts from
+ * `peginTx` and `assertTx` are already resolved.
+ *
+ * Protocol-canonical output counts, per
+ * `btc-vault crates/vault/src/transactions/payout.rs`:
+ *  - VP-claimer payout: 3 outputs — [depositor payout, VP commission, CPFP anchor]
+ *  - Depositor-as-claimer payout: 2 outputs — [payout, CPFP anchor] (no commission)
+ *
+ * @param payoutTxHex - Raw payout transaction hex (with or without 0x prefix)
  * @param registeredPayoutScriptPubKey - On-chain registered scriptPubKey (hex, with or without 0x prefix)
- * @throws If scriptPubKey is invalid hex
- * @throws If the transaction has no outputs
- * @throws If the largest output does not pay to the registered scriptPubKey
+ * @param expectedOutputCount - Protocol-fixed output count for the role: 3 for VP-claimer, 2 for depositor-as-claimer
+ *
+ * @throws If `registeredPayoutScriptPubKey` is not valid hex
+ * @throws If `expectedOutputCount` is not a positive integer
+ * @throws If the transaction has a different number of outputs than expected
+ * @throws If output 0 does not pay to the registered scriptPubKey
  */
 export function assertPayoutOutputMatchesRegistered(
   payoutTxHex: string,
   registeredPayoutScriptPubKey: string,
+  expectedOutputCount: number,
 ): void {
   if (!isValidHex(registeredPayoutScriptPubKey)) {
     throw new Error("Invalid registeredPayoutScriptPubKey: not valid hex");
+  }
+  if (!Number.isInteger(expectedOutputCount) || expectedOutputCount < 1) {
+    throw new Error(
+      `expectedOutputCount must be a positive integer, got ${expectedOutputCount}`,
+    );
   }
 
   const expectedScript = Buffer.from(
@@ -295,17 +363,16 @@ export function assertPayoutOutputMatchesRegistered(
   );
   const payoutTx = Transaction.fromHex(stripHexPrefix(payoutTxHex));
 
-  if (payoutTx.outs.length === 0) {
-    throw new Error("Payout transaction has no outputs");
+  if (payoutTx.outs.length !== expectedOutputCount) {
+    throw new Error(
+      `Payout transaction has ${payoutTx.outs.length} output(s), ` +
+        `expected exactly ${expectedOutputCount} for this payout role.`,
+    );
   }
 
-  const largestOutput = payoutTx.outs.reduce((max, output) =>
-    output.value > max.value ? output : max,
-  );
-
-  if (!largestOutput.script.equals(expectedScript)) {
+  if (!payoutTx.outs[0].script.equals(expectedScript)) {
     throw new Error(
-      "Payout transaction does not pay to the registered depositor payout address",
+      "Payout transaction output 0 does not pay to the registered depositor payout address",
     );
   }
 }

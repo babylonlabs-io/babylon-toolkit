@@ -661,9 +661,12 @@ describe("signDepositorGraph", () => {
       signingContext: createSigningContext(),
     });
 
+    // 3rd arg = DEPOSITOR_AS_CLAIMER_PAYOUT_OUTPUT_COUNT (= 2 — depositor as
+    // claimer pays only [payout, CPFP anchor], no VP commission).
     expect(validator).toHaveBeenCalledWith(
       graph.payout_tx.tx_hex,
       REGISTERED_PAYOUT_SCRIPT,
+      2,
     );
   });
 

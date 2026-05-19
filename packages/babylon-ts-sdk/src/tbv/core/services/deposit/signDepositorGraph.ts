@@ -58,6 +58,15 @@ import { createTaprootScriptPathSignOptions } from "../../utils/signing";
  */
 const DEPOSITOR_SIGNED_INPUT_COUNT = 1;
 
+/**
+ * Protocol-canonical output count for a depositor-as-claimer payout
+ * transaction: `[payout, CPFP anchor]` — no VP commission because the
+ * depositor is also the claimer. See `btc-vault
+ * crates/vault/src/transactions/mod.rs::build_payout_outputs` (no-commission
+ * branch).
+ */
+const DEPOSITOR_AS_CLAIMER_PAYOUT_OUTPUT_COUNT = 2;
+
 /** Tracks which indices in the flat PSBT array belong to which challenger */
 interface ChallengerEntry {
   challengerPubkey: string;
@@ -235,13 +244,18 @@ async function collectDepositorGraphPsbts(
     ctx.universalChallengerBtcPubkeys,
   );
 
-  // 2. Validate the payout transaction's largest output pays to the
-  //    depositor's on-chain registered payout scriptPubKey. The payout tx
-  //    hex is supplied by the VP and otherwise unconstrained; this assertion
-  //    pins the destination of the funds.
+  // 2. Validate the payout transaction's output structure: protocol-fixed
+  //    2-output shape (depositor-as-claimer = [payout, CPFP anchor]) and
+  //    output 0 paying the depositor's on-chain registered payout
+  //    scriptPubKey. The payout tx hex is supplied by the VP and otherwise
+  //    unconstrained; this assertion pins both the count and the destination.
+  //    Closes the "extra attacker output" half of
+  //    [baby-auditor-findings#147] for the depositor-as-claimer variant; the
+  //    value-burn half is enforced inside buildPayoutPsbt below.
   assertPayoutOutputMatchesRegistered(
     depositorGraph.payout_tx.tx_hex,
     ctx.registeredPayoutScriptPubKey,
+    DEPOSITOR_AS_CLAIMER_PAYOUT_OUTPUT_COUNT,
   );
 
   // 3. Build the payout PSBT locally. Every sighash-relevant field
