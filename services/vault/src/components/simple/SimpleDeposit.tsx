@@ -127,6 +127,9 @@ function SimpleDepositContent({
     validateForm,
   } = useDepositPageForm();
 
+  const depositBatchSize =
+    isPartialLiquidation && vaultAmounts ? vaultAmounts.length : 1;
+
   const {
     feeEthFormatted: protocolFeeAmount,
     feeUsdFormatted: protocolFeePrice,
@@ -135,10 +138,14 @@ function SimpleDepositContent({
     formData.selectedProvider
       ? (formData.selectedProvider as Address)
       : undefined,
+    depositBatchSize,
   );
 
-  const depositBatchSize =
-    isPartialLiquidation && vaultAmounts ? vaultAmounts.length : 1;
+  const totalDepositorClaimValue =
+    depositorClaimValue !== undefined
+      ? depositorClaimValue * BigInt(depositBatchSize)
+      : undefined;
+
   const ethereumNetworkFee = useDepositGasEstimate({
     vaultProvider: formData.selectedProvider
       ? (formData.selectedProvider as Address)
@@ -275,7 +282,7 @@ function SimpleDepositContent({
                   setFormData({ selectedProvider: providerId })
                 }
                 isWalletConnected={isWalletConnected}
-                depositorClaimValue={depositorClaimValue}
+                depositorClaimValue={totalDepositorClaimValue}
                 estimatedFeeSats={estimatedFeeSats}
                 estimatedFeeRate={estimatedFeeRate}
                 isLoadingFee={isLoadingFee}

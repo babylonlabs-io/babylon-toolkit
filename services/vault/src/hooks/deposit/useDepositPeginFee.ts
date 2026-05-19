@@ -1,11 +1,13 @@
 /**
  * Reads the protocol pegin fee (in wei) from the BTCVaultRegistry contract
- * for the selected vault provider, and formats it as ETH + USD for the
- * deposit form's fee breakdown.
+ * for the selected vault provider, scales it by the deposit's batch size,
+ * and formats the total as ETH + USD for the deposit form's fee breakdown.
  *
  * Mirrors the same on-chain read that `PeginManager.preparePegin` performs
- * before submitting `submitPeginRequest` — surfaced here so the value is
- * shown before the user signs, not after.
+ * before submitting `submitPeginRequest` - surfaced here so the value is
+ * shown before the user signs, not after. The on-chain
+ * `submitPeginRequestBatch` charges `peginFee * batchSize`, so callers must
+ * pass the batch size to display the total fee the user will actually pay.
  */
 
 import { useQuery } from "@tanstack/react-query";
@@ -28,6 +30,7 @@ export interface DepositPeginFee {
 
 export function useDepositPeginFee(
   vaultProvider: Address | undefined,
+  batchSize: number = 1,
 ): DepositPeginFee {
   const ethPrice = usePrice("ETH");
 
@@ -73,10 +76,12 @@ export function useDepositPeginFee(
       };
     }
 
+    const totalFeeWei = data * BigInt(batchSize);
+
     // Split into whole + remainder to keep precision when feeWei exceeds
     // Number.MAX_SAFE_INTEGER (same pattern as useReorderGasEstimate).
-    const wholePart = data / WEI_PER_ETH;
-    const remainder = data % WEI_PER_ETH;
+    const wholePart = totalFeeWei / WEI_PER_ETH;
+    const remainder = totalFeeWei % WEI_PER_ETH;
     const feeEth = Number(wholePart) + Number(remainder) / Number(WEI_PER_ETH);
 
     const feeUsdFormatted =
@@ -88,11 +93,11 @@ export function useDepositPeginFee(
         : "";
 
     return {
-      feeWei: data,
+      feeWei: totalFeeWei,
       feeEthFormatted: `${feeEth.toFixed(6)} ETH`,
       feeUsdFormatted,
       isLoading: false,
       isError: false,
     };
-  }, [vaultProvider, isLoading, isError, data, ethPrice]);
+  }, [vaultProvider, isLoading, isError, data, ethPrice, batchSize]);
 }

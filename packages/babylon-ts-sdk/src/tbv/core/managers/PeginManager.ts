@@ -1754,6 +1754,12 @@ export interface EstimateSubmitPeginRequestBatchGasParams {
  * gas is correct, contract-side branches that depend on the real values may
  * diverge — but it lands within the usual gas-estimate margin.
  *
+ * Passes {@link MAX_ACCEPTABLE_COMMISSION_BPS_CAP} for the
+ * `maxAcceptableCommissionBps` argument so the simulation does not revert on
+ * the contract's commission-drift check regardless of the VP's current
+ * commission. The real submit path resolves an accurate, drift-checked value
+ * via {@link PeginManager.resolveMaxAcceptableCommissionBps}.
+ *
  * Throws if the contract reverts during simulation; callers should treat the
  * thrown error as "unable to estimate" and decide how to surface it.
  */
@@ -1784,7 +1790,12 @@ export async function estimateSubmitPeginRequestBatchGas(
   const callData = encodeFunctionData({
     abi: BTCVaultRegistryABI,
     functionName: "submitPeginRequestBatch",
-    args: [depositorEthAddress, vaultProvider, requests],
+    args: [
+      depositorEthAddress,
+      vaultProvider,
+      MAX_ACCEPTABLE_COMMISSION_BPS_CAP,
+      requests,
+    ],
   });
 
   return publicClient.estimateGas({
