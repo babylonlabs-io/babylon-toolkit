@@ -1,12 +1,14 @@
 import { FullScreenDialog, Heading } from "@babylonlabs-io/core-ui";
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { Hex } from "viem";
+import type { Address, Hex } from "viem";
 
 import { FeatureFlags } from "@/config";
 import { useAddressScreening } from "@/context/addressScreening";
 import { useGeoFencing } from "@/context/geofencing";
 import { ProtocolParamsProvider } from "@/context/ProtocolParamsContext";
 import { useBTCWallet, useETHWallet } from "@/context/wallet";
+import { useDepositGasEstimate } from "@/hooks/deposit/useDepositGasEstimate";
+import { useDepositPeginFee } from "@/hooks/deposit/useDepositPeginFee";
 import { useDialogStep } from "@/hooks/deposit/useDialogStep";
 import { useProtocolFeeRows } from "@/hooks/useProtocolFeeRows";
 import { depositService } from "@/services/deposit";
@@ -132,6 +134,36 @@ function SimpleDepositContent({
     ordinalsCheckPending,
     validateForm,
   } = useDepositPageForm();
+
+  const depositBatchSize =
+    isPartialLiquidation && vaultAmounts ? vaultAmounts.length : 1;
+
+  const {
+    feeEthFormatted: protocolFeeAmount,
+    feeUsdFormatted: protocolFeePrice,
+    isError: protocolFeeIsError,
+  } = useDepositPeginFee(
+    formData.selectedProvider
+      ? (formData.selectedProvider as Address)
+      : undefined,
+    depositBatchSize,
+  );
+
+  const totalDepositorClaimValue =
+    depositorClaimValue !== undefined
+      ? depositorClaimValue * BigInt(depositBatchSize)
+      : undefined;
+
+  const ethereumNetworkFee = useDepositGasEstimate({
+    vaultProvider: formData.selectedProvider
+      ? (formData.selectedProvider as Address)
+      : undefined,
+    batchSize: depositBatchSize,
+    enabled:
+      !!formData.selectedProvider &&
+      Number.isFinite(Number(formData.amountBtc)) &&
+      Number(formData.amountBtc) > 0,
+  });
 
   const {
     depositStep,
@@ -315,7 +347,7 @@ function SimpleDepositContent({
                   setFormData({ selectedProvider: providerId })
                 }
                 isWalletConnected={isWalletConnected}
-                depositorClaimValue={depositorClaimValue}
+                depositorClaimValue={totalDepositorClaimValue}
                 estimatedFeeSats={estimatedFeeSats}
                 estimatedFeeRate={estimatedFeeRate}
                 isLoadingFee={isLoadingFee}
@@ -326,6 +358,12 @@ function SimpleDepositContent({
                 onDeposit={handleDeposit}
                 partialLiquidation={partialLiquidationProps}
                 collateralFactor={collateralFactor}
+                protocolFeeAmount={protocolFeeAmount}
+                protocolFeePrice={protocolFeePrice}
+                protocolFeeIsError={protocolFeeIsError}
+                ethereumNetworkFeeAmount={ethereumNetworkFee.feeEth}
+                ethereumNetworkFeePrice={ethereumNetworkFee.feeUsd}
+                ethereumNetworkFeeIsError={ethereumNetworkFee.isError}
                 feeRows={feeRows}
                 ordinalsCheckUnavailable={ordinalsCheckUnavailable}
                 ordinalsCheckPending={ordinalsCheckPending}

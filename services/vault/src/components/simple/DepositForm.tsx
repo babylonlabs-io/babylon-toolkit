@@ -20,6 +20,7 @@ import { useBtcFeeDisplay } from "@/hooks/deposit/useBtcFeeDisplay";
 import { depositService } from "@/services/deposit";
 
 import { CollateralFactorRow } from "./CollateralFactorRow";
+import { DepositFeesBreakdown } from "./DepositFeesBreakdown";
 import { FeesSection, type FeeRow } from "./FeesSection";
 
 const btcConfig = getNetworkConfigBTC();
@@ -80,6 +81,14 @@ interface DepositFormProps {
   partialLiquidation?: PartialLiquidationProps;
 
   collateralFactor?: number | null;
+
+  protocolFeeAmount?: string;
+  protocolFeePrice?: string;
+  protocolFeeIsError?: boolean;
+
+  ethereumNetworkFeeAmount?: string;
+  ethereumNetworkFeePrice?: string;
+  ethereumNetworkFeeIsError?: boolean;
 
   feeRows?: FeeRow[];
 
@@ -152,6 +161,12 @@ export function DepositForm({
   onDeposit,
   partialLiquidation,
   collateralFactor = null,
+  protocolFeeAmount = "--",
+  protocolFeePrice = "",
+  protocolFeeIsError = false,
+  ethereumNetworkFeeAmount = "--",
+  ethereumNetworkFeePrice = "",
+  ethereumNetworkFeeIsError = false,
   feeRows,
   ordinalsCheckUnavailable = false,
   ordinalsCheckPending = false,
@@ -418,17 +433,20 @@ export function DepositForm({
       </DepositButton>
 
       {/* Fee breakdown */}
-      <div className="flex items-center justify-between text-sm">
-        <span className="text-accent-primary">Bitcoin Network Fee</span>
-        <span>
-          <span
-            className={isFeeError ? "text-error-main" : "text-accent-primary"}
-          >
-            {feeAmount}
-          </span>{" "}
-          <span className="text-accent-secondary">{feePrice}</span>
-        </span>
-      </div>
+      <DepositFeesBreakdown
+        depositorClaimValue={depositorClaimValue}
+        btcPrice={btcPrice}
+        hasPriceFetchError={hasPriceFetchError}
+        bitcoinNetworkFeeAmount={feeAmount}
+        bitcoinNetworkFeePrice={feePrice}
+        bitcoinNetworkFeeIsError={isFeeError}
+        ethereumNetworkFeeAmount={ethereumNetworkFeeAmount}
+        ethereumNetworkFeePrice={ethereumNetworkFeePrice}
+        ethereumNetworkFeeIsError={ethereumNetworkFeeIsError}
+        protocolFeeAmount={protocolFeeAmount}
+        protocolFeePrice={protocolFeePrice}
+        protocolFeeIsError={protocolFeeIsError}
+      />
 
       {/* Protocol & risk parameters */}
       {feeRows && feeRows.length > 0 && <FeesSection rows={feeRows} />}

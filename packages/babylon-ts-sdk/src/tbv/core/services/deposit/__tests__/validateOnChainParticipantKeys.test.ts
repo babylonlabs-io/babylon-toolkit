@@ -51,6 +51,7 @@ function buildReaders({
     getVaultProviderBtcPubKey: vi
       .fn()
       .mockResolvedValue(vpKey.toLowerCase() as OnChainBtcPubkey),
+    getPegInFee: vi.fn(),
     getOffchainParamsVersionsByVaultIds: vi.fn(),
   };
   const vaultKeeperReader: VaultKeeperReader = {

@@ -84,6 +84,19 @@ export async function getOffchainParamsVersionsFromChain(
 }
 
 /**
+ * Read the protocol pegin fee (in wei) for a given vault provider.
+ *
+ * Mirrors the same on-chain read that `PeginManager.preparePegin` uses
+ * before submitting `submitPeginRequest`. Surfaced here so the deposit
+ * form can display the fee before signing.
+ */
+export async function getPegInFeeFromChain(
+  vaultProvider: Address,
+): Promise<bigint> {
+  return getVaultRegistryReader().getPegInFee(vaultProvider);
+}
+
+/**
  * Signing-critical subset of `getBtcVaultBasicInfo` used by the reorder
  * integrity guard. Returned by `getBtcVaultBasicInfoFromChain` in a map
  * keyed by lowercased vault ID.
