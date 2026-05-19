@@ -169,7 +169,7 @@ describe("RefundModal", () => {
     );
 
     expect(
-      await screen.findByText(/safety cap of 500 sat\/vB/i),
+      await screen.findByText(/safety cap of 2000 sat\/vB/i),
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /confirm/i })).toBeDisabled();
   });

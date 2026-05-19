@@ -45,11 +45,18 @@ export const REFUND_VSIZE = 160;
 // Hard upper bound on the per-vbyte fee rate the SDK will sign a refund at.
 // Defense-in-depth: a compromised mempool endpoint can legally return up to
 // 10_000 sat/vB (see mempoolApi.ts `MAX_FEE_RATE`), which on a 160-vbyte
-// refund would burn up to 1.6M sats in miner fees. April 2024 Runes peak
-// `fastestFee` ≈ 1,805 sat/vB; `halfHourFee` at that peak was ~600. 500
-// covers realistic congestion with margin and blocks the pathological-
-// default attack 20× over.
-export const REFUND_MAX_FEE_RATE_SATS_VB = 500;
+// refund would burn up to 1.6M sats in miner fees.
+//
+// Sizing: during the April 2024 halving / Runes launch `fastestFee` peaked
+// around 1,800 sat/vB, and `halfHourFee` tracked close to it during the
+// worst of the congestion (~1,000–1,500 sat/vB range — the half-hour
+// bucket converges with the fastest bucket when the queue is deep enough).
+// 2000 leaves ~1.3× margin over that historical extreme so the cap doesn't
+// gate legitimate refunds during a comparable event, while still blocking
+// the obvious malicious case (10_000) by 5×. Small-vault burn is bounded
+// separately by REFUND_MAX_FEE_FRACTION_* below, so the rate cap is free
+// to be set generously here.
+export const REFUND_MAX_FEE_RATE_SATS_VB = 2000;
 
 // Hard upper bound on the absolute refund fee as a fraction of the vault
 // amount. Protects small vaults where even a moderate fee rate burns a
