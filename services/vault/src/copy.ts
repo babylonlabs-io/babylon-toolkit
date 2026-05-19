@@ -233,9 +233,17 @@ export const COPY = {
     },
     form: {
       computingAllocation: "Computing allocation...",
-      splitTooLow: "Deposit amount too low for 2-vault split",
-      splitInfo: "Your BTC will be deposited into 2 vaults",
-      doNotSplit: "Do not split",
+      doNotSplit: "Do not split UTXO",
+      selectVaultProvider: "Select Vault Provider",
+      providerSelectDescription: "Choose a provider to secure your BTC",
+      providerSelectEmpty: "No vault providers available at this time.",
+      providerStatusActive: "Active",
+      providerStatusUnavailable: "Unavailable",
+      splitOptionDescription:
+        "Split your BTC into multiple vaults for more flexibility. In liquidation, only part of your collateral may be affected.",
+      noSplitOptionDescription:
+        "Your BTC will be deposited into a single vault",
+      learnWhyRecommended: "Learn why we recommend this.",
     },
     resume: {
       broadcastSuccessMessage: PRE_PEGIN_BROADCAST_CONFIRMATION_MESSAGE,

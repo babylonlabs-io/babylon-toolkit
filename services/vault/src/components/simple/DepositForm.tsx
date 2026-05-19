@@ -1,32 +1,24 @@
-import {
-  Accordion,
-  AccordionDetails,
-  AccordionSummary,
-  AmountSlider,
-  Card,
-  Checkbox,
-  Loader,
-  Select,
-  Warning,
-} from "@babylonlabs-io/core-ui";
+import { AmountSlider, Card, Checkbox, Warning } from "@babylonlabs-io/core-ui";
 import { useMemo, useState } from "react";
-import { IoCheckmark, IoChevronUp } from "react-icons/io5";
 
 import { ApplicationLogo } from "@/components/ApplicationLogo";
 import { DepositButton } from "@/components/shared";
 import { getNetworkConfigBTC } from "@/config";
-import { COPY } from "@/copy";
 import { useBtcFeeDisplay } from "@/hooks/deposit/useBtcFeeDisplay";
 import { depositService } from "@/services/deposit";
 
 import { CollateralFactorRow } from "./CollateralFactorRow";
 import { FeesSection, type FeeRow } from "./FeesSection";
+import { UtxoSplitSelector } from "./UtxoSplitSelector";
+import { VaultProviderSelector } from "./VaultProviderSelector";
 
 const btcConfig = getNetworkConfigBTC();
 
 interface Provider {
   id: string;
   name: string;
+  /** Provider icon URL, used by the picker to render the provider logo. */
+  iconUrl?: string;
   /** When true, the provider renders disabled in the picker and is not selectable. */
   unavailable?: boolean;
   /** Tooltip text shown on hover when the provider is unavailable. */
@@ -131,6 +123,10 @@ export function DepositForm({
 }: DepositFormProps) {
   const [ordinalsWarningAcknowledged, setOrdinalsWarningAcknowledged] =
     useState(false);
+  const [openPanel, setOpenPanel] = useState<"split" | "provider" | null>(null);
+  const setPanelExpanded =
+    (panel: "split" | "provider") => (expanded: boolean) =>
+      setOpenPanel(expanded ? panel : null);
   const btcBalanceFormatted = useMemo(() => {
     if (!btcBalance) return 0;
     return Number(depositService.formatSatoshisToBtc(btcBalance));
@@ -151,13 +147,6 @@ export function DepositForm({
 
   const selectedApp = applications.find((a) => a.id === selectedApplication);
 
-  const providerOptions = providers.map((p) => ({
-    value: p.id,
-    label: p.name,
-    disabled: p.unavailable,
-    tooltip: p.unavailableReason,
-  }));
-
   const {
     btcFee,
     feeAmount,
@@ -174,25 +163,10 @@ export function DepositForm({
 
   const feeDisabled = isLoadingFee || estimatedFeeRate <= 0 || btcFee === null;
 
-  const splitStatusText = useMemo(() => {
-    if (!partialLiquidation?.canSplit) {
-      if (partialLiquidation?.isLoading)
-        return COPY.deposit.form.computingAllocation;
-      return amountSats > 0n ? COPY.deposit.form.splitTooLow : null;
-    }
-    if (partialLiquidation.isLoading)
-      return COPY.deposit.form.computingAllocation;
-    return COPY.deposit.form.splitInfo;
-  }, [partialLiquidation, amountSats]);
-
   const splitNotReady =
     partialLiquidation?.isEnabled &&
     !partialLiquidation?.canSplit &&
     !partialLiquidation?.isLoading;
-
-  const splitSummaryLabel = partialLiquidation?.splitRatioLabel
-    ? `2 Vault Split - ${partialLiquidation.splitRatioLabel} (Recommended)`
-    : "2 Vault Split (Recommended)";
 
   const cta = depositService.getDepositCtaState({
     amountSats,
@@ -239,7 +213,7 @@ export function DepositForm({
         </Warning>
       )}
 
-      <Card variant="filled" className="flex flex-col gap-4">
+      <Card variant="filled" className="flex flex-col gap-4 !rounded-lg">
         {/* Amount input with slider */}
         <AmountSlider
           amount={amount}
@@ -256,6 +230,8 @@ export function DepositForm({
           leftField={{ label: "Max", value: `${btcBalanceFormatted} BTC` }}
           rightField={{ value: usdValue }}
           onMaxClick={onMaxClick}
+          readOnly
+          inputClassName="h-10 w-auto rounded-lg bg-primary-contrast px-4 [field-sizing:content]"
         />
         <CollateralFactorRow
           collateralFactor={collateralFactor}
@@ -265,76 +241,17 @@ export function DepositForm({
         />
       </Card>
 
-      {/* Partial liquidation split selector */}
       {partialLiquidation && (
-        <Card variant="filled" className="py-0.5 pr-5">
-          <Accordion>
-            <AccordionSummary
-              className="flex items-center justify-between px-0 py-3"
-              iconProps={{
-                variant: "outlined",
-                size: "small",
-                className:
-                  "border-0 !text-secondary-strokeDark !static !translate-y-0",
-              }}
-              renderIcon={(expanded) => (
-                <IoChevronUp
-                  className={`transition-transform ${expanded ? "" : "rotate-180"}`}
-                />
-              )}
-            >
-              <span
-                className={`text-sm ${partialLiquidation.canSplit ? "text-accent-primary" : "text-accent-secondary"}`}
-              >
-                {partialLiquidation.isEnabled
-                  ? splitSummaryLabel
-                  : COPY.deposit.form.doNotSplit}
-              </span>
-            </AccordionSummary>
-            <AccordionDetails className="flex flex-col px-0 pb-3">
-              <p className="mb-3 text-xs text-accent-secondary">
-                Splitting your BTC into multiple vaults gives your position more
-                flexibility. If liquidation occurs, it may allow only part of
-                your collateral to be affected instead of the full amount.
-              </p>
-
-              <button
-                type="button"
-                className="flex w-full items-center justify-between py-3 text-sm text-accent-primary"
-                onClick={() => partialLiquidation.onChange(false)}
-              >
-                {COPY.deposit.form.doNotSplit}
-                {!partialLiquidation.isEnabled && (
-                  <IoCheckmark className="text-secondary-main" size={20} />
-                )}
-              </button>
-
-              <button
-                type="button"
-                className={`flex w-full items-center justify-between py-3 text-sm ${partialLiquidation.canSplit ? "text-accent-primary" : "text-accent-secondary"}`}
-                onClick={() => partialLiquidation.onChange(true)}
-              >
-                {partialLiquidation.splitRatioLabel
-                  ? `2 Vault Split - ${partialLiquidation.splitRatioLabel} (Recommended)`
-                  : "2 Vault Split (Recommended)"}
-                {partialLiquidation.isEnabled && (
-                  <IoCheckmark className="text-secondary-main" size={20} />
-                )}
-              </button>
-
-              {splitStatusText && (
-                <span className="block pt-1 text-xs text-accent-secondary">
-                  {splitStatusText}
-                </span>
-              )}
-            </AccordionDetails>
-          </Accordion>
-        </Card>
+        <UtxoSplitSelector
+          partialLiquidation={partialLiquidation}
+          expanded={openPanel === "split"}
+          onExpandedChange={setPanelExpanded("split")}
+        />
       )}
 
       {/* Aave app */}
       {selectedApp && (
-        <Card variant="filled" className="flex items-center gap-3">
+        <Card variant="filled" className="flex items-center gap-3 !rounded-lg">
           <ApplicationLogo
             logoUrl={selectedApp.logoUrl}
             name={selectedApp.name}
@@ -346,26 +263,14 @@ export function DepositForm({
         </Card>
       )}
 
-      {/* Vault provider dropdown */}
-      <Card variant="filled" className="px-2.5 py-3">
-        {isLoadingProviders ? (
-          <div className="flex items-center justify-center py-2">
-            <Loader size={24} className="text-primary-main" />
-          </div>
-        ) : providers.length === 0 ? (
-          <p className="px-4 py-2 text-sm text-accent-secondary">
-            No vault providers available at this time.
-          </p>
-        ) : (
-          <Select
-            className="border-0 bg-transparent"
-            options={providerOptions}
-            value={selectedProvider}
-            placeholder="Select Vault Provider"
-            onSelect={(value) => onProviderSelect(value as string)}
-          />
-        )}
-      </Card>
+      <VaultProviderSelector
+        providers={providers}
+        isLoadingProviders={isLoadingProviders}
+        selectedProvider={selectedProvider}
+        onProviderSelect={onProviderSelect}
+        expanded={openPanel === "provider"}
+        onExpandedChange={setPanelExpanded("provider")}
+      />
 
       {/* CTA button */}
       <DepositButton
