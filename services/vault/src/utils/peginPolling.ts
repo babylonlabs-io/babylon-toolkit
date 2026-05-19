@@ -54,10 +54,22 @@ function isTerminalDaemonStatus(status: DaemonStatus): boolean {
   );
 }
 
+// VP rpc/error.rs `RpcError::UnauthorizedDepositor` — arrives as a plain
+// Error (JSON-RPC -32001 envelope), not a daemon-status, so it bypasses
+// the TerminalPeginPollingError path. Fail-fast here so a wrong-wallet
+// pairing doesn't hang the UI on indefinite polling.
+const UNAUTHORIZED_DEPOSITOR_PATTERN = "Unauthorized depositor";
+
 export function isTerminalPollingError(error: unknown): boolean {
-  return (
+  if (
     error instanceof TerminalPeginPollingError &&
     isTerminalDaemonStatus(error.daemonStatus)
+  ) {
+    return true;
+  }
+  return (
+    error instanceof Error &&
+    error.message.includes(UNAUTHORIZED_DEPOSITOR_PATTERN)
   );
 }
 

@@ -45,10 +45,16 @@ describe("isTransientPollingError", () => {
 });
 
 describe("isTerminalPollingError", () => {
-  it("returns false for plain Errors (no daemon status)", () => {
+  it("fails fast on the 'Unauthorized depositor' VP rpc error (wrong wallet paired)", () => {
     expect(isTerminalPollingError(new Error("Unauthorized depositor"))).toBe(
-      false,
+      true,
     );
+    expect(
+      isTerminalPollingError(new Error("Unauthorized depositor: bad sig")),
+    ).toBe(true);
+  });
+
+  it("returns false for non-terminal plain Errors", () => {
     expect(isTerminalPollingError(new Error("Network error"))).toBe(false);
   });
 
