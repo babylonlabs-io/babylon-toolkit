@@ -182,16 +182,17 @@ describe("findAuthAnchorOpReturn", () => {
     expect(findAuthAnchorOpReturn(txHex)).toBeUndefined();
   });
 
-  it("returns undefined when more than one OP_RETURN+PUSH32 output is present (ambiguous)", () => {
+  it("throws when more than one OP_RETURN+PUSH32 output is present (ambiguous)", () => {
     // A well-formed Pre-PegIn carries exactly one auth-anchor commitment.
-    // Two would either be a malformed tx or someone trying to confuse the
-    // reader; refuse to guess.
+    // Multiple matches are malformed input — refuse rather than guess.
     const txHex = buildTxHex([
       htlcOutput(),
       opReturnOutput(ANCHOR_HASH),
       opReturnOutput(OTHER_HASH),
     ]);
-    expect(findAuthAnchorOpReturn(txHex)).toBeUndefined();
+    expect(() => findAuthAnchorOpReturn(txHex)).toThrow(
+      /OP_RETURN PUSH32 outputs/,
+    );
   });
 
   it("ignores OP_RETURN outputs with non-zero value", () => {

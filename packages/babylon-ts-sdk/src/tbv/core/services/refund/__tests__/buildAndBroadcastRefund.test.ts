@@ -525,6 +525,30 @@ describe("buildAndBroadcastRefund", () => {
       ).rejects.toThrow(/Funded Pre-PegIn tx has 1 outputs but batch requires at least 3/);
       expect(mockedBuildRefundPsbt).not.toHaveBeenCalled();
     });
+
+    it("refuses a funded tx with two OP_RETURN PUSH32 outputs (ambiguous)", async () => {
+      const tx = new bitcoin.Transaction();
+      tx.addInput(Buffer.alloc(32, 0xaa), 0);
+      tx.addOutput(Buffer.from("0014" + "11".repeat(20), "hex"), 100_000);
+      tx.addOutput(Buffer.from("6a20" + "cd".repeat(32), "hex"), 0);
+      tx.addOutput(Buffer.from("6a20" + "ef".repeat(32), "hex"), 0);
+      readVault.mockResolvedValue(
+        buildVault({ unsignedPrePeginTxHex: "0x" + tx.toHex() }),
+      );
+
+      await expect(
+        buildAndBroadcastRefund({
+          vaultId: VAULT_ID,
+          readVault,
+          readPrePeginContext,
+          feeRate: FEE_RATE,
+          signPsbt,
+          broadcastTx,
+        }),
+      ).rejects.toThrow(/OP_RETURN PUSH32 outputs/);
+
+      expect(mockedBuildRefundPsbt).not.toHaveBeenCalled();
+    });
   });
 
   describe("validation", () => {
