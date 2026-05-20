@@ -15,6 +15,8 @@ import { getVaultRegistryReader } from "../sdk-readers";
  * Flat shape merged from the SDK's `{basic, protocol}` payload.
  */
 export interface OnChainVaultData {
+  /** Depositor's Ethereum address — the authoritative owner of this vault. */
+  depositor: Address;
   depositorSignedPeginTx: Hex;
   applicationEntryPoint: Address;
   vaultProvider: Address;
@@ -50,6 +52,7 @@ export async function getVaultFromChain(
     await getVaultRegistryReader().getVaultData(vaultId);
 
   return {
+    depositor: basic.depositor,
     depositorSignedPeginTx: protocol.depositorSignedPeginTx,
     applicationEntryPoint: basic.applicationEntryPoint,
     vaultProvider: basic.vaultProvider,

@@ -116,6 +116,18 @@ export async function buildRefundPsbt(
 
   let fundedTx: WasmPrePeginTx | null = null;
   try {
+    // Cross-check the reconstructed unfunded template against the funded
+    // transaction: the WASM template's HTLC scriptPubKey at `htlcVout`
+    // must equal the bytes the funded tx carries at the same output.
+    // If they disagree, the template was reconstructed from the wrong
+    // (hashlocks, amounts) vector — signing it would produce a refund
+    // that does not spend the on-chain HTLC the depositor expects.
+    // This is the explicit invariant the audit recommends: never sign a
+    // refund whose template doesn't match the on-chain output bytes.
+    const expectedHtlcScriptPubKey = unfundedTx
+      .getHtlcScriptPubKey(htlcVout)
+      .toLowerCase();
+
     fundedTx = unfundedTx.fromFundedTransaction(fundedPrePeginTxHex);
 
     const refundTxHex = fundedTx.buildRefundTx(refundFee, htlcVout);
@@ -140,6 +152,18 @@ export async function buildRefundPsbt(
       throw new Error(
         `HTLC output at vout ${htlcVout} not found in funded Pre-PegIn tx ` +
           `(tx has ${prePeginTx.outs.length} outputs)`,
+      );
+    }
+
+    const actualHtlcScriptPubKey = uint8ArrayToHex(
+      new Uint8Array(htlcOutput.script),
+    ).toLowerCase();
+    if (actualHtlcScriptPubKey !== expectedHtlcScriptPubKey) {
+      throw new Error(
+        `HTLC scriptPubKey mismatch at vout ${htlcVout}: reconstructed ` +
+          `template expects ${expectedHtlcScriptPubKey}, funded tx carries ` +
+          `${actualHtlcScriptPubKey}. Refund refused — the (hashlocks, ` +
+          `pegInAmounts) vector does not match the on-chain commitment.`,
       );
     }
 

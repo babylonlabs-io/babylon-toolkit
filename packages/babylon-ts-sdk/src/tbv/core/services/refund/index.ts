@@ -17,5 +17,6 @@ export {
   type RefundInput,
   type RefundPrePeginContext,
   type RefundPsbtSigner,
+  type VaultBatchEntry,
   type VaultRefundData,
 } from "./buildAndBroadcastRefund";

@@ -21,6 +21,7 @@ import {
 import {
   buildAndBroadcastRefund,
   type RefundPrePeginContext,
+  type VaultBatchEntry,
   type VaultRefundData,
 } from "@babylonlabs-io/ts-sdk/tbv/core/services";
 import { calculateBtcTxHash } from "@babylonlabs-io/ts-sdk/tbv/core/utils";
@@ -37,10 +38,19 @@ import {
 import { getBTCNetworkForWASM } from "../../config/pegin";
 
 import { fetchVaultProviderById } from "./fetchVaultProviders";
-import { fetchVaultRefundData } from "./fetchVaults";
+import { fetchVaultIdsByDepositor, fetchVaultRefundData } from "./fetchVaults";
 
 export interface BroadcastRefundParams {
   vaultId: Hex;
+  /**
+   * Connected wallet's Ethereum address. Cross-checked against the
+   * vault's on-chain `depositor` before sibling discovery — refund
+   * refuses if the user has a vault loaded that doesn't belong to the
+   * connected wallet (a mid-flow wallet swap or a stale modal).
+   * Sibling enumeration itself uses the *on-chain* depositor as the
+   * authoritative source, not this parameter.
+   */
+  depositorAddress: Address;
   btcWalletProvider: {
     signPsbt: (psbtHex: string, options?: SignPsbtOptions) => Promise<string>;
   };
@@ -60,12 +70,12 @@ export interface RefundPreview {
 
 export async function getRefundPreview(vaultId: Hex): Promise<RefundPreview> {
   const mempoolApiUrl = getMempoolApiUrl();
-  const [vault, feeRecommendation] = await Promise.all([
-    readVault(vaultId),
+  const [target, feeRecommendation] = await Promise.all([
+    readTargetVault(vaultId),
     getNetworkFees(mempoolApiUrl).catch(() => null),
   ]);
   return {
-    amountSats: vault.amount,
+    amountSats: target.onChainVault.amount,
     halfHourFeeSatsVb:
       feeRecommendation && feeRecommendation.halfHourFee > 0
         ? feeRecommendation.halfHourFee
@@ -73,7 +83,18 @@ export async function getRefundPreview(vaultId: Hex): Promise<RefundPreview> {
   };
 }
 
-async function readVault(vaultId: Hex): Promise<VaultRefundData> {
+interface TargetVaultData {
+  onChainVault: Awaited<ReturnType<typeof getVaultFromChain>>;
+  unsignedPrePeginTx: Hex;
+  depositorBtcPubkey: Hex;
+}
+
+/**
+ * Read the target vault's on-chain + indexer data without doing sibling
+ * discovery. Shared by the refund-preview path (which only needs amount)
+ * and the broadcast path (which then derives the full sibling batch).
+ */
+async function readTargetVault(vaultId: Hex): Promise<TargetVaultData> {
   // Signing-critical fields come from the on-chain contract — a compromised
   // indexer could otherwise substitute a different signer set, amount, or
   // transaction. From the indexer we pull only the Pre-PegIn tx hex (not
@@ -106,16 +127,124 @@ async function readVault(vaultId: Hex): Promise<VaultRefundData> {
   }
 
   return {
-    hashlock: onChainVault.hashlock,
-    htlcVout: onChainVault.htlcVout,
-    offchainParamsVersion: onChainVault.offchainParamsVersion,
-    appVaultKeepersVersion: onChainVault.appVaultKeepersVersion,
-    universalChallengersVersion: onChainVault.universalChallengersVersion,
-    vaultProvider: onChainVault.vaultProvider,
-    applicationEntryPoint: onChainVault.applicationEntryPoint,
-    amount: onChainVault.amount,
-    unsignedPrePeginTxHex: indexerRefundData.unsignedPrePeginTx,
+    onChainVault,
+    unsignedPrePeginTx: indexerRefundData.unsignedPrePeginTx,
     depositorBtcPubkey: indexerRefundData.depositorBtcPubkey,
+  };
+}
+
+/**
+ * Discover and validate the full vout-ordered HTLC vector for the
+ * funded Pre-PegIn that this vault belongs to.
+ *
+ * For a single-vault deposit the returned batch is length 1. For a
+ * batched deposit (e.g. an Aave split that committed two vaults to one
+ * Pre-PegIn) every sibling sharing the target's `prePeginTxHash` is
+ * pulled from chain so the WASM refund template can be reconstructed
+ * with the exact (hashlocks, amounts) vector the funded tx commits to.
+ *
+ * Sibling membership is decided by on-chain `prePeginTxHash` equality,
+ * not by indexer hex comparison — that way a stale or compromised
+ * indexer cannot fabricate or drop siblings. The indexer is only used
+ * to enumerate vault IDs (via the lean `id`-only projection so a
+ * malformed unrelated field on a sibling row cannot silently shrink
+ * the batch); each candidate's authoritative hashlock / htlcVout /
+ * amount comes from the contract.
+ *
+ * Enumeration uses the **on-chain** depositor of the target vault, not
+ * the connected wallet. The connected wallet's address is treated as a
+ * sanity input: if it disagrees with the on-chain depositor (e.g. the
+ * user has a stale modal open after switching wallets), refund refuses
+ * with a clear error rather than silently looking up siblings in the
+ * wrong wallet's vault list.
+ */
+async function discoverBatch(
+  target: TargetVaultData,
+  targetVaultId: Hex,
+  connectedDepositorAddress: Address,
+): Promise<ReadonlyArray<VaultBatchEntry>> {
+  const onChainDepositor = target.onChainVault.depositor;
+  if (
+    onChainDepositor.toLowerCase() !== connectedDepositorAddress.toLowerCase()
+  ) {
+    throw new Error(
+      `Vault ${targetVaultId} is owned by ${onChainDepositor}, but the ` +
+        `connected wallet is ${connectedDepositorAddress}. Connect with ` +
+        `the depositor wallet to refund this vault.`,
+    );
+  }
+
+  const targetPrePeginTxHash = target.onChainVault.prePeginTxHash.toLowerCase();
+  // Use the on-chain depositor (not the parameter) as the enumeration
+  // source. They're equal here by the assertion above, but the on-chain
+  // value is the authoritative one to thread into the indexer query.
+  const depositorVaultIds = await fetchVaultIdsByDepositor(onChainDepositor);
+
+  const targetIdLower = targetVaultId.toLowerCase();
+  const candidateIds = depositorVaultIds.filter(
+    (id) => id.toLowerCase() !== targetIdLower,
+  );
+
+  const candidateOnChain = await Promise.all(
+    candidateIds.map((id) => getVaultFromChain(id)),
+  );
+
+  const siblings: VaultBatchEntry[] = [
+    {
+      hashlock: target.onChainVault.hashlock,
+      amount: target.onChainVault.amount,
+      htlcVout: target.onChainVault.htlcVout,
+    },
+  ];
+  for (let i = 0; i < candidateIds.length; i++) {
+    const sib = candidateOnChain[i];
+    if (sib.prePeginTxHash.toLowerCase() !== targetPrePeginTxHash) continue;
+    siblings.push({
+      hashlock: sib.hashlock,
+      amount: sib.amount,
+      htlcVout: sib.htlcVout,
+    });
+  }
+
+  siblings.sort((a, b) => a.htlcVout - b.htlcVout);
+
+  // Strict invariant: the vector must cover [0, N-1] without gaps or
+  // duplicates. The WASM template uses these positions directly; a gap
+  // would silently mis-align with the funded tx's outputs.
+  for (let i = 0; i < siblings.length; i++) {
+    if (siblings[i].htlcVout !== i) {
+      const observed = siblings.map((s) => s.htlcVout).join(", ");
+      throw new Error(
+        `Sibling vault discovery produced a non-contiguous HTLC vector ` +
+          `for prePeginTxHash ${targetPrePeginTxHash}: expected vouts ` +
+          `[0..${siblings.length - 1}], observed [${observed}]. ` +
+          `Refund refused — sibling set incomplete or indexer out of sync.`,
+      );
+    }
+  }
+  return siblings;
+}
+
+async function readVaultForRefund(
+  vaultId: Hex,
+  depositorAddress: Address,
+): Promise<VaultRefundData> {
+  const target = await readTargetVault(vaultId);
+  const batch = await discoverBatch(target, vaultId, depositorAddress);
+
+  return {
+    hashlock: target.onChainVault.hashlock,
+    htlcVout: target.onChainVault.htlcVout,
+    offchainParamsVersion: target.onChainVault.offchainParamsVersion,
+    appVaultKeepersVersion: target.onChainVault.appVaultKeepersVersion,
+    universalChallengersVersion:
+      target.onChainVault.universalChallengersVersion,
+    vaultProvider: target.onChainVault.vaultProvider,
+    applicationEntryPoint: target.onChainVault.applicationEntryPoint,
+    amount: target.onChainVault.amount,
+    unsignedPrePeginTxHex: target.unsignedPrePeginTx,
+    depositorBtcPubkey: target.depositorBtcPubkey,
+    batch,
   };
 }
 
@@ -211,8 +340,14 @@ async function readPrePeginContext(
 export async function buildAndBroadcastRefundTransaction(
   params: BroadcastRefundParams,
 ): Promise<string> {
-  const { vaultId, btcWalletProvider, depositorBtcPubkey, feeRate, signal } =
-    params;
+  const {
+    vaultId,
+    depositorAddress,
+    btcWalletProvider,
+    depositorBtcPubkey,
+    feeRate,
+    signal,
+  } = params;
   const mempoolApiUrl = getMempoolApiUrl();
 
   // Override indexer-provided depositor pubkey with the caller's wallet key —
@@ -220,7 +355,7 @@ export async function buildAndBroadcastRefundTransaction(
   const { txId } = await buildAndBroadcastRefund({
     vaultId,
     readVault: async () => {
-      const data = await readVault(vaultId);
+      const data = await readVaultForRefund(vaultId, depositorAddress);
       return { ...data, depositorBtcPubkey };
     },
     readPrePeginContext: (vault) => readPrePeginContext(vault),

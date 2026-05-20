@@ -69,6 +69,7 @@ vi.mock("../fetchVaultProviders", () => ({
 
 vi.mock("../fetchVaults", () => ({
   fetchVaultRefundData: vi.fn(),
+  fetchVaultIdsByDepositor: vi.fn(),
 }));
 
 import { getNetworkFees, pushTx } from "@babylonlabs-io/ts-sdk/tbv/core";
@@ -77,7 +78,7 @@ import { beforeEach, describe, expect, it, vi, type Mock } from "vitest";
 
 import { getVaultFromChain } from "../../../clients/eth-contract/btc-vault-registry/query";
 import { fetchVaultProviderById } from "../fetchVaultProviders";
-import { fetchVaultRefundData } from "../fetchVaults";
+import { fetchVaultIdsByDepositor, fetchVaultRefundData } from "../fetchVaults";
 import {
   buildAndBroadcastRefundTransaction,
   getRefundPreview,
@@ -85,15 +86,19 @@ import {
 
 const VAULT_ID = "0xvaultid" as `0x${string}`;
 const DEPOSITOR_PUBKEY = "aabbccdd";
+const DEPOSITOR_ADDRESS = ("0x" + "ab".repeat(20)) as `0x${string}`;
 
 const ON_CHAIN_VAULT = {
+  // Authoritative on-chain depositor — matches DEPOSITOR_ADDRESS for the
+  // happy-path tests. The wallet-mismatch tests below override it.
+  depositor: DEPOSITOR_ADDRESS,
   offchainParamsVersion: 1,
   vaultProvider: "0xprovider",
   applicationEntryPoint: "0xapp",
   appVaultKeepersVersion: 1,
   universalChallengersVersion: 1,
   hashlock: "0xhashlock",
-  htlcVout: 1,
+  htlcVout: 0,
   amount: 100_000n,
   prePeginTxHash: "0xmatching_pre_pegin_hash",
 };
@@ -124,6 +129,9 @@ describe("vaultRefundService - adapter wiring", () => {
     (calculateBtcTxHash as Mock).mockReturnValue(ON_CHAIN_VAULT.prePeginTxHash);
     (getVaultFromChain as Mock).mockResolvedValue(ON_CHAIN_VAULT);
     (fetchVaultRefundData as Mock).mockResolvedValue(INDEXER_VAULT);
+    // Default: depositor has just the target vault. Sibling-discovery
+    // tests below override this to exercise the multi-vault branch.
+    (fetchVaultIdsByDepositor as Mock).mockResolvedValue([VAULT_ID]);
     mockGetOffchainParamsByVersion.mockResolvedValue(OFFCHAIN_PARAMS);
     (fetchVaultProviderById as Mock).mockResolvedValue(VAULT_PROVIDER);
     mockGetVaultProviderBtcPubKey.mockResolvedValue(VP_BTC_PUBKEY_X_ONLY);
@@ -154,6 +162,7 @@ describe("vaultRefundService - adapter wiring", () => {
   it("calls the SDK with vaultId and returns the broadcast txId", async () => {
     const txId = await buildAndBroadcastRefundTransaction({
       vaultId: VAULT_ID,
+      depositorAddress: DEPOSITOR_ADDRESS,
       btcWalletProvider: BTC_WALLET_PROVIDER,
       depositorBtcPubkey: DEPOSITOR_PUBKEY,
       feeRate: 10,
@@ -189,6 +198,7 @@ describe("vaultRefundService - adapter wiring", () => {
 
     await buildAndBroadcastRefundTransaction({
       vaultId: VAULT_ID,
+      depositorAddress: DEPOSITOR_ADDRESS,
       btcWalletProvider: BTC_WALLET_PROVIDER,
       depositorBtcPubkey: DEPOSITOR_PUBKEY,
       feeRate: 10,
@@ -209,6 +219,7 @@ describe("vaultRefundService - adapter wiring", () => {
     await expect(
       buildAndBroadcastRefundTransaction({
         vaultId: VAULT_ID,
+        depositorAddress: DEPOSITOR_ADDRESS,
         btcWalletProvider: BTC_WALLET_PROVIDER,
         depositorBtcPubkey: DEPOSITOR_PUBKEY,
         feeRate: 10,
@@ -222,6 +233,7 @@ describe("vaultRefundService - adapter wiring", () => {
     await expect(
       buildAndBroadcastRefundTransaction({
         vaultId: VAULT_ID,
+        depositorAddress: DEPOSITOR_ADDRESS,
         btcWalletProvider: BTC_WALLET_PROVIDER,
         depositorBtcPubkey: DEPOSITOR_PUBKEY,
         feeRate: 10,
@@ -235,6 +247,7 @@ describe("vaultRefundService - adapter wiring", () => {
     await expect(
       buildAndBroadcastRefundTransaction({
         vaultId: VAULT_ID,
+        depositorAddress: DEPOSITOR_ADDRESS,
         btcWalletProvider: BTC_WALLET_PROVIDER,
         depositorBtcPubkey: DEPOSITOR_PUBKEY,
         feeRate: 10,
@@ -250,6 +263,7 @@ describe("vaultRefundService - adapter wiring", () => {
     await expect(
       buildAndBroadcastRefundTransaction({
         vaultId: VAULT_ID,
+        depositorAddress: DEPOSITOR_ADDRESS,
         btcWalletProvider: BTC_WALLET_PROVIDER,
         depositorBtcPubkey: DEPOSITOR_PUBKEY,
         feeRate: 10,
@@ -265,6 +279,7 @@ describe("vaultRefundService - adapter wiring", () => {
     await expect(
       buildAndBroadcastRefundTransaction({
         vaultId: VAULT_ID,
+        depositorAddress: DEPOSITOR_ADDRESS,
         btcWalletProvider: BTC_WALLET_PROVIDER,
         depositorBtcPubkey: DEPOSITOR_PUBKEY,
         feeRate: 10,
@@ -284,6 +299,7 @@ describe("vaultRefundService - adapter wiring", () => {
     await expect(
       buildAndBroadcastRefundTransaction({
         vaultId: VAULT_ID,
+        depositorAddress: DEPOSITOR_ADDRESS,
         btcWalletProvider: BTC_WALLET_PROVIDER,
         depositorBtcPubkey: DEPOSITOR_PUBKEY,
         feeRate: 10,
@@ -308,6 +324,7 @@ describe("vaultRefundService - adapter wiring", () => {
 
     await buildAndBroadcastRefundTransaction({
       vaultId: VAULT_ID,
+      depositorAddress: DEPOSITOR_ADDRESS,
       btcWalletProvider: BTC_WALLET_PROVIDER,
       depositorBtcPubkey: DEPOSITOR_PUBKEY,
       feeRate: 10,
@@ -328,6 +345,7 @@ describe("vaultRefundService - adapter wiring", () => {
 
     await buildAndBroadcastRefundTransaction({
       vaultId: VAULT_ID,
+      depositorAddress: DEPOSITOR_ADDRESS,
       btcWalletProvider: BTC_WALLET_PROVIDER,
       depositorBtcPubkey: DEPOSITOR_PUBKEY,
       feeRate: 42,
@@ -351,6 +369,7 @@ describe("vaultRefundService - adapter wiring", () => {
 
     const txId = await buildAndBroadcastRefundTransaction({
       vaultId: VAULT_ID,
+      depositorAddress: DEPOSITOR_ADDRESS,
       btcWalletProvider: BTC_WALLET_PROVIDER,
       depositorBtcPubkey: DEPOSITOR_PUBKEY,
       feeRate: 10,
@@ -395,5 +414,229 @@ describe("getRefundPreview", () => {
     (getNetworkFees as Mock).mockResolvedValue({ halfHourFee: 0 });
     const preview = await getRefundPreview(VAULT_ID);
     expect(preview.halfHourFeeSatsVb).toBeNull();
+  });
+});
+
+describe("vaultRefundService - sibling batch discovery", () => {
+  const SIBLING_VAULT_ID = "0xsiblingid" as `0x${string}`;
+  const OTHER_VAULT_ID = "0xunrelated" as `0x${string}`;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    (calculateBtcTxHash as Mock).mockReturnValue(ON_CHAIN_VAULT.prePeginTxHash);
+    (fetchVaultRefundData as Mock).mockResolvedValue(INDEXER_VAULT);
+    mockGetOffchainParamsByVersion.mockResolvedValue(OFFCHAIN_PARAMS);
+    (fetchVaultProviderById as Mock).mockResolvedValue(VAULT_PROVIDER);
+    mockGetVaultProviderBtcPubKey.mockResolvedValue(VP_BTC_PUBKEY_X_ONLY);
+    mockGetVaultKeepersByVersion.mockResolvedValue(VAULT_KEEPERS);
+    mockGetUniversalChallengersByVersion.mockResolvedValue(
+      UNIVERSAL_CHALLENGERS,
+    );
+    (pushTx as Mock).mockResolvedValue("broadcast_txid");
+
+    mockBuildAndBroadcastRefund.mockImplementation(
+      async (input: { readVault: () => Promise<unknown> }) => {
+        await input.readVault();
+        return { txId: "broadcast_txid" };
+      },
+    );
+  });
+
+  it("builds a length-1 batch for a single-vault deposit", async () => {
+    (getVaultFromChain as Mock).mockResolvedValue(ON_CHAIN_VAULT);
+    (fetchVaultIdsByDepositor as Mock).mockResolvedValue([VAULT_ID]);
+
+    let observed: { batch: ReadonlyArray<unknown> } | null = null;
+    mockBuildAndBroadcastRefund.mockImplementation(
+      async (input: {
+        readVault: () => Promise<{ batch: ReadonlyArray<unknown> }>;
+      }) => {
+        observed = await input.readVault();
+        return { txId: "ok" };
+      },
+    );
+
+    await buildAndBroadcastRefundTransaction({
+      vaultId: VAULT_ID,
+      depositorAddress: DEPOSITOR_ADDRESS,
+      btcWalletProvider: BTC_WALLET_PROVIDER,
+      depositorBtcPubkey: DEPOSITOR_PUBKEY,
+      feeRate: 10,
+    });
+
+    expect(observed).not.toBeNull();
+    expect(observed!.batch).toHaveLength(1);
+    expect(observed!.batch[0]).toEqual({
+      hashlock: ON_CHAIN_VAULT.hashlock,
+      amount: ON_CHAIN_VAULT.amount,
+      htlcVout: 0,
+    });
+  });
+
+  it("assembles a vout-ordered length-2 batch for a sibling pair", async () => {
+    // Target vault is at vout 0; sibling is at vout 1 of the same Pre-PegIn.
+    const TARGET = { ...ON_CHAIN_VAULT, htlcVout: 0, hashlock: "0xtarget" };
+    const SIBLING = {
+      ...ON_CHAIN_VAULT,
+      htlcVout: 1,
+      hashlock: "0xsibling",
+      amount: 200_000n,
+    };
+    (getVaultFromChain as Mock).mockImplementation((id: string) => {
+      if (id === VAULT_ID) return Promise.resolve(TARGET);
+      if (id === SIBLING_VAULT_ID) return Promise.resolve(SIBLING);
+      throw new Error(`Unexpected vaultId ${id}`);
+    });
+    (fetchVaultIdsByDepositor as Mock).mockResolvedValue([
+      VAULT_ID,
+      SIBLING_VAULT_ID,
+    ]);
+
+    let observed: {
+      batch: ReadonlyArray<{
+        hashlock: string;
+        amount: bigint;
+        htlcVout: number;
+      }>;
+    } | null = null;
+    mockBuildAndBroadcastRefund.mockImplementation(
+      async (input: { readVault: () => Promise<typeof observed> }) => {
+        observed = (await input.readVault()) as typeof observed;
+        return { txId: "ok" };
+      },
+    );
+
+    await buildAndBroadcastRefundTransaction({
+      vaultId: VAULT_ID,
+      depositorAddress: DEPOSITOR_ADDRESS,
+      btcWalletProvider: BTC_WALLET_PROVIDER,
+      depositorBtcPubkey: DEPOSITOR_PUBKEY,
+      feeRate: 10,
+    });
+
+    expect(observed).not.toBeNull();
+    expect(observed!.batch.map((b) => b.htlcVout)).toEqual([0, 1]);
+    expect(observed!.batch[0].hashlock).toBe("0xtarget");
+    expect(observed!.batch[1].hashlock).toBe("0xsibling");
+    expect(observed!.batch[0].amount).toBe(100_000n);
+    expect(observed!.batch[1].amount).toBe(200_000n);
+  });
+
+  it("ignores depositor vaults that belong to a different Pre-PegIn", async () => {
+    // Unrelated vault has a different prePeginTxHash — must not appear
+    // in the assembled batch even though it lives under the same depositor.
+    const TARGET = { ...ON_CHAIN_VAULT, htlcVout: 0 };
+    const UNRELATED = {
+      ...ON_CHAIN_VAULT,
+      htlcVout: 5,
+      prePeginTxHash: "0xa_different_pre_pegin_hash",
+    };
+    (getVaultFromChain as Mock).mockImplementation((id: string) => {
+      if (id === VAULT_ID) return Promise.resolve(TARGET);
+      if (id === OTHER_VAULT_ID) return Promise.resolve(UNRELATED);
+      throw new Error(`Unexpected vaultId ${id}`);
+    });
+    (fetchVaultIdsByDepositor as Mock).mockResolvedValue([
+      VAULT_ID,
+      OTHER_VAULT_ID,
+    ]);
+
+    let observed: { batch: ReadonlyArray<unknown> } | null = null;
+    mockBuildAndBroadcastRefund.mockImplementation(
+      async (input: {
+        readVault: () => Promise<{ batch: ReadonlyArray<unknown> }>;
+      }) => {
+        observed = await input.readVault();
+        return { txId: "ok" };
+      },
+    );
+
+    await buildAndBroadcastRefundTransaction({
+      vaultId: VAULT_ID,
+      depositorAddress: DEPOSITOR_ADDRESS,
+      btcWalletProvider: BTC_WALLET_PROVIDER,
+      depositorBtcPubkey: DEPOSITOR_PUBKEY,
+      feeRate: 10,
+    });
+
+    expect(observed!.batch).toHaveLength(1);
+  });
+
+  it("throws when the discovered siblings leave a gap in the HTLC vector", async () => {
+    // Target at vout 0, sibling claims vout 2 — vout 1 is missing.
+    // The WASM template uses dense vout positions; any gap would
+    // mis-align with the funded tx's outputs, so refuse the refund.
+    const TARGET = { ...ON_CHAIN_VAULT, htlcVout: 0 };
+    const SIBLING = { ...ON_CHAIN_VAULT, htlcVout: 2 };
+    (getVaultFromChain as Mock).mockImplementation((id: string) => {
+      if (id === VAULT_ID) return Promise.resolve(TARGET);
+      if (id === SIBLING_VAULT_ID) return Promise.resolve(SIBLING);
+      throw new Error(`Unexpected vaultId ${id}`);
+    });
+    (fetchVaultIdsByDepositor as Mock).mockResolvedValue([
+      VAULT_ID,
+      SIBLING_VAULT_ID,
+    ]);
+
+    await expect(
+      buildAndBroadcastRefundTransaction({
+        vaultId: VAULT_ID,
+        depositorAddress: DEPOSITOR_ADDRESS,
+        btcWalletProvider: BTC_WALLET_PROVIDER,
+        depositorBtcPubkey: DEPOSITOR_PUBKEY,
+        feeRate: 10,
+      }),
+    ).rejects.toThrow(/non-contiguous HTLC vector/);
+  });
+
+  it("throws when the connected wallet differs from the on-chain depositor", async () => {
+    // Target vault is owned by ON_CHAIN_DEPOSITOR, but the user has a
+    // different wallet connected (mid-flow wallet swap, stale modal,
+    // or opened a vault they don't own). Refuse before touching the
+    // indexer — sibling enumeration against the wrong wallet would
+    // produce an incomplete batch and a confusing downstream error.
+    const ON_CHAIN_DEPOSITOR = ("0x" + "cd".repeat(20)) as `0x${string}`;
+    (getVaultFromChain as Mock).mockResolvedValue({
+      ...ON_CHAIN_VAULT,
+      depositor: ON_CHAIN_DEPOSITOR,
+    });
+
+    await expect(
+      buildAndBroadcastRefundTransaction({
+        vaultId: VAULT_ID,
+        depositorAddress: DEPOSITOR_ADDRESS,
+        btcWalletProvider: BTC_WALLET_PROVIDER,
+        depositorBtcPubkey: DEPOSITOR_PUBKEY,
+        feeRate: 10,
+      }),
+    ).rejects.toThrow(
+      /owned by .* but the connected wallet is .*Connect with the depositor wallet/,
+    );
+    // Indexer must not have been queried — fail-closed before doing
+    // sibling lookup against the wrong wallet.
+    expect(fetchVaultIdsByDepositor).not.toHaveBeenCalled();
+  });
+
+  it("enumerates siblings using the on-chain depositor (not the connected-wallet input)", async () => {
+    // Pass an upper-case variant of the on-chain depositor. The check
+    // is case-insensitive (Ethereum address checksum), and the indexer
+    // call must go out with the *on-chain* lowercase form — regardless
+    // of how the wallet provider spells the address.
+    const CHECKSUMMED = DEPOSITOR_ADDRESS.toUpperCase() as `0x${string}`;
+    (getVaultFromChain as Mock).mockResolvedValue(ON_CHAIN_VAULT);
+    (fetchVaultIdsByDepositor as Mock).mockResolvedValue([VAULT_ID]);
+
+    await buildAndBroadcastRefundTransaction({
+      vaultId: VAULT_ID,
+      depositorAddress: CHECKSUMMED,
+      btcWalletProvider: BTC_WALLET_PROVIDER,
+      depositorBtcPubkey: DEPOSITOR_PUBKEY,
+      feeRate: 10,
+    });
+
+    expect(fetchVaultIdsByDepositor).toHaveBeenCalledTimes(1);
+    expect(fetchVaultIdsByDepositor).toHaveBeenCalledWith(
+      ON_CHAIN_VAULT.depositor,
+    );
   });
 });

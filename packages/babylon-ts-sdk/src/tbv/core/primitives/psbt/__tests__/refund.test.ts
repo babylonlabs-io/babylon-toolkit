@@ -219,4 +219,102 @@ describe("buildRefundPsbt", () => {
       ).rejects.toThrow(/authAnchorHash/);
     });
   });
+
+  describe("multi-vault batched Pre-PegIn", () => {
+    const SECOND_HASH = "11".repeat(32);
+    const SECOND_AMOUNT = 80_000n;
+
+    it("builds a valid refund PSBT for the second vault (htlcVout=1) of a 2-vault batch", async () => {
+      // Multi-vault Pre-PegIn: HTLCs at vouts 0 & 1, OP_RETURN at vout 2.
+      // Refunding the vault at htlcVout=1 requires the WASM template to
+      // reconstruct both HTLC outputs in vout order — otherwise the refund
+      // input references the wrong output.
+      const params = makePrePeginParams({
+        hashlocks: [TEST_HASH_H, SECOND_HASH],
+        pegInAmounts: [TEST_AMOUNTS.PEGIN, SECOND_AMOUNT],
+        authAnchorHash: TEST_AUTH_ANCHOR_HASH,
+      });
+      const result = await buildPrePeginPsbt(params);
+      const fundedTxHex = fundPeginTransaction({
+        unfundedTxHex: result.psbtHex,
+        selectedUTXOs: [
+          {
+            txid: "aa".repeat(32),
+            vout: 0,
+            value: Number(result.totalOutputValue + 10_000n),
+            scriptPubKey: "0014" + "bb".repeat(20),
+          },
+        ],
+        changeAddress: "tb1qw508d6qejxtdg4y5r3zarvary0c5xw7kxpjzsx",
+        changeAmount: 10_000n,
+        network: bitcoin.networks.testnet,
+      });
+
+      const { psbtHex } = await buildRefundPsbt({
+        prePeginParams: params,
+        fundedPrePeginTxHex: fundedTxHex,
+        htlcVout: 1,
+        refundFee: TEST_REFUND_FEE,
+        hashlock: SECOND_HASH,
+      });
+
+      const psbt = bitcoin.Psbt.fromHex(psbtHex);
+      const unsigned = psbt.data.globalMap.unsignedTx.toBuffer();
+      const refundTx = bitcoin.Transaction.fromBuffer(unsigned);
+      const fundedTxid = bitcoin.Transaction.fromHex(fundedTxHex).getId();
+      const inputTxid = Buffer.from(refundTx.ins[0].hash)
+        .slice()
+        .reverse()
+        .toString("hex");
+      expect(inputTxid).toBe(fundedTxid);
+      // Must spend the SECOND HTLC (vout 1), not vout 0.
+      expect(refundTx.ins[0].index).toBe(1);
+      expect(refundTx.ins[0].sequence).toBe(TEST_TIMELOCK_REFUND);
+    });
+
+    it("rejects when the (hashlocks, amounts) vector disagrees with the funded tx", async () => {
+      // Fund a 2-vault Pre-PegIn with the real (hashlocks, amounts).
+      const realParams = makePrePeginParams({
+        hashlocks: [TEST_HASH_H, SECOND_HASH],
+        pegInAmounts: [TEST_AMOUNTS.PEGIN, SECOND_AMOUNT],
+        authAnchorHash: TEST_AUTH_ANCHOR_HASH,
+      });
+      const real = await buildPrePeginPsbt(realParams);
+      const fundedTxHex = fundPeginTransaction({
+        unfundedTxHex: real.psbtHex,
+        selectedUTXOs: [
+          {
+            txid: "aa".repeat(32),
+            vout: 0,
+            value: Number(real.totalOutputValue + 10_000n),
+            scriptPubKey: "0014" + "bb".repeat(20),
+          },
+        ],
+        changeAddress: "tb1qw508d6qejxtdg4y5r3zarvary0c5xw7kxpjzsx",
+        changeAmount: 10_000n,
+        network: bitcoin.networks.testnet,
+      });
+
+      // Try to refund using a template that names a DIFFERENT second
+      // hashlock. The HTLC scriptPubKey at vout 1 would not match the
+      // funded tx's vout 1 — the new cross-check must reject before
+      // the WASM produces a refund tx that signs the wrong output.
+      const wrongHashlock = "ff".repeat(32);
+      const wrongParams = makePrePeginParams({
+        hashlocks: [TEST_HASH_H, wrongHashlock],
+        pegInAmounts: [TEST_AMOUNTS.PEGIN, SECOND_AMOUNT],
+        authAnchorHash: TEST_AUTH_ANCHOR_HASH,
+      });
+
+      await expect(
+        buildRefundPsbt({
+          prePeginParams: wrongParams,
+          fundedPrePeginTxHex: fundedTxHex,
+          htlcVout: 1,
+          refundFee: TEST_REFUND_FEE,
+          hashlock: wrongHashlock,
+        }),
+      ).rejects.toThrow();
+    });
+  });
 });

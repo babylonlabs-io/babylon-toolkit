@@ -11,7 +11,7 @@
  */
 
 import type { Network } from "@babylonlabs-io/babylon-tbv-rust-wasm";
-import { Psbt } from "bitcoinjs-lib";
+import { Psbt, Transaction } from "bitcoinjs-lib";
 import type { Address, Hex } from "viem";
 
 import type { SignPsbtOptions } from "../../../../shared/wallets/interfaces/BitcoinWallet";
@@ -103,11 +103,31 @@ function assertBytes32(value: string, label: string): void {
 }
 
 /**
+ * One vault's per-HTLC binding in a Pre-PegIn batch. Carries the fields
+ * needed to reconstruct the WASM `WasmPrePeginTx` template byte-for-byte
+ * against the funded transaction.
+ */
+export interface VaultBatchEntry {
+  /** SHA-256 hashlock commitment for this vault (bytes32, 0x-prefixed). */
+  hashlock: Hex;
+  /** HTLC output value in satoshis for this vault. */
+  amount: bigint;
+  /** Index of this vault's HTLC output in the funded Pre-PegIn tx. */
+  htlcVout: number;
+}
+
+/**
  * Authoritative vault fields needed to build a refund. Versioning fields,
  * the hashlock, and htlcVout must come from the on-chain contract (never the
  * indexer). The amount + `unsignedPrePeginTxHex` + `depositorBtcPubkey` can
  * come from the indexer since they are not security-critical for signing
  * (the PSBT builder re-derives the HTLC script from on-chain params).
+ *
+ * `batch` is the full, vout-ordered HTLC vector for the Pre-PegIn (one
+ * entry per sibling vault that shares this funded transaction). For a
+ * single-vault deposit this is a length-1 array. For batched deposits
+ * (e.g. the Aave split) the orchestrator passes every sibling through
+ * so the WASM template matches the funded tx's shape.
  */
 export interface VaultRefundData {
   hashlock: Hex;
@@ -127,6 +147,13 @@ export interface VaultRefundData {
   unsignedPrePeginTxHex: string;
   /** Depositor's BTC public key (x-only or compressed hex; 0x prefix optional). */
   depositorBtcPubkey: string;
+  /**
+   * Full vout-ordered HTLC vector for the funded Pre-PegIn (one entry
+   * per sibling vault, including the target vault). Must satisfy
+   * `batch[i].htlcVout === i` for all i, and the target's `htlcVout` /
+   * `hashlock` / `amount` must equal `batch[vault.htlcVout]`.
+   */
+  batch: ReadonlyArray<VaultBatchEntry>;
 }
 
 /**
@@ -207,19 +234,49 @@ function assertNonNegativeInteger(value: number, label: string): void {
 
 function validateVaultRefundData(v: VaultRefundData): void {
   assertBytes32(v.hashlock, "hashlock");
-  // This SDK call reconstructs a single-hashlock unfunded template
-  // ([single]) and so only supports refund of the HTLC at vout 0. A
-  // multi-vault Pre-PegIn places HTLCs at 0..hashlocks.length-1 — any
-  // htlcVout != 0 implies a batched deposit whose sibling HTLCs would
-  // be missing from the reconstructed template. The orchestrator's
-  // structural OP_RETURN scan below catches auth-anchored multi-vault
-  // txs; this assertion additionally catches legacy (no OP_RETURN)
-  // multi-vault txs and documents the contract at the input boundary.
-  if (!Number.isInteger(v.htlcVout) || v.htlcVout !== 0) {
+  if (!Number.isInteger(v.htlcVout) || v.htlcVout < 0) {
     throw new Error(
-      `Multi-vault Pre-PegIn refund is not supported by this SDK call ` +
-        `(htlcVout=${v.htlcVout}, expected 0). Refund of batched-deposit ` +
-        `vaults requires reconstructing all sibling HTLCs.`,
+      `htlcVout must be a non-negative integer, got ${v.htlcVout}`,
+    );
+  }
+  // Batch shape — one entry per sibling HTLC, vout-ordered and
+  // contiguous from 0. The reconstructed WASM template uses these
+  // arrays directly: any gap, duplicate, or mis-ordering against the
+  // funded tx would produce an unspendable refund. The target's
+  // (hashlock, amount, htlcVout) must equal the corresponding batch
+  // entry so the orchestrator and the caller can't disagree about
+  // which output is being refunded.
+  if (!Array.isArray(v.batch) || v.batch.length === 0) {
+    throw new Error("batch must be a non-empty array of HTLC entries");
+  }
+  if (v.htlcVout >= v.batch.length) {
+    throw new Error(
+      `htlcVout ${v.htlcVout} is out of range for batch of size ${v.batch.length}`,
+    );
+  }
+  for (let i = 0; i < v.batch.length; i++) {
+    const entry = v.batch[i];
+    assertBytes32(entry.hashlock, `batch[${i}].hashlock`);
+    if (!Number.isInteger(entry.htlcVout) || entry.htlcVout !== i) {
+      throw new Error(
+        `batch[${i}].htlcVout must equal ${i} (contiguous vout-ordered vector), got ${entry.htlcVout}`,
+      );
+    }
+    if (typeof entry.amount !== "bigint" || entry.amount <= 0n) {
+      throw new Error(
+        `batch[${i}].amount must be a positive bigint, got ${entry.amount}`,
+      );
+    }
+  }
+  const targetEntry = v.batch[v.htlcVout];
+  if (targetEntry.hashlock.toLowerCase() !== v.hashlock.toLowerCase()) {
+    throw new Error(
+      `batch[${v.htlcVout}].hashlock (${targetEntry.hashlock}) does not match target hashlock (${v.hashlock})`,
+    );
+  }
+  if (targetEntry.amount !== v.amount) {
+    throw new Error(
+      `batch[${v.htlcVout}].amount (${targetEntry.amount}) does not match target amount (${v.amount})`,
     );
   }
   // Version fields flow directly into on-chain script derivation via
@@ -389,27 +446,42 @@ export async function buildAndBroadcastRefund<
   const cleanFundedPrePeginTxHex = stripHexPrefix(vault.unsignedPrePeginTxHex);
 
   // Production peg-ins (PeginManager) commit an OP_RETURN <PUSH32
-  // SHA256(authAnchor)> output at `vout = hashlocks.length`. The refund
-  // reconstructs the unfunded WASM template for a single vault here
-  // (hashlocks: [vault.hashlock]), so the anchor output — if present —
-  // must be at vout 1. Scan the funded tx structurally rather than
-  // peeking at a hardcoded vout: that way a batched (multi-vault) tx,
-  // where the anchor lives at vout N > 1, is detected and refused
-  // explicitly rather than silently reconstructing a single-hashlock
-  // template against an N-HTLC funded tx. Legacy non-auth-anchored
-  // deposits return `undefined` from the finder and use the 12-output
-  // template.
-  const SINGLE_VAULT_AUTH_ANCHOR_VOUT = 1;
+  // SHA256(authAnchor)> output at `vout = hashlocks.length`. The
+  // reconstructed unfunded template carries `batch.length` HTLC outputs,
+  // so the OP_RETURN — when present — must sit at exactly that vout.
+  // Legacy non-auth-anchored Pre-PegIns return `undefined` from the
+  // finder; the template then has no OP_RETURN either, which is a
+  // matching configuration.
   const found = findAuthAnchorOpReturn(cleanFundedPrePeginTxHex);
-  if (found !== undefined && found.vout !== SINGLE_VAULT_AUTH_ANCHOR_VOUT) {
+  if (found !== undefined && found.vout !== vault.batch.length) {
     throw new Error(
-      `Multi-vault Pre-PegIn refund is not supported by this SDK call ` +
-        `(auth-anchor OP_RETURN at vout ${found.vout}; single-vault refund ` +
-        `expects vout ${SINGLE_VAULT_AUTH_ANCHOR_VOUT}). Refund of ` +
-        `batched-deposit vaults requires reconstructing all sibling HTLCs.`,
+      `Auth-anchor OP_RETURN at vout ${found.vout} does not match batch size ` +
+        `(${vault.batch.length} HTLC outputs expect the anchor at vout ${vault.batch.length}). ` +
+        `Refund refused — sibling HTLC vector is incomplete.`,
     );
   }
   const authAnchorHash = found?.hash;
+
+  // Independent structural check on the funded tx: it must carry at
+  // least N HTLC outputs (one per batch entry). If the anchor is
+  // present we've already pinned its position above, which transitively
+  // proves the tx has ≥ N+1 outputs; if the anchor is absent (legacy)
+  // we still need ≥ N to spend `htlcVout = N-1`.
+  let parsedFundedTx: Transaction;
+  try {
+    parsedFundedTx = Transaction.fromHex(cleanFundedPrePeginTxHex);
+  } catch (e) {
+    throw new Error(
+      `Failed to parse funded Pre-PegIn transaction hex: ${e instanceof Error ? e.message : String(e)}`,
+    );
+  }
+  if (parsedFundedTx.outs.length < vault.batch.length) {
+    throw new Error(
+      `Funded Pre-PegIn tx has ${parsedFundedTx.outs.length} outputs but batch ` +
+        `requires at least ${vault.batch.length} HTLC outputs. ` +
+        `Refund refused — funded tx shape disagrees with sibling vector.`,
+    );
+  }
 
   const { psbtHex } = await buildRefundPsbt({
     prePeginParams: {
@@ -418,9 +490,9 @@ export async function buildAndBroadcastRefund<
       vaultKeeperPubkeys: ctx.vaultKeeperPubkeys.map(stripHexPrefix),
       universalChallengerPubkeys:
         ctx.universalChallengerPubkeys.map(stripHexPrefix),
-      hashlocks: [stripHexPrefix(vault.hashlock)],
+      hashlocks: vault.batch.map((b) => stripHexPrefix(b.hashlock)),
       timelockRefund: ctx.timelockRefund,
-      pegInAmounts: [vault.amount],
+      pegInAmounts: vault.batch.map((b) => b.amount),
       feeRate: ctx.feeRate,
       numLocalChallengers: ctx.numLocalChallengers,
       councilQuorum: ctx.councilQuorum,
