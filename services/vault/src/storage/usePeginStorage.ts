@@ -79,8 +79,19 @@ export function usePeginStorage({
   ethAddress,
   confirmedPegins,
 }: UsePeginStorageParams): UsePeginStorageResult {
-  // Use state to allow manual updates when localStorage changes
-  const [pendingPegins, setPendingPegins] = useState<PendingPeginRequest[]>([]);
+  // Lazy-init from localStorage so the very first render already has
+  // the entries. Consumers that auto-fire on mount (e.g.
+  // `useRunOnce(handleBroadcast)` in ResumeBroadcastContent) would
+  // otherwise capture an empty array in their first useCallback closure
+  // and miss the entries — `setPendingPegins` from the effect below
+  // can't reach an already-fired closure. SSR / no-ethAddress: stay
+  // empty until the effect runs.
+  const [pendingPegins, setPendingPegins] = useState<PendingPeginRequest[]>(
+    () => {
+      if (typeof window === "undefined" || !ethAddress) return [];
+      return getPendingPegins(ethAddress);
+    },
+  );
   const [storageVersion, setStorageVersion] = useState(0);
 
   // Load pending peg-ins from localStorage whenever ethAddress changes or storage is updated
