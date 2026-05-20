@@ -69,7 +69,7 @@ vi.mock("../fetchVaultProviders", () => ({
 
 vi.mock("../fetchVaults", () => ({
   fetchVaultRefundData: vi.fn(),
-  fetchVaultsByDepositor: vi.fn(),
+  fetchVaultIdsByDepositor: vi.fn(),
 }));
 
 import { getNetworkFees, pushTx } from "@babylonlabs-io/ts-sdk/tbv/core";
@@ -78,7 +78,7 @@ import { beforeEach, describe, expect, it, vi, type Mock } from "vitest";
 
 import { getVaultFromChain } from "../../../clients/eth-contract/btc-vault-registry/query";
 import { fetchVaultProviderById } from "../fetchVaultProviders";
-import { fetchVaultRefundData, fetchVaultsByDepositor } from "../fetchVaults";
+import { fetchVaultIdsByDepositor, fetchVaultRefundData } from "../fetchVaults";
 import {
   buildAndBroadcastRefundTransaction,
   getRefundPreview,
@@ -89,6 +89,9 @@ const DEPOSITOR_PUBKEY = "aabbccdd";
 const DEPOSITOR_ADDRESS = ("0x" + "ab".repeat(20)) as `0x${string}`;
 
 const ON_CHAIN_VAULT = {
+  // Authoritative on-chain depositor — matches DEPOSITOR_ADDRESS for the
+  // happy-path tests. The wallet-mismatch tests below override it.
+  depositor: DEPOSITOR_ADDRESS,
   offchainParamsVersion: 1,
   vaultProvider: "0xprovider",
   applicationEntryPoint: "0xapp",
@@ -128,7 +131,7 @@ describe("vaultRefundService - adapter wiring", () => {
     (fetchVaultRefundData as Mock).mockResolvedValue(INDEXER_VAULT);
     // Default: depositor has just the target vault. Sibling-discovery
     // tests below override this to exercise the multi-vault branch.
-    (fetchVaultsByDepositor as Mock).mockResolvedValue([{ id: VAULT_ID }]);
+    (fetchVaultIdsByDepositor as Mock).mockResolvedValue([VAULT_ID]);
     mockGetOffchainParamsByVersion.mockResolvedValue(OFFCHAIN_PARAMS);
     (fetchVaultProviderById as Mock).mockResolvedValue(VAULT_PROVIDER);
     mockGetVaultProviderBtcPubKey.mockResolvedValue(VP_BTC_PUBKEY_X_ONLY);
@@ -441,7 +444,7 @@ describe("vaultRefundService - sibling batch discovery", () => {
 
   it("builds a length-1 batch for a single-vault deposit", async () => {
     (getVaultFromChain as Mock).mockResolvedValue(ON_CHAIN_VAULT);
-    (fetchVaultsByDepositor as Mock).mockResolvedValue([{ id: VAULT_ID }]);
+    (fetchVaultIdsByDepositor as Mock).mockResolvedValue([VAULT_ID]);
 
     let observed: { batch: ReadonlyArray<unknown> } | null = null;
     mockBuildAndBroadcastRefund.mockImplementation(
@@ -484,9 +487,9 @@ describe("vaultRefundService - sibling batch discovery", () => {
       if (id === SIBLING_VAULT_ID) return Promise.resolve(SIBLING);
       throw new Error(`Unexpected vaultId ${id}`);
     });
-    (fetchVaultsByDepositor as Mock).mockResolvedValue([
-      { id: VAULT_ID },
-      { id: SIBLING_VAULT_ID },
+    (fetchVaultIdsByDepositor as Mock).mockResolvedValue([
+      VAULT_ID,
+      SIBLING_VAULT_ID,
     ]);
 
     let observed: {
@@ -533,9 +536,9 @@ describe("vaultRefundService - sibling batch discovery", () => {
       if (id === OTHER_VAULT_ID) return Promise.resolve(UNRELATED);
       throw new Error(`Unexpected vaultId ${id}`);
     });
-    (fetchVaultsByDepositor as Mock).mockResolvedValue([
-      { id: VAULT_ID },
-      { id: OTHER_VAULT_ID },
+    (fetchVaultIdsByDepositor as Mock).mockResolvedValue([
+      VAULT_ID,
+      OTHER_VAULT_ID,
     ]);
 
     let observed: { batch: ReadonlyArray<unknown> } | null = null;
@@ -570,9 +573,9 @@ describe("vaultRefundService - sibling batch discovery", () => {
       if (id === SIBLING_VAULT_ID) return Promise.resolve(SIBLING);
       throw new Error(`Unexpected vaultId ${id}`);
     });
-    (fetchVaultsByDepositor as Mock).mockResolvedValue([
-      { id: VAULT_ID },
-      { id: SIBLING_VAULT_ID },
+    (fetchVaultIdsByDepositor as Mock).mockResolvedValue([
+      VAULT_ID,
+      SIBLING_VAULT_ID,
     ]);
 
     await expect(
@@ -584,5 +587,56 @@ describe("vaultRefundService - sibling batch discovery", () => {
         feeRate: 10,
       }),
     ).rejects.toThrow(/non-contiguous HTLC vector/);
+  });
+
+  it("throws when the connected wallet differs from the on-chain depositor", async () => {
+    // Target vault is owned by ON_CHAIN_DEPOSITOR, but the user has a
+    // different wallet connected (mid-flow wallet swap, stale modal,
+    // or opened a vault they don't own). Refuse before touching the
+    // indexer — sibling enumeration against the wrong wallet would
+    // produce an incomplete batch and a confusing downstream error.
+    const ON_CHAIN_DEPOSITOR = ("0x" + "cd".repeat(20)) as `0x${string}`;
+    (getVaultFromChain as Mock).mockResolvedValue({
+      ...ON_CHAIN_VAULT,
+      depositor: ON_CHAIN_DEPOSITOR,
+    });
+
+    await expect(
+      buildAndBroadcastRefundTransaction({
+        vaultId: VAULT_ID,
+        depositorAddress: DEPOSITOR_ADDRESS,
+        btcWalletProvider: BTC_WALLET_PROVIDER,
+        depositorBtcPubkey: DEPOSITOR_PUBKEY,
+        feeRate: 10,
+      }),
+    ).rejects.toThrow(
+      /owned by .* but the connected wallet is .*Connect with the depositor wallet/,
+    );
+    // Indexer must not have been queried — fail-closed before doing
+    // sibling lookup against the wrong wallet.
+    expect(fetchVaultIdsByDepositor).not.toHaveBeenCalled();
+  });
+
+  it("enumerates siblings using the on-chain depositor (not the connected-wallet input)", async () => {
+    // Pass an upper-case variant of the on-chain depositor. The check
+    // is case-insensitive (Ethereum address checksum), and the indexer
+    // call must go out with the *on-chain* lowercase form — regardless
+    // of how the wallet provider spells the address.
+    const CHECKSUMMED = DEPOSITOR_ADDRESS.toUpperCase() as `0x${string}`;
+    (getVaultFromChain as Mock).mockResolvedValue(ON_CHAIN_VAULT);
+    (fetchVaultIdsByDepositor as Mock).mockResolvedValue([VAULT_ID]);
+
+    await buildAndBroadcastRefundTransaction({
+      vaultId: VAULT_ID,
+      depositorAddress: CHECKSUMMED,
+      btcWalletProvider: BTC_WALLET_PROVIDER,
+      depositorBtcPubkey: DEPOSITOR_PUBKEY,
+      feeRate: 10,
+    });
+
+    expect(fetchVaultIdsByDepositor).toHaveBeenCalledTimes(1);
+    expect(fetchVaultIdsByDepositor).toHaveBeenCalledWith(
+      ON_CHAIN_VAULT.depositor,
+    );
   });
 });

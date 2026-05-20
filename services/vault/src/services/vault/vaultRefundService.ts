@@ -38,15 +38,17 @@ import {
 import { getBTCNetworkForWASM } from "../../config/pegin";
 
 import { fetchVaultProviderById } from "./fetchVaultProviders";
-import { fetchVaultRefundData, fetchVaultsByDepositor } from "./fetchVaults";
+import { fetchVaultIdsByDepositor, fetchVaultRefundData } from "./fetchVaults";
 
 export interface BroadcastRefundParams {
   vaultId: Hex;
   /**
-   * Depositor's Ethereum address. Used to discover sibling vaults that
-   * share a batched Pre-PegIn transaction (Aave-split deposits, etc.)
-   * so the WASM refund template is reconstructed against the full HTLC
-   * vector rather than just the target vault's single hashlock.
+   * Connected wallet's Ethereum address. Cross-checked against the
+   * vault's on-chain `depositor` before sibling discovery — refund
+   * refuses if the user has a vault loaded that doesn't belong to the
+   * connected wallet (a mid-flow wallet swap or a stale modal).
+   * Sibling enumeration itself uses the *on-chain* depositor as the
+   * authoritative source, not this parameter.
    */
   depositorAddress: Address;
   btcWalletProvider: {
@@ -144,21 +146,44 @@ async function readTargetVault(vaultId: Hex): Promise<TargetVaultData> {
  * Sibling membership is decided by on-chain `prePeginTxHash` equality,
  * not by indexer hex comparison — that way a stale or compromised
  * indexer cannot fabricate or drop siblings. The indexer is only used
- * to enumerate the depositor's vault IDs; each candidate's authoritative
- * hashlock / htlcVout / amount comes from the contract.
+ * to enumerate vault IDs (via the lean `id`-only projection so a
+ * malformed unrelated field on a sibling row cannot silently shrink
+ * the batch); each candidate's authoritative hashlock / htlcVout /
+ * amount comes from the contract.
+ *
+ * Enumeration uses the **on-chain** depositor of the target vault, not
+ * the connected wallet. The connected wallet's address is treated as a
+ * sanity input: if it disagrees with the on-chain depositor (e.g. the
+ * user has a stale modal open after switching wallets), refund refuses
+ * with a clear error rather than silently looking up siblings in the
+ * wrong wallet's vault list.
  */
 async function discoverBatch(
   target: TargetVaultData,
   targetVaultId: Hex,
-  depositorAddress: Address,
+  connectedDepositorAddress: Address,
 ): Promise<ReadonlyArray<VaultBatchEntry>> {
+  const onChainDepositor = target.onChainVault.depositor;
+  if (
+    onChainDepositor.toLowerCase() !== connectedDepositorAddress.toLowerCase()
+  ) {
+    throw new Error(
+      `Vault ${targetVaultId} is owned by ${onChainDepositor}, but the ` +
+        `connected wallet is ${connectedDepositorAddress}. Connect with ` +
+        `the depositor wallet to refund this vault.`,
+    );
+  }
+
   const targetPrePeginTxHash = target.onChainVault.prePeginTxHash.toLowerCase();
-  const depositorVaults = await fetchVaultsByDepositor(depositorAddress);
+  // Use the on-chain depositor (not the parameter) as the enumeration
+  // source. They're equal here by the assertion above, but the on-chain
+  // value is the authoritative one to thread into the indexer query.
+  const depositorVaultIds = await fetchVaultIdsByDepositor(onChainDepositor);
 
   const targetIdLower = targetVaultId.toLowerCase();
-  const candidateIds = depositorVaults
-    .map((v) => v.id)
-    .filter((id) => id.toLowerCase() !== targetIdLower);
+  const candidateIds = depositorVaultIds.filter(
+    (id) => id.toLowerCase() !== targetIdLower,
+  );
 
   const candidateOnChain = await Promise.all(
     candidateIds.map((id) => getVaultFromChain(id)),

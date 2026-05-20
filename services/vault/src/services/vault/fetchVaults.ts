@@ -470,6 +470,71 @@ export async function fetchVaultById(vaultId: Hex): Promise<Vault | null> {
 }
 
 /**
+ * Lean enumeration of a depositor's vault IDs for the refund flow.
+ *
+ * The refund path needs to discover sibling vaults that share a batched
+ * Pre-PegIn transaction. All authoritative fields (`hashlock`, `htlcVout`,
+ * `amount`, `prePeginTxHash`) are read from the on-chain contract per
+ * candidate; the indexer is only used to enumerate vault IDs.
+ *
+ * This query intentionally projects **only `id`** so a transient indexer
+ * issue on an unrelated field (e.g. a null `depositorWotsPkHash`) cannot
+ * cause `transformVaultItem` to drop a sibling row and silently produce
+ * an incomplete batch. CLAUDE.md §refund: no silent fallbacks on critical
+ * paths.
+ */
+const GET_VAULT_IDS_BY_DEPOSITOR = gql`
+  query GetVaultIdsByDepositor($depositor: String!) {
+    vaults(where: { depositor: $depositor }) {
+      items {
+        id
+      }
+      totalCount
+    }
+  }
+`;
+
+interface VaultIdsGraphQLResponse {
+  vaults: {
+    items: { id: string }[];
+    totalCount: number;
+  };
+}
+
+/**
+ * Fetch only the `id` of each vault owned by a depositor. Used by the
+ * refund flow's sibling discovery, where every other field is read
+ * from on-chain. Throws if any returned id is malformed hex — a
+ * malformed id can't be looked up on-chain anyway.
+ *
+ * **Pagination guard:** if the indexer applies a default page-size cap
+ * and the depositor has more vaults than the cap, `items.length` will
+ * be less than the reported `totalCount`. A silently-truncated list
+ * could omit a tail sibling of a batched Pre-PegIn, so we fail closed
+ * with an actionable error instead of returning a partial set. If a
+ * real user ever hits this, the fix is to add pagination (a follow-up
+ * with concrete numbers is better than guessing the cap now).
+ */
+export async function fetchVaultIdsByDepositor(
+  depositorAddress: Address,
+): Promise<Hex[]> {
+  const data = await graphqlClient.request<VaultIdsGraphQLResponse>(
+    GET_VAULT_IDS_BY_DEPOSITOR,
+    { depositor: depositorAddress.toLowerCase() },
+  );
+  const { items, totalCount } = data.vaults;
+  if (items.length !== totalCount) {
+    throw new Error(
+      `Indexer returned ${items.length} vault ids for ${depositorAddress} ` +
+        `but totalCount=${totalCount}. The response was truncated by a ` +
+        `page-size cap and refund's sibling enumeration would be ` +
+        `incomplete; refusing to proceed.`,
+    );
+  }
+  return items.map((item) => validateRequiredHex(item.id, "id", item.id));
+}
+
+/**
  * Minimal fields needed by the refund flow — excludes unrelated required
  * fields on the full {@link Vault} projection so that indexer schema drift or
  * partial responses on non-refund fields (e.g. `depositorWotsPkHash`) cannot
