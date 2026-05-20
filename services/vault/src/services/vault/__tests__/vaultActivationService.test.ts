@@ -23,8 +23,14 @@ vi.mock("@/config/contracts", () => ({
 }));
 
 describe("activateVaultWithSecret (vault adapter)", () => {
+  // SHA-256(secret) — must match `hashlock` or the SDK rejects before write.
+  // Pair reused from useVaultActions.test.ts: secret = 32-byte 0x...01,
+  // hashlock = sha256 of that preimage.
+  const secret =
+    "0x0000000000000000000000000000000000000000000000000000000000000001" as Hex;
+  const hashlock =
+    "0xec4916dd28fc4c10d78e287ca5d9cc51ee1ae73cbfde08c6b37324cbfaac8bc5" as Hex;
   const vaultId = ("0x" + "aa".repeat(32)) as Hex;
-  const secret = ("0x" + "bb".repeat(32)) as Hex;
   const txHash = ("0x" + "cd".repeat(32)) as Hex;
   const walletClient = {} as WalletClient;
 
@@ -38,7 +44,7 @@ describe("activateVaultWithSecret (vault adapter)", () => {
       receipt: { status: "success" },
     });
 
-    await activateVaultWithSecret({ vaultId, secret, walletClient });
+    await activateVaultWithSecret({ vaultId, secret, hashlock, walletClient });
 
     expect(mockExecuteWrite).toHaveBeenCalledOnce();
     const callArgs = mockExecuteWrite.mock.calls[0][0];
@@ -58,7 +64,7 @@ describe("activateVaultWithSecret (vault adapter)", () => {
     mockExecuteWrite.mockResolvedValueOnce(result);
 
     await expect(
-      activateVaultWithSecret({ vaultId, secret, walletClient }),
+      activateVaultWithSecret({ vaultId, secret, hashlock, walletClient }),
     ).resolves.toBe(result);
   });
 
@@ -68,7 +74,22 @@ describe("activateVaultWithSecret (vault adapter)", () => {
     );
 
     await expect(
-      activateVaultWithSecret({ vaultId, secret, walletClient }),
+      activateVaultWithSecret({ vaultId, secret, hashlock, walletClient }),
     ).rejects.toThrow("ActivationDeadlineExpired");
+  });
+
+  it("rejects (without calling executeWrite) when hashlock does not match the secret", async () => {
+    const wrongHashlock = ("0x" + "11".repeat(32)) as Hex;
+
+    await expect(
+      activateVaultWithSecret({
+        vaultId,
+        secret,
+        hashlock: wrongHashlock,
+        walletClient,
+      }),
+    ).rejects.toThrow(/SHA256\(secret\) does not match/);
+
+    expect(mockExecuteWrite).not.toHaveBeenCalled();
   });
 });

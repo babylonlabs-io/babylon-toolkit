@@ -4,6 +4,7 @@
  * a malicious transaction for signing.
  */
 
+import { OnChainBtcVaultStatus } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import { act, renderHook } from "@testing-library/react";
 import type { Hex } from "viem";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -117,14 +118,24 @@ const mockGetVaultFromChain = vi.mocked(getVaultFromChain);
 const mockGetVaultRegistryReader = vi.mocked(getVaultRegistryReader);
 const mockActivateVaultWithSecret = vi.mocked(activateVaultWithSecret);
 
-/** Build a fake reader that returns a fixed protocolInfo from getVaultProtocolInfo. */
+/**
+ * Build a fake reader that returns a combined basic+protocol payload from
+ * `getVaultData` (the single read used by `handleActivation`).
+ * Defaults `basicInfo` to `status: VERIFIED` so existing happy-path tests
+ * pass the on-chain status precondition unchanged.
+ */
 function readerReturning(
   protocolInfo: Record<string, unknown>,
+  basicInfo: Record<string, unknown> = {
+    status: OnChainBtcVaultStatus.VERIFIED,
+  },
 ): ReturnType<typeof getVaultRegistryReader> {
   return {
+    getVaultData: vi
+      .fn()
+      .mockResolvedValue({ basic: basicInfo, protocol: protocolInfo }),
     getVaultProtocolInfo: vi.fn().mockResolvedValue(protocolInfo),
-    getVaultBasicInfo: vi.fn(),
-    getVaultData: vi.fn(),
+    getVaultBasicInfo: vi.fn().mockResolvedValue(basicInfo),
   } as unknown as ReturnType<typeof getVaultRegistryReader>;
 }
 
@@ -303,7 +314,7 @@ describe("useVaultActions — handleActivation hashlock source", () => {
       await result.current.handleActivation(baseActivationParams);
     });
 
-    expect(reader.getVaultProtocolInfo).toHaveBeenCalledWith("0xvaultId");
+    expect(reader.getVaultData).toHaveBeenCalledWith("0xvaultId");
     // fetchVaultById must not be called for activation — indexer is untrusted
     // for this validation step.
     expect(mockFetchVaultById).not.toHaveBeenCalled();
@@ -326,7 +337,7 @@ describe("useVaultActions — handleActivation hashlock source", () => {
       await result.current.handleActivation(baseActivationParams);
     });
 
-    expect(reader.getVaultProtocolInfo).toHaveBeenCalled();
+    expect(reader.getVaultData).toHaveBeenCalled();
     expect(mockActivateVaultWithSecret).not.toHaveBeenCalled();
     expect(result.current.activationError).toContain("Invalid secret");
   });
@@ -353,11 +364,21 @@ describe("useVaultActions — handleActivation hashlock source", () => {
   });
 
   it("surfaces a vault-not-found error when on-chain depositorSignedPeginTx is empty", async () => {
-    const reader = readerReturning({
-      depositorSignedPeginTx: "0x",
-      hashlock: ON_CHAIN_HASHLOCK,
-    });
-    mockGetVaultRegistryReader.mockReturnValue(reader);
+    // The SDK's `getVaultData` is the one that throws with the
+    // "not found on-chain" message when `depositorSignedPeginTx === '0x'`.
+    // Mock that directly here rather than relying on the helper to
+    // replicate SDK-internal validation.
+    mockGetVaultRegistryReader.mockReturnValue({
+      getVaultData: vi
+        .fn()
+        .mockRejectedValue(
+          new Error(
+            "Vault 0xvaultId not found on-chain or has no pegin transaction",
+          ),
+        ),
+      getVaultProtocolInfo: vi.fn(),
+      getVaultBasicInfo: vi.fn(),
+    } as unknown as ReturnType<typeof getVaultRegistryReader>);
 
     const { result } = renderHook(() => useVaultActions());
 
@@ -372,5 +393,77 @@ describe("useVaultActions — handleActivation hashlock source", () => {
       "Vault not found. The vault ID may be invalid.",
     );
     expect(result.current.activationError).not.toContain("0xvaultId");
+  });
+
+  // Regression: a poisoned/lagging indexer can report VERIFIED while the
+  // contract is still PENDING, which would surface the "Activate" button
+  // prematurely. handleActivation must read on-chain status and refuse to
+  // hand the secret to `activateVaultWithSecret` (and therefore to
+  // simulateContract calldata) until the contract itself reports VERIFIED.
+  it("refuses to activate when on-chain status is PENDING even if hashlock matches", async () => {
+    const reader = readerReturning(
+      {
+        depositorSignedPeginTx: "0xdeadbeef",
+        hashlock: ON_CHAIN_HASHLOCK,
+      },
+      { status: OnChainBtcVaultStatus.PENDING },
+    );
+    mockGetVaultRegistryReader.mockReturnValue(reader);
+
+    const { result } = renderHook(() => useVaultActions());
+
+    await act(async () => {
+      await result.current.handleActivation(baseActivationParams);
+    });
+
+    expect(reader.getVaultData).toHaveBeenCalledWith("0xvaultId");
+    expect(mockActivateVaultWithSecret).not.toHaveBeenCalled();
+    expect(result.current.activationError).toContain("PENDING");
+  });
+
+  // The on-chain BTCVaultStatus enum has Expired = 4. The app-side
+  // `ContractStatus` enum reassigns 4 to LIQUIDATED (indexer-only), so a
+  // naive `ContractStatus[status]` lookup mislabels on-chain Expired as
+  // LIQUIDATED — sending users / support down the wrong recovery path.
+  // handleActivation must use the on-chain label, not the app-side one.
+  it("labels on-chain status 4 as EXPIRED (not LIQUIDATED) in the activation error", async () => {
+    const reader = readerReturning(
+      {
+        depositorSignedPeginTx: "0xdeadbeef",
+        hashlock: ON_CHAIN_HASHLOCK,
+      },
+      // 4 = on-chain BTCVaultStatus.Expired
+      { status: 4 },
+    );
+    mockGetVaultRegistryReader.mockReturnValue(reader);
+
+    const { result } = renderHook(() => useVaultActions());
+
+    await act(async () => {
+      await result.current.handleActivation(baseActivationParams);
+    });
+
+    expect(mockActivateVaultWithSecret).not.toHaveBeenCalled();
+    expect(result.current.activationError).toContain("EXPIRED");
+    expect(result.current.activationError).not.toContain("LIQUIDATED");
+  });
+
+  it("forwards the on-chain hashlock to activateVaultWithSecret for SDK-side defense in depth", async () => {
+    const reader = readerReturning({
+      depositorSignedPeginTx: "0xdeadbeef",
+      hashlock: ON_CHAIN_HASHLOCK,
+    });
+    mockGetVaultRegistryReader.mockReturnValue(reader);
+    mockActivateVaultWithSecret.mockResolvedValue(undefined as never);
+
+    const { result } = renderHook(() => useVaultActions());
+
+    await act(async () => {
+      await result.current.handleActivation(baseActivationParams);
+    });
+
+    expect(mockActivateVaultWithSecret).toHaveBeenCalledWith(
+      expect.objectContaining({ hashlock: ON_CHAIN_HASHLOCK }),
+    );
   });
 });

@@ -24,6 +24,25 @@ export type OnChainBtcPubkey = string & {
   readonly [onChainBtcPubkeyBrand]: true;
 };
 
+/**
+ * Mirrors `IBTCVaultRegistry.BTCVaultStatus` in BTCVaultRegistry.sol exactly.
+ * Use this when consuming `status` from `getVaultBasicInfo` /
+ * `getBtcVaultBasicInfo`.
+ *
+ * Do NOT confuse with the app-side `ContractStatus` enum
+ * (`services/deposit/peginState.ts`) — that one is for the indexer and
+ * extends this with values 5-7, reassigning 4 to LIQUIDATED. Reading an
+ * on-chain status through `ContractStatus[n]` for labels will mislabel
+ * Expired(4) as LIQUIDATED.
+ */
+export enum OnChainBtcVaultStatus {
+  PENDING = 0,
+  VERIFIED = 1,
+  ACTIVE = 2,
+  REDEEMED = 3,
+  EXPIRED = 4,
+}
+
 /** Basic vault info from BTCVaultRegistry.getBtcVaultBasicInfo */
 export interface VaultBasicInfo {
   depositor: Address;

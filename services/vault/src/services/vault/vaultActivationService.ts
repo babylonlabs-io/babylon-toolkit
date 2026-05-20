@@ -30,6 +30,12 @@ export interface ActivateVaultParams {
   vaultId: Hex;
   /** HTLC secret preimage (bytes32, 0x-prefixed) */
   secret: Hex;
+  /**
+   * Expected hashlock (bytes32, 0x-prefixed). The SDK re-checks
+   * `sha256(secret) === hashlock` immediately before assembling calldata —
+   * last defense before the secret would enter `simulateContract`.
+   */
+  hashlock: Hex;
   /** Ethereum wallet client for signing the transaction */
   walletClient: WalletClient;
   /** Abort signal — checked before issuing the contract write */
@@ -39,7 +45,7 @@ export interface ActivateVaultParams {
 export async function activateVaultWithSecret(
   params: ActivateVaultParams,
 ): Promise<TransactionResult> {
-  const { vaultId, secret, walletClient, signal } = params;
+  const { vaultId, secret, hashlock, walletClient, signal } = params;
 
   signal?.throwIfAborted();
 
@@ -58,6 +64,7 @@ export async function activateVaultWithSecret(
     btcVaultRegistryAddress: CONTRACTS.BTC_VAULT_REGISTRY,
     vaultId,
     secret,
+    hashlock,
     // Vault's activation flow has no metadata payload today; pass the
     // contract's "empty bytes" sentinel explicitly rather than relying on
     // an SDK-side default, per the no-fallback rule on tx-creation paths.

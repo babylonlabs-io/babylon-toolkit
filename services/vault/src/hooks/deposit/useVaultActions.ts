@@ -6,7 +6,10 @@ import {
   ensureHexPrefix,
   stripHexPrefix,
 } from "@babylonlabs-io/ts-sdk/tbv/core";
-import { vpTokenRegistry } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
+import {
+  OnChainBtcVaultStatus,
+  vpTokenRegistry,
+} from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import { validateSecretAgainstHashlock } from "@babylonlabs-io/ts-sdk/tbv/core/services";
 import {
   calculateBtcTxHash,
@@ -240,20 +243,38 @@ export function useVaultActions(): UseVaultActionsReturn {
     setActivationError(null);
 
     try {
-      // Hashlock from on-chain — indexer is untrusted for signing-critical reads.
+      // Read basic + protocol info in one parallel call. Indexer is
+      // untrusted for signing-critical reads, so both come from on-chain.
+      // `getVaultData` already throws if the vault is missing on-chain
+      // (empty `depositorSignedPeginTx`), so no separate existence check
+      // is needed here. Parallel reads also narrow the gap between the
+      // status check and the contract write (the actual TOCTOU window
+      // for the secret-leak failure mode this hook guards against).
       const reader = getVaultRegistryReader();
-      const protocolInfo = await reader.getVaultProtocolInfo(vaultId);
-      if (
-        !protocolInfo.depositorSignedPeginTx ||
-        protocolInfo.depositorSignedPeginTx === "0x"
-      ) {
-        throw new Error(
-          `Vault ${vaultId} not found on-chain or has no pegin transaction`,
-        );
-      }
+      const { basic: basicInfo, protocol: protocolInfo } =
+        await reader.getVaultData(vaultId);
+
       if (!protocolInfo.hashlock || protocolInfo.hashlock === "0x") {
         throw new Error(
           "Vault hashlock not found. The vault may not support activation.",
+        );
+      }
+
+      // Gate on the on-chain status. The UI surfaces the "Activate" button
+      // based on indexer-reported status; a poisoned or lagging indexer
+      // reporting VERIFIED while the contract is still PENDING would let
+      // the secret reach `simulateContract` calldata and leak to the RPC
+      // layer. Exact-match VERIFIED (not >= 1) — ACTIVE/REDEEMED/etc. must
+      // not pass. Compare AND label against `OnChainBtcVaultStatus` (not
+      // the app-side `ContractStatus`, which reassigns the contract's
+      // Expired(4) value to the indexer-only LIQUIDATED and would
+      // mislabel on-chain Expired).
+      if (basicInfo.status !== OnChainBtcVaultStatus.VERIFIED) {
+        const label =
+          OnChainBtcVaultStatus[basicInfo.status] ??
+          `UNKNOWN(${basicInfo.status})`;
+        throw new Error(
+          `Cannot activate: vault is in ${label} state. Activation is only valid when VERIFIED.`,
         );
       }
 
@@ -275,10 +296,13 @@ export function useVaultActions(): UseVaultActionsReturn {
         account: depositorEthAddress as Hex,
       });
 
-      // Call activateVaultWithSecret on the contract
+      // Call activateVaultWithSecret on the contract. Hashlock is forwarded
+      // so the SDK re-checks `sha256(secret) === hashlock` as the last gate
+      // before calldata is assembled.
       await activateVaultWithSecret({
         vaultId: ensureHexPrefix(vaultId),
         secret: ensureHexPrefix(secretHex),
+        hashlock: ensureHexPrefix(protocolInfo.hashlock) as Hex,
         walletClient,
       });
 
