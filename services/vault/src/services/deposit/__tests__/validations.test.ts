@@ -293,6 +293,8 @@ describe("Deposit Validations", () => {
       feeDisabled: false,
       ordinalsCheckPending: false,
       ordinalsWarningUnacknowledged: false,
+      hasWalletConnectionError: false,
+      isReconnectingWallet: false,
     };
 
     it("returns enabled 'Deposit' when all conditions are met", () => {
@@ -351,6 +353,35 @@ describe("Deposit Validations", () => {
         disabled: true,
         label: "Connect your wallet",
       });
+    });
+
+    it("returns enabled 'Reconnect Wallet' when wallet liveness probe failed", () => {
+      const result = getDepositCtaState({
+        ...readyParams,
+        hasWalletConnectionError: true,
+      });
+      expect(result).toEqual({ disabled: false, label: "Reconnect Wallet" });
+    });
+
+    it("returns disabled 'Reconnecting Wallet...' while reconnect is in flight", () => {
+      const result = getDepositCtaState({
+        ...readyParams,
+        hasWalletConnectionError: true,
+        isReconnectingWallet: true,
+      });
+      expect(result).toEqual({
+        disabled: true,
+        label: "Reconnecting Wallet...",
+      });
+    });
+
+    it("prioritizes wallet-not-connected over reconnect CTA", () => {
+      const result = getDepositCtaState({
+        ...readyParams,
+        isWalletConnected: false,
+        hasWalletConnectionError: true,
+      });
+      expect(result.label).toBe("Connect your wallet");
     });
 
     it("returns 'Select a vault provider' when provider is missing", () => {

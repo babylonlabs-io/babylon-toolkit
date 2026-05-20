@@ -1,12 +1,12 @@
 import { FullScreenDialog, Heading } from "@babylonlabs-io/core-ui";
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { Address, Hex } from "viem";
 
 import { FeatureFlags } from "@/config";
 import { useAddressScreening } from "@/context/addressScreening";
 import { useGeoFencing } from "@/context/geofencing";
 import { ProtocolParamsProvider } from "@/context/ProtocolParamsContext";
-import { useETHWallet } from "@/context/wallet";
+import { useBTCWallet, useETHWallet } from "@/context/wallet";
 import { useDepositGasEstimate } from "@/hooks/deposit/useDepositGasEstimate";
 import { useDepositPeginFee } from "@/hooks/deposit/useDepositPeginFee";
 import { useDialogStep } from "@/hooks/deposit/useDialogStep";
@@ -14,6 +14,7 @@ import { useProtocolFeeRows } from "@/hooks/useProtocolFeeRows";
 import { depositService } from "@/services/deposit";
 import type { VaultActivity } from "@/types/activity";
 import type { VaultProvider } from "@/types/vaultProvider";
+import { verifyBtcWalletLiveness } from "@/utils/btc";
 
 import { DepositState, DepositStep } from "../../context/deposit/DepositState";
 import { useDepositPageFlow } from "../../hooks/deposit/useDepositPageFlow";
@@ -99,8 +100,15 @@ function SimpleDepositContent({
   const { isBlocked: isAddressBlocked, isLoading: isScreeningLoading } =
     useAddressScreening();
   const { address: connectedEthAddress } = useETHWallet();
+  const { address: connectedBtcAddress, reconnect: reconnectBtcWallet } =
+    useBTCWallet();
   const { rows: feeRows, collateralFactor } =
     useProtocolFeeRows(connectedEthAddress);
+  const [walletConnectionError, setWalletConnectionError] = useState<
+    string | null
+  >(null);
+  const [isVerifyingWallet, setIsVerifyingWallet] = useState(false);
+  const [isReconnectingWallet, setIsReconnectingWallet] = useState(false);
 
   const {
     formData,
@@ -225,6 +233,7 @@ function SimpleDepositContent({
   const resetAll = useCallback(() => {
     hasAutoChecked.current = false;
     setIsPartialLiquidation(false);
+    setWalletConnectionError(null);
     resetDeposit();
   }, [setIsPartialLiquidation, resetDeposit]);
 
@@ -238,21 +247,77 @@ function SimpleDepositContent({
     }
   };
 
-  const handleDeposit = () => {
-    if (validateForm()) {
-      setDepositData(amountSats, effectiveSelectedApplication, [
-        formData.selectedProvider,
-      ]);
-      setFeeRate(estimatedFeeRate);
-      const shouldSplit = isPartialLiquidation && allowSplit && !!vaultAmounts;
-      setIsSplitDeposit(shouldSplit);
-      if (shouldSplit && vaultAmounts) {
-        setSplitVaultAmounts([...vaultAmounts]);
-      }
-      // Wallet derives per-vault HTLC secrets via `expandHashlockSecret`
-      // inside the SIGN step — no pre-sign secret step needed.
-      goToStep(DepositStep.SIGN);
+  const handleReconnectWallet = async () => {
+    if (isReconnectingWallet) return;
+    setIsReconnectingWallet(true);
+    try {
+      await reconnectBtcWallet();
+      setWalletConnectionError(null);
+    } catch {
+      // The underlying provider throws dev-facing strings (e.g. "BTC wallet
+      // provider returned an empty address"). Surface a single polished
+      // message so users always see a consistent recovery instruction.
+      setWalletConnectionError(
+        "Could not reconnect your BTC wallet. Please open the wallet extension to confirm it is unlocked and authorized, then try again.",
+      );
+    } finally {
+      setIsReconnectingWallet(false);
     }
+  };
+
+  const handleDeposit = async () => {
+    // The CTA doubles as the recovery action when the wallet-liveness probe
+    // has failed: clicking it re-runs the underlying provider's connect flow
+    // (which triggers the wallet's unlock/re-authorization prompt) instead of
+    // attempting another deposit. The deposit attempt itself is only retried
+    // once the user successfully reconnects and the error state clears.
+    if (walletConnectionError) {
+      await handleReconnectWallet();
+      return;
+    }
+
+    if (!validateForm()) return;
+    if (isVerifyingWallet) return;
+
+    if (btcWalletProvider && connectedBtcAddress) {
+      setIsVerifyingWallet(true);
+      try {
+        await verifyBtcWalletLiveness(btcWalletProvider, connectedBtcAddress);
+      } catch (err) {
+        setWalletConnectionError(
+          err instanceof Error
+            ? err.message
+            : "BTC wallet check failed. Please reconnect your wallet and try again.",
+        );
+        return;
+      } finally {
+        setIsVerifyingWallet(false);
+      }
+    } else {
+      // The `!isWalletConnected` branch in getDepositCtaState should prevent
+      // a click from reaching here without a provider + address, and the
+      // defense-in-depth probe in useDepositFlow runs again at SIGN time.
+      // Bail loudly if that contract is ever broken so we don't silently
+      // skip the click-time liveness check.
+      setWalletConnectionError(
+        "BTC wallet is not connected. Please reconnect your wallet and try again.",
+      );
+      return;
+    }
+
+    setWalletConnectionError(null);
+    setDepositData(amountSats, effectiveSelectedApplication, [
+      formData.selectedProvider,
+    ]);
+    setFeeRate(estimatedFeeRate);
+    const shouldSplit = isPartialLiquidation && allowSplit && !!vaultAmounts;
+    setIsSplitDeposit(shouldSplit);
+    if (shouldSplit && vaultAmounts) {
+      setSplitVaultAmounts([...vaultAmounts]);
+    }
+    // Wallet derives per-vault HTLC secrets via `expandHashlockSecret`
+    // inside the SIGN step — no pre-sign secret step needed.
+    goToStep(DepositStep.SIGN);
   };
 
   const showForm = !renderedStep || renderedStep === DepositStep.FORM;
@@ -308,6 +373,10 @@ function SimpleDepositContent({
                 feeRows={feeRows}
                 ordinalsCheckUnavailable={ordinalsCheckUnavailable}
                 ordinalsCheckPending={ordinalsCheckPending}
+                hasWalletConnectionError={Boolean(walletConnectionError)}
+                walletConnectionErrorMessage={walletConnectionError}
+                isVerifyingWallet={isVerifyingWallet}
+                isReconnectingWallet={isReconnectingWallet}
               />
             </div>
           </div>
