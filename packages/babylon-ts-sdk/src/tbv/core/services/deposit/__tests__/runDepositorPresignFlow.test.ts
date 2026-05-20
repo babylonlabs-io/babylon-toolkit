@@ -47,6 +47,8 @@ vi.mock("../../../primitives/utils/bitcoin", () => ({
     pk.startsWith("0x") ? pk.slice(2) : pk.length === 66 ? pk.slice(2) : pk,
   stripHexPrefix: (s: string) =>
     s.startsWith("0x") ? s.slice(2) : s,
+  deriveBip86ScriptPubKeyHex: (xOnlyPubkey: string) =>
+    `0x5120${xOnlyPubkey}`,
 }));
 
 vi.mock("bitcoinjs-lib", () => ({
@@ -87,8 +89,15 @@ function createMockStatusReader(
 function createMockPresignClient(
   response?: Partial<RequestDepositorPresignTransactionsResponse>,
 ): PresignClient {
-  const defaultClaimer: ClaimerTransactions = {
+  const vpClaimer: ClaimerTransactions = {
     claimer_pubkey: VP_PUBKEY,
+    claim_tx: { tx_hex: "deadbeef" },
+    assert_tx: { tx_hex: "deadbeef" },
+    payout_tx: { tx_hex: "deadbeef" },
+    payout_psbt: "mock_psbt",
+  };
+  const vkClaimer: ClaimerTransactions = {
+    claimer_pubkey: VK_PUBKEY,
     claim_tx: { tx_hex: "deadbeef" },
     assert_tx: { tx_hex: "deadbeef" },
     payout_tx: { tx_hex: "deadbeef" },
@@ -116,7 +125,7 @@ function createMockPresignClient(
 
   return {
     requestDepositorPresignTransactions: vi.fn(async () => ({
-      txs: [defaultClaimer, ...(response?.txs?.slice(1) ?? [])],
+      txs: response?.txs ?? [vpClaimer, vkClaimer],
       depositor_graph:
         response?.depositor_graph ?? defaultDepositorGraph,
     })),
@@ -314,7 +323,8 @@ describe("runDepositorPresignFlow", () => {
   });
 
   it("filters out depositor's own claimer entry from PayoutManager signing", async () => {
-    // Include the depositor as a claimer in the VP response
+    // Include the depositor as a claimer in the VP response, alongside the
+    // required {VP, VK} set the new completeness assertion expects.
     const depositorClaimer: ClaimerTransactions = {
       claimer_pubkey: DEPOSITOR_PK,
       claim_tx: { tx_hex: "deadbeef" },
@@ -329,13 +339,20 @@ describe("runDepositorPresignFlow", () => {
       payout_tx: { tx_hex: "deadbeef" },
       payout_psbt: "mock_psbt",
     };
+    const vkClaimer: ClaimerTransactions = {
+      claimer_pubkey: VK_PUBKEY,
+      claim_tx: { tx_hex: "deadbeef" },
+      assert_tx: { tx_hex: "deadbeef" },
+      payout_tx: { tx_hex: "deadbeef" },
+      payout_psbt: "mock_psbt",
+    };
 
     const reader = createMockStatusReader([
       DaemonStatus.PENDING_DEPOSITOR_SIGNATURES,
     ]);
     const presignClient: PresignClient = {
       requestDepositorPresignTransactions: vi.fn(async () => ({
-        txs: [vpClaimer, depositorClaimer],
+        txs: [vpClaimer, vkClaimer, depositorClaimer],
         depositor_graph: {
           claim_tx: { tx_hex: "deadbeef" },
           assert_tx: { tx_hex: "deadbeef" },
@@ -382,5 +399,146 @@ describe("runDepositorPresignFlow", () => {
         signal: controller.signal,
       }),
     ).rejects.toThrow();
+  });
+
+  describe("non-depositor claimer set completeness", () => {
+    const vpEntry: ClaimerTransactions = {
+      claimer_pubkey: VP_PUBKEY,
+      claim_tx: { tx_hex: "deadbeef" },
+      assert_tx: { tx_hex: "deadbeef" },
+      payout_tx: { tx_hex: "deadbeef" },
+      payout_psbt: "mock_psbt",
+    };
+    const vkEntry: ClaimerTransactions = {
+      claimer_pubkey: VK_PUBKEY,
+      claim_tx: { tx_hex: "deadbeef" },
+      assert_tx: { tx_hex: "deadbeef" },
+      payout_tx: { tx_hex: "deadbeef" },
+      payout_psbt: "mock_psbt",
+    };
+    const depositorEntry: ClaimerTransactions = {
+      claimer_pubkey: DEPOSITOR_PK,
+      claim_tx: { tx_hex: "deadbeef" },
+      assert_tx: { tx_hex: "deadbeef" },
+      payout_tx: { tx_hex: "deadbeef" },
+      payout_psbt: "mock_psbt",
+    };
+    const unknownEntry: ClaimerTransactions = {
+      claimer_pubkey: "1".repeat(64),
+      claim_tx: { tx_hex: "deadbeef" },
+      assert_tx: { tx_hex: "deadbeef" },
+      payout_tx: { tx_hex: "deadbeef" },
+      payout_psbt: "mock_psbt",
+    };
+
+    function runWith(txs: ClaimerTransactions[]) {
+      const reader = createMockStatusReader([
+        DaemonStatus.PENDING_DEPOSITOR_SIGNATURES,
+      ]);
+      const presignClient = createMockPresignClient({ txs });
+      const wallet = createMockWallet();
+      const promise = runDepositorPresignFlow({
+        statusReader: reader,
+        presignClient,
+        btcWallet: wallet,
+        peginTxid: VALID_TXID,
+        depositorPk: DEPOSITOR_PK,
+        signingContext: createSigningContext(),
+      });
+      return { promise, presignClient, wallet };
+    }
+
+    it("rejects response that omits a registered vault keeper", async () => {
+      const { promise, presignClient, wallet } = runWith([vpEntry]);
+      await expect(promise).rejects.toThrow(/missing/i);
+      expect(presignClient.submitDepositorPresignatures).not.toHaveBeenCalled();
+      expect(wallet.signPsbts).not.toHaveBeenCalled();
+    });
+
+    it("rejects empty response", async () => {
+      const { promise, presignClient, wallet } = runWith([]);
+      await expect(promise).rejects.toThrow(/missing/i);
+      expect(presignClient.submitDepositorPresignatures).not.toHaveBeenCalled();
+      expect(wallet.signPsbts).not.toHaveBeenCalled();
+    });
+
+    it("rejects response containing a duplicate claimer entry", async () => {
+      const { promise, presignClient, wallet } = runWith([
+        vpEntry,
+        vkEntry,
+        vkEntry,
+      ]);
+      await expect(promise).rejects.toThrow(/duplicate/i);
+      expect(presignClient.submitDepositorPresignatures).not.toHaveBeenCalled();
+      expect(wallet.signPsbts).not.toHaveBeenCalled();
+    });
+
+    it("rejects response containing an unknown extra claimer before signing", async () => {
+      const { promise, presignClient, wallet } = runWith([
+        vpEntry,
+        vkEntry,
+        unknownEntry,
+      ]);
+      await expect(promise).rejects.toThrow(/unexpected/i);
+      expect(presignClient.submitDepositorPresignatures).not.toHaveBeenCalled();
+      expect(wallet.signPsbts).not.toHaveBeenCalled();
+    });
+
+    it("accepts the happy path with {VP, all VKs} plus the depositor entry", async () => {
+      const { promise, presignClient } = runWith([
+        vpEntry,
+        vkEntry,
+        depositorEntry,
+      ]);
+      await promise;
+      expect(
+        presignClient.submitDepositorPresignatures,
+      ).toHaveBeenCalledOnce();
+    });
+
+    it("filters out an uppercase-hex depositor entry consistently with the assertion", async () => {
+      // VP returns the depositor's claimer entry as uppercase hex (allowed
+      // by the VP-response schema validator) while signing context has it
+      // lowercase. Both the assertion and the depositor filter must
+      // normalize case identically, so:
+      //  - the assertion passes (set still equals {VP, VK})
+      //  - the depositor entry is filtered out before Phase 3 signing
+      //  - the submitted signatures map contains only the lowercase
+      //    depositor key, never the uppercase variant
+      const uppercaseDepositorEntry: ClaimerTransactions = {
+        ...depositorEntry,
+        claimer_pubkey: DEPOSITOR_PK.toUpperCase(),
+      };
+      const { promise, presignClient } = runWith([
+        vpEntry,
+        vkEntry,
+        uppercaseDepositorEntry,
+      ]);
+      await promise;
+
+      const submitCall = (
+        presignClient.submitDepositorPresignatures as ReturnType<typeof vi.fn>
+      ).mock.calls[0][0];
+      const keys = Object.keys(submitCall.signatures);
+      expect(keys).toContain(DEPOSITOR_PK);
+      expect(keys).not.toContain(DEPOSITOR_PK.toUpperCase());
+      // {VP, VK, depositor} = 3 keys, no duplicate cased-variant of the depositor
+      expect(keys).toHaveLength(3);
+    });
+
+    it("rejects [VP, VK, depositor, depositor] with a duplicate depositor entry", async () => {
+      // Duplicate detection must run on the full supplied list before the
+      // depositor entries are filtered out, otherwise a duplicated
+      // depositor entry slips through silently.
+      const { promise, presignClient, wallet } = runWith([
+        vpEntry,
+        vkEntry,
+        depositorEntry,
+        depositorEntry,
+      ]);
+      await expect(promise).rejects.toThrow(/duplicate/i);
+      expect(presignClient.submitDepositorPresignatures).not.toHaveBeenCalled();
+      expect(wallet.signPsbts).not.toHaveBeenCalled();
+    });
   });
 });
