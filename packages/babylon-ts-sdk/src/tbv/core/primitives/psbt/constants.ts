@@ -28,3 +28,30 @@ export const ASSERT_PAYOUT_OUTPUT_INDEX = 0;
 
 /** Assert output index spent by NoPayout input 0 (signed). */
 export const ASSERT_NOPAYOUT_OUTPUT_INDEX = 0;
+
+/**
+ * Dust amount (sats) for the payout CPFP anchor output.
+ * Matches `DUST_AMOUNT` in `btc-vault crates/vault/src/lib.rs`. The protocol
+ * always builds the anchor as a `Bip86KeyConnector` output of exactly this
+ * value; pinning it at validation time blocks an attacker VP from using the
+ * anchor slot as a value sink.
+ */
+export const PAYOUT_ANCHOR_DUST_SATS = 546;
+
+/** VP-claimer payout output count: [depositor payout, VP commission, CPFP anchor]. */
+export const VP_CLAIMER_PAYOUT_OUTPUT_COUNT = 3;
+
+/** Depositor/VK-claimer payout output count: [claimer payout, CPFP anchor]. */
+export const NON_VP_CLAIMER_PAYOUT_OUTPUT_COUNT = 2;
+
+/**
+ * Exclusive upper bound on VP commission (basis points), and the basis-points
+ * denominator for the commission amount `floor(peginValue * bps / 10_000)`.
+ * Matches the contract's `_validateCommission` ceiling
+ * (`BTCVaultRegistry.sol`: `commissionBps >= 10000` reverts).
+ *
+ * The protocol *minimum* commission is the version-locked
+ * `VersionedOffchainParams.minVpCommissionBps`, not a constant — it is
+ * enforced at the trust boundary (`prepareSigningContext`), not here.
+ */
+export const MAX_VP_COMMISSION_BPS_EXCLUSIVE = 10_000;

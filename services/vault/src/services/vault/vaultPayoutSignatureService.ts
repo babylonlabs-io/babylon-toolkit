@@ -36,6 +36,24 @@ import {
 } from "../../clients/eth-contract/sdk-readers";
 import { getBTCNetworkForWASM } from "../../config/pegin";
 
+/**
+ * Exclusive upper bound on VP commission (basis points). Matches the
+ * `BTCVaultRegistry._validateCommission` ceiling (`commissionBps >= 10000`
+ * reverts) and the basis-points denominator used to size the commission
+ * output.
+ */
+const VP_COMMISSION_BPS_EXCLUSIVE_MAX = 10_000;
+
+/**
+ * Absolute floor on a realizable VP commission. The contract permits
+ * `VersionedOffchainParams.minVpCommissionBps` to be `0`, but the Rust
+ * tx-graph builder (`btc-vault crates/vault/src/tx_graph/config.rs`) refuses
+ * to construct a graph with `vp_commission_bps == 0`. So a vault that can
+ * actually produce a VP-claimer payout always has commission `>= 1`; the
+ * effective floor is `max(minVpCommissionBps, 1)`.
+ */
+const MIN_REALIZABLE_VP_COMMISSION_BPS = 1;
+
 export interface PayoutVaultKeeper {
   btcPubKey: string;
 }
@@ -71,6 +89,11 @@ export interface SigningContext {
   network: Network;
   /** On-chain registered depositor payout scriptPubKey (hex) for payout output validation */
   registeredPayoutScriptPubKey: string;
+  /**
+   * VP commission in basis points (`1..=9999`) from BTCVaultRegistry.
+   * Forwarded to `buildPayoutPsbt` to cap the VP-claimer commission output.
+   */
+  commissionBps: number;
 }
 
 export interface PreparedSigningData {
@@ -141,6 +164,29 @@ export async function prepareSigningContext(
   const timelockPegin = await protocolParamsReader.getTimelockPeginByVersion(
     vault.offchainParamsVersion,
   );
+
+  // Trust-boundary check on the VP commission read from chain. Mirrors the
+  // contract's own `BTCVaultRegistry._validateCommission`: `commissionBps`
+  // must be `>= minVpCommissionBps` (version-locked) and `< 10000`. The
+  // floor is `max(minVpCommissionBps, 1)` because the Rust tx-graph builder
+  // refuses `vp_commission_bps == 0`. Validating here means the SDK's
+  // `buildPayoutPsbt` can trust `commissionBps` for its cap math.
+  const minCommissionBps = Math.max(
+    offchainParams.minVpCommissionBps,
+    MIN_REALIZABLE_VP_COMMISSION_BPS,
+  );
+  if (
+    !Number.isInteger(vault.vaultProviderCommissionBps) ||
+    vault.vaultProviderCommissionBps < minCommissionBps ||
+    vault.vaultProviderCommissionBps >= VP_COMMISSION_BPS_EXCLUSIVE_MAX
+  ) {
+    throw new Error(
+      `VP commission ${vault.vaultProviderCommissionBps} bps out of protocol ` +
+        `range [${minCommissionBps}, ${VP_COMMISSION_BPS_EXCLUSIVE_MAX}) ` +
+        `for offchain params version ${vault.offchainParamsVersion}`,
+    );
+  }
+
   const councilMembers = offchainParams.securityCouncilKeys
     .map((k) => stripHexPrefix(k))
     .sort();
@@ -192,6 +238,7 @@ export async function prepareSigningContext(
       councilQuorum: offchainParams.councilQuorum,
       network: getBTCNetworkForWASM(),
       registeredPayoutScriptPubKey,
+      commissionBps: vault.vaultProviderCommissionBps,
     },
     vaultProviderAddress: vault.vaultProvider,
   };

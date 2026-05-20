@@ -135,6 +135,7 @@ describe("vaultPayoutSignatureService", () => {
       universalChallengersVersion: 3,
       applicationEntryPoint: "0xapp",
       vaultProvider: "0xprovider" as `0x${string}`,
+      vaultProviderCommissionBps: 50,
     };
 
     beforeEach(() => {
@@ -145,6 +146,7 @@ describe("vaultPayoutSignatureService", () => {
         timelockAssert: 144n,
         securityCouncilKeys: ["0xcouncil2", "0xcouncil1"],
         councilQuorum: 1,
+        minVpCommissionBps: 10,
       });
       mockGetVaultKeepersByVersion.mockResolvedValue([
         { btcPubKey: "vk1" },
@@ -176,6 +178,67 @@ describe("vaultPayoutSignatureService", () => {
       expect(context.vaultProviderBtcPubkey).toBe(ON_CHAIN_VP_PUBKEY);
       expect(context.network).toBe("testnet");
       expect(context.registeredPayoutScriptPubKey).toBe("0xscript");
+      expect(context.commissionBps).toBe(50);
+    });
+
+    it("throws when VP commission is below the protocol floor", async () => {
+      // minVpCommissionBps = 10; a vault with commission 5 is below the floor.
+      (getVaultFromChain as Mock).mockResolvedValue({
+        ...ON_CHAIN_VAULT,
+        vaultProviderCommissionBps: 5,
+      });
+
+      await expect(
+        prepareSigningContext({
+          vaultId: "vault_id",
+          depositorBtcPubkey: "depositor_pubkey",
+          registeredPayoutScriptPubKey: "0xscript",
+        }),
+      ).rejects.toThrow(
+        /VP commission 5 bps out of protocol range \[10, 10000\)/,
+      );
+    });
+
+    it("throws when VP commission is at or above the 10000 ceiling", async () => {
+      (getVaultFromChain as Mock).mockResolvedValue({
+        ...ON_CHAIN_VAULT,
+        vaultProviderCommissionBps: 10000,
+      });
+
+      await expect(
+        prepareSigningContext({
+          vaultId: "vault_id",
+          depositorBtcPubkey: "depositor_pubkey",
+          registeredPayoutScriptPubKey: "0xscript",
+        }),
+      ).rejects.toThrow(
+        /VP commission 10000 bps out of protocol range \[10, 10000\)/,
+      );
+    });
+
+    it("uses 1 as the floor when minVpCommissionBps is 0", async () => {
+      // The contract permits minVpCommissionBps 0, but the Rust tx-graph
+      // builder refuses commission 0 — so the effective floor is max(0, 1).
+      mockGetOffchainParamsByVersion.mockResolvedValue({
+        timelockAssert: 144n,
+        securityCouncilKeys: ["0xcouncil2", "0xcouncil1"],
+        councilQuorum: 1,
+        minVpCommissionBps: 0,
+      });
+      (getVaultFromChain as Mock).mockResolvedValue({
+        ...ON_CHAIN_VAULT,
+        vaultProviderCommissionBps: 0,
+      });
+
+      await expect(
+        prepareSigningContext({
+          vaultId: "vault_id",
+          depositorBtcPubkey: "depositor_pubkey",
+          registeredPayoutScriptPubKey: "0xscript",
+        }),
+      ).rejects.toThrow(
+        /VP commission 0 bps out of protocol range \[1, 10000\)/,
+      );
     });
 
     it("accepts a caller-provided VP pubkey hint when it matches on-chain", async () => {

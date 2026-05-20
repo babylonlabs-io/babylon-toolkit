@@ -30,6 +30,11 @@ export interface OnChainVaultData {
   amount: bigint;
   /** Hash of the Pre-PegIn transaction (bytes32, 0x-prefixed) */
   prePeginTxHash: Hex;
+  /**
+   * VP commission in basis points (`1..=9999`) locked at vault creation.
+   * Required by `buildPayoutPsbt` to cap the VP-claimer commission output.
+   */
+  vaultProviderCommissionBps: number;
 }
 
 /**
@@ -55,6 +60,7 @@ export async function getVaultFromChain(
     htlcVout: Number(protocol.htlcVout),
     amount: basic.amount,
     prePeginTxHash: protocol.prePeginTxHash,
+    vaultProviderCommissionBps: Number(protocol.vaultProviderCommissionBps),
   };
 }
 

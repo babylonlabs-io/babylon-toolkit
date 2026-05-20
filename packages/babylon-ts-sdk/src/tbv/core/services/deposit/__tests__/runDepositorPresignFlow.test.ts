@@ -156,6 +156,7 @@ function createSigningContext(): PayoutSigningContext {
     councilQuorum: 1,
     network: "Testnet4" as never,
     registeredPayoutScriptPubKey: "0x5120" + DEPOSITOR_PK,
+    commissionBps: 50,
   };
 }
 

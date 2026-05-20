@@ -228,6 +228,8 @@ describe("PayoutManager", () => {
           timelockPegin: 100,
           depositorBtcPubkey: TEST_KEYS.DEPOSITOR,
           registeredPayoutScriptPubKey: TEST_PAYOUT_SCRIPT_PUBKEY,
+          claimerBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
+          commissionBps: 500,
         },
         {
           payoutTxHex: payoutTxHex2,
@@ -239,6 +241,8 @@ describe("PayoutManager", () => {
           timelockPegin: 100,
           depositorBtcPubkey: TEST_KEYS.DEPOSITOR,
           registeredPayoutScriptPubKey: TEST_PAYOUT_SCRIPT_PUBKEY,
+          claimerBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
+          commissionBps: 500,
         },
       ]);
 
@@ -285,6 +289,8 @@ describe("PayoutManager", () => {
             timelockPegin: 100,
             depositorBtcPubkey: TEST_KEYS.DEPOSITOR,
             registeredPayoutScriptPubKey: TEST_PAYOUT_SCRIPT_PUBKEY,
+            claimerBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
+            commissionBps: 500,
           },
         ]),
       ).rejects.toThrow(
@@ -328,6 +334,8 @@ describe("PayoutManager", () => {
             timelockPegin: 100,
             depositorBtcPubkey: TEST_KEYS.DEPOSITOR,
             registeredPayoutScriptPubKey: TEST_PAYOUT_SCRIPT_PUBKEY,
+            claimerBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
+            commissionBps: 500,
           },
         ]),
       ).rejects.toThrow();
@@ -386,6 +394,8 @@ describe("PayoutManager", () => {
             timelockPegin: 100,
             depositorBtcPubkey: TEST_KEYS.DEPOSITOR,
             registeredPayoutScriptPubKey: TEST_PAYOUT_SCRIPT_PUBKEY,
+            claimerBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
+            commissionBps: 500,
           },
           {
             payoutTxHex: createTestPayoutTransaction(peginTxHex, assertTxHex),
@@ -397,6 +407,8 @@ describe("PayoutManager", () => {
             timelockPegin: 100,
             depositorBtcPubkey: TEST_KEYS.DEPOSITOR,
             registeredPayoutScriptPubKey: TEST_PAYOUT_SCRIPT_PUBKEY,
+            claimerBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
+            commissionBps: 500,
           },
         ]),
       ).rejects.toThrow(
@@ -459,6 +471,8 @@ describe("PayoutManager", () => {
             timelockPegin: 100,
             depositorBtcPubkey: TEST_KEYS.DEPOSITOR,
             registeredPayoutScriptPubKey: TEST_PAYOUT_SCRIPT_PUBKEY,
+            claimerBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
+            commissionBps: 500,
           },
           {
             payoutTxHex: createTestPayoutTransaction(peginTxHex, assertTxHex),
@@ -470,6 +484,8 @@ describe("PayoutManager", () => {
             timelockPegin: 100,
             depositorBtcPubkey: TEST_KEYS.DEPOSITOR,
             registeredPayoutScriptPubKey: TEST_PAYOUT_SCRIPT_PUBKEY,
+            claimerBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
+            commissionBps: 500,
           },
         ]),
       ).rejects.toThrow(
@@ -555,9 +571,11 @@ describe("PayoutManager", () => {
           timelockPegin: 100,
           depositorBtcPubkey: TEST_KEYS.DEPOSITOR,
           registeredPayoutScriptPubKey: wrongScriptPubKey,
+          claimerBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
+          commissionBps: 500,
         }),
       ).rejects.toThrow(
-        "Payout transaction output 0 does not pay to the registered depositor payout address",
+        "Payout transaction output 0 does not pay the expected scriptPubKey for role vp-claimer",
       );
     });
 
@@ -591,9 +609,11 @@ describe("PayoutManager", () => {
           timelockPegin: 100,
           depositorBtcPubkey: TEST_KEYS.DEPOSITOR,
           registeredPayoutScriptPubKey: prefixedScriptPubKey,
+          claimerBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
+          commissionBps: 500,
         }),
       ).rejects.not.toThrow(
-        "output 0 does not pay to the registered depositor payout address",
+        "output 0 does not pay the expected scriptPubKey for role vp-claimer",
       );
     });
 
@@ -622,11 +642,13 @@ describe("PayoutManager", () => {
           timelockPegin: 100,
           depositorBtcPubkey: TEST_KEYS.DEPOSITOR,
           registeredPayoutScriptPubKey: "not-valid-hex",
+          claimerBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
+          commissionBps: 500,
         }),
       ).rejects.toThrow("Invalid registeredPayoutScriptPubKey: not valid hex");
     });
 
-    it("rejects #147 PoC: registered script at vout 0 is preserved but extra attacker outputs drain value", async () => {
+    it("rejects a payout where vout 0 keeps the registered script but extra attacker outputs drain value", async () => {
       const peginTxHex = createTestPeginTransaction();
       const assertTxHex = createTestAssertTransaction();
 
@@ -656,7 +678,7 @@ describe("PayoutManager", () => {
       maliciousTx.addOutput(createDummyP2WPKH("e"), 1_000);
       // outs[2]: CPFP anchor slot
       maliciousTx.addOutput(createDummyP2WPKH("c"), 546);
-      // outs[3]: EXTRA attacker output — the #147 exploit vector.
+      // outs[3]: EXTRA attacker output — the value-diversion vector.
       maliciousTx.addOutput(createDummyP2WPKH("a"), 67_000);
 
       const btcWallet = new MockBitcoinWallet({
@@ -679,6 +701,8 @@ describe("PayoutManager", () => {
           timelockPegin: 100,
           depositorBtcPubkey: TEST_KEYS.DEPOSITOR,
           registeredPayoutScriptPubKey: TEST_PAYOUT_SCRIPT_PUBKEY,
+          claimerBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
+          commissionBps: 500,
         }),
       ).rejects.toThrow(/has 4 output\(s\), expected exactly 3/);
     });
@@ -735,6 +759,8 @@ describe("PayoutManager", () => {
           timelockPegin: 100,
           depositorBtcPubkey: TEST_KEYS.DEPOSITOR,
           registeredPayoutScriptPubKey: TEST_PAYOUT_SCRIPT_PUBKEY,
+          claimerBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
+          commissionBps: 500,
         }),
       ).rejects.toThrow(/output 0 script/);
     });
@@ -768,10 +794,12 @@ describe("PayoutManager", () => {
             timelockPegin: 100,
             depositorBtcPubkey: TEST_KEYS.DEPOSITOR,
             registeredPayoutScriptPubKey: wrongScriptPubKey,
+            claimerBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
+            commissionBps: 500,
           },
         ]),
       ).rejects.toThrow(
-        "Payout transaction output 0 does not pay to the registered depositor payout address",
+        "Payout transaction output 0 does not pay the expected scriptPubKey for role vp-claimer",
       );
     });
   });

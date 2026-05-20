@@ -18,7 +18,6 @@ import type {
 } from "../../clients/vault-provider/types";
 import { PayoutManager } from "../../managers/PayoutManager";
 import {
-  deriveBip86ScriptPubKeyHex,
   processPublicKeyToXOnly,
   stripHexPrefix,
 } from "../../primitives/utils/bitcoin";
@@ -72,6 +71,14 @@ export interface PayoutSigningContext {
   network: Network;
   /** On-chain registered depositor payout scriptPubKey (hex) */
   registeredPayoutScriptPubKey: string;
+  /**
+   * VP commission in basis points, sourced from
+   * `BTCVaultRegistry.vaultProviderCommissionBps`. Required for the
+   * VP-claimer output-validation cap inside `buildPayoutPsbt`. Must be in
+   * `1..=9999` per the protocol invariant in
+   * `btc-vault crates/vault/src/tx_graph/config.rs`.
+   */
+  commissionBps: number;
 }
 
 export interface RunDepositorPresignFlowParams {
@@ -210,43 +217,10 @@ function assertNonDepositorClaimerSetMatches(
 }
 
 /**
- * Resolve the expected payout scriptPubKey for a given claimer.
- *
- * - VP/Depositor claimer: payout goes to the depositor's registered payout address
- * - VK claimer: payout goes to a BIP-86 P2TR address derived from the VK's pubkey
- *
- * Note: BIP-86 derivation for VK claimers requires bitcoinjs-lib's ECC to be initialized.
+ * Build the `SignPayoutParams` for a single claimer. Role/script resolution
+ * happens inside `buildPayoutPsbt`; here we only forward the claimer pubkey
+ * and the per-vault context fields.
  */
-function resolvePayoutScriptPubKey(
-  claimerPubkeyXOnly: string,
-  context: PayoutSigningContext,
-): string {
-  const claimer = stripHexPrefix(claimerPubkeyXOnly).toLowerCase();
-  const vpPubkey = stripHexPrefix(
-    context.vaultProviderBtcPubkey,
-  ).toLowerCase();
-  const depositorPubkey = stripHexPrefix(
-    context.depositorBtcPubkey,
-  ).toLowerCase();
-
-  if (claimer === vpPubkey || claimer === depositorPubkey) {
-    return context.registeredPayoutScriptPubKey;
-  }
-
-  // Verify claimer is a known vault keeper
-  const isVaultKeeper = context.vaultKeeperBtcPubkeys.some(
-    (vk) => stripHexPrefix(vk).toLowerCase() === claimer,
-  );
-  if (!isVaultKeeper) {
-    throw new Error(
-      `Unknown claimer pubkey ${claimer}: not VP, depositor, or a registered vault keeper`,
-    );
-  }
-
-  // VK claimer: derive BIP-86 P2TR scriptPubKey from the VK's x-only pubkey
-  return deriveBip86ScriptPubKeyHex(claimer);
-}
-
 function buildPayoutSigningInput(
   tx: PreparedTransaction,
   context: PayoutSigningContext,
@@ -260,10 +234,9 @@ function buildPayoutSigningInput(
     universalChallengerBtcPubkeys: context.universalChallengerBtcPubkeys,
     depositorBtcPubkey: context.depositorBtcPubkey,
     timelockPegin: context.timelockPegin,
-    registeredPayoutScriptPubKey: resolvePayoutScriptPubKey(
-      tx.claimerPubkeyXOnly,
-      context,
-    ),
+    registeredPayoutScriptPubKey: context.registeredPayoutScriptPubKey,
+    claimerBtcPubkey: tx.claimerPubkeyXOnly,
+    commissionBps: context.commissionBps,
   };
 }
 

@@ -119,8 +119,9 @@ export async function buildNoPayoutPsbt(
  * protocol-defined output structure: a single BIP-86 P2TR output derived from
  * the challenger's x-only pubkey.
  *
- * Mirrors `assertPayoutOutputMatchesRegistered` for the NoPayout path, where
- * the sink is fixed by the protocol rather than read from on-chain registration
+ * Mirrors the per-role payout output validation now inlined in
+ * `buildPayoutPsbt` for the NoPayout path, where the sink is fixed by the
+ * protocol rather than read from on-chain registration
  * (see `crates/vault/src/transactions/nopayout.rs::NoPayoutTx::new`).
  *
  * @param noPayoutTxHex - Raw NoPayout transaction hex
