@@ -7,6 +7,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import type { Hex } from "viem";
 
 import { getNetworkConfigBTC } from "../config";
 import {
@@ -28,6 +29,7 @@ import {
   getPendingPegins,
   markRefundBroadcast as markRefundBroadcastInStorage,
   type PendingPeginRequest,
+  removePendingPegin as removePendingPeginFromStorage,
   savePendingPegins,
   updatePendingPeginStatus as updatePendingPeginStatusInStorage,
 } from "./peginStorage";
@@ -54,6 +56,13 @@ export interface UsePeginStorageResult {
     status: LocalStorageStatus,
   ) => void;
   /**
+   * Remove a single pending peg-in by vault id. Used by the resume
+   * broadcast path to clear entries that the on-chain version check has
+   * confirmed can never be safely broadcast, matching what the inline
+   * deposit path does for the same mismatch.
+   */
+  removePendingPegin: (vaultId: string) => void;
+  /**
    * Mark a pegin as REFUND_BROADCAST and stamp the broadcast time used by the
    * optimistic-suppression TTL.
    */
@@ -70,8 +79,19 @@ export function usePeginStorage({
   ethAddress,
   confirmedPegins,
 }: UsePeginStorageParams): UsePeginStorageResult {
-  // Use state to allow manual updates when localStorage changes
-  const [pendingPegins, setPendingPegins] = useState<PendingPeginRequest[]>([]);
+  // Lazy-init from localStorage so the very first render already has
+  // the entries. Consumers that auto-fire on mount (e.g.
+  // `useRunOnce(handleBroadcast)` in ResumeBroadcastContent) would
+  // otherwise capture an empty array in their first useCallback closure
+  // and miss the entries — `setPendingPegins` from the effect below
+  // can't reach an already-fired closure. SSR / no-ethAddress: stay
+  // empty until the effect runs.
+  const [pendingPegins, setPendingPegins] = useState<PendingPeginRequest[]>(
+    () => {
+      if (typeof window === "undefined" || !ethAddress) return [];
+      return getPendingPegins(ethAddress);
+    },
+  );
   const [storageVersion, setStorageVersion] = useState(0);
 
   // Load pending peg-ins from localStorage whenever ethAddress changes or storage is updated
@@ -255,11 +275,20 @@ export function usePeginStorage({
     [ethAddress],
   );
 
+  const removePendingPegin = useCallback(
+    (vaultId: string) => {
+      if (!ethAddress) return;
+      removePendingPeginFromStorage(ethAddress, vaultId as Hex);
+    },
+    [ethAddress],
+  );
+
   return {
     allActivities,
     pendingPegins,
     addPendingPegin,
     updatePendingPeginStatus,
+    removePendingPegin,
     markRefundBroadcast,
   };
 }

@@ -257,6 +257,8 @@ export const COPY = {
         `Please switch to ${network} in your wallet`,
       ethereumMainnet: "Ethereum Mainnet",
       sepoliaTestnet: "Sepolia Testnet",
+      crossDeviceBroadcastUnsupported:
+        "This pre-peg-in cannot be broadcast from the in-app button because the build-time parameters that pin its Bitcoin scripts are not available here. Please broadcast from the original device, or wait for the refund timeout.",
     },
     payoutSigningGuards: {
       missingPayoutAddress: {

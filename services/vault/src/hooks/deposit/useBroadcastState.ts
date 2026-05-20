@@ -57,10 +57,11 @@ export function useBroadcastState({
   const [localBroadcasting, setLocalBroadcasting] = useState(false);
 
   const { setOptimisticStatus } = usePeginPolling();
-  const { pendingPegins, updatePendingPeginStatus } = usePeginStorage({
-    ethAddress: depositorEthAddress,
-    confirmedPegins: EMPTY_CONFIRMED,
-  });
+  const { pendingPegins, updatePendingPeginStatus, removePendingPegin } =
+    usePeginStorage({
+      ethAddress: depositorEthAddress,
+      confirmedPegins: EMPTY_CONFIRMED,
+    });
 
   const handleBroadcast = useCallback(async () => {
     // Resolve pendingPegin at call time to avoid stale closure references
@@ -72,6 +73,7 @@ export function useBroadcastState({
         vaultId: activity.id,
         pendingPegin,
         updatePendingPeginStatus,
+        removePendingPegin,
         onRefetchActivities: () => {
           // No-op: onSuccess() unmounts the component before this could run.
           // The polling context handles periodic refetching, and the optimistic
@@ -100,6 +102,7 @@ export function useBroadcastState({
     batchVaultIds,
     pendingPegins,
     updatePendingPeginStatus,
+    removePendingPegin,
     vaultHandleBroadcast,
     setOptimisticStatus,
     onSuccess,
