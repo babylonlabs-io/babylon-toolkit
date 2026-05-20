@@ -16,13 +16,15 @@ vi.mock("@/config/env", () => ({
 }));
 
 const mockGetVaultBasicInfo = vi.fn();
+const mockGetVaultData = vi.fn();
 vi.mock("../../sdk-readers", () => ({
   getVaultRegistryReader: () => ({
     getVaultBasicInfo: mockGetVaultBasicInfo,
+    getVaultData: mockGetVaultData,
   }),
 }));
 
-import { getBtcVaultBasicInfoFromChain } from "../query";
+import { getBtcVaultBasicInfoFromChain, getVaultFromChain } from "../query";
 
 const VAULT_A =
   "0xaaaa000000000000000000000000000000000000000000000000000000000001" as Hex;
@@ -96,5 +98,38 @@ describe("getBtcVaultBasicInfoFromChain", () => {
     await expect(
       getBtcVaultBasicInfoFromChain([VAULT_A, VAULT_B]),
     ).rejects.toThrow(/not registered on-chain/);
+  });
+});
+
+describe("getVaultFromChain", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  // Status is the load-bearing field for the broadcast precondition; if a
+  // future refactor of the basic-info merge drops it, the broadcast gate
+  // would fall back to `undefined` and pass every comparison.
+  it("surfaces basic.status alongside protocol fields", async () => {
+    mockGetVaultData.mockResolvedValue({
+      basic: {
+        ...basicInfo(60_000_000n),
+        status: 4, // on-chain BTCVaultStatus.Expired
+      },
+      protocol: {
+        depositorSignedPeginTx: "0xdeadbeef" as Hex,
+        universalChallengersVersion: 1n,
+        appVaultKeepersVersion: 2n,
+        offchainParamsVersion: 3n,
+        hashlock: ("0x" + "1".repeat(64)) as Hex,
+        htlcVout: 0n,
+        prePeginTxHash: ("0x" + "2".repeat(64)) as Hex,
+      },
+    });
+
+    const result = await getVaultFromChain(VAULT_A);
+
+    expect(result.status).toBe(4);
+    expect(result.amount).toBe(60_000_000n);
+    expect(result.prePeginTxHash).toBe(("0x" + "2".repeat(64)) as Hex);
   });
 });

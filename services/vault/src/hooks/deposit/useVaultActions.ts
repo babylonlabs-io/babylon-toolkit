@@ -165,6 +165,22 @@ export function useVaultActions(): UseVaultActionsReturn {
         );
       }
 
+      // Gate on a fresh on-chain status read. The GraphQL pre-check above is
+      // an indexer/Redis value that can lag the chain; if a vault has moved
+      // off PENDING since the indexer last refreshed, signing+broadcasting
+      // here would lock BTC into a flow that can no longer activate normally.
+      // Compare AND label against `OnChainBtcVaultStatus` (not the app-side
+      // `ContractStatus`, which reassigns the contract's Expired(4) to the
+      // indexer-only LIQUIDATED and would mislabel on-chain Expired).
+      if (onChainVault.status !== OnChainBtcVaultStatus.PENDING) {
+        const label =
+          OnChainBtcVaultStatus[onChainVault.status] ??
+          `UNKNOWN(${onChainVault.status})`;
+        throw new Error(
+          `Cannot broadcast: on-chain vault is in ${label} state. Broadcast is only valid during PENDING.`,
+        );
+      }
+
       // Get BTC wallet provider
       const btcWalletProvider = btcConnector?.connectedWallet?.provider;
       if (!btcWalletProvider) {

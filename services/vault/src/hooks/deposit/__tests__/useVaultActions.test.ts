@@ -190,6 +190,7 @@ describe("useVaultActions — handleBroadcast transaction integrity", () => {
     mockGetVaultFromChain.mockResolvedValue({
       prePeginTxHash: "0xmatching_pre_pegin_hash",
       hashlock: "0xonchain_hashlock",
+      status: OnChainBtcVaultStatus.PENDING,
     } as never);
     // Default reader: on-chain versions exactly match the build versions in
     // `basePendingPegin`. Tests that exercise drift override this per-case.
@@ -300,6 +301,61 @@ describe("useVaultActions — handleBroadcast transaction integrity", () => {
     expect(result.current.broadcastError).toContain("VERIFIED");
     expect(mockBroadcastPrePeginTransaction).not.toHaveBeenCalled();
   });
+
+  // Regression: a poisoned/lagging indexer can report PENDING while the
+  // contract has already moved off PENDING. The integrity hash check passes
+  // (prePeginTxHash doesn't change across status transitions), so the
+  // on-chain status read is the load-bearing gate that prevents BTC from
+  // being signed and broadcast into a flow that can no longer activate.
+  it("refuses to broadcast when GraphQL says PENDING but on-chain status is EXPIRED", async () => {
+    mockFetchVaultById.mockResolvedValue(baseVault as never);
+    mockGetVaultFromChain.mockResolvedValue({
+      prePeginTxHash: "0xmatching_pre_pegin_hash",
+      hashlock: "0xonchain_hashlock",
+      status: OnChainBtcVaultStatus.EXPIRED,
+    } as never);
+
+    const { result } = renderHook(() => useVaultActions());
+
+    await act(async () => {
+      await result.current.handleBroadcast({
+        ...baseBroadcastParams,
+        pendingPegin: { ...basePendingPegin },
+      });
+    });
+
+    expect(result.current.broadcastError).toMatch(/on-chain.*EXPIRED/);
+    expect(mockBroadcastPrePeginTransaction).not.toHaveBeenCalled();
+    expect(mockSignPsbt).not.toHaveBeenCalled();
+  });
+
+  // The on-chain BTCVaultStatus enum has Expired = 4. The app-side
+  // `ContractStatus` enum reassigns 4 to LIQUIDATED (indexer-only), so a
+  // naive `ContractStatus[status]` lookup mislabels on-chain Expired as
+  // LIQUIDATED — sending users / support down the wrong recovery path.
+  // handleBroadcast must use the on-chain label, not the app-side one.
+  it("labels on-chain status 4 as EXPIRED (not LIQUIDATED) in the broadcast error", async () => {
+    mockFetchVaultById.mockResolvedValue(baseVault as never);
+    mockGetVaultFromChain.mockResolvedValue({
+      prePeginTxHash: "0xmatching_pre_pegin_hash",
+      hashlock: "0xonchain_hashlock",
+      // 4 = on-chain BTCVaultStatus.Expired
+      status: 4,
+    } as never);
+
+    const { result } = renderHook(() => useVaultActions());
+
+    await act(async () => {
+      await result.current.handleBroadcast({
+        ...baseBroadcastParams,
+        pendingPegin: { ...basePendingPegin },
+      });
+    });
+
+    expect(result.current.broadcastError).toContain("EXPIRED");
+    expect(result.current.broadcastError).not.toContain("LIQUIDATED");
+    expect(mockBroadcastPrePeginTransaction).not.toHaveBeenCalled();
+  });
 });
 
 // Resume broadcasts must re-assert the three on-chain versions against the
@@ -313,9 +369,13 @@ describe("useVaultActions — handleBroadcast version drift guard", () => {
     vi.clearAllMocks();
     mockCalculateBtcTxHash.mockReturnValue("0xmatching_pre_pegin_hash");
     mockFetchVaultById.mockResolvedValue(baseVault as never);
+    // status: PENDING so the broadcast-status precondition (which runs before
+    // the version check this describe block exercises) lets execution reach
+    // the version drift logic.
     mockGetVaultFromChain.mockResolvedValue({
       prePeginTxHash: "0xmatching_pre_pegin_hash",
       hashlock: "0xonchain_hashlock",
+      status: OnChainBtcVaultStatus.PENDING,
     } as never);
   });
 
