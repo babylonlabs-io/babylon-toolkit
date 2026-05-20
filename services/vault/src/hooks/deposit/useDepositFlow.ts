@@ -635,6 +635,17 @@ export function useDepositFlow(
               value: String(u.value),
               scriptPubKey: u.scriptPubKey,
             })),
+            // Persist the exact versions the BTC scripts were built against.
+            // The resume broadcast path re-asserts these against the on-chain
+            // vault before signing — current local config is not safe to
+            // compare against, since both could drift to the same new value
+            // while the BTC scripts stayed pinned to the construction-time
+            // version.
+            buildOffchainParamsVersion: config.offchainParamsVersion,
+            buildAppVaultKeepersVersion:
+              validatedKeys.expectedAppVaultKeepersVersion,
+            buildUniversalChallengersVersion:
+              validatedKeys.expectedUniversalChallengersVersion,
           });
           // At least one durable pending-pegin record now covers the
           // same UTXOs as the early reservation (all vaults in a batch

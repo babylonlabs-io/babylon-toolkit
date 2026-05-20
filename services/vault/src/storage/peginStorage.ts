@@ -56,6 +56,19 @@ export interface PendingPeginRequest {
   batchId?: string; // UUID linking vaults created together
   batchIndex?: number; // Position in batch (1-based: 1 or 2)
   batchTotal?: number; // Total vaults in batch (1 or 2)
+  // Versions used to construct the BTC scripts in `unsignedTxHex`.
+  // Asserted against the on-chain vault registration before any resume
+  // broadcast — guards against on-chain params rotating between
+  // construction and a later signing. Optional in the type because
+  // REFUND_BROADCAST entries (written by `useRefundState`) are tracking
+  // records that never drive a Pre-PegIn broadcast and don't need them.
+  // For broadcastable statuses (PENDING / PAYOUT_SIGNED / CONFIRMING) the
+  // storage validator requires all three; legacy entries from before this
+  // guard land without them and are filtered out of `getPendingPegins`,
+  // making them non-broadcastable through the in-app button.
+  buildOffchainParamsVersion?: number;
+  buildAppVaultKeepersVersion?: number;
+  buildUniversalChallengersVersion?: number;
 }
 
 // Hex with optional 0x prefix and at least one byte (even-length).
@@ -184,6 +197,29 @@ function hasValidSecurityFields(entry: unknown): entry is PendingPeginRequest {
     !isValidSelectedUTXOs(pegin.selectedUTXOs)
   ) {
     return false;
+  }
+
+  // Build-time versions: required for any status that could drive a
+  // resume Pre-PegIn broadcast (so the guard in
+  // `useVaultActions.handleBroadcast` is never fed a missing/forged
+  // expected version). REFUND_BROADCAST tracking entries don't drive a
+  // broadcast and don't need them — but if a value is present it must
+  // still be a valid integer (untrusted-storage hardening).
+  const versionFields = [
+    "buildOffchainParamsVersion",
+    "buildAppVaultKeepersVersion",
+    "buildUniversalChallengersVersion",
+  ] as const;
+  const versionsRequired = pegin.status !== "refund_broadcast";
+  for (const field of versionFields) {
+    const v = pegin[field];
+    if (v === undefined) {
+      if (versionsRequired) return false;
+      continue;
+    }
+    if (typeof v !== "number" || !Number.isInteger(v) || v < 0) {
+      return false;
+    }
   }
 
   return true;

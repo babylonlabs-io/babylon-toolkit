@@ -5,6 +5,7 @@
 import {
   ensureHexPrefix,
   stripHexPrefix,
+  verifyRegisteredVaultVersions,
 } from "@babylonlabs-io/ts-sdk/tbv/core";
 import {
   OnChainBtcVaultStatus,
@@ -185,6 +186,37 @@ export function useVaultActions(): UseVaultActionsReturn {
       const expectedUtxos = pendingPegin?.selectedUTXOs?.length
         ? utxosToExpectedRecord(pendingPegin.selectedUTXOs)
         : undefined;
+
+      // Resume broadcast must verify versions against the values used to
+      // construct `unsignedTxHex`, not the current local config — both
+      // could have rotated to a newer version while the BTC scripts are
+      // still pinned to the construction-time version. Cross-device
+      // resume (no local pendingPegin) and legacy entries (written before
+      // this guard, missing build versions) have no recoverable
+      // build-time versions, so we refuse to broadcast them.
+      if (!pendingPegin) {
+        throw new Error(COPY.deposit.errors.crossDeviceBroadcastUnsupported);
+      }
+      const buildOffchainParamsVersion =
+        pendingPegin.buildOffchainParamsVersion;
+      const buildAppVaultKeepersVersion =
+        pendingPegin.buildAppVaultKeepersVersion;
+      const buildUniversalChallengersVersion =
+        pendingPegin.buildUniversalChallengersVersion;
+      if (
+        buildOffchainParamsVersion === undefined ||
+        buildAppVaultKeepersVersion === undefined ||
+        buildUniversalChallengersVersion === undefined
+      ) {
+        throw new Error(COPY.deposit.errors.crossDeviceBroadcastUnsupported);
+      }
+      await verifyRegisteredVaultVersions({
+        vaultRegistryReader: getVaultRegistryReader(),
+        vaultIds: [vaultId],
+        expectedOffchainParamsVersion: buildOffchainParamsVersion,
+        expectedAppVaultKeepersVersion: buildAppVaultKeepersVersion,
+        expectedUniversalChallengersVersion: buildUniversalChallengersVersion,
+      });
 
       await broadcastPrePeginTransaction({
         unsignedTxHex,

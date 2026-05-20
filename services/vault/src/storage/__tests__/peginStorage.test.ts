@@ -57,6 +57,9 @@ const validPegin: PendingPeginRequest = {
       scriptPubKey: "deadbeef",
     },
   ],
+  buildOffchainParamsVersion: 7,
+  buildAppVaultKeepersVersion: 3,
+  buildUniversalChallengersVersion: 5,
 };
 
 describe("getPendingPegins integrity validation", () => {
@@ -272,6 +275,68 @@ describe("getPendingPegins integrity validation", () => {
     expect(getPendingPegins(ETH_ADDRESS)).toHaveLength(0);
   });
 
+  // Legacy PENDING entries written before the resume-broadcast version
+  // guard landed don't carry build-time versions. They must be filtered
+  // out at the storage boundary so the in-app Broadcast button can't
+  // resume them — without recoverable build versions, the on-chain
+  // version assertion cannot run and the broadcast would not be safe.
+  it("filters PENDING entries missing buildOffchainParamsVersion", () => {
+    const legacy = { ...validPegin };
+    delete (legacy as Partial<PendingPeginRequest>).buildOffchainParamsVersion;
+    localStorage.setItem(storageKey, JSON.stringify([legacy]));
+
+    expect(getPendingPegins(ETH_ADDRESS)).toHaveLength(0);
+  });
+
+  it("filters PENDING entries missing buildAppVaultKeepersVersion", () => {
+    const legacy = { ...validPegin };
+    delete (legacy as Partial<PendingPeginRequest>).buildAppVaultKeepersVersion;
+    localStorage.setItem(storageKey, JSON.stringify([legacy]));
+
+    expect(getPendingPegins(ETH_ADDRESS)).toHaveLength(0);
+  });
+
+  it("filters PENDING entries missing buildUniversalChallengersVersion", () => {
+    const legacy = { ...validPegin };
+    delete (legacy as Partial<PendingPeginRequest>)
+      .buildUniversalChallengersVersion;
+    localStorage.setItem(storageKey, JSON.stringify([legacy]));
+
+    expect(getPendingPegins(ETH_ADDRESS)).toHaveLength(0);
+  });
+
+  it("filters PENDING entries with non-integer build versions", () => {
+    const tampered = {
+      ...validPegin,
+      buildOffchainParamsVersion: 1.5 as unknown as number,
+    };
+    localStorage.setItem(storageKey, JSON.stringify([tampered]));
+
+    expect(getPendingPegins(ETH_ADDRESS)).toHaveLength(0);
+  });
+
+  // REFUND_BROADCAST entries are tracking records written by
+  // `useRefundState` for the optimistic suppression TTL. They never
+  // drive a Pre-PegIn broadcast, so storage validation deliberately
+  // exempts them from the build-version requirement to preserve refund
+  // tracking for users who refunded under the pre-guard build.
+  it("accepts REFUND_BROADCAST entries without build versions", () => {
+    const refundEntry = {
+      ...validPegin,
+      status: LocalStorageStatus.REFUND_BROADCAST,
+      refundBroadcastAt: 1700000001000,
+    };
+    delete (refundEntry as Partial<PendingPeginRequest>)
+      .buildOffchainParamsVersion;
+    delete (refundEntry as Partial<PendingPeginRequest>)
+      .buildAppVaultKeepersVersion;
+    delete (refundEntry as Partial<PendingPeginRequest>)
+      .buildUniversalChallengersVersion;
+    localStorage.setItem(storageKey, JSON.stringify([refundEntry]));
+
+    expect(getPendingPegins(ETH_ADDRESS)).toHaveLength(1);
+  });
+
   it("filters entries whose scriptPubKey has odd hex length", () => {
     const tampered: PendingPeginRequest = {
       ...validPegin,
@@ -386,11 +451,17 @@ describe("removePendingPegin", () => {
       id: VALID_VAULT_ID,
       peginTxHash: VALID_PEGIN_TXHASH,
       unsignedTxHex: "0xdeadbeef",
+      buildOffchainParamsVersion: 7,
+      buildAppVaultKeepersVersion: 3,
+      buildUniversalChallengersVersion: 5,
     });
     addPendingPegin(ETH_ADDRESS, {
       id: VALID_VAULT_ID_2,
       peginTxHash: VALID_PEGIN_TXHASH,
       unsignedTxHex: "0xcafebabe",
+      buildOffchainParamsVersion: 7,
+      buildAppVaultKeepersVersion: 3,
+      buildUniversalChallengersVersion: 5,
     });
 
     removePendingPegin(ETH_ADDRESS, VALID_VAULT_ID);

@@ -763,6 +763,18 @@ describe("useDepositFlow", () => {
       // user has a PENDING entry and a resume path.
       expect(addPendingPegin).toHaveBeenCalledTimes(2);
       expect(broadcastPrePeginTransaction).not.toHaveBeenCalled();
+      // The persisted entry must carry the three build-time versions —
+      // the resume broadcast guard in `useVaultActions.handleBroadcast`
+      // re-asserts them against on-chain and would refuse to broadcast
+      // if they were missing.
+      expect(addPendingPegin).toHaveBeenCalledWith(
+        "0xEthAddress123",
+        expect.objectContaining({
+          buildOffchainParamsVersion: 7,
+          buildAppVaultKeepersVersion: 3,
+          buildUniversalChallengersVersion: 5,
+        }),
+      );
     });
 
     it("aborts before any side effects when validateOnChainParticipantKeys rejects", async () => {

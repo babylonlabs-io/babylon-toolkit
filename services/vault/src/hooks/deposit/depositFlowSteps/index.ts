@@ -11,7 +11,7 @@
  * 2a. Prepare pegin - preparePegin (build + fund BTC tx)
  * 2b. Sign proof of possession - signProofOfPossession (one BIP-322 wallet popup)
  * 2c. Register pegin batch - registerPeginBatchAndWait (single ETH tx for all vaults)
- * 3. Broadcast Pre-PegIn - broadcastBtcTransaction
+ * 3. Broadcast Pre-PegIn - inlined in useDepositFlow (calls broadcastPrePeginTransaction directly)
  * 3.5. WOTS key RPC submission - submitWotsPublicKey
  * 4. Payout signing - signAndSubmitPayouts
  */
@@ -19,7 +19,6 @@
 // Types and enums
 export { DepositFlowStep } from "./types";
 export type {
-  BroadcastParams,
   DepositUtxo,
   PeginBatchRegisterParams,
   PeginBatchRegisterResult,
@@ -37,9 +36,6 @@ export {
   registerPeginBatchAndWait,
   signProofOfPossession,
 } from "./ethereumSubmit";
-
-// Step 3: Broadcast Pre-PegIn on Bitcoin
-export { broadcastBtcTransaction } from "./broadcast";
 
 // Step 3.5: WOTS key submission (RPC, happens after broadcast + VP indexing)
 export { submitWotsPublicKey } from "./wotsSubmission";
