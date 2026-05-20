@@ -1,5 +1,6 @@
 import { useChainConnector } from "@babylonlabs-io/wallet-connector";
 import { useCallback, useEffect, useRef, useState } from "react";
+import type { Address } from "viem";
 
 import { usePeginPolling } from "@/context/deposit/PeginPollingContext";
 import { useETHWallet } from "@/context/wallet";
@@ -85,6 +86,14 @@ export function useRefundState({
           setError("Missing vault ID");
           return;
         }
+        if (!ethAddress) {
+          // The refund flow needs the depositor's EOA to enumerate
+          // sibling vaults (batched Pre-PegIn refunds). Without it we
+          // can't reconstruct the full HTLC vector even for single-vault
+          // refunds, so fail closed.
+          setError("ETH wallet not connected");
+          return;
+        }
         if (!Number.isFinite(feeRate) || feeRate <= 0) {
           setError("Fee rate must be a positive number");
           return;
@@ -105,6 +114,7 @@ export function useRefundState({
           const depositorBtcPubkey = await btcWalletProvider.getPublicKeyHex();
           const txId = await buildAndBroadcastRefundTransaction({
             vaultId,
+            depositorAddress: ethAddress as Address,
             btcWalletProvider,
             depositorBtcPubkey,
             feeRate,
