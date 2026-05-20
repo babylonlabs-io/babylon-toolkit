@@ -169,7 +169,7 @@ function defaultRetryableFor(method: string): boolean {
  * to proactive-only refresh via `BearerTokenProvider.getToken()` TTL
  * checks.
  */
-const AUTH_EXPIRED_DATA_KIND = "auth_expired";
+export const AUTH_EXPIRED_DATA_KIND = "auth_expired";
 
 function isAuthExpiredError(error: unknown): boolean {
   if (!(error instanceof JsonRpcError)) return false;

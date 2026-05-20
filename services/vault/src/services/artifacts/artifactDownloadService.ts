@@ -134,7 +134,7 @@ function validateArtifactPayload(buffer: ArrayBuffer): void {
         : JSON_RPC_ERROR_CODES.INVALID_RESPONSE;
     const message =
       typeof err.message === "string" ? err.message : "Unknown RPC error";
-    throw new JsonRpcError(code, message);
+    throw new JsonRpcError(code, message, "wire", err.data);
   }
 
   if (!("result" in record)) {

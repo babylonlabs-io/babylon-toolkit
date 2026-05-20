@@ -8,6 +8,10 @@ import {
   Text,
   Warning,
 } from "@babylonlabs-io/core-ui";
+import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
+import { useChainConnector } from "@babylonlabs-io/wallet-connector";
+import { useMemo } from "react";
+import type { Hex } from "viem";
 
 import { COPY } from "@/copy";
 import { useArtifactDownload } from "@/hooks/deposit/useArtifactDownload";
@@ -19,7 +23,16 @@ interface ArtifactDownloadModalProps {
   providerAddress: string;
   peginTxid: string;
   depositorPk: string;
-  vaultId: string;
+  vaultId: Hex;
+  /**
+   * Unsigned Pre-PegIn tx hex (from indexer). When provided alongside a
+   * connected BTC wallet, the modal can transparently re-authenticate
+   * with the vault provider on a cold token-registry cache (e.g. after
+   * a page reload) by deriving a fresh auth anchor. When omitted, a
+   * stale/missing-bearer rejection surfaces to the user as a raw error
+   * and they must restart the deposit flow to recover.
+   */
+  unsignedPrePeginTxHex?: string;
 }
 
 export function ArtifactDownloadModal({
@@ -30,9 +43,24 @@ export function ArtifactDownloadModal({
   peginTxid,
   depositorPk,
   vaultId,
+  unsignedPrePeginTxHex,
 }: ArtifactDownloadModalProps) {
+  const btcConnector = useChainConnector("BTC");
+  const btcWallet =
+    (btcConnector?.connectedWallet?.provider as BitcoinWallet | undefined) ??
+    null;
+
+  const primeContext = useMemo(() => {
+    if (!btcWallet || !unsignedPrePeginTxHex) return null;
+    return {
+      vaultId,
+      unsignedPrePeginTxHex,
+      btcWallet,
+    };
+  }, [btcWallet, unsignedPrePeginTxHex, vaultId]);
+
   const { loading, progress, error, downloaded, download, cancel, reset } =
-    useArtifactDownload({ vaultId });
+    useArtifactDownload({ vaultId, primeContext });
 
   const handleDownload = () => {
     download(providerAddress, peginTxid, depositorPk);

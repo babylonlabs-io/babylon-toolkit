@@ -156,6 +156,9 @@ export function PendingDepositSection() {
             peginTxid={artifactDownloadModal.params.peginTxid}
             depositorPk={artifactDownloadModal.params.depositorPk}
             vaultId={artifactDownloadModal.activity.id}
+            unsignedPrePeginTxHex={
+              artifactDownloadModal.activity.unsignedPrePeginTx
+            }
           />
         )}
 

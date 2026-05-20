@@ -162,6 +162,7 @@ export function PendingDepositModals({
           peginTxid={artifactPeginTxid as string}
           depositorPk={artifactDepositorPk as string}
           vaultId={activatingActivity.id}
+          unsignedPrePeginTxHex={activatingActivity.unsignedPrePeginTx}
           onClose={() => setShowArtifactDownload(false)}
           onComplete={() => {
             setShowArtifactDownload(false);

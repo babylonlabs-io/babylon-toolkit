@@ -95,6 +95,7 @@ export function DepositSignContent({
           peginTxid={artifactDownloadInfo.peginTxid}
           depositorPk={artifactDownloadInfo.depositorPk}
           vaultId={artifactDownloadInfo.vaultId}
+          unsignedPrePeginTxHex={artifactDownloadInfo.unsignedPrePeginTxHex}
         />
       )}
     </>

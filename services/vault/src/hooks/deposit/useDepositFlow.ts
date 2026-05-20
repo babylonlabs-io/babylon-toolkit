@@ -124,7 +124,10 @@ export interface ArtifactDownloadInfo {
   providerAddress: string;
   peginTxid: string;
   depositorPk: string;
-  vaultId: string;
+  vaultId: Hex;
+  /** Funded (pre-signing) Pre-PegIn tx hex - lets the modal re-derive
+   * an auth anchor and re-prime the VP token registry on a cold cache. */
+  unsignedPrePeginTxHex: string;
 }
 
 export interface UseDepositFlowReturn {
@@ -954,6 +957,7 @@ export function useDepositFlow(
             peginTxid: result.peginTxHash,
             depositorPk: result.depositorBtcPubkey,
             vaultId: result.vaultId,
+            unsignedPrePeginTxHex: result.fundedPrePeginTxHex,
           });
 
           await new Promise<void>((resolve) => {
