@@ -93,6 +93,7 @@ export function ResumeSignContent({
       canClose={derived.canClose}
       canContinueInBackground={derived.canContinueInBackground}
       payoutSigningProgress={signing ? progress : null}
+      peginSigningProgress={null}
       onClose={onClose}
       onRetry={error ? handleSign : undefined}
     />
@@ -147,6 +148,7 @@ export function ResumeBroadcastContent({
       canClose={derived.canClose}
       canContinueInBackground={derived.canContinueInBackground}
       payoutSigningProgress={null}
+      peginSigningProgress={null}
       onClose={onClose}
       successMessage={COPY.deposit.resume.broadcastSuccessMessage}
       onRetry={error ? handleBroadcast : undefined}
@@ -340,6 +342,7 @@ export function ResumeWotsContent({
       canClose={derived.canClose}
       canContinueInBackground={derived.canContinueInBackground}
       payoutSigningProgress={null}
+      peginSigningProgress={null}
       onClose={onClose}
       onRetry={error ? handleSubmit : undefined}
     />
@@ -490,6 +493,7 @@ export function ResumeActivationContent({
       canClose={activated || derived.canClose}
       canContinueInBackground={false}
       payoutSigningProgress={null}
+      peginSigningProgress={null}
       onClose={handleDone}
       successMessage={COPY.deposit.resume.activationSuccessMessage}
       onRetry={error ? handleSubmit : undefined}

@@ -12,6 +12,7 @@ const baseProps = {
   canClose: true,
   canContinueInBackground: false,
   payoutSigningProgress: null,
+  peginSigningProgress: null,
   onClose: vi.fn(),
 };
 
@@ -113,6 +114,65 @@ describe("DepositProgressView", () => {
 
       expect(screen.getByText("Sign payout transactions")).toBeInTheDocument();
       expect(screen.queryByText("(0 of 3)")).not.toBeInTheDocument();
+    });
+  });
+
+  describe("peg-in signing sub-counter", () => {
+    it("shows the (x of n) counter on the active peg-in step for a split deposit", () => {
+      render(
+        <DepositProgressView
+          {...baseProps}
+          currentStep={DepositFlowStep.SIGN_PEGIN_BTC}
+          peginSigningProgress={{ completed: 0, total: 2 }}
+        />,
+      );
+
+      expect(
+        screen.getByText("Sign the peg-in BTC transaction"),
+      ).toBeInTheDocument();
+      expect(screen.getByText("(0 of 2)")).toBeInTheDocument();
+    });
+
+    it("renders (1 of 2) for an in-flight split deposit", () => {
+      render(
+        <DepositProgressView
+          {...baseProps}
+          currentStep={DepositFlowStep.SIGN_PEGIN_BTC}
+          peginSigningProgress={{ completed: 1, total: 2 }}
+        />,
+      );
+
+      expect(screen.getByText("(1 of 2)")).toBeInTheDocument();
+    });
+
+    it("omits the counter for a single-vault (non-split) deposit", () => {
+      render(
+        <DepositProgressView
+          {...baseProps}
+          currentStep={DepositFlowStep.SIGN_PEGIN_BTC}
+          peginSigningProgress={{ completed: 0, total: 1 }}
+        />,
+      );
+
+      expect(
+        screen.getByText("Sign the peg-in BTC transaction"),
+      ).toBeInTheDocument();
+      expect(screen.queryByText(/of 1\)/)).not.toBeInTheDocument();
+    });
+
+    it("omits the counter when no peg-in progress is set", () => {
+      render(
+        <DepositProgressView
+          {...baseProps}
+          currentStep={DepositFlowStep.SIGN_PEGIN_BTC}
+          peginSigningProgress={null}
+        />,
+      );
+
+      expect(
+        screen.getByText("Sign the peg-in BTC transaction"),
+      ).toBeInTheDocument();
+      expect(screen.queryByText(/^\(\d+ of \d+\)$/)).not.toBeInTheDocument();
     });
   });
 

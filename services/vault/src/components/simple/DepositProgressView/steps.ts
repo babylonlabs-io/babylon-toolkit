@@ -3,18 +3,31 @@ import type { StepperItem } from "@babylonlabs-io/core-ui";
 import { COPY } from "@/copy";
 import { DepositFlowStep } from "@/hooks/deposit/depositFlowSteps/types";
 import type { PayoutSigningProgress } from "@/services/vault/vaultPayoutSignatureService";
+import type { PeginSigningProgress } from "@/services/vault/vaultTransactionService";
 
 export const EXPECTED_CONFIRMATION_MINUTES = 15;
 
 export function buildStepItems(
   progress: PayoutSigningProgress | null,
+  peginProgress: PeginSigningProgress | null = null,
 ): StepperItem[] {
   const payoutTotal = progress?.totalClaimers ?? 0;
   const payoutCompleted = progress?.completed ?? 0;
 
+  // Only surface the (x of n) counter for split (multi-vault) deposits;
+  // a single-vault deposit signs one peg-in tx and needs no sub-counter.
+  const peginTotal = peginProgress?.total ?? 0;
+  const peginCounter =
+    peginTotal > 1
+      ? COPY.deposit.steps.signingCounter(
+          peginProgress?.completed ?? 0,
+          peginTotal,
+        )
+      : undefined;
+
   return [
     { label: COPY.deposit.steps.generateSecret },
-    { label: COPY.deposit.steps.signPeginBtc },
+    { label: COPY.deposit.steps.signPeginBtc, description: peginCounter },
     { label: COPY.deposit.steps.signLinkProofs },
     { label: COPY.deposit.steps.signAndBroadcastEth },
     { label: COPY.deposit.steps.signAndBroadcastPrePegin },
@@ -29,7 +42,9 @@ export function buildStepItems(
     {
       label: COPY.deposit.steps.signPayouts,
       description:
-        payoutTotal > 0 ? `(${payoutCompleted} of ${payoutTotal})` : undefined,
+        payoutTotal > 0
+          ? COPY.deposit.steps.signingCounter(payoutCompleted, payoutTotal)
+          : undefined,
     },
     { label: COPY.deposit.steps.downloadArtifact },
     { label: COPY.deposit.steps.revealSecret },

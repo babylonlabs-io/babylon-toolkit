@@ -134,6 +134,8 @@ export const COPY = {
       signPayouts: "Sign payout transactions",
       downloadArtifact: "Download artifact",
       revealSecret: "Sign and broadcast reveal secret",
+      signingCounter: (completed: number, total: number) =>
+        `(${completed} of ${total})`,
     },
     stepDescriptions: {
       deriveVaultSecret:
