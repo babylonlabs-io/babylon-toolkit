@@ -24,6 +24,12 @@ const EMPTY_CONFIRMED: VaultActivity[] = [];
 
 export interface UseBroadcastStateProps {
   activity: VaultActivity;
+  /**
+   * Every vault ID sharing this Pre-PegIn transaction (batched pegin).
+   * Includes `activity.id`. A single broadcast confirms all of them, so
+   * all are marked CONFIRMING on success.
+   */
+  batchVaultIds: string[];
   depositorEthAddress: string;
   onSuccess: () => void;
 }
@@ -39,6 +45,7 @@ export interface UseBroadcastStateResult {
 
 export function useBroadcastState({
   activity,
+  batchVaultIds,
   depositorEthAddress,
   onSuccess,
 }: UseBroadcastStateProps): UseBroadcastStateResult {
@@ -71,7 +78,13 @@ export function useBroadcastState({
           // status update below provides immediate UI feedback.
         },
         onShowSuccessModal: () => {
-          setOptimisticStatus(activity.id, LocalStorageStatus.CONFIRMING);
+          // A batched pegin shares one Pre-PegIn tx — this single broadcast
+          // confirms every sibling. Mark them all CONFIRMING (localStorage +
+          // optimistic) so no sibling keeps showing a stale broadcast action.
+          for (const id of batchVaultIds) {
+            updatePendingPeginStatus(id, LocalStorageStatus.CONFIRMING);
+            setOptimisticStatus(id, LocalStorageStatus.CONFIRMING);
+          }
           setLocalBroadcasting(false);
           onSuccess();
         },
@@ -84,6 +97,7 @@ export function useBroadcastState({
     }
   }, [
     activity,
+    batchVaultIds,
     pendingPegins,
     updatePendingPeginStatus,
     vaultHandleBroadcast,

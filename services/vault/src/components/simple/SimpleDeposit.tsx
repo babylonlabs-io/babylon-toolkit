@@ -55,6 +55,12 @@ type ResumeSignProps = SimpleDepositBaseProps & {
 type ResumeBroadcastProps = SimpleDepositBaseProps & {
   resumeMode: "broadcast_btc";
   activity: VaultActivity;
+  /**
+   * Every vault ID sharing this Pre-PegIn transaction (batched pegin).
+   * Includes `activity.id`; a standalone deposit is a single-element list.
+   * The broadcast confirms all of them.
+   */
+  batchVaultIds: string[];
   depositorEthAddress: string;
   onResumeSuccess: () => void;
 };
@@ -402,6 +408,7 @@ export default function SimpleDeposit(props: SimpleDepositProps) {
             ) : (
               <ResumeBroadcastContent
                 activity={props.activity}
+                batchVaultIds={props.batchVaultIds}
                 depositorEthAddress={props.depositorEthAddress}
                 onClose={onClose}
                 onSuccess={props.onResumeSuccess}

@@ -51,6 +51,7 @@ vi.mock("@/hooks/deposit/usePayoutSignModal", () => ({
 vi.mock("@/hooks/deposit/useBroadcastModal", () => ({
   useBroadcastModal: vi.fn(() => ({
     broadcastingActivity: null,
+    broadcastingBatchIds: [],
     handleBroadcastClick: vi.fn(),
     handleClose: vi.fn(),
     handleSuccess: vi.fn(),

@@ -34,6 +34,13 @@ interface PendingDepositCardProps {
   onActivationClick: (depositId: string) => void;
   onRefundClick: (depositId: string) => void;
   onArtifactDownloadClick?: (depositId: string) => void;
+  /**
+   * When true, the Pre-PegIn broadcast button is not rendered on this card.
+   * Set when the card sits inside a BatchedDepositGroup, where the broadcast
+   * is a batch-level action hoisted to the group. Other per-vault actions
+   * (sign, WOTS, activate, refund) still render.
+   */
+  suppressBroadcastAction?: boolean;
 }
 
 export function PendingDepositCard({
@@ -49,6 +56,7 @@ export function PendingDepositCard({
   onActivationClick,
   onRefundClick,
   onArtifactDownloadClick,
+  suppressBroadcastAction,
 }: PendingDepositCardProps) {
   const pollingResult = useDepositPollingResult(depositId);
 
@@ -56,7 +64,14 @@ export function PendingDepositCard({
 
   const { loading, peginState } = pollingResult;
   const status = getActionStatus(pollingResult);
-  const isActionable = status.type === "available";
+  // The Pre-PegIn broadcast is batch-level: when this card is inside a
+  // BatchedDepositGroup the broadcast button is hoisted to the group and
+  // suppressed here. Other per-vault actions still render.
+  const broadcastSuppressed =
+    !!suppressBroadcastAction &&
+    status.type === "available" &&
+    status.action.action === PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN;
+  const isActionable = status.type === "available" && !broadcastSuppressed;
   const showArtifactDownload =
     onArtifactDownloadClick && isArtifactDownloadAvailable(pollingResult);
 
