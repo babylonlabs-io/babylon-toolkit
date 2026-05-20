@@ -443,6 +443,93 @@ describe("useVaultActions — handleBroadcast version drift guard", () => {
     expect(mockBroadcastPrePeginTransaction).not.toHaveBeenCalled();
     expect(mockSignPsbt).not.toHaveBeenCalled();
   });
+
+  // An entry whose `unsignedTxHex === ""` is the storage validator's
+  // "tracking record, no local tx" marker. The on-chain hash check would
+  // pass against the indexer's tx, but the stored build versions are not
+  // tied to that tx — they're floating. The guard would lie. Treat it
+  // the same as no local pendingPegin.
+  it("refuses broadcast when pendingPegin has empty unsignedTxHex even if build versions are present", async () => {
+    mockGetVaultRegistryReader.mockReturnValue({
+      getProtocolInfoBatch: makeMatchingProtocolInfoBatch(),
+    } as unknown as ReturnType<typeof getVaultRegistryReader>);
+
+    const { result } = renderHook(() => useVaultActions());
+
+    await act(async () => {
+      await result.current.handleBroadcast({
+        ...baseBroadcastParams,
+        pendingPegin: { ...basePendingPegin, unsignedTxHex: "" },
+      });
+    });
+
+    expect(result.current.broadcastError).toContain(
+      "cannot be broadcast from the in-app button",
+    );
+    expect(mockBroadcastPrePeginTransaction).not.toHaveBeenCalled();
+    expect(mockSignPsbt).not.toHaveBeenCalled();
+  });
+
+  // Mirrors the inline deposit path's cleanup: a confirmed mismatch
+  // means this entry can never be safely broadcast, so the in-app
+  // Broadcast button must stop offering it and the selectedUTXOs must
+  // be freed for new deposits.
+  it("removes the pending entry when on-chain version drift is confirmed on resume", async () => {
+    mockGetVaultRegistryReader.mockReturnValue({
+      getProtocolInfoBatch: vi.fn().mockResolvedValue([
+        {
+          offchainParamsVersion:
+            basePendingPegin.buildOffchainParamsVersion + 1,
+          appVaultKeepersVersion: basePendingPegin.buildAppVaultKeepersVersion,
+          universalChallengersVersion:
+            basePendingPegin.buildUniversalChallengersVersion,
+        },
+      ]),
+    } as unknown as ReturnType<typeof getVaultRegistryReader>);
+
+    const removePendingPegin = vi.fn();
+    const { result } = renderHook(() => useVaultActions());
+
+    await act(async () => {
+      await result.current.handleBroadcast({
+        ...baseBroadcastParams,
+        pendingPegin: { ...basePendingPegin },
+        removePendingPegin,
+      });
+    });
+
+    expect(removePendingPegin).toHaveBeenCalledTimes(1);
+    expect(removePendingPegin).toHaveBeenCalledWith(
+      baseBroadcastParams.vaultId,
+    );
+    expect(mockBroadcastPrePeginTransaction).not.toHaveBeenCalled();
+  });
+
+  // Transient RPC failures must keep the entry — the user should be
+  // able to retry once the RPC recovers. Only a confirmed mismatch
+  // clears it.
+  it("keeps the pending entry when the resume version check throws a transient (non-mismatch) error", async () => {
+    mockGetVaultRegistryReader.mockReturnValue({
+      getProtocolInfoBatch: vi
+        .fn()
+        .mockRejectedValue(new Error("eth_call failed: connection reset")),
+    } as unknown as ReturnType<typeof getVaultRegistryReader>);
+
+    const removePendingPegin = vi.fn();
+    const { result } = renderHook(() => useVaultActions());
+
+    await act(async () => {
+      await result.current.handleBroadcast({
+        ...baseBroadcastParams,
+        pendingPegin: { ...basePendingPegin },
+        removePendingPegin,
+      });
+    });
+
+    expect(result.current.broadcastError).toContain("eth_call failed");
+    expect(removePendingPegin).not.toHaveBeenCalled();
+    expect(mockBroadcastPrePeginTransaction).not.toHaveBeenCalled();
+  });
 });
 
 describe("useVaultActions — handleActivation hashlock source", () => {

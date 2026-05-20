@@ -4,6 +4,7 @@
 
 import {
   ensureHexPrefix,
+  isRegisteredVaultVersionMismatchError,
   stripHexPrefix,
   verifyRegisteredVaultVersions,
 } from "@babylonlabs-io/ts-sdk/tbv/core";
@@ -51,6 +52,13 @@ export interface BroadcastPrePeginParams {
     vaultId: string,
     status: LocalStorageStatus,
   ) => void;
+  /**
+   * Drop the local pending entry when a confirmed on-chain version
+   * mismatch makes it permanently un-broadcastable. Mirrors the inline
+   * deposit path's cleanup so the UI stops surfacing a Broadcast button
+   * that will always fail and the selectedUTXOs are freed.
+   */
+  removePendingPegin?: (vaultId: string) => void;
   onRefetchActivities: () => void;
   onShowSuccessModal: () => void;
 }
@@ -105,6 +113,7 @@ export function useVaultActions(): UseVaultActionsReturn {
       vaultId,
       pendingPegin,
       updatePendingPeginStatus,
+      removePendingPegin,
       onRefetchActivities,
       onShowSuccessModal,
     } = params;
@@ -190,11 +199,14 @@ export function useVaultActions(): UseVaultActionsReturn {
       // Resume broadcast must verify versions against the values used to
       // construct `unsignedTxHex`, not the current local config — both
       // could have rotated to a newer version while the BTC scripts are
-      // still pinned to the construction-time version. Cross-device
-      // resume (no local pendingPegin) and legacy entries (written before
-      // this guard, missing build versions) have no recoverable
-      // build-time versions, so we refuse to broadcast them.
-      if (!pendingPegin) {
+      // still pinned to the construction-time version. Refuse when
+      // there's no local anchor for the guard: cross-device resume (no
+      // pendingPegin), the cross-device "tracking record" form
+      // (`unsignedTxHex: ""` — the storage validator accepts it as a
+      // future-sync marker, but its build versions would not be tied to
+      // the indexer's tx we'd otherwise sign), or legacy entries missing
+      // build versions.
+      if (!pendingPegin || pendingPegin.unsignedTxHex === "") {
         throw new Error(COPY.deposit.errors.crossDeviceBroadcastUnsupported);
       }
       const buildOffchainParamsVersion =
@@ -210,13 +222,23 @@ export function useVaultActions(): UseVaultActionsReturn {
       ) {
         throw new Error(COPY.deposit.errors.crossDeviceBroadcastUnsupported);
       }
-      await verifyRegisteredVaultVersions({
-        vaultRegistryReader: getVaultRegistryReader(),
-        vaultIds: [vaultId],
-        expectedOffchainParamsVersion: buildOffchainParamsVersion,
-        expectedAppVaultKeepersVersion: buildAppVaultKeepersVersion,
-        expectedUniversalChallengersVersion: buildUniversalChallengersVersion,
-      });
+      try {
+        await verifyRegisteredVaultVersions({
+          vaultRegistryReader: getVaultRegistryReader(),
+          vaultIds: [vaultId],
+          expectedOffchainParamsVersion: buildOffchainParamsVersion,
+          expectedAppVaultKeepersVersion: buildAppVaultKeepersVersion,
+          expectedUniversalChallengersVersion: buildUniversalChallengersVersion,
+        });
+      } catch (err) {
+        // Only a confirmed mismatch drops the entry — transient RPC
+        // failures keep it so the user can retry. Mirrors the inline
+        // deposit path at useDepositFlow.ts:661.
+        if (isRegisteredVaultVersionMismatchError(err)) {
+          removePendingPegin?.(vaultId);
+        }
+        throw err;
+      }
 
       await broadcastPrePeginTransaction({
         unsignedTxHex,

@@ -7,6 +7,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import type { Hex } from "viem";
 
 import { getNetworkConfigBTC } from "../config";
 import {
@@ -28,6 +29,7 @@ import {
   getPendingPegins,
   markRefundBroadcast as markRefundBroadcastInStorage,
   type PendingPeginRequest,
+  removePendingPegin as removePendingPeginFromStorage,
   savePendingPegins,
   updatePendingPeginStatus as updatePendingPeginStatusInStorage,
 } from "./peginStorage";
@@ -53,6 +55,13 @@ export interface UsePeginStorageResult {
     vaultId: string,
     status: LocalStorageStatus,
   ) => void;
+  /**
+   * Remove a single pending peg-in by vault id. Used by the resume
+   * broadcast path to clear entries that the on-chain version check has
+   * confirmed can never be safely broadcast, matching what the inline
+   * deposit path does for the same mismatch.
+   */
+  removePendingPegin: (vaultId: string) => void;
   /**
    * Mark a pegin as REFUND_BROADCAST and stamp the broadcast time used by the
    * optimistic-suppression TTL.
@@ -255,11 +264,20 @@ export function usePeginStorage({
     [ethAddress],
   );
 
+  const removePendingPegin = useCallback(
+    (vaultId: string) => {
+      if (!ethAddress) return;
+      removePendingPeginFromStorage(ethAddress, vaultId as Hex);
+    },
+    [ethAddress],
+  );
+
   return {
     allActivities,
     pendingPegins,
     addPendingPegin,
     updatePendingPeginStatus,
+    removePendingPegin,
     markRefundBroadcast,
   };
 }
