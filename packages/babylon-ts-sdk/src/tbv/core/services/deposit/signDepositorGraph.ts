@@ -58,10 +58,8 @@ import { createTaprootScriptPathSignOptions } from "../../utils/signing";
 const DEPOSITOR_SIGNED_INPUT_COUNT = 1;
 
 /**
- * commissionBps placeholder for the depositor-as-claimer path. The validator
- * inside `buildPayoutPsbt` only consults `commissionBps` under the VP-claimer
- * role, so any value satisfying the `1..=9999` integer bound is harmless
- * here; we use the protocol minimum so it doesn't look like a wildcard.
+ * commissionBps placeholder for the depositor-as-claimer path — `buildPayoutPsbt`
+ * only consults it under the VP-claimer role, so any in-range value is inert.
  */
 const DEPOSITOR_PATH_UNUSED_COMMISSION_BPS = 1;
 
@@ -242,14 +240,9 @@ async function collectDepositorGraphPsbts(
     ctx.universalChallengerBtcPubkeys,
   );
 
-  // 2. Build the payout PSBT locally. Every sighash-relevant field
-  //    (witnessUtxo, tapLeafScript, controlBlock, tapInternalKey) is derived
-  //    from on-chain trusted connector params, not from the VP. The VP-
-  //    supplied assert tx hex is implicitly pinned by buildPayoutPsbt's
-  //    input-1 txid check against payoutTx.ins[1].hash. Per-role output
-  //    validation (depositor-as-claimer = 2 outputs, outs[0] = registered
-  //    payout script, outs[1] = CPFP anchor at dust) runs inside
-  //    buildPayoutPsbt against resolved input values.
+  // 2. Build the payout PSBT locally — every sighash-relevant field is
+  //    derived from trusted on-chain connector params, not from the VP.
+  //    buildPayoutPsbt also runs the per-role output validation.
   const builtPayout = await buildPayoutPsbt({
     payoutTxHex: depositorGraph.payout_tx.tx_hex,
     peginTxHex: ctx.peginTxHex,

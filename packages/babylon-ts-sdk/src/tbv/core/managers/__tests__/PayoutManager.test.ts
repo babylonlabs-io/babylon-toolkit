@@ -24,6 +24,7 @@ import {
   createDummyP2WPKH,
 } from "../../primitives/psbt/__tests__/constants";
 import { initializeWasmForTests } from "../../primitives/psbt/__tests__/helpers";
+import { PAYOUT_ANCHOR_DUST_SATS } from "../../primitives/psbt/constants";
 import { PayoutManager, type PayoutManagerConfig } from "../PayoutManager";
 
 // Test constants - use valid secp256k1 x-only public keys
@@ -131,8 +132,8 @@ describe("PayoutManager", () => {
 
     /**
      * Creates a deterministic Payout transaction. Output shape follows the
-     * VP-claimer canonical structure enforced by
-     * `assertPayoutOutputMatchesRegistered`:
+     * VP-claimer canonical structure enforced by `buildPayoutPsbt`'s
+     * per-role check:
      *   outs[0]: depositor payout (registered scriptPubKey)
      *   outs[1]: VP commission
      *   outs[2]: CPFP anchor (546 sats)
@@ -158,11 +159,14 @@ describe("PayoutManager", () => {
         SEQUENCE_MAX,
       );
       // outs[0]: depositor payout — registered scriptPubKey ("d") at vout 0
-      tx.addOutput(createDummyP2WPKH("d"), Number(TEST_COMBINED_VALUE) - 1546);
+      tx.addOutput(
+        createDummyP2WPKH("d"),
+        Number(TEST_COMBINED_VALUE) - (1_000 + PAYOUT_ANCHOR_DUST_SATS),
+      );
       // outs[1]: VP commission
       tx.addOutput(createDummyP2WPKH("e"), 1_000);
-      // outs[2]: CPFP anchor — protocol fixes this at 546 sats
-      tx.addOutput(createDummyP2WPKH("c"), 546);
+      // outs[2]: CPFP anchor
+      tx.addOutput(createDummyP2WPKH("c"), PAYOUT_ANCHOR_DUST_SATS);
 
       return tx.toHex();
     }
@@ -507,8 +511,8 @@ describe("PayoutManager", () => {
 
     /**
      * Creates a deterministic Payout transaction. Output shape follows the
-     * VP-claimer canonical structure enforced by
-     * `assertPayoutOutputMatchesRegistered`:
+     * VP-claimer canonical structure enforced by `buildPayoutPsbt`'s
+     * per-role check:
      *   outs[0]: depositor payout (registered scriptPubKey)
      *   outs[1]: VP commission
      *   outs[2]: CPFP anchor (546 sats)
@@ -534,11 +538,14 @@ describe("PayoutManager", () => {
         SEQUENCE_MAX,
       );
       // outs[0]: depositor payout — registered scriptPubKey ("d") at vout 0
-      tx.addOutput(createDummyP2WPKH("d"), Number(TEST_COMBINED_VALUE) - 1546);
+      tx.addOutput(
+        createDummyP2WPKH("d"),
+        Number(TEST_COMBINED_VALUE) - (1_000 + PAYOUT_ANCHOR_DUST_SATS),
+      );
       // outs[1]: VP commission
       tx.addOutput(createDummyP2WPKH("e"), 1_000);
-      // outs[2]: CPFP anchor — protocol fixes this at 546 sats
-      tx.addOutput(createDummyP2WPKH("c"), 546);
+      // outs[2]: CPFP anchor
+      tx.addOutput(createDummyP2WPKH("c"), PAYOUT_ANCHOR_DUST_SATS);
 
       return tx.toHex();
     }
@@ -677,7 +684,7 @@ describe("PayoutManager", () => {
       // outs[1]: VP commission slot
       maliciousTx.addOutput(createDummyP2WPKH("e"), 1_000);
       // outs[2]: CPFP anchor slot
-      maliciousTx.addOutput(createDummyP2WPKH("c"), 546);
+      maliciousTx.addOutput(createDummyP2WPKH("c"), PAYOUT_ANCHOR_DUST_SATS);
       // outs[3]: EXTRA attacker output — the value-diversion vector.
       maliciousTx.addOutput(createDummyP2WPKH("a"), 67_000);
 

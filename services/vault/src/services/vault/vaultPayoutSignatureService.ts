@@ -37,20 +37,16 @@ import {
 import { getBTCNetworkForWASM } from "../../config/pegin";
 
 /**
- * Exclusive upper bound on VP commission (basis points). Matches the
- * `BTCVaultRegistry._validateCommission` ceiling (`commissionBps >= 10000`
- * reverts) and the basis-points denominator used to size the commission
- * output.
+ * Exclusive upper bound on VP commission (bps) — `BTCVaultRegistry._validateCommission`
+ * ceiling. Local literal by design: the SDK's `MAX_VP_COMMISSION_BPS_EXCLUSIVE`
+ * is an internal module, not public API.
  */
 const VP_COMMISSION_BPS_EXCLUSIVE_MAX = 10_000;
 
 /**
- * Absolute floor on a realizable VP commission. The contract permits
- * `VersionedOffchainParams.minVpCommissionBps` to be `0`, but the Rust
- * tx-graph builder (`btc-vault crates/vault/src/tx_graph/config.rs`) refuses
- * to construct a graph with `vp_commission_bps == 0`. So a vault that can
- * actually produce a VP-claimer payout always has commission `>= 1`; the
- * effective floor is `max(minVpCommissionBps, 1)`.
+ * Absolute floor on a realizable VP commission: the btc-vault tx-graph builder
+ * refuses `vp_commission_bps == 0`, so the effective floor is
+ * `max(minVpCommissionBps, 1)`.
  */
 const MIN_REALIZABLE_VP_COMMISSION_BPS = 1;
 
@@ -165,12 +161,8 @@ export async function prepareSigningContext(
     vault.offchainParamsVersion,
   );
 
-  // Trust-boundary check on the VP commission read from chain. Mirrors the
-  // contract's own `BTCVaultRegistry._validateCommission`: `commissionBps`
-  // must be `>= minVpCommissionBps` (version-locked) and `< 10000`. The
-  // floor is `max(minVpCommissionBps, 1)` because the Rust tx-graph builder
-  // refuses `vp_commission_bps == 0`. Validating here means the SDK's
-  // `buildPayoutPsbt` can trust `commissionBps` for its cap math.
+  // Trust-boundary check on the VP commission read from chain — mirrors
+  // `BTCVaultRegistry._validateCommission` so `buildPayoutPsbt` can trust it.
   const minCommissionBps = Math.max(
     offchainParams.minVpCommissionBps,
     MIN_REALIZABLE_VP_COMMISSION_BPS,

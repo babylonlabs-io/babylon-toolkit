@@ -46,14 +46,10 @@ import {
 const TAPROOT_SINGLE_SIG_WITNESS_STACK_SIZE = 3;
 
 /**
- * Upper bound on the implicit fee (inputs − outputs) of a payout transaction,
- * expressed as a fraction of total input value. With input prevouts pinned
- * (see {@link buildPayoutPsbt}) the SDK knows the exact value entering the
- * transaction; any value that doesn't reappear as an output is implicit miner
- * fee. A malicious VP could otherwise return a payout tx with the registered
- * output script at vout 0 but deflated values, burning the remainder as fee.
- * 10% is well above any realistic fee for a ~200-vbyte payout tx, so
- * legitimate flows are never blocked.
+ * Coarse cap on a payout tx's implicit fee (inputs − outputs), as a fraction
+ * of input value — blocks a VP deflating outputs and burning the remainder
+ * as miner fee. A backstop only; the per-role structural checks in
+ * {@link assertPayoutOutputLayout} are the primary value-diversion guard.
  */
 const MAX_PAYOUT_FEE_FRACTION_NUMERATOR = 10;
 const MAX_PAYOUT_FEE_FRACTION_DENOMINATOR = 100;
@@ -114,34 +110,22 @@ export interface PayoutParams {
   network: Network;
 
   /**
-   * The claimer's x-only BTC public key for this payout (64-char hex, no prefix).
-   * Used to infer the payout role (VP / depositor-as-claimer / VK-claimer)
-   * against the protocol pubkey sets already passed in. Role inference lives
-   * inside `buildPayoutPsbt` so the caller cannot fabricate a wrong label.
+   * Claimer's x-only BTC public key (64-char hex, no prefix). Drives role
+   * inference (VP / depositor-as-claimer / VK-claimer) inside `buildPayoutPsbt`.
    */
   claimerBtcPubkey: string;
 
   /**
-   * The on-chain registered depositor payout scriptPubKey (hex, with or
-   * without 0x prefix). Used to validate outs[0].script for the VP-claimer
-   * and depositor-as-claimer roles. For the VK-claimer role the expected
-   * outs[0].script is derived from `claimerBtcPubkey` via BIP-86, and this
-   * field is unused.
+   * On-chain registered depositor payout scriptPubKey (hex, 0x optional).
+   * Expected outs[0].script for VP- and depositor-claimer roles; unused for
+   * VK-claimer (its outs[0].script is derived from `claimerBtcPubkey`).
    */
   registeredPayoutScriptPubKey: string;
 
   /**
-   * Vault Provider commission in basis points, sourced from
-   * `BTCVaultRegistry.vaultProviderCommissionBps`. Only consumed under the
-   * VP-claimer role to cap outs[1].value at
-   * `floor(peginValue * commissionBps / 10_000)`.
-   *
-   * This builder enforces only the structural guard it needs for safe cap
-   * math: a non-negative integer below
-   * {@link MAX_VP_COMMISSION_BPS_EXCLUSIVE}. The protocol *minimum*
-   * (`max(VersionedOffchainParams.minVpCommissionBps, 1)`) is enforced at the
-   * trust boundary where on-chain data is read (`prepareSigningContext`), not
-   * here — a too-low value is fail-safe (it only shrinks the cap).
+   * VP commission in basis points (`BTCVaultRegistry.vaultProviderCommissionBps`).
+   * Caps the VP-claimer outs[1].value. The protocol minimum is enforced
+   * upstream; here only `0 <= bps < 10_000` is checked, for safe cap math.
    */
   commissionBps: number;
 }
@@ -276,11 +260,8 @@ export async function buildPayoutPsbt(
     );
   }
 
-  // Validate the payout output structure against the protocol-canonical
-  // layout for this claimer's role. Blocks an extra attacker output and
-  // value routed into a non-payout slot. The role is inferred from
-  // `claimerBtcPubkey` against the pubkey sets that buildPayoutPsbt already
-  // receives, so the caller cannot fabricate a wrong role label.
+  // Per-role output validation — blocks an extra attacker output or value
+  // routed into a non-payout slot.
   assertPayoutOutputLayout({
     payoutTx,
     peginValueSats: peginPrevOut.value,
@@ -292,11 +273,8 @@ export async function buildPayoutPsbt(
     commissionBps: params.commissionBps,
   });
 
-  // Bound the implicit fee. With input prevouts pinned the SDK knows the
-  // exact value entering the transaction; any value that doesn't reappear as
-  // an output is implicit miner fee. A malicious VP could otherwise return a
-  // payout tx with the registered output script at vout 0 but deflated
-  // values, burning the remainder as fee.
+  // Bound the implicit fee — blocks a VP deflating output values and burning
+  // the difference as miner fee.
   const inputValueSats = peginPrevOut.value + input1PrevOut.value;
   let outputValueSats = 0;
   for (const out of payoutTx.outs) outputValueSats += out.value;
@@ -369,28 +347,15 @@ export async function buildPayoutPsbt(
 }
 
 /**
- * Validate that a payout transaction's output structure matches the protocol
- * contract for the claimer's role. Protects depositor value against:
+ * Validate a payout transaction's output structure for the claimer's role,
+ * keyed on `claimerBtcPubkey`. Pins per role: `outs.length`, `outs[0].script`,
+ * `outs[last].value` (anchor dust), and (VP-claimer) `outs[1].value` capped at
+ * `floor(peginValue × commissionBps / 10_000)`. Canonical layouts: VP-claimer
+ * = [payout, commission, anchor]; depositor/VK-claimer = [payout, anchor].
  *
- * - extra/missing attacker output (`outs.length` pinned per role)
- * - outs[0] redirected away from the registered payout address (script pinned)
- * - value drained through the anchor slot (outs[last].value pinned to dust)
- * - (VP-claimer only) value drained through the commission slot
- *   (outs[1].value capped at `floor(peginValue × commissionBps / 10_000)`)
- *
- * Value-burn through implicit fee is enforced separately by the 10% bound in
- * {@link buildPayoutPsbt}.
- *
- * Role inference is keyed purely on `claimerBtcPubkey` against the pubkey
- * sets `buildPayoutPsbt` already receives, so the caller cannot fabricate a
- * wrong role label. Protocol-canonical layouts, per
- * `btc-vault crates/vault/src/transactions/payout.rs`:
- *  - VP-claimer: 3 outputs — [depositor payout, VP commission, CPFP anchor]
- *  - Depositor-as-claimer / VK-claimer: 2 outputs — [claimer payout, CPFP anchor]
- *
- * Defensive checks on outs[1].script (VP commission destination) and
- * outs[last].script (CPFP anchor ownership) are intentionally NOT performed
- * — those are the VP's and claimer's own concerns, not depositor protection.
+ * `outs[1].script` and `outs[last].script` are intentionally not pinned: the
+ * value pins above bound depositor exposure regardless of where those outputs
+ * are sent, so the value pins — not script pins — are load-bearing.
  *
  * @internal Helper invoked by {@link buildPayoutPsbt}.
  */

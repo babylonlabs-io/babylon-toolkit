@@ -11,6 +11,7 @@ import type { Network } from "@babylonlabs-io/babylon-tbv-rust-wasm";
 import { Psbt, Transaction } from "bitcoinjs-lib";
 import { beforeAll, describe, expect, it } from "vitest";
 import { deriveBip86ScriptPubKeyHex } from "../../utils/bitcoin";
+import { PAYOUT_ANCHOR_DUST_SATS } from "../constants";
 import { buildPayoutPsbt, extractPayoutSignature, type PayoutParams } from "../payout";
 import {
   DUMMY_TXID_2,
@@ -159,11 +160,14 @@ function createTestPayoutTransaction(
   tx.addInput(Buffer.from(assertTx.getId(), "hex").reverse(), 0, SEQUENCE_MAX);
 
   // outs[0]: depositor payout
-  tx.addOutput(createDummyP2WPKH("a"), Number(TEST_COMBINED_VALUE) - 1_546);
+  tx.addOutput(
+    createDummyP2WPKH("a"),
+    Number(TEST_COMBINED_VALUE) - (1_000 + PAYOUT_ANCHOR_DUST_SATS),
+  );
   // outs[1]: VP commission
   tx.addOutput(createDummyP2WPKH("e"), 1_000);
-  // outs[2]: CPFP anchor (PAYOUT_ANCHOR_DUST_SATS)
-  tx.addOutput(createDummyP2WPKH("c"), 546);
+  // outs[2]: CPFP anchor
+  tx.addOutput(createDummyP2WPKH("c"), PAYOUT_ANCHOR_DUST_SATS);
 
   return tx.toHex();
 }
@@ -834,7 +838,7 @@ describe("buildPayoutPsbt — per-role output validation", () => {
     const payoutTxHex = buildPayoutTxWithOutputs(peginTxHex, assertTxHex, [
       { script: createDummyP2WPKH("a"), value: 80_000 },
       { script: createDummyP2WPKH("e"), value: 1_000 },
-      { script: createDummyP2WPKH("c"), value: 546 },
+      { script: createDummyP2WPKH("c"), value: PAYOUT_ANCHOR_DUST_SATS },
       { script: createDummyP2WPKH("b"), value: 60_000 },
     ]);
     await expect(
@@ -848,7 +852,7 @@ describe("buildPayoutPsbt — per-role output validation", () => {
     const payoutTxHex = buildPayoutTxWithOutputs(peginTxHex, assertTxHex, [
       { script: createDummyP2WPKH("b"), value: 143_454 },
       { script: createDummyP2WPKH("e"), value: 1_000 },
-      { script: createDummyP2WPKH("c"), value: 546 },
+      { script: createDummyP2WPKH("c"), value: PAYOUT_ANCHOR_DUST_SATS },
     ]);
     await expect(
       buildPayoutPsbt(baseParams({ payoutTxHex, peginTxHex, assertTxHex })),
@@ -863,7 +867,7 @@ describe("buildPayoutPsbt — per-role output validation", () => {
     const payoutTxHex = buildPayoutTxWithOutputs(peginTxHex, assertTxHex, [
       { script: createDummyP2WPKH("a"), value: 138_454 },
       { script: createDummyP2WPKH("e"), value: 6_000 },
-      { script: createDummyP2WPKH("c"), value: 546 },
+      { script: createDummyP2WPKH("c"), value: PAYOUT_ANCHOR_DUST_SATS },
     ]);
     await expect(
       buildPayoutPsbt(baseParams({ payoutTxHex, peginTxHex, assertTxHex })),
@@ -920,7 +924,7 @@ describe("buildPayoutPsbt — per-role output validation", () => {
     const assertTxHex = createTestAssertTransaction();
     const payoutTxHex = buildPayoutTxWithOutputs(peginTxHex, assertTxHex, [
       { script: createDummyP2WPKH("a"), value: 144_454 },
-      { script: createDummyP2WPKH("c"), value: 546 },
+      { script: createDummyP2WPKH("c"), value: PAYOUT_ANCHOR_DUST_SATS },
     ]);
     await expect(
       buildPayoutPsbt(
@@ -978,7 +982,7 @@ describe("buildPayoutPsbt — per-role output validation", () => {
     const vkScript = Buffer.from(vkScriptHex.replace(/^0x/, ""), "hex");
     const payoutTxHex = buildPayoutTxWithOutputs(peginTxHex, assertTxHex, [
       { script: vkScript, value: 144_454 },
-      { script: createDummyP2WPKH("c"), value: 546 },
+      { script: createDummyP2WPKH("c"), value: PAYOUT_ANCHOR_DUST_SATS },
     ]);
     await expect(
       buildPayoutPsbt(
@@ -999,7 +1003,7 @@ describe("buildPayoutPsbt — per-role output validation", () => {
     const assertTxHex = createTestAssertTransaction();
     const payoutTxHex = buildPayoutTxWithOutputs(peginTxHex, assertTxHex, [
       { script: createDummyP2WPKH("a"), value: 144_454 },
-      { script: createDummyP2WPKH("c"), value: 546 },
+      { script: createDummyP2WPKH("c"), value: PAYOUT_ANCHOR_DUST_SATS },
     ]);
     await expect(
       buildPayoutPsbt(
@@ -1071,7 +1075,7 @@ describe("buildPayoutPsbt — implicit-fee bound (value-burn variant)", () => {
     const payoutTxHex = makeDeflatedPayoutTxHex(peginTxHex, assertTxHex, [
       { script: createDummyP2WPKH("a"), value: 98_454 },
       { script: createDummyP2WPKH("e"), value: 1_000 },
-      { script: createDummyP2WPKH("c"), value: 546 },
+      { script: createDummyP2WPKH("c"), value: PAYOUT_ANCHOR_DUST_SATS },
     ]);
 
     await expect(
@@ -1100,7 +1104,7 @@ describe("buildPayoutPsbt — implicit-fee bound (value-burn variant)", () => {
     const payoutTxHex = makeDeflatedPayoutTxHex(peginTxHex, assertTxHex, [
       { script: createDummyP2WPKH("a"), value: 198_454 },
       { script: createDummyP2WPKH("e"), value: 1_000 },
-      { script: createDummyP2WPKH("c"), value: 546 },
+      { script: createDummyP2WPKH("c"), value: PAYOUT_ANCHOR_DUST_SATS },
     ]);
 
     await expect(

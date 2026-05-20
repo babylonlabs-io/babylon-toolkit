@@ -71,13 +71,7 @@ export interface PayoutSigningContext {
   network: Network;
   /** On-chain registered depositor payout scriptPubKey (hex) */
   registeredPayoutScriptPubKey: string;
-  /**
-   * VP commission in basis points, sourced from
-   * `BTCVaultRegistry.vaultProviderCommissionBps`. Required for the
-   * VP-claimer output-validation cap inside `buildPayoutPsbt`. Must be in
-   * `1..=9999` per the protocol invariant in
-   * `btc-vault crates/vault/src/tx_graph/config.rs`.
-   */
+  /** VP commission (bps) from `BTCVaultRegistry`; caps the VP-claimer payout commission output. */
   commissionBps: number;
 }
 
