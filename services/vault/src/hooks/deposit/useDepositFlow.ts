@@ -64,7 +64,10 @@ import {
   broadcastPrePeginTransaction,
   utxosToExpectedRecord,
 } from "@/services/vault/vaultPeginBroadcastService";
-import { preparePeginTransaction } from "@/services/vault/vaultTransactionService";
+import {
+  preparePeginTransaction,
+  type PeginSigningProgress,
+} from "@/services/vault/vaultTransactionService";
 import { assertUtxosAvailable } from "@/services/vault/vaultUtxoValidationService";
 import {
   addPendingPegin,
@@ -147,6 +150,8 @@ export interface UseDepositFlowReturn {
   isWaiting: boolean;
   /** Payout signing progress (X of Y signings) */
   payoutSigningProgress: PayoutSigningProgress | null;
+  /** Peg-in BTC signing progress (X of Y peg-in txs, split deposits only) */
+  peginSigningProgress: PeginSigningProgress | null;
   /** Artifact download info (when set, the UI should show the download modal) */
   artifactDownloadInfo: ArtifactDownloadInfo | null;
   /** Callback to continue the flow after artifact download */
@@ -223,6 +228,8 @@ export function useDepositFlow(
   const [isWaiting, setIsWaiting] = useState(false);
   const [payoutSigningProgress, setPayoutSigningProgress] =
     useState<PayoutSigningProgress | null>(null);
+  const [peginSigningProgress, setPeginSigningProgress] =
+    useState<PeginSigningProgress | null>(null);
   const [artifactDownloadInfo, setArtifactDownloadInfo] =
     useState<ArtifactDownloadInfo | null>(null);
   const [btcConfirmationDetail, setBtcConfirmationDetail] = useState<{
@@ -283,6 +290,7 @@ export function useDepositFlow(
 
       setProcessing(true);
       setError(null);
+      setPeginSigningProgress(null);
       setCurrentStep(DepositFlowStep.DERIVE_VAULT_SECRET);
 
       // Track background operation failures
@@ -362,24 +370,38 @@ export function useDepositFlow(
         // ========================================================================
 
         setCurrentStep(DepositFlowStep.DERIVE_VAULT_SECRET);
+        // Sign each peg-in PSBT one at a time so the (x of n) sub-counter can
+        // advance per signature. A native batch signPsbts signs every tx in a
+        // single popup and returns one result, hiding intra-batch progress
+        // from the dApp — so we override signPsbts to loop signPsbt instead,
+        // trading one popup for N popups in exchange for live progress.
+        const signOnePeginPsbt: typeof confirmedBtcWallet.signPsbt = async (
+          psbtHex,
+          opts,
+        ) => {
+          setCurrentStep(DepositFlowStep.SIGN_PEGIN_BTC);
+          const signed = await confirmedBtcWallet.signPsbt(psbtHex, opts);
+          setPeginSigningProgress((prev) =>
+            prev
+              ? { ...prev, completed: Math.min(prev.completed + 1, prev.total) }
+              : prev,
+          );
+          return signed;
+        };
         const phaseTrackingBtcWallet: typeof confirmedBtcWallet = {
           ...confirmedBtcWallet,
           deriveContextHash: (appName, context) => {
             setCurrentStep(DepositFlowStep.DERIVE_VAULT_SECRET);
             return confirmedBtcWallet.deriveContextHash(appName, context);
           },
-          signPsbt: (psbtHex, opts) => {
-            setCurrentStep(DepositFlowStep.SIGN_PEGIN_BTC);
-            return confirmedBtcWallet.signPsbt(psbtHex, opts);
+          signPsbt: signOnePeginPsbt,
+          signPsbts: async (psbtHexes, opts) => {
+            const signed: string[] = [];
+            for (let i = 0; i < psbtHexes.length; i++) {
+              signed.push(await signOnePeginPsbt(psbtHexes[i], opts?.[i]));
+            }
+            return signed;
           },
-          ...(confirmedBtcWallet.signPsbts
-            ? {
-                signPsbts: (psbtHexes, opts) => {
-                  setCurrentStep(DepositFlowStep.SIGN_PEGIN_BTC);
-                  return confirmedBtcWallet.signPsbts!(psbtHexes, opts);
-                },
-              }
-            : {}),
         };
 
         // Filter out UTXOs reserved by in-flight deposits to prevent
@@ -456,6 +478,10 @@ export function useDepositFlow(
           expectedVaultKeeperBtcPubkeys: vaultKeeperBtcPubkeys,
           expectedUniversalChallengerBtcPubkeys: universalChallengerBtcPubkeys,
         });
+
+        // Prime the peg-in signing sub-counter (one tx per vault) before the
+        // commit pass drives the wallet popup(s).
+        setPeginSigningProgress({ completed: 0, total: vaultAmounts.length });
 
         const batchResult = await preparePeginTransaction(
           phaseTrackingBtcWallet,
@@ -1061,6 +1087,7 @@ export function useDepositFlow(
     error,
     isWaiting,
     payoutSigningProgress,
+    peginSigningProgress,
     artifactDownloadInfo,
     continueAfterArtifactDownload,
     btcConfirmationDetail,

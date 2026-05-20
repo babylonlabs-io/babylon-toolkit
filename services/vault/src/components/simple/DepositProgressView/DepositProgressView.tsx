@@ -21,6 +21,7 @@ import { StatusBanner } from "@/components/deposit/DepositSignModal/StatusBanner
 import { COPY } from "@/copy";
 import { DepositFlowStep } from "@/hooks/deposit/depositFlowSteps/types";
 import type { PayoutSigningProgress } from "@/services/vault/vaultPayoutSignatureService";
+import type { PeginSigningProgress } from "@/services/vault/vaultTransactionService";
 
 import { BtcConfirmationDetail } from "./BtcConfirmationDetail";
 import { PostSignProgress } from "./PostSignProgress";
@@ -42,6 +43,8 @@ export interface DepositProgressViewProps {
   canClose: boolean;
   canContinueInBackground: boolean;
   payoutSigningProgress: PayoutSigningProgress | null;
+  /** Peg-in BTC signing progress; drives the (x of n) sub-counter for splits. */
+  peginSigningProgress: PeginSigningProgress | null;
   onClose: () => void;
   /** Override the default success message */
   successMessage?: string;
@@ -63,6 +66,7 @@ export function DepositProgressView(props: DepositProgressViewProps) {
     canClose,
     canContinueInBackground,
     payoutSigningProgress,
+    peginSigningProgress,
     onClose,
     successMessage = COPY.deposit.progress.defaultSuccessMessage,
     onRetry,
@@ -78,8 +82,8 @@ export function DepositProgressView(props: DepositProgressViewProps) {
   const showOverallProgress = completedSteps >= 1;
 
   const steps = useMemo(
-    () => buildStepItems(payoutSigningProgress),
-    [payoutSigningProgress],
+    () => buildStepItems(payoutSigningProgress, peginSigningProgress),
+    [payoutSigningProgress, peginSigningProgress],
   );
 
   const activeStepDetail =

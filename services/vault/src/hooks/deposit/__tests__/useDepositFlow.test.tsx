@@ -1394,4 +1394,67 @@ describe("useDepositFlow", () => {
       expect(registerPeginBatchAndWait).not.toHaveBeenCalled();
     });
   });
+
+  describe("Peg-in signing progress", () => {
+    it("advances the counter to n of n by signing each peg-in tx in its own popup", async () => {
+      const { preparePeginTransaction } = vi.mocked(
+        await import("@/services/vault/vaultTransactionService"),
+      );
+      // The SDK signs the peg-in PSBTs by calling the wallet wrapper's
+      // signPsbts once; the wrapper forces per-tx signing underneath.
+      vi.mocked(preparePeginTransaction).mockImplementation(async (wallet) => {
+        await wallet.signPsbts(["psbt0", "psbt1"], [{}, {}]);
+        return MOCK_BATCH_RESULT as any;
+      });
+
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+      await executeWithAutoArtifactDownload(result);
+
+      await waitFor(() => {
+        expect(result.current.peginSigningProgress).toEqual({
+          completed: 2,
+          total: 2,
+        });
+      });
+      // Per-tx: the single-PSBT signer is invoked once per vault.
+      expect(MOCK_BTC_WALLET.signPsbt).toHaveBeenCalledTimes(2);
+    });
+
+    it("never uses the wallet's native batch signPsbts for peg-in, so the counter can tick", async () => {
+      const { preparePeginTransaction } = vi.mocked(
+        await import("@/services/vault/vaultTransactionService"),
+      );
+      const nativeSignPsbt = vi.fn().mockResolvedValue("signedPsbt");
+      const nativeSignPsbts = vi
+        .fn()
+        .mockResolvedValue(["signedPsbt0", "signedPsbt1"]);
+      const batchWallet = {
+        ...MOCK_BTC_WALLET,
+        signPsbt: nativeSignPsbt,
+        signPsbts: nativeSignPsbts,
+      };
+      vi.mocked(preparePeginTransaction).mockImplementation(async (wallet) => {
+        await wallet.signPsbts(["psbt0", "psbt1"], [{}, {}]);
+        return MOCK_BATCH_RESULT as any;
+      });
+
+      const { result } = renderHook(() =>
+        useDepositFlow({
+          ...MOCK_PARAMS,
+          btcWalletProvider: batchWallet as any,
+        }),
+      );
+      await executeWithAutoArtifactDownload(result);
+
+      await waitFor(() => {
+        expect(result.current.peginSigningProgress).toEqual({
+          completed: 2,
+          total: 2,
+        });
+      });
+      // Peg-in is signed per-tx via signPsbt; the native batch path is unused.
+      expect(nativeSignPsbts).not.toHaveBeenCalled();
+      expect(nativeSignPsbt).toHaveBeenCalledTimes(2);
+    });
+  });
 });

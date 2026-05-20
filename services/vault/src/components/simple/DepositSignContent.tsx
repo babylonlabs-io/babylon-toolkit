@@ -46,6 +46,7 @@ export function DepositSignContent({
     error,
     isWaiting,
     payoutSigningProgress,
+    peginSigningProgress,
     artifactDownloadInfo,
     continueAfterArtifactDownload,
     btcConfirmationDetail,
@@ -82,6 +83,7 @@ export function DepositSignContent({
         canClose={canClose}
         canContinueInBackground={canContinueInBackground}
         payoutSigningProgress={payoutSigningProgress}
+        peginSigningProgress={peginSigningProgress}
         onClose={handleClose}
         btcConfirmationDetail={btcConfirmationDetail}
       />
