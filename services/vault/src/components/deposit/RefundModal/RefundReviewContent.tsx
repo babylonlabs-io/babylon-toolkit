@@ -1,5 +1,10 @@
 import { Button, Heading, Loader, Text } from "@babylonlabs-io/core-ui";
-import { estimateRefundFeeSats } from "@babylonlabs-io/ts-sdk/tbv/core/services";
+import {
+  estimateRefundFeeSats,
+  REFUND_MAX_FEE_FRACTION_DENOMINATOR,
+  REFUND_MAX_FEE_FRACTION_NUMERATOR,
+  REFUND_MAX_FEE_RATE_SATS_VB,
+} from "@babylonlabs-io/ts-sdk/tbv/core/services";
 import { useEffect, useState } from "react";
 import { MdInfoOutline } from "react-icons/md";
 
@@ -89,6 +94,22 @@ export function RefundReviewContent({
 
   const isDust = youReceiveSats !== null && youReceiveSats <= DUST_LIMIT_SATS;
 
+  // Mirror the SDK's two refund safety caps (see buildAndBroadcastRefund.ts).
+  // Sharing the constants prevents UI/SDK drift — without this the user
+  // could confirm a fee the SDK is about to throw on, which would leave the
+  // refund modal silently dead-ended after the wallet prompt.
+  const exceedsRateCap =
+    feeRate !== null && feeRate > REFUND_MAX_FEE_RATE_SATS_VB;
+  const maxFeeByFractionSats =
+    amountSats !== null
+      ? (amountSats * REFUND_MAX_FEE_FRACTION_NUMERATOR) /
+        REFUND_MAX_FEE_FRACTION_DENOMINATOR
+      : null;
+  const exceedsFractionCap =
+    networkFeeSats !== null &&
+    maxFeeByFractionSats !== null &&
+    networkFeeSats > maxFeeByFractionSats;
+
   const canConfirm =
     !refunding &&
     !previewLoading &&
@@ -96,7 +117,15 @@ export function RefundReviewContent({
     feeRate > 0 &&
     youReceiveSats !== null &&
     !isDust &&
+    !exceedsRateCap &&
+    !exceedsFractionCap &&
     !usingFallback;
+
+  const feeCapMessage = exceedsRateCap
+    ? `Network fee rate exceeds the safety cap of ${REFUND_MAX_FEE_RATE_SATS_VB} sat/vB. Lower the fee rate to continue.`
+    : exceedsFractionCap
+      ? `Network fee exceeds ${(REFUND_MAX_FEE_FRACTION_NUMERATOR * 100n) / REFUND_MAX_FEE_FRACTION_DENOMINATOR}% of the refund amount. Lower the fee rate to continue.`
+      : null;
 
   const handleConfirmClick = () => {
     if (feeRate === null || feeRate <= 0) return;
@@ -196,6 +225,9 @@ export function RefundReviewContent({
             <StatusBanner variant="error">
               {COPY.deposit.refundReview.dustError}
             </StatusBanner>
+          )}
+          {!error && !isDust && feeCapMessage && (
+            <StatusBanner variant="error">{feeCapMessage}</StatusBanner>
           )}
           {error && <StatusBanner variant="error">{error}</StatusBanner>}
 

@@ -7,6 +7,7 @@ import { render, screen } from "@testing-library/react";
 import { useMemo, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { getRefundPreview } from "@/services/vault/vaultRefundService";
 import type { VaultActivity } from "@/types/activity";
 
 import { RefundModal } from "../index";
@@ -149,5 +150,54 @@ describe("RefundModal", () => {
     expect(
       await screen.findByText(/approximately 6 hours/i),
     ).toBeInTheDocument();
+  });
+
+  it("disables Confirm and shows the rate-cap banner when mempool returns a malicious fee rate", async () => {
+    vi.mocked(getRefundPreview).mockResolvedValueOnce({
+      amountSats: 100_000_000n,
+      halfHourFeeSatsVb: 10_000,
+    });
+
+    render(
+      <Wrapper>
+        <RefundModal
+          open
+          activity={ACTIVITY}
+          onClose={() => {}}
+          onSuccess={() => {}}
+        />
+      </Wrapper>,
+    );
+
+    expect(
+      await screen.findByText(/safety cap of 2000 sat\/vB/i),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /confirm/i })).toBeDisabled();
+  });
+
+  it("disables Confirm and shows the fraction-cap banner for a small vault at a within-rate-cap fee", async () => {
+    // Small vault where rate is below the per-vbyte ceiling but absolute
+    // fee still consumes more than 10% of vault.amount.
+    // 100k-sat vault, halfHourFee=100 sat/vB → fee=16_000 > 10% of 100k.
+    vi.mocked(getRefundPreview).mockResolvedValueOnce({
+      amountSats: 100_000n,
+      halfHourFeeSatsVb: 100,
+    });
+
+    render(
+      <Wrapper>
+        <RefundModal
+          open
+          activity={ACTIVITY}
+          onClose={() => {}}
+          onSuccess={() => {}}
+        />
+      </Wrapper>,
+    );
+
+    expect(
+      await screen.findByText(/exceeds 10% of the refund amount/i),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /confirm/i })).toBeDisabled();
   });
 });
