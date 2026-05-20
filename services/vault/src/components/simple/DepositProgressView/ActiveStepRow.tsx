@@ -27,7 +27,7 @@ export function ActiveStepRow({
         <div className="flex items-baseline gap-2">
           <Text
             as="span"
-            variant="body1"
+            variant="body2"
             className="font-medium text-accent-primary"
           >
             {label}
