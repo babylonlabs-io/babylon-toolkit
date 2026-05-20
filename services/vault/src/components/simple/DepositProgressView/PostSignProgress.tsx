@@ -24,28 +24,30 @@ export function PostSignProgress({
   return (
     <div className="flex flex-col">
       <CompletedStepsPill completed={completedCount} total={totalSteps} />
-      {visibleSteps.length > 0 && <StepConnector />}
-      {visibleSteps.map((step, index) => {
-        const stepNumber = completedCount + index + 1;
-        const isActive = index === 0;
-        const isLast = index === visibleSteps.length - 1;
+      <div className="flex flex-col pl-2">
+        {visibleSteps.length > 0 && <StepConnector />}
+        {visibleSteps.map((step, index) => {
+          const stepNumber = completedCount + index + 1;
+          const isActive = index === 0;
+          const isLast = index === visibleSteps.length - 1;
 
-        return (
-          <div key={stepNumber}>
-            {isActive ? (
-              <ActiveStepRow
-                number={stepNumber}
-                label={step.label}
-                description={step.description}
-                detail={activeStepDetail}
-              />
-            ) : (
-              <PendingStepRow number={stepNumber} label={step.label} />
-            )}
-            {!isLast && <StepConnector />}
-          </div>
-        );
-      })}
+          return (
+            <div key={stepNumber}>
+              {isActive ? (
+                <ActiveStepRow
+                  number={stepNumber}
+                  label={step.label}
+                  description={step.description}
+                  detail={activeStepDetail}
+                />
+              ) : (
+                <PendingStepRow number={stepNumber} label={step.label} />
+              )}
+              {!isLast && <StepConnector />}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
