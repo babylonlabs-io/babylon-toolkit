@@ -27,6 +27,8 @@ interface SignModalState {
 
 interface BroadcastModalState {
   broadcastingActivity: VaultActivity | null;
+  /** All vault IDs sharing the Pre-PegIn being broadcast (batched pegin). */
+  broadcastingBatchIds: string[];
   handleClose: () => void;
   handleSuccess: () => void;
   successOpen: boolean;
@@ -125,6 +127,7 @@ export function PendingDepositModals({
           onClose={broadcastModal.handleClose}
           onResumeSuccess={broadcastModal.handleSuccess}
           activity={broadcastModal.broadcastingActivity}
+          batchVaultIds={broadcastModal.broadcastingBatchIds}
           depositorEthAddress={ethAddress}
         />
       )}

@@ -105,6 +105,11 @@ export function ResumeSignContent({
 
 export interface ResumeBroadcastContentProps {
   activity: VaultActivity;
+  /**
+   * Every vault ID sharing this Pre-PegIn transaction (batched pegin).
+   * Includes `activity.id`. The broadcast confirms all of them.
+   */
+  batchVaultIds: string[];
   depositorEthAddress: string;
   onClose: () => void;
   onSuccess: () => void;
@@ -112,12 +117,14 @@ export interface ResumeBroadcastContentProps {
 
 export function ResumeBroadcastContent({
   activity,
+  batchVaultIds,
   depositorEthAddress,
   onClose,
   onSuccess,
 }: ResumeBroadcastContentProps) {
   const { broadcasting, error, handleBroadcast } = useBroadcastState({
     activity,
+    batchVaultIds,
     depositorEthAddress,
     onSuccess,
   });

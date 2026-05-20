@@ -115,6 +115,10 @@ export const COPY = {
         prefix: "Expired",
       },
     },
+    batchedDeposit: {
+      groupLabel: "Batched deposit",
+      broadcastHelper: "Broadcasts once for all vaults in this deposit",
+    },
   },
   deposit: {
     steps: {

@@ -16,8 +16,10 @@ import { ExpandMenuButton } from "@/components/shared";
 import { getNetworkConfigBTC } from "@/config";
 import { PeginPollingProvider } from "@/context/deposit/PeginPollingContext";
 import { usePendingDeposits } from "@/hooks/usePendingDeposits";
+import { groupActivitiesByBatch } from "@/utils/batchedPegin";
 import { formatBtcAmount } from "@/utils/formatting";
 
+import { BatchedDepositGroup } from "./BatchedDepositGroup";
 import { ExpiredDepositSection } from "./ExpiredDepositSection";
 import { PendingDepositActionBadge } from "./PendingDepositActionBadge";
 import { PendingDepositCard } from "./PendingDepositCard";
@@ -52,6 +54,13 @@ export function PendingDepositSection() {
         (sum, a) => sum + parseFloat(a.collateral.amount || "0"),
         0,
       ),
+    [pendingActivities],
+  );
+
+  // Vaults sharing one Pre-PegIn transaction (a batched pegin) render
+  // together so the shared broadcast is a single batch-level action.
+  const pendingGroups = useMemo(
+    () => groupActivitiesByBatch(pendingActivities),
     [pendingActivities],
   );
 
@@ -106,25 +115,45 @@ export function PendingDepositSection() {
               {/* Expanded deposit list */}
               {isExpanded && (
                 <div className="mt-4 max-h-[400px] space-y-3 overflow-y-auto">
-                  {pendingActivities.map((activity) => (
-                    <PendingDepositCard
-                      key={activity.id}
-                      depositId={activity.id}
-                      amount={activity.collateral.amount}
-                      timestamp={activity.timestamp}
-                      txHash={activity.peginTxHash}
-                      providerId={activity.providers[0].id}
-                      vaultProviders={vaultProviders}
-                      onSignClick={signModal.handleSignClick}
-                      onBroadcastClick={broadcastModal.handleBroadcastClick}
-                      onWotsKeyClick={wotsKeyModal.handleWotsKeyClick}
-                      onActivationClick={activationModal.handleActivationClick}
-                      onRefundClick={refundModal.handleRefundClick}
-                      onArtifactDownloadClick={
-                        artifactDownloadModal.handleArtifactDownloadClick
-                      }
-                    />
-                  ))}
+                  {pendingGroups.map((group) =>
+                    group.length > 1 ? (
+                      <BatchedDepositGroup
+                        key={group[0].id}
+                        activities={group}
+                        vaultProviders={vaultProviders}
+                        onSignClick={signModal.handleSignClick}
+                        onBroadcastClick={broadcastModal.handleBroadcastClick}
+                        onWotsKeyClick={wotsKeyModal.handleWotsKeyClick}
+                        onActivationClick={
+                          activationModal.handleActivationClick
+                        }
+                        onRefundClick={refundModal.handleRefundClick}
+                        onArtifactDownloadClick={
+                          artifactDownloadModal.handleArtifactDownloadClick
+                        }
+                      />
+                    ) : (
+                      <PendingDepositCard
+                        key={group[0].id}
+                        depositId={group[0].id}
+                        amount={group[0].collateral.amount}
+                        timestamp={group[0].timestamp}
+                        txHash={group[0].peginTxHash}
+                        providerId={group[0].providers[0].id}
+                        vaultProviders={vaultProviders}
+                        onSignClick={signModal.handleSignClick}
+                        onBroadcastClick={broadcastModal.handleBroadcastClick}
+                        onWotsKeyClick={wotsKeyModal.handleWotsKeyClick}
+                        onActivationClick={
+                          activationModal.handleActivationClick
+                        }
+                        onRefundClick={refundModal.handleRefundClick}
+                        onArtifactDownloadClick={
+                          artifactDownloadModal.handleArtifactDownloadClick
+                        }
+                      />
+                    ),
+                  )}
                 </div>
               )}
             </Card>
