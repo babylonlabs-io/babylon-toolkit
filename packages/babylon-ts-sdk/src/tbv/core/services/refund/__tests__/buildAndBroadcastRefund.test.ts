@@ -75,31 +75,35 @@ const VP_PUBKEY = "b".repeat(64);
 const VK_PUBKEY = "c".repeat(64);
 const UC_PUBKEY = "d".repeat(64);
 
-// Build a minimal funded Pre-PegIn tx hex with `numHtlcs` HTLC
-// placeholder outputs followed by an optional OP_RETURN. The orchestrator
-// parses this with bitcoinjs to check shape; we only need realistic enough
-// bytes for parsing + output-count checks (the WASM primitive is mocked,
-// so the HTLC scripts don't need to be real taproot keys).
+// Build a funded Pre-PegIn tx hex in the protocol layout:
+// `[HTLC..., (optional) auth-anchor OP_RETURN, CPFP anchor]`. The HTLC and
+// CPFP-anchor outputs are placeholders — the orchestrator does not re-derive
+// their content (the WASM primitive is mocked); only the OP_RETURN position
+// matters for the auth-anchor read.
 function buildMinimalFundedPrePeginHex(opts?: {
   authAnchorHashHex?: string;
   numHtlcs?: number;
 }): string {
   const numHtlcs = opts?.numHtlcs ?? 1;
+  const placeholder = Buffer.from("0014" + "11".repeat(20), "hex");
   const tx = new bitcoin.Transaction();
   tx.addInput(Buffer.alloc(32, 0xaa), 0);
+  // HTLC placeholders (P2WPKH script — any non-OP_RETURN script works).
   for (let i = 0; i < numHtlcs; i++) {
-    tx.addOutput(Buffer.from("0014" + "11".repeat(20), "hex"), 100_000);
+    tx.addOutput(placeholder, 100_000);
   }
   if (opts?.authAnchorHashHex !== undefined) {
+    // OP_RETURN (0x6a) || PUSH32 (0x20) || <32-byte hash>
     tx.addOutput(Buffer.from(`6a20${opts.authAnchorHashHex}`, "hex"), 0);
   }
+  // CPFP anchor — always the last output of a Pre-PegIn.
+  tx.addOutput(placeholder, 0);
   return tx.toHex();
 }
 
-// Realistic single-HTLC Pre-PegIn hex with no OP_RETURN. Used as the
-// default `unsignedPrePeginTxHex` so the orchestrator's structural
-// checks (parseable hex, ≥ batch.length outputs) pass without
-// per-test setup.
+// Realistic single-HTLC Pre-PegIn hex (no auth-anchor OP_RETURN). Used as the
+// default `unsignedPrePeginTxHex` so the orchestrator's structural checks
+// pass without per-test setup.
 const DEFAULT_FUNDED_PRE_PEGIN_HEX = `0x${buildMinimalFundedPrePeginHex()}`;
 
 function buildVault(overrides?: Partial<VaultRefundData>): VaultRefundData {
@@ -375,7 +379,7 @@ describe("buildAndBroadcastRefund", () => {
       expect(call[0].prePeginParams.authAnchorHash).toBe(ANCHOR_HASH);
     });
 
-    it("passes authAnchorHash = undefined when the funded tx has no OP_RETURN at vout 1 (legacy shape)", async () => {
+    it("passes authAnchorHash = undefined when the funded tx has no auth-anchor OP_RETURN", async () => {
       const fundedHex = buildMinimalFundedPrePeginHex();
       readVault.mockResolvedValue(
         buildVault({ unsignedPrePeginTxHex: "0x" + fundedHex }),
@@ -465,7 +469,7 @@ describe("buildAndBroadcastRefund", () => {
       expect(call[0].prePeginParams.authAnchorHash).toBe("cd".repeat(32));
     });
 
-    it("refuses a 2-vault funded tx when batch claims length 1 (anchor vout mismatch)", async () => {
+    it("refuses a 2-HTLC funded tx when batch claims length 1 (HTLC-count mismatch)", async () => {
       // Funded tx has 2 HTLCs + OP_RETURN at vout 2, but the caller passes
       // a single-element batch. The orchestrator must catch the
       // structural mismatch before signing.
@@ -486,7 +490,9 @@ describe("buildAndBroadcastRefund", () => {
           signPsbt,
           broadcastTx,
         }),
-      ).rejects.toThrow(/Auth-anchor OP_RETURN at vout 2 does not match batch size/);
+      ).rejects.toThrow(
+        /Funded Pre-PegIn has 2 HTLC outputs but the batch vector has 1/,
+      );
 
       expect(mockedBuildRefundPsbt).not.toHaveBeenCalled();
       expect(broadcastTx).not.toHaveBeenCalled();
@@ -494,7 +500,7 @@ describe("buildAndBroadcastRefund", () => {
 
     it("refuses a funded tx with fewer outputs than the batch claims", async () => {
       // Batch claims 3 siblings but funded tx only carries 1 HTLC output.
-      // Structural check catches this before the PSBT primitive runs.
+      // The structural HTLC-count check catches this before the PSBT primitive runs.
       const fundedHex = buildMinimalFundedPrePeginHex({ numHtlcs: 1 });
       const H0 = ("0x" + "11".repeat(32)) as Hex;
       const H1 = ("0x" + "22".repeat(32)) as Hex;
@@ -522,16 +528,50 @@ describe("buildAndBroadcastRefund", () => {
           signPsbt,
           broadcastTx,
         }),
-      ).rejects.toThrow(/Funded Pre-PegIn tx has 1 outputs but batch requires at least 3/);
+      ).rejects.toThrow(
+        /Funded Pre-PegIn has 1 HTLC outputs but the batch vector has 3/,
+      );
       expect(mockedBuildRefundPsbt).not.toHaveBeenCalled();
     });
 
-    it("refuses a funded tx with two OP_RETURN PUSH32 outputs (ambiguous)", async () => {
+    it("accepts a single-vault tx with a wallet-appended trailing OP_RETURN", async () => {
+      // Protocol layout: [HTLC, auth-anchor OP_RETURN, CPFP anchor]. A
+      // wallet may append its own OP_RETURN (e.g. a label) after that.
+      // The auth-anchor is read positionally at vout 1 (= htlcCount); the
+      // trailing OP_RETURN is irrelevant and must not block the refund —
+      // matching btc-vault, which reads the auth anchor at a fixed index.
+      const ANCHOR_HASH = "cd".repeat(32);
       const tx = new bitcoin.Transaction();
       tx.addInput(Buffer.alloc(32, 0xaa), 0);
       tx.addOutput(Buffer.from("0014" + "11".repeat(20), "hex"), 100_000);
-      tx.addOutput(Buffer.from("6a20" + "cd".repeat(32), "hex"), 0);
+      tx.addOutput(Buffer.from(`6a20${ANCHOR_HASH}`, "hex"), 0);
+      tx.addOutput(Buffer.from("0014" + "11".repeat(20), "hex"), 0);
       tx.addOutput(Buffer.from("6a20" + "ef".repeat(32), "hex"), 0);
+      readVault.mockResolvedValue(
+        buildVault({ unsignedPrePeginTxHex: "0x" + tx.toHex() }),
+      );
+
+      await buildAndBroadcastRefund({
+        vaultId: VAULT_ID,
+        readVault,
+        readPrePeginContext,
+        feeRate: FEE_RATE,
+        signPsbt,
+        broadcastTx,
+      });
+
+      const [call] = mockedBuildRefundPsbt.mock.calls;
+      expect(call[0].prePeginParams.authAnchorHash).toBe(ANCHOR_HASH);
+    });
+
+    it("refuses a funded tx whose vout-1 output is a malformed OP_RETURN", async () => {
+      // vout 1 IS an OP_RETURN but not a clean 32-byte push — must throw
+      // rather than silently degrade to "no auth anchor".
+      const tx = new bitcoin.Transaction();
+      tx.addInput(Buffer.alloc(32, 0xaa), 0);
+      tx.addOutput(Buffer.from("0014" + "11".repeat(20), "hex"), 100_000);
+      tx.addOutput(Buffer.from("6a10" + "ab".repeat(16), "hex"), 0);
+      tx.addOutput(Buffer.from("0014" + "11".repeat(20), "hex"), 0);
       readVault.mockResolvedValue(
         buildVault({ unsignedPrePeginTxHex: "0x" + tx.toHex() }),
       );
@@ -545,7 +585,7 @@ describe("buildAndBroadcastRefund", () => {
           signPsbt,
           broadcastTx,
         }),
-      ).rejects.toThrow(/OP_RETURN PUSH32 outputs/);
+      ).rejects.toThrow(/malformed/);
 
       expect(mockedBuildRefundPsbt).not.toHaveBeenCalled();
     });

@@ -80,90 +80,79 @@ export function assertAuthAnchorOpReturn(
 }
 
 /**
- * Best-effort reader for the auth-anchor OP_RETURN payload at `vout` of
- * a funded Pre-PegIn transaction.
+ * Read the auth-anchor OP_RETURN payload at the fixed index `vout` of a
+ * funded Pre-PegIn transaction.
  *
- * Returns the 32-byte payload as lowercase hex (no `0x` prefix) if the
- * output at `vout` is exactly `OP_RETURN || PUSH32 || <32 bytes>` with
- * a zero value. Returns `undefined` for any structural mismatch —
- * missing output, wrong script shape, non-zero value — so legacy
- * non-auth-anchored Pre-PegIns parse as "no anchor" rather than
- * raising.
+ * Positional, matching the protocol: the auth anchor — when present — sits
+ * at `vout = htlcCount` (see {@link countHtlcOutputs}). Mirrors btc-vault
+ * `PrePegInTx::extract_auth_anchor_hash`:
+ *  - returns `undefined` when the output at `vout` is absent or is not an
+ *    OP_RETURN (no auth anchor — a legitimate shape);
+ *  - returns the 32-byte payload as lowercase hex when the output is a
+ *    well-formed `OP_RETURN || PUSH32 || <32 bytes>`;
+ *  - throws when the output IS an OP_RETURN but malformed — that must not
+ *    silently collapse to "no anchor".
  *
- * Used by the refund flow to reconstruct the unfunded WASM template
- * with the same output shape as the on-chain funded transaction.
- * Assertion semantics (compare against an expected value, throw on
- * mismatch) live in {@link assertAuthAnchorOpReturn}.
+ * @throws If `vout`'s output is an OP_RETURN that is not a clean 32-byte push.
  */
 export function readAuthAnchorOpReturn(
   fundedPrePeginTxHex: string,
   vout: number,
 ): string | undefined {
-  let tx: bitcoin.Transaction;
-  try {
-    tx = bitcoin.Transaction.fromHex(stripHexPrefix(fundedPrePeginTxHex));
-  } catch {
-    // Best-effort: unparseable hex is also "no extractable anchor".
-    // The same hex flows into the refund PSBT primitive immediately
-    // after, where Transaction.fromHex will surface a real parse error.
-    return undefined;
-  }
-
-  if (tx.outs.length <= vout) return undefined;
+  const tx = bitcoin.Transaction.fromHex(stripHexPrefix(fundedPrePeginTxHex));
 
   const output = tx.outs[vout];
-  const script = output.script;
-  if (
-    script.length !== OP_RETURN_PUSH32_SCRIPT_LEN ||
-    script[0] !== OP_RETURN ||
-    script[1] !== OP_PUSH32
-  ) {
-    return undefined;
-  }
-  if (output.value !== 0) return undefined;
+  if (output === undefined) return undefined;
 
+  const script = output.script;
+  // Not an OP_RETURN → no auth anchor at this position (legitimate).
+  if (script.length === 0 || script[0] !== OP_RETURN) return undefined;
+
+  // It IS an OP_RETURN — it must be the canonical 32-byte push, or throw.
+  if (script.length !== OP_RETURN_PUSH32_SCRIPT_LEN || script[1] !== OP_PUSH32) {
+    throw new Error(
+      `Auth-anchor OP_RETURN at vout ${vout} is malformed: expected ` +
+        `${OP_RETURN_PUSH32_SCRIPT_LEN}-byte OP_RETURN + PUSH32 layout, got a ` +
+        `${script.length}-byte script`,
+    );
+  }
   return script.slice(2).toString("hex").toLowerCase();
 }
 
 /**
- * Scan a funded Pre-PegIn transaction for its auth-anchor commitment
- * (an `OP_RETURN || PUSH32 || <32 bytes>` output with value 0).
+ * Count the HTLC outputs at the head of a funded Pre-PegIn transaction.
  *
- * Returns `{ vout, hash }` for exactly one match, `undefined` for zero
- * matches (legacy / unparseable). Throws on multiple matches — that
- * shape is malformed and must not silently collapse to "no anchor".
+ * Mirrors btc-vault `PrePegInTx::count_htlc_outputs` and the contract's
+ * `PeginLogic._countHtlcOutputs`: the HTLC outputs are the contiguous
+ * leading outputs before the first OP_RETURN; the optional auth-anchor
+ * OP_RETURN sits right after them, and the CPFP anchor is always the last
+ * output. Walks outputs `[0, len - 1)` (the last is the CPFP anchor) and
+ * stops at the first OP_RETURN.
+ *
+ * The returned count doubles as the auth-anchor index for
+ * {@link readAuthAnchorOpReturn}.
+ *
+ * Caveat (same as btc-vault's): for a Pre-PegIn with no auth-anchor
+ * OP_RETURN, a wallet-appended output after the CPFP anchor inflates the
+ * count — it is an upper bound. The refund's `count !== 1` check then fails
+ * closed (refuses), which is safe.
+ *
+ * @throws If the transaction has fewer than 2 outputs.
  */
-export function findAuthAnchorOpReturn(
-  fundedPrePeginTxHex: string,
-): { vout: number; hash: string } | undefined {
-  let tx: bitcoin.Transaction;
-  try {
-    tx = bitcoin.Transaction.fromHex(stripHexPrefix(fundedPrePeginTxHex));
-  } catch {
-    return undefined;
-  }
+export function countHtlcOutputs(fundedPrePeginTxHex: string): number {
+  const tx = bitcoin.Transaction.fromHex(stripHexPrefix(fundedPrePeginTxHex));
 
-  const hits: { vout: number; hash: string }[] = [];
-  for (let i = 0; i < tx.outs.length; i++) {
-    const output = tx.outs[i];
-    const script = output.script;
-    if (
-      script.length === OP_RETURN_PUSH32_SCRIPT_LEN &&
-      script[0] === OP_RETURN &&
-      script[1] === OP_PUSH32 &&
-      output.value === 0
-    ) {
-      hits.push({
-        vout: i,
-        hash: script.slice(2).toString("hex").toLowerCase(),
-      });
-    }
-  }
-
-  if (hits.length > 1) {
+  if (tx.outs.length < 2) {
     throw new Error(
-      `Funded Pre-PegIn has ${hits.length} OP_RETURN PUSH32 outputs (vouts ${hits.map((h) => h.vout).join(", ")}); expected at most 1.`,
+      `Funded Pre-PegIn must have at least 2 outputs (HTLC + CPFP anchor), ` +
+        `got ${tx.outs.length}`,
     );
   }
-  return hits[0];
+
+  let count = 0;
+  for (let i = 0; i < tx.outs.length - 1; i++) {
+    if (tx.outs[i].script[0] === OP_RETURN) break;
+    count++;
+  }
+  return count;
 }

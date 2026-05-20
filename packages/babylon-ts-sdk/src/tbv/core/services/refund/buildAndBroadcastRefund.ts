@@ -11,11 +11,11 @@
  */
 
 import type { Network } from "@babylonlabs-io/babylon-tbv-rust-wasm";
-import { Psbt, Transaction } from "bitcoinjs-lib";
+import { Psbt } from "bitcoinjs-lib";
 import type { Address, Hex } from "viem";
 
 import type { SignPsbtOptions } from "../../../../shared/wallets/interfaces/BitcoinWallet";
-import { findAuthAnchorOpReturn } from "../../managers/pegin";
+import { countHtlcOutputs, readAuthAnchorOpReturn } from "../../managers/pegin";
 import { assertPsbtUnsignedTxMatches } from "../../primitives/psbt/assertPsbtUnsignedTxMatches";
 import { buildRefundPsbt } from "../../primitives/psbt/refund";
 import {
@@ -445,43 +445,29 @@ export async function buildAndBroadcastRefund<
 
   const cleanFundedPrePeginTxHex = stripHexPrefix(vault.unsignedPrePeginTxHex);
 
-  // Production peg-ins (PeginManager) commit an OP_RETURN <PUSH32
-  // SHA256(authAnchor)> output at `vout = hashlocks.length`. The
-  // reconstructed unfunded template carries `batch.length` HTLC outputs,
-  // so the OP_RETURN — when present — must sit at exactly that vout.
-  // Legacy non-auth-anchored Pre-PegIns return `undefined` from the
-  // finder; the template then has no OP_RETURN either, which is a
-  // matching configuration.
-  const found = findAuthAnchorOpReturn(cleanFundedPrePeginTxHex);
-  if (found !== undefined && found.vout !== vault.batch.length) {
+  // Per the protocol a Pre-PegIn is laid out
+  // `[HTLC..., (optional) auth-anchor OP_RETURN, CPFP anchor]`. countHtlcOutputs
+  // (mirroring btc-vault `count_htlc_outputs` and the contract
+  // `_countHtlcOutputs`) returns the leading HTLC count. The reconstructed
+  // template carries one HTLC per batch entry, so the funded tx's HTLC count
+  // must equal the batch size — a mismatch means the sibling HTLC vector
+  // disagrees with the funded tx.
+  const htlcCount = countHtlcOutputs(cleanFundedPrePeginTxHex);
+  if (htlcCount !== vault.batch.length) {
     throw new Error(
-      `Auth-anchor OP_RETURN at vout ${found.vout} does not match batch size ` +
-        `(${vault.batch.length} HTLC outputs expect the anchor at vout ${vault.batch.length}). ` +
-        `Refund refused — sibling HTLC vector is incomplete.`,
+      `Funded Pre-PegIn has ${htlcCount} HTLC outputs but the batch vector ` +
+        `has ${vault.batch.length} entries; refund refused — funded tx shape ` +
+        `disagrees with the sibling HTLC vector.`,
     );
   }
-  const authAnchorHash = found?.hash;
-
-  // Independent structural check on the funded tx: it must carry at
-  // least N HTLC outputs (one per batch entry). If the anchor is
-  // present we've already pinned its position above, which transitively
-  // proves the tx has ≥ N+1 outputs; if the anchor is absent (legacy)
-  // we still need ≥ N to spend `htlcVout = N-1`.
-  let parsedFundedTx: Transaction;
-  try {
-    parsedFundedTx = Transaction.fromHex(cleanFundedPrePeginTxHex);
-  } catch (e) {
-    throw new Error(
-      `Failed to parse funded Pre-PegIn transaction hex: ${e instanceof Error ? e.message : String(e)}`,
-    );
-  }
-  if (parsedFundedTx.outs.length < vault.batch.length) {
-    throw new Error(
-      `Funded Pre-PegIn tx has ${parsedFundedTx.outs.length} outputs but batch ` +
-        `requires at least ${vault.batch.length} HTLC outputs. ` +
-        `Refund refused — funded tx shape disagrees with sibling vector.`,
-    );
-  }
+  // The auth-anchor OP_RETURN — if present — sits at `vout = htlcCount`. Read
+  // it positionally: a non-OP_RETURN output there means a deposit with no
+  // auth anchor (`undefined`); an OP_RETURN is parsed, and a malformed one
+  // throws rather than silently degrading to "no anchor".
+  const authAnchorHash = readAuthAnchorOpReturn(
+    cleanFundedPrePeginTxHex,
+    htlcCount,
+  );
 
   const { psbtHex } = await buildRefundPsbt({
     prePeginParams: {
