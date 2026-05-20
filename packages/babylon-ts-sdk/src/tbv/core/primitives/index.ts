@@ -115,11 +115,7 @@ export type {
   BuildRefundPsbtResult,
 } from "./psbt/refund";
 
-export {
-  assertPayoutOutputMatchesRegistered,
-  buildPayoutPsbt,
-  extractPayoutSignature,
-} from "./psbt/payout";
+export { buildPayoutPsbt, extractPayoutSignature } from "./psbt/payout";
 export type { PayoutParams, PayoutPsbtResult } from "./psbt/payout";
 
 export {

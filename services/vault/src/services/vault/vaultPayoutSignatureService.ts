@@ -36,6 +36,20 @@ import {
 } from "../../clients/eth-contract/sdk-readers";
 import { getBTCNetworkForWASM } from "../../config/pegin";
 
+/**
+ * Exclusive upper bound on VP commission (bps) — `BTCVaultRegistry._validateCommission`
+ * ceiling. Local literal by design: the SDK's `MAX_VP_COMMISSION_BPS_EXCLUSIVE`
+ * is an internal module, not public API.
+ */
+const VP_COMMISSION_BPS_EXCLUSIVE_MAX = 10_000;
+
+/**
+ * Absolute floor on a realizable VP commission: the btc-vault tx-graph builder
+ * refuses `vp_commission_bps == 0`, so the effective floor is
+ * `max(minVpCommissionBps, 1)`.
+ */
+const MIN_REALIZABLE_VP_COMMISSION_BPS = 1;
+
 export interface PayoutVaultKeeper {
   btcPubKey: string;
 }
@@ -71,6 +85,11 @@ export interface SigningContext {
   network: Network;
   /** On-chain registered depositor payout scriptPubKey (hex) for payout output validation */
   registeredPayoutScriptPubKey: string;
+  /**
+   * VP commission in basis points (`1..=9999`) from BTCVaultRegistry.
+   * Forwarded to `buildPayoutPsbt` to cap the VP-claimer commission output.
+   */
+  commissionBps: number;
 }
 
 export interface PreparedSigningData {
@@ -141,6 +160,25 @@ export async function prepareSigningContext(
   const timelockPegin = await protocolParamsReader.getTimelockPeginByVersion(
     vault.offchainParamsVersion,
   );
+
+  // Trust-boundary check on the VP commission read from chain — mirrors
+  // `BTCVaultRegistry._validateCommission` so `buildPayoutPsbt` can trust it.
+  const minCommissionBps = Math.max(
+    offchainParams.minVpCommissionBps,
+    MIN_REALIZABLE_VP_COMMISSION_BPS,
+  );
+  if (
+    !Number.isInteger(vault.vaultProviderCommissionBps) ||
+    vault.vaultProviderCommissionBps < minCommissionBps ||
+    vault.vaultProviderCommissionBps >= VP_COMMISSION_BPS_EXCLUSIVE_MAX
+  ) {
+    throw new Error(
+      `VP commission ${vault.vaultProviderCommissionBps} bps out of protocol ` +
+        `range [${minCommissionBps}, ${VP_COMMISSION_BPS_EXCLUSIVE_MAX}) ` +
+        `for offchain params version ${vault.offchainParamsVersion}`,
+    );
+  }
+
   const councilMembers = offchainParams.securityCouncilKeys
     .map((k) => stripHexPrefix(k))
     .sort();
@@ -192,6 +230,7 @@ export async function prepareSigningContext(
       councilQuorum: offchainParams.councilQuorum,
       network: getBTCNetworkForWASM(),
       registeredPayoutScriptPubKey,
+      commissionBps: vault.vaultProviderCommissionBps,
     },
     vaultProviderAddress: vault.vaultProvider,
   };

@@ -27,7 +27,6 @@ const MOCK_LOCAL_NOPAYOUT_PSBT_HEX_PREFIX = "local_nopayout_psbt_hex_";
 vi.mock("../../../primitives/psbt/payout", () => ({
   extractPayoutSignature: (signedPsbtHex: string, _depositorPubkey: string) =>
     `${MOCK_SIGNATURE_PREFIX}${signedPsbtHex}`,
-  assertPayoutOutputMatchesRegistered: vi.fn(),
   buildPayoutPsbt: vi.fn(async () => ({
     psbtHex: MOCK_LOCAL_PAYOUT_PSBT_HEX,
   })),
@@ -308,6 +307,9 @@ describe("signDepositorGraph", () => {
       universalChallengerBtcPubkeys: ctx.universalChallengerBtcPubkeys,
       timelockPegin: ctx.timelockPegin,
       network: ctx.network,
+      claimerBtcPubkey: ctx.depositorBtcPubkey,
+      registeredPayoutScriptPubKey: ctx.registeredPayoutScriptPubKey,
+      commissionBps: 1,
     });
   });
 
@@ -644,41 +646,16 @@ describe("signDepositorGraph", () => {
     expect(result.payout_signatures.payout_signature).toBeDefined();
   });
 
-  it("validates the payout output against the registered scriptPubKey before signing", async () => {
+  it("propagates payout build errors and never reaches the wallet", async () => {
     registerStandardMocks([CHALLENGER_A, CHALLENGER_B]);
-    const { assertPayoutOutputMatchesRegistered } = await import(
+    const { buildPayoutPsbt } = await import(
       "../../../primitives/psbt/payout"
     );
-    const validator = vi.mocked(assertPayoutOutputMatchesRegistered);
-    validator.mockClear();
-
-    const wallet = createMockWallet({ supportsBatch: true });
-    const graph = createDepositorGraph([CHALLENGER_A, CHALLENGER_B]);
-
-    await signDepositorGraph({
-      depositorGraph: graph,
-      btcWallet: wallet,
-      signingContext: createSigningContext(),
+    vi.mocked(buildPayoutPsbt).mockImplementationOnce(async () => {
+      throw new Error(
+        "Payout transaction output 0 does not pay the expected scriptPubKey for role depositor-as-claimer",
+      );
     });
-
-    expect(validator).toHaveBeenCalledWith(
-      graph.payout_tx.tx_hex,
-      REGISTERED_PAYOUT_SCRIPT,
-    );
-  });
-
-  it("propagates payout output validation errors and never reaches the wallet", async () => {
-    registerStandardMocks([CHALLENGER_A, CHALLENGER_B]);
-    const { assertPayoutOutputMatchesRegistered } = await import(
-      "../../../primitives/psbt/payout"
-    );
-    vi.mocked(assertPayoutOutputMatchesRegistered).mockImplementationOnce(
-      () => {
-        throw new Error(
-          "Payout transaction does not pay to the registered depositor payout address",
-        );
-      },
-    );
 
     const wallet = createMockWallet({ supportsBatch: true });
     const graph = createDepositorGraph([CHALLENGER_A, CHALLENGER_B]);
@@ -689,7 +666,7 @@ describe("signDepositorGraph", () => {
         btcWallet: wallet,
         signingContext: createSigningContext(),
       }),
-    ).rejects.toThrow("registered depositor payout address");
+    ).rejects.toThrow("expected scriptPubKey for role depositor-as-claimer");
 
     expect(wallet.signPsbts).not.toHaveBeenCalled();
     expect(wallet.signPsbt).not.toHaveBeenCalled();

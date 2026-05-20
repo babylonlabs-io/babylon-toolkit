@@ -28,3 +28,23 @@ export const ASSERT_PAYOUT_OUTPUT_INDEX = 0;
 
 /** Assert output index spent by NoPayout input 0 (signed). */
 export const ASSERT_NOPAYOUT_OUTPUT_INDEX = 0;
+
+/**
+ * Dust amount (sats) for the payout CPFP anchor output. Matches `DUST_AMOUNT`
+ * in `btc-vault crates/vault/src/lib.rs`.
+ */
+export const PAYOUT_ANCHOR_DUST_SATS = 546;
+
+/** VP-claimer payout output count: [depositor payout, VP commission, CPFP anchor]. */
+export const VP_CLAIMER_PAYOUT_OUTPUT_COUNT = 3;
+
+/** Depositor/VK-claimer payout output count: [claimer payout, CPFP anchor]. */
+export const NON_VP_CLAIMER_PAYOUT_OUTPUT_COUNT = 2;
+
+/**
+ * Exclusive upper bound on VP commission (bps), and the bps denominator for
+ * `floor(peginValue * bps / 10_000)`. Matches `BTCVaultRegistry._validateCommission`
+ * (`commissionBps >= 10000` reverts). The minimum is version-locked
+ * (`minVpCommissionBps`) and enforced upstream, not here.
+ */
+export const MAX_VP_COMMISSION_BPS_EXCLUSIVE = 10_000;

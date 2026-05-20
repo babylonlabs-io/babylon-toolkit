@@ -19,6 +19,7 @@ import { Psbt, Transaction } from "bitcoinjs-lib";
 import { createPayoutScript } from "../scripts/payout";
 import {
   TAPSCRIPT_LEAF_VERSION,
+  deriveBip86ScriptPubKeyHex,
   hexToUint8Array,
   isValidHex,
   stripHexPrefix,
@@ -26,7 +27,11 @@ import {
 } from "../utils/bitcoin";
 import {
   ASSERT_PAYOUT_OUTPUT_INDEX,
+  MAX_VP_COMMISSION_BPS_EXCLUSIVE,
+  NON_VP_CLAIMER_PAYOUT_OUTPUT_COUNT,
+  PAYOUT_ANCHOR_DUST_SATS,
   PEGIN_VAULT_OUTPUT_INDEX,
+  VP_CLAIMER_PAYOUT_OUTPUT_COUNT,
 } from "./constants";
 
 /**
@@ -39,6 +44,15 @@ import {
  * the first witness item would no longer necessarily be the depositor's.
  */
 const TAPROOT_SINGLE_SIG_WITNESS_STACK_SIZE = 3;
+
+/**
+ * Coarse cap on a payout tx's implicit fee (inputs − outputs), as a fraction
+ * of input value — blocks a VP deflating outputs and burning the remainder
+ * as miner fee. A backstop only; the per-role structural checks in
+ * {@link assertPayoutOutputLayout} are the primary value-diversion guard.
+ */
+const MAX_PAYOUT_FEE_FRACTION_NUMERATOR = 10;
+const MAX_PAYOUT_FEE_FRACTION_DENOMINATOR = 100;
 
 /**
  * Parameters for building an unsigned Payout PSBT
@@ -94,6 +108,26 @@ export interface PayoutParams {
    * Bitcoin network
    */
   network: Network;
+
+  /**
+   * Claimer's x-only BTC public key (64-char hex, no prefix). Drives role
+   * inference (VP / depositor-as-claimer / VK-claimer) inside `buildPayoutPsbt`.
+   */
+  claimerBtcPubkey: string;
+
+  /**
+   * On-chain registered depositor payout scriptPubKey (hex, 0x optional).
+   * Expected outs[0].script for VP- and depositor-claimer roles; unused for
+   * VK-claimer (its outs[0].script is derived from `claimerBtcPubkey`).
+   */
+  registeredPayoutScriptPubKey: string;
+
+  /**
+   * VP commission in basis points (`BTCVaultRegistry.vaultProviderCommissionBps`).
+   * Caps the VP-claimer outs[1].value. The protocol minimum is enforced
+   * upstream; here only `0 <= bps < 10_000` is checked, for safe cap math.
+   */
+  commissionBps: number;
 }
 
 /**
@@ -126,6 +160,13 @@ export interface PayoutPsbtResult {
  * @throws If input 0 does not spend PegIn:0 (vault UTXO)
  * @throws If input 1 does not spend Assert:0 (proof output)
  * @throws If previous output is not found for either input
+ * @throws If sum of output values exceeds sum of input values (invalid tx)
+ * @throws If implicit fee (inputs − outputs) exceeds the configured fraction
+ *   of total input value — see {@link MAX_PAYOUT_FEE_FRACTION_NUMERATOR}
+ * @throws If `claimerBtcPubkey` is not VP, depositor, or a registered VK
+ * @throws If payout output count, outs[0] script, outs[last] anchor value, or
+ *   (VP-claimer) outs[1] commission cap do not match the protocol layout
+ * @throws If `commissionBps` is not a non-negative integer below 10_000
  */
 export async function buildPayoutPsbt(
   params: PayoutParams,
@@ -219,6 +260,44 @@ export async function buildPayoutPsbt(
     );
   }
 
+  // Per-role output validation — blocks an extra attacker output or value
+  // routed into a non-payout slot.
+  assertPayoutOutputLayout({
+    payoutTx,
+    peginValueSats: peginPrevOut.value,
+    claimerBtcPubkey: params.claimerBtcPubkey,
+    vaultProviderBtcPubkey: params.vaultProviderBtcPubkey,
+    depositorBtcPubkey: params.depositorBtcPubkey,
+    vaultKeeperBtcPubkeys: params.vaultKeeperBtcPubkeys,
+    registeredPayoutScriptPubKey: params.registeredPayoutScriptPubKey,
+    commissionBps: params.commissionBps,
+  });
+
+  // Bound the implicit fee — blocks a VP deflating output values and burning
+  // the difference as miner fee.
+  const inputValueSats = peginPrevOut.value + input1PrevOut.value;
+  let outputValueSats = 0;
+  for (const out of payoutTx.outs) outputValueSats += out.value;
+  if (outputValueSats > inputValueSats) {
+    throw new Error(
+      `Payout outputs (${outputValueSats} sats) exceed inputs ` +
+        `(${inputValueSats} sats); invalid transaction.`,
+    );
+  }
+  const implicitFeeSats = inputValueSats - outputValueSats;
+  const maxFeeSats = Math.floor(
+    (inputValueSats * MAX_PAYOUT_FEE_FRACTION_NUMERATOR) /
+      MAX_PAYOUT_FEE_FRACTION_DENOMINATOR,
+  );
+  if (implicitFeeSats > maxFeeSats) {
+    throw new Error(
+      `Payout implicit fee ${implicitFeeSats} sats exceeds the safety cap ` +
+        `of ${maxFeeSats} sats ` +
+        `(${MAX_PAYOUT_FEE_FRACTION_NUMERATOR}/${MAX_PAYOUT_FEE_FRACTION_DENOMINATOR} ` +
+        `of inputs=${inputValueSats}); refusing to sign payout.`,
+    );
+  }
+
   // Input 0: Depositor signs using Taproot script path spend
   // This input includes tapLeafScript for signing
   psbt.addInput({
@@ -268,45 +347,120 @@ export async function buildPayoutPsbt(
 }
 
 /**
- * Validate that a payout transaction's largest output pays to the registered
- * depositor payout scriptPubKey.
+ * Validate a payout transaction's output structure for the claimer's role,
+ * keyed on `claimerBtcPubkey`. Pins per role: `outs.length`, `outs[0].script`,
+ * `outs[last].value` (anchor dust), and (VP-claimer) `outs[1].value` capped at
+ * `floor(peginValue × commissionBps / 10_000)`. Canonical layouts: VP-claimer
+ * = [payout, commission, anchor]; depositor/VK-claimer = [payout, anchor].
  *
- * Prevents a malicious vault provider from substituting the payout destination
- * (or routing funds through a dust output to the correct address while sending
- * the actual value to an attacker-controlled script).
+ * `outs[1].script` and `outs[last].script` are intentionally not pinned: the
+ * value pins above bound depositor exposure regardless of where those outputs
+ * are sent, so the value pins — not script pins — are load-bearing.
  *
- * @param payoutTxHex - Raw payout transaction hex
- * @param registeredPayoutScriptPubKey - On-chain registered scriptPubKey (hex, with or without 0x prefix)
- * @throws If scriptPubKey is invalid hex
- * @throws If the transaction has no outputs
- * @throws If the largest output does not pay to the registered scriptPubKey
+ * @internal Helper invoked by {@link buildPayoutPsbt}.
  */
-export function assertPayoutOutputMatchesRegistered(
-  payoutTxHex: string,
-  registeredPayoutScriptPubKey: string,
-): void {
+function assertPayoutOutputLayout(args: {
+  payoutTx: Transaction;
+  peginValueSats: number;
+  claimerBtcPubkey: string;
+  vaultProviderBtcPubkey: string;
+  depositorBtcPubkey: string;
+  vaultKeeperBtcPubkeys: string[];
+  registeredPayoutScriptPubKey: string;
+  commissionBps: number;
+}): void {
+  const {
+    payoutTx,
+    peginValueSats,
+    claimerBtcPubkey,
+    vaultProviderBtcPubkey,
+    depositorBtcPubkey,
+    vaultKeeperBtcPubkeys,
+    registeredPayoutScriptPubKey,
+    commissionBps,
+  } = args;
+
   if (!isValidHex(registeredPayoutScriptPubKey)) {
     throw new Error("Invalid registeredPayoutScriptPubKey: not valid hex");
   }
 
-  const expectedScript = Buffer.from(
-    stripHexPrefix(registeredPayoutScriptPubKey),
-    "hex",
+  const claimer = stripHexPrefix(claimerBtcPubkey).toLowerCase();
+  const vp = stripHexPrefix(vaultProviderBtcPubkey).toLowerCase();
+  const dep = stripHexPrefix(depositorBtcPubkey).toLowerCase();
+  const keepers = vaultKeeperBtcPubkeys.map((k) =>
+    stripHexPrefix(k).toLowerCase(),
   );
-  const payoutTx = Transaction.fromHex(stripHexPrefix(payoutTxHex));
 
-  if (payoutTx.outs.length === 0) {
-    throw new Error("Payout transaction has no outputs");
+  type Role = "vp-claimer" | "depositor-as-claimer" | "vk-claimer";
+  let role: Role;
+  let expectedOutCount: number;
+  let expectedOut0ScriptHex: string;
+
+  if (claimer === vp) {
+    role = "vp-claimer";
+    expectedOutCount = VP_CLAIMER_PAYOUT_OUTPUT_COUNT;
+    expectedOut0ScriptHex = stripHexPrefix(registeredPayoutScriptPubKey);
+  } else if (claimer === dep) {
+    role = "depositor-as-claimer";
+    expectedOutCount = NON_VP_CLAIMER_PAYOUT_OUTPUT_COUNT;
+    expectedOut0ScriptHex = stripHexPrefix(registeredPayoutScriptPubKey);
+  } else if (keepers.includes(claimer)) {
+    role = "vk-claimer";
+    expectedOutCount = NON_VP_CLAIMER_PAYOUT_OUTPUT_COUNT;
+    expectedOut0ScriptHex = stripHexPrefix(deriveBip86ScriptPubKeyHex(claimer));
+  } else {
+    throw new Error(
+      `Unknown claimer pubkey ${claimer}: not VP, depositor, or a registered vault keeper`,
+    );
   }
 
-  const largestOutput = payoutTx.outs.reduce((max, output) =>
-    output.value > max.value ? output : max,
-  );
-
-  if (!largestOutput.script.equals(expectedScript)) {
+  if (payoutTx.outs.length !== expectedOutCount) {
     throw new Error(
-      "Payout transaction does not pay to the registered depositor payout address",
+      `Payout transaction has ${payoutTx.outs.length} output(s), ` +
+        `expected exactly ${expectedOutCount} for role ${role}.`,
     );
+  }
+
+  const expectedOut0Script = Buffer.from(expectedOut0ScriptHex, "hex");
+  if (!payoutTx.outs[0].script.equals(expectedOut0Script)) {
+    throw new Error(
+      `Payout transaction output 0 does not pay the expected scriptPubKey for role ${role}`,
+    );
+  }
+
+  const anchorIdx = expectedOutCount - 1;
+  if (payoutTx.outs[anchorIdx].value !== PAYOUT_ANCHOR_DUST_SATS) {
+    throw new Error(
+      `Payout CPFP anchor (out ${anchorIdx}) value ${payoutTx.outs[anchorIdx].value} sats ` +
+        `must equal ${PAYOUT_ANCHOR_DUST_SATS} sats`,
+    );
+  }
+
+  if (role === "vp-claimer") {
+    // Structural guard only — a non-negative integer below the bps
+    // denominator, so the cap math `floor(peginValue * bps / 10_000)` is
+    // meaningful. The protocol minimum is enforced at the trust boundary
+    // (`prepareSigningContext`); a too-low value here is fail-safe.
+    if (
+      !Number.isInteger(commissionBps) ||
+      commissionBps < 0 ||
+      commissionBps >= MAX_VP_COMMISSION_BPS_EXCLUSIVE
+    ) {
+      throw new Error(
+        `commissionBps must be an integer in ` +
+          `[0, ${MAX_VP_COMMISSION_BPS_EXCLUSIVE}), got ${commissionBps}`,
+      );
+    }
+    const maxCommissionSats = Math.floor(
+      (peginValueSats * commissionBps) / MAX_VP_COMMISSION_BPS_EXCLUSIVE,
+    );
+    if (payoutTx.outs[1].value > maxCommissionSats) {
+      throw new Error(
+        `Payout VP commission (out 1) value ${payoutTx.outs[1].value} sats ` +
+          `exceeds cap ${maxCommissionSats} sats ` +
+          `(${commissionBps} bps of peginValue=${peginValueSats})`,
+      );
+    }
   }
 }
 

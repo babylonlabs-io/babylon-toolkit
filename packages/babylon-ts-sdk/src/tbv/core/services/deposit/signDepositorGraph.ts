@@ -37,7 +37,6 @@ import {
   buildNoPayoutPsbt,
 } from "../../primitives/psbt/noPayout";
 import {
-  assertPayoutOutputMatchesRegistered,
   buildPayoutPsbt,
   extractPayoutSignature,
 } from "../../primitives/psbt/payout";
@@ -57,6 +56,12 @@ import { createTaprootScriptPathSignOptions } from "../../utils/signing";
  * depositor.
  */
 const DEPOSITOR_SIGNED_INPUT_COUNT = 1;
+
+/**
+ * commissionBps placeholder for the depositor-as-claimer path — `buildPayoutPsbt`
+ * only consults it under the VP-claimer role, so any in-range value is inert.
+ */
+const DEPOSITOR_PATH_UNUSED_COMMISSION_BPS = 1;
 
 /** Tracks which indices in the flat PSBT array belong to which challenger */
 interface ChallengerEntry {
@@ -235,20 +240,9 @@ async function collectDepositorGraphPsbts(
     ctx.universalChallengerBtcPubkeys,
   );
 
-  // 2. Validate the payout transaction's largest output pays to the
-  //    depositor's on-chain registered payout scriptPubKey. The payout tx
-  //    hex is supplied by the VP and otherwise unconstrained; this assertion
-  //    pins the destination of the funds.
-  assertPayoutOutputMatchesRegistered(
-    depositorGraph.payout_tx.tx_hex,
-    ctx.registeredPayoutScriptPubKey,
-  );
-
-  // 3. Build the payout PSBT locally. Every sighash-relevant field
-  //    (witnessUtxo, tapLeafScript, controlBlock, tapInternalKey) is derived
-  //    from on-chain trusted connector params, not from the VP. The VP-
-  //    supplied assert tx hex is implicitly pinned by buildPayoutPsbt's
-  //    input-1 txid check against payoutTx.ins[1].hash.
+  // 2. Build the payout PSBT locally — every sighash-relevant field is
+  //    derived from trusted on-chain connector params, not from the VP.
+  //    buildPayoutPsbt also runs the per-role output validation.
   const builtPayout = await buildPayoutPsbt({
     payoutTxHex: depositorGraph.payout_tx.tx_hex,
     peginTxHex: ctx.peginTxHex,
@@ -259,6 +253,9 @@ async function collectDepositorGraphPsbts(
     universalChallengerBtcPubkeys: ctx.universalChallengerBtcPubkeys,
     timelockPegin: ctx.timelockPegin,
     network: ctx.network,
+    claimerBtcPubkey: ctx.depositorBtcPubkey,
+    registeredPayoutScriptPubKey: ctx.registeredPayoutScriptPubKey,
+    commissionBps: DEPOSITOR_PATH_UNUSED_COMMISSION_BPS,
   });
   psbtHexes.push(builtPayout.psbtHex);
   signOptions.push(
@@ -268,7 +265,7 @@ async function collectDepositorGraphPsbts(
     ),
   );
 
-  // 4. Per-challenger: build the NoPayout PSBT locally too.
+  // 3. Per-challenger: build the NoPayout PSBT locally too.
   const claimerPubkey = stripHexPrefix(ctx.depositorBtcPubkey);
   const assertTxParsed = Transaction.fromHex(
     stripHexPrefix(depositorGraph.assert_tx.tx_hex),

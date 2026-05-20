@@ -24,6 +24,7 @@ import {
   createDummyP2WPKH,
 } from "../../primitives/psbt/__tests__/constants";
 import { initializeWasmForTests } from "../../primitives/psbt/__tests__/helpers";
+import { PAYOUT_ANCHOR_DUST_SATS } from "../../primitives/psbt/constants";
 import { PayoutManager, type PayoutManagerConfig } from "../PayoutManager";
 
 // Test constants - use valid secp256k1 x-only public keys
@@ -130,7 +131,14 @@ describe("PayoutManager", () => {
     }
 
     /**
-     * Creates a deterministic Payout transaction that spends the peg-in output + assert output.
+     * Creates a deterministic Payout transaction. Output shape follows the
+     * VP-claimer canonical structure enforced by `buildPayoutPsbt`'s
+     * per-role check:
+     *   outs[0]: depositor payout (registered scriptPubKey)
+     *   outs[1]: VP commission
+     *   outs[2]: CPFP anchor (546 sats)
+     * Implicit fee = inputs (150_000) − outputs (145_000) = 5_000 = 3.3%,
+     * comfortably under the 10% bound in `buildPayoutPsbt`.
      */
     function createTestPayoutTransaction(
       peginTxHex: string,
@@ -150,7 +158,15 @@ describe("PayoutManager", () => {
         0,
         SEQUENCE_MAX,
       );
-      tx.addOutput(createDummyP2WPKH("d"), Number(TEST_COMBINED_VALUE));
+      // outs[0]: depositor payout — registered scriptPubKey ("d") at vout 0
+      tx.addOutput(
+        createDummyP2WPKH("d"),
+        Number(TEST_COMBINED_VALUE) - (1_000 + PAYOUT_ANCHOR_DUST_SATS),
+      );
+      // outs[1]: VP commission
+      tx.addOutput(createDummyP2WPKH("e"), 1_000);
+      // outs[2]: CPFP anchor
+      tx.addOutput(createDummyP2WPKH("c"), PAYOUT_ANCHOR_DUST_SATS);
 
       return tx.toHex();
     }
@@ -216,6 +232,8 @@ describe("PayoutManager", () => {
           timelockPegin: 100,
           depositorBtcPubkey: TEST_KEYS.DEPOSITOR,
           registeredPayoutScriptPubKey: TEST_PAYOUT_SCRIPT_PUBKEY,
+          claimerBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
+          commissionBps: 500,
         },
         {
           payoutTxHex: payoutTxHex2,
@@ -227,6 +245,8 @@ describe("PayoutManager", () => {
           timelockPegin: 100,
           depositorBtcPubkey: TEST_KEYS.DEPOSITOR,
           registeredPayoutScriptPubKey: TEST_PAYOUT_SCRIPT_PUBKEY,
+          claimerBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
+          commissionBps: 500,
         },
       ]);
 
@@ -273,6 +293,8 @@ describe("PayoutManager", () => {
             timelockPegin: 100,
             depositorBtcPubkey: TEST_KEYS.DEPOSITOR,
             registeredPayoutScriptPubKey: TEST_PAYOUT_SCRIPT_PUBKEY,
+            claimerBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
+            commissionBps: 500,
           },
         ]),
       ).rejects.toThrow(
@@ -316,6 +338,8 @@ describe("PayoutManager", () => {
             timelockPegin: 100,
             depositorBtcPubkey: TEST_KEYS.DEPOSITOR,
             registeredPayoutScriptPubKey: TEST_PAYOUT_SCRIPT_PUBKEY,
+            claimerBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
+            commissionBps: 500,
           },
         ]),
       ).rejects.toThrow();
@@ -374,6 +398,8 @@ describe("PayoutManager", () => {
             timelockPegin: 100,
             depositorBtcPubkey: TEST_KEYS.DEPOSITOR,
             registeredPayoutScriptPubKey: TEST_PAYOUT_SCRIPT_PUBKEY,
+            claimerBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
+            commissionBps: 500,
           },
           {
             payoutTxHex: createTestPayoutTransaction(peginTxHex, assertTxHex),
@@ -385,6 +411,8 @@ describe("PayoutManager", () => {
             timelockPegin: 100,
             depositorBtcPubkey: TEST_KEYS.DEPOSITOR,
             registeredPayoutScriptPubKey: TEST_PAYOUT_SCRIPT_PUBKEY,
+            claimerBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
+            commissionBps: 500,
           },
         ]),
       ).rejects.toThrow(
@@ -447,6 +475,8 @@ describe("PayoutManager", () => {
             timelockPegin: 100,
             depositorBtcPubkey: TEST_KEYS.DEPOSITOR,
             registeredPayoutScriptPubKey: TEST_PAYOUT_SCRIPT_PUBKEY,
+            claimerBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
+            commissionBps: 500,
           },
           {
             payoutTxHex: createTestPayoutTransaction(peginTxHex, assertTxHex),
@@ -458,6 +488,8 @@ describe("PayoutManager", () => {
             timelockPegin: 100,
             depositorBtcPubkey: TEST_KEYS.DEPOSITOR,
             registeredPayoutScriptPubKey: TEST_PAYOUT_SCRIPT_PUBKEY,
+            claimerBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
+            commissionBps: 500,
           },
         ]),
       ).rejects.toThrow(
@@ -478,7 +510,14 @@ describe("PayoutManager", () => {
     }
 
     /**
-     * Creates a deterministic Payout transaction that spends the peg-in output + assert output.
+     * Creates a deterministic Payout transaction. Output shape follows the
+     * VP-claimer canonical structure enforced by `buildPayoutPsbt`'s
+     * per-role check:
+     *   outs[0]: depositor payout (registered scriptPubKey)
+     *   outs[1]: VP commission
+     *   outs[2]: CPFP anchor (546 sats)
+     * Implicit fee = inputs (150_000) − outputs (145_000) = 5_000 = 3.3%,
+     * comfortably under the 10% bound in `buildPayoutPsbt`.
      */
     function createTestPayoutTransaction(
       peginTxHex: string,
@@ -498,12 +537,20 @@ describe("PayoutManager", () => {
         0,
         SEQUENCE_MAX,
       );
-      tx.addOutput(createDummyP2WPKH("d"), Number(TEST_COMBINED_VALUE));
+      // outs[0]: depositor payout — registered scriptPubKey ("d") at vout 0
+      tx.addOutput(
+        createDummyP2WPKH("d"),
+        Number(TEST_COMBINED_VALUE) - (1_000 + PAYOUT_ANCHOR_DUST_SATS),
+      );
+      // outs[1]: VP commission
+      tx.addOutput(createDummyP2WPKH("e"), 1_000);
+      // outs[2]: CPFP anchor
+      tx.addOutput(createDummyP2WPKH("c"), PAYOUT_ANCHOR_DUST_SATS);
 
       return tx.toHex();
     }
 
-    it("should throw when payout TX does not pay to registered address", async () => {
+    it("should throw when payout TX output 0 does not pay to registered address", async () => {
       const peginTxHex = createTestPeginTransaction();
       const assertTxHex = createTestAssertTransaction();
       const payoutTxHex = createTestPayoutTransaction(peginTxHex, assertTxHex);
@@ -531,9 +578,11 @@ describe("PayoutManager", () => {
           timelockPegin: 100,
           depositorBtcPubkey: TEST_KEYS.DEPOSITOR,
           registeredPayoutScriptPubKey: wrongScriptPubKey,
+          claimerBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
+          commissionBps: 500,
         }),
       ).rejects.toThrow(
-        "Payout transaction does not pay to the registered depositor payout address",
+        "Payout transaction output 0 does not pay the expected scriptPubKey for role vp-claimer",
       );
     });
 
@@ -567,9 +616,11 @@ describe("PayoutManager", () => {
           timelockPegin: 100,
           depositorBtcPubkey: TEST_KEYS.DEPOSITOR,
           registeredPayoutScriptPubKey: prefixedScriptPubKey,
+          claimerBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
+          commissionBps: 500,
         }),
       ).rejects.not.toThrow(
-        "does not pay to the registered depositor payout address",
+        "output 0 does not pay the expected scriptPubKey for role vp-claimer",
       );
     });
 
@@ -598,15 +649,21 @@ describe("PayoutManager", () => {
           timelockPegin: 100,
           depositorBtcPubkey: TEST_KEYS.DEPOSITOR,
           registeredPayoutScriptPubKey: "not-valid-hex",
+          claimerBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
+          commissionBps: 500,
         }),
       ).rejects.toThrow("Invalid registeredPayoutScriptPubKey: not valid hex");
     });
 
-    it("should reject dust output to registered address when larger output pays elsewhere", async () => {
+    it("rejects a payout where vout 0 keeps the registered script but extra attacker outputs drain value", async () => {
       const peginTxHex = createTestPeginTransaction();
       const assertTxHex = createTestAssertTransaction();
 
-      // Build a malicious payout TX: dust to registered address, bulk to attacker
+      // Build a malicious payout TX: 4 outputs (one more than the protocol's
+      // VP-claimer canonical count of 3). outs[0] keeps the registered
+      // script (so the index-0 check passes), but extra attacker outputs at
+      // outs[3] drain the remaining vault value. Pre-fix `largestOutput`
+      // reducer accepted this; the new output-count check rejects it.
       const peginTx = Transaction.fromHex(peginTxHex);
       const assertTx = Transaction.fromHex(assertTxHex);
       const maliciousTx = new Transaction();
@@ -621,10 +678,15 @@ describe("PayoutManager", () => {
         0,
         SEQUENCE_MAX,
       );
-      // Dust output (546 sats) to registered address
-      maliciousTx.addOutput(createDummyP2WPKH("d"), 546);
-      // Bulk output to attacker address
-      maliciousTx.addOutput(createDummyP2WPKH("a"), Number(TEST_COMBINED_VALUE));
+      // outs[0]: registered scriptPubKey, still the largest — passes the
+      // index-0 check by itself but the EXTRA output below trips count.
+      maliciousTx.addOutput(createDummyP2WPKH("d"), 76_454);
+      // outs[1]: VP commission slot
+      maliciousTx.addOutput(createDummyP2WPKH("e"), 1_000);
+      // outs[2]: CPFP anchor slot
+      maliciousTx.addOutput(createDummyP2WPKH("c"), PAYOUT_ANCHOR_DUST_SATS);
+      // outs[3]: EXTRA attacker output — the value-diversion vector.
+      maliciousTx.addOutput(createDummyP2WPKH("a"), 67_000);
 
       const btcWallet = new MockBitcoinWallet({
         publicKeyHex: TEST_KEYS.DEPOSITOR,
@@ -646,10 +708,10 @@ describe("PayoutManager", () => {
           timelockPegin: 100,
           depositorBtcPubkey: TEST_KEYS.DEPOSITOR,
           registeredPayoutScriptPubKey: TEST_PAYOUT_SCRIPT_PUBKEY,
+          claimerBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
+          commissionBps: 500,
         }),
-      ).rejects.toThrow(
-        "Payout transaction does not pay to the registered depositor payout address",
-      );
+      ).rejects.toThrow(/has 4 output\(s\), expected exactly 3/);
     });
 
     it("should reject when the wallet swaps the payout output before signing (single)", async () => {
@@ -704,6 +766,8 @@ describe("PayoutManager", () => {
           timelockPegin: 100,
           depositorBtcPubkey: TEST_KEYS.DEPOSITOR,
           registeredPayoutScriptPubKey: TEST_PAYOUT_SCRIPT_PUBKEY,
+          claimerBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
+          commissionBps: 500,
         }),
       ).rejects.toThrow(/output 0 script/);
     });
@@ -737,10 +801,12 @@ describe("PayoutManager", () => {
             timelockPegin: 100,
             depositorBtcPubkey: TEST_KEYS.DEPOSITOR,
             registeredPayoutScriptPubKey: wrongScriptPubKey,
+            claimerBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
+            commissionBps: 500,
           },
         ]),
       ).rejects.toThrow(
-        "Payout transaction does not pay to the registered depositor payout address",
+        "Payout transaction output 0 does not pay the expected scriptPubKey for role vp-claimer",
       );
     });
   });
