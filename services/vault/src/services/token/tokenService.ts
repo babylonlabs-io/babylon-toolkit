@@ -125,6 +125,8 @@ const tokenMetadataCache = new Map<string, TokenMetadata>();
 
 const tokenBrandColorsMap: Record<string, string> = {
   BTC: "#F7931A",
+  SBTC: "#F7931A",
+  TBTC: "#F7931A",
   WBTC: "#F7931A",
   VBTC: "#F7931A",
   USDC: "#2775CA",

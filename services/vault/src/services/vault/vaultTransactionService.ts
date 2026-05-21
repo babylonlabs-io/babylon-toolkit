@@ -48,8 +48,10 @@ export type UTXO = SDKUtxo;
 export interface PreparePeginParams {
   /** Amounts to peg in per vault (satoshis), one per HTLC output */
   pegInAmounts: readonly bigint[];
-  /** Protocol fee rate in sat/vB from contract offchain params */
+  /** TX-graph fee rate in sat/vB from contract offchain params; sizes the depositor claim value */
   protocolFeeRate: bigint;
+  /** Minimum PegIn fee rate in sat/vB from contract offchain params; sizes the PegIn tx fee */
+  minPeginFeeRate: bigint;
   /** Mempool fee rate in sat/vB for UTXO selection and funding */
   mempoolFeeRate: number;
   changeAddress: string;
@@ -201,6 +203,7 @@ export async function preparePeginTransaction(
       timelockPegin: params.timelockPegin,
       timelockRefund: params.timelockRefund,
       protocolFeeRate: params.protocolFeeRate,
+      minPeginFeeRate: params.minPeginFeeRate,
       mempoolFeeRate: params.mempoolFeeRate,
       councilQuorum: params.councilQuorum,
       councilSize: params.councilSize,

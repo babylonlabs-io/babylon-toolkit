@@ -320,6 +320,7 @@ async function readPrePeginContext(
     universalChallengerPubkeys,
     timelockRefund: offchainParams.tRefund,
     feeRate: offchainParams.feeRate,
+    minPeginFeeRate: offchainParams.minPeginFeeRate,
     numLocalChallengers: vaultKeeperPubkeys.length,
     councilQuorum: offchainParams.councilQuorum,
     councilSize: offchainParams.securityCouncilKeys.length,

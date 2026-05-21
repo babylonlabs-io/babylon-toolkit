@@ -119,6 +119,10 @@ export const COPY = {
       groupLabel: "Batched deposit",
       broadcastHelper: "Broadcasts once for all vaults in this deposit",
     },
+    progress: {
+      stepCounter: (current: number, total: number) =>
+        `Step ${current} of ${total}`,
+    },
   },
   deposit: {
     steps: {

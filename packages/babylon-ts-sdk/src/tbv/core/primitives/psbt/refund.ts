@@ -72,11 +72,12 @@ export async function buildRefundPsbt(
   const { prePeginParams, fundedPrePeginTxHex, htlcVout, refundFee, hashlock } =
     params;
 
-  // The 13th positional arg `auth_anchor_hash` is `Option<String>` in
-  // the Rust WASM constructor. Production peg-ins (PeginManager) always
-  // commit an OP_RETURN <PUSH32 SHA256(authAnchor)> output at
-  // `vout = hashlocks.length`; the unfunded template must include it so
-  // `fromFundedTransaction` aligns with the funded tx's output shape.
+  // The 14th positional arg `auth_anchor_hash` is `Option<String>` in
+  // the Rust WASM constructor (the 9th arg `min_pegin_fee_rate` requires
+  // the two-rate constructor from btc-vault #1930). Production peg-ins
+  // (PeginManager) always commit an OP_RETURN <PUSH32 SHA256(authAnchor)>
+  // output at `vout = hashlocks.length`; the unfunded template must
+  // include it so `fromFundedTransaction` aligns with the funded tx.
   // Normalize identically to the peg-in primitives (`0x` strip,
   // lowercase, length/charset validation) so a direct primitive caller
   // reusing successful peg-in params doesn't hand unnormalized bytes to
@@ -93,6 +94,7 @@ export async function buildRefundPsbt(
     pegin_amounts: BigUint64Array,
     timelock_refund: number,
     fee_rate: bigint,
+    min_pegin_fee_rate: bigint,
     num_local_challengers: number,
     council_quorum: number,
     council_size: number,
@@ -107,6 +109,7 @@ export async function buildRefundPsbt(
     new BigUint64Array(prePeginParams.pegInAmounts),
     prePeginParams.timelockRefund,
     prePeginParams.feeRate,
+    prePeginParams.minPeginFeeRate,
     prePeginParams.numLocalChallengers,
     prePeginParams.councilQuorum,
     prePeginParams.councilSize,

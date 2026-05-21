@@ -206,10 +206,16 @@ export interface PreparePeginParams {
   timelockRefund: number;
 
   /**
-   * Protocol fee rate in sat/vB from the contract offchain params.
-   * Used by WASM for computing depositorClaimValue and min pegin fee.
+   * TX-graph fee rate in sat/vB from the contract offchain params.
+   * Used by WASM to size the depositor claim value (graph transactions).
    */
   protocolFeeRate: bigint;
+
+  /**
+   * Minimum PegIn fee rate in sat/vB from the contract offchain params.
+   * Used by WASM to size the PegIn transaction fee.
+   */
+  minPeginFeeRate: bigint;
 
   /**
    * Mempool fee rate in sat/vB for funding the Pre-PegIn transaction.
@@ -767,6 +773,7 @@ export class PeginManager {
       timelockRefund: params.timelockRefund,
       pegInAmounts: params.amounts,
       feeRate: params.protocolFeeRate,
+      minPeginFeeRate: params.minPeginFeeRate,
       numLocalChallengers,
       councilQuorum: params.councilQuorum,
       councilSize: params.councilSize,
@@ -850,6 +857,7 @@ export class PeginManager {
       timelockRefund: params.timelockRefund,
       pegInAmounts: params.amounts,
       feeRate: params.protocolFeeRate,
+      minPeginFeeRate: params.minPeginFeeRate,
       numLocalChallengers,
       councilQuorum: params.councilQuorum,
       councilSize: params.councilSize,

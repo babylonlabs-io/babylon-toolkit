@@ -136,6 +136,7 @@ function buildCtx(
     universalChallengerPubkeys: [UC_PUBKEY],
     timelockRefund: 144,
     feeRate: 2n,
+    minPeginFeeRate: 20n,
     numLocalChallengers: 1,
     councilQuorum: 2,
     councilSize: 3,
@@ -837,6 +838,21 @@ describe("buildAndBroadcastRefund", () => {
           broadcastTx,
         }),
       ).rejects.toThrow(/protocol feeRate must be a positive bigint/);
+    });
+
+    it("rejects zero or negative minPeginFeeRate", async () => {
+      readPrePeginContext.mockResolvedValue(buildCtx({ minPeginFeeRate: 0n }));
+
+      await expect(
+        buildAndBroadcastRefund({
+          vaultId: VAULT_ID,
+          readVault,
+          readPrePeginContext,
+          feeRate: FEE_RATE,
+          signPsbt,
+          broadcastTx,
+        }),
+      ).rejects.toThrow(/minPeginFeeRate must be a positive bigint/);
     });
 
     it("rejects zero or negative timelockRefund", async () => {

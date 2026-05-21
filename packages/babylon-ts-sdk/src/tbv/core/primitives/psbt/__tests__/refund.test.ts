@@ -38,6 +38,7 @@ function makePrePeginParams(
     timelockRefund: TEST_TIMELOCK_REFUND,
     pegInAmounts: [TEST_AMOUNTS.PEGIN],
     feeRate: 10n,
+    minPeginFeeRate: 10n,
     numLocalChallengers: 1,
     councilQuorum: TEST_COUNCIL_QUORUM,
     councilSize: TEST_COUNCIL_SIZE,
