@@ -41,7 +41,7 @@ export function LoansSection({
           <Button
             variant="outlined"
             color="primary"
-            size="medium"
+            size="large"
             onClick={onBorrow}
             className="rounded-full"
             disabled={!isConnected || !hasCollateral}
@@ -52,7 +52,7 @@ export function LoansSection({
             <Button
               variant="outlined"
               color="primary"
-              size="medium"
+              size="large"
               onClick={onRepay}
               className="rounded-full"
               disabled={!isConnected}

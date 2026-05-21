@@ -18,6 +18,8 @@ import { truncateAddress } from "@/utils/addressUtils";
 import { getBtcExplorerTxUrl } from "@/utils/explorer";
 import { formatBtcAmount, formatOrdinal } from "@/utils/formatting";
 
+import { VaultCardRow, VaultCardShell } from "./VaultCardShell";
+
 const btcConfig = getNetworkConfigBTC();
 
 interface CollateralVaultItemProps {
@@ -57,19 +59,16 @@ export function CollateralVaultItem({
   };
 
   return (
-    <div
-      data-testid="vault-card"
-      className="space-y-3 rounded-xl border border-secondary-strokeLight p-4"
-    >
+    <VaultCardShell testId="vault-card">
       {/* Top row: BTC icon + amount + checkbox */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Avatar
             url={btcConfig.icon}
             alt={btcConfig.coinSymbol}
-            size="small"
+            size="medium"
           />
-          <span className="text-base font-medium text-accent-primary">
+          <span className="text-xl font-medium text-accent-primary">
             {formatBtcAmount(amountBtc)}
           </span>
         </div>
@@ -85,17 +84,15 @@ export function CollateralVaultItem({
       </div>
 
       {/* Status row */}
-      <div className="flex items-center justify-between">
-        <span className="text-sm text-accent-secondary">Status</span>
+      <VaultCardRow label="Status">
         <StatusBadge
           status={inUse ? "active" : "inactive"}
           label={inUse ? COPY.pegin.labels.IN_USE : COPY.pegin.labels.AVAILABLE}
         />
-      </div>
+      </VaultCardRow>
 
       {/* Vault Provider row */}
-      <div className="flex items-center justify-between">
-        <span className="text-sm text-accent-secondary">Vault Provider</span>
+      <VaultCardRow label="Vault Provider">
         <Hint
           tooltip={truncateAddress(providerAddress)}
           attachToChildren
@@ -109,44 +106,38 @@ export function CollateralVaultItem({
             {providerName}
           </span>
         </Hint>
-      </div>
+      </VaultCardRow>
 
       {/* Transaction hash row (BTC pegin) */}
       {peginTxHash && (
-        <div className="flex items-center justify-between">
-          <span className="text-sm text-accent-secondary">
-            Transaction Hash
-          </span>
+        <VaultCardRow label="Transaction Hash">
           <CopyableHash
             hash={peginTxHash}
             chain="BTC"
             explorerUrl={getBtcExplorerTxUrl(peginTxHash)}
           />
-        </div>
+        </VaultCardRow>
       )}
 
       {/* Liquidation Order row */}
       {liquidationIndex !== undefined && (
-        <div className="flex items-center justify-between">
-          <span className="text-sm text-accent-secondary">
-            Liquidation Order
-          </span>
+        <VaultCardRow label="Liquidation Order">
           <span className="text-sm text-accent-primary">
             {formatOrdinal(liquidationIndex + 1)}
           </span>
-        </div>
+        </VaultCardRow>
       )}
 
       {onArtifactDownload && (
         <Button
           variant="outlined"
-          color="primary"
+          color="secondary"
           className="w-full rounded-full"
           onClick={onArtifactDownload}
         >
           Download Artifacts
         </Button>
       )}
-    </div>
+    </VaultCardShell>
   );
 }

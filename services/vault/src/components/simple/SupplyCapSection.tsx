@@ -5,9 +5,9 @@
  * displays "Uncapped" while the deposited card continues to show usage.
  */
 
-import { Card } from "@babylonlabs-io/core-ui";
 import type { ReactNode } from "react";
 
+import { CARD_DARK_BG_CLASS } from "@/components/shared/layoutClasses";
 import { COPY } from "@/copy";
 import { usePrice } from "@/hooks/usePrices";
 import type { CapSnapshot } from "@/services/deposit";
@@ -28,30 +28,28 @@ interface CapCardProps {
   usd: number | null;
 }
 
+const CAP_CARD_CLASS = `flex h-[76px] w-full flex-col items-start gap-1 rounded-lg bg-secondary-highlight px-6 py-4 ${CARD_DARK_BG_CLASS}`;
+
 function CapCard({ label, btcDisplay, usd }: CapCardProps) {
   return (
-    <Card variant="filled" className="w-full">
-      <div className="flex flex-col gap-1">
-        <span className="text-sm text-accent-secondary">{label}</span>
-        <span className="text-base text-accent-primary">
-          {btcDisplay}
-          {usd !== null && (
-            <span className="text-accent-secondary"> ({formatUsd(usd)})</span>
-          )}
-        </span>
-      </div>
-    </Card>
+    <div className={CAP_CARD_CLASS}>
+      <span className="text-sm text-accent-secondary">{label}</span>
+      <span className="text-base text-accent-primary">
+        {btcDisplay}
+        {usd !== null && (
+          <span className="text-accent-secondary"> ({formatUsd(usd)})</span>
+        )}
+      </span>
+    </div>
   );
 }
 
 function CapCardSkeleton() {
   return (
-    <Card variant="filled" className="w-full">
-      <div className="flex animate-pulse flex-col gap-2">
-        <div className="h-4 w-32 rounded bg-accent-secondary/20" />
-        <div className="h-5 w-48 rounded bg-accent-secondary/20" />
-      </div>
-    </Card>
+    <div className={`${CAP_CARD_CLASS} animate-pulse`}>
+      <div className="h-4 w-32 rounded bg-accent-secondary/20" />
+      <div className="h-5 w-48 rounded bg-accent-secondary/20" />
+    </div>
   );
 }
 
