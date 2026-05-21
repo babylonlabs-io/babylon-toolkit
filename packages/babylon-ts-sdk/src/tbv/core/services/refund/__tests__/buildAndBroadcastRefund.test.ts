@@ -41,7 +41,7 @@ vi.mock(
 // Finalize + extract uses bitcoinjs-lib. We stub Psbt.fromHex to return an
 // object with controllable `finalizeAllInputs` / `extractTransaction`.
 // `Transaction` is kept real because the orchestrator also parses the
-// funded Pre-PegIn hex via `readAuthAnchorOpReturn` to extract the
+// funded Pre-PegIn hex via `findAuthAnchorOpReturn` to extract the
 // auth-anchor commitment.
 vi.mock("bitcoinjs-lib", async (importOriginal) => {
   const actual = await importOriginal<typeof import("bitcoinjs-lib")>();

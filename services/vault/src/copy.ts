@@ -143,36 +143,6 @@ export const COPY = {
       signingCounter: (completed: number, total: number) =>
         `(${completed} of ${total})`,
     },
-    stepDescriptions: {
-      deriveVaultSecret:
-        "Approve the deterministic signature in your BTC wallet to derive your BTC Vault's HTLC secret.",
-      signPeginBtc: "Sign the peg-in transaction in your BTC wallet.",
-      signPop: "Please sign the proof of possession (PoP) in your BTC wallet.",
-      submitPegin:
-        "Please sign and submit the peg-in transaction in your ETH wallet.",
-      broadcastPrePeginActive:
-        "Please sign the Pre-Pegin transaction in your BTC wallet. It will be broadcast to Bitcoin immediately after.",
-      awaitBtcConfirmation:
-        "Waiting for Bitcoin to confirm the Pre-Pegin transaction...",
-      submitWotsActive:
-        "Submitting your WOTS public key to the vault provider.",
-      submitWotsWaiting:
-        "Waiting for the vault provider to prepare payout transactions...",
-      signAuthAnchor:
-        "Approve the deterministic signature in your BTC wallet to authenticate with the vault provider.",
-      signPayoutsActive:
-        "Please sign the payout transaction(s) in your BTC wallet.",
-      signPayoutsWaiting:
-        "Waiting for the vault provider to prepare payout transaction(s)...",
-      artifactDownloadActive:
-        "Download your BTC Vault artifacts before continuing.",
-      artifactDownloadWaiting:
-        "Waiting for the vault provider to verify your deposit on-chain...",
-      activateVaultActive:
-        "Revealing HTLC secret on Ethereum to activate the BTC Vault.",
-      activateVaultWaiting: "Waiting for on-chain verification...",
-      completed: "Deposit successfully submitted!",
-    },
     progress: {
       heading: "Deposit Progress",
       durationEstimate: "(~60 min)",

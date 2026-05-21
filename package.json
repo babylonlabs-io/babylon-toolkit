@@ -11,6 +11,7 @@
     "build": "nx run-many --target=build --all",
     "lint": "nx run-many --target=lint --all --verbose",
     "test": "nx run-many --target=test --all --verbose",
+    "knip": "pnpm dlx knip@5.88.1 --workspace packages/babylon-ts-sdk --workspace services/vault",
     "nx:sync": "nx sync",
     "prepare": "husky",
     "ci:release": "nx run @internal/release:run"
@@ -42,7 +43,6 @@
     "eslint-plugin-tailwindcss": "^3.18.2",
     "husky": "^9.1.7",
     "jsonc-eslint-parser": "^2.4.0",
-    "knip": "5.88.1",
     "nx": "21.3.7",
     "prettier": "^3.6.2",
     "syncpack": "^13.0.4",
