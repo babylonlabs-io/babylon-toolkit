@@ -1,9 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 
+import { DepositFlowStep } from "@/hooks/deposit/depositFlowSteps/types";
+
 import {
   canPerformAction,
   ContractStatus,
   getNextLocalStatus,
+  getPeginDisplayStep,
   getPeginState,
   getPrimaryActionButton,
   LocalStorageStatus,
@@ -526,6 +529,95 @@ describe("peginStateMachine", () => {
           LocalStorageStatus.REFUND_BROADCAST,
         ),
       ).toBe(true);
+    });
+  });
+
+  // ==========================================================================
+  // getPeginDisplayStep — derives the live deposit flow step from real state
+  // ==========================================================================
+  describe("getPeginDisplayStep", () => {
+    it("maps a pending broadcast action to BROADCAST_PRE_PEGIN", () => {
+      const state = getPeginState(ContractStatus.PENDING, {
+        pendingIngestion: true,
+      });
+      expect(state.availableActions).toContain(
+        PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN,
+      );
+      expect(getPeginDisplayStep(state)).toBe(
+        DepositFlowStep.BROADCAST_PRE_PEGIN,
+      );
+    });
+
+    it("maps the awaiting-confirmation PENDING state (no action) to AWAIT_BTC_CONFIRMATION", () => {
+      const state = getPeginState(ContractStatus.PENDING, {
+        localStatus: LocalStorageStatus.CONFIRMING,
+        pendingIngestion: true,
+      });
+      expect(state.availableActions).toEqual([PeginAction.NONE]);
+      expect(getPeginDisplayStep(state)).toBe(
+        DepositFlowStep.AWAIT_BTC_CONFIRMATION,
+      );
+    });
+
+    it("maps a pending WOTS-key action to SUBMIT_WOTS_KEYS", () => {
+      const state = getPeginState(ContractStatus.PENDING, {
+        needsWotsKey: true,
+      });
+      expect(state.availableActions).toContain(PeginAction.SUBMIT_WOTS_KEY);
+      expect(getPeginDisplayStep(state)).toBe(DepositFlowStep.SUBMIT_WOTS_KEYS);
+    });
+
+    it("maps a pending payout-signing action to SIGN_PAYOUTS", () => {
+      const state = getPeginState(ContractStatus.PENDING, {
+        localStatus: LocalStorageStatus.CONFIRMING,
+        pendingIngestion: false,
+        transactionsReady: true,
+      });
+      expect(state.availableActions).toContain(
+        PeginAction.SIGN_PAYOUT_TRANSACTIONS,
+      );
+      expect(getPeginDisplayStep(state)).toBe(DepositFlowStep.SIGN_PAYOUTS);
+    });
+
+    it("maps payouts-signed-and-awaiting-verification to ARTIFACT_DOWNLOAD", () => {
+      const state = getPeginState(ContractStatus.PENDING, {
+        localStatus: LocalStorageStatus.PAYOUT_SIGNED,
+      });
+      expect(state.availableActions).toEqual([PeginAction.NONE]);
+      expect(getPeginDisplayStep(state)).toBe(
+        DepositFlowStep.ARTIFACT_DOWNLOAD,
+      );
+    });
+
+    it("maps a VERIFIED vault ready to activate to ACTIVATE_VAULT", () => {
+      const state = getPeginState(ContractStatus.VERIFIED);
+      expect(getPeginDisplayStep(state)).toBe(DepositFlowStep.ACTIVATE_VAULT);
+    });
+
+    it("keeps a VERIFIED vault with activation broadcast on ACTIVATE_VAULT", () => {
+      const state = getPeginState(ContractStatus.VERIFIED, {
+        localStatus: LocalStorageStatus.CONFIRMED,
+      });
+      expect(state.displayLabel).toBe(PEGIN_DISPLAY_LABELS.PROCESSING);
+      expect(getPeginDisplayStep(state)).toBe(DepositFlowStep.ACTIVATE_VAULT);
+    });
+
+    it("returns null for a failed pending deposit so it does not look like it is progressing", () => {
+      const state = getPeginState(ContractStatus.PENDING, {
+        vpTerminalError: "Deposit rejected by the vault provider.",
+      });
+      expect(state.displayLabel).toBe(PEGIN_DISPLAY_LABELS.FAILED);
+      expect(state.displayVariant).toBe("warning");
+      expect(getPeginDisplayStep(state)).toBe(null);
+    });
+
+    it("returns null for terminal states with no in-progress step", () => {
+      expect(getPeginDisplayStep(getPeginState(ContractStatus.EXPIRED))).toBe(
+        null,
+      );
+      expect(getPeginDisplayStep(getPeginState(ContractStatus.ACTIVE))).toBe(
+        null,
+      );
     });
   });
 });
