@@ -183,6 +183,7 @@ const BASE_PREPARE_PEGIN_PARAMS = {
   timelockPegin: 100,
   timelockRefund: 50,
   protocolFeeRate: 10n,
+  minPeginFeeRate: 10n,
   mempoolFeeRate: 10,
   councilQuorum: 2,
   councilSize: 3,

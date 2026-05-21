@@ -48,10 +48,11 @@ export async function createPrePeginTransaction(
 ): Promise<PrePeginResult> {
   await initWasm();
 
-  // The 13th positional arg `auth_anchor_hash` is an Option<String> in
+  // The 14th positional arg `auth_anchor_hash` is an Option<String> in
   // Rust — pass `undefined` for Pre-PegIns that do not commit an auth
   // anchor. Requires a WASM build from a btc-vault commit ≥ 1ced81e5
-  // (btc-vault #1516).
+  // (btc-vault #1516). The 9th arg `min_pegin_fee_rate` requires the
+  // two-rate `WasmPrePeginTx` constructor from btc-vault #1930.
   const tx = new (WasmPrePeginTx as unknown as new (
     depositor: string,
     vault_provider: string,
@@ -61,6 +62,7 @@ export async function createPrePeginTransaction(
     pegin_amounts: BigUint64Array,
     timelock_refund: number,
     fee_rate: bigint,
+    min_pegin_fee_rate: bigint,
     num_local_challengers: number,
     council_quorum: number,
     council_size: number,
@@ -75,6 +77,7 @@ export async function createPrePeginTransaction(
     new BigUint64Array(params.pegInAmounts),
     params.timelockRefund,
     params.feeRate,
+    params.minPeginFeeRate,
     params.numLocalChallengers,
     params.councilQuorum,
     params.councilSize,
@@ -139,6 +142,7 @@ export async function buildPeginTxFromPrePegin(
     pegin_amounts: BigUint64Array,
     timelock_refund: number,
     fee_rate: bigint,
+    min_pegin_fee_rate: bigint,
     num_local_challengers: number,
     council_quorum: number,
     council_size: number,
@@ -153,6 +157,7 @@ export async function buildPeginTxFromPrePegin(
     new BigUint64Array(params.pegInAmounts),
     params.timelockRefund,
     params.feeRate,
+    params.minPeginFeeRate,
     params.numLocalChallengers,
     params.councilQuorum,
     params.councilSize,

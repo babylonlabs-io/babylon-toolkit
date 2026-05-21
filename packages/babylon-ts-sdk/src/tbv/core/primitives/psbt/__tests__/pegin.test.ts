@@ -38,6 +38,7 @@ function makePrePeginParams(
     timelockRefund: TEST_TIMELOCK_REFUND,
     pegInAmounts: [TEST_AMOUNTS.PEGIN],
     feeRate: 10n,
+    minPeginFeeRate: 10n,
     numLocalChallengers: 1,
     councilQuorum: TEST_COUNCIL_QUORUM,
     councilSize: TEST_COUNCIL_SIZE,
@@ -84,6 +85,28 @@ describe("buildPrePeginPsbt", () => {
       expect(result.htlcValues[0]).toBeGreaterThanOrEqual(
         result.peginAmounts[0] + result.depositorClaimValue,
       );
+    });
+
+    it("sizes the PegIn fee with minPeginFeeRate, independently of feeRate", async () => {
+      // feeRate governs depositorClaimValue; minPeginFeeRate governs the
+      // PegIn-fee slice of htlcValue. The wrapper must thread them to
+      // separate WASM computations — not conflate them.
+      const low = await buildPrePeginPsbt(
+        makePrePeginParams({ feeRate: 5n, minPeginFeeRate: 10n }),
+      );
+      const high = await buildPrePeginPsbt(
+        makePrePeginParams({ feeRate: 5n, minPeginFeeRate: 40n }),
+      );
+
+      // Same feeRate -> identical depositorClaimValue.
+      expect(high.depositorClaimValue).toBe(low.depositorClaimValue);
+
+      // Higher minPeginFeeRate -> larger PegIn fee baked into htlcValue.
+      const lowFee =
+        low.htlcValues[0] - low.peginAmounts[0] - low.depositorClaimValue;
+      const highFee =
+        high.htlcValues[0] - high.peginAmounts[0] - high.depositorClaimValue;
+      expect(highFee).toBeGreaterThan(lowFee);
     });
 
     it("should handle different networks", async () => {

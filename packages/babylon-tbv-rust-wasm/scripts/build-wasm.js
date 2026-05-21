@@ -4,6 +4,8 @@
 // Exports: WasmPeginTx, WasmPeginPayoutConnector, WasmPayoutTx, WasmPayoutOptimisticTx
 
 import { execFileSync } from 'node:child_process';
+import fs from 'node:fs';
+import os from 'node:os';
 import shell from 'shelljs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -13,7 +15,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // Configuration - Update these when btc-vault updates
 const BTC_VAULT_REPO_URL = 'git@github.com:babylonlabs-io/btc-vault.git';
 const BTC_VAULT_BRANCH = 'main';
-const BTC_VAULT_COMMIT = '2dd71803';
+const BTC_VAULT_COMMIT = '785df36f';
 const REQUIRED_RUSTC_VERSION = '1.90';
 
 const REPO_DIR = path.join(__dirname, '..', 'btc-vault-temp');
@@ -27,14 +29,36 @@ const buildWasm = async () => {
     // Ensure rustup toolchain is used
     const HOME = process.env.HOME;
     const RUSTUP_HOME = process.env.RUSTUP_HOME || `${HOME}/.rustup`;
-    // Use cargo's bin dir (rustup shims) so rust-toolchain.toml in btc-vault
-    // can override the toolchain, rather than locking to the currently active one.
-    const cargoBinPath = `${HOME}/.cargo/bin`;
 
-    // Verify rustup is available via cargo bin
-    if (!shell.test('-f', `${cargoBinPath}/rustup`)) {
-      console.error('Error: rustup not found or not configured properly');
+    // We must build through rustup's proxy shims (not a standalone cargo/rustc)
+    // so btc-vault's rust-toolchain.toml selects the toolchain. `rustup-init`
+    // normally installs those shims into ~/.cargo/bin, but some setups don't
+    // have them there (e.g. Homebrew's `rustup` formula installs only the
+    // rustup binary, and a separate Homebrew `rust` provides a cargo/rustc that
+    // ignores rust-toolchain.toml). Locate the rustup binary and synthesize a
+    // proxy dir of symlinks to it — rustup dispatches on argv[0], so a symlink
+    // named `cargo`/`rustc` behaves as that proxy. Putting this dir first on
+    // PATH guarantees rust-toolchain.toml is honored regardless of how rust was
+    // installed.
+    const rustupBin = shell.which('rustup');
+    if (!rustupBin) {
+      console.error(
+        'Error: rustup not found on PATH. Install it from https://rustup.rs',
+      );
       process.exit(1);
+    }
+    const cargoBinPath = path.join(os.tmpdir(), 'btc-vault-rustup-proxies');
+    shell.rm('-rf', cargoBinPath);
+    shell.mkdir('-p', cargoBinPath);
+    for (const proxy of [
+      'cargo',
+      'rustc',
+      'rustup',
+      'rustdoc',
+      'cargo-clippy',
+      'clippy-driver',
+    ]) {
+      fs.symlinkSync(rustupBin.toString(), path.join(cargoBinPath, proxy));
     }
 
     // Setup LLVM for wasm32 target (required for secp256k1-sys compilation)
@@ -78,20 +102,29 @@ const buildWasm = async () => {
       process.exit(1);
     }
 
-    // Verify rustup is being used
-    const verifyRustc = shell
-      .exec('which rustc', { silent: true })
-      .stdout.trim();
-    console.log(`Using rustc from: ${verifyRustc}`);
-
-    // Verify rustc version matches required version
-    const rustcVersionResult = shell.exec('rustc --version', { silent: true });
-    if (rustcVersionResult.code !== 0) {
-      console.error('Error: Failed to get rustc version');
-      process.exit(1);
+    // Report the resolved rustc and its version. Use execFileSync (not
+    // shelljs `exec`): a rustup proxy re-spawns the real rustc, and shelljs's
+    // synchronous exec deadlocks on that double-spawn. This probe is purely
+    // informational — the btc-vault rust-toolchain.toml governs the actual
+    // build — so a failure here only warns.
+    const proxyEnv = {
+      ...process.env,
+      PATH: shell.env.PATH,
+      RUSTUP_HOME: shell.env.RUSTUP_HOME,
+    };
+    console.log(`Using rustc from: ${cargoBinPath}/rustc`);
+    let rustcVersion = '';
+    try {
+      rustcVersion = execFileSync('rustc', ['--version'], { env: proxyEnv })
+        .toString()
+        .trim();
+      console.log(`Rustc version: ${rustcVersion}`);
+    } catch {
+      console.warn(
+        'Warning: could not determine the default rustc version. ' +
+          'Continuing — the btc-vault rust-toolchain.toml selects the build toolchain.',
+      );
     }
-    const rustcVersion = rustcVersionResult.stdout.trim();
-    console.log(`Rustc version: ${rustcVersion}`);
 
     if (!rustcVersion.includes(REQUIRED_RUSTC_VERSION)) {
       console.warn(
