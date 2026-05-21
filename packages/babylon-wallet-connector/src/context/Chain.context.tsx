@@ -14,6 +14,7 @@ import type {
   IProvider,
 } from "@/core/types";
 import metadata from "@/core/wallets";
+import { useWalletRedetection } from "@/hooks/useWalletRedetection";
 
 import { InscriptionProvider } from "./Inscriptions.context";
 import { StateProvider } from "./State.context";
@@ -103,6 +104,10 @@ export function ChainProvider({
         onError?.(error);
       });
   }, [setConnectors, init, onError]);
+
+  // Re-detect wallets whose extension injected after the one-shot detection
+  // in `init()` above (e.g. UniSat's late `window.unisat` injection).
+  useWalletRedetection({ connectors, setConnectors, config, context, storage, disabledWallets });
 
   const supportedChains = useMemo(() => Object.values(connectors).filter(Boolean), [connectors]);
   const visibleChains = useMemo(
