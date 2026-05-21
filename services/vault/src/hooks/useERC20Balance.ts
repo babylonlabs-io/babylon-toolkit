@@ -13,7 +13,7 @@ import { formatUnits } from "viem";
 import { getERC20Balance } from "@/clients/eth-contract/erc20";
 
 /** Query key prefix for ERC20 balance queries */
-export const ERC20_BALANCE_QUERY_KEY = "erc20Balance";
+const ERC20_BALANCE_QUERY_KEY = "erc20Balance";
 
 export interface UseERC20BalanceResult {
   /** Balance in token units (formatted with decimals) */

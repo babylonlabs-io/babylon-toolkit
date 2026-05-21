@@ -131,8 +131,3 @@ export function getBabylonConfigState(): BabylonConfigState {
   }
   return state;
 }
-
-/** @internal — for tests only. */
-export function _resetBabylonConfigForTests(): void {
-  state = null;
-}

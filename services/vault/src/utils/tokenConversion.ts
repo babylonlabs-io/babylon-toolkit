@@ -4,10 +4,8 @@
 
 import { formatUnits } from "viem";
 
-/**
- * USDC decimals constant (USDC uses 6 decimals)
- */
-export const USDC_DECIMALS = 6;
+/** USDC decimals constant (USDC uses 6 decimals) */
+const USDC_DECIMALS = 6;
 
 /**
  * Format token amount from smallest unit to human-readable string
@@ -18,7 +16,7 @@ export const USDC_DECIMALS = 6;
  * @param displayDecimals - Number of decimal places to show (default: 2)
  * @returns Formatted amount as string
  */
-export function formatTokenAmount(
+function formatTokenAmount(
   amount: bigint,
   decimals: number = 18,
   displayDecimals: number = 2,

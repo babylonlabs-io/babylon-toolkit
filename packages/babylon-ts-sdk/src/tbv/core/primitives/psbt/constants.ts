@@ -20,14 +20,8 @@ export const DEPOSITOR_PAYOUT_INPUT_COUNT = 2;
 /** PegIn vault output index spent by the depositor's Payout input 0. */
 export const PEGIN_VAULT_OUTPUT_INDEX = 0;
 
-/** Payout input index bound to the graph Assert tx (NOT signed). */
-export const PAYOUT_ASSERT_INPUT_INDEX = 1;
-
 /** Assert output index spent by the depositor's Payout input 1 (NOT signed). */
 export const ASSERT_PAYOUT_OUTPUT_INDEX = 0;
-
-/** Assert output index spent by NoPayout input 0 (signed). */
-export const ASSERT_NOPAYOUT_OUTPUT_INDEX = 0;
 
 /**
  * Dust amount (sats) for the payout CPFP anchor output. Matches `DUST_AMOUNT`

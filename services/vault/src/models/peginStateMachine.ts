@@ -24,13 +24,6 @@ export type {
   PeginProtocolState,
 } from "@babylonlabs-io/ts-sdk/tbv/core/services";
 
-export {
-  DaemonStatus,
-  POST_WOTS_STATUSES,
-  PRE_DEPOSITOR_SIGNATURES_STATES,
-  VP_TRANSIENT_STATUSES,
-} from "@babylonlabs-io/ts-sdk/tbv/core/clients";
-
 // ============================================================================
 // Off-chain tracking — client-side state, not protocol logic
 // ============================================================================
@@ -117,16 +110,16 @@ export interface GetPeginStateOptions {
  * window with margin; short enough that a dropped/evicted tx unblocks retry
  * before the user has to clear localStorage by hand.
  */
-export const REFUND_BROADCAST_SUPPRESSION_MS = 6 * 60 * 60 * 1000;
+const REFUND_BROADCAST_SUPPRESSION_MS = 6 * 60 * 60 * 1000;
 
 // ============================================================================
 // Expiration helpers
 // ============================================================================
 
-export const EXPIRATION_REASON_LABELS: Record<ExpirationReason, string> =
+const EXPIRATION_REASON_LABELS: Record<ExpirationReason, string> =
   COPY.pegin.expiration.reasons;
 
-export function formatExpiredTimeAgo(timestamp: number): string {
+function formatExpiredTimeAgo(timestamp: number): string {
   const diff = Date.now() - timestamp;
   if (diff < 0) return COPY.pegin.expiration.timeAgo.justNow;
   const minutes = Math.floor(diff / 60_000);
@@ -138,7 +131,7 @@ export function formatExpiredTimeAgo(timestamp: number): string {
   return `${days}d ago`;
 }
 
-export function buildExpiredMessage(
+function buildExpiredMessage(
   expirationReason?: ExpirationReason,
   expiredAt?: number,
 ): string {

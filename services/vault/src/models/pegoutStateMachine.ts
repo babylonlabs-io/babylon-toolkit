@@ -7,7 +7,6 @@
 
 export {
   ClaimerPegoutStatusValue,
-  isPegoutTerminalStatus,
   isRecognizedPegoutStatus,
 } from "@babylonlabs-io/ts-sdk/tbv/core/services";
 

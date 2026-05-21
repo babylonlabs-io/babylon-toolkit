@@ -1,7 +1,6 @@
 // Time constants
-export const ONE_SECOND = 1000;
-export const ONE_MINUTE = 60 * ONE_SECOND;
-export const ONE_DAY = 24 * 60 * ONE_MINUTE;
+const ONE_SECOND = 1000;
+const ONE_MINUTE = 60 * ONE_SECOND;
 
 // Polling intervals
 export const FAST_POLL_INTERVAL = 15 * ONE_SECOND; // 15 seconds for "Processing" status
@@ -18,11 +17,6 @@ export const UTXO_RESERVATION_TTL = 5 * ONE_MINUTE; // 5 minutes — auto-expire
 
 // Pending collateral storage constants
 export const PENDING_COLLATERAL_KEY_PREFIX = "vault-pending-collateral";
-
-// Ethereum constants
-export const ZERO_ADDRESS =
-  "0x0000000000000000000000000000000000000000" as const;
-export const MAX_UINT256 = 2n ** 256n - 1n;
 
 // Sentry replay sampling rate (5% by default)
 export const REPLAYS_ON_ERROR_RATE = Number.parseFloat(

@@ -8,9 +8,7 @@ export {
   getAllApplications,
   getAppIdByController,
   getApplication,
-  getApplicationByController,
   getApplicationMetadataByController,
-  registerApplication,
 } from "./registry";
 
 import "./aave";

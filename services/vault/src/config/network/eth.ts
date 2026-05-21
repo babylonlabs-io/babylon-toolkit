@@ -12,8 +12,6 @@ import { mainnet, sepolia } from "viem/chains";
 import { ETH_MAINNET_CHAIN_ID, ETH_SEPOLIA_CHAIN_ID } from "./constants";
 import { getBabylonConfigState } from "./runtime";
 
-export { ETH_MAINNET_CHAIN_ID, ETH_SEPOLIA_CHAIN_ID } from "./constants";
-
 export interface EthNetworkConfig {
   name: string;
   chainId: number;

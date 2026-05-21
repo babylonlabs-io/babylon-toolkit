@@ -42,7 +42,7 @@ export const COMPRESSED_PUBKEY_HEX_LEN = 66;
  * Hex-string length of a 65-byte SEC1-uncompressed secp256k1 public
  * key (`0x04` prefix + 32-byte x + 32-byte y). `2 * 65 = 130`.
  */
-export const UNCOMPRESSED_PUBKEY_HEX_LEN = 130;
+const UNCOMPRESSED_PUBKEY_HEX_LEN = 130;
 
 /**
  * Hex-string length of a 64-byte BIP-340 Schnorr signature. `2 * 64 = 128`.
