@@ -540,6 +540,11 @@ export function getPrimaryActionButton(state: PeginState): {
 export function getPeginDisplayStep(state: PeginState): DepositFlowStep | null {
   const { contractStatus, availableActions, localStatus } = state;
 
+  // A warning state (e.g. a terminal provider failure, expired, liquidated,
+  // invalid) is not in-progress — never show a step/progress bar for it, so a
+  // failed deposit doesn't look like it is still advancing.
+  if (state.displayVariant === "warning") return null;
+
   if (contractStatus === ContractStatus.PENDING) {
     if (availableActions.includes(PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN)) {
       return DepositFlowStep.BROADCAST_PRE_PEGIN;

@@ -602,6 +602,15 @@ describe("peginStateMachine", () => {
       expect(getPeginDisplayStep(state)).toBe(DepositFlowStep.ACTIVATE_VAULT);
     });
 
+    it("returns null for a failed pending deposit so it does not look like it is progressing", () => {
+      const state = getPeginState(ContractStatus.PENDING, {
+        vpTerminalError: "Deposit rejected by the vault provider.",
+      });
+      expect(state.displayLabel).toBe(PEGIN_DISPLAY_LABELS.FAILED);
+      expect(state.displayVariant).toBe("warning");
+      expect(getPeginDisplayStep(state)).toBe(null);
+    });
+
     it("returns null for terminal states with no in-progress step", () => {
       expect(getPeginDisplayStep(getPeginState(ContractStatus.EXPIRED))).toBe(
         null,
