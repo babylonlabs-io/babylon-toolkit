@@ -105,6 +105,7 @@ const ON_CHAIN_VAULT = {
 const OFFCHAIN_PARAMS = {
   tRefund: 144,
   feeRate: 10n,
+  minPeginFeeRate: 20n,
   councilQuorum: 3,
   securityCouncilKeys: ["k1", "k2", "k3"],
 };
@@ -332,6 +333,36 @@ describe("vaultRefundService - adapter wiring", () => {
 
     expect(observed).not.toBeNull();
     expect(observed!.vaultProviderPubkey).toBe(VP_BTC_PUBKEY_X_ONLY);
+  });
+
+  it("forwards both fee rates into the refund context without conflating them", async () => {
+    let observed: { feeRate: bigint; minPeginFeeRate: bigint } | null = null;
+    mockBuildAndBroadcastRefund.mockImplementation(
+      async (input: {
+        readVault: () => Promise<unknown>;
+        readPrePeginContext: (
+          v: unknown,
+        ) => Promise<{ feeRate: bigint; minPeginFeeRate: bigint }>;
+      }) => {
+        const vault = await input.readVault();
+        observed = await input.readPrePeginContext(vault);
+        return { txId: "ok" };
+      },
+    );
+
+    await buildAndBroadcastRefundTransaction({
+      vaultId: VAULT_ID,
+      depositorAddress: DEPOSITOR_ADDRESS,
+      btcWalletProvider: BTC_WALLET_PROVIDER,
+      depositorBtcPubkey: DEPOSITOR_PUBKEY,
+      feeRate: 10,
+    });
+
+    expect(observed).not.toBeNull();
+    // feeRate (10n) sizes the claim value; minPeginFeeRate (20n) sizes the
+    // PegIn tx fee — distinct contract params, must not be swapped.
+    expect(observed!.feeRate).toBe(OFFCHAIN_PARAMS.feeRate);
+    expect(observed!.minPeginFeeRate).toBe(OFFCHAIN_PARAMS.minPeginFeeRate);
   });
 
   it("forwards the caller-provided feeRate to the SDK (no silent halfHourFee fallback)", async () => {

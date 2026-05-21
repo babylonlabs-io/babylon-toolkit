@@ -86,6 +86,7 @@ describe("vaultTransactionService - preparePeginTransaction", () => {
   const baseParams: PreparePeginParams = {
     pegInAmounts: [100000n],
     protocolFeeRate: 10n,
+    minPeginFeeRate: 20n,
     mempoolFeeRate: 10,
     changeAddress: "bc1qtest",
     vaultProviderBtcPubkey: "pubkey",
@@ -143,6 +144,20 @@ describe("vaultTransactionService - preparePeginTransaction", () => {
       expect(mockPreparePegin).toHaveBeenCalledTimes(1);
       const callArgs = mockPreparePegin.mock.calls[0][0];
       expect(callArgs.availableUTXOs).toHaveLength(4);
+    });
+
+    it("forwards both fee rates to the SDK without conflating them", async () => {
+      await preparePeginTransaction(
+        mockBtcWallet as any,
+        mockEthWallet as any,
+        baseParams,
+      );
+
+      const callArgs = mockPreparePegin.mock.calls[0][0];
+      // protocolFeeRate (10n) sizes the claim value; minPeginFeeRate (20n)
+      // sizes the PegIn tx fee — distinct values, must not be swapped.
+      expect(callArgs.protocolFeeRate).toBe(baseParams.protocolFeeRate);
+      expect(callArgs.minPeginFeeRate).toBe(baseParams.minPeginFeeRate);
     });
 
     it("should return batch-shaped result with perVault array", async () => {

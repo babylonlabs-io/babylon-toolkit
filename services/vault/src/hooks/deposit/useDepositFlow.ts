@@ -502,6 +502,7 @@ export function useDepositFlow(
           {
             pegInAmounts: vaultAmounts,
             protocolFeeRate: config.offchainParams.feeRate,
+            minPeginFeeRate: config.offchainParams.minPeginFeeRate,
             mempoolFeeRate,
             changeAddress: confirmedBtcAddress,
             vaultProviderBtcPubkey: validatedKeys.vaultProviderBtcPubkeyXOnly,

@@ -13,7 +13,9 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // Configuration - Update these when btc-vault updates
 const BTC_VAULT_REPO_URL = 'git@github.com:babylonlabs-io/btc-vault.git';
 const BTC_VAULT_BRANCH = 'main';
-const BTC_VAULT_COMMIT = '2dd71803';
+// TEMP: PR #1930 branch commit (fix/pegin-tx-fee-min-pegin-fee-rate), not yet on
+// main. Re-pin to the main merge commit once btc-vault #1930 merges.
+const BTC_VAULT_COMMIT = '1e23d1f0';
 const REQUIRED_RUSTC_VERSION = '1.90';
 
 const REPO_DIR = path.join(__dirname, '..', 'btc-vault-temp');

@@ -174,6 +174,7 @@ export interface RefundPrePeginContext {
   universalChallengerPubkeys: readonly string[];
   timelockRefund: number;
   feeRate: bigint;
+  minPeginFeeRate: bigint;
   numLocalChallengers: number;
   councilQuorum: number;
   councilSize: number;
@@ -325,6 +326,11 @@ function validateRefundPrePeginContext(c: RefundPrePeginContext): void {
   if (typeof c.feeRate !== "bigint" || c.feeRate <= 0n) {
     throw new Error(
       `protocol feeRate must be a positive bigint, got ${c.feeRate}`,
+    );
+  }
+  if (typeof c.minPeginFeeRate !== "bigint" || c.minPeginFeeRate <= 0n) {
+    throw new Error(
+      `minPeginFeeRate must be a positive bigint, got ${c.minPeginFeeRate}`,
     );
   }
   if (
@@ -494,6 +500,7 @@ export async function buildAndBroadcastRefund<
       timelockRefund: ctx.timelockRefund,
       pegInAmounts: vault.batch.map((b) => b.amount),
       feeRate: ctx.feeRate,
+      minPeginFeeRate: ctx.minPeginFeeRate,
       numLocalChallengers: ctx.numLocalChallengers,
       councilQuorum: ctx.councilQuorum,
       councilSize: ctx.councilSize,

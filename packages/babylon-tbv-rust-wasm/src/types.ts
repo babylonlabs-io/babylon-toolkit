@@ -25,8 +25,10 @@ export interface PrePeginParams {
   timelockRefund: number;
   /** Amounts to peg in per HTLC output (satoshis) */
   pegInAmounts: readonly bigint[];
-  /** Fee rate in sat/vB from contract offchain params */
+  /** TX-graph fee rate in sat/vB from contract offchain params; sizes the depositor claim value */
   feeRate: bigint;
+  /** Minimum PegIn fee rate in sat/vB from contract offchain params; sizes the PegIn tx fee */
+  minPeginFeeRate: bigint;
   /** Number of local challengers (from contract params) */
   numLocalChallengers: number;
   /** M in M-of-N council multisig (from contract params) */

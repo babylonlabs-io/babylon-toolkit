@@ -1205,7 +1205,8 @@ export class WasmPrePeginTx {
      * * `pegin_amounts` - Array of pegin amounts in satoshis (one per hashlock).
      *   Must have the same length as `hashlocks`.
      * * `timelock_refund` - CSV timelock for the refund path (must be non-zero)
-     * * `fee_rate` - Fee rate in sat/vB (from contract offchain params)
+     * * `fee_rate` - TX-graph fee rate in sat/vB; sizes `depositor_claim_value`
+     * * `min_pegin_fee_rate` - Minimum PegIn fee rate in sat/vB; sizes the PegIn tx fee
      * * `num_local_challengers` - Number of local challengers (from contract params)
      * * `council_quorum` - M in M-of-N council multisig (from contract params)
      * * `council_size` - N in M-of-N council multisig (from contract params)
@@ -1218,13 +1219,14 @@ export class WasmPrePeginTx {
      * @param {BigUint64Array} pegin_amounts
      * @param {number} timelock_refund
      * @param {bigint} fee_rate
+     * @param {bigint} min_pegin_fee_rate
      * @param {number} num_local_challengers
      * @param {number} council_quorum
      * @param {number} council_size
      * @param {string} network
      * @param {string | null} [auth_anchor_hash]
      */
-    constructor(depositor, vault_provider, vault_keepers, universal_challengers, hashlocks, pegin_amounts, timelock_refund, fee_rate, num_local_challengers, council_quorum, council_size, network, auth_anchor_hash) {
+    constructor(depositor, vault_provider, vault_keepers, universal_challengers, hashlocks, pegin_amounts, timelock_refund, fee_rate, min_pegin_fee_rate, num_local_challengers, council_quorum, council_size, network, auth_anchor_hash) {
         const ptr0 = passStringToWasm0(depositor, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len0 = WASM_VECTOR_LEN;
         const ptr1 = passStringToWasm0(vault_provider, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
@@ -1241,7 +1243,7 @@ export class WasmPrePeginTx {
         const len6 = WASM_VECTOR_LEN;
         var ptr7 = isLikeNone(auth_anchor_hash) ? 0 : passStringToWasm0(auth_anchor_hash, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         var len7 = WASM_VECTOR_LEN;
-        const ret = wasm.wasmprepegintx_new(ptr0, len0, ptr1, len1, ptr2, len2, ptr3, len3, ptr4, len4, ptr5, len5, timelock_refund, fee_rate, num_local_challengers, council_quorum, council_size, ptr6, len6, ptr7, len7);
+        const ret = wasm.wasmprepegintx_new(ptr0, len0, ptr1, len1, ptr2, len2, ptr3, len3, ptr4, len4, ptr5, len5, timelock_refund, fee_rate, min_pegin_fee_rate, num_local_challengers, council_quorum, council_size, ptr6, len6, ptr7, len7);
         if (ret[2]) {
             throw takeFromExternrefTable0(ret[1]);
         }

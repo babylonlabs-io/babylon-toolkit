@@ -40,8 +40,10 @@ export interface PrePeginParams {
   timelockRefund: number;
   /** Amounts to peg in (satoshis), one per deposit */
   pegInAmounts: readonly bigint[];
-  /** Fee rate in sat/vB from contract offchain params */
+  /** TX-graph fee rate in sat/vB from contract offchain params; sizes the depositor claim value */
   feeRate: bigint;
+  /** Minimum PegIn fee rate in sat/vB from contract offchain params; sizes the PegIn tx fee */
+  minPeginFeeRate: bigint;
   /** Number of local challengers (from contract params) */
   numLocalChallengers: number;
   /** M in M-of-N council multisig (from contract params) */
@@ -155,6 +157,7 @@ export async function buildPrePeginPsbt(
     timelockRefund: params.timelockRefund,
     pegInAmounts: [...params.pegInAmounts],
     feeRate: params.feeRate,
+    minPeginFeeRate: params.minPeginFeeRate,
     numLocalChallengers: params.numLocalChallengers,
     councilQuorum: params.councilQuorum,
     councilSize: params.councilSize,
@@ -238,6 +241,7 @@ export async function buildPeginTxFromFundedPrePegin(
       timelockRefund: params.prePeginParams.timelockRefund,
       pegInAmounts: [...params.prePeginParams.pegInAmounts],
       feeRate: params.prePeginParams.feeRate,
+      minPeginFeeRate: params.prePeginParams.minPeginFeeRate,
       numLocalChallengers: params.prePeginParams.numLocalChallengers,
       councilQuorum: params.prePeginParams.councilQuorum,
       councilSize: params.prePeginParams.councilSize,
