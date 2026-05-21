@@ -53,6 +53,23 @@ export function buildStepItems(
 
 export const TOTAL_VISUAL_STEPS = buildStepItems(null).length;
 
+/**
+ * Resolve the human-readable label for a deposit flow step, reusing the same
+ * step definitions that drive the in-flow stepper (single source of truth).
+ */
+export function getStepLabel(step: DepositFlowStep): string {
+  return buildStepItems(null)[getVisualStep(step) - 1]?.label ?? "";
+}
+
+/**
+ * Progress-bar fill (0–1) for a deposit flow step. Reflects completed steps —
+ * the current step is in progress, not done — matching the in-flow stepper's
+ * bar so the last actionable step never reads as 100%.
+ */
+export function getStepFillPercent(step: DepositFlowStep): number {
+  return Math.max(0, getVisualStep(step) - 1) / TOTAL_VISUAL_STEPS;
+}
+
 export function getVisualStep(currentStep: DepositFlowStep): number {
   switch (currentStep) {
     case DepositFlowStep.DERIVE_VAULT_SECRET:

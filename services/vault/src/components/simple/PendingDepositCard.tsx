@@ -12,13 +12,27 @@ import {
   isArtifactDownloadAvailable,
   PeginAction,
 } from "@/components/deposit/actionStatus";
+import { getNetworkConfigBTC } from "@/config";
 import { useDepositPollingResult } from "@/context/deposit/PeginPollingContext";
 import { COPY } from "@/copy";
+import { getPeginDisplayStep } from "@/models/peginStateMachine";
+import { getTokenBrandColor } from "@/services/token/tokenService";
 import type { VaultProvider } from "@/types/vaultProvider";
 import { truncateAddress } from "@/utils/addressUtils";
 
+import { ProgressBar } from "./DepositProgressView/ProgressBar";
+import {
+  getStepFillPercent,
+  getStepLabel,
+  getVisualStep,
+  TOTAL_VISUAL_STEPS,
+} from "./DepositProgressView/steps";
+import { DepositStepLabel } from "./DepositStepLabel";
 import { STATUS_DOT_COLORS } from "./statusColors";
 import { VaultDetailCard, VaultStatusBadge } from "./VaultDetailCard";
+
+// The deposited asset is Bitcoin; tint the progress bar with its brand color.
+const ASSET_BRAND_COLOR = getTokenBrandColor(getNetworkConfigBTC().coinSymbol);
 
 interface PendingDepositCardProps {
   depositId: string;
@@ -101,6 +115,11 @@ export function PendingDepositCard({
   const buttonDisabled = !isActionable || loading;
   const dotColor = STATUS_DOT_COLORS[peginState.displayVariant];
 
+  // Map the current state onto the shared deposit-flow step model so the card
+  // can show "Step X of Y" + a progress bar. `null` when there's no meaningful
+  // in-progress step (those states don't reach the pending sections).
+  const step = getPeginDisplayStep(peginState);
+
   // Resolve provider name
   const provider = vaultProviders.find((vp) => vp.id === providerId);
   const providerName =
@@ -114,12 +133,29 @@ export function PendingDepositCard({
       providerName={providerName}
       providerIconUrl={provider?.iconUrl}
       providerAddress={providerId}
-      statusContent={
+      headerEnd={
         <VaultStatusBadge
           dotColor={dotColor}
           label={peginState.displayLabel}
           tooltip={peginState.message}
         />
+      }
+      amountSubtext={
+        step !== null && (
+          <DepositStepLabel
+            visualStep={getVisualStep(step)}
+            totalSteps={TOTAL_VISUAL_STEPS}
+            label={getStepLabel(step)}
+          />
+        )
+      }
+      belowHeader={
+        step !== null && (
+          <ProgressBar
+            percent={getStepFillPercent(step)}
+            color={ASSET_BRAND_COLOR}
+          />
+        )
       }
       action={
         isActionable || showArtifactDownload ? (

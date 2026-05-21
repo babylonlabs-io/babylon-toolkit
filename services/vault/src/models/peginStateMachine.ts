@@ -15,6 +15,7 @@ import {
 } from "@babylonlabs-io/ts-sdk/tbv/core/services";
 
 import { COPY } from "@/copy";
+import { DepositFlowStep } from "@/hooks/deposit/depositFlowSteps/types";
 
 export { ContractStatus } from "@babylonlabs-io/ts-sdk/tbv/core/services";
 export type {
@@ -515,6 +516,55 @@ export function getPrimaryActionButton(state: PeginState): {
       action: PeginAction.REFUND_HTLC,
     };
   }
+  return null;
+}
+
+// ============================================================================
+// Progress step mapping — maps the live pegin state onto the shared deposit
+// flow model (the single source of truth for step numbers and labels lives in
+// DepositProgressView/steps.ts). Used to render a progress bar on pending
+// deposit cards. The step is derived from the actual contract status, pending
+// next action, and local tracking — not a fixed value — so it tracks the real
+// position of each deposit.
+// ============================================================================
+
+/**
+ * Derive a pending deposit's position in the deposit flow from its live state,
+ * or `null` when there is no meaningful in-progress step (terminal/active/
+ * expired states, which the pending sections already filter out).
+ *
+ * The next available action is the most reliable signal of where a deposit
+ * sits; when no action is pending we fall back to contract/local status to tell
+ * "awaiting Bitcoin confirmation" apart from "payouts signed, awaiting the VP".
+ */
+export function getPeginDisplayStep(state: PeginState): DepositFlowStep | null {
+  const { contractStatus, availableActions, localStatus } = state;
+
+  if (contractStatus === ContractStatus.PENDING) {
+    if (availableActions.includes(PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN)) {
+      return DepositFlowStep.BROADCAST_PRE_PEGIN;
+    }
+    if (availableActions.includes(PeginAction.SUBMIT_WOTS_KEY)) {
+      return DepositFlowStep.SUBMIT_WOTS_KEYS;
+    }
+    if (availableActions.includes(PeginAction.SIGN_PAYOUT_TRANSACTIONS)) {
+      return DepositFlowStep.SIGN_PAYOUTS;
+    }
+    // No action pending. Once payouts are signed the deposit is waiting for the
+    // VP to verify on-chain (artifact-download stage); otherwise it is still
+    // waiting for the Pre-Pegin to confirm / be detected.
+    if (localStatus === LocalStorageStatus.PAYOUT_SIGNED) {
+      return DepositFlowStep.ARTIFACT_DOWNLOAD;
+    }
+    return DepositFlowStep.AWAIT_BTC_CONFIRMATION;
+  }
+
+  if (contractStatus === ContractStatus.VERIFIED) {
+    // Ready to activate, or activation already broadcast and awaiting
+    // confirmation — both sit on the final reveal/activate step.
+    return DepositFlowStep.ACTIVATE_VAULT;
+  }
+
   return null;
 }
 

@@ -29,8 +29,16 @@ interface VaultDetailCardProps {
   providerIconUrl?: string;
   /** Vault provider Ethereum address, shown on hover over the provider label */
   providerAddress: string;
-  /** Status content — rendered as the value in the Status row */
-  statusContent: ReactNode;
+  /** Status content — rendered as the value in the Status row. Omit to hide the
+   * row entirely (e.g. when the status badge is rendered in the header). */
+  statusContent?: ReactNode;
+  /** Optional content rendered beneath the amount, in the same row as the icon
+   * (e.g. a step indicator). */
+  amountSubtext?: ReactNode;
+  /** Optional content rendered at the right end of the amount/header row. */
+  headerEnd?: ReactNode;
+  /** Optional content rendered immediately below the amount/header row. */
+  belowHeader?: ReactNode;
   /** Optional action button rendered at the bottom */
   action?: ReactNode;
 }
@@ -43,17 +51,32 @@ export function VaultDetailCard({
   providerIconUrl,
   providerAddress,
   statusContent,
+  amountSubtext,
+  headerEnd,
+  belowHeader,
   action,
 }: VaultDetailCardProps) {
   return (
     <div className="space-y-3 rounded-xl border border-secondary-strokeLight p-4">
-      {/* BTC icon + amount */}
-      <div className="flex items-center gap-2">
-        <Avatar url={btcConfig.icon} alt={btcConfig.coinSymbol} size="small" />
-        <span className="text-base font-medium text-accent-primary">
-          {formatBtcAmount(amountBtc)}
-        </span>
+      {/* BTC icon + amount (+ optional subtext), optional header-end content */}
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <Avatar
+            url={btcConfig.icon}
+            alt={btcConfig.coinSymbol}
+            size="small"
+          />
+          <div className="flex flex-col gap-0.5">
+            <span className="text-base font-medium text-accent-primary">
+              {formatBtcAmount(amountBtc)}
+            </span>
+            {amountSubtext}
+          </div>
+        </div>
+        {headerEnd}
       </div>
+
+      {belowHeader}
 
       {/* Date */}
       <div className="flex items-center justify-between">
@@ -64,10 +87,12 @@ export function VaultDetailCard({
       </div>
 
       {/* Status */}
-      <div className="flex items-center justify-between">
-        <span className="text-sm text-accent-secondary">Status</span>
-        {statusContent}
-      </div>
+      {statusContent && (
+        <div className="flex items-center justify-between">
+          <span className="text-sm text-accent-secondary">Status</span>
+          {statusContent}
+        </div>
+      )}
 
       {/* Vault Provider */}
       <div className="flex items-center justify-between">
