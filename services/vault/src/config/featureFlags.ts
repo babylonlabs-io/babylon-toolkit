@@ -71,6 +71,21 @@ export default {
   },
 
   /**
+   * ENABLE_LIQUIDATION_NOTIFICATIONS feature flag
+   *
+   * Purpose: Controls whether the dashboard liquidation-notification surface
+   * (the PositionNotificationBanner and its debug panel) is shown.
+   * Why needed: Lets DevOps enable/disable the notification feature per
+   * environment without a code change while the calculator/copy is validated.
+   * Default: false (notifications are hidden unless explicitly set to "true")
+   */
+  get isLiquidationNotificationsEnabled() {
+    return (
+      process.env.NEXT_PUBLIC_FF_ENABLE_LIQUIDATION_NOTIFICATIONS === "true"
+    );
+  },
+
+  /**
    * DISABLE_VAULT_CAP feature flag
    *
    * Purpose: Kill-switch to hide the vault supply-cap UI (dashboard section
