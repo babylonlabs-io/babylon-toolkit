@@ -73,6 +73,9 @@ export function DashboardPage() {
     isConnected ? address : undefined,
   );
 
+  const liquidationNotificationsEnabled =
+    featureFlags.isLiquidationNotificationsEnabled;
+
   const { vaults: aaveVaults, redeemedVaults } = useAaveVaults(
     isConnected ? address : undefined,
   );
@@ -152,14 +155,16 @@ export function DashboardPage() {
           isConnected={isConnected}
         />
 
-        <PositionNotificationBanner
-          connectedAddress={address}
-          onDeposit={openDeposit}
-          onRepay={handleRepay}
-          result={debugResultOverride ?? undefined}
-          statusOverride={debugStatusOverride ?? undefined}
-          btcBalanceBtc={btcBalanceBtc}
-        />
+        {liquidationNotificationsEnabled && (
+          <PositionNotificationBanner
+            connectedAddress={address}
+            onDeposit={openDeposit}
+            onRepay={handleRepay}
+            result={debugResultOverride ?? undefined}
+            statusOverride={debugStatusOverride ?? undefined}
+            btcBalanceBtc={btcBalanceBtc}
+          />
+        )}
 
         <PendingDepositSection />
 
@@ -190,12 +195,13 @@ export function DashboardPage() {
           onRepay={handleRepay}
         />
 
-        {featureFlags.isPositionDebugPanelEnabled && (
-          <PositionNotificationsDebugPanel
-            onResultChange={setDebugResultOverride}
-            onStatusChange={setDebugStatusOverride}
-          />
-        )}
+        {liquidationNotificationsEnabled &&
+          featureFlags.isPositionDebugPanelEnabled && (
+            <PositionNotificationsDebugPanel
+              onResultChange={setDebugResultOverride}
+              onStatusChange={setDebugStatusOverride}
+            />
+          )}
       </div>
 
       {/* Withdraw Flow */}
