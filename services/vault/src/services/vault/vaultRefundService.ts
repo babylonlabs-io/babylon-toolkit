@@ -17,6 +17,7 @@ import {
   getSortedXOnlyPubkeys,
   processPublicKeyToXOnly,
   pushTx,
+  stripHexPrefix,
 } from "@babylonlabs-io/ts-sdk/tbv/core";
 import {
   buildAndBroadcastRefund,
@@ -36,6 +37,7 @@ import {
   getVaultRegistryReader,
 } from "../../clients/eth-contract/sdk-readers";
 import { getBTCNetworkForWASM } from "../../config/pegin";
+import { COPY } from "../../copy";
 
 import { fetchVaultProviderById } from "./fetchVaultProviders";
 import { fetchVaultIdsByDepositor, fetchVaultRefundData } from "./fetchVaults";
@@ -66,13 +68,68 @@ export interface RefundPreview {
    * loads independently — a fee fetch failure must not block the refund.
    */
   halfHourFeeSatsVb: number | null;
+  /**
+   * Whether the Pre-PegIn transaction is present on Bitcoin. `false` means
+   * the refund has no HTLC output to spend (the Pre-PegIn never reached the
+   * network) — the caller should surface "nothing to refund" rather than
+   * letting the user sign a doomed transaction. See {@link isPrePeginOnChain}.
+   */
+  prePeginOnChain: boolean;
+}
+
+/** Timeout for the Pre-PegIn existence probe — well under the modal's UX budget. */
+const PREPEGIN_PROBE_TIMEOUT_MS = 10_000;
+
+/**
+ * Probe whether the Pre-PegIn transaction exists on Bitcoin.
+ *
+ * The refund spends the Pre-PegIn HTLC output; if the Pre-PegIn never
+ * reached the network (never broadcast, or broadcast and evicted before
+ * confirming) there is no HTLC to spend and the refund would fail at
+ * broadcast. A mempool `/tx` lookup is the authoritative signal — on-chain
+ * `verifiedAt`/status cannot distinguish "never broadcast" from "broadcast
+ * but the vault provider never verified it" (both leave `verifiedAt = 0`).
+ *
+ * Returns `false` only on a definitive HTTP 404. Any other outcome — 2xx,
+ * other status (e.g. a geo-fenced 403), network error, timeout — returns
+ * `true`: a flaky or restricted mempool must never block a legitimate
+ * refund of genuinely locked BTC.
+ */
+async function isPrePeginOnChain(
+  prePeginTxHash: string,
+  mempoolApiUrl: string,
+): Promise<boolean> {
+  const txid = stripHexPrefix(prePeginTxHash);
+  const controller = new AbortController();
+  const timeoutId = setTimeout(
+    () => controller.abort(),
+    PREPEGIN_PROBE_TIMEOUT_MS,
+  );
+  try {
+    // Raw fetch, not the SDK getTxInfo: getTxInfo collapses every non-2xx
+    // into one opaque error, but here we need the exact status — only a
+    // definitive 404 means "not on chain".
+    const response = await fetch(`${mempoolApiUrl}/tx/${txid}`, {
+      signal: controller.signal,
+    });
+    return response.status !== 404;
+  } catch {
+    return true;
+  } finally {
+    clearTimeout(timeoutId);
+  }
 }
 
 export async function getRefundPreview(vaultId: Hex): Promise<RefundPreview> {
   const mempoolApiUrl = getMempoolApiUrl();
-  const [target, feeRecommendation] = await Promise.all([
-    readTargetVault(vaultId),
-    getNetworkFees(mempoolApiUrl).catch(() => null),
+  // The fee fetch doesn't depend on vault data — start it now so it overlaps
+  // readTargetVault. The Pre-PegIn probe needs the on-chain prePeginTxHash,
+  // so it can only start once readTargetVault resolves.
+  const feePromise = getNetworkFees(mempoolApiUrl).catch(() => null);
+  const target = await readTargetVault(vaultId);
+  const [feeRecommendation, prePeginOnChain] = await Promise.all([
+    feePromise,
+    isPrePeginOnChain(target.onChainVault.prePeginTxHash, mempoolApiUrl),
   ]);
   return {
     amountSats: target.onChainVault.amount,
@@ -80,6 +137,7 @@ export async function getRefundPreview(vaultId: Hex): Promise<RefundPreview> {
       feeRecommendation && feeRecommendation.halfHourFee > 0
         ? feeRecommendation.halfHourFee
         : null,
+    prePeginOnChain,
   };
 }
 
@@ -350,6 +408,22 @@ export async function buildAndBroadcastRefundTransaction(
     signal,
   } = params;
   const mempoolApiUrl = getMempoolApiUrl();
+
+  // Re-probe Pre-PegIn existence before the wallet popup. The modal's
+  // preview can be stale (cached) or the tx can be evicted from mempool
+  // between preview and confirm; without this guard the user would sign
+  // a refund whose HTLC input doesn't exist on Bitcoin and only learn
+  // that at broadcast. Fails open on any non-404 outcome — same fail-open
+  // semantics as the preview probe — so a flaky mempool never blocks a
+  // legitimate refund. See {@link isPrePeginOnChain}.
+  const target = await readTargetVault(vaultId);
+  const stillOnChain = await isPrePeginOnChain(
+    target.onChainVault.prePeginTxHash,
+    mempoolApiUrl,
+  );
+  if (!stillOnChain) {
+    throw new Error(COPY.deposit.refundNotBroadcast.broadcastGuardError);
+  }
 
   // Override indexer-provided depositor pubkey with the caller's wallet key —
   // the wallet is the authoritative source for the depositor's signing key.

@@ -242,6 +242,17 @@ export const COPY = {
       doNotSpendWarning: (symbol: string) =>
         `Do not spend the ${symbol} used for this deposit until the transactions are confirmed.`,
     },
+    refundNotBroadcast: {
+      heading: "Nothing to refund",
+      body: "Your Pre-Pegin transaction was never broadcast to Bitcoin. No BTC was locked, so there is nothing to refund.",
+      doneButton: "Close",
+      // Surfaced when the broadcast-time re-probe finds the Pre-PegIn
+      // missing (preview was stale, mempool evicted the tx between
+      // preview and confirm, etc.) — keeps the user from signing a
+      // refund that would only fail at broadcast.
+      broadcastGuardError:
+        "Your Pre-Pegin transaction is no longer on Bitcoin. There is nothing to refund.",
+    },
     refundReview: {
       heading: "Review Refund",
       refundAmount: "Refund Amount",
