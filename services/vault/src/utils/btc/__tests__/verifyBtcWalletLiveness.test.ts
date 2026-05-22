@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   BtcWalletLivenessError,
+  shouldProbeWalletLiveness,
   verifyBtcWalletLiveness,
 } from "../verifyBtcWalletLiveness";
 
@@ -17,8 +18,23 @@ function makeWallet(opts: {
   };
 }
 
+describe("shouldProbeWalletLiveness", () => {
+  it("allows the round-trip probe for injected extensions", () => {
+    expect(shouldProbeWalletLiveness("unisat")).toBe(true);
+    expect(shouldProbeWalletLiveness("okx")).toBe(true);
+    expect(shouldProbeWalletLiveness("onekey")).toBe(true);
+  });
+
+  it("blocks the probe for AppKit, hardware, and unknown/undefined wallets", () => {
+    expect(shouldProbeWalletLiveness("appkit-btc-connector")).toBe(false);
+    expect(shouldProbeWalletLiveness("ledger")).toBe(false);
+    expect(shouldProbeWalletLiveness("keystone")).toBe(false);
+    expect(shouldProbeWalletLiveness(undefined)).toBe(false);
+  });
+});
+
 describe("verifyBtcWalletLiveness", () => {
-  it("resolves when connectWallet succeeds and the wallet returns the expected address", async () => {
+  it("does not round-trip via connectWallet unless probeConnection is set", async () => {
     const connectWallet = vi.fn(async () => {});
     const wallet = makeWallet({
       connectWallet,
@@ -28,11 +44,25 @@ describe("verifyBtcWalletLiveness", () => {
     await expect(
       verifyBtcWalletLiveness(wallet, EXPECTED_ADDRESS),
     ).resolves.toBeUndefined();
-    // The round-trip probe must run before trusting the (possibly cached) address.
+    expect(connectWallet).not.toHaveBeenCalled();
+  });
+
+  it("round-trips via connectWallet when probeConnection is set", async () => {
+    const connectWallet = vi.fn(async () => {});
+    const wallet = makeWallet({
+      connectWallet,
+      getAddress: async () => EXPECTED_ADDRESS,
+    });
+
+    await expect(
+      verifyBtcWalletLiveness(wallet, EXPECTED_ADDRESS, {
+        probeConnection: true,
+      }),
+    ).resolves.toBeUndefined();
     expect(connectWallet).toHaveBeenCalledOnce();
   });
 
-  it("throws BtcWalletLivenessError when connectWallet rejects (locked or unresponsive wallet)", async () => {
+  it("throws BtcWalletLivenessError when the probe's connectWallet rejects (locked wallet)", async () => {
     const getAddress = vi.fn(async () => EXPECTED_ADDRESS);
     const wallet = makeWallet({
       connectWallet: async () => {
@@ -42,7 +72,9 @@ describe("verifyBtcWalletLiveness", () => {
     });
 
     await expect(
-      verifyBtcWalletLiveness(wallet, EXPECTED_ADDRESS),
+      verifyBtcWalletLiveness(wallet, EXPECTED_ADDRESS, {
+        probeConnection: true,
+      }),
     ).rejects.toMatchObject({
       name: "BtcWalletLivenessError",
       message: expect.stringContaining("not responding"),
@@ -51,9 +83,8 @@ describe("verifyBtcWalletLiveness", () => {
     expect(getAddress).not.toHaveBeenCalled();
   });
 
-  it("throws BtcWalletLivenessError when getAddress rejects after a successful probe", async () => {
+  it("throws BtcWalletLivenessError when getAddress rejects", async () => {
     const wallet = makeWallet({
-      connectWallet: async () => {},
       getAddress: async () => {
         throw new Error("Wallet extension is locked");
       },
@@ -68,10 +99,7 @@ describe("verifyBtcWalletLiveness", () => {
   });
 
   it("throws BtcWalletLivenessError when getAddress resolves with an empty string", async () => {
-    const wallet = makeWallet({
-      connectWallet: async () => {},
-      getAddress: async () => "",
-    });
+    const wallet = makeWallet({ getAddress: async () => "" });
 
     await expect(
       verifyBtcWalletLiveness(wallet, EXPECTED_ADDRESS),
@@ -83,7 +111,6 @@ describe("verifyBtcWalletLiveness", () => {
 
   it("throws BtcWalletLivenessError when the wallet's address differs from the expected one (account changed)", async () => {
     const wallet = makeWallet({
-      connectWallet: async () => {},
       getAddress: async () => "tb1qdifferentaccountaddressxxxxxxxxxxxxxxxxxx",
     });
 
@@ -95,19 +122,18 @@ describe("verifyBtcWalletLiveness", () => {
     });
   });
 
-  it("skips the probe when the wallet has no connectWallet method", async () => {
+  it("skips the probe when probeConnection is set but the wallet has no connectWallet method", async () => {
     const wallet = makeWallet({ getAddress: async () => EXPECTED_ADDRESS });
 
     await expect(
-      verifyBtcWalletLiveness(wallet, EXPECTED_ADDRESS),
+      verifyBtcWalletLiveness(wallet, EXPECTED_ADDRESS, {
+        probeConnection: true,
+      }),
     ).resolves.toBeUndefined();
   });
 
   it("exposes BtcWalletLivenessError as an Error subclass", async () => {
-    const wallet = makeWallet({
-      connectWallet: async () => {},
-      getAddress: async () => "",
-    });
+    const wallet = makeWallet({ getAddress: async () => "" });
 
     await expect(
       verifyBtcWalletLiveness(wallet, EXPECTED_ADDRESS),

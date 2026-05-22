@@ -52,6 +52,7 @@ vi.mock("../../../../utils/btc", () => ({
     hex.startsWith("0x") || hex.startsWith("0X") ? hex.slice(2) : hex,
   verifyBtcWalletLiveness: (...args: unknown[]) =>
     mockVerifyBtcWalletLiveness(...args),
+  shouldProbeWalletLiveness: () => true,
   BtcWalletLivenessError: class BtcWalletLivenessError extends Error {
     constructor(message: string) {
       super(message);

@@ -9,7 +9,10 @@ import { LocalStorageStatus } from "@/models/peginStateMachine";
 import { buildAndBroadcastRefundTransaction } from "@/services/vault/vaultRefundService";
 import { usePeginStorage } from "@/storage/usePeginStorage";
 import type { VaultActivity } from "@/types/activity";
-import { verifyBtcWalletLiveness } from "@/utils/btc";
+import {
+  shouldProbeWalletLiveness,
+  verifyBtcWalletLiveness,
+} from "@/utils/btc";
 
 export interface UseRefundStateProps {
   activity: VaultActivity;
@@ -112,7 +115,15 @@ export function useRefundState({
           // `getPublicKeyHex()` below is cached and would not reveal it. Probe
           // with a round-trip first so a locked wallet fails fast with an
           // actionable error instead of a silent no-op at signing time.
-          await verifyBtcWalletLiveness(btcWalletProvider, connectedBtcAddress);
+          await verifyBtcWalletLiveness(
+            btcWalletProvider,
+            connectedBtcAddress,
+            {
+              probeConnection: shouldProbeWalletLiveness(
+                btcConnector?.connectedWallet?.id,
+              ),
+            },
+          );
 
           // Fetch the pubkey live from the wallet (not from storage). The
           // wallet's signPsbt signInputs[].publicKey requires the wallet's
@@ -182,6 +193,7 @@ export function useRefundState({
       vaultId,
       btcWalletProvider,
       connectedBtcAddress,
+      btcConnector?.connectedWallet?.id,
       ethAddress,
       peginTxHash,
       unsignedPrePeginTx,

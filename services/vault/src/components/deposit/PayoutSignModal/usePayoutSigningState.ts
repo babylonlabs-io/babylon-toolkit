@@ -22,6 +22,7 @@ import type { VaultActivity } from "../../../types/activity";
 import {
   BtcWalletLivenessError,
   btcAddressToScriptPubKeyHex,
+  shouldProbeWalletLiveness,
   verifyBtcWalletLiveness,
 } from "../../../utils/btc";
 import { formatPayoutSignatureError } from "../../../utils/errors/formatting";
@@ -188,7 +189,11 @@ export function usePayoutSigningState({
       // it before signing so a locked wallet surfaces an actionable error
       // instead of a silent no-op (modal opens, no signing popup appears).
       try {
-        await verifyBtcWalletLiveness(btcWalletProvider, connectedBtcAddress);
+        await verifyBtcWalletLiveness(btcWalletProvider, connectedBtcAddress, {
+          probeConnection: shouldProbeWalletLiveness(
+            btcConnector?.connectedWallet?.id,
+          ),
+        });
       } catch (err) {
         setError({
           title: COPY.wallet.liveness.errorTitle,
@@ -255,6 +260,7 @@ export function usePayoutSigningState({
     findProvider,
     btcConnector?.connectedWallet?.account?.address,
     btcConnector?.connectedWallet?.provider,
+    btcConnector?.connectedWallet?.id,
     btcPublicKey,
     depositorEthAddress,
     setOptimisticStatus,

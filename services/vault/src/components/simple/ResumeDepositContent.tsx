@@ -40,7 +40,10 @@ import { useReleaseVpTokenOnUnmount } from "@/hooks/deposit/useReleaseVpTokenOnU
 import { useRunOnce } from "@/hooks/useRunOnce";
 import { logger } from "@/infrastructure";
 import type { VaultActivity } from "@/types/activity";
-import { verifyBtcWalletLiveness } from "@/utils/btc";
+import {
+  shouldProbeWalletLiveness,
+  verifyBtcWalletLiveness,
+} from "@/utils/btc";
 import { getVpProxyUrl } from "@/utils/rpc";
 
 import { DepositProgressView } from "./DepositProgressView";
@@ -131,7 +134,17 @@ export function ResumeBroadcastContent({
     onSuccess,
   });
 
-  useRunOnce(handleBroadcast);
+  const btcConnector = useChainConnector("BTC");
+  const btcWalletProvider = btcConnector?.connectedWallet?.provider;
+  const connectedBtcAddress = btcConnector?.connectedWallet?.account?.address;
+
+  // Defer the auto-run until the wallet has hydrated — see the note in
+  // ResumeWotsContent. Still fire when no provider is present so the genuine
+  // "not connected" error surfaces (handleBroadcast throws it).
+  useRunOnce(
+    handleBroadcast,
+    !btcWalletProvider || Boolean(connectedBtcAddress),
+  );
 
   const derived = computeDepositDerivedState(
     DepositFlowStep.BROADCAST_PRE_PEGIN,
@@ -254,7 +267,11 @@ export function ResumeWotsContent({
       // Probe the wallet before deriveVaultRoot fires the signing popup. A
       // wallet that locked since the modal opened fails fast here with an
       // actionable error instead of a silent no-op (no popup appears).
-      await verifyBtcWalletLiveness(btcWalletProvider, connectedBtcAddress);
+      await verifyBtcWalletLiveness(btcWalletProvider, connectedBtcAddress, {
+        probeConnection: shouldProbeWalletLiveness(
+          btcConnector?.connectedWallet?.id,
+        ),
+      });
 
       root = await deriveVaultRoot(btcWalletProvider, {
         depositorBtcPubkey: hexToUint8Array(depositorBtcPubkey),
@@ -331,11 +348,18 @@ export function ResumeWotsContent({
     activity,
     btcWalletProvider,
     connectedBtcAddress,
+    btcConnector?.connectedWallet?.id,
     trackPrimedTxid,
     onSuccess,
   ]);
 
-  useRunOnce(handleSubmit);
+  // Defer the auto-run until the wallet has hydrated. `connectedWallet.provider`
+  // is set synchronously on connect, but `account.address` lands a tick later
+  // (e.g. during fire-and-forget auto-reconnect). Without this gate, opening the
+  // modal mid-hydration would hit the "not connected" guard and—because
+  // useRunOnce never re-fires—stay stuck. Still fire when there is no provider
+  // at all so the genuine "not connected" error surfaces.
+  useRunOnce(handleSubmit, !btcWalletProvider || Boolean(connectedBtcAddress));
 
   const isSuccess = !loading && !error;
   const renderIsWaiting = isSuccess;
@@ -448,7 +472,11 @@ export function ResumeActivationContent({
       // Probe the wallet before deriveVaultRoot fires the signing popup. A
       // wallet that locked since the modal opened fails fast here with an
       // actionable error instead of a silent no-op (no popup appears).
-      await verifyBtcWalletLiveness(btcWalletProvider, connectedBtcAddress);
+      await verifyBtcWalletLiveness(btcWalletProvider, connectedBtcAddress, {
+        probeConnection: shouldProbeWalletLiveness(
+          btcConnector?.connectedWallet?.id,
+        ),
+      });
 
       root = await deriveVaultRoot(btcWalletProvider, {
         depositorBtcPubkey: hexToUint8Array(depositorBtcPubkey),
@@ -480,9 +508,18 @@ export function ResumeActivationContent({
       secretBytes?.fill(0);
       setLoading(false);
     }
-  }, [activity, btcWalletProvider, connectedBtcAddress, handleActivation]);
+  }, [
+    activity,
+    btcWalletProvider,
+    connectedBtcAddress,
+    btcConnector?.connectedWallet?.id,
+    handleActivation,
+  ]);
 
-  useRunOnce(handleSubmit);
+  // Defer the auto-run until the wallet has hydrated — see the note in
+  // ResumeWotsContent. Still fire when no provider is present so the genuine
+  // "not connected" error surfaces.
+  useRunOnce(handleSubmit, !btcWalletProvider || Boolean(connectedBtcAddress));
 
   const error = localError ?? activationError;
   const derived = computeDepositDerivedState(
