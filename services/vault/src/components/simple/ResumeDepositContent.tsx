@@ -138,8 +138,8 @@ export function ResumeBroadcastContent({
   const btcWalletProvider = btcConnector?.connectedWallet?.provider;
   const connectedBtcAddress = btcConnector?.connectedWallet?.account?.address;
 
-  // Defer the auto-run until the wallet has hydrated — see the note in
-  // ResumeWotsContent. Still fire when no provider is present so the genuine
+  // Defensive auto-run gate (effectively always-enabled today) — see the note
+  // in ResumeWotsContent. Fires when no provider is present so the genuine
   // "not connected" error surfaces (handleBroadcast throws it).
   useRunOnce(
     handleBroadcast,
@@ -353,12 +353,14 @@ export function ResumeWotsContent({
     onSuccess,
   ]);
 
-  // Defer the auto-run until the wallet has hydrated. `connectedWallet.provider`
-  // is set synchronously on connect, but `account.address` lands a tick later
-  // (e.g. during fire-and-forget auto-reconnect). Without this gate, opening the
-  // modal mid-hydration would hit the "not connected" guard and—because
-  // useRunOnce never re-fires—stay stuck. Still fire when there is no provider
-  // at all so the genuine "not connected" error surfaces.
+  // Defensive auto-run gate. Today this is effectively always-enabled: the
+  // connector exposes `connectedWallet` only after connect() completes, so
+  // `provider` and `account.address` are set together — there is no
+  // "provider present, address still hydrating" window. The gate is
+  // belt-and-suspenders for a future connector that surfaces a still-connecting
+  // wallet before its account hydrates: in that case useRunOnce (one-shot)
+  // would defer rather than fire into the "not connected" guard. When there is
+  // genuinely no provider it fires, so the real "not connected" error surfaces.
   useRunOnce(handleSubmit, !btcWalletProvider || Boolean(connectedBtcAddress));
 
   const isSuccess = !loading && !error;
@@ -516,8 +518,8 @@ export function ResumeActivationContent({
     handleActivation,
   ]);
 
-  // Defer the auto-run until the wallet has hydrated — see the note in
-  // ResumeWotsContent. Still fire when no provider is present so the genuine
+  // Defensive auto-run gate (effectively always-enabled today) — see the note
+  // in ResumeWotsContent. Fires when no provider is present so the genuine
   // "not connected" error surfaces.
   useRunOnce(handleSubmit, !btcWalletProvider || Boolean(connectedBtcAddress));
 

@@ -27,7 +27,8 @@ describe("shouldProbeWalletLiveness", () => {
 
   it("blocks the probe for AppKit, hardware, and unknown/undefined wallets", () => {
     expect(shouldProbeWalletLiveness("appkit-btc-connector")).toBe(false);
-    expect(shouldProbeWalletLiveness("ledger")).toBe(false);
+    expect(shouldProbeWalletLiveness("ledger_btc")).toBe(false);
+    expect(shouldProbeWalletLiveness("ledger_btc_v2")).toBe(false);
     expect(shouldProbeWalletLiveness("keystone")).toBe(false);
     expect(shouldProbeWalletLiveness(undefined)).toBe(false);
   });
