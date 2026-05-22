@@ -55,7 +55,9 @@ vi.mock("@babylonlabs-io/wallet-connector", () => ({
   getSharedWagmiConfig: vi.fn(() => ({})),
   useChainConnector: vi.fn(() => ({
     connectedWallet: {
+      account: { address: "bc1qdepositor" },
       provider: {
+        connectWallet: vi.fn().mockResolvedValue(undefined),
         getAddress: vi.fn().mockResolvedValue("bc1qdepositor"),
         signPsbt: mockSignPsbt,
       },

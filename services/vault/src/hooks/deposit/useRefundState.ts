@@ -9,6 +9,7 @@ import { LocalStorageStatus } from "@/models/peginStateMachine";
 import { buildAndBroadcastRefundTransaction } from "@/services/vault/vaultRefundService";
 import { usePeginStorage } from "@/storage/usePeginStorage";
 import type { VaultActivity } from "@/types/activity";
+import { verifyBtcWalletLiveness } from "@/utils/btc";
 
 export interface UseRefundStateProps {
   activity: VaultActivity;
@@ -28,6 +29,7 @@ export function useRefundState({
 }: UseRefundStateProps): UseRefundStateResult {
   const btcConnector = useChainConnector("BTC");
   const btcWalletProvider = btcConnector?.connectedWallet?.provider;
+  const connectedBtcAddress = btcConnector?.connectedWallet?.account?.address;
   const { address: ethAddress } = useETHWallet();
   const { setOptimisticStatus } = usePeginPolling();
   const { pendingPegins, addPendingPegin, markRefundBroadcast } =
@@ -78,7 +80,7 @@ export function useRefundState({
       inFlightRef.current = true;
 
       try {
-        if (!btcWalletProvider) {
+        if (!btcWalletProvider || !connectedBtcAddress) {
           setError("BTC wallet not connected");
           return;
         }
@@ -106,6 +108,12 @@ export function useRefundState({
         abortRef.current = new AbortController();
 
         try {
+          // The wallet may have locked since the refund modal opened;
+          // `getPublicKeyHex()` below is cached and would not reveal it. Probe
+          // with a round-trip first so a locked wallet fails fast with an
+          // actionable error instead of a silent no-op at signing time.
+          await verifyBtcWalletLiveness(btcWalletProvider, connectedBtcAddress);
+
           // Fetch the pubkey live from the wallet (not from storage). The
           // wallet's signPsbt signInputs[].publicKey requires the wallet's
           // native format (typically compressed 33-byte sec1), and the
@@ -173,6 +181,7 @@ export function useRefundState({
       refunding,
       vaultId,
       btcWalletProvider,
+      connectedBtcAddress,
       ethAddress,
       peginTxHash,
       unsignedPrePeginTx,

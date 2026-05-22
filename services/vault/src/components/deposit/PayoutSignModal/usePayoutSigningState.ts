@@ -19,7 +19,11 @@ import { signAndSubmitPayouts } from "../../../hooks/deposit/depositFlowSteps/pa
 import { useVaultProviders } from "../../../hooks/deposit/useVaultProviders";
 import { LocalStorageStatus } from "../../../models/peginStateMachine";
 import type { VaultActivity } from "../../../types/activity";
-import { btcAddressToScriptPubKeyHex } from "../../../utils/btc";
+import {
+  BtcWalletLivenessError,
+  btcAddressToScriptPubKeyHex,
+  verifyBtcWalletLiveness,
+} from "../../../utils/btc";
 import { formatPayoutSignatureError } from "../../../utils/errors/formatting";
 
 export interface SigningProgressProps {
@@ -177,6 +181,22 @@ export function usePayoutSigningState({
       // Guard explicitly instead of relying on a non-null assertion below.
       if (!activity.peginTxHash) {
         setError(COPY.deposit.payoutSigningGuards.missingPeginTransaction);
+        return;
+      }
+
+      // The wallet may have locked/disconnected since the modal opened. Probe
+      // it before signing so a locked wallet surfaces an actionable error
+      // instead of a silent no-op (modal opens, no signing popup appears).
+      try {
+        await verifyBtcWalletLiveness(btcWalletProvider, connectedBtcAddress);
+      } catch (err) {
+        setError({
+          title: COPY.wallet.liveness.errorTitle,
+          message:
+            err instanceof BtcWalletLivenessError
+              ? err.message
+              : COPY.wallet.liveness.unresponsive,
+        });
         return;
       }
 

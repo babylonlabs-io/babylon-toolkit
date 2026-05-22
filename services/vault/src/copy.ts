@@ -313,6 +313,15 @@ export const COPY = {
   wallet: {
     geoBlockedTooltip: "Not available in your region",
     walletNotEligibleTooltip: "Wallet not eligible",
+    liveness: {
+      errorTitle: "Wallet Not Responding",
+      unresponsive:
+        "Your BTC wallet is not responding. Please open your wallet extension to confirm it is unlocked and connected, then try again.",
+      emptyAddress:
+        "Your BTC wallet did not return an address. Please reconnect your wallet and try again.",
+      addressMismatch:
+        "Your BTC wallet account has changed. Please reconnect your wallet and try again.",
+    },
   },
   collateral: {
     releaseDisabledTooltip:

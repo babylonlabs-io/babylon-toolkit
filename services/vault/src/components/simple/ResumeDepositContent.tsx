@@ -40,6 +40,7 @@ import { useReleaseVpTokenOnUnmount } from "@/hooks/deposit/useReleaseVpTokenOnU
 import { useRunOnce } from "@/hooks/useRunOnce";
 import { logger } from "@/infrastructure";
 import type { VaultActivity } from "@/types/activity";
+import { verifyBtcWalletLiveness } from "@/utils/btc";
 import { getVpProxyUrl } from "@/utils/rpc";
 
 import { DepositProgressView } from "./DepositProgressView";
@@ -175,6 +176,7 @@ export function ResumeWotsContent({
   const btcWalletProvider =
     (btcConnector?.connectedWallet?.provider as BitcoinWallet | undefined) ??
     null;
+  const connectedBtcAddress = btcConnector?.connectedWallet?.account?.address;
 
   // Starts true: useRunOnce auto-fires handleSubmit on mount, so the
   // first render must show processing — not a false-success banner from
@@ -188,7 +190,7 @@ export function ResumeWotsContent({
   const trackPrimedTxid = useReleaseVpTokenOnUnmount();
 
   const handleSubmit = useCallback(async () => {
-    if (!btcWalletProvider) {
+    if (!btcWalletProvider || !connectedBtcAddress) {
       setError("BTC wallet is not connected");
       setLoading(false);
       return;
@@ -248,6 +250,11 @@ export function ResumeWotsContent({
       const fundingOutpoints = parseFundingOutpointsFromTx(
         activity.unsignedPrePeginTx,
       );
+
+      // Probe the wallet before deriveVaultRoot fires the signing popup. A
+      // wallet that locked since the modal opened fails fast here with an
+      // actionable error instead of a silent no-op (no popup appears).
+      await verifyBtcWalletLiveness(btcWalletProvider, connectedBtcAddress);
 
       root = await deriveVaultRoot(btcWalletProvider, {
         depositorBtcPubkey: hexToUint8Array(depositorBtcPubkey),
@@ -320,7 +327,13 @@ export function ResumeWotsContent({
     } finally {
       root?.fill(0);
     }
-  }, [activity, btcWalletProvider, trackPrimedTxid, onSuccess]);
+  }, [
+    activity,
+    btcWalletProvider,
+    connectedBtcAddress,
+    trackPrimedTxid,
+    onSuccess,
+  ]);
 
   useRunOnce(handleSubmit);
 
@@ -370,6 +383,7 @@ export function ResumeActivationContent({
   const btcWalletProvider =
     (btcConnector?.connectedWallet?.provider as BitcoinWallet | undefined) ??
     null;
+  const connectedBtcAddress = btcConnector?.connectedWallet?.account?.address;
 
   // Starts true: useRunOnce auto-fires handleSubmit on mount, so the
   // first render must show processing.
@@ -387,7 +401,7 @@ export function ResumeActivationContent({
   });
 
   const handleSubmit = useCallback(async () => {
-    if (!btcWalletProvider) {
+    if (!btcWalletProvider || !connectedBtcAddress) {
       setLocalError("BTC wallet is not connected");
       setLoading(false);
       return;
@@ -431,6 +445,11 @@ export function ResumeActivationContent({
         activity.unsignedPrePeginTx,
       );
 
+      // Probe the wallet before deriveVaultRoot fires the signing popup. A
+      // wallet that locked since the modal opened fails fast here with an
+      // actionable error instead of a silent no-op (no popup appears).
+      await verifyBtcWalletLiveness(btcWalletProvider, connectedBtcAddress);
+
       root = await deriveVaultRoot(btcWalletProvider, {
         depositorBtcPubkey: hexToUint8Array(depositorBtcPubkey),
         fundingOutpoints,
@@ -461,7 +480,7 @@ export function ResumeActivationContent({
       secretBytes?.fill(0);
       setLoading(false);
     }
-  }, [activity, btcWalletProvider, handleActivation]);
+  }, [activity, btcWalletProvider, connectedBtcAddress, handleActivation]);
 
   useRunOnce(handleSubmit);
 
