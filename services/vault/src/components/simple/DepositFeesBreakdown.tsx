@@ -11,12 +11,6 @@ interface DepositFeesBreakdownProps {
   depositorClaimValue?: bigint;
   btcPrice: number;
   hasPriceFetchError: boolean;
-  bitcoinNetworkFeeAmount: string;
-  bitcoinNetworkFeePrice: string;
-  bitcoinNetworkFeeIsError: boolean;
-  ethereumNetworkFeeAmount: string;
-  ethereumNetworkFeePrice: string;
-  ethereumNetworkFeeIsError: boolean;
   protocolFeeAmount: string;
   protocolFeePrice: string;
   protocolFeeIsError: boolean;
@@ -66,12 +60,6 @@ export function DepositFeesBreakdown({
   depositorClaimValue,
   btcPrice,
   hasPriceFetchError,
-  bitcoinNetworkFeeAmount,
-  bitcoinNetworkFeePrice,
-  bitcoinNetworkFeeIsError,
-  ethereumNetworkFeeAmount,
-  ethereumNetworkFeePrice,
-  ethereumNetworkFeeIsError,
   protocolFeeAmount,
   protocolFeePrice,
   protocolFeeIsError,
@@ -98,18 +86,6 @@ export function DepositFeesBreakdown({
         tooltip={TRANSACTION_RESERVE_TOOLTIP}
         amount={transactionReserve.amount}
         price={transactionReserve.price}
-      />
-      <FeeLine
-        label="Bitcoin Network Fee"
-        amount={bitcoinNetworkFeeAmount}
-        amountIsError={bitcoinNetworkFeeIsError}
-        price={bitcoinNetworkFeePrice}
-      />
-      <FeeLine
-        label="Ethereum Network Fee"
-        amount={ethereumNetworkFeeAmount}
-        amountIsError={ethereumNetworkFeeIsError}
-        price={ethereumNetworkFeePrice}
       />
       <FeeLine
         label="Protocol Fee"
