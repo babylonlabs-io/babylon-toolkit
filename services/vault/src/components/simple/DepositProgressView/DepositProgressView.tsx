@@ -5,16 +5,11 @@
  * Used by both the initial deposit flow (DepositSignContent) and
  * the resume flows (payout signing / broadcast from the deposits table).
  *
- * Renders: Heading, progress bar (post-sign), Stepper, status banners, action button.
+ * Renders: Heading, progress bar (post-sign), grouped step progress, status
+ * banners, action button.
  */
 
-import {
-  Button,
-  Heading,
-  Loader,
-  Stepper,
-  Text,
-} from "@babylonlabs-io/core-ui";
+import { Button, Heading, Loader, Text } from "@babylonlabs-io/core-ui";
 import { useMemo } from "react";
 
 import { StatusBanner } from "@/components/deposit/DepositSignModal/StatusBanner";
@@ -24,7 +19,8 @@ import type { PayoutSigningProgress } from "@/services/vault/vaultPayoutSignatur
 import type { PeginSigningProgress } from "@/services/vault/vaultTransactionService";
 
 import { BtcConfirmationDetailContainer } from "./BtcConfirmationDetailContainer";
-import { PostSignProgress } from "./PostSignProgress";
+import { CompletedStepsPill } from "./CompletedStepsPill";
+import { GroupedProgress } from "./GroupedProgress";
 import { ProgressBar } from "./ProgressBar";
 import { ProviderWaitDetail } from "./ProviderWaitDetail";
 import {
@@ -136,15 +132,18 @@ export function DepositProgressView(props: DepositProgressViewProps) {
       )}
 
       <div className="mt-6 flex flex-col gap-6">
-        {showOverallProgress ? (
-          <PostSignProgress
-            steps={steps}
-            completedCount={completedSteps}
-            activeStepDetail={activeStepDetail}
+        {showOverallProgress && (
+          <CompletedStepsPill
+            completed={completedSteps}
+            total={TOTAL_VISUAL_STEPS}
           />
-        ) : (
-          <Stepper steps={steps} currentStep={visualStep} />
         )}
+
+        <GroupedProgress
+          steps={steps}
+          currentStep={visualStep}
+          activeStepDetail={activeStepDetail}
+        />
 
         {error && <StatusBanner variant="error">{error}</StatusBanner>}
 

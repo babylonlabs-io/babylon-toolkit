@@ -149,9 +149,19 @@ export const COPY = {
       signingCounter: (completed: number, total: number) =>
         `(${completed} of ${total})`,
     },
+    groups: {
+      registerDeposit: "Register deposit",
+      signWots: "Sign WOTS",
+      signPayout: "Sign payout",
+      activateVault: "Activate vault",
+      stepCounter: (completed: number, total: number) =>
+        `${completed}/${total}`,
+    },
     progress: {
       heading: "Deposit Progress",
       durationEstimate: "(~60 min)",
+      stepsCompleted: (completed: number, total: number) =>
+        `${completed} of ${total} steps completed`,
       defaultSuccessMessage: PRE_PEGIN_BROADCAST_CONFIRMATION_MESSAGE,
       doNotSpendWarning:
         "Do not spend the Bitcoin used for this deposit until the transaction is confirmed on the network.",

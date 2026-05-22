@@ -4,10 +4,12 @@ import { COPY } from "@/copy";
 import { DepositFlowStep } from "@/hooks/deposit/depositFlowSteps/types";
 
 import {
+  buildStepGroups,
   buildStepItems,
   getStepFillPercent,
   getStepLabel,
   getVisualStep,
+  STEP_GROUPS,
   TOTAL_VISUAL_STEPS,
 } from "../steps";
 
@@ -117,5 +119,93 @@ describe("buildStepItems payout-signing counters", () => {
       COPY.deposit.steps.signingCounter(3, 9),
     );
     expect(signPayouts(items).description).toBeUndefined();
+  });
+});
+
+describe("STEP_GROUPS", () => {
+  it("covers every visual step from 1..TOTAL_VISUAL_STEPS with no gaps or overlaps", () => {
+    expect(STEP_GROUPS[0].startStep).toBe(1);
+    expect(STEP_GROUPS[STEP_GROUPS.length - 1].endStep).toBe(
+      TOTAL_VISUAL_STEPS,
+    );
+
+    for (let i = 1; i < STEP_GROUPS.length; i++) {
+      // Each group starts exactly one step after the previous group ends.
+      expect(STEP_GROUPS[i].startStep).toBe(STEP_GROUPS[i - 1].endStep + 1);
+    }
+
+    const totalCovered = STEP_GROUPS.reduce(
+      (sum, group) => sum + (group.endStep - group.startStep + 1),
+      0,
+    );
+    expect(totalCovered).toBe(TOTAL_VISUAL_STEPS);
+  });
+
+  it("groups the steps into the four expected sections", () => {
+    expect(STEP_GROUPS.map((g) => [g.title, g.startStep, g.endStep])).toEqual([
+      [COPY.deposit.groups.registerDeposit, 1, 6],
+      [COPY.deposit.groups.signWots, 7, 8],
+      [COPY.deposit.groups.signPayout, 9, 12],
+      [COPY.deposit.groups.activateVault, 13, 16],
+    ]);
+  });
+});
+
+describe("buildStepGroups", () => {
+  it("expands exactly one group for any in-range step", () => {
+    for (let step = 1; step <= TOTAL_VISUAL_STEPS; step++) {
+      const expanded = buildStepGroups(step).filter((g) => g.expanded);
+      expect(expanded).toHaveLength(1);
+    }
+  });
+
+  it("expands the first group and leaves later groups upcoming at step 1", () => {
+    const [register, wots, payout, activate] = buildStepGroups(1);
+
+    expect(register.status).toBe("active");
+    expect(register.expanded).toBe(true);
+    expect(register.completedInGroup).toBe(0);
+    expect(register.totalInGroup).toBe(6);
+
+    expect(wots.status).toBe("upcoming");
+    expect(wots.expanded).toBe(false);
+    expect(payout.status).toBe("upcoming");
+    expect(activate.status).toBe("upcoming");
+  });
+
+  it("marks earlier groups completed and activates the WOTS group at step 7", () => {
+    const [register, wots, payout] = buildStepGroups(7);
+
+    expect(register.status).toBe("completed");
+    expect(register.expanded).toBe(false);
+    expect(register.completedInGroup).toBe(6);
+
+    expect(wots.status).toBe("active");
+    expect(wots.expanded).toBe(true);
+    expect(wots.completedInGroup).toBe(0);
+    expect(wots.totalInGroup).toBe(2);
+
+    expect(payout.status).toBe("upcoming");
+  });
+
+  it("counts completed sub-steps within the active group (mid-group resume)", () => {
+    // Step 12 is the last step of the Sign payout group (9..12): 3 done, 1 active.
+    const payout = buildStepGroups(12).find(
+      (g) => g.title === COPY.deposit.groups.signPayout,
+    );
+
+    expect(payout?.status).toBe("active");
+    expect(payout?.completedInGroup).toBe(3);
+    expect(payout?.totalInGroup).toBe(4);
+  });
+
+  it("marks every group completed and collapsed on completion", () => {
+    const groups = buildStepGroups(TOTAL_VISUAL_STEPS + 1);
+
+    expect(groups.every((g) => g.status === "completed")).toBe(true);
+    expect(groups.every((g) => !g.expanded)).toBe(true);
+    expect(groups.every((g) => g.completedInGroup === g.totalInGroup)).toBe(
+      true,
+    );
   });
 });

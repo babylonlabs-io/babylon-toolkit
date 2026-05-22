@@ -1,6 +1,8 @@
 import { Text } from "@babylonlabs-io/core-ui";
 import { IoCheckmarkSharp } from "react-icons/io5";
 
+import { COPY } from "@/copy";
+
 interface CompletedStepsPillProps {
   completed: number;
   total: number;
@@ -16,7 +18,7 @@ export function CompletedStepsPill({
         <IoCheckmarkSharp size={16} className="text-success-light" />
       </div>
       <Text as="span" variant="body2" className="text-success-light">
-        {completed} of {total} steps completed
+        {COPY.deposit.progress.stepsCompleted(completed, total)}
       </Text>
     </div>
   );
