@@ -10,11 +10,25 @@ import type { Address, Hex } from "viem";
 import { LocalStorageStatus } from "@/models/peginStateMachine";
 import {
   prepareSigningContext,
+  type PayoutSigningPhase,
   type PayoutSigningProgress,
 } from "@/services/vault/vaultPayoutSignatureService";
 import { updatePendingPeginStatus } from "@/storage/peginStorage";
 
 import { ensureAuthenticatedVpClient } from "./ensureAuthenticatedVpClient";
+import { DepositFlowStep } from "./types";
+
+/** The deposit-flow step that a given payout-signing phase renders as. */
+export function payoutSigningStep(phase: PayoutSigningPhase): DepositFlowStep {
+  switch (phase) {
+    case "auth":
+      return DepositFlowStep.SIGN_AUTH_ANCHOR;
+    case "graph":
+      return DepositFlowStep.SIGN_DEPOSITOR_GRAPH;
+    default:
+      return DepositFlowStep.SIGN_PAYOUTS;
+  }
+}
 
 export interface SignAndSubmitPayoutsParams {
   vaultId: Hex;
@@ -78,7 +92,8 @@ export async function signAndSubmitPayouts(
     signingContext: context,
     signal,
     onProgress: onProgress
-      ? (completed, totalClaimers) => onProgress({ completed, totalClaimers })
+      ? (completed, total) =>
+          onProgress({ phase: "claimers", completed, total })
       : undefined,
   });
 
