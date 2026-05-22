@@ -66,8 +66,7 @@ const VALID_PAIRINGS: Array<{
  * Initialize the runtime. Call once at startup before any reader runs.
  *
  * Calling more than once throws — silent re-init would let cached
- * singletons (e.g. `ethClient`) drift from the new state. Tests that
- * need to reconfigure must call `_resetBabylonConfigForTests` first.
+ * singletons (e.g. `ethClient`) drift from the new state.
  *
  * @throws if `configureBabylonConfig` has already been called.
  * @throws if any field is invalid or if the BTC/ETH pairing is not a known
@@ -76,8 +75,7 @@ const VALID_PAIRINGS: Array<{
 export function configureBabylonConfig(opts: BabylonConfigOptions): void {
   if (state !== null) {
     throw new Error(
-      "configureBabylonConfig() has already been called. " +
-        "Call `_resetBabylonConfigForTests()` first if you need to reconfigure in tests.",
+      "configureBabylonConfig() has already been called; it can only be configured once.",
     );
   }
   if (
@@ -130,9 +128,4 @@ export function getBabylonConfigState(): BabylonConfigState {
     );
   }
   return state;
-}
-
-/** @internal — for tests only. */
-export function _resetBabylonConfigForTests(): void {
-  state = null;
 }

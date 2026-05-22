@@ -18,7 +18,7 @@ export const MAX_DISPLAY_HF = 3;
 /** Half-width of the indicator circle in px, used to clamp within the track. */
 export const INDICATOR_RADIUS_PX = 8;
 
-export function hexToRgb(hex: string): [number, number, number] {
+function hexToRgb(hex: string): [number, number, number] {
   const h = hex.replace("#", "");
   return [
     parseInt(h.slice(0, 2), 16),
@@ -28,7 +28,7 @@ export function hexToRgb(hex: string): [number, number, number] {
 }
 
 // Gradient color stops derived from HEALTH_FACTOR_COLORS: red (0%) → amber (50%) → green (100%)
-export const GRADIENT_STOPS: [number, number, number][] = [
+const GRADIENT_STOPS: [number, number, number][] = [
   hexToRgb(HEALTH_FACTOR_COLORS.RED),
   hexToRgb(HEALTH_FACTOR_COLORS.AMBER),
   hexToRgb(HEALTH_FACTOR_COLORS.GREEN),

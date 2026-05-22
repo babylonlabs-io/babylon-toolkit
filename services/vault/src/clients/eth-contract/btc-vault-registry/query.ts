@@ -90,17 +90,6 @@ export async function getVaultProviderBtcPubkeyFromChain(
 }
 
 /**
- * Read `offchainParamsVersion` for many vaults in a single multicall.
- *
- * @param vaultIds - Vault IDs in the order versions should be returned.
- */
-export async function getOffchainParamsVersionsFromChain(
-  vaultIds: readonly Hex[],
-): Promise<number[]> {
-  return getVaultRegistryReader().getOffchainParamsVersionsByVaultIds(vaultIds);
-}
-
-/**
  * Read the protocol pegin fee (in wei) for a given vault provider.
  *
  * Mirrors the same on-chain read that `PeginManager.preparePegin` uses

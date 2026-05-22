@@ -5,20 +5,12 @@
  * Protocol constants are imported from @babylonlabs-io/ts-sdk.
  */
 
-import { getNetworkConfigBTC } from "@/config";
-
 // Re-export SDK constants for backwards compatibility
 export {
-  AAVE_BASE_CURRENCY_DECIMALS,
   BPS_SCALE,
-  BPS_TO_PERCENT_DIVISOR,
-  BTC_DECIMALS,
   FULL_REPAY_BUFFER_DIVISOR,
   FULL_REPAY_BUFFER_FRACTION,
-  HEALTH_FACTOR_WARNING_THRESHOLD,
   MIN_HEALTH_FACTOR_FOR_BORROW,
-  USDC_DECIMALS,
-  WAD_DECIMALS,
 } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
 
 /**
@@ -122,17 +114,6 @@ export const NEAR_ZERO_DEBT_RELATIVE_THRESHOLD = 0.005;
  * meaningful residual debt on large ones.
  */
 export const NEAR_ZERO_DEBT_RELATIVE_CAP_USD = 5;
-
-/**
- * BTC token display constants
- * Uses network-aware config (BTC for mainnet, sBTC for signet)
- */
-const btcConfig = getNetworkConfigBTC();
-export const BTC_TOKEN = {
-  icon: btcConfig.icon,
-  name: btcConfig.name,
-  symbol: btcConfig.coinSymbol,
-} as const;
 
 /**
  * Loan tab identifiers

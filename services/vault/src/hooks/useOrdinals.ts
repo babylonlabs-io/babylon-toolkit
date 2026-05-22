@@ -43,9 +43,3 @@ export type {
   InscriptionIdentifier,
   UTXO,
 } from "@babylonlabs-io/wallet-connector";
-
-export {
-  filterDust,
-  filterInscriptionUtxos,
-  getSpendableUtxos,
-} from "@babylonlabs-io/wallet-connector";

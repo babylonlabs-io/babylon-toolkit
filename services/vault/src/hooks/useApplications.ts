@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { getAppIdByController } from "../applications";
 import { fetchApplications } from "../services/applications";
 
-export const APPLICATIONS_KEY = "applications";
+const APPLICATIONS_KEY = "applications";
 
 export const useApplications = () => {
   return useQuery({

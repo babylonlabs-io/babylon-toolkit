@@ -12,6 +12,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { Hex } from "viem";
 
 import { COPY } from "@/copy";
+import { DepositFlowStep } from "@/hooks/deposit/depositFlowSteps";
 
 import { usePeginPolling } from "../../../context/deposit/PeginPollingContext";
 import { signAndSubmitPayouts } from "../../../hooks/deposit/depositFlowSteps/payoutSigning";
@@ -21,7 +22,16 @@ import type { VaultActivity } from "../../../types/activity";
 import { btcAddressToScriptPubKeyHex } from "../../../utils/btc";
 import { formatPayoutSignatureError } from "../../../utils/errors/formatting";
 
-import type { SigningProgressProps } from "./SigningProgress";
+export interface SigningProgressProps {
+  /** Number of signing steps completed */
+  completed: number;
+  /** Total number of claimers */
+  totalClaimers: number;
+  /** Current deposit flow step. Optional for standalone use. */
+  step?: DepositFlowStep;
+  /** Whether we're in a waiting/polling state. Optional for standalone use. */
+  isWaiting?: boolean;
+}
 
 export interface SigningError {
   title: string;

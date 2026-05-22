@@ -85,32 +85,6 @@ export function getActionStatus(
 }
 
 /**
- * Get warning messages from polling result.
- *
- * Use this when you need warnings but still want to show status
- * (e.g., mobile card shows both status badge and warnings).
- *
- * @param pollingResult - The deposit polling result
- * @returns Array of warning messages
- */
-export function getWarningMessages(
-  pollingResult: DepositPollingResult,
-): string[] {
-  const { isOwnedByCurrentWallet, error } = pollingResult;
-
-  const messages: string[] = [];
-
-  if (error) {
-    messages.push(error.message);
-  }
-  if (!isOwnedByCurrentWallet) {
-    messages.push(WALLET_OWNERSHIP_WARNING);
-  }
-
-  return messages;
-}
-
-/**
  * Check if artifact download is available for the current deposit state.
  */
 export function isArtifactDownloadAvailable(

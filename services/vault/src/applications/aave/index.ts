@@ -6,7 +6,7 @@ import type { ApplicationRegistration } from "../types";
 import { AAVE_APP_ID, getAaveAdapterAddress } from "./config";
 import { AaveRoutes } from "./routes";
 
-export const aaveApp: ApplicationRegistration = {
+const aaveApp: ApplicationRegistration = {
   metadata: {
     id: AAVE_APP_ID,
     name: "Aave V4",
@@ -23,6 +23,3 @@ export const aaveApp: ApplicationRegistration = {
 };
 
 registerApplication(aaveApp, getAaveAdapterAddress());
-
-export { AAVE_APP_ID, AAVE_CONTRACTS } from "./config";
-export { AaveRoutes } from "./routes";

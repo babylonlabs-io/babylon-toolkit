@@ -1,4 +1,4 @@
-export { fetchAppProviders, getLatestVersionKeepers } from "./fetchProviders";
+export { fetchAppProviders } from "./fetchProviders";
 export {
   fetchAllUniversalChallengers,
   type UniversalChallengersData,

@@ -73,22 +73,6 @@ export function getBtcSymbol(): string {
 }
 
 /**
- * Get the current BTC icon path based on network
- * @returns Icon path for the current network
- */
-export function getBtcIcon(): string {
-  return btcConfig.icon;
-}
-
-/**
- * Get the current BTC display name based on network
- * @returns "Bitcoin" for mainnet, "Signet Bitcoin" for signet
- */
-export function getBtcName(): string {
-  return btcConfig.name;
-}
-
-/**
  * Format USD value for display
  * @param usdValue - Amount in USD. Zero or negative values return "$0 USD".
  * @returns Formatted string (e.g., "$1,234.56 USD" or "$0 USD")

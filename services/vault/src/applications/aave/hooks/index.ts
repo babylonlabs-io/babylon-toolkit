@@ -13,9 +13,8 @@ export {
   useBorrowTransaction,
   type UseBorrowTransactionResult,
 } from "./useBorrowTransaction";
-export { useOptimalSplit, type UseOptimalSplitResult } from "./useOptimalSplit";
+export { type UseOptimalSplitResult } from "./useOptimalSplit";
 export {
-  usePositionNotifications,
   type PositionNotificationsStatus,
   type UsePositionNotificationsResult,
 } from "./usePositionNotifications";
@@ -34,7 +33,4 @@ export {
   type UseVaultSplitParamsResult,
   type VaultSplitParams,
 } from "./useVaultSplitParams";
-export {
-  useWithdrawCollateralTransaction,
-  type UseWithdrawCollateralTransactionResult,
-} from "./useWithdrawCollateralTransaction";
+export { type UseWithdrawCollateralTransactionResult } from "./useWithdrawCollateralTransaction";

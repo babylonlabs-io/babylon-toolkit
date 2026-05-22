@@ -16,8 +16,6 @@ import {
   getUserAccountData as sdkGetUserAccountData,
   getUserPosition as sdkGetUserPosition,
   getUserTotalDebt as sdkGetUserTotalDebt,
-  hasCollateral as sdkHasCollateral,
-  hasDebt as sdkHasDebt,
 } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
 import type { Address } from "viem";
 
@@ -60,40 +58,6 @@ export async function getUserPosition(
 ): Promise<AaveSpokeUserPosition> {
   const publicClient = ethClient.getPublicClient();
   return sdkGetUserPosition(publicClient, spokeAddress, reserveId, userAddress);
-}
-
-/**
- * Check if a user has any debt in a reserve
- *
- * @param spokeAddress - Aave Spoke contract address
- * @param reserveId - Reserve ID
- * @param userAddress - User's proxy contract address
- * @returns true if user has debt
- */
-export async function hasDebt(
-  spokeAddress: Address,
-  reserveId: bigint,
-  userAddress: Address,
-): Promise<boolean> {
-  const publicClient = ethClient.getPublicClient();
-  return sdkHasDebt(publicClient, spokeAddress, reserveId, userAddress);
-}
-
-/**
- * Check if a user has supplied collateral in a reserve
- *
- * @param spokeAddress - Aave Spoke contract address
- * @param reserveId - Reserve ID
- * @param userAddress - User's proxy contract address
- * @returns true if user has supplied collateral
- */
-export async function hasCollateral(
-  spokeAddress: Address,
-  reserveId: bigint,
-  userAddress: Address,
-): Promise<boolean> {
-  const publicClient = ethClient.getPublicClient();
-  return sdkHasCollateral(publicClient, spokeAddress, reserveId, userAddress);
 }
 
 /**

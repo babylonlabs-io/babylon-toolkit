@@ -23,7 +23,6 @@ vi.mock("@/config", async () => {
     getBTCNetwork: () => "signet",
     CONTRACTS: {}, // Mock other exports as needed
     ENV: {},
-    isProductionEnv: () => false,
     getCommitHash: () => "test-commit",
   };
 });
@@ -32,7 +31,6 @@ vi.mock("@/config", async () => {
 // depend on env vars or `configureBabylonConfig` having been called.
 vi.mock("@/config/network", () => ({
   configureBabylonConfig: vi.fn(),
-  _resetBabylonConfigForTests: vi.fn(),
   getNetworkConfigBTC: () => ({
     coinName: "Signet BTC",
     coinSymbol: "sBTC",

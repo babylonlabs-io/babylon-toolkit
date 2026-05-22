@@ -1,8 +1,5 @@
 // ETH smart contract client - re-exports for all contract modules
 
-// Shared client
-export { ethClient } from "./client";
-
 // BTCVaultRegistry
 export type { OnChainVaultData } from "./btc-vault-registry/query";
 

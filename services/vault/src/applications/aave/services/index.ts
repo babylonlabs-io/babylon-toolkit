@@ -8,7 +8,6 @@ export {
 
 // GraphQL: Positions
 export {
-  fetchAaveActivePositionsWithCollaterals,
   type AavePosition,
   type AavePositionCollateral,
   type AavePositionWithCollaterals,
@@ -26,7 +25,6 @@ export {
 export {
   borrow,
   reorderVaultOrder,
-  repay,
   repayFull,
   repayMaxCapped,
   repayPartial,
@@ -36,8 +34,6 @@ export {
 // On-chain integrity guards
 export {
   PositionChangedError,
-  ReorderMembershipMismatchError,
-  SuggestedReorderMismatchError,
   assertReorderBaseline,
   assertReorderMembership,
   assertSuggestedOrderMatchesOnChain,

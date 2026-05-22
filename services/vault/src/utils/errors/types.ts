@@ -109,28 +109,6 @@ export class WalletError extends Error {
   }
 }
 
-export class ValidationError extends Error {
-  public readonly code: ErrorCode;
-  public readonly field?: string;
-  public readonly context?: Record<string, unknown>;
-
-  constructor(
-    message: string,
-    code: ErrorCode = ErrorCode.VALIDATION_ERROR,
-    field?: string,
-    options?: Omit<BaseErrorOptions, "code">,
-  ) {
-    super(message);
-    this.name = "ValidationError";
-    this.code = code;
-    this.field = field;
-    this.context = options?.context;
-    if (options?.cause) {
-      this.cause = options.cause;
-    }
-  }
-}
-
 export const isError451 = (error: unknown): boolean => {
   if (!error || typeof error !== "object") {
     return false;

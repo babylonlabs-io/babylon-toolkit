@@ -14,7 +14,7 @@ import { VAULTS_QUERY_KEY } from "../hooks/useVaults";
 /**
  * Query key factory for consistent key generation
  */
-export const queryKeys = {
+const queryKeys = {
   /** Vaults available for use as collateral in borrowing */
   borrowableVaults: (address: Address) =>
     ["borrowableVaults", address] as const,
