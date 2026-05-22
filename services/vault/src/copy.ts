@@ -332,4 +332,29 @@ export const COPY = {
   reorder: {
     confirmButton: "Confirm",
   },
+  protocolFees: {
+    minDeposit: {
+      label: "Min deposit",
+      tooltip:
+        "Minimum BTC deposit required to create a BTC Vault, set by the protocol.",
+    },
+    minForSplit: {
+      label: "Effective minimum for split",
+      tooltip:
+        "Minimum deposit to split into 2 BTC Vaults. Both BTC Vaults must meet the minimum deposit requirement.",
+    },
+    ltv: {
+      label: "LTV / Collateral Factor",
+      tooltip:
+        "Maximum percentage of collateral value that can be borrowed against.",
+    },
+    liquidationThreshold: {
+      label: "Liquidation threshold (THF)",
+      tooltip: "Target health factor at which liquidation becomes profitable.",
+    },
+    liquidationBonus: {
+      label: "Liquidation Bonus (LB)",
+      tooltip: "Bonus percentage awarded to liquidators on seized collateral.",
+    },
+  },
 } as const;

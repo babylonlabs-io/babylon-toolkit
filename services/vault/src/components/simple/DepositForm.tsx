@@ -275,7 +275,10 @@ export function DepositForm({
           sliderSteps={[]}
           onSliderChange={(value) => onAmountChange(value.toString())}
           sliderVariant="primary"
-          leftField={{ label: "Max", value: `${btcBalanceFormatted} BTC` }}
+          leftField={{
+            label: "Max",
+            value: `${btcBalanceFormatted} ${btcConfig.coinSymbol}`,
+          }}
           rightField={{ value: usdValue }}
           onMaxClick={onMaxClick}
           inputClassName="h-10 w-auto rounded-lg bg-primary-contrast px-4 [field-sizing:content]"

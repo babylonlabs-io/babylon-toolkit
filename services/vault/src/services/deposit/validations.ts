@@ -14,6 +14,8 @@ import {
   type ValidationResult,
 } from "@babylonlabs-io/ts-sdk/tbv/core/services";
 
+import { getBtcSymbol } from "@/utils/formatting";
+
 export {
   isDepositAmountValid,
   validateDepositAmount,
@@ -141,9 +143,9 @@ export function getDepositButtonLabel(
   if (totalRequired > btcBalance) return "Insufficient balance";
 
   if (amountSats < minDeposit)
-    return `Minimum ${formatSatoshisToBtc(minDeposit)} BTC`;
+    return `Minimum ${formatSatoshisToBtc(minDeposit)} ${getBtcSymbol()}`;
   if (maxDeposit && maxDeposit > 0n && amountSats > maxDeposit)
-    return `Maximum ${formatSatoshisToBtc(maxDeposit)} BTC`;
+    return `Maximum ${formatSatoshisToBtc(maxDeposit)} ${getBtcSymbol()}`;
 
   return "Deposit";
 }
