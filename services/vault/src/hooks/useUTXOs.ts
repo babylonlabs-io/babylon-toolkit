@@ -22,7 +22,7 @@ import { useAppState } from "../state/AppState";
 import { useOrdinals } from "./useOrdinals";
 
 /** Query key for UTXO and address transactions fetching */
-export const UTXOS_QUERY_KEY = "btc-utxos";
+const UTXOS_QUERY_KEY = "btc-utxos";
 
 /**
  * Convert MempoolUTXO to wallet-connector UTXO type.
@@ -140,12 +140,6 @@ export function useUTXOs(
     return new Set(inscriptionUTXOs.map((u) => `${u.txid}:${u.vout}`));
   }, [inscriptionUTXOs]);
 
-  // True when the ordinals check failed AND the user has inscription-exclusion
-  // enabled. In that state, inscription UTXOs may be spent unintentionally,
-  // so consumers should surface a warning to the user.
-  const ordinalsCheckUnavailable =
-    ordinalsExcluded && !isLoadingOrdinals && ordinalsError !== null;
-
   // True when the ordinals check is still running AND the user has
   // inscription-exclusion enabled. Consumers should block submission until
   // the check resolves, otherwise inscription UTXOs may be spent before the
@@ -188,12 +182,6 @@ export function useUTXOs(
     error: error as Error | null,
     /** Error state (ordinals - non-blocking) */
     ordinalsError,
-    /**
-     * True when the ordinals check failed or timed out AND the user has
-     * inscription-exclusion enabled - inscription UTXOs may be included in
-     * the spendable set unintentionally.
-     */
-    ordinalsCheckUnavailable,
     /**
      * True when the ordinals check is still running AND the user has
      * inscription-exclusion enabled. The spendable set has not been filtered

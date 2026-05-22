@@ -10,5 +10,6 @@ export {
 } from "./btcUtils";
 export {
   BtcWalletLivenessError,
+  shouldProbeWalletLiveness,
   verifyBtcWalletLiveness,
 } from "./verifyBtcWalletLiveness";

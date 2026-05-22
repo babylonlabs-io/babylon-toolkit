@@ -11,7 +11,7 @@ export const SEVERITY_STYLES: Record<BannerSeverity, string> = {
 
 export const GREEN_BANNER_TITLE = "Position optimally structured";
 export const GREEN_BANNER_DETAIL =
-  "Vault ordering is correct and partial liquidation is enabled.";
+  "BTC Vault ordering is correct and partial liquidation is enabled.";
 
 export const STALE_PRICE_BANNER_TITLE =
   "Position notifications temporarily unavailable";

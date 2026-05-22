@@ -13,6 +13,7 @@ import {
   getAddressTxs,
   getAddressUtxos,
   getNetworkFees,
+  getTipHeight,
   getTxHex,
   getTxInfo,
   getUtxoInfo,
@@ -52,6 +53,17 @@ function jsonResponse(body: unknown): Response {
     headers: new Headers({ "content-type": "application/json" }),
     json: () => Promise.resolve(body),
     text: () => Promise.resolve(JSON.stringify(body)),
+  } as Response;
+}
+
+function textResponse(body: string): Response {
+  return {
+    ok: true,
+    status: 200,
+    statusText: "OK",
+    headers: new Headers({ "content-type": "text/plain" }),
+    json: () => Promise.reject(new Error("not json")),
+    text: () => Promise.resolve(body),
   } as Response;
 }
 
@@ -466,6 +478,25 @@ describe("getNetworkFees", () => {
     );
     const result = await getNetworkFees(API_URL);
     expect(result.fastestFee).toBe(10000);
+  });
+});
+
+describe("getTipHeight", () => {
+  it("returns the current block tip height as a number", async () => {
+    mockFetch.mockResolvedValueOnce(textResponse("868213"));
+    await expect(getTipHeight(API_URL)).resolves.toBe(868213);
+  });
+
+  it("tolerates surrounding whitespace in the plain-text response", async () => {
+    mockFetch.mockResolvedValueOnce(textResponse("  868213\n"));
+    await expect(getTipHeight(API_URL)).resolves.toBe(868213);
+  });
+
+  it("throws when the response is not a whole number", async () => {
+    mockFetch.mockResolvedValueOnce(textResponse("not-a-height"));
+    await expect(getTipHeight(API_URL)).rejects.toThrow(
+      /block tip height/i,
+    );
   });
 });
 

@@ -9,6 +9,7 @@ import type { Hex } from "viem";
 import { useConnection, useETHWallet } from "../../context/wallet";
 import { useActivitiesWithPending } from "../../hooks/useActivitiesWithPending";
 import { ActivityEmptyState, ActivityTable } from "../Activity";
+import { PAGE_CONTENT_CLASS } from "../shared/layoutClasses";
 
 export default function Activity() {
   const { address } = useETHWallet();
@@ -22,7 +23,7 @@ export default function Activity() {
   return (
     <Container
       as="main"
-      className="mx-auto flex flex-1 flex-col gap-6 px-4 pb-6 max-md:flex-none max-md:gap-4 max-md:px-0 max-md:pb-4 max-md:pt-0"
+      className={`${PAGE_CONTENT_CLASS} mx-auto flex flex-1 flex-col gap-6 pb-6 max-md:flex-none max-md:gap-4 max-md:pb-4 max-md:pt-0`}
     >
       <Card className="w-full">
         <div className="w-full space-y-6">

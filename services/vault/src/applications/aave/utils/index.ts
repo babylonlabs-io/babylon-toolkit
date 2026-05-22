@@ -4,12 +4,9 @@ export {
   aaveValueToUsd,
   calculateBorrowRatio,
   calculateHealthFactor,
-  calculateTotalVaultAmount,
   getHealthFactorStatus,
   getHealthFactorStatusFromValue,
   hasDebtFromPosition,
-  isHealthFactorHealthy,
-  selectVaultsForAmount,
   wadToNumber,
 } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
 
@@ -33,7 +30,6 @@ export {
   canWithdrawAnyVault,
   computeProjectedHealthFactor,
   getWithdrawHfWarningState,
-  isHealthFactorAtOrAbove,
   isVaultIndividuallyWithdrawable,
 } from "./withdrawEligibility";
 

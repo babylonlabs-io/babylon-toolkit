@@ -5,10 +5,22 @@ import type { BTCConfig, IBTCProvider, InscriptionIdentifier, SignPsbtOptions, W
 import { Network } from "@/core/types";
 import { initBTCCurve } from "@/core/utils/initBTCCurve";
 import { resolveUseTweakedSigner } from "@/core/utils/psbtOptionsMapper";
+import { withTimeout } from "@/core/utils/withTimeout";
 import { ERROR_CODES, WalletError, isUserRejectionMessage } from "@/error";
 
 import logo from "./logo.svg";
 import { MIN_UNISAT_VERSION, checkUnisatVersion } from "./version";
+
+// Timeout budget for non-interactive UniSat reads (`getVersion`, `getChain`,
+// `getPublicKey`). These take no user interaction, so if the extension hasn't
+// answered in this window it is locked / asleep / mid-injection — fail with a
+// recoverable error instead of hanging the connect flow forever.
+const UNISAT_RPC_TIMEOUT_MS = 10_000;
+
+// Timeout budget for interactive UniSat prompts (`requestAccounts`,
+// `switchChain`). Generous enough that a human approving in the extension is
+// never cut off, but still bounds an extension that never surfaces its popup.
+const UNISAT_PROMPT_TIMEOUT_MS = 60_000;
 
 enum UnisatChainEnum {
   BITCOIN_SIGNET = "BITCOIN_SIGNET",
@@ -71,9 +83,21 @@ export class UnisatProvider implements IBTCProvider {
     this.provider = wallet;
   }
 
+  // Builds the rejection used when a UniSat call exceeds its timeout budget.
+  // Surfaced as CONNECTION_FAILED (not a version/network problem) with an
+  // actionable recovery instruction.
+  private timeoutError = (operation: string): WalletError =>
+    new WalletError({
+      code: ERROR_CODES.CONNECTION_FAILED,
+      message: `Unisat Wallet did not respond while ${operation}. Open the extension to confirm it is unlocked, then try again.`,
+      wallet: WALLET_PROVIDER_NAME,
+    });
+
   connectWallet = async (): Promise<void> => {
     try {
-      await this.provider.requestAccounts();
+      await withTimeout(this.provider.requestAccounts(), UNISAT_PROMPT_TIMEOUT_MS, () =>
+        this.timeoutError("requesting accounts"),
+      );
     } catch (error) {
       if ((error as Error)?.message?.includes("rejected")) {
         throw new WalletError({
@@ -104,9 +128,13 @@ export class UnisatProvider implements IBTCProvider {
     // Use requestAccounts (not getAccounts) so per-chain dApp approval is
     // re-established after a chain switch. requestAccounts is idempotent on
     // already-authorized chains, so this does not produce an extra prompt.
-    const accounts: string[] = await this.provider.requestAccounts();
+    const accounts: string[] = await withTimeout(this.provider.requestAccounts(), UNISAT_PROMPT_TIMEOUT_MS, () =>
+      this.timeoutError("requesting accounts"),
+    );
     const address = accounts[0];
-    const publicKeyHex = await this.provider.getPublicKey();
+    const publicKeyHex: string = await withTimeout(this.provider.getPublicKey(), UNISAT_RPC_TIMEOUT_MS, () =>
+      this.timeoutError("reading the public key"),
+    );
 
     if (publicKeyHex && address) {
       this.walletInfo = {
@@ -136,7 +164,9 @@ export class UnisatProvider implements IBTCProvider {
     // surface as CONNECTION_FAILED rather than telling the user to update.
     let raw: unknown;
     try {
-      raw = await this.provider.getVersion();
+      raw = await withTimeout(this.provider.getVersion(), UNISAT_RPC_TIMEOUT_MS, () =>
+        this.timeoutError("reading its version"),
+      );
     } catch (error) {
       throw new WalletError({
         code: ERROR_CODES.CONNECTION_FAILED,
@@ -170,7 +200,9 @@ export class UnisatProvider implements IBTCProvider {
   private ensureExpectedChain = async (): Promise<void> => {
     let currentChain: UnisatChainResponse;
     try {
-      currentChain = await this.provider.getChain();
+      currentChain = await withTimeout(this.provider.getChain(), UNISAT_RPC_TIMEOUT_MS, () =>
+        this.timeoutError("reading its network"),
+      );
     } catch (error) {
       throw new WalletError({
         code: ERROR_CODES.CONNECTION_FAILED,
@@ -193,7 +225,9 @@ export class UnisatProvider implements IBTCProvider {
     }
 
     try {
-      await this.provider.switchChain(expectedChain);
+      await withTimeout(this.provider.switchChain(expectedChain), UNISAT_PROMPT_TIMEOUT_MS, () =>
+        this.timeoutError(`switching to ${targetLabel}`),
+      );
     } catch (error) {
       const errorMessage = (error as Error)?.message || "";
       if (isUserRejectionMessage(errorMessage)) {
@@ -415,7 +449,9 @@ export class UnisatProvider implements IBTCProvider {
   }
 
   getNetwork = async (): Promise<Network> => {
-    const chainInfo: UnisatChainResponse = await this.provider.getChain();
+    const chainInfo: UnisatChainResponse = await withTimeout(this.provider.getChain(), UNISAT_RPC_TIMEOUT_MS, () =>
+      this.timeoutError("reading its network"),
+    );
 
     switch (chainInfo.enum) {
       case UnisatChainEnum.BITCOIN_MAINNET:

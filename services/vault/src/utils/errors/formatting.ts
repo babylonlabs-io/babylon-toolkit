@@ -194,7 +194,7 @@ export function formatPayoutSignatureError(error: unknown): {
       return {
         title: "Contract Call Failed",
         message:
-          "A contract call failed during payout signing. The on-chain vault data may be unavailable. Please try again or contact support.",
+          "A contract call failed during payout signing. The on-chain BTC Vault data may be unavailable. Please try again or contact support.",
       };
     }
 
@@ -225,63 +225,5 @@ export function formatPayoutSignatureError(error: unknown): {
       msg && msg !== "[object Object]"
         ? msg
         : "An unexpected error occurred while signing payouts.",
-  };
-}
-
-/**
- * Format borrow/lending errors with user-friendly messages
- */
-export function formatLendingError(error: unknown): {
-  title: string;
-  message: string;
-} {
-  if (error instanceof Error) {
-    const msg = error.message.toLowerCase();
-
-    if (msg.includes("insufficient balance to fully repay")) {
-      return {
-        title: "Insufficient Balance",
-        message:
-          "Not enough stablecoin to cover the debt plus interest. Please add more funds to your wallet.",
-      };
-    }
-    if (msg.includes("insufficient liquidity") || msg.includes("not enough")) {
-      return {
-        title: "Insufficient Liquidity",
-        message:
-          "There is not enough liquidity in the market to complete this borrow. Please try a smaller amount or wait for more liquidity.",
-      };
-    }
-    if (msg.includes("paused")) {
-      return {
-        title: "Market Paused",
-        message:
-          "This market is temporarily paused. Please try again later or contact support.",
-      };
-    }
-    if (msg.includes("frozen") || msg.includes("inactive")) {
-      return {
-        title: "Market Unavailable",
-        message:
-          "This market is currently unavailable. Please try again later.",
-      };
-    }
-    if (msg.includes("cap") || msg.includes("limit reached")) {
-      return {
-        title: "Collateral Cap Reached",
-        message:
-          "The collateral cap for this market has been reached. Please try a smaller amount or wait for capacity.",
-      };
-    }
-    return {
-      title: "Transaction Failed",
-      message:
-        "An unexpected error occurred during the transaction. Please try again or contact support.",
-    };
-  }
-
-  return {
-    title: "Unexpected Error",
-    message: "An unexpected error occurred during the transaction.",
   };
 }

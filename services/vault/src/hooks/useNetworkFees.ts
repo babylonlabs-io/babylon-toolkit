@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 
 import { getMempoolApiUrl } from "../clients/btc/config";
 
-export const NETWORK_FEES_KEY = "NETWORK_FEES";
+const NETWORK_FEES_KEY = "NETWORK_FEES";
 
 export interface FeeRates {
   /** Default fee rate for next-block confirmation (fastestFee from mempool) */

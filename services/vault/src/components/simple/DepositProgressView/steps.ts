@@ -5,14 +5,18 @@ import { DepositFlowStep } from "@/hooks/deposit/depositFlowSteps/types";
 import type { PayoutSigningProgress } from "@/services/vault/vaultPayoutSignatureService";
 import type { PeginSigningProgress } from "@/services/vault/vaultTransactionService";
 
-export const EXPECTED_CONFIRMATION_MINUTES = 15;
-
 export function buildStepItems(
   progress: PayoutSigningProgress | null,
   peginProgress: PeginSigningProgress | null = null,
 ): StepperItem[] {
-  const payoutTotal = progress?.totalClaimers ?? 0;
-  const payoutCompleted = progress?.completed ?? 0;
+  const payoutCounter =
+    progress?.phase === "claimers" && progress.total > 0
+      ? COPY.deposit.steps.signingCounter(progress.completed, progress.total)
+      : undefined;
+  const graphCounter =
+    progress?.phase === "graph" && progress.total > 0
+      ? COPY.deposit.steps.signingCounter(progress.completed, progress.total)
+      : undefined;
 
   // Only surface the (x of n) counter for split (multi-vault) deposits;
   // a single-vault deposit signs one peg-in tx and needs no sub-counter.
@@ -31,23 +35,17 @@ export function buildStepItems(
     { label: COPY.deposit.steps.signLinkProofs },
     { label: COPY.deposit.steps.signAndBroadcastEth },
     { label: COPY.deposit.steps.signAndBroadcastPrePegin },
-    {
-      label: COPY.deposit.steps.awaitBtcConfirmation,
-      description: COPY.deposit.steps.awaitBtcConfirmationDuration(
-        EXPECTED_CONFIRMATION_MINUTES,
-      ),
-    },
+    { label: COPY.deposit.steps.awaitBtcConfirmation },
     { label: COPY.deposit.steps.submitWotsKey },
+    { label: COPY.deposit.steps.awaitPayoutTransactions },
     { label: COPY.deposit.steps.authenticateSession },
-    {
-      label: COPY.deposit.steps.signPayouts,
-      description:
-        payoutTotal > 0
-          ? COPY.deposit.steps.signingCounter(payoutCompleted, payoutTotal)
-          : undefined,
-    },
+    { label: COPY.deposit.steps.signPayouts, description: payoutCounter },
+    { label: COPY.deposit.steps.signRecoveryTxs, description: graphCounter },
+    { label: COPY.deposit.steps.awaitVpVerification },
     { label: COPY.deposit.steps.downloadArtifact },
+    { label: COPY.deposit.steps.retrieveSecret },
     { label: COPY.deposit.steps.revealSecret },
+    { label: COPY.deposit.steps.awaitActivationConfirmation },
   ];
 }
 
@@ -63,11 +61,14 @@ export function getStepLabel(step: DepositFlowStep): string {
 
 /**
  * Progress-bar fill (0–1) for a deposit flow step. Reflects completed steps —
- * the current step is in progress, not done — matching the in-flow stepper's
- * bar so the last actionable step never reads as 100%.
+ * the current step is in progress, not done — so actionable steps never read as
+ * 100%. The final step (awaiting activation confirmation) is the exception: all
+ * actions are done, so the bar fills completely.
  */
 export function getStepFillPercent(step: DepositFlowStep): number {
-  return Math.max(0, getVisualStep(step) - 1) / TOTAL_VISUAL_STEPS;
+  const visualStep = getVisualStep(step);
+  if (visualStep >= TOTAL_VISUAL_STEPS) return 1;
+  return Math.max(0, visualStep - 1) / TOTAL_VISUAL_STEPS;
 }
 
 export function getVisualStep(currentStep: DepositFlowStep): number {
@@ -86,14 +87,24 @@ export function getVisualStep(currentStep: DepositFlowStep): number {
       return 6;
     case DepositFlowStep.SUBMIT_WOTS_KEYS:
       return 7;
-    case DepositFlowStep.SIGN_AUTH_ANCHOR:
+    case DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS:
       return 8;
-    case DepositFlowStep.SIGN_PAYOUTS:
+    case DepositFlowStep.SIGN_AUTH_ANCHOR:
       return 9;
-    case DepositFlowStep.ARTIFACT_DOWNLOAD:
+    case DepositFlowStep.SIGN_PAYOUTS:
       return 10;
-    case DepositFlowStep.ACTIVATE_VAULT:
+    case DepositFlowStep.SIGN_DEPOSITOR_GRAPH:
       return 11;
+    case DepositFlowStep.AWAIT_VP_VERIFICATION:
+      return 12;
+    case DepositFlowStep.ARTIFACT_DOWNLOAD:
+      return 13;
+    case DepositFlowStep.RETRIEVE_SECRET:
+      return 14;
+    case DepositFlowStep.ACTIVATE_VAULT:
+      return 15;
+    case DepositFlowStep.AWAIT_ACTIVATION_CONFIRMATION:
+      return 16;
     case DepositFlowStep.COMPLETED:
       return TOTAL_VISUAL_STEPS + 1;
     default: {

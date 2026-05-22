@@ -45,6 +45,7 @@ import {
   collectReservedUtxoRefs,
   selectUtxosForDeposit,
 } from "@babylonlabs-io/ts-sdk/tbv/core/utils";
+import { useChainConnector } from "@babylonlabs-io/wallet-connector";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { v4 as uuidv4 } from "uuid";
 import type { Address, Hex } from "viem";
@@ -82,6 +83,7 @@ import {
 import type { Vault } from "@/types/vault";
 import {
   btcAddressToScriptPubKeyHex,
+  shouldProbeWalletLiveness,
   verifyBtcWalletLiveness,
 } from "@/utils/btc";
 import { satoshiToBtcNumber } from "@/utils/btcConversion";
@@ -92,6 +94,7 @@ import { getVpProxyUrl } from "@/utils/rpc";
 import {
   DepositFlowStep,
   getEthWalletClient,
+  payoutSigningStep,
   registerPeginBatchAndWait,
   signAndSubmitPayouts,
   signProofOfPossession,
@@ -160,13 +163,15 @@ export interface UseDepositFlowReturn {
   /** Callback to continue the flow after artifact download */
   continueAfterArtifactDownload: () => void;
   /**
-   * Data backing the "Awaiting Bitcoin confirmation" detail panel: the
-   * timestamp the step was first entered and the pegin tx hash of the
-   * deposit. `null` until the BTC broadcast completes.
+   * Data backing the "Awaiting Bitcoin confirmation" detail panel, snapshotted
+   * when the BTC wait begins: the timestamp, the Pre-PegIn broadcast txid, and
+   * the required confirmation depth of the offchain-params version this
+   * deposit registered against. `null` until the BTC broadcast completes.
    */
   btcConfirmationDetail: {
     startedAt: number;
-    peginTxHash: string;
+    prePeginTxid: string;
+    requiredDepth: number;
   } | null;
 }
 
@@ -219,6 +224,8 @@ export function useDepositFlow(
     universalChallengerBtcPubkeys,
   } = params;
 
+  const btcConnector = useChainConnector("BTC");
+
   // State
   const [currentStep, setCurrentStep] = useState<DepositFlowStep>(
     DepositFlowStep.DERIVE_VAULT_SECRET,
@@ -237,10 +244,12 @@ export function useDepositFlow(
     useState<ArtifactDownloadInfo | null>(null);
   const [btcConfirmationDetail, setBtcConfirmationDetail] = useState<{
     startedAt: number;
-    peginTxHash: string;
+    prePeginTxid: string;
+    requiredDepth: number;
   } | null>(null);
 
   const artifactResolverRef = useRef<(() => void) | null>(null);
+  const payoutClaimersDoneRef = useRef(false);
 
   const continueAfterArtifactDownload = useCallback(() => {
     setArtifactDownloadInfo(null);
@@ -340,8 +349,17 @@ export function useDepositFlow(
         // step through any other path or if the wallet went dead between
         // click and modal mount. Probing here surfaces a clear, actionable
         // error before any irreversible state is written.
+        //
+        // The round-trip probe is gated to injected extensions (Unisat/OKX/
+        // OneKey) via shouldProbeWalletLiveness; AppKit/hardware wallets fall
+        // back to the cached-address check to avoid reopening their modal /
+        // re-engaging the device.
         if (btcWalletProvider && btcAddress) {
-          await verifyBtcWalletLiveness(btcWalletProvider, btcAddress);
+          await verifyBtcWalletLiveness(btcWalletProvider, btcAddress, {
+            probeConnection: shouldProbeWalletLiveness(
+              btcConnector?.connectedWallet?.id,
+            ),
+          });
         }
 
         validateMultiVaultDepositInputs({
@@ -731,8 +749,9 @@ export function useDepositFlow(
 
         setCurrentStep(DepositFlowStep.BROADCAST_PRE_PEGIN);
 
+        let prePeginBroadcastTxid: string;
         try {
-          await broadcastPrePeginTransaction({
+          prePeginBroadcastTxid = await broadcastPrePeginTransaction({
             unsignedTxHex: batchResult.fundedPrePeginTxHex,
             btcWalletProvider: {
               signPsbt: (psbtHex: string) =>
@@ -798,17 +817,17 @@ export function useDepositFlow(
         // ========================================================================
 
         setCurrentStep(DepositFlowStep.AWAIT_BTC_CONFIRMATION);
-        // Snapshot the moment we enter the BTC-wait so the detail panel
-        // can render a stable "Started at" / "Est. Remaining" pair. Pick
-        // the first broadcasted pegin tx hash — multi-vault deposits all
-        // share the same Pre-PegIn broadcast, but per-vault hashes are
-        // what the rest of the app surfaces to the user.
-        if (broadcastedResults[0]) {
-          setBtcConfirmationDetail({
-            startedAt: Date.now(),
-            peginTxHash: broadcastedResults[0].peginTxHash,
-          });
-        }
+        // Snapshot the BTC-wait inputs. The Pre-PegIn broadcast txid is the tx
+        // that lands on Bitcoin (multi-vault siblings share one broadcast).
+        // requiredDepth is pinned to the offchain-params version this deposit
+        // registered against — the VP gates on that version's minPrepeginDepth
+        // (btc-vault claimer/pegin.rs check_prepegin_depth_and_transition), so
+        // a later governance change must not move the displayed target.
+        setBtcConfirmationDetail({
+          startedAt: Date.now(),
+          prePeginTxid: prePeginBroadcastTxid,
+          requiredDepth: config.offchainParams.minPrepeginDepth,
+        });
         setIsWaiting(true);
 
         let baseStep: DepositFlowStep = DepositFlowStep.AWAIT_BTC_CONFIRMATION;
@@ -818,7 +837,8 @@ export function useDepositFlow(
           // to `true` after it closes, so the SDK polling that follows
           // remains "Close & continue later"-able.
           deriveContextHash: async (appName, context) => {
-            if (baseStep === DepositFlowStep.SIGN_PAYOUTS) {
+            const returnStep = baseStep;
+            if (baseStep === DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS) {
               setCurrentStep(DepositFlowStep.SIGN_AUTH_ANCHOR);
             } else if (baseStep === DepositFlowStep.SUBMIT_WOTS_KEYS) {
               setCurrentStep(DepositFlowStep.SUBMIT_WOTS_KEYS);
@@ -831,26 +851,55 @@ export function useDepositFlow(
               );
             } finally {
               setIsWaiting(true);
+              setCurrentStep(returnStep);
             }
           },
           signPsbt: async (psbtHex, opts) => {
-            setCurrentStep(DepositFlowStep.SIGN_PAYOUTS);
+            if (payoutClaimersDoneRef.current) {
+              setCurrentStep(DepositFlowStep.SIGN_DEPOSITOR_GRAPH);
+              setPayoutSigningProgress({
+                phase: "graph",
+                completed: 0,
+                total: 1,
+              });
+            }
             setIsWaiting(false);
             try {
               return await confirmedBtcWallet.signPsbt(psbtHex, opts);
             } finally {
               setIsWaiting(true);
+              if (payoutClaimersDoneRef.current) {
+                setPayoutSigningProgress({
+                  phase: "graph",
+                  completed: 1,
+                  total: 1,
+                });
+              }
             }
           },
           ...(confirmedBtcWallet.signPsbts
             ? {
                 signPsbts: async (psbtHexes, opts) => {
-                  setCurrentStep(DepositFlowStep.SIGN_PAYOUTS);
+                  if (payoutClaimersDoneRef.current) {
+                    setCurrentStep(DepositFlowStep.SIGN_DEPOSITOR_GRAPH);
+                    setPayoutSigningProgress({
+                      phase: "graph",
+                      completed: 0,
+                      total: psbtHexes.length,
+                    });
+                  }
                   setIsWaiting(false);
                   try {
                     return await confirmedBtcWallet.signPsbts!(psbtHexes, opts);
                   } finally {
                     setIsWaiting(true);
+                    if (payoutClaimersDoneRef.current) {
+                      setPayoutSigningProgress({
+                        phase: "graph",
+                        completed: psbtHexes.length,
+                        total: psbtHexes.length,
+                      });
+                    }
                   }
                 },
               }
@@ -923,7 +972,7 @@ export function useDepositFlow(
         // Step 5b: Sign Payout Transactions
         // ========================================================================
 
-        baseStep = DepositFlowStep.SIGN_PAYOUTS;
+        baseStep = DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS;
 
         const payoutSignedVaultIds = new Set<string>();
 
@@ -938,15 +987,9 @@ export function useDepositFlow(
 
           try {
             setCurrentVaultIndex(vi);
-            const peginTxidNoPrefix = stripHexPrefix(result.peginTxHash);
-            const cacheHit =
-              vpTokenRegistry.peek(peginTxidNoPrefix) !== undefined;
-            setCurrentStep(
-              cacheHit
-                ? DepositFlowStep.SIGN_PAYOUTS
-                : DepositFlowStep.SIGN_AUTH_ANCHOR,
-            );
+            setCurrentStep(DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS);
             setIsWaiting(true);
+            payoutClaimersDoneRef.current = false;
 
             await signAndSubmitPayouts({
               vaultId: result.vaultId,
@@ -959,10 +1002,17 @@ export function useDepositFlow(
               depositorEthAddress: confirmedEthAddress,
               unsignedPrePeginTxHex: batchResult.fundedPrePeginTxHex,
               signal,
-              onProgress: setPayoutSigningProgress,
+              onProgress: (p) => {
+                if (!p) return;
+                setPayoutSigningProgress(p);
+                setCurrentStep(payoutSigningStep(p.phase));
+                payoutClaimersDoneRef.current =
+                  p.total > 0 && p.completed >= p.total;
+              },
             });
 
             payoutSignedVaultIds.add(result.vaultId);
+            setCurrentStep(DepositFlowStep.AWAIT_VP_VERIFICATION);
           } catch (error) {
             // If the user cancelled, stop immediately — don't continue with other vaults
             if (signal.aborted) throw error;
@@ -1085,6 +1135,7 @@ export function useDepositFlow(
       vaultAmounts,
       mempoolFeeRate,
       btcWalletProvider,
+      btcConnector?.connectedWallet?.id,
       depositorEthAddress,
       selectedApplication,
       selectedProviders,

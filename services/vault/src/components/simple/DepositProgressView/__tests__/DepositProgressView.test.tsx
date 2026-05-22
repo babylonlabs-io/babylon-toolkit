@@ -1,9 +1,17 @@
 import { render, screen } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { DepositFlowStep } from "@/hooks/deposit/depositFlowSteps/types";
 
 import { DepositProgressView } from "../DepositProgressView";
+
+// The detail panel fetches confirmations and protocol params of its own;
+// this suite covers only whether DepositProgressView mounts it per step.
+vi.mock("../BtcConfirmationDetailContainer", () => ({
+  BtcConfirmationDetailContainer: () => (
+    <div data-testid="btc-confirmation-detail" />
+  ),
+}));
 
 const baseProps = {
   error: null,
@@ -18,7 +26,7 @@ const baseProps = {
 
 describe("DepositProgressView", () => {
   describe("pre-sign state (no steps completed yet)", () => {
-    it("renders the full 11-step list and hides the overall progress bar", () => {
+    it("renders the full 16-step list and hides the overall progress bar", () => {
       render(
         <DepositProgressView
           {...baseProps}
@@ -29,8 +37,23 @@ describe("DepositProgressView", () => {
       expect(
         screen.getByText("Generate secret for the deposit"),
       ).toBeInTheDocument();
+      expect(screen.getByText("Retrieve secret")).toBeInTheDocument();
       expect(
-        screen.getByText("Sign and broadcast reveal secret"),
+        screen.getByText("Sign and broadcast ETH activation transaction"),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText("Sign recovery transactions"),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          "Awaiting vault provider to prepare payout transactions",
+        ),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText("Awaiting vault provider verification"),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText("Awaiting vault activation confirmation"),
       ).toBeInTheDocument();
       expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
       expect(screen.queryByText(/steps completed$/)).not.toBeInTheDocument();
@@ -58,11 +81,25 @@ describe("DepositProgressView", () => {
       );
 
       const bar = screen.getByRole("progressbar");
-      expect(bar).toHaveAttribute("aria-valuenow", "45");
+      expect(bar).toHaveAttribute("aria-valuenow", "31");
       expect(bar).toHaveAttribute("aria-valuemax", "100");
     });
 
-    it("renders the 'X of 11 steps completed' pill", () => {
+    it("fills the bar fully on the final awaiting-confirmation step", () => {
+      render(
+        <DepositProgressView
+          {...baseProps}
+          currentStep={DepositFlowStep.AWAIT_ACTIVATION_CONFIRMATION}
+        />,
+      );
+
+      expect(screen.getByRole("progressbar")).toHaveAttribute(
+        "aria-valuenow",
+        "100",
+      );
+    });
+
+    it("renders the 'X of 16 steps completed' pill", () => {
       render(
         <DepositProgressView
           {...baseProps}
@@ -70,7 +107,7 @@ describe("DepositProgressView", () => {
         />,
       );
 
-      expect(screen.getByText("5 of 11 steps completed")).toBeInTheDocument();
+      expect(screen.getByText("5 of 16 steps completed")).toBeInTheDocument();
     });
 
     it("hides all completed step labels (rows are collapsed into the pill)", () => {
@@ -89,7 +126,7 @@ describe("DepositProgressView", () => {
       ).not.toBeInTheDocument();
     });
 
-    it("renders the active step with its description", () => {
+    it("renders the label of the active step", () => {
       render(
         <DepositProgressView
           {...baseProps}
@@ -100,7 +137,6 @@ describe("DepositProgressView", () => {
       expect(
         screen.getByText("Awaiting Bitcoin confirmation"),
       ).toBeInTheDocument();
-      expect(screen.getByText("(~15 min)")).toBeInTheDocument();
     });
 
     it("renders pending steps as label-only (no descriptions)", () => {
@@ -108,12 +144,32 @@ describe("DepositProgressView", () => {
         <DepositProgressView
           {...baseProps}
           currentStep={DepositFlowStep.AWAIT_BTC_CONFIRMATION}
-          payoutSigningProgress={{ completed: 0, totalClaimers: 3 }}
+          payoutSigningProgress={{ phase: "claimers", completed: 0, total: 3 }}
         />,
       );
 
       expect(screen.getByText("Sign payout transactions")).toBeInTheDocument();
       expect(screen.queryByText("(0 of 3)")).not.toBeInTheDocument();
+    });
+
+    it("renders a status detail panel for the payout preparation wait step", () => {
+      render(
+        <DepositProgressView
+          {...baseProps}
+          currentStep={DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS}
+        />,
+      );
+
+      expect(
+        screen.getByText(
+          "Awaiting vault provider to prepare payout transactions",
+        ),
+      ).toBeInTheDocument();
+      expect(screen.getByText("Status:")).toBeInTheDocument();
+      expect(
+        screen.getByText("Preparing payout transactions"),
+      ).toBeInTheDocument();
+      expect(screen.queryByText("Next action:")).not.toBeInTheDocument();
     });
   });
 
@@ -207,7 +263,7 @@ describe("DepositProgressView", () => {
   });
 
   describe("complete state", () => {
-    it("reports 11 of 11 in the pill and fills the progress bar", () => {
+    it("reports 16 of 16 in the pill and fills the progress bar", () => {
       render(
         <DepositProgressView
           {...baseProps}
@@ -216,14 +272,14 @@ describe("DepositProgressView", () => {
         />,
       );
 
-      expect(screen.getByText("11 of 11 steps completed")).toBeInTheDocument();
+      expect(screen.getByText("16 of 16 steps completed")).toBeInTheDocument();
       expect(screen.getByRole("progressbar")).toHaveAttribute(
         "aria-valuenow",
         "100",
       );
     });
 
-    it("reports 11 of 11 when currentStep is COMPLETED", () => {
+    it("reports 16 of 16 when currentStep is COMPLETED", () => {
       render(
         <DepositProgressView
           {...baseProps}
@@ -232,7 +288,7 @@ describe("DepositProgressView", () => {
         />,
       );
 
-      expect(screen.getByText("11 of 11 steps completed")).toBeInTheDocument();
+      expect(screen.getByText("16 of 16 steps completed")).toBeInTheDocument();
       expect(screen.getByRole("progressbar")).toHaveAttribute(
         "aria-valuenow",
         "100",
@@ -241,69 +297,24 @@ describe("DepositProgressView", () => {
   });
 
   describe("BTC confirmation detail panel", () => {
-    const PEGIN_TX_HASH =
+    const PRE_PEGIN_TXID =
       "1b2c3d4e5f00000000000000000000000000000000000000000000000000000000";
-    const FIXED_NOW = new Date("2026-01-01T14:00:00Z").getTime();
+    const NOW = new Date("2026-01-01T14:00:00Z").getTime();
 
-    beforeEach(() => {
-      vi.useFakeTimers();
-      vi.setSystemTime(FIXED_NOW);
-    });
-
-    afterEach(() => {
-      vi.useRealTimers();
-    });
-
-    it("renders Started at, Est. Remaining, and Bitcoin TX when the active step is AWAIT_BTC_CONFIRMATION", () => {
-      const startedAt = new Date("2026-01-01T13:44:00Z").getTime();
+    it("renders the confirmation detail when the active step is AWAIT_BTC_CONFIRMATION", () => {
       render(
         <DepositProgressView
           {...baseProps}
           currentStep={DepositFlowStep.AWAIT_BTC_CONFIRMATION}
           btcConfirmationDetail={{
-            startedAt,
-            peginTxHash: PEGIN_TX_HASH,
+            startedAt: NOW,
+            prePeginTxid: PRE_PEGIN_TXID,
+            requiredDepth: 6,
           }}
         />,
       );
 
-      expect(screen.getByText("Started at:")).toBeInTheDocument();
-      expect(screen.getByText("Est. Remaining:")).toBeInTheDocument();
-      expect(screen.getByText("Bitcoin TX:")).toBeInTheDocument();
-      expect(screen.getByText(/^~\d+ min$/)).toBeInTheDocument();
-    });
-
-    it("counts down Est. Remaining based on elapsed time", () => {
-      const elevenMinutesAgo = FIXED_NOW - 11 * 60 * 1000;
-      render(
-        <DepositProgressView
-          {...baseProps}
-          currentStep={DepositFlowStep.AWAIT_BTC_CONFIRMATION}
-          btcConfirmationDetail={{
-            startedAt: elevenMinutesAgo,
-            peginTxHash: PEGIN_TX_HASH,
-          }}
-        />,
-      );
-
-      // 15 expected - 11 elapsed = 4 remaining
-      expect(screen.getByText("~4 min")).toBeInTheDocument();
-    });
-
-    it("floors Est. Remaining at 0 once the expected wait has elapsed", () => {
-      const longAgo = FIXED_NOW - 60 * 60 * 1000;
-      render(
-        <DepositProgressView
-          {...baseProps}
-          currentStep={DepositFlowStep.AWAIT_BTC_CONFIRMATION}
-          btcConfirmationDetail={{
-            startedAt: longAgo,
-            peginTxHash: PEGIN_TX_HASH,
-          }}
-        />,
-      );
-
-      expect(screen.getByText("~0 min")).toBeInTheDocument();
+      expect(screen.getByTestId("btc-confirmation-detail")).toBeInTheDocument();
     });
 
     it("does not render the detail panel for steps other than AWAIT_BTC_CONFIRMATION", () => {
@@ -312,14 +323,16 @@ describe("DepositProgressView", () => {
           {...baseProps}
           currentStep={DepositFlowStep.SUBMIT_WOTS_KEYS}
           btcConfirmationDetail={{
-            startedAt: FIXED_NOW,
-            peginTxHash: PEGIN_TX_HASH,
+            startedAt: NOW,
+            prePeginTxid: PRE_PEGIN_TXID,
+            requiredDepth: 6,
           }}
         />,
       );
 
-      expect(screen.queryByText("Started at:")).not.toBeInTheDocument();
-      expect(screen.queryByText("Bitcoin TX:")).not.toBeInTheDocument();
+      expect(
+        screen.queryByTestId("btc-confirmation-detail"),
+      ).not.toBeInTheDocument();
     });
 
     it("does not render the detail panel when btcConfirmationDetail is null", () => {
@@ -331,8 +344,9 @@ describe("DepositProgressView", () => {
         />,
       );
 
-      expect(screen.queryByText("Started at:")).not.toBeInTheDocument();
-      expect(screen.queryByText("Bitcoin TX:")).not.toBeInTheDocument();
+      expect(
+        screen.queryByTestId("btc-confirmation-detail"),
+      ).not.toBeInTheDocument();
     });
   });
 });

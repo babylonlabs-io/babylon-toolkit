@@ -46,7 +46,7 @@ const SERVER_IDENTITY_DOMAIN = new TextEncoder().encode(
  * (different trust boundary). 2h = Rust ref VP's 1h rotation × 2 for
  * clock skew. Override per call via `maxLifetimeSecs`.
  */
-export const DEFAULT_MAX_PROOF_LIFETIME_SECS = 2 * 3600;
+const DEFAULT_MAX_PROOF_LIFETIME_SECS = 2 * 3600;
 
 /**
  * Wire representation from btc-vault's `ServerIdentityResponse`.

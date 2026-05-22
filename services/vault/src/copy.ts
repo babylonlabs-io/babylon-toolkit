@@ -19,13 +19,16 @@
  * - "peg-in" (lowercase, hyphenated) in regular prose.
  * - "vault provider" lowercase mid-sentence; capitalized only when
  *   sentence-leading.
+ * - "BTC Vault" (capitalized, two words) when naming the product or a
+ *   depositor's vault; never bare "vault". The "vault provider" /
+ *   "vault keeper" role terms are the only exception.
  * - Status labels use sentence case (e.g. "Signing required").
  * - Past-tense broadcast statements use "has been broadcast", never bare
  *   "broadcast" as a participle.
  * - American English spelling (e.g. "acknowledgments", not
  *   "acknowledgements").
  * - Button labels are intentionally per-context: primary CTAs use Title
- *   Case (e.g. "Submit WOTS Key", "Broadcast Pre-Pegin", "Add Vault"),
+ *   Case (e.g. "Submit WOTS Key", "Broadcast Pre-Pegin", "Add BTC Vault"),
  *   while in-flow / dialog buttons use sentence case (e.g. "Activate",
  *   "Do not split", "View on blockchain explorer"). Match the
  *   surrounding screen rather than imposing a single rule.
@@ -73,19 +76,19 @@ export const COPY = {
       waitingForPayoutPrep:
         "Waiting for vault provider to prepare claim and payout transactions...",
       activationSubmitted:
-        "Vault activation submitted. Waiting for on-chain confirmation...",
+        "BTC Vault activation submitted. Waiting for on-chain confirmation...",
       readyToActivate:
-        "Bitcoin transaction confirmed. Reveal your HTLC secret to activate the vault.",
+        "Bitcoin transaction confirmed. Reveal your HTLC secret to activate the BTC Vault.",
       inUseCannotRedeem:
-        "Vault is currently being used as collateral. Repay all debt before redeeming.",
+        "BTC Vault is currently being used as collateral. Repay all debt before redeeming.",
       redemptionInProgress:
         "Your redemption is being processed. The vault provider is preparing your BTC withdrawal. This typically takes up to 3 days.",
       liquidated:
-        "This vault was liquidated. The collateral was seized to cover unpaid debt.",
+        "This BTC Vault was liquidated. The collateral was seized to cover unpaid debt.",
       refundBroadcast:
         "Refund transaction has been broadcast to Bitcoin. Waiting for on-chain confirmation...",
       invalid:
-        "This vault is invalid. The BTC UTXOs were spent in a different transaction.",
+        "This BTC Vault is invalid. The BTC UTXOs were spent in a different transaction.",
       redemptionComplete:
         "Redemption complete. Your BTC has been returned to your wallet.",
     },
@@ -107,9 +110,9 @@ export const COPY = {
       reasons: {
         ack_timeout: "The vault provider did not acknowledge in time",
         proof_timeout: "The inclusion proof was not submitted in time",
-        activation_timeout: "The vault was not activated in time",
+        activation_timeout: "The BTC Vault was not activated in time",
       },
-      heading: "This vault has expired.",
+      heading: "This BTC Vault has expired.",
       timeAgo: {
         justNow: "just now",
         prefix: "Expired",
@@ -117,7 +120,7 @@ export const COPY = {
     },
     batchedDeposit: {
       groupLabel: "Batched deposit",
-      broadcastHelper: "Broadcasts once for all vaults in this deposit",
+      broadcastHelper: "Broadcasts once for all BTC Vaults in this deposit",
     },
     progress: {
       stepCounter: (current: number, total: number) =>
@@ -132,44 +135,19 @@ export const COPY = {
       signAndBroadcastEth: "Sign and broadcast ETH registration",
       signAndBroadcastPrePegin: "Sign and broadcast BTC Pre-Pegin transaction",
       awaitBtcConfirmation: "Awaiting Bitcoin confirmation",
-      awaitBtcConfirmationDuration: (minutes: number) => `(~${minutes} min)`,
       submitWotsKey: "Submit WOTS public key to vault provider",
+      awaitPayoutTransactions:
+        "Awaiting vault provider to prepare payout transactions",
       authenticateSession: "Authenticate session with vault provider",
       signPayouts: "Sign payout transactions",
+      signRecoveryTxs: "Sign recovery transactions",
+      awaitVpVerification: "Awaiting vault provider verification",
       downloadArtifact: "Download artifact",
-      revealSecret: "Sign and broadcast reveal secret",
+      retrieveSecret: "Retrieve secret",
+      revealSecret: "Sign and broadcast ETH activation transaction",
+      awaitActivationConfirmation: "Awaiting vault activation confirmation",
       signingCounter: (completed: number, total: number) =>
         `(${completed} of ${total})`,
-    },
-    stepDescriptions: {
-      deriveVaultSecret:
-        "Approve the deterministic signature in your BTC wallet to derive your vault's HTLC secret.",
-      signPeginBtc: "Sign the peg-in transaction in your BTC wallet.",
-      signPop: "Please sign the proof of possession (PoP) in your BTC wallet.",
-      submitPegin:
-        "Please sign and submit the peg-in transaction in your ETH wallet.",
-      broadcastPrePeginActive:
-        "Please sign the Pre-Pegin transaction in your BTC wallet. It will be broadcast to Bitcoin immediately after.",
-      awaitBtcConfirmation:
-        "Waiting for Bitcoin to confirm the Pre-Pegin transaction...",
-      submitWotsActive:
-        "Submitting your WOTS public key to the vault provider.",
-      submitWotsWaiting:
-        "Waiting for the vault provider to prepare payout transactions...",
-      signAuthAnchor:
-        "Approve the deterministic signature in your BTC wallet to authenticate with the vault provider.",
-      signPayoutsActive:
-        "Please sign the payout transaction(s) in your BTC wallet.",
-      signPayoutsWaiting:
-        "Waiting for the vault provider to prepare payout transaction(s)...",
-      artifactDownloadActive:
-        "Download your vault artifacts before continuing.",
-      artifactDownloadWaiting:
-        "Waiting for the vault provider to verify your deposit on-chain...",
-      activateVaultActive:
-        "Revealing HTLC secret on Ethereum to activate the vault.",
-      activateVaultWaiting: "Waiting for on-chain verification...",
-      completed: "Deposit successfully submitted!",
     },
     progress: {
       heading: "Deposit Progress",
@@ -185,12 +163,29 @@ export const COPY = {
         sign: "Sign",
       },
     },
+    btcConfirmation: {
+      startedAt: "Started at",
+      estRemaining: "Est. remaining",
+      estRemainingValue: (minutes: number, blocksLeft: number) =>
+        `~${minutes} min (${blocksLeft} BTC ${
+          blocksLeft === 1 ? "block" : "blocks"
+        })`,
+      finalizing: "Finalizing...",
+      bitcoinTx: "Bitcoin TX",
+    },
+    waitDetails: {
+      startedAt: "Started at",
+      status: "Status",
+      preparingPayouts: "Preparing payout transactions",
+      verifyingDeposit: "Verifying signatures and collecting ACKs",
+      confirmingActivation: "Confirming activation",
+    },
     broadcastSuccess: {
       heading: "Pre-Pegin Broadcast",
       body: (amount: string, symbol: string) =>
-        `Your Pre-Pegin Bitcoin transaction for ${amount} ${symbol} has been broadcast to the network. Your vault is not active yet — this is just one step in the deposit lifecycle.`,
+        `Your Pre-Pegin Bitcoin transaction for ${amount} ${symbol} has been broadcast to the network. Your BTC Vault is not active yet — this is just one step in the deposit lifecycle.`,
       footnote:
-        "Once the Pre-Pegin confirms, the vault provider will prompt you to submit a WOTS key, sign payout authorizations, and finally activate the vault by revealing your HTLC secret. Check back here — the next required action will appear when it's ready.",
+        "Once the Pre-Pegin confirms, the vault provider will prompt you to submit a WOTS key, sign payout authorizations, and finally activate the BTC Vault by revealing your HTLC secret. Check back here — the next required action will appear when it's ready.",
       doneButton: "Done",
     },
     refundSuccess: {
@@ -217,12 +212,12 @@ export const COPY = {
       confirmButton: "Confirm",
     },
     activateConfirmation: {
-      title: "Activate your vault",
-      body: "Activating your vault reveals the HTLC secret on Ethereum and finalizes your deposit. Before continuing, make sure you have downloaded your vault artifacts — these files let you independently claim your funds if the vault provider is unavailable.",
+      title: "Activate your BTC Vault",
+      body: "Activating your BTC Vault reveals the HTLC secret on Ethereum and finalizes your deposit. Before continuing, make sure you have downloaded your BTC Vault artifacts — these files let you independently claim your funds if the vault provider is unavailable.",
       alreadyDownloadedWarning:
-        "We've already recorded that you downloaded artifacts for this vault from this browser. If you've since cleared site data or switched devices, download them again before activating.",
+        "We've already recorded that you downloaded artifacts for this BTC Vault from this browser. If you've since cleared site data or switched devices, download them again before activating.",
       notDownloadedWarning:
-        "You haven't downloaded the artifacts for this vault yet on this browser. If you lose them and the vault provider goes offline, you will not be able to independently claim your funds.",
+        "You haven't downloaded the artifacts for this BTC Vault yet on this browser. If you lose them and the vault provider goes offline, you will not be able to independently claim your funds.",
       riskAcknowledgement:
         "I understand the risk of activating without downloading my artifacts.",
       activateButton: "Activate",
@@ -230,8 +225,8 @@ export const COPY = {
       activateWithoutDownloadingButton: "Activate without downloading",
     },
     artifactDownload: {
-      title: "Download Vault Artifacts",
-      body: "Before broadcasting your Bitcoin transaction, you need to download your vault artifacts. These files are required to independently claim your funds if the vault provider is unavailable.",
+      title: "Download BTC Vault Artifacts",
+      body: "Before broadcasting your Bitcoin transaction, you need to download your BTC Vault artifacts. These files are required to independently claim your funds if the vault provider is unavailable.",
       storeSafelyWarning:
         "Store these files safely on your local disk or external drive. If you lose them and the vault provider goes offline, you will not be able to independently claim your funds.",
       downloadedBody:
@@ -266,21 +261,21 @@ export const COPY = {
       // Accessible label / tooltip for the per-provider explorer link.
       providerExplorerLinkLabel: "View vault provider on explorer",
       splitOptionDescription:
-        "Split your BTC into multiple vaults for more flexibility. In liquidation, only part of your collateral may be affected.",
+        "Split your BTC into multiple BTC Vaults for more flexibility. In liquidation, only part of your collateral may be affected.",
       noSplitOptionDescription:
-        "Your BTC will be deposited into a single vault",
+        "Your BTC will be deposited into a single BTC Vault",
       learnWhyRecommended: "Learn why we recommend this.",
     },
     resume: {
       broadcastSuccessMessage: PRE_PEGIN_BROADCAST_CONFIRMATION_MESSAGE,
       activationSuccessMessage:
-        "Your vault has been activated. The vault provider can now claim the HTLC on Bitcoin.",
+        "Your BTC Vault has been activated. The vault provider can now claim the HTLC on Bitcoin.",
       wotsMismatchError:
         "WOTS public key hash does not match the on-chain commitment — the wrong wallet is connected.",
     },
     errors: {
       invalidSecret:
-        "Invalid secret: SHA256(secret) does not match the vault's hashlock. Please check your secret and try again.",
+        "Invalid secret: SHA256(secret) does not match the BTC Vault's hashlock. Please check your secret and try again.",
       chainSwitchRequired: (network: string) =>
         `Please switch to ${network} in your wallet`,
       ethereumMainnet: "Ethereum Mainnet",
@@ -347,16 +342,25 @@ export const COPY = {
   wallet: {
     geoBlockedTooltip: "Not available in your region",
     walletNotEligibleTooltip: "Wallet not eligible",
+    liveness: {
+      errorTitle: "Wallet Not Responding",
+      unresponsive:
+        "Your BTC wallet is not responding. Please open your wallet extension to confirm it is unlocked and connected, then try again.",
+      emptyAddress:
+        "Your BTC wallet did not return an address. Please reconnect your wallet and try again.",
+      addressMismatch:
+        "Your BTC wallet account has changed. Please reconnect your wallet and try again.",
+    },
   },
   collateral: {
     releaseDisabledTooltip:
-      "No vault can be released without putting your position at risk of liquidation. Repay debt first.",
+      "No BTC Vault can be released without putting your position at risk of liquidation. Repay debt first.",
     releaseHfBreachTooltip: (threshold: number) =>
       `This selection would drop your health factor below ${threshold.toFixed(1)} and be rejected on-chain. Reduce the selection or repay debt first.`,
     uncapped: "Uncapped",
   },
   banner: {
-    addVault: "Add Vault",
+    addVault: "Add BTC Vault",
     addCollateral: "Add Collateral",
     addVaultWithAmount: (amountBtc: string) => `Add ${amountBtc} BTC Vault`,
     addCollateralWithAmount: (amountBtc: string) =>
@@ -365,5 +369,30 @@ export const COPY = {
   },
   reorder: {
     confirmButton: "Confirm",
+  },
+  protocolFees: {
+    minDeposit: {
+      label: "Min deposit",
+      tooltip:
+        "Minimum BTC deposit required to create a BTC Vault, set by the protocol.",
+    },
+    minForSplit: {
+      label: "Effective minimum for split",
+      tooltip:
+        "Minimum deposit to split into 2 BTC Vaults. Both BTC Vaults must meet the minimum deposit requirement.",
+    },
+    ltv: {
+      label: "LTV / Collateral Factor",
+      tooltip:
+        "Maximum percentage of collateral value that can be borrowed against.",
+    },
+    liquidationThreshold: {
+      label: "Liquidation threshold (THF)",
+      tooltip: "Target health factor at which liquidation becomes profitable.",
+    },
+    liquidationBonus: {
+      label: "Liquidation Bonus (LB)",
+      tooltip: "Bonus percentage awarded to liquidators on seized collateral.",
+    },
   },
 } as const;

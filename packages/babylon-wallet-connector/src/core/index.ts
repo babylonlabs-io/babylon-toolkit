@@ -95,11 +95,18 @@ export const createWalletConnector = async <N extends string, P extends IProvide
   const shouldAutoReconnect = metadata.chain !== "ETH" && connectedWalletId && wallets.some((wallet) => wallet.id === connectedWalletId);
 
   if (shouldAutoReconnect) {
-    try {
-      await connector.connect(connectedWalletId);
-    } catch (error) {
-      console.error("Auto-reconnect failed:", error instanceof Error ? error.message : "Unknown error")
-    }
+    // Fire-and-forget: do NOT await the reconnect handshake. Awaiting it here
+    // blocks `createWalletConnector`, and therefore `ChainProvider.init()`'s
+    // `Promise.all` over every chain, on the BTC extension responding. A locked
+    // or unresponsive wallet would otherwise hang init indefinitely and leave
+    // the whole connection UI (BTC *and* ETH) stuck loading. The reconnect
+    // result is delivered through the connector's `connect`/`error` events,
+    // which `ChainProvider`, `BTCWalletProvider`, and `useWalletConnectors`
+    // already subscribe to. `connector.connect` swallows its own errors, so the
+    // extra catch is just defensive against an unexpected synchronous throw.
+    void connector.connect(connectedWalletId).catch((error) => {
+      console.error("Auto-reconnect failed:", error instanceof Error ? error.message : "Unknown error");
+    });
   }
 
   return connector;

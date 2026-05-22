@@ -2,7 +2,7 @@ import { Hint } from "@babylonlabs-io/core-ui";
 import { useMemo } from "react";
 
 import { satoshiToBtcNumber } from "@/utils/btcConversion";
-import { formatBtcValue } from "@/utils/formatting";
+import { formatBtcAmount } from "@/utils/formatting";
 
 const TRANSACTION_RESERVE_TOOLTIP =
   "A small portion of your deposit is reserved in a dedicated output to fund a future protocol claim transaction. It remains locked until claim conditions are met and is returned to you if unused.";
@@ -88,7 +88,7 @@ export function DepositFeesBreakdown({
           maximumFractionDigits: 2,
         })} USD)`
       : "";
-    return { amount: `${formatBtcValue(btc)} BTC`, price };
+    return { amount: formatBtcAmount(btc), price };
   }, [depositorClaimValue, btcPrice, hasPriceFetchError]);
 
   return (

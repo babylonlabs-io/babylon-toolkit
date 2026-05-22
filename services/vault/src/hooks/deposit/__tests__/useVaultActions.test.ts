@@ -55,7 +55,9 @@ vi.mock("@babylonlabs-io/wallet-connector", () => ({
   getSharedWagmiConfig: vi.fn(() => ({})),
   useChainConnector: vi.fn(() => ({
     connectedWallet: {
+      account: { address: "bc1qdepositor" },
       provider: {
+        connectWallet: vi.fn().mockResolvedValue(undefined),
         getAddress: vi.fn().mockResolvedValue("bc1qdepositor"),
         signPsbt: mockSignPsbt,
       },
@@ -670,7 +672,7 @@ describe("useVaultActions — handleActivation hashlock source", () => {
     // Distinct error from the generic "Invalid secret" path so the user
     // isn't misled into re-entering a correct secret.
     expect(result.current.activationError).toBe(
-      "Vault hashlock not found. The vault may not support activation.",
+      "BTC Vault hashlock not found. The BTC Vault may not support activation.",
     );
   });
 
@@ -701,7 +703,7 @@ describe("useVaultActions — handleActivation hashlock source", () => {
     // Raw "not found on-chain" detail is normalized to a friendly message
     // and the vault id is not echoed back in the UI.
     expect(result.current.activationError).toBe(
-      "Vault not found. The vault ID may be invalid.",
+      "BTC Vault not found. The BTC Vault ID may be invalid.",
     );
     expect(result.current.activationError).not.toContain("0xvaultId");
   });

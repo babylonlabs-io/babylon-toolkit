@@ -1,4 +1,9 @@
-import { Card, Loader } from "@babylonlabs-io/core-ui";
+import {
+  Accordion,
+  AccordionDetails,
+  Card,
+  Loader,
+} from "@babylonlabs-io/core-ui";
 import { formatSatoshisToBtc } from "@babylonlabs-io/ts-sdk/tbv/core";
 import {
   IoCheckmark,
@@ -90,11 +95,11 @@ export function VaultProviderSelector({
   const firstProblematicIndex = providers.findIndex(isProblematic);
 
   return (
-    <>
-      <Card variant="filled" className="!rounded-lg !py-4">
+    <Accordion expanded={expanded}>
+      <Card variant="filled" className="!rounded-lg !p-0">
         <button
           type="button"
-          className="flex w-full items-center justify-between"
+          className="flex w-full items-center justify-between px-6 py-4"
           onClick={() => onExpandedChange(!expanded)}
         >
           <span
@@ -108,10 +113,10 @@ export function VaultProviderSelector({
         </button>
       </Card>
 
-      {expanded && (
+      <AccordionDetails className="pt-4">
         <Card
           variant="default"
-          className="flex flex-col gap-6 !rounded-lg !bg-primary-contrast !py-4"
+          className="flex w-full flex-col gap-6 !rounded-lg !bg-primary-contrast !py-4"
         >
           <span className="text-sm text-accent-secondary">
             {COPY.deposit.form.providerSelectDescription}
@@ -214,7 +219,7 @@ export function VaultProviderSelector({
             })
           )}
         </Card>
-      )}
-    </>
+      </AccordionDetails>
+    </Accordion>
   );
 }

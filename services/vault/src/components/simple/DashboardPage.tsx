@@ -17,6 +17,7 @@ import type { PositionNotificationsStatus } from "@/applications/aave/hooks/useP
 import type { CalculatorResult } from "@/applications/aave/positionNotifications";
 import type { Asset } from "@/applications/aave/types";
 import type { RootLayoutContext } from "@/components/pages/RootLayout";
+import { PAGE_CONTENT_CLASS } from "@/components/shared/layoutClasses";
 import featureFlags from "@/config/featureFlags";
 import { useBTCWallet, useConnection, useETHWallet } from "@/context/wallet";
 import { useApplicationCap } from "@/hooks/useApplicationCap";
@@ -143,8 +144,8 @@ export function DashboardPage() {
   };
 
   return (
-    <Container className="pb-6">
-      <div className="space-y-6">
+    <Container className={`${PAGE_CONTENT_CLASS} pb-6`}>
+      <div className="space-y-10">
         <SupplyCapSection snapshot={capSnapshot} isLoading={isCapLoading} />
 
         <OverviewSection

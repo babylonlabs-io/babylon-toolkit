@@ -117,8 +117,11 @@ export function PendingDepositCard({
 
   // Map the current state onto the shared deposit-flow step model so the card
   // can show "Step X of Y" + a progress bar. `null` when there's no meaningful
-  // in-progress step (those states don't reach the pending sections).
-  const step = getPeginDisplayStep(peginState);
+  // in-progress step (those states don't reach the pending sections), and while
+  // the first poll is still loading — until VP ingestion state arrives the step
+  // is ambiguous (a CONFIRMING deposit could be awaiting BTC confirmation or
+  // preparing payouts), so we don't assert one and risk a backward jump.
+  const step = loading ? null : getPeginDisplayStep(peginState);
 
   // Resolve provider name
   const provider = vaultProviders.find((vp) => vp.id === providerId);

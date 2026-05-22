@@ -14,6 +14,8 @@ import { truncateAddress } from "@/utils/addressUtils";
 import { getBtcExplorerTxUrl } from "@/utils/explorer";
 import { formatBtcAmount, formatDateTime } from "@/utils/formatting";
 
+import { VaultCardRow, VaultCardShell } from "./VaultCardShell";
+
 const btcConfig = getNetworkConfigBTC();
 
 interface VaultDetailCardProps {
@@ -57,17 +59,17 @@ export function VaultDetailCard({
   action,
 }: VaultDetailCardProps) {
   return (
-    <div className="space-y-3 rounded-xl border border-secondary-strokeLight p-4">
+    <VaultCardShell>
       {/* BTC icon + amount (+ optional subtext), optional header-end content */}
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-center gap-2">
           <Avatar
             url={btcConfig.icon}
             alt={btcConfig.coinSymbol}
-            size="small"
+            size="medium"
           />
           <div className="flex flex-col gap-0.5">
-            <span className="text-base font-medium text-accent-primary">
+            <span className="text-xl font-medium text-accent-primary">
               {formatBtcAmount(amountBtc)}
             </span>
             {amountSubtext}
@@ -79,24 +81,19 @@ export function VaultDetailCard({
       {belowHeader}
 
       {/* Date */}
-      <div className="flex items-center justify-between">
-        <span className="text-sm text-accent-secondary">Date</span>
+      <VaultCardRow label="Date">
         <span className="text-sm text-accent-primary">
           {formatDateTime(new Date(timestamp))}
         </span>
-      </div>
+      </VaultCardRow>
 
       {/* Status */}
       {statusContent && (
-        <div className="flex items-center justify-between">
-          <span className="text-sm text-accent-secondary">Status</span>
-          {statusContent}
-        </div>
+        <VaultCardRow label="Status">{statusContent}</VaultCardRow>
       )}
 
       {/* Vault Provider */}
-      <div className="flex items-center justify-between">
-        <span className="text-sm text-accent-secondary">Vault Provider</span>
+      <VaultCardRow label="Vault Provider">
         <Hint
           tooltip={truncateAddress(providerAddress)}
           attachToChildren
@@ -115,24 +112,21 @@ export function VaultDetailCard({
             {providerName}
           </span>
         </Hint>
-      </div>
+      </VaultCardRow>
 
       {/* Transaction Hash (BTC pegin) */}
       {txHash && (
-        <div className="flex items-center justify-between">
-          <span className="text-sm text-accent-secondary">
-            Transaction Hash
-          </span>
+        <VaultCardRow label="Transaction Hash">
           <CopyableHash
             hash={txHash}
             chain="BTC"
             explorerUrl={getBtcExplorerTxUrl(txHash)}
           />
-        </div>
+        </VaultCardRow>
       )}
 
       {action}
-    </div>
+    </VaultCardShell>
   );
 }
 

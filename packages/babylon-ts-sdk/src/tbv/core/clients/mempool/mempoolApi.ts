@@ -210,6 +210,27 @@ export async function getTxInfo(txid: string, apiUrl: string): Promise<TxInfo> {
 }
 
 /**
+ * Get the current block tip height.
+ *
+ * Source: mempool.space API — `GET /api/blocks/tip/height` returns the height
+ * of the most recent block as a plain-text integer.
+ *
+ * @param apiUrl - Mempool API base URL
+ * @returns The height of the most recent block
+ * @throws Error if the response is not a whole number
+ */
+export async function getTipHeight(apiUrl: string): Promise<number> {
+  const raw = await fetchApi<string>(`${apiUrl}/blocks/tip/height`);
+  const trimmed = raw.trim();
+  if (!/^\d+$/.test(trimmed)) {
+    throw new Error(
+      `Mempool API returned an invalid block tip height: "${raw}"`,
+    );
+  }
+  return Number.parseInt(trimmed, 10);
+}
+
+/**
  * Get the hex representation of a transaction.
  *
  * @param txid - The transaction ID

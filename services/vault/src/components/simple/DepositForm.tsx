@@ -1,4 +1,4 @@
-import { AmountSlider, Card, Checkbox, Warning } from "@babylonlabs-io/core-ui";
+import { AmountSlider, Card } from "@babylonlabs-io/core-ui";
 import { useMemo, useState } from "react";
 
 import { ApplicationLogo } from "@/components/ApplicationLogo";
@@ -75,12 +75,6 @@ interface DepositFormProps {
   feeRows?: FeeRow[];
 
   /**
-   * True when the inscription (ordinals) check could not complete. Surfaces a
-   * warning so the user knows inscription UTXOs may be included in the deposit.
-   */
-  ordinalsCheckUnavailable?: boolean;
-
-  /**
    * True while the inscription (ordinals) check is still in flight. Blocks
    * submission so the user cannot deposit before the spendable set has been
    * filtered against inscriptions.
@@ -150,15 +144,12 @@ export function DepositForm({
   ethereumNetworkFeePrice = "",
   ethereumNetworkFeeIsError = false,
   feeRows,
-  ordinalsCheckUnavailable = false,
   ordinalsCheckPending = false,
   hasWalletConnectionError = false,
   walletConnectionErrorMessage = null,
   isVerifyingWallet = false,
   isReconnectingWallet = false,
 }: DepositFormProps) {
-  const [ordinalsWarningAcknowledged, setOrdinalsWarningAcknowledged] =
-    useState(false);
   const [openPanel, setOpenPanel] = useState<"split" | "provider" | null>(null);
   const setPanelExpanded =
     (panel: "split" | "provider") => (expanded: boolean) =>
@@ -221,36 +212,12 @@ export function DepositForm({
     feeError,
     feeDisabled,
     ordinalsCheckPending,
-    ordinalsWarningUnacknowledged:
-      ordinalsCheckUnavailable && !ordinalsWarningAcknowledged,
     hasWalletConnectionError,
     isReconnectingWallet,
   });
 
   return (
     <div className="flex w-full flex-col gap-4">
-      {ordinalsCheckUnavailable && (
-        <Warning className="items-start" messageClassName="flex flex-col gap-3">
-          <span>
-            Inscription check unavailable. We couldn&apos;t verify whether your
-            UTXOs contain Ordinals/inscriptions. If you proceed, any inscription
-            UTXOs may be spent as part of this deposit.
-          </span>
-          <label className="flex cursor-pointer items-center gap-3">
-            <Checkbox
-              checked={ordinalsWarningAcknowledged}
-              onChange={() => setOrdinalsWarningAcknowledged((v) => !v)}
-              variant="default"
-              showLabel={false}
-            />
-            <span>
-              I understand that inscription UTXOs may be spent as part of this
-              deposit.
-            </span>
-          </label>
-        </Warning>
-      )}
-
       <Card variant="filled" className="flex flex-col gap-4 !rounded-lg">
         {/* Amount input with slider */}
         <AmountSlider
@@ -265,7 +232,10 @@ export function DepositForm({
           sliderSteps={[]}
           onSliderChange={(value) => onAmountChange(value.toString())}
           sliderVariant="primary"
-          leftField={{ label: "Max", value: `${btcBalanceFormatted} BTC` }}
+          leftField={{
+            label: "Max",
+            value: `${btcBalanceFormatted} ${btcConfig.coinSymbol}`,
+          }}
           rightField={{ value: usdValue }}
           onMaxClick={onMaxClick}
           inputClassName="h-10 w-auto rounded-lg bg-primary-contrast px-4 [field-sizing:content]"

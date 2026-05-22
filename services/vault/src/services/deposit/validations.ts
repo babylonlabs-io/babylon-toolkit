@@ -14,6 +14,8 @@ import {
   type ValidationResult,
 } from "@babylonlabs-io/ts-sdk/tbv/core/services";
 
+import { getBtcSymbol } from "@/utils/formatting";
+
 export {
   isDepositAmountValid,
   validateDepositAmount,
@@ -60,7 +62,7 @@ export function validateVaultAmounts(
   if (amounts?.length > 2) {
     return {
       valid: false,
-      error: "Maximum 2 vaults supported",
+      error: "Maximum 2 BTC Vaults supported",
     };
   }
   return sdkValidateVaultAmounts(amounts, minDeposit, maxDeposit);
@@ -82,7 +84,7 @@ export function validateMultiVaultDepositInputs(
     throw new Error("Multiple providers not yet supported");
   }
   if (params.vaultAmounts.length > 2) {
-    throw new Error("Maximum 2 vaults supported");
+    throw new Error("Maximum 2 BTC Vaults supported");
   }
 
   sdkValidateMultiVaultDepositInputs(params);
@@ -103,7 +105,6 @@ export interface DepositCtaParams extends DepositFormValidityParams {
   feeError: string | null;
   feeDisabled: boolean;
   ordinalsCheckPending: boolean;
-  ordinalsWarningUnacknowledged: boolean;
   /**
    * True when the click-time BTC-wallet liveness probe (or a prior reconnect
    * attempt) failed. Promotes the CTA to a "Reconnect Wallet" action so the
@@ -141,9 +142,9 @@ export function getDepositButtonLabel(
   if (totalRequired > btcBalance) return "Insufficient balance";
 
   if (amountSats < minDeposit)
-    return `Minimum ${formatSatoshisToBtc(minDeposit)} BTC`;
+    return `Minimum ${formatSatoshisToBtc(minDeposit)} ${getBtcSymbol()}`;
   if (maxDeposit && maxDeposit > 0n && amountSats > maxDeposit)
-    return `Maximum ${formatSatoshisToBtc(maxDeposit)} BTC`;
+    return `Maximum ${formatSatoshisToBtc(maxDeposit)} ${getBtcSymbol()}`;
 
   return "Deposit";
 }
@@ -184,7 +185,7 @@ export function getDepositCtaState(params: DepositCtaParams): DepositCtaState {
   if (params.splitNotReady) {
     return {
       disabled: true,
-      label: "Deposit amount too low for 2-vault split",
+      label: "Deposit amount too low to split into 2 BTC Vaults",
     };
   }
 
@@ -195,10 +196,6 @@ export function getDepositCtaState(params: DepositCtaParams): DepositCtaState {
 
   if (params.ordinalsCheckPending) {
     return { disabled: true, label: "Checking for inscriptions..." };
-  }
-
-  if (params.ordinalsWarningUnacknowledged) {
-    return { disabled: true, label: "Acknowledge warning to continue" };
   }
 
   if (params.isFeeError) {

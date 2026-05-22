@@ -69,7 +69,6 @@ vi.mock("../../../applications/aave/context", () => ({
 }));
 
 import { useApplications } from "../../useApplications";
-import { useUTXOs } from "../../useUTXOs";
 import { useDepositPageForm } from "../useDepositPageForm";
 import { useEstimatedBtcFee } from "../useEstimatedBtcFee";
 
@@ -191,7 +190,6 @@ vi.mock("../../useUTXOs", () => ({
     isLoadingOrdinals: false,
     error: null,
     ordinalsError: null,
-    ordinalsCheckUnavailable: false,
     ordinalsCheckPending: false,
     refetch: vi.fn(),
   })),
@@ -820,28 +818,6 @@ describe("useDepositPageForm", () => {
       const { result } = renderHook(() => useDepositPageForm(), { wrapper });
 
       expect(result.current.isLoadingProviders).toBe(false);
-    });
-  });
-
-  describe("ordinalsCheckUnavailable", () => {
-    it("should be false when the ordinals check succeeded", () => {
-      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
-
-      expect(result.current.ordinalsCheckUnavailable).toBe(false);
-    });
-
-    it("should propagate ordinalsCheckUnavailable from useUTXOs", () => {
-      const defaultReturn = vi.mocked(useUTXOs).getMockImplementation()!(
-        "bc1qtest123",
-      );
-      vi.mocked(useUTXOs).mockReturnValueOnce({
-        ...defaultReturn,
-        ordinalsCheckUnavailable: true,
-      });
-
-      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
-
-      expect(result.current.ordinalsCheckUnavailable).toBe(true);
     });
   });
 });

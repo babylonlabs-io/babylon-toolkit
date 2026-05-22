@@ -29,6 +29,9 @@ export interface HeaderProps {
   /** Optional className for header container */
   className?: string;
 
+  /** Optional className for the inner Container - controls max-width, padding, etc. */
+  containerClassName?: string;
+
   /** Whether to show mobile menu button */
   showMobileMenu?: boolean;
 
@@ -54,6 +57,7 @@ export const Header = ({
   mobileLogo,
   rightActions,
   className,
+  containerClassName,
   showMobileMenu = true,
   size = "md",
 }: HeaderProps) => {
@@ -62,7 +66,12 @@ export const Header = ({
 
   return (
     <header className={twMerge(sizeStyles[size], className)}>
-      <Container className="relative flex h-20 items-center justify-between">
+      <Container
+        className={twMerge(
+          "relative flex h-20 items-center justify-between",
+          containerClassName,
+        )}
+      >
         <div className="flex items-center gap-4">
           {isMobileView ? (
             <>

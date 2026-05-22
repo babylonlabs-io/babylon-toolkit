@@ -27,7 +27,7 @@ import { isVaultOwnedByWallet } from "./vaultWarnings";
  * These are expected during the early stages of a deposit and should not
  * be shown to users as errors. Polling should continue when these occur.
  */
-export const TRANSIENT_ERROR_PATTERNS = [
+const TRANSIENT_ERROR_PATTERNS = [
   "PegIn not found",
   "No transaction graphs found",
   "Vault or pegin transaction not found",

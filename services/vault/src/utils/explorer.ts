@@ -17,7 +17,7 @@ export function getBtcExplorerTxUrl(txHash: string): string {
   return `${btcConfig.mempoolApiUrl}/tx/${stripHexPrefix(txHash)}`;
 }
 
-export function getEthExplorerTxUrl(txHash: string): string {
+function getEthExplorerTxUrl(txHash: string): string {
   const { explorerUrl } = getNetworkConfigETH();
   return `${explorerUrl}/tx/${txHash}`;
 }
