@@ -19,6 +19,16 @@ export interface CascadeVault {
   btc: number;
 }
 
+/**
+ * A composite of one or more vaults treated as a single unit by the optimizer.
+ * The smallest vaults are merged into pre-joints so the bitmask DP stays within
+ * `MAX_DP_N` states regardless of how many vaults the position holds.
+ */
+export interface PreJointVaults<T extends CascadeVault> {
+  sum: number;
+  vaults: T[];
+}
+
 /** 1% tolerance for prefix walk coverage — avoids cliff flip at boundary */
 export const SEIZURE_TOL = 0.01;
 

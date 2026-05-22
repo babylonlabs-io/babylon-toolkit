@@ -366,11 +366,8 @@ export const COPY = {
     uncapped: "Uncapped",
   },
   banner: {
-    addVault: "Add BTC Vault",
     addCollateral: "Add Collateral",
-    addVaultWithAmount: (amountBtc: string) => `Add ${amountBtc} BTC Vault`,
-    addCollateralWithAmount: (amountBtc: string) =>
-      `Add ${amountBtc} BTC Collateral`,
+    repayDebt: "Repay Debt",
     applySuggestedOrder: "Apply Suggested Order",
   },
   reorder: {
@@ -399,6 +396,46 @@ export const COPY = {
     liquidationBonus: {
       label: "Liquidation Bonus (LB)",
       tooltip: "Bonus percentage awarded to liquidators on seized collateral.",
+    },
+  },
+  // Liquidation-notification warnings shown in the position banner. Mirrors the
+  // three warning types produced by the calculator (urgent / dust / weird-params).
+  liquidationWarnings: {
+    urgent: {
+      liquidatableTitle: "Liquidation can trigger now",
+      liquidatableDetail: (liqPriceUsd: string) =>
+        `BTC has dropped below your liquidation price ($${liqPriceUsd}). Anyone can liquidate your position at any moment.`,
+      liquidatableSuggestion:
+        "Add more BTC or repay debt immediately to bring your Health Factor back above 1.0.",
+      approachingTitle: (distancePct: string) =>
+        `Liquidation is ${distancePct}% away`,
+      approachingDetail: (liqPriceUsd: string, distancePct: string) =>
+        `A drop to $${liqPriceUsd} (just ${distancePct}% lower than now) triggers your first liquidation event.`,
+      approachingSuggestion:
+        "Add collateral or repay part of the debt to reduce your liquidation risk.",
+    },
+    // Standalone reorder suggestion (not a risk warning). Surfaced whenever the
+    // engine finds a safer liquidation order than the current on-chain order.
+    reorder: {
+      title: "BTC Vaults aren't in the safest liquidation order",
+      detail:
+        "Reordering puts a smaller BTC Vault first so less collateral is seized in the first liquidation event. Apply the suggested order to improve your partial-liquidation protection.",
+    },
+    dust: {
+      title: "Position too small to model",
+      detail:
+        "Below $1,000 the cascade simplifies — all BTC Vaults are shown as one liquidation event. Small positions don't have meaningful multi-event behavior.",
+    },
+    weirdParams: {
+      title: "Protocol parameters don't compute",
+      causeLiqPenalty: (liqPenalty: string, thf: string) =>
+        `maxLB × CF = ${liqPenalty}, but it must be less than THF (${thf}). At this combination the liquidation formula becomes undefined (division by a non-positive number).`,
+      causeThfTooLow: (thf: string, expectedHf: string) =>
+        `THF (${thf}) must be greater than expected HF (${expectedHf}) — otherwise liquidation has no valid target.`,
+      causeFractionOver: (fractionPct: string) =>
+        `With these settings, each liquidation would seize more than 100% of your collateral (${fractionPct}%). That's mathematically impossible — adjust CF, THF, or maxLB.`,
+      causeGeneric: (fractionPct: string) =>
+        `Seizure fraction computed as ${fractionPct}% — outside the valid range. Adjust CF, THF, or maxLB.`,
     },
   },
 } as const;

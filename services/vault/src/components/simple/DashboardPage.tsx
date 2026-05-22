@@ -19,11 +19,10 @@ import type { Asset } from "@/applications/aave/types";
 import type { RootLayoutContext } from "@/components/pages/RootLayout";
 import { PAGE_CONTENT_CLASS } from "@/components/shared/layoutClasses";
 import featureFlags from "@/config/featureFlags";
-import { useBTCWallet, useConnection, useETHWallet } from "@/context/wallet";
+import { useConnection, useETHWallet } from "@/context/wallet";
 import { useApplicationCap } from "@/hooks/useApplicationCap";
 import { useDashboardState } from "@/hooks/useDashboardState";
 import { usePegoutPolling } from "@/hooks/usePegoutPolling";
-import { calculateBalance, useUTXOs } from "@/hooks/useUTXOs";
 import { ClaimerPegoutStatusValue } from "@/models/pegoutStateMachine";
 import { formatBtcAmount, formatUsdValue } from "@/utils/formatting";
 
@@ -40,12 +39,7 @@ export function DashboardPage() {
   const navigate = useNavigate();
   const { openDeposit } = useOutletContext<RootLayoutContext>();
   const { address } = useETHWallet();
-  const { address: btcAddress } = useBTCWallet();
   const { isConnected } = useConnection();
-  const { availableUTXOs, isLoading: isLoadingUTXOs } = useUTXOs(btcAddress);
-  const btcBalanceBtc = isLoadingUTXOs
-    ? undefined
-    : calculateBalance(availableUTXOs) / 100_000_000;
 
   const [isWithdrawOpen, setIsWithdrawOpen] = useState(false);
   const [selectedVaultIds, setSelectedVaultIds] = useState<string[]>([]);
@@ -163,7 +157,6 @@ export function DashboardPage() {
             onRepay={handleRepay}
             result={debugResultOverride ?? undefined}
             statusOverride={debugStatusOverride ?? undefined}
-            btcBalanceBtc={btcBalanceBtc}
           />
         )}
 

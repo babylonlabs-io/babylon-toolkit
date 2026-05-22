@@ -27,19 +27,18 @@ export interface LiquidationGroup {
   btcRemainingAfter: number;
 }
 
-export type WarningType =
-  | "urgent"
-  | "cliff"
-  | "rebalance"
-  | "reorder"
-  | "dust"
-  | "weird-params";
+export type WarningType = "urgent" | "dust" | "weird-params";
 
 export interface Warning {
   type: WarningType;
   title: string;
   detail: string;
   suggestion?: string;
+  /**
+   * "soft" = advisory. The banner renders these in a muted gray tone instead of
+   * the default severity styling. Omit for standard severity.
+   */
+  tone?: "soft";
 }
 
 export interface CalculatorParams {
@@ -57,28 +56,12 @@ export interface CalculatorResult {
   currentHF: number;
   collateralValue: number;
   targetSeizureBtc: number;
-  recommendedSacrificialBtc: number;
   warnings: Warning[];
-  isFullLiquidation: boolean;
+  /**
+   * The liquidation-optimal vault order the calculator settled on. The group
+   * breakdown is computed against this order. Null on early exits (no debt /
+   * dust). Not surfaced in the banner yet — consumed by the (deferred)
+   * auto-reorder-on-EVM-action flow.
+   */
   suggestedVaultOrder: Vault[] | null;
-  /**
-   * For single-vault positions: exact size of sacrificial vault to add
-   * at position 1 so the existing vault becomes protected.
-   * Accounts for the fact that adding a vault increases total BTC
-   * and therefore increases target seizure.
-   */
-  suggestedNewVaultBtc: number | null;
-  /**
-   * For multi-vault rebalance: size of a new sacrificial vault to add.
-   * Combines with existing small vaults to form the sacrificial group,
-   * protecting the largest vault. null when liqFactor >= 1 or no improvement.
-   */
-  suggestedRebalanceVaultBtc: number | null;
-  /**
-   * The full vault order after adding the rebalance vault (includes the new vault).
-   * Used by the UI to set the correct order in one click.
-   */
-  suggestedRebalanceOrder: Vault[] | null;
-  /** How much additional BTC would be protected with optimal vault structure */
-  rebalanceImprovementBtc: number;
 }

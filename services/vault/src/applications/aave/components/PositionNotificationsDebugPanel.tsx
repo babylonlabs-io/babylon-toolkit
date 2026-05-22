@@ -24,6 +24,7 @@ const SEVERITY_COLORS: Record<BannerSeverity, string> = {
   red: "border-red-500 bg-red-50 text-red-900 dark:bg-red-950/30 dark:text-red-200",
   yellow:
     "border-yellow-500 bg-yellow-50 text-yellow-900 dark:bg-yellow-950/30 dark:text-yellow-200",
+  soft: "border-gray-300 bg-gray-50 text-gray-600 dark:border-gray-700 dark:bg-gray-900/30 dark:text-gray-400",
   green:
     "border-green-500 bg-green-50 text-green-900 dark:bg-green-950/30 dark:text-green-200",
   hidden:
@@ -32,10 +33,7 @@ const SEVERITY_COLORS: Record<BannerSeverity, string> = {
 
 const WARNING_TYPE_COLORS: Record<WarningType, string> = {
   urgent: "bg-red-600 text-white",
-  cliff: "bg-red-500 text-white",
   dust: "bg-gray-500 text-white",
-  reorder: "bg-yellow-500 text-black",
-  rebalance: "bg-yellow-500 text-black",
   "weird-params": "bg-blue-500 text-white",
 };
 
@@ -181,10 +179,6 @@ function ResultPanel({ result }: { result: CalculatorResult }) {
             Target Seizure:{" "}
             <strong>{fmt(result.targetSeizureBtc, 4)} BTC</strong>
           </div>
-          <div>
-            Rec. Sacrificial:{" "}
-            <strong>{fmt(result.recommendedSacrificialBtc, 4)} BTC</strong>
-          </div>
         </div>
       </details>
 
@@ -233,44 +227,15 @@ function ResultPanel({ result }: { result: CalculatorResult }) {
         </details>
       )}
 
-      {/* Suggestions */}
-      {(result.suggestedVaultOrder ||
-        result.suggestedNewVaultBtc !== null ||
-        result.suggestedRebalanceVaultBtc !== null) && (
+      {/* Suggested order (manual "Apply Suggested Order") */}
+      {result.suggestedVaultOrder && (
         <details open>
           <summary className="cursor-pointer font-medium">Suggestions</summary>
           <div className="mt-2 space-y-2 text-sm">
-            {result.suggestedVaultOrder && (
-              <VaultOrderDisplay
-                label="Suggested order"
-                vaults={result.suggestedVaultOrder}
-              />
-            )}
-            {result.suggestedNewVaultBtc !== null && (
-              <div>
-                Add sacrificial vault:{" "}
-                <strong>{fmt(result.suggestedNewVaultBtc, 4)} BTC</strong>
-              </div>
-            )}
-            {result.suggestedRebalanceVaultBtc !== null && (
-              <div>
-                Add rebalance vault:{" "}
-                <strong>{fmt(result.suggestedRebalanceVaultBtc, 4)} BTC</strong>
-              </div>
-            )}
-            {result.suggestedRebalanceOrder && (
-              <VaultOrderDisplay
-                label="Rebalance order"
-                vaults={result.suggestedRebalanceOrder}
-              />
-            )}
-            {result.rebalanceImprovementBtc > 0 && (
-              <div>
-                Improvement:{" "}
-                <strong>+{fmt(result.rebalanceImprovementBtc, 4)} BTC</strong>{" "}
-                additional protection
-              </div>
-            )}
+            <VaultOrderDisplay
+              label="Suggested order"
+              vaults={result.suggestedVaultOrder}
+            />
           </div>
         </details>
       )}
