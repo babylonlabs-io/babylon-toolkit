@@ -65,6 +65,18 @@ export function formatBtcAmount(btcAmount: number, decimals = 8): string {
 }
 
 /**
+ * Format a basis-points value as a percentage string for display.
+ * 1 bps = 0.01%. Renders up to two decimals with trailing zeros trimmed
+ * (e.g. 50 -> "0.5%", 9999 -> "99.99%", 100 -> "1%").
+ *
+ * @param bps - Value in basis points.
+ */
+export function formatBasisPointsAsPercent(bps: number): string {
+  const percent = parseFloat((bps / 100).toFixed(2));
+  return `${percent}%`;
+}
+
+/**
  * Get the current BTC coin symbol based on network
  * @returns "BTC" for mainnet, "sBTC" for signet
  */

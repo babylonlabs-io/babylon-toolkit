@@ -249,6 +249,22 @@ export const COPY = {
       providerSelectEmpty: "No vault providers available at this time.",
       providerStatusActive: "Active",
       providerStatusUnavailable: "Unavailable",
+      // Status label for a vault provider that has recently been unreachable
+      // per the health proxy. It stays selectable (health can recover).
+      providerStatusUnhealthy: "Recently unreachable",
+      // Tooltip on an unhealthy provider, explaining it stays selectable.
+      providerUnhealthyReason:
+        "This provider has recently been unreachable. You can still select it, but the deposit may need a retry.",
+      // Divider label above the group of unhealthy / rejected providers.
+      providerGroupUnavailableLabel: "Currently unavailable",
+      // Per-provider metric labels shown in the picker.
+      providerCommissionLabel: "Commission",
+      providerActiveLabel: "Active",
+      // Placeholder while a metric (commission, active BTC) is loading or
+      // could not be fetched.
+      providerMetricPlaceholder: "—",
+      // Accessible label / tooltip for the per-provider explorer link.
+      providerExplorerLinkLabel: "View vault provider on explorer",
       splitOptionDescription:
         "Split your BTC into multiple vaults for more flexibility. In liquidation, only part of your collateral may be affected.",
       noSplitOptionDescription:

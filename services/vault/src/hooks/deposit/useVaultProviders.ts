@@ -36,8 +36,19 @@ const EMPTY_VAULT_KEEPERS: VaultKeeper[] = [];
 const getProviderIdentity = (p: VaultProvider) => toIdentity(p.btcPubKey);
 
 export interface UseVaultProvidersResult {
-  /** Array of vault providers */
+  /**
+   * Vault providers for selection UI, excluding runtime-unhealthy VPs.
+   * Kept for callers that only want immediately-usable providers.
+   */
   vaultProviders: VaultProvider[];
+  /**
+   * Every vault provider — including runtime-unhealthy and metadata-rejected
+   * ones. The deposit picker uses this so unhealthy VPs can be shown (sorted
+   * to the bottom with a warning) rather than hidden.
+   */
+  allVaultProviders: VaultProvider[];
+  /** Lowercased Ethereum addresses of runtime-unhealthy VPs (per `/vp-health`). */
+  unhealthyVpIds: ReadonlySet<string>;
   /** Array of vault keepers (per-application) */
   vaultKeepers: VaultKeeper[];
   /** Loading state - true while fetching */
@@ -125,6 +136,8 @@ export function useVaultProviders(
 
   return {
     vaultProviders: vaultProvidersWithLogos,
+    allVaultProviders: allProvidersWithLogos,
+    unhealthyVpIds: unhealthyVps,
     vaultKeepers: data?.vaultKeepers ?? EMPTY_VAULT_KEEPERS,
     loading: isLoading,
     error: error as Error | null,

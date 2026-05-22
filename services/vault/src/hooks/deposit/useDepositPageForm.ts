@@ -8,6 +8,7 @@ import { useCallback, useMemo, useState } from "react";
 
 import type { PriceMetadata } from "@/clients/eth-contract/chainlink";
 import { useBtcPublicKey } from "@/hooks/useBtcPublicKey";
+import type { VaultProviderListItem } from "@/types/vaultProvider";
 
 import { useAaveConfig } from "../../applications/aave/context";
 import { useProtocolParamsContext } from "../../context/ProtocolParamsContext";
@@ -17,12 +18,16 @@ import {
   useETHWallet,
 } from "../../context/wallet";
 import { depositService } from "../../services/deposit";
+import { getEthExplorerAddressUrl } from "../../utils/explorer";
 import { formatProviderDisplayName } from "../../utils/formatting";
+import { sortVaultProviders } from "../../utils/sortVaultProviders";
 import { vaultProviderUnavailableReason } from "../../utils/vaultProviderStatus";
 import { useApplicationCap } from "../useApplicationCap";
 import { useApplications } from "../useApplications";
 import { usePrice, usePrices } from "../usePrices";
 import { calculateBalance, useUTXOs } from "../useUTXOs";
+import { useVaultProviderCommissions } from "../useVaultProviderCommissions";
+import { useVaultProviderStats } from "../useVaultProviderStats";
 
 import { useAllocationPlanning } from "./useAllocationPlanning";
 import { useDepositFormErrors } from "./useDepositFormErrors";
@@ -63,16 +68,12 @@ export interface UseDepositPageFormResult {
     logoUrl: string | null;
   }>;
   isLoadingApplications: boolean;
-  providers: Array<{
-    id: string;
-    name: string;
-    btcPubkey: string;
-    iconUrl?: string;
-    /** True when the provider's registered rpcUrl was rejected by the indexer. */
-    unavailable?: boolean;
-    /** Tooltip explaining why the provider is unavailable. */
-    unavailableReason?: string;
-  }>;
+  /**
+   * Vault providers for the picker — sorted (most recent successful peg-in
+   * first, problematic providers last) and enriched with commission, total
+   * active BTC, health, and explorer link.
+   */
+  providers: VaultProviderListItem[];
   isLoadingProviders: boolean;
 
   amountSats: bigint;
@@ -146,15 +147,29 @@ export function useDepositPageForm(): UseDepositPageFormResult {
   // rendering until loaded, so adapterAddress is available synchronously.
   const effectiveSelectedApplication = aaveConfig?.adapterAddress || "";
 
-  // Fetch providers based on selected application
+  // Fetch providers based on selected application. The picker uses the
+  // unfiltered list so runtime-unhealthy VPs can be shown (sorted to the
+  // bottom with a warning) rather than hidden entirely.
   const {
-    vaultProviders: rawProviders,
+    allVaultProviders: rawProviders,
+    unhealthyVpIds,
     vaultKeepers,
     loading: isLoadingProviders,
   } = useVaultProviders(effectiveSelectedApplication || undefined);
-  const providers = useMemo(() => {
-    return rawProviders.map((p) => {
+
+  // Stable VP id list driving the per-VP stats / commission lookups.
+  const vpIds = useMemo(() => rawProviders.map((p) => p.id), [rawProviders]);
+
+  // Activity stats (total active BTC, last successful peg-in) and commissions
+  // load independently and merge in when ready — providers render immediately.
+  const { statsById } = useVaultProviderStats(vpIds);
+  const { commissionsById } = useVaultProviderCommissions(vpIds);
+
+  const providers = useMemo<VaultProviderListItem[]>(() => {
+    const items: VaultProviderListItem[] = rawProviders.map((p) => {
       const unavailableReason = vaultProviderUnavailableReason(p);
+      const idLower = p.id.toLowerCase();
+      const stats = statsById.get(idLower);
       return {
         id: p.id,
         name: formatProviderDisplayName(p.name, p.id),
@@ -162,9 +177,15 @@ export function useDepositPageForm(): UseDepositPageFormResult {
         iconUrl: p.iconUrl,
         unavailable: unavailableReason !== undefined,
         unavailableReason,
+        unhealthy: unhealthyVpIds.has(idLower),
+        commissionBps: commissionsById.get(idLower),
+        totalActiveSats: stats?.totalActiveSats,
+        lastSuccessfulPeginAt: stats?.lastSuccessfulPeginAt,
+        explorerUrl: getEthExplorerAddressUrl(p.id),
       };
     });
-  }, [rawProviders]);
+    return sortVaultProviders(items);
+  }, [rawProviders, unhealthyVpIds, statsById, commissionsById]);
 
   // Derive selected VP's BTC pubkey and VK BTC pubkeys for challenger count
   const selectedVpBtcPubkey = useMemo(() => {
@@ -176,10 +197,6 @@ export function useDepositPageForm(): UseDepositPageFormResult {
     [vaultKeepers],
   );
 
-  const providerIds = useMemo(
-    () => providers.map((p: { id: string }) => p.id),
-    [providers],
-  );
   const { address: ethAddress } = useETHWallet();
   const { snapshot: capSnapshot, error: capError } = useApplicationCap(
     isWalletConnected ? ethAddress : undefined,
@@ -189,7 +206,7 @@ export function useDepositPageForm(): UseDepositPageFormResult {
   // in that window the validator skips the cap check so the user can still
   // interact with the form. The contract still enforces the cap at submit.
   const validation = useDepositValidation({
-    availableProviders: providerIds,
+    availableProviders: vpIds,
     effectiveRemaining: capSnapshot?.effectiveRemaining ?? null,
     capUnavailable: capError !== null,
   });

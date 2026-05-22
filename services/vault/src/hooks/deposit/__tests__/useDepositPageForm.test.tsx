@@ -235,7 +235,7 @@ vi.mock("../../useApplications", () => ({
 
 vi.mock("../useVaultProviders", () => ({
   useVaultProviders: vi.fn(() => ({
-    vaultProviders: [
+    allVaultProviders: [
       {
         id: "0x1234567890abcdef1234567890abcdef12345678",
         btcPubKey: "pubkey1",
@@ -245,7 +245,25 @@ vi.mock("../useVaultProviders", () => ({
         btcPubKey: "pubkey2",
       },
     ],
+    unhealthyVpIds: new Set<string>(),
     vaultKeepers: [{ btcPubKey: "0xVaultKeeperKey1" }],
+    loading: false,
+  })),
+}));
+
+// Per-VP stats and commissions load via their own queries; the form-level
+// test does not exercise them, so stub both to empty (matches the
+// "not yet loaded" state — the picker shows placeholders).
+vi.mock("../../useVaultProviderStats", () => ({
+  useVaultProviderStats: vi.fn(() => ({
+    statsById: new Map(),
+    loading: false,
+  })),
+}));
+
+vi.mock("../../useVaultProviderCommissions", () => ({
+  useVaultProviderCommissions: vi.fn(() => ({
+    commissionsById: new Map(),
     loading: false,
   })),
 }));

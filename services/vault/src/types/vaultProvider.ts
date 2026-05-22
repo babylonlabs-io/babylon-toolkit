@@ -75,6 +75,41 @@ export interface VaultProvider {
 }
 
 /**
+ * A vault provider as rendered in the deposit picker — the base registry
+ * fields enriched with the runtime data shown in the list (health,
+ * commission, total active BTC) and pre-computed sort/link metadata.
+ *
+ * Commission and totalActiveSats are `undefined` while their async source
+ * (on-chain read / indexer query) is still loading or has failed; the
+ * picker renders a placeholder in that case. These are display-only values
+ * and never feed transaction construction.
+ */
+export interface VaultProviderListItem {
+  /** Provider's Ethereum address */
+  id: string;
+  /** Formatted display name */
+  name: string;
+  /** Provider's BTC public key (hex), needed for downstream challenger math */
+  btcPubkey: string;
+  /** Provider's icon URL, if known */
+  iconUrl?: string;
+  /** True when the provider's registered rpcUrl was rejected by the indexer */
+  unavailable: boolean;
+  /** Tooltip explaining the metadata rejection, when `unavailable` is true */
+  unavailableReason?: string;
+  /** True when the VP is runtime-unhealthy per the `/vp-health` proxy */
+  unhealthy: boolean;
+  /** VP commission in basis points (on-chain). `undefined` while loading/unavailable. */
+  commissionBps?: number;
+  /** Total satoshis in active (status `available`) vaults via this VP. `undefined` while loading/unavailable. */
+  totalActiveSats?: bigint;
+  /** ms timestamp of this VP's most recently activated vault; `undefined` if none. */
+  lastSuccessfulPeginAt?: number;
+  /** ETH explorer URL for the VP's address */
+  explorerUrl: string;
+}
+
+/**
  * Response from fetchAppProviders containing per-application data only.
  * Includes pre-computed latest-version keepers for the common case,
  * plus raw items with version info for callers that need historical data.

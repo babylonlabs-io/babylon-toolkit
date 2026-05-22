@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { getNetworkConfigBTC } from "@/config";
 
 import {
+  formatBasisPointsAsPercent,
   formatBtcAmount,
   formatCompactUsd,
   formatDateTime,
@@ -330,6 +331,24 @@ describe("Formatting Utilities", () => {
 
     it("formats millions as '$Nm'", () => {
       expect(formatCompactUsd(1_500_000)).toBe("$1.5m");
+    });
+  });
+
+  describe("formatBasisPointsAsPercent", () => {
+    it("converts basis points to a percentage", () => {
+      expect(formatBasisPointsAsPercent(50)).toBe("0.5%");
+    });
+
+    it("trims trailing zeros for whole percentages", () => {
+      expect(formatBasisPointsAsPercent(100)).toBe("1%");
+    });
+
+    it("keeps two decimals for the smallest commission step", () => {
+      expect(formatBasisPointsAsPercent(1)).toBe("0.01%");
+    });
+
+    it("formats the protocol-maximum commission", () => {
+      expect(formatBasisPointsAsPercent(9999)).toBe("99.99%");
     });
   });
 });
