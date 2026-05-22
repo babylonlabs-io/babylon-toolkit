@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { Address, Hex } from "viem";
 
 import { ArtifactDownloadModal } from "@/components/deposit/ArtifactDownloadModal";
@@ -8,7 +8,12 @@ import {
 } from "@/context/deposit/PeginPollingContext";
 import { COPY } from "@/copy";
 import { DepositFlowStep } from "@/hooks/deposit/depositFlowSteps";
-import { getPeginDisplayStep, PeginAction } from "@/models/peginStateMachine";
+import {
+  ContractStatus,
+  getPeginDisplayStep,
+  LocalStorageStatus,
+  PeginAction,
+} from "@/models/peginStateMachine";
 import type { VaultActivity } from "@/types/activity";
 import { hasArtifactsDownloaded } from "@/utils/artifactDownloadStorage";
 
@@ -25,6 +30,25 @@ interface PostDepositContinuationViewProps {
   depositorEthAddress: Address;
   btcPublicKey: string | undefined;
   onClose: () => void;
+}
+
+function isVaultPastActivation(
+  contractStatus: ContractStatus | undefined,
+  localStatus: LocalStorageStatus | undefined,
+): boolean {
+  if (contractStatus === undefined) return false;
+  if (
+    contractStatus === ContractStatus.VERIFIED &&
+    localStatus === LocalStorageStatus.CONFIRMED
+  ) {
+    return true;
+  }
+  return (
+    contractStatus === ContractStatus.ACTIVE ||
+    contractStatus === ContractStatus.REDEEMED ||
+    contractStatus === ContractStatus.LIQUIDATED ||
+    contractStatus === ContractStatus.DEPOSITOR_WITHDRAWN
+  );
 }
 
 export function PostDepositContinuationView({
@@ -59,6 +83,22 @@ export function PostDepositContinuationView({
       return next;
     });
   }, []);
+
+  const currentContractStatus = pollingResult?.peginState?.contractStatus;
+  const currentLocalStatus = pollingResult?.peginState?.localStatus;
+
+  useEffect(() => {
+    if (!currentVaultId) return;
+    if (isVaultPastActivation(currentContractStatus, currentLocalStatus)) {
+      advanceFrom(currentVaultIndex);
+    }
+  }, [
+    currentVaultId,
+    currentContractStatus,
+    currentLocalStatus,
+    currentVaultIndex,
+    advanceFrom,
+  ]);
 
   if (!currentVaultId) {
     return (
@@ -151,14 +191,13 @@ export function PostDepositContinuationView({
       );
     }
 
-    const isLastVault = currentVaultIndex >= vaultIds.length - 1;
     return (
       <ResumeActivationContent
         key={`activate-${currentVaultId}`}
         activity={activity}
         depositorEthAddress={depositorEthAddress}
         onClose={onClose}
-        onSuccess={isLastVault ? onClose : () => advanceFrom(currentVaultIndex)}
+        onSuccess={refetch}
       />
     );
   }

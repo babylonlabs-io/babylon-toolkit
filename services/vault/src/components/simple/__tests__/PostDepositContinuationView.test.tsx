@@ -35,6 +35,23 @@ vi.mock("@/models/peginStateMachine", () => ({
     ACTIVATE_VAULT: "ACTIVATE_VAULT",
     NONE: "NONE",
   },
+  ContractStatus: {
+    PENDING: 0,
+    VERIFIED: 1,
+    ACTIVE: 2,
+    REDEEMED: 3,
+    LIQUIDATED: 4,
+    INVALID: 5,
+    DEPOSITOR_WITHDRAWN: 6,
+    EXPIRED: 7,
+  },
+  LocalStorageStatus: {
+    PENDING: "pending",
+    PAYOUT_SIGNED: "payout_signed",
+    CONFIRMING: "confirming",
+    CONFIRMED: "confirmed",
+    REFUND_BROADCAST: "refund_broadcast",
+  },
   getPeginDisplayStep: vi.fn(() => "AWAIT_BTC_CONFIRMATION"),
 }));
 
@@ -74,13 +91,15 @@ vi.mock("../DepositProgressView", () => ({
 
 function resumeMock(testId: string) {
   return ({
+    activity,
     onSuccess,
     onClose,
   }: {
+    activity: VaultActivity;
     onSuccess: () => void;
     onClose: () => void;
   }) => (
-    <div data-testid={testId}>
+    <div data-testid={testId} data-vault={activity?.id}>
       <button
         type="button"
         data-testid={`${testId}-success`}
@@ -138,6 +157,8 @@ function activityWithId(id: string): VaultActivity {
 
 function resultWith(opts: {
   availableActions: string[];
+  contractStatus?: number;
+  localStatus?: string;
   displayVariant?: "pending" | "active" | "inactive" | "warning";
   message?: string;
 }) {
@@ -146,7 +167,8 @@ function resultWith(opts: {
     loading: false,
     error: null,
     peginState: {
-      contractStatus: 0,
+      contractStatus: opts.contractStatus ?? 0,
+      localStatus: opts.localStatus,
       availableActions: opts.availableActions,
       displayVariant: opts.displayVariant ?? "pending",
       displayLabel: "x",
@@ -249,29 +271,105 @@ describe("PostDepositContinuationView", () => {
     expect(queryByTestId("artifact")).toBeNull();
   });
 
-  it("closes the modal after the last vault activates", () => {
+  it("shows the completed view once the last vault finishes activating", () => {
     mockHasArtifactsDownloaded.mockReturnValue(true);
-    mockUseDepositPollingResult.mockReturnValue(
-      resultWith({ availableActions: [PeginAction.ACTIVATE_VAULT] }),
+    const VERIFIED = 1;
+    const states = new Map<string, ReturnType<typeof resultWith>>([
+      [
+        "0xvault0",
+        resultWith({
+          availableActions: [PeginAction.ACTIVATE_VAULT],
+          contractStatus: VERIFIED,
+        }),
+      ],
+    ]);
+    mockUseDepositPollingResult.mockImplementation((id: string) =>
+      states.get(id),
     );
-    const onClose = vi.fn();
-    fireEvent.click(renderView({ onClose }).getByTestId("activate-success"));
-    expect(onClose).toHaveBeenCalledTimes(1);
+
+    const { getByTestId, rerender } = renderView({
+      vaultIds: ["0xvault0" as Hex],
+    });
+    expect(getByTestId("activate")).toBeTruthy();
+
+    // Activation submitted: the polling layer reports the vault as
+    // VERIFIED + CONFIRMED, which drops ACTIVATE_VAULT from its actions.
+    states.set(
+      "0xvault0",
+      resultWith({
+        availableActions: [PeginAction.NONE],
+        contractStatus: VERIFIED,
+        localStatus: "confirmed",
+      }),
+    );
+    rerender(
+      <PostDepositContinuationView
+        vaultIds={["0xvault0" as Hex]}
+        activities={[activityWithId("0xvault0")]}
+        depositorEthAddress={ETH}
+        btcPublicKey="btcpub"
+        onClose={vi.fn()}
+      />,
+    );
+
+    // With no vault left to continue, the modal lands on the completed view
+    // rather than parking on a generic "awaiting confirmation" step.
+    expect(getByTestId("step").textContent).toBe("COMPLETED");
+    expect(getByTestId("complete").textContent).toBe("true");
   });
 
-  it("advances to the next vault after the first vault activates", () => {
+  it("advances to the next vault once the current vault finishes activating", () => {
     mockHasArtifactsDownloaded.mockReturnValue(true);
-    mockUseDepositPollingResult.mockReturnValue(
-      resultWith({ availableActions: [PeginAction.ACTIVATE_VAULT] }),
+    const VERIFIED = 1;
+    const states = new Map<string, ReturnType<typeof resultWith>>([
+      [
+        "0xvault0",
+        resultWith({
+          availableActions: [PeginAction.ACTIVATE_VAULT],
+          contractStatus: VERIFIED,
+        }),
+      ],
+      [
+        "0xvault1",
+        resultWith({
+          availableActions: [PeginAction.ACTIVATE_VAULT],
+          contractStatus: VERIFIED,
+        }),
+      ],
+    ]);
+    mockUseDepositPollingResult.mockImplementation((id: string) =>
+      states.get(id),
     );
-    const { getByTestId } = renderView({
+
+    const props = {
       vaultIds: ["0xvault0" as Hex, "0xvault1" as Hex],
       activities: [activityWithId("0xvault0"), activityWithId("0xvault1")],
-      onClose: vi.fn(),
-    });
-    // First vault: activation success advances; the second vault then activates.
-    fireEvent.click(getByTestId("activate-success"));
-    expect(getByTestId("activate")).toBeTruthy();
+    };
+    const { getByTestId, rerender } = renderView(props);
+    expect(getByTestId("activate").getAttribute("data-vault")).toBe("0xvault0");
+
+    // First vault's activation completes — its actions drop to NONE while the
+    // optimistic CONFIRMED status is reflected by the polling layer.
+    states.set(
+      "0xvault0",
+      resultWith({
+        availableActions: [PeginAction.NONE],
+        contractStatus: VERIFIED,
+        localStatus: "confirmed",
+      }),
+    );
+    rerender(
+      <PostDepositContinuationView
+        vaultIds={props.vaultIds}
+        activities={props.activities}
+        depositorEthAddress={ETH}
+        btcPublicKey="btcpub"
+        onClose={vi.fn()}
+      />,
+    );
+
+    // The continuation must advance to the second vault, not stall on the first.
+    expect(getByTestId("activate").getAttribute("data-vault")).toBe("0xvault1");
   });
 
   it("surfaces a closeable error on a warning state with no signing popup", () => {
