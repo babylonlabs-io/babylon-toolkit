@@ -802,4 +802,74 @@ describe("useDepositPageForm", () => {
       expect(result.current.isLoadingProviders).toBe(false);
     });
   });
+
+  describe("Max pinning sync with vaultCount", () => {
+    // Mocks resolve to:
+    //   maxDeposit (fee-adjusted balance) = 798500n
+    //   depositorClaimValue                = 35_000n
+    // So adjustedMaxDepositSats is:
+    //   vaultCount 1 -> 798500 - 1*35000 = 763500n  ("0.007635" BTC)
+    //   vaultCount 2 -> 798500 - 2*35000 = 728500n  ("0.007285" BTC)
+    it("keeps a pinned Max amount in sync when partial liquidation enables (vaultCount 1->2)", async () => {
+      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
+
+      act(() => {
+        result.current.setFormData({
+          selectedProvider: "0x1234567890abcdef1234567890abcdef12345678",
+        });
+      });
+
+      await waitFor(() => {
+        expect(result.current.maxDepositSats).toBe(763500n);
+      });
+
+      act(() => {
+        result.current.applyMaxAmount();
+      });
+
+      expect(result.current.formData.amountBtc).toBe("0.007635");
+
+      act(() => {
+        result.current.setIsPartialLiquidation(true);
+      });
+
+      await waitFor(() => {
+        expect(result.current.maxDepositSats).toBe(728500n);
+      });
+      expect(result.current.formData.amountBtc).toBe("0.007285");
+    });
+
+    it("detaches the Max pin on a manual amount edit so a later max change does not overwrite it", async () => {
+      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
+
+      act(() => {
+        result.current.setFormData({
+          selectedProvider: "0x1234567890abcdef1234567890abcdef12345678",
+        });
+      });
+
+      await waitFor(() => {
+        expect(result.current.maxDepositSats).toBe(763500n);
+      });
+
+      act(() => {
+        result.current.applyMaxAmount();
+      });
+      expect(result.current.formData.amountBtc).toBe("0.007635");
+
+      act(() => {
+        result.current.setFormData({ amountBtc: "0.001" });
+      });
+      expect(result.current.formData.amountBtc).toBe("0.001");
+
+      act(() => {
+        result.current.setIsPartialLiquidation(true);
+      });
+
+      await waitFor(() => {
+        expect(result.current.maxDepositSats).toBe(728500n);
+      });
+      expect(result.current.formData.amountBtc).toBe("0.001");
+    });
+  });
 });

@@ -176,9 +176,13 @@ export function DepositForm({
   // Fee-adjusted depositable max in satoshis. Falls back to the raw balance
   // while the fee estimate is still loading.
   const maxDepositSatsOrBalance = maxDepositSats ?? btcBalance;
-  const maxDepositDisplay = Number(
-    depositService.formatSatoshisToBtc(maxDepositSatsOrBalance),
-  );
+  // While the fee estimate is loading, the fallback to the raw balance would
+  // briefly show more than is actually depositable. Show a placeholder instead
+  // so the displayed Max never overstates the cap.
+  const maxDepositLabel =
+    maxDepositSats == null
+      ? "-- BTC"
+      : `${Number(depositService.formatSatoshisToBtc(maxDepositSats))} BTC`;
 
   // The slider operates in satoshis (integer values, 1-sat step) so the thumb
   // can land exactly on the max. A coarse BTC step would leave the sat-precise
@@ -201,8 +205,10 @@ export function DepositForm({
   // When the amount exceeds the depositable maximum the CTA already reports
   // "Insufficient balance"; suppress the duplicate fee-row error so the
   // breakdown stays clean. Genuine fee-estimation errors still surface.
-  const amountExceedsMax =
-    amountSats > 0n && maxDepositSats != null && amountSats > maxDepositSats;
+  const exceedsMax = depositService.amountExceedsMax(
+    amountSats,
+    maxDepositSats ?? null,
+  );
 
   const {
     btcFee,
@@ -214,7 +220,7 @@ export function DepositForm({
     btcPrice,
     hasPriceFetchError,
     isLoadingFee,
-    feeError: amountExceedsMax ? null : feeError,
+    feeError: exceedsMax ? null : feeError,
     hasAmount: !!amount && amount !== "0",
   });
 
@@ -267,7 +273,7 @@ export function DepositForm({
             )
           }
           sliderVariant="primary"
-          leftField={{ label: "Max", value: `${maxDepositDisplay} BTC` }}
+          leftField={{ label: "Max", value: maxDepositLabel }}
           rightField={{ value: usdValue }}
           onMaxClick={onMaxClick}
           inputClassName="h-10 w-auto rounded-lg bg-primary-contrast px-4 [field-sizing:content]"

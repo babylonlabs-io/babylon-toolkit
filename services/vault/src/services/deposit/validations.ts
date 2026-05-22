@@ -127,6 +127,20 @@ export interface DepositCtaState {
   label: string;
 }
 
+/**
+ * True when a non-zero entered amount exceeds the known fee-adjusted
+ * depositable maximum. Returns false while `maxDepositSats` is null (still
+ * loading) so the caller doesn't gate behavior on an unknown cap.
+ */
+export function amountExceedsMax(
+  amountSats: bigint,
+  maxDepositSats: bigint | null,
+): boolean {
+  return (
+    amountSats > 0n && maxDepositSats != null && amountSats > maxDepositSats
+  );
+}
+
 export function getDepositButtonLabel(
   params: DepositFormValidityParams,
 ): string {
@@ -187,11 +201,7 @@ export function getDepositCtaState(params: DepositCtaParams): DepositCtaState {
   // An amount that exceeds the fee-adjusted depositable balance can never be
   // funded — surface it before the provider prompt, since selecting a provider
   // cannot make an unfundable amount fundable.
-  if (
-    params.amountSats > 0n &&
-    params.maxDepositSats != null &&
-    params.amountSats > params.maxDepositSats
-  ) {
+  if (amountExceedsMax(params.amountSats, params.maxDepositSats)) {
     return { disabled: true, label: "Insufficient balance" };
   }
 
