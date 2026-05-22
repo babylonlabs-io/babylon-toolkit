@@ -1,11 +1,22 @@
 import type { Dispatch, SetStateAction } from "react";
 import { useEffect, useRef } from "react";
 
+import { WALLET_MODAL_OPEN_EVENT } from "@/constants/walletEvents";
 import { createWalletConnector } from "@/core";
 import type { HashMap, IProvider } from "@/core/types";
 import type { WalletConnector } from "@/core/WalletConnector";
 import metadata from "@/core/wallets";
 import type { ChainConfigArr, Connectors } from "@/context/Chain.context";
+
+/** UniSat dispatches this on `window` once its provider is ready. */
+const UNISAT_READY_EVENT = "unisat#initialized";
+
+/**
+ * Fallback delay for the cold-start re-detection when no wallet emits a ready
+ * event. Long enough to cover UniSat's phishing-detection await, short enough
+ * that a genuinely-uninstalled wallet isn't shown as "checking" for long.
+ */
+const FALLBACK_MS = 3000;
 
 interface UseWalletRedetectionParams {
   /** Current connector map from `ChainProvider` state. */
@@ -32,12 +43,19 @@ interface UseWalletRedetectionParams {
  * wallet stuck at `installed: false` — the wallet modal then shows it as a
  * download link instead of a connect button.
  *
- * Once the connectors are built, this re-detects exactly once — on whichever
- * fires first: UniSat's `unisat#initialized` event, or a short fallback
- * timeout (covers wallets that emit no ready event). Same approach wagmi and
- * MetaMask's `detect-provider` use for this race. Only not-yet-connected
- * chains with an undetected wallet are rebuilt, and the merge re-checks
- * connection state, so a live connection is never dropped.
+ * Once the connectors are built, this re-detects on whichever of these fires:
+ * UniSat's `unisat#initialized` event, a short fallback timeout (covers
+ * wallets that emit no ready event), or every time the wallet modal opens
+ * (`WALLET_MODAL_OPEN_EVENT`) — the last one covers an extension that injects
+ * later than the fallback, so it still flips to a connect button by the time
+ * the user looks at the list. Same event-or-timeout approach wagmi and
+ * MetaMask's `detect-provider` use for this race.
+ *
+ * Re-detection is idempotent and safe to run repeatedly: only not-yet-connected
+ * chains with an undetected wallet are rebuilt (it bails immediately when there
+ * are none), and the merge re-checks connection state, so a live connection is
+ * never dropped. A single in-flight guard prevents overlapping passes (e.g. the
+ * event and the timeout firing close together).
  *
  * The rebuild passes `persistent: false` — it only re-detects providers and
  * never auto-reconnects a stored session (which would race a manual connect
@@ -63,17 +81,23 @@ export function useWalletRedetection({
 
   useEffect(() => {
     // Arm only after `init()` has populated connectors — otherwise a fast
-    // event/timeout could consume the one re-detect against an empty set.
+    // event/timeout could consume a re-detect against an empty set.
     if (!connectorsBuilt) return;
 
-    let ran = false; // dedupe: event vs. fallback timeout
+    let inFlight = false; // prevent overlapping passes (event vs. timeout vs. modal-open)
     let cancelled = false; // effect cleaned up
-    const FALLBACK_MS = 3000;
 
     const redetect = async () => {
-      if (ran || cancelled) return;
-      ran = true;
+      if (inFlight || cancelled) return;
+      inFlight = true;
+      try {
+        await runRedetection();
+      } finally {
+        inFlight = false;
+      }
+    };
 
+    const runRedetection = async () => {
       const stale = (
         Object.values(connectorsRef.current).filter(Boolean) as WalletConnector<string, IProvider, any>[]
       ).filter((c) => !c.connectedWallet && c.wallets.some((w) => w.id !== "injectable" && !w.installed));
@@ -122,12 +146,22 @@ export function useWalletRedetection({
 
     const timer = setTimeout(redetect, FALLBACK_MS);
     const hasWindow = typeof window !== "undefined";
-    if (hasWindow) window.addEventListener("unisat#initialized", redetect, { once: true });
+    if (hasWindow) {
+      // Cold-start race: re-detect once the extension signals it is ready.
+      window.addEventListener(UNISAT_READY_EVENT, redetect, { once: true });
+      // Catch-all for an injection slower than FALLBACK_MS: re-detect whenever
+      // the user opens the modal. Repeatable (not `once`); the in-flight guard
+      // and the no-stale-wallets early-return keep it cheap when nothing changed.
+      window.addEventListener(WALLET_MODAL_OPEN_EVENT, redetect);
+    }
 
     return () => {
       cancelled = true;
       clearTimeout(timer);
-      if (hasWindow) window.removeEventListener("unisat#initialized", redetect);
+      if (hasWindow) {
+        window.removeEventListener(UNISAT_READY_EVENT, redetect);
+        window.removeEventListener(WALLET_MODAL_OPEN_EVENT, redetect);
+      }
     };
   }, [connectorsBuilt, config, context, storage, disabledWallets, setConnectors]);
 }

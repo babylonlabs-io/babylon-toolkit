@@ -34,6 +34,15 @@ const DISABLED_WALLETS: string[] = [
 
 const context = typeof window !== "undefined" ? window : {};
 
+// A late-injecting BTC extension (e.g. UniSat) can emit a transient
+// `disconnect`/account-change event while its service worker wakes right after
+// a page (re)load. Treating that blip as a real disconnect calls
+// `disconnectAll()` and wipes the persisted session for BOTH wallets, forcing a
+// full reconnect. Ignore wallet-reset events fired within this window of mount;
+// genuine user disconnects and account switches happen later in active use, so
+// they are unaffected. Sized to match the wallet-connector's injection fallback.
+const WALLET_RESET_STABILIZATION_WINDOW_MS = 3000;
+
 /**
  * Component that provides wallet-specific providers with cross-disconnect logic
  */
@@ -41,8 +50,23 @@ function WalletProviders({ children }: PropsWithChildren) {
   const { disconnect: disconnectAll } = useWalletConnect();
   // Guard against re-entrancy when disconnectAll triggers disconnect events
   const isDisconnectingRef = useRef(false);
+  // Wall-clock time this provider mounted, used to ignore transient wallet
+  // events during the post-(re)load re-injection window (see constant above).
+  const mountedAtRef = useRef(Date.now());
 
   const handleWalletReset = useCallback(async () => {
+    if (
+      Date.now() - mountedAtRef.current <
+      WALLET_RESET_STABILIZATION_WINDOW_MS
+    ) {
+      logger.info(
+        "Ignoring wallet reset within post-load stabilization window",
+        {
+          category: "Wallet connection",
+        },
+      );
+      return;
+    }
     if (isDisconnectingRef.current) return;
     isDisconnectingRef.current = true;
     try {
