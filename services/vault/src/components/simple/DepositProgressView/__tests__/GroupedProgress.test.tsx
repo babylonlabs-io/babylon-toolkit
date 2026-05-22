@@ -102,4 +102,30 @@ describe("GroupedProgress", () => {
       screen.getAllByText(COPY.deposit.groups.stepCounter(4, 4)),
     ).toHaveLength(2);
   });
+
+  describe("accessibility", () => {
+    it("labels the active sub-step for screen readers", () => {
+      // Step 7 -> "Sign WOTS" group active; step 7 is the active sub-step.
+      render(<GroupedProgress steps={steps} currentStep={7} />);
+
+      expect(
+        screen.getByLabelText(COPY.deposit.a11y.stepActive(7)),
+      ).toBeInTheDocument();
+    });
+
+    it("exposes each group's status to screen readers", () => {
+      render(<GroupedProgress steps={steps} currentStep={7} />);
+
+      // Register deposit done, Sign WOTS active, the latter two not started.
+      expect(
+        screen.getByLabelText(COPY.deposit.a11y.groupStatus.completed),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByLabelText(COPY.deposit.a11y.groupStatus.active),
+      ).toBeInTheDocument();
+      expect(
+        screen.getAllByLabelText(COPY.deposit.a11y.groupStatus.upcoming),
+      ).toHaveLength(2);
+    });
+  });
 });

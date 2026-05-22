@@ -15,10 +15,11 @@ interface GroupHeaderProps {
 
 function GroupIndicator({ status }: { status: GroupStatus }) {
   const base = "flex h-8 w-8 shrink-0 items-center justify-center rounded-full";
+  const ariaLabel = COPY.deposit.a11y.groupStatus[status];
 
   if (status === "completed") {
     return (
-      <div className={twMerge(base, "bg-primary-light")}>
+      <div className={twMerge(base, "bg-primary-light")} aria-label={ariaLabel}>
         <IoCheckmarkSharp size={16} className="text-accent-contrast" />
       </div>
     );
@@ -26,14 +27,20 @@ function GroupIndicator({ status }: { status: GroupStatus }) {
 
   if (status === "active") {
     return (
-      <div className={twMerge(base, "border-2 border-primary-light")}>
+      <div
+        className={twMerge(base, "border-2 border-primary-light")}
+        aria-label={ariaLabel}
+      >
         <Loader size={16} className="text-primary-light" />
       </div>
     );
   }
 
   return (
-    <div className={twMerge(base, "border-2 border-secondary-strokeDark")} />
+    <div
+      className={twMerge(base, "border-2 border-secondary-strokeDark")}
+      aria-label={ariaLabel}
+    />
   );
 }
 

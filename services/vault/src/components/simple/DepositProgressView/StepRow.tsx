@@ -3,6 +3,8 @@ import type { ReactNode } from "react";
 import { IoCheckmarkSharp } from "react-icons/io5";
 import { twMerge } from "tailwind-merge";
 
+import { COPY } from "@/copy";
+
 export type StepRowState = "completed" | "active" | "pending";
 
 function StepCircle({
@@ -24,7 +26,10 @@ function StepCircle({
 
   if (state === "active") {
     return (
-      <div className={twMerge(base, "border-2 border-primary-light")}>
+      <div
+        className={twMerge(base, "border-2 border-primary-light")}
+        aria-label={COPY.deposit.a11y.stepActive(number)}
+      >
         <Loader size={16} className="text-primary-light" />
       </div>
     );

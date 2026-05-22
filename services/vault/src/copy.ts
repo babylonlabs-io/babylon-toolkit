@@ -157,6 +157,16 @@ export const COPY = {
       stepCounter: (completed: number, total: number) =>
         `${completed}/${total}`,
     },
+    // Screen-reader-only labels: the step/section status is otherwise conveyed
+    // purely visually (spinner, checkmark, hollow circle).
+    a11y: {
+      stepActive: (number: number) => `Step ${number} active`,
+      groupStatus: {
+        completed: "Completed",
+        active: "In progress",
+        upcoming: "Not started",
+      },
+    },
     progress: {
       heading: "Deposit Progress",
       durationEstimate: "(~60 min)",
