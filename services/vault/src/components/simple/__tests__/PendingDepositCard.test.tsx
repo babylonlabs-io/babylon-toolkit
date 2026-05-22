@@ -160,3 +160,45 @@ describe("PendingDepositCard — step gating during first load", () => {
     expect(screen.queryByText(/^Step \d+ of \d+$/)).not.toBeInTheDocument();
   });
 });
+
+describe("PendingDepositCard — payout signing step number", () => {
+  const readyToSignPayoutsState = () => ({
+    contractStatus: ContractStatus.PENDING,
+    availableActions: [PeginAction.SIGN_PAYOUT_TRANSACTIONS],
+    localStatus: undefined,
+    displayVariant: "pending",
+    displayLabel: "Signing required",
+    message: COPY.pegin.messages.payoutsReadyForSigning,
+  });
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockIsArtifactDownloadAvailable.mockReturnValue(false);
+    mockGetActionStatus.mockReturnValue({
+      type: "available",
+      action: {
+        action: PeginAction.SIGN_PAYOUT_TRANSACTIONS,
+        label: COPY.pegin.primaryAction.SIGN_PAYOUT_TRANSACTIONS,
+      },
+    });
+  });
+
+  it("shows step 9 (authenticate session) while it is still waiting to sign", () => {
+    // The deposit is resting before it acts. Clicking "Sign Payouts" runs the
+    // auth-anchor step (9) first, so the card sits on step 9 with that step's
+    // label — not step 10, which would imply the auth-anchor step is done. The
+    // action button still reads "Sign Payouts".
+    mockUseDepositPollingResult.mockReturnValue({
+      loading: false,
+      peginState: readyToSignPayoutsState(),
+    });
+    renderCard(false);
+    expect(screen.getByText("Step 9 of 16")).toBeInTheDocument();
+    expect(
+      screen.getByText(COPY.deposit.steps.authenticateSession),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /sign payouts/i }),
+    ).toBeInTheDocument();
+  });
+});

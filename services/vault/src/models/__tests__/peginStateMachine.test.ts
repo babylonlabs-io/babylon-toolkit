@@ -568,7 +568,11 @@ describe("peginStateMachine", () => {
       expect(getPeginDisplayStep(state)).toBe(DepositFlowStep.SUBMIT_WOTS_KEYS);
     });
 
-    it("maps a pending payout-signing action to SIGN_PAYOUTS", () => {
+    it("maps a pending payout-signing action to SIGN_AUTH_ANCHOR (the next step)", () => {
+      // A deposit waiting to sign payouts is resting before it acts: clicking
+      // "Sign Payouts" runs the auth-anchor step first, so the deposit is
+      // positioned on SIGN_AUTH_ANCHOR, not SIGN_PAYOUTS (which would count the
+      // auth-anchor step as already done).
       const state = getPeginState(ContractStatus.PENDING, {
         localStatus: LocalStorageStatus.CONFIRMING,
         pendingIngestion: false,
@@ -577,7 +581,7 @@ describe("peginStateMachine", () => {
       expect(state.availableActions).toContain(
         PeginAction.SIGN_PAYOUT_TRANSACTIONS,
       );
-      expect(getPeginDisplayStep(state)).toBe(DepositFlowStep.SIGN_PAYOUTS);
+      expect(getPeginDisplayStep(state)).toBe(DepositFlowStep.SIGN_AUTH_ANCHOR);
     });
 
     it("maps provider-processing-with-no-action to AWAIT_PAYOUT_TRANSACTIONS", () => {
