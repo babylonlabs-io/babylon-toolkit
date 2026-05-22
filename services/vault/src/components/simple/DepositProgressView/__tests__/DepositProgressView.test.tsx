@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
+import { COPY } from "@/copy";
 import { DepositFlowStep } from "@/hooks/deposit/depositFlowSteps/types";
 
 import { DepositProgressView } from "../DepositProgressView";
@@ -25,8 +26,8 @@ const baseProps = {
 };
 
 describe("DepositProgressView", () => {
-  describe("pre-sign state (no steps completed yet)", () => {
-    it("renders the full 16-step list and hides the overall progress bar", () => {
+  describe("grouped sections", () => {
+    it("always renders the four group headers", () => {
       render(
         <DepositProgressView
           {...baseProps}
@@ -35,28 +36,76 @@ describe("DepositProgressView", () => {
       );
 
       expect(
-        screen.getByText("Generate secret for the deposit"),
-      ).toBeInTheDocument();
-      expect(screen.getByText("Retrieve secret")).toBeInTheDocument();
-      expect(
-        screen.getByText("Sign and broadcast ETH activation transaction"),
+        screen.getByText(COPY.deposit.groups.registerDeposit),
       ).toBeInTheDocument();
       expect(
-        screen.getByText("Sign recovery transactions"),
+        screen.getByText(COPY.deposit.groups.signWots),
       ).toBeInTheDocument();
       expect(
-        screen.getByText(
-          "Awaiting vault provider to prepare payout transactions",
-        ),
+        screen.getByText(COPY.deposit.groups.signPayout),
       ).toBeInTheDocument();
       expect(
-        screen.getByText("Awaiting vault provider verification"),
+        screen.getByText(COPY.deposit.groups.activateVault),
+      ).toBeInTheDocument();
+    });
+
+    it("expands only the section containing the current step", () => {
+      // Step 7 lives in the "Sign WOTS" group.
+      render(
+        <DepositProgressView
+          {...baseProps}
+          currentStep={DepositFlowStep.SUBMIT_WOTS_KEYS}
+        />,
+      );
+
+      // Active group's sub-step is shown.
+      expect(
+        screen.getByText(COPY.deposit.steps.submitWotsKey),
+      ).toBeInTheDocument();
+
+      // A completed group's sub-step stays collapsed.
+      expect(
+        screen.queryByText(COPY.deposit.steps.generateSecret),
+      ).not.toBeInTheDocument();
+
+      // An upcoming group's sub-step stays collapsed.
+      expect(
+        screen.queryByText(COPY.deposit.steps.signPayouts),
+      ).not.toBeInTheDocument();
+
+      // The finished "Register deposit" group reports 6/6.
+      expect(
+        screen.getByText(COPY.deposit.groups.stepCounter(6, 6)),
+      ).toBeInTheDocument();
+    });
+  });
+
+  describe("pre-sign state (first step)", () => {
+    it("expands the first group and hides the overall progress bar", () => {
+      render(
+        <DepositProgressView
+          {...baseProps}
+          currentStep={DepositFlowStep.DERIVE_VAULT_SECRET}
+        />,
+      );
+
+      // First group (steps 1-6) is expanded.
+      expect(
+        screen.getByText(COPY.deposit.steps.generateSecret),
       ).toBeInTheDocument();
       expect(
-        screen.getByText("Awaiting vault activation confirmation"),
+        screen.getByText(COPY.deposit.steps.awaitBtcConfirmation),
       ).toBeInTheDocument();
+
+      // Later groups' sub-steps are collapsed.
+      expect(
+        screen.queryByText(COPY.deposit.steps.submitWotsKey),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByText(COPY.deposit.steps.retrieveSecret),
+      ).not.toBeInTheDocument();
+
       expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
-      expect(screen.queryByText(/steps completed$/)).not.toBeInTheDocument();
     });
 
     it("shows the Sign CTA", () => {
@@ -71,7 +120,31 @@ describe("DepositProgressView", () => {
     });
   });
 
-  describe("post-sign state (at least one step completed)", () => {
+  describe("mid-flow progress bar", () => {
+    it("renders the overall 'X of N steps completed' pill once a step is done", () => {
+      render(
+        <DepositProgressView
+          {...baseProps}
+          currentStep={DepositFlowStep.AWAIT_BTC_CONFIRMATION}
+        />,
+      );
+
+      expect(
+        screen.getByText(COPY.deposit.progress.stepsCompleted(5, 16)),
+      ).toBeInTheDocument();
+    });
+
+    it("hides the overall pill before any step is completed", () => {
+      render(
+        <DepositProgressView
+          {...baseProps}
+          currentStep={DepositFlowStep.DERIVE_VAULT_SECRET}
+        />,
+      );
+
+      expect(screen.queryByText(/steps completed/)).not.toBeInTheDocument();
+    });
+
     it("renders the progress bar with the correct fill ratio", () => {
       render(
         <DepositProgressView
@@ -98,19 +171,11 @@ describe("DepositProgressView", () => {
         "100",
       );
     });
+  });
 
-    it("renders the 'X of 16 steps completed' pill", () => {
-      render(
-        <DepositProgressView
-          {...baseProps}
-          currentStep={DepositFlowStep.AWAIT_BTC_CONFIRMATION}
-        />,
-      );
-
-      expect(screen.getByText("5 of 16 steps completed")).toBeInTheDocument();
-    });
-
-    it("hides all completed step labels (rows are collapsed into the pill)", () => {
+  describe("active-group sub-steps", () => {
+    it("shows completed sub-steps of the active group with their labels", () => {
+      // Step 6 -> "Register deposit" group active; steps 1-5 already done.
       render(
         <DepositProgressView
           {...baseProps}
@@ -119,36 +184,30 @@ describe("DepositProgressView", () => {
       );
 
       expect(
-        screen.queryByText("Generate secret for the deposit"),
-      ).not.toBeInTheDocument();
-      expect(
-        screen.queryByText("Sign and broadcast BTC pre-pegIn transaction"),
-      ).not.toBeInTheDocument();
-    });
-
-    it("renders the label of the active step", () => {
-      render(
-        <DepositProgressView
-          {...baseProps}
-          currentStep={DepositFlowStep.AWAIT_BTC_CONFIRMATION}
-        />,
-      );
-
-      expect(
-        screen.getByText("Awaiting Bitcoin confirmation"),
+        screen.getByText(COPY.deposit.steps.generateSecret),
       ).toBeInTheDocument();
+      expect(
+        screen.getByText(COPY.deposit.steps.awaitBtcConfirmation),
+      ).toBeInTheDocument();
+      // Steps in other (collapsed) groups remain hidden.
+      expect(
+        screen.queryByText(COPY.deposit.steps.submitWotsKey),
+      ).not.toBeInTheDocument();
     });
 
-    it("renders pending steps as label-only (no descriptions)", () => {
+    it("renders pending sub-steps as label-only (no descriptions)", () => {
+      // Step 9 -> "Sign payout" group active; step 10 (Sign payouts) is pending.
       render(
         <DepositProgressView
           {...baseProps}
-          currentStep={DepositFlowStep.AWAIT_BTC_CONFIRMATION}
+          currentStep={DepositFlowStep.SIGN_AUTH_ANCHOR}
           payoutSigningProgress={{ phase: "claimers", completed: 0, total: 3 }}
         />,
       );
 
-      expect(screen.getByText("Sign payout transactions")).toBeInTheDocument();
+      expect(
+        screen.getByText(COPY.deposit.steps.signPayouts),
+      ).toBeInTheDocument();
       expect(screen.queryByText("(0 of 3)")).not.toBeInTheDocument();
     });
 
@@ -161,15 +220,12 @@ describe("DepositProgressView", () => {
       );
 
       expect(
-        screen.getByText(
-          "Awaiting vault provider to prepare payout transactions",
-        ),
+        screen.getByText(COPY.deposit.steps.awaitPayoutTransactions),
       ).toBeInTheDocument();
       expect(screen.getByText("Status:")).toBeInTheDocument();
       expect(
-        screen.getByText("Preparing payout transactions"),
+        screen.getByText(COPY.deposit.waitDetails.preparingPayouts),
       ).toBeInTheDocument();
-      expect(screen.queryByText("Next action:")).not.toBeInTheDocument();
     });
   });
 
@@ -184,7 +240,7 @@ describe("DepositProgressView", () => {
       );
 
       expect(
-        screen.getByText("Sign the peg-in BTC transaction"),
+        screen.getByText(COPY.deposit.steps.signPeginBtc),
       ).toBeInTheDocument();
       expect(screen.getByText("(0 of 2)")).toBeInTheDocument();
     });
@@ -211,7 +267,7 @@ describe("DepositProgressView", () => {
       );
 
       expect(
-        screen.getByText("Sign the peg-in BTC transaction"),
+        screen.getByText(COPY.deposit.steps.signPeginBtc),
       ).toBeInTheDocument();
       expect(screen.queryByText(/of 1\)/)).not.toBeInTheDocument();
     });
@@ -226,7 +282,7 @@ describe("DepositProgressView", () => {
       );
 
       expect(
-        screen.getByText("Sign the peg-in BTC transaction"),
+        screen.getByText(COPY.deposit.steps.signPeginBtc),
       ).toBeInTheDocument();
       expect(screen.queryByText(/^\(\d+ of \d+\)$/)).not.toBeInTheDocument();
     });
@@ -263,7 +319,7 @@ describe("DepositProgressView", () => {
   });
 
   describe("complete state", () => {
-    it("reports 16 of 16 in the pill and fills the progress bar", () => {
+    it("collapses all groups with full counters and fills the progress bar", () => {
       render(
         <DepositProgressView
           {...baseProps}
@@ -272,14 +328,23 @@ describe("DepositProgressView", () => {
         />,
       );
 
-      expect(screen.getByText("16 of 16 steps completed")).toBeInTheDocument();
+      expect(
+        screen.getByText(COPY.deposit.groups.stepCounter(6, 6)),
+      ).toBeInTheDocument();
+      expect(
+        screen.getAllByText(COPY.deposit.groups.stepCounter(4, 4)),
+      ).toHaveLength(2);
+      // No expanded sub-steps remain.
+      expect(
+        screen.queryByText(COPY.deposit.steps.revealSecret),
+      ).not.toBeInTheDocument();
       expect(screen.getByRole("progressbar")).toHaveAttribute(
         "aria-valuenow",
         "100",
       );
     });
 
-    it("reports 16 of 16 when currentStep is COMPLETED", () => {
+    it("reports complete when currentStep is COMPLETED", () => {
       render(
         <DepositProgressView
           {...baseProps}
@@ -288,7 +353,9 @@ describe("DepositProgressView", () => {
         />,
       );
 
-      expect(screen.getByText("16 of 16 steps completed")).toBeInTheDocument();
+      expect(
+        screen.getByText(COPY.deposit.groups.stepCounter(6, 6)),
+      ).toBeInTheDocument();
       expect(screen.getByRole("progressbar")).toHaveAttribute(
         "aria-valuenow",
         "100",

@@ -52,6 +52,71 @@ export function buildStepItems(
 export const TOTAL_VISUAL_STEPS = buildStepItems(null).length;
 
 /**
+ * Logical groupings of the deposit flow. Each group covers a contiguous,
+ * inclusive range of 1-based visual step numbers (the same numbering produced
+ * by {@link getVisualStep}). The grouped progress UI expands only the group
+ * containing the current step and collapses the rest.
+ */
+export interface StepGroup {
+  title: string;
+  /** First visual step in the group (1-based, inclusive). */
+  startStep: number;
+  /** Last visual step in the group (1-based, inclusive). */
+  endStep: number;
+}
+
+export const STEP_GROUPS: StepGroup[] = [
+  { title: COPY.deposit.groups.registerDeposit, startStep: 1, endStep: 6 },
+  { title: COPY.deposit.groups.signWots, startStep: 7, endStep: 8 },
+  { title: COPY.deposit.groups.signPayout, startStep: 9, endStep: 12 },
+  { title: COPY.deposit.groups.activateVault, startStep: 13, endStep: 16 },
+];
+
+export type GroupStatus = "completed" | "active" | "upcoming";
+
+export interface StepGroupView extends StepGroup {
+  status: GroupStatus;
+  /** How many of the group's steps are finished (0..totalInGroup). */
+  completedInGroup: number;
+  totalInGroup: number;
+  /** True only for the active group — exactly one group expands at a time. */
+  expanded: boolean;
+}
+
+/**
+ * Resolve per-group view state from the current visual step. `currentStep` is a
+ * 1-based visual step (see {@link getVisualStep}); on completion it is
+ * `TOTAL_VISUAL_STEPS + 1`, which leaves every group `completed` and collapsed.
+ */
+export function buildStepGroups(currentStep: number): StepGroupView[] {
+  return STEP_GROUPS.map((group) => {
+    const totalInGroup = group.endStep - group.startStep + 1;
+
+    let status: GroupStatus;
+    if (currentStep > group.endStep) {
+      status = "completed";
+    } else if (currentStep >= group.startStep) {
+      status = "active";
+    } else {
+      status = "upcoming";
+    }
+
+    const completedInGroup = Math.max(
+      0,
+      Math.min(totalInGroup, currentStep - group.startStep),
+    );
+
+    return {
+      ...group,
+      status,
+      completedInGroup,
+      totalInGroup,
+      expanded: status === "active",
+    };
+  });
+}
+
+/**
  * Resolve the human-readable label for a deposit flow step, reusing the same
  * step definitions that drive the in-flow stepper (single source of truth).
  */
