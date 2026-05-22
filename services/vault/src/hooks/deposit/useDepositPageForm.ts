@@ -4,7 +4,7 @@ import {
   peginOutputCount,
 } from "@babylonlabs-io/ts-sdk/tbv/core";
 import { useQuery } from "@tanstack/react-query";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import type { PriceMetadata } from "@/clients/eth-contract/chainlink";
 import { useBtcPublicKey } from "@/hooks/useBtcPublicKey";
@@ -40,6 +40,12 @@ export interface DepositPageFormData {
 export interface UseDepositPageFormResult {
   formData: DepositPageFormData;
   setFormData: (data: Partial<DepositPageFormData>) => void;
+  /**
+   * Sets the amount to the current depositable maximum and pins it there: the
+   * amount tracks `maxDepositSats` as it changes (e.g. when the UTXO split
+   * auto-enables and lowers the max). Any manual amount edit unpins it.
+   */
+  applyMaxAmount: () => void;
   /** Resolved application: user choice or auto-selected single app */
   effectiveSelectedApplication: string;
 
@@ -123,6 +129,11 @@ export function useDepositPageForm(): UseDepositPageFormResult {
     amountBtc: "",
     selectedProvider: "",
   });
+
+  // True when the amount was set via the "Max" action. While pinned, the
+  // amount follows the depositable maximum as it changes; a manual edit clears
+  // the pin.
+  const [isMaxPinned, setIsMaxPinned] = useState(false);
 
   const { data: applicationsData, isLoading: isLoadingApplications } =
     useApplications();
@@ -213,7 +224,11 @@ export function useDepositPageForm(): UseDepositPageFormResult {
         ...data,
       }));
       // Clear errors when user starts typing (they'll be validated on blur)
-      if (data.amountBtc !== undefined) clearFieldError("amount");
+      if (data.amountBtc !== undefined) {
+        clearFieldError("amount");
+        // A manual amount edit detaches the amount from the "Max" pin.
+        setIsMaxPinned(false);
+      }
       if (data.selectedProvider !== undefined) clearFieldError("provider");
     },
     [clearFieldError],
@@ -310,6 +325,30 @@ export function useDepositPageForm(): UseDepositPageFormResult {
     return adjusted > 0n ? adjusted : 0n;
   }, [maxDepositSats, depositorClaimValue, vaultCount]);
 
+  const applyMaxAmount = useCallback(() => {
+    setIsMaxPinned(true);
+    if (adjustedMaxDepositSats != null && adjustedMaxDepositSats > 0n) {
+      setFormDataInternal((prev) => ({
+        ...prev,
+        amountBtc: depositService.formatSatoshisToBtc(adjustedMaxDepositSats),
+      }));
+      clearFieldError("amount");
+    }
+  }, [adjustedMaxDepositSats, clearFieldError]);
+
+  // Keep a pinned "Max" amount in sync with the depositable maximum. The max
+  // shifts after the form opens — most notably when the UTXO split
+  // auto-enables and reserves a second vault's claim value — so a value
+  // captured at click time would otherwise become unfundable.
+  useEffect(() => {
+    if (!isMaxPinned) return;
+    if (adjustedMaxDepositSats == null || adjustedMaxDepositSats <= 0n) return;
+    const maxBtc = depositService.formatSatoshisToBtc(adjustedMaxDepositSats);
+    setFormDataInternal((prev) =>
+      prev.amountBtc === maxBtc ? prev : { ...prev, amountBtc: maxBtc },
+    );
+  }, [isMaxPinned, adjustedMaxDepositSats]);
+
   const validateForm = useCallback(() => {
     const newErrors: typeof errors = {};
 
@@ -342,12 +381,14 @@ export function useDepositPageForm(): UseDepositPageFormResult {
       amountBtc: "",
       selectedProvider: "",
     });
+    setIsMaxPinned(false);
     resetErrors();
   }, [resetErrors]);
 
   return {
     formData,
     setFormData,
+    applyMaxAmount,
     effectiveSelectedApplication,
     errors,
     isWalletConnected,

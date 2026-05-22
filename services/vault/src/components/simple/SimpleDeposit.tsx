@@ -12,7 +12,6 @@ import { useDepositGasEstimate } from "@/hooks/deposit/useDepositGasEstimate";
 import { useDepositPeginFee } from "@/hooks/deposit/useDepositPeginFee";
 import { useDialogStep } from "@/hooks/deposit/useDialogStep";
 import { useProtocolFeeRows } from "@/hooks/useProtocolFeeRows";
-import { depositService } from "@/services/deposit";
 import type { VaultActivity } from "@/types/activity";
 import type { VaultProvider } from "@/types/vaultProvider";
 import {
@@ -118,6 +117,7 @@ function SimpleDepositContent({
   const {
     formData,
     setFormData,
+    applyMaxAmount,
     effectiveSelectedApplication,
     isWalletConnected,
     btcBalance,
@@ -244,13 +244,6 @@ function SimpleDepositContent({
   // Freeze the rendered step during the close animation and reset on reopen
   const renderedStep = useDialogStep(open, depositStep, resetAll);
 
-  const handleMaxClick = () => {
-    if (maxDepositSats !== null && maxDepositSats > 0n) {
-      const maxBtc = depositService.formatSatoshisToBtc(maxDepositSats);
-      setFormData({ amountBtc: maxBtc });
-    }
-  };
-
   const handleReconnectWallet = async () => {
     if (isReconnectingWallet) return;
     setIsReconnectingWallet(true);
@@ -352,7 +345,7 @@ function SimpleDepositContent({
                 btcPrice={btcPrice}
                 hasPriceFetchError={hasPriceFetchError}
                 onAmountChange={(value) => setFormData({ amountBtc: value })}
-                onMaxClick={handleMaxClick}
+                onMaxClick={applyMaxAmount}
                 applications={applications}
                 selectedApplication={effectiveSelectedApplication}
                 providers={providers}
