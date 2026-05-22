@@ -1,4 +1,4 @@
-import { Card } from "@babylonlabs-io/core-ui";
+import { Accordion, AccordionDetails, Card } from "@babylonlabs-io/core-ui";
 import { IoCheckmark, IoChevronUp } from "react-icons/io5";
 
 import { COPY } from "@/copy";
@@ -45,7 +45,7 @@ export function UtxoSplitSelector({
     : "text-accent-primary";
 
   return (
-    <>
+    <Accordion expanded={expanded}>
       <Card variant="filled" className="!rounded-lg !p-0">
         <button
           type="button"
@@ -70,10 +70,10 @@ export function UtxoSplitSelector({
         </button>
       </Card>
 
-      {expanded && (
+      <AccordionDetails className="pt-4">
         <Card
           variant="default"
-          className="flex flex-col gap-6 !rounded-lg !bg-primary-contrast !py-4"
+          className="flex w-full flex-col gap-6 !rounded-lg !bg-primary-contrast !py-4"
         >
           <div
             role="button"
@@ -145,7 +145,7 @@ export function UtxoSplitSelector({
             </span>
           )}
         </Card>
-      )}
-    </>
+      </AccordionDetails>
+    </Accordion>
   );
 }
