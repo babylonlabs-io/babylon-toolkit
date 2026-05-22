@@ -26,8 +26,10 @@ export function ActivationGate({
   const providerAddress = activity.providers?.[0]?.id;
   const peginTxid = activity.peginTxHash;
   const depositorPk = activity.depositorBtcPubkey;
-  const canDownloadArtifacts =
-    !!providerAddress && !!peginTxid && !!depositorPk;
+  const artifacts =
+    providerAddress && peginTxid && depositorPk
+      ? { providerAddress, peginTxid, depositorPk }
+      : null;
 
   return (
     <>
@@ -38,16 +40,16 @@ export function ActivationGate({
         onClose={onClose}
         onConfirm={() => setConfirmed(true)}
         onDownloadArtifacts={() => {
-          if (canDownloadArtifacts) setShowArtifactDownload(true);
+          if (artifacts) setShowArtifactDownload(true);
         }}
       />
 
-      {showArtifactDownload && canDownloadArtifacts && (
+      {showArtifactDownload && artifacts && (
         <ArtifactDownloadModal
           open
-          providerAddress={providerAddress as string}
-          peginTxid={peginTxid as string}
-          depositorPk={depositorPk as string}
+          providerAddress={artifacts.providerAddress}
+          peginTxid={artifacts.peginTxid}
+          depositorPk={artifacts.depositorPk}
           vaultId={activity.id}
           unsignedPrePeginTxHex={activity.unsignedPrePeginTx}
           onClose={() => setShowArtifactDownload(false)}

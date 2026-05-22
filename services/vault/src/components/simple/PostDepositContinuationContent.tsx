@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import type { Address, Hex } from "viem";
 
 import { PeginPollingProvider } from "@/context/deposit/PeginPollingContext";
@@ -22,15 +23,23 @@ export function PostDepositContinuationContent({
   const btcPublicKey = useBtcPublicKey(btcConnected);
   const { activities, pendingPegins } = useVaultDeposits(depositorEthAddress);
 
+  const scoped = useMemo(() => {
+    const ids = new Set<string>(vaultIds);
+    return {
+      activities: activities.filter((a) => ids.has(a.id)),
+      pendingPegins: pendingPegins.filter((p) => ids.has(p.id)),
+    };
+  }, [vaultIds, activities, pendingPegins]);
+
   return (
     <PeginPollingProvider
-      activities={activities}
-      pendingPegins={pendingPegins}
+      activities={scoped.activities}
+      pendingPegins={scoped.pendingPegins}
       btcPublicKey={btcPublicKey}
     >
       <PostDepositContinuationView
         vaultIds={vaultIds}
-        activities={activities}
+        activities={scoped.activities}
         depositorEthAddress={depositorEthAddress}
         btcPublicKey={btcPublicKey}
         onClose={onClose}

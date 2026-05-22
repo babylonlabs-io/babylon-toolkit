@@ -341,6 +341,64 @@ describe("PostDepositContinuationView", () => {
     expect(queryByTestId("activate")).toBeNull();
   });
 
+  it("drives a later actionable vault instead of stalling on an earlier warning vault", () => {
+    const states = new Map<string, ReturnType<typeof resultWith>>([
+      [
+        "0xvault0",
+        resultWith({
+          availableActions: [PeginAction.NONE],
+          contractStatus: 7,
+          displayVariant: "warning",
+          message: "This deposit has expired.",
+        }),
+      ],
+      [
+        "0xvault1",
+        resultWith({
+          availableActions: [PeginAction.ACTIVATE_VAULT],
+          contractStatus: 1,
+        }),
+      ],
+    ]);
+    mockGetPollingResult.mockImplementation((id: string) => states.get(id));
+
+    const { getByTestId, queryByTestId } = renderView({
+      vaultIds: ["0xvault0" as Hex, "0xvault1" as Hex],
+      activities: [activityWithId("0xvault0"), activityWithId("0xvault1")],
+    });
+    expect(queryByTestId("progress-view")).toBeNull();
+    expect(getByTestId("activate").getAttribute("data-vault")).toBe("0xvault1");
+  });
+
+  it("surfaces the warning once no other vault is actionable", () => {
+    const states = new Map<string, ReturnType<typeof resultWith>>([
+      [
+        "0xvault0",
+        resultWith({
+          availableActions: [PeginAction.NONE],
+          contractStatus: 7,
+          displayVariant: "warning",
+          message: "This deposit has expired.",
+        }),
+      ],
+      [
+        "0xvault1",
+        resultWith({
+          availableActions: [PeginAction.NONE],
+          contractStatus: 1,
+          localStatus: "confirmed",
+        }),
+      ],
+    ]);
+    mockGetPollingResult.mockImplementation((id: string) => states.get(id));
+
+    const { getByTestId } = renderView({
+      vaultIds: ["0xvault0" as Hex, "0xvault1" as Hex],
+      activities: [activityWithId("0xvault0"), activityWithId("0xvault1")],
+    });
+    expect(getByTestId("error").textContent).toBe("This deposit has expired.");
+  });
+
   it("closing during the wait fires no signing popup", () => {
     mockGetPollingResult.mockReturnValue(
       resultWith({ availableActions: [PeginAction.NONE] }),

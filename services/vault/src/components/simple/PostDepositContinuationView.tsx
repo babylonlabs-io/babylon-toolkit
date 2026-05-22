@@ -87,9 +87,10 @@ export function PostDepositContinuationView({
 }: PostDepositContinuationViewProps) {
   const { refetch, getPollingResult } = usePeginPolling();
 
-  const currentVaultIndex = vaultIds.findIndex(
-    (id) => !isVaultPastActivation(getPollingResult(id)?.peginState),
-  );
+  const currentVaultIndex = vaultIds.findIndex((id) => {
+    const state = getPollingResult(id)?.peginState;
+    return !isVaultPastActivation(state) && state?.displayVariant !== "warning";
+  });
   const currentVaultId =
     currentVaultIndex === -1 ? undefined : vaultIds[currentVaultIndex];
   const pollingResult = currentVaultId
@@ -100,6 +101,18 @@ export function PostDepositContinuationView({
     : undefined;
 
   if (!currentVaultId) {
+    const warning = vaultIds
+      .map((id) => getPollingResult(id)?.peginState)
+      .find((state) => state?.displayVariant === "warning");
+    if (warning) {
+      return (
+        <StatusView
+          currentStep={DepositFlowStep.ACTIVATE_VAULT}
+          error={warning.message ?? COPY.common.somethingWentWrong.body}
+          onClose={onClose}
+        />
+      );
+    }
     return (
       <StatusView
         currentStep={DepositFlowStep.COMPLETED}
@@ -112,17 +125,6 @@ export function PostDepositContinuationView({
 
   const peginState = pollingResult?.peginState;
   const actions = peginState?.availableActions ?? [];
-  const isWarning = peginState?.displayVariant === "warning";
-
-  if (isWarning) {
-    return (
-      <StatusView
-        currentStep={DepositFlowStep.ACTIVATE_VAULT}
-        error={peginState?.message ?? COPY.common.somethingWentWrong.body}
-        onClose={onClose}
-      />
-    );
-  }
 
   if (activity && actions.includes(PeginAction.SUBMIT_WOTS_KEY)) {
     return (
