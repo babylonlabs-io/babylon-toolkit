@@ -476,7 +476,9 @@ export function ResumeActivationContent({
   const error = localError ?? activationError;
   const renderStep = activated
     ? DepositFlowStep.AWAIT_ACTIVATION_CONFIRMATION
-    : DepositFlowStep.ACTIVATE_VAULT;
+    : activating
+      ? DepositFlowStep.ACTIVATE_VAULT
+      : DepositFlowStep.RETRIEVE_SECRET;
   const derived = computeDepositDerivedState(
     renderStep,
     activating || loading,

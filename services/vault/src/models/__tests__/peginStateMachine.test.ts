@@ -617,9 +617,9 @@ describe("peginStateMachine", () => {
       );
     });
 
-    it("maps a VERIFIED vault ready to activate to ACTIVATE_VAULT", () => {
+    it("maps a VERIFIED vault ready to activate to RETRIEVE_SECRET", () => {
       const state = getPeginState(ContractStatus.VERIFIED);
-      expect(getPeginDisplayStep(state)).toBe(DepositFlowStep.ACTIVATE_VAULT);
+      expect(getPeginDisplayStep(state)).toBe(DepositFlowStep.RETRIEVE_SECRET);
     });
 
     it("maps a VERIFIED vault with activation broadcast to AWAIT_ACTIVATION_CONFIRMATION", () => {

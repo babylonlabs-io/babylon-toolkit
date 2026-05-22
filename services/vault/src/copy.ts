@@ -143,6 +143,7 @@ export const COPY = {
       signRecoveryTxs: "Sign recovery transactions",
       awaitVpVerification: "Awaiting vault provider verification",
       downloadArtifact: "Download artifact",
+      retrieveSecret: "Retrieve secret",
       revealSecret: "Sign and broadcast ETH activation transaction",
       awaitActivationConfirmation: "Awaiting vault activation confirmation",
       signingCounter: (completed: number, total: number) =>

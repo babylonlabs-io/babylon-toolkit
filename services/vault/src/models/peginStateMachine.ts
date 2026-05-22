@@ -568,7 +568,7 @@ export function getPeginDisplayStep(state: PeginState): DepositFlowStep | null {
     if (localStatus === LocalStorageStatus.CONFIRMED) {
       return DepositFlowStep.AWAIT_ACTIVATION_CONFIRMATION;
     }
-    return DepositFlowStep.ACTIVATE_VAULT;
+    return DepositFlowStep.RETRIEVE_SECRET;
   }
 
   return null;

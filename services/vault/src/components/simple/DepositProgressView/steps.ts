@@ -43,6 +43,7 @@ export function buildStepItems(
     { label: COPY.deposit.steps.signRecoveryTxs, description: graphCounter },
     { label: COPY.deposit.steps.awaitVpVerification },
     { label: COPY.deposit.steps.downloadArtifact },
+    { label: COPY.deposit.steps.retrieveSecret },
     { label: COPY.deposit.steps.revealSecret },
     { label: COPY.deposit.steps.awaitActivationConfirmation },
   ];
@@ -95,10 +96,12 @@ export function getVisualStep(currentStep: DepositFlowStep): number {
       return 12;
     case DepositFlowStep.ARTIFACT_DOWNLOAD:
       return 13;
-    case DepositFlowStep.ACTIVATE_VAULT:
+    case DepositFlowStep.RETRIEVE_SECRET:
       return 14;
-    case DepositFlowStep.AWAIT_ACTIVATION_CONFIRMATION:
+    case DepositFlowStep.ACTIVATE_VAULT:
       return 15;
+    case DepositFlowStep.AWAIT_ACTIVATION_CONFIRMATION:
+      return 16;
     case DepositFlowStep.COMPLETED:
       return TOTAL_VISUAL_STEPS + 1;
     default: {
