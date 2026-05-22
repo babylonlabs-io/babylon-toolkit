@@ -85,6 +85,20 @@ describe("DepositProgressView", () => {
       expect(bar).toHaveAttribute("aria-valuemax", "100");
     });
 
+    it("fills the bar fully on the final awaiting-confirmation step", () => {
+      render(
+        <DepositProgressView
+          {...baseProps}
+          currentStep={DepositFlowStep.AWAIT_ACTIVATION_CONFIRMATION}
+        />,
+      );
+
+      expect(screen.getByRole("progressbar")).toHaveAttribute(
+        "aria-valuenow",
+        "100",
+      );
+    });
+
     it("renders the 'X of 16 steps completed' pill", () => {
       render(
         <DepositProgressView

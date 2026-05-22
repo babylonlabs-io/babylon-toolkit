@@ -27,7 +27,12 @@ import { BtcConfirmationDetailContainer } from "./BtcConfirmationDetailContainer
 import { PostSignProgress } from "./PostSignProgress";
 import { ProgressBar } from "./ProgressBar";
 import { ProviderWaitDetail } from "./ProviderWaitDetail";
-import { buildStepItems, getVisualStep, TOTAL_VISUAL_STEPS } from "./steps";
+import {
+  buildStepItems,
+  getStepFillPercent,
+  getVisualStep,
+  TOTAL_VISUAL_STEPS,
+} from "./steps";
 
 export interface BtcConfirmationDetailData {
   /** Date.now() when the AWAIT_BTC_CONFIRMATION step was first entered. */
@@ -124,7 +129,9 @@ export function DepositProgressView(props: DepositProgressViewProps) {
 
       {showOverallProgress && (
         <div className="mt-3">
-          <ProgressBar percent={completedSteps / TOTAL_VISUAL_STEPS} />
+          <ProgressBar
+            percent={isComplete ? 1 : getStepFillPercent(currentStep)}
+          />
         </div>
       )}
 
