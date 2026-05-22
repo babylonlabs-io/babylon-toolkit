@@ -579,13 +579,25 @@ describe("peginStateMachine", () => {
       expect(getPeginDisplayStep(state)).toBe(DepositFlowStep.SIGN_PAYOUTS);
     });
 
-    it("maps payouts-signed-and-awaiting-verification to ARTIFACT_DOWNLOAD", () => {
+    it("maps provider-processing-with-no-action to AWAIT_PAYOUT_TRANSACTIONS", () => {
+      const state = getPeginState(ContractStatus.PENDING, {
+        localStatus: LocalStorageStatus.CONFIRMING,
+        pendingIngestion: false,
+        transactionsReady: false,
+      });
+      expect(state.availableActions).toEqual([PeginAction.NONE]);
+      expect(getPeginDisplayStep(state)).toBe(
+        DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS,
+      );
+    });
+
+    it("maps payouts-signed-and-awaiting-verification to AWAIT_VP_VERIFICATION", () => {
       const state = getPeginState(ContractStatus.PENDING, {
         localStatus: LocalStorageStatus.PAYOUT_SIGNED,
       });
       expect(state.availableActions).toEqual([PeginAction.NONE]);
       expect(getPeginDisplayStep(state)).toBe(
-        DepositFlowStep.ARTIFACT_DOWNLOAD,
+        DepositFlowStep.AWAIT_VP_VERIFICATION,
       );
     });
 
@@ -594,12 +606,14 @@ describe("peginStateMachine", () => {
       expect(getPeginDisplayStep(state)).toBe(DepositFlowStep.ACTIVATE_VAULT);
     });
 
-    it("keeps a VERIFIED vault with activation broadcast on ACTIVATE_VAULT", () => {
+    it("maps a VERIFIED vault with activation broadcast to AWAIT_ACTIVATION_CONFIRMATION", () => {
       const state = getPeginState(ContractStatus.VERIFIED, {
         localStatus: LocalStorageStatus.CONFIRMED,
       });
       expect(state.displayLabel).toBe(PEGIN_DISPLAY_LABELS.PROCESSING);
-      expect(getPeginDisplayStep(state)).toBe(DepositFlowStep.ACTIVATE_VAULT);
+      expect(getPeginDisplayStep(state)).toBe(
+        DepositFlowStep.AWAIT_ACTIVATION_CONFIRMATION,
+      );
     });
 
     it("returns null for a failed pending deposit so it does not look like it is progressing", () => {

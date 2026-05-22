@@ -26,6 +26,7 @@ import type { PeginSigningProgress } from "@/services/vault/vaultTransactionServ
 import { BtcConfirmationDetailContainer } from "./BtcConfirmationDetailContainer";
 import { PostSignProgress } from "./PostSignProgress";
 import { ProgressBar } from "./ProgressBar";
+import { ProviderWaitDetail } from "./ProviderWaitDetail";
 import { buildStepItems, getVisualStep, TOTAL_VISUAL_STEPS } from "./steps";
 
 export interface BtcConfirmationDetailData {
@@ -76,7 +77,9 @@ export function DepositProgressView(props: DepositProgressViewProps) {
   } = props;
 
   // On completion, advance past the last row so every circle renders as ✓.
-  const visualStep = getVisualStep(currentStep) + (isComplete ? 1 : 0);
+  const visualStep = isComplete
+    ? TOTAL_VISUAL_STEPS + 1
+    : getVisualStep(currentStep);
   const completedSteps = Math.max(
     0,
     Math.min(TOTAL_VISUAL_STEPS, visualStep - 1),
@@ -88,6 +91,11 @@ export function DepositProgressView(props: DepositProgressViewProps) {
     [payoutSigningProgress, peginSigningProgress],
   );
 
+  const isProviderWaitStep =
+    currentStep === DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS ||
+    currentStep === DepositFlowStep.AWAIT_VP_VERIFICATION ||
+    currentStep === DepositFlowStep.AWAIT_ACTIVATION_CONFIRMATION;
+
   const activeStepDetail =
     currentStep === DepositFlowStep.AWAIT_BTC_CONFIRMATION &&
     btcConfirmationDetail ? (
@@ -96,6 +104,8 @@ export function DepositProgressView(props: DepositProgressViewProps) {
         prePeginTxid={btcConfirmationDetail.prePeginTxid}
         requiredDepth={btcConfirmationDetail.requiredDepth}
       />
+    ) : isProviderWaitStep ? (
+      <ProviderWaitDetail step={currentStep} />
     ) : null;
 
   return (

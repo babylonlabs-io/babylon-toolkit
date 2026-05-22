@@ -31,6 +31,7 @@ export function buildStepItems(
     { label: COPY.deposit.steps.signAndBroadcastPrePegin },
     { label: COPY.deposit.steps.awaitBtcConfirmation },
     { label: COPY.deposit.steps.submitWotsKey },
+    { label: COPY.deposit.steps.awaitPayoutTransactions },
     { label: COPY.deposit.steps.authenticateSession },
     {
       label: COPY.deposit.steps.signPayouts,
@@ -39,8 +40,10 @@ export function buildStepItems(
           ? COPY.deposit.steps.signingCounter(payoutCompleted, payoutTotal)
           : undefined,
     },
+    { label: COPY.deposit.steps.awaitVpVerification },
     { label: COPY.deposit.steps.downloadArtifact },
     { label: COPY.deposit.steps.revealSecret },
+    { label: COPY.deposit.steps.awaitActivationConfirmation },
   ];
 }
 
@@ -79,14 +82,20 @@ export function getVisualStep(currentStep: DepositFlowStep): number {
       return 6;
     case DepositFlowStep.SUBMIT_WOTS_KEYS:
       return 7;
-    case DepositFlowStep.SIGN_AUTH_ANCHOR:
+    case DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS:
       return 8;
-    case DepositFlowStep.SIGN_PAYOUTS:
+    case DepositFlowStep.SIGN_AUTH_ANCHOR:
       return 9;
-    case DepositFlowStep.ARTIFACT_DOWNLOAD:
+    case DepositFlowStep.SIGN_PAYOUTS:
       return 10;
-    case DepositFlowStep.ACTIVATE_VAULT:
+    case DepositFlowStep.AWAIT_VP_VERIFICATION:
       return 11;
+    case DepositFlowStep.ARTIFACT_DOWNLOAD:
+      return 12;
+    case DepositFlowStep.ACTIVATE_VAULT:
+      return 13;
+    case DepositFlowStep.AWAIT_ACTIVATION_CONFIRMATION:
+      return 14;
     case DepositFlowStep.COMPLETED:
       return TOTAL_VISUAL_STEPS + 1;
     default: {

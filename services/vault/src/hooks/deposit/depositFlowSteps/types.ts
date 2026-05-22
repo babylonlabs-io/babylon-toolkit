@@ -36,23 +36,29 @@ export enum DepositFlowStep {
   AWAIT_BTC_CONFIRMATION = 6,
   /** Step 7: Submit WOTS public key to the Vault Provider. */
   SUBMIT_WOTS_KEYS = 7,
+  /** Step 8: Wait for the Vault Provider to prepare payout transactions. */
+  AWAIT_PAYOUT_TRANSACTIONS = 8,
   /**
-   * Step 8: `deriveContextHash` for the VP auth anchor during payout
+   * Step 9: `deriveContextHash` for the VP auth anchor during payout
    * signing. Fires whenever the per-pegin VP-token cache misses inside
    * `signAndSubmitPayouts`. (Cache misses inside `submitWotsPublicKey`
    * still surface a wallet popup, but the stepper stays on
    * SUBMIT_WOTS_KEYS for that path.) The wallet popup is identical to
    * step 1 but binds a different context (auth anchor vs. vault root).
    */
-  SIGN_AUTH_ANCHOR = 8,
-  /** Step 9: Sign payout transactions in BTC wallet */
-  SIGN_PAYOUTS = 9,
-  /** Step 10: Download vault artifacts */
-  ARTIFACT_DOWNLOAD = 10,
-  /** Step 11: Reveal HTLC secret on Ethereum to activate the vault */
-  ACTIVATE_VAULT = 11,
-  /** Step 12: Deposit completed */
-  COMPLETED = 12,
+  SIGN_AUTH_ANCHOR = 9,
+  /** Step 10: Sign payout transactions in BTC wallet */
+  SIGN_PAYOUTS = 10,
+  /** Step 11: Wait for VP verification and ACK submission. */
+  AWAIT_VP_VERIFICATION = 11,
+  /** Step 12: Download vault artifacts */
+  ARTIFACT_DOWNLOAD = 12,
+  /** Step 13: Reveal HTLC secret on Ethereum to activate the vault */
+  ACTIVATE_VAULT = 13,
+  /** Step 14: Wait for activation confirmation / indexer catch-up. */
+  AWAIT_ACTIVATION_CONFIRMATION = 14,
+  /** Step 15: Deposit completed */
+  COMPLETED = 15,
 }
 
 // ============================================================================

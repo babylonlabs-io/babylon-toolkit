@@ -26,7 +26,7 @@ const baseProps = {
 
 describe("DepositProgressView", () => {
   describe("pre-sign state (no steps completed yet)", () => {
-    it("renders the full 11-step list and hides the overall progress bar", () => {
+    it("renders the full 14-step list and hides the overall progress bar", () => {
       render(
         <DepositProgressView
           {...baseProps}
@@ -39,6 +39,17 @@ describe("DepositProgressView", () => {
       ).toBeInTheDocument();
       expect(
         screen.getByText("Sign and broadcast reveal secret"),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          "Awaiting vault provider to prepare payout transactions",
+        ),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText("Awaiting vault provider verification"),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText("Awaiting vault activation confirmation"),
       ).toBeInTheDocument();
       expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
       expect(screen.queryByText(/steps completed$/)).not.toBeInTheDocument();
@@ -66,11 +77,11 @@ describe("DepositProgressView", () => {
       );
 
       const bar = screen.getByRole("progressbar");
-      expect(bar).toHaveAttribute("aria-valuenow", "45");
+      expect(bar).toHaveAttribute("aria-valuenow", "36");
       expect(bar).toHaveAttribute("aria-valuemax", "100");
     });
 
-    it("renders the 'X of 11 steps completed' pill", () => {
+    it("renders the 'X of 14 steps completed' pill", () => {
       render(
         <DepositProgressView
           {...baseProps}
@@ -78,7 +89,7 @@ describe("DepositProgressView", () => {
         />,
       );
 
-      expect(screen.getByText("5 of 11 steps completed")).toBeInTheDocument();
+      expect(screen.getByText("5 of 14 steps completed")).toBeInTheDocument();
     });
 
     it("hides all completed step labels (rows are collapsed into the pill)", () => {
@@ -121,6 +132,23 @@ describe("DepositProgressView", () => {
 
       expect(screen.getByText("Sign payout transactions")).toBeInTheDocument();
       expect(screen.queryByText("(0 of 3)")).not.toBeInTheDocument();
+    });
+
+    it("renders a status detail panel for the payout preparation wait step", () => {
+      render(
+        <DepositProgressView
+          {...baseProps}
+          currentStep={DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS}
+        />,
+      );
+
+      expect(
+        screen.getByText(
+          "Awaiting vault provider to prepare payout transactions",
+        ),
+      ).toBeInTheDocument();
+      expect(screen.getByText("Next action:")).toBeInTheDocument();
+      expect(screen.getAllByText("Sign payout transactions")).toHaveLength(2);
     });
   });
 
@@ -214,7 +242,7 @@ describe("DepositProgressView", () => {
   });
 
   describe("complete state", () => {
-    it("reports 11 of 11 in the pill and fills the progress bar", () => {
+    it("reports 14 of 14 in the pill and fills the progress bar", () => {
       render(
         <DepositProgressView
           {...baseProps}
@@ -223,14 +251,14 @@ describe("DepositProgressView", () => {
         />,
       );
 
-      expect(screen.getByText("11 of 11 steps completed")).toBeInTheDocument();
+      expect(screen.getByText("14 of 14 steps completed")).toBeInTheDocument();
       expect(screen.getByRole("progressbar")).toHaveAttribute(
         "aria-valuenow",
         "100",
       );
     });
 
-    it("reports 11 of 11 when currentStep is COMPLETED", () => {
+    it("reports 14 of 14 when currentStep is COMPLETED", () => {
       render(
         <DepositProgressView
           {...baseProps}
@@ -239,7 +267,7 @@ describe("DepositProgressView", () => {
         />,
       );
 
-      expect(screen.getByText("11 of 11 steps completed")).toBeInTheDocument();
+      expect(screen.getByText("14 of 14 steps completed")).toBeInTheDocument();
       expect(screen.getByRole("progressbar")).toHaveAttribute(
         "aria-valuenow",
         "100",

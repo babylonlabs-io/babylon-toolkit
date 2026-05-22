@@ -822,7 +822,8 @@ export function useDepositFlow(
           // to `true` after it closes, so the SDK polling that follows
           // remains "Close & continue later"-able.
           deriveContextHash: async (appName, context) => {
-            if (baseStep === DepositFlowStep.SIGN_PAYOUTS) {
+            const returnStep = baseStep;
+            if (baseStep === DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS) {
               setCurrentStep(DepositFlowStep.SIGN_AUTH_ANCHOR);
             } else if (baseStep === DepositFlowStep.SUBMIT_WOTS_KEYS) {
               setCurrentStep(DepositFlowStep.SUBMIT_WOTS_KEYS);
@@ -835,6 +836,7 @@ export function useDepositFlow(
               );
             } finally {
               setIsWaiting(true);
+              setCurrentStep(returnStep);
             }
           },
           signPsbt: async (psbtHex, opts) => {
@@ -927,7 +929,7 @@ export function useDepositFlow(
         // Step 5b: Sign Payout Transactions
         // ========================================================================
 
-        baseStep = DepositFlowStep.SIGN_PAYOUTS;
+        baseStep = DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS;
 
         const payoutSignedVaultIds = new Set<string>();
 
@@ -942,14 +944,7 @@ export function useDepositFlow(
 
           try {
             setCurrentVaultIndex(vi);
-            const peginTxidNoPrefix = stripHexPrefix(result.peginTxHash);
-            const cacheHit =
-              vpTokenRegistry.peek(peginTxidNoPrefix) !== undefined;
-            setCurrentStep(
-              cacheHit
-                ? DepositFlowStep.SIGN_PAYOUTS
-                : DepositFlowStep.SIGN_AUTH_ANCHOR,
-            );
+            setCurrentStep(DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS);
             setIsWaiting(true);
 
             await signAndSubmitPayouts({
@@ -967,6 +962,7 @@ export function useDepositFlow(
             });
 
             payoutSignedVaultIds.add(result.vaultId);
+            setCurrentStep(DepositFlowStep.AWAIT_VP_VERIFICATION);
           } catch (error) {
             // If the user cancelled, stop immediately — don't continue with other vaults
             if (signal.aborted) throw error;

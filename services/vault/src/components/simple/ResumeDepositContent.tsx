@@ -74,7 +74,7 @@ export function ResumeSignContent({
   useRunOnce(handleSign);
 
   const renderStep = isComplete
-    ? DepositFlowStep.ARTIFACT_DOWNLOAD
+    ? DepositFlowStep.AWAIT_VP_VERIFICATION
     : DepositFlowStep.SIGN_PAYOUTS;
   const renderIsWaiting = isComplete;
   const derived = computeDepositDerivedState(

@@ -136,10 +136,14 @@ export const COPY = {
       signAndBroadcastPrePegin: "Sign and broadcast BTC Pre-Pegin transaction",
       awaitBtcConfirmation: "Awaiting Bitcoin confirmation",
       submitWotsKey: "Submit WOTS public key to vault provider",
+      awaitPayoutTransactions:
+        "Awaiting vault provider to prepare payout transactions",
       authenticateSession: "Authenticate session with vault provider",
       signPayouts: "Sign payout transactions",
+      awaitVpVerification: "Awaiting vault provider verification",
       downloadArtifact: "Download artifact",
       revealSecret: "Sign and broadcast reveal secret",
+      awaitActivationConfirmation: "Awaiting vault activation confirmation",
       signingCounter: (completed: number, total: number) =>
         `(${completed} of ${total})`,
     },
@@ -166,6 +170,15 @@ export const COPY = {
       estRemainingValue: (minutes: number) => `~${minutes} min`,
       finalizing: "Finalizing...",
       bitcoinTx: "Bitcoin TX",
+    },
+    waitDetails: {
+      startedAt: "Started at",
+      status: "Status",
+      nextAction: "Next action",
+      preparingPayouts: "Preparing payout transactions",
+      verifyingDeposit: "Verifying signatures and collecting ACKs",
+      confirmingActivation: "Confirming activation",
+      vaultActive: "Vault active",
     },
     broadcastSuccess: {
       heading: "Pre-Pegin Broadcast",
