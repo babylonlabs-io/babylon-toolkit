@@ -32,7 +32,10 @@ import { getVaultRegistryReader } from "@/clients/eth-contract/sdk-readers";
 import { computeDepositDerivedState } from "@/components/deposit/DepositSignModal/depositStepHelpers";
 import { usePayoutSigningState } from "@/components/deposit/PayoutSignModal/usePayoutSigningState";
 import { COPY } from "@/copy";
-import { DepositFlowStep } from "@/hooks/deposit/depositFlowSteps";
+import {
+  DepositFlowStep,
+  payoutSigningStep,
+} from "@/hooks/deposit/depositFlowSteps";
 import { submitWotsPublicKey } from "@/hooks/deposit/depositFlowSteps/wotsSubmission";
 import { useActivationState } from "@/hooks/deposit/useActivationState";
 import { useBroadcastState } from "@/hooks/deposit/useBroadcastState";
@@ -78,8 +81,8 @@ export function ResumeSignContent({
   useRunOnce(handleSign);
 
   const renderStep = isComplete
-    ? DepositFlowStep.ARTIFACT_DOWNLOAD
-    : DepositFlowStep.SIGN_PAYOUTS;
+    ? DepositFlowStep.AWAIT_VP_VERIFICATION
+    : payoutSigningStep(progress.phase);
   const renderIsWaiting = isComplete;
   const derived = computeDepositDerivedState(
     renderStep,
@@ -100,6 +103,7 @@ export function ResumeSignContent({
       peginSigningProgress={null}
       onClose={onClose}
       onRetry={error ? handleSign : undefined}
+      waitDetailPersistKey={activity.id}
     />
   );
 }
@@ -364,9 +368,12 @@ export function ResumeWotsContent({
   useRunOnce(handleSubmit, !btcWalletProvider || Boolean(connectedBtcAddress));
 
   const isSuccess = !loading && !error;
+  const renderStep = isSuccess
+    ? DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS
+    : DepositFlowStep.SUBMIT_WOTS_KEYS;
   const renderIsWaiting = isSuccess;
   const derived = computeDepositDerivedState(
-    DepositFlowStep.SUBMIT_WOTS_KEYS,
+    renderStep,
     loading,
     renderIsWaiting,
     error,
@@ -374,7 +381,7 @@ export function ResumeWotsContent({
 
   return (
     <DepositProgressView
-      currentStep={DepositFlowStep.SUBMIT_WOTS_KEYS}
+      currentStep={renderStep}
       error={error}
       isComplete={derived.isComplete}
       isProcessing={derived.isProcessing}
@@ -384,6 +391,7 @@ export function ResumeWotsContent({
       peginSigningProgress={null}
       onClose={onClose}
       onRetry={error ? handleSubmit : undefined}
+      waitDetailPersistKey={activity.id}
     />
   );
 }
@@ -524,16 +532,18 @@ export function ResumeActivationContent({
   useRunOnce(handleSubmit, !btcWalletProvider || Boolean(connectedBtcAddress));
 
   const error = localError ?? activationError;
+  const renderStep = activated
+    ? DepositFlowStep.AWAIT_ACTIVATION_CONFIRMATION
+    : activating
+      ? DepositFlowStep.ACTIVATE_VAULT
+      : DepositFlowStep.RETRIEVE_SECRET;
   const derived = computeDepositDerivedState(
-    DepositFlowStep.ACTIVATE_VAULT,
+    renderStep,
     activating || loading,
-    false,
+    activated,
     error,
   );
 
-  // After the on-chain activation lands, hold the modal open so the user
-  // sees the success banner. The Done button (onClose path of the view)
-  // routes to the parent's success handler, which dismisses + refetches.
   const handleDone = useCallback(() => {
     if (activated) {
       onSuccess();
@@ -544,17 +554,18 @@ export function ResumeActivationContent({
 
   return (
     <DepositProgressView
-      currentStep={DepositFlowStep.ACTIVATE_VAULT}
+      currentStep={renderStep}
       error={error}
-      isComplete={activated}
+      isComplete={derived.isComplete}
       isProcessing={derived.isProcessing}
-      canClose={activated || derived.canClose}
-      canContinueInBackground={false}
+      canClose={derived.canClose}
+      canContinueInBackground={derived.canContinueInBackground}
       payoutSigningProgress={null}
       peginSigningProgress={null}
       onClose={handleDone}
       successMessage={COPY.deposit.resume.activationSuccessMessage}
       onRetry={error ? handleSubmit : undefined}
+      waitDetailPersistKey={activity.id}
     />
   );
 }

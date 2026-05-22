@@ -41,5 +41,5 @@ export {
 export { submitWotsPublicKey } from "./wotsSubmission";
 
 // Step 4: Payout signing
-export { signAndSubmitPayouts } from "./payoutSigning";
+export { payoutSigningStep, signAndSubmitPayouts } from "./payoutSigning";
 export type { SignAndSubmitPayoutsParams } from "./payoutSigning";

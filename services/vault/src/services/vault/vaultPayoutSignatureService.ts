@@ -97,12 +97,13 @@ export interface PreparedSigningData {
   vaultProviderAddress: Hex;
 }
 
+export type PayoutSigningPhase = "auth" | "claimers" | "graph";
+
 /** Detailed progress for payout signing (used by UI layer) */
 export interface PayoutSigningProgress {
-  /** Number of signing steps completed */
+  phase: PayoutSigningPhase;
   completed: number;
-  /** Total number of claimers */
-  totalClaimers: number;
+  total: number;
 }
 
 /**
