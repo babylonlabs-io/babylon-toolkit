@@ -1,4 +1,5 @@
 import { fireEvent, render } from "@testing-library/react";
+import type { ReactNode } from "react";
 import type { Address, Hex } from "viem";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -7,17 +8,18 @@ import type { VaultActivity } from "@/types/activity";
 
 import { PostDepositContinuationView } from "../PostDepositContinuationView";
 
-const mockUseDepositPollingResult = vi.hoisted(() => vi.fn());
+const mockGetPollingResult = vi.hoisted(() => vi.fn());
 const mockRefetch = vi.hoisted(() => vi.fn());
-const mockHasArtifactsDownloaded = vi.hoisted(() => vi.fn(() => false));
 
 vi.mock("@/context/deposit/PeginPollingContext", () => ({
-  useDepositPollingResult: mockUseDepositPollingResult,
-  usePeginPolling: () => ({ refetch: mockRefetch }),
+  usePeginPolling: () => ({
+    refetch: mockRefetch,
+    getPollingResult: mockGetPollingResult,
+  }),
 }));
 
-vi.mock("@/utils/artifactDownloadStorage", () => ({
-  hasArtifactsDownloaded: mockHasArtifactsDownloaded,
+vi.mock("../ActivationGate", () => ({
+  ActivationGate: ({ children }: { children: ReactNode }) => <>{children}</>,
 }));
 
 vi.mock("@/hooks/deposit/depositFlowSteps", () => ({
@@ -120,29 +122,6 @@ vi.mock("../ResumeDepositContent", () => ({
   ResumeActivationContent: resumeMock("activate"),
 }));
 
-vi.mock("@/components/deposit/ArtifactDownloadModal", () => ({
-  ArtifactDownloadModal: ({
-    onComplete,
-    onClose,
-  }: {
-    onComplete: () => void;
-    onClose: () => void;
-  }) => (
-    <div data-testid="artifact">
-      <button
-        type="button"
-        data-testid="artifact-complete"
-        onClick={onComplete}
-      >
-        complete
-      </button>
-      <button type="button" data-testid="artifact-close" onClick={onClose}>
-        close
-      </button>
-    </div>
-  ),
-}));
-
 function activityWithId(id: string): VaultActivity {
   return {
     id,
@@ -207,11 +186,10 @@ function renderView(
 describe("PostDepositContinuationView", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockHasArtifactsDownloaded.mockReturnValue(false);
   });
 
   it("waits while the vault has no actionable step", () => {
-    mockUseDepositPollingResult.mockReturnValue(
+    mockGetPollingResult.mockReturnValue(
       resultWith({ availableActions: [PeginAction.NONE] }),
     );
     const { getByTestId, queryByTestId } = renderView();
@@ -222,21 +200,21 @@ describe("PostDepositContinuationView", () => {
   });
 
   it("auto-mounts WOTS submission when the VP needs the WOTS key", () => {
-    mockUseDepositPollingResult.mockReturnValue(
+    mockGetPollingResult.mockReturnValue(
       resultWith({ availableActions: [PeginAction.SUBMIT_WOTS_KEY] }),
     );
     expect(renderView().getByTestId("wots")).toBeTruthy();
   });
 
   it("auto-mounts payout signing when the VP is ready for signatures", () => {
-    mockUseDepositPollingResult.mockReturnValue(
+    mockGetPollingResult.mockReturnValue(
       resultWith({ availableActions: [PeginAction.SIGN_PAYOUT_TRANSACTIONS] }),
     );
     expect(renderView().getByTestId("payout")).toBeTruthy();
   });
 
   it("waits (no payout) when the BTC public key is unavailable", () => {
-    mockUseDepositPollingResult.mockReturnValue(
+    mockGetPollingResult.mockReturnValue(
       resultWith({ availableActions: [PeginAction.SIGN_PAYOUT_TRANSACTIONS] }),
     );
     const { queryByTestId, getByTestId } = renderView({
@@ -246,33 +224,14 @@ describe("PostDepositContinuationView", () => {
     expect(getByTestId("progress-view")).toBeTruthy();
   });
 
-  it("auto-mounts activation when verified and artifacts already downloaded", () => {
-    mockHasArtifactsDownloaded.mockReturnValue(true);
-    mockUseDepositPollingResult.mockReturnValue(
+  it("routes activation through the activation gate when the vault is verified", () => {
+    mockGetPollingResult.mockReturnValue(
       resultWith({ availableActions: [PeginAction.ACTIVATE_VAULT] }),
     );
-    const { getByTestId, queryByTestId } = renderView();
-    expect(getByTestId("activate")).toBeTruthy();
-    expect(queryByTestId("artifact")).toBeNull();
-  });
-
-  it("shows the artifact download before activation, then activates on complete", () => {
-    mockHasArtifactsDownloaded.mockReturnValue(false);
-    mockUseDepositPollingResult.mockReturnValue(
-      resultWith({ availableActions: [PeginAction.ACTIVATE_VAULT] }),
-    );
-    const { getByTestId, queryByTestId } = renderView();
-    expect(getByTestId("artifact")).toBeTruthy();
-    expect(queryByTestId("activate")).toBeNull();
-
-    fireEvent.click(getByTestId("artifact-complete"));
-
-    expect(getByTestId("activate")).toBeTruthy();
-    expect(queryByTestId("artifact")).toBeNull();
+    expect(renderView().getByTestId("activate")).toBeTruthy();
   });
 
   it("shows the completed view once the last vault finishes activating", () => {
-    mockHasArtifactsDownloaded.mockReturnValue(true);
     const VERIFIED = 1;
     const states = new Map<string, ReturnType<typeof resultWith>>([
       [
@@ -283,9 +242,7 @@ describe("PostDepositContinuationView", () => {
         }),
       ],
     ]);
-    mockUseDepositPollingResult.mockImplementation((id: string) =>
-      states.get(id),
-    );
+    mockGetPollingResult.mockImplementation((id: string) => states.get(id));
 
     const { getByTestId, rerender } = renderView({
       vaultIds: ["0xvault0" as Hex],
@@ -319,7 +276,6 @@ describe("PostDepositContinuationView", () => {
   });
 
   it("advances to the next vault once the current vault finishes activating", () => {
-    mockHasArtifactsDownloaded.mockReturnValue(true);
     const VERIFIED = 1;
     const states = new Map<string, ReturnType<typeof resultWith>>([
       [
@@ -337,9 +293,7 @@ describe("PostDepositContinuationView", () => {
         }),
       ],
     ]);
-    mockUseDepositPollingResult.mockImplementation((id: string) =>
-      states.get(id),
-    );
+    mockGetPollingResult.mockImplementation((id: string) => states.get(id));
 
     const props = {
       vaultIds: ["0xvault0" as Hex, "0xvault1" as Hex],
@@ -373,7 +327,7 @@ describe("PostDepositContinuationView", () => {
   });
 
   it("surfaces a closeable error on a warning state with no signing popup", () => {
-    mockUseDepositPollingResult.mockReturnValue(
+    mockGetPollingResult.mockReturnValue(
       resultWith({
         availableActions: [PeginAction.NONE],
         displayVariant: "warning",
@@ -388,7 +342,7 @@ describe("PostDepositContinuationView", () => {
   });
 
   it("closing during the wait fires no signing popup", () => {
-    mockUseDepositPollingResult.mockReturnValue(
+    mockGetPollingResult.mockReturnValue(
       resultWith({ availableActions: [PeginAction.NONE] }),
     );
     const onClose = vi.fn();
@@ -397,7 +351,7 @@ describe("PostDepositContinuationView", () => {
   });
 
   it("shows a completed view when there are no vaults to continue", () => {
-    mockUseDepositPollingResult.mockReturnValue(undefined);
+    mockGetPollingResult.mockReturnValue(undefined);
     const { getByTestId } = renderView({ vaultIds: [], activities: [] });
     expect(getByTestId("step").textContent).toBe("COMPLETED");
     expect(getByTestId("complete").textContent).toBe("true");

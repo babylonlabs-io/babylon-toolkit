@@ -1,11 +1,6 @@
-import { useCallback, useEffect, useState } from "react";
 import type { Address, Hex } from "viem";
 
-import { ArtifactDownloadModal } from "@/components/deposit/ArtifactDownloadModal";
-import {
-  useDepositPollingResult,
-  usePeginPolling,
-} from "@/context/deposit/PeginPollingContext";
+import { usePeginPolling } from "@/context/deposit/PeginPollingContext";
 import { COPY } from "@/copy";
 import { DepositFlowStep } from "@/hooks/deposit/depositFlowSteps";
 import {
@@ -13,10 +8,11 @@ import {
   getPeginDisplayStep,
   LocalStorageStatus,
   PeginAction,
+  type PeginState,
 } from "@/models/peginStateMachine";
 import type { VaultActivity } from "@/types/activity";
-import { hasArtifactsDownloaded } from "@/utils/artifactDownloadStorage";
 
+import { ActivationGate } from "./ActivationGate";
 import { DepositProgressView } from "./DepositProgressView";
 import {
   ResumeActivationContent,
@@ -32,11 +28,9 @@ interface PostDepositContinuationViewProps {
   onClose: () => void;
 }
 
-function isVaultPastActivation(
-  contractStatus: ContractStatus | undefined,
-  localStatus: LocalStorageStatus | undefined,
-): boolean {
-  if (contractStatus === undefined) return false;
+function isVaultPastActivation(peginState: PeginState | undefined): boolean {
+  if (!peginState) return false;
+  const { contractStatus, localStatus } = peginState;
   if (
     contractStatus === ContractStatus.VERIFIED &&
     localStatus === LocalStorageStatus.CONFIRMED
@@ -51,6 +45,39 @@ function isVaultPastActivation(
   );
 }
 
+function StatusView({
+  currentStep,
+  onClose,
+  error = null,
+  isComplete = false,
+  isProcessing = false,
+  canContinueInBackground = false,
+  successMessage,
+}: {
+  currentStep: DepositFlowStep;
+  onClose: () => void;
+  error?: string | null;
+  isComplete?: boolean;
+  isProcessing?: boolean;
+  canContinueInBackground?: boolean;
+  successMessage?: string;
+}) {
+  return (
+    <DepositProgressView
+      currentStep={currentStep}
+      error={error}
+      isComplete={isComplete}
+      isProcessing={isProcessing}
+      canClose
+      canContinueInBackground={canContinueInBackground}
+      payoutSigningProgress={null}
+      peginSigningProgress={null}
+      onClose={onClose}
+      successMessage={successMessage}
+    />
+  );
+}
+
 export function PostDepositContinuationView({
   vaultIds,
   activities,
@@ -58,59 +85,25 @@ export function PostDepositContinuationView({
   btcPublicKey,
   onClose,
 }: PostDepositContinuationViewProps) {
-  const [currentVaultIndex, setCurrentVaultIndex] = useState(0);
-  const [artifactResolvedVaultIds, setArtifactResolvedVaultIds] = useState<
-    ReadonlySet<string>
-  >(() => new Set());
-  const { refetch } = usePeginPolling();
+  const { refetch, getPollingResult } = usePeginPolling();
 
-  const currentVaultId = vaultIds[currentVaultIndex];
-  const pollingResult = useDepositPollingResult(currentVaultId ?? "");
+  const currentVaultIndex = vaultIds.findIndex(
+    (id) => !isVaultPastActivation(getPollingResult(id)?.peginState),
+  );
+  const currentVaultId =
+    currentVaultIndex === -1 ? undefined : vaultIds[currentVaultIndex];
+  const pollingResult = currentVaultId
+    ? getPollingResult(currentVaultId)
+    : undefined;
   const activity = currentVaultId
     ? activities.find((a) => a.id === currentVaultId)
     : undefined;
 
-  // Keyed to the shown index so a StrictMode double-success cannot skip a vault.
-  const advanceFrom = useCallback((fromIndex: number) => {
-    setCurrentVaultIndex((index) => (index === fromIndex ? index + 1 : index));
-  }, []);
-
-  const resolveArtifact = useCallback((vaultId: string) => {
-    setArtifactResolvedVaultIds((prev) => {
-      if (prev.has(vaultId)) return prev;
-      const next = new Set(prev);
-      next.add(vaultId);
-      return next;
-    });
-  }, []);
-
-  const currentContractStatus = pollingResult?.peginState?.contractStatus;
-  const currentLocalStatus = pollingResult?.peginState?.localStatus;
-
-  useEffect(() => {
-    if (!currentVaultId) return;
-    if (isVaultPastActivation(currentContractStatus, currentLocalStatus)) {
-      advanceFrom(currentVaultIndex);
-    }
-  }, [
-    currentVaultId,
-    currentContractStatus,
-    currentLocalStatus,
-    currentVaultIndex,
-    advanceFrom,
-  ]);
-
   if (!currentVaultId) {
     return (
-      <DepositProgressView
+      <StatusView
         currentStep={DepositFlowStep.COMPLETED}
-        error={null}
         isComplete
-        isProcessing={false}
-        canClose
-        canContinueInBackground={false}
-        payoutSigningProgress={null}
-        peginSigningProgress={null}
         onClose={onClose}
         successMessage={COPY.deposit.resume.activationSuccessMessage}
       />
@@ -123,15 +116,9 @@ export function PostDepositContinuationView({
 
   if (isWarning) {
     return (
-      <DepositProgressView
+      <StatusView
         currentStep={DepositFlowStep.ACTIVATE_VAULT}
         error={peginState?.message ?? COPY.common.somethingWentWrong.body}
-        isComplete={false}
-        isProcessing={false}
-        canClose
-        canContinueInBackground={false}
-        payoutSigningProgress={null}
-        peginSigningProgress={null}
         onClose={onClose}
       />
     );
@@ -166,39 +153,19 @@ export function PostDepositContinuationView({
   }
 
   if (activity && actions.includes(PeginAction.ACTIVATE_VAULT)) {
-    const providerAddress = activity.providers?.[0]?.id;
-    const peginTxid = activity.peginTxHash;
-    const depositorPk = activity.depositorBtcPubkey;
-    const canDownloadArtifacts =
-      !!providerAddress && !!peginTxid && !!depositorPk;
-    const needsArtifactDownload =
-      canDownloadArtifacts &&
-      !artifactResolvedVaultIds.has(currentVaultId) &&
-      !hasArtifactsDownloaded(currentVaultId);
-
-    if (needsArtifactDownload) {
-      return (
-        <ArtifactDownloadModal
-          open
-          providerAddress={providerAddress as string}
-          peginTxid={peginTxid as string}
-          depositorPk={depositorPk as string}
-          vaultId={currentVaultId}
-          unsignedPrePeginTxHex={activity.unsignedPrePeginTx}
-          onClose={onClose}
-          onComplete={() => resolveArtifact(currentVaultId)}
-        />
-      );
-    }
-
     return (
-      <ResumeActivationContent
-        key={`activate-${currentVaultId}`}
+      <ActivationGate
+        key={`gate-${currentVaultId}`}
         activity={activity}
-        depositorEthAddress={depositorEthAddress}
         onClose={onClose}
-        onSuccess={refetch}
-      />
+      >
+        <ResumeActivationContent
+          activity={activity}
+          depositorEthAddress={depositorEthAddress}
+          onClose={onClose}
+          onSuccess={refetch}
+        />
+      </ActivationGate>
     );
   }
 
@@ -207,15 +174,10 @@ export function PostDepositContinuationView({
     : DepositFlowStep.AWAIT_BTC_CONFIRMATION;
 
   return (
-    <DepositProgressView
+    <StatusView
       currentStep={waitStep}
-      error={null}
-      isComplete={false}
       isProcessing
-      canClose
       canContinueInBackground
-      payoutSigningProgress={null}
-      peginSigningProgress={null}
       onClose={onClose}
     />
   );

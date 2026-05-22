@@ -5,10 +5,8 @@
  * pending deposit section. Uses SimpleDeposit in resume mode for all actions.
  */
 
-import { useEffect, useState } from "react";
 import type { Hex } from "viem";
 
-import { ArtifactDownloadModal } from "@/components/deposit/ArtifactDownloadModal";
 import { BroadcastSuccessModal } from "@/components/deposit/BroadcastSuccessModal";
 import { RefundModal } from "@/components/deposit/RefundModal";
 import { usePeginPolling } from "@/context/deposit/PeginPollingContext";
@@ -16,7 +14,7 @@ import type { SignModalData } from "@/hooks/deposit/usePayoutSignModal";
 import type { VaultActivity } from "@/types/activity";
 import type { VaultProvider } from "@/types/vaultProvider";
 
-import { ActivateConfirmationModal } from "./ActivateConfirmationModal";
+import { ActivationGate } from "./ActivationGate";
 import SimpleDeposit from "./SimpleDeposit";
 
 interface SignModalState {
@@ -84,25 +82,6 @@ export function PendingDepositModals({
   };
 
   const activatingActivity = activationModal.activatingActivity;
-  const [activationConfirmed, setActivationConfirmed] = useState(false);
-  const [showArtifactDownload, setShowArtifactDownload] = useState(false);
-  const [downloadCompletedAt, setDownloadCompletedAt] = useState(0);
-
-  useEffect(() => {
-    if (!activatingActivity) {
-      setActivationConfirmed(false);
-      setShowArtifactDownload(false);
-    }
-  }, [activatingActivity]);
-
-  const artifactProviderAddress = activatingActivity?.providers?.[0]?.id;
-  const artifactPeginTxid = activatingActivity?.peginTxHash;
-  const artifactDepositorPk = activatingActivity?.depositorBtcPubkey;
-  const canDownloadArtifacts =
-    !!activatingActivity &&
-    !!artifactProviderAddress &&
-    !!artifactPeginTxid &&
-    !!artifactDepositorPk;
 
   return (
     <>
@@ -144,46 +123,22 @@ export function PendingDepositModals({
         />
       )}
 
-      {/* Activation gate — confirmation + artifact-download nudge */}
-      {activatingActivity && ethAddress && !activationConfirmed && (
-        <ActivateConfirmationModal
-          open
-          vaultId={activatingActivity.id}
-          downloadCompletedAt={downloadCompletedAt}
-          onClose={activationModal.handleClose}
-          onConfirm={() => setActivationConfirmed(true)}
-          onDownloadArtifacts={() => {
-            if (canDownloadArtifacts) setShowArtifactDownload(true);
-          }}
-        />
-      )}
-
-      {activatingActivity && showArtifactDownload && canDownloadArtifacts && (
-        <ArtifactDownloadModal
-          open
-          providerAddress={artifactProviderAddress as string}
-          peginTxid={artifactPeginTxid as string}
-          depositorPk={artifactDepositorPk as string}
-          vaultId={activatingActivity.id}
-          unsignedPrePeginTxHex={activatingActivity.unsignedPrePeginTx}
-          onClose={() => setShowArtifactDownload(false)}
-          onComplete={() => {
-            setShowArtifactDownload(false);
-            setDownloadCompletedAt((n) => n + 1);
-          }}
-        />
-      )}
-
-      {/* Activation Modal — secret input + ETH tx */}
-      {activatingActivity && ethAddress && activationConfirmed && (
-        <SimpleDeposit
-          open
-          resumeMode="activate_vault"
-          onClose={activationModal.handleClose}
-          onResumeSuccess={activationModal.handleSuccess}
+      {/* Activation gate — confirmation + artifact-download nudge, then activate */}
+      {activatingActivity && ethAddress && (
+        <ActivationGate
+          key={activatingActivity.id}
           activity={activatingActivity}
-          depositorEthAddress={ethAddress}
-        />
+          onClose={activationModal.handleClose}
+        >
+          <SimpleDeposit
+            open
+            resumeMode="activate_vault"
+            onClose={activationModal.handleClose}
+            onResumeSuccess={activationModal.handleSuccess}
+            activity={activatingActivity}
+            depositorEthAddress={ethAddress}
+          />
+        </ActivationGate>
       )}
 
       {/* Refund Modal */}
