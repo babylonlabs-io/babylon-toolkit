@@ -339,8 +339,8 @@ export function calculate(params: CalculatorParams): CalculatorResult {
       }
       warnings.push({
         type: "cliff",
-        title: "Swap vault order to unlock partial protection",
-        detail: `${best.name} (${best.btc.toFixed(2)} BTC) covers the target seizure alone. Right now both vaults are seized together because ${vaults[0].name} is first and too small.`,
+        title: "Swap BTC Vault order to unlock partial protection",
+        detail: `${best.name} (${best.btc.toFixed(2)} BTC) covers the target seizure alone. Right now both BTC Vaults are seized together because ${vaults[0].name} is first and too small.`,
         suggestion: `Suggested order: ${best.name} (${fmt(best.btc)} BTC) → ${other.name} (${fmt(other.btc)} BTC)`,
       });
     } else if (isCliff) {
@@ -359,7 +359,7 @@ export function calculate(params: CalculatorParams): CalculatorResult {
     } else if (group1ReorderWouldHelp) {
       warnings.push({
         type: "reorder",
-        title: "Better vault ordering reduces first-event seizure",
+        title: "Better BTC Vault ordering reduces first-event seizure",
         detail: buildReorderDetail(
           sumImproves,
           savedSum,
@@ -372,7 +372,7 @@ export function calculate(params: CalculatorParams): CalculatorResult {
     } else if (reorderWouldHelp) {
       warnings.push({
         type: "reorder",
-        title: "Better vault ordering deepens cascade protection",
+        title: "Better BTC Vault ordering deepens cascade protection",
         detail: buildReorderDetail(sumImproves, savedSum, savedBtcAfterG1),
         suggestion: `Suggested order: ${globalOptimalOrderStr}`,
       });
@@ -388,7 +388,7 @@ export function calculate(params: CalculatorParams): CalculatorResult {
     } else if (group1ReorderWouldHelp) {
       warnings.push({
         type: "reorder",
-        title: "Better vault ordering reduces first-event seizure",
+        title: "Better BTC Vault ordering reduces first-event seizure",
         detail: buildReorderDetail(
           sumImproves,
           savedSum,
@@ -401,7 +401,7 @@ export function calculate(params: CalculatorParams): CalculatorResult {
     } else if (reorderWouldHelp) {
       warnings.push({
         type: "reorder",
-        title: "Better vault ordering deepens cascade protection",
+        title: "Better BTC Vault ordering deepens cascade protection",
         detail: buildReorderDetail(sumImproves, savedSum, savedBtcAfterG1),
         suggestion: `Suggested order: ${globalOptimalOrderStr}`,
       });
@@ -588,7 +588,7 @@ function buildDustResult(
         type: "dust",
         title: "Dust position",
         detail:
-          "Position or collateral value is below $1,000. All vaults are treated as a single liquidation group.",
+          "Position or collateral value is below $1,000. All BTC Vaults are treated as a single liquidation group.",
       },
     ],
     isFullLiquidation: true,

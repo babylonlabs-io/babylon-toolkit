@@ -194,7 +194,7 @@ export function formatPayoutSignatureError(error: unknown): {
       return {
         title: "Contract Call Failed",
         message:
-          "A contract call failed during payout signing. The on-chain vault data may be unavailable. Please try again or contact support.",
+          "A contract call failed during payout signing. The on-chain BTC Vault data may be unavailable. Please try again or contact support.",
       };
     }
 

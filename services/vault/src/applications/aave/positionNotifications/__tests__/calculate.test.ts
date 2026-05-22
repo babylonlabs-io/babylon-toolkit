@@ -96,7 +96,7 @@ describe("calculate", () => {
       expect(hasWarning(result.warnings, "cliff")).toBe(true);
       expect(hasWarning(result.warnings, "urgent")).toBe(true);
       expect(getWarning(result.warnings, "cliff")?.title).toContain(
-        "No backup vault",
+        "No backup BTC Vault",
       );
       expect(result.groups).toHaveLength(1);
       expect(result.groups[0].isFullLiquidation).toBe(true);
@@ -238,7 +238,7 @@ describe("calculate", () => {
       const result = calculate(makeParams([v(0.5), v(0.5)], { THF: 1.3 }));
       expect(hasWarning(result.warnings, "cliff")).toBe(true);
       expect(getWarning(result.warnings, "cliff")?.title).toContain(
-        "Both vaults seized together",
+        "Both BTC Vaults seized together",
       );
     });
 

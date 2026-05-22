@@ -131,7 +131,7 @@ describe("Deposit Validations", () => {
           ...validInputs,
           vaultAmounts: [30_000n, 30_000n, 30_000n],
         }),
-      ).toThrow("Maximum 2 vaults supported");
+      ).toThrow("Maximum 2 BTC Vaults supported");
     });
 
     it("throws when BTC wallet is not connected", () => {
@@ -402,7 +402,7 @@ describe("Deposit Validations", () => {
       });
       expect(result).toEqual({
         disabled: true,
-        label: "Deposit amount too low for 2-vault split",
+        label: "Deposit amount too low to split into 2 BTC Vaults",
       });
     });
 

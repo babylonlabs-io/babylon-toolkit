@@ -126,12 +126,12 @@ export function useVaultActions(): UseVaultActionsReturn {
       const vault = await fetchVaultById(vaultId);
 
       if (!vault) {
-        throw new Error("Vault not found. Please try again.");
+        throw new Error("BTC Vault not found. Please try again.");
       }
 
       if (vault.status !== ContractStatus.PENDING) {
         throw new Error(
-          `Cannot broadcast: vault is in ${ContractStatus[vault.status]} state. Broadcast is only valid during PENDING.`,
+          `Cannot broadcast: BTC Vault is in ${ContractStatus[vault.status]} state. Broadcast is only valid during PENDING.`,
         );
       }
 
@@ -177,7 +177,7 @@ export function useVaultActions(): UseVaultActionsReturn {
           OnChainBtcVaultStatus[onChainVault.status] ??
           `UNKNOWN(${onChainVault.status})`;
         throw new Error(
-          `Cannot broadcast: on-chain vault is in ${label} state. Broadcast is only valid during PENDING.`,
+          `Cannot broadcast: on-chain BTC Vault is in ${label} state. Broadcast is only valid during PENDING.`,
         );
       }
 
@@ -326,7 +326,7 @@ export function useVaultActions(): UseVaultActionsReturn {
 
       if (!protocolInfo.hashlock || protocolInfo.hashlock === "0x") {
         throw new Error(
-          "Vault hashlock not found. The vault may not support activation.",
+          "BTC Vault hashlock not found. The BTC Vault may not support activation.",
         );
       }
 
@@ -344,7 +344,7 @@ export function useVaultActions(): UseVaultActionsReturn {
           OnChainBtcVaultStatus[basicInfo.status] ??
           `UNKNOWN(${basicInfo.status})`;
         throw new Error(
-          `Cannot activate: vault is in ${label} state. Activation is only valid when VERIFIED.`,
+          `Cannot activate: BTC Vault is in ${label} state. Activation is only valid when VERIFIED.`,
         );
       }
 
@@ -398,11 +398,11 @@ export function useVaultActions(): UseVaultActionsReturn {
       setActivating(false);
     } catch (err) {
       const rawMessage =
-        err instanceof Error ? err.message : "Failed to activate vault";
+        err instanceof Error ? err.message : "Failed to activate BTC Vault";
       // Normalize the on-chain "vault not found" message so we don't leak
       // implementation detail like the raw vault id into the UI.
       const errorMessage = rawMessage.includes("not found on-chain")
-        ? "Vault not found. The vault ID may be invalid."
+        ? "BTC Vault not found. The BTC Vault ID may be invalid."
         : rawMessage;
       setActivationError(errorMessage);
       setActivating(false);

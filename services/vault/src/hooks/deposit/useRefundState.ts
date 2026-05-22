@@ -83,7 +83,7 @@ export function useRefundState({
           return;
         }
         if (!vaultId) {
-          setError("Missing vault ID");
+          setError("Missing BTC Vault ID");
           return;
         }
         if (!ethAddress) {

@@ -60,7 +60,7 @@ export function validateVaultAmounts(
   if (amounts?.length > 2) {
     return {
       valid: false,
-      error: "Maximum 2 vaults supported",
+      error: "Maximum 2 BTC Vaults supported",
     };
   }
   return sdkValidateVaultAmounts(amounts, minDeposit, maxDeposit);
@@ -82,7 +82,7 @@ export function validateMultiVaultDepositInputs(
     throw new Error("Multiple providers not yet supported");
   }
   if (params.vaultAmounts.length > 2) {
-    throw new Error("Maximum 2 vaults supported");
+    throw new Error("Maximum 2 BTC Vaults supported");
   }
 
   sdkValidateMultiVaultDepositInputs(params);
@@ -184,7 +184,7 @@ export function getDepositCtaState(params: DepositCtaParams): DepositCtaState {
   if (params.splitNotReady) {
     return {
       disabled: true,
-      label: "Deposit amount too low for 2-vault split",
+      label: "Deposit amount too low to split into 2 BTC Vaults",
     };
   }
 

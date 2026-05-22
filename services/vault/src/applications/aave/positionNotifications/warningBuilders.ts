@@ -8,15 +8,15 @@ export function buildCliffSingleVaultWarning(
 ): Warning {
   let suggestion: string;
   if (suggestedBtc !== null) {
-    suggestion = `Add a ${suggestedBtc.toFixed(2)} BTC sacrificial vault at position 1 — your current vault (${vault.btc.toFixed(2)} BTC) becomes protected.`;
+    suggestion = `Add a sacrificial BTC Vault of ${suggestedBtc.toFixed(2)} BTC at position 1 — your current BTC Vault (${vault.btc.toFixed(2)} BTC) becomes protected.`;
   } else {
-    suggestion = `To enable partial liquidation, add ≥ ${fmt(rawBtc)} BTC as a sacrificial vault. You can also add collateral or repay part of the debt to keep this position safe. Alternatively: repay the loan, split BTC into optimal UTXOs, and re-open with a sacrificial vault.`;
+    suggestion = `To enable partial liquidation, add ≥ ${fmt(rawBtc)} BTC as a sacrificial BTC Vault. You can also add collateral or repay part of the debt to keep this position safe. Alternatively: repay the loan, split BTC into optimal UTXOs, and re-open with a sacrificial BTC Vault.`;
   }
   return {
     type: "cliff",
-    title: "No backup vault",
+    title: "No backup BTC Vault",
     detail:
-      "Your vault will be fully seized at liquidation — nothing is protected behind it.",
+      "Your BTC Vault will be fully seized at liquidation — nothing is protected behind it.",
     suggestion,
   };
 }
@@ -27,9 +27,9 @@ export function buildCliff2VaultWarning(
 ): Warning {
   return {
     type: "cliff",
-    title: "Both vaults seized together — no partial protection",
-    detail: `Neither vault alone covers the target seizure (${targetSeizureBtc.toFixed(2)} BTC). Both will be liquidated in one event.`,
-    suggestion: `${enablePartialStr}You can also add collateral or repay part of the debt to keep this position safe. Alternatively: repay the loan, split BTC into optimal UTXOs, and re-open with a sacrificial vault.`,
+    title: "Both BTC Vaults seized together — no partial protection",
+    detail: `Neither BTC Vault alone covers the target seizure (${targetSeizureBtc.toFixed(2)} BTC). Both will be liquidated in one event.`,
+    suggestion: `${enablePartialStr}You can also add collateral or repay part of the debt to keep this position safe. Alternatively: repay the loan, split BTC into optimal UTXOs, and re-open with a sacrificial BTC Vault.`,
   };
 }
 
@@ -40,8 +40,8 @@ export function buildCliff3PlusWarning(
 ): Warning {
   return {
     type: "cliff",
-    title: "All vaults seized in one liquidation event",
-    detail: `All ${nVaults} vaults land in Group 1 — no protected vaults remain after first liquidation. ${hasReorderFix ? "Reordering vaults will fix this." : "No combination of vaults covers the target seizure alone."}`,
+    title: "All BTC Vaults seized in one liquidation event",
+    detail: `All ${nVaults} BTC Vaults land in Group 1 — no protected BTC Vaults remain after first liquidation. ${hasReorderFix ? "Reordering BTC Vaults will fix this." : "No combination of BTC Vaults covers the target seizure alone."}`,
     suggestion: hasReorderFix ? `Suggested order: ${orderStr}` : undefined,
   };
 }
@@ -74,14 +74,14 @@ export function buildRebalanceWarning(
   totalBtc: number,
   liqFactor: number,
 ): Warning {
-  const detail = `Group 1 seizes ${fmt(g1CombinedBtc)} BTC but target is only ${fmt(g1TargetSeizure)} BTC — over-seizure of ${fmt(g1OverSeizure)} BTC. With optimal vault sizes, ${fmt(rebalanceImprovementBtc)} more BTC would be protected.`;
+  const detail = `Group 1 seizes ${fmt(g1CombinedBtc)} BTC but target is only ${fmt(g1TargetSeizure)} BTC — over-seizure of ${fmt(g1OverSeizure)} BTC. With optimal BTC Vault sizes, ${fmt(rebalanceImprovementBtc)} more BTC would be protected.`;
 
   let suggestion = "";
   if (suggestedRebalanceVaultBtc !== null && suggestedRebalanceOrder !== null) {
     const largest = vaults.reduce((a, b) => (a.btc > b.btc ? a : b));
     const smallVaults = vaults.filter((v) => v.id !== largest.id);
     const smallNames = smallVaults.map((v) => v.name).join(" + ");
-    suggestion = `Add a ${fmt(suggestedRebalanceVaultBtc)} BTC vault and place it with ${smallNames} at the front — together they cover the target seizure, protecting ${largest.name} (${fmt(largest.btc)} BTC).`;
+    suggestion = `Add a ${fmt(suggestedRebalanceVaultBtc)} BTC Vault and place it with ${smallNames} at the front — together they cover the target seizure, protecting ${largest.name} (${fmt(largest.btc)} BTC).`;
     suggestion +=
       " You can also add collateral or repay part of the debt to keep this position safe.";
     suggestion +=
@@ -92,7 +92,7 @@ export function buildRebalanceWarning(
 
   return {
     type: "rebalance",
-    title: "Vault sizes can be improved",
+    title: "BTC Vault sizes can be improved",
     detail,
     suggestion,
   };
