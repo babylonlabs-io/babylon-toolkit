@@ -7,6 +7,7 @@ import { initBTCCurve } from "@/core/utils/initBTCCurve";
 import { resolveUseTweakedSigner } from "@/core/utils/psbtOptionsMapper";
 import { ERROR_CODES, WalletError, isUserRejectionMessage } from "@/error";
 
+import { isForeignBtcProvider } from "./conflict";
 import logo from "./logo.svg";
 import { MIN_UNISAT_VERSION, checkUnisatVersion } from "./version";
 
@@ -72,6 +73,20 @@ export class UnisatProvider implements IBTCProvider {
   }
 
   connectWallet = async (): Promise<void> => {
+    // When UniSat's dedicated `window.unisat_wallet` handle is absent, the
+    // resolved provider comes from the shared `window.unisat` slot, which a
+    // competing BTC extension (OKX, OneKey, Bitget, …) can shadow. Fail fast
+    // with a typed conflict error so the UI can guide recovery instead of
+    // letting the handshake fail opaquely against the wrong provider.
+    if (isForeignBtcProvider(this.provider)) {
+      throw new WalletError({
+        code: ERROR_CODES.WALLET_CONFLICT,
+        message:
+          "Another Bitcoin wallet extension is blocking Unisat. Disable it, refresh the page, and try connecting again.",
+        wallet: WALLET_PROVIDER_NAME,
+      });
+    }
+
     try {
       await this.provider.requestAccounts();
     } catch (error) {

@@ -34,6 +34,7 @@ export function useWalletConnectors({ persistent, accountStorage, onError }: Pro
     displayChains,
     displayInscriptions,
     displayError,
+    displayWalletConflict,
     confirm,
     close,
     reset,
@@ -212,6 +213,14 @@ export function useWalletConnectors({ persistent, accountStorage, onError }: Pro
       connector.on("error", (error: Error) => {
         onError?.(error);
 
+        // A competing BTC extension is shadowing the wallet's injection point.
+        // Show the dedicated recovery modal (disable the other extension →
+        // refresh → reconnect) instead of the generic terminal-error screen.
+        if (error instanceof WalletError && error.code === ERROR_CODES.WALLET_CONFLICT && displayWalletConflict) {
+          displayWalletConflict();
+          return;
+        }
+
         // Terminal errors (e.g. the wallet extension is too old) need an
         // in-dialog message so the user can act on them. Anything else
         // falls through to the existing "bounce back to chains" behaviour
@@ -243,7 +252,7 @@ export function useWalletConnectors({ persistent, accountStorage, onError }: Pro
     );
 
     return () => unsubscribeArr.forEach((unsubscribe) => unsubscribe());
-  }, [onError, displayChains, displayError, connectors]);
+  }, [onError, displayChains, displayError, displayWalletConflict, connectors]);
 
   useEffect(() => {
     const requiredChainIds = Object.values(chainMap).filter(Boolean).map(chain => chain.id);

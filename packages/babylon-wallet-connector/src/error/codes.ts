@@ -21,6 +21,7 @@ export const ERROR_CODES = {
   WALLET_METHOD_NOT_SUPPORTED: "WALLET_METHOD_NOT_SUPPORTED", // Wallet does not implement a required method
   NETWORK_NOT_ENABLED_IN_WALLET: "NETWORK_NOT_ENABLED_IN_WALLET", // Network not enabled
   WALLET_CONFIG_REQUIRED: "WALLET_CONFIG_REQUIRED", // Wallet configuration required
+  WALLET_CONFLICT: "WALLET_CONFLICT", // Another extension is shadowing the wallet's injection point
 
   // ===== Bitcoin/PSBT/Address =====
   INVALID_PUBLIC_KEY: "INVALID_PUBLIC_KEY", // Invalid public key

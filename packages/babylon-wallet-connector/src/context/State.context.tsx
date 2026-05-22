@@ -13,7 +13,8 @@ export type Screens =
   | Screen<"CHAINS">
   | Screen<"WALLETS">
   | Screen<"INSCRIPTIONS">
-  | Screen<"ERROR">;
+  | Screen<"ERROR">
+  | Screen<"WALLET_CONFLICT">;
 
 export interface State {
   confirmed: boolean;
@@ -40,6 +41,7 @@ export interface Actions {
     onCancel?: () => void;
     onSubmit?: () => void;
   }) => void;
+  displayWalletConflict?: () => void;
   selectWallet?: (chain: string, wallet: IWallet) => void;
   removeWallet?: (chain: string) => void;
   confirm?: () => void;
@@ -123,6 +125,10 @@ export function StateProvider({ children, chains }: PropsWithChildren<StateProvi
 
       displayError: (params) => {
         setState((state) => ({ ...state, screen: { type: "ERROR", params } }));
+      },
+
+      displayWalletConflict: () => {
+        setState((state) => ({ ...state, screen: { type: "WALLET_CONFLICT" } }));
       },
 
       selectWallet: (chain: string, wallet: IWallet) => {

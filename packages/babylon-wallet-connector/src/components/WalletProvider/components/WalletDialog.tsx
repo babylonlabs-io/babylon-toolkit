@@ -1,6 +1,7 @@
 import { useCallback } from "react";
 
 import { ResponsiveDialog } from "@/components/ResponsiveDialog/ResponsiveDialog";
+import { UnisatConflict } from "@/components/UnisatConflict";
 import { useChainProviders } from "@/context/Chain.context";
 import { useInscriptionProvider } from "@/context/Inscriptions.context";
 import { HashMap } from "@/core/types";
@@ -54,20 +55,28 @@ export function WalletDialog({ persistent, storage, config, onError, simplifiedT
     close?.();
   }, [confirm]);
 
+  // The Unisat extension-conflict modal uses the full-screen dialog base (same
+  // as the deposit flow) and replaces the centered wallet dialog while shown.
+  const isWalletConflict = screen.type === "WALLET_CONFLICT";
+
   return (
-    <ResponsiveDialog className="min-h-[80%]" open={visible} onClose={handleClose}>
-      <Screen
-        current={screen}
-        widgets={walletWidgets}
-        className="min-h-0 md:size-[600px]"
-        onClose={handleClose}
-        onConfirm={handleConfirm}
-        onSelectWallet={connect}
-        onAccepTermsOfService={handleAccepTermsOfService}
-        onToggleInscriptions={handleToggleInscriptions}
-        onDisconnectWallet={disconnect}
-        simplifiedTerms={simplifiedTerms}
-      />
-    </ResponsiveDialog>
+    <>
+      <ResponsiveDialog className="min-h-[80%]" open={visible && !isWalletConflict} onClose={handleClose}>
+        <Screen
+          current={screen}
+          widgets={walletWidgets}
+          className="min-h-0 md:size-[600px]"
+          onClose={handleClose}
+          onConfirm={handleConfirm}
+          onSelectWallet={connect}
+          onAccepTermsOfService={handleAccepTermsOfService}
+          onToggleInscriptions={handleToggleInscriptions}
+          onDisconnectWallet={disconnect}
+          simplifiedTerms={simplifiedTerms}
+        />
+      </ResponsiveDialog>
+
+      <UnisatConflict open={visible && isWalletConflict} onClose={handleClose} />
+    </>
   );
 }
