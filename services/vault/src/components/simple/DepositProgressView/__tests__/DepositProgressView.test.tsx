@@ -165,8 +165,11 @@ describe("DepositProgressView", () => {
           "Awaiting vault provider to prepare payout transactions",
         ),
       ).toBeInTheDocument();
-      expect(screen.getByText("Next action:")).toBeInTheDocument();
-      expect(screen.getAllByText("Sign payout transactions")).toHaveLength(2);
+      expect(screen.getByText("Status:")).toBeInTheDocument();
+      expect(
+        screen.getByText("Preparing payout transactions"),
+      ).toBeInTheDocument();
+      expect(screen.queryByText("Next action:")).not.toBeInTheDocument();
     });
   });
 

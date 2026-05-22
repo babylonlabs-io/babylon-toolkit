@@ -176,11 +176,9 @@ export const COPY = {
     waitDetails: {
       startedAt: "Started at",
       status: "Status",
-      nextAction: "Next action",
       preparingPayouts: "Preparing payout transactions",
       verifyingDeposit: "Verifying signatures and collecting ACKs",
       confirmingActivation: "Confirming activation",
-      vaultActive: "Vault active",
     },
     broadcastSuccess: {
       heading: "Pre-Pegin Broadcast",

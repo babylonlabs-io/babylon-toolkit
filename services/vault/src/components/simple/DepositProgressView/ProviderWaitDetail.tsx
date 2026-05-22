@@ -27,33 +27,18 @@ function formatStartedAt(timestamp: number): string {
   });
 }
 
-function getWaitDetailCopy(step: DepositFlowStep): {
-  status: string;
-  nextAction: string;
-} {
-  const { steps, waitDetails } = COPY.deposit;
+function getWaitStatus(step: DepositFlowStep): string {
+  const { waitDetails } = COPY.deposit;
 
   switch (step) {
     case DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS:
-      return {
-        status: waitDetails.preparingPayouts,
-        nextAction: steps.signPayouts,
-      };
+      return waitDetails.preparingPayouts;
     case DepositFlowStep.AWAIT_VP_VERIFICATION:
-      return {
-        status: waitDetails.verifyingDeposit,
-        nextAction: steps.downloadArtifact,
-      };
+      return waitDetails.verifyingDeposit;
     case DepositFlowStep.AWAIT_ACTIVATION_CONFIRMATION:
-      return {
-        status: waitDetails.confirmingActivation,
-        nextAction: waitDetails.vaultActive,
-      };
+      return waitDetails.confirmingActivation;
     default:
-      return {
-        status: "",
-        nextAction: "",
-      };
+      return "";
   }
 }
 
@@ -64,7 +49,7 @@ export function ProviderWaitDetail({
   const cacheKey = persistKey ? `${persistKey}:${step}` : undefined;
   const [startedAt] = useState(() => resolveStartedAt(cacheKey));
   const copy = COPY.deposit.waitDetails;
-  const detail = getWaitDetailCopy(step);
+  const status = getWaitStatus(step);
 
   return (
     <div className="mt-3 flex flex-col gap-2 rounded-lg bg-secondary-highlight p-3">
@@ -84,18 +69,9 @@ export function ProviderWaitDetail({
         <span className="flex items-center gap-2">
           <Loader size={14} className="text-accent-primary" />
           <Text as="span" variant="body2" className="text-accent-primary">
-            {detail.status}
+            {status}
           </Text>
         </span>
-      </div>
-
-      <div className="flex items-center justify-between gap-2">
-        <Text as="span" variant="body2" className="text-accent-secondary">
-          {copy.nextAction}:
-        </Text>
-        <Text as="span" variant="body2" className="text-accent-primary">
-          {detail.nextAction}
-        </Text>
       </div>
     </div>
   );
