@@ -61,11 +61,14 @@ export function getStepLabel(step: DepositFlowStep): string {
 
 /**
  * Progress-bar fill (0–1) for a deposit flow step. Reflects completed steps —
- * the current step is in progress, not done — matching the in-flow stepper's
- * bar so the last actionable step never reads as 100%.
+ * the current step is in progress, not done — so actionable steps never read as
+ * 100%. The final step (awaiting activation confirmation) is the exception: all
+ * actions are done, so the bar fills completely.
  */
 export function getStepFillPercent(step: DepositFlowStep): number {
-  return Math.max(0, getVisualStep(step) - 1) / TOTAL_VISUAL_STEPS;
+  const visualStep = getVisualStep(step);
+  if (visualStep >= TOTAL_VISUAL_STEPS) return 1;
+  return Math.max(0, visualStep - 1) / TOTAL_VISUAL_STEPS;
 }
 
 export function getVisualStep(currentStep: DepositFlowStep): number {

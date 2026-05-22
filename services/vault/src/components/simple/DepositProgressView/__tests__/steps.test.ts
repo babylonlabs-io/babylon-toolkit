@@ -80,21 +80,20 @@ describe("getStepLabel", () => {
 
 describe("getStepFillPercent", () => {
   it("fills by completed steps, not the in-progress current step", () => {
-    // AWAIT_BTC_CONFIRMATION is visual step 6 -> 5 completed of 15.
+    // AWAIT_BTC_CONFIRMATION is visual step 6 -> 5 completed of 16.
     expect(
       getStepFillPercent(DepositFlowStep.AWAIT_BTC_CONFIRMATION),
     ).toBeCloseTo(5 / TOTAL_VISUAL_STEPS);
   });
 
-  it("never reports a full bar on the last actionable step", () => {
-    // AWAIT_ACTIVATION_CONFIRMATION is the last step; 14 completed of 15,
-    // never 100% until the flow completes.
+  it("fills the bar fully on the final awaiting-confirmation step", () => {
     expect(
       getStepFillPercent(DepositFlowStep.AWAIT_ACTIVATION_CONFIRMATION),
-    ).toBeCloseTo((TOTAL_VISUAL_STEPS - 1) / TOTAL_VISUAL_STEPS);
-    expect(
-      getStepFillPercent(DepositFlowStep.AWAIT_ACTIVATION_CONFIRMATION),
-    ).toBeLessThan(1);
+    ).toBe(1);
+  });
+
+  it("keeps the bar partial on the last actionable step (activate)", () => {
+    expect(getStepFillPercent(DepositFlowStep.ACTIVATE_VAULT)).toBeLessThan(1);
   });
 });
 
