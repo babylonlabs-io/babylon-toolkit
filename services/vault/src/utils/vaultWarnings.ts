@@ -6,7 +6,7 @@
 
 /** Warning message for wallet ownership mismatch */
 export const WALLET_OWNERSHIP_WARNING =
-  "This vault belongs to a different wallet. Connect the wallet that created this vault to perform actions.";
+  "This BTC Vault belongs to a different wallet. Connect the wallet that created this BTC Vault to perform actions.";
 
 /**
  * Check if a vault is owned by the connected wallet

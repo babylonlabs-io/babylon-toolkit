@@ -30,7 +30,7 @@ function buildFeeRows(
     label: "Min deposit (MIN_PEGIN)",
     value: `${minDepositBtc} BTC`,
     tooltip:
-      "Minimum BTC deposit required to create a vault, set by the protocol.",
+      "Minimum BTC deposit required to create a BTC Vault, set by the protocol.",
   });
 
   if (splitParams) {
@@ -54,7 +54,7 @@ function buildFeeRows(
         label: "Effective minimum for split",
         value: `~${minForSplitBtc} BTC`,
         tooltip:
-          "Minimum deposit for a 2-vault split. Both vaults must meet the minimum deposit requirement.",
+          "Minimum deposit to split into 2 BTC Vaults. Both BTC Vaults must meet the minimum deposit requirement.",
       });
     }
 

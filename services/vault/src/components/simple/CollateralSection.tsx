@@ -241,7 +241,7 @@ export function CollateralSection({
             <ExpandMenuButton
               isExpanded={isExpanded}
               onToggle={() => setIsExpanded((prev) => !prev)}
-              aria-label="Vault options"
+              aria-label="BTC Vault options"
             />
           </div>
 

@@ -13,7 +13,7 @@ export const CONTRACT_ERROR_MESSAGES: Record<string, string> = {
   PositionNotFound: "Position not found. You may not have an active position.",
   PositionAlreadyExists: "A position already exists for this account.",
   NoCollateralToLiquidate: "No collateral available for liquidation.",
-  VaultAlreadyInPosition: "This vault is already being used in a position.",
+  VaultAlreadyInPosition: "This BTC Vault is already being used in a position.",
   InvalidProxyContract: "Invalid proxy contract address.",
   ProxyMismatch: "Proxy contract mismatch.",
   NoDebtToLiquidate: "No debt available to liquidate.",
@@ -25,21 +25,22 @@ export const CONTRACT_ERROR_MESSAGES: Record<string, string> = {
   // ============================================================================
   // BTCVaultRegistry errors
   // ============================================================================
-  BTCVaultNotFound: "Vault not found. The vault ID may be invalid.",
-  VaultNotActive: "This vault is not active.",
-  VaultAlreadyRedeemed: "This vault has already been redeemed.",
-  VaultAlreadyExists: "A vault with this ID already exists.",
-  InvalidVaultStatus: "The vault is in an invalid status for this operation.",
+  BTCVaultNotFound: "BTC Vault not found. The BTC Vault ID may be invalid.",
+  VaultNotActive: "This BTC Vault is not active.",
+  VaultAlreadyRedeemed: "This BTC Vault has already been redeemed.",
+  VaultAlreadyExists: "A BTC Vault with this ID already exists.",
+  InvalidVaultStatus:
+    "The BTC Vault is in an invalid status for this operation.",
   InvalidBTCVaultStatus:
-    "The vault is in an invalid status for this operation.",
+    "The BTC Vault is in an invalid status for this operation.",
   ActivationDeadlineExpired:
-    "The activation deadline has passed. The vault can no longer be activated.",
+    "The activation deadline has passed. The BTC Vault can no longer be activated.",
   InvalidSecret:
-    "The secret does not match the vault's hashlock. Please verify your secret and try again.",
-  InvalidHashlock: "The vault does not have a valid hashlock configured.",
-  DuplicateHashlock: "This vault has already been activated.",
-  VaultNotEscrowed: "The vault is not in escrow.",
-  VaultSwapNotSet: "Vault swap is not configured.",
+    "The secret does not match the BTC Vault's hashlock. Please verify your secret and try again.",
+  InvalidHashlock: "The BTC Vault does not have a valid hashlock configured.",
+  DuplicateHashlock: "This BTC Vault has already been activated.",
+  VaultNotEscrowed: "The BTC Vault is not in escrow.",
+  VaultSwapNotSet: "BTC Vault swap is not configured.",
   InvalidBTCPublicKey: "Invalid BTC public key format.",
   InvalidBTCProofOfPossession: "Invalid BTC proof of possession signature.",
   BtcKeyMismatch: "BTC key mismatch.",
@@ -49,9 +50,9 @@ export const CONTRACT_ERROR_MESSAGES: Record<string, string> = {
     "Bitcoin inclusion proof verification failed.",
   BitcoinTransactionParsingFailed: "Failed to parse Bitcoin transaction.",
   PrePeginOutputAlreadyUsed:
-    "This Pre-Pegin output has already been used to activate another vault.",
+    "This Pre-Pegin output has already been used to activate another BTC Vault.",
   PeginTransactionAlreadyUsed:
-    "This peg-in transaction has already been used to activate another vault.",
+    "This peg-in transaction has already been used to activate another BTC Vault.",
 
   // ============================================================================
   // Vault Provider errors
@@ -80,9 +81,9 @@ export const CONTRACT_ERROR_MESSAGES: Record<string, string> = {
   // Aave Adapter position limits
   // ============================================================================
   VaultCountExceedsMaximum:
-    "You have reached the maximum number of vaults per position.",
+    "You have reached the maximum number of BTC Vaults per position.",
   PositionAboveMaximum:
-    "Your total vault amount exceeds the maximum position size.",
+    "Your total BTC Vault amount exceeds the maximum position size.",
 
   // ============================================================================
   // Aave Spoke errors
@@ -95,7 +96,7 @@ export const CONTRACT_ERROR_MESSAGES: Record<string, string> = {
   EscrowNotEmpty: "Escrow is not empty.",
   FairnessPaymentTokenNotSet: "Fairness payment token is not set.",
   FeeRecipientNotConfigured: "Fee recipient is not configured.",
-  DuplicateVaultId: "Duplicate vault ID.",
+  DuplicateVaultId: "Duplicate BTC Vault ID.",
 
   // ============================================================================
   // Bitcoin verification errors
@@ -135,7 +136,7 @@ export const CONTRACT_ERROR_MESSAGES: Record<string, string> = {
   InsufficientBalance: "Insufficient balance for this operation.",
   ZeroAddress: "Address cannot be zero.",
   ZeroAmount: "Amount cannot be zero.",
-  InvalidVault: "Invalid vault.",
+  InvalidVault: "Invalid BTC Vault.",
   FailedDeployment: "Contract deployment failed.",
   ProxyDeploymentFailed: "Proxy deployment failed.",
   TransferFailed: "Token transfer failed.",
@@ -213,11 +214,11 @@ export const CONTRACT_ERROR_MESSAGES: Record<string, string> = {
   VaultProviderCommissionExceeded:
     "The vault provider's commission rate exceeds your acceptable maximum. Please try again.",
   ApplicationNotActive:
-    "This application is currently paused. Vault operations are temporarily disabled.",
+    "This application is currently paused. BTC Vault operations are temporarily disabled.",
   BlocklistedVaultKeeper:
     "This vault keeper has been blocklisted and cannot perform this action.",
   PostExpiryGraceWindowElapsed:
-    "The grace window to reclaim this expired vault has elapsed.",
+    "The grace window to reclaim this expired BTC Vault has elapsed.",
   BtcKeyAlreadyRegistered: "This Bitcoin public key is already registered.",
   CommissionAboveMaximum:
     "The proposed commission exceeds the protocol maximum.",

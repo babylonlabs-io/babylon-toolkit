@@ -454,7 +454,7 @@ export function ResumeActivationContent({
       await handleActivation(secretHex);
     } catch (err) {
       const msg =
-        err instanceof Error ? err.message : "Failed to activate vault";
+        err instanceof Error ? err.message : "Failed to activate BTC Vault";
       setLocalError(msg);
     } finally {
       root?.fill(0);

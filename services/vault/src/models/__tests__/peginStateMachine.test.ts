@@ -220,14 +220,14 @@ describe("peginStateMachine", () => {
       const state = getPeginState(ContractStatus.EXPIRED);
       expect(state.displayLabel).toBe(PEGIN_DISPLAY_LABELS.EXPIRED);
       expect(state.displayVariant).toBe("warning");
-      expect(state.message).toBe("This vault has expired.");
+      expect(state.message).toBe("This BTC Vault has expired.");
     });
 
     it("shows expired with ack_timeout reason", () => {
       const state = getPeginState(ContractStatus.EXPIRED, {
         expirationReason: "ack_timeout",
       });
-      expect(state.message).toContain("This vault has expired.");
+      expect(state.message).toContain("This BTC Vault has expired.");
       expect(state.message).toContain(
         "The vault provider did not acknowledge in time",
       );
@@ -300,7 +300,7 @@ describe("peginStateMachine", () => {
         expiredAt: now - 2 * 60 * 60_000,
       });
       expect(state.message).toBe(
-        "This vault has expired. The vault provider did not acknowledge in time. Expired 2h ago.",
+        "This BTC Vault has expired. The vault provider did not acknowledge in time. Expired 2h ago.",
       );
       vi.useRealTimers();
     });
