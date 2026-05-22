@@ -13,6 +13,10 @@ import { useMemo, useState } from "react";
 
 import { ArtifactDownloadModal } from "@/components/deposit/ArtifactDownloadModal";
 import { ExpandMenuButton } from "@/components/shared";
+import {
+  CARD_DARK_BG_CLASS,
+  SUMMARY_CARD_CLASS,
+} from "@/components/shared/layoutClasses";
 import { getNetworkConfigBTC } from "@/config";
 import { PeginPollingProvider } from "@/context/deposit/PeginPollingContext";
 import { usePendingDeposits } from "@/hooks/usePendingDeposits";
@@ -74,9 +78,9 @@ export function PendingDepositSection() {
       pendingPegins={pendingPegins}
       btcPublicKey={btcPublicKey}
     >
-      <div className="w-full space-y-6">
+      <div className="w-full space-y-10">
         {hasPendingDeposits && (
-          <>
+          <div className="space-y-6">
             {/* Header row */}
             <div className="flex items-center gap-3">
               <h2 className="text-[24px] font-normal text-accent-primary">
@@ -86,16 +90,19 @@ export function PendingDepositSection() {
             </div>
 
             {/* Summary card */}
-            <Card variant="filled" className="w-full">
+            <Card
+              variant="filled"
+              className={`${SUMMARY_CARD_CLASS} ${CARD_DARK_BG_CLASS}`}
+            >
               {/* Summary row: BTC icon + amount | action badge (when collapsed) + expand toggle */}
               <div className="flex items-center justify-between gap-2">
                 <div className="flex min-w-0 flex-1 items-center gap-2">
                   <Avatar
                     url={btcConfig.icon}
                     alt={btcConfig.coinSymbol}
-                    size="small"
+                    size="medium"
                   />
-                  <span className="text-base text-accent-primary">
+                  <span className="text-xl text-accent-primary">
                     {formatBtcAmount(totalBtcAmount)}
                   </span>
                 </div>
@@ -114,7 +121,7 @@ export function PendingDepositSection() {
 
               {/* Expanded deposit list */}
               {isExpanded && (
-                <div className="mt-4 max-h-[400px] space-y-3 overflow-y-auto">
+                <div className="mt-4 max-h-[400px] space-y-2 overflow-y-auto">
                   {pendingGroups.map((group) =>
                     group.length > 1 ? (
                       <BatchedDepositGroup
@@ -157,7 +164,7 @@ export function PendingDepositSection() {
                 </div>
               )}
             </Card>
-          </>
+          </div>
         )}
 
         <ExpiredDepositSection

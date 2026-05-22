@@ -11,6 +11,10 @@ import { useState } from "react";
 
 import type { RedeemedVaultInfo } from "@/applications/aave/hooks/useAaveVaults";
 import { ExpandMenuButton } from "@/components/shared";
+import {
+  CARD_DARK_BG_CLASS,
+  SUMMARY_CARD_CLASS,
+} from "@/components/shared/layoutClasses";
 import { getNetworkConfigBTC } from "@/config";
 import { COPY } from "@/copy";
 import type { PegoutPollingResult } from "@/hooks/usePegoutPolling";
@@ -51,15 +55,18 @@ export function PendingWithdrawSection({
       </div>
 
       {/* Summary card with expand */}
-      <Card variant="filled" className="w-full">
+      <Card
+        variant="filled"
+        className={`${SUMMARY_CARD_CLASS} ${CARD_DARK_BG_CLASS}`}
+      >
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Avatar
               url={btcConfig.icon}
               alt={btcConfig.coinSymbol}
-              size="small"
+              size="medium"
             />
-            <span className="text-base text-accent-primary">
+            <span className="text-xl text-accent-primary">
               {formatBtcAmount(totalBtc)}
             </span>
           </div>
@@ -72,7 +79,7 @@ export function PendingWithdrawSection({
 
         {/* Expanded: individual vault detail cards */}
         {isExpanded && (
-          <div className="mt-4 max-h-[400px] space-y-3 overflow-y-auto">
+          <div className="mt-4 max-h-[400px] space-y-2 overflow-y-auto">
             {pendingWithdrawVaults.map((vault) => {
               const pollingResult = pegoutStatuses.get(vault.id);
               const displayState = pollingResult?.displayState;

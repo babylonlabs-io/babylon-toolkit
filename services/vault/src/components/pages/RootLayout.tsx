@@ -14,6 +14,7 @@ import { NavLink, Outlet } from "react-router";
 import { twJoin } from "tailwind-merge";
 
 import { DepositButton } from "@/components/shared";
+import { PAGE_CONTENT_CLASS } from "@/components/shared/layoutClasses";
 import { getNetworkConfigBTC, shouldDisplayTestingMsg } from "@/config";
 import { useAddressScreening } from "@/context/addressScreening";
 import { useAddressType } from "@/context/addressType";
@@ -116,7 +117,8 @@ export default function RootLayout() {
         />
         <AddressTypeBanner visible={showAddressTypeBanner} />
         <Header
-          size="sm"
+          size="md"
+          containerClassName={PAGE_CONTENT_CLASS}
           navigation={<DesktopNavigation />}
           mobileNavigation={<MobileNavigation />}
           rightActions={

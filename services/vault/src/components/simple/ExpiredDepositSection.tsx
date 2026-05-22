@@ -14,6 +14,10 @@ import { Avatar, Card } from "@babylonlabs-io/core-ui";
 import { useMemo, useState } from "react";
 
 import { ExpandMenuButton } from "@/components/shared";
+import {
+  CARD_DARK_BG_CLASS,
+  SUMMARY_CARD_CLASS,
+} from "@/components/shared/layoutClasses";
 import { getNetworkConfigBTC } from "@/config";
 import type { VaultActivity } from "@/types/activity";
 import type { VaultProvider } from "@/types/vaultProvider";
@@ -67,15 +71,18 @@ export function ExpiredDepositSection({
         </h2>
       </div>
 
-      <Card variant="filled" className="w-full">
+      <Card
+        variant="filled"
+        className={`${SUMMARY_CARD_CLASS} ${CARD_DARK_BG_CLASS}`}
+      >
         <div className="flex items-center justify-between gap-2">
           <div className="flex min-w-0 flex-1 items-center gap-2">
             <Avatar
               url={btcConfig.icon}
               alt={btcConfig.coinSymbol}
-              size="small"
+              size="medium"
             />
-            <span className="text-base text-accent-primary">
+            <span className="text-xl text-accent-primary">
               {formatBtcAmount(totalBtcAmount)}
             </span>
           </div>
@@ -89,7 +96,7 @@ export function ExpiredDepositSection({
         </div>
 
         {isExpanded && (
-          <div className="mt-4 max-h-[400px] space-y-3 overflow-y-auto">
+          <div className="mt-4 max-h-[400px] space-y-2 overflow-y-auto">
             {expiredActivities.map((activity) => (
               <PendingDepositCard
                 key={activity.id}

@@ -93,7 +93,7 @@ export function BatchedDepositGroup({
       <span className="mb-2 block text-xs text-accent-secondary">
         {COPY.pegin.batchedDeposit.groupLabel}
       </span>
-      <div className="space-y-3">
+      <div className="space-y-2">
         {activities.map((activity) => renderCard(activity, true))}
       </div>
       <div className="mt-3">

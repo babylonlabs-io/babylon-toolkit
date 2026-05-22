@@ -9,6 +9,7 @@ import { Container } from "@babylonlabs-io/core-ui";
 import { useNavigate, useParams, useSearchParams } from "react-router";
 
 import { BackButton, EmptyState } from "@/components/shared";
+import { PAGE_CONTENT_CLASS } from "@/components/shared/layoutClasses";
 import { getNetworkConfigBTC } from "@/config";
 import { useConnection, useETHWallet } from "@/context/wallet";
 
@@ -83,7 +84,7 @@ export function AaveReserveDetail() {
   // Loading state
   if (isLoading) {
     return (
-      <Container className="pb-6">
+      <Container className={`${PAGE_CONTENT_CLASS} pb-6`}>
         <div className="space-y-6">
           <BackButton label="Home" onClick={handleBack} />
           <div className="flex items-center justify-center py-12">
@@ -97,7 +98,7 @@ export function AaveReserveDetail() {
   // Disconnected state
   if (!isConnected) {
     return (
-      <Container className="pb-6">
+      <Container className={`${PAGE_CONTENT_CLASS} pb-6`}>
         <div className="space-y-6">
           <BackButton label="Home" onClick={handleBack} />
           <EmptyState
@@ -116,7 +117,7 @@ export function AaveReserveDetail() {
   // Reserve not found
   if (!selectedReserve || !assetConfig || !vbtcReserve) {
     return (
-      <Container className="pb-6">
+      <Container className={`${PAGE_CONTENT_CLASS} pb-6`}>
         <div className="space-y-6">
           <BackButton label="Home" onClick={handleBack} />
           <div className="flex items-center justify-center py-12">
@@ -147,7 +148,7 @@ export function AaveReserveDetail() {
 
   return (
     <LoanProvider value={loanContextValue}>
-      <Container className="pb-6">
+      <Container className={`${PAGE_CONTENT_CLASS} pb-6`}>
         <div className="space-y-6">
           <BackButton label="Home" onClick={handleBack} />
           <PositionGate

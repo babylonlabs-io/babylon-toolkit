@@ -3,7 +3,7 @@
  * Displays overview information including Health Factor, Total Collateral Value, and Amount to Repay
  */
 
-import { Avatar, Card } from "@babylonlabs-io/core-ui";
+import { Avatar } from "@babylonlabs-io/core-ui";
 
 import {
   formatHealthFactor,
@@ -11,6 +11,7 @@ import {
   type HealthFactorStatus,
 } from "@/applications/aave/utils";
 import { HealthFactorGauge, HeartIcon } from "@/components/shared";
+import { CARD_DARK_BG_CLASS } from "@/components/shared/layoutClasses";
 
 interface OverviewSectionProps {
   healthFactor: number | null;
@@ -48,8 +49,18 @@ export function OverviewSection({
         />
       </div>
 
-      <Card variant="filled" className="w-full">
+      <div
+        className={`w-full rounded-2xl bg-secondary-highlight p-6 ${CARD_DARK_BG_CLASS}`}
+      >
         <div className="space-y-4">
+          {/* Health Factor Gauge */}
+          {showHealthFactor && (
+            <HealthFactorGauge
+              value={healthFactor}
+              status={healthFactorStatus}
+            />
+          )}
+
           {/* Health Factor Row */}
           <div className="flex items-center justify-between">
             <span className="text-sm text-accent-secondary">Health factor</span>
@@ -64,14 +75,6 @@ export function OverviewSection({
               )}
             </span>
           </div>
-
-          {/* Health Factor Gauge */}
-          {showHealthFactor && (
-            <HealthFactorGauge
-              value={healthFactor}
-              status={healthFactorStatus}
-            />
-          )}
 
           {/* Total Collateral Value Row */}
           <div className="flex items-center justify-between">
@@ -93,7 +96,7 @@ export function OverviewSection({
             </span>
           </div>
         </div>
-      </Card>
+      </div>
     </div>
   );
 }

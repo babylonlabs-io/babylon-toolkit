@@ -20,6 +20,10 @@ import {
 } from "@/applications/aave/utils";
 import { ArtifactDownloadModal } from "@/components/deposit/ArtifactDownloadModal";
 import { DepositButton, ExpandMenuButton } from "@/components/shared";
+import {
+  CARD_DARK_BG_CLASS,
+  SUMMARY_CARD_CLASS,
+} from "@/components/shared/layoutClasses";
 import { Connect } from "@/components/Wallet";
 import { getNetworkConfigBTC } from "@/config";
 import { COPY } from "@/copy";
@@ -198,7 +202,7 @@ export function CollateralSection({
           {canReorder && (
             <Button
               variant="outlined"
-              size="medium"
+              size="large"
               onClick={() => setIsReorderOpen(true)}
               className="rounded-full"
             >
@@ -207,7 +211,7 @@ export function CollateralSection({
           )}
           <DepositButton
             variant="outlined"
-            size="medium"
+            size="large"
             onClick={() => onDeposit()}
             disabled={!isConnected}
             className="rounded-full"
@@ -218,16 +222,19 @@ export function CollateralSection({
       </div>
 
       {hasCollateral ? (
-        <Card variant="filled" className="w-full">
+        <Card
+          variant="filled"
+          className={`${SUMMARY_CARD_CLASS} ${CARD_DARK_BG_CLASS}`}
+        >
           {/* Summary row: BTC icon + total amount + three-dots toggle */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Avatar
                 url={btcConfig.icon}
                 alt={btcConfig.coinSymbol}
-                size="small"
+                size="medium"
               />
-              <span className="text-base text-accent-primary">
+              <span className="text-xl text-accent-primary">
                 {totalAmountBtc}
               </span>
             </div>

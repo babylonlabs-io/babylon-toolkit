@@ -42,7 +42,7 @@ export function CollateralExpandedContent({
   return (
     <div className="mt-4 space-y-4">
       {/* Scrollable vault list - fits ~3 items then scrolls */}
-      <div className="max-h-[320px] space-y-3 overflow-y-auto">
+      <div className="max-h-[320px] space-y-2 overflow-y-auto">
         {vaults.map((vault) => {
           const isSelected = selectedVaultIds.includes(vault.vaultId);
           const isEligible = vaultEligibility.get(vault.vaultId) === true;
