@@ -61,7 +61,7 @@ export function usePayoutSigningState({
   const [signing, setSigning] = useState(false);
   const [isComplete, setIsComplete] = useState(false);
   const [progress, setProgress] = useState<PayoutSigningProgress>({
-    phase: "claimers",
+    phase: "auth",
     completed: 0,
     total: 0,
   });
@@ -175,10 +175,10 @@ export function usePayoutSigningState({
 
       setSigning(true);
       setError(null);
-      // Reset progress; the SDK emits claimer progress once it knows the real
-      // counts after polling the VP, and the wrapper below reports the
-      // depositor-graph round.
-      setProgress({ phase: "claimers", completed: 0, total: 0 });
+      // Start on the auth-anchor step — the first thing the flow does is
+      // authenticate with the VP (deriveContextHash). The wrapper below moves
+      // to the claimer and depositor-graph rounds as they happen.
+      setProgress({ phase: "auth", completed: 0, total: 0 });
       claimersDoneRef.current = false;
 
       abortRef.current?.abort();
