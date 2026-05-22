@@ -7,7 +7,13 @@ import {
   useWalletConnect,
 } from "@babylonlabs-io/wallet-connector";
 import { useTheme } from "next-themes";
-import { useCallback, useMemo, useRef, type PropsWithChildren } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  type PropsWithChildren,
+} from "react";
 
 import { getNetworkConfigBTC } from "@/config";
 import featureFlags from "@/config/featureFlags";
@@ -34,14 +40,16 @@ const DISABLED_WALLETS: string[] = [
 
 const context = typeof window !== "undefined" ? window : {};
 
-// A late-injecting BTC extension (e.g. UniSat) can emit a transient
-// `disconnect`/account-change event while its service worker wakes right after
-// a page (re)load. Treating that blip as a real disconnect calls
-// `disconnectAll()` and wipes the persisted session for BOTH wallets, forcing a
-// full reconnect. Ignore wallet-reset events fired within this window of mount;
-// genuine user disconnects and account switches happen later in active use, so
-// they are unaffected. Sized to match the wallet-connector's injection fallback.
-const WALLET_RESET_STABILIZATION_WINDOW_MS = 3000;
+// A late-injecting BTC extension (e.g. UniSat) can emit a transient `disconnect`
+// while its service worker wakes right after a page (re)load, then immediately
+// reconnect. That blip is the only thing distinguishing it from a real
+// disconnect: a genuine disconnect is NOT followed by a reconnect. So instead of
+// reacting to a BTC disconnect immediately (which calls `disconnectAll()` and
+// wipes the persisted session for BOTH wallets), we wait this long; if a
+// reconnect arrives within the window we cancel, otherwise the disconnect is
+// real and we proceed. A real disconnect is therefore honoured, just delayed by
+// this bounded amount — never dropped.
+const BTC_DISCONNECT_DEBOUNCE_MS = 1500;
 
 /**
  * Component that provides wallet-specific providers with cross-disconnect logic
@@ -50,23 +58,15 @@ function WalletProviders({ children }: PropsWithChildren) {
   const { disconnect: disconnectAll } = useWalletConnect();
   // Guard against re-entrancy when disconnectAll triggers disconnect events
   const isDisconnectingRef = useRef(false);
-  // Wall-clock time this provider mounted, used to ignore transient wallet
-  // events during the post-(re)load re-injection window (see constant above).
-  const mountedAtRef = useRef(Date.now());
+  // Pending debounced BTC reset (see BTC_DISCONNECT_DEBOUNCE_MS).
+  const pendingBtcResetRef = useRef<ReturnType<typeof setTimeout> | undefined>(
+    undefined,
+  );
 
-  const handleWalletReset = useCallback(async () => {
-    if (
-      Date.now() - mountedAtRef.current <
-      WALLET_RESET_STABILIZATION_WINDOW_MS
-    ) {
-      logger.info(
-        "Ignoring wallet reset within post-load stabilization window",
-        {
-          category: "Wallet connection",
-        },
-      );
-      return;
-    }
+  // Disconnect every wallet. Used directly for events that are unambiguous
+  // (account switch, ETH disconnect) and as the deferred action for the
+  // debounced BTC disconnect path.
+  const runWalletReset = useCallback(async () => {
     if (isDisconnectingRef.current) return;
     isDisconnectingRef.current = true;
     try {
@@ -76,22 +76,62 @@ function WalletProviders({ children }: PropsWithChildren) {
     }
   }, [disconnectAll]);
 
-  // When BTC wallet disconnects or changes account, disconnect all wallets
-  const btcCallbacks = useMemo(
-    () => ({
-      onDisconnect: handleWalletReset,
-      onAddressChange: handleWalletReset,
-    }),
-    [handleWalletReset],
+  // BTC disconnected — but it might be a transient wake-up blip. Defer the
+  // cascade; a reconnect within the debounce window cancels it (see
+  // cancelBtcReset). No-op while a teardown is already running so the disconnect
+  // events disconnectAll() itself emits don't re-arm the timer.
+  const scheduleBtcReset = useCallback(() => {
+    if (isDisconnectingRef.current) return;
+    if (pendingBtcResetRef.current !== undefined)
+      clearTimeout(pendingBtcResetRef.current);
+    pendingBtcResetRef.current = setTimeout(() => {
+      pendingBtcResetRef.current = undefined;
+      void runWalletReset();
+    }, BTC_DISCONNECT_DEBOUNCE_MS);
+  }, [runWalletReset]);
+
+  // BTC (re)connected. If a reset is pending, the preceding disconnect was a
+  // transient blip — cancel it and keep both wallets connected.
+  const cancelBtcReset = useCallback(() => {
+    if (pendingBtcResetRef.current === undefined) return;
+    clearTimeout(pendingBtcResetRef.current);
+    pendingBtcResetRef.current = undefined;
+    logger.info(
+      "Suppressed transient BTC disconnect (reconnect arrived within debounce)",
+      {
+        category: "Wallet connection",
+      },
+    );
+  }, []);
+
+  useEffect(
+    () => () => {
+      if (pendingBtcResetRef.current !== undefined)
+        clearTimeout(pendingBtcResetRef.current);
+    },
+    [],
   );
 
-  // When ETH wallet disconnects or changes account, disconnect all wallets
+  // BTC: debounce disconnect (blip-tolerant), cancel on reconnect, but reset
+  // immediately on a real account switch (onAddressChange only fires for a
+  // genuinely different address).
+  const btcCallbacks = useMemo(
+    () => ({
+      onConnect: cancelBtcReset,
+      onDisconnect: scheduleBtcReset,
+      onAddressChange: runWalletReset,
+    }),
+    [cancelBtcReset, scheduleBtcReset, runWalletReset],
+  );
+
+  // ETH has no late-injection blip; react immediately. Keeping the cancel
+  // per-chain also avoids a BTC reconnect wrongly cancelling an ETH disconnect.
   const ethCallbacks = useMemo(
     () => ({
-      onDisconnect: handleWalletReset,
-      onAddressChange: handleWalletReset,
+      onDisconnect: runWalletReset,
+      onAddressChange: runWalletReset,
     }),
-    [handleWalletReset],
+    [runWalletReset],
   );
 
   return (
