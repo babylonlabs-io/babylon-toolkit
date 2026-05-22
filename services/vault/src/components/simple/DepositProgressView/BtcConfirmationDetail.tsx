@@ -1,19 +1,20 @@
 import { Loader, Text } from "@babylonlabs-io/core-ui";
-import { useEffect, useState } from "react";
 
 import { CopyableHash } from "@/components/shared/CopyableHash";
+import { COPY } from "@/copy";
 import { getBtcExplorerTxUrl } from "@/utils/explorer";
 
-import { EXPECTED_CONFIRMATION_MINUTES } from "./steps";
-
-const TICK_INTERVAL_MS = 30 * 1000;
-const MS_PER_MINUTE = 60 * 1000;
+import { computeRemainingEstimateMinutes } from "./btcConfirmationProgress";
 
 interface BtcConfirmationDetailProps {
   /** Date.now() when the AWAIT_BTC_CONFIRMATION step was first entered. */
   startedAt: number;
-  /** Raw BTC pegin transaction hash (with or without 0x). */
-  peginTxHash: string;
+  /** Pre-PegIn broadcast txid — the tx actually on the Bitcoin network. */
+  prePeginTxid: string;
+  /** Confirmations of the Pre-PegIn tx; null while the first reading loads. */
+  confirmations: number | null;
+  /** Protocol-required confirmation depth (`minPrepeginDepth`). */
+  requiredDepth: number;
 }
 
 function formatStartedAt(timestamp: number): string {
@@ -25,26 +26,23 @@ function formatStartedAt(timestamp: number): string {
 
 export function BtcConfirmationDetail({
   startedAt,
-  peginTxHash,
+  prePeginTxid,
+  confirmations,
+  requiredDepth,
 }: BtcConfirmationDetailProps) {
-  const [now, setNow] = useState<number>(() => Date.now());
+  const copy = COPY.deposit.btcConfirmation;
 
-  useEffect(() => {
-    const id = window.setInterval(() => setNow(Date.now()), TICK_INTERVAL_MS);
-    return () => window.clearInterval(id);
-  }, []);
-
-  const elapsedMinutes = Math.floor((now - startedAt) / MS_PER_MINUTE);
-  const remainingMinutes = Math.max(
-    0,
-    EXPECTED_CONFIRMATION_MINUTES - elapsedMinutes,
-  );
+  // undefined = still loading; null = depth reached (finalizing); number = wait.
+  const estimateMinutes =
+    confirmations === null
+      ? undefined
+      : computeRemainingEstimateMinutes(confirmations, requiredDepth);
 
   return (
     <div className="mt-3 flex flex-col gap-2 rounded-lg bg-secondary-highlight p-3">
       <div className="flex items-center justify-between gap-2">
         <Text as="span" variant="body2" className="text-accent-secondary">
-          Started at:
+          {copy.startedAt}:
         </Text>
         <Text as="span" variant="body2" className="text-accent-primary">
           {formatStartedAt(startedAt)}
@@ -53,24 +51,43 @@ export function BtcConfirmationDetail({
 
       <div className="flex items-center justify-between gap-2">
         <Text as="span" variant="body2" className="text-accent-secondary">
-          Est. Remaining:
+          {copy.confirmations}:
         </Text>
-        <span className="flex items-center gap-2">
+        {confirmations === null ? (
           <Loader size={14} className="text-accent-primary" />
+        ) : (
           <Text as="span" variant="body2" className="text-accent-primary">
-            ~{remainingMinutes} min
+            {copy.confirmationProgress(
+              Math.min(confirmations, requiredDepth),
+              requiredDepth,
+            )}
           </Text>
-        </span>
+        )}
       </div>
 
       <div className="flex items-center justify-between gap-2">
         <Text as="span" variant="body2" className="text-accent-secondary">
-          Bitcoin TX:
+          {copy.estRemaining}:
+        </Text>
+        {estimateMinutes === undefined ? (
+          <Loader size={14} className="text-accent-primary" />
+        ) : (
+          <Text as="span" variant="body2" className="text-accent-primary">
+            {estimateMinutes === null
+              ? copy.finalizing
+              : copy.estRemainingValue(estimateMinutes)}
+          </Text>
+        )}
+      </div>
+
+      <div className="flex items-center justify-between gap-2">
+        <Text as="span" variant="body2" className="text-accent-secondary">
+          {copy.bitcoinTx}:
         </Text>
         <CopyableHash
-          hash={peginTxHash}
+          hash={prePeginTxid}
           chain="BTC"
-          explorerUrl={getBtcExplorerTxUrl(peginTxHash)}
+          explorerUrl={getBtcExplorerTxUrl(prePeginTxid)}
         />
       </div>
     </div>

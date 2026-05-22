@@ -132,7 +132,6 @@ export const COPY = {
       signAndBroadcastEth: "Sign and broadcast ETH registration",
       signAndBroadcastPrePegin: "Sign and broadcast BTC Pre-Pegin transaction",
       awaitBtcConfirmation: "Awaiting Bitcoin confirmation",
-      awaitBtcConfirmationDuration: (minutes: number) => `(~${minutes} min)`,
       submitWotsKey: "Submit WOTS public key to vault provider",
       authenticateSession: "Authenticate session with vault provider",
       signPayouts: "Sign payout transactions",
@@ -184,6 +183,16 @@ export const COPY = {
         done: "Done",
         sign: "Sign",
       },
+    },
+    btcConfirmation: {
+      startedAt: "Started at",
+      confirmations: "Confirmations",
+      confirmationProgress: (current: number, required: number) =>
+        `${current} of ${required}`,
+      estRemaining: "Est. remaining",
+      estRemainingValue: (minutes: number) => `~${minutes} min`,
+      finalizing: "Finalizing...",
+      bitcoinTx: "Bitcoin TX",
     },
     broadcastSuccess: {
       heading: "Pre-Pegin Broadcast",

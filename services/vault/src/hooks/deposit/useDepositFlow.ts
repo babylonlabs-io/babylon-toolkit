@@ -160,13 +160,15 @@ export interface UseDepositFlowReturn {
   /** Callback to continue the flow after artifact download */
   continueAfterArtifactDownload: () => void;
   /**
-   * Data backing the "Awaiting Bitcoin confirmation" detail panel: the
-   * timestamp the step was first entered and the pegin tx hash of the
-   * deposit. `null` until the BTC broadcast completes.
+   * Data backing the "Awaiting Bitcoin confirmation" detail panel, snapshotted
+   * when the BTC wait begins: the timestamp, the Pre-PegIn broadcast txid, and
+   * the required confirmation depth of the offchain-params version this
+   * deposit registered against. `null` until the BTC broadcast completes.
    */
   btcConfirmationDetail: {
     startedAt: number;
-    peginTxHash: string;
+    prePeginTxid: string;
+    requiredDepth: number;
   } | null;
 }
 
@@ -237,7 +239,8 @@ export function useDepositFlow(
     useState<ArtifactDownloadInfo | null>(null);
   const [btcConfirmationDetail, setBtcConfirmationDetail] = useState<{
     startedAt: number;
-    peginTxHash: string;
+    prePeginTxid: string;
+    requiredDepth: number;
   } | null>(null);
 
   const artifactResolverRef = useRef<(() => void) | null>(null);
@@ -731,8 +734,9 @@ export function useDepositFlow(
 
         setCurrentStep(DepositFlowStep.BROADCAST_PRE_PEGIN);
 
+        let prePeginBroadcastTxid: string;
         try {
-          await broadcastPrePeginTransaction({
+          prePeginBroadcastTxid = await broadcastPrePeginTransaction({
             unsignedTxHex: batchResult.fundedPrePeginTxHex,
             btcWalletProvider: {
               signPsbt: (psbtHex: string) =>
@@ -798,17 +802,17 @@ export function useDepositFlow(
         // ========================================================================
 
         setCurrentStep(DepositFlowStep.AWAIT_BTC_CONFIRMATION);
-        // Snapshot the moment we enter the BTC-wait so the detail panel
-        // can render a stable "Started at" / "Est. Remaining" pair. Pick
-        // the first broadcasted pegin tx hash — multi-vault deposits all
-        // share the same Pre-PegIn broadcast, but per-vault hashes are
-        // what the rest of the app surfaces to the user.
-        if (broadcastedResults[0]) {
-          setBtcConfirmationDetail({
-            startedAt: Date.now(),
-            peginTxHash: broadcastedResults[0].peginTxHash,
-          });
-        }
+        // Snapshot the BTC-wait inputs. The Pre-PegIn broadcast txid is the tx
+        // that lands on Bitcoin (multi-vault siblings share one broadcast).
+        // requiredDepth is pinned to the offchain-params version this deposit
+        // registered against — the VP gates on that version's minPrepeginDepth
+        // (btc-vault claimer/pegin.rs check_prepegin_depth_and_transition), so
+        // a later governance change must not move the displayed target.
+        setBtcConfirmationDetail({
+          startedAt: Date.now(),
+          prePeginTxid: prePeginBroadcastTxid,
+          requiredDepth: config.offchainParams.minPrepeginDepth,
+        });
         setIsWaiting(true);
 
         let baseStep: DepositFlowStep = DepositFlowStep.AWAIT_BTC_CONFIRMATION;
