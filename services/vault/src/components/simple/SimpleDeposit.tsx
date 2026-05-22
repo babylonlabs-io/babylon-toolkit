@@ -1,4 +1,5 @@
 import { FullScreenDialog, Heading } from "@babylonlabs-io/core-ui";
+import { useChainConnector } from "@babylonlabs-io/wallet-connector";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Address, Hex } from "viem";
 
@@ -14,7 +15,10 @@ import { useProtocolFeeRows } from "@/hooks/useProtocolFeeRows";
 import { depositService } from "@/services/deposit";
 import type { VaultActivity } from "@/types/activity";
 import type { VaultProvider } from "@/types/vaultProvider";
-import { verifyBtcWalletLiveness } from "@/utils/btc";
+import {
+  shouldProbeWalletLiveness,
+  verifyBtcWalletLiveness,
+} from "@/utils/btc";
 
 import { DepositState, DepositStep } from "../../context/deposit/DepositState";
 import { useDepositPageFlow } from "../../hooks/deposit/useDepositPageFlow";
@@ -102,6 +106,7 @@ function SimpleDepositContent({
   const { address: connectedEthAddress } = useETHWallet();
   const { address: connectedBtcAddress, reconnect: reconnectBtcWallet } =
     useBTCWallet();
+  const btcConnector = useChainConnector("BTC");
   const { rows: feeRows, collateralFactor } =
     useProtocolFeeRows(connectedEthAddress);
   const [walletConnectionError, setWalletConnectionError] = useState<
@@ -282,7 +287,11 @@ function SimpleDepositContent({
     if (btcWalletProvider && connectedBtcAddress) {
       setIsVerifyingWallet(true);
       try {
-        await verifyBtcWalletLiveness(btcWalletProvider, connectedBtcAddress);
+        await verifyBtcWalletLiveness(btcWalletProvider, connectedBtcAddress, {
+          probeConnection: shouldProbeWalletLiveness(
+            btcConnector?.connectedWallet?.id,
+          ),
+        });
       } catch (err) {
         setWalletConnectionError(
           err instanceof Error
