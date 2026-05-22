@@ -36,7 +36,7 @@ describe("BtcConfirmationDetail", () => {
     );
   });
 
-  it("counts confirmations toward the required depth", () => {
+  it("shows the estimate with the BTC blocks left", () => {
     render(
       <BtcConfirmationDetail
         {...baseProps}
@@ -44,21 +44,10 @@ describe("BtcConfirmationDetail", () => {
         requiredDepth={6}
       />,
     );
-    expect(screen.getByText("3 of 6")).toBeInTheDocument();
+    expect(screen.getByText("~30 min (3 BTC blocks)")).toBeInTheDocument();
   });
 
-  it("estimates the remaining wait from the unconfirmed blocks", () => {
-    render(
-      <BtcConfirmationDetail
-        {...baseProps}
-        confirmations={3}
-        requiredDepth={6}
-      />,
-    );
-    expect(screen.getByText("~30 min")).toBeInTheDocument();
-  });
-
-  it("estimates the full wait before any confirmation lands", () => {
+  it("shows the full estimate before any confirmation lands", () => {
     render(
       <BtcConfirmationDetail
         {...baseProps}
@@ -66,8 +55,18 @@ describe("BtcConfirmationDetail", () => {
         requiredDepth={6}
       />,
     );
-    expect(screen.getByText("0 of 6")).toBeInTheDocument();
-    expect(screen.getByText("~60 min")).toBeInTheDocument();
+    expect(screen.getByText("~60 min (6 BTC blocks)")).toBeInTheDocument();
+  });
+
+  it("uses the singular when one BTC block is left", () => {
+    render(
+      <BtcConfirmationDetail
+        {...baseProps}
+        confirmations={5}
+        requiredDepth={6}
+      />,
+    );
+    expect(screen.getByText("~10 min (1 BTC block)")).toBeInTheDocument();
   });
 
   it("shows a finalizing state once the required depth is reached", () => {
@@ -79,10 +78,10 @@ describe("BtcConfirmationDetail", () => {
       />,
     );
     expect(screen.getByText("Finalizing...")).toBeInTheDocument();
-    expect(screen.queryByText(/min$/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/block/)).not.toBeInTheDocument();
   });
 
-  it("clamps the displayed count when confirmations overshoot the depth", () => {
+  it("shows a finalizing state when confirmations overshoot the depth", () => {
     render(
       <BtcConfirmationDetail
         {...baseProps}
@@ -90,11 +89,10 @@ describe("BtcConfirmationDetail", () => {
         requiredDepth={6}
       />,
     );
-    expect(screen.getByText("6 of 6")).toBeInTheDocument();
     expect(screen.getByText("Finalizing...")).toBeInTheDocument();
   });
 
-  it("shows no count until the first confirmation reading arrives", () => {
+  it("shows no estimate until the first confirmation reading arrives", () => {
     render(
       <BtcConfirmationDetail
         {...baseProps}
@@ -102,7 +100,7 @@ describe("BtcConfirmationDetail", () => {
         requiredDepth={6}
       />,
     );
-    expect(screen.queryByText(/ of 6/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/block/)).not.toBeInTheDocument();
     expect(screen.queryByText("Finalizing...")).not.toBeInTheDocument();
   });
 });
