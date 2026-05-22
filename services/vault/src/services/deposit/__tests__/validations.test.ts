@@ -292,7 +292,6 @@ describe("Deposit Validations", () => {
       feeError: null,
       feeDisabled: false,
       ordinalsCheckPending: false,
-      ordinalsWarningUnacknowledged: false,
       hasWalletConnectionError: false,
       isReconnectingWallet: false,
     };
@@ -526,26 +525,6 @@ describe("Deposit Validations", () => {
         disabled: true,
         label: "Checking for inscriptions...",
       });
-    });
-
-    it("disables with ack label when ordinals warning is unacknowledged", () => {
-      const result = getDepositCtaState({
-        ...readyParams,
-        ordinalsWarningUnacknowledged: true,
-      });
-      expect(result).toEqual({
-        disabled: true,
-        label: "Acknowledge warning to continue",
-      });
-    });
-
-    it("prioritizes ordinals-pending over unacknowledged warning", () => {
-      const result = getDepositCtaState({
-        ...readyParams,
-        ordinalsCheckPending: true,
-        ordinalsWarningUnacknowledged: true,
-      });
-      expect(result.label).toBe("Checking for inscriptions...");
     });
 
     it("prioritizes amount label over ordinals-pending", () => {

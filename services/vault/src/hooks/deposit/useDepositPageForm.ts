@@ -86,13 +86,6 @@ export interface UseDepositPageFormResult {
   maxDepositSats: bigint | null;
 
   /**
-   * True when the ordinals check failed or timed out AND the user has
-   * inscription-exclusion enabled. In that state, inscription UTXOs may be
-   * spent unintentionally, so the UI should surface a warning.
-   */
-  ordinalsCheckUnavailable: boolean;
-
-  /**
    * True when the ordinals check is still in flight AND the user has
    * inscription-exclusion enabled. Consumers should block submission until
    * the check resolves.
@@ -199,12 +192,8 @@ export function useDepositPageForm(): UseDepositPageFormResult {
   // spending uses `spendableMempoolUTXOs` (fee estimation) and the fail-closed
   // gate inside `useDepositFlow`, which refuses to submit while classification
   // is unavailable.
-  const {
-    availableUTXOs,
-    spendableMempoolUTXOs,
-    ordinalsCheckUnavailable,
-    ordinalsCheckPending,
-  } = useUTXOs(btcAddress);
+  const { availableUTXOs, spendableMempoolUTXOs, ordinalsCheckPending } =
+    useUTXOs(btcAddress);
   const btcBalance = useMemo(() => {
     return BigInt(calculateBalance(availableUTXOs || []));
   }, [availableUTXOs]);
@@ -377,7 +366,6 @@ export function useDepositPageForm(): UseDepositPageFormResult {
     isLoadingFee,
     feeError,
     maxDepositSats: adjustedMaxDepositSats,
-    ordinalsCheckUnavailable,
     ordinalsCheckPending,
     isPartialLiquidation,
     setIsPartialLiquidation,
