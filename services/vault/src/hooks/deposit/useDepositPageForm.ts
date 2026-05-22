@@ -310,13 +310,16 @@ export function useDepositPageForm(): UseDepositPageFormResult {
     isPartialLiquidation,
   });
 
-  // Adjust max deposit to account for depositorClaimValue (network fees already subtracted)
+  // Adjust max deposit to reserve the depositor claim value for every vault in
+  // the deposit (network fees already subtracted by computeMaxDeposit). A split
+  // deposit funds `vaultCount` vaults, each reserving its own claim value.
   const adjustedMaxDepositSats = useMemo(() => {
     if (maxDepositSats == null || depositorClaimValue == null)
       return maxDepositSats;
-    const adjusted = maxDepositSats - depositorClaimValue;
+    const totalClaimValue = depositorClaimValue * BigInt(vaultCount);
+    const adjusted = maxDepositSats - totalClaimValue;
     return adjusted > 0n ? adjusted : 0n;
-  }, [maxDepositSats, depositorClaimValue]);
+  }, [maxDepositSats, depositorClaimValue, vaultCount]);
 
   const validateForm = useCallback(() => {
     const newErrors: typeof errors = {};

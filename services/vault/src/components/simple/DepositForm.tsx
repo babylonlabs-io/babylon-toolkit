@@ -46,6 +46,14 @@ interface DepositFormProps {
   btcBalance: bigint;
   minDeposit: bigint;
   maxDeposit?: bigint;
+  /**
+   * Fee-adjusted maximum depositable amount in satoshis: the wallet balance
+   * minus the BTC network fee (and the depositor claim value once a provider
+   * is selected). The slider and the "Max" field cap at this value so the user
+   * cannot select an amount that leaves no room for fees. Null while UTXOs or
+   * fee rates are still loading.
+   */
+  maxDepositSats?: bigint | null;
   btcPrice: number;
   hasPriceFetchError: boolean;
   onAmountChange: (value: string) => void;
@@ -131,6 +139,7 @@ export function DepositForm({
   btcBalance,
   minDeposit,
   maxDeposit,
+  maxDepositSats,
   btcPrice,
   hasPriceFetchError,
   onAmountChange,
@@ -173,13 +182,18 @@ export function DepositForm({
   const setPanelExpanded =
     (panel: "split" | "provider") => (expanded: boolean) =>
       setOpenPanel(expanded ? panel : null);
-  const btcBalanceFormatted = useMemo(() => {
-    if (!btcBalance) return 0;
-    return Number(depositService.formatSatoshisToBtc(btcBalance));
-  }, [btcBalance]);
+  // Fee-adjusted depositable max in satoshis. Falls back to the raw balance
+  // while the fee estimate is still loading.
+  const maxDepositSatsOrBalance = maxDepositSats ?? btcBalance;
+  const maxDepositDisplay = Number(
+    depositService.formatSatoshisToBtc(maxDepositSatsOrBalance),
+  );
 
-  const sliderMax = btcBalanceFormatted || 1;
-  const amountNum = parseFloat(amount) || 0;
+  // The slider operates in satoshis (integer values, 1-sat step) so the thumb
+  // can land exactly on the max. A coarse BTC step would leave the sat-precise
+  // max off the step grid, stranding the thumb short of the end.
+  const sliderMaxSats = Number(maxDepositSatsOrBalance) || 1;
+  const sliderValueSats = Number(amountSats);
 
   const usdValue = useMemo(() => {
     if (hasPriceFetchError || !btcPrice || !amount || amount === "0") return "";
@@ -193,6 +207,12 @@ export function DepositForm({
 
   const selectedApp = applications.find((a) => a.id === selectedApplication);
 
+  // When the amount exceeds the depositable maximum the CTA already reports
+  // "Insufficient balance"; suppress the duplicate fee-row error so the
+  // breakdown stays clean. Genuine fee-estimation errors still surface.
+  const amountExceedsMax =
+    amountSats > 0n && maxDepositSats != null && amountSats > maxDepositSats;
+
   const {
     btcFee,
     feeAmount,
@@ -203,7 +223,7 @@ export function DepositForm({
     btcPrice,
     hasPriceFetchError,
     isLoadingFee,
-    feeError,
+    feeError: amountExceedsMax ? null : feeError,
     hasAmount: !!amount && amount !== "0",
   });
 
@@ -218,6 +238,7 @@ export function DepositForm({
     amountSats,
     minDeposit,
     maxDeposit,
+    maxDepositSats: maxDepositSats ?? null,
     btcBalance,
     estimatedFeeSats: estimatedFeeSats ?? undefined,
     depositorClaimValue,
@@ -268,14 +289,18 @@ export function DepositForm({
           currencyIcon={btcConfig.icon}
           currencyName={btcConfig.name}
           onAmountChange={(e) => onAmountChange(e.target.value)}
-          sliderValue={amountNum}
+          sliderValue={sliderValueSats}
           sliderMin={0}
-          sliderMax={sliderMax}
-          sliderStep={0.001}
+          sliderMax={sliderMaxSats}
+          sliderStep={1}
           sliderSteps={[]}
-          onSliderChange={(value) => onAmountChange(value.toString())}
+          onSliderChange={(sats) =>
+            onAmountChange(
+              depositService.formatSatoshisToBtc(BigInt(Math.round(sats))),
+            )
+          }
           sliderVariant="primary"
-          leftField={{ label: "Max", value: `${btcBalanceFormatted} BTC` }}
+          leftField={{ label: "Max", value: `${maxDepositDisplay} BTC` }}
           rightField={{ value: usdValue }}
           onMaxClick={onMaxClick}
           inputClassName="h-10 w-auto rounded-lg bg-primary-contrast px-4 [field-sizing:content]"

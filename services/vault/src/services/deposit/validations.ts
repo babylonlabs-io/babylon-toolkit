@@ -113,6 +113,14 @@ export interface DepositCtaParams extends DepositFormValidityParams {
   hasWalletConnectionError: boolean;
   /** True while a reconnect attempt is in flight. Forces the CTA disabled. */
   isReconnectingWallet: boolean;
+  /**
+   * Fee-adjusted maximum depositable amount in satoshis (balance minus the BTC
+   * network fee, and the depositor claim value once a provider is selected).
+   * When the entered amount exceeds this, the CTA reports "Insufficient
+   * balance" — ahead of the provider prompt, since selecting a provider cannot
+   * make an unfundable amount fundable. Null while UTXOs or fee rates load.
+   */
+  maxDepositSats: bigint | null;
 }
 
 export interface DepositCtaState {
@@ -175,6 +183,17 @@ export function getDepositCtaState(params: DepositCtaParams): DepositCtaState {
         ? "Reconnecting Wallet..."
         : "Reconnect Wallet",
     };
+  }
+
+  // An amount that exceeds the fee-adjusted depositable balance can never be
+  // funded — surface it before the provider prompt, since selecting a provider
+  // cannot make an unfundable amount fundable.
+  if (
+    params.amountSats > 0n &&
+    params.maxDepositSats != null &&
+    params.amountSats > params.maxDepositSats
+  ) {
+    return { disabled: true, label: "Insufficient balance" };
   }
 
   if (!params.hasProvider) {

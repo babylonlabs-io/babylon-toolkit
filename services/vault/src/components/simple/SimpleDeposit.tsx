@@ -340,6 +340,7 @@ function SimpleDepositContent({
                 btcBalance={btcBalance}
                 minDeposit={minDeposit}
                 maxDeposit={maxDeposit}
+                maxDepositSats={maxDepositSats}
                 btcPrice={btcPrice}
                 hasPriceFetchError={hasPriceFetchError}
                 onAmountChange={(value) => setFormData({ amountBtc: value })}

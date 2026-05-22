@@ -295,6 +295,7 @@ describe("Deposit Validations", () => {
       ordinalsWarningUnacknowledged: false,
       hasWalletConnectionError: false,
       isReconnectingWallet: false,
+      maxDepositSats: null,
     };
 
     it("returns enabled 'Deposit' when all conditions are met", () => {
@@ -546,6 +547,37 @@ describe("Deposit Validations", () => {
         ordinalsWarningUnacknowledged: true,
       });
       expect(result.label).toBe("Checking for inscriptions...");
+    });
+
+    it("returns 'Insufficient balance' when amount exceeds the fee-adjusted max", () => {
+      const result = getDepositCtaState({
+        ...readyParams,
+        amountSats: 100001n,
+        maxDepositSats: 100000n,
+      });
+      expect(result).toEqual({
+        disabled: true,
+        label: "Insufficient balance",
+      });
+    });
+
+    it("shows 'Insufficient balance' over 'Select a vault provider' when amount exceeds the fee-adjusted max", () => {
+      const result = getDepositCtaState({
+        ...readyParams,
+        amountSats: 100001n,
+        maxDepositSats: 100000n,
+        hasProvider: false,
+      });
+      expect(result.label).toBe("Insufficient balance");
+    });
+
+    it("allows an amount equal to the fee-adjusted max", () => {
+      const result = getDepositCtaState({
+        ...readyParams,
+        amountSats: 100000n,
+        maxDepositSats: 100000n,
+      });
+      expect(result).toEqual({ disabled: false, label: "Deposit" });
     });
 
     it("prioritizes amount label over ordinals-pending", () => {
