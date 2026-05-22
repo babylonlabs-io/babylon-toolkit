@@ -125,37 +125,56 @@ export function computeOptimalOrder<T extends CascadeVault>(
     btcOf[T] = btcOf[T ^ lsb] + preJoints[bit].sum;
   }
 
-  // dp[T] = best sumBtcAfterEvents to reach state T (T = seized subset).
-  // prev[T] = the "last group" G chosen when reaching T (for reconstruction).
-  const dp = new Float64Array(N);
+  // dpSum[T] = best sumBtcAfterEvents to reach state T (T = seized subset).
+  // dpG1[T]  = among the paths achieving dpSum[T], the largest BTC remaining
+  //            after the FIRST event — the tiebreaker, so a tie on total
+  //            cascade survival prefers the order that survives the first
+  //            (most likely) liquidation event best. Matches what calculate()
+  //            uses to decide whether a reorder is worth suggesting.
+  // prev[T]  = the "last group" G chosen when reaching T (for reconstruction).
+  const dpSum = new Float64Array(N);
+  const dpG1 = new Float64Array(N);
   const prev = new Int32Array(N);
-  dp.fill(-Infinity);
+  dpSum.fill(-Infinity);
   prev.fill(-1);
-  dp[0] = 0;
+  dpSum[0] = 0;
+  // dpG1[0] is never read: when Tprev === 0 the first event is scored directly.
+
+  const EPS = 1e-9;
 
   for (let T = 1; T < N; T++) {
     const btcAfter = totalBtc - btcOf[T]; // BTC remaining after the last group brings us to state T
-    let best = -Infinity;
+    let bestSum = -Infinity;
+    let bestG1 = -Infinity;
     let bestG = -1;
 
     // Enumerate non-empty subsets G ⊆ T. Across all T this visits exactly 3^n pairs.
     for (let G = T; G > 0; G = (G - 1) & T) {
       const Tprev = T ^ G;
-      const prevSum = dp[Tprev];
+      const prevSum = dpSum[Tprev];
       if (prevSum === -Infinity) continue;
 
       // Validate: G covers target seizure when fired from state Tprev.
       const remainingBeforeG = totalBtc - btcOf[Tprev];
       if (btcOf[G] < remainingBeforeG * coverFraction) continue;
 
-      const score = prevSum + btcAfter;
-      if (score > best) {
-        best = score;
+      const candSum = prevSum + btcAfter;
+      // First-event remainder along this path: if Tprev is empty, G itself is
+      // the first event; otherwise it was fixed earlier in the subpath.
+      const candG1 = Tprev === 0 ? totalBtc - btcOf[G] : dpG1[Tprev];
+
+      if (
+        candSum > bestSum + EPS ||
+        (Math.abs(candSum - bestSum) <= EPS && candG1 > bestG1 + EPS)
+      ) {
+        bestSum = candSum;
+        bestG1 = candG1;
         bestG = G;
       }
     }
 
-    dp[T] = best;
+    dpSum[T] = bestSum;
+    dpG1[T] = bestG1;
     prev[T] = bestG;
   }
 

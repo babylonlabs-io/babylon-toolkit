@@ -1,7 +1,22 @@
 import { describe, expect, it } from "vitest";
 
-import { SEIZURE_TOL, type CascadeVault } from "../cascadeSimulation.js";
+import {
+  SEIZURE_TOL,
+  simulateCascade,
+  type CascadeVault,
+} from "../cascadeSimulation.js";
 import { computeOptimalOrder } from "../optimalOrder.js";
+
+/** All permutations of `items` (used to brute-force-verify the optimizer). */
+function permutations<T>(items: T[]): T[][] {
+  if (items.length <= 1) return [items];
+  const out: T[][] = [];
+  for (let i = 0; i < items.length; i++) {
+    const rest = [...items.slice(0, i), ...items.slice(i + 1)];
+    for (const p of permutations(rest)) out.push([items[i], ...p]);
+  }
+  return out;
+}
 
 const DEFAULT_PARAMS = {
   CF: 0.75,
@@ -101,6 +116,29 @@ describe("computeOptimalOrder", () => {
     expect(result.order).toHaveLength(14);
     expect(new Set(result.order.map((v) => v.id)).size).toBe(14);
     expect(result.sumBtcAfterEvents).toBeGreaterThan(0);
+  });
+
+  it("among orders that tie on total cascade survival, returns the safest first event", () => {
+    // 5 vaults → 120 permutations; brute-force the invariant directly.
+    const amounts = [0.8, 0.47, 0.95, 0.59, 0.19];
+    const vaults = amounts.map((b, idx) => vault(`v${idx}`, b));
+
+    // Sweep several seizure fractions to exercise different tie structures.
+    for (const sf of [0.2, 0.3, 0.398, 0.5, 0.6]) {
+      const args = [totalDebt, sf, SEIZURE_TOL, CF, THF, LB, expectedHF] as const;
+      const opt = computeOptimalOrder(vaults, ...args);
+
+      // Among every permutation whose total cascade survival ties the
+      // optimizer's, none should beat it on first-event survival.
+      let maxG1AmongTies = -Infinity;
+      for (const p of permutations(vaults)) {
+        const r = simulateCascade(p, ...args);
+        if (Math.abs(r.sumBtcAfterEvents - opt.sumBtcAfterEvents) <= 1e-9) {
+          maxG1AmongTies = Math.max(maxG1AmongTies, r.btcAfterG1);
+        }
+      }
+      expect(opt.btcAfterG1).toBeCloseTo(maxG1AmongTies, 9);
+    }
   });
 
   it("preserves vault type through generics", () => {

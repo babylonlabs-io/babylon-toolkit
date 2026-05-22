@@ -131,6 +131,11 @@ export function calculate(params: CalculatorParams): CalculatorResult {
   const seizedParamsInvalid = seizedFractionRaw <= 0 || seizedFractionRaw > 1;
 
   // ── 3. Group calculation (against the current on-chain order) ──
+  //
+  // Skipped entirely when params are invalid: with a clamped seizedFraction the
+  // prefix walk consumes no vaults, so the cascade would otherwise emit a run of
+  // empty, debt-unchanged groups. We leave `groups` empty and let the soft
+  // advisory carry the message instead.
 
   let remainingVaults: Vault[] = [...vaults];
   let remainingDebt = totalDebtUsd;
@@ -138,6 +143,7 @@ export function calculate(params: CalculatorParams): CalculatorResult {
   let groupIndex = 1;
 
   while (
+    !seizedParamsInvalid &&
     remainingVaults.length > 0 &&
     remainingDebt > MIN_DEBT_THRESHOLD &&
     groupIndex <= MAX_GROUPS

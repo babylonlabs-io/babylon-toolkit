@@ -33,14 +33,9 @@ export function deriveBannerState(result: CalculatorResult): BannerState {
   const { warnings, groups } = result;
   const suggestReorder = result.suggestedVaultOrder != null;
 
-  if (groups.length === 0) {
-    return {
-      severity: "hidden",
-      primaryWarning: null,
-      secondaryWarnings: [],
-      suggestReorder: false,
-    };
-  }
+  // Warnings are evaluated before the "no groups" check so that an advisory
+  // with no computable cascade (e.g. weird-params, which leaves groups empty)
+  // still renders instead of being hidden.
 
   // Dust suppresses all other warnings — position is too small to matter.
   const dustWarning = warnings.find((w) => w.type === "dust");
@@ -75,7 +70,17 @@ export function deriveBannerState(result: CalculatorResult): BannerState {
     };
   }
 
-  // No risk warnings. A suboptimal order is a soft, standalone suggestion;
+  // No risk warnings. Without a position/cascade there is nothing to show.
+  if (groups.length === 0) {
+    return {
+      severity: "hidden",
+      primaryWarning: null,
+      secondaryWarnings: [],
+      suggestReorder: false,
+    };
+  }
+
+  // Healthy position: a suboptimal order is a soft, standalone suggestion;
   // otherwise the position is optimally structured.
   if (suggestReorder) {
     return {
