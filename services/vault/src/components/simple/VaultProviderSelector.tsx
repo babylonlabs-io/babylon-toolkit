@@ -35,10 +35,10 @@ export function VaultProviderSelector({
 
   return (
     <>
-      <Card variant="filled" className="!rounded-lg !py-4">
+      <Card variant="filled" className="!rounded-lg !p-0">
         <button
           type="button"
-          className="flex w-full items-center justify-between"
+          className="flex w-full items-center justify-between px-6 py-4"
           onClick={() => onExpandedChange(!expanded)}
         >
           <span
