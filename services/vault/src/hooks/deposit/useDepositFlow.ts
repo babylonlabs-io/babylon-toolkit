@@ -160,13 +160,15 @@ export interface UseDepositFlowReturn {
   /** Callback to continue the flow after artifact download */
   continueAfterArtifactDownload: () => void;
   /**
-   * Data backing the "Awaiting Bitcoin confirmation" detail panel: the
-   * timestamp the step was first entered and the Pre-PegIn broadcast txid.
-   * `null` until the BTC broadcast completes.
+   * Data backing the "Awaiting Bitcoin confirmation" detail panel, snapshotted
+   * when the BTC wait begins: the timestamp, the Pre-PegIn broadcast txid, and
+   * the required confirmation depth of the offchain-params version this
+   * deposit registered against. `null` until the BTC broadcast completes.
    */
   btcConfirmationDetail: {
     startedAt: number;
     prePeginTxid: string;
+    requiredDepth: number;
   } | null;
 }
 
@@ -238,6 +240,7 @@ export function useDepositFlow(
   const [btcConfirmationDetail, setBtcConfirmationDetail] = useState<{
     startedAt: number;
     prePeginTxid: string;
+    requiredDepth: number;
   } | null>(null);
 
   const artifactResolverRef = useRef<(() => void) | null>(null);
@@ -799,13 +802,16 @@ export function useDepositFlow(
         // ========================================================================
 
         setCurrentStep(DepositFlowStep.AWAIT_BTC_CONFIRMATION);
-        // Snapshot the moment we enter the BTC-wait so the detail panel can
-        // render a stable "Started at". The Pre-PegIn broadcast txid is the
-        // tx that actually lands on Bitcoin — multi-vault siblings all share
-        // one Pre-PegIn broadcast — so it backs the confirmation poll.
+        // Snapshot the BTC-wait inputs. The Pre-PegIn broadcast txid is the tx
+        // that lands on Bitcoin (multi-vault siblings share one broadcast).
+        // requiredDepth is pinned to the offchain-params version this deposit
+        // registered against — the VP gates on that version's minPrepeginDepth
+        // (btc-vault claimer/pegin.rs check_prepegin_depth_and_transition), so
+        // a later governance change must not move the displayed target.
         setBtcConfirmationDetail({
           startedAt: Date.now(),
           prePeginTxid: prePeginBroadcastTxid,
+          requiredDepth: config.offchainParams.minPrepeginDepth,
         });
         setIsWaiting(true);
 

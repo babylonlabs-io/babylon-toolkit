@@ -33,6 +33,8 @@ export interface BtcConfirmationDetailData {
   startedAt: number;
   /** Pre-PegIn broadcast txid — the tx actually on the Bitcoin network. */
   prePeginTxid: string;
+  /** Required confirmation depth, pinned to the deposit's registered version. */
+  requiredDepth: number;
 }
 
 export interface DepositProgressViewProps {
@@ -92,6 +94,7 @@ export function DepositProgressView(props: DepositProgressViewProps) {
       <BtcConfirmationDetailContainer
         startedAt={btcConfirmationDetail.startedAt}
         prePeginTxid={btcConfirmationDetail.prePeginTxid}
+        requiredDepth={btcConfirmationDetail.requiredDepth}
       />
     ) : null;
 

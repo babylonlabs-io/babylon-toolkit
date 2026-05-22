@@ -260,6 +260,7 @@ describe("DepositProgressView", () => {
           btcConfirmationDetail={{
             startedAt: NOW,
             prePeginTxid: PRE_PEGIN_TXID,
+            requiredDepth: 6,
           }}
         />,
       );
@@ -275,6 +276,7 @@ describe("DepositProgressView", () => {
           btcConfirmationDetail={{
             startedAt: NOW,
             prePeginTxid: PRE_PEGIN_TXID,
+            requiredDepth: 6,
           }}
         />,
       );
