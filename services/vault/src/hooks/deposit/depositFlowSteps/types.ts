@@ -47,18 +47,23 @@ export enum DepositFlowStep {
    * step 1 but binds a different context (auth anchor vs. vault root).
    */
   SIGN_AUTH_ANCHOR = 9,
-  /** Step 10: Sign payout transactions in BTC wallet */
+  /** Step 10: Sign the VP/VK claimer payout transactions in BTC wallet */
   SIGN_PAYOUTS = 10,
-  /** Step 11: Wait for VP verification and ACK submission. */
-  AWAIT_VP_VERIFICATION = 11,
-  /** Step 12: Download vault artifacts */
-  ARTIFACT_DOWNLOAD = 12,
-  /** Step 13: Reveal HTLC secret on Ethereum to activate the vault */
-  ACTIVATE_VAULT = 13,
-  /** Step 14: Wait for activation confirmation / indexer catch-up. */
-  AWAIT_ACTIVATION_CONFIRMATION = 14,
-  /** Step 15: Deposit completed */
-  COMPLETED = 15,
+  /**
+   * Step 11: Sign the depositor's own graph — 1 Payout + N per-challenger
+   * NoPayout transactions — in BTC wallet (the second payout-signing round).
+   */
+  SIGN_DEPOSITOR_GRAPH = 11,
+  /** Step 12: Wait for VP verification and ACK submission. */
+  AWAIT_VP_VERIFICATION = 12,
+  /** Step 13: Download vault artifacts */
+  ARTIFACT_DOWNLOAD = 13,
+  /** Step 14: Reveal HTLC secret on Ethereum to activate the vault */
+  ACTIVATE_VAULT = 14,
+  /** Step 15: Wait for activation confirmation / indexer catch-up. */
+  AWAIT_ACTIVATION_CONFIRMATION = 15,
+  /** Step 16: Deposit completed */
+  COMPLETED = 16,
 }
 
 // ============================================================================

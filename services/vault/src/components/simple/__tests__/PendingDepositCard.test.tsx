@@ -133,6 +133,7 @@ describe("PendingDepositCard — step gating during first load", () => {
     displayVariant: "pending",
     displayLabel: "Processing",
     message: COPY.pegin.messages.waitingForPayoutPrep,
+    awaitingPayoutPrep: true,
   });
 
   beforeEach(() => {

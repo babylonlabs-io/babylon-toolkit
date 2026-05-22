@@ -6,6 +6,18 @@ import { DepositFlowStep } from "@/hooks/deposit/depositFlowSteps/types";
 
 interface ProviderWaitDetailProps {
   step: DepositFlowStep;
+  persistKey?: string;
+}
+
+const waitStartedAtCache = new Map<string, number>();
+
+function resolveStartedAt(cacheKey: string | undefined): number {
+  if (!cacheKey) return Date.now();
+  const existing = waitStartedAtCache.get(cacheKey);
+  if (existing !== undefined) return existing;
+  const now = Date.now();
+  waitStartedAtCache.set(cacheKey, now);
+  return now;
 }
 
 function formatStartedAt(timestamp: number): string {
@@ -45,8 +57,12 @@ function getWaitDetailCopy(step: DepositFlowStep): {
   }
 }
 
-export function ProviderWaitDetail({ step }: ProviderWaitDetailProps) {
-  const [startedAt] = useState(() => Date.now());
+export function ProviderWaitDetail({
+  step,
+  persistKey,
+}: ProviderWaitDetailProps) {
+  const cacheKey = persistKey ? `${persistKey}:${step}` : undefined;
+  const [startedAt] = useState(() => resolveStartedAt(cacheKey));
   const copy = COPY.deposit.waitDetails;
   const detail = getWaitDetailCopy(step);
 

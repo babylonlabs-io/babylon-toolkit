@@ -6,13 +6,14 @@
  * only the React state, guard checks, and optimistic localStorage updates.
  */
 
+import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
 import { stripHexPrefix } from "@babylonlabs-io/ts-sdk/tbv/core";
 import { useChainConnector } from "@babylonlabs-io/wallet-connector";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Hex } from "viem";
 
 import { COPY } from "@/copy";
-import { DepositFlowStep } from "@/hooks/deposit/depositFlowSteps";
+import type { PayoutSigningProgress } from "@/services/vault/vaultPayoutSignatureService";
 
 import { usePeginPolling } from "../../../context/deposit/PeginPollingContext";
 import { signAndSubmitPayouts } from "../../../hooks/deposit/depositFlowSteps/payoutSigning";
@@ -21,17 +22,6 @@ import { LocalStorageStatus } from "../../../models/peginStateMachine";
 import type { VaultActivity } from "../../../types/activity";
 import { btcAddressToScriptPubKeyHex } from "../../../utils/btc";
 import { formatPayoutSignatureError } from "../../../utils/errors/formatting";
-
-export interface SigningProgressProps {
-  /** Number of signing steps completed */
-  completed: number;
-  /** Total number of claimers */
-  totalClaimers: number;
-  /** Current deposit flow step. Optional for standalone use. */
-  step?: DepositFlowStep;
-  /** Whether we're in a waiting/polling state. Optional for standalone use. */
-  isWaiting?: boolean;
-}
 
 export interface SigningError {
   title: string;
@@ -49,7 +39,7 @@ export interface UsePayoutSigningStateResult {
   /** Whether signing is in progress */
   signing: boolean;
   /** Signing progress details */
-  progress: SigningProgressProps;
+  progress: PayoutSigningProgress;
   /** Error state if signing failed */
   error: SigningError | null;
   /** Whether signing completed successfully */
@@ -70,9 +60,10 @@ export function usePayoutSigningState({
 }: UsePayoutSigningStateProps): UsePayoutSigningStateResult {
   const [signing, setSigning] = useState(false);
   const [isComplete, setIsComplete] = useState(false);
-  const [progress, setProgress] = useState<SigningProgressProps>({
+  const [progress, setProgress] = useState<PayoutSigningProgress>({
+    phase: "claimers",
     completed: 0,
-    totalClaimers: 0,
+    total: 0,
   });
   const [error, setError] = useState<SigningError | null>(null);
 
@@ -109,6 +100,8 @@ export function usePayoutSigningState({
   // `signing === false`. Flip the ref before the first await, clear it in
   // `finally`, and always check this before the state.
   const inFlightRef = useRef(false);
+
+  const claimersDoneRef = useRef(false);
 
   const handleSign = useCallback(async () => {
     if (inFlightRef.current || signing) return;
@@ -182,12 +175,63 @@ export function usePayoutSigningState({
 
       setSigning(true);
       setError(null);
-      // Reset progress; the SDK emits (completed, total) once it knows the
-      // real claimer count after polling the VP.
-      setProgress({ completed: 0, totalClaimers: 0 });
+      // Reset progress; the SDK emits claimer progress once it knows the real
+      // counts after polling the VP, and the wrapper below reports the
+      // depositor-graph round.
+      setProgress({ phase: "claimers", completed: 0, total: 0 });
+      claimersDoneRef.current = false;
 
       abortRef.current?.abort();
       abortRef.current = new AbortController();
+
+      const wallet = btcWalletProvider as BitcoinWallet;
+      const graphProgressWallet: BitcoinWallet = {
+        ...wallet,
+        deriveContextHash: async (appName, context) => {
+          setProgress({ phase: "auth", completed: 0, total: 0 });
+          try {
+            return await wallet.deriveContextHash(appName, context);
+          } finally {
+            setProgress({ phase: "claimers", completed: 0, total: 0 });
+          }
+        },
+        signPsbt: async (hex, opts) => {
+          if (claimersDoneRef.current) {
+            setProgress({ phase: "graph", completed: 0, total: 1 });
+          }
+          try {
+            return await wallet.signPsbt(hex, opts);
+          } finally {
+            if (claimersDoneRef.current) {
+              setProgress({ phase: "graph", completed: 1, total: 1 });
+            }
+          }
+        },
+        ...(wallet.signPsbts
+          ? {
+              signPsbts: async (hexes, opts) => {
+                if (claimersDoneRef.current) {
+                  setProgress({
+                    phase: "graph",
+                    completed: 0,
+                    total: hexes.length,
+                  });
+                }
+                try {
+                  return await wallet.signPsbts!(hexes, opts);
+                } finally {
+                  if (claimersDoneRef.current) {
+                    setProgress({
+                      phase: "graph",
+                      completed: hexes.length,
+                      total: hexes.length,
+                    });
+                  }
+                }
+              },
+            }
+          : {}),
+      };
 
       try {
         await signAndSubmitPayouts({
@@ -196,13 +240,15 @@ export function usePayoutSigningState({
           depositorBtcPubkey: btcPublicKey,
           providerBtcPubKey: provider.btcPubKey,
           registeredPayoutScriptPubKey: activity.depositorPayoutBtcAddress,
-          btcWallet: btcWalletProvider,
+          btcWallet: graphProgressWallet,
           depositorEthAddress,
           unsignedPrePeginTxHex: activity.unsignedPrePeginTx,
           signal: abortRef.current.signal,
           onProgress: (next) => {
             if (next === null) return;
             setProgress(next);
+            claimersDoneRef.current =
+              next.total > 0 && next.completed >= next.total;
           },
         });
 

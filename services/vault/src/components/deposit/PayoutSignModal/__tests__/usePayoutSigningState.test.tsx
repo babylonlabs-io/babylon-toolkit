@@ -119,7 +119,8 @@ describe("usePayoutSigningState", () => {
       expect(call.vaultId).toBe(ACTIVITY.id);
       expect(call.peginTxHash).toBe(ACTIVITY.peginTxHash);
       expect(call.providerBtcPubKey).toBe(PROVIDER.btcPubKey);
-      expect(call.btcWallet).toBe(BTC_WALLET);
+      await call.btcWallet.signPsbt("0xpsbt");
+      expect(BTC_WALLET.signPsbt).toHaveBeenCalledWith("0xpsbt", undefined);
       expect(call.signal).toBeInstanceOf(AbortSignal);
 
       expect(result.current.isComplete).toBe(true);
@@ -138,12 +139,16 @@ describe("usePayoutSigningState", () => {
           onProgress,
         }: {
           onProgress: (
-            p: { completed: number; totalClaimers: number } | null,
+            p: {
+              phase: "claimers" | "graph";
+              completed: number;
+              total: number;
+            } | null,
           ) => void;
         }) => {
-          onProgress({ completed: 1, totalClaimers: 3 });
-          onProgress({ completed: 2, totalClaimers: 3 });
-          onProgress({ completed: 3, totalClaimers: 3 });
+          onProgress({ phase: "claimers", completed: 1, total: 3 });
+          onProgress({ phase: "graph", completed: 2, total: 9 });
+          onProgress({ phase: "graph", completed: 9, total: 9 });
           // Final null sentinel from SDK should not overwrite progress.
           onProgress(null);
         },
@@ -156,8 +161,9 @@ describe("usePayoutSigningState", () => {
       });
 
       expect(result.current.progress).toEqual({
-        completed: 3,
-        totalClaimers: 3,
+        phase: "graph",
+        completed: 9,
+        total: 9,
       });
     });
   });

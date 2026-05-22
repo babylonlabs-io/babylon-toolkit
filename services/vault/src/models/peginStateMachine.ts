@@ -82,6 +82,7 @@ export interface PeginState {
   displayVariant: "pending" | "active" | "inactive" | "warning";
   availableActions: PeginAction[];
   message?: string;
+  awaitingPayoutPrep?: boolean;
 }
 
 export interface GetPeginStateOptions {
@@ -305,6 +306,7 @@ interface DisplayInfo {
   displayLabel: PeginDisplayLabel;
   displayVariant: "pending" | "active" | "inactive" | "warning";
   message?: string;
+  awaitingPayoutPrep?: boolean;
 }
 
 function getDisplay(
@@ -381,6 +383,7 @@ function getDisplay(
       displayLabel: PEGIN_DISPLAY_LABELS.PENDING,
       displayVariant: "pending",
       message: COPY.pegin.messages.waitingForPayoutPrep,
+      awaitingPayoutPrep: true,
     };
   }
 
@@ -555,7 +558,7 @@ export function getPeginDisplayStep(state: PeginState): DepositFlowStep | null {
     if (localStatus === LocalStorageStatus.PAYOUT_SIGNED) {
       return DepositFlowStep.AWAIT_VP_VERIFICATION;
     }
-    if (state.message === COPY.pegin.messages.waitingForPayoutPrep) {
+    if (state.awaitingPayoutPrep) {
       return DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS;
     }
     return DepositFlowStep.AWAIT_BTC_CONFIRMATION;

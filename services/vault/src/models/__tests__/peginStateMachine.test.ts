@@ -12,6 +12,7 @@ import {
   LocalStorageStatus,
   PEGIN_DISPLAY_LABELS,
   PeginAction,
+  type PeginState,
   shouldRemoveFromLocalStorage,
 } from "../peginStateMachine";
 
@@ -586,6 +587,21 @@ describe("peginStateMachine", () => {
         transactionsReady: false,
       });
       expect(state.availableActions).toEqual([PeginAction.NONE]);
+      expect(getPeginDisplayStep(state)).toBe(
+        DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS,
+      );
+    });
+
+    it("keys the payout-prep step off the boolean, not the display message", () => {
+      const state: PeginState = {
+        contractStatus: ContractStatus.PENDING,
+        localStatus: LocalStorageStatus.CONFIRMING,
+        displayLabel: PEGIN_DISPLAY_LABELS.PENDING,
+        displayVariant: "pending",
+        availableActions: [PeginAction.NONE],
+        message: "an unrelated display message",
+        awaitingPayoutPrep: true,
+      };
       expect(getPeginDisplayStep(state)).toBe(
         DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS,
       );

@@ -69,19 +69,29 @@ vi.mock("@/components/deposit/DepositSignModal/depositStepHelpers", () => ({
 vi.mock("@/hooks/deposit/depositFlowSteps", () => ({
   DepositFlowStep: {
     SIGN_PAYOUTS: "SIGN_PAYOUTS",
+    SIGN_AUTH_ANCHOR: "SIGN_AUTH_ANCHOR",
+    SIGN_DEPOSITOR_GRAPH: "SIGN_DEPOSITOR_GRAPH",
     BROADCAST_PRE_PEGIN: "BROADCAST_PRE_PEGIN",
     ACTIVATE_VAULT: "ACTIVATE_VAULT",
     COMPLETED: "COMPLETED",
     SUBMIT_WOTS_KEYS: "SUBMIT_WOTS_KEYS",
+    AWAIT_PAYOUT_TRANSACTIONS: "AWAIT_PAYOUT_TRANSACTIONS",
     AWAIT_VP_VERIFICATION: "AWAIT_VP_VERIFICATION",
+    AWAIT_ACTIVATION_CONFIRMATION: "AWAIT_ACTIVATION_CONFIRMATION",
     ARTIFACT_DOWNLOAD: "ARTIFACT_DOWNLOAD",
   },
+  payoutSigningStep: (phase: "auth" | "claimers" | "graph") =>
+    phase === "auth"
+      ? "SIGN_AUTH_ANCHOR"
+      : phase === "graph"
+        ? "SIGN_DEPOSITOR_GRAPH"
+        : "SIGN_PAYOUTS",
 }));
 
 vi.mock("@/components/deposit/PayoutSignModal/usePayoutSigningState", () => ({
   usePayoutSigningState: vi.fn(() => ({
     signing: false,
-    progress: null,
+    progress: { phase: "claimers", completed: 0, total: 0 },
     error: null,
     isComplete: false,
     handleSign: vi.fn(),

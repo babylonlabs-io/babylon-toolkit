@@ -58,6 +58,7 @@ export interface DepositProgressViewProps {
    * Only rendered when the active step is AWAIT_BTC_CONFIRMATION.
    */
   btcConfirmationDetail?: BtcConfirmationDetailData | null;
+  waitDetailPersistKey?: string;
 }
 
 export function DepositProgressView(props: DepositProgressViewProps) {
@@ -74,6 +75,7 @@ export function DepositProgressView(props: DepositProgressViewProps) {
     successMessage = COPY.deposit.progress.defaultSuccessMessage,
     onRetry,
     btcConfirmationDetail,
+    waitDetailPersistKey,
   } = props;
 
   // On completion, advance past the last row so every circle renders as ✓.
@@ -105,7 +107,10 @@ export function DepositProgressView(props: DepositProgressViewProps) {
         requiredDepth={btcConfirmationDetail.requiredDepth}
       />
     ) : isProviderWaitStep ? (
-      <ProviderWaitDetail step={currentStep} />
+      <ProviderWaitDetail
+        step={currentStep}
+        persistKey={waitDetailPersistKey}
+      />
     ) : null;
 
   return (

@@ -4,6 +4,7 @@ import { COPY } from "@/copy";
 import { DepositFlowStep } from "@/hooks/deposit/depositFlowSteps/types";
 
 import {
+  buildStepItems,
   getStepFillPercent,
   getStepLabel,
   getVisualStep,
@@ -35,6 +36,12 @@ describe("getStepLabel", () => {
     );
   });
 
+  it("returns the recovery-transactions label for SIGN_DEPOSITOR_GRAPH", () => {
+    expect(getStepLabel(DepositFlowStep.SIGN_DEPOSITOR_GRAPH)).toBe(
+      COPY.deposit.steps.signRecoveryTxs,
+    );
+  });
+
   it("returns the generate-secret label for the first step", () => {
     expect(getStepLabel(DepositFlowStep.DERIVE_VAULT_SECRET)).toBe(
       COPY.deposit.steps.generateSecret,
@@ -54,25 +61,26 @@ describe("getStepLabel", () => {
     expect(getVisualStep(DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS)).toBe(8);
     expect(getVisualStep(DepositFlowStep.SIGN_AUTH_ANCHOR)).toBe(9);
     expect(getVisualStep(DepositFlowStep.SIGN_PAYOUTS)).toBe(10);
-    expect(getVisualStep(DepositFlowStep.AWAIT_VP_VERIFICATION)).toBe(11);
-    expect(getVisualStep(DepositFlowStep.ARTIFACT_DOWNLOAD)).toBe(12);
-    expect(getVisualStep(DepositFlowStep.ACTIVATE_VAULT)).toBe(13);
+    expect(getVisualStep(DepositFlowStep.SIGN_DEPOSITOR_GRAPH)).toBe(11);
+    expect(getVisualStep(DepositFlowStep.AWAIT_VP_VERIFICATION)).toBe(12);
+    expect(getVisualStep(DepositFlowStep.ARTIFACT_DOWNLOAD)).toBe(13);
+    expect(getVisualStep(DepositFlowStep.ACTIVATE_VAULT)).toBe(14);
     expect(getVisualStep(DepositFlowStep.AWAIT_ACTIVATION_CONFIRMATION)).toBe(
-      14,
+      15,
     );
   });
 });
 
 describe("getStepFillPercent", () => {
   it("fills by completed steps, not the in-progress current step", () => {
-    // AWAIT_BTC_CONFIRMATION is visual step 6 -> 5 completed of 14.
+    // AWAIT_BTC_CONFIRMATION is visual step 6 -> 5 completed of 15.
     expect(
       getStepFillPercent(DepositFlowStep.AWAIT_BTC_CONFIRMATION),
     ).toBeCloseTo(5 / TOTAL_VISUAL_STEPS);
   });
 
   it("never reports a full bar on the last actionable step", () => {
-    // AWAIT_ACTIVATION_CONFIRMATION is the last step; 13 completed of 14,
+    // AWAIT_ACTIVATION_CONFIRMATION is the last step; 14 completed of 15,
     // never 100% until the flow completes.
     expect(
       getStepFillPercent(DepositFlowStep.AWAIT_ACTIVATION_CONFIRMATION),
@@ -80,5 +88,28 @@ describe("getStepFillPercent", () => {
     expect(
       getStepFillPercent(DepositFlowStep.AWAIT_ACTIVATION_CONFIRMATION),
     ).toBeLessThan(1);
+  });
+});
+
+describe("buildStepItems payout-signing counters", () => {
+  const signPayouts = (items: ReturnType<typeof buildStepItems>) =>
+    items[getVisualStep(DepositFlowStep.SIGN_PAYOUTS) - 1];
+  const signRecovery = (items: ReturnType<typeof buildStepItems>) =>
+    items[getVisualStep(DepositFlowStep.SIGN_DEPOSITOR_GRAPH) - 1];
+
+  it("puts the counter on the payout step during the claimers phase", () => {
+    const items = buildStepItems({ phase: "claimers", completed: 2, total: 5 });
+    expect(signPayouts(items).description).toBe(
+      COPY.deposit.steps.signingCounter(2, 5),
+    );
+    expect(signRecovery(items).description).toBeUndefined();
+  });
+
+  it("puts the counter on the recovery step during the graph phase", () => {
+    const items = buildStepItems({ phase: "graph", completed: 3, total: 9 });
+    expect(signRecovery(items).description).toBe(
+      COPY.deposit.steps.signingCounter(3, 9),
+    );
+    expect(signPayouts(items).description).toBeUndefined();
   });
 });

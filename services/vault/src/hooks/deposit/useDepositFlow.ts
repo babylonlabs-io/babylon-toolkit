@@ -92,6 +92,7 @@ import { getVpProxyUrl } from "@/utils/rpc";
 import {
   DepositFlowStep,
   getEthWalletClient,
+  payoutSigningStep,
   registerPeginBatchAndWait,
   signAndSubmitPayouts,
   signProofOfPossession,
@@ -244,6 +245,7 @@ export function useDepositFlow(
   } | null>(null);
 
   const artifactResolverRef = useRef<(() => void) | null>(null);
+  const payoutClaimersDoneRef = useRef(false);
 
   const continueAfterArtifactDownload = useCallback(() => {
     setArtifactDownloadInfo(null);
@@ -840,23 +842,51 @@ export function useDepositFlow(
             }
           },
           signPsbt: async (psbtHex, opts) => {
-            setCurrentStep(DepositFlowStep.SIGN_PAYOUTS);
+            if (payoutClaimersDoneRef.current) {
+              setCurrentStep(DepositFlowStep.SIGN_DEPOSITOR_GRAPH);
+              setPayoutSigningProgress({
+                phase: "graph",
+                completed: 0,
+                total: 1,
+              });
+            }
             setIsWaiting(false);
             try {
               return await confirmedBtcWallet.signPsbt(psbtHex, opts);
             } finally {
               setIsWaiting(true);
+              if (payoutClaimersDoneRef.current) {
+                setPayoutSigningProgress({
+                  phase: "graph",
+                  completed: 1,
+                  total: 1,
+                });
+              }
             }
           },
           ...(confirmedBtcWallet.signPsbts
             ? {
                 signPsbts: async (psbtHexes, opts) => {
-                  setCurrentStep(DepositFlowStep.SIGN_PAYOUTS);
+                  if (payoutClaimersDoneRef.current) {
+                    setCurrentStep(DepositFlowStep.SIGN_DEPOSITOR_GRAPH);
+                    setPayoutSigningProgress({
+                      phase: "graph",
+                      completed: 0,
+                      total: psbtHexes.length,
+                    });
+                  }
                   setIsWaiting(false);
                   try {
                     return await confirmedBtcWallet.signPsbts!(psbtHexes, opts);
                   } finally {
                     setIsWaiting(true);
+                    if (payoutClaimersDoneRef.current) {
+                      setPayoutSigningProgress({
+                        phase: "graph",
+                        completed: psbtHexes.length,
+                        total: psbtHexes.length,
+                      });
+                    }
                   }
                 },
               }
@@ -946,6 +976,7 @@ export function useDepositFlow(
             setCurrentVaultIndex(vi);
             setCurrentStep(DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS);
             setIsWaiting(true);
+            payoutClaimersDoneRef.current = false;
 
             await signAndSubmitPayouts({
               vaultId: result.vaultId,
@@ -958,7 +989,13 @@ export function useDepositFlow(
               depositorEthAddress: confirmedEthAddress,
               unsignedPrePeginTxHex: batchResult.fundedPrePeginTxHex,
               signal,
-              onProgress: setPayoutSigningProgress,
+              onProgress: (p) => {
+                if (!p) return;
+                setPayoutSigningProgress(p);
+                setCurrentStep(payoutSigningStep(p.phase));
+                payoutClaimersDoneRef.current =
+                  p.total > 0 && p.completed >= p.total;
+              },
             });
 
             payoutSignedVaultIds.add(result.vaultId);

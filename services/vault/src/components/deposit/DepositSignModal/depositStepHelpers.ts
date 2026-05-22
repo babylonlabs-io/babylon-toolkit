@@ -20,6 +20,7 @@ function canCloseModal(
       currentStep === DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS ||
       currentStep === DepositFlowStep.SIGN_AUTH_ANCHOR ||
       currentStep === DepositFlowStep.SIGN_PAYOUTS ||
+      currentStep === DepositFlowStep.SIGN_DEPOSITOR_GRAPH ||
       currentStep === DepositFlowStep.AWAIT_VP_VERIFICATION ||
       currentStep === DepositFlowStep.AWAIT_ACTIVATION_CONFIRMATION ||
       currentStep === DepositFlowStep.ACTIVATE_VAULT)

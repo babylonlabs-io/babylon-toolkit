@@ -140,9 +140,10 @@ export const COPY = {
         "Awaiting vault provider to prepare payout transactions",
       authenticateSession: "Authenticate session with vault provider",
       signPayouts: "Sign payout transactions",
+      signRecoveryTxs: "Sign recovery transactions",
       awaitVpVerification: "Awaiting vault provider verification",
       downloadArtifact: "Download artifact",
-      revealSecret: "Sign and broadcast reveal secret",
+      revealSecret: "Sign and broadcast ETH activation transaction",
       awaitActivationConfirmation: "Awaiting vault activation confirmation",
       signingCounter: (completed: number, total: number) =>
         `(${completed} of ${total})`,

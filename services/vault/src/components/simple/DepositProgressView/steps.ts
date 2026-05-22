@@ -9,8 +9,14 @@ export function buildStepItems(
   progress: PayoutSigningProgress | null,
   peginProgress: PeginSigningProgress | null = null,
 ): StepperItem[] {
-  const payoutTotal = progress?.totalClaimers ?? 0;
-  const payoutCompleted = progress?.completed ?? 0;
+  const payoutCounter =
+    progress?.phase === "claimers" && progress.total > 0
+      ? COPY.deposit.steps.signingCounter(progress.completed, progress.total)
+      : undefined;
+  const graphCounter =
+    progress?.phase === "graph" && progress.total > 0
+      ? COPY.deposit.steps.signingCounter(progress.completed, progress.total)
+      : undefined;
 
   // Only surface the (x of n) counter for split (multi-vault) deposits;
   // a single-vault deposit signs one peg-in tx and needs no sub-counter.
@@ -33,13 +39,8 @@ export function buildStepItems(
     { label: COPY.deposit.steps.submitWotsKey },
     { label: COPY.deposit.steps.awaitPayoutTransactions },
     { label: COPY.deposit.steps.authenticateSession },
-    {
-      label: COPY.deposit.steps.signPayouts,
-      description:
-        payoutTotal > 0
-          ? COPY.deposit.steps.signingCounter(payoutCompleted, payoutTotal)
-          : undefined,
-    },
+    { label: COPY.deposit.steps.signPayouts, description: payoutCounter },
+    { label: COPY.deposit.steps.signRecoveryTxs, description: graphCounter },
     { label: COPY.deposit.steps.awaitVpVerification },
     { label: COPY.deposit.steps.downloadArtifact },
     { label: COPY.deposit.steps.revealSecret },
@@ -88,14 +89,16 @@ export function getVisualStep(currentStep: DepositFlowStep): number {
       return 9;
     case DepositFlowStep.SIGN_PAYOUTS:
       return 10;
-    case DepositFlowStep.AWAIT_VP_VERIFICATION:
+    case DepositFlowStep.SIGN_DEPOSITOR_GRAPH:
       return 11;
-    case DepositFlowStep.ARTIFACT_DOWNLOAD:
+    case DepositFlowStep.AWAIT_VP_VERIFICATION:
       return 12;
-    case DepositFlowStep.ACTIVATE_VAULT:
+    case DepositFlowStep.ARTIFACT_DOWNLOAD:
       return 13;
-    case DepositFlowStep.AWAIT_ACTIVATION_CONFIRMATION:
+    case DepositFlowStep.ACTIVATE_VAULT:
       return 14;
+    case DepositFlowStep.AWAIT_ACTIVATION_CONFIRMATION:
+      return 15;
     case DepositFlowStep.COMPLETED:
       return TOTAL_VISUAL_STEPS + 1;
     default: {
