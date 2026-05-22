@@ -5,8 +5,6 @@ import { DepositFlowStep } from "@/hooks/deposit/depositFlowSteps/types";
 import type { PayoutSigningProgress } from "@/services/vault/vaultPayoutSignatureService";
 import type { PeginSigningProgress } from "@/services/vault/vaultTransactionService";
 
-export const EXPECTED_CONFIRMATION_MINUTES = 15;
-
 export function buildStepItems(
   progress: PayoutSigningProgress | null,
   peginProgress: PeginSigningProgress | null = null,
@@ -31,12 +29,7 @@ export function buildStepItems(
     { label: COPY.deposit.steps.signLinkProofs },
     { label: COPY.deposit.steps.signAndBroadcastEth },
     { label: COPY.deposit.steps.signAndBroadcastPrePegin },
-    {
-      label: COPY.deposit.steps.awaitBtcConfirmation,
-      description: COPY.deposit.steps.awaitBtcConfirmationDuration(
-        EXPECTED_CONFIRMATION_MINUTES,
-      ),
-    },
+    { label: COPY.deposit.steps.awaitBtcConfirmation },
     { label: COPY.deposit.steps.submitWotsKey },
     { label: COPY.deposit.steps.authenticateSession },
     {
