@@ -189,11 +189,11 @@ export const COPY = {
     },
     btcConfirmation: {
       startedAt: "Started at",
-      confirmations: "Confirmations",
-      confirmationProgress: (current: number, required: number) =>
-        `${current} of ${required}`,
       estRemaining: "Est. remaining",
-      estRemainingValue: (minutes: number) => `~${minutes} min`,
+      estRemainingValue: (minutes: number, blocksLeft: number) =>
+        `~${minutes} min (${blocksLeft} BTC ${
+          blocksLeft === 1 ? "block" : "blocks"
+        })`,
       finalizing: "Finalizing...",
       bitcoinTx: "Bitcoin TX",
     },
