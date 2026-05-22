@@ -136,10 +136,16 @@ export const COPY = {
       signAndBroadcastPrePegin: "Sign and broadcast BTC Pre-Pegin transaction",
       awaitBtcConfirmation: "Awaiting Bitcoin confirmation",
       submitWotsKey: "Submit WOTS public key to vault provider",
+      awaitPayoutTransactions:
+        "Awaiting vault provider to prepare payout transactions",
       authenticateSession: "Authenticate session with vault provider",
       signPayouts: "Sign payout transactions",
+      signRecoveryTxs: "Sign recovery transactions",
+      awaitVpVerification: "Awaiting vault provider verification",
       downloadArtifact: "Download artifact",
-      revealSecret: "Sign and broadcast reveal secret",
+      retrieveSecret: "Retrieve secret",
+      revealSecret: "Sign and broadcast ETH activation transaction",
+      awaitActivationConfirmation: "Awaiting vault activation confirmation",
       signingCounter: (completed: number, total: number) =>
         `(${completed} of ${total})`,
     },
@@ -166,6 +172,13 @@ export const COPY = {
         })`,
       finalizing: "Finalizing...",
       bitcoinTx: "Bitcoin TX",
+    },
+    waitDetails: {
+      startedAt: "Started at",
+      status: "Status",
+      preparingPayouts: "Preparing payout transactions",
+      verifyingDeposit: "Verifying signatures and collecting ACKs",
+      confirmingActivation: "Confirming activation",
     },
     broadcastSuccess: {
       heading: "Pre-Pegin Broadcast",
@@ -340,5 +353,30 @@ export const COPY = {
   },
   reorder: {
     confirmButton: "Confirm",
+  },
+  protocolFees: {
+    minDeposit: {
+      label: "Min deposit",
+      tooltip:
+        "Minimum BTC deposit required to create a BTC Vault, set by the protocol.",
+    },
+    minForSplit: {
+      label: "Effective minimum for split",
+      tooltip:
+        "Minimum deposit to split into 2 BTC Vaults. Both BTC Vaults must meet the minimum deposit requirement.",
+    },
+    ltv: {
+      label: "LTV / Collateral Factor",
+      tooltip:
+        "Maximum percentage of collateral value that can be borrowed against.",
+    },
+    liquidationThreshold: {
+      label: "Liquidation threshold (THF)",
+      tooltip: "Target health factor at which liquidation becomes profitable.",
+    },
+    liquidationBonus: {
+      label: "Liquidation Bonus (LB)",
+      tooltip: "Bonus percentage awarded to liquidators on seized collateral.",
+    },
   },
 } as const;

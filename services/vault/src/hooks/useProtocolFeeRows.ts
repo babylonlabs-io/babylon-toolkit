@@ -7,6 +7,8 @@ import { useMemo } from "react";
 
 import type { FeeRow } from "@/components/simple/FeesSection";
 import { useProtocolParamsContext } from "@/context/ProtocolParamsContext";
+import { COPY } from "@/copy";
+import { getBtcSymbol } from "@/utils/formatting";
 
 import {
   EXPECTED_HEALTH_FACTOR_AT_LIQUIDATION,
@@ -24,13 +26,13 @@ function buildFeeRows(
   splitParams: VaultSplitParams | null,
 ): FeeRow[] {
   const rows: FeeRow[] = [];
+  const btcSymbol = getBtcSymbol();
 
   const minDepositBtc = formatSatoshisToBtc(minDepositSats);
   rows.push({
-    label: "Min deposit (MIN_PEGIN)",
-    value: `${minDepositBtc} BTC`,
-    tooltip:
-      "Minimum BTC deposit required to create a BTC Vault, set by the protocol.",
+    label: COPY.protocolFees.minDeposit.label,
+    value: `${minDepositBtc} ${btcSymbol}`,
+    tooltip: COPY.protocolFees.minDeposit.tooltip,
   });
 
   if (splitParams) {
@@ -51,31 +53,29 @@ function buildFeeRows(
     if (minForSplit > 0n) {
       const minForSplitBtc = formatSatoshisToBtc(minForSplit);
       rows.push({
-        label: "Effective minimum for split",
-        value: `~${minForSplitBtc} BTC`,
-        tooltip:
-          "Minimum deposit to split into 2 BTC Vaults. Both BTC Vaults must meet the minimum deposit requirement.",
+        label: COPY.protocolFees.minForSplit.label,
+        value: `${minForSplitBtc} ${btcSymbol}`,
+        tooltip: COPY.protocolFees.minForSplit.tooltip,
       });
     }
 
     rows.push({
-      label: "LTV / Collateral Factor",
+      label: COPY.protocolFees.ltv.label,
       value: `${(CF * PERCENT_SCALE).toFixed(0)}%`,
-      tooltip:
-        "Maximum percentage of collateral value that can be borrowed against.",
+      tooltip: COPY.protocolFees.ltv.tooltip,
     });
 
     rows.push({
-      label: "Liquidation threshold (THF)",
+      label: COPY.protocolFees.liquidationThreshold.label,
       value: THF.toFixed(2),
-      tooltip: "Target health factor at which liquidation becomes profitable.",
+      tooltip: COPY.protocolFees.liquidationThreshold.tooltip,
     });
 
     const bonusPercent = (LB - 1) * PERCENT_SCALE;
     rows.push({
-      label: "Liquidation Bonus (LB)",
+      label: COPY.protocolFees.liquidationBonus.label,
       value: `${bonusPercent.toFixed(0)}%`,
-      tooltip: "Bonus percentage awarded to liquidators on seized collateral.",
+      tooltip: COPY.protocolFees.liquidationBonus.tooltip,
     });
   }
 

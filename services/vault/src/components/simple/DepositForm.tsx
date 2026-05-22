@@ -181,8 +181,8 @@ export function DepositForm({
   // so the displayed Max never overstates the cap.
   const maxDepositLabel =
     maxDepositSats == null
-      ? "-- BTC"
-      : `${Number(depositService.formatSatoshisToBtc(maxDepositSats))} BTC`;
+      ? `-- ${btcConfig.coinSymbol}`
+      : `${Number(depositService.formatSatoshisToBtc(maxDepositSats))} ${btcConfig.coinSymbol}`;
 
   // The slider operates in satoshis (integer values, 1-sat step) so the thumb
   // can land exactly on the max. A coarse BTC step would leave the sat-precise

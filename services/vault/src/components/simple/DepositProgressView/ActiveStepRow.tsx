@@ -17,11 +17,14 @@ export function ActiveStepRow({
 }: ActiveStepRowProps) {
   return (
     <div className="flex gap-3">
-      <div
-        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 border-secondary-strokeDark"
-        aria-label={`Step ${number} active`}
-      >
-        <Loader size={16} className="text-accent-primary" />
+      <div className="flex flex-col items-center">
+        <div
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 border-secondary-strokeDark"
+          aria-label={`Step ${number} active`}
+        >
+          <Loader size={16} className="text-accent-primary" />
+        </div>
+        <div className="w-0 flex-1 border-l-2 border-solid border-secondary-strokeDark" />
       </div>
       <div className="flex flex-1 flex-col">
         <div className="flex items-baseline gap-2">

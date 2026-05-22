@@ -82,6 +82,7 @@ export interface PeginState {
   displayVariant: "pending" | "active" | "inactive" | "warning";
   availableActions: PeginAction[];
   message?: string;
+  awaitingPayoutPrep?: boolean;
 }
 
 export interface GetPeginStateOptions {
@@ -305,6 +306,7 @@ interface DisplayInfo {
   displayLabel: PeginDisplayLabel;
   displayVariant: "pending" | "active" | "inactive" | "warning";
   message?: string;
+  awaitingPayoutPrep?: boolean;
 }
 
 function getDisplay(
@@ -381,6 +383,7 @@ function getDisplay(
       displayLabel: PEGIN_DISPLAY_LABELS.PENDING,
       displayVariant: "pending",
       message: COPY.pegin.messages.waitingForPayoutPrep,
+      awaitingPayoutPrep: true,
     };
   }
 
@@ -546,21 +549,31 @@ export function getPeginDisplayStep(state: PeginState): DepositFlowStep | null {
       return DepositFlowStep.SUBMIT_WOTS_KEYS;
     }
     if (availableActions.includes(PeginAction.SIGN_PAYOUT_TRANSACTIONS)) {
-      return DepositFlowStep.SIGN_PAYOUTS;
+      // The deposit is resting *before* it signs. When the user clicks "Sign
+      // Payouts" the flow first runs the auth-anchor step (deriveContextHash),
+      // then the payout signing — so the next step the deposit is positioned on
+      // is SIGN_AUTH_ANCHOR, not SIGN_PAYOUTS. Reporting SIGN_PAYOUTS here would
+      // count the auth-anchor step as already done and show one step too far.
+      return DepositFlowStep.SIGN_AUTH_ANCHOR;
     }
-    // No action pending. Once payouts are signed the deposit is waiting for the
-    // VP to verify on-chain (artifact-download stage); otherwise it is still
-    // waiting for the Pre-Pegin to confirm / be detected.
+    // No action pending. Once payouts are signed the deposit is waiting for VP
+    // verification/ACK submission. If the VP has ingested the deposit but
+    // payout transactions are not ready, it is preparing the signing package.
+    // Otherwise it is still waiting for Pre-PegIn confirmation/detection.
     if (localStatus === LocalStorageStatus.PAYOUT_SIGNED) {
-      return DepositFlowStep.ARTIFACT_DOWNLOAD;
+      return DepositFlowStep.AWAIT_VP_VERIFICATION;
+    }
+    if (state.awaitingPayoutPrep) {
+      return DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS;
     }
     return DepositFlowStep.AWAIT_BTC_CONFIRMATION;
   }
 
   if (contractStatus === ContractStatus.VERIFIED) {
-    // Ready to activate, or activation already broadcast and awaiting
-    // confirmation — both sit on the final reveal/activate step.
-    return DepositFlowStep.ACTIVATE_VAULT;
+    if (localStatus === LocalStorageStatus.CONFIRMED) {
+      return DepositFlowStep.AWAIT_ACTIVATION_CONFIRMATION;
+    }
+    return DepositFlowStep.RETRIEVE_SECRET;
   }
 
   return null;
