@@ -8,4 +8,8 @@ export {
   btcAddressToScriptPubKeyHex,
   scriptPubKeyHexToBtcAddress,
 } from "./btcUtils";
-export { verifyBtcWalletLiveness } from "./verifyBtcWalletLiveness";
+export {
+  BtcWalletLivenessError,
+  shouldProbeWalletLiveness,
+  verifyBtcWalletLiveness,
+} from "./verifyBtcWalletLiveness";

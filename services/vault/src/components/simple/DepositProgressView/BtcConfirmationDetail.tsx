@@ -24,6 +24,18 @@ function formatStartedAt(timestamp: number): string {
   });
 }
 
+/**
+ * Combined estimate text: minutes left plus the count of BTC blocks still
+ * to be mined. Once the depth is reached there is no wait left to estimate,
+ * so it reads as finalizing instead.
+ */
+function formatEstimate(confirmations: number, requiredDepth: number): string {
+  const copy = COPY.deposit.btcConfirmation;
+  const minutes = computeRemainingEstimateMinutes(confirmations, requiredDepth);
+  if (minutes === null) return copy.finalizing;
+  return copy.estRemainingValue(minutes, requiredDepth - confirmations);
+}
+
 export function BtcConfirmationDetail({
   startedAt,
   prePeginTxid,
@@ -31,12 +43,6 @@ export function BtcConfirmationDetail({
   requiredDepth,
 }: BtcConfirmationDetailProps) {
   const copy = COPY.deposit.btcConfirmation;
-
-  // undefined = still loading; null = depth reached (finalizing); number = wait.
-  const estimateMinutes =
-    confirmations === null
-      ? undefined
-      : computeRemainingEstimateMinutes(confirmations, requiredDepth);
 
   return (
     <div className="mt-3 flex flex-col gap-2 rounded-lg bg-secondary-highlight p-3">
@@ -51,31 +57,13 @@ export function BtcConfirmationDetail({
 
       <div className="flex items-center justify-between gap-2">
         <Text as="span" variant="body2" className="text-accent-secondary">
-          {copy.confirmations}:
+          {copy.estRemaining}:
         </Text>
         {confirmations === null ? (
           <Loader size={14} className="text-accent-primary" />
         ) : (
           <Text as="span" variant="body2" className="text-accent-primary">
-            {copy.confirmationProgress(
-              Math.min(confirmations, requiredDepth),
-              requiredDepth,
-            )}
-          </Text>
-        )}
-      </div>
-
-      <div className="flex items-center justify-between gap-2">
-        <Text as="span" variant="body2" className="text-accent-secondary">
-          {copy.estRemaining}:
-        </Text>
-        {estimateMinutes === undefined ? (
-          <Loader size={14} className="text-accent-primary" />
-        ) : (
-          <Text as="span" variant="body2" className="text-accent-primary">
-            {estimateMinutes === null
-              ? copy.finalizing
-              : copy.estRemainingValue(estimateMinutes)}
+            {formatEstimate(confirmations, requiredDepth)}
           </Text>
         )}
       </div>

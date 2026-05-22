@@ -159,11 +159,11 @@ export const COPY = {
     },
     btcConfirmation: {
       startedAt: "Started at",
-      confirmations: "Confirmations",
-      confirmationProgress: (current: number, required: number) =>
-        `${current} of ${required}`,
       estRemaining: "Est. remaining",
-      estRemainingValue: (minutes: number) => `~${minutes} min`,
+      estRemainingValue: (minutes: number, blocksLeft: number) =>
+        `~${minutes} min (${blocksLeft} BTC ${
+          blocksLeft === 1 ? "block" : "blocks"
+        })`,
       finalizing: "Finalizing...",
       bitcoinTx: "Bitcoin TX",
     },
@@ -313,6 +313,15 @@ export const COPY = {
   wallet: {
     geoBlockedTooltip: "Not available in your region",
     walletNotEligibleTooltip: "Wallet not eligible",
+    liveness: {
+      errorTitle: "Wallet Not Responding",
+      unresponsive:
+        "Your BTC wallet is not responding. Please open your wallet extension to confirm it is unlocked and connected, then try again.",
+      emptyAddress:
+        "Your BTC wallet did not return an address. Please reconnect your wallet and try again.",
+      addressMismatch:
+        "Your BTC wallet account has changed. Please reconnect your wallet and try again.",
+    },
   },
   collateral: {
     releaseDisabledTooltip:

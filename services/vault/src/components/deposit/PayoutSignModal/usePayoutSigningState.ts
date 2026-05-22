@@ -19,7 +19,12 @@ import { signAndSubmitPayouts } from "../../../hooks/deposit/depositFlowSteps/pa
 import { useVaultProviders } from "../../../hooks/deposit/useVaultProviders";
 import { LocalStorageStatus } from "../../../models/peginStateMachine";
 import type { VaultActivity } from "../../../types/activity";
-import { btcAddressToScriptPubKeyHex } from "../../../utils/btc";
+import {
+  BtcWalletLivenessError,
+  btcAddressToScriptPubKeyHex,
+  shouldProbeWalletLiveness,
+  verifyBtcWalletLiveness,
+} from "../../../utils/btc";
 import { formatPayoutSignatureError } from "../../../utils/errors/formatting";
 
 export interface SigningProgressProps {
@@ -180,6 +185,26 @@ export function usePayoutSigningState({
         return;
       }
 
+      // The wallet may have locked/disconnected since the modal opened. Probe
+      // it before signing so a locked wallet surfaces an actionable error
+      // instead of a silent no-op (modal opens, no signing popup appears).
+      try {
+        await verifyBtcWalletLiveness(btcWalletProvider, connectedBtcAddress, {
+          probeConnection: shouldProbeWalletLiveness(
+            btcConnector?.connectedWallet?.id,
+          ),
+        });
+      } catch (err) {
+        setError({
+          title: COPY.wallet.liveness.errorTitle,
+          message:
+            err instanceof BtcWalletLivenessError
+              ? err.message
+              : COPY.wallet.liveness.unresponsive,
+        });
+        return;
+      }
+
       setSigning(true);
       setError(null);
       // Reset progress; the SDK emits (completed, total) once it knows the
@@ -235,6 +260,7 @@ export function usePayoutSigningState({
     findProvider,
     btcConnector?.connectedWallet?.account?.address,
     btcConnector?.connectedWallet?.provider,
+    btcConnector?.connectedWallet?.id,
     btcPublicKey,
     depositorEthAddress,
     setOptimisticStatus,

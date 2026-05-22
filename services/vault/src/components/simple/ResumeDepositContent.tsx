@@ -40,6 +40,10 @@ import { useReleaseVpTokenOnUnmount } from "@/hooks/deposit/useReleaseVpTokenOnU
 import { useRunOnce } from "@/hooks/useRunOnce";
 import { logger } from "@/infrastructure";
 import type { VaultActivity } from "@/types/activity";
+import {
+  shouldProbeWalletLiveness,
+  verifyBtcWalletLiveness,
+} from "@/utils/btc";
 import { getVpProxyUrl } from "@/utils/rpc";
 
 import { DepositProgressView } from "./DepositProgressView";
@@ -130,7 +134,17 @@ export function ResumeBroadcastContent({
     onSuccess,
   });
 
-  useRunOnce(handleBroadcast);
+  const btcConnector = useChainConnector("BTC");
+  const btcWalletProvider = btcConnector?.connectedWallet?.provider;
+  const connectedBtcAddress = btcConnector?.connectedWallet?.account?.address;
+
+  // Defensive auto-run gate (effectively always-enabled today) — see the note
+  // in ResumeWotsContent. Fires when no provider is present so the genuine
+  // "not connected" error surfaces (handleBroadcast throws it).
+  useRunOnce(
+    handleBroadcast,
+    !btcWalletProvider || Boolean(connectedBtcAddress),
+  );
 
   const derived = computeDepositDerivedState(
     DepositFlowStep.BROADCAST_PRE_PEGIN,
@@ -175,6 +189,7 @@ export function ResumeWotsContent({
   const btcWalletProvider =
     (btcConnector?.connectedWallet?.provider as BitcoinWallet | undefined) ??
     null;
+  const connectedBtcAddress = btcConnector?.connectedWallet?.account?.address;
 
   // Starts true: useRunOnce auto-fires handleSubmit on mount, so the
   // first render must show processing — not a false-success banner from
@@ -188,7 +203,7 @@ export function ResumeWotsContent({
   const trackPrimedTxid = useReleaseVpTokenOnUnmount();
 
   const handleSubmit = useCallback(async () => {
-    if (!btcWalletProvider) {
+    if (!btcWalletProvider || !connectedBtcAddress) {
       setError("BTC wallet is not connected");
       setLoading(false);
       return;
@@ -248,6 +263,15 @@ export function ResumeWotsContent({
       const fundingOutpoints = parseFundingOutpointsFromTx(
         activity.unsignedPrePeginTx,
       );
+
+      // Probe the wallet before deriveVaultRoot fires the signing popup. A
+      // wallet that locked since the modal opened fails fast here with an
+      // actionable error instead of a silent no-op (no popup appears).
+      await verifyBtcWalletLiveness(btcWalletProvider, connectedBtcAddress, {
+        probeConnection: shouldProbeWalletLiveness(
+          btcConnector?.connectedWallet?.id,
+        ),
+      });
 
       root = await deriveVaultRoot(btcWalletProvider, {
         depositorBtcPubkey: hexToUint8Array(depositorBtcPubkey),
@@ -320,9 +344,24 @@ export function ResumeWotsContent({
     } finally {
       root?.fill(0);
     }
-  }, [activity, btcWalletProvider, trackPrimedTxid, onSuccess]);
+  }, [
+    activity,
+    btcWalletProvider,
+    connectedBtcAddress,
+    btcConnector?.connectedWallet?.id,
+    trackPrimedTxid,
+    onSuccess,
+  ]);
 
-  useRunOnce(handleSubmit);
+  // Defensive auto-run gate. Today this is effectively always-enabled: the
+  // connector exposes `connectedWallet` only after connect() completes, so
+  // `provider` and `account.address` are set together — there is no
+  // "provider present, address still hydrating" window. The gate is
+  // belt-and-suspenders for a future connector that surfaces a still-connecting
+  // wallet before its account hydrates: in that case useRunOnce (one-shot)
+  // would defer rather than fire into the "not connected" guard. When there is
+  // genuinely no provider it fires, so the real "not connected" error surfaces.
+  useRunOnce(handleSubmit, !btcWalletProvider || Boolean(connectedBtcAddress));
 
   const isSuccess = !loading && !error;
   const renderIsWaiting = isSuccess;
@@ -370,6 +409,7 @@ export function ResumeActivationContent({
   const btcWalletProvider =
     (btcConnector?.connectedWallet?.provider as BitcoinWallet | undefined) ??
     null;
+  const connectedBtcAddress = btcConnector?.connectedWallet?.account?.address;
 
   // Starts true: useRunOnce auto-fires handleSubmit on mount, so the
   // first render must show processing.
@@ -387,7 +427,7 @@ export function ResumeActivationContent({
   });
 
   const handleSubmit = useCallback(async () => {
-    if (!btcWalletProvider) {
+    if (!btcWalletProvider || !connectedBtcAddress) {
       setLocalError("BTC wallet is not connected");
       setLoading(false);
       return;
@@ -431,6 +471,15 @@ export function ResumeActivationContent({
         activity.unsignedPrePeginTx,
       );
 
+      // Probe the wallet before deriveVaultRoot fires the signing popup. A
+      // wallet that locked since the modal opened fails fast here with an
+      // actionable error instead of a silent no-op (no popup appears).
+      await verifyBtcWalletLiveness(btcWalletProvider, connectedBtcAddress, {
+        probeConnection: shouldProbeWalletLiveness(
+          btcConnector?.connectedWallet?.id,
+        ),
+      });
+
       root = await deriveVaultRoot(btcWalletProvider, {
         depositorBtcPubkey: hexToUint8Array(depositorBtcPubkey),
         fundingOutpoints,
@@ -461,9 +510,18 @@ export function ResumeActivationContent({
       secretBytes?.fill(0);
       setLoading(false);
     }
-  }, [activity, btcWalletProvider, handleActivation]);
+  }, [
+    activity,
+    btcWalletProvider,
+    connectedBtcAddress,
+    btcConnector?.connectedWallet?.id,
+    handleActivation,
+  ]);
 
-  useRunOnce(handleSubmit);
+  // Defensive auto-run gate (effectively always-enabled today) — see the note
+  // in ResumeWotsContent. Fires when no provider is present so the genuine
+  // "not connected" error surfaces.
+  useRunOnce(handleSubmit, !btcWalletProvider || Boolean(connectedBtcAddress));
 
   const error = localError ?? activationError;
   const derived = computeDepositDerivedState(

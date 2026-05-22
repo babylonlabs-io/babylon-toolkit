@@ -49,7 +49,14 @@ vi.mock("@babylonlabs-io/ts-sdk/tbv/core/utils", () => ({
 
 vi.mock("@babylonlabs-io/wallet-connector", () => ({
   useChainConnector: vi.fn(() => ({
-    connectedWallet: { provider: { id: "btc-wallet" } },
+    connectedWallet: {
+      account: { address: "tb1test" },
+      provider: {
+        id: "btc-wallet",
+        connectWallet: vi.fn().mockResolvedValue(undefined),
+        getAddress: vi.fn().mockResolvedValue("tb1test"),
+      },
+    },
   })),
 }));
 

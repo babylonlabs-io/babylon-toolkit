@@ -44,6 +44,10 @@ import {
 import { activateVaultWithSecret } from "../../services/vault/vaultActivationService";
 import { utxosToExpectedRecord } from "../../services/vault/vaultPeginBroadcastService";
 import type { PendingPeginRequest } from "../../storage/peginStorage";
+import {
+  shouldProbeWalletLiveness,
+  verifyBtcWalletLiveness,
+} from "../../utils/btc";
 
 export interface BroadcastPrePeginParams {
   vaultId: Hex;
@@ -183,11 +187,23 @@ export function useVaultActions(): UseVaultActionsReturn {
 
       // Get BTC wallet provider
       const btcWalletProvider = btcConnector?.connectedWallet?.provider;
-      if (!btcWalletProvider) {
+      const connectedBtcAddress =
+        btcConnector?.connectedWallet?.account?.address;
+      if (!btcWalletProvider || !connectedBtcAddress) {
         throw new Error(
           "BTC wallet not connected. Please reconnect your wallet.",
         );
       }
+
+      // The wallet may have locked since the action started. Probe it with a
+      // round-trip before any signing (a cached `getAddress()` would not reveal
+      // a lock) so a locked/changed wallet fails fast with an actionable error
+      // instead of a silent no-op (no signing popup appears).
+      await verifyBtcWalletLiveness(btcWalletProvider, connectedBtcAddress, {
+        probeConnection: shouldProbeWalletLiveness(
+          btcConnector?.connectedWallet?.id,
+        ),
+      });
 
       // Get depositor's BTC public key (needed for Taproot signing)
       // Strip "0x" prefix since it comes from GraphQL (Ethereum-style hex)

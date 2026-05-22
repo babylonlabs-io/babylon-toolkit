@@ -45,6 +45,7 @@ import {
   collectReservedUtxoRefs,
   selectUtxosForDeposit,
 } from "@babylonlabs-io/ts-sdk/tbv/core/utils";
+import { useChainConnector } from "@babylonlabs-io/wallet-connector";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { v4 as uuidv4 } from "uuid";
 import type { Address, Hex } from "viem";
@@ -82,6 +83,7 @@ import {
 import type { Vault } from "@/types/vault";
 import {
   btcAddressToScriptPubKeyHex,
+  shouldProbeWalletLiveness,
   verifyBtcWalletLiveness,
 } from "@/utils/btc";
 import { satoshiToBtcNumber } from "@/utils/btcConversion";
@@ -221,6 +223,8 @@ export function useDepositFlow(
     universalChallengerBtcPubkeys,
   } = params;
 
+  const btcConnector = useChainConnector("BTC");
+
   // State
   const [currentStep, setCurrentStep] = useState<DepositFlowStep>(
     DepositFlowStep.DERIVE_VAULT_SECRET,
@@ -343,8 +347,17 @@ export function useDepositFlow(
         // step through any other path or if the wallet went dead between
         // click and modal mount. Probing here surfaces a clear, actionable
         // error before any irreversible state is written.
+        //
+        // The round-trip probe is gated to injected extensions (Unisat/OKX/
+        // OneKey) via shouldProbeWalletLiveness; AppKit/hardware wallets fall
+        // back to the cached-address check to avoid reopening their modal /
+        // re-engaging the device.
         if (btcWalletProvider && btcAddress) {
-          await verifyBtcWalletLiveness(btcWalletProvider, btcAddress);
+          await verifyBtcWalletLiveness(btcWalletProvider, btcAddress, {
+            probeConnection: shouldProbeWalletLiveness(
+              btcConnector?.connectedWallet?.id,
+            ),
+          });
         }
 
         validateMultiVaultDepositInputs({
@@ -1089,6 +1102,7 @@ export function useDepositFlow(
       vaultAmounts,
       mempoolFeeRate,
       btcWalletProvider,
+      btcConnector?.connectedWallet?.id,
       depositorEthAddress,
       selectedApplication,
       selectedProviders,

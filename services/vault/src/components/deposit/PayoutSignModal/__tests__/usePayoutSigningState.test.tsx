@@ -44,11 +44,21 @@ vi.mock("@babylonlabs-io/wallet-connector", () => ({
 }));
 
 const mockBtcAddressToScriptPubKeyHex = vi.fn();
+const mockVerifyBtcWalletLiveness = vi.fn();
 vi.mock("../../../../utils/btc", () => ({
   btcAddressToScriptPubKeyHex: (addr: string) =>
     mockBtcAddressToScriptPubKeyHex(addr),
   stripHexPrefix: (hex: string) =>
     hex.startsWith("0x") || hex.startsWith("0X") ? hex.slice(2) : hex,
+  verifyBtcWalletLiveness: (...args: unknown[]) =>
+    mockVerifyBtcWalletLiveness(...args),
+  shouldProbeWalletLiveness: () => true,
+  BtcWalletLivenessError: class BtcWalletLivenessError extends Error {
+    constructor(message: string) {
+      super(message);
+      this.name = "BtcWalletLivenessError";
+    }
+  },
 }));
 
 vi.mock("../../../../utils/errors/formatting", () => ({
@@ -104,6 +114,7 @@ describe("usePayoutSigningState", () => {
     mockBtcConnector = null;
     setupHappyPath();
     mockSignAndSubmitPayouts.mockResolvedValue(undefined);
+    mockVerifyBtcWalletLiveness.mockResolvedValue(undefined);
   });
 
   describe("happy path", () => {
