@@ -103,7 +103,6 @@ export interface DepositCtaParams extends DepositFormValidityParams {
   feeError: string | null;
   feeDisabled: boolean;
   ordinalsCheckPending: boolean;
-  ordinalsWarningUnacknowledged: boolean;
   /**
    * True when the click-time BTC-wallet liveness probe (or a prior reconnect
    * attempt) failed. Promotes the CTA to a "Reconnect Wallet" action so the
@@ -195,10 +194,6 @@ export function getDepositCtaState(params: DepositCtaParams): DepositCtaState {
 
   if (params.ordinalsCheckPending) {
     return { disabled: true, label: "Checking for inscriptions..." };
-  }
-
-  if (params.ordinalsWarningUnacknowledged) {
-    return { disabled: true, label: "Acknowledge warning to continue" };
   }
 
   if (params.isFeeError) {

@@ -136,7 +136,6 @@ function SimpleDepositContent({
     isSplitLoading,
     splitRatioLabel,
     depositorClaimValue,
-    ordinalsCheckUnavailable,
     ordinalsCheckPending,
     validateForm,
   } = useDepositPageForm();
@@ -371,7 +370,6 @@ function SimpleDepositContent({
                 ethereumNetworkFeePrice={ethereumNetworkFee.feeUsd}
                 ethereumNetworkFeeIsError={ethereumNetworkFee.isError}
                 feeRows={feeRows}
-                ordinalsCheckUnavailable={ordinalsCheckUnavailable}
                 ordinalsCheckPending={ordinalsCheckPending}
                 hasWalletConnectionError={Boolean(walletConnectionError)}
                 walletConnectionErrorMessage={walletConnectionError}
