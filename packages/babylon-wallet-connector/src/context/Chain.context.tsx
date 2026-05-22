@@ -14,6 +14,7 @@ import type {
   IProvider,
 } from "@/core/types";
 import metadata from "@/core/wallets";
+import { useWalletRedetection } from "@/hooks/useWalletRedetection";
 
 import { InscriptionProvider } from "./Inscriptions.context";
 import { StateProvider } from "./State.context";
@@ -103,6 +104,28 @@ export function ChainProvider({
         onError?.(error);
       });
   }, [setConnectors, init, onError]);
+
+  // Re-detect wallets whose extension injected after the one-shot detection
+  // in `init()` above (e.g. UniSat's late `window.unisat` injection).
+  useWalletRedetection({ connectors, setConnectors, config, context, storage, disabledWallets });
+
+  // Auto-reconnect (and any other connect/disconnect) mutates `connectedWallet`
+  // on the existing connector instance without changing the `connectors` object
+  // identity, so consumers that read `connector.connectedWallet` reactively —
+  // e.g. the auto-confirm-on-reload effect in `useWalletConnectors` — would not
+  // re-evaluate. Because the BTC reconnect is now fire-and-forget (see
+  // `createWalletConnector`), that mutation lands *after* the connectors are in
+  // state. Bump a fresh `connectors` object on each connect/disconnect so those
+  // consumers re-render and observe the new connection state.
+  useEffect(() => {
+    const active = Object.values(connectors).filter(Boolean) as WalletConnector<string, IProvider, any>[];
+    if (active.length === 0) return;
+
+    const bump = () => setConnectors((prev) => ({ ...prev }));
+    const unsubscribe = active.flatMap((connector) => [connector.on("connect", bump), connector.on("disconnect", bump)]);
+
+    return () => unsubscribe.forEach((fn) => fn());
+  }, [connectors]);
 
   const supportedChains = useMemo(() => Object.values(connectors).filter(Boolean), [connectors]);
   const visibleChains = useMemo(
