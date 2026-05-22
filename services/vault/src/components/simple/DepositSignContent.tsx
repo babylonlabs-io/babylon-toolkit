@@ -8,8 +8,8 @@
  */
 
 import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
-import { useCallback } from "react";
-import type { Address } from "viem";
+import { useCallback, useState } from "react";
+import type { Address, Hex } from "viem";
 
 import { ArtifactDownloadModal } from "@/components/deposit/ArtifactDownloadModal";
 import { computeDepositDerivedState } from "@/components/deposit/DepositSignModal/depositStepHelpers";
@@ -17,6 +17,7 @@ import { useDepositFlow } from "@/hooks/deposit/useDepositFlow";
 import { useRunOnce } from "@/hooks/useRunOnce";
 
 import { DepositProgressView } from "./DepositProgressView";
+import { PostDepositContinuationContent } from "./PostDepositContinuationContent";
 
 interface DepositSignContentProps {
   vaultAmounts: bigint[];
@@ -55,10 +56,15 @@ export function DepositSignContent({
     ...flowParams,
   });
 
+  const [continuationVaultIds, setContinuationVaultIds] = useState<
+    Hex[] | null
+  >(null);
+
   const startFlow = useCallback(async () => {
     const result = await executeDeposit();
     if (result) {
       onRefetchActivities?.();
+      setContinuationVaultIds(result.pegins.map((pegin) => pegin.vaultId));
     }
   }, [executeDeposit, onRefetchActivities]);
 
@@ -72,6 +78,20 @@ export function DepositSignContent({
     abort();
     onClose();
   }, [abort, onClose]);
+
+  if (
+    continuationVaultIds &&
+    continuationVaultIds.length > 0 &&
+    flowParams.depositorEthAddress
+  ) {
+    return (
+      <PostDepositContinuationContent
+        vaultIds={continuationVaultIds}
+        depositorEthAddress={flowParams.depositorEthAddress}
+        onClose={onClose}
+      />
+    );
+  }
 
   return (
     <>
