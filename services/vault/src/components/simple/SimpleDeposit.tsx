@@ -8,7 +8,6 @@ import { useAddressScreening } from "@/context/addressScreening";
 import { useGeoFencing } from "@/context/geofencing";
 import { ProtocolParamsProvider } from "@/context/ProtocolParamsContext";
 import { useBTCWallet, useETHWallet } from "@/context/wallet";
-import { useDepositGasEstimate } from "@/hooks/deposit/useDepositGasEstimate";
 import { useDepositPeginFee } from "@/hooks/deposit/useDepositPeginFee";
 import { useDialogStep } from "@/hooks/deposit/useDialogStep";
 import { useProtocolFeeRows } from "@/hooks/useProtocolFeeRows";
@@ -163,17 +162,6 @@ function SimpleDepositContent({
     depositorClaimValue !== undefined
       ? depositorClaimValue * BigInt(depositBatchSize)
       : undefined;
-
-  const ethereumNetworkFee = useDepositGasEstimate({
-    vaultProvider: formData.selectedProvider
-      ? (formData.selectedProvider as Address)
-      : undefined,
-    batchSize: depositBatchSize,
-    enabled:
-      !!formData.selectedProvider &&
-      Number.isFinite(Number(formData.amountBtc)) &&
-      Number(formData.amountBtc) > 0,
-  });
 
   const {
     depositStep,
@@ -375,9 +363,6 @@ function SimpleDepositContent({
                 protocolFeeAmount={protocolFeeAmount}
                 protocolFeePrice={protocolFeePrice}
                 protocolFeeIsError={protocolFeeIsError}
-                ethereumNetworkFeeAmount={ethereumNetworkFee.feeEth}
-                ethereumNetworkFeePrice={ethereumNetworkFee.feeUsd}
-                ethereumNetworkFeeIsError={ethereumNetworkFee.isError}
                 feeRows={feeRows}
                 ordinalsCheckPending={ordinalsCheckPending}
                 hasWalletConnectionError={Boolean(walletConnectionError)}
