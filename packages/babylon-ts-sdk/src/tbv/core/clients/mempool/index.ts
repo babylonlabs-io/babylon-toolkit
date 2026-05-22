@@ -11,6 +11,7 @@ export {
   getAddressUtxos,
   getMempoolApiUrl,
   getNetworkFees,
+  getTipHeight,
   getTxHex,
   getTxInfo,
   getUtxoInfo,

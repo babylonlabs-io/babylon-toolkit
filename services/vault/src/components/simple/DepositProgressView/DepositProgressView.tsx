@@ -23,7 +23,7 @@ import { DepositFlowStep } from "@/hooks/deposit/depositFlowSteps/types";
 import type { PayoutSigningProgress } from "@/services/vault/vaultPayoutSignatureService";
 import type { PeginSigningProgress } from "@/services/vault/vaultTransactionService";
 
-import { BtcConfirmationDetail } from "./BtcConfirmationDetail";
+import { BtcConfirmationDetailContainer } from "./BtcConfirmationDetailContainer";
 import { PostSignProgress } from "./PostSignProgress";
 import { ProgressBar } from "./ProgressBar";
 import { buildStepItems, getVisualStep, TOTAL_VISUAL_STEPS } from "./steps";
@@ -31,8 +31,8 @@ import { buildStepItems, getVisualStep, TOTAL_VISUAL_STEPS } from "./steps";
 export interface BtcConfirmationDetailData {
   /** Date.now() when the AWAIT_BTC_CONFIRMATION step was first entered. */
   startedAt: number;
-  /** Raw BTC pegin transaction hash (with or without 0x). */
-  peginTxHash: string;
+  /** Pre-PegIn broadcast txid — the tx actually on the Bitcoin network. */
+  prePeginTxid: string;
 }
 
 export interface DepositProgressViewProps {
@@ -89,9 +89,9 @@ export function DepositProgressView(props: DepositProgressViewProps) {
   const activeStepDetail =
     currentStep === DepositFlowStep.AWAIT_BTC_CONFIRMATION &&
     btcConfirmationDetail ? (
-      <BtcConfirmationDetail
+      <BtcConfirmationDetailContainer
         startedAt={btcConfirmationDetail.startedAt}
-        peginTxHash={btcConfirmationDetail.peginTxHash}
+        prePeginTxid={btcConfirmationDetail.prePeginTxid}
       />
     ) : null;
 
