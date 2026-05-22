@@ -327,7 +327,10 @@ export function useDepositPageForm(): UseDepositPageFormResult {
 
   const applyMaxAmount = useCallback(() => {
     setIsMaxPinned(true);
-    if (adjustedMaxDepositSats != null && adjustedMaxDepositSats > 0n) {
+    // A zero max is still a real value: the amount must reflect the cap (0)
+    // rather than keep a stale positive value. Only `null` means "not yet
+    // known", in which case the pin lets the sync effect fill it once loaded.
+    if (adjustedMaxDepositSats != null) {
       setFormDataInternal((prev) => ({
         ...prev,
         amountBtc: depositService.formatSatoshisToBtc(adjustedMaxDepositSats),
@@ -339,10 +342,12 @@ export function useDepositPageForm(): UseDepositPageFormResult {
   // Keep a pinned "Max" amount in sync with the depositable maximum. The max
   // shifts after the form opens — most notably when the UTXO split
   // auto-enables and reserves a second vault's claim value — so a value
-  // captured at click time would otherwise become unfundable.
+  // captured at click time would otherwise become unfundable. A max that
+  // collapses to zero must also propagate, otherwise a stale positive amount
+  // stays above the cap.
   useEffect(() => {
     if (!isMaxPinned) return;
-    if (adjustedMaxDepositSats == null || adjustedMaxDepositSats <= 0n) return;
+    if (adjustedMaxDepositSats == null) return;
     const maxBtc = depositService.formatSatoshisToBtc(adjustedMaxDepositSats);
     setFormDataInternal((prev) =>
       prev.amountBtc === maxBtc ? prev : { ...prev, amountBtc: maxBtc },
