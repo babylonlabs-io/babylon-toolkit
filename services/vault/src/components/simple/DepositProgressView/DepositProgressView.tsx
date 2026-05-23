@@ -117,10 +117,7 @@ export function DepositProgressView(props: DepositProgressViewProps) {
   return (
     <div className="w-full max-w-[520px]">
       <Heading variant="h5" className="text-accent-primary">
-        {COPY.deposit.progress.heading}{" "}
-        <Text as="span" variant="body1" className="text-accent-secondary">
-          {COPY.deposit.progress.durationEstimate}
-        </Text>
+        {COPY.deposit.progress.heading}
       </Heading>
 
       {showOverallProgress && (

@@ -169,7 +169,6 @@ export const COPY = {
     },
     progress: {
       heading: "Deposit Progress",
-      durationEstimate: "(~60 min)",
       stepsCompleted: (completed: number, total: number) =>
         `${completed} of ${total} steps completed`,
       defaultSuccessMessage: PRE_PEGIN_BROADCAST_CONFIRMATION_MESSAGE,
