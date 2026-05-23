@@ -1,5 +1,6 @@
 import {
   computeMinClaimValue,
+  computeMinPeginFee,
   computeNumLocalChallengers,
   peginOutputCount,
 } from "@babylonlabs-io/ts-sdk/tbv/core";
@@ -31,33 +32,6 @@ import { useEstimatedBtcFee } from "./useEstimatedBtcFee";
 import { useVaultProviders } from "./useVaultProviders";
 
 const STALE_TIME_MS = 5 * 60 * 1000;
-
-/**
- * Conservative reserve per vault for the future PegIn (activation) tx fee.
- *
- * Each HTLC is sized by the WASM as
- *   htlcValue = peginAmount + depositorClaimValue + minPeginFee
- * (see `packages/babylon-tbv-rust-wasm/src/types.ts:64`), where
- *   minPeginFee = peginTxVsize(num_vks, num_ucs) × minPeginFeeRate.
- *
- * We have `minPeginFeeRate` (from `config.offchainParams`) and both signer
- * counts (`vaultKeeperBtcPubkeys.length`, `latestUniversalChallengers.length`).
- * What we DON'T have is `peginTxVsize` — the Rust side computes it via
- * `bitcoin::predict_weight` against a Taproot script-path input whose
- * witness shape depends on `num_vks + num_ucs` (see
- * `btc-vault/crates/vault/src/transactions/pegin.rs:estimate_vsize`).
- * Replicating that weight prediction in TS would drift from the canonical
- * Rust definition the protocol uses to validate fees.
- *
- * So the displayed Max subtracts a flat upper-bound per vault: comfortably
- * covers a ~150–350 vB PegIn tx at the typical 1–10 sat/vB protocol-floor
- * fee rate (worst plausible ~3,500 sats), with ~3× headroom.
- *
- * TODO(btc-vault): expose `compute_min_pegin_fee(num_vks, num_ucs, rate)`
- * via `wasm_bindgen`, propagate through `babylon-tbv-rust-wasm` and
- * `babylon-ts-sdk`, then replace this flat reserve with the exact value.
- */
-const MAX_PEGIN_FEE_RESERVE_PER_VAULT_SATS = 10_000n;
 
 /**
  * Per-batch reserve covering the CPFP anchor output value (~330 sats with
@@ -141,6 +115,20 @@ export interface UseDepositPageFormResult {
    * amount in this state; consumers must mirror that in the CTA.
    */
   capUnavailable: boolean;
+  /**
+   * Exact per-HTLC PegIn (activation) tx fee in satoshis from the WASM
+   * `computeMinPeginFee` query. Null until vault keepers load and the WASM
+   * query resolves. Consumers must gate the CTA on this so a user can't
+   * submit during the loading window with an inflated Max value.
+   */
+  minPeginFee: bigint | null;
+  /**
+   * Terminal failure from the `computeMinPeginFee` WASM query (WASM init
+   * failure, unsupported signer count, etc.). Surfaced separately from the
+   * null `minPeginFee` "still loading" state so the CTA can show an error
+   * instead of getting stuck on "Calculating fees...".
+   */
+  minPeginFeeError: Error | null;
 
   /**
    * True when the ordinals check is still in flight AND the user has
@@ -360,6 +348,37 @@ export function useDepositPageForm(): UseDepositPageFormResult {
     refetchOnWindowFocus: false,
   });
 
+  // Exact per-HTLC PegIn (activation) fee the depositor must reserve inside
+  // each HTLC value. Sourced from the WASM (`compute_min_pegin_fee` in
+  // btc-vault) so the displayed Max budgets the real
+  //   minPeginFee = peginTxVsize(num_vks, num_ucs) × minPeginFeeRate
+  // instead of an upper-bound flat constant. Application-scoped: depends on
+  // VK + UC counts, not on which specific provider the user picks, so this
+  // resolves as soon as `useVaultProviders` returns.
+  //
+  // We capture both `data` and `error` so the CTA can distinguish "still
+  // loading" (data null, error null) from "terminal failure" (data null,
+  // error set) — e.g. WASM init failure or unsupported signer counts. Without
+  // the error surface the CTA gate would be stuck on "Calculating fees..."
+  // with no recovery path.
+  const { data: minPeginFee, error: minPeginFeeError } = useQuery({
+    queryKey: [
+      "minPeginFee",
+      vaultKeeperBtcPubkeys.length,
+      latestUniversalChallengers.length,
+      String(config.offchainParams.minPeginFeeRate),
+    ],
+    queryFn: () =>
+      computeMinPeginFee(
+        vaultKeeperBtcPubkeys.length,
+        latestUniversalChallengers.length,
+        config.offchainParams.minPeginFeeRate,
+      ),
+    enabled: vaultKeeperBtcPubkeys.length > 0,
+    staleTime: STALE_TIME_MS,
+    refetchOnWindowFocus: false,
+  });
+
   const {
     vaultAmounts: splitVaultAmounts,
     canSplit,
@@ -376,8 +395,8 @@ export function useDepositPageForm(): UseDepositPageFormResult {
   //   - Pre-PegIn network fee — already subtracted by computeMaxDeposit
   //   - Per-vault depositorClaimValue (depositor's recovery-path budget)
   //   - Per-vault minPeginFee (the VP's activation tx budget, reserved
-  //     INSIDE each HTLC's value) — approximated with a conservative flat
-  //     constant; see MAX_PEGIN_FEE_RESERVE_PER_VAULT_SATS
+  //     INSIDE each HTLC's value) — computed exactly via the WASM
+  //     `computeMinPeginFee(num_vks, num_ucs, minPeginFeeRate)`
   //   - Per-batch CPFP anchor output value + safety margin
   //
   // Without the per-vault PegIn-fee reserve, Max could resolve to an amount
@@ -387,17 +406,14 @@ export function useDepositPageForm(): UseDepositPageFormResult {
   const adjustedMaxDepositSats = useMemo(() => {
     if (maxDepositSats == null) return null;
     const vaultCountBig = BigInt(vaultCount);
-    // While no provider is selected, depositorClaimValue is undefined.
-    // Defaulting it to 0n keeps the buffer subtractions AND the supply-cap
-    // clamp active in that window — otherwise the Max button shows a raw
-    // balance-derived value that can exceed the cap, and the CTA flips to
-    // "Vault size exceeds remaining capacity" the moment the user drags the
-    // slider or types near the unclamped Max. When the provider resolves,
-    // depositorClaimValue arrives and adjusted may shrink by the claim
-    // reserve; the isMaxPinned sync effect auto-updates the form value.
+    // While the WASM queries are still loading, depositorClaimValue and
+    // minPeginFee can be undefined. Defaulting them to 0n keeps the cap
+    // clamp + flat batch buffer active so the Max button never shows a
+    // value above the supply cap. When the queries resolve, adjusted may
+    // shrink by the real claim + pegin-fee reserves; the isMaxPinned sync
+    // effect auto-updates the form value.
     const claimReserve = (depositorClaimValue ?? 0n) * vaultCountBig;
-    const peginFeeReserve =
-      MAX_PEGIN_FEE_RESERVE_PER_VAULT_SATS * vaultCountBig;
+    const peginFeeReserve = (minPeginFee ?? 0n) * vaultCountBig;
     const balanceBased =
       maxDepositSats -
       claimReserve -
@@ -412,7 +428,13 @@ export function useDepositPageForm(): UseDepositPageFormResult {
         ? effectiveRemaining
         : balanceBased;
     return adjusted > 0n ? adjusted : 0n;
-  }, [maxDepositSats, depositorClaimValue, vaultCount, capSnapshot]);
+  }, [
+    maxDepositSats,
+    depositorClaimValue,
+    minPeginFee,
+    vaultCount,
+    capSnapshot,
+  ]);
 
   const applyMaxAmount = useCallback(() => {
     setIsMaxPinned(true);
@@ -506,6 +528,9 @@ export function useDepositPageForm(): UseDepositPageFormResult {
     maxDepositSats: adjustedMaxDepositSats,
     effectiveRemaining: capSnapshot?.effectiveRemaining ?? null,
     capUnavailable: capError !== null,
+    minPeginFee: minPeginFee ?? null,
+    minPeginFeeError:
+      minPeginFeeError instanceof Error ? minPeginFeeError : null,
     ordinalsCheckPending,
     isPartialLiquidation,
     setIsPartialLiquidation,

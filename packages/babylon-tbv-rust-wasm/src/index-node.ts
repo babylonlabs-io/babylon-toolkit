@@ -10,7 +10,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 // @ts-expect-error - WASM files are in dist/generated/ (checked into git), not src/generated/
-import { initSync, WasmPrePeginTx, WasmPeginTx, WasmPrePeginHtlcConnector, WasmPeginPayoutConnector, WasmAssertPayoutNoPayoutConnector, WasmAssertChallengeAssertConnector, computeMinClaimValue as wasmComputeMinClaimValue, deriveVaultId as wasmDeriveVaultId, expandAuthAnchor as wasmExpandAuthAnchor, expandHashlockSecret as wasmExpandHashlockSecret, expandWotsSeed as wasmExpandWotsSeed } from "./generated/btc_vault.js";
+import { initSync, WasmPrePeginTx, WasmPeginTx, WasmPrePeginHtlcConnector, WasmPeginPayoutConnector, WasmAssertPayoutNoPayoutConnector, WasmAssertChallengeAssertConnector, computeMinClaimValue as wasmComputeMinClaimValue, computeMinPeginFee as wasmComputeMinPeginFee, deriveVaultId as wasmDeriveVaultId, expandAuthAnchor as wasmExpandAuthAnchor, expandHashlockSecret as wasmExpandHashlockSecret, expandWotsSeed as wasmExpandWotsSeed } from "./generated/btc_vault.js";
 
 import type {
   PrePeginParams,
@@ -217,6 +217,15 @@ export async function computeMinClaimValue(
     councilSize,
     feeRate,
   );
+}
+
+export async function computeMinPeginFee(
+  numVks: number,
+  numUcs: number,
+  minPeginFeeRate: bigint,
+): Promise<bigint> {
+  await initWasm();
+  return wasmComputeMinPeginFee(numVks, numUcs, minPeginFeeRate);
 }
 
 export async function createPayoutConnector(

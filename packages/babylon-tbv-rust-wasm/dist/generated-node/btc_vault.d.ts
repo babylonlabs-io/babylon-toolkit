@@ -461,6 +461,42 @@ export function computeAssertClaimerSighashes(graph_json: string): string;
 export function computeMinClaimValue(num_local_challengers: number, num_universal_challengers: number, council_quorum: number, council_size: number, fee_rate: bigint): bigint;
 
 /**
+ * Computes the minimum PegIn (activation) transaction fee (in satoshis)
+ * that the protocol requires the future PegIn tx to pay.
+ *
+ * `peginFee = peginTxVsize(num_vks, num_ucs) × min_pegin_fee_rate`, where
+ * the vsize comes from a Taproot script-path-spend weight prediction whose
+ * witness shape depends on the VK + UC signer count. Each HTLC output the
+ * depositor funds in the Pre-PegIn tx must reserve at least this fee
+ * inside its value (`htlcValue = peginAmount + depositorClaimValue +
+ * minPeginFee`), or the VP cannot afford to broadcast the PegIn at
+ * activation time.
+ *
+ * Usage in JS:
+ * ```js
+ * const minPeginFee = computeMinPeginFee(numVks, numUcs, minPeginFeeRate);
+ * ```
+ *
+ * # Arguments
+ *
+ * * `num_vks` - Number of vault keepers (must satisfy `1 <= num_vks <= 99`;
+ *   `VaultKeepers` is required to be non-empty in this protocol)
+ * * `num_ucs` - Number of universal challengers (must satisfy `num_ucs <= 99`;
+ *   may be 0, in which case the returned fee reflects a strictly smaller
+ *   hashlock script with the UC multisig block omitted)
+ * * `min_pegin_fee_rate` - Minimum PegIn fee rate in sat/vB (protocol param)
+ *
+ * # Errors
+ *
+ * Returns an error string when:
+ * * `num_vks == 0` or either count exceeds the estimator's seeding range
+ *   (`> 99`), where the underlying dummy connector cannot be constructed.
+ * * The `vsize × fee_rate` multiplication overflows `u64` (only possible at
+ *   degenerate fee rates).
+ */
+export function computeMinPeginFee(num_vks: number, num_ucs: number, min_pegin_fee_rate: bigint): bigint;
+
+/**
  * Computes the sighash for the claimer's NoPayout transaction for a specific
  * challenger.
  *

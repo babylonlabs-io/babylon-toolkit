@@ -134,6 +134,23 @@ export interface DepositCtaParams extends DepositFormValidityParams {
    * "Deposit" while clicks silently no-op.
    */
   capUnavailable: boolean;
+  /**
+   * Exact per-HTLC PegIn (activation) tx fee in satoshis from the WASM
+   * `computeMinPeginFee` query. Null while the query is still loading or
+   * before vault keepers have been fetched. The CTA must block submission
+   * while this is null — otherwise a user can click Max during the loading
+   * window, get an inflated Max value (which treats minPeginFee as 0n for
+   * display), pass the form, and only fail later in the signing path's
+   * real HTLC sizing.
+   */
+  minPeginFee: bigint | null;
+  /**
+   * Terminal failure from the `computeMinPeginFee` WASM query (init failure,
+   * unsupported signer count, etc.). Surfaced separately from the loading
+   * state so the CTA reports an actionable error instead of getting stuck
+   * indefinitely on "Calculating fees...".
+   */
+  minPeginFeeError: Error | null;
 }
 
 export interface DepositCtaState {
@@ -257,6 +274,23 @@ export function getDepositCtaState(params: DepositCtaParams): DepositCtaState {
       disabled: true,
       label: "Deposit amount too low to split into 2 BTC Vaults",
     };
+  }
+
+  // Surface a terminal `computeMinPeginFee` failure ahead of the "still
+  // loading" gate below. Without this branch a query rejection (WASM init
+  // failure, unsupported signer count) would leave the CTA stuck on
+  // "Calculating fees..." with no error or retry signal.
+  if (params.amountSats > 0n && params.minPeginFeeError !== null) {
+    return { disabled: true, label: "Fee estimate unavailable" };
+  }
+
+  // Block submission while the exact per-HTLC PegIn fee is still loading.
+  // `adjustedMaxDepositSats` displays a slightly inflated Max (minPeginFee
+  // treated as 0n) until this query resolves; submitting in that window
+  // would let an amount that won't actually fund the real HTLC sizing pass
+  // validateForm and fail later inside the signing path.
+  if (params.amountSats > 0n && params.minPeginFee === null) {
+    return { disabled: true, label: "Calculating fees..." };
   }
 
   const amountLabel = getDepositButtonLabel(params);
