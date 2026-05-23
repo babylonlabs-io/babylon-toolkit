@@ -6,7 +6,7 @@
  * so the component stays a thin view layer.
  */
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { usePeginPolling } from "@/context/deposit/PeginPollingContext";
 import { logger } from "@/infrastructure";
@@ -47,6 +47,17 @@ export function useActivationState({
   const [localActivating, setLocalActivating] = useState(false);
   const [activated, setActivated] = useState(false);
 
+  // Track mount: `handleActivation` awaits an on-chain tx, so the consumer
+  // can unmount (modal closed) before the success/catch callbacks run.
+  // Without this guard, `setLocalActivating`/`setActivated` and the
+  // `setOptimisticStatus` context update fire on an unmounted tree.
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
   const { setOptimisticStatus } = usePeginPolling();
   const { pendingPegins, updatePendingPeginStatus } = usePeginStorage({
     ethAddress: depositorEthAddress,
@@ -69,6 +80,7 @@ export function useActivationState({
             // No-op: dashboard refetches after the user clicks Done.
           },
           onShowSuccessModal: () => {
+            if (!mountedRef.current) return;
             setOptimisticStatus(activity.id, LocalStorageStatus.CONFIRMED);
             setLocalActivating(false);
             setActivated(true);
@@ -78,7 +90,7 @@ export function useActivationState({
         logger.error(err instanceof Error ? err : new Error(String(err)), {
           data: { context: "Vault activation failed" },
         });
-        setLocalActivating(false);
+        if (mountedRef.current) setLocalActivating(false);
       }
     },
     [

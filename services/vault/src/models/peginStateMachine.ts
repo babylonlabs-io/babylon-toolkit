@@ -159,6 +159,21 @@ export function canPerformAction(
   return state.availableActions.includes(action);
 }
 
+/**
+ * PegIn actions a depositor can drive inline from the deposit flow.
+ *
+ * Excludes:
+ *  - `NONE` — sentinel for "no action."
+ *  - `SIGN_AND_BROADCAST_TO_BITCOIN` — handled by the linear deposit flow and
+ *    the dashboard resume path, never by the post-deposit continuation.
+ *  - `REFUND_HTLC` — a terminal escape hatch, not an in-flow next step.
+ */
+export const USER_ACTIONABLE_PEGIN_ACTIONS: ReadonlySet<PeginAction> = new Set([
+  PeginAction.SUBMIT_WOTS_KEY,
+  PeginAction.SIGN_PAYOUT_TRANSACTIONS,
+  PeginAction.ACTIVATE_VAULT,
+]);
+
 // ============================================================================
 // getPeginState — frontend display layer on top of SDK protocol state
 // ============================================================================
@@ -591,6 +606,30 @@ export function getNextLocalStatus(
     default:
       return null;
   }
+}
+
+/**
+ * True when the vault is at or past activation success/failure: the
+ * post-deposit continuation should no longer pick it up.
+ *
+ * `VERIFIED + CONFIRMED` is the optimistic post-activation state used while
+ * the indexer catches up; the rest are terminal contract states.
+ */
+export function isVaultPastActivation(state: PeginState | undefined): boolean {
+  if (!state) return false;
+  const { contractStatus, localStatus } = state;
+  if (
+    contractStatus === ContractStatus.VERIFIED &&
+    localStatus === LocalStorageStatus.CONFIRMED
+  ) {
+    return true;
+  }
+  return (
+    contractStatus === ContractStatus.ACTIVE ||
+    contractStatus === ContractStatus.REDEEMED ||
+    contractStatus === ContractStatus.LIQUIDATED ||
+    contractStatus === ContractStatus.DEPOSITOR_WITHDRAWN
+  );
 }
 
 export function shouldRemoveFromLocalStorage(

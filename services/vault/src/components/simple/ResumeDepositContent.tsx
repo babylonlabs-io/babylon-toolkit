@@ -25,7 +25,7 @@ import {
 import { primeVpTokenRegistry } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import { calculateBtcTxHash } from "@babylonlabs-io/ts-sdk/tbv/core/utils";
 import { useChainConnector } from "@babylonlabs-io/wallet-connector";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { Address, Hex } from "viem";
 
 import { getVaultRegistryReader } from "@/clients/eth-contract/sdk-readers";
@@ -201,6 +201,17 @@ export function ResumeWotsContent({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Track mount for setState guards after the long async chain below.
+  // The hosting modal can be closed mid-flight (PostDepositContinuationView
+  // unmounts on user close), so the post-await setLoading/setError below
+  // would otherwise warn about updates on an unmounted component.
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
   // Release the primed registry entry on unmount if activation didn't
   // happen (the normal release point in `useVaultActions`). Bounds
   // `authAnchorHex` lifetime when the user abandons the resume flow.
@@ -330,21 +341,25 @@ export function ResumeWotsContent({
         unsignedPrePeginTxHex: activity.unsignedPrePeginTx,
       });
 
-      setLoading(false);
-      // Refetch dashboard activities so the next action surfaces while
-      // the modal stays parked on "Close & continue later".
-      onSuccess();
-    } catch (err) {
-      const msg =
-        err instanceof Error ? err.message : "Failed to submit WOTS key";
-      // VP-side mismatch gets the same wording as the local pre-flight
-      // so the user can act on either path.
-      if (isWotsMismatchError(err)) {
-        setError(COPY.deposit.resume.wotsMismatchError);
-      } else {
-        setError(msg);
+      if (mountedRef.current) {
+        setLoading(false);
+        // Refetch dashboard activities so the next action surfaces while
+        // the modal stays parked on "Close & continue later".
+        onSuccess();
       }
-      setLoading(false);
+    } catch (err) {
+      if (mountedRef.current) {
+        const msg =
+          err instanceof Error ? err.message : "Failed to submit WOTS key";
+        // VP-side mismatch gets the same wording as the local pre-flight
+        // so the user can act on either path.
+        if (isWotsMismatchError(err)) {
+          setError(COPY.deposit.resume.wotsMismatchError);
+        } else {
+          setError(msg);
+        }
+        setLoading(false);
+      }
     } finally {
       root?.fill(0);
     }
@@ -423,6 +438,17 @@ export function ResumeActivationContent({
   // first render must show processing.
   const [loading, setLoading] = useState(true);
   const [localError, setLocalError] = useState<string | null>(null);
+
+  // Track mount for setState guards after the long async chain below.
+  // The hosting modal can be closed mid-flight, so the post-await
+  // setLoading/setLocalError below would otherwise warn about updates on
+  // an unmounted component.
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   const {
     activating,
@@ -510,13 +536,17 @@ export function ResumeActivationContent({
       // error there, not a silent submission.
       await handleActivation(secretHex);
     } catch (err) {
-      const msg =
-        err instanceof Error ? err.message : "Failed to activate BTC Vault";
-      setLocalError(msg);
+      if (mountedRef.current) {
+        const msg =
+          err instanceof Error ? err.message : "Failed to activate BTC Vault";
+        setLocalError(msg);
+      }
     } finally {
+      // Memory wipes run regardless of mount: secret material must not
+      // linger if the user closed the modal mid-flight.
       root?.fill(0);
       secretBytes?.fill(0);
-      setLoading(false);
+      if (mountedRef.current) setLoading(false);
     }
   }, [
     activity,

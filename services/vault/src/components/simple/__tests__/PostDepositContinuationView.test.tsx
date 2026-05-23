@@ -55,6 +55,23 @@ vi.mock("@/models/peginStateMachine", () => ({
     REFUND_BROADCAST: "refund_broadcast",
   },
   getPeginDisplayStep: vi.fn(() => "AWAIT_BTC_CONFIRMATION"),
+  // Mirrors the production set; ContractStatus literals match the mock above.
+  USER_ACTIONABLE_PEGIN_ACTIONS: new Set([
+    "SUBMIT_WOTS_KEY",
+    "SIGN_PAYOUT_TRANSACTIONS",
+    "ACTIVATE_VAULT",
+  ]),
+  isVaultPastActivation: (
+    state: { contractStatus: number; localStatus?: string } | undefined,
+  ) => {
+    if (!state) return false;
+    // VERIFIED + CONFIRMED is the optimistic post-activation state.
+    if (state.contractStatus === 1 && state.localStatus === "confirmed") {
+      return true;
+    }
+    // ACTIVE, REDEEMED, LIQUIDATED, DEPOSITOR_WITHDRAWN.
+    return [2, 3, 4, 6].includes(state.contractStatus);
+  },
 }));
 
 vi.mock("@/copy", () => ({
@@ -368,6 +385,100 @@ describe("PostDepositContinuationView", () => {
     });
     expect(queryByTestId("progress-view")).toBeNull();
     expect(getByTestId("activate").getAttribute("data-vault")).toBe("0xvault1");
+  });
+
+  it("drives a later actionable vault instead of stalling on an earlier waiting vault", () => {
+    const states = new Map<string, ReturnType<typeof resultWith>>([
+      [
+        "0xvault0",
+        resultWith({
+          // Waiting on the VP: no actionable step, not a warning.
+          availableActions: [PeginAction.NONE],
+          contractStatus: 0,
+          localStatus: "payout_signed",
+        }),
+      ],
+      [
+        "0xvault1",
+        resultWith({
+          availableActions: [PeginAction.SUBMIT_WOTS_KEY],
+          contractStatus: 0,
+        }),
+      ],
+    ]);
+    mockGetPollingResult.mockImplementation((id: string) => states.get(id));
+
+    const { getByTestId, queryByTestId } = renderView({
+      vaultIds: ["0xvault0" as Hex, "0xvault1" as Hex],
+      activities: [activityWithId("0xvault0"), activityWithId("0xvault1")],
+    });
+    expect(queryByTestId("progress-view")).toBeNull();
+    expect(getByTestId("wots").getAttribute("data-vault")).toBe("0xvault1");
+  });
+
+  it("skips a payout-only vault when btcPublicKey is unavailable and picks the next actionable sibling", () => {
+    const states = new Map<string, ReturnType<typeof resultWith>>([
+      [
+        "0xvault0",
+        resultWith({
+          // Payout signing is available, but the prereq btcPublicKey is missing,
+          // so this vault must not win actionableIndex.
+          availableActions: [PeginAction.SIGN_PAYOUT_TRANSACTIONS],
+          contractStatus: 0,
+        }),
+      ],
+      [
+        "0xvault1",
+        resultWith({
+          availableActions: [PeginAction.SUBMIT_WOTS_KEY],
+          contractStatus: 0,
+        }),
+      ],
+    ]);
+    mockGetPollingResult.mockImplementation((id: string) => states.get(id));
+
+    const { getByTestId, queryByTestId } = render(
+      <PostDepositContinuationView
+        vaultIds={["0xvault0" as Hex, "0xvault1" as Hex]}
+        activities={[activityWithId("0xvault0"), activityWithId("0xvault1")]}
+        depositorEthAddress={ETH}
+        btcPublicKey={undefined}
+        onClose={vi.fn()}
+      />,
+    );
+    expect(queryByTestId("payout")).toBeNull();
+    expect(queryByTestId("progress-view")).toBeNull();
+    expect(getByTestId("wots").getAttribute("data-vault")).toBe("0xvault1");
+  });
+
+  it("falls back to a waiting vault's progress view when no sibling is actionable", () => {
+    const states = new Map<string, ReturnType<typeof resultWith>>([
+      [
+        "0xvault0",
+        resultWith({
+          availableActions: [PeginAction.NONE],
+          contractStatus: 0,
+          localStatus: "payout_signed",
+        }),
+      ],
+      [
+        "0xvault1",
+        resultWith({
+          availableActions: [PeginAction.NONE],
+          contractStatus: 0,
+        }),
+      ],
+    ]);
+    mockGetPollingResult.mockImplementation((id: string) => states.get(id));
+
+    const { getByTestId, queryByTestId } = renderView({
+      vaultIds: ["0xvault0" as Hex, "0xvault1" as Hex],
+      activities: [activityWithId("0xvault0"), activityWithId("0xvault1")],
+    });
+    expect(queryByTestId("wots")).toBeNull();
+    expect(queryByTestId("payout")).toBeNull();
+    expect(queryByTestId("activate")).toBeNull();
+    expect(getByTestId("progress-view")).not.toBeNull();
   });
 
   it("surfaces the warning once no other vault is actionable", () => {
