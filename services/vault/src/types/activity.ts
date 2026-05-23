@@ -47,6 +47,14 @@ export interface VaultActivity {
   /** Raw BTC pegin transaction hash (for VP RPC operations) */
   peginTxHash?: Hex;
 
+  /**
+   * Pre-PegIn transaction hash — the BTC tx the depositor actually broadcasts
+   * (txid of `unsignedPrePeginTx`). Use this for user-facing explorer links
+   * during pending/verified/expired states, where the peg-in tx has not yet
+   * been broadcast by the vault provider.
+   */
+  prePeginTxHash?: Hex;
+
   /** Contract status (0=Pending, 1=Verified, 2=Active, 3=Redeemed, 4=Liquidated, 5=Invalid, 6=DepositorWithdrawn, 7=Expired) */
   contractStatus?: number;
 

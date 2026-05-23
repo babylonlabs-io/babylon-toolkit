@@ -56,7 +56,7 @@ export function CopyableHash({
           href={explorerUrl}
           target="_blank"
           rel="noopener noreferrer"
-          className="text-accent-primary transition-colors hover:text-primary-main hover:underline"
+          className="text-accent-primary"
         >
           {truncated}
         </a>
