@@ -70,9 +70,8 @@ export const COPY = {
       payoutsReadyForSigning:
         "Vault provider has prepared payout transactions. Click 'Sign Payouts' to pre-authorize your Bitcoin claim transactions.",
       prePeginBroadcast:
-        "Pre-Pegin transaction has been broadcast. Waiting for vault provider to detect your deposit...",
-      waitingForDetection:
-        "Waiting for vault provider to detect your deposit...",
+        "Pre-Pegin transaction has been broadcast. Waiting for vault provider to detect your deposit.",
+      waitingForDetection: "Waiting for vault provider to detect your deposit.",
       waitingForPayoutPrep:
         "Waiting for vault provider to prepare claim and payout transactions...",
       activationSubmitted:
@@ -174,7 +173,7 @@ export const COPY = {
         `${completed} of ${total} steps completed`,
       defaultSuccessMessage: PRE_PEGIN_BROADCAST_CONFIRMATION_MESSAGE,
       doNotSpendWarning:
-        "Do not spend the Bitcoin used for this deposit until the transaction is confirmed on the network.",
+        "To ensure a seamless deposit, do not spend the BTC allocated for this process until the transaction is confirmed.",
       buttons: {
         closeContinueLater: "Close & continue later",
         retry: "Retry",
