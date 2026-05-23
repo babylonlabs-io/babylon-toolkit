@@ -126,16 +126,12 @@ export async function fetchVaultProviderStats(
 
       const { items, totalCount } = data.vaults;
       if (items.length !== totalCount) {
-        // A page-size cap truncated the result. Aggregating the partial page
-        // would silently undercount active BTC and skew the picker's sort by
-        // last successful peg-in, with the discrepancy visible only in the
-        // console. Throw so the VP is absent from the result map and the
-        // picker renders the existing "—" placeholder instead.
-        // TODO: paginate (cursor / skip) once the indexer query exposes it,
-        // so a high-volume VP still shows real totals instead of a placeholder.
-        throw new Error(
+        // A page-size cap truncated the result. The aggregated total/last
+        // values are best-effort under-counts; surface it for diagnosis
+        // rather than silently shipping a wrong number.
+        logger.warn(
           `[fetchVaultProviderStats] VP ${id}: indexer returned ` +
-            `${items.length} of ${totalCount} vaults; refusing partial stats`,
+            `${items.length} of ${totalCount} vaults; stats are partial`,
         );
       }
 

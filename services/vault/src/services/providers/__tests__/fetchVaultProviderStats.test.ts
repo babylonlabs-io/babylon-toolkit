@@ -113,11 +113,10 @@ describe("fetchVaultProviderStats", () => {
     expect(stats.get("0xgood")?.totalActiveSats).toBe(777n);
   });
 
-  it("omits the VP from the result when the indexer truncates the response", async () => {
-    // Aggregating a truncated page silently undercounts active BTC and skews
-    // the picker's sort, so the function refuses partial stats — the VP must
-    // be absent from the map (picker falls back to the "—" placeholder) and
-    // the failure path's warn must fire so the discrepancy is visible.
+  it("warns and returns best-effort stats when the indexer truncates the response", async () => {
+    // The aggregated total/last values are under-counts (the omitted page can
+    // hold active vaults or a newer activatedAt). Surfacing via warn lets the
+    // discrepancy be diagnosed without blocking the picker from rendering.
     mockRequest.mockResolvedValue({
       vaults: {
         items: [{ amount: "100", status: "available", activatedAt: "1000" }],
@@ -127,7 +126,7 @@ describe("fetchVaultProviderStats", () => {
 
     const stats = await fetchVaultProviderStats(["0xVP"]);
 
-    expect(stats.has("0xvp")).toBe(false);
+    expect(stats.get("0xvp")?.totalActiveSats).toBe(100n);
     expect(mockWarn).toHaveBeenCalled();
   });
 });
