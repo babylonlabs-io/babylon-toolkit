@@ -13,8 +13,9 @@ import { useCallback, useState } from "react";
 import { NavLink, Outlet } from "react-router";
 import { twJoin } from "tailwind-merge";
 
+import { DepositButton } from "@/components/shared";
 import { PAGE_CONTENT_CLASS } from "@/components/shared/layoutClasses";
-import { shouldDisplayTestingMsg } from "@/config";
+import { getNetworkConfigBTC, shouldDisplayTestingMsg } from "@/config";
 import { useAddressScreening } from "@/context/addressScreening";
 import { useAddressType } from "@/context/addressType";
 import { useGeoFencing } from "@/context/geofencing";
@@ -31,6 +32,8 @@ import { Connect } from "../Wallet";
 export interface RootLayoutContext {
   openDeposit: (initialAmountBtc?: string) => void;
 }
+
+const btcConfig = getNetworkConfigBTC();
 
 function AppNavLink({
   to,
@@ -120,6 +123,18 @@ export default function RootLayout() {
           mobileNavigation={<MobileNavigation />}
           rightActions={
             <div className="flex items-center gap-4">
+              {isWalletConnected &&
+                !isDepositOpen &&
+                !isGeoBlocked &&
+                !isAddressBlocked && (
+                  <DepositButton
+                    variant="outlined"
+                    rounded
+                    onClick={() => openDeposit()}
+                  >
+                    Deposit {btcConfig.coinSymbol}
+                  </DepositButton>
+                )}
               <Connect />
               <StandardSettingsMenu theme={theme} setTheme={setTheme} />
             </div>
