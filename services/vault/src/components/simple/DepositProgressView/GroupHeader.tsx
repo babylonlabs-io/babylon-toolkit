@@ -1,4 +1,4 @@
-import { Loader, Text } from "@babylonlabs-io/core-ui";
+import { Text } from "@babylonlabs-io/core-ui";
 import { IoCheckmarkSharp } from "react-icons/io5";
 import { twMerge } from "tailwind-merge";
 
@@ -7,13 +7,21 @@ import { COPY } from "@/copy";
 import type { GroupStatus } from "./steps";
 
 interface GroupHeaderProps {
+  /** 1-based ordinal of the group, shown inside the indicator circle. */
+  number: number;
   title: string;
   status: GroupStatus;
   completedInGroup: number;
   totalInGroup: number;
 }
 
-function GroupIndicator({ status }: { status: GroupStatus }) {
+function GroupIndicator({
+  status,
+  number,
+}: {
+  status: GroupStatus;
+  number: number;
+}) {
   const base = "flex h-8 w-8 shrink-0 items-center justify-center rounded-full";
   const ariaLabel = COPY.deposit.a11y.groupStatus[status];
 
@@ -25,26 +33,33 @@ function GroupIndicator({ status }: { status: GroupStatus }) {
     );
   }
 
-  if (status === "active") {
-    return (
-      <div
-        className={twMerge(base, "border-2 border-primary-light")}
-        aria-label={ariaLabel}
-      >
-        <Loader size={16} className="text-primary-light" />
-      </div>
-    );
-  }
-
   return (
     <div
-      className={twMerge(base, "border-2 border-secondary-strokeDark")}
+      className={twMerge(
+        base,
+        "border-2",
+        status === "active"
+          ? "border-primary-light"
+          : "border-secondary-strokeDark",
+      )}
       aria-label={ariaLabel}
-    />
+    >
+      <Text
+        as="span"
+        variant="body2"
+        className={twMerge(
+          "font-medium",
+          status === "active" ? "text-accent-primary" : "text-accent-secondary",
+        )}
+      >
+        {number}
+      </Text>
+    </div>
   );
 }
 
 export function GroupHeader({
+  number,
   title,
   status,
   completedInGroup,
@@ -52,7 +67,7 @@ export function GroupHeader({
 }: GroupHeaderProps) {
   return (
     <div className="flex items-center gap-3">
-      <GroupIndicator status={status} />
+      <GroupIndicator status={status} number={number} />
       <Text
         as="span"
         variant="body1"

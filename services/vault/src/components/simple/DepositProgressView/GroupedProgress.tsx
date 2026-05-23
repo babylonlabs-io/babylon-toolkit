@@ -42,6 +42,7 @@ export function GroupedProgress({
         return (
           <div key={group.startStep} className="flex flex-col">
             <GroupHeader
+              number={groupIndex + 1}
               title={group.title}
               status={group.status}
               completedInGroup={group.completedInGroup}
