@@ -107,6 +107,12 @@ function aggregateStats(
  * @param vaultProviderIds - VP Ethereum addresses.
  * @returns Map keyed by lowercased VP address. VPs whose query failed are
  *          absent from the map (the caller renders a placeholder for them).
+ *
+ * TODO(perf): N+1 — one GraphQL round-trip per VP. The registry is small
+ * enough today that this is acceptable, but once the indexer schema gains a
+ * `vaultProvider_in` (or similar) filter, collapse this into a single query
+ * that returns all VPs' vaults at once and group client-side. That also
+ * removes the FIFO-ordering assumption the failure-isolation test relies on.
  */
 export async function fetchVaultProviderStats(
   vaultProviderIds: string[],
@@ -120,12 +126,16 @@ export async function fetchVaultProviderStats(
 
       const { items, totalCount } = data.vaults;
       if (items.length !== totalCount) {
-        // A page-size cap truncated the result. The aggregated total/last
-        // values are best-effort under-counts; surface it for diagnosis
-        // rather than silently shipping a wrong number.
-        logger.warn(
+        // A page-size cap truncated the result. Aggregating the partial page
+        // would silently undercount active BTC and skew the picker's sort by
+        // last successful peg-in, with the discrepancy visible only in the
+        // console. Throw so the VP is absent from the result map and the
+        // picker renders the existing "—" placeholder instead.
+        // TODO: paginate (cursor / skip) once the indexer query exposes it,
+        // so a high-volume VP still shows real totals instead of a placeholder.
+        throw new Error(
           `[fetchVaultProviderStats] VP ${id}: indexer returned ` +
-            `${items.length} of ${totalCount} vaults; stats are partial`,
+            `${items.length} of ${totalCount} vaults; refusing partial stats`,
         );
       }
 

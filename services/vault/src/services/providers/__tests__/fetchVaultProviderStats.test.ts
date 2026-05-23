@@ -113,7 +113,11 @@ describe("fetchVaultProviderStats", () => {
     expect(stats.get("0xgood")?.totalActiveSats).toBe(777n);
   });
 
-  it("warns and still aggregates when the indexer truncates the result", async () => {
+  it("omits the VP from the result when the indexer truncates the response", async () => {
+    // Aggregating a truncated page silently undercounts active BTC and skews
+    // the picker's sort, so the function refuses partial stats — the VP must
+    // be absent from the map (picker falls back to the "—" placeholder) and
+    // the failure path's warn must fire so the discrepancy is visible.
     mockRequest.mockResolvedValue({
       vaults: {
         items: [{ amount: "100", status: "available", activatedAt: "1000" }],
@@ -123,7 +127,7 @@ describe("fetchVaultProviderStats", () => {
 
     const stats = await fetchVaultProviderStats(["0xVP"]);
 
-    expect(stats.get("0xvp")?.totalActiveSats).toBe(100n);
+    expect(stats.has("0xvp")).toBe(false);
     expect(mockWarn).toHaveBeenCalled();
   });
 });

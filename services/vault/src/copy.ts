@@ -252,9 +252,12 @@ export const COPY = {
         "This provider has recently been unreachable. You can still select it, but the deposit may need a retry.",
       // Divider label above the group of unhealthy / rejected providers.
       providerGroupUnavailableLabel: "Limited availability",
-      // Per-provider metric labels shown in the picker.
+      // Per-provider metric labels shown in the picker. The active-BTC label
+      // intentionally avoids the bare word "Active" because a healthy row
+      // already shows `providerStatusActive: "Active"` on its status line —
+      // back-to-back "Active … Active: 1.5 BTC" reads as a duplicate.
       providerCommissionLabel: "Commission",
-      providerActiveLabel: "Active",
+      providerActiveLabel: "Total locked",
       // Placeholder while a metric (commission, active BTC) is loading or
       // could not be fetched.
       providerMetricPlaceholder: "—",

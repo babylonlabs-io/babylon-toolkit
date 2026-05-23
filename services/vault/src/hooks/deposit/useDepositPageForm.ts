@@ -147,16 +147,32 @@ export function useDepositPageForm(): UseDepositPageFormResult {
     allVaultProviders: rawProviders,
     unhealthyVpIds,
     vaultKeepers,
-    loading: isLoadingProviders,
+    loading: isLoadingRegistry,
   } = useVaultProviders(effectiveSelectedApplication || undefined);
 
   // Stable VP id list driving the per-VP stats / commission lookups.
   const vpIds = useMemo(() => rawProviders.map((p) => p.id), [rawProviders]);
 
-  // Activity stats (total active BTC, last successful peg-in) and commissions
-  // load independently and merge in when ready — providers render immediately.
-  const { statsById } = useVaultProviderStats(vpIds);
+  // Selectable subset for validation. Metadata-rejected providers (`unavailable`)
+  // are shown in the picker but disabled — they must not pass `validateForm()`
+  // either, since a previously-selected provider whose metadata later flips to
+  // rejected would otherwise still survive into deposit signing.
+  const selectableProviderIds = useMemo(
+    () =>
+      rawProviders
+        .filter((p) => vaultProviderUnavailableReason(p) === undefined)
+        .map((p) => p.id),
+    [rawProviders],
+  );
+
+  // Activity stats (total active BTC, last successful peg-in) drive the sort
+  // order, so the picker waits for them — rendering before they arrive would
+  // alphabetize first then reshuffle once timestamps land, with rows jumping
+  // under the cursor. Commissions are display-only and merge in when ready.
+  const { statsById, loading: isLoadingStats } = useVaultProviderStats(vpIds);
   const { commissionsById } = useVaultProviderCommissions(vpIds);
+
+  const isLoadingProviders = isLoadingRegistry || isLoadingStats;
 
   const providers = useMemo<VaultProviderListItem[]>(() => {
     const items: VaultProviderListItem[] = rawProviders.map((p) => {
@@ -199,7 +215,7 @@ export function useDepositPageForm(): UseDepositPageFormResult {
   // in that window the validator skips the cap check so the user can still
   // interact with the form. The contract still enforces the cap at submit.
   const validation = useDepositValidation({
-    availableProviders: vpIds,
+    availableProviders: selectableProviderIds,
     effectiveRemaining: capSnapshot?.effectiveRemaining ?? null,
     capUnavailable: capError !== null,
   });

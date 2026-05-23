@@ -65,24 +65,32 @@ export function formatBtcAmount(btcAmount: number, decimals = 8): string {
 }
 
 const SATS_PER_BTC = 100_000_000n;
+/** Fractional digits in a BTC representation — derived from SATS_PER_BTC so
+ * the two stay in lockstep (e.g. "100000000" → 8 zeros). */
+const BTC_FRACTIONAL_DIGITS = SATS_PER_BTC.toString().length - 1;
 
 /**
  * Format a satoshi-denominated bigint as a BTC string with suffix.
  * Performs the conversion in bigint arithmetic so totals near or above the
  * JS-safe-integer range stay exact (i.e. no `Number()` round-trip).
+ * Trailing zeros are trimmed from the fractional part.
  *
  * @param sats - Total in satoshis. Zero or negative returns "0 BTC/sBTC".
- * @param decimals - Decimal places to display (default 8). Trailing zeros trimmed.
  */
-export function formatBtcFromSats(sats: bigint, decimals = 8): string {
+export function formatBtcFromSats(sats: bigint): string {
   if (sats <= 0n) return `0 ${btcConfig.coinSymbol}`;
   const whole = sats / SATS_PER_BTC;
   const remainder = sats % SATS_PER_BTC;
-  const fractional = remainder.toString().padStart(8, "0").slice(0, decimals);
+  const fractional = remainder.toString().padStart(BTC_FRACTIONAL_DIGITS, "0");
   const trimmed = fractional.replace(/0+$/, "");
   const display = trimmed ? `${whole}.${trimmed}` : `${whole}`;
   return `${display} ${btcConfig.coinSymbol}`;
 }
+
+/** 1% = 100 basis points (1 bps = 0.01%). */
+const BPS_PER_PERCENT = 100;
+/** Two decimals matches the indexer's commission resolution (1 bps = 0.01%). */
+const COMMISSION_DECIMALS = 2;
 
 /**
  * Format a basis-points value as a percentage string for display.
@@ -92,7 +100,9 @@ export function formatBtcFromSats(sats: bigint, decimals = 8): string {
  * @param bps - Value in basis points.
  */
 export function formatBasisPointsAsPercent(bps: number): string {
-  const percent = parseFloat((bps / 100).toFixed(2));
+  const percent = parseFloat(
+    (bps / BPS_PER_PERCENT).toFixed(COMMISSION_DECIMALS),
+  );
   return `${percent}%`;
 }
 

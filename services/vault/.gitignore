@@ -112,6 +112,9 @@ web_modules/
 # dotenv environment variable files
 .env
 .env.*
+# A committed example env file (variable names + placeholder values) is fine —
+# negate it so the broad `.env.*` doesn't hide it from contributors.
+!.env.example
 
 # parcel-bundler cache (https://parceljs.org/)
 .cache
