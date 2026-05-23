@@ -21,6 +21,7 @@ import type { PeginSigningProgress } from "@/services/vault/vaultTransactionServ
 import { BtcConfirmationDetailContainer } from "./BtcConfirmationDetailContainer";
 import { CompletedStepsPill } from "./CompletedStepsPill";
 import { GroupedProgress } from "./GroupedProgress";
+import { PeginFeeWarning } from "./PeginFeeWarning";
 import { ProgressBar } from "./ProgressBar";
 import { ProviderWaitDetail } from "./ProviderWaitDetail";
 import {
@@ -100,8 +101,10 @@ export function DepositProgressView(props: DepositProgressViewProps) {
     currentStep === DepositFlowStep.AWAIT_ACTIVATION_CONFIRMATION;
 
   const activeStepDetail =
-    currentStep === DepositFlowStep.AWAIT_BTC_CONFIRMATION &&
-    btcConfirmationDetail ? (
+    currentStep === DepositFlowStep.SIGN_PEGIN_BTC ? (
+      <PeginFeeWarning />
+    ) : currentStep === DepositFlowStep.AWAIT_BTC_CONFIRMATION &&
+      btcConfirmationDetail ? (
       <BtcConfirmationDetailContainer
         startedAt={btcConfirmationDetail.startedAt}
         prePeginTxid={btcConfirmationDetail.prePeginTxid}

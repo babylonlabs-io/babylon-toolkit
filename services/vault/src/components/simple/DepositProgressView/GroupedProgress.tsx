@@ -71,6 +71,7 @@ export function GroupedProgress({
                         label={step.label}
                         description={step.description}
                         detail={activeStepDetail}
+                        hasNext={subIndex < stepNumbers.length - 1}
                       />
                     </div>
                   );
