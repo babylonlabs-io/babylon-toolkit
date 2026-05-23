@@ -18,12 +18,7 @@ import type { Hex } from "viem";
 
 import { logger } from "@/infrastructure";
 
-import {
-  STORAGE_KEY_PREFIX,
-  STORAGE_UPDATE_EVENT,
-  UTXO_RESERVATION_KEY_PREFIX,
-  UTXO_RESERVATION_TTL,
-} from "../constants";
+import { STORAGE_KEY_PREFIX, STORAGE_UPDATE_EVENT } from "../constants";
 import {
   LocalStorageStatus,
   shouldRemoveFromLocalStorage,
@@ -132,7 +127,7 @@ function isValidSelectedUTXOs(
  *
  * localStorage is an untrusted boundary: entries can be tampered by XSS,
  * browser extensions, or a user manually editing devtools. Every field used in
- * a security-relevant code path (UTXO reservation, on-chain vault matching,
+ * a security-relevant code path (pending-vault claim attribution, on-chain vault matching,
  * PSBT construction, or ID normalization) must pass a strict shape check. A
  * non-string `id`, for example, would otherwise throw inside
  * `normalizeTransactionId`, fall into the outer catch block, and wipe the
@@ -314,44 +309,74 @@ export function getPendingPegins(ethAddress: string): PendingPeginRequest[] {
 }
 
 /**
- * Save pending peg-ins to localStorage
- * If pegins array is empty, delete the entire key instead of storing empty array
- * Dispatches a custom event to notify React hooks of the change
+ * Write pending peg-ins to localStorage, THROWING if the write fails.
+ *
+ * If `pegins` is empty the key is deleted. Dispatches a storage-update event
+ * on success. Used by `addPendingPegin` (deposit creation), where a silently
+ * dropped write would let the deposit flow believe a durable resume record
+ * exists when it does not — so the caller can surface a soft warning to the
+ * user. `savePendingPegins` is the best-effort variant for cosmetic callers.
  */
-export function savePendingPegins(
+function persistPendingPegins(
   ethAddress: string,
   pegins: PendingPeginRequest[],
 ): void {
   if (!ethAddress) return;
 
-  try {
-    const key = getStorageKey(ethAddress);
+  const key = getStorageKey(ethAddress);
 
-    // If no pegins left, delete the entire key
+  try {
     if (pegins.length === 0) {
       localStorage.removeItem(key);
     } else {
-      // Ensure all IDs are normalized before saving
       const normalizedPegins = pegins.map((pegin) => ({
         ...pegin,
         id: normalizeTransactionId(pegin.id),
       }));
       localStorage.setItem(key, JSON.stringify(normalizedPegins));
     }
-
-    // Dispatch custom event to notify React hooks
-    dispatchStorageUpdateEvent(ethAddress);
   } catch (error) {
     logger.error(error instanceof Error ? error : new Error(String(error)), {
-      data: { context: "[peginStorage] Failed to save pending pegins" },
+      data: { context: "[peginStorage] Failed to persist pending pegins" },
     });
+    throw new Error(
+      "Unable to save the deposit record locally. Your browser may be blocking local storage (private browsing or quota).",
+    );
+  }
+
+  // Dispatch custom event to notify React hooks
+  dispatchStorageUpdateEvent(ethAddress);
+}
+
+/**
+ * Save pending peg-ins to localStorage, best-effort.
+ *
+ * A failed write is logged and swallowed. Used by cosmetic callers (status
+ * flips, removals, refund tracking) where aborting on a storage failure
+ * would be worse than a stale entry. The deposit-creation path uses
+ * `addPendingPegin`, which surfaces failures so the caller can warn.
+ */
+export function savePendingPegins(
+  ethAddress: string,
+  pegins: PendingPeginRequest[],
+): void {
+  try {
+    persistPendingPegins(ethAddress, pegins);
+  } catch {
+    // Already logged inside persistPendingPegins; best-effort callers must
+    // not throw.
   }
 }
 
 /**
- * Add a new pending peg-in to localStorage
- * Prevents duplicates: if txid already exists, removes old entry before adding new one
- * Status defaults to LocalStorageStatus.PENDING if not provided
+ * Add a new pending peg-in to localStorage.
+ *
+ * Prevents duplicates: if id already exists, removes old entry before
+ * adding new one. Status defaults to LocalStorageStatus.PENDING if not
+ * provided.
+ *
+ * @throws when the localStorage write fails (quota / private browsing).
+ * Callers that want best-effort behaviour must catch (see `usePeginStorage`).
  */
 export function addPendingPegin(
   ethAddress: string,
@@ -377,7 +402,10 @@ export function addPendingPegin(
   // Add new pegin
   const updatedPegins = [...filteredPegins, newPegin];
 
-  savePendingPegins(ethAddress, updatedPegins);
+  // Strict persist: throws on localStorage failure so the deposit-creation
+  // caller can surface a soft warning instead of silently losing the
+  // resume record.
+  persistPendingPegins(ethAddress, updatedPegins);
 }
 
 /**
@@ -476,286 +504,4 @@ export function filterPendingPegins(
       pegin.refundBroadcastAt,
     );
   });
-}
-
-// ============================================================================
-// UTXO Reservations — early cross-tab reservation before ETH registration
-// ============================================================================
-
-/**
- * A lightweight reservation written to localStorage BEFORE any wallet
- * popup or Ethereum registration. Stored as outpoint pairs (`txid:vout`)
- * since at pre-claim time no transaction has been built yet. Closes the
- * TOCTOU race where a sibling tab could select the same funding outpoint
- * during the 1-3 minute wallet-signing window inside `preparePegin`.
- */
-export interface UtxoReservation {
-  outpoints: Array<{ txid: string; vout: number }>;
-  timestamp: number;
-  batchId: string;
-}
-
-/**
- * Thrown when `addUtxoReservation` detects an overlapping outpoint claim
- * under a different `batchId`. Carries the conflicting batch and the
- * offending outpoint so callers can surface a useful message.
- */
-export class UtxoReservationConflictError extends Error {
-  readonly conflictingBatchId: string;
-  readonly outpoint: { txid: string; vout: number };
-
-  constructor(
-    conflictingBatchId: string,
-    outpoint: { txid: string; vout: number },
-  ) {
-    super(
-      `UTXO ${outpoint.txid}:${outpoint.vout} is already reserved by another in-flight deposit (batch ${conflictingBatchId}).`,
-    );
-    this.name = "UtxoReservationConflictError";
-    this.conflictingBatchId = conflictingBatchId;
-    this.outpoint = outpoint;
-  }
-}
-
-function getReservationStorageKey(ethAddress: string): string {
-  return `${UTXO_RESERVATION_KEY_PREFIX}-${ethAddress}`;
-}
-
-function isValidOutpoint(
-  value: unknown,
-): value is { txid: string; vout: number } {
-  if (!value || typeof value !== "object") return false;
-  const o = value as Record<string, unknown>;
-  if (typeof o.txid !== "string" || !TXID_HEX_RE.test(o.txid)) return false;
-  if (typeof o.vout !== "number" || !Number.isInteger(o.vout) || o.vout < 0) {
-    return false;
-  }
-  return true;
-}
-
-function isValidReservation(entry: unknown): entry is UtxoReservation {
-  if (!entry || typeof entry !== "object") return false;
-  const r = entry as Record<string, unknown>;
-  if (!Array.isArray(r.outpoints) || r.outpoints.length === 0) return false;
-  for (const op of r.outpoints) {
-    if (!isValidOutpoint(op)) return false;
-  }
-  return (
-    typeof r.timestamp === "number" &&
-    Number.isFinite(r.timestamp) &&
-    r.timestamp > 0 &&
-    typeof r.batchId === "string" &&
-    r.batchId.length > 0
-  );
-}
-
-function outpointKey(o: { txid: string; vout: number }): string {
-  return `${o.txid.toLowerCase()}:${o.vout}`;
-}
-
-/**
- * Read all UTXO reservations for an address, filtering out expired entries.
- * Expired entries are cleaned up on read to avoid accumulation from crashed tabs.
- */
-export function getUtxoReservations(ethAddress: string): UtxoReservation[] {
-  if (!ethAddress) return [];
-
-  try {
-    const stored = localStorage.getItem(getReservationStorageKey(ethAddress));
-    if (!stored) return [];
-
-    const parsed: unknown = JSON.parse(stored);
-    if (!Array.isArray(parsed)) return [];
-
-    const now = Date.now();
-    const valid: UtxoReservation[] = [];
-    let hadExpired = false;
-
-    for (const entry of parsed) {
-      if (!isValidReservation(entry)) continue;
-      if (now - entry.timestamp > UTXO_RESERVATION_TTL) {
-        hadExpired = true;
-        continue;
-      }
-      valid.push(entry);
-    }
-
-    // Clean up expired entries lazily on read
-    if (hadExpired) {
-      saveReservations(ethAddress, valid);
-    }
-
-    return valid;
-  } catch (error) {
-    logger.warn("[peginStorage] Failed to read UTXO reservations", {
-      category: "peginStorage",
-      error: error instanceof Error ? error.message : String(error),
-    });
-    return [];
-  }
-}
-
-function saveReservations(
-  ethAddress: string,
-  reservations: UtxoReservation[],
-): void {
-  const key = getReservationStorageKey(ethAddress);
-  if (reservations.length === 0) {
-    localStorage.removeItem(key);
-  } else {
-    localStorage.setItem(key, JSON.stringify(reservations));
-  }
-  // No dispatchStorageUpdateEvent here: reservations are stored under a
-  // separate key and read imperatively by useDepositFlow, not via the
-  // pendingPegins hook. Cross-tab notification works automatically via
-  // the native StorageEvent fired by localStorage writes.
-}
-
-function findOutpointConflict(
-  reservations: UtxoReservation[],
-  batchId: string,
-  outpoints: ReadonlyArray<{ txid: string; vout: number }>,
-):
-  | { conflictingBatchId: string; outpoint: { txid: string; vout: number } }
-  | undefined {
-  const claimed = new Map<string, string>(); // outpoint key -> batchId
-  for (const r of reservations) {
-    if (r.batchId === batchId) continue;
-    for (const op of r.outpoints) {
-      claimed.set(outpointKey(op), r.batchId);
-    }
-  }
-  for (const op of outpoints) {
-    const owner = claimed.get(outpointKey(op));
-    if (owner !== undefined) {
-      return {
-        conflictingBatchId: owner,
-        outpoint: { txid: op.txid, vout: op.vout },
-      };
-    }
-  }
-  return undefined;
-}
-
-async function withReservationLock<T>(
-  ethAddress: string,
-  fn: () => T,
-): Promise<T> {
-  // Web Locks API serializes the read-modify-write cross-tab. When the API
-  // is unavailable (very old browsers, jsdom test runners) we fall back to
-  // inline execution — still atomic within a single JS task; cross-tab
-  // races are then caught by the final-pass `assertNoReservationConflict`.
-  const locks = (
-    globalThis as {
-      navigator?: {
-        locks?: {
-          request?: (name: string, cb: () => unknown) => Promise<unknown>;
-        };
-      };
-    }
-  ).navigator?.locks;
-  if (locks?.request) {
-    const lockName = `pegin-reservation-${ethAddress}`;
-    return locks.request(lockName, () => fn()) as Promise<T>;
-  }
-  return fn();
-}
-
-/**
- * Reserve UTXOs by writing their outpoints to localStorage BEFORE wallet
- * signing or Ethereum registration. Rejects any reservation whose
- * outpoints overlap an existing entry under a different `batchId`.
- * Same-`batchId` writes always overwrite in place (used by the
- * pre-claim → narrow-after-preparePegin refresh).
- *
- * @throws {UtxoReservationConflictError} when an outpoint is already
- * claimed by another in-flight deposit.
- * @throws {Error} with an actionable message when localStorage cannot be
- * written (quota exceeded, blocked by private-browsing, etc.). We
- * intentionally do not swallow these — silently degrading would let two
- * concurrent tabs both pick the same outpoint and reintroduce the cross-
- * tab race this function exists to prevent, for the exact users a
- * fallback would supposedly help.
- */
-export async function addUtxoReservation(
-  ethAddress: string,
-  reservation: UtxoReservation,
-): Promise<void> {
-  if (!ethAddress) return;
-
-  try {
-    await withReservationLock(ethAddress, () => {
-      const existing = getUtxoReservations(ethAddress);
-      const conflict = findOutpointConflict(
-        existing,
-        reservation.batchId,
-        reservation.outpoints,
-      );
-      if (conflict) {
-        throw new UtxoReservationConflictError(
-          conflict.conflictingBatchId,
-          conflict.outpoint,
-        );
-      }
-      const filtered = existing.filter(
-        (r) => r.batchId !== reservation.batchId,
-      );
-      saveReservations(ethAddress, [...filtered, reservation]);
-    });
-  } catch (error) {
-    if (error instanceof UtxoReservationConflictError) throw error;
-    logger.warn("[peginStorage] Failed to write UTXO reservation", {
-      category: "peginStorage",
-      error: error instanceof Error ? error.message : String(error),
-    });
-    throw new Error(
-      "Unable to record the deposit reservation locally. Your browser may be blocking local storage (private browsing or quota). Try in a standard browser tab.",
-    );
-  }
-}
-
-/**
- * Final-pass conflict check, invoked right before Ethereum registration.
- * Defense-in-depth: catches the residual race where two tabs without
- * Web Locks both wrote a reservation in the same microtask.
- *
- * @throws {UtxoReservationConflictError} when an outpoint is already
- * claimed by another batch.
- */
-export function assertNoReservationConflict(
-  ethAddress: string,
-  batchId: string,
-  outpoints: ReadonlyArray<{ txid: string; vout: number }>,
-): void {
-  if (!ethAddress) return;
-  const existing = getUtxoReservations(ethAddress);
-  const conflict = findOutpointConflict(existing, batchId, outpoints);
-  if (conflict) {
-    throw new UtxoReservationConflictError(
-      conflict.conflictingBatchId,
-      conflict.outpoint,
-    );
-  }
-}
-
-/**
- * Remove a UTXO reservation after the deposit flow completes (success or
- * failure). The real pending pegin entries supersede the early reservation.
- */
-export function removeUtxoReservation(
-  ethAddress: string,
-  batchId: string,
-): void {
-  if (!ethAddress) return;
-
-  try {
-    const existing = getUtxoReservations(ethAddress);
-    const filtered = existing.filter((r) => r.batchId !== batchId);
-    saveReservations(ethAddress, filtered);
-  } catch (error) {
-    logger.warn("[peginStorage] Failed to remove UTXO reservation", {
-      category: "peginStorage",
-      error: error instanceof Error ? error.message : String(error),
-    });
-  }
 }
