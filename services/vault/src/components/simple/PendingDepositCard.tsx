@@ -167,7 +167,7 @@ export function PendingDepositCard({
               <Button
                 variant="outlined"
                 color="primary"
-                className="w-full rounded-full"
+                className="w-full"
                 disabled={buttonDisabled}
                 onClick={handleClick}
               >
@@ -178,7 +178,7 @@ export function PendingDepositCard({
               <Button
                 variant="outlined"
                 color="primary"
-                className="w-full rounded-full"
+                className="w-full"
                 onClick={() => onArtifactDownloadClick?.(depositId)}
               >
                 Download Artifacts
