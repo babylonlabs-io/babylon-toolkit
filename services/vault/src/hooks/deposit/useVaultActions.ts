@@ -21,7 +21,7 @@ import {
   getSharedWagmiConfig,
   useChainConnector,
 } from "@babylonlabs-io/wallet-connector";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Hex } from "viem";
 import { getWalletClient, switchChain } from "wagmi/actions";
 
@@ -105,6 +105,17 @@ export function useVaultActions(): UseVaultActionsReturn {
   // Activation state
   const [activating, setActivating] = useState(false);
   const [activationError, setActivationError] = useState<string | null>(null);
+
+  // Track mount: both handleBroadcast and handleActivation await slow
+  // on-chain work and then setState. The consumer (Resume*Content inside
+  // the deposit modal) can unmount mid-flight; without this guard those
+  // post-await setters fire on an unmounted component.
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   // Connectors
   const btcConnector = useChainConnector("BTC");
@@ -293,21 +304,23 @@ export function useVaultActions(): UseVaultActionsReturn {
       onShowSuccessModal();
       onRefetchActivities();
 
-      setBroadcasting(false);
+      if (mountedRef.current) setBroadcasting(false);
     } catch (err) {
-      let errorMessage: string;
+      if (mountedRef.current) {
+        let errorMessage: string;
 
-      if (err instanceof UtxoNotAvailableError) {
-        // UTXO not available - provide specific error message
-        errorMessage = err.message;
-      } else if (err instanceof Error) {
-        errorMessage = err.message;
-      } else {
-        errorMessage = "Failed to broadcast transaction";
+        if (err instanceof UtxoNotAvailableError) {
+          // UTXO not available - provide specific error message
+          errorMessage = err.message;
+        } else if (err instanceof Error) {
+          errorMessage = err.message;
+        } else {
+          errorMessage = "Failed to broadcast transaction";
+        }
+
+        setBroadcastError(errorMessage);
+        setBroadcasting(false);
       }
-
-      setBroadcastError(errorMessage);
-      setBroadcasting(false);
     }
   };
 
@@ -411,17 +424,19 @@ export function useVaultActions(): UseVaultActionsReturn {
       onShowSuccessModal();
       onRefetchActivities();
 
-      setActivating(false);
+      if (mountedRef.current) setActivating(false);
     } catch (err) {
-      const rawMessage =
-        err instanceof Error ? err.message : "Failed to activate BTC Vault";
-      // Normalize the on-chain "vault not found" message so we don't leak
-      // implementation detail like the raw vault id into the UI.
-      const errorMessage = rawMessage.includes("not found on-chain")
-        ? "BTC Vault not found. The BTC Vault ID may be invalid."
-        : rawMessage;
-      setActivationError(errorMessage);
-      setActivating(false);
+      if (mountedRef.current) {
+        const rawMessage =
+          err instanceof Error ? err.message : "Failed to activate BTC Vault";
+        // Normalize the on-chain "vault not found" message so we don't leak
+        // implementation detail like the raw vault id into the UI.
+        const errorMessage = rawMessage.includes("not found on-chain")
+          ? "BTC Vault not found. The BTC Vault ID may be invalid."
+          : rawMessage;
+        setActivationError(errorMessage);
+        setActivating(false);
+      }
     }
   };
 
