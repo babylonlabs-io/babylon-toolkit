@@ -132,7 +132,7 @@ export function CollateralVaultItem({
         <Button
           variant="outlined"
           color="secondary"
-          className="w-full rounded-full"
+          className="w-full"
           onClick={onArtifactDownload}
         >
           Download Artifacts

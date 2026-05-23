@@ -41,20 +41,10 @@ export function BannerActions({
     <div className="mt-3 flex items-center gap-2">
       {isUrgent && (
         <>
-          <Button
-            variant="outlined"
-            size="small"
-            onClick={() => onDeposit()}
-            className="rounded-full"
-          >
+          <Button variant="outlined" size="small" onClick={() => onDeposit()}>
             {COPY.banner.addCollateral}
           </Button>
-          <Button
-            variant="outlined"
-            size="small"
-            onClick={onRepay}
-            className="rounded-full"
-          >
+          <Button variant="outlined" size="small" onClick={onRepay}>
             {COPY.banner.repayDebt}
           </Button>
         </>
@@ -65,7 +55,6 @@ export function BannerActions({
           size="small"
           onClick={onApplyOrder}
           disabled={isReordering}
-          className="rounded-full"
         >
           {isReordering
             ? COPY.common.applying

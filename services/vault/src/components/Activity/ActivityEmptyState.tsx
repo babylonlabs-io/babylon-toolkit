@@ -34,7 +34,7 @@ export function ActivityEmptyState({ isConnected }: ActivityEmptyStateProps) {
       <p className="text-lg text-accent-secondary">
         No activity yet. Make your first deposit to get started.
       </p>
-      <Button color="secondary" rounded onClick={() => openDeposit()}>
+      <Button color="secondary" onClick={() => openDeposit()}>
         Deposit {btcConfig.coinSymbol}
       </Button>
     </div>

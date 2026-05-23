@@ -100,7 +100,7 @@ export function BatchedDepositGroup({
         <Button
           variant="contained"
           color="primary"
-          className="w-full rounded-full"
+          className="w-full"
           onClick={() => onBroadcastClick(broadcastTarget.id)}
         >
           {COPY.pegin.primaryAction.SIGN_AND_BROADCAST_TO_BITCOIN}

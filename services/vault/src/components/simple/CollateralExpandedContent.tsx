@@ -73,7 +73,7 @@ export function CollateralExpandedContent({
       <Button
         variant="contained"
         color="secondary"
-        className="w-full rounded-full"
+        className="w-full"
         onClick={onWithdraw}
         disabled={!canWithdraw || !hasSelection}
       >

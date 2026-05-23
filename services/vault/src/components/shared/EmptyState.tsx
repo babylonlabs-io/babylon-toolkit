@@ -66,7 +66,7 @@ export function EmptyState({
                 color="primary"
                 size="medium"
                 onClick={onAction}
-                className="rounded-full !bg-white !text-black hover:!bg-gray-100"
+                className="!bg-white !text-black hover:!bg-gray-100"
               >
                 {actionLabel}
               </Button>
