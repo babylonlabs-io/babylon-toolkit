@@ -7,7 +7,7 @@ import {
 } from "@babylonlabs-io/core-ui";
 
 import { REORDER_SUCCESS_TEXT, REORDER_SUCCESS_TITLE } from "./constants";
-import icon from "./reorder.svg";
+import { ReorderSuccessIcon } from "./ReorderSuccessIcon";
 
 interface ReorderSuccessModalProps {
   isOpen: boolean;
@@ -22,7 +22,7 @@ export function ReorderSuccessModal({
     <ResponsiveDialog open={isOpen} onClose={onClose}>
       <DialogHeader title={REORDER_SUCCESS_TITLE} onClose={onClose} />
       <DialogBody>
-        <img src={icon} alt="Success" className="mx-auto my-3" />
+        <ReorderSuccessIcon className="mx-auto my-3 text-accent-primary" />
         <p className="py-3 text-center text-accent-secondary">
           {REORDER_SUCCESS_TEXT}
         </p>
