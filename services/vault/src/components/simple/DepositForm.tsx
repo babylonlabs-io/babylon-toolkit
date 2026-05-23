@@ -4,7 +4,6 @@ import { useMemo, useState } from "react";
 import { ApplicationLogo } from "@/components/ApplicationLogo";
 import { DepositButton } from "@/components/shared";
 import { getNetworkConfigBTC } from "@/config";
-import { useBtcFeeDisplay } from "@/hooks/deposit/useBtcFeeDisplay";
 import { depositService } from "@/services/deposit";
 
 import { CollateralFactorRow } from "./CollateralFactorRow";
@@ -86,10 +85,6 @@ interface DepositFormProps {
   protocolFeePrice?: string;
   protocolFeeIsError?: boolean;
 
-  ethereumNetworkFeeAmount?: string;
-  ethereumNetworkFeePrice?: string;
-  ethereumNetworkFeeIsError?: boolean;
-
   feeRows?: FeeRow[];
 
   /**
@@ -159,9 +154,6 @@ export function DepositForm({
   protocolFeeAmount = "--",
   protocolFeePrice = "",
   protocolFeeIsError = false,
-  ethereumNetworkFeeAmount = "--",
-  ethereumNetworkFeePrice = "",
-  ethereumNetworkFeeIsError = false,
   feeRows,
   ordinalsCheckPending = false,
   hasWalletConnectionError = false,
@@ -202,29 +194,14 @@ export function DepositForm({
 
   const selectedApp = applications.find((a) => a.id === selectedApplication);
 
-  // When the amount exceeds the depositable maximum the CTA already reports
-  // "Insufficient balance"; suppress the duplicate fee-row error so the
-  // breakdown stays clean. Genuine fee-estimation errors still surface.
-  const exceedsMax = depositService.amountExceedsMax(
-    amountSats,
-    maxDepositSats ?? null,
-  );
-
-  const {
-    btcFee,
-    feeAmount,
-    feePrice,
-    isError: isFeeError,
-  } = useBtcFeeDisplay({
-    estimatedFeeSats,
-    btcPrice,
-    hasPriceFetchError,
-    isLoadingFee,
-    feeError: exceedsMax ? null : feeError,
-    hasAmount: !!amount && amount !== "0",
-  });
-
-  const feeDisabled = isLoadingFee || estimatedFeeRate <= 0 || btcFee === null;
+  const hasAmount = !!amount && amount !== "0";
+  const isFeeError = hasAmount && !isLoadingFee && !!feeError;
+  const feeDisabled =
+    isLoadingFee ||
+    estimatedFeeRate <= 0 ||
+    !hasAmount ||
+    !!feeError ||
+    estimatedFeeSats === null;
 
   const splitNotReady =
     partialLiquidation?.isEnabled &&
@@ -339,12 +316,6 @@ export function DepositForm({
         depositorClaimValue={depositorClaimValue}
         btcPrice={btcPrice}
         hasPriceFetchError={hasPriceFetchError}
-        bitcoinNetworkFeeAmount={feeAmount}
-        bitcoinNetworkFeePrice={feePrice}
-        bitcoinNetworkFeeIsError={isFeeError}
-        ethereumNetworkFeeAmount={ethereumNetworkFeeAmount}
-        ethereumNetworkFeePrice={ethereumNetworkFeePrice}
-        ethereumNetworkFeeIsError={ethereumNetworkFeeIsError}
         protocolFeeAmount={protocolFeeAmount}
         protocolFeePrice={protocolFeePrice}
         protocolFeeIsError={protocolFeeIsError}
