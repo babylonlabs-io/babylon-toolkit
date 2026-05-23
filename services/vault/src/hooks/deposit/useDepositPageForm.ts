@@ -288,10 +288,15 @@ export function useDepositPageForm(): UseDepositPageFormResult {
   // estimate below can account for the batch output count.
   const [isPartialLiquidation, setIsPartialLiquidation] = useState(false);
 
-  // Batch-first: one Pre-PegIn tx with N HTLC outputs + 1 CPFP anchor.
-  // When partial liquidation is on, N = 2 (sacrificial + protected vaults).
+  // Batch-first: one Pre-PegIn tx with N HTLC outputs + 1 CPFP anchor +
+  // 1 OP_RETURN auth-anchor. When partial liquidation is on, N = 2.
+  // `hasAuthAnchor: true` mirrors the OP_RETURN output that
+  // `PeginManager.preparePegin` will include in its UTXO selection at
+  // signing time, so the Max fee budget here matches the fee the UTXO
+  // selector will later spend. No PSBT is built here — this is integer
+  // vbyte budgeting only.
   const vaultCount = isPartialLiquidation ? 2 : 1;
-  const numPeginOutputs = peginOutputCount(vaultCount);
+  const numPeginOutputs = peginOutputCount(vaultCount, true);
 
   const {
     fee: estimatedFeeSats,

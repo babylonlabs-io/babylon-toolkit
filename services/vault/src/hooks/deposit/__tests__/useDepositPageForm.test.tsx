@@ -75,7 +75,9 @@ import { useEstimatedBtcFee } from "../useEstimatedBtcFee";
 vi.mock("@babylonlabs-io/ts-sdk/tbv/core", () => ({
   computeNumLocalChallengers: vi.fn(() => 2),
   computeMinClaimValue: vi.fn().mockResolvedValue(35_000n),
-  peginOutputCount: (vaultCount: number) => vaultCount + 1,
+  // Mirrors the real peginOutputCount: vaultCount + CPFP + (auth-anchor ? 1 : 0).
+  peginOutputCount: (vaultCount: number, hasAuthAnchor = false) =>
+    vaultCount + 1 + (hasAuthAnchor ? 1 : 0),
 }));
 
 vi.mock("@/hooks/useBtcPublicKey", () => ({
