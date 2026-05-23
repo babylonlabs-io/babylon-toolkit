@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { ApplicationLogo } from "@/components/ApplicationLogo";
 import { DepositButton } from "@/components/shared";
 import { getNetworkConfigBTC } from "@/config";
+import { COPY } from "@/copy";
 import { depositService } from "@/services/deposit";
 
 import { CollateralFactorRow } from "./CollateralFactorRow";
@@ -45,6 +46,22 @@ interface DepositFormProps {
   btcBalance: bigint;
   minDeposit: bigint;
   maxDeposit?: bigint;
+  /**
+   * Fee-adjusted maximum depositable amount in satoshis: the wallet balance
+   * minus the BTC network fee (and the depositor claim value once a provider
+   * is selected). The slider and the "Max" field cap at this value so the user
+   * cannot select an amount that leaves no room for fees. Null while UTXOs or
+   * fee rates are still loading.
+   */
+  maxDepositSats?: bigint | null;
+  /**
+   * Remaining application supply cap in satoshis (null = no cap or still
+   * loading). Surfaced so the CTA mirrors `validateForm`'s capacity rejection
+   * instead of silently no-op'ing on click.
+   */
+  effectiveRemaining: bigint | null;
+  /** True when the supply-cap read errored — CTA must reflect this. */
+  capUnavailable: boolean;
   btcPrice: number;
   hasPriceFetchError: boolean;
   onAmountChange: (value: string) => void;
@@ -120,6 +137,9 @@ export function DepositForm({
   btcBalance,
   minDeposit,
   maxDeposit,
+  maxDepositSats,
+  effectiveRemaining,
+  capUnavailable,
   btcPrice,
   hasPriceFetchError,
   onAmountChange,
@@ -156,13 +176,22 @@ export function DepositForm({
   const setPanelExpanded =
     (panel: "split" | "provider") => (expanded: boolean) =>
       setOpenPanel(expanded ? panel : null);
-  const btcBalanceFormatted = useMemo(() => {
-    if (!btcBalance) return 0;
-    return Number(depositService.formatSatoshisToBtc(btcBalance));
-  }, [btcBalance]);
+  // Fee-adjusted depositable max in satoshis. Falls back to the raw balance
+  // while the fee estimate is still loading.
+  const maxDepositSatsOrBalance = maxDepositSats ?? btcBalance;
+  // While the fee estimate is loading, the fallback to the raw balance would
+  // briefly show more than is actually depositable. Show a placeholder instead
+  // so the displayed Max never overstates the cap.
+  const maxDepositLabel =
+    maxDepositSats == null
+      ? `-- ${btcConfig.coinSymbol}`
+      : `${Number(depositService.formatSatoshisToBtc(maxDepositSats))} ${btcConfig.coinSymbol}`;
 
-  const sliderMax = btcBalanceFormatted || 1;
-  const amountNum = parseFloat(amount) || 0;
+  // The slider operates in satoshis (integer values, 1-sat step) so the thumb
+  // can land exactly on the max. A coarse BTC step would leave the sat-precise
+  // max off the step grid, stranding the thumb short of the end.
+  const sliderMaxSats = Number(maxDepositSatsOrBalance) || 1;
+  const sliderValueSats = Number(amountSats);
 
   const usdValue = useMemo(() => {
     if (hasPriceFetchError || !btcPrice || !amount || amount === "0") return "";
@@ -194,6 +223,9 @@ export function DepositForm({
     amountSats,
     minDeposit,
     maxDeposit,
+    maxDepositSats: maxDepositSats ?? null,
+    effectiveRemaining,
+    capUnavailable,
     btcBalance,
     estimatedFeeSats: estimatedFeeSats ?? undefined,
     depositorClaimValue,
@@ -220,16 +252,27 @@ export function DepositForm({
           currencyIcon={btcConfig.icon}
           currencyName={btcConfig.name}
           onAmountChange={(e) => onAmountChange(e.target.value)}
-          sliderValue={amountNum}
+          sliderValue={sliderValueSats}
           sliderMin={0}
-          sliderMax={sliderMax}
-          sliderStep={0.001}
+          sliderMax={sliderMaxSats}
+          sliderStep={1}
           sliderSteps={[]}
-          onSliderChange={(value) => onAmountChange(value.toString())}
+          onSliderChange={(sats) =>
+            onAmountChange(
+              depositService.formatSatoshisToBtc(BigInt(Math.round(sats))),
+            )
+          }
           sliderVariant="primary"
           leftField={{
             label: "Max",
-            value: `${btcBalanceFormatted} ${btcConfig.coinSymbol}`,
+            value: maxDepositLabel,
+            // Mention the supply cap only when one exists for this user.
+            // `effectiveRemaining` is null both when no cap applies and while
+            // the cap read is loading; either way we omit the cap clause
+            // until we know it's a real constraint.
+            tooltip: COPY.deposit.form.maxTooltip({
+              hasSupplyCap: effectiveRemaining !== null,
+            }),
           }}
           rightField={{ value: usdValue }}
           onMaxClick={onMaxClick}

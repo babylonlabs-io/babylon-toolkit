@@ -107,10 +107,15 @@ const MAX_ACCEPTABLE_COMMISSION_BPS_CAP = 9999;
  * 32-byte zero hex used as a placeholder during the sizing pass for any
  * value whose content does not affect output sizes — currently the
  * per-vault hashlocks and the auth-anchor commitment. The commit pass
- * substitutes real values; UTXO selection and fee sizing are invariant
- * under the swap because all four (placeholder hashlock, real
- * SHA256(secret), placeholder anchor, real SHA256(authAnchor)) are
- * 32-byte pushes. Substitution invariance is pinned in `pegin.test.ts`.
+ * substitutes real values; UTXO selection and fees match because all
+ * four (placeholder hashlock, real SHA256(secret), placeholder anchor,
+ * real SHA256(authAnchor)) are 32-byte pushes. Substitution invariance
+ * is pinned in `pegin.test.ts`.
+ *
+ * Scope: only used inside `prepareSizing` where the BYTE CONTENT of an
+ * OP_RETURN/hashlock push actually goes into a (throwaway) PSBT.
+ * `peginOutputCount` takes a boolean — callers outside this file that
+ * just need an output count must not import a placeholder string.
  */
 const SIZING_PASS_PLACEHOLDER_BYTES32_HEX = "00".repeat(32);
 
@@ -785,10 +790,7 @@ export class PeginManager {
       [...params.availableUTXOs],
       prePegin.totalOutputValue,
       params.mempoolFeeRate,
-      peginOutputCount(
-        prePegin.htlcValues.length,
-        SIZING_PASS_PLACEHOLDER_BYTES32_HEX,
-      ),
+      peginOutputCount(prePegin.htlcValues.length, true),
     );
 
     return {

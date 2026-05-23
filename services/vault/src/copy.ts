@@ -260,6 +260,10 @@ export const COPY = {
     },
     form: {
       computingAllocation: "Computing allocation...",
+      maxTooltip: (opts: { hasSupplyCap: boolean }) =>
+        opts.hasSupplyCap
+          ? "Reserves a fee buffer, excludes inscription UTXOs, and stays within the supply cap."
+          : "Reserves a fee buffer and excludes inscription UTXOs.",
       doNotSplit: "Do not split UTXO",
       selectVaultProvider: "Select Vault Provider",
       providerSelectDescription: "Choose a provider to secure your BTC",
