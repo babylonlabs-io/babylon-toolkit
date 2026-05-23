@@ -83,6 +83,13 @@ export interface PeginState {
   availableActions: PeginAction[];
   message?: string;
   awaitingPayoutPrep?: boolean;
+  /**
+   * Pre-PegIn BTC confirmations have reached the protocol-mandated depth,
+   * but the VP is still at `PendingIngestion`. Lets the stepper pin the
+   * deposit on `AWAIT_VP_INGESTION` so a stuck VP doesn't masquerade as a
+   * BTC-confirmation wait.
+   */
+  awaitingVpIngestion?: boolean;
 }
 
 export interface GetPeginStateOptions {
@@ -91,6 +98,14 @@ export interface GetPeginStateOptions {
   isInUse?: boolean;
   needsWotsKey?: boolean;
   pendingIngestion?: boolean;
+  /**
+   * True when the Pre-PegIn BTC tx has reached the protocol-mandated
+   * confirmation depth on mempool (chain ground truth). Lets the state
+   * machine distinguish "BTC depth still pending" from "BTC done, VP
+   * stuck at PendingIngestion" — those two collapse into the same UI
+   * if we rely on localStorage `CONFIRMING` alone.
+   */
+  prePeginBroadcastConfirmed?: boolean;
   expirationReason?: ExpirationReason;
   expiredAt?: number;
   canRefund?: boolean;
@@ -322,6 +337,7 @@ interface DisplayInfo {
   displayVariant: "pending" | "active" | "inactive" | "warning";
   message?: string;
   awaitingPayoutPrep?: boolean;
+  awaitingVpIngestion?: boolean;
 }
 
 function getDisplay(
@@ -375,6 +391,20 @@ function getDisplay(
         displayLabel: PEGIN_DISPLAY_LABELS.SIGNING_REQUIRED,
         displayVariant: "pending",
         message: COPY.pegin.messages.payoutsReadyForSigning,
+      };
+    }
+    // BTC confirmed at protocol depth (mempool ground truth), VP still
+    // ingesting. Distinct from "broadcast but not yet confirmed" — surfaces
+    // a stuck VP plainly instead of falsely blaming the BTC wait.
+    if (
+      options.pendingIngestion === true &&
+      options.prePeginBroadcastConfirmed === true
+    ) {
+      return {
+        displayLabel: PEGIN_DISPLAY_LABELS.PENDING,
+        displayVariant: "pending",
+        message: COPY.pegin.messages.prePeginIngesting,
+        awaitingVpIngestion: true,
       };
     }
     if (
@@ -574,12 +604,17 @@ export function getPeginDisplayStep(state: PeginState): DepositFlowStep | null {
     // No action pending. Once payouts are signed the deposit is waiting for VP
     // verification/ACK submission. If the VP has ingested the deposit but
     // payout transactions are not ready, it is preparing the signing package.
-    // Otherwise it is still waiting for Pre-PegIn confirmation/detection.
+    // If BTC depth is met but VP still says PendingIngestion, the wait is
+    // VP-side, not BTC-side. Otherwise it is still waiting for Pre-PegIn
+    // confirmation/detection.
     if (localStatus === LocalStorageStatus.PAYOUT_SIGNED) {
       return DepositFlowStep.AWAIT_VP_VERIFICATION;
     }
     if (state.awaitingPayoutPrep) {
       return DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS;
+    }
+    if (state.awaitingVpIngestion) {
+      return DepositFlowStep.AWAIT_VP_INGESTION;
     }
     return DepositFlowStep.AWAIT_BTC_CONFIRMATION;
   }

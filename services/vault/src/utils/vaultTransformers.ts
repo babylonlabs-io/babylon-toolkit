@@ -86,6 +86,7 @@ export function transformVaultToActivity(vault: Vault): VaultActivity {
     depositorWotsPkHash: vault.depositorWotsPkHash,
     expiredAt: vault.expiredAt,
     expirationReason: vault.expirationReason,
+    offchainParamsVersion: vault.offchainParamsVersion,
     // No action handlers - these are attached at the component level
     action: undefined,
     // No position details in deposit tab

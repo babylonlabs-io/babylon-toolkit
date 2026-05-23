@@ -44,6 +44,28 @@ describe("peginStateMachine", () => {
       );
     });
 
+    it("flags VP-ingestion wait when BTC is confirmed but VP still ingesting", () => {
+      const state = getPeginState(ContractStatus.PENDING, {
+        localStatus: LocalStorageStatus.CONFIRMING,
+        pendingIngestion: true,
+        prePeginBroadcastConfirmed: true,
+      });
+      expect(state.displayLabel).toBe(PEGIN_DISPLAY_LABELS.PENDING);
+      expect(state.availableActions).toEqual([PeginAction.NONE]);
+      expect(state.message).toContain("Waiting for vault provider to ingest");
+      expect(state.awaitingVpIngestion).toBe(true);
+    });
+
+    it("does NOT flag VP-ingestion wait when VP has already ingested", () => {
+      const state = getPeginState(ContractStatus.PENDING, {
+        localStatus: LocalStorageStatus.CONFIRMING,
+        pendingIngestion: false,
+        prePeginBroadcastConfirmed: true,
+      });
+      // BTC confirmed AND ingested → falls through to payout-prep branch.
+      expect(state.awaitingVpIngestion).toBeUndefined();
+    });
+
     it("shows preparing transactions when CONFIRMING and VP has ingested", () => {
       const state = getPeginState(ContractStatus.PENDING, {
         localStatus: LocalStorageStatus.CONFIRMING,
@@ -557,6 +579,22 @@ describe("peginStateMachine", () => {
       expect(state.availableActions).toEqual([PeginAction.NONE]);
       expect(getPeginDisplayStep(state)).toBe(
         DepositFlowStep.AWAIT_BTC_CONFIRMATION,
+      );
+    });
+
+    it("maps BTC-confirmed-but-VP-still-ingesting to AWAIT_VP_INGESTION", () => {
+      // The diagnostic case: localStorage says CONFIRMING (broadcast happened)
+      // and mempool reports the Pre-PegIn has reached the protocol depth, but
+      // the VP is still at PendingIngestion — surface the VP-side wait, not
+      // the BTC-side wait, so a stuck VP doesn't masquerade as a BTC delay.
+      const state = getPeginState(ContractStatus.PENDING, {
+        localStatus: LocalStorageStatus.CONFIRMING,
+        pendingIngestion: true,
+        prePeginBroadcastConfirmed: true,
+      });
+      expect(state.availableActions).toEqual([PeginAction.NONE]);
+      expect(getPeginDisplayStep(state)).toBe(
+        DepositFlowStep.AWAIT_VP_INGESTION,
       );
     });
 

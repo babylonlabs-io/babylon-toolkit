@@ -64,25 +64,36 @@ describe("getStepLabel", () => {
     );
   });
 
+  it("inserts AWAIT_VP_INGESTION right after AWAIT_BTC_CONFIRMATION", () => {
+    expect(getVisualStep(DepositFlowStep.AWAIT_BTC_CONFIRMATION)).toBe(6);
+    expect(getVisualStep(DepositFlowStep.AWAIT_VP_INGESTION)).toBe(7);
+  });
+
+  it("returns the VP-ingestion label for AWAIT_VP_INGESTION", () => {
+    expect(getStepLabel(DepositFlowStep.AWAIT_VP_INGESTION)).toBe(
+      COPY.deposit.steps.awaitVpIngestion,
+    );
+  });
+
   it("renumbers existing post-WOTS action steps after the payout wait", () => {
-    expect(getVisualStep(DepositFlowStep.SUBMIT_WOTS_KEYS)).toBe(7);
-    expect(getVisualStep(DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS)).toBe(8);
-    expect(getVisualStep(DepositFlowStep.SIGN_AUTH_ANCHOR)).toBe(9);
-    expect(getVisualStep(DepositFlowStep.SIGN_PAYOUTS)).toBe(10);
-    expect(getVisualStep(DepositFlowStep.SIGN_DEPOSITOR_GRAPH)).toBe(11);
-    expect(getVisualStep(DepositFlowStep.AWAIT_VP_VERIFICATION)).toBe(12);
-    expect(getVisualStep(DepositFlowStep.ARTIFACT_DOWNLOAD)).toBe(13);
-    expect(getVisualStep(DepositFlowStep.RETRIEVE_SECRET)).toBe(14);
-    expect(getVisualStep(DepositFlowStep.ACTIVATE_VAULT)).toBe(15);
+    expect(getVisualStep(DepositFlowStep.SUBMIT_WOTS_KEYS)).toBe(8);
+    expect(getVisualStep(DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS)).toBe(9);
+    expect(getVisualStep(DepositFlowStep.SIGN_AUTH_ANCHOR)).toBe(10);
+    expect(getVisualStep(DepositFlowStep.SIGN_PAYOUTS)).toBe(11);
+    expect(getVisualStep(DepositFlowStep.SIGN_DEPOSITOR_GRAPH)).toBe(12);
+    expect(getVisualStep(DepositFlowStep.AWAIT_VP_VERIFICATION)).toBe(13);
+    expect(getVisualStep(DepositFlowStep.ARTIFACT_DOWNLOAD)).toBe(14);
+    expect(getVisualStep(DepositFlowStep.RETRIEVE_SECRET)).toBe(15);
+    expect(getVisualStep(DepositFlowStep.ACTIVATE_VAULT)).toBe(16);
     expect(getVisualStep(DepositFlowStep.AWAIT_ACTIVATION_CONFIRMATION)).toBe(
-      16,
+      17,
     );
   });
 });
 
 describe("getStepFillPercent", () => {
   it("fills by completed steps, not the in-progress current step", () => {
-    // AWAIT_BTC_CONFIRMATION is visual step 6 -> 5 completed of 16.
+    // AWAIT_BTC_CONFIRMATION is visual step 6 -> 5 completed of TOTAL.
     expect(
       getStepFillPercent(DepositFlowStep.AWAIT_BTC_CONFIRMATION),
     ).toBeCloseTo(5 / TOTAL_VISUAL_STEPS);
@@ -143,10 +154,10 @@ describe("STEP_GROUPS", () => {
 
   it("groups the steps into the four expected sections", () => {
     expect(STEP_GROUPS.map((g) => [g.title, g.startStep, g.endStep])).toEqual([
-      [COPY.deposit.groups.registerDeposit, 1, 6],
-      [COPY.deposit.groups.signWots, 7, 8],
-      [COPY.deposit.groups.signPayout, 9, 12],
-      [COPY.deposit.groups.activateVault, 13, 16],
+      [COPY.deposit.groups.registerDeposit, 1, 7],
+      [COPY.deposit.groups.signWots, 8, 9],
+      [COPY.deposit.groups.signPayout, 10, 13],
+      [COPY.deposit.groups.activateVault, 14, 17],
     ]);
   });
 });
@@ -165,7 +176,7 @@ describe("buildStepGroups", () => {
     expect(register.status).toBe("active");
     expect(register.expanded).toBe(true);
     expect(register.completedInGroup).toBe(0);
-    expect(register.totalInGroup).toBe(6);
+    expect(register.totalInGroup).toBe(7);
 
     expect(wots.status).toBe("upcoming");
     expect(wots.expanded).toBe(false);
@@ -173,12 +184,12 @@ describe("buildStepGroups", () => {
     expect(activate.status).toBe("upcoming");
   });
 
-  it("marks earlier groups completed and activates the WOTS group at step 7", () => {
-    const [register, wots, payout] = buildStepGroups(7);
+  it("marks earlier groups completed and activates the WOTS group at step 8", () => {
+    const [register, wots, payout] = buildStepGroups(8);
 
     expect(register.status).toBe("completed");
     expect(register.expanded).toBe(false);
-    expect(register.completedInGroup).toBe(6);
+    expect(register.completedInGroup).toBe(7);
 
     expect(wots.status).toBe("active");
     expect(wots.expanded).toBe(true);
@@ -189,8 +200,8 @@ describe("buildStepGroups", () => {
   });
 
   it("counts completed sub-steps within the active group (mid-group resume)", () => {
-    // Step 12 is the last step of the Sign payout group (9..12): 3 done, 1 active.
-    const payout = buildStepGroups(12).find(
+    // Step 13 is the last step of the Sign payout group (10..13): 3 done, 1 active.
+    const payout = buildStepGroups(13).find(
       (g) => g.title === COPY.deposit.groups.signPayout,
     );
 
