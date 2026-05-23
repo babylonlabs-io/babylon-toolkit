@@ -71,6 +71,8 @@ export const COPY = {
         "Vault provider has prepared payout transactions. Click 'Sign Payouts' to pre-authorize your Bitcoin claim transactions.",
       prePeginBroadcast:
         "Pre-Pegin transaction has been broadcast. Waiting for vault provider to detect your deposit.",
+      prePeginIngesting:
+        "Pre-Pegin transaction confirmed. Waiting for vault provider to ingest your deposit.",
       waitingForDetection: "Waiting for vault provider to detect your deposit.",
       waitingForPayoutPrep:
         "Waiting for vault provider to prepare claim and payout transactions...",
@@ -134,6 +136,7 @@ export const COPY = {
       signAndBroadcastEth: "Sign and broadcast ETH registration",
       signAndBroadcastPrePegin: "Sign and broadcast BTC Pre-Pegin transaction",
       awaitBtcConfirmation: "Awaiting Bitcoin confirmation",
+      awaitVpIngestion: "Awaiting vault provider ingestion",
       submitWotsKey: "Submit Winternitz One-Time Signature (WOTS)",
       awaitPayoutTransactions:
         "Awaiting vault provider to prepare payout transactions",

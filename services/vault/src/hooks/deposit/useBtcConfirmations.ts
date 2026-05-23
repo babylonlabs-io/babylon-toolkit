@@ -6,15 +6,11 @@
  * Pre-PegIn depth rather than a wall-clock countdown to unschedulable blocks.
  */
 
-import { stripHexPrefix } from "@babylonlabs-io/ts-sdk/tbv/core";
-import {
-  getTipHeight,
-  getTxInfo,
-} from "@babylonlabs-io/ts-sdk/tbv/core/clients";
+import { getTipHeight } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import { useQuery } from "@tanstack/react-query";
 
 import { getMempoolApiUrl } from "@/clients/btc/config";
-import { computeConfirmations } from "@/components/simple/DepositProgressView/btcConfirmationProgress";
+import { fetchConfirmations } from "@/clients/btc/confirmations";
 
 /** Bitcoin blocks arrive ~every 10 min; a 30s poll catches each promptly. */
 const CONFIRMATION_POLL_INTERVAL_MS = 30 * 1000;
@@ -42,11 +38,8 @@ export function useBtcConfirmations(
     queryFn: async () => {
       if (!txid) throw new Error("useBtcConfirmations: txid is required");
       const apiUrl = getMempoolApiUrl();
-      const [info, tipHeight] = await Promise.all([
-        getTxInfo(stripHexPrefix(txid), apiUrl),
-        getTipHeight(apiUrl),
-      ]);
-      return computeConfirmations(info.status, tipHeight);
+      const tipHeight = await getTipHeight(apiUrl);
+      return fetchConfirmations(txid, apiUrl, tipHeight);
     },
   });
 

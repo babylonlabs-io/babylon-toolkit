@@ -36,6 +36,7 @@ export function buildStepItems(
     { label: COPY.deposit.steps.signAndBroadcastEth },
     { label: COPY.deposit.steps.signAndBroadcastPrePegin },
     { label: COPY.deposit.steps.awaitBtcConfirmation },
+    { label: COPY.deposit.steps.awaitVpIngestion },
     { label: COPY.deposit.steps.submitWotsKey },
     { label: COPY.deposit.steps.awaitPayoutTransactions },
     { label: COPY.deposit.steps.authenticateSession },
@@ -66,10 +67,10 @@ export interface StepGroup {
 }
 
 export const STEP_GROUPS: StepGroup[] = [
-  { title: COPY.deposit.groups.registerDeposit, startStep: 1, endStep: 6 },
-  { title: COPY.deposit.groups.signWots, startStep: 7, endStep: 8 },
-  { title: COPY.deposit.groups.signPayout, startStep: 9, endStep: 12 },
-  { title: COPY.deposit.groups.activateVault, startStep: 13, endStep: 16 },
+  { title: COPY.deposit.groups.registerDeposit, startStep: 1, endStep: 7 },
+  { title: COPY.deposit.groups.signWots, startStep: 8, endStep: 9 },
+  { title: COPY.deposit.groups.signPayout, startStep: 10, endStep: 13 },
+  { title: COPY.deposit.groups.activateVault, startStep: 14, endStep: 17 },
 ];
 
 export type GroupStatus = "completed" | "active" | "upcoming";
@@ -150,26 +151,28 @@ export function getVisualStep(currentStep: DepositFlowStep): number {
       return 5;
     case DepositFlowStep.AWAIT_BTC_CONFIRMATION:
       return 6;
-    case DepositFlowStep.SUBMIT_WOTS_KEYS:
+    case DepositFlowStep.AWAIT_VP_INGESTION:
       return 7;
-    case DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS:
+    case DepositFlowStep.SUBMIT_WOTS_KEYS:
       return 8;
-    case DepositFlowStep.SIGN_AUTH_ANCHOR:
+    case DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS:
       return 9;
-    case DepositFlowStep.SIGN_PAYOUTS:
+    case DepositFlowStep.SIGN_AUTH_ANCHOR:
       return 10;
-    case DepositFlowStep.SIGN_DEPOSITOR_GRAPH:
+    case DepositFlowStep.SIGN_PAYOUTS:
       return 11;
-    case DepositFlowStep.AWAIT_VP_VERIFICATION:
+    case DepositFlowStep.SIGN_DEPOSITOR_GRAPH:
       return 12;
-    case DepositFlowStep.ARTIFACT_DOWNLOAD:
+    case DepositFlowStep.AWAIT_VP_VERIFICATION:
       return 13;
-    case DepositFlowStep.RETRIEVE_SECRET:
+    case DepositFlowStep.ARTIFACT_DOWNLOAD:
       return 14;
-    case DepositFlowStep.ACTIVATE_VAULT:
+    case DepositFlowStep.RETRIEVE_SECRET:
       return 15;
-    case DepositFlowStep.AWAIT_ACTIVATION_CONFIRMATION:
+    case DepositFlowStep.ACTIVATE_VAULT:
       return 16;
+    case DepositFlowStep.AWAIT_ACTIVATION_CONFIRMATION:
+      return 17;
     case DepositFlowStep.COMPLETED:
       return TOTAL_VISUAL_STEPS + 1;
     default: {

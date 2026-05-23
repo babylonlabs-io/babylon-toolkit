@@ -126,6 +126,15 @@ export interface VaultActivity {
 
   /** Expiration reason, undefined if not expired */
   expirationReason?: ExpirationReason;
+
+  /**
+   * Offchain params version this vault was registered against. The protocol
+   * gates depth checks (e.g. `minPrepeginDepth`) on this version, not the
+   * latest, so any consumer comparing on-chain confirmation counts must
+   * look up the per-version param via `getOffchainParamsByVersion`. Falls
+   * back to latest if the vault predates the indexer exposing this field.
+   */
+  offchainParamsVersion?: number;
 }
 
 /**
