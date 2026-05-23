@@ -1,5 +1,5 @@
 import { fireEvent, render } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { VaultActivity } from "@/types/activity";
 
@@ -71,17 +71,52 @@ function activity(overrides?: Partial<VaultActivity>): VaultActivity {
 }
 
 describe("ActivationGate", () => {
-  it("shows the confirmation gate, not the children, before confirming", () => {
+  afterEach(() => {
+    window.localStorage.clear();
+  });
+
+  function markDownloaded(vaultId: string) {
+    window.localStorage.setItem(
+      `tbv:artifacts-downloaded:${vaultId.toLowerCase()}`,
+      "true",
+    );
+  }
+
+  it("auto-opens the artifact download modal when artifacts haven't been downloaded yet", () => {
+    const { getByTestId, queryByTestId } = render(
+      <ActivationGate activity={activity()} onClose={vi.fn()}>
+        <div data-testid="activation-step" />
+      </ActivationGate>,
+    );
+    expect(getByTestId("artifact")).toBeTruthy();
+    expect(queryByTestId("confirm")).toBeNull();
+    expect(queryByTestId("activation-step")).toBeNull();
+  });
+
+  it("falls through to the confirmation gate when the auto-opened download modal is dismissed", () => {
+    const { getByTestId, queryByTestId } = render(
+      <ActivationGate activity={activity()} onClose={vi.fn()}>
+        <div data-testid="activation-step" />
+      </ActivationGate>,
+    );
+    fireEvent.click(getByTestId("artifact-close"));
+    expect(queryByTestId("artifact")).toBeNull();
+    expect(getByTestId("confirm")).toBeTruthy();
+  });
+
+  it("shows the confirmation gate directly when artifacts were already downloaded", () => {
+    markDownloaded("0xvault");
     const { getByTestId, queryByTestId } = render(
       <ActivationGate activity={activity()} onClose={vi.fn()}>
         <div data-testid="activation-step" />
       </ActivationGate>,
     );
     expect(getByTestId("confirm")).toBeTruthy();
-    expect(queryByTestId("activation-step")).toBeNull();
+    expect(queryByTestId("artifact")).toBeNull();
   });
 
   it("renders the children only after the user confirms", () => {
+    markDownloaded("0xvault");
     const { getByTestId } = render(
       <ActivationGate activity={activity()} onClose={vi.fn()}>
         <div data-testid="activation-step" />
@@ -92,6 +127,7 @@ describe("ActivationGate", () => {
   });
 
   it("opens artifact download from the gate and bumps the tick on completion", () => {
+    markDownloaded("0xvault");
     const { getByTestId, queryByTestId } = render(
       <ActivationGate activity={activity()} onClose={vi.fn()}>
         <div data-testid="activation-step" />
@@ -107,7 +143,7 @@ describe("ActivationGate", () => {
     expect(getByTestId("confirm-tick").textContent).toBe("1");
   });
 
-  it("does not open artifact download when artifact inputs are missing", () => {
+  it("does not auto-open artifact download when artifact inputs are missing", () => {
     const { getByTestId, queryByTestId } = render(
       <ActivationGate
         activity={activity({ peginTxHash: undefined })}
@@ -116,11 +152,15 @@ describe("ActivationGate", () => {
         <div data-testid="activation-step" />
       </ActivationGate>,
     );
+    expect(queryByTestId("artifact")).toBeNull();
+    expect(getByTestId("confirm")).toBeTruthy();
+
     fireEvent.click(getByTestId("confirm-download"));
     expect(queryByTestId("artifact")).toBeNull();
   });
 
   it("forwards close from the confirmation gate", () => {
+    markDownloaded("0xvault");
     const onClose = vi.fn();
     const { getByTestId } = render(
       <ActivationGate activity={activity()} onClose={onClose}>

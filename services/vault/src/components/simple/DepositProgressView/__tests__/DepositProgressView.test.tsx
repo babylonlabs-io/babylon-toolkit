@@ -130,7 +130,7 @@ describe("DepositProgressView", () => {
       );
 
       expect(
-        screen.getByText(COPY.deposit.progress.stepsCompleted(5, 16)),
+        screen.getByText(COPY.deposit.progress.stepsCompleted(5, 15)),
       ).toBeInTheDocument();
     });
 
@@ -154,7 +154,7 @@ describe("DepositProgressView", () => {
       );
 
       const bar = screen.getByRole("progressbar");
-      expect(bar).toHaveAttribute("aria-valuenow", "31");
+      expect(bar).toHaveAttribute("aria-valuenow", "33");
       expect(bar).toHaveAttribute("aria-valuemax", "100");
     });
 
@@ -332,8 +332,11 @@ describe("DepositProgressView", () => {
         screen.getByText(COPY.deposit.groups.stepCounter(6, 6)),
       ).toBeInTheDocument();
       expect(
-        screen.getAllByText(COPY.deposit.groups.stepCounter(4, 4)),
-      ).toHaveLength(2);
+        screen.getByText(COPY.deposit.groups.stepCounter(4, 4)),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText(COPY.deposit.groups.stepCounter(3, 3)),
+      ).toBeInTheDocument();
       // No expanded sub-steps remain.
       expect(
         screen.queryByText(COPY.deposit.steps.revealSecret),

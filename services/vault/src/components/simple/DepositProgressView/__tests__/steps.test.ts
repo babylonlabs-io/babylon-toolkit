@@ -72,17 +72,17 @@ describe("getStepLabel", () => {
     expect(getVisualStep(DepositFlowStep.SIGN_DEPOSITOR_GRAPH)).toBe(11);
     expect(getVisualStep(DepositFlowStep.AWAIT_VP_VERIFICATION)).toBe(12);
     expect(getVisualStep(DepositFlowStep.ARTIFACT_DOWNLOAD)).toBe(13);
-    expect(getVisualStep(DepositFlowStep.RETRIEVE_SECRET)).toBe(14);
-    expect(getVisualStep(DepositFlowStep.ACTIVATE_VAULT)).toBe(15);
+    expect(getVisualStep(DepositFlowStep.RETRIEVE_SECRET)).toBe(13);
+    expect(getVisualStep(DepositFlowStep.ACTIVATE_VAULT)).toBe(14);
     expect(getVisualStep(DepositFlowStep.AWAIT_ACTIVATION_CONFIRMATION)).toBe(
-      16,
+      15,
     );
   });
 });
 
 describe("getStepFillPercent", () => {
   it("fills by completed steps, not the in-progress current step", () => {
-    // AWAIT_BTC_CONFIRMATION is visual step 6 -> 5 completed of 16.
+    // AWAIT_BTC_CONFIRMATION is visual step 6 -> 5 completed of 15.
     expect(
       getStepFillPercent(DepositFlowStep.AWAIT_BTC_CONFIRMATION),
     ).toBeCloseTo(5 / TOTAL_VISUAL_STEPS);
@@ -146,7 +146,7 @@ describe("STEP_GROUPS", () => {
       [COPY.deposit.groups.registerDeposit, 1, 6],
       [COPY.deposit.groups.signWots, 7, 8],
       [COPY.deposit.groups.signPayout, 9, 12],
-      [COPY.deposit.groups.activateVault, 13, 16],
+      [COPY.deposit.groups.activateVault, 13, 15],
     ]);
   });
 });
