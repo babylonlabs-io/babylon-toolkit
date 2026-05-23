@@ -55,13 +55,12 @@ export async function fetchAndDownloadArtifacts(
 ): Promise<void> {
   const normalizedPeginTxid = stripHexPrefix(peginTxid);
 
-  // Reuse the bearer cached by the deposit flow. We deliberately do NOT
-  // trigger a wallet popup here: if the cache is cold (cross-device resume,
-  // refreshed tab) we send the request unauthenticated and let the server
-  // respond — the caller's retry loop surfaces the failure to the user.
-  // `callRaw` injects the header but does not reactively refresh on
-  // `auth_expired`, so a token that expires mid-download bubbles up as an
-  // error and the caller retries from scratch.
+  // The caller (useArtifactDownload) primes the bearer before invoking
+  // this service when the registry is cold, so peek() returns the active
+  // provider and the request goes out with a valid Authorization header
+  // for this auth-gated RPC. `callRaw` does not reactively refresh on
+  // `auth_expired`, so a token that expires mid-download bubbles up as
+  // an error and the caller's auth-failure retry path handles re-priming.
   const tokenProvider = vpTokenRegistry.peek(normalizedPeginTxid);
 
   const client = new JsonRpcClient({

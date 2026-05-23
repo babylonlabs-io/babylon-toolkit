@@ -8,6 +8,7 @@ import {
 import { useCallback, useRef, useState } from "react";
 import type { Hex } from "viem";
 
+import { COPY } from "@/copy";
 import { ensureAuthenticatedVpClient } from "@/hooks/deposit/depositFlowSteps/ensureAuthenticatedVpClient";
 import { isPreDepositorSignaturesError } from "@/models/peginStateMachine";
 import { fetchAndDownloadArtifacts } from "@/services/artifacts";
@@ -84,6 +85,53 @@ export function useArtifactDownload(options?: {
       });
 
       const normalizedPeginTxid = stripHexPrefix(peginTxid);
+
+      // Stop the flow with an error message. Used by every fail path
+      // below so the rendered modal state stays consistent.
+      const setError = (message: string) =>
+        setState({
+          loading: false,
+          progress: "",
+          error: message,
+          downloaded: false,
+        });
+
+      // Ensure the bearer is in cache before any artifact request. The
+      // RPC is auth-gated server-side (AUTH_GATED_METHODS), so a
+      // cold-cache attempt would be dead on arrival — prime once
+      // upfront so every fetchAndDownloadArtifacts() below goes out
+      // with a valid Authorization header. Returns false (with state
+      // already set) if the prime fails or the caller cancels during
+      // the await.
+      const ensurePrimedOrFail = async (): Promise<boolean> => {
+        if (vpTokenRegistry.peek(normalizedPeginTxid)) return true;
+        if (!primeContext) {
+          setError(COPY.deposit.artifactDownload.cannotAuthenticate);
+          return false;
+        }
+        try {
+          await ensureAuthenticatedVpClient({
+            btcWallet: primeContext.btcWallet,
+            vaultId: primeContext.vaultId,
+            unsignedPrePeginTxHex: primeContext.unsignedPrePeginTxHex,
+            peginTxHash: peginTxid,
+            providerAddress,
+            depositorBtcPubkey: depositorPk,
+          });
+        } catch (primeErr) {
+          if (cancelledRef.current) return false;
+          setError(
+            primeErr instanceof Error
+              ? primeErr.message
+              : "Authentication failed",
+          );
+          return false;
+        }
+        return !cancelledRef.current;
+      };
+
+      if (!(await ensurePrimedOrFail())) return;
+
       let primeAttempted = false;
 
       const tryPrimeAndRetry = async (): Promise<boolean> => {
@@ -161,26 +209,17 @@ export function useArtifactDownload(options?: {
               }
             } catch (primeErr) {
               if (cancelledRef.current) return;
-              setState({
-                loading: false,
-                progress: "",
-                error:
-                  primeErr instanceof Error
-                    ? primeErr.message
-                    : "Re-authentication failed",
-                downloaded: false,
-              });
+              setError(
+                primeErr instanceof Error
+                  ? primeErr.message
+                  : "Re-authentication failed",
+              );
               return;
             }
           }
 
           if (cancelledRef.current) return;
-          setState({
-            loading: false,
-            progress: "",
-            error: err instanceof Error ? err.message : "Download failed",
-            downloaded: false,
-          });
+          setError(err instanceof Error ? err.message : "Download failed");
           return;
         }
       }

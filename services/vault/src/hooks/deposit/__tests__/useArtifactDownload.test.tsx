@@ -44,7 +44,19 @@ const primeContext = {
   btcWallet: fakeWallet,
 };
 
-describe("useArtifactDownload — optimistic-then-prime-and-retry", () => {
+/** Seed the singleton registry so `peek()` returns a provider (hot cache). */
+function seedHotCache(): void {
+  createAuthenticatedVpClient({
+    baseUrl: "https://vp.test/rpc",
+    peginTxid: PEGIN_TXID,
+    authAnchorHex: "c".repeat(64),
+    pinnedServerPubkey: "ab".repeat(32) as unknown as Parameters<
+      typeof createAuthenticatedVpClient
+    >[0]["pinnedServerPubkey"],
+  });
+}
+
+describe("useArtifactDownload — prime then fetch", () => {
   beforeEach(() => {
     fetchMock.mockReset();
     ensureAuthMock.mockReset();
@@ -55,7 +67,12 @@ describe("useArtifactDownload — optimistic-then-prime-and-retry", () => {
     vi.restoreAllMocks();
   });
 
-  it("succeeds on the first attempt and never calls ensureAuthenticatedVpClient", async () => {
+  it("primes the bearer upfront when the registry is cold, then fetches once", async () => {
+    ensureAuthMock.mockResolvedValueOnce(
+      undefined as unknown as Awaited<
+        ReturnType<typeof ensureAuthenticatedVpClient>
+      >,
+    );
     fetchMock.mockResolvedValueOnce(undefined);
 
     const { result } = renderHook(() => useArtifactDownload({ primeContext }));
@@ -65,33 +82,6 @@ describe("useArtifactDownload — optimistic-then-prime-and-retry", () => {
     });
 
     await waitFor(() => expect(result.current.downloaded).toBe(true));
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(ensureAuthMock).not.toHaveBeenCalled();
-    expect(result.current.error).toBeNull();
-  });
-
-  it("primes the registry and retries once when the cache is cold at first attempt", async () => {
-    // First attempt rejects with a wire-source bearer rejection — the server's
-    // response when we send the request without an Authorization header.
-    fetchMock
-      .mockRejectedValueOnce(
-        new JsonRpcError(-32001, "missing or malformed Bearer token", "wire"),
-      )
-      .mockResolvedValueOnce(undefined);
-    ensureAuthMock.mockResolvedValueOnce(
-      undefined as unknown as Awaited<
-        ReturnType<typeof ensureAuthenticatedVpClient>
-      >,
-    );
-
-    const { result } = renderHook(() => useArtifactDownload({ primeContext }));
-
-    await act(async () => {
-      await result.current.download(PROVIDER_ADDRESS, PEGIN_TXID, DEPOSITOR_PK);
-    });
-
-    await waitFor(() => expect(result.current.downloaded).toBe(true));
-    expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(ensureAuthMock).toHaveBeenCalledTimes(1);
     expect(ensureAuthMock).toHaveBeenCalledWith({
       btcWallet: fakeWallet,
@@ -101,14 +91,26 @@ describe("useArtifactDownload — optimistic-then-prime-and-retry", () => {
       providerAddress: PROVIDER_ADDRESS,
       depositorBtcPubkey: DEPOSITOR_PK,
     });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(result.current.error).toBeNull();
   });
 
-  it("surfaces the original error when no prime context is provided", async () => {
-    fetchMock.mockRejectedValueOnce(
-      new JsonRpcError(-32001, "missing or malformed Bearer token", "wire"),
-    );
+  it("skips the upfront prime when the registry is already hot", async () => {
+    seedHotCache();
+    fetchMock.mockResolvedValueOnce(undefined);
 
+    const { result } = renderHook(() => useArtifactDownload({ primeContext }));
+
+    await act(async () => {
+      await result.current.download(PROVIDER_ADDRESS, PEGIN_TXID, DEPOSITOR_PK);
+    });
+
+    await waitFor(() => expect(result.current.downloaded).toBe(true));
+    expect(ensureAuthMock).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("surfaces an error and never fetches when cold and no prime context is provided", async () => {
     const { result } = renderHook(() =>
       useArtifactDownload({ primeContext: null }),
     );
@@ -117,46 +119,14 @@ describe("useArtifactDownload — optimistic-then-prime-and-retry", () => {
       await result.current.download(PROVIDER_ADDRESS, PEGIN_TXID, DEPOSITOR_PK);
     });
 
-    await waitFor(() =>
-      expect(result.current.error).toBe("missing or malformed Bearer token"),
-    );
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(result.current.error).not.toBeNull());
+    expect(fetchMock).not.toHaveBeenCalled();
     expect(ensureAuthMock).not.toHaveBeenCalled();
     expect(result.current.downloaded).toBe(false);
+    expect(result.current.loading).toBe(false);
   });
 
-  it("retries at most once - propagates failure when the second attempt also fails", async () => {
-    fetchMock
-      .mockRejectedValueOnce(
-        new JsonRpcError(-32001, "missing or malformed Bearer token", "wire"),
-      )
-      .mockRejectedValueOnce(
-        new JsonRpcError(-32001, "missing or malformed Bearer token", "wire"),
-      );
-    ensureAuthMock.mockResolvedValueOnce(
-      undefined as unknown as Awaited<
-        ReturnType<typeof ensureAuthenticatedVpClient>
-      >,
-    );
-
-    const { result } = renderHook(() => useArtifactDownload({ primeContext }));
-
-    await act(async () => {
-      await result.current.download(PROVIDER_ADDRESS, PEGIN_TXID, DEPOSITOR_PK);
-    });
-
-    await waitFor(() =>
-      expect(result.current.error).toBe("missing or malformed Bearer token"),
-    );
-    expect(fetchMock).toHaveBeenCalledTimes(2);
-    expect(ensureAuthMock).toHaveBeenCalledTimes(1);
-    expect(result.current.downloaded).toBe(false);
-  });
-
-  it("surfaces a prime failure as the modal error", async () => {
-    fetchMock.mockRejectedValueOnce(
-      new JsonRpcError(-32001, "missing or malformed Bearer token", "wire"),
-    );
+  it("surfaces a clean error when the upfront prime throws", async () => {
     ensureAuthMock.mockRejectedValueOnce(
       new Error("Pre-PegIn transaction hash mismatch"),
     );
@@ -170,24 +140,50 @@ describe("useArtifactDownload — optimistic-then-prime-and-retry", () => {
     await waitFor(() =>
       expect(result.current.error).toBe("Pre-PegIn transaction hash mismatch"),
     );
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).not.toHaveBeenCalled();
     expect(ensureAuthMock).toHaveBeenCalledTimes(1);
+    expect(result.current.loading).toBe(false);
     expect(result.current.downloaded).toBe(false);
   });
 
-  it("invalidates the cached token provider when the registry has a hot-but-stale entry", async () => {
-    // Pre-seed the singleton registry against the same peginTxid the hook
-    // will use (post-stripHexPrefix). This exercises the hot-but-stale
-    // branch of tryPrimeAndRetry: peek must return a provider whose
-    // invalidate() gets called before we re-acquire a fresh bearer.
-    createAuthenticatedVpClient({
-      baseUrl: "https://vp.test/rpc",
-      peginTxid: PEGIN_TXID,
-      authAnchorHex: "c".repeat(64),
-      pinnedServerPubkey: "ab".repeat(32) as unknown as Parameters<
-        typeof createAuthenticatedVpClient
-      >[0]["pinnedServerPubkey"],
+  it("does not fetch if the user cancels during the upfront prime", async () => {
+    let resolveEnsure: () => void = () => {};
+    const ensureDeferred = new Promise<unknown>((resolve) => {
+      resolveEnsure = () => resolve(undefined);
     });
+    ensureAuthMock.mockImplementationOnce(
+      () =>
+        ensureDeferred as unknown as ReturnType<
+          typeof ensureAuthenticatedVpClient
+        >,
+    );
+
+    const { result } = renderHook(() => useArtifactDownload({ primeContext }));
+
+    let downloadPromise: Promise<void> | undefined;
+    act(() => {
+      downloadPromise = result.current.download(
+        PROVIDER_ADDRESS,
+        PEGIN_TXID,
+        DEPOSITOR_PK,
+      );
+    });
+
+    act(() => {
+      result.current.cancel();
+    });
+
+    await act(async () => {
+      resolveEnsure();
+      await downloadPromise;
+    });
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(result.current.downloaded).toBe(false);
+  });
+
+  it("retries once when the bearer expires mid-flight (hot-but-stale)", async () => {
+    seedHotCache();
     const seededProvider = vpTokenRegistry.peek(PEGIN_TXID);
     expect(seededProvider).toBeDefined();
     const invalidateSpy = vi.spyOn(
@@ -216,10 +212,43 @@ describe("useArtifactDownload — optimistic-then-prime-and-retry", () => {
 
     await waitFor(() => expect(result.current.downloaded).toBe(true));
     expect(invalidateSpy).toHaveBeenCalledTimes(1);
+    // Upfront prime skipped (hot cache); ensureAuth called only on the
+    // retry path after auth_expired.
     expect(ensureAuthMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("retries at most once - propagates failure when the retry also auth-fails", async () => {
+    seedHotCache();
+    fetchMock
+      .mockRejectedValueOnce(
+        new JsonRpcError(-32001, "missing or malformed Bearer token", "wire"),
+      )
+      .mockRejectedValueOnce(
+        new JsonRpcError(-32001, "missing or malformed Bearer token", "wire"),
+      );
+    ensureAuthMock.mockResolvedValueOnce(
+      undefined as unknown as Awaited<
+        ReturnType<typeof ensureAuthenticatedVpClient>
+      >,
+    );
+
+    const { result } = renderHook(() => useArtifactDownload({ primeContext }));
+
+    await act(async () => {
+      await result.current.download(PROVIDER_ADDRESS, PEGIN_TXID, DEPOSITOR_PK);
+    });
+
+    await waitFor(() =>
+      expect(result.current.error).toBe("missing or malformed Bearer token"),
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(ensureAuthMock).toHaveBeenCalledTimes(1);
+    expect(result.current.downloaded).toBe(false);
   });
 
   it("does not prime on a non-auth wire error", async () => {
+    seedHotCache();
     fetchMock.mockRejectedValueOnce(
       new JsonRpcError(-32001, "internal error", "wire"),
     );
@@ -237,6 +266,7 @@ describe("useArtifactDownload — optimistic-then-prime-and-retry", () => {
   });
 
   it("does not prime on a local JsonRpcError (transport / SDK failure)", async () => {
+    seedHotCache();
     fetchMock.mockRejectedValueOnce(
       new JsonRpcError(-32000, "request timed out", "local"),
     );
@@ -254,6 +284,7 @@ describe("useArtifactDownload — optimistic-then-prime-and-retry", () => {
   });
 
   it("does not prime on a VpResponseValidationError", async () => {
+    seedHotCache();
     fetchMock.mockRejectedValueOnce(
       new VpResponseValidationError("shape mismatch"),
     );

@@ -57,6 +57,12 @@ export interface AavePositionCollateral {
     depositorBtcPubKey: string;
     /** On-chain registered payout scriptPubKey (0x-prefixed hex). Where BTC is sent on withdraw. */
     depositorPayoutBtcAddress: string;
+    /**
+     * Unsigned pre-pegin BTC transaction hex (from PegInSubmitted event).
+     * Needed to re-derive the VP auth anchor when the in-memory token
+     * registry is cold (e.g. collateral artifact re-download).
+     */
+    unsignedPrePeginTx?: string;
   };
 }
 
@@ -93,6 +99,7 @@ interface GraphQLCollateralItem {
     inUse: boolean;
     depositorBtcPubKey: string;
     depositorPayoutBtcAddress: string;
+    unsignedPrePeginTx?: string;
   };
 }
 
@@ -136,6 +143,7 @@ const GET_AAVE_ACTIVE_POSITIONS_WITH_COLLATERALS = gql`
               inUse
               depositorBtcPubKey
               depositorPayoutBtcAddress
+              unsignedPrePeginTx
             }
           }
         }
@@ -182,6 +190,7 @@ function mapGraphQLCollateralToAavePositionCollateral(
           inUse: item.vault.inUse,
           depositorBtcPubKey: item.vault.depositorBtcPubKey,
           depositorPayoutBtcAddress: item.vault.depositorPayoutBtcAddress,
+          unsignedPrePeginTx: item.vault.unsignedPrePeginTx,
         }
       : undefined,
   };
