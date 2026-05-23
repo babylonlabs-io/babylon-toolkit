@@ -89,6 +89,13 @@ export interface VaultRegistryReader {
   /** Read the protocol pegin fee (in wei) for a given vault provider. */
   getPegInFee(vaultProvider: Address): Promise<bigint>;
   /**
+   * Read a vault provider's current commission in basis points.
+   *
+   * Validates the contract-enforced `[0, 9999]` range — an out-of-range
+   * value signals a wrong contract address or ABI drift, not a real rate.
+   */
+  getVaultProviderCommission(vaultProvider: Address): Promise<number>;
+  /**
    * Read `offchainParamsVersion` for many vaults in a single multicall.
    * Returns versions in the same order as the input. Throws if any vault
    * is missing on-chain.

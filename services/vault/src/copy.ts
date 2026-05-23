@@ -251,7 +251,7 @@ export const COPY = {
       providerUnhealthyReason:
         "This provider has recently been unreachable. You can still select it, but the deposit may need a retry.",
       // Divider label above the group of unhealthy / rejected providers.
-      providerGroupUnavailableLabel: "Currently unavailable",
+      providerGroupUnavailableLabel: "Limited availability",
       // Per-provider metric labels shown in the picker.
       providerCommissionLabel: "Commission",
       providerActiveLabel: "Active",

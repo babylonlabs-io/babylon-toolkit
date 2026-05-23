@@ -43,6 +43,7 @@ import {
 
 import type { BitcoinWallet, Hash, SignPsbtOptions } from "../../../shared/wallets";
 import type { WotsBlockPublicKey } from "../clients/vault-provider/types";
+import { ViemVaultRegistryReader } from "../clients/eth";
 import { type UtxoInfo, getUtxoInfo, pushTx } from "../clients/mempool";
 import { BTCVaultRegistryABI, handleContractError } from "../contracts";
 import {
@@ -1482,13 +1483,11 @@ export class PeginManager {
   ): Promise<number> {
     let currentBps: number;
     try {
-      // viem infers `number` from the uint16 return in the `as const` ABI.
-      currentBps = await this.config.publicClient.readContract({
-        address: this.config.vaultContracts.btcVaultRegistry,
-        abi: BTCVaultRegistryABI,
-        functionName: "getVaultProviderCommission",
-        args: [vaultProvider],
-      });
+      const reader = new ViemVaultRegistryReader(
+        this.config.publicClient,
+        this.config.vaultContracts.btcVaultRegistry,
+      );
+      currentBps = await reader.getVaultProviderCommission(vaultProvider);
     } catch (error) {
       throw new Error(
         "Failed to query vault provider commission from the contract. " +
