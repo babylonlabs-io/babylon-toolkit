@@ -122,6 +122,18 @@ export interface DepositCtaParams extends DepositFormValidityParams {
    * make an unfundable amount fundable. Null while UTXOs or fee rates load.
    */
   maxDepositSats: bigint | null;
+  /**
+   * Remaining application supply cap in satoshis (null = no cap, or still
+   * loading). Mirrors `validateRemainingCapacity` so the CTA surfaces the same
+   * cap-exceeded / cap-reached cases that `validateForm` would silently reject.
+   */
+  effectiveRemaining: bigint | null;
+  /**
+   * True when the supply-cap read errored. `validateForm` hard-rejects every
+   * amount in this state; the CTA must mirror that or the button shows
+   * "Deposit" while clicks silently no-op.
+   */
+  capUnavailable: boolean;
 }
 
 export interface DepositCtaState {
@@ -200,11 +212,40 @@ export function getDepositCtaState(params: DepositCtaParams): DepositCtaState {
     };
   }
 
+  // Mirror `validateAmount`'s cap-unavailable hard-reject in the CTA — without
+  // this branch, the button reads "Deposit" but `validateForm` silently
+  // rejects every click.
+  if (params.capUnavailable) {
+    return {
+      disabled: true,
+      label: "Unable to verify supply cap — please try again",
+    };
+  }
+
   // An amount that exceeds the fee-adjusted depositable balance can never be
   // funded — surface it before the provider prompt, since selecting a provider
   // cannot make an unfundable amount fundable.
   if (amountExceedsMax(params.amountSats, params.maxDepositSats)) {
     return { disabled: true, label: "Insufficient balance" };
+  }
+
+  // Mirror `validateRemainingCapacity` from the SDK. The message strings must
+  // match exactly so users see the same wording whether the block surfaces via
+  // the CTA or via a future inline error.
+  if (params.effectiveRemaining === 0n) {
+    return {
+      disabled: true,
+      label: "Supply cap reached — deposits temporarily paused",
+    };
+  }
+  if (
+    params.effectiveRemaining !== null &&
+    params.amountSats > params.effectiveRemaining
+  ) {
+    return {
+      disabled: true,
+      label: `Vault size exceeds remaining capacity (${formatSatoshisToBtc(params.effectiveRemaining)} BTC)`,
+    };
   }
 
   if (!params.hasProvider) {

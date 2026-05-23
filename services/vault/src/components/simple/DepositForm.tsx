@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { ApplicationLogo } from "@/components/ApplicationLogo";
 import { DepositButton } from "@/components/shared";
 import { getNetworkConfigBTC } from "@/config";
+import { COPY } from "@/copy";
 import { depositService } from "@/services/deposit";
 
 import { CollateralFactorRow } from "./CollateralFactorRow";
@@ -53,6 +54,14 @@ interface DepositFormProps {
    * fee rates are still loading.
    */
   maxDepositSats?: bigint | null;
+  /**
+   * Remaining application supply cap in satoshis (null = no cap or still
+   * loading). Surfaced so the CTA mirrors `validateForm`'s capacity rejection
+   * instead of silently no-op'ing on click.
+   */
+  effectiveRemaining: bigint | null;
+  /** True when the supply-cap read errored — CTA must reflect this. */
+  capUnavailable: boolean;
   btcPrice: number;
   hasPriceFetchError: boolean;
   onAmountChange: (value: string) => void;
@@ -129,6 +138,8 @@ export function DepositForm({
   minDeposit,
   maxDeposit,
   maxDepositSats,
+  effectiveRemaining,
+  capUnavailable,
   btcPrice,
   hasPriceFetchError,
   onAmountChange,
@@ -213,6 +224,8 @@ export function DepositForm({
     minDeposit,
     maxDeposit,
     maxDepositSats: maxDepositSats ?? null,
+    effectiveRemaining,
+    capUnavailable,
     btcBalance,
     estimatedFeeSats: estimatedFeeSats ?? undefined,
     depositorClaimValue,
@@ -250,7 +263,11 @@ export function DepositForm({
             )
           }
           sliderVariant="primary"
-          leftField={{ label: "Max", value: maxDepositLabel }}
+          leftField={{
+            label: "Max",
+            value: maxDepositLabel,
+            tooltip: COPY.deposit.form.maxTooltip,
+          }}
           rightField={{ value: usdValue }}
           onMaxClick={onMaxClick}
           inputClassName="h-10 w-auto rounded-lg bg-primary-contrast px-4 [field-sizing:content]"

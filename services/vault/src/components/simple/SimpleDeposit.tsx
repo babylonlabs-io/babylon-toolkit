@@ -133,6 +133,8 @@ function SimpleDepositContent({
     isLoadingFee,
     feeError,
     maxDepositSats,
+    effectiveRemaining,
+    capUnavailable,
     isPartialLiquidation,
     setIsPartialLiquidation,
     canSplit,
@@ -330,6 +332,8 @@ function SimpleDepositContent({
                 minDeposit={minDeposit}
                 maxDeposit={maxDeposit}
                 maxDepositSats={maxDepositSats}
+                effectiveRemaining={effectiveRemaining}
+                capUnavailable={capUnavailable}
                 btcPrice={btcPrice}
                 hasPriceFetchError={hasPriceFetchError}
                 onAmountChange={(value) => setFormData({ amountBtc: value })}

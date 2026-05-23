@@ -258,6 +258,8 @@ export const COPY = {
     },
     form: {
       computingAllocation: "Computing allocation...",
+      maxTooltip:
+        "Max is less than your wallet balance because we reserve a small buffer for Bitcoin network fees and exclude any UTXOs holding inscriptions.",
       doNotSplit: "Do not split UTXO",
       selectVaultProvider: "Select Vault Provider",
       providerSelectDescription: "Choose a provider to secure your BTC",

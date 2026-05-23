@@ -32,6 +32,30 @@ import { useVaultProviders } from "./useVaultProviders";
 
 const STALE_TIME_MS = 5 * 60 * 1000;
 
+/**
+ * Conservative reserve per vault for the future PegIn (activation) tx fee.
+ *
+ * Each HTLC is sized by the WASM as
+ *   htlcValue = peginAmount + depositorClaimValue + minPeginFee
+ * (see `packages/babylon-tbv-rust-wasm/src/types.ts:64`). The FE does not
+ * have a helper that returns `minPeginFee` directly, so the displayed Max
+ * subtracts a flat upper-bound per vault: comfortably covers a ~250 vB
+ * PegIn tx at common devnet/signet fee rates, with extra headroom for
+ * higher mainnet rates without inviting per-protocol fee-rate math in the
+ * FE.
+ *
+ * TODO: expose a WASM helper (e.g. `computeSafeMaxDeposit`) and replace
+ * this flat reserve with the exact per-HTLC overhead.
+ */
+const MAX_PEGIN_FEE_RESERVE_PER_VAULT_SATS = 10_000n;
+
+/**
+ * Per-batch reserve covering the CPFP anchor output value (~330 sats with
+ * standard anchors, 0 with ephemeral) and a small safety margin to absorb
+ * fee-rate jitter between Max-click and Pre-PegIn broadcast.
+ */
+const PRE_PEGIN_SAFETY_BUFFER_SATS = 1_500n;
+
 export interface DepositPageFormData {
   amountBtc: string;
   selectedProvider: string;
@@ -90,6 +114,18 @@ export interface UseDepositPageFormResult {
   isLoadingFee: boolean;
   feeError: string | null;
   maxDepositSats: bigint | null;
+
+  /**
+   * Remaining application supply cap in satoshis. Null = no cap applies, or
+   * the cap read is still loading. Surfaced so the CTA can mirror the same
+   * cap-exceeded / cap-reached rejections that `validateForm` produces.
+   */
+  effectiveRemaining: bigint | null;
+  /**
+   * True when the supply-cap read errored. `validateForm` hard-rejects every
+   * amount in this state; consumers must mirror that in the CTA.
+   */
+  capUnavailable: boolean;
 
   /**
    * True when the ordinals check is still in flight AND the user has
@@ -314,16 +350,42 @@ export function useDepositPageForm(): UseDepositPageFormResult {
     isPartialLiquidation,
   });
 
-  // Adjust max deposit to reserve the depositor claim value for every vault in
-  // the deposit (network fees already subtracted by computeMaxDeposit). A split
-  // deposit funds `vaultCount` vaults, each reserving its own claim value.
+  // Adjust max deposit to reserve every per-HTLC and per-batch component that
+  // the eventual Pre-PegIn tx will need to fund:
+  //
+  //   - Pre-PegIn network fee — already subtracted by computeMaxDeposit
+  //   - Per-vault depositorClaimValue (depositor's recovery-path budget)
+  //   - Per-vault minPeginFee (the VP's activation tx budget, reserved
+  //     INSIDE each HTLC's value) — approximated with a conservative flat
+  //     constant; see MAX_PEGIN_FEE_RESERVE_PER_VAULT_SATS
+  //   - Per-batch CPFP anchor output value + safety margin
+  //
+  // Without the per-vault PegIn-fee reserve, Max could resolve to an amount
+  // the iterative UTXO selector then rejects: the Pre-PegIn outputs sum to
+  // vaultCount × (peginAmount + claimValue + minPeginFee) + CPFP, which
+  // exceeds totalBalance once minPeginFee is non-zero.
   const adjustedMaxDepositSats = useMemo(() => {
     if (maxDepositSats == null || depositorClaimValue == null)
       return maxDepositSats;
-    const totalClaimValue = depositorClaimValue * BigInt(vaultCount);
-    const adjusted = maxDepositSats - totalClaimValue;
+    const vaultCountBig = BigInt(vaultCount);
+    const claimReserve = depositorClaimValue * vaultCountBig;
+    const peginFeeReserve =
+      MAX_PEGIN_FEE_RESERVE_PER_VAULT_SATS * vaultCountBig;
+    const balanceBased =
+      maxDepositSats -
+      claimReserve -
+      peginFeeReserve -
+      PRE_PEGIN_SAFETY_BUFFER_SATS;
+    // Clamp to the application's remaining supply cap when the cap is the
+    // binding ceiling — otherwise the Max button can land the user above the
+    // cap and `validateForm` would silently reject the click.
+    const effectiveRemaining = capSnapshot?.effectiveRemaining ?? null;
+    const adjusted =
+      effectiveRemaining !== null && effectiveRemaining < balanceBased
+        ? effectiveRemaining
+        : balanceBased;
     return adjusted > 0n ? adjusted : 0n;
-  }, [maxDepositSats, depositorClaimValue, vaultCount]);
+  }, [maxDepositSats, depositorClaimValue, vaultCount, capSnapshot]);
 
   const applyMaxAmount = useCallback(() => {
     setIsMaxPinned(true);
@@ -415,6 +477,8 @@ export function useDepositPageForm(): UseDepositPageFormResult {
     isLoadingFee,
     feeError,
     maxDepositSats: adjustedMaxDepositSats,
+    effectiveRemaining: capSnapshot?.effectiveRemaining ?? null,
+    capUnavailable: capError !== null,
     ordinalsCheckPending,
     isPartialLiquidation,
     setIsPartialLiquidation,
