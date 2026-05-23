@@ -1,85 +1,100 @@
-import type { CalculatorResult, Warning, WarningType } from "./types";
+import type { CalculatorResult, Warning } from "./types";
 
-export type BannerSeverity = "red" | "yellow" | "green" | "hidden";
+/**
+ * "yellow" is reserved for the stale-price banner path (driven by a status
+ * override, not by a calculator warning). Calculator warnings map to red
+ * (urgent), soft (weird-params), green (none), or hidden (dust / no groups).
+ */
+export type BannerSeverity = "red" | "yellow" | "soft" | "green" | "hidden";
 
 export interface BannerState {
   severity: BannerSeverity;
   primaryWarning: Warning | null;
   secondaryWarnings: Warning[];
+  /**
+   * The engine found a safer liquidation order than the current on-chain order.
+   * Drives the manual "Apply Suggested Order" affordance, independent of the
+   * risk warnings — it can accompany an urgent/soft banner or stand alone on an
+   * otherwise-healthy position.
+   */
+  suggestReorder: boolean;
 }
-
-const RED_WARNING_TYPES = new Set<WarningType>(["urgent", "cliff"]);
-const STRUCTURAL_WARNING_TYPES = new Set<WarningType>([
-  "cliff",
-  "reorder",
-  "rebalance",
-]);
 
 /**
  * Map a CalculatorResult to a banner display state.
  *
- * Red:    urgent or cliff warnings present
- * Yellow: only reorder or rebalance warnings, >5% from liquidation
- * Green:  no warnings, >5% from liquidation
- * Hidden: no debt or no groups
+ * Red:    urgent warning present (already liquidatable or within 5%)
+ * Soft:   weird-params (invalid protocol params), or a healthy position whose
+ *         vault order is suboptimal — muted gray advisory
+ * Green:  no warnings and order already optimal
+ * Hidden: no groups, or dust position (too small to matter)
  */
 export function deriveBannerState(result: CalculatorResult): BannerState {
   const { warnings, groups } = result;
+  const suggestReorder = result.suggestedVaultOrder != null;
 
-  if (groups.length === 0) {
-    return { severity: "hidden", primaryWarning: null, secondaryWarnings: [] };
-  }
+  // Warnings are evaluated before the "no groups" check so that an advisory
+  // with no computable cascade (e.g. weird-params, which leaves groups empty)
+  // still renders instead of being hidden.
 
-  if (warnings.length === 0) {
-    return { severity: "green", primaryWarning: null, secondaryWarnings: [] };
-  }
-
-  // Dust suppresses all other warnings — position is too small to matter
+  // Dust suppresses all other warnings — position is too small to matter.
   const dustWarning = warnings.find((w) => w.type === "dust");
   if (dustWarning) {
     return {
       severity: "hidden",
       primaryWarning: dustWarning,
       secondaryWarnings: [],
+      suggestReorder: false,
     };
   }
 
-  const redWarnings = warnings.filter((w) => RED_WARNING_TYPES.has(w.type));
-  const structuralWarnings = warnings.filter((w) =>
-    STRUCTURAL_WARNING_TYPES.has(w.type),
-  );
-  const infoWarnings = warnings.filter((w) => w.type === "weird-params");
-
-  // Red severity: urgent or cliff
-  if (redWarnings.length > 0) {
-    // Urgent takes priority as primary, structural shown as secondary
-    const urgent = redWarnings.find((w) => w.type === "urgent");
-    const primary = urgent ?? redWarnings[0];
-    const secondary = warnings.filter((w) => w !== primary);
+  // Red severity: urgent takes priority as primary.
+  const urgentWarning = warnings.find((w) => w.type === "urgent");
+  if (urgentWarning) {
     return {
       severity: "red",
-      primaryWarning: primary,
-      secondaryWarnings: secondary,
+      primaryWarning: urgentWarning,
+      secondaryWarnings: warnings.filter((w) => w !== urgentWarning),
+      suggestReorder,
     };
   }
 
-  // Yellow severity: reorder or rebalance only
-  if (structuralWarnings.length > 0) {
+  // Soft severity: weird-params advisory.
+  const weirdParamsWarning = warnings.find((w) => w.type === "weird-params");
+  if (weirdParamsWarning) {
     return {
-      severity: "yellow",
-      primaryWarning: structuralWarnings[0],
-      secondaryWarnings: infoWarnings,
-    };
-  }
-
-  // Only weird-params — show as yellow with info
-  if (infoWarnings.length > 0) {
-    return {
-      severity: "yellow",
-      primaryWarning: infoWarnings[0],
+      severity: "soft",
+      primaryWarning: weirdParamsWarning,
       secondaryWarnings: [],
+      suggestReorder,
     };
   }
 
-  return { severity: "green", primaryWarning: null, secondaryWarnings: [] };
+  // No risk warnings. Without a position/cascade there is nothing to show.
+  if (groups.length === 0) {
+    return {
+      severity: "hidden",
+      primaryWarning: null,
+      secondaryWarnings: [],
+      suggestReorder: false,
+    };
+  }
+
+  // Healthy position: a suboptimal order is a soft, standalone suggestion;
+  // otherwise the position is optimally structured.
+  if (suggestReorder) {
+    return {
+      severity: "soft",
+      primaryWarning: null,
+      secondaryWarnings: [],
+      suggestReorder: true,
+    };
+  }
+
+  return {
+    severity: "green",
+    primaryWarning: null,
+    secondaryWarnings: [],
+    suggestReorder: false,
+  };
 }

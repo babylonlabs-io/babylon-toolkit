@@ -13,6 +13,7 @@ import {
   deriveBannerState,
   type CalculatorResult,
 } from "@/applications/aave/positionNotifications";
+import { COPY } from "@/copy";
 import { invalidateVaultQueries } from "@/utils/queryKeys";
 
 import { ReorderSuccessModal } from "../ReorderVaults";
@@ -34,8 +35,6 @@ interface PositionNotificationBannerProps {
   result?: CalculatorResult | null;
   /** Override status for debug panel — used to simulate stale-price state */
   statusOverride?: PositionNotificationsStatus;
-  /** BTC wallet balance in BTC units — used to disable deposit buttons when insufficient */
-  btcBalanceBtc?: number;
 }
 
 export function PositionNotificationBanner({
@@ -44,7 +43,6 @@ export function PositionNotificationBanner({
   onRepay,
   result: resultOverride,
   statusOverride,
-  btcBalanceBtc,
 }: PositionNotificationBannerProps) {
   const {
     result: hookResult,
@@ -125,7 +123,7 @@ export function PositionNotificationBanner({
         data-testid="position-notification-banner"
         data-severity={bannerState.severity}
       >
-        {/* Primary warning */}
+        {/* Primary content: green / risk warning / standalone reorder note */}
         {isGreen ? (
           <div>
             <Text variant="body2" className="text-sm font-semibold">
@@ -135,20 +133,29 @@ export function PositionNotificationBanner({
               {GREEN_BANNER_DETAIL}
             </Text>
           </div>
+        ) : bannerState.primaryWarning ? (
+          <div>
+            <Text variant="body2" className="text-sm font-semibold">
+              {bannerState.primaryWarning.title}
+            </Text>
+            <Text variant="body2" className="mt-1 text-sm">
+              {bannerState.primaryWarning.detail}
+            </Text>
+            {bannerState.primaryWarning.suggestion && (
+              <Text variant="body2" className="mt-1 text-sm opacity-80">
+                {bannerState.primaryWarning.suggestion}
+              </Text>
+            )}
+          </div>
         ) : (
-          bannerState.primaryWarning && (
+          bannerState.suggestReorder && (
             <div>
               <Text variant="body2" className="text-sm font-semibold">
-                {bannerState.primaryWarning.title}
+                {COPY.liquidationWarnings.reorder.title}
               </Text>
-              <Text variant="body2" className="mt-1 text-sm">
-                {bannerState.primaryWarning.detail}
+              <Text variant="body2" className="mt-1 text-sm opacity-80">
+                {COPY.liquidationWarnings.reorder.detail}
               </Text>
-              {bannerState.primaryWarning.suggestion && (
-                <Text variant="body2" className="mt-1 text-sm opacity-80">
-                  {bannerState.primaryWarning.suggestion}
-                </Text>
-              )}
             </div>
           )
         )}
@@ -185,7 +192,6 @@ export function PositionNotificationBanner({
             onRepay={onRepay}
             onApplyOrder={handleApplyOrder}
             isReordering={isReordering}
-            btcBalanceBtc={btcBalanceBtc}
           />
         )}
       </div>

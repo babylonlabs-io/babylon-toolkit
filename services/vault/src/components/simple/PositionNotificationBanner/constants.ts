@@ -6,6 +6,9 @@ export const SEVERITY_STYLES: Record<BannerSeverity, string> = {
     "border-2 border-yellow-500 bg-yellow-50 text-yellow-900 dark:bg-yellow-950/30 dark:text-yellow-200",
   green:
     "border-2 border-green-500 bg-green-50 text-green-900 dark:bg-green-950/30 dark:text-green-200",
+  // Muted advisory tone for soft warnings (weird-params): protocol params are
+  // governance-set, so this is informational rather than actionable.
+  soft: "border border-gray-300 bg-gray-50 text-gray-600 dark:border-gray-700 dark:bg-gray-900/30 dark:text-gray-400",
   hidden: "",
 };
 

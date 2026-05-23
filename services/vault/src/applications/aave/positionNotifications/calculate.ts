@@ -1,19 +1,16 @@
 import {
   computeOptimalOrder,
   computeSeizedFractionDetailed,
-  getGroup1FromOrder,
   MAX_GROUPS,
   MIN_DEBT_THRESHOLD,
   SEIZURE_TOL,
   simulateCascade,
 } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
 
-import {
-  EXPECTED_HEALTH_FACTOR_AT_LIQUIDATION,
-  VAULT_SPLIT_SAFETY_MARGIN,
-} from "../constants";
+import { COPY } from "@/copy";
 
-import { fmt } from "./format";
+import { EXPECTED_HEALTH_FACTOR_AT_LIQUIDATION } from "../constants";
+
 import type {
   CalculatorParams,
   CalculatorResult,
@@ -21,26 +18,30 @@ import type {
   Vault,
   Warning,
 } from "./types";
-import {
-  buildCliff2VaultWarning,
-  buildCliff3PlusWarning,
-  buildCliffSingleVaultWarning,
-  buildRebalanceWarning,
-  buildReorderDetail,
-} from "./warningBuilders";
 
-/** Minimum position value for meaningful analysis */
+/** Minimum position value (USD) for meaningful multi-event analysis */
 const DUST_THRESHOLD_USD = 1000;
 
-/** Distance to liquidation for critical warning */
+/** Distance to liquidation (%) below which we raise an urgent warning */
 const URGENT_DISTANCE_PCT = 5;
 
-/** Threshold for detecting meaningful reorder improvement */
+/**
+ * Minimum cascade-score improvement (in BTC) before we suggest a reorder.
+ * Guards against flagging tie-shuffles where the optimizer returns a different
+ * sequence with no real protection gain.
+ */
 const REORDER_TOL = 0.001;
 
-/** Placeholder ID for a hypothetical new vault in rebalance suggestions */
-const PLACEHOLDER_VAULT_ID = "__new__";
-
+/**
+ * Compute the partial-liquidation cascade and position warnings.
+ *
+ * Liquidation follows the current on-chain vault order, so the group breakdown
+ * is computed against that order. Separately, the optimizer is run and — when
+ * it finds a strictly better order — `suggestedVaultOrder` is returned so the
+ * banner can offer a manual "Apply Suggested Order" action. Warnings are limited
+ * to three types: `weird-params` (invalid protocol params, soft), `urgent`
+ * (already liquidatable or within 5% of the trigger), or `dust`.
+ */
 export function calculate(params: CalculatorParams): CalculatorResult {
   const {
     btcPrice,
@@ -62,23 +63,56 @@ export function calculate(params: CalculatorParams): CalculatorResult {
 
   // ── 1. Early exits ─────────────────────────────────────────────
 
+  // Zero debt means no liquidation risk — return healthy.
   if (totalDebtUsd <= 0) {
-    return buildEmptyResult(groups, collateralValue, warnings);
+    return {
+      groups,
+      currentHF: Infinity,
+      collateralValue,
+      targetSeizureBtc: 0,
+      warnings,
+      suggestedVaultOrder: null,
+    };
   }
 
-  // Dust check — force single group
+  // Dust check — force a single group (only when there IS debt but it's tiny).
   const isDust =
     totalDebtUsd < DUST_THRESHOLD_USD || collateralValue < DUST_THRESHOLD_USD;
   if (isDust) {
-    return buildDustResult(
-      vaults,
-      totalBtc,
-      btcPrice,
-      CF,
-      totalDebtUsd,
+    const liqPrice = totalDebtUsd / (totalBtc * CF);
+    const distancePct = ((liqPrice - btcPrice) / btcPrice) * 100;
+    return {
+      groups: [
+        {
+          index: 1,
+          vaults: [...vaults],
+          combinedBtc: totalBtc,
+          liquidationPrice: liqPrice,
+          distancePct,
+          targetSeizureBtc: totalBtc,
+          overSeizureBtc: 0,
+          isFullLiquidation: true,
+          debtToRepay: totalDebtUsd,
+          liquidatorProfitUsd: 0,
+          debtRepaid: totalDebtUsd,
+          fairnessDebtRepay: 0,
+          fairnessPaymentUsd: 0,
+          debtRemainingAfter: 0,
+          btcRemainingAfter: 0,
+        },
+      ],
       currentHF,
       collateralValue,
-    );
+      targetSeizureBtc: totalBtc,
+      warnings: [
+        {
+          type: "dust",
+          title: COPY.liquidationWarnings.dust.title,
+          detail: COPY.liquidationWarnings.dust.detail,
+        },
+      ],
+      suggestedVaultOrder: null,
+    };
   }
 
   // ── 2. Protocol math ───────────────────────────────────────────
@@ -90,22 +124,26 @@ export function calculate(params: CalculatorParams): CalculatorResult {
     expectedHF,
   );
   const targetSeizureBtc = totalBtc * seizedFraction;
-  const recommendedSacrificialBtc = Math.min(
-    targetSeizureBtc * VAULT_SPLIT_SAFETY_MARGIN,
-    totalBtc,
-  );
-  const liqFactor = seizedFraction * VAULT_SPLIT_SAFETY_MARGIN;
+  const liqPenalty = maxLB * CF;
+  // Invalid governance params: the seizure formula produced a fraction outside
+  // [0, 1]. We surface this as a soft advisory and suppress both the urgent
+  // signal and the reorder suggestion (liq math is meaningless here).
+  const seizedParamsInvalid = seizedFractionRaw <= 0 || seizedFractionRaw > 1;
 
-  // ── 3. Group calculation ───────────────────────────────────────
+  // ── 3. Group calculation (against the current on-chain order) ──
+  //
+  // Skipped entirely when params are invalid: with a clamped seizedFraction the
+  // prefix walk consumes no vaults, so the cascade would otherwise emit a run of
+  // empty, debt-unchanged groups. We leave `groups` empty and let the soft
+  // advisory carry the message instead.
 
   let remainingVaults: Vault[] = [...vaults];
   let remainingDebt = totalDebtUsd;
   let remainingBtc = totalBtc;
   let groupIndex = 1;
-  let isFullLiquidation = false;
-  const liqPenalty = maxLB * CF;
 
   while (
+    !seizedParamsInvalid &&
     remainingVaults.length > 0 &&
     remainingDebt > MIN_DEBT_THRESHOLD &&
     groupIndex <= MAX_GROUPS
@@ -125,8 +163,6 @@ export function calculate(params: CalculatorParams): CalculatorResult {
     }
 
     const isGroupFull = i >= remainingVaults.length;
-    if (isGroupFull) isFullLiquidation = true;
-
     const seizedVaults = remainingVaults.slice(0, i);
     const seizedBtc = prefixSum;
     const overSeizureBtc = Math.max(0, seizedBtc - curTargetSeizure);
@@ -156,7 +192,11 @@ export function calculate(params: CalculatorParams): CalculatorResult {
       debtRemainingAfter = 0;
     } else {
       const overSeizureVal = (overSeizureBtc * pLiq) / maxLB;
-      fairnessDebtRepay = Math.min(overSeizureVal, remainingDebt - debtToRepay);
+      const maxDebtRepayable = Math.max(0, remainingDebt - debtToRepay);
+      fairnessDebtRepay = Math.min(overSeizureVal, maxDebtRepayable);
+      const leftoverOverSeizure = overSeizureVal - fairnessDebtRepay;
+      fairnessPaymentUsd =
+        leftoverOverSeizure > 0 ? leftoverOverSeizure * maxLB : 0;
       debtRepaid = debtToRepay + fairnessDebtRepay;
       debtRemainingAfter = Math.max(0, remainingDebt - debtRepaid);
     }
@@ -185,417 +225,108 @@ export function calculate(params: CalculatorParams): CalculatorResult {
     groupIndex++;
   }
 
-  // ── 4. Optimal order analysis ──────────────────────────────────
+  // ── 4. Optimal-order analysis (manual "Apply Suggested Order") ──
+  //
+  // We never reorder automatically. Score the current order against the
+  // optimizer's best order; only when the optimizer strictly improves the
+  // cascade (more BTC surviving across events, tie-broken by BTC after the
+  // first event) do we surface a suggested order for the user to apply.
+  // Skipped under invalid params — the cascade scores are meaningless there.
+
+  let suggestedVaultOrder: Vault[] | null = null;
+  if (!seizedParamsInvalid) {
+    const current = simulateCascade(
+      vaults,
+      totalDebtUsd,
+      seizedFraction,
+      SEIZURE_TOL,
+      CF,
+      THF,
+      maxLB,
+      expectedHF,
+    );
+    const optimal = computeOptimalOrder(
+      vaults,
+      totalDebtUsd,
+      seizedFraction,
+      SEIZURE_TOL,
+      CF,
+      THF,
+      maxLB,
+      expectedHF,
+    );
+    const sumImproves =
+      optimal.sumBtcAfterEvents > current.sumBtcAfterEvents + REORDER_TOL;
+    const afterG1Improves =
+      Math.abs(optimal.sumBtcAfterEvents - current.sumBtcAfterEvents) <=
+        REORDER_TOL && optimal.btcAfterG1 > current.btcAfterG1 + REORDER_TOL;
+    if (sumImproves || afterG1Improves) suggestedVaultOrder = optimal.order;
+  }
+
+  // ── 5. Warnings ────────────────────────────────────────────────
 
   const firstGroup = groups[0];
-  const nVaults = vaults.length;
-  const isCliff =
-    firstGroup != null && firstGroup.vaults.length === nVaults && nVaults > 1;
 
-  const { sumBtcAfterEvents: currentSum, btcAfterG1: currentBtcAfterG1 } =
-    simulateCascade(
-      vaults,
-      totalDebtUsd,
-      seizedFraction,
-      SEIZURE_TOL,
-      CF,
-      THF,
-      maxLB,
-      expectedHF,
-    );
-
-  // Optimizer throws for >20 vaults (bitmask overflow). Fall back to current
-  // order so structural warnings still fire but reorder suggestions are skipped.
-  let globalOptimalOrder: Vault[];
-  let optimalSum: number;
-  let optimalBtcAfterG1: number;
-  try {
-    const optimized = computeOptimalOrder(
-      vaults,
-      totalDebtUsd,
-      seizedFraction,
-      SEIZURE_TOL,
-      CF,
-      THF,
-      maxLB,
-      expectedHF,
-    );
-    globalOptimalOrder = optimized.order;
-    optimalSum = optimized.sumBtcAfterEvents;
-    optimalBtcAfterG1 = optimized.btcAfterG1;
-  } catch {
-    globalOptimalOrder = [...vaults];
-    optimalSum = currentSum;
-    optimalBtcAfterG1 = currentBtcAfterG1;
-  }
-
-  const sumImproves = optimalSum > currentSum + REORDER_TOL;
-  const afterG1Improves =
-    !sumImproves && optimalBtcAfterG1 > currentBtcAfterG1 + REORDER_TOL;
-  let reorderWouldHelp = sumImproves || afterG1Improves;
-  const globalOptimalOrderStr = globalOptimalOrder
-    .map((v) => `${v.name} (${fmt(v.btc)} BTC)`)
-    .join(" → ");
-
-  const optimalG1Vaults = getGroup1FromOrder(
-    globalOptimalOrder,
-    seizedFraction,
-    SEIZURE_TOL,
-  );
-  const optimalG1Btc = optimalG1Vaults.reduce((s, v) => s + v.btc, 0);
-  const currentGroup1Btc = firstGroup?.combinedBtc ?? 0;
-  const group1ReorderWouldHelp =
-    reorderWouldHelp && currentGroup1Btc > optimalG1Btc + REORDER_TOL;
-
-  const savedSum = optimalSum - currentSum;
-  const savedBtcAfterG1 = optimalBtcAfterG1 - currentBtcAfterG1;
-
-  // Suppress reorder if it would create a rebalance condition that doesn't exist now.
-  // Skip for cliffs — going from cliff to rebalance is always an improvement.
-  if (reorderWouldHelp && nVaults >= 2 && !isCliff) {
-    const currentOverSeizure = firstGroup ? firstGroup.overSeizureBtc : 0;
-    const currentProtected = firstGroup ? firstGroup.btcRemainingAfter : 0;
-    const currentIsCliff = firstGroup
-      ? firstGroup.vaults.length === nVaults
-      : false;
-    const currentHasRebalanceCond =
-      currentOverSeizure > currentProtected && !currentIsCliff;
-
-    const optTarget = totalBtc * seizedFraction;
-    const optOver = Math.max(0, optimalG1Btc - optTarget);
-    const optProtected = totalBtc - optimalG1Btc;
-    const optIsCliff = optimalG1Vaults.length === nVaults;
-    const optWouldTriggerRebalance = optOver > optProtected && !optIsCliff;
-
-    if (!currentHasRebalanceCond && optWouldTriggerRebalance) {
-      reorderWouldHelp = false;
+  // weird-params: seizedFraction raw value was outside [0, 1]. Protocol params
+  // are set by governance — the user can't change them — so this is advisory.
+  if (seizedParamsInvalid) {
+    const { weirdParams } = COPY.liquidationWarnings;
+    let detail: string;
+    if (THF - liqPenalty <= 0) {
+      detail = weirdParams.causeLiqPenalty(liqPenalty.toFixed(3), String(THF));
+    } else if (THF <= expectedHF) {
+      detail = weirdParams.causeThfTooLow(String(THF), String(expectedHF));
+    } else if (seizedFractionRaw > 1) {
+      detail = weirdParams.causeFractionOver(
+        (seizedFractionRaw * 100).toFixed(1),
+      );
+    } else {
+      detail = weirdParams.causeGeneric((seizedFractionRaw * 100).toFixed(1));
     }
-  }
-
-  const suggestedVaultOrder: Vault[] | null = reorderWouldHelp
-    ? globalOptimalOrder
-    : null;
-
-  // ── 5. Warning: weird-params ─────────────────────────────────
-
-  if (seizedFractionRaw <= 0 || seizedFractionRaw > 1) {
     warnings.push({
       type: "weird-params",
-      title: "Unusual protocol parameters",
-      detail: `Seizure fraction computed as ${(seizedFractionRaw * 100).toFixed(1)}% — outside the valid range. Results may be unreliable. Check CF, THF, maxLB and expectedHF values.`,
+      title: weirdParams.title,
+      detail,
+      tone: "soft",
     });
   }
 
-  // ── 6. Warning: urgent ───────────────────────────────────────
+  const hasWeirdParams = warnings.some((w) => w.type === "weird-params");
 
-  if (firstGroup && firstGroup.distancePct >= 0) {
-    warnings.push({
-      type: "urgent",
-      title: "Position already liquidatable",
-      detail: `Health Factor is below 1.0 — liquidation can be triggered now. Liq price $${firstGroup.liquidationPrice.toLocaleString("en-US", { maximumFractionDigits: 0 })} is above current BTC price.`,
-      suggestion:
-        "Add collateral or repay debt immediately to restore Health Factor above 1.0.",
+  // urgent: position already liquidatable (distancePct >= 0) or within 5%.
+  // Skip when weird-params fired — liq-price math is meaningless under invalid
+  // params.
+  if (!hasWeirdParams && firstGroup) {
+    const { urgent } = COPY.liquidationWarnings;
+    const liqPriceStr = firstGroup.liquidationPrice.toLocaleString("en-US", {
+      maximumFractionDigits: 0,
     });
-  } else if (
-    firstGroup &&
-    Math.abs(firstGroup.distancePct) < URGENT_DISTANCE_PCT
-  ) {
-    warnings.push({
-      type: "urgent",
-      title: `Critical — liquidation in ${Math.abs(firstGroup.distancePct).toFixed(1)}%`,
-      detail: `BTC needs to drop only ${Math.abs(firstGroup.distancePct).toFixed(2)}% to trigger liquidation at $${firstGroup.liquidationPrice.toLocaleString("en-US", { maximumFractionDigits: 0 })}.`,
-      suggestion:
-        "Add collateral or repay part of the debt to increase your safety margin.",
-    });
-  }
-
-  // ── 7. Warning: cliff / reorder ──────────────────────────────
-
-  let suggestedNewVaultBtc: number | null = null;
-
-  if (nVaults === 1) {
-    // Single vault — always a cliff
-    let rawSacrificial = 0;
-    if (liqFactor < 1) {
-      rawSacrificial = (vaults[0].btc * liqFactor) / (1 - liqFactor);
-      const rounded = Math.ceil(rawSacrificial * 100) / 100;
-      if (rounded <= totalBtc) suggestedNewVaultBtc = rounded;
-    }
-    warnings.push(
-      buildCliffSingleVaultWarning(
-        vaults[0],
-        suggestedNewVaultBtc,
-        rawSacrificial,
-      ),
-    );
-  } else if (nVaults === 2) {
-    if (isCliff && group1ReorderWouldHelp && suggestedVaultOrder) {
-      const best = optimalG1Vaults[0];
-      const other = vaults.find((v) => v.id !== best.id);
-      if (!other) {
-        throw new Error(
-          "Expected 2 vaults but could not find the non-best vault",
-        );
-      }
+    const distAbs = Math.abs(firstGroup.distancePct);
+    if (firstGroup.distancePct >= 0) {
       warnings.push({
-        type: "cliff",
-        title: "Swap BTC Vault order to unlock partial protection",
-        detail: `${best.name} (${best.btc.toFixed(2)} BTC) covers the target seizure alone. Right now both BTC Vaults are seized together because ${vaults[0].name} is first and too small.`,
-        suggestion: `Suggested order: ${best.name} (${fmt(best.btc)} BTC) → ${other.name} (${fmt(other.btc)} BTC)`,
+        type: "urgent",
+        title: urgent.liquidatableTitle,
+        detail: urgent.liquidatableDetail(liqPriceStr),
+        suggestion: urgent.liquidatableSuggestion,
       });
-    } else if (isCliff) {
-      const largest = vaults.reduce((a, b) => (a.btc > b.btc ? a : b));
-      let enablePartialStr = "";
-      if (liqFactor < 1 && totalBtc * liqFactor > largest.btc) {
-        const deficit = (totalBtc * liqFactor - largest.btc) / (1 - liqFactor);
-        const rounded = Math.ceil(deficit * 100) / 100;
-        if (rounded <= totalBtc) {
-          enablePartialStr = `To enable partial liquidation, add ≥ ${fmt(rounded)} BTC alongside ${largest.name}. `;
-        }
-      }
-      warnings.push(
-        buildCliff2VaultWarning(targetSeizureBtc, enablePartialStr),
-      );
-    } else if (group1ReorderWouldHelp) {
+    } else if (distAbs < URGENT_DISTANCE_PCT) {
       warnings.push({
-        type: "reorder",
-        title: "Better BTC Vault ordering reduces first-event seizure",
-        detail: buildReorderDetail(
-          sumImproves,
-          savedSum,
-          savedBtcAfterG1,
-          currentGroup1Btc,
-          optimalG1Btc,
-        ),
-        suggestion: `Suggested order: ${globalOptimalOrderStr}`,
-      });
-    } else if (reorderWouldHelp) {
-      warnings.push({
-        type: "reorder",
-        title: "Better BTC Vault ordering deepens cascade protection",
-        detail: buildReorderDetail(sumImproves, savedSum, savedBtcAfterG1),
-        suggestion: `Suggested order: ${globalOptimalOrderStr}`,
-      });
-    }
-  } else {
-    // 3+ vaults
-    if (isCliff) {
-      const cliffReorderFix =
-        group1ReorderWouldHelp && suggestedVaultOrder !== null;
-      warnings.push(
-        buildCliff3PlusWarning(nVaults, cliffReorderFix, globalOptimalOrderStr),
-      );
-    } else if (group1ReorderWouldHelp) {
-      warnings.push({
-        type: "reorder",
-        title: "Better BTC Vault ordering reduces first-event seizure",
-        detail: buildReorderDetail(
-          sumImproves,
-          savedSum,
-          savedBtcAfterG1,
-          currentGroup1Btc,
-          optimalG1Btc,
-        ),
-        suggestion: `Suggested order: ${globalOptimalOrderStr}`,
-      });
-    } else if (reorderWouldHelp) {
-      warnings.push({
-        type: "reorder",
-        title: "Better BTC Vault ordering deepens cascade protection",
-        detail: buildReorderDetail(sumImproves, savedSum, savedBtcAfterG1),
-        suggestion: `Suggested order: ${globalOptimalOrderStr}`,
+        type: "urgent",
+        title: urgent.approachingTitle(distAbs.toFixed(1)),
+        detail: urgent.approachingDetail(liqPriceStr, distAbs.toFixed(2)),
+        suggestion: urgent.approachingSuggestion,
       });
     }
   }
 
-  // ── 8. Warning: rebalance ──────────────────────────────────────
-
-  const g1OverSeizure = firstGroup ? firstGroup.overSeizureBtc : 0;
-  const g1TargetSeizure = firstGroup ? firstGroup.targetSeizureBtc : 0;
-  const g1ProtectedBtc = firstGroup ? firstGroup.btcRemainingAfter : 0;
-  const rebalanceNeeded =
-    g1OverSeizure > g1ProtectedBtc && nVaults >= 2 && !isCliff;
-
-  const idealProtectedBtc = totalBtc - totalBtc * Math.min(liqFactor, 1);
-  const currentProtectedBtc = firstGroup
-    ? firstGroup.btcRemainingAfter
-    : totalBtc;
-  const rebalanceImprovementBtc = rebalanceNeeded
-    ? Math.max(0, idealProtectedBtc - currentProtectedBtc)
-    : 0;
-
-  let suggestedRebalanceVaultBtc: number | null = null;
-  let suggestedRebalanceOrder: Vault[] | null = null;
-
-  if (rebalanceNeeded && liqFactor < 1) {
-    const largest = vaults.reduce((a, b) => (a.btc > b.btc ? a : b));
-    const smallVaults = vaults.filter((v) => v.id !== largest.id);
-    const smallVaultsSum = smallVaults.reduce((s, v) => s + v.btc, 0);
-    const raw = (totalBtc * liqFactor - smallVaultsSum) / (1 - liqFactor);
-    const rounded = Math.ceil(Math.max(0, raw) * 100) / 100;
-
-    if (rounded <= totalBtc) {
-      suggestedRebalanceVaultBtc = rounded;
-      const placeholder: Vault = {
-        id: PLACEHOLDER_VAULT_ID,
-        name: PLACEHOLDER_VAULT_ID,
-        btc: rounded,
-      };
-      const allVaults = [placeholder, ...vaults];
-
-      // Optimizer may throw for >20 vaults — fall back to manual order
-      let useManualOrder = false;
-      try {
-        const { order: optOrder } = computeOptimalOrder(
-          allVaults,
-          totalDebtUsd,
-          seizedFraction,
-          SEIZURE_TOL,
-          CF,
-          THF,
-          maxLB,
-          expectedHF,
-        );
-
-        // Verify the optimized order doesn't still trigger rebalance
-        const optG1Btc = getGroup1FromOrder(
-          optOrder,
-          seizedFraction,
-          SEIZURE_TOL,
-        ).reduce((s, v) => s + v.btc, 0);
-        const allBtc = allVaults.reduce((s, v) => s + v.btc, 0);
-        const optProtected = allBtc - optG1Btc;
-        const optTarget = allBtc * seizedFraction;
-        const optOver = optG1Btc - optTarget;
-
-        if (optOver > optProtected) {
-          useManualOrder = true;
-        } else {
-          suggestedRebalanceOrder = optOrder;
-        }
-      } catch {
-        useManualOrder = true;
-      }
-
-      if (useManualOrder) {
-        const sortedSmall = [...smallVaults].sort((a, b) => b.btc - a.btc);
-        suggestedRebalanceOrder = [placeholder, ...sortedSmall, largest];
-      }
-    }
-  }
-
-  // Suppress rebalance data when cliff/reorder already covers it
-  const hasCliffOrReorder = warnings.some(
-    (w) => w.type === "cliff" || w.type === "reorder",
-  );
-  if (rebalanceNeeded && hasCliffOrReorder) {
-    suggestedRebalanceVaultBtc = null;
-    suggestedRebalanceOrder = null;
-  }
-  if (rebalanceNeeded && !hasCliffOrReorder) {
-    warnings.push(
-      buildRebalanceWarning(
-        firstGroup?.combinedBtc ?? 0,
-        g1TargetSeizure,
-        g1OverSeizure,
-        rebalanceImprovementBtc,
-        suggestedRebalanceVaultBtc,
-        suggestedRebalanceOrder,
-        vaults,
-        totalBtc,
-        liqFactor,
-      ),
-    );
-  }
-
-  // ── 9. Return ──────────────────────────────────────────────────
+  // ── 6. Return ──────────────────────────────────────────────────
 
   return {
     groups,
     currentHF,
     collateralValue,
     targetSeizureBtc,
-    recommendedSacrificialBtc,
     warnings,
-    isFullLiquidation,
     suggestedVaultOrder,
-    suggestedNewVaultBtc,
-    suggestedRebalanceVaultBtc,
-    suggestedRebalanceOrder,
-    rebalanceImprovementBtc,
-  };
-}
-
-function buildEmptyResult(
-  groups: LiquidationGroup[],
-  collateralValue: number,
-  warnings: Warning[],
-): CalculatorResult {
-  return {
-    groups,
-    currentHF: Infinity,
-    collateralValue,
-    targetSeizureBtc: 0,
-    recommendedSacrificialBtc: 0,
-    warnings,
-    isFullLiquidation: false,
-    suggestedVaultOrder: null,
-    suggestedNewVaultBtc: null,
-    suggestedRebalanceVaultBtc: null,
-    suggestedRebalanceOrder: null,
-    rebalanceImprovementBtc: 0,
-  };
-}
-
-function buildDustResult(
-  vaults: Vault[],
-  totalBtc: number,
-  btcPrice: number,
-  CF: number,
-  totalDebtUsd: number,
-  currentHF: number,
-  collateralValue: number,
-): CalculatorResult {
-  const liqPrice = totalDebtUsd > 0 ? totalDebtUsd / (totalBtc * CF) : 0;
-  const distancePct = ((liqPrice - btcPrice) / btcPrice) * 100;
-
-  return {
-    groups: [
-      {
-        index: 1,
-        vaults: [...vaults],
-        combinedBtc: totalBtc,
-        liquidationPrice: liqPrice,
-        distancePct,
-        targetSeizureBtc: totalBtc,
-        overSeizureBtc: 0,
-        isFullLiquidation: true,
-        debtToRepay: totalDebtUsd,
-        liquidatorProfitUsd: 0,
-        debtRepaid: totalDebtUsd,
-        fairnessDebtRepay: 0,
-        fairnessPaymentUsd: 0,
-        debtRemainingAfter: 0,
-        btcRemainingAfter: 0,
-      },
-    ],
-    currentHF,
-    collateralValue,
-    targetSeizureBtc: totalBtc,
-    recommendedSacrificialBtc: totalBtc,
-    warnings: [
-      {
-        type: "dust",
-        title: "Dust position",
-        detail:
-          "Position or collateral value is below $1,000. All BTC Vaults are treated as a single liquidation group.",
-      },
-    ],
-    isFullLiquidation: true,
-    suggestedVaultOrder: null,
-    suggestedNewVaultBtc: null,
-    suggestedRebalanceVaultBtc: null,
-    suggestedRebalanceOrder: null,
-    rebalanceImprovementBtc: 0,
   };
 }
