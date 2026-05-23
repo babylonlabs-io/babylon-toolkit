@@ -52,6 +52,7 @@ export function toCollateralVaultEntries(
       providerIconUrl: provider?.iconUrl,
       depositorBtcPubkey: c.vault?.depositorBtcPubKey,
       depositorPayoutBtcAddress: c.vault?.depositorPayoutBtcAddress,
+      unsignedPrePeginTx: c.vault?.unsignedPrePeginTx,
       liquidationIndex: c.liquidationIndex,
     };
   });

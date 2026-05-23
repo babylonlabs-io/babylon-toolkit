@@ -255,6 +255,8 @@ export const COPY = {
       downloadButton: "Download Artifacts",
       cancelButton: "Cancel",
       continueButton: "Continue",
+      cannotAuthenticate:
+        "Cannot authenticate with the vault provider. Please refresh and try again.",
     },
     form: {
       computingAllocation: "Computing allocation...",

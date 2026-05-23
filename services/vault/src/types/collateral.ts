@@ -28,6 +28,13 @@ export interface CollateralVaultEntry {
    * sent on withdraw. Decoded for display via `scriptPubKeyHexToBtcAddress`.
    */
   depositorPayoutBtcAddress?: string;
+  /**
+   * Unsigned pre-pegin BTC transaction hex (from the indexer). Needed by
+   * the collateral artifact re-download path to re-derive the VP auth
+   * anchor when the in-memory token registry is cold. Optional because
+   * legacy / edge-case data may lack it.
+   */
+  unsignedPrePeginTx?: string;
   /** Liquidation priority index (0 = seized first) */
   liquidationIndex: number;
 }
