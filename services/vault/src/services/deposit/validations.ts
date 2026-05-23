@@ -114,11 +114,45 @@ export interface DepositCtaParams extends DepositFormValidityParams {
   hasWalletConnectionError: boolean;
   /** True while a reconnect attempt is in flight. Forces the CTA disabled. */
   isReconnectingWallet: boolean;
+  /**
+   * Fee-adjusted maximum depositable amount in satoshis (balance minus the BTC
+   * network fee, and the depositor claim value once a provider is selected).
+   * When the entered amount exceeds this, the CTA reports "Insufficient
+   * balance" — ahead of the provider prompt, since selecting a provider cannot
+   * make an unfundable amount fundable. Null while UTXOs or fee rates load.
+   */
+  maxDepositSats: bigint | null;
+  /**
+   * Remaining application supply cap in satoshis (null = no cap, or still
+   * loading). Mirrors `validateRemainingCapacity` so the CTA surfaces the same
+   * cap-exceeded / cap-reached cases that `validateForm` would silently reject.
+   */
+  effectiveRemaining: bigint | null;
+  /**
+   * True when the supply-cap read errored. `validateForm` hard-rejects every
+   * amount in this state; the CTA must mirror that or the button shows
+   * "Deposit" while clicks silently no-op.
+   */
+  capUnavailable: boolean;
 }
 
 export interface DepositCtaState {
   disabled: boolean;
   label: string;
+}
+
+/**
+ * True when a non-zero entered amount exceeds the known fee-adjusted
+ * depositable maximum. Returns false while `maxDepositSats` is null (still
+ * loading) so the caller doesn't gate behavior on an unknown cap.
+ */
+export function amountExceedsMax(
+  amountSats: bigint,
+  maxDepositSats: bigint | null,
+): boolean {
+  return (
+    amountSats > 0n && maxDepositSats != null && amountSats > maxDepositSats
+  );
 }
 
 export function getDepositButtonLabel(
@@ -175,6 +209,42 @@ export function getDepositCtaState(params: DepositCtaParams): DepositCtaState {
       label: params.isReconnectingWallet
         ? "Reconnecting Wallet..."
         : "Reconnect Wallet",
+    };
+  }
+
+  // Mirror `validateAmount`'s cap-unavailable hard-reject in the CTA — without
+  // this branch, the button reads "Deposit" but `validateForm` silently
+  // rejects every click.
+  if (params.capUnavailable) {
+    return {
+      disabled: true,
+      label: "Unable to verify supply cap — please try again",
+    };
+  }
+
+  // An amount that exceeds the fee-adjusted depositable balance can never be
+  // funded — surface it before the provider prompt, since selecting a provider
+  // cannot make an unfundable amount fundable.
+  if (amountExceedsMax(params.amountSats, params.maxDepositSats)) {
+    return { disabled: true, label: "Insufficient balance" };
+  }
+
+  // Mirror `validateRemainingCapacity` from the SDK. The message strings must
+  // match exactly so users see the same wording whether the block surfaces via
+  // the CTA or via a future inline error.
+  if (params.effectiveRemaining === 0n) {
+    return {
+      disabled: true,
+      label: "Supply cap reached — deposits temporarily paused",
+    };
+  }
+  if (
+    params.effectiveRemaining !== null &&
+    params.amountSats > params.effectiveRemaining
+  ) {
+    return {
+      disabled: true,
+      label: `Vault size exceeds remaining capacity (${formatSatoshisToBtc(params.effectiveRemaining)} BTC)`,
     };
   }
 

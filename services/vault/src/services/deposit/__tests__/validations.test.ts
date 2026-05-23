@@ -294,6 +294,9 @@ describe("Deposit Validations", () => {
       ordinalsCheckPending: false,
       hasWalletConnectionError: false,
       isReconnectingWallet: false,
+      maxDepositSats: null,
+      effectiveRemaining: null,
+      capUnavailable: false,
     };
 
     it("returns enabled 'Deposit' when all conditions are met", () => {
@@ -527,6 +530,37 @@ describe("Deposit Validations", () => {
       });
     });
 
+    it("returns 'Insufficient balance' when amount exceeds the fee-adjusted max", () => {
+      const result = getDepositCtaState({
+        ...readyParams,
+        amountSats: 100001n,
+        maxDepositSats: 100000n,
+      });
+      expect(result).toEqual({
+        disabled: true,
+        label: "Insufficient balance",
+      });
+    });
+
+    it("shows 'Insufficient balance' over 'Select a vault provider' when amount exceeds the fee-adjusted max", () => {
+      const result = getDepositCtaState({
+        ...readyParams,
+        amountSats: 100001n,
+        maxDepositSats: 100000n,
+        hasProvider: false,
+      });
+      expect(result.label).toBe("Insufficient balance");
+    });
+
+    it("allows an amount equal to the fee-adjusted max", () => {
+      const result = getDepositCtaState({
+        ...readyParams,
+        amountSats: 100000n,
+        maxDepositSats: 100000n,
+      });
+      expect(result).toEqual({ disabled: false, label: "Deposit" });
+    });
+
     it("prioritizes amount label over ordinals-pending", () => {
       const result = getDepositCtaState({
         ...readyParams,
@@ -534,6 +568,53 @@ describe("Deposit Validations", () => {
         ordinalsCheckPending: true,
       });
       expect(result.label).toBe("Enter an amount");
+    });
+
+    it("disables with cap-unavailable label when capUnavailable is true", () => {
+      const result = getDepositCtaState({
+        ...readyParams,
+        capUnavailable: true,
+      });
+      expect(result).toEqual({
+        disabled: true,
+        label: "Unable to verify supply cap — please try again",
+      });
+    });
+
+    it("returns 'Supply cap reached' when effectiveRemaining is zero", () => {
+      const result = getDepositCtaState({
+        ...readyParams,
+        effectiveRemaining: 0n,
+      });
+      expect(result).toEqual({
+        disabled: true,
+        label: "Supply cap reached — deposits temporarily paused",
+      });
+    });
+
+    it("returns 'Vault size exceeds remaining capacity' when amount > effectiveRemaining", () => {
+      // Amount + fee + claim (806_000) still fits readyParams.btcBalance
+      // (1_000_000), so this test isolates the cap branch from the balance
+      // check. effectiveRemaining 500_000 sats = "0.005" via
+      // formatSatoshisToBtc (trailing zeros stripped).
+      const result = getDepositCtaState({
+        ...readyParams,
+        amountSats: 800_000n,
+        effectiveRemaining: 500_000n,
+      });
+      expect(result).toEqual({
+        disabled: true,
+        label: "Vault size exceeds remaining capacity (0.005 BTC)",
+      });
+    });
+
+    it("allows an amount equal to effectiveRemaining", () => {
+      const result = getDepositCtaState({
+        ...readyParams,
+        amountSats: 500_000n,
+        effectiveRemaining: 500_000n,
+      });
+      expect(result).toEqual({ disabled: false, label: "Deposit" });
     });
   });
 });

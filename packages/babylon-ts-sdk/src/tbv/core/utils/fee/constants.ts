@@ -64,34 +64,28 @@ export const PEGIN_AUTH_ANCHOR_OUTPUTS = 1;
  *
  * A Pre-PegIn tx has: N HTLC outputs (one per vault) + optional
  * auth-anchor OP_RETURN output + fixed outputs (CPFP anchor). This
- * count is used for fee estimation — the change output is handled
+ * count is used for fee estimation only — the change output is handled
  * separately by `selectUtxosForPegin` when the change amount exceeds
  * the dust threshold.
  *
- * `authAnchorHash` is the same value forwarded into `buildPrePeginPsbt`:
- * when truthy the Pre-PegIn carries an OP_RETURN commitment, so callers
- * pass the same value to both functions and the fee budget stays in
- * lockstep with the output set. Passing `undefined`/`null` reproduces
- * the legacy single-arg behavior (HTLCs + CPFP only).
- *
- * @param vaultCount      - Number of vaults in the batch (≥1).
- * @param authAnchorHash  - The same auth-anchor commitment passed to
- *                          `buildPrePeginPsbt`. Truthy → counts the
- *                          OP_RETURN output in the budget.
+ * @param vaultCount     - Number of vaults in the batch (≥1).
+ * @param hasAuthAnchor  - Whether the Pre-PegIn will carry an auth-anchor
+ *                          OP_RETURN output. Pass the same value the
+ *                          caller will hand to `buildPrePeginPsbt`'s
+ *                          `authAnchorHash` (truthy ↔ true) so the fee
+ *                          budget stays in lockstep with the output set.
  * @returns Total output count before change.
  * @throws If `vaultCount` is not a positive integer.
  */
 export function peginOutputCount(
   vaultCount: number,
-  authAnchorHash?: string | null,
+  hasAuthAnchor: boolean,
 ): number {
   if (!Number.isInteger(vaultCount) || vaultCount < 1) {
     throw new Error(
       `peginOutputCount: vaultCount must be a positive integer, got ${vaultCount}`,
     );
   }
-  const hasAuthAnchor =
-    typeof authAnchorHash === "string" && authAnchorHash.length > 0;
   return (
     vaultCount +
     PEGIN_FIXED_OUTPUTS +
