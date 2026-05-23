@@ -22,6 +22,7 @@ import {
 } from "../models/peginStateMachine";
 import type { VaultActivity } from "../types/activity";
 import { useDebounce } from "../utils/hooks";
+import { derivePrePeginTxHash } from "../utils/vaultTransformers";
 
 import {
   addPendingPegin as addPendingPeginToStorage,
@@ -191,6 +192,7 @@ export function usePeginStorage({
       .map((pending) => ({
         id: pending.id,
         peginTxHash: pending.peginTxHash,
+        prePeginTxHash: derivePrePeginTxHash(pending.unsignedTxHex),
         collateral: {
           amount: pending.amount || "0",
           symbol: btcConfig.coinSymbol,

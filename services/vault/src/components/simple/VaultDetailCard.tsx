@@ -12,7 +12,11 @@ import { CopyableHash } from "@/components/shared/CopyableHash";
 import { getNetworkConfigBTC } from "@/config";
 import { truncateAddress } from "@/utils/addressUtils";
 import { getBtcExplorerTxUrl } from "@/utils/explorer";
-import { formatBtcAmount, formatDateTime } from "@/utils/formatting";
+import {
+  formatBtcAmount,
+  formatDateTime,
+  formatTimeAgo,
+} from "@/utils/formatting";
 
 import { VaultCardRow, VaultCardShell } from "./VaultCardShell";
 
@@ -23,7 +27,10 @@ interface VaultDetailCardProps {
   amountBtc: number;
   /** Timestamp in milliseconds */
   timestamp: number;
-  /** BTC peg-in transaction hash (hex, may include 0x prefix) */
+  /** BTC transaction hash to link in the explorer (hex, may include 0x prefix).
+   * For pending/expired deposits this is the Pre-PegIn tx the depositor
+   * broadcasts; the peg-in tx itself is not on Bitcoin until the vault
+   * provider broadcasts it later in the flow. */
   txHash?: string;
   /** Vault provider display name */
   providerName: string;
@@ -82,9 +89,14 @@ export function VaultDetailCard({
 
       {/* Date */}
       <VaultCardRow label="Date">
-        <span className="text-sm text-accent-primary">
-          {formatDateTime(new Date(timestamp))}
-        </span>
+        <Hint
+          tooltip={formatDateTime(new Date(timestamp))}
+          attachToChildren
+          placement="left"
+          className="text-sm text-accent-primary"
+        >
+          <span>{formatTimeAgo(timestamp)}</span>
+        </Hint>
       </VaultCardRow>
 
       {/* Status */}

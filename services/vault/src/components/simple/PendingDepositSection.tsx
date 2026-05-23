@@ -145,7 +145,7 @@ export function PendingDepositSection() {
                         depositId={group[0].id}
                         amount={group[0].collateral.amount}
                         timestamp={group[0].timestamp}
-                        txHash={group[0].peginTxHash}
+                        txHash={group[0].prePeginTxHash}
                         providerId={group[0].providers[0].id}
                         vaultProviders={vaultProviders}
                         onSignClick={signModal.handleSignClick}
