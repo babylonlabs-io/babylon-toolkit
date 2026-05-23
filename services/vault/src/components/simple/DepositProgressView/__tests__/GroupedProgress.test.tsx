@@ -25,7 +25,7 @@ describe("GroupedProgress", () => {
   });
 
   it("expands only the active group and hides other groups' sub-steps", () => {
-    // Step 7 -> "Sign WOTS" group is active.
+    // Step 7 -> "Set up claim" group is active.
     render(<GroupedProgress steps={steps} currentStep={7} />);
 
     // Active group sub-step is visible.
@@ -105,7 +105,7 @@ describe("GroupedProgress", () => {
 
   describe("accessibility", () => {
     it("labels the active sub-step for screen readers", () => {
-      // Step 7 -> "Sign WOTS" group active; step 7 is the active sub-step.
+      // Step 7 -> "Set up claim" group active; step 7 is the active sub-step.
       render(<GroupedProgress steps={steps} currentStep={7} />);
 
       expect(
@@ -116,7 +116,7 @@ describe("GroupedProgress", () => {
     it("exposes each group's status to screen readers", () => {
       render(<GroupedProgress steps={steps} currentStep={7} />);
 
-      // Register deposit done, Sign WOTS active, the latter two not started.
+      // Register deposit done, Set up claim active, the latter two not started.
       expect(
         screen.getByLabelText(COPY.deposit.a11y.groupStatus.completed),
       ).toBeInTheDocument();

@@ -50,7 +50,7 @@ describe("DepositProgressView", () => {
     });
 
     it("expands only the section containing the current step", () => {
-      // Step 7 lives in the "Sign WOTS" group.
+      // Step 7 lives in the "Set up claim" group.
       render(
         <DepositProgressView
           {...baseProps}
@@ -413,6 +413,34 @@ describe("DepositProgressView", () => {
 
       expect(
         screen.queryByTestId("btc-confirmation-detail"),
+      ).not.toBeInTheDocument();
+    });
+  });
+
+  describe("peg-in fee warning", () => {
+    it("warns about the high fee while the peg-in signing step is active", () => {
+      render(
+        <DepositProgressView
+          {...baseProps}
+          currentStep={DepositFlowStep.SIGN_PEGIN_BTC}
+        />,
+      );
+
+      expect(
+        screen.getByText(COPY.deposit.steps.peginFeeWarning),
+      ).toBeInTheDocument();
+    });
+
+    it("does not show the fee warning on other steps", () => {
+      render(
+        <DepositProgressView
+          {...baseProps}
+          currentStep={DepositFlowStep.SUBMIT_WOTS_KEYS}
+        />,
+      );
+
+      expect(
+        screen.queryByText(COPY.deposit.steps.peginFeeWarning),
       ).not.toBeInTheDocument();
     });
   });

@@ -7,12 +7,20 @@ import { COPY } from "@/copy";
 import type { GroupStatus } from "./steps";
 
 interface GroupHeaderProps {
-  /** 1-based ordinal of the group, shown inside the indicator circle. */
+  /** 1-based ordinal of the group, rendered as a letter (A, B, C, …). */
   number: number;
   title: string;
   status: GroupStatus;
   completedInGroup: number;
   totalInGroup: number;
+}
+
+/**
+ * Group indicators use letters (A, B, C, …) so they read distinctly from the
+ * numbered sub-steps nested inside each group.
+ */
+function groupLetter(ordinal: number): string {
+  return String.fromCharCode("A".charCodeAt(0) + ordinal - 1);
 }
 
 function GroupIndicator({
@@ -52,7 +60,7 @@ function GroupIndicator({
           status === "active" ? "text-accent-primary" : "text-accent-secondary",
         )}
       >
-        {number}
+        {groupLetter(number)}
       </Text>
     </div>
   );

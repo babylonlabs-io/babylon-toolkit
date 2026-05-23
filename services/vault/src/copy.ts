@@ -135,7 +135,7 @@ export const COPY = {
       signAndBroadcastEth: "Sign and broadcast ETH registration",
       signAndBroadcastPrePegin: "Sign and broadcast BTC Pre-Pegin transaction",
       awaitBtcConfirmation: "Awaiting Bitcoin confirmation",
-      submitWotsKey: "Submit WOTS public key to vault provider",
+      submitWotsKey: "Submit Winternitz One-Time Signature (WOTS)",
       awaitPayoutTransactions:
         "Awaiting vault provider to prepare payout transactions",
       authenticateSession: "Authenticate session with vault provider",
@@ -146,12 +146,13 @@ export const COPY = {
       retrieveSecret: "Retrieve secret",
       revealSecret: "Sign and broadcast ETH activation transaction",
       awaitActivationConfirmation: "Awaiting vault activation confirmation",
+      peginFeeWarning: "Expect high transaction fee for security reasons",
       signingCounter: (completed: number, total: number) =>
         `(${completed} of ${total})`,
     },
     groups: {
       registerDeposit: "Register deposit",
-      signWots: "Sign WOTS",
+      signWots: "Set up claim",
       signPayout: "Sign payout",
       activateVault: "Activate vault",
       stepCounter: (completed: number, total: number) =>

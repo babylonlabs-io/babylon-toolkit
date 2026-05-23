@@ -56,6 +56,8 @@ interface StepRowProps {
   description?: string;
   /** Detail panel rendered below the label; rendered only on the active step. */
   detail?: ReactNode;
+  /** True when another sub-step follows in the group (i.e. not the last). */
+  hasNext?: boolean;
 }
 
 export function StepRow({
@@ -64,8 +66,13 @@ export function StepRow({
   label,
   description,
   detail,
+  hasNext = false,
 }: StepRowProps) {
   const isActive = state === "active";
+  // A detail panel makes the active row taller than a circle. Fill the extra
+  // height with a connector segment so the timeline stays unbroken down to the
+  // next step's connector — but never dangle a line below the group's last step.
+  const showTrailingLine = isActive && Boolean(detail) && hasNext;
 
   return (
     <div
@@ -74,7 +81,12 @@ export function StepRow({
         isActive ? "items-start" : "items-center",
       )}
     >
-      <StepCircle state={state} number={number} />
+      <div className="flex w-8 flex-col items-center self-stretch">
+        <StepCircle state={state} number={number} />
+        {showTrailingLine && (
+          <div className="w-0 flex-1 border-l-2 border-secondary-strokeDark" />
+        )}
+      </div>
       <div className="flex flex-1 flex-col">
         <div className="flex items-baseline gap-2">
           <Text
