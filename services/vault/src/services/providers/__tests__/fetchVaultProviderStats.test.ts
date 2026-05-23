@@ -97,17 +97,15 @@ describe("fetchVaultProviderStats", () => {
   });
 
   it("isolates a failed VP query so other VPs still resolve", async () => {
-    mockRequest.mockImplementation((_query, variables) => {
-      const vp = (variables as { vaultProvider: string }).vaultProvider;
-      if (vp === "0xbroken") {
-        return Promise.reject(new Error("indexer unavailable"));
-      }
-      return Promise.resolve(
-        vaultsResponse([
-          { amount: "777", status: "available", activatedAt: "100" },
-        ]),
-      );
-    });
+    // fetchVaultProviderStats issues one request per id via `vaultProviderIds.map(...)`,
+    // which invokes the mock synchronously in input order, so FIFO `*Once` mocks
+    // match each call to its provider deterministically.
+    mockRequest.mockRejectedValueOnce(new Error("indexer unavailable")); // 0xBroken
+    mockRequest.mockResolvedValueOnce(
+      vaultsResponse([
+        { amount: "777", status: "available", activatedAt: "100" },
+      ]),
+    ); // 0xGood
 
     const stats = await fetchVaultProviderStats(["0xBroken", "0xGood"]);
 
