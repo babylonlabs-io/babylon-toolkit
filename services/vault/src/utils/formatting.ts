@@ -64,6 +64,26 @@ export function formatBtcAmount(btcAmount: number, decimals = 8): string {
   return `${formatBtcValue(btcAmount, decimals)} ${btcConfig.coinSymbol}`;
 }
 
+const SATS_PER_BTC = 100_000_000n;
+
+/**
+ * Format a satoshi-denominated bigint as a BTC string with suffix.
+ * Performs the conversion in bigint arithmetic so totals near or above the
+ * JS-safe-integer range stay exact (i.e. no `Number()` round-trip).
+ *
+ * @param sats - Total in satoshis. Zero or negative returns "0 BTC/sBTC".
+ * @param decimals - Decimal places to display (default 8). Trailing zeros trimmed.
+ */
+export function formatBtcFromSats(sats: bigint, decimals = 8): string {
+  if (sats <= 0n) return `0 ${btcConfig.coinSymbol}`;
+  const whole = sats / SATS_PER_BTC;
+  const remainder = sats % SATS_PER_BTC;
+  const fractional = remainder.toString().padStart(8, "0").slice(0, decimals);
+  const trimmed = fractional.replace(/0+$/, "");
+  const display = trimmed ? `${whole}.${trimmed}` : `${whole}`;
+  return `${display} ${btcConfig.coinSymbol}`;
+}
+
 /**
  * Format a basis-points value as a percentage string for display.
  * 1 bps = 0.01%. Renders up to two decimals with trailing zeros trimmed

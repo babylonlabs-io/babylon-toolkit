@@ -18,9 +18,14 @@ import type { VaultProviderListItem } from "@/types/vaultProvider";
 
 /**
  * A provider is "problematic" when it is runtime-unhealthy or its registered
- * rpcUrl was rejected — either way it belongs in the bottom tier.
+ * rpcUrl was rejected. Used as both the sort discriminator (sinks the provider
+ * to the bottom tier) and the picker's divider boundary (the first problematic
+ * entry marks where the "currently unavailable" group begins) — keeping the
+ * single definition guarantees those two views stay in sync.
  */
-function isProblematic(provider: VaultProviderListItem): boolean {
+export function isProblematicVaultProvider(
+  provider: VaultProviderListItem,
+): boolean {
   return provider.unhealthy || provider.unavailable;
 }
 
@@ -32,8 +37,8 @@ export function sortVaultProviders(
   providers: readonly VaultProviderListItem[],
 ): VaultProviderListItem[] {
   return [...providers].sort((a, b) => {
-    const aProblem = isProblematic(a);
-    const bProblem = isProblematic(b);
+    const aProblem = isProblematicVaultProvider(a);
+    const bProblem = isProblematicVaultProvider(b);
 
     // Tier 1 vs tier 2: problematic providers always sink to the bottom.
     if (aProblem !== bProblem) {

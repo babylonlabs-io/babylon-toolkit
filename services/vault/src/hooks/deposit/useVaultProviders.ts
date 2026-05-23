@@ -18,7 +18,7 @@
  */
 
 import { useQuery } from "@tanstack/react-query";
-import { useCallback, useMemo } from "react";
+import { useCallback } from "react";
 
 import { useAaveConfig } from "../../applications/aave/context/AaveConfigContext";
 import { fetchAppProviders } from "../../services/providers";
@@ -36,11 +36,6 @@ const EMPTY_VAULT_KEEPERS: VaultKeeper[] = [];
 const getProviderIdentity = (p: VaultProvider) => toIdentity(p.btcPubKey);
 
 export interface UseVaultProvidersResult {
-  /**
-   * Vault providers for selection UI, excluding runtime-unhealthy VPs.
-   * Kept for callers that only want immediately-usable providers.
-   */
-  vaultProviders: VaultProvider[];
   /**
    * Every vault provider — including runtime-unhealthy and metadata-rejected
    * ones. The deposit picker uses this so unhealthy VPs can be shown (sorted
@@ -100,21 +95,12 @@ export function useVaultProviders(
 
   const unhealthyVps = useUnhealthyVps();
 
-  // All providers with logos (unfiltered) — used by findProvider so that
-  // existing vaults on temporarily unhealthy VPs remain resolvable.
+  // All providers with logos (unfiltered) — used by every caller. The
+  // deposit picker sorts unhealthy / metadata-rejected VPs to the bottom
+  // instead of hiding them, and findProvider must resolve any provider that
+  // existing vaults are bound to (including ones whose rpcUrl later went bad).
   const allProviders = data?.vaultProviders ?? EMPTY_VAULT_PROVIDERS;
   const allProvidersWithLogos = useWithLogos(allProviders, getProviderIdentity);
-
-  // Filtered list for selection UI — excludes runtime-unhealthy VPs (those
-  // can recover, so hiding is the existing pattern). Metadata-rejected VPs
-  // (bad rpcUrl per the indexer's static check) are kept in the list so the
-  // picker can render them disabled with a tooltip explaining why.
-  const vaultProvidersWithLogos = useMemo(() => {
-    if (unhealthyVps.size === 0) return allProvidersWithLogos;
-    return allProvidersWithLogos.filter(
-      (p) => !unhealthyVps.has(p.id.toLowerCase()),
-    );
-  }, [allProvidersWithLogos, unhealthyVps]);
 
   // Find provider by address — searches ALL providers (including unhealthy
   // and metadata-rejected) so that vault management flows (payout signing,
@@ -135,7 +121,6 @@ export function useVaultProviders(
   };
 
   return {
-    vaultProviders: vaultProvidersWithLogos,
     allVaultProviders: allProvidersWithLogos,
     unhealthyVpIds: unhealthyVps,
     vaultKeepers: data?.vaultKeepers ?? EMPTY_VAULT_KEEPERS,

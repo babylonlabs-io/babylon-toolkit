@@ -4,7 +4,6 @@ import {
   Card,
   Loader,
 } from "@babylonlabs-io/core-ui";
-import { formatSatoshisToBtc } from "@babylonlabs-io/ts-sdk/tbv/core";
 import {
   IoCheckmark,
   IoChevronUp,
@@ -17,8 +16,9 @@ import { COPY } from "@/copy";
 import type { VaultProviderListItem } from "@/types/vaultProvider";
 import {
   formatBasisPointsAsPercent,
-  formatBtcAmount,
+  formatBtcFromSats,
 } from "@/utils/formatting";
+import { isProblematicVaultProvider } from "@/utils/sortVaultProviders";
 
 const FORM_COPY = COPY.deposit.form;
 
@@ -29,15 +29,6 @@ interface VaultProviderSelectorProps {
   onProviderSelect: (providerId: string) => void;
   expanded: boolean;
   onExpandedChange: (expanded: boolean) => void;
-}
-
-/**
- * A provider is "problematic" when it is runtime-unhealthy or its registered
- * rpcUrl was rejected. Both render with a warning icon under the
- * "currently unavailable" divider; only rejected ones are non-selectable.
- */
-function isProblematic(provider: VaultProviderListItem): boolean {
-  return provider.unhealthy || provider.unavailable;
 }
 
 /** Status line text for a provider row. */
@@ -73,7 +64,7 @@ function activeBtcText(provider: VaultProviderListItem): string {
   const value =
     provider.totalActiveSats === undefined
       ? FORM_COPY.providerMetricPlaceholder
-      : formatBtcAmount(Number(formatSatoshisToBtc(provider.totalActiveSats)));
+      : formatBtcFromSats(provider.totalActiveSats);
   return `${FORM_COPY.providerActiveLabel} ${value}`;
 }
 
@@ -92,7 +83,7 @@ export function VaultProviderSelector({
   // `providers` arrives pre-sorted (healthy first, problematic last), so the
   // first problematic entry marks where the "currently unavailable" group
   // starts. A divider is only meaningful when healthy providers precede it.
-  const firstProblematicIndex = providers.findIndex(isProblematic);
+  const firstProblematicIndex = providers.findIndex(isProblematicVaultProvider);
 
   return (
     <Accordion expanded={expanded}>
@@ -133,7 +124,7 @@ export function VaultProviderSelector({
           ) : (
             providers.map((provider, index) => {
               const isSelected = provider.id === selectedProvider;
-              const problematic = isProblematic(provider);
+              const problematic = isProblematicVaultProvider(provider);
               // Runtime-unhealthy VPs stay selectable (health can recover);
               // metadata-rejected VPs do not.
               const isDisabled = provider.unavailable;
@@ -152,20 +143,18 @@ export function VaultProviderSelector({
                       <div className="h-px flex-1 bg-secondary-strokeLight" />
                     </div>
                   )}
-                  <div
-                    role="button"
-                    tabIndex={isDisabled ? -1 : 0}
-                    aria-disabled={isDisabled}
-                    className={`flex w-full items-start justify-between gap-3 ${isDisabled ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`}
-                    onClick={handleSelect}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter" || event.key === " ") {
-                        event.preventDefault();
-                        handleSelect();
-                      }
-                    }}
-                  >
-                    <div className="flex items-start gap-3">
+                  {/* Row is a flex container holding two SIBLING controls — the
+                      selection button (left) and the explorer link (right) —
+                      so the link isn't nested inside another interactive
+                      element. The checkmark sits between them as a status
+                      indicator. */}
+                  <div className="flex w-full items-start justify-between gap-3">
+                    <button
+                      type="button"
+                      disabled={isDisabled}
+                      onClick={handleSelect}
+                      className={`flex flex-1 items-start gap-3 text-left ${isDisabled ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`}
+                    >
                       <ApplicationLogo
                         logoUrl={provider.iconUrl ?? null}
                         name={provider.name}
@@ -192,8 +181,14 @@ export function VaultProviderSelector({
                           {activeBtcText(provider)}
                         </span>
                       </div>
-                    </div>
+                    </button>
                     <div className="flex shrink-0 items-center gap-2">
+                      {isSelected && (
+                        <IoCheckmark
+                          className="text-accent-primary"
+                          size={20}
+                        />
+                      )}
                       <a
                         href={provider.explorerUrl}
                         target="_blank"
@@ -201,17 +196,9 @@ export function VaultProviderSelector({
                         aria-label={FORM_COPY.providerExplorerLinkLabel}
                         title={FORM_COPY.providerExplorerLinkLabel}
                         className="text-accent-secondary transition-colors hover:text-accent-primary"
-                        onClick={(event) => event.stopPropagation()}
-                        onKeyDown={(event) => event.stopPropagation()}
                       >
                         <IoOpenOutline size={16} />
                       </a>
-                      {isSelected && (
-                        <IoCheckmark
-                          className="text-accent-primary"
-                          size={20}
-                        />
-                      )}
                     </div>
                   </div>
                 </div>
