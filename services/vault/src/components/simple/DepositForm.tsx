@@ -62,6 +62,18 @@ interface DepositFormProps {
   effectiveRemaining: bigint | null;
   /** True when the supply-cap read errored — CTA must reflect this. */
   capUnavailable: boolean;
+  /**
+   * Exact per-HTLC PegIn (activation) tx fee in satoshis. Null while the
+   * WASM query is loading. The CTA must block submission while this is
+   * null so the inflated-Max display window can't be submitted.
+   */
+  minPeginFee: bigint | null;
+  /**
+   * Terminal failure from the `computeMinPeginFee` WASM query. CTA surfaces
+   * this as "Fee estimate unavailable" instead of an indefinite loading
+   * state. Null while the query is healthy.
+   */
+  minPeginFeeError: Error | null;
   btcPrice: number;
   hasPriceFetchError: boolean;
   onAmountChange: (value: string) => void;
@@ -140,6 +152,8 @@ export function DepositForm({
   maxDepositSats,
   effectiveRemaining,
   capUnavailable,
+  minPeginFee,
+  minPeginFeeError,
   btcPrice,
   hasPriceFetchError,
   onAmountChange,
@@ -226,6 +240,8 @@ export function DepositForm({
     maxDepositSats: maxDepositSats ?? null,
     effectiveRemaining,
     capUnavailable,
+    minPeginFee,
+    minPeginFeeError,
     btcBalance,
     estimatedFeeSats: estimatedFeeSats ?? undefined,
     depositorClaimValue,

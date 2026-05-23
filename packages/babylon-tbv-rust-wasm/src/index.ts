@@ -1,5 +1,5 @@
 // @ts-expect-error - WASM files are in dist/generated/ (checked into git), not src/generated/
-import init, { WasmPrePeginTx, WasmPrePeginHtlcConnector, WasmPeginTx, computeMinClaimValue as wasmComputeMinClaimValue, deriveVaultId as wasmDeriveVaultId, expandAuthAnchor as wasmExpandAuthAnchor, expandHashlockSecret as wasmExpandHashlockSecret, expandWotsSeed as wasmExpandWotsSeed } from "./generated/btc_vault.js";
+import init, { WasmPrePeginTx, WasmPrePeginHtlcConnector, WasmPeginTx, computeMinClaimValue as wasmComputeMinClaimValue, computeMinPeginFee as wasmComputeMinPeginFee, deriveVaultId as wasmDeriveVaultId, expandAuthAnchor as wasmExpandAuthAnchor, expandHashlockSecret as wasmExpandHashlockSecret, expandWotsSeed as wasmExpandWotsSeed } from "./generated/btc_vault.js";
 import type {
   PrePeginParams,
   PrePeginResult,
@@ -243,6 +243,25 @@ export async function computeMinClaimValue(
     councilSize,
     feeRate,
   );
+}
+
+/**
+ * Compute the minimum PegIn (activation) transaction fee in satoshis.
+ *
+ * `minPeginFee = peginTxVsize(numVks, numUcs) × minPeginFeeRate`. Each HTLC
+ * the depositor funds in the Pre-PegIn tx must reserve at least this fee
+ * inside its value (`htlcValue = peginAmount + depositorClaimValue +
+ * minPeginFee`), otherwise the VP cannot afford to broadcast the PegIn at
+ * activation. The vsize comes from a Taproot script-path-spend weight
+ * prediction whose witness shape depends on the VK + UC signer count.
+ */
+export async function computeMinPeginFee(
+  numVks: number,
+  numUcs: number,
+  minPeginFeeRate: bigint,
+): Promise<bigint> {
+  await initWasm();
+  return wasmComputeMinPeginFee(numVks, numUcs, minPeginFeeRate);
 }
 
 // wasm-bindgen rethrows Rust `JsValue::from_str(...)` errors as bare strings,
