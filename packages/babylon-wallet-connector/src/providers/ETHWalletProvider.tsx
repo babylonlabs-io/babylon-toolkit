@@ -133,7 +133,57 @@ export const ETHWalletProvider = ({ children, callbacks }: ETHWalletProviderProp
       }
     });
 
-    return unsubscribe;
+    // Bridge a late wagmi rehydrate into the connector "connect" flow.
+    // checkExistingConnection() above only sees the account wagmi has already
+    // restored by mount time. On reload wagmi often finishes reconnecting from
+    // cookieStorage *after* that: the provider then emits "accountsChanged"
+    // with the restored address, but nothing has called ethConnector.connect()
+    // yet, so connectedWallet / selectedWallets / the connect listener above
+    // never fire and ETH silently fails to re-wire (the AppKit modal shows the
+    // account while the app still shows "Connect"). Listen for that late
+    // address and route it through the connector — a silent no-op when wagmi is
+    // already connected, so it never reopens the modal — which then drives the
+    // connect listener above and the auto-confirm-on-reload effect.
+    const bootstrapWallet = ethConnector.wallets[0];
+    const bootstrapProvider = bootstrapWallet?.provider;
+    // wagmi can emit several `accountsChanged` while it rehydrates, before React
+    // re-renders with the new `address` — without this guard each one would see
+    // `address` empty and fire another `ethConnector.connect`. On success the
+    // address becomes truthy and the effect re-subscribes, so the flag only
+    // needs resetting on failure.
+    let lateReconnectInFlight = false;
+    const onLateReconnect = (accounts?: string[]) => {
+      if (!accounts?.[0] || address || lateReconnectInFlight) return;
+      lateReconnectInFlight = true;
+      void ethConnector
+        .connect(bootstrapWallet)
+        .then((wallet) => {
+          // `connect` catches internally and resolves `null` on failure (it does
+          // not reject), so reset the guard here to allow a retry on the next
+          // accountsChanged. On success the address gets set and the effect
+          // re-subscribes, so the guard naturally stops further calls.
+          if (!wallet) lateReconnectInFlight = false;
+        })
+        .catch((error) => {
+          // Defensive only — `connect` shouldn't reject, but reset on an
+          // unexpected synchronous throw so we don't wedge the guard.
+          lateReconnectInFlight = false;
+          console.error(
+            "ETH late reconnect failed:",
+            error instanceof Error ? error.message : "Unknown error",
+          );
+        });
+    };
+    if (bootstrapProvider && typeof bootstrapProvider.on === "function") {
+      bootstrapProvider.on("accountsChanged", onLateReconnect);
+    }
+
+    return () => {
+      unsubscribe();
+      if (bootstrapProvider && typeof bootstrapProvider.off === "function") {
+        bootstrapProvider.off("accountsChanged", onLateReconnect);
+      }
+    };
   }, [ethConnector, connectETH, address]);
 
   useEffect(() => {

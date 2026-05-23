@@ -49,7 +49,14 @@ const context = typeof window !== "undefined" ? window : {};
 // reconnect arrives within the window we cancel, otherwise the disconnect is
 // real and we proceed. A real disconnect is therefore honoured, just delayed by
 // this bounded amount — never dropped.
-const BTC_DISCONNECT_DEBOUNCE_MS = 1500;
+//
+// The window has to outlast a slow Unisat wake-up + auto-reconnect handshake
+// (which is fire-and-forget on reload and can take up to the provider's RPC
+// timeout). 1500ms was shorter than that handshake, so a slow extension wake
+// was being treated as a real disconnect and wiped both wallets. The
+// `hasBtcConnectedRef` gate (below) is the primary guard against startup blips;
+// this debounce + cancelBtcReset cover post-connect wake-up blips.
+const BTC_DISCONNECT_DEBOUNCE_MS = 3000;
 
 /**
  * Component that provides wallet-specific providers with cross-disconnect logic
@@ -58,6 +65,11 @@ function WalletProviders({ children }: PropsWithChildren) {
   const { disconnect: disconnectAll } = useWalletConnect();
   // Guard against re-entrancy when disconnectAll triggers disconnect events
   const isDisconnectingRef = useRef(false);
+  // Whether BTC has successfully connected at least once this session. A
+  // disconnect before the first successful connect is, by definition, a
+  // startup/reconnect blip — there is no live session to tear down — so we
+  // never escalate it to disconnectAll() (which would wipe BOTH wallets).
+  const hasBtcConnectedRef = useRef(false);
   // Pending debounced BTC reset (see BTC_DISCONNECT_DEBOUNCE_MS).
   const pendingBtcResetRef = useRef<ReturnType<typeof setTimeout> | undefined>(
     undefined,
@@ -82,17 +94,31 @@ function WalletProviders({ children }: PropsWithChildren) {
   // events disconnectAll() itself emits don't re-arm the timer.
   const scheduleBtcReset = useCallback(() => {
     if (isDisconnectingRef.current) return;
+    // A disconnect before BTC ever finished connecting this session is a
+    // startup/reconnect blip, not a real disconnect — there is no live session
+    // to tear down. Escalating it would wipe the persisted session for BOTH
+    // wallets (including ETH) over a wallet that simply hasn't woken up yet.
+    if (!hasBtcConnectedRef.current) return;
     if (pendingBtcResetRef.current !== undefined)
       clearTimeout(pendingBtcResetRef.current);
     pendingBtcResetRef.current = setTimeout(() => {
       pendingBtcResetRef.current = undefined;
+      // A reconnect within the window cancels this timer via cancelBtcReset
+      // (fired from the provider's onConnect). If we get here, no reconnect
+      // arrived — treat it as a real disconnect. We deliberately do NOT consult
+      // the connector's `connectedWallet` as a liveness signal: an
+      // extension-initiated disconnect tears down BTCWalletProvider without
+      // calling connector.disconnect(), so `connectedWallet` stays stale-set
+      // and would wrongly suppress a genuine disconnect.
       void runWalletReset();
     }, BTC_DISCONNECT_DEBOUNCE_MS);
   }, [runWalletReset]);
 
-  // BTC (re)connected. If a reset is pending, the preceding disconnect was a
-  // transient blip — cancel it and keep both wallets connected.
+  // BTC (re)connected. Mark the session as having connected at least once, and
+  // if a reset is pending, the preceding disconnect was a transient blip —
+  // cancel it and keep both wallets connected.
   const cancelBtcReset = useCallback(() => {
+    hasBtcConnectedRef.current = true;
     if (pendingBtcResetRef.current === undefined) return;
     clearTimeout(pendingBtcResetRef.current);
     pendingBtcResetRef.current = undefined;
