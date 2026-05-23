@@ -293,7 +293,7 @@ describe("fetchVaults", () => {
       ["signatures_collected", "depositorWotsPkHash"],
       ["verified", "depositorWotsPkHash"],
     ])(
-      "throws when a %s vault fails to transform (reservation-relevant)",
+      "throws when a %s vault fails to transform (in-flight)",
       async (status, badField) => {
         mockedRequest.mockResolvedValueOnce({
           vaults: {
@@ -311,16 +311,16 @@ describe("fetchVaults", () => {
           fetchVaultsByDepositorStrict("0xdepositor" as `0x${string}`),
         ).rejects.toThrow(
           new RegExp(
-            `Reservation-relevant vault .* \\(status="${status}"\\) failed to transform`,
+            `In-flight vault .* \\(status="${status}"\\) failed to transform`,
           ),
         );
       },
     );
 
-    // Non-reservation statuses never contribute to the reservation set, so a
+    // Non-in-flight statuses never contribute to the pending-claim set, so a
     // transform failure there has no security impact and the strict variant
     // matches the forgiving variant: log and skip.
-    it("logs and skips when a non-reservation-relevant vault fails to transform", async () => {
+    it("logs and skips when a non-in-flight vault fails to transform", async () => {
       const goodId = "0x" + "11".repeat(32);
       const badId = "0x" + "22".repeat(32);
       mockedRequest.mockResolvedValueOnce({

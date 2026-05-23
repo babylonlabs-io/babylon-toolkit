@@ -1,37 +1,52 @@
-/** Tests for UTXO reservation utilities. */
+/**
+ * Tests for pending-vault claim collection + post-hoc impact attribution.
+ * Filename retained for git-history continuity — the prior "reservation"
+ * machinery this used to test has been removed; see the module's top doc.
+ */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ContractStatus } from "../../../services/deposit/peginState";
 import {
-  collectReservedUtxoRefs,
-  selectUtxosForDeposit,
+  collectPendingVaultClaims,
+  findImpactedVaultIds,
   type PendingPeginLike,
+  type PendingVaultClaim,
   type UtxoRef,
   type VaultLike,
 } from "../reservation";
 
-/** Minimal UTXO interface for testing. */
-interface TestUTXO {
-  txid: string;
-  vout: number;
-  value: number;
-  scriptPubKey: string;
-}
-
-/** Helper to check if a UtxoRef exists in array. */
-function hasRef(refs: UtxoRef[], txid: string, vout: number): boolean {
-  return refs.some(
-    (ref) => ref.txid.toLowerCase() === txid.toLowerCase() && ref.vout === vout,
+/**
+ * Build a syntactically valid Bitcoin transaction hex that spends a single
+ * outpoint `prevTxidLE:prevVout`. Used to seed `unsignedTxHex` fields in
+ * fixtures so `collectPendingVaultClaims` can parse real inputs out of them.
+ */
+function createValidTxHex(prevTxidLE: string, prevVout: number): string {
+  const voutHex = prevVout.toString(16).padStart(8, "0");
+  const voutLE =
+    voutHex.slice(6, 8) +
+    voutHex.slice(4, 6) +
+    voutHex.slice(2, 4) +
+    voutHex.slice(0, 2);
+  return (
+    "0100000001" +
+    prevTxidLE +
+    voutLE +
+    "6b" +
+    "483045022100884d142d86652a3f47ba4746ec719bbfbd040a570b1deccbb6498c75c4ae24cb02204b9f039ff08df09cbe9f6addac960298cad530a863ea8f53982c09db8f6e381301210484ecc0d46f1918b30928fa0e4ed99f16a0fb4fde0735e7ade8416ab9fe423cc5" +
+    "ffffffff" +
+    "01" +
+    "605af40500000000" +
+    "19" +
+    "76a914887c6824d03eb8997b1e28c1d81b4e5c8c96d41688ac" +
+    "00000000"
   );
 }
 
-// Representative 32-byte txids as lowercase hex. Real Bitcoin txids are always
-// 64 hex chars; validators at the source boundary reject anything else.
 const TXID_A = "a".repeat(64);
 const TXID_B = "b".repeat(64);
 
-describe("UTXO Reservation", () => {
+describe("reservation utilities", () => {
   let warnSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
@@ -42,645 +57,164 @@ describe("UTXO Reservation", () => {
     warnSpy.mockRestore();
   });
 
-  describe("collectReservedUtxoRefs", () => {
-    // Helper to create a valid transaction hex with a specific prev txid
-    const createValidTxHex = (prevTxidLE: string, prevVout: number): string => {
-      const voutHex = prevVout.toString(16).padStart(8, "0");
-      const voutLE =
-        voutHex.slice(6, 8) +
-        voutHex.slice(4, 6) +
-        voutHex.slice(2, 4) +
-        voutHex.slice(0, 2);
-      return (
-        "0100000001" +
-        prevTxidLE +
-        voutLE +
-        "6b" +
-        "483045022100884d142d86652a3f47ba4746ec719bbfbd040a570b1deccbb6498c75c4ae24cb02204b9f039ff08df09cbe9f6addac960298cad530a863ea8f53982c09db8f6e381301210484ecc0d46f1918b30928fa0e4ed99f16a0fb4fde0735e7ade8416ab9fe423cc5" +
-        "ffffffff" +
-        "01" +
-        "605af40500000000" +
-        "19" +
-        "76a914887c6824d03eb8997b1e28c1d81b4e5c8c96d41688ac" +
-        "00000000"
-      );
-    };
+  // ==========================================================================
+  // collectPendingVaultClaims
+  // ==========================================================================
 
-    // Valid transaction hex that spends a single input at `TXID_A:3`.
-    const VALID_TX_PENDING_TXID_A =
-      "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
-    const VALID_TX_FOR_PENDING = createValidTxHex(VALID_TX_PENDING_TXID_A, 3);
+  describe("collectPendingVaultClaims", () => {
+    const VAULT_ID_1 = "0x1111";
+    const VAULT_ID_2 = "0x2222";
 
-    const mockPendingPegin: PendingPeginLike = {
-      id: "0x1234",
-      unsignedTxHex: VALID_TX_FOR_PENDING,
-      // Present but ignored by `collectReservedUtxoRefs`; refs come from the
-      // transaction hex to avoid trusting a tamperable sidecar.
-      selectedUTXOs: [
-        {
-          txid: VALID_TX_PENDING_TXID_A,
-          vout: 3,
-        },
-      ],
-    };
+    it("collects claimed outpoints from a PENDING on-chain vault", () => {
+      const vault: VaultLike = {
+        id: VAULT_ID_1,
+        status: ContractStatus.PENDING,
+        unsignedPrePeginTx: createValidTxHex(TXID_A, 3),
+      };
 
-    const createMockVault = (
-      status: ContractStatus,
-      unsignedPrePeginTx: string,
-      id?: string,
-    ): VaultLike => ({
-      id,
-      status,
-      unsignedPrePeginTx,
+      const claims = collectPendingVaultClaims({ vaults: [vault] });
+
+      expect(claims).toHaveLength(1);
+      expect(claims[0].vaultId).toBe(VAULT_ID_1);
+      expect(claims[0].claimedOutpoints).toEqual([{ txid: TXID_A, vout: 3 }]);
     });
 
-    it("should collect refs from the pending pegin's unsignedTxHex", () => {
-      const reserved = collectReservedUtxoRefs({
-        pendingPegins: [mockPendingPegin],
-        vaults: [],
-      });
+    it("collects from a VERIFIED on-chain vault too", () => {
+      const vault: VaultLike = {
+        id: VAULT_ID_1,
+        status: ContractStatus.VERIFIED,
+        unsignedPrePeginTx: createValidTxHex(TXID_B, 0),
+      };
 
-      expect(reserved).toHaveLength(1);
-      expect(hasRef(reserved, VALID_TX_PENDING_TXID_A, 3)).toBe(true);
+      const claims = collectPendingVaultClaims({ vaults: [vault] });
+
+      expect(claims).toHaveLength(1);
+      expect(claims[0].claimedOutpoints).toEqual([{ txid: TXID_B, vout: 0 }]);
     });
 
-    it("ignores selectedUTXOs even when they would add extra refs", () => {
-      // The sidecar claims two UTXOs but the transaction only has one.
-      // collectReservedUtxoRefs must trust the transaction, not the sidecar.
+    it("skips on-chain vaults whose status is neither PENDING nor VERIFIED", () => {
+      const active: VaultLike = {
+        id: VAULT_ID_1,
+        status: ContractStatus.ACTIVE,
+        unsignedPrePeginTx: createValidTxHex(TXID_A, 0),
+      };
+      const expired: VaultLike = {
+        id: VAULT_ID_2,
+        status: ContractStatus.EXPIRED,
+        unsignedPrePeginTx: createValidTxHex(TXID_B, 0),
+      };
+
+      const claims = collectPendingVaultClaims({ vaults: [active, expired] });
+
+      expect(claims).toHaveLength(0);
+    });
+
+    it("collects from locally-stored pending pegins not already on-chain", () => {
       const pegin: PendingPeginLike = {
-        ...mockPendingPegin,
-        selectedUTXOs: [
-          { txid: TXID_A, vout: 0 },
-          { txid: TXID_B, vout: 1 },
-        ],
+        id: VAULT_ID_1,
+        unsignedTxHex: createValidTxHex(TXID_A, 5),
       };
 
-      const reserved = collectReservedUtxoRefs({
+      const claims = collectPendingVaultClaims({ pendingPegins: [pegin] });
+
+      expect(claims).toHaveLength(1);
+      expect(claims[0].vaultId).toBe(VAULT_ID_1);
+      expect(claims[0].claimedOutpoints).toEqual([{ txid: TXID_A, vout: 5 }]);
+    });
+
+    it("prefers the on-chain vault when a pending pegin's id matches", () => {
+      const vault: VaultLike = {
+        id: VAULT_ID_1,
+        status: ContractStatus.PENDING,
+        unsignedPrePeginTx: createValidTxHex(TXID_A, 0),
+      };
+      const pegin: PendingPeginLike = {
+        id: VAULT_ID_1,
+        unsignedTxHex: createValidTxHex(TXID_B, 1),
+      };
+
+      const claims = collectPendingVaultClaims({
+        vaults: [vault],
         pendingPegins: [pegin],
-        vaults: [],
       });
 
-      expect(reserved).toHaveLength(1);
-      expect(hasRef(reserved, VALID_TX_PENDING_TXID_A, 3)).toBe(true);
-      expect(hasRef(reserved, TXID_A, 0)).toBe(false);
-      expect(hasRef(reserved, TXID_B, 1)).toBe(false);
+      // Pending pegin is ignored because the id matches an on-chain vault.
+      expect(claims).toHaveLength(1);
+      expect(claims[0].claimedOutpoints).toEqual([{ txid: TXID_A, vout: 0 }]);
     });
 
-    it("should include refs from PENDING vaults", () => {
-      const vault = createMockVault(
-        ContractStatus.PENDING,
-        createValidTxHex(
-          "1111111111111111111111111111111111111111111111111111111111111111",
-          0,
-        ),
-      );
-
-      const reserved = collectReservedUtxoRefs({
-        pendingPegins: [],
-        vaults: [vault],
-      });
-
-      expect(reserved).toHaveLength(1);
-      expect(
-        hasRef(
-          reserved,
-          "1111111111111111111111111111111111111111111111111111111111111111",
-          0,
-        ),
-      ).toBe(true);
-    });
-
-    it("should include refs from VERIFIED vaults", () => {
-      const vault = createMockVault(
-        ContractStatus.VERIFIED,
-        createValidTxHex(
-          "2222222222222222222222222222222222222222222222222222222222222222",
-          1,
-        ),
-      );
-
-      const reserved = collectReservedUtxoRefs({
-        pendingPegins: [],
-        vaults: [vault],
-      });
-
-      expect(reserved).toHaveLength(1);
-      expect(
-        hasRef(
-          reserved,
-          "2222222222222222222222222222222222222222222222222222222222222222",
-          1,
-        ),
-      ).toBe(true);
-    });
-
-    it("should NOT include refs from ACTIVE vaults", () => {
-      const vault = createMockVault(
-        ContractStatus.ACTIVE,
-        createValidTxHex(
-          "3333333333333333333333333333333333333333333333333333333333333333",
-          0,
-        ),
-      );
-
-      const reserved = collectReservedUtxoRefs({
-        pendingPegins: [],
-        vaults: [vault],
-      });
-
-      expect(reserved).toHaveLength(0);
-    });
-
-    it("should NOT include refs from REDEEMED vaults", () => {
-      const vault = createMockVault(
-        ContractStatus.REDEEMED,
-        createValidTxHex(
-          "4444444444444444444444444444444444444444444444444444444444444444",
-          0,
-        ),
-      );
-
-      const reserved = collectReservedUtxoRefs({
-        pendingPegins: [],
-        vaults: [vault],
-      });
-
-      expect(reserved).toHaveLength(0);
-    });
-
-    it("should NOT include refs from LIQUIDATED vaults", () => {
-      const vault = createMockVault(
-        ContractStatus.LIQUIDATED,
-        createValidTxHex(
-          "5555555555555555555555555555555555555555555555555555555555555555",
-          0,
-        ),
-      );
-
-      const reserved = collectReservedUtxoRefs({
-        pendingPegins: [],
-        vaults: [vault],
-      });
-
-      expect(reserved).toHaveLength(0);
-    });
-
-    it("should NOT include refs from INVALID vaults", () => {
-      const vault = createMockVault(
-        ContractStatus.INVALID,
-        createValidTxHex(
-          "6666666666666666666666666666666666666666666666666666666666666666",
-          0,
-        ),
-      );
-
-      const reserved = collectReservedUtxoRefs({
-        pendingPegins: [],
-        vaults: [vault],
-      });
-
-      expect(reserved).toHaveLength(0);
-    });
-
-    it("should NOT include refs from EXPIRED vaults", () => {
-      const vault = createMockVault(
-        ContractStatus.EXPIRED,
-        createValidTxHex(
-          "8888888888888888888888888888888888888888888888888888888888888888",
-          0,
-        ),
-      );
-
-      const reserved = collectReservedUtxoRefs({
-        pendingPegins: [],
-        vaults: [vault],
-      });
-
-      expect(reserved).toHaveLength(0);
-    });
-
-    it("should NOT include refs from DEPOSITOR_WITHDRAWN vaults", () => {
-      const vault = createMockVault(
-        ContractStatus.DEPOSITOR_WITHDRAWN,
-        createValidTxHex(
-          "7777777777777777777777777777777777777777777777777777777777777777",
-          0,
-        ),
-      );
-
-      const reserved = collectReservedUtxoRefs({
-        pendingPegins: [],
-        vaults: [vault],
-      });
-
-      expect(reserved).toHaveLength(0);
-    });
-
-    it("should combine refs from multiple sources", () => {
-      const pendingVault = createMockVault(
-        ContractStatus.PENDING,
-        createValidTxHex(
-          "5555555555555555555555555555555555555555555555555555555555555555",
-          0,
-        ),
-      );
-
-      const reserved = collectReservedUtxoRefs({
-        pendingPegins: [mockPendingPegin],
-        vaults: [pendingVault],
-      });
-
-      expect(reserved).toHaveLength(2); // 1 from pending tx + 1 from vault
-      expect(hasRef(reserved, VALID_TX_PENDING_TXID_A, 3)).toBe(true);
-      expect(
-        hasRef(
-          reserved,
-          "5555555555555555555555555555555555555555555555555555555555555555",
-          0,
-        ),
-      ).toBe(true);
-    });
-
-    it("should handle empty inputs", () => {
-      const reserved = collectReservedUtxoRefs({
-        pendingPegins: [],
-        vaults: [],
-      });
-
-      expect(reserved).toHaveLength(0);
-    });
-
-    it("should handle undefined inputs", () => {
-      const reserved = collectReservedUtxoRefs({});
-
-      expect(reserved).toHaveLength(0);
-    });
-
-    it("ignores pending-pegin refs when the pegin is already indexed on-chain", () => {
-      const ON_CHAIN_TXID =
-        "1111111111111111111111111111111111111111111111111111111111111111";
-      const sharedVaultId = "0xshared";
-      const onChainVault = createMockVault(
-        ContractStatus.PENDING,
-        createValidTxHex(ON_CHAIN_TXID, 0),
-        sharedVaultId,
-      );
-      const tamperedPending: PendingPeginLike = {
-        ...mockPendingPegin,
-        id: sharedVaultId,
-        unsignedTxHex: createValidTxHex("f".repeat(64), 99),
+    it("skips pending pegins that have no id or no tx hex", () => {
+      const noId: PendingPeginLike = {
+        unsignedTxHex: createValidTxHex(TXID_A, 0),
       };
+      const noHex: PendingPeginLike = { id: VAULT_ID_1 };
 
-      const reserved = collectReservedUtxoRefs({
-        pendingPegins: [tamperedPending],
-        vaults: [onChainVault],
+      const claims = collectPendingVaultClaims({
+        pendingPegins: [noId, noHex],
       });
 
-      expect(reserved).toHaveLength(1);
-      expect(hasRef(reserved, ON_CHAIN_TXID, 0)).toBe(true);
-      expect(hasRef(reserved, "f".repeat(64), 99)).toBe(false);
-    });
-
-    it("ignores pending-pegin refs even when matching vault has non-reserving status", () => {
-      // Pegin is on-chain but ACTIVE: the vault branch adds no refs (UTXO is
-      // spent), and the pending-pegin copy is skipped to avoid resurrecting
-      // stale/tampered refs after the real spend.
-      const sharedVaultId = "0xactiveshared";
-      const activeVault = createMockVault(
-        ContractStatus.ACTIVE,
-        createValidTxHex("c".repeat(64), 0),
-        sharedVaultId,
-      );
-      const pendingCopy: PendingPeginLike = {
-        ...mockPendingPegin,
-        id: sharedVaultId,
-      };
-
-      const reserved = collectReservedUtxoRefs({
-        pendingPegins: [pendingCopy],
-        vaults: [activeVault],
-      });
-
-      expect(reserved).toHaveLength(0);
-    });
-
-    it("should collect refs from utxoReservations", () => {
-      const reservationTxid =
-        "9999999999999999999999999999999999999999999999999999999999999999";
-      const reserved = collectReservedUtxoRefs({
-        pendingPegins: [],
-        vaults: [],
-        utxoReservations: [
-          { outpoints: [{ txid: reservationTxid, vout: 2 }] },
-        ],
-      });
-
-      expect(reserved).toHaveLength(1);
-      expect(hasRef(reserved, reservationTxid, 2)).toBe(true);
-    });
-
-    it("should collect every outpoint from a multi-input reservation", () => {
-      const txidA =
-        "1111111111111111111111111111111111111111111111111111111111111111";
-      const txidB =
-        "2222222222222222222222222222222222222222222222222222222222222222";
-
-      const reserved = collectReservedUtxoRefs({
-        pendingPegins: [],
-        vaults: [],
-        utxoReservations: [
-          {
-            outpoints: [
-              { txid: txidA, vout: 0 },
-              { txid: txidB, vout: 5 },
-            ],
-          },
-        ],
-      });
-
-      expect(reserved).toHaveLength(2);
-      expect(hasRef(reserved, txidA, 0)).toBe(true);
-      expect(hasRef(reserved, txidB, 5)).toBe(true);
-    });
-
-    it("should combine refs from reservations with pending pegins and vaults", () => {
-      const reservationTxid =
-        "9999999999999999999999999999999999999999999999999999999999999999";
-      const vaultTxid =
-        "5555555555555555555555555555555555555555555555555555555555555555";
-      const vault = createMockVault(
-        ContractStatus.PENDING,
-        createValidTxHex(vaultTxid, 0),
-      );
-
-      const reserved = collectReservedUtxoRefs({
-        pendingPegins: [mockPendingPegin],
-        vaults: [vault],
-        utxoReservations: [
-          { outpoints: [{ txid: reservationTxid, vout: 7 }] },
-        ],
-      });
-
-      expect(reserved).toHaveLength(3);
-      expect(hasRef(reserved, VALID_TX_PENDING_TXID_A, 3)).toBe(true);
-      expect(hasRef(reserved, vaultTxid, 0)).toBe(true);
-      expect(hasRef(reserved, reservationTxid, 7)).toBe(true);
-    });
-
-    it("should handle empty utxoReservations", () => {
-      const reserved = collectReservedUtxoRefs({
-        pendingPegins: [],
-        vaults: [],
-        utxoReservations: [],
-      });
-
-      expect(reserved).toHaveLength(0);
-    });
-
-    it("logs and yields no refs when unsignedTxHex fails to parse", () => {
-      const tamperedPending: PendingPeginLike = {
-        id: "0xbadhex",
-        unsignedTxHex: "deadbeef", // parseable hex but not a valid transaction
-      };
-
-      const reserved = collectReservedUtxoRefs({
-        pendingPegins: [tamperedPending],
-        vaults: [],
-      });
-
-      expect(reserved).toHaveLength(0);
-      expect(warnSpy).toHaveBeenCalledWith(
-        "[utxoReservation] Failed to parse transaction hex; skipping inputs",
-        expect.objectContaining({ category: "utxoReservation" }),
-      );
+      expect(claims).toHaveLength(0);
     });
   });
 
-  describe("selectUtxosForDeposit", () => {
-    const mockUTXOs: TestUTXO[] = [
-      { txid: "txid1", vout: 0, value: 50000, scriptPubKey: "script1" },
-      { txid: "txid2", vout: 1, value: 100000, scriptPubKey: "script2" },
-      { txid: "txid3", vout: 0, value: 75000, scriptPubKey: "script3" },
-      { txid: "txid4", vout: 2, value: 200000, scriptPubKey: "script4" },
-    ];
-    // Total value: 425000
+  // ==========================================================================
+  // findImpactedVaultIds
+  // ==========================================================================
 
-    // Default fee rate for tests (10 sat/vB)
-    // Fee buffer at 10 sat/vB: (2*58 + 43 + 43 + 11) * 10 * 1.1 ~ 2343 sats
-    const DEFAULT_FEE_RATE = 10;
+  describe("findImpactedVaultIds", () => {
+    const claim = (vaultId: string, outpoints: UtxoRef[]): PendingVaultClaim =>
+      ({ vaultId, claimedOutpoints: outpoints });
 
-    describe("no reservations", () => {
-      it("should return all UTXOs when no reserved refs", () => {
-        const result = selectUtxosForDeposit({
-          availableUtxos: mockUTXOs,
-          reservedUtxoRefs: [],
-          requiredAmount: 100000n,
-          feeRate: DEFAULT_FEE_RATE,
-        });
-
-        expect(result).toHaveLength(4);
-        expect(result).toEqual(mockUTXOs);
-      });
+    it("returns an empty array when nothing overlaps", () => {
+      const selected: UtxoRef[] = [{ txid: TXID_A, vout: 0 }];
+      const claims = [claim("0xV1", [{ txid: TXID_B, vout: 0 }])];
+      expect(findImpactedVaultIds(selected, claims)).toEqual([]);
     });
 
-    describe("with reservations - unreserved sufficient", () => {
-      it("should filter out reserved UTXOs when unreserved are sufficient", () => {
-        const reserved: UtxoRef[] = [
-          { txid: "txid1", vout: 0 },
-          { txid: "txid3", vout: 0 },
-        ];
-
-        const result = selectUtxosForDeposit({
-          availableUtxos: mockUTXOs,
-          reservedUtxoRefs: reserved,
-          requiredAmount: 200000n,
-          feeRate: DEFAULT_FEE_RATE,
-        });
-
-        expect(result).toHaveLength(2);
-        expect(result.map((u) => u.txid)).toEqual(["txid2", "txid4"]);
-      });
-
-      it("should handle partial reservation without fallback", () => {
-        const reserved: UtxoRef[] = [{ txid: "txid1", vout: 0 }];
-
-        const result = selectUtxosForDeposit({
-          availableUtxos: mockUTXOs,
-          reservedUtxoRefs: reserved,
-          requiredAmount: 100000n,
-          feeRate: DEFAULT_FEE_RATE,
-        });
-
-        expect(result).toHaveLength(3);
-        expect(result.map((u) => u.txid)).toEqual(["txid2", "txid3", "txid4"]);
-      });
+    it("returns the claiming vault id when a selected outpoint overlaps", () => {
+      const selected: UtxoRef[] = [{ txid: TXID_A, vout: 0 }];
+      const claims = [claim("0xV1", [{ txid: TXID_A, vout: 0 }])];
+      expect(findImpactedVaultIds(selected, claims)).toEqual(["0xV1"]);
     });
 
-    describe("insufficient unreserved UTXOs", () => {
-      it("should throw when all UTXOs are reserved", () => {
-        const reserved: UtxoRef[] = [
-          { txid: "txid1", vout: 0 },
-          { txid: "txid2", vout: 1 },
-          { txid: "txid3", vout: 0 },
-          { txid: "txid4", vout: 2 },
-        ];
-
-        expect(() =>
-          selectUtxosForDeposit({
-            availableUtxos: mockUTXOs,
-            reservedUtxoRefs: reserved,
-            requiredAmount: 100000n,
-            feeRate: DEFAULT_FEE_RATE,
-          }),
-        ).toThrow("All available UTXOs are reserved by pending deposits");
-      });
-
-      it("should throw when unreserved UTXOs are insufficient for required amount + fee", () => {
-        const reserved: UtxoRef[] = [
-          { txid: "txid2", vout: 1 },
-          { txid: "txid4", vout: 2 },
-        ];
-
-        expect(() =>
-          selectUtxosForDeposit({
-            availableUtxos: mockUTXOs,
-            reservedUtxoRefs: reserved,
-            requiredAmount: 200000n,
-            feeRate: DEFAULT_FEE_RATE,
-          }),
-        ).toThrow("Insufficient unreserved UTXOs for this deposit amount");
-      });
-
-      it("should return unreserved UTXOs when they cover required + fee buffer", () => {
-        const reserved: UtxoRef[] = [
-          { txid: "txid1", vout: 0 },
-          { txid: "txid3", vout: 0 },
-          { txid: "txid4", vout: 2 },
-        ];
-
-        const result = selectUtxosForDeposit({
-          availableUtxos: mockUTXOs,
-          reservedUtxoRefs: reserved,
-          requiredAmount: 95000n,
-          feeRate: DEFAULT_FEE_RATE,
-        });
-
-        expect(result).toHaveLength(1);
-        expect(result[0].txid).toBe("txid2");
-      });
-
-      it("should throw when unreserved value insufficient for required + fee buffer", () => {
-        const reserved: UtxoRef[] = [
-          { txid: "txid1", vout: 0 },
-          { txid: "txid3", vout: 0 },
-          { txid: "txid4", vout: 2 },
-        ];
-
-        expect(() =>
-          selectUtxosForDeposit({
-            availableUtxos: mockUTXOs,
-            reservedUtxoRefs: reserved,
-            requiredAmount: 98000n,
-            feeRate: DEFAULT_FEE_RATE,
-          }),
-        ).toThrow("Insufficient unreserved UTXOs for this deposit amount");
-      });
+    it("returns ALL sibling vaults that share an outpoint (batched deposits)", () => {
+      // Multi-vault batched deposit: every sibling carries the same
+      // unsignedPrePeginTx, so reusing one outpoint invalidates them all.
+      const selected: UtxoRef[] = [{ txid: TXID_A, vout: 0 }];
+      const claims = [
+        claim("0xSibling1", [{ txid: TXID_A, vout: 0 }]),
+        claim("0xSibling2", [{ txid: TXID_A, vout: 0 }]),
+      ];
+      expect(new Set(findImpactedVaultIds(selected, claims))).toEqual(
+        new Set(["0xSibling1", "0xSibling2"]),
+      );
     });
 
-    describe("edge cases", () => {
-      it("should return empty array when no UTXOs available", () => {
-        const result = selectUtxosForDeposit({
-          availableUtxos: [],
-          reservedUtxoRefs: [{ txid: "txid1", vout: 0 }],
-          requiredAmount: 100000n,
-          feeRate: DEFAULT_FEE_RATE,
-        });
-
-        expect(result).toHaveLength(0);
-      });
-
-      it("should handle zero required amount", () => {
-        const reserved: UtxoRef[] = [
-          { txid: "txid1", vout: 0 },
-          { txid: "txid2", vout: 1 },
-          { txid: "txid3", vout: 0 },
-        ];
-
-        const result = selectUtxosForDeposit({
-          availableUtxos: mockUTXOs,
-          reservedUtxoRefs: reserved,
-          requiredAmount: 0n,
-          feeRate: DEFAULT_FEE_RATE,
-        });
-
-        expect(result).toHaveLength(1);
-        expect(result[0].txid).toBe("txid4");
-      });
-
-      it("should handle case-insensitive txid matching", () => {
-        const reserved: UtxoRef[] = [{ txid: "TXID1", vout: 0 }];
-
-        const result = selectUtxosForDeposit({
-          availableUtxos: mockUTXOs,
-          reservedUtxoRefs: reserved,
-          requiredAmount: 100000n,
-          feeRate: DEFAULT_FEE_RATE,
-        });
-
-        expect(result).toHaveLength(3);
-        expect(result.map((u) => u.txid)).toEqual(["txid2", "txid3", "txid4"]);
-      });
-
-      it("should not modify original array", () => {
-        const reserved: UtxoRef[] = [{ txid: "txid1", vout: 0 }];
-        const originalLength = mockUTXOs.length;
-
-        selectUtxosForDeposit({
-          availableUtxos: mockUTXOs,
-          reservedUtxoRefs: reserved,
-          requiredAmount: 100000n,
-          feeRate: DEFAULT_FEE_RATE,
-        });
-
-        expect(mockUTXOs).toHaveLength(originalLength);
-      });
+    it("deduplicates when multiple selected outpoints all belong to the same vault", () => {
+      const selected: UtxoRef[] = [
+        { txid: TXID_A, vout: 0 },
+        { txid: TXID_A, vout: 1 },
+      ];
+      const claims = [
+        claim("0xV1", [
+          { txid: TXID_A, vout: 0 },
+          { txid: TXID_A, vout: 1 },
+        ]),
+      ];
+      expect(findImpactedVaultIds(selected, claims)).toEqual(["0xV1"]);
     });
 
-    describe("fee buffer calculation", () => {
-      it("should throw when high fee rate makes unreserved insufficient", () => {
-        const reserved: UtxoRef[] = [
-          { txid: "txid1", vout: 0 },
-          { txid: "txid3", vout: 0 },
-          { txid: "txid4", vout: 2 },
-        ];
+    it("is case-insensitive on txid comparison", () => {
+      const selected: UtxoRef[] = [{ txid: TXID_A.toUpperCase(), vout: 0 }];
+      const claims = [claim("0xV1", [{ txid: TXID_A.toLowerCase(), vout: 0 }])];
+      expect(findImpactedVaultIds(selected, claims)).toEqual(["0xV1"]);
+    });
 
-        expect(() =>
-          selectUtxosForDeposit({
-            availableUtxos: mockUTXOs,
-            reservedUtxoRefs: reserved,
-            requiredAmount: 80000n,
-            feeRate: 100,
-          }),
-        ).toThrow("Insufficient unreserved UTXOs");
-      });
-
-      it("should return unreserved UTXOs with low fee rate", () => {
-        const reserved: UtxoRef[] = [
-          { txid: "txid1", vout: 0 },
-          { txid: "txid3", vout: 0 },
-          { txid: "txid4", vout: 2 },
-        ];
-
-        const result = selectUtxosForDeposit({
-          availableUtxos: mockUTXOs,
-          reservedUtxoRefs: reserved,
-          requiredAmount: 80000n,
-          feeRate: 1,
-        });
-
-        expect(result).toHaveLength(1);
-        expect(result[0].txid).toBe("txid2");
-      });
+    it("returns empty when either input is empty", () => {
+      expect(findImpactedVaultIds([], [claim("0xV1", [])])).toEqual([]);
+      expect(
+        findImpactedVaultIds([{ txid: TXID_A, vout: 0 }], []),
+      ).toEqual([]);
     });
   });
 });

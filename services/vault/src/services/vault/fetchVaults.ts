@@ -391,13 +391,14 @@ export async function fetchVaultsByDepositor(
 }
 
 /**
- * GraphQL status strings that map to vault states which contribute to the
- * UTXO reservation set (`ContractStatus.PENDING` / `ContractStatus.VERIFIED`
- * in the SDK). A transform failure on any of these is security-relevant —
- * silently dropping such a vault would let the depositor re-select the
- * same Bitcoin outpoints and double-register on Ethereum.
+ * GraphQL status strings that map to vault states whose UTXOs are
+ * committed to an in-flight deposit (`ContractStatus.PENDING` /
+ * `ContractStatus.VERIFIED` in the SDK). A transform failure on any of
+ * these is security-relevant — silently dropping such a vault would let
+ * the depositor re-select the same Bitcoin outpoints and double-register
+ * on Ethereum without the warn-on-reuse banner firing.
  */
-const RESERVATION_RELEVANT_STATUSES: ReadonlySet<GraphQLVaultStatus> = new Set([
+const IN_FLIGHT_UTXO_STATUSES: ReadonlySet<GraphQLVaultStatus> = new Set([
   "pending",
   "signatures_collected",
   "verified",
@@ -412,8 +413,8 @@ const RESERVATION_RELEVANT_STATUSES: ReadonlySet<GraphQLVaultStatus> = new Set([
  * - PENDING/VERIFIED rows whose payload fails to transform → throw, so the
  *   caller fails closed instead of silently treating the row as absent.
  * - All other statuses (REDEEMED, LIQUIDATED, EXPIRED, …) → log and skip,
- *   matching the forgiving variant. These rows do not contribute to the
- *   reservation set, so a missing entry has no security impact.
+ *   matching the forgiving variant. These rows have no in-flight UTXO
+ *   commitment, so a missing entry has no security impact.
  *
  * Use this from any path where "vault present but skipped" is unsafe.
  * The dashboard list path should keep using the forgiving
@@ -432,13 +433,11 @@ export async function fetchVaultsByDepositorStrict(
     try {
       vaults.push(transformVaultItem(item));
     } catch (error) {
-      const isReservationRelevant = RESERVATION_RELEVANT_STATUSES.has(
-        item.status,
-      );
-      if (isReservationRelevant) {
+      const isInFlightUtxoStatus = IN_FLIGHT_UTXO_STATUSES.has(item.status);
+      if (isInFlightUtxoStatus) {
         const reason = error instanceof Error ? error.message : String(error);
         throw new Error(
-          `Reservation-relevant vault ${item.id} (status="${item.status}") failed to transform: ${reason}`,
+          `In-flight vault ${item.id} (status="${item.status}") failed to transform: ${reason}`,
         );
       }
       logger.error(error instanceof Error ? error : new Error(String(error)), {

@@ -14,6 +14,7 @@ vi.mock("@/hooks/deposit/useDepositFlow", () => ({
     currentStep: "DERIVE_VAULT_SECRET",
     processing: false,
     error: null,
+    lastWarnings: [],
     isWaiting: false,
     payoutSigningProgress: null,
     peginSigningProgress: null,

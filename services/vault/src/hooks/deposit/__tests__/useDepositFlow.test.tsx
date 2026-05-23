@@ -114,33 +114,14 @@ vi.mock("@/services/vault/vaultUtxoValidationService", () => ({
 
 vi.mock("@/storage/peginStorage", () => ({
   addPendingPegin: vi.fn(),
-  addUtxoReservation: vi.fn(() => Promise.resolve()),
-  assertNoReservationConflict: vi.fn(),
   getPendingPegins: vi.fn(() => []),
-  getUtxoReservations: vi.fn(() => []),
   removePendingPegin: vi.fn(),
-  removeUtxoReservation: vi.fn(),
   updatePendingPeginStatus: vi.fn(),
-  UtxoReservationConflictError: class extends Error {
-    readonly conflictingBatchId: string;
-    readonly outpoint: { txid: string; vout: number };
-    constructor(
-      conflictingBatchId: string,
-      outpoint: { txid: string; vout: number },
-    ) {
-      super(`UTXO conflict (batch ${conflictingBatchId})`);
-      this.name = "UtxoReservationConflictError";
-      this.conflictingBatchId = conflictingBatchId;
-      this.outpoint = outpoint;
-    }
-  },
 }));
 
 vi.mock("@babylonlabs-io/ts-sdk/tbv/core/utils", () => ({
-  collectReservedUtxoRefs: vi.fn(() => []),
-  selectUtxosForDeposit: vi.fn(
-    ({ availableUtxos }: { availableUtxos: unknown[] }) => availableUtxos,
-  ),
+  collectPendingVaultClaims: vi.fn(() => []),
+  findImpactedVaultIds: vi.fn(() => []),
 }));
 
 const { mockLoggerError } = vi.hoisted(() => ({
@@ -585,124 +566,6 @@ describe("useDepositFlow", () => {
       });
     });
 
-    it("pre-claims candidate outpoints before preparePeginTransaction and narrows after", async () => {
-      const { addUtxoReservation, removeUtxoReservation } = vi.mocked(
-        await import("@/storage/peginStorage"),
-      );
-      const { preparePeginTransaction } = vi.mocked(
-        await import("@/services/vault/vaultTransactionService"),
-      );
-
-      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
-
-      await executeWithAutoArtifactDownload(result);
-
-      await waitFor(() => {
-        expect(addUtxoReservation).toHaveBeenCalledTimes(2);
-      });
-
-      // Pre-claim must precede preparePegin so a sibling tab cannot select
-      // these outpoints during the wallet popup window.
-      const preClaimOrder = addUtxoReservation.mock.invocationCallOrder[0];
-      const prepareOrder = preparePeginTransaction.mock.invocationCallOrder[0];
-      const narrowOrder = addUtxoReservation.mock.invocationCallOrder[1];
-      expect(preClaimOrder).toBeLessThan(prepareOrder);
-      expect(prepareOrder).toBeLessThan(narrowOrder);
-
-      // First write: candidate outpoints from selectUtxosForDeposit.
-      expect(addUtxoReservation).toHaveBeenNthCalledWith(
-        1,
-        "0xEthAddress123",
-        expect.objectContaining({
-          batchId: "mock-batch-id-uuid",
-          outpoints: [
-            { txid: MOCK_UTXO_1.txid, vout: MOCK_UTXO_1.vout },
-            { txid: MOCK_UTXO_2.txid, vout: MOCK_UTXO_2.vout },
-          ],
-        }),
-      );
-
-      // Second write: narrowed to batchResult.selectedUTXOs (same batchId).
-      expect(addUtxoReservation).toHaveBeenNthCalledWith(
-        2,
-        "0xEthAddress123",
-        expect.objectContaining({
-          batchId: "mock-batch-id-uuid",
-          outpoints: [
-            { txid: MOCK_UTXO_1.txid, vout: MOCK_UTXO_1.vout },
-            { txid: MOCK_UTXO_2.txid, vout: MOCK_UTXO_2.vout },
-          ],
-        }),
-      );
-
-      expect(removeUtxoReservation).toHaveBeenCalledWith(
-        "0xEthAddress123",
-        "mock-batch-id-uuid",
-      );
-    });
-
-    it("aborts before preparePeginTransaction when the pre-claim conflicts with another batch", async () => {
-      const { addUtxoReservation, UtxoReservationConflictError } = vi.mocked(
-        await import("@/storage/peginStorage"),
-      );
-      const { preparePeginTransaction } = vi.mocked(
-        await import("@/services/vault/vaultTransactionService"),
-      );
-      const { registerPeginBatchAndWait, signProofOfPossession } = vi.mocked(
-        await import("../depositFlowSteps"),
-      );
-
-      addUtxoReservation.mockRejectedValueOnce(
-        new UtxoReservationConflictError("other-batch", {
-          txid: MOCK_UTXO_1.txid,
-          vout: MOCK_UTXO_1.vout,
-        }),
-      );
-
-      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
-
-      await executeWithAutoArtifactDownload(result);
-
-      await waitFor(() => {
-        expect(result.current.error).toBeTruthy();
-      });
-
-      // Pre-claim threw → no wallet popup, no ETH registration.
-      expect(preparePeginTransaction).not.toHaveBeenCalled();
-      expect(signProofOfPossession).not.toHaveBeenCalled();
-      expect(registerPeginBatchAndWait).not.toHaveBeenCalled();
-    });
-
-    it("aborts before ETH registration when assertNoReservationConflict throws (defense in depth)", async () => {
-      const { assertNoReservationConflict, UtxoReservationConflictError } =
-        vi.mocked(await import("@/storage/peginStorage"));
-      const { registerPeginBatchAndWait } = vi.mocked(
-        await import("../depositFlowSteps"),
-      );
-      const { broadcastPrePeginTransaction } = vi.mocked(
-        await import("@/services/vault/vaultPeginBroadcastService"),
-      );
-
-      assertNoReservationConflict.mockImplementationOnce(() => {
-        throw new UtxoReservationConflictError("rival-batch", {
-          txid: MOCK_UTXO_1.txid,
-          vout: MOCK_UTXO_1.vout,
-        });
-      });
-
-      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
-
-      await executeWithAutoArtifactDownload(result);
-
-      await waitFor(() => {
-        expect(result.current.error).toBeTruthy();
-      });
-
-      // The final-pass re-check fires after PoP signing but before ETH send.
-      expect(registerPeginBatchAndWait).not.toHaveBeenCalled();
-      expect(broadcastPrePeginTransaction).not.toHaveBeenCalled();
-    });
-
     it("aborts before broadcast when on-chain offchainParamsVersion drifted from the build version", async () => {
       const { verifyRegisteredVaultVersions } = vi.mocked(
         await import("@babylonlabs-io/ts-sdk/tbv/core"),
@@ -902,141 +765,6 @@ describe("useDepositFlow", () => {
         expect(result.current.error).toBeTruthy();
         expect(result.current.processing).toBe(false);
       });
-    });
-
-    it("should set error when broadcast fails and clean up UTXO reservation", async () => {
-      const { broadcastPrePeginTransaction } = vi.mocked(
-        await import("@/services/vault/vaultPeginBroadcastService"),
-      );
-      const { removeUtxoReservation } = vi.mocked(
-        await import("@/storage/peginStorage"),
-      );
-      vi.mocked(broadcastPrePeginTransaction).mockRejectedValueOnce(
-        new Error("Network error"),
-      );
-
-      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
-
-      await executeWithAutoArtifactDownload(result);
-
-      await waitFor(() => {
-        expect(result.current.error).toContain(
-          "Failed to broadcast batch Pre-PegIn transaction",
-        );
-        // Catch block should clean up the early reservation
-        expect(removeUtxoReservation).toHaveBeenCalledWith(
-          "0xEthAddress123",
-          "mock-batch-id-uuid",
-        );
-      });
-    });
-
-    it("keeps the early UTXO reservation when registerPeginBatchAndWait throws (receipt timeout window)", async () => {
-      // Regression: a post-`sendTransaction` receipt timeout
-      // means the ETH registration may already be live or pending, but no
-      // durable `addPendingPegin` record was written. Releasing the early
-      // reservation in that window would let a second deposit reuse the
-      // same outpoints and strand one ETH-registered vault. The reservation
-      // must remain so its TTL keeps the UTXOs excluded.
-      const { registerPeginBatchAndWait } = vi.mocked(
-        await import("../depositFlowSteps"),
-      );
-      const { addPendingPegin, removeUtxoReservation } = vi.mocked(
-        await import("@/storage/peginStorage"),
-      );
-
-      vi.mocked(registerPeginBatchAndWait).mockRejectedValueOnce(
-        new Error(
-          "Timed out while waiting for transaction with hash 0xabc to be confirmed.",
-        ),
-      );
-
-      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
-
-      await executeWithAutoArtifactDownload(result);
-
-      await waitFor(() => {
-        expect(result.current.error).toBeTruthy();
-        expect(result.current.processing).toBe(false);
-      });
-
-      // No durable resume entry was written (registration threw before
-      // pending pegins are persisted).
-      expect(addPendingPegin).not.toHaveBeenCalled();
-      // And — the bug being fixed — the early reservation must not be
-      // released.
-      expect(removeUtxoReservation).not.toHaveBeenCalled();
-    });
-
-    it("releases the early UTXO reservation for failures BEFORE registration is started", async () => {
-      // Pre-send failures (e.g. UTXO availability re-check) are safe to
-      // release because no ETH transaction was submitted, so there is no
-      // ambiguity about on-chain state.
-      const { assertUtxosAvailable } = vi.mocked(
-        await import("@/services/vault/vaultUtxoValidationService"),
-      );
-      const { registerPeginBatchAndWait } = vi.mocked(
-        await import("../depositFlowSteps"),
-      );
-      const { removeUtxoReservation } = vi.mocked(
-        await import("@/storage/peginStorage"),
-      );
-
-      vi.mocked(assertUtxosAvailable).mockRejectedValueOnce(
-        new Error("UTXO no longer available"),
-      );
-
-      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
-
-      await executeWithAutoArtifactDownload(result);
-
-      await waitFor(() => {
-        expect(result.current.error).toBeTruthy();
-      });
-
-      // Sanity: registration must not have started for this case.
-      expect(registerPeginBatchAndWait).not.toHaveBeenCalled();
-      // Pre-send failure: reservation IS released.
-      expect(removeUtxoReservation).toHaveBeenCalledWith(
-        "0xEthAddress123",
-        "mock-batch-id-uuid",
-      );
-    });
-
-    it("releases the early UTXO reservation when a post-pending failure occurs (records supersede the reservation)", async () => {
-      // Once `addPendingPegin` has persisted per-vault records, the
-      // selected UTXOs are protected by those entries. A failure after
-      // that point can safely release the early reservation.
-      const { verifyRegisteredVaultVersions } = vi.mocked(
-        await import("@babylonlabs-io/ts-sdk/tbv/core"),
-      );
-      const { addPendingPegin, removeUtxoReservation } = vi.mocked(
-        await import("@/storage/peginStorage"),
-      );
-
-      // Force an RPC error on the version check AFTER pending pegins are
-      // written and BEFORE the success-path removeUtxoReservation call.
-      // This simulates a connection failure rather than a true version
-      // mismatch — both paths reach the catch block, so the assertion
-      // holds either way.
-      vi.mocked(verifyRegisteredVaultVersions).mockRejectedValueOnce(
-        new Error("eth_call failed: connection reset"),
-      );
-
-      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
-
-      await executeWithAutoArtifactDownload(result);
-
-      await waitFor(() => {
-        expect(result.current.error).toBeTruthy();
-      });
-
-      expect(addPendingPegin).toHaveBeenCalledTimes(2);
-      // Catch path released the now-redundant reservation.
-      expect(removeUtxoReservation).toHaveBeenCalledWith(
-        "0xEthAddress123",
-        "mock-batch-id-uuid",
-      );
     });
 
     it("should continue past payout-signing failures with warnings", async () => {
@@ -1240,173 +968,6 @@ describe("useDepositFlow", () => {
     });
   });
 
-  describe("UTXO Reservation", () => {
-    it("should filter reserved UTXOs before preparing pegin transaction", async () => {
-      const { getPendingPegins } = vi.mocked(
-        await import("@/storage/peginStorage"),
-      );
-      const { collectReservedUtxoRefs, selectUtxosForDeposit } = vi.mocked(
-        await import("@babylonlabs-io/ts-sdk/tbv/core/utils"),
-      );
-      const { preparePeginTransaction } = vi.mocked(
-        await import("@/services/vault/vaultTransactionService"),
-      );
-
-      const mockPendingPegins = [
-        {
-          id: "0xexisting",
-          peginTxHash: "0xexistinghash",
-          timestamp: Date.now(),
-          status: "pending",
-          unsignedTxHex: "existingtxhex",
-          selectedUTXOs: [
-            {
-              txid: MOCK_UTXO_1.txid,
-              vout: 0,
-              value: "500000",
-              scriptPubKey: "0xabc123",
-            },
-          ],
-        },
-      ];
-      const mockReservedRefs = [{ txid: MOCK_UTXO_1.txid, vout: 0 }];
-
-      vi.mocked(getPendingPegins).mockReturnValueOnce(mockPendingPegins as any);
-      vi.mocked(collectReservedUtxoRefs).mockReturnValueOnce(mockReservedRefs);
-      // Only return MOCK_UTXO_2 (MOCK_UTXO_1 is reserved)
-      vi.mocked(selectUtxosForDeposit).mockReturnValueOnce([MOCK_UTXO_2]);
-
-      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
-
-      await executeWithAutoArtifactDownload(result);
-
-      await waitFor(() => {
-        expect(getPendingPegins).toHaveBeenCalledWith("0xEthAddress123");
-        expect(collectReservedUtxoRefs).toHaveBeenCalledWith({
-          vaults: [],
-          pendingPegins: mockPendingPegins,
-          utxoReservations: [],
-        });
-        expect(selectUtxosForDeposit).toHaveBeenCalledWith(
-          expect.objectContaining({
-            availableUtxos: [MOCK_UTXO_1, MOCK_UTXO_2],
-            reservedUtxoRefs: mockReservedRefs,
-          }),
-        );
-        // preparePeginTransaction (which delegates to the SDK's
-        // PeginManager.preparePegin and owns UTXO selection internally)
-        // should receive the filtered UTXOs.
-        expect(preparePeginTransaction).toHaveBeenCalledWith(
-          expect.anything(),
-          expect.anything(),
-          expect.objectContaining({
-            availableUTXOs: [MOCK_UTXO_2],
-          }),
-        );
-      });
-    });
-
-    it("should throw when all UTXOs are reserved", async () => {
-      const { selectUtxosForDeposit } = vi.mocked(
-        await import("@babylonlabs-io/ts-sdk/tbv/core/utils"),
-      );
-
-      vi.mocked(selectUtxosForDeposit).mockImplementationOnce(() => {
-        throw new Error(
-          "All available UTXOs are reserved by pending deposits.",
-        );
-      });
-
-      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
-
-      await executeWithAutoArtifactDownload(result);
-
-      await waitFor(() => {
-        expect(result.current.error).toContain(
-          "All available UTXOs are reserved",
-        );
-      });
-    });
-
-    it("forwards indexer-supplied PENDING/VERIFIED vaults to collectReservedUtxoRefs (cross-context reservation)", async () => {
-      // Cleared-localStorage / second-browser scenario: getPendingPegins and
-      // getUtxoReservations are empty, but the indexer reports a PENDING vault
-      // already registered for this depositor. The deposit flow must hand
-      // those vaults to collectReservedUtxoRefs so their on-chain Pre-PegIn
-      // inputs participate in the reservation set; otherwise the same UTXOs
-      // would be re-selected and the second registered vault would be
-      // unfundable.
-      const { fetchVaultsByDepositorStrict } = vi.mocked(
-        await import("@/services/vault/fetchVaults"),
-      );
-      const { collectReservedUtxoRefs } = vi.mocked(
-        await import("@babylonlabs-io/ts-sdk/tbv/core/utils"),
-      );
-
-      const indexerVaults = [
-        {
-          id: "0xexistingvault",
-          status: 0, // ContractStatus.PENDING
-          unsignedPrePeginTx: "0xexistingvaultprepeginhex",
-        },
-      ];
-      vi.mocked(fetchVaultsByDepositorStrict).mockResolvedValueOnce(
-        indexerVaults as any,
-      );
-
-      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
-
-      await executeWithAutoArtifactDownload(result);
-
-      await waitFor(() => {
-        expect(fetchVaultsByDepositorStrict).toHaveBeenCalledWith(
-          "0xEthAddress123",
-        );
-        expect(collectReservedUtxoRefs).toHaveBeenCalledWith({
-          vaults: indexerVaults,
-          pendingPegins: [],
-          utxoReservations: [],
-        });
-      });
-    });
-
-    it("fails closed and skips UTXO selection when fetchVaultsByDepositorStrict throws (indexer outage)", async () => {
-      // If the indexer is unavailable we can't prove a registered-but-
-      // unbroadcast Pre-PegIn doesn't already encumber these UTXOs. Block
-      // the deposit instead of silently degrading to the local-only
-      // reservation set — that's the failure mode the audit is about.
-      const { fetchVaultsByDepositorStrict } = vi.mocked(
-        await import("@/services/vault/fetchVaults"),
-      );
-      const { collectReservedUtxoRefs } = vi.mocked(
-        await import("@babylonlabs-io/ts-sdk/tbv/core/utils"),
-      );
-      const { preparePeginTransaction } = vi.mocked(
-        await import("@/services/vault/vaultTransactionService"),
-      );
-      const { registerPeginBatchAndWait } = vi.mocked(
-        await import("../depositFlowSteps"),
-      );
-
-      vi.mocked(fetchVaultsByDepositorStrict).mockRejectedValueOnce(
-        new Error("indexer 503"),
-      );
-
-      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
-
-      await executeWithAutoArtifactDownload(result);
-
-      await waitFor(() => {
-        expect(result.current.error).toMatch(
-          /Unable to verify existing deposits/,
-        );
-      });
-      expect(collectReservedUtxoRefs).not.toHaveBeenCalled();
-      expect(preparePeginTransaction).not.toHaveBeenCalled();
-      expect(registerPeginBatchAndWait).not.toHaveBeenCalled();
-    });
-  });
-
   describe("Peg-in signing progress", () => {
     it("advances the counter to n of n by signing each peg-in tx in its own popup", async () => {
       const { preparePeginTransaction } = vi.mocked(
@@ -1467,6 +1028,135 @@ describe("useDepositFlow", () => {
       // Peg-in is signed per-tx via signPsbt; the native batch path is unused.
       expect(nativeSignPsbts).not.toHaveBeenCalled();
       expect(nativeSignPsbt).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  describe("Reuse-on-selection warning", () => {
+    it("surfaces a soft warning when the selected UTXOs overlap a pending vault's claim", async () => {
+      const { findImpactedVaultIds } = vi.mocked(
+        await import("@babylonlabs-io/ts-sdk/tbv/core/utils"),
+      );
+      // Post-hoc impact check: pretend two pending vaults' inputs got
+      // reused by the selector's pick.
+      vi.mocked(findImpactedVaultIds).mockReturnValueOnce([
+        "0xVaultBlocking1",
+        "0xVaultBlocking2",
+      ]);
+
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+      const depositResult = await executeWithAutoArtifactDownload(result);
+
+      // The flow proceeds; the warning is informational.
+      expect(depositResult).not.toBeNull();
+      expect(result.current.error).toBeFalsy();
+      expect(
+        depositResult?.warnings?.some((w) => w.includes("will reuse coins")),
+      ).toBe(true);
+      // The hook state must also carry the warning since DepositSignContent
+      // reads from there (not the result).
+      expect(
+        result.current.lastWarnings.some((w) => w.includes("will reuse coins")),
+      ).toBe(true);
+    });
+
+    it("populates lastWarnings when addPendingPegin throws on persist failure", async () => {
+      const { addPendingPegin } = vi.mocked(
+        await import("@/storage/peginStorage"),
+      );
+      // Simulate a localStorage write failure (quota / private browsing)
+      // for every per-vault persist attempt. The flow must continue (the
+      // vault is registered on-chain) and surface a soft warning.
+      vi.mocked(addPendingPegin)
+        .mockImplementationOnce(() => {
+          throw new Error("Unable to save the deposit record locally.");
+        })
+        .mockImplementationOnce(() => {
+          throw new Error("Unable to save the deposit record locally.");
+        });
+
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+      const depositResult = await executeWithAutoArtifactDownload(result);
+
+      expect(depositResult).not.toBeNull();
+      expect(result.current.error).toBeFalsy();
+      expect(
+        result.current.lastWarnings.some((w) =>
+          w.includes("couldn't save a local copy"),
+        ),
+      ).toBe(true);
+    });
+
+    it("passes the full wallet UTXOs to preparePeginTransaction (no pre-filtering)", async () => {
+      const { preparePeginTransaction } = vi.mocked(
+        await import("@/services/vault/vaultTransactionService"),
+      );
+
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+      await executeWithAutoArtifactDownload(result);
+
+      expect(preparePeginTransaction).toHaveBeenCalledTimes(1);
+      const peginCall = vi.mocked(preparePeginTransaction).mock.calls[0];
+      const params = peginCall[2] as { availableUTXOs: unknown[] };
+      // Test harness sets spendableUTXOs to both mocks; no pre-filtering.
+      expect(params.availableUTXOs).toEqual([MOCK_UTXO_1, MOCK_UTXO_2]);
+    });
+
+    it("preserves a buffered warning when a later step throws", async () => {
+      // Regression: `depositRecordNotSaved` is pushed during the flow (per
+      // vault) but the success snapshot of `lastWarnings` happens only on
+      // the return path. If broadcast throws AFTER the addPendingPegin
+      // warning is pushed, the catch must also snapshot the warning so
+      // the user sees both the error AND the localStorage issue.
+      const { addPendingPegin } = vi.mocked(
+        await import("@/storage/peginStorage"),
+      );
+      const { broadcastPrePeginTransaction } = vi.mocked(
+        await import("@/services/vault/vaultPeginBroadcastService"),
+      );
+
+      vi.mocked(addPendingPegin)
+        .mockImplementationOnce(() => {
+          throw new Error("Unable to save the deposit record locally.");
+        })
+        .mockImplementationOnce(() => {
+          throw new Error("Unable to save the deposit record locally.");
+        });
+      vi.mocked(broadcastPrePeginTransaction).mockRejectedValueOnce(
+        new Error("Bitcoin RPC unreachable"),
+      );
+
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+      await executeWithAutoArtifactDownload(result);
+
+      await waitFor(() => {
+        expect(result.current.error).toContain(
+          "Failed to broadcast batch Pre-PegIn transaction",
+        );
+      });
+      // The depositRecordNotSaved warning collected BEFORE the broadcast
+      // error must still be visible.
+      expect(
+        result.current.lastWarnings.some((w) =>
+          w.includes("couldn't save a local copy"),
+        ),
+      ).toBe(true);
+    });
+
+    it("surfaces preparePeginTransaction's error when funds are insufficient", async () => {
+      const { preparePeginTransaction } = vi.mocked(
+        await import("@/services/vault/vaultTransactionService"),
+      );
+      vi.mocked(preparePeginTransaction).mockRejectedValueOnce(
+        new Error("Insufficient funds: need 1000000 sats, have 1000 sats"),
+      );
+
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+      await executeWithAutoArtifactDownload(result);
+
+      await waitFor(() => {
+        expect(result.current.error).toContain("Insufficient funds");
+        expect(result.current.processing).toBe(false);
+      });
     });
   });
 });

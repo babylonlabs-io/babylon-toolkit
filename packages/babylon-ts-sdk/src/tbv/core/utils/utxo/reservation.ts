@@ -1,21 +1,27 @@
 /**
- * UTXO reservation utilities for vault deposits.
+ * Pending-vault outpoint claims.
  *
- * Handles tracking which UTXOs are already in use by pending deposits
- * and selecting available UTXOs with smart fallback logic.
+ * NOTE: historical filename. This module no longer implements a
+ * reservation mechanism; it just answers two questions:
+ *
+ *   1. Given the depositor's in-flight deposits, which outpoints does
+ *      each one claim? (`collectPendingVaultClaims`)
+ *   2. Given a deposit's actually-selected UTXOs and the claim set,
+ *      which other pending vault(s) would be invalidated?
+ *      (`findImpactedVaultIds`)
+ *
+ * Design note: pending-vault claims are advisory inputs only — never
+ * load-bearing safety. Cross-device and brief pre-registration windows
+ * are not coordinated here; rare collisions are recovered via the
+ * refund flow. The deposit flow runs the SDK's real coin selector
+ * (`selectUtxosForPegin`) against the full wallet and just inspects
+ * the result against these claims to surface a post-hoc warning.
  */
-
 import { Transaction } from "bitcoinjs-lib";
 import { Buffer } from "buffer";
 
 import { stripHexPrefix } from "../../primitives/utils/bitcoin";
 import { ContractStatus } from "../../services/deposit/peginState";
-import {
-  FEE_SAFETY_MARGIN,
-  MAX_NON_LEGACY_OUTPUT_SIZE,
-  P2TR_INPUT_SIZE,
-  TX_BUFFER_SIZE_OVERHEAD,
-} from "../fee/constants";
 
 // ============================================================================
 // Types
@@ -27,7 +33,7 @@ export interface UtxoRef {
   vout: number;
 }
 
-/** Narrow structural type for pending pegin data. */
+/** Narrow structural type for locally-known pending pegin data. */
 export interface PendingPeginLike {
   /**
    * Optional vault id. When present, used to skip pending pegins that are
@@ -35,56 +41,44 @@ export interface PendingPeginLike {
    * tamperable off-chain entry.
    */
   id?: string;
-  selectedUTXOs?: Array<{ txid: string; vout: number }>;
   unsignedTxHex?: string;
 }
 
-/** Narrow structural type for vault data. */
+/** Narrow structural type for on-chain vault data. */
 export interface VaultLike {
-  /**
-   * Optional vault id. When present, enables on-chain correlation with
-   * pending pegins sharing the same id.
-   */
+  /** Vault id (bytes32 hex). */
   id?: string;
   status: number;
   unsignedPrePeginTx: string;
 }
 
-export interface SelectUtxosForDepositParams<
-  T extends { txid: string; vout: number; value: number },
-> {
-  /** All available UTXOs from the wallet. */
-  availableUtxos: T[];
-  /** UTXOs that are reserved/in-flight and should be avoided if possible. */
-  reservedUtxoRefs: UtxoRef[];
-  /** Required deposit amount in satoshis (excluding fees). */
-  requiredAmount: bigint;
-  /** Fee rate in sat/vB. Used to estimate fee buffer for sufficiency check. */
-  feeRate: number;
+/**
+ * One pending vault and the outpoints its pre-pegin tx would spend. The
+ * `vaultId` carries through to user-facing warnings so the UI can name
+ * which deposit(s) would be impacted by reusing their coins.
+ */
+export interface PendingVaultClaim {
+  vaultId: string;
+  claimedOutpoints: UtxoRef[];
 }
 
-/** Narrow structural type for early UTXO reservations (pre-ETH-registration). */
-export interface UtxoReservationLike {
-  outpoints: ReadonlyArray<{ txid: string; vout: number }>;
-}
-
-export interface CollectReservedUtxoRefsParams {
+export interface CollectPendingVaultClaimsParams {
+  /** On-chain vaults from the indexer. PENDING/VERIFIED ones contribute. */
   vaults?: VaultLike[];
+  /**
+   * Locally-known pending pegins (browser cache). Contributes only when
+   * the id is not already covered by `vaults` — on-chain wins.
+   */
   pendingPegins?: PendingPeginLike[];
-  utxoReservations?: UtxoReservationLike[];
 }
 
 // ============================================================================
-// Internal Helpers
+// Internal helpers
 // ============================================================================
 
 /**
  * Parse a transaction hex and return the UTXO references of all inputs.
- *
- * Parse failures are logged and yield no refs. A malformed hex from an
- * untrusted source (e.g. off-chain storage) must not silently collapse the
- * reservation set — logging makes tampering visible in telemetry instead
- * of swallowing the error.
+ * Parse failures are logged and yield no refs.
  */
 function extractInputUtxoRefs(txHex: string): UtxoRef[] {
   try {
@@ -95,9 +89,9 @@ function extractInputUtxoRefs(txHex: string): UtxoRef[] {
     });
   } catch (error) {
     console.warn(
-      "[utxoReservation] Failed to parse transaction hex; skipping inputs",
+      "[reservation] Failed to parse transaction hex; skipping inputs",
       {
-        category: "utxoReservation",
+        category: "reservation",
         error: error instanceof Error ? error.message : String(error),
       },
     );
@@ -105,42 +99,8 @@ function extractInputUtxoRefs(txHex: string): UtxoRef[] {
   }
 }
 
-/** Check if a UTXO matches any reserved ref (case-insensitive txid comparison). */
-function isUtxoReserved(
-  utxo: { txid: string; vout: number },
-  reservedRefs: UtxoRef[],
-): boolean {
-  const txidLower = utxo.txid.toLowerCase();
-  return reservedRefs.some(
-    (ref) => ref.txid.toLowerCase() === txidLower && ref.vout === utxo.vout,
-  );
-}
-
-/**
- * Estimate minimum fee buffer for UTXO pre-selection.
- *
- * WARNING: This is a ROUGH ESTIMATE used only to check if unreserved UTXOs
- * are likely sufficient BEFORE the actual signing flow begins. The actual
- * fee calculation happens in the SDK's `selectUtxosForPegin` during signing.
- *
- * Assumptions:
- * - 2 inputs (conservative estimate for most deposits)
- * - 1 vault output (P2TR, 43 vBytes)
- * - 1 change output (P2TR, 43 vBytes)
- * - Transaction overhead (11 vBytes)
- * - 10% safety margin
- */
-function estimateMinimumFeeBuffer(feeRate: number): bigint {
-  const ASSUMED_INPUTS = 2;
-
-  const estimatedTxSize =
-    ASSUMED_INPUTS * P2TR_INPUT_SIZE +
-    MAX_NON_LEGACY_OUTPUT_SIZE + // vault output
-    MAX_NON_LEGACY_OUTPUT_SIZE + // change output
-    TX_BUFFER_SIZE_OVERHEAD;
-
-  const estimatedFee = Math.ceil(estimatedTxSize * feeRate * FEE_SAFETY_MARGIN);
-  return BigInt(estimatedFee);
+function outpointKey(o: UtxoRef): string {
+  return `${o.txid.toLowerCase()}:${o.vout}`;
 }
 
 // ============================================================================
@@ -148,47 +108,28 @@ function estimateMinimumFeeBuffer(feeRate: number): bigint {
 // ============================================================================
 
 /**
- * Collect UTXO refs from in-flight deposits (PENDING/VERIFIED vaults and
- * pending pegins).
+ * Collect per-vault outpoint claims from in-flight deposits.
  *
- * On-chain vault data is canonical: for any pending pegin whose `id` matches
- * an indexed on-chain vault, the pending-pegin copy is ignored entirely —
- * the `vaults` branch below extracts refs from the indexer-supplied
- * `unsignedPrePeginTx` so tampered off-chain data cannot poison the
- * reservation set once the vault is indexed.
+ * On-chain vault data is canonical: any pending pegin whose `id` matches
+ * an indexed vault is ignored — the on-chain `unsignedPrePeginTx` wins.
+ * For pegins not yet indexed, refs come from the locally-stored
+ * `unsignedTxHex` (bridges indexer lag).
  *
- * For pegins not yet indexed, refs are derived from the stored
- * `unsignedTxHex` only. The `selectedUTXOs` sidecar is NOT used for
- * reservation: if it disagreed with the transaction's inputs (e.g. because
- * the off-chain source was tampered), trusting it would poison the reserved
- * set. The transaction hex must be validated at the source boundary before
- * being handed to this function; parsing and using its inputs is the single
- * source of truth here.
+ * Returns one entry per source vault/pegin (NOT a flat list) so callers
+ * can attribute impacted UTXOs back to a specific vault for the
+ * user-facing warning.
  */
-export function collectReservedUtxoRefs(
-  params: CollectReservedUtxoRefsParams,
-): UtxoRef[] {
-  const reserved: UtxoRef[] = [];
-  const {
-    vaults = [],
-    pendingPegins = [],
-    utxoReservations = [],
-  } = params;
+export function collectPendingVaultClaims(
+  params: CollectPendingVaultClaimsParams,
+): PendingVaultClaim[] {
+  const { vaults = [], pendingPegins = [] } = params;
+  const claims: PendingVaultClaim[] = [];
 
   const onChainVaultIds = new Set(
     vaults
       .map((v) => v.id?.toLowerCase())
       .filter((id): id is string => id !== undefined),
   );
-
-  for (const pending of pendingPegins) {
-    if (pending.id && onChainVaultIds.has(pending.id.toLowerCase())) {
-      continue;
-    }
-    if (pending.unsignedTxHex) {
-      reserved.push(...extractInputUtxoRefs(pending.unsignedTxHex));
-    }
-  }
 
   for (const vault of vaults) {
     if (
@@ -197,72 +138,68 @@ export function collectReservedUtxoRefs(
     ) {
       continue;
     }
-    reserved.push(...extractInputUtxoRefs(vault.unsignedPrePeginTx));
+    // Defensive: on-chain vaults always carry a bytes32 id; skipping a
+    // malformed row here just drops it from the advisory warning set.
+    if (!vault.id) continue;
+    claims.push({
+      vaultId: vault.id,
+      claimedOutpoints: extractInputUtxoRefs(vault.unsignedPrePeginTx),
+    });
   }
 
-  // Early reservations written before ETH registration to prevent cross-tab
-  // UTXO conflicts. These are cleaned up when the deposit completes or fails.
-  for (const reservation of utxoReservations) {
-    for (const op of reservation.outpoints) {
-      reserved.push({ txid: op.txid, vout: op.vout });
-    }
+  for (const pending of pendingPegins) {
+    if (!pending.id) continue;
+    if (onChainVaultIds.has(pending.id.toLowerCase())) continue;
+    if (!pending.unsignedTxHex) continue;
+    claims.push({
+      vaultId: pending.id,
+      claimedOutpoints: extractInputUtxoRefs(pending.unsignedTxHex),
+    });
   }
 
-  return reserved;
+  return claims;
 }
 
 /**
- * Select UTXOs for a deposit, filtering out reserved ones.
+ * Given a set of just-selected outpoints (the inputs the SDK's real
+ * coin selector picked for a new deposit) and the existing pending
+ * vault claims, return the set of pending vault ids that share at least
+ * one outpoint with the selection.
  *
- * Logic:
- * 1. Filter out reserved UTXOs from the available pool
- * 2. If unreserved UTXOs are sufficient for the required amount + estimated fee, return them
- * 3. Otherwise, throw — never silently reuse reserved UTXOs, as this risks double-spend
- *    failures that strand registered-but-unbroadcastable vaults
+ * In a multi-vault batched deposit every sibling carries the same
+ * pre-pegin tx, so reusing one shared outpoint invalidates ALL siblings;
+ * every claimant of a selected outpoint is therefore reported.
  *
- * @param params - Selection parameters
- * @returns Array of unreserved UTXOs to use for the deposit
- * @throws When all UTXOs are reserved or unreserved UTXOs are insufficient
+ * Pure function — no I/O, no SDK side effects. Intended as a post-hoc
+ * advisory check: if it returns a non-empty set, the deposit can still
+ * proceed, but the listed vault(s) will no longer be broadcastable and
+ * the user should be told.
  */
-export function selectUtxosForDeposit<
-  T extends { txid: string; vout: number; value: number },
->(params: SelectUtxosForDepositParams<T>): T[] {
-  const { availableUtxos, reservedUtxoRefs, requiredAmount, feeRate } = params;
+export function findImpactedVaultIds(
+  selectedOutpoints: ReadonlyArray<UtxoRef>,
+  claims: ReadonlyArray<PendingVaultClaim>,
+): string[] {
+  if (selectedOutpoints.length === 0 || claims.length === 0) return [];
 
-  // Edge case: no UTXOs available
-  if (!availableUtxos || availableUtxos.length === 0) {
-    return [];
+  const owners = new Map<string, string[]>();
+  for (const claim of claims) {
+    for (const op of claim.claimedOutpoints) {
+      const key = outpointKey(op);
+      const existing = owners.get(key);
+      if (existing) {
+        if (!existing.includes(claim.vaultId)) existing.push(claim.vaultId);
+      } else {
+        owners.set(key, [claim.vaultId]);
+      }
+    }
   }
 
-  // Edge case: no reservations, return all
-  if (reservedUtxoRefs.length === 0) {
-    return availableUtxos;
+  const impacted = new Set<string>();
+  for (const op of selectedOutpoints) {
+    const ids = owners.get(outpointKey(op));
+    if (ids) {
+      for (const id of ids) impacted.add(id);
+    }
   }
-
-  // Filter out reserved UTXOs
-  const unreserved = availableUtxos.filter(
-    (utxo) => !isUtxoReserved(utxo, reservedUtxoRefs),
-  );
-
-  if (unreserved.length === 0) {
-    throw new Error(
-      "All available UTXOs are reserved by pending deposits. " +
-        "Wait for pending deposits to confirm or cancel them before starting a new deposit.",
-    );
-  }
-
-  const feeBuffer = estimateMinimumFeeBuffer(feeRate);
-  const totalRequired = requiredAmount + feeBuffer;
-  const unreservedTotal = unreserved.reduce(
-    (sum, u) => sum + BigInt(u.value),
-    0n,
-  );
-  if (unreservedTotal < totalRequired) {
-    throw new Error(
-      "Insufficient unreserved UTXOs for this deposit amount. " +
-        "Wait for pending deposits to confirm or cancel them.",
-    );
-  }
-
-  return unreserved;
+  return Array.from(impacted);
 }

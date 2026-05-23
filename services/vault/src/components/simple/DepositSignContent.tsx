@@ -45,6 +45,7 @@ export function DepositSignContent({
     currentStep,
     processing,
     error,
+    lastWarnings,
     isWaiting,
     payoutSigningProgress,
     peginSigningProgress,
@@ -79,22 +80,45 @@ export function DepositSignContent({
     onClose();
   }, [abort, onClose]);
 
+  // Hoisted above the success/processing split so the post-hoc reuse warning
+  // remains visible after the flow resolves and the view switches to the
+  // post-deposit continuation surface. Rendering it only in the
+  // DepositProgressView branch would make the banner disappear the moment
+  // `continuationVaultIds` is set — the exact case where the warning matters.
+  const warningsBanner = lastWarnings.length > 0 && (
+    <div
+      className="mb-3 flex flex-col gap-1 rounded-lg bg-amber-100 px-4 py-3 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300"
+      role="alert"
+    >
+      {lastWarnings.map((w, i) => (
+        <div key={i} className="text-sm">
+          {w}
+        </div>
+      ))}
+    </div>
+  );
+
   if (
     continuationVaultIds &&
     continuationVaultIds.length > 0 &&
     flowParams.depositorEthAddress
   ) {
     return (
-      <PostDepositContinuationContent
-        vaultIds={continuationVaultIds}
-        depositorEthAddress={flowParams.depositorEthAddress}
-        onClose={onClose}
-      />
+      <>
+        {warningsBanner}
+        <PostDepositContinuationContent
+          vaultIds={continuationVaultIds}
+          depositorEthAddress={flowParams.depositorEthAddress}
+          onClose={onClose}
+        />
+      </>
     );
   }
 
   return (
     <>
+      {warningsBanner}
+
       <DepositProgressView
         currentStep={currentStep}
         error={error}

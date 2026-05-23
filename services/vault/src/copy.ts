@@ -339,6 +339,14 @@ export const COPY = {
       wotsMismatchError:
         "WOTS public key hash does not match the on-chain commitment — the wrong wallet is connected.",
     },
+    warnings: {
+      reusesReservedUtxos: (count: number) =>
+        count <= 1
+          ? "This deposit will reuse coins from another of your pending BTC Vault deposits. That deposit can no longer be broadcast and will need to be refunded."
+          : `This deposit will reuse coins from ${count} of your other pending BTC Vault deposits. Those deposits can no longer be broadcast and will need to be refunded.`,
+      depositRecordNotSaved:
+        "Your deposit was registered on-chain, but this browser couldn't save a local copy. Free up browser storage or exit private browsing so it shows up here for tracking.",
+    },
     errors: {
       invalidSecret:
         "Invalid secret: SHA256(secret) does not match the BTC Vault's hashlock. Please check your secret and try again.",
@@ -348,6 +356,8 @@ export const COPY = {
       sepoliaTestnet: "Sepolia Testnet",
       crossDeviceBroadcastUnsupported:
         "This pre-peg-in cannot be broadcast from the in-app button because the build-time parameters that pin its Bitcoin scripts are not available here. Please broadcast from the original device, or wait for the refund timeout.",
+      unableToVerifyExistingDeposits: (detail: string) =>
+        `Unable to verify existing deposits. Please try again. (${detail})`,
     },
     payoutSigningGuards: {
       missingPayoutAddress: {

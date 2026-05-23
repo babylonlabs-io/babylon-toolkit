@@ -10,11 +10,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Hex } from "viem";
 
 import { getNetworkConfigBTC } from "../config";
-import {
-  STORAGE_KEY_PREFIX,
-  STORAGE_UPDATE_EVENT,
-  UTXO_RESERVATION_KEY_PREFIX,
-} from "../constants";
+import { STORAGE_KEY_PREFIX, STORAGE_UPDATE_EVENT } from "../constants";
 import {
   ContractStatus,
   getPeginState,
@@ -49,8 +45,15 @@ export interface UsePeginStorageResult {
   allActivities: VaultActivity[];
   /** Pending peg-ins from localStorage */
   pendingPegins: PendingPeginRequest[];
-  /** Add a new pending peg-in to localStorage */
-  addPendingPegin: (pegin: Omit<PendingPeginRequest, "timestamp">) => void;
+  /**
+   * Add a new pending peg-in to localStorage. `status` is optional and
+   * defaults to `LocalStorageStatus.PENDING` in the storage layer.
+   */
+  addPendingPegin: (
+    pegin: Omit<PendingPeginRequest, "timestamp" | "status"> & {
+      status?: LocalStorageStatus;
+    },
+  ) => void;
   /** Update status of a pending peg-in */
   updatePendingPeginStatus: (
     vaultId: string,
@@ -125,17 +128,11 @@ export function usePeginStorage({
   // Listen for native storage events from OTHER tabs.
   // The native StorageEvent fires cross-tab when localStorage is modified,
   // closing the gap where Tab B wouldn't see Tab A's writes until next poll.
-  // Includes UTXO_RESERVATION_KEY_PREFIX so deposit flows in other tabs
-  // trigger a re-read of pending state (reservations are read imperatively
-  // by useDepositFlow, but the version bump ensures derived UI stays fresh).
   useEffect(() => {
     if (!ethAddress) return;
 
     const handleStorageEvent = (e: StorageEvent) => {
-      if (
-        e.key === `${STORAGE_KEY_PREFIX}-${ethAddress}` ||
-        e.key === `${UTXO_RESERVATION_KEY_PREFIX}-${ethAddress}`
-      ) {
+      if (e.key === `${STORAGE_KEY_PREFIX}-${ethAddress}`) {
         setStorageVersion((v) => v + 1);
       }
     };
@@ -249,12 +246,23 @@ export function usePeginStorage({
     });
   }, [pendingPegins, confirmedPegins]);
 
-  // Add pending peg-in - storage function will dispatch event
+  // Add pending peg-in - storage function will dispatch event.
+  // Best-effort here: hook consumers (e.g. refund tracking) must not abort
+  // on a localStorage failure. The storage layer already logs it. The
+  // deposit-creation flow calls the storage function directly and handles
+  // persistence failures explicitly (surfaces a soft warning).
   const addPendingPegin = useCallback(
-    (pegin: Omit<PendingPeginRequest, "timestamp">) => {
+    (
+      pegin: Omit<PendingPeginRequest, "timestamp" | "status"> & {
+        status?: LocalStorageStatus;
+      },
+    ) => {
       if (!ethAddress) return;
-      addPendingPeginToStorage(ethAddress, pegin);
-      // Event will be dispatched by storage function - no manual state update needed
+      try {
+        addPendingPeginToStorage(ethAddress, pegin);
+      } catch {
+        // Intentionally swallowed — see comment above.
+      }
     },
     [ethAddress],
   );
