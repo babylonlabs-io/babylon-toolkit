@@ -4,11 +4,12 @@ import { usePeginPolling } from "@/context/deposit/PeginPollingContext";
 import { COPY } from "@/copy";
 import { DepositFlowStep } from "@/hooks/deposit/depositFlowSteps";
 import {
-  ContractStatus,
   getPeginDisplayStep,
+  isVaultPastActivation,
   LocalStorageStatus,
   PeginAction,
   type PeginState,
+  USER_ACTIONABLE_PEGIN_ACTIONS,
 } from "@/models/peginStateMachine";
 import type { VaultActivity } from "@/types/activity";
 
@@ -28,21 +29,53 @@ interface PostDepositContinuationViewProps {
   onClose: () => void;
 }
 
-function isVaultPastActivation(peginState: PeginState | undefined): boolean {
-  if (!peginState) return false;
-  const { contractStatus, localStatus } = peginState;
-  if (
-    contractStatus === ContractStatus.VERIFIED &&
-    localStatus === LocalStorageStatus.CONFIRMED
-  ) {
-    return true;
-  }
+function isCandidateVault(state: PeginState | undefined): boolean {
   return (
-    contractStatus === ContractStatus.ACTIVE ||
-    contractStatus === ContractStatus.REDEEMED ||
-    contractStatus === ContractStatus.LIQUIDATED ||
-    contractStatus === ContractStatus.DEPOSITOR_WITHDRAWN
+    !!state &&
+    !isVaultPastActivation(state) &&
+    state.displayVariant !== "warning"
   );
+}
+
+function hasActionableStep(
+  state: PeginState | undefined,
+  btcPublicKey: string | undefined,
+): boolean {
+  if (!state) return false;
+  return (state.availableActions ?? []).some((action) => {
+    if (!USER_ACTIONABLE_PEGIN_ACTIONS.has(action)) return false;
+    // Mirror the render-branch prerequisite: payout signing also needs the
+    // depositor's BTC public key. Without this check a payout-only vault
+    // wins actionableIndex, fails the payout branch, and renders the wait
+    // view — stalling a later vault with a genuinely-actionable step.
+    if (action === PeginAction.SIGN_PAYOUT_TRANSACTIONS) {
+      return btcPublicKey !== undefined;
+    }
+    return true;
+  });
+}
+
+/**
+ * Step to freeze the stepper on for a warning (terminal failure) vault.
+ *
+ * `getPeginDisplayStep` returns `null` for warning states by design — it
+ * never shows progress for a failed deposit. We derive a frozen step from
+ * the vault's last persisted local status so the stepper shows the point
+ * of failure rather than a generic "Awaiting BTC confirmation."
+ */
+function stepForWarningVault(state: PeginState): DepositFlowStep {
+  switch (state.localStatus) {
+    case LocalStorageStatus.CONFIRMED:
+      return DepositFlowStep.ACTIVATE_VAULT;
+    case LocalStorageStatus.PAYOUT_SIGNED:
+      return DepositFlowStep.AWAIT_VP_VERIFICATION;
+    case LocalStorageStatus.CONFIRMING:
+      return DepositFlowStep.AWAIT_BTC_CONFIRMATION;
+    case LocalStorageStatus.PENDING:
+      return DepositFlowStep.BROADCAST_PRE_PEGIN;
+    default:
+      return DepositFlowStep.AWAIT_BTC_CONFIRMATION;
+  }
 }
 
 function StatusView({
@@ -87,10 +120,22 @@ export function PostDepositContinuationView({
 }: PostDepositContinuationViewProps) {
   const { refetch, getPollingResult } = usePeginPolling();
 
-  const currentVaultIndex = vaultIds.findIndex((id) => {
+  // Prefer a vault with a user-actionable step over a sibling that's
+  // merely waiting on the VP. Otherwise vault[0] in AWAIT_VP_VERIFICATION
+  // would stall vault[1]'s ready WOTS/payout/activation action — batches
+  // realistically diverge because the VP processes each vault at its own
+  // rate. Falls back to the first candidate so its wait state still shows
+  // when no sibling is actionable.
+  const actionableIndex = vaultIds.findIndex((id) => {
     const state = getPollingResult(id)?.peginState;
-    return !isVaultPastActivation(state) && state?.displayVariant !== "warning";
+    return isCandidateVault(state) && hasActionableStep(state, btcPublicKey);
   });
+  const currentVaultIndex =
+    actionableIndex !== -1
+      ? actionableIndex
+      : vaultIds.findIndex((id) =>
+          isCandidateVault(getPollingResult(id)?.peginState),
+        );
   const currentVaultId =
     currentVaultIndex === -1 ? undefined : vaultIds[currentVaultIndex];
   const pollingResult = currentVaultId
@@ -105,9 +150,12 @@ export function PostDepositContinuationView({
       .map((id) => getPollingResult(id)?.peginState)
       .find((state) => state?.displayVariant === "warning");
     if (warning) {
+      // Freeze the stepper at the point of failure based on the vault's
+      // last persisted localStatus — `getPeginDisplayStep` is null for
+      // warning states by design, so we map it ourselves.
       return (
         <StatusView
-          currentStep={DepositFlowStep.ACTIVATE_VAULT}
+          currentStep={stepForWarningVault(warning)}
           error={warning.message ?? COPY.common.somethingWentWrong.body}
           onClose={onClose}
         />
@@ -125,6 +173,17 @@ export function PostDepositContinuationView({
 
   const peginState = pollingResult?.peginState;
   const actions = peginState?.availableActions ?? [];
+
+  // Action-driven branches. PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN is
+  // intentionally absent: the continuation only mounts after
+  // `executeDeposit()` resolves (Pre-PegIn broadcast + localStorage past
+  // CONFIRMING), so that action is never in `actions` here — the dashboard
+  // resume path covers sessions that aborted before broadcast.
+  //
+  // Artifact download is NOT auto-invoked: it's a real file download and
+  // silent downloads are user-hostile (the browser may block, the user may
+  // not be ready). The ActivationGate below renders a manual download
+  // button once that step is reached.
 
   if (activity && actions.includes(PeginAction.SUBMIT_WOTS_KEY)) {
     return (
