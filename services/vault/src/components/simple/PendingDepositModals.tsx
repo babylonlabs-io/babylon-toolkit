@@ -106,8 +106,11 @@ export function PendingDepositModals({
 
   return (
     <>
-      {/* Payout Sign Modal – full-screen with stepper */}
-      {signModal.signingData && btcPublicKey && (
+      {/* Payout Sign Modal – full-screen with stepper. The render condition
+       *  must guard `ethAddress` too: without it, payout signing's
+       *  localStorage write would key by `"undefined"`, leaving the deposit
+       *  on SIGN_PAYOUT_TRANSACTIONS after a successful sign. */}
+      {signModal.signingData && btcPublicKey && ethAddress && (
         <SimpleDeposit
           open
           resumeMode="sign_payouts"
