@@ -4,7 +4,6 @@ import {
   ETHWalletProvider,
   WalletProvider,
   createWalletConfig,
-  useChainConnector,
   useWalletConnect,
 } from "@babylonlabs-io/wallet-connector";
 import { useTheme } from "next-themes";
@@ -55,8 +54,8 @@ const context = typeof window !== "undefined" ? window : {};
 // (which is fire-and-forget on reload and can take up to the provider's RPC
 // timeout). 1500ms was shorter than that handshake, so a slow extension wake
 // was being treated as a real disconnect and wiped both wallets. The
-// `hasBtcConnectedRef` gate and verify-before-reset check below are the real
-// guards; this timer is only defence-in-depth.
+// `hasBtcConnectedRef` gate (below) is the primary guard against startup blips;
+// this debounce + cancelBtcReset cover post-connect wake-up blips.
 const BTC_DISCONNECT_DEBOUNCE_MS = 3000;
 
 /**
@@ -64,12 +63,6 @@ const BTC_DISCONNECT_DEBOUNCE_MS = 3000;
  */
 function WalletProviders({ children }: PropsWithChildren) {
   const { disconnect: disconnectAll } = useWalletConnect();
-  // Live BTC connector so the deferred reset can re-check the real connection
-  // state at fire time (see scheduleBtcReset). Kept in a ref so the debounced
-  // callbacks don't need to be re-created when the connector identity bumps.
-  const btcConnector = useChainConnector("BTC");
-  const btcConnectorRef = useRef(btcConnector);
-  btcConnectorRef.current = btcConnector;
   // Guard against re-entrancy when disconnectAll triggers disconnect events
   const isDisconnectingRef = useRef(false);
   // Whether BTC has successfully connected at least once this session. A
@@ -110,17 +103,13 @@ function WalletProviders({ children }: PropsWithChildren) {
       clearTimeout(pendingBtcResetRef.current);
     pendingBtcResetRef.current = setTimeout(() => {
       pendingBtcResetRef.current = undefined;
-      // Verify-before-reset: the connector's reconnect handshake can complete
-      // (connectedWallet set) before the BTCWalletProvider finishes re-deriving
-      // the address and fires onConnect/cancelBtcReset. If the connector is in
-      // fact connected again, the disconnect was a blip — don't wipe.
-      if (btcConnectorRef.current?.connectedWallet) {
-        logger.info(
-          "Suppressed transient BTC disconnect (connector reconnected before reset fired)",
-          { category: "Wallet connection" },
-        );
-        return;
-      }
+      // A reconnect within the window cancels this timer via cancelBtcReset
+      // (fired from the provider's onConnect). If we get here, no reconnect
+      // arrived — treat it as a real disconnect. We deliberately do NOT consult
+      // the connector's `connectedWallet` as a liveness signal: an
+      // extension-initiated disconnect tears down BTCWalletProvider without
+      // calling connector.disconnect(), so `connectedWallet` stays stale-set
+      // and would wrongly suppress a genuine disconnect.
       void runWalletReset();
     }, BTC_DISCONNECT_DEBOUNCE_MS);
   }, [runWalletReset]);

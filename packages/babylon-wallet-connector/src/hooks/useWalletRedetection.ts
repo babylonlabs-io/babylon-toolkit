@@ -100,6 +100,19 @@ export function useWalletRedetection({
 
     let inFlight = false; // prevent overlapping passes (event vs. timeout vs. modal-open)
     let cancelled = false; // effect cleaned up
+    // Chains with a stored-session reconnect already in flight, so the two
+    // cold-start triggers (ready event + fallback timer) firing before it
+    // settles don't fire duplicate `connect()`s. Persists across redetect calls
+    // within this effect instance.
+    const reconnecting = new Set<string>();
+    // Chains that participated in late-injection redetection (their wallet
+    // `appeared` after the one-shot init detection) and still need their stored
+    // session restored. Only these are eligible for redetect reconnect — so
+    // ETH/AppKit (never late-injects) and normally-detected wallets (init
+    // auto-reconnect handles them) are excluded. Persists across passes so a
+    // modal-open detect-only pass that swaps a wallet in is still restored by a
+    // later cold-start pass.
+    const pendingRestore = new Set<string>();
 
     // `allowReconnect` is true only for the non-interactive cold-start triggers
     // (see listeners below); the modal-open trigger passes false.
@@ -114,85 +127,104 @@ export function useWalletRedetection({
     };
 
     const runRedetection = async (allowReconnect: boolean) => {
+      // 1. Re-detect connectors whose wallet injected after the one-shot
+      //    detection in init() (e.g. UniSat) and swap the now-installed ones in.
       const stale = (
         Object.values(connectorsRef.current).filter(Boolean) as WalletConnector<string, IProvider, any>[]
       ).filter((c) => !c.connectedWallet && c.wallets.some((w) => w.id !== "injectable" && !w.installed));
-      if (stale.length === 0) return;
 
-      const rebuilt = await Promise.all(
-        stale.map((c) =>
-          createWalletConnector<string, IProvider, any>({
-            // `persistent: false` — this rebuild only re-detects providers; it
-            // must not auto-reconnect a stored session, which would race a
-            // manual connect on the pre-rebuild connector and double-prompt.
-            persistent: false,
-            metadata: metadata[c.id as keyof typeof metadata],
-            context,
-            config: config.find((cc) => cc.chain === c.id)?.config,
-            accountStorage: storage,
-            disabledWallets,
-          }).catch(() => null),
-        ),
-      );
-      if (cancelled) return;
+      let swapIn: WalletConnector<string, IProvider, any>[] = [];
+      if (stale.length > 0) {
+        const rebuilt = await Promise.all(
+          stale.map((c) =>
+            createWalletConnector<string, IProvider, any>({
+              // `persistent: false` — this rebuild only re-detects providers; the
+              // stored-session reconnect is done explicitly in step 2 so it can
+              // also cover connectors an earlier detect-only pass already swapped in.
+              persistent: false,
+              metadata: metadata[c.id as keyof typeof metadata],
+              context,
+              config: config.find((cc) => cc.chain === c.id)?.config,
+              accountStorage: storage,
+              disabledWallets,
+            }).catch(() => null),
+          ),
+        );
+        if (cancelled) return;
 
-      // Keep only chains where a wallet that was NOT installed before is
-      // installed now (robust to the injectable-wallet de-dup reshaping the
-      // list, vs. a plain installed-count comparison).
-      const appeared = rebuilt.filter((c): c is WalletConnector<string, IProvider, any> => {
-        if (!c) return false;
-        const before = connectorsRef.current[c.id as keyof Connectors];
-        if (!before || before.connectedWallet) return false;
-        const wasInstalled = new Set(before.wallets.filter((w) => w.installed).map((w) => w.id));
-        return c.wallets.some((w) => w.installed && !wasInstalled.has(w.id));
-      });
-      if (appeared.length === 0) return;
+        // Keep only chains where a wallet that was NOT installed before is
+        // installed now (robust to the injectable-wallet de-dup reshaping the
+        // list, vs. a plain installed-count comparison).
+        const appeared = rebuilt.filter((c): c is WalletConnector<string, IProvider, any> => {
+          if (!c) return false;
+          const before = connectorsRef.current[c.id as keyof Connectors];
+          if (!before || before.connectedWallet) return false;
+          const wasInstalled = new Set(before.wallets.filter((w) => w.installed).map((w) => w.id));
+          return c.wallets.some((w) => w.installed && !wasInstalled.has(w.id));
+        });
 
-      // Connectors we'll actually swap in, computed synchronously: an
-      // `appeared` whose currently-in-state counterpart hasn't connected in the
-      // meantime. The in-state connectors and the updater's `prev` are the same
-      // instances and `connectedWallet` is mutated on the instance, so reading
-      // `connectorsRef.current` here is equivalent to reading `prev` — but it
-      // doesn't depend on side effects inside the (deferred / possibly
-      // double-invoked) state updater.
-      const current = connectorsRef.current;
-      const swapIn = appeared.filter((c) => !current[c.id as keyof Connectors]?.connectedWallet);
-      if (swapIn.length === 0) return;
+        // These chains late-injected — mark them eligible for stored-session
+        // restore (carried across passes, so a detect-only modal-open pass is
+        // still restored by a later cold-start pass).
+        for (const c of appeared) pendingRestore.add(c.id);
 
-      setConnectors((prev) => {
-        const next: Record<string, WalletConnector<string, IProvider, any>> = {};
-        for (const c of swapIn) {
-          // Re-check at commit time for the tiny window since `swapIn` was
-          // computed — never overwrite a now-connected connector.
-          if (prev[c.id as keyof Connectors]?.connectedWallet) continue;
-          next[c.id] = c;
+        // Swap in the appeared connectors whose currently-in-state counterpart
+        // hasn't connected in the meantime. Computed synchronously (not inside
+        // the updater) so it doesn't depend on side effects in the deferred /
+        // possibly double-invoked state updater.
+        const current = connectorsRef.current;
+        swapIn = appeared.filter((c) => !current[c.id as keyof Connectors]?.connectedWallet);
+        if (swapIn.length > 0) {
+          setConnectors((prev) => {
+            const next: Record<string, WalletConnector<string, IProvider, any>> = {};
+            for (const c of swapIn) {
+              // Re-check at commit time for the tiny window since `swapIn` was computed.
+              if (prev[c.id as keyof Connectors]?.connectedWallet) continue;
+              next[c.id] = c;
+            }
+            return Object.keys(next).length > 0 ? ({ ...prev, ...next } as Connectors) : prev;
+          });
         }
-        return Object.keys(next).length > 0 ? ({ ...prev, ...next } as Connectors) : prev;
-      });
+      }
 
-      // Restore a persisted session that lost the cold-start detection race.
-      // Computed from `swapIn` (not from inside the updater), so it is
-      // deterministic. The rebuilt connector is the same instance placed in
-      // state, so its `connect` event flows through the normal ChainProvider
-      // bump / BTCWalletProvider / selectWallet wiring (which also repopulates
-      // `selectedWallets`).
+      // 2. Restore persisted sessions (cold-start triggers only — the modal-open
+      //    trigger stays detect-only so it can't race a manual connect). Only
+      //    chains in `pendingRestore` (late-injected this session) are eligible,
+      //    so ETH/AppKit and normally-detected wallets are never reconnected
+      //    here. The in-state instance is taken from swapIn (this pass) or
+      //    current, so a session swapped in by an earlier detect-only pass is
+      //    still restored.
+      if (!allowReconnect || !persistent || pendingRestore.size === 0) return;
+      const inState: Record<string, WalletConnector<string, IProvider, any>> = {};
+      for (const c of Object.values(connectorsRef.current)) {
+        if (c) inState[c.id] = c as WalletConnector<string, IProvider, any>;
+      }
+      for (const c of swapIn) inState[c.id] = c;
+
       const reconnectTargets = selectRedetectReconnectTargets({
-        connectors: swapIn,
+        connectors: Object.values(inState),
         storage,
         allowReconnect,
         persistent,
+        eligibleChainIds: pendingRestore,
       });
       for (const { connector, walletId } of reconnectTargets) {
-        // Mirror the updater's commit-time skip: if the in-state connector for
-        // this chain connected in the window since `swapIn` was computed, the
-        // updater won't swap our rebuilt one in, so reconnecting it would just
-        // hit an orphan (harmless, but pointless). `current[id]` is the same
-        // live instance the updater reads as `prev[id]`, so this re-read sees a
-        // connection that landed in between.
-        if (current[connector.id as keyof Connectors]?.connectedWallet) continue;
+        if (reconnecting.has(connector.id)) continue;
+        reconnecting.add(connector.id);
         // Fire-and-forget: `connect` swallows its own errors (returns null on
         // failure); a locked/unresponsive wallet must not block re-detection.
-        void connector.connect(walletId);
+        // The connect event flows through the normal ChainProvider bump /
+        // BTCWalletProvider / selectWallet wiring (which repopulates selectedWallets).
+        void connector
+          .connect(walletId)
+          .then((wallet) => {
+            reconnecting.delete(connector.id);
+            // Restored — stop treating this chain as pending so later cold-start
+            // passes don't reconnect it again. On failure `connect` resolves
+            // null, so it stays pending and a later trigger retries.
+            if (wallet) pendingRestore.delete(connector.id);
+          })
+          .catch(() => reconnecting.delete(connector.id));
       }
     };
 

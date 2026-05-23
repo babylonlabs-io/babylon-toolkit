@@ -146,14 +146,33 @@ export const ETHWalletProvider = ({ children, callbacks }: ETHWalletProviderProp
     // connect listener above and the auto-confirm-on-reload effect.
     const bootstrapWallet = ethConnector.wallets[0];
     const bootstrapProvider = bootstrapWallet?.provider;
+    // wagmi can emit several `accountsChanged` while it rehydrates, before React
+    // re-renders with the new `address` — without this guard each one would see
+    // `address` empty and fire another `ethConnector.connect`. On success the
+    // address becomes truthy and the effect re-subscribes, so the flag only
+    // needs resetting on failure.
+    let lateReconnectInFlight = false;
     const onLateReconnect = (accounts?: string[]) => {
-      if (!accounts?.[0] || address) return;
-      void ethConnector.connect(bootstrapWallet).catch((error) => {
-        console.error(
-          "ETH late reconnect failed:",
-          error instanceof Error ? error.message : "Unknown error",
-        );
-      });
+      if (!accounts?.[0] || address || lateReconnectInFlight) return;
+      lateReconnectInFlight = true;
+      void ethConnector
+        .connect(bootstrapWallet)
+        .then((wallet) => {
+          // `connect` catches internally and resolves `null` on failure (it does
+          // not reject), so reset the guard here to allow a retry on the next
+          // accountsChanged. On success the address gets set and the effect
+          // re-subscribes, so the guard naturally stops further calls.
+          if (!wallet) lateReconnectInFlight = false;
+        })
+        .catch((error) => {
+          // Defensive only — `connect` shouldn't reject, but reset on an
+          // unexpected synchronous throw so we don't wedge the guard.
+          lateReconnectInFlight = false;
+          console.error(
+            "ETH late reconnect failed:",
+            error instanceof Error ? error.message : "Unknown error",
+          );
+        });
     };
     if (bootstrapProvider && typeof bootstrapProvider.on === "function") {
       bootstrapProvider.on("accountsChanged", onLateReconnect);

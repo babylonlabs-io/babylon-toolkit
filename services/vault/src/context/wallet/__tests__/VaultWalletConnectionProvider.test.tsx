@@ -11,9 +11,6 @@ type BtcCallbacks = { onConnect: () => void; onDisconnect: () => void };
 
 const h = vi.hoisted(() => ({
   disconnectAll: vi.fn(async () => {}),
-  // Mutable BTC connector whose connectedWallet the verify-before-reset check
-  // reads at timer-fire time.
-  btcConnector: { connectedWallet: null as unknown },
   captured: { btc: undefined as undefined | BtcCallbacks },
 }));
 
@@ -32,7 +29,6 @@ vi.mock("@babylonlabs-io/wallet-connector", () => ({
   },
   ETHWalletProvider: ({ children }: { children: React.ReactNode }) => children,
   createWalletConfig: () => ({}),
-  useChainConnector: () => h.btcConnector,
   useWalletConnect: () => ({ disconnect: h.disconnectAll }),
 }));
 
@@ -57,7 +53,6 @@ describe("WalletConnectionProvider — BTC disconnect-blip guard", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     h.disconnectAll.mockClear();
-    h.btcConnector.connectedWallet = null;
     h.captured.btc = undefined;
   });
 
@@ -79,8 +74,11 @@ describe("WalletConnectionProvider — BTC disconnect-blip guard", () => {
     renderProvider();
 
     act(() => btc().onConnect());
+    // No reconnect (onConnect) within the window → a real disconnect. The reset
+    // must fire purely on the absence of a reconnect — it must NOT consult the
+    // connector's connectedWallet (an extension-initiated disconnect leaves that
+    // stale-set, which would wrongly suppress the cascade).
     act(() => btc().onDisconnect());
-    // No reconnect and the connector stays disconnected → real disconnect.
     await vi.advanceTimersByTimeAsync(PAST_DEBOUNCE_MS);
 
     expect(h.disconnectAll).toHaveBeenCalledTimes(1);
@@ -92,19 +90,6 @@ describe("WalletConnectionProvider — BTC disconnect-blip guard", () => {
     act(() => btc().onConnect());
     act(() => btc().onDisconnect());
     act(() => btc().onConnect()); // reconnect blip resolved
-    await vi.advanceTimersByTimeAsync(PAST_DEBOUNCE_MS);
-
-    expect(h.disconnectAll).not.toHaveBeenCalled();
-  });
-
-  it("cancels the reset when the connector reconnected before the timer fires", async () => {
-    renderProvider();
-
-    act(() => btc().onConnect());
-    act(() => btc().onDisconnect());
-    // Connector handshake completed (connectedWallet set) but the provider
-    // hasn't fired onConnect yet — verify-before-reset must catch this.
-    h.btcConnector.connectedWallet = { id: "unisat" };
     await vi.advanceTimersByTimeAsync(PAST_DEBOUNCE_MS);
 
     expect(h.disconnectAll).not.toHaveBeenCalled();

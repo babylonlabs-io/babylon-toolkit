@@ -26,9 +26,29 @@ test.describe("selectRedetectReconnectTargets — cold-start session restore", (
       storage: storageWith({ BTC: "unisat" }),
       allowReconnect: true,
       persistent: true,
+      eligibleChainIds: new Set(["BTC"]),
     });
 
     expect(targets).toEqual([{ connector: btc, walletId: "unisat" }]);
+  });
+
+  test("does not reconnect a chain that did not participate in redetection (e.g. ETH/AppKit)", () => {
+    // ETH/AppKit is always installed and stored, so without the eligibility
+    // gate it would be selected here — and connecting it would pop the AppKit
+    // modal on reload. It never late-injects, so it's never eligible.
+    const eth = connector("ETH", [
+      { id: "appkit-eth-connector", installed: true },
+    ]);
+
+    const targets = selectRedetectReconnectTargets({
+      connectors: [eth],
+      storage: storageWith({ ETH: "appkit-eth-connector" }),
+      allowReconnect: true,
+      persistent: true,
+      eligibleChainIds: new Set(["BTC"]), // only BTC late-injected
+    });
+
+    expect(targets).toEqual([]);
   });
 
   test("does not reconnect on the interactive (modal-open) trigger", () => {
@@ -39,6 +59,7 @@ test.describe("selectRedetectReconnectTargets — cold-start session restore", (
       storage: storageWith({ BTC: "unisat" }),
       allowReconnect: false,
       persistent: true,
+      eligibleChainIds: new Set(["BTC"]),
     });
 
     expect(targets).toEqual([]);
@@ -52,6 +73,7 @@ test.describe("selectRedetectReconnectTargets — cold-start session restore", (
       storage: storageWith({ BTC: "unisat" }),
       allowReconnect: true,
       persistent: false,
+      eligibleChainIds: new Set(["BTC"]),
     });
 
     expect(targets).toEqual([]);
@@ -65,6 +87,7 @@ test.describe("selectRedetectReconnectTargets — cold-start session restore", (
       storage: storageWith({}),
       allowReconnect: true,
       persistent: true,
+      eligibleChainIds: new Set(["BTC"]),
     });
 
     expect(targets).toEqual([]);
@@ -78,6 +101,7 @@ test.describe("selectRedetectReconnectTargets — cold-start session restore", (
       storage: storageWith({ BTC: "unisat" }),
       allowReconnect: true,
       persistent: true,
+      eligibleChainIds: new Set(["BTC"]),
     });
 
     expect(targets).toEqual([]);
@@ -95,6 +119,7 @@ test.describe("selectRedetectReconnectTargets — cold-start session restore", (
       storage: storageWith({ BTC: "unisat" }),
       allowReconnect: true,
       persistent: true,
+      eligibleChainIds: new Set(["BTC"]),
     });
 
     expect(targets).toEqual([]);
