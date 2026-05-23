@@ -6,7 +6,7 @@
  */
 
 import { Avatar, Hint } from "@babylonlabs-io/core-ui";
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
 import { CopyableHash } from "@/components/shared/CopyableHash";
 import { getNetworkConfigBTC } from "@/config";
@@ -21,6 +21,22 @@ import {
 import { VaultCardRow, VaultCardShell } from "./VaultCardShell";
 
 const btcConfig = getNetworkConfigBTC();
+
+const RELATIVE_TIME_TICK_MS = 60_000;
+
+function useRelativeTime(timestamp: number): string {
+  const [label, setLabel] = useState(() => formatTimeAgo(timestamp));
+
+  useEffect(() => {
+    setLabel(formatTimeAgo(timestamp));
+    const interval = setInterval(() => {
+      setLabel(formatTimeAgo(timestamp));
+    }, RELATIVE_TIME_TICK_MS);
+    return () => clearInterval(interval);
+  }, [timestamp]);
+
+  return label;
+}
 
 interface VaultDetailCardProps {
   /** BTC amount (already converted from satoshis) */
@@ -65,6 +81,8 @@ export function VaultDetailCard({
   belowHeader,
   action,
 }: VaultDetailCardProps) {
+  const relativeTime = useRelativeTime(timestamp);
+
   return (
     <VaultCardShell>
       {/* BTC icon + amount (+ optional subtext), optional header-end content */}
@@ -95,7 +113,7 @@ export function VaultDetailCard({
           placement="left"
           className="text-sm text-accent-primary"
         >
-          <span>{formatTimeAgo(timestamp)}</span>
+          <span>{relativeTime}</span>
         </Hint>
       </VaultCardRow>
 
@@ -126,7 +144,7 @@ export function VaultDetailCard({
         </Hint>
       </VaultCardRow>
 
-      {/* Transaction Hash (BTC pegin) */}
+      {/* Transaction Hash (Pre-PegIn) */}
       {txHash && (
         <VaultCardRow label="Transaction Hash">
           <CopyableHash
