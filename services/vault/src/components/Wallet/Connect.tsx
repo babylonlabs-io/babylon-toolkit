@@ -6,6 +6,7 @@ import {
   Hint,
 } from "@babylonlabs-io/core-ui";
 import {
+  useChainConnector,
   useWalletConnect,
   useWidgetState,
 } from "@babylonlabs-io/wallet-connector";
@@ -18,6 +19,8 @@ import { COPY } from "@/copy";
 
 import { useBTCWallet, useETHWallet } from "../../context/wallet";
 import { useAppState } from "../../state/AppState";
+
+import { resolveDisplayWallets } from "./resolveDisplayWallets";
 
 interface ConnectProps {
   loading?: boolean;
@@ -34,6 +37,8 @@ export const Connect: React.FC<ConnectProps> = ({ loading = false }) => {
   } = useBTCWallet();
   const { connected: ethConnected, address: ethAddress } = useETHWallet();
   const { selectedWallets } = useWidgetState();
+  const btcConnector = useChainConnector("BTC");
+  const ethConnector = useChainConnector("ETH");
   const { includeOrdinals, excludeOrdinals, ordinalsExcluded } = useAppState();
 
   const { isGeoBlocked, isLoading: isGeoLoading } = useGeoFencing();
@@ -42,15 +47,21 @@ export const Connect: React.FC<ConnectProps> = ({ loading = false }) => {
 
   const isWalletConnected = btcConnected && ethConnected;
 
-  const transformedWallets = useMemo(() => {
-    const result: Record<string, { name: string; icon: string }> = {};
-    Object.entries(selectedWallets).forEach(([key, wallet]) => {
-      if (wallet) {
-        result[key] = { name: wallet.name, icon: wallet.icon };
-      }
-    });
-    return result;
-  }, [selectedWallets]);
+  // Icon source must stay aligned with the (provider-level) connection state:
+  // `selectedWallets` is volatile widget state that can lag a reconnect on
+  // refresh, leaving the address shown but the icon blank. resolveDisplayWallets
+  // falls back to the connector's connected/installed wallet metadata.
+  const displayWallets = useMemo(
+    () =>
+      resolveDisplayWallets({
+        selectedWallets,
+        btcConnected,
+        ethConnected,
+        btcConnector,
+        ethConnector,
+      }),
+    [selectedWallets, btcConnected, ethConnected, btcConnector, ethConnector],
+  );
 
   const handleOpenChange = (open: boolean) => {
     setIsWalletMenuOpen(open);
@@ -65,10 +76,10 @@ export const Connect: React.FC<ConnectProps> = ({ loading = false }) => {
           trigger={
             <div className="cursor-pointer">
               <AvatarGroup max={3} variant="circular">
-                {selectedWallets["BTC"] && (
+                {displayWallets["BTC"] && (
                   <Avatar
-                    alt={selectedWallets["BTC"]?.name}
-                    url={selectedWallets["BTC"]?.icon}
+                    alt={displayWallets["BTC"].name}
+                    url={displayWallets["BTC"].icon}
                     size="large"
                     className={twMerge(
                       "box-content bg-accent-contrast object-contain",
@@ -77,10 +88,10 @@ export const Connect: React.FC<ConnectProps> = ({ loading = false }) => {
                     )}
                   />
                 )}
-                {selectedWallets["ETH"] && (
+                {displayWallets["ETH"] && (
                   <Avatar
-                    alt={selectedWallets["ETH"]?.name}
-                    url={selectedWallets["ETH"]?.icon}
+                    alt={displayWallets["ETH"].name}
+                    url={displayWallets["ETH"].icon}
                     size="large"
                     className={twMerge(
                       "box-content bg-accent-contrast object-contain",
@@ -94,7 +105,7 @@ export const Connect: React.FC<ConnectProps> = ({ loading = false }) => {
           }
           btcAddress={btcAddress}
           ethAddress={ethAddress}
-          selectedWallets={transformedWallets}
+          selectedWallets={displayWallets}
           publicKeyNoCoord={publicKeyNoCoord}
           ordinalsExcluded={ordinalsExcluded}
           onIncludeOrdinals={includeOrdinals}

@@ -107,7 +107,7 @@ export function ChainProvider({
 
   // Re-detect wallets whose extension injected after the one-shot detection
   // in `init()` above (e.g. UniSat's late `window.unisat` injection).
-  useWalletRedetection({ connectors, setConnectors, config, context, storage, disabledWallets });
+  useWalletRedetection({ connectors, setConnectors, config, context, storage, disabledWallets, persistent });
 
   // Auto-reconnect (and any other connect/disconnect) mutates `connectedWallet`
   // on the existing connector instance without changing the `connectors` object

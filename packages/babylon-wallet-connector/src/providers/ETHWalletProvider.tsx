@@ -133,7 +133,38 @@ export const ETHWalletProvider = ({ children, callbacks }: ETHWalletProviderProp
       }
     });
 
-    return unsubscribe;
+    // Bridge a late wagmi rehydrate into the connector "connect" flow.
+    // checkExistingConnection() above only sees the account wagmi has already
+    // restored by mount time. On reload wagmi often finishes reconnecting from
+    // cookieStorage *after* that: the provider then emits "accountsChanged"
+    // with the restored address, but nothing has called ethConnector.connect()
+    // yet, so connectedWallet / selectedWallets / the connect listener above
+    // never fire and ETH silently fails to re-wire (the AppKit modal shows the
+    // account while the app still shows "Connect"). Listen for that late
+    // address and route it through the connector — a silent no-op when wagmi is
+    // already connected, so it never reopens the modal — which then drives the
+    // connect listener above and the auto-confirm-on-reload effect.
+    const bootstrapWallet = ethConnector.wallets[0];
+    const bootstrapProvider = bootstrapWallet?.provider;
+    const onLateReconnect = (accounts?: string[]) => {
+      if (!accounts?.[0] || address) return;
+      void ethConnector.connect(bootstrapWallet).catch((error) => {
+        console.error(
+          "ETH late reconnect failed:",
+          error instanceof Error ? error.message : "Unknown error",
+        );
+      });
+    };
+    if (bootstrapProvider && typeof bootstrapProvider.on === "function") {
+      bootstrapProvider.on("accountsChanged", onLateReconnect);
+    }
+
+    return () => {
+      unsubscribe();
+      if (bootstrapProvider && typeof bootstrapProvider.off === "function") {
+        bootstrapProvider.off("accountsChanged", onLateReconnect);
+      }
+    };
   }, [ethConnector, connectETH, address]);
 
   useEffect(() => {
