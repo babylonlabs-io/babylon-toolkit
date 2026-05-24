@@ -10,9 +10,12 @@ export type StepRowState = "completed" | "active" | "pending";
 function StepCircle({
   state,
   number,
+  ariaNumber,
 }: {
   state: StepRowState;
   number: number;
+  /** Override for screen-reader label; defaults to `number` (visual) when absent. */
+  ariaNumber?: number;
 }) {
   const base = "flex h-8 w-8 shrink-0 items-center justify-center rounded-full";
 
@@ -28,7 +31,7 @@ function StepCircle({
     return (
       <div
         className={twMerge(base, "border-2 border-primary-light")}
-        aria-label={COPY.deposit.a11y.stepActive(number)}
+        aria-label={COPY.deposit.a11y.stepActive(ariaNumber ?? number)}
       >
         <Loader size={16} className="text-primary-light" />
       </div>
@@ -36,7 +39,10 @@ function StepCircle({
   }
 
   return (
-    <div className={twMerge(base, "border-2 border-secondary-strokeDark")}>
+    <div
+      className={twMerge(base, "border-2 border-secondary-strokeDark")}
+      aria-label={COPY.deposit.a11y.stepPending(ariaNumber ?? number)}
+    >
       <Text
         as="span"
         variant="body2"
@@ -58,6 +64,8 @@ interface StepRowProps {
   detail?: ReactNode;
   /** True when another sub-step follows in the group (i.e. not the last). */
   hasNext?: boolean;
+  /** Override for screen-reader label; defaults to `number` (visual) when absent. */
+  ariaNumber?: number;
 }
 
 export function StepRow({
@@ -67,6 +75,7 @@ export function StepRow({
   description,
   detail,
   hasNext = false,
+  ariaNumber,
 }: StepRowProps) {
   const isActive = state === "active";
   const hasDetail = isActive && Boolean(detail);
@@ -85,7 +94,7 @@ export function StepRow({
       )}
     >
       <div className="flex w-8 flex-col items-center self-stretch">
-        <StepCircle state={state} number={number} />
+        <StepCircle state={state} number={number} ariaNumber={ariaNumber} />
         {showTrailingLine && (
           <div className="w-0 flex-1 border-l-2 border-secondary-strokeDark" />
         )}

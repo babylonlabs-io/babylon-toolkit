@@ -54,19 +54,19 @@ describe("GroupedProgress", () => {
   });
 
   it("renders completed sub-steps without a step number inside the active group", () => {
-    // Step 11 -> "Sign payout" group (10-13) active; step 10 is already done.
+    // Step 11 -> "Sign payout" group (global 10-13) active; global step 10 is already done.
     render(<GroupedProgress steps={steps} currentStep={11} />);
 
     // Completed sub-step label is shown...
     expect(
       screen.getByText(COPY.deposit.steps.authenticateSession),
     ).toBeInTheDocument();
-    // ...but rendered as a checkmark row, not the numbered pending row "10".
-    expect(screen.queryByText("10")).not.toBeInTheDocument();
+    // ...but rendered as a checkmark row, not the numbered pending row "1".
+    expect(screen.queryByText("1")).not.toBeInTheDocument();
 
-    // Pending sub-steps still carry their global numbers.
-    expect(screen.getByText("12")).toBeInTheDocument();
-    expect(screen.getByText("13")).toBeInTheDocument();
+    // Pending sub-steps carry per-group numbers (3, 4 within the group).
+    expect(screen.getByText("3")).toBeInTheDocument();
+    expect(screen.getByText("4")).toBeInTheDocument();
   });
 
   it("mounts the active-step detail panel inside the active step", () => {
@@ -104,12 +104,23 @@ describe("GroupedProgress", () => {
   });
 
   describe("accessibility", () => {
-    it("labels the active sub-step for screen readers", () => {
-      // Step 8 -> "Set up claim" group active; step 8 is the active sub-step.
+    it("labels the active sub-step for screen readers with the global step number", () => {
+      // Step 8 -> "Set up claim" group active; screen reader gets global step 8,
+      // not the per-group display number 1.
       render(<GroupedProgress steps={steps} currentStep={8} />);
 
       expect(
         screen.getByLabelText(COPY.deposit.a11y.stepActive(8)),
+      ).toBeInTheDocument();
+    });
+
+    it("labels a pending sub-step for screen readers with the global step number", () => {
+      // Step 8 -> "Set up claim" group (8-9) active; global step 9 is pending and
+      // its screen-reader label keeps the global number, not the per-group number 2.
+      render(<GroupedProgress steps={steps} currentStep={8} />);
+
+      expect(
+        screen.getByLabelText(COPY.deposit.a11y.stepPending(9)),
       ).toBeInTheDocument();
     });
 
