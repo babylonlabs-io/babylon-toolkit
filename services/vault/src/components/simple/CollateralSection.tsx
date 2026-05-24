@@ -24,7 +24,6 @@ import {
   CARD_DARK_BG_CLASS,
   SUMMARY_CARD_CLASS,
 } from "@/components/shared/layoutClasses";
-import { Connect } from "@/components/Wallet";
 import { getNetworkConfigBTC } from "@/config";
 import { COPY } from "@/copy";
 import type { ArtifactDownloadModalParams } from "@/hooks/deposit/useArtifactDownloadModal";
