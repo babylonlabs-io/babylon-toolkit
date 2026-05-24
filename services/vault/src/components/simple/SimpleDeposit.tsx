@@ -377,7 +377,10 @@ function SimpleDepositContent({
         )}
 
         {renderedStep === DepositStep.SIGN && btcWalletProvider && (
-          <div className="mx-auto w-full max-w-[520px]">
+          <div
+            className="mx-auto flex w-full max-w-[520px] flex-col"
+            style={{ height: "calc(100dvh - 3rem)" }}
+          >
             <DepositSignContent
               vaultAmounts={
                 isSplitDeposit && splitVaultAmounts
@@ -419,7 +422,10 @@ export default function SimpleDeposit(props: SimpleDepositProps) {
             onClose={onClose}
             className="items-center justify-center p-6"
           >
-            <div className="mx-auto w-full max-w-[520px]">
+            <div
+              className="mx-auto flex w-full max-w-[520px] flex-col"
+              style={{ height: "calc(100dvh - 3rem)" }}
+            >
               <ResumeWotsContent
                 activity={props.activity}
                 onClose={onClose}
@@ -439,7 +445,10 @@ export default function SimpleDeposit(props: SimpleDepositProps) {
             onClose={onClose}
             className="items-center justify-center p-6"
           >
-            <div className="mx-auto w-full max-w-[520px]">
+            <div
+              className="mx-auto flex w-full max-w-[520px] flex-col"
+              style={{ height: "calc(100dvh - 3rem)" }}
+            >
               <ResumeActivationContent
                 activity={props.activity}
                 depositorEthAddress={props.depositorEthAddress}
@@ -459,7 +468,10 @@ export default function SimpleDeposit(props: SimpleDepositProps) {
           onClose={onClose}
           className="items-center justify-center p-6"
         >
-          <div className="mx-auto w-full max-w-[520px]">
+          <div
+            className="mx-auto flex w-full max-w-[520px] flex-col"
+            style={{ height: "calc(100dvh - 3rem)" }}
+          >
             {resumeMode === "sign_payouts" ? (
               <ResumeSignContent
                 activity={props.activity}

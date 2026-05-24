@@ -69,16 +69,19 @@ export function StepRow({
   hasNext = false,
 }: StepRowProps) {
   const isActive = state === "active";
-  // A detail panel makes the active row taller than a circle. Fill the extra
-  // height with a connector segment so the timeline stays unbroken down to the
-  // next step's connector — but never dangle a line below the group's last step.
-  const showTrailingLine = isActive && Boolean(detail) && hasNext;
+  const hasDetail = isActive && Boolean(detail);
+  // A detail panel makes the active row taller than the circle. When there's
+  // no detail panel, align the circle and label vertically (items-center)
+  // to match the non-active step alignment. Fill the extra height from a
+  // detail panel with a connector segment so the timeline stays unbroken
+  // — but never dangle a line below the group's last step.
+  const showTrailingLine = hasDetail && hasNext;
 
   return (
     <div
       className={twMerge(
         "flex gap-3",
-        isActive ? "items-start" : "items-center",
+        hasDetail ? "items-start" : "items-center",
       )}
     >
       <div className="flex w-8 flex-col items-center self-stretch">

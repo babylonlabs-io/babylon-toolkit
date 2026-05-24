@@ -118,7 +118,7 @@ export function DepositProgressView(props: DepositProgressViewProps) {
     ) : null;
 
   return (
-    <div className="w-full max-w-[520px]">
+    <div className="flex h-full w-full max-w-[520px] flex-col">
       <Heading variant="h5" className="text-accent-primary">
         {COPY.deposit.progress.heading}
       </Heading>
@@ -131,26 +131,32 @@ export function DepositProgressView(props: DepositProgressViewProps) {
         </div>
       )}
 
-      <div className="mt-6 flex flex-col gap-6">
-        {showOverallProgress && (
-          <CompletedStepsPill
-            completed={completedSteps}
-            total={TOTAL_VISUAL_STEPS}
+      {/* Scrollable middle: steps + status banners */}
+      <div className="mt-6 min-h-0 flex-1 overflow-y-auto">
+        <div className="flex flex-col gap-6">
+          {showOverallProgress && (
+            <CompletedStepsPill
+              completed={completedSteps}
+              total={TOTAL_VISUAL_STEPS}
+            />
+          )}
+
+          <GroupedProgress
+            steps={steps}
+            currentStep={visualStep}
+            activeStepDetail={activeStepDetail}
           />
-        )}
 
-        <GroupedProgress
-          steps={steps}
-          currentStep={visualStep}
-          activeStepDetail={activeStepDetail}
-        />
+          {error && <StatusBanner variant="error">{error}</StatusBanner>}
 
-        {error && <StatusBanner variant="error">{error}</StatusBanner>}
+          {isComplete && (
+            <StatusBanner variant="success">{successMessage}</StatusBanner>
+          )}
+        </div>
+      </div>
 
-        {isComplete && (
-          <StatusBanner variant="success">{successMessage}</StatusBanner>
-        )}
-
+      {/* Sticky footer: button + warning */}
+      <div className="mt-6 flex flex-shrink-0 flex-col gap-6">
         <Button
           disabled={!canClose}
           variant="contained"
