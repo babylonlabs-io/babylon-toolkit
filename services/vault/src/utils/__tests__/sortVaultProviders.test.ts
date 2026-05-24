@@ -12,7 +12,7 @@ function makeProvider(
     btcPubkey: "0xpub",
     unavailable: false,
     unhealthy: false,
-    explorerUrl: `https://explorer.example/address/${overrides.id}`,
+    explorerUrl: `https://explorer.example/provider/${overrides.id}`,
     ...overrides,
   };
 }

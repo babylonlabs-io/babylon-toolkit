@@ -3,12 +3,13 @@
  *
  * BTC:  https://mempool.space/<network>/tx/<txid>      (hash without 0x)
  * ETH:  <chain explorer>/tx/<hash>                      (hash with 0x)
- * ETH:  <chain explorer>/address/<address>             (20-byte address)
+ * VP:   <NEXT_PUBLIC_TBV_VP_EXPLORER_URL>/provider/<address>
  */
 
 import { stripHexPrefix } from "@babylonlabs-io/ts-sdk/tbv/core";
 
 import { getNetworkConfigBTC } from "@/config";
+import { ENV } from "@/config/env";
 import { getNetworkConfigETH } from "@/config/network";
 import type { ActivityChain } from "@/types/activityLog";
 
@@ -23,13 +24,18 @@ function getEthExplorerTxUrl(txHash: string): string {
 }
 
 /**
- * Explorer URL for an Ethereum address page. Used by the vault provider
- * picker to link each VP (whose `id` is its registered ETH address) so the
- * user can inspect it on-chain.
+ * Explorer URL for a vault-provider page on the Babylon BTC Vault explorer.
+ * Used by the VP picker to link each VP (whose `id` is its registered ETH
+ * address) so the depositor can inspect it. The base URL comes from
+ * `NEXT_PUBLIC_TBV_VP_EXPLORER_URL` so the explorer host can be swapped
+ * per deployment (testnet vs mainnet) without code changes.
+ *
+ * Returns `undefined` when the env var is unset — callers MUST treat that
+ * as "no link" rather than rendering a broken or environment-mismatched URL.
  */
-export function getEthExplorerAddressUrl(address: string): string {
-  const { explorerUrl } = getNetworkConfigETH();
-  return `${explorerUrl}/address/${address}`;
+export function getVpExplorerProviderUrl(address: string): string | undefined {
+  if (!ENV.VP_EXPLORER_URL) return undefined;
+  return `${ENV.VP_EXPLORER_URL}/provider/${address}`;
 }
 
 export function getExplorerTxUrl(chain: ActivityChain, txHash: string): string {
