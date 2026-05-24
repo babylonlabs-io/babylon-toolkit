@@ -27,19 +27,27 @@ vi.mock("@/components/deposit/actionStatus", async (importOriginal) => {
   };
 });
 
-// Stub the layout card — expose the `action` slot so the test can assert
-// whether an action button was passed in.
+// Stub the layout card — expose the `action` slot plus the disabled props so
+// the test can assert what was passed in.
 vi.mock("../VaultDetailCard", () => ({
   VaultDetailCard: ({
     action,
     amountSubtext,
     belowHeader,
+    disabled,
+    disabledTooltip,
   }: {
     action?: ReactNode;
     amountSubtext?: ReactNode;
     belowHeader?: ReactNode;
+    disabled?: boolean;
+    disabledTooltip?: string;
   }) => (
-    <div data-testid="vault-detail-card">
+    <div
+      data-testid="vault-detail-card"
+      data-disabled={disabled ? "true" : "false"}
+      data-disabled-tooltip={disabledTooltip ?? ""}
+    >
       {action}
       <div data-testid="amount-subtext">{amountSubtext}</div>
       <div data-testid="below-header">{belowHeader}</div>
@@ -158,6 +166,47 @@ describe("PendingDepositCard — step gating during first load", () => {
     });
     renderCard(false);
     expect(screen.queryByText(/^Step \d+ of \d+$/)).not.toBeInTheDocument();
+  });
+});
+
+describe("PendingDepositCard — disabled (ownership mismatch) surface", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockIsArtifactDownloadAvailable.mockReturnValue(false);
+    mockUseDepositPollingResult.mockReturnValue(POLLING_RESULT);
+  });
+
+  it("renders the would-be action button disabled and dims the card with a tooltip", () => {
+    // Wallet-ownership mismatch: instead of a dead-end card, we show the
+    // would-be action (e.g. Activate) disabled, dim the entire card, and
+    // let the hover tooltip explain why.
+    const TOOLTIP =
+      "This BTC vault was created with a different BTC public key (bcc5...f21c). Switch to that wallet to perform actions.";
+    mockGetActionStatus.mockReturnValue({
+      type: "disabled",
+      action: { action: PeginAction.ACTIVATE_VAULT, label: "Activate" },
+      tooltip: TOOLTIP,
+    });
+    renderCard(false);
+
+    const button = screen.getByRole("button", { name: "Activate" });
+    expect(button).toBeDisabled();
+
+    const card = screen.getByTestId("vault-detail-card");
+    expect(card).toHaveAttribute("data-disabled", "true");
+    expect(card).toHaveAttribute("data-disabled-tooltip", TOOLTIP);
+  });
+
+  it("renders nothing in the action slot for unavailable status", () => {
+    // For states with no action at all (e.g. ACTIVE vault with nothing to
+    // do, or a polling error), the card should stay clean — no button, no
+    // amber strip, no dimming.
+    mockGetActionStatus.mockReturnValue({ type: "unavailable" });
+    renderCard(false);
+
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+    const card = screen.getByTestId("vault-detail-card");
+    expect(card).toHaveAttribute("data-disabled", "false");
   });
 });
 

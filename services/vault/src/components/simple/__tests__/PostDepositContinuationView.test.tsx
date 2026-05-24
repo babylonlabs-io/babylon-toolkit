@@ -171,6 +171,7 @@ function resultWith(opts: {
       message: opts.message,
     },
     isOwnedByCurrentWallet: true,
+    depositorBtcPubkey: undefined,
   };
 }
 

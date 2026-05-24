@@ -127,6 +127,10 @@ export const COPY = {
       stepCounter: (current: number, total: number) =>
         `Step ${current} of ${total}`,
     },
+    warnings: {
+      walletOwnershipMismatch: (truncatedPubkey: string) =>
+        `This BTC vault was created with a different BTC public key (${truncatedPubkey}). Switch to that wallet to perform actions.`,
+    },
   },
   deposit: {
     steps: {

@@ -66,6 +66,11 @@ interface VaultDetailCardProps {
   belowHeader?: ReactNode;
   /** Optional action button rendered at the bottom */
   action?: ReactNode;
+  /** Dim the entire card to communicate that its action is blocked.
+   *  Pair with `disabledTooltip` so hover explains why. */
+  disabled?: boolean;
+  /** Tooltip shown when hovering a `disabled` card. */
+  disabledTooltip?: string;
 }
 
 export function VaultDetailCard({
@@ -80,11 +85,13 @@ export function VaultDetailCard({
   headerEnd,
   belowHeader,
   action,
+  disabled,
+  disabledTooltip,
 }: VaultDetailCardProps) {
   const relativeTime = useRelativeTime(timestamp);
 
   return (
-    <VaultCardShell>
+    <VaultCardShell disabled={disabled} disabledTooltip={disabledTooltip}>
       {/* BTC icon + amount (+ optional subtext), optional header-end content */}
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-center gap-2">

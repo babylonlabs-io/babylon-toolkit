@@ -173,6 +173,13 @@ export function PeginPollingProvider({
     () =>
       activities
         .filter((a) => {
+          // Skip unowned vaults: the depositor used a different BTC wallet
+          // than the one currently connected (same ETH wallet, different BTC
+          // key). The card is dimmed and the user cannot act, so polling
+          // mempool.space for the depth signal is wasted bandwidth — the
+          // current wallet would never sign the next-step tx anyway.
+          if (!isVaultOwnedByWallet(a.depositorBtcPubkey, btcPublicKey))
+            return false;
           if ((a.contractStatus ?? 0) !== ContractStatus.PENDING) return false;
           if (!isPrePeginPollEligibleStatus(localStatusById.get(a.id)))
             return false;
@@ -180,7 +187,7 @@ export function PeginPollingProvider({
           return !(txid && confirmedTxids.has(txid));
         })
         .map((a) => a.prePeginTxHash),
-    [activities, localStatusById, confirmedTxids],
+    [activities, localStatusById, confirmedTxids, btcPublicKey],
   );
   const { confirmationsByTxid: prePeginConfirmationsByTxid } =
     usePrePeginMempoolConfirmations(pendingPrePeginTxids);
@@ -329,6 +336,7 @@ export function PeginPollingProvider({
           activity.depositorBtcPubkey,
           btcPublicKey,
         ),
+        depositorBtcPubkey: activity.depositorBtcPubkey,
       };
     },
     [
