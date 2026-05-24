@@ -19,7 +19,7 @@ import {
   useETHWallet,
 } from "../../context/wallet";
 import { depositService } from "../../services/deposit";
-import { getEthExplorerAddressUrl } from "../../utils/explorer";
+import { getVpExplorerProviderUrl } from "../../utils/explorer";
 import { formatProviderDisplayName } from "../../utils/formatting";
 import { sortVaultProviders } from "../../utils/sortVaultProviders";
 import { vaultProviderUnavailableReason } from "../../utils/vaultProviderStatus";
@@ -240,7 +240,7 @@ export function useDepositPageForm(): UseDepositPageFormResult {
         commissionBps: commissionsById.get(idLower),
         totalActiveSats: stats?.totalActiveSats,
         lastSuccessfulPeginAt: stats?.lastSuccessfulPeginAt,
-        explorerUrl: getEthExplorerAddressUrl(p.id),
+        explorerUrl: getVpExplorerProviderUrl(p.id),
       };
     });
     return sortVaultProviders(items);

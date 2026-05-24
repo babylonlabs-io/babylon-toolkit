@@ -1,16 +1,32 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { getNetworkConfigETH } from "@/config/network";
+const envMock = vi.hoisted(() => ({
+  ENV: { VP_EXPLORER_URL: undefined as string | undefined },
+}));
 
-import { getEthExplorerAddressUrl } from "../explorer";
+vi.mock("@/config/env", () => envMock);
 
-describe("getEthExplorerAddressUrl", () => {
-  it("builds an explorer address-page URL for the given address", () => {
+import { getVpExplorerProviderUrl } from "../explorer";
+
+describe("getVpExplorerProviderUrl", () => {
+  beforeEach(() => {
+    envMock.ENV.VP_EXPLORER_URL = undefined;
+  });
+
+  it("builds a /provider/<address> URL against the configured explorer base", () => {
+    envMock.ENV.VP_EXPLORER_URL = "https://explorer.test.example";
     const address = "0x1234567890abcdef1234567890abcdef12345678";
-    const { explorerUrl } = getNetworkConfigETH();
 
-    expect(getEthExplorerAddressUrl(address)).toBe(
-      `${explorerUrl}/address/${address}`,
+    expect(getVpExplorerProviderUrl(address)).toBe(
+      `https://explorer.test.example/provider/${address}`,
     );
+  });
+
+  it("returns undefined when the explorer base URL is not configured", () => {
+    envMock.ENV.VP_EXPLORER_URL = undefined;
+
+    expect(
+      getVpExplorerProviderUrl("0x1234567890abcdef1234567890abcdef12345678"),
+    ).toBeUndefined();
   });
 });

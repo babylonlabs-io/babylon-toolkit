@@ -4,12 +4,7 @@ import {
   Card,
   Loader,
 } from "@babylonlabs-io/core-ui";
-import {
-  IoCheckmark,
-  IoChevronUp,
-  IoOpenOutline,
-  IoWarningOutline,
-} from "react-icons/io5";
+import { IoChevronUp, IoOpenOutline, IoWarningOutline } from "react-icons/io5";
 
 import { ApplicationLogo } from "@/components/ApplicationLogo";
 import { COPY } from "@/copy";
@@ -31,15 +26,20 @@ interface VaultProviderSelectorProps {
   onExpandedChange: (expanded: boolean) => void;
 }
 
-/** Status line text for a provider row. */
-function statusLabel(provider: VaultProviderListItem): string {
+/**
+ * Status line text for a problematic provider row. Healthy providers don't
+ * show a status line at all — selection state is conveyed by the row's
+ * background tint, so a redundant "Active" label would just add noise.
+ * Returns null when there is nothing to surface.
+ */
+function statusLabel(provider: VaultProviderListItem): string | null {
   if (provider.unavailable) {
     return provider.unavailableReason ?? FORM_COPY.providerStatusUnavailable;
   }
   if (provider.unhealthy) {
     return FORM_COPY.providerStatusUnhealthy;
   }
-  return FORM_COPY.providerStatusActive;
+  return null;
 }
 
 /** Tooltip for the warning icon on a problematic provider. */
@@ -133,6 +133,7 @@ export function VaultProviderSelector({
                 onProviderSelect(provider.id);
                 onExpandedChange(false);
               };
+              const status = statusLabel(provider);
               return (
                 <div key={provider.id} className="flex flex-col gap-6">
                   {index === firstProblematicIndex && index > 0 && (
@@ -146,13 +147,16 @@ export function VaultProviderSelector({
                   {/* Row is a flex container holding two SIBLING controls — the
                       selection button (left) and the explorer link (right) —
                       so the link isn't nested inside another interactive
-                      element. The checkmark sits between them as a status
-                      indicator. */}
-                  <div className="flex w-full items-start justify-between gap-3">
+                      element. The selected row gets a tinted background as
+                      the only selection indicator. */}
+                  <div
+                    className={`-mx-2 flex w-[calc(100%+1rem)] items-start justify-between gap-3 rounded-md px-2 py-2 transition-colors ${isSelected ? "bg-primary-light/20" : ""}`}
+                  >
                     <button
                       type="button"
                       disabled={isDisabled}
                       onClick={handleSelect}
+                      aria-pressed={isSelected}
                       className={`flex flex-1 items-start gap-3 text-left ${isDisabled ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`}
                     >
                       <ApplicationLogo
@@ -172,9 +176,11 @@ export function VaultProviderSelector({
                             />
                           )}
                         </div>
-                        <span className="text-xs text-accent-secondary">
-                          {statusLabel(provider)}
-                        </span>
+                        {status !== null && (
+                          <span className="text-xs text-accent-secondary">
+                            {status}
+                          </span>
+                        )}
                         <span className="text-xs text-accent-secondary">
                           {commissionText(provider)}
                           <span className="px-1.5">·</span>
@@ -182,24 +188,20 @@ export function VaultProviderSelector({
                         </span>
                       </div>
                     </button>
-                    <div className="flex shrink-0 items-center gap-2">
-                      {isSelected && (
-                        <IoCheckmark
-                          className="text-accent-primary"
-                          size={20}
-                        />
-                      )}
-                      <a
-                        href={provider.explorerUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        aria-label={FORM_COPY.providerExplorerLinkLabel}
-                        title={FORM_COPY.providerExplorerLinkLabel}
-                        className="text-accent-secondary transition-colors hover:text-accent-primary"
-                      >
-                        <IoOpenOutline size={16} />
-                      </a>
-                    </div>
+                    {provider.explorerUrl && (
+                      <div className="flex shrink-0 items-center gap-2">
+                        <a
+                          href={provider.explorerUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          aria-label={FORM_COPY.providerExplorerLinkLabel}
+                          title={FORM_COPY.providerExplorerLinkLabel}
+                          className="text-accent-secondary transition-colors hover:text-accent-primary"
+                        >
+                          <IoOpenOutline size={16} />
+                        </a>
+                      </div>
+                    )}
                   </div>
                 </div>
               );

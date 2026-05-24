@@ -26,6 +26,7 @@ interface EnvVars {
   BTC_PRICE_FEED: Address | undefined;
   VP_PROXY_URL: string;
   UTILS_API_URL: string | undefined;
+  VP_EXPLORER_URL: string | undefined;
 }
 
 interface EnvValidationResult {
@@ -182,6 +183,11 @@ function validateEnvVars(): EnvValidationResult {
     "NEXT_PUBLIC_TBV_VP_PROXY_URL",
     errors,
   );
+  // Optional — when unset, the deposit picker omits the per-VP explorer link
+  // rather than rendering a broken or environment-mismatched one.
+  const VP_EXPLORER_URL = parseOptionalUrl(
+    process.env.NEXT_PUBLIC_TBV_VP_EXPLORER_URL,
+  );
   const UTILS_API_URL = parseOptionalUrl(process.env.NEXT_PUBLIC_TBV_UTILS_API);
   const BTC_PRICE_FEED = parseOptionalAddress(
     process.env.NEXT_PUBLIC_TBV_BTC_PRICE_FEED,
@@ -246,6 +252,7 @@ function validateEnvVars(): EnvValidationResult {
     VP_PROXY_URL,
     UTILS_API_URL,
     BTC_PRICE_FEED,
+    VP_EXPLORER_URL,
   };
 
   if (errors.length > 0) {

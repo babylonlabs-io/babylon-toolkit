@@ -9,6 +9,7 @@ vi.mock("@/config/env", () => ({
     BTC_VAULT_REGISTRY: "0x1234567890123456789012345678901234567890",
     AAVE_ADAPTER: "0x1234567890123456789012345678901234567890",
     GRAPHQL_ENDPOINT: "https://test.example.com/graphql",
+    VP_EXPLORER_URL: "https://explorer.test.example",
   },
 }));
 
