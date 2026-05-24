@@ -70,6 +70,7 @@ export function GroupedProgress({
                       <StepRow
                         state={state}
                         number={displayNumber}
+                        ariaNumber={globalStepNum}
                         label={step.label}
                         description={step.description}
                         detail={activeStepDetail}

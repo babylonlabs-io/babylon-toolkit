@@ -104,12 +104,13 @@ describe("GroupedProgress", () => {
   });
 
   describe("accessibility", () => {
-    it("labels the active sub-step for screen readers", () => {
-      // Step 8 -> "Set up claim" group active; per-group display number is 1.
+    it("labels the active sub-step for screen readers with the global step number", () => {
+      // Step 8 -> "Set up claim" group active; screen reader gets global step 8,
+      // not the per-group display number 1.
       render(<GroupedProgress steps={steps} currentStep={8} />);
 
       expect(
-        screen.getByLabelText(COPY.deposit.a11y.stepActive(1)),
+        screen.getByLabelText(COPY.deposit.a11y.stepActive(8)),
       ).toBeInTheDocument();
     });
 
