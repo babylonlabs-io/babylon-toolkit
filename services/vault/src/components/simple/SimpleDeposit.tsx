@@ -146,6 +146,7 @@ function SimpleDepositContent({
     depositorClaimValue,
     ordinalsCheckPending,
     validateForm,
+    resetForm,
   } = useDepositPageForm();
 
   const depositBatchSize =
@@ -190,18 +191,6 @@ function SimpleDepositContent({
     setFeeRate,
   } = useDepositPageFlow();
 
-  // Pre-fill amount when opening with a suggested amount from notifications
-  const hasPrefilled = useRef(false);
-  useEffect(() => {
-    if (open && initialAmountBtc && !hasPrefilled.current) {
-      hasPrefilled.current = true;
-      setFormData({ amountBtc: initialAmountBtc });
-    }
-    if (!open) {
-      hasPrefilled.current = false;
-    }
-  }, [open, initialAmountBtc, setFormData]);
-
   const isSupplementalDeposit = !!initialAmountBtc;
   const allowSplit =
     !isSupplementalDeposit &&
@@ -231,7 +220,19 @@ function SimpleDepositContent({
     setIsPartialLiquidation(false);
     setWalletConnectionError(null);
     resetDeposit();
-  }, [setIsPartialLiquidation, resetDeposit]);
+    resetForm();
+    // Re-apply the suggested amount for supplemental deposits opened from a
+    // notification; plain opens start blank.
+    if (initialAmountBtc) {
+      setFormData({ amountBtc: initialAmountBtc });
+    }
+  }, [
+    setIsPartialLiquidation,
+    resetDeposit,
+    resetForm,
+    initialAmountBtc,
+    setFormData,
+  ]);
 
   // Freeze the rendered step during the close animation and reset on reopen
   const renderedStep = useDialogStep(open, depositStep, resetAll);
