@@ -13,7 +13,12 @@ export function useDialogStep<T>(open: boolean, step: T, reset: () => void): T {
   // Reset state when the dialog transitions from closed → open.
   // Doing this on open (not close) avoids changing content during
   // the close animation.
-  const prevOpen = useRef(open);
+  //
+  // `prevOpen` starts `false` (not `open`) so that mounting while already open
+  // counts as an open transition. Dialogs mounted late behind blocking
+  // providers (e.g. AaveConfigProvider / ProtocolParamsProvider) can first
+  // render with `open === true`; without this they'd skip the reset.
+  const prevOpen = useRef(false);
   useEffect(() => {
     if (open && !prevOpen.current) {
       reset();

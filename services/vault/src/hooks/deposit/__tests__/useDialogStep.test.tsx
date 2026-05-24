@@ -18,11 +18,13 @@ describe("useDialogStep", () => {
     expect(reset).toHaveBeenCalledTimes(1);
   });
 
-  it("does not call reset when the dialog mounts already open", () => {
+  it("calls reset when the dialog mounts already open", () => {
+    // Covers dialogs mounted late behind blocking providers, which first
+    // render with open === true and must still start from a clean slate.
     const reset = vi.fn();
     renderHook(() => useDialogStep(true, "form", reset));
 
-    expect(reset).not.toHaveBeenCalled();
+    expect(reset).toHaveBeenCalledTimes(1);
   });
 
   it("does not call reset on closing or on re-renders while open", () => {
