@@ -440,6 +440,72 @@ describe("PeginPollingContext", () => {
     });
   });
 
+  it("treats a cached confirmed txid as at-depth even when the mempool poll map is empty", async () => {
+    // Regression: on a fresh page load the cache excludes confirmed txids
+    // from polling, so `prePeginConfirmationsByTxid` has no entry for them.
+    // Without consulting the cache, `getPollingResult` would compute
+    // `prePeginBroadcastConfirmed = false` and the state machine would
+    // regress a cached CONFIRMING vault to "waiting for BTC confirmation"
+    // until the cache expired — defeating the whole persistence design.
+    const VAULT_ID = "0xvault" as Hex;
+    const PREPEGIN_HASH = "0xprepeginCached" as Hex;
+    const canonical = PREPEGIN_HASH.slice(2).toLowerCase();
+
+    localStorage.setItem(
+      "tbv-confirmed-prepegin-signet",
+      JSON.stringify({ [canonical]: Date.now() }),
+    );
+
+    // Empty mempool result (the poll skipped this txid because cache filter dropped it).
+    mockUsePrePeginMempoolConfirmations.mockReturnValue({
+      confirmationsByTxid: new Map<string, number>(),
+    });
+    mockQueryResult.pendingIngestion = new Set([VAULT_ID]);
+
+    const activity: VaultActivity = {
+      id: VAULT_ID,
+      collateral: { amount: "0.1", symbol: "BTC" },
+      providers: [{ id: "0xprovider" }],
+      peginTxHash: PREPEGIN_HASH,
+      prePeginTxHash: PREPEGIN_HASH,
+      contractStatus: ContractStatus.PENDING,
+      isInUse: false,
+      displayLabel: PEGIN_DISPLAY_LABELS.PENDING,
+      depositorBtcPubkey: BTC_PUBKEY,
+      unsignedPrePeginTx: "0xdeadbeef",
+      depositorPayoutBtcAddress: "0xpayoutscript" as Hex,
+      depositorWotsPkHash: "0xwotsh",
+    };
+
+    const wrapper = ({ children }: PropsWithChildren) => (
+      <PeginPollingProvider
+        activities={[activity]}
+        pendingPegins={[
+          {
+            id: VAULT_ID,
+            timestamp: 0,
+            status: LocalStorageStatus.CONFIRMING,
+            peginTxHash: PREPEGIN_HASH,
+            unsignedTxHex: "0xdeadbeef",
+          },
+        ]}
+        btcPublicKey={BTC_PUBKEY}
+      >
+        {children}
+      </PeginPollingProvider>
+    );
+    const { result } = renderHook(() => usePeginPolling(), { wrapper });
+
+    // State machine routes to the "BTC at depth, VP ingesting" branch
+    // (driven by `prePeginBroadcastConfirmed`) without any mempool hit.
+    await waitFor(() => {
+      expect(
+        result.current.getPollingResult(VAULT_ID)?.peginState
+          .awaitingVpIngestion,
+      ).toBe(true);
+    });
+  });
+
   it("does not re-poll a Pre-PegIn txid present in the persistent confirmed cache", () => {
     // Page refresh equivalent: the cache was populated in a prior session
     // (or earlier dashboard mount). The provider should respect it on

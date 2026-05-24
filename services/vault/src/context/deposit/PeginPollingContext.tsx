@@ -132,8 +132,10 @@ export function PeginPollingProvider({
   // CONFIRMING. Skip PAYOUT_SIGNED / CONFIRMED / REFUND_BROADCAST (VP has
   // already advanced past depth). Skip txids already in the persistent
   // confirmed cache — chain doesn't rewind, repolling reads the same fact.
-  // State-machine consumer still sees the depth signal via the query's
-  // `placeholderData` carryover, so dropping from the poll set is safe.
+  // State-machine consumer reads the depth signal from `confirmedTxids`
+  // OR'd with the live mempool map (see `getPollingResult` below), so
+  // dropping a confirmed txid from the poll set is safe across refreshes
+  // — not just bridged by React Query's in-memory `placeholderData`.
   const { config, getOffchainParamsByVersion } = useProtocolParamsContext();
   const [confirmedTxids, setConfirmedTxids] = useState<Set<string>>(
     loadConfirmedPrePeginTxids,
@@ -152,13 +154,20 @@ export function PeginPollingProvider({
     [getOffchainParamsByVersion, config.offchainParams.minPrepeginDepth],
   );
 
+  // Optimistic overrides (set immediately on user action) take precedence
+  // over `pendingPegins` so the filter correctly skips a just-PAYOUT_SIGNED
+  // vault even before localStorage syncs back. Mirrors `resolveLocalStatus`
+  // used by `getPollingResult` below.
   const localStatusById = useMemo(() => {
     const map = new Map<string, LocalStorageStatus>();
     for (const p of pendingPegins) {
-      if (p.status) map.set(p.id, p.status as LocalStorageStatus);
+      if (p.status) map.set(p.id, p.status);
+    }
+    for (const [id, status] of optimisticStatuses) {
+      map.set(id, status);
     }
     return map;
-  }, [pendingPegins]);
+  }, [pendingPegins, optimisticStatuses]);
 
   const pendingPrePeginTxids = useMemo(
     () =>
@@ -177,26 +186,37 @@ export function PeginPollingProvider({
     usePrePeginMempoolConfirmations(pendingPrePeginTxids);
 
   // Persist newly-confirmed observations and drop them from the polled set
-  // on next render. Functional setState keeps `confirmedTxids` out of the
-  // dep array so the effect doesn't re-fire every time the cache grows.
+  // on next render. The localStorage write and setState happen OUTSIDE the
+  // updater so the updater stays pure (React StrictMode invokes updaters
+  // twice in dev; side effects inside would double-write). The early
+  // return when nothing's newly confirmed prevents re-fires after the
+  // cache grows by an entry.
   useEffect(() => {
     if (prePeginConfirmationsByTxid.size === 0) return;
+
+    const newlyConfirmedTxids: string[] = [];
+    for (const activity of activities) {
+      const txid = canonicalizeTxid(activity.prePeginTxHash);
+      if (!txid || confirmedTxids.has(txid)) continue;
+      const observed = prePeginConfirmationsByTxid.get(txid);
+      if (observed === undefined) continue;
+      if (observed < getRequiredPrePeginDepth(activity)) continue;
+      newlyConfirmedTxids.push(txid);
+    }
+    if (newlyConfirmedTxids.length === 0) return;
+
+    newlyConfirmedTxids.forEach(addConfirmedPrePeginTxid);
     setConfirmedTxids((prev) => {
       const next = new Set(prev);
-      let changed = false;
-      for (const activity of activities) {
-        const txid = canonicalizeTxid(activity.prePeginTxHash);
-        if (!txid || next.has(txid)) continue;
-        const observed = prePeginConfirmationsByTxid.get(txid);
-        if (observed === undefined) continue;
-        if (observed < getRequiredPrePeginDepth(activity)) continue;
-        addConfirmedPrePeginTxid(txid);
-        next.add(txid);
-        changed = true;
-      }
-      return changed ? next : prev;
+      newlyConfirmedTxids.forEach((txid) => next.add(txid));
+      return next;
     });
-  }, [prePeginConfirmationsByTxid, activities, getRequiredPrePeginDepth]);
+  }, [
+    prePeginConfirmationsByTxid,
+    activities,
+    confirmedTxids,
+    getRequiredPrePeginDepth,
+  ]);
 
   // Optimistic status handlers
   const setOptimisticStatus = useCallback(
@@ -270,12 +290,21 @@ export function PeginPollingProvider({
       const requiredDepth = getRequiredPrePeginDepth(activity);
 
       // Same key as `pendingPrePeginTxids` — depositor's broadcast tx.
+      // The confirmed cache is also authoritative for "at depth": on a
+      // fresh page load the cached txid is filtered out of polling so the
+      // live map has no entry for it, but the depth fact persisted across
+      // sessions — without this OR, a cached vault would regress to
+      // "waiting for BTC confirmation" on every refresh.
       const prePeginCanonical = canonicalizeTxid(activity.prePeginTxHash);
+      const cachedAtDepth = prePeginCanonical
+        ? confirmedTxids.has(prePeginCanonical)
+        : false;
       const confirmations = prePeginCanonical
         ? prePeginConfirmationsByTxid.get(prePeginCanonical)
         : undefined;
       const prePeginBroadcastConfirmed =
-        confirmations !== undefined && confirmations >= requiredDepth;
+        cachedAtDepth ||
+        (confirmations !== undefined && confirmations >= requiredDepth);
 
       const peginState = getPeginState(contractStatus, {
         localStatus,
@@ -310,6 +339,7 @@ export function PeginPollingProvider({
       needsWotsKey,
       pendingIngestion,
       prePeginConfirmationsByTxid,
+      confirmedTxids,
       getRequiredPrePeginDepth,
       isLoading,
       optimisticStatuses,
