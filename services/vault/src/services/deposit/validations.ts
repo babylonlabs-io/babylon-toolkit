@@ -239,16 +239,13 @@ export function getDepositCtaState(params: DepositCtaParams): DepositCtaState {
     };
   }
 
-  // An amount that exceeds the fee-adjusted depositable balance can never be
-  // funded — surface it before the provider prompt, since selecting a provider
-  // cannot make an unfundable amount fundable.
-  if (amountExceedsMax(params.amountSats, params.maxDepositSats)) {
-    return { disabled: true, label: "Insufficient balance" };
-  }
-
   // Mirror `validateRemainingCapacity` from the SDK. The message strings must
   // match exactly so users see the same wording whether the block surfaces via
-  // the CTA or via a future inline error.
+  // the CTA or via a future inline error. These run before the generic
+  // `amountExceedsMax` check below: `maxDepositSats` is itself clamped to the
+  // supply cap, so a cap-bound amount also trips `amountExceedsMax` — and
+  // "Insufficient balance" would be wrong when the wallet has ample balance but
+  // the supply cap is the real limiter.
   if (params.effectiveRemaining === 0n) {
     return {
       disabled: true,
@@ -263,6 +260,13 @@ export function getDepositCtaState(params: DepositCtaParams): DepositCtaState {
       disabled: true,
       label: `Vault size exceeds remaining capacity (${formatSatoshisToBtc(params.effectiveRemaining)} BTC)`,
     };
+  }
+
+  // An amount that exceeds the fee-adjusted depositable balance can never be
+  // funded — surface it before the provider prompt, since selecting a provider
+  // cannot make an unfundable amount fundable.
+  if (amountExceedsMax(params.amountSats, params.maxDepositSats)) {
+    return { disabled: true, label: "Insufficient balance" };
   }
 
   if (!params.hasProvider) {

@@ -563,6 +563,37 @@ describe("Deposit Validations", () => {
       expect(result).toEqual({ disabled: false, label: "Deposit" });
     });
 
+    it("shows the cap message, not 'Insufficient balance', when the supply cap is the binding max", () => {
+      // The supply cap is the limiter: maxDepositSats is clamped to
+      // effectiveRemaining, so an over-cap amount also exceeds maxDepositSats.
+      // The wallet has ample balance, so "Insufficient balance" would be wrong.
+      const result = getDepositCtaState({
+        ...readyParams,
+        amountSats: 800_000n,
+        maxDepositSats: 500_000n,
+        effectiveRemaining: 500_000n,
+      });
+      expect(result).toEqual({
+        disabled: true,
+        label: "Vault size exceeds remaining capacity (0.005 BTC)",
+      });
+    });
+
+    it("shows 'Insufficient balance' when the fee-adjusted max (not the cap) is the limiter", () => {
+      // maxDepositSats is below effectiveRemaining, so the limit is balance/fees
+      // rather than the supply cap — "Insufficient balance" is the right label.
+      const result = getDepositCtaState({
+        ...readyParams,
+        amountSats: 100_001n,
+        maxDepositSats: 100_000n,
+        effectiveRemaining: 500_000n,
+      });
+      expect(result).toEqual({
+        disabled: true,
+        label: "Insufficient balance",
+      });
+    });
+
     it("prioritizes amount label over ordinals-pending", () => {
       const result = getDepositCtaState({
         ...readyParams,
