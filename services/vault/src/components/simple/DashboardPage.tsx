@@ -62,7 +62,7 @@ export function DashboardPage() {
     hasCollateral,
     collateralVaults,
     selectableBorrowedAssets,
-  } = useDashboardState(address);
+  } = useDashboardState(isConnected ? address : undefined);
 
   const { snapshot: capSnapshot, isLoading: isCapLoading } = useApplicationCap(
     isConnected ? address : undefined,
