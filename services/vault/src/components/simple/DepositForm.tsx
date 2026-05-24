@@ -6,6 +6,7 @@ import { DepositButton } from "@/components/shared";
 import { getNetworkConfigBTC } from "@/config";
 import { COPY } from "@/copy";
 import { depositService } from "@/services/deposit";
+import type { VaultProviderListItem } from "@/types/vaultProvider";
 
 import { CollateralFactorRow } from "./CollateralFactorRow";
 import { DepositFeesBreakdown } from "./DepositFeesBreakdown";
@@ -14,17 +15,6 @@ import { UtxoSplitSelector } from "./UtxoSplitSelector";
 import { VaultProviderSelector } from "./VaultProviderSelector";
 
 const btcConfig = getNetworkConfigBTC();
-
-interface Provider {
-  id: string;
-  name: string;
-  /** Provider icon URL, used by the picker to render the provider logo. */
-  iconUrl?: string;
-  /** When true, the provider renders disabled in the picker and is not selectable. */
-  unavailable?: boolean;
-  /** Tooltip text shown on hover when the provider is unavailable. */
-  unavailableReason?: string;
-}
 
 interface Application {
   id: string;
@@ -82,7 +72,7 @@ interface DepositFormProps {
   applications: Application[];
   selectedApplication: string;
 
-  providers: Provider[];
+  providers: VaultProviderListItem[];
   isLoadingProviders: boolean;
   selectedProvider: string;
   onProviderSelect: (providerId: string) => void;
