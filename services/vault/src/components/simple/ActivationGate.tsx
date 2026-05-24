@@ -1,6 +1,5 @@
 import { type ReactNode, useState } from "react";
 
-import { ArtifactDownloadModal } from "@/components/deposit/ArtifactDownloadModal";
 import type { VaultActivity } from "@/types/activity";
 
 import { ActivateConfirmationModal } from "./ActivateConfirmationModal";
@@ -18,47 +17,24 @@ export function ActivationGate({
   children,
 }: ActivationGateProps) {
   const [confirmed, setConfirmed] = useState(false);
-  const [showArtifactDownload, setShowArtifactDownload] = useState(false);
-  const [downloadCompletedAt, setDownloadCompletedAt] = useState(0);
 
   if (confirmed) return <>{children}</>;
 
-  const providerAddress = activity.providers?.[0]?.id;
-  const peginTxid = activity.peginTxHash;
-  const depositorPk = activity.depositorBtcPubkey;
-  const artifacts =
-    providerAddress && peginTxid && depositorPk
-      ? { providerAddress, peginTxid, depositorPk }
-      : null;
-
+  // Always render the confirmation gate (even when the activity is missing
+  // any of providerAddress / peginTxid / depositorPk) so the user still
+  // sees the risk-acknowledgement checkbox before activating without
+  // artifacts. The modal hides the recovery-artifacts card when those
+  // fields aren't present and falls back to the acknowledgement-only path.
   return (
-    <>
-      <ActivateConfirmationModal
-        open
-        vaultId={activity.id}
-        downloadCompletedAt={downloadCompletedAt}
-        onClose={onClose}
-        onConfirm={() => setConfirmed(true)}
-        onDownloadArtifacts={() => {
-          if (artifacts) setShowArtifactDownload(true);
-        }}
-      />
-
-      {showArtifactDownload && artifacts && (
-        <ArtifactDownloadModal
-          open
-          providerAddress={artifacts.providerAddress}
-          peginTxid={artifacts.peginTxid}
-          depositorPk={artifacts.depositorPk}
-          vaultId={activity.id}
-          unsignedPrePeginTxHex={activity.unsignedPrePeginTx}
-          onClose={() => setShowArtifactDownload(false)}
-          onComplete={() => {
-            setShowArtifactDownload(false);
-            setDownloadCompletedAt((n) => n + 1);
-          }}
-        />
-      )}
-    </>
+    <ActivateConfirmationModal
+      open
+      vaultId={activity.id}
+      providerAddress={activity.providers?.[0]?.id}
+      peginTxid={activity.peginTxHash}
+      depositorPk={activity.depositorBtcPubkey}
+      unsignedPrePeginTxHex={activity.unsignedPrePeginTx}
+      onClose={onClose}
+      onConfirm={() => setConfirmed(true)}
+    />
   );
 }

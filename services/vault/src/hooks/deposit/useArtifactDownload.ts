@@ -106,7 +106,7 @@ export function useArtifactDownload(options?: {
       const ensurePrimedOrFail = async (): Promise<boolean> => {
         if (vpTokenRegistry.peek(normalizedPeginTxid)) return true;
         if (!primeContext) {
-          setError(COPY.deposit.artifactDownload.cannotAuthenticate);
+          setError(COPY.deposit.recoveryArtifacts.cannotAuthenticate);
           return false;
         }
         try {

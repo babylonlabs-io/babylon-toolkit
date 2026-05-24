@@ -234,29 +234,30 @@ export const COPY = {
       confirmButton: "Confirm",
     },
     activateConfirmation: {
-      title: "Activate your BTC Vault",
-      body: "Activating your BTC Vault reveals the HTLC secret on Ethereum and finalizes your deposit. Before continuing, make sure you have downloaded your BTC Vault artifacts — these files let you independently claim your funds if the vault provider is unavailable.",
-      alreadyDownloadedWarning:
-        "We've already recorded that you downloaded artifacts for this BTC Vault from this browser. If you've since cleared site data or switched devices, download them again before activating.",
-      notDownloadedWarning:
-        "You haven't downloaded the artifacts for this BTC Vault yet on this browser. If you lose them and the vault provider goes offline, you will not be able to independently claim your funds.",
+      title: "Activate your vault",
+      body: "Before activating, download your vault artifacts. These files may be needed later to recover access to your vault.",
       riskAcknowledgement:
-        "I understand the risk of activating without downloading my artifacts.",
-      activateButton: "Activate",
-      downloadArtifactsButton: "Download Artifacts",
-      activateWithoutDownloadingButton: "Activate without downloading",
+        "I understand the risks of continuing without the artifacts.",
+      activateButton: "Activate Vault",
+      cancelButton: "Cancel",
     },
     artifactDownload: {
       title: "Download BTC Vault Artifacts",
-      body: "Before broadcasting your Bitcoin transaction, you need to download your BTC Vault artifacts. These files are required to independently claim your funds if the vault provider is unavailable.",
-      storeSafelyWarning:
-        "Store these files safely on your local disk or external drive. If you lose them and the vault provider goes offline, you will not be able to independently claim your funds.",
-      downloadedBody:
-        "Artifacts downloaded successfully. Please save the file to a safe location before continuing.",
-      downloading: "Downloading...",
-      downloadButton: "Download Artifacts",
+      body: "Download your BTC Vault artifacts. These files are required to independently claim your funds if the vault provider is unavailable.",
       cancelButton: "Cancel",
       continueButton: "Continue",
+    },
+    recoveryArtifacts: {
+      cardTitle: "Recovery artifacts",
+      cardSubtitle: "Encrypted backup files",
+      cardSize: "Up to ~1 GB",
+      downloadButton: "Download Artifacts",
+      downloadingButton: "Downloading...",
+      cancelDownloadButton: "Cancel",
+      downloadedLabel: "Downloaded",
+      retryButton: "Retry",
+      walletSignatureHint:
+        "You may be asked to approve a signature in your wallet to authenticate.",
       cannotAuthenticate:
         "Cannot authenticate with the vault provider. Please refresh and try again.",
     },
@@ -389,6 +390,55 @@ export const COPY = {
     releaseHfBreachTooltip: (threshold: number) =>
       `This selection would drop your health factor below ${threshold.toFixed(1)} and be rejected on-chain. Reduce the selection or repay debt first.`,
     uncapped: "Uncapped",
+    empty: {
+      title: "Deposit Bitcoin to get started",
+      body: (symbol: string) =>
+        `Add ${symbol} as collateral so you can begin borrowing assets.`,
+    },
+  },
+  loans: {
+    heading: "Loans",
+    borrowButton: "Borrow",
+    repayButton: "Repay",
+    borrowRateLabel: "Borrow rate",
+    detailsAriaLabel: (symbol: string) => `${symbol} loan details`,
+    empty: {
+      title: (symbol: string) => `Borrow assets using your ${symbol}`,
+      body: (symbol: string) =>
+        `Deposit ${symbol} as collateral to start borrowing.`,
+    },
+  },
+  overview: {
+    heading: "Overview",
+    healthFactorLabel: "Health factor",
+    totalCollateralValueLabel: "Total Collateral Value",
+    amountToRepayLabel: "Amount to repay",
+    disconnected: {
+      heroTitle: "Native Bitcoin backed borrowing",
+      heroBody:
+        "Powered by Babylon & Aave — deposit BTC and borrow stablecoins or WBTC.",
+      connectButton: "Connect Wallet",
+      aprLabels: {
+        usdt: "USDT APR",
+        usdc: "USDC APR",
+        wbtc: "WBTC APR",
+      },
+      steps: {
+        stepLabel: (n: number) => `step ${n}`,
+        one: {
+          title: "Deposit BTC as collateral",
+          body: "Lock your BTC in a secure smart contract.",
+        },
+        two: {
+          title: "Borrow USDC, USDT or WBTC",
+          body: "Get stablecoin liquidity powered by Aave.",
+        },
+        three: {
+          title: "Repay anytime to unlock BTC",
+          body: "Repay debt plus interest to reclaim BTC.",
+        },
+      },
+    },
   },
   banner: {
     addCollateral: "Add Collateral",
