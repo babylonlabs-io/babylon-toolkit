@@ -5,7 +5,6 @@
  */
 
 import { useEffect, useMemo } from "react";
-import type { Hex } from "viem";
 
 import { useReorderOverride } from "@/applications/aave/context";
 import {
@@ -16,70 +15,13 @@ import type { Asset } from "@/applications/aave/types";
 import { useVaultProviders } from "@/hooks/deposit/useVaultProviders";
 import type { CollateralVaultEntry } from "@/types/collateral";
 import { toCollateralVaultEntries } from "@/utils/collateral";
+import {
+  isReorderOverrideReconciled,
+  sortByReorderedOverride,
+} from "@/utils/collateralOrder";
 
 // Re-export for consumers
 export type { CollateralVaultEntry };
-
-/** Entries ordered ascending by the indexer's liquidationIndex (default order). */
-function byLiquidationIndex(
-  entries: CollateralVaultEntry[],
-): CollateralVaultEntry[] {
-  return [...entries].sort((a, b) => a.liquidationIndex - b.liquidationIndex);
-}
-
-/** Whether `order` is exactly the set of vault IDs in `entries`. */
-function orderMatchesEntrySet(
-  entries: CollateralVaultEntry[],
-  order: readonly Hex[],
-): boolean {
-  if (order.length !== entries.length) return false;
-  const ids = new Set(entries.map((e) => e.vaultId.toLowerCase()));
-  return (
-    ids.size === order.length && order.every((id) => ids.has(id.toLowerCase()))
-  );
-}
-
-/**
- * Sort entries by the post-reorder submitted order so the new order shows
- * immediately. Also rewrites each entry's `liquidationIndex` to its rank in the
- * override, so the per-row "Liquidation Order" ordinal matches the displayed
- * position (otherwise rows would show stale indexer ordinals during the
- * reconciliation window). Falls back to the indexer's liquidationIndex when
- * there is no override or it no longer describes the same vault set (e.g. a
- * vault was withdrawn since).
- */
-function sortByReorderedOverride(
-  entries: CollateralVaultEntry[],
-  order: readonly Hex[] | null,
-): CollateralVaultEntry[] {
-  if (!order || !orderMatchesEntrySet(entries, order)) {
-    return byLiquidationIndex(entries);
-  }
-  const rank = new Map<string, number>();
-  order.forEach((id, i) => rank.set(id.toLowerCase(), i));
-  return entries
-    .map((entry) => ({
-      ...entry,
-      liquidationIndex: rank.get(entry.vaultId.toLowerCase())!,
-    }))
-    .sort((a, b) => a.liquidationIndex - b.liquidationIndex);
-}
-
-/**
- * Whether the override should be dropped — true when there is no override, when
- * it no longer matches the vault set, or when the indexer's liquidationIndex
- * order already equals the override.
- */
-function isReorderOverrideReconciled(
-  entries: CollateralVaultEntry[],
-  order: readonly Hex[] | null,
-): boolean {
-  if (!order) return true;
-  if (!orderMatchesEntrySet(entries, order)) return true;
-  return byLiquidationIndex(entries).every(
-    (e, i) => e.vaultId.toLowerCase() === order[i].toLowerCase(),
-  );
-}
 
 export function useDashboardState(connectedAddress: string | undefined) {
   const {

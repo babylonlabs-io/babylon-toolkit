@@ -109,26 +109,12 @@ describe("useDashboardState", () => {
 
     const { result } = renderHook(() => useDashboardState("0xabc"));
 
-    expect(vaultIds(result.current.collateralVaults)).toEqual([
-      VAULT_C,
-      VAULT_A,
-      VAULT_B,
-    ]);
-    // Each row's liquidationIndex (used for the "Liquidation Order" ordinal)
-    // is rewritten to the override rank, so the badge matches the row position
-    // instead of showing the stale indexer index.
-    expect(
-      result.current.collateralVaults.map((v) => v.liquidationIndex),
-    ).toEqual([0, 1, 2]);
-    const indexByVault = new Map(
-      result.current.collateralVaults.map((v) => [
-        v.vaultId,
-        v.liquidationIndex,
-      ]),
-    );
-    expect(indexByVault.get(VAULT_C)).toBe(0);
-    expect(indexByVault.get(VAULT_A)).toBe(1);
-    expect(indexByVault.get(VAULT_B)).toBe(2);
+    const vaults = result.current.collateralVaults;
+    expect(vaultIds(vaults)).toEqual([VAULT_C, VAULT_A, VAULT_B]);
+    // The hook applies the override rewrite, so the first row's ordinal index
+    // matches its displayed position (exhaustive cases live in
+    // collateralOrder.test.ts).
+    expect(vaults[0]).toMatchObject({ vaultId: VAULT_C, liquidationIndex: 0 });
   });
 
   it("clears the override once the indexer order matches it", () => {
