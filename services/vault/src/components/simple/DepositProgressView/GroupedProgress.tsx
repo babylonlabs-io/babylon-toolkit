@@ -51,23 +51,25 @@ export function GroupedProgress({
 
             {group.expanded && (
               <div className="ml-[15px] flex flex-col border-l-2 border-secondary-strokeDark py-2 pl-6">
-                {stepNumbers.map((stepNumber, subIndex) => {
-                  const step = steps[stepNumber - 1];
+                {stepNumbers.map((globalStepNum, subIndex) => {
+                  const step = steps[globalStepNum - 1];
                   if (!step) return null;
 
+                  const displayNumber = subIndex + 1;
+
                   const state: StepRowState =
-                    stepNumber < currentStep
+                    globalStepNum < currentStep
                       ? "completed"
-                      : stepNumber === currentStep
+                      : globalStepNum === currentStep
                         ? "active"
                         : "pending";
 
                   return (
-                    <div key={stepNumber}>
+                    <div key={globalStepNum}>
                       {subIndex > 0 && <StepConnector />}
                       <StepRow
                         state={state}
-                        number={stepNumber}
+                        number={displayNumber}
                         label={step.label}
                         description={step.description}
                         detail={activeStepDetail}
