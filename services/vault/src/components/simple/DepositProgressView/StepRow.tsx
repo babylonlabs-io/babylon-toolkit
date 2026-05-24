@@ -39,7 +39,10 @@ function StepCircle({
   }
 
   return (
-    <div className={twMerge(base, "border-2 border-secondary-strokeDark")}>
+    <div
+      className={twMerge(base, "border-2 border-secondary-strokeDark")}
+      aria-label={COPY.deposit.a11y.stepPending(ariaNumber ?? number)}
+    >
       <Text
         as="span"
         variant="body2"

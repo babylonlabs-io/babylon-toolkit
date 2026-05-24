@@ -164,6 +164,7 @@ export const COPY = {
     // purely visually (spinner, checkmark, hollow circle).
     a11y: {
       stepActive: (number: number) => `Step ${number} active`,
+      stepPending: (number: number) => `Step ${number} not started`,
       groupStatus: {
         completed: "Completed",
         active: "In progress",
