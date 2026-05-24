@@ -10,4 +10,4 @@ export const PAGE_CONTENT_CLASS = "max-w-[1400px] px-5 sm:px-5";
 export const CARD_DARK_BG_CLASS = "dark:bg-[#202020]";
 
 /** Width + vertical padding for the dashboard section summary cards. */
-export const SUMMARY_CARD_CLASS = "w-full !py-[34px]";
+export const SUMMARY_CARD_CLASS = "w-full border-0 !py-[34px]";

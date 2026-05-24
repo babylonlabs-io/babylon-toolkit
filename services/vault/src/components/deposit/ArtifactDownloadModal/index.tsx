@@ -3,18 +3,13 @@ import {
   DialogBody,
   DialogFooter,
   DialogHeader,
-  Loader,
   ResponsiveDialog,
-  Text,
-  Warning,
 } from "@babylonlabs-io/core-ui";
-import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
-import { useChainConnector } from "@babylonlabs-io/wallet-connector";
-import { useMemo } from "react";
+import { useState } from "react";
 import type { Hex } from "viem";
 
+import { RecoveryArtifactsCard } from "@/components/deposit/RecoveryArtifactsCard";
 import { COPY } from "@/copy";
-import { useArtifactDownload } from "@/hooks/deposit/useArtifactDownload";
 
 interface ArtifactDownloadModalProps {
   open: boolean;
@@ -45,124 +40,86 @@ export function ArtifactDownloadModal({
   vaultId,
   unsignedPrePeginTxHex,
 }: ArtifactDownloadModalProps) {
-  const btcConnector = useChainConnector("BTC");
-  const btcWallet =
-    (btcConnector?.connectedWallet?.provider as BitcoinWallet | undefined) ??
-    null;
-
-  const primeContext = useMemo(() => {
-    if (!btcWallet || !unsignedPrePeginTxHex) return null;
-    return {
-      vaultId,
-      unsignedPrePeginTxHex,
-      btcWallet,
-    };
-  }, [btcWallet, unsignedPrePeginTxHex, vaultId]);
-
-  const { loading, progress, error, downloaded, download, cancel, reset } =
-    useArtifactDownload({ vaultId, primeContext });
-
-  const handleDownload = () => {
-    download(providerAddress, peginTxid, depositorPk);
-  };
-
-  const handleComplete = () => {
-    reset();
-    onComplete();
-  };
-
-  const handleClose = () => {
-    reset();
-    onClose();
-  };
-
-  // TODO: Remove handleCancel (and the Cancel button below) once the backend
-  // delivers artifacts via streaming instead of a single oversized RPC response
-  // (~450 MB). Until then downloads reliably time out, so users must be able
-  // to dismiss the modal without waiting.
-  const handleCancel = () => {
-    cancel();
-    onClose();
-  };
+  const [downloaded, setDownloaded] = useState(false);
 
   return (
-    <ResponsiveDialog open={open} onClose={handleClose}>
+    <ResponsiveDialog
+      open={open}
+      onClose={onClose}
+      className="w-[564px] max-w-full"
+      dialogClassName="!rounded-2xl"
+    >
       <DialogHeader
-        title={COPY.deposit.artifactDownload.title}
-        onClose={handleClose}
-        className="text-accent-primary"
+        title=""
+        onClose={onClose}
+        // Float the close (×) button at the top-right with no border, so the
+        // title row sits absolutely over the body padding (matches the design).
+        className="text-accent-primary [&_.bbn-dialog-title]:!absolute [&_.bbn-dialog-title]:!right-5 [&_button]:!border-0"
       />
 
-      <DialogBody className="flex flex-col gap-4 px-4 pb-4 pt-4 text-accent-primary sm:px-6">
-        {!downloaded && !loading && (
-          <>
-            <Text variant="body2" className="text-accent-secondary">
+      <DialogBody className="flex flex-col items-stretch gap-10 px-6 pb-2 pt-2 text-accent-primary">
+        <div className="flex flex-col items-center gap-10">
+          <svg
+            width="90"
+            height="90"
+            viewBox="0 0 90 90"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+            className="text-accent-primary"
+            aria-hidden="true"
+          >
+            <path
+              d="M75 43.125V26.25L58.125 7.5H18.75C16.6789 7.5 15 9.17893 15 11.25V78.75C15 80.8211 16.6789 82.5 18.75 82.5H41.25"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+            <path
+              d="M50.625 58.5C50.625 56.4999 63.75 52.5 63.75 52.5C63.75 52.5 76.875 56.4999 76.875 58.5C76.875 74.4999 63.75 82.5 63.75 82.5C63.75 82.5 50.625 74.4999 50.625 58.5Z"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+            <path
+              d="M56.25 7.5V26.25H75"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+          <div className="flex w-full flex-col items-center gap-4">
+            <h2 className="text-center text-[34px] font-normal leading-[1.235] tracking-[0.25px] text-accent-primary">
+              {COPY.deposit.artifactDownload.title}
+            </h2>
+            <p className="text-center text-xl font-normal leading-[1.6] tracking-[0.15px] text-accent-secondary">
               {COPY.deposit.artifactDownload.body}
-            </Text>
-
-            <Warning>
-              {COPY.deposit.artifactDownload.storeSafelyWarning}
-            </Warning>
-          </>
-        )}
-
-        {loading && (
-          <div className="flex flex-col items-center gap-3 py-8">
-            <Loader size={24} />
-            <Text variant="body2" className="text-accent-secondary">
-              {progress}
-            </Text>
+            </p>
           </div>
-        )}
+        </div>
 
-        {downloaded && (
-          <div className="flex flex-col gap-3 py-4">
-            <Text variant="body2" className="text-accent-secondary">
-              {COPY.deposit.artifactDownload.downloadedBody}
-            </Text>
-          </div>
-        )}
-
-        {error && (
-          <Text variant="body2" className="text-sm text-error-main">
-            {error}
-          </Text>
-        )}
+        <RecoveryArtifactsCard
+          providerAddress={providerAddress}
+          peginTxid={peginTxid}
+          depositorPk={depositorPk}
+          vaultId={vaultId}
+          unsignedPrePeginTxHex={unsignedPrePeginTxHex}
+          onDownloaded={() => setDownloaded(true)}
+        />
       </DialogBody>
 
-      <DialogFooter className="px-4 pb-6 sm:px-6">
-        {!downloaded ? (
-          <>
-            <Button
-              variant="contained"
-              className="w-full"
-              onClick={handleDownload}
-              disabled={loading}
-            >
-              {loading
-                ? COPY.deposit.artifactDownload.downloading
-                : COPY.deposit.artifactDownload.downloadButton}
-            </Button>
-            {/* TODO: Remove Cancel button once backend streaming is implemented (see handleCancel above) */}
-            {loading && (
-              <Button
-                variant="outlined"
-                className="w-full"
-                onClick={handleCancel}
-              >
-                {COPY.deposit.artifactDownload.cancelButton}
-              </Button>
-            )}
-          </>
-        ) : (
-          <Button
-            variant="contained"
-            className="w-full"
-            onClick={handleComplete}
-          >
-            {COPY.deposit.artifactDownload.continueButton}
-          </Button>
-        )}
+      <DialogFooter className="flex flex-row gap-4 px-6 pb-6 pt-4">
+        <Button
+          variant={downloaded ? "contained" : "outlined"}
+          className="h-10 w-full"
+          onClick={downloaded ? onComplete : onClose}
+        >
+          {downloaded
+            ? COPY.deposit.artifactDownload.continueButton
+            : COPY.deposit.artifactDownload.cancelButton}
+        </Button>
       </DialogFooter>
     </ResponsiveDialog>
   );

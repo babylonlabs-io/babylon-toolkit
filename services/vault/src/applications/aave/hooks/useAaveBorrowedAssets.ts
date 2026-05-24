@@ -31,6 +31,9 @@ export interface BorrowedAsset {
   amount: string;
   /** Token icon URL */
   icon: string;
+  /** Borrow APR as a formatted string (e.g. "5.861%"). Optional until the
+   *  reserve-data fetch that produces this is wired up. */
+  borrowRate?: string;
 }
 
 /**
