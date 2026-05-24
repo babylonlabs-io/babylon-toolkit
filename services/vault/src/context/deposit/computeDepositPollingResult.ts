@@ -120,6 +120,12 @@ export function computeDepositPollingResult(
   const prePeginBroadcastConfirmed =
     cachedAtDepth ||
     (confirmations !== undefined && confirmations >= requiredDepth);
+  // Chain ground truth that the Pre-PegIn was broadcast at all: a present
+  // confirmation entry — or a cached at-depth observation — means the tx is on
+  // the network. Independent of localStorage, so every tab converges on the
+  // same status instead of re-offering "Broadcast" in a tab that lacks the
+  // local CONFIRMING marker. Self-heals: an evicted/dropped tx drops the entry.
+  const prePeginBroadcastSeen = cachedAtDepth || confirmations !== undefined;
 
   const isOwnedByCurrentWallet = isVaultOwnedByWallet(
     activity.depositorBtcPubkey,
@@ -162,6 +168,7 @@ export function computeDepositPollingResult(
     needsWotsKey: needsWotsKey?.has(depositId),
     pendingIngestion: pendingIngestion?.has(depositId),
     prePeginBroadcastConfirmed,
+    prePeginBroadcastSeen,
     expirationReason: activity.expirationReason,
     expiredAt: activity.expiredAt,
     canRefund,

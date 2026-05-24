@@ -75,7 +75,7 @@ describe("DepositProgressView", () => {
 
       // The finished "Register deposit" group reports 7/7.
       expect(
-        screen.getByText(COPY.deposit.groups.stepCounter(7, 7)),
+        screen.getByText(COPY.deposit.groups.stepCounter(6, 6)),
       ).toBeInTheDocument();
     });
   });
@@ -94,7 +94,7 @@ describe("DepositProgressView", () => {
         screen.getByText(COPY.deposit.steps.generateSecret),
       ).toBeInTheDocument();
       expect(
-        screen.getByText(COPY.deposit.steps.awaitBtcConfirmation),
+        screen.getByText(COPY.deposit.steps.confirmingDeposit),
       ).toBeInTheDocument();
 
       // Later groups' sub-steps are collapsed.
@@ -166,9 +166,9 @@ describe("DepositProgressView", () => {
         />,
       );
 
-      // AWAIT_BTC_CONFIRMATION is visual step 6 → 5 of 17 completed → 29%.
+      // AWAIT_BTC_CONFIRMATION is visual step 6 → 5 of 16 completed → 31%.
       const bar = screen.getByRole("progressbar");
-      expect(bar).toHaveAttribute("aria-valuenow", "29");
+      expect(bar).toHaveAttribute("aria-valuenow", "31");
       expect(bar).toHaveAttribute("aria-valuemax", "100");
     });
 
@@ -201,7 +201,7 @@ describe("DepositProgressView", () => {
         screen.getByText(COPY.deposit.steps.generateSecret),
       ).toBeInTheDocument();
       expect(
-        screen.getByText(COPY.deposit.steps.awaitBtcConfirmation),
+        screen.getByText(COPY.deposit.steps.confirmingDeposit),
       ).toBeInTheDocument();
       // Steps in other (collapsed) groups remain hidden.
       expect(
@@ -343,7 +343,7 @@ describe("DepositProgressView", () => {
       );
 
       expect(
-        screen.getByText(COPY.deposit.groups.stepCounter(7, 7)),
+        screen.getByText(COPY.deposit.groups.stepCounter(6, 6)),
       ).toBeInTheDocument();
       expect(
         screen.getAllByText(COPY.deposit.groups.stepCounter(4, 4)),
@@ -368,7 +368,7 @@ describe("DepositProgressView", () => {
       );
 
       expect(
-        screen.getByText(COPY.deposit.groups.stepCounter(7, 7)),
+        screen.getByText(COPY.deposit.groups.stepCounter(6, 6)),
       ).toBeInTheDocument();
       expect(screen.getByRole("progressbar")).toHaveAttribute(
         "aria-valuenow",
@@ -456,6 +456,67 @@ describe("DepositProgressView", () => {
       expect(
         screen.queryByText(COPY.deposit.steps.peginFeeWarning),
       ).not.toBeInTheDocument();
+    });
+  });
+
+  describe("terminal success milestone (terminalMessage)", () => {
+    it("shows the terminal message and a Done button without completing the flow", () => {
+      render(
+        <DepositProgressView
+          {...baseProps}
+          currentStep={DepositFlowStep.RETRIEVE_SECRET}
+          canClose={false}
+          terminalMessage="Ready to activate."
+        />,
+      );
+
+      expect(screen.getByText("Ready to activate.")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Done" })).toBeInTheDocument();
+      // Not the final state: the progress bar is not full.
+      expect(screen.getByRole("progressbar")).not.toHaveAttribute(
+        "aria-valuenow",
+        "100",
+      );
+    });
+
+    it("enables the Done button even when canClose is false", () => {
+      render(
+        <DepositProgressView
+          {...baseProps}
+          currentStep={DepositFlowStep.RETRIEVE_SECRET}
+          canClose={false}
+          terminalMessage="Ready to activate."
+        />,
+      );
+
+      expect(screen.getByRole("button", { name: "Done" })).toBeEnabled();
+    });
+
+    it("suppresses the terminal banner when there is an error", () => {
+      render(
+        <DepositProgressView
+          {...baseProps}
+          currentStep={DepositFlowStep.RETRIEVE_SECRET}
+          error="boom"
+          terminalMessage="Ready to activate."
+        />,
+      );
+
+      expect(screen.queryByText("Ready to activate.")).not.toBeInTheDocument();
+    });
+
+    it("prefers the final success banner over the terminal message when complete", () => {
+      render(
+        <DepositProgressView
+          {...baseProps}
+          currentStep={DepositFlowStep.COMPLETED}
+          isComplete
+          terminalMessage="Ready to activate."
+        />,
+      );
+
+      expect(screen.queryByText("Ready to activate.")).not.toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Done" })).toBeInTheDocument();
     });
   });
 });

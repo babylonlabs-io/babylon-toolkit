@@ -70,7 +70,7 @@ export const COPY = {
       payoutsReadyForSigning:
         "Vault provider has prepared payout transactions. Click 'Sign Payouts' to pre-authorize your Bitcoin claim transactions.",
       prePeginBroadcast:
-        "Pre-Pegin transaction has been broadcast. Waiting for vault provider to detect your deposit.",
+        "Pre-Pegin transaction has been broadcast. Waiting for Bitcoin confirmation.",
       prePeginIngesting:
         "Pre-Pegin transaction confirmed. Waiting for vault provider to ingest your deposit.",
       waitingForDetection: "Waiting for vault provider to detect your deposit.",
@@ -142,9 +142,8 @@ export const COPY = {
       signLinkProofs: "Sign proofs to link your Bitcoin and ETH addresses",
       signAndBroadcastEth: "Sign and broadcast ETH registration",
       signAndBroadcastPrePegin: "Sign and broadcast BTC Pre-Pegin transaction",
-      awaitBtcConfirmation: "Awaiting Bitcoin confirmation",
-      awaitVpIngestion: "Awaiting vault provider ingestion",
-      submitWotsKey: "Submit Winternitz One-Time Signature (WOTS)",
+      confirmingDeposit: "Confirming deposit",
+      submitWotsKey: "Set up Winternitz One-Time Signature (WOTS)",
       awaitPayoutTransactions:
         "Awaiting vault provider to prepare payout transactions",
       authenticateSession: "Authenticate session with vault provider",
@@ -307,6 +306,8 @@ export const COPY = {
     resume: {
       broadcastSuccessMessage: PRE_PEGIN_BROADCAST_CONFIRMATION_MESSAGE,
       activationSuccessMessage: "Your BTC Vault has been activated.",
+      readyToActivateMessage:
+        "Your payout transactions are signed and verified. Your BTC Vault is ready to activate.",
       wotsMismatchError:
         "WOTS public key hash does not match the on-chain commitment — the wrong wallet is connected.",
     },

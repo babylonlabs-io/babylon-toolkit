@@ -5,8 +5,9 @@
  * (`CONFIRMING`), which can't tell BTC-wait from VP-stuck: localStorage stays
  * `CONFIRMING` whether the VP is still ingesting or BTC is still confirming.
  * Polling the mempool directly per pending Pre-PegIn txid resolves that
- * ambiguity for the state machine, which routes the deposit to either
- * `AWAIT_BTC_CONFIRMATION` or `AWAIT_VP_INGESTION` based on the result.
+ * ambiguity for the state machine, which surfaces either the Bitcoin-
+ * confirmation or the VP-ingestion status on the shared confirming-deposit
+ * step based on the result.
  *
  * Returns raw confirmation counts (not pre-thresholded). Per-deposit depth
  * is applied at the consumer because each vault is locked to its own

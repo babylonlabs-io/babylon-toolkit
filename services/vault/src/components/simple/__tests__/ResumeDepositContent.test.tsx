@@ -10,10 +10,13 @@ import { render, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { getVaultRegistryReader } from "@/clients/eth-contract/sdk-readers";
+import { usePayoutSigningState } from "@/components/deposit/PayoutSignModal/usePayoutSigningState";
+import { useActivationState } from "@/hooks/deposit/useActivationState";
 import type { VaultActivity } from "@/types/activity";
 
 import {
   ResumeActivationContent,
+  ResumeSignContent,
   ResumeWotsContent,
 } from "../ResumeDepositContent";
 
@@ -24,6 +27,10 @@ const mockDeriveVaultRoot = vi.hoisted(() => vi.fn());
 const mockParseFundingOutpointsFromTx = vi.hoisted(() => vi.fn(() => []));
 const mockHandleActivation = vi.hoisted(() => vi.fn());
 const mockSubmitWotsPublicKey = vi.hoisted(() => vi.fn());
+const mockUseDepositPollingResult = vi.hoisted(() => vi.fn(() => undefined));
+const mockGetPeginDisplayStep = vi.hoisted(() =>
+  vi.fn<(state: unknown) => number | null>(() => null),
+);
 
 vi.mock("@babylonlabs-io/ts-sdk/tbv/core", () => ({
   computeWotsBlockPublicKeysHash: vi.fn(() => "0xwotshash"),
@@ -64,37 +71,47 @@ vi.mock("@/clients/eth-contract/sdk-readers", () => ({
   getVaultRegistryReader: vi.fn(),
 }));
 
+// Mirror the real derivation of `isProcessing`/`isComplete` from the
+// (processing, isWaiting, error) inputs so the tests genuinely exercise how
+// each Resume* view wires its state into DepositProgressView (a flat stub that
+// always returns isProcessing:false would mask the spinner-vs-terminal split).
 vi.mock("@/components/deposit/DepositSignModal/depositStepHelpers", () => ({
-  computeDepositDerivedState: vi.fn(() => ({
-    isComplete: false,
-    isProcessing: false,
-    canClose: true,
-    canContinueInBackground: false,
-  })),
+  computeDepositDerivedState: vi.fn(
+    (
+      currentStep: number,
+      processing: boolean,
+      isWaiting: boolean,
+      error: string | null,
+    ) => {
+      const isComplete = currentStep === 17; // DepositFlowStep.COMPLETED
+      return {
+        isComplete,
+        isProcessing: (processing || isWaiting) && !error && !isComplete,
+        canClose: true,
+        canContinueInBackground: isWaiting && !error,
+      };
+    },
+  ),
 }));
 
-vi.mock("@/hooks/deposit/depositFlowSteps", () => ({
-  DepositFlowStep: {
-    SIGN_PAYOUTS: "SIGN_PAYOUTS",
-    SIGN_AUTH_ANCHOR: "SIGN_AUTH_ANCHOR",
-    SIGN_DEPOSITOR_GRAPH: "SIGN_DEPOSITOR_GRAPH",
-    BROADCAST_PRE_PEGIN: "BROADCAST_PRE_PEGIN",
-    RETRIEVE_SECRET: "RETRIEVE_SECRET",
-    ACTIVATE_VAULT: "ACTIVATE_VAULT",
-    COMPLETED: "COMPLETED",
-    SUBMIT_WOTS_KEYS: "SUBMIT_WOTS_KEYS",
-    AWAIT_PAYOUT_TRANSACTIONS: "AWAIT_PAYOUT_TRANSACTIONS",
-    AWAIT_VP_VERIFICATION: "AWAIT_VP_VERIFICATION",
-    AWAIT_ACTIVATION_CONFIRMATION: "AWAIT_ACTIVATION_CONFIRMATION",
-    ARTIFACT_DOWNLOAD: "ARTIFACT_DOWNLOAD",
-  },
-  payoutSigningStep: (phase: "auth" | "claimers" | "graph") =>
-    phase === "auth"
-      ? "SIGN_AUTH_ANCHOR"
-      : phase === "graph"
-        ? "SIGN_DEPOSITOR_GRAPH"
-        : "SIGN_PAYOUTS",
-}));
+// Use the real numeric DepositFlowStep enum so ordered comparisons in
+// production (`polledStep > SUBMIT_WOTS_KEYS`) behave as they do at runtime;
+// a string-valued stub would make `9 > 8` compare as `"A" > "S"` and break
+// the pastWots discriminator under test.
+vi.mock("@/hooks/deposit/depositFlowSteps", async () => {
+  const actual = await vi.importActual<
+    typeof import("@/hooks/deposit/depositFlowSteps/types")
+  >("@/hooks/deposit/depositFlowSteps/types");
+  return {
+    DepositFlowStep: actual.DepositFlowStep,
+    payoutSigningStep: (phase: "auth" | "claimers" | "graph") =>
+      phase === "auth"
+        ? actual.DepositFlowStep.SIGN_AUTH_ANCHOR
+        : phase === "graph"
+          ? actual.DepositFlowStep.SIGN_DEPOSITOR_GRAPH
+          : actual.DepositFlowStep.SIGN_PAYOUTS,
+  };
+});
 
 vi.mock("@/components/deposit/PayoutSignModal/usePayoutSigningState", () => ({
   usePayoutSigningState: vi.fn(() => ({
@@ -139,9 +156,48 @@ vi.mock("@/utils/rpc", () => ({
   getVpProxyUrl: vi.fn(() => "https://vp.example"),
 }));
 
+vi.mock("@/context/deposit/PeginPollingContext", () => ({
+  useDepositPollingResult: mockUseDepositPollingResult,
+}));
+
+vi.mock("@/models/peginStateMachine", () => ({
+  ContractStatus: {
+    PENDING: 0,
+    VERIFIED: 1,
+    ACTIVE: 2,
+    REDEEMED: 3,
+    LIQUIDATED: 4,
+    INVALID: 5,
+    DEPOSITOR_WITHDRAWN: 6,
+    EXPIRED: 7,
+  },
+  getPeginDisplayStep: mockGetPeginDisplayStep,
+}));
+
 vi.mock("../DepositProgressView", () => ({
-  DepositProgressView: ({ error }: { error?: string | null }) => (
-    <div data-testid="progress-view">{error ?? ""}</div>
+  DepositProgressView: ({
+    currentStep,
+    error,
+    isComplete,
+    isProcessing,
+    terminalMessage,
+    canContinueInBackground,
+  }: {
+    currentStep?: string;
+    error?: string | null;
+    isComplete?: boolean;
+    isProcessing?: boolean;
+    terminalMessage?: string | null;
+    canContinueInBackground?: boolean;
+  }) => (
+    <div data-testid="progress-view">
+      <span data-testid="step">{String(currentStep)}</span>
+      <span data-testid="error">{error ?? ""}</span>
+      <span data-testid="complete">{String(!!isComplete)}</span>
+      <span data-testid="processing">{String(!!isProcessing)}</span>
+      <span data-testid="terminal">{terminalMessage ?? ""}</span>
+      <span data-testid="background">{String(!!canContinueInBackground)}</span>
+    </div>
   ),
 }));
 
@@ -225,6 +281,93 @@ describe("ResumeWotsContent — Pre-PegIn tx hash trust boundary", () => {
   });
 });
 
+describe("ResumeWotsContent — polled-status terminal", () => {
+  // Real numeric enum values (mirrors DepositFlowStep): SUBMIT_WOTS_KEYS=7,
+  // AWAIT_PAYOUT_TRANSACTIONS=8.
+  const SUBMIT_WOTS_KEYS = 7;
+  const AWAIT_PAYOUT_TRANSACTIONS = 8;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockCalculateBtcTxHash.mockReturnValue(ON_CHAIN_HASH);
+    mockGetVaultRegistryReader.mockReturnValue(readerWith(ON_CHAIN_HASH));
+    mockDeriveVaultRoot.mockResolvedValue(new Uint8Array(32));
+    mockSubmitWotsPublicKey.mockResolvedValue(undefined);
+    mockUseDepositPollingResult.mockReturnValue(undefined);
+    mockGetPeginDisplayStep.mockReturnValue(null);
+  });
+
+  function renderWots() {
+    return render(
+      <ResumeWotsContent
+        activity={baseActivity}
+        onClose={vi.fn()}
+        onSuccess={vi.fn()}
+      />,
+    );
+  }
+
+  it("advances to a closeable background wait once the VP is past WOTS", async () => {
+    // VP has accepted the WOTS key and advanced; the modal moves off the WOTS
+    // step to the next step as a "Close & continue later" background wait —
+    // no separate success banner.
+    mockUseDepositPollingResult.mockReturnValue({
+      peginState: { contractStatus: 0 },
+    } as never);
+    mockGetPeginDisplayStep.mockReturnValue(AWAIT_PAYOUT_TRANSACTIONS);
+
+    const { getByTestId } = renderWots();
+
+    await waitFor(() =>
+      expect(getByTestId("step").textContent).toBe(
+        String(AWAIT_PAYOUT_TRANSACTIONS),
+      ),
+    );
+    // No success banner — the closeable background wait carries the state.
+    expect(getByTestId("terminal").textContent).toBe("");
+    expect(getByTestId("background").textContent).toBe("true");
+    expect(getByTestId("error").textContent).toBe("");
+  });
+
+  it("advances to the closeable background wait after the local submit resolves, before the VP confirms", async () => {
+    mockUseDepositPollingResult.mockReturnValue({
+      peginState: { contractStatus: 0 },
+    } as never);
+    mockGetPeginDisplayStep.mockReturnValue(SUBMIT_WOTS_KEYS);
+
+    const { getByTestId } = renderWots();
+
+    // The submit auto-fires; once it resolves the modal advances to the next
+    // step as a "Close & continue later" background wait with no terminal
+    // banner — even though the polled state has not yet confirmed acceptance.
+    await waitFor(() =>
+      expect(mockSubmitWotsPublicKey).toHaveBeenCalledTimes(1),
+    );
+    await waitFor(() =>
+      expect(getByTestId("step").textContent).toBe(
+        String(AWAIT_PAYOUT_TRANSACTIONS),
+      ),
+    );
+    expect(getByTestId("terminal").textContent).toBe("");
+    expect(getByTestId("background").textContent).toBe("true");
+    expect(getByTestId("processing").textContent).toBe("true");
+  });
+
+  it("shows the in-flight WOTS spinner with no terminal before any polled result", async () => {
+    // No polling result yet (polledStep === null): pastWots must be false and
+    // the in-flight submit shows the SUBMIT_WOTS_KEYS spinner.
+    mockUseDepositPollingResult.mockReturnValue(undefined);
+    // Keep the submit in flight so loading stays true on first render.
+    mockSubmitWotsPublicKey.mockReturnValue(new Promise(() => {}));
+
+    const { getByTestId } = renderWots();
+
+    expect(getByTestId("step").textContent).toBe(String(SUBMIT_WOTS_KEYS));
+    expect(getByTestId("terminal").textContent).toBe("");
+    expect(getByTestId("processing").textContent).toBe("true");
+  });
+});
+
 describe("ResumeActivationContent — Pre-PegIn tx hash trust boundary", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -274,5 +417,118 @@ describe("ResumeActivationContent — Pre-PegIn tx hash trust boundary", () => {
     });
     expect(mockParseFundingOutpointsFromTx).toHaveBeenCalledWith("0xindexertx");
     expect(mockHandleActivation).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("ResumeSignContent — reactive verification terminal", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockUseDepositPollingResult.mockReturnValue(undefined);
+    vi.mocked(usePayoutSigningState).mockReturnValue({
+      signing: false,
+      progress: { phase: "claimers", completed: 0, total: 0 },
+      error: null,
+      isComplete: true,
+      handleSign: vi.fn(),
+    });
+  });
+
+  function renderSign() {
+    return render(
+      <ResumeSignContent
+        activity={baseActivity}
+        btcPublicKey="0xbtcpub"
+        depositorEthAddress={"0xdepositor" as never}
+        onClose={vi.fn()}
+        onSuccess={vi.fn()}
+      />,
+    );
+  }
+
+  it("stays on the verification wait while the contract is still PENDING", () => {
+    mockUseDepositPollingResult.mockReturnValue({
+      peginState: { contractStatus: 0 },
+    } as never);
+
+    const { getByTestId } = renderSign();
+
+    // AWAIT_VP_VERIFICATION
+    expect(getByTestId("step").textContent).toBe("12");
+    expect(getByTestId("terminal").textContent).toBe("");
+  });
+
+  it("advances to ready-to-activate once the contract is VERIFIED", () => {
+    mockUseDepositPollingResult.mockReturnValue({
+      peginState: { contractStatus: 1 },
+    } as never);
+
+    const { getByTestId } = renderSign();
+
+    // RETRIEVE_SECRET
+    expect(getByTestId("step").textContent).toBe("14");
+    expect(getByTestId("terminal").textContent?.toLowerCase()).toContain(
+      "ready to activate",
+    );
+  });
+
+  it("marks the flow complete if the deposit advances to ACTIVE while parked", () => {
+    mockUseDepositPollingResult.mockReturnValue({
+      peginState: { contractStatus: 2 }, // ACTIVE — already activated elsewhere
+    } as never);
+
+    const { getByTestId } = renderSign();
+
+    // COMPLETED — the whole flow is done, so no stale "ready to activate".
+    expect(getByTestId("step").textContent).toBe("17");
+    expect(getByTestId("terminal").textContent).toBe("");
+  });
+});
+
+describe("ResumeActivationContent — reactive activation terminal", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockCalculateBtcTxHash.mockReturnValue(ON_CHAIN_HASH);
+    mockGetVaultRegistryReader.mockReturnValue(readerWith(ON_CHAIN_HASH));
+    mockDeriveVaultRoot.mockResolvedValue(new Uint8Array(32));
+    mockUseDepositPollingResult.mockReturnValue(undefined);
+    vi.mocked(useActivationState).mockReturnValue({
+      activating: false,
+      activated: true,
+      error: null,
+      handleActivation: mockHandleActivation,
+    });
+  });
+
+  function renderActivation() {
+    return render(
+      <ResumeActivationContent
+        activity={baseActivity}
+        depositorEthAddress="0xdepositor"
+        onClose={vi.fn()}
+        onSuccess={vi.fn()}
+      />,
+    );
+  }
+
+  it("keeps awaiting confirmation after broadcast until the contract is ACTIVE", async () => {
+    mockUseDepositPollingResult.mockReturnValue({
+      peginState: { contractStatus: 1 }, // VERIFIED — broadcast landed, not yet ACTIVE
+    } as never);
+
+    const { getByTestId } = renderActivation();
+
+    // AWAIT_ACTIVATION_CONFIRMATION
+    await waitFor(() => expect(getByTestId("step").textContent).toBe("16"));
+  });
+
+  it("completes once the contract reports ACTIVE", async () => {
+    mockUseDepositPollingResult.mockReturnValue({
+      peginState: { contractStatus: 2 }, // ACTIVE
+    } as never);
+
+    const { getByTestId } = renderActivation();
+
+    // COMPLETED
+    await waitFor(() => expect(getByTestId("step").textContent).toBe("17"));
   });
 });

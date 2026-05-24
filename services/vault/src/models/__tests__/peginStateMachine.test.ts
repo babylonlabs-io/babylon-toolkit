@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
+import { COPY } from "@/copy";
 import { DepositFlowStep } from "@/hooks/deposit/depositFlowSteps/types";
 
 import {
@@ -44,7 +45,7 @@ describe("peginStateMachine", () => {
       );
     });
 
-    it("flags VP-ingestion wait when BTC is confirmed but VP still ingesting", () => {
+    it("shows the VP-ingestion message at the confirming-deposit step when BTC is confirmed but VP still ingesting", () => {
       const state = getPeginState(ContractStatus.PENDING, {
         localStatus: LocalStorageStatus.CONFIRMING,
         pendingIngestion: true,
@@ -53,17 +54,89 @@ describe("peginStateMachine", () => {
       expect(state.displayLabel).toBe(PEGIN_DISPLAY_LABELS.PENDING);
       expect(state.availableActions).toEqual([PeginAction.NONE]);
       expect(state.message).toContain("Waiting for vault provider to ingest");
-      expect(state.awaitingVpIngestion).toBe(true);
+      expect(getPeginDisplayStep(state)).toBe(
+        DepositFlowStep.AWAIT_BTC_CONFIRMATION,
+      );
     });
 
-    it("does NOT flag VP-ingestion wait when VP has already ingested", () => {
+    it("drops the broadcast action and surfaces VP ingestion when BTC is confirmed at depth with no local tracking", () => {
+      // Cross-window / cleared-storage case: no localStatus CONFIRMING marker
+      // survives, so the SDK still offers SIGN_AND_BROADCAST. But the chain
+      // proves the Pre-PegIn is confirmed at protocol depth, so there is
+      // nothing left to broadcast — the deposit is waiting on the VP, not BTC.
+      const state = getPeginState(ContractStatus.PENDING, {
+        pendingIngestion: true,
+        prePeginBroadcastConfirmed: true,
+      });
+      expect(state.availableActions).not.toContain(
+        PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN,
+      );
+      expect(state.message).toBe(COPY.pegin.messages.prePeginIngesting);
+      expect(getPeginDisplayStep(state)).toBe(
+        DepositFlowStep.AWAIT_BTC_CONFIRMATION,
+      );
+    });
+
+    it("keeps the broadcast action and shows 'not detected' when prePeginBroadcastConfirmed is not set", () => {
+      // Counter to the chain-truth override: with no chain confirmation signal
+      // the legit "broadcast may have failed" prompt must still appear.
+      const state = getPeginState(ContractStatus.PENDING, {
+        pendingIngestion: true,
+      });
+      expect(state.availableActions).toContain(
+        PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN,
+      );
+      expect(state.message).toBe(COPY.pegin.messages.broadcastMayHaveFailed);
+      expect(getPeginDisplayStep(state)).toBe(
+        DepositFlowStep.BROADCAST_PRE_PEGIN,
+      );
+    });
+
+    it("drops the broadcast action and shows the BTC-confirmation wait when the Pre-PegIn is seen on chain but shallow, with no local tracking", () => {
+      // Cross-tab case (Image #11): the broadcasting tab wrote CONFIRMING; this
+      // tab has no local marker, so the SDK still offers SIGN_AND_BROADCAST.
+      // The chain proves the tx is already on the network, so every tab must
+      // agree it is broadcast and waiting on Bitcoin depth — not re-offer it.
+      const state = getPeginState(ContractStatus.PENDING, {
+        pendingIngestion: true,
+        prePeginBroadcastSeen: true,
+      });
+      expect(state.availableActions).not.toContain(
+        PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN,
+      );
+      expect(state.message).toBe(COPY.pegin.messages.prePeginBroadcast);
+      expect(getPeginDisplayStep(state)).toBe(
+        DepositFlowStep.AWAIT_BTC_CONFIRMATION,
+      );
+    });
+
+    it("shows the VP-ingestion message (not the BTC-confirmation message) at step 6 when seen and confirmed at depth", () => {
+      const state = getPeginState(ContractStatus.PENDING, {
+        pendingIngestion: true,
+        prePeginBroadcastSeen: true,
+        prePeginBroadcastConfirmed: true,
+      });
+      expect(state.availableActions).not.toContain(
+        PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN,
+      );
+      expect(state.message).toBe(COPY.pegin.messages.prePeginIngesting);
+      expect(getPeginDisplayStep(state)).toBe(
+        DepositFlowStep.AWAIT_BTC_CONFIRMATION,
+      );
+    });
+
+    it("does NOT show the VP-ingestion wait when VP has already ingested", () => {
       const state = getPeginState(ContractStatus.PENDING, {
         localStatus: LocalStorageStatus.CONFIRMING,
         pendingIngestion: false,
         prePeginBroadcastConfirmed: true,
       });
-      // BTC confirmed AND ingested → falls through to payout-prep branch.
-      expect(state.awaitingVpIngestion).toBeUndefined();
+      // BTC confirmed AND ingested → falls through to the payout-prep branch,
+      // not the VP-ingestion message.
+      expect(state.message).not.toBe(COPY.pegin.messages.prePeginIngesting);
+      expect(getPeginDisplayStep(state)).toBe(
+        DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS,
+      );
     });
 
     it("shows preparing transactions when CONFIRMING and VP has ingested", () => {
@@ -637,21 +710,26 @@ describe("peginStateMachine", () => {
       expect(getPeginDisplayStep(state)).toBe(
         DepositFlowStep.AWAIT_BTC_CONFIRMATION,
       );
+      // Step and message must agree: at AWAIT_BTC_CONFIRMATION the wait is on
+      // Bitcoin depth, so the message is the BTC-confirmation copy — not the
+      // "vault provider to detect/ingest" wording, which belongs to step 7.
+      expect(state.message).toBe(COPY.pegin.messages.prePeginBroadcast);
     });
 
-    it("maps BTC-confirmed-but-VP-still-ingesting to AWAIT_VP_INGESTION", () => {
+    it("maps BTC-confirmed-but-VP-still-ingesting to the confirming-deposit step", () => {
       // The diagnostic case: localStorage says CONFIRMING (broadcast happened)
       // and mempool reports the Pre-PegIn has reached the protocol depth, but
-      // the VP is still at PendingIngestion — surface the VP-side wait, not
-      // the BTC-side wait, so a stuck VP doesn't masquerade as a BTC delay.
+      // the VP is still at PendingIngestion. The step stays on the shared
+      // "confirming deposit" step; the VP-side wait is surfaced via the message.
       const state = getPeginState(ContractStatus.PENDING, {
         localStatus: LocalStorageStatus.CONFIRMING,
         pendingIngestion: true,
         prePeginBroadcastConfirmed: true,
       });
       expect(state.availableActions).toEqual([PeginAction.NONE]);
+      expect(state.message).toBe(COPY.pegin.messages.prePeginIngesting);
       expect(getPeginDisplayStep(state)).toBe(
-        DepositFlowStep.AWAIT_VP_INGESTION,
+        DepositFlowStep.AWAIT_BTC_CONFIRMATION,
       );
     });
 
