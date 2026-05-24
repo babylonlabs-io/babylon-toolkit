@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import type { ReactNode } from "react";
+import { forwardRef, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { markArtifactsDownloaded } from "@/utils/artifactDownloadStorage";
@@ -40,16 +40,18 @@ vi.mock("@babylonlabs-io/core-ui", () => ({
 }));
 
 vi.mock("@/components/deposit/RecoveryArtifactsCard", () => ({
-  RecoveryArtifactsCard: (props: { onDownloaded?: () => void }) => (
-    <div data-testid="recovery-card">
-      <button
-        type="button"
-        data-testid="card-download-complete"
-        onClick={() => props.onDownloaded?.()}
-      >
-        download
-      </button>
-    </div>
+  RecoveryArtifactsCard: forwardRef<unknown, { onDownloaded?: () => void }>(
+    (props) => (
+      <div data-testid="recovery-card">
+        <button
+          type="button"
+          data-testid="card-download-complete"
+          onClick={() => props.onDownloaded?.()}
+        >
+          download
+        </button>
+      </div>
+    ),
   ),
 }));
 

@@ -6,19 +6,28 @@ import {
   DialogHeader,
   ResponsiveDialog,
 } from "@babylonlabs-io/core-ui";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Hex } from "viem";
 
-import { RecoveryArtifactsCard } from "@/components/deposit/RecoveryArtifactsCard";
+import {
+  RecoveryArtifactsCard,
+  type RecoveryArtifactsCardHandle,
+} from "@/components/deposit/RecoveryArtifactsCard";
 import { COPY } from "@/copy";
 import { hasArtifactsDownloaded } from "@/utils/artifactDownloadStorage";
 
 interface ActivateConfirmationModalProps {
   open: boolean;
   vaultId: Hex;
-  providerAddress: string;
-  peginTxid: string;
-  depositorPk: string;
+  /**
+   * Artifact-download inputs. All three are required for the recovery card
+   * to attempt a download; if any are missing the card is hidden and the
+   * user can only proceed by acknowledging the risk and activating without
+   * artifacts.
+   */
+  providerAddress?: string;
+  peginTxid?: string;
+  depositorPk?: string;
   unsignedPrePeginTxHex?: string;
   onClose: () => void;
   onConfirm: () => void;
@@ -45,18 +54,28 @@ export function ActivateConfirmationModal({
     setAcknowledged(false);
   }, [open, vaultId]);
 
+  const cardRef = useRef<RecoveryArtifactsCardHandle>(null);
+
+  // Cancel any in-flight artifact download so closing the modal mid-download
+  // doesn't leave the oversized RPC request running in the background.
+  const handleClose = () => {
+    cardRef.current?.cancel();
+    onClose();
+  };
+
+  const canRenderCard = Boolean(providerAddress && peginTxid && depositorPk);
   const canActivate = downloaded || acknowledged;
 
   return (
     <ResponsiveDialog
       open={open}
-      onClose={onClose}
+      onClose={handleClose}
       className="w-[564px] max-w-full"
       dialogClassName="!rounded-2xl"
     >
       <DialogHeader
         title=""
-        onClose={onClose}
+        onClose={handleClose}
         // Float the close (×) button at the top-right with no border, so the
         // title row sits absolutely over the body padding (matches the design).
         className="text-accent-primary [&_.bbn-dialog-title]:!absolute [&_.bbn-dialog-title]:!right-5 [&_button]:!border-0"
@@ -90,14 +109,17 @@ export function ActivateConfirmationModal({
           </div>
         </div>
 
-        <RecoveryArtifactsCard
-          providerAddress={providerAddress}
-          peginTxid={peginTxid}
-          depositorPk={depositorPk}
-          vaultId={vaultId}
-          unsignedPrePeginTxHex={unsignedPrePeginTxHex}
-          onDownloaded={() => setDownloaded(true)}
-        />
+        {canRenderCard && (
+          <RecoveryArtifactsCard
+            ref={cardRef}
+            providerAddress={providerAddress as string}
+            peginTxid={peginTxid as string}
+            depositorPk={depositorPk as string}
+            vaultId={vaultId}
+            unsignedPrePeginTxHex={unsignedPrePeginTxHex}
+            onDownloaded={() => setDownloaded(true)}
+          />
+        )}
 
         {!downloaded && (
           <label className="flex w-full cursor-pointer items-start gap-4">
@@ -115,7 +137,11 @@ export function ActivateConfirmationModal({
       </DialogBody>
 
       <DialogFooter className="flex flex-row gap-4 px-6 pb-6 pt-4">
-        <Button variant="outlined" className="h-10 flex-1" onClick={onClose}>
+        <Button
+          variant="outlined"
+          className="h-10 flex-1"
+          onClick={handleClose}
+        >
           {COPY.deposit.activateConfirmation.cancelButton}
         </Button>
         <Button

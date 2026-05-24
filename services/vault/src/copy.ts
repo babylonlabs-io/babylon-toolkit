@@ -253,6 +253,8 @@ export const COPY = {
       cancelDownloadButton: "Cancel",
       downloadedLabel: "Downloaded",
       retryButton: "Retry",
+      walletSignatureHint:
+        "You may be asked to approve a signature in your wallet to authenticate.",
       cannotAuthenticate:
         "Cannot authenticate with the vault provider. Please refresh and try again.",
     },

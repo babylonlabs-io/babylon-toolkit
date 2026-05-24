@@ -5,11 +5,15 @@ import {
   DialogHeader,
   ResponsiveDialog,
 } from "@babylonlabs-io/core-ui";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Hex } from "viem";
 
-import { RecoveryArtifactsCard } from "@/components/deposit/RecoveryArtifactsCard";
+import {
+  RecoveryArtifactsCard,
+  type RecoveryArtifactsCardHandle,
+} from "@/components/deposit/RecoveryArtifactsCard";
 import { COPY } from "@/copy";
+import { hasArtifactsDownloaded } from "@/utils/artifactDownloadStorage";
 
 interface ArtifactDownloadModalProps {
   open: boolean;
@@ -40,18 +44,38 @@ export function ArtifactDownloadModal({
   vaultId,
   unsignedPrePeginTxHex,
 }: ArtifactDownloadModalProps) {
-  const [downloaded, setDownloaded] = useState(false);
+  // Seed from localStorage so a reopened modal for an already-downloaded
+  // vault renders the Continue path immediately (the card itself flips to
+  // its green "Downloaded" state via the same check). Re-seeded whenever the
+  // modal opens against a different vault.
+  const [downloaded, setDownloaded] = useState(() =>
+    hasArtifactsDownloaded(vaultId),
+  );
+
+  useEffect(() => {
+    if (open) setDownloaded(hasArtifactsDownloaded(vaultId));
+  }, [open, vaultId]);
+
+  const cardRef = useRef<RecoveryArtifactsCardHandle>(null);
+
+  // Cancel any in-flight artifact download before the modal unmounts so a
+  // dismissed dialog doesn't leave the oversized RPC running in the
+  // background (and surprise the user with a file save later).
+  const handleClose = () => {
+    cardRef.current?.cancel();
+    onClose();
+  };
 
   return (
     <ResponsiveDialog
       open={open}
-      onClose={onClose}
+      onClose={handleClose}
       className="w-[564px] max-w-full"
       dialogClassName="!rounded-2xl"
     >
       <DialogHeader
         title=""
-        onClose={onClose}
+        onClose={handleClose}
         // Float the close (×) button at the top-right with no border, so the
         // title row sits absolutely over the body padding (matches the design).
         className="text-accent-primary [&_.bbn-dialog-title]:!absolute [&_.bbn-dialog-title]:!right-5 [&_button]:!border-0"
@@ -101,6 +125,7 @@ export function ArtifactDownloadModal({
         </div>
 
         <RecoveryArtifactsCard
+          ref={cardRef}
           providerAddress={providerAddress}
           peginTxid={peginTxid}
           depositorPk={depositorPk}
@@ -114,7 +139,7 @@ export function ArtifactDownloadModal({
         <Button
           variant={downloaded ? "contained" : "outlined"}
           className="h-10 w-full"
-          onClick={downloaded ? onComplete : onClose}
+          onClick={downloaded ? onComplete : handleClose}
         >
           {downloaded
             ? COPY.deposit.artifactDownload.continueButton

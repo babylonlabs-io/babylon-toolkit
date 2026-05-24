@@ -67,7 +67,7 @@ describe("ActivationGate", () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
-  it("skips the gate and renders children when artifact inputs are missing", () => {
+  it("still renders the confirmation gate when artifact inputs are missing so the user must acknowledge the risk", () => {
     const { getByTestId, queryByTestId } = render(
       <ActivationGate
         activity={activity({ peginTxHash: undefined })}
@@ -76,7 +76,7 @@ describe("ActivationGate", () => {
         <div data-testid="activation-step" />
       </ActivationGate>,
     );
-    expect(queryByTestId("confirm")).toBeNull();
-    expect(getByTestId("activation-step")).toBeTruthy();
+    expect(getByTestId("confirm")).toBeTruthy();
+    expect(queryByTestId("activation-step")).toBeNull();
   });
 });

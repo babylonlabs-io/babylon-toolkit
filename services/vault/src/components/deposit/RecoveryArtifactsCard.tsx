@@ -1,7 +1,13 @@
 import { Loader } from "@babylonlabs-io/core-ui";
 import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
 import { useChainConnector } from "@babylonlabs-io/wallet-connector";
-import { useEffect, useMemo, useRef } from "react";
+import {
+  forwardRef,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+} from "react";
 import {
   IoCheckmarkCircle,
   IoDocumentText,
@@ -29,14 +35,29 @@ interface RecoveryArtifactsCardProps {
   onDownloaded?: () => void;
 }
 
-export function RecoveryArtifactsCard({
-  providerAddress,
-  peginTxid,
-  depositorPk,
-  vaultId,
-  unsignedPrePeginTxHex,
-  onDownloaded,
-}: RecoveryArtifactsCardProps) {
+/**
+ * Imperative handle exposed via ref. Lets the parent modal cancel any
+ * in-flight artifact download from its own close paths (X button, footer
+ * Cancel) so dismissing the modal doesn't leave the oversized RPC running.
+ */
+export interface RecoveryArtifactsCardHandle {
+  cancel: () => void;
+}
+
+export const RecoveryArtifactsCard = forwardRef<
+  RecoveryArtifactsCardHandle,
+  RecoveryArtifactsCardProps
+>(function RecoveryArtifactsCard(
+  {
+    providerAddress,
+    peginTxid,
+    depositorPk,
+    vaultId,
+    unsignedPrePeginTxHex,
+    onDownloaded,
+  },
+  ref,
+) {
   const btcConnector = useChainConnector("BTC");
   const btcWallet =
     (btcConnector?.connectedWallet?.provider as BitcoinWallet | undefined) ??
@@ -49,6 +70,8 @@ export function RecoveryArtifactsCard({
 
   const { loading, progress, error, downloaded, download, cancel } =
     useArtifactDownload({ vaultId, primeContext });
+
+  useImperativeHandle(ref, () => ({ cancel }), [cancel]);
 
   const persisted = hasArtifactsDownloaded(vaultId);
   const isDownloaded = downloaded || persisted;
@@ -115,18 +138,25 @@ export function RecoveryArtifactsCard({
           </button>
         </div>
       ) : (
-        <button
-          type="button"
-          onClick={handleDownload}
-          className="flex h-9 w-full items-center justify-center gap-2 rounded-lg border border-secondary-strokeLight bg-neutral-200 px-4 text-accent-primary transition-colors hover:bg-secondary-highlight"
-        >
-          <IoDownloadOutline size={20} />
-          <span className="text-sm leading-[1.43] tracking-[0.17px]">
-            {error
-              ? COPY.deposit.recoveryArtifacts.retryButton
-              : COPY.deposit.recoveryArtifacts.downloadButton}
-          </span>
-        </button>
+        <div className="flex flex-col items-stretch">
+          <button
+            type="button"
+            onClick={handleDownload}
+            className="flex h-9 w-full items-center justify-center gap-2 rounded-lg border border-secondary-strokeLight bg-neutral-200 px-4 text-accent-primary transition-colors hover:bg-secondary-highlight"
+          >
+            <IoDownloadOutline size={20} />
+            <span className="text-sm leading-[1.43] tracking-[0.17px]">
+              {error
+                ? COPY.deposit.recoveryArtifacts.retryButton
+                : COPY.deposit.recoveryArtifacts.downloadButton}
+            </span>
+          </button>
+          {!error && (
+            <span className="mt-2.5 text-center text-xs text-accent-secondary">
+              {COPY.deposit.recoveryArtifacts.walletSignatureHint}
+            </span>
+          )}
+        </div>
       )}
 
       {error && (
@@ -136,4 +166,4 @@ export function RecoveryArtifactsCard({
       )}
     </div>
   );
-}
+});
