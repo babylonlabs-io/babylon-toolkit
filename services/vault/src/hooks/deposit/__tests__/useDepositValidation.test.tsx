@@ -125,6 +125,30 @@ describe("useDepositValidation", () => {
 
       expect(result.current.minDeposit).toBeGreaterThan(0n);
     });
+
+    it("returns the 'capacity below minimum' error when remaining cap is below the minimum deposit", () => {
+      // Remaining cap (5_000) is below the 10_000 minimum, so no amount can pass
+      // both bounds. This must win over the base minimum error so the message
+      // matches the CTA instead of telling the user to raise an amount they
+      // can never raise high enough.
+      const { result } = renderHook(
+        () =>
+          useDepositValidation({
+            availableProviders: mockProviders,
+            effectiveRemaining: 5_000n,
+          }),
+        {
+          wrapper,
+        },
+      );
+
+      const validationResult = result.current.validateAmount("0.0001");
+
+      expect(validationResult.valid).toBe(false);
+      expect(validationResult.error).toBe(
+        "Remaining capacity (0.00005 BTC) is below the minimum deposit (0.0001 BTC)",
+      );
+    });
   });
 
   describe("validateProviders", () => {

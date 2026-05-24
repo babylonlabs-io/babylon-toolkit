@@ -53,6 +53,13 @@ export interface AmountSliderProps {
   sliderVariant?: "primary" | "success" | "warning" | "error" | "rainbow";
   sliderActiveColor?: string;
   sliderBackgroundColor?: string;
+  /**
+   * Disables only the range slider, leaving the amount input and Max button
+   * usable. Use when the slider has no meaningful range yet (e.g. the max is
+   * still loading) but manual entry should remain available. Combined with the
+   * general `disabled` prop, which disables the whole widget.
+   */
+  sliderDisabled?: boolean;
 
   // Bottom fields
   leftField?: BottomField;
@@ -81,6 +88,7 @@ export function AmountSlider({
   sliderVariant = "primary",
   sliderActiveColor,
   sliderBackgroundColor,
+  sliderDisabled = false,
   leftField,
   rightField,
   onMaxClick,
@@ -175,7 +183,7 @@ export function AmountSlider({
           onStepsChange={onSliderStepsChange}
           variant={sliderVariant}
           activeColor={sliderActiveColor}
-          disabled={disabled}
+          disabled={disabled || sliderDisabled}
         />
       </div>
 

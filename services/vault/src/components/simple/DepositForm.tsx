@@ -180,21 +180,28 @@ export function DepositForm({
   const setPanelExpanded =
     (panel: "split" | "provider") => (expanded: boolean) =>
       setOpenPanel(expanded ? panel : null);
-  // Fee-adjusted depositable max in satoshis. Falls back to the raw balance
-  // while the fee estimate is still loading.
-  const maxDepositSatsOrBalance = maxDepositSats ?? btcBalance;
-  // While the fee estimate is loading, the fallback to the raw balance would
-  // briefly show more than is actually depositable. Show a placeholder instead
-  // so the displayed Max never overstates the cap.
-  const maxDepositLabel =
-    maxDepositSats == null
-      ? `-- ${btcConfig.coinSymbol}`
-      : `${Number(depositService.formatSatoshisToBtc(maxDepositSats))} ${btcConfig.coinSymbol}`;
+  // The depositable max is unknown until the fee estimate, UTXOs, and the
+  // on-chain supply cap resolve. Until then we never fall back to the raw
+  // balance, which would let the user select an amount above the real cap that
+  // then strands above the max once it resolves.
+  const isMaxResolved = maxDepositSats != null;
+  const maxDepositLabel = !isMaxResolved
+    ? `-- ${btcConfig.coinSymbol}`
+    : `${Number(depositService.formatSatoshisToBtc(maxDepositSats))} ${btcConfig.coinSymbol}`;
+
+  // Disable only the slider (not the amount input or Max button) while there's
+  // no meaningful range to drag: the max is still loading, or it resolved to
+  // zero (supply cap reached). Manual entry stays available, and any amount
+  // above the max is clamped down once it resolves.
+  const sliderDisabled = !isMaxResolved || maxDepositSats === 0n;
 
   // The slider operates in satoshis (integer values, 1-sat step) so the thumb
   // can land exactly on the max. A coarse BTC step would leave the sat-precise
-  // max off the step grid, stranding the thumb short of the end.
-  const sliderMaxSats = Number(maxDepositSatsOrBalance) || 1;
+  // max off the step grid, stranding the thumb short of the end. Floor the
+  // rendered max to 1 so the Slider's `(value - min) / (max - min)` fill math
+  // never divides by zero — a loading (null) or cap-reached (0) max would
+  // otherwise produce NaN. The slider is disabled in both those states anyway.
+  const sliderMaxSats = Math.max(1, Number(maxDepositSats ?? 0n));
   const sliderValueSats = Number(amountSats);
 
   const usdValue = useMemo(() => {
@@ -263,6 +270,7 @@ export function DepositForm({
           sliderMax={sliderMaxSats}
           sliderStep={1}
           sliderSteps={[]}
+          sliderDisabled={sliderDisabled}
           onSliderChange={(sats) =>
             onAmountChange(
               depositService.formatSatoshisToBtc(BigInt(Math.round(sats))),

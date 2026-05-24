@@ -172,6 +172,32 @@ export function amountExceedsMax(
   );
 }
 
+/**
+ * True when the remaining supply cap is positive but below the protocol minimum
+ * deposit. In that state the cap (upper bound) and the minimum (lower bound)
+ * leave an empty range — no amount can satisfy both — so deposits are
+ * impossible until the cap grows. Surfacing this directly avoids contradictory
+ * guidance where the cap check says "lower it" and the minimum check says
+ * "raise it". Narrows `effectiveRemaining` to a non-null bigint when true.
+ */
+export function capBelowMinimum(
+  effectiveRemaining: bigint | null,
+  minDeposit: bigint,
+): effectiveRemaining is bigint {
+  return (
+    effectiveRemaining !== null &&
+    effectiveRemaining > 0n &&
+    effectiveRemaining < minDeposit
+  );
+}
+
+export function capBelowMinimumLabel(
+  effectiveRemaining: bigint,
+  minDeposit: bigint,
+): string {
+  return `Remaining capacity (${formatSatoshisToBtc(effectiveRemaining)} BTC) is below the minimum deposit (${formatSatoshisToBtc(minDeposit)} BTC)`;
+}
+
 export function getDepositButtonLabel(
   params: DepositFormValidityParams,
 ): string {
@@ -239,20 +265,27 @@ export function getDepositCtaState(params: DepositCtaParams): DepositCtaState {
     };
   }
 
-  // An amount that exceeds the fee-adjusted depositable balance can never be
-  // funded — surface it before the provider prompt, since selecting a provider
-  // cannot make an unfundable amount fundable.
-  if (amountExceedsMax(params.amountSats, params.maxDepositSats)) {
-    return { disabled: true, label: "Insufficient balance" };
-  }
-
   // Mirror `validateRemainingCapacity` from the SDK. The message strings must
   // match exactly so users see the same wording whether the block surfaces via
-  // the CTA or via a future inline error.
+  // the CTA or via a future inline error. These run before the generic
+  // `amountExceedsMax` check below: `maxDepositSats` is itself clamped to the
+  // supply cap, so a cap-bound amount also trips `amountExceedsMax` — and
+  // "Insufficient balance" would be wrong when the wallet has ample balance but
+  // the supply cap is the real limiter.
   if (params.effectiveRemaining === 0n) {
     return {
       disabled: true,
       label: "Supply cap reached — deposits temporarily paused",
+    };
+  }
+  // No amount can clear both the remaining cap and the protocol minimum — a
+  // terminal state, so surface it regardless of the entered amount rather than
+  // bouncing between "exceeds capacity" and "minimum" guidance. Mirrored in
+  // `useDepositValidation.validateAmount` so the inline/submit path agrees.
+  if (capBelowMinimum(params.effectiveRemaining, params.minDeposit)) {
+    return {
+      disabled: true,
+      label: capBelowMinimumLabel(params.effectiveRemaining, params.minDeposit),
     };
   }
   if (
@@ -263,6 +296,13 @@ export function getDepositCtaState(params: DepositCtaParams): DepositCtaState {
       disabled: true,
       label: `Vault size exceeds remaining capacity (${formatSatoshisToBtc(params.effectiveRemaining)} BTC)`,
     };
+  }
+
+  // An amount that exceeds the fee-adjusted depositable balance can never be
+  // funded — surface it before the provider prompt, since selecting a provider
+  // cannot make an unfundable amount fundable.
+  if (amountExceedsMax(params.amountSats, params.maxDepositSats)) {
+    return { disabled: true, label: "Insufficient balance" };
   }
 
   if (!params.hasProvider) {
