@@ -4,6 +4,7 @@ import { useCallback, useState } from "react";
 import type { Address, Hex } from "viem";
 import { useAccount } from "wagmi";
 
+import { useReorderOverride } from "@/applications/aave/context";
 import {
   usePositionNotifications,
   type PositionNotificationsStatus,
@@ -55,6 +56,7 @@ export function PositionNotificationBanner({
   const result = hasOverride ? resultOverride : hookResult;
 
   const { executeReorder, isProcessing: isReordering } = useReorderVaults();
+  const { applyReorderedOrder } = useReorderOverride();
   const [isReorderSuccess, setIsReorderSuccess] = useState(false);
   const queryClient = useQueryClient();
   const { address } = useAccount();
@@ -76,9 +78,11 @@ export function PositionNotificationBanner({
       suggestedOrderContext: reorderVerificationContext,
     });
     if (success) {
+      // Show the just-submitted order immediately; the indexer catches up later.
+      applyReorderedOrder(vaultIds);
       setIsReorderSuccess(true);
     }
-  }, [result, executeReorder, reorderVerificationContext]);
+  }, [result, executeReorder, reorderVerificationContext, applyReorderedOrder]);
 
   const effectiveStatus = statusOverride ?? status;
 

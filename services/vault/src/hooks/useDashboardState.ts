@@ -4,8 +4,10 @@
  * Mirrors the data layer from useAaveOverviewState but scoped to what the dashboard needs.
  */
 
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
+import type { Hex } from "viem";
 
+import { useReorderOverride } from "@/applications/aave/context";
 import {
   useAaveBorrowedAssets,
   useAaveUserPosition,
@@ -17,6 +19,61 @@ import { toCollateralVaultEntries } from "@/utils/collateral";
 
 // Re-export for consumers
 export type { CollateralVaultEntry };
+
+/** Entries ordered ascending by the indexer's liquidationIndex (default order). */
+function byLiquidationIndex(
+  entries: CollateralVaultEntry[],
+): CollateralVaultEntry[] {
+  return [...entries].sort((a, b) => a.liquidationIndex - b.liquidationIndex);
+}
+
+/** Whether `order` is exactly the set of vault IDs in `entries`. */
+function orderMatchesEntrySet(
+  entries: CollateralVaultEntry[],
+  order: readonly Hex[],
+): boolean {
+  if (order.length !== entries.length) return false;
+  const ids = new Set(entries.map((e) => e.vaultId.toLowerCase()));
+  return (
+    ids.size === order.length && order.every((id) => ids.has(id.toLowerCase()))
+  );
+}
+
+/**
+ * Sort entries by the post-reorder submitted order so the new order shows
+ * immediately. Falls back to liquidationIndex when there is no override or it no
+ * longer describes the same vault set (e.g. a vault was withdrawn since).
+ */
+function sortByReorderedOverride(
+  entries: CollateralVaultEntry[],
+  order: readonly Hex[] | null,
+): CollateralVaultEntry[] {
+  if (!order || !orderMatchesEntrySet(entries, order)) {
+    return byLiquidationIndex(entries);
+  }
+  const rank = new Map<string, number>();
+  order.forEach((id, i) => rank.set(id.toLowerCase(), i));
+  return [...entries].sort(
+    (a, b) =>
+      rank.get(a.vaultId.toLowerCase())! - rank.get(b.vaultId.toLowerCase())!,
+  );
+}
+
+/**
+ * Whether the override should be dropped — true when there is no override, when
+ * it no longer matches the vault set, or when the indexer's liquidationIndex
+ * order already equals the override.
+ */
+function isReorderOverrideReconciled(
+  entries: CollateralVaultEntry[],
+  order: readonly Hex[] | null,
+): boolean {
+  if (!order) return true;
+  if (!orderMatchesEntrySet(entries, order)) return true;
+  return byLiquidationIndex(entries).every(
+    (e, i) => e.vaultId.toLowerCase() === order[i].toLowerCase(),
+  );
+}
 
 export function useDashboardState(connectedAddress: string | undefined) {
   const {
@@ -35,19 +92,34 @@ export function useDashboardState(connectedAddress: string | undefined) {
   });
 
   const { findProvider } = useVaultProviders();
+  const { reorderedOrder, clearReorderedOrder } = useReorderOverride();
 
   const hasCollateral = collateralBtc > 0;
   const hasDebt = debtValueUsd > 0;
 
+  // Display order normally comes from the indexer's `liquidationIndex`. Right
+  // after a reorder, `reorderedOrder` holds the submitted order so the new
+  // order shows immediately; it falls back to `liquidationIndex` once the
+  // override no longer matches the vault set.
   const collateralVaults = useMemo(
     (): CollateralVaultEntry[] =>
       position?.collaterals
-        ? toCollateralVaultEntries(position.collaterals, findProvider).sort(
-            (a, b) => a.liquidationIndex - b.liquidationIndex,
+        ? sortByReorderedOverride(
+            toCollateralVaultEntries(position.collaterals, findProvider),
+            reorderedOrder,
           )
         : [],
-    [position?.collaterals, findProvider],
+    [position?.collaterals, findProvider, reorderedOrder],
   );
+
+  // Drop the override once the indexer reflects the reordered sequence (or the
+  // vault set changed), handing display back to the indexer ordering.
+  useEffect(() => {
+    if (!reorderedOrder) return;
+    if (isReorderOverrideReconciled(collateralVaults, reorderedOrder)) {
+      clearReorderedOrder();
+    }
+  }, [collateralVaults, reorderedOrder, clearReorderedOrder]);
 
   // Transform borrowed assets for the asset selection modal
   const selectableBorrowedAssets = useMemo(

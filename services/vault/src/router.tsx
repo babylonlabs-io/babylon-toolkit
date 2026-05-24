@@ -7,6 +7,7 @@ import { AAVE_APP_ID } from "./applications/aave/config";
 import {
   AaveConfigProvider,
   PendingVaultsProvider,
+  ReorderOverrideProvider,
 } from "./applications/aave/context";
 import RootLayout from "./components/pages/RootLayout";
 import NotFound from "./components/pages/not-found";
@@ -28,7 +29,9 @@ const RouteFallback = () => (
 const DashboardWithProviders = () => (
   <AaveConfigProvider>
     <PendingVaultsProvider appId={AAVE_APP_ID}>
-      <DashboardPage />
+      <ReorderOverrideProvider>
+        <DashboardPage />
+      </ReorderOverrideProvider>
     </PendingVaultsProvider>
   </AaveConfigProvider>
 );

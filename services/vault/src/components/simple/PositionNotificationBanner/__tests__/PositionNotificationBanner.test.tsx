@@ -60,6 +60,15 @@ vi.mock("@/applications/aave/hooks/useReorderVaults", () => ({
   }),
 }));
 
+const mockApplyReorderedOrder = vi.fn();
+vi.mock("@/applications/aave/context", () => ({
+  useReorderOverride: () => ({
+    reorderedOrder: null,
+    applyReorderedOrder: mockApplyReorderedOrder,
+    clearReorderedOrder: vi.fn(),
+  }),
+}));
+
 const mockReorderVerificationContext = {
   CF: 0.7,
   THF: 1.1,

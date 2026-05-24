@@ -24,6 +24,7 @@ import {
 } from "@dnd-kit/sortable";
 import type { Hex } from "viem";
 
+import { useReorderOverride } from "@/applications/aave/context";
 import { COPY } from "@/copy";
 import type { CollateralVaultEntry } from "@/types/collateral";
 
@@ -64,6 +65,8 @@ export function ReorderVaultsModal({
     isOpen && hasOrderChanged,
   );
 
+  const { applyReorderedOrder } = useReorderOverride();
+
   const sensors = useSensors(
     useSensor(PointerSensor),
     useSensor(KeyboardSensor, {
@@ -77,6 +80,8 @@ export function ReorderVaultsModal({
   const handleConfirmClick = async () => {
     const success = await handleConfirm();
     if (success) {
+      // Show the just-submitted order immediately; the indexer catches up later.
+      applyReorderedOrder(vaultIds);
       onClose();
       onSuccess();
     }
