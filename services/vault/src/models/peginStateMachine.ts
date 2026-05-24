@@ -75,6 +75,22 @@ export type PeginDisplayLabel =
 // Unified PeginState (frontend)
 // ============================================================================
 
+/**
+ * Refund availability for an EXPIRED vault.
+ *
+ * The HTLC refund leaf is gated by `OP_CSV` over the deposit's pinned
+ * `tRefund` (blocks since Pre-PegIn confirmation). Bitcoin rejects an
+ * early broadcast with `non-BIP68-final`, so the UI surfaces three
+ * distinct states instead of unconditionally offering the action.
+ *
+ * - `mature`   — CSV satisfied; refund broadcast will be accepted.
+ * - `maturing` — CSV not yet satisfied; the countdown is known.
+ * - `unknown`  — confirmation count or per-deposit `tRefund` not
+ *                resolvable; the UI shows a generic pending message and
+ *                does NOT mark mature (never false-positive).
+ */
+export type RefundMaturityState = "mature" | "maturing" | "unknown";
+
 export interface PeginState {
   contractStatus: ContractStatus;
   localStatus?: LocalStorageStatus;
@@ -90,6 +106,9 @@ export interface PeginState {
    * BTC-confirmation wait.
    */
   awaitingVpIngestion?: boolean;
+  refundMaturityState?: RefundMaturityState;
+  /** Blocks remaining until refund matures; set only when `maturing`. */
+  refundMaturesInBlocks?: number;
 }
 
 export interface GetPeginStateOptions {
@@ -108,7 +127,21 @@ export interface GetPeginStateOptions {
   prePeginBroadcastConfirmed?: boolean;
   expirationReason?: ExpirationReason;
   expiredAt?: number;
+  /**
+   * True only when the deposit can be refunded *now*: the Pre-PegIn tx
+   * exists AND the HTLC CSV timelock (`tRefund`) has elapsed. The
+   * frontend computes this composite — the SDK-level protocol state
+   * isn't aware of Bitcoin maturity.
+   */
   canRefund?: boolean;
+  /**
+   * Per-deposit refund maturity (see {@link RefundMaturityState}). Drives
+   * the EXPIRED-branch message (countdown / pending / mature) without
+   * changing the action gating, which is owned by `canRefund`.
+   */
+  refundMaturityState?: RefundMaturityState;
+  /** Blocks remaining until CSV maturity; set only when `maturing`. */
+  refundMaturesInBlocks?: number;
   vpTerminalError?: string;
   /**
    * `Date.now()` value captured when the refund tx was broadcast. Anchors
@@ -338,6 +371,8 @@ interface DisplayInfo {
   message?: string;
   awaitingPayoutPrep?: boolean;
   awaitingVpIngestion?: boolean;
+  refundMaturityState?: RefundMaturityState;
+  refundMaturesInBlocks?: number;
 }
 
 function getDisplay(
@@ -488,10 +523,38 @@ function getDisplay(
         message: COPY.pegin.messages.refundBroadcast,
       };
     }
+    const expiredMessage = buildExpiredMessage(expirationReason, expiredAt);
+    const refundMaturityState = options.refundMaturityState;
+    const refundMaturesInBlocks = options.refundMaturesInBlocks;
+    if (
+      refundMaturityState === "maturing" &&
+      refundMaturesInBlocks !== undefined
+    ) {
+      // Each Bitcoin block is ~10 min; convert the remaining-blocks figure to
+      // a rough hour estimate for the message. Round up so a fractional last
+      // block doesn't display as 0 hours.
+      const hours = Math.max(1, Math.ceil((refundMaturesInBlocks * 10) / 60));
+      return {
+        displayLabel: PEGIN_DISPLAY_LABELS.EXPIRED,
+        displayVariant: "warning",
+        message: `${expiredMessage} ${COPY.pegin.messages.refundMaturing(refundMaturesInBlocks, hours)}`,
+        refundMaturityState,
+        refundMaturesInBlocks,
+      };
+    }
+    if (refundMaturityState === "unknown") {
+      return {
+        displayLabel: PEGIN_DISPLAY_LABELS.EXPIRED,
+        displayVariant: "warning",
+        message: `${expiredMessage} ${COPY.pegin.messages.refundMaturingUnknown}`,
+        refundMaturityState,
+      };
+    }
     return {
       displayLabel: PEGIN_DISPLAY_LABELS.EXPIRED,
       displayVariant: "warning",
-      message: buildExpiredMessage(expirationReason, expiredAt),
+      message: expiredMessage,
+      refundMaturityState: refundMaturityState ?? "mature",
     };
   }
 

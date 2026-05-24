@@ -127,15 +127,17 @@ export function PeginPollingProvider({
   });
 
   // Poll `prePeginTxHash` (depositor broadcast tx; `peginTxHash` is the VP
-  // activation tx and doesn't exist during PENDING). Include vaults where
-  // we haven't yet confirmed BTC-at-depth: no localStorage / PENDING /
-  // CONFIRMING. Skip PAYOUT_SIGNED / CONFIRMED / REFUND_BROADCAST (VP has
-  // already advanced past depth). Skip txids already in the persistent
-  // confirmed cache — chain doesn't rewind, repolling reads the same fact.
-  // State-machine consumer reads the depth signal from `confirmedTxids`
-  // OR'd with the live mempool map (see `getPollingResult` below), so
-  // dropping a confirmed txid from the poll set is safe across refreshes
-  // — not just bridged by React Query's in-memory `placeholderData`.
+  // activation tx and doesn't exist during PENDING). Two gates drive polling:
+  //  1) PENDING: detect Pre-PegIn at protocol `minPrepeginDepth` → routes
+  //     between AWAIT_VP_INGESTION and AWAIT_BTC_CONFIRMATION. We skip
+  //     vaults whose localStorage shows the VP already advanced past depth
+  //     (PAYOUT_SIGNED+) and txids in the persistent confirmed cache —
+  //     chain doesn't rewind, so repolling reads the same fact.
+  //  2) EXPIRED: detect HTLC CSV timelock satisfaction (`tRefund`) → gates
+  //     the Refund action so we don't surface a button whose broadcast
+  //     Bitcoin will reject with `non-BIP68-final`. EXPIRED stays in the
+  //     poll set regardless of the confirmed cache: that cache tracks
+  //     min-depth only, not the larger `tRefund` threshold.
   const { config, getOffchainParamsByVersion } = useProtocolParamsContext();
   const [confirmedTxids, setConfirmedTxids] = useState<Set<string>>(
     loadConfirmedPrePeginTxids,
@@ -169,18 +171,21 @@ export function PeginPollingProvider({
     return map;
   }, [pendingPegins, optimisticStatuses]);
 
-  const pendingPrePeginTxids = useMemo(
+  const relevantPrePeginTxids = useMemo(
     () =>
       activities
         .filter((a) => {
           // Skip unowned vaults: the depositor used a different BTC wallet
           // than the one currently connected (same ETH wallet, different BTC
           // key). The card is dimmed and the user cannot act, so polling
-          // mempool.space for the depth signal is wasted bandwidth — the
-          // current wallet would never sign the next-step tx anyway.
+          // mempool.space for depth/maturity is wasted bandwidth — the
+          // current wallet would never sign the next-step tx anyway
+          // (next-step = depositor signing for PENDING, refund for EXPIRED).
           if (!isVaultOwnedByWallet(a.depositorBtcPubkey, btcPublicKey))
             return false;
-          if ((a.contractStatus ?? 0) !== ContractStatus.PENDING) return false;
+          const status = (a.contractStatus ?? 0) as ContractStatus;
+          if (status === ContractStatus.EXPIRED) return true;
+          if (status !== ContractStatus.PENDING) return false;
           if (!isPrePeginPollEligibleStatus(localStatusById.get(a.id)))
             return false;
           const txid = canonicalizeTxid(a.prePeginTxHash);
@@ -190,7 +195,7 @@ export function PeginPollingProvider({
     [activities, localStatusById, confirmedTxids, btcPublicKey],
   );
   const { confirmationsByTxid: prePeginConfirmationsByTxid } =
-    usePrePeginMempoolConfirmations(pendingPrePeginTxids);
+    usePrePeginMempoolConfirmations(relevantPrePeginTxids);
 
   // Persist newly-confirmed observations and drop them from the polled set
   // on next render. The localStorage write and setState happen OUTSIDE the
@@ -295,8 +300,16 @@ export function PeginPollingProvider({
       // so a governance bump to `minPrepeginDepth` doesn't misclassify older
       // deposits.
       const requiredDepth = getRequiredPrePeginDepth(activity);
+      // tRefund — do NOT fall back to latest: if governance ever lowered
+      // it, latest would mark a vault mature before its actual CSV
+      // timelock elapses (Bitcoin would reject `non-BIP68-final`). Treat
+      // a missing version as "unknown" so we never false-positive maturity.
+      const refundTimelock =
+        activity.offchainParamsVersion !== undefined
+          ? getOffchainParamsByVersion(activity.offchainParamsVersion)?.tRefund
+          : undefined;
 
-      // Same key as `pendingPrePeginTxids` — depositor's broadcast tx.
+      // Same key as `relevantPrePeginTxids` — depositor's broadcast tx.
       // The confirmed cache is also authoritative for "at depth": on a
       // fresh page load the cached txid is filtered out of polling so the
       // live map has no entry for it, but the depth fact persisted across
@@ -313,6 +326,32 @@ export function PeginPollingProvider({
         cachedAtDepth ||
         (confirmations !== undefined && confirmations >= requiredDepth);
 
+      // EXPIRED refund maturity. `mature` only when both inputs are
+      // available AND CSV is satisfied; `maturing` when both are
+      // available AND not yet satisfied; `unknown` when either input is
+      // missing (preserves "never false-positive").
+      let refundMaturityState: "mature" | "maturing" | "unknown" | undefined;
+      let refundMaturesInBlocks: number | undefined;
+      if (contractStatus === ContractStatus.EXPIRED) {
+        if (confirmations !== undefined && refundTimelock !== undefined) {
+          if (confirmations >= refundTimelock) {
+            refundMaturityState = "mature";
+          } else {
+            refundMaturityState = "maturing";
+            refundMaturesInBlocks = refundTimelock - confirmations;
+          }
+        } else {
+          refundMaturityState = "unknown";
+        }
+      }
+
+      // `canRefund` is the FE-composite: the SDK only cares "do we have
+      // the unsigned Pre-PegIn hex to build a refund tx?"; we additionally
+      // require CSV maturity so the button never appears for a deposit
+      // whose broadcast Bitcoin will reject.
+      const canRefund =
+        !!activity.unsignedPrePeginTx && refundMaturityState === "mature";
+
       const peginState = getPeginState(contractStatus, {
         localStatus,
         transactionsReady,
@@ -322,7 +361,9 @@ export function PeginPollingProvider({
         prePeginBroadcastConfirmed,
         expirationReason: activity.expirationReason,
         expiredAt: activity.expiredAt,
-        canRefund: !!activity.unsignedPrePeginTx,
+        canRefund,
+        refundMaturityState,
+        refundMaturesInBlocks,
         vpTerminalError,
         refundBroadcastAt,
       });
@@ -349,6 +390,7 @@ export function PeginPollingProvider({
       prePeginConfirmationsByTxid,
       confirmedTxids,
       getRequiredPrePeginDepth,
+      getOffchainParamsByVersion,
       isLoading,
       optimisticStatuses,
       optimisticRefundBroadcastAt,

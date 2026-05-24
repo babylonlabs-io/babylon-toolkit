@@ -34,6 +34,12 @@ interface RefundReviewContentProps {
   refunding: boolean;
   error: string | null;
   onConfirm: (feeRate: number) => void;
+  /**
+   * Offchain params version the vault was registered against. Drives the
+   * "arrives in ~X hours" estimate so an older vault doesn't show the
+   * latest `tRefund` when governance has since changed the value.
+   */
+  offchainParamsVersion?: number;
 }
 
 export function RefundReviewContent({
@@ -44,12 +50,22 @@ export function RefundReviewContent({
   refunding,
   error,
   onConfirm,
+  offchainParamsVersion,
 }: RefundReviewContentProps) {
   const btcPriceUSD = usePrice("BTC");
   const symbol = getBtcSymbol();
-  const { timelockRefund } = useProtocolParamsContext();
+  const { timelockRefund, getOffchainParamsByVersion } =
+    useProtocolParamsContext();
+  // Estimate-only: a missing version (older indexer data) falls back to the
+  // latest `timelockRefund` rather than blocking the modal. The dashboard
+  // already gated the action on per-deposit CSV maturity; this hour figure
+  // is the post-broadcast arrival estimate.
+  const effectiveTimelock =
+    (offchainParamsVersion !== undefined
+      ? getOffchainParamsByVersion(offchainParamsVersion)?.tRefund
+      : undefined) ?? timelockRefund;
   const estimatedHours = Math.ceil(
-    (timelockRefund * BTC_BLOCK_TIME_MINS) / MINS_PER_HOUR,
+    (effectiveTimelock * BTC_BLOCK_TIME_MINS) / MINS_PER_HOUR,
   );
 
   const [feeRate, setFeeRate] = useState<number | null>(null);

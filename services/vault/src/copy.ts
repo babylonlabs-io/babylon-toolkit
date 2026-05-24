@@ -88,6 +88,10 @@ export const COPY = {
         "This BTC Vault was liquidated. The collateral was seized to cover unpaid debt.",
       refundBroadcast:
         "Refund transaction has been broadcast to Bitcoin. Waiting for on-chain confirmation...",
+      refundMaturing: (blocks: number, hours: number) =>
+        `Refund available in ~${blocks} Bitcoin ${blocks === 1 ? "block" : "blocks"} (~${hours}h). The HTLC timelock must elapse before the network will accept a refund.`,
+      refundMaturingUnknown:
+        "Refund will be available once the HTLC timelock elapses. Checking the on-chain status...",
       invalid:
         "This BTC Vault is invalid. The BTC UTXOs were spent in a different transaction.",
       redemptionComplete:

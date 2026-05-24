@@ -76,6 +76,7 @@ export function RefundModal({
           refunding={refunding}
           error={error}
           onConfirm={handleRefund}
+          offchainParamsVersion={activity.offchainParamsVersion}
         />
       </ProtocolParamsProvider>
     </FullScreenDialog>

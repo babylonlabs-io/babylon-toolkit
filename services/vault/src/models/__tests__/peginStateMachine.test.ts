@@ -376,6 +376,54 @@ describe("peginStateMachine", () => {
       expect(state.availableActions).toEqual([PeginAction.REFUND_HTLC]);
       expect(state.displayLabel).toBe(PEGIN_DISPLAY_LABELS.EXPIRED);
     });
+
+    it("surfaces a CSV-maturing countdown when refund timelock has not elapsed", () => {
+      const state = getPeginState(ContractStatus.EXPIRED, {
+        expirationReason: "ack_timeout",
+        canRefund: false,
+        refundMaturityState: "maturing",
+        refundMaturesInBlocks: 24,
+      });
+      expect(state.availableActions).toEqual([PeginAction.NONE]);
+      expect(state.refundMaturityState).toBe("maturing");
+      expect(state.refundMaturesInBlocks).toBe(24);
+      // 24 blocks × 10 min = 240 min → ceil(240/60) = 4h.
+      expect(state.message).toContain("~24 Bitcoin blocks");
+      expect(state.message).toContain("~4h");
+    });
+
+    it("uses singular 'block' when exactly one block remains", () => {
+      const state = getPeginState(ContractStatus.EXPIRED, {
+        canRefund: false,
+        refundMaturityState: "maturing",
+        refundMaturesInBlocks: 1,
+      });
+      expect(state.message).toContain("~1 Bitcoin block ");
+      // 1 block * 10 min = 10 min → ceil(10/60)=1h, floored to min 1h.
+      expect(state.message).toContain("~1h");
+    });
+
+    it("shows the generic pending message when refund maturity is unknown", () => {
+      const state = getPeginState(ContractStatus.EXPIRED, {
+        expirationReason: "ack_timeout",
+        canRefund: false,
+        refundMaturityState: "unknown",
+      });
+      expect(state.availableActions).toEqual([PeginAction.NONE]);
+      expect(state.refundMaturityState).toBe("unknown");
+      expect(state.refundMaturesInBlocks).toBeUndefined();
+      expect(state.message).toContain(
+        "Refund will be available once the HTLC timelock elapses",
+      );
+    });
+
+    it("marks state as 'mature' when canRefund is true and no maturity flag was passed", () => {
+      // The default-to-mature fallback preserves the pre-feature behavior for
+      // any caller that hasn't been updated to pass the maturity inputs yet.
+      const state = getPeginState(ContractStatus.EXPIRED, { canRefund: true });
+      expect(state.availableActions).toEqual([PeginAction.REFUND_HTLC]);
+      expect(state.refundMaturityState).toBe("mature");
+    });
   });
 
   // ==========================================================================
