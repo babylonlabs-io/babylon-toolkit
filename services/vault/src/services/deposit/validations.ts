@@ -172,6 +172,32 @@ export function amountExceedsMax(
   );
 }
 
+/**
+ * True when the remaining supply cap is positive but below the protocol minimum
+ * deposit. In that state the cap (upper bound) and the minimum (lower bound)
+ * leave an empty range — no amount can satisfy both — so deposits are
+ * impossible until the cap grows. Surfacing this directly avoids contradictory
+ * guidance where the cap check says "lower it" and the minimum check says
+ * "raise it". Narrows `effectiveRemaining` to a non-null bigint when true.
+ */
+export function capBelowMinimum(
+  effectiveRemaining: bigint | null,
+  minDeposit: bigint,
+): effectiveRemaining is bigint {
+  return (
+    effectiveRemaining !== null &&
+    effectiveRemaining > 0n &&
+    effectiveRemaining < minDeposit
+  );
+}
+
+export function capBelowMinimumLabel(
+  effectiveRemaining: bigint,
+  minDeposit: bigint,
+): string {
+  return `Remaining capacity (${formatSatoshisToBtc(effectiveRemaining)} BTC) is below the minimum deposit (${formatSatoshisToBtc(minDeposit)} BTC)`;
+}
+
 export function getDepositButtonLabel(
   params: DepositFormValidityParams,
 ): string {
@@ -250,6 +276,16 @@ export function getDepositCtaState(params: DepositCtaParams): DepositCtaState {
     return {
       disabled: true,
       label: "Supply cap reached — deposits temporarily paused",
+    };
+  }
+  // No amount can clear both the remaining cap and the protocol minimum — a
+  // terminal state, so surface it regardless of the entered amount rather than
+  // bouncing between "exceeds capacity" and "minimum" guidance. Mirrored in
+  // `useDepositValidation.validateAmount` so the inline/submit path agrees.
+  if (capBelowMinimum(params.effectiveRemaining, params.minDeposit)) {
+    return {
+      disabled: true,
+      label: capBelowMinimumLabel(params.effectiveRemaining, params.minDeposit),
     };
   }
   if (

@@ -63,6 +63,20 @@ export function useDepositValidation(
 
       const satoshis = depositService.parseBtcToSatoshis(amount);
 
+      // When the remaining cap is below the protocol minimum, no amount is
+      // valid. Surface that terminal reason before the base min/max check so it
+      // matches the CTA (`getDepositCtaState`) instead of showing a minimum
+      // error the user can never satisfy.
+      if (depositService.capBelowMinimum(effectiveRemaining, minDeposit)) {
+        return {
+          valid: false,
+          error: depositService.capBelowMinimumLabel(
+            effectiveRemaining,
+            minDeposit,
+          ),
+        };
+      }
+
       const base = depositService.validateDepositAmount(
         satoshis,
         minDeposit,
