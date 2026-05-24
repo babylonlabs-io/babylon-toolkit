@@ -114,6 +114,21 @@ describe("useDashboardState", () => {
       VAULT_A,
       VAULT_B,
     ]);
+    // Each row's liquidationIndex (used for the "Liquidation Order" ordinal)
+    // is rewritten to the override rank, so the badge matches the row position
+    // instead of showing the stale indexer index.
+    expect(
+      result.current.collateralVaults.map((v) => v.liquidationIndex),
+    ).toEqual([0, 1, 2]);
+    const indexByVault = new Map(
+      result.current.collateralVaults.map((v) => [
+        v.vaultId,
+        v.liquidationIndex,
+      ]),
+    );
+    expect(indexByVault.get(VAULT_C)).toBe(0);
+    expect(indexByVault.get(VAULT_A)).toBe(1);
+    expect(indexByVault.get(VAULT_B)).toBe(2);
   });
 
   it("clears the override once the indexer order matches it", () => {

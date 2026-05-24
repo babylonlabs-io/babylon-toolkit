@@ -41,8 +41,12 @@ function orderMatchesEntrySet(
 
 /**
  * Sort entries by the post-reorder submitted order so the new order shows
- * immediately. Falls back to liquidationIndex when there is no override or it no
- * longer describes the same vault set (e.g. a vault was withdrawn since).
+ * immediately. Also rewrites each entry's `liquidationIndex` to its rank in the
+ * override, so the per-row "Liquidation Order" ordinal matches the displayed
+ * position (otherwise rows would show stale indexer ordinals during the
+ * reconciliation window). Falls back to the indexer's liquidationIndex when
+ * there is no override or it no longer describes the same vault set (e.g. a
+ * vault was withdrawn since).
  */
 function sortByReorderedOverride(
   entries: CollateralVaultEntry[],
@@ -53,10 +57,12 @@ function sortByReorderedOverride(
   }
   const rank = new Map<string, number>();
   order.forEach((id, i) => rank.set(id.toLowerCase(), i));
-  return [...entries].sort(
-    (a, b) =>
-      rank.get(a.vaultId.toLowerCase())! - rank.get(b.vaultId.toLowerCase())!,
-  );
+  return entries
+    .map((entry) => ({
+      ...entry,
+      liquidationIndex: rank.get(entry.vaultId.toLowerCase())!,
+    }))
+    .sort((a, b) => a.liquidationIndex - b.liquidationIndex);
 }
 
 /**
@@ -97,29 +103,36 @@ export function useDashboardState(connectedAddress: string | undefined) {
   const hasCollateral = collateralBtc > 0;
   const hasDebt = debtValueUsd > 0;
 
-  // Display order normally comes from the indexer's `liquidationIndex`. Right
-  // after a reorder, `reorderedOrder` holds the submitted order so the new
-  // order shows immediately; it falls back to `liquidationIndex` once the
+  // Raw indexer entries (liquidationIndex straight from the indexer). These
+  // drive reconciliation — they reflect what the indexer currently believes,
+  // independent of any active override.
+  const rawCollateralVaults = useMemo(
+    (): CollateralVaultEntry[] =>
+      position?.collaterals
+        ? toCollateralVaultEntries(position.collaterals, findProvider)
+        : [],
+    [position?.collaterals, findProvider],
+  );
+
+  // Displayed entries. Normally indexer-ordered; right after a reorder,
+  // `reorderedOrder` holds the submitted order so the new order (and each row's
+  // ordinal) shows immediately. Falls back to indexer ordering once the
   // override no longer matches the vault set.
   const collateralVaults = useMemo(
     (): CollateralVaultEntry[] =>
-      position?.collaterals
-        ? sortByReorderedOverride(
-            toCollateralVaultEntries(position.collaterals, findProvider),
-            reorderedOrder,
-          )
-        : [],
-    [position?.collaterals, findProvider, reorderedOrder],
+      sortByReorderedOverride(rawCollateralVaults, reorderedOrder),
+    [rawCollateralVaults, reorderedOrder],
   );
 
   // Drop the override once the indexer reflects the reordered sequence (or the
-  // vault set changed), handing display back to the indexer ordering.
+  // vault set changed), handing display back to the indexer ordering. Compares
+  // against the raw indexer entries, not the override-rewritten ones.
   useEffect(() => {
     if (!reorderedOrder) return;
-    if (isReorderOverrideReconciled(collateralVaults, reorderedOrder)) {
+    if (isReorderOverrideReconciled(rawCollateralVaults, reorderedOrder)) {
       clearReorderedOrder();
     }
-  }, [collateralVaults, reorderedOrder, clearReorderedOrder]);
+  }, [rawCollateralVaults, reorderedOrder, clearReorderedOrder]);
 
   // Transform borrowed assets for the asset selection modal
   const selectableBorrowedAssets = useMemo(
