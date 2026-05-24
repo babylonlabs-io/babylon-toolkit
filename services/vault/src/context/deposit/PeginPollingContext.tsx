@@ -11,11 +11,11 @@
  * - Optimistic UI updates for immediate feedback
  */
 
-import { stripHexPrefix } from "@babylonlabs-io/ts-sdk/tbv/core";
 import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useState,
 } from "react";
@@ -27,14 +27,35 @@ import {
   getPeginState,
   LocalStorageStatus,
 } from "../../models/peginStateMachine";
+import {
+  addConfirmedPrePeginTxid,
+  loadConfirmedPrePeginTxids,
+} from "../../storage/confirmedPrePeginCache";
+import type { VaultActivity } from "../../types/activity";
 import type {
   DepositPollingResult,
   PeginPollingContextValue,
   PeginPollingProviderProps,
 } from "../../types/peginPolling";
 import { isTerminalPollingError } from "../../utils/peginPolling";
+import { canonicalizeTxid } from "../../utils/txid";
 import { isVaultOwnedByWallet } from "../../utils/vaultWarnings";
 import { useProtocolParamsContext } from "../ProtocolParamsContext";
+
+/**
+ * Whether a vault's localStorage status puts it in the window where the
+ * mempool can still tell us something new about Pre-PegIn depth.
+ * PAYOUT_SIGNED+ means the VP has already verified BTC at depth.
+ */
+function isPrePeginPollEligibleStatus(
+  status: LocalStorageStatus | undefined,
+): boolean {
+  return (
+    status === undefined ||
+    status === LocalStorageStatus.PENDING ||
+    status === LocalStorageStatus.CONFIRMING
+  );
+}
 
 /**
  * Resolve the effective local status for a deposit, accounting for
@@ -105,19 +126,77 @@ export function PeginPollingProvider({
     btcPublicKey,
   });
 
-  // Chain ground truth for "Pre-PegIn at protocol depth?" — independent of
-  // localStorage so a deposit doesn't get pinned on AWAIT_BTC_CONFIRMATION
-  // when BTC is already deep but the VP is still ingesting.
+  // Poll `prePeginTxHash` (depositor broadcast tx; `peginTxHash` is the VP
+  // activation tx and doesn't exist during PENDING). Include vaults where
+  // we haven't yet confirmed BTC-at-depth: no localStorage / PENDING /
+  // CONFIRMING. Skip PAYOUT_SIGNED / CONFIRMED / REFUND_BROADCAST (VP has
+  // already advanced past depth). Skip txids already in the persistent
+  // confirmed cache — chain doesn't rewind, repolling reads the same fact.
+  // State-machine consumer still sees the depth signal via the query's
+  // `placeholderData` carryover, so dropping from the poll set is safe.
   const { config, getOffchainParamsByVersion } = useProtocolParamsContext();
+  const [confirmedTxids, setConfirmedTxids] = useState<Set<string>>(
+    loadConfirmedPrePeginTxids,
+  );
+
+  const getRequiredPrePeginDepth = useCallback(
+    (activity: VaultActivity): number => {
+      const versioned =
+        activity.offchainParamsVersion !== undefined
+          ? getOffchainParamsByVersion(activity.offchainParamsVersion)
+          : undefined;
+      return (
+        versioned?.minPrepeginDepth ?? config.offchainParams.minPrepeginDepth
+      );
+    },
+    [getOffchainParamsByVersion, config.offchainParams.minPrepeginDepth],
+  );
+
+  const localStatusById = useMemo(() => {
+    const map = new Map<string, LocalStorageStatus>();
+    for (const p of pendingPegins) {
+      if (p.status) map.set(p.id, p.status as LocalStorageStatus);
+    }
+    return map;
+  }, [pendingPegins]);
+
   const pendingPrePeginTxids = useMemo(
     () =>
       activities
-        .filter((a) => (a.contractStatus ?? 0) === ContractStatus.PENDING)
-        .map((a) => a.peginTxHash),
-    [activities],
+        .filter((a) => {
+          if ((a.contractStatus ?? 0) !== ContractStatus.PENDING) return false;
+          if (!isPrePeginPollEligibleStatus(localStatusById.get(a.id)))
+            return false;
+          const txid = canonicalizeTxid(a.prePeginTxHash);
+          return !(txid && confirmedTxids.has(txid));
+        })
+        .map((a) => a.prePeginTxHash),
+    [activities, localStatusById, confirmedTxids],
   );
   const { confirmationsByTxid: prePeginConfirmationsByTxid } =
     usePrePeginMempoolConfirmations(pendingPrePeginTxids);
+
+  // Persist newly-confirmed observations and drop them from the polled set
+  // on next render. Functional setState keeps `confirmedTxids` out of the
+  // dep array so the effect doesn't re-fire every time the cache grows.
+  useEffect(() => {
+    if (prePeginConfirmationsByTxid.size === 0) return;
+    setConfirmedTxids((prev) => {
+      const next = new Set(prev);
+      let changed = false;
+      for (const activity of activities) {
+        const txid = canonicalizeTxid(activity.prePeginTxHash);
+        if (!txid || next.has(txid)) continue;
+        const observed = prePeginConfirmationsByTxid.get(txid);
+        if (observed === undefined) continue;
+        if (observed < getRequiredPrePeginDepth(activity)) continue;
+        addConfirmedPrePeginTxid(txid);
+        next.add(txid);
+        changed = true;
+      }
+      return changed ? next : prev;
+    });
+  }, [prePeginConfirmationsByTxid, activities, getRequiredPrePeginDepth]);
 
   // Optimistic status handlers
   const setOptimisticStatus = useCallback(
@@ -185,24 +264,15 @@ export function PeginPollingProvider({
         ? false
         : (pendingDepositorSignatures?.has(depositId) ?? false);
 
-      // Each vault is pinned to a specific offchainParamsVersion at registration
-      // (matches the in-flow modal's behavior; see commit 5b7048e). The poller
-      // fetches raw confirmation counts; we apply the per-deposit depth here so
-      // a governance change to `minPrepeginDepth` never misclassifies older
-      // deposits. Falls back to latest if the version isn't on the activity
-      // (older indexer data) — same as not gating, which is the safe direction.
-      const versionedParams =
-        activity.offchainParamsVersion !== undefined
-          ? getOffchainParamsByVersion(activity.offchainParamsVersion)
-          : undefined;
-      const requiredDepth =
-        versionedParams?.minPrepeginDepth ??
-        config.offchainParams.minPrepeginDepth;
+      // Per-vault depth (pinned to the registration's offchainParamsVersion)
+      // so a governance bump to `minPrepeginDepth` doesn't misclassify older
+      // deposits.
+      const requiredDepth = getRequiredPrePeginDepth(activity);
 
-      const confirmations = activity.peginTxHash
-        ? prePeginConfirmationsByTxid.get(
-            stripHexPrefix(activity.peginTxHash).toLowerCase(),
-          )
+      // Same key as `pendingPrePeginTxids` — depositor's broadcast tx.
+      const prePeginCanonical = canonicalizeTxid(activity.prePeginTxHash);
+      const confirmations = prePeginCanonical
+        ? prePeginConfirmationsByTxid.get(prePeginCanonical)
         : undefined;
       const prePeginBroadcastConfirmed =
         confirmations !== undefined && confirmations >= requiredDepth;
@@ -240,8 +310,7 @@ export function PeginPollingProvider({
       needsWotsKey,
       pendingIngestion,
       prePeginConfirmationsByTxid,
-      getOffchainParamsByVersion,
-      config.offchainParams.minPrepeginDepth,
+      getRequiredPrePeginDepth,
       isLoading,
       optimisticStatuses,
       optimisticRefundBroadcastAt,
