@@ -105,7 +105,7 @@ export function SupplyCapSection({
 
   return (
     <VaultCapFrame>
-      <CapCard label="Total Cap Available" btcDisplay={capDisplay} usd={capUsd} />
+      <CapCard label="Total Cap" btcDisplay={capDisplay} usd={capUsd} />
       <CapCard
         label="Total Deposited"
         btcDisplay={depositedDisplay}
