@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import { ContractStatus } from "../../models/peginStateMachine";
 import type { Vault } from "../../types/vault";
 import {
+  derivePrePeginTxHash,
   getFormattedRepayAmount,
   transformVaultToActivity,
   transformVaultsToActivities,
@@ -14,6 +15,15 @@ vi.mock("../../config", () => ({
     coinSymbol: "BTC",
     icon: "btc-icon.svg",
   }),
+}));
+
+vi.mock("@babylonlabs-io/ts-sdk/tbv/core/utils", () => ({
+  calculateBtcTxHash: (txHex: string): string => {
+    if (txHex === "0xvalidtx" || txHex === "validtx") {
+      return "0xderivedtxid";
+    }
+    throw new Error("invalid tx hex");
+  },
 }));
 
 function makeVault(overrides: Partial<Vault> = {}): Vault {
@@ -42,6 +52,21 @@ function makeVault(overrides: Partial<Vault> = {}): Vault {
 }
 
 describe("vaultTransformers", () => {
+  describe("derivePrePeginTxHash", () => {
+    it("returns the derived txid for a decodable hex", () => {
+      expect(derivePrePeginTxHash("0xvalidtx")).toBe("0xderivedtxid");
+    });
+
+    it("returns undefined when the input is empty", () => {
+      expect(derivePrePeginTxHash("")).toBeUndefined();
+      expect(derivePrePeginTxHash(undefined)).toBeUndefined();
+    });
+
+    it("returns undefined when the input fails to decode", () => {
+      expect(derivePrePeginTxHash("0xgarbage")).toBeUndefined();
+    });
+  });
+
   describe("transformVaultToActivity", () => {
     it("maps core vault fields to activity", () => {
       const vault = makeVault();

@@ -4,3 +4,7 @@ export {
   usePendingVaults,
   useSyncPendingVaults,
 } from "./PendingVaultsContext";
+export {
+  ReorderOverrideProvider,
+  useReorderOverride,
+} from "./ReorderOverrideContext";

@@ -19,6 +19,7 @@ import {
 } from "@/components/shared/layoutClasses";
 import { getNetworkConfigBTC } from "@/config";
 import { PeginPollingProvider } from "@/context/deposit/PeginPollingContext";
+import { ProtocolParamsProvider } from "@/context/ProtocolParamsContext";
 import { usePendingDeposits } from "@/hooks/usePendingDeposits";
 import { groupActivitiesByBatch } from "@/utils/batchedPegin";
 import { formatBtcAmount } from "@/utils/formatting";
@@ -72,143 +73,150 @@ export function PendingDepositSection() {
 
   const count = pendingActivities.length;
 
+  // `PeginPollingProvider` resolves per-deposit `minPrepeginDepth` via
+  // `useProtocolParamsContext` for the AWAIT_VP_INGESTION routing — the
+  // dashboard doesn't otherwise mount `ProtocolParamsProvider`, so do it
+  // here. Only fires when there is something pending (the section early-
+  // returns above), so we don't pay the params load on an empty dashboard.
   return (
-    <PeginPollingProvider
-      activities={allActivities}
-      pendingPegins={pendingPegins}
-      btcPublicKey={btcPublicKey}
-    >
-      <div className="w-full space-y-10">
-        {hasPendingDeposits && (
-          <div className="space-y-6">
-            {/* Header row */}
-            <div className="flex items-center gap-3">
-              <h2 className="text-[24px] font-normal text-accent-primary">
-                Pending Deposits ({count})
-              </h2>
-              <div className="h-[18px] w-[18px] animate-spin rounded-full border-2 border-accent-primary border-t-transparent" />
-            </div>
-
-            {/* Summary card */}
-            <Card
-              variant="filled"
-              className={`${SUMMARY_CARD_CLASS} ${CARD_DARK_BG_CLASS}`}
-            >
-              {/* Summary row: BTC icon + amount | action badge (when collapsed) + expand toggle */}
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex min-w-0 flex-1 items-center gap-2">
-                  <Avatar
-                    url={btcConfig.icon}
-                    alt={btcConfig.coinSymbol}
-                    size="medium"
-                  />
-                  <span className="text-xl text-accent-primary">
-                    {formatBtcAmount(totalBtcAmount)}
-                  </span>
-                </div>
-                <div className="flex flex-shrink-0 items-center gap-2">
-                  <PendingDepositActionBadge
-                    pendingActivityIds={pendingActivities.map((a) => a.id)}
-                    isExpanded={isExpanded}
-                  />
-                  <ExpandMenuButton
-                    isExpanded={isExpanded}
-                    onToggle={() => setIsExpanded((prev) => !prev)}
-                    aria-label="Pending deposit details"
-                  />
-                </div>
+    <ProtocolParamsProvider>
+      <PeginPollingProvider
+        activities={allActivities}
+        pendingPegins={pendingPegins}
+        btcPublicKey={btcPublicKey}
+      >
+        <div className="w-full space-y-10">
+          {hasPendingDeposits && (
+            <div className="space-y-6">
+              {/* Header row */}
+              <div className="flex items-center gap-3">
+                <h2 className="text-[24px] font-normal text-accent-primary">
+                  Pending Deposits ({count})
+                </h2>
+                <div className="h-[18px] w-[18px] animate-spin rounded-full border-2 border-accent-primary border-t-transparent" />
               </div>
 
-              {/* Expanded deposit list */}
-              {isExpanded && (
-                <div className="mt-4 max-h-[400px] space-y-2 overflow-y-auto">
-                  {pendingGroups.map((group) =>
-                    group.length > 1 ? (
-                      <BatchedDepositGroup
-                        key={group[0].id}
-                        activities={group}
-                        vaultProviders={vaultProviders}
-                        onSignClick={signModal.handleSignClick}
-                        onBroadcastClick={broadcastModal.handleBroadcastClick}
-                        onWotsKeyClick={wotsKeyModal.handleWotsKeyClick}
-                        onActivationClick={
-                          activationModal.handleActivationClick
-                        }
-                        onRefundClick={refundModal.handleRefundClick}
-                        onArtifactDownloadClick={
-                          artifactDownloadModal.handleArtifactDownloadClick
-                        }
-                      />
-                    ) : (
-                      <PendingDepositCard
-                        key={group[0].id}
-                        depositId={group[0].id}
-                        amount={group[0].collateral.amount}
-                        timestamp={group[0].timestamp}
-                        txHash={group[0].peginTxHash}
-                        providerId={group[0].providers[0].id}
-                        vaultProviders={vaultProviders}
-                        onSignClick={signModal.handleSignClick}
-                        onBroadcastClick={broadcastModal.handleBroadcastClick}
-                        onWotsKeyClick={wotsKeyModal.handleWotsKeyClick}
-                        onActivationClick={
-                          activationModal.handleActivationClick
-                        }
-                        onRefundClick={refundModal.handleRefundClick}
-                        onArtifactDownloadClick={
-                          artifactDownloadModal.handleArtifactDownloadClick
-                        }
-                      />
-                    ),
-                  )}
+              {/* Summary card */}
+              <Card
+                variant="filled"
+                className={`${SUMMARY_CARD_CLASS} ${CARD_DARK_BG_CLASS}`}
+              >
+                {/* Summary row: BTC icon + amount | action badge (when collapsed) + expand toggle */}
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex min-w-0 flex-1 items-center gap-2">
+                    <Avatar
+                      url={btcConfig.icon}
+                      alt={btcConfig.coinSymbol}
+                      size="medium"
+                    />
+                    <span className="text-xl text-accent-primary">
+                      {formatBtcAmount(totalBtcAmount)}
+                    </span>
+                  </div>
+                  <div className="flex flex-shrink-0 items-center gap-2">
+                    <PendingDepositActionBadge
+                      pendingActivityIds={pendingActivities.map((a) => a.id)}
+                      isExpanded={isExpanded}
+                    />
+                    <ExpandMenuButton
+                      isExpanded={isExpanded}
+                      onToggle={() => setIsExpanded((prev) => !prev)}
+                      aria-label="Pending deposit details"
+                    />
+                  </div>
                 </div>
-              )}
-            </Card>
-          </div>
-        )}
 
-        <ExpiredDepositSection
-          expiredActivities={expiredActivities}
-          vaultProviders={vaultProviders}
-          onSignClick={signModal.handleSignClick}
-          onBroadcastClick={broadcastModal.handleBroadcastClick}
-          onWotsKeyClick={wotsKeyModal.handleWotsKeyClick}
-          onActivationClick={activationModal.handleActivationClick}
-          onRefundClick={refundModal.handleRefundClick}
-          onArtifactDownloadClick={
-            artifactDownloadModal.handleArtifactDownloadClick
-          }
-        />
-      </div>
+                {/* Expanded deposit list */}
+                {isExpanded && (
+                  <div className="mt-4 max-h-[400px] space-y-2 overflow-y-auto">
+                    {pendingGroups.map((group) =>
+                      group.length > 1 ? (
+                        <BatchedDepositGroup
+                          key={group[0].id}
+                          activities={group}
+                          vaultProviders={vaultProviders}
+                          onSignClick={signModal.handleSignClick}
+                          onBroadcastClick={broadcastModal.handleBroadcastClick}
+                          onWotsKeyClick={wotsKeyModal.handleWotsKeyClick}
+                          onActivationClick={
+                            activationModal.handleActivationClick
+                          }
+                          onRefundClick={refundModal.handleRefundClick}
+                          onArtifactDownloadClick={
+                            artifactDownloadModal.handleArtifactDownloadClick
+                          }
+                        />
+                      ) : (
+                        <PendingDepositCard
+                          key={group[0].id}
+                          depositId={group[0].id}
+                          amount={group[0].collateral.amount}
+                          timestamp={group[0].timestamp}
+                          txHash={group[0].prePeginTxHash}
+                          providerId={group[0].providers[0].id}
+                          vaultProviders={vaultProviders}
+                          onSignClick={signModal.handleSignClick}
+                          onBroadcastClick={broadcastModal.handleBroadcastClick}
+                          onWotsKeyClick={wotsKeyModal.handleWotsKeyClick}
+                          onActivationClick={
+                            activationModal.handleActivationClick
+                          }
+                          onRefundClick={refundModal.handleRefundClick}
+                          onArtifactDownloadClick={
+                            artifactDownloadModal.handleArtifactDownloadClick
+                          }
+                        />
+                      ),
+                    )}
+                  </div>
+                )}
+              </Card>
+            </div>
+          )}
 
-      {artifactDownloadModal.isOpen &&
-        artifactDownloadModal.params &&
-        artifactDownloadModal.activity && (
-          <ArtifactDownloadModal
-            open={artifactDownloadModal.isOpen}
-            onClose={artifactDownloadModal.handleClose}
-            onComplete={artifactDownloadModal.handleComplete}
-            providerAddress={artifactDownloadModal.params.providerAddress}
-            peginTxid={artifactDownloadModal.params.peginTxid}
-            depositorPk={artifactDownloadModal.params.depositorPk}
-            vaultId={artifactDownloadModal.activity.id}
-            unsignedPrePeginTxHex={
-              artifactDownloadModal.activity.unsignedPrePeginTx
+          <ExpiredDepositSection
+            expiredActivities={expiredActivities}
+            vaultProviders={vaultProviders}
+            onSignClick={signModal.handleSignClick}
+            onBroadcastClick={broadcastModal.handleBroadcastClick}
+            onWotsKeyClick={wotsKeyModal.handleWotsKeyClick}
+            onActivationClick={activationModal.handleActivationClick}
+            onRefundClick={refundModal.handleRefundClick}
+            onArtifactDownloadClick={
+              artifactDownloadModal.handleArtifactDownloadClick
             }
           />
-        )}
+        </div>
 
-      {/* Sign / Broadcast / WOTS Key / Activation / Refund / Success modals */}
-      <PendingDepositModals
-        signModal={signModal}
-        broadcastModal={broadcastModal}
-        wotsKeyModal={wotsKeyModal}
-        activationModal={activationModal}
-        refundModal={refundModal}
-        vaultProviders={vaultProviders}
-        btcPublicKey={btcPublicKey}
-        ethAddress={ethAddress}
-      />
-    </PeginPollingProvider>
+        {artifactDownloadModal.isOpen &&
+          artifactDownloadModal.params &&
+          artifactDownloadModal.activity && (
+            <ArtifactDownloadModal
+              open={artifactDownloadModal.isOpen}
+              onClose={artifactDownloadModal.handleClose}
+              onComplete={artifactDownloadModal.handleComplete}
+              providerAddress={artifactDownloadModal.params.providerAddress}
+              peginTxid={artifactDownloadModal.params.peginTxid}
+              depositorPk={artifactDownloadModal.params.depositorPk}
+              vaultId={artifactDownloadModal.activity.id}
+              unsignedPrePeginTxHex={
+                artifactDownloadModal.activity.unsignedPrePeginTx
+              }
+            />
+          )}
+
+        {/* Sign / Broadcast / WOTS Key / Activation / Refund / Success modals */}
+        <PendingDepositModals
+          signModal={signModal}
+          broadcastModal={broadcastModal}
+          wotsKeyModal={wotsKeyModal}
+          activationModal={activationModal}
+          refundModal={refundModal}
+          vaultProviders={vaultProviders}
+          btcPublicKey={btcPublicKey}
+          ethAddress={ethAddress}
+        />
+      </PeginPollingProvider>
+    </ProtocolParamsProvider>
   );
 }

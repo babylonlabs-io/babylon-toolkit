@@ -183,17 +183,17 @@ describe("PendingDepositCard — payout signing step number", () => {
     });
   });
 
-  it("shows step 9 (authenticate session) while it is still waiting to sign", () => {
+  it("shows the authenticate-session step while it is still waiting to sign", () => {
     // The deposit is resting before it acts. Clicking "Sign Payouts" runs the
-    // auth-anchor step (9) first, so the card sits on step 9 with that step's
-    // label — not step 10, which would imply the auth-anchor step is done. The
-    // action button still reads "Sign Payouts".
+    // auth-anchor step first, so the card sits on that step with that step's
+    // label — not the next one, which would imply the auth-anchor step is
+    // done. The action button still reads "Sign Payouts".
     mockUseDepositPollingResult.mockReturnValue({
       loading: false,
       peginState: readyToSignPayoutsState(),
     });
     renderCard(false);
-    expect(screen.getByText("Step 9 of 15")).toBeInTheDocument();
+    expect(screen.getByText("Step 10 of 16")).toBeInTheDocument();
     expect(
       screen.getByText(COPY.deposit.steps.authenticateSession),
     ).toBeInTheDocument();

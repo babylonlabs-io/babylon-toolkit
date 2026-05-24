@@ -1,9 +1,9 @@
 /**
  * OverviewSection Component
- * Displays overview information including Health Factor, Total Collateral Value, and Amount to Repay
+ * Displays overview information including Health Factor, Total Collateral
+ * Value, and Amount to Repay. Renders a marketing/explainer panel
+ * (DisconnectedOverview) when no wallet is connected.
  */
-
-import { Avatar } from "@babylonlabs-io/core-ui";
 
 import {
   formatHealthFactor,
@@ -12,6 +12,9 @@ import {
 } from "@/applications/aave/utils";
 import { HealthFactorGauge, HeartIcon } from "@/components/shared";
 import { CARD_DARK_BG_CLASS } from "@/components/shared/layoutClasses";
+import { COPY } from "@/copy";
+
+import { DisconnectedOverview } from "./DisconnectedOverview";
 
 interface OverviewSectionProps {
   healthFactor: number | null;
@@ -28,25 +31,20 @@ export function OverviewSection({
   amountToRepay,
   isConnected,
 }: OverviewSectionProps) {
+  if (!isConnected) {
+    return <DisconnectedOverview />;
+  }
+
   const healthFactorFormatted = formatHealthFactor(healthFactor);
   const healthFactorColor = getHealthFactorColor(healthFactorStatus);
-
-  const displayCollateral = isConnected ? totalCollateralValue : "--";
-  const displayRepay = isConnected ? amountToRepay : "--";
-  const showHealthFactor = isConnected && healthFactor !== null;
+  const showHealthFactor = healthFactor !== null;
 
   return (
     <div className="w-full space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-[24px] font-normal text-accent-primary">
-          Overview
+          {COPY.overview.heading}
         </h2>
-        <Avatar
-          url="/images/aave.svg"
-          alt="Aave"
-          size="small"
-          className="h-8 w-8 !rounded-full"
-        />
       </div>
 
       <div
@@ -63,7 +61,9 @@ export function OverviewSection({
 
           {/* Health Factor Row */}
           <div className="flex items-center justify-between">
-            <span className="text-sm text-accent-secondary">Health factor</span>
+            <span className="text-sm text-accent-secondary">
+              {COPY.overview.healthFactorLabel}
+            </span>
             <span className="flex items-center gap-2 text-base text-accent-primary">
               {showHealthFactor ? (
                 <>
@@ -79,20 +79,20 @@ export function OverviewSection({
           {/* Total Collateral Value Row */}
           <div className="flex items-center justify-between">
             <span className="text-sm text-accent-secondary">
-              Total Collateral Value
+              {COPY.overview.totalCollateralValueLabel}
             </span>
             <span className="text-base text-accent-primary">
-              {displayCollateral}
+              {totalCollateralValue}
             </span>
           </div>
 
           {/* Amount to Repay Row */}
           <div className="flex items-center justify-between">
             <span className="text-sm text-accent-secondary">
-              Amount to repay
+              {COPY.overview.amountToRepayLabel}
             </span>
             <span className="text-base text-accent-primary">
-              {displayRepay}
+              {amountToRepay}
             </span>
           </div>
         </div>

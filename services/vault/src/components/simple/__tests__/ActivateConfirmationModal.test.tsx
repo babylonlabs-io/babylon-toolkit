@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import type { ReactNode } from "react";
+import { forwardRef, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { markArtifactsDownloaded } from "@/utils/artifactDownloadStorage";
@@ -26,9 +26,6 @@ vi.mock("@babylonlabs-io/core-ui", () => ({
       onChange={props.onChange as () => void}
     />
   ),
-  Warning: (props: Record<string, unknown>) => (
-    <div data-testid="warning">{props.children as ReactNode}</div>
-  ),
   ResponsiveDialog: (props: Record<string, unknown>) =>
     props.open ? <div>{props.children as ReactNode}</div> : null,
   DialogHeader: (props: Record<string, unknown>) => (
@@ -42,113 +39,114 @@ vi.mock("@babylonlabs-io/core-ui", () => ({
   ),
 }));
 
+vi.mock("@/components/deposit/RecoveryArtifactsCard", () => ({
+  RecoveryArtifactsCard: forwardRef<unknown, { onDownloaded?: () => void }>(
+    (props) => (
+      <div data-testid="recovery-card">
+        <button
+          type="button"
+          data-testid="card-download-complete"
+          onClick={() => props.onDownloaded?.()}
+        >
+          download
+        </button>
+      </div>
+    ),
+  ),
+}));
+
 const VAULT_ID = "0xabc123";
+const COMMON_PROPS = {
+  vaultId: VAULT_ID,
+  providerAddress: "0xprovider",
+  peginTxid: "0xpegin",
+  depositorPk: "0xpk",
+} as const;
 
 describe("ActivateConfirmationModal", () => {
   beforeEach(() => {
     window.localStorage.clear();
   });
 
-  it("shows the Download CTA and a disabled Activate-without-downloading button when not yet downloaded", () => {
+  it("disables the Activate button until the risk checkbox is ticked when not downloaded", () => {
     render(
       <ActivateConfirmationModal
         open
-        vaultId={VAULT_ID}
+        {...COMMON_PROPS}
         onClose={vi.fn()}
         onConfirm={vi.fn()}
-        onDownloadArtifacts={vi.fn()}
       />,
     );
 
-    expect(screen.getByText("Download Artifacts")).toBeInTheDocument();
-    const activateBtn = screen.getByText("Activate without downloading");
+    const activateBtn = screen.getByText("Activate Vault");
     expect(activateBtn).toBeDisabled();
+
+    fireEvent.click(screen.getByTestId("risk-checkbox"));
+    expect(activateBtn).not.toBeDisabled();
   });
 
-  it("enables the activate-without-downloading button after the checkbox is ticked", () => {
+  it("calls onConfirm when Activate Vault is clicked", () => {
     const onConfirm = vi.fn();
     render(
       <ActivateConfirmationModal
         open
-        vaultId={VAULT_ID}
+        {...COMMON_PROPS}
         onClose={vi.fn()}
         onConfirm={onConfirm}
-        onDownloadArtifacts={vi.fn()}
       />,
     );
 
     fireEvent.click(screen.getByTestId("risk-checkbox"));
-    const activateBtn = screen.getByText("Activate without downloading");
-    expect(activateBtn).not.toBeDisabled();
-    fireEvent.click(activateBtn);
+    fireEvent.click(screen.getByText("Activate Vault"));
     expect(onConfirm).toHaveBeenCalledTimes(1);
   });
 
-  it("invokes onDownloadArtifacts when the user clicks Download", () => {
-    const onDownloadArtifacts = vi.fn();
+  it("calls onClose when Cancel is clicked", () => {
+    const onClose = vi.fn();
     render(
       <ActivateConfirmationModal
         open
-        vaultId={VAULT_ID}
-        onClose={vi.fn()}
+        {...COMMON_PROPS}
+        onClose={onClose}
         onConfirm={vi.fn()}
-        onDownloadArtifacts={onDownloadArtifacts}
       />,
     );
-    fireEvent.click(screen.getByText("Download Artifacts"));
-    expect(onDownloadArtifacts).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getByText("Cancel"));
+    expect(onClose).toHaveBeenCalledTimes(1);
   });
 
-  it("shows a single Activate primary CTA when artifacts are already downloaded", () => {
+  it("enables Activate Vault directly and hides the checkbox when artifacts were already downloaded", () => {
     markArtifactsDownloaded(VAULT_ID);
-    const onConfirm = vi.fn();
     render(
       <ActivateConfirmationModal
         open
-        vaultId={VAULT_ID}
+        {...COMMON_PROPS}
         onClose={vi.fn()}
-        onConfirm={onConfirm}
-        onDownloadArtifacts={vi.fn()}
+        onConfirm={vi.fn()}
       />,
     );
 
-    expect(screen.getByText("Activate")).toBeInTheDocument();
-    expect(
-      screen.queryByText("Activate without downloading"),
-    ).not.toBeInTheDocument();
-    expect(screen.queryByText("Download Artifacts")).not.toBeInTheDocument();
-
-    fireEvent.click(screen.getByText("Activate"));
-    expect(onConfirm).toHaveBeenCalledTimes(1);
+    expect(screen.getByText("Activate Vault")).not.toBeDisabled();
+    expect(screen.queryByTestId("risk-checkbox")).not.toBeInTheDocument();
   });
 
-  it("re-reads the downloaded flag when downloadCompletedAt changes", () => {
-    const { rerender } = render(
+  it("enables Activate Vault and removes the checkbox once the card reports a download", () => {
+    render(
       <ActivateConfirmationModal
         open
-        vaultId={VAULT_ID}
-        downloadCompletedAt={0}
+        {...COMMON_PROPS}
         onClose={vi.fn()}
         onConfirm={vi.fn()}
-        onDownloadArtifacts={vi.fn()}
       />,
     );
 
-    expect(screen.getByText("Download Artifacts")).toBeInTheDocument();
+    expect(screen.getByText("Activate Vault")).toBeDisabled();
+    expect(screen.getByTestId("risk-checkbox")).toBeInTheDocument();
 
-    markArtifactsDownloaded(VAULT_ID);
-    rerender(
-      <ActivateConfirmationModal
-        open
-        vaultId={VAULT_ID}
-        downloadCompletedAt={1}
-        onClose={vi.fn()}
-        onConfirm={vi.fn()}
-        onDownloadArtifacts={vi.fn()}
-      />,
-    );
+    fireEvent.click(screen.getByTestId("card-download-complete"));
 
-    expect(screen.getByText("Activate")).toBeInTheDocument();
-    expect(screen.queryByText("Download Artifacts")).not.toBeInTheDocument();
+    expect(screen.getByText("Activate Vault")).not.toBeDisabled();
+    expect(screen.queryByTestId("risk-checkbox")).not.toBeInTheDocument();
   });
 });

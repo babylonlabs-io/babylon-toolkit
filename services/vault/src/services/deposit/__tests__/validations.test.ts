@@ -297,6 +297,8 @@ describe("Deposit Validations", () => {
       maxDepositSats: null,
       effectiveRemaining: null,
       capUnavailable: false,
+      minPeginFee: 500n,
+      minPeginFeeError: null,
     };
 
     it("returns enabled 'Deposit' when all conditions are met", () => {
@@ -615,6 +617,53 @@ describe("Deposit Validations", () => {
         effectiveRemaining: 500_000n,
       });
       expect(result).toEqual({ disabled: false, label: "Deposit" });
+    });
+
+    it("disables with 'Calculating fees...' when minPeginFee is still loading", () => {
+      const result = getDepositCtaState({
+        ...readyParams,
+        minPeginFee: null,
+      });
+      expect(result).toEqual({
+        disabled: true,
+        label: "Calculating fees...",
+      });
+    });
+
+    it("allows submit at zero amount even when minPeginFee is null (no submit race possible)", () => {
+      // amount = 0n routes to "Enter an amount" via getDepositButtonLabel
+      // before the minPeginFee gate fires, so a freshly-loaded form with
+      // no amount yet shows the right prompt rather than a confusing
+      // "Calculating fees..." label.
+      const result = getDepositCtaState({
+        ...readyParams,
+        amountSats: 0n,
+        minPeginFee: null,
+      });
+      expect(result.label).toBe("Enter an amount");
+    });
+
+    it("disables with 'Fee estimate unavailable' when minPeginFee query errored", () => {
+      const result = getDepositCtaState({
+        ...readyParams,
+        minPeginFeeError: new Error("WASM init failed"),
+      });
+      expect(result).toEqual({
+        disabled: true,
+        label: "Fee estimate unavailable",
+      });
+    });
+
+    it("prioritizes minPeginFee error over loading state", () => {
+      // Both error AND loading would be impossible in practice, but lock in
+      // the precedence so a future regression that surfaces both doesn't
+      // silently fall back to the loading label.
+      const result = getDepositCtaState({
+        ...readyParams,
+        minPeginFee: null,
+        minPeginFeeError: new Error("boom"),
+      });
+      expect(result.label).toBe("Fee estimate unavailable");
     });
   });
 });

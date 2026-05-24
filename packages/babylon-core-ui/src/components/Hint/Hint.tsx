@@ -95,7 +95,7 @@ export function Hint({
     attachToChildren ? (
       <span className={twJoin("inline-flex items-center gap-1", statusColor, className)}>
         <span
-          className="cursor-pointer"
+          className="cursor-default"
           data-tooltip-id={id}
           data-tooltip-content={
             typeof tooltip === "string" ? tooltip : undefined
@@ -128,7 +128,7 @@ export function Hint({
       <div className={twJoin("inline-flex items-center gap-1", statusColor, className)}>
         {children}
         <span
-          className={twJoin("cursor-pointer inline-flex items-center", statusColor)}
+          className={twJoin("cursor-default inline-flex items-center", statusColor)}
           data-tooltip-id={id}
           data-tooltip-content={
             typeof tooltip === "string" ? tooltip : undefined

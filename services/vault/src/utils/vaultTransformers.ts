@@ -4,12 +4,30 @@
  */
 
 import { formatSatoshisToBtc } from "@babylonlabs-io/ts-sdk/tbv/core";
+import { calculateBtcTxHash } from "@babylonlabs-io/ts-sdk/tbv/core/utils";
+import type { Hex } from "viem";
 
 import { getNetworkConfigBTC } from "../config";
 import { getPeginState } from "../models/peginStateMachine";
 import type { Vault, VaultActivity } from "../types";
 
 import { formatUSDCAmount } from "./tokenConversion";
+
+/**
+ * Derive the Pre-PegIn txid from its unsigned hex. Returns undefined when the
+ * input is empty (cross-device "no local tx" marker) or fails to decode — both
+ * cases mean we have no broadcastable Pre-PegIn to link to.
+ */
+export function derivePrePeginTxHash(
+  unsignedPrePeginTx: string | undefined,
+): Hex | undefined {
+  if (!unsignedPrePeginTx) return undefined;
+  try {
+    return calculateBtcTxHash(unsignedPrePeginTx);
+  } catch {
+    return undefined;
+  }
+}
 
 const btcConfig = getNetworkConfigBTC();
 
@@ -45,6 +63,7 @@ export function transformVaultToActivity(vault: Vault): VaultActivity {
   return {
     id: vault.id,
     peginTxHash: vault.peginTxHash,
+    prePeginTxHash: derivePrePeginTxHash(vault.unsignedPrePeginTx),
     collateral: {
       amount: btcAmount,
       symbol: btcConfig.coinSymbol,
@@ -67,6 +86,7 @@ export function transformVaultToActivity(vault: Vault): VaultActivity {
     depositorWotsPkHash: vault.depositorWotsPkHash,
     expiredAt: vault.expiredAt,
     expirationReason: vault.expirationReason,
+    offchainParamsVersion: vault.offchainParamsVersion,
     // No action handlers - these are attached at the component level
     action: undefined,
     // No position details in deposit tab

@@ -54,6 +54,7 @@ function buildRegistryReader(
     getVaultData: vi.fn(),
     getVaultProviderBtcPubKey: vi.fn(),
     getPegInFee: vi.fn(),
+    getVaultProviderCommission: vi.fn(),
     getOffchainParamsVersionsByVaultIds: vi.fn(),
   };
 }

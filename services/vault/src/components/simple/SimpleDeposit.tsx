@@ -135,6 +135,8 @@ function SimpleDepositContent({
     maxDepositSats,
     effectiveRemaining,
     capUnavailable,
+    minPeginFee,
+    minPeginFeeError,
     isPartialLiquidation,
     setIsPartialLiquidation,
     canSplit,
@@ -144,6 +146,7 @@ function SimpleDepositContent({
     depositorClaimValue,
     ordinalsCheckPending,
     validateForm,
+    resetForm,
   } = useDepositPageForm();
 
   const depositBatchSize =
@@ -188,18 +191,6 @@ function SimpleDepositContent({
     setFeeRate,
   } = useDepositPageFlow();
 
-  // Pre-fill amount when opening with a suggested amount from notifications
-  const hasPrefilled = useRef(false);
-  useEffect(() => {
-    if (open && initialAmountBtc && !hasPrefilled.current) {
-      hasPrefilled.current = true;
-      setFormData({ amountBtc: initialAmountBtc });
-    }
-    if (!open) {
-      hasPrefilled.current = false;
-    }
-  }, [open, initialAmountBtc, setFormData]);
-
   const isSupplementalDeposit = !!initialAmountBtc;
   const allowSplit =
     !isSupplementalDeposit &&
@@ -229,7 +220,19 @@ function SimpleDepositContent({
     setIsPartialLiquidation(false);
     setWalletConnectionError(null);
     resetDeposit();
-  }, [setIsPartialLiquidation, resetDeposit]);
+    resetForm();
+    // Re-apply the suggested amount for supplemental deposits opened from a
+    // notification; plain opens start blank.
+    if (initialAmountBtc) {
+      setFormData({ amountBtc: initialAmountBtc });
+    }
+  }, [
+    setIsPartialLiquidation,
+    resetDeposit,
+    resetForm,
+    initialAmountBtc,
+    setFormData,
+  ]);
 
   // Freeze the rendered step during the close animation and reset on reopen
   const renderedStep = useDialogStep(open, depositStep, resetAll);
@@ -334,6 +337,8 @@ function SimpleDepositContent({
                 maxDepositSats={maxDepositSats}
                 effectiveRemaining={effectiveRemaining}
                 capUnavailable={capUnavailable}
+                minPeginFee={minPeginFee}
+                minPeginFeeError={minPeginFeeError}
                 btcPrice={btcPrice}
                 hasPriceFetchError={hasPriceFetchError}
                 onAmountChange={(value) => setFormData({ amountBtc: value })}
@@ -373,7 +378,10 @@ function SimpleDepositContent({
         )}
 
         {renderedStep === DepositStep.SIGN && btcWalletProvider && (
-          <div className="mx-auto w-full max-w-[520px]">
+          <div
+            className="mx-auto flex w-full max-w-[520px] flex-col"
+            style={{ height: "calc(100dvh - 3rem)" }}
+          >
             <DepositSignContent
               vaultAmounts={
                 isSplitDeposit && splitVaultAmounts
@@ -415,7 +423,10 @@ export default function SimpleDeposit(props: SimpleDepositProps) {
             onClose={onClose}
             className="items-center justify-center p-6"
           >
-            <div className="mx-auto w-full max-w-[520px]">
+            <div
+              className="mx-auto flex w-full max-w-[520px] flex-col"
+              style={{ height: "calc(100dvh - 3rem)" }}
+            >
               <ResumeWotsContent
                 activity={props.activity}
                 onClose={onClose}
@@ -435,7 +446,10 @@ export default function SimpleDeposit(props: SimpleDepositProps) {
             onClose={onClose}
             className="items-center justify-center p-6"
           >
-            <div className="mx-auto w-full max-w-[520px]">
+            <div
+              className="mx-auto flex w-full max-w-[520px] flex-col"
+              style={{ height: "calc(100dvh - 3rem)" }}
+            >
               <ResumeActivationContent
                 activity={props.activity}
                 depositorEthAddress={props.depositorEthAddress}
@@ -455,7 +469,10 @@ export default function SimpleDeposit(props: SimpleDepositProps) {
           onClose={onClose}
           className="items-center justify-center p-6"
         >
-          <div className="mx-auto w-full max-w-[520px]">
+          <div
+            className="mx-auto flex w-full max-w-[520px] flex-col"
+            style={{ height: "calc(100dvh - 3rem)" }}
+          >
             {resumeMode === "sign_payouts" ? (
               <ResumeSignContent
                 activity={props.activity}

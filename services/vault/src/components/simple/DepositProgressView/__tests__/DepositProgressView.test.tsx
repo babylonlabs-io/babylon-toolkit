@@ -50,7 +50,7 @@ describe("DepositProgressView", () => {
     });
 
     it("expands only the section containing the current step", () => {
-      // Step 7 lives in the "Set up claim" group.
+      // SUBMIT_WOTS_KEYS lives in the "Set up claim" group.
       render(
         <DepositProgressView
           {...baseProps}
@@ -73,9 +73,9 @@ describe("DepositProgressView", () => {
         screen.queryByText(COPY.deposit.steps.signPayouts),
       ).not.toBeInTheDocument();
 
-      // The finished "Register deposit" group reports 6/6.
+      // The finished "Register deposit" group reports 7/7.
       expect(
-        screen.getByText(COPY.deposit.groups.stepCounter(6, 6)),
+        screen.getByText(COPY.deposit.groups.stepCounter(7, 7)),
       ).toBeInTheDocument();
     });
   });
@@ -130,7 +130,7 @@ describe("DepositProgressView", () => {
       );
 
       expect(
-        screen.getByText(COPY.deposit.progress.stepsCompleted(5, 15)),
+        screen.getByText(COPY.deposit.progress.stepsCompleted(5, 16)),
       ).toBeInTheDocument();
     });
 
@@ -153,8 +153,9 @@ describe("DepositProgressView", () => {
         />,
       );
 
+      // AWAIT_BTC_CONFIRMATION is visual step 6 → 5 of 16 completed → 31%.
       const bar = screen.getByRole("progressbar");
-      expect(bar).toHaveAttribute("aria-valuenow", "33");
+      expect(bar).toHaveAttribute("aria-valuenow", "31");
       expect(bar).toHaveAttribute("aria-valuemax", "100");
     });
 
@@ -329,7 +330,7 @@ describe("DepositProgressView", () => {
       );
 
       expect(
-        screen.getByText(COPY.deposit.groups.stepCounter(6, 6)),
+        screen.getByText(COPY.deposit.groups.stepCounter(7, 7)),
       ).toBeInTheDocument();
       expect(
         screen.getByText(COPY.deposit.groups.stepCounter(4, 4)),
@@ -357,7 +358,7 @@ describe("DepositProgressView", () => {
       );
 
       expect(
-        screen.getByText(COPY.deposit.groups.stepCounter(6, 6)),
+        screen.getByText(COPY.deposit.groups.stepCounter(7, 7)),
       ).toBeInTheDocument();
       expect(screen.getByRole("progressbar")).toHaveAttribute(
         "aria-valuenow",

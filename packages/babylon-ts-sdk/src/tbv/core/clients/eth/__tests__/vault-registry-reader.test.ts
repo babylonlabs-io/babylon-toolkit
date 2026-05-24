@@ -37,6 +37,7 @@ function createMockPublicClient(overrides?: {
   protocolInfoResult?: unknown;
   protocolInfoByVaultId?: Map<Hex, unknown>;
   vpBtcKeyResult?: unknown;
+  vpCommissionResult?: unknown;
 }) {
   return {
     readContract: vi.fn(async ({ functionName }: { functionName: string }) => {
@@ -48,6 +49,9 @@ function createMockPublicClient(overrides?: {
       }
       if (functionName === "getVaultProviderBTCKey") {
         return overrides?.vpBtcKeyResult;
+      }
+      if (functionName === "getVaultProviderCommission") {
+        return overrides?.vpCommissionResult;
       }
       throw new Error(`Unknown function: ${functionName}`);
     }),
@@ -201,6 +205,80 @@ describe("ViemVaultRegistryReader", () => {
     await expect(
       reader.getVaultProviderBtcPubKey(MOCK_ADDRESS),
     ).rejects.toThrow(/not on the secp256k1 curve/);
+  });
+
+  describe("getVaultProviderCommission", () => {
+    it("returns the bps when the contract value is inside the [0, 9999] range", async () => {
+      const publicClient = createMockPublicClient({ vpCommissionResult: 150 });
+      const reader = new ViemVaultRegistryReader(
+        publicClient as never,
+        MOCK_ADDRESS,
+      );
+
+      await expect(reader.getVaultProviderCommission(MOCK_ADDRESS)).resolves.toBe(
+        150,
+      );
+    });
+
+    it("accepts the inclusive 0 lower bound", async () => {
+      const publicClient = createMockPublicClient({ vpCommissionResult: 0 });
+      const reader = new ViemVaultRegistryReader(
+        publicClient as never,
+        MOCK_ADDRESS,
+      );
+
+      await expect(reader.getVaultProviderCommission(MOCK_ADDRESS)).resolves.toBe(
+        0,
+      );
+    });
+
+    it("accepts the inclusive 9999 upper bound", async () => {
+      const publicClient = createMockPublicClient({ vpCommissionResult: 9999 });
+      const reader = new ViemVaultRegistryReader(
+        publicClient as never,
+        MOCK_ADDRESS,
+      );
+
+      await expect(reader.getVaultProviderCommission(MOCK_ADDRESS)).resolves.toBe(
+        9999,
+      );
+    });
+
+    it("throws when the contract value exceeds 9999 (signals wrong address or ABI drift)", async () => {
+      const publicClient = createMockPublicClient({ vpCommissionResult: 10000 });
+      const reader = new ViemVaultRegistryReader(
+        publicClient as never,
+        MOCK_ADDRESS,
+      );
+
+      await expect(
+        reader.getVaultProviderCommission(MOCK_ADDRESS),
+      ).rejects.toThrow(/outside the protocol range \[0, 9999\]/);
+    });
+
+    it("throws when the contract value is negative", async () => {
+      const publicClient = createMockPublicClient({ vpCommissionResult: -1 });
+      const reader = new ViemVaultRegistryReader(
+        publicClient as never,
+        MOCK_ADDRESS,
+      );
+
+      await expect(
+        reader.getVaultProviderCommission(MOCK_ADDRESS),
+      ).rejects.toThrow(/outside the protocol range \[0, 9999\]/);
+    });
+
+    it("throws when the contract value is not an integer", async () => {
+      const publicClient = createMockPublicClient({ vpCommissionResult: 12.5 });
+      const reader = new ViemVaultRegistryReader(
+        publicClient as never,
+        MOCK_ADDRESS,
+      );
+
+      await expect(
+        reader.getVaultProviderCommission(MOCK_ADDRESS),
+      ).rejects.toThrow(/outside the protocol range \[0, 9999\]/);
+    });
   });
 
   it("passes correct contract address and vault ID to readContract", async () => {

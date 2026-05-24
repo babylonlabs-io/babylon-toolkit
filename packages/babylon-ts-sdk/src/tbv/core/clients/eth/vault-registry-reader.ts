@@ -20,6 +20,12 @@ import type {
 } from "./types";
 
 /**
+ * Inclusive upper bound the BTCVaultRegistry contract enforces on a vault
+ * provider's commission (the contract check is `< 10000`).
+ */
+const MAX_VP_COMMISSION_BPS = 9999;
+
+/**
  * Concrete vault registry reader using viem.
  *
  * Usage:
@@ -203,6 +209,32 @@ export class ViemVaultRegistryReader implements VaultRegistryReader {
       functionName: "getPegInFee",
       args: [vaultProvider],
     })) as bigint;
+  }
+
+  /**
+   * Read a vault provider's current commission in basis points from
+   * BTCVaultRegistry. The contract enforces `commissionBps < 10000`, so the
+   * legitimate range is `[0, 9999]`; anything outside indicates a wrong
+   * contract address or ABI drift and is surfaced as an error rather than
+   * trusted.
+   */
+  async getVaultProviderCommission(vaultProvider: Address): Promise<number> {
+    // viem infers `number` from the `uint16` return in the `as const` ABI.
+    const bps = await this.publicClient.readContract({
+      address: this.contractAddress,
+      abi: BTCVaultRegistryABI,
+      functionName: "getVaultProviderCommission",
+      args: [vaultProvider],
+    });
+
+    if (!Number.isInteger(bps) || bps < 0 || bps > MAX_VP_COMMISSION_BPS) {
+      throw new Error(
+        `getVaultProviderCommission returned ${bps} bps for ${vaultProvider}, ` +
+          `outside the protocol range [0, ${MAX_VP_COMMISSION_BPS}]`,
+      );
+    }
+
+    return bps;
   }
 
   async getVaultData(vaultId: Hex): Promise<VaultData> {

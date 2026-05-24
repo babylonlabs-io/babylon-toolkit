@@ -24,7 +24,6 @@ import {
   CARD_DARK_BG_CLASS,
   SUMMARY_CARD_CLASS,
 } from "@/components/shared/layoutClasses";
-import { Connect } from "@/components/Wallet";
 import { getNetworkConfigBTC } from "@/config";
 import { COPY } from "@/copy";
 import type { ArtifactDownloadModalParams } from "@/hooks/deposit/useArtifactDownloadModal";
@@ -266,35 +265,20 @@ export function CollateralSection({
           )}
         </Card>
       ) : (
-        <Card variant="filled" className="w-full">
-          <div className="flex flex-col items-center justify-center gap-2 py-20">
+        <Card variant="filled" className="w-full border-0">
+          <div className="flex flex-col items-center justify-center gap-2 py-4">
             <Avatar
               url={btcConfig.icon}
               alt={btcConfig.coinSymbol}
               size="xlarge"
-              className="mb-2 h-[100px] w-[100px]"
+              className="mb-4 h-[100px] w-[100px]"
             />
             <p className="text-[20px] text-accent-primary">
-              Deposit Bitcoin to get started
+              {COPY.collateral.empty.title}
             </p>
             <p className="text-[16px] text-accent-secondary">
-              Add {btcConfig.coinSymbol} as collateral so you can begin
-              borrowing assets.
+              {COPY.collateral.empty.body(btcConfig.coinSymbol)}
             </p>
-            <div className="mt-8">
-              {!isConnected ? (
-                <Connect />
-              ) : (
-                <DepositButton
-                  variant="outlined"
-                  size="medium"
-                  onClick={() => onDeposit()}
-                  className="rounded-full"
-                >
-                  Deposit {btcConfig.coinSymbol}
-                </DepositButton>
-              )}
-            </div>
           </div>
         </Card>
       )}

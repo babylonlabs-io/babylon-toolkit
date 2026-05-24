@@ -4,26 +4,68 @@ import {
   Card,
   Loader,
 } from "@babylonlabs-io/core-ui";
-import { IoCheckmark, IoChevronUp } from "react-icons/io5";
+import {
+  IoCheckmark,
+  IoChevronUp,
+  IoOpenOutline,
+  IoWarningOutline,
+} from "react-icons/io5";
 
 import { ApplicationLogo } from "@/components/ApplicationLogo";
 import { COPY } from "@/copy";
+import type { VaultProviderListItem } from "@/types/vaultProvider";
+import {
+  formatBasisPointsAsPercent,
+  formatBtcFromSats,
+} from "@/utils/formatting";
+import { isProblematicVaultProvider } from "@/utils/sortVaultProviders";
 
-interface VaultProviderOption {
-  id: string;
-  name: string;
-  iconUrl?: string;
-  unavailable?: boolean;
-  unavailableReason?: string;
-}
+const FORM_COPY = COPY.deposit.form;
 
 interface VaultProviderSelectorProps {
-  providers: VaultProviderOption[];
+  providers: VaultProviderListItem[];
   isLoadingProviders: boolean;
   selectedProvider: string;
   onProviderSelect: (providerId: string) => void;
   expanded: boolean;
   onExpandedChange: (expanded: boolean) => void;
+}
+
+/** Status line text for a provider row. */
+function statusLabel(provider: VaultProviderListItem): string {
+  if (provider.unavailable) {
+    return provider.unavailableReason ?? FORM_COPY.providerStatusUnavailable;
+  }
+  if (provider.unhealthy) {
+    return FORM_COPY.providerStatusUnhealthy;
+  }
+  return FORM_COPY.providerStatusActive;
+}
+
+/** Tooltip for the warning icon on a problematic provider. */
+function warningTitle(provider: VaultProviderListItem): string {
+  if (provider.unavailable) {
+    return provider.unavailableReason ?? FORM_COPY.providerStatusUnavailable;
+  }
+  return FORM_COPY.providerUnhealthyReason;
+}
+
+/** Commission metric text, with a placeholder while it loads / on failure. */
+function commissionText(provider: VaultProviderListItem): string {
+  const value =
+    provider.commissionBps === undefined
+      ? FORM_COPY.providerMetricPlaceholder
+      : formatBasisPointsAsPercent(provider.commissionBps);
+  return `${FORM_COPY.providerCommissionLabel} ${value}`;
+}
+
+/** Active-BTC metric text, with a placeholder while it loads / on failure. */
+function activeBtcText(provider: VaultProviderListItem): string {
+  const value =
+    provider.totalActiveSats === undefined
+      ? FORM_COPY.providerMetricPlaceholder
+      : formatBtcFromSats(provider.totalActiveSats);
+  return `${FORM_COPY.providerActiveLabel} ${value}`;
 }
 
 export function VaultProviderSelector({
@@ -37,6 +79,11 @@ export function VaultProviderSelector({
   const selectedProviderData = providers.find((p) => p.id === selectedProvider);
   const headerLabel =
     selectedProviderData?.name ?? COPY.deposit.form.selectVaultProvider;
+
+  // `providers` arrives pre-sorted (healthy first, problematic last), so the
+  // first problematic entry marks where the "currently unavailable" group
+  // starts. A divider is only meaningful when healthy providers precede it.
+  const firstProblematicIndex = providers.findIndex(isProblematicVaultProvider);
 
   return (
     <Accordion expanded={expanded}>
@@ -75,52 +122,85 @@ export function VaultProviderSelector({
               {COPY.deposit.form.providerSelectEmpty}
             </p>
           ) : (
-            providers.map((provider) => {
+            providers.map((provider, index) => {
               const isSelected = provider.id === selectedProvider;
-              const statusLabel = provider.unavailable
-                ? (provider.unavailableReason ??
-                  COPY.deposit.form.providerStatusUnavailable)
-                : COPY.deposit.form.providerStatusActive;
+              const problematic = isProblematicVaultProvider(provider);
+              // Runtime-unhealthy VPs stay selectable (health can recover);
+              // metadata-rejected VPs do not.
+              const isDisabled = provider.unavailable;
               const handleSelect = () => {
-                if (provider.unavailable) return;
+                if (isDisabled) return;
                 onProviderSelect(provider.id);
                 onExpandedChange(false);
               };
               return (
-                <div
-                  key={provider.id}
-                  role="button"
-                  tabIndex={provider.unavailable ? -1 : 0}
-                  aria-disabled={provider.unavailable}
-                  className={`flex w-full items-center justify-between gap-3 ${provider.unavailable ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`}
-                  onClick={handleSelect}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter" || event.key === " ") {
-                      event.preventDefault();
-                      handleSelect();
-                    }
-                  }}
-                >
-                  <div className="flex items-center gap-3">
-                    <ApplicationLogo
-                      logoUrl={provider.iconUrl ?? null}
-                      name={provider.name}
-                    />
-                    <div className="flex flex-col">
-                      <span className="text-sm text-accent-primary">
-                        {provider.name}
+                <div key={provider.id} className="flex flex-col gap-6">
+                  {index === firstProblematicIndex && index > 0 && (
+                    <div className="flex items-center gap-3">
+                      <span className="tracking-wide text-xs uppercase text-accent-secondary">
+                        {FORM_COPY.providerGroupUnavailableLabel}
                       </span>
-                      <span className="text-xs text-accent-secondary">
-                        {statusLabel}
-                      </span>
+                      <div className="h-px flex-1 bg-secondary-strokeLight" />
+                    </div>
+                  )}
+                  {/* Row is a flex container holding two SIBLING controls — the
+                      selection button (left) and the explorer link (right) —
+                      so the link isn't nested inside another interactive
+                      element. The checkmark sits between them as a status
+                      indicator. */}
+                  <div className="flex w-full items-start justify-between gap-3">
+                    <button
+                      type="button"
+                      disabled={isDisabled}
+                      onClick={handleSelect}
+                      className={`flex flex-1 items-start gap-3 text-left ${isDisabled ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`}
+                    >
+                      <ApplicationLogo
+                        logoUrl={provider.iconUrl ?? null}
+                        name={provider.name}
+                      />
+                      <div className="flex flex-col gap-0.5">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-sm text-accent-primary">
+                            {provider.name}
+                          </span>
+                          {problematic && (
+                            <IoWarningOutline
+                              className="shrink-0 text-warning-main"
+                              size={14}
+                              title={warningTitle(provider)}
+                            />
+                          )}
+                        </div>
+                        <span className="text-xs text-accent-secondary">
+                          {statusLabel(provider)}
+                        </span>
+                        <span className="text-xs text-accent-secondary">
+                          {commissionText(provider)}
+                          <span className="px-1.5">·</span>
+                          {activeBtcText(provider)}
+                        </span>
+                      </div>
+                    </button>
+                    <div className="flex shrink-0 items-center gap-2">
+                      {isSelected && (
+                        <IoCheckmark
+                          className="text-accent-primary"
+                          size={20}
+                        />
+                      )}
+                      <a
+                        href={provider.explorerUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        aria-label={FORM_COPY.providerExplorerLinkLabel}
+                        title={FORM_COPY.providerExplorerLinkLabel}
+                        className="text-accent-secondary transition-colors hover:text-accent-primary"
+                      >
+                        <IoOpenOutline size={16} />
+                      </a>
                     </div>
                   </div>
-                  {isSelected && (
-                    <IoCheckmark
-                      className="shrink-0 text-accent-primary"
-                      size={20}
-                    />
-                  )}
                 </div>
               );
             })

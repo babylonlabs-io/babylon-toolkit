@@ -47,6 +47,14 @@ export interface VaultActivity {
   /** Raw BTC pegin transaction hash (for VP RPC operations) */
   peginTxHash?: Hex;
 
+  /**
+   * Pre-PegIn transaction hash — the BTC tx the depositor actually broadcasts
+   * (txid of `unsignedPrePeginTx`). Use this for user-facing explorer links
+   * during pending/verified/expired states, where the peg-in tx has not yet
+   * been broadcast by the vault provider.
+   */
+  prePeginTxHash?: Hex;
+
   /** Contract status (0=Pending, 1=Verified, 2=Active, 3=Redeemed, 4=Liquidated, 5=Invalid, 6=DepositorWithdrawn, 7=Expired) */
   contractStatus?: number;
 
@@ -118,6 +126,15 @@ export interface VaultActivity {
 
   /** Expiration reason, undefined if not expired */
   expirationReason?: ExpirationReason;
+
+  /**
+   * Offchain params version this vault was registered against. The protocol
+   * gates depth checks (e.g. `minPrepeginDepth`) on this version, not the
+   * latest, so any consumer comparing on-chain confirmation counts must
+   * look up the per-version param via `getOffchainParamsByVersion`. Falls
+   * back to latest if the vault predates the indexer exposing this field.
+   */
+  offchainParamsVersion?: number;
 }
 
 /**

@@ -55,6 +55,7 @@
  *
  * ### WASM Functions
  * - {@link computeMinClaimValue} - Compute the minimum claim value accepted by the vault provider
+ * - {@link computeMinPeginFee} - Compute the minimum PegIn activation tx fee that each HTLC must reserve
  *
  * ### Connector Parameter Types
  * - `AssertPayoutNoPayoutConnectorParams` - Connector params for NoPayout/AssertPayout PSBTs
@@ -78,7 +79,11 @@ export { computeNumLocalChallengers } from "./challengers";
 
 // Core types and functions from WASM package
 export type { Network } from "@babylonlabs-io/babylon-tbv-rust-wasm";
-export { computeMinClaimValue, deriveVaultId } from "@babylonlabs-io/babylon-tbv-rust-wasm";
+export {
+  computeMinClaimValue,
+  computeMinPeginFee,
+  deriveVaultId,
+} from "@babylonlabs-io/babylon-tbv-rust-wasm";
 
 /**
  * 0x-prefixed bytes32, keccak256(abi.encode(peginTxHash, depositor)).

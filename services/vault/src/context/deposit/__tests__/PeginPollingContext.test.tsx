@@ -26,6 +26,22 @@ vi.mock("../../../hooks/deposit/usePeginPollingQuery", () => ({
   usePeginPollingQuery: () => mockQueryResult,
 }));
 
+// The mempool-truth hook adds network polling and a ProtocolParamsContext
+// dependency neither of which this test cares about — stub both so the
+// provider is renderable in isolation.
+vi.mock("../../../hooks/deposit/usePrePeginMempoolConfirmations", () => ({
+  usePrePeginMempoolConfirmations: () => ({
+    confirmationsByTxid: new Map<string, number>(),
+  }),
+}));
+
+vi.mock("../../ProtocolParamsContext", () => ({
+  useProtocolParamsContext: () => ({
+    config: { offchainParams: { minPrepeginDepth: 6 } },
+    getOffchainParamsByVersion: () => undefined,
+  }),
+}));
+
 const ACTIVITY_ID = "0xpegin" as Hex;
 const BTC_PUBKEY = "ab".repeat(32);
 

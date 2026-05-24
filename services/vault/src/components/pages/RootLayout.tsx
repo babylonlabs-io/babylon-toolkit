@@ -3,7 +3,9 @@ import {
   Footer,
   FullScreenDialog,
   Header,
+  MobileLogo,
   Nav,
+  SmallLogo,
   StandardSettingsMenu,
   TestingBanner,
   Text,
@@ -118,7 +120,24 @@ export default function RootLayout() {
         <AddressTypeBanner visible={showAddressTypeBanner} />
         <Header
           size="md"
-          containerClassName={PAGE_CONTENT_CLASS}
+          // `!max-w-` overrides the `container` class's 2xl breakpoint max-width
+          // (1536px) that core-ui's Header applies by default, so the navbar is
+          // actually capped at 1400px on wide viewports.
+          containerClassName={`${PAGE_CONTENT_CLASS} !max-w-[1400px]`}
+          // Tint the logo brand-orange in light mode; keep the default
+          // light-on-dark contrast in dark mode. The wrapper's `[&_svg]` selector
+          // overrides the SVG's hardcoded `text-accent-primary` color, which the
+          // paths inherit through `fill-current`.
+          logo={
+            <div className="[&_svg]:!text-secondary-main dark:[&_svg]:!text-accent-primary">
+              <SmallLogo />
+            </div>
+          }
+          mobileLogo={
+            <div className="[&_svg]:!text-secondary-main dark:[&_svg]:!text-accent-primary">
+              <MobileLogo />
+            </div>
+          }
           navigation={<DesktopNavigation />}
           mobileNavigation={<MobileNavigation />}
           rightActions={
@@ -140,6 +159,7 @@ export default function RootLayout() {
             </div>
           }
         />
+
         <Outlet
           context={
             {
@@ -176,9 +196,16 @@ export default function RootLayout() {
           />
         </AaveConfigProvider>
         <div className="mt-auto">
+          {/* `[&>div]:!max-w-[1400px]` caps the Footer's inner Container at
+              1400px, overriding the `container` class's 1536px max-width at
+              the 2xl breakpoint so the footer aligns with the navbar.
+              `!bg-secondary-main` + `before:!bg-secondary-main` swap the light-
+              mode background (and its decorative top-edge pseudo) from the
+              default teal to brand orange; dark mode keeps `primary-main`. */}
           <Footer
             socialLinks={DEFAULT_SOCIAL_LINKS}
             copyrightYear={new Date().getFullYear()}
+            className="!bg-secondary-main before:!bg-secondary-main dark:!bg-primary-main dark:before:!bg-primary-main [&>div]:!max-w-[1400px]"
           />
         </div>
       </div>

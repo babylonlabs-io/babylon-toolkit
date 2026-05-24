@@ -10,6 +10,7 @@ export const __wbg_wasmprepeginhtlcconnector_free: (a: number, b: number) => voi
 export const __wbg_wasmprepegintx_free: (a: number, b: number) => void;
 export const computeAssertClaimerSighashes: (a: number, b: number) => [number, number, number, number];
 export const computeMinClaimValue: (a: number, b: number, c: number, d: number, e: bigint) => [bigint, number, number];
+export const computeMinPeginFee: (a: number, b: number, c: bigint) => [bigint, number, number];
 export const computeNoPayoutClaimerSighash: (a: number, b: number, c: number, d: number) => [number, number, number, number];
 export const computePayoutClaimerSighash: (a: number, b: number) => [number, number, number, number];
 export const computePayoutDepositorSighash: (a: number, b: number) => [number, number, number, number];

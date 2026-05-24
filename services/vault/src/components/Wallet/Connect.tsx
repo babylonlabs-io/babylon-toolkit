@@ -24,9 +24,11 @@ import { resolveDisplayWallets } from "./resolveDisplayWallets";
 
 interface ConnectProps {
   loading?: boolean;
+  /** Override the default `ConnectButton` label (e.g. "Connect Wallet" for in-page CTAs). */
+  text?: string;
 }
 
-export const Connect: React.FC<ConnectProps> = ({ loading = false }) => {
+export const Connect: React.FC<ConnectProps> = ({ loading = false, text }) => {
   const { open, disconnect } = useWalletConnect();
   const [isWalletMenuOpen, setIsWalletMenuOpen] = useState(false);
 
@@ -125,6 +127,7 @@ export const Connect: React.FC<ConnectProps> = ({ loading = false }) => {
       loading={loading || isGeoLoading || isScreeningLoading}
       disabled={isGeoBlocked || isAddressBlocked}
       onClick={open}
+      text={text}
     />
   );
 

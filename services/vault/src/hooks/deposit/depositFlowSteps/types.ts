@@ -30,42 +30,55 @@ export enum DepositFlowStep {
   /** Step 5: Sign and broadcast Pre-PegIn transaction to Bitcoin */
   BROADCAST_PRE_PEGIN = 5,
   /**
-   * Step 6: Awaiting Bitcoin confirmation of the Pre-PegIn tx before the
-   * Vault Provider will accept WOTS keys / return payout PSBTs.
+   * Step 6: Awaiting Bitcoin confirmation of the Pre-PegIn tx (mempool-driven).
+   * Distinct from {@link AWAIT_VP_INGESTION}: this is the depositor's wait for
+   * BTC to reach the protocol-mandated `minPrepeginDepth`; once that is
+   * reached but the VP daemon is still at `PendingIngestion`, the stepper
+   * advances to `AWAIT_VP_INGESTION` so the BTC and VP-side waits are not
+   * conflated.
    */
   AWAIT_BTC_CONFIRMATION = 6,
-  /** Step 7: Submit WOTS public key to the Vault Provider. */
-  SUBMIT_WOTS_KEYS = 7,
-  /** Step 8: Wait for the Vault Provider to prepare payout transactions. */
-  AWAIT_PAYOUT_TRANSACTIONS = 8,
   /**
-   * Step 9: `deriveContextHash` for the VP auth anchor during payout
+   * Step 7: BTC depth reached, VP still ingesting (PendingIngestion).
+   * `PendingIngestion` covers the VP processing the ETH event + AML + BTC
+   * validation; the VP can only transition out once the Pre-PegIn has ≥1
+   * confirmation AND its validations pass. With BTC at safe depth, sitting
+   * here means the VP is still working (or stuck) — distinct from a BTC
+   * depth wait, and a useful diagnostic for stuck-deposit support.
+   */
+  AWAIT_VP_INGESTION = 7,
+  /** Step 8: Submit WOTS public key to the Vault Provider. */
+  SUBMIT_WOTS_KEYS = 8,
+  /** Step 9: Wait for the Vault Provider to prepare payout transactions. */
+  AWAIT_PAYOUT_TRANSACTIONS = 9,
+  /**
+   * Step 10: `deriveContextHash` for the VP auth anchor during payout
    * signing. Fires whenever the per-pegin VP-token cache misses inside
    * `signAndSubmitPayouts`. (Cache misses inside `submitWotsPublicKey`
    * still surface a wallet popup, but the stepper stays on
    * SUBMIT_WOTS_KEYS for that path.) The wallet popup is identical to
    * step 1 but binds a different context (auth anchor vs. vault root).
    */
-  SIGN_AUTH_ANCHOR = 9,
-  /** Step 10: Sign the VP/VK claimer payout transactions in BTC wallet */
-  SIGN_PAYOUTS = 10,
+  SIGN_AUTH_ANCHOR = 10,
+  /** Step 11: Sign the VP/VK claimer payout transactions in BTC wallet */
+  SIGN_PAYOUTS = 11,
   /**
-   * Step 11: Sign the depositor's own graph — 1 Payout + N per-challenger
+   * Step 12: Sign the depositor's own graph — 1 Payout + N per-challenger
    * NoPayout transactions — in BTC wallet (the second payout-signing round).
    */
-  SIGN_DEPOSITOR_GRAPH = 11,
-  /** Step 12: Wait for VP verification and ACK submission. */
-  AWAIT_VP_VERIFICATION = 12,
-  /** Step 13: Download vault artifacts */
-  ARTIFACT_DOWNLOAD = 13,
-  /** Step 14: Derive the HTLC secret from the BTC wallet, ahead of activation. */
-  RETRIEVE_SECRET = 14,
-  /** Step 15: Reveal HTLC secret on Ethereum to activate the vault */
-  ACTIVATE_VAULT = 15,
-  /** Step 16: Wait for activation confirmation / indexer catch-up. */
-  AWAIT_ACTIVATION_CONFIRMATION = 16,
-  /** Step 17: Deposit completed */
-  COMPLETED = 17,
+  SIGN_DEPOSITOR_GRAPH = 12,
+  /** Step 13: Wait for VP verification and ACK submission. */
+  AWAIT_VP_VERIFICATION = 13,
+  /** Step 14: Download vault artifacts */
+  ARTIFACT_DOWNLOAD = 14,
+  /** Step 15: Derive the HTLC secret from the BTC wallet, ahead of activation. */
+  RETRIEVE_SECRET = 15,
+  /** Step 16: Reveal HTLC secret on Ethereum to activate the vault */
+  ACTIVATE_VAULT = 16,
+  /** Step 17: Wait for activation confirmation / indexer catch-up. */
+  AWAIT_ACTIVATION_CONFIRMATION = 17,
+  /** Step 18: Deposit completed */
+  COMPLETED = 18,
 }
 
 // ============================================================================
