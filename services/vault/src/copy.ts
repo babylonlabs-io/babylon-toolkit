@@ -301,8 +301,7 @@ export const COPY = {
     },
     resume: {
       broadcastSuccessMessage: PRE_PEGIN_BROADCAST_CONFIRMATION_MESSAGE,
-      activationSuccessMessage:
-        "Your BTC Vault has been activated. The vault provider can now claim the HTLC on Bitcoin.",
+      activationSuccessMessage: "Your BTC Vault has been activated.",
       wotsMismatchError:
         "WOTS public key hash does not match the on-chain commitment — the wrong wallet is connected.",
     },
