@@ -71,6 +71,7 @@ vi.mock("../../../applications/aave/context", () => ({
 
 import { useApplications } from "../../useApplications";
 import { useUTXOs } from "../../useUTXOs";
+import { useAllocationPlanning } from "../useAllocationPlanning";
 import { useDepositPageForm } from "../useDepositPageForm";
 import { useEstimatedBtcFee } from "../useEstimatedBtcFee";
 
@@ -918,6 +919,18 @@ describe("useDepositPageForm", () => {
   });
 
   describe("Max pinning sync with vaultCount", () => {
+    // vaultCount is now the EFFECTIVE split: isPartialLiquidation && canSplit.
+    // These tests exercise the 1->2 transition, so the amount must be
+    // splittable — override the default canSplit (false) to true.
+    beforeEach(() => {
+      vi.mocked(useAllocationPlanning).mockReturnValue({
+        vaultAmounts: null,
+        canSplit: true,
+        splitRatioLabel: null,
+        isLoading: false,
+      });
+    });
+
     // Mocks resolve to:
     //   maxDeposit (fee-adjusted balance)        = 798_500n
     //   depositorClaimValue                       = 35_000n
@@ -986,6 +999,47 @@ describe("useDepositPageForm", () => {
         expect(result.current.maxDepositSats).toBe(724_500n);
       });
       expect(result.current.formData.amountBtc).toBe("0.001");
+    });
+  });
+
+  describe("effective split budgeting", () => {
+    // Set canSplit explicitly (clearAllMocks keeps mockReturnValue, so the
+    // prior describe's canSplit:true would otherwise leak in): the amount is
+    // below the splittable threshold here.
+    beforeEach(() => {
+      vi.mocked(useAllocationPlanning).mockReturnValue({
+        vaultAmounts: null,
+        canSplit: false,
+        splitRatioLabel: null,
+        isLoading: false,
+      });
+    });
+
+    it("budgets a single vault when partial liquidation is on but the amount cannot split", async () => {
+      // Even with the split intent enabled, vaultCount must stay 1 so the Max
+      // is not understated by reserving a second vault's claim + pegin fee.
+      // 798500 − 1*(35000+500) − 3000 = 760_000n (vaultCount 1), NOT 724_500n.
+      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
+
+      act(() => {
+        result.current.setFormData({
+          selectedProvider: "0x1234567890abcdef1234567890abcdef12345678",
+        });
+      });
+
+      await waitFor(() => {
+        expect(result.current.maxDepositSats).toBe(760_000n);
+      });
+
+      act(() => {
+        result.current.setIsPartialLiquidation(true);
+      });
+
+      // Give the effect a chance to (incorrectly) re-budget; it must not.
+      await waitFor(() => {
+        expect(result.current.canSplit).toBe(false);
+      });
+      expect(result.current.maxDepositSats).toBe(760_000n);
     });
   });
 });

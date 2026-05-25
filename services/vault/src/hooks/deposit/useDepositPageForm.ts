@@ -328,6 +328,20 @@ export function useDepositPageForm(): UseDepositPageFormResult {
   // estimate below can account for the batch output count.
   const [isPartialLiquidation, setIsPartialLiquidation] = useState(false);
 
+  // Split planning first: `canSplit` gates the effective vault count below,
+  // which drives the fee/output budgeting. Depends only on `amountSats` + the
+  // raw intent flag (not on fees or `vaultCount`), so it's safe to compute
+  // before the fee estimate without introducing a dependency cycle.
+  const {
+    vaultAmounts: splitVaultAmounts,
+    canSplit,
+    splitRatioLabel,
+    isLoading: isSplitLoading,
+  } = useAllocationPlanning({
+    amountSats,
+    isPartialLiquidation,
+  });
+
   // Batch-first: one Pre-PegIn tx with N HTLC outputs + 1 CPFP anchor +
   // 1 OP_RETURN auth-anchor. When partial liquidation is on, N = 2.
   // `hasAuthAnchor: true` mirrors the OP_RETURN output that
@@ -335,7 +349,13 @@ export function useDepositPageForm(): UseDepositPageFormResult {
   // signing time, so the Max fee budget here matches the fee the UTXO
   // selector will later spend. No PSBT is built here — this is integer
   // vbyte budgeting only.
-  const vaultCount = isPartialLiquidation ? 2 : 1;
+  //
+  // Budget for two vaults only when the split is actually in effect (user
+  // wants it AND the amount can split). When the amount drops below the
+  // splittable threshold the deposit falls back to a single vault, so the
+  // Max/fee reserves must follow — otherwise Max is understated and can
+  // falsely read "below the minimum deposit".
+  const vaultCount = isPartialLiquidation && canSplit ? 2 : 1;
   const numPeginOutputs = peginOutputCount(vaultCount, true);
 
   const {
@@ -414,16 +434,6 @@ export function useDepositPageForm(): UseDepositPageFormResult {
     enabled: vaultKeeperBtcPubkeys.length > 0,
     staleTime: STALE_TIME_MS,
     refetchOnWindowFocus: false,
-  });
-
-  const {
-    vaultAmounts: splitVaultAmounts,
-    canSplit,
-    splitRatioLabel,
-    isLoading: isSplitLoading,
-  } = useAllocationPlanning({
-    amountSats,
-    isPartialLiquidation,
   });
 
   // Adjust max deposit to reserve every per-HTLC and per-batch component that
