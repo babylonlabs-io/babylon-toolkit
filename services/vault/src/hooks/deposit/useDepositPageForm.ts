@@ -267,16 +267,6 @@ export function useDepositPageForm(): UseDepositPageFormResult {
   const { snapshot: capSnapshot, error: capError } = useApplicationCap(
     isWalletConnected ? ethAddress : undefined,
   );
-  // Only block validation when the on-chain cap read has explicitly errored.
-  // During the initial load `capSnapshot` is null but `capError` is not set —
-  // in that window the validator skips the cap check so the user can still
-  // interact with the form. The contract still enforces the cap at submit.
-  const validation = useDepositValidation({
-    availableProviders: selectableProviderIds,
-    effectiveRemaining: capSnapshot?.effectiveRemaining ?? null,
-    capUnavailable: capError !== null,
-  });
-
   // Display balance uses `availableUTXOs` so the user sees their real funds
   // even while the ordinals classifier is loading or has errored. Actual
   // spending uses `spendableMempoolUTXOs` (fee estimation) and the fail-closed
@@ -328,15 +318,6 @@ export function useDepositPageForm(): UseDepositPageFormResult {
     },
     [clearFieldError],
   );
-
-  // Validate amount on blur
-  const validateAmountOnBlur = useCallback(() => {
-    if (formData.amountBtc === "") return;
-    const amountResult = validation.validateAmount(formData.amountBtc);
-    if (!amountResult.valid) {
-      setErrors((prev) => ({ ...prev, amount: amountResult.error }));
-    }
-  }, [formData.amountBtc, validation, setErrors]);
 
   const amountSats = useMemo(() => {
     if (!formData.amountBtc) return 0n;
@@ -491,6 +472,30 @@ export function useDepositPageForm(): UseDepositPageFormResult {
     vaultCount,
     capSnapshot,
   ]);
+
+  // Declared after `adjustedMaxDepositSats` so the validator can reject amounts
+  // when the fee-adjusted max is below the protocol minimum (terminal balance
+  // state), keeping the inline/submit path in agreement with the CTA.
+  //
+  // Only block validation when the on-chain cap read has explicitly errored.
+  // During the initial load `capSnapshot` is null but `capError` is not set —
+  // in that window the validator skips the cap check so the user can still
+  // interact with the form. The contract still enforces the cap at submit.
+  const validation = useDepositValidation({
+    availableProviders: selectableProviderIds,
+    effectiveRemaining: capSnapshot?.effectiveRemaining ?? null,
+    capUnavailable: capError !== null,
+    maxDepositSats: adjustedMaxDepositSats,
+  });
+
+  // Validate amount on blur
+  const validateAmountOnBlur = useCallback(() => {
+    if (formData.amountBtc === "") return;
+    const amountResult = validation.validateAmount(formData.amountBtc);
+    if (!amountResult.valid) {
+      setErrors((prev) => ({ ...prev, amount: amountResult.error }));
+    }
+  }, [formData.amountBtc, validation, setErrors]);
 
   const applyMaxAmount = useCallback(() => {
     setIsMaxPinned(true);

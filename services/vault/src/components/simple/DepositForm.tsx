@@ -200,18 +200,35 @@ export function DepositForm({
     : `${Number(depositService.formatSatoshisToBtc(maxDepositSats))} ${btcConfig.coinSymbol}`;
 
   // Disable only the slider (not the amount input or Max button) while there's
-  // no meaningful range to drag: the max is still loading, or it resolved to
-  // zero (supply cap reached). Manual entry stays available, and any amount
-  // above the max is clamped down once it resolves.
-  const sliderDisabled = !isMaxResolved || maxDepositSats === 0n;
+  // no meaningful range to drag: the max is still loading, resolved to zero
+  // (supply cap reached), or resolved below the minimum deposit (balance too
+  // small after fees/reserves) — every slider position would be sub-minimum.
+  // Manual entry stays available, and any amount above the max is clamped down
+  // once it resolves.
+  const sliderDisabled =
+    !isMaxResolved ||
+    maxDepositSats === 0n ||
+    depositService.maxBelowMinimum(maxDepositSats, minDeposit);
 
   // The slider operates in satoshis (integer values, 1-sat step) so the thumb
   // can land exactly on the max. A coarse BTC step would leave the sat-precise
-  // max off the step grid, stranding the thumb short of the end. Floor the
-  // rendered max to 1 so the Slider's `(value - min) / (max - min)` fill math
-  // never divides by zero — a loading (null) or cap-reached (0) max would
-  // otherwise produce NaN. The slider is disabled in both those states anyway.
-  const sliderMaxSats = Math.max(1, Number(maxDepositSats ?? 0n));
+  // max off the step grid, stranding the thumb short of the end.
+  //
+  // When a valid deposit range exists (max resolved and ≥ the minimum, i.e. the
+  // slider is enabled), start the slider at the protocol minimum so dragging can
+  // never produce a sub-minimum amount. In the disabled states (loading,
+  // cap-reached, balance-below-minimum) fall back to 0 to keep the range
+  // well-defined (min ≤ max) — the slider isn't interactive there anyway. Manual
+  // text entry below the minimum stays available and is still caught by
+  // validation.
+  const sliderMinSats = sliderDisabled ? 0 : Number(minDeposit);
+  // Floor the max one sat above the min so the `(value - min) / (max - min)`
+  // fill math never divides by zero — a loading (null) or cap-reached (0) max,
+  // or a balance sitting exactly at the minimum, would otherwise produce NaN.
+  const sliderMaxSats = Math.max(
+    sliderMinSats + 1,
+    Number(maxDepositSats ?? 0n),
+  );
   const sliderValueSats = Number(amountSats);
 
   const usdValue = useMemo(() => {
@@ -254,11 +271,6 @@ export function DepositForm({
     !!feeError ||
     estimatedFeeSats === null;
 
-  const splitNotReady =
-    partialLiquidation?.isEnabled &&
-    !partialLiquidation?.canSplit &&
-    !partialLiquidation?.isLoading;
-
   const cta = depositService.getDepositCtaState({
     amountSats,
     minDeposit,
@@ -276,7 +288,6 @@ export function DepositForm({
     isAddressBlocked,
     isWalletConnected,
     hasProvider: !!selectedProvider,
-    splitNotReady: !!splitNotReady,
     isFeeError,
     feeError,
     feeDisabled,
@@ -295,7 +306,7 @@ export function DepositForm({
           currencyName={btcConfig.name}
           onAmountChange={(e) => onAmountChange(e.target.value)}
           sliderValue={sliderValueSats}
-          sliderMin={0}
+          sliderMin={sliderMinSats}
           sliderMax={sliderMaxSats}
           sliderStep={1}
           sliderSteps={[]}
