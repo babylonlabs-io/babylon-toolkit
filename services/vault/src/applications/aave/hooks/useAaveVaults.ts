@@ -6,18 +6,20 @@
  * vaults available for collateral (not currently in use or pending).
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { Address } from "viem";
 
 import { useVaultProviders } from "@/hooks/deposit/useVaultProviders";
 import { usePrice } from "@/hooks/usePrices";
 import { useVaults } from "@/hooks/useVaults";
+import { logger } from "@/infrastructure";
 import {
   ContractStatus,
   getPeginState,
   PEGIN_DISPLAY_LABELS,
 } from "@/models/peginStateMachine";
 import type { Vault, VaultProvider } from "@/types";
+import { scriptPubKeyHexToBtcAddress } from "@/utils/btc";
 import { satoshiToBtcNumber } from "@/utils/btcConversion";
 import { formatProviderDisplayName } from "@/utils/formatting";
 
@@ -65,6 +67,10 @@ export interface RedeemedVaultInfo {
   vaultProviderAddress: string;
   /** Timestamp in milliseconds when vault was created */
   createdAt: number;
+  /** Decoded BTC address the pegout will land at (from on-chain
+   *  `depositorPayoutBtcAddress` scriptPubKey). Undefined when the scriptPubKey
+   *  fails to decode — surfaced as "row omitted" rather than blocking the section. */
+  payoutBtcAddress?: string;
 }
 
 export interface UseAaveVaultsResult {
@@ -117,9 +123,16 @@ export function useAaveVaults(
     return vaults.filter((vault) => vault.status === ContractStatus.ACTIVE);
   }, [vaults]);
 
+  // Dedupes Sentry events when a malformed `depositorPayoutBtcAddress` would
+  // otherwise be re-logged on every polling tick or re-render. Keyed by
+  // `${vaultId}:${scriptPubKey}` so a backend fix that changes the scriptPubKey
+  // does get re-logged if it still fails. Cleared on hook unmount (page nav).
+  const loggedDecodeFailuresRef = useRef<Set<string>>(new Set());
+
   // Vaults with "redeemed" status — withdrawal initiated, VP is processing BTC payout
   const redeemedVaults: RedeemedVaultInfo[] = useMemo(() => {
     if (!vaults) return [];
+    const loggedKeys = loggedDecodeFailuresRef.current;
     return vaults
       .filter((vault) => vault.status === ContractStatus.REDEEMED)
       .map((vault) => {
@@ -128,6 +141,27 @@ export function useAaveVaults(
           provider?.name,
           vault.vaultProvider,
         );
+        let payoutBtcAddress: string | undefined;
+        try {
+          payoutBtcAddress = scriptPubKeyHexToBtcAddress(
+            vault.depositorPayoutBtcAddress,
+          );
+        } catch (error) {
+          const decodeKey = `${vault.id}:${vault.depositorPayoutBtcAddress}`;
+          if (!loggedKeys.has(decodeKey)) {
+            loggedKeys.add(decodeKey);
+            logger.error(
+              error instanceof Error ? error : new Error(String(error)),
+              {
+                data: {
+                  context:
+                    "Decode payout scriptPubKey for pending withdraw card",
+                  vaultId: vault.id,
+                },
+              },
+            );
+          }
+        }
         return {
           id: vault.id,
           peginTxHash: vault.peginTxHash,
@@ -136,6 +170,7 @@ export function useAaveVaults(
           providerIconUrl: provider?.iconUrl,
           vaultProviderAddress: vault.vaultProvider,
           createdAt: vault.createdAt,
+          payoutBtcAddress,
         };
       });
   }, [vaults, findProvider]);

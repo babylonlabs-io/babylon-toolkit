@@ -6,15 +6,9 @@ import {
   REFUND_MAX_FEE_RATE_SATS_VB,
 } from "@babylonlabs-io/ts-sdk/tbv/core/services";
 import { useEffect, useState } from "react";
-import { MdInfoOutline } from "react-icons/md";
 
 import { StatusBanner } from "@/components/deposit/DepositSignModal/StatusBanner";
-import {
-  BTC_BLOCK_TIME_MINS,
-  FALLBACK_FEE_RATE_SATS_VB,
-  MINS_PER_HOUR,
-} from "@/constants";
-import { useProtocolParamsContext } from "@/context/ProtocolParamsContext";
+import { FALLBACK_FEE_RATE_SATS_VB } from "@/constants";
 import { COPY } from "@/copy";
 import { usePrice } from "@/hooks/usePrices";
 import { satoshiToBtcNumber } from "@/utils/btcConversion";
@@ -47,10 +41,6 @@ export function RefundReviewContent({
 }: RefundReviewContentProps) {
   const btcPriceUSD = usePrice("BTC");
   const symbol = getBtcSymbol();
-  const { timelockRefund } = useProtocolParamsContext();
-  const estimatedHours = Math.ceil(
-    (timelockRefund * BTC_BLOCK_TIME_MINS) / MINS_PER_HOUR,
-  );
 
   const [feeRate, setFeeRate] = useState<number | null>(null);
   // True when the seeded feeRate came from the hard-coded floor because the
@@ -201,17 +191,6 @@ export function RefundReviewContent({
             }
             emphasis
           />
-
-          <div className="flex items-center gap-2 rounded-lg border border-secondary-strokeLight px-4 py-2">
-            <MdInfoOutline
-              className="shrink-0 text-accent-secondary"
-              size={18}
-              aria-hidden="true"
-            />
-            <Text variant="body2" className="text-accent-secondary">
-              {COPY.deposit.refundReview.challengePeriodInfo(estimatedHours)}
-            </Text>
-          </div>
 
           {previewError && (
             <StatusBanner variant="error">{previewError}</StatusBanner>

@@ -120,6 +120,8 @@ function SimpleDepositContent({
     effectiveSelectedApplication,
     isWalletConnected,
     btcBalance,
+    unconfirmedBalance,
+    hasUnconfirmedBalanceOnly,
     btcPrice,
     hasPriceFetchError,
     applications,
@@ -332,6 +334,8 @@ function SimpleDepositContent({
                 amount={formData.amountBtc}
                 amountSats={amountSats}
                 btcBalance={btcBalance}
+                unconfirmedBalance={unconfirmedBalance}
+                hasUnconfirmedBalanceOnly={hasUnconfirmedBalanceOnly}
                 minDeposit={minDeposit}
                 maxDeposit={maxDeposit}
                 maxDepositSats={maxDepositSats}

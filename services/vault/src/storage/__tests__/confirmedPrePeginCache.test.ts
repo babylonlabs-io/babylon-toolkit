@@ -10,7 +10,7 @@ vi.mock("@/config", () => ({
 }));
 
 const STORAGE_KEY = "tbv-confirmed-prepegin-signet";
-const TTL_MS = 30 * 24 * 60 * 60 * 1000;
+const TTL_MS = 60 * 60 * 1000;
 
 describe("confirmedPrePeginCache", () => {
   beforeEach(() => {
@@ -62,7 +62,9 @@ describe("confirmedPrePeginCache", () => {
       "aabb"
     ];
 
-    vi.advanceTimersByTime(60 * 60 * 1000);
+    // Well inside the TTL so the re-add reuses the existing entry rather
+    // than being treated as fresh.
+    vi.advanceTimersByTime(60 * 1000);
     addConfirmedPrePeginTxid("aabb");
     const secondTs = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "{}")[
       "aabb"

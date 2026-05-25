@@ -376,6 +376,63 @@ describe("peginStateMachine", () => {
       expect(state.availableActions).toEqual([PeginAction.REFUND_HTLC]);
       expect(state.displayLabel).toBe(PEGIN_DISPLAY_LABELS.EXPIRED);
     });
+
+    it("surfaces a CSV-maturing countdown when refund timelock has not elapsed", () => {
+      const state = getPeginState(ContractStatus.EXPIRED, {
+        expirationReason: "ack_timeout",
+        canRefund: false,
+        refundMaturityState: "maturing",
+        refundMaturesInBlocks: 24,
+      });
+      expect(state.availableActions).toEqual([PeginAction.NONE]);
+      expect(state.refundMaturityState).toBe("maturing");
+      expect(state.refundMaturesInBlocks).toBe(24);
+      // 24 blocks × 10 min = 240 min → ceil(240/60) = 4h.
+      // The countdown lives only in `inlineSubtext`; `message` (tooltip)
+      // stays focused on the expired reason so the user doesn't see the
+      // same sentence twice.
+      expect(state.inlineSubtext).toBe(
+        "Refund available in ~24 Bitcoin blocks (~4h).",
+      );
+      expect(state.message).not.toContain("Refund available");
+    });
+
+    it("uses singular 'block' when exactly one block remains", () => {
+      const state = getPeginState(ContractStatus.EXPIRED, {
+        canRefund: false,
+        refundMaturityState: "maturing",
+        refundMaturesInBlocks: 1,
+      });
+      // 1 block * 10 min = 10 min → ceil(10/60)=1h, floored to min 1h.
+      expect(state.inlineSubtext).toBe(
+        "Refund available in ~1 Bitcoin block (~1h).",
+      );
+    });
+
+    it("shows the generic pending message when refund maturity is unknown", () => {
+      const state = getPeginState(ContractStatus.EXPIRED, {
+        expirationReason: "ack_timeout",
+        canRefund: false,
+        refundMaturityState: "unknown",
+      });
+      expect(state.availableActions).toEqual([PeginAction.NONE]);
+      expect(state.refundMaturityState).toBe("unknown");
+      expect(state.refundMaturesInBlocks).toBeUndefined();
+      // Maturing copy lives only in `inlineSubtext`; tooltip stays focused
+      // on the expired reason.
+      expect(state.inlineSubtext).toBe(
+        "Checking when your refund will be available...",
+      );
+      expect(state.message).not.toContain("Checking when your refund");
+    });
+
+    it("marks state as 'mature' when canRefund is true and no maturity flag was passed", () => {
+      // The default-to-mature fallback preserves the pre-feature behavior for
+      // any caller that hasn't been updated to pass the maturity inputs yet.
+      const state = getPeginState(ContractStatus.EXPIRED, { canRefund: true });
+      expect(state.availableActions).toEqual([PeginAction.REFUND_HTLC]);
+      expect(state.refundMaturityState).toBe("mature");
+    });
   });
 
   // ==========================================================================
