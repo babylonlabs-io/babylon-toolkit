@@ -127,6 +127,10 @@ export const COPY = {
       stepCounter: (current: number, total: number) =>
         `Step ${current} of ${total}`,
     },
+    warnings: {
+      walletOwnershipMismatch: (truncatedPubkey: string) =>
+        `This BTC vault was created with a different BTC public key (${truncatedPubkey}). Switch to that wallet to perform actions.`,
+    },
   },
   deposit: {
     steps: {
@@ -271,7 +275,6 @@ export const COPY = {
       selectVaultProvider: "Select Vault Provider",
       providerSelectDescription: "Choose a provider to secure your BTC",
       providerSelectEmpty: "No vault providers available at this time.",
-      providerStatusActive: "Active",
       providerStatusUnavailable: "Unavailable",
       // Status label for a vault provider that has recently been unreachable
       // per the health proxy. It stays selectable (health can recover).
@@ -281,10 +284,7 @@ export const COPY = {
         "This provider has recently been unreachable. You can still select it, but the deposit may need a retry.",
       // Divider label above the group of unhealthy / rejected providers.
       providerGroupUnavailableLabel: "Limited availability",
-      // Per-provider metric labels shown in the picker. The active-BTC label
-      // intentionally avoids the bare word "Active" because a healthy row
-      // already shows `providerStatusActive: "Active"` on its status line —
-      // back-to-back "Active … Active: 1.5 BTC" reads as a duplicate.
+      // Per-provider metric labels shown in the picker.
       providerCommissionLabel: "Commission",
       providerActiveLabel: "Total locked",
       // Placeholder while a metric (commission, active BTC) is loading or
@@ -300,8 +300,7 @@ export const COPY = {
     },
     resume: {
       broadcastSuccessMessage: PRE_PEGIN_BROADCAST_CONFIRMATION_MESSAGE,
-      activationSuccessMessage:
-        "Your BTC Vault has been activated. The vault provider can now claim the HTLC on Bitcoin.",
+      activationSuccessMessage: "Your BTC Vault has been activated.",
       wotsMismatchError:
         "WOTS public key hash does not match the on-chain commitment — the wrong wallet is connected.",
     },

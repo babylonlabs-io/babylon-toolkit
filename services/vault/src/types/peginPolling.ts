@@ -23,6 +23,12 @@ export interface DepositPollingResult {
   peginState: PeginState;
   /** Whether the vault is owned by the currently connected BTC wallet */
   isOwnedByCurrentWallet: boolean;
+  /**
+   * The vault's depositor BTC public key, surfaced so the UI can identify
+   * which wallet created this vault when the ownership check fails.
+   * Undefined only for legacy/incomplete indexer data.
+   */
+  depositorBtcPubkey: string | undefined;
 }
 
 /** Context value type */

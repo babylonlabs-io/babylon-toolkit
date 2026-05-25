@@ -19,7 +19,7 @@ import {
   useETHWallet,
 } from "../../context/wallet";
 import { depositService } from "../../services/deposit";
-import { getEthExplorerAddressUrl } from "../../utils/explorer";
+import { getVpExplorerProviderUrl } from "../../utils/explorer";
 import { formatProviderDisplayName } from "../../utils/formatting";
 import { sortVaultProviders } from "../../utils/sortVaultProviders";
 import { vaultProviderUnavailableReason } from "../../utils/vaultProviderStatus";
@@ -240,7 +240,7 @@ export function useDepositPageForm(): UseDepositPageFormResult {
         commissionBps: commissionsById.get(idLower),
         totalActiveSats: stats?.totalActiveSats,
         lastSuccessfulPeginAt: stats?.lastSuccessfulPeginAt,
-        explorerUrl: getEthExplorerAddressUrl(p.id),
+        explorerUrl: getVpExplorerProviderUrl(p.id),
       };
     });
     return sortVaultProviders(items);
@@ -497,6 +497,25 @@ export function useDepositPageForm(): UseDepositPageFormResult {
       prev.amountBtc === maxBtc ? prev : { ...prev, amountBtc: maxBtc },
     );
   }, [isMaxPinned, adjustedMaxDepositSats]);
+
+  // When the depositable max resolves or shrinks (cap loads late, UTXO split
+  // auto-enables a second vault's reserve, fees resolve), clamp any amount left
+  // above it down to the max. A value selected against a higher, stale max — a
+  // slider thumb dragged before the real cap loaded — would otherwise strand
+  // above it and read "Insufficient balance". Keyed only on the max so it never
+  // fires mid-typing: a typed over-max amount keeps its validation message.
+  useEffect(() => {
+    if (adjustedMaxDepositSats == null) return;
+    setFormDataInternal((prev) => {
+      if (!prev.amountBtc) return prev;
+      const prevSats = depositService.parseBtcToSatoshis(prev.amountBtc);
+      if (prevSats <= adjustedMaxDepositSats) return prev;
+      return {
+        ...prev,
+        amountBtc: depositService.formatSatoshisToBtc(adjustedMaxDepositSats),
+      };
+    });
+  }, [adjustedMaxDepositSats]);
 
   const validateForm = useCallback(() => {
     const newErrors: typeof errors = {};

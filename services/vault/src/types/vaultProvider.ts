@@ -105,8 +105,12 @@ export interface VaultProviderListItem {
   totalActiveSats?: bigint;
   /** ms timestamp of this VP's most recently activated vault; `undefined` if none. */
   lastSuccessfulPeginAt?: number;
-  /** ETH explorer URL for the VP's address */
-  explorerUrl: string;
+  /**
+   * Babylon BTC Vault explorer URL for the VP's provider page. `undefined`
+   * when `NEXT_PUBLIC_TBV_VP_EXPLORER_URL` is unset — the picker omits the
+   * link in that case rather than rendering a broken one.
+   */
+  explorerUrl?: string;
 }
 
 /**

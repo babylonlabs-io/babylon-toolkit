@@ -83,8 +83,11 @@ export function PendingDepositCard({
   // suppressed here. Other per-vault actions still render.
   const broadcastSuppressed =
     !!suppressBroadcastAction &&
-    status.type === "available" &&
+    (status.type === "available" || status.type === "disabled") &&
     status.action.action === PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN;
+  const hasAction =
+    (status.type === "available" || status.type === "disabled") &&
+    !broadcastSuppressed;
   const isActionable = status.type === "available" && !broadcastSuppressed;
   const showArtifactDownload =
     onArtifactDownloadClick && isArtifactDownloadAvailable(pollingResult);
@@ -107,7 +110,9 @@ export function PendingDepositCard({
   };
 
   const actionLabel =
-    status.type === "available" ? status.action.label : peginState.displayLabel;
+    status.type === "available" || status.type === "disabled"
+      ? status.action.label
+      : peginState.displayLabel;
   // `loading` is React Query's `isLoading` — true only on the very first fetch,
   // not on subsequent polling refetches — so this gives a one-shot "Loading..."
   // on initial mount without flickering on every poll cycle.
@@ -136,6 +141,8 @@ export function PendingDepositCard({
       providerName={providerName}
       providerIconUrl={provider?.iconUrl}
       providerAddress={providerId}
+      disabled={status.type === "disabled"}
+      disabledTooltip={status.type === "disabled" ? status.tooltip : undefined}
       headerEnd={
         <VaultStatusBadge
           dotColor={dotColor}
@@ -161,9 +168,9 @@ export function PendingDepositCard({
         )
       }
       action={
-        isActionable || showArtifactDownload ? (
+        hasAction || showArtifactDownload ? (
           <div className="flex flex-col items-stretch gap-2">
-            {isActionable && (
+            {hasAction && (
               <Button
                 variant="outlined"
                 color="primary"

@@ -164,6 +164,8 @@ export function getVisualStep(currentStep: DepositFlowStep): number {
       return 12;
     case DepositFlowStep.AWAIT_VP_VERIFICATION:
       return 13;
+    // ARTIFACT_DOWNLOAD is surfaced as a modal overlay rather than its own
+    // stepper row, so it collapses onto the RETRIEVE_SECRET visual step.
     case DepositFlowStep.ARTIFACT_DOWNLOAD:
     case DepositFlowStep.RETRIEVE_SECRET:
       return 14;

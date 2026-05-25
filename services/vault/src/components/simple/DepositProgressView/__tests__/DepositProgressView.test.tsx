@@ -121,7 +121,22 @@ describe("DepositProgressView", () => {
   });
 
   describe("mid-flow progress bar", () => {
-    it("renders the overall 'X of N steps completed' pill once a step is done", () => {
+    it("renders the overall 'X of N steps completed' pill once a group is done", () => {
+      // SUBMIT_WOTS_KEYS lives in the second group, so the first group
+      // ("Register deposit") is fully complete -> 1 of 4 groups done.
+      render(
+        <DepositProgressView
+          {...baseProps}
+          currentStep={DepositFlowStep.SUBMIT_WOTS_KEYS}
+        />,
+      );
+
+      expect(
+        screen.getByText(COPY.deposit.progress.stepsCompleted(1, 4)),
+      ).toBeInTheDocument();
+    });
+
+    it("hides the overall pill while the first group is still active", () => {
       render(
         <DepositProgressView
           {...baseProps}
@@ -129,9 +144,7 @@ describe("DepositProgressView", () => {
         />,
       );
 
-      expect(
-        screen.getByText(COPY.deposit.progress.stepsCompleted(5, 16)),
-      ).toBeInTheDocument();
+      expect(screen.queryByText(/steps completed/)).not.toBeInTheDocument();
     });
 
     it("hides the overall pill before any step is completed", () => {
