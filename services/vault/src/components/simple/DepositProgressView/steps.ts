@@ -35,8 +35,7 @@ export function buildStepItems(
     { label: COPY.deposit.steps.signLinkProofs },
     { label: COPY.deposit.steps.signAndBroadcastEth },
     { label: COPY.deposit.steps.signAndBroadcastPrePegin },
-    { label: COPY.deposit.steps.awaitBtcConfirmation },
-    { label: COPY.deposit.steps.awaitVpIngestion },
+    { label: COPY.deposit.steps.confirmingDeposit },
     { label: COPY.deposit.steps.submitWotsKey },
     { label: COPY.deposit.steps.awaitPayoutTransactions },
     { label: COPY.deposit.steps.authenticateSession },
@@ -66,10 +65,10 @@ export interface StepGroup {
 }
 
 export const STEP_GROUPS: StepGroup[] = [
-  { title: COPY.deposit.groups.registerDeposit, startStep: 1, endStep: 7 },
-  { title: COPY.deposit.groups.signWots, startStep: 8, endStep: 9 },
-  { title: COPY.deposit.groups.signPayout, startStep: 10, endStep: 13 },
-  { title: COPY.deposit.groups.activateVault, startStep: 14, endStep: 16 },
+  { title: COPY.deposit.groups.registerDeposit, startStep: 1, endStep: 6 },
+  { title: COPY.deposit.groups.signWots, startStep: 7, endStep: 8 },
+  { title: COPY.deposit.groups.signPayout, startStep: 9, endStep: 12 },
+  { title: COPY.deposit.groups.activateVault, startStep: 13, endStep: 15 },
 ];
 
 export type GroupStatus = "completed" | "active" | "upcoming";
@@ -150,29 +149,27 @@ export function getVisualStep(currentStep: DepositFlowStep): number {
       return 5;
     case DepositFlowStep.AWAIT_BTC_CONFIRMATION:
       return 6;
-    case DepositFlowStep.AWAIT_VP_INGESTION:
-      return 7;
     case DepositFlowStep.SUBMIT_WOTS_KEYS:
-      return 8;
+      return 7;
     case DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS:
-      return 9;
+      return 8;
     case DepositFlowStep.SIGN_AUTH_ANCHOR:
-      return 10;
+      return 9;
     case DepositFlowStep.SIGN_PAYOUTS:
-      return 11;
+      return 10;
     case DepositFlowStep.SIGN_DEPOSITOR_GRAPH:
-      return 12;
+      return 11;
     case DepositFlowStep.AWAIT_VP_VERIFICATION:
-      return 13;
+      return 12;
     // ARTIFACT_DOWNLOAD is surfaced as a modal overlay rather than its own
     // stepper row, so it collapses onto the RETRIEVE_SECRET visual step.
     case DepositFlowStep.ARTIFACT_DOWNLOAD:
     case DepositFlowStep.RETRIEVE_SECRET:
-      return 14;
+      return 13;
     case DepositFlowStep.ACTIVATE_VAULT:
-      return 15;
+      return 14;
     case DepositFlowStep.AWAIT_ACTIVATION_CONFIRMATION:
-      return 16;
+      return 15;
     case DepositFlowStep.COMPLETED:
       return TOTAL_VISUAL_STEPS + 1;
     default: {

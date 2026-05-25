@@ -100,13 +100,6 @@ export interface PeginState {
   availableActions: PeginAction[];
   message?: string;
   awaitingPayoutPrep?: boolean;
-  /**
-   * Pre-PegIn BTC confirmations have reached the protocol-mandated depth,
-   * but the VP is still at `PendingIngestion`. Lets the stepper pin the
-   * deposit on `AWAIT_VP_INGESTION` so a stuck VP doesn't masquerade as a
-   * BTC-confirmation wait.
-   */
-  awaitingVpIngestion?: boolean;
   refundMaturityState?: RefundMaturityState;
   /** Blocks remaining until refund matures; set only when `maturing`. */
   refundMaturesInBlocks?: number;
@@ -132,6 +125,15 @@ export interface GetPeginStateOptions {
    * if we rely on localStorage `CONFIRMING` alone.
    */
   prePeginBroadcastConfirmed?: boolean;
+  /**
+   * True when the Pre-PegIn BTC tx is present on the network at all (in the
+   * mempool or a block — chain ground truth, independent of localStorage and
+   * of confirmation depth). Once seen, the broadcast action is moot in EVERY
+   * tab/device, so the dashboard stops re-offering "Broadcast" in a tab that
+   * happens to lack the local `CONFIRMING` marker. A superset of
+   * `prePeginBroadcastConfirmed` (confirmed ⇒ seen).
+   */
+  prePeginBroadcastSeen?: boolean;
   expirationReason?: ExpirationReason;
   expiredAt?: number;
   /**
@@ -278,7 +280,22 @@ export function getPeginState(
     options.refundBroadcastAt,
     options.now,
   );
-  const actions = mapActions(sdkActions);
+  // Chain ground truth overrides the localStorage-gated broadcast action:
+  // once the Pre-PegIn is on the network at all (seen in mempool/chain) there
+  // is nothing left to broadcast, so we drop the action in EVERY tab/device —
+  // not just the one holding the local CONFIRMING marker. A confirmed-at-depth
+  // deposit then surfaces as "ingesting" and a seen-but-shallow one as
+  // "awaiting Bitcoin confirmation", instead of a phantom "broadcast may have
+  // failed" prompt. (`prePeginBroadcastConfirmed ⊆ prePeginBroadcastSeen`; both
+  // are checked so a caller that sets only the former still suppresses.)
+  const chainAdjustedActions =
+    options.prePeginBroadcastSeen === true ||
+    options.prePeginBroadcastConfirmed === true
+      ? sdkActions.filter(
+          (a) => a !== SdkPeginAction.SIGN_AND_BROADCAST_TO_BITCOIN,
+        )
+      : sdkActions;
+  const actions = mapActions(chainAdjustedActions);
   const display = getDisplay(contractStatus, actions, options);
 
   return {
@@ -377,7 +394,6 @@ interface DisplayInfo {
   displayVariant: "pending" | "active" | "inactive" | "warning";
   message?: string;
   awaitingPayoutPrep?: boolean;
-  awaitingVpIngestion?: boolean;
   refundMaturityState?: RefundMaturityState;
   refundMaturesInBlocks?: number;
   inlineSubtext?: string;
@@ -437,8 +453,9 @@ function getDisplay(
       };
     }
     // BTC confirmed at protocol depth (mempool ground truth), VP still
-    // ingesting. Distinct from "broadcast but not yet confirmed" — surfaces
-    // a stuck VP plainly instead of falsely blaming the BTC wait.
+    // ingesting. Distinct from "broadcast but not yet confirmed" — the message
+    // surfaces a stuck VP plainly instead of falsely blaming the BTC wait,
+    // while the stepper stays on the shared "confirming deposit" step.
     if (
       options.pendingIngestion === true &&
       options.prePeginBroadcastConfirmed === true
@@ -447,12 +464,16 @@ function getDisplay(
         displayLabel: PEGIN_DISPLAY_LABELS.PENDING,
         displayVariant: "pending",
         message: COPY.pegin.messages.prePeginIngesting,
-        awaitingVpIngestion: true,
       };
     }
+    // Broadcast happened (chain says the tx is on the network, or the local
+    // CONFIRMING marker says so) but it is not yet confirmed at depth — a
+    // Bitcoin-confirmation wait. Keyed on `prePeginBroadcastSeen` too so every
+    // tab shows this, not just the one that broadcast.
     if (
       options.pendingIngestion === true &&
-      localStatus === LocalStorageStatus.CONFIRMING
+      (options.prePeginBroadcastSeen === true ||
+        localStatus === LocalStorageStatus.CONFIRMING)
     ) {
       return {
         displayLabel: PEGIN_DISPLAY_LABELS.PENDING,
@@ -688,17 +709,14 @@ export function getPeginDisplayStep(state: PeginState): DepositFlowStep | null {
     // No action pending. Once payouts are signed the deposit is waiting for VP
     // verification/ACK submission. If the VP has ingested the deposit but
     // payout transactions are not ready, it is preparing the signing package.
-    // If BTC depth is met but VP still says PendingIngestion, the wait is
-    // VP-side, not BTC-side. Otherwise it is still waiting for Pre-PegIn
-    // confirmation/detection.
+    // Otherwise it is still confirming the Pre-PegIn — whether waiting on BTC
+    // depth or on a VP still at PendingIngestion, both share the "confirming
+    // deposit" step and are told apart by the status message.
     if (localStatus === LocalStorageStatus.PAYOUT_SIGNED) {
       return DepositFlowStep.AWAIT_VP_VERIFICATION;
     }
     if (state.awaitingPayoutPrep) {
       return DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS;
-    }
-    if (state.awaitingVpIngestion) {
-      return DepositFlowStep.AWAIT_VP_INGESTION;
     }
     return DepositFlowStep.AWAIT_BTC_CONFIRMATION;
   }

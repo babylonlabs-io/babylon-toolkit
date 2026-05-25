@@ -69,15 +69,32 @@ export function PendingDepositSection() {
     [pendingActivities],
   );
 
-  if (!hasPendingDeposits && !hasExpiredDeposits) return null;
+  // A resume modal is rendered inside this section (under its
+  // PeginPollingProvider). When the last pending deposit advances to a terminal
+  // contract state (e.g. activation confirmed → ACTIVE), it drops out of
+  // `pendingActivities`; without this guard the section — and the open modal —
+  // would unmount before the modal could show its success terminal. Keep it
+  // mounted while any action modal is open so the modal owns its own dismissal.
+  const hasOpenModal = Boolean(
+    signModal.signingData ||
+      broadcastModal.broadcastingActivity ||
+      broadcastModal.successOpen ||
+      wotsKeyModal.isOpen ||
+      activationModal.activatingActivity ||
+      artifactDownloadModal.isOpen ||
+      refundModal.refundingActivity,
+  );
+
+  if (!hasPendingDeposits && !hasExpiredDeposits && !hasOpenModal) return null;
 
   const count = pendingActivities.length;
 
   // `PeginPollingProvider` resolves per-deposit `minPrepeginDepth` via
-  // `useProtocolParamsContext` for the AWAIT_VP_INGESTION routing — the
-  // dashboard doesn't otherwise mount `ProtocolParamsProvider`, so do it
-  // here. Only fires when there is something pending (the section early-
-  // returns above), so we don't pay the params load on an empty dashboard.
+  // `useProtocolParamsContext` to tell a Bitcoin-confirmation wait apart from
+  // a VP-ingestion wait on the confirming-deposit step — the dashboard doesn't
+  // otherwise mount `ProtocolParamsProvider`, so do it here. Only fires when
+  // there is something pending (the section early-returns above), so we don't
+  // pay the params load on an empty dashboard.
   return (
     <ProtocolParamsProvider>
       <PeginPollingProvider

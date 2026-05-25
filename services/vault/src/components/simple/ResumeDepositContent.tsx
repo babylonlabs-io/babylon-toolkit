@@ -31,6 +31,7 @@ import type { Address, Hex } from "viem";
 import { getVaultRegistryReader } from "@/clients/eth-contract/sdk-readers";
 import { computeDepositDerivedState } from "@/components/deposit/DepositSignModal/depositStepHelpers";
 import { usePayoutSigningState } from "@/components/deposit/PayoutSignModal/usePayoutSigningState";
+import { useDepositPollingResult } from "@/context/deposit/PeginPollingContext";
 import { COPY } from "@/copy";
 import {
   DepositFlowStep,
@@ -42,6 +43,10 @@ import { useBroadcastState } from "@/hooks/deposit/useBroadcastState";
 import { useReleaseVpTokenOnUnmount } from "@/hooks/deposit/useReleaseVpTokenOnUnmount";
 import { useRunOnce } from "@/hooks/useRunOnce";
 import { logger } from "@/infrastructure";
+import {
+  ContractStatus,
+  getPeginDisplayStep,
+} from "@/models/peginStateMachine";
 import type { VaultActivity } from "@/types/activity";
 import {
   shouldProbeWalletLiveness,
@@ -80,10 +85,34 @@ export function ResumeSignContent({
 
   useRunOnce(handleSign);
 
-  const renderStep = isComplete
-    ? DepositFlowStep.AWAIT_VP_VERIFICATION
-    : payoutSigningStep(progress.phase);
-  const renderIsWaiting = isComplete;
+  // Once signing is done the deposit waits on the vault provider. Track the
+  // live contract status so the "Awaiting vault provider verification" wait has
+  // a terminal condition instead of spinning forever (the pending-deposit card
+  // already reflects this state):
+  //  - VERIFIED → advance to "ready to activate" (closeable terminal milestone).
+  //  - ACTIVE   → the vault was activated elsewhere while this modal sat open,
+  //    so the whole flow is already complete; show COMPLETED, not the stale
+  //    "ready to activate" milestone (which would imply an activation step is
+  //    still pending and disagree with the dashboard).
+  const pollingResult = useDepositPollingResult(activity.id);
+  const contractStatus = pollingResult?.peginState?.contractStatus;
+  const verified = contractStatus === ContractStatus.VERIFIED;
+  const active = contractStatus === ContractStatus.ACTIVE;
+  const pastSigning = verified || active;
+  // "Ready to activate" is a VERIFIED-only milestone; once ACTIVE the flow is
+  // already complete and that message would be wrong.
+  const readyToActivate = isComplete && verified;
+
+  const renderStep = !isComplete
+    ? payoutSigningStep(progress.phase)
+    : active
+      ? DepositFlowStep.COMPLETED
+      : verified
+        ? DepositFlowStep.RETRIEVE_SECRET
+        : DepositFlowStep.AWAIT_VP_VERIFICATION;
+  // Only "waiting" while the VP is still verifying; VERIFIED and ACTIVE are both
+  // closeable terminals, not background waits.
+  const renderIsWaiting = isComplete && !pastSigning;
   const derived = computeDepositDerivedState(
     renderStep,
     signing,
@@ -99,6 +128,9 @@ export function ResumeSignContent({
       isProcessing={derived.isProcessing}
       canClose={derived.canClose}
       canContinueInBackground={derived.canContinueInBackground}
+      terminalMessage={
+        readyToActivate ? COPY.deposit.resume.readyToActivateMessage : undefined
+      }
       payoutSigningProgress={signing ? progress : null}
       peginSigningProgress={null}
       onClose={onClose}
@@ -382,15 +414,38 @@ export function ResumeWotsContent({
   // genuinely no provider it fires, so the real "not connected" error surfaces.
   useRunOnce(handleSubmit, !btcWalletProvider || Boolean(connectedBtcAddress));
 
-  const isSuccess = !loading && !error;
-  const renderStep = isSuccess
+  // Reconcile the displayed step with the polled VP status instead of trusting
+  // local `loading`/`error` alone. Without this the modal computes its step
+  // purely from local state, so after the user signs the WOTS submission it
+  // spins forever on SUBMIT_WOTS_KEYS (the local "waiting" has no terminal
+  // condition) — disagreeing with the dashboard's reactive pending card.
+  //
+  // `pastWots` is the polled discriminator: the VP has provably accepted the
+  // WOTS key and advanced once its display step moves past SUBMIT_WOTS_KEYS.
+  // This is safe by construction — the VP can only be past WOTS once the
+  // submission landed — so it never aborts a still-needed submit, and a re-run
+  // `handleSubmit` is a no-op the VP ignores. It also overrides a hung local
+  // submit so the modal never stalls on the WOTS spinner.
+  const pollingResult = useDepositPollingResult(activity.id);
+  const polledPeginState = pollingResult?.peginState;
+  const polledStep = polledPeginState
+    ? getPeginDisplayStep(polledPeginState)
+    : null;
+  const pastWots =
+    polledStep !== null && polledStep > DepositFlowStep.SUBMIT_WOTS_KEYS;
+
+  // Advance off the WOTS step once the local submit resolves OR the polled VP
+  // status confirms acceptance. Then the modal sits on the next step as a
+  // closeable background wait ("Close & continue later"), matching the other
+  // resume waits — no separate success banner needed.
+  const advanced = (!loading && !error) || pastWots;
+  const renderStep = advanced
     ? DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS
     : DepositFlowStep.SUBMIT_WOTS_KEYS;
-  const renderIsWaiting = isSuccess;
   const derived = computeDepositDerivedState(
     renderStep,
-    loading,
-    renderIsWaiting,
+    loading && !advanced,
+    advanced,
     error,
   );
 
@@ -562,15 +617,29 @@ export function ResumeActivationContent({
   useRunOnce(handleSubmit, !btcWalletProvider || Boolean(connectedBtcAddress));
 
   const error = localError ?? activationError;
-  const renderStep = activated
-    ? DepositFlowStep.AWAIT_ACTIVATION_CONFIRMATION
-    : activating
-      ? DepositFlowStep.ACTIVATE_VAULT
-      : DepositFlowStep.RETRIEVE_SECRET;
+
+  // After broadcasting the activation transaction the deposit waits for the
+  // contract to confirm. Track the live status so "Awaiting vault activation
+  // confirmation" has a terminal condition: once the contract reports ACTIVE we
+  // mark the flow complete instead of spinning forever (the dashboard already
+  // shows the vault as active by then).
+  const pollingResult = useDepositPollingResult(activity.id);
+  const active =
+    pollingResult?.peginState?.contractStatus === ContractStatus.ACTIVE;
+
+  const renderStep = active
+    ? DepositFlowStep.COMPLETED
+    : activated
+      ? DepositFlowStep.AWAIT_ACTIVATION_CONFIRMATION
+      : activating
+        ? DepositFlowStep.ACTIVATE_VAULT
+        : DepositFlowStep.RETRIEVE_SECRET;
+  // Waiting only while the broadcast is in flight or confirmation is pending;
+  // the ACTIVE milestone is a completed terminal, not a background wait.
   const derived = computeDepositDerivedState(
     renderStep,
     activating || loading,
-    activated,
+    activated && !active,
     error,
   );
 

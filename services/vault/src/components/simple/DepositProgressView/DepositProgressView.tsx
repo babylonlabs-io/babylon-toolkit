@@ -54,6 +54,14 @@ export interface DepositProgressViewProps {
   onClose: () => void;
   /** Override the default success message */
   successMessage?: string;
+  /**
+   * Terminal success message shown at the *current* (non-final) step — used
+   * when the deposit has reached a stable, closeable milestone that is not the
+   * end of the whole flow (e.g. "ready to activate" after payout signing).
+   * Unlike `isComplete`, this does not advance the stepper to 100%; it renders
+   * a success banner and a "Done" button while keeping the step position.
+   */
+  terminalMessage?: string | null;
   /** Override the default error retry handler (defaults to onClose) */
   onRetry?: () => void;
   /**
@@ -76,10 +84,15 @@ export function DepositProgressView(props: DepositProgressViewProps) {
     peginSigningProgress,
     onClose,
     successMessage = COPY.deposit.progress.defaultSuccessMessage,
+    terminalMessage,
     onRetry,
     btcConfirmationDetail,
     waitDetailPersistKey,
   } = props;
+
+  // A terminal-but-not-final milestone: closeable success without marking the
+  // whole flow complete (so the stepper keeps its real position).
+  const isTerminalSuccess = !isComplete && !error && Boolean(terminalMessage);
 
   // On completion, advance past the last row so every circle renders as ✓.
   const visualStep = isComplete
@@ -154,8 +167,12 @@ export function DepositProgressView(props: DepositProgressViewProps) {
           <StatusBanner variant="success">{successMessage}</StatusBanner>
         )}
 
+        {isTerminalSuccess && (
+          <StatusBanner variant="success">{terminalMessage}</StatusBanner>
+        )}
+
         <Button
-          disabled={!canClose}
+          disabled={!canClose && !isTerminalSuccess}
           variant="contained"
           color="secondary"
           className="w-full"
@@ -169,7 +186,7 @@ export function DepositProgressView(props: DepositProgressViewProps) {
             ) : (
               COPY.deposit.progress.buttons.close
             )
-          ) : isComplete ? (
+          ) : isComplete || isTerminalSuccess ? (
             COPY.deposit.progress.buttons.done
           ) : isProcessing ? (
             <span className="flex items-center justify-center gap-2">
