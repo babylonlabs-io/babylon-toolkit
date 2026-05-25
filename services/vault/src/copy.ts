@@ -272,6 +272,10 @@ export const COPY = {
         opts.hasSupplyCap
           ? "Reserves a fee buffer, excludes inscription UTXOs, and stays within the supply cap."
           : "Reserves a fee buffer and excludes inscription UTXOs.",
+      pendingConfirmationNotice: (amount: string) =>
+        `${amount} pending confirmation`,
+      pendingConfirmationTooltip:
+        "Only balances confirmed in a Bitcoin block are shown here. This amount is still waiting to confirm.",
       doNotSplit: "Do not split UTXO",
       selectVaultProvider: "Select Vault Provider",
       providerSelectDescription: "Choose a provider to secure your BTC",

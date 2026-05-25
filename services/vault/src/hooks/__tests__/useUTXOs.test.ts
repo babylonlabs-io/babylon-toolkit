@@ -207,5 +207,84 @@ describe("useUTXOs", () => {
         true,
       );
     });
+
+    it("should sum unconfirmed UTXO values in unconfirmedBalance", () => {
+      const mixedUtxos: MempoolUTXO[] = [
+        createMempoolUtxo("confirmed1", 0, 100000, true),
+        createMempoolUtxo("unconfirmed1", 0, 200000, false),
+        createMempoolUtxo("unconfirmed2", 1, 50000, false),
+      ];
+
+      mockUseQuery.mockReturnValue({
+        data: mixedUtxos,
+        isLoading: false,
+        error: null,
+        refetch: vi.fn(),
+      });
+
+      mockUseOrdinals.mockReturnValue({
+        inscriptions: [],
+        isLoading: false,
+        error: null,
+        refetch: vi.fn(),
+      });
+
+      const { result } = renderHook(() => useUTXOs(testAddress));
+
+      expect(result.current.unconfirmedBalance).toBe(250000n);
+      expect(result.current.confirmedBalance).toBe(100000n);
+    });
+
+    it("should report zero unconfirmedBalance when all UTXOs are confirmed", () => {
+      const confirmedOnly: MempoolUTXO[] = [
+        createMempoolUtxo("confirmed1", 0, 100000, true),
+        createMempoolUtxo("confirmed2", 1, 300000, true),
+      ];
+
+      mockUseQuery.mockReturnValue({
+        data: confirmedOnly,
+        isLoading: false,
+        error: null,
+        refetch: vi.fn(),
+      });
+
+      mockUseOrdinals.mockReturnValue({
+        inscriptions: [],
+        isLoading: false,
+        error: null,
+        refetch: vi.fn(),
+      });
+
+      const { result } = renderHook(() => useUTXOs(testAddress));
+
+      expect(result.current.unconfirmedBalance).toBe(0n);
+      expect(result.current.confirmedBalance).toBe(400000n);
+    });
+
+    it("should report zero confirmedBalance when all UTXOs are unconfirmed", () => {
+      const unconfirmedOnly: MempoolUTXO[] = [
+        createMempoolUtxo("unconfirmed1", 0, 200000, false),
+        createMempoolUtxo("unconfirmed2", 1, 50000, false),
+      ];
+
+      mockUseQuery.mockReturnValue({
+        data: unconfirmedOnly,
+        isLoading: false,
+        error: null,
+        refetch: vi.fn(),
+      });
+
+      mockUseOrdinals.mockReturnValue({
+        inscriptions: [],
+        isLoading: false,
+        error: null,
+        refetch: vi.fn(),
+      });
+
+      const { result } = renderHook(() => useUTXOs(testAddress));
+
+      expect(result.current.confirmedBalance).toBe(0n);
+      expect(result.current.unconfirmedBalance).toBe(250000n);
+    });
   });
 });

@@ -1,4 +1,4 @@
-import { AmountSlider, Card } from "@babylonlabs-io/core-ui";
+import { AmountSlider, Card, Hint, InfoIcon } from "@babylonlabs-io/core-ui";
 import { useMemo, useState } from "react";
 
 import { ApplicationLogo } from "@/components/ApplicationLogo";
@@ -34,6 +34,14 @@ interface DepositFormProps {
   amount: string;
   amountSats: bigint;
   btcBalance: bigint;
+  /** Total value of unconfirmed (in-mempool) UTXOs in satoshis. Display-only. */
+  unconfirmedBalance: bigint;
+  /**
+   * True when the confirmed balance is zero but unconfirmed funds exist. Shows
+   * an inline "pending confirmation" notice so the user understands why the
+   * form reads zero while their wallet shows a balance.
+   */
+  hasUnconfirmedBalanceOnly: boolean;
   minDeposit: bigint;
   maxDeposit?: bigint;
   /**
@@ -137,6 +145,8 @@ export function DepositForm({
   amount,
   amountSats,
   btcBalance,
+  unconfirmedBalance,
+  hasUnconfirmedBalanceOnly,
   minDeposit,
   maxDeposit,
   maxDepositSats,
@@ -214,6 +224,25 @@ export function DepositForm({
     })} USD`;
   }, [amount, btcPrice, hasPriceFetchError]);
 
+  // When the confirmed balance reads zero but unconfirmed funds exist, show a
+  // "pending confirmation" note in the slider's right slot (where the USD value
+  // would sit — empty at a zero balance). The InfoIcon is wrapped with an
+  // attach-to-children Hint so the markup stays inline-valid inside the slider's
+  // right cell (a bare Hint would nest a div inside a span).
+  const pendingConfirmationField = hasUnconfirmedBalanceOnly ? (
+    <span className="inline-flex items-center gap-1 text-accent-secondary">
+      {COPY.deposit.form.pendingConfirmationNotice(
+        `${Number(depositService.formatSatoshisToBtc(unconfirmedBalance))} ${btcConfig.coinSymbol}`,
+      )}
+      <Hint
+        tooltip={COPY.deposit.form.pendingConfirmationTooltip}
+        attachToChildren
+      >
+        <InfoIcon size={16} className="text-secondary-strokeDark" />
+      </Hint>
+    </span>
+  ) : null;
+
   const selectedApp = applications.find((a) => a.id === selectedApplication);
 
   const hasAmount = !!amount && amount !== "0";
@@ -284,11 +313,21 @@ export function DepositForm({
             // `effectiveRemaining` is null both when no cap applies and while
             // the cap read is loading; either way we omit the cap clause
             // until we know it's a real constraint.
-            tooltip: COPY.deposit.form.maxTooltip({
-              hasSupplyCap: effectiveRemaining !== null,
-            }),
+            //
+            // Drop the Max tooltip while the pending-confirmation note is shown
+            // so the row carries a single info icon (the pending one) rather
+            // than two competing tooltips.
+            tooltip: hasUnconfirmedBalanceOnly
+              ? undefined
+              : COPY.deposit.form.maxTooltip({
+                  hasSupplyCap: effectiveRemaining !== null,
+                }),
           }}
-          rightField={{ value: usdValue }}
+          rightField={{
+            value: !hasAmount
+              ? (pendingConfirmationField ?? usdValue)
+              : usdValue,
+          }}
           onMaxClick={onMaxClick}
           inputClassName="h-10 w-auto rounded-lg bg-primary-contrast px-4 [field-sizing:content]"
         />
