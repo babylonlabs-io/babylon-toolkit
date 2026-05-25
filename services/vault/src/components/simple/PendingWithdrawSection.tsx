@@ -96,6 +96,7 @@ export function PendingWithdrawSection({
                   providerName={vault.providerName}
                   providerIconUrl={vault.providerIconUrl}
                   providerAddress={vault.vaultProviderAddress}
+                  payoutBtcAddress={vault.payoutBtcAddress}
                   statusContent={
                     <VaultStatusBadge
                       dotColor={STATUS_DOT_COLORS[variant]}

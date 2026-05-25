@@ -24,6 +24,9 @@ interface CopyableHashProps {
   explorerUrl?: string;
   /** When true, render a small BTC/ETH tag in front of the hash (useful in mixed-chain lists). */
   showChainBadge?: boolean;
+  /** Whether the value is a transaction hash (default) or an address. Affects
+   *  the copy button's aria-label so screen readers announce the correct kind. */
+  kind?: "tx" | "address";
 }
 
 function formatForChain(hash: string, chain: HashChain): string {
@@ -35,11 +38,12 @@ export function CopyableHash({
   chain,
   explorerUrl,
   showChainBadge = false,
+  kind = "tx",
 }: CopyableHashProps) {
   const { isCopied, copyToClipboard } = useCopy();
   const displayHash = formatForChain(hash, chain);
   const truncated = truncateHash(displayHash);
-  const copyLabel = `Copy ${chain} transaction hash ${truncated}`;
+  const copyLabel = `Copy ${chain} ${kind === "address" ? "address" : "transaction hash"} ${truncated}`;
 
   return (
     <span className="flex items-center gap-1.5 font-mono text-sm">

@@ -18,6 +18,11 @@ export function getBtcExplorerTxUrl(txHash: string): string {
   return `${btcConfig.mempoolApiUrl}/tx/${stripHexPrefix(txHash)}`;
 }
 
+export function getBtcExplorerAddressUrl(address: string): string {
+  const btcConfig = getNetworkConfigBTC();
+  return `${btcConfig.mempoolApiUrl}/address/${address}`;
+}
+
 function getEthExplorerTxUrl(txHash: string): string {
   const { explorerUrl } = getNetworkConfigETH();
   return `${explorerUrl}/tx/${txHash}`;
