@@ -12,7 +12,18 @@
 import { Transaction } from "bitcoinjs-lib";
 import { Buffer } from "buffer";
 
-import type { UtxoRef } from "./reservation";
+/**
+ * Reference to a Bitcoin UTXO by its outpoint (txid + vout).
+ *
+ * Used by the availability check to compare a Pre-PegIn transaction's
+ * declared inputs against the wallet's current spendable set. Txids are
+ * compared case-insensitively; callers should treat the txid as opaque
+ * lowercase hex.
+ */
+export interface UtxoRef {
+  txid: string;
+  vout: number;
+}
 
 /**
  * Information about a missing/spent UTXO.
@@ -119,7 +130,8 @@ export function validateUtxosAvailable(
     inputKeys.add(key);
   }
 
-  // Create a set of available UTXOs for O(1) lookup (lowercase for consistency with reservation.ts)
+  // Set of available outpoints for O(1) lookup. Lowercased so the comparison
+  // is case-insensitive against whatever case the wallet returned.
   const availableSet = new Set(
     availableUtxos.map((utxo) => `${utxo.txid.toLowerCase()}:${utxo.vout}`),
   );

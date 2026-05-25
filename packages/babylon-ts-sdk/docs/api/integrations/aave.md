@@ -1754,7 +1754,7 @@ function getGroup1FromOrder<T>(
    seizureTol): T[];
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/cascadeSimulation.ts:35](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/cascadeSimulation.ts#L35)
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/cascadeSimulation.ts:45](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/cascadeSimulation.ts#L45)
 
 Prefix walk: consume vaults front-to-back until target seizure is covered.
 Returns the vaults in the first liquidation group.
@@ -1799,7 +1799,7 @@ function simulateCascade<T>(
    expectedHF): object;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/cascadeSimulation.ts:93](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/cascadeSimulation.ts#L93)
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/cascadeSimulation.ts:103](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/cascadeSimulation.ts#L103)
 
 Simulate full liquidation cascade with debt model.
 
@@ -2069,11 +2069,22 @@ function computeOptimalOrder<T>(
    expectedHF): object;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/optimalOrder.ts:162](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/optimalOrder.ts#L162)
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/optimalOrder.ts:87](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/optimalOrder.ts#L87)
 
-Main optimizer: iterative refinement until stable.
-Re-running with the improved order lets the next pass find better
-G1 subsets. Converges in ≤3 iterations in practice.
+Main optimizer: bitmask DP over seized subsets.
+
+State: T = bitmask of pre-joint groups that have already been seized.
+Transition: for each valid "last group" G ⊆ T, dp[T] = dp[T\G] + btcAfter
+  where btcAfter = totalBtc − btcOf(T)   (BTC remaining after T is seized).
+Validation: btcOf(G) must cover target seizure at the moment G fires, i.e.
+  btcOf(G) ≥ (totalBtc − btcOf(T\G)) × seizedFraction × (1 − seizureTol).
+
+Complexity: O(3^n) — the subset-of-subset enumeration visits exactly
+Σ C(n,k) × 2^k = 3^n state-transition pairs. Single pass, no refinement loop.
+
+Objective: maximize sumBtcAfterEvents assuming all events fire. Debt is not
+part of the DP state — it is used only when computing final metrics via
+simulateCascade() on the reconstructed order.
 
 #### Type Parameters
 
@@ -2777,7 +2788,7 @@ for UI-side comparisons that operate in `number` rather than `bigint`.
 const SEIZURE_TOL: 0.01 = 0.01;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/cascadeSimulation.ts:23](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/cascadeSimulation.ts#L23)
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/cascadeSimulation.ts:33](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/cascadeSimulation.ts#L33)
 
 1% tolerance for prefix walk coverage — avoids cliff flip at boundary
 
@@ -2789,7 +2800,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/cascadeSimu
 const MAX_GROUPS: 20 = 20;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/cascadeSimulation.ts:26](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/cascadeSimulation.ts#L26)
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/cascadeSimulation.ts:36](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/cascadeSimulation.ts#L36)
 
 Circuit breaker for group cascade loop
 
@@ -2801,6 +2812,6 @@ Circuit breaker for group cascade loop
 const MIN_DEBT_THRESHOLD: 0.01 = 0.01;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/cascadeSimulation.ts:29](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/cascadeSimulation.ts#L29)
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/cascadeSimulation.ts:39](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/cascadeSimulation.ts#L39)
 
 Minimum debt threshold to continue cascade (avoids infinite loop on dust)

@@ -38,7 +38,12 @@ export const CONTRACT_ERROR_MESSAGES: Record<string, string> = {
   InvalidSecret:
     "The secret does not match the BTC Vault's hashlock. Please verify your secret and try again.",
   InvalidHashlock: "The BTC Vault does not have a valid hashlock configured.",
-  DuplicateHashlock: "This BTC Vault has already been activated.",
+  // Fires at vault REGISTRATION (per-depositor hashlock uniqueness in
+  // BTCVaultRegistry). Hashlocks are deterministic from BTC wallet +
+  // selected UTXOs, so reusing the same UTXOs from the same wallet
+  // produces the same hashlock and reverts here.
+  DuplicateHashlock:
+    "Duplicate deposit: a BTC Vault with this hashlock is already registered to your wallet. Use different UTXOs to create a unique deposit.",
   VaultNotEscrowed: "The BTC Vault is not in escrow.",
   VaultSwapNotSet: "BTC Vault swap is not configured.",
   InvalidBTCPublicKey: "Invalid BTC public key format.",
