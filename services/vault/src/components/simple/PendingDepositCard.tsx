@@ -151,13 +151,17 @@ export function PendingDepositCard({
         />
       }
       amountSubtext={
-        step !== null && (
+        step !== null ? (
           <DepositStepLabel
             visualStep={getVisualStep(step)}
             totalSteps={TOTAL_VISUAL_STEPS}
             label={getStepLabel(step)}
           />
-        )
+        ) : peginState.inlineSubtext ? (
+          <span className="text-sm text-accent-secondary">
+            {peginState.inlineSubtext}
+          </span>
+        ) : null
       }
       belowHeader={
         step !== null && (

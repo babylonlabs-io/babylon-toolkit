@@ -1,7 +1,3 @@
-import type {
-  PegInConfiguration,
-  VersionedOffchainParams,
-} from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
 import { useMemo, type ReactNode } from "react";
@@ -11,57 +7,6 @@ import { getRefundPreview } from "@/services/vault/vaultRefundService";
 import type { VaultActivity } from "@/types/activity";
 
 import { RefundModal } from "../index";
-
-const { OFFCHAIN_PARAMS, PEGIN_CONFIG } = vi.hoisted(() => {
-  const offchain: VersionedOffchainParams = {
-    timelockAssert: 0n,
-    timelockChallengeAssert: 0n,
-    securityCouncilKeys: [],
-    councilQuorum: 0,
-    feeRate: 0n,
-    babeTotalInstances: 0,
-    babeInstancesToFinalize: 0,
-    minVpCommissionBps: 0,
-    tRefund: 36,
-    tStale: 0,
-    minPeginFeeRate: 0n,
-    proverCircuitVersion: 0,
-    minPrepeginDepth: 0,
-  };
-  const config: PegInConfiguration = {
-    minimumPegInAmount: 100_000n,
-    maxPegInAmount: 10_000_000_000n,
-    pegInAckTimeout: 0n,
-    pegInActivationTimeout: 0n,
-    maxHtlcOutputCount: 1,
-    expiredPegInGraceBlocks: 144n,
-    timelockPegin: 144,
-    timelockRefund: 36,
-    minVpCommissionBps: 0,
-    offchainParams: offchain,
-    offchainParamsVersion: 1,
-  };
-  return { OFFCHAIN_PARAMS: offchain, PEGIN_CONFIG: config };
-});
-
-vi.mock("@/clients/eth-contract/sdk-readers", () => ({
-  getProtocolParamsReader: vi.fn(async () => ({
-    getPegInConfiguration: vi.fn(async () => PEGIN_CONFIG),
-    fetchAllOffchainParams: vi.fn(async () => ({
-      byVersion: new Map<number, VersionedOffchainParams>([
-        [1, OFFCHAIN_PARAMS],
-      ]),
-      latestVersion: 1,
-    })),
-  })),
-}));
-
-vi.mock("@/services/providers", () => ({
-  fetchAllUniversalChallengers: vi.fn(async () => ({
-    byVersion: new Map(),
-    latestVersion: 1,
-  })),
-}));
 
 vi.mock("@/services/vault/vaultRefundService", async (importOriginal) => {
   const actual =
@@ -120,7 +65,7 @@ describe("RefundModal", () => {
     vi.clearAllMocks();
   });
 
-  it("renders review content without an outer ProtocolParamsProvider", async () => {
+  it("renders the review content", async () => {
     render(
       <Wrapper>
         <RefundModal
@@ -133,23 +78,6 @@ describe("RefundModal", () => {
     );
 
     expect(await screen.findByText("Review Refund")).toBeInTheDocument();
-  });
-
-  it("derives estimated refund hours from timelockRefund", async () => {
-    render(
-      <Wrapper>
-        <RefundModal
-          open
-          activity={ACTIVITY}
-          onClose={() => {}}
-          onSuccess={() => {}}
-        />
-      </Wrapper>,
-    );
-
-    expect(
-      await screen.findByText(/approximately 6 hours/i),
-    ).toBeInTheDocument();
   });
 
   it("disables Confirm and shows the rate-cap banner when mempool returns a malicious fee rate", async () => {

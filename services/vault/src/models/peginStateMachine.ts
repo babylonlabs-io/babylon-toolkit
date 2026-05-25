@@ -14,6 +14,7 @@ import {
   type ExpirationReason,
 } from "@babylonlabs-io/ts-sdk/tbv/core/services";
 
+import { BTC_BLOCK_TIME_MINS, MINS_PER_HOUR } from "@/constants";
 import { COPY } from "@/copy";
 import { DepositFlowStep } from "@/hooks/deposit/depositFlowSteps/types";
 
@@ -109,6 +110,12 @@ export interface PeginState {
   refundMaturityState?: RefundMaturityState;
   /** Blocks remaining until refund matures; set only when `maturing`. */
   refundMaturesInBlocks?: number;
+  /**
+   * Short message intended for the inline subtext slot under the amount
+   * (e.g. "Refund available in ~18 blocks (~3h)"). The full sentence stays
+   * in `message` for the tooltip. Set for maturing / unknown EXPIRED only.
+   */
+  inlineSubtext?: string;
 }
 
 export interface GetPeginStateOptions {
@@ -373,6 +380,7 @@ interface DisplayInfo {
   awaitingVpIngestion?: boolean;
   refundMaturityState?: RefundMaturityState;
   refundMaturesInBlocks?: number;
+  inlineSubtext?: string;
 }
 
 function getDisplay(
@@ -530,14 +538,26 @@ function getDisplay(
       refundMaturityState === "maturing" &&
       refundMaturesInBlocks !== undefined
     ) {
-      // Each Bitcoin block is ~10 min; convert the remaining-blocks figure to
-      // a rough hour estimate for the message. Round up so a fractional last
-      // block doesn't display as 0 hours.
-      const hours = Math.max(1, Math.ceil((refundMaturesInBlocks * 10) / 60));
+      // Convert the remaining-blocks figure to a rough hour estimate for the
+      // message. Round up so a fractional last block doesn't display as 0
+      // hours.
+      const hours = Math.max(
+        1,
+        Math.ceil(
+          (refundMaturesInBlocks * BTC_BLOCK_TIME_MINS) / MINS_PER_HOUR,
+        ),
+      );
+      // Tooltip stays focused on the expired reason + when; the countdown
+      // lives in `inlineSubtext` so the user doesn't need to hover to see
+      // the actionable info.
       return {
         displayLabel: PEGIN_DISPLAY_LABELS.EXPIRED,
         displayVariant: "warning",
-        message: `${expiredMessage} ${COPY.pegin.messages.refundMaturing(refundMaturesInBlocks, hours)}`,
+        message: expiredMessage,
+        inlineSubtext: COPY.pegin.messages.refundMaturing(
+          refundMaturesInBlocks,
+          hours,
+        ),
         refundMaturityState,
         refundMaturesInBlocks,
       };
@@ -546,7 +566,8 @@ function getDisplay(
       return {
         displayLabel: PEGIN_DISPLAY_LABELS.EXPIRED,
         displayVariant: "warning",
-        message: `${expiredMessage} ${COPY.pegin.messages.refundMaturingUnknown}`,
+        message: expiredMessage,
+        inlineSubtext: COPY.pegin.messages.refundMaturingUnknown,
         refundMaturityState,
       };
     }

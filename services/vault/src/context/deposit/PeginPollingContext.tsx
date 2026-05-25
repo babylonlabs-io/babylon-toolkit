@@ -24,23 +24,27 @@ import { usePeginPollingQuery } from "../../hooks/deposit/usePeginPollingQuery";
 import { usePrePeginMempoolConfirmations } from "../../hooks/deposit/usePrePeginMempoolConfirmations";
 import {
   ContractStatus,
-  getPeginState,
   LocalStorageStatus,
 } from "../../models/peginStateMachine";
 import {
   addConfirmedPrePeginTxid,
   loadConfirmedPrePeginTxids,
 } from "../../storage/confirmedPrePeginCache";
+import {
+  addMatureRefundTxid,
+  loadMatureRefundTxids,
+} from "../../storage/matureRefundCache";
 import type { VaultActivity } from "../../types/activity";
 import type {
   DepositPollingResult,
   PeginPollingContextValue,
   PeginPollingProviderProps,
 } from "../../types/peginPolling";
-import { isTerminalPollingError } from "../../utils/peginPolling";
 import { canonicalizeTxid } from "../../utils/txid";
 import { isVaultOwnedByWallet } from "../../utils/vaultWarnings";
 import { useProtocolParamsContext } from "../ProtocolParamsContext";
+
+import { computeDepositPollingResult } from "./computeDepositPollingResult";
 
 /**
  * Whether a vault's localStorage status puts it in the window where the
@@ -58,33 +62,28 @@ function isPrePeginPollEligibleStatus(
 }
 
 /**
- * Resolve the effective local status for a deposit, accounting for
- * optimistic UI updates.
+ * Pure scan: which Pre-PegIn txids crossed a per-vault threshold and
+ * aren't cached yet? Shared by the at-depth and past-`tRefund` caches.
  */
-function resolveLocalStatus(
-  depositId: string,
-  optimisticStatuses: Map<string, LocalStorageStatus>,
-  pendingPegins: Array<{ id: string; status?: string }>,
-): LocalStorageStatus | undefined {
-  const pendingPegin = pendingPegins.find((p) => p.id === depositId);
-  const optimistic = optimisticStatuses.get(depositId);
-  return (optimistic ?? pendingPegin?.status) as LocalStorageStatus | undefined;
-}
-
-/**
- * Resolve the broadcast timestamp anchoring the REFUND_BROADCAST suppression
- * TTL. Falls back to the optimistic timestamp set right after broadcast (when
- * localStorage has not yet been read back into `pendingPegins`).
- */
-function resolveRefundBroadcastAt(
-  depositId: string,
-  optimisticRefundBroadcastAt: Map<string, number>,
-  pendingPegins: Array<{ id: string; refundBroadcastAt?: number }>,
-): number | undefined {
-  return (
-    optimisticRefundBroadcastAt.get(depositId) ??
-    pendingPegins.find((p) => p.id === depositId)?.refundBroadcastAt
-  );
+function getTxidsCrossingThreshold(
+  activities: VaultActivity[],
+  confirmations: Map<string, number>,
+  cached: Set<string>,
+  filter: (a: VaultActivity) => boolean,
+  threshold: (a: VaultActivity) => number | undefined,
+): string[] {
+  const out: string[] = [];
+  for (const activity of activities) {
+    if (!filter(activity)) continue;
+    const txid = canonicalizeTxid(activity.prePeginTxHash);
+    if (!txid || cached.has(txid)) continue;
+    const observed = confirmations.get(txid);
+    if (observed === undefined) continue;
+    const t = threshold(activity);
+    if (t === undefined || observed < t) continue;
+    out.push(txid);
+  }
+  return out;
 }
 
 const PeginPollingContext = createContext<PeginPollingContextValue | null>(
@@ -126,21 +125,19 @@ export function PeginPollingProvider({
     btcPublicKey,
   });
 
-  // Poll `prePeginTxHash` (depositor broadcast tx; `peginTxHash` is the VP
-  // activation tx and doesn't exist during PENDING). Two gates drive polling:
-  //  1) PENDING: detect Pre-PegIn at protocol `minPrepeginDepth` → routes
-  //     between AWAIT_VP_INGESTION and AWAIT_BTC_CONFIRMATION. We skip
-  //     vaults whose localStorage shows the VP already advanced past depth
-  //     (PAYOUT_SIGNED+) and txids in the persistent confirmed cache —
-  //     chain doesn't rewind, so repolling reads the same fact.
-  //  2) EXPIRED: detect HTLC CSV timelock satisfaction (`tRefund`) → gates
-  //     the Refund action so we don't surface a button whose broadcast
-  //     Bitcoin will reject with `non-BIP68-final`. EXPIRED stays in the
-  //     poll set regardless of the confirmed cache: that cache tracks
-  //     min-depth only, not the larger `tRefund` threshold.
+  // Poll `prePeginTxHash` (depositor broadcast tx; `peginTxHash` is the
+  // VP activation tx, absent during PENDING). PENDING gates on min-depth;
+  // EXPIRED gates on `tRefund` for the Refund action. Each has its own
+  // cache (depth/maturity never rewinds → drop cached txids from polling).
   const { config, getOffchainParamsByVersion } = useProtocolParamsContext();
   const [confirmedTxids, setConfirmedTxids] = useState<Set<string>>(
     loadConfirmedPrePeginTxids,
+  );
+  // Symmetric to `confirmedTxids` but for EXPIRED vaults past `tRefund`:
+  // maturity, like depth, never rewinds, so once we've seen the count we
+  // can drop the txid from the poll set forever (within TTL).
+  const [matureRefundTxids, setMatureRefundTxids] = useState<Set<string>>(
+    loadMatureRefundTxids,
   );
 
   const getRequiredPrePeginDepth = useCallback(
@@ -175,16 +172,17 @@ export function PeginPollingProvider({
     () =>
       activities
         .filter((a) => {
-          // Skip unowned vaults: the depositor used a different BTC wallet
-          // than the one currently connected (same ETH wallet, different BTC
-          // key). The card is dimmed and the user cannot act, so polling
-          // mempool.space for depth/maturity is wasted bandwidth — the
-          // current wallet would never sign the next-step tx anyway
-          // (next-step = depositor signing for PENDING, refund for EXPIRED).
+          // Unowned vaults can't be signed by the current wallet → skip
+          // polling. The card is dimmed via the ownership-mismatch tooltip.
           if (!isVaultOwnedByWallet(a.depositorBtcPubkey, btcPublicKey))
             return false;
           const status = (a.contractStatus ?? 0) as ContractStatus;
-          if (status === ContractStatus.EXPIRED) return true;
+          if (status === ContractStatus.EXPIRED) {
+            // Once a vault is past `tRefund`, polling adds no new info
+            // (the cache below is authoritative for the consumer too).
+            const txid = canonicalizeTxid(a.prePeginTxHash);
+            return !(txid && matureRefundTxids.has(txid));
+          }
           if (status !== ContractStatus.PENDING) return false;
           if (!isPrePeginPollEligibleStatus(localStatusById.get(a.id)))
             return false;
@@ -192,35 +190,35 @@ export function PeginPollingProvider({
           return !(txid && confirmedTxids.has(txid));
         })
         .map((a) => a.prePeginTxHash),
-    [activities, localStatusById, confirmedTxids, btcPublicKey],
+    [
+      activities,
+      localStatusById,
+      confirmedTxids,
+      matureRefundTxids,
+      btcPublicKey,
+    ],
   );
   const { confirmationsByTxid: prePeginConfirmationsByTxid } =
     usePrePeginMempoolConfirmations(relevantPrePeginTxids);
 
-  // Persist newly-confirmed observations and drop them from the polled set
-  // on next render. The localStorage write and setState happen OUTSIDE the
-  // updater so the updater stays pure (React StrictMode invokes updaters
-  // twice in dev; side effects inside would double-write). The early
-  // return when nothing's newly confirmed prevents re-fires after the
-  // cache grows by an entry.
+  // Persist newly-confirmed observations and drop them from the next
+  // poll set. Side effects sit outside the updater so StrictMode's
+  // double-invoke doesn't double-write; the early return prevents
+  // re-fires after the cache grows.
   useEffect(() => {
     if (prePeginConfirmationsByTxid.size === 0) return;
-
-    const newlyConfirmedTxids: string[] = [];
-    for (const activity of activities) {
-      const txid = canonicalizeTxid(activity.prePeginTxHash);
-      if (!txid || confirmedTxids.has(txid)) continue;
-      const observed = prePeginConfirmationsByTxid.get(txid);
-      if (observed === undefined) continue;
-      if (observed < getRequiredPrePeginDepth(activity)) continue;
-      newlyConfirmedTxids.push(txid);
-    }
-    if (newlyConfirmedTxids.length === 0) return;
-
-    newlyConfirmedTxids.forEach(addConfirmedPrePeginTxid);
+    const newlyConfirmed = getTxidsCrossingThreshold(
+      activities,
+      prePeginConfirmationsByTxid,
+      confirmedTxids,
+      () => true,
+      getRequiredPrePeginDepth,
+    );
+    if (newlyConfirmed.length === 0) return;
+    newlyConfirmed.forEach(addConfirmedPrePeginTxid);
     setConfirmedTxids((prev) => {
       const next = new Set(prev);
-      newlyConfirmedTxids.forEach((txid) => next.add(txid));
+      newlyConfirmed.forEach((txid) => next.add(txid));
       return next;
     });
   }, [
@@ -228,6 +226,34 @@ export function PeginPollingProvider({
     activities,
     confirmedTxids,
     getRequiredPrePeginDepth,
+  ]);
+
+  // Symmetric pass for EXPIRED past `tRefund`. Vaults without a known
+  // `refundTimelock` stay in the poll set (strict, never false-positive).
+  useEffect(() => {
+    if (prePeginConfirmationsByTxid.size === 0) return;
+    const newlyMature = getTxidsCrossingThreshold(
+      activities,
+      prePeginConfirmationsByTxid,
+      matureRefundTxids,
+      (a) => (a.contractStatus ?? 0) === ContractStatus.EXPIRED,
+      (a) =>
+        a.offchainParamsVersion !== undefined
+          ? getOffchainParamsByVersion(a.offchainParamsVersion)?.tRefund
+          : undefined,
+    );
+    if (newlyMature.length === 0) return;
+    newlyMature.forEach(addMatureRefundTxid);
+    setMatureRefundTxids((prev) => {
+      const next = new Set(prev);
+      newlyMature.forEach((txid) => next.add(txid));
+      return next;
+    });
+  }, [
+    prePeginConfirmationsByTxid,
+    activities,
+    matureRefundTxids,
+    getOffchainParamsByVersion,
   ]);
 
   // Optimistic status handlers
@@ -266,119 +292,35 @@ export function PeginPollingProvider({
     });
   }, []);
 
-  // Build lookup function for individual deposit results
+  // Wrapper: depositId → activity, resolve per-vault thresholds, then
+  // hand off to the pure decision tree in `computeDepositPollingResult`.
   const getPollingResult = useCallback(
     (depositId: string): DepositPollingResult | undefined => {
       const activity = activities.find((a) => a.id === depositId);
       if (!activity) return undefined;
-
-      const contractStatus = (activity.contractStatus ?? 0) as ContractStatus;
-      const localStatus = resolveLocalStatus(
-        depositId,
-        optimisticStatuses,
-        pendingPegins,
-      );
-      const refundBroadcastAt = resolveRefundBroadcastAt(
-        depositId,
-        optimisticRefundBroadcastAt,
-        pendingPegins,
-      );
-
-      const depositError = errors?.get(depositId);
-      const vpTerminalError =
-        depositError && isTerminalPollingError(depositError)
-          ? depositError.message
-          : undefined;
-
-      const justSignedPayoutsThisSession =
-        optimisticStatuses.get(depositId) === LocalStorageStatus.PAYOUT_SIGNED;
-      const transactionsReady = justSignedPayoutsThisSession
-        ? false
-        : (pendingDepositorSignatures?.has(depositId) ?? false);
-
-      // Per-vault depth (pinned to the registration's offchainParamsVersion)
-      // so a governance bump to `minPrepeginDepth` doesn't misclassify older
-      // deposits.
-      const requiredDepth = getRequiredPrePeginDepth(activity);
-      // tRefund — do NOT fall back to latest: if governance ever lowered
-      // it, latest would mark a vault mature before its actual CSV
-      // timelock elapses (Bitcoin would reject `non-BIP68-final`). Treat
-      // a missing version as "unknown" so we never false-positive maturity.
+      // Strict: a since-lowered latest `tRefund` could mark a vault
+      // mature early → Bitcoin rejects with `non-BIP68-final`.
       const refundTimelock =
         activity.offchainParamsVersion !== undefined
           ? getOffchainParamsByVersion(activity.offchainParamsVersion)?.tRefund
           : undefined;
-
-      // Same key as `relevantPrePeginTxids` — depositor's broadcast tx.
-      // The confirmed cache is also authoritative for "at depth": on a
-      // fresh page load the cached txid is filtered out of polling so the
-      // live map has no entry for it, but the depth fact persisted across
-      // sessions — without this OR, a cached vault would regress to
-      // "waiting for BTC confirmation" on every refresh.
-      const prePeginCanonical = canonicalizeTxid(activity.prePeginTxHash);
-      const cachedAtDepth = prePeginCanonical
-        ? confirmedTxids.has(prePeginCanonical)
-        : false;
-      const confirmations = prePeginCanonical
-        ? prePeginConfirmationsByTxid.get(prePeginCanonical)
-        : undefined;
-      const prePeginBroadcastConfirmed =
-        cachedAtDepth ||
-        (confirmations !== undefined && confirmations >= requiredDepth);
-
-      // EXPIRED refund maturity. `mature` only when both inputs are
-      // available AND CSV is satisfied; `maturing` when both are
-      // available AND not yet satisfied; `unknown` when either input is
-      // missing (preserves "never false-positive").
-      let refundMaturityState: "mature" | "maturing" | "unknown" | undefined;
-      let refundMaturesInBlocks: number | undefined;
-      if (contractStatus === ContractStatus.EXPIRED) {
-        if (confirmations !== undefined && refundTimelock !== undefined) {
-          if (confirmations >= refundTimelock) {
-            refundMaturityState = "mature";
-          } else {
-            refundMaturityState = "maturing";
-            refundMaturesInBlocks = refundTimelock - confirmations;
-          }
-        } else {
-          refundMaturityState = "unknown";
-        }
-      }
-
-      // `canRefund` is the FE-composite: the SDK only cares "do we have
-      // the unsigned Pre-PegIn hex to build a refund tx?"; we additionally
-      // require CSV maturity so the button never appears for a deposit
-      // whose broadcast Bitcoin will reject.
-      const canRefund =
-        !!activity.unsignedPrePeginTx && refundMaturityState === "mature";
-
-      const peginState = getPeginState(contractStatus, {
-        localStatus,
-        transactionsReady,
-        isInUse: activity.isInUse,
-        needsWotsKey: needsWotsKey?.has(depositId),
-        pendingIngestion: pendingIngestion?.has(depositId),
-        prePeginBroadcastConfirmed,
-        expirationReason: activity.expirationReason,
-        expiredAt: activity.expiredAt,
-        canRefund,
-        refundMaturityState,
-        refundMaturesInBlocks,
-        vpTerminalError,
-        refundBroadcastAt,
+      return computeDepositPollingResult({
+        activity,
+        pendingPegins,
+        pendingDepositorSignatures,
+        errors,
+        needsWotsKey,
+        pendingIngestion,
+        prePeginConfirmationsByTxid,
+        confirmedTxids,
+        matureRefundTxids,
+        requiredDepth: getRequiredPrePeginDepth(activity),
+        refundTimelock,
+        isLoading,
+        optimisticStatuses,
+        optimisticRefundBroadcastAt,
+        btcPublicKey,
       });
-
-      return {
-        depositId,
-        loading: isLoading,
-        error: errors?.get(depositId) ?? null,
-        peginState,
-        isOwnedByCurrentWallet: isVaultOwnedByWallet(
-          activity.depositorBtcPubkey,
-          btcPublicKey,
-        ),
-        depositorBtcPubkey: activity.depositorBtcPubkey,
-      };
     },
     [
       activities,
@@ -389,6 +331,7 @@ export function PeginPollingProvider({
       pendingIngestion,
       prePeginConfirmationsByTxid,
       confirmedTxids,
+      matureRefundTxids,
       getRequiredPrePeginDepth,
       getOffchainParamsByVersion,
       isLoading,

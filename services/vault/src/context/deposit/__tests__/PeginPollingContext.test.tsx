@@ -647,4 +647,79 @@ describe("PeginPollingContext", () => {
     expect(status?.peginState.availableActions).toEqual([PeginAction.NONE]);
     expect(status?.peginState.refundMaturityState).toBe("unknown");
   });
+
+  it("EXPIRED: stops polling once observed at tRefund and reads the cache as mature on next render", async () => {
+    // Once mempool reports a Pre-PegIn past `tRefund`, the answer is
+    // permanent. The mature cache lets us drop the txid from polling so a
+    // long-stale expired vault doesn't burn `/tx/<txid>` per cycle.
+    mockVersionedParams.set(3, { tRefund: 144 });
+    mockUsePrePeginMempoolConfirmations.mockReturnValue({
+      confirmationsByTxid: new Map([[PRE_PEGIN_TXID_HEX, 144]]),
+    });
+
+    renderExpired();
+
+    await waitFor(() => {
+      const lastCall =
+        mockUsePrePeginMempoolConfirmations.mock.calls.at(-1)?.[0] ?? [];
+      expect(lastCall).not.toContain(EXPIRED_ACTIVITY.prePeginTxHash);
+    });
+  });
+
+  it("EXPIRED: treats a cached mature txid as mature even when polling returns nothing", async () => {
+    // Page refresh equivalent: prior session cached the mature txid. The
+    // poll filter drops it on mount so `prePeginConfirmationsByTxid` has
+    // no entry. Without the cache OR, the state would regress to
+    // "unknown" and the inline copy would say "Checking…" on every refresh.
+    localStorage.setItem(
+      "tbv-mature-refund-signet",
+      JSON.stringify({ [PRE_PEGIN_TXID_HEX]: Date.now() }),
+    );
+    mockVersionedParams.set(3, { tRefund: 144 });
+    mockUsePrePeginMempoolConfirmations.mockReturnValue({
+      confirmationsByTxid: new Map(),
+    });
+
+    const { result } = renderExpired();
+    const status = result.current.getPollingResult(ACTIVITY_ID);
+
+    expect(status?.peginState.refundMaturityState).toBe("mature");
+    expect(status?.peginState.availableActions).toEqual([
+      PeginAction.REFUND_HTLC,
+    ]);
+  });
+
+  it("EXPIRED: surfaces refund as mature for unowned vaults so the ownership-mismatch UI can disable it", () => {
+    // Polling is skipped for unowned vaults (see filter), so confirmations
+    // would be undefined → state would be "unknown" and no action button
+    // would render. Without a button, the ownership-mismatch disable+
+    // tooltip path in getActionStatus never fires, leaving the user with
+    // a stale "checking…" message and no hint to switch wallets. The
+    // bypass surfaces REFUND_HTLC so main's ownership flow takes over.
+    const OTHER_BTC_PUBKEY = "cd".repeat(32);
+    mockVersionedParams.set(3, { tRefund: 144 });
+    mockUsePrePeginMempoolConfirmations.mockReturnValue({
+      confirmationsByTxid: new Map(),
+    });
+
+    const wrapper = ({ children }: PropsWithChildren) => (
+      <PeginPollingProvider
+        activities={[
+          { ...EXPIRED_ACTIVITY, depositorBtcPubkey: OTHER_BTC_PUBKEY },
+        ]}
+        pendingPegins={[]}
+        btcPublicKey={BTC_PUBKEY}
+      >
+        {children}
+      </PeginPollingProvider>
+    );
+    const { result } = renderHook(() => usePeginPolling(), { wrapper });
+    const status = result.current.getPollingResult(ACTIVITY_ID);
+
+    expect(status?.isOwnedByCurrentWallet).toBe(false);
+    expect(status?.peginState.refundMaturityState).toBe("mature");
+    expect(status?.peginState.availableActions).toEqual([
+      PeginAction.REFUND_HTLC,
+    ]);
+  });
 });

@@ -1,14 +1,12 @@
 /**
- * Persistent cache of Pre-PegIn txids the mempool has reported at
- * protocol-required depth. Once observed at depth the answer is permanent
- * (chain doesn't rewind), so we skip those txids in future polls — both
- * within a session and across page refreshes. TTL bounds cache size so
- * stale entries from long-resolved deposits don't accumulate forever.
+ * Persistent cache of Pre-PegIn txids past `tRefund` (HTLC CSV elapsed).
+ * Sibling of `confirmedPrePeginCache` (which tracks min-depth) — two
+ * caches because thresholds differ and past min-depth ≠ past `tRefund`.
  */
 
 import { getBTCNetwork } from "@/config";
 
-const STORAGE_KEY = `tbv-confirmed-prepegin-${getBTCNetwork()}`;
+const STORAGE_KEY = `tbv-mature-refund-${getBTCNetwork()}`;
 // TTL only matters on fresh page loads (in-session the `Set` lives in
 // memory). 1h bounds blast radius for any buggy entry that lands here.
 const CACHE_TTL_MS = 60 * 60 * 1000;
@@ -38,14 +36,13 @@ function pruneExpired(
 ): Record<string, number> {
   const cutoff = now - CACHE_TTL_MS;
   const out: Record<string, number> = {};
-  // `> cutoff` naturally drops NaN/strings/undefined — no separate typeof check needed.
   for (const [txid, ts] of Object.entries(map)) {
     if (ts > cutoff) out[txid] = ts;
   }
   return out;
 }
 
-export function loadConfirmedPrePeginTxids(): Set<string> {
+export function loadMatureRefundTxids(): Set<string> {
   const map = readMap();
   const pruned = pruneExpired(map, Date.now());
   if (Object.keys(pruned).length !== Object.keys(map).length) {
@@ -54,7 +51,7 @@ export function loadConfirmedPrePeginTxids(): Set<string> {
   return new Set(Object.keys(pruned));
 }
 
-export function addConfirmedPrePeginTxid(canonicalTxid: string): void {
+export function addMatureRefundTxid(canonicalTxid: string): void {
   if (!canonicalTxid) return;
   const now = Date.now();
   const map = pruneExpired(readMap(), now);
