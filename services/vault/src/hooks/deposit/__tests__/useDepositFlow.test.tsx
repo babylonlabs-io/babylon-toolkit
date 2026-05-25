@@ -71,10 +71,6 @@ vi.mock("@/services/vault/vaultActivationService", () => ({
     .mockResolvedValue({ hash: "0xActivationTxHash" }),
 }));
 
-vi.mock("@/services/vault/fetchVaults", () => ({
-  fetchVaultsByDepositorStrict: vi.fn().mockResolvedValue([]),
-}));
-
 vi.mock("@/services/vault/vaultPeginBroadcastService", () => ({
   broadcastPrePeginTransaction: vi.fn().mockResolvedValue("mockBroadcastTxId"),
   utxosToExpectedRecord: vi.fn(
@@ -114,14 +110,8 @@ vi.mock("@/services/vault/vaultUtxoValidationService", () => ({
 
 vi.mock("@/storage/peginStorage", () => ({
   addPendingPegin: vi.fn(),
-  getPendingPegins: vi.fn(() => []),
   removePendingPegin: vi.fn(),
   updatePendingPeginStatus: vi.fn(),
-}));
-
-vi.mock("@babylonlabs-io/ts-sdk/tbv/core/utils", () => ({
-  collectPendingVaultClaims: vi.fn(() => []),
-  findImpactedVaultIds: vi.fn(() => []),
 }));
 
 const { mockLoggerError } = vi.hoisted(() => ({
@@ -1031,34 +1021,7 @@ describe("useDepositFlow", () => {
     });
   });
 
-  describe("Reuse-on-selection warning", () => {
-    it("surfaces a soft warning when the selected UTXOs overlap a pending vault's claim", async () => {
-      const { findImpactedVaultIds } = vi.mocked(
-        await import("@babylonlabs-io/ts-sdk/tbv/core/utils"),
-      );
-      // Post-hoc impact check: pretend two pending vaults' inputs got
-      // reused by the selector's pick.
-      vi.mocked(findImpactedVaultIds).mockReturnValueOnce([
-        "0xVaultBlocking1",
-        "0xVaultBlocking2",
-      ]);
-
-      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
-      const depositResult = await executeWithAutoArtifactDownload(result);
-
-      // The flow proceeds; the warning is informational.
-      expect(depositResult).not.toBeNull();
-      expect(result.current.error).toBeFalsy();
-      expect(
-        depositResult?.warnings?.some((w) => w.includes("will reuse coins")),
-      ).toBe(true);
-      // The hook state must also carry the warning since DepositSignContent
-      // reads from there (not the result).
-      expect(
-        result.current.lastWarnings.some((w) => w.includes("will reuse coins")),
-      ).toBe(true);
-    });
-
+  describe("Soft warnings", () => {
     it("populates lastWarnings when addPendingPegin throws on persist failure", async () => {
       const { addPendingPegin } = vi.mocked(
         await import("@/storage/peginStorage"),

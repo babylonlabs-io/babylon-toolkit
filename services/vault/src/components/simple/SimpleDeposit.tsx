@@ -8,8 +8,11 @@ import { useAddressScreening } from "@/context/addressScreening";
 import { useGeoFencing } from "@/context/geofencing";
 import { ProtocolParamsProvider } from "@/context/ProtocolParamsContext";
 import { useBTCWallet, useETHWallet } from "@/context/wallet";
+import { COPY } from "@/copy";
+import { useBtcWalletState } from "@/hooks/deposit/useBtcWalletState";
 import { useDepositPeginFee } from "@/hooks/deposit/useDepositPeginFee";
 import { useDialogStep } from "@/hooks/deposit/useDialogStep";
+import { useReusalImpactCheck } from "@/hooks/deposit/useReusalImpactCheck";
 import { useProtocolFeeRows } from "@/hooks/useProtocolFeeRows";
 import type { VaultActivity } from "@/types/activity";
 import type { VaultProvider } from "@/types/vaultProvider";
@@ -223,6 +226,21 @@ function SimpleDepositContent({
         splitRatioLabel,
       };
 
+  // Pre-signing UTXO-overlap advisory. First click runs the check and
+  // shows a banner if the predicted selection overlaps a pending vault's
+  // committed outpoints; a second click ("Proceed anyway") goes through.
+  // The hook keys its acknowledgement on the exact vault-amounts shape
+  // passed to `runCheck`, so any input change forces a re-check without
+  // needing a separate reset effect.
+  const { spendableUTXOs } = useBtcWalletState();
+  const { reusalImpactCount, runCheck: runReusalCheck } = useReusalImpactCheck({
+    ethAddress: connectedEthAddress as Address | undefined,
+    spendableUTXOs,
+    estimatedFeeRate,
+    depositorClaimValue,
+    minPeginFee,
+  });
+
   const resetAll = useCallback(() => {
     hasAutoChecked.current = false;
     setIsPartialLiquidation(false);
@@ -308,11 +326,20 @@ function SimpleDepositContent({
     }
 
     setWalletConnectionError(null);
+
+    // Pre-signing UTXO-overlap advisory: if the predicted selection
+    // would reuse coins from another of the depositor's pending vaults,
+    // surface the banner instead of advancing. A subsequent click is
+    // treated as acknowledgement and proceeds.
+    const shouldSplit = isPartialLiquidation && allowSplit && !!vaultAmounts;
+    const effectiveVaultAmounts =
+      shouldSplit && vaultAmounts ? [...vaultAmounts] : [amountSats];
+    if (runReusalCheck(effectiveVaultAmounts) === "tripped") return;
+
     setDepositData(amountSats, effectiveSelectedApplication, [
       formData.selectedProvider,
     ]);
     setFeeRate(estimatedFeeRate);
-    const shouldSplit = isPartialLiquidation && allowSplit && !!vaultAmounts;
     setIsSplitDeposit(shouldSplit);
     if (shouldSplit && vaultAmounts) {
       setSplitVaultAmounts([...vaultAmounts]);
@@ -382,6 +409,13 @@ function SimpleDepositContent({
                 walletConnectionErrorMessage={walletConnectionError}
                 isVerifyingWallet={isVerifyingWallet}
                 isReconnectingWallet={isReconnectingWallet}
+                reusalWarning={
+                  reusalImpactCount !== null
+                    ? COPY.deposit.warnings.reusesReservedUtxos(
+                        reusalImpactCount,
+                      )
+                    : null
+                }
               />
             </div>
           </div>

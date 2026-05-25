@@ -391,65 +391,6 @@ export async function fetchVaultsByDepositor(
 }
 
 /**
- * GraphQL status strings that map to vault states whose UTXOs are
- * committed to an in-flight deposit (`ContractStatus.PENDING` /
- * `ContractStatus.VERIFIED` in the SDK). A transform failure on any of
- * these is security-relevant — silently dropping such a vault would let
- * the depositor re-select the same Bitcoin outpoints and double-register
- * on Ethereum without the warn-on-reuse banner firing.
- */
-const IN_FLIGHT_UTXO_STATUSES: ReadonlySet<GraphQLVaultStatus> = new Set([
-  "pending",
-  "signatures_collected",
-  "verified",
-]);
-
-/**
- * Strict variant of {@link fetchVaultsByDepositor} for security-critical
- * callers.
- *
- * Same network shape as the forgiving variant, but the per-item
- * transform-failure policy is split by status:
- * - PENDING/VERIFIED rows whose payload fails to transform → throw, so the
- *   caller fails closed instead of silently treating the row as absent.
- * - All other statuses (REDEEMED, LIQUIDATED, EXPIRED, …) → log and skip,
- *   matching the forgiving variant. These rows have no in-flight UTXO
- *   commitment, so a missing entry has no security impact.
- *
- * Use this from any path where "vault present but skipped" is unsafe.
- * The dashboard list path should keep using the forgiving
- * {@link fetchVaultsByDepositor} so one bad row never blanks the page.
- */
-export async function fetchVaultsByDepositorStrict(
-  depositorAddress: Address,
-): Promise<Vault[]> {
-  const data = await graphqlClient.request<VaultsGraphQLResponse>(
-    GET_VAULTS_BY_DEPOSITOR,
-    { depositor: depositorAddress.toLowerCase() },
-  );
-
-  const vaults: Vault[] = [];
-  for (const item of data.vaults.items) {
-    try {
-      vaults.push(transformVaultItem(item));
-    } catch (error) {
-      const isInFlightUtxoStatus = IN_FLIGHT_UTXO_STATUSES.has(item.status);
-      if (isInFlightUtxoStatus) {
-        const reason = error instanceof Error ? error.message : String(error);
-        throw new Error(
-          `In-flight vault ${item.id} (status="${item.status}") failed to transform: ${reason}`,
-        );
-      }
-      logger.error(error instanceof Error ? error : new Error(String(error)), {
-        tags: { vaultId: item.id, component: "fetchVaults" },
-        data: { rawStatus: item.status },
-      });
-    }
-  }
-  return vaults;
-}
-
-/**
  * Fetch a single vault by ID from GraphQL
  *
  * @param vaultId - Vault ID (derived: keccak256(abi.encode(peginTxHash, depositor)))

@@ -66,6 +66,13 @@ export const CONTRACT_ERRORS: Record<string, string> = {
   // PeginTransactionAlreadyUsed()
   "0x7ed061c9":
     "This pegin transaction has already been used to activate another vault.",
+  // DuplicateHashlock() — keccak256(abi.encodePacked(hashlock, msg.sender))
+  // collision in BTCVaultRegistry.hashlockToVaultId. Hashlocks are derived
+  // deterministically from the depositor's BTC wallet + selected UTXOs, so
+  // reusing the same UTXOs from the same wallet (even after a previous
+  // vault expires) produces the same hashlock and reverts here.
+  "0x70f7d5e2":
+    "Duplicate deposit: a BTC Vault with this hashlock is already registered to your wallet. Hashlocks are derived from your BTC wallet and selected UTXOs — use different UTXOs to create a unique deposit.",
 };
 
 /**
@@ -78,37 +85,81 @@ export const CONTRACT_ERRORS: Record<string, string> = {
  * @returns The error data (e.g., "0x04aabf33") or undefined
  */
 export function extractErrorData(error: unknown): string | undefined {
-  if (!error || typeof error !== "object") return undefined;
+  return walkForErrorData(error, 0);
+}
+
+/**
+ * Walk an error chain looking for revert data in any of viem 2.x's known
+ * shapes. Covers:
+ *  - `.data: "0x..."` — raw revert hex (most common with `estimateGas`)
+ *  - `.revertData: "0x..."` — alternate viem shape
+ *  - `.signature: "0x..."` — 4-byte selector from a *decoded*
+ *    ContractFunctionRevertedError (set when the ABI included the error def)
+ *  - `.error.data: "0x..."` — RPC-level error shape from some providers
+ *  - `.walk(fn)` — viem's chainable error walker (BaseError.walk)
+ *  - `.cause` chain — viem wraps errors many layers deep
+ *
+ * Depth-limited (10) and walk-result-deduplicated so a cycle can't loop.
+ */
+function walkForErrorData(
+  error: unknown,
+  depth: number,
+): string | undefined {
+  if (depth > 10 || !error || typeof error !== "object") return undefined;
 
   const err = error as Record<string, unknown>;
 
-  // Check direct properties first
   if (typeof err.data === "string" && err.data.startsWith("0x")) {
     return err.data;
+  }
+  if (typeof err.revertData === "string" && err.revertData.startsWith("0x")) {
+    return err.revertData;
+  }
+  if (typeof err.signature === "string" && err.signature.startsWith("0x")) {
+    return err.signature;
   }
   if (typeof err.details === "string" && err.details.startsWith("0x")) {
     return err.details;
   }
 
-  // Walk the cause chain (viem wraps errors multiple levels deep)
-  let current: unknown = err.cause;
-  let depth = 0;
-  const maxDepth = 5;
-
-  while (current && typeof current === "object" && depth < maxDepth) {
-    const cause = current as Record<string, unknown>;
-    if (typeof cause.data === "string" && cause.data.startsWith("0x")) {
-      return cause.data;
+  // RPC-level error shape (`{ error: { data: "0x..." } }`)
+  if (err.error && typeof err.error === "object") {
+    const inner = (err.error as Record<string, unknown>).data;
+    if (typeof inner === "string" && inner.startsWith("0x")) {
+      return inner;
     }
-    current = cause.cause;
-    depth++;
   }
 
-  // Check error message for embedded hex error selector
-  const message = typeof err.message === "string" ? err.message : "";
-  const hexMatch = message.match(/\b(0x[a-fA-F0-9]{8})\b/);
-  if (hexMatch) {
-    return hexMatch[1];
+  // Recurse through `.cause`
+  if (err.cause) {
+    const fromCause = walkForErrorData(err.cause, depth + 1);
+    if (fromCause) return fromCause;
+  }
+
+  // Use viem's `.walk()` if available
+  if (typeof err.walk === "function") {
+    try {
+      let found: string | undefined;
+      (err.walk as (fn: (e: unknown) => boolean) => unknown)((e) => {
+        if (e === error) return false; // avoid self-cycle
+        const data = walkForErrorData(e, depth + 1);
+        if (data) {
+          found = data;
+          return true;
+        }
+        return false;
+      });
+      if (found) return found;
+    } catch {
+      // walk failed; ignore
+    }
+  }
+
+  // Last resort: regex an embedded hex selector out of the message
+  if (depth === 0) {
+    const message = typeof err.message === "string" ? err.message : "";
+    const hexMatch = message.match(/\b(0x[a-fA-F0-9]{8})\b/);
+    if (hexMatch) return hexMatch[1];
   }
 
   return undefined;

@@ -41,10 +41,6 @@ import {
   vpTokenRegistry,
 } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import { computeHashlock } from "@babylonlabs-io/ts-sdk/tbv/core/services";
-import {
-  collectPendingVaultClaims,
-  findImpactedVaultIds,
-} from "@babylonlabs-io/ts-sdk/tbv/core/utils";
 import { useChainConnector } from "@babylonlabs-io/wallet-connector";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { v4 as uuidv4 } from "uuid";
@@ -60,7 +56,6 @@ import { COPY } from "@/copy";
 import { logger } from "@/infrastructure";
 import { LocalStorageStatus } from "@/models/peginStateMachine";
 import { validateMultiVaultDepositInputs } from "@/services/deposit/validations";
-import { fetchVaultsByDepositorStrict } from "@/services/vault/fetchVaults";
 import type { PayoutSigningProgress } from "@/services/vault/vaultPayoutSignatureService";
 import {
   broadcastPrePeginTransaction,
@@ -73,11 +68,9 @@ import {
 import { assertUtxosAvailable } from "@/services/vault/vaultUtxoValidationService";
 import {
   addPendingPegin,
-  getPendingPegins,
   removePendingPegin,
   updatePendingPeginStatus,
 } from "@/storage/peginStorage";
-import type { Vault } from "@/types/vault";
 import {
   btcAddressToScriptPubKeyHex,
   shouldProbeWalletLiveness,
@@ -150,9 +143,9 @@ export interface UseDepositFlowReturn {
   /** Error message if any step failed */
   error: string | null;
   /**
-   * Soft warnings accumulated by the most recent flow (e.g. "this deposit
-   * will reuse coins from another pending deposit", "couldn't save a local
-   * copy"). Empty until the flow finishes or errors out; persists for the
+   * Soft warnings accumulated by the most recent flow (e.g. "couldn't save a
+   * local copy" when the deposit registered on-chain but `addPendingPegin`
+   * failed). Empty until the flow finishes or errors out; persists for the
    * UI to surface until the next run starts.
    */
   lastWarnings: string[];
@@ -242,9 +235,9 @@ export function useDepositFlow(
   const [error, setError] = useState<string | null>(null);
   const [isWaiting, setIsWaiting] = useState(false);
   // Soft warnings accumulated during the most recent run (per-vault payout
-  // failures, localStorage write failures, reuses-reserved classification,
-  // etc.). Exposed so the UI can surface them after completion — these are
-  // informational, the flow itself doesn't abort on them.
+  // failures, localStorage write failures, etc.). Exposed so the UI can
+  // surface them after completion — these are informational, the flow
+  // itself doesn't abort on them.
   const [lastWarnings, setLastWarnings] = useState<string[]>([]);
   const [payoutSigningProgress, setPayoutSigningProgress] =
     useState<PayoutSigningProgress | null>(null);
@@ -434,43 +427,13 @@ export function useDepositFlow(
           },
         };
 
-        // Collect in-flight deposit claims for the post-hoc impact check
-        // below. Canonical source: on-chain PENDING/VERIFIED vaults
-        // (cross-device, cross-context). Local pending pegins bridge the
-        // indexer-lag window for not-yet-indexed deposits in this browser.
-        // Force a fresh indexer read here (no React Query cache). Indexer
-        // unavailability is fail-closed with a clear error — a quick
-        // retry on a transient blip beats silently invalidating a sibling
-        // deposit without telling the user.
-        const pendingPegins = getPendingPegins(confirmedEthAddress);
-        let depositorVaults: Vault[];
-        try {
-          depositorVaults =
-            await fetchVaultsByDepositorStrict(confirmedEthAddress);
-        } catch (err) {
-          const errorMsg = err instanceof Error ? err.message : String(err);
-          logger.error(err instanceof Error ? err : new Error(errorMsg), {
-            tags: {
-              component: "useDepositFlow",
-              phase: "classification-fetch",
-            },
-            data: { ethAddress: confirmedEthAddress },
-          });
-          throw new Error(
-            COPY.deposit.errors.unableToVerifyExistingDeposits(errorMsg),
-          );
-        }
-
-        // Pending claims are collected here (not used to gate selection)
-        // so we can run a POST-hoc check after the real selector picks its
-        // inputs and report which pending vault(s), if any, will be
-        // invalidated. No pre-filtering — pass the full wallet to
-        // `preparePeginTransaction`; if funds are insufficient it throws
-        // a clear "Insufficient funds: …" error that surfaces as-is.
-        const pendingVaultClaims = collectPendingVaultClaims({
-          vaults: depositorVaults,
-          pendingPegins,
-        });
+        // Pass the full wallet to `preparePeginTransaction` with no
+        // pre-filtering. Hashlock collisions across the depositor's own
+        // pending/active vaults are rejected on-chain by
+        // `BTCVaultRegistry`'s per-depositor hashlock uniqueness check,
+        // which surfaces as a friendly `DuplicateHashlock` message via the
+        // SDK error mapping. Insufficient-funds cases surface as a clear
+        // "Insufficient funds: …" error.
         const availableUTXOs = spendableUTXOs;
 
         const [vaultKeeperReader, universalChallengerReader] =
@@ -519,31 +482,6 @@ export function useDepositFlow(
           htlcSecretHexes,
           authAnchorHex,
         } = batchResult;
-
-        // Post-hoc impact check: if the selector picked outpoints already
-        // claimed by another pending vault, that vault becomes
-        // unbroadcastable and must be refunded. Tell the user via the
-        // soft `warnings` channel. Selection is what it is — we don't
-        // re-pick, we just inform.
-        const impactedVaultIds = findImpactedVaultIds(
-          batchResult.selectedUTXOs.map((u) => ({
-            txid: u.txid,
-            vout: u.vout,
-          })),
-          pendingVaultClaims,
-        );
-        if (impactedVaultIds.length > 0) {
-          warnings.push(
-            COPY.deposit.warnings.reusesReservedUtxos(impactedVaultIds.length),
-          );
-          logger.warn(
-            "[useDepositFlow] Deposit reuses UTXOs from other pending vault(s)",
-            {
-              category: "depositFlow",
-              data: { impactedVaultIds },
-            },
-          );
-        }
 
         // ========================================================================
         // Step 3: Sign PoP + batch register all vaults on Ethereum

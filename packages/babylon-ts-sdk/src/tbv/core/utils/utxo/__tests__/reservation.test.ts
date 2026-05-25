@@ -1,26 +1,13 @@
-/**
- * Tests for pending-vault claim collection + post-hoc impact attribution.
- * Filename retained for git-history continuity — the prior "reservation"
- * machinery this used to test has been removed; see the module's top doc.
- */
-
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import { ContractStatus } from "../../../services/deposit/peginState";
 import {
-  collectPendingVaultClaims,
-  findImpactedVaultIds,
+  findOverlappingPendingVaults,
   type PendingPeginLike,
-  type PendingVaultClaim,
-  type UtxoRef,
   type VaultLike,
 } from "../reservation";
 
-/**
- * Build a syntactically valid Bitcoin transaction hex that spends a single
- * outpoint `prevTxidLE:prevVout`. Used to seed `unsignedTxHex` fields in
- * fixtures so `collectPendingVaultClaims` can parse real inputs out of them.
- */
+/** Build a valid 1-input BTC tx hex spending `prevTxidLE:prevVout`. */
 function createValidTxHex(prevTxidLE: string, prevVout: number): string {
   const voutHex = prevVout.toString(16).padStart(8, "0");
   const voutLE =
@@ -46,175 +33,103 @@ function createValidTxHex(prevTxidLE: string, prevVout: number): string {
 const TXID_A = "a".repeat(64);
 const TXID_B = "b".repeat(64);
 
-describe("reservation utilities", () => {
-  let warnSpy: ReturnType<typeof vi.spyOn>;
-
-  beforeEach(() => {
-    warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+describe("findOverlappingPendingVaults", () => {
+  it("returns the id of a PENDING vault whose input overlaps", () => {
+    const vault: VaultLike = {
+      id: "0xVault1",
+      status: ContractStatus.PENDING,
+      unsignedPrePeginTx: createValidTxHex(TXID_A, 0),
+    };
+    const result = findOverlappingPendingVaults({
+      selectedOutpoints: [{ txid: TXID_A, vout: 0 }],
+      vaults: [vault],
+    });
+    expect(result).toEqual(["0xVault1"]);
   });
 
-  afterEach(() => {
-    warnSpy.mockRestore();
+  it("returns empty when no PENDING vault overlaps", () => {
+    const vault: VaultLike = {
+      id: "0xVault1",
+      status: ContractStatus.PENDING,
+      unsignedPrePeginTx: createValidTxHex(TXID_B, 0),
+    };
+    const result = findOverlappingPendingVaults({
+      selectedOutpoints: [{ txid: TXID_A, vout: 0 }],
+      vaults: [vault],
+    });
+    expect(result).toEqual([]);
   });
 
-  // ==========================================================================
-  // collectPendingVaultClaims
-  // ==========================================================================
-
-  describe("collectPendingVaultClaims", () => {
-    const VAULT_ID_1 = "0x1111";
-    const VAULT_ID_2 = "0x2222";
-
-    it("collects claimed outpoints from a PENDING on-chain vault", () => {
-      const vault: VaultLike = {
-        id: VAULT_ID_1,
-        status: ContractStatus.PENDING,
-        unsignedPrePeginTx: createValidTxHex(TXID_A, 3),
-      };
-
-      const claims = collectPendingVaultClaims({ vaults: [vault] });
-
-      expect(claims).toHaveLength(1);
-      expect(claims[0].vaultId).toBe(VAULT_ID_1);
-      expect(claims[0].claimedOutpoints).toEqual([{ txid: TXID_A, vout: 3 }]);
+  it("skips non-PENDING vaults — their pre-pegin BTC tx is confirmed", () => {
+    const verified: VaultLike = {
+      id: "0xVault1",
+      status: ContractStatus.VERIFIED,
+      unsignedPrePeginTx: createValidTxHex(TXID_A, 0),
+    };
+    const result = findOverlappingPendingVaults({
+      selectedOutpoints: [{ txid: TXID_A, vout: 0 }],
+      vaults: [verified],
     });
-
-    it("collects from a VERIFIED on-chain vault too", () => {
-      const vault: VaultLike = {
-        id: VAULT_ID_1,
-        status: ContractStatus.VERIFIED,
-        unsignedPrePeginTx: createValidTxHex(TXID_B, 0),
-      };
-
-      const claims = collectPendingVaultClaims({ vaults: [vault] });
-
-      expect(claims).toHaveLength(1);
-      expect(claims[0].claimedOutpoints).toEqual([{ txid: TXID_B, vout: 0 }]);
-    });
-
-    it("skips on-chain vaults whose status is neither PENDING nor VERIFIED", () => {
-      const active: VaultLike = {
-        id: VAULT_ID_1,
-        status: ContractStatus.ACTIVE,
-        unsignedPrePeginTx: createValidTxHex(TXID_A, 0),
-      };
-      const expired: VaultLike = {
-        id: VAULT_ID_2,
-        status: ContractStatus.EXPIRED,
-        unsignedPrePeginTx: createValidTxHex(TXID_B, 0),
-      };
-
-      const claims = collectPendingVaultClaims({ vaults: [active, expired] });
-
-      expect(claims).toHaveLength(0);
-    });
-
-    it("collects from locally-stored pending pegins not already on-chain", () => {
-      const pegin: PendingPeginLike = {
-        id: VAULT_ID_1,
-        unsignedTxHex: createValidTxHex(TXID_A, 5),
-      };
-
-      const claims = collectPendingVaultClaims({ pendingPegins: [pegin] });
-
-      expect(claims).toHaveLength(1);
-      expect(claims[0].vaultId).toBe(VAULT_ID_1);
-      expect(claims[0].claimedOutpoints).toEqual([{ txid: TXID_A, vout: 5 }]);
-    });
-
-    it("prefers the on-chain vault when a pending pegin's id matches", () => {
-      const vault: VaultLike = {
-        id: VAULT_ID_1,
-        status: ContractStatus.PENDING,
-        unsignedPrePeginTx: createValidTxHex(TXID_A, 0),
-      };
-      const pegin: PendingPeginLike = {
-        id: VAULT_ID_1,
-        unsignedTxHex: createValidTxHex(TXID_B, 1),
-      };
-
-      const claims = collectPendingVaultClaims({
-        vaults: [vault],
-        pendingPegins: [pegin],
-      });
-
-      // Pending pegin is ignored because the id matches an on-chain vault.
-      expect(claims).toHaveLength(1);
-      expect(claims[0].claimedOutpoints).toEqual([{ txid: TXID_A, vout: 0 }]);
-    });
-
-    it("skips pending pegins that have no id or no tx hex", () => {
-      const noId: PendingPeginLike = {
-        unsignedTxHex: createValidTxHex(TXID_A, 0),
-      };
-      const noHex: PendingPeginLike = { id: VAULT_ID_1 };
-
-      const claims = collectPendingVaultClaims({
-        pendingPegins: [noId, noHex],
-      });
-
-      expect(claims).toHaveLength(0);
-    });
+    expect(result).toEqual([]);
   });
 
-  // ==========================================================================
-  // findImpactedVaultIds
-  // ==========================================================================
-
-  describe("findImpactedVaultIds", () => {
-    const claim = (vaultId: string, outpoints: UtxoRef[]): PendingVaultClaim =>
-      ({ vaultId, claimedOutpoints: outpoints });
-
-    it("returns an empty array when nothing overlaps", () => {
-      const selected: UtxoRef[] = [{ txid: TXID_A, vout: 0 }];
-      const claims = [claim("0xV1", [{ txid: TXID_B, vout: 0 }])];
-      expect(findImpactedVaultIds(selected, claims)).toEqual([]);
+  it("uses local pending pegins as a fallback when not yet indexed", () => {
+    const pegin: PendingPeginLike = {
+      id: "0xVault1",
+      unsignedTxHex: createValidTxHex(TXID_A, 0),
+    };
+    const result = findOverlappingPendingVaults({
+      selectedOutpoints: [{ txid: TXID_A, vout: 0 }],
+      pendingPegins: [pegin],
     });
+    expect(result).toEqual(["0xVault1"]);
+  });
 
-    it("returns the claiming vault id when a selected outpoint overlaps", () => {
-      const selected: UtxoRef[] = [{ txid: TXID_A, vout: 0 }];
-      const claims = [claim("0xV1", [{ txid: TXID_A, vout: 0 }])];
-      expect(findImpactedVaultIds(selected, claims)).toEqual(["0xV1"]);
+  it("prefers the on-chain vault when a local pegin shares its id", () => {
+    // Local entry would NOT overlap; on-chain entry WOULD. The on-chain
+    // copy must win, so the result must include the vault.
+    const vault: VaultLike = {
+      id: "0xVault1",
+      status: ContractStatus.PENDING,
+      unsignedPrePeginTx: createValidTxHex(TXID_A, 0),
+    };
+    const localStaleCopy: PendingPeginLike = {
+      id: "0xVault1",
+      unsignedTxHex: createValidTxHex(TXID_B, 0),
+    };
+    const result = findOverlappingPendingVaults({
+      selectedOutpoints: [{ txid: TXID_A, vout: 0 }],
+      vaults: [vault],
+      pendingPegins: [localStaleCopy],
     });
+    expect(result).toEqual(["0xVault1"]);
+  });
 
-    it("returns ALL sibling vaults that share an outpoint (batched deposits)", () => {
-      // Multi-vault batched deposit: every sibling carries the same
-      // unsignedPrePeginTx, so reusing one outpoint invalidates them all.
-      const selected: UtxoRef[] = [{ txid: TXID_A, vout: 0 }];
-      const claims = [
-        claim("0xSibling1", [{ txid: TXID_A, vout: 0 }]),
-        claim("0xSibling2", [{ txid: TXID_A, vout: 0 }]),
-      ];
-      expect(new Set(findImpactedVaultIds(selected, claims))).toEqual(
-        new Set(["0xSibling1", "0xSibling2"]),
-      );
+  it("returns all sibling vaults of a batched deposit that share an outpoint", () => {
+    // Batched deposit: every sibling vault carries the same Pre-PegIn,
+    // so a shared outpoint invalidates them all.
+    const sibling = (id: string): VaultLike => ({
+      id,
+      status: ContractStatus.PENDING,
+      unsignedPrePeginTx: createValidTxHex(TXID_A, 0),
     });
+    const result = findOverlappingPendingVaults({
+      selectedOutpoints: [{ txid: TXID_A, vout: 0 }],
+      vaults: [sibling("0xS1"), sibling("0xS2")],
+    });
+    expect(new Set(result)).toEqual(new Set(["0xS1", "0xS2"]));
+  });
 
-    it("deduplicates when multiple selected outpoints all belong to the same vault", () => {
-      const selected: UtxoRef[] = [
-        { txid: TXID_A, vout: 0 },
-        { txid: TXID_A, vout: 1 },
-      ];
-      const claims = [
-        claim("0xV1", [
-          { txid: TXID_A, vout: 0 },
-          { txid: TXID_A, vout: 1 },
-        ]),
-      ];
-      expect(findImpactedVaultIds(selected, claims)).toEqual(["0xV1"]);
+  it("matches txids case-insensitively", () => {
+    const vault: VaultLike = {
+      id: "0xVault1",
+      status: ContractStatus.PENDING,
+      unsignedPrePeginTx: createValidTxHex(TXID_A.toLowerCase(), 0),
+    };
+    const result = findOverlappingPendingVaults({
+      selectedOutpoints: [{ txid: TXID_A.toUpperCase(), vout: 0 }],
+      vaults: [vault],
     });
-
-    it("is case-insensitive on txid comparison", () => {
-      const selected: UtxoRef[] = [{ txid: TXID_A.toUpperCase(), vout: 0 }];
-      const claims = [claim("0xV1", [{ txid: TXID_A.toLowerCase(), vout: 0 }])];
-      expect(findImpactedVaultIds(selected, claims)).toEqual(["0xV1"]);
-    });
-
-    it("returns empty when either input is empty", () => {
-      expect(findImpactedVaultIds([], [claim("0xV1", [])])).toEqual([]);
-      expect(
-        findImpactedVaultIds([{ txid: TXID_A, vout: 0 }], []),
-      ).toEqual([]);
-    });
+    expect(result).toEqual(["0xVault1"]);
   });
 });

@@ -8,7 +8,7 @@ Pure helpers for the primitives and services layers. No wallet, no network, no c
 
 ### UtxoNotAvailableError
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts:42](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts#L42)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts:53](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts#L53)
 
 Error thrown when UTXOs are not available.
 
@@ -24,7 +24,7 @@ Error thrown when UTXOs are not available.
 new UtxoNotAvailableError(missingUtxos): UtxoNotAvailableError;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts:45](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts#L45)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts:56](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts#L56)
 
 ###### Parameters
 
@@ -50,7 +50,7 @@ Error.constructor
 readonly missingUtxos: MissingUtxoInfo[];
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts:43](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts#L43)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts:54](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts#L54)
 
 ## Interfaces
 
@@ -453,9 +453,40 @@ Bitcoin network
 
 ***
 
+### UtxoRef
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts:23](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts#L23)
+
+Reference to a Bitcoin UTXO by its outpoint (txid + vout).
+
+Used by the availability check to compare a Pre-PegIn transaction's
+declared inputs against the wallet's current spendable set. Txids are
+compared case-insensitively; callers should treat the txid as opaque
+lowercase hex.
+
+#### Properties
+
+##### txid
+
+```ts
+txid: string;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts:24](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts#L24)
+
+##### vout
+
+```ts
+vout: number;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts:25](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts#L25)
+
+***
+
 ### MissingUtxoInfo
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts:20](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts#L20)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts:31](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts#L31)
 
 Information about a missing/spent UTXO.
 
@@ -467,7 +498,7 @@ Information about a missing/spent UTXO.
 txid: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts:22](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts#L22)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts:33](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts#L33)
 
 Transaction ID of the missing UTXO
 
@@ -477,7 +508,7 @@ Transaction ID of the missing UTXO
 vout: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts:24](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts#L24)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts:35](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts#L35)
 
 Output index of the missing UTXO
 
@@ -485,7 +516,7 @@ Output index of the missing UTXO
 
 ### UtxoValidationResult
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts:30](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts#L30)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts:41](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts#L41)
 
 Result of UTXO validation.
 
@@ -497,7 +528,7 @@ Result of UTXO validation.
 allAvailable: boolean;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts:32](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts#L32)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts:43](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts#L43)
 
 Whether all UTXOs are still available
 
@@ -507,7 +538,7 @@ Whether all UTXOs are still available
 missingUtxos: MissingUtxoInfo[];
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts:34](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts#L34)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts:45](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts#L45)
 
 List of missing UTXOs (if any)
 
@@ -517,226 +548,9 @@ List of missing UTXOs (if any)
 totalInputs: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts:36](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts#L36)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts:47](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts#L47)
 
 Total number of inputs checked
-
-***
-
-### UtxoRef
-
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts:25](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts#L25)
-
-A txid:vout pair uniquely identifying a UTXO (outpoint).
-
-#### Properties
-
-##### txid
-
-```ts
-txid: string;
-```
-
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts:26](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts#L26)
-
-##### vout
-
-```ts
-vout: number;
-```
-
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts:27](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts#L27)
-
-***
-
-### PendingPeginLike
-
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts:31](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts#L31)
-
-Narrow structural type for pending pegin data.
-
-#### Properties
-
-##### id?
-
-```ts
-optional id: string;
-```
-
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts:37](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts#L37)
-
-Optional vault id. When present, used to skip pending pegins that are
-already indexed on-chain so the canonical vault copy wins over a
-tamperable off-chain entry.
-
-##### selectedUTXOs?
-
-```ts
-optional selectedUTXOs: object[];
-```
-
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts:38](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts#L38)
-
-###### txid
-
-```ts
-txid: string;
-```
-
-###### vout
-
-```ts
-vout: number;
-```
-
-##### unsignedTxHex?
-
-```ts
-optional unsignedTxHex: string;
-```
-
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts:39](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts#L39)
-
-***
-
-### VaultLike
-
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts:43](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts#L43)
-
-Narrow structural type for vault data.
-
-#### Properties
-
-##### id?
-
-```ts
-optional id: string;
-```
-
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts:48](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts#L48)
-
-Optional vault id. When present, enables on-chain correlation with
-pending pegins sharing the same id.
-
-##### status
-
-```ts
-status: number;
-```
-
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts:49](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts#L49)
-
-##### unsignedPrePeginTx
-
-```ts
-unsignedPrePeginTx: string;
-```
-
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts:50](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts#L50)
-
-***
-
-### SelectUtxosForDepositParams
-
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts:53](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts#L53)
-
-#### Type Parameters
-
-##### T
-
-`T` *extends* `object`
-
-#### Properties
-
-##### availableUtxos
-
-```ts
-availableUtxos: T[];
-```
-
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts:57](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts#L57)
-
-All available UTXOs from the wallet.
-
-##### reservedUtxoRefs
-
-```ts
-reservedUtxoRefs: UtxoRef[];
-```
-
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts:59](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts#L59)
-
-UTXOs that are reserved/in-flight and should be avoided if possible.
-
-##### requiredAmount
-
-```ts
-requiredAmount: bigint;
-```
-
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts:61](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts#L61)
-
-Required deposit amount in satoshis (excluding fees).
-
-##### feeRate
-
-```ts
-feeRate: number;
-```
-
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts:63](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts#L63)
-
-Fee rate in sat/vB. Used to estimate fee buffer for sufficiency check.
-
-***
-
-### UtxoReservationLike
-
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts:67](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts#L67)
-
-Narrow structural type for early UTXO reservations (pre-ETH-registration).
-
-#### Properties
-
-##### outpoints
-
-```ts
-outpoints: readonly object[];
-```
-
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts:68](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts#L68)
-
-***
-
-### CollectReservedUtxoRefsParams
-
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts:71](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts#L71)
-
-#### Properties
-
-##### vaults?
-
-```ts
-optional vaults: VaultLike[];
-```
-
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts:72](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts#L72)
-
-##### pendingPegins?
-
-```ts
-optional pendingPegins: PendingPeginLike[];
-```
-
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts:73](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts#L73)
-
-##### utxoReservations?
-
-```ts
-optional utxoReservations: UtxoReservationLike[];
-```
-
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts:74](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts#L74)
 
 ***
 
@@ -982,25 +796,19 @@ Buffer amount in satoshis to add to the transaction fee
 ### peginOutputCount()
 
 ```ts
-function peginOutputCount(vaultCount, authAnchorHash?): number;
+function peginOutputCount(vaultCount, hasAuthAnchor): number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/fee/constants.ts:84](../../packages/babylon-ts-sdk/src/tbv/core/utils/fee/constants.ts#L84)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/fee/constants.ts:80](../../packages/babylon-ts-sdk/src/tbv/core/utils/fee/constants.ts#L80)
 
 Compute the total number of outputs (before change) in a Pre-PegIn
 transaction.
 
 A Pre-PegIn tx has: N HTLC outputs (one per vault) + optional
 auth-anchor OP_RETURN output + fixed outputs (CPFP anchor). This
-count is used for fee estimation — the change output is handled
+count is used for fee estimation only — the change output is handled
 separately by `selectUtxosForPegin` when the change amount exceeds
 the dust threshold.
-
-`authAnchorHash` is the same value forwarded into `buildPrePeginPsbt`:
-when truthy the Pre-PegIn carries an OP_RETURN commitment, so callers
-pass the same value to both functions and the fee budget stays in
-lockstep with the output set. Passing `undefined`/`null` reproduces
-the legacy single-arg behavior (HTLCs + CPFP only).
 
 #### Parameters
 
@@ -1010,13 +818,15 @@ the legacy single-arg behavior (HTLCs + CPFP only).
 
 Number of vaults in the batch (≥1).
 
-##### authAnchorHash?
+##### hasAuthAnchor
 
-The same auth-anchor commitment passed to
-                         `buildPrePeginPsbt`. Truthy → counts the
-                         OP_RETURN output in the budget.
+`boolean`
 
-`string` | `null`
+Whether the Pre-PegIn will carry an auth-anchor
+                         OP_RETURN output. Pass the same value the
+                         caller will hand to `buildPrePeginPsbt`'s
+                         `authAnchorHash` (truthy ↔ true) so the fee
+                         budget stays in lockstep with the output set.
 
 #### Returns
 
@@ -1290,7 +1100,7 @@ Transaction hex string ready for wallet signing
 function extractInputsFromTransaction(unsignedTxHex): object[];
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts:64](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts#L64)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts:75](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts#L75)
 
 Extract input references (txid:vout) from an unsigned transaction.
 
@@ -1316,7 +1126,7 @@ Array of input references
 function validateUtxosAvailable(unsignedTxHex, availableUtxos): UtxoValidationResult;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts:98](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts#L98)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts:109](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts#L109)
 
 Validate that all UTXOs in a transaction are still available.
 
@@ -1352,7 +1162,7 @@ Validation result with missing UTXO details
 function assertUtxosAvailable(unsignedTxHex, availableUtxos): void;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts:156](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts#L156)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts:168](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts#L168)
 
 Validate UTXOs and throw if any are not available.
 
@@ -1383,85 +1193,6 @@ UtxoNotAvailableError if any UTXOs are not available
 #### Throws
 
 Error if validation fails
-
-***
-
-### collectReservedUtxoRefs()
-
-```ts
-function collectReservedUtxoRefs(params): UtxoRef[];
-```
-
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts:168](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts#L168)
-
-Collect UTXO refs from in-flight deposits (PENDING/VERIFIED vaults and
-pending pegins).
-
-On-chain vault data is canonical: for any pending pegin whose `id` matches
-an indexed on-chain vault, the pending-pegin copy is ignored entirely —
-the `vaults` branch below extracts refs from the indexer-supplied
-`unsignedPrePeginTx` so tampered off-chain data cannot poison the
-reservation set once the vault is indexed.
-
-For pegins not yet indexed, refs are derived from the stored
-`unsignedTxHex` only. The `selectedUTXOs` sidecar is NOT used for
-reservation: if it disagreed with the transaction's inputs (e.g. because
-the off-chain source was tampered), trusting it would poison the reserved
-set. The transaction hex must be validated at the source boundary before
-being handed to this function; parsing and using its inputs is the single
-source of truth here.
-
-#### Parameters
-
-##### params
-
-[`CollectReservedUtxoRefsParams`](#collectreservedutxorefsparams)
-
-#### Returns
-
-[`UtxoRef`](#utxoref)[]
-
-***
-
-### selectUtxosForDeposit()
-
-```ts
-function selectUtxosForDeposit<T>(params): T[];
-```
-
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts:227](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts#L227)
-
-Select UTXOs for a deposit, filtering out reserved ones.
-
-Logic:
-1. Filter out reserved UTXOs from the available pool
-2. If unreserved UTXOs are sufficient for the required amount + estimated fee, return them
-3. Otherwise, throw — never silently reuse reserved UTXOs, as this risks double-spend
-   failures that strand registered-but-unbroadcastable vaults
-
-#### Type Parameters
-
-##### T
-
-`T` *extends* `object`
-
-#### Parameters
-
-##### params
-
-[`SelectUtxosForDepositParams`](#selectutxosfordepositparams)\<`T`\>
-
-Selection parameters
-
-#### Returns
-
-`T`[]
-
-Array of unreserved UTXOs to use for the deposit
-
-#### Throws
-
-When all UTXOs are reserved or unreserved UTXOs are insufficient
 
 ***
 
@@ -1749,7 +1480,7 @@ toward the fee-estimation output budget.
 const SPLIT_TX_FEE_SAFETY_MULTIPLIER: 5 = 5;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/fee/constants.ts:108](../../packages/babylon-ts-sdk/src/tbv/core/utils/fee/constants.ts#L108)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/fee/constants.ts:102](../../packages/babylon-ts-sdk/src/tbv/core/utils/fee/constants.ts#L102)
 
 Safety multiplier for split transaction fee validation.
 The signed PSBT's fee rate and absolute fee must not exceed this multiple
