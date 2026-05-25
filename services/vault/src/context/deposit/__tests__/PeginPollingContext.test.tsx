@@ -3,6 +3,7 @@ import type { PropsWithChildren } from "react";
 import type { Hex } from "viem";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { COPY } from "../../../copy";
 import {
   ContractStatus,
   LocalStorageStatus,
@@ -378,7 +379,9 @@ describe("PeginPollingContext", () => {
     // That path only fires if the confirmations lookup matched —
     // i.e., the consumer keyed by `prePeginTxHash`.
     const polling = result.current.getPollingResult(VAULT_ID);
-    expect(polling?.peginState.awaitingVpIngestion).toBe(true);
+    expect(polling?.peginState.message).toBe(
+      COPY.pegin.messages.prePeginIngesting,
+    );
   });
 
   it("stops polling a Pre-PegIn txid once it has been observed at required depth", async () => {
@@ -504,9 +507,8 @@ describe("PeginPollingContext", () => {
     // (driven by `prePeginBroadcastConfirmed`) without any mempool hit.
     await waitFor(() => {
       expect(
-        result.current.getPollingResult(VAULT_ID)?.peginState
-          .awaitingVpIngestion,
-      ).toBe(true);
+        result.current.getPollingResult(VAULT_ID)?.peginState.message,
+      ).toBe(COPY.pegin.messages.prePeginIngesting);
     });
   });
 
