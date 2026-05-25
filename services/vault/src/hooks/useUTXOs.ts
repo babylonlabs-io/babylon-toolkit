@@ -66,6 +66,15 @@ export function useUTXOs(
     return data?.filter((utxo) => utxo.confirmed) || [];
   }, [data]);
 
+  // Sum of unconfirmed (in-mempool) UTXO values. Display-only: pending UTXOs
+  // are never spendable and must not feed fee estimation, the spendable set,
+  // or any signing path. Surfaced solely so the UI can explain why a freshly
+  // funded address still reads a zero confirmed balance.
+  const unconfirmedBalance = useMemo(() => {
+    const unconfirmedUTXOs = data?.filter((utxo) => !utxo.confirmed) || [];
+    return BigInt(calculateBalance(unconfirmedUTXOs));
+  }, [data]);
+
   // Convert to wallet-connector UTXO type for ordinals filtering
   const confirmedUtxosForOrdinals = useMemo(
     () => confirmedUTXOs.map(toWalletUtxo),
@@ -166,6 +175,8 @@ export function useUTXOs(
     allUTXOs: data || [],
     /** Only confirmed UTXOs (may include inscriptions) */
     confirmedUTXOs,
+    /** Total value of unconfirmed UTXOs in satoshis (display-only, never spendable) */
+    unconfirmedBalance,
     /** Confirmed UTXOs without inscriptions (safe to spend) */
     availableUTXOs,
     /** Confirmed UTXOs that contain inscriptions */

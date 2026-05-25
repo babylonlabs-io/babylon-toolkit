@@ -70,6 +70,7 @@ vi.mock("../../../applications/aave/context", () => ({
 }));
 
 import { useApplications } from "../../useApplications";
+import { useUTXOs } from "../../useUTXOs";
 import { useDepositPageForm } from "../useDepositPageForm";
 import { useEstimatedBtcFee } from "../useEstimatedBtcFee";
 
@@ -192,6 +193,7 @@ vi.mock("../../useUTXOs", () => ({
         confirmed: true,
       },
     ],
+    unconfirmedBalance: 0n,
     isLoading: false,
     isLoadingOrdinals: false,
     error: null,
@@ -437,6 +439,33 @@ describe("useDepositPageForm", () => {
       isStale: false,
       promise: Promise.resolve([]),
     } as unknown as ReturnType<typeof useApplications>);
+    // Reset UTXO mock to the default funded address (800000 sats confirmed, no
+    // unconfirmed) so per-test overrides for the unconfirmed-balance cases
+    // don't leak — clearAllMocks keeps mockReturnValue overrides in place.
+    vi.mocked(useUTXOs).mockReturnValue({
+      availableUTXOs: [
+        { txid: "0x123", vout: 0, value: 500000, scriptPubKey: "0xabc" },
+        { txid: "0x456", vout: 1, value: 300000, scriptPubKey: "0xdef" },
+      ],
+      spendableMempoolUTXOs: [
+        {
+          txid: "0x123",
+          vout: 0,
+          value: 500000,
+          scriptPubKey: "0xabc",
+          confirmed: true,
+        },
+        {
+          txid: "0x456",
+          vout: 1,
+          value: 300000,
+          scriptPubKey: "0xdef",
+          confirmed: true,
+        },
+      ],
+      ordinalsCheckPending: false,
+      unconfirmedBalance: 0n,
+    } as unknown as ReturnType<typeof useUTXOs>);
   });
 
   const wrapper = ({ children }: { children: ReactNode }) => {
@@ -472,6 +501,37 @@ describe("useDepositPageForm", () => {
       const { result } = renderHook(() => useDepositPageForm(), { wrapper });
 
       expect(result.current.btcBalanceFormatted).toBe(0.008);
+    });
+
+    it("flags hasUnconfirmedBalanceOnly when confirmed balance is zero but unconfirmed funds exist", () => {
+      vi.mocked(useUTXOs).mockReturnValue({
+        availableUTXOs: [],
+        spendableMempoolUTXOs: [],
+        ordinalsCheckPending: false,
+        unconfirmedBalance: 50000n,
+      } as unknown as ReturnType<typeof useUTXOs>);
+
+      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
+
+      expect(result.current.btcBalance).toBe(0n);
+      expect(result.current.unconfirmedBalance).toBe(50000n);
+      expect(result.current.hasUnconfirmedBalanceOnly).toBe(true);
+    });
+
+    it("does not flag hasUnconfirmedBalanceOnly when confirmed balance is non-zero", () => {
+      vi.mocked(useUTXOs).mockReturnValue({
+        availableUTXOs: [
+          { txid: "0x123", vout: 0, value: 500000, scriptPubKey: "0xabc" },
+        ],
+        spendableMempoolUTXOs: [],
+        ordinalsCheckPending: false,
+        unconfirmedBalance: 50000n,
+      } as unknown as ReturnType<typeof useUTXOs>);
+
+      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
+
+      expect(result.current.btcBalance).toBe(500000n);
+      expect(result.current.hasUnconfirmedBalanceOnly).toBe(false);
     });
 
     it("should load applications", () => {

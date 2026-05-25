@@ -76,6 +76,13 @@ export interface UseDepositPageFormResult {
 
   btcBalance: bigint;
   btcBalanceFormatted: number;
+  /** Total value of unconfirmed (in-mempool) UTXOs in satoshis. Display-only. */
+  unconfirmedBalance: bigint;
+  /**
+   * True when the confirmed balance is zero but unconfirmed funds exist. Drives
+   * the "pending confirmation" notice in the deposit form.
+   */
+  hasUnconfirmedBalanceOnly: boolean;
   btcPrice: number;
   priceMetadata: Record<string, PriceMetadata>;
   hasStalePrices: boolean;
@@ -275,11 +282,23 @@ export function useDepositPageForm(): UseDepositPageFormResult {
   // spending uses `spendableMempoolUTXOs` (fee estimation) and the fail-closed
   // gate inside `useDepositFlow`, which refuses to submit while classification
   // is unavailable.
-  const { availableUTXOs, spendableMempoolUTXOs, ordinalsCheckPending } =
-    useUTXOs(btcAddress);
+  const {
+    availableUTXOs,
+    spendableMempoolUTXOs,
+    ordinalsCheckPending,
+    unconfirmedBalance,
+  } = useUTXOs(btcAddress);
   const btcBalance = useMemo(() => {
     return BigInt(calculateBalance(availableUTXOs || []));
   }, [availableUTXOs]);
+
+  // True when the confirmed balance is zero but the address has unconfirmed
+  // (in-mempool) funds. The deposit form uses this to explain why the wallet
+  // shows a balance the app does not — the app only counts confirmed UTXOs.
+  const hasUnconfirmedBalanceOnly = useMemo(
+    () => btcBalance === 0n && unconfirmedBalance > 0n,
+    [btcBalance, unconfirmedBalance],
+  );
 
   const btcBalanceFormatted = useMemo(() => {
     if (!btcBalance) return 0;
@@ -562,6 +581,8 @@ export function useDepositPageForm(): UseDepositPageFormResult {
     isWalletConnected,
     btcBalance,
     btcBalanceFormatted,
+    unconfirmedBalance,
+    hasUnconfirmedBalanceOnly,
     btcPrice: btcPriceUSD,
     priceMetadata: metadata,
     hasStalePrices,
