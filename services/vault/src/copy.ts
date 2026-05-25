@@ -88,6 +88,9 @@ export const COPY = {
         "This BTC Vault was liquidated. The collateral was seized to cover unpaid debt.",
       refundBroadcast:
         "Refund transaction has been broadcast to Bitcoin. Waiting for on-chain confirmation...",
+      refundMaturing: (blocks: number, hours: number) =>
+        `Refund available in ~${blocks} Bitcoin ${blocks === 1 ? "block" : "blocks"} (~${hours}h).`,
+      refundMaturingUnknown: "Checking when your refund will be available...",
       invalid:
         "This BTC Vault is invalid. The BTC UTXOs were spent in a different transaction.",
       redemptionComplete:
@@ -229,8 +232,6 @@ export const COPY = {
       networkFeeRate: "Network Fee Rate",
       btcNetworkFee: "BTC Network Fee",
       youReceive: "You'll receive",
-      challengePeriodInfo: (estimatedHours: number) =>
-        `Refund arrives within the Bitcoin challenge period — approximately ${estimatedHours} hours after the transaction is confirmed.`,
       fallbackFeeWarning:
         "Could not fetch the mempool fee rate. The minimum relay fee may not get your refund confirmed. Set a fee rate above to continue.",
       dustError:

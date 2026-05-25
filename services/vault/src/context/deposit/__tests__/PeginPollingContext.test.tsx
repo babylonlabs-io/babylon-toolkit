@@ -27,10 +27,11 @@ vi.mock("../../../hooks/deposit/usePeginPollingQuery", () => ({
 }));
 
 // The mempool-truth hook adds network polling and a ProtocolParamsContext
-// dependency neither of which this test cares about — stub it so the
-// provider is renderable in isolation. The spy lets the polling-filter
-// test assert which txids actually reach the mempool poller. `vi.hoisted`
-// keeps the spy reference live across vi.mock's factory hoist.
+// dependency neither of which most tests care about — stub it so the
+// provider is renderable in isolation. The spy lets polling-filter tests
+// assert which txids actually reach the mempool poller, while EXPIRED
+// maturity tests inject depth-reached entries via `mockReturnValue`.
+// `vi.hoisted` keeps the spy reference live across vi.mock's factory hoist.
 const { mockUsePrePeginMempoolConfirmations } = vi.hoisted(() => ({
   mockUsePrePeginMempoolConfirmations: vi.fn<
     (txids: ReadonlyArray<string | undefined>) => {
@@ -43,10 +44,12 @@ vi.mock("../../../hooks/deposit/usePrePeginMempoolConfirmations", () => ({
     mockUsePrePeginMempoolConfirmations(txids),
 }));
 
+const mockVersionedParams = new Map<number, { tRefund: number }>();
+
 vi.mock("../../ProtocolParamsContext", () => ({
   useProtocolParamsContext: () => ({
     config: { offchainParams: { minPrepeginDepth: 6 } },
-    getOffchainParamsByVersion: () => undefined,
+    getOffchainParamsByVersion: (v: number) => mockVersionedParams.get(v),
   }),
 }));
 
@@ -94,6 +97,7 @@ describe("PeginPollingContext", () => {
     mockUsePrePeginMempoolConfirmations.mockReturnValue({
       confirmationsByTxid: new Map<string, number>(),
     });
+    mockVersionedParams.clear();
     // The persistent confirmed-txid cache leaks across tests otherwise.
     localStorage.clear();
   });
@@ -560,5 +564,162 @@ describe("PeginPollingContext", () => {
     for (const call of mockUsePrePeginMempoolConfirmations.mock.calls) {
       expect(call[0]).not.toContain(PREPEGIN_HASH);
     }
+  });
+
+  // ==========================================================================
+  // EXPIRED — refund maturity wiring
+  // ==========================================================================
+
+  // Canonical (lowercased, no `0x`) txid the mempool hook keys by.
+  const PRE_PEGIN_TXID_HEX = "abcd".repeat(16);
+  const EXPIRED_ACTIVITY: VaultActivity = {
+    ...ACTIVITY,
+    contractStatus: ContractStatus.EXPIRED,
+    prePeginTxHash: `0x${PRE_PEGIN_TXID_HEX}` as Hex,
+    offchainParamsVersion: 3,
+  };
+
+  function renderExpired() {
+    const wrapper = ({ children }: PropsWithChildren) => (
+      <PeginPollingProvider
+        activities={[EXPIRED_ACTIVITY]}
+        pendingPegins={[]}
+        btcPublicKey={BTC_PUBKEY}
+      >
+        {children}
+      </PeginPollingProvider>
+    );
+    return renderHook(() => usePeginPolling(), { wrapper });
+  }
+
+  it("EXPIRED: gates the refund action on CSV maturity (confirmations < tRefund → no action, maturing state)", () => {
+    mockVersionedParams.set(3, { tRefund: 144 });
+    mockUsePrePeginMempoolConfirmations.mockReturnValue({
+      confirmationsByTxid: new Map([[PRE_PEGIN_TXID_HEX, 20]]),
+    });
+
+    const { result } = renderExpired();
+    const status = result.current.getPollingResult(ACTIVITY_ID);
+
+    expect(status?.peginState.availableActions).toEqual([PeginAction.NONE]);
+    expect(status?.peginState.refundMaturityState).toBe("maturing");
+    expect(status?.peginState.refundMaturesInBlocks).toBe(144 - 20);
+  });
+
+  it("EXPIRED: exposes the refund action once CSV is satisfied (confirmations ≥ tRefund)", () => {
+    mockVersionedParams.set(3, { tRefund: 144 });
+    mockUsePrePeginMempoolConfirmations.mockReturnValue({
+      confirmationsByTxid: new Map([[PRE_PEGIN_TXID_HEX, 144]]),
+    });
+
+    const { result } = renderExpired();
+    const status = result.current.getPollingResult(ACTIVITY_ID);
+
+    expect(status?.peginState.availableActions).toEqual([
+      PeginAction.REFUND_HTLC,
+    ]);
+    expect(status?.peginState.refundMaturityState).toBe("mature");
+  });
+
+  it("EXPIRED: never marks mature when the per-deposit tRefund is unknown (no fallback to latest)", () => {
+    // mockVersionedParams left empty for version 3 → tRefund undefined.
+    mockUsePrePeginMempoolConfirmations.mockReturnValue({
+      confirmationsByTxid: new Map([[PRE_PEGIN_TXID_HEX, 9_999]]),
+    });
+
+    const { result } = renderExpired();
+    const status = result.current.getPollingResult(ACTIVITY_ID);
+
+    expect(status?.peginState.availableActions).toEqual([PeginAction.NONE]);
+    expect(status?.peginState.refundMaturityState).toBe("unknown");
+    expect(status?.peginState.refundMaturesInBlocks).toBeUndefined();
+  });
+
+  it("EXPIRED: reports unknown when confirmations are not yet available", () => {
+    mockVersionedParams.set(3, { tRefund: 144 });
+    mockUsePrePeginMempoolConfirmations.mockReturnValue({
+      confirmationsByTxid: new Map(),
+    });
+
+    const { result } = renderExpired();
+    const status = result.current.getPollingResult(ACTIVITY_ID);
+
+    expect(status?.peginState.availableActions).toEqual([PeginAction.NONE]);
+    expect(status?.peginState.refundMaturityState).toBe("unknown");
+  });
+
+  it("EXPIRED: stops polling once observed at tRefund and reads the cache as mature on next render", async () => {
+    // Once mempool reports a Pre-PegIn past `tRefund`, the answer is
+    // permanent. The mature cache lets us drop the txid from polling so a
+    // long-stale expired vault doesn't burn `/tx/<txid>` per cycle.
+    mockVersionedParams.set(3, { tRefund: 144 });
+    mockUsePrePeginMempoolConfirmations.mockReturnValue({
+      confirmationsByTxid: new Map([[PRE_PEGIN_TXID_HEX, 144]]),
+    });
+
+    renderExpired();
+
+    await waitFor(() => {
+      const lastCall =
+        mockUsePrePeginMempoolConfirmations.mock.calls.at(-1)?.[0] ?? [];
+      expect(lastCall).not.toContain(EXPIRED_ACTIVITY.prePeginTxHash);
+    });
+  });
+
+  it("EXPIRED: treats a cached mature txid as mature even when polling returns nothing", async () => {
+    // Page refresh equivalent: prior session cached the mature txid. The
+    // poll filter drops it on mount so `prePeginConfirmationsByTxid` has
+    // no entry. Without the cache OR, the state would regress to
+    // "unknown" and the inline copy would say "Checking…" on every refresh.
+    localStorage.setItem(
+      "tbv-mature-refund-signet",
+      JSON.stringify({ [PRE_PEGIN_TXID_HEX]: Date.now() }),
+    );
+    mockVersionedParams.set(3, { tRefund: 144 });
+    mockUsePrePeginMempoolConfirmations.mockReturnValue({
+      confirmationsByTxid: new Map(),
+    });
+
+    const { result } = renderExpired();
+    const status = result.current.getPollingResult(ACTIVITY_ID);
+
+    expect(status?.peginState.refundMaturityState).toBe("mature");
+    expect(status?.peginState.availableActions).toEqual([
+      PeginAction.REFUND_HTLC,
+    ]);
+  });
+
+  it("EXPIRED: surfaces refund as mature for unowned vaults so the ownership-mismatch UI can disable it", () => {
+    // Polling is skipped for unowned vaults (see filter), so confirmations
+    // would be undefined → state would be "unknown" and no action button
+    // would render. Without a button, the ownership-mismatch disable+
+    // tooltip path in getActionStatus never fires, leaving the user with
+    // a stale "checking…" message and no hint to switch wallets. The
+    // bypass surfaces REFUND_HTLC so main's ownership flow takes over.
+    const OTHER_BTC_PUBKEY = "cd".repeat(32);
+    mockVersionedParams.set(3, { tRefund: 144 });
+    mockUsePrePeginMempoolConfirmations.mockReturnValue({
+      confirmationsByTxid: new Map(),
+    });
+
+    const wrapper = ({ children }: PropsWithChildren) => (
+      <PeginPollingProvider
+        activities={[
+          { ...EXPIRED_ACTIVITY, depositorBtcPubkey: OTHER_BTC_PUBKEY },
+        ]}
+        pendingPegins={[]}
+        btcPublicKey={BTC_PUBKEY}
+      >
+        {children}
+      </PeginPollingProvider>
+    );
+    const { result } = renderHook(() => usePeginPolling(), { wrapper });
+    const status = result.current.getPollingResult(ACTIVITY_ID);
+
+    expect(status?.isOwnedByCurrentWallet).toBe(false);
+    expect(status?.peginState.refundMaturityState).toBe("mature");
+    expect(status?.peginState.availableActions).toEqual([
+      PeginAction.REFUND_HTLC,
+    ]);
   });
 });
