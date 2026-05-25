@@ -11,7 +11,10 @@ import { useEffect, useState, type ReactNode } from "react";
 import { CopyableHash } from "@/components/shared/CopyableHash";
 import { getNetworkConfigBTC } from "@/config";
 import { truncateAddress } from "@/utils/addressUtils";
-import { getBtcExplorerTxUrl } from "@/utils/explorer";
+import {
+  getBtcExplorerAddressUrl,
+  getBtcExplorerTxUrl,
+} from "@/utils/explorer";
 import {
   formatBtcAmount,
   formatDateTime,
@@ -71,6 +74,11 @@ interface VaultDetailCardProps {
   disabled?: boolean;
   /** Tooltip shown when hovering a `disabled` card. */
   disabledTooltip?: string;
+  /** Decoded BTC address the pegout will land at. Rendered as the
+   *  "Nominated Address" row when present. This is the address registered
+   *  on-chain at vault creation, which may differ from the currently
+   *  connected BTC wallet. */
+  payoutBtcAddress?: string;
 }
 
 export function VaultDetailCard({
@@ -87,6 +95,7 @@ export function VaultDetailCard({
   action,
   disabled,
   disabledTooltip,
+  payoutBtcAddress,
 }: VaultDetailCardProps) {
   const relativeTime = useRelativeTime(timestamp);
 
@@ -158,6 +167,19 @@ export function VaultDetailCard({
             hash={txHash}
             chain="BTC"
             explorerUrl={getBtcExplorerTxUrl(txHash)}
+          />
+        </VaultCardRow>
+      )}
+
+      {/* Nominated Address — destination registered at vault creation.
+          May differ from the currently connected BTC wallet. */}
+      {payoutBtcAddress && (
+        <VaultCardRow label="Nominated Address">
+          <CopyableHash
+            hash={payoutBtcAddress}
+            chain="BTC"
+            kind="address"
+            explorerUrl={getBtcExplorerAddressUrl(payoutBtcAddress)}
           />
         </VaultCardRow>
       )}
