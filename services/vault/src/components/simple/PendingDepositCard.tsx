@@ -15,7 +15,10 @@ import {
 import { getNetworkConfigBTC } from "@/config";
 import { useDepositPollingResult } from "@/context/deposit/PeginPollingContext";
 import { COPY } from "@/copy";
-import { getPeginDisplayStep } from "@/models/peginStateMachine";
+import {
+  canPerformAction,
+  getPeginDisplayStep,
+} from "@/models/peginStateMachine";
 import { getTokenBrandColor } from "@/services/token/tokenService";
 import type { VaultProvider } from "@/types/vaultProvider";
 import { truncateAddress } from "@/utils/addressUtils";
@@ -28,6 +31,7 @@ import {
   TOTAL_VISUAL_STEPS,
 } from "./DepositProgressView/steps";
 import { DepositStepLabel } from "./DepositStepLabel";
+import { PeginTxHashRow } from "./PeginTxHashRow";
 import { STATUS_DOT_COLORS } from "./statusColors";
 import { VaultDetailCard, VaultStatusBadge } from "./VaultDetailCard";
 
@@ -39,7 +43,10 @@ interface PendingDepositCardProps {
   amount: string;
   /** Milliseconds since epoch */
   timestamp?: number;
-  txHash?: string;
+  /** Raw BTC peg-in transaction hash (hex, may include 0x prefix). */
+  peginTxHash?: string;
+  /** Pre-PegIn transaction hash (hex, may include 0x prefix). */
+  prePeginTxHash?: string;
   providerId: string;
   vaultProviders: VaultProvider[];
   onSignClick: (depositId: string) => void;
@@ -61,7 +68,8 @@ export function PendingDepositCard({
   depositId,
   amount,
   timestamp,
-  txHash,
+  peginTxHash,
+  prePeginTxHash,
   providerId,
   vaultProviders,
   onSignClick,
@@ -120,6 +128,14 @@ export function PendingDepositCard({
   const buttonDisabled = !isActionable || loading;
   const dotColor = STATUS_DOT_COLORS[peginState.displayVariant];
 
+  // The Pre-PegIn tx is on Bitcoin only once the depositor has broadcast it.
+  // While the broadcast action is still pending, an explorer link would 404, so
+  // the Pre-PegIn hash stays copy-only until then.
+  const prePeginBroadcast = !canPerformAction(
+    peginState,
+    PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN,
+  );
+
   // Map the current state onto the shared deposit-flow step model so the card
   // can show "Step X of Y" + a progress bar. `null` when there's no meaningful
   // in-progress step (those states don't reach the pending sections), and while
@@ -137,7 +153,13 @@ export function PendingDepositCard({
     <VaultDetailCard
       amountBtc={parseFloat(amount || "0")}
       timestamp={timestamp ?? 0}
-      txHash={txHash}
+      txHashRow={
+        <PeginTxHashRow
+          peginTxHash={peginTxHash}
+          prePeginTxHash={prePeginTxHash}
+          linkPrePegin={prePeginBroadcast}
+        />
+      }
       providerName={providerName}
       providerIconUrl={provider?.iconUrl}
       providerAddress={providerId}

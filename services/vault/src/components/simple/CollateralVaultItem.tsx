@@ -11,13 +11,12 @@ import {
   StatusBadge,
 } from "@babylonlabs-io/core-ui";
 
-import { CopyableHash } from "@/components/shared/CopyableHash";
 import { getNetworkConfigBTC } from "@/config";
 import { COPY } from "@/copy";
 import { truncateAddress } from "@/utils/addressUtils";
-import { getBtcExplorerTxUrl } from "@/utils/explorer";
 import { formatBtcAmount, formatOrdinal } from "@/utils/formatting";
 
+import { PeginTxHashRow } from "./PeginTxHashRow";
 import { VaultCardRow, VaultCardShell } from "./VaultCardShell";
 
 const btcConfig = getNetworkConfigBTC();
@@ -32,6 +31,8 @@ interface CollateralVaultItemProps {
   providerAddress: string;
   /** BTC peg-in transaction hash (hex, may include 0x prefix) */
   peginTxHash?: string;
+  /** Pre-PegIn transaction hash (hex, may include 0x prefix) */
+  prePeginTxHash?: string;
   liquidationIndex?: number;
   selected: boolean;
   selectable: boolean;
@@ -47,6 +48,7 @@ export function CollateralVaultItem({
   providerIconUrl,
   providerAddress,
   peginTxHash,
+  prePeginTxHash,
   liquidationIndex,
   selected,
   selectable,
@@ -108,16 +110,13 @@ export function CollateralVaultItem({
         </Hint>
       </VaultCardRow>
 
-      {/* Transaction hash row (BTC pegin) */}
-      {peginTxHash && (
-        <VaultCardRow label="Transaction Hash">
-          <CopyableHash
-            hash={peginTxHash}
-            chain="BTC"
-            explorerUrl={getBtcExplorerTxUrl(peginTxHash)}
-          />
-        </VaultCardRow>
-      )}
+      {/* Transaction hash row — Pegin + Pre-Pegin. The vault is active here, so
+          both txs are on Bitcoin and link to the explorer. */}
+      <PeginTxHashRow
+        peginTxHash={peginTxHash}
+        prePeginTxHash={prePeginTxHash}
+        linkPegin
+      />
 
       {/* Liquidation Order row */}
       {liquidationIndex !== undefined && (

@@ -36,12 +36,14 @@ vi.mock("../VaultDetailCard", () => ({
     belowHeader,
     disabled,
     disabledTooltip,
+    txHashRow,
   }: {
     action?: ReactNode;
     amountSubtext?: ReactNode;
     belowHeader?: ReactNode;
     disabled?: boolean;
     disabledTooltip?: string;
+    txHashRow?: ReactNode;
   }) => (
     <div
       data-testid="vault-detail-card"
@@ -51,6 +53,7 @@ vi.mock("../VaultDetailCard", () => ({
       {action}
       <div data-testid="amount-subtext">{amountSubtext}</div>
       <div data-testid="below-header">{belowHeader}</div>
+      <div data-testid="tx-hash-row">{txHashRow}</div>
     </div>
   ),
   VaultStatusBadge: () => <div data-testid="status-badge" />,
@@ -62,6 +65,7 @@ const POLLING_RESULT = {
     displayLabel: "Pending",
     displayVariant: "pending",
     message: undefined,
+    availableActions: [],
   },
 };
 
@@ -207,6 +211,57 @@ describe("PendingDepositCard — disabled (ownership mismatch) surface", () => {
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
     const card = screen.getByTestId("vault-detail-card");
     expect(card).toHaveAttribute("data-disabled", "false");
+  });
+});
+
+describe("PendingDepositCard — Pre-Pegin explorer link gating", () => {
+  const PRE_PEGIN_TX_HASH = `0x${"2".repeat(64)}`;
+  const PRE_PEGIN_TXID = "2".repeat(64);
+
+  function renderWithPrePegin(availableActions: PeginAction[]) {
+    mockUseDepositPollingResult.mockReturnValue({
+      loading: false,
+      peginState: {
+        displayLabel: "Pending",
+        displayVariant: "pending",
+        availableActions,
+      },
+    });
+    render(
+      <PendingDepositCard
+        depositId="0xvault"
+        amount="0.05"
+        prePeginTxHash={PRE_PEGIN_TX_HASH}
+        providerId="0xprovider"
+        vaultProviders={[]}
+        onSignClick={vi.fn()}
+        onBroadcastClick={vi.fn()}
+        onWotsKeyClick={vi.fn()}
+        onActivationClick={vi.fn()}
+        onRefundClick={vi.fn()}
+      />,
+    );
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockIsArtifactDownloadAvailable.mockReturnValue(false);
+    mockGetActionStatus.mockReturnValue({ type: "unavailable" });
+  });
+
+  it("keeps the Pre-Pegin hash copy-only while the broadcast action is pending", () => {
+    // Broadcast still pending → the Pre-PegIn tx is not on Bitcoin yet, so an
+    // explorer link would 404. The hash must be copy-only.
+    renderWithPrePegin([PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN]);
+    expect(screen.queryByRole("link")).not.toBeInTheDocument();
+  });
+
+  it("links the Pre-Pegin hash once the broadcast action is no longer pending", () => {
+    renderWithPrePegin([]);
+    expect(screen.getByRole("link")).toHaveAttribute(
+      "href",
+      expect.stringContaining(PRE_PEGIN_TXID),
+    );
   });
 });
 

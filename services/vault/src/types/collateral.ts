@@ -9,6 +9,12 @@ export interface CollateralVaultEntry {
   vaultId: string;
   /** Raw BTC pegin transaction hash (for VP RPC operations like artifact download) */
   peginTxHash?: string;
+  /**
+   * Pre-PegIn transaction hash (txid of `unsignedPrePeginTx`). Derived for the
+   * collateral card's TX Hash row. Optional because legacy / edge-case data may
+   * lack a decodable pre-pegin tx.
+   */
+  prePeginTxHash?: string;
   /** Vault amount in BTC (converted from satoshis) */
   amountBtc: number;
   /** Unix timestamp in seconds when added as collateral */

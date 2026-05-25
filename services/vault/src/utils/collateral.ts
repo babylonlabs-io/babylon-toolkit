@@ -9,6 +9,7 @@ import type { VaultProvider } from "@/types/vaultProvider";
 
 import { truncateHash } from "./addressUtils";
 import { satoshiToBtcNumber } from "./btcConversion";
+import { derivePrePeginTxHash } from "./vaultTransformers";
 
 /** Vault statuses that should be excluded from the collateral display */
 const EXCLUDED_VAULT_STATUSES = new Set(["liquidated", "depositor_withdrawn"]);
@@ -44,6 +45,7 @@ export function toCollateralVaultEntries(
       id: `${c.depositorAddress}-${c.vaultId}`,
       vaultId: c.vaultId,
       peginTxHash: c.vault?.peginTxHash,
+      prePeginTxHash: derivePrePeginTxHash(c.vault?.unsignedPrePeginTx),
       amountBtc: satoshiToBtcNumber(c.amount),
       addedAt: Number(c.addedAt),
       inUse: c.vault?.inUse ?? false,
