@@ -13,7 +13,7 @@ import {
   getPrimaryActionButton,
   PeginAction,
 } from "../../models/peginStateMachine";
-import { WALLET_OWNERSHIP_WARNING } from "../../utils/vaultWarnings";
+import { getWalletOwnershipWarning } from "../../utils/vaultWarnings";
 
 /**
  * Action button configuration from state machine.
@@ -32,53 +32,60 @@ export interface ActionAvailable {
 }
 
 /**
- * Action status when actions are unavailable.
+ * Action status when the would-be action is blocked by ownership mismatch.
+ * The action button is still surfaced so the UI can render it disabled with
+ * the tooltip explaining why.
+ */
+export interface ActionDisabled {
+  type: "disabled";
+  action: ActionButton;
+  tooltip: string;
+}
+
+/**
+ * Action status when no action should be rendered (no action exists for the
+ * current state, or a polling error blocks it).
  */
 export interface ActionUnavailable {
   type: "unavailable";
-  reasons: string[];
 }
 
 /**
  * Discriminated union for action status.
  */
-export type ActionStatus = ActionAvailable | ActionUnavailable;
+export type ActionStatus = ActionAvailable | ActionDisabled | ActionUnavailable;
 
 /**
- * Determine action availability and collect warning reasons.
+ * Determine action availability for a deposit.
  *
- * This centralizes the logic for checking:
- * - Wallet ownership
- * - Provider errors
- * - Action button availability
- *
- * @param pollingResult - The deposit polling result
- * @returns ActionStatus indicating if actions are available or reasons why not
+ * Resolution order:
+ * 1. No action exists for this state, or a polling error blocks it → unavailable
+ * 2. Action exists but the vault was created with a different wallet → disabled
+ *    (the would-be action is surfaced so the UI can render it dimmed + tooltip)
+ * 3. Otherwise → available
  */
 export function getActionStatus(
   pollingResult: DepositPollingResult,
 ): ActionStatus {
-  const { peginState, isOwnedByCurrentWallet, error } = pollingResult;
+  const { peginState, isOwnedByCurrentWallet, error, depositorBtcPubkey } =
+    pollingResult;
 
-  const reasons: string[] = [];
-
-  // Collect all applicable warnings
-  if (error) {
-    reasons.push(error.message);
-  }
-  if (!isOwnedByCurrentWallet) {
-    reasons.push(WALLET_OWNERSHIP_WARNING);
-  }
-
-  // If any blockers exist, action is unavailable
-  if (reasons.length > 0) {
-    return { type: "unavailable", reasons };
-  }
-
-  // Check if there's an action available for the current state
   const actionButton = getPrimaryActionButton(peginState);
-  if (!actionButton) {
-    return { type: "unavailable", reasons: [] };
+
+  if (error || !actionButton) {
+    return { type: "unavailable" };
+  }
+
+  // `isVaultOwnedByWallet` only returns false when both pubkeys are present
+  // and differ, so `depositorBtcPubkey` is guaranteed defined here. The
+  // explicit guard keeps TypeScript happy and stays defensive against future
+  // changes to the ownership predicate.
+  if (!isOwnedByCurrentWallet && depositorBtcPubkey) {
+    return {
+      type: "disabled",
+      action: actionButton,
+      tooltip: getWalletOwnershipWarning(depositorBtcPubkey),
+    };
   }
 
   return { type: "available", action: actionButton };
