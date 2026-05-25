@@ -428,7 +428,7 @@ export const COPY = {
         stepLabel: (n: number) => `step ${n}`,
         one: {
           title: "Deposit BTC as collateral",
-          body: "Lock your BTC in a secure smart contract.",
+          body: "Lock your BTC in a Bitcoin vault.",
         },
         two: {
           title: "Borrow USDC, USDT or WBTC",
