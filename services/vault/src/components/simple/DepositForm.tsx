@@ -317,7 +317,11 @@ export function DepositForm({
               hasSupplyCap: effectiveRemaining !== null,
             }),
           }}
-          rightField={{ value: pendingConfirmationField ?? usdValue }}
+          rightField={{
+            value: !hasAmount
+              ? (pendingConfirmationField ?? usdValue)
+              : usdValue,
+          }}
           onMaxClick={onMaxClick}
           inputClassName="h-10 w-auto rounded-lg bg-primary-contrast px-4 [field-sizing:content]"
         />

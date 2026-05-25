@@ -193,6 +193,7 @@ vi.mock("../../useUTXOs", () => ({
         confirmed: true,
       },
     ],
+    confirmedBalance: 800000n,
     unconfirmedBalance: 0n,
     isLoading: false,
     isLoadingOrdinals: false,
@@ -464,6 +465,7 @@ describe("useDepositPageForm", () => {
         },
       ],
       ordinalsCheckPending: false,
+      confirmedBalance: 800000n,
       unconfirmedBalance: 0n,
     } as unknown as ReturnType<typeof useUTXOs>);
   });
@@ -508,6 +510,7 @@ describe("useDepositPageForm", () => {
         availableUTXOs: [],
         spendableMempoolUTXOs: [],
         ordinalsCheckPending: false,
+        confirmedBalance: 0n,
         unconfirmedBalance: 50000n,
       } as unknown as ReturnType<typeof useUTXOs>);
 
@@ -525,12 +528,33 @@ describe("useDepositPageForm", () => {
         ],
         spendableMempoolUTXOs: [],
         ordinalsCheckPending: false,
+        confirmedBalance: 500000n,
         unconfirmedBalance: 50000n,
       } as unknown as ReturnType<typeof useUTXOs>);
 
       const { result } = renderHook(() => useDepositPageForm(), { wrapper });
 
       expect(result.current.btcBalance).toBe(500000n);
+      expect(result.current.hasUnconfirmedBalanceOnly).toBe(false);
+    });
+
+    it("does not flag hasUnconfirmedBalanceOnly when confirmed funds exist but are all inscriptions", () => {
+      // Spendable balance is zero because the only confirmed UTXO is an
+      // inscription (excluded from availableUTXOs), yet confirmed funds exist.
+      // The notice must stay hidden — the zero spendable balance is not a
+      // pending-confirmation situation.
+      vi.mocked(useUTXOs).mockReturnValue({
+        availableUTXOs: [],
+        spendableMempoolUTXOs: [],
+        ordinalsCheckPending: false,
+        confirmedBalance: 300000n,
+        unconfirmedBalance: 50000n,
+      } as unknown as ReturnType<typeof useUTXOs>);
+
+      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
+
+      expect(result.current.btcBalance).toBe(0n);
+      expect(result.current.unconfirmedBalance).toBe(50000n);
       expect(result.current.hasUnconfirmedBalanceOnly).toBe(false);
     });
 

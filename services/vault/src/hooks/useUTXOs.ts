@@ -66,6 +66,15 @@ export function useUTXOs(
     return data?.filter((utxo) => utxo.confirmed) || [];
   }, [data]);
 
+  // Raw confirmed balance — sum of every confirmed UTXO, including inscription
+  // UTXOs (which `availableUTXOs` / the spendable balance exclude). Display-only:
+  // used solely to decide whether a zero spendable balance is genuinely due to
+  // having no confirmed funds, rather than to confirmed funds being filtered out
+  // as inscriptions. Must not feed fee estimation, the spendable set, or signing.
+  const confirmedBalance = useMemo(() => {
+    return BigInt(calculateBalance(confirmedUTXOs));
+  }, [confirmedUTXOs]);
+
   // Sum of unconfirmed (in-mempool) UTXO values. Display-only: pending UTXOs
   // are never spendable and must not feed fee estimation, the spendable set,
   // or any signing path. Surfaced solely so the UI can explain why a freshly
@@ -175,6 +184,8 @@ export function useUTXOs(
     allUTXOs: data || [],
     /** Only confirmed UTXOs (may include inscriptions) */
     confirmedUTXOs,
+    /** Total value of confirmed UTXOs in satoshis, including inscription UTXOs (display-only) */
+    confirmedBalance,
     /** Total value of unconfirmed UTXOs in satoshis (display-only, never spendable) */
     unconfirmedBalance,
     /** Confirmed UTXOs without inscriptions (safe to spend) */

@@ -286,18 +286,22 @@ export function useDepositPageForm(): UseDepositPageFormResult {
     availableUTXOs,
     spendableMempoolUTXOs,
     ordinalsCheckPending,
+    confirmedBalance,
     unconfirmedBalance,
   } = useUTXOs(btcAddress);
   const btcBalance = useMemo(() => {
     return BigInt(calculateBalance(availableUTXOs || []));
   }, [availableUTXOs]);
 
-  // True when the confirmed balance is zero but the address has unconfirmed
-  // (in-mempool) funds. The deposit form uses this to explain why the wallet
-  // shows a balance the app does not — the app only counts confirmed UTXOs.
+  // True when the address has no confirmed funds at all but does have
+  // unconfirmed (in-mempool) funds. The deposit form uses this to explain why
+  // the wallet shows a balance the app does not — the app only counts confirmed
+  // UTXOs. Keyed on the raw confirmed balance (not the spendable `btcBalance`)
+  // so the notice never fires when confirmed funds exist but are hidden as
+  // inscriptions — that is a different reason for a zero spendable balance.
   const hasUnconfirmedBalanceOnly = useMemo(
-    () => btcBalance === 0n && unconfirmedBalance > 0n,
-    [btcBalance, unconfirmedBalance],
+    () => confirmedBalance === 0n && unconfirmedBalance > 0n,
+    [confirmedBalance, unconfirmedBalance],
   );
 
   const btcBalanceFormatted = useMemo(() => {

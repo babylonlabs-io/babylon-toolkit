@@ -275,7 +275,7 @@ export const COPY = {
       pendingConfirmationNotice: (amount: string) =>
         `${amount} pending confirmation`,
       pendingConfirmationTooltip:
-        "Only balances confirmed in a Bitcoin block are shown here. Your pending amount will appear once its transaction confirms.",
+        "Only balances confirmed in a Bitcoin block are shown here. This amount is still waiting to confirm.",
       doNotSplit: "Do not split UTXO",
       selectVaultProvider: "Select Vault Provider",
       providerSelectDescription: "Choose a provider to secure your BTC",
