@@ -313,9 +313,15 @@ export function DepositForm({
             // `effectiveRemaining` is null both when no cap applies and while
             // the cap read is loading; either way we omit the cap clause
             // until we know it's a real constraint.
-            tooltip: COPY.deposit.form.maxTooltip({
-              hasSupplyCap: effectiveRemaining !== null,
-            }),
+            //
+            // Drop the Max tooltip while the pending-confirmation note is shown
+            // so the row carries a single info icon (the pending one) rather
+            // than two competing tooltips.
+            tooltip: hasUnconfirmedBalanceOnly
+              ? undefined
+              : COPY.deposit.form.maxTooltip({
+                  hasSupplyCap: effectiveRemaining !== null,
+                }),
           }}
           rightField={{
             value: !hasAmount
