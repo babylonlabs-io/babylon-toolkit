@@ -186,8 +186,11 @@ const UNKNOWN_APP: ActivityApplication = {
  * activity data.
  */
 export interface FetchUserActivitiesDeps {
-  /** Map of debtReserveId -> { symbol, decimals }, e.g. from `useAaveConfig().borrowableReserves`. */
-  reserves: ReadonlyMap<string, { symbol: string; decimals: number }>;
+  /** Map of debtReserveId -> { symbol, decimals, icon }, e.g. from `useAaveConfig().borrowableReserves`. */
+  reserves: ReadonlyMap<
+    string,
+    { symbol: string; decimals: number; icon: string | undefined }
+  >;
   /** Application metadata used for borrow/repay rows (currently always Aave). */
   borrowAppMetadata: ActivityApplication;
   /** Resolve vault-scoped application metadata by entry-point controller address. */

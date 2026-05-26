@@ -17,6 +17,7 @@ import {
   fetchUserActivities,
   type FetchUserActivitiesDeps,
 } from "../services/activity";
+import { getTokenByAddress } from "../services/token/tokenService";
 import type { ActivityApplication } from "../types/activityLog";
 
 const UNKNOWN_APP: ActivityApplication = {
@@ -41,17 +42,22 @@ export function useActivities(userAddress: Address | undefined) {
   const { borrowableReserves, vbtcReserve } = useAaveConfig();
 
   const deps: FetchUserActivitiesDeps = useMemo(() => {
-    const reserves = new Map<string, { symbol: string; decimals: number }>();
+    const reserves = new Map<
+      string,
+      { symbol: string; decimals: number; icon: string | undefined }
+    >();
     for (const r of borrowableReserves) {
       reserves.set(r.reserveId.toString(), {
         symbol: r.token.symbol,
         decimals: r.token.decimals,
+        icon: getTokenByAddress(r.token.address)?.icon,
       });
     }
     if (vbtcReserve) {
       reserves.set(vbtcReserve.reserveId.toString(), {
         symbol: vbtcReserve.token.symbol,
         decimals: vbtcReserve.token.decimals,
+        icon: getTokenByAddress(vbtcReserve.token.address)?.icon,
       });
     }
 
