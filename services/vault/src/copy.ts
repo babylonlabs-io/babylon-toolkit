@@ -457,7 +457,6 @@ export const COPY = {
       Redeem: "Redeem",
       "Partially Liquidated": "Partially Liquidated",
       "Fully Liquidated": "Fully Liquidated",
-      "Claim Expired": "Claim Expired",
       "Pending Deposit": "Pending Deposit",
     },
     hashPending: "Pending…",

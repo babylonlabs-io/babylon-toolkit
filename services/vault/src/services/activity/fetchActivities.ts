@@ -110,19 +110,25 @@ const GET_ACTIVITIES_PAGE = gql`
 
 /**
  * Activity types whose primary user-facing transaction is on Bitcoin (the peg-in tx).
- * Everything else is an EVM-only action (collateral ops, loans, liquidations, withdraw).
+ *  - `deposit`: links to the peg-in BTC tx.
+ *  - `claim_expired`: the expired peg-in's depositor reclaimed their BTC. We
+ *     render this as a refunded Deposit (red dot) and surface the original
+ *     peg-in BTC tx hash so users can audit the deposit chain.
+ *  Everything else is an EVM-only action (collateral ops, loans, withdraw).
  */
 const BTC_PRIMARY_ACTIVITIES: ReadonlySet<GraphQLActivityType> = new Set([
   "deposit",
+  "claim_expired",
 ]);
 
 /**
  * Map non-liquidation GraphQL types to their display label. Liquidation rows
- * never reach this map — they are rolled up into LiquidationGroupRow with a
- * classification-derived label (Partially / Fully Liquidated).
+ * never reach this map (rolled up into LiquidationGroupRow). claim_expired
+ * also bypasses the map — it's remapped to "Deposit" with `isRefunded: true`
+ * at projection time.
  */
 const TYPE_MAP: Record<
-  Exclude<GraphQLActivityType, "liquidation">,
+  Exclude<GraphQLActivityType, "liquidation" | "claim_expired">,
   ActivityType
 > = {
   deposit: "Deposit",
@@ -130,11 +136,10 @@ const TYPE_MAP: Record<
   borrow: "Borrow",
   repay: "Repay",
   redeem: "Redeem",
-  claim_expired: "Claim Expired",
 };
 
 function mapActivityType(type: GraphQLActivityType): ActivityType | undefined {
-  if (type === "liquidation") return undefined;
+  if (type === "liquidation" || type === "claim_expired") return undefined;
   return TYPE_MAP[type];
 }
 
@@ -305,6 +310,33 @@ function buildLiquidationGroup(
   };
 }
 
+/**
+ * `claim_expired` represents the depositor reclaiming an expired peg-in — i.e.
+ * the deposit was refunded. The UI renders this as a Deposit row with a red
+ * dot, not a separate "Claim Expired" row, so the user sees a single Deposit
+ * entry marked as refunded.
+ */
+function projectRefundedDeposit(
+  item: GraphQLVaultActivityItem,
+  peginTxHashByVaultId: ReadonlyMap<string, string>,
+): ActivityLog {
+  const { chain, transactionHash } = resolveDisplayTx(item, peginTxHashByVaultId);
+  return {
+    kind: "row",
+    id: item.id,
+    date: new Date(parseInt(item.timestamp, 10) * 1000),
+    tokenIcon: btcConfig.icon,
+    type: "Deposit",
+    amount: {
+      value: formatAmount(item.amount, BTC_DECIMALS),
+      symbol: btcConfig.coinSymbol,
+    },
+    chain,
+    transactionHash,
+    isRefunded: true,
+  };
+}
+
 function projectStandardRow(
   item: GraphQLVaultActivityItem,
   peginTxHashByVaultId: ReadonlyMap<string, string>,
@@ -409,6 +441,11 @@ export async function fetchUserActivities(
         liquidationClassification.get(item.id) ?? "Partially Liquidated";
       const repay = repayByTxHash.get(item.transactionHash);
       rows.push(buildLiquidationGroup(item, repay, classification, deps));
+      continue;
+    }
+
+    if (item.type === "claim_expired") {
+      rows.push(projectRefundedDeposit(item, peginTxHashByVaultId));
       continue;
     }
 

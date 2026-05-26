@@ -605,3 +605,67 @@ describe("fetchUserActivities liquidation grouping", () => {
     expect(asGroup(group).type).toBe("Partially Liquidated");
   });
 });
+
+describe("fetchUserActivities refunded deposits", () => {
+  it("remaps a claim_expired event to a refunded Deposit row", async () => {
+    const rows: RawActivity[] = [
+      activity({
+        type: "claim_expired",
+        logIndex: 0,
+        transactionHash: "0x" + "f".repeat(64),
+        vaultId: VAULT_A,
+        amount: "100000000", // 1 sBTC
+      }),
+    ];
+    await setupGraphqlMock(rows);
+
+    const result = await fetchUserActivities(
+      USER as `0x${string}`,
+      buildDeps(),
+    );
+
+    expect(result).toHaveLength(1);
+    const row = asStandard(result[0]);
+    expect(row.type).toBe("Deposit");
+    expect(row.isRefunded).toBe(true);
+    expect(row.amount).toEqual({ value: "1", symbol: "sBTC" });
+    expect(row.tokenIcon).toBe("/images/btc.svg");
+    // Refunded deposit links to the original BTC peg-in tx (via vault.peginTxHash)
+    // for parity with normal Deposit rows.
+    expect(row.chain).toBe("BTC");
+  });
+
+  it("does not double-count when a vault already has a deposit row", async () => {
+    const rows: RawActivity[] = [
+      activity({
+        type: "deposit",
+        logIndex: 0,
+        transactionHash: TX_DEPOSIT,
+        vaultId: VAULT_A,
+        amount: "100000000",
+        timestamp: "1700000000",
+      }),
+      activity({
+        type: "claim_expired",
+        logIndex: 0,
+        transactionHash: "0x" + "f".repeat(64),
+        vaultId: VAULT_A,
+        amount: "100000000",
+        timestamp: "1700000100",
+      }),
+    ];
+    await setupGraphqlMock(rows);
+
+    const result = await fetchUserActivities(
+      USER as `0x${string}`,
+      buildDeps(),
+    );
+
+    // Both rows present — Deposit and the refunded Deposit. They have distinct ids.
+    expect(result).toHaveLength(2);
+    const refunded = result.find(
+      (r) => r.kind === "row" && r.isRefunded === true,
+    );
+    expect(refunded).toBeDefined();
+  });
+});

@@ -8,7 +8,10 @@ import {
   fetchUserActivities,
   type FetchUserActivitiesDeps,
 } from "../services/activity";
-import { getTokenByAddress } from "../services/token/tokenService";
+import {
+  getTokenByAddress,
+  getTokenIconBySymbol,
+} from "../services/token/tokenService";
 
 /**
  * Hook to fetch user activities for a user.
@@ -34,7 +37,13 @@ export function useActivities(userAddress: Address | undefined) {
         {
           symbol: r.token.symbol,
           decimals: r.token.decimals,
-          icon: getTokenByAddress(r.token.address)?.icon,
+          // Address-based lookup first (precise per-deployment), then fall back
+          // to symbol-based lookup so generic stablecoins (USDC/USDT/etc.) get
+          // an icon even on testnets whose contract addresses aren't in the
+          // canonical TOKEN_REGISTRY.
+          icon:
+            getTokenByAddress(r.token.address)?.icon ??
+            getTokenIconBySymbol(r.token.symbol),
         },
       ]),
     );
