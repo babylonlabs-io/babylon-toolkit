@@ -42,7 +42,6 @@ export function buildStepItems(
     { label: COPY.deposit.steps.signPayouts, description: payoutCounter },
     { label: COPY.deposit.steps.signRecoveryTxs, description: graphCounter },
     { label: COPY.deposit.steps.awaitVpVerification },
-    { label: COPY.deposit.steps.downloadArtifact },
     { label: COPY.deposit.steps.retrieveSecret },
     { label: COPY.deposit.steps.revealSecret },
     { label: COPY.deposit.steps.awaitActivationConfirmation },
@@ -69,7 +68,7 @@ export const STEP_GROUPS: StepGroup[] = [
   { title: COPY.deposit.groups.registerDeposit, startStep: 1, endStep: 6 },
   { title: COPY.deposit.groups.signWots, startStep: 7, endStep: 8 },
   { title: COPY.deposit.groups.signPayout, startStep: 9, endStep: 12 },
-  { title: COPY.deposit.groups.activateVault, startStep: 13, endStep: 16 },
+  { title: COPY.deposit.groups.activateVault, startStep: 13, endStep: 15 },
 ];
 
 export type GroupStatus = "completed" | "active" | "upcoming";
@@ -162,14 +161,15 @@ export function getVisualStep(currentStep: DepositFlowStep): number {
       return 11;
     case DepositFlowStep.AWAIT_VP_VERIFICATION:
       return 12;
+    // ARTIFACT_DOWNLOAD is surfaced as a modal overlay rather than its own
+    // stepper row, so it collapses onto the RETRIEVE_SECRET visual step.
     case DepositFlowStep.ARTIFACT_DOWNLOAD:
-      return 13;
     case DepositFlowStep.RETRIEVE_SECRET:
-      return 14;
+      return 13;
     case DepositFlowStep.ACTIVATE_VAULT:
-      return 15;
+      return 14;
     case DepositFlowStep.AWAIT_ACTIVATION_CONFIRMATION:
-      return 16;
+      return 15;
     case DepositFlowStep.COMPLETED:
       return TOTAL_VISUAL_STEPS + 1;
     default: {

@@ -68,6 +68,12 @@ describe("getStepLabel", () => {
     expect(getVisualStep(DepositFlowStep.AWAIT_BTC_CONFIRMATION)).toBe(6);
   });
 
+  it("collapses ARTIFACT_DOWNLOAD onto the RETRIEVE_SECRET visual step (modal overlay)", () => {
+    expect(getVisualStep(DepositFlowStep.ARTIFACT_DOWNLOAD)).toBe(
+      getVisualStep(DepositFlowStep.RETRIEVE_SECRET),
+    );
+  });
+
   it("numbers post-confirmation steps with no gap where VP-ingestion was", () => {
     expect(getVisualStep(DepositFlowStep.SUBMIT_WOTS_KEYS)).toBe(7);
     expect(getVisualStep(DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS)).toBe(8);
@@ -75,11 +81,10 @@ describe("getStepLabel", () => {
     expect(getVisualStep(DepositFlowStep.SIGN_PAYOUTS)).toBe(10);
     expect(getVisualStep(DepositFlowStep.SIGN_DEPOSITOR_GRAPH)).toBe(11);
     expect(getVisualStep(DepositFlowStep.AWAIT_VP_VERIFICATION)).toBe(12);
-    expect(getVisualStep(DepositFlowStep.ARTIFACT_DOWNLOAD)).toBe(13);
-    expect(getVisualStep(DepositFlowStep.RETRIEVE_SECRET)).toBe(14);
-    expect(getVisualStep(DepositFlowStep.ACTIVATE_VAULT)).toBe(15);
+    expect(getVisualStep(DepositFlowStep.RETRIEVE_SECRET)).toBe(13);
+    expect(getVisualStep(DepositFlowStep.ACTIVATE_VAULT)).toBe(14);
     expect(getVisualStep(DepositFlowStep.AWAIT_ACTIVATION_CONFIRMATION)).toBe(
-      16,
+      15,
     );
   });
 });
@@ -150,7 +155,7 @@ describe("STEP_GROUPS", () => {
       [COPY.deposit.groups.registerDeposit, 1, 6],
       [COPY.deposit.groups.signWots, 7, 8],
       [COPY.deposit.groups.signPayout, 9, 12],
-      [COPY.deposit.groups.activateVault, 13, 16],
+      [COPY.deposit.groups.activateVault, 13, 15],
     ]);
   });
 });

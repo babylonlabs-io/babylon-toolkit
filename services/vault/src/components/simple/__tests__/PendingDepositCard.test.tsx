@@ -242,7 +242,7 @@ describe("PendingDepositCard — payout signing step number", () => {
       peginState: readyToSignPayoutsState(),
     });
     renderCard(false);
-    expect(screen.getByText("Step 9 of 16")).toBeInTheDocument();
+    expect(screen.getByText("Step 9 of 15")).toBeInTheDocument();
     expect(
       screen.getByText(COPY.deposit.steps.authenticateSession),
     ).toBeInTheDocument();

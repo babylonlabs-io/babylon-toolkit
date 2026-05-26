@@ -150,7 +150,6 @@ export const COPY = {
       signPayouts: "Sign payout transactions",
       signRecoveryTxs: "Sign recovery transactions",
       awaitVpVerification: "Awaiting vault provider verification",
-      downloadArtifact: "Download artifact",
       retrieveSecret: "Retrieve secret",
       revealSecret: "Sign and broadcast ETH activation transaction",
       awaitActivationConfirmation: "Awaiting vault activation confirmation",
@@ -433,7 +432,7 @@ export const COPY = {
         stepLabel: (n: number) => `step ${n}`,
         one: {
           title: "Deposit BTC as collateral",
-          body: "Lock your BTC in a secure smart contract.",
+          body: "Lock your BTC in a Bitcoin vault.",
         },
         two: {
           title: "Borrow USDC, USDT or WBTC",

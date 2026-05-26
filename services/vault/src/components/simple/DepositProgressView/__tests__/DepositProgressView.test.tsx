@@ -166,9 +166,9 @@ describe("DepositProgressView", () => {
         />,
       );
 
-      // AWAIT_BTC_CONFIRMATION is visual step 6 → 5 of 16 completed → 31%.
+      // AWAIT_BTC_CONFIRMATION is visual step 6 → 5 of 15 completed → 33%.
       const bar = screen.getByRole("progressbar");
-      expect(bar).toHaveAttribute("aria-valuenow", "31");
+      expect(bar).toHaveAttribute("aria-valuenow", "33");
       expect(bar).toHaveAttribute("aria-valuemax", "100");
     });
 
@@ -346,8 +346,11 @@ describe("DepositProgressView", () => {
         screen.getByText(COPY.deposit.groups.stepCounter(6, 6)),
       ).toBeInTheDocument();
       expect(
-        screen.getAllByText(COPY.deposit.groups.stepCounter(4, 4)),
-      ).toHaveLength(2);
+        screen.getByText(COPY.deposit.groups.stepCounter(4, 4)),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText(COPY.deposit.groups.stepCounter(3, 3)),
+      ).toBeInTheDocument();
       // No expanded sub-steps remain.
       expect(
         screen.queryByText(COPY.deposit.steps.revealSecret),

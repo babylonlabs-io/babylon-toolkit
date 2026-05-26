@@ -90,7 +90,7 @@ describe("GroupedProgress", () => {
     expect(
       screen.queryByText(COPY.deposit.steps.generateSecret),
     ).not.toBeInTheDocument();
-    // Every group reports itself fully complete (6/6, 2/2, 4/4, 4/4).
+    // Every group reports itself fully complete (6/6, 2/2, 4/4, 3/3).
     expect(
       screen.getByText(COPY.deposit.groups.stepCounter(6, 6)),
     ).toBeInTheDocument();
@@ -98,8 +98,11 @@ describe("GroupedProgress", () => {
       screen.getByText(COPY.deposit.groups.stepCounter(2, 2)),
     ).toBeInTheDocument();
     expect(
-      screen.getAllByText(COPY.deposit.groups.stepCounter(4, 4)),
-    ).toHaveLength(2);
+      screen.getByText(COPY.deposit.groups.stepCounter(4, 4)),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(COPY.deposit.groups.stepCounter(3, 3)),
+    ).toBeInTheDocument();
   });
 
   describe("accessibility", () => {
