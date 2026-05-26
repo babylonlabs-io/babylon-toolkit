@@ -446,6 +446,22 @@ export const COPY = {
       },
     },
   },
+  activity: {
+    pageTitle: "Activity",
+    filterAll: "Show all",
+    filterTypes: {
+      Deposit: "Deposit",
+      Withdraw: "Withdraw",
+      Borrow: "Borrow",
+      Repay: "Repay",
+      Redeem: "Redeem",
+      Liquidation: "Liquidation",
+      "Claim Expired": "Claim Expired",
+      "Pending Deposit": "Pending Deposit",
+    },
+    hashPending: "Pending…",
+    refundedTooltip: "Transaction was refunded",
+  },
   banner: {
     addCollateral: "Add Collateral",
     repayDebt: "Repay Debt",
