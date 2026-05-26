@@ -320,7 +320,10 @@ function projectRefundedDeposit(
   item: GraphQLVaultActivityItem,
   peginTxHashByVaultId: ReadonlyMap<string, string>,
 ): ActivityLog {
-  const { chain, transactionHash } = resolveDisplayTx(item, peginTxHashByVaultId);
+  const { chain, transactionHash } = resolveDisplayTx(
+    item,
+    peginTxHashByVaultId,
+  );
   return {
     kind: "row",
     id: item.id,

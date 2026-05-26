@@ -13,13 +13,13 @@ import { LiquidationGroupCard } from "./LiquidationGroupCard";
 // fed from the applications registry.
 const AAVE_LOGO_URL = "/images/aave.svg";
 
-const ALL_FILTER = "all" as const;
-
-type FilterValue = ActivityType | typeof ALL_FILTER;
-
-const FILTER_ENTRIES = Object.entries(COPY.activity.filterTypes) as Array<
-  [ActivityType, string]
->;
+// Only the ActivityTypes that appear as filter options in the Figma menu.
+// `Redeem` and `Pending Deposit` rows still render in the list but are not
+// directly filterable. `claim_expired` is remapped to a refunded Deposit
+// upstream, so it falls under the `Deposit` filter automatically.
+const FILTER_OPTIONS = (
+  Object.entries(COPY.activity.filterTypes) as Array<[ActivityType, string]>
+).map(([value, label]) => ({ value, label }));
 
 interface ActivityListProps {
   activities: ActivityRow[];
@@ -27,17 +27,11 @@ interface ActivityListProps {
 }
 
 export function ActivityList({ activities, isConnected }: ActivityListProps) {
-  const [filter, setFilter] = useState<FilterValue>(ALL_FILTER);
+  const [filter, setFilter] = useState<ActivityType | null>(null);
 
-  const visible =
-    filter === ALL_FILTER
-      ? activities
-      : activities.filter((r) => r.type === filter);
-
-  const options = [
-    { value: ALL_FILTER, label: COPY.activity.filterAll },
-    ...FILTER_ENTRIES.map(([value, label]) => ({ value, label })),
-  ];
+  const visible = filter
+    ? activities.filter((r) => r.type === filter)
+    : activities;
 
   return (
     <div className="flex flex-col gap-6">
@@ -50,7 +44,8 @@ export function ActivityList({ activities, isConnected }: ActivityListProps) {
             <Avatar url={AAVE_LOGO_URL} alt="Aave" size="small" />
             <FilterDropdown
               value={filter}
-              options={options}
+              placeholder={COPY.activity.filterAll}
+              options={FILTER_OPTIONS}
               onChange={setFilter}
             />
           </div>

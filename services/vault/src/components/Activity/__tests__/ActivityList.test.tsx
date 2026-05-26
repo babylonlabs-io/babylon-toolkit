@@ -68,7 +68,7 @@ describe("ActivityList", () => {
     renderList({ activities: rows, isConnected: true });
 
     fireEvent.click(screen.getByRole("button", { name: /show all/i }));
-    fireEvent.click(screen.getByRole("option", { name: "Borrow" }));
+    fireEvent.click(screen.getByRole("option", { name: "Borrowed" }));
 
     const items = screen.getAllByRole("listitem");
     expect(items).toHaveLength(1);
@@ -80,7 +80,7 @@ describe("ActivityList", () => {
     renderList({ activities: rows, isConnected: true });
 
     fireEvent.click(screen.getByRole("button", { name: /show all/i }));
-    fireEvent.click(screen.getByRole("option", { name: "Borrow" }));
+    fireEvent.click(screen.getByRole("option", { name: "Borrowed" }));
 
     expect(screen.queryAllByRole("listitem")).toHaveLength(0);
     expect(screen.getByText(/no activity yet/i)).toBeInTheDocument();

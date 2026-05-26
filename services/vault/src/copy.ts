@@ -449,15 +449,16 @@ export const COPY = {
   activity: {
     pageTitle: "Activity",
     filterAll: "Show all",
+    // Visible filter options in dropdown order (matches Figma node 6602-64485).
+    // Redeem / Pending Deposit rows still render but are not filterable —
+    // they don't appear here on purpose.
     filterTypes: {
-      Deposit: "Deposit",
-      Withdraw: "Withdraw",
-      Borrow: "Borrow",
-      Repay: "Repay",
-      Redeem: "Redeem",
+      Deposit: "Deposits",
+      Withdraw: "Withdrawals",
+      Repay: "Repaid",
+      Borrow: "Borrowed",
       "Partially Liquidated": "Partially Liquidated",
       "Fully Liquidated": "Fully Liquidated",
-      "Pending Deposit": "Pending Deposit",
     },
     hashPending: "Pending…",
     refundedTooltip: "Transaction was refunded",

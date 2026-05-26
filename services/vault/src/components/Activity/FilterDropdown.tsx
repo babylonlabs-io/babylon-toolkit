@@ -8,13 +8,18 @@ export interface FilterDropdownOption<V extends string> {
 }
 
 interface FilterDropdownProps<V extends string> {
-  value: V;
+  /** Current selection. `null` renders the placeholder label and no checkmark. */
+  value: V | null;
+  /** Label shown on the trigger when nothing is selected. */
+  placeholder: string;
   options: ReadonlyArray<FilterDropdownOption<V>>;
-  onChange: (value: V) => void;
+  /** Selecting an already-selected option clears the filter (passes null). */
+  onChange: (value: V | null) => void;
 }
 
 export function FilterDropdown<V extends string>({
   value,
+  placeholder,
   options,
   onChange,
 }: FilterDropdownProps<V>) {
@@ -22,7 +27,7 @@ export function FilterDropdown<V extends string>({
   const anchorRef = useRef<HTMLButtonElement>(null);
 
   const activeLabel =
-    options.find((option) => option.value === value)?.label ?? "";
+    options.find((option) => option.value === value)?.label ?? placeholder;
 
   return (
     <>
@@ -54,7 +59,7 @@ export function FilterDropdown<V extends string>({
                 role="option"
                 aria-selected={selected}
                 onClick={() => {
-                  onChange(option.value);
+                  onChange(selected ? null : option.value);
                   setOpen(false);
                 }}
                 className="flex cursor-pointer items-center justify-between text-[14px] text-accent-primary"
