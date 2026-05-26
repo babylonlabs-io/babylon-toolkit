@@ -65,10 +65,13 @@ export default {
    * allowing manual parameter overrides and simulation of notification states.
    * Why needed: Dev/QA tool for testing position notification scenarios
    * Default: false (disabled unless explicitly set to "true")
+   *
+   * No getter here on purpose: a getter returns a runtime boolean, which the
+   * bundler cannot fold, so the panel would stay in the production bundle. This
+   * flag is read inline (`process.env.NEXT_PUBLIC_FF_POSITION_DEBUG_PANEL`) in
+   * DashboardPage so Vite/Rollup tree-shakes the panel out of builds where it
+   * is unset.
    */
-  get isPositionDebugPanelEnabled() {
-    return process.env.NEXT_PUBLIC_FF_POSITION_DEBUG_PANEL === "true";
-  },
 
   /**
    * ENABLE_LIQUIDATION_NOTIFICATIONS feature flag

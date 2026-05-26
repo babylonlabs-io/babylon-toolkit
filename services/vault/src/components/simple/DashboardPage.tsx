@@ -5,11 +5,10 @@
  */
 
 import { Container } from "@babylonlabs-io/core-ui";
-import { useCallback, useMemo, useState } from "react";
+import { lazy, Suspense, useCallback, useMemo, useState } from "react";
 import { useNavigate, useOutletContext } from "react-router";
 
 import { AssetSelectionModal } from "@/applications/aave/components/AssetSelectionModal";
-import { PositionNotificationsDebugPanel } from "@/applications/aave/components/PositionNotificationsDebugPanel";
 import { LOAN_TAB, type LoanTab } from "@/applications/aave/constants";
 import { useSyncPendingVaults } from "@/applications/aave/context";
 import { useAaveVaults } from "@/applications/aave/hooks";
@@ -34,6 +33,20 @@ import { PendingWithdrawSection } from "./PendingWithdrawSection";
 import { PositionNotificationBanner } from "./PositionNotificationBanner";
 import { SupplyCapSection } from "./SupplyCapSection";
 import WithdrawFlow from "./WithdrawFlow";
+
+// Inlined (not via the featureFlags getter) so Vite/Rollup can fold this to a
+// constant and tree-shake the debug panel out of production builds where
+// NEXT_PUBLIC_FF_POSITION_DEBUG_PANEL is unset. See featureFlags.ts.
+const POSITION_DEBUG_PANEL_ENABLED =
+  process.env.NEXT_PUBLIC_FF_POSITION_DEBUG_PANEL === "true";
+
+const PositionNotificationsDebugPanel = POSITION_DEBUG_PANEL_ENABLED
+  ? lazy(() =>
+      import(
+        "@/applications/aave/components/PositionNotificationsDebugPanel"
+      ).then((m) => ({ default: m.PositionNotificationsDebugPanel })),
+    )
+  : null;
 
 export function DashboardPage() {
   const navigate = useNavigate();
@@ -189,13 +202,14 @@ export function DashboardPage() {
           onRepay={handleRepay}
         />
 
-        {liquidationNotificationsEnabled &&
-          featureFlags.isPositionDebugPanelEnabled && (
+        {liquidationNotificationsEnabled && PositionNotificationsDebugPanel && (
+          <Suspense fallback={null}>
             <PositionNotificationsDebugPanel
               onResultChange={setDebugResultOverride}
               onStatusChange={setDebugStatusOverride}
             />
-          )}
+          </Suspense>
+        )}
       </div>
 
       {/* Withdraw Flow */}

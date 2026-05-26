@@ -120,6 +120,9 @@ jobs:
           NEXT_PUBLIC_FF_DISABLE_VAULT_CAP: ${{ vars.NEXT_PUBLIC_FF_DISABLE_VAULT_CAP }}
           NEXT_PUBLIC_FF_SIMPLIFIED_TERMS: ${{ vars.NEXT_PUBLIC_FF_SIMPLIFIED_TERMS }}
           NEXT_PUBLIC_FF_ENABLE_LIQUIDATION_NOTIFICATIONS: ${{ vars.NEXT_PUBLIC_FF_ENABLE_LIQUIDATION_NOTIFICATIONS }}
+          # Must be set (even empty) so the build folds the flag to a literal and
+          # tree-shakes the debug panel out of environments where it is unset.
+          NEXT_PUBLIC_FF_POSITION_DEBUG_PANEL: ${{ vars.NEXT_PUBLIC_FF_POSITION_DEBUG_PANEL }}
 
       - name: Copy all index.html to fix path for activity, app/aave
         run: |
