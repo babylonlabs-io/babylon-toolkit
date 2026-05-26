@@ -172,6 +172,7 @@ export interface UseDepositFlowReturn {
     startedAt: number;
     prePeginTxid: string;
     requiredDepth: number;
+    depositIds: readonly string[];
   } | null;
 }
 
@@ -246,6 +247,7 @@ export function useDepositFlow(
     startedAt: number;
     prePeginTxid: string;
     requiredDepth: number;
+    depositIds: readonly string[];
   } | null>(null);
 
   const artifactResolverRef = useRef<(() => void) | null>(null);
@@ -830,6 +832,7 @@ export function useDepositFlow(
           startedAt: Date.now(),
           prePeginTxid: prePeginBroadcastTxid,
           requiredDepth: config.offchainParams.minPrepeginDepth,
+          depositIds: broadcastedResults.map((r) => r.vaultId),
         });
         setIsWaiting(true);
 

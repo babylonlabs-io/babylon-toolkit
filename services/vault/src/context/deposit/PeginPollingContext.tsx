@@ -381,6 +381,16 @@ export function usePeginPolling() {
 }
 
 /**
+ * Non-throwing variant: returns the context if available, else `null`.
+ * Use this when a component might render outside the dashboard's
+ * PeginPollingProvider (e.g. the active deposit flow modal), so it can
+ * gracefully fall back instead of crashing.
+ */
+export function usePeginPollingOptional(): PeginPollingContextValue | null {
+  return useContext(PeginPollingContext) ?? null;
+}
+
+/**
  * Hook to get polling result for a specific deposit
  *
  * Convenience hook that wraps getPollingResult.
@@ -388,6 +398,26 @@ export function usePeginPolling() {
 export function useDepositPollingResult(depositId: string) {
   const { getPollingResult } = usePeginPolling();
   return getPollingResult(depositId);
+}
+
+/**
+ * Returns the first deposit-polling result that is indexed for any of the
+ * given deposit ids, or `undefined` if none are indexed (or the polling
+ * context isn't mounted). Multi-vault batches share one broadcast txid so
+ * any indexed sibling carries the same confirmation count — picking the
+ * first indexed one avoids missing the data when one sibling is still
+ * propagating through the indexer.
+ */
+export function useOptionalDepositPollingResult(
+  depositIds: readonly string[],
+): DepositPollingResult | undefined {
+  const polling = usePeginPollingOptional();
+  if (!polling) return undefined;
+  for (const id of depositIds) {
+    const result = polling.getPollingResult(id);
+    if (result) return result;
+  }
+  return undefined;
 }
 
 // Re-export types for external use

@@ -407,6 +407,7 @@ describe("DepositProgressView", () => {
             startedAt: NOW,
             prePeginTxid: PRE_PEGIN_TXID,
             requiredDepth: 6,
+            depositIds: ["0xvault"],
           }}
         />,
       );
@@ -423,6 +424,7 @@ describe("DepositProgressView", () => {
             startedAt: NOW,
             prePeginTxid: PRE_PEGIN_TXID,
             requiredDepth: 6,
+            depositIds: ["0xvault"],
           }}
         />,
       );
@@ -441,6 +443,7 @@ describe("DepositProgressView", () => {
             startedAt: NOW,
             prePeginTxid: PRE_PEGIN_TXID,
             requiredDepth: 6,
+            depositIds: ["0xvault"],
           }}
         />,
       );

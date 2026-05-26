@@ -258,7 +258,14 @@ export function PostDepositContinuationView({
       : undefined) ?? config.offchainParams.minPrepeginDepth;
   const btcConfirmationDetail: BtcConfirmationDetailData | null =
     showBtcDepthPanel && activity?.prePeginTxHash && startedAt
-      ? { startedAt, prePeginTxid: activity.prePeginTxHash, requiredDepth }
+      ? {
+          startedAt,
+          prePeginTxid: activity.prePeginTxHash,
+          requiredDepth,
+          // Pass the whole batch — siblings share this broadcast, and the
+          // container picks the first indexed sibling for coalesced counts.
+          depositIds: vaultIds,
+        }
       : null;
 
   return (

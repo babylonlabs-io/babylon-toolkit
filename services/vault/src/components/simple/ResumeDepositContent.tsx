@@ -469,6 +469,7 @@ export function ResumeWotsContent({
           startedAt,
           prePeginTxid: activity.prePeginTxHash,
           requiredDepth,
+          depositIds: [activity.id],
         }
       : null;
 

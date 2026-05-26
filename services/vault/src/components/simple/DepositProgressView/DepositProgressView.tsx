@@ -39,6 +39,13 @@ export interface BtcConfirmationDetailData {
   prePeginTxid: string;
   /** Required confirmation depth, pinned to the deposit's registered version. */
   requiredDepth: number;
+  /**
+   * Candidate deposit ids that share this Pre-PegIn broadcast. The
+   * confirmation panel reads coalesced counts from the dashboard's polling
+   * cache using any indexed id; multi-vault siblings can index out of order
+   * so we pass the whole batch instead of a single id.
+   */
+  depositIds: readonly string[];
 }
 
 export interface DepositProgressViewProps {
@@ -102,6 +109,7 @@ function resolveActiveStepDetail(params: {
         startedAt={btcConfirmationDetail.startedAt}
         prePeginTxid={btcConfirmationDetail.prePeginTxid}
         requiredDepth={btcConfirmationDetail.requiredDepth}
+        depositIds={btcConfirmationDetail.depositIds}
       />
     );
   }
