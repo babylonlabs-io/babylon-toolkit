@@ -103,7 +103,8 @@ export function ExpiredDepositSection({
                 depositId={activity.id}
                 amount={activity.collateral.amount}
                 timestamp={activity.timestamp}
-                txHash={activity.prePeginTxHash}
+                peginTxHash={activity.peginTxHash}
+                prePeginTxHash={activity.prePeginTxHash}
                 providerId={activity.providers[0].id}
                 vaultProviders={vaultProviders}
                 onSignClick={onSignClick}

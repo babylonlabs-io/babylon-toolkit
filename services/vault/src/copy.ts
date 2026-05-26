@@ -60,6 +60,16 @@ export const COPY = {
       INVALID: "Invalid",
       UNKNOWN: "Unknown",
     },
+    txHash: {
+      // Row label for the dual Pegin / Pre-Pegin hash row on deposit and
+      // collateral cards.
+      label: "TX Hash",
+      // Row label for the single-hash row (withdraw section).
+      singleLabel: "Transaction Hash",
+      // Inline prefixes for each hash in the dual row.
+      pegin: "Pegin:",
+      prePegin: "Pre-Pegin:",
+    },
     messages: {
       payoutSignaturesSubmitted:
         "Payout signatures submitted. Vault provider is verifying and collecting acknowledgments...",

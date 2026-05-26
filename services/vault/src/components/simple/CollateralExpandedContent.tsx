@@ -56,6 +56,7 @@ export function CollateralExpandedContent({
               providerIconUrl={vault.providerIconUrl}
               providerAddress={vault.providerAddress}
               peginTxHash={vault.peginTxHash}
+              prePeginTxHash={vault.prePeginTxHash}
               liquidationIndex={vault.liquidationIndex}
               selected={isSelected}
               selectable={vault.inUse && isEligible}

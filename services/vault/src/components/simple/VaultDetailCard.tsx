@@ -10,6 +10,7 @@ import { useEffect, useState, type ReactNode } from "react";
 
 import { CopyableHash } from "@/components/shared/CopyableHash";
 import { getNetworkConfigBTC } from "@/config";
+import { COPY } from "@/copy";
 import { truncateAddress } from "@/utils/addressUtils";
 import {
   getBtcExplorerAddressUrl,
@@ -46,11 +47,13 @@ interface VaultDetailCardProps {
   amountBtc: number;
   /** Timestamp in milliseconds */
   timestamp: number;
-  /** BTC transaction hash to link in the explorer (hex, may include 0x prefix).
-   * For pending/expired deposits this is the Pre-PegIn tx the depositor
-   * broadcasts; the peg-in tx itself is not on Bitcoin until the vault
-   * provider broadcasts it later in the flow. */
+  /** Single BTC transaction hash to link in the explorer (hex, may include 0x
+   * prefix). Used by the withdraw section to show the vault's peg-in tx hash.
+   * Ignored when `txHashRow` is provided. */
   txHash?: string;
+  /** Custom transaction-hash row, rendered in place of the single-`txHash` row.
+   * Deposit cards pass a dual Pegin / Pre-Pegin row here (see PeginTxHashRow). */
+  txHashRow?: ReactNode;
   /** Vault provider display name */
   providerName: string;
   /** Vault provider icon URL */
@@ -85,6 +88,7 @@ export function VaultDetailCard({
   amountBtc,
   timestamp,
   txHash,
+  txHashRow,
   providerName,
   providerIconUrl,
   providerAddress,
@@ -160,16 +164,18 @@ export function VaultDetailCard({
         </Hint>
       </VaultCardRow>
 
-      {/* Transaction Hash (Pre-PegIn) */}
-      {txHash && (
-        <VaultCardRow label="Transaction Hash">
-          <CopyableHash
-            hash={txHash}
-            chain="BTC"
-            explorerUrl={getBtcExplorerTxUrl(txHash)}
-          />
-        </VaultCardRow>
-      )}
+      {/* Transaction Hash — a custom row (e.g. dual Pegin / Pre-Pegin) takes
+          precedence; otherwise fall back to the single-hash row. */}
+      {txHashRow ??
+        (txHash && (
+          <VaultCardRow label={COPY.pegin.txHash.singleLabel}>
+            <CopyableHash
+              hash={txHash}
+              chain="BTC"
+              explorerUrl={getBtcExplorerTxUrl(txHash)}
+            />
+          </VaultCardRow>
+        ))}
 
       {/* Nominated Address — destination registered at vault creation.
           May differ from the currently connected BTC wallet. */}
