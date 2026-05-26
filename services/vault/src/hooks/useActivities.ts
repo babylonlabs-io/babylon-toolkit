@@ -25,25 +25,19 @@ export function useActivities(userAddress: Address | undefined) {
   const { borrowableReserves, vbtcReserve } = useAaveConfig();
 
   const deps: FetchUserActivitiesDeps = useMemo(() => {
-    const reserves = new Map<
-      string,
-      { symbol: string; decimals: number; icon: string | undefined }
-    >();
-    for (const r of borrowableReserves) {
-      reserves.set(r.reserveId.toString(), {
-        symbol: r.token.symbol,
-        decimals: r.token.decimals,
-        icon: getTokenByAddress(r.token.address)?.icon,
-      });
-    }
-    if (vbtcReserve) {
-      reserves.set(vbtcReserve.reserveId.toString(), {
-        symbol: vbtcReserve.token.symbol,
-        decimals: vbtcReserve.token.decimals,
-        icon: getTokenByAddress(vbtcReserve.token.address)?.icon,
-      });
-    }
-
+    const allReserves = vbtcReserve
+      ? [...borrowableReserves, vbtcReserve]
+      : borrowableReserves;
+    const reserves = new Map(
+      allReserves.map((r) => [
+        r.reserveId.toString(),
+        {
+          symbol: r.token.symbol,
+          decimals: r.token.decimals,
+          icon: getTokenByAddress(r.token.address)?.icon,
+        },
+      ]),
+    );
     return { reserves };
   }, [borrowableReserves, vbtcReserve]);
 

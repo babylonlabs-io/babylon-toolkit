@@ -9,22 +9,19 @@ import { ActivityEmptyState } from "./ActivityEmptyState";
 
 const ALL_FILTER = "all" as const;
 
-const ACTIVITY_TYPE_ORDER: readonly ActivityType[] = [
-  "Deposit",
-  "Withdraw",
-  "Borrow",
-  "Repay",
-  "Redeem",
-  "Liquidation",
-  "Claim Expired",
-  "Pending Deposit",
-];
-
 type FilterValue = ActivityType | typeof ALL_FILTER;
 
+const FILTER_ENTRIES = Object.entries(COPY.activity.filterTypes) as Array<
+  [ActivityType, string]
+>;
+
+const FILTER_VALUES: ReadonlySet<FilterValue> = new Set([
+  ALL_FILTER,
+  ...FILTER_ENTRIES.map(([type]) => type),
+]);
+
 function isFilterValue(value: string | number): value is FilterValue {
-  if (value === ALL_FILTER) return true;
-  return ACTIVITY_TYPE_ORDER.some((t) => t === value);
+  return typeof value === "string" && FILTER_VALUES.has(value as FilterValue);
 }
 
 interface ActivityListProps {
@@ -42,10 +39,7 @@ export function ActivityList({ activities, isConnected }: ActivityListProps) {
 
   const options = [
     { value: ALL_FILTER, label: COPY.activity.filterAll },
-    ...ACTIVITY_TYPE_ORDER.map((type) => ({
-      value: type,
-      label: COPY.activity.filterTypes[type],
-    })),
+    ...FILTER_ENTRIES.map(([value, label]) => ({ value, label })),
   ];
 
   return (
