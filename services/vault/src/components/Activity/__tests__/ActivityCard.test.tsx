@@ -26,7 +26,7 @@ describe("ActivityCard", () => {
     const anchor = screen.getByRole("link");
     expect(anchor).toHaveAttribute("href", expect.stringContaining(FULL_HASH));
     expect(anchor).toHaveAttribute("target", "_blank");
-    expect(anchor.textContent).toBe("a1b2c…0a1b2");
+    expect(anchor.textContent).toBe("a1b2c3...a1b2");
 
     expect(screen.getByText("1 BTC")).toBeInTheDocument();
     expect(screen.getByText(/2025-10-16/)).toBeInTheDocument();
