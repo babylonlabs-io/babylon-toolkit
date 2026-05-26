@@ -43,7 +43,7 @@ export function FilterDropdown<V extends string>({
         placement="bottom-end"
         offset={[0, 8]}
         onClickOutside={() => setOpen(false)}
-        className="bg-background-contrast w-[200px] rounded-[8px] p-4 shadow-[0px_8px_8px_rgba(0,0,0,0.12)]"
+        className="w-[200px] rounded-[8px] border border-secondary-strokeLight bg-neutral-200 p-4 shadow-[0px_8px_8px_rgba(0,0,0,0.12)]"
       >
         <ul role="listbox" className="flex flex-col gap-4">
           {options.map((option) => {

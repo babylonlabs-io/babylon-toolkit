@@ -22,7 +22,7 @@ export function ActivityCard({ row }: ActivityCardProps) {
     ? "text-accent-secondary"
     : "text-accent-primary";
   const backgroundClass = isPending
-    ? "bg-accent-contrast"
+    ? "bg-neutral-200"
     : "bg-secondary-highlight";
 
   return (

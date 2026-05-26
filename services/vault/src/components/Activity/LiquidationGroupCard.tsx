@@ -63,7 +63,7 @@ export function LiquidationGroupCard({ row }: LiquidationGroupCardProps) {
           {row.children.map((child) => (
             <li
               key={child.id}
-              className="flex items-center justify-between gap-4 rounded-[8px] bg-accent-contrast p-4"
+              className="flex items-center justify-between gap-4 rounded-[8px] bg-neutral-200 p-4"
             >
               <div className="flex min-w-0 items-center gap-2">
                 <Avatar
