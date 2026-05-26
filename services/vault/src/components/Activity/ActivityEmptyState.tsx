@@ -21,7 +21,10 @@ export function ActivityEmptyState({ isConnected }: ActivityEmptyStateProps) {
 
   if (!isConnected) {
     return (
-      <div className="flex flex-col items-center justify-center py-12 text-center">
+      <div
+        data-testid="activity-empty-state"
+        className="flex flex-col items-center justify-center py-12 text-center"
+      >
         <p className="text-lg text-accent-secondary">
           Connect your wallet to view your activity
         </p>
@@ -30,7 +33,10 @@ export function ActivityEmptyState({ isConnected }: ActivityEmptyStateProps) {
   }
 
   return (
-    <div className="flex flex-col items-center justify-center gap-4 py-12 text-center">
+    <div
+      data-testid="activity-empty-state"
+      className="flex flex-col items-center justify-center gap-4 py-12 text-center"
+    >
       <p className="text-lg text-accent-secondary">
         No activity yet. Make your first deposit to get started.
       </p>
