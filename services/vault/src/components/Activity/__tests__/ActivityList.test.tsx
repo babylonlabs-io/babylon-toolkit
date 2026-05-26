@@ -111,4 +111,14 @@ describe("ActivityList", () => {
     renderList({ activities: [], isConnected: true });
     expect(screen.getByText("Show all")).toBeInTheDocument();
   });
+
+  it("renders the Aave logo next to the dropdown when connected", () => {
+    renderList({ activities: [], isConnected: true });
+    expect(screen.getByAltText("Aave")).toBeInTheDocument();
+  });
+
+  it("hides the Aave logo when disconnected", () => {
+    renderList({ activities: [], isConnected: false });
+    expect(screen.queryByAltText("Aave")).not.toBeInTheDocument();
+  });
 });

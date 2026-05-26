@@ -1,4 +1,4 @@
-import { Select } from "@babylonlabs-io/core-ui";
+import { Avatar, Select } from "@babylonlabs-io/core-ui";
 import { useState } from "react";
 
 import { COPY } from "@/copy";
@@ -6,6 +6,10 @@ import type { ActivityLog, ActivityType } from "@/types/activityLog";
 
 import { ActivityCard } from "./ActivityCard";
 import { ActivityEmptyState } from "./ActivityEmptyState";
+
+// Single-app surface today. When multi-app ships this becomes an app picker
+// fed from the applications registry.
+const AAVE_LOGO_URL = "/images/aave.svg";
 
 const ALL_FILTER = "all" as const;
 
@@ -49,14 +53,17 @@ export function ActivityList({ activities, isConnected }: ActivityListProps) {
           {COPY.activity.pageTitle}
         </h2>
         {isConnected && (
-          <div className="w-[220px]">
-            <Select
-              value={filter}
-              options={options}
-              onSelect={(value) => {
-                if (isFilterValue(value)) setFilter(value);
-              }}
-            />
+          <div className="flex items-center gap-4">
+            <Avatar url={AAVE_LOGO_URL} alt="Aave" size="small" />
+            <div className="w-[220px]">
+              <Select
+                value={filter}
+                options={options}
+                onSelect={(value) => {
+                  if (isFilterValue(value)) setFilter(value);
+                }}
+              />
+            </div>
           </div>
         )}
       </div>
