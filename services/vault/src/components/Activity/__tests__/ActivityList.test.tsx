@@ -6,6 +6,7 @@ import type { ActivityLog } from "../../../types/activityLog";
 import { ActivityList } from "../ActivityList";
 
 const makeRow = (overrides: Partial<ActivityLog>): ActivityLog => ({
+  kind: "row",
   id: overrides.id ?? "x",
   date: overrides.date ?? new Date("2025-10-16T11:48:47Z"),
   type: overrides.type ?? "Deposit",

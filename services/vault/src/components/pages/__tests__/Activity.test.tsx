@@ -165,6 +165,7 @@ describe("Activity page — wallet gating", () => {
 
     const activities: ActivityLog[] = [
       {
+        kind: "row",
         id: "row-1",
         date: new Date("2026-01-01T00:00:00Z"),
         tokenIcon: "https://example.com/btc.svg",
@@ -174,6 +175,7 @@ describe("Activity page — wallet gating", () => {
         transactionHash: "abcd1234",
       },
       {
+        kind: "row",
         id: "row-2",
         date: new Date("2026-01-02T00:00:00Z"),
         tokenIcon: "https://example.com/usdc.svg",

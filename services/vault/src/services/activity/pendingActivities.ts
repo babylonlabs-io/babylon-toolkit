@@ -25,6 +25,7 @@ function convertPendingPeginToActivity(
   }
 
   return {
+    kind: "row",
     id: pending.id,
     date: new Date(pending.timestamp),
     type: "Pending Deposit",

@@ -2,11 +2,12 @@ import { Avatar } from "@babylonlabs-io/core-ui";
 import { useState } from "react";
 
 import { COPY } from "@/copy";
-import type { ActivityLog, ActivityType } from "@/types/activityLog";
+import type { ActivityRow, ActivityType } from "@/types/activityLog";
 
 import { ActivityCard } from "./ActivityCard";
 import { ActivityEmptyState } from "./ActivityEmptyState";
 import { FilterDropdown } from "./FilterDropdown";
+import { LiquidationGroupCard } from "./LiquidationGroupCard";
 
 // Single-app surface today. When multi-app ships this becomes an app picker
 // fed from the applications registry.
@@ -21,7 +22,7 @@ const FILTER_ENTRIES = Object.entries(COPY.activity.filterTypes) as Array<
 >;
 
 interface ActivityListProps {
-  activities: ActivityLog[];
+  activities: ActivityRow[];
   isConnected: boolean;
 }
 
@@ -62,7 +63,11 @@ export function ActivityList({ activities, isConnected }: ActivityListProps) {
         <ul role="list" className="flex flex-col gap-4">
           {visible.map((r) => (
             <li key={r.id}>
-              <ActivityCard row={r} />
+              {r.kind === "liquidationGroup" ? (
+                <LiquidationGroupCard row={r} />
+              ) : (
+                <ActivityCard row={r} />
+              )}
             </li>
           ))}
         </ul>

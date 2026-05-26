@@ -31,6 +31,7 @@ function makePending(
   tokenIcon = "/images/btc.svg",
 ): ActivityLog {
   return {
+    kind: "row",
     id,
     date: new Date(dateMs),
     tokenIcon,
@@ -73,9 +74,8 @@ describe("useActivitiesWithPending", () => {
       "pending-1",
       "confirmed-1",
     ]);
-    expect(result.current.data.map((a) => a.tokenIcon)).toEqual([
-      "/images/btc.svg",
-      "/images/usdc.svg",
-    ]);
+    expect(
+      result.current.data.map((a) => (a.kind === "row" ? a.tokenIcon : null)),
+    ).toEqual(["/images/btc.svg", "/images/usdc.svg"]);
   });
 });

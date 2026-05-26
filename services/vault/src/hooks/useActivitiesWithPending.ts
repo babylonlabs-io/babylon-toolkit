@@ -10,7 +10,7 @@ import type { Address } from "viem";
 
 import { STORAGE_UPDATE_EVENT } from "../constants";
 import { getPendingActivities } from "../services/activity";
-import type { ActivityLog } from "../types/activityLog";
+import type { ActivityLog, ActivityRow } from "../types/activityLog";
 
 import { useActivities } from "./useActivities";
 
@@ -70,7 +70,7 @@ export function useActivitiesWithPending(userAddress: Address | undefined) {
   }, [userAddress]);
 
   // Merge confirmed and pending activities, deduplicating by ID
-  const allActivities = useMemo(() => {
+  const allActivities = useMemo<ActivityRow[]>(() => {
     if (!userAddress) return [];
 
     const confirmed = confirmedActivities ?? [];

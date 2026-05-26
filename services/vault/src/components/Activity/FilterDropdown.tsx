@@ -1,6 +1,6 @@
 import { Popover } from "@babylonlabs-io/core-ui";
-import { RiArrowDownSLine, RiCheckLine } from "react-icons/ri";
 import { useRef, useState } from "react";
+import { RiArrowDownSLine, RiCheckLine } from "react-icons/ri";
 
 export interface FilterDropdownOption<V extends string> {
   value: V;
@@ -32,7 +32,7 @@ export function FilterDropdown<V extends string>({
         onClick={() => setOpen((v) => !v)}
         aria-haspopup="listbox"
         aria-expanded={open}
-        className="flex items-center gap-2 rounded-[8px] border border-stroke-primary px-4 py-2 text-[14px] text-accent-primary"
+        className="border-stroke-primary flex items-center gap-2 rounded-[8px] border px-4 py-2 text-[14px] text-accent-primary"
       >
         <span>{activeLabel}</span>
         <RiArrowDownSLine size={20} />
@@ -43,7 +43,7 @@ export function FilterDropdown<V extends string>({
         placement="bottom-end"
         offset={[0, 8]}
         onClickOutside={() => setOpen(false)}
-        className="w-[200px] rounded-[8px] bg-background-contrast p-4 shadow-[0px_8px_8px_rgba(0,0,0,0.12)]"
+        className="bg-background-contrast w-[200px] rounded-[8px] p-4 shadow-[0px_8px_8px_rgba(0,0,0,0.12)]"
       >
         <ul role="listbox" className="flex flex-col gap-4">
           {options.map((option) => {

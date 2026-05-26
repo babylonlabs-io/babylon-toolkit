@@ -9,7 +9,10 @@ import type {
   ActivityAmount,
   ActivityChain,
   ActivityLog,
+  ActivityRow,
   ActivityType,
+  LiquidationChildRow,
+  LiquidationGroupRow,
 } from "../../types/activityLog";
 
 const btcConfig = getNetworkConfigBTC();
@@ -46,6 +49,8 @@ interface GraphQLVaultActivityItem {
 interface GraphQLVaultItem {
   id: string;
   peginTxHash: string;
+  /** Core vault status from BTCVaultRegistry. Used for partial/full liquidation classification. */
+  status: string | null;
 }
 
 interface GraphQLActivityPageResponse {
@@ -97,6 +102,7 @@ const GET_ACTIVITIES_PAGE = gql`
       items {
         id
         peginTxHash
+        status
       }
     }
   }
@@ -110,18 +116,71 @@ const BTC_PRIMARY_ACTIVITIES: ReadonlySet<GraphQLActivityType> = new Set([
   "deposit",
 ]);
 
-const TYPE_MAP: Record<GraphQLActivityType, ActivityType> = {
+/**
+ * Map non-liquidation GraphQL types to their display label. Liquidation rows
+ * never reach this map — they are rolled up into LiquidationGroupRow with a
+ * classification-derived label (Partially / Fully Liquidated).
+ */
+const TYPE_MAP: Record<
+  Exclude<GraphQLActivityType, "liquidation">,
+  ActivityType
+> = {
   deposit: "Deposit",
   withdrawal: "Withdraw",
-  liquidation: "Liquidation",
   borrow: "Borrow",
   repay: "Repay",
   redeem: "Redeem",
   claim_expired: "Claim Expired",
 };
 
-function mapActivityType(type: string): ActivityType | undefined {
-  return TYPE_MAP[type as GraphQLActivityType];
+function mapActivityType(type: GraphQLActivityType): ActivityType | undefined {
+  if (type === "liquidation") return undefined;
+  return TYPE_MAP[type];
+}
+
+/**
+ * Classify each liquidation event as Partially / Fully Liquidated by walking
+ * activities chronologically and tracking which vaults are still open at the
+ * moment the liquidation lands. If any deposited vault remains uncleared
+ * (not liquidated, withdrawn, or redeemed) right after this liquidation, it
+ * is "Partially Liquidated"; otherwise "Fully Liquidated".
+ *
+ * This is point-in-time, not the current vault.status snapshot — a liquidation
+ * that was partial at the time stays labelled partial even after later events
+ * close out the remaining vaults.
+ */
+function classifyLiquidations(
+  items: readonly GraphQLVaultActivityItem[],
+): Map<string, "Partially Liquidated" | "Fully Liquidated"> {
+  const result = new Map<string, "Partially Liquidated" | "Fully Liquidated">();
+  const sortedAsc = [...items].sort(
+    (a, b) => parseInt(a.timestamp, 10) - parseInt(b.timestamp, 10),
+  );
+  const deposited = new Set<string>();
+  const closed = new Set<string>();
+
+  for (const item of sortedAsc) {
+    if (!item.vaultId) continue;
+    if (item.type === "deposit") {
+      deposited.add(item.vaultId);
+      continue;
+    }
+    if (
+      item.type === "liquidation" ||
+      item.type === "withdrawal" ||
+      item.type === "redeem"
+    ) {
+      closed.add(item.vaultId);
+    }
+    if (item.type === "liquidation") {
+      const stillOpen = [...deposited].some((v) => !closed.has(v));
+      result.set(
+        item.id,
+        stillOpen ? "Partially Liquidated" : "Fully Liquidated",
+      );
+    }
+  }
+  return result;
 }
 
 /**
@@ -183,10 +242,117 @@ export interface FetchUserActivitiesDeps {
   >;
 }
 
+function buildLiquidationGroup(
+  liquidation: GraphQLVaultActivityItem,
+  repay: GraphQLVaultActivityItem | undefined,
+  classification: "Partially Liquidated" | "Fully Liquidated",
+  deps: FetchUserActivitiesDeps,
+): LiquidationGroupRow {
+  const collateralAmount: ActivityAmount = {
+    value: formatAmount(liquidation.amount, BTC_DECIMALS),
+    symbol: btcConfig.coinSymbol,
+  };
+
+  const repayReserve =
+    repay && repay.debtReserveId != null
+      ? deps.reserves.get(repay.debtReserveId)
+      : undefined;
+  const debtAmount: ActivityAmount | null = repay
+    ? {
+        value: repayReserve
+          ? formatAmount(repay.amount, repayReserve.decimals)
+          : repay.amount,
+        symbol: repayReserve?.symbol ?? "—",
+      }
+    : null;
+  const debtIcon = repayReserve?.icon ?? "";
+
+  const children: LiquidationChildRow[] = [
+    {
+      id: `${liquidation.id}-collateral`,
+      label: "Collateral Liquidated",
+      amount: collateralAmount,
+      tokenIcon: btcConfig.icon,
+      chain: "ETH",
+      transactionHash: liquidation.transactionHash,
+      date: new Date(parseInt(liquidation.timestamp, 10) * 1000),
+    },
+  ];
+  if (repay && debtAmount) {
+    children.push({
+      id: `${repay.id}-loan`,
+      label: "Loan Repaid",
+      amount: debtAmount,
+      tokenIcon: debtIcon,
+      chain: "ETH",
+      transactionHash: repay.transactionHash,
+      date: new Date(parseInt(repay.timestamp, 10) * 1000),
+    });
+  }
+
+  return {
+    kind: "liquidationGroup",
+    id: liquidation.id,
+    date: new Date(parseInt(liquidation.timestamp, 10) * 1000),
+    type: classification,
+    tokenIcons: [btcConfig.icon, debtIcon],
+    summary: {
+      collateral: collateralAmount,
+      debt: debtAmount,
+    },
+    children,
+    transactionHash: liquidation.transactionHash,
+  };
+}
+
+function projectStandardRow(
+  item: GraphQLVaultActivityItem,
+  peginTxHashByVaultId: ReadonlyMap<string, string>,
+  deps: FetchUserActivitiesDeps,
+): ActivityLog | undefined {
+  const displayType = mapActivityType(item.type);
+  if (!displayType) return undefined;
+
+  const isPositionScoped = item.type === "borrow" || item.type === "repay";
+  const reserve =
+    isPositionScoped && item.debtReserveId != null
+      ? deps.reserves.get(item.debtReserveId)
+      : undefined;
+
+  const amount: ActivityAmount = isPositionScoped
+    ? {
+        value: reserve
+          ? formatAmount(item.amount, reserve.decimals)
+          : item.amount,
+        symbol: reserve?.symbol ?? "—",
+      }
+    : {
+        value: formatAmount(item.amount, BTC_DECIMALS),
+        symbol: btcConfig.coinSymbol,
+      };
+
+  const tokenIcon = isPositionScoped ? (reserve?.icon ?? "") : btcConfig.icon;
+  const { chain, transactionHash } = resolveDisplayTx(
+    item,
+    peginTxHashByVaultId,
+  );
+
+  return {
+    kind: "row",
+    id: item.id,
+    date: new Date(parseInt(item.timestamp, 10) * 1000),
+    tokenIcon,
+    type: displayType,
+    amount,
+    chain,
+    transactionHash,
+  };
+}
+
 export async function fetchUserActivities(
   address: Address,
   deps: FetchUserActivitiesDeps,
-): Promise<ActivityLog[]> {
+): Promise<ActivityRow[]> {
   const data = await graphqlClient.request<GraphQLActivityPageResponse>(
     GET_ACTIVITIES_PAGE,
     { depositor: address.toLowerCase() },
@@ -199,6 +365,19 @@ export async function fetchUserActivities(
     peginTxHashByVaultId.set(v.id, v.peginTxHash);
   }
 
+  // Sibling repay events fire in the same EVM tx as a VaultLiquidated event.
+  // Indexed by tx hash so liquidations can grab their repay child in one lookup.
+  const repayByTxHash = new Map<string, GraphQLVaultActivityItem>();
+  for (const item of data.vaultActivitys.items) {
+    if (item.type === "repay") {
+      repayByTxHash.set(item.transactionHash, item);
+    }
+  }
+
+  const liquidationClassification = classifyLiquidations(
+    data.vaultActivitys.items,
+  );
+
   const sorted = [...data.vaultActivitys.items].sort((a, b) => {
     const tsDiff = parseInt(b.timestamp, 10) - parseInt(a.timestamp, 10);
     if (tsDiff !== 0) return tsDiff;
@@ -207,55 +386,42 @@ export async function fetchUserActivities(
     return parseLogIndex(b.id) - parseLogIndex(a.id);
   });
 
-  const droppedTypeCounts = new Map<string, number>();
+  // Pre-mark repay rows that will be rolled into a liquidation group. The
+  // sorted iteration is desc by (timestamp, blockNumber, logIndex), so the
+  // sibling repay (higher logIndex) typically lands before the liquidation
+  // that would consume it — we must know up-front which ids to skip.
+  const consumedIds = new Set<string>();
+  for (const item of data.vaultActivitys.items) {
+    if (item.type === "liquidation") {
+      const repay = repayByTxHash.get(item.transactionHash);
+      if (repay) consumedIds.add(repay.id);
+    }
+  }
 
-  const rows = sorted.flatMap((item): ActivityLog[] => {
-    const displayType = mapActivityType(item.type);
-    if (!displayType) {
+  const droppedTypeCounts = new Map<string, number>();
+  const rows: ActivityRow[] = [];
+
+  for (const item of sorted) {
+    if (consumedIds.has(item.id)) continue;
+
+    if (item.type === "liquidation") {
+      const classification =
+        liquidationClassification.get(item.id) ?? "Partially Liquidated";
+      const repay = repayByTxHash.get(item.transactionHash);
+      rows.push(buildLiquidationGroup(item, repay, classification, deps));
+      continue;
+    }
+
+    const projected = projectStandardRow(item, peginTxHashByVaultId, deps);
+    if (projected) {
+      rows.push(projected);
+    } else {
       droppedTypeCounts.set(
         item.type,
         (droppedTypeCounts.get(item.type) ?? 0) + 1,
       );
-      return [];
     }
-
-    const isPositionScoped = item.type === "borrow" || item.type === "repay";
-    const reserve =
-      isPositionScoped && item.debtReserveId != null
-        ? deps.reserves.get(item.debtReserveId)
-        : undefined;
-
-    const amount: ActivityAmount = isPositionScoped
-      ? {
-          value: reserve
-            ? formatAmount(item.amount, reserve.decimals)
-            : item.amount,
-          symbol: reserve?.symbol ?? "—",
-        }
-      : {
-          value: formatAmount(item.amount, BTC_DECIMALS),
-          symbol: btcConfig.coinSymbol,
-        };
-
-    const tokenIcon = isPositionScoped ? (reserve?.icon ?? "") : btcConfig.icon;
-
-    const { chain, transactionHash } = resolveDisplayTx(
-      item,
-      peginTxHashByVaultId,
-    );
-
-    return [
-      {
-        id: item.id,
-        date: new Date(parseInt(item.timestamp, 10) * 1000),
-        tokenIcon,
-        type: displayType,
-        amount,
-        chain,
-        transactionHash,
-      },
-    ];
-  });
+  }
 
   if (droppedTypeCounts.size > 0) {
     logger.warn("[fetchActivities] dropped unrecognised activity types", {

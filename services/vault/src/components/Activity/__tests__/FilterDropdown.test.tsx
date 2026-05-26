@@ -11,12 +11,18 @@ const options = [
 
 describe("FilterDropdown", () => {
   it("renders the active option's label on the trigger", () => {
-    render(<FilterDropdown value="all" options={options} onChange={() => {}} />);
-    expect(screen.getByRole("button", { name: /show all/i })).toBeInTheDocument();
+    render(
+      <FilterDropdown value="all" options={options} onChange={() => {}} />,
+    );
+    expect(
+      screen.getByRole("button", { name: /show all/i }),
+    ).toBeInTheDocument();
   });
 
   it("opens the menu on trigger click and shows all options", () => {
-    render(<FilterDropdown value="all" options={options} onChange={() => {}} />);
+    render(
+      <FilterDropdown value="all" options={options} onChange={() => {}} />,
+    );
     fireEvent.click(screen.getByRole("button"));
     const listbox = screen.getByRole("listbox");
     expect(listbox).toBeInTheDocument();
@@ -34,7 +40,9 @@ describe("FilterDropdown", () => {
 
   it("calls onChange and closes the menu when an option is clicked", () => {
     const onChange = vi.fn();
-    render(<FilterDropdown value="all" options={options} onChange={onChange} />);
+    render(
+      <FilterDropdown value="all" options={options} onChange={onChange} />,
+    );
     fireEvent.click(screen.getByRole("button"));
     fireEvent.click(screen.getByRole("option", { name: "Deposits" }));
     expect(onChange).toHaveBeenCalledWith("deposits");
@@ -42,7 +50,9 @@ describe("FilterDropdown", () => {
   });
 
   it("sets aria-expanded to reflect open state", () => {
-    render(<FilterDropdown value="all" options={options} onChange={() => {}} />);
+    render(
+      <FilterDropdown value="all" options={options} onChange={() => {}} />,
+    );
     const trigger = screen.getByRole("button");
     expect(trigger).toHaveAttribute("aria-expanded", "false");
     fireEvent.click(trigger);
