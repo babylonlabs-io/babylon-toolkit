@@ -32,37 +32,42 @@ export interface ActionAvailable {
 }
 
 /**
- * Action status when the would-be action is blocked by ownership mismatch.
- * The action button is still surfaced so the UI can render it disabled with
- * the tooltip explaining why.
+ * Action status when the vault is owned by a different wallet. `action` is
+ * present for states with a primary action (Sign, Broadcast, Refund, …) so
+ * the button can render dimmed; absent for pure-progress states (e.g.
+ * "awaiting BTC confirmation") — the card still dims and the tooltip still
+ * fires so unowned cards are always visually distinct.
  */
 export interface ActionDisabled {
   type: "disabled";
-  action: ActionButton;
+  action?: ActionButton;
   tooltip: string;
 }
 
 /**
- * Action status when no action should be rendered (no action exists for the
- * current state, or a polling error blocks it).
+ * Action status when there's nothing for the user to do — either the state
+ * has no current primary action (happy waiting path) or a polling error
+ * blocks it. Consumers render no button and don't dim the card.
  */
-export interface ActionUnavailable {
-  type: "unavailable";
+export interface ActionNoAction {
+  type: "noAction";
 }
 
 /**
  * Discriminated union for action status.
  */
-export type ActionStatus = ActionAvailable | ActionDisabled | ActionUnavailable;
+export type ActionStatus = ActionAvailable | ActionDisabled | ActionNoAction;
 
 /**
  * Determine action availability for a deposit.
  *
  * Resolution order:
- * 1. No action exists for this state, or a polling error blocks it → unavailable
- * 2. Action exists but the vault was created with a different wallet → disabled
- *    (the would-be action is surfaced so the UI can render it dimmed + tooltip)
- * 3. Otherwise → available
+ * 1. Vault created with a different wallet → disabled (dimmed + tooltip).
+ *    Surfaces the would-be action when one exists; otherwise the card
+ *    itself still dims so unowned cards are always visually distinct,
+ *    even on polling error or in pure-waiting states.
+ * 2. Polling error, or no action for this state → noAction.
+ * 3. Otherwise → available.
  */
 export function getActionStatus(
   pollingResult: DepositPollingResult,
@@ -70,22 +75,23 @@ export function getActionStatus(
   const { peginState, isOwnedByCurrentWallet, error, depositorBtcPubkey } =
     pollingResult;
 
+  // Ownership runs FIRST. It's derived from activity/indexer state, not
+  // from polling — and "this isn't your vault" is a stronger UI signal
+  // than "polling failed" or "no action right now", so unowned vaults
+  // dim + show the wallet-switch tooltip regardless of polling state.
+  // `isVaultOwnedByWallet` only returns false when both pubkeys are
+  // present and differ, so `depositorBtcPubkey` is guaranteed defined.
   const actionButton = getPrimaryActionButton(peginState);
-
-  if (error || !actionButton) {
-    return { type: "unavailable" };
-  }
-
-  // `isVaultOwnedByWallet` only returns false when both pubkeys are present
-  // and differ, so `depositorBtcPubkey` is guaranteed defined here. The
-  // explicit guard keeps TypeScript happy and stays defensive against future
-  // changes to the ownership predicate.
   if (!isOwnedByCurrentWallet && depositorBtcPubkey) {
     return {
       type: "disabled",
-      action: actionButton,
+      action: actionButton ?? undefined,
       tooltip: getWalletOwnershipWarning(depositorBtcPubkey),
     };
+  }
+
+  if (error || !actionButton) {
+    return { type: "noAction" };
   }
 
   return { type: "available", action: actionButton };
