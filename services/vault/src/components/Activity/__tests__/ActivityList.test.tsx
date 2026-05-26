@@ -107,4 +107,14 @@ describe("ActivityList", () => {
       screen.getByText(/connect your wallet to view your activity/i),
     ).toBeInTheDocument();
   });
+
+  it("hides the filter dropdown when disconnected", () => {
+    renderList({ activities: [], isConnected: false });
+    expect(screen.queryByText("Show all")).not.toBeInTheDocument();
+  });
+
+  it("shows the filter dropdown when connected", () => {
+    renderList({ activities: [], isConnected: true });
+    expect(screen.getByText("Show all")).toBeInTheDocument();
+  });
 });

@@ -54,15 +54,17 @@ export function ActivityList({ activities, isConnected }: ActivityListProps) {
         <h2 className="text-[24px] font-normal text-accent-primary">
           {COPY.activity.pageTitle}
         </h2>
-        <div className="w-[220px]">
-          <Select
-            value={filter}
-            options={options}
-            onSelect={(value) => {
-              if (isFilterValue(value)) setFilter(value);
-            }}
-          />
-        </div>
+        {isConnected && (
+          <div className="w-[220px]">
+            <Select
+              value={filter}
+              options={options}
+              onSelect={(value) => {
+                if (isFilterValue(value)) setFilter(value);
+              }}
+            />
+          </div>
+        )}
       </div>
 
       {visible.length === 0 ? (
