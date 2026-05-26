@@ -59,7 +59,8 @@ function getChainlinkFeedAddress(symbol: string): Address | null {
   if (
     normalizedSymbol === "BTC" ||
     normalizedSymbol === "VBTC" ||
-    normalizedSymbol === "SBTC"
+    normalizedSymbol === "SBTC" ||
+    normalizedSymbol === "WBTC"
   ) {
     if (ENV.BTC_PRICE_FEED) {
       if (!btcPriceFeedOverrideWarned) {
@@ -275,8 +276,10 @@ export async function getTokenPrices(
       if (normalizedSymbol === "BTC") {
         prices["vBTC"] = result.price;
         prices["sBTC"] = result.price;
+        prices["WBTC"] = result.price;
         metadata["vBTC"] = result.metadata;
         metadata["sBTC"] = result.metadata;
+        metadata["WBTC"] = result.metadata;
       }
     } catch (error) {
       const errorMessage =
@@ -300,6 +303,7 @@ export async function getTokenPrices(
       if (normalizedSymbol === "BTC") {
         metadata["vBTC"] = metadata[symbol];
         metadata["sBTC"] = metadata[symbol];
+        metadata["WBTC"] = metadata[symbol];
       }
     }
   });
