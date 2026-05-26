@@ -1,18 +1,9 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter, Outlet, Route, Routes } from "react-router";
-import { beforeAll, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import type { ActivityLog } from "../../../types/activityLog";
 import { ActivityList } from "../ActivityList";
-
-beforeAll(() => {
-  class ResizeObserverStub {
-    observe() {}
-    unobserve() {}
-    disconnect() {}
-  }
-  (globalThis as unknown as { ResizeObserver: typeof ResizeObserverStub }).ResizeObserver = ResizeObserverStub;
-});
 
 const makeRow = (overrides: Partial<ActivityLog>): ActivityLog => ({
   id: overrides.id ?? "x",
