@@ -27,17 +27,7 @@ const VAULT_A = "0x" + "a".repeat(64);
 const TX_DEPOSIT = "0x" + "1".repeat(64);
 const TX_BORROW = "0x" + "4".repeat(64);
 
-const AAVE_APP_META = {
-  id: "aave",
-  name: "Aave V4",
-  logoUrl: "/images/aave.svg",
-};
-
-const VAULT_APP_META = {
-  id: "aave",
-  name: "Aave V4",
-  logoUrl: "/images/aave.svg",
-};
+const RESERVE_ICON = "test://icon.svg";
 
 type ActivityRow = {
   id: string;
@@ -75,17 +65,20 @@ function activity(overrides: ActivityOverrides): ActivityRow {
 
 function buildDeps(
   reserves: Array<{ id: string; symbol: string; decimals: number }> = [],
-  overrides: Partial<FetchUserActivitiesDeps> = {},
 ): FetchUserActivitiesDeps {
-  const reserveMap = new Map<string, { symbol: string; decimals: number }>();
+  const reserveMap = new Map<
+    string,
+    { symbol: string; decimals: number; icon: string | undefined }
+  >();
   for (const r of reserves) {
-    reserveMap.set(r.id, { symbol: r.symbol, decimals: r.decimals });
+    reserveMap.set(r.id, {
+      symbol: r.symbol,
+      decimals: r.decimals,
+      icon: RESERVE_ICON,
+    });
   }
   return {
     reserves: reserveMap,
-    borrowAppMetadata: AAVE_APP_META,
-    resolveVaultApp: () => VAULT_APP_META,
-    ...overrides,
   };
 }
 
@@ -105,7 +98,6 @@ async function setupGraphqlMock(rows: ActivityRow[]) {
           vaults: {
             items: ids.map((id) => ({
               id,
-              applicationEntryPoint: "0xcontroller",
               peginTxHash: `0xpegin-${id.slice(2, 10)}`,
             })),
           },
@@ -224,27 +216,6 @@ describe("fetchUserActivities type mapping", () => {
 });
 
 describe("fetchUserActivities position-scoped enrichment", () => {
-  it("uses injected Aave metadata for Borrow/Repay rows", async () => {
-    const rows: ActivityRow[] = [
-      activity({
-        type: "repay",
-        logIndex: 0,
-        transactionHash: TX_BORROW,
-        vaultId: null,
-        debtReserveId: "1",
-        amount: "500000",
-      }),
-    ];
-    await setupGraphqlMock(rows);
-
-    const result = await fetchUserActivities(
-      USER as `0x${string}`,
-      buildDeps([{ id: "1", symbol: "USDC", decimals: 6 }]),
-    );
-    expect(result[0].application.id).toBe("aave");
-    expect(result[0].application.name).toBe("Aave V4");
-  });
-
   it("formats borrow amount with reserve decimals, not BTC decimals", async () => {
     const rows: ActivityRow[] = [
       activity({
@@ -338,8 +309,88 @@ describe("fetchUserActivities position-scoped enrichment", () => {
     expect(result[0].amount.symbol).toBe("—");
     expect(result[0].amount.value).toBe("1000000");
   });
+});
 
-  it("falls back to Unknown App when the injected borrowAppMetadata is unknown", async () => {
+describe("fetchUserActivities tokenIcon", () => {
+  it("uses the BTC icon for native-type rows (deposit, withdrawal, liquidation, redeem, claim_expired)", async () => {
+    const rows: ActivityRow[] = [
+      activity({
+        type: "deposit",
+        logIndex: 0,
+        transactionHash: "0x" + "a".repeat(64),
+        vaultId: VAULT_A,
+      }),
+      activity({
+        type: "withdrawal",
+        logIndex: 0,
+        transactionHash: "0x" + "b".repeat(64),
+        vaultId: VAULT_A,
+      }),
+      activity({
+        type: "liquidation",
+        logIndex: 0,
+        transactionHash: "0x" + "c".repeat(64),
+        vaultId: VAULT_A,
+      }),
+      activity({
+        type: "redeem",
+        logIndex: 0,
+        transactionHash: "0x" + "d".repeat(64),
+        vaultId: VAULT_A,
+      }),
+      activity({
+        type: "claim_expired",
+        logIndex: 0,
+        transactionHash: "0x" + "e".repeat(64),
+        vaultId: VAULT_A,
+      }),
+    ];
+    await setupGraphqlMock(rows);
+
+    const result = await fetchUserActivities(
+      USER as `0x${string}`,
+      buildDeps(),
+    );
+
+    expect(result).toHaveLength(5);
+    for (const row of result) {
+      expect(row.tokenIcon).toBe("/images/btc.svg");
+    }
+  });
+
+  it("uses the reserve icon for borrow/repay rows", async () => {
+    const rows: ActivityRow[] = [
+      activity({
+        type: "borrow",
+        logIndex: 0,
+        transactionHash: TX_BORROW,
+        vaultId: null,
+        debtReserveId: "1",
+        amount: "1000000",
+      }),
+      activity({
+        type: "repay",
+        logIndex: 1,
+        transactionHash: TX_BORROW,
+        vaultId: null,
+        debtReserveId: "1",
+        amount: "500000",
+      }),
+    ];
+    await setupGraphqlMock(rows);
+
+    const result = await fetchUserActivities(
+      USER as `0x${string}`,
+      buildDeps([{ id: "1", symbol: "USDC", decimals: 6 }]),
+    );
+
+    expect(result).toHaveLength(2);
+    for (const row of result) {
+      expect(row.tokenIcon).toBe(RESERVE_ICON);
+    }
+  });
+
+  it("falls back to empty tokenIcon when reserve missing", async () => {
     const rows: ActivityRow[] = [
       activity({
         type: "borrow",
@@ -354,18 +405,12 @@ describe("fetchUserActivities position-scoped enrichment", () => {
 
     const result = await fetchUserActivities(
       USER as `0x${string}`,
-      buildDeps([{ id: "1", symbol: "USDC", decimals: 6 }], {
-        borrowAppMetadata: {
-          id: "unknown",
-          name: "Unknown App",
-          logoUrl: "/images/unknown-app.svg",
-        },
-      }),
+      buildDeps(),
     );
+
     expect(result).toHaveLength(1);
-    expect(result[0].application.id).toBe("unknown");
-    expect(result[0].application.name).toBe("Unknown App");
-    expect(result[0].amount.symbol).toBe("USDC");
+    expect(result[0].type).toBe("Borrow");
+    expect(result[0].tokenIcon).toBe("");
   });
 });
 

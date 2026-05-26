@@ -6,7 +6,6 @@ import { graphqlClient } from "../../clients/graphql";
 import { getNetworkConfigBTC } from "../../config";
 import { logger } from "../../infrastructure";
 import type {
-  ActivityApplication,
   ActivityChain,
   ActivityLog,
   ActivityType,
@@ -45,7 +44,6 @@ interface GraphQLVaultActivityItem {
 
 interface GraphQLVaultItem {
   id: string;
-  applicationEntryPoint: string;
   peginTxHash: string;
 }
 
@@ -68,14 +66,12 @@ function parseLogIndex(id: string): number {
 
 /**
  * Single GraphQL request that pulls the activity rows AND, in the same round
- * trip, the vault rows referenced by those activities for application
- * metadata enrichment. The frontend joins on `vault.id` client-side.
+ * trip, the vault rows referenced by those activities for pegin-hash
+ * resolution. The frontend joins on `vault.id` client-side.
  *
  * We pass the depositor as a String into both queries: vaultActivitys uses it
  * directly, and vaults reuses it as a depositor filter so the indexer only
- * returns vault rows the user could conceivably reference. Borrow/repay rows
- * (vaultId = null) carry no vault join — their app metadata comes from the
- * caller-injected dependency map.
+ * returns vault rows the user could conceivably reference.
  */
 const GET_ACTIVITIES_PAGE = gql`
   query GetActivitiesPage($depositor: String!) {
@@ -99,7 +95,6 @@ const GET_ACTIVITIES_PAGE = gql`
     vaults(where: { depositor: $depositor }) {
       items {
         id
-        applicationEntryPoint
         peginTxHash
       }
     }
@@ -173,12 +168,6 @@ function formatAmount(amount: string, decimals: number): string {
   return frac.length > 0 ? `${whole}.${frac}` : whole;
 }
 
-const UNKNOWN_APP: ActivityApplication = {
-  id: "unknown",
-  name: "Unknown App",
-  logoUrl: "/images/unknown-app.svg",
-};
-
 /**
  * Caller-injected dependencies. The hook layer reads these from the AaveConfig
  * context provider (which already loads them once at app startup), keeping
@@ -191,12 +180,6 @@ export interface FetchUserActivitiesDeps {
     string,
     { symbol: string; decimals: number; icon: string | undefined }
   >;
-  /** Application metadata used for borrow/repay rows (currently always Aave). */
-  borrowAppMetadata: ActivityApplication;
-  /** Resolve vault-scoped application metadata by entry-point controller address. */
-  resolveVaultApp: (
-    controllerAddress: string,
-  ) => ActivityApplication | undefined;
 }
 
 export async function fetchUserActivities(
@@ -211,10 +194,8 @@ export async function fetchUserActivities(
   const activities = data.vaultActivitys.items;
   if (activities.length === 0) return [];
 
-  const vaultMap = new Map<string, string>();
   const peginTxHashByVaultId = new Map<string, string>();
   for (const v of data.vaults.items) {
-    vaultMap.set(v.id, v.applicationEntryPoint);
     peginTxHashByVaultId.set(v.id, v.peginTxHash);
   }
 
@@ -232,18 +213,6 @@ export async function fetchUserActivities(
       }
 
       const isPositionScoped = item.type === "borrow" || item.type === "repay";
-
-      let application: ActivityApplication;
-      if (isPositionScoped) {
-        application = deps.borrowAppMetadata;
-      } else {
-        const applicationEntryPoint = item.vaultId
-          ? vaultMap.get(item.vaultId)
-          : undefined;
-        application = applicationEntryPoint
-          ? (deps.resolveVaultApp(applicationEntryPoint) ?? UNKNOWN_APP)
-          : UNKNOWN_APP;
-      }
 
       let amountValue: string;
       let amountSymbol: string;
@@ -263,6 +232,12 @@ export async function fetchUserActivities(
         amountIcon = btcConfig.icon;
       }
 
+      const tokenIcon = isPositionScoped
+        ? item.debtReserveId != null
+          ? (deps.reserves.get(item.debtReserveId)?.icon ?? "")
+          : ""
+        : btcConfig.icon;
+
       const { chain, transactionHash } = resolveDisplayTx(
         item,
         peginTxHashByVaultId,
@@ -273,7 +248,7 @@ export async function fetchUserActivities(
           row: {
             id: item.id,
             date: new Date(parseInt(item.timestamp, 10) * 1000),
-            application,
+            tokenIcon,
             type: displayType,
             amount: {
               value: amountValue,
