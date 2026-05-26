@@ -1,4 +1,4 @@
-import { Avatar, Select } from "@babylonlabs-io/core-ui";
+import { Avatar } from "@babylonlabs-io/core-ui";
 import { useState } from "react";
 
 import { COPY } from "@/copy";
@@ -6,6 +6,7 @@ import type { ActivityLog, ActivityType } from "@/types/activityLog";
 
 import { ActivityCard } from "./ActivityCard";
 import { ActivityEmptyState } from "./ActivityEmptyState";
+import { FilterDropdown } from "./FilterDropdown";
 
 // Single-app surface today. When multi-app ships this becomes an app picker
 // fed from the applications registry.
@@ -18,15 +19,6 @@ type FilterValue = ActivityType | typeof ALL_FILTER;
 const FILTER_ENTRIES = Object.entries(COPY.activity.filterTypes) as Array<
   [ActivityType, string]
 >;
-
-const FILTER_VALUES: ReadonlySet<FilterValue> = new Set([
-  ALL_FILTER,
-  ...FILTER_ENTRIES.map(([type]) => type),
-]);
-
-function isFilterValue(value: string | number): value is FilterValue {
-  return typeof value === "string" && FILTER_VALUES.has(value as FilterValue);
-}
 
 interface ActivityListProps {
   activities: ActivityLog[];
@@ -55,15 +47,11 @@ export function ActivityList({ activities, isConnected }: ActivityListProps) {
         {isConnected && (
           <div className="flex items-center gap-4">
             <Avatar url={AAVE_LOGO_URL} alt="Aave" size="small" />
-            <div className="w-[220px]">
-              <Select
-                value={filter}
-                options={options}
-                onSelect={(value) => {
-                  if (isFilterValue(value)) setFilter(value);
-                }}
-              />
-            </div>
+            <FilterDropdown
+              value={filter}
+              options={options}
+              onChange={setFilter}
+            />
           </div>
         )}
       </div>

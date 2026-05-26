@@ -66,11 +66,8 @@ describe("ActivityList", () => {
     ];
     renderList({ activities: rows, isConnected: true });
 
-    fireEvent.click(screen.getByText("Show all"));
-    const menu = document.querySelector(".bbn-select-menu");
-    if (!menu) throw new Error("Select menu did not open");
-    const borrowOption = within(menu as HTMLElement).getByText("Borrow");
-    fireEvent.click(borrowOption);
+    fireEvent.click(screen.getByRole("button", { name: /show all/i }));
+    fireEvent.click(screen.getByRole("option", { name: "Borrow" }));
 
     const items = screen.getAllByRole("listitem");
     expect(items).toHaveLength(1);
@@ -81,8 +78,8 @@ describe("ActivityList", () => {
     const rows = [makeRow({ id: "a", type: "Deposit" })];
     renderList({ activities: rows, isConnected: true });
 
-    fireEvent.click(screen.getByText("Show all"));
-    fireEvent.click(screen.getByText("Borrow"));
+    fireEvent.click(screen.getByRole("button", { name: /show all/i }));
+    fireEvent.click(screen.getByRole("option", { name: "Borrow" }));
 
     expect(screen.queryAllByRole("listitem")).toHaveLength(0);
     expect(screen.getByText(/no activity yet/i)).toBeInTheDocument();
@@ -104,12 +101,16 @@ describe("ActivityList", () => {
 
   it("hides the filter dropdown when disconnected", () => {
     renderList({ activities: [], isConnected: false });
-    expect(screen.queryByText("Show all")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /show all/i }),
+    ).not.toBeInTheDocument();
   });
 
   it("shows the filter dropdown when connected", () => {
     renderList({ activities: [], isConnected: true });
-    expect(screen.getByText("Show all")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /show all/i }),
+    ).toBeInTheDocument();
   });
 
   it("renders the Aave logo next to the dropdown when connected", () => {
