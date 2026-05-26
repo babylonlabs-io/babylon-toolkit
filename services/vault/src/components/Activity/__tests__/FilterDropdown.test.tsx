@@ -37,7 +37,7 @@ describe("FilterDropdown", () => {
     ).toBeInTheDocument();
   });
 
-  it("opens the menu on trigger click and shows all options", () => {
+  it("opens the menu on trigger click and shows the reset row plus all options", () => {
     render(
       <FilterDropdown
         value={null}
@@ -48,7 +48,38 @@ describe("FilterDropdown", () => {
     );
     fireEvent.click(screen.getByRole("button"));
     expect(screen.getByRole("listbox")).toBeInTheDocument();
-    expect(screen.getAllByRole("option")).toHaveLength(2);
+    // Reset row + 2 option rows = 3 total.
+    expect(screen.getAllByRole("option")).toHaveLength(3);
+    expect(screen.getByRole("option", { name: "Show all" })).toBeInTheDocument();
+  });
+
+  it("marks the reset row as selected when value is null", () => {
+    render(
+      <FilterDropdown
+        value={null}
+        placeholder="Show all"
+        options={options}
+        onChange={() => {}}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button"));
+    const selected = screen.getByRole("option", { selected: true });
+    expect(selected).toHaveTextContent("Show all");
+  });
+
+  it("clears the filter when the reset row is clicked", () => {
+    const onChange = vi.fn();
+    render(
+      <FilterDropdown
+        value="borrowed"
+        placeholder="Show all"
+        options={options}
+        onChange={onChange}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button"));
+    fireEvent.click(screen.getByRole("option", { name: "Show all" }));
+    expect(onChange).toHaveBeenCalledWith(null);
   });
 
   it("marks the currently selected option with aria-selected", () => {
