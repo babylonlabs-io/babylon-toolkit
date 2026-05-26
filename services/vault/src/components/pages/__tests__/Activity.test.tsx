@@ -9,7 +9,18 @@
 
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter, Outlet, Route, Routes } from "react-router";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+
+import type { ActivityLog } from "@/types/activityLog";
+
+beforeAll(() => {
+  class ResizeObserverStub {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  }
+  (globalThis as unknown as { ResizeObserver: typeof ResizeObserverStub }).ResizeObserver = ResizeObserverStub;
+});
 
 const useConnectionMock = vi.fn();
 const useETHWalletMock = vi.fn();
@@ -60,6 +71,7 @@ describe("Activity page — wallet gating", () => {
 
     renderActivity();
 
+    expect(screen.getByTestId("activity-empty-state")).toBeInTheDocument();
     expect(
       screen.getByText("Connect your wallet to view your activity"),
     ).toBeInTheDocument();
@@ -85,6 +97,7 @@ describe("Activity page — wallet gating", () => {
 
     renderActivity();
 
+    expect(screen.getByTestId("activity-empty-state")).toBeInTheDocument();
     expect(
       screen.getByText("Connect your wallet to view your activity"),
     ).toBeInTheDocument();
@@ -110,6 +123,7 @@ describe("Activity page — wallet gating", () => {
 
     renderActivity();
 
+    expect(screen.getByTestId("activity-empty-state")).toBeInTheDocument();
     expect(
       screen.getByText(
         "No activity yet. Make your first deposit to get started.",
@@ -122,5 +136,70 @@ describe("Activity page — wallet gating", () => {
     expect(useActivitiesWithPendingMock).toHaveBeenCalledWith(
       "0xabc0000000000000000000000000000000000001",
     );
+  });
+
+  it("renders a loading indicator while activities are loading", () => {
+    useConnectionMock.mockReturnValue({
+      isConnected: true,
+      btcConnected: true,
+      ethConnected: true,
+    });
+    useETHWalletMock.mockReturnValue({
+      address: "0xabc0000000000000000000000000000000000001",
+      connected: true,
+    });
+    useActivitiesWithPendingMock.mockReturnValue({
+      data: undefined,
+      isLoading: true,
+    });
+
+    const { container } = renderActivity();
+
+    expect(container.querySelector("svg")).toBeInTheDocument();
+    expect(screen.queryByTestId("activity-empty-state")).not.toBeInTheDocument();
+  });
+
+  it("renders activity rows as list items when connected with activities", () => {
+    useConnectionMock.mockReturnValue({
+      isConnected: true,
+      btcConnected: true,
+      ethConnected: true,
+    });
+    useETHWalletMock.mockReturnValue({
+      address: "0xabc0000000000000000000000000000000000001",
+      connected: true,
+    });
+
+    const activities: ActivityLog[] = [
+      {
+        id: "row-1",
+        date: new Date("2026-01-01T00:00:00Z"),
+        tokenIcon: "https://example.com/btc.svg",
+        type: "Deposit",
+        amount: { value: "1.00", symbol: "BTC" },
+        chain: "BTC",
+        transactionHash: "abcd1234",
+      },
+      {
+        id: "row-2",
+        date: new Date("2026-01-02T00:00:00Z"),
+        tokenIcon: "https://example.com/usdc.svg",
+        type: "Borrow",
+        amount: { value: "100.00", symbol: "USDC" },
+        chain: "ETH",
+        transactionHash: "0xdeadbeef",
+      },
+    ];
+    useActivitiesWithPendingMock.mockReturnValue({
+      data: activities,
+      isLoading: false,
+    });
+
+    renderActivity();
+
+    expect(screen.getAllByRole("listitem")).toHaveLength(2);
+    expect(
+      screen.queryByTestId("activity-empty-state"),
+    ).not.toBeInTheDocument();
   });
 });
