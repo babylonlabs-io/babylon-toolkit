@@ -10,7 +10,7 @@
  */
 
 import { Button, Heading, Loader, Text } from "@babylonlabs-io/core-ui";
-import { useMemo } from "react";
+import { type ReactNode, useMemo } from "react";
 
 import { StatusBanner } from "@/components/deposit/DepositSignModal/StatusBanner";
 import { COPY } from "@/copy";
@@ -65,11 +65,53 @@ export interface DepositProgressViewProps {
   /** Override the default error retry handler (defaults to onClose) */
   onRetry?: () => void;
   /**
-   * Data backing the expanded "Awaiting Bitcoin confirmation" detail panel.
-   * Only rendered when the active step is AWAIT_BTC_CONFIRMATION.
+   * Data backing the expanded "Awaiting Bitcoin tx confirmations" detail
+   * panel. Rendered while the active step is AWAIT_PAYOUT_TRANSACTIONS —
+   * that is where the `minPrepeginDepth` (e.g. 12) wait actually happens,
+   * gating the VP's PendingPrePegInConfirmations → PendingDepositorSignatures
+   * transition. Step AWAIT_BTC_CONFIRMATION only requires 1 confirmation
+   * (hardcoded VP requirement, not a protocol param) so no counter is shown
+   * there.
    */
   btcConfirmationDetail?: BtcConfirmationDetailData | null;
   waitDetailPersistKey?: string;
+}
+
+/**
+ * Resolves the panel shown under the active step. `AWAIT_PAYOUT_TRANSACTIONS`
+ * gets the live confirmation-depth counter when the inputs are plumbed
+ * (active flow always; resume paths once they reach step 8). When they're
+ * absent, falls back to the generic provider-wait panel so the user still
+ * sees something under the step.
+ */
+function resolveActiveStepDetail(params: {
+  currentStep: DepositFlowStep;
+  btcConfirmationDetail: BtcConfirmationDetailData | null | undefined;
+  waitDetailPersistKey: string | undefined;
+}): ReactNode {
+  const { currentStep, btcConfirmationDetail, waitDetailPersistKey } = params;
+  if (currentStep === DepositFlowStep.SIGN_PEGIN_BTC) {
+    return <PeginFeeWarning />;
+  }
+  if (
+    currentStep === DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS &&
+    btcConfirmationDetail
+  ) {
+    return (
+      <BtcConfirmationDetailContainer
+        startedAt={btcConfirmationDetail.startedAt}
+        prePeginTxid={btcConfirmationDetail.prePeginTxid}
+        requiredDepth={btcConfirmationDetail.requiredDepth}
+      />
+    );
+  }
+  const isProviderWait =
+    currentStep === DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS ||
+    currentStep === DepositFlowStep.AWAIT_VP_VERIFICATION ||
+    currentStep === DepositFlowStep.AWAIT_ACTIVATION_CONFIRMATION;
+  return isProviderWait ? (
+    <ProviderWaitDetail step={currentStep} persistKey={waitDetailPersistKey} />
+  ) : null;
 }
 
 export function DepositProgressView(props: DepositProgressViewProps) {
@@ -114,27 +156,11 @@ export function DepositProgressView(props: DepositProgressViewProps) {
     [payoutSigningProgress, peginSigningProgress],
   );
 
-  const isProviderWaitStep =
-    currentStep === DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS ||
-    currentStep === DepositFlowStep.AWAIT_VP_VERIFICATION ||
-    currentStep === DepositFlowStep.AWAIT_ACTIVATION_CONFIRMATION;
-
-  const activeStepDetail =
-    currentStep === DepositFlowStep.SIGN_PEGIN_BTC ? (
-      <PeginFeeWarning />
-    ) : currentStep === DepositFlowStep.AWAIT_BTC_CONFIRMATION &&
-      btcConfirmationDetail ? (
-      <BtcConfirmationDetailContainer
-        startedAt={btcConfirmationDetail.startedAt}
-        prePeginTxid={btcConfirmationDetail.prePeginTxid}
-        requiredDepth={btcConfirmationDetail.requiredDepth}
-      />
-    ) : isProviderWaitStep ? (
-      <ProviderWaitDetail
-        step={currentStep}
-        persistKey={waitDetailPersistKey}
-      />
-    ) : null;
+  const activeStepDetail = resolveActiveStepDetail({
+    currentStep,
+    btcConfirmationDetail,
+    waitDetailPersistKey,
+  });
 
   return (
     <div className="w-full max-w-[520px]">

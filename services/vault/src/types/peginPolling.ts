@@ -29,6 +29,16 @@ export interface DepositPollingResult {
    * Undefined only for legacy/incomplete indexer data.
    */
   depositorBtcPubkey: string | undefined;
+  /**
+   * Live Pre-PegIn confirmation count from mempool polling. `null` when the
+   * first poll hasn't returned yet (or the deposit isn't in the poll set).
+   * Cached observations past `requiredPrePeginDepth` are coalesced into this
+   * value via `confirmedTxids`, so callers can compare against
+   * `requiredPrePeginDepth` directly.
+   */
+  prePeginConfirmations: number | null;
+  /** Protocol-required confirmation depth (`minPrepeginDepth`) for this vault. */
+  requiredPrePeginDepth: number;
 }
 
 /** Context value type */

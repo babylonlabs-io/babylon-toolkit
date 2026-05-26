@@ -18,6 +18,13 @@ vi.mock("@/context/deposit/PeginPollingContext", () => ({
   }),
 }));
 
+vi.mock("@/context/ProtocolParamsContext", () => ({
+  useProtocolParamsContext: () => ({
+    config: { offchainParams: { minPrepeginDepth: 6 } },
+    getOffchainParamsByVersion: () => undefined,
+  }),
+}));
+
 vi.mock("../ActivationGate", () => ({
   ActivationGate: ({ children }: { children: ReactNode }) => <>{children}</>,
 }));

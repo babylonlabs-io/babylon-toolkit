@@ -822,7 +822,10 @@ export function useDepositFlow(
         // requiredDepth is pinned to the offchain-params version this deposit
         // registered against — the VP gates on that version's minPrepeginDepth
         // (btc-vault claimer/pegin.rs check_prepegin_depth_and_transition), so
-        // a later governance change must not move the displayed target.
+        // a later governance change must not move the displayed target. The
+        // panel itself renders at the AWAIT_PAYOUT_TRANSACTIONS step (that's
+        // where the minPrepeginDepth wait actually happens); we capture the
+        // values here at broadcast time so startedAt anchors to broadcast.
         setBtcConfirmationDetail({
           startedAt: Date.now(),
           prePeginTxid: prePeginBroadcastTxid,

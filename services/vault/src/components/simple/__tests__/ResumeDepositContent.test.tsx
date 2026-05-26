@@ -160,6 +160,13 @@ vi.mock("@/context/deposit/PeginPollingContext", () => ({
   useDepositPollingResult: mockUseDepositPollingResult,
 }));
 
+vi.mock("@/context/ProtocolParamsContext", () => ({
+  useProtocolParamsContext: () => ({
+    config: { offchainParams: { minPrepeginDepth: 6 } },
+    getOffchainParamsByVersion: () => undefined,
+  }),
+}));
+
 vi.mock("@/models/peginStateMachine", () => ({
   ContractStatus: {
     PENDING: 0,
