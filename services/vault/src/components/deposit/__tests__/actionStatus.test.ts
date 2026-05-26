@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { ContractStatus, getPeginState } from "@/models/peginStateMachine";
+import {
+  ContractStatus,
+  getPeginState,
+  LocalStorageStatus,
+} from "@/models/peginStateMachine";
 
 import type { DepositPollingResult } from "../../../context/deposit/PeginPollingContext";
 import {
@@ -123,12 +127,60 @@ describe("getActionStatus — wallet ownership mismatch", () => {
 
     expect(status.type).toBe("disabled");
     if (status.type !== "disabled") return;
-    expect(status.action.action).toBe(PeginAction.ACTIVATE_VAULT);
+    expect(status.action?.action).toBe(PeginAction.ACTIVATE_VAULT);
     expect(status.tooltip).toMatch(
       /this btc vault was created with a different btc public key/i,
     );
     expect(status.tooltip).toContain("bcc5...f21c");
     expect(status.tooltip).not.toContain("0x");
+  });
+
+  it("returns disabled without an action for a pure-progress unowned vault (so the card still dims + shows the tooltip)", () => {
+    // PENDING+CONFIRMING+ingested+!transactionsReady is the "awaiting
+    // payout-prep" wait — no primary action. Without the ownership-
+    // priority fix this returned `unavailable` and unowned cards looked
+    // like the user's own in-progress card. The disable now fires
+    // regardless so the dim + tooltip flag the foreign ownership.
+    const waitingState = getPeginState(ContractStatus.PENDING, {
+      localStatus: LocalStorageStatus.CONFIRMING,
+      pendingIngestion: false,
+      transactionsReady: false,
+    });
+    const result = pollingResultWithAction("id1", waitingState, {
+      isOwnedByCurrentWallet: false,
+      depositorBtcPubkey: FOREIGN_PUBKEY,
+    });
+
+    const status = getActionStatus(result);
+
+    expect(status.type).toBe("disabled");
+    if (status.type !== "disabled") return;
+    expect(status.action).toBeUndefined();
+    expect(status.tooltip).toMatch(
+      /this btc vault was created with a different btc public key/i,
+    );
+  });
+
+  it("keeps the unowned dim + tooltip even when polling errored (ownership is independent of polling)", () => {
+    // Ownership comes from activity/indexer state, not the polling
+    // result, so a transient polling error must not flip the card back
+    // to a neutral noAction render. Otherwise the user sees an
+    // un-dimmed un-tooltipped card for someone else's vault any time
+    // the VP RPC hiccups.
+    const verifiedState = getPeginState(ContractStatus.VERIFIED);
+    const result = pollingResultWithAction("id1", verifiedState, {
+      isOwnedByCurrentWallet: false,
+      depositorBtcPubkey: FOREIGN_PUBKEY,
+      error: new Error("VP unreachable"),
+    });
+
+    const status = getActionStatus(result);
+
+    expect(status.type).toBe("disabled");
+    if (status.type !== "disabled") return;
+    expect(status.tooltip).toMatch(
+      /this btc vault was created with a different btc public key/i,
+    );
   });
 
   it("falls back to available when the vault has no known depositor pubkey", () => {

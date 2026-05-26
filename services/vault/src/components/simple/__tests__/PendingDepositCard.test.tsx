@@ -147,7 +147,7 @@ describe("PendingDepositCard — step gating during first load", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockIsArtifactDownloadAvailable.mockReturnValue(false);
-    mockGetActionStatus.mockReturnValue({ type: "unavailable", reasons: [] });
+    mockGetActionStatus.mockReturnValue({ type: "noAction" });
   });
 
   it("renders the step label once the first poll has resolved", () => {
@@ -197,11 +197,11 @@ describe("PendingDepositCard — disabled (ownership mismatch) surface", () => {
     expect(card).toHaveAttribute("data-disabled-tooltip", TOOLTIP);
   });
 
-  it("renders nothing in the action slot for unavailable status", () => {
+  it("renders nothing in the action slot for noAction status", () => {
     // For states with no action at all (e.g. ACTIVE vault with nothing to
     // do, or a polling error), the card should stay clean — no button, no
     // amber strip, no dimming.
-    mockGetActionStatus.mockReturnValue({ type: "unavailable" });
+    mockGetActionStatus.mockReturnValue({ type: "noAction" });
     renderCard(false);
 
     expect(screen.queryByRole("button")).not.toBeInTheDocument();

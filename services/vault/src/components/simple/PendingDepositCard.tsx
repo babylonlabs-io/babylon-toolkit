@@ -84,9 +84,10 @@ export function PendingDepositCard({
   const broadcastSuppressed =
     !!suppressBroadcastAction &&
     (status.type === "available" || status.type === "disabled") &&
-    status.action.action === PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN;
+    status.action?.action === PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN;
   const hasAction =
-    (status.type === "available" || status.type === "disabled") &&
+    (status.type === "available" ||
+      (status.type === "disabled" && !!status.action)) &&
     !broadcastSuppressed;
   const isActionable = status.type === "available" && !broadcastSuppressed;
   const showArtifactDownload =
@@ -110,7 +111,7 @@ export function PendingDepositCard({
   };
 
   const actionLabel =
-    status.type === "available" || status.type === "disabled"
+    (status.type === "available" || status.type === "disabled") && status.action
       ? status.action.label
       : peginState.displayLabel;
   // `loading` is React Query's `isLoading` — true only on the very first fetch,

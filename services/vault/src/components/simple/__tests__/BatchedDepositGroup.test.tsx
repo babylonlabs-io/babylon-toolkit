@@ -59,7 +59,7 @@ const BROADCAST_AVAILABLE: ActionStatus = {
     label: "Broadcast Pre-Pegin",
   },
 };
-const NO_ACTION: ActionStatus = { type: "unavailable" };
+const NO_ACTION: ActionStatus = { type: "noAction" };
 
 function renderGroup(activities: VaultActivity[], onBroadcastClick = vi.fn()) {
   render(
