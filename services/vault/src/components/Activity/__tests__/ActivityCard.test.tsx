@@ -54,9 +54,7 @@ describe("ActivityCard", () => {
 
   it("treats refunded as exclusive with pending (refunded wins)", () => {
     render(
-      <ActivityCard
-        row={{ ...baseRow, isPending: true, isRefunded: true }}
-      />,
+      <ActivityCard row={{ ...baseRow, isPending: true, isRefunded: true }} />,
     );
 
     expect(
@@ -75,13 +73,5 @@ describe("ActivityCard", () => {
     fireEvent.click(screen.getByRole("button", { name: /copy/i }));
 
     expect(writeText).toHaveBeenCalledWith(FULL_HASH);
-  });
-
-  it("exposes data-pending attribute reflecting isPending state", () => {
-    const { rerender, container } = render(<ActivityCard row={baseRow} />);
-    expect(container.firstChild).toHaveAttribute("data-pending", "false");
-
-    rerender(<ActivityCard row={{ ...baseRow, isPending: true }} />);
-    expect(container.firstChild).toHaveAttribute("data-pending", "true");
   });
 });

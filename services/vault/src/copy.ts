@@ -461,6 +461,9 @@ export const COPY = {
     },
     hashPending: "Pending…",
     refundedTooltip: "Transaction was refunded",
+    emptyDisconnected: "Connect your wallet to view your activity",
+    emptyConnected: "No activity yet. Make your first deposit to get started.",
+    depositCta: (coinSymbol: string) => `Deposit ${coinSymbol}`,
   },
   banner: {
     addCollateral: "Add Collateral",

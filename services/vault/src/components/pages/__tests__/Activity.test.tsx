@@ -147,7 +147,9 @@ describe("Activity page — wallet gating", () => {
     const { container } = renderActivity();
 
     expect(container.querySelector("svg")).toBeInTheDocument();
-    expect(screen.queryByTestId("activity-empty-state")).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("activity-empty-state"),
+    ).not.toBeInTheDocument();
   });
 
   it("renders activity rows as list items when connected with activities", () => {

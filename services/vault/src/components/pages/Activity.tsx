@@ -24,7 +24,10 @@ export default function Activity() {
             <Loader />
           </div>
         ) : (
-          <ActivityList activities={activities ?? []} isConnected={isConnected} />
+          <ActivityList
+            activities={activities ?? []}
+            isConnected={isConnected}
+          />
         )}
       </Card>
     </Container>

@@ -17,7 +17,10 @@ const makeRow = (overrides: Partial<ActivityLog>): ActivityLog => ({
   isRefunded: overrides.isRefunded,
 });
 
-function renderList(props: { activities: ActivityLog[]; isConnected: boolean }) {
+function renderList(props: {
+  activities: ActivityLog[];
+  isConnected: boolean;
+}) {
   return render(
     <MemoryRouter initialEntries={["/activity"]}>
       <Routes>
