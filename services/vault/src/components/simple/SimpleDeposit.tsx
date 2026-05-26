@@ -210,7 +210,13 @@ function SimpleDepositContent({
   const partialLiquidationProps = !allowSplit
     ? undefined
     : {
-        isEnabled: isPartialLiquidation,
+        // Show the split as selected only when the user wants it AND the
+        // current amount can actually split. When the amount drops below the
+        // splittable threshold the selector falls back to "Do not split";
+        // raising it back above restores the selection because the underlying
+        // intent is preserved. An explicit "Do not split" click (intent =
+        // false) still sticks.
+        isEnabled: isPartialLiquidation && canSplit,
         onChange: setIsPartialLiquidation,
         canSplit,
         isLoading: isSplitLoading,

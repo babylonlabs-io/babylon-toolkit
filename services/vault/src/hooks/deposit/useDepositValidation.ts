@@ -36,6 +36,13 @@ export interface UseDepositValidationParams {
    * an explicit error rather than silently passing as if no cap applied.
    */
   capUnavailable?: boolean;
+  /**
+   * Fee-adjusted depositable maximum in satoshis (balance minus network fee and
+   * protocol reserves), or null while it is still resolving. When this is below
+   * the protocol minimum deposit, no amount is valid; surfacing that keeps the
+   * inline/submit path in agreement with the CTA.
+   */
+  maxDepositSats?: bigint | null;
 }
 
 /**
@@ -48,6 +55,7 @@ export function useDepositValidation(
     availableProviders = [],
     effectiveRemaining = null,
     capUnavailable = false,
+    maxDepositSats = null,
   } = params;
 
   const { minDeposit, maxDeposit } = useProtocolParamsContext();
@@ -77,6 +85,19 @@ export function useDepositValidation(
         };
       }
 
+      // Symmetric terminal state on the balance/fee dimension: the fee-adjusted
+      // max is below the minimum, so no amount is valid. Mirrors the CTA's
+      // maxBelowMinimum branch instead of a minimum error the user can't satisfy.
+      if (depositService.maxBelowMinimum(maxDepositSats, minDeposit)) {
+        return {
+          valid: false,
+          error: depositService.maxBelowMinimumLabel(
+            maxDepositSats,
+            minDeposit,
+          ),
+        };
+      }
+
       const base = depositService.validateDepositAmount(
         satoshis,
         minDeposit,
@@ -89,7 +110,13 @@ export function useDepositValidation(
         effectiveRemaining,
       });
     },
-    [minDeposit, maxDeposit, effectiveRemaining, capUnavailable],
+    [
+      minDeposit,
+      maxDeposit,
+      effectiveRemaining,
+      capUnavailable,
+      maxDepositSats,
+    ],
   );
 
   const validateProviders = useCallback(

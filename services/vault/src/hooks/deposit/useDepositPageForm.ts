@@ -267,16 +267,6 @@ export function useDepositPageForm(): UseDepositPageFormResult {
   const { snapshot: capSnapshot, error: capError } = useApplicationCap(
     isWalletConnected ? ethAddress : undefined,
   );
-  // Only block validation when the on-chain cap read has explicitly errored.
-  // During the initial load `capSnapshot` is null but `capError` is not set —
-  // in that window the validator skips the cap check so the user can still
-  // interact with the form. The contract still enforces the cap at submit.
-  const validation = useDepositValidation({
-    availableProviders: selectableProviderIds,
-    effectiveRemaining: capSnapshot?.effectiveRemaining ?? null,
-    capUnavailable: capError !== null,
-  });
-
   // Display balance uses `availableUTXOs` so the user sees their real funds
   // even while the ordinals classifier is loading or has errored. Actual
   // spending uses `spendableMempoolUTXOs` (fee estimation) and the fail-closed
@@ -329,15 +319,6 @@ export function useDepositPageForm(): UseDepositPageFormResult {
     [clearFieldError],
   );
 
-  // Validate amount on blur
-  const validateAmountOnBlur = useCallback(() => {
-    if (formData.amountBtc === "") return;
-    const amountResult = validation.validateAmount(formData.amountBtc);
-    if (!amountResult.valid) {
-      setErrors((prev) => ({ ...prev, amount: amountResult.error }));
-    }
-  }, [formData.amountBtc, validation, setErrors]);
-
   const amountSats = useMemo(() => {
     if (!formData.amountBtc) return 0n;
     return depositService.parseBtcToSatoshis(formData.amountBtc);
@@ -347,6 +328,20 @@ export function useDepositPageForm(): UseDepositPageFormResult {
   // estimate below can account for the batch output count.
   const [isPartialLiquidation, setIsPartialLiquidation] = useState(false);
 
+  // Split planning first: `canSplit` gates the effective vault count below,
+  // which drives the fee/output budgeting. Depends only on `amountSats` + the
+  // raw intent flag (not on fees or `vaultCount`), so it's safe to compute
+  // before the fee estimate without introducing a dependency cycle.
+  const {
+    vaultAmounts: splitVaultAmounts,
+    canSplit,
+    splitRatioLabel,
+    isLoading: isSplitLoading,
+  } = useAllocationPlanning({
+    amountSats,
+    isPartialLiquidation,
+  });
+
   // Batch-first: one Pre-PegIn tx with N HTLC outputs + 1 CPFP anchor +
   // 1 OP_RETURN auth-anchor. When partial liquidation is on, N = 2.
   // `hasAuthAnchor: true` mirrors the OP_RETURN output that
@@ -354,7 +349,13 @@ export function useDepositPageForm(): UseDepositPageFormResult {
   // signing time, so the Max fee budget here matches the fee the UTXO
   // selector will later spend. No PSBT is built here — this is integer
   // vbyte budgeting only.
-  const vaultCount = isPartialLiquidation ? 2 : 1;
+  //
+  // Budget for two vaults only when the split is actually in effect (user
+  // wants it AND the amount can split). When the amount drops below the
+  // splittable threshold the deposit falls back to a single vault, so the
+  // Max/fee reserves must follow — otherwise Max is understated and can
+  // falsely read "below the minimum deposit".
+  const vaultCount = isPartialLiquidation && canSplit ? 2 : 1;
   const numPeginOutputs = peginOutputCount(vaultCount, true);
 
   const {
@@ -435,16 +436,6 @@ export function useDepositPageForm(): UseDepositPageFormResult {
     refetchOnWindowFocus: false,
   });
 
-  const {
-    vaultAmounts: splitVaultAmounts,
-    canSplit,
-    splitRatioLabel,
-    isLoading: isSplitLoading,
-  } = useAllocationPlanning({
-    amountSats,
-    isPartialLiquidation,
-  });
-
   // Adjust max deposit to reserve every per-HTLC and per-batch component that
   // the eventual Pre-PegIn tx will need to fund:
   //
@@ -491,6 +482,30 @@ export function useDepositPageForm(): UseDepositPageFormResult {
     vaultCount,
     capSnapshot,
   ]);
+
+  // Declared after `adjustedMaxDepositSats` so the validator can reject amounts
+  // when the fee-adjusted max is below the protocol minimum (terminal balance
+  // state), keeping the inline/submit path in agreement with the CTA.
+  //
+  // Only block validation when the on-chain cap read has explicitly errored.
+  // During the initial load `capSnapshot` is null but `capError` is not set —
+  // in that window the validator skips the cap check so the user can still
+  // interact with the form. The contract still enforces the cap at submit.
+  const validation = useDepositValidation({
+    availableProviders: selectableProviderIds,
+    effectiveRemaining: capSnapshot?.effectiveRemaining ?? null,
+    capUnavailable: capError !== null,
+    maxDepositSats: adjustedMaxDepositSats,
+  });
+
+  // Validate amount on blur
+  const validateAmountOnBlur = useCallback(() => {
+    if (formData.amountBtc === "") return;
+    const amountResult = validation.validateAmount(formData.amountBtc);
+    if (!amountResult.valid) {
+      setErrors((prev) => ({ ...prev, amount: amountResult.error }));
+    }
+  }, [formData.amountBtc, validation, setErrors]);
 
   const applyMaxAmount = useCallback(() => {
     setIsMaxPinned(true);

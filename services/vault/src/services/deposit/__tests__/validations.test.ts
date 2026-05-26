@@ -9,6 +9,8 @@ import {
   type DepositCtaParams,
   getDepositButtonLabel,
   getDepositCtaState,
+  maxBelowMinimum,
+  maxBelowMinimumLabel,
   validateMultiVaultDepositInputs,
   validateProviderSelection,
 } from "../validations";
@@ -287,7 +289,6 @@ describe("Deposit Validations", () => {
       isAddressBlocked: false,
       isWalletConnected: true,
       hasProvider: true,
-      splitNotReady: false,
       isFeeError: false,
       feeError: null,
       feeDisabled: false,
@@ -396,17 +397,6 @@ describe("Deposit Validations", () => {
       expect(result).toEqual({
         disabled: true,
         label: "Select a vault provider",
-      });
-    });
-
-    it("returns split-not-ready message when split is not ready", () => {
-      const result = getDepositCtaState({
-        ...readyParams,
-        splitNotReady: true,
-      });
-      expect(result).toEqual({
-        disabled: true,
-        label: "Deposit amount too low to split into 2 BTC Vaults",
       });
     });
 
@@ -681,6 +671,51 @@ describe("Deposit Validations", () => {
       );
     });
 
+    it("shows the 'available balance below minimum' terminal message when the fee-adjusted max < minimum deposit", () => {
+      // Balance/fee dimension (not the supply cap): maxDepositSats resolved to a
+      // positive value below the minimum, so no amount can clear both bounds.
+      // The minimum-amount label would be a dead end (the user can't raise past
+      // a max that's below the minimum).
+      const result = getDepositCtaState({
+        ...readyParams,
+        minDeposit: 1_000_000n,
+        maxDepositSats: 960_398n,
+        effectiveRemaining: null,
+        amountSats: 100_000n,
+      });
+      expect(result).toEqual({
+        disabled: true,
+        label: maxBelowMinimumLabel(960_398n, 1_000_000n),
+      });
+    });
+
+    it("shows 'available balance below minimum' regardless of the entered amount (terminal state)", () => {
+      const result = getDepositCtaState({
+        ...readyParams,
+        minDeposit: 1_000_000n,
+        maxDepositSats: 960_398n,
+        effectiveRemaining: null,
+        amountSats: 0n,
+      });
+      expect(result.label).toBe(maxBelowMinimumLabel(960_398n, 1_000_000n));
+    });
+
+    it("prefers the cap message over the balance message when both are below the minimum", () => {
+      // maxDepositSats is clamped to effectiveRemaining, so when the supply cap
+      // is the binding cause both predicates are true — the more specific cap
+      // message must win.
+      const result = getDepositCtaState({
+        ...readyParams,
+        minDeposit: 1_000_000n,
+        effectiveRemaining: 300_000n,
+        maxDepositSats: 300_000n,
+        amountSats: 0n,
+      });
+      expect(result.label).toBe(
+        "Remaining capacity (0.003 BTC) is below the minimum deposit (0.01 BTC)",
+      );
+    });
+
     it("shows 'Supply cap reached' for an empty form when the cap is fully used (pre-existing precedence)", () => {
       // Documents that effectiveRemaining === 0n wins over "Enter an amount"
       // for a zero amount — behavior unchanged by the cap/label reorder.
@@ -740,6 +775,36 @@ describe("Deposit Validations", () => {
         minPeginFeeError: new Error("boom"),
       });
       expect(result.label).toBe("Fee estimate unavailable");
+    });
+  });
+
+  describe("maxBelowMinimum", () => {
+    it("is false while the max is still resolving (null)", () => {
+      expect(maxBelowMinimum(null, 1_000_000n)).toBe(false);
+    });
+
+    it("is false when the max resolved to zero (supply cap reached)", () => {
+      expect(maxBelowMinimum(0n, 1_000_000n)).toBe(false);
+    });
+
+    it("is false when the max equals the minimum", () => {
+      expect(maxBelowMinimum(1_000_000n, 1_000_000n)).toBe(false);
+    });
+
+    it("is false when the max is at or above the minimum", () => {
+      expect(maxBelowMinimum(1_500_000n, 1_000_000n)).toBe(false);
+    });
+
+    it("is true when the max is positive but below the minimum", () => {
+      expect(maxBelowMinimum(960_398n, 1_000_000n)).toBe(true);
+    });
+  });
+
+  describe("maxBelowMinimumLabel", () => {
+    it("names the available balance and the minimum deposit", () => {
+      const label = maxBelowMinimumLabel(500_000n, 1_000_000n);
+      expect(label).toContain("Available balance (0.005");
+      expect(label).toContain("is below the minimum deposit (0.01");
     });
   });
 });

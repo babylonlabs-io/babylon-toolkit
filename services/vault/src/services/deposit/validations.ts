@@ -100,7 +100,6 @@ export interface DepositCtaParams extends DepositFormValidityParams {
   isAddressBlocked: boolean;
   isWalletConnected: boolean;
   hasProvider: boolean;
-  splitNotReady: boolean;
   isFeeError: boolean;
   feeError: string | null;
   feeDisabled: boolean;
@@ -198,6 +197,32 @@ export function capBelowMinimumLabel(
   return `Remaining capacity (${formatSatoshisToBtc(effectiveRemaining)} BTC) is below the minimum deposit (${formatSatoshisToBtc(minDeposit)} BTC)`;
 }
 
+/**
+ * True when the fee-adjusted depositable max is positive but below the protocol
+ * minimum deposit. In that state the balance/fee ceiling and the minimum lower
+ * bound leave an empty range — no amount can satisfy both — so deposits are
+ * impossible until the wallet balance grows. Surfacing this directly avoids the
+ * dead-end "Minimum X" guidance the user can never satisfy. Narrows
+ * `maxDepositSats` to a non-null bigint when true.
+ */
+export function maxBelowMinimum(
+  maxDepositSats: bigint | null,
+  minDeposit: bigint,
+): maxDepositSats is bigint {
+  return (
+    maxDepositSats !== null &&
+    maxDepositSats > 0n &&
+    maxDepositSats < minDeposit
+  );
+}
+
+export function maxBelowMinimumLabel(
+  maxDepositSats: bigint,
+  minDeposit: bigint,
+): string {
+  return `Available balance (${formatSatoshisToBtc(maxDepositSats)} ${getBtcSymbol()}) is below the minimum deposit (${formatSatoshisToBtc(minDeposit)} ${getBtcSymbol()})`;
+}
+
 export function getDepositButtonLabel(
   params: DepositFormValidityParams,
 ): string {
@@ -288,6 +313,18 @@ export function getDepositCtaState(params: DepositCtaParams): DepositCtaState {
       label: capBelowMinimumLabel(params.effectiveRemaining, params.minDeposit),
     };
   }
+  // Symmetric to capBelowMinimum, on the balance/fee dimension: the fee-adjusted
+  // max is positive but below the minimum, so no amount clears both bounds.
+  // Terminal — surface regardless of the entered amount instead of the dead-end
+  // "Minimum X" guidance. `maxDepositSats` is clamped to `effectiveRemaining`,
+  // so when the supply cap is the binding cause the capBelowMinimum branch above
+  // wins (more specific). Mirrored in useDepositValidation.validateAmount.
+  if (maxBelowMinimum(params.maxDepositSats, params.minDeposit)) {
+    return {
+      disabled: true,
+      label: maxBelowMinimumLabel(params.maxDepositSats, params.minDeposit),
+    };
+  }
   if (
     params.effectiveRemaining !== null &&
     params.amountSats > params.effectiveRemaining
@@ -307,13 +344,6 @@ export function getDepositCtaState(params: DepositCtaParams): DepositCtaState {
 
   if (!params.hasProvider) {
     return { disabled: true, label: "Select a vault provider" };
-  }
-
-  if (params.splitNotReady) {
-    return {
-      disabled: true,
-      label: "Deposit amount too low to split into 2 BTC Vaults",
-    };
   }
 
   // Surface a terminal `computeMinPeginFee` failure ahead of the "still

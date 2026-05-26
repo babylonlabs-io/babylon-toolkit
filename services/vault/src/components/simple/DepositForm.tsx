@@ -199,19 +199,32 @@ export function DepositForm({
     ? `-- ${btcConfig.coinSymbol}`
     : `${Number(depositService.formatSatoshisToBtc(maxDepositSats))} ${btcConfig.coinSymbol}`;
 
-  // Disable only the slider (not the amount input or Max button) while there's
-  // no meaningful range to drag: the max is still loading, or it resolved to
-  // zero (supply cap reached). Manual entry stays available, and any amount
-  // above the max is clamped down once it resolves.
-  const sliderDisabled = !isMaxResolved || maxDepositSats === 0n;
+  // The slider (not the amount input or Max button) only has a meaningful drag
+  // range when the resolved max is strictly above the minimum. At or below it —
+  // still loading, cap-reached at 0, balance below the minimum, or exactly at
+  // the minimum (a zero-width range) — there's nothing to drag, so disable the
+  // slider. Manual entry and the Max button stay available; any amount above
+  // the max is clamped down once it resolves.
+  const hasDraggableRange =
+    maxDepositSats != null && maxDepositSats > minDeposit;
+  const sliderDisabled = !hasDraggableRange;
 
   // The slider operates in satoshis (integer values, 1-sat step) so the thumb
-  // can land exactly on the max. A coarse BTC step would leave the sat-precise
-  // max off the step grid, stranding the thumb short of the end. Floor the
-  // rendered max to 1 so the Slider's `(value - min) / (max - min)` fill math
-  // never divides by zero — a loading (null) or cap-reached (0) max would
-  // otherwise produce NaN. The slider is disabled in both those states anyway.
-  const sliderMaxSats = Math.max(1, Number(maxDepositSats ?? 0n));
+  // can land exactly on the max. With a draggable range, start the slider at
+  // the protocol minimum so dragging can never produce a sub-minimum amount;
+  // otherwise fall back to 0 so the range stays well-defined while the slider
+  // is disabled. Manual text entry below the minimum stays available and is
+  // still caught by validation.
+  const sliderMinSats = hasDraggableRange ? Number(minDeposit) : 0;
+  // Because the range is only enabled when maxDepositSats > minDeposit (and
+  // sats are integers), the rendered max equals the real max — no synthetic
+  // over-shoot. The `+ 1` floor is purely a `(value - min) / (max - min)`
+  // divide-by-zero guard for the disabled (min = 0) states, where the slider
+  // isn't interactive anyway.
+  const sliderMaxSats = Math.max(
+    sliderMinSats + 1,
+    Number(maxDepositSats ?? 0n),
+  );
   const sliderValueSats = Number(amountSats);
 
   const usdValue = useMemo(() => {
@@ -254,11 +267,6 @@ export function DepositForm({
     !!feeError ||
     estimatedFeeSats === null;
 
-  const splitNotReady =
-    partialLiquidation?.isEnabled &&
-    !partialLiquidation?.canSplit &&
-    !partialLiquidation?.isLoading;
-
   const cta = depositService.getDepositCtaState({
     amountSats,
     minDeposit,
@@ -276,7 +284,6 @@ export function DepositForm({
     isAddressBlocked,
     isWalletConnected,
     hasProvider: !!selectedProvider,
-    splitNotReady: !!splitNotReady,
     isFeeError,
     feeError,
     feeDisabled,
@@ -295,7 +302,7 @@ export function DepositForm({
           currencyName={btcConfig.name}
           onAmountChange={(e) => onAmountChange(e.target.value)}
           sliderValue={sliderValueSats}
-          sliderMin={0}
+          sliderMin={sliderMinSats}
           sliderMax={sliderMaxSats}
           sliderStep={1}
           sliderSteps={[]}
