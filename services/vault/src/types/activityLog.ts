@@ -31,8 +31,6 @@ export interface ActivityAmount {
   value: string;
   /** Token symbol (e.g., "USDC", "BTC") */
   symbol: string;
-  /** Optional URL to the token icon */
-  icon?: string;
 }
 
 /**

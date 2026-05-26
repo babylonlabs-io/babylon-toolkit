@@ -6,6 +6,7 @@ import { graphqlClient } from "../../clients/graphql";
 import { getNetworkConfigBTC } from "../../config";
 import { logger } from "../../infrastructure";
 import type {
+  ActivityAmount,
   ActivityChain,
   ActivityLog,
   ActivityType,
@@ -191,78 +192,70 @@ export async function fetchUserActivities(
     { depositor: address.toLowerCase() },
   );
 
-  const activities = data.vaultActivitys.items;
-  if (activities.length === 0) return [];
+  if (data.vaultActivitys.items.length === 0) return [];
 
   const peginTxHashByVaultId = new Map<string, string>();
   for (const v of data.vaults.items) {
     peginTxHashByVaultId.set(v.id, v.peginTxHash);
   }
 
+  const sorted = [...data.vaultActivitys.items].sort((a, b) => {
+    const tsDiff = parseInt(b.timestamp, 10) - parseInt(a.timestamp, 10);
+    if (tsDiff !== 0) return tsDiff;
+    const blockDiff = parseInt(b.blockNumber, 10) - parseInt(a.blockNumber, 10);
+    if (blockDiff !== 0) return blockDiff;
+    return parseLogIndex(b.id) - parseLogIndex(a.id);
+  });
+
   const droppedTypeCounts = new Map<string, number>();
 
-  const rows = activities.flatMap(
-    (item): Array<{ row: ActivityLog; raw: GraphQLVaultActivityItem }> => {
-      const displayType = mapActivityType(item.type);
-      if (!displayType) {
-        droppedTypeCounts.set(
-          item.type,
-          (droppedTypeCounts.get(item.type) ?? 0) + 1,
-        );
-        return [];
-      }
-
-      const isPositionScoped = item.type === "borrow" || item.type === "repay";
-
-      let amountValue: string;
-      let amountSymbol: string;
-      let amountIcon: string | undefined;
-      if (isPositionScoped) {
-        const reserve =
-          item.debtReserveId != null
-            ? deps.reserves.get(item.debtReserveId)
-            : undefined;
-        amountValue = reserve
-          ? formatAmount(item.amount, reserve.decimals)
-          : item.amount;
-        amountSymbol = reserve?.symbol ?? "—";
-      } else {
-        amountValue = formatAmount(item.amount, BTC_DECIMALS);
-        amountSymbol = btcConfig.coinSymbol;
-        amountIcon = btcConfig.icon;
-      }
-
-      const tokenIcon = isPositionScoped
-        ? item.debtReserveId != null
-          ? (deps.reserves.get(item.debtReserveId)?.icon ?? "")
-          : ""
-        : btcConfig.icon;
-
-      const { chain, transactionHash } = resolveDisplayTx(
-        item,
-        peginTxHashByVaultId,
+  const rows = sorted.flatMap((item): ActivityLog[] => {
+    const displayType = mapActivityType(item.type);
+    if (!displayType) {
+      droppedTypeCounts.set(
+        item.type,
+        (droppedTypeCounts.get(item.type) ?? 0) + 1,
       );
+      return [];
+    }
 
-      return [
-        {
-          row: {
-            id: item.id,
-            date: new Date(parseInt(item.timestamp, 10) * 1000),
-            tokenIcon,
-            type: displayType,
-            amount: {
-              value: amountValue,
-              symbol: amountSymbol,
-              icon: amountIcon,
-            },
-            chain,
-            transactionHash,
-          },
-          raw: item,
-        },
-      ];
-    },
-  );
+    const isPositionScoped = item.type === "borrow" || item.type === "repay";
+    const reserve =
+      isPositionScoped && item.debtReserveId != null
+        ? deps.reserves.get(item.debtReserveId)
+        : undefined;
+
+    const amount: ActivityAmount = isPositionScoped
+      ? {
+          value: reserve
+            ? formatAmount(item.amount, reserve.decimals)
+            : item.amount,
+          symbol: reserve?.symbol ?? "—",
+        }
+      : {
+          value: formatAmount(item.amount, BTC_DECIMALS),
+          symbol: btcConfig.coinSymbol,
+        };
+
+    const tokenIcon = isPositionScoped ? (reserve?.icon ?? "") : btcConfig.icon;
+
+    const { chain, transactionHash } = resolveDisplayTx(
+      item,
+      peginTxHashByVaultId,
+    );
+
+    return [
+      {
+        id: item.id,
+        date: new Date(parseInt(item.timestamp, 10) * 1000),
+        tokenIcon,
+        type: displayType,
+        amount,
+        chain,
+        transactionHash,
+      },
+    ];
+  });
 
   if (droppedTypeCounts.size > 0) {
     logger.warn("[fetchActivities] dropped unrecognised activity types", {
@@ -270,15 +263,5 @@ export async function fetchUserActivities(
     });
   }
 
-  return rows
-    .sort((a, b) => {
-      const tsDiff =
-        parseInt(b.raw.timestamp, 10) - parseInt(a.raw.timestamp, 10);
-      if (tsDiff !== 0) return tsDiff;
-      const blockDiff =
-        parseInt(b.raw.blockNumber, 10) - parseInt(a.raw.blockNumber, 10);
-      if (blockDiff !== 0) return blockDiff;
-      return parseLogIndex(b.raw.id) - parseLogIndex(a.raw.id);
-    })
-    .map(({ row }) => row);
+  return rows;
 }

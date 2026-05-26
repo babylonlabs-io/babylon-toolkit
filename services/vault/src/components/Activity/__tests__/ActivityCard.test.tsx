@@ -11,7 +11,7 @@ const baseRow: ActivityLog = {
   id: "tx-1-0-deposit",
   date: new Date("2025-10-16T11:48:47Z"),
   type: "Deposit",
-  amount: { value: "1", symbol: "BTC", icon: undefined },
+  amount: { value: "1", symbol: "BTC" },
   chain: "BTC",
   transactionHash: FULL_HASH,
   tokenIcon: "test://btc.svg",

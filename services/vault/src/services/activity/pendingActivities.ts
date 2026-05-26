@@ -32,7 +32,6 @@ function convertPendingPeginToActivity(
     amount: {
       value: pending.amount,
       symbol: btcConfig.coinSymbol,
-      icon: btcConfig.icon,
     },
     chain: "BTC",
     transactionHash: pending.peginTxHash,
