@@ -1,8 +1,6 @@
 /**
- * Activity log type definitions for aggregated user activities across applications
- *
- * ActivityLog represents a single user activity event (deposit, borrow, repay, etc.)
- * from any enabled application (e.g., Aave)
+ * Types for the vault Activity tab — a single user's on-chain vault actions
+ * (deposits, withdrawals, liquidations, borrows, repays, redemptions, claims).
  */
 
 /**
@@ -26,17 +24,6 @@ export type ActivityType =
 export type ActivityChain = "BTC" | "ETH";
 
 /**
- * Application information for an activity
- */
-export interface ActivityApplication {
-  id: string;
-  /** Display name (e.g., "Aave") */
-  name: string;
-  /** URL to the application logo */
-  logoUrl: string;
-}
-
-/**
  * Amount information for an activity
  */
 export interface ActivityAmount {
@@ -56,16 +43,17 @@ export interface ActivityLog {
   id: string;
   /** Timestamp of the activity */
   date: Date;
-  /** Application where the activity occurred */
-  application: ActivityApplication;
+  /** Source URL for the left avatar. BTC icon for native rows, reserve token icon for borrow/repay. */
+  tokenIcon: string;
+  /** Whether the deposit was refunded via the peg-in refund path. Shown as a red dot with tooltip. */
+  isRefunded?: boolean;
   /** Type of activity */
   type: ActivityType;
   /** Amount involved in the activity */
   amount: ActivityAmount;
   /**
    * Chain for the user-facing transaction hash.
-   * Chosen so the "Transaction Hash" column points to the most meaningful tx
-   * for the activity: BTC peg-in for deposits, EVM event tx for collateral/loan ops.
+   * Chosen so the "Transaction Hash" column points to the most meaningful tx for the activity.
    */
   chain: ActivityChain;
   /** Transaction hash to display (BTC pegin txid or EVM event tx hash). Empty string for pending without a broadcast tx. */
