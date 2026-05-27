@@ -15,11 +15,12 @@ describe("calculateMaxBorrowTokens", () => {
       currentDebtUsd: 0,
       liquidationThresholdBps: 8000,
       tokenPriceUsd: 1,
+      tokenDecimals: 6,
     });
 
     const expectedUsd =
       (10000 * 8000) / BPS_SCALE / MIN_HEALTH_FACTOR_FOR_BORROW;
-    expect(result).toBe(Math.floor(expectedUsd * 100) / 100);
+    expect(result).toBe(Math.floor(expectedUsd * 1e6) / 1e6);
   });
 
   it("subtracts existing debt from borrowing capacity", () => {
@@ -29,11 +30,12 @@ describe("calculateMaxBorrowTokens", () => {
       currentDebtUsd: 2000,
       liquidationThresholdBps: 8000,
       tokenPriceUsd: 1,
+      tokenDecimals: 6,
     });
 
     const expectedUsd =
       (10000 * 8000) / BPS_SCALE / MIN_HEALTH_FACTOR_FOR_BORROW - 2000;
-    expect(result).toBe(Math.floor(expectedUsd * 100) / 100);
+    expect(result).toBe(Math.floor(expectedUsd * 1e6) / 1e6);
   });
 
   it("converts USD cap to token units when token price is not $1", () => {
@@ -43,11 +45,12 @@ describe("calculateMaxBorrowTokens", () => {
       currentDebtUsd: 0,
       liquidationThresholdBps: 8000,
       tokenPriceUsd: 2,
+      tokenDecimals: 6,
     });
 
     const expectedUsd =
       (10000 * 8000) / BPS_SCALE / MIN_HEALTH_FACTOR_FOR_BORROW;
-    expect(result).toBe(Math.floor((expectedUsd / 2) * 100) / 100);
+    expect(result).toBe(Math.floor((expectedUsd / 2) * 1e6) / 1e6);
   });
 
   it("returns zero when existing debt exceeds borrowing capacity", () => {
@@ -56,6 +59,7 @@ describe("calculateMaxBorrowTokens", () => {
       currentDebtUsd: 8000,
       liquidationThresholdBps: 8000,
       tokenPriceUsd: 1,
+      tokenDecimals: 6,
     });
 
     expect(result).toBe(0);
@@ -67,23 +71,24 @@ describe("calculateMaxBorrowTokens", () => {
       currentDebtUsd: 0,
       liquidationThresholdBps: 8000,
       tokenPriceUsd: 1,
+      tokenDecimals: 6,
     });
 
     expect(result).toBe(0);
   });
 
-  it("floors result to two decimal places", () => {
-    // Choose inputs that would produce more than 2 decimals if unrounded
+  it("floors result to the token's native decimals", () => {
+    // Choose inputs that would produce more than tokenDecimals if unrounded
     const result = calculateMaxBorrowTokens({
       collateralValueUsd: 123.456,
       currentDebtUsd: 0,
       liquidationThresholdBps: 8000,
       tokenPriceUsd: 1,
+      tokenDecimals: 6,
     });
 
-    // Must match Math.floor(value * 100) / 100 exactly
     expect(Number.isFinite(result)).toBe(true);
-    expect(result * 100).toBe(Math.floor(result * 100));
+    expect(result * 1e6).toBe(Math.floor(result * 1e6));
   });
 
   it("returns zero when tokenPriceUsd is null", () => {
@@ -92,6 +97,7 @@ describe("calculateMaxBorrowTokens", () => {
       currentDebtUsd: 0,
       liquidationThresholdBps: 8000,
       tokenPriceUsd: null,
+      tokenDecimals: 6,
     });
 
     expect(result).toBe(0);
@@ -103,6 +109,7 @@ describe("calculateMaxBorrowTokens", () => {
       currentDebtUsd: 0,
       liquidationThresholdBps: 8000,
       tokenPriceUsd: 0,
+      tokenDecimals: 6,
     });
 
     expect(result).toBe(0);
@@ -115,10 +122,26 @@ describe("calculateMaxBorrowTokens", () => {
       currentDebtUsd: 0,
       liquidationThresholdBps: 7500,
       tokenPriceUsd: 1,
+      tokenDecimals: 6,
     });
 
     const expectedUsd =
       (10000 * 7500) / BPS_SCALE / MIN_HEALTH_FACTOR_FOR_BORROW;
-    expect(result).toBe(Math.floor(expectedUsd * 100) / 100);
+    expect(result).toBe(Math.floor(expectedUsd * 1e6) / 1e6);
+  });
+
+  it("preserves sub-cent precision for high-priced tokens (WBTC at ~$75k)", () => {
+    // Small collateral, high token price — pre-fix this floored to 0.
+    // $7.48 / $75000 ≈ 0.0000997 → must not round to 0 at 8 decimals.
+    const result = calculateMaxBorrowTokens({
+      collateralValueUsd: 8.976,
+      currentDebtUsd: 0,
+      liquidationThresholdBps: 8000,
+      tokenPriceUsd: 75000,
+      tokenDecimals: 8,
+    });
+
+    expect(result).toBeGreaterThan(0);
+    expect(result * 1e8).toBe(Math.floor(result * 1e8));
   });
 });

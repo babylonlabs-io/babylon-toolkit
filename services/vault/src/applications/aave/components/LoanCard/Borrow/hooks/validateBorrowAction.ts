@@ -4,6 +4,7 @@
  * Validates whether user can perform the borrow action based on amount and health factor.
  */
 
+import { formatTokenAmount } from "../../../../../../utils/formatting";
 import { MIN_HEALTH_FACTOR_FOR_BORROW } from "../../../../constants";
 
 export interface BorrowValidationResult {
@@ -47,7 +48,7 @@ export function validateBorrowAction(
     return {
       isDisabled: true,
       buttonText: "Amount exceeds maximum",
-      errorMessage: `Maximum borrowable amount is ${maxBorrowAmount.toFixed(2)}`,
+      errorMessage: `Maximum borrowable amount is ${formatTokenAmount(maxBorrowAmount)}`,
     };
   }
 

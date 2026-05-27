@@ -9,6 +9,8 @@ export interface CalculateMaxBorrowTokensParams {
   liquidationThresholdBps: number;
   /** Price of the borrow token in USD (null when oracle price is unavailable) */
   tokenPriceUsd: number | null;
+  /** Native token decimals (e.g., 8 for WBTC, 6 for USDC, 18 for ETH) */
+  tokenDecimals: number;
 }
 
 /**
@@ -22,14 +24,16 @@ export interface CalculateMaxBorrowTokensParams {
  *   maxBorrowTokens = maxAdditionalBorrowUsd / tokenPriceUsd
  *
  * Returns 0 when the resulting value would be negative (existing debt
- * already exceeds borrowing capacity). Floored to 2 decimals so the
- * slider never offers sub-cent precision.
+ * already exceeds borrowing capacity). Floored to the token's native
+ * decimals so high-priced tokens (e.g. WBTC at ~$75k) don't lose sub-cent
+ * precision and report Max 0.
  */
 export function calculateMaxBorrowTokens({
   collateralValueUsd,
   currentDebtUsd,
   liquidationThresholdBps,
   tokenPriceUsd,
+  tokenDecimals,
 }: CalculateMaxBorrowTokensParams): number {
   if (tokenPriceUsd == null || tokenPriceUsd <= 0) {
     return 0;
@@ -41,5 +45,6 @@ export function calculateMaxBorrowTokens({
     MIN_HEALTH_FACTOR_FOR_BORROW;
   const maxAdditionalBorrowUsd = maxTotalDebtUsd - currentDebtUsd;
   const maxBorrowTokens = maxAdditionalBorrowUsd / tokenPriceUsd;
-  return Math.floor(Math.max(0, maxBorrowTokens) * 100) / 100;
+  const scale = 10 ** tokenDecimals;
+  return Math.floor(Math.max(0, maxBorrowTokens) * scale) / scale;
 }

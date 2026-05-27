@@ -56,6 +56,7 @@ export function Borrow() {
       currentDebtUsd: totalDebtValueUsd,
       liquidationThresholdBps,
       tokenPriceUsd,
+      tokenDecimals: selectedReserve.token.decimals,
     });
 
   const metrics = useBorrowMetrics({
