@@ -67,20 +67,6 @@ vi.mock("@/services/token/tokenService", () => ({
   ),
 }));
 
-// Mock usePrices — returns Chainlink oracle prices
-const mockUsePrices = vi.fn(() => ({
-  prices: {} as Record<string, number>,
-  metadata: {},
-  isLoading: false,
-  error: null as Error | null,
-  hasStalePrices: false,
-  hasPriceFetchError: false,
-}));
-
-vi.mock("@/hooks/usePrices", () => ({
-  usePrices: () => mockUsePrices(),
-}));
-
 // Mock useAaveConfig
 const mockUseAaveConfig = vi.fn(() => ({
   config: {
@@ -122,7 +108,8 @@ vi.mock("../../../../context", () => ({
   useAaveConfig: () => mockUseAaveConfig(),
 }));
 
-// Mock useAaveUserPosition
+// Mock useAaveUserPosition / useVaultSplitParams / useAaveReservePrice via
+// the barrel they're imported from in useAaveReserveDetail.ts.
 const mockUseAaveUserPosition = vi.fn<(addr?: string) => unknown>(() => ({
   position: null,
   collateralValueUsd: 15000,
@@ -135,7 +122,6 @@ const mockUseAaveUserPosition = vi.fn<(addr?: string) => unknown>(() => ({
   refetch: vi.fn(),
 }));
 
-// Mock useVaultSplitParams
 const mockUseVaultSplitParams = vi.fn<(addr?: string) => unknown>(() => ({
   params: { THF: 1.1, CF: 0.75, LB: 1.05 },
   isLoading: false,
@@ -143,9 +129,28 @@ const mockUseVaultSplitParams = vi.fn<(addr?: string) => unknown>(() => ({
   refetch: vi.fn(),
 }));
 
+const mockUseAaveReservePrice = vi.fn<
+  (args: {
+    spokeAddress: Address | undefined;
+    reserveId: bigint | undefined;
+  }) => {
+    priceUsd: number | null;
+    isLoading: boolean;
+    error: Error | null;
+  }
+>(() => ({
+  priceUsd: null,
+  isLoading: false,
+  error: null,
+}));
+
 vi.mock("../../../../hooks", () => ({
   useAaveUserPosition: (addr?: string) => mockUseAaveUserPosition(addr),
   useVaultSplitParams: (addr?: string) => mockUseVaultSplitParams(addr),
+  useAaveReservePrice: (args: {
+    spokeAddress: Address | undefined;
+    reserveId: bigint | undefined;
+  }) => mockUseAaveReservePrice(args),
 }));
 
 // Import after mocks
@@ -166,17 +171,12 @@ describe("useAaveReserveDetail", () => {
     });
     vi.clearAllMocks();
 
-    // Reset network to signet (default for tests)
     mockGetBTCNetwork.mockReturnValue("signet");
 
-    // Reset to default mock values
-    mockUsePrices.mockReturnValue({
-      prices: {},
-      metadata: {},
+    mockUseAaveReservePrice.mockReturnValue({
+      priceUsd: null,
       isLoading: false,
       error: null,
-      hasStalePrices: false,
-      hasPriceFetchError: false,
     });
     mockUseVaultSplitParams.mockReturnValue({
       params: { THF: 1.1, CF: 0.75, LB: 1.05 },
@@ -197,16 +197,13 @@ describe("useAaveReserveDetail", () => {
     });
   });
 
-  // --- Token price from Chainlink (#131 / #1391) ---
+  // --- Token price from Aave on-chain oracle ---
 
-  it("returns Chainlink price when available", () => {
-    mockUsePrices.mockReturnValue({
-      prices: { USDC: 0.9998 },
-      metadata: {},
+  it("returns the Aave oracle price when present", () => {
+    mockUseAaveReservePrice.mockReturnValue({
+      priceUsd: 0.9998,
       isLoading: false,
       error: null,
-      hasStalePrices: false,
-      hasPriceFetchError: false,
     });
 
     const { result } = renderHook(
@@ -217,35 +214,11 @@ describe("useAaveReserveDetail", () => {
     expect(result.current.tokenPriceUsd).toBe(0.9998);
   });
 
-  it("falls back to $1 for known stablecoin on testnet when Chainlink feed is absent", async () => {
-    // getBTCNetwork returns "signet" by default in our mock
-    mockUsePrices.mockReturnValue({
-      prices: {},
-      metadata: {},
+  it("returns null when oracle returns null (no testnet fallback)", () => {
+    mockUseAaveReservePrice.mockReturnValue({
+      priceUsd: null,
       isLoading: false,
       error: null,
-      hasStalePrices: false,
-      hasPriceFetchError: false,
-    });
-
-    const { result } = renderHook(
-      () => useAaveReserveDetail({ reserveId: "USDC", address: "0xUser" }),
-      { wrapper },
-    );
-
-    expect(result.current.tokenPriceUsd).toBe(1.0);
-  });
-
-  it("returns null for stablecoin on mainnet when Chainlink price is missing", () => {
-    mockGetBTCNetwork.mockReturnValue("mainnet");
-
-    mockUsePrices.mockReturnValue({
-      prices: {},
-      metadata: {},
-      isLoading: false,
-      error: null,
-      hasStalePrices: false,
-      hasPriceFetchError: false,
     });
 
     const { result } = renderHook(
@@ -256,18 +229,11 @@ describe("useAaveReserveDetail", () => {
     expect(result.current.tokenPriceUsd).toBeNull();
   });
 
-  it("returns null when Chainlink price is stale on mainnet", () => {
-    mockGetBTCNetwork.mockReturnValue("mainnet");
-
-    mockUsePrices.mockReturnValue({
-      prices: { USDC: 0.9998 },
-      metadata: {
-        USDC: { isStale: true, ageSeconds: 7200, fetchFailed: false },
-      },
+  it("returns null when oracle errors (no testnet fallback)", () => {
+    mockUseAaveReservePrice.mockReturnValue({
+      priceUsd: null,
       isLoading: false,
-      error: null,
-      hasStalePrices: true,
-      hasPriceFetchError: false,
+      error: new Error("oracle revert"),
     });
 
     const { result } = renderHook(
@@ -278,55 +244,7 @@ describe("useAaveReserveDetail", () => {
     expect(result.current.tokenPriceUsd).toBeNull();
   });
 
-  it("returns null when Chainlink fetch failed on mainnet", () => {
-    mockGetBTCNetwork.mockReturnValue("mainnet");
-
-    mockUsePrices.mockReturnValue({
-      prices: { USDC: 1.0 },
-      metadata: {
-        USDC: {
-          isStale: false,
-          ageSeconds: 0,
-          fetchFailed: true,
-          error: "RPC timeout",
-        },
-      },
-      isLoading: false,
-      error: null,
-      hasStalePrices: false,
-      hasPriceFetchError: true,
-    });
-
-    const { result } = renderHook(
-      () => useAaveReserveDetail({ reserveId: "USDC", address: "0xUser" }),
-      { wrapper },
-    );
-
-    expect(result.current.tokenPriceUsd).toBeNull();
-  });
-
-  it("falls back to $1 for stale stablecoin price on testnet", () => {
-    // getBTCNetwork returns signet (1) by default
-    mockUsePrices.mockReturnValue({
-      prices: { USDC: 0.9998 },
-      metadata: {
-        USDC: { isStale: true, ageSeconds: 7200, fetchFailed: false },
-      },
-      isLoading: false,
-      error: null,
-      hasStalePrices: true,
-      hasPriceFetchError: false,
-    });
-
-    const { result } = renderHook(
-      () => useAaveReserveDetail({ reserveId: "USDC", address: "0xUser" }),
-      { wrapper },
-    );
-
-    expect(result.current.tokenPriceUsd).toBe(1.0);
-  });
-
-  it("returns null for unknown token without Chainlink price", () => {
+  it("returns null for a non-stablecoin reserve on testnet when oracle is unavailable", () => {
     mockUseAaveConfig.mockReturnValue({
       config: {
         coreSpokeAddress: "0xSpokeAddress",
@@ -367,13 +285,10 @@ describe("useAaveReserveDetail", () => {
         },
       ],
     });
-    mockUsePrices.mockReturnValue({
-      prices: {},
-      metadata: {},
+    mockUseAaveReservePrice.mockReturnValue({
+      priceUsd: null,
       isLoading: false,
       error: null,
-      hasStalePrices: false,
-      hasPriceFetchError: false,
     });
 
     const { result } = renderHook(
@@ -428,7 +343,6 @@ describe("useAaveReserveDetail", () => {
   });
 
   it("handles CF values that could produce floating-point imprecision", () => {
-    // 0.8333 * 10000 = 8333.0 in most cases, but test the rounding
     mockUseVaultSplitParams.mockReturnValue({
       params: { THF: 1.1, CF: 0.8333, LB: 1.05 },
       isLoading: false,
@@ -446,13 +360,10 @@ describe("useAaveReserveDetail", () => {
   // --- Loading state ---
 
   it("includes prices loading in isLoading", () => {
-    mockUsePrices.mockReturnValue({
-      prices: {},
-      metadata: {},
+    mockUseAaveReservePrice.mockReturnValue({
+      priceUsd: null,
       isLoading: true,
       error: null,
-      hasStalePrices: false,
-      hasPriceFetchError: false,
     });
 
     const { result } = renderHook(
@@ -479,13 +390,10 @@ describe("useAaveReserveDetail", () => {
   });
 
   it("is not loading when all sources have resolved", () => {
-    mockUsePrices.mockReturnValue({
-      prices: { USDC: 1.0 },
-      metadata: {},
+    mockUseAaveReservePrice.mockReturnValue({
+      priceUsd: 1.0,
       isLoading: false,
       error: null,
-      hasStalePrices: false,
-      hasPriceFetchError: false,
     });
     mockUseVaultSplitParams.mockReturnValue({
       params: { THF: 1.1, CF: 0.75, LB: 1.05 },
@@ -550,15 +458,12 @@ describe("useAaveReserveDetail", () => {
     expect(result.current.ancillaryError).toBeNull();
   });
 
-  it("propagates pricesError as ancillaryError (soft-warn, not a hard block)", () => {
-    const pricesError = new Error("Chainlink RPC failure");
-    mockUsePrices.mockReturnValue({
-      prices: {},
-      metadata: {},
+  it("propagates oracle pricesError as ancillaryError (soft-warn, not a hard block)", () => {
+    const pricesError = new Error("Oracle RPC failure");
+    mockUseAaveReservePrice.mockReturnValue({
+      priceUsd: null,
       isLoading: false,
       error: pricesError,
-      hasStalePrices: false,
-      hasPriceFetchError: true,
     });
 
     const { result } = renderHook(

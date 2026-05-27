@@ -77,15 +77,19 @@ export {
   buildRepayTx,
   buildWithdrawCollateralsTx,
   getDynamicReserveConfig,
+  getOracleAddress,
   getPosition,
   getPositionSizeParams,
   getReserve,
+  getReservesPrices,
+  getReservesPricesSafe,
   getTargetHealthFactor,
   getUserAccountData,
   getUserPosition,
   getUserTotalDebt,
   hasCollateral,
   hasDebt,
+  type ReservePriceResult,
 } from "./clients/index.js";
 
 // Utilities

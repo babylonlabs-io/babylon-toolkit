@@ -56,11 +56,12 @@ function getChainlinkFeedAddress(symbol: string): Address | null {
   const network = getBTCNetwork();
   const normalizedSymbol = symbol.toUpperCase();
 
+  // vBTC: 1:1 synthetic BTC by protocol design. sBTC: FE display symbol for BTC on signet.
+  // WBTC is NOT here — it has real depeg risk; Aave borrow flow sources it from the Aave oracle.
   if (
     normalizedSymbol === "BTC" ||
     normalizedSymbol === "VBTC" ||
-    normalizedSymbol === "SBTC" ||
-    normalizedSymbol === "WBTC"
+    normalizedSymbol === "SBTC"
   ) {
     if (ENV.BTC_PRICE_FEED) {
       if (!btcPriceFeedOverrideWarned) {
@@ -276,10 +277,8 @@ export async function getTokenPrices(
       if (normalizedSymbol === "BTC") {
         prices["vBTC"] = result.price;
         prices["sBTC"] = result.price;
-        prices["WBTC"] = result.price;
         metadata["vBTC"] = result.metadata;
         metadata["sBTC"] = result.metadata;
-        metadata["WBTC"] = result.metadata;
       }
     } catch (error) {
       const errorMessage =
@@ -303,7 +302,6 @@ export async function getTokenPrices(
       if (normalizedSymbol === "BTC") {
         metadata["vBTC"] = metadata[symbol];
         metadata["sBTC"] = metadata[symbol];
-        metadata["WBTC"] = metadata[symbol];
       }
     }
   });

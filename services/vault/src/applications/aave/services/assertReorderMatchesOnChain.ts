@@ -54,7 +54,7 @@ export class PositionChangedError extends Error {
  * recomputes against indexer-supplied inputs.
  *
  * - CF, THF, maxLB: from `useVaultSplitParams` (Spoke reads)
- * - btcPrice: from Aave on-chain oracle via `usePrices`
+ * - btcPrice: from `usePrices` (Chainlink BTC/USD aggregator)
  * - totalDebtUsd: from `useAaveUserPosition().debtValueUsd`
  *   (`accountData.totalDebtValueRay`, a Spoke read)
  * - expectedHF: optional override; defaults to the calculator's

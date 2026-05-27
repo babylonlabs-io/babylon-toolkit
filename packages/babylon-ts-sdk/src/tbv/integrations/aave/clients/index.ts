@@ -16,6 +16,14 @@ export {
   hasDebt,
 } from "./spoke.js";
 
+// Oracle operations
+export {
+  getOracleAddress,
+  getReservesPrices,
+  getReservesPricesSafe,
+  type ReservePriceResult,
+} from "./oracle.js";
+
 // Transaction builders
 export {
   buildBorrowTx,

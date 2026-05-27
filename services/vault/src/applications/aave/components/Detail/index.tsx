@@ -14,6 +14,8 @@ import { getNetworkConfigBTC } from "@/config";
 import { useConnection, useETHWallet } from "@/context/wallet";
 
 import { LOAN_TAB } from "../../constants";
+import { useAaveConfig } from "../../context";
+import { useAaveOracleAddress } from "../../hooks";
 import { LoanProvider } from "../context/LoanContext";
 import { LoanCard } from "../LoanCard";
 import { BorrowSuccessModal } from "../LoanCard/Borrow/SuccessModal";
@@ -36,6 +38,11 @@ export function AaveReserveDetail() {
 
   const { isConnected } = useConnection();
   const { address } = useETHWallet();
+  const { config } = useAaveConfig();
+  // Loading/error surfaces via useAaveReservePrice (shared cache key).
+  const { oracleAddress } = useAaveOracleAddress({
+    spokeAddress: config?.coreSpokeAddress,
+  });
 
   // Fetch reserve and position data
   const {
@@ -81,7 +88,6 @@ export function AaveReserveDetail() {
     navigate("/");
   };
 
-  // Loading state
   if (isLoading) {
     return (
       <Container className={`${PAGE_CONTENT_CLASS} pb-6`}>
@@ -114,7 +120,7 @@ export function AaveReserveDetail() {
     );
   }
 
-  // Reserve not found
+  // Don't gate on oracleAddress — repay doesn't need it; lookup failure surfaces via ancillaryError on Borrow.
   if (!selectedReserve || !assetConfig || !vbtcReserve) {
     return (
       <Container className={`${PAGE_CONTENT_CLASS} pb-6`}>
@@ -128,7 +134,6 @@ export function AaveReserveDetail() {
     );
   }
 
-  // Build loan context with all data needed by Borrow/Repay components
   const loanContextValue = {
     collateralValueUsd,
     currentDebtAmount,
@@ -138,6 +143,7 @@ export function AaveReserveDetail() {
     selectedReserve,
     assetConfig,
     proxyContract,
+    oracleAddress,
     tokenPriceUsd,
     isPositionDataStale,
     refetchPosition,

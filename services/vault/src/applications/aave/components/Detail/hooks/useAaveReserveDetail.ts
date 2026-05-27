@@ -4,28 +4,25 @@
  * Fetches and combines:
  * - Reserve config from Aave
  * - User position data (with position-specific collateral factor)
- * - Chainlink oracle prices for borrow token
+ * - Aave on-chain oracle price for the selected borrow token
  * - Asset metadata for display
  */
 
-import { Network } from "@babylonlabs-io/wallet-connector";
 import { useMemo } from "react";
 import { formatUnits } from "viem";
 
-import { getBTCNetwork } from "@/config";
-import { usePrices } from "@/hooks/usePrices";
 import {
   getCurrencyIconWithFallback,
   getTokenByAddress,
 } from "@/services/token/tokenService";
 
-import {
-  BPS_SCALE,
-  KNOWN_STABLECOIN_SYMBOLS,
-  STABLECOIN_FALLBACK_PRICE_USD,
-} from "../../../constants";
+import { BPS_SCALE } from "../../../constants";
 import { useAaveConfig } from "../../../context";
-import { useAaveUserPosition, useVaultSplitParams } from "../../../hooks";
+import {
+  useAaveReservePrice,
+  useAaveUserPosition,
+  useVaultSplitParams,
+} from "../../../hooks";
 import type { VaultSplitParams } from "../../../hooks/useVaultSplitParams";
 import type { AavePositionWithLiveData } from "../../../services";
 import type { AaveReserveConfig } from "../../../services/fetchConfig";
@@ -90,7 +87,7 @@ export function useAaveReserveDetail({
   reserveId,
   address,
 }: UseAaveReserveDetailProps): UseAaveReserveDetailResult {
-  const { vbtcReserve, allBorrowReserves } = useAaveConfig();
+  const { config, vbtcReserve, allBorrowReserves } = useAaveConfig();
 
   // Find the selected reserve by symbol (from URL param). Match against the
   // full reserve set, not just borrowable ones - a user reaching this page
@@ -130,13 +127,15 @@ export function useAaveReserveDetail({
     refetch: refetchPosition,
   } = useAaveUserPosition(address);
 
-  // Chainlink oracle prices (cached app-wide via React Query)
+  // Aave on-chain oracle — source of liquidation truth, so FE checks can't drift.
   const {
-    prices: chainlinkPrices,
-    metadata: priceMetadata,
+    priceUsd: aavePriceUsd,
     isLoading: pricesLoading,
     error: pricesError,
-  } = usePrices();
+  } = useAaveReservePrice({
+    spokeAddress: config?.coreSpokeAddress,
+    reserveId: selectedReserve?.reserveId,
+  });
 
   // Position-specific collateral factor from contract
   const {
@@ -177,37 +176,15 @@ export function useAaveReserveDetail({
     ? Math.round(splitParams.CF * BPS_SCALE)
     : 0;
 
-  // Look up token price from Chainlink oracle. On testnet where stablecoin
-  // feeds are unavailable, fall back to $1 for known stablecoins only.
-  const tokenPriceUsd = useMemo((): number | null => {
-    if (!selectedReserve) return null;
-
-    const symbol = selectedReserve.token.symbol.toUpperCase();
-    const price = chainlinkPrices[symbol];
-    const metadata = priceMetadata[symbol];
-
-    // Reject stale or failed prices — a stale feed during a depeg event
-    // would produce an inflated max-borrow / HF
-    // Treat stale/failed the same as missing.
-    const isPriceReliable = !metadata?.isStale && !metadata?.fetchFailed;
-
-    if (price != null && price > 0 && isPriceReliable) {
-      return price;
-    }
-
-    // Testnet/signet: Chainlink doesn't publish stablecoin feeds on Sepolia.
-    // $1 is correct for mock-pegged test tokens. On mainnet a missing price
-    // is a real error — return null so the UI blocks the borrow flow.
-    const isKnownStablecoin = (
-      KNOWN_STABLECOIN_SYMBOLS as readonly string[]
-    ).includes(symbol);
-
-    if (getBTCNetwork() !== Network.MAINNET && isKnownStablecoin) {
-      return STABLECOIN_FALLBACK_PRICE_USD;
-    }
-
-    return null;
-  }, [selectedReserve, chainlinkPrices, priceMetadata]);
+  // Trust the Aave oracle; do not substitute. A null/error here disables
+  // borrow downstream rather than masking a misconfigured reserve.
+  const tokenPriceUsd = useMemo(
+    (): number | null =>
+      selectedReserve && aavePriceUsd != null && aavePriceUsd > 0
+        ? aavePriceUsd
+        : null,
+    [selectedReserve, aavePriceUsd],
+  );
 
   return {
     isLoading: positionLoading || pricesLoading || splitParamsLoading,
