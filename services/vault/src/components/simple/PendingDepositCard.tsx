@@ -173,6 +173,7 @@ export function PendingDepositCard({
         <PeginTxHashRow
           peginTxHash={peginTxHash}
           prePeginTxHash={prePeginTxHash}
+          linkPegin
           linkPrePegin={prePeginBroadcast}
         />
       }
