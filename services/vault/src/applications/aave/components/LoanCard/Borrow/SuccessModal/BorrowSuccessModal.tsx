@@ -1,7 +1,7 @@
 import { Avatar } from "@babylonlabs-io/core-ui";
 
-import { SubmitModal } from "../../../../../../components/shared";
-import { formatAmount } from "../../../../../../utils/formatting";
+import { SubmitModal } from "@/components/shared";
+import { formatAmount } from "@/utils/formatting";
 
 interface BorrowSuccessModalProps {
   open: boolean;
