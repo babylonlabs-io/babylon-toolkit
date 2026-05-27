@@ -23,6 +23,7 @@ import {
 } from "./DepositProgressView";
 import {
   ResumeActivationContent,
+  ResumeBroadcastContent,
   ResumeSignContent,
   ResumeWotsContent,
 } from "./ResumeDepositContent";
@@ -93,6 +94,8 @@ function StatusView({
   canContinueInBackground = false,
   successMessage,
   btcConfirmationDetail = null,
+  vaultCount = 1,
+  currentVaultIndex = null,
 }: {
   currentStep: DepositFlowStep;
   onClose: () => void;
@@ -102,6 +105,8 @@ function StatusView({
   canContinueInBackground?: boolean;
   successMessage?: string;
   btcConfirmationDetail?: BtcConfirmationDetailData | null;
+  vaultCount?: number;
+  currentVaultIndex?: number | null;
 }) {
   return (
     <DepositProgressView
@@ -113,6 +118,8 @@ function StatusView({
       canContinueInBackground={canContinueInBackground}
       payoutSigningProgress={null}
       peginSigningProgress={null}
+      vaultCount={vaultCount}
+      currentVaultIndex={currentVaultIndex}
       onClose={onClose}
       successMessage={successMessage}
       btcConfirmationDetail={btcConfirmationDetail}
@@ -166,6 +173,12 @@ export function PostDepositContinuationView({
     Boolean(activity?.prePeginTxHash);
   const startedAt = useBtcDepthStartedAt(activity?.id, showBtcDepthPanel);
 
+  // Pass to every branch so split deposits render the multi-column UI with
+  // the current vault highlighted. A single-vault deposit yields vaultCount=1
+  // and the progress view falls back to its original single-column layout.
+  const siblingVaultIds = vaultIds as readonly string[] as string[];
+  const vaultCount = siblingVaultIds.length || 1;
+
   if (!currentVaultId) {
     const warning = vaultIds
       .map((id) => getPollingResult(id)?.peginState)
@@ -174,6 +187,9 @@ export function PostDepositContinuationView({
       // Freeze the stepper at the point of failure based on the vault's
       // last persisted localStatus — `getPeginDisplayStep` is null for
       // warning states by design, so we map it ourselves.
+      const warningIndex = vaultIds.findIndex(
+        (id) => getPollingResult(id)?.peginState === warning,
+      );
       return (
         <StatusView
           currentStep={stepForWarningVault(warning)}
@@ -181,6 +197,8 @@ export function PostDepositContinuationView({
             warning.message ?? COPY.common.somethingWentWrong.body,
           )}
           onClose={onClose}
+          vaultCount={vaultCount}
+          currentVaultIndex={warningIndex >= 0 ? warningIndex : null}
         />
       );
     }
@@ -190,28 +208,42 @@ export function PostDepositContinuationView({
         isComplete
         onClose={onClose}
         successMessage={COPY.deposit.resume.activationSuccessMessage}
+        vaultCount={vaultCount}
+        currentVaultIndex={null}
       />
     );
   }
 
   const actions = peginState?.availableActions ?? [];
 
-  // Action-driven branches. PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN is
-  // intentionally absent: the continuation only mounts after
-  // `executeDeposit()` resolves (Pre-PegIn broadcast + localStorage past
-  // CONFIRMING), so that action is never in `actions` here — the dashboard
-  // resume path covers sessions that aborted before broadcast.
+  // Action-driven branches. Broadcast comes first because it has to happen
+  // before any of the per-vault VP steps; the action availability already
+  // guarantees at most one branch matches.
   //
   // Artifact download is NOT auto-invoked: it's a real file download and
   // silent downloads are user-hostile (the browser may block, the user may
   // not be ready). The ActivationGate below renders a manual download
   // button once that step is reached.
 
+  if (activity && actions.includes(PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN)) {
+    return (
+      <ResumeBroadcastContent
+        key={`broadcast-${currentVaultId}`}
+        activity={activity}
+        batchVaultIds={siblingVaultIds}
+        depositorEthAddress={depositorEthAddress}
+        onClose={onClose}
+        onSuccess={refetch}
+      />
+    );
+  }
+
   if (activity && actions.includes(PeginAction.SUBMIT_WOTS_KEY)) {
     return (
       <ResumeWotsContent
         key={`wots-${currentVaultId}`}
         activity={activity}
+        siblingVaultIds={siblingVaultIds}
         onClose={onClose}
         onSuccess={refetch}
       />
@@ -229,6 +261,7 @@ export function PostDepositContinuationView({
         activity={activity}
         btcPublicKey={btcPublicKey}
         depositorEthAddress={depositorEthAddress}
+        siblingVaultIds={siblingVaultIds}
         onClose={onClose}
         onSuccess={refetch}
       />
@@ -245,6 +278,7 @@ export function PostDepositContinuationView({
         <ResumeActivationContent
           activity={activity}
           depositorEthAddress={depositorEthAddress}
+          siblingVaultIds={siblingVaultIds}
           onClose={onClose}
           onSuccess={refetch}
         />
@@ -274,6 +308,8 @@ export function PostDepositContinuationView({
   return (
     <StatusView
       currentStep={waitStep}
+      vaultCount={vaultCount}
+      currentVaultIndex={currentVaultIndex >= 0 ? currentVaultIndex : null}
       isProcessing
       canContinueInBackground
       onClose={onClose}

@@ -88,6 +88,9 @@ interface VaultDetailCardProps {
    *  on-chain at vault creation, which may differ from the currently
    *  connected BTC wallet. */
   payoutBtcAddress?: string;
+  /** Optional click handler invoked when the card body (not an inner button
+   *  or link) is clicked. Used to open the deposit multistepper. */
+  onClick?: () => void;
 }
 
 export function VaultDetailCard({
@@ -106,11 +109,16 @@ export function VaultDetailCard({
   disabled,
   disabledTooltip,
   payoutBtcAddress,
+  onClick,
 }: VaultDetailCardProps) {
   const relativeTime = useRelativeTime(timestamp);
 
   return (
-    <VaultCardShell disabled={disabled} disabledTooltip={disabledTooltip}>
+    <VaultCardShell
+      disabled={disabled}
+      disabledTooltip={disabledTooltip}
+      onClick={onClick}
+    >
       {/* BTC icon + amount (+ optional subtext), optional header-end content */}
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-center gap-2">

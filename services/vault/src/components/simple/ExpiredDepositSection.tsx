@@ -30,23 +30,14 @@ const btcConfig = getNetworkConfigBTC();
 interface ExpiredDepositSectionProps {
   expiredActivities: VaultActivity[];
   vaultProviders: VaultProvider[];
-  onSignClick: (depositId: string) => void;
-  onBroadcastClick: (depositId: string) => void;
-  onWotsKeyClick: (depositId: string) => void;
-  onActivationClick: (depositId: string) => void;
+  /** Invoked when an expired card is clicked — opens the refund modal. */
   onRefundClick: (depositId: string) => void;
-  onArtifactDownloadClick?: (depositId: string) => void;
 }
 
 export function ExpiredDepositSection({
   expiredActivities,
   vaultProviders,
-  onSignClick,
-  onBroadcastClick,
-  onWotsKeyClick,
-  onActivationClick,
   onRefundClick,
-  onArtifactDownloadClick,
 }: ExpiredDepositSectionProps) {
   const [isExpanded, setIsExpanded] = useState(false);
 
@@ -107,12 +98,7 @@ export function ExpiredDepositSection({
                 prePeginTxHash={activity.prePeginTxHash}
                 providerId={activity.providers[0].id}
                 vaultProviders={vaultProviders}
-                onSignClick={onSignClick}
-                onBroadcastClick={onBroadcastClick}
-                onWotsKeyClick={onWotsKeyClick}
-                onActivationClick={onActivationClick}
-                onRefundClick={onRefundClick}
-                onArtifactDownloadClick={onArtifactDownloadClick}
+                onCardClick={onRefundClick}
               />
             ))}
           </div>

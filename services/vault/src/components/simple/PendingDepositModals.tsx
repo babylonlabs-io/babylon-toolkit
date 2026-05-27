@@ -13,6 +13,7 @@ import { usePeginPolling } from "@/context/deposit/PeginPollingContext";
 import type { SignModalData } from "@/hooks/deposit/usePayoutSignModal";
 import type { VaultActivity } from "@/types/activity";
 import type { VaultProvider } from "@/types/vaultProvider";
+import { getBatchSiblings } from "@/utils/batchedPegin";
 
 import { ActivationGate } from "./ActivationGate";
 import SimpleDeposit from "./SimpleDeposit";
@@ -62,6 +63,17 @@ interface PendingDepositModalsProps {
   vaultProviders: VaultProvider[];
   btcPublicKey: string | undefined;
   ethAddress: string | undefined;
+  /** All activities — used to resolve split-pegin siblings for any open modal. */
+  allActivities: VaultActivity[];
+}
+
+function siblingIdsFor(
+  allActivities: VaultActivity[],
+  activity: VaultActivity | null,
+): string[] | undefined {
+  if (!activity) return undefined;
+  const siblings = getBatchSiblings(allActivities, activity);
+  return siblings.length > 1 ? siblings.map((a) => a.id) : undefined;
 }
 
 export function PendingDepositModals({
@@ -73,6 +85,7 @@ export function PendingDepositModals({
   vaultProviders,
   btcPublicKey,
   ethAddress,
+  allActivities,
 }: PendingDepositModalsProps) {
   const { refetch: refetchPolling } = usePeginPolling();
 
@@ -98,6 +111,10 @@ export function PendingDepositModals({
           activity={signModal.signingData.activity}
           btcPublicKey={btcPublicKey}
           depositorEthAddress={ethAddress as Hex}
+          batchVaultIds={siblingIdsFor(
+            allActivities,
+            signModal.signingData.activity,
+          )}
         />
       )}
 
@@ -123,6 +140,7 @@ export function PendingDepositModals({
           onResumeSuccess={handleWotsKeySuccess}
           activity={wotsKeyModal.activity}
           vaultProviders={vaultProviders}
+          batchVaultIds={siblingIdsFor(allActivities, wotsKeyModal.activity)}
         />
       )}
 
@@ -140,6 +158,7 @@ export function PendingDepositModals({
             onResumeSuccess={activationModal.handleSuccess}
             activity={activatingActivity}
             depositorEthAddress={ethAddress}
+            batchVaultIds={siblingIdsFor(allActivities, activatingActivity)}
           />
         </ActivationGate>
       )}

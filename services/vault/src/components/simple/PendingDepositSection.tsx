@@ -8,8 +8,9 @@
  *  - When expanded, shows individual deposit sub-cards
  */
 
-import { Avatar, Card } from "@babylonlabs-io/core-ui";
-import { useMemo, useState } from "react";
+import { Avatar, Card, FullScreenDialog } from "@babylonlabs-io/core-ui";
+import { useCallback, useMemo, useState } from "react";
+import type { Address, Hex } from "viem";
 
 import { ArtifactDownloadModal } from "@/components/deposit/ArtifactDownloadModal";
 import { ExpandMenuButton } from "@/components/shared";
@@ -21,7 +22,7 @@ import { getNetworkConfigBTC } from "@/config";
 import { PeginPollingProvider } from "@/context/deposit/PeginPollingContext";
 import { ProtocolParamsProvider } from "@/context/ProtocolParamsContext";
 import { usePendingDeposits } from "@/hooks/usePendingDeposits";
-import { groupActivitiesByBatch } from "@/utils/batchedPegin";
+import { getBatchSiblings, groupActivitiesByBatch } from "@/utils/batchedPegin";
 import { formatBtcAmount } from "@/utils/formatting";
 
 import { BatchedDepositGroup } from "./BatchedDepositGroup";
@@ -29,11 +30,16 @@ import { ExpiredDepositSection } from "./ExpiredDepositSection";
 import { PendingDepositActionBadge } from "./PendingDepositActionBadge";
 import { PendingDepositCard } from "./PendingDepositCard";
 import { PendingDepositModals } from "./PendingDepositModals";
+import { PostDepositContinuationContent } from "./PostDepositContinuationContent";
 
 const btcConfig = getNetworkConfigBTC();
 
 export function PendingDepositSection() {
   const [isExpanded, setIsExpanded] = useState(false);
+  // Vault IDs whose multistepper view modal is currently open. Holds the full
+  // batch (for a split-pegin deposit) so the modal can render the multi-column
+  // split layout; null when the modal is closed.
+  const [viewingBatch, setViewingBatch] = useState<Hex[] | null>(null);
 
   const {
     pendingActivities,
@@ -69,6 +75,21 @@ export function PendingDepositSection() {
     [pendingActivities],
   );
 
+  // Clicking the card body (not an inner button or link) opens the deposit
+  // multistepper view for the whole batch the card belongs to. The batch is
+  // resolved fresh per click so the modal always reflects the current shape.
+  const handleCardClick = useCallback(
+    (depositId: string) => {
+      const activity = allActivities.find((a) => a.id === depositId);
+      if (!activity) return;
+      const siblings = getBatchSiblings(allActivities, activity);
+      setViewingBatch(siblings.map((s) => s.id as Hex));
+    },
+    [allActivities],
+  );
+
+  const handleViewingClose = useCallback(() => setViewingBatch(null), []);
+
   // A resume modal is rendered inside this section (under its
   // PeginPollingProvider). When the last pending deposit advances to a terminal
   // contract state (e.g. activation confirmed → ACTIVE), it drops out of
@@ -82,7 +103,8 @@ export function PendingDepositSection() {
       wotsKeyModal.isOpen ||
       activationModal.activatingActivity ||
       artifactDownloadModal.isOpen ||
-      refundModal.refundingActivity,
+      refundModal.refundingActivity ||
+      viewingBatch,
   );
 
   if (!hasPendingDeposits && !hasExpiredDeposits && !hasOpenModal) return null;
@@ -152,16 +174,8 @@ export function PendingDepositSection() {
                           key={group[0].id}
                           activities={group}
                           vaultProviders={vaultProviders}
-                          onSignClick={signModal.handleSignClick}
                           onBroadcastClick={broadcastModal.handleBroadcastClick}
-                          onWotsKeyClick={wotsKeyModal.handleWotsKeyClick}
-                          onActivationClick={
-                            activationModal.handleActivationClick
-                          }
-                          onRefundClick={refundModal.handleRefundClick}
-                          onArtifactDownloadClick={
-                            artifactDownloadModal.handleArtifactDownloadClick
-                          }
+                          onGroupClick={handleCardClick}
                         />
                       ) : (
                         <PendingDepositCard
@@ -173,16 +187,7 @@ export function PendingDepositSection() {
                           prePeginTxHash={group[0].prePeginTxHash}
                           providerId={group[0].providers[0].id}
                           vaultProviders={vaultProviders}
-                          onSignClick={signModal.handleSignClick}
-                          onBroadcastClick={broadcastModal.handleBroadcastClick}
-                          onWotsKeyClick={wotsKeyModal.handleWotsKeyClick}
-                          onActivationClick={
-                            activationModal.handleActivationClick
-                          }
-                          onRefundClick={refundModal.handleRefundClick}
-                          onArtifactDownloadClick={
-                            artifactDownloadModal.handleArtifactDownloadClick
-                          }
+                          onCardClick={handleCardClick}
                         />
                       ),
                     )}
@@ -195,14 +200,7 @@ export function PendingDepositSection() {
           <ExpiredDepositSection
             expiredActivities={expiredActivities}
             vaultProviders={vaultProviders}
-            onSignClick={signModal.handleSignClick}
-            onBroadcastClick={broadcastModal.handleBroadcastClick}
-            onWotsKeyClick={wotsKeyModal.handleWotsKeyClick}
-            onActivationClick={activationModal.handleActivationClick}
             onRefundClick={refundModal.handleRefundClick}
-            onArtifactDownloadClick={
-              artifactDownloadModal.handleArtifactDownloadClick
-            }
           />
         </div>
 
@@ -233,7 +231,25 @@ export function PendingDepositSection() {
           vaultProviders={vaultProviders}
           btcPublicKey={btcPublicKey}
           ethAddress={ethAddress}
+          allActivities={allActivities}
         />
+
+        {/* Multistepper view — opened by clicking a pending deposit card. */}
+        {viewingBatch && ethAddress && (
+          <FullScreenDialog
+            open
+            onClose={handleViewingClose}
+            className="items-center justify-center p-6"
+          >
+            <div className="mx-auto w-full max-w-[520px]">
+              <PostDepositContinuationContent
+                vaultIds={viewingBatch}
+                depositorEthAddress={ethAddress as Address}
+                onClose={handleViewingClose}
+              />
+            </div>
+          </FullScreenDialog>
+        )}
       </PeginPollingProvider>
     </ProtocolParamsProvider>
   );

@@ -26,18 +26,8 @@ vi.mock("@/components/deposit/actionStatus", async (importOriginal) => {
 
 // Stub the inner card — this suite covers the group wrapper, not the card.
 vi.mock("../PendingDepositCard", () => ({
-  PendingDepositCard: ({
-    depositId,
-    suppressBroadcastAction,
-  }: {
-    depositId: string;
-    suppressBroadcastAction?: boolean;
-  }) => (
-    <div
-      data-testid="deposit-card"
-      data-deposit-id={depositId}
-      data-suppressed={String(!!suppressBroadcastAction)}
-    />
+  PendingDepositCard: ({ depositId }: { depositId: string }) => (
+    <div data-testid="deposit-card" data-deposit-id={depositId} />
   ),
 }));
 
@@ -66,11 +56,7 @@ function renderGroup(activities: VaultActivity[], onBroadcastClick = vi.fn()) {
     <BatchedDepositGroup
       activities={activities}
       vaultProviders={[]}
-      onSignClick={vi.fn()}
       onBroadcastClick={onBroadcastClick}
-      onWotsKeyClick={vi.fn()}
-      onActivationClick={vi.fn()}
-      onRefundClick={vi.fn()}
     />,
   );
   return { onBroadcastClick };
@@ -93,7 +79,6 @@ describe("BatchedDepositGroup", () => {
     const cards = screen.getAllByTestId("deposit-card");
     expect(cards).toHaveLength(2);
     expect(cards.map((c) => c.dataset.depositId)).toEqual(["0xa", "0xb"]);
-    expect(cards.every((c) => c.dataset.suppressed === "true")).toBe(true);
 
     expect(
       screen.getByRole("button", { name: /broadcast pre-pegin/i }),
@@ -129,9 +114,7 @@ describe("BatchedDepositGroup", () => {
 
   it("keeps the grouping wrapper after broadcast but drops the hoisted button", () => {
     // No sibling needs broadcast — the batch has no shared action left, but
-    // the wrapper stays so sibling cards remain visually grouped. The
-    // hoisted broadcast button is dropped, and inner cards no longer need
-    // to suppress their own (non-existent) broadcast action.
+    // the wrapper stays so sibling cards remain visually grouped.
     mockGetActionStatus.mockReturnValue(NO_ACTION);
     renderGroup([activity("0xa"), activity("0xb")]);
 
@@ -142,9 +125,7 @@ describe("BatchedDepositGroup", () => {
       screen.queryByRole("button", { name: /broadcast pre-pegin/i }),
     ).not.toBeInTheDocument();
 
-    const cards = screen.getAllByTestId("deposit-card");
-    expect(cards).toHaveLength(2);
-    expect(cards.every((c) => c.dataset.suppressed === "false")).toBe(true);
+    expect(screen.getAllByTestId("deposit-card")).toHaveLength(2);
   });
 
   it("renders a total of all sibling amounts in the group header", () => {

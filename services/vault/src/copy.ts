@@ -196,6 +196,10 @@ export const COPY = {
       heading: "Deposit Progress",
       stepsCompleted: (completed: number, total: number) =>
         `${completed} of ${total} steps completed`,
+      // Inline prefix for the pending-deposit card's active-step label
+      // (e.g. "Step 6 of 15"). Sits before the bolded step label.
+      stepPrefix: (current: number, total: number) =>
+        `Step ${current} of ${total}`,
       defaultSuccessMessage: PRE_PEGIN_BROADCAST_CONFIRMATION_MESSAGE,
       doNotSpendWarning:
         "To ensure a seamless deposit, do not spend the BTC allocated for this process until the transaction is confirmed.",

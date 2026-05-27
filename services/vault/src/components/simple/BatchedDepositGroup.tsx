@@ -31,23 +31,22 @@ interface BatchedDepositGroupProps {
   /** Sibling vaults sharing one Pre-PegIn transaction (2 or more). */
   activities: VaultActivity[];
   vaultProviders: VaultProvider[];
-  onSignClick: (depositId: string) => void;
+  /** Hoisted batch-level broadcast handler; only invoked while a sibling
+   *  still needs the shared Pre-PegIn broadcast. */
   onBroadcastClick: (depositId: string) => void;
-  onWotsKeyClick: (depositId: string) => void;
-  onActivationClick: (depositId: string) => void;
-  onRefundClick: (depositId: string) => void;
-  onArtifactDownloadClick?: (depositId: string) => void;
+  /** Optional handler invoked when the group body is clicked outside any
+   *  per-row action. One handler covers the whole batch — siblings open
+   *  the same batch-level multistepper, so there's nothing to disambiguate
+   *  per sub-card. The handler receives the first sibling's id as a
+   *  representative; the caller resolves the full batch from there. */
+  onGroupClick?: (representativeDepositId: string) => void;
 }
 
 export function BatchedDepositGroup({
   activities,
   vaultProviders,
-  onSignClick,
   onBroadcastClick,
-  onWotsKeyClick,
-  onActivationClick,
-  onRefundClick,
-  onArtifactDownloadClick,
+  onGroupClick,
 }: BatchedDepositGroupProps) {
   const { getPollingResult } = usePeginPolling();
 
@@ -64,16 +63,48 @@ export function BatchedDepositGroup({
     );
   });
 
-  const suppressBroadcast = !!broadcastTarget;
-
   const totalBtc = activities.reduce(
     (sum, activity) => sum + parseFloat(activity.collateral.amount || "0"),
     0,
   );
   const btcSymbol = getNetworkConfigBTC().coinSymbol;
 
+  // One click anywhere on the group opens the batch-level multistepper.
+  // Clicks landing on a button or anchor inside (Copy, explorer link,
+  // hoisted broadcast button, per-vault action) preserve their own behaviour.
+  const clickable = Boolean(onGroupClick);
+  const handleClick = (event: React.MouseEvent<HTMLDivElement>) => {
+    if (!clickable) return;
+    const target = event.target as HTMLElement;
+    if (target.closest("button, a")) return;
+    onGroupClick?.(activities[0].id);
+  };
+
   return (
-    <div className="rounded-xl border border-accent-primary bg-primary-light/10 p-3">
+    <div
+      // `group` enables the shared hover state — when the wrapper is hovered,
+      // every VaultCardShell inside lights up via `group-hover:` so the whole
+      // batch reads as a single button.
+      className={
+        clickable
+          ? "group rounded-xl border border-accent-primary bg-primary-light/10 p-3 transition-colors hover:bg-primary-light/[0.15]"
+          : "rounded-xl border border-accent-primary bg-primary-light/10 p-3"
+      }
+      role={clickable ? "button" : undefined}
+      tabIndex={clickable ? 0 : undefined}
+      onClick={clickable ? handleClick : undefined}
+      onKeyDown={
+        clickable
+          ? (event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                onGroupClick?.(activities[0].id);
+              }
+            }
+          : undefined
+      }
+      style={clickable ? { cursor: "pointer" } : undefined}
+    >
       <div className="mb-2 flex items-baseline justify-between gap-2">
         <span className="text-xs text-accent-secondary">
           {COPY.pegin.batchedDeposit.groupLabel}
@@ -96,13 +127,6 @@ export function BatchedDepositGroup({
             prePeginTxHash={activity.prePeginTxHash}
             providerId={activity.providers[0].id}
             vaultProviders={vaultProviders}
-            suppressBroadcastAction={suppressBroadcast}
-            onSignClick={onSignClick}
-            onBroadcastClick={onBroadcastClick}
-            onWotsKeyClick={onWotsKeyClick}
-            onActivationClick={onActivationClick}
-            onRefundClick={onRefundClick}
-            onArtifactDownloadClick={onArtifactDownloadClick}
           />
         ))}
       </div>

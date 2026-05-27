@@ -67,6 +67,13 @@ export interface ResumeSignContentProps {
   activity: VaultActivity;
   btcPublicKey: string;
   depositorEthAddress: Hex;
+  /**
+   * Every vault ID sharing this deposit's Pre-PegIn (the split-pegin
+   * siblings). When length > 1 the progress view renders the multi-column
+   * split UI with this vault highlighted. Defaults to just this vault, so
+   * standalone deposits render as a single column.
+   */
+  siblingVaultIds?: string[];
   onClose: () => void;
   onSuccess: () => void;
 }
@@ -75,6 +82,7 @@ export function ResumeSignContent({
   activity,
   btcPublicKey,
   depositorEthAddress,
+  siblingVaultIds,
   onClose,
   onSuccess,
 }: ResumeSignContentProps) {
@@ -123,6 +131,11 @@ export function ResumeSignContent({
     error != null,
   );
 
+  const vaultCount = siblingVaultIds?.length ?? 1;
+  const currentVaultIndex = siblingVaultIds
+    ? siblingVaultIds.indexOf(activity.id)
+    : null;
+
   return (
     <DepositProgressView
       currentStep={renderStep}
@@ -140,6 +153,12 @@ export function ResumeSignContent({
       }
       payoutSigningProgress={signing ? progress : null}
       peginSigningProgress={null}
+      vaultCount={vaultCount}
+      currentVaultIndex={
+        currentVaultIndex !== null && currentVaultIndex >= 0
+          ? currentVaultIndex
+          : null
+      }
       onClose={onClose}
       onRetry={error ? handleSign : undefined}
       waitDetailPersistKey={activity.id}
@@ -196,6 +215,12 @@ export function ResumeBroadcastContent({
     error != null,
   );
 
+  // During the trunk (broadcast) phase every sibling is at the same shared
+  // step, so the active-vault index is irrelevant — what matters is that
+  // the multi-column UI lights up when the deposit is a split.
+  const broadcastVaultCount = batchVaultIds.length || 1;
+  const broadcastCurrentVaultIndex = batchVaultIds.indexOf(activity.id);
+
   return (
     <DepositProgressView
       currentStep={DepositFlowStep.BROADCAST_PRE_PEGIN}
@@ -206,6 +231,10 @@ export function ResumeBroadcastContent({
       canContinueInBackground={derived.canContinueInBackground}
       payoutSigningProgress={null}
       peginSigningProgress={null}
+      vaultCount={broadcastVaultCount}
+      currentVaultIndex={
+        broadcastCurrentVaultIndex >= 0 ? broadcastCurrentVaultIndex : null
+      }
       onClose={onClose}
       successMessage={COPY.deposit.resume.broadcastSuccessMessage}
       onRetry={error ? handleBroadcast : undefined}
@@ -219,12 +248,15 @@ export function ResumeBroadcastContent({
 
 export interface ResumeWotsContentProps {
   activity: VaultActivity;
+  /** Sibling vault IDs sharing this Pre-PegIn (see ResumeSignContentProps). */
+  siblingVaultIds?: string[];
   onClose: () => void;
   onSuccess: () => void;
 }
 
 export function ResumeWotsContent({
   activity,
+  siblingVaultIds,
   onClose,
   onSuccess,
 }: ResumeWotsContentProps) {
@@ -479,6 +511,11 @@ export function ResumeWotsContent({
         }
       : null;
 
+  const wotsVaultCount = siblingVaultIds?.length ?? 1;
+  const wotsCurrentVaultIndex = siblingVaultIds
+    ? siblingVaultIds.indexOf(activity.id)
+    : null;
+
   return (
     <DepositProgressView
       currentStep={renderStep}
@@ -489,6 +526,12 @@ export function ResumeWotsContent({
       canContinueInBackground={derived.canContinueInBackground}
       payoutSigningProgress={null}
       peginSigningProgress={null}
+      vaultCount={wotsVaultCount}
+      currentVaultIndex={
+        wotsCurrentVaultIndex !== null && wotsCurrentVaultIndex >= 0
+          ? wotsCurrentVaultIndex
+          : null
+      }
       onClose={onClose}
       onRetry={error ? handleSubmit : undefined}
       waitDetailPersistKey={activity.id}
@@ -504,6 +547,8 @@ export function ResumeWotsContent({
 export interface ResumeActivationContentProps {
   activity: VaultActivity;
   depositorEthAddress: string;
+  /** Sibling vault IDs sharing this Pre-PegIn (see ResumeSignContentProps). */
+  siblingVaultIds?: string[];
   onClose: () => void;
   onSuccess: () => void;
 }
@@ -511,6 +556,7 @@ export interface ResumeActivationContentProps {
 export function ResumeActivationContent({
   activity,
   depositorEthAddress,
+  siblingVaultIds,
   onClose,
   onSuccess,
 }: ResumeActivationContentProps) {
@@ -683,6 +729,11 @@ export function ResumeActivationContent({
     }
   }, [activated, onSuccess, onClose]);
 
+  const activationVaultCount = siblingVaultIds?.length ?? 1;
+  const activationCurrentVaultIndex = siblingVaultIds
+    ? siblingVaultIds.indexOf(activity.id)
+    : null;
+
   return (
     <DepositProgressView
       currentStep={renderStep}
@@ -693,6 +744,12 @@ export function ResumeActivationContent({
       canContinueInBackground={derived.canContinueInBackground}
       payoutSigningProgress={null}
       peginSigningProgress={null}
+      vaultCount={activationVaultCount}
+      currentVaultIndex={
+        activationCurrentVaultIndex !== null && activationCurrentVaultIndex >= 0
+          ? activationCurrentVaultIndex
+          : null
+      }
       onClose={handleDone}
       successMessage={COPY.deposit.resume.activationSuccessMessage}
       onRetry={error ? handleSubmit : undefined}

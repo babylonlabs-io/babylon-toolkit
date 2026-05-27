@@ -54,6 +54,12 @@ type ResumeSignProps = SimpleDepositBaseProps & {
   activity: VaultActivity;
   btcPublicKey: string;
   depositorEthAddress: Hex;
+  /**
+   * Sibling vault IDs sharing this Pre-PegIn (split-pegin batch). Optional;
+   * when provided with length > 1, the resume UI renders the multi-column
+   * split layout with `activity.id` highlighted.
+   */
+  batchVaultIds?: string[];
   onResumeSuccess: () => void;
 };
 
@@ -74,6 +80,8 @@ type ResumeWotsProps = SimpleDepositBaseProps & {
   resumeMode: "submit_wots_key";
   activity: VaultActivity;
   vaultProviders: VaultProvider[];
+  /** Sibling vault IDs sharing this Pre-PegIn (see ResumeSignProps). */
+  batchVaultIds?: string[];
   onResumeSuccess: () => void;
 };
 
@@ -81,6 +89,8 @@ type ResumeActivationProps = SimpleDepositBaseProps & {
   resumeMode: "activate_vault";
   activity: VaultActivity;
   depositorEthAddress: string;
+  /** Sibling vault IDs sharing this Pre-PegIn (see ResumeSignProps). */
+  batchVaultIds?: string[];
   onResumeSuccess: () => void;
 };
 
@@ -468,6 +478,7 @@ export default function SimpleDeposit(props: SimpleDepositProps) {
             <div className="mx-auto w-full max-w-[520px]">
               <ResumeWotsContent
                 activity={props.activity}
+                siblingVaultIds={props.batchVaultIds}
                 onClose={onClose}
                 onSuccess={props.onResumeSuccess}
               />
@@ -489,6 +500,7 @@ export default function SimpleDeposit(props: SimpleDepositProps) {
               <ResumeActivationContent
                 activity={props.activity}
                 depositorEthAddress={props.depositorEthAddress}
+                siblingVaultIds={props.batchVaultIds}
                 onClose={onClose}
                 onSuccess={props.onResumeSuccess}
               />
@@ -511,6 +523,7 @@ export default function SimpleDeposit(props: SimpleDepositProps) {
                 activity={props.activity}
                 btcPublicKey={props.btcPublicKey}
                 depositorEthAddress={props.depositorEthAddress}
+                siblingVaultIds={props.batchVaultIds}
                 onClose={onClose}
                 onSuccess={props.onResumeSuccess}
               />
