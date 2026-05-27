@@ -30,6 +30,7 @@ import { GroupedProgress } from "./GroupedProgress";
 import { PeginFeeWarning } from "./PeginFeeWarning";
 import { ProgressBar } from "./ProgressBar";
 import { ProviderWaitDetail } from "./ProviderWaitDetail";
+import { SplitGroupedProgress } from "./SplitGroupedProgress";
 import {
   buildStepItems,
   getStepFillPercent,
@@ -64,6 +65,17 @@ export interface DepositProgressViewProps {
   payoutSigningProgress: PayoutSigningProgress | null;
   /** Peg-in BTC signing progress; drives the (x of n) sub-counter for splits. */
   peginSigningProgress: PeginSigningProgress | null;
+  /**
+   * Number of vaults in this deposit. When > 1, the post-trunk groups render
+   * as one column per vault to reflect the per-vault VP-paced timelines.
+   */
+  vaultCount?: number;
+  /**
+   * Which vault is currently being processed for per-vault phases (WOTS,
+   * payout signing, artifact download). `null` when not in a per-vault phase
+   * or when the deposit isn't split.
+   */
+  currentVaultIndex?: number | null;
   onClose: () => void;
   /** Override the default success message */
   successMessage?: string;
@@ -138,6 +150,8 @@ export function DepositProgressView(props: DepositProgressViewProps) {
     canContinueInBackground,
     payoutSigningProgress,
     peginSigningProgress,
+    vaultCount = 1,
+    currentVaultIndex = null,
     onClose,
     successMessage = COPY.deposit.progress.defaultSuccessMessage,
     terminalMessage,
@@ -195,11 +209,22 @@ export function DepositProgressView(props: DepositProgressViewProps) {
           <CompletedStepsPill completed={completedGroups} total={totalGroups} />
         )}
 
-        <GroupedProgress
-          steps={steps}
-          currentStep={visualStep}
-          activeStepDetail={activeStepDetail}
-        />
+        {vaultCount > 1 ? (
+          <SplitGroupedProgress
+            steps={steps}
+            currentStep={visualStep}
+            vaultCount={vaultCount}
+            currentVaultIndex={currentVaultIndex}
+            rawStep={currentStep}
+            activeStepDetail={activeStepDetail}
+          />
+        ) : (
+          <GroupedProgress
+            steps={steps}
+            currentStep={visualStep}
+            activeStepDetail={activeStepDetail}
+          />
+        )}
 
         {error && (
           <Callout variant="error" title={error.title}>

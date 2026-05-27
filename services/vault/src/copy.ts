@@ -197,6 +197,7 @@ export const COPY = {
       defaultSuccessMessage: PRE_PEGIN_BROADCAST_CONFIRMATION_MESSAGE,
       doNotSpendWarning:
         "To ensure a seamless deposit, do not spend the BTC allocated for this process until the transaction is confirmed.",
+      splitVaultColumnLabel: (vaultNumber: number) => `Vault ${vaultNumber}`,
       buttons: {
         closeContinueLater: "Close & continue later",
         retry: "Retry",

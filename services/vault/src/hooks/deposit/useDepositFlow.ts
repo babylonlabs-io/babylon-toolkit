@@ -854,6 +854,10 @@ export function useDepositFlow(
         for (const result of broadcastedResults) {
           signal.throwIfAborted();
 
+          // Mark the current vault being processed so the split-deposit UI
+          // can show per-vault progression for the WOTS phase.
+          setCurrentVaultIndex(result.vaultIndex);
+
           let wotsSuccess = false;
 
           for (let attempt = 1; attempt <= MAX_WOTS_ATTEMPTS; attempt++) {
@@ -990,6 +994,10 @@ export function useDepositFlow(
 
         for (const result of readyResults) {
           if (signal.aborted) break;
+
+          // Track which vault's artifact is being downloaded so the split UI
+          // can advance only that column.
+          setCurrentVaultIndex(result.vaultIndex);
 
           setArtifactDownloadInfo({
             providerAddress: provider.id,
