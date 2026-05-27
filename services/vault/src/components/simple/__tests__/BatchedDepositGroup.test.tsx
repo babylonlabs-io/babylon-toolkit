@@ -127,15 +127,17 @@ describe("BatchedDepositGroup", () => {
     expect(onBroadcastClick).toHaveBeenCalledWith("0xb");
   });
 
-  it("dissolves into standalone cards once the broadcast is done", () => {
-    // No sibling needs broadcast — the batch has no shared action left, so
-    // the grouping chrome and hoisted button are dropped.
+  it("keeps the grouping wrapper after broadcast but drops the hoisted button", () => {
+    // No sibling needs broadcast — the batch has no shared action left, but
+    // the wrapper stays so sibling cards remain visually grouped. The
+    // hoisted broadcast button is dropped, and inner cards no longer need
+    // to suppress their own (non-existent) broadcast action.
     mockGetActionStatus.mockReturnValue(NO_ACTION);
     renderGroup([activity("0xa"), activity("0xb")]);
 
     expect(
-      screen.queryByText(COPY.pegin.batchedDeposit.groupLabel),
-    ).not.toBeInTheDocument();
+      screen.getByText(COPY.pegin.batchedDeposit.groupLabel),
+    ).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: /broadcast pre-pegin/i }),
     ).not.toBeInTheDocument();
@@ -143,5 +145,18 @@ describe("BatchedDepositGroup", () => {
     const cards = screen.getAllByTestId("deposit-card");
     expect(cards).toHaveLength(2);
     expect(cards.every((c) => c.dataset.suppressed === "false")).toBe(true);
+  });
+
+  it("renders a total of all sibling amounts in the group header", () => {
+    mockGetActionStatus.mockReturnValue(NO_ACTION);
+    const a = activity("0xa");
+    a.collateral = { amount: "0.6", symbol: "BTC" };
+    const b = activity("0xb");
+    b.collateral = { amount: "0.4", symbol: "BTC" };
+    renderGroup([a, b]);
+
+    // Total is sum of siblings — copy is rendered via the total-label fn so
+    // we match it loosely rather than re-implement the format here.
+    expect(screen.getByText(/total/i).textContent).toMatch(/1/);
   });
 });

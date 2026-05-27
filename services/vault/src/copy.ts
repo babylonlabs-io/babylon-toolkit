@@ -143,6 +143,8 @@ export const COPY = {
     batchedDeposit: {
       groupLabel: "Batched deposit",
       broadcastHelper: "Broadcasts once for all BTC Vaults in this deposit",
+      totalLabel: (amount: string, symbol: string) =>
+        `${amount} ${symbol} total`,
     },
     warnings: {
       walletOwnershipMismatch: (truncatedPubkey: string) =>
