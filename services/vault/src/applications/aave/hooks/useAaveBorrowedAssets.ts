@@ -101,7 +101,7 @@ function transformToBorrowedAsset(
   const tokenAmount = Number(
     formatUnits(debtPosition.totalDebt, reserve.token.decimals),
   );
-  const amount = formatAmount(tokenAmount);
+  const amount = formatAmount(tokenAmount, reserve.token.decimals);
 
   return { symbol, amount, icon };
 }
