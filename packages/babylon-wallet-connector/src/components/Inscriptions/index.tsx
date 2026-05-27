@@ -29,12 +29,11 @@ export function Inscriptions({ className, config, onSubmit }: Props) {
 
       <DialogBody>
         <Text className="mb-8 text-accent-secondary">
-          By default, we will not use {coinName} that contains Inscriptions - such as Ordinals, NFTs, or Runes - in your
-          stakeable balance. This helps prevent any accidental loss of your Inscriptions due to staking, unbonding, or
-          withdrawal fees.
+          By default, we will not use {coinName} that contains Inscriptions - such as Ordinals, NFTs, or Runes - when
+          creating a BTC vault. This helps prevent any accidental loss of your Inscriptions due to transaction fees.
         </Text>
         <Text className="mb-10 text-accent-secondary">
-          If you would like to include {coinName} with Inscriptions in your stakeable balance, please select the option
+          If you would like to include {coinName} with Inscriptions when creating a BTC vault, please select the option
           below.
         </Text>
 
@@ -42,7 +41,7 @@ export function Inscriptions({ className, config, onSubmit }: Props) {
           <FieldControl
             label={
               <div>
-                <strong className="mr-2">Do not use</strong> {coinName} with Inscriptions for staking. (Recommended)
+                <strong className="mr-2">Do not use</strong> {coinName} with Inscriptions for BTC vaults. (Recommended)
               </div>
             }
             className="mb-8"
@@ -53,7 +52,7 @@ export function Inscriptions({ className, config, onSubmit }: Props) {
           <FieldControl
             label={
               <div>
-                <strong className="mr-2">Use</strong> {coinName} with Inscriptions in my stakable balance.
+                <strong className="mr-2">Use</strong> {coinName} with Inscriptions when creating a BTC vault.
               </div>
             }
             className="mb-8"
