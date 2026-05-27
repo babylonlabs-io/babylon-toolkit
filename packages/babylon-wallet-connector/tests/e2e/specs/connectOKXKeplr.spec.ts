@@ -34,7 +34,7 @@ async function setupStorybookEnvironment(page: Page, storybook: FrameLocator) {
   await storybook.getByRole("button", { name: "Connect Wallet" }).click();
 
   // Accept terms
-  const terms = ["I certify that I have read", "I certify that I wish to", "I acknowledge that the following are"];
+  const terms = ["I certify that I have read", "I certify that I wish to"];
   for (const term of terms) {
     await storybook.getByText(term).click();
   }

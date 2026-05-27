@@ -16,7 +16,6 @@ export interface Props {
 const defaultState = {
   termsOfUse: false,
   inscriptions: false,
-  staking: false,
 } as const;
 
 export function TermsOfService({ className, onClose, onSubmit, simplifiedTerms = false }: Props) {
@@ -71,18 +70,12 @@ export function TermsOfService({ className, onClose, onSubmit, simplifiedTerms =
         </FieldControl>
 
         {!simplifiedTerms && (
-          <>
-            <FieldControl
-              label="I certify that I wish to stake bitcoin and agree that doing so may cause some or all of the bitcoin ordinals, NFTs, Runes, and other inscriptions in the connected bitcoin wallet to be lost. I acknowledge that this interface will not detect all Inscriptions."
-              className="mb-4"
-            >
-              <Checkbox checked={state["inscriptions"]} onChange={handleChange("inscriptions")} />
-            </FieldControl>
-
-            <FieldControl label="I acknowledge that the following are the only hardware wallets supporting Bitcoin Staking: (1) Keystone -- via QR code and (2) OneKey -- via the OneKey Chrome extension and the hardware devices (a) OneKey Pro and (b) OneKey Classic 1s (experimental, 3.10.1 firmware or higher) using Taproot only. Using any other hardware wallet through any means (such as connection to a software/extension/mobile wallet) can lead to permanent inability to withdraw the stake.">
-              <Checkbox checked={state["staking"]} onChange={handleChange("staking")} />
-            </FieldControl>
-          </>
+          <FieldControl
+            label="I certify that I wish to create a Bitcoin vault and agree that doing so may cause some or all of the bitcoin ordinals, NFTs, Runes, and other inscriptions in the connected bitcoin wallet to be lost. I acknowledge that this interface will not detect all Inscriptions."
+            className="mb-4"
+          >
+            <Checkbox checked={state["inscriptions"]} onChange={handleChange("inscriptions")} />
+          </FieldControl>
         )}
       </DialogBody>
 
