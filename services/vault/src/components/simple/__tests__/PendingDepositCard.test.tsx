@@ -160,7 +160,9 @@ describe("PendingDepositCard — step gating during first load", () => {
       peginState: awaitingPayoutPrepState(),
     });
     renderCard(false);
-    expect(screen.getByText(/^Step \d+ of \d+$/)).toBeInTheDocument();
+    expect(
+      screen.getByText(COPY.deposit.steps.awaitPayoutTransactions),
+    ).toBeInTheDocument();
   });
 
   it("hides the step label while the first poll is still loading", () => {
@@ -169,7 +171,9 @@ describe("PendingDepositCard — step gating during first load", () => {
       peginState: awaitingPayoutPrepState(),
     });
     renderCard(false);
-    expect(screen.queryByText(/^Step \d+ of \d+$/)).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(COPY.deposit.steps.awaitPayoutTransactions),
+    ).not.toBeInTheDocument();
   });
 });
 
@@ -297,7 +301,6 @@ describe("PendingDepositCard — payout signing step number", () => {
       peginState: readyToSignPayoutsState(),
     });
     renderCard(false);
-    expect(screen.getByText("Step 9 of 15")).toBeInTheDocument();
     expect(
       screen.getByText(COPY.deposit.steps.authenticateSession),
     ).toBeInTheDocument();

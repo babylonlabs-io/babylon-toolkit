@@ -178,6 +178,14 @@ export function computeDepositPollingResult(
     refundBroadcastAt,
   });
 
+  // Coalesce cached at-depth observations into the live count: once a tx
+  // crossed `requiredDepth`, polling drops it from the live map (depth never
+  // rewinds), so on refresh `confirmations` is undefined even though the tx
+  // is past depth. Treat that as "at least requiredDepth" so consumers don't
+  // see a regression.
+  const reportedConfirmations =
+    confirmations ?? (cachedAtDepth ? requiredDepth : null);
+
   return {
     depositId,
     loading: isLoading,
@@ -185,5 +193,7 @@ export function computeDepositPollingResult(
     peginState,
     isOwnedByCurrentWallet,
     depositorBtcPubkey: activity.depositorBtcPubkey,
+    prePeginConfirmations: reportedConfirmations,
+    requiredPrePeginDepth: requiredDepth,
   };
 }

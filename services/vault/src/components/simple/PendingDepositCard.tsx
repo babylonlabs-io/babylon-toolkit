@@ -15,6 +15,7 @@ import {
 import { getNetworkConfigBTC } from "@/config";
 import { useDepositPollingResult } from "@/context/deposit/PeginPollingContext";
 import { COPY } from "@/copy";
+import { DepositFlowStep } from "@/hooks/deposit/depositFlowSteps/types";
 import {
   canPerformAction,
   getPeginDisplayStep,
@@ -23,20 +24,28 @@ import { getTokenBrandColor } from "@/services/token/tokenService";
 import type { VaultProvider } from "@/types/vaultProvider";
 import { truncateAddress } from "@/utils/addressUtils";
 
+import { computeRemainingEstimateMinutes } from "./DepositProgressView/btcConfirmationProgress";
 import { ProgressBar } from "./DepositProgressView/ProgressBar";
-import {
-  getStepFillPercent,
-  getStepLabel,
-  getVisualStep,
-  TOTAL_VISUAL_STEPS,
-} from "./DepositProgressView/steps";
-import { DepositStepLabel } from "./DepositStepLabel";
+import { getStepFillPercent, getStepLabel } from "./DepositProgressView/steps";
 import { PeginTxHashRow } from "./PeginTxHashRow";
 import { STATUS_DOT_COLORS } from "./statusColors";
 import { VaultDetailCard, VaultStatusBadge } from "./VaultDetailCard";
 
 // The deposited asset is Bitcoin; tint the progress bar with its brand color.
 const ASSET_BRAND_COLOR = getTokenBrandColor(getNetworkConfigBTC().coinSymbol);
+
+function formatBtcDepthSummary(
+  confirmations: number | null,
+  requiredDepth: number,
+): string | null {
+  if (confirmations === null) return null;
+  const minutes = computeRemainingEstimateMinutes(confirmations, requiredDepth);
+  if (minutes === null) return COPY.deposit.btcConfirmation.finalizing;
+  return COPY.deposit.btcConfirmation.cardSummaryProgressing(
+    requiredDepth - confirmations,
+    minutes,
+  );
+}
 
 interface PendingDepositCardProps {
   depositId: string;
@@ -84,7 +93,8 @@ export function PendingDepositCard({
 
   if (!pollingResult) return null;
 
-  const { loading, peginState } = pollingResult;
+  const { loading, peginState, prePeginConfirmations, requiredPrePeginDepth } =
+    pollingResult;
   const status = getActionStatus(pollingResult);
   // The Pre-PegIn broadcast is batch-level: when this card is inside a
   // BatchedDepositGroup the broadcast button is hoisted to the group and
@@ -145,6 +155,11 @@ export function PendingDepositCard({
   // preparing payouts), so we don't assert one and risk a backward jump.
   const step = loading ? null : getPeginDisplayStep(peginState);
 
+  const btcConfirmationSummary =
+    step === DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS
+      ? formatBtcDepthSummary(prePeginConfirmations, requiredPrePeginDepth)
+      : null;
+
   // Resolve provider name
   const provider = vaultProviders.find((vp) => vp.id === providerId);
   const providerName =
@@ -175,11 +190,14 @@ export function PendingDepositCard({
       }
       amountSubtext={
         step !== null ? (
-          <DepositStepLabel
-            visualStep={getVisualStep(step)}
-            totalSteps={TOTAL_VISUAL_STEPS}
-            label={getStepLabel(step)}
-          />
+          <span className="text-sm">
+            <span className="font-medium text-accent-primary">
+              {getStepLabel(step)}
+            </span>
+            {btcConfirmationSummary && (
+              <span className="text-accent-secondary">{` (${btcConfirmationSummary})`}</span>
+            )}
+          </span>
         ) : peginState.inlineSubtext ? (
           <span className="text-sm text-accent-secondary">
             {peginState.inlineSubtext}

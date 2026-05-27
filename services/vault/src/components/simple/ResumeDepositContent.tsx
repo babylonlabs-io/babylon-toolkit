@@ -32,6 +32,7 @@ import { getVaultRegistryReader } from "@/clients/eth-contract/sdk-readers";
 import { computeDepositDerivedState } from "@/components/deposit/DepositSignModal/depositStepHelpers";
 import { usePayoutSigningState } from "@/components/deposit/PayoutSignModal/usePayoutSigningState";
 import { useDepositPollingResult } from "@/context/deposit/PeginPollingContext";
+import { useProtocolParamsContext } from "@/context/ProtocolParamsContext";
 import { COPY } from "@/copy";
 import {
   DepositFlowStep,
@@ -41,6 +42,7 @@ import { submitWotsPublicKey } from "@/hooks/deposit/depositFlowSteps/wotsSubmis
 import { useActivationState } from "@/hooks/deposit/useActivationState";
 import { useBroadcastState } from "@/hooks/deposit/useBroadcastState";
 import { useReleaseVpTokenOnUnmount } from "@/hooks/deposit/useReleaseVpTokenOnUnmount";
+import { useBtcDepthStartedAt } from "@/hooks/useBtcDepthStartedAt";
 import { useRunOnce } from "@/hooks/useRunOnce";
 import { logger } from "@/infrastructure";
 import {
@@ -449,6 +451,28 @@ export function ResumeWotsContent({
     error,
   );
 
+  // requiredDepth is pinned to the version this deposit registered against
+  // (matches PeginPollingContext.getRequiredPrePeginDepth).
+  const { config, getOffchainParamsByVersion } = useProtocolParamsContext();
+  const requiredDepth =
+    (activity.offchainParamsVersion !== undefined
+      ? getOffchainParamsByVersion(activity.offchainParamsVersion)
+          ?.minPrepeginDepth
+      : undefined) ?? config.offchainParams.minPrepeginDepth;
+  const showBtcDepthPanel =
+    renderStep === DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS &&
+    Boolean(activity.prePeginTxHash);
+  const startedAt = useBtcDepthStartedAt(activity.id, showBtcDepthPanel);
+  const btcConfirmationDetail =
+    showBtcDepthPanel && activity.prePeginTxHash && startedAt
+      ? {
+          startedAt,
+          prePeginTxid: activity.prePeginTxHash,
+          requiredDepth,
+          depositIds: [activity.id],
+        }
+      : null;
+
   return (
     <DepositProgressView
       currentStep={renderStep}
@@ -462,6 +486,7 @@ export function ResumeWotsContent({
       onClose={onClose}
       onRetry={error ? handleSubmit : undefined}
       waitDetailPersistKey={activity.id}
+      btcConfirmationDetail={btcConfirmationDetail}
     />
   );
 }

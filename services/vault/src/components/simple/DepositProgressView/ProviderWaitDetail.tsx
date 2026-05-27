@@ -32,7 +32,7 @@ function getWaitStatus(step: DepositFlowStep): string {
 
   switch (step) {
     case DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS:
-      return waitDetails.preparingPayouts;
+      return waitDetails.awaitingBtcDepthAndVpSetup;
     case DepositFlowStep.AWAIT_VP_VERIFICATION:
       return waitDetails.verifyingDeposit;
     case DepositFlowStep.AWAIT_ACTIVATION_CONFIRMATION:

@@ -14,7 +14,7 @@ import {
 } from "../steps";
 
 describe("getStepLabel", () => {
-  it("returns the confirming-deposit label for AWAIT_BTC_CONFIRMATION", () => {
+  it("returns the inclusion-wait label for AWAIT_BTC_CONFIRMATION", () => {
     expect(getStepLabel(DepositFlowStep.AWAIT_BTC_CONFIRMATION)).toBe(
       COPY.deposit.steps.confirmingDeposit,
     );

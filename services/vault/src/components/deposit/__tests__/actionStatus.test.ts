@@ -30,6 +30,8 @@ function pollingResultWithAction(
     peginState,
     isOwnedByCurrentWallet: overrides.isOwnedByCurrentWallet ?? true,
     depositorBtcPubkey: overrides.depositorBtcPubkey,
+    prePeginConfirmations: null,
+    requiredPrePeginDepth: 6,
   };
 }
 

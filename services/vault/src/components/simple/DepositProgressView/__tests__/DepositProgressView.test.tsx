@@ -225,7 +225,24 @@ describe("DepositProgressView", () => {
       expect(screen.queryByText("(0 of 3)")).not.toBeInTheDocument();
     });
 
-    it("renders a status detail panel for the payout preparation wait step", () => {
+    it("renders a status detail panel for the verifying-deposit wait step", () => {
+      render(
+        <DepositProgressView
+          {...baseProps}
+          currentStep={DepositFlowStep.AWAIT_VP_VERIFICATION}
+        />,
+      );
+
+      expect(
+        screen.getByText(COPY.deposit.steps.awaitVpVerification),
+      ).toBeInTheDocument();
+      expect(screen.getByText("Status:")).toBeInTheDocument();
+      expect(
+        screen.getByText(COPY.deposit.waitDetails.verifyingDeposit),
+      ).toBeInTheDocument();
+    });
+
+    it("falls back to the generic wait panel at AWAIT_PAYOUT_TRANSACTIONS when no btcConfirmationDetail (resume flow)", () => {
       render(
         <DepositProgressView
           {...baseProps}
@@ -234,11 +251,7 @@ describe("DepositProgressView", () => {
       );
 
       expect(
-        screen.getByText(COPY.deposit.steps.awaitPayoutTransactions),
-      ).toBeInTheDocument();
-      expect(screen.getByText("Status:")).toBeInTheDocument();
-      expect(
-        screen.getByText(COPY.deposit.waitDetails.preparingPayouts),
+        screen.getByText(COPY.deposit.waitDetails.awaitingBtcDepthAndVpSetup),
       ).toBeInTheDocument();
     });
   });
@@ -385,7 +398,24 @@ describe("DepositProgressView", () => {
       "1b2c3d4e5f00000000000000000000000000000000000000000000000000000000";
     const NOW = new Date("2026-01-01T14:00:00Z").getTime();
 
-    it("renders the confirmation detail when the active step is AWAIT_BTC_CONFIRMATION", () => {
+    it("renders the confirmation detail when the active step is AWAIT_PAYOUT_TRANSACTIONS", () => {
+      render(
+        <DepositProgressView
+          {...baseProps}
+          currentStep={DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS}
+          btcConfirmationDetail={{
+            startedAt: NOW,
+            prePeginTxid: PRE_PEGIN_TXID,
+            requiredDepth: 6,
+            depositIds: ["0xvault"],
+          }}
+        />,
+      );
+
+      expect(screen.getByTestId("btc-confirmation-detail")).toBeInTheDocument();
+    });
+
+    it("does not render the detail panel at AWAIT_BTC_CONFIRMATION (1-conf gate, no counter)", () => {
       render(
         <DepositProgressView
           {...baseProps}
@@ -394,14 +424,17 @@ describe("DepositProgressView", () => {
             startedAt: NOW,
             prePeginTxid: PRE_PEGIN_TXID,
             requiredDepth: 6,
+            depositIds: ["0xvault"],
           }}
         />,
       );
 
-      expect(screen.getByTestId("btc-confirmation-detail")).toBeInTheDocument();
+      expect(
+        screen.queryByTestId("btc-confirmation-detail"),
+      ).not.toBeInTheDocument();
     });
 
-    it("does not render the detail panel for steps other than AWAIT_BTC_CONFIRMATION", () => {
+    it("does not render the detail panel for steps other than AWAIT_PAYOUT_TRANSACTIONS", () => {
       render(
         <DepositProgressView
           {...baseProps}
@@ -410,6 +443,7 @@ describe("DepositProgressView", () => {
             startedAt: NOW,
             prePeginTxid: PRE_PEGIN_TXID,
             requiredDepth: 6,
+            depositIds: ["0xvault"],
           }}
         />,
       );
@@ -423,7 +457,7 @@ describe("DepositProgressView", () => {
       render(
         <DepositProgressView
           {...baseProps}
-          currentStep={DepositFlowStep.AWAIT_BTC_CONFIRMATION}
+          currentStep={DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS}
           btcConfirmationDetail={null}
         />,
       );

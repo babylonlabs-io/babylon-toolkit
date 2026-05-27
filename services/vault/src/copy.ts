@@ -136,10 +136,6 @@ export const COPY = {
       groupLabel: "Batched deposit",
       broadcastHelper: "Broadcasts once for all BTC Vaults in this deposit",
     },
-    progress: {
-      stepCounter: (current: number, total: number) =>
-        `Step ${current} of ${total}`,
-    },
     warnings: {
       walletOwnershipMismatch: (truncatedPubkey: string) =>
         `This BTC vault was created with a different BTC public key (${truncatedPubkey}). Switch to that wallet to perform actions.`,
@@ -152,10 +148,10 @@ export const COPY = {
       signLinkProofs: "Sign proofs to link your Bitcoin and ETH addresses",
       signAndBroadcastEth: "Sign and broadcast ETH registration",
       signAndBroadcastPrePegin: "Sign and broadcast BTC Pre-Pegin transaction",
-      confirmingDeposit: "Confirming deposit",
+      confirmingDeposit:
+        "Awaiting Pre-Pegin tx inclusion (1 BTC block · ~10 min)",
       submitWotsKey: "Set up Winternitz One-Time Signature (WOTS)",
-      awaitPayoutTransactions:
-        "Awaiting vault provider to prepare payout transactions",
+      awaitPayoutTransactions: "Awaiting Pre-Pegin depth",
       authenticateSession: "Authenticate session with vault provider",
       signPayouts: "Sign payout transactions",
       signRecoveryTxs: "Sign recovery transactions",
@@ -209,12 +205,24 @@ export const COPY = {
           blocksLeft === 1 ? "block" : "blocks"
         })`,
       finalizing: "Finalizing...",
-      bitcoinTx: "Bitcoin TX",
+      bitcoinTx: "Pre-Pegin BTC TX",
+      // Compact summary rendered inline on PendingDepositCard during the
+      // AWAIT_PAYOUT_TRANSACTIONS wait. Mirrors the modal panel's "blocks
+      // left + minutes" framing (the label "Awaiting Pre-Pegin depth"
+      // already implies the goal, so we only need to show remaining work).
+      cardSummaryProgressing: (blocksLeft: number, minutes: number) =>
+        `${blocksLeft} BTC ${
+          blocksLeft === 1 ? "block" : "blocks"
+        } · ~${minutes} min`,
     },
     waitDetails: {
       startedAt: "Started at",
       status: "Status",
-      preparingPayouts: "Preparing payout transactions",
+      // Fallback status used at the AWAIT_PAYOUT_TRANSACTIONS step on the
+      // resume path, when the live BTC confirmation counter is not wired in.
+      // The active deposit flow shows the counter panel instead of this.
+      awaitingBtcDepthAndVpSetup:
+        "Awaiting Bitcoin confirmations and vault provider setup",
       verifyingDeposit: "Verifying signatures and collecting ACKs",
       confirmingActivation: "Confirming activation",
     },
