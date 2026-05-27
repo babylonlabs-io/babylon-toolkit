@@ -462,8 +462,14 @@ export const COPY = {
     },
     hashPending: "Pending…",
     refundedTooltip: "Transaction was refunded",
+    // Labels for the two child rows nested inside a LiquidationGroupRow.
+    liquidation: {
+      collateralLabel: "Collateral Liquidated",
+      repaidLabel: "Loan Repaid",
+    },
     emptyDisconnected: "Connect your wallet to view your activity",
     emptyConnected: "No activity yet. Make your first deposit to get started.",
+    emptyFiltered: "No activity",
     depositCta: (coinSymbol: string) => `Deposit ${coinSymbol}`,
   },
   banner: {

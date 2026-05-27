@@ -53,19 +53,28 @@ export function ActivityList({ activities, isConnected }: ActivityListProps) {
       </div>
 
       {visible.length === 0 ? (
-        <ActivityEmptyState isConnected={isConnected} />
+        <ActivityEmptyState
+          isConnected={isConnected}
+          isFiltered={filter !== null}
+        />
       ) : (
-        <ul role="list" className="flex flex-col gap-4">
-          {visible.map((r) => (
-            <li key={r.id}>
-              {r.kind === "liquidationGroup" ? (
-                <LiquidationGroupCard row={r} />
-              ) : (
-                <ActivityCard row={r} />
-              )}
-            </li>
-          ))}
-        </ul>
+        // Scroll container: min-h keeps the card substantial when there are
+        // only a handful of rows; max-h caps tall histories so the page never
+        // grows arbitrarily. Only the row list scrolls — the title + filter
+        // sit outside the container and stay pinned.
+        <div className="max-h-[600px] min-h-[240px] overflow-y-auto">
+          <ul role="list" className="flex flex-col gap-4">
+            {visible.map((r) => (
+              <li key={r.id}>
+                {r.kind === "liquidationGroup" ? (
+                  <LiquidationGroupCard row={r} />
+                ) : (
+                  <ActivityCard row={r} />
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
     </div>
   );

@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ActivityLog, ActivityRow } from "@/types/activityLog";
 
 import {
+  __resetWarnedUnknownTypesForTests,
   fetchUserActivities,
   type FetchUserActivitiesDeps,
 } from "../fetchActivities";
@@ -93,25 +94,43 @@ function buildDeps(
   };
 }
 
+/**
+ * Mocks both pagination queries against the same source array.
+ *
+ * - `GetActivitiesFirstPage` returns the (already desc-sorted) rows plus the
+ *   bounded `vaults` selection.
+ * - `GetActivitiesNextPage` returns an empty page; tests that want to exercise
+ *   the cursor loop should override this with `setupPaginatedGraphqlMock`.
+ */
 async function setupGraphqlMock(rows: RawActivity[]) {
   const { graphqlClient } = await import("@/clients/graphql");
   vi.mocked(graphqlClient.request).mockImplementation(
     async (query: unknown) => {
       const src = String(query);
-      if (src.includes("GetActivitiesPage")) {
+      if (src.includes("GetActivitiesFirstPage")) {
         const ids = Array.from(
           new Set(
             rows.map((a) => a.vaultId).filter((v): v is string => v != null),
           ),
         );
         return {
-          vaultActivitys: { items: rows },
+          vaultActivitys: {
+            items: rows,
+            pageInfo: { hasNextPage: false, endCursor: null },
+          },
           vaults: {
             items: ids.map((id) => ({
               id,
               peginTxHash: `0xpegin-${id.slice(2, 10)}`,
-              status: null,
             })),
+          },
+        } as never;
+      }
+      if (src.includes("GetActivitiesNextPage")) {
+        return {
+          vaultActivitys: {
+            items: [],
+            pageInfo: { hasNextPage: false, endCursor: null },
           },
         } as never;
       }
@@ -122,6 +141,7 @@ async function setupGraphqlMock(rows: RawActivity[]) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  __resetWarnedUnknownTypesForTests();
 });
 
 describe("fetchUserActivities type mapping", () => {
@@ -220,10 +240,29 @@ describe("fetchUserActivities type mapping", () => {
 
     expect(result).toHaveLength(1);
     expect(result[0].type).toBe("Deposit");
+    expect(logger.warn).toHaveBeenCalledTimes(1);
     expect(logger.warn).toHaveBeenCalledWith(
-      expect.stringContaining("dropped unrecognised activity types"),
-      { counts: { add_collateral: 2 } },
+      expect.stringContaining("dropped unrecognised activity type"),
+      { type: "add_collateral" },
     );
+  });
+
+  it("warns only once per unknown type across repeated fetches", async () => {
+    const { logger } = await import("@/infrastructure");
+    const rows: RawActivity[] = [
+      activity({
+        type: "add_collateral",
+        logIndex: 0,
+        transactionHash: "0x" + "c".repeat(64),
+        vaultId: VAULT_A,
+      }),
+    ];
+    await setupGraphqlMock(rows);
+
+    await fetchUserActivities(USER as `0x${string}`, buildDeps());
+    await fetchUserActivities(USER as `0x${string}`, buildDeps());
+
+    expect(logger.warn).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -449,7 +488,64 @@ describe("fetchUserActivities GraphQL request shape", () => {
 
     expect(vi.mocked(graphqlClient.request)).toHaveBeenCalledTimes(1);
     const [query] = vi.mocked(graphqlClient.request).mock.calls[0];
-    expect(String(query)).toContain("GetActivitiesPage");
+    expect(String(query)).toContain("GetActivitiesFirstPage");
+  });
+
+  it("paginates with cursor until the indexer reports no more pages", async () => {
+    const { graphqlClient } = await import("@/clients/graphql");
+
+    const pageOne: RawActivity[] = [
+      activity({
+        type: "deposit",
+        logIndex: 0,
+        transactionHash: TX_DEPOSIT,
+        vaultId: VAULT_A,
+      }),
+    ];
+    const pageTwo: RawActivity[] = [
+      activity({
+        type: "withdrawal",
+        logIndex: 0,
+        transactionHash: "0xwithdraw",
+        vaultId: VAULT_A,
+      }),
+    ];
+
+    vi.mocked(graphqlClient.request).mockImplementation(
+      async (query: unknown, variables?: unknown) => {
+        const src = String(query);
+        if (src.includes("GetActivitiesFirstPage")) {
+          return {
+            vaultActivitys: {
+              items: pageOne,
+              pageInfo: { hasNextPage: true, endCursor: "cursor-1" },
+            },
+            vaults: { items: [{ id: VAULT_A, peginTxHash: "0xpegin-a" }] },
+          } as never;
+        }
+        if (src.includes("GetActivitiesNextPage")) {
+          // Sanity-check the cursor we send back is the one the first page returned.
+          const vars = variables as { after?: string };
+          expect(vars.after).toBe("cursor-1");
+          return {
+            vaultActivitys: {
+              items: pageTwo,
+              pageInfo: { hasNextPage: false, endCursor: null },
+            },
+          } as never;
+        }
+        throw new Error(`Unexpected query: ${src}`);
+      },
+    );
+
+    const result = await fetchUserActivities(
+      USER as `0x${string}`,
+      buildDeps([]),
+    );
+
+    expect(vi.mocked(graphqlClient.request)).toHaveBeenCalledTimes(2);
+    expect(result).toHaveLength(2);
+    expect(result.map((r) => r.type).sort()).toEqual(["Deposit", "Withdraw"]);
   });
 });
 

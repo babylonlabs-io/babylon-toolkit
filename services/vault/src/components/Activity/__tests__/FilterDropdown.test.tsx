@@ -50,7 +50,9 @@ describe("FilterDropdown", () => {
     expect(screen.getByRole("listbox")).toBeInTheDocument();
     // Reset row + 2 option rows = 3 total.
     expect(screen.getAllByRole("option")).toHaveLength(3);
-    expect(screen.getByRole("option", { name: "Show all" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("option", { name: "Show all" }),
+    ).toBeInTheDocument();
   });
 
   it("marks the reset row as selected when value is null", () => {

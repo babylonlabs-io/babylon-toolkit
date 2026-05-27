@@ -75,7 +75,7 @@ describe("ActivityList", () => {
     expect(within(items[0]).getByText("Borrow")).toBeInTheDocument();
   });
 
-  it("shows the empty state when no rows match the active filter", () => {
+  it("shows a minimal empty state without the deposit CTA when a filter hides all rows", () => {
     const rows = [makeRow({ id: "a", type: "Deposit" })];
     renderList({ activities: rows, isConnected: true });
 
@@ -83,7 +83,8 @@ describe("ActivityList", () => {
     fireEvent.click(screen.getByRole("option", { name: "Borrowed" }));
 
     expect(screen.queryAllByRole("listitem")).toHaveLength(0);
-    expect(screen.getByText(/no activity yet/i)).toBeInTheDocument();
+    expect(screen.getByText("No activity")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /deposit/i })).toBeNull();
   });
 
   it("shows the empty state when source is empty", () => {

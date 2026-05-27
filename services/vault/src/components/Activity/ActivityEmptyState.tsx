@@ -10,10 +10,27 @@ const btcConfig = getNetworkConfigBTC();
 
 interface ActivityEmptyStateProps {
   isConnected: boolean;
+  isFiltered?: boolean;
 }
 
-export function ActivityEmptyState({ isConnected }: ActivityEmptyStateProps) {
+export function ActivityEmptyState({
+  isConnected,
+  isFiltered,
+}: ActivityEmptyStateProps) {
   const { openDeposit } = useOutletContext<RootLayoutContext>();
+
+  if (isFiltered) {
+    return (
+      <div
+        data-testid="activity-empty-state"
+        className="flex flex-col items-center justify-center py-12 text-center"
+      >
+        <p className="text-lg text-accent-secondary">
+          {COPY.activity.emptyFiltered}
+        </p>
+      </div>
+    );
+  }
 
   if (!isConnected) {
     return (
