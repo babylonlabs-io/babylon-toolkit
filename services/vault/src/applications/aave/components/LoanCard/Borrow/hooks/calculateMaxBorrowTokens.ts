@@ -1,4 +1,8 @@
-import { BPS_SCALE, MIN_HEALTH_FACTOR_FOR_BORROW } from "../../../../constants";
+import {
+  BPS_SCALE,
+  MIN_HEALTH_FACTOR_FOR_BORROW,
+  SAFE_TOFIXED_PRECISION,
+} from "../../../../constants";
 
 export interface CalculateMaxBorrowTokensParams {
   /** Collateral value in USD (from Aave oracle) */
@@ -24,9 +28,15 @@ export interface CalculateMaxBorrowTokensParams {
  *   maxBorrowTokens = maxAdditionalBorrowUsd / tokenPriceUsd
  *
  * Returns 0 when the resulting value would be negative (existing debt
- * already exceeds borrowing capacity). Floored to the token's native
- * decimals so high-priced tokens (e.g. WBTC at ~$75k) don't lose sub-cent
- * precision and report Max 0.
+ * already exceeds borrowing capacity).
+ *
+ * Floored to min(tokenDecimals, SAFE_TOFIXED_PRECISION) so:
+ *   1. High-priced tokens (e.g. WBTC at ~$75k) don't lose sub-cent
+ *      precision and report Max 0 (was a 2-decimal floor).
+ *   2. For 18-decimal tokens, the max never advertises precision below
+ *      what `parseUnits(borrowAmount.toFixed(15), decimals)` can preserve
+ *      in `useBorrowTransaction` — otherwise the Max button could set
+ *      a value the execution path silently truncates to zero.
  */
 export function calculateMaxBorrowTokens({
   collateralValueUsd,
@@ -45,6 +55,7 @@ export function calculateMaxBorrowTokens({
     MIN_HEALTH_FACTOR_FOR_BORROW;
   const maxAdditionalBorrowUsd = maxTotalDebtUsd - currentDebtUsd;
   const maxBorrowTokens = maxAdditionalBorrowUsd / tokenPriceUsd;
-  const scale = 10 ** tokenDecimals;
+  const floorDecimals = Math.min(tokenDecimals, SAFE_TOFIXED_PRECISION);
+  const scale = 10 ** floorDecimals;
   return Math.floor(Math.max(0, maxBorrowTokens) * scale) / scale;
 }

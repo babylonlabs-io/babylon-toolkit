@@ -144,4 +144,20 @@ describe("calculateMaxBorrowTokens", () => {
     expect(result).toBeGreaterThan(0);
     expect(result * 1e8).toBe(Math.floor(result * 1e8));
   });
+
+  it("caps floor precision at 15 decimals for 18-decimal tokens", () => {
+    // 18-decimal token: floor must clamp at SAFE_TOFIXED_PRECISION (15) so the
+    // displayed max never exposes precision the borrow execution path
+    // (parseUnits(borrowAmount.toFixed(15), 18)) would silently truncate.
+    const result = calculateMaxBorrowTokens({
+      collateralValueUsd: 10000,
+      currentDebtUsd: 0,
+      liquidationThresholdBps: 8000,
+      tokenPriceUsd: 1,
+      tokenDecimals: 18,
+    });
+
+    // result * 10^15 must be an integer (floor cap)
+    expect(result * 1e15).toBe(Math.floor(result * 1e15));
+  });
 });

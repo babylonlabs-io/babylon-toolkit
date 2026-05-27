@@ -19,6 +19,7 @@ import {
 } from "@/utils/errors";
 
 import { getAaveAdapterAddress } from "../config";
+import { SAFE_TOFIXED_PRECISION } from "../constants";
 import {
   ReserveMismatchError,
   assertReserveMatchesOnChain,
@@ -93,10 +94,12 @@ export function useBorrowTransaction(): UseBorrowTransactionResult {
           `Failed to fetch on-chain decimals for ${reserve.token.address}`,
         );
       });
-      // Clamp toFixed precision to 15 to avoid IEEE 754 floating-point artifacts
-      // (e.g. (0.1).toFixed(18) === "0.100000000000000006"). parseUnits handles
-      // strings with fewer decimal places than the token's decimals correctly.
-      const SAFE_TOFIXED_PRECISION = 15;
+      // Clamp toFixed precision to SAFE_TOFIXED_PRECISION to avoid IEEE 754
+      // artifacts (e.g. (0.1).toFixed(18) === "0.100000000000000006"). The
+      // max-borrow floor in calculateMaxBorrowTokens uses the same cap so
+      // the displayed Max never exposes precision this path can't preserve.
+      // parseUnits handles strings with fewer decimal places than the token's
+      // decimals correctly.
       const borrowAmountBigInt = parseUnits(
         borrowAmount.toFixed(Math.min(onChainDecimals, SAFE_TOFIXED_PRECISION)),
         onChainDecimals,
