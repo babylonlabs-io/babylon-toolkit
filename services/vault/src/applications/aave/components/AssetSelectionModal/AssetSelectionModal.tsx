@@ -8,12 +8,13 @@ import {
   DialogHeader,
   ResponsiveDialog,
 } from "@babylonlabs-io/core-ui";
+import { useMemo } from "react";
 
-import { usePrices } from "@/hooks";
 import { getTokenByAddress } from "@/services/token/tokenService";
 
 import { LOAN_TAB, type LoanTab } from "../../constants";
 import { useAaveConfig } from "../../context";
+import { useAaveReservesPrices } from "../../hooks";
 import type { Asset } from "../../types";
 
 import { AssetListItem } from "./AssetListItem";
@@ -49,8 +50,15 @@ export function AssetSelectionModal({
   mode = LOAN_TAB.BORROW,
   assets,
 }: AssetSelectionModalProps) {
-  const { borrowableReserves } = useAaveConfig();
-  const { prices, isLoading } = usePrices();
+  const { config: aaveConfig, borrowableReserves } = useAaveConfig();
+  const reserveIds = useMemo(
+    () => borrowableReserves.map((r) => r.reserveId),
+    [borrowableReserves],
+  );
+  const { pricesByReserveId, isLoading } = useAaveReservesPrices({
+    spokeAddress: aaveConfig?.coreSpokeAddress,
+    reserveIds,
+  });
   const config = MODE_CONFIG[mode];
 
   const handleAssetClick = (assetSymbol: string) => {
@@ -97,7 +105,8 @@ export function AssetSelectionModal({
 
     return borrowableReserves.map((reserve) => {
       const tokenMetadata = getTokenByAddress(reserve.token.address);
-      const priceUsd = prices[reserve.token.symbol];
+      const priceUsd =
+        pricesByReserveId[reserve.reserveId.toString()] ?? undefined;
       return (
         <AssetListItem
           key={reserve.reserveId.toString()}

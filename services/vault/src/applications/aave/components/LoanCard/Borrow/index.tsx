@@ -40,6 +40,7 @@ export function Borrow() {
     liquidationThresholdBps,
     selectedReserve,
     assetConfig,
+    oracleAddress,
     tokenPriceUsd,
     isPositionDataStale,
     refetchPosition,
@@ -80,10 +81,13 @@ export function Borrow() {
   const sliderTrackMax = maxBorrowAmount > 0 ? maxBorrowAmount : MIN_SLIDER_MAX;
 
   const handleBorrow = async () => {
+    // Defensive: the disabled prop already gates on `oracleAddress == null`.
+    if (oracleAddress == null) return;
     const success = await executeBorrow(borrowAmount, selectedReserve, () =>
       validateBorrowPreSign({
         borrowAmount,
-        tokenPriceUsd,
+        oracleAddress,
+        reserveId: selectedReserve.reserveId,
         liquidationThresholdBps,
         refetchSplitParams,
         refetchPosition,
@@ -168,11 +172,12 @@ export function Borrow() {
             Borrowing is temporarily unavailable. Please check back later.
           </Text>
         )}
-        {tokenPriceUsd == null && !FeatureFlags.isBorrowDisabled && (
-          <Text variant="body2" className="text-center text-warning-main">
-            Price data unavailable. Borrowing is temporarily disabled.
-          </Text>
-        )}
+        {(tokenPriceUsd == null || oracleAddress == null) &&
+          !FeatureFlags.isBorrowDisabled && (
+            <Text variant="body2" className="text-center text-warning-main">
+              Price data unavailable. Borrowing is temporarily disabled.
+            </Text>
+          )}
       </div>
 
       {/* Borrow Button */}
@@ -185,7 +190,8 @@ export function Borrow() {
           isDisabled ||
           isProcessing ||
           FeatureFlags.isBorrowDisabled ||
-          tokenPriceUsd == null
+          tokenPriceUsd == null ||
+          oracleAddress == null
         }
         onClick={handleBorrow}
         className="mt-6"

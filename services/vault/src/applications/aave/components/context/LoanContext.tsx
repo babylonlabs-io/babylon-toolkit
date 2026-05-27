@@ -6,6 +6,7 @@
  */
 
 import { createContext, useContext } from "react";
+import type { Address } from "viem";
 
 import type { VaultSplitParams } from "../../hooks/useVaultSplitParams";
 import type { AavePositionWithLiveData } from "../../services";
@@ -29,6 +30,12 @@ export interface LoanContextValue {
   assetConfig: Asset;
   /** User's proxy contract address (for debt queries) */
   proxyContract: string | undefined;
+  /**
+   * Aave oracle address (cached forever; `Spoke.ORACLE` is immutable).
+   * Null while loading or on lookup error. The Borrow flow gates on this;
+   * Repay does not consume the oracle.
+   */
+  oracleAddress: Address | null;
   /** Price of the selected borrow token in USD (null when oracle price is temporarily unavailable) */
   tokenPriceUsd: number | null;
   /** Whether position data may be stale (oracle-derived values possibly outdated) */

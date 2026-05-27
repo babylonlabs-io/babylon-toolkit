@@ -4,6 +4,18 @@ export {
   type UseAaveBorrowedAssetsResult,
 } from "./useAaveBorrowedAssets";
 export {
+  useAaveOracleAddress,
+  type UseAaveOracleAddressResult,
+} from "./useAaveOracleAddress";
+export {
+  useAaveReservePrice,
+  type UseAaveReservePriceResult,
+} from "./useAaveReservePrice";
+export {
+  useAaveReservesPrices,
+  type UseAaveReservesPricesResult,
+} from "./useAaveReservesPrices";
+export {
   useAaveUserPosition,
   type HealthFactorStatus,
   type UseAaveUserPositionResult,
