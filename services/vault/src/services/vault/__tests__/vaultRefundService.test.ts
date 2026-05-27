@@ -74,7 +74,15 @@ vi.mock("../fetchVaults", () => ({
 
 import { getNetworkFees, pushTx } from "@babylonlabs-io/ts-sdk/tbv/core";
 import { calculateBtcTxHash } from "@babylonlabs-io/ts-sdk/tbv/core/utils";
-import { beforeEach, describe, expect, it, vi, type Mock } from "vitest";
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+  type Mock,
+} from "vitest";
 
 import { getVaultFromChain } from "../../../clients/eth-contract/btc-vault-registry/query";
 import { fetchVaultProviderById } from "../fetchVaultProviders";
@@ -412,17 +420,28 @@ describe("vaultRefundService - adapter wiring", () => {
 });
 
 describe("getRefundPreview", () => {
+  // The Pre-PegIn existence probe in getRefundPreview does a raw mempool
+  // `fetch`. Stub it so the tests are hermetic; default = tx found (200).
+  const mockFetch = vi.fn();
+
   beforeEach(() => {
     vi.clearAllMocks();
     (getVaultFromChain as Mock).mockResolvedValue(ON_CHAIN_VAULT);
     (fetchVaultRefundData as Mock).mockResolvedValue(INDEXER_VAULT);
     (getNetworkFees as Mock).mockResolvedValue({ halfHourFee: 7 });
+    mockFetch.mockResolvedValue({ status: 200 });
+    vi.stubGlobal("fetch", mockFetch);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
   });
 
   it("returns the on-chain HTLC amount and mempool halfHourFee", async () => {
     const preview = await getRefundPreview(VAULT_ID);
     expect(preview.amountSats).toBe(ON_CHAIN_VAULT.amount);
     expect(preview.halfHourFeeSatsVb).toBe(7);
+    expect(preview.prePeginOnChain).toBe(true);
   });
 
   it("throws when the vault is not found in the indexer", async () => {
@@ -445,6 +464,25 @@ describe("getRefundPreview", () => {
     (getNetworkFees as Mock).mockResolvedValue({ halfHourFee: 0 });
     const preview = await getRefundPreview(VAULT_ID);
     expect(preview.halfHourFeeSatsVb).toBeNull();
+  });
+
+  it("reports prePeginOnChain=false when the Pre-PegIn tx is not on Bitcoin (HTTP 404)", async () => {
+    mockFetch.mockResolvedValue({ status: 404 });
+    const preview = await getRefundPreview(VAULT_ID);
+    expect(preview.prePeginOnChain).toBe(false);
+  });
+
+  it("reports prePeginOnChain=true (fail-open) when the mempool probe errors", async () => {
+    // A flaky or geo-fenced mempool must never block a legitimate refund.
+    mockFetch.mockRejectedValue(new Error("network down"));
+    const preview = await getRefundPreview(VAULT_ID);
+    expect(preview.prePeginOnChain).toBe(true);
+  });
+
+  it("reports prePeginOnChain=true (fail-open) on a non-404 status (e.g. geo-fenced 403)", async () => {
+    mockFetch.mockResolvedValue({ status: 403 });
+    const preview = await getRefundPreview(VAULT_ID);
+    expect(preview.prePeginOnChain).toBe(true);
   });
 });
 

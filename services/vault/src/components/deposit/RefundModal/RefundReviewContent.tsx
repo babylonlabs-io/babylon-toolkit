@@ -23,7 +23,6 @@ const DUST_LIMIT_SATS = 546n;
 interface RefundReviewContentProps {
   amountSats: bigint | null;
   defaultFeeRateSatsVb: number | null;
-  previewLoading: boolean;
   previewError: string | null;
   refunding: boolean;
   error: string | null;
@@ -33,7 +32,6 @@ interface RefundReviewContentProps {
 export function RefundReviewContent({
   amountSats,
   defaultFeeRateSatsVb,
-  previewLoading,
   previewError,
   refunding,
   error,
@@ -48,6 +46,9 @@ export function RefundReviewContent({
   // by editing the field or the mempool rate arrives.
   const [usingFallback, setUsingFallback] = useState(false);
 
+  // The preview has already resolved before this component renders (the
+  // modal holds a loading state until then), so `defaultFeeRateSatsVb` is
+  // final — seed from it, or fall back to the floor if the fee fetch failed.
   useEffect(() => {
     if (feeRate !== null) return;
     if (defaultFeeRateSatsVb && defaultFeeRateSatsVb > 0) {
@@ -55,11 +56,9 @@ export function RefundReviewContent({
       setUsingFallback(false);
       return;
     }
-    if (!previewLoading) {
-      setFeeRate(FALLBACK_FEE_RATE_SATS_VB);
-      setUsingFallback(true);
-    }
-  }, [defaultFeeRateSatsVb, feeRate, previewLoading]);
+    setFeeRate(FALLBACK_FEE_RATE_SATS_VB);
+    setUsingFallback(true);
+  }, [defaultFeeRateSatsVb, feeRate]);
 
   const handleFeeRateChange = (next: number) => {
     setFeeRate(next);
@@ -102,7 +101,6 @@ export function RefundReviewContent({
 
   const canConfirm =
     !refunding &&
-    !previewLoading &&
     feeRate !== null &&
     feeRate > 0 &&
     youReceiveSats !== null &&
