@@ -25,7 +25,7 @@ import {
   VAULT_COLLATERAL_ASSET,
   type FetchUserActivitiesDeps,
 } from "./projection";
-import type { GraphQLVaultActivityItem } from "./query";
+import { parseLogIndex, type GraphQLVaultActivityItem } from "./query";
 
 export type LiquidationClassification =
   | "Partially Liquidated"
@@ -46,9 +46,17 @@ export function classifyLiquidations(
   items: readonly GraphQLVaultActivityItem[],
 ): Map<string, LiquidationClassification> {
   const result = new Map<string, LiquidationClassification>();
-  const sortedAsc = [...items].sort(
-    (a, b) => parseInt(a.timestamp, 10) - parseInt(b.timestamp, 10),
-  );
+  // Full ascending order: timestamp → blockNumber → logIndex. Same-second
+  // events (especially same-block) must be ordered by block + log position
+  // or the classifier can apply a later event before the one that actually
+  // happened first, mislabelling a full liquidation as partial (or vice versa).
+  const sortedAsc = [...items].sort((a, b) => {
+    const tsDiff = parseInt(a.timestamp, 10) - parseInt(b.timestamp, 10);
+    if (tsDiff !== 0) return tsDiff;
+    const blockDiff = parseInt(a.blockNumber, 10) - parseInt(b.blockNumber, 10);
+    if (blockDiff !== 0) return blockDiff;
+    return parseLogIndex(a.id) - parseLogIndex(b.id);
+  });
   const deposited = new Set<string>();
   const closed = new Set<string>();
 

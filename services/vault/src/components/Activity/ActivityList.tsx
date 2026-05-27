@@ -1,5 +1,5 @@
 import { Avatar } from "@babylonlabs-io/core-ui";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { COPY } from "@/copy";
 import type { ActivityRow, ActivityType } from "@/types/activityLog";
@@ -28,6 +28,13 @@ interface ActivityListProps {
 
 export function ActivityList({ activities, isConnected }: ActivityListProps) {
   const [filter, setFilter] = useState<ActivityType | null>(null);
+
+  // The filter control is hidden when the wallet disconnects, so leaving the
+  // selection in place would trap the user on an empty-but-filtered list with
+  // no visible way to clear it. Reset on disconnect.
+  useEffect(() => {
+    if (!isConnected) setFilter(null);
+  }, [isConnected]);
 
   const visible = filter
     ? activities.filter((r) => r.type === filter)

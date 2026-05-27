@@ -66,11 +66,21 @@ export async function fetchUserActivities(
   }
 
   // Sibling repay events fire in the same EVM tx as a VaultLiquidated event.
-  // Indexed by tx hash so liquidations can grab their repay child in one lookup.
-  const repayByTxHash = new Map<string, GraphQLVaultActivityItem>();
+  // Aave's RepaidFromPosition is position-scoped (vaultId is null) and fires
+  // once per debt reserve, so one liquidation tx can produce multiple repays
+  // (one per reserve being settled). Track them all per tx hash so:
+  //   1. every repay is marked consumed (no orphan rows leak through), and
+  //   2. the first repay attaches to the liquidation card (today's design;
+  //      multi-repay card support is a separate design call).
+  const repaysByTxHash = new Map<string, GraphQLVaultActivityItem[]>();
   for (const item of activities) {
     if (item.type === "repay") {
-      repayByTxHash.set(item.transactionHash, item);
+      const bucket = repaysByTxHash.get(item.transactionHash);
+      if (bucket) {
+        bucket.push(item);
+      } else {
+        repaysByTxHash.set(item.transactionHash, [item]);
+      }
     }
   }
 
@@ -91,8 +101,10 @@ export async function fetchUserActivities(
   const consumedIds = new Set<string>();
   for (const item of activities) {
     if (item.type === "liquidation") {
-      const repay = repayByTxHash.get(item.transactionHash);
-      if (repay) consumedIds.add(repay.id);
+      const repays = repaysByTxHash.get(item.transactionHash);
+      if (repays) {
+        for (const repay of repays) consumedIds.add(repay.id);
+      }
     }
   }
 
@@ -104,7 +116,9 @@ export async function fetchUserActivities(
     if (item.type === "liquidation") {
       const classification =
         liquidationClassification.get(item.id) ?? "Partially Liquidated";
-      const repay = repayByTxHash.get(item.transactionHash);
+      // Multi-reserve case: only the first repay is shown in the card today.
+      // The others are still consumed above so they don't leak as orphan rows.
+      const repay = repaysByTxHash.get(item.transactionHash)?.[0];
       rows.push(buildLiquidationGroup(item, repay, classification, deps));
       continue;
     }

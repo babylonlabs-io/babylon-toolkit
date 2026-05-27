@@ -124,4 +124,42 @@ describe("ActivityList", () => {
     renderList({ activities: [], isConnected: false });
     expect(screen.queryByAltText("Aave")).not.toBeInTheDocument();
   });
+
+  it("resets an active filter on disconnect so the disconnected empty state shows", () => {
+    const rows = [
+      makeRow({ id: "a", type: "Deposit" }),
+      makeRow({
+        id: "b",
+        type: "Borrow",
+        amount: { value: "100", symbol: "USDC" },
+      }),
+    ];
+    const { rerender } = renderList({
+      activities: rows,
+      isConnected: true,
+    });
+
+    // User picks a filter while connected.
+    fireEvent.click(screen.getByRole("button", { name: /show all/i }));
+    fireEvent.click(screen.getByRole("option", { name: "Borrowed" }));
+    expect(screen.getAllByRole("listitem")).toHaveLength(1);
+
+    // Wallet disconnects. Filter must be cleared, not preserved.
+    rerender(
+      <MemoryRouter initialEntries={["/activity"]}>
+        <Routes>
+          <Route element={<Outlet context={{ openDeposit: () => {} }} />}>
+            <Route
+              path="/activity"
+              element={<ActivityList activities={[]} isConnected={false} />}
+            />
+          </Route>
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(
+      screen.getByText(/connect your wallet to view your activity/i),
+    ).toBeInTheDocument();
+  });
 });

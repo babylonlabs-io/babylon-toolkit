@@ -50,12 +50,22 @@ interface GraphQLActivityFirstPageResponse {
     items: GraphQLVaultActivityItem[];
     pageInfo: GraphQLPageInfo;
   };
-  vaults: { items: GraphQLVaultItem[] };
+  vaults: {
+    items: GraphQLVaultItem[];
+    pageInfo: GraphQLPageInfo;
+  };
 }
 
 interface GraphQLActivityNextPageResponse {
   vaultActivitys: {
     items: GraphQLVaultActivityItem[];
+    pageInfo: GraphQLPageInfo;
+  };
+}
+
+interface GraphQLVaultsNextPageResponse {
+  vaults: {
+    items: GraphQLVaultItem[];
     pageInfo: GraphQLPageInfo;
   };
 }
@@ -89,12 +99,12 @@ export function parseLogIndex(id: string): number {
 }
 
 /**
- * First page: pulls activity rows AND (in the same round trip) the vault rows
- * referenced by those activities for pegin-hash resolution. The frontend joins
- * on `vault.id` client-side.
+ * First page: pulls activity rows AND (in the same round trip) the first page
+ * of vault rows referenced by those activities for pegin-hash resolution. The
+ * frontend joins on `vault.id` client-side.
  *
- * `vaults` is fetched once because it's bounded by the user's deposits (small
- * by construction), so it does not need its own pagination loop.
+ * Both `vaultActivitys` and `vaults` paginate — power users with long deposit
+ * histories can exceed Ponder's default page cap on the vaults side too.
  */
 const GET_ACTIVITIES_FIRST_PAGE = gql`
   query GetActivitiesFirstPage($depositor: String!, $limit: Int!) {
@@ -120,10 +130,34 @@ const GET_ACTIVITIES_FIRST_PAGE = gql`
         endCursor
       }
     }
-    vaults(where: { depositor: $depositor }) {
+    vaults(where: { depositor: $depositor }, limit: $limit) {
       items {
         id
         peginTxHash
+      }
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
+    }
+  }
+`;
+
+/**
+ * Follow-on page for the `vaults` selection only. Lets us catch up any vault
+ * rows referenced by activities that landed on a later activity page when the
+ * depositor has more vaults than fit in one Ponder page.
+ */
+const GET_VAULTS_NEXT_PAGE = gql`
+  query GetVaultsNextPage($depositor: String!, $limit: Int!, $after: String!) {
+    vaults(where: { depositor: $depositor }, limit: $limit, after: $after) {
+      items {
+        id
+        peginTxHash
+      }
+      pageInfo {
+        hasNextPage
+        endCursor
       }
     }
   }
@@ -185,27 +219,66 @@ export async function fetchAllActivityPages(depositor: string): Promise<{
   const activities: GraphQLVaultActivityItem[] = [
     ...firstPage.vaultActivitys.items,
   ];
-  let { hasNextPage, endCursor } = firstPage.vaultActivitys.pageInfo;
-  let pagesFetched = 1;
+  let activitiesPageInfo = firstPage.vaultActivitys.pageInfo;
+  let activityPagesFetched = 1;
 
-  while (hasNextPage && endCursor != null) {
-    if (pagesFetched >= MAX_ACTIVITY_PAGES) {
+  while (
+    activitiesPageInfo.hasNextPage &&
+    activitiesPageInfo.endCursor != null
+  ) {
+    if (activityPagesFetched >= MAX_ACTIVITY_PAGES) {
       logger.warn(
         "[fetchActivities] hit MAX_ACTIVITY_PAGES while paginating; results may be truncated",
-        { depositor, pagesFetched, accumulated: activities.length },
+        {
+          depositor,
+          pagesFetched: activityPagesFetched,
+          accumulated: activities.length,
+        },
       );
       break;
     }
     const nextPage =
       await graphqlClient.request<GraphQLActivityNextPageResponse>(
         GET_ACTIVITIES_NEXT_PAGE,
-        { depositor, limit: ACTIVITIES_PAGE_SIZE, after: endCursor },
+        {
+          depositor,
+          limit: ACTIVITIES_PAGE_SIZE,
+          after: activitiesPageInfo.endCursor,
+        },
       );
     activities.push(...nextPage.vaultActivitys.items);
-    hasNextPage = nextPage.vaultActivitys.pageInfo.hasNextPage;
-    endCursor = nextPage.vaultActivitys.pageInfo.endCursor;
-    pagesFetched += 1;
+    activitiesPageInfo = nextPage.vaultActivitys.pageInfo;
+    activityPagesFetched += 1;
   }
 
-  return { activities, vaults: firstPage.vaults.items };
+  const vaults: GraphQLVaultItem[] = [...firstPage.vaults.items];
+  let vaultsPageInfo = firstPage.vaults.pageInfo;
+  let vaultPagesFetched = 1;
+
+  while (vaultsPageInfo.hasNextPage && vaultsPageInfo.endCursor != null) {
+    if (vaultPagesFetched >= MAX_ACTIVITY_PAGES) {
+      logger.warn(
+        "[fetchActivities] hit MAX_ACTIVITY_PAGES while paginating vaults; results may be truncated",
+        {
+          depositor,
+          pagesFetched: vaultPagesFetched,
+          accumulated: vaults.length,
+        },
+      );
+      break;
+    }
+    const nextPage = await graphqlClient.request<GraphQLVaultsNextPageResponse>(
+      GET_VAULTS_NEXT_PAGE,
+      {
+        depositor,
+        limit: ACTIVITIES_PAGE_SIZE,
+        after: vaultsPageInfo.endCursor,
+      },
+    );
+    vaults.push(...nextPage.vaults.items);
+    vaultsPageInfo = nextPage.vaults.pageInfo;
+    vaultPagesFetched += 1;
+  }
+
+  return { activities, vaults };
 }

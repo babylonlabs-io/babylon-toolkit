@@ -123,12 +123,21 @@ async function setupGraphqlMock(rows: RawActivity[]) {
               id,
               peginTxHash: `0xpegin-${id.slice(2, 10)}`,
             })),
+            pageInfo: { hasNextPage: false, endCursor: null },
           },
         } as never;
       }
       if (src.includes("GetActivitiesNextPage")) {
         return {
           vaultActivitys: {
+            items: [],
+            pageInfo: { hasNextPage: false, endCursor: null },
+          },
+        } as never;
+      }
+      if (src.includes("GetVaultsNextPage")) {
+        return {
+          vaults: {
             items: [],
             pageInfo: { hasNextPage: false, endCursor: null },
           },
@@ -520,7 +529,10 @@ describe("fetchUserActivities GraphQL request shape", () => {
               items: pageOne,
               pageInfo: { hasNextPage: true, endCursor: "cursor-1" },
             },
-            vaults: { items: [{ id: VAULT_A, peginTxHash: "0xpegin-a" }] },
+            vaults: {
+              items: [{ id: VAULT_A, peginTxHash: "0xpegin-a" }],
+              pageInfo: { hasNextPage: false, endCursor: null },
+            },
           } as never;
         }
         if (src.includes("GetActivitiesNextPage")) {
@@ -546,6 +558,61 @@ describe("fetchUserActivities GraphQL request shape", () => {
     expect(vi.mocked(graphqlClient.request)).toHaveBeenCalledTimes(2);
     expect(result).toHaveLength(2);
     expect(result.map((r) => r.type).sort()).toEqual(["Deposit", "Withdraw"]);
+  });
+
+  it("paginates the vaults selection so pegin hashes still resolve past page one", async () => {
+    const { graphqlClient } = await import("@/clients/graphql");
+
+    const VAULT_LATE = "0x" + "9".repeat(64);
+    const rows: RawActivity[] = [
+      activity({
+        type: "deposit",
+        logIndex: 0,
+        transactionHash: TX_DEPOSIT,
+        vaultId: VAULT_LATE,
+      }),
+    ];
+
+    vi.mocked(graphqlClient.request).mockImplementation(
+      async (query: unknown, variables?: unknown) => {
+        const src = String(query);
+        if (src.includes("GetActivitiesFirstPage")) {
+          return {
+            vaultActivitys: {
+              items: rows,
+              pageInfo: { hasNextPage: false, endCursor: null },
+            },
+            // First vault page has only a placeholder; the activity references
+            // VAULT_LATE which lives on the second vaults page.
+            vaults: {
+              items: [{ id: VAULT_A, peginTxHash: "0xpegin-a" }],
+              pageInfo: { hasNextPage: true, endCursor: "vcursor-1" },
+            },
+          } as never;
+        }
+        if (src.includes("GetVaultsNextPage")) {
+          const vars = variables as { after?: string };
+          expect(vars.after).toBe("vcursor-1");
+          return {
+            vaults: {
+              items: [{ id: VAULT_LATE, peginTxHash: "0xpegin-late" }],
+              pageInfo: { hasNextPage: false, endCursor: null },
+            },
+          } as never;
+        }
+        throw new Error(`Unexpected query: ${src}`);
+      },
+    );
+
+    const result = await fetchUserActivities(
+      USER as `0x${string}`,
+      buildDeps([]),
+    );
+
+    expect(result).toHaveLength(1);
+    const row = asStandard(result[0]);
+    expect(row.transactionHash).toBe("0xpegin-late");
+    expect(row.chain).toBe("BTC");
   });
 });
 
@@ -699,6 +766,62 @@ describe("fetchUserActivities liquidation grouping", () => {
     const group = result.find((r) => r.kind === "liquidationGroup");
     if (!group) throw new Error("expected a liquidation group");
     expect(asGroup(group).type).toBe("Partially Liquidated");
+  });
+
+  it("consumes every repay in a multi-reserve liquidation tx, not just one", async () => {
+    // Aave can repay multiple debt reserves in a single liquidation tx; all
+    // those repays share the same transactionHash. Every one must be consumed
+    // so none leak through as a standalone Repay row.
+    const rows: RawActivity[] = [
+      activity({
+        type: "deposit",
+        logIndex: 0,
+        transactionHash: TX_DEPOSIT,
+        vaultId: VAULT_A,
+        timestamp: "1700000000",
+      }),
+      activity({
+        type: "liquidation",
+        logIndex: 0,
+        transactionHash: TX_LIQUIDATION,
+        vaultId: VAULT_A,
+        amount: "50000000",
+        timestamp: "1700000100",
+      }),
+      activity({
+        type: "repay",
+        logIndex: 1,
+        transactionHash: TX_LIQUIDATION,
+        vaultId: null,
+        debtReserveId: "1",
+        amount: "5000000000", // 5,000 USDC
+        timestamp: "1700000100",
+      }),
+      activity({
+        type: "repay",
+        logIndex: 2,
+        transactionHash: TX_LIQUIDATION,
+        vaultId: null,
+        debtReserveId: "2",
+        amount: "3000000000", // 3,000 USDT
+        timestamp: "1700000100",
+      }),
+    ];
+    await setupGraphqlMock(rows);
+
+    const result = await fetchUserActivities(
+      USER as `0x${string}`,
+      buildDeps([
+        { id: "1", symbol: "USDC", decimals: 6 },
+        { id: "2", symbol: "USDT", decimals: 6 },
+      ]),
+    );
+
+    // Deposit + LiquidationGroup, no orphan Repay rows.
+    expect(result).toHaveLength(2);
+    expect(result.some((r) => r.kind === "row" && r.type === "Repay")).toBe(
+      false,
+    );
   });
 });
 

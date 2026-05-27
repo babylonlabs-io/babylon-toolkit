@@ -166,6 +166,14 @@ export interface FetchUserActivitiesDeps {
  * the deposit was refunded. The UI renders this as a Deposit row with a red
  * dot, not a separate "Claim Expired" row, so the user sees a single Deposit
  * entry marked as refunded.
+ *
+ * Indexer invariant: a vault either reaches `AVAILABLE` (which emits
+ * `deposit`) or expires before activation and is reclaimed (which emits
+ * `claim_expired`) — never both. So projecting a refunded Deposit here does
+ * NOT duplicate an existing `deposit` row; the two activity types are
+ * mutually exclusive per vault by the state machine in
+ * `babylon-vault-indexer/src/core/pegin.ts` (`PeginActivated` →
+ * `AVAILABLE` → `deposit`; `ExpiredVaultClaimed` → reclaim → `claim_expired`).
  */
 export function projectRefundedDeposit(
   item: GraphQLVaultActivityItem,
