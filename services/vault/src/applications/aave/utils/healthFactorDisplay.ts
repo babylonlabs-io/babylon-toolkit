@@ -1,5 +1,7 @@
 import type { HealthFactorStatus } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
 
+import { COPY } from "@/copy";
+
 import { HEALTH_FACTOR_DISPLAY_CAP } from "../constants";
 
 export const HEALTH_FACTOR_COLORS = {
@@ -27,6 +29,9 @@ export function getHealthFactorColor(
   }
 }
 
+/** Above this value, the health factor is effectively unbounded and shown as "Healthy". */
+export const HEALTH_FACTOR_HEALTHY_THRESHOLD = 50;
+
 export function formatHealthFactor(healthFactor: number | null): string {
   // null = no debt; non-finite or absurdly high = negligible debt. All render
   // as "-" ("infinitely healthy") rather than "Infinity" or the scientific
@@ -37,6 +42,9 @@ export function formatHealthFactor(healthFactor: number | null): string {
     healthFactor > HEALTH_FACTOR_DISPLAY_CAP
   ) {
     return "-";
+  }
+  if (healthFactor > HEALTH_FACTOR_HEALTHY_THRESHOLD) {
+    return COPY.overview.healthFactorHealthy;
   }
   return healthFactor.toFixed(2);
 }
