@@ -131,9 +131,26 @@ const BTC_WALLET_PROVIDER = {
   signPsbt: vi.fn().mockResolvedValue("signed_psbt_hex"),
 };
 
+// `buildAndBroadcastRefundTransaction` and `getRefundPreview` both probe the
+// Pre-PegIn via a raw `fetch` to mempool.space. Stub globally so no test in
+// this file makes a real network call (which would take ~800ms and flake
+// under the default 5s timeout). Individual tests can still override the
+// response via `mockFetch.mockResolvedValue(...)` / `mockRejectedValue(...)`.
+const mockFetch = vi.fn();
+
+beforeEach(() => {
+  vi.stubGlobal("fetch", mockFetch);
+  mockFetch.mockResolvedValue({ status: 200 });
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
+
 describe("vaultRefundService - adapter wiring", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockFetch.mockResolvedValue({ status: 200 });
 
     (calculateBtcTxHash as Mock).mockReturnValue(ON_CHAIN_VAULT.prePeginTxHash);
     (getVaultFromChain as Mock).mockResolvedValue(ON_CHAIN_VAULT);
@@ -420,21 +437,12 @@ describe("vaultRefundService - adapter wiring", () => {
 });
 
 describe("getRefundPreview", () => {
-  // The Pre-PegIn existence probe in getRefundPreview does a raw mempool
-  // `fetch`. Stub it so the tests are hermetic; default = tx found (200).
-  const mockFetch = vi.fn();
-
   beforeEach(() => {
     vi.clearAllMocks();
     (getVaultFromChain as Mock).mockResolvedValue(ON_CHAIN_VAULT);
     (fetchVaultRefundData as Mock).mockResolvedValue(INDEXER_VAULT);
     (getNetworkFees as Mock).mockResolvedValue({ halfHourFee: 7 });
     mockFetch.mockResolvedValue({ status: 200 });
-    vi.stubGlobal("fetch", mockFetch);
-  });
-
-  afterEach(() => {
-    vi.unstubAllGlobals();
   });
 
   it("returns the on-chain HTLC amount and mempool halfHourFee", async () => {
@@ -492,6 +500,7 @@ describe("vaultRefundService - sibling batch discovery", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockFetch.mockResolvedValue({ status: 200 });
     (calculateBtcTxHash as Mock).mockReturnValue(ON_CHAIN_VAULT.prePeginTxHash);
     (fetchVaultRefundData as Mock).mockResolvedValue(INDEXER_VAULT);
     mockGetOffchainParamsByVersion.mockResolvedValue(OFFCHAIN_PARAMS);

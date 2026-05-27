@@ -27,13 +27,40 @@ function isWalletRejectionError(error: unknown): boolean {
   );
 }
 
+const FRIENDLY_USER_REJECTION_MESSAGE =
+  "Transaction rejected in your wallet. No changes were made — try again when you're ready.";
+
+/**
+ * True if `err` is (or wraps) an EIP-1193 user-rejection. viem's
+ * `UserRejectedRequestError` sets `code: 4001` and `name:
+ * "UserRejectedRequestError"`; it's typically nested several layers deep
+ * inside `TransactionExecutionError.cause`. Also matches the BTC
+ * wallet-connector's `CONNECTION_REJECTED` code at the top level.
+ */
+function isUserRejectionError(err: unknown, depth = 0): boolean {
+  if (depth > 10 || !err || typeof err !== "object") return false;
+  if (isWalletRejectionError(err)) return true;
+  const obj = err as { code?: unknown; name?: unknown; cause?: unknown };
+  if (obj.code === 4001) return true;
+  if (obj.name === "UserRejectedRequestError") return true;
+  if (obj.cause) return isUserRejectionError(obj.cause, depth + 1);
+  return false;
+}
+
 /**
  * Extract a safe error message from an unknown error value.
+ *
+ * User-rejection errors (EIP-1193 4001 / viem `UserRejectedRequestError` /
+ * wallet-connector `CONNECTION_REJECTED`) collapse to a single friendly
+ * sentence — viem's raw message dumps the full request payload including
+ * calldata, which is useless and alarming to the user.
+ *
  * Falls back to "Unknown error" for empty messages and for the literal
  * "[object Object]" — the latter shows up when upstream code wrapped a
  * plain object via template-literal interpolation.
  */
 export function sanitizeErrorMessage(err: unknown): string {
+  if (isUserRejectionError(err)) return FRIENDLY_USER_REJECTION_MESSAGE;
   if (err instanceof Error) {
     return err.message && err.message !== "[object Object]"
       ? err.message

@@ -344,8 +344,8 @@ export const COPY = {
         "Your deposit was registered on-chain, but this browser couldn't save a local copy. Free up browser storage or exit private browsing so it shows up here for tracking.",
       reusesReservedUtxos: (count: number) =>
         count <= 1
-          ? "This deposit and another of your pending BTC Vault deposits selected the same UTXOs. No BTC was locked in the other deposit, it will expire on its own."
-          : `This deposit and ${count} of your other pending BTC Vault deposits selected the same UTXOs. No BTC was locked in the other deposits, they will expire on their own.`,
+          ? "This deposit and another of your pending BTC Vault deposits selected the same UTXOs. No BTC was committed in the other deposit, it will expire on its own."
+          : `This deposit and ${count} of your other pending BTC Vault deposits selected the same UTXOs. No BTC was committed in the other deposits, they will expire on their own.`,
     },
     errors: {
       invalidSecret:

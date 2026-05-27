@@ -41,9 +41,10 @@ export const CONTRACT_ERROR_MESSAGES: Record<string, string> = {
   // Fires at vault REGISTRATION (per-depositor hashlock uniqueness in
   // BTCVaultRegistry). Hashlocks are deterministic from BTC wallet +
   // selected UTXOs, so reusing the same UTXOs from the same wallet
-  // produces the same hashlock and reverts here.
+  // produces the same hashlock and reverts here. Kept in sync with the
+  // SDK selector-keyed copy in `babylon-ts-sdk/src/tbv/core/contracts/errors.ts`.
   DuplicateHashlock:
-    "Duplicate deposit: a BTC Vault with this hashlock is already registered to your wallet. Use different UTXOs to create a unique deposit.",
+    "Duplicate deposit: a BTC Vault with this hashlock is already registered to your wallet. Hashlocks are derived from your BTC wallet and selected UTXOs — use different UTXOs to create a unique deposit.",
   VaultNotEscrowed: "The BTC Vault is not in escrow.",
   VaultSwapNotSet: "BTC Vault swap is not configured.",
   InvalidBTCPublicKey: "Invalid BTC public key format.",

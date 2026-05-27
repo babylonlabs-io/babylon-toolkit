@@ -465,7 +465,7 @@ export const BTCVaultRegistryABI = [
   // Without these, every revert surfaces as "Execution reverted for an
   // unknown reason." Mirrors errors thrown from BTCVaultRegistry's reachable
   // code paths (pegin submission, ACK, activation). Source:
-  // ~/babylon/vault/vault-contracts-aave-v4/src/protocol/lib/types/Errors.sol
+  // https://github.com/babylonlabs-io/vault-contracts-aave-v4/blob/652c4582/src/protocol/lib/types/Errors.sol
   // ============================================================================
   { type: "error", name: "ZeroAddress", inputs: [] },
   { type: "error", name: "Unauthorized", inputs: [] },

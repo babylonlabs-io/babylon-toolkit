@@ -2,7 +2,6 @@ import { AmountSlider, Card, Hint, InfoIcon } from "@babylonlabs-io/core-ui";
 import { useMemo, useState } from "react";
 
 import { ApplicationLogo } from "@/components/ApplicationLogo";
-import { StatusBanner } from "@/components/deposit/DepositSignModal/StatusBanner";
 import { DepositButton } from "@/components/shared";
 import { getNetworkConfigBTC } from "@/config";
 import { COPY } from "@/copy";
@@ -140,15 +139,6 @@ interface DepositFormProps {
    * swaps its label to a progress indicator.
    */
   isReconnectingWallet?: boolean;
-
-  /**
-   * Pre-signing advisory text shown when the predicted UTXO selection
-   * would reuse coins from another of the depositor's pending vaults.
-   * When set, an amber banner is rendered above the CTA and the button
-   * label flips to "Proceed anyway"; clicking again signals the
-   * upstream handler that the user has acknowledged the overlap.
-   */
-  reusalWarning?: string | null;
 }
 
 export function DepositForm({
@@ -195,7 +185,6 @@ export function DepositForm({
   walletConnectionErrorMessage = null,
   isVerifyingWallet = false,
   isReconnectingWallet = false,
-  reusalWarning = null,
 }: DepositFormProps) {
   const [openPanel, setOpenPanel] = useState<"split" | "provider" | null>(null);
   const setPanelExpanded =
@@ -394,9 +383,6 @@ export function DepositForm({
           {walletConnectionErrorMessage}
         </p>
       )}
-      {reusalWarning && (
-        <StatusBanner variant="warning">{reusalWarning}</StatusBanner>
-      )}
       <DepositButton
         variant="contained"
         color="primary"
@@ -405,11 +391,7 @@ export function DepositForm({
         disabled={cta.disabled || isVerifyingWallet}
         onClick={onDeposit}
       >
-        {isVerifyingWallet
-          ? "Checking wallet..."
-          : reusalWarning && !cta.disabled
-            ? "Proceed anyway"
-            : cta.label}
+        {isVerifyingWallet ? "Checking wallet..." : cta.label}
       </DepositButton>
 
       {/* Fee breakdown */}

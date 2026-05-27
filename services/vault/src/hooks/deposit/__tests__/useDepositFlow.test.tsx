@@ -33,6 +33,13 @@ vi.mock("@babylonlabs-io/wallet-connector", () => ({
   useChainConnector: vi.fn(),
 }));
 
+// Avoid threading a real QueryClientProvider through every renderHook —
+// `useDepositFlow` only uses the client to invalidate the UTXO query
+// after broadcast; a stub is sufficient for adapter-wiring tests.
+vi.mock("@tanstack/react-query", () => ({
+  useQueryClient: () => ({ invalidateQueries: vi.fn() }),
+}));
+
 vi.mock("../useBtcWalletState", () => ({
   useBtcWalletState: vi.fn(),
 }));

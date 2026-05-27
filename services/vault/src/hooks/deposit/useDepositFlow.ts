@@ -42,6 +42,7 @@ import {
 } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import { computeHashlock } from "@babylonlabs-io/ts-sdk/tbv/core/services";
 import { useChainConnector } from "@babylonlabs-io/wallet-connector";
+import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { v4 as uuidv4 } from "uuid";
 import type { Address, Hex } from "viem";
@@ -53,6 +54,7 @@ import {
 } from "@/clients/eth-contract/sdk-readers";
 import { useProtocolParamsContext } from "@/context/ProtocolParamsContext";
 import { COPY } from "@/copy";
+import { UTXOS_QUERY_KEY } from "@/hooks/useUTXOs";
 import { logger } from "@/infrastructure";
 import { LocalStorageStatus } from "@/models/peginStateMachine";
 import { validateMultiVaultDepositInputs } from "@/services/deposit/validations";
@@ -290,6 +292,7 @@ export function useDepositFlow(
   // Hooks
   const { btcAddress, spendableUTXOs, isUTXOsLoading, utxoError } =
     useBtcWalletState();
+  const queryClient = useQueryClient();
   const { findProvider } = useVaultProviders(selectedApplication);
   const { config, timelockPegin, timelockRefund, minDeposit, maxDeposit } =
     useProtocolParamsContext();
@@ -427,14 +430,12 @@ export function useDepositFlow(
           },
         };
 
-        // Pass the full wallet to `preparePeginTransaction` with no
-        // pre-filtering. Hashlock collisions across the depositor's own
-        // pending/active vaults are rejected on-chain by
-        // `BTCVaultRegistry`'s per-depositor hashlock uniqueness check,
-        // which surfaces as a friendly `DuplicateHashlock` message via the
-        // SDK error mapping. Insufficient-funds cases surface as a clear
-        // "Insufficient funds: …" error.
-        const availableUTXOs = spendableUTXOs;
+        // No hard pre-filter. `DuplicateHashlock` on `BTCVaultRegistry`
+        // blocks *identical* UTXO-set reuse on-chain; the modal banner
+        // advises on overlap with pending vaults. Residual: partial
+        // overlap (e.g. {U1,U2} vs {U1,U3}) derives a different hashlock
+        // — both register, only one Pre-PegIn can broadcast, the other
+        // strands until expiry.
 
         const [vaultKeeperReader, universalChallengerReader] =
           await Promise.all([
@@ -473,7 +474,7 @@ export function useDepositFlow(
             timelockRefund,
             councilQuorum: config.offchainParams.councilQuorum,
             councilSize: config.offchainParams.securityCouncilKeys.length,
-            availableUTXOs,
+            availableUTXOs: spendableUTXOs,
           },
         );
         const {
@@ -698,6 +699,16 @@ export function useDepositFlow(
             peginResult.vaultId,
             LocalStorageStatus.CONFIRMING,
           );
+        }
+
+        // The mempool now knows our Pre-PegIn spent these outpoints, so the
+        // next `/address/<addr>/utxo` fetch will exclude them. Invalidate
+        // the cache so a follow-up deposit picks fresh inputs instead of
+        // the stale set this one just consumed.
+        if (btcAddress) {
+          void queryClient.invalidateQueries({
+            queryKey: [UTXOS_QUERY_KEY, btcAddress],
+          });
         }
 
         // All vaults share the same Pre-PegIn tx — if broadcast succeeded,
@@ -1073,6 +1084,7 @@ export function useDepositFlow(
       isUTXOsLoading,
       utxoError,
       findProvider,
+      queryClient,
     ]);
 
   return {
