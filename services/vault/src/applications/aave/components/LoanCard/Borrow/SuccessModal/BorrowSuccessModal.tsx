@@ -1,6 +1,7 @@
 import { Avatar } from "@babylonlabs-io/core-ui";
 
-import { SubmitModal } from "../../../../../../components/shared";
+import { SubmitModal } from "@/components/shared";
+import { formatAmount } from "@/utils/formatting";
 
 interface BorrowSuccessModalProps {
   open: boolean;
@@ -8,6 +9,7 @@ interface BorrowSuccessModalProps {
   onViewLoan: () => void;
   borrowAmount: number;
   borrowSymbol: string;
+  decimals: number;
   assetIcon: string;
 }
 
@@ -22,13 +24,10 @@ export function BorrowSuccessModal({
   onViewLoan,
   borrowAmount,
   borrowSymbol,
+  decimals,
   assetIcon,
 }: BorrowSuccessModalProps) {
-  // Format amount with commas for readability
-  const formattedBorrow = borrowAmount.toLocaleString("en-US", {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 2,
-  });
+  const formattedBorrow = formatAmount(borrowAmount, decimals);
 
   return (
     <SubmitModal

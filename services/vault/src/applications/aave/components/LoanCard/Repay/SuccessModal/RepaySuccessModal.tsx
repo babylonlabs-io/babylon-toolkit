@@ -1,7 +1,7 @@
 import { Avatar } from "@babylonlabs-io/core-ui";
 
-import { SubmitModal } from "../../../../../../components/shared";
-import { formatAmount } from "../../../../../../utils/formatting";
+import { SubmitModal } from "@/components/shared";
+import { formatAmount } from "@/utils/formatting";
 
 interface RepaySuccessModalProps {
   open: boolean;
@@ -9,6 +9,7 @@ interface RepaySuccessModalProps {
   onViewLoan: () => void;
   repayAmount: number;
   repaySymbol: string;
+  decimals: number;
   assetIcon: string;
 }
 
@@ -23,9 +24,10 @@ export function RepaySuccessModal({
   onViewLoan,
   repayAmount,
   repaySymbol,
+  decimals,
   assetIcon,
 }: RepaySuccessModalProps) {
-  const formattedRepay = formatAmount(repayAmount);
+  const formattedRepay = formatAmount(repayAmount, decimals);
 
   return (
     <SubmitModal

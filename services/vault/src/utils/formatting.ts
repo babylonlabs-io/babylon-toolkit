@@ -167,16 +167,30 @@ export function formatCompactUsd(usd: number): string {
 }
 
 /**
+ * Intl.NumberFormat caps `maximumFractionDigits` at 20 on the oldest engines we
+ * support (newer V8 allows up to 100). Token `decimals` reaches `formatAmount`
+ * as an unvalidated uint8 (0–255) from indexer metadata, so clamp to the
+ * universally-safe ceiling to avoid a RangeError. No display needs more than
+ * 20 fractional digits.
+ */
+const MAX_DISPLAY_FRACTION_DIGITS = 20;
+
+/**
  * Format a number amount for display with locale-aware formatting
  * @param amount - The numeric amount to format
- * @param maxDecimals - Maximum decimal places (default: 2)
+ * @param maxDecimals - Maximum decimal places (default: 2). Clamped to
+ *   [0, 20] before use, since values come from unvalidated token metadata.
  * @returns Formatted number string (e.g., "1,234.56" or "0")
  */
 export function formatAmount(amount: number, maxDecimals = 2): string {
   if (amount <= 0) return "0";
+  const safeMaxDecimals = Math.min(
+    Math.max(maxDecimals, 0),
+    MAX_DISPLAY_FRACTION_DIGITS,
+  );
   return amount.toLocaleString("en-US", {
     minimumFractionDigits: 0,
-    maximumFractionDigits: maxDecimals,
+    maximumFractionDigits: safeMaxDecimals,
   });
 }
 

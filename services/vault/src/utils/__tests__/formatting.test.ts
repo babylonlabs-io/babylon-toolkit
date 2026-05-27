@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { getNetworkConfigBTC } from "@/config";
 
 import {
+  formatAmount,
   formatBasisPointsAsPercent,
   formatBtcAmount,
   formatCompactUsd,
@@ -60,6 +61,42 @@ describe("Formatting Utilities", () => {
       expect(formatBtcAmount(21000000)).toBe(
         `21000000 ${btcConfig.coinSymbol}`,
       );
+    });
+  });
+
+  describe("formatAmount", () => {
+    it("preserves a small WBTC amount when the token's 8 decimals are passed", () => {
+      expect(formatAmount(0.00031, 8)).toBe("0.00031");
+    });
+
+    it("rounds the same small amount to '0' with the default 2 decimals", () => {
+      // Regression: borrowed/repaid amounts must pass token decimals, otherwise
+      // sub-0.005 WBTC borrows render as "0".
+      expect(formatAmount(0.00031, 2)).toBe("0");
+    });
+
+    it("trims trailing zeros rather than padding to max decimals", () => {
+      expect(formatAmount(1.5, 8)).toBe("1.5");
+    });
+
+    it("keeps comma grouping for large amounts", () => {
+      expect(formatAmount(1234.5, 6)).toBe("1,234.5");
+    });
+
+    it("clamps decimals above the Intl limit instead of throwing", () => {
+      // uint8 token decimals can reach 255; Intl.NumberFormat rejects >100,
+      // so an unclamped value would throw a RangeError mid-render.
+      expect(() => formatAmount(1.5, 255)).not.toThrow();
+      expect(formatAmount(1.5, 255)).toBe("1.5");
+    });
+
+    it("preserves precision for realistic small amounts after clamping", () => {
+      expect(formatAmount(0.00031, 30)).toBe("0.00031");
+    });
+
+    it("clamps negative decimals to zero instead of throwing", () => {
+      expect(() => formatAmount(123, -1)).not.toThrow();
+      expect(formatAmount(123, -1)).toBe("123");
     });
   });
 

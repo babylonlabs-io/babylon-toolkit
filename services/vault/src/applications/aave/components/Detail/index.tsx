@@ -173,6 +173,7 @@ export function AaveReserveDetail() {
         onViewLoan={handleCloseBorrowSuccess}
         borrowAmount={borrowSuccessData.amount}
         borrowSymbol={assetConfig.symbol}
+        decimals={selectedReserve.token.decimals}
         assetIcon={assetConfig.icon}
       />
 
@@ -182,6 +183,7 @@ export function AaveReserveDetail() {
         onViewLoan={handleCloseRepaySuccess}
         repayAmount={repaySuccessData.repayAmount}
         repaySymbol={assetConfig.symbol}
+        decimals={selectedReserve.token.decimals}
         assetIcon={assetConfig.icon}
       />
     </LoanProvider>
