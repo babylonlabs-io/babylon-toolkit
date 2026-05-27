@@ -97,12 +97,13 @@ global.IntersectionObserver = vi.fn().mockImplementation(() => ({
   disconnect: vi.fn(),
 })) as any;
 
-// Mock ResizeObserver
-global.ResizeObserver = vi.fn().mockImplementation(() => ({
-  observe: vi.fn(),
-  unobserve: vi.fn(),
-  disconnect: vi.fn(),
-})) as any;
+// Mock ResizeObserver — class so callers using `new ResizeObserver(...)` work
+class ResizeObserverStub {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+}
+global.ResizeObserver = ResizeObserverStub as unknown as typeof ResizeObserver;
 
 // Mock crypto for testing
 if (!global.crypto) {

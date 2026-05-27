@@ -1,306 +1,140 @@
-import { gql } from "graphql-request";
+/**
+ * Activity tab orchestrator.
+ *
+ * Fetches all activity pages for the depositor, classifies and groups
+ * liquidation siblings, then dispatches each indexer item to its projection.
+ * The heavy lifting lives in:
+ *  - `query.ts`           — GraphQL types, page documents, cursor loop
+ *  - `classification.ts`  — partial/full liquidation + group rollup
+ *  - `projection.ts`      — per-row projection, formatting, BTC invariant
+ *
+ * This file should stay an orchestrator; if it grows large again, the next
+ * piece to lift out is the dispatch loop.
+ */
+
 import type { Address } from "viem";
-import { formatUnits } from "viem";
 
-import { graphqlClient } from "../../clients/graphql";
-import { getNetworkConfigBTC } from "../../config";
 import { logger } from "../../infrastructure";
-import type {
-  ActivityApplication,
-  ActivityChain,
-  ActivityLog,
-  ActivityType,
-} from "../../types/activityLog";
+import type { ActivityRow } from "../../types/activityLog";
 
-const btcConfig = getNetworkConfigBTC();
+import { buildLiquidationGroup, classifyLiquidations } from "./classification";
+import {
+  isStandardActivity,
+  projectRefundedDeposit,
+  projectStandardRow,
+  type FetchUserActivitiesDeps,
+} from "./projection";
+import {
+  fetchAllActivityPages,
+  parseLogIndex,
+  type GraphQLVaultActivityItem,
+} from "./query";
 
-// Native precision of a BTC vault amount (sats).
-const BTC_DECIMALS = 8;
-
-// Cap display precision so we never round the integer part of high-decimals
-// tokens through JS number space. Fractional digits beyond this are dropped
-// (not rounded) to keep formatting deterministic.
-const MAX_DISPLAY_FRACTION_DIGITS = 8;
-
-type GraphQLActivityType =
-  | "deposit"
-  | "withdrawal"
-  | "liquidation"
-  | "borrow"
-  | "repay"
-  | "redeem"
-  | "claim_expired";
-
-interface GraphQLVaultActivityItem {
-  id: string;
-  vaultId: string | null;
-  depositor: string;
-  type: GraphQLActivityType;
-  amount: string;
-  debtReserveId: string | null;
-  timestamp: string;
-  blockNumber: string;
-  transactionHash: string;
-}
-
-interface GraphQLVaultItem {
-  id: string;
-  applicationEntryPoint: string;
-  peginTxHash: string;
-}
-
-interface GraphQLActivityPageResponse {
-  vaultActivitys: { items: GraphQLVaultActivityItem[] };
-  vaults: { items: GraphQLVaultItem[] };
-}
+export type { FetchUserActivitiesDeps } from "./projection";
 
 /**
- * The indexer encodes logIndex into the activity id as
- * `${transactionHash}-${logIndex}-${type}`. Parse it out for deterministic
- * same-tx ordering without requiring a dedicated column.
+ * Module-scope set so a new activity type emitted by the indexer warns once
+ * per browser session, not once per fetch (which would flood the console for
+ * every polling tick on every connected user).
  */
-function parseLogIndex(id: string): number {
-  const parts = id.split("-");
-  // parts[0] is transactionHash; parts[1] is logIndex.
-  const n = Number.parseInt(parts[1] ?? "", 10);
-  return Number.isFinite(n) ? n : 0;
+const warnedUnknownTypes = new Set<string>();
+
+function warnUnknownActivityTypeOnce(type: string) {
+  if (warnedUnknownTypes.has(type)) return;
+  warnedUnknownTypes.add(type);
+  logger.warn("[fetchActivities] dropped unrecognised activity type", { type });
 }
 
-/**
- * Single GraphQL request that pulls the activity rows AND, in the same round
- * trip, the vault rows referenced by those activities for application
- * metadata enrichment. The frontend joins on `vault.id` client-side.
- *
- * We pass the depositor as a String into both queries: vaultActivitys uses it
- * directly, and vaults reuses it as a depositor filter so the indexer only
- * returns vault rows the user could conceivably reference. Borrow/repay rows
- * (vaultId = null) carry no vault join — their app metadata comes from the
- * caller-injected dependency map.
- */
-const GET_ACTIVITIES_PAGE = gql`
-  query GetActivitiesPage($depositor: String!) {
-    vaultActivitys(
-      where: { depositor: $depositor }
-      orderBy: "timestamp"
-      orderDirection: "desc"
-    ) {
-      items {
-        id
-        vaultId
-        depositor
-        type
-        amount
-        debtReserveId
-        timestamp
-        blockNumber
-        transactionHash
-      }
-    }
-    vaults(where: { depositor: $depositor }) {
-      items {
-        id
-        applicationEntryPoint
-        peginTxHash
-      }
-    }
-  }
-`;
-
-/**
- * Activity types whose primary user-facing transaction is on Bitcoin (the peg-in tx).
- * Everything else is an EVM-only action (collateral ops, loans, liquidations, withdraw).
- */
-const BTC_PRIMARY_ACTIVITIES: ReadonlySet<GraphQLActivityType> = new Set([
-  "deposit",
-]);
-
-const TYPE_MAP: Record<GraphQLActivityType, ActivityType> = {
-  deposit: "Deposit",
-  withdrawal: "Withdraw",
-  liquidation: "Liquidation",
-  borrow: "Borrow",
-  repay: "Repay",
-  redeem: "Redeem",
-  claim_expired: "Claim Expired",
-};
-
-function mapActivityType(type: string): ActivityType | undefined {
-  return TYPE_MAP[type as GraphQLActivityType];
-}
-
-/**
- * Decide which hash + chain to surface in the "Transaction Hash" column.
- * For peg-in deposits we surface the BTC pegin txid (matches how the rest of
- * the dApp identifies a deposit). For all other activity types the meaningful
- * tx is the EVM event that triggered the indexer record.
- *
- * Fail closed for BTC-primary rows: if the indexer ever returns a missing or
- * malformed peg-in hash, keep chain="BTC" and emit an empty hash so the row
- * renders as "Pending..." rather than redirecting users to the ETH explorer
- * for what is logically a BTC operation.
- */
-function resolveDisplayTx(
-  item: GraphQLVaultActivityItem,
-  peginTxHashByVaultId: ReadonlyMap<string, string>,
-): {
-  chain: ActivityChain;
-  transactionHash: string;
-} {
-  if (BTC_PRIMARY_ACTIVITIES.has(item.type)) {
-    const peginTxHash = item.vaultId
-      ? peginTxHashByVaultId.get(item.vaultId)
-      : undefined;
-    const isValidPeginHash =
-      typeof peginTxHash === "string" &&
-      peginTxHash.length > 0 &&
-      peginTxHash !== "0x";
-    return {
-      chain: "BTC",
-      transactionHash: isValidPeginHash ? peginTxHash : "",
-    };
-  }
-  return { chain: "ETH", transactionHash: item.transactionHash };
-}
-
-function formatAmount(amount: string, decimals: number): string {
-  // Format whole/fraction separately to avoid parseFloat precision loss on
-  // large or high-decimals values.
-  const [wholeRaw, fracRaw = ""] = formatUnits(BigInt(amount), decimals).split(
-    ".",
-  );
-  const whole = BigInt(wholeRaw).toLocaleString("en-US");
-  const frac = fracRaw.slice(0, MAX_DISPLAY_FRACTION_DIGITS).replace(/0+$/, "");
-  return frac.length > 0 ? `${whole}.${frac}` : whole;
-}
-
-const UNKNOWN_APP: ActivityApplication = {
-  id: "unknown",
-  name: "Unknown App",
-  logoUrl: "/images/unknown-app.svg",
-};
-
-/**
- * Caller-injected dependencies. The hook layer reads these from the AaveConfig
- * context provider (which already loads them once at app startup), keeping
- * this service free of global registry / network dependencies for non-
- * activity data.
- */
-export interface FetchUserActivitiesDeps {
-  /** Map of debtReserveId -> { symbol, decimals }, e.g. from `useAaveConfig().borrowableReserves`. */
-  reserves: ReadonlyMap<string, { symbol: string; decimals: number }>;
-  /** Application metadata used for borrow/repay rows (currently always Aave). */
-  borrowAppMetadata: ActivityApplication;
-  /** Resolve vault-scoped application metadata by entry-point controller address. */
-  resolveVaultApp: (
-    controllerAddress: string,
-  ) => ActivityApplication | undefined;
+/** Test-only: clear the per-session warned-types set so each test starts fresh. */
+export function __resetWarnedUnknownTypesForTests() {
+  warnedUnknownTypes.clear();
 }
 
 export async function fetchUserActivities(
   address: Address,
   deps: FetchUserActivitiesDeps,
-): Promise<ActivityLog[]> {
-  const data = await graphqlClient.request<GraphQLActivityPageResponse>(
-    GET_ACTIVITIES_PAGE,
-    { depositor: address.toLowerCase() },
+): Promise<ActivityRow[]> {
+  const { activities, vaults } = await fetchAllActivityPages(
+    address.toLowerCase(),
   );
 
-  const activities = data.vaultActivitys.items;
   if (activities.length === 0) return [];
 
-  const vaultMap = new Map<string, string>();
   const peginTxHashByVaultId = new Map<string, string>();
-  for (const v of data.vaults.items) {
-    vaultMap.set(v.id, v.applicationEntryPoint);
+  for (const v of vaults) {
     peginTxHashByVaultId.set(v.id, v.peginTxHash);
   }
 
-  const droppedTypeCounts = new Map<string, number>();
-
-  const rows = activities.flatMap(
-    (item): Array<{ row: ActivityLog; raw: GraphQLVaultActivityItem }> => {
-      const displayType = mapActivityType(item.type);
-      if (!displayType) {
-        droppedTypeCounts.set(
-          item.type,
-          (droppedTypeCounts.get(item.type) ?? 0) + 1,
-        );
-        return [];
-      }
-
-      const isPositionScoped = item.type === "borrow" || item.type === "repay";
-
-      let application: ActivityApplication;
-      if (isPositionScoped) {
-        application = deps.borrowAppMetadata;
+  // Sibling repay events fire in the same EVM tx as a VaultLiquidated event.
+  // Aave's RepaidFromPosition is position-scoped (vaultId is null) and fires
+  // once per debt reserve, so one liquidation tx can produce multiple repays
+  // (one per reserve being settled). Track them all per tx hash so:
+  //   1. every repay is marked consumed (no orphan rows leak through), and
+  //   2. the first repay attaches to the liquidation card (today's design;
+  //      multi-repay card support is a separate design call).
+  const repaysByTxHash = new Map<string, GraphQLVaultActivityItem[]>();
+  for (const item of activities) {
+    if (item.type === "repay") {
+      const bucket = repaysByTxHash.get(item.transactionHash);
+      if (bucket) {
+        bucket.push(item);
       } else {
-        const applicationEntryPoint = item.vaultId
-          ? vaultMap.get(item.vaultId)
-          : undefined;
-        application = applicationEntryPoint
-          ? (deps.resolveVaultApp(applicationEntryPoint) ?? UNKNOWN_APP)
-          : UNKNOWN_APP;
+        repaysByTxHash.set(item.transactionHash, [item]);
       }
-
-      let amountValue: string;
-      let amountSymbol: string;
-      let amountIcon: string | undefined;
-      if (isPositionScoped) {
-        const reserve =
-          item.debtReserveId != null
-            ? deps.reserves.get(item.debtReserveId)
-            : undefined;
-        amountValue = reserve
-          ? formatAmount(item.amount, reserve.decimals)
-          : item.amount;
-        amountSymbol = reserve?.symbol ?? "—";
-      } else {
-        amountValue = formatAmount(item.amount, BTC_DECIMALS);
-        amountSymbol = btcConfig.coinSymbol;
-        amountIcon = btcConfig.icon;
-      }
-
-      const { chain, transactionHash } = resolveDisplayTx(
-        item,
-        peginTxHashByVaultId,
-      );
-
-      return [
-        {
-          row: {
-            id: item.id,
-            date: new Date(parseInt(item.timestamp, 10) * 1000),
-            application,
-            type: displayType,
-            amount: {
-              value: amountValue,
-              symbol: amountSymbol,
-              icon: amountIcon,
-            },
-            chain,
-            transactionHash,
-          },
-          raw: item,
-        },
-      ];
-    },
-  );
-
-  if (droppedTypeCounts.size > 0) {
-    logger.warn("[fetchActivities] dropped unrecognised activity types", {
-      counts: Object.fromEntries(droppedTypeCounts),
-    });
+    }
   }
 
-  return rows
-    .sort((a, b) => {
-      const tsDiff =
-        parseInt(b.raw.timestamp, 10) - parseInt(a.raw.timestamp, 10);
-      if (tsDiff !== 0) return tsDiff;
-      const blockDiff =
-        parseInt(b.raw.blockNumber, 10) - parseInt(a.raw.blockNumber, 10);
-      if (blockDiff !== 0) return blockDiff;
-      return parseLogIndex(b.raw.id) - parseLogIndex(a.raw.id);
-    })
-    .map(({ row }) => row);
+  const liquidationClassification = classifyLiquidations(activities);
+
+  const sorted = [...activities].sort((a, b) => {
+    const tsDiff = parseInt(b.timestamp, 10) - parseInt(a.timestamp, 10);
+    if (tsDiff !== 0) return tsDiff;
+    const blockDiff = parseInt(b.blockNumber, 10) - parseInt(a.blockNumber, 10);
+    if (blockDiff !== 0) return blockDiff;
+    return parseLogIndex(b.id) - parseLogIndex(a.id);
+  });
+
+  // Pre-mark repay rows that will be rolled into a liquidation group. The
+  // sorted iteration is desc by (timestamp, blockNumber, logIndex), so the
+  // sibling repay (higher logIndex) typically lands before the liquidation
+  // that would consume it — we must know up-front which ids to skip.
+  const consumedIds = new Set<string>();
+  for (const item of activities) {
+    if (item.type === "liquidation") {
+      const repays = repaysByTxHash.get(item.transactionHash);
+      if (repays) {
+        for (const repay of repays) consumedIds.add(repay.id);
+      }
+    }
+  }
+
+  const rows: ActivityRow[] = [];
+
+  for (const item of sorted) {
+    if (consumedIds.has(item.id)) continue;
+
+    if (item.type === "liquidation") {
+      const classification =
+        liquidationClassification.get(item.id) ?? "Partially Liquidated";
+      // Multi-reserve case: only the first repay is shown in the card today.
+      // The others are still consumed above so they don't leak as orphan rows.
+      const repay = repaysByTxHash.get(item.transactionHash)?.[0];
+      rows.push(buildLiquidationGroup(item, repay, classification, deps));
+      continue;
+    }
+
+    if (item.type === "claim_expired") {
+      rows.push(projectRefundedDeposit(item, peginTxHashByVaultId));
+      continue;
+    }
+
+    if (isStandardActivity(item)) {
+      rows.push(projectStandardRow(item, peginTxHashByVaultId, deps));
+      continue;
+    }
+
+    warnUnknownActivityTypeOnce(item.type);
+  }
+
+  return rows;
 }

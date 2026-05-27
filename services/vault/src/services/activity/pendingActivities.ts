@@ -5,7 +5,6 @@
  * to ActivityLog format for display in the Activity page.
  */
 
-import { getApplicationMetadataByController } from "../../applications";
 import { getNetworkConfigBTC } from "../../config";
 import {
   getPendingPegins,
@@ -21,30 +20,19 @@ const btcConfig = getNetworkConfigBTC();
 function convertPendingPeginToActivity(
   pending: PendingPeginRequest,
 ): ActivityLog | null {
-  if (!pending.applicationEntryPoint || !pending.amount) {
-    return null;
-  }
-
-  const appMetadata = getApplicationMetadataByController(
-    pending.applicationEntryPoint,
-  );
-  if (!appMetadata) {
+  if (!pending.amount) {
     return null;
   }
 
   return {
+    kind: "row",
     id: pending.id,
     date: new Date(pending.timestamp),
-    application: {
-      id: appMetadata.id,
-      name: appMetadata.name,
-      logoUrl: appMetadata.logoUrl,
-    },
     type: "Pending Deposit",
+    tokenIcon: btcConfig.icon,
     amount: {
       value: pending.amount,
       symbol: btcConfig.coinSymbol,
-      icon: btcConfig.icon,
     },
     chain: "BTC",
     transactionHash: pending.peginTxHash,

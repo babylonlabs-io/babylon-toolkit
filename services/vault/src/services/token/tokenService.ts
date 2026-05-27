@@ -150,6 +150,15 @@ export function getTokenBrandColor(symbol: string): string {
 }
 
 /**
+ * Symbol-based icon lookup. Use as a fallback when address-based lookup
+ * misses (e.g. testnet deployments whose contract addresses aren't in
+ * TOKEN_REGISTRY). Returns undefined if the symbol is unknown.
+ */
+export function getTokenIconBySymbol(symbol: string): string | undefined {
+  return TOKEN_ICONS[symbol.toUpperCase()];
+}
+
+/**
  * Get token metadata by address (sync version for immediate use)
  * Only checks cache and registry, doesn't fetch from blockchain
  *

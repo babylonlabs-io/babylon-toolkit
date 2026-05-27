@@ -474,6 +474,32 @@ export const COPY = {
       },
     },
   },
+  activity: {
+    pageTitle: "Activity",
+    filterAll: "Show all",
+    // Visible filter options in dropdown order (matches Figma node 6602-64485).
+    // Redeem / Pending Deposit rows still render but are not filterable —
+    // they don't appear here on purpose.
+    filterTypes: {
+      Deposit: "Deposits",
+      Withdraw: "Withdrawals",
+      Repay: "Repaid",
+      Borrow: "Borrowed",
+      "Partially Liquidated": "Partially Liquidated",
+      "Fully Liquidated": "Fully Liquidated",
+    },
+    hashPending: "Pending…",
+    refundedTooltip: "Transaction was refunded",
+    // Labels for the two child rows nested inside a LiquidationGroupRow.
+    liquidation: {
+      collateralLabel: "Collateral Liquidated",
+      repaidLabel: "Loan Repaid",
+    },
+    emptyDisconnected: "Connect your wallet to view your activity",
+    emptyConnected: "No activity yet. Make your first deposit to get started.",
+    emptyFiltered: "No activity",
+    depositCta: (coinSymbol: string) => `Deposit ${coinSymbol}`,
+  },
   banner: {
     addCollateral: "Add Collateral",
     repayDebt: "Repay Debt",

@@ -25,10 +25,16 @@ vi.mock("../../services/activity", () => ({
 
 const ADDR = "0xabc0000000000000000000000000000000000001" as const;
 
-function makePending(id: string, dateMs: number): ActivityLog {
+function makePending(
+  id: string,
+  dateMs: number,
+  tokenIcon = "/images/btc.svg",
+): ActivityLog {
   return {
+    kind: "row",
     id,
     date: new Date(dateMs),
+    tokenIcon,
   } as ActivityLog;
 }
 
@@ -57,8 +63,8 @@ describe("useActivitiesWithPending", () => {
   });
 
   it("returns merged activities when userAddress is provided", () => {
-    const pending = [makePending("pending-1", 2_000)];
-    const confirmed = [makePending("confirmed-1", 1_000)];
+    const pending = [makePending("pending-1", 2_000, "/images/btc.svg")];
+    const confirmed = [makePending("confirmed-1", 1_000, "/images/usdc.svg")];
     getPendingActivitiesMock.mockReturnValue(pending);
     useActivitiesMock.mockReturnValue({ data: confirmed, isLoading: false });
 
@@ -68,5 +74,8 @@ describe("useActivitiesWithPending", () => {
       "pending-1",
       "confirmed-1",
     ]);
+    expect(
+      result.current.data.map((a) => (a.kind === "row" ? a.tokenIcon : null)),
+    ).toEqual(["/images/btc.svg", "/images/usdc.svg"]);
   });
 });

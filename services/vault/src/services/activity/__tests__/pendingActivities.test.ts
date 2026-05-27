@@ -1,7 +1,3 @@
-/**
- * Tests for pending activities service
- */
-
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { getNetworkConfigBTC } from "@/config";
@@ -10,13 +6,8 @@ import type { PendingPeginRequest } from "@/storage/peginStorage";
 
 import { getPendingActivities } from "../pendingActivities";
 
-// Mock dependencies
 vi.mock("@/storage/peginStorage", () => ({
   getPendingPegins: vi.fn(),
-}));
-
-vi.mock("@/applications", () => ({
-  getApplicationMetadataByController: vi.fn(),
 }));
 
 const btcConfig = getNetworkConfigBTC();
@@ -31,16 +22,13 @@ describe("getPendingActivities", () => {
   });
 
   describe("pending deposits", () => {
-    it("should convert pending pegins to ActivityLog format", async () => {
+    it("should convert pending pegins to ActivityLog format with tokenIcon", async () => {
       const { getPendingPegins } = await import("@/storage/peginStorage");
-      const { getApplicationMetadataByController } = await import(
-        "@/applications"
-      );
 
       const mockPendingPegin: PendingPeginRequest = {
         id: "0xabc123",
         peginTxHash: "0xpeginTxHash123",
-        timestamp: mockTimestamp - 60000, // 1 minute ago
+        timestamp: mockTimestamp - 60000,
         amount: "1.5",
         status: LocalStorageStatus.PENDING,
         applicationEntryPoint: "0xcontroller",
@@ -48,14 +36,6 @@ describe("getPendingActivities", () => {
       };
 
       vi.mocked(getPendingPegins).mockReturnValue([mockPendingPegin]);
-      vi.mocked(getApplicationMetadataByController).mockReturnValue({
-        id: "aave",
-        name: "Aave",
-        type: "Lending",
-        description: "Aave lending protocol",
-        logoUrl: "/images/aave.svg",
-        websiteUrl: "https://aave.com",
-      });
 
       const result = getPendingActivities(mockEthAddress);
 
@@ -64,13 +44,10 @@ describe("getPendingActivities", () => {
         id: "0xabc123",
         type: "Pending Deposit",
         isPending: true,
+        tokenIcon: btcConfig.icon,
         amount: {
           value: "1.5",
           symbol: btcConfig.coinSymbol,
-        },
-        application: {
-          id: "aave",
-          name: "Aave",
         },
         chain: "BTC",
         transactionHash: "0xpeginTxHash123",
@@ -79,9 +56,6 @@ describe("getPendingActivities", () => {
 
     it("should include peginTxHash when available", async () => {
       const { getPendingPegins } = await import("@/storage/peginStorage");
-      const { getApplicationMetadataByController } = await import(
-        "@/applications"
-      );
 
       const mockPendingPegin: PendingPeginRequest = {
         id: "0xabc123",
@@ -94,14 +68,6 @@ describe("getPendingActivities", () => {
       };
 
       vi.mocked(getPendingPegins).mockReturnValue([mockPendingPegin]);
-      vi.mocked(getApplicationMetadataByController).mockReturnValue({
-        id: "aave",
-        name: "Aave",
-        type: "Lending",
-        description: "Aave lending protocol",
-        logoUrl: "/images/aave.svg",
-        websiteUrl: "https://aave.com",
-      });
 
       const result = getPendingActivities(mockEthAddress);
 
@@ -109,11 +75,8 @@ describe("getPendingActivities", () => {
       expect(result[0].transactionHash).toBe("0xbtctxhash123");
     });
 
-    it("should skip pegins without applicationEntryPoint", async () => {
+    it("should produce a row with tokenIcon when applicationEntryPoint is missing", async () => {
       const { getPendingPegins } = await import("@/storage/peginStorage");
-      const { getApplicationMetadataByController } = await import(
-        "@/applications"
-      );
 
       const mockPendingPegin: PendingPeginRequest = {
         id: "0xabc123",
@@ -122,22 +85,23 @@ describe("getPendingActivities", () => {
         amount: "1.5",
         status: LocalStorageStatus.PENDING,
         unsignedTxHex: "0xdeadbeef",
-        // No applicationEntryPoint
       };
 
       vi.mocked(getPendingPegins).mockReturnValue([mockPendingPegin]);
-      vi.mocked(getApplicationMetadataByController).mockReturnValue(undefined);
 
       const result = getPendingActivities(mockEthAddress);
 
-      expect(result).toHaveLength(0);
+      expect(result).toHaveLength(1);
+      expect(result[0]).toMatchObject({
+        id: "0xabc123",
+        type: "Pending Deposit",
+        isPending: true,
+        tokenIcon: btcConfig.icon,
+      });
     });
 
     it("should skip pegins without amount", async () => {
       const { getPendingPegins } = await import("@/storage/peginStorage");
-      const { getApplicationMetadataByController } = await import(
-        "@/applications"
-      );
 
       const mockPendingPegin: PendingPeginRequest = {
         id: "0xabc123",
@@ -146,43 +110,9 @@ describe("getPendingActivities", () => {
         status: LocalStorageStatus.PENDING,
         applicationEntryPoint: "0xcontroller",
         unsignedTxHex: "0xdeadbeef",
-        // No amount
       };
 
       vi.mocked(getPendingPegins).mockReturnValue([mockPendingPegin]);
-      vi.mocked(getApplicationMetadataByController).mockReturnValue({
-        id: "aave",
-        name: "Aave",
-        type: "Lending",
-        description: "Aave lending protocol",
-        logoUrl: "/images/aave.svg",
-        websiteUrl: "https://aave.com",
-      });
-
-      const result = getPendingActivities(mockEthAddress);
-
-      expect(result).toHaveLength(0);
-    });
-
-    it("should skip pegins with unknown controller", async () => {
-      const { getPendingPegins } = await import("@/storage/peginStorage");
-      const { getApplicationMetadataByController } = await import(
-        "@/applications"
-      );
-
-      const mockPendingPegin: PendingPeginRequest = {
-        id: "0xabc123",
-        peginTxHash: "0xpeginTxHash123",
-        timestamp: mockTimestamp,
-        amount: "1.5",
-        status: LocalStorageStatus.PENDING,
-        applicationEntryPoint: "0xunknown",
-        unsignedTxHex: "0xdeadbeef",
-      };
-
-      vi.mocked(getPendingPegins).mockReturnValue([mockPendingPegin]);
-      // Controller can't be resolved to app metadata
-      vi.mocked(getApplicationMetadataByController).mockReturnValue(undefined);
 
       const result = getPendingActivities(mockEthAddress);
 
@@ -191,15 +121,12 @@ describe("getPendingActivities", () => {
 
     it("should sort multiple deposits by date (newest first)", async () => {
       const { getPendingPegins } = await import("@/storage/peginStorage");
-      const { getApplicationMetadataByController } = await import(
-        "@/applications"
-      );
 
       const mockPegins: PendingPeginRequest[] = [
         {
           id: "0xolder",
           peginTxHash: "0xpeginTxHashOlder",
-          timestamp: mockTimestamp - 120000, // 2 minutes ago
+          timestamp: mockTimestamp - 120000,
           amount: "1.0",
           status: LocalStorageStatus.PENDING,
           applicationEntryPoint: "0xcontroller",
@@ -208,7 +135,7 @@ describe("getPendingActivities", () => {
         {
           id: "0xnewer",
           peginTxHash: "0xpeginTxHashNewer",
-          timestamp: mockTimestamp - 60000, // 1 minute ago
+          timestamp: mockTimestamp - 60000,
           amount: "2.0",
           status: LocalStorageStatus.PENDING,
           applicationEntryPoint: "0xcontroller",
@@ -217,14 +144,6 @@ describe("getPendingActivities", () => {
       ];
 
       vi.mocked(getPendingPegins).mockReturnValue(mockPegins);
-      vi.mocked(getApplicationMetadataByController).mockReturnValue({
-        id: "aave",
-        name: "Aave",
-        type: "Lending",
-        description: "Aave lending protocol",
-        logoUrl: "/images/aave.svg",
-        websiteUrl: "https://aave.com",
-      });
 
       const result = getPendingActivities(mockEthAddress);
 
