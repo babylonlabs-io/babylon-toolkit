@@ -27,7 +27,7 @@ export interface State {
 export interface Actions {
   open?: () => void;
   close?: () => void;
-  displayLoader?: (message?: string) => void;
+  displayLoader?: (message?: string, description?: string) => void;
   displayChains?: () => void;
   displayWallets?: (chain: string) => void;
   displayInscriptions?: () => void;
@@ -109,8 +109,8 @@ export function StateProvider({ children, chains }: PropsWithChildren<StateProvi
         setState(({ chains }) => ({ ...defaultState, chains }));
       },
 
-      displayLoader: (message = "") => {
-        setState((state) => ({ ...state, screen: { type: "LOADER", params: { message } } }));
+      displayLoader: (message = "", description = "") => {
+        setState((state) => ({ ...state, screen: { type: "LOADER", params: { message, description } } }));
       },
 
       displayTermsOfService: () => {

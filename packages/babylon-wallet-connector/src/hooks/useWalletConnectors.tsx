@@ -49,8 +49,8 @@ export function useWalletConnectors({ persistent, accountStorage, onError }: Pro
     const connectorArr = Object.values(connectors);
 
     const unsubscribeArr = connectorArr.filter(Boolean).map((connector) =>
-      connector.on("connecting", (message: string) => {
-        displayLoader?.(message);
+      connector.on("connecting", (message?: string, description?: string) => {
+        displayLoader?.(message, description);
       }),
     );
 

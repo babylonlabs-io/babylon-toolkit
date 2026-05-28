@@ -1,4 +1,4 @@
-import type { Account, IProvider, IWallet, Network } from "@/core/types";
+import type { Account, IProvider, IWallet, Network, ProgressReporter } from "@/core/types";
 
 export interface WalletOptions<P extends IProvider> {
   id: string;
@@ -41,12 +41,12 @@ export class Wallet<P extends IProvider> implements IWallet {
     return this._label ?? (this.installed ? "Installed" : "");
   }
 
-  async connect() {
+  async connect(onProgress?: ProgressReporter) {
     if (!this.provider) {
       throw Error("Provider not found");
     }
 
-    await this.provider.connectWallet();
+    await this.provider.connectWallet(onProgress);
     const [address, publicKeyHex] = await Promise.all([this.provider.getAddress(), this.provider.getPublicKeyHex()]);
 
     this.account = { address, publicKeyHex };

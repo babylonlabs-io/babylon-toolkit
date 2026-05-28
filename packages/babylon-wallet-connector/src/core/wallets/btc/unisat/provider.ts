@@ -1,7 +1,7 @@
 import { Psbt, address as btcAddress, networks } from "bitcoinjs-lib";
 
 import { isAccountChangeEvent, DISCONNECT_EVENT, removeProviderListener } from "@/constants/walletEvents";
-import type { BTCConfig, IBTCProvider, InscriptionIdentifier, SignPsbtOptions, WalletInfo } from "@/core/types";
+import type { BTCConfig, IBTCProvider, InscriptionIdentifier, ProgressReporter, SignPsbtOptions, WalletInfo } from "@/core/types";
 import { Network } from "@/core/types";
 import { initBTCCurve } from "@/core/utils/initBTCCurve";
 import { resolveUseTweakedSigner } from "@/core/utils/psbtOptionsMapper";
@@ -93,7 +93,8 @@ export class UnisatProvider implements IBTCProvider {
       wallet: WALLET_PROVIDER_NAME,
     });
 
-  connectWallet = async (): Promise<void> => {
+  connectWallet = async (onProgress?: ProgressReporter): Promise<void> => {
+    onProgress?.("Connecting Unisat", "Approve the connection request in your Unisat extension");
     try {
       await withTimeout(this.provider.requestAccounts(), UNISAT_PROMPT_TIMEOUT_MS, () =>
         this.timeoutError("requesting accounts"),
@@ -117,17 +118,19 @@ export class UnisatProvider implements IBTCProvider {
     // Run after requestAccounts so origin permission is already granted —
     // getVersion() then resolves synchronously off PlatformEnv.VERSION with
     // no further user prompt.
+    onProgress?.("Checking Unisat version");
     await this.ensureSupportedVersion();
 
     // Unisat silently returns a wrong-network (or empty) account if the wallet
     // is on a chain the dApp does not target. Align the wallet to the configured
     // network before reading the address/pubkey so the connection cannot succeed
     // with a stale mainnet account when signet is required (and vice-versa).
-    await this.ensureExpectedChain();
+    await this.ensureExpectedChain(onProgress);
 
     // Use requestAccounts (not getAccounts) so per-chain dApp approval is
     // re-established after a chain switch. requestAccounts is idempotent on
     // already-authorized chains, so this does not produce an extra prompt.
+    onProgress?.("Finalizing connection");
     const accounts: string[] = await withTimeout(this.provider.requestAccounts(), UNISAT_PROMPT_TIMEOUT_MS, () =>
       this.timeoutError("requesting accounts"),
     );
@@ -197,7 +200,8 @@ export class UnisatProvider implements IBTCProvider {
     });
   };
 
-  private ensureExpectedChain = async (): Promise<void> => {
+  private ensureExpectedChain = async (onProgress?: ProgressReporter): Promise<void> => {
+    onProgress?.("Checking Bitcoin network");
     let currentChain: UnisatChainResponse;
     try {
       currentChain = await withTimeout(this.provider.getChain(), UNISAT_RPC_TIMEOUT_MS, () =>
@@ -225,6 +229,7 @@ export class UnisatProvider implements IBTCProvider {
     }
 
     try {
+      onProgress?.(`Switching to ${targetLabel}`, "Approve the network switch in your Unisat extension");
       await withTimeout(this.provider.switchChain(expectedChain), UNISAT_PROMPT_TIMEOUT_MS, () =>
         this.timeoutError(`switching to ${targetLabel}`),
       );
