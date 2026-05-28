@@ -192,8 +192,10 @@ export interface IETHProvider extends IProvider {
   off(eventName: string, handler: Function): void;
 }
 
+export type ProgressReporter = (message?: string, description?: string) => void;
+
 export interface IProvider {
-  connectWallet: () => Promise<void>;
+  connectWallet: (onProgress?: ProgressReporter) => Promise<void>;
   getAddress: () => Promise<string>;
   getPublicKeyHex: () => Promise<string>;
 }

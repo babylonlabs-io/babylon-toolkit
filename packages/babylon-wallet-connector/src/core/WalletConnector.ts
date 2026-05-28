@@ -7,7 +7,7 @@ import { ERROR_CODES, WalletError } from "@/error";
 type DisconnectableProvider = IProvider & { disconnect?: () => Promise<void> };
 
 export interface ConnectorEvents<P extends IProvider> {
-  connecting: (message?: string) => void;
+  connecting: (message?: string, description?: string) => void;
   connect: (wallet: Wallet<P>) => void;
   disconnect: (wallet: Wallet<P>) => void;
   error: (error: Error) => void;
@@ -41,7 +41,9 @@ export class WalletConnector<N extends string, P extends IProvider, C> implement
       }
       this._ee.emit("connecting", `Connecting ${selectedWallet.name}`);
 
-      await selectedWallet.connect();
+      const reportProgress = (message?: string, description?: string) =>
+        this._ee.emit("connecting", message, description);
+      await selectedWallet.connect(reportProgress);
       this._connectedWallet = selectedWallet;
       this._ee.emit("connect", this._connectedWallet);
 
