@@ -15,6 +15,7 @@ const defaultProps = {
   currentDebtUsd: 0,
   liquidationThresholdBps: 8000,
   tokenPriceUsd: 1,
+  tokenDecimals: 6,
 };
 
 describe("useBorrowState", () => {

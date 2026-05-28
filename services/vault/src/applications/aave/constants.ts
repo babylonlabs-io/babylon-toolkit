@@ -118,3 +118,15 @@ export type LoanTab = (typeof LOAN_TAB)[keyof typeof LOAN_TAB];
  */
 export const AMOUNT_INPUT_CLASS_NAME =
   "w-auto min-w-32 rounded-md border border-gray-300 px-2 py-1 dark:border-[#3a3a3a]";
+
+/**
+ * Maximum decimal precision JS numbers can faithfully represent for
+ * `Number.prototype.toFixed`. Past 15 fractional digits, IEEE 754 doubles
+ * start showing artifacts (e.g. `(0.1).toFixed(18) === "0.100000000000000006"`).
+ *
+ * Both the max-borrow floor and the `parseUnits` conversion inside
+ * `useBorrowTransaction` must cap at this value, otherwise the UI can
+ * advertise a max that the execution path turns into 0 (and the borrow
+ * gets rejected as zero or as a different amount than displayed).
+ */
+export const SAFE_TOFIXED_PRECISION = 15;

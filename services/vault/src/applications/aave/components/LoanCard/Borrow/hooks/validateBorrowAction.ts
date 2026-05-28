@@ -4,7 +4,11 @@
  * Validates whether user can perform the borrow action based on amount and health factor.
  */
 
-import { MIN_HEALTH_FACTOR_FOR_BORROW } from "../../../../constants";
+import { formatTokenAmount } from "../../../../../../utils/formatting";
+import {
+  MIN_HEALTH_FACTOR_FOR_BORROW,
+  SAFE_TOFIXED_PRECISION,
+} from "../../../../constants";
 
 export interface BorrowValidationResult {
   isDisabled: boolean;
@@ -18,6 +22,7 @@ export interface BorrowValidationResult {
  * @param borrowAmount - Amount user wants to borrow
  * @param projectedHealthFactor - Health factor after the borrow
  * @param maxBorrowAmount - Maximum borrowable amount based on collateral and debt
+ * @param tokenDecimals - Native token decimals (e.g., 8 for WBTC, 6 for USDC, 18 for ETH)
  * @param isPositionDataStale - Whether position data may be outdated
  * @returns Validation result with disabled state, button text, and error message
  */
@@ -25,6 +30,7 @@ export function validateBorrowAction(
   borrowAmount: number,
   projectedHealthFactor: number,
   maxBorrowAmount: number,
+  tokenDecimals: number,
   isPositionDataStale = false,
 ): BorrowValidationResult {
   if (isPositionDataStale) {
@@ -44,10 +50,16 @@ export function validateBorrowAction(
   }
 
   if (borrowAmount > maxBorrowAmount) {
+    // Format with the token's native precision (capped at SAFE_TOFIXED_PRECISION)
+    // so the error text matches what the slider's Max label and the underlying
+    // calculateMaxBorrowTokens floor expose. Default 6-decimal cap in
+    // formatTokenAmount would round small WBTC maxes (e.g. 0.0000099) down
+    // to "0" in the message even though the value is non-zero.
+    const displayDecimals = Math.min(tokenDecimals, SAFE_TOFIXED_PRECISION);
     return {
       isDisabled: true,
       buttonText: "Amount exceeds maximum",
-      errorMessage: `Maximum borrowable amount is ${maxBorrowAmount.toFixed(2)}`,
+      errorMessage: `Maximum borrowable amount is ${formatTokenAmount(maxBorrowAmount, displayDecimals)}`,
     };
   }
 

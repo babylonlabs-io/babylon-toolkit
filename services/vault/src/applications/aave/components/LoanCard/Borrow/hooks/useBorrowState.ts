@@ -18,6 +18,8 @@ export interface UseBorrowStateProps {
   liquidationThresholdBps: number;
   /** Price of the borrow token in USD (null when oracle price is unavailable) */
   tokenPriceUsd: number | null;
+  /** Native token decimals (e.g., 8 for WBTC, 6 for USDC, 18 for ETH) */
+  tokenDecimals: number;
 }
 
 export interface UseBorrowStateResult {
@@ -34,6 +36,7 @@ export function useBorrowState({
   currentDebtUsd,
   liquidationThresholdBps,
   tokenPriceUsd,
+  tokenDecimals,
 }: UseBorrowStateProps): UseBorrowStateResult {
   const [borrowAmount, setBorrowAmount] = useState(0);
 
@@ -44,12 +47,14 @@ export function useBorrowState({
         currentDebtUsd,
         liquidationThresholdBps,
         tokenPriceUsd,
+        tokenDecimals,
       }),
     [
       collateralValueUsd,
       currentDebtUsd,
       liquidationThresholdBps,
       tokenPriceUsd,
+      tokenDecimals,
     ],
   );
 

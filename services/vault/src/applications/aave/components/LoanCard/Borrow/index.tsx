@@ -22,7 +22,11 @@ import {
   formatTokenAmount,
   formatUsdValue,
 } from "../../../../../utils/formatting";
-import { AMOUNT_INPUT_CLASS_NAME, MIN_SLIDER_MAX } from "../../../constants";
+import {
+  AMOUNT_INPUT_CLASS_NAME,
+  MIN_SLIDER_MAX,
+  SAFE_TOFIXED_PRECISION,
+} from "../../../constants";
 import { useBorrowTransaction } from "../../../hooks";
 import { useLoanContext } from "../../context/LoanContext";
 
@@ -56,6 +60,7 @@ export function Borrow() {
       currentDebtUsd: totalDebtValueUsd,
       liquidationThresholdBps,
       tokenPriceUsd,
+      tokenDecimals: selectedReserve.token.decimals,
     });
 
   const metrics = useBorrowMetrics({
@@ -71,6 +76,7 @@ export function Borrow() {
     borrowAmount,
     metrics.healthFactorValue,
     maxBorrowAmount,
+    selectedReserve.token.decimals,
     isPositionDataStale,
   );
 
@@ -79,6 +85,10 @@ export function Borrow() {
   // accept range use the real `maxBorrowAmount` so the UI doesn't advertise
   // a value that validation will reject.
   const sliderTrackMax = maxBorrowAmount > 0 ? maxBorrowAmount : MIN_SLIDER_MAX;
+  const displayDecimals = Math.min(
+    selectedReserve.token.decimals,
+    SAFE_TOFIXED_PRECISION,
+  );
 
   const handleBorrow = async () => {
     // Defensive: the disabled prop already gates on `oracleAddress == null`.
@@ -124,7 +134,7 @@ export function Borrow() {
               setBorrowAmount(parseFloat(e.target.value) || 0)
             }
             balanceDetails={{
-              balance: formatTokenAmount(maxBorrowAmount),
+              balance: formatTokenAmount(maxBorrowAmount, displayDecimals),
               symbol: assetConfig.symbol,
               displayUSD: false,
             }}
@@ -137,7 +147,7 @@ export function Borrow() {
             sliderVariant="rainbow"
             leftField={{
               label: "Max",
-              value: `${formatTokenAmount(maxBorrowAmount)} ${assetConfig.symbol}`,
+              value: `${formatTokenAmount(maxBorrowAmount, displayDecimals)} ${assetConfig.symbol}`,
             }}
             onMaxClick={() => setBorrowAmount(maxBorrowAmount)}
             rightField={{
