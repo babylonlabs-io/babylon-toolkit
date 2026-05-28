@@ -122,6 +122,7 @@ async function setupGraphqlMock(rows: RawActivity[]) {
             items: ids.map((id) => ({
               id,
               peginTxHash: `0xpegin-${id.slice(2, 10)}`,
+              vaultProvider: `0xvp-${id.slice(2, 10)}`,
             })),
             pageInfo: { hasNextPage: false, endCursor: null },
           },
@@ -254,6 +255,27 @@ describe("fetchUserActivities type mapping", () => {
       expect.stringContaining("dropped unrecognised activity type"),
       { type: "add_collateral" },
     );
+  });
+
+  it("requests vaultProvider in the vaults selection", async () => {
+    const { graphqlClient } = await import("@/clients/graphql");
+    const requestMock = vi.mocked(graphqlClient.request);
+    requestMock.mockReset();
+    requestMock.mockResolvedValueOnce({
+      vaultActivitys: {
+        items: [],
+        pageInfo: { hasNextPage: false, endCursor: null },
+      },
+      vaults: {
+        items: [],
+        pageInfo: { hasNextPage: false, endCursor: null },
+      },
+    } as never);
+
+    await fetchUserActivities(USER as `0x${string}`, buildDeps());
+
+    const firstCallQuery = String(requestMock.mock.calls[0]?.[0]);
+    expect(firstCallQuery).toMatch(/vaultProvider/);
   });
 
   it("warns only once per unknown type across repeated fetches", async () => {
