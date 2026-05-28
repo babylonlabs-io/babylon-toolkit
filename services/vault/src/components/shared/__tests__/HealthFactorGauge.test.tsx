@@ -26,6 +26,14 @@ describe("HealthFactorGauge", () => {
     expect(screen.getByRole("meter")).toHaveAttribute("aria-valuenow", "2.5");
   });
 
+  it("uses theme-aware threshold marker colors", () => {
+    render(<HealthFactorGauge value={2.5} status="safe" />);
+
+    expect(
+      screen.getByTestId("health-factor-liquidation-threshold"),
+    ).toHaveClass("border-secondary-strokeDark", "dark:border-white");
+  });
+
   it("renders warning label for warning status", () => {
     render(<HealthFactorGauge value={1.2} status="warning" />);
     expect(screen.getByText("At Risk")).toBeInTheDocument();
