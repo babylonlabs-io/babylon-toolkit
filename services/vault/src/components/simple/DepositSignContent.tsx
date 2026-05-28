@@ -49,7 +49,6 @@ export function DepositSignContent({
     currentStep,
     processing,
     error,
-    lastWarnings,
     isWaiting,
     payoutSigningProgress,
     peginSigningProgress,
@@ -84,28 +83,29 @@ export function DepositSignContent({
     onClose();
   }, [abort, onClose]);
 
-  // Hoisted above the success/processing split so the banner survives
+  // UTXO-overlap banner: informational, user can dismiss for the rest of
+  // the session. Hoisted above the success/processing split so it survives
   // the switch to PostDepositContinuation when `continuationVaultIds` is set.
-  const banner = (overlappingPendingVaultCount !== null ||
-    lastWarnings.length > 0) && (
-    <div
-      className="mb-3 flex flex-col gap-1 rounded-lg bg-amber-100 px-4 py-3 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300"
-      role="alert"
-    >
-      {overlappingPendingVaultCount !== null && (
-        <div className="text-sm">
-          {COPY.deposit.warnings.reusesReservedUtxos(
-            overlappingPendingVaultCount,
-          )}
-        </div>
-      )}
-      {lastWarnings.map((w, i) => (
-        <div key={i} className="text-sm">
-          {w}
-        </div>
-      ))}
-    </div>
-  );
+  const [utxoBannerDismissed, setUtxoBannerDismissed] = useState(false);
+  const banner = overlappingPendingVaultCount !== null &&
+    !utxoBannerDismissed && (
+      <div
+        className="relative mb-3 rounded-lg bg-amber-100 px-4 py-3 pr-8 text-sm text-amber-800 dark:bg-amber-900/30 dark:text-amber-300"
+        role="alert"
+      >
+        {COPY.deposit.warnings.reusesReservedUtxos(
+          overlappingPendingVaultCount,
+        )}
+        <button
+          type="button"
+          aria-label={COPY.deposit.warnings.dismissReusesReservedUtxos}
+          onClick={() => setUtxoBannerDismissed(true)}
+          className="absolute right-2 top-2 text-base leading-none opacity-60 hover:opacity-100"
+        >
+          ×
+        </button>
+      </div>
+    );
 
   if (
     continuationVaultIds &&
