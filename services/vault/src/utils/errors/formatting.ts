@@ -9,6 +9,8 @@ import {
   RpcErrorCode,
 } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 
+import { COPY } from "@/copy";
+
 /**
  * Wallet-connector error code emitted by BTC providers when the user rejects
  * a signing prompt. Mirrors `ERROR_CODES.CONNECTION_REJECTED` from
@@ -27,11 +29,41 @@ function isWalletRejectionError(error: unknown): boolean {
   );
 }
 
-// ETH-side insufficient-funds wording. Deliberately narrower than viem's own
-// `/insufficient funds|exceeds transaction sender account balance/` so the
-// BTC selector's "Insufficient funds: need N sats" string is not collapsed.
+/** EIP-1193 provider error codes used by the classifier below. */
+const EIP1193 = {
+  USER_REJECTED: 4001,
+  UNAUTHORIZED: 4100,
+  PROVIDER_DISCONNECTED: 4900,
+  CHAIN_DISCONNECTED: 4901,
+  CHAIN_SWITCH_FAILED: 4902,
+} as const;
+
+// ETH-side insufficient-funds wording. Mirrors viem's own
+// `InsufficientFundsError.nodeMessage` regex; callers must first filter out
+// the BTC selector's "Insufficient funds: need N sats" via the sats/pegin
+// guard below.
 const INSUFFICIENT_GAS_FUNDS_PATTERN =
-  /insufficient funds for (gas|transfer)|exceeds transaction sender account balance|exceeds the balance of the account/i;
+  /insufficient funds|exceeds transaction sender account balance|exceeds the balance of the account/i;
+
+// BTC-side selectUtxosForPegin produces "Insufficient funds: need N sats
+// (X pegin + Y fee), have Z sats" — exclude it from the ETH match so we
+// don't collapse the sats info the user needs.
+const BTC_FUNDS_GUARD_PATTERN = /\bsats\b|\bpegin\b/i;
+
+function matchesInsufficientGasFundsMessage(msg: string): boolean {
+  if (BTC_FUNDS_GUARD_PATTERN.test(msg)) return false;
+  return INSUFFICIENT_GAS_FUNDS_PATTERN.test(msg);
+}
+
+/**
+ * `"TimeoutError"` and `"RpcRequestError"` are generic names that collide
+ * with `AbortSignal.timeout()`, the `ky` HTTP library, and others. Require
+ * a viem-shape signal (its `BaseError.walk` method) before treating those
+ * by name alone.
+ */
+function isViemShape(obj: { walk?: unknown }): boolean {
+  return typeof obj.walk === "function";
+}
 
 /**
  * Recognised error categories. Names mirror viem's class names where
@@ -48,24 +80,28 @@ type ErrorKind =
   | "network"; // HttpRequestError / WebSocketRequestError / TimeoutError / RpcRequestError
 
 const FRIENDLY_MESSAGES: Record<ErrorKind, string> = {
-  "user-rejection":
-    "Transaction rejected in your wallet. No changes were made — try again when you're ready.",
-  "insufficient-funds":
-    "Not enough ETH to cover the deposit fee and gas. Add ETH to your wallet and try again.",
-  "wallet-disconnected":
-    "Your wallet was disconnected. Reconnect it and try again.",
-  unauthorized:
-    "This site isn't authorized in your wallet. Approve the connection and try again.",
-  "chain-switch-failed":
-    "Couldn't switch your wallet to the required network. Switch chains manually and try again.",
-  "receipt-timeout":
-    "We couldn't confirm your transaction. Check your wallet or a block explorer for the latest status.",
-  network: "Network error. Check your connection and try again.",
+  "user-rejection": COPY.common.classifiedErrors.userRejection,
+  "insufficient-funds": COPY.common.classifiedErrors.insufficientFunds,
+  "wallet-disconnected": COPY.common.classifiedErrors.walletDisconnected,
+  unauthorized: COPY.common.classifiedErrors.unauthorized,
+  "chain-switch-failed": COPY.common.classifiedErrors.chainSwitchFailed,
+  "receipt-timeout": COPY.common.classifiedErrors.receiptTimeout,
+  network: COPY.common.classifiedErrors.network,
 };
 
 /**
  * Walk the `.cause` chain looking for a recognised error category. Returns
  * the first match (depth-first, top of chain wins). `null` if no match.
+ *
+ * Two precedence properties are load-bearing:
+ *  (a) Within a frame: user-rejection is checked first, so it wins over
+ *      every other category at the same depth. New broad checks (e.g.
+ *      message-substring matches) must stay below the user-rejection block,
+ *      otherwise an inner `UserRejectedRequestError` shadowed by an outer
+ *      broad match would silently surface as the outer category's copy.
+ *  (b) Across frames: depth-first, outermost match wins. The walker returns
+ *      on the first hit and never inspects deeper causes once a frame
+ *      classifies.
  */
 function classifyError(err: unknown): ErrorKind | null {
   let cur: unknown = err;
@@ -75,10 +111,14 @@ function classifyError(err: unknown): ErrorKind | null {
       name?: unknown;
       message?: unknown;
       cause?: unknown;
+      walk?: unknown;
     };
 
-    // User rejection
-    if (obj.code === 4001 || obj.name === "UserRejectedRequestError") {
+    // User rejection — MUST stay first within the frame; see precedence (a).
+    if (
+      obj.code === EIP1193.USER_REJECTED ||
+      obj.name === "UserRejectedRequestError"
+    ) {
       return "user-rejection";
     }
     if (isWalletRejectionError(cur)) return "user-rejection";
@@ -87,15 +127,15 @@ function classifyError(err: unknown): ErrorKind | null {
     if (obj.name === "InsufficientFundsError") return "insufficient-funds";
     if (
       typeof obj.message === "string" &&
-      INSUFFICIENT_GAS_FUNDS_PATTERN.test(obj.message)
+      matchesInsufficientGasFundsMessage(obj.message)
     ) {
       return "insufficient-funds";
     }
 
     // Wallet disconnected from chain / all chains
     if (
-      obj.code === 4900 ||
-      obj.code === 4901 ||
+      obj.code === EIP1193.PROVIDER_DISCONNECTED ||
+      obj.code === EIP1193.CHAIN_DISCONNECTED ||
       obj.name === "ProviderDisconnectedError" ||
       obj.name === "ChainDisconnectedError"
     ) {
@@ -103,14 +143,20 @@ function classifyError(err: unknown): ErrorKind | null {
     }
 
     // Site not authorized in wallet
-    if (obj.code === 4100 || obj.name === "UnauthorizedProviderError") {
+    if (
+      obj.code === EIP1193.UNAUTHORIZED ||
+      obj.name === "UnauthorizedProviderError"
+    ) {
       return "unauthorized";
     }
 
     // Wallet refused / failed to switch chain. The deposit flow's wagmi
     // helper catches this locally (ethereumSubmit.ts), but cover the
     // escape path in case it surfaces from elsewhere.
-    if (obj.code === 4902 || obj.name === "SwitchChainError") {
+    if (
+      obj.code === EIP1193.CHAIN_SWITCH_FAILED ||
+      obj.name === "SwitchChainError"
+    ) {
       return "chain-switch-failed";
     }
 
@@ -119,13 +165,32 @@ function classifyError(err: unknown): ErrorKind | null {
       return "receipt-timeout";
     }
 
-    // RPC / network transport failures
+    // RPC / network transport failures.
+    //
+    // `RpcRequestError` is a special case: viem also uses it to wrap
+    // node-level errors that carry contract-revert data (the node returns
+    // `{ code: 3, data: "0x..." }`, viem forwards it on the wrapper's
+    // `.data` field). Those aren't transport failures and should fall
+    // through so the underlying revert message bubbles up.
+    if (obj.name === "RpcRequestError" && isViemShape(obj)) {
+      const data = (obj as { data?: unknown }).data;
+      if (typeof data === "string" && data.startsWith("0x")) {
+        // Contract revert dressed as RPC error — don't classify as network.
+        cur = obj.cause;
+        continue;
+      }
+      return "network";
+    }
+    // `HttpRequestError` / `WebSocketRequestError` names are viem-specific
+    // enough not to collide; `TimeoutError` is generic (AbortSignal.timeout,
+    // `ky`, DOM APIs) and must be gated on viem shape.
     if (
       obj.name === "HttpRequestError" ||
-      obj.name === "WebSocketRequestError" ||
-      obj.name === "TimeoutError" ||
-      obj.name === "RpcRequestError"
+      obj.name === "WebSocketRequestError"
     ) {
+      return "network";
+    }
+    if (obj.name === "TimeoutError" && isViemShape(obj)) {
       return "network";
     }
 

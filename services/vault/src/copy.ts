@@ -412,6 +412,25 @@ export const COPY = {
       body: "An unexpected error occurred. Please try again later.",
       retryButton: "Try again",
     },
+    // Friendly copy for known viem / EIP-1193 / wallet-connector failure
+    // categories. Consumed by `sanitizeErrorMessage` in
+    // `src/utils/errors/formatting.ts`. Cross-feature surface (deposit,
+    // refund, activation) so lives under `common` rather than `deposit`.
+    classifiedErrors: {
+      userRejection:
+        "Transaction rejected in your wallet. No changes were made — try again when you're ready.",
+      insufficientFunds:
+        "Not enough ETH to cover the deposit fee and gas. Add ETH to your wallet and try again.",
+      walletDisconnected:
+        "Your wallet was disconnected. Reconnect it and try again.",
+      unauthorized:
+        "This site isn't authorized in your wallet. Approve the connection and try again.",
+      chainSwitchFailed:
+        "Couldn't switch your wallet to the required network. Switch chains manually and try again.",
+      receiptTimeout:
+        "We couldn't confirm your transaction. Check your wallet or a block explorer for the latest status.",
+      network: "Network error. Check your connection and try again.",
+    },
   },
   wallet: {
     geoBlockedTooltip: "Not available in your region",

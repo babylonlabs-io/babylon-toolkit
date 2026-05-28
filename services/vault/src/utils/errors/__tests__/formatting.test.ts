@@ -8,6 +8,11 @@ import {
 } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import { readFileSync } from "fs";
 import { resolve } from "path";
+import {
+  HttpRequestError,
+  InsufficientFundsError,
+  UserRejectedRequestError,
+} from "viem";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -242,6 +247,51 @@ describe("Error Formatting", () => {
       expect(sanitizeErrorMessage(err)).toMatch(/switch your wallet/i);
     });
 
+    it("collapses bare 'insufficient funds' RPC string (no for-gas qualifier)", () => {
+      // Some providers emit a shorter RPC string that viem's nodeMessage
+      // regex catches but our older narrower one missed.
+      const err = new Error("insufficient funds");
+      expect(sanitizeErrorMessage(err)).toMatch(/Not enough ETH/);
+    });
+
+    it("does NOT classify a contract revert wrapped in RpcRequestError as network", () => {
+      // Reproduces viem's chain when a contract reverts: the inner
+      // `RpcRequestError` carries `.data = "0x70f7d5e2"` (the revert
+      // selector). Without the .data guard, the walker would hit the
+      // RpcRequestError name match and wrongly say "Network error".
+      const revertRpc = Object.assign(new Error("RPC Request failed."), {
+        name: "RpcRequestError",
+        code: 3,
+        data: "0x70f7d5e2",
+        walk: () => {},
+      });
+      const revertWrap = Object.assign(
+        new Error("ContractFunctionRevertedError"),
+        {
+          name: "ContractFunctionRevertedError",
+          cause: revertRpc,
+          walk: () => {},
+        },
+      );
+      const outer = Object.assign(new Error("execution reverted"), {
+        name: "ContractFunctionExecutionError",
+        cause: revertWrap,
+        walk: () => {},
+      });
+      expect(sanitizeErrorMessage(outer)).not.toMatch(/Network error/i);
+    });
+
+    it("still classifies RpcRequestError without revert data as network", () => {
+      // Pure transport failure — no `.data`, no revert. Should hit the
+      // network bucket.
+      const err = Object.assign(new Error("RPC Request failed."), {
+        name: "RpcRequestError",
+        code: -32603,
+        walk: () => {},
+      });
+      expect(sanitizeErrorMessage(err)).toMatch(/Network error/i);
+    });
+
     it("collapses HttpRequestError (RPC transport failure)", () => {
       const err = Object.assign(
         new Error("HTTP request failed.\nURL: https://eth-rpc.example/key"),
@@ -250,12 +300,22 @@ describe("Error Formatting", () => {
       expect(sanitizeErrorMessage(err)).toMatch(/Network error/i);
     });
 
-    it("collapses TimeoutError (request timed out)", () => {
+    it("collapses TimeoutError (request timed out) — viem shape", () => {
       const err = Object.assign(
         new Error("The request took too long to respond."),
-        { name: "TimeoutError" },
+        // `walk` is the marker we use to disambiguate viem's TimeoutError
+        // from DOM / AbortSignal.timeout / ky timeouts (same name).
+        { name: "TimeoutError", walk: () => {} },
       );
       expect(sanitizeErrorMessage(err)).toMatch(/Network error/i);
+    });
+
+    it("does NOT classify a bare TimeoutError (no viem shape) as network", () => {
+      // e.g. AbortSignal.timeout() throws a DOMException named TimeoutError.
+      const err = Object.assign(new Error("operation timed out"), {
+        name: "TimeoutError",
+      });
+      expect(sanitizeErrorMessage(err)).toBe("operation timed out");
     });
 
     it("collapses WebSocketRequestError", () => {
@@ -263,6 +323,32 @@ describe("Error Formatting", () => {
         name: "WebSocketRequestError",
       });
       expect(sanitizeErrorMessage(err)).toMatch(/Network error/i);
+    });
+
+    // The rest of the suite builds synthetic errors via Object.assign so we
+    // can construct arbitrary cause chains. The three smoke tests below
+    // instead use real viem class constructors — if viem renames a class
+    // in a future version (e.g. `InsufficientFundsError` →
+    // `InsufficientFundsRpcError`), CI fails here loudly rather than
+    // silently regressing in production.
+    it("matches a real viem UserRejectedRequestError instance", () => {
+      const err = new UserRejectedRequestError(new Error("user denied"));
+      expect(sanitizeErrorMessage(err)).toMatch(/Transaction rejected/);
+    });
+
+    it("matches a real viem InsufficientFundsError instance", () => {
+      // Cause is optional; the test exercises the name match, which is
+      // the only signal the classifier uses for this category.
+      const err = new InsufficientFundsError();
+      expect(sanitizeErrorMessage(err)).toMatch(/Not enough ETH/);
+    });
+
+    it("matches a real viem HttpRequestError instance", () => {
+      const err = new HttpRequestError({
+        body: { method: "eth_call" },
+        url: "https://rpc.example/",
+      });
+      expect(sanitizeErrorMessage(err)).toMatch(/Network error/);
     });
   });
 
