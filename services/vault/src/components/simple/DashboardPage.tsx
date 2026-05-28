@@ -24,7 +24,11 @@ import { useApplicationCap } from "@/hooks/useApplicationCap";
 import { useDashboardState } from "@/hooks/useDashboardState";
 import { usePegoutPolling } from "@/hooks/usePegoutPolling";
 import { ClaimerPegoutStatusValue } from "@/models/pegoutStateMachine";
-import { formatBtcAmount, formatUsdValue } from "@/utils/formatting";
+import {
+  formatBtcAmount,
+  formatLtvPercent,
+  formatUsdValue,
+} from "@/utils/formatting";
 
 import { CollateralSection } from "./CollateralSection";
 import { LoansSection } from "./LoansSection";
@@ -98,6 +102,7 @@ export function DashboardPage() {
   // Format display values
   const totalCollateralValue = formatUsdValue(collateralValueUsd);
   const amountToRepay = formatUsdValue(debtValueUsd);
+  const ltv = formatLtvPercent(debtValueUsd, collateralValueUsd);
   const totalAmountBtc = formatBtcAmount(collateralBtc);
 
   const handleOpenWithdraw = useCallback(() => {
@@ -147,6 +152,7 @@ export function DashboardPage() {
           healthFactorStatus={healthFactorStatus}
           totalCollateralValue={totalCollateralValue}
           amountToRepay={amountToRepay}
+          ltv={ltv}
           isConnected={isConnected}
         />
 

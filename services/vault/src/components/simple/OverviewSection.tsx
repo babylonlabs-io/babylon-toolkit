@@ -21,6 +21,7 @@ interface OverviewSectionProps {
   healthFactorStatus: HealthFactorStatus;
   totalCollateralValue: string;
   amountToRepay: string;
+  ltv: string;
   isConnected: boolean;
 }
 
@@ -29,6 +30,7 @@ export function OverviewSection({
   healthFactorStatus,
   totalCollateralValue,
   amountToRepay,
+  ltv,
   isConnected,
 }: OverviewSectionProps) {
   if (!isConnected) {
@@ -73,6 +75,16 @@ export function OverviewSection({
               ) : (
                 "-"
               )}
+            </span>
+          </div>
+
+          {/* Current LTV Row */}
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-accent-secondary">
+              {COPY.overview.ltvLabel}
+            </span>
+            <span className="text-base text-accent-primary">
+              {showHealthFactor ? ltv : "-"}
             </span>
           </div>
 

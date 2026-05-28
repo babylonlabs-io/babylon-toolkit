@@ -13,6 +13,7 @@ import {
   formatCompactUsd,
   formatDateTime,
   formatLLTV,
+  formatLtvPercent,
   formatOrdinal,
   formatProviderDisplayName,
   formatTimeAgo,
@@ -166,6 +167,34 @@ describe("Formatting Utilities", () => {
     it("should format to 1 decimal place", () => {
       // 85.5% = 855000000000000000
       expect(formatLLTV(855000000000000000n)).toBe("85.5%");
+    });
+  });
+
+  describe("formatLtvPercent", () => {
+    it("formats a typical position to 1 decimal", () => {
+      // Matches the values in the user-report screenshot.
+      expect(formatLtvPercent(1941.26, 2986.56)).toBe("65.0%");
+    });
+
+    it("renders exact halves", () => {
+      expect(formatLtvPercent(500, 1000)).toBe("50.0%");
+    });
+
+    it("renders ratios above 100% for underwater positions", () => {
+      expect(formatLtvPercent(1200, 1000)).toBe("120.0%");
+    });
+
+    it("returns '-' when debt is zero (no loan)", () => {
+      expect(formatLtvPercent(0, 1000)).toBe("-");
+    });
+
+    it("returns '-' when collateral is zero (would divide by zero)", () => {
+      expect(formatLtvPercent(100, 0)).toBe("-");
+    });
+
+    it("returns '-' for negative inputs", () => {
+      expect(formatLtvPercent(-1, 1000)).toBe("-");
+      expect(formatLtvPercent(100, -1)).toBe("-");
     });
   });
 
