@@ -1,26 +1,38 @@
 /**
  * Block explorer URL helpers.
  *
- * BTC:  https://mempool.space/<network>/tx/<txid>      (hash without 0x)
- * ETH:  <chain explorer>/tx/<hash>                      (hash with 0x)
- * VP:   <NEXT_PUBLIC_TBV_VP_EXPLORER_URL>/provider/<address>
+ * BTC: always built against the canonical public explorer host
+ *      (`https://mempool.space/<network>`). The mempool *API* URL
+ *      (`NEXT_PUBLIC_MEMPOOL_API`) can point at a self-hosted mirror used
+ *      for UTXO / fee / broadcast calls; user-facing links must not depend
+ *      on whether that mirror is reachable, so they stay on the public
+ *      explorer.
+ * ETH: <chain explorer>/tx/<hash>                        (hash with 0x)
+ * VP:  <NEXT_PUBLIC_TBV_VP_EXPLORER_URL>/provider/<addr>
  */
 
 import { stripHexPrefix } from "@babylonlabs-io/ts-sdk/tbv/core";
 
-import { getNetworkConfigBTC } from "@/config";
+import { getBTCNetwork } from "@/config";
 import { ENV } from "@/config/env";
 import { getNetworkConfigETH } from "@/config/network";
 import type { ActivityChain } from "@/types/activityLog";
 
+const MEMPOOL_SPACE_HOST = "https://mempool.space";
+const BTC_SIGNET_NETWORK = "signet";
+
+function getBtcExplorerHost(): string {
+  return getBTCNetwork() === BTC_SIGNET_NETWORK
+    ? `${MEMPOOL_SPACE_HOST}/signet`
+    : MEMPOOL_SPACE_HOST;
+}
+
 export function getBtcExplorerTxUrl(txHash: string): string {
-  const btcConfig = getNetworkConfigBTC();
-  return `${btcConfig.mempoolApiUrl}/tx/${stripHexPrefix(txHash)}`;
+  return `${getBtcExplorerHost()}/tx/${stripHexPrefix(txHash)}`;
 }
 
 export function getBtcExplorerAddressUrl(address: string): string {
-  const btcConfig = getNetworkConfigBTC();
-  return `${btcConfig.mempoolApiUrl}/address/${address}`;
+  return `${getBtcExplorerHost()}/address/${address}`;
 }
 
 function getEthExplorerTxUrl(txHash: string): string {
