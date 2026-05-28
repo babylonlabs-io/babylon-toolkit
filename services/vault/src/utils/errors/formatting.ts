@@ -27,40 +27,128 @@ function isWalletRejectionError(error: unknown): boolean {
   );
 }
 
-const FRIENDLY_USER_REJECTION_MESSAGE =
-  "Transaction rejected in your wallet. No changes were made — try again when you're ready.";
+// ETH-side insufficient-funds wording. Deliberately narrower than viem's own
+// `/insufficient funds|exceeds transaction sender account balance/` so the
+// BTC selector's "Insufficient funds: need N sats" string is not collapsed.
+const INSUFFICIENT_GAS_FUNDS_PATTERN =
+  /insufficient funds for (gas|transfer)|exceeds transaction sender account balance|exceeds the balance of the account/i;
 
 /**
- * True if `err` is (or wraps) an EIP-1193 user-rejection. viem's
- * `UserRejectedRequestError` sets `code: 4001` and `name:
- * "UserRejectedRequestError"`; it's typically nested several layers deep
- * inside `TransactionExecutionError.cause`. Also matches the BTC
- * wallet-connector's `CONNECTION_REJECTED` code at the top level.
+ * Recognised error categories. Names mirror viem's class names where
+ * applicable; codes are EIP-1193. Verified against viem 2.38.2 source in
+ * `node_modules/viem/_esm/errors/{rpc,node,transaction,request}.js`.
  */
-function isUserRejectionError(err: unknown, depth = 0): boolean {
-  if (depth > 10 || !err || typeof err !== "object") return false;
-  if (isWalletRejectionError(err)) return true;
-  const obj = err as { code?: unknown; name?: unknown; cause?: unknown };
-  if (obj.code === 4001) return true;
-  if (obj.name === "UserRejectedRequestError") return true;
-  if (obj.cause) return isUserRejectionError(obj.cause, depth + 1);
-  return false;
+type ErrorKind =
+  | "user-rejection" // EIP-1193 4001 / viem UserRejectedRequestError / wallet CONNECTION_REJECTED
+  | "insufficient-funds" // viem InsufficientFundsError (gas * fee + value > balance)
+  | "wallet-disconnected" // EIP-1193 4900/4901 / Provider+ChainDisconnectedError
+  | "unauthorized" // EIP-1193 4100 / UnauthorizedProviderError
+  | "chain-switch-failed" // EIP-1193 4902 / viem SwitchChainError
+  | "receipt-timeout" // viem WaitForTransactionReceiptTimeoutError
+  | "network"; // HttpRequestError / WebSocketRequestError / TimeoutError / RpcRequestError
+
+const FRIENDLY_MESSAGES: Record<ErrorKind, string> = {
+  "user-rejection":
+    "Transaction rejected in your wallet. No changes were made — try again when you're ready.",
+  "insufficient-funds":
+    "Not enough ETH to cover the deposit fee and gas. Add ETH to your wallet and try again.",
+  "wallet-disconnected":
+    "Your wallet was disconnected. Reconnect it and try again.",
+  unauthorized:
+    "This site isn't authorized in your wallet. Approve the connection and try again.",
+  "chain-switch-failed":
+    "Couldn't switch your wallet to the required network. Switch chains manually and try again.",
+  "receipt-timeout":
+    "We couldn't confirm your transaction. Check your wallet or a block explorer for the latest status.",
+  network: "Network error. Check your connection and try again.",
+};
+
+/**
+ * Walk the `.cause` chain looking for a recognised error category. Returns
+ * the first match (depth-first, top of chain wins). `null` if no match.
+ */
+function classifyError(err: unknown): ErrorKind | null {
+  let cur: unknown = err;
+  for (let depth = 0; depth <= 10 && cur && typeof cur === "object"; depth++) {
+    const obj = cur as {
+      code?: unknown;
+      name?: unknown;
+      message?: unknown;
+      cause?: unknown;
+    };
+
+    // User rejection
+    if (obj.code === 4001 || obj.name === "UserRejectedRequestError") {
+      return "user-rejection";
+    }
+    if (isWalletRejectionError(cur)) return "user-rejection";
+
+    // Insufficient ETH for gas + value
+    if (obj.name === "InsufficientFundsError") return "insufficient-funds";
+    if (
+      typeof obj.message === "string" &&
+      INSUFFICIENT_GAS_FUNDS_PATTERN.test(obj.message)
+    ) {
+      return "insufficient-funds";
+    }
+
+    // Wallet disconnected from chain / all chains
+    if (
+      obj.code === 4900 ||
+      obj.code === 4901 ||
+      obj.name === "ProviderDisconnectedError" ||
+      obj.name === "ChainDisconnectedError"
+    ) {
+      return "wallet-disconnected";
+    }
+
+    // Site not authorized in wallet
+    if (obj.code === 4100 || obj.name === "UnauthorizedProviderError") {
+      return "unauthorized";
+    }
+
+    // Wallet refused / failed to switch chain. The deposit flow's wagmi
+    // helper catches this locally (ethereumSubmit.ts), but cover the
+    // escape path in case it surfaces from elsewhere.
+    if (obj.code === 4902 || obj.name === "SwitchChainError") {
+      return "chain-switch-failed";
+    }
+
+    // Tx accepted but receipt didn't arrive in time
+    if (obj.name === "WaitForTransactionReceiptTimeoutError") {
+      return "receipt-timeout";
+    }
+
+    // RPC / network transport failures
+    if (
+      obj.name === "HttpRequestError" ||
+      obj.name === "WebSocketRequestError" ||
+      obj.name === "TimeoutError" ||
+      obj.name === "RpcRequestError"
+    ) {
+      return "network";
+    }
+
+    cur = obj.cause;
+  }
+  return null;
 }
 
 /**
  * Extract a safe error message from an unknown error value.
  *
- * User-rejection errors (EIP-1193 4001 / viem `UserRejectedRequestError` /
- * wallet-connector `CONNECTION_REJECTED`) collapse to a single friendly
- * sentence — viem's raw message dumps the full request payload including
- * calldata, which is useless and alarming to the user.
+ * Known viem / EIP-1193 / wallet-connector failure categories collapse to a
+ * single friendly sentence — viem's raw messages dump the full request
+ * payload including calldata, RPC URLs, and other noise that's useless and
+ * alarming to the user.
  *
  * Falls back to "Unknown error" for empty messages and for the literal
  * "[object Object]" — the latter shows up when upstream code wrapped a
  * plain object via template-literal interpolation.
  */
 export function sanitizeErrorMessage(err: unknown): string {
-  if (isUserRejectionError(err)) return FRIENDLY_USER_REJECTION_MESSAGE;
+  const kind = classifyError(err);
+  if (kind) return FRIENDLY_MESSAGES[kind];
   if (err instanceof Error) {
     return err.message && err.message !== "[object Object]"
       ? err.message

@@ -146,6 +146,124 @@ describe("Error Formatting", () => {
         "execution reverted: bad signature",
       );
     });
+
+    it("collapses viem InsufficientFundsError by name", () => {
+      const err = Object.assign(
+        new Error(
+          "The total cost (gas * gas fee + value) of executing this transaction exceeds the balance of the account.",
+        ),
+        { name: "InsufficientFundsError" },
+      );
+      expect(sanitizeErrorMessage(err)).toMatch(/Not enough ETH/);
+    });
+
+    it("collapses InsufficientFundsError nested in cause", () => {
+      const inner = Object.assign(
+        new Error("exceeds the balance of the account"),
+        { name: "InsufficientFundsError" },
+      );
+      const outer = Object.assign(
+        new Error(
+          "TransactionExecutionError: chain: ..., from: 0x..., to: 0x..., value: 0.002 ETH",
+        ),
+        { cause: inner },
+      );
+      expect(sanitizeErrorMessage(outer)).toMatch(/Not enough ETH/);
+    });
+
+    it("collapses raw RPC 'insufficient funds' message without viem name", () => {
+      // Some wallets / providers surface only the raw RPC string with no
+      // viem class wrapping.
+      const err = new Error(
+        "insufficient funds for gas * price + value: balance 0",
+      );
+      expect(sanitizeErrorMessage(err)).toMatch(/Not enough ETH/);
+    });
+
+    it("does not collapse generic execution-revert errors", () => {
+      const err = new Error("execution reverted: DuplicateHashlock");
+      expect(sanitizeErrorMessage(err)).toBe(
+        "execution reverted: DuplicateHashlock",
+      );
+    });
+
+    it("does not collapse the BTC selector's insufficient-funds message", () => {
+      // The SDK's `selectUtxosForPegin` throws "Insufficient funds: need N
+      // sats, have M sats" — we must keep that verbatim (it carries the
+      // sats info the user needs), not replace with the ETH-side hint.
+      const err = new Error(
+        "Insufficient funds: need 1000000 sats (900000 pegin + 100000 fee), have 1000 sats",
+      );
+      expect(sanitizeErrorMessage(err)).toBe(err.message);
+    });
+
+    it("collapses ProviderDisconnectedError (EIP-1193 4900)", () => {
+      const err = Object.assign(
+        new Error("The Provider is disconnected from all chains."),
+        { code: 4900, name: "ProviderDisconnectedError" },
+      );
+      expect(sanitizeErrorMessage(err)).toMatch(/wallet was disconnected/i);
+    });
+
+    it("collapses ChainDisconnectedError (EIP-1193 4901) nested in cause", () => {
+      const inner = Object.assign(
+        new Error("The Provider is not connected to the requested chain."),
+        { code: 4901, name: "ChainDisconnectedError" },
+      );
+      const outer = Object.assign(new Error("outer wrapper"), { cause: inner });
+      expect(sanitizeErrorMessage(outer)).toMatch(/wallet was disconnected/i);
+    });
+
+    it("collapses UnauthorizedProviderError (EIP-1193 4100)", () => {
+      const err = Object.assign(
+        new Error(
+          "The requested method and/or account has not been authorized by the user.",
+        ),
+        { code: 4100, name: "UnauthorizedProviderError" },
+      );
+      expect(sanitizeErrorMessage(err)).toMatch(/isn't authorized/i);
+    });
+
+    it("collapses WaitForTransactionReceiptTimeoutError", () => {
+      const err = Object.assign(
+        new Error(
+          'Timed out while waiting for transaction with hash "0xabc" to be confirmed.',
+        ),
+        { name: "WaitForTransactionReceiptTimeoutError" },
+      );
+      expect(sanitizeErrorMessage(err)).toMatch(/couldn't confirm/i);
+    });
+
+    it("collapses SwitchChainError (EIP-1193 4902)", () => {
+      const err = Object.assign(
+        new Error("An error occurred when attempting to switch chain."),
+        { code: 4902, name: "SwitchChainError" },
+      );
+      expect(sanitizeErrorMessage(err)).toMatch(/switch your wallet/i);
+    });
+
+    it("collapses HttpRequestError (RPC transport failure)", () => {
+      const err = Object.assign(
+        new Error("HTTP request failed.\nURL: https://eth-rpc.example/key"),
+        { name: "HttpRequestError" },
+      );
+      expect(sanitizeErrorMessage(err)).toMatch(/Network error/i);
+    });
+
+    it("collapses TimeoutError (request timed out)", () => {
+      const err = Object.assign(
+        new Error("The request took too long to respond."),
+        { name: "TimeoutError" },
+      );
+      expect(sanitizeErrorMessage(err)).toMatch(/Network error/i);
+    });
+
+    it("collapses WebSocketRequestError", () => {
+      const err = Object.assign(new Error("WebSocket request failed."), {
+        name: "WebSocketRequestError",
+      });
+      expect(sanitizeErrorMessage(err)).toMatch(/Network error/i);
+    });
   });
 
   describe("formatPayoutSignatureError", () => {
