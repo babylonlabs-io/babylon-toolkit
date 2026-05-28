@@ -56,6 +56,7 @@ the managers module instead (PeginManager and PayoutManager).
 
 ### WASM Functions
 - [computeMinClaimValue](#computeminclaimvalue) - Compute the minimum claim value accepted by the vault provider
+- [computeMinPeginFee](#computeminpeginfee) - Compute the minimum PegIn activation tx fee that each HTLC must reserve
 
 ### Connector Parameter Types
 - `AssertPayoutNoPayoutConnectorParams` - Connector params for NoPayout/AssertPayout PSBTs
@@ -116,7 +117,7 @@ Error.constructor
 
 ### PayoutConnectorParams
 
-Defined in: packages/babylon-tbv-rust-wasm/dist/types.d.ts:125
+Defined in: packages/babylon-tbv-rust-wasm/dist/types.d.ts:127
 
 Parameters for creating a payout connector
 
@@ -128,7 +129,7 @@ Parameters for creating a payout connector
 depositor: string;
 ```
 
-Defined in: packages/babylon-tbv-rust-wasm/dist/types.d.ts:127
+Defined in: packages/babylon-tbv-rust-wasm/dist/types.d.ts:129
 
 X-only public key of the depositor (hex encoded)
 
@@ -138,7 +139,7 @@ X-only public key of the depositor (hex encoded)
 vaultProvider: string;
 ```
 
-Defined in: packages/babylon-tbv-rust-wasm/dist/types.d.ts:129
+Defined in: packages/babylon-tbv-rust-wasm/dist/types.d.ts:131
 
 X-only public key of the vault provider (hex encoded)
 
@@ -148,7 +149,7 @@ X-only public key of the vault provider (hex encoded)
 vaultKeepers: string[];
 ```
 
-Defined in: packages/babylon-tbv-rust-wasm/dist/types.d.ts:131
+Defined in: packages/babylon-tbv-rust-wasm/dist/types.d.ts:133
 
 Array of x-only public keys of vault keepers (hex encoded)
 
@@ -158,7 +159,7 @@ Array of x-only public keys of vault keepers (hex encoded)
 universalChallengers: string[];
 ```
 
-Defined in: packages/babylon-tbv-rust-wasm/dist/types.d.ts:133
+Defined in: packages/babylon-tbv-rust-wasm/dist/types.d.ts:135
 
 Array of x-only public keys of universal challengers (hex encoded)
 
@@ -168,7 +169,7 @@ Array of x-only public keys of universal challengers (hex encoded)
 timelockPegin: number;
 ```
 
-Defined in: packages/babylon-tbv-rust-wasm/dist/types.d.ts:135
+Defined in: packages/babylon-tbv-rust-wasm/dist/types.d.ts:137
 
 CSV timelock in blocks for the PegIn output
 
@@ -176,7 +177,7 @@ CSV timelock in blocks for the PegIn output
 
 ### AssertPayoutNoPayoutConnectorParams
 
-Defined in: packages/babylon-tbv-rust-wasm/dist/types.d.ts:156
+Defined in: packages/babylon-tbv-rust-wasm/dist/types.d.ts:158
 
 Parameters for creating an Assert Payout/NoPayout connector.
 This connector generates scripts for the depositor's own graph (depositor-as-claimer).
@@ -189,7 +190,7 @@ This connector generates scripts for the depositor's own graph (depositor-as-cla
 claimer: string;
 ```
 
-Defined in: packages/babylon-tbv-rust-wasm/dist/types.d.ts:158
+Defined in: packages/babylon-tbv-rust-wasm/dist/types.d.ts:160
 
 X-only public key of the claimer (depositor acting as claimer, hex encoded)
 
@@ -199,7 +200,7 @@ X-only public key of the claimer (depositor acting as claimer, hex encoded)
 localChallengers: string[];
 ```
 
-Defined in: packages/babylon-tbv-rust-wasm/dist/types.d.ts:160
+Defined in: packages/babylon-tbv-rust-wasm/dist/types.d.ts:162
 
 Array of x-only public keys of local challengers (hex encoded)
 
@@ -209,7 +210,7 @@ Array of x-only public keys of local challengers (hex encoded)
 universalChallengers: string[];
 ```
 
-Defined in: packages/babylon-tbv-rust-wasm/dist/types.d.ts:162
+Defined in: packages/babylon-tbv-rust-wasm/dist/types.d.ts:164
 
 Array of x-only public keys of universal challengers (hex encoded)
 
@@ -219,7 +220,7 @@ Array of x-only public keys of universal challengers (hex encoded)
 timelockAssert: number;
 ```
 
-Defined in: packages/babylon-tbv-rust-wasm/dist/types.d.ts:164
+Defined in: packages/babylon-tbv-rust-wasm/dist/types.d.ts:166
 
 CSV timelock in blocks for the Assert output
 
@@ -229,7 +230,7 @@ CSV timelock in blocks for the Assert output
 councilMembers: string[];
 ```
 
-Defined in: packages/babylon-tbv-rust-wasm/dist/types.d.ts:166
+Defined in: packages/babylon-tbv-rust-wasm/dist/types.d.ts:168
 
 Array of x-only public keys of security council members (hex encoded)
 
@@ -239,7 +240,7 @@ Array of x-only public keys of security council members (hex encoded)
 councilQuorum: number;
 ```
 
-Defined in: packages/babylon-tbv-rust-wasm/dist/types.d.ts:168
+Defined in: packages/babylon-tbv-rust-wasm/dist/types.d.ts:170
 
 Council quorum (M-of-N multisig threshold)
 
@@ -247,7 +248,7 @@ Council quorum (M-of-N multisig threshold)
 
 ### ChallengeAssertConnectorParams
 
-Defined in: packages/babylon-tbv-rust-wasm/dist/types.d.ts:192
+Defined in: packages/babylon-tbv-rust-wasm/dist/types.d.ts:194
 
 Parameters for creating a ChallengeAssert connector.
 This connector generates scripts for the ChallengeAssert transaction.
@@ -260,7 +261,7 @@ This connector generates scripts for the ChallengeAssert transaction.
 claimer: string;
 ```
 
-Defined in: packages/babylon-tbv-rust-wasm/dist/types.d.ts:194
+Defined in: packages/babylon-tbv-rust-wasm/dist/types.d.ts:196
 
 X-only public key of the claimer (depositor acting as claimer, hex encoded)
 
@@ -270,7 +271,7 @@ X-only public key of the claimer (depositor acting as claimer, hex encoded)
 challenger: string;
 ```
 
-Defined in: packages/babylon-tbv-rust-wasm/dist/types.d.ts:196
+Defined in: packages/babylon-tbv-rust-wasm/dist/types.d.ts:198
 
 X-only public key of the challenger (hex encoded)
 
@@ -280,7 +281,7 @@ X-only public key of the challenger (hex encoded)
 claimerWotsKeysJson: string;
 ```
 
-Defined in: packages/babylon-tbv-rust-wasm/dist/types.d.ts:198
+Defined in: packages/babylon-tbv-rust-wasm/dist/types.d.ts:200
 
 JSON string of WOTS public keys (blocks 0-1) from VP
 
@@ -290,7 +291,7 @@ JSON string of WOTS public keys (blocks 0-1) from VP
 gcWotsKeysJson: string;
 ```
 
-Defined in: packages/babylon-tbv-rust-wasm/dist/types.d.ts:200
+Defined in: packages/babylon-tbv-rust-wasm/dist/types.d.ts:202
 
 JSON string of GC WOTS public keys (array of arrays) from VP
 
@@ -478,7 +479,7 @@ Parameters for the Assert Payout/NoPayout connector
 
 ### PayoutParams
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:49](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts#L49)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:63](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts#L63)
 
 Parameters for building an unsigned Payout PSBT
 
@@ -493,7 +494,7 @@ Input 1 references the Assert transaction.
 payoutTxHex: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:54](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts#L54)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:68](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts#L68)
 
 Payout transaction hex (unsigned)
 This is the transaction that needs to be signed by the depositor
@@ -504,7 +505,7 @@ This is the transaction that needs to be signed by the depositor
 assertTxHex: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:60](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts#L60)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:74](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts#L74)
 
 Assert transaction hex
 Payout input 1 references Assert output 0
@@ -515,7 +516,7 @@ Payout input 1 references Assert output 0
 peginTxHex: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:66](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts#L66)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:80](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts#L80)
 
 Peg-in transaction hex
 This transaction created the vault output that we're spending
@@ -526,7 +527,7 @@ This transaction created the vault output that we're spending
 depositorBtcPubkey: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:71](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts#L71)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:85](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts#L85)
 
 Depositor's BTC public key (x-only, 64-char hex without 0x prefix)
 
@@ -536,7 +537,7 @@ Depositor's BTC public key (x-only, 64-char hex without 0x prefix)
 vaultProviderBtcPubkey: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:76](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts#L76)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:90](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts#L90)
 
 Vault provider's BTC public key (x-only, 64-char hex)
 
@@ -546,7 +547,7 @@ Vault provider's BTC public key (x-only, 64-char hex)
 vaultKeeperBtcPubkeys: string[];
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:81](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts#L81)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:95](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts#L95)
 
 Vault keeper BTC public keys (x-only, 64-char hex)
 
@@ -556,7 +557,7 @@ Vault keeper BTC public keys (x-only, 64-char hex)
 universalChallengerBtcPubkeys: string[];
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:86](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts#L86)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:100](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts#L100)
 
 Universal challenger BTC public keys (x-only, 64-char hex)
 
@@ -566,7 +567,7 @@ Universal challenger BTC public keys (x-only, 64-char hex)
 timelockPegin: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:91](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts#L91)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:105](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts#L105)
 
 CSV timelock in blocks for the PegIn output.
 
@@ -576,15 +577,50 @@ CSV timelock in blocks for the PegIn output.
 network: Network;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:96](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts#L96)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:110](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts#L110)
 
 Bitcoin network
+
+##### claimerBtcPubkey
+
+```ts
+claimerBtcPubkey: string;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:116](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts#L116)
+
+Claimer's x-only BTC public key (64-char hex, no prefix). Drives role
+inference (VP / depositor-as-claimer / VK-claimer) inside `buildPayoutPsbt`.
+
+##### registeredPayoutScriptPubKey
+
+```ts
+registeredPayoutScriptPubKey: string;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:123](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts#L123)
+
+On-chain registered depositor payout scriptPubKey (hex, 0x optional).
+Expected outs[0].script for VP- and depositor-claimer roles; unused for
+VK-claimer (its outs[0].script is derived from `claimerBtcPubkey`).
+
+##### commissionBps
+
+```ts
+commissionBps: number;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:130](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts#L130)
+
+VP commission in basis points (`BTCVaultRegistry.vaultProviderCommissionBps`).
+Caps the VP-claimer outs[1].value. The protocol minimum is enforced
+upstream; here only `0 <= bps < 10_000` is checked, for safe cap math.
 
 ***
 
 ### PayoutPsbtResult
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:102](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts#L102)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:136](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts#L136)
 
 Result of building an unsigned payout PSBT
 
@@ -596,7 +632,7 @@ Result of building an unsigned payout PSBT
 psbtHex: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:106](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts#L106)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:140](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts#L140)
 
 Unsigned PSBT hex ready for signing
 
@@ -688,7 +724,17 @@ feeRate: bigint;
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts:44](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts#L44)
 
-Fee rate in sat/vB from contract offchain params
+TX-graph fee rate in sat/vB from contract offchain params; sizes the depositor claim value
+
+##### minPeginFeeRate
+
+```ts
+minPeginFeeRate: bigint;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts:46](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts#L46)
+
+Minimum PegIn fee rate in sat/vB from contract offchain params; sizes the PegIn tx fee
 
 ##### numLocalChallengers
 
@@ -696,7 +742,7 @@ Fee rate in sat/vB from contract offchain params
 numLocalChallengers: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts:46](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts#L46)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts:48](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts#L48)
 
 Number of local challengers (from contract params)
 
@@ -706,7 +752,7 @@ Number of local challengers (from contract params)
 councilQuorum: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts:48](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts#L48)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts:50](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts#L50)
 
 M in M-of-N council multisig (from contract params)
 
@@ -716,7 +762,7 @@ M in M-of-N council multisig (from contract params)
 councilSize: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts:50](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts#L50)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts:52](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts#L52)
 
 N in M-of-N council multisig (from contract params)
 
@@ -726,7 +772,7 @@ N in M-of-N council multisig (from contract params)
 network: Network;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts:52](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts#L52)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts:54](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts#L54)
 
 Bitcoin network
 
@@ -736,7 +782,7 @@ Bitcoin network
 optional authAnchorHash: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts:60](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts#L60)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts:62](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts#L62)
 
 Optional 32-byte `SHA256(auth_anchor)` commitment (64-char hex, no
 `0x` prefix). If provided, the Pre-PegIn tx will include an
@@ -748,7 +794,7 @@ Optional 32-byte `SHA256(auth_anchor)` commitment (64-char hex, no
 
 ### PrePeginPsbtResult
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts:74](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts#L74)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts:76](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts#L76)
 
 Result of building an unfunded Pre-PegIn transaction
 
@@ -760,7 +806,7 @@ Result of building an unfunded Pre-PegIn transaction
 psbtHex: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts:84](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts#L84)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts:86](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts#L86)
 
 Unfunded transaction hex (no inputs, HTLC outputs + optional
 auth-anchor OP_RETURN + CPFP anchor).
@@ -776,7 +822,7 @@ The caller is responsible for:
 totalOutputValue: bigint;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts:86](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts#L86)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts:88](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts#L88)
 
 Sum of all unfunded outputs — use this for UTXO selection
 
@@ -786,7 +832,7 @@ Sum of all unfunded outputs — use this for UTXO selection
 htlcValues: readonly bigint[];
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts:88](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts#L88)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts:90](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts#L90)
 
 HTLC output values in satoshis, one per deposit (each includes peginAmount + depositorClaimValue + minPeginFee)
 
@@ -796,7 +842,7 @@ HTLC output values in satoshis, one per deposit (each includes peginAmount + dep
 htlcScriptPubKeys: readonly string[];
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts:90](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts#L90)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts:92](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts#L92)
 
 HTLC output scriptPubKeys (hex encoded), one per deposit
 
@@ -806,7 +852,7 @@ HTLC output scriptPubKeys (hex encoded), one per deposit
 htlcAddresses: readonly string[];
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts:92](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts#L92)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts:94](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts#L94)
 
 HTLC Taproot addresses, one per deposit
 
@@ -816,7 +862,7 @@ HTLC Taproot addresses, one per deposit
 peginAmounts: readonly bigint[];
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts:94](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts#L94)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts:96](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts#L96)
 
 Pegin amounts in satoshis, one per deposit
 
@@ -826,7 +872,7 @@ Pegin amounts in satoshis, one per deposit
 depositorClaimValue: bigint;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts:96](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts#L96)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts:98](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts#L98)
 
 Depositor claim value computed by WASM from contract parameters
 
@@ -836,7 +882,7 @@ Depositor claim value computed by WASM from contract parameters
 authAnchorVout: number | null;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts:102](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts#L102)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts:104](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts#L104)
 
 Vout index of the auth-anchor `OP_RETURN` output if one was
 included (i.e. `authAnchorHash` was provided), or `null` if not.
@@ -846,7 +892,7 @@ Always equals `htlcValues.length` when present.
 
 ### BuildPeginTxParams
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts:108](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts#L108)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts:110](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts#L110)
 
 Parameters for building the PegIn transaction from a funded Pre-PegIn tx
 
@@ -858,7 +904,7 @@ Parameters for building the PegIn transaction from a funded Pre-PegIn tx
 prePeginParams: PrePeginParams;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts:110](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts#L110)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts:112](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts#L112)
 
 Same PrePeginParams used to create the Pre-PegIn transaction
 
@@ -868,7 +914,7 @@ Same PrePeginParams used to create the Pre-PegIn transaction
 timelockPegin: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts:112](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts#L112)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts:114](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts#L114)
 
 CSV timelock in blocks for the PegIn vault output
 
@@ -878,7 +924,7 @@ CSV timelock in blocks for the PegIn vault output
 fundedPrePeginTxHex: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts:114](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts#L114)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts:116](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts#L116)
 
 Hex-encoded funded Pre-PegIn transaction
 
@@ -888,7 +934,7 @@ Hex-encoded funded Pre-PegIn transaction
 htlcVout: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts:116](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts#L116)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts:118](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts#L118)
 
 Index of the HTLC output to spend
 
@@ -896,7 +942,7 @@ Index of the HTLC output to spend
 
 ### PeginTxResult
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts:122](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts#L122)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts:124](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts#L124)
 
 Result of building the PegIn transaction
 
@@ -908,7 +954,7 @@ Result of building the PegIn transaction
 txHex: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts:124](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts#L124)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts:126](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts#L126)
 
 PegIn transaction hex (1 input spending HTLC, 1 vault output)
 
@@ -918,7 +964,7 @@ PegIn transaction hex (1 input spending HTLC, 1 vault output)
 txid: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts:126](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts#L126)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts:128](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts#L128)
 
 PegIn transaction ID
 
@@ -928,7 +974,7 @@ PegIn transaction ID
 vaultScriptPubKey: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts:128](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts#L128)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts:130](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts#L130)
 
 Vault output scriptPubKey (hex encoded)
 
@@ -938,7 +984,7 @@ Vault output scriptPubKey (hex encoded)
 vaultValue: bigint;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts:130](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts#L130)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts:132](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts#L132)
 
 Vault output value in satoshis
 
@@ -1369,7 +1415,7 @@ Bitcoin network types supported by the vault system
 type VaultId = `0x${string}`;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/index.ts:90](../../packages/babylon-ts-sdk/src/tbv/core/primitives/index.ts#L90)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/index.ts:95](../../packages/babylon-ts-sdk/src/tbv/core/primitives/index.ts#L95)
 
 0x-prefixed bytes32, keccak256(abi.encode(peginTxHash, depositor)).
 On-chain vault identifier used by BTCVaultRegistry contract.
@@ -1425,13 +1471,53 @@ based on the protocol parameters.
 
 ***
 
+### computeMinPeginFee()
+
+```ts
+function computeMinPeginFee(
+   numVks, 
+   numUcs, 
+minPeginFeeRate): Promise<bigint>;
+```
+
+Defined in: packages/babylon-tbv-rust-wasm/dist/index.d.ts:61
+
+Compute the minimum PegIn (activation) transaction fee in satoshis.
+
+`minPeginFee = peginTxVsize(numVks, numUcs) × minPeginFeeRate`. Each HTLC
+the depositor funds in the Pre-PegIn tx must reserve at least this fee
+inside its value (`htlcValue = peginAmount + depositorClaimValue +
+minPeginFee`), otherwise the VP cannot afford to broadcast the PegIn at
+activation. The vsize comes from a Taproot script-path-spend weight
+prediction whose witness shape depends on the VK + UC signer count.
+
+#### Parameters
+
+##### numVks
+
+`number`
+
+##### numUcs
+
+`number`
+
+##### minPeginFeeRate
+
+`bigint`
+
+#### Returns
+
+`Promise`\<`bigint`\>
+
+***
+
 ### deriveVaultId()
 
 ```ts
 function deriveVaultId(peginTxHash, depositor): Promise<string>;
 ```
 
-Defined in: packages/babylon-tbv-rust-wasm/dist/index.d.ts:76
+Defined in: packages/babylon-tbv-rust-wasm/dist/index.d.ts:87
 
 Derives the vault ID from a PegIn transaction hash and depositor ETH address.
 
@@ -1666,7 +1752,7 @@ Unsigned PSBT hex ready for signing
 function buildPayoutPsbt(params): Promise<PayoutPsbtResult>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:130](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts#L130)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:171](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts#L171)
 
 Build unsigned Payout PSBT for depositor to sign.
 
@@ -1710,52 +1796,27 @@ If input 1 does not spend Assert:0 (proof output)
 
 If previous output is not found for either input
 
-***
+#### Throws
 
-### assertPayoutOutputMatchesRegistered()
-
-```ts
-function assertPayoutOutputMatchesRegistered(payoutTxHex, registeredPayoutScriptPubKey): void;
-```
-
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:284](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts#L284)
-
-Validate that a payout transaction's largest output pays to the registered
-depositor payout scriptPubKey.
-
-Prevents a malicious vault provider from substituting the payout destination
-(or routing funds through a dust output to the correct address while sending
-the actual value to an attacker-controlled script).
-
-#### Parameters
-
-##### payoutTxHex
-
-`string`
-
-Raw payout transaction hex
-
-##### registeredPayoutScriptPubKey
-
-`string`
-
-On-chain registered scriptPubKey (hex, with or without 0x prefix)
-
-#### Returns
-
-`void`
+If sum of output values exceeds sum of input values (invalid tx)
 
 #### Throws
 
-If scriptPubKey is invalid hex
+If implicit fee (inputs − outputs) exceeds the configured fraction
+  of total input value — see MAX\_PAYOUT\_FEE\_FRACTION\_NUMERATOR
 
 #### Throws
 
-If the transaction has no outputs
+If `claimerBtcPubkey` is not VP, depositor, or a registered VK
 
 #### Throws
 
-If the largest output does not pay to the registered scriptPubKey
+If payout output count, outs[0] script, outs[last] anchor value, or
+  (VP-claimer) outs[1] commission cap do not match the protocol layout
+
+#### Throws
+
+If `commissionBps` is not a non-negative integer below 10_000
 
 ***
 
@@ -1768,7 +1829,7 @@ function extractPayoutSignature(
    inputIndex): string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:332](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts#L332)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:486](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts#L486)
 
 Extract Schnorr signature from signed payout PSBT.
 
@@ -1822,7 +1883,7 @@ If the signature has an unexpected length
 function buildPrePeginPsbt(params): Promise<PrePeginPsbtResult>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts:144](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts#L144)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts:146](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts#L146)
 
 Build unfunded Pre-PegIn transaction using WASM.
 
@@ -1856,7 +1917,7 @@ If WASM initialization fails or parameters are invalid
 function buildPeginTxFromFundedPrePegin(params): Promise<PeginTxResult>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts:222](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts#L222)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts:225](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts#L225)
 
 Build the PegIn transaction from a funded Pre-PegIn transaction.
 

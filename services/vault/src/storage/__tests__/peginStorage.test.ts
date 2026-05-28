@@ -5,23 +5,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { logger } from "@/infrastructure";
 
-import {
-  STORAGE_KEY_PREFIX,
-  UTXO_RESERVATION_KEY_PREFIX,
-  UTXO_RESERVATION_TTL,
-} from "../../constants";
+import { STORAGE_KEY_PREFIX } from "../../constants";
 import { LocalStorageStatus } from "../../models/peginStateMachine";
 import {
   addPendingPegin,
-  addUtxoReservation,
-  assertNoReservationConflict,
   getPendingPegins,
-  getUtxoReservations,
   type PendingPeginRequest,
   removePendingPegin,
-  removeUtxoReservation,
-  type UtxoReservation,
-  UtxoReservationConflictError,
 } from "../peginStorage";
 
 vi.mock("@/infrastructure", () => ({
@@ -472,303 +462,67 @@ describe("removePendingPegin", () => {
   });
 });
 
-describe("UTXO reservation storage", () => {
-  const reservationKey = `${UTXO_RESERVATION_KEY_PREFIX}-${ETH_ADDRESS}`;
-
-  const outpointA = { txid: VALID_TXID_A, vout: 0 };
-  const outpointB = { txid: VALID_TXID_B, vout: 1 };
-
-  const validReservation: UtxoReservation = {
-    outpoints: [outpointA],
-    timestamp: Date.now(),
-    batchId: "batch-1",
-  };
-
+describe("addPendingPegin persistence failures", () => {
   beforeEach(() => {
     localStorage.clear();
     vi.clearAllMocks();
   });
 
-  it("adds and retrieves a reservation", async () => {
-    await addUtxoReservation(ETH_ADDRESS, validReservation);
-
-    const result = getUtxoReservations(ETH_ADDRESS);
-
-    expect(result).toHaveLength(1);
-    expect(result[0].batchId).toBe("batch-1");
-    expect(result[0].outpoints).toEqual([outpointA]);
-  });
-
-  it("removes a reservation by batchId", async () => {
-    await addUtxoReservation(ETH_ADDRESS, validReservation);
-    await addUtxoReservation(ETH_ADDRESS, {
-      ...validReservation,
-      outpoints: [outpointB],
-      batchId: "batch-2",
-    });
-
-    removeUtxoReservation(ETH_ADDRESS, "batch-1");
-
-    const result = getUtxoReservations(ETH_ADDRESS);
-    expect(result).toHaveLength(1);
-    expect(result[0].batchId).toBe("batch-2");
-  });
-
-  it("replaces existing reservation with same batchId (narrow-after-prepare refresh)", async () => {
-    await addUtxoReservation(ETH_ADDRESS, validReservation);
-    await addUtxoReservation(ETH_ADDRESS, {
-      ...validReservation,
-      outpoints: [outpointA, outpointB],
-    });
-
-    const result = getUtxoReservations(ETH_ADDRESS);
-    expect(result).toHaveLength(1);
-    expect(result[0].outpoints).toEqual([outpointA, outpointB]);
-  });
-
-  it("filters out expired reservations on read", () => {
-    const expired: UtxoReservation = {
-      outpoints: [outpointA],
-      timestamp: Date.now() - UTXO_RESERVATION_TTL - 1,
-      batchId: "expired-batch",
-    };
-    localStorage.setItem(reservationKey, JSON.stringify([expired]));
-
-    const result = getUtxoReservations(ETH_ADDRESS);
-
-    expect(result).toHaveLength(0);
-    const stored = localStorage.getItem(reservationKey);
-    expect(stored).toBeNull();
-  });
-
-  it("keeps non-expired reservations when cleaning expired ones", () => {
-    const expired: UtxoReservation = {
-      outpoints: [outpointA],
-      timestamp: Date.now() - UTXO_RESERVATION_TTL - 1,
-      batchId: "expired-batch",
-    };
-    const fresh: UtxoReservation = {
-      outpoints: [outpointB],
-      timestamp: Date.now(),
-      batchId: "fresh-batch",
-    };
-    localStorage.setItem(reservationKey, JSON.stringify([expired, fresh]));
-
-    const result = getUtxoReservations(ETH_ADDRESS);
-
-    expect(result).toHaveLength(1);
-    expect(result[0].batchId).toBe("fresh-batch");
-  });
-
-  it("returns empty array for empty address", () => {
-    expect(getUtxoReservations("")).toEqual([]);
-  });
-
-  it("returns empty array when storage is empty", () => {
-    expect(getUtxoReservations(ETH_ADDRESS)).toEqual([]);
-  });
-
-  it("rejects reservations whose outpoints field is not an array", () => {
-    const tampered = [
-      { outpoints: "not-an-array", timestamp: Date.now(), batchId: "bad" },
-      validReservation,
-    ];
-    localStorage.setItem(reservationKey, JSON.stringify(tampered));
-
-    const result = getUtxoReservations(ETH_ADDRESS);
-
-    expect(result).toHaveLength(1);
-    expect(result[0].batchId).toBe("batch-1");
-  });
-
-  it("rejects reservations whose outpoints array is empty", () => {
-    const tampered = [
-      { outpoints: [], timestamp: Date.now(), batchId: "empty" },
-      validReservation,
-    ];
-    localStorage.setItem(reservationKey, JSON.stringify(tampered));
-
-    const result = getUtxoReservations(ETH_ADDRESS);
-
-    expect(result).toHaveLength(1);
-    expect(result[0].batchId).toBe("batch-1");
-  });
-
-  it("rejects reservations whose outpoint has a non-hex txid", () => {
-    const tampered = [
-      {
-        outpoints: [{ txid: "NOT_HEX_!!!", vout: 0 }],
-        timestamp: Date.now(),
-        batchId: "bad",
-      },
-      validReservation,
-    ];
-    localStorage.setItem(reservationKey, JSON.stringify(tampered));
-
-    expect(getUtxoReservations(ETH_ADDRESS)).toHaveLength(1);
-  });
-
-  it("rejects reservations whose outpoint has a negative vout", () => {
-    const tampered = [
-      {
-        outpoints: [{ txid: VALID_TXID_A, vout: -1 }],
-        timestamp: Date.now(),
-        batchId: "bad",
-      },
-      validReservation,
-    ];
-    localStorage.setItem(reservationKey, JSON.stringify(tampered));
-
-    expect(getUtxoReservations(ETH_ADDRESS)).toHaveLength(1);
-  });
-
-  it("silently drops legacy unsignedTxHex-only entries (schema rotation)", () => {
-    // Legacy entries with only `unsignedTxHex` no longer validate. The 5-min
-    // TTL would have dropped them anyway; this just shortens the gap.
-    const legacy = [
-      { unsignedTxHex: "0xdeadbeef", timestamp: Date.now(), batchId: "old" },
-    ];
-    localStorage.setItem(reservationKey, JSON.stringify(legacy));
-
-    expect(getUtxoReservations(ETH_ADDRESS)).toHaveLength(0);
-  });
-
-  it("removes storage key when last reservation is removed", async () => {
-    await addUtxoReservation(ETH_ADDRESS, validReservation);
-    removeUtxoReservation(ETH_ADDRESS, "batch-1");
-
-    expect(localStorage.getItem(reservationKey)).toBeNull();
-  });
-
-  describe("conflict detection", () => {
-    it("rejects an overlapping outpoint from a different batchId", async () => {
-      await addUtxoReservation(ETH_ADDRESS, validReservation);
-
-      await expect(
-        addUtxoReservation(ETH_ADDRESS, {
-          outpoints: [outpointA],
-          timestamp: Date.now(),
-          batchId: "batch-2",
-        }),
-      ).rejects.toBeInstanceOf(UtxoReservationConflictError);
-    });
-
-    it("carries the conflicting batchId and outpoint on the error", async () => {
-      await addUtxoReservation(ETH_ADDRESS, validReservation);
-
-      const err = await addUtxoReservation(ETH_ADDRESS, {
-        outpoints: [outpointA],
-        timestamp: Date.now(),
-        batchId: "batch-2",
-      }).catch((e: unknown) => e);
-
-      expect(err).toBeInstanceOf(UtxoReservationConflictError);
-      const conflict = err as UtxoReservationConflictError;
-      expect(conflict.conflictingBatchId).toBe("batch-1");
-      expect(conflict.outpoint).toEqual(outpointA);
-    });
-
-    it("treats txid comparison as case-insensitive", async () => {
-      await addUtxoReservation(ETH_ADDRESS, {
-        outpoints: [{ txid: VALID_TXID_A.toLowerCase(), vout: 0 }],
-        timestamp: Date.now(),
-        batchId: "batch-1",
+  it("throws an actionable error when the localStorage write fails", () => {
+    const setItemSpy = vi
+      .spyOn(Storage.prototype, "setItem")
+      .mockImplementation(() => {
+        throw new Error("QuotaExceededError: localStorage is full");
       });
 
-      await expect(
-        addUtxoReservation(ETH_ADDRESS, {
-          outpoints: [{ txid: VALID_TXID_A.toUpperCase(), vout: 0 }],
-          timestamp: Date.now(),
-          batchId: "batch-2",
+    try {
+      expect(() =>
+        addPendingPegin(ETH_ADDRESS, {
+          id: VALID_VAULT_ID,
+          peginTxHash: VALID_PEGIN_TXHASH,
+          unsignedTxHex: "0xdeadbeef",
+          buildOffchainParamsVersion: 7,
+          buildAppVaultKeepersVersion: 3,
+          buildUniversalChallengersVersion: 5,
         }),
-      ).rejects.toBeInstanceOf(UtxoReservationConflictError);
-    });
-
-    it("allows non-overlapping reservations under a different batchId", async () => {
-      await addUtxoReservation(ETH_ADDRESS, validReservation);
-      await addUtxoReservation(ETH_ADDRESS, {
-        outpoints: [outpointB],
-        timestamp: Date.now(),
-        batchId: "batch-2",
-      });
-
-      expect(getUtxoReservations(ETH_ADDRESS)).toHaveLength(2);
-    });
-  });
-
-  describe("storage failure handling", () => {
-    // Aborting the deposit (instead of silently swallowing the storage error)
-    // prevents the cross-tab race from re-emerging: a swallowed write would
-    // let two concurrent tabs both pick the same outpoint and one would end
-    // up with an orphaned ETH vault. We translate the raw browser error to
-    // a clean, actionable message at the storage boundary so the caller's
-    // sanitizeErrorMessage path surfaces something readable.
-    it("throws a friendly error (not the raw browser error) when localStorage.setItem fails", async () => {
-      const quotaError = new DOMException(
-        "QuotaExceededError: storage is full",
-        "QuotaExceededError",
-      );
-      const setItemSpy = vi
-        .spyOn(Storage.prototype, "setItem")
-        .mockImplementationOnce(() => {
-          throw quotaError;
-        });
-
-      const err = await addUtxoReservation(ETH_ADDRESS, validReservation).catch(
-        (e: unknown) => e,
-      );
-
-      expect(err).toBeInstanceOf(Error);
-      expect(err).not.toBeInstanceOf(UtxoReservationConflictError);
-      expect((err as Error).message).toMatch(/Unable to record/i);
-      expect(vi.mocked(logger).warn).toHaveBeenCalledWith(
-        "[peginStorage] Failed to write UTXO reservation",
-        expect.objectContaining({ category: "peginStorage" }),
-      );
-
+      ).toThrow(/save the deposit record locally/i);
+    } finally {
       setItemSpy.mockRestore();
-    });
-
-    it("does not translate UtxoReservationConflictError (caller must detect by instanceof)", async () => {
-      await addUtxoReservation(ETH_ADDRESS, validReservation);
-
-      const err = await addUtxoReservation(ETH_ADDRESS, {
-        outpoints: [outpointA],
-        timestamp: Date.now(),
-        batchId: "batch-2",
-      }).catch((e: unknown) => e);
-
-      expect(err).toBeInstanceOf(UtxoReservationConflictError);
-    });
+    }
   });
 
-  describe("assertNoReservationConflict", () => {
-    it("throws when another batch claims one of our outpoints", async () => {
-      await addUtxoReservation(ETH_ADDRESS, validReservation);
-
-      expect(() =>
-        assertNoReservationConflict(ETH_ADDRESS, "batch-2", [outpointA]),
-      ).toThrow(UtxoReservationConflictError);
+  it("keeps removePendingPegin best-effort when the localStorage write fails", () => {
+    // Seed two entries so the removal produces a non-empty setItem write.
+    addPendingPegin(ETH_ADDRESS, {
+      id: VALID_VAULT_ID,
+      peginTxHash: VALID_PEGIN_TXHASH,
+      unsignedTxHex: "0xdeadbeef",
+      buildOffchainParamsVersion: 7,
+      buildAppVaultKeepersVersion: 3,
+      buildUniversalChallengersVersion: 5,
+    });
+    addPendingPegin(ETH_ADDRESS, {
+      id: VALID_VAULT_ID_2,
+      peginTxHash: VALID_PEGIN_TXHASH,
+      unsignedTxHex: "0xcafebabe",
+      buildOffchainParamsVersion: 7,
+      buildAppVaultKeepersVersion: 3,
+      buildUniversalChallengersVersion: 5,
     });
 
-    it("does not throw when only our own batch claims the outpoint", async () => {
-      await addUtxoReservation(ETH_ADDRESS, validReservation);
+    const setItemSpy = vi
+      .spyOn(Storage.prototype, "setItem")
+      .mockImplementation(() => {
+        throw new Error("QuotaExceededError: localStorage is full");
+      });
 
+    try {
+      // Cosmetic callers stay best-effort — failure is logged, not raised.
       expect(() =>
-        assertNoReservationConflict(ETH_ADDRESS, "batch-1", [outpointA]),
+        removePendingPegin(ETH_ADDRESS, VALID_VAULT_ID),
       ).not.toThrow();
-    });
-
-    it("returns silently for an empty address", () => {
-      expect(() =>
-        assertNoReservationConflict("", "batch-1", [outpointA]),
-      ).not.toThrow();
-    });
-
-    it("returns silently when no reservations exist", () => {
-      expect(() =>
-        assertNoReservationConflict(ETH_ADDRESS, "batch-1", [outpointA]),
-      ).not.toThrow();
-    });
+    } finally {
+      setItemSpy.mockRestore();
+    }
   });
 });

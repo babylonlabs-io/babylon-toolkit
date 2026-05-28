@@ -13,6 +13,7 @@ import type { Address, Hex } from "viem";
 
 import { ArtifactDownloadModal } from "@/components/deposit/ArtifactDownloadModal";
 import { computeDepositDerivedState } from "@/components/deposit/DepositSignModal/depositStepHelpers";
+import { COPY } from "@/copy";
 import { useDepositFlow } from "@/hooks/deposit/useDepositFlow";
 import { useRunOnce } from "@/hooks/useRunOnce";
 
@@ -29,6 +30,8 @@ interface DepositSignContentProps {
   vaultProviderBtcPubkey: string;
   vaultKeeperBtcPubkeys: string[];
   universalChallengerBtcPubkeys: string[];
+  /** Pending-vault overlap count for the predicted selection; null = none. */
+  overlappingPendingVaultCount?: number | null;
   onClose: () => void;
   onRefetchActivities?: () => Promise<void>;
 }
@@ -37,6 +40,7 @@ export function DepositSignContent({
   onClose,
   onRefetchActivities,
   vaultAmounts,
+  overlappingPendingVaultCount = null,
   ...flowParams
 }: DepositSignContentProps) {
   const {
@@ -45,6 +49,7 @@ export function DepositSignContent({
     currentStep,
     processing,
     error,
+    lastWarnings,
     isWaiting,
     payoutSigningProgress,
     peginSigningProgress,
@@ -79,22 +84,50 @@ export function DepositSignContent({
     onClose();
   }, [abort, onClose]);
 
+  // Hoisted above the success/processing split so the banner survives
+  // the switch to PostDepositContinuation when `continuationVaultIds` is set.
+  const banner = (overlappingPendingVaultCount !== null ||
+    lastWarnings.length > 0) && (
+    <div
+      className="mb-3 flex flex-col gap-1 rounded-lg bg-amber-100 px-4 py-3 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300"
+      role="alert"
+    >
+      {overlappingPendingVaultCount !== null && (
+        <div className="text-sm">
+          {COPY.deposit.warnings.reusesReservedUtxos(
+            overlappingPendingVaultCount,
+          )}
+        </div>
+      )}
+      {lastWarnings.map((w, i) => (
+        <div key={i} className="text-sm">
+          {w}
+        </div>
+      ))}
+    </div>
+  );
+
   if (
     continuationVaultIds &&
     continuationVaultIds.length > 0 &&
     flowParams.depositorEthAddress
   ) {
     return (
-      <PostDepositContinuationContent
-        vaultIds={continuationVaultIds}
-        depositorEthAddress={flowParams.depositorEthAddress}
-        onClose={onClose}
-      />
+      <>
+        {banner}
+        <PostDepositContinuationContent
+          vaultIds={continuationVaultIds}
+          depositorEthAddress={flowParams.depositorEthAddress}
+          onClose={onClose}
+        />
+      </>
     );
   }
 
   return (
     <>
+      {banner}
+
       <DepositProgressView
         currentStep={currentStep}
         error={error}

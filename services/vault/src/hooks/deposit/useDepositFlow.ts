@@ -16,7 +16,7 @@
  * 3c. Re-check UTXO availability before committing to ETH
  * 3d. Batch ETH registration (single submitPeginRequestBatch tx for all vaults)
  * 3e. Build pegin results from batch response
- * 4a. Save pending pegins to localStorage (PENDING status, reserves UTXOs)
+ * 4a. Save pending pegins to localStorage (PENDING status; resume cache)
  * 4b. Broadcast Pre-PegIn transaction to Bitcoin, update status to CONFIRMING
  * 5. Submit WOTS keys, poll VP, sign payout transactions
  * 6. Download vault artifacts (per vault, user-driven)
@@ -41,11 +41,8 @@ import {
   vpTokenRegistry,
 } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import { computeHashlock } from "@babylonlabs-io/ts-sdk/tbv/core/services";
-import {
-  collectReservedUtxoRefs,
-  selectUtxosForDeposit,
-} from "@babylonlabs-io/ts-sdk/tbv/core/utils";
 import { useChainConnector } from "@babylonlabs-io/wallet-connector";
+import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { v4 as uuidv4 } from "uuid";
 import type { Address, Hex } from "viem";
@@ -56,10 +53,11 @@ import {
   getVaultRegistryReader,
 } from "@/clients/eth-contract/sdk-readers";
 import { useProtocolParamsContext } from "@/context/ProtocolParamsContext";
+import { COPY } from "@/copy";
+import { UTXOS_QUERY_KEY } from "@/hooks/useUTXOs";
 import { logger } from "@/infrastructure";
 import { LocalStorageStatus } from "@/models/peginStateMachine";
 import { validateMultiVaultDepositInputs } from "@/services/deposit/validations";
-import { fetchVaultsByDepositorStrict } from "@/services/vault/fetchVaults";
 import type { PayoutSigningProgress } from "@/services/vault/vaultPayoutSignatureService";
 import {
   broadcastPrePeginTransaction,
@@ -72,15 +70,9 @@ import {
 import { assertUtxosAvailable } from "@/services/vault/vaultUtxoValidationService";
 import {
   addPendingPegin,
-  addUtxoReservation,
-  assertNoReservationConflict,
-  getPendingPegins,
-  getUtxoReservations,
   removePendingPegin,
-  removeUtxoReservation,
   updatePendingPeginStatus,
 } from "@/storage/peginStorage";
-import type { Vault } from "@/types/vault";
 import {
   btcAddressToScriptPubKeyHex,
   shouldProbeWalletLiveness,
@@ -152,6 +144,13 @@ export interface UseDepositFlowReturn {
   processing: boolean;
   /** Error message if any step failed */
   error: string | null;
+  /**
+   * Soft warnings accumulated by the most recent flow (e.g. "couldn't save a
+   * local copy" when the deposit registered on-chain but `addPendingPegin`
+   * failed). Empty until the flow finishes or errors out; persists for the
+   * UI to surface until the next run starts.
+   */
+  lastWarnings: string[];
   /** Whether currently waiting for external action (e.g., wallet signature) */
   isWaiting: boolean;
   /** Payout signing progress (X of Y signings) */
@@ -237,6 +236,11 @@ export function useDepositFlow(
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isWaiting, setIsWaiting] = useState(false);
+  // Soft warnings accumulated during the most recent run (per-vault payout
+  // failures, localStorage write failures, etc.). Exposed so the UI can
+  // surface them after completion — these are informational, the flow
+  // itself doesn't abort on them.
+  const [lastWarnings, setLastWarnings] = useState<string[]>([]);
   const [payoutSigningProgress, setPayoutSigningProgress] =
     useState<PayoutSigningProgress | null>(null);
   const [peginSigningProgress, setPeginSigningProgress] =
@@ -288,6 +292,7 @@ export function useDepositFlow(
   // Hooks
   const { btcAddress, spendableUTXOs, isUTXOsLoading, utxoError } =
     useBtcWalletState();
+  const queryClient = useQueryClient();
   const { findProvider } = useVaultProviders(selectedApplication);
   const { config, timelockPegin, timelockRefund, minDeposit, maxDeposit } =
     useProtocolParamsContext();
@@ -304,25 +309,13 @@ export function useDepositFlow(
 
       setProcessing(true);
       setError(null);
+      setLastWarnings([]);
       setPeginSigningProgress(null);
       setCurrentStep(DepositFlowStep.DERIVE_VAULT_SECRET);
 
       // Track background operation failures
       const warnings: string[] = [];
 
-      // Declared outside try so the catch block can clean up the early
-      // UTXO reservation if the flow fails after writing it.
-      let reservationBatchId: string | null = null;
-      let reservationEthAddress: string | null = null;
-      // True once `registerPeginBatchAndWait` has been invoked, meaning the
-      // SDK may have submitted the ETH registration tx. Used in the catch
-      // path to avoid releasing the early UTXO reservation before we know
-      // whether the registration landed on-chain.
-      let registrationStarted = false;
-      // True once durable per-vault `addPendingPegin` records have been
-      // persisted. Once set, the early reservation is fully superseded and
-      // safe to remove on failure.
-      let pendingPersisted = false;
       // Track registry entries we primed so we can release them on
       // user-cancel (bound `authAnchorHex` lifetime to the flow).
       const primedRegistryTxids: string[] = [];
@@ -437,64 +430,12 @@ export function useDepositFlow(
           },
         };
 
-        // Filter out UTXOs reserved by in-flight deposits to prevent
-        // double-spend failures across concurrent sessions/tabs and across
-        // browser contexts (cleared storage, second profile, second device).
-        // Local browser state covers the same-context case; the indexer-supplied
-        // vault list covers the cross-context case where localStorage is empty
-        // but a PENDING/VERIFIED vault is already registered on Ethereum.
-        // Force a fresh read here (do NOT rely on the React Query cache) so
-        // staleness cannot reintroduce the cross-context double-spend window.
-        // Indexer unavailability is fail-closed: better to block the deposit
-        // than to silently skip the on-chain reservation set.
-        const pendingPegins = getPendingPegins(confirmedEthAddress);
-        const utxoReservations = getUtxoReservations(confirmedEthAddress);
-        let depositorVaults: Vault[];
-        try {
-          depositorVaults =
-            await fetchVaultsByDepositorStrict(confirmedEthAddress);
-        } catch (err) {
-          const errorMsg = err instanceof Error ? err.message : String(err);
-          logger.error(err instanceof Error ? err : new Error(errorMsg), {
-            tags: {
-              component: "useDepositFlow",
-              phase: "reservation-fetch",
-            },
-            data: { ethAddress: confirmedEthAddress },
-          });
-          throw new Error(
-            `Unable to verify existing deposits. Please try again. (${errorMsg})`,
-          );
-        }
-        const reservedUtxoRefs = collectReservedUtxoRefs({
-          vaults: depositorVaults,
-          pendingPegins,
-          utxoReservations,
-        });
-        const availableUTXOs = selectUtxosForDeposit({
-          availableUtxos: spendableUTXOs,
-          reservedUtxoRefs,
-          requiredAmount: vaultAmounts.reduce((sum, a) => sum + a, 0n),
-          feeRate: mempoolFeeRate,
-        });
-
-        // Claim the candidate outpoints BEFORE `preparePeginTransaction`.
-        // That call drives `deriveVaultRoot` (wallet popup #1) and the batch
-        // PSBT commit pass (wallet popup #2) — together a 1-3 minute window
-        // during which a sibling tab must not be able to pick the same
-        // outpoints. The actually-used subset is decided inside
-        // `preparePegin` and the reservation is narrowed below; same batchId
-        // overwrites in place. Conflict throws and aborts before any popup.
-        reservationBatchId = batchId;
-        reservationEthAddress = confirmedEthAddress;
-        await addUtxoReservation(confirmedEthAddress, {
-          outpoints: availableUTXOs.map((u) => ({
-            txid: u.txid,
-            vout: u.vout,
-          })),
-          timestamp: Date.now(),
-          batchId,
-        });
+        // No hard pre-filter. `DuplicateHashlock` on `BTCVaultRegistry`
+        // blocks *identical* UTXO-set reuse on-chain; the modal banner
+        // advises on overlap with pending vaults. Residual: partial
+        // overlap (e.g. {U1,U2} vs {U1,U3}) derives a different hashlock
+        // — both register, only one Pre-PegIn can broadcast, the other
+        // strands until expiry.
 
         const [vaultKeeperReader, universalChallengerReader] =
           await Promise.all([
@@ -533,7 +474,7 @@ export function useDepositFlow(
             timelockRefund,
             councilQuorum: config.offchainParams.councilQuorum,
             councilSize: config.offchainParams.securityCouncilKeys.length,
-            availableUTXOs,
+            availableUTXOs: spendableUTXOs,
           },
         );
         const {
@@ -542,18 +483,6 @@ export function useDepositFlow(
           htlcSecretHexes,
           authAnchorHex,
         } = batchResult;
-
-        // Narrow the pre-claim to the actually-selected inputs now that
-        // `preparePegin` has decided which subset to spend. Same batchId
-        // overwrites in place; same-batch writes never conflict.
-        await addUtxoReservation(confirmedEthAddress, {
-          outpoints: batchResult.selectedUTXOs.map((u) => ({
-            txid: u.txid,
-            vout: u.vout,
-          })),
-          timestamp: Date.now(),
-          batchId,
-        });
 
         // ========================================================================
         // Step 3: Sign PoP + batch register all vaults on Ethereum
@@ -601,29 +530,8 @@ export function useDepositFlow(
           confirmedBtcAddress,
         );
 
-        // Final-pass conflict re-check. Defense in depth: catches the
-        // residual race where two tabs without `navigator.locks` both wrote
-        // a reservation in the same microtask. Any overlap from another
-        // batch aborts the flow before we bind an ETH vault to contended
-        // outpoints.
-        assertNoReservationConflict(
-          confirmedEthAddress,
-          batchId,
-          batchResult.selectedUTXOs.map((u) => ({
-            txid: u.txid,
-            vout: u.vout,
-          })),
-        );
-
         // 3e. Single batch ETH transaction for all vaults.
         setCurrentStep(DepositFlowStep.SUBMIT_PEGIN);
-        // Mark registration as started BEFORE the SDK call. From this point
-        // forward the ETH tx may be in the mempool or mined even if the call
-        // throws (e.g. `waitForTransactionReceipt` timeout after
-        // `sendTransaction` returned). The catch path uses this flag to keep
-        // the early UTXO reservation in place so the same outpoints cannot
-        // back a second deposit while the registration outcome is unknown.
-        registrationStarted = true;
         const batchRegistration = await registerPeginBatchAndWait({
           btcWalletProvider: confirmedBtcWallet,
           walletClient,
@@ -650,15 +558,14 @@ export function useDepositFlow(
         // ========================================================================
         // Step 4a: Persist pending pegins BEFORE broadcast and before any
         // further network calls. Saved immediately after ETH registration so
-        // the selected UTXOs are reserved and a resume entry exists even if
-        // the version check (3g) or broadcast fails. Status is PENDING (not
-        // CONFIRMING) — the resume flow will show a "Broadcast" button for
-        // these entries. This prevents two failure modes:
-        // 1. A failed broadcast leaving no localStorage record, causing UTXOs
-        //    to be reused in a new deposit.
-        // 2. A transient RPC error during the on-chain version check (3g)
-        //    leaving an ETH-registered vault with no localStorage entry,
-        //    silently orphaning it.
+        // a resume entry exists even if the version check (3g) or broadcast
+        // fails. Status is PENDING (not CONFIRMING) — the resume flow will
+        // show a "Broadcast" button for these entries. The local record is
+        // a UX cache for the resume flow only; nothing about UTXO reuse
+        // depends on its presence (chain-side PENDING/VERIFIED vaults are
+        // the canonical claim source). A localStorage write failure here is
+        // caught per-vault and surfaced as a soft warning so the user can
+        // free up storage; the flow continues to broadcast either way.
         // ========================================================================
 
         for (const peginResult of peginResults) {
@@ -677,7 +584,7 @@ export function useDepositFlow(
             continue;
           }
 
-          addPendingPegin(confirmedEthAddress, {
+          const pendingRecord = {
             id: peginResult.vaultId,
             peginTxHash: peginResult.peginTxHash,
             depositorBtcPubkey: peginResult.depositorBtcPubkey,
@@ -706,13 +613,33 @@ export function useDepositFlow(
               validatedKeys.expectedAppVaultKeepersVersion,
             buildUniversalChallengersVersion:
               validatedKeys.expectedUniversalChallengersVersion,
-          });
-          // At least one durable pending-pegin record now covers the
-          // same UTXOs as the early reservation (all vaults in a batch
-          // share `batchResult.selectedUTXOs`), so any subsequent failure
-          // can safely release the reservation. Set inside the loop so
-          // the flag is never `true` with zero records written.
-          pendingPersisted = true;
+          };
+          // Persist the resume record. A localStorage failure (quota /
+          // private browsing) must NOT abort: the vault is already
+          // registered on-chain, and aborting would skip the broadcast and
+          // strand it. Continue, but warn the user that the local copy is
+          // missing.
+          try {
+            addPendingPegin(confirmedEthAddress, pendingRecord);
+          } catch (persistErr) {
+            logger.error(
+              persistErr instanceof Error
+                ? persistErr
+                : new Error(String(persistErr)),
+              {
+                tags: {
+                  component: "useDepositFlow",
+                  phase: "persist-pending-pegin",
+                },
+                data: { vaultId: peginResult.vaultId },
+              },
+            );
+            if (
+              !warnings.includes(COPY.deposit.warnings.depositRecordNotSaved)
+            ) {
+              warnings.push(COPY.deposit.warnings.depositRecordNotSaved);
+            }
+          }
         }
 
         // Verify on-chain registration locked under the same versions we built scripts against.
@@ -736,11 +663,6 @@ export function useDepositFlow(
           }
           throw err;
         }
-
-        // Early reservation is now superseded by real pending pegin entries.
-        removeUtxoReservation(confirmedEthAddress, batchId);
-        reservationBatchId = null;
-        reservationEthAddress = null;
 
         // ========================================================================
         // Step 4b: Broadcast Pre-PegIn transaction to Bitcoin
@@ -777,6 +699,16 @@ export function useDepositFlow(
             peginResult.vaultId,
             LocalStorageStatus.CONFIRMING,
           );
+        }
+
+        // The mempool now knows our Pre-PegIn spent these outpoints, so the
+        // next `/address/<addr>/utxo` fetch will exclude them. Invalidate
+        // the cache so a follow-up deposit picks fresh inputs instead of
+        // the stale set this one just consumed.
+        if (btcAddress) {
+          void queryClient.invalidateQueries({
+            queryKey: [UTXOS_QUERY_KEY, btcAddress],
+          });
         }
 
         // All vaults share the same Pre-PegIn tx — if broadcast succeeded,
@@ -1080,6 +1012,14 @@ export function useDepositFlow(
 
         setIsWaiting(true);
 
+        // Snapshot the warnings into hook state so the UI can show them
+        // post-completion. (Returning them in the result alone isn't
+        // enough — `DepositSignContent` reads from the hook, not the
+        // return value, for everything else.)
+        if (warnings.length > 0) {
+          setLastWarnings([...warnings]);
+        }
+
         // Return result
         return {
           pegins: peginResults,
@@ -1087,26 +1027,6 @@ export function useDepositFlow(
           warnings: warnings.length > 0 ? warnings : undefined,
         };
       } catch (err: unknown) {
-        // Clean up the early UTXO reservation so the UTXOs are released for
-        // reuse — but ONLY when it is safe to do so. If
-        // `registerPeginBatchAndWait` was invoked and no durable pending
-        // pegin records were written, the ETH registration outcome is
-        // unknown (the failure can be a post-`sendTransaction` receipt
-        // timeout while the tx is still in the mempool or already mined).
-        // Releasing the reservation in that window would let the same
-        // outpoints back a second deposit, leaving one ETH-registered vault
-        // unbroadcastable. Leave the reservation in place and let the
-        // existing 5-minute TTL handle cleanup; the user can retry after
-        // expiry. The trade-off is a UX delay for genuine pre-receipt
-        // failures, which is acceptable versus a stranded vault.
-        if (
-          reservationBatchId &&
-          reservationEthAddress &&
-          (!registrationStarted || pendingPersisted)
-        ) {
-          removeUtxoReservation(reservationEthAddress, reservationBatchId);
-        }
-
         // On user-cancel, release any registry entries we primed so
         // `authAnchorHex` doesn't outlive the abandoned flow. On other
         // errors keep the entries — the user may retry, in which case
@@ -1128,6 +1048,12 @@ export function useDepositFlow(
               }),
             },
           });
+        }
+        // Surface any warnings collected before the error (e.g. a failed
+        // `addPendingPegin` write that came BEFORE a broadcast failure)
+        // so the user sees both the error AND the localStorage warning.
+        if (warnings.length > 0) {
+          setLastWarnings([...warnings]);
         }
         return null;
       } finally {
@@ -1158,6 +1084,7 @@ export function useDepositFlow(
       isUTXOsLoading,
       utxoError,
       findProvider,
+      queryClient,
     ]);
 
   return {
@@ -1167,6 +1094,8 @@ export function useDepositFlow(
     currentVaultIndex,
     processing,
     error,
+    /** Soft warnings from the most recent flow (empty until completion). */
+    lastWarnings,
     isWaiting,
     payoutSigningProgress,
     peginSigningProgress,

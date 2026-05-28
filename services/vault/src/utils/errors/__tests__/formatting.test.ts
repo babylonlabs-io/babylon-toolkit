@@ -100,6 +100,52 @@ describe("Error Formatting", () => {
         "Unknown error",
       );
     });
+
+    it("collapses viem UserRejectedRequestError nested in cause to a friendly message", () => {
+      // Reproduces the shape viem produces when MetaMask cancels a writeContract:
+      // TransactionExecutionError → ContractFunctionExecutionError → ... →
+      // UserRejectedRequestError (code 4001). Without the walker we'd surface the
+      // outer message which dumps the full request payload + calldata.
+      const inner = Object.assign(
+        new Error("User denied transaction signature"),
+        {
+          code: 4001,
+          name: "UserRejectedRequestError",
+        },
+      );
+      const middle = Object.assign(
+        new Error("ContractFunctionExecutionError"),
+        {
+          cause: inner,
+        },
+      );
+      const outer = Object.assign(
+        new Error(
+          "TransactionExecutionError: chain: ..., from: 0x..., to: 0x..., value: 0.002 ETH, data: 0x68d177ac...",
+        ),
+        { cause: middle },
+      );
+      expect(sanitizeErrorMessage(outer)).toMatch(/Transaction rejected/);
+    });
+
+    it("matches user-rejection by EIP-1193 code 4001 alone (no name)", () => {
+      const err = Object.assign(new Error("anything"), { code: 4001 });
+      expect(sanitizeErrorMessage(err)).toMatch(/Transaction rejected/);
+    });
+
+    it("matches BTC wallet-connector CONNECTION_REJECTED at top level", () => {
+      const err = Object.assign(new Error("Connection rejected"), {
+        code: "CONNECTION_REJECTED",
+      });
+      expect(sanitizeErrorMessage(err)).toMatch(/Transaction rejected/);
+    });
+
+    it("does not collapse non-rejection errors", () => {
+      const err = new Error("execution reverted: bad signature");
+      expect(sanitizeErrorMessage(err)).toBe(
+        "execution reverted: bad signature",
+      );
+    });
   });
 
   describe("formatPayoutSignatureError", () => {

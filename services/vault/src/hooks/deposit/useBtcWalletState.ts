@@ -9,11 +9,13 @@ export function useBtcWalletState() {
     spendableUTXOs,
     isLoading: isUTXOsLoading,
     error: utxoError,
+    refetch: refetchUtxos,
   } = useUTXOs(btcAddress);
   return {
     btcAddress,
     spendableUTXOs,
     isUTXOsLoading,
     utxoError,
+    refetchUtxos,
   };
 }

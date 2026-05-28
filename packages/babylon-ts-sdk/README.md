@@ -133,7 +133,6 @@ import {
 // Utilities
 import {
   selectUtxosForPegin,
-  collectReservedUtxoRefs,
   validateUtxosAvailable,
 } from "@babylonlabs-io/ts-sdk/tbv/core";
 

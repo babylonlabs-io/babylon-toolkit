@@ -8,8 +8,10 @@ import { useAddressScreening } from "@/context/addressScreening";
 import { useGeoFencing } from "@/context/geofencing";
 import { ProtocolParamsProvider } from "@/context/ProtocolParamsContext";
 import { useBTCWallet, useETHWallet } from "@/context/wallet";
+import { useBtcWalletState } from "@/hooks/deposit/useBtcWalletState";
 import { useDepositPeginFee } from "@/hooks/deposit/useDepositPeginFee";
 import { useDialogStep } from "@/hooks/deposit/useDialogStep";
+import { usePendingVaultOverlapCheck } from "@/hooks/deposit/usePendingVaultOverlapCheck";
 import { useProtocolFeeRows } from "@/hooks/useProtocolFeeRows";
 import type { VaultActivity } from "@/types/activity";
 import type { VaultProvider } from "@/types/vaultProvider";
@@ -223,10 +225,34 @@ function SimpleDepositContent({
         splitRatioLabel,
       };
 
+  // UTXO-overlap advisory: count is computed on click and rendered as a
+  // non-blocking banner inside the deposit modal.
+  const { spendableUTXOs, refetchUtxos } = useBtcWalletState();
+
+  // Refetch UTXOs whenever the deposit dialog opens so the form (and the
+  // SDK selector that runs at click time) sees post-broadcast state — the
+  // React Query cache has a 30s staleTime and would otherwise serve stale
+  // data after a prior deposit's Pre-PegIn broadcast.
+  useEffect(() => {
+    if (open) {
+      void refetchUtxos();
+    }
+  }, [open, refetchUtxos]);
+  const runOverlapCheck = usePendingVaultOverlapCheck({
+    ethAddress: connectedEthAddress as Address | undefined,
+    spendableUTXOs,
+    estimatedFeeRate,
+    depositorClaimValue,
+    minPeginFee,
+  });
+  const [overlappingPendingVaultCount, setOverlappingPendingVaultCount] =
+    useState<number | null>(null);
+
   const resetAll = useCallback(() => {
     hasAutoChecked.current = false;
     setIsPartialLiquidation(false);
     setWalletConnectionError(null);
+    setOverlappingPendingVaultCount(null);
     resetDeposit();
     resetForm();
     // Re-apply the suggested amount for supplemental deposits opened from a
@@ -308,11 +334,19 @@ function SimpleDepositContent({
     }
 
     setWalletConnectionError(null);
+
+    // Ensure the signing path sees post-mempool state, not the cached snapshot.
+    await refetchUtxos();
+
+    const shouldSplit = isPartialLiquidation && allowSplit && !!vaultAmounts;
+    const effectiveVaultAmounts =
+      shouldSplit && vaultAmounts ? [...vaultAmounts] : [amountSats];
+    setOverlappingPendingVaultCount(runOverlapCheck(effectiveVaultAmounts));
+
     setDepositData(amountSats, effectiveSelectedApplication, [
       formData.selectedProvider,
     ]);
     setFeeRate(estimatedFeeRate);
-    const shouldSplit = isPartialLiquidation && allowSplit && !!vaultAmounts;
     setIsSplitDeposit(shouldSplit);
     if (shouldSplit && vaultAmounts) {
       setSplitVaultAmounts([...vaultAmounts]);
@@ -403,6 +437,7 @@ function SimpleDepositContent({
               vaultProviderBtcPubkey={selectedProviderBtcPubkey}
               vaultKeeperBtcPubkeys={vaultKeeperBtcPubkeys}
               universalChallengerBtcPubkeys={universalChallengerBtcPubkeys}
+              overlappingPendingVaultCount={overlappingPendingVaultCount}
               onClose={onClose}
               onRefetchActivities={refetchActivities}
             />
