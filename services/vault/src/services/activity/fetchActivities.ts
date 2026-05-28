@@ -17,6 +17,10 @@ import type { Address } from "viem";
 import { logger } from "../../infrastructure";
 import type { ActivityRow } from "../../types/activityLog";
 
+import {
+  resolveRedeemClaimTxids,
+  type RedeemVaultLookup,
+} from "./claimTxResolver";
 import { buildLiquidationGroup, classifyLiquidations } from "./classification";
 import {
   isStandardActivity,
@@ -64,6 +68,23 @@ export async function fetchUserActivities(
   for (const v of vaults) {
     peginTxHashByVaultId.set(v.id, v.peginTxHash);
   }
+
+  const vaultLookup = new Map<string, RedeemVaultLookup>();
+  for (const v of vaults) {
+    vaultLookup.set(v.id, {
+      peginTxHash: v.peginTxHash,
+      vaultProvider: v.vaultProvider,
+    });
+  }
+
+  const redeemRefs = activities
+    .filter((a) => a.type === "redeem" && a.vaultId != null)
+    .map((a) => ({ vaultId: a.vaultId as string }));
+
+  const redeemClaimTxByVaultId = await resolveRedeemClaimTxids(
+    redeemRefs,
+    vaultLookup,
+  );
 
   // Sibling repay events fire in the same EVM tx as a VaultLiquidated event.
   // Aave's RepaidFromPosition is position-scoped (vaultId is null) and fires
@@ -129,7 +150,14 @@ export async function fetchUserActivities(
     }
 
     if (isStandardActivity(item)) {
-      rows.push(projectStandardRow(item, peginTxHashByVaultId, deps));
+      rows.push(
+        projectStandardRow(
+          item,
+          peginTxHashByVaultId,
+          redeemClaimTxByVaultId,
+          deps,
+        ),
+      );
       continue;
     }
 

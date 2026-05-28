@@ -44,16 +44,27 @@ export const VAULT_COLLATERAL_ASSET = {
 const MAX_DISPLAY_FRACTION_DIGITS = 8;
 
 /**
- * Activity types whose primary user-facing transaction is on Bitcoin (the peg-in tx).
- *  - `deposit`: links to the peg-in BTC tx.
- *  - `claim_expired`: the expired peg-in's depositor reclaimed their BTC. We
- *     render this as a refunded Deposit (red dot) and surface the original
- *     peg-in BTC tx hash so users can audit the deposit chain.
- *  Everything else is an EVM-only action (collateral ops, loans, withdraw).
+ * Activity types whose primary user-facing transaction is on Bitcoin and
+ * is keyed by the vault's pegin tx hash (indexer-provided).
+ *  - `deposit`: peg-in BTC tx
+ *  - `claim_expired`: refunded deposit, surfaces the original peg-in BTC tx
  */
-const BTC_PRIMARY_ACTIVITIES: ReadonlySet<GraphQLActivityType> = new Set([
+const BTC_PRIMARY_BY_PEGIN: ReadonlySet<GraphQLActivityType> = new Set([
   "deposit",
   "claim_expired",
+]);
+
+/**
+ * Activity types whose primary user-facing transaction is on Bitcoin but
+ * keyed by the claimer's `claim_txid` (resolved per-row at fetch time from
+ * the vault provider's claimer RPC — the EVM indexer cannot see this).
+ *  - `redeem`: BTC claim tx broadcast by the VP after the EVM redeem call.
+ *    The `VaultMarkedRedeemed` EVM event the indexer records is the contract
+ *    state flip, not the actual BTC movement — surfacing the EVM hash there
+ *    sends users to an explorer page that tells them nothing.
+ */
+const BTC_PRIMARY_BY_CLAIM: ReadonlySet<GraphQLActivityType> = new Set([
+  "redeem",
 ]);
 
 /**
@@ -120,17 +131,27 @@ function isValidTxHash(hash: string | null | undefined): hash is string {
 export function resolveDisplayTx(
   item: GraphQLVaultActivityItem,
   peginTxHashByVaultId: ReadonlyMap<string, string>,
+  redeemClaimTxByVaultId: ReadonlyMap<string, string> = new Map(),
 ): {
   chain: ActivityChain;
   transactionHash: string;
 } {
-  if (BTC_PRIMARY_ACTIVITIES.has(item.type)) {
+  if (BTC_PRIMARY_BY_PEGIN.has(item.type)) {
     const peginTxHash = item.vaultId
       ? peginTxHashByVaultId.get(item.vaultId)
       : undefined;
     return {
       chain: "BTC",
       transactionHash: isValidTxHash(peginTxHash) ? peginTxHash : "",
+    };
+  }
+  if (BTC_PRIMARY_BY_CLAIM.has(item.type)) {
+    const claimTxid = item.vaultId
+      ? redeemClaimTxByVaultId.get(item.vaultId)
+      : undefined;
+    return {
+      chain: "BTC",
+      transactionHash: isValidTxHash(claimTxid) ? claimTxid : "",
     };
   }
   return { chain: "ETH", transactionHash: item.transactionHash };
@@ -202,6 +223,7 @@ export function projectRefundedDeposit(
 export function projectStandardRow(
   item: GraphQLVaultActivityItem & { type: StandardGraphQLActivityType },
   peginTxHashByVaultId: ReadonlyMap<string, string>,
+  redeemClaimTxByVaultId: ReadonlyMap<string, string>,
   deps: FetchUserActivitiesDeps,
 ): ActivityLog {
   const isPositionScoped = item.type === "borrow" || item.type === "repay";
@@ -228,6 +250,7 @@ export function projectStandardRow(
   const { chain, transactionHash } = resolveDisplayTx(
     item,
     peginTxHashByVaultId,
+    redeemClaimTxByVaultId,
   );
 
   return {
