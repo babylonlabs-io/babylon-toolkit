@@ -53,7 +53,8 @@ export function HealthFactorGauge({
       >
         {/* Liquidation threshold marker at HF=1.0 */}
         <div
-          className="absolute top-1/2 h-4 w-px -translate-y-1/2 border-l border-dashed border-white"
+          data-testid="health-factor-liquidation-threshold"
+          className="absolute top-1/2 h-4 w-px -translate-y-1/2 border-l border-dashed border-secondary-strokeDark dark:border-white"
           style={{ left: `${LIQUIDATION_PERCENT}%` }}
         />
         {/* Current value indicator — ring whose center matches the container background */}
