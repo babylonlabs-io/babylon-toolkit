@@ -430,6 +430,8 @@ export const COPY = {
       receiptTimeout:
         "We couldn't confirm your transaction. Check your wallet or a block explorer for the latest status.",
       network: "Network error. Check your connection and try again.",
+      staleDeploy:
+        "This page is out of date — a newer version of the app was deployed. Refresh the page and try again.",
     },
   },
   wallet: {

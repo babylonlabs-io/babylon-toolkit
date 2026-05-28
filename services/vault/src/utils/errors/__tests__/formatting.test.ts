@@ -350,6 +350,32 @@ describe("Error Formatting", () => {
       });
       expect(sanitizeErrorMessage(err)).toMatch(/Network error/);
     });
+
+    it("collapses Vite chunk 404 (Chrome/Edge wording) wrapped in viem error", () => {
+      // Real-world shape: a contract call lazily imports a viem CCIP chunk
+      // that was invalidated by a redeploy. The TypeError bubbles up
+      // inside a viem ContractFunctionExecutionError as the `cause`.
+      const innerTypeError = new TypeError(
+        "Failed to fetch dynamically imported module: https://example.com/assets/ccip-BYToH7Tj.js",
+      );
+      const outer = Object.assign(
+        new Error("An unknown error occurred while executing the contract"),
+        { name: "ContractFunctionExecutionError", cause: innerTypeError },
+      );
+      expect(sanitizeErrorMessage(outer)).toMatch(/out of date/i);
+    });
+
+    it("collapses Firefox 'error loading dynamically imported module'", () => {
+      const err = new TypeError(
+        "error loading dynamically imported module: https://example.com/assets/chunk.js",
+      );
+      expect(sanitizeErrorMessage(err)).toMatch(/out of date/i);
+    });
+
+    it("collapses Safari 'Importing a module script failed'", () => {
+      const err = new TypeError("Importing a module script failed.");
+      expect(sanitizeErrorMessage(err)).toMatch(/out of date/i);
+    });
   });
 
   describe("formatPayoutSignatureError", () => {

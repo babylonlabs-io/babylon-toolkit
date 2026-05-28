@@ -55,6 +55,13 @@ function matchesInsufficientGasFundsMessage(msg: string): boolean {
   return INSUFFICIENT_GAS_FUNDS_PATTERN.test(msg);
 }
 
+// Browser-emitted error strings when a dynamically-imported Vite chunk
+// 404s (common after a redeploy invalidates the old chunk hashes).
+// Chrome/Edge string confirmed in the wild; Firefox/Safari strings are
+// from Vite's documented community patterns.
+const STALE_DEPLOY_PATTERN =
+  /Failed to fetch dynamically imported module|error loading dynamically imported module|Importing a module script failed/i;
+
 /**
  * `"TimeoutError"` and `"RpcRequestError"` are generic names that collide
  * with `AbortSignal.timeout()`, the `ky` HTTP library, and others. Require
@@ -77,7 +84,8 @@ type ErrorKind =
   | "unauthorized" // EIP-1193 4100 / UnauthorizedProviderError
   | "chain-switch-failed" // EIP-1193 4902 / viem SwitchChainError
   | "receipt-timeout" // viem WaitForTransactionReceiptTimeoutError
-  | "network"; // HttpRequestError / WebSocketRequestError / TimeoutError / RpcRequestError
+  | "network" // HttpRequestError / WebSocketRequestError / TimeoutError / RpcRequestError
+  | "stale-deploy"; // Vite dynamic-import 404 after redeploy
 
 const FRIENDLY_MESSAGES: Record<ErrorKind, string> = {
   "user-rejection": COPY.common.classifiedErrors.userRejection,
@@ -87,6 +95,7 @@ const FRIENDLY_MESSAGES: Record<ErrorKind, string> = {
   "chain-switch-failed": COPY.common.classifiedErrors.chainSwitchFailed,
   "receipt-timeout": COPY.common.classifiedErrors.receiptTimeout,
   network: COPY.common.classifiedErrors.network,
+  "stale-deploy": COPY.common.classifiedErrors.staleDeploy,
 };
 
 /**
@@ -192,6 +201,15 @@ function classifyError(err: unknown): ErrorKind | null {
     }
     if (obj.name === "TimeoutError" && isViemShape(obj)) {
       return "network";
+    }
+
+    // Vite chunk 404 after a redeploy — the underlying error is a browser
+    // TypeError, so match on the message rather than a class name.
+    if (
+      typeof obj.message === "string" &&
+      STALE_DEPLOY_PATTERN.test(obj.message)
+    ) {
+      return "stale-deploy";
     }
 
     cur = obj.cause;
