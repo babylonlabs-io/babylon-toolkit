@@ -60,6 +60,10 @@ vi.mock("../services/activity", async () => {
   };
 });
 
+vi.mock("../services/activity/claimTxResolver", () => ({
+  resolveRedeemClaimTxids: vi.fn(async () => new Map()),
+}));
+
 async function renderAt(path: string): Promise<ReturnType<typeof render>> {
   const { Router } = await import("../router");
   const client = new QueryClient({
