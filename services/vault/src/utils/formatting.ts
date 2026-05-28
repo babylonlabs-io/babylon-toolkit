@@ -106,6 +106,26 @@ export function formatBasisPointsAsPercent(bps: number): string {
   return `${percent}%`;
 }
 
+/** Decimal places shown in the Overview "Current LTV" row. Matches
+ * `formatLLTV` so the user-facing current LTV and protocol max-LTV render at
+ * the same resolution. */
+const LTV_DISPLAY_DECIMALS = 1;
+
+/**
+ * Format current loan-to-value (debt / collateral) as a percentage string.
+ * Returns "-" when either side is non-positive (no debt or no collateral →
+ * no meaningful LTV), matching the empty-state convention of the Health
+ * Factor row in OverviewSection.
+ */
+export function formatLtvPercent(
+  debtUsd: number,
+  collateralUsd: number,
+): string {
+  if (debtUsd <= 0 || collateralUsd <= 0) return "-";
+  const percent = (debtUsd / collateralUsd) * 100;
+  return `${percent.toFixed(LTV_DISPLAY_DECIMALS)}%`;
+}
+
 /**
  * Get the current BTC coin symbol based on network
  * @returns "BTC" for mainnet, "sBTC" for signet

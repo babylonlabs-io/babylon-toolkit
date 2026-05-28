@@ -453,6 +453,7 @@ export const COPY = {
   overview: {
     heading: "Overview",
     healthFactorLabel: "Health factor",
+    ltvLabel: "Current LTV",
     totalCollateralValueLabel: "Total Collateral Value",
     amountToRepayLabel: "Amount to repay",
     disconnected: {
