@@ -28,7 +28,10 @@
 
 import type { OnChainBtcPubkey } from "../../eth/types";
 import type { BearerTokenProvider, JsonRpcClient } from "../json-rpc-client";
-import { TOKEN_ISSUE_METHOD } from "./innerTokenClient";
+import {
+  GRPC_TOKEN_ISSUE_METHOD,
+  TOKEN_ISSUE_METHOD,
+} from "./innerTokenClient";
 import {
   type ServerIdentityResponse,
   verifyServerIdentity,
@@ -68,8 +71,20 @@ export interface VpTokenProviderConfig {
   authAnchorHex: string;
   /** Pinned VP pubkey from the on-chain registry; branded so indexer mirrors can't substitute. */
   pinnedServerPubkey: OnChainBtcPubkey;
-  /** Methods that require a bearer; `getToken` returns `null` for anything outside this set. */
+  /**
+   * Methods that need a JSON-RPC-subject bearer (minted via
+   * `auth_createDepositorToken`). Forwarded over plain HTTP JSON-RPC by
+   * the proxy. `getToken` returns `null` for any method outside this and
+   * {@link grpcGatedMethods}.
+   */
   authGatedMethods: ReadonlySet<string>;
+  /**
+   * Methods that need a gRPC-subject bearer (minted via
+   * `auth_createDepositorTokenGrpc`). The proxy translates these into
+   * gRPC calls to vaultd; the JSON-RPC bearer is rejected with a
+   * `Subject` mismatch.
+   */
+  grpcGatedMethods: ReadonlySet<string>;
   /** Default {@link DEFAULT_REFRESH_SKEW_SECS}. */
   refreshSkewSecs?: number;
   /** Clock source for testability. */
@@ -97,11 +112,16 @@ export class VpTokenProvider implements BearerTokenProvider {
   private readonly authAnchorHex: string;
   private readonly pinnedServerPubkey: OnChainBtcPubkey;
   private readonly authGatedMethods: ReadonlySet<string>;
+  private readonly grpcGatedMethods: ReadonlySet<string>;
   private readonly refreshSkewSecs: number;
   private readonly now: () => number;
 
-  private cached: CachedToken | null = null;
-  private inFlight: Promise<CachedToken> | null = null;
+  /** Cached JSON-RPC-subject bearer (auth_createDepositorToken). */
+  private cachedJsonRpc: CachedToken | null = null;
+  private inFlightJsonRpc: Promise<CachedToken> | null = null;
+  /** Cached gRPC-subject bearer (auth_createDepositorTokenGrpc). */
+  private cachedGrpc: CachedToken | null = null;
+  private inFlightGrpc: Promise<CachedToken> | null = null;
 
   constructor(config: VpTokenProviderConfig) {
     this.client = config.client;
@@ -109,45 +129,71 @@ export class VpTokenProvider implements BearerTokenProvider {
     this.authAnchorHex = config.authAnchorHex;
     this.pinnedServerPubkey = config.pinnedServerPubkey;
     this.authGatedMethods = config.authGatedMethods;
+    this.grpcGatedMethods = config.grpcGatedMethods;
     this.refreshSkewSecs = config.refreshSkewSecs ?? DEFAULT_REFRESH_SKEW_SECS;
     this.now = config.now ?? (() => Math.floor(Date.now() / 1000));
   }
 
   /**
    * Return a bearer token for `method`, or `null` if `method` is not
-   * auth-gated. Triggers a token acquisition if no token is cached or
-   * the cached token is within {@link refreshSkewSecs} of expiry.
+   * auth-gated.
    *
-   * The token-issuing method itself is hard-exempted from the gate —
-   * if `auth_createDepositorToken` were ever included in
-   * `authGatedMethods` (caller misconfiguration) the provider would
-   * recurse into `acquireSingleFlight` from inside the JSON-RPC header
-   * builder before `inFlight` is assigned, defeating the single-flight
-   * guard. Returning `null` here breaks that recursion deterministically.
+   * Routes by subject: `authGatedMethods` → JSON-RPC bearer (issued via
+   * `auth_createDepositorToken`); `grpcGatedMethods` → gRPC bearer
+   * (`auth_createDepositorTokenGrpc`). Either path acquires lazily and
+   * single-flights concurrent callers; the two cache slots are
+   * independent.
+   *
+   * Both token-issuing methods are hard-exempted from the gate — if
+   * either were ever included in the gated sets (caller misconfiguration)
+   * the provider would recurse into `acquireSingleFlight` from inside the
+   * JSON-RPC header builder before `inFlight` is assigned, defeating the
+   * single-flight guard. Returning `null` here breaks that recursion
+   * deterministically.
    */
   async getToken(method: string): Promise<string | null> {
-    if (method === TOKEN_ISSUE_METHOD) return null;
-    if (!this.authGatedMethods.has(method)) return null;
-
-    const cached = this.cached;
-    if (cached && this.now() + this.refreshSkewSecs < cached.expiresAt) {
-      return cached.token;
+    if (method === TOKEN_ISSUE_METHOD || method === GRPC_TOKEN_ISSUE_METHOD) {
+      return null;
     }
 
-    const fresh = await this.acquireSingleFlight();
-    return fresh.token;
+    if (this.grpcGatedMethods.has(method)) {
+      return this.getTokenForSubject("grpc");
+    }
+    if (this.authGatedMethods.has(method)) {
+      return this.getTokenForSubject("jsonrpc");
+    }
+    return null;
   }
 
   /**
-   * Drop the cached token. Next `getToken` call re-acquires.
-   * Called by `JsonRpcClient` on wire `auth_expired` responses.
+   * Drop both cached tokens. Next `getToken` call re-acquires the slot
+   * that's actually needed. Called by `JsonRpcClient` on wire
+   * `auth_expired` responses; the client doesn't tell us which subject
+   * expired, so we evict both to stay correct under either.
+   *
+   * Worst case is one extra round-trip on the slot that was still fresh,
+   * which is cheaper than carrying a `Subject` argument through
+   * `BearerTokenProvider`.
    */
   invalidate(): void {
-    this.cached = null;
-    // Do NOT clear `inFlight` — a concurrent acquire is still valid;
+    this.cachedJsonRpc = null;
+    this.cachedGrpc = null;
+    // Do NOT clear `inFlight*` — a concurrent acquire is still valid;
     // the invalidator is saying "the cached token is bad", not "any
     // in-flight acquire is bad". The in-flight acquire will populate
-    // a fresh `cached` on completion.
+    // a fresh `cached*` on completion.
+  }
+
+  private async getTokenForSubject(
+    subject: "jsonrpc" | "grpc",
+  ): Promise<string> {
+    const cached =
+      subject === "grpc" ? this.cachedGrpc : this.cachedJsonRpc;
+    if (cached && this.now() + this.refreshSkewSecs < cached.expiresAt) {
+      return cached.token;
+    }
+    const fresh = await this.acquireSingleFlight(subject);
+    return fresh.token;
   }
 
   /**
@@ -162,16 +208,22 @@ export class VpTokenProvider implements BearerTokenProvider {
     this.client = client;
   }
 
-  private acquireSingleFlight(): Promise<CachedToken> {
-    const existing = this.inFlight;
+  private acquireSingleFlight(
+    subject: "jsonrpc" | "grpc",
+  ): Promise<CachedToken> {
+    const existing =
+      subject === "grpc" ? this.inFlightGrpc : this.inFlightJsonRpc;
     if (existing) return existing;
+
+    const issueMethod =
+      subject === "grpc" ? GRPC_TOKEN_ISSUE_METHOD : TOKEN_ISSUE_METHOD;
 
     const p = (async () => {
       try {
         const response = await this.client.call<
           { pegin_txid: string; auth_anchor: string },
           CreateDepositorTokenResponse
-        >(TOKEN_ISSUE_METHOD, {
+        >(issueMethod, {
           pegin_txid: this.peginTxid,
           auth_anchor: this.authAnchorHex,
         });
@@ -205,14 +257,26 @@ export class VpTokenProvider implements BearerTokenProvider {
           token: response.token,
           expiresAt: response.expires_at,
         };
-        this.cached = fresh;
+        if (subject === "grpc") {
+          this.cachedGrpc = fresh;
+        } else {
+          this.cachedJsonRpc = fresh;
+        }
         return fresh;
       } finally {
-        this.inFlight = null;
+        if (subject === "grpc") {
+          this.inFlightGrpc = null;
+        } else {
+          this.inFlightJsonRpc = null;
+        }
       }
     })();
 
-    this.inFlight = p;
+    if (subject === "grpc") {
+      this.inFlightGrpc = p;
+    } else {
+      this.inFlightJsonRpc = p;
+    }
     return p;
   }
 }
