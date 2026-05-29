@@ -37,10 +37,10 @@ import type { AaveReserveConfig } from "../services/fetchConfig";
  * - `"partial"` — user typed a specific amount; send it verbatim, no buffer.
  * - `"full"` — user wants to clear the debt and balance covers debt × (1 + buffer);
  *   service refetches debt at broadcast time and adds the buffer.
- * - `"max-capped"` — user wants to clear the debt but balance is between
- *   `debt` and `debt × (1 + buffer)`; approve and send the user's full balance,
- *   adapter pulls `min(balance, actualDebt)`. Residual ≤ accrual during
- *   broadcast (sub-cent in practice).
+ * - `"max-capped"` — balance is between `debt` and `debt × (1 + buffer)`;
+ *   approve the full balance as the cap and send the repay-all sentinel
+ *   (`maxUint256`). Adapter clears the full debt; reverts cleanly if accrued
+ *   interest exceeds the balance.
  */
 export type RepayMode = "partial" | "full" | "max-capped";
 

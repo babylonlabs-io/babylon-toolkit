@@ -2,6 +2,7 @@
  * Tests for Aave position transactions.
  */
 
+import { maxUint256 } from "viem";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // Hoist mock functions so they can be used in vi.mock factories
@@ -260,7 +261,7 @@ describe("positionTransactions", () => {
     // Global default already starts simulatedAllowance at 0; no per-block
     // setup needed.
 
-    it("should approve and send the user's full balance verbatim (no buffer math)", async () => {
+    it("should approve the full balance as the cap and send the repay-all sentinel", async () => {
       const balanceAmount = 200_000_000n;
 
       await repayMaxCapped(
@@ -271,7 +272,7 @@ describe("positionTransactions", () => {
         balanceAmount,
       );
 
-      // The whole point of this path: approve exactly the cap, not cap × (1+buffer).
+      // Approve exactly the cap (the user's balance), not cap × (1+buffer).
       expect(mockApproveERC20).toHaveBeenCalledWith(
         mockWalletClient,
         mockChain,
@@ -280,13 +281,15 @@ describe("positionTransactions", () => {
         balanceAmount,
       );
 
+      // Send maxUint256 so the adapter clears the full current debt (including
+      // interest accrued during broadcast), capped by the approved balance.
       expect(mockRepayToCorePosition).toHaveBeenCalledWith(
         mockWalletClient,
         mockChain,
         "0xadapter",
         "0xuser",
         1n,
-        balanceAmount,
+        maxUint256,
       );
     });
 

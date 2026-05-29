@@ -13,6 +13,7 @@ import type {
   TransactionReceipt,
   WalletClient,
 } from "viem";
+import { maxUint256 } from "viem";
 
 import { ERC20 } from "../../../clients/eth-contract";
 import { AaveAdapterTx, AaveSpoke } from "../clients";
@@ -184,30 +185,13 @@ export async function repayPartial(
 }
 
 /**
- * Repay as much as the user's balance permits, when balance is less than
- * `debt × (1 + buffer)` (so `repayFull` would refuse).
+ * Clear the full debt for the `debt ≤ balance < debt × (1 + buffer)` case
+ * (`pickRepayParams` only routes here when `balance ≥ debt`). Sends `maxUint256`
+ * (Aave's repay-all sentinel) so the adapter clears the current debt incl.
+ * interest accrued before broadcast, but caps the approval at `balanceAmount` —
+ * if accrual pushes debt past the balance the tx reverts cleanly, not silent dust.
  *
- * The adapter pulls `min(amount, currentDebtAtExecution)`, so sending the
- * user's full balance leaves at most `currentDebtAtExecution - balance` of
- * residual debt — which is the interest accrued between the caller's
- * balance check and the broadcast block (sub-cent in practice).
- *
- * `balanceAmount` is treated as the user's full on-chain balance at submit
- * time — the submit path resolves it via `pickRepayParams`, which refetches
- * debt + balance in the same tick as the wallet sign request. This function
- * deliberately does not refetch balance, so the pulled amount stays strictly
- * capped at whatever the caller passed.
- *
- * Approval/refund: the adapter pulls the full approved amount, routes the
- * debt, and refunds the excess in the same tx. Residual allowance after the
- * tx = 0; no `approve(0)` cleanup needed.
- *
- * @param walletClient - Connected wallet client
- * @param chain - Chain configuration
- * @param debtReserveId - Reserve ID for the debt token
- * @param tokenAddress - Token address for the debt
- * @param balanceAmount - The user's full token balance (the cap); approved and sent verbatim
- * @returns Transaction result
+ * @param balanceAmount - User's full balance; approved as the cap (amount sent is `maxUint256`)
  */
 export async function repayMaxCapped(
   walletClient: WalletClient,
@@ -236,7 +220,7 @@ export async function repayMaxCapped(
     balanceAmount,
   );
 
-  return repay(walletClient, chain, userAddress, debtReserveId, balanceAmount);
+  return repay(walletClient, chain, userAddress, debtReserveId, maxUint256);
 }
 
 /**

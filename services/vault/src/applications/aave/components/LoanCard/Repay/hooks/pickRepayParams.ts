@@ -6,8 +6,8 @@
  * then picks the cheapest repay path that actually clears the debt:
  *
  *   - balance ≥ debt × (1 + buffer)   → `"full"`     (repayFull adds buffer)
- *   - debt ≤ balance < debt × (1+buf) → `"max-capped"` (send full balance;
- *                                       adapter pulls min(balance, debt))
+ *   - debt ≤ balance < debt × (1+buf) → `"max-capped"` (approve full balance,
+ *                                       send repay-all sentinel; clears debt)
  *   - balance < debt                  → `"partial"`  (send full balance)
  *
  * Doing this at submit (not at Max-button click) avoids the stale-snapshot
@@ -65,6 +65,7 @@ export async function pickRepayParams({
   tokenDecimals,
 }: PickRepayParamsArgs): Promise<PickRepayParamsResult> {
   let freshDebtAmount: number;
+  let freshDebtRaw: bigint;
   let freshBalanceAmount: number;
   let freshBalanceRaw: bigint;
 
@@ -80,7 +81,7 @@ export async function pickRepayParams({
       throw freshBalanceResult.error ?? new Error("Balance refetch failed");
     }
 
-    const freshDebtRaw =
+    freshDebtRaw =
       freshPosition?.debtPositions?.get(reserveId)?.totalDebt ?? 0n;
     freshDebtAmount = Number(formatUnits(freshDebtRaw, tokenDecimals));
     freshBalanceRaw = freshBalanceResult.data ?? 0n;
@@ -114,10 +115,10 @@ export async function pickRepayParams({
       amountRaw: null,
     };
   }
-  if (freshBalanceAmount >= freshDebtAmount) {
-    // Caller passes `amountRaw` to `executeRepay` so the parseUnits round-trip
-    // in useRepayTransaction can't round up by 1 ULP and produce an approval
-    // larger than the user's actual balance.
+  // Compare raw bigints, not the rounded JS numbers: at 18 decimals a balance
+  // one base unit below the debt rounds equal, and max-capped's sentinel repays
+  // the full debt while approving only the balance — which would revert.
+  if (freshBalanceRaw >= freshDebtRaw) {
     return {
       kind: "ok",
       mode: "max-capped",
