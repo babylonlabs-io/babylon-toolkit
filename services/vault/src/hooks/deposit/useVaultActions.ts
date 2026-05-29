@@ -233,11 +233,18 @@ export function useVaultActions(): UseVaultActionsReturn {
       // by unrelated transactions.
       await assertUtxosAvailable(unsignedTxHex, depositorAddress);
 
-      // Use trusted UTXO data from localStorage when available (stored at
-      // construction time), falling back to mempool API with cross-validation
-      const expectedUtxos = pendingPegin?.selectedUTXOs?.length
-        ? utxosToExpectedRecord(pendingPegin.selectedUTXOs)
-        : undefined;
+      // Use the locally stored UTXO set as trusted construction-time data
+      // ONLY when we're broadcasting the local tx. The stored UTXOs are the
+      // inputs of the local tx, not necessarily of the indexer's tx, so when
+      // we fell back to the indexer copy (`!localUnsignedTxHex`) we must pass
+      // `undefined` and let `broadcastPrePeginTransaction` resolve inputs from
+      // the mempool. `createPsbtFromTransaction` throws if `expectedUtxos` is
+      // supplied but doesn't cover every input, so a stale/partial local set
+      // paired with the indexer tx would dead-end the broadcast.
+      const expectedUtxos =
+        localUnsignedTxHex && pendingPegin?.selectedUTXOs?.length
+          ? utxosToExpectedRecord(pendingPegin.selectedUTXOs)
+          : undefined;
 
       // The integrity guarantee for this broadcast is the on-chain
       // `prePeginTxHash` match asserted above: it commits to every input,

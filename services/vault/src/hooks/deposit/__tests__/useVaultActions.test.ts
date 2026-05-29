@@ -530,6 +530,45 @@ describe("useVaultActions — handleBroadcast version drift guard", () => {
     expect(getProtocolInfoBatch).not.toHaveBeenCalled();
   });
 
+  // When we fall back to the indexer tx (empty local unsignedTxHex), the
+  // locally stored selectedUTXOs are NOT guaranteed to be that tx's inputs.
+  // Passing them as trusted `expectedUtxos` would make broadcast throw on
+  // any input they don't cover, recreating a dead-end. We must ignore them
+  // and let the broadcast resolve inputs from the mempool (expectedUtxos
+  // undefined).
+  it("ignores stale local UTXOs and uses the mempool fallback when broadcasting the indexer tx", async () => {
+    const getProtocolInfoBatch = makeMatchingProtocolInfoBatch();
+    mockGetVaultRegistryReader.mockReturnValue({
+      getProtocolInfoBatch,
+    } as unknown as ReturnType<typeof getVaultRegistryReader>);
+
+    const { result } = renderHook(() => useVaultActions());
+
+    await act(async () => {
+      await result.current.handleBroadcast({
+        ...baseBroadcastParams,
+        pendingPegin: {
+          ...basePendingPegin,
+          unsignedTxHex: "",
+          selectedUTXOs: [
+            {
+              txid: "abc123",
+              vout: 0,
+              value: "100000",
+              scriptPubKey: "0014abcdef",
+            },
+          ],
+        },
+      });
+    });
+
+    expect(result.current.broadcastError).toBeNull();
+    expect(mockBroadcastPrePeginTransaction).toHaveBeenCalledTimes(1);
+    expect(mockBroadcastPrePeginTransaction).toHaveBeenCalledWith(
+      expect.objectContaining({ expectedUtxos: undefined }),
+    );
+  });
+
   // Legacy entry: a local tx is present but predates the build-version fields.
   // The tx is verified against on-chain prePeginTxHash above, so broadcast
   // proceeds; the version check is skipped because the versions are absent.
