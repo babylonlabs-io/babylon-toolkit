@@ -86,6 +86,7 @@ export {
   getTargetHealthFactor,
   getUserAccountData,
   getUserPosition,
+  getUserPositionAndAccountData,
   getUserPositions,
   getUserTotalDebt,
   getUserTotalDebts,

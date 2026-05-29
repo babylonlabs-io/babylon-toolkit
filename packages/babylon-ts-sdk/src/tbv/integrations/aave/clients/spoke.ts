@@ -50,6 +50,21 @@ function mapPositionResult(result: PositionResult): AaveSpokeUserPosition {
   };
 }
 
+/** Maps contract result to AaveSpokeUserAccountData */
+function mapAccountDataResult(
+  data: AccountDataResult,
+): AaveSpokeUserAccountData {
+  return {
+    riskPremium: data.riskPremium,
+    avgCollateralFactor: data.avgCollateralFactor,
+    healthFactor: data.healthFactor,
+    totalCollateralValue: data.totalCollateralValue,
+    totalDebtValueRay: data.totalDebtValueRay,
+    activeCollateralCount: data.activeCollateralCount,
+    borrowCount: data.borrowCount,
+  };
+}
+
 /**
  * Get aggregated user account health data from AAVE spoke.
  *
@@ -110,15 +125,47 @@ export async function getUserAccountData(
     args: [userAddress],
   });
 
-  const data = result as AccountDataResult;
+  return mapAccountDataResult(result as AccountDataResult);
+}
+
+/**
+ * Read a user's position for one reserve and their aggregate account data in a
+ * single hard-fail multicall. Both reads are required for the live position
+ * view, so a revert on either rejects the whole call (matching the prior
+ * `Promise.all`); the gain is one round-trip instead of two `eth_call`s.
+ */
+export async function getUserPositionAndAccountData(
+  publicClient: PublicClient,
+  spokeAddress: Address,
+  reserveId: bigint,
+  userAddress: Address,
+): Promise<{
+  position: AaveSpokeUserPosition;
+  accountData: AaveSpokeUserAccountData;
+}> {
+  const [positionResult, accountDataResult] = await publicClient.multicall({
+    contracts: [
+      {
+        address: spokeAddress,
+        abi: AaveSpokeABI as Abi,
+        functionName: "getUserPosition" as const,
+        args: [reserveId, userAddress] as const,
+      },
+      {
+        address: spokeAddress,
+        abi: AaveSpokeABI as Abi,
+        functionName: "getUserAccountData" as const,
+        args: [userAddress] as const,
+      },
+    ],
+    allowFailure: false,
+  });
+
   return {
-    riskPremium: data.riskPremium,
-    avgCollateralFactor: data.avgCollateralFactor,
-    healthFactor: data.healthFactor,
-    totalCollateralValue: data.totalCollateralValue,
-    totalDebtValueRay: data.totalDebtValueRay,
-    activeCollateralCount: data.activeCollateralCount,
-    borrowCount: data.borrowCount,
+    position: mapPositionResult(positionResult as unknown as PositionResult),
+    accountData: mapAccountDataResult(
+      accountDataResult as unknown as AccountDataResult,
+    ),
   };
 }
 

@@ -5,6 +5,7 @@ import {
   getDynamicReserveConfig,
   getReserve,
   getTargetHealthFactor,
+  getUserPositionAndAccountData,
   getUserPositions,
   getUserTotalDebts,
 } from "../spoke.js";
@@ -227,6 +228,61 @@ describe("getUserTotalDebts (batched readout)", () => {
     const multicall = vi.fn().mockRejectedValue(new Error("RPC reverted"));
     await expect(
       getUserTotalDebts(createMulticallClient(multicall), STUB_ADDRESS, [1n], USER),
+    ).rejects.toThrow("RPC reverted");
+  });
+});
+
+describe("getUserPositionAndAccountData (combined live read)", () => {
+  const ACCOUNT_DATA = {
+    riskPremium: 1n,
+    avgCollateralFactor: 2n,
+    healthFactor: 3n,
+    totalCollateralValue: 4n,
+    totalDebtValueRay: 5n,
+    activeCollateralCount: 6n,
+    borrowCount: 7n,
+  };
+
+  it("reads position and account data in one hard-fail multicall", async () => {
+    const multicall = vi.fn().mockResolvedValue([POSITION, ACCOUNT_DATA]);
+
+    const result = await getUserPositionAndAccountData(
+      createMulticallClient(multicall),
+      STUB_ADDRESS,
+      STUB_RESERVE_ID,
+      USER,
+    );
+
+    expect(result.position).toEqual(POSITION);
+    expect(result.accountData).toEqual(ACCOUNT_DATA);
+    expect(multicall).toHaveBeenCalledWith(
+      expect.objectContaining({
+        allowFailure: false,
+        contracts: [
+          expect.objectContaining({
+            address: STUB_ADDRESS,
+            functionName: "getUserPosition",
+            args: [STUB_RESERVE_ID, USER],
+          }),
+          expect.objectContaining({
+            address: STUB_ADDRESS,
+            functionName: "getUserAccountData",
+            args: [USER],
+          }),
+        ],
+      }),
+    );
+  });
+
+  it("propagates a multicall rejection (both reads are required)", async () => {
+    const multicall = vi.fn().mockRejectedValue(new Error("RPC reverted"));
+    await expect(
+      getUserPositionAndAccountData(
+        createMulticallClient(multicall),
+        STUB_ADDRESS,
+        STUB_RESERVE_ID,
+        USER,
+      ),
     ).rejects.toThrow("RPC reverted");
   });
 });

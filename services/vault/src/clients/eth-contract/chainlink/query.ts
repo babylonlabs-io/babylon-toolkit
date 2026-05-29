@@ -50,6 +50,14 @@ const CHAINLINK_MAX_PRICE_AGE_SECONDS = 3600;
 /** Number of seconds in one hour — used for display formatting */
 const SECONDS_PER_HOUR = 3600;
 
+// Each unique feed contributes this many calls, in this order, to the grouped
+// multicall built in `getTokenPrices`. Keep these in sync with the per-feed
+// entries in the `contracts` flatMap below — the result read-back indexes by
+// `feedIdx * CALLS_PER_FEED + <offset>`.
+const CALLS_PER_FEED = 2;
+const ROUND_DATA_OFFSET = 0;
+const DECIMALS_OFFSET = 1;
+
 let btcPriceFeedOverrideWarned = false;
 
 function getChainlinkFeedAddress(symbol: string): Address | null {
@@ -332,8 +340,9 @@ export async function getTokenPrices(
   }
 
   uniqueFeeds.forEach((feedAddress, feedIdx) => {
-    const roundDataResult = results[feedIdx * 2];
-    const decimalsResult = results[feedIdx * 2 + 1];
+    const roundDataResult =
+      results[feedIdx * CALLS_PER_FEED + ROUND_DATA_OFFSET];
+    const decimalsResult = results[feedIdx * CALLS_PER_FEED + DECIMALS_OFFSET];
     const feedSymbols = symbolsByFeed.get(feedAddress) ?? [];
 
     const readout = readoutForFeed(
@@ -344,6 +353,7 @@ export async function getTokenPrices(
 
     if ("error" in readout) {
       logger.warn(`Failed to fetch price for feed ${feedAddress}`, {
+        feedSymbols,
         error: readout.error,
       });
       const failedMetadata: PriceMetadata = {

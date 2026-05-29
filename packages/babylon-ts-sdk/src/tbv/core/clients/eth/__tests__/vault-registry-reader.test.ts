@@ -65,6 +65,9 @@ function createMockPublicClient(overrides?: {
         }>;
       }) => {
         return contracts.map((c) => {
+          if (c.functionName === "getBtcVaultBasicInfo") {
+            return overrides?.basicInfoResult ?? MOCK_BASIC_INFO_RESULT;
+          }
           if (c.functionName === "getBtcVaultProtocolInfo") {
             const id = c.args?.[0] as Hex | undefined;
             const byId =
@@ -131,7 +134,7 @@ describe("ViemVaultRegistryReader", () => {
     expect(info.vaultProviderCommissionBps).toBe(100);
   });
 
-  it("getVaultData fetches basic and protocol info in parallel", async () => {
+  it("getVaultData fetches basic and protocol info in a single multicall", async () => {
     const publicClient = createMockPublicClient();
     const reader = new ViemVaultRegistryReader(
       publicClient as never,
@@ -140,9 +143,46 @@ describe("ViemVaultRegistryReader", () => {
 
     const data = await reader.getVaultData(MOCK_VAULT_ID);
 
+    // Every field must survive the batched read unchanged — both structs are
+    // signing-critical (refund / payout / broadcast rebind from this).
     expect(data.basic.depositor).toBe(MOCK_BASIC_INFO_RESULT.depositor);
+    expect(data.basic.amount).toBe(MOCK_BASIC_INFO_RESULT.amount);
+    expect(data.basic.vaultProvider).toBe(MOCK_BASIC_INFO_RESULT.vaultProvider);
+    expect(data.protocol.depositorSignedPeginTx).toBe(
+      MOCK_PROTOCOL_INFO_RESULT.depositorSignedPeginTx,
+    );
+    expect(data.protocol.depositorWotsPkHash).toBe(
+      MOCK_PROTOCOL_INFO_RESULT.depositorWotsPkHash,
+    );
+    expect(data.protocol.hashlock).toBe(MOCK_PROTOCOL_INFO_RESULT.hashlock);
     expect(data.protocol.offchainParamsVersion).toBe(3);
-    expect(publicClient.readContract).toHaveBeenCalledTimes(2);
+
+    // One round-trip carrying both reads (the field assertions above already
+    // prove each struct maps to the right side, so we don't pin call order).
+    expect(publicClient.multicall).toHaveBeenCalledTimes(1);
+    expect(publicClient.readContract).not.toHaveBeenCalled();
+    const { contracts } = publicClient.multicall.mock.calls[0][0];
+    expect(contracts).toHaveLength(2);
+    expect(
+      contracts.map((c: { functionName: string }) => c.functionName).sort(),
+    ).toEqual(["getBtcVaultBasicInfo", "getBtcVaultProtocolInfo"]);
+  });
+
+  it("getVaultData rejects when the multicall reverts (hard-fail, matching the old parallel reads)", async () => {
+    const publicClient = {
+      readContract: vi.fn(),
+      multicall: vi
+        .fn()
+        .mockRejectedValue(new Error("execution reverted: Vault not found")),
+    };
+    const reader = new ViemVaultRegistryReader(
+      publicClient as never,
+      MOCK_ADDRESS,
+    );
+
+    await expect(reader.getVaultData(MOCK_VAULT_ID)).rejects.toThrow(
+      /execution reverted/,
+    );
   });
 
   it("throws when vault has no pegin transaction (0x)", async () => {

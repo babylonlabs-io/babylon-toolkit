@@ -94,14 +94,15 @@ export interface GetUserPositionsOptions {
  * and enriches with live data from Spoke.
  *
  * Note: In Babylon vault integration, users can only have ONE position
- * (single vBTC collateral reserve), so the vBTC collateral read stays a
- * single-shot `getUserPosition`. Debt discovery across borrowable reserves
- * uses two batched multicalls (see `fetchDebtPositionsForReserves`).
+ * (single vBTC collateral reserve). The vBTC collateral position and aggregate
+ * account data are read together in one multicall; debt discovery across
+ * borrowable reserves uses two more batched multicalls (see
+ * `fetchDebtPositionsForReserves`).
  *
  * **WARNING: This is a heavy method that makes multiple RPC calls:**
  * - 1 GraphQL call (indexer)
- * - 1 RPC call for collateral position (getUserPosition)
- * - 1 RPC call for account data (getUserAccountData)
+ * - 1 multicall for collateral position + account data
+ *   (getUserPositionWithAccountData)
  * - 1 multicall for debt-reserve probe (covers all borrowableReserveIds)
  * - 1 multicall for total-debt readout (only if any reserve carries debt)
  *
@@ -131,11 +132,14 @@ export async function getUserPositionsWithLiveData(
   const position = positions[0];
   const proxyAddress = position.proxyContract as Address;
 
-  // Fetch live data from Spoke in parallel
-  const [spokePosition, accountData] = await Promise.all([
-    AaveSpoke.getUserPosition(spokeAddress, vbtcReserveId, proxyAddress),
-    AaveSpoke.getUserAccountData(spokeAddress, proxyAddress),
-  ]);
+  // One multicall for both live reads (vBTC collateral position + aggregate
+  // account data) instead of two parallel `eth_call`s.
+  const { position: spokePosition, accountData } =
+    await AaveSpoke.getUserPositionWithAccountData(
+      spokeAddress,
+      vbtcReserveId,
+      proxyAddress,
+    );
 
   let debtPositions: Map<bigint, DebtPosition> | undefined;
   if (accountData.borrowCount > 0n) {

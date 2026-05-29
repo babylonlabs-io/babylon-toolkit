@@ -1,14 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
-  mockGetUserPosition,
-  mockGetUserAccountData,
+  mockGetUserPositionWithAccountData,
   mockGetUserPositionsBatch,
   mockGetUserTotalDebtsBatch,
   mockFetchActive,
 } = vi.hoisted(() => ({
-  mockGetUserPosition: vi.fn(),
-  mockGetUserAccountData: vi.fn(),
+  mockGetUserPositionWithAccountData: vi.fn(),
   mockGetUserPositionsBatch: vi.fn(),
   mockGetUserTotalDebtsBatch: vi.fn(),
   mockFetchActive: vi.fn(),
@@ -16,8 +14,7 @@ const {
 
 vi.mock("../../clients", () => ({
   AaveSpoke: {
-    getUserPosition: mockGetUserPosition,
-    getUserAccountData: mockGetUserAccountData,
+    getUserPositionWithAccountData: mockGetUserPositionWithAccountData,
     getUserPositionsBatch: mockGetUserPositionsBatch,
     getUserTotalDebtsBatch: mockGetUserTotalDebtsBatch,
   },
@@ -60,19 +57,17 @@ function setupHappyPath(borrowCount: bigint) {
       totalCollateral: 100n,
     },
   ]);
-  mockGetUserAccountData.mockResolvedValue({
-    totalCollateralValue: 0n,
-    totalDebtValueRay: 0n,
-    healthFactor: 0n,
-    borrowCount,
-  });
-  mockGetUserPosition.mockImplementation(
-    async (_spoke: string, reserveId: bigint) => {
-      // vBTC collateral position has no debt
-      if (reserveId === VBTC_RESERVE_ID) return ZERO_POSITION;
-      return ZERO_POSITION;
+  // vBTC collateral position (no debt) + aggregate account data come back
+  // from one combined multicall.
+  mockGetUserPositionWithAccountData.mockResolvedValue({
+    position: ZERO_POSITION,
+    accountData: {
+      totalCollateralValue: 0n,
+      totalDebtValueRay: 0n,
+      healthFactor: 0n,
+      borrowCount,
     },
-  );
+  });
   // Default: no reserves carry debt. Tests that need debt override these.
   mockGetUserPositionsBatch.mockImplementation(
     async (_spoke: string, reserveIds: bigint[]) =>
@@ -144,6 +139,22 @@ describe("getUserPositionsWithLiveData — fail-closed debt reserve discovery (a
     });
 
     expect(result[0].debtPositions?.size).toBe(1);
+  });
+
+  it("reads the collateral position and account data via one combined call", async () => {
+    setupHappyPath(0n);
+
+    await getUserPositionsWithLiveData(DEPOSITOR, SPOKE, {
+      borrowableReserveIds: [],
+      vbtcReserveId: VBTC_RESERVE_ID,
+    });
+
+    expect(mockGetUserPositionWithAccountData).toHaveBeenCalledTimes(1);
+    expect(mockGetUserPositionWithAccountData).toHaveBeenCalledWith(
+      SPOKE,
+      VBTC_RESERVE_ID,
+      PROXY,
+    );
   });
 
   it("issues one multicall for position probe and one for total-debt readout", async () => {
