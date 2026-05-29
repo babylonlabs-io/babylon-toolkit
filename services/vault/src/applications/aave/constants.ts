@@ -86,6 +86,15 @@ export const MIN_SLIDER_MAX = 0.0001;
 export const NEAR_ZERO_DEBT_DISPLAY_THRESHOLD = 0.01;
 
 /**
+ * Display ceiling for the health factor. A position only reaches a value this
+ * high with negligible debt relative to collateral — far beyond any realistic
+ * liquidation risk — so at or above it the UI shows "-" ("infinitely healthy")
+ * rather than a meaningless large number or, above ~1e21, the scientific
+ * notation JS `toFixed` produces (e.g. "1.7e+55"). Display-only.
+ */
+export const HEALTH_FACTOR_DISPLAY_CAP = 1000;
+
+/**
  * Fractional threshold (relative to total debt) below which projected
  * debt is treated as effectively zero for display purposes. Catches
  * cases where the slider snaps one step short of max (~0.1% residual)

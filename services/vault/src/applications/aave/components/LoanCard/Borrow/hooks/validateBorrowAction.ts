@@ -49,13 +49,28 @@ export function validateBorrowAction(
     };
   }
 
+  // The token's on-chain precision (capped at SAFE_TOFIXED_PRECISION) and the
+  // smallest representable amount (one base unit) at that precision.
+  const displayDecimals = Math.min(tokenDecimals, SAFE_TOFIXED_PRECISION);
+  const minBorrowable = 1 / 10 ** displayDecimals;
+
+  // Reject any sub-precision amount (below one base unit). The submit path
+  // sends `parseUnits(borrowAmount.toFixed(displayDecimals))`, which rounds:
+  // 0.0000001 USDC rounds DOWN to 0 (contract reverts "Amount cannot be zero")
+  // and 0.0000009 rounds UP to 1 base unit (borrows more than entered). Compare
+  // against the minimum directly so both cases are blocked, not just round-to-0.
+  if (borrowAmount < minBorrowable) {
+    return {
+      isDisabled: true,
+      buttonText: "Amount too small",
+      errorMessage: `Minimum borrowable amount is ${formatTokenAmount(minBorrowable, displayDecimals)}`,
+    };
+  }
+
   if (borrowAmount > maxBorrowAmount) {
-    // Format with the token's native precision (capped at SAFE_TOFIXED_PRECISION)
-    // so the error text matches what the slider's Max label and the underlying
-    // calculateMaxBorrowTokens floor expose. Default 6-decimal cap in
-    // formatTokenAmount would round small WBTC maxes (e.g. 0.0000099) down
-    // to "0" in the message even though the value is non-zero.
-    const displayDecimals = Math.min(tokenDecimals, SAFE_TOFIXED_PRECISION);
+    // Format with the token's native precision so the error text matches what
+    // the slider's Max label and calculateMaxBorrowTokens floor expose (the
+    // default 6-decimal cap would round a small WBTC max down to "0").
     return {
       isDisabled: true,
       buttonText: "Amount exceeds maximum",
