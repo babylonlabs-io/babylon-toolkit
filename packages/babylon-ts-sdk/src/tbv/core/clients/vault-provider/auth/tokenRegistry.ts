@@ -9,7 +9,7 @@
 import type { OnChainBtcPubkey } from "../../eth/types";
 import type { JsonRpcClient } from "../json-rpc-client";
 
-import { AUTH_GATED_METHODS } from "./gatedMethods";
+import { AUTH_GATED_METHODS, GRPC_AUTH_GATED_METHODS } from "./gatedMethods";
 import { VpTokenProvider } from "./tokenProvider";
 
 export interface VpTokenRegistryInput {
@@ -61,6 +61,7 @@ export class VpTokenRegistry {
       authAnchorHex: input.authAnchorHex,
       pinnedServerPubkey: input.pinnedServerPubkey,
       authGatedMethods: AUTH_GATED_METHODS,
+      grpcGatedMethods: GRPC_AUTH_GATED_METHODS,
     });
     this.entries.set(input.peginTxid, {
       provider,

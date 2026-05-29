@@ -28,6 +28,9 @@ const TEST_BASE_URL = "https://vp.example.com/rpc";
 const NOW = GOLDEN_EXPIRES_AT - 3600;
 
 const AUTH_GATED_METHODS = new Set(["vaultProvider_submitDepositorWotsKey"]);
+const GRPC_GATED_METHODS = new Set([
+  "vaultProvider_requestDepositorClaimerArtifacts",
+]);
 
 function createJsonRpcSuccessResponse(result: unknown, id: number = 1) {
   return new Response(JSON.stringify({ jsonrpc: "2.0", result, id }), {
@@ -89,6 +92,7 @@ describe("VpTokenProvider", () => {
         "vaultProvider_submitDepositorWotsKey",
         "auth_createDepositorToken",
       ]),
+      grpcGatedMethods: new Set(),
       now: () => NOW,
     });
 
@@ -104,6 +108,7 @@ describe("VpTokenProvider", () => {
       authAnchorHex: AUTH_ANCHOR,
       pinnedServerPubkey: PINNED_PUBKEY,
       authGatedMethods: AUTH_GATED_METHODS,
+      grpcGatedMethods: new Set(),
       now: () => NOW,
     });
 
@@ -121,6 +126,7 @@ describe("VpTokenProvider", () => {
       authAnchorHex: AUTH_ANCHOR,
       pinnedServerPubkey: PINNED_PUBKEY,
       authGatedMethods: AUTH_GATED_METHODS,
+      grpcGatedMethods: new Set(),
       now: () => NOW,
     });
 
@@ -160,6 +166,7 @@ describe("VpTokenProvider", () => {
       authAnchorHex: AUTH_ANCHOR,
       pinnedServerPubkey: PINNED_PUBKEY,
       authGatedMethods: AUTH_GATED_METHODS,
+      grpcGatedMethods: new Set(),
       now: () => NOW,
     });
 
@@ -202,6 +209,7 @@ describe("VpTokenProvider", () => {
       authAnchorHex: AUTH_ANCHOR,
       pinnedServerPubkey: PINNED_PUBKEY,
       authGatedMethods: AUTH_GATED_METHODS,
+      grpcGatedMethods: new Set(),
       refreshSkewSecs: 30,
       now: () => fakeNow,
     });
@@ -239,6 +247,7 @@ describe("VpTokenProvider", () => {
       authAnchorHex: AUTH_ANCHOR,
       pinnedServerPubkey: PINNED_PUBKEY,
       authGatedMethods: AUTH_GATED_METHODS,
+      grpcGatedMethods: new Set(),
       now: () => NOW,
     });
 
@@ -260,6 +269,7 @@ describe("VpTokenProvider", () => {
       authAnchorHex: AUTH_ANCHOR,
       pinnedServerPubkey: PINNED_PUBKEY,
       authGatedMethods: AUTH_GATED_METHODS,
+      grpcGatedMethods: new Set(),
       now: () => NOW,
     });
 
@@ -315,6 +325,7 @@ describe("VpTokenProvider", () => {
       authAnchorHex: AUTH_ANCHOR,
       pinnedServerPubkey: PINNED_PUBKEY,
       authGatedMethods: AUTH_GATED_METHODS,
+      grpcGatedMethods: new Set(),
       now: () => NOW,
     });
 
@@ -366,6 +377,7 @@ describe("VpTokenProvider", () => {
       authAnchorHex: AUTH_ANCHOR,
       pinnedServerPubkey: PINNED_PUBKEY,
       authGatedMethods: AUTH_GATED_METHODS,
+      grpcGatedMethods: new Set(),
       now: () => NOW,
     });
 
@@ -392,5 +404,154 @@ describe("VpTokenProvider", () => {
       "vaultProvider_submitDepositorWotsKey",
     );
     expect(recovered).toBe("after-race");
+  });
+
+  // --- gRPC bootstrap path ---
+
+  it("routes grpc-gated methods through auth_createDepositorTokenGrpc", async () => {
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValueOnce(
+        createJsonRpcSuccessResponse(buildResponse({ token: "grpc-token" })),
+      );
+    vi.stubGlobal("fetch", mockFetch);
+
+    const client = createClient();
+    const provider = new VpTokenProvider({
+      client,
+      peginTxid: PEGIN_TXID,
+      authAnchorHex: AUTH_ANCHOR,
+      pinnedServerPubkey: PINNED_PUBKEY,
+      authGatedMethods: AUTH_GATED_METHODS,
+      grpcGatedMethods: GRPC_GATED_METHODS,
+      now: () => NOW,
+    });
+
+    const token = await provider.getToken(
+      "vaultProvider_requestDepositorClaimerArtifacts",
+    );
+    expect(token).toBe("grpc-token");
+
+    // The bootstrap RPC must be the gRPC variant — bearer subject is what
+    // distinguishes the two paths server-side.
+    const body = JSON.parse(
+      String(mockFetch.mock.calls[0]![1]!.body),
+    ) as Record<string, unknown>;
+    expect(body.method).toBe("auth_createDepositorTokenGrpc");
+  });
+
+  it("caches jsonrpc and grpc tokens in independent slots", async () => {
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValueOnce(
+        createJsonRpcSuccessResponse(buildResponse({ token: "jsonrpc-token" })),
+      )
+      .mockResolvedValueOnce(
+        createJsonRpcSuccessResponse(
+          buildResponse({ token: "grpc-token" }),
+          2,
+        ),
+      );
+    vi.stubGlobal("fetch", mockFetch);
+
+    const client = createClient();
+    const provider = new VpTokenProvider({
+      client,
+      peginTxid: PEGIN_TXID,
+      authAnchorHex: AUTH_ANCHOR,
+      pinnedServerPubkey: PINNED_PUBKEY,
+      authGatedMethods: AUTH_GATED_METHODS,
+      grpcGatedMethods: GRPC_GATED_METHODS,
+      now: () => NOW,
+    });
+
+    const jsonRpcToken = await provider.getToken(
+      "vaultProvider_submitDepositorWotsKey",
+    );
+    const grpcToken = await provider.getToken(
+      "vaultProvider_requestDepositorClaimerArtifacts",
+    );
+    expect(jsonRpcToken).toBe("jsonrpc-token");
+    expect(grpcToken).toBe("grpc-token");
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+
+    // Re-asking for each must hit cache (no third fetch).
+    const jsonRpcAgain = await provider.getToken(
+      "vaultProvider_submitDepositorWotsKey",
+    );
+    const grpcAgain = await provider.getToken(
+      "vaultProvider_requestDepositorClaimerArtifacts",
+    );
+    expect(jsonRpcAgain).toBe("jsonrpc-token");
+    expect(grpcAgain).toBe("grpc-token");
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+  });
+
+  it("invalidate() clears both slots", async () => {
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValueOnce(
+        createJsonRpcSuccessResponse(buildResponse({ token: "jsonrpc-1" })),
+      )
+      .mockResolvedValueOnce(
+        createJsonRpcSuccessResponse(buildResponse({ token: "grpc-1" }), 2),
+      )
+      .mockResolvedValueOnce(
+        createJsonRpcSuccessResponse(buildResponse({ token: "jsonrpc-2" }), 3),
+      )
+      .mockResolvedValueOnce(
+        createJsonRpcSuccessResponse(buildResponse({ token: "grpc-2" }), 4),
+      );
+    vi.stubGlobal("fetch", mockFetch);
+
+    const client = createClient();
+    const provider = new VpTokenProvider({
+      client,
+      peginTxid: PEGIN_TXID,
+      authAnchorHex: AUTH_ANCHOR,
+      pinnedServerPubkey: PINNED_PUBKEY,
+      authGatedMethods: AUTH_GATED_METHODS,
+      grpcGatedMethods: GRPC_GATED_METHODS,
+      now: () => NOW,
+    });
+
+    expect(
+      await provider.getToken("vaultProvider_submitDepositorWotsKey"),
+    ).toBe("jsonrpc-1");
+    expect(
+      await provider.getToken("vaultProvider_requestDepositorClaimerArtifacts"),
+    ).toBe("grpc-1");
+
+    // One invalidate must evict both slots (the client doesn't tell us
+    // which subject expired, so we stay correct by clearing both).
+    provider.invalidate();
+
+    expect(
+      await provider.getToken("vaultProvider_submitDepositorWotsKey"),
+    ).toBe("jsonrpc-2");
+    expect(
+      await provider.getToken("vaultProvider_requestDepositorClaimerArtifacts"),
+    ).toBe("grpc-2");
+    expect(mockFetch).toHaveBeenCalledTimes(4);
+  });
+
+  it("returns null for the gRPC token-issuing method even if misconfigured", async () => {
+    // Symmetric guard to the JSON-RPC token-issue exemption.
+    const client = createClient();
+    const provider = new VpTokenProvider({
+      client,
+      peginTxid: PEGIN_TXID,
+      authAnchorHex: AUTH_ANCHOR,
+      pinnedServerPubkey: PINNED_PUBKEY,
+      authGatedMethods: AUTH_GATED_METHODS,
+      grpcGatedMethods: new Set([
+        "vaultProvider_requestDepositorClaimerArtifacts",
+        "auth_createDepositorTokenGrpc",
+      ]),
+      now: () => NOW,
+    });
+
+    const token = await provider.getToken("auth_createDepositorTokenGrpc");
+    expect(token).toBeNull();
   });
 });

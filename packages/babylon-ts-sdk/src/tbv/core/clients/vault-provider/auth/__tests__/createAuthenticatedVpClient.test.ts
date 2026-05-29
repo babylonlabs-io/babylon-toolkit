@@ -12,7 +12,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { OnChainBtcPubkey } from "../../../eth/types";
 import { createAuthenticatedVpClient } from "../createAuthenticatedVpClient";
-import { AUTH_GATED_METHODS } from "../gatedMethods";
+import {
+  AUTH_GATED_METHODS,
+  GRPC_AUTH_GATED_METHODS,
+} from "../gatedMethods";
 import { VpTokenRegistry, vpTokenRegistry } from "../tokenRegistry";
 
 const PEGIN_TXID = "a".repeat(64);
@@ -74,14 +77,22 @@ describe("createAuthenticatedVpClient", () => {
     expect(fetchSpy).toHaveBeenCalledTimes(1);
   });
 
-  it("AUTH_GATED_METHODS pins the canonical protocol-invariant set", () => {
+  it("AUTH_GATED_METHODS pins the canonical JSON-RPC-subject set", () => {
+    // Artifacts moved into GRPC_AUTH_GATED_METHODS because the proxy
+    // translates that method into a gRPC call to vaultd, where the
+    // JSON-RPC-subject token is rejected by `GrpcAuthInterceptor`.
     expect(Array.from(AUTH_GATED_METHODS).sort()).toEqual(
       [
-        "vaultProvider_requestDepositorClaimerArtifacts",
         "vaultProvider_requestDepositorPresignTransactions",
         "vaultProvider_submitDepositorPresignatures",
         "vaultProvider_submitDepositorWotsKey",
       ].sort(),
+    );
+  });
+
+  it("GRPC_AUTH_GATED_METHODS pins the gRPC-subject set", () => {
+    expect(Array.from(GRPC_AUTH_GATED_METHODS).sort()).toEqual(
+      ["vaultProvider_requestDepositorClaimerArtifacts"].sort(),
     );
   });
 });
