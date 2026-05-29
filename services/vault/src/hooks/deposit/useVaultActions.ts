@@ -239,48 +239,54 @@ export function useVaultActions(): UseVaultActionsReturn {
         ? utxosToExpectedRecord(pendingPegin.selectedUTXOs)
         : undefined;
 
-      // Resume broadcast must verify versions against the values used to
-      // construct `unsignedTxHex`, not the current local config — both
-      // could have rotated to a newer version while the BTC scripts are
-      // still pinned to the construction-time version. Refuse when
-      // there's no local anchor for the guard: cross-device resume (no
-      // pendingPegin), the cross-device "tracking record" form
-      // (`unsignedTxHex: ""` — the storage validator accepts it as a
-      // future-sync marker, but its build versions would not be tied to
-      // the indexer's tx we'd otherwise sign), or legacy entries missing
-      // build versions.
-      if (!pendingPegin || pendingPegin.unsignedTxHex === "") {
-        throw new Error(COPY.deposit.errors.crossDeviceBroadcastUnsupported);
-      }
+      // The integrity guarantee for this broadcast is the on-chain
+      // `prePeginTxHash` match asserted above: it commits to every input,
+      // output, and script of the registered Pre-PegIn, so a match proves
+      // `unsignedTxHex` is exactly the tx the contract registered — safe to
+      // broadcast regardless of which offchain-params / signer-set versions
+      // it was built against.
+      //
+      // When the local record supplies BOTH the tx we're broadcasting and its
+      // build versions (the normal same-session path), additionally re-verify
+      // those versions on-chain as defense-in-depth and drop the entry on a
+      // confirmed mismatch. The versions are only meaningful when tied to the
+      // local tx — if we fell back to the indexer's tx (`!localUnsignedTxHex`)
+      // any stored versions are floating, so we don't trust them. When there
+      // is no local anchor — cross-device resume, cleared storage, or a Safe
+      // whose asynchronous ETH execution outlived the dApp tab so
+      // `addPendingPegin` never ran — skip that redundant check and broadcast
+      // on the strength of the hash match. Refusing here would strand a vault
+      // that is provably safe to broadcast.
       const buildOffchainParamsVersion =
-        pendingPegin.buildOffchainParamsVersion;
+        pendingPegin?.buildOffchainParamsVersion;
       const buildAppVaultKeepersVersion =
-        pendingPegin.buildAppVaultKeepersVersion;
+        pendingPegin?.buildAppVaultKeepersVersion;
       const buildUniversalChallengersVersion =
-        pendingPegin.buildUniversalChallengersVersion;
+        pendingPegin?.buildUniversalChallengersVersion;
       if (
-        buildOffchainParamsVersion === undefined ||
-        buildAppVaultKeepersVersion === undefined ||
-        buildUniversalChallengersVersion === undefined
+        localUnsignedTxHex &&
+        buildOffchainParamsVersion !== undefined &&
+        buildAppVaultKeepersVersion !== undefined &&
+        buildUniversalChallengersVersion !== undefined
       ) {
-        throw new Error(COPY.deposit.errors.crossDeviceBroadcastUnsupported);
-      }
-      try {
-        await verifyRegisteredVaultVersions({
-          vaultRegistryReader: getVaultRegistryReader(),
-          vaultIds: [vaultId],
-          expectedOffchainParamsVersion: buildOffchainParamsVersion,
-          expectedAppVaultKeepersVersion: buildAppVaultKeepersVersion,
-          expectedUniversalChallengersVersion: buildUniversalChallengersVersion,
-        });
-      } catch (err) {
-        // Only a confirmed mismatch drops the entry — transient RPC
-        // failures keep it so the user can retry. Mirrors the inline
-        // deposit path at useDepositFlow.ts:661.
-        if (isRegisteredVaultVersionMismatchError(err)) {
-          removePendingPegin?.(vaultId);
+        try {
+          await verifyRegisteredVaultVersions({
+            vaultRegistryReader: getVaultRegistryReader(),
+            vaultIds: [vaultId],
+            expectedOffchainParamsVersion: buildOffchainParamsVersion,
+            expectedAppVaultKeepersVersion: buildAppVaultKeepersVersion,
+            expectedUniversalChallengersVersion:
+              buildUniversalChallengersVersion,
+          });
+        } catch (err) {
+          // Only a confirmed mismatch drops the entry — transient RPC
+          // failures keep it so the user can retry. Mirrors the inline
+          // deposit path at useDepositFlow.ts:661.
+          if (isRegisteredVaultVersionMismatchError(err)) {
+            removePendingPegin?.(vaultId);
+          }
+          throw err;
         }
-        throw err;
       }
 
       await broadcastPrePeginTransaction({

@@ -481,13 +481,15 @@ describe("useVaultActions — handleBroadcast version drift guard", () => {
     expect(mockBroadcastPrePeginTransaction).toHaveBeenCalledTimes(1);
   });
 
-  // Cross-device resume cannot recover the build-time versions, so we
-  // can't prove the indexer-served tx hex was built at any specific
-  // version. Refusing is strictly safer than broadcasting on a
-  // best-effort compare to current local config.
-  it("refuses cross-device broadcast when no local pendingPegin is available", async () => {
+  // Cross-device resume / Safe async / cleared storage: no local record
+  // exists, so the resume path falls back to the indexer's tx — already
+  // verified against the on-chain prePeginTxHash above. Broadcasting is safe
+  // on the strength of that match; with no local build versions tied to the
+  // tx, the on-chain version check is skipped rather than refusing.
+  it("broadcasts on the on-chain hash match when no local pendingPegin is available, skipping the version check", async () => {
+    const getProtocolInfoBatch = makeMatchingProtocolInfoBatch();
     mockGetVaultRegistryReader.mockReturnValue({
-      getProtocolInfoBatch: makeMatchingProtocolInfoBatch(),
+      getProtocolInfoBatch,
     } as unknown as ReturnType<typeof getVaultRegistryReader>);
 
     const { result } = renderHook(() => useVaultActions());
@@ -495,25 +497,23 @@ describe("useVaultActions — handleBroadcast version drift guard", () => {
     await act(async () => {
       await result.current.handleBroadcast({
         ...baseBroadcastParams,
-        // No pendingPegin: cross-device resume case.
+        // No pendingPegin: cross-device / Safe-async resume case.
       });
     });
 
-    expect(result.current.broadcastError).toContain(
-      "cannot be broadcast from the in-app button",
-    );
-    expect(mockBroadcastPrePeginTransaction).not.toHaveBeenCalled();
-    expect(mockSignPsbt).not.toHaveBeenCalled();
+    expect(result.current.broadcastError).toBeNull();
+    expect(mockBroadcastPrePeginTransaction).toHaveBeenCalledTimes(1);
+    expect(getProtocolInfoBatch).not.toHaveBeenCalled();
   });
 
-  // An entry whose `unsignedTxHex === ""` is the storage validator's
-  // "tracking record, no local tx" marker. The on-chain hash check would
-  // pass against the indexer's tx, but the stored build versions are not
-  // tied to that tx — they're floating. The guard would lie. Treat it
-  // the same as no local pendingPegin.
-  it("refuses broadcast when pendingPegin has empty unsignedTxHex even if build versions are present", async () => {
+  // An entry whose `unsignedTxHex === ""` carries no local tx, so the resume
+  // path broadcasts the indexer's tx (verified against on-chain prePeginTxHash
+  // above). Any stored build versions are floating — not tied to that tx — so
+  // the version check is skipped and broadcast proceeds on the hash match.
+  it("broadcasts the indexer tx and skips the version check when pendingPegin has empty unsignedTxHex", async () => {
+    const getProtocolInfoBatch = makeMatchingProtocolInfoBatch();
     mockGetVaultRegistryReader.mockReturnValue({
-      getProtocolInfoBatch: makeMatchingProtocolInfoBatch(),
+      getProtocolInfoBatch,
     } as unknown as ReturnType<typeof getVaultRegistryReader>);
 
     const { result } = renderHook(() => useVaultActions());
@@ -525,11 +525,37 @@ describe("useVaultActions — handleBroadcast version drift guard", () => {
       });
     });
 
-    expect(result.current.broadcastError).toContain(
-      "cannot be broadcast from the in-app button",
-    );
-    expect(mockBroadcastPrePeginTransaction).not.toHaveBeenCalled();
-    expect(mockSignPsbt).not.toHaveBeenCalled();
+    expect(result.current.broadcastError).toBeNull();
+    expect(mockBroadcastPrePeginTransaction).toHaveBeenCalledTimes(1);
+    expect(getProtocolInfoBatch).not.toHaveBeenCalled();
+  });
+
+  // Legacy entry: a local tx is present but predates the build-version fields.
+  // The tx is verified against on-chain prePeginTxHash above, so broadcast
+  // proceeds; the version check is skipped because the versions are absent.
+  it("broadcasts and skips the version check when a local tx is present but build versions are missing", async () => {
+    const getProtocolInfoBatch = makeMatchingProtocolInfoBatch();
+    mockGetVaultRegistryReader.mockReturnValue({
+      getProtocolInfoBatch,
+    } as unknown as ReturnType<typeof getVaultRegistryReader>);
+
+    const { result } = renderHook(() => useVaultActions());
+
+    await act(async () => {
+      await result.current.handleBroadcast({
+        ...baseBroadcastParams,
+        pendingPegin: {
+          ...basePendingPegin,
+          buildOffchainParamsVersion: undefined,
+          buildAppVaultKeepersVersion: undefined,
+          buildUniversalChallengersVersion: undefined,
+        },
+      });
+    });
+
+    expect(result.current.broadcastError).toBeNull();
+    expect(mockBroadcastPrePeginTransaction).toHaveBeenCalledTimes(1);
+    expect(getProtocolInfoBatch).not.toHaveBeenCalled();
   });
 
   // Mirrors the inline deposit path's cleanup: a confirmed mismatch
