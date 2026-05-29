@@ -12,6 +12,7 @@ import {
   formatBtcAmount,
   formatCompactUsd,
   formatDateTime,
+  formatDuration,
   formatLLTV,
   formatLtvPercent,
   formatOrdinal,
@@ -415,6 +416,44 @@ describe("Formatting Utilities", () => {
 
     it("formats the protocol-maximum commission", () => {
       expect(formatBasisPointsAsPercent(9999)).toBe("99.99%");
+    });
+  });
+
+  // Humanized duration for peg-out ETAs: pick the largest sensible unit so a
+  // ~5-day wait reads as "5 days", not "114 hours". Thresholds are on the raw
+  // minutes (< 60 minutes, < 1440 hours, else days); the value within the unit
+  // is rounded to the nearest whole.
+  describe("formatDuration", () => {
+    it("shows 'less than a minute' at or below zero", () => {
+      expect(formatDuration(0)).toBe("less than a minute");
+      expect(formatDuration(-5)).toBe("less than a minute");
+    });
+
+    it("uses minutes below one hour", () => {
+      expect(formatDuration(1)).toBe("1 minute");
+      expect(formatDuration(45)).toBe("45 minutes");
+      expect(formatDuration(59)).toBe("59 minutes");
+    });
+
+    it("uses hours from one hour up to (but not including) one day", () => {
+      expect(formatDuration(60)).toBe("1 hour");
+      expect(formatDuration(89)).toBe("1 hour"); // round(1.48) = 1
+      expect(formatDuration(90)).toBe("2 hours"); // round(1.5) = 2
+      expect(formatDuration(120)).toBe("2 hours");
+      expect(formatDuration(1439)).toBe("24 hours"); // still < 1 day by threshold
+    });
+
+    it("uses days at one day and above", () => {
+      expect(formatDuration(1440)).toBe("1 day");
+      expect(formatDuration(2880)).toBe("2 days");
+    });
+
+    it("rounds a 684-block assert timelock (~4.75 days) to '5 days'", () => {
+      expect(formatDuration(684 * 10)).toBe("5 days");
+    });
+
+    it("formats a 91-block assert timelock (~15h) in hours", () => {
+      expect(formatDuration(91 * 10)).toBe("15 hours");
     });
   });
 });

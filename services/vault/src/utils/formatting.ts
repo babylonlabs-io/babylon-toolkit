@@ -3,6 +3,7 @@
  */
 
 import { getNetworkConfigBTC } from "@/config";
+import { MINS_PER_DAY, MINS_PER_HOUR } from "@/constants";
 import { truncateAddress } from "@/utils/addressUtils";
 
 const btcConfig = getNetworkConfigBTC();
@@ -269,6 +270,25 @@ export function formatTimeAgo(timestamp: number): string {
     return minutes === 1 ? "a minute ago" : `${minutes} minutes ago`;
   }
   return "just now";
+}
+
+function pluralizeUnit(value: number, unit: string): string {
+  return `${value} ${unit}${value === 1 ? "" : "s"}`;
+}
+
+/** Humanize a duration in the largest unit ("5 days", not "114 hours"):
+ *  < 60 → minutes, < 1440 → hours, else days; < 1 → "less than a minute". */
+export function formatDuration(totalMinutes: number): string {
+  if (totalMinutes < 1) {
+    return "less than a minute";
+  }
+  if (totalMinutes < MINS_PER_HOUR) {
+    return pluralizeUnit(totalMinutes, "minute");
+  }
+  if (totalMinutes < MINS_PER_DAY) {
+    return pluralizeUnit(Math.round(totalMinutes / MINS_PER_HOUR), "hour");
+  }
+  return pluralizeUnit(Math.round(totalMinutes / MINS_PER_DAY), "day");
 }
 
 /**

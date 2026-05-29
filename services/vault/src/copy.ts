@@ -460,6 +460,67 @@ export const COPY = {
         `Add ${symbol} as collateral so you can begin borrowing assets.`,
     },
   },
+  withdraw: {
+    // Shared labels (review + initiated screens).
+    estimatedTimeLabel: "Estimated time until payout",
+    nominatedAddressLabel: "Nominated Address",
+    initiated: {
+      title: "Withdraw Initiated",
+      // Describes the real claim -> challenge period -> payout path.
+      body: "Your withdrawal has been submitted. The vault provider will broadcast a claim transaction on Bitcoin; after a challenge period, your BTC will be sent to your nominated address.",
+      doneButton: "Done",
+    },
+  },
+  // Peg-out (withdrawal) progress — status badges/messages on the Pending
+  // Withdraw card, plus the live payout countdown and claim/assert tx labels.
+  pegout: {
+    status: {
+      claimEventReceived: {
+        label: "Processing",
+        message:
+          "Your withdrawal request has been received and is being processed.",
+      },
+      claimBroadcast: {
+        label: "Processing",
+        message:
+          "Your withdrawal is in progress. A claim transaction has been broadcast to Bitcoin.",
+      },
+      assertBroadcast: {
+        label: "Confirming",
+        message:
+          "Your withdrawal is going through its on-chain challenge period before the BTC payout can be broadcast.",
+      },
+      payoutBroadcast: {
+        label: "BTC Sent",
+        message: "Your BTC has been sent to your nominated address.",
+      },
+      payoutBlocked: {
+        label: "Blocked",
+        message:
+          "Withdrawal was blocked on-chain (challenger or council override). Please contact support.",
+      },
+      initiating: {
+        label: "Initiating",
+        message: "Your withdrawal is being prepared by the vault provider.",
+      },
+      unavailable: {
+        label: "Status Unavailable",
+        message:
+          "Unable to determine withdrawal status. The vault provider may be unreachable. Please try again later or contact support.",
+      },
+      unknownLabel: "Unknown",
+      unknownMessage: (status: string) =>
+        `Unknown status: ${status}. Please contact support.`,
+    },
+    // Live countdown shown while the withdrawal is in its challenge period.
+    payoutEta: (duration: string) => `~${duration} until payout`,
+    payoutImminent: "Payout available shortly",
+    txHash: {
+      label: "TX Hash",
+      claimLabel: "Claim:",
+      assertLabel: "Assert:",
+    },
+  },
   loans: {
     heading: "Loans",
     borrowButton: "Borrow",

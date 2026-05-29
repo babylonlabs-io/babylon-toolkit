@@ -22,4 +22,5 @@ export const REPLAYS_ON_ERROR_RATE = Number.parseFloat(
 // Bitcoin protocol constants
 export const BTC_BLOCK_TIME_MINS = 10;
 export const MINS_PER_HOUR = 60;
+export const MINS_PER_DAY = 1440;
 export const FALLBACK_FEE_RATE_SATS_VB = 1;

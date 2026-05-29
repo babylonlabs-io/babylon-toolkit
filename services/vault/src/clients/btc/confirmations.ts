@@ -1,6 +1,6 @@
 /**
  * Mempool-API confirmation helper, shared by the dashboard batch poller
- * (`usePrePeginMempoolConfirmations`) and the in-flow single-tx poller
+ * (`useBtcMempoolConfirmations`) and the in-flow single-tx poller
  * (`useBtcConfirmations`). Centralizing keeps the two in sync if the
  * mempool call shape ever changes — both callers compute the same number
  * for the same `(txid, tipHeight)`.

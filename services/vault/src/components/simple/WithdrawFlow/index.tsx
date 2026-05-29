@@ -7,9 +7,13 @@ import {
   getEffectiveVaultSelection,
   getUniquePayoutAddresses,
 } from "@/applications/aave/utils";
-import { ProtocolParamsProvider } from "@/context/ProtocolParamsContext";
+import {
+  ProtocolParamsProvider,
+  useProtocolParamsContext,
+} from "@/context/ProtocolParamsContext";
 import { useDialogStep } from "@/hooks/deposit/useDialogStep";
 import type { CollateralVaultEntry } from "@/types/collateral";
+import { maxAssertTimelockBlocks } from "@/utils/pegoutTiming";
 
 import { FadeTransition } from "../FadeTransition";
 
@@ -41,16 +45,19 @@ function WithdrawFlowContent({
 }: WithdrawFlowProps) {
   const { step, goToProgress, reset } = useWithdrawFlow();
   const { executeWithdraw, isProcessing } = useWithdrawCollateralTransaction();
+  const { getOffchainParamsByVersion, config } = useProtocolParamsContext();
 
   const renderedStep = useDialogStep(open, step, reset);
 
-  // Snapshot of payout addresses captured at confirm time. Needed by the
-  // Progress view because the underlying vaults are removed from the user's
-  // collateral list after withdraw — without snapshotting, the addresses
-  // would disappear by the time we navigate to PROGRESS.
+  // Snapshots captured at confirm time. Needed by the Progress view because the
+  // underlying vaults are removed from the user's collateral list after
+  // withdraw — without snapshotting, this data would disappear by the time we
+  // navigate to PROGRESS.
   const [submittedPayoutAddresses, setSubmittedPayoutAddresses] = useState<
     string[]
   >([]);
+  const [submittedAssertTimelockBlocks, setSubmittedAssertTimelockBlocks] =
+    useState(0);
 
   const {
     selectedVaultIds: effectiveSelectedVaultIds,
@@ -63,6 +70,19 @@ function WithdrawFlowContent({
   const selectedPayoutAddresses = useMemo(
     () => getUniquePayoutAddresses(effectiveSelectedVaults),
     [effectiveSelectedVaults],
+  );
+
+  // Conservative payout ETA for the batch: the largest `timelockAssert` across
+  // the selected vaults' offchain-params versions. Falls back to the latest
+  // version's value when a vault's version can't be resolved.
+  const selectedAssertTimelockBlocks = useMemo(
+    () =>
+      maxAssertTimelockBlocks(
+        effectiveSelectedVaults.map((v) => v.offchainParamsVersion),
+        (version) => getOffchainParamsByVersion(version)?.timelockAssert,
+        Number(config.offchainParams.timelockAssert),
+      ),
+    [effectiveSelectedVaults, getOffchainParamsByVersion, config],
   );
 
   // Aggregate amounts and projected HF for the current selection.
@@ -94,12 +114,14 @@ function WithdrawFlowContent({
     const success = await executeWithdraw(effectiveSelectedVaultIds);
     if (success) {
       setSubmittedPayoutAddresses(selectedPayoutAddresses);
+      setSubmittedAssertTimelockBlocks(selectedAssertTimelockBlocks);
       goToProgress();
     }
   }, [
     executeWithdraw,
     effectiveSelectedVaultIds,
     selectedPayoutAddresses,
+    selectedAssertTimelockBlocks,
     goToProgress,
   ]);
 
@@ -118,6 +140,7 @@ function WithdrawFlowContent({
               currentHealthFactor={currentHealthFactor}
               projectedHealthFactor={projectedHealthFactor}
               payoutAddresses={selectedPayoutAddresses}
+              assertTimelockBlocks={selectedAssertTimelockBlocks}
               isProcessing={isProcessing}
               onConfirm={handleConfirm}
             />
@@ -127,6 +150,7 @@ function WithdrawFlowContent({
           <div className="mx-auto w-full max-w-[520px]">
             <WithdrawProgressView
               payoutAddresses={submittedPayoutAddresses}
+              assertTimelockBlocks={submittedAssertTimelockBlocks}
               onClose={onClose}
             />
           </div>

@@ -1,47 +1,44 @@
 import { Button, Heading, Text } from "@babylonlabs-io/core-ui";
 
-import { BTC_BLOCK_TIME_MINS, MINS_PER_HOUR } from "@/constants";
-import { useProtocolParamsContext } from "@/context/ProtocolParamsContext";
+import { BTC_BLOCK_TIME_MINS } from "@/constants";
+import { COPY } from "@/copy";
+import { formatDuration } from "@/utils/formatting";
 
 import { NominatedAddressValue } from "./NominatedAddressValue";
 
 interface WithdrawProgressViewProps {
-  /**
-   * Decoded BTC addresses (deduped) where this withdrawal is being paid out.
-   * Snapshotted at submission time from the on-chain registered
-   * `depositorPayoutBtcAddress` of each withdrawn vault.
-   */
+  /** Deduped payout BTC addresses, snapshotted at submit. */
   payoutAddresses: string[];
+  /** Max `timelockAssert` (blocks) across the withdrawn vaults; drives the ETA. */
+  assertTimelockBlocks: number;
   onClose: () => void;
 }
 
 export function WithdrawProgressView({
   payoutAddresses,
+  assertTimelockBlocks,
   onClose,
 }: WithdrawProgressViewProps) {
-  const { timelockPegin } = useProtocolParamsContext();
-
-  // Derive estimated wait from on-chain timelockPegin (in blocks) * avg block time
-  const estimatedHours = Math.ceil(
-    (timelockPegin * BTC_BLOCK_TIME_MINS) / MINS_PER_HOUR,
+  const copy = COPY.withdraw.initiated;
+  const estimatedDuration = formatDuration(
+    assertTimelockBlocks * BTC_BLOCK_TIME_MINS,
   );
 
   return (
     <div className="w-full">
       <Heading variant="h5" className="text-accent-primary">
-        Withdraw Initiated
+        {copy.title}
       </Heading>
 
       <div className="mt-6 flex flex-col gap-6">
         <Text variant="body1" className="text-accent-primary">
-          Your withdrawal transaction has been successfully submitted. The vault
-          provider will process your BTC and send it to your nominated address.
+          {copy.body}
         </Text>
 
         {payoutAddresses.length > 0 && (
           <div className="flex items-center justify-between">
             <Text variant="body2" className="text-accent-secondary">
-              Nominated Address
+              {COPY.withdraw.nominatedAddressLabel}
             </Text>
             <Text variant="body2" className="text-accent-primary">
               <NominatedAddressValue addresses={payoutAddresses} />
@@ -49,9 +46,14 @@ export function WithdrawProgressView({
           </div>
         )}
 
-        <Text variant="body2" className="text-accent-secondary">
-          Estimated time: ~{estimatedHours} hours
-        </Text>
+        <div className="flex items-center justify-between">
+          <Text variant="body2" className="text-accent-secondary">
+            {COPY.withdraw.estimatedTimeLabel}
+          </Text>
+          <Text variant="body2" className="text-accent-primary">
+            ~{estimatedDuration}
+          </Text>
+        </div>
 
         <Button
           variant="contained"
@@ -59,7 +61,7 @@ export function WithdrawProgressView({
           className="w-full"
           onClick={onClose}
         >
-          Done
+          {copy.doneButton}
         </Button>
       </div>
     </div>

@@ -28,10 +28,16 @@ const btcConfig = getNetworkConfigBTC();
 
 const RELATIVE_TIME_TICK_MS = 60_000;
 
-function useRelativeTime(timestamp: number): string {
-  const [label, setLabel] = useState(() => formatTimeAgo(timestamp));
+function useRelativeTime(timestamp: number | undefined): string | null {
+  const [label, setLabel] = useState(() =>
+    timestamp === undefined ? null : formatTimeAgo(timestamp),
+  );
 
   useEffect(() => {
+    if (timestamp === undefined) {
+      setLabel(null);
+      return;
+    }
     setLabel(formatTimeAgo(timestamp));
     const interval = setInterval(() => {
       setLabel(formatTimeAgo(timestamp));
@@ -45,8 +51,8 @@ function useRelativeTime(timestamp: number): string {
 interface VaultDetailCardProps {
   /** BTC amount (already converted from satoshis) */
   amountBtc: number;
-  /** Timestamp in milliseconds */
-  timestamp: number;
+  /** Timestamp in milliseconds. Omit to hide the Date row. */
+  timestamp?: number;
   /** Single BTC transaction hash to link in the explorer (hex, may include 0x
    * prefix). Used by the withdraw section to show the vault's peg-in tx hash.
    * Ignored when `txHashRow` is provided. */
@@ -126,16 +132,18 @@ export function VaultDetailCard({
       {belowHeader}
 
       {/* Date */}
-      <VaultCardRow label="Date">
-        <Hint
-          tooltip={formatDateTime(new Date(timestamp))}
-          attachToChildren
-          placement="left"
-          className="text-sm text-accent-primary"
-        >
-          <span>{relativeTime}</span>
-        </Hint>
-      </VaultCardRow>
+      {timestamp !== undefined && (
+        <VaultCardRow label="Date">
+          <Hint
+            tooltip={formatDateTime(new Date(timestamp))}
+            attachToChildren
+            placement="left"
+            className="text-sm text-accent-primary"
+          >
+            <span>{relativeTime}</span>
+          </Hint>
+        </VaultCardRow>
+      )}
 
       {/* Status */}
       {statusContent && (

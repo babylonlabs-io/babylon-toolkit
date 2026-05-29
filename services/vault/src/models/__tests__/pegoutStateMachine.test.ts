@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   getPegoutDisplayState,
+  getPegoutTxLinkFlags,
   isPegoutEffectivelyTerminal,
   isRecognizedPegoutStatus,
   TIMED_OUT_STATE,
@@ -45,6 +46,12 @@ describe("pegoutStateMachine", () => {
       expect(state.variant).toBe("pending");
     });
 
+    it("describes the challenge period (not 'a few hours') for AssertBroadcast", () => {
+      const state = getPegoutDisplayState("AssertBroadcast", true);
+      expect(state.message.toLowerCase()).toContain("challenge period");
+      expect(state.message.toLowerCase()).not.toContain("few hours");
+    });
+
     it("returns BTC Sent for PayoutBroadcast", () => {
       const state = getPegoutDisplayState("PayoutBroadcast", true);
       expect(state.label).toBe("BTC Sent");
@@ -70,6 +77,41 @@ describe("pegoutStateMachine", () => {
       const state = getPegoutDisplayState("corrupted_value_123", true);
       expect(state.label).toBe("Unknown");
       expect(state.message).toContain("corrupted_value_123");
+    });
+  });
+
+  describe("getPegoutTxLinkFlags", () => {
+    it("links neither tx before the claim is broadcast", () => {
+      expect(getPegoutTxLinkFlags(undefined)).toEqual({
+        linkClaim: false,
+        linkAssert: false,
+      });
+      expect(getPegoutTxLinkFlags("ClaimEventReceived")).toEqual({
+        linkClaim: false,
+        linkAssert: false,
+      });
+    });
+
+    it("links only the claim once the claim is broadcast", () => {
+      expect(getPegoutTxLinkFlags("ClaimBroadcast")).toEqual({
+        linkClaim: true,
+        linkAssert: false,
+      });
+    });
+
+    it("links both once the assert is broadcast", () => {
+      expect(getPegoutTxLinkFlags("AssertBroadcast")).toEqual({
+        linkClaim: true,
+        linkAssert: true,
+      });
+      expect(getPegoutTxLinkFlags("PayoutBroadcast")).toEqual({
+        linkClaim: true,
+        linkAssert: true,
+      });
+      expect(getPegoutTxLinkFlags("PayoutBlocked")).toEqual({
+        linkClaim: true,
+        linkAssert: true,
+      });
     });
   });
 

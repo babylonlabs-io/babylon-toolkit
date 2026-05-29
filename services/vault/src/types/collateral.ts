@@ -43,4 +43,7 @@ export interface CollateralVaultEntry {
   unsignedPrePeginTx?: string;
   /** Liquidation priority index (0 = seized first) */
   liquidationIndex: number;
+  /** Resolves the vault's peg-out `timelockAssert` for the withdrawal ETA.
+   *  Optional only because the `vault` relation is (like the fields above). */
+  offchainParamsVersion?: number;
 }

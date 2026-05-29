@@ -71,6 +71,9 @@ export interface RedeemedVaultInfo {
    *  `depositorPayoutBtcAddress` scriptPubKey). Undefined when the scriptPubKey
    *  fails to decode — surfaced as "row omitted" rather than blocking the section. */
   payoutBtcAddress?: string;
+  /** Offchain-params version this vault was created under. Resolves the vault's
+   *  `timelockAssert` for the payout-eligibility countdown. */
+  offchainParamsVersion: number;
 }
 
 export interface UseAaveVaultsResult {
@@ -171,6 +174,7 @@ export function useAaveVaults(
           vaultProviderAddress: vault.vaultProvider,
           createdAt: vault.createdAt,
           payoutBtcAddress,
+          offchainParamsVersion: vault.offchainParamsVersion,
         };
       });
   }, [vaults, findProvider]);
