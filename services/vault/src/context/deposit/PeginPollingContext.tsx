@@ -21,7 +21,7 @@ import {
 } from "react";
 
 import { usePeginPollingQuery } from "../../hooks/deposit/usePeginPollingQuery";
-import { usePrePeginMempoolConfirmations } from "../../hooks/deposit/usePrePeginMempoolConfirmations";
+import { useBtcMempoolConfirmations } from "../../hooks/useBtcMempoolConfirmations";
 import {
   ContractStatus,
   LocalStorageStatus,
@@ -45,6 +45,9 @@ import { isVaultOwnedByWallet } from "../../utils/vaultWarnings";
 import { useProtocolParamsContext } from "../ProtocolParamsContext";
 
 import { computeDepositPollingResult } from "./computeDepositPollingResult";
+
+/** React Query namespace for the Pre-PegIn confirmation poller. */
+const PREPEGIN_CONFIRMATIONS_QUERY_KEY = "prePeginMempoolConfirmations";
 
 /**
  * Whether a vault's localStorage status puts it in the window where the
@@ -199,7 +202,10 @@ export function PeginPollingProvider({
     ],
   );
   const { confirmationsByTxid: prePeginConfirmationsByTxid } =
-    usePrePeginMempoolConfirmations(relevantPrePeginTxids);
+    useBtcMempoolConfirmations(
+      relevantPrePeginTxids,
+      PREPEGIN_CONFIRMATIONS_QUERY_KEY,
+    );
 
   // Persist newly-confirmed observations and drop them from the next
   // poll set. Side effects sit outside the updater so StrictMode's

@@ -8,9 +8,15 @@ import {
 } from "@/applications/aave/constants";
 import { getWithdrawHfWarningState } from "@/applications/aave/utils";
 import { DetailsCard, type DetailRow } from "@/components/shared";
+import { BTC_BLOCK_TIME_MINS } from "@/constants";
 import { useProtocolParamsContext } from "@/context/ProtocolParamsContext";
+import { COPY } from "@/copy";
 import { useNetworkFees } from "@/hooks/useNetworkFees";
-import { formatBtcAmount, formatUsdValue } from "@/utils/formatting";
+import {
+  formatBtcAmount,
+  formatDuration,
+  formatUsdValue,
+} from "@/utils/formatting";
 
 import { HealthFactorDelta } from "./HealthFactorDelta";
 import { NominatedAddressValue } from "./NominatedAddressValue";
@@ -29,6 +35,8 @@ interface WithdrawReviewContentProps {
    * switched wallets since deposit.
    */
   payoutAddresses: string[];
+  /** Max `timelockAssert` (BTC blocks) across the selected vaults; drives the ETA. */
+  assertTimelockBlocks: number;
   isProcessing: boolean;
   onConfirm: () => void;
 }
@@ -39,6 +47,7 @@ export function WithdrawReviewContent({
   currentHealthFactor,
   projectedHealthFactor,
   payoutAddresses,
+  assertTimelockBlocks,
   isProcessing,
   onConfirm,
 }: WithdrawReviewContentProps) {
@@ -52,14 +61,6 @@ export function WithdrawReviewContent({
   const rows: DetailRow[] = useMemo(() => {
     const vpCommissionBtc = totalAmountBtc * (minVpCommissionBps / BPS_SCALE);
     const vpCommissionUsd = totalAmountUsd * (minVpCommissionBps / BPS_SCALE);
-
-    const nominatedRow: DetailRow | null =
-      payoutAddresses.length > 0
-        ? {
-            label: "Nominated Address",
-            value: <NominatedAddressValue addresses={payoutAddresses} />,
-          }
-        : null;
 
     const hfRow: DetailRow | null =
       currentHealthFactor === null
@@ -110,7 +111,26 @@ export function WithdrawReviewContent({
       ? [baseRows[0], hfRow, ...baseRows.slice(1)]
       : baseRows;
 
-    return nominatedRow ? [...withHf, nominatedRow] : withHf;
+    const estimatedTimeRow: DetailRow | null =
+      assertTimelockBlocks > 0
+        ? {
+            label: COPY.withdraw.estimatedTimeLabel,
+            value: `~${formatDuration(
+              assertTimelockBlocks * BTC_BLOCK_TIME_MINS,
+            )}`,
+          }
+        : null;
+
+    const nominatedRow: DetailRow | null =
+      payoutAddresses.length > 0
+        ? {
+            label: COPY.withdraw.nominatedAddressLabel,
+            value: <NominatedAddressValue addresses={payoutAddresses} />,
+          }
+        : null;
+
+    const withEta = estimatedTimeRow ? [...withHf, estimatedTimeRow] : withHf;
+    return nominatedRow ? [...withEta, nominatedRow] : withEta;
   }, [
     totalAmountBtc,
     totalAmountUsd,
@@ -118,6 +138,7 @@ export function WithdrawReviewContent({
     projectedHealthFactor,
     defaultFeeRate,
     minVpCommissionBps,
+    assertTimelockBlocks,
     payoutAddresses,
   ]);
 

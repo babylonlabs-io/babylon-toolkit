@@ -15,6 +15,10 @@ import {
   isPegoutTerminalStatus,
 } from "@babylonlabs-io/ts-sdk/tbv/core/services";
 
+import { COPY } from "@/copy";
+
+const STATUS_COPY = COPY.pegout.status;
+
 // ---------------------------------------------------------------------------
 // Polling thresholds — vault-specific polling policy, not protocol logic.
 // ---------------------------------------------------------------------------
@@ -53,48 +57,74 @@ export interface PegoutDisplayState {
 
 const PEGOUT_STATUS_MAP: Record<string, PegoutDisplayState> = {
   [ClaimerPegoutStatusValue.CLAIM_EVENT_RECEIVED]: {
-    label: "Processing",
+    label: STATUS_COPY.claimEventReceived.label,
     variant: "pending",
-    message:
-      "Your withdrawal request has been received and is being processed.",
+    message: STATUS_COPY.claimEventReceived.message,
   },
   [ClaimerPegoutStatusValue.CLAIM_BROADCAST]: {
-    label: "Processing",
+    label: STATUS_COPY.claimBroadcast.label,
     variant: "pending",
-    message:
-      "Your withdrawal is in progress. A transaction has been submitted to Bitcoin.",
+    message: STATUS_COPY.claimBroadcast.message,
   },
   [ClaimerPegoutStatusValue.ASSERT_BROADCAST]: {
-    label: "Confirming",
+    label: STATUS_COPY.assertBroadcast.label,
     variant: "pending",
-    message:
-      "Waiting for Bitcoin network confirmations. This may take a few hours.",
+    message: STATUS_COPY.assertBroadcast.message,
   },
   [ClaimerPegoutStatusValue.PAYOUT_BROADCAST]: {
-    label: "BTC Sent",
+    label: STATUS_COPY.payoutBroadcast.label,
     variant: "active",
-    message: "Your BTC has been sent to your nominated address.",
+    message: STATUS_COPY.payoutBroadcast.message,
   },
   [ClaimerPegoutStatusValue.PAYOUT_BLOCKED]: {
-    label: "Blocked",
+    label: STATUS_COPY.payoutBlocked.label,
     variant: "warning",
-    message:
-      "Withdrawal was blocked on-chain (challenger or council override). Please contact support.",
+    message: STATUS_COPY.payoutBlocked.message,
   },
 };
 
 const INITIATING_STATE: PegoutDisplayState = {
-  label: "Initiating",
+  label: STATUS_COPY.initiating.label,
   variant: "pending",
-  message: "Your withdrawal is being prepared by the vault provider.",
+  message: STATUS_COPY.initiating.message,
 };
 
 export const TIMED_OUT_STATE: PegoutDisplayState = {
-  label: "Status Unavailable",
+  label: STATUS_COPY.unavailable.label,
   variant: "warning",
-  message:
-    "Unable to determine withdrawal status. The vault provider may be unreachable. Please try again later or contact support.",
+  message: STATUS_COPY.unavailable.message,
 };
+
+// Gate explorer links on status: the txids are pre-computed at pegin time, so
+// they exist before the txs are actually on-chain.
+const CLAIM_ON_CHAIN_STATUSES = new Set<string>([
+  ClaimerPegoutStatusValue.CLAIM_BROADCAST,
+  ClaimerPegoutStatusValue.ASSERT_BROADCAST,
+  ClaimerPegoutStatusValue.PAYOUT_BROADCAST,
+  ClaimerPegoutStatusValue.PAYOUT_BLOCKED,
+]);
+const ASSERT_ON_CHAIN_STATUSES = new Set<string>([
+  ClaimerPegoutStatusValue.ASSERT_BROADCAST,
+  ClaimerPegoutStatusValue.PAYOUT_BROADCAST,
+  ClaimerPegoutStatusValue.PAYOUT_BLOCKED,
+]);
+
+/**
+ * Whether the claim/assert txids should link to the BTC explorer for a given
+ * claimer status. False until the corresponding tx has actually been broadcast.
+ */
+export function getPegoutTxLinkFlags(claimerStatus: string | undefined): {
+  linkClaim: boolean;
+  linkAssert: boolean;
+} {
+  return {
+    linkClaim:
+      claimerStatus !== undefined && CLAIM_ON_CHAIN_STATUSES.has(claimerStatus),
+    linkAssert:
+      claimerStatus !== undefined &&
+      ASSERT_ON_CHAIN_STATUSES.has(claimerStatus),
+  };
+}
 
 export function getPegoutDisplayState(
   claimerStatus: string | undefined,
@@ -110,8 +140,8 @@ export function getPegoutDisplayState(
   }
 
   return {
-    label: "Unknown",
+    label: STATUS_COPY.unknownLabel,
     variant: "warning",
-    message: `Unknown status: ${claimerStatus}. Please contact support.`,
+    message: STATUS_COPY.unknownMessage(claimerStatus),
   };
 }

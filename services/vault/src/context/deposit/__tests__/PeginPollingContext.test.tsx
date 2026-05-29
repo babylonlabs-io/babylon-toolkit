@@ -33,16 +33,16 @@ vi.mock("../../../hooks/deposit/usePeginPollingQuery", () => ({
 // assert which txids actually reach the mempool poller, while EXPIRED
 // maturity tests inject depth-reached entries via `mockReturnValue`.
 // `vi.hoisted` keeps the spy reference live across vi.mock's factory hoist.
-const { mockUsePrePeginMempoolConfirmations } = vi.hoisted(() => ({
-  mockUsePrePeginMempoolConfirmations: vi.fn<
+const { mockUseBtcMempoolConfirmations } = vi.hoisted(() => ({
+  mockUseBtcMempoolConfirmations: vi.fn<
     (txids: ReadonlyArray<string | undefined>) => {
       confirmationsByTxid: Map<string, number>;
     }
   >(() => ({ confirmationsByTxid: new Map<string, number>() })),
 }));
-vi.mock("../../../hooks/deposit/usePrePeginMempoolConfirmations", () => ({
-  usePrePeginMempoolConfirmations: (txids: ReadonlyArray<string | undefined>) =>
-    mockUsePrePeginMempoolConfirmations(txids),
+vi.mock("../../../hooks/useBtcMempoolConfirmations", () => ({
+  useBtcMempoolConfirmations: (txids: ReadonlyArray<string | undefined>) =>
+    mockUseBtcMempoolConfirmations(txids),
 }));
 
 const mockVersionedParams = new Map<number, { tRefund: number }>();
@@ -92,10 +92,10 @@ describe("PeginPollingContext", () => {
     mockQueryResult.pendingDepositorSignatures = undefined;
     mockQueryResult.isLoading = false;
     mockQueryResult.refetch.mockClear();
-    mockUsePrePeginMempoolConfirmations.mockReset();
+    mockUseBtcMempoolConfirmations.mockReset();
     // Default: empty confirmations. Individual tests can override via
     // `mockReturnValue` to inject a depth-reached entry.
-    mockUsePrePeginMempoolConfirmations.mockReturnValue({
+    mockUseBtcMempoolConfirmations.mockReturnValue({
       confirmationsByTxid: new Map<string, number>(),
     });
     mockVersionedParams.clear();
@@ -218,7 +218,7 @@ describe("PeginPollingContext", () => {
 
     // Poller receives the prePegin hashes — not the pegin hashes.
     const lastCall =
-      mockUsePrePeginMempoolConfirmations.mock.calls.at(-1)?.[0] ?? [];
+      mockUseBtcMempoolConfirmations.mock.calls.at(-1)?.[0] ?? [];
     expect(new Set(lastCall)).toEqual(new Set([PREPEGIN_A, PREPEGIN_B]));
     expect(lastCall).not.toContain(PEGIN_A);
     expect(lastCall).not.toContain(PEGIN_B);
@@ -304,7 +304,7 @@ describe("PeginPollingContext", () => {
     renderHook(() => usePeginPolling(), { wrapper });
 
     const lastCall =
-      mockUsePrePeginMempoolConfirmations.mock.calls.at(-1)?.[0] ?? [];
+      mockUseBtcMempoolConfirmations.mock.calls.at(-1)?.[0] ?? [];
     expect(new Set(lastCall)).toEqual(
       new Set([NO_LOCAL_ID, PENDING_ID, CONFIRMING_ID]),
     );
@@ -327,7 +327,7 @@ describe("PeginPollingContext", () => {
     // Seed the mock so the lookup site sees a confirmation count at depth
     // ONLY when keyed by prePeginTxHash. If the consumer accidentally keys
     // by peginTxHash, it would return undefined and we'd see PENDING below.
-    mockUsePrePeginMempoolConfirmations.mockReturnValue({
+    mockUseBtcMempoolConfirmations.mockReturnValue({
       confirmationsByTxid: new Map([
         [PREPEGIN_HASH.slice(2).toLowerCase(), REQUIRED_DEPTH],
       ]),
@@ -400,7 +400,7 @@ describe("PeginPollingContext", () => {
     // effect that captures the observation runs after render — we have to
     // give React a tick for the state update + re-render that drops the
     // confirmed txid from the next polled list.
-    mockUsePrePeginMempoolConfirmations.mockReturnValue({
+    mockUseBtcMempoolConfirmations.mockReturnValue({
       confirmationsByTxid: new Map([[canonical, REQUIRED_DEPTH]]),
     });
 
@@ -442,7 +442,7 @@ describe("PeginPollingContext", () => {
     // list drops the now-confirmed txid.
     await waitFor(() => {
       const lastCall =
-        mockUsePrePeginMempoolConfirmations.mock.calls.at(-1)?.[0] ?? [];
+        mockUseBtcMempoolConfirmations.mock.calls.at(-1)?.[0] ?? [];
       expect(lastCall).not.toContain(PREPEGIN_HASH);
     });
   });
@@ -464,7 +464,7 @@ describe("PeginPollingContext", () => {
     );
 
     // Empty mempool result (the poll skipped this txid because cache filter dropped it).
-    mockUsePrePeginMempoolConfirmations.mockReturnValue({
+    mockUseBtcMempoolConfirmations.mockReturnValue({
       confirmationsByTxid: new Map<string, number>(),
     });
     mockQueryResult.pendingIngestion = new Set([VAULT_ID]);
@@ -563,7 +563,7 @@ describe("PeginPollingContext", () => {
     renderHook(() => usePeginPolling(), { wrapper });
 
     // Every recorded polling-hook call should exclude the cached txid.
-    for (const call of mockUsePrePeginMempoolConfirmations.mock.calls) {
+    for (const call of mockUseBtcMempoolConfirmations.mock.calls) {
       expect(call[0]).not.toContain(PREPEGIN_HASH);
     }
   });
@@ -596,7 +596,7 @@ describe("PeginPollingContext", () => {
 
   it("EXPIRED: gates the refund action on CSV maturity (confirmations < tRefund → no action, maturing state)", () => {
     mockVersionedParams.set(3, { tRefund: 144 });
-    mockUsePrePeginMempoolConfirmations.mockReturnValue({
+    mockUseBtcMempoolConfirmations.mockReturnValue({
       confirmationsByTxid: new Map([[PRE_PEGIN_TXID_HEX, 20]]),
     });
 
@@ -610,7 +610,7 @@ describe("PeginPollingContext", () => {
 
   it("EXPIRED: exposes the refund action once CSV is satisfied (confirmations ≥ tRefund)", () => {
     mockVersionedParams.set(3, { tRefund: 144 });
-    mockUsePrePeginMempoolConfirmations.mockReturnValue({
+    mockUseBtcMempoolConfirmations.mockReturnValue({
       confirmationsByTxid: new Map([[PRE_PEGIN_TXID_HEX, 144]]),
     });
 
@@ -625,7 +625,7 @@ describe("PeginPollingContext", () => {
 
   it("EXPIRED: never marks mature when the per-deposit tRefund is unknown (no fallback to latest)", () => {
     // mockVersionedParams left empty for version 3 → tRefund undefined.
-    mockUsePrePeginMempoolConfirmations.mockReturnValue({
+    mockUseBtcMempoolConfirmations.mockReturnValue({
       confirmationsByTxid: new Map([[PRE_PEGIN_TXID_HEX, 9_999]]),
     });
 
@@ -639,7 +639,7 @@ describe("PeginPollingContext", () => {
 
   it("EXPIRED: reports unknown when confirmations are not yet available", () => {
     mockVersionedParams.set(3, { tRefund: 144 });
-    mockUsePrePeginMempoolConfirmations.mockReturnValue({
+    mockUseBtcMempoolConfirmations.mockReturnValue({
       confirmationsByTxid: new Map(),
     });
 
@@ -655,7 +655,7 @@ describe("PeginPollingContext", () => {
     // permanent. The mature cache lets us drop the txid from polling so a
     // long-stale expired vault doesn't burn `/tx/<txid>` per cycle.
     mockVersionedParams.set(3, { tRefund: 144 });
-    mockUsePrePeginMempoolConfirmations.mockReturnValue({
+    mockUseBtcMempoolConfirmations.mockReturnValue({
       confirmationsByTxid: new Map([[PRE_PEGIN_TXID_HEX, 144]]),
     });
 
@@ -663,7 +663,7 @@ describe("PeginPollingContext", () => {
 
     await waitFor(() => {
       const lastCall =
-        mockUsePrePeginMempoolConfirmations.mock.calls.at(-1)?.[0] ?? [];
+        mockUseBtcMempoolConfirmations.mock.calls.at(-1)?.[0] ?? [];
       expect(lastCall).not.toContain(EXPIRED_ACTIVITY.prePeginTxHash);
     });
   });
@@ -678,7 +678,7 @@ describe("PeginPollingContext", () => {
       JSON.stringify({ [PRE_PEGIN_TXID_HEX]: Date.now() }),
     );
     mockVersionedParams.set(3, { tRefund: 144 });
-    mockUsePrePeginMempoolConfirmations.mockReturnValue({
+    mockUseBtcMempoolConfirmations.mockReturnValue({
       confirmationsByTxid: new Map(),
     });
 
@@ -700,7 +700,7 @@ describe("PeginPollingContext", () => {
     // bypass surfaces REFUND_HTLC so main's ownership flow takes over.
     const OTHER_BTC_PUBKEY = "cd".repeat(32);
     mockVersionedParams.set(3, { tRefund: 144 });
-    mockUsePrePeginMempoolConfirmations.mockReturnValue({
+    mockUseBtcMempoolConfirmations.mockReturnValue({
       confirmationsByTxid: new Map(),
     });
 

@@ -63,6 +63,10 @@ export interface AavePositionCollateral {
      * registry is cold (e.g. collateral artifact re-download).
      */
     unsignedPrePeginTx?: string;
+    /** Offchain-params version this vault was created under. Used to resolve
+     * the vault's peg-out timelocks (e.g. `timelockAssert`) for ETAs.
+     * Optional: GraphQL data is untrusted; absent → ETA hidden, never NaN. */
+    offchainParamsVersion?: number;
   };
 }
 
@@ -100,6 +104,7 @@ interface GraphQLCollateralItem {
     depositorBtcPubKey: string;
     depositorPayoutBtcAddress: string;
     unsignedPrePeginTx?: string;
+    offchainParamsVersion?: number;
   };
 }
 
@@ -144,6 +149,7 @@ const GET_AAVE_ACTIVE_POSITIONS_WITH_COLLATERALS = gql`
               depositorBtcPubKey
               depositorPayoutBtcAddress
               unsignedPrePeginTx
+              offchainParamsVersion
             }
           }
         }
@@ -191,6 +197,10 @@ function mapGraphQLCollateralToAavePositionCollateral(
           depositorBtcPubKey: item.vault.depositorBtcPubKey,
           depositorPayoutBtcAddress: item.vault.depositorPayoutBtcAddress,
           unsignedPrePeginTx: item.vault.unsignedPrePeginTx,
+          offchainParamsVersion:
+            item.vault.offchainParamsVersion == null
+              ? undefined
+              : Number(item.vault.offchainParamsVersion),
         }
       : undefined,
   };

@@ -56,6 +56,7 @@ export function toCollateralVaultEntries(
       depositorPayoutBtcAddress: c.vault?.depositorPayoutBtcAddress,
       unsignedPrePeginTx: c.vault?.unsignedPrePeginTx,
       liquidationIndex: c.liquidationIndex,
+      offchainParamsVersion: c.vault?.offchainParamsVersion,
     };
   });
 }
