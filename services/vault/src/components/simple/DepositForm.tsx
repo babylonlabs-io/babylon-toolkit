@@ -139,6 +139,14 @@ interface DepositFormProps {
    * swaps its label to a progress indicator.
    */
   isReconnectingWallet?: boolean;
+
+  /**
+   * True when the connected ETH wallet cannot cover the registration tx
+   * (protocol pegin fee + estimated gas). Disables the CTA with an
+   * "Insufficient ETH" label, mirroring the BTC-side "Insufficient balance".
+   * Fail-open default (false) so a loading/errored read never blocks.
+   */
+  ethInsufficient?: boolean;
 }
 
 export function DepositForm({
@@ -185,6 +193,7 @@ export function DepositForm({
   walletConnectionErrorMessage = null,
   isVerifyingWallet = false,
   isReconnectingWallet = false,
+  ethInsufficient = false,
 }: DepositFormProps) {
   const [openPanel, setOpenPanel] = useState<"split" | "provider" | null>(null);
   const setPanelExpanded =
@@ -290,6 +299,7 @@ export function DepositForm({
     ordinalsCheckPending,
     hasWalletConnectionError,
     isReconnectingWallet,
+    ethInsufficient,
   });
 
   return (

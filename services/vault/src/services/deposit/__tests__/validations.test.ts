@@ -300,11 +300,47 @@ describe("Deposit Validations", () => {
       capUnavailable: false,
       minPeginFee: 500n,
       minPeginFeeError: null,
+      ethInsufficient: false,
     };
 
     it("returns enabled 'Deposit' when all conditions are met", () => {
       const result = getDepositCtaState(readyParams);
       expect(result).toEqual({ disabled: false, label: "Deposit" });
+    });
+
+    it("disables with 'Insufficient ETH' when ethInsufficient and BTC-side is otherwise ready", () => {
+      const result = getDepositCtaState({
+        ...readyParams,
+        ethInsufficient: true,
+      });
+      expect(result).toEqual({
+        disabled: true,
+        label: "Insufficient ETH",
+      });
+    });
+
+    it("shows the BTC-side block, not 'Insufficient ETH', when the amount exceeds the depositable max", () => {
+      // ethInsufficient must not pre-empt a BTC-side failure: the ETH branch is
+      // placed last so it only wins once the label would otherwise be "Deposit".
+      const result = getDepositCtaState({
+        ...readyParams,
+        ethInsufficient: true,
+        amountSats: 50000n,
+        maxDepositSats: 40000n,
+      });
+      expect(result).toEqual({ disabled: true, label: "Insufficient balance" });
+    });
+
+    it("shows 'Select a vault provider', not 'Insufficient ETH', when no provider is selected", () => {
+      const result = getDepositCtaState({
+        ...readyParams,
+        ethInsufficient: true,
+        hasProvider: false,
+      });
+      expect(result).toEqual({
+        disabled: true,
+        label: "Select a vault provider",
+      });
     });
 
     it("returns 'Depositing Unavailable' when deposits are disabled", () => {

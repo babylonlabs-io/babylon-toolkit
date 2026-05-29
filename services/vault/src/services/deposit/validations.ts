@@ -150,6 +150,14 @@ export interface DepositCtaParams extends DepositFormValidityParams {
    * indefinitely on "Calculating fees...".
    */
   minPeginFeeError: Error | null;
+  /**
+   * True when the connected ETH wallet cannot cover the on-chain registration
+   * tx (protocol pegin fee + estimated gas). Advisory pre-check: it only blocks
+   * once every BTC-side gate has passed (the label would otherwise be
+   * "Deposit"), and it is fail-open — false while the affordability read is
+   * loading, errored, or otherwise unknown.
+   */
+  ethInsufficient: boolean;
 }
 
 export interface DepositCtaState {
@@ -381,6 +389,16 @@ export function getDepositCtaState(params: DepositCtaParams): DepositCtaState {
 
   if (params.feeDisabled) {
     return { disabled: true, label: "Calculating fees..." };
+  }
+
+  // ETH affordability pre-check. Placed last so it only surfaces once every
+  // BTC-side gate has passed (the label would otherwise be "Deposit") — the
+  // user must not see "Insufficient ETH" while the amount is invalid, a
+  // provider is unselected, or fees are still loading. The flag is fail-open
+  // (false unless the wallet is known to be short), so a loading or errored
+  // affordability read never blocks here.
+  if (params.ethInsufficient) {
+    return { disabled: true, label: "Insufficient ETH" };
   }
 
   return { disabled: false, label: "Deposit" };

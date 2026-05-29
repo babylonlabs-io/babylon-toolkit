@@ -9,6 +9,7 @@ import { useGeoFencing } from "@/context/geofencing";
 import { ProtocolParamsProvider } from "@/context/ProtocolParamsContext";
 import { useBTCWallet, useETHWallet } from "@/context/wallet";
 import { useBtcWalletState } from "@/hooks/deposit/useBtcWalletState";
+import { useDepositEthAffordability } from "@/hooks/deposit/useDepositEthAffordability";
 import { useDepositPeginFee } from "@/hooks/deposit/useDepositPeginFee";
 import { useDialogStep } from "@/hooks/deposit/useDialogStep";
 import { usePendingVaultOverlapCheck } from "@/hooks/deposit/usePendingVaultOverlapCheck";
@@ -157,6 +158,7 @@ function SimpleDepositContent({
     isPartialLiquidation && vaultAmounts ? vaultAmounts.length : 1;
 
   const {
+    feeWei: peginFeeWei,
     feeEthFormatted: protocolFeeAmount,
     feeUsdFormatted: protocolFeePrice,
     isError: protocolFeeIsError,
@@ -166,6 +168,24 @@ function SimpleDepositContent({
       : undefined,
     depositBatchSize,
   );
+
+  // Pre-check that the connected ETH wallet can pay the registration tx
+  // (pegin fee + gas) before the user commits. Fail-open: only block the CTA
+  // when the wallet is definitively short; loading/errored reads leave
+  // `hasEnough` null and the submit-time estimateGas stays authoritative.
+  const { hasEnough: ethHasEnough } = useDepositEthAffordability({
+    ethAddress: connectedEthAddress as Address | undefined,
+    vaultProvider: formData.selectedProvider
+      ? (formData.selectedProvider as Address)
+      : undefined,
+    batchSize: depositBatchSize,
+    feeWei: peginFeeWei,
+    // Gate on a positive amount too: the fee/gas reads don't depend on the
+    // amount, but there's no point paying RPC before the user has entered a
+    // fundable amount (and the BTC-side label wins below 0n regardless).
+    enabled: isWalletConnected && amountSats > 0n,
+  });
+  const ethInsufficient = ethHasEnough === false;
 
   const totalDepositorClaimValue =
     depositorClaimValue !== undefined
@@ -416,6 +436,7 @@ function SimpleDepositContent({
                 walletConnectionErrorMessage={walletConnectionError}
                 isVerifyingWallet={isVerifyingWallet}
                 isReconnectingWallet={isReconnectingWallet}
+                ethInsufficient={ethInsufficient}
               />
             </div>
           </div>
