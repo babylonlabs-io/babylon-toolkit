@@ -281,7 +281,7 @@ export function useVaultActions(): UseVaultActionsReturn {
         } catch (err) {
           // Only a confirmed mismatch drops the entry — transient RPC
           // failures keep it so the user can retry. Mirrors the inline
-          // deposit path at useDepositFlow.ts:661.
+          // deposit path's version-check cleanup in useDepositFlow.
           if (isRegisteredVaultVersionMismatchError(err)) {
             removePendingPegin?.(vaultId);
           }
