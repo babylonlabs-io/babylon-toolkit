@@ -8,7 +8,7 @@
  * since it doesn't need to be live and benefits from caching.
  */
 
-import type { Address, PublicClient } from "viem";
+import type { Abi, Address, PublicClient } from "viem";
 
 import type {
   AaveSpokeUserAccountData,
@@ -248,6 +248,63 @@ export async function getUserTotalDebt(
   });
 
   return result as bigint;
+}
+
+/**
+ * Probe `getUserPosition` for many reserves in a single multicall.
+ *
+ * Returns one entry per `reserveId` in input order. Per-reserve reverts are
+ * isolated (`allowFailure: true`): that entry is `null` while the rest of the
+ * batch still resolves. Use for debt-reserve discovery, where a failed read
+ * means "treat as no debt", not a fatal error.
+ */
+export async function getUserPositions(
+  publicClient: PublicClient,
+  spokeAddress: Address,
+  reserveIds: bigint[],
+  userAddress: Address,
+): Promise<(AaveSpokeUserPosition | null)[]> {
+  if (reserveIds.length === 0) return [];
+  const results = await publicClient.multicall({
+    contracts: reserveIds.map((reserveId) => ({
+      address: spokeAddress,
+      abi: AaveSpokeABI as Abi,
+      functionName: "getUserPosition" as const,
+      args: [reserveId, userAddress] as const,
+    })),
+    allowFailure: true,
+  });
+  return results.map((r) =>
+    r.status === "success"
+      ? mapPositionResult(r.result as PositionResult)
+      : null,
+  );
+}
+
+/**
+ * Read `getUserTotalDebt` for many reserves in a single multicall.
+ *
+ * Hard-fails (`allowFailure: false`): any reserve's revert rejects the whole
+ * call. Use only for reserves already known to carry debt — there a failed
+ * read is a genuine error, not a "no debt" signal.
+ */
+export async function getUserTotalDebts(
+  publicClient: PublicClient,
+  spokeAddress: Address,
+  reserveIds: bigint[],
+  userAddress: Address,
+): Promise<bigint[]> {
+  if (reserveIds.length === 0) return [];
+  const results = await publicClient.multicall({
+    contracts: reserveIds.map((reserveId) => ({
+      address: spokeAddress,
+      abi: AaveSpokeABI as Abi,
+      functionName: "getUserTotalDebt" as const,
+      args: [reserveId, userAddress] as const,
+    })),
+    allowFailure: false,
+  });
+  return results as unknown as bigint[];
 }
 
 /** Result type from the `getReserve` contract call.

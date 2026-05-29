@@ -11,7 +11,9 @@ export {
   getTargetHealthFactor,
   getUserAccountData,
   getUserPosition,
+  getUserPositions,
   getUserTotalDebt,
+  getUserTotalDebts,
   hasCollateral,
   hasDebt,
 } from "./spoke.js";
