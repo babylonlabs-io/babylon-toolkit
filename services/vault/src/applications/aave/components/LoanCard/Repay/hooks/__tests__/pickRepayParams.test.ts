@@ -77,6 +77,45 @@ describe("pickRepayParams", () => {
     });
   });
 
+  it("returns 'partial' for an 18-decimal balance one base unit below debt (raw comparison, not rounded)", async () => {
+    // debt = 1e18 + 1, balance = 1e18. Both format to "1"/"1.000…001" and
+    // collapse to the JS number 1, so a rounded comparison would pick
+    // max-capped — whose sentinel repays the full debt while approving only the
+    // balance, reverting. The raw bigints differ, so this must be partial.
+    const result = await pickRepayParams({
+      refetchPosition: () =>
+        Promise.resolve(positionWithDebt(1_000_000_000_000_000_001n)),
+      refetchUserBalance: () =>
+        Promise.resolve(balanceResultOk(1_000_000_000_000_000_000n)),
+      reserveId: RESERVE_ID,
+      tokenDecimals: 18,
+    });
+
+    expect(result.kind).toBe("ok");
+    if (result.kind === "ok") {
+      expect(result.mode).toBe("partial");
+      expect(result.amountRaw).toBeNull();
+    }
+  });
+
+  it("returns 'max-capped' when an 18-decimal balance exactly equals debt", async () => {
+    // Raw balance == raw debt: max-capped is correct (approval covers the debt
+    // exactly, sentinel clears it in full).
+    const equalRaw = 1_000_000_000_000_000_000n;
+    const result = await pickRepayParams({
+      refetchPosition: () => Promise.resolve(positionWithDebt(equalRaw)),
+      refetchUserBalance: () => Promise.resolve(balanceResultOk(equalRaw)),
+      reserveId: RESERVE_ID,
+      tokenDecimals: 18,
+    });
+
+    expect(result.kind).toBe("ok");
+    if (result.kind === "ok") {
+      expect(result.mode).toBe("max-capped");
+      expect(result.amountRaw).toBe(equalRaw);
+    }
+  });
+
   it("returns 'partial' (no bigint) when balance is below debt", async () => {
     const result = await pickRepayParams({
       refetchPosition: () => Promise.resolve(positionWithDebt(100_000_000n)),
