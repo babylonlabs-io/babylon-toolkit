@@ -9,8 +9,12 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import type { Address, Hex } from "viem";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { COPY } from "@/copy";
+
 import { DepositFlowStep } from "../depositFlowSteps";
 import { useDepositFlow } from "../useDepositFlow";
+
+const DEPOSIT_ERRORS = COPY.deposit.errors;
 
 // ============================================================================
 // Mocks
@@ -585,8 +589,9 @@ describe("useDepositFlow", () => {
       await executeWithAutoArtifactDownload(result);
 
       await waitFor(() => {
-        expect(result.current.error).toMatch(
-          /signer-set or offchain-params versions changed/,
+        // Version-mismatch errors map to the friendly "parameters changed" copy.
+        expect(result.current.error?.body).toBe(
+          DEPOSIT_ERRORS.versionMismatch.body,
         );
       });
       expect(broadcastPrePeginTransaction).not.toHaveBeenCalled();
@@ -660,7 +665,8 @@ describe("useDepositFlow", () => {
       await executeWithAutoArtifactDownload(result);
 
       await waitFor(() => {
-        expect(result.current.error).toContain(
+        // Unrecognized errors fall through to the sanitized raw message.
+        expect(result.current.error?.body).toContain(
           "Vault keeper BTC pubkeys do not match",
         );
       });
@@ -955,8 +961,8 @@ describe("useDepositFlow", () => {
       await executeWithAutoArtifactDownload(result);
 
       await waitFor(() => {
-        expect(result.current.error).toContain(
-          "BTC wallet account changed during deposit flow",
+        expect(result.current.error?.body).toBe(
+          DEPOSIT_ERRORS.walletAccountChanged.body,
         );
       });
 
@@ -1099,8 +1105,9 @@ describe("useDepositFlow", () => {
       await executeWithAutoArtifactDownload(result);
 
       await waitFor(() => {
-        expect(result.current.error).toContain(
-          "Failed to broadcast batch Pre-PegIn transaction",
+        // Broadcast failures map to the friendly broadcast callout.
+        expect(result.current.error?.body).toBe(
+          DEPOSIT_ERRORS.broadcastFailed.body,
         );
       });
       // The depositRecordNotSaved warning collected BEFORE the broadcast
@@ -1124,7 +1131,9 @@ describe("useDepositFlow", () => {
       await executeWithAutoArtifactDownload(result);
 
       await waitFor(() => {
-        expect(result.current.error).toContain("Insufficient funds");
+        // A BTC sat shortfall isn't a known bucket, so the raw message is
+        // preserved in the callout body.
+        expect(result.current.error?.body).toContain("Insufficient funds");
         expect(result.current.processing).toBe(false);
       });
     });

@@ -30,6 +30,7 @@ export * from "./components/CoStakingAmountItem";
 export * from "./components/DisplayHash";
 export * from "./components/Copy";
 export * from "./components/Icons";
+export * from "./components/Callout";
 export * from "./components/Warning";
 export * from "./components/Hint";
 export * from "./components/DismissibleSubSection";

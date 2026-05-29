@@ -54,6 +54,7 @@ import {
   shouldProbeWalletLiveness,
   verifyBtcWalletLiveness,
 } from "@/utils/btc";
+import { mapDepositError } from "@/utils/errors";
 import { getVpProxyUrl } from "@/utils/rpc";
 
 import { DepositProgressView } from "./DepositProgressView";
@@ -119,13 +120,17 @@ export function ResumeSignContent({
     renderStep,
     signing,
     renderIsWaiting,
-    error?.message ?? null,
+    error != null,
   );
 
   return (
     <DepositProgressView
       currentStep={renderStep}
-      error={error?.message ?? null}
+      // usePayoutSigningState already produces structured { title, message }
+      // errors with actionable guard titles (missing/mismatched payout address,
+      // wallet liveness, etc.). Pass them through directly so the callout keeps
+      // that title instead of collapsing to the generic mapped fallback.
+      error={error ? { title: error.title, body: error.message } : null}
       isComplete={derived.isComplete}
       isProcessing={derived.isProcessing}
       canClose={derived.canClose}
@@ -188,13 +193,13 @@ export function ResumeBroadcastContent({
     DepositFlowStep.BROADCAST_PRE_PEGIN,
     broadcasting,
     false,
-    error,
+    error != null,
   );
 
   return (
     <DepositProgressView
       currentStep={DepositFlowStep.BROADCAST_PRE_PEGIN}
-      error={error}
+      error={error ? mapDepositError(error) : null}
       isComplete={derived.isComplete}
       isProcessing={derived.isProcessing}
       canClose={derived.canClose}
@@ -449,7 +454,7 @@ export function ResumeWotsContent({
     renderStep,
     loading && !advanced,
     advanced,
-    error,
+    error != null,
   );
 
   // requiredDepth is pinned to the version this deposit registered against
@@ -477,7 +482,7 @@ export function ResumeWotsContent({
   return (
     <DepositProgressView
       currentStep={renderStep}
-      error={error}
+      error={error ? mapDepositError(error) : null}
       isComplete={derived.isComplete}
       isProcessing={derived.isProcessing}
       canClose={derived.canClose}
@@ -667,7 +672,7 @@ export function ResumeActivationContent({
     renderStep,
     activating || loading,
     activated && !active,
-    error,
+    error != null,
   );
 
   const handleDone = useCallback(() => {
@@ -681,7 +686,7 @@ export function ResumeActivationContent({
   return (
     <DepositProgressView
       currentStep={renderStep}
-      error={error}
+      error={error ? mapDepositError(error) : null}
       isComplete={derived.isComplete}
       isProcessing={derived.isProcessing}
       canClose={derived.canClose}

@@ -79,7 +79,7 @@ import {
   verifyBtcWalletLiveness,
 } from "@/utils/btc";
 import { satoshiToBtcNumber } from "@/utils/btcConversion";
-import { sanitizeErrorMessage } from "@/utils/errors/formatting";
+import { mapDepositError, type DepositErrorContent } from "@/utils/errors";
 import { formatBtcValue } from "@/utils/formatting";
 import { getVpProxyUrl } from "@/utils/rpc";
 
@@ -142,8 +142,8 @@ export interface UseDepositFlowReturn {
   currentVaultIndex: number | null;
   /** Whether the flow is currently processing */
   processing: boolean;
-  /** Error message if any step failed */
-  error: string | null;
+  /** Mapped error content (title + body) if any step failed */
+  error: DepositErrorContent | null;
   /**
    * Soft warnings accumulated by the most recent flow (e.g. "couldn't save a
    * local copy" when the deposit registered on-chain but `addPendingPegin`
@@ -234,7 +234,7 @@ export function useDepositFlow(
     null,
   );
   const [processing, setProcessing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<DepositErrorContent | null>(null);
   const [isWaiting, setIsWaiting] = useState(false);
   // Soft warnings accumulated during the most recent run (per-vault payout
   // failures, localStorage write failures, etc.). Exposed so the UI can
@@ -1039,7 +1039,7 @@ export function useDepositFlow(
 
         // Don't show error if flow was aborted (user intentionally closed modal)
         if (!signal.aborted) {
-          setError(sanitizeErrorMessage(err));
+          setError(mapDepositError(err));
           logger.error(err instanceof Error ? err : new Error(String(err)), {
             data: {
               context: "Multi-vault deposit flow error",

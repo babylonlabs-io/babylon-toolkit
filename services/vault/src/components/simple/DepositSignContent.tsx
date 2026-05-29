@@ -76,7 +76,12 @@ export function DepositSignContent({
 
   // Derived state
   const { isComplete, canClose, isProcessing, canContinueInBackground } =
-    computeDepositDerivedState(currentStep, processing, isWaiting, error);
+    computeDepositDerivedState(
+      currentStep,
+      processing,
+      isWaiting,
+      error != null,
+    );
 
   const handleClose = useCallback(() => {
     abort();

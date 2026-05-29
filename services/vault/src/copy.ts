@@ -40,6 +40,12 @@
 const PRE_PEGIN_BROADCAST_CONFIRMATION_MESSAGE =
   "Your Bitcoin transaction has been broadcast to the network. It will be confirmed after receiving the required number of Bitcoin confirmations.";
 const SOMETHING_WENT_WRONG_HEADING = "Something went wrong";
+// Generic deposit-failure title; shared so per-bucket titles can't drift.
+const TRANSACTION_FAILED_TITLE = "Transaction failed";
+// Shared between the resume WOTS error string and the mapped callout body so
+// the wording stays in one place.
+const WRONG_WALLET_BODY =
+  "WOTS public key hash does not match the on-chain commitment — the wrong wallet is connected.";
 
 export const COPY = {
   pegin: {
@@ -336,8 +342,7 @@ export const COPY = {
       activationSuccessMessage: "Your BTC Vault has been activated.",
       readyToActivateMessage:
         "Your payout transactions are signed and verified. Your BTC Vault is ready to activate.",
-      wotsMismatchError:
-        "WOTS public key hash does not match the on-chain commitment — the wrong wallet is connected.",
+      wotsMismatchError: WRONG_WALLET_BODY,
     },
     warnings: {
       depositRecordNotSaved:
@@ -355,6 +360,90 @@ export const COPY = {
         `Please switch to ${network} in your wallet`,
       ethereumMainnet: "Ethereum Mainnet",
       sepoliaTestnet: "Sepolia Testnet",
+      // ----------------------------------------------------------------------
+      // Deposit-flow error callout copy (title + body). Consumed by
+      // `mapDepositError` (utils/errors/depositErrors.ts). `defaultTitle` is the
+      // generic fallback title shown in the error Callout; `genericBody` is the
+      // fallback body only when the raw error is unrecognized and unsafe to show.
+      // ----------------------------------------------------------------------
+      defaultTitle: TRANSACTION_FAILED_TITLE,
+      genericBody:
+        "Something went wrong during your deposit. Please try again.",
+      insufficientEthForGas: {
+        title: TRANSACTION_FAILED_TITLE,
+        body: "Your wallet doesn't have enough ETH to cover the network fee. Add more ETH and retry the transaction.",
+      },
+      signingRejected: {
+        title: "Signing rejected",
+        body: "You rejected the request in your wallet. Click Retry to approve it and continue.",
+      },
+      walletNotConnected: {
+        title: "Wallet not connected",
+        body: "Please reconnect your Bitcoin and Ethereum wallets, then try again.",
+      },
+      walletAccountChanged: {
+        title: "Wallet account changed",
+        body: "Your wallet account changed during the deposit. Please restart the deposit with the original account.",
+      },
+      utxosUnavailable: {
+        title: "Bitcoin funds unavailable",
+        body: "We couldn't confirm your Bitcoin funds are available. They may be in use by another deposit. Please try again in a moment.",
+      },
+      broadcastFailed: {
+        title: "Broadcast failed",
+        body: "We couldn't broadcast your Bitcoin transaction to the network. Please try again.",
+      },
+      providerNotFound: {
+        title: "Vault provider not found",
+        body: "The selected vault provider could not be found. Please refresh and try again.",
+      },
+      versionMismatch: {
+        title: "Protocol parameters changed",
+        body: "The protocol parameters changed while preparing your deposit. Please restart the deposit.",
+      },
+      wrongWalletAccount: {
+        title: "Wrong wallet account",
+        body: WRONG_WALLET_BODY,
+      },
+      // Vault-provider JSON-RPC error copy, consumed by `mapVpRpcError`
+      // (utils/errors/formatting.ts). Title + message are both user-facing.
+      vp: {
+        syncing: {
+          title: "Vault Provider Syncing",
+          message:
+            "The vault provider hasn't ingested your peg-in yet. Please wait a moment and try again.",
+        },
+        requestTimeout: {
+          title: "Request Timeout",
+          message:
+            "The vault provider took too long to respond. Please try again.",
+        },
+        providerNotFound: {
+          title: "Provider Not Found",
+          message:
+            "The vault provider could not be found in the on-chain registry. It may have been deregistered.",
+        },
+        connectionFailed: {
+          title: "Connection Failed",
+          message:
+            "Unable to connect to the vault provider. Please check your connection and try again.",
+        },
+        providerTimeout: {
+          title: "Provider Timeout",
+          message:
+            "The vault provider took too long to respond. Please try again later.",
+        },
+        providerUnavailable: {
+          title: "Provider Unavailable",
+          message:
+            "The vault provider is temporarily unreachable. Please try again later.",
+        },
+        rejected: {
+          title: "Signature Submission Failed",
+          message: (code: number) =>
+            `The vault provider rejected the request (error code: ${code}). Please try again or contact support.`,
+        },
+      },
     },
     payoutSigningGuards: {
       missingPayoutAddress: {

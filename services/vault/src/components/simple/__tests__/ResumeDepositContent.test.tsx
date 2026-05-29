@@ -41,6 +41,7 @@ vi.mock("@babylonlabs-io/ts-sdk/tbv/core", () => ({
   expandWotsSeed: vi.fn(() => new Uint8Array(32)),
   hexToUint8Array: vi.fn(() => new Uint8Array(32)),
   isWotsMismatchError: vi.fn(() => false),
+  isRegisteredVaultVersionMismatchError: vi.fn(() => false),
   parseFundingOutpointsFromTx: mockParseFundingOutpointsFromTx,
   stripHexPrefix: vi.fn((hex: string) => hex.replace(/^0x/, "")),
   uint8ArrayToHex: vi.fn(() => "00".repeat(32)),
@@ -48,6 +49,9 @@ vi.mock("@babylonlabs-io/ts-sdk/tbv/core", () => ({
 
 vi.mock("@babylonlabs-io/ts-sdk/tbv/core/clients", () => ({
   primeVpTokenRegistry: vi.fn(),
+  // mapDepositError narrows on `instanceof JsonRpcError`; provide a real class
+  // so the check is callable (these tests never throw a JsonRpcError).
+  JsonRpcError: class JsonRpcError extends Error {},
 }));
 
 vi.mock("@babylonlabs-io/ts-sdk/tbv/core/utils", () => ({
@@ -191,7 +195,7 @@ vi.mock("../DepositProgressView", () => ({
     canContinueInBackground,
   }: {
     currentStep?: string;
-    error?: string | null;
+    error?: { title: string; body: string } | null;
     isComplete?: boolean;
     isProcessing?: boolean;
     terminalMessage?: string | null;
@@ -199,7 +203,7 @@ vi.mock("../DepositProgressView", () => ({
   }) => (
     <div data-testid="progress-view">
       <span data-testid="step">{String(currentStep)}</span>
-      <span data-testid="error">{error ?? ""}</span>
+      <span data-testid="error">{error?.body ?? ""}</span>
       <span data-testid="complete">{String(!!isComplete)}</span>
       <span data-testid="processing">{String(!!isProcessing)}</span>
       <span data-testid="terminal">{terminalMessage ?? ""}</span>
