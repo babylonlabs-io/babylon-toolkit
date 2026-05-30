@@ -506,6 +506,40 @@ describe("useVaultActions — handleBroadcast version drift guard", () => {
     expect(getProtocolInfoBatch).not.toHaveBeenCalled();
   });
 
+  // The no-anchor path leans ENTIRELY on the on-chain prePeginTxHash match to
+  // pin the (indexer-served) tx, since there is no local copy to compare. Pin
+  // that this guard still refuses with no local record: a mismatch must abort
+  // before any signing. Without this, a future refactor that gated the hash
+  // check behind `if (pendingPegin)` would broadcast substituted indexer hex
+  // with every other test still green.
+  it("refuses the no-record broadcast when the on-chain prePeginTxHash mismatches", async () => {
+    mockGetVaultRegistryReader.mockReturnValue({
+      getProtocolInfoBatch: makeMatchingProtocolInfoBatch(),
+    } as unknown as ReturnType<typeof getVaultRegistryReader>);
+    // Indexer-served tx hashes to the beforeEach default
+    // ("0xmatching_pre_pegin_hash"); make the on-chain commitment differ.
+    mockGetVaultFromChain.mockResolvedValue({
+      prePeginTxHash: "0xonchain_hash_that_differs",
+      hashlock: "0xonchain_hashlock",
+      status: OnChainBtcVaultStatus.PENDING,
+    } as never);
+
+    const { result } = renderHook(() => useVaultActions());
+
+    await act(async () => {
+      await result.current.handleBroadcast({
+        ...baseBroadcastParams,
+        // No pendingPegin: relaxed no-anchor path.
+      });
+    });
+
+    expect(result.current.broadcastError).toContain(
+      "Transaction integrity check failed",
+    );
+    expect(mockBroadcastPrePeginTransaction).not.toHaveBeenCalled();
+    expect(mockSignPsbt).not.toHaveBeenCalled();
+  });
+
   // An entry whose `unsignedTxHex === ""` carries no local tx, so the resume
   // path broadcasts the indexer's tx (verified against on-chain prePeginTxHash
   // above). Any stored build versions are floating — not tied to that tx — so
