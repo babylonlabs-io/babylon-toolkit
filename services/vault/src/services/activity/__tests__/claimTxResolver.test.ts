@@ -23,9 +23,9 @@ import {
 const VP_A = "0xaaaa000000000000000000000000000000000001";
 const VP_B = "0xbbbb000000000000000000000000000000000002";
 
-function claimer(claim_txid: string) {
+function claimer(claim_txid: string, status: string = "PayoutBroadcast") {
   return {
-    status: "PayoutBroadcast",
+    status,
     failed: false,
     claim_txid,
     claimer_pubkey: "",
@@ -130,6 +130,56 @@ describe("resolveRedeemClaimTxids", () => {
     const map = await resolveRedeemClaimTxids([{ vaultId: "0xv1" }], lookup);
 
     expect(map.has("0xv1")).toBe(false);
+  });
+
+  it("omits claim txids that are not yet broadcast on Bitcoin (ClaimEventReceived)", async () => {
+    const lookup = new Map<string, RedeemVaultLookup>([
+      ["0xv1", { peginTxHash: "0xpegin1", vaultProvider: VP_A }],
+    ]);
+
+    batchGetPegoutStatus.mockResolvedValueOnce({
+      results: [
+        {
+          pegin_txid: "pegin1",
+          result: {
+            pegin_txid: "pegin1",
+            found: true,
+            claimer: claimer("claimPre", "ClaimEventReceived"),
+            challengers: [],
+          },
+          error: null,
+        },
+      ],
+    });
+
+    const map = await resolveRedeemClaimTxids([{ vaultId: "0xv1" }], lookup);
+
+    expect(map.has("0xv1")).toBe(false);
+  });
+
+  it("includes the claim txid once the claim tx is broadcast (ClaimBroadcast)", async () => {
+    const lookup = new Map<string, RedeemVaultLookup>([
+      ["0xv1", { peginTxHash: "0xpegin1", vaultProvider: VP_A }],
+    ]);
+
+    batchGetPegoutStatus.mockResolvedValueOnce({
+      results: [
+        {
+          pegin_txid: "pegin1",
+          result: {
+            pegin_txid: "pegin1",
+            found: true,
+            claimer: claimer("claimLive", "ClaimBroadcast"),
+            challengers: [],
+          },
+          error: null,
+        },
+      ],
+    });
+
+    const map = await resolveRedeemClaimTxids([{ vaultId: "0xv1" }], lookup);
+
+    expect(map.get("0xv1")).toBe("claimLive");
   });
 
   it("treats VP errors as soft failures and returns the partial map", async () => {

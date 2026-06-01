@@ -21,6 +21,7 @@ import {
 } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 
 import { logger } from "@/infrastructure";
+import { getPegoutTxLinkFlags } from "@/models/pegoutStateMachine";
 import { createVpClient } from "@/utils/rpc";
 
 export interface RedeemVaultLookup {
@@ -80,7 +81,13 @@ export async function resolveRedeemClaimTxids(
           onItem: (entry, envelope) => {
             if (envelope.error !== null) return;
             const claimer = envelope.result?.claimer;
-            const claimTxid = claimer?.claim_txid;
+            if (!claimer) return;
+            // The claim txid is pre-computed at peg-in, so it exists before the
+            // claim tx is on-chain. Only surface it once the claimer status
+            // says it's been broadcast — otherwise the row would link to a tx
+            // that isn't in any mempool yet, the exact broken link this fixes.
+            if (!getPegoutTxLinkFlags(claimer.status).linkClaim) return;
+            const claimTxid = claimer.claim_txid;
             if (typeof claimTxid === "string" && claimTxid.length > 0) {
               out.set(entry.vaultId, claimTxid);
             }
