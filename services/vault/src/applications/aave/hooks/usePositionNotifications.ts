@@ -51,7 +51,7 @@ function buildLiveHfUrgentWarning(healthFactor: number): Warning {
     title: `Critical — health factor ${healthFactor.toFixed(2)}`,
     detail: `On-chain health factor is at or below ${LIVE_HF_URGENT_THRESHOLD.toFixed(2)}. The position can be liquidated at the current price.`,
     suggestion:
-      "Add collateral or repay part of the debt to restore a safe Health Factor.",
+      "Add collateral or repay part of the debt to restore a safe health factor.",
   };
 }
 

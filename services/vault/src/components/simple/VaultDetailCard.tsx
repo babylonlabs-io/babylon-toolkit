@@ -151,7 +151,7 @@ export function VaultDetailCard({
       )}
 
       {/* Vault Provider */}
-      <VaultCardRow label="Vault Provider">
+      <VaultCardRow label="Vault provider">
         <Hint
           tooltip={truncateAddress(providerAddress)}
           attachToChildren
@@ -188,7 +188,7 @@ export function VaultDetailCard({
       {/* Nominated Address — destination registered at vault creation.
           May differ from the currently connected BTC wallet. */}
       {payoutBtcAddress && (
-        <VaultCardRow label="Nominated Address">
+        <VaultCardRow label="Nominated address">
           <CopyableHash
             hash={payoutBtcAddress}
             chain="BTC"

@@ -249,7 +249,7 @@ function applyPerDepositStatus(
       depositId,
       new TerminalPeginPollingError(
         DaemonStatus.INVALID_SIG_IN_CONTRACT,
-        "Vault provider posted an invalid pegin signature on-chain; this deposit cannot proceed.",
+        "Vault provider posted an invalid peg-in signature on-chain; this deposit cannot proceed.",
       ),
     );
     sets.needsWotsKey.delete(depositId);

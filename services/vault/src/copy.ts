@@ -69,11 +69,11 @@ export const COPY = {
     txHash: {
       // Row label for the dual Pegin / Pre-Pegin hash row on deposit and
       // collateral cards.
-      label: "TX Hash",
+      label: "Transaction hash",
       // Row label for the single-hash row (withdraw section).
-      singleLabel: "Transaction Hash",
+      singleLabel: "Transaction hash",
       // Inline prefixes for each hash in the dual row.
-      pegin: "Pegin:",
+      pegin: "Peg-in:",
       prePegin: "Pre-Pegin:",
     },
     messages: {
@@ -144,7 +144,7 @@ export const COPY = {
     },
     warnings: {
       walletOwnershipMismatch: (truncatedPubkey: string) =>
-        `This BTC vault was created with a different BTC public key (${truncatedPubkey}). Switch to that wallet to perform actions.`,
+        `This BTC Vault was created with a different BTC public key (${truncatedPubkey}). Switch to that wallet to perform actions.`,
     },
   },
   deposit: {
@@ -155,7 +155,7 @@ export const COPY = {
       signAndBroadcastEth: "Sign and broadcast ETH registration",
       signAndBroadcastPrePegin: "Sign and broadcast BTC Pre-Pegin transaction",
       confirmingDeposit:
-        "Awaiting Pre-Pegin tx inclusion (1 BTC block · ~10 min)",
+        "Awaiting Pre-Pegin inclusion (1 Bitcoin block · ~10 min)",
       submitWotsKey: "Set up Winternitz One-Time Signature (WOTS)",
       awaitPayoutTransactions: "Awaiting Pre-Pegin confirmations",
       authenticateSession: "Authenticate session with vault provider",
@@ -211,7 +211,7 @@ export const COPY = {
           blocksLeft === 1 ? "block" : "blocks"
         })`,
       finalizing: "Finalizing...",
-      bitcoinTx: "Pre-Pegin BTC TX",
+      bitcoinTx: "Pre-Pegin Bitcoin transaction",
       // Compact summary rendered inline on PendingDepositCard during the
       // AWAIT_PAYOUT_TRANSACTIONS wait. Mirrors the modal panel's "blocks
       // left + minutes" framing (the label "Awaiting Pre-Pegin confirmations"
@@ -262,7 +262,7 @@ export const COPY = {
     refundReview: {
       heading: "Review Refund",
       refundAmount: "Refund Amount",
-      networkFeeRate: "Network Fee Rate",
+      networkFeeRate: "Network fee rate",
       btcNetworkFee: "BTC Network Fee",
       youReceive: "You'll receive",
       fallbackFeeWarning:
@@ -273,15 +273,15 @@ export const COPY = {
       confirmButton: "Confirm",
     },
     activateConfirmation: {
-      title: "Activate your vault",
-      body: "Before activating, download your vault artifacts. These files may be needed later to recover access to your vault.",
+      title: "Activate your BTC Vault",
+      body: "Before activating, download your BTC Vault artifacts. These files may be needed later to recover access to your BTC Vault.",
       riskAcknowledgement:
         "I understand the risks of continuing without the artifacts.",
       activateButton: "Activate Vault",
       cancelButton: "Cancel",
     },
     artifactDownload: {
-      title: "Download BTC Vault Artifacts",
+      title: "Download BTC Vault artifacts",
       body: "Download your BTC Vault artifacts. These files are required to independently claim your funds if the vault provider is unavailable.",
       cancelButton: "Cancel",
       continueButton: "Continue",
@@ -311,7 +311,7 @@ export const COPY = {
       pendingConfirmationTooltip:
         "Only balances confirmed in a Bitcoin block are shown here. This amount is still waiting to confirm.",
       doNotSplit: "Do not split UTXO",
-      selectVaultProvider: "Select Vault Provider",
+      selectVaultProvider: "Select vault provider",
       providerSelectDescription: "Choose a provider to secure your BTC",
       providerSelectEmpty: "No vault providers available at this time.",
       providerStatusUnavailable: "Unavailable",
@@ -409,37 +409,37 @@ export const COPY = {
       // (utils/errors/formatting.ts). Title + message are both user-facing.
       vp: {
         syncing: {
-          title: "Vault Provider Syncing",
+          title: "Vault provider syncing",
           message:
             "The vault provider hasn't ingested your peg-in yet. Please wait a moment and try again.",
         },
         requestTimeout: {
-          title: "Request Timeout",
+          title: "Request timeout",
           message:
             "The vault provider took too long to respond. Please try again.",
         },
         providerNotFound: {
-          title: "Provider Not Found",
+          title: "Provider not found",
           message:
             "The vault provider could not be found in the on-chain registry. It may have been deregistered.",
         },
         connectionFailed: {
-          title: "Connection Failed",
+          title: "Connection failed",
           message:
             "Unable to connect to the vault provider. Please check your connection and try again.",
         },
         providerTimeout: {
-          title: "Provider Timeout",
+          title: "Provider timeout",
           message:
             "The vault provider took too long to respond. Please try again later.",
         },
         providerUnavailable: {
-          title: "Provider Unavailable",
+          title: "Provider unavailable",
           message:
             "The vault provider is temporarily unreachable. Please try again later.",
         },
         rejected: {
-          title: "Signature Submission Failed",
+          title: "Signature submission failed",
           message: (code: number) =>
             `The vault provider rejected the request (error code: ${code}). Please try again or contact support.`,
         },
@@ -447,42 +447,42 @@ export const COPY = {
     },
     payoutSigningGuards: {
       missingPayoutAddress: {
-        title: "Missing Payout Address",
+        title: "Missing payout address",
         message:
           "Depositor payout address not available. Please wait for indexer sync and try again.",
       },
       walletAddressUnavailable: {
-        title: "Wallet Address Unavailable",
+        title: "Wallet address unavailable",
         message:
           "Connect the BTC wallet you used at deposit to verify the payout address before signing.",
       },
       walletAddressError: {
-        title: "Wallet Address Error",
+        title: "Wallet address error",
         message:
           "Could not read your Bitcoin wallet address. Please reconnect the wallet and make sure it is on the correct Bitcoin network.",
       },
       payoutAddressMismatch: {
-        title: "Payout Address Mismatch",
+        title: "Payout address mismatch",
         message:
           "The payout address from the indexer does not match your connected wallet. This may indicate a data integrity issue. Please verify your wallet connection.",
       },
       providerNotAssigned: {
-        title: "Provider Not Assigned",
+        title: "Provider not assigned",
         message:
           "No vault provider is associated with this deposit. Please wait for indexer sync and try again.",
       },
       providerNotFound: {
-        title: "Provider Not Found",
+        title: "Provider not found",
         message: "Vault provider not found.",
       },
       walletNotConnected: {
-        title: "Wallet Not Connected",
+        title: "Wallet not connected",
         message: "BTC wallet not connected.",
       },
       missingPeginTransaction: {
-        title: "Missing Pegin Transaction",
+        title: "Missing peg-in transaction",
         message:
-          "Pegin transaction hash not available yet. Please wait for indexer sync and try again.",
+          "Peg-in transaction hash is not available yet. Please wait for indexer sync and try again.",
       },
     },
   },
@@ -526,7 +526,7 @@ export const COPY = {
     geoBlockedTooltip: "Not available in your region",
     walletNotEligibleTooltip: "Wallet not eligible",
     liveness: {
-      errorTitle: "Wallet Not Responding",
+      errorTitle: "Wallet not responding",
       unresponsive:
         "Your BTC wallet is not responding. Please open your wallet extension to confirm it is unlocked and connected, then try again.",
       emptyAddress:
@@ -550,9 +550,9 @@ export const COPY = {
   withdraw: {
     // Shared labels (review + initiated screens).
     estimatedTimeLabel: "Estimated time until payout",
-    nominatedAddressLabel: "Nominated Address",
+    nominatedAddressLabel: "Nominated address",
     initiated: {
-      title: "Withdraw Initiated",
+      title: "Withdrawal initiated",
       // Describes the real claim -> challenge period -> payout path.
       body: "Your withdrawal has been submitted. The vault provider will broadcast a claim transaction on Bitcoin; after a challenge period, your BTC will be sent to your nominated address.",
       doneButton: "Done",
@@ -603,7 +603,7 @@ export const COPY = {
     payoutEta: (duration: string) => `~${duration} until payout`,
     payoutImminent: "Payout available shortly",
     txHash: {
-      label: "TX Hash",
+      label: "Transaction hash",
       claimLabel: "Claim:",
       assertLabel: "Assert:",
     },
@@ -624,7 +624,7 @@ export const COPY = {
     heading: "Overview",
     healthFactorLabel: "Health factor",
     ltvLabel: "Current LTV",
-    totalCollateralValueLabel: "Total Collateral Value",
+    totalCollateralValueLabel: "Total collateral value",
     amountToRepayLabel: "Amount to repay",
     disconnected: {
       heroTitle: "Native Bitcoin backed borrowing",
@@ -640,7 +640,7 @@ export const COPY = {
         stepLabel: (n: number) => `step ${n}`,
         one: {
           title: "Deposit BTC as collateral",
-          body: "Lock your BTC in a Bitcoin vault.",
+          body: "Lock your BTC in a BTC Vault.",
         },
         two: {
           title: "Borrow USDC, USDT or WBTC",
@@ -720,7 +720,7 @@ export const COPY = {
       liquidatableDetail: (liqPriceUsd: string) =>
         `BTC has dropped below your liquidation price ($${liqPriceUsd}). Anyone can liquidate your position at any moment.`,
       liquidatableSuggestion:
-        "Add more BTC or repay debt immediately to bring your Health Factor back above 1.0.",
+        "Add more BTC or repay debt immediately to bring your health factor back above 1.0.",
       approachingTitle: (distancePct: string) =>
         `Liquidation is ${distancePct}% away`,
       approachingDetail: (liqPriceUsd: string, distancePct: string) =>

@@ -189,7 +189,7 @@ describe("PendingDepositCard — disabled (ownership mismatch) surface", () => {
     // would-be action (e.g. Activate) disabled, dim the entire card, and
     // let the hover tooltip explain why.
     const TOOLTIP =
-      "This BTC vault was created with a different BTC public key (bcc5...f21c). Switch to that wallet to perform actions.";
+      "This BTC Vault was created with a different BTC public key (bcc5...f21c). Switch to that wallet to perform actions.";
     mockGetActionStatus.mockReturnValue({
       type: "disabled",
       action: { action: PeginAction.ACTIVATE_VAULT, label: "Activate" },

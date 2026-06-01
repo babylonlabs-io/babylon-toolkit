@@ -41,7 +41,7 @@ describe("mapDepositError", () => {
       "PegIn not found",
     );
     const result = mapDepositError(err);
-    expect(result.title).toBe("Vault Provider Syncing");
+    expect(result.title).toBe("Vault provider syncing");
     expect(result.body).toContain("hasn't ingested");
   });
 

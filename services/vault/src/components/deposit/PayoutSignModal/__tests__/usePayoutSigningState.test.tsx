@@ -190,7 +190,7 @@ describe("usePayoutSigningState", () => {
         await result.current.handleSign();
       });
 
-      expect(result.current.error?.title).toBe("Missing Payout Address");
+      expect(result.current.error?.title).toBe("Missing payout address");
       expect(mockSignAndSubmitPayouts).not.toHaveBeenCalled();
     });
 
@@ -203,7 +203,7 @@ describe("usePayoutSigningState", () => {
         await result.current.handleSign();
       });
 
-      expect(result.current.error?.title).toBe("Payout Address Mismatch");
+      expect(result.current.error?.title).toBe("Payout address mismatch");
       expect(mockSignAndSubmitPayouts).not.toHaveBeenCalled();
     });
 
@@ -240,7 +240,7 @@ describe("usePayoutSigningState", () => {
         await result.current.handleSign();
       });
 
-      expect(result.current.error?.title).toBe("Wallet Address Unavailable");
+      expect(result.current.error?.title).toBe("Wallet address unavailable");
       expect(mockBtcAddressToScriptPubKeyHex).not.toHaveBeenCalled();
       expect(mockSignAndSubmitPayouts).not.toHaveBeenCalled();
     });
@@ -254,7 +254,7 @@ describe("usePayoutSigningState", () => {
         await result.current.handleSign();
       });
 
-      expect(result.current.error?.title).toBe("Provider Not Found");
+      expect(result.current.error?.title).toBe("Provider not found");
       expect(mockSignAndSubmitPayouts).not.toHaveBeenCalled();
     });
 
@@ -269,7 +269,7 @@ describe("usePayoutSigningState", () => {
         await result.current.handleSign();
       });
 
-      expect(result.current.error?.title).toBe("Wallet Not Connected");
+      expect(result.current.error?.title).toBe("Wallet not connected");
       expect(mockSignAndSubmitPayouts).not.toHaveBeenCalled();
     });
 
@@ -283,7 +283,7 @@ describe("usePayoutSigningState", () => {
         await result.current.handleSign();
       });
 
-      expect(result.current.error?.title).toBe("Provider Not Assigned");
+      expect(result.current.error?.title).toBe("Provider not assigned");
       expect(mockSignAndSubmitPayouts).not.toHaveBeenCalled();
     });
 
@@ -297,7 +297,7 @@ describe("usePayoutSigningState", () => {
         await result.current.handleSign();
       });
 
-      expect(result.current.error?.title).toBe("Missing Pegin Transaction");
+      expect(result.current.error?.title).toBe("Missing peg-in transaction");
       expect(mockSignAndSubmitPayouts).not.toHaveBeenCalled();
     });
 
@@ -316,7 +316,7 @@ describe("usePayoutSigningState", () => {
       await act(async () => {
         await result.current.handleSign();
       });
-      expect(result.current.error?.title).toBe("Wallet Address Error");
+      expect(result.current.error?.title).toBe("Wallet address error");
       expect(mockSignAndSubmitPayouts).not.toHaveBeenCalled();
 
       // Second call on the SAME hook: must reach the SDK. If the lock
@@ -357,7 +357,7 @@ describe("usePayoutSigningState", () => {
       await act(async () => {
         await result.current.handleSign();
       });
-      expect(result.current.error?.title).toBe("Missing Payout Address");
+      expect(result.current.error?.title).toBe("Missing payout address");
       expect(mockSignAndSubmitPayouts).not.toHaveBeenCalled();
 
       // Re-render the SAME hook with a fixed activity — second handleSign
