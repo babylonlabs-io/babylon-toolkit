@@ -34,6 +34,10 @@ vi.mock("@/infrastructure", () => ({
   logger: { warn: vi.fn(), info: vi.fn(), error: vi.fn() },
 }));
 
+vi.mock("../claimTxResolver", () => ({
+  resolveRedeemClaimTxids: vi.fn(async () => new Map<string, string>()),
+}));
+
 const USER = "0x1111111111111111111111111111111111111111";
 const VAULT_A = "0x" + "a".repeat(64);
 const TX_DEPOSIT = "0x" + "1".repeat(64);
@@ -122,6 +126,7 @@ async function setupGraphqlMock(rows: RawActivity[]) {
             items: ids.map((id) => ({
               id,
               peginTxHash: `0xpegin-${id.slice(2, 10)}`,
+              vaultProvider: `0xvp-${id.slice(2, 10)}`,
             })),
             pageInfo: { hasNextPage: false, endCursor: null },
           },
@@ -256,6 +261,27 @@ describe("fetchUserActivities type mapping", () => {
     );
   });
 
+  it("requests vaultProvider in the vaults selection", async () => {
+    const { graphqlClient } = await import("@/clients/graphql");
+    const requestMock = vi.mocked(graphqlClient.request);
+    requestMock.mockReset();
+    requestMock.mockResolvedValueOnce({
+      vaultActivitys: {
+        items: [],
+        pageInfo: { hasNextPage: false, endCursor: null },
+      },
+      vaults: {
+        items: [],
+        pageInfo: { hasNextPage: false, endCursor: null },
+      },
+    } as never);
+
+    await fetchUserActivities(USER as `0x${string}`, buildDeps());
+
+    const firstCallQuery = String(requestMock.mock.calls[0]?.[0]);
+    expect(firstCallQuery).toMatch(/vaultProvider/);
+  });
+
   it("warns only once per unknown type across repeated fetches", async () => {
     const { logger } = await import("@/infrastructure");
     const rows: RawActivity[] = [
@@ -272,6 +298,76 @@ describe("fetchUserActivities type mapping", () => {
     await fetchUserActivities(USER as `0x${string}`, buildDeps());
 
     expect(logger.warn).toHaveBeenCalledTimes(1);
+  });
+
+  it("renders redeem rows with the BTC claim txid, not the EVM tx hash", async () => {
+    const { resolveRedeemClaimTxids } = await import("../claimTxResolver");
+    const resolverMock = vi.mocked(resolveRedeemClaimTxids);
+    resolverMock.mockReset();
+    resolverMock.mockResolvedValueOnce(new Map([[VAULT_A, "claimBtcTxid123"]]));
+
+    const rows: RawActivity[] = [
+      activity({
+        type: "redeem",
+        logIndex: 0,
+        transactionHash: "0x" + "9".repeat(64),
+        vaultId: VAULT_A,
+      }),
+    ];
+    await setupGraphqlMock(rows);
+
+    const result = await fetchUserActivities(
+      USER as `0x${string}`,
+      buildDeps(),
+    );
+
+    const redeemRow = asStandard(result[0]);
+    expect(redeemRow.type).toBe("Redeem");
+    expect(redeemRow.chain).toBe("BTC");
+    expect(redeemRow.transactionHash).toBe("claimBtcTxid123");
+
+    // Pin the orchestrator -> resolver wiring: a regression that builds the
+    // lookup wrong (e.g. drops vaultProvider, or strips redeem refs) would
+    // still pass the rendering assertion via the stubbed return value above.
+    expect(resolverMock).toHaveBeenCalledTimes(1);
+    expect(resolverMock).toHaveBeenCalledWith(
+      [{ vaultId: VAULT_A }],
+      expect.any(Map),
+    );
+    const vaultLookupArg = resolverMock.mock.calls[0]![1] as ReadonlyMap<
+      string,
+      { peginTxHash: string; vaultProvider: string }
+    >;
+    expect(vaultLookupArg.get(VAULT_A)).toEqual({
+      peginTxHash: `0xpegin-${VAULT_A.slice(2, 10)}`,
+      vaultProvider: `0xvp-${VAULT_A.slice(2, 10)}`,
+    });
+  });
+
+  it("renders redeem rows as 'Pending…' (empty hash) when the resolver returns nothing", async () => {
+    const { resolveRedeemClaimTxids } = await import("../claimTxResolver");
+    vi.mocked(resolveRedeemClaimTxids).mockReset();
+    vi.mocked(resolveRedeemClaimTxids).mockResolvedValueOnce(new Map());
+
+    const rows: RawActivity[] = [
+      activity({
+        type: "redeem",
+        logIndex: 0,
+        transactionHash: "0x" + "9".repeat(64),
+        vaultId: VAULT_A,
+      }),
+    ];
+    await setupGraphqlMock(rows);
+
+    const result = await fetchUserActivities(
+      USER as `0x${string}`,
+      buildDeps(),
+    );
+
+    const redeemRow = asStandard(result[0]);
+    expect(redeemRow.type).toBe("Redeem");
+    expect(redeemRow.chain).toBe("BTC");
+    expect(redeemRow.transactionHash).toBe("");
   });
 });
 

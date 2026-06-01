@@ -38,6 +38,7 @@ export interface GraphQLVaultActivityItem {
 export interface GraphQLVaultItem {
   id: string;
   peginTxHash: string;
+  vaultProvider: string;
 }
 
 interface GraphQLPageInfo {
@@ -134,6 +135,7 @@ const GET_ACTIVITIES_FIRST_PAGE = gql`
       items {
         id
         peginTxHash
+        vaultProvider
       }
       pageInfo {
         hasNextPage
@@ -154,6 +156,7 @@ const GET_VAULTS_NEXT_PAGE = gql`
       items {
         id
         peginTxHash
+        vaultProvider
       }
       pageInfo {
         hasNextPage
