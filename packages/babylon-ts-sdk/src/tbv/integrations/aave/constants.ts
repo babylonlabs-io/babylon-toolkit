@@ -85,10 +85,10 @@ export const WAD_DECIMALS = 18;
 export const HEALTH_FACTOR_WARNING_THRESHOLD = 1.5;
 
 /**
- * Minimum health factor allowed for borrowing
- * Prevents users from borrowing if resulting health factor would be below this.
+ * Minimum health factor allowed for borrowing. Collateral factor doubles as the
+ * liquidation threshold here, so this floor is the only borrow→liquidation cushion.
  */
-export const MIN_HEALTH_FACTOR_FOR_BORROW = 1.2;
+export const MIN_HEALTH_FACTOR_FOR_BORROW = 1.05;
 
 /**
  * Buffer for full repayment to account for interest accrual
