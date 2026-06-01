@@ -145,13 +145,13 @@ export const COPY = {
     steps: {
       generateSecret: "Generate secret for the deposit",
       signPeginBtc: "Sign the peg-in BTC transaction",
-      signLinkProofs: "Sign proofs to link your Bitcoin and ETH addresses",
+      signLinkProofs: "Sign proof to link your Bitcoin and ETH addresses",
       signAndBroadcastEth: "Sign and broadcast ETH registration",
       signAndBroadcastPrePegin: "Sign and broadcast BTC Pre-Pegin transaction",
       confirmingDeposit:
         "Awaiting Pre-Pegin tx inclusion (1 BTC block · ~10 min)",
       submitWotsKey: "Set up Winternitz One-Time Signature (WOTS)",
-      awaitPayoutTransactions: "Awaiting Pre-Pegin depth",
+      awaitPayoutTransactions: "Awaiting Pre-Pegin confirmations",
       authenticateSession: "Authenticate session with vault provider",
       signPayouts: "Sign payout transactions",
       signRecoveryTxs: "Sign recovery transactions",
@@ -208,7 +208,7 @@ export const COPY = {
       bitcoinTx: "Pre-Pegin BTC TX",
       // Compact summary rendered inline on PendingDepositCard during the
       // AWAIT_PAYOUT_TRANSACTIONS wait. Mirrors the modal panel's "blocks
-      // left + minutes" framing (the label "Awaiting Pre-Pegin depth"
+      // left + minutes" framing (the label "Awaiting Pre-Pegin confirmations"
       // already implies the goal, so we only need to show remaining work).
       cardSummaryProgressing: (blocksLeft: number, minutes: number) =>
         `${blocksLeft} BTC ${
