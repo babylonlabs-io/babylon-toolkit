@@ -7,7 +7,11 @@
 
 import type { Address } from "viem";
 
-import { AaveSpoke, type AaveSpokeUserAccountData } from "../clients";
+import {
+  AaveSpoke,
+  type AaveSpokeUserAccountData,
+  type AaveSpokeUserPosition,
+} from "../clients";
 import { hasDebtFromPosition } from "../utils";
 
 import {
@@ -90,13 +94,17 @@ export interface GetUserPositionsOptions {
  * and enriches with live data from Spoke.
  *
  * Note: In Babylon vault integration, users can only have ONE position
- * (single vBTC collateral reserve), so we don't need batch calls.
+ * (single vBTC collateral reserve). The vBTC collateral position and aggregate
+ * account data are read together in one multicall; debt discovery across
+ * borrowable reserves uses two more batched multicalls (see
+ * `fetchDebtPositionsForReserves`).
  *
  * **WARNING: This is a heavy method that makes multiple RPC calls:**
  * - 1 GraphQL call (indexer)
- * - 1 RPC call for collateral position (getUserPosition)
- * - 1 RPC call for account data (getUserAccountData)
- * - N RPC calls for debt positions if borrowableReserveIds provided (one per reserve)
+ * - 1 multicall for collateral position + account data
+ *   (getUserPositionWithAccountData)
+ * - 1 multicall for debt-reserve probe (covers all borrowableReserveIds)
+ * - 1 multicall for total-debt readout (only if any reserve carries debt)
  *
  * Use sparingly and cache results appropriately (e.g., with React Query).
  * Avoid calling this method multiple times for the same user in a single render.
@@ -124,11 +132,14 @@ export async function getUserPositionsWithLiveData(
   const position = positions[0];
   const proxyAddress = position.proxyContract as Address;
 
-  // Fetch live data from Spoke in parallel
-  const [spokePosition, accountData] = await Promise.all([
-    AaveSpoke.getUserPosition(spokeAddress, vbtcReserveId, proxyAddress),
-    AaveSpoke.getUserAccountData(spokeAddress, proxyAddress),
-  ]);
+  // One multicall for both live reads (vBTC collateral position + aggregate
+  // account data) instead of two parallel `eth_call`s.
+  const { position: spokePosition, accountData } =
+    await AaveSpoke.getUserPositionWithAccountData(
+      spokeAddress,
+      vbtcReserveId,
+      proxyAddress,
+    );
 
   let debtPositions: Map<bigint, DebtPosition> | undefined;
   if (accountData.borrowCount > 0n) {
@@ -168,7 +179,12 @@ export async function getUserPositionsWithLiveData(
 }
 
 /**
- * Internal helper to fetch debt positions for multiple reserves
+ * Internal helper to fetch debt positions for multiple reserves.
+ *
+ * Uses two multicalls: one over every reserve's `getUserPosition` (per-reserve
+ * soft-fail preserved via `allowFailure: true` inside `getUserPositionsBatch`),
+ * then a second `getUserTotalDebt` only for the reserves that actually carry
+ * debt (hard-fail).
  */
 async function fetchDebtPositionsForReserves(
   proxyAddress: Address,
@@ -176,49 +192,40 @@ async function fetchDebtPositionsForReserves(
   reserveIds: bigint[],
 ): Promise<Map<bigint, DebtPosition>> {
   const results = new Map<bigint, DebtPosition>();
+  if (reserveIds.length === 0) return results;
 
-  const positions = await Promise.all(
-    reserveIds.map(async (reserveId) => {
-      try {
-        const position = await AaveSpoke.getUserPosition(
-          spokeAddress,
-          reserveId,
-          proxyAddress,
-        );
-        return { reserveId, position };
-      } catch {
-        return { reserveId, position: null };
-      }
-    }),
+  const positions = await AaveSpoke.getUserPositionsBatch(
+    spokeAddress,
+    reserveIds,
+    proxyAddress,
   );
 
-  const reservesWithDebt = positions.filter(
-    ({ position }) => position && hasDebtFromPosition(position),
-  );
-
-  const totalDebts = await Promise.all(
-    reservesWithDebt.map(async ({ reserveId }) => {
-      const totalDebt = await AaveSpoke.getUserTotalDebt(
-        spokeAddress,
-        reserveId,
-        proxyAddress,
-      );
-      return { reserveId, totalDebt };
-    }),
-  );
-
-  const debtMap = new Map(totalDebts.map((d) => [d.reserveId, d.totalDebt]));
-
-  for (const { reserveId, position } of reservesWithDebt) {
-    if (position) {
-      results.set(reserveId, {
-        reserveId,
-        drawnShares: position.drawnShares,
-        premiumShares: position.premiumShares,
-        totalDebt: debtMap.get(reserveId) ?? 0n,
-      });
+  const reservesWithDebt: {
+    reserveId: bigint;
+    position: AaveSpokeUserPosition;
+  }[] = [];
+  positions.forEach((position, idx) => {
+    if (position && hasDebtFromPosition(position)) {
+      reservesWithDebt.push({ reserveId: reserveIds[idx], position });
     }
-  }
+  });
+
+  if (reservesWithDebt.length === 0) return results;
+
+  const totalDebts = await AaveSpoke.getUserTotalDebtsBatch(
+    spokeAddress,
+    reservesWithDebt.map((r) => r.reserveId),
+    proxyAddress,
+  );
+
+  reservesWithDebt.forEach(({ reserveId, position }, idx) => {
+    results.set(reserveId, {
+      reserveId,
+      drawnShares: position.drawnShares,
+      premiumShares: position.premiumShares,
+      totalDebt: totalDebts[idx],
+    });
+  });
 
   return results;
 }

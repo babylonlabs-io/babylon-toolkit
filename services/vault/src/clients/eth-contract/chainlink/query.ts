@@ -50,6 +50,14 @@ const CHAINLINK_MAX_PRICE_AGE_SECONDS = 3600;
 /** Number of seconds in one hour — used for display formatting */
 const SECONDS_PER_HOUR = 3600;
 
+// Each unique feed contributes this many calls, in this order, to the grouped
+// multicall built in `getTokenPrices`. Keep these in sync with the per-feed
+// entries in the `contracts` flatMap below — the result read-back indexes by
+// `feedIdx * CALLS_PER_FEED + <offset>`.
+const CALLS_PER_FEED = 2;
+const ROUND_DATA_OFFSET = 0;
+const DECIMALS_OFFSET = 1;
+
 let btcPriceFeedOverrideWarned = false;
 
 function getChainlinkFeedAddress(symbol: string): Address | null {
@@ -146,48 +154,6 @@ interface TokenPricesResult {
 }
 
 /**
- * Get latest price data and decimals from Chainlink price feed in a single RPC call.
- *
- * @param feedAddress - Address of the Chainlink price feed contract
- * @returns Round data including price (answer field) and feed decimals
- */
-async function getLatestRoundDataWithDecimals(
-  feedAddress: Address,
-): Promise<{ roundData: ChainlinkRoundData; decimals: number }> {
-  const publicClient = ethClient.getPublicClient();
-
-  const [roundDataResult, decimalsResult] = await publicClient.multicall({
-    contracts: [
-      {
-        address: feedAddress,
-        abi: CHAINLINK_AGGREGATOR_V3_ABI,
-        functionName: "latestRoundData",
-      },
-      {
-        address: feedAddress,
-        abi: CHAINLINK_AGGREGATOR_V3_ABI,
-        functionName: "decimals",
-      },
-    ],
-    allowFailure: false,
-  });
-
-  const [roundId, answer, startedAt, updatedAt, answeredInRound] =
-    roundDataResult;
-
-  return {
-    roundData: {
-      roundId,
-      answer,
-      startedAt,
-      updatedAt,
-      answeredInRound,
-    },
-    decimals: decimalsResult,
-  };
-}
-
-/**
  * Validate that price data is fresh (not stale)
  * Chainlink recommends checking updatedAt is recent
  *
@@ -205,32 +171,95 @@ export function isPriceFresh(
   return age <= BigInt(maxAgeSeconds);
 }
 
-async function fetchPriceFromFeed(
-  feedAddress: Address,
-): Promise<{ price: number; metadata: PriceMetadata }> {
-  const { roundData, decimals } =
-    await getLatestRoundDataWithDecimals(feedAddress);
+interface FeedReadout {
+  price: number;
+  metadata: PriceMetadata;
+}
 
-  if (roundData.answer <= 0n) {
-    throw new Error(
-      "Invalid price from Chainlink oracle: price must be positive",
-    );
+/** Apply a per-feed result to all symbols served by that feed (including aliases). */
+function emitForSymbol(
+  symbol: string,
+  result: { price?: number; metadata: PriceMetadata },
+  prices: Record<string, number>,
+  metadata: Record<string, PriceMetadata>,
+) {
+  if (result.price !== undefined) prices[symbol] = result.price;
+  metadata[symbol] = result.metadata;
+
+  const normalized = symbol.toUpperCase();
+  if (normalized === "ETH") {
+    if (result.price !== undefined) prices["WETH"] = result.price;
+    metadata["WETH"] = result.metadata;
+  }
+  if (normalized === "BTC") {
+    if (result.price !== undefined) {
+      prices["vBTC"] = result.price;
+      prices["sBTC"] = result.price;
+    }
+    metadata["vBTC"] = result.metadata;
+    metadata["sBTC"] = result.metadata;
+  }
+}
+
+/**
+ * Translate one feed's raw multicall results into a price + metadata, or an
+ * error metadata entry if either call failed or the price is invalid.
+ */
+function readoutForFeed(
+  feedAddress: Address,
+  roundDataResult: {
+    status: "success" | "failure";
+    result?: unknown;
+    error?: Error;
+  },
+  decimalsResult: {
+    status: "success" | "failure";
+    result?: unknown;
+    error?: Error;
+  },
+): FeedReadout | { error: string } {
+  if (roundDataResult.status !== "success") {
+    return {
+      error:
+        roundDataResult.error?.message ??
+        `Chainlink ${feedAddress} latestRoundData failed`,
+    };
+  }
+  if (decimalsResult.status !== "success") {
+    return {
+      error:
+        decimalsResult.error?.message ??
+        `Chainlink ${feedAddress} decimals failed`,
+    };
   }
 
-  const ageSeconds =
-    Math.floor(Date.now() / 1000) - Number(roundData.updatedAt);
+  const [roundId, answer, startedAt, updatedAt, answeredInRound] =
+    roundDataResult.result as readonly [bigint, bigint, bigint, bigint, bigint];
+  const decimals = decimalsResult.result as number;
+
+  if (answer <= 0n) {
+    return {
+      error: "Invalid price from Chainlink oracle: price must be positive",
+    };
+  }
+  if (answer > BigInt(Number.MAX_SAFE_INTEGER)) {
+    return { error: `Chainlink price exceeds safe integer range: ${answer}` };
+  }
+
+  const roundData: ChainlinkRoundData = {
+    roundId,
+    answer,
+    startedAt,
+    updatedAt,
+    answeredInRound,
+  };
+  const ageSeconds = Math.floor(Date.now() / 1000) - Number(updatedAt);
   const isStale = !isPriceFresh(roundData);
 
-  if (roundData.answer > BigInt(Number.MAX_SAFE_INTEGER)) {
-    throw new Error(
-      `Chainlink price exceeds safe integer range: ${roundData.answer}`,
-    );
-  }
-
   if (isStale) {
-    if (roundData.answeredInRound < roundData.roundId) {
+    if (answeredInRound < roundId) {
       logger.event(
-        `Chainlink price data is stale: incomplete round (answeredInRound=${roundData.answeredInRound} < roundId=${roundData.roundId}). Using last known price.`,
+        `Chainlink price data is stale: incomplete round (answeredInRound=${answeredInRound} < roundId=${roundId}). Using last known price.`,
       );
     } else {
       const ageHours = (ageSeconds / SECONDS_PER_HOUR).toFixed(1);
@@ -241,12 +270,8 @@ async function fetchPriceFromFeed(
   }
 
   return {
-    price: Number(roundData.answer) / 10 ** decimals,
-    metadata: {
-      isStale,
-      ageSeconds,
-      fetchFailed: false,
-    },
+    price: Number(answer) / 10 ** decimals,
+    metadata: { isStale, ageSeconds, fetchFailed: false },
   };
 }
 
@@ -256,57 +281,102 @@ export async function getTokenPrices(
   const prices: Record<string, number> = {};
   const metadata: Record<string, PriceMetadata> = {};
 
-  const pricePromises = symbols.map(async (symbol) => {
-    const normalizedSymbol = symbol.toUpperCase();
-    const feedAddress = getChainlinkFeedAddress(normalizedSymbol);
+  // Group requested symbols by feed address. BTC + vBTC + sBTC share one
+  // feed; we want one set of multicall entries per UNIQUE feed and to emit
+  // results to every symbol that maps to it.
+  const symbolsByFeed = new Map<Address, string[]>();
+  for (const symbol of symbols) {
+    const feed = getChainlinkFeedAddress(symbol);
+    if (!feed) continue;
+    const list = symbolsByFeed.get(feed);
+    if (list) list.push(symbol);
+    else symbolsByFeed.set(feed, [symbol]);
+  }
+  if (symbolsByFeed.size === 0) return { prices, metadata };
 
-    if (!feedAddress) {
-      return;
+  const uniqueFeeds = [...symbolsByFeed.keys()];
+  // One round-trip: latestRoundData + decimals × N feeds.
+  const contracts = uniqueFeeds.flatMap(
+    (address) =>
+      [
+        {
+          address,
+          abi: CHAINLINK_AGGREGATOR_V3_ABI,
+          functionName: "latestRoundData",
+        },
+        {
+          address,
+          abi: CHAINLINK_AGGREGATOR_V3_ABI,
+          functionName: "decimals",
+        },
+      ] as const,
+  );
+
+  const publicClient = ethClient.getPublicClient();
+  let results;
+  try {
+    results = await publicClient.multicall({
+      contracts,
+      allowFailure: true,
+    });
+  } catch (error) {
+    // Network-level multicall failure (RPC timeout, etc.). Mark every
+    // requested symbol failed so consumers fail closed rather than display
+    // stale or undefined prices.
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    logger.warn(`Chainlink multicall failed`, { error: errorMessage });
+    const failedMetadata: PriceMetadata = {
+      isStale: false,
+      ageSeconds: 0,
+      fetchFailed: true,
+      error: errorMessage,
+    };
+    for (const feedSymbols of symbolsByFeed.values()) {
+      for (const symbol of feedSymbols) {
+        emitForSymbol(symbol, { metadata: failedMetadata }, prices, metadata);
+      }
     }
+    return { prices, metadata };
+  }
 
-    try {
-      const result = await fetchPriceFromFeed(feedAddress);
-      prices[symbol] = result.price;
-      metadata[symbol] = result.metadata;
+  uniqueFeeds.forEach((feedAddress, feedIdx) => {
+    const roundDataResult =
+      results[feedIdx * CALLS_PER_FEED + ROUND_DATA_OFFSET];
+    const decimalsResult = results[feedIdx * CALLS_PER_FEED + DECIMALS_OFFSET];
+    const feedSymbols = symbolsByFeed.get(feedAddress) ?? [];
 
-      // Share price and metadata for alias tokens
-      if (normalizedSymbol === "ETH") {
-        prices["WETH"] = result.price;
-        metadata["WETH"] = result.metadata;
-      }
-      if (normalizedSymbol === "BTC") {
-        prices["vBTC"] = result.price;
-        prices["sBTC"] = result.price;
-        metadata["vBTC"] = result.metadata;
-        metadata["sBTC"] = result.metadata;
-      }
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
-      logger.warn(`Failed to fetch price for ${symbol}`, {
-        error: errorMessage,
+    const readout = readoutForFeed(
+      feedAddress,
+      roundDataResult,
+      decimalsResult,
+    );
+
+    if ("error" in readout) {
+      logger.warn(`Failed to fetch price for feed ${feedAddress}`, {
+        feedSymbols,
+        error: readout.error,
       });
-
-      // Store error metadata for this token
-      metadata[symbol] = {
+      const failedMetadata: PriceMetadata = {
         isStale: false,
         ageSeconds: 0,
         fetchFailed: true,
-        error: errorMessage,
+        error: readout.error,
       };
+      for (const symbol of feedSymbols) {
+        emitForSymbol(symbol, { metadata: failedMetadata }, prices, metadata);
+      }
+      return;
+    }
 
-      // Also store error for alias tokens
-      if (normalizedSymbol === "ETH") {
-        metadata["WETH"] = metadata[symbol];
-      }
-      if (normalizedSymbol === "BTC") {
-        metadata["vBTC"] = metadata[symbol];
-        metadata["sBTC"] = metadata[symbol];
-      }
+    for (const symbol of feedSymbols) {
+      emitForSymbol(
+        symbol,
+        { price: readout.price, metadata: readout.metadata },
+        prices,
+        metadata,
+      );
     }
   });
-
-  await Promise.all(pricePromises);
 
   return { prices, metadata };
 }

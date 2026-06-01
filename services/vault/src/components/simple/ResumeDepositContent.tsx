@@ -241,6 +241,7 @@ export function ResumeWotsContent({
   // would otherwise warn about updates on an unmounted component.
   const mountedRef = useRef(true);
   useEffect(() => {
+    mountedRef.current = true; // reset on remount (StrictMode setup→cleanup→setup)
     return () => {
       mountedRef.current = false;
     };
@@ -525,6 +526,7 @@ export function ResumeActivationContent({
   // an unmounted component.
   const mountedRef = useRef(true);
   useEffect(() => {
+    mountedRef.current = true; // reset on remount (StrictMode setup→cleanup→setup)
     return () => {
       mountedRef.current = false;
     };

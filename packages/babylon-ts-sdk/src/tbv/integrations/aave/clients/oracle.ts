@@ -3,7 +3,7 @@
  * ($80,000 = 8_000_000_000_000n).
  */
 
-import type { Address, PublicClient } from "viem";
+import type { Abi, Address, PublicClient } from "viem";
 
 import AaveOracleABI from "./abis/AaveOracle.abi.json";
 import AaveSpokeABI from "./abis/AaveSpoke.abi.json";
@@ -43,30 +43,51 @@ export interface ReservePriceResult {
   error: Error | null;
 }
 
-/** Per-reserve isolated read for display lists (one bad source ≠ whole list blank). */
+/**
+ * Per-reserve isolated read for display lists (one bad source ≠ whole list
+ * blank). One multicall round-trip instead of one `eth_call` per reserve:
+ * each entry is `getReservesPrices([reserveId])` with `allowFailure: true`, so
+ * a single reverting reserve isolates to its own error entry. A network-level
+ * multicall failure marks every reserve failed rather than throwing — callers
+ * (display hooks) rely on always getting a per-reserve result array.
+ */
 export async function getReservesPricesSafe(
   publicClient: PublicClient,
   oracleAddress: Address,
   reserveIds: bigint[],
 ): Promise<ReservePriceResult[]> {
-  return Promise.all(
-    reserveIds.map(
-      async (reserveId): Promise<ReservePriceResult> => {
-        try {
-          const [priceRaw] = await getReservesPrices(
-            publicClient,
-            oracleAddress,
-            [reserveId],
-          );
-          return { reserveId, priceRaw, error: null };
-        } catch (err) {
-          return {
-            reserveId,
-            priceRaw: null,
-            error: err instanceof Error ? err : new Error(String(err)),
-          };
-        }
-      },
-    ),
-  );
+  if (reserveIds.length === 0) return [];
+
+  let results;
+  try {
+    results = await publicClient.multicall({
+      contracts: reserveIds.map((reserveId) => ({
+        address: oracleAddress,
+        abi: AaveOracleABI as Abi,
+        functionName: "getReservesPrices" as const,
+        args: [[reserveId]] as const,
+      })),
+      allowFailure: true,
+    });
+  } catch (err) {
+    const error = err instanceof Error ? err : new Error(String(err));
+    return reserveIds.map((reserveId) => ({
+      reserveId,
+      priceRaw: null,
+      error,
+    }));
+  }
+
+  return results.map((result, i): ReservePriceResult => {
+    const reserveId = reserveIds[i];
+    if (result.status !== "success") {
+      const error =
+        result.error instanceof Error
+          ? result.error
+          : new Error(String(result.error ?? "getReservesPrices reverted"));
+      return { reserveId, priceRaw: null, error };
+    }
+    const [priceRaw] = result.result as bigint[];
+    return { reserveId, priceRaw, error: null };
+  });
 }

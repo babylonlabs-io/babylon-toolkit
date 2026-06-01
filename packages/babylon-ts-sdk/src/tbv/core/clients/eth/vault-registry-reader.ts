@@ -25,6 +25,66 @@ import type {
  */
 const MAX_VP_COMMISSION_BPS = 9999;
 
+/** Raw `getBtcVaultBasicInfo` tuple as decoded by viem. */
+type RawVaultBasicInfo = {
+  depositor: Address;
+  depositorBtcPubKey: Hex;
+  amount: bigint;
+  vaultProvider: Address;
+  status: number;
+  applicationEntryPoint: Address;
+  createdAt: bigint;
+};
+
+/** Raw `getBtcVaultProtocolInfo` tuple as decoded by viem. */
+type RawVaultProtocolInfo = {
+  depositorSignedPeginTx: Hex;
+  universalChallengersVersion: number;
+  appVaultKeepersVersion: number;
+  offchainParamsVersion: number;
+  verifiedAt: bigint;
+  depositorWotsPkHash: Hex;
+  hashlock: Hex;
+  htlcVout: number;
+  depositorPopSignature: Hex;
+  prePeginTxHash: Hex;
+  vaultProviderCommissionBps: number;
+  claimExpiredUntil: bigint;
+  vaultCoreVersion: number;
+};
+
+function mapVaultBasicInfo(result: RawVaultBasicInfo): VaultBasicInfo {
+  return {
+    depositor: result.depositor,
+    depositorBtcPubKey: result.depositorBtcPubKey,
+    amount: result.amount,
+    vaultProvider: result.vaultProvider,
+    status: result.status,
+    applicationEntryPoint: result.applicationEntryPoint,
+    createdAt: result.createdAt,
+  };
+}
+
+function mapVaultProtocolInfo(result: RawVaultProtocolInfo): VaultProtocolInfo {
+  const offchainParamsVersion = Number(result.offchainParamsVersion);
+  assertValidOffchainParamsVersion(offchainParamsVersion);
+  return {
+    depositorSignedPeginTx: result.depositorSignedPeginTx,
+    universalChallengersVersion: result.universalChallengersVersion,
+    appVaultKeepersVersion: result.appVaultKeepersVersion,
+    offchainParamsVersion,
+    verifiedAt: result.verifiedAt,
+    depositorWotsPkHash: result.depositorWotsPkHash,
+    hashlock: result.hashlock,
+    htlcVout: result.htlcVout,
+    depositorPopSignature: result.depositorPopSignature,
+    prePeginTxHash: result.prePeginTxHash,
+    vaultProviderCommissionBps: result.vaultProviderCommissionBps,
+    claimExpiredUntil: result.claimExpiredUntil,
+    vaultCoreVersion: result.vaultCoreVersion,
+  };
+}
+
 /**
  * Concrete vault registry reader using viem.
  *
@@ -76,25 +136,9 @@ export class ViemVaultRegistryReader implements VaultRegistryReader {
       abi: BTCVaultRegistryABI,
       functionName: "getBtcVaultBasicInfo",
       args: [vaultId],
-    })) as {
-      depositor: Address;
-      depositorBtcPubKey: Hex;
-      amount: bigint;
-      vaultProvider: Address;
-      status: number;
-      applicationEntryPoint: Address;
-      createdAt: bigint;
-    };
+    })) as RawVaultBasicInfo;
 
-    return {
-      depositor: result.depositor,
-      depositorBtcPubKey: result.depositorBtcPubKey,
-      amount: result.amount,
-      vaultProvider: result.vaultProvider,
-      status: result.status,
-      applicationEntryPoint: result.applicationEntryPoint,
-      createdAt: result.createdAt,
-    };
+    return mapVaultBasicInfo(result);
   }
 
   async getVaultProtocolInfo(vaultId: Hex): Promise<VaultProtocolInfo> {
@@ -103,40 +147,9 @@ export class ViemVaultRegistryReader implements VaultRegistryReader {
       abi: BTCVaultRegistryABI,
       functionName: "getBtcVaultProtocolInfo",
       args: [vaultId],
-    })) as {
-      depositorSignedPeginTx: Hex;
-      universalChallengersVersion: number;
-      appVaultKeepersVersion: number;
-      offchainParamsVersion: number;
-      verifiedAt: bigint;
-      depositorWotsPkHash: Hex;
-      hashlock: Hex;
-      htlcVout: number;
-      depositorPopSignature: Hex;
-      prePeginTxHash: Hex;
-      vaultProviderCommissionBps: number;
-      claimExpiredUntil: bigint;
-      vaultCoreVersion: number;
-    };
+    })) as RawVaultProtocolInfo;
 
-    const offchainParamsVersion = Number(result.offchainParamsVersion);
-    assertValidOffchainParamsVersion(offchainParamsVersion);
-
-    return {
-      depositorSignedPeginTx: result.depositorSignedPeginTx,
-      universalChallengersVersion: result.universalChallengersVersion,
-      appVaultKeepersVersion: result.appVaultKeepersVersion,
-      offchainParamsVersion,
-      verifiedAt: result.verifiedAt,
-      depositorWotsPkHash: result.depositorWotsPkHash,
-      hashlock: result.hashlock,
-      htlcVout: result.htlcVout,
-      depositorPopSignature: result.depositorPopSignature,
-      prePeginTxHash: result.prePeginTxHash,
-      vaultProviderCommissionBps: result.vaultProviderCommissionBps,
-      claimExpiredUntil: result.claimExpiredUntil,
-      vaultCoreVersion: result.vaultCoreVersion,
-    };
+    return mapVaultProtocolInfo(result);
   }
 
   async getProtocolInfoBatch(
@@ -238,10 +251,29 @@ export class ViemVaultRegistryReader implements VaultRegistryReader {
   }
 
   async getVaultData(vaultId: Hex): Promise<VaultData> {
-    const [basic, protocol] = await Promise.all([
-      this.getVaultBasicInfo(vaultId),
-      this.getVaultProtocolInfo(vaultId),
-    ]);
+    // One round-trip for both structs (hard-fail): they feed signing/refund/
+    // broadcast rebinds, so reading them in a single multicall also pins both
+    // to the same block — no basic/protocol skew across two `eth_call`s.
+    const [basicRaw, protocolRaw] = await this.publicClient.multicall({
+      contracts: [
+        {
+          address: this.contractAddress,
+          abi: BTCVaultRegistryABI,
+          functionName: "getBtcVaultBasicInfo",
+          args: [vaultId],
+        },
+        {
+          address: this.contractAddress,
+          abi: BTCVaultRegistryABI,
+          functionName: "getBtcVaultProtocolInfo",
+          args: [vaultId],
+        },
+      ],
+      allowFailure: false,
+    });
+
+    const basic = mapVaultBasicInfo(basicRaw);
+    const protocol = mapVaultProtocolInfo(protocolRaw);
 
     if (
       !protocol.depositorSignedPeginTx ||

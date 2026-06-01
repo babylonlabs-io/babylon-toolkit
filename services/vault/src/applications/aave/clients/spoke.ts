@@ -5,59 +5,78 @@
  * Used to fetch live user position data (debt, collateral) from the Core Spoke.
  */
 
-import type {
-  AaveSpokeUserAccountData,
-  AaveSpokeUserPosition,
-} from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
 import {
   getDynamicReserveConfig as sdkGetDynamicReserveConfig,
   getReserve as sdkGetReserve,
   getTargetHealthFactor as sdkGetTargetHealthFactor,
-  getUserAccountData as sdkGetUserAccountData,
-  getUserPosition as sdkGetUserPosition,
+  getUserPositionAndAccountData as sdkGetUserPositionAndAccountData,
+  getUserPositions as sdkGetUserPositions,
   getUserTotalDebt as sdkGetUserTotalDebt,
+  getUserTotalDebts as sdkGetUserTotalDebts,
+  type AaveSpokeUserAccountData,
+  type AaveSpokeUserPosition,
 } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
 import type { Address } from "viem";
 
 import { ethClient } from "../../../clients/eth-contract/client";
 
 /**
- * Get user account data from the Spoke
- *
- * Returns aggregated position health data including health factor, collateral value,
- * and debt value. These values are calculated by Aave using on-chain oracle prices
- * and are the authoritative values for liquidation decisions.
- *
- * @param spokeAddress - Aave Spoke contract address
- * @param userAddress - User's proxy contract address
- * @returns User account data with health factor and values
+ * Read a user's vBTC-collateral position and aggregate account data in one
+ * hard-fail multicall. Thin DI wrapper over the SDK
+ * `getUserPositionAndAccountData`; both reads are required for the live view.
  */
-export async function getUserAccountData(
-  spokeAddress: Address,
-  userAddress: Address,
-): Promise<AaveSpokeUserAccountData> {
-  const publicClient = ethClient.getPublicClient();
-  return sdkGetUserAccountData(publicClient, spokeAddress, userAddress);
-}
-
-/**
- * Get user position from the Spoke
- *
- * This fetches live data from the contract because debt accrues interest
- * and needs to be current for accurate health factor calculations.
- *
- * @param spokeAddress - Aave Spoke contract address
- * @param reserveId - Reserve ID
- * @param userAddress - User's proxy contract address
- * @returns User position data
- */
-export async function getUserPosition(
+export async function getUserPositionWithAccountData(
   spokeAddress: Address,
   reserveId: bigint,
   userAddress: Address,
-): Promise<AaveSpokeUserPosition> {
+): Promise<{
+  position: AaveSpokeUserPosition;
+  accountData: AaveSpokeUserAccountData;
+}> {
   const publicClient = ethClient.getPublicClient();
-  return sdkGetUserPosition(publicClient, spokeAddress, reserveId, userAddress);
+  return sdkGetUserPositionAndAccountData(
+    publicClient,
+    spokeAddress,
+    reserveId,
+    userAddress,
+  );
+}
+
+/**
+ * Probe `getUserPosition` for many reserves in one multicall (per-reserve
+ * soft-fail). Thin DI wrapper over the SDK `getUserPositions`.
+ */
+export async function getUserPositionsBatch(
+  spokeAddress: Address,
+  reserveIds: bigint[],
+  userAddress: Address,
+): Promise<(AaveSpokeUserPosition | null)[]> {
+  const publicClient = ethClient.getPublicClient();
+  return sdkGetUserPositions(
+    publicClient,
+    spokeAddress,
+    reserveIds,
+    userAddress,
+  );
+}
+
+/**
+ * Read `getUserTotalDebt` for many reserves in one multicall (hard-fail). Thin
+ * DI wrapper over the SDK `getUserTotalDebts`; use only for reserves already
+ * known to carry debt.
+ */
+export async function getUserTotalDebtsBatch(
+  spokeAddress: Address,
+  reserveIds: bigint[],
+  userAddress: Address,
+): Promise<bigint[]> {
+  const publicClient = ethClient.getPublicClient();
+  return sdkGetUserTotalDebts(
+    publicClient,
+    spokeAddress,
+    reserveIds,
+    userAddress,
+  );
 }
 
 /**
