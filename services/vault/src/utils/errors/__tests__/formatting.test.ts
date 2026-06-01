@@ -386,7 +386,7 @@ describe("Error Formatting", () => {
       );
       const result = formatPayoutSignatureError(error);
 
-      expect(result.title).toBe("Vault Provider Syncing");
+      expect(result.title).toBe("Vault provider syncing");
       expect(result.message).toContain("hasn't ingested");
     });
 
@@ -394,7 +394,7 @@ describe("Error Formatting", () => {
       const error = new JsonRpcError(-32099, "internal: secret key data here");
       const result = formatPayoutSignatureError(error);
 
-      expect(result.title).toBe("Signature Submission Failed");
+      expect(result.title).toBe("Signature submission failed");
       expect(result.message).toContain("error code: -32099");
       expect(result.message).not.toContain("secret key data here");
     });
@@ -403,7 +403,7 @@ describe("Error Formatting", () => {
       const error = new Error("some internal detail about signing");
       const result = formatPayoutSignatureError(error);
 
-      expect(result.title).toBe("Payout Signing Error");
+      expect(result.title).toBe("Payout signing error");
       expect(result.message).not.toContain("internal detail");
       expect(result.message).toContain("unexpected error");
     });
@@ -416,7 +416,7 @@ describe("Error Formatting", () => {
 
       const result = formatPayoutSignatureError(error);
 
-      expect(result.title).toBe("Signing Rejected");
+      expect(result.title).toBe("Signing rejected");
       expect(result.message).toContain("rejected the signing request");
     });
 
@@ -428,7 +428,7 @@ describe("Error Formatting", () => {
 
       const result = formatPayoutSignatureError(error);
 
-      expect(result.title).not.toBe("Signing Rejected");
+      expect(result.title).not.toBe("Signing rejected");
     });
 
     it("extracts .message from plain objects (some wallets throw object literals)", () => {
@@ -436,7 +436,7 @@ describe("Error Formatting", () => {
         code: -32603,
         message: "VP rejected the signature",
       });
-      expect(result.title).toBe("Payout Signing Error");
+      expect(result.title).toBe("Payout signing error");
       expect(result.message).toBe("VP rejected the signature");
     });
 
@@ -487,7 +487,7 @@ describe("Error Formatting", () => {
         "User rejected the PSBT signing request",
       );
       expect(formatPayoutSignatureError(rejection).title).toBe(
-        "Signing Rejected",
+        "Signing rejected",
       );
     });
   });

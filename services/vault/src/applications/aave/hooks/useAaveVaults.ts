@@ -22,6 +22,7 @@ import type { Vault, VaultProvider } from "@/types";
 import { scriptPubKeyHexToBtcAddress } from "@/utils/btc";
 import { satoshiToBtcNumber } from "@/utils/btcConversion";
 import { formatProviderDisplayName } from "@/utils/formatting";
+import { derivePrePeginTxHash } from "@/utils/vaultTransformers";
 
 import { usePendingVaults } from "../context";
 import type { VaultData } from "../types";
@@ -60,6 +61,8 @@ export interface RedeemedVaultInfo {
   id: string;
   /** Raw BTC pegin transaction hash (for VP RPC operations) */
   peginTxHash: string;
+  /** Pre-PegIn txid, derived from the unsigned tx. Undefined when unavailable. */
+  prePeginTxHash?: string;
   amountBtc: number;
   providerName: string;
   providerIconUrl?: string;
@@ -168,6 +171,7 @@ export function useAaveVaults(
         return {
           id: vault.id,
           peginTxHash: vault.peginTxHash,
+          prePeginTxHash: derivePrePeginTxHash(vault.unsignedPrePeginTx),
           amountBtc: satoshiToBtcNumber(vault.amount),
           providerName,
           providerIconUrl: provider?.iconUrl,

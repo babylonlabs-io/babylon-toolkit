@@ -38,7 +38,7 @@ export function FeesSection({ rows }: FeesSectionProps) {
           )}
         >
           <span className="text-sm text-accent-primary">
-            Protocol Parameters
+            Protocol parameters
           </span>
         </AccordionSummary>
         <AccordionDetails className="flex flex-col gap-2 px-0 pb-0 pt-3">

@@ -94,7 +94,7 @@ export function CollateralVaultItem({
       </VaultCardRow>
 
       {/* Vault Provider row */}
-      <VaultCardRow label="Vault Provider">
+      <VaultCardRow label="Vault provider">
         <Hint
           tooltip={truncateAddress(providerAddress)}
           attachToChildren

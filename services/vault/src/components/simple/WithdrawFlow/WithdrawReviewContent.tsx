@@ -66,7 +66,7 @@ export function WithdrawReviewContent({
       currentHealthFactor === null
         ? null
         : {
-            label: "Health Factor",
+            label: "Health factor",
             value: (
               <HealthFactorDelta
                 current={currentHealthFactor}
@@ -77,7 +77,7 @@ export function WithdrawReviewContent({
 
     const baseRows: DetailRow[] = [
       {
-        label: "Withdraw Amount",
+        label: "Withdrawal amount",
         value: (
           <span>
             {formatBtcAmount(totalAmountBtc)}{" "}
@@ -88,11 +88,11 @@ export function WithdrawReviewContent({
         ),
       },
       {
-        label: "Network Fee Rate",
+        label: "Network fee rate",
         value: defaultFeeRate > 0 ? `${defaultFeeRate} sats/vB` : "Loading...",
       },
       {
-        label: "VP Commission",
+        label: "VP commission",
         value:
           minVpCommissionBps > 0 ? (
             <span>
@@ -145,7 +145,7 @@ export function WithdrawReviewContent({
   return (
     <div className="w-full">
       <Heading variant="h5" className="text-accent-primary">
-        Review Withdraw
+        Review withdrawal
       </Heading>
 
       <div className="mt-6 flex flex-col gap-6">

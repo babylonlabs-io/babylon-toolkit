@@ -51,7 +51,7 @@ function useRelativeTime(timestamp: number | undefined): string | null {
 interface VaultDetailCardProps {
   /** BTC amount (already converted from satoshis) */
   amountBtc: number;
-  /** Timestamp in milliseconds. Omit to hide the Date row. */
+  /** Timestamp in milliseconds. Omit to hide the "Created" row. */
   timestamp?: number;
   /** Single BTC transaction hash to link in the explorer (hex, may include 0x
    * prefix). Used by the withdraw section to show the vault's peg-in tx hash.
@@ -131,9 +131,9 @@ export function VaultDetailCard({
 
       {belowHeader}
 
-      {/* Date */}
+      {/* Created */}
       {timestamp !== undefined && (
-        <VaultCardRow label="Date">
+        <VaultCardRow label={COPY.pegin.createdLabel}>
           <Hint
             tooltip={formatDateTime(new Date(timestamp))}
             attachToChildren
@@ -151,7 +151,7 @@ export function VaultDetailCard({
       )}
 
       {/* Vault Provider */}
-      <VaultCardRow label="Vault Provider">
+      <VaultCardRow label="Vault provider">
         <Hint
           tooltip={truncateAddress(providerAddress)}
           attachToChildren
@@ -188,7 +188,7 @@ export function VaultDetailCard({
       {/* Nominated Address — destination registered at vault creation.
           May differ from the currently connected BTC wallet. */}
       {payoutBtcAddress && (
-        <VaultCardRow label="Nominated Address">
+        <VaultCardRow label="Nominated address">
           <CopyableHash
             hash={payoutBtcAddress}
             chain="BTC"

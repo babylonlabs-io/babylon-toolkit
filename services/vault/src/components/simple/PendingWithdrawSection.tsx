@@ -29,6 +29,7 @@ import { formatBtcAmount, formatDuration } from "@/utils/formatting";
 import { payoutEtaMinutes } from "@/utils/pegoutTiming";
 import { canonicalizeTxid } from "@/utils/txid";
 
+import { PeginTxHashRow } from "./PeginTxHashRow";
 import { PegoutTxHashRow } from "./PegoutTxHashRow";
 import { STATUS_DOT_COLORS } from "./statusColors";
 import { VaultDetailCard, VaultStatusBadge } from "./VaultDetailCard";
@@ -131,27 +132,25 @@ function PendingWithdrawSectionContent({
               const tooltip = displayState?.message;
               const claimer = pollingResult?.response?.claimer;
 
-              // Payout ETA for any in-progress (pending) state: a static estimate
-              // before the assert is on-chain, a live countdown once it is.
+              // Payout ETA only once asserting — the timelock_assert CSV clock
+              // starts at assert broadcast; earlier states have nothing on-chain.
               let payoutEta: string | undefined;
               const timelockAssert = getOffchainParamsByVersion(
                 vault.offchainParamsVersion,
               )?.timelockAssert;
-              if (variant === "pending" && timelockAssert !== undefined) {
-                const isAsserting =
-                  claimer?.status === ClaimerPegoutStatusValue.ASSERT_BROADCAST;
-                // Pre-assert: the full timelock remains (confirmations = 0).
-                // Asserting: use live confirmations, but leave the ETA blank
-                // until they're known so a transient unknown (initial load /
-                // mempool 429) doesn't flash the full multi-day wait.
-                const canonical = isAsserting
-                  ? canonicalizeTxid(claimer?.assert_txid)
+              const isAsserting =
+                claimer?.status === ClaimerPegoutStatusValue.ASSERT_BROADCAST;
+              if (
+                variant === "pending" &&
+                isAsserting &&
+                timelockAssert !== undefined
+              ) {
+                // Wait for known confirmations so a transient unknown (initial
+                // load / mempool 429) doesn't flash the full wait.
+                const canonical = canonicalizeTxid(claimer?.assert_txid);
+                const confirmations = canonical
+                  ? confirmationsByTxid.get(canonical)
                   : undefined;
-                const confirmations = isAsserting
-                  ? canonical
-                    ? confirmationsByTxid.get(canonical)
-                    : undefined
-                  : 0;
                 if (confirmations !== undefined) {
                   const etaMinutes = payoutEtaMinutes(
                     Number(timelockAssert),
@@ -165,23 +164,44 @@ function PendingWithdrawSectionContent({
                 }
               }
 
+              // Before the assert is broadcast there's no payout ETA in any
+              // pending state — show the waiting hint, not a bare amount.
+              const subtext =
+                payoutEta ??
+                (variant === "pending" && !isAsserting
+                  ? COPY.pegout.awaitingInitiation
+                  : undefined);
+
               return (
                 <VaultDetailCard
                   key={vault.id}
                   amountBtc={vault.amountBtc}
                   amountSubtext={
-                    payoutEta ? (
+                    subtext ? (
                       <span className="text-sm text-accent-secondary">
-                        {payoutEta}
+                        {subtext}
                       </span>
                     ) : undefined
                   }
                   txHashRow={
-                    <PegoutTxHashRow
-                      claimTxHash={claimer?.claim_txid}
-                      assertTxHash={claimer?.assert_txid}
-                      claimerStatus={claimer?.status}
-                    />
+                    <>
+                      {/* Deposit identity (peg-in / Pre-Pegin) — both on-chain
+                          by withdraw time, so both link to the explorer. */}
+                      <PeginTxHashRow
+                        peginTxHash={vault.peginTxHash}
+                        prePeginTxHash={vault.prePeginTxHash}
+                        linkPegin
+                        linkPrePegin
+                      />
+                      {/* Withdrawal txs (claim / assert) — only once the VP
+                          has a claimer record; gated to copy-only until each
+                          is broadcast. */}
+                      <PegoutTxHashRow
+                        claimTxHash={claimer?.claim_txid}
+                        assertTxHash={claimer?.assert_txid}
+                        claimerStatus={claimer?.status}
+                      />
+                    </>
                   }
                   providerName={vault.providerName}
                   providerIconUrl={vault.providerIconUrl}

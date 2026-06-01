@@ -332,7 +332,7 @@ export function formatPayoutSignatureError(error: unknown): {
 
   if (isWalletRejectionError(error)) {
     return {
-      title: "Signing Rejected",
+      title: "Signing rejected",
       message:
         "You rejected the signing request in your wallet. Approve the request to continue, or click Retry to try again.",
     };
@@ -341,14 +341,14 @@ export function formatPayoutSignatureError(error: unknown): {
   if (error instanceof Error) {
     if (error.message.includes("Vault provider not found")) {
       return {
-        title: "Provider Not Found",
+        title: "Provider not found",
         message:
           "The vault provider for this deposit could not be found. Please contact support.",
       };
     }
     if (error.message.includes("BTC wallet not connected")) {
       return {
-        title: "Wallet Not Connected",
+        title: "Wallet not connected",
         message: "Please reconnect your Bitcoin wallet to continue.",
       };
     }
@@ -357,21 +357,21 @@ export function formatPayoutSignatureError(error: unknown): {
       error.message.includes("not found on-chain")
     ) {
       return {
-        title: "Deposit Not Found",
+        title: "Deposit not found",
         message:
           "The deposit transaction could not be found. It may have been processed already.",
       };
     }
     if (error.message.includes("Failed to sign Payout transaction")) {
       return {
-        title: "Signing Failed",
+        title: "Signing failed",
         message:
           "Failed to sign the payout transaction. Please try again or reconnect your wallet.",
       };
     }
     if (error.message.includes("Failed to batch sign payout transactions")) {
       return {
-        title: "Batch Signing Failed",
+        title: "Batch signing failed",
         message:
           "Failed to sign payout transactions. Please try again or reconnect your wallet.",
       };
@@ -379,14 +379,14 @@ export function formatPayoutSignatureError(error: unknown): {
     // Contract call errors (viem) — surface a meaningful message instead of swallowing
     if (error.message.includes("reverted")) {
       return {
-        title: "Contract Call Failed",
+        title: "Contract call failed",
         message:
           "A contract call failed during payout signing. The on-chain BTC Vault data may be unavailable. Please try again or contact support.",
       };
     }
 
     return {
-      title: "Payout Signing Error",
+      title: "Payout signing error",
       message:
         "An unexpected error occurred while signing payouts. Please try again or contact support.",
     };
@@ -407,7 +407,7 @@ export function formatPayoutSignatureError(error: unknown): {
     msg = (error as { message: string }).message;
   }
   return {
-    title: "Payout Signing Error",
+    title: "Payout signing error",
     message:
       msg && msg !== "[object Object]"
         ? msg
