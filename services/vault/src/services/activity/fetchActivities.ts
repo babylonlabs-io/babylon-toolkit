@@ -65,12 +65,9 @@ export async function fetchUserActivities(
   if (activities.length === 0) return [];
 
   const peginTxHashByVaultId = new Map<string, string>();
-  for (const v of vaults) {
-    peginTxHashByVaultId.set(v.id, v.peginTxHash);
-  }
-
   const vaultLookup = new Map<string, RedeemVaultLookup>();
   for (const v of vaults) {
+    peginTxHashByVaultId.set(v.id, v.peginTxHash);
     vaultLookup.set(v.id, {
       peginTxHash: v.peginTxHash,
       vaultProvider: v.vaultProvider,
