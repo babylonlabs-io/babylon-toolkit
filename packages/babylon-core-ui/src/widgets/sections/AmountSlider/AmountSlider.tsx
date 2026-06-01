@@ -12,7 +12,11 @@ function toNumber(amount: string | number): number {
 function formatForInput(amount: string | number): string {
   const num = toNumber(amount);
   if (!Number.isFinite(num) || num === 0) return "";
-  return String(num);
+  // String(num) goes exponential below 1e-6 (dust "3e-8"); render fixed-point.
+  return num.toLocaleString("en-US", {
+    maximumFractionDigits: 20,
+    useGrouping: false,
+  });
 }
 
 interface BalanceDetails {
