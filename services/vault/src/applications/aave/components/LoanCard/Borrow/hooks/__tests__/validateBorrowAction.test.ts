@@ -14,6 +14,35 @@ describe("validateBorrowAction", () => {
     });
   });
 
+  it("disables with 'Amount too small' when the amount rounds to zero base units", () => {
+    // 0.0000000001 USDC (6 decimals) -> toFixed(6) = "0.000000" -> 0n on-chain,
+    // which the contract rejects with "Amount cannot be zero".
+    const result = validateBorrowAction(0.0000000001, Infinity, 10000, 6);
+
+    expect(result).toEqual({
+      isDisabled: true,
+      buttonText: "Amount too small",
+      errorMessage: "Minimum borrowable amount is 0.000001",
+    });
+  });
+
+  it("blocks a sub-unit amount that toFixed would round UP to one base unit", () => {
+    // 0.0000009 USDC -> toFixed(6) = "0.000001" (1 base unit). A round-to-zero
+    // check would miss this and let the borrow execute for more than entered;
+    // comparing against the minimum blocks all sub-unit amounts.
+    const result = validateBorrowAction(0.0000009, Infinity, 10000, 6);
+
+    expect(result.buttonText).toBe("Amount too small");
+    expect(result.errorMessage).toBe("Minimum borrowable amount is 0.000001");
+  });
+
+  it("allows the smallest representable amount (1 base unit)", () => {
+    // 0.000001 USDC is exactly 1 base unit at 6 decimals — not sub-unit.
+    const result = validateBorrowAction(0.000001, Infinity, 10000, 6);
+
+    expect(result.buttonText).toBe("Borrow");
+  });
+
   it("disables with 'Amount exceeds maximum' when borrow exceeds max", () => {
     const result = validateBorrowAction(50000, 0.16, 10000, 6);
 
