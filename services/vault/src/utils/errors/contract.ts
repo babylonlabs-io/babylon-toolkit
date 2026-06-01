@@ -11,6 +11,80 @@ import { COMMON_ERROR_ABI } from "./commonErrorAbi";
 import { CONTRACT_ERROR_MESSAGES } from "./errorMessages";
 import { ContractError, ErrorCode } from "./types";
 
+/** Minimum length of a revert hex payload: `0x` + a 4-byte (8 hex char) selector. */
+const SELECTOR_HEX_MIN_LENGTH = 10;
+
+/** True when `value` is a hex string long enough to hold a 4-byte selector. */
+function isRevertHex(value: unknown): value is `0x${string}` {
+  return (
+    typeof value === "string" &&
+    value.startsWith("0x") &&
+    value.length >= SELECTOR_HEX_MIN_LENGTH
+  );
+}
+
+/**
+ * Built-in Solidity reverts: `revert("...")` decodes to `Error` and `panic(n)`
+ * to `Panic`, with the real reason in `args`/the viem message. These are NOT
+ * custom errors — returning the name would mask the reason, so callers let the
+ * message-based handling surface it instead.
+ */
+function isBuiltinSolidityError(errorName: string): boolean {
+  return errorName === "Error" || errorName === "Panic";
+}
+
+/**
+ * Read viem's already-decoded custom-error name from the error chain.
+ *
+ * viem's `ContractFunctionRevertedError` decodes the revert with the call's
+ * own ABI and stores the result at `.data.errorName`. Reading it covers call
+ * sites that pass no ABI to the mapper (where the selector isn't in
+ * `COMMON_ERROR_ABI` and re-decoding `.raw` would fail).
+ */
+function findViemDecodedErrorName(obj: unknown, depth = 0): string | undefined {
+  if (depth > 10 || !obj || typeof obj !== "object") {
+    return undefined;
+  }
+
+  const errorObj = obj as Record<string, unknown>;
+
+  const data = errorObj.data;
+  if (data && typeof data === "object") {
+    const errorName = (data as Record<string, unknown>).errorName;
+    if (
+      typeof errorName === "string" &&
+      errorName.length > 0 &&
+      !isBuiltinSolidityError(errorName)
+    ) {
+      return errorName;
+    }
+  }
+
+  if (errorObj.cause) {
+    const found = findViemDecodedErrorName(errorObj.cause, depth + 1);
+    if (found) return found;
+  }
+
+  if (typeof errorObj.walk === "function") {
+    try {
+      let found: string | undefined;
+      (errorObj.walk as (fn: (e: unknown) => boolean) => unknown)((e) => {
+        const name = findViemDecodedErrorName(e, depth + 1);
+        if (name) {
+          found = name;
+          return true;
+        }
+        return false;
+      });
+      if (found) return found;
+    } catch {
+      // walk function failed, continue
+    }
+  }
+
+  return undefined;
+}
+
 /**
  * Recursively search for error data in a nested error object.
  *
@@ -27,46 +101,19 @@ function findErrorData(obj: unknown, depth = 0): `0x${string}` | undefined {
 
   const errorObj = obj as Record<string, unknown>;
 
-  // Check for data field (hex string starting with 0x, at least 10 chars for 4-byte selector)
-  if (
-    errorObj.data &&
-    typeof errorObj.data === "string" &&
-    errorObj.data.startsWith("0x") &&
-    errorObj.data.length >= 10
-  ) {
-    return errorObj.data as `0x${string}`;
-  }
-
-  // Check for revertData (some viem versions)
-  if (
-    errorObj.revertData &&
-    typeof errorObj.revertData === "string" &&
-    errorObj.revertData.startsWith("0x") &&
-    errorObj.revertData.length >= 10
-  ) {
-    return errorObj.revertData as `0x${string}`;
-  }
+  // Revert hex (4-byte selector + args) may sit on any of these fields.
+  if (isRevertHex(errorObj.data)) return errorObj.data;
+  if (isRevertHex(errorObj.revertData)) return errorObj.revertData;
 
   // viem's ContractFunctionRevertedError keeps the DECODED result in `.data`
   // ({ errorName, args }) and the RAW revert hex in `.raw`. The `.data` check
-  // above skips the decoded object (not a string), so read `.raw` here to
-  // recover the bytes for re-decoding.
-  if (
-    errorObj.raw &&
-    typeof errorObj.raw === "string" &&
-    errorObj.raw.startsWith("0x") &&
-    errorObj.raw.length >= 10
-  ) {
-    return errorObj.raw as `0x${string}`;
-  }
+  // above skips the decoded object (not a string), so read `.raw` here.
+  if (isRevertHex(errorObj.raw)) return errorObj.raw;
 
-  // Check for RPC error structure (error.data from JSON-RPC response)
+  // RPC error structure (error.data from a JSON-RPC response).
   if (errorObj.error && typeof errorObj.error === "object") {
-    const rpcData = (errorObj.error as Record<string, unknown>)
-      .data as `0x${string}`;
-    if (rpcData && rpcData.startsWith("0x") && rpcData.length >= 10) {
-      return rpcData;
-    }
+    const rpcData = (errorObj.error as Record<string, unknown>).data;
+    if (isRevertHex(rpcData)) return rpcData;
   }
 
   // Recursively check cause chain
@@ -103,9 +150,16 @@ function tryDecodeContractError(
   error: unknown,
   abis: Abi[],
 ): { errorName: string; args?: readonly unknown[] } | undefined {
-  const errorData = findErrorData(error);
+  // Prefer viem's own decode (done with the call's ABI). This maps custom
+  // errors even on call sites that pass no ABI, where re-decoding the raw
+  // bytes below would fail because the selector isn't in COMMON_ERROR_ABI.
+  const viemErrorName = findViemDecodedErrorName(error);
+  if (viemErrorName) {
+    return { errorName: viemErrorName };
+  }
 
-  if (!errorData || errorData === "0x" || errorData.length < 10) {
+  const errorData = findErrorData(error);
+  if (!isRevertHex(errorData)) {
     return undefined;
   }
 
@@ -114,7 +168,12 @@ function tryDecodeContractError(
 
   for (const abi of allAbis) {
     try {
-      return decodeErrorResult({ abi, data: errorData });
+      const decoded = decodeErrorResult({ abi, data: errorData });
+      // viem appends solidityError/solidityPanic to every decode, so a
+      // built-in revert("...")/panic resolves to Error/Panic here too — let
+      // the message-based handling surface its reason instead.
+      if (isBuiltinSolidityError(decoded.errorName)) return undefined;
+      return decoded;
     } catch {
       continue;
     }
