@@ -2,7 +2,7 @@
  * Tests for contract error mapping utilities
  */
 
-import { type Abi } from "viem";
+import { type Abi, encodeErrorResult } from "viem";
 import { describe, expect, it } from "vitest";
 
 import { mapViemErrorToContractError } from "../contract";
@@ -18,6 +18,11 @@ const TEST_ABI: Abi = [
   {
     type: "error",
     name: "PositionNotFound",
+    inputs: [],
+  },
+  {
+    type: "error",
+    name: "ActivationDeadlineExpired",
     inputs: [],
   },
   {
@@ -255,6 +260,37 @@ describe("Contract Error Mapping", () => {
       const result = mapViemErrorToContractError(error, "test", [TEST_ABI]);
 
       expect(result.code).toBe(ErrorCode.CONTRACT_REVERT);
+    });
+
+    it("decodes a viem ContractFunctionRevertedError that exposes raw hex in `.raw` only", () => {
+      // viem 2.38.x stores the DECODED result in `.data` ({ errorName, args })
+      // and the RAW revert hex in `.raw`. The mapper must read `.raw` to
+      // re-decode — this is the real shape `simulateContract` throws, and why
+      // the activation revert previously fell through to the raw viem dump.
+      const error = {
+        message:
+          'The contract function "activateVaultWithSecret" reverted. Error: ActivationDeadlineExpired()',
+        cause: {
+          name: "ContractFunctionRevertedError",
+          message: "reverted. Error: ActivationDeadlineExpired()",
+          // Decoded object — NOT a hex string, so the old `.data` check skips it.
+          data: { errorName: "ActivationDeadlineExpired", args: [] },
+          // Raw revert bytes live here.
+          raw: encodeErrorResult({
+            abi: TEST_ABI,
+            errorName: "ActivationDeadlineExpired",
+          }),
+        },
+      };
+      const result = mapViemErrorToContractError(error, "vault activation", [
+        TEST_ABI,
+      ]);
+
+      expect(result.code).toBe(ErrorCode.CONTRACT_REVERT);
+      expect(result.reason).toBe("ActivationDeadlineExpired");
+      expect(result.message).toBe(
+        "The activation deadline has passed. The BTC Vault can no longer be activated.",
+      );
     });
 
     it("should ignore empty error data", () => {

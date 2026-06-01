@@ -47,6 +47,19 @@ function findErrorData(obj: unknown, depth = 0): `0x${string}` | undefined {
     return errorObj.revertData as `0x${string}`;
   }
 
+  // viem's ContractFunctionRevertedError keeps the DECODED result in `.data`
+  // ({ errorName, args }) and the RAW revert hex in `.raw`. The `.data` check
+  // above skips the decoded object (not a string), so read `.raw` here to
+  // recover the bytes for re-decoding.
+  if (
+    errorObj.raw &&
+    typeof errorObj.raw === "string" &&
+    errorObj.raw.startsWith("0x") &&
+    errorObj.raw.length >= 10
+  ) {
+    return errorObj.raw as `0x${string}`;
+  }
+
   // Check for RPC error structure (error.data from JSON-RPC response)
   if (errorObj.error && typeof errorObj.error === "object") {
     const rpcData = (errorObj.error as Record<string, unknown>)
