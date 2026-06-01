@@ -21,7 +21,7 @@ import { COPY } from "@/copy";
  */
 const WALLET_CONNECTION_REJECTED_CODE = "CONNECTION_REJECTED";
 
-function isWalletRejectionError(error: unknown): boolean {
+export function isWalletRejectionError(error: unknown): boolean {
   return (
     error instanceof Error &&
     "code" in error &&
@@ -112,7 +112,7 @@ const FRIENDLY_MESSAGES: Record<ErrorKind, string> = {
  *      on the first hit and never inspects deeper causes once a frame
  *      classifies.
  */
-function classifyError(err: unknown): ErrorKind | null {
+export function classifyError(err: unknown): ErrorKind | null {
   let cur: unknown = err;
   for (let depth = 0; depth <= 10 && cur && typeof cur === "object"; depth++) {
     const obj = cur as {
@@ -218,6 +218,46 @@ function classifyError(err: unknown): ErrorKind | null {
 }
 
 /**
+ * Map a vault-provider JSON-RPC error to a user-friendly title + message.
+ * Shared by `formatPayoutSignatureError` and the deposit-flow error mapper so
+ * the VP error copy stays in one place.
+ */
+export function mapVpRpcError(error: JsonRpcError): {
+  title: string;
+  message: string;
+} {
+  const vp = COPY.deposit.errors.vp;
+  if (error.code === RpcErrorCode.PEGIN_NOT_FOUND) {
+    return vp.syncing;
+  }
+  if (error.code === JSON_RPC_ERROR_CODES.TIMEOUT) {
+    return vp.requestTimeout;
+  }
+  // -32001: proxy "Provider not found" (message-specific) vs FE client "Network error" (generic)
+  if (
+    error.code === JSON_RPC_ERROR_CODES.NETWORK &&
+    error.message.toLowerCase().includes("provider not found")
+  ) {
+    return vp.providerNotFound;
+  }
+  if (error.code === JSON_RPC_ERROR_CODES.NETWORK) {
+    return vp.connectionFailed;
+  }
+  // Proxy-specific: VP request timed out at the proxy level
+  if (error.code === JSON_RPC_ERROR_CODES.PROXY_TIMEOUT) {
+    return vp.providerTimeout;
+  }
+  // Proxy-specific: VP unreachable, DNS failure, or response too large
+  if (error.code === JSON_RPC_ERROR_CODES.PROXY_UNAVAILABLE) {
+    return vp.providerUnavailable;
+  }
+  return {
+    title: vp.rejected.title,
+    message: vp.rejected.message(error.code),
+  };
+}
+
+/**
  * Extract a safe error message from an unknown error value.
  *
  * Known viem / EIP-1193 / wallet-connector failure categories collapse to a
@@ -287,58 +327,7 @@ export function formatPayoutSignatureError(error: unknown): {
   message: string;
 } {
   if (error instanceof JsonRpcError) {
-    if (error.code === RpcErrorCode.PEGIN_NOT_FOUND) {
-      return {
-        title: "Vault Provider Syncing",
-        message:
-          "The vault provider hasn't ingested your peg-in yet. Please wait a moment and try again.",
-      };
-    }
-    if (error.code === JSON_RPC_ERROR_CODES.TIMEOUT) {
-      return {
-        title: "Request Timeout",
-        message:
-          "The vault provider took too long to respond. Please try again.",
-      };
-    }
-    // -32001: proxy "Provider not found" (message-specific) vs FE client "Network error" (generic)
-    if (
-      error.code === JSON_RPC_ERROR_CODES.NETWORK &&
-      error.message.toLowerCase().includes("provider not found")
-    ) {
-      return {
-        title: "Provider Not Found",
-        message:
-          "The vault provider could not be found in the on-chain registry. It may have been deregistered.",
-      };
-    }
-    if (error.code === JSON_RPC_ERROR_CODES.NETWORK) {
-      return {
-        title: "Connection Failed",
-        message:
-          "Unable to connect to the vault provider. Please check your connection and try again.",
-      };
-    }
-    // Proxy-specific: VP request timed out at the proxy level
-    if (error.code === JSON_RPC_ERROR_CODES.PROXY_TIMEOUT) {
-      return {
-        title: "Provider Timeout",
-        message:
-          "The vault provider took too long to respond. Please try again later.",
-      };
-    }
-    // Proxy-specific: VP unreachable, DNS failure, or response too large
-    if (error.code === JSON_RPC_ERROR_CODES.PROXY_UNAVAILABLE) {
-      return {
-        title: "Provider Unavailable",
-        message:
-          "The vault provider is temporarily unreachable. Please try again later.",
-      };
-    }
-    return {
-      title: "Signature Submission Failed",
-      message: `The vault provider rejected the request (error code: ${error.code}). Please try again or contact support.`,
-    };
+    return mapVpRpcError(error);
   }
 
   if (isWalletRejectionError(error)) {

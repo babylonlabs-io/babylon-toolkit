@@ -5,10 +5,10 @@ import { DepositFlowStep } from "@/hooks/deposit/depositFlowSteps";
  */
 function canCloseModal(
   currentStep: DepositFlowStep,
-  error: string | null,
+  hasError: boolean,
   isWaiting: boolean = false,
 ): boolean {
-  if (error) return true;
+  if (hasError) return true;
   if (currentStep === DepositFlowStep.COMPLETED) return true;
   // Artifact download is closeable when the user is actively reviewing
   // (no current wait) or while we're waiting for VP verification.
@@ -37,16 +37,16 @@ export function computeDepositDerivedState(
   currentStep: DepositFlowStep,
   processing: boolean,
   isWaiting: boolean,
-  error: string | null,
+  hasError: boolean,
 ) {
   const isComplete = currentStep === DepositFlowStep.COMPLETED;
   return {
     isComplete,
-    canClose: canCloseModal(currentStep, error, isWaiting),
-    isProcessing: (processing || isWaiting) && !error && !isComplete,
+    canClose: canCloseModal(currentStep, hasError, isWaiting),
+    isProcessing: (processing || isWaiting) && !hasError && !isComplete,
     canContinueInBackground:
       isWaiting &&
       currentStep >= DepositFlowStep.AWAIT_BTC_CONFIRMATION &&
-      !error,
+      !hasError,
   };
 }

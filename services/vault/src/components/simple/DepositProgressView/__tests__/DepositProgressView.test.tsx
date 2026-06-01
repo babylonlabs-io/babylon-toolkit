@@ -534,7 +534,7 @@ describe("DepositProgressView", () => {
         <DepositProgressView
           {...baseProps}
           currentStep={DepositFlowStep.RETRIEVE_SECRET}
-          error="boom"
+          error={{ title: "Transaction failed", body: "boom" }}
           terminalMessage="Ready to activate."
         />,
       );

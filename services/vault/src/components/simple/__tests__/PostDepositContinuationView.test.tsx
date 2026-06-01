@@ -85,9 +85,42 @@ vi.mock("@/copy", () => ({
   COPY: {
     deposit: {
       resume: { activationSuccessMessage: "Deposit successfully submitted!" },
+      errors: {
+        defaultTitle: "Transaction failed",
+        genericBody: "Something went wrong during your deposit.",
+        signingRejected: { title: "Signing rejected", body: "You rejected." },
+        walletNotConnected: {
+          title: "Wallet not connected",
+          body: "Reconnect.",
+        },
+        walletAccountChanged: {
+          title: "Wallet account changed",
+          body: "Restart.",
+        },
+        utxosUnavailable: { title: "Funds unavailable", body: "In use." },
+        broadcastFailed: { title: "Broadcast failed", body: "Try again." },
+        providerNotFound: { title: "Provider not found", body: "Refresh." },
+        versionMismatch: { title: "Parameters changed", body: "Restart." },
+        insufficientEthForGas: {
+          title: "Transaction failed",
+          body: "Not enough ETH.",
+        },
+      },
     },
     common: {
       somethingWentWrong: { body: "Please close this and try again." },
+      // formatting.ts builds FRIENDLY_MESSAGES from these at module load, and
+      // depositErrors.ts (imported transitively here) pulls formatting.ts in.
+      classifiedErrors: {
+        userRejection: "You rejected the request.",
+        insufficientFunds: "Not enough funds.",
+        walletDisconnected: "Wallet disconnected.",
+        unauthorized: "Not authorized.",
+        chainSwitchFailed: "Could not switch network.",
+        receiptTimeout: "Confirmation timed out.",
+        network: "Network error.",
+        staleDeploy: "Reload the page.",
+      },
     },
   },
 }));
@@ -100,13 +133,13 @@ vi.mock("../DepositProgressView", () => ({
     onClose,
   }: {
     currentStep: string;
-    error?: string | null;
+    error?: { title: string; body: string } | null;
     isComplete?: boolean;
     onClose: () => void;
   }) => (
     <div data-testid="progress-view">
       <span data-testid="step">{String(currentStep)}</span>
-      <span data-testid="error">{error ?? ""}</span>
+      <span data-testid="error">{error?.body ?? ""}</span>
       <span data-testid="complete">{String(!!isComplete)}</span>
       <button type="button" data-testid="progress-close" onClick={onClose}>
         close

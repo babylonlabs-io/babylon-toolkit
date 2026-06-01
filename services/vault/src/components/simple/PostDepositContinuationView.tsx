@@ -14,6 +14,7 @@ import {
   USER_ACTIONABLE_PEGIN_ACTIONS,
 } from "@/models/peginStateMachine";
 import type { VaultActivity } from "@/types/activity";
+import { type DepositErrorContent, mapDepositError } from "@/utils/errors";
 
 import { ActivationGate } from "./ActivationGate";
 import {
@@ -95,7 +96,7 @@ function StatusView({
 }: {
   currentStep: DepositFlowStep;
   onClose: () => void;
-  error?: string | null;
+  error?: DepositErrorContent | null;
   isComplete?: boolean;
   isProcessing?: boolean;
   canContinueInBackground?: boolean;
@@ -176,7 +177,9 @@ export function PostDepositContinuationView({
       return (
         <StatusView
           currentStep={stepForWarningVault(warning)}
-          error={warning.message ?? COPY.common.somethingWentWrong.body}
+          error={mapDepositError(
+            warning.message ?? COPY.common.somethingWentWrong.body,
+          )}
           onClose={onClose}
         />
       );

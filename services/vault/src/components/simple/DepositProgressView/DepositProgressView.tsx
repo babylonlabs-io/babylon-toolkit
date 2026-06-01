@@ -9,14 +9,20 @@
  * banners, action button.
  */
 
-import { Button, Heading, Loader, Text } from "@babylonlabs-io/core-ui";
+import {
+  Button,
+  Callout,
+  Heading,
+  Loader,
+  Text,
+} from "@babylonlabs-io/core-ui";
 import { type ReactNode, useMemo } from "react";
 
-import { StatusBanner } from "@/components/deposit/DepositSignModal/StatusBanner";
 import { COPY } from "@/copy";
 import { DepositFlowStep } from "@/hooks/deposit/depositFlowSteps/types";
 import type { PayoutSigningProgress } from "@/services/vault/vaultPayoutSignatureService";
 import type { PeginSigningProgress } from "@/services/vault/vaultTransactionService";
+import type { DepositErrorContent } from "@/utils/errors";
 
 import { BtcConfirmationDetailContainer } from "./BtcConfirmationDetailContainer";
 import { CompletedStepsPill } from "./CompletedStepsPill";
@@ -50,7 +56,7 @@ export interface BtcConfirmationDetailData {
 
 export interface DepositProgressViewProps {
   currentStep: DepositFlowStep;
-  error: string | null;
+  error: DepositErrorContent | null;
   isComplete: boolean;
   isProcessing: boolean;
   canClose: boolean;
@@ -195,14 +201,16 @@ export function DepositProgressView(props: DepositProgressViewProps) {
           activeStepDetail={activeStepDetail}
         />
 
-        {error && <StatusBanner variant="error">{error}</StatusBanner>}
-
-        {isComplete && (
-          <StatusBanner variant="success">{successMessage}</StatusBanner>
+        {error && (
+          <Callout variant="error" title={error.title}>
+            {error.body}
+          </Callout>
         )}
 
+        {isComplete && <Callout variant="success">{successMessage}</Callout>}
+
         {isTerminalSuccess && (
-          <StatusBanner variant="success">{terminalMessage}</StatusBanner>
+          <Callout variant="success">{terminalMessage}</Callout>
         )}
 
         <Button
