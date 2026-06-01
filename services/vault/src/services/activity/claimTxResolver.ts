@@ -19,6 +19,7 @@ import {
   batchPollByProvider,
   type GetPegoutStatusResponse,
 } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
+import { isAddress } from "viem";
 
 import { logger } from "@/infrastructure";
 import { getPegoutTxLinkFlags } from "@/models/pegoutStateMachine";
@@ -31,6 +32,9 @@ import { createVpClient } from "@/utils/rpc";
  * "Pending…" and fill in on a later refetch.
  */
 export const CLAIM_TX_RPC_TIMEOUT_MS = 10_000;
+
+/** A Bitcoin txid is 32 bytes — exactly 64 hex chars, no `0x` prefix. */
+const BTC_TXID_REGEX = /^[0-9a-f]{64}$/i;
 
 export interface RedeemVaultLookup {
   peginTxHash: string;
@@ -62,9 +66,9 @@ export async function resolveRedeemClaimTxids(
       );
       continue;
     }
-    if (!info.vaultProvider || !info.vaultProvider.startsWith("0x")) {
+    if (!isAddress(info.vaultProvider, { strict: false })) {
       logger.warn(
-        "[claimTxResolver] redeem vault missing valid provider address; skipping",
+        "[claimTxResolver] redeem vault has an invalid provider address; skipping",
         { data: { vaultId, vaultProvider: info.vaultProvider } },
       );
       continue;
@@ -79,11 +83,14 @@ export async function resolveRedeemClaimTxids(
 
   await Promise.all(
     Array.from(byProvider, async ([providerAddress, entries]) => {
-      const rpcClient = createVpClient(providerAddress, {
-        timeout: CLAIM_TX_RPC_TIMEOUT_MS,
-        retries: 0,
-      });
       try {
+        // Inside the try: createVpClient (via getVpProxyUrl) can throw on a
+        // misconfigured proxy URL, and that must fail closed for this one VP
+        // rather than rejecting Promise.all and erroring the whole tab.
+        const rpcClient = createVpClient(providerAddress, {
+          timeout: CLAIM_TX_RPC_TIMEOUT_MS,
+          retries: 0,
+        });
         await batchPollByProvider<PerVaultEntry, GetPegoutStatusResponse>({
           items: entries,
           getTxid: (e) => stripHexPrefix(e.peginTxHash),
@@ -98,8 +105,13 @@ export async function resolveRedeemClaimTxids(
             // says it's been broadcast — otherwise the row would link to a tx
             // that isn't in any mempool yet, the exact broken link this fixes.
             if (!getPegoutTxLinkFlags(claimer.status).linkClaim) return;
+            // Don't trust the VP's txid shape — a malformed value would link to
+            // mempool.space/tx/<garbage> and 404.
             const claimTxid = claimer.claim_txid;
-            if (typeof claimTxid === "string" && claimTxid.length > 0) {
+            if (
+              typeof claimTxid === "string" &&
+              BTC_TXID_REGEX.test(claimTxid)
+            ) {
               out.set(entry.vaultId, claimTxid);
             }
           },
@@ -116,7 +128,7 @@ export async function resolveRedeemClaimTxids(
         });
       } catch (error) {
         logger.warn(
-          `[claimTxResolver] VP ${providerAddress} threw outside the batch envelope`,
+          `[claimTxResolver] VP ${providerAddress} claim-txid lookup failed; leaving its rows pending`,
           { data: { error: String(error) } },
         );
       }
