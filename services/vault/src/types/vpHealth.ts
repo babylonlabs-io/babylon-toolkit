@@ -22,4 +22,11 @@ export interface VpHealthSnapshot {
   avgResponseMs: number;
   /** 95th percentile response time in ms */
   p95ResponseMs: number;
+  /**
+   * When `true`, the proxy has administratively disabled this VP. Disabled
+   * VPs are hidden from the deposit picker entirely — unlike runtime-unhealthy
+   * VPs (low success rate), which are shown but sorted to the bottom with a
+   * warning. Absent or `false` means the VP is not disabled.
+   */
+  disabled?: boolean;
 }

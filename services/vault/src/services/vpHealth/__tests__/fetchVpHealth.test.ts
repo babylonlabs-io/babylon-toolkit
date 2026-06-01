@@ -153,5 +153,28 @@ describe("fetchVpHealth", () => {
       const result = await fetchVpHealth();
       expect(result).toEqual([]);
     });
+
+    it("preserves a disabled: true flag", async () => {
+      mockFetchResponse([makeSnapshot({ disabled: true })]);
+
+      const result = await fetchVpHealth();
+      expect(result).toHaveLength(1);
+      expect(result[0].disabled).toBe(true);
+    });
+
+    it("accepts snapshots without a disabled field", async () => {
+      mockFetchResponse([makeSnapshot()]);
+
+      const result = await fetchVpHealth();
+      expect(result).toHaveLength(1);
+      expect(result[0].disabled).toBeUndefined();
+    });
+
+    it("drops entries with a non-boolean disabled field", async () => {
+      mockFetchResponse([makeSnapshot({ disabled: "yes" })]);
+
+      const result = await fetchVpHealth();
+      expect(result).toEqual([]);
+    });
   });
 });

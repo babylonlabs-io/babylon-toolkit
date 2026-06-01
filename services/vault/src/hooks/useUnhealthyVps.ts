@@ -1,6 +1,6 @@
 /**
- * Hook that periodically polls the VP proxy health endpoint and maintains
- * a set of unhealthy vault provider addresses.
+ * Hook that maintains a set of runtime-unhealthy vault provider addresses,
+ * derived from the periodically-polled VP proxy health endpoint.
  *
  * Design decisions:
  * - A VP is "unhealthy" when it appears in the health response with a
@@ -11,16 +11,17 @@
  *   assumed healthy.
  * - On fetch error (5xx, network failure) the hook returns an empty set
  *   so all VPs remain visible (graceful degradation).
+ *
+ * "Unhealthy" is distinct from "disabled" (see {@link useDisabledVps}):
+ * unhealthy VPs are shown in the picker but sorted to the bottom with a
+ * warning, whereas disabled VPs are hidden entirely.
  */
 
-import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 
-import { fetchVpHealth } from "../services/vpHealth";
 import type { VpHealthSnapshot } from "../types/vpHealth";
 
-/** Poll interval for the health endpoint */
-const POLL_INTERVAL_MS = 30_000;
+import { useVpHealthSnapshots } from "./useVpHealth";
 
 /** Minimum requests in the window before we judge a VP */
 const MIN_REQUESTS_FOR_EVALUATION = 3;
@@ -36,15 +37,7 @@ function isUnhealthy(snapshot: VpHealthSnapshot): boolean {
 }
 
 export function useUnhealthyVps(): Set<string> {
-  const { data: snapshots } = useQuery<VpHealthSnapshot[]>({
-    queryKey: ["vpHealth"],
-    queryFn: fetchVpHealth,
-    refetchInterval: POLL_INTERVAL_MS,
-    // fetchVpHealth returns [] on any failure (graceful degradation),
-    // so all VPs remain visible when the endpoint is down
-    retry: false,
-    refetchOnWindowFocus: false,
-  });
+  const snapshots = useVpHealthSnapshots();
 
   return useMemo(() => {
     if (!snapshots) return new Set<string>();

@@ -18,7 +18,7 @@
  */
 
 import { useQuery } from "@tanstack/react-query";
-import { useCallback } from "react";
+import { useCallback, useMemo } from "react";
 
 import { useAaveConfig } from "../../applications/aave/context/AaveConfigContext";
 import { fetchAppProviders } from "../../services/providers";
@@ -27,6 +27,7 @@ import type {
   VaultKeeper,
   VaultProvider,
 } from "../../types";
+import { useDisabledVps } from "../useDisabledVps";
 import { toIdentity } from "../useLogos";
 import { useUnhealthyVps } from "../useUnhealthyVps";
 import { useWithLogos } from "../useWithLogos";
@@ -37,9 +38,12 @@ const getProviderIdentity = (p: VaultProvider) => toIdentity(p.btcPubKey);
 
 export interface UseVaultProvidersResult {
   /**
-   * Every vault provider — including runtime-unhealthy and metadata-rejected
-   * ones. The deposit picker uses this so unhealthy VPs can be shown (sorted
-   * to the bottom with a warning) rather than hidden.
+   * Every listable vault provider — including runtime-unhealthy and
+   * metadata-rejected ones (shown in the picker, sorted to the bottom with a
+   * warning) but EXCLUDING proxy-disabled VPs, which are hidden from the
+   * picker entirely. The deposit picker uses this list. To resolve a provider
+   * that an existing vault is bound to — which may be disabled — use
+   * {@link findProvider}, which searches the full unfiltered set.
    */
   allVaultProviders: VaultProvider[];
   /** Lowercased Ethereum addresses of runtime-unhealthy VPs (per `/vp-health`). */
@@ -94,18 +98,30 @@ export function useVaultProviders(
   });
 
   const unhealthyVps = useUnhealthyVps();
+  const disabledVps = useDisabledVps();
 
-  // All providers with logos (unfiltered) — used by every caller. The
-  // deposit picker sorts unhealthy / metadata-rejected VPs to the bottom
-  // instead of hiding them, and findProvider must resolve any provider that
-  // existing vaults are bound to (including ones whose rpcUrl later went bad).
+  // All providers with logos (unfiltered) — the source of truth for
+  // findProvider. The deposit picker sorts unhealthy / metadata-rejected VPs
+  // to the bottom instead of hiding them, and findProvider must resolve any
+  // provider that existing vaults are bound to (including ones that are now
+  // disabled, or whose rpcUrl later went bad).
   const allProviders = data?.vaultProviders ?? EMPTY_VAULT_PROVIDERS;
   const allProvidersWithLogos = useWithLogos(allProviders, getProviderIdentity);
 
-  // Find provider by address — searches ALL providers (including unhealthy
-  // and metadata-rejected) so that vault management flows (payout signing,
-  // dashboard, refund) still work for existing vaults bound to a provider
-  // whose rpcUrl later went bad.
+  // Listable subset shown in the picker: the full set minus proxy-disabled
+  // VPs. Disabled VPs are hidden entirely (cannot be selected for a new
+  // deposit); unhealthy / metadata-rejected VPs remain and are sorted to the
+  // bottom by the picker.
+  const listableProviders = useMemo(
+    () =>
+      allProvidersWithLogos.filter((p) => !disabledVps.has(p.id.toLowerCase())),
+    [allProvidersWithLogos, disabledVps],
+  );
+
+  // Find provider by address — searches ALL providers (including disabled,
+  // unhealthy, and metadata-rejected) so that vault management flows (payout
+  // signing, dashboard, refund) still work for existing vaults bound to a
+  // provider that was later disabled or whose rpcUrl went bad.
   const findProvider = useCallback(
     (address: string): VaultProvider | undefined => {
       return allProvidersWithLogos.find(
@@ -121,7 +137,7 @@ export function useVaultProviders(
   };
 
   return {
-    allVaultProviders: allProvidersWithLogos,
+    allVaultProviders: listableProviders,
     unhealthyVpIds: unhealthyVps,
     vaultKeepers: data?.vaultKeepers ?? EMPTY_VAULT_KEEPERS,
     loading: isLoading,
