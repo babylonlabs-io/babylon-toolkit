@@ -53,6 +53,7 @@ export function useActivationState({
   // `setOptimisticStatus` context update fire on an unmounted tree.
   const mountedRef = useRef(true);
   useEffect(() => {
+    mountedRef.current = true; // reset on remount (StrictMode setup→cleanup→setup)
     return () => {
       mountedRef.current = false;
     };

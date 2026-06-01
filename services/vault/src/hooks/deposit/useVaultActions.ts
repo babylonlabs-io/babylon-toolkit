@@ -112,6 +112,7 @@ export function useVaultActions(): UseVaultActionsReturn {
   // post-await setters fire on an unmounted component.
   const mountedRef = useRef(true);
   useEffect(() => {
+    mountedRef.current = true; // reset on remount (StrictMode setup→cleanup→setup)
     return () => {
       mountedRef.current = false;
     };
