@@ -2,6 +2,7 @@ import { Button, Heading, Text } from "@babylonlabs-io/core-ui";
 
 import { getNetworkConfigBTC } from "@/config";
 import { COPY } from "@/copy";
+import { getBtcExplorerTxUrl } from "@/utils/explorer";
 import { getBtcSymbol } from "@/utils/formatting";
 
 const btcConfig = getNetworkConfigBTC();
@@ -15,7 +16,7 @@ export function RefundSuccessContent({
   refundTxId,
   onDone,
 }: RefundSuccessContentProps) {
-  const explorerUrl = `${btcConfig.mempoolApiUrl}/tx/${refundTxId}`;
+  const explorerUrl = getBtcExplorerTxUrl(refundTxId);
   const btcSymbol = getBtcSymbol();
 
   return (
