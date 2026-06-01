@@ -125,7 +125,7 @@ export function PendingDepositCard({
   return (
     <VaultDetailCard
       amountBtc={parseFloat(amount || "0")}
-      timestamp={timestamp ?? 0}
+      timestamp={timestamp}
       onClick={onCardClick ? () => onCardClick(depositId) : undefined}
       txHashRow={
         <PeginTxHashRow

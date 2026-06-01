@@ -37,8 +37,16 @@ interface SplitGroupedProgressProps {
   currentVaultIndex: number | null;
   /** Underlying DepositFlowStep, used to derive per-vault progression. */
   rawStep: DepositFlowStep;
-  /** Optional detail panel rendered inside the active step row (trunk only). */
+  /** Optional detail panel rendered inside the active step row (trunk + the
+   *  active vault's column). */
   activeStepDetail?: ReactNode;
+  /**
+   * Per-vault raw steps (resume path), indexed to match the columns. When
+   * provided, each column renders its own vault's true polled state instead of
+   * inferring it from array position. Omit for the live sequential flow, where
+   * {@link derivePerVaultStep} handles the inference.
+   */
+  perVaultSteps?: DepositFlowStep[];
 }
 
 function StepList({
@@ -97,6 +105,7 @@ function VaultColumn({
   steps,
   perVaultVisualStep,
   groupNumberOffset,
+  activeStepDetail,
 }: {
   vaultIndex: number;
   branchGroups: StepGroupView[];
@@ -104,6 +113,9 @@ function VaultColumn({
   perVaultVisualStep: number;
   /** Index offset so per-vault group letters continue from the trunk (B, C, D, …). */
   groupNumberOffset: number;
+  /** Detail panel for this column's active step. Only the active vault's
+   *  column receives it — siblings show no wait/confirmation detail. */
+  activeStepDetail?: ReactNode;
 }) {
   return (
     <div className="flex min-w-0 flex-1 flex-col">
@@ -131,6 +143,7 @@ function VaultColumn({
                   group={group}
                   steps={steps}
                   currentStep={perVaultVisualStep}
+                  activeStepDetail={activeStepDetail}
                 />
               )}
               {!isLast && <StepConnector />}
@@ -149,6 +162,7 @@ export function SplitGroupedProgress({
   currentVaultIndex,
   rawStep,
   activeStepDetail,
+  perVaultSteps,
 }: SplitGroupedProgressProps) {
   const trunkGroups = buildStepGroups(currentStep).filter(
     (group) => group.endStep <= TRUNK_END_VISUAL_STEP,
@@ -179,11 +193,12 @@ export function SplitGroupedProgress({
 
       <div className="flex gap-6">
         {Array.from({ length: vaultCount }, (_, vaultIndex) => {
-          const vaultRawStep = derivePerVaultStep(
-            rawStep,
-            currentVaultIndex,
-            vaultIndex,
-          );
+          // Resume path supplies each column's true step from its own polled
+          // state; the live flow infers it from array position. `??` (not `||`)
+          // so step 0 (DERIVE_VAULT_SECRET) isn't treated as missing.
+          const vaultRawStep =
+            perVaultSteps?.[vaultIndex] ??
+            derivePerVaultStep(rawStep, currentVaultIndex, vaultIndex);
           const perVaultVisualStep = getVisualStep(vaultRawStep);
           const perVaultBranchGroups = buildStepGroups(
             perVaultVisualStep,
@@ -197,6 +212,11 @@ export function SplitGroupedProgress({
               steps={steps}
               perVaultVisualStep={perVaultVisualStep}
               groupNumberOffset={trunkGroups.length}
+              // Only the active vault's column shows the live wait /
+              // confirmation-depth detail; siblings render their rows plainly.
+              activeStepDetail={
+                vaultIndex === currentVaultIndex ? activeStepDetail : undefined
+              }
             />
           );
         })}

@@ -25,6 +25,7 @@ import type { VaultActivity } from "@/types/activity";
 import type { VaultProvider } from "@/types/vaultProvider";
 import { formatBtcAmount } from "@/utils/formatting";
 
+import { isInteractiveEventTarget } from "./cardInteraction";
 import { PendingDepositCard } from "./PendingDepositCard";
 
 interface BatchedDepositGroupProps {
@@ -63,6 +64,9 @@ export function BatchedDepositGroup({
     );
   });
 
+  // Display-only header total. `formatBtcAmount` rounds to 8 dp, so float-sum
+  // drift never surfaces. Do NOT copy this parseFloat-sum into any commitment,
+  // fee, or split-sizing path — those must sum satoshis as integers/bigints.
   const totalBtc = activities.reduce(
     (sum, activity) => sum + parseFloat(activity.collateral.amount || "0"),
     0,
@@ -74,10 +78,19 @@ export function BatchedDepositGroup({
   // hoisted broadcast button, per-vault action) preserve their own behaviour.
   const clickable = Boolean(onGroupClick);
   const handleClick = (event: React.MouseEvent<HTMLDivElement>) => {
-    if (!clickable) return;
-    const target = event.target as HTMLElement;
-    if (target.closest("button, a")) return;
+    if (!clickable || isInteractiveEventTarget(event)) return;
     onGroupClick?.(activities[0].id);
+  };
+
+  // Keyboard activation mirrors the click guard: Enter/Space on the hoisted
+  // Broadcast button (or an inner Copy / explorer link) fires that control
+  // only, without also opening the multistepper.
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (!clickable || isInteractiveEventTarget(event)) return;
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      onGroupClick?.(activities[0].id);
+    }
   };
 
   return (
@@ -90,19 +103,17 @@ export function BatchedDepositGroup({
           ? "group rounded-xl border border-accent-primary bg-primary-light/10 p-3 transition-colors hover:bg-primary-light/[0.15]"
           : "rounded-xl border border-accent-primary bg-primary-light/10 p-3"
       }
+      // a11y status: keyboard activation handled (handleKeyDown, same
+      // inner-control guard as click). KNOWN, ACCEPTED TRADEOFF: this
+      // `role="button"` wrapper contains real interactive children (per-row
+      // Copy/explorer controls + the hoisted Broadcast button) —
+      // nested-interactive ARIA, accepted for the temporary card-as-button
+      // design. Proper fix (stretched-link button) tracked as a follow-up.
       role={clickable ? "button" : undefined}
+      aria-label={clickable ? COPY.deposit.progress.openDetailsAria : undefined}
       tabIndex={clickable ? 0 : undefined}
       onClick={clickable ? handleClick : undefined}
-      onKeyDown={
-        clickable
-          ? (event) => {
-              if (event.key === "Enter" || event.key === " ") {
-                event.preventDefault();
-                onGroupClick?.(activities[0].id);
-              }
-            }
-          : undefined
-      }
+      onKeyDown={clickable ? handleKeyDown : undefined}
       style={clickable ? { cursor: "pointer" } : undefined}
     >
       <div className="mb-2 flex items-baseline justify-between gap-2">

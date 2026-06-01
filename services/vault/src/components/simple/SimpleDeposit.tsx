@@ -1,7 +1,7 @@
 import { FullScreenDialog, Heading } from "@babylonlabs-io/core-ui";
 import { useChainConnector } from "@babylonlabs-io/wallet-connector";
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { Address, Hex } from "viem";
+import type { Address } from "viem";
 
 import { FeatureFlags } from "@/config";
 import { useAddressScreening } from "@/context/addressScreening";
@@ -14,7 +14,6 @@ import { useDialogStep } from "@/hooks/deposit/useDialogStep";
 import { usePendingVaultOverlapCheck } from "@/hooks/deposit/usePendingVaultOverlapCheck";
 import { useProtocolFeeRows } from "@/hooks/useProtocolFeeRows";
 import type { VaultActivity } from "@/types/activity";
-import type { VaultProvider } from "@/types/vaultProvider";
 import {
   shouldProbeWalletLiveness,
   verifyBtcWalletLiveness,
@@ -27,12 +26,7 @@ import { useDepositPageForm } from "../../hooks/deposit/useDepositPageForm";
 import { DepositForm } from "./DepositForm";
 import { DepositSignContent } from "./DepositSignContent";
 import { FadeTransition } from "./FadeTransition";
-import {
-  ResumeActivationContent,
-  ResumeBroadcastContent,
-  ResumeSignContent,
-  ResumeWotsContent,
-} from "./ResumeDepositContent";
+import { ResumeBroadcastContent } from "./ResumeDepositContent";
 
 // ---------------------------------------------------------------------------
 // Props
@@ -49,20 +43,6 @@ type NewDepositProps = SimpleDepositBaseProps & {
   resumeMode?: undefined;
 };
 
-type ResumeSignProps = SimpleDepositBaseProps & {
-  resumeMode: "sign_payouts";
-  activity: VaultActivity;
-  btcPublicKey: string;
-  depositorEthAddress: Hex;
-  /**
-   * Sibling vault IDs sharing this Pre-PegIn (split-pegin batch). Optional;
-   * when provided with length > 1, the resume UI renders the multi-column
-   * split layout with `activity.id` highlighted.
-   */
-  batchVaultIds?: string[];
-  onResumeSuccess: () => void;
-};
-
 type ResumeBroadcastProps = SimpleDepositBaseProps & {
   resumeMode: "broadcast_btc";
   activity: VaultActivity;
@@ -76,30 +56,11 @@ type ResumeBroadcastProps = SimpleDepositBaseProps & {
   onResumeSuccess: () => void;
 };
 
-type ResumeWotsProps = SimpleDepositBaseProps & {
-  resumeMode: "submit_wots_key";
-  activity: VaultActivity;
-  vaultProviders: VaultProvider[];
-  /** Sibling vault IDs sharing this Pre-PegIn (see ResumeSignProps). */
-  batchVaultIds?: string[];
-  onResumeSuccess: () => void;
-};
-
-type ResumeActivationProps = SimpleDepositBaseProps & {
-  resumeMode: "activate_vault";
-  activity: VaultActivity;
-  depositorEthAddress: string;
-  /** Sibling vault IDs sharing this Pre-PegIn (see ResumeSignProps). */
-  batchVaultIds?: string[];
-  onResumeSuccess: () => void;
-};
-
-export type SimpleDepositProps =
-  | NewDepositProps
-  | ResumeSignProps
-  | ResumeBroadcastProps
-  | ResumeWotsProps
-  | ResumeActivationProps;
+// The post-broadcast resume actions (submit WOTS key, sign payouts, activate)
+// are owned by the deposit multistepper (PostDepositContinuationView), which
+// renders the Resume*Content components directly. SimpleDeposit only handles
+// the new-deposit flow and the shared Pre-PegIn broadcast resume.
+export type SimpleDepositProps = NewDepositProps | ResumeBroadcastProps;
 
 // ---------------------------------------------------------------------------
 // New deposit flow content (form → sign → success)
@@ -465,51 +426,9 @@ function SimpleDepositContent({
 export default function SimpleDeposit(props: SimpleDepositProps) {
   const { open, onClose, resumeMode } = props;
 
-  // Resume mode: skip form/state providers and render resume content directly
+  // Resume mode: skip form/state providers and render the broadcast resume
+  // content directly. (Other post-broadcast actions live in the multistepper.)
   if (resumeMode) {
-    if (resumeMode === "submit_wots_key") {
-      return (
-        <ProtocolParamsProvider>
-          <FullScreenDialog
-            open={open}
-            onClose={onClose}
-            className="items-center justify-center p-6"
-          >
-            <div className="mx-auto w-full max-w-[520px]">
-              <ResumeWotsContent
-                activity={props.activity}
-                siblingVaultIds={props.batchVaultIds}
-                onClose={onClose}
-                onSuccess={props.onResumeSuccess}
-              />
-            </div>
-          </FullScreenDialog>
-        </ProtocolParamsProvider>
-      );
-    }
-
-    if (resumeMode === "activate_vault") {
-      return (
-        <ProtocolParamsProvider>
-          <FullScreenDialog
-            open={open}
-            onClose={onClose}
-            className="items-center justify-center p-6"
-          >
-            <div className="mx-auto w-full max-w-[520px]">
-              <ResumeActivationContent
-                activity={props.activity}
-                depositorEthAddress={props.depositorEthAddress}
-                siblingVaultIds={props.batchVaultIds}
-                onClose={onClose}
-                onSuccess={props.onResumeSuccess}
-              />
-            </div>
-          </FullScreenDialog>
-        </ProtocolParamsProvider>
-      );
-    }
-
     return (
       <ProtocolParamsProvider>
         <FullScreenDialog
@@ -518,24 +437,13 @@ export default function SimpleDeposit(props: SimpleDepositProps) {
           className="items-center justify-center p-6"
         >
           <div className="mx-auto w-full max-w-[520px]">
-            {resumeMode === "sign_payouts" ? (
-              <ResumeSignContent
-                activity={props.activity}
-                btcPublicKey={props.btcPublicKey}
-                depositorEthAddress={props.depositorEthAddress}
-                siblingVaultIds={props.batchVaultIds}
-                onClose={onClose}
-                onSuccess={props.onResumeSuccess}
-              />
-            ) : (
-              <ResumeBroadcastContent
-                activity={props.activity}
-                batchVaultIds={props.batchVaultIds}
-                depositorEthAddress={props.depositorEthAddress}
-                onClose={onClose}
-                onSuccess={props.onResumeSuccess}
-              />
-            )}
+            <ResumeBroadcastContent
+              activity={props.activity}
+              batchVaultIds={props.batchVaultIds}
+              depositorEthAddress={props.depositorEthAddress}
+              onClose={onClose}
+              onSuccess={props.onResumeSuccess}
+            />
           </div>
         </FullScreenDialog>
       </ProtocolParamsProvider>

@@ -12,7 +12,6 @@ import { Avatar, Card, FullScreenDialog } from "@babylonlabs-io/core-ui";
 import { useCallback, useMemo, useState } from "react";
 import type { Address, Hex } from "viem";
 
-import { ArtifactDownloadModal } from "@/components/deposit/ArtifactDownloadModal";
 import { ExpandMenuButton } from "@/components/shared";
 import {
   CARD_DARK_BG_CLASS,
@@ -51,14 +50,13 @@ export function PendingDepositSection() {
     ethAddress,
     hasPendingDeposits,
     hasExpiredDeposits,
-    signModal,
     broadcastModal,
-    wotsKeyModal,
-    activationModal,
-    artifactDownloadModal,
     refundModal,
   } = usePendingDeposits();
 
+  // Display-only summary total (rendered via formatBtcAmount, 8 dp). Never
+  // reuse this parseFloat-sum for commitment / fee / split-sizing math — those
+  // paths must sum satoshis as integers/bigints.
   const totalBtcAmount = useMemo(
     () =>
       pendingActivities.reduce(
@@ -97,12 +95,8 @@ export function PendingDepositSection() {
   // would unmount before the modal could show its success terminal. Keep it
   // mounted while any action modal is open so the modal owns its own dismissal.
   const hasOpenModal = Boolean(
-    signModal.signingData ||
-      broadcastModal.broadcastingActivity ||
+    broadcastModal.broadcastingActivity ||
       broadcastModal.successOpen ||
-      wotsKeyModal.isOpen ||
-      activationModal.activatingActivity ||
-      artifactDownloadModal.isOpen ||
       refundModal.refundingActivity ||
       viewingBatch,
   );
@@ -204,34 +198,12 @@ export function PendingDepositSection() {
           />
         </div>
 
-        {artifactDownloadModal.isOpen &&
-          artifactDownloadModal.params &&
-          artifactDownloadModal.activity && (
-            <ArtifactDownloadModal
-              open={artifactDownloadModal.isOpen}
-              onClose={artifactDownloadModal.handleClose}
-              onComplete={artifactDownloadModal.handleComplete}
-              providerAddress={artifactDownloadModal.params.providerAddress}
-              peginTxid={artifactDownloadModal.params.peginTxid}
-              depositorPk={artifactDownloadModal.params.depositorPk}
-              vaultId={artifactDownloadModal.activity.id}
-              unsignedPrePeginTxHex={
-                artifactDownloadModal.activity.unsignedPrePeginTx
-              }
-            />
-          )}
-
-        {/* Sign / Broadcast / WOTS Key / Activation / Refund / Success modals */}
+        {/* Broadcast / Refund / Success modals. Every other per-vault action
+            is owned by the deposit multistepper opened from the card body. */}
         <PendingDepositModals
-          signModal={signModal}
           broadcastModal={broadcastModal}
-          wotsKeyModal={wotsKeyModal}
-          activationModal={activationModal}
           refundModal={refundModal}
-          vaultProviders={vaultProviders}
-          btcPublicKey={btcPublicKey}
           ethAddress={ethAddress}
-          allActivities={allActivities}
         />
 
         {/* Multistepper view — opened by clicking a pending deposit card. */}

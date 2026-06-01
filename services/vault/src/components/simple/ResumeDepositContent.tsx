@@ -42,6 +42,7 @@ import { submitWotsPublicKey } from "@/hooks/deposit/depositFlowSteps/wotsSubmis
 import { useActivationState } from "@/hooks/deposit/useActivationState";
 import { useBroadcastState } from "@/hooks/deposit/useBroadcastState";
 import { useReleaseVpTokenOnUnmount } from "@/hooks/deposit/useReleaseVpTokenOnUnmount";
+import { useSplitVaultProgress } from "@/hooks/deposit/useSplitVaultProgress";
 import { useBtcDepthStartedAt } from "@/hooks/useBtcDepthStartedAt";
 import { useRunOnce } from "@/hooks/useRunOnce";
 import { logger } from "@/infrastructure";
@@ -131,10 +132,8 @@ export function ResumeSignContent({
     error != null,
   );
 
-  const vaultCount = siblingVaultIds?.length ?? 1;
-  const currentVaultIndex = siblingVaultIds
-    ? siblingVaultIds.indexOf(activity.id)
-    : null;
+  const { vaultCount, currentVaultIndex, perVaultSteps } =
+    useSplitVaultProgress(siblingVaultIds, activity.id, renderStep);
 
   return (
     <DepositProgressView
@@ -154,11 +153,8 @@ export function ResumeSignContent({
       payoutSigningProgress={signing ? progress : null}
       peginSigningProgress={null}
       vaultCount={vaultCount}
-      currentVaultIndex={
-        currentVaultIndex !== null && currentVaultIndex >= 0
-          ? currentVaultIndex
-          : null
-      }
+      currentVaultIndex={currentVaultIndex}
+      perVaultSteps={perVaultSteps}
       onClose={onClose}
       onRetry={error ? handleSign : undefined}
       waitDetailPersistKey={activity.id}
@@ -216,10 +212,14 @@ export function ResumeBroadcastContent({
   );
 
   // During the trunk (broadcast) phase every sibling is at the same shared
-  // step, so the active-vault index is irrelevant — what matters is that
-  // the multi-column UI lights up when the deposit is a split.
-  const broadcastVaultCount = batchVaultIds.length || 1;
-  const broadcastCurrentVaultIndex = batchVaultIds.indexOf(activity.id);
+  // step, so the active-vault index is irrelevant — what matters is that the
+  // multi-column UI lights up when the deposit is a split.
+  const { vaultCount, currentVaultIndex, perVaultSteps } =
+    useSplitVaultProgress(
+      batchVaultIds,
+      activity.id,
+      DepositFlowStep.BROADCAST_PRE_PEGIN,
+    );
 
   return (
     <DepositProgressView
@@ -231,10 +231,9 @@ export function ResumeBroadcastContent({
       canContinueInBackground={derived.canContinueInBackground}
       payoutSigningProgress={null}
       peginSigningProgress={null}
-      vaultCount={broadcastVaultCount}
-      currentVaultIndex={
-        broadcastCurrentVaultIndex >= 0 ? broadcastCurrentVaultIndex : null
-      }
+      vaultCount={vaultCount}
+      currentVaultIndex={currentVaultIndex}
+      perVaultSteps={perVaultSteps}
       onClose={onClose}
       successMessage={COPY.deposit.resume.broadcastSuccessMessage}
       onRetry={error ? handleBroadcast : undefined}
@@ -511,10 +510,8 @@ export function ResumeWotsContent({
         }
       : null;
 
-  const wotsVaultCount = siblingVaultIds?.length ?? 1;
-  const wotsCurrentVaultIndex = siblingVaultIds
-    ? siblingVaultIds.indexOf(activity.id)
-    : null;
+  const { vaultCount, currentVaultIndex, perVaultSteps } =
+    useSplitVaultProgress(siblingVaultIds, activity.id, renderStep);
 
   return (
     <DepositProgressView
@@ -526,12 +523,9 @@ export function ResumeWotsContent({
       canContinueInBackground={derived.canContinueInBackground}
       payoutSigningProgress={null}
       peginSigningProgress={null}
-      vaultCount={wotsVaultCount}
-      currentVaultIndex={
-        wotsCurrentVaultIndex !== null && wotsCurrentVaultIndex >= 0
-          ? wotsCurrentVaultIndex
-          : null
-      }
+      vaultCount={vaultCount}
+      currentVaultIndex={currentVaultIndex}
+      perVaultSteps={perVaultSteps}
       onClose={onClose}
       onRetry={error ? handleSubmit : undefined}
       waitDetailPersistKey={activity.id}
@@ -729,10 +723,8 @@ export function ResumeActivationContent({
     }
   }, [activated, onSuccess, onClose]);
 
-  const activationVaultCount = siblingVaultIds?.length ?? 1;
-  const activationCurrentVaultIndex = siblingVaultIds
-    ? siblingVaultIds.indexOf(activity.id)
-    : null;
+  const { vaultCount, currentVaultIndex, perVaultSteps } =
+    useSplitVaultProgress(siblingVaultIds, activity.id, renderStep);
 
   return (
     <DepositProgressView
@@ -744,12 +736,9 @@ export function ResumeActivationContent({
       canContinueInBackground={derived.canContinueInBackground}
       payoutSigningProgress={null}
       peginSigningProgress={null}
-      vaultCount={activationVaultCount}
-      currentVaultIndex={
-        activationCurrentVaultIndex !== null && activationCurrentVaultIndex >= 0
-          ? activationCurrentVaultIndex
-          : null
-      }
+      vaultCount={vaultCount}
+      currentVaultIndex={currentVaultIndex}
+      perVaultSteps={perVaultSteps}
       onClose={handleDone}
       successMessage={COPY.deposit.resume.activationSuccessMessage}
       onRetry={error ? handleSubmit : undefined}

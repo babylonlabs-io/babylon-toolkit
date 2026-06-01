@@ -64,21 +64,65 @@ describe("SplitGroupedProgress", () => {
     );
   });
 
-  it("expands the WOTS sub-step inside the active vault's column during WOTS submission", () => {
+  it("expands each column at its own active step when the vaults diverge", () => {
+    // Resume path: vault 2 (active) is ready to activate (global step 14)
+    // while vault 1 (queued) is still on WOTS submission (global step 7).
+    // Each column expands only its own active group and marks its own global
+    // step active — proving the columns track distinct, divergent states
+    // rather than a single shared phase.
     render(
       <SplitGroupedProgress
         steps={steps}
-        currentStep={getVisualStep(DepositFlowStep.SUBMIT_WOTS_KEYS)}
+        currentStep={getVisualStep(DepositFlowStep.ACTIVATE_VAULT)}
         vaultCount={2}
-        currentVaultIndex={0}
-        rawStep={DepositFlowStep.SUBMIT_WOTS_KEYS}
+        currentVaultIndex={1}
+        rawStep={DepositFlowStep.ACTIVATE_VAULT}
+        perVaultSteps={[
+          DepositFlowStep.SUBMIT_WOTS_KEYS,
+          DepositFlowStep.ACTIVATE_VAULT,
+        ]}
       />,
     );
 
-    // Vault 1 (active) has its WOTS sub-step expanded; vault 2 (queued)
-    // also sits in the same phase so its column shows the same label.
+    // Queued column marks the WOTS-submission row (global step 7) active.
     expect(
-      screen.getAllByText(COPY.deposit.steps.submitWotsKey).length,
-    ).toBeGreaterThanOrEqual(1);
+      screen.getByLabelText(
+        COPY.deposit.a11y.stepActive(
+          getVisualStep(DepositFlowStep.SUBMIT_WOTS_KEYS),
+        ),
+      ),
+    ).toBeInTheDocument();
+
+    // Active column marks the reveal-secret/activate row (global step 14)
+    // active — a different group than the queued column. getByLabelText also
+    // asserts each active marker is unique (no column bleeds into another).
+    expect(
+      screen.getByLabelText(
+        COPY.deposit.a11y.stepActive(
+          getVisualStep(DepositFlowStep.ACTIVATE_VAULT),
+        ),
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("renders the active vault's column detail panel, but not the queued one's", () => {
+    const detail = <div data-testid="wait-detail">waiting…</div>;
+    render(
+      <SplitGroupedProgress
+        steps={steps}
+        currentStep={getVisualStep(DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS)}
+        vaultCount={2}
+        currentVaultIndex={1}
+        rawStep={DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS}
+        perVaultSteps={[
+          DepositFlowStep.SUBMIT_WOTS_KEYS,
+          DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS,
+        ]}
+        activeStepDetail={detail}
+      />,
+    );
+
+    // Detail belongs to the active vault's active row only — one instance.
+    expect(screen.getAllByTestId("wait-detail")).toHaveLength(1);
   });
 });

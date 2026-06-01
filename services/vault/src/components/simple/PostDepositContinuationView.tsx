@@ -1,9 +1,11 @@
+import { useEffect, useState } from "react";
 import type { Address, Hex } from "viem";
 
 import { usePeginPolling } from "@/context/deposit/PeginPollingContext";
 import { useProtocolParamsContext } from "@/context/ProtocolParamsContext";
 import { COPY } from "@/copy";
 import { DepositFlowStep } from "@/hooks/deposit/depositFlowSteps";
+import { deriveSplitVaultProgress } from "@/hooks/deposit/useSplitVaultProgress";
 import { useBtcDepthStartedAt } from "@/hooks/useBtcDepthStartedAt";
 import {
   getPeginDisplayStep,
@@ -50,6 +52,14 @@ function hasActionableStep(
 ): boolean {
   if (!state) return false;
   return (state.availableActions ?? []).some((action) => {
+    // This continuation view also drives the shared Pre-PegIn broadcast (see
+    // the SIGN_AND_BROADCAST branch below), which `USER_ACTIONABLE_PEGIN_ACTIONS`
+    // deliberately omits. Count it here so selection is explicit rather than
+    // relying on the no-actionable fallback. Hardening only: broadcast is a
+    // single shared tx, so when it's pending every sibling is at this same step
+    // together — there is never an "earlier sibling past broadcast" to skip, so
+    // the chosen index is index 0 either way.
+    if (action === PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN) return true;
     if (!USER_ACTIONABLE_PEGIN_ACTIONS.has(action)) return false;
     // Mirror the render-branch prerequisite: payout signing also needs the
     // depositor's BTC public key. Without this check a payout-only vault
@@ -96,6 +106,7 @@ function StatusView({
   btcConfirmationDetail = null,
   vaultCount = 1,
   currentVaultIndex = null,
+  perVaultSteps,
 }: {
   currentStep: DepositFlowStep;
   onClose: () => void;
@@ -107,6 +118,7 @@ function StatusView({
   btcConfirmationDetail?: BtcConfirmationDetailData | null;
   vaultCount?: number;
   currentVaultIndex?: number | null;
+  perVaultSteps?: DepositFlowStep[];
 }) {
   return (
     <DepositProgressView
@@ -120,6 +132,7 @@ function StatusView({
       peginSigningProgress={null}
       vaultCount={vaultCount}
       currentVaultIndex={currentVaultIndex}
+      perVaultSteps={perVaultSteps}
       onClose={onClose}
       successMessage={successMessage}
       btcConfirmationDetail={btcConfirmationDetail}
@@ -137,24 +150,57 @@ export function PostDepositContinuationView({
   const { refetch, getPollingResult } = usePeginPolling();
   const { config, getOffchainParamsByVersion } = useProtocolParamsContext();
 
-  // Prefer a vault with a user-actionable step over a sibling that's
-  // merely waiting on the VP. Otherwise vault[0] in AWAIT_VP_VERIFICATION
-  // would stall vault[1]'s ready WOTS/payout/activation action — batches
-  // realistically diverge because the VP processes each vault at its own
-  // rate. Falls back to the first candidate so its wait state still shows
-  // when no sibling is actionable.
-  const actionableIndex = vaultIds.findIndex((id) => {
+  const isActionable = (id: string): boolean => {
     const state = getPollingResult(id)?.peginState;
     return isCandidateVault(state) && hasActionableStep(state, btcPublicKey);
-  });
+  };
+
+  // Which vault drives the rendered action branch. Two rules:
+  //
+  // 1. Prefer a vault with a user-actionable step over a sibling merely waiting
+  //    on the VP — otherwise vault[0] in AWAIT_VP_VERIFICATION would stall
+  //    vault[1]'s ready WOTS/payout/activation. Batches diverge because the VP
+  //    processes each vault at its own rate.
+  // 2. Stickiness: keep driving the SAME vault as long as it is still
+  //    actionable. `currentVaultId` keys the rendered branch, so without this a
+  //    polling tick that makes a *different* sibling actionable mid-action would
+  //    flip the selection and unmount an in-flight Resume*Content — dropping a
+  //    wallet-signing in progress. Re-select only once the held vault leaves
+  //    actionable (advanced to a wait, went terminal/warning, or left the
+  //    batch — all captured by `isActionable`).
+  //
+  // The progress columns (`perVaultSteps`) still update live per poll; only the
+  // branch selection is sticky.
+  const [stickyVaultId, setStickyVaultId] = useState<string | null>(null);
+  const heldVaultId =
+    stickyVaultId !== null &&
+    vaultIds.includes(stickyVaultId as Hex) &&
+    isActionable(stickyVaultId)
+      ? stickyVaultId
+      : null;
+  const actionableVaultId = heldVaultId ?? vaultIds.find(isActionable) ?? null;
+
   const currentVaultIndex =
-    actionableIndex !== -1
-      ? actionableIndex
-      : vaultIds.findIndex((id) =>
+    actionableVaultId !== null
+      ? vaultIds.indexOf(actionableVaultId as Hex)
+      : // No sibling is actionable — fall back to the first candidate so its
+        // wait state still renders.
+        vaultIds.findIndex((id) =>
           isCandidateVault(getPollingResult(id)?.peginState),
         );
   const currentVaultId =
     currentVaultIndex === -1 ? undefined : vaultIds[currentVaultIndex];
+
+  // Remember the actionable vault we're driving so the next render's
+  // stickiness check can hold it. Sync unconditionally — clearing to null when
+  // nothing is actionable — so that re-entering an actionable state from a wait
+  // re-selects fresh (first actionable) rather than resurfacing a stale prior
+  // pick. (Holding mid-action is governed by `heldVaultId` above, which only
+  // sticks while the vault stays continuously actionable, so this never drops a
+  // branch that's in flight.)
+  useEffect(() => {
+    setStickyVaultId(actionableVaultId);
+  }, [actionableVaultId]);
   const pollingResult = currentVaultId
     ? getPollingResult(currentVaultId)
     : undefined;
@@ -176,7 +222,8 @@ export function PostDepositContinuationView({
   // Pass to every branch so split deposits render the multi-column UI with
   // the current vault highlighted. A single-vault deposit yields vaultCount=1
   // and the progress view falls back to its original single-column layout.
-  const siblingVaultIds = vaultIds as readonly string[] as string[];
+  // Cheap copy (not a readonly-laundering cast) so callers can't mutate the prop.
+  const siblingVaultIds: string[] = [...vaultIds];
   const vaultCount = siblingVaultIds.length || 1;
 
   if (!currentVaultId) {
@@ -305,11 +352,21 @@ export function PostDepositContinuationView({
         }
       : null;
 
+  // Each sibling column reflects its own polled step (the columns diverge on
+  // resume), with this vault's wait step as the active column.
+  const { perVaultSteps } = deriveSplitVaultProgress(
+    getPollingResult,
+    siblingVaultIds,
+    currentVaultId,
+    waitStep,
+  );
+
   return (
     <StatusView
       currentStep={waitStep}
       vaultCount={vaultCount}
       currentVaultIndex={currentVaultIndex >= 0 ? currentVaultIndex : null}
+      perVaultSteps={perVaultSteps}
       isProcessing
       canContinueInBackground
       onClose={onClose}

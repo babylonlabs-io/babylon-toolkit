@@ -221,8 +221,12 @@ export function canPerformAction(
  *
  * Excludes:
  *  - `NONE` — sentinel for "no action."
- *  - `SIGN_AND_BROADCAST_TO_BITCOIN` — handled by the linear deposit flow and
- *    the dashboard resume path, never by the post-deposit continuation.
+ *  - `SIGN_AND_BROADCAST_TO_BITCOIN` — the shared Pre-PegIn broadcast. It's a
+ *    single step every batch sibling shares, not a per-vault divergent one, so
+ *    it doesn't belong in the "which sibling needs attention" set. The
+ *    post-deposit continuation does drive broadcast (via its own branch +
+ *    a local actionable check), but selection there never needs to prefer one
+ *    sibling over another for it.
  *  - `REFUND_HTLC` — a terminal escape hatch, not an in-flow next step.
  */
 export const USER_ACTIONABLE_PEGIN_ACTIONS: ReadonlySet<PeginAction> = new Set([

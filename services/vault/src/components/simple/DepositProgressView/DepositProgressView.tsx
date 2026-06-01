@@ -76,6 +76,12 @@ export interface DepositProgressViewProps {
    * or when the deposit isn't split.
    */
   currentVaultIndex?: number | null;
+  /**
+   * Per-vault raw steps for a split deposit, indexed to match the columns.
+   * Supplied on the resume path (each column reflects its own polled state);
+   * omit for the live flow, where position-based inference is correct.
+   */
+  perVaultSteps?: DepositFlowStep[];
   onClose: () => void;
   /** Override the default success message */
   successMessage?: string;
@@ -152,6 +158,7 @@ export function DepositProgressView(props: DepositProgressViewProps) {
     peginSigningProgress,
     vaultCount = 1,
     currentVaultIndex = null,
+    perVaultSteps,
     onClose,
     successMessage = COPY.deposit.progress.defaultSuccessMessage,
     terminalMessage,
@@ -217,6 +224,7 @@ export function DepositProgressView(props: DepositProgressViewProps) {
             currentVaultIndex={currentVaultIndex}
             rawStep={currentStep}
             activeStepDetail={activeStepDetail}
+            perVaultSteps={perVaultSteps}
           />
         ) : (
           <GroupedProgress

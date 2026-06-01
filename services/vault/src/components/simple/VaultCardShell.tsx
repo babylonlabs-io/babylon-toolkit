@@ -11,6 +11,10 @@ import { useId, type ReactNode } from "react";
 import { Tooltip } from "react-tooltip";
 import { twJoin } from "tailwind-merge";
 
+import { COPY } from "@/copy";
+
+import { isInteractiveEventTarget } from "./cardInteraction";
+
 interface VaultCardShellProps {
   children: ReactNode;
   /** Optional test id forwarded to the panel element */
@@ -53,15 +57,24 @@ export function VaultCardShell({
   // already communicate that actions are blocked.
   const clickable = Boolean(onClick);
 
-  // Clicks on buttons or anchors inside the card (Copy / explorer link /
-  // action button) should preserve their own behaviour, not open the card
-  // multistepper. `closest` walks up from the click target so a click on
-  // the inner SVG of a copy button still resolves to its button parent.
+  // Clicks/keys on buttons or anchors inside the card (Copy / explorer link /
+  // action button) preserve their own behaviour rather than open the card
+  // multistepper — see `isInteractiveEventTarget`.
   const handleClick = (event: React.MouseEvent<HTMLDivElement>) => {
-    if (!clickable) return;
-    const target = event.target as HTMLElement;
-    if (target.closest("button, a")) return;
+    if (!clickable || isInteractiveEventTarget(event)) return;
     onClick?.();
+  };
+
+  // Keyboard activation must apply the same inner-control guard as the click
+  // handler. Without it, Enter/Space on a focused Copy button or explorer link
+  // would both fire that control and open the multistepper — and the
+  // preventDefault would cancel the link's own navigation.
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (!clickable || isInteractiveEventTarget(event)) return;
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      onClick?.();
+    }
   };
 
   return (
@@ -79,19 +92,18 @@ export function VaultCardShell({
         // No-op when the card isn't inside a `group` ancestor.
         "group-hover:bg-primary-light/5",
       )}
+      // a11y status: keyboard activation is handled (Enter/Space via
+      // handleKeyDown, with the same inner-control guard as click). KNOWN,
+      // ACCEPTED TRADEOFF: this `role="button"` wrapper still contains real
+      // buttons/links (nested-interactive ARIA), which a strict validator
+      // flags — accepted for the temporary "whole card is the action surface"
+      // design. Proper fix is a visually-hidden stretched-link button so the
+      // wrapper drops role="button"; tracked as a follow-up.
       role={clickable ? "button" : undefined}
+      aria-label={clickable ? COPY.deposit.progress.openDetailsAria : undefined}
       tabIndex={clickable ? 0 : undefined}
       onClick={clickable ? handleClick : undefined}
-      onKeyDown={
-        clickable
-          ? (event) => {
-              if (event.key === "Enter" || event.key === " ") {
-                event.preventDefault();
-                onClick?.();
-              }
-            }
-          : undefined
-      }
+      onKeyDown={clickable ? handleKeyDown : undefined}
       data-tooltip-id={tooltipActive ? tooltipId : undefined}
       data-tooltip-content={tooltipActive ? disabledTooltip : undefined}
     >
