@@ -76,6 +76,8 @@ export const COPY = {
       pegin: "Peg-in:",
       prePegin: "Pre-Pegin:",
     },
+    // Row label for the vault creation time (rendered as relative time).
+    createdLabel: "Created",
     messages: {
       payoutSignaturesSubmitted:
         "Payout signatures submitted. Vault provider is verifying and collecting acknowledgments...",
@@ -105,8 +107,8 @@ export const COPY = {
       refundBroadcast:
         "Refund transaction has been broadcast to Bitcoin. Waiting for on-chain confirmation...",
       refundMaturing: (blocks: number, hours: number) =>
-        `Refund available in ~${blocks} Bitcoin ${blocks === 1 ? "block" : "blocks"} (~${hours}h).`,
-      refundMaturingUnknown: "Checking when your refund will be available...",
+        `Refund claimable in ~${blocks} Bitcoin ${blocks === 1 ? "block" : "blocks"} (~${hours}h).`,
+      refundMaturingUnknown: "Checking when your refund will be claimable...",
       invalid:
         "This BTC Vault is invalid. The BTC UTXOs were spent in a different transaction.",
       redemptionComplete:
@@ -602,8 +604,13 @@ export const COPY = {
     // Live countdown shown while the withdrawal is in its challenge period.
     payoutEta: (duration: string) => `~${duration} until payout`,
     payoutImminent: "Payout available shortly",
+    // Shown under the amount while the VP has not yet initiated the withdrawal.
+    awaitingInitiation:
+      "Waiting for the vault provider to start the withdrawal",
     txHash: {
-      label: "Transaction hash",
+      // "Withdrawal" (not "Transaction hash") to distinguish from the deposit
+      // peg-in/Pre-Pegin row shown on the same pending-withdraw card.
+      label: "Withdrawal",
       claimLabel: "Claim:",
       assertLabel: "Assert:",
     },
