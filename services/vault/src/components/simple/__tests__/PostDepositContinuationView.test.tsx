@@ -79,6 +79,15 @@ vi.mock("@/models/peginStateMachine", () => ({
     // ACTIVE, REDEEMED, LIQUIDATED, DEPOSITOR_WITHDRAWN.
     return [2, 3, 4, 6].includes(state.contractStatus);
   },
+  // Narrower than isVaultPastActivation: only ACTIVE or optimistic
+  // VERIFIED+CONFIRMED count as "activated".
+  isVaultActivated: (
+    state: { contractStatus: number; localStatus?: string } | undefined,
+  ) => {
+    if (!state) return false;
+    if (state.contractStatus === 2) return true; // ACTIVE
+    return state.contractStatus === 1 && state.localStatus === "confirmed";
+  },
 }));
 
 vi.mock("@/copy", () => ({

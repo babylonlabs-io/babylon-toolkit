@@ -778,6 +778,24 @@ export function isVaultPastActivation(state: PeginState | undefined): boolean {
   );
 }
 
+/**
+ * True only when the vault is *successfully activated* — `ACTIVE` on-chain, or
+ * the optimistic `VERIFIED + CONFIRMED` state while the indexer catches up.
+ *
+ * Narrower than {@link isVaultPastActivation}, which also counts terminal
+ * REDEEMED/LIQUIDATED/WITHDRAWN states. Use this for the activation-success
+ * messaging so a liquidated/redeemed sibling can never read as "activated".
+ */
+export function isVaultActivated(state: PeginState | undefined): boolean {
+  if (!state) return false;
+  const { contractStatus, localStatus } = state;
+  if (contractStatus === ContractStatus.ACTIVE) return true;
+  return (
+    contractStatus === ContractStatus.VERIFIED &&
+    localStatus === LocalStorageStatus.CONFIRMED
+  );
+}
+
 export function shouldRemoveFromLocalStorage(
   contractStatus: ContractStatus,
   localStatus: LocalStorageStatus,

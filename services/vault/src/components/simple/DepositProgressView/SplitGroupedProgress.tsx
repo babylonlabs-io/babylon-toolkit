@@ -62,11 +62,14 @@ function StepList({
   steps,
   currentStep,
   activeStepDetail,
+  compact = false,
 }: {
   group: StepGroupView;
   steps: StepperItem[];
   currentStep: number;
   activeStepDetail?: ReactNode;
+  /** Stack each row's sub-counter below its label (narrow per-vault columns). */
+  compact?: boolean;
 }) {
   const stepNumbers = Array.from(
     { length: group.totalInGroup },
@@ -99,6 +102,7 @@ function StepList({
               description={step.description}
               detail={activeStepDetail}
               hasNext={subIndex < stepNumbers.length - 1}
+              compact={compact}
             />
           </div>
         );
@@ -152,6 +156,8 @@ function VaultColumn({
                   steps={steps}
                   currentStep={perVaultVisualStep}
                   activeStepDetail={activeStepDetail}
+                  // Columns are narrow → stack each row's sub-counter.
+                  compact
                 />
               )}
               {!isLast && <StepConnector />}

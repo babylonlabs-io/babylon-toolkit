@@ -188,7 +188,7 @@ vi.mock("@/models/peginStateMachine", () => ({
     EXPIRED: 7,
   },
   getPeginDisplayStep: mockGetPeginDisplayStep,
-  isVaultPastActivation: (state: { contractStatus?: number } | undefined) =>
+  isVaultActivated: (state: { contractStatus?: number } | undefined) =>
     state?.contractStatus === 2 /* ACTIVE */,
 }));
 

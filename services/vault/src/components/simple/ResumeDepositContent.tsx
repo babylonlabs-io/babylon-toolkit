@@ -52,7 +52,7 @@ import { logger } from "@/infrastructure";
 import {
   ContractStatus,
   getPeginDisplayStep,
-  isVaultPastActivation,
+  isVaultActivated,
 } from "@/models/peginStateMachine";
 import type { VaultActivity } from "@/types/activity";
 import {
@@ -738,7 +738,7 @@ export function ResumeActivationContent({
   const allSiblingsActivated =
     vaultCount > 1 &&
     (siblingVaultIds ?? []).every((id) =>
-      isVaultPastActivation(getPollingResult(id)?.peginState),
+      isVaultActivated(getPollingResult(id)?.peginState),
     );
   const activationSuccessMessage = allSiblingsActivated
     ? COPY.deposit.resume.activationSuccessMessagePlural

@@ -9,6 +9,7 @@ import { deriveSplitVaultProgress } from "@/hooks/deposit/useSplitVaultProgress"
 import { useBtcDepthStartedAt } from "@/hooks/useBtcDepthStartedAt";
 import {
   getPeginDisplayStep,
+  isVaultActivated,
   isVaultPastActivation,
   LocalStorageStatus,
   PeginAction,
@@ -254,10 +255,15 @@ export function PostDepositContinuationView({
         currentStep={DepositFlowStep.COMPLETED}
         isComplete
         onClose={onClose}
-        // This branch only renders when no candidate vault remains, i.e. every
-        // vault in the batch is done — so a split reads "Vaults" (plural).
+        // Plural only when EVERY vault in the batch is actually activated
+        // (ACTIVE / optimistic VERIFIED+CONFIRMED) — an explicit guard rather
+        // than trusting the "no candidate ⇒ all done" invariant, so a
+        // terminal-but-not-activated sibling can never read as "activated".
         successMessage={
-          vaultCount > 1
+          vaultCount > 1 &&
+          vaultIds.every((id) =>
+            isVaultActivated(getPollingResult(id)?.peginState),
+          )
             ? COPY.deposit.resume.activationSuccessMessagePlural
             : COPY.deposit.resume.activationSuccessMessage
         }
