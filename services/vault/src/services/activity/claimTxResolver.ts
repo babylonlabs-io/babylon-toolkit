@@ -24,6 +24,14 @@ import { logger } from "@/infrastructure";
 import { getPegoutTxLinkFlags } from "@/models/pegoutStateMachine";
 import { createVpClient } from "@/utils/rpc";
 
+/**
+ * Per-VP RPC timeout for this best-effort, display-only enrichment. Tighter
+ * than the SDK's 60s default and with no retries: a slow or dead VP must not
+ * stall the whole Activity tab on initial render — its redeem rows just stay
+ * "Pending…" and fill in on a later refetch.
+ */
+export const CLAIM_TX_RPC_TIMEOUT_MS = 10_000;
+
 export interface RedeemVaultLookup {
   peginTxHash: string;
   vaultProvider: string;
@@ -71,7 +79,10 @@ export async function resolveRedeemClaimTxids(
 
   await Promise.all(
     Array.from(byProvider, async ([providerAddress, entries]) => {
-      const rpcClient = createVpClient(providerAddress);
+      const rpcClient = createVpClient(providerAddress, {
+        timeout: CLAIM_TX_RPC_TIMEOUT_MS,
+        retries: 0,
+      });
       try {
         await batchPollByProvider<PerVaultEntry, GetPegoutStatusResponse>({
           items: entries,

@@ -3,19 +3,22 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 // `vi.mock` factories are hoisted above the surrounding module; any mock
 // state they reference must be declared via `vi.hoisted` so it exists at
 // hoist time.
-const { batchGetPegoutStatus } = vi.hoisted(() => ({
-  batchGetPegoutStatus: vi.fn(),
-}));
+const { batchGetPegoutStatus, createVpClient } = vi.hoisted(() => {
+  const batchGetPegoutStatus = vi.fn();
+  return {
+    batchGetPegoutStatus,
+    createVpClient: vi.fn(() => ({ batchGetPegoutStatus })),
+  };
+});
 
-vi.mock("@/utils/rpc", () => ({
-  createVpClient: () => ({ batchGetPegoutStatus }),
-}));
+vi.mock("@/utils/rpc", () => ({ createVpClient }));
 
 vi.mock("@/infrastructure", () => ({
   logger: { warn: vi.fn(), info: vi.fn(), error: vi.fn() },
 }));
 
 import {
+  CLAIM_TX_RPC_TIMEOUT_MS,
   resolveRedeemClaimTxids,
   type RedeemVaultLookup,
 } from "../claimTxResolver";
@@ -38,6 +41,21 @@ function claimer(claim_txid: string, status: string = "PayoutBroadcast") {
 describe("resolveRedeemClaimTxids", () => {
   beforeEach(() => {
     batchGetPegoutStatus.mockReset();
+    createVpClient.mockClear();
+  });
+
+  it("bounds each VP call with a short timeout and no retries so a slow VP can't stall the tab", async () => {
+    const lookup = new Map<string, RedeemVaultLookup>([
+      ["0xv1", { peginTxHash: "0xpegin1", vaultProvider: VP_A }],
+    ]);
+    batchGetPegoutStatus.mockResolvedValueOnce({ results: [] });
+
+    await resolveRedeemClaimTxids([{ vaultId: "0xv1" }], lookup);
+
+    expect(createVpClient).toHaveBeenCalledWith(VP_A, {
+      timeout: CLAIM_TX_RPC_TIMEOUT_MS,
+      retries: 0,
+    });
   });
 
   it("returns an empty map when there are no redeem activities", async () => {
