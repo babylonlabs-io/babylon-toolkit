@@ -24,6 +24,16 @@ function isRevertHex(value: unknown): value is `0x${string}` {
 }
 
 /**
+ * Built-in Solidity reverts: `revert("...")` decodes to `Error` and `panic(n)`
+ * to `Panic`, with the real reason in `args`/the viem message. These are NOT
+ * custom errors — returning the name would mask the reason, so callers let the
+ * message-based handling surface it instead.
+ */
+function isBuiltinSolidityError(errorName: string): boolean {
+  return errorName === "Error" || errorName === "Panic";
+}
+
+/**
  * Read viem's already-decoded custom-error name from the error chain.
  *
  * viem's `ContractFunctionRevertedError` decodes the revert with the call's
@@ -41,7 +51,11 @@ function findViemDecodedErrorName(obj: unknown, depth = 0): string | undefined {
   const data = errorObj.data;
   if (data && typeof data === "object") {
     const errorName = (data as Record<string, unknown>).errorName;
-    if (typeof errorName === "string" && errorName.length > 0) {
+    if (
+      typeof errorName === "string" &&
+      errorName.length > 0 &&
+      !isBuiltinSolidityError(errorName)
+    ) {
       return errorName;
     }
   }
@@ -154,7 +168,12 @@ function tryDecodeContractError(
 
   for (const abi of allAbis) {
     try {
-      return decodeErrorResult({ abi, data: errorData });
+      const decoded = decodeErrorResult({ abi, data: errorData });
+      // viem appends solidityError/solidityPanic to every decode, so a
+      // built-in revert("...")/panic resolves to Error/Panic here too — let
+      // the message-based handling surface its reason instead.
+      if (isBuiltinSolidityError(decoded.errorName)) return undefined;
+      return decoded;
     } catch {
       continue;
     }

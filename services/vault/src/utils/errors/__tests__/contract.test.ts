@@ -315,6 +315,31 @@ describe("Contract Error Mapping", () => {
       );
     });
 
+    it("does not treat a built-in revert(string)/Error as a custom error — surfaces the reason", () => {
+      // viem decodes a Solidity `revert("...")` to errorName "Error" with the
+      // reason in args/message. We must NOT return "Error" as the final
+      // message; the message-based handling should surface the reason
+      // (here, the paused-market copy).
+      const reverted = {
+        name: "ContractFunctionRevertedError",
+        data: { errorName: "Error", args: ["Contract is paused"] },
+        raw: encodeErrorResult({
+          abi: [{ type: "error", name: "Error", inputs: [{ type: "string" }] }],
+          errorName: "Error",
+          args: ["Contract is paused"],
+        }),
+      };
+      const error = Object.assign(
+        new Error("execution reverted: Contract is paused"),
+        { cause: reverted },
+      );
+
+      const result = mapViemErrorToContractError(error, "Withdraw", [TEST_ABI]);
+
+      expect(result.reason).not.toBe("Error");
+      expect(result.message).toContain("paused");
+    });
+
     it("should ignore empty error data", () => {
       const error = {
         message: "execution reverted",
