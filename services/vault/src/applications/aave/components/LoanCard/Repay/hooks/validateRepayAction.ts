@@ -25,6 +25,8 @@ export interface RepayValidationResult {
  * @param maxRepayAmount - Maximum repay amount (min of debt and balance)
  * @param currentDebtAmount - Current debt amount (optional, for better error messages)
  * @param userTokenBalance - User's token balance (optional, for better error messages)
+ * @param displayDecimals - Token's display precision; messages format at it so
+ *   dust isn't shown as "0.00", and amounts below one base unit are rejected.
  * @returns Validation result with disabled state, button text, and error/warning messages
  */
 export function validateRepayAction(
@@ -32,7 +34,22 @@ export function validateRepayAction(
   maxRepayAmount: number,
   currentDebtAmount?: number,
   userTokenBalance?: number,
+  displayDecimals?: number,
 ): RepayValidationResult {
+  // Below one base unit the submit path's toFixed(displayDecimals) rounds to 0n
+  // and the tx reverts, so block it (mirrors the borrow sub-unit guard).
+  if (repayAmount > 0 && displayDecimals !== undefined) {
+    const minRepayable = 1 / 10 ** displayDecimals; // one base unit at this precision
+    if (repayAmount < minRepayable) {
+      return {
+        isDisabled: true,
+        buttonText: "Amount too small",
+        errorMessage: `Minimum repayable amount is ${formatTokenAmount(minRepayable, displayDecimals)}`,
+        warningMessage: null,
+      };
+    }
+  }
+
   // Independent of the typed amount: if the user's balance is less than the
   // outstanding debt, surface that up front so a max-repay doesn't silently
   // leave the user with residual debt and no clear next step.
@@ -48,7 +65,7 @@ export function validateRepayAction(
   // producing a self-contradicting message. A blanket `.toFixed(6)` would
   // pad normal amounts with noisy zeros.
   const shortfallMessage = balanceShortfall
-    ? `Your balance (${formatTokenAmount(userTokenBalance as number)}) is less than your debt (${formatTokenAmount(currentDebtAmount as number)}). Repaying now will leave ${formatTokenAmount((currentDebtAmount as number) - (userTokenBalance as number))} in debt; acquire more tokens to fully clear it.`
+    ? `Your balance (${formatTokenAmount(userTokenBalance as number, displayDecimals)}) is less than your debt (${formatTokenAmount(currentDebtAmount as number, displayDecimals)}). Repaying now will leave ${formatTokenAmount((currentDebtAmount as number) - (userTokenBalance as number), displayDecimals)} in debt; acquire more tokens to fully clear it.`
     : null;
 
   if (repayAmount === 0) {
@@ -65,7 +82,7 @@ export function validateRepayAction(
       return {
         isDisabled: true,
         buttonText: "Insufficient balance",
-        errorMessage: `You only have ${formatTokenAmount(userTokenBalance as number)} tokens available. You need more tokens to fully repay your debt.`,
+        errorMessage: `You only have ${formatTokenAmount(userTokenBalance as number, displayDecimals)} tokens available. You need more tokens to fully repay your debt.`,
         warningMessage: null,
       };
     }

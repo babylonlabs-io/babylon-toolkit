@@ -22,6 +22,7 @@ import {
 } from "@/utils/errors";
 
 import { getAaveAdapterAddress } from "../config";
+import { SAFE_TOFIXED_PRECISION } from "../constants";
 import {
   ReserveMismatchError,
   assertReserveMatchesOnChain,
@@ -202,7 +203,6 @@ export function useRepayTransaction({
             `Failed to fetch on-chain decimals for ${reserve.token.address}`,
           );
         });
-        const SAFE_TOFIXED_PRECISION = 15;
         const amountBigInt = parseUnits(
           repayAmount.toFixed(
             Math.min(onChainDecimals, SAFE_TOFIXED_PRECISION),

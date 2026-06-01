@@ -85,24 +85,25 @@ export function Repay() {
     tokenPriceUsd,
   });
 
+  // Token's own precision so dust (e.g. 0.00000003 WBTC) isn't rounded to "0.00".
+  const displayDecimals = Math.min(
+    selectedReserve.token.decimals,
+    SAFE_TOFIXED_PRECISION,
+  );
+
   const { isDisabled, buttonText, errorMessage, warningMessage } =
     validateRepayAction(
       repayAmount,
       maxRepayAmount,
       currentDebtAmount,
       userTokenBalance,
+      displayDecimals,
     );
 
   // Cosmetic floor only: keeps the slider track from collapsing to zero
   // width when there's nothing to repay. Label + accept range use the real
   // `maxRepayAmount`.
   const sliderTrackMax = maxRepayAmount > 0 ? maxRepayAmount : MIN_SLIDER_MAX;
-
-  // Token's own precision so dust (e.g. 0.00000003 WBTC) isn't rounded to "0.00".
-  const repayDisplayDecimals = Math.min(
-    selectedReserve.token.decimals,
-    SAFE_TOFIXED_PRECISION,
-  );
 
   const [refetchError, setRefetchError] = useState<string | null>(null);
 
@@ -172,7 +173,7 @@ export function Repay() {
               setRepayAmount(parseFloat(e.target.value) || 0)
             }
             balanceDetails={{
-              balance: formatTokenAmount(maxRepayAmount, repayDisplayDecimals),
+              balance: formatTokenAmount(maxRepayAmount, displayDecimals),
               symbol: assetConfig.symbol,
               displayUSD: false,
             }}
@@ -185,7 +186,7 @@ export function Repay() {
             sliderVariant="rainbow"
             leftField={{
               label: "Max",
-              value: `${formatTokenAmount(maxRepayAmount, repayDisplayDecimals)} ${assetConfig.symbol}`,
+              value: `${formatTokenAmount(maxRepayAmount, displayDecimals)} ${assetConfig.symbol}`,
             }}
             onMaxClick={handleMaxClick}
             rightField={{
