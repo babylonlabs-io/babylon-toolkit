@@ -84,7 +84,10 @@ vi.mock("@/models/peginStateMachine", () => ({
 vi.mock("@/copy", () => ({
   COPY: {
     deposit: {
-      resume: { activationSuccessMessage: "Deposit successfully submitted!" },
+      resume: {
+        activationSuccessMessage: "Deposit successfully submitted!",
+        activationSuccessMessagePlural: "Your BTC Vaults have been activated.",
+      },
       errors: {
         defaultTitle: "Transaction failed",
         genericBody: "Something went wrong during your deposit.",
@@ -130,17 +133,20 @@ vi.mock("../DepositProgressView", () => ({
     currentStep,
     error,
     isComplete,
+    successMessage,
     onClose,
   }: {
     currentStep: string;
     error?: { title: string; body: string } | null;
     isComplete?: boolean;
+    successMessage?: string;
     onClose: () => void;
   }) => (
     <div data-testid="progress-view">
       <span data-testid="step">{String(currentStep)}</span>
       <span data-testid="error">{error?.body ?? ""}</span>
       <span data-testid="complete">{String(!!isComplete)}</span>
+      <span data-testid="success-message">{successMessage ?? ""}</span>
       <button type="button" data-testid="progress-close" onClick={onClose}>
         close
       </button>
@@ -331,6 +337,36 @@ describe("PostDepositContinuationView", () => {
     // rather than parking on a generic "awaiting confirmation" step.
     expect(getByTestId("step").textContent).toBe("COMPLETED");
     expect(getByTestId("complete").textContent).toBe("true");
+    // Single deposit → singular success copy.
+    expect(getByTestId("success-message").textContent).toBe(
+      "Deposit successfully submitted!",
+    );
+  });
+
+  it("uses the plural success message when a whole split batch is complete", () => {
+    const VERIFIED = 1;
+    const done = () =>
+      resultWith({
+        availableActions: [PeginAction.NONE],
+        contractStatus: VERIFIED,
+        localStatus: "confirmed",
+      });
+    const states = new Map<string, ReturnType<typeof resultWith>>([
+      ["0xvault0", done()],
+      ["0xvault1", done()],
+    ]);
+    mockGetPollingResult.mockImplementation((id: string) => states.get(id));
+
+    const { getByTestId } = renderView({
+      vaultIds: ["0xvault0" as Hex, "0xvault1" as Hex],
+      activities: [activityWithId("0xvault0"), activityWithId("0xvault1")],
+    });
+
+    // No candidate vault remains → complete view; a 2-vault batch reads plural.
+    expect(getByTestId("step").textContent).toBe("COMPLETED");
+    expect(getByTestId("success-message").textContent).toBe(
+      "Your BTC Vaults have been activated.",
+    );
   });
 
   it("advances to the next vault once the current vault finishes activating", () => {

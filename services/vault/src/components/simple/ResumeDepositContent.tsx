@@ -31,7 +31,10 @@ import type { Address, Hex } from "viem";
 import { getVaultRegistryReader } from "@/clients/eth-contract/sdk-readers";
 import { computeDepositDerivedState } from "@/components/deposit/DepositSignModal/depositStepHelpers";
 import { usePayoutSigningState } from "@/components/deposit/PayoutSignModal/usePayoutSigningState";
-import { useDepositPollingResult } from "@/context/deposit/PeginPollingContext";
+import {
+  useDepositPollingResult,
+  usePeginPolling,
+} from "@/context/deposit/PeginPollingContext";
 import { useProtocolParamsContext } from "@/context/ProtocolParamsContext";
 import { COPY } from "@/copy";
 import {
@@ -49,6 +52,7 @@ import { logger } from "@/infrastructure";
 import {
   ContractStatus,
   getPeginDisplayStep,
+  isVaultPastActivation,
 } from "@/models/peginStateMachine";
 import type { VaultActivity } from "@/types/activity";
 import {
@@ -726,6 +730,20 @@ export function ResumeActivationContent({
   const { vaultCount, currentVaultIndex, perVaultSteps } =
     useSplitVaultProgress(siblingVaultIds, activity.id, renderStep);
 
+  // For a split, only say "Vaults have been activated" (plural) once EVERY
+  // sibling is past activation — so finishing the first of two still reads
+  // singular. When this view shows its ACTIVE terminal, the active vault's own
+  // polling already reports ACTIVE, so it counts itself correctly.
+  const { getPollingResult } = usePeginPolling();
+  const allSiblingsActivated =
+    vaultCount > 1 &&
+    (siblingVaultIds ?? []).every((id) =>
+      isVaultPastActivation(getPollingResult(id)?.peginState),
+    );
+  const activationSuccessMessage = allSiblingsActivated
+    ? COPY.deposit.resume.activationSuccessMessagePlural
+    : COPY.deposit.resume.activationSuccessMessage;
+
   return (
     <DepositProgressView
       currentStep={renderStep}
@@ -740,7 +758,7 @@ export function ResumeActivationContent({
       currentVaultIndex={currentVaultIndex}
       perVaultSteps={perVaultSteps}
       onClose={handleDone}
-      successMessage={COPY.deposit.resume.activationSuccessMessage}
+      successMessage={activationSuccessMessage}
       onRetry={error ? handleSubmit : undefined}
       waitDetailPersistKey={activity.id}
     />

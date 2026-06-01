@@ -37,9 +37,17 @@ interface SplitGroupedProgressProps {
   currentVaultIndex: number | null;
   /** Underlying DepositFlowStep, used to derive per-vault progression. */
   rawStep: DepositFlowStep;
-  /** Optional detail panel rendered inside the active step row (trunk + the
-   *  active vault's column). */
-  activeStepDetail?: ReactNode;
+  /**
+   * Resolves the detail panel for a given step. Called once per region with
+   * that region's own step — the trunk with `rawStep` (inline), each column
+   * with its own per-vault step (stacked, since columns are narrow) — so two
+   * columns parked on the same shared wait both render it and diverged columns
+   * each render their own. `StepRow` only shows it on the active row.
+   */
+  renderStepDetail?: (
+    step: DepositFlowStep,
+    opts: { stacked: boolean },
+  ) => ReactNode;
   /**
    * Per-vault raw steps (resume path), indexed to match the columns. When
    * provided, each column renders its own vault's true polled state instead of
@@ -161,7 +169,7 @@ export function SplitGroupedProgress({
   vaultCount,
   currentVaultIndex,
   rawStep,
-  activeStepDetail,
+  renderStepDetail,
   perVaultSteps,
 }: SplitGroupedProgressProps) {
   const trunkGroups = buildStepGroups(currentStep).filter(
@@ -184,7 +192,9 @@ export function SplitGroupedProgress({
               group={group}
               steps={steps}
               currentStep={currentStep}
-              activeStepDetail={activeStepDetail}
+              // Trunk is full-width → inline detail (e.g. the pegin-fee notice
+              // during live signing).
+              activeStepDetail={renderStepDetail?.(rawStep, { stacked: false })}
             />
           )}
           <StepConnector />
@@ -212,11 +222,13 @@ export function SplitGroupedProgress({
               steps={steps}
               perVaultVisualStep={perVaultVisualStep}
               groupNumberOffset={trunkGroups.length}
-              // Only the active vault's column shows the live wait /
-              // confirmation-depth detail; siblings render their rows plainly.
-              activeStepDetail={
-                vaultIndex === currentVaultIndex ? activeStepDetail : undefined
-              }
+              // Each column resolves its detail from its OWN step (stacked for
+              // the narrow column). `StepRow` renders it only on the active row,
+              // so a column shows the panel exactly when its own active step
+              // produces one — including two columns sharing the same wait.
+              activeStepDetail={renderStepDetail?.(vaultRawStep, {
+                stacked: true,
+              })}
             />
           );
         })}

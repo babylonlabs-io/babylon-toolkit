@@ -23,7 +23,10 @@ import {
 } from "@/context/deposit/PeginPollingContext";
 import { DepositFlowStep } from "@/hooks/deposit/depositFlowSteps";
 import { logger } from "@/infrastructure";
-import { getPeginDisplayStep } from "@/models/peginStateMachine";
+import {
+  getPeginDisplayStep,
+  isVaultPastActivation,
+} from "@/models/peginStateMachine";
 
 export interface SplitVaultProgress {
   vaultCount: number;
@@ -71,9 +74,19 @@ export function deriveSplitVaultProgress(
     // is finer-grained than the polled display step.
     if (index === currentVaultIndex) return activeStep;
     const state = getPollingResult(id)?.peginState;
-    // A sibling whose display step can't be resolved (warning/terminal/loading)
-    // falls back to the active step so its column still renders a sane row.
-    return (state ? getPeginDisplayStep(state) : null) ?? activeStep;
+    if (!state) return activeStep;
+    const displayStep = getPeginDisplayStep(state);
+    // An in-progress sibling has its own display step (this also covers the
+    // optimistic VERIFIED+CONFIRMED → AWAIT_ACTIVATION_CONFIRMATION case).
+    if (displayStep !== null) return displayStep;
+    // `getPeginDisplayStep` is null both for a fully-activated vault and for a
+    // warning. A finished sibling must render COMPLETED (all groups ✓) — NOT
+    // fall back to the active vault's step, which would otherwise reset an
+    // already-activated column to whatever the active vault is doing. A warning
+    // sibling keeps the active-step fallback so its column still renders.
+    return isVaultPastActivation(state)
+      ? DepositFlowStep.COMPLETED
+      : activeStep;
   });
 
   return {

@@ -16,7 +16,7 @@ import {
   Loader,
   Text,
 } from "@babylonlabs-io/core-ui";
-import { type ReactNode, useMemo } from "react";
+import { type ReactNode, useCallback, useMemo } from "react";
 
 import { COPY } from "@/copy";
 import { DepositFlowStep } from "@/hooks/deposit/depositFlowSteps/types";
@@ -119,8 +119,11 @@ function resolveActiveStepDetail(params: {
   currentStep: DepositFlowStep;
   btcConfirmationDetail: BtcConfirmationDetailData | null | undefined;
   waitDetailPersistKey: string | undefined;
+  /** Stack the panel's rows — used for the narrow split-deposit columns. */
+  stacked?: boolean;
 }): ReactNode {
-  const { currentStep, btcConfirmationDetail, waitDetailPersistKey } = params;
+  const { currentStep, btcConfirmationDetail, waitDetailPersistKey, stacked } =
+    params;
   if (currentStep === DepositFlowStep.SIGN_PEGIN_BTC) {
     return <PeginFeeWarning />;
   }
@@ -134,6 +137,7 @@ function resolveActiveStepDetail(params: {
         prePeginTxid={btcConfirmationDetail.prePeginTxid}
         requiredDepth={btcConfirmationDetail.requiredDepth}
         depositIds={btcConfirmationDetail.depositIds}
+        stacked={stacked}
       />
     );
   }
@@ -142,7 +146,11 @@ function resolveActiveStepDetail(params: {
     currentStep === DepositFlowStep.AWAIT_VP_VERIFICATION ||
     currentStep === DepositFlowStep.AWAIT_ACTIVATION_CONFIRMATION;
   return isProviderWait ? (
-    <ProviderWaitDetail step={currentStep} persistKey={waitDetailPersistKey} />
+    <ProviderWaitDetail
+      step={currentStep}
+      persistKey={waitDetailPersistKey}
+      stacked={stacked}
+    />
   ) : null;
 }
 
@@ -197,6 +205,21 @@ export function DepositProgressView(props: DepositProgressViewProps) {
     waitDetailPersistKey,
   });
 
+  // Split columns resolve the detail from each column's OWN step (so two
+  // columns parked on the same shared wait both show the panel, and diverged
+  // columns each show their own). Rendered stacked because the columns are
+  // narrow. The single-column path keeps the inline `activeStepDetail` above.
+  const renderStepDetail = useCallback(
+    (step: DepositFlowStep, opts: { stacked: boolean }): ReactNode =>
+      resolveActiveStepDetail({
+        currentStep: step,
+        btcConfirmationDetail,
+        waitDetailPersistKey,
+        stacked: opts.stacked,
+      }),
+    [btcConfirmationDetail, waitDetailPersistKey],
+  );
+
   return (
     <div className="w-full max-w-[520px]">
       <Heading variant="h5" className="text-accent-primary">
@@ -223,7 +246,7 @@ export function DepositProgressView(props: DepositProgressViewProps) {
             vaultCount={vaultCount}
             currentVaultIndex={currentVaultIndex}
             rawStep={currentStep}
-            activeStepDetail={activeStepDetail}
+            renderStepDetail={renderStepDetail}
             perVaultSteps={perVaultSteps}
           />
         ) : (

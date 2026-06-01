@@ -105,8 +105,14 @@ describe("SplitGroupedProgress", () => {
     ).toBeInTheDocument();
   });
 
-  it("renders the active vault's column detail panel, but not the queued one's", () => {
-    const detail = <div data-testid="wait-detail">waiting…</div>;
+  // renderStepDetail produces a panel only for the AWAIT_PAYOUT_TRANSACTIONS
+  // step; each column resolves it from its OWN step.
+  const renderStepDetail = (step: DepositFlowStep) =>
+    step === DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS ? (
+      <div data-testid="wait-detail">waiting…</div>
+    ) : null;
+
+  it("renders the detail only in the column whose own step produces one", () => {
     render(
       <SplitGroupedProgress
         steps={steps}
@@ -118,11 +124,33 @@ describe("SplitGroupedProgress", () => {
           DepositFlowStep.SUBMIT_WOTS_KEYS,
           DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS,
         ]}
-        activeStepDetail={detail}
+        renderStepDetail={renderStepDetail}
       />,
     );
 
-    // Detail belongs to the active vault's active row only — one instance.
+    // Only the AWAIT_PAYOUT column (vault 2) shows it; the WOTS column doesn't.
     expect(screen.getAllByTestId("wait-detail")).toHaveLength(1);
+  });
+
+  it("renders the shared detail in BOTH columns when both sit on the same wait", () => {
+    render(
+      <SplitGroupedProgress
+        steps={steps}
+        currentStep={getVisualStep(DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS)}
+        vaultCount={2}
+        currentVaultIndex={0}
+        rawStep={DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS}
+        perVaultSteps={[
+          DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS,
+          DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS,
+        ]}
+        renderStepDetail={renderStepDetail}
+      />,
+    );
+
+    // Both vaults await the same shared Pre-PegIn confirmation, so the panel
+    // renders under each column (regression guard for the "vault 2 shows
+    // nothing" bug).
+    expect(screen.getAllByTestId("wait-detail")).toHaveLength(2);
   });
 });

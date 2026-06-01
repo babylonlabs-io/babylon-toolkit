@@ -254,7 +254,13 @@ export function PostDepositContinuationView({
         currentStep={DepositFlowStep.COMPLETED}
         isComplete
         onClose={onClose}
-        successMessage={COPY.deposit.resume.activationSuccessMessage}
+        // This branch only renders when no candidate vault remains, i.e. every
+        // vault in the batch is done — so a split reads "Vaults" (plural).
+        successMessage={
+          vaultCount > 1
+            ? COPY.deposit.resume.activationSuccessMessagePlural
+            : COPY.deposit.resume.activationSuccessMessage
+        }
         vaultCount={vaultCount}
         currentVaultIndex={null}
       />

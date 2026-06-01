@@ -353,6 +353,9 @@ export const COPY = {
     resume: {
       broadcastSuccessMessage: PRE_PEGIN_BROADCAST_CONFIRMATION_MESSAGE,
       activationSuccessMessage: "Your BTC Vault has been activated.",
+      // Plural variant for a split deposit, shown once every BTC Vault in the
+      // batch has been activated.
+      activationSuccessMessagePlural: "Your BTC Vaults have been activated.",
       readyToActivateMessage:
         "Your payout transactions are signed and verified. Your BTC Vault is ready to activate.",
       wotsMismatchError: WRONG_WALLET_BODY,
