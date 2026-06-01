@@ -293,6 +293,28 @@ describe("Contract Error Mapping", () => {
       );
     });
 
+    it("uses viem's pre-decoded .data.errorName when no ABI is supplied", () => {
+      // Borrow/repay/withdraw/reorder call the mapper with NO ABI, so a custom
+      // error's selector isn't in COMMON_ERROR_ABI and `.raw` can't be
+      // re-decoded. But viem already decoded the name into `.data.errorName`
+      // using the call's own ABI — read that directly.
+      const error = {
+        message: "execution reverted",
+        cause: {
+          name: "ContractFunctionRevertedError",
+          data: { errorName: "DebtMustBeRepaidFirst", args: [] },
+          raw: "0x5caf93cd",
+        },
+      };
+      const result = mapViemErrorToContractError(error, "withdraw"); // no ABI
+
+      expect(result.code).toBe(ErrorCode.CONTRACT_REVERT);
+      expect(result.reason).toBe("DebtMustBeRepaidFirst");
+      expect(result.message).toBe(
+        "You must repay all debt before withdrawing collateral.",
+      );
+    });
+
     it("should ignore empty error data", () => {
       const error = {
         message: "execution reverted",
