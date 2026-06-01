@@ -90,9 +90,16 @@ export function useArtifactDownload(options?: {
   // in the background.
   const cancelledRef = useRef(false);
 
+  // Aborts the request itself (threaded into callRaw -> fetch). cancelledRef
+  // is only polled between chunk reads, so a stalled read on a silent
+  // connection would otherwise hang Cancel until the next byte / EOF /
+  // timeout; aborting the signal unblocks reader.read() immediately.
+  const abortControllerRef = useRef<AbortController | null>(null);
+
   const download = useCallback(
     async (providerAddress: string, peginTxid: string, depositorPk: string) => {
       cancelledRef.current = false;
+      abortControllerRef.current = new AbortController();
       setState({
         ...INITIAL_STATE,
         loading: true,
@@ -198,6 +205,7 @@ export function useArtifactDownload(options?: {
                 );
               },
               isCancelled: () => cancelledRef.current,
+              signal: abortControllerRef.current?.signal,
             },
           );
 
@@ -262,10 +270,7 @@ export function useArtifactDownload(options?: {
 
   const cancel = useCallback(() => {
     cancelledRef.current = true;
-    setState(INITIAL_STATE);
-  }, []);
-
-  const reset = useCallback(() => {
+    abortControllerRef.current?.abort();
     setState(INITIAL_STATE);
   }, []);
 
@@ -273,6 +278,5 @@ export function useArtifactDownload(options?: {
     ...state,
     download,
     cancel,
-    reset,
   };
 }
