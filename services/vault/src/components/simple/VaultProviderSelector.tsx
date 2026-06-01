@@ -109,9 +109,14 @@ export function VaultProviderSelector({
           variant="default"
           className="flex w-full flex-col gap-6 !rounded-lg !bg-primary-contrast !py-4"
         >
-          <span className="text-sm text-accent-secondary">
-            {COPY.deposit.form.providerSelectDescription}
-          </span>
+          {/* The "choose a provider" prompt only makes sense when there is
+              something to choose. Hidden in the empty state (e.g. every VP
+              disabled) so it doesn't contradict the empty message below. */}
+          {(isLoadingProviders || providers.length > 0) && (
+            <span className="text-sm text-accent-secondary">
+              {COPY.deposit.form.providerSelectDescription}
+            </span>
+          )}
 
           {isLoadingProviders ? (
             <div className="flex items-center justify-center py-2">

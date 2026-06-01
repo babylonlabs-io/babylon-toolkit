@@ -52,6 +52,11 @@ export async function fetchVpHealth(): Promise<VpHealthSnapshot[]> {
       if (record.successRate < 0 || record.successRate > 1) return false;
       if (record.totalRequests < 0) return false;
 
+      // `disabled` is optional; reject only a malformed (non-boolean) value so
+      // a present flag is always trustworthy to act on (hiding the VP).
+      if (record.disabled !== undefined && typeof record.disabled !== "boolean")
+        return false;
+
       return true;
     });
   } catch (error) {
