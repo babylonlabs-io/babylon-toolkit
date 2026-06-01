@@ -16,8 +16,9 @@ import { COPY } from "@/copy";
 import { useArtifactDownload } from "@/hooks/deposit/useArtifactDownload";
 import { hasArtifactsDownloaded } from "@/utils/artifactDownloadStorage";
 
-const BYTES_PER_MB = 1024 * 1024;
-const BYTES_PER_GB = 1024 * 1024 * 1024;
+const BYTES_PER_KB = 1024;
+const BYTES_PER_MB = BYTES_PER_KB * 1024;
+const BYTES_PER_GB = BYTES_PER_MB * 1024;
 
 // Brand orange (Tailwind's `secondary-main` token), inlined because
 // ProgressBar takes a raw CSS color rather than a class name.
@@ -65,7 +66,7 @@ function formatBytes(bytes: number): string {
   if (bytes >= BYTES_PER_MB) {
     return `${Math.round(bytes / BYTES_PER_MB)} MB`;
   }
-  return `${Math.round(bytes / 1024)} KB`;
+  return `${Math.round(bytes / BYTES_PER_KB)} KB`;
 }
 
 interface RecoveryArtifactsCardProps {
@@ -168,7 +169,10 @@ export const RecoveryArtifactsCard = forwardRef<
           <>
             <div className="flex items-baseline justify-between gap-2">
               <span className="text-base leading-[1.5] tracking-[0.15px] text-accent-primary">
-                <span>{formatBytes(receivedBytes)}</span>
+                {/* Clamp to total so a gzip'd Content-Length or an
+                    underestimated fallback can't render "1.40 GB / 1.30 GB"
+                    — matches the percent/bar clamps below. */}
+                <span>{formatBytes(Math.min(receivedBytes, totalBytes))}</span>
                 <span className="text-accent-secondary">
                   {" / "}
                   {formatBytes(totalBytes)}

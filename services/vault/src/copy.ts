@@ -335,8 +335,6 @@ export const COPY = {
       cardSizeDownloaded: "~1 GB",
       downloadButton: "Download Artifacts",
       downloadingButton: "Downloading...",
-      cancelDownloadButton: "Cancel",
-      downloadedLabel: "Downloaded",
       retryButton: "Retry",
       walletSignatureHint:
         "You may be asked to approve a signature in your wallet to authenticate.",
@@ -344,6 +342,16 @@ export const COPY = {
       doNotCloseHint: "Do not close this window while downloading.",
       cannotAuthenticate:
         "Cannot authenticate with the vault provider. Please refresh and try again.",
+      // Progress/status lines surfaced in the card while the download hook
+      // works through its fetch / re-auth / wait-for-signatures states.
+      fetchingArtifacts: "Fetching artifacts from vault provider...",
+      reauthenticating: "Re-authenticating with vault provider...",
+      waitingForSignatures:
+        "Waiting for vault provider to process signatures...",
+      // Error fallbacks shown when a thrown error carries no usable message.
+      authenticationFailed: "Authentication failed",
+      reauthenticationFailed: "Re-authentication failed",
+      downloadFailed: "Download failed",
     },
     form: {
       computingAllocation: "Computing allocation...",

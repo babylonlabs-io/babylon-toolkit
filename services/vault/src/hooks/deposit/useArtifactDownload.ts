@@ -96,7 +96,7 @@ export function useArtifactDownload(options?: {
       setState({
         ...INITIAL_STATE,
         loading: true,
-        progress: "Fetching artifacts from vault provider...",
+        progress: COPY.deposit.recoveryArtifacts.fetchingArtifacts,
       });
 
       const normalizedPeginTxid = stripHexPrefix(peginTxid);
@@ -136,7 +136,7 @@ export function useArtifactDownload(options?: {
           setError(
             primeErr instanceof Error
               ? primeErr.message
-              : "Authentication failed",
+              : COPY.deposit.recoveryArtifacts.authenticationFailed,
           );
           return false;
         }
@@ -157,7 +157,7 @@ export function useArtifactDownload(options?: {
 
         setState((prev) => ({
           ...prev,
-          progress: "Re-authenticating with vault provider...",
+          progress: COPY.deposit.recoveryArtifacts.reauthenticating,
           // Reset byte counters so the bar doesn't linger between attempts;
           // the next fetchAndDownloadArtifacts call seeds them from 0 again.
           receivedBytes: 0,
@@ -215,7 +215,7 @@ export function useArtifactDownload(options?: {
           if (isPreDepositorSignaturesError(err)) {
             setState((prev) => ({
               ...prev,
-              progress: "Waiting for vault provider to process signatures...",
+              progress: COPY.deposit.recoveryArtifacts.waitingForSignatures,
               receivedBytes: 0,
               totalBytes: 0,
             }));
@@ -232,7 +232,7 @@ export function useArtifactDownload(options?: {
               if (primed && !cancelledRef.current) {
                 setState((prev) => ({
                   ...prev,
-                  progress: "Fetching artifacts from vault provider...",
+                  progress: COPY.deposit.recoveryArtifacts.fetchingArtifacts,
                 }));
                 continue;
               }
@@ -241,14 +241,18 @@ export function useArtifactDownload(options?: {
               setError(
                 primeErr instanceof Error
                   ? primeErr.message
-                  : "Re-authentication failed",
+                  : COPY.deposit.recoveryArtifacts.reauthenticationFailed,
               );
               return;
             }
           }
 
           if (cancelledRef.current) return;
-          setError(err instanceof Error ? err.message : "Download failed");
+          setError(
+            err instanceof Error
+              ? err.message
+              : COPY.deposit.recoveryArtifacts.downloadFailed,
+          );
           return;
         }
       }
