@@ -19,7 +19,11 @@ import {
   formatTokenAmount,
   formatUsdValue,
 } from "../../../../../utils/formatting";
-import { AMOUNT_INPUT_CLASS_NAME, MIN_SLIDER_MAX } from "../../../constants";
+import {
+  AMOUNT_INPUT_CLASS_NAME,
+  MIN_SLIDER_MAX,
+  SAFE_TOFIXED_PRECISION,
+} from "../../../constants";
 import { useRepayTransaction, type RepayMode } from "../../../hooks";
 import { useLoanContext } from "../../context/LoanContext";
 import { BorrowDetailsCard } from "../Borrow/BorrowDetailsCard";
@@ -94,6 +98,12 @@ export function Repay() {
   // `maxRepayAmount`.
   const sliderTrackMax = maxRepayAmount > 0 ? maxRepayAmount : MIN_SLIDER_MAX;
 
+  // Token's own precision so dust (e.g. 0.00000003 WBTC) isn't rounded to "0.00".
+  const repayDisplayDecimals = Math.min(
+    selectedReserve.token.decimals,
+    SAFE_TOFIXED_PRECISION,
+  );
+
   const [refetchError, setRefetchError] = useState<string | null>(null);
 
   // Pure UI action: pre-fill the input with the cached max so the user sees
@@ -162,7 +172,7 @@ export function Repay() {
               setRepayAmount(parseFloat(e.target.value) || 0)
             }
             balanceDetails={{
-              balance: formatTokenAmount(maxRepayAmount),
+              balance: formatTokenAmount(maxRepayAmount, repayDisplayDecimals),
               symbol: assetConfig.symbol,
               displayUSD: false,
             }}
@@ -175,7 +185,7 @@ export function Repay() {
             sliderVariant="rainbow"
             leftField={{
               label: "Max",
-              value: `${formatTokenAmount(maxRepayAmount)} ${assetConfig.symbol}`,
+              value: `${formatTokenAmount(maxRepayAmount, repayDisplayDecimals)} ${assetConfig.symbol}`,
             }}
             onMaxClick={handleMaxClick}
             rightField={{
