@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import type { Address, Hex } from "viem";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { DepositFlowStep } from "@/hooks/deposit/depositFlowSteps";
 import {
   getPeginDisplayStep,
   getWarningPeginDisplayStep,
@@ -269,9 +270,11 @@ function renderView(
 describe("PostDepositContinuationView", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(getPeginDisplayStep).mockReturnValue("AWAIT_BTC_CONFIRMATION");
+    vi.mocked(getPeginDisplayStep).mockReturnValue(
+      DepositFlowStep.AWAIT_BTC_CONFIRMATION,
+    );
     vi.mocked(getWarningPeginDisplayStep).mockReturnValue(
-      "AWAIT_BTC_CONFIRMATION",
+      DepositFlowStep.AWAIT_BTC_CONFIRMATION,
     );
   });
 
@@ -768,7 +771,7 @@ describe("PostDepositContinuationView", () => {
     vi.mocked(getPeginDisplayStep).mockImplementation((state) =>
       state.displayVariant === "warning" || state.contractStatus === 2
         ? null
-        : "AWAIT_BTC_CONFIRMATION",
+        : DepositFlowStep.AWAIT_BTC_CONFIRMATION,
     );
 
     const states = new Map<string, ReturnType<typeof resultWith>>([
@@ -799,7 +802,10 @@ describe("PostDepositContinuationView", () => {
 
     expect(getByTestId("error").textContent).toBe("This deposit has expired.");
     expect(getByTestId("per-vault-steps").textContent).toBe(
-      JSON.stringify(["AWAIT_BTC_CONFIRMATION", "COMPLETED"]),
+      JSON.stringify([
+        DepositFlowStep.AWAIT_BTC_CONFIRMATION,
+        DepositFlowStep.COMPLETED,
+      ]),
     );
   });
 
