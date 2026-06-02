@@ -114,6 +114,26 @@ describe("VpTokenRegistry", () => {
     ).toThrow(/already bound to pinnedServerPubkey/);
   });
 
+  it("throws on getOrCreate reuse with a different enableGrpcArtifactAuth", () => {
+    // The provider's gated-method sets are fixed at construction, so the
+    // cached instance can't switch auth subjects. A second caller that
+    // disagrees (e.g. flag flipped, or a primer that didn't pass it) must
+    // fail loud rather than silently get the wrong-subject token.
+    registry.getOrCreate(buildInput({ enableGrpcArtifactAuth: false }));
+    expect(() =>
+      registry.getOrCreate(buildInput({ enableGrpcArtifactAuth: true })),
+    ).toThrow(/already bound to enableGrpcArtifactAuth=false/);
+  });
+
+  it("treats an omitted enableGrpcArtifactAuth as false for reuse", () => {
+    // The default is resolved before the mismatch check, so priming
+    // without the flag and reusing with an explicit `false` must NOT throw.
+    registry.getOrCreate(buildInput());
+    expect(() =>
+      registry.getOrCreate(buildInput({ enableGrpcArtifactAuth: false })),
+    ).not.toThrow();
+  });
+
   it("getOrCreate cache-hit swaps in the new client so URL changes don't leave a stale transport", () => {
     // VP URL change mid-session: same identity, new transport. The
     // cached provider's token (bound to identity, not URL) stays

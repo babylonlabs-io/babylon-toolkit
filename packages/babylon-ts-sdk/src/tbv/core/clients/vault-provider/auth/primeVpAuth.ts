@@ -22,9 +22,9 @@ export interface PrimeVpAuthInput {
   /**
    * Opt into gRPC-subject auth for the artifact stream. Defaults to
    * `false`. Must match the value passed to a later
-   * `createAuthenticatedVpClient` for the same `peginTxid` — priming
-   * wins the cache, so a mismatch would silently pin the provider to
-   * the primed gating.
+   * `createAuthenticatedVpClient` for the same `peginTxid` —
+   * `VpTokenRegistry.getOrCreate` throws on a mismatch rather than
+   * serve the wrong-subject token from the primed provider.
    */
   enableGrpcArtifactAuth?: boolean;
 }
