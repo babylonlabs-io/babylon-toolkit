@@ -836,7 +836,7 @@ export function useDepositFlow(
 
         baseStep = DepositFlowStep.SUBMIT_WOTS_KEYS;
 
-        const wotsReadyVaultIds = await waitForWotsReadiness({
+        const { readyVaultIds, terminalVaultIds } = await waitForWotsReadiness({
           vaults: broadcastedResults.map((result) => ({
             vaultId: result.vaultId,
             peginTxHash: result.peginTxHash,
@@ -848,9 +848,16 @@ export function useDepositFlow(
         for (const result of broadcastedResults) {
           signal.throwIfAborted();
 
-          if (!wotsReadyVaultIds.has(result.vaultId)) {
-            const warning = `Vault ${result.vaultIndex + 1}: WOTS key submission skipped - vault provider was not ready before the readiness timeout`;
-            recordWarning(warning);
+          if (!readyVaultIds.has(result.vaultId)) {
+            recordWarning(
+              terminalVaultIds.has(result.vaultId)
+                ? COPY.deposit.warnings.wotsReadinessTerminal(
+                    result.vaultIndex + 1,
+                  )
+                : COPY.deposit.warnings.wotsReadinessTimeout(
+                    result.vaultIndex + 1,
+                  ),
+            );
             wotsFailedVaultIds.add(result.vaultId);
             continue;
           }
@@ -906,8 +913,12 @@ export function useDepositFlow(
 
               const errorMsg =
                 error instanceof Error ? error.message : String(error);
-              const warning = `Vault ${result.vaultIndex + 1}: WOTS key submission failed - ${errorMsg}`;
-              recordWarning(warning);
+              recordWarning(
+                COPY.deposit.warnings.wotsSubmissionFailed(
+                  result.vaultIndex + 1,
+                  errorMsg,
+                ),
+              );
               logger.error(
                 error instanceof Error ? error : new Error(String(error)),
                 {
@@ -988,8 +999,12 @@ export function useDepositFlow(
 
             const errorMsg =
               error instanceof Error ? error.message : String(error);
-            const warning = `Vault ${result.vaultIndex + 1}: Payout signing failed - ${errorMsg}`;
-            recordWarning(warning);
+            recordWarning(
+              COPY.deposit.warnings.payoutSigningFailed(
+                result.vaultIndex + 1,
+                errorMsg,
+              ),
+            );
             logger.error(
               error instanceof Error ? error : new Error(String(error)),
               {

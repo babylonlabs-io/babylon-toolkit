@@ -82,14 +82,15 @@ describe("waitForWotsReadiness", () => {
     );
     setupBatchPoll();
 
-    const ready = await waitForWotsReadiness({
+    const result = await waitForWotsReadiness({
       vaults: VAULTS,
       providerAddress: "0xProvider",
       timeoutMs: 1_000,
       pollIntervalMs: 0,
     });
 
-    expect([...ready]).toEqual(["0xVault0", "0xVault1"]);
+    expect([...result.readyVaultIds]).toEqual(["0xVault0", "0xVault1"]);
+    expect([...result.terminalVaultIds]).toEqual([]);
     expect(batchPollByProvider).toHaveBeenCalledTimes(2);
   });
 
@@ -100,14 +101,34 @@ describe("waitForWotsReadiness", () => {
     });
     setupBatchPoll();
 
-    const ready = await waitForWotsReadiness({
+    const result = await waitForWotsReadiness({
       vaults: VAULTS,
       providerAddress: "0xProvider",
       timeoutMs: 0,
       pollIntervalMs: 0,
     });
 
-    expect([...ready]).toEqual(["0xVault1"]);
+    expect([...result.readyVaultIds]).toEqual(["0xVault1"]);
+    expect([...result.terminalVaultIds]).toEqual([]);
+    expect(batchPollByProvider).toHaveBeenCalledTimes(1);
+  });
+
+  it("returns terminal vaults separately from ready vaults", async () => {
+    statusesByCall.push({
+      "0xVault0": "InvalidSigInContract",
+      "0xVault1": "PendingDepositorWotsPK",
+    });
+    setupBatchPoll();
+
+    const result = await waitForWotsReadiness({
+      vaults: VAULTS,
+      providerAddress: "0xProvider",
+      timeoutMs: 1_000,
+      pollIntervalMs: 0,
+    });
+
+    expect([...result.readyVaultIds]).toEqual(["0xVault1"]);
+    expect([...result.terminalVaultIds]).toEqual(["0xVault0"]);
     expect(batchPollByProvider).toHaveBeenCalledTimes(1);
   });
 });

@@ -343,9 +343,10 @@ async function setupDefaultMocks() {
       },
     ],
   });
-  vi.mocked(waitForWotsReadiness).mockResolvedValue(
-    new Set(["0xVault0Id", "0xVault1Id"] as Hex[]),
-  );
+  vi.mocked(waitForWotsReadiness).mockResolvedValue({
+    readyVaultIds: new Set(["0xVault0Id", "0xVault1Id"] as Hex[]),
+    terminalVaultIds: new Set<Hex>(),
+  });
   vi.mocked(signAndSubmitPayouts).mockResolvedValue(undefined);
   vi.mocked(broadcastPrePeginTransaction).mockResolvedValue(
     "mockBroadcastTxId",
@@ -854,9 +855,10 @@ describe("useDepositFlow", () => {
         waitForWotsReadiness,
       } = vi.mocked(await import("../depositFlowSteps"));
 
-      vi.mocked(waitForWotsReadiness).mockResolvedValueOnce(
-        new Set(["0xVault1Id"] as Hex[]),
-      );
+      vi.mocked(waitForWotsReadiness).mockResolvedValueOnce({
+        readyVaultIds: new Set(["0xVault1Id"] as Hex[]),
+        terminalVaultIds: new Set<Hex>(),
+      });
 
       const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
       const depositResult = await executeDepositFlow(result);
@@ -881,6 +883,39 @@ describe("useDepositFlow", () => {
         DepositFlowStep.AWAIT_BTC_CONFIRMATION,
         DepositFlowStep.AWAIT_VP_VERIFICATION,
       ]);
+    });
+
+    it("surfaces terminal WOTS readiness statuses distinctly and continues ready siblings", async () => {
+      const {
+        submitWotsPublicKey,
+        signAndSubmitPayouts,
+        waitForWotsReadiness,
+      } = vi.mocked(await import("../depositFlowSteps"));
+
+      vi.mocked(waitForWotsReadiness).mockResolvedValueOnce({
+        readyVaultIds: new Set(["0xVault1Id"] as Hex[]),
+        terminalVaultIds: new Set(["0xVault0Id"] as Hex[]),
+      });
+
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+      const depositResult = await executeDepositFlow(result);
+
+      expect(depositResult).not.toBeNull();
+      expect(result.current.lastWarnings).toEqual(
+        expect.arrayContaining([
+          expect.stringContaining(
+            "Vault 1: WOTS key submission skipped - vault provider reported this BTC Vault cannot continue",
+          ),
+        ]),
+      );
+      expect(submitWotsPublicKey).toHaveBeenCalledTimes(1);
+      expect(submitWotsPublicKey).toHaveBeenCalledWith(
+        expect.objectContaining({ vaultId: "0xVault1Id" }),
+      );
+      expect(signAndSubmitPayouts).toHaveBeenCalledTimes(1);
+      expect(signAndSubmitPayouts).toHaveBeenCalledWith(
+        expect.objectContaining({ vaultId: "0xVault1Id" }),
+      );
     });
 
     it("should retry WOTS submission once before skipping vault", async () => {

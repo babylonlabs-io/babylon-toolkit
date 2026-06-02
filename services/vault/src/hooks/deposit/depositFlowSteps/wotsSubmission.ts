@@ -38,6 +38,11 @@ export interface WaitForWotsReadinessParams {
   pollIntervalMs?: number;
 }
 
+export interface WotsReadinessResult {
+  readyVaultIds: Set<Hex>;
+  terminalVaultIds: Set<Hex>;
+}
+
 function sleep(ms: number, signal?: AbortSignal): Promise<void> {
   if (ms <= 0) return Promise.resolve();
   return new Promise((resolve, reject) => {
@@ -91,8 +96,10 @@ export async function waitForWotsReadiness({
   signal,
   timeoutMs = DEFAULT_WOTS_READY_TIMEOUT_MS,
   pollIntervalMs = POLLING_INTERVAL_MS,
-}: WaitForWotsReadinessParams): Promise<Set<Hex>> {
-  if (vaults.length === 0) return new Set();
+}: WaitForWotsReadinessParams): Promise<WotsReadinessResult> {
+  if (vaults.length === 0) {
+    return { readyVaultIds: new Set(), terminalVaultIds: new Set() };
+  }
 
   const readyVaultIds = new Set<Hex>();
   const terminalVaultIds = new Set<Hex>();
@@ -159,7 +166,7 @@ export async function waitForWotsReadiness({
     await sleep(Math.min(pollIntervalMs, remainingMs), signal);
   }
 
-  return readyVaultIds;
+  return { readyVaultIds, terminalVaultIds };
 }
 
 /**

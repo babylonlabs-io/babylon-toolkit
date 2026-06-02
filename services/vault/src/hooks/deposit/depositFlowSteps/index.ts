@@ -39,7 +39,10 @@ export {
 
 // Step 3.5: WOTS key submission (RPC, happens after broadcast + VP indexing)
 export { submitWotsPublicKey, waitForWotsReadiness } from "./wotsSubmission";
-export type { WaitForWotsReadinessParams } from "./wotsSubmission";
+export type {
+  WaitForWotsReadinessParams,
+  WotsReadinessResult,
+} from "./wotsSubmission";
 
 // Step 4: Payout signing
 export { payoutSigningStep, signAndSubmitPayouts } from "./payoutSigning";

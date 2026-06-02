@@ -367,6 +367,14 @@ export const COPY = {
         count <= 1
           ? "This deposit and another of your pending BTC Vault deposits selected the same UTXOs. No BTC was committed in the other deposit, it will expire on its own."
           : `This deposit and ${count} of your other pending BTC Vault deposits selected the same UTXOs. No BTC was committed in the other deposits, they will expire on their own.`,
+      wotsReadinessTimeout: (vaultNumber: number) =>
+        `Vault ${vaultNumber}: WOTS key submission skipped - vault provider was not ready before the readiness timeout`,
+      wotsReadinessTerminal: (vaultNumber: number) =>
+        `Vault ${vaultNumber}: WOTS key submission skipped - vault provider reported this BTC Vault cannot continue`,
+      wotsSubmissionFailed: (vaultNumber: number, error: string) =>
+        `Vault ${vaultNumber}: WOTS key submission failed - ${error}`,
+      payoutSigningFailed: (vaultNumber: number, error: string) =>
+        `Vault ${vaultNumber}: Payout signing failed - ${error}`,
       dismissReusesReservedUtxos: "Dismiss",
     },
     errors: {
