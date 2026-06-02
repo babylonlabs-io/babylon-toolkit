@@ -28,6 +28,7 @@ import { calculateBtcTxHash } from "@babylonlabs-io/ts-sdk/tbv/core/utils";
 import type { Address, Hex } from "viem";
 
 import { getVaultRegistryReader } from "@/clients/eth-contract/sdk-readers";
+import featureFlags from "@/config/featureFlags";
 import { getVpProxyUrl } from "@/utils/rpc";
 
 export interface EnsureAuthenticatedVpClientParams {
@@ -99,6 +100,7 @@ export async function ensureAuthenticatedVpClient(
       peginTxid,
       authAnchorHex,
       pinnedServerPubkey,
+      enableGrpcArtifactAuth: featureFlags.isGrpcArtifactsEnabled,
     });
   } finally {
     root?.fill(0);
