@@ -48,6 +48,12 @@ const WRONG_WALLET_BODY =
   "WOTS public key hash does not match the on-chain commitment — the wrong wallet is connected.";
 
 export const COPY = {
+  // Canonical user-facing display labels for token symbols. The on-chain /
+  // indexer symbol may differ in casing (e.g. "WBTC"); display always uses
+  // these. See `getTokenDisplaySymbol` in `services/token/tokenService.ts`.
+  tokens: {
+    wbtc: "wBTC",
+  },
   pegin: {
     labels: {
       PENDING: "Pending",
@@ -650,12 +656,12 @@ export const COPY = {
     disconnected: {
       heroTitle: "Native Bitcoin backed borrowing",
       heroBody:
-        "Powered by Babylon & Aave — deposit BTC and borrow stablecoins or WBTC.",
+        "Powered by Babylon & Aave — deposit BTC and borrow stablecoins or wBTC.",
       connectButton: "Connect Wallet",
       aprLabels: {
         usdt: "USDT APR",
         usdc: "USDC APR",
-        wbtc: "WBTC APR",
+        wbtc: "wBTC APR",
       },
       steps: {
         stepLabel: (n: number) => `step ${n}`,
@@ -664,7 +670,7 @@ export const COPY = {
           body: "Lock your BTC in a BTC Vault.",
         },
         two: {
-          title: "Borrow USDC, USDT or WBTC",
+          title: "Borrow USDC, USDT or wBTC",
           body: "Get stablecoin liquidity powered by Aave.",
         },
         three: {

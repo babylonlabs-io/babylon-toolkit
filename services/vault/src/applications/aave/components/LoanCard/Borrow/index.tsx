@@ -17,6 +17,7 @@ import { FeatureFlags } from "@/config";
 import {
   getCurrencyIconWithFallback,
   getTokenBrandColor,
+  getTokenDisplaySymbol,
 } from "../../../../../services/token";
 import {
   formatTokenAmount,
@@ -135,7 +136,7 @@ export function Borrow() {
             }
             balanceDetails={{
               balance: formatTokenAmount(maxBorrowAmount, displayDecimals),
-              symbol: assetConfig.symbol,
+              symbol: getTokenDisplaySymbol(assetConfig.symbol),
               displayUSD: false,
             }}
             sliderValue={borrowAmount}
@@ -147,7 +148,7 @@ export function Borrow() {
             sliderVariant="rainbow"
             leftField={{
               label: "Max",
-              value: `${formatTokenAmount(maxBorrowAmount, displayDecimals)} ${assetConfig.symbol}`,
+              value: `${formatTokenAmount(maxBorrowAmount, displayDecimals)} ${getTokenDisplaySymbol(assetConfig.symbol)}`,
             }}
             onMaxClick={() => setBorrowAmount(maxBorrowAmount)}
             rightField={{

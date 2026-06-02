@@ -190,7 +190,7 @@ export function DisconnectedOverview() {
                 />
                 <Avatar
                   url="/images/wbtc.png"
-                  alt="WBTC"
+                  alt="wBTC"
                   size="medium"
                   className="-ml-2 h-8 w-8 bg-white"
                 />

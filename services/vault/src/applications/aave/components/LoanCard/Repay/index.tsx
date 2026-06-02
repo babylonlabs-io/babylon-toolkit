@@ -14,6 +14,7 @@ import { useERC20Balance } from "@/hooks";
 import {
   getCurrencyIconWithFallback,
   getTokenBrandColor,
+  getTokenDisplaySymbol,
 } from "../../../../../services/token";
 import {
   formatTokenAmount,
@@ -174,7 +175,7 @@ export function Repay() {
             }
             balanceDetails={{
               balance: formatTokenAmount(maxRepayAmount, displayDecimals),
-              symbol: assetConfig.symbol,
+              symbol: getTokenDisplaySymbol(assetConfig.symbol),
               displayUSD: false,
             }}
             sliderValue={repayAmount}
@@ -186,7 +187,7 @@ export function Repay() {
             sliderVariant="rainbow"
             leftField={{
               label: "Max",
-              value: `${formatTokenAmount(maxRepayAmount, displayDecimals)} ${assetConfig.symbol}`,
+              value: `${formatTokenAmount(maxRepayAmount, displayDecimals)} ${getTokenDisplaySymbol(assetConfig.symbol)}`,
             }}
             onMaxClick={handleMaxClick}
             rightField={{

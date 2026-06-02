@@ -1,6 +1,7 @@
 import { Avatar } from "@babylonlabs-io/core-ui";
 
 import { SubmitModal } from "@/components/shared";
+import { getTokenDisplaySymbol } from "@/services/token/tokenService";
 import { formatAmount } from "@/utils/formatting";
 
 interface RepaySuccessModalProps {
@@ -40,7 +41,8 @@ export function RepaySuccessModal({
       submitButton="View Loan"
       onSubmit={onViewLoan}
     >
-      {formattedRepay} {repaySymbol} has been successfully repaid.
+      {formattedRepay} {getTokenDisplaySymbol(repaySymbol)} has been
+      successfully repaid.
     </SubmitModal>
   );
 }

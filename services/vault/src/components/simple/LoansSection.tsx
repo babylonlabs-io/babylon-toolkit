@@ -15,6 +15,7 @@ import {
 } from "@/components/shared/layoutClasses";
 import { getNetworkConfigBTC } from "@/config";
 import { COPY } from "@/copy";
+import { getTokenDisplaySymbol } from "@/services/token/tokenService";
 
 const btcConfig = getNetworkConfigBTC();
 
@@ -100,9 +101,13 @@ export function LoansSection({
               >
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex min-w-0 flex-1 items-center gap-2">
-                    <Avatar url={asset.icon} alt={asset.symbol} size="medium" />
+                    <Avatar
+                      url={asset.icon}
+                      alt={getTokenDisplaySymbol(asset.symbol)}
+                      size="medium"
+                    />
                     <span className="text-xl text-accent-primary">
-                      {asset.amount} {asset.symbol}
+                      {asset.amount} {getTokenDisplaySymbol(asset.symbol)}
                     </span>
                   </div>
                   {asset.borrowRate && (
@@ -110,7 +115,9 @@ export function LoansSection({
                       <ExpandMenuButton
                         isExpanded={isExpanded}
                         onToggle={() => toggleExpanded(asset.symbol)}
-                        aria-label={COPY.loans.detailsAriaLabel(asset.symbol)}
+                        aria-label={COPY.loans.detailsAriaLabel(
+                          getTokenDisplaySymbol(asset.symbol),
+                        )}
                       />
                     </div>
                   )}

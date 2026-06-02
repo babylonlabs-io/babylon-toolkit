@@ -1,6 +1,7 @@
 import { Avatar } from "@babylonlabs-io/core-ui";
 
 import { SubmitModal } from "@/components/shared";
+import { getTokenDisplaySymbol } from "@/services/token/tokenService";
 import { formatAmount } from "@/utils/formatting";
 
 interface BorrowSuccessModalProps {
@@ -40,8 +41,8 @@ export function BorrowSuccessModal({
       submitButton="View Loan"
       onSubmit={onViewLoan}
     >
-      {formattedBorrow} {borrowSymbol} has been borrowed and is now available in
-      your wallet.
+      {formattedBorrow} {getTokenDisplaySymbol(borrowSymbol)} has been borrowed
+      and is now available in your wallet.
     </SubmitModal>
   );
 }

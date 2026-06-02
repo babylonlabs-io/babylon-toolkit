@@ -10,6 +10,7 @@
 import type { Address } from "viem";
 import { getAddress, isAddress } from "viem";
 
+import { COPY } from "@/copy";
 import { logger } from "@/infrastructure";
 
 import { getNetworkConfigBTC } from "../../config";
@@ -147,6 +148,22 @@ const defaultTokenBrandColor = "#0B53BF";
  */
 export function getTokenBrandColor(symbol: string): string {
   return tokenBrandColorsMap[symbol.toUpperCase()] ?? defaultTokenBrandColor;
+}
+
+/**
+ * Canonical user-facing display label for a token symbol. The on-chain /
+ * indexer symbol may use different casing (e.g. "WBTC"); this maps it to the
+ * form users should see. Unknown symbols pass through unchanged.
+ *
+ * Display-only: never use the result for icon/color lookups, address matching,
+ * or any on-chain comparison — those must keep the raw symbol.
+ */
+const tokenDisplaySymbolsMap: Record<string, string> = {
+  WBTC: COPY.tokens.wbtc,
+};
+
+export function getTokenDisplaySymbol(symbol: string): string {
+  return tokenDisplaySymbolsMap[symbol.toUpperCase()] ?? symbol;
 }
 
 /**

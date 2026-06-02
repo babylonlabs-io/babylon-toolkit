@@ -1,6 +1,9 @@
 import { Avatar } from "@babylonlabs-io/core-ui";
 
-import { getCurrencyIconWithFallback } from "@/services/token/tokenService";
+import {
+  getCurrencyIconWithFallback,
+  getTokenDisplaySymbol,
+} from "@/services/token/tokenService";
 import { formatPriceUsd } from "@/utils/formatting";
 
 interface AssetListItemProps {
@@ -35,7 +38,9 @@ export function AssetListItem({
         <span className="text-base font-medium text-accent-primary">
           {name}
         </span>
-        <span className="text-sm text-accent-secondary">{symbol}</span>
+        <span className="text-sm text-accent-secondary">
+          {getTokenDisplaySymbol(symbol)}
+        </span>
       </div>
       {priceUsd !== undefined && (
         <span className="text-base font-medium text-accent-primary">
