@@ -15,17 +15,13 @@ import {
 import { COPY } from "@/copy";
 import { hasArtifactsDownloaded } from "@/utils/artifactDownloadStorage";
 
-/** The vault-provider routing inputs an artifact download needs. */
-export interface ArtifactDownloadModalParams {
-  providerAddress: string;
-  peginTxid: string;
-  depositorPk: string;
-}
-
-interface ArtifactDownloadModalProps extends ArtifactDownloadModalParams {
+interface ArtifactDownloadModalProps {
   open: boolean;
   onClose: () => void;
   onComplete: () => void;
+  providerAddress: string;
+  peginTxid: string;
+  depositorPk: string;
   vaultId: Hex;
   /**
    * Unsigned Pre-PegIn tx hex (from indexer). When provided alongside a

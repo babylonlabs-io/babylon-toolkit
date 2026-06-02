@@ -15,11 +15,6 @@ interface BtcConfirmationDetailProps {
   confirmations: number | null;
   /** Protocol-required confirmation depth (`minPrepeginDepth`). */
   requiredDepth: number;
-  /**
-   * Stack each row's label above its value instead of side-by-side. Used in the
-   * narrow split-deposit columns, where the inline label/value layout collapses.
-   */
-  stacked?: boolean;
 }
 
 function formatStartedAt(timestamp: number): string {
@@ -46,18 +41,12 @@ export function BtcConfirmationDetail({
   prePeginTxid,
   confirmations,
   requiredDepth,
-  stacked = false,
 }: BtcConfirmationDetailProps) {
   const copy = COPY.deposit.btcConfirmation;
-  // Stacked: label on its own line above the value (narrow split columns).
-  // Inline: label left / value right (full-width single-column flow).
-  const rowClass = stacked
-    ? "flex flex-col gap-0.5"
-    : "flex items-center justify-between gap-2";
 
   return (
     <div className="mt-3 flex flex-col gap-2 rounded-lg bg-secondary-highlight p-3">
-      <div className={rowClass}>
+      <div className="flex items-center justify-between gap-2">
         <Text as="span" variant="body2" className="text-accent-secondary">
           {copy.startedAt}:
         </Text>
@@ -66,7 +55,7 @@ export function BtcConfirmationDetail({
         </Text>
       </div>
 
-      <div className={rowClass}>
+      <div className="flex items-center justify-between gap-2">
         <Text as="span" variant="body2" className="text-accent-secondary">
           {copy.estRemaining}:
         </Text>
@@ -79,7 +68,7 @@ export function BtcConfirmationDetail({
         )}
       </div>
 
-      <div className={rowClass}>
+      <div className="flex items-center justify-between gap-2">
         <Text as="span" variant="body2" className="text-accent-secondary">
           {copy.bitcoinTx}:
         </Text>

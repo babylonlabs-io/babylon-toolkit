@@ -88,9 +88,6 @@ interface VaultDetailCardProps {
    *  on-chain at vault creation, which may differ from the currently
    *  connected BTC wallet. */
   payoutBtcAddress?: string;
-  /** Optional click handler invoked when the card body (not an inner button
-   *  or link) is clicked. Used to open the deposit multistepper. */
-  onClick?: () => void;
 }
 
 export function VaultDetailCard({
@@ -109,16 +106,11 @@ export function VaultDetailCard({
   disabled,
   disabledTooltip,
   payoutBtcAddress,
-  onClick,
 }: VaultDetailCardProps) {
   const relativeTime = useRelativeTime(timestamp);
 
   return (
-    <VaultCardShell
-      disabled={disabled}
-      disabledTooltip={disabledTooltip}
-      onClick={onClick}
-    >
+    <VaultCardShell disabled={disabled} disabledTooltip={disabledTooltip}>
       {/* BTC icon + amount (+ optional subtext), optional header-end content */}
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-center gap-2">
@@ -139,20 +131,24 @@ export function VaultDetailCard({
 
       {belowHeader}
 
-      {/* Transaction Hash — leads the detail rows so users can verify the on-
-          chain identity of the deposit at a glance. A custom row (e.g. dual
-          Pegin / Pre-Pegin) takes precedence; otherwise fall back to the
-          single-hash row. */}
-      {txHashRow ??
-        (txHash && (
-          <VaultCardRow label={COPY.pegin.txHash.singleLabel}>
-            <CopyableHash
-              hash={txHash}
-              chain="BTC"
-              explorerUrl={getBtcExplorerTxUrl(txHash)}
-            />
-          </VaultCardRow>
-        ))}
+      {/* Created */}
+      {timestamp !== undefined && (
+        <VaultCardRow label={COPY.pegin.createdLabel}>
+          <Hint
+            tooltip={formatDateTime(new Date(timestamp))}
+            attachToChildren
+            placement="left"
+            className="text-sm text-accent-primary"
+          >
+            <span>{relativeTime}</span>
+          </Hint>
+        </VaultCardRow>
+      )}
+
+      {/* Status */}
+      {statusContent && (
+        <VaultCardRow label="Status">{statusContent}</VaultCardRow>
+      )}
 
       {/* Vault Provider */}
       <VaultCardRow label="Vault provider">
@@ -176,24 +172,18 @@ export function VaultDetailCard({
         </Hint>
       </VaultCardRow>
 
-      {/* Date — hidden when no timestamp is supplied (e.g. cross-device rows). */}
-      {timestamp !== undefined && (
-        <VaultCardRow label="Date">
-          <Hint
-            tooltip={formatDateTime(new Date(timestamp))}
-            attachToChildren
-            placement="left"
-            className="text-sm text-accent-primary"
-          >
-            <span>{relativeTime}</span>
-          </Hint>
-        </VaultCardRow>
-      )}
-
-      {/* Status */}
-      {statusContent && (
-        <VaultCardRow label="Status">{statusContent}</VaultCardRow>
-      )}
+      {/* Transaction Hash — a custom row (e.g. dual Pegin / Pre-Pegin) takes
+          precedence; otherwise fall back to the single-hash row. */}
+      {txHashRow ??
+        (txHash && (
+          <VaultCardRow label={COPY.pegin.txHash.singleLabel}>
+            <CopyableHash
+              hash={txHash}
+              chain="BTC"
+              explorerUrl={getBtcExplorerTxUrl(txHash)}
+            />
+          </VaultCardRow>
+        ))}
 
       {/* Nominated Address — destination registered at vault creation.
           May differ from the currently connected BTC wallet. */}

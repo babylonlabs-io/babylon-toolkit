@@ -66,11 +66,6 @@ interface StepRowProps {
   hasNext?: boolean;
   /** Override for screen-reader label; defaults to `number` (visual) when absent. */
   ariaNumber?: number;
-  /**
-   * Stack the sub-counter below the label instead of inline beside it. Used in
-   * the narrow split-deposit columns, where "label (x of n)" doesn't fit.
-   */
-  compact?: boolean;
 }
 
 export function StepRow({
@@ -81,7 +76,6 @@ export function StepRow({
   detail,
   hasNext = false,
   ariaNumber,
-  compact = false,
 }: StepRowProps) {
   const isActive = state === "active";
   const hasDetail = isActive && Boolean(detail);
@@ -106,15 +100,7 @@ export function StepRow({
         )}
       </div>
       <div className="flex flex-1 flex-col">
-        <div
-          className={
-            // Compact (narrow split column): counter drops below the label.
-            // Otherwise: label and counter sit inline.
-            compact
-              ? "flex flex-col items-start gap-0.5"
-              : "flex items-baseline gap-2"
-          }
-        >
+        <div className="flex items-baseline gap-2">
           <Text
             as="span"
             variant="body2"

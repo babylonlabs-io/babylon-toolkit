@@ -39,6 +39,15 @@ vi.mock("@/hooks/deposit/useAllDepositProviders", () => ({
   useAllDepositProviders: vi.fn(() => ({ vaultProviders: [] })),
 }));
 
+vi.mock("@/hooks/deposit/usePayoutSignModal", () => ({
+  usePayoutSignModal: vi.fn(() => ({
+    signingData: null,
+    handleSignClick: vi.fn(),
+    handleClose: vi.fn(),
+    handleSuccess: vi.fn(),
+  })),
+}));
+
 vi.mock("@/hooks/deposit/useBroadcastModal", () => ({
   useBroadcastModal: vi.fn(() => ({
     broadcastingActivity: null,
@@ -155,9 +164,11 @@ describe("usePendingDeposits", () => {
     expect(result.current.hasExpiredDeposits).toBe(true);
   });
 
-  it("returns the broadcast modal handler", () => {
+  it("returns sign and broadcast modal handlers", () => {
     const { result } = renderHook(() => usePendingDeposits());
 
+    expect(result.current.signModal).toBeDefined();
+    expect(result.current.signModal.handleSignClick).toBeInstanceOf(Function);
     expect(result.current.broadcastModal).toBeDefined();
     expect(result.current.broadcastModal.handleBroadcastClick).toBeInstanceOf(
       Function,

@@ -32,10 +32,7 @@ import { getVaultRegistryReader } from "@/clients/eth-contract/sdk-readers";
 import { computeDepositDerivedState } from "@/components/deposit/DepositSignModal/depositStepHelpers";
 import { usePayoutSigningState } from "@/components/deposit/PayoutSignModal/usePayoutSigningState";
 import featureFlags from "@/config/featureFlags";
-import {
-  useDepositPollingResult,
-  usePeginPolling,
-} from "@/context/deposit/PeginPollingContext";
+import { useDepositPollingResult } from "@/context/deposit/PeginPollingContext";
 import { useProtocolParamsContext } from "@/context/ProtocolParamsContext";
 import { COPY } from "@/copy";
 import {
@@ -46,14 +43,12 @@ import { submitWotsPublicKey } from "@/hooks/deposit/depositFlowSteps/wotsSubmis
 import { useActivationState } from "@/hooks/deposit/useActivationState";
 import { useBroadcastState } from "@/hooks/deposit/useBroadcastState";
 import { useReleaseVpTokenOnUnmount } from "@/hooks/deposit/useReleaseVpTokenOnUnmount";
-import { useSplitVaultProgress } from "@/hooks/deposit/useSplitVaultProgress";
 import { useBtcDepthStartedAt } from "@/hooks/useBtcDepthStartedAt";
 import { useRunOnce } from "@/hooks/useRunOnce";
 import { logger } from "@/infrastructure";
 import {
   ContractStatus,
   getPeginDisplayStep,
-  isVaultActivated,
 } from "@/models/peginStateMachine";
 import type { VaultActivity } from "@/types/activity";
 import {
@@ -73,13 +68,6 @@ export interface ResumeSignContentProps {
   activity: VaultActivity;
   btcPublicKey: string;
   depositorEthAddress: Hex;
-  /**
-   * Every vault ID sharing this deposit's Pre-PegIn (the split-pegin
-   * siblings). When length > 1 the progress view renders the multi-column
-   * split UI with this vault highlighted. Defaults to just this vault, so
-   * standalone deposits render as a single column.
-   */
-  siblingVaultIds?: string[];
   onClose: () => void;
   onSuccess: () => void;
 }
@@ -88,7 +76,6 @@ export function ResumeSignContent({
   activity,
   btcPublicKey,
   depositorEthAddress,
-  siblingVaultIds,
   onClose,
   onSuccess,
 }: ResumeSignContentProps) {
@@ -137,9 +124,6 @@ export function ResumeSignContent({
     error != null,
   );
 
-  const { vaultCount, currentVaultIndex, perVaultSteps } =
-    useSplitVaultProgress(siblingVaultIds, activity.id, renderStep);
-
   return (
     <DepositProgressView
       currentStep={renderStep}
@@ -157,9 +141,6 @@ export function ResumeSignContent({
       }
       payoutSigningProgress={signing ? progress : null}
       peginSigningProgress={null}
-      vaultCount={vaultCount}
-      currentVaultIndex={currentVaultIndex}
-      perVaultSteps={perVaultSteps}
       onClose={onClose}
       onRetry={error ? handleSign : undefined}
       waitDetailPersistKey={activity.id}
@@ -216,16 +197,6 @@ export function ResumeBroadcastContent({
     error != null,
   );
 
-  // During the trunk (broadcast) phase every sibling is at the same shared
-  // step, so the active-vault index is irrelevant — what matters is that the
-  // multi-column UI lights up when the deposit is a split.
-  const { vaultCount, currentVaultIndex, perVaultSteps } =
-    useSplitVaultProgress(
-      batchVaultIds,
-      activity.id,
-      DepositFlowStep.BROADCAST_PRE_PEGIN,
-    );
-
   return (
     <DepositProgressView
       currentStep={DepositFlowStep.BROADCAST_PRE_PEGIN}
@@ -236,9 +207,6 @@ export function ResumeBroadcastContent({
       canContinueInBackground={derived.canContinueInBackground}
       payoutSigningProgress={null}
       peginSigningProgress={null}
-      vaultCount={vaultCount}
-      currentVaultIndex={currentVaultIndex}
-      perVaultSteps={perVaultSteps}
       onClose={onClose}
       successMessage={COPY.deposit.resume.broadcastSuccessMessage}
       onRetry={error ? handleBroadcast : undefined}
@@ -252,15 +220,12 @@ export function ResumeBroadcastContent({
 
 export interface ResumeWotsContentProps {
   activity: VaultActivity;
-  /** Sibling vault IDs sharing this Pre-PegIn (see ResumeSignContentProps). */
-  siblingVaultIds?: string[];
   onClose: () => void;
   onSuccess: () => void;
 }
 
 export function ResumeWotsContent({
   activity,
-  siblingVaultIds,
   onClose,
   onSuccess,
 }: ResumeWotsContentProps) {
@@ -516,9 +481,6 @@ export function ResumeWotsContent({
         }
       : null;
 
-  const { vaultCount, currentVaultIndex, perVaultSteps } =
-    useSplitVaultProgress(siblingVaultIds, activity.id, renderStep);
-
   return (
     <DepositProgressView
       currentStep={renderStep}
@@ -529,9 +491,6 @@ export function ResumeWotsContent({
       canContinueInBackground={derived.canContinueInBackground}
       payoutSigningProgress={null}
       peginSigningProgress={null}
-      vaultCount={vaultCount}
-      currentVaultIndex={currentVaultIndex}
-      perVaultSteps={perVaultSteps}
       onClose={onClose}
       onRetry={error ? handleSubmit : undefined}
       waitDetailPersistKey={activity.id}
@@ -547,8 +506,6 @@ export function ResumeWotsContent({
 export interface ResumeActivationContentProps {
   activity: VaultActivity;
   depositorEthAddress: string;
-  /** Sibling vault IDs sharing this Pre-PegIn (see ResumeSignContentProps). */
-  siblingVaultIds?: string[];
   onClose: () => void;
   onSuccess: () => void;
 }
@@ -556,7 +513,6 @@ export interface ResumeActivationContentProps {
 export function ResumeActivationContent({
   activity,
   depositorEthAddress,
-  siblingVaultIds,
   onClose,
   onSuccess,
 }: ResumeActivationContentProps) {
@@ -729,23 +685,6 @@ export function ResumeActivationContent({
     }
   }, [activated, onSuccess, onClose]);
 
-  const { vaultCount, currentVaultIndex, perVaultSteps } =
-    useSplitVaultProgress(siblingVaultIds, activity.id, renderStep);
-
-  // For a split, only say "Vaults have been activated" (plural) once EVERY
-  // sibling is past activation — so finishing the first of two still reads
-  // singular. When this view shows its ACTIVE terminal, the active vault's own
-  // polling already reports ACTIVE, so it counts itself correctly.
-  const { getPollingResult } = usePeginPolling();
-  const allSiblingsActivated =
-    vaultCount > 1 &&
-    (siblingVaultIds ?? []).every((id) =>
-      isVaultActivated(getPollingResult(id)?.peginState),
-    );
-  const activationSuccessMessage = allSiblingsActivated
-    ? COPY.deposit.resume.activationSuccessMessagePlural
-    : COPY.deposit.resume.activationSuccessMessage;
-
   return (
     <DepositProgressView
       currentStep={renderStep}
@@ -756,11 +695,8 @@ export function ResumeActivationContent({
       canContinueInBackground={derived.canContinueInBackground}
       payoutSigningProgress={null}
       peginSigningProgress={null}
-      vaultCount={vaultCount}
-      currentVaultIndex={currentVaultIndex}
-      perVaultSteps={perVaultSteps}
       onClose={handleDone}
-      successMessage={activationSuccessMessage}
+      successMessage={COPY.deposit.resume.activationSuccessMessage}
       onRetry={error ? handleSubmit : undefined}
       waitDetailPersistKey={activity.id}
     />

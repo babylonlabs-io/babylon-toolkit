@@ -10,7 +10,6 @@ import {
   getPeginDisplayStep,
   getPeginState,
   getPrimaryActionButton,
-  isVaultActivated,
   LocalStorageStatus,
   PEGIN_DISPLAY_LABELS,
   PeginAction,
@@ -825,43 +824,6 @@ describe("peginStateMachine", () => {
       );
       expect(getPeginDisplayStep(getPeginState(ContractStatus.ACTIVE))).toBe(
         null,
-      );
-    });
-  });
-
-  describe("isVaultActivated", () => {
-    it("is true for an ACTIVE vault", () => {
-      expect(isVaultActivated(getPeginState(ContractStatus.ACTIVE))).toBe(true);
-    });
-
-    it("is true for the optimistic VERIFIED + CONFIRMED state", () => {
-      expect(
-        isVaultActivated(
-          getPeginState(ContractStatus.VERIFIED, {
-            localStatus: LocalStorageStatus.CONFIRMED,
-          }),
-        ),
-      ).toBe(true);
-    });
-
-    it("is false while VERIFIED but not yet confirmed (ready to activate)", () => {
-      expect(isVaultActivated(getPeginState(ContractStatus.VERIFIED))).toBe(
-        false,
-      );
-    });
-
-    it("is false for a PENDING vault and for undefined", () => {
-      expect(isVaultActivated(getPeginState(ContractStatus.PENDING))).toBe(
-        false,
-      );
-      expect(isVaultActivated(undefined)).toBe(false);
-    });
-
-    it("is false for terminal non-activation states (e.g. REDEEMED)", () => {
-      // REDEEMED is past activation but NOT "activated" — it must never read
-      // as an activation success.
-      expect(isVaultActivated(getPeginState(ContractStatus.REDEEMED))).toBe(
-        false,
       );
     });
   });

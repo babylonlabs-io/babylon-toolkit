@@ -79,24 +79,12 @@ vi.mock("@/models/peginStateMachine", () => ({
     // ACTIVE, REDEEMED, LIQUIDATED, DEPOSITOR_WITHDRAWN.
     return [2, 3, 4, 6].includes(state.contractStatus);
   },
-  // Narrower than isVaultPastActivation: only ACTIVE or optimistic
-  // VERIFIED+CONFIRMED count as "activated".
-  isVaultActivated: (
-    state: { contractStatus: number; localStatus?: string } | undefined,
-  ) => {
-    if (!state) return false;
-    if (state.contractStatus === 2) return true; // ACTIVE
-    return state.contractStatus === 1 && state.localStatus === "confirmed";
-  },
 }));
 
 vi.mock("@/copy", () => ({
   COPY: {
     deposit: {
-      resume: {
-        activationSuccessMessage: "Deposit successfully submitted!",
-        activationSuccessMessagePlural: "Your BTC Vaults have been activated.",
-      },
+      resume: { activationSuccessMessage: "Deposit successfully submitted!" },
       errors: {
         defaultTitle: "Transaction failed",
         genericBody: "Something went wrong during your deposit.",
@@ -142,20 +130,17 @@ vi.mock("../DepositProgressView", () => ({
     currentStep,
     error,
     isComplete,
-    successMessage,
     onClose,
   }: {
     currentStep: string;
     error?: { title: string; body: string } | null;
     isComplete?: boolean;
-    successMessage?: string;
     onClose: () => void;
   }) => (
     <div data-testid="progress-view">
       <span data-testid="step">{String(currentStep)}</span>
       <span data-testid="error">{error?.body ?? ""}</span>
       <span data-testid="complete">{String(!!isComplete)}</span>
-      <span data-testid="success-message">{successMessage ?? ""}</span>
       <button type="button" data-testid="progress-close" onClick={onClose}>
         close
       </button>
@@ -346,36 +331,6 @@ describe("PostDepositContinuationView", () => {
     // rather than parking on a generic "awaiting confirmation" step.
     expect(getByTestId("step").textContent).toBe("COMPLETED");
     expect(getByTestId("complete").textContent).toBe("true");
-    // Single deposit → singular success copy.
-    expect(getByTestId("success-message").textContent).toBe(
-      "Deposit successfully submitted!",
-    );
-  });
-
-  it("uses the plural success message when a whole split batch is complete", () => {
-    const VERIFIED = 1;
-    const done = () =>
-      resultWith({
-        availableActions: [PeginAction.NONE],
-        contractStatus: VERIFIED,
-        localStatus: "confirmed",
-      });
-    const states = new Map<string, ReturnType<typeof resultWith>>([
-      ["0xvault0", done()],
-      ["0xvault1", done()],
-    ]);
-    mockGetPollingResult.mockImplementation((id: string) => states.get(id));
-
-    const { getByTestId } = renderView({
-      vaultIds: ["0xvault0" as Hex, "0xvault1" as Hex],
-      activities: [activityWithId("0xvault0"), activityWithId("0xvault1")],
-    });
-
-    // No candidate vault remains → complete view; a 2-vault batch reads plural.
-    expect(getByTestId("step").textContent).toBe("COMPLETED");
-    expect(getByTestId("success-message").textContent).toBe(
-      "Your BTC Vaults have been activated.",
-    );
   });
 
   it("advances to the next vault once the current vault finishes activating", () => {
@@ -427,160 +382,6 @@ describe("PostDepositContinuationView", () => {
 
     // The continuation must advance to the second vault, not stall on the first.
     expect(getByTestId("activate").getAttribute("data-vault")).toBe("0xvault1");
-  });
-
-  it("does not preempt the vault being driven when an earlier sibling becomes actionable", () => {
-    // User is mid-signing vault 1 (payout); vault 0 is waiting on the VP.
-    const states = new Map<string, ReturnType<typeof resultWith>>([
-      [
-        "0xvault0",
-        resultWith({
-          availableActions: [PeginAction.NONE],
-          contractStatus: 0,
-          localStatus: "payout_signed",
-        }),
-      ],
-      [
-        "0xvault1",
-        resultWith({
-          availableActions: [PeginAction.SIGN_PAYOUT_TRANSACTIONS],
-          contractStatus: 0,
-        }),
-      ],
-    ]);
-    mockGetPollingResult.mockImplementation((id: string) => states.get(id));
-
-    const props = {
-      vaultIds: ["0xvault0" as Hex, "0xvault1" as Hex],
-      activities: [activityWithId("0xvault0"), activityWithId("0xvault1")],
-    };
-    const { getByTestId, queryByTestId, rerender } = renderView(props);
-    expect(getByTestId("payout").getAttribute("data-vault")).toBe("0xvault1");
-
-    // A polling tick lands vault 0's VP verification → vault 0 becomes
-    // actionable (ACTIVATE) while vault 1's signing is still in flight.
-    states.set(
-      "0xvault0",
-      resultWith({
-        availableActions: [PeginAction.ACTIVATE_VAULT],
-        contractStatus: 1,
-      }),
-    );
-    rerender(
-      <PostDepositContinuationView
-        vaultIds={props.vaultIds}
-        activities={props.activities}
-        depositorEthAddress={ETH}
-        btcPublicKey="btcpub"
-        onClose={vi.fn()}
-      />,
-    );
-
-    // Must stay on vault 1 (don't unmount the in-progress signing) even though
-    // vault 0 is now actionable and lower-indexed.
-    expect(getByTestId("payout").getAttribute("data-vault")).toBe("0xvault1");
-    expect(queryByTestId("activate")).toBeNull();
-
-    // Once vault 1 finishes (no longer actionable), the held vault is released
-    // and the view advances to the actionable vault 0 — proving the stickiness
-    // isn't a permanent lock.
-    states.set(
-      "0xvault1",
-      resultWith({
-        availableActions: [PeginAction.NONE],
-        contractStatus: 1,
-        localStatus: "payout_signed",
-      }),
-    );
-    rerender(
-      <PostDepositContinuationView
-        vaultIds={props.vaultIds}
-        activities={props.activities}
-        depositorEthAddress={ETH}
-        btcPublicKey="btcpub"
-        onClose={vi.fn()}
-      />,
-    );
-    expect(getByTestId("activate").getAttribute("data-vault")).toBe("0xvault0");
-  });
-
-  it("re-selects the first actionable vault after passing through a wait state", () => {
-    // Stickiness must not outlive a wait: once no vault is actionable, the held
-    // pick is cleared, so when actions reappear the lowest-index actionable
-    // vault wins — not whichever vault happened to be driven last.
-    const states = new Map<string, ReturnType<typeof resultWith>>([
-      [
-        "0xvault0",
-        resultWith({
-          availableActions: [PeginAction.NONE],
-          contractStatus: 0,
-          localStatus: "payout_signed",
-        }),
-      ],
-      [
-        "0xvault1",
-        resultWith({
-          availableActions: [PeginAction.SUBMIT_WOTS_KEY],
-          contractStatus: 0,
-        }),
-      ],
-    ]);
-    mockGetPollingResult.mockImplementation((id: string) => states.get(id));
-
-    const props = {
-      vaultIds: ["0xvault0" as Hex, "0xvault1" as Hex],
-      activities: [activityWithId("0xvault0"), activityWithId("0xvault1")],
-    };
-    // Fresh element each render — reusing one element object makes React bail
-    // out of the re-render (no prop-identity change) and skip re-reading state.
-    const view = () => (
-      <PostDepositContinuationView
-        vaultIds={props.vaultIds}
-        activities={props.activities}
-        depositorEthAddress={ETH}
-        btcPublicKey="btcpub"
-        onClose={vi.fn()}
-      />
-    );
-
-    // Initially only vault 1 is actionable → it's driven (and held).
-    const { getByTestId, queryByTestId, rerender } = renderView(props);
-    expect(getByTestId("wots").getAttribute("data-vault")).toBe("0xvault1");
-
-    // Both vaults drop to a wait → nothing actionable, held pick cleared.
-    states.set(
-      "0xvault0",
-      resultWith({ availableActions: [PeginAction.NONE], contractStatus: 0 }),
-    );
-    states.set(
-      "0xvault1",
-      resultWith({
-        availableActions: [PeginAction.NONE],
-        contractStatus: 0,
-        localStatus: "payout_signed",
-      }),
-    );
-    rerender(view());
-    expect(queryByTestId("wots")).toBeNull();
-
-    // Both become actionable at once → re-select fresh: lowest-index (vault 0)
-    // wins, not the previously-held vault 1.
-    states.set(
-      "0xvault0",
-      resultWith({
-        availableActions: [PeginAction.SUBMIT_WOTS_KEY],
-        contractStatus: 0,
-      }),
-    );
-    states.set(
-      "0xvault1",
-      resultWith({
-        availableActions: [PeginAction.SUBMIT_WOTS_KEY],
-        contractStatus: 0,
-      }),
-    );
-    rerender(view());
-    expect(getByTestId("wots").getAttribute("data-vault")).toBe("0xvault0");
   });
 
   it("surfaces a closeable error on a warning state with no signing popup", () => {

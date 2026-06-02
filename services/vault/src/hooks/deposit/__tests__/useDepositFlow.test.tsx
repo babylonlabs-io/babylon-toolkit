@@ -251,13 +251,29 @@ const MOCK_PARAMS = {
 // Helpers
 // ============================================================================
 
-async function executeDepositFlow(result: {
+async function executeWithAutoArtifactDownload(result: {
   current: ReturnType<typeof useDepositFlow>;
 }) {
   const promise = result.current.executeDeposit();
-  await act(async () => {
-    await promise;
-  });
+
+  const drainArtifactPrompts = async () => {
+    while (true) {
+      const settled = await Promise.race([
+        promise.then(() => "settled" as const),
+        new Promise<"pending">((resolve) =>
+          setTimeout(() => resolve("pending"), 0),
+        ),
+      ]);
+      if (settled === "settled") return;
+      if (result.current.artifactDownloadInfo) {
+        await act(async () => {
+          result.current.continueAfterArtifactDownload();
+        });
+      }
+    }
+  };
+
+  await drainArtifactPrompts();
   return promise;
 }
 
@@ -366,7 +382,7 @@ describe("useDepositFlow", () => {
 
       const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
 
-      await executeDepositFlow(result);
+      await executeWithAutoArtifactDownload(result);
 
       await waitFor(() => {
         expect(preparePeginTransaction).toHaveBeenCalledTimes(1);
@@ -398,7 +414,7 @@ describe("useDepositFlow", () => {
 
       const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
 
-      await executeDepositFlow(result);
+      await executeWithAutoArtifactDownload(result);
 
       await waitFor(() => {
         const callArgs = preparePeginTransaction.mock.calls[0]?.[2];
@@ -415,7 +431,7 @@ describe("useDepositFlow", () => {
       );
 
       const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
-      await executeDepositFlow(result);
+      await executeWithAutoArtifactDownload(result);
 
       await waitFor(() => {
         expect(signProofOfPossession).toHaveBeenCalledTimes(1);
@@ -445,7 +461,7 @@ describe("useDepositFlow", () => {
 
       const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
 
-      await executeDepositFlow(result);
+      await executeWithAutoArtifactDownload(result);
 
       await waitFor(() => {
         expect(registerPeginBatchAndWait).toHaveBeenCalledTimes(1);
@@ -482,7 +498,7 @@ describe("useDepositFlow", () => {
 
       const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
 
-      await executeDepositFlow(result);
+      await executeWithAutoArtifactDownload(result);
 
       await waitFor(() => {
         expect(addPendingPegin).toHaveBeenCalledTimes(2);
@@ -518,7 +534,7 @@ describe("useDepositFlow", () => {
 
       const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
 
-      await executeDepositFlow(result);
+      await executeWithAutoArtifactDownload(result);
 
       await waitFor(() => {
         expect(broadcastPrePeginTransaction).toHaveBeenCalledTimes(1);
@@ -538,7 +554,7 @@ describe("useDepositFlow", () => {
 
       const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
 
-      await executeDepositFlow(result);
+      await executeWithAutoArtifactDownload(result);
 
       await waitFor(() => {
         expect(addPendingPegin).toHaveBeenCalledTimes(2);
@@ -570,7 +586,7 @@ describe("useDepositFlow", () => {
 
       const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
 
-      await executeDepositFlow(result);
+      await executeWithAutoArtifactDownload(result);
 
       await waitFor(() => {
         // Version-mismatch errors map to the friendly "parameters changed" copy.
@@ -602,7 +618,7 @@ describe("useDepositFlow", () => {
 
       const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
 
-      await executeDepositFlow(result);
+      await executeWithAutoArtifactDownload(result);
 
       await waitFor(() => {
         expect(result.current.error).toBeTruthy();
@@ -646,7 +662,7 @@ describe("useDepositFlow", () => {
 
       const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
 
-      await executeDepositFlow(result);
+      await executeWithAutoArtifactDownload(result);
 
       await waitFor(() => {
         // Unrecognized errors fall through to the sanitized raw message.
@@ -667,7 +683,7 @@ describe("useDepositFlow", () => {
 
       const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
 
-      await executeDepositFlow(result);
+      await executeWithAutoArtifactDownload(result);
 
       await waitFor(() => {
         expect(updatePendingPeginStatus).toHaveBeenCalledTimes(2);
@@ -688,7 +704,7 @@ describe("useDepositFlow", () => {
 
       const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
 
-      await executeDepositFlow(result);
+      await executeWithAutoArtifactDownload(result);
 
       await waitFor(() => {
         expect(signAndSubmitPayouts).toHaveBeenCalledTimes(2);
@@ -700,7 +716,7 @@ describe("useDepositFlow", () => {
     it("should return result with pegins for each vault", async () => {
       const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
 
-      const depositResult = await executeDepositFlow(result);
+      const depositResult = await executeWithAutoArtifactDownload(result);
 
       expect(depositResult).toEqual(
         expect.objectContaining({
@@ -719,17 +735,17 @@ describe("useDepositFlow", () => {
       );
     });
 
-    it("settles at AWAIT_VP_VERIFICATION with isWaiting after payout signing", async () => {
+    it("should park on ARTIFACT_DOWNLOAD with isWaiting after payout signing", async () => {
       const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
 
-      await executeDepositFlow(result);
+      await executeWithAutoArtifactDownload(result);
 
       await waitFor(() => {
         expect(result.current.processing).toBe(false);
       });
 
       expect(result.current.currentStep).toBe(
-        DepositFlowStep.AWAIT_VP_VERIFICATION,
+        DepositFlowStep.ARTIFACT_DOWNLOAD,
       );
       expect(result.current.isWaiting).toBe(true);
     });
@@ -746,7 +762,7 @@ describe("useDepositFlow", () => {
 
       const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
 
-      await executeDepositFlow(result);
+      await executeWithAutoArtifactDownload(result);
 
       await waitFor(() => {
         expect(result.current.error).toBeTruthy();
@@ -766,7 +782,7 @@ describe("useDepositFlow", () => {
 
       const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
 
-      const depositResult = await executeDepositFlow(result);
+      const depositResult = await executeWithAutoArtifactDownload(result);
 
       // Flow should complete with warnings, not error
       expect(depositResult).not.toBeNull();
@@ -790,7 +806,7 @@ describe("useDepositFlow", () => {
 
       const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
 
-      const depositResult = await executeDepositFlow(result);
+      const depositResult = await executeWithAutoArtifactDownload(result);
 
       expect(depositResult).not.toBeNull();
       expect(depositResult?.warnings).toHaveLength(1);
@@ -819,7 +835,7 @@ describe("useDepositFlow", () => {
 
       const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
 
-      const depositResult = await executeDepositFlow(result);
+      const depositResult = await executeWithAutoArtifactDownload(result);
 
       // No warnings — both vaults recovered
       expect(depositResult).not.toBeNull();
@@ -841,7 +857,7 @@ describe("useDepositFlow", () => {
 
       const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
 
-      const depositResult = await executeDepositFlow(result);
+      const depositResult = await executeWithAutoArtifactDownload(result);
 
       expect(depositResult).not.toBeNull();
       expect(depositResult?.warnings).toHaveLength(2);
@@ -905,7 +921,7 @@ describe("useDepositFlow", () => {
 
       const { result } = renderHook(() => useDepositFlow(SINGLE_PARAMS));
 
-      await executeDepositFlow(result);
+      await executeWithAutoArtifactDownload(result);
 
       await waitFor(() => {
         expect(preparePeginTransaction).toHaveBeenCalledWith(
@@ -942,7 +958,7 @@ describe("useDepositFlow", () => {
 
       const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
 
-      await executeDepositFlow(result);
+      await executeWithAutoArtifactDownload(result);
 
       await waitFor(() => {
         expect(result.current.error?.body).toBe(
@@ -968,7 +984,7 @@ describe("useDepositFlow", () => {
       });
 
       const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
-      await executeDepositFlow(result);
+      await executeWithAutoArtifactDownload(result);
 
       await waitFor(() => {
         expect(result.current.peginSigningProgress).toEqual({
@@ -1004,7 +1020,7 @@ describe("useDepositFlow", () => {
           btcWalletProvider: batchWallet as any,
         }),
       );
-      await executeDepositFlow(result);
+      await executeWithAutoArtifactDownload(result);
 
       await waitFor(() => {
         expect(result.current.peginSigningProgress).toEqual({
@@ -1035,7 +1051,7 @@ describe("useDepositFlow", () => {
         });
 
       const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
-      const depositResult = await executeDepositFlow(result);
+      const depositResult = await executeWithAutoArtifactDownload(result);
 
       expect(depositResult).not.toBeNull();
       expect(result.current.error).toBeFalsy();
@@ -1052,7 +1068,7 @@ describe("useDepositFlow", () => {
       );
 
       const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
-      await executeDepositFlow(result);
+      await executeWithAutoArtifactDownload(result);
 
       expect(preparePeginTransaction).toHaveBeenCalledTimes(1);
       const peginCall = vi.mocked(preparePeginTransaction).mock.calls[0];
@@ -1086,7 +1102,7 @@ describe("useDepositFlow", () => {
       );
 
       const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
-      await executeDepositFlow(result);
+      await executeWithAutoArtifactDownload(result);
 
       await waitFor(() => {
         // Broadcast failures map to the friendly broadcast callout.
@@ -1112,7 +1128,7 @@ describe("useDepositFlow", () => {
       );
 
       const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
-      await executeDepositFlow(result);
+      await executeWithAutoArtifactDownload(result);
 
       await waitFor(() => {
         // A BTC sat shortfall isn't a known bucket, so the raw message is

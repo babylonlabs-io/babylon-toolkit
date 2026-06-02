@@ -87,7 +87,7 @@ vi.mock("@/components/deposit/DepositSignModal/depositStepHelpers", () => ({
       isWaiting: boolean,
       error: string | null,
     ) => {
-      const isComplete = currentStep === 16; // DepositFlowStep.COMPLETED
+      const isComplete = currentStep === 17; // DepositFlowStep.COMPLETED
       return {
         isComplete,
         isProcessing: (processing || isWaiting) && !error && !isComplete,
@@ -162,11 +162,6 @@ vi.mock("@/utils/rpc", () => ({
 
 vi.mock("@/context/deposit/PeginPollingContext", () => ({
   useDepositPollingResult: mockUseDepositPollingResult,
-  // useSplitVaultProgress (via the Resume components) reads sibling polling
-  // state. These tests render standalone deposits (no siblingVaultIds), so the
-  // derivation returns early and never calls getPollingResult — but the hook
-  // still runs, so it must resolve to a usable shape.
-  usePeginPolling: () => ({ getPollingResult: () => undefined }),
 }));
 
 vi.mock("@/context/ProtocolParamsContext", () => ({
@@ -188,8 +183,6 @@ vi.mock("@/models/peginStateMachine", () => ({
     EXPIRED: 7,
   },
   getPeginDisplayStep: mockGetPeginDisplayStep,
-  isVaultActivated: (state: { contractStatus?: number } | undefined) =>
-    state?.contractStatus === 2 /* ACTIVE */,
 }));
 
 vi.mock("../DepositProgressView", () => ({
@@ -483,7 +476,7 @@ describe("ResumeSignContent — reactive verification terminal", () => {
     const { getByTestId } = renderSign();
 
     // RETRIEVE_SECRET
-    expect(getByTestId("step").textContent).toBe("13");
+    expect(getByTestId("step").textContent).toBe("14");
     expect(getByTestId("terminal").textContent?.toLowerCase()).toContain(
       "ready to activate",
     );
@@ -497,7 +490,7 @@ describe("ResumeSignContent — reactive verification terminal", () => {
     const { getByTestId } = renderSign();
 
     // COMPLETED — the whole flow is done, so no stale "ready to activate".
-    expect(getByTestId("step").textContent).toBe("16");
+    expect(getByTestId("step").textContent).toBe("17");
     expect(getByTestId("terminal").textContent).toBe("");
   });
 });
@@ -536,7 +529,7 @@ describe("ResumeActivationContent — reactive activation terminal", () => {
     const { getByTestId } = renderActivation();
 
     // AWAIT_ACTIVATION_CONFIRMATION
-    await waitFor(() => expect(getByTestId("step").textContent).toBe("15"));
+    await waitFor(() => expect(getByTestId("step").textContent).toBe("16"));
   });
 
   it("completes once the contract reports ACTIVE", async () => {
@@ -547,6 +540,6 @@ describe("ResumeActivationContent — reactive activation terminal", () => {
     const { getByTestId } = renderActivation();
 
     // COMPLETED
-    await waitFor(() => expect(getByTestId("step").textContent).toBe("16"));
+    await waitFor(() => expect(getByTestId("step").textContent).toBe("17"));
   });
 });

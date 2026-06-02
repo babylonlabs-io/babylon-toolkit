@@ -11,10 +11,6 @@ import { useId, type ReactNode } from "react";
 import { Tooltip } from "react-tooltip";
 import { twJoin } from "tailwind-merge";
 
-import { COPY } from "@/copy";
-
-import { isInteractiveEventTarget } from "./cardInteraction";
-
 interface VaultCardShellProps {
   children: ReactNode;
   /** Optional test id forwarded to the panel element */
@@ -25,13 +21,6 @@ interface VaultCardShellProps {
   disabled?: boolean;
   /** Tooltip shown when hovering a `disabled` card. */
   disabledTooltip?: string;
-  /**
-   * Optional handler invoked when the card body is clicked. Clicks on
-   * interactive descendants (buttons, links) are excluded so per-row
-   * actions like Copy / explorer / "Submit WOTS Key" still work as before.
-   * Ignored while `disabled` is true.
-   */
-  onClick?: () => void;
 }
 
 /**
@@ -47,63 +36,17 @@ export function VaultCardShell({
   testId,
   disabled,
   disabledTooltip,
-  onClick,
 }: VaultCardShellProps) {
   const tooltipId = useId();
   const tooltipActive = Boolean(disabled && disabledTooltip);
-  // A `disabled` card (e.g. wallet-ownership mismatch) is still clickable —
-  // opening the multistepper as a read-only view lets the user see where the
-  // deposit is even when they can't currently act on it. The dim + tooltip
-  // already communicate that actions are blocked.
-  const clickable = Boolean(onClick);
-
-  // Clicks/keys on buttons or anchors inside the card (Copy / explorer link /
-  // action button) preserve their own behaviour rather than open the card
-  // multistepper — see `isInteractiveEventTarget`.
-  const handleClick = (event: React.MouseEvent<HTMLDivElement>) => {
-    if (!clickable || isInteractiveEventTarget(event)) return;
-    onClick?.();
-  };
-
-  // Keyboard activation must apply the same inner-control guard as the click
-  // handler. Without it, Enter/Space on a focused Copy button or explorer link
-  // would both fire that control and open the multistepper — and the
-  // preventDefault would cancel the link's own navigation.
-  const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
-    if (!clickable || isInteractiveEventTarget(event)) return;
-    if (event.key === "Enter" || event.key === " ") {
-      event.preventDefault();
-      onClick?.();
-    }
-  };
 
   return (
     <div
       data-testid={testId}
       className={twJoin(
-        "space-y-3 rounded-lg bg-primary-contrast p-4 transition-colors",
+        "space-y-3 rounded-lg bg-primary-contrast p-4",
         disabled && "opacity-50",
-        // Direct hover on a clickable card (single pending deposit / expired
-        // card) gives the slightest blue tint.
-        clickable && "cursor-pointer hover:bg-primary-light/5",
-        // Group-hover handles the batched-pegin case: when the outer
-        // BatchedDepositGroup wrapper is hovered, every sub-card lights up
-        // at the same time so the whole stack reads as a single button.
-        // No-op when the card isn't inside a `group` ancestor.
-        "group-hover:bg-primary-light/5",
       )}
-      // a11y status: keyboard activation is handled (Enter/Space via
-      // handleKeyDown, with the same inner-control guard as click). KNOWN,
-      // ACCEPTED TRADEOFF: this `role="button"` wrapper still contains real
-      // buttons/links (nested-interactive ARIA), which a strict validator
-      // flags — accepted for the temporary "whole card is the action surface"
-      // design. Proper fix is a visually-hidden stretched-link button so the
-      // wrapper drops role="button"; tracked as a follow-up.
-      role={clickable ? "button" : undefined}
-      aria-label={clickable ? COPY.deposit.progress.openDetailsAria : undefined}
-      tabIndex={clickable ? 0 : undefined}
-      onClick={clickable ? handleClick : undefined}
-      onKeyDown={clickable ? handleKeyDown : undefined}
       data-tooltip-id={tooltipActive ? tooltipId : undefined}
       data-tooltip-content={tooltipActive ? disabledTooltip : undefined}
     >

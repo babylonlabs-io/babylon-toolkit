@@ -1,15 +1,30 @@
 /**
  * Deposit Flow Hook
  *
- * Batch-first deposit: one Pre-PegIn BTC tx with N HTLC outputs (one per vault),
- * registered atomically on Ethereum via submitPeginRequestBatch — all vaults
- * succeed or none, and the Pre-PegIn is broadcast only after ETH registration,
- * so a failed batch never strands BTC in unregistered HTLCs. A single vault is
- * a batch of 1.
+ * Orchestrates the batch-first deposit flow. A single vault is just a batch of 1.
+ * Creates ONE Pre-PegIn BTC transaction with N HTLC outputs (one per vault) and
+ * registers them all atomically on Ethereum via submitPeginRequestBatch().
  *
- * Runs through WOTS submission and payout signing, then parks at
- * AWAIT_VP_VERIFICATION and hands off to the continuation view (artifact
- * download + activation happen at its ActivationGate).
+ * Flow:
+ * 0. Validation — check wallets, UTXOs, pubkeys, array alignment
+ * 1. Get shared resources (ETH wallet client)
+ * 2. Prepare pegin via SDK orchestrator (sizing pass + wallet root popup +
+ *    per-vault WOTS / hashlock derivation + commit pass with batch PSBT signing).
+ *    Returns broadcast-ready Pre-PegIn + per-vault derived secrets.
+ * 3a. Sign BIP-322 proof-of-possession (one wallet popup per deposit session)
+ * 3b. Build batch request array (recompute hashlocks from returned secrets)
+ * 3c. Re-check UTXO availability before committing to ETH
+ * 3d. Batch ETH registration (single submitPeginRequestBatch tx for all vaults)
+ * 3e. Build pegin results from batch response
+ * 4a. Save pending pegins to localStorage (PENDING status; resume cache)
+ * 4b. Broadcast Pre-PegIn transaction to Bitcoin, update status to CONFIRMING
+ * 5. Submit WOTS keys, poll VP, sign payout transactions
+ * 6. Download vault artifacts (per vault, user-driven)
+ * 7. Wait for contract verification, then activate vaults (reveal HTLC secret)
+ *
+ * ETH registration is atomic: submitPeginRequestBatch registers all vaults in a
+ * single transaction, so either all succeed or all fail. If it fails, the Pre-PegIn
+ * is NOT broadcast, so no BTC gets locked in unregistered HTLC outputs.
  */
 
 import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
@@ -107,6 +122,16 @@ export interface UseDepositFlowParams {
   universalChallengerBtcPubkeys: string[];
 }
 
+export interface ArtifactDownloadInfo {
+  providerAddress: string;
+  peginTxid: string;
+  depositorPk: string;
+  vaultId: Hex;
+  /** Funded (pre-signing) Pre-PegIn tx hex - lets the modal re-derive
+   * an auth anchor and re-prime the VP token registry on a cold cache. */
+  unsignedPrePeginTxHex: string;
+}
+
 export interface UseDepositFlowReturn {
   /** Execute the batch deposit flow */
   executeDeposit: () => Promise<MultiVaultDepositResult | null>;
@@ -133,6 +158,10 @@ export interface UseDepositFlowReturn {
   payoutSigningProgress: PayoutSigningProgress | null;
   /** Peg-in BTC signing progress (X of Y peg-in txs, split deposits only) */
   peginSigningProgress: PeginSigningProgress | null;
+  /** Artifact download info (when set, the UI should show the download modal) */
+  artifactDownloadInfo: ArtifactDownloadInfo | null;
+  /** Callback to continue the flow after artifact download */
+  continueAfterArtifactDownload: () => void;
   /**
    * Data backing the "Awaiting Bitcoin confirmation" detail panel, snapshotted
    * when the BTC wait begins: the timestamp, the Pre-PegIn broadcast txid, and
@@ -217,6 +246,8 @@ export function useDepositFlow(
     useState<PayoutSigningProgress | null>(null);
   const [peginSigningProgress, setPeginSigningProgress] =
     useState<PeginSigningProgress | null>(null);
+  const [artifactDownloadInfo, setArtifactDownloadInfo] =
+    useState<ArtifactDownloadInfo | null>(null);
   const [btcConfirmationDetail, setBtcConfirmationDetail] = useState<{
     startedAt: number;
     prePeginTxid: string;
@@ -224,7 +255,14 @@ export function useDepositFlow(
     depositIds: readonly string[];
   } | null>(null);
 
+  const artifactResolverRef = useRef<(() => void) | null>(null);
   const payoutClaimersDoneRef = useRef(false);
+
+  const continueAfterArtifactDownload = useCallback(() => {
+    setArtifactDownloadInfo(null);
+    artifactResolverRef.current?.();
+    artifactResolverRef.current = null;
+  }, []);
 
   // Abort controller for cancelling the flow
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -232,6 +270,8 @@ export function useDepositFlow(
   const abort = useCallback(() => {
     abortControllerRef.current?.abort();
     abortControllerRef.current = null;
+    artifactResolverRef.current?.();
+    artifactResolverRef.current = null;
   }, []);
 
   // Abort on real unmount (route change, browser back) but survive StrictMode
@@ -816,10 +856,6 @@ export function useDepositFlow(
         for (const result of broadcastedResults) {
           signal.throwIfAborted();
 
-          // Mark the current vault being processed so the split-deposit UI
-          // can show per-vault progression for the WOTS phase.
-          setCurrentVaultIndex(result.vaultIndex);
-
           let wotsSuccess = false;
 
           for (let attempt = 1; attempt <= MAX_WOTS_ATTEMPTS; attempt++) {
@@ -878,6 +914,8 @@ export function useDepositFlow(
 
         baseStep = DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS;
 
+        const payoutSignedVaultIds = new Set<string>();
+
         for (let vi = 0; vi < broadcastedResults.length; vi++) {
           const result = broadcastedResults[vi];
 
@@ -913,6 +951,7 @@ export function useDepositFlow(
               },
             });
 
+            payoutSignedVaultIds.add(result.vaultId);
             setCurrentStep(DepositFlowStep.AWAIT_VP_VERIFICATION);
           } catch (error) {
             // If the user cancelled, stop immediately — don't continue with other vaults
@@ -940,11 +979,39 @@ export function useDepositFlow(
         setPayoutSigningProgress(null);
         setCurrentVaultIndex(null);
 
-        // Payout signing done. Each signed vault is left at AWAIT_VP_VERIFICATION
-        // (set above). The flow hands off to the post-deposit continuation view,
-        // which polls each vault and surfaces the manual artifact-download +
-        // activation step at its ActivationGate (where the user can download or
-        // explicitly skip) — so we no longer block the flow on a download here.
+        // ========================================================================
+        // Step 6: Download Vault Artifacts (per vault, sequential)
+        // ========================================================================
+
+        const readyResults = broadcastedResults.filter((r) =>
+          payoutSignedVaultIds.has(r.vaultId),
+        );
+
+        setCurrentStep(DepositFlowStep.ARTIFACT_DOWNLOAD);
+        setIsWaiting(false);
+
+        for (const result of readyResults) {
+          if (signal.aborted) break;
+
+          setArtifactDownloadInfo({
+            providerAddress: provider.id,
+            peginTxid: result.peginTxHash,
+            depositorPk: result.depositorBtcPubkey,
+            vaultId: result.vaultId,
+            unsignedPrePeginTxHex: result.fundedPrePeginTxHex,
+          });
+
+          await new Promise<void>((resolve) => {
+            artifactResolverRef.current = resolve;
+          });
+
+          // The X button on ArtifactDownloadModal calls abort(), which
+          // resolves the resolver above. Re-check here so a dismissal
+          // exits the loop (and triggers the abort branch below)
+          // instead of advancing as if the artifact were downloaded.
+          signal.throwIfAborted();
+        }
+
         setIsWaiting(true);
 
         // Snapshot the warnings into hook state so the UI can show them
@@ -1034,6 +1101,8 @@ export function useDepositFlow(
     isWaiting,
     payoutSigningProgress,
     peginSigningProgress,
+    artifactDownloadInfo,
+    continueAfterArtifactDownload,
     btcConfirmationDetail,
   };
 }

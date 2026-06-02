@@ -18,10 +18,7 @@ import {
   isVaultIndividuallyWithdrawable,
   type PositionSnapshot,
 } from "@/applications/aave/utils";
-import {
-  ArtifactDownloadModal,
-  type ArtifactDownloadModalParams,
-} from "@/components/deposit/ArtifactDownloadModal";
+import { ArtifactDownloadModal } from "@/components/deposit/ArtifactDownloadModal";
 import { DepositButton, ExpandMenuButton } from "@/components/shared";
 import {
   CARD_DARK_BG_CLASS,
@@ -29,6 +26,7 @@ import {
 } from "@/components/shared/layoutClasses";
 import { getNetworkConfigBTC } from "@/config";
 import { COPY } from "@/copy";
+import type { ArtifactDownloadModalParams } from "@/hooks/deposit/useArtifactDownloadModal";
 import { useVaultProviders } from "@/hooks/deposit/useVaultProviders";
 import { logger } from "@/infrastructure";
 import type { CollateralVaultEntry } from "@/types/collateral";

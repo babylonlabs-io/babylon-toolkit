@@ -9,6 +9,7 @@ import { COPY } from "@/copy";
 
 import type { DepositPollingResult } from "../../context/deposit/PeginPollingContext";
 import {
+  ContractStatus,
   getPrimaryActionButton,
   PeginAction,
 } from "../../models/peginStateMachine";
@@ -94,6 +95,22 @@ export function getActionStatus(
   }
 
   return { type: "available", action: actionButton };
+}
+
+/**
+ * Check if artifact download is available for the current deposit state.
+ */
+export function isArtifactDownloadAvailable(
+  pollingResult: DepositPollingResult,
+): boolean {
+  const { peginState, isOwnedByCurrentWallet, error } = pollingResult;
+  if (error || !isOwnedByCurrentWallet) {
+    return false;
+  }
+  return (
+    peginState.contractStatus === ContractStatus.VERIFIED ||
+    peginState.contractStatus === ContractStatus.ACTIVE
+  );
 }
 
 const ACTION_REQUIRED_BADGE_PRIORITY: PeginAction[] = [
