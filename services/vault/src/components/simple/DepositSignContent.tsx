@@ -47,6 +47,7 @@ export function DepositSignContent({
     abort,
     currentStep,
     currentVaultIndex,
+    payoutSignedVaultIndices,
     processing,
     error,
     isWaiting,
@@ -142,6 +143,7 @@ export function DepositSignContent({
         peginSigningProgress={peginSigningProgress}
         vaultCount={vaultAmounts.length}
         currentVaultIndex={currentVaultIndex}
+        payoutSignedVaultIndices={payoutSignedVaultIndices}
         onClose={handleClose}
         btcConfirmationDetail={btcConfirmationDetail}
       />

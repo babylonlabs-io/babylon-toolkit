@@ -89,11 +89,17 @@ export const TRUNK_END_VISUAL_STEP = 6;
  * active phase or are queued for their turn. This function maps that shared
  * state into a per-vault step so each column in the split UI shows the right
  * row as active, completed, or pending.
+ *
+ * `payoutSignedVaultIndices` (live flow only) is the set of vault indices whose
+ * payouts actually signed; it gates the "earlier vaults are past payout
+ * signing" inference so a skipped sibling never reads as signed. Omit it and
+ * the inference falls back to pure position.
  */
 export function derivePerVaultStep(
   currentStep: DepositFlowStep,
   currentVaultIndex: number | null,
   vaultIndex: number,
+  payoutSignedVaultIndices?: ReadonlySet<number>,
 ): DepositFlowStep {
   const currentVisual = getVisualStep(currentStep);
 
@@ -117,16 +123,29 @@ export function derivePerVaultStep(
       : DepositFlowStep.SUBMIT_WOTS_KEYS;
   }
 
+  // An earlier-indexed vault is only past payout signing if it ACTUALLY signed.
+  // The loop processes vaults in order but skips any whose WOTS submission
+  // failed, so position alone can falsely mark a skipped sibling as signed.
+  // When the signed set is supplied (live flow) gate on it; when absent
+  // (callers without it) keep the positional assumption.
+  const earlierSigned = payoutSignedVaultIndices?.has(vaultIndex) ?? true;
+
   if (currentVisual >= awaitPayoutVisual && currentVisual <= awaitVpVisual) {
-    return vaultIndex < currentVaultIndex
-      ? DepositFlowStep.AWAIT_VP_VERIFICATION
-      : DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS;
+    if (vaultIndex < currentVaultIndex) {
+      return earlierSigned
+        ? DepositFlowStep.AWAIT_VP_VERIFICATION
+        : DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS;
+    }
+    return DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS;
   }
 
   // Retrieve-secret / activation phase (visual step 13+).
-  return vaultIndex < currentVaultIndex
-    ? DepositFlowStep.ACTIVATE_VAULT
-    : DepositFlowStep.AWAIT_VP_VERIFICATION;
+  if (vaultIndex < currentVaultIndex) {
+    return earlierSigned
+      ? DepositFlowStep.ACTIVATE_VAULT
+      : DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS;
+  }
+  return DepositFlowStep.AWAIT_VP_VERIFICATION;
 }
 
 export type GroupStatus = "completed" | "active" | "upcoming";

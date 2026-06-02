@@ -116,6 +116,12 @@ export interface UseDepositFlowReturn {
   currentStep: DepositFlowStep;
   /** Current vault being processed (0 or 1), null if not processing a vault */
   currentVaultIndex: number | null;
+  /**
+   * Indices of vaults whose payout signing has actually completed. Lets the
+   * split-progress view tell a genuinely-signed earlier vault apart from one
+   * the loop skipped (WOTS failure), so a skipped sibling isn't shown as signed.
+   */
+  payoutSignedVaultIndices: ReadonlySet<number>;
   /** Whether the flow is currently processing */
   processing: boolean;
   /** Mapped error content (title + body) if any step failed */
@@ -205,6 +211,9 @@ export function useDepositFlow(
   const [currentVaultIndex, setCurrentVaultIndex] = useState<number | null>(
     null,
   );
+  const [payoutSignedVaultIndices, setPayoutSignedVaultIndices] = useState<
+    ReadonlySet<number>
+  >(() => new Set());
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState<DepositErrorContent | null>(null);
   const [isWaiting, setIsWaiting] = useState(false);
@@ -877,6 +886,7 @@ export function useDepositFlow(
         // ========================================================================
 
         baseStep = DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS;
+        setPayoutSignedVaultIndices(new Set());
 
         for (let vi = 0; vi < broadcastedResults.length; vi++) {
           const result = broadcastedResults[vi];
@@ -913,6 +923,7 @@ export function useDepositFlow(
               },
             });
 
+            setPayoutSignedVaultIndices((prev) => new Set(prev).add(vi));
             setCurrentStep(DepositFlowStep.AWAIT_VP_VERIFICATION);
           } catch (error) {
             // If the user cancelled, stop immediately — don't continue with other vaults
@@ -1027,6 +1038,7 @@ export function useDepositFlow(
     abort,
     currentStep,
     currentVaultIndex,
+    payoutSignedVaultIndices,
     processing,
     error,
     /** Soft warnings from the most recent flow (empty until completion). */

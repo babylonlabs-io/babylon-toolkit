@@ -55,6 +55,11 @@ interface SplitGroupedProgressProps {
    * {@link derivePerVaultStep} handles the inference.
    */
   perVaultSteps?: DepositFlowStep[];
+  /**
+   * Live-flow only: vault indices whose payouts actually signed, passed to
+   * {@link derivePerVaultStep} so a skipped sibling isn't inferred as signed.
+   */
+  payoutSignedVaultIndices?: ReadonlySet<number>;
 }
 
 function StepList({
@@ -177,6 +182,7 @@ export function SplitGroupedProgress({
   rawStep,
   renderStepDetail,
   perVaultSteps,
+  payoutSignedVaultIndices,
 }: SplitGroupedProgressProps) {
   const trunkGroups = buildStepGroups(currentStep).filter(
     (group) => group.endStep <= TRUNK_END_VISUAL_STEP,
@@ -214,7 +220,12 @@ export function SplitGroupedProgress({
           // so step 0 (DERIVE_VAULT_SECRET) isn't treated as missing.
           const vaultRawStep =
             perVaultSteps?.[vaultIndex] ??
-            derivePerVaultStep(rawStep, currentVaultIndex, vaultIndex);
+            derivePerVaultStep(
+              rawStep,
+              currentVaultIndex,
+              vaultIndex,
+              payoutSignedVaultIndices,
+            );
           const perVaultVisualStep = getVisualStep(vaultRawStep);
           const perVaultBranchGroups = buildStepGroups(
             perVaultVisualStep,

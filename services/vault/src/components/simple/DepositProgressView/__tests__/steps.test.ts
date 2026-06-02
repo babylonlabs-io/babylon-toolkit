@@ -273,4 +273,25 @@ describe("derivePerVaultStep", () => {
       DepositFlowStep.SUBMIT_WOTS_KEYS,
     );
   });
+
+  it("keeps an earlier vault that never signed at awaiting-payout during the payout phase", () => {
+    // Flow is mid-payout for vault 1, but vault 0 was skipped (its WOTS failed)
+    // and never signed — position alone would mark it "past payout", so the
+    // signed set must keep it at the pre-signing wait, not VP verification.
+    expect(
+      derivePerVaultStep(DepositFlowStep.SIGN_PAYOUTS, 1, 0, new Set()),
+    ).toBe(DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS);
+  });
+
+  it("shows an earlier vault that actually signed at VP verification during the payout phase", () => {
+    expect(
+      derivePerVaultStep(DepositFlowStep.SIGN_PAYOUTS, 1, 0, new Set([0])),
+    ).toBe(DepositFlowStep.AWAIT_VP_VERIFICATION);
+  });
+
+  it("keeps an earlier unsigned vault conservative (not activate) in the activation phase", () => {
+    expect(
+      derivePerVaultStep(DepositFlowStep.RETRIEVE_SECRET, 1, 0, new Set()),
+    ).toBe(DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS);
+  });
 });

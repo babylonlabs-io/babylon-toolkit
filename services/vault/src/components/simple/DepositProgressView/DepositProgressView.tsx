@@ -82,6 +82,12 @@ export interface DepositProgressViewProps {
    * omit for the live flow, where position-based inference is correct.
    */
   perVaultSteps?: DepositFlowStep[];
+  /**
+   * Live-flow only: vault indices whose payouts actually signed, so a skipped
+   * sibling isn't inferred as past payout signing. Ignored when `perVaultSteps`
+   * is supplied (the resume path uses each vault's real polled state).
+   */
+  payoutSignedVaultIndices?: ReadonlySet<number>;
   onClose: () => void;
   /** Override the default success message */
   successMessage?: string;
@@ -167,6 +173,7 @@ export function DepositProgressView(props: DepositProgressViewProps) {
     vaultCount = 1,
     currentVaultIndex = null,
     perVaultSteps,
+    payoutSignedVaultIndices,
     onClose,
     successMessage = COPY.deposit.progress.defaultSuccessMessage,
     terminalMessage,
@@ -248,6 +255,7 @@ export function DepositProgressView(props: DepositProgressViewProps) {
             rawStep={currentStep}
             renderStepDetail={renderStepDetail}
             perVaultSteps={perVaultSteps}
+            payoutSignedVaultIndices={payoutSignedVaultIndices}
           />
         ) : (
           <GroupedProgress
