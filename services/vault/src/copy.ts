@@ -691,6 +691,10 @@ export const COPY = {
     repayDebt: "Repay Debt",
     applySuggestedOrder: "Apply Suggested Order",
   },
+  geoBlock: {
+    title: "Service unavailable in your region",
+    body: "We're unable to provide access from your current region due to regulatory restrictions.",
+  },
   reorder: {
     confirmButton: "Confirm",
   },
