@@ -3,6 +3,7 @@ import {
   Footer,
   FullScreenDialog,
   Header,
+  Loader,
   MobileLogo,
   Nav,
   SmallLogo,
@@ -88,7 +89,7 @@ export default function RootLayout() {
   const { theme, setTheme } = useTheme();
   const { connected: btcConnected } = useBTCWallet();
   const { connected: ethConnected } = useETHWallet();
-  const { isGeoBlocked } = useGeoFencing();
+  const { isGeoBlocked, isLoading: isGeoLoading } = useGeoFencing();
   const { isBlocked: isAddressBlocked } = useAddressScreening();
   const { isSupportedAddress } = useAddressType();
 
@@ -114,9 +115,9 @@ export default function RootLayout() {
       <div className="flex min-h-svh flex-col">
         <TestingBanner visible={shouldDisplayTestingMsg()} />
         <AddressScreeningBanner
-          visible={isWalletConnected && isAddressBlocked}
+          visible={!isGeoBlocked && isWalletConnected && isAddressBlocked}
         />
-        <AddressTypeBanner visible={showAddressTypeBanner} />
+        <AddressTypeBanner visible={!isGeoBlocked && showAddressTypeBanner} />
         <Header
           size="md"
           // `!max-w-` overrides the `container` class's 2xl breakpoint max-width
@@ -159,7 +160,11 @@ export default function RootLayout() {
           }
         />
 
-        {isGeoBlocked ? (
+        {isGeoLoading ? (
+          <div className="flex min-h-[50vh] items-center justify-center">
+            <Loader />
+          </div>
+        ) : isGeoBlocked ? (
           <GeoBlockState />
         ) : (
           <>
