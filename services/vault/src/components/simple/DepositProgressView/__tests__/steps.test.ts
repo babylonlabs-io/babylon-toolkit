@@ -223,48 +223,11 @@ describe("derivePerVaultStep", () => {
     expect(derivePerVaultStep(DepositFlowStep.BROADCAST_PRE_PEGIN, 0, 1)).toBe(
       DepositFlowStep.BROADCAST_PRE_PEGIN,
     );
-    expect(
-      derivePerVaultStep(DepositFlowStep.AWAIT_BTC_CONFIRMATION, null, 1),
-    ).toBe(DepositFlowStep.AWAIT_BTC_CONFIRMATION);
   });
 
-  it("advances earlier vaults past WOTS and keeps queued vaults at WOTS", () => {
-    // Flow is signing vault 1's WOTS — vault 0 has finished WOTS, vault 2 is queued.
-    expect(derivePerVaultStep(DepositFlowStep.SUBMIT_WOTS_KEYS, 1, 0)).toBe(
-      DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS,
-    );
-    expect(derivePerVaultStep(DepositFlowStep.SUBMIT_WOTS_KEYS, 1, 1)).toBe(
-      DepositFlowStep.SUBMIT_WOTS_KEYS,
-    );
-    expect(derivePerVaultStep(DepositFlowStep.SUBMIT_WOTS_KEYS, 1, 2)).toBe(
-      DepositFlowStep.SUBMIT_WOTS_KEYS,
-    );
-  });
-
-  it("places earlier vaults at VP verification during the payout phase", () => {
-    // Flow is mid-payout for vault 1 — vault 0 finished payout, vault 2 is queued.
-    expect(derivePerVaultStep(DepositFlowStep.SIGN_PAYOUTS, 1, 0)).toBe(
-      DepositFlowStep.AWAIT_VP_VERIFICATION,
-    );
+  it("returns the shared step for the active vault", () => {
     expect(derivePerVaultStep(DepositFlowStep.SIGN_PAYOUTS, 1, 1)).toBe(
       DepositFlowStep.SIGN_PAYOUTS,
-    );
-    expect(derivePerVaultStep(DepositFlowStep.SIGN_PAYOUTS, 1, 2)).toBe(
-      DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS,
-    );
-  });
-
-  it("places earlier vaults past payout signing during the retrieve-secret/activation phase", () => {
-    // Flow is at RETRIEVE_SECRET for vault 1 — vault 0 is further along
-    // (heading into activation), vault 2 is still waiting on the VP.
-    expect(derivePerVaultStep(DepositFlowStep.RETRIEVE_SECRET, 1, 0)).toBe(
-      DepositFlowStep.ACTIVATE_VAULT,
-    );
-    expect(derivePerVaultStep(DepositFlowStep.RETRIEVE_SECRET, 1, 1)).toBe(
-      DepositFlowStep.RETRIEVE_SECRET,
-    );
-    expect(derivePerVaultStep(DepositFlowStep.RETRIEVE_SECRET, 1, 2)).toBe(
-      DepositFlowStep.AWAIT_VP_VERIFICATION,
     );
   });
 
@@ -274,24 +237,91 @@ describe("derivePerVaultStep", () => {
     );
   });
 
-  it("keeps an earlier vault that never signed at awaiting-payout during the payout phase", () => {
-    // Flow is mid-payout for vault 1, but vault 0 was skipped (its WOTS failed)
-    // and never signed — position alone would mark it "past payout", so the
-    // signed set must keep it at the pre-signing wait, not VP verification.
+  // A non-active vault's step is derived from what it has actually completed
+  // (set membership), NOT its index relative to the active vault — the live flow
+  // processes vaults in readiness order, so a higher-indexed vault can finish
+  // before a lower one.
+
+  it("keeps a non-active vault that has not submitted WOTS at the WOTS step", () => {
     expect(
-      derivePerVaultStep(DepositFlowStep.SIGN_PAYOUTS, 1, 0, new Set()),
+      derivePerVaultStep(
+        DepositFlowStep.SUBMIT_WOTS_KEYS,
+        1,
+        0,
+        new Set(),
+        new Set(),
+      ),
+    ).toBe(DepositFlowStep.SUBMIT_WOTS_KEYS);
+  });
+
+  it("shows a non-active WOTS-submitted vault at awaiting-payout even when higher-indexed than the active vault", () => {
+    // Vault 2 finished WOTS while vault 0 is still the active one (readiness order).
+    expect(
+      derivePerVaultStep(
+        DepositFlowStep.SUBMIT_WOTS_KEYS,
+        0,
+        2,
+        new Set(),
+        new Set([2]),
+      ),
     ).toBe(DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS);
   });
 
-  it("shows an earlier vault that actually signed at VP verification during the payout phase", () => {
+  it("keeps a non-active WOTS-submitted vault at awaiting-payout until it signs payouts", () => {
     expect(
-      derivePerVaultStep(DepositFlowStep.SIGN_PAYOUTS, 1, 0, new Set([0])),
+      derivePerVaultStep(
+        DepositFlowStep.SIGN_PAYOUTS,
+        1,
+        2,
+        new Set(),
+        new Set([2]),
+      ),
+    ).toBe(DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS);
+  });
+
+  it("shows a non-active payout-signed vault at VP verification during the payout phase", () => {
+    expect(
+      derivePerVaultStep(
+        DepositFlowStep.SIGN_PAYOUTS,
+        1,
+        0,
+        new Set([0]),
+        new Set([0]),
+      ),
     ).toBe(DepositFlowStep.AWAIT_VP_VERIFICATION);
   });
 
-  it("keeps an earlier unsigned vault conservative (not activate) in the activation phase", () => {
+  it("shows a non-active payout-signed vault heading to activation in the activation phase", () => {
     expect(
-      derivePerVaultStep(DepositFlowStep.RETRIEVE_SECRET, 1, 0, new Set()),
-    ).toBe(DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS);
+      derivePerVaultStep(
+        DepositFlowStep.RETRIEVE_SECRET,
+        1,
+        0,
+        new Set([0]),
+        new Set([0]),
+      ),
+    ).toBe(DepositFlowStep.ACTIVATE_VAULT);
+  });
+
+  it("keeps a non-active vault that never submitted WOTS at the WOTS step in the activation phase", () => {
+    // Failed/never-submitted vault stays conservatively at its real step rather
+    // than being inferred forward by position.
+    expect(
+      derivePerVaultStep(
+        DepositFlowStep.RETRIEVE_SECRET,
+        1,
+        0,
+        new Set(),
+        new Set(),
+      ),
+    ).toBe(DepositFlowStep.SUBMIT_WOTS_KEYS);
+  });
+
+  it("treats missing membership sets as nothing-completed for a non-active vault", () => {
+    // Backward-compatible default: with no sets supplied, a non-active vault is
+    // shown at the WOTS step, never inferred forward by position.
+    expect(derivePerVaultStep(DepositFlowStep.SIGN_PAYOUTS, 1, 0)).toBe(
+      DepositFlowStep.SUBMIT_WOTS_KEYS,
+    );
   });
 });

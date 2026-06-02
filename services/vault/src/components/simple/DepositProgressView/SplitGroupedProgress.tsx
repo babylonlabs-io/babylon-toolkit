@@ -60,6 +60,12 @@ interface SplitGroupedProgressProps {
    * {@link derivePerVaultStep} so a skipped sibling isn't inferred as signed.
    */
   payoutSignedVaultIndices?: ReadonlySet<number>;
+  /**
+   * Live-flow only: vault indices whose WOTS submission actually succeeded,
+   * passed to {@link derivePerVaultStep} so a skipped sibling isn't inferred as
+   * past WOTS.
+   */
+  wotsSubmittedVaultIndices?: ReadonlySet<number>;
 }
 
 function StepList({
@@ -183,6 +189,7 @@ export function SplitGroupedProgress({
   renderStepDetail,
   perVaultSteps,
   payoutSignedVaultIndices,
+  wotsSubmittedVaultIndices,
 }: SplitGroupedProgressProps) {
   const trunkGroups = buildStepGroups(currentStep).filter(
     (group) => group.endStep <= TRUNK_END_VISUAL_STEP,
@@ -225,6 +232,7 @@ export function SplitGroupedProgress({
               currentVaultIndex,
               vaultIndex,
               payoutSignedVaultIndices,
+              wotsSubmittedVaultIndices,
             );
           const perVaultVisualStep = getVisualStep(vaultRawStep);
           const perVaultBranchGroups = buildStepGroups(

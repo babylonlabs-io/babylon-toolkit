@@ -88,6 +88,12 @@ export interface DepositProgressViewProps {
    * is supplied (the resume path uses each vault's real polled state).
    */
   payoutSignedVaultIndices?: ReadonlySet<number>;
+  /**
+   * Live-flow only: vault indices whose WOTS submission actually succeeded, so a
+   * skipped sibling isn't inferred as past WOTS. Ignored when `perVaultSteps`
+   * is supplied (the resume path uses each vault's real polled state).
+   */
+  wotsSubmittedVaultIndices?: ReadonlySet<number>;
   onClose: () => void;
   /** Override the default success message */
   successMessage?: string;
@@ -174,6 +180,7 @@ export function DepositProgressView(props: DepositProgressViewProps) {
     currentVaultIndex = null,
     perVaultSteps,
     payoutSignedVaultIndices,
+    wotsSubmittedVaultIndices,
     onClose,
     successMessage = COPY.deposit.progress.defaultSuccessMessage,
     terminalMessage,
@@ -256,6 +263,7 @@ export function DepositProgressView(props: DepositProgressViewProps) {
             renderStepDetail={renderStepDetail}
             perVaultSteps={perVaultSteps}
             payoutSignedVaultIndices={payoutSignedVaultIndices}
+            wotsSubmittedVaultIndices={wotsSubmittedVaultIndices}
           />
         ) : (
           <GroupedProgress

@@ -169,6 +169,8 @@ vi.mock("../depositFlowSteps", async () => {
     signAndSubmitPayouts: vi.fn(),
     signProofOfPossession: vi.fn(),
     submitWotsPublicKey: vi.fn(),
+    waitForWotsReady: vi.fn(),
+    waitForPayoutReady: vi.fn(),
   };
 });
 
@@ -279,6 +281,8 @@ async function setupDefaultMocks() {
     registerPeginBatchAndWait,
     signAndSubmitPayouts,
     signProofOfPossession,
+    waitForWotsReady,
+    waitForPayoutReady,
   } = vi.mocked(await import("../depositFlowSteps"));
 
   vi.mocked(useBtcWalletState).mockReturnValue({
@@ -342,6 +346,8 @@ async function setupDefaultMocks() {
     ],
   });
   vi.mocked(signAndSubmitPayouts).mockResolvedValue(undefined);
+  vi.mocked(waitForWotsReady).mockResolvedValue(undefined);
+  vi.mocked(waitForPayoutReady).mockResolvedValue(undefined);
   vi.mocked(broadcastPrePeginTransaction).mockResolvedValue(
     "mockBroadcastTxId",
   );

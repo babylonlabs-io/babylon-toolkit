@@ -67,6 +67,7 @@ import {
 import { satoshiToBtcNumber } from "@/utils/btcConversion";
 import { mapDepositError, type DepositErrorContent } from "@/utils/errors";
 import { formatBtcValue } from "@/utils/formatting";
+import { processAsReady } from "@/utils/processAsReady";
 import { getVpProxyUrl } from "@/utils/rpc";
 
 import {
@@ -77,6 +78,8 @@ import {
   signAndSubmitPayouts,
   signProofOfPossession,
   submitWotsPublicKey,
+  waitForPayoutReady,
+  waitForWotsReady,
   type DepositUtxo,
 } from "./depositFlowSteps";
 import { useBtcWalletState } from "./useBtcWalletState";
@@ -116,6 +119,13 @@ export interface UseDepositFlowReturn {
   currentStep: DepositFlowStep;
   /** Current vault being processed (0 or 1), null if not processing a vault */
   currentVaultIndex: number | null;
+  /**
+   * Indices of vaults whose WOTS submission has actually succeeded. Lets the
+   * split-progress view tell a genuinely-submitted earlier vault apart from one
+   * the loop skipped (WOTS failure/timeout), so a skipped sibling isn't shown
+   * as past WOTS.
+   */
+  wotsSubmittedVaultIndices: ReadonlySet<number>;
   /**
    * Indices of vaults whose payout signing has actually completed. Lets the
    * split-progress view tell a genuinely-signed earlier vault apart from one
@@ -211,6 +221,9 @@ export function useDepositFlow(
   const [currentVaultIndex, setCurrentVaultIndex] = useState<number | null>(
     null,
   );
+  const [wotsSubmittedVaultIndices, setWotsSubmittedVaultIndices] = useState<
+    ReadonlySet<number>
+  >(() => new Set());
   const [payoutSignedVaultIndices, setPayoutSignedVaultIndices] = useState<
     ReadonlySet<number>
   >(() => new Set());
@@ -821,132 +834,171 @@ export function useDepositFlow(
         const MAX_WOTS_ATTEMPTS = 2;
 
         baseStep = DepositFlowStep.SUBMIT_WOTS_KEYS;
+        // Clear both membership sets before the per-vault phases. The split UI
+        // derives each non-active vault's step purely from membership, so stale
+        // entries from a previous run must not leak into this one.
+        setWotsSubmittedVaultIndices(new Set());
+        setPayoutSignedVaultIndices(new Set());
 
-        for (const result of broadcastedResults) {
-          signal.throwIfAborted();
+        // Process vaults in the order the VP makes them ready (concurrent
+        // read-only readiness waits) while signing stays serialized — a slow
+        // vault never starves a ready sibling, and only one wallet popup is ever
+        // open at a time.
+        await processAsReady(
+          broadcastedResults,
+          (result) =>
+            waitForWotsReady({
+              peginTxHash: result.peginTxHash,
+              providerAddress: provider.id,
+              signal,
+            }),
+          async (result) => {
+            signal.throwIfAborted();
 
-          // Mark the current vault being processed so the split-deposit UI
-          // can show per-vault progression for the WOTS phase.
-          setCurrentVaultIndex(result.vaultIndex);
+            // Mark the vault now being signed so the split UI shows it active.
+            // The concurrent pre-wait only orders processing — submitWotsPublicKey
+            // re-checks readiness authoritatively and retries, so a pre-wait
+            // timeout/terminal is never treated as failure here (preserves the
+            // original per-vault retry window).
+            setCurrentVaultIndex(result.vaultIndex);
 
-          let wotsSuccess = false;
-
-          for (let attempt = 1; attempt <= MAX_WOTS_ATTEMPTS; attempt++) {
-            try {
-              await submitWotsPublicKey({
-                vaultId: result.vaultId,
-                peginTxHash: result.peginTxHash,
-                depositorBtcPubkey: result.depositorBtcPubkey,
-                providerAddress: provider.id,
-                wotsPublicKeys: perVaultWotsKeys[result.vaultIndex],
-                btcWallet: postBroadcastBtcWallet,
-                unsignedPrePeginTxHex: batchResult.fundedPrePeginTxHex,
-                signal,
-              });
-              wotsSuccess = true;
-              break;
-            } catch (error) {
-              // Re-throw abort errors so they're suppressed by the outer catch
-              if (signal.aborted) throw error;
-
-              if (attempt < MAX_WOTS_ATTEMPTS) {
-                // submitWotsPublicKey is idempotent — if the VP already accepted
-                // the key but the response was lost, the retry will detect that
-                // the VP moved past the WOTS stage and return early.
-                logger.warn(
-                  `[Multi-Vault] WOTS submission failed for vault ${result.vaultId}, retrying (attempt ${attempt}/${MAX_WOTS_ATTEMPTS})`,
+            let wotsSuccess = false;
+            for (let attempt = 1; attempt <= MAX_WOTS_ATTEMPTS; attempt++) {
+              try {
+                await submitWotsPublicKey({
+                  vaultId: result.vaultId,
+                  peginTxHash: result.peginTxHash,
+                  depositorBtcPubkey: result.depositorBtcPubkey,
+                  providerAddress: provider.id,
+                  wotsPublicKeys: perVaultWotsKeys[result.vaultIndex],
+                  btcWallet: postBroadcastBtcWallet,
+                  unsignedPrePeginTxHex: batchResult.fundedPrePeginTxHex,
+                  signal,
+                });
+                wotsSuccess = true;
+                setWotsSubmittedVaultIndices((prev) =>
+                  new Set(prev).add(result.vaultIndex),
                 );
-                continue;
-              }
+                break;
+              } catch (error) {
+                // Re-throw abort errors so they're suppressed by the outer catch
+                if (signal.aborted) throw error;
 
-              const errorMsg =
-                error instanceof Error ? error.message : String(error);
-              const warning = `Vault ${result.vaultIndex + 1}: WOTS key submission failed - ${errorMsg}`;
-              warnings.push(warning);
-              logger.error(
-                error instanceof Error ? error : new Error(String(error)),
-                {
-                  data: {
-                    context:
-                      "[Multi-Vault] Failed to submit WOTS key for vault",
-                    vaultId: result.vaultId,
+                if (attempt < MAX_WOTS_ATTEMPTS) {
+                  // submitWotsPublicKey is idempotent — if the VP already accepted
+                  // the key but the response was lost, the retry will detect that
+                  // the VP moved past the WOTS stage and return early.
+                  logger.warn(
+                    `[Multi-Vault] WOTS submission failed for vault ${result.vaultId}, retrying (attempt ${attempt}/${MAX_WOTS_ATTEMPTS})`,
+                  );
+                  continue;
+                }
+
+                const errorMsg =
+                  error instanceof Error ? error.message : String(error);
+                warnings.push(
+                  `Vault ${result.vaultIndex + 1}: WOTS key submission failed - ${errorMsg}`,
+                );
+                logger.error(
+                  error instanceof Error ? error : new Error(String(error)),
+                  {
+                    data: {
+                      context:
+                        "[Multi-Vault] Failed to submit WOTS key for vault",
+                      vaultId: result.vaultId,
+                    },
                   },
-                },
-              );
+                );
+              }
             }
-          }
 
-          if (!wotsSuccess) {
-            wotsFailedVaultIds.add(result.vaultId);
-          }
-        }
+            if (!wotsSuccess) {
+              wotsFailedVaultIds.add(result.vaultId);
+            }
+          },
+        );
 
         // ========================================================================
         // Step 5b: Sign Payout Transactions
         // ========================================================================
 
         baseStep = DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS;
-        setPayoutSignedVaultIndices(new Set());
 
-        for (let vi = 0; vi < broadcastedResults.length; vi++) {
-          const result = broadcastedResults[vi];
+        // Only sign payouts for vaults whose WOTS succeeded — skipped lanes have
+        // no keys at the VP and would just time out. Process the rest in the
+        // order the VP makes their presign transactions ready.
+        const payoutCandidates = broadcastedResults.filter(
+          (result) => !wotsFailedVaultIds.has(result.vaultId),
+        );
 
-          signal.throwIfAborted();
+        await processAsReady(
+          payoutCandidates,
+          (result) =>
+            waitForPayoutReady({
+              peginTxHash: result.peginTxHash,
+              providerAddress: provider.id,
+              signal,
+            }),
+          async (result) => {
+            signal.throwIfAborted();
 
-          // Skip vaults whose WOTS key submission failed — the VP won't have
-          // the keys needed, so payout signing would timeout.
-          if (wotsFailedVaultIds.has(result.vaultId)) continue;
-
-          try {
-            setCurrentVaultIndex(vi);
+            setCurrentVaultIndex(result.vaultIndex);
             setCurrentStep(DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS);
             setIsWaiting(true);
             payoutClaimersDoneRef.current = false;
 
-            await signAndSubmitPayouts({
-              vaultId: result.vaultId,
-              peginTxHash: result.peginTxHash,
-              depositorBtcPubkey: result.depositorBtcPubkey,
-              providerBtcPubKey: provider.btcPubKey,
-              registeredPayoutScriptPubKey:
-                btcAddressToScriptPubKeyHex(confirmedBtcAddress),
-              btcWallet: postBroadcastBtcWallet,
-              depositorEthAddress: confirmedEthAddress,
-              unsignedPrePeginTxHex: batchResult.fundedPrePeginTxHex,
-              signal,
-              onProgress: (p) => {
-                if (!p) return;
-                setPayoutSigningProgress(p);
-                setCurrentStep(payoutSigningStep(p.phase));
-                payoutClaimersDoneRef.current =
-                  p.total > 0 && p.completed >= p.total;
-              },
-            });
-
-            setPayoutSignedVaultIndices((prev) => new Set(prev).add(vi));
-            setCurrentStep(DepositFlowStep.AWAIT_VP_VERIFICATION);
-          } catch (error) {
-            // If the user cancelled, stop immediately — don't continue with other vaults
-            if (signal.aborted) throw error;
-
-            const errorMsg =
-              error instanceof Error ? error.message : String(error);
-            const warning = `Vault ${result.vaultIndex + 1}: Payout signing failed - ${errorMsg}`;
-            warnings.push(warning);
-            logger.error(
-              error instanceof Error ? error : new Error(String(error)),
-              {
-                data: {
-                  context:
-                    "[Multi-Vault] Failed to sign or submit payouts for vault",
-                  vaultId: result.vaultId,
-                  providerAddress: provider.id,
+            // The concurrent pre-wait only orders processing — signAndSubmitPayouts
+            // re-checks readiness authoritatively, so a pre-wait timeout/terminal
+            // is never treated as failure here.
+            try {
+              await signAndSubmitPayouts({
+                vaultId: result.vaultId,
+                peginTxHash: result.peginTxHash,
+                depositorBtcPubkey: result.depositorBtcPubkey,
+                providerBtcPubKey: provider.btcPubKey,
+                registeredPayoutScriptPubKey:
+                  btcAddressToScriptPubKeyHex(confirmedBtcAddress),
+                btcWallet: postBroadcastBtcWallet,
+                depositorEthAddress: confirmedEthAddress,
+                unsignedPrePeginTxHex: batchResult.fundedPrePeginTxHex,
+                signal,
+                onProgress: (p) => {
+                  if (!p) return;
+                  setPayoutSigningProgress(p);
+                  setCurrentStep(payoutSigningStep(p.phase));
+                  payoutClaimersDoneRef.current =
+                    p.total > 0 && p.completed >= p.total;
                 },
-              },
-            );
-            // Continue with other vaults
-          }
-        }
+              });
+
+              setPayoutSignedVaultIndices((prev) =>
+                new Set(prev).add(result.vaultIndex),
+              );
+              setCurrentStep(DepositFlowStep.AWAIT_VP_VERIFICATION);
+            } catch (error) {
+              // If the user cancelled, stop immediately — don't continue.
+              if (signal.aborted) throw error;
+
+              const errorMsg =
+                error instanceof Error ? error.message : String(error);
+              warnings.push(
+                `Vault ${result.vaultIndex + 1}: Payout signing failed - ${errorMsg}`,
+              );
+              logger.error(
+                error instanceof Error ? error : new Error(String(error)),
+                {
+                  data: {
+                    context:
+                      "[Multi-Vault] Failed to sign or submit payouts for vault",
+                    vaultId: result.vaultId,
+                    providerAddress: provider.id,
+                  },
+                },
+              );
+              // Continue with other vaults
+            }
+          },
+        );
 
         setPayoutSigningProgress(null);
         setCurrentVaultIndex(null);
@@ -1038,6 +1090,7 @@ export function useDepositFlow(
     abort,
     currentStep,
     currentVaultIndex,
+    wotsSubmittedVaultIndices,
     payoutSignedVaultIndices,
     processing,
     error,

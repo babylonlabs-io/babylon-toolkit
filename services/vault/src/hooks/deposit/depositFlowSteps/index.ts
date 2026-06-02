@@ -40,6 +40,9 @@ export {
 // Step 3.5: WOTS key submission (RPC, happens after broadcast + VP indexing)
 export { submitWotsPublicKey } from "./wotsSubmission";
 
+// Read-only readiness waits — process sibling vaults in VP-ready order.
+export { waitForPayoutReady, waitForWotsReady } from "./waitForVaultReady";
+
 // Step 4: Payout signing
 export { payoutSigningStep, signAndSubmitPayouts } from "./payoutSigning";
 export type { SignAndSubmitPayoutsParams } from "./payoutSigning";

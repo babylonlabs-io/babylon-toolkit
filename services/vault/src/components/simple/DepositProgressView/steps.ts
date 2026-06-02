@@ -83,23 +83,20 @@ export const TRUNK_END_VISUAL_STEP = 6;
 /**
  * Returns the per-vault current step for a single vault in a split deposit.
  *
- * The deposit flow processes WOTS and payout signing sequentially across
- * vaults — at any point one vault is the "active" one
- * (tracked by `currentVaultIndex`) while siblings have either finished the
- * active phase or are queued for their turn. This function maps that shared
- * state into a per-vault step so each column in the split UI shows the right
- * row as active, completed, or pending.
- *
- * `payoutSignedVaultIndices` (live flow only) is the set of vault indices whose
- * payouts actually signed; it gates the "earlier vaults are past payout
- * signing" inference so a skipped sibling never reads as signed. Omit it and
- * the inference falls back to pure position.
+ * The deposit flow signs vaults in readiness order (whichever the VP makes
+ * ready first), so a non-active vault's progress cannot be inferred from its
+ * index. Instead, each non-active vault's step is derived from what it has
+ * ACTUALLY completed: `payoutSignedVaultIndices` ⊃ `wotsSubmittedVaultIndices`
+ * (live flow only). A vault in neither set has not submitted WOTS yet (queued
+ * or failed) and shows its earliest step. `currentVaultIndex` only identifies
+ * the one active vault, which tracks the shared `currentStep`.
  */
 export function derivePerVaultStep(
   currentStep: DepositFlowStep,
   currentVaultIndex: number | null,
   vaultIndex: number,
   payoutSignedVaultIndices?: ReadonlySet<number>,
+  wotsSubmittedVaultIndices?: ReadonlySet<number>,
 ): DepositFlowStep {
   const currentVisual = getVisualStep(currentStep);
 
@@ -109,43 +106,27 @@ export function derivePerVaultStep(
   // Between phases the index is briefly null — fall back to shared.
   if (currentVaultIndex === null) return currentStep;
 
+  // The active vault tracks the shared step directly.
   if (vaultIndex === currentVaultIndex) return currentStep;
 
-  const wotsVisual = getVisualStep(DepositFlowStep.SUBMIT_WOTS_KEYS);
-  const awaitPayoutVisual = getVisualStep(
-    DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS,
-  );
-  const awaitVpVisual = getVisualStep(DepositFlowStep.AWAIT_VP_VERIFICATION);
-
-  if (currentVisual === wotsVisual) {
-    return vaultIndex < currentVaultIndex
-      ? DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS
-      : DepositFlowStep.SUBMIT_WOTS_KEYS;
+  // A non-active vault's step is derived from what it has ACTUALLY completed
+  // (set membership), not from its index relative to the active vault. The live
+  // flow signs vaults in readiness order, so a higher-indexed vault can finish
+  // before a lower one — positional inference would mislabel it.
+  if (payoutSignedVaultIndices?.has(vaultIndex)) {
+    // Past payout signing. In the retrieve-secret/activation phase show it
+    // heading into activation; earlier, it is awaiting VP verification.
+    const retrieveVisual = getVisualStep(DepositFlowStep.RETRIEVE_SECRET);
+    return currentVisual >= retrieveVisual
+      ? DepositFlowStep.ACTIVATE_VAULT
+      : DepositFlowStep.AWAIT_VP_VERIFICATION;
   }
-
-  // An earlier-indexed vault is only past payout signing if it ACTUALLY signed.
-  // The loop processes vaults in order but skips any whose WOTS submission
-  // failed, so position alone can falsely mark a skipped sibling as signed.
-  // When the signed set is supplied (live flow) gate on it; when absent
-  // (callers without it) keep the positional assumption.
-  const earlierSigned = payoutSignedVaultIndices?.has(vaultIndex) ?? true;
-
-  if (currentVisual >= awaitPayoutVisual && currentVisual <= awaitVpVisual) {
-    if (vaultIndex < currentVaultIndex) {
-      return earlierSigned
-        ? DepositFlowStep.AWAIT_VP_VERIFICATION
-        : DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS;
-    }
+  if (wotsSubmittedVaultIndices?.has(vaultIndex)) {
     return DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS;
   }
-
-  // Retrieve-secret / activation phase (visual step 13+).
-  if (vaultIndex < currentVaultIndex) {
-    return earlierSigned
-      ? DepositFlowStep.ACTIVATE_VAULT
-      : DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS;
-  }
-  return DepositFlowStep.AWAIT_VP_VERIFICATION;
+  // Not yet submitted WOTS (queued or failed) — show its real, earliest step
+  // rather than inferring it forward.
+  return DepositFlowStep.SUBMIT_WOTS_KEYS;
 }
 
 export type GroupStatus = "completed" | "active" | "upcoming";

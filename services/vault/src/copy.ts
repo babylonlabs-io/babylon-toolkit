@@ -114,6 +114,19 @@ export const COPY = {
       redemptionComplete:
         "Redemption complete. Your BTC has been returned to your wallet.",
     },
+    // Terminal vault-provider status messages surfaced during status polling.
+    statusErrors: {
+      expired:
+        "This deposit has expired. You may still reclaim within the grace window — see refund options.",
+      expiredCleanedUp:
+        "This deposit expired and the grace window has elapsed. No further action is possible.",
+      expiredInClaim: "Deposit expired; claim transaction broadcast",
+      invalidSigInContract:
+        "Vault provider posted an invalid peg-in signature on-chain; this deposit cannot proceed.",
+      amlRejected: "This deposit was rejected by AML screening.",
+      ingestionRejected:
+        "The vault provider could not ingest this deposit; it cannot proceed.",
+    },
     primaryAction: {
       SUBMIT_WOTS_KEY: "Submit WOTS Key",
       SIGN_PAYOUT_TRANSACTIONS: "Sign Payouts",

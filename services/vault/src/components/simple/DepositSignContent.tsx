@@ -47,6 +47,7 @@ export function DepositSignContent({
     abort,
     currentStep,
     currentVaultIndex,
+    wotsSubmittedVaultIndices,
     payoutSignedVaultIndices,
     processing,
     error,
@@ -144,6 +145,7 @@ export function DepositSignContent({
         vaultCount={vaultAmounts.length}
         currentVaultIndex={currentVaultIndex}
         payoutSignedVaultIndices={payoutSignedVaultIndices}
+        wotsSubmittedVaultIndices={wotsSubmittedVaultIndices}
         onClose={handleClose}
         btcConfirmationDetail={btcConfirmationDetail}
       />
