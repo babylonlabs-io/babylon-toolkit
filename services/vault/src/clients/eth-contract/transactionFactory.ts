@@ -44,6 +44,12 @@ export interface ExecuteWriteOptions {
   args: readonly unknown[];
   /** Error context for mapViemErrorToContractError */
   errorContext: string;
+  /**
+   * Extra ABIs for decoding reverts from contracts this call delegates into
+   * (e.g. activation reverts surfaced from the Aave adapter). Decoding only —
+   * not used for simulation or the write itself.
+   */
+  errorAbis?: readonly Abi[];
 }
 
 /**
@@ -67,6 +73,7 @@ export async function executeWrite(
     functionName,
     args,
     errorContext,
+    errorAbis,
   } = options;
 
   // Reject if the wallet is connected to the wrong chain
@@ -136,8 +143,12 @@ export async function executeWrite(
       receipt,
     };
   } catch (error) {
-    // Pass the ABI for better error decoding
-    throw mapViemErrorToContractError(error, errorContext, [abi as Abi]);
+    // Decode against the call's ABI plus any delegate ABIs (e.g. the Aave
+    // adapter, whose errors the registry surfaces on activation).
+    throw mapViemErrorToContractError(error, errorContext, [
+      abi as Abi,
+      ...(errorAbis ?? []),
+    ]);
   }
 }
 

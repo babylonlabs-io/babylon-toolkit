@@ -16,6 +16,7 @@ import {
   activateVault,
   type EthContractWriter,
 } from "@babylonlabs-io/ts-sdk/tbv/core/services";
+import { AaveIntegrationAdapterABI } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
 import type { Hex, WalletClient } from "viem";
 
 import {
@@ -58,6 +59,11 @@ export async function activateVaultWithSecret(
       functionName: call.functionName,
       args: call.args,
       errorContext: "vault activation",
+      // activateVaultWithSecret delegates into the Aave adapter, which can
+      // revert with VaultCountExceedsMaximum / PositionAboveMaximum — errors
+      // absent from the registry ABI. Supply the adapter ABI so the friendly
+      // copy in errorMessages.ts is reachable instead of raw hex.
+      errorAbis: [AaveIntegrationAdapterABI],
     });
 
   return activateVault<TransactionResult>({
