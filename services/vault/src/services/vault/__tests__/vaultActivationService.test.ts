@@ -1,3 +1,4 @@
+import { AaveIntegrationAdapterABI } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
 import type { Address, Hex, WalletClient } from "viem";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -54,6 +55,18 @@ describe("activateVaultWithSecret (vault adapter)", () => {
     expect(callArgs.errorContext).toBe("vault activation");
     expect(callArgs.walletClient).toBe(walletClient);
     expect(callArgs.chain).toEqual({ id: 11155111, name: "sepolia" });
+  });
+
+  it("supplies the Aave adapter ABI so adapter reverts (e.g. VaultCountExceedsMaximum) decode to a friendly message", async () => {
+    mockExecuteWrite.mockResolvedValueOnce({
+      transactionHash: txHash,
+      receipt: { status: "success" },
+    });
+
+    await activateVaultWithSecret({ vaultId, secret, hashlock, walletClient });
+
+    const callArgs = mockExecuteWrite.mock.calls[0][0];
+    expect(callArgs.errorAbis).toEqual([AaveIntegrationAdapterABI]);
   });
 
   it("returns the full TransactionResult (hash + receipt) from executeWrite", async () => {

@@ -2,6 +2,7 @@
  * Tests for contract error mapping utilities
  */
 
+import { AaveIntegrationAdapterABI } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
 import { type Abi, encodeErrorResult } from "viem";
 import { describe, expect, it } from "vitest";
 
@@ -348,6 +349,80 @@ describe("Contract Error Mapping", () => {
       const result = mapViemErrorToContractError(error, "test", [TEST_ABI]);
 
       expect(result.code).toBe(ErrorCode.CONTRACT_REVERT);
+    });
+
+    it("decodes an Aave adapter VaultCountExceedsMaximum revert (0xb29ce077) to the per-position cap message when the adapter ABI is supplied", () => {
+      // Activation delegates into the Aave adapter, which reverts with this
+      // error — absent from the registry ABI viem decoded against, so
+      // simulateContract throws with the raw hex in `.raw` only. The mapper
+      // re-decodes it against the adapter ABI threaded in via errorAbis.
+      const error = {
+        message:
+          'The contract function "activateVaultWithSecret" reverted with the following signature: 0xb29ce077',
+        cause: {
+          name: "ContractFunctionRevertedError",
+          raw: encodeErrorResult({
+            abi: AaveIntegrationAdapterABI as Abi,
+            errorName: "VaultCountExceedsMaximum",
+            args: [11n, 10n],
+          }),
+        },
+      };
+      const result = mapViemErrorToContractError(error, "vault activation", [
+        AaveIntegrationAdapterABI as Abi,
+      ]);
+
+      expect(result.code).toBe(ErrorCode.CONTRACT_REVERT);
+      expect(result.reason).toBe("VaultCountExceedsMaximum");
+      expect(result.message).toBe(
+        "You have reached the maximum number of BTC Vaults per position.",
+      );
+    });
+
+    it("decodes an Aave adapter PositionAboveMaximum revert to the max-position-size message when the adapter ABI is supplied", () => {
+      const error = {
+        message: "execution reverted",
+        cause: {
+          name: "ContractFunctionRevertedError",
+          raw: encodeErrorResult({
+            abi: AaveIntegrationAdapterABI as Abi,
+            errorName: "PositionAboveMaximum",
+            args: [101n, 100n],
+          }),
+        },
+      };
+      const result = mapViemErrorToContractError(error, "vault activation", [
+        AaveIntegrationAdapterABI as Abi,
+      ]);
+
+      expect(result.reason).toBe("PositionAboveMaximum");
+      expect(result.message).toBe(
+        "Your total BTC Vault amount exceeds the maximum position size.",
+      );
+    });
+
+    it("does NOT resolve VaultCountExceedsMaximum without the adapter ABI — the registry ABI alone leaves it as raw hex (the bug)", () => {
+      const error = {
+        message:
+          'The contract function "activateVaultWithSecret" reverted with the following signature: 0xb29ce077',
+        cause: {
+          name: "ContractFunctionRevertedError",
+          raw: encodeErrorResult({
+            abi: AaveIntegrationAdapterABI as Abi,
+            errorName: "VaultCountExceedsMaximum",
+            args: [11n, 10n],
+          }),
+        },
+      };
+      // TEST_ABI stands in for the registry ABI — it lacks the adapter errors.
+      const result = mapViemErrorToContractError(error, "vault activation", [
+        TEST_ABI,
+      ]);
+
+      expect(result.reason).not.toBe("VaultCountExceedsMaximum");
+      expect(result.message).not.toBe(
+        "You have reached the maximum number of BTC Vaults per position.",
+      );
     });
   });
 
