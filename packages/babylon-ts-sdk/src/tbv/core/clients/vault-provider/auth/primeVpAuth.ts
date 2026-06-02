@@ -19,6 +19,14 @@ export interface PrimeVpAuthInput {
   pinnedServerPubkey: OnChainBtcPubkey;
   /** Optional headers forwarded to the inner token client (e.g. gateway auth). */
   headers?: Record<string, string>;
+  /**
+   * Opt into gRPC-subject auth for the artifact stream. Defaults to
+   * `false`. Must match the value passed to a later
+   * `createAuthenticatedVpClient` for the same `peginTxid` — priming
+   * wins the cache, so a mismatch would silently pin the provider to
+   * the primed gating.
+   */
+  enableGrpcArtifactAuth?: boolean;
 }
 
 export function primeVpTokenRegistry(input: PrimeVpAuthInput): void {
@@ -27,5 +35,6 @@ export function primeVpTokenRegistry(input: PrimeVpAuthInput): void {
     peginTxid: input.peginTxid,
     authAnchorHex: input.authAnchorHex,
     pinnedServerPubkey: input.pinnedServerPubkey,
+    enableGrpcArtifactAuth: input.enableGrpcArtifactAuth,
   });
 }

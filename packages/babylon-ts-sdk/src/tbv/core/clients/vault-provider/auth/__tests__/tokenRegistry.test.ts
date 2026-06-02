@@ -12,6 +12,16 @@ import {
   GOLDEN_SIGNING_KEY_XONLY,
 } from "./goldenVectors";
 
+// The gating tests drive a real `getToken` acquire, which verifies the
+// server-identity proof. That check is exercised exhaustively in
+// serverIdentity / tokenProvider specs; here we only care which
+// bootstrap method the registry-built provider calls, so stub it out to
+// stay independent of the golden proof's wall-clock.
+vi.mock("../serverIdentity", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../serverIdentity")>()),
+  verifyServerIdentity: vi.fn(),
+}));
+
 const PEGIN_TXID_A = "a".repeat(64);
 const PEGIN_TXID_B = "b".repeat(64);
 const AUTH_ANCHOR_HEX = "c".repeat(64);
@@ -214,5 +224,73 @@ describe("vpTokenRegistry singleton", () => {
     expect(vpTokenRegistry.size).toBe(2);
     (vpTokenRegistry as VpTokenRegistry).clear();
     expect(vpTokenRegistry.size).toBe(0);
+  });
+});
+
+describe("VpTokenRegistry gRPC artifact auth gating", () => {
+  const ARTIFACTS_METHOD = "vaultProvider_requestDepositorClaimerArtifacts";
+
+  let registry: VpTokenRegistry;
+
+  beforeEach(() => {
+    vi.restoreAllMocks();
+    registry = new VpTokenRegistry();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  /**
+   * Stub `fetch` so a single token-issue acquire succeeds, and return
+   * the JSON-RPC `method` the provider put on the wire. `expires_at` is
+   * derived from the real clock (the registry doesn't expose `now`), so
+   * keep it comfortably in the future to clear the freshness check.
+   */
+  async function issueMethodFor(input: VpTokenRegistryInput): Promise<string> {
+    const expiresAt = Math.floor(Date.now() / 1000) + 3600;
+    const mockFetch = vi.fn().mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          jsonrpc: "2.0",
+          id: 1,
+          result: {
+            token: "issued-token",
+            expires_at: expiresAt,
+            server_identity: {
+              server_pubkey: PINNED_PUBKEY,
+              ephemeral_pubkey: "00".repeat(33),
+              expires_at: expiresAt,
+              signature: "00".repeat(64),
+            },
+          },
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+    vi.stubGlobal("fetch", mockFetch);
+
+    const provider = registry.getOrCreate(input);
+    await provider.getToken(ARTIFACTS_METHOD);
+
+    const body = JSON.parse(String(mockFetch.mock.calls[0]![1]!.body)) as {
+      method: string;
+    };
+    return body.method;
+  }
+
+  it("defaults to the JSON-RPC bearer for the artifact method", async () => {
+    // Flag unset: the artifact method must fall back into the
+    // JSON-RPC-subject set and mint via `auth_createDepositorToken`,
+    // the only path a proxy without ENABLE_GRPC_ARTIFACTS accepts.
+    const method = await issueMethodFor(buildInput());
+    expect(method).toBe("auth_createDepositorToken");
+  });
+
+  it("uses the gRPC bearer for the artifact method when enabled", async () => {
+    const method = await issueMethodFor(
+      buildInput({ enableGrpcArtifactAuth: true }),
+    );
+    expect(method).toBe("auth_createDepositorTokenGrpc");
   });
 });

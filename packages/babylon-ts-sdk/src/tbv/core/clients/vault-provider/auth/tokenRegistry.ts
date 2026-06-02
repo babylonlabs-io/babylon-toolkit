@@ -17,6 +17,15 @@ export interface VpTokenRegistryInput {
   peginTxid: string;
   authAnchorHex: string;
   pinnedServerPubkey: OnChainBtcPubkey;
+  /**
+   * Opt into gRPC-subject auth for {@link GRPC_AUTH_GATED_METHODS}
+   * (currently the artifact stream). Defaults to `false`: those methods
+   * fall back into the JSON-RPC-subject set and authenticate via
+   * `auth_createDepositorToken`, matching a proxy that runs with
+   * `ENABLE_GRPC_ARTIFACTS` off. Set `true` only against a proxy that
+   * serves `auth_createDepositorTokenGrpc`.
+   */
+  enableGrpcArtifactAuth?: boolean;
 }
 
 interface RegistryEntry {
@@ -55,13 +64,21 @@ export class VpTokenRegistry {
       return existing.provider;
     }
 
+    // gRPC-subject auth is opt-in. When off (default), the gRPC-gated
+    // methods are folded into the JSON-RPC-subject set so they keep
+    // minting their bearer via `auth_createDepositorToken` — the
+    // pre-PR-#1789 behaviour, and the only path a proxy without
+    // `ENABLE_GRPC_ARTIFACTS` accepts.
+    const useGrpcAuth = input.enableGrpcArtifactAuth ?? false;
     const provider = new VpTokenProvider({
       client: input.client,
       peginTxid: input.peginTxid,
       authAnchorHex: input.authAnchorHex,
       pinnedServerPubkey: input.pinnedServerPubkey,
-      authGatedMethods: AUTH_GATED_METHODS,
-      grpcGatedMethods: GRPC_AUTH_GATED_METHODS,
+      authGatedMethods: useGrpcAuth
+        ? AUTH_GATED_METHODS
+        : new Set([...AUTH_GATED_METHODS, ...GRPC_AUTH_GATED_METHODS]),
+      grpcGatedMethods: useGrpcAuth ? GRPC_AUTH_GATED_METHODS : new Set(),
     });
     this.entries.set(input.peginTxid, {
       provider,
