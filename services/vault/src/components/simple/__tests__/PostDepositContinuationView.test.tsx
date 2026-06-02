@@ -62,6 +62,7 @@ vi.mock("@/models/peginStateMachine", () => ({
     REFUND_BROADCAST: "refund_broadcast",
   },
   getPeginDisplayStep: vi.fn(() => "AWAIT_BTC_CONFIRMATION"),
+  getWarningPeginDisplayStep: vi.fn(() => "AWAIT_BTC_CONFIRMATION"),
   // Mirrors the production set; ContractStatus literals match the mock above.
   USER_ACTIONABLE_PEGIN_ACTIONS: new Set([
     "SUBMIT_WOTS_KEY",

@@ -7,6 +7,7 @@
  * `payoutSigningProgress`.
  */
 
+import { Callout } from "@babylonlabs-io/core-ui";
 import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
 import { useCallback, useState } from "react";
 import type { Address, Hex } from "viem";
@@ -49,9 +50,11 @@ export function DepositSignContent({
     currentVaultIndex,
     processing,
     error,
+    lastWarnings,
     isWaiting,
     payoutSigningProgress,
     peginSigningProgress,
+    perVaultSteps,
     btcConfirmationDetail,
   } = useDepositFlow({
     vaultAmounts,
@@ -109,6 +112,11 @@ export function DepositSignContent({
         </button>
       </div>
     );
+  const warningCallouts = lastWarnings.map((warning) => (
+    <Callout key={warning} variant="warning">
+      {warning}
+    </Callout>
+  ));
 
   if (
     continuationVaultIds &&
@@ -118,6 +126,7 @@ export function DepositSignContent({
     return (
       <>
         {banner}
+        {warningCallouts}
         <PostDepositContinuationContent
           vaultIds={continuationVaultIds}
           depositorEthAddress={flowParams.depositorEthAddress}
@@ -130,6 +139,7 @@ export function DepositSignContent({
   return (
     <>
       {banner}
+      {warningCallouts}
 
       <DepositProgressView
         currentStep={currentStep}
@@ -142,6 +152,7 @@ export function DepositSignContent({
         peginSigningProgress={peginSigningProgress}
         vaultCount={vaultAmounts.length}
         currentVaultIndex={currentVaultIndex}
+        perVaultSteps={perVaultSteps}
         onClose={handleClose}
         btcConfirmationDetail={btcConfirmationDetail}
       />

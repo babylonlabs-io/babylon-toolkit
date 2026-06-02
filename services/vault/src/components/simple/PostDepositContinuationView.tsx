@@ -9,9 +9,9 @@ import { deriveSplitVaultProgress } from "@/hooks/deposit/useSplitVaultProgress"
 import { useBtcDepthStartedAt } from "@/hooks/useBtcDepthStartedAt";
 import {
   getPeginDisplayStep,
+  getWarningPeginDisplayStep,
   isVaultActivated,
   isVaultPastActivation,
-  LocalStorageStatus,
   PeginAction,
   type PeginState,
   USER_ACTIONABLE_PEGIN_ACTIONS,
@@ -71,29 +71,6 @@ function hasActionableStep(
     }
     return true;
   });
-}
-
-/**
- * Step to freeze the stepper on for a warning (terminal failure) vault.
- *
- * `getPeginDisplayStep` returns `null` for warning states by design — it
- * never shows progress for a failed deposit. We derive a frozen step from
- * the vault's last persisted local status so the stepper shows the point
- * of failure rather than a generic "Awaiting BTC confirmation."
- */
-function stepForWarningVault(state: PeginState): DepositFlowStep {
-  switch (state.localStatus) {
-    case LocalStorageStatus.CONFIRMED:
-      return DepositFlowStep.ACTIVATE_VAULT;
-    case LocalStorageStatus.PAYOUT_SIGNED:
-      return DepositFlowStep.AWAIT_VP_VERIFICATION;
-    case LocalStorageStatus.CONFIRMING:
-      return DepositFlowStep.AWAIT_BTC_CONFIRMATION;
-    case LocalStorageStatus.PENDING:
-      return DepositFlowStep.BROADCAST_PRE_PEGIN;
-    default:
-      return DepositFlowStep.AWAIT_BTC_CONFIRMATION;
-  }
 }
 
 function StatusView({
@@ -228,8 +205,21 @@ export function PostDepositContinuationView({
   const vaultCount = siblingVaultIds.length || 1;
 
   if (!currentVaultId) {
-    const warning = vaultIds
-      .map((id) => getPollingResult(id)?.peginState)
+    if (vaultIds.length === 0) {
+      return (
+        <StatusView
+          currentStep={DepositFlowStep.COMPLETED}
+          isComplete
+          onClose={onClose}
+          vaultCount={vaultCount}
+          currentVaultIndex={null}
+        />
+      );
+    }
+
+    const pollingResults = vaultIds.map((id) => getPollingResult(id));
+    const warning = pollingResults
+      .map((result) => result?.peginState)
       .find((state) => state?.displayVariant === "warning");
     if (warning) {
       // Freeze the stepper at the point of failure based on the vault's
@@ -240,13 +230,48 @@ export function PostDepositContinuationView({
       );
       return (
         <StatusView
-          currentStep={stepForWarningVault(warning)}
+          currentStep={getWarningPeginDisplayStep(warning.localStatus)}
           error={mapDepositError(
             warning.message ?? COPY.common.somethingWentWrong.body,
           )}
           onClose={onClose}
           vaultCount={vaultCount}
           currentVaultIndex={warningIndex >= 0 ? warningIndex : null}
+        />
+      );
+    }
+
+    const hasMissingOrLoadingVault = pollingResults.some(
+      (result) => !result || result.loading,
+    );
+    const allVaultsActivated =
+      pollingResults.length > 0 &&
+      pollingResults.every((result) => isVaultActivated(result?.peginState));
+
+    if (hasMissingOrLoadingVault || !allVaultsActivated) {
+      const perVaultSteps = pollingResults.map((result) => {
+        if (!result || result.loading) {
+          return DepositFlowStep.AWAIT_BTC_CONFIRMATION;
+        }
+        const displayStep = getPeginDisplayStep(result.peginState);
+        if (displayStep !== null) return displayStep;
+        if (result.peginState.displayVariant === "warning") {
+          return getWarningPeginDisplayStep(result.peginState.localStatus);
+        }
+        return isVaultPastActivation(result.peginState)
+          ? DepositFlowStep.COMPLETED
+          : DepositFlowStep.AWAIT_BTC_CONFIRMATION;
+      });
+
+      return (
+        <StatusView
+          currentStep={DepositFlowStep.AWAIT_BTC_CONFIRMATION}
+          isProcessing
+          canContinueInBackground
+          onClose={onClose}
+          vaultCount={vaultCount}
+          currentVaultIndex={null}
+          perVaultSteps={perVaultSteps}
         />
       );
     }
