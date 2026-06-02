@@ -27,7 +27,7 @@ import { AaveConfigProvider } from "../../applications/aave/context";
 import { useBTCWallet, useETHWallet } from "../../context/wallet";
 import { AddressScreeningBanner } from "../shared/AddressScreeningBanner";
 import { AddressTypeBanner } from "../shared/AddressTypeBanner";
-import { GeoBlockBanner } from "../shared/GeoBlockBanner";
+import { GeoBlockState } from "../shared/GeoBlockState";
 import SimpleDeposit from "../simple/SimpleDeposit";
 import { Connect } from "../Wallet";
 
@@ -113,7 +113,6 @@ export default function RootLayout() {
     <div className="relative h-full min-h-svh w-full bg-surface">
       <div className="flex min-h-svh flex-col">
         <TestingBanner visible={shouldDisplayTestingMsg()} />
-        <GeoBlockBanner visible={isGeoBlocked} />
         <AddressScreeningBanner
           visible={isWalletConnected && isAddressBlocked}
         />
@@ -160,41 +159,47 @@ export default function RootLayout() {
           }
         />
 
-        <Outlet
-          context={
-            {
-              openDeposit,
-            } satisfies RootLayoutContext
-          }
-        />
-        {/* On config failure, suppress the default panel (would leak
-            into page chrome) and instead surface an error modal only
-            when the user has actually opened the deposit dialog, so
-            the click has a visible recovery path. */}
-        <AaveConfigProvider
-          errorFallback={
-            <FullScreenDialog
-              open={isDepositOpen}
-              onClose={closeDeposit}
-              className="items-center justify-center p-6"
+        {isGeoBlocked ? (
+          <GeoBlockState />
+        ) : (
+          <>
+            <Outlet
+              context={
+                {
+                  openDeposit,
+                } satisfies RootLayoutContext
+              }
+            />
+            {/* On config failure, suppress the default panel (would leak
+                into page chrome) and instead surface an error modal only
+                when the user has actually opened the deposit dialog, so
+                the click has a visible recovery path. */}
+            <AaveConfigProvider
+              errorFallback={
+                <FullScreenDialog
+                  open={isDepositOpen}
+                  onClose={closeDeposit}
+                  className="items-center justify-center p-6"
+                >
+                  <div className="mx-auto flex w-full max-w-[520px] flex-col items-center gap-3 text-center">
+                    <Text variant="body1" className="font-medium">
+                      {COPY.common.somethingWentWrong.heading}
+                    </Text>
+                    <Text variant="body2" className="text-accent-secondary">
+                      {COPY.common.somethingWentWrong.body}
+                    </Text>
+                  </div>
+                </FullScreenDialog>
+              }
             >
-              <div className="mx-auto flex w-full max-w-[520px] flex-col items-center gap-3 text-center">
-                <Text variant="body1" className="font-medium">
-                  {COPY.common.somethingWentWrong.heading}
-                </Text>
-                <Text variant="body2" className="text-accent-secondary">
-                  {COPY.common.somethingWentWrong.body}
-                </Text>
-              </div>
-            </FullScreenDialog>
-          }
-        >
-          <SimpleDeposit
-            open={isDepositOpen}
-            onClose={closeDeposit}
-            initialAmountBtc={initialDepositAmountBtc}
-          />
-        </AaveConfigProvider>
+              <SimpleDeposit
+                open={isDepositOpen}
+                onClose={closeDeposit}
+                initialAmountBtc={initialDepositAmountBtc}
+              />
+            </AaveConfigProvider>
+          </>
+        )}
         <div className="mt-auto">
           {/* `[&>div]:!max-w-[1400px]` caps the Footer's inner Container at
               1400px, overriding the `container` class's 1536px max-width at
