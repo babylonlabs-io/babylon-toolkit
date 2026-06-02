@@ -173,7 +173,7 @@ export const COPY = {
       confirmingDeposit:
         "Awaiting Pre-Pegin inclusion (1 Bitcoin block · ~10 min)",
       submitWotsKey: "Set up Winternitz One-Time Signature (WOTS)",
-      awaitPayoutTransactions: "Awaiting Pre-Pegin confirmations",
+      awaitPayoutTransactions: "Prepare claim and payout transactions",
       authenticateSession: "Authenticate session with vault provider",
       signPayouts: "Sign payout transactions",
       signRecoveryTxs: "Sign recovery transactions",
@@ -236,11 +236,11 @@ export const COPY = {
           blocksLeft === 1 ? "block" : "blocks"
         })`,
       finalizing: "Finalizing...",
+      waitingForPayoutPrep:
+        "Waiting for vault provider to prepare claim and payout transactions...",
       bitcoinTx: "Pre-Pegin Bitcoin transaction",
       // Compact summary rendered inline on PendingDepositCard during the
-      // AWAIT_PAYOUT_TRANSACTIONS wait. Mirrors the modal panel's "blocks
-      // left + minutes" framing (the label "Awaiting Pre-Pegin confirmations"
-      // already implies the goal, so we only need to show remaining work).
+      // AWAIT_PAYOUT_TRANSACTIONS wait while BTC depth is still accruing.
       cardSummaryProgressing: (blocksLeft: number, minutes: number) =>
         `${blocksLeft} BTC ${
           blocksLeft === 1 ? "block" : "blocks"
@@ -383,6 +383,8 @@ export const COPY = {
         `Vault ${vaultNumber}: WOTS key submission skipped - vault provider was not ready before the readiness timeout`,
       wotsReadinessTerminal: (vaultNumber: number) =>
         `Vault ${vaultNumber}: WOTS key submission skipped - vault provider reported this BTC Vault cannot continue`,
+      payoutReadinessTerminal: (vaultNumber: number) =>
+        `Vault ${vaultNumber}: Payout signing skipped - vault provider reported this BTC Vault cannot continue`,
       wotsSubmissionFailed: (vaultNumber: number, error: string) =>
         `Vault ${vaultNumber}: WOTS key submission failed - ${error}`,
       payoutSigningFailed: (vaultNumber: number, error: string) =>

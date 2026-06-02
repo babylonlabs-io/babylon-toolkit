@@ -32,12 +32,12 @@ function formatStartedAt(timestamp: number): string {
 /**
  * Combined estimate text: minutes left plus the count of BTC blocks still
  * to be mined. Once the depth is reached there is no wait left to estimate,
- * so it reads as finalizing instead.
+ * so it switches to the provider payout-prep wait.
  */
 function formatEstimate(confirmations: number, requiredDepth: number): string {
   const copy = COPY.deposit.btcConfirmation;
   const minutes = computeRemainingEstimateMinutes(confirmations, requiredDepth);
-  if (minutes === null) return copy.finalizing;
+  if (minutes === null) return copy.waitingForPayoutPrep;
   return copy.estRemainingValue(minutes, requiredDepth - confirmations);
 }
 
@@ -49,6 +49,7 @@ export function BtcConfirmationDetail({
   stacked = false,
 }: BtcConfirmationDetailProps) {
   const copy = COPY.deposit.btcConfirmation;
+  const depthReached = confirmations !== null && confirmations >= requiredDepth;
   // Stacked: label on its own line above the value (narrow split columns).
   // Inline: label left / value right (full-width single-column flow).
   const rowClass = stacked
@@ -68,7 +69,7 @@ export function BtcConfirmationDetail({
 
       <div className={rowClass}>
         <Text as="span" variant="body2" className="text-accent-secondary">
-          {copy.estRemaining}:
+          {depthReached ? COPY.deposit.waitDetails.status : copy.estRemaining}:
         </Text>
         {confirmations === null ? (
           <Loader size={14} className="text-accent-primary" />

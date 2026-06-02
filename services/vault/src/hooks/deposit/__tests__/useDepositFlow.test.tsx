@@ -169,6 +169,7 @@ vi.mock("../depositFlowSteps", async () => {
     signAndSubmitPayouts: vi.fn(),
     signProofOfPossession: vi.fn(),
     submitWotsPublicKey: vi.fn(),
+    waitForPayoutReadiness: vi.fn(),
     waitForWotsReadiness: vi.fn(),
   };
 });
@@ -280,6 +281,7 @@ async function setupDefaultMocks() {
     registerPeginBatchAndWait,
     signAndSubmitPayouts,
     signProofOfPossession,
+    waitForPayoutReadiness,
     waitForWotsReadiness,
   } = vi.mocked(await import("../depositFlowSteps"));
 
@@ -344,6 +346,10 @@ async function setupDefaultMocks() {
     ],
   });
   vi.mocked(waitForWotsReadiness).mockResolvedValue({
+    readyVaultIds: new Set(["0xVault0Id", "0xVault1Id"] as Hex[]),
+    terminalVaultIds: new Set<Hex>(),
+  });
+  vi.mocked(waitForPayoutReadiness).mockResolvedValue({
     readyVaultIds: new Set(["0xVault0Id", "0xVault1Id"] as Hex[]),
     terminalVaultIds: new Set<Hex>(),
   });
@@ -916,6 +922,83 @@ describe("useDepositFlow", () => {
       expect(signAndSubmitPayouts).toHaveBeenCalledWith(
         expect.objectContaining({ vaultId: "0xVault1Id" }),
       );
+    });
+
+    it("hands off without warning when payout readiness is not reached in the initial modal", async () => {
+      const { signAndSubmitPayouts, waitForPayoutReadiness } = vi.mocked(
+        await import("../depositFlowSteps"),
+      );
+
+      vi.mocked(waitForPayoutReadiness).mockResolvedValueOnce({
+        readyVaultIds: new Set<Hex>(),
+        terminalVaultIds: new Set<Hex>(),
+      });
+
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+      const depositResult = await executeDepositFlow(result);
+
+      expect(depositResult).not.toBeNull();
+      expect(signAndSubmitPayouts).not.toHaveBeenCalled();
+      expect(result.current.lastWarnings).not.toEqual(
+        expect.arrayContaining([
+          expect.stringContaining("Payout signing failed"),
+        ]),
+      );
+      expect(result.current.perVaultSteps).toEqual([
+        DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS,
+        DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS,
+      ]);
+    });
+
+    it("continues ready siblings while not-ready payout siblings stay at payout preparation", async () => {
+      const { signAndSubmitPayouts, waitForPayoutReadiness } = vi.mocked(
+        await import("../depositFlowSteps"),
+      );
+
+      vi.mocked(waitForPayoutReadiness).mockResolvedValueOnce({
+        readyVaultIds: new Set(["0xVault1Id"] as Hex[]),
+        terminalVaultIds: new Set<Hex>(),
+      });
+
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+      const depositResult = await executeDepositFlow(result);
+
+      expect(depositResult).not.toBeNull();
+      expect(signAndSubmitPayouts).toHaveBeenCalledTimes(1);
+      expect(signAndSubmitPayouts).toHaveBeenCalledWith(
+        expect.objectContaining({ vaultId: "0xVault1Id" }),
+      );
+      expect(result.current.perVaultSteps).toEqual([
+        DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS,
+        DepositFlowStep.AWAIT_VP_VERIFICATION,
+      ]);
+    });
+
+    it("does not surface SDK payout-readiness polling timeout as payout signing failure", async () => {
+      const { signAndSubmitPayouts } = vi.mocked(
+        await import("../depositFlowSteps"),
+      );
+
+      vi.mocked(signAndSubmitPayouts).mockRejectedValue(
+        new Error(
+          "Polling timeout after 1200000ms for pegin abcdef12… (target: PendingDepositorSignatures, PendingACKs, PendingActivation, ActivatedPendingBroadcast, Activated)",
+        ),
+      );
+
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+      const depositResult = await executeDepositFlow(result);
+
+      expect(depositResult).not.toBeNull();
+      expect(signAndSubmitPayouts).toHaveBeenCalledTimes(2);
+      expect(result.current.lastWarnings).not.toEqual(
+        expect.arrayContaining([
+          expect.stringContaining("Payout signing failed"),
+        ]),
+      );
+      expect(result.current.perVaultSteps).toEqual([
+        DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS,
+        DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS,
+      ]);
     });
 
     it("should retry WOTS submission once before skipping vault", async () => {

@@ -44,6 +44,14 @@ export type {
   WotsReadinessResult,
 } from "./wotsSubmission";
 
+export {
+  isPayoutReadinessTimeout,
+  waitForPayoutReadiness,
+} from "./payoutReadiness";
+export type {
+  PayoutReadinessResult,
+  WaitForPayoutReadinessParams,
+} from "./payoutReadiness";
 // Step 4: Payout signing
 export { payoutSigningStep, signAndSubmitPayouts } from "./payoutSigning";
 export type { SignAndSubmitPayoutsParams } from "./payoutSigning";
