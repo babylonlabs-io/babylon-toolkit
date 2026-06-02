@@ -1,30 +1,15 @@
 /**
  * Deposit Flow Hook
  *
- * Orchestrates the batch-first deposit flow. A single vault is just a batch of 1.
- * Creates ONE Pre-PegIn BTC transaction with N HTLC outputs (one per vault) and
- * registers them all atomically on Ethereum via submitPeginRequestBatch().
+ * Batch-first deposit: one Pre-PegIn BTC tx with N HTLC outputs (one per vault),
+ * registered atomically on Ethereum via submitPeginRequestBatch — all vaults
+ * succeed or none, and the Pre-PegIn is broadcast only after ETH registration,
+ * so a failed batch never strands BTC in unregistered HTLCs. A single vault is
+ * a batch of 1.
  *
- * Flow:
- * 0. Validation — check wallets, UTXOs, pubkeys, array alignment
- * 1. Get shared resources (ETH wallet client)
- * 2. Prepare pegin via SDK orchestrator (sizing pass + wallet root popup +
- *    per-vault WOTS / hashlock derivation + commit pass with batch PSBT signing).
- *    Returns broadcast-ready Pre-PegIn + per-vault derived secrets.
- * 3a. Sign BIP-322 proof-of-possession (one wallet popup per deposit session)
- * 3b. Build batch request array (recompute hashlocks from returned secrets)
- * 3c. Re-check UTXO availability before committing to ETH
- * 3d. Batch ETH registration (single submitPeginRequestBatch tx for all vaults)
- * 3e. Build pegin results from batch response
- * 4a. Save pending pegins to localStorage (PENDING status; resume cache)
- * 4b. Broadcast Pre-PegIn transaction to Bitcoin, update status to CONFIRMING
- * 5. Submit WOTS keys, poll VP, sign payout transactions
- * 6. Download vault artifacts (per vault, user-driven)
- * 7. Wait for contract verification, then activate vaults (reveal HTLC secret)
- *
- * ETH registration is atomic: submitPeginRequestBatch registers all vaults in a
- * single transaction, so either all succeed or all fail. If it fails, the Pre-PegIn
- * is NOT broadcast, so no BTC gets locked in unregistered HTLC outputs.
+ * Runs through WOTS submission and payout signing, then parks at
+ * AWAIT_VP_VERIFICATION and hands off to the continuation view (artifact
+ * download + activation happen at its ActivationGate).
  */
 
 import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";

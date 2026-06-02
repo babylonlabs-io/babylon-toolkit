@@ -87,7 +87,7 @@ vi.mock("@/components/deposit/DepositSignModal/depositStepHelpers", () => ({
       isWaiting: boolean,
       error: string | null,
     ) => {
-      const isComplete = currentStep === 17; // DepositFlowStep.COMPLETED
+      const isComplete = currentStep === 16; // DepositFlowStep.COMPLETED
       return {
         isComplete,
         isProcessing: (processing || isWaiting) && !error && !isComplete,
@@ -483,7 +483,7 @@ describe("ResumeSignContent — reactive verification terminal", () => {
     const { getByTestId } = renderSign();
 
     // RETRIEVE_SECRET
-    expect(getByTestId("step").textContent).toBe("14");
+    expect(getByTestId("step").textContent).toBe("13");
     expect(getByTestId("terminal").textContent?.toLowerCase()).toContain(
       "ready to activate",
     );
@@ -497,7 +497,7 @@ describe("ResumeSignContent — reactive verification terminal", () => {
     const { getByTestId } = renderSign();
 
     // COMPLETED — the whole flow is done, so no stale "ready to activate".
-    expect(getByTestId("step").textContent).toBe("17");
+    expect(getByTestId("step").textContent).toBe("16");
     expect(getByTestId("terminal").textContent).toBe("");
   });
 });
@@ -536,7 +536,7 @@ describe("ResumeActivationContent — reactive activation terminal", () => {
     const { getByTestId } = renderActivation();
 
     // AWAIT_ACTIVATION_CONFIRMATION
-    await waitFor(() => expect(getByTestId("step").textContent).toBe("16"));
+    await waitFor(() => expect(getByTestId("step").textContent).toBe("15"));
   });
 
   it("completes once the contract reports ACTIVE", async () => {
@@ -547,6 +547,6 @@ describe("ResumeActivationContent — reactive activation terminal", () => {
     const { getByTestId } = renderActivation();
 
     // COMPLETED
-    await waitFor(() => expect(getByTestId("step").textContent).toBe("17"));
+    await waitFor(() => expect(getByTestId("step").textContent).toBe("16"));
   });
 });
