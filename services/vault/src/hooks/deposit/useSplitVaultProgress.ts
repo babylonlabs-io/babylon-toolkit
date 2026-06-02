@@ -74,7 +74,13 @@ export function deriveSplitVaultProgress(
     // is finer-grained than the polled display step.
     if (index === currentVaultIndex) return activeStep;
     const state = getPollingResult(id)?.peginState;
-    if (!state) return activeStep;
+    // Unpolled non-active sibling: cap at the shared-trunk floor once the active
+    // vault diverges, so it never mirrors the active step ahead (false "signed").
+    if (!state) {
+      return activeStep <= DepositFlowStep.AWAIT_BTC_CONFIRMATION
+        ? activeStep
+        : DepositFlowStep.AWAIT_BTC_CONFIRMATION;
+    }
     const displayStep = getPeginDisplayStep(state);
     // An in-progress sibling has its own display step (this also covers the
     // optimistic VERIFIED+CONFIRMED → AWAIT_ACTIVATION_CONFIRMATION case).

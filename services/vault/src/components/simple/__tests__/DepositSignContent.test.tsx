@@ -18,8 +18,6 @@ vi.mock("@/hooks/deposit/useDepositFlow", () => ({
     isWaiting: false,
     payoutSigningProgress: null,
     peginSigningProgress: null,
-    artifactDownloadInfo: null,
-    continueAfterArtifactDownload: vi.fn(),
     btcConfirmationDetail: null,
   }),
 }));
@@ -41,10 +39,6 @@ vi.mock("../PostDepositContinuationContent", () => ({
 
 vi.mock("../DepositProgressView", () => ({
   DepositProgressView: () => <div data-testid="progress" />,
-}));
-
-vi.mock("@/components/deposit/ArtifactDownloadModal", () => ({
-  ArtifactDownloadModal: () => <div data-testid="artifact" />,
 }));
 
 function renderContent(

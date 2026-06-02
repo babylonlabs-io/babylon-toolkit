@@ -18,10 +18,15 @@ vi.mock("@/infrastructure", () => ({ logger: { error: vi.fn() } }));
 // the module under test only needs the enum. The test and the module share
 // this mock, so the enum values stay consistent between them.
 vi.mock("@/hooks/deposit/depositFlowSteps", () => ({
+  // Numeric values mirror the real DepositFlowStep enum so the module's
+  // ordered comparisons (e.g. the trunk-floor cap) behave as in production.
   DepositFlowStep: {
-    RETRIEVE_SECRET: "RETRIEVE_SECRET",
-    AWAIT_ACTIVATION_CONFIRMATION: "AWAIT_ACTIVATION_CONFIRMATION",
-    COMPLETED: "COMPLETED",
+    BROADCAST_PRE_PEGIN: 5,
+    AWAIT_BTC_CONFIRMATION: 6,
+    AWAIT_VP_VERIFICATION: 12,
+    RETRIEVE_SECRET: 13,
+    AWAIT_ACTIVATION_CONFIRMATION: 15,
+    COMPLETED: 16,
   },
 }));
 vi.mock("@/models/peginStateMachine", () => ({
@@ -94,5 +99,51 @@ describe("deriveSplitVaultProgress", () => {
     expect(perVaultSteps?.[1]).toBe(
       DepositFlowStep.AWAIT_ACTIVATION_CONFIRMATION,
     );
+  });
+
+  it("renders a sibling with no polled state at the shared-trunk floor, not the active vault's step", () => {
+    // The active vault is mid-payout (AWAIT_VP_VERIFICATION). A sibling whose
+    // polling result hasn't loaded yet (getPollingResult → undefined) must NOT
+    // mirror the active vault's ahead step — that falsely shows it as signed.
+    // It renders the trunk floor every registered+broadcast sibling has reached.
+    const getPollingResult = pollingFor({
+      "0xactive": {
+        displayStep: DepositFlowStep.AWAIT_VP_VERIFICATION,
+        pastActivation: false,
+      },
+      // "0xunpolled" intentionally absent → getPollingResult returns undefined.
+    });
+
+    const { perVaultSteps } = deriveSplitVaultProgress(
+      getPollingResult,
+      ["0xactive", "0xunpolled"],
+      "0xactive",
+      DepositFlowStep.AWAIT_VP_VERIFICATION,
+    );
+
+    expect(perVaultSteps?.[1]).toBe(DepositFlowStep.AWAIT_BTC_CONFIRMATION);
+  });
+
+  it("tracks the shared-trunk step for an unpolled sibling during the pre-broadcast phase", () => {
+    // While the batch is still on the shared trunk (e.g. resume-broadcast, where
+    // active = BROADCAST_PRE_PEGIN), an unpolled sibling tracks the active trunk
+    // step — flooring it to AWAIT_BTC_CONFIRMATION would overstate it as already
+    // past broadcast.
+    const getPollingResult = pollingFor({
+      "0xactive": {
+        displayStep: DepositFlowStep.BROADCAST_PRE_PEGIN,
+        pastActivation: false,
+      },
+      // "0xunpolled" intentionally absent → getPollingResult returns undefined.
+    });
+
+    const { perVaultSteps } = deriveSplitVaultProgress(
+      getPollingResult,
+      ["0xactive", "0xunpolled"],
+      "0xactive",
+      DepositFlowStep.BROADCAST_PRE_PEGIN,
+    );
+
+    expect(perVaultSteps?.[1]).toBe(DepositFlowStep.BROADCAST_PRE_PEGIN);
   });
 });

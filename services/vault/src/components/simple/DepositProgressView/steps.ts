@@ -83,8 +83,8 @@ export const TRUNK_END_VISUAL_STEP = 6;
 /**
  * Returns the per-vault current step for a single vault in a split deposit.
  *
- * The deposit flow processes WOTS, payout signing, and artifact download
- * sequentially across vaults — at any point one vault is the "active" one
+ * The deposit flow processes WOTS and payout signing sequentially across
+ * vaults — at any point one vault is the "active" one
  * (tracked by `currentVaultIndex`) while siblings have either finished the
  * active phase or are queued for their turn. This function maps that shared
  * state into a per-vault step so each column in the split UI shows the right
@@ -123,7 +123,7 @@ export function derivePerVaultStep(
       : DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS;
   }
 
-  // Artifact download / activation phase (visual step 13+).
+  // Retrieve-secret / activation phase (visual step 13+).
   return vaultIndex < currentVaultIndex
     ? DepositFlowStep.ACTIVATE_VAULT
     : DepositFlowStep.AWAIT_VP_VERIFICATION;
@@ -219,9 +219,6 @@ export function getVisualStep(currentStep: DepositFlowStep): number {
       return 11;
     case DepositFlowStep.AWAIT_VP_VERIFICATION:
       return 12;
-    // ARTIFACT_DOWNLOAD is surfaced as a modal overlay rather than its own
-    // stepper row, so it collapses onto the RETRIEVE_SECRET visual step.
-    case DepositFlowStep.ARTIFACT_DOWNLOAD:
     case DepositFlowStep.RETRIEVE_SECRET:
       return 13;
     case DepositFlowStep.ACTIVATE_VAULT:

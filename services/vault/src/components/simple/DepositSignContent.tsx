@@ -11,7 +11,6 @@ import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
 import { useCallback, useState } from "react";
 import type { Address, Hex } from "viem";
 
-import { ArtifactDownloadModal } from "@/components/deposit/ArtifactDownloadModal";
 import { computeDepositDerivedState } from "@/components/deposit/DepositSignModal/depositStepHelpers";
 import { COPY } from "@/copy";
 import { useDepositFlow } from "@/hooks/deposit/useDepositFlow";
@@ -53,8 +52,6 @@ export function DepositSignContent({
     isWaiting,
     payoutSigningProgress,
     peginSigningProgress,
-    artifactDownloadInfo,
-    continueAfterArtifactDownload,
     btcConfirmationDetail,
   } = useDepositFlow({
     vaultAmounts,
@@ -148,19 +145,6 @@ export function DepositSignContent({
         onClose={handleClose}
         btcConfirmationDetail={btcConfirmationDetail}
       />
-
-      {artifactDownloadInfo && (
-        <ArtifactDownloadModal
-          open
-          onClose={handleClose}
-          onComplete={continueAfterArtifactDownload}
-          providerAddress={artifactDownloadInfo.providerAddress}
-          peginTxid={artifactDownloadInfo.peginTxid}
-          depositorPk={artifactDownloadInfo.depositorPk}
-          vaultId={artifactDownloadInfo.vaultId}
-          unsignedPrePeginTxHex={artifactDownloadInfo.unsignedPrePeginTxHex}
-        />
-      )}
     </>
   );
 }

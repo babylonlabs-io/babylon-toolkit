@@ -69,12 +69,6 @@ describe("getStepLabel", () => {
     expect(getVisualStep(DepositFlowStep.AWAIT_BTC_CONFIRMATION)).toBe(6);
   });
 
-  it("collapses ARTIFACT_DOWNLOAD onto the RETRIEVE_SECRET visual step (modal overlay)", () => {
-    expect(getVisualStep(DepositFlowStep.ARTIFACT_DOWNLOAD)).toBe(
-      getVisualStep(DepositFlowStep.RETRIEVE_SECRET),
-    );
-  });
-
   it("numbers post-confirmation steps with no gap where VP-ingestion was", () => {
     expect(getVisualStep(DepositFlowStep.SUBMIT_WOTS_KEYS)).toBe(7);
     expect(getVisualStep(DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS)).toBe(8);
@@ -260,15 +254,16 @@ describe("derivePerVaultStep", () => {
     );
   });
 
-  it("places earlier vaults past artifact download during the artifact phase", () => {
-    // Flow is downloading vault 1's artifacts — vault 0 already downloaded.
-    expect(derivePerVaultStep(DepositFlowStep.ARTIFACT_DOWNLOAD, 1, 0)).toBe(
+  it("places earlier vaults past payout signing during the retrieve-secret/activation phase", () => {
+    // Flow is at RETRIEVE_SECRET for vault 1 — vault 0 is further along
+    // (heading into activation), vault 2 is still waiting on the VP.
+    expect(derivePerVaultStep(DepositFlowStep.RETRIEVE_SECRET, 1, 0)).toBe(
       DepositFlowStep.ACTIVATE_VAULT,
     );
-    expect(derivePerVaultStep(DepositFlowStep.ARTIFACT_DOWNLOAD, 1, 1)).toBe(
-      DepositFlowStep.ARTIFACT_DOWNLOAD,
+    expect(derivePerVaultStep(DepositFlowStep.RETRIEVE_SECRET, 1, 1)).toBe(
+      DepositFlowStep.RETRIEVE_SECRET,
     );
-    expect(derivePerVaultStep(DepositFlowStep.ARTIFACT_DOWNLOAD, 1, 2)).toBe(
+    expect(derivePerVaultStep(DepositFlowStep.RETRIEVE_SECRET, 1, 2)).toBe(
       DepositFlowStep.AWAIT_VP_VERIFICATION,
     );
   });
