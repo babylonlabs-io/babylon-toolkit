@@ -121,16 +121,6 @@ export interface UseDepositFlowParams {
   universalChallengerBtcPubkeys: string[];
 }
 
-export interface ArtifactDownloadInfo {
-  providerAddress: string;
-  peginTxid: string;
-  depositorPk: string;
-  vaultId: Hex;
-  /** Funded (pre-signing) Pre-PegIn tx hex - lets the modal re-derive
-   * an auth anchor and re-prime the VP token registry on a cold cache. */
-  unsignedPrePeginTxHex: string;
-}
-
 export interface UseDepositFlowReturn {
   /** Execute the batch deposit flow */
   executeDeposit: () => Promise<MultiVaultDepositResult | null>;
@@ -157,10 +147,6 @@ export interface UseDepositFlowReturn {
   payoutSigningProgress: PayoutSigningProgress | null;
   /** Peg-in BTC signing progress (X of Y peg-in txs, split deposits only) */
   peginSigningProgress: PeginSigningProgress | null;
-  /** Artifact download info (when set, the UI should show the download modal) */
-  artifactDownloadInfo: ArtifactDownloadInfo | null;
-  /** Callback to continue the flow after artifact download */
-  continueAfterArtifactDownload: () => void;
   /**
    * Data backing the "Awaiting Bitcoin confirmation" detail panel, snapshotted
    * when the BTC wait begins: the timestamp, the Pre-PegIn broadcast txid, and
@@ -245,8 +231,6 @@ export function useDepositFlow(
     useState<PayoutSigningProgress | null>(null);
   const [peginSigningProgress, setPeginSigningProgress] =
     useState<PeginSigningProgress | null>(null);
-  const [artifactDownloadInfo, setArtifactDownloadInfo] =
-    useState<ArtifactDownloadInfo | null>(null);
   const [btcConfirmationDetail, setBtcConfirmationDetail] = useState<{
     startedAt: number;
     prePeginTxid: string;
@@ -254,14 +238,7 @@ export function useDepositFlow(
     depositIds: readonly string[];
   } | null>(null);
 
-  const artifactResolverRef = useRef<(() => void) | null>(null);
   const payoutClaimersDoneRef = useRef(false);
-
-  const continueAfterArtifactDownload = useCallback(() => {
-    setArtifactDownloadInfo(null);
-    artifactResolverRef.current?.();
-    artifactResolverRef.current = null;
-  }, []);
 
   // Abort controller for cancelling the flow
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -269,8 +246,6 @@ export function useDepositFlow(
   const abort = useCallback(() => {
     abortControllerRef.current?.abort();
     abortControllerRef.current = null;
-    artifactResolverRef.current?.();
-    artifactResolverRef.current = null;
   }, []);
 
   // Abort on real unmount (route change, browser back) but survive StrictMode
@@ -916,8 +891,6 @@ export function useDepositFlow(
 
         baseStep = DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS;
 
-        const payoutSignedVaultIds = new Set<string>();
-
         for (let vi = 0; vi < broadcastedResults.length; vi++) {
           const result = broadcastedResults[vi];
 
@@ -953,7 +926,6 @@ export function useDepositFlow(
               },
             });
 
-            payoutSignedVaultIds.add(result.vaultId);
             setCurrentStep(DepositFlowStep.AWAIT_VP_VERIFICATION);
           } catch (error) {
             // If the user cancelled, stop immediately — don't continue with other vaults
@@ -981,43 +953,11 @@ export function useDepositFlow(
         setPayoutSigningProgress(null);
         setCurrentVaultIndex(null);
 
-        // ========================================================================
-        // Step 6: Download Vault Artifacts (per vault, sequential)
-        // ========================================================================
-
-        const readyResults = broadcastedResults.filter((r) =>
-          payoutSignedVaultIds.has(r.vaultId),
-        );
-
-        setCurrentStep(DepositFlowStep.ARTIFACT_DOWNLOAD);
-        setIsWaiting(false);
-
-        for (const result of readyResults) {
-          if (signal.aborted) break;
-
-          // Track which vault's artifact is being downloaded so the split UI
-          // can advance only that column.
-          setCurrentVaultIndex(result.vaultIndex);
-
-          setArtifactDownloadInfo({
-            providerAddress: provider.id,
-            peginTxid: result.peginTxHash,
-            depositorPk: result.depositorBtcPubkey,
-            vaultId: result.vaultId,
-            unsignedPrePeginTxHex: result.fundedPrePeginTxHex,
-          });
-
-          await new Promise<void>((resolve) => {
-            artifactResolverRef.current = resolve;
-          });
-
-          // The X button on ArtifactDownloadModal calls abort(), which
-          // resolves the resolver above. Re-check here so a dismissal
-          // exits the loop (and triggers the abort branch below)
-          // instead of advancing as if the artifact were downloaded.
-          signal.throwIfAborted();
-        }
-
+        // Payout signing done. Each signed vault is left at AWAIT_VP_VERIFICATION
+        // (set above). The flow hands off to the post-deposit continuation view,
+        // which polls each vault and surfaces the manual artifact-download +
+        // activation step at its ActivationGate (where the user can download or
+        // explicitly skip) — so we no longer block the flow on a download here.
         setIsWaiting(true);
 
         // Snapshot the warnings into hook state so the UI can show them
@@ -1107,8 +1047,6 @@ export function useDepositFlow(
     isWaiting,
     payoutSigningProgress,
     peginSigningProgress,
-    artifactDownloadInfo,
-    continueAfterArtifactDownload,
     btcConfirmationDetail,
   };
 }

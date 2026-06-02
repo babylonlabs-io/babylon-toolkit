@@ -59,8 +59,6 @@ export enum DepositFlowStep {
   SIGN_DEPOSITOR_GRAPH = 11,
   /** Step 12: Wait for VP verification and ACK submission. */
   AWAIT_VP_VERIFICATION = 12,
-  /** Step 13: Download vault artifacts */
-  ARTIFACT_DOWNLOAD = 13,
   /** Step 14: Derive the HTLC secret from the BTC wallet, ahead of activation. */
   RETRIEVE_SECRET = 14,
   /** Step 15: Reveal HTLC secret on Ethereum to activate the vault */

@@ -10,9 +10,6 @@ function canCloseModal(
 ): boolean {
   if (hasError) return true;
   if (currentStep === DepositFlowStep.COMPLETED) return true;
-  // Artifact download is closeable when the user is actively reviewing
-  // (no current wait) or while we're waiting for VP verification.
-  if (currentStep === DepositFlowStep.ARTIFACT_DOWNLOAD) return true;
   if (
     isWaiting &&
     (currentStep === DepositFlowStep.AWAIT_BTC_CONFIRMATION ||
