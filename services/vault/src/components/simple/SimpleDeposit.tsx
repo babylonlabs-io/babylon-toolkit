@@ -168,6 +168,7 @@ function SimpleDepositContent({
 
   const isSupplementalDeposit = !!initialAmountBtc;
   const allowSplit =
+    !FeatureFlags.isSplitPeginDisabled &&
     !isSupplementalDeposit &&
     (!hasActiveVaults || FeatureFlags.isForcePartialLiquidationSplit);
 

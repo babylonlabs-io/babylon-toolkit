@@ -100,6 +100,21 @@ export default {
   },
 
   /**
+   * DISABLE_SPLIT_PEGIN feature flag
+   *
+   * Purpose: Kill-switch to suppress the split-pegin (partial-liquidation
+   * split) suggestion entirely. When enabled, the UtxoSplitSelector never
+   * renders and every deposit is single-vault — regardless of vault state or
+   * NEXT_PUBLIC_FF_FORCE_PARTIAL_LIQUIDATION_SPLIT.
+   * Why needed: Feature is on by default; this lets DevOps disable it per
+   * environment without a code change.
+   * Default: false (split is offered unless explicitly set to "true")
+   */
+  get isSplitPeginDisabled() {
+    return process.env.NEXT_PUBLIC_FF_DISABLE_SPLIT_PEGIN === "true";
+  },
+
+  /**
    * ENABLE_GRPC_ARTIFACTS feature flag
    *
    * Purpose: Routes the artifact-stream method

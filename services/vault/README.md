@@ -91,6 +91,10 @@ Create a `.env` file with the following variables:
   - Default: `false` (disabled unless explicitly set to `"true"`)
   - Set to `"true"` to bypass the active-vaults check — useful for dev/QA testing of the split deposit flow
 
+- `NEXT_PUBLIC_FF_DISABLE_SPLIT_PEGIN` - Kill-switch to suppress the split-pegin (partial-liquidation split) suggestion entirely
+  - Default: `false` (split is offered unless explicitly set to `"true"`)
+  - Set to `"true"` to hide the split selector and force single-vault deposits — overrides `NEXT_PUBLIC_FF_FORCE_PARTIAL_LIQUIDATION_SPLIT`
+
 ## Available Scripts
 
 ### Development
