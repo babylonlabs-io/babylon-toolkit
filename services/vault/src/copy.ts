@@ -143,6 +143,8 @@ export const COPY = {
     batchedDeposit: {
       groupLabel: "Batched deposit",
       broadcastHelper: "Broadcasts once for all BTC Vaults in this deposit",
+      totalLabel: (amount: string, symbol: string) =>
+        `${amount} ${symbol} total`,
     },
     warnings: {
       walletOwnershipMismatch: (truncatedPubkey: string) =>
@@ -194,9 +196,18 @@ export const COPY = {
       heading: "Deposit Progress",
       stepsCompleted: (completed: number, total: number) =>
         `${completed} of ${total} steps completed`,
+      // Inline prefix for the pending-deposit card's active-step label
+      // (e.g. "Step 6 of 15"). Sits before the bolded step label.
+      stepPrefix: (current: number, total: number) =>
+        `Step ${current} of ${total}`,
       defaultSuccessMessage: PRE_PEGIN_BROADCAST_CONFIRMATION_MESSAGE,
       doNotSpendWarning:
         "To ensure a seamless deposit, do not spend the BTC allocated for this process until the transaction is confirmed.",
+      splitVaultColumnLabel: (vaultNumber: number) =>
+        `BTC Vault ${vaultNumber}`,
+      // Accessible label for the clickable deposit card / batched group, which
+      // acts as a button opening the deposit multistepper.
+      openDetailsAria: "Open deposit details",
       buttons: {
         closeContinueLater: "Close & continue later",
         retry: "Retry",
@@ -342,6 +353,9 @@ export const COPY = {
     resume: {
       broadcastSuccessMessage: PRE_PEGIN_BROADCAST_CONFIRMATION_MESSAGE,
       activationSuccessMessage: "Your BTC Vault has been activated.",
+      // Plural variant for a split deposit, shown once every BTC Vault in the
+      // batch has been activated.
+      activationSuccessMessagePlural: "Your BTC Vaults have been activated.",
       readyToActivateMessage:
         "Your payout transactions are signed and verified. Your BTC Vault is ready to activate.",
       wotsMismatchError: WRONG_WALLET_BODY,

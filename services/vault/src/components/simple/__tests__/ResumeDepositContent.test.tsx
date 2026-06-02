@@ -162,6 +162,11 @@ vi.mock("@/utils/rpc", () => ({
 
 vi.mock("@/context/deposit/PeginPollingContext", () => ({
   useDepositPollingResult: mockUseDepositPollingResult,
+  // useSplitVaultProgress (via the Resume components) reads sibling polling
+  // state. These tests render standalone deposits (no siblingVaultIds), so the
+  // derivation returns early and never calls getPollingResult — but the hook
+  // still runs, so it must resolve to a usable shape.
+  usePeginPolling: () => ({ getPollingResult: () => undefined }),
 }));
 
 vi.mock("@/context/ProtocolParamsContext", () => ({
@@ -183,6 +188,8 @@ vi.mock("@/models/peginStateMachine", () => ({
     EXPIRED: 7,
   },
   getPeginDisplayStep: mockGetPeginDisplayStep,
+  isVaultActivated: (state: { contractStatus?: number } | undefined) =>
+    state?.contractStatus === 2 /* ACTIVE */,
 }));
 
 vi.mock("../DepositProgressView", () => ({

@@ -7,20 +7,18 @@
  *    unsignedPrePeginTx — the only indexer-sourced field required to build the
  *    refund PSBT; hashlock and htlcVout come from the on-chain contract).
  * Provides polling infrastructure, wallet state, and modal handlers for
- * sign/broadcast/refund actions on pending and expired deposits.
+ * broadcast/refund actions on pending and expired deposits. The post-broadcast
+ * actions (WOTS, payout signing, activation, artifact download) are owned by
+ * the deposit multistepper opened from the card body, not per-action modals.
  */
 
 import { useMemo } from "react";
 import type { Address } from "viem";
 
 import { useBTCWallet, useETHWallet } from "@/context/wallet";
-import { useActivationModal } from "@/hooks/deposit/useActivationModal";
 import { useAllDepositProviders } from "@/hooks/deposit/useAllDepositProviders";
-import { useArtifactDownloadModal } from "@/hooks/deposit/useArtifactDownloadModal";
 import { useBroadcastModal } from "@/hooks/deposit/useBroadcastModal";
-import { usePayoutSignModal } from "@/hooks/deposit/usePayoutSignModal";
 import { useRefundModal } from "@/hooks/deposit/useRefundModal";
-import { useWotsKeyModal } from "@/hooks/deposit/useWotsKeyModal";
 import { useBtcPublicKey } from "@/hooks/useBtcPublicKey";
 import { useVaultDeposits } from "@/hooks/useVaultDeposits";
 import { ContractStatus } from "@/models/peginStateMachine";
@@ -55,27 +53,7 @@ export function usePendingDeposits() {
     [activities],
   );
 
-  const signModal = usePayoutSignModal({
-    allActivities: activities,
-    onSuccess: refetchActivities,
-  });
-
   const broadcastModal = useBroadcastModal({
-    allActivities: activities,
-    onSuccess: refetchActivities,
-  });
-
-  const wotsKeyModal = useWotsKeyModal({
-    allActivities: activities,
-    onSuccess: refetchActivities,
-  });
-
-  const activationModal = useActivationModal({
-    allActivities: activities,
-    onSuccess: refetchActivities,
-  });
-
-  const artifactDownloadModal = useArtifactDownloadModal({
     allActivities: activities,
     onSuccess: refetchActivities,
   });
@@ -98,11 +76,7 @@ export function usePendingDeposits() {
     hasPendingDeposits: btcConnected && pendingActivities.length > 0,
     hasExpiredDeposits: btcConnected && expiredActivities.length > 0,
     refetchActivities,
-    signModal,
     broadcastModal,
-    wotsKeyModal,
-    activationModal,
-    artifactDownloadModal,
     refundModal,
   };
 }

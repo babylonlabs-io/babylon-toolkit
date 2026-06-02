@@ -47,6 +47,7 @@ export function DepositSignContent({
     executeDeposit,
     abort,
     currentStep,
+    currentVaultIndex,
     processing,
     error,
     isWaiting,
@@ -142,6 +143,8 @@ export function DepositSignContent({
         canContinueInBackground={canContinueInBackground}
         payoutSigningProgress={payoutSigningProgress}
         peginSigningProgress={peginSigningProgress}
+        vaultCount={vaultAmounts.length}
+        currentVaultIndex={currentVaultIndex}
         onClose={handleClose}
         btcConfirmationDetail={btcConfirmationDetail}
       />

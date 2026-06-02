@@ -65,7 +65,11 @@ export function CopyableHash({
           {truncated}
         </a>
       ) : (
-        <span className="text-accent-primary">{truncated}</span>
+        // No explorer link — render in the secondary (dimmer) color so the
+        // hash reads as informational text, not a clickable link. Without
+        // this, non-linked hashes pick up `text-accent-primary` and look
+        // identical to the linked siblings sitting next to them.
+        <span className="text-accent-secondary">{truncated}</span>
       )}
       <button
         type="button"

@@ -3,13 +3,16 @@
  *
  * Renders a single pending deposit as a bordered sub-card within the
  * expanded summary card. Uses VaultDetailCard for the common layout.
+ *
+ * The card itself is the action surface: when an `onCardClick` is wired
+ * (pending list) or the parent batched-group wrapper is clickable, that
+ * click opens the deposit multistepper modal which owns every per-vault
+ * flow (broadcast, WOTS, sign, activate, artifact download). The card no
+ * longer renders its own per-action button.
  */
-
-import { Button } from "@babylonlabs-io/core-ui";
 
 import {
   getActionStatus,
-  isArtifactDownloadAvailable,
   PeginAction,
 } from "@/components/deposit/actionStatus";
 import { getNetworkConfigBTC } from "@/config";
@@ -26,7 +29,12 @@ import { truncateAddress } from "@/utils/addressUtils";
 
 import { computeRemainingEstimateMinutes } from "./DepositProgressView/btcConfirmationProgress";
 import { ProgressBar } from "./DepositProgressView/ProgressBar";
-import { getStepFillPercent, getStepLabel } from "./DepositProgressView/steps";
+import {
+  getStepFillPercent,
+  getStepLabel,
+  getVisualStep,
+  TOTAL_VISUAL_STEPS,
+} from "./DepositProgressView/steps";
 import { PeginTxHashRow } from "./PeginTxHashRow";
 import { STATUS_DOT_COLORS } from "./statusColors";
 import { VaultDetailCard, VaultStatusBadge } from "./VaultDetailCard";
@@ -58,19 +66,12 @@ interface PendingDepositCardProps {
   prePeginTxHash?: string;
   providerId: string;
   vaultProviders: VaultProvider[];
-  onSignClick: (depositId: string) => void;
-  onBroadcastClick: (depositId: string) => void;
-  onWotsKeyClick: (depositId: string) => void;
-  onActivationClick: (depositId: string) => void;
-  onRefundClick: (depositId: string) => void;
-  onArtifactDownloadClick?: (depositId: string) => void;
   /**
-   * When true, the Pre-PegIn broadcast button is not rendered on this card.
-   * Set when the card sits inside a BatchedDepositGroup, where the broadcast
-   * is a batch-level action hoisted to the group. Other per-vault actions
-   * (sign, WOTS, activate, refund) still render.
+   * Optional handler invoked when the card body is clicked. Opens the
+   * deposit multistepper view for the whole batch this card belongs to.
+   * Clicks on per-row buttons/links are excluded by the underlying shell.
    */
-  suppressBroadcastAction?: boolean;
+  onCardClick?: (depositId: string) => void;
 }
 
 export function PendingDepositCard({
@@ -81,13 +82,7 @@ export function PendingDepositCard({
   prePeginTxHash,
   providerId,
   vaultProviders,
-  onSignClick,
-  onBroadcastClick,
-  onWotsKeyClick,
-  onActivationClick,
-  onRefundClick,
-  onArtifactDownloadClick,
-  suppressBroadcastAction,
+  onCardClick,
 }: PendingDepositCardProps) {
   const pollingResult = useDepositPollingResult(depositId);
 
@@ -95,48 +90,10 @@ export function PendingDepositCard({
 
   const { loading, peginState, prePeginConfirmations, requiredPrePeginDepth } =
     pollingResult;
+  // `getActionStatus` still drives the disabled-with-tooltip state for
+  // wallet-ownership mismatch. Action triggering itself is no longer the
+  // card's job — the parent's click handler owns that.
   const status = getActionStatus(pollingResult);
-  // The Pre-PegIn broadcast is batch-level: when this card is inside a
-  // BatchedDepositGroup the broadcast button is hoisted to the group and
-  // suppressed here. Other per-vault actions still render.
-  const broadcastSuppressed =
-    !!suppressBroadcastAction &&
-    (status.type === "available" || status.type === "disabled") &&
-    status.action?.action === PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN;
-  const hasAction =
-    (status.type === "available" ||
-      (status.type === "disabled" && !!status.action)) &&
-    !broadcastSuppressed;
-  const isActionable = status.type === "available" && !broadcastSuppressed;
-  const showArtifactDownload =
-    onArtifactDownloadClick && isArtifactDownloadAvailable(pollingResult);
-
-  const handleClick = () => {
-    if (status.type !== "available") return;
-
-    const { action } = status.action;
-    if (action === PeginAction.SUBMIT_WOTS_KEY) {
-      onWotsKeyClick(depositId);
-    } else if (action === PeginAction.SIGN_PAYOUT_TRANSACTIONS) {
-      onSignClick(depositId);
-    } else if (action === PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN) {
-      onBroadcastClick(depositId);
-    } else if (action === PeginAction.ACTIVATE_VAULT) {
-      onActivationClick(depositId);
-    } else if (action === PeginAction.REFUND_HTLC) {
-      onRefundClick(depositId);
-    }
-  };
-
-  const actionLabel =
-    (status.type === "available" || status.type === "disabled") && status.action
-      ? status.action.label
-      : peginState.displayLabel;
-  // `loading` is React Query's `isLoading` — true only on the very first fetch,
-  // not on subsequent polling refetches — so this gives a one-shot "Loading..."
-  // on initial mount without flickering on every poll cycle.
-  const label = loading ? COPY.common.loading : actionLabel;
-  const buttonDisabled = !isActionable || loading;
   const dotColor = STATUS_DOT_COLORS[peginState.displayVariant];
 
   // The Pre-PegIn tx is on Bitcoin only once the depositor has broadcast it.
@@ -168,7 +125,8 @@ export function PendingDepositCard({
   return (
     <VaultDetailCard
       amountBtc={parseFloat(amount || "0")}
-      timestamp={timestamp ?? 0}
+      timestamp={timestamp}
+      onClick={onCardClick ? () => onCardClick(depositId) : undefined}
       txHashRow={
         <PeginTxHashRow
           peginTxHash={peginTxHash}
@@ -191,6 +149,12 @@ export function PendingDepositCard({
       amountSubtext={
         step !== null ? (
           <span className="text-sm">
+            <span className="text-accent-secondary">
+              {COPY.deposit.progress.stepPrefix(
+                getVisualStep(step),
+                TOTAL_VISUAL_STEPS,
+              )}{" "}
+            </span>
             <span className="font-medium text-accent-primary">
               {getStepLabel(step)}
             </span>
@@ -211,33 +175,6 @@ export function PendingDepositCard({
             color={ASSET_BRAND_COLOR}
           />
         )
-      }
-      action={
-        hasAction || showArtifactDownload ? (
-          <div className="flex flex-col items-stretch gap-2">
-            {hasAction && (
-              <Button
-                variant="outlined"
-                color="primary"
-                className="w-full"
-                disabled={buttonDisabled}
-                onClick={handleClick}
-              >
-                {label}
-              </Button>
-            )}
-            {showArtifactDownload && (
-              <Button
-                variant="outlined"
-                color="primary"
-                className="w-full"
-                onClick={() => onArtifactDownloadClick?.(depositId)}
-              >
-                Download Artifacts
-              </Button>
-            )}
-          </div>
-        ) : undefined
       }
     />
   );

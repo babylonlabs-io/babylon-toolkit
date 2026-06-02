@@ -16,7 +16,7 @@ import {
   Loader,
   Text,
 } from "@babylonlabs-io/core-ui";
-import { type ReactNode, useMemo } from "react";
+import { type ReactNode, useCallback, useMemo } from "react";
 
 import { COPY } from "@/copy";
 import { DepositFlowStep } from "@/hooks/deposit/depositFlowSteps/types";
@@ -30,6 +30,7 @@ import { GroupedProgress } from "./GroupedProgress";
 import { PeginFeeWarning } from "./PeginFeeWarning";
 import { ProgressBar } from "./ProgressBar";
 import { ProviderWaitDetail } from "./ProviderWaitDetail";
+import { SplitGroupedProgress } from "./SplitGroupedProgress";
 import {
   buildStepItems,
   getStepFillPercent,
@@ -64,6 +65,23 @@ export interface DepositProgressViewProps {
   payoutSigningProgress: PayoutSigningProgress | null;
   /** Peg-in BTC signing progress; drives the (x of n) sub-counter for splits. */
   peginSigningProgress: PeginSigningProgress | null;
+  /**
+   * Number of vaults in this deposit. When > 1, the post-trunk groups render
+   * as one column per vault to reflect the per-vault VP-paced timelines.
+   */
+  vaultCount?: number;
+  /**
+   * Which vault is currently being processed for per-vault phases (WOTS,
+   * payout signing, artifact download). `null` when not in a per-vault phase
+   * or when the deposit isn't split.
+   */
+  currentVaultIndex?: number | null;
+  /**
+   * Per-vault raw steps for a split deposit, indexed to match the columns.
+   * Supplied on the resume path (each column reflects its own polled state);
+   * omit for the live flow, where position-based inference is correct.
+   */
+  perVaultSteps?: DepositFlowStep[];
   onClose: () => void;
   /** Override the default success message */
   successMessage?: string;
@@ -101,8 +119,11 @@ function resolveActiveStepDetail(params: {
   currentStep: DepositFlowStep;
   btcConfirmationDetail: BtcConfirmationDetailData | null | undefined;
   waitDetailPersistKey: string | undefined;
+  /** Stack the panel's rows — used for the narrow split-deposit columns. */
+  stacked?: boolean;
 }): ReactNode {
-  const { currentStep, btcConfirmationDetail, waitDetailPersistKey } = params;
+  const { currentStep, btcConfirmationDetail, waitDetailPersistKey, stacked } =
+    params;
   if (currentStep === DepositFlowStep.SIGN_PEGIN_BTC) {
     return <PeginFeeWarning />;
   }
@@ -116,6 +137,7 @@ function resolveActiveStepDetail(params: {
         prePeginTxid={btcConfirmationDetail.prePeginTxid}
         requiredDepth={btcConfirmationDetail.requiredDepth}
         depositIds={btcConfirmationDetail.depositIds}
+        stacked={stacked}
       />
     );
   }
@@ -124,7 +146,11 @@ function resolveActiveStepDetail(params: {
     currentStep === DepositFlowStep.AWAIT_VP_VERIFICATION ||
     currentStep === DepositFlowStep.AWAIT_ACTIVATION_CONFIRMATION;
   return isProviderWait ? (
-    <ProviderWaitDetail step={currentStep} persistKey={waitDetailPersistKey} />
+    <ProviderWaitDetail
+      step={currentStep}
+      persistKey={waitDetailPersistKey}
+      stacked={stacked}
+    />
   ) : null;
 }
 
@@ -138,6 +164,9 @@ export function DepositProgressView(props: DepositProgressViewProps) {
     canContinueInBackground,
     payoutSigningProgress,
     peginSigningProgress,
+    vaultCount = 1,
+    currentVaultIndex = null,
+    perVaultSteps,
     onClose,
     successMessage = COPY.deposit.progress.defaultSuccessMessage,
     terminalMessage,
@@ -176,6 +205,21 @@ export function DepositProgressView(props: DepositProgressViewProps) {
     waitDetailPersistKey,
   });
 
+  // Split columns resolve the detail from each column's OWN step (so two
+  // columns parked on the same shared wait both show the panel, and diverged
+  // columns each show their own). Rendered stacked because the columns are
+  // narrow. The single-column path keeps the inline `activeStepDetail` above.
+  const renderStepDetail = useCallback(
+    (step: DepositFlowStep, opts: { stacked: boolean }): ReactNode =>
+      resolveActiveStepDetail({
+        currentStep: step,
+        btcConfirmationDetail,
+        waitDetailPersistKey,
+        stacked: opts.stacked,
+      }),
+    [btcConfirmationDetail, waitDetailPersistKey],
+  );
+
   return (
     <div className="w-full max-w-[520px]">
       <Heading variant="h5" className="text-accent-primary">
@@ -195,11 +239,23 @@ export function DepositProgressView(props: DepositProgressViewProps) {
           <CompletedStepsPill completed={completedGroups} total={totalGroups} />
         )}
 
-        <GroupedProgress
-          steps={steps}
-          currentStep={visualStep}
-          activeStepDetail={activeStepDetail}
-        />
+        {vaultCount > 1 ? (
+          <SplitGroupedProgress
+            steps={steps}
+            currentStep={visualStep}
+            vaultCount={vaultCount}
+            currentVaultIndex={currentVaultIndex}
+            rawStep={currentStep}
+            renderStepDetail={renderStepDetail}
+            perVaultSteps={perVaultSteps}
+          />
+        ) : (
+          <GroupedProgress
+            steps={steps}
+            currentStep={visualStep}
+            activeStepDetail={activeStepDetail}
+          />
+        )}
 
         {error && (
           <Callout variant="error" title={error.title}>

@@ -71,6 +71,64 @@ export const STEP_GROUPS: StepGroup[] = [
   { title: COPY.deposit.groups.activateVault, startStep: 13, endStep: 15 },
 ];
 
+/**
+ * Visual step at which the deposit flow stops being shared across all vaults
+ * in a split deposit. Everything through AWAIT_BTC_CONFIRMATION (visual step 6)
+ * is a single shared Pre-PegIn broadcast; from SUBMIT_WOTS_KEYS onward each
+ * vault progresses on its own VP-paced timeline and earns a dedicated column
+ * in the multi-vault stepper.
+ */
+export const TRUNK_END_VISUAL_STEP = 6;
+
+/**
+ * Returns the per-vault current step for a single vault in a split deposit.
+ *
+ * The deposit flow processes WOTS, payout signing, and artifact download
+ * sequentially across vaults — at any point one vault is the "active" one
+ * (tracked by `currentVaultIndex`) while siblings have either finished the
+ * active phase or are queued for their turn. This function maps that shared
+ * state into a per-vault step so each column in the split UI shows the right
+ * row as active, completed, or pending.
+ */
+export function derivePerVaultStep(
+  currentStep: DepositFlowStep,
+  currentVaultIndex: number | null,
+  vaultIndex: number,
+): DepositFlowStep {
+  const currentVisual = getVisualStep(currentStep);
+
+  // Trunk phase: every vault tracks the shared step.
+  if (currentVisual <= TRUNK_END_VISUAL_STEP) return currentStep;
+
+  // Between phases the index is briefly null — fall back to shared.
+  if (currentVaultIndex === null) return currentStep;
+
+  if (vaultIndex === currentVaultIndex) return currentStep;
+
+  const wotsVisual = getVisualStep(DepositFlowStep.SUBMIT_WOTS_KEYS);
+  const awaitPayoutVisual = getVisualStep(
+    DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS,
+  );
+  const awaitVpVisual = getVisualStep(DepositFlowStep.AWAIT_VP_VERIFICATION);
+
+  if (currentVisual === wotsVisual) {
+    return vaultIndex < currentVaultIndex
+      ? DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS
+      : DepositFlowStep.SUBMIT_WOTS_KEYS;
+  }
+
+  if (currentVisual >= awaitPayoutVisual && currentVisual <= awaitVpVisual) {
+    return vaultIndex < currentVaultIndex
+      ? DepositFlowStep.AWAIT_VP_VERIFICATION
+      : DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS;
+  }
+
+  // Artifact download / activation phase (visual step 13+).
+  return vaultIndex < currentVaultIndex
+    ? DepositFlowStep.ACTIVATE_VAULT
+    : DepositFlowStep.AWAIT_VP_VERIFICATION;
+}
+
 export type GroupStatus = "completed" | "active" | "upcoming";
 
 export interface StepGroupView extends StepGroup {

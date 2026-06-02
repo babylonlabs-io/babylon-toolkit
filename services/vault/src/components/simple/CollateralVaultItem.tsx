@@ -85,13 +85,13 @@ export function CollateralVaultItem({
         </div>
       </div>
 
-      {/* Status row */}
-      <VaultCardRow label="Status">
-        <StatusBadge
-          status={inUse ? "active" : "inactive"}
-          label={inUse ? COPY.pegin.labels.IN_USE : COPY.pegin.labels.AVAILABLE}
-        />
-      </VaultCardRow>
+      {/* Transaction hash row — Pegin + Pre-Pegin. The vault is active here, so
+          both txs are on Bitcoin and link to the explorer. */}
+      <PeginTxHashRow
+        peginTxHash={peginTxHash}
+        prePeginTxHash={prePeginTxHash}
+        linkPegin
+      />
 
       {/* Vault Provider row */}
       <VaultCardRow label="Vault provider">
@@ -110,13 +110,13 @@ export function CollateralVaultItem({
         </Hint>
       </VaultCardRow>
 
-      {/* Transaction hash row — Pegin + Pre-Pegin. The vault is active here, so
-          both txs are on Bitcoin and link to the explorer. */}
-      <PeginTxHashRow
-        peginTxHash={peginTxHash}
-        prePeginTxHash={prePeginTxHash}
-        linkPegin
-      />
+      {/* Status row */}
+      <VaultCardRow label="Status">
+        <StatusBadge
+          status={inUse ? "active" : "inactive"}
+          label={inUse ? COPY.pegin.labels.IN_USE : COPY.pegin.labels.AVAILABLE}
+        />
+      </VaultCardRow>
 
       {/* Liquidation Order row */}
       {liquidationIndex !== undefined && (

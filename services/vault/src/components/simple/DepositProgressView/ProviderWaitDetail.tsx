@@ -7,6 +7,11 @@ import { DepositFlowStep } from "@/hooks/deposit/depositFlowSteps/types";
 interface ProviderWaitDetailProps {
   step: DepositFlowStep;
   persistKey?: string;
+  /**
+   * Stack each row's label above its value instead of side-by-side. Used in the
+   * narrow split-deposit columns, where the inline label/value layout collapses.
+   */
+  stacked?: boolean;
 }
 
 const waitStartedAtCache = new Map<string, number>();
@@ -45,15 +50,21 @@ function getWaitStatus(step: DepositFlowStep): string {
 export function ProviderWaitDetail({
   step,
   persistKey,
+  stacked = false,
 }: ProviderWaitDetailProps) {
   const cacheKey = persistKey ? `${persistKey}:${step}` : undefined;
   const [startedAt] = useState(() => resolveStartedAt(cacheKey));
   const copy = COPY.deposit.waitDetails;
   const status = getWaitStatus(step);
+  // Stacked: label on its own line above the value (narrow split columns).
+  // Inline: label left / value right (full-width single-column flow).
+  const rowClass = stacked
+    ? "flex flex-col gap-0.5"
+    : "flex items-center justify-between gap-2";
 
   return (
     <div className="mt-3 flex flex-col gap-2 rounded-lg bg-secondary-highlight p-3">
-      <div className="flex items-center justify-between gap-2">
+      <div className={rowClass}>
         <Text as="span" variant="body2" className="text-accent-secondary">
           {copy.startedAt}:
         </Text>
@@ -62,7 +73,7 @@ export function ProviderWaitDetail({
         </Text>
       </div>
 
-      <div className="flex items-center justify-between gap-2">
+      <div className={rowClass}>
         <Text as="span" variant="body2" className="text-accent-secondary">
           {copy.status}:
         </Text>

@@ -6,6 +6,7 @@ import { DepositFlowStep } from "@/hooks/deposit/depositFlowSteps/types";
 import {
   buildStepGroups,
   buildStepItems,
+  derivePerVaultStep,
   getStepFillPercent,
   getStepLabel,
   getVisualStep,
@@ -215,6 +216,66 @@ describe("buildStepGroups", () => {
     expect(groups.every((g) => !g.expanded)).toBe(true);
     expect(groups.every((g) => g.completedInGroup === g.totalInGroup)).toBe(
       true,
+    );
+  });
+});
+
+describe("derivePerVaultStep", () => {
+  it("mirrors the shared step for every vault while the flow is in the trunk", () => {
+    // Trunk phase (visual step <= 6) — all vaults track the shared step.
+    expect(derivePerVaultStep(DepositFlowStep.SIGN_PEGIN_BTC, null, 0)).toBe(
+      DepositFlowStep.SIGN_PEGIN_BTC,
+    );
+    expect(derivePerVaultStep(DepositFlowStep.BROADCAST_PRE_PEGIN, 0, 1)).toBe(
+      DepositFlowStep.BROADCAST_PRE_PEGIN,
+    );
+    expect(
+      derivePerVaultStep(DepositFlowStep.AWAIT_BTC_CONFIRMATION, null, 1),
+    ).toBe(DepositFlowStep.AWAIT_BTC_CONFIRMATION);
+  });
+
+  it("advances earlier vaults past WOTS and keeps queued vaults at WOTS", () => {
+    // Flow is signing vault 1's WOTS — vault 0 has finished WOTS, vault 2 is queued.
+    expect(derivePerVaultStep(DepositFlowStep.SUBMIT_WOTS_KEYS, 1, 0)).toBe(
+      DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS,
+    );
+    expect(derivePerVaultStep(DepositFlowStep.SUBMIT_WOTS_KEYS, 1, 1)).toBe(
+      DepositFlowStep.SUBMIT_WOTS_KEYS,
+    );
+    expect(derivePerVaultStep(DepositFlowStep.SUBMIT_WOTS_KEYS, 1, 2)).toBe(
+      DepositFlowStep.SUBMIT_WOTS_KEYS,
+    );
+  });
+
+  it("places earlier vaults at VP verification during the payout phase", () => {
+    // Flow is mid-payout for vault 1 — vault 0 finished payout, vault 2 is queued.
+    expect(derivePerVaultStep(DepositFlowStep.SIGN_PAYOUTS, 1, 0)).toBe(
+      DepositFlowStep.AWAIT_VP_VERIFICATION,
+    );
+    expect(derivePerVaultStep(DepositFlowStep.SIGN_PAYOUTS, 1, 1)).toBe(
+      DepositFlowStep.SIGN_PAYOUTS,
+    );
+    expect(derivePerVaultStep(DepositFlowStep.SIGN_PAYOUTS, 1, 2)).toBe(
+      DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS,
+    );
+  });
+
+  it("places earlier vaults past artifact download during the artifact phase", () => {
+    // Flow is downloading vault 1's artifacts — vault 0 already downloaded.
+    expect(derivePerVaultStep(DepositFlowStep.ARTIFACT_DOWNLOAD, 1, 0)).toBe(
+      DepositFlowStep.ACTIVATE_VAULT,
+    );
+    expect(derivePerVaultStep(DepositFlowStep.ARTIFACT_DOWNLOAD, 1, 1)).toBe(
+      DepositFlowStep.ARTIFACT_DOWNLOAD,
+    );
+    expect(derivePerVaultStep(DepositFlowStep.ARTIFACT_DOWNLOAD, 1, 2)).toBe(
+      DepositFlowStep.AWAIT_VP_VERIFICATION,
+    );
+  });
+
+  it("falls back to the shared step when no vault is active (transitional)", () => {
+    expect(derivePerVaultStep(DepositFlowStep.SUBMIT_WOTS_KEYS, null, 0)).toBe(
+      DepositFlowStep.SUBMIT_WOTS_KEYS,
     );
   });
 });
