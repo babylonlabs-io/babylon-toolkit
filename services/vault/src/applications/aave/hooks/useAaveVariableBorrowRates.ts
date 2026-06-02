@@ -31,11 +31,14 @@ export function useAaveVariableBorrowRates(): UseAaveVariableBorrowRatesResult {
     [borrowableReserves],
   );
 
-  // Sort + stringify for a stable cache key regardless of input order.
+  // Sort + stringify all read inputs for a stable cache key regardless of order.
   const reserveKey = useMemo(
     () =>
       reserves
-        .map((r) => r.reserveId.toString())
+        .map(
+          (r) =>
+            `${r.reserveId.toString()}:${r.hub.toLowerCase()}:${r.assetId.toString()}:${r.symbol}`,
+        )
         .sort()
         .join(","),
     [reserves],
@@ -57,6 +60,7 @@ export function useAaveVariableBorrowRates(): UseAaveVariableBorrowRatesResult {
       );
       const out: Record<string, number | null> = {};
       for (const r of reserves) {
+        if (r.symbol in out) continue;
         const rateRay = rateRayByReserveId.get(r.reserveId.toString());
         out[r.symbol] = rateRay == null ? null : rayRateToAprPercent(rateRay);
       }

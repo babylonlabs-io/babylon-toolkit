@@ -123,11 +123,11 @@ function AprRow() {
   })).filter((stat): stat is AprStat & { apr: number } => stat.apr != null);
   if (loadedStats.length === 0) return null;
   return (
-    <div className="flex items-stretch gap-6">
+    <div className="flex flex-wrap items-stretch gap-4 sm:gap-6">
       {loadedStats.map((stat, i) => (
         <Fragment key={stat.symbol}>
           {i > 0 && (
-            <div className="w-px shrink-0 self-stretch bg-secondary-strokeLight dark:bg-secondary-strokeDark" />
+            <div className="hidden w-px shrink-0 self-stretch bg-secondary-strokeLight dark:bg-secondary-strokeDark sm:block" />
           )}
           <div className="flex flex-col items-center justify-center whitespace-nowrap text-center">
             <span className="text-xs leading-[1.66] tracking-[0.4px] text-accent-secondary">
