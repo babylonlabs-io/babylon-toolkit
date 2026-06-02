@@ -650,26 +650,29 @@ export const COPY = {
     disconnected: {
       heroTitle: "Native Bitcoin backed borrowing",
       heroBody:
-        "Powered by Babylon & Aave — deposit BTC and borrow stablecoins or WBTC.",
+        "Powered by Babylon Trustless Bitcoin Vault protocol, collateralize native Bitcoin and borrow stablecoins or wBTC directly from Aave V4.",
       connectButton: "Connect Wallet",
       aprLabels: {
         usdt: "USDT APR",
         usdc: "USDC APR",
-        wbtc: "WBTC APR",
+        wbtc: "wBTC APR",
       },
       steps: {
-        stepLabel: (n: number) => `step ${n}`,
-        one: {
-          title: "Deposit BTC as collateral",
-          body: "Lock your BTC in a BTC Vault.",
+        speed: {
+          title: "Get stables in ~2 hours",
+          caption: "Fast loan processing",
         },
-        two: {
-          title: "Borrow USDC, USDT or WBTC",
-          body: "Get stablecoin liquidity powered by Aave.",
+        rates: {
+          title: "Best borrowing rates",
+          caption: "Access liquidity via Aave V4",
         },
-        three: {
-          title: "Repay anytime to unlock BTC",
-          body: "Repay debt plus interest to reclaim BTC.",
+        trustless: {
+          title: "Trustless & permissionless",
+          caption: "No approvals / intermediaries",
+        },
+        native: {
+          title: "No bridging needed",
+          caption: "Native Bitcoin, no wrapping",
         },
       },
     },

@@ -1,4 +1,9 @@
 export {
+  getReservesDrawnRatesSafe,
+  type ReserveDrawnRate,
+  type ReserveHubAsset,
+} from "./aaveHub";
+export {
   getOracleAddress,
   getReservesPrices,
   getReservesPricesSafe,

@@ -1,0 +1,9 @@
+[
+  {
+    "type": "function",
+    "name": "getAssetDrawnRate",
+    "stateMutability": "view",
+    "inputs": [{ "name": "assetId", "type": "uint256" }],
+    "outputs": [{ "name": "", "type": "uint256" }]
+  }
+]

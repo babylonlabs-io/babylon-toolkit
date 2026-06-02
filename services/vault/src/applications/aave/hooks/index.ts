@@ -20,6 +20,10 @@ export {
   type HealthFactorStatus,
   type UseAaveUserPositionResult,
 } from "./useAaveUserPosition";
+export {
+  useAaveVariableBorrowRates,
+  type UseAaveVariableBorrowRatesResult,
+} from "./useAaveVariableBorrowRates";
 export { useAaveVaults, type UseAaveVaultsResult } from "./useAaveVaults";
 export {
   useBorrowTransaction,
