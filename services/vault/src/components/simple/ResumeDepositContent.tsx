@@ -31,6 +31,7 @@ import type { Address, Hex } from "viem";
 import { getVaultRegistryReader } from "@/clients/eth-contract/sdk-readers";
 import { computeDepositDerivedState } from "@/components/deposit/DepositSignModal/depositStepHelpers";
 import { usePayoutSigningState } from "@/components/deposit/PayoutSignModal/usePayoutSigningState";
+import featureFlags from "@/config/featureFlags";
 import { useDepositPollingResult } from "@/context/deposit/PeginPollingContext";
 import { useProtocolParamsContext } from "@/context/ProtocolParamsContext";
 import { COPY } from "@/copy";
@@ -367,6 +368,7 @@ export function ResumeWotsContent({
           peginTxid: primedTxid,
           authAnchorHex,
           pinnedServerPubkey,
+          enableGrpcArtifactAuth: featureFlags.isGrpcArtifactsEnabled,
         });
         trackPrimedTxid(primedTxid);
       }

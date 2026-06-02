@@ -98,4 +98,23 @@ export default {
   get isVaultCapDisabled() {
     return process.env.NEXT_PUBLIC_FF_DISABLE_VAULT_CAP === "true";
   },
+
+  /**
+   * ENABLE_GRPC_ARTIFACTS feature flag
+   *
+   * Purpose: Routes the artifact-stream method
+   * (`vaultProvider_requestDepositorClaimerArtifacts`) through a
+   * gRPC-subject bearer minted via `auth_createDepositorTokenGrpc`
+   * instead of the JSON-RPC bearer.
+   * Why needed: Must stay in lockstep with the VP proxy's own
+   * `ENABLE_GRPC_ARTIFACTS` flag — when the proxy serves artifacts over
+   * gRPC it rejects the JSON-RPC-subject token, and vice versa. Keeping
+   * it opt-in lets the frontend default to the JSON-RPC path against a
+   * proxy that hasn't enabled gRPC artifacts.
+   * Default: false (artifacts authenticate with the JSON-RPC bearer
+   * unless explicitly set to "true")
+   */
+  get isGrpcArtifactsEnabled() {
+    return process.env.NEXT_PUBLIC_FF_ENABLE_GRPC_ARTIFACTS === "true";
+  },
 };
