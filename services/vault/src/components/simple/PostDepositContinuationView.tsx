@@ -218,6 +218,19 @@ export function PostDepositContinuationView({
     }
 
     const pollingResults = vaultIds.map((id) => getPollingResult(id));
+    const perVaultSteps = pollingResults.map((result) => {
+      if (!result || result.loading) {
+        return DepositFlowStep.AWAIT_BTC_CONFIRMATION;
+      }
+      const displayStep = getPeginDisplayStep(result.peginState);
+      if (displayStep !== null) return displayStep;
+      if (result.peginState.displayVariant === "warning") {
+        return getWarningPeginDisplayStep(result.peginState.localStatus);
+      }
+      return isVaultPastActivation(result.peginState)
+        ? DepositFlowStep.COMPLETED
+        : DepositFlowStep.AWAIT_BTC_CONFIRMATION;
+    });
     const warning = pollingResults
       .map((result) => result?.peginState)
       .find((state) => state?.displayVariant === "warning");
@@ -237,6 +250,7 @@ export function PostDepositContinuationView({
           onClose={onClose}
           vaultCount={vaultCount}
           currentVaultIndex={warningIndex >= 0 ? warningIndex : null}
+          perVaultSteps={perVaultSteps}
         />
       );
     }
@@ -249,20 +263,6 @@ export function PostDepositContinuationView({
       pollingResults.every((result) => isVaultActivated(result?.peginState));
 
     if (hasMissingOrLoadingVault || !allVaultsActivated) {
-      const perVaultSteps = pollingResults.map((result) => {
-        if (!result || result.loading) {
-          return DepositFlowStep.AWAIT_BTC_CONFIRMATION;
-        }
-        const displayStep = getPeginDisplayStep(result.peginState);
-        if (displayStep !== null) return displayStep;
-        if (result.peginState.displayVariant === "warning") {
-          return getWarningPeginDisplayStep(result.peginState.localStatus);
-        }
-        return isVaultPastActivation(result.peginState)
-          ? DepositFlowStep.COMPLETED
-          : DepositFlowStep.AWAIT_BTC_CONFIRMATION;
-      });
-
       return (
         <StatusView
           currentStep={DepositFlowStep.AWAIT_BTC_CONFIRMATION}
