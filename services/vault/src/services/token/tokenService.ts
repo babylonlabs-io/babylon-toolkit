@@ -25,7 +25,7 @@ const btcConfig = getNetworkConfigBTC();
 const TOKEN_ICONS: Record<string, string> = {
   BTC: btcConfig.icon,
   SBTC: btcConfig.icon,
-  WBTC: btcConfig.icon,
+  WBTC: "/images/wbtc.png",
   VBTC: btcConfig.icon,
   USDC: "/images/usdc.png",
   USDT: "/images/usdt.png",
