@@ -56,7 +56,6 @@ export {
   FULL_REPAY_BUFFER_FRACTION,
   HEALTH_FACTOR_WARNING_THRESHOLD,
   MIN_HEALTH_FACTOR_FOR_BORROW,
-  RAY_DECIMALS,
   USDC_DECIMALS,
   WAD_DECIMALS,
 } from "./constants.js";
@@ -82,7 +81,6 @@ export {
   getPosition,
   getPositionSizeParams,
   getReserve,
-  getReservesDrawnRatesSafe,
   getReservesPrices,
   getReservesPricesSafe,
   getTargetHealthFactor,
@@ -94,8 +92,6 @@ export {
   getUserTotalDebts,
   hasCollateral,
   hasDebt,
-  type ReserveDrawnRate,
-  type ReserveHubAsset,
   type ReservePriceResult,
 } from "./clients/index.js";
 
@@ -121,7 +117,6 @@ export {
   getHealthFactorStatusFromValue,
   hasDebtFromPosition,
   isHealthFactorHealthy,
-  rayRateToAprPercent,
   selectVaultsForAmount,
   simulateCascade,
   simulatePrefixSeizure,
@@ -145,6 +140,5 @@ export type {
 } from "./utils/index.js";
 
 // Export ABIs for application registration
-export { default as AaveHubABI } from "./clients/abis/AaveHub.abi.json";
 export { default as AaveIntegrationAdapterABI } from "./clients/abis/AaveIntegrationAdapter.abi.json";
 export { default as AaveSpokeABI } from "./clients/abis/AaveSpoke.abi.json";

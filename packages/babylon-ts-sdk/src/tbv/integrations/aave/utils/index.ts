@@ -1,7 +1,6 @@
 export {
   aaveRayValueToUsd,
   aaveValueToUsd,
-  rayRateToAprPercent,
   wadToNumber,
 } from "./aaveConversions.js";
 export { calculateBorrowRatio } from "./borrowRatio.js";

@@ -7,7 +7,6 @@ import { describe, expect, it } from "vitest";
 import {
   aaveRayValueToUsd,
   aaveValueToUsd,
-  rayRateToAprPercent,
   wadToNumber,
 } from "../aaveConversions.js";
 
@@ -95,28 +94,6 @@ describe("aaveConversions", () => {
       // 100 health factor (very safe position)
       const value = 100n * 10n ** 18n;
       expect(wadToNumber(value)).toBe(100);
-    });
-  });
-
-  describe("rayRateToAprPercent", () => {
-    it("should convert 1e27 (RAY) to 100%", () => {
-      expect(rayRateToAprPercent(10n ** 27n)).toBeCloseTo(100);
-    });
-
-    it("should convert 3.7e25 to 3.7%", () => {
-      // 3.7% APR is stored as 0.037 * 1e27 = 3.7e25
-      const value = 37n * 10n ** 24n;
-      expect(rayRateToAprPercent(value)).toBeCloseTo(3.7);
-    });
-
-    it("should convert a fractional rate (0.4%)", () => {
-      // 0.4% APR = 0.004 * 1e27 = 4e24
-      const value = 4n * 10n ** 24n;
-      expect(rayRateToAprPercent(value)).toBeCloseTo(0.4);
-    });
-
-    it("should convert 0 to 0%", () => {
-      expect(rayRateToAprPercent(0n)).toBe(0);
     });
   });
 });

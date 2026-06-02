@@ -27,13 +27,6 @@ export {
   type ReservePriceResult,
 } from "./oracle.js";
 
-// Hub operations (per-asset variable borrow rate)
-export {
-  getReservesDrawnRatesSafe,
-  type ReserveDrawnRate,
-  type ReserveHubAsset,
-} from "./hub.js";
-
 // Transaction builders
 export {
   buildBorrowTx,

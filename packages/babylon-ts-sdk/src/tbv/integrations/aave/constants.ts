@@ -79,15 +79,6 @@ export const AAVE_BASE_CURRENCY_RAY_DECIMALS = 53;
 export const WAD_DECIMALS = 18;
 
 /**
- * RAY decimals (1e27 = 100% / 1.0)
- * Aave annualized interest rates (e.g. the variable borrow / "drawn" rate) are
- * RAY-scaled.
- *
- * Reference: aave-v4 MathUtils.sol - `RAY = 1e27`.
- */
-export const RAY_DECIMALS = 27;
-
-/**
  * Health factor warning threshold
  * Positions below this are considered at risk of liquidation
  */

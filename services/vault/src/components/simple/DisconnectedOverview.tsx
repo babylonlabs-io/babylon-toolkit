@@ -3,14 +3,13 @@
  *
  * Marketing / explainer panel rendered in place of the live Overview card
  * when no wallet is connected. Left column: product pitch, Connect CTA, and
- * the live borrow-rate APR stats. Right column: a step card summarizing the
+ * placeholder borrow-rate APR stats. Right column: a step card summarizing the
  * borrowing flow.
  */
 
 import { Fragment, type ReactNode } from "react";
 import { PiClock } from "react-icons/pi";
 
-import { useAaveVariableBorrowRates } from "@/applications/aave/hooks";
 import { CARD_DARK_BG_CLASS } from "@/components/shared/layoutClasses";
 import { Connect } from "@/components/Wallet";
 import { COPY } from "@/copy";
@@ -20,29 +19,27 @@ const COPY_STEPS = COPY_OVERVIEW.steps;
 
 interface AprStat {
   label: string;
-  /** Uppercased token symbol used to look up the live borrow APR. */
-  symbol: string;
+  /** Display value (e.g. "0%"). */
+  value: string;
   /** Tailwind class for the value's text color. */
   colorClass: string;
 }
 
-// Borrow-rate APR stats rendered at the bottom of the left column. Values are
-// the live Aave variable borrow APR keyed by token symbol; a reserve with no
-// available rate is filtered out so the row stays clean.
+// Placeholder APR values; live Aave borrow rates are wired in a follow-up PR.
 const APR_STATS: AprStat[] = [
   {
     label: COPY_OVERVIEW.aprLabels.usdt,
-    symbol: "USDT",
+    value: "0%",
     colorClass: "text-[#1ba27a]",
   },
   {
     label: COPY_OVERVIEW.aprLabels.usdc,
-    symbol: "USDC",
+    value: "0%",
     colorClass: "text-[#0b53bf]",
   },
   {
     label: COPY_OVERVIEW.aprLabels.wbtc,
-    symbol: "WBTC",
+    value: "0%",
     colorClass: "text-[#ce6533]",
   },
 ];
@@ -116,16 +113,10 @@ function IconTile({ children }: { children: ReactNode }) {
 }
 
 function AprRow() {
-  const { aprBySymbol } = useAaveVariableBorrowRates();
-  const loadedStats = APR_STATS.map((stat) => ({
-    ...stat,
-    apr: aprBySymbol[stat.symbol],
-  })).filter((stat): stat is AprStat & { apr: number } => stat.apr != null);
-  if (loadedStats.length === 0) return null;
   return (
     <div className="flex flex-wrap items-stretch gap-4 sm:gap-6">
-      {loadedStats.map((stat, i) => (
-        <Fragment key={stat.symbol}>
+      {APR_STATS.map((stat, i) => (
+        <Fragment key={stat.label}>
           {i > 0 && (
             <div className="hidden w-px shrink-0 self-stretch bg-secondary-strokeLight dark:bg-secondary-strokeDark sm:block" />
           )}
@@ -136,7 +127,7 @@ function AprRow() {
             <span
               className={`text-xl leading-[1.6] tracking-[0.15px] ${stat.colorClass}`}
             >
-              {`${stat.apr.toFixed(1)}%`}
+              {stat.value}
             </span>
           </div>
         </Fragment>
