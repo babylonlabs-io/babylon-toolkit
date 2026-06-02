@@ -17,7 +17,11 @@ class ETHClient {
     // Create public client with config from environment
     this.publicClient = createPublicClient({
       chain: getETHChain(),
-      transport: http(this.config.rpcUrl),
+      // retryCount:1 (vs viem's default 3) caps 429 retry amplification; React
+      // Query is the outer retry layer. viem hardcodes 429->retry, no override.
+      transport: http(this.config.rpcUrl, { retryCount: 1 }),
+      // Batch concurrent contract reads into a single Multicall3 eth_call.
+      batch: { multicall: true },
     });
   }
 
