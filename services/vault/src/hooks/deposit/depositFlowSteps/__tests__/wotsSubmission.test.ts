@@ -20,12 +20,14 @@ vi.mock("@babylonlabs-io/ts-sdk/tbv/core/clients", () => {
     PENDING_BABE_SETUP: "PendingBabeSetup",
     PENDING_DEPOSITOR_SIGNATURES: "PendingDepositorSignatures",
     EXPIRED: "Expired",
+    INGESTION_REJECTED: "IngestionRejected",
     INVALID_SIG_IN_CONTRACT: "InvalidSigInContract",
   };
   return {
     DaemonStatus,
     VP_TRANSIENT_STATUSES: new Set([DaemonStatus.PENDING_BABE_SETUP]),
     VP_TERMINAL_FAILURE_STATUSES: new Set([
+      DaemonStatus.INGESTION_REJECTED,
       DaemonStatus.INVALID_SIG_IN_CONTRACT,
     ]),
     VpResponseValidationError: class extends Error {
@@ -115,7 +117,7 @@ describe("waitForWotsReadiness", () => {
 
   it("returns terminal vaults separately from ready vaults", async () => {
     statusesByCall.push({
-      "0xVault0": "InvalidSigInContract",
+      "0xVault0": "IngestionRejected",
       "0xVault1": "PendingDepositorWotsPK",
     });
     setupBatchPoll();

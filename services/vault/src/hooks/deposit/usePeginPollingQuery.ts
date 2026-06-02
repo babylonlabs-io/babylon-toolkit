@@ -20,6 +20,7 @@ import {
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef } from "react";
 
+import { COPY } from "@/copy";
 import { logger } from "@/infrastructure";
 
 import {
@@ -179,7 +180,7 @@ function applyPerDepositError(
   sets.errors.set(depositId, new Error(errorMessage));
 }
 
-function applyPerDepositStatus(
+export function applyPerDepositStatus(
   statusResponse: GetPeginStatusResponse,
   depositId: string,
   sets: DepositSets & { pendingDepositorSignatures: Set<string> },
@@ -213,7 +214,7 @@ function applyPerDepositStatus(
       depositId,
       new TerminalPeginPollingError(
         DaemonStatus.EXPIRED,
-        "This deposit has expired. You may still reclaim within the grace window — see refund options.",
+        COPY.pegin.statusErrors.expired,
       ),
     );
     sets.needsWotsKey.delete(depositId);
@@ -225,7 +226,7 @@ function applyPerDepositStatus(
       depositId,
       new TerminalPeginPollingError(
         DaemonStatus.EXPIRED_CLEANED_UP,
-        "This deposit expired and the grace window has elapsed. No further action is possible.",
+        COPY.pegin.statusErrors.expiredCleanedUp,
       ),
     );
     sets.needsWotsKey.delete(depositId);
@@ -237,7 +238,19 @@ function applyPerDepositStatus(
       depositId,
       new TerminalPeginPollingError(
         DaemonStatus.EXPIRED_IN_CLAIM,
-        "Deposit expired; claim transaction broadcast",
+        COPY.pegin.statusErrors.expiredInClaim,
+      ),
+    );
+    sets.needsWotsKey.delete(depositId);
+    return;
+  }
+
+  if (status === DaemonStatus.INGESTION_REJECTED) {
+    sets.errors.set(
+      depositId,
+      new TerminalPeginPollingError(
+        DaemonStatus.INGESTION_REJECTED,
+        COPY.pegin.statusErrors.ingestionRejected,
       ),
     );
     sets.needsWotsKey.delete(depositId);
@@ -249,7 +262,7 @@ function applyPerDepositStatus(
       depositId,
       new TerminalPeginPollingError(
         DaemonStatus.INVALID_SIG_IN_CONTRACT,
-        "Vault provider posted an invalid peg-in signature on-chain; this deposit cannot proceed.",
+        COPY.pegin.statusErrors.invalidSigInContract,
       ),
     );
     sets.needsWotsKey.delete(depositId);
@@ -261,7 +274,7 @@ function applyPerDepositStatus(
       depositId,
       new TerminalPeginPollingError(
         DaemonStatus.AML_REJECTED,
-        "This deposit was rejected by AML screening.",
+        COPY.pegin.statusErrors.amlRejected,
       ),
     );
     sets.needsWotsKey.delete(depositId);

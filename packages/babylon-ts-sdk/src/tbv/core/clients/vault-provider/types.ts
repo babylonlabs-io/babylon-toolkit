@@ -23,6 +23,8 @@
  *   -> ActivatedPendingBroadcast -> Activated
  *
  * Branching / terminal states:
+ * - IngestionRejected: terminal — ingestion permanently failed (e.g. malformed
+ *   Pre-PegIn, invalid HTLC outputs); reachable directly from PendingIngestion.
  * - Expired: activation timed out; non-terminal during the grace window
  *   (RFC 003) — transitions to ExpiredCleanedUp or ExpiredInClaim.
  * - InvalidSigInContract: terminal — pegin input signature posted on
@@ -46,6 +48,7 @@ export enum DaemonStatus {
   ACTIVATED_PENDING_BROADCAST = "ActivatedPendingBroadcast",
   ACTIVATED = "Activated",
   EXPIRED = "Expired",
+  INGESTION_REJECTED = "IngestionRejected",
   INVALID_SIG_IN_CONTRACT = "InvalidSigInContract",
   AML_REJECTED = "AmlRejected",
   EXPIRED_CLEANED_UP = "ExpiredCleanedUp",
@@ -105,6 +108,7 @@ export const VP_TRANSIENT_STATUSES: ReadonlySet<DaemonStatus> = new Set([
  * VP_TERMINAL_FAILURE_STATUSES.has(status)`.
  */
 export const VP_TERMINAL_FAILURE_STATUSES: ReadonlySet<DaemonStatus> = new Set([
+  DaemonStatus.INGESTION_REJECTED,
   DaemonStatus.INVALID_SIG_IN_CONTRACT,
   DaemonStatus.AML_REJECTED,
   DaemonStatus.EXPIRED_CLEANED_UP,

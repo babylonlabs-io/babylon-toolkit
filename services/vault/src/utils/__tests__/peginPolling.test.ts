@@ -70,6 +70,7 @@ describe("isTerminalPollingError", () => {
     DaemonStatus.AML_REJECTED,
     DaemonStatus.EXPIRED,
     DaemonStatus.EXPIRED_CLEANED_UP,
+    DaemonStatus.INGESTION_REJECTED,
   ])("returns true for TerminalPeginPollingError(%s)", (status) => {
     expect(
       isTerminalPollingError(new TerminalPeginPollingError(status, "anything")),
