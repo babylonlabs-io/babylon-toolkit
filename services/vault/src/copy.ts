@@ -655,7 +655,13 @@ export const COPY = {
     heading: "Loans",
     borrowButton: "Borrow",
     repayButton: "Repay",
-    borrowRateLabel: "Borrow rate",
+    // The interest rate Aave charges on the borrowed asset. Aave compounds
+    // continuously, so this is an APY (effective rate), matching Aave's own UI.
+    borrowRateLabel: "Borrow APY",
+    // Detail-card metric: debt-to-collateral ratio (debtUsd / collateralUsd),
+    // distinct from the borrow APY above.
+    borrowRatioLabel: "Borrow ratio",
+    healthFactorLabel: "Health factor",
     detailsAriaLabel: (symbol: string) => `${symbol} loan details`,
     empty: {
       title: (symbol: string) => `Borrow assets using your ${symbol}`,
