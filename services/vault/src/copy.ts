@@ -112,7 +112,7 @@ export const COPY = {
       invalid:
         "This BTC Vault is invalid. The BTC UTXOs were spent in a different transaction.",
       redemptionComplete:
-        "Redemption complete. Your BTC has been returned to your wallet.",
+        "Redemption complete. Your BTC payout has been sent to your nominated address.",
     },
     statusErrors: {
       expired:
@@ -616,8 +616,9 @@ export const COPY = {
           "Your withdrawal is going through its on-chain challenge period before the BTC payout can be broadcast.",
       },
       payoutBroadcast: {
-        label: "BTC Sent",
-        message: "Your BTC has been sent to your nominated address.",
+        label: "Payout broadcast",
+        message:
+          "The Bitcoin payout transaction has been broadcast to your nominated address.",
       },
       payoutBlocked: {
         label: "Blocked",
