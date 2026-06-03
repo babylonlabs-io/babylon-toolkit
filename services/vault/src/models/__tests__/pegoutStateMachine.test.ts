@@ -52,9 +52,9 @@ describe("pegoutStateMachine", () => {
       expect(state.message.toLowerCase()).not.toContain("few hours");
     });
 
-    it("returns BTC Sent for PayoutBroadcast", () => {
+    it("returns Payout broadcast for PayoutBroadcast", () => {
       const state = getPegoutDisplayState("PayoutBroadcast", true);
-      expect(state.label).toBe("BTC Sent");
+      expect(state.label).toBe("Payout broadcast");
       expect(state.variant).toBe("active");
     });
 
