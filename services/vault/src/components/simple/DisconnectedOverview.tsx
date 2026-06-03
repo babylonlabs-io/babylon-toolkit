@@ -130,9 +130,11 @@ export function DisconnectedOverview() {
           <h3 className="mt-10 text-[34px] font-normal leading-tight text-accent-primary">
             {COPY_OVERVIEW.heroTitle}
           </h3>
-          <p className="mt-4 text-base text-accent-secondary">
-            {COPY_OVERVIEW.heroBody}
-          </p>
+          <div className="mt-4 space-y-1 text-base text-accent-secondary">
+            {COPY_OVERVIEW.heroBody.map((line) => (
+              <p key={line}>{line}</p>
+            ))}
+          </div>
 
           <div className="mt-8">
             <Connect text={COPY_OVERVIEW.connectButton} />

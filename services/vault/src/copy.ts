@@ -649,8 +649,11 @@ export const COPY = {
     amountToRepayLabel: "Amount to repay",
     disconnected: {
       heroTitle: "Native Bitcoin backed borrowing",
-      heroBody:
-        "Powered by Babylon & Aave — deposit BTC and borrow stablecoins or WBTC.",
+      heroBody: [
+        "Powered by Babylon trustless Bitcoin vault protocol and Aave V4.",
+        "Collateralize native Bitcoin and borrow stablecoins or WBTC directly from Aave.",
+        "Trustless, non-custodial, no bridging, no wrapping.",
+      ],
       connectButton: "Connect Wallet",
       aprLabels: {
         usdt: "USDT APR",
