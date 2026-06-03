@@ -112,6 +112,9 @@ export function DepositSignContent({
         </button>
       </div>
     );
+  // Soft deposit-flow warnings from `useDepositFlow`: recoverable issues such
+  // as local persistence failures or per-vault WOTS/payout steps that were
+  // skipped/failed while the rest of the split deposit kept moving.
   const warningCallouts = lastWarnings.map((warning) => (
     <Callout key={warning} variant="warning">
       {warning}

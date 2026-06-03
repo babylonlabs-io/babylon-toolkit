@@ -184,14 +184,16 @@ export function DepositProgressView(props: DepositProgressViewProps) {
   const visualStep = isComplete
     ? TOTAL_VISUAL_STEPS + 1
     : getVisualStep(currentStep);
+  // `currentStep` is the active action, but split deposits can have each vault
+  // lane land on a different step after a recoverable per-vault failure. The
+  // aggregate progress bar and completed-group pill must therefore use the
+  // slowest lane, while the split columns below keep rendering their own steps.
   const aggregateRawStep =
     vaultCount > 1 && perVaultSteps && perVaultSteps.length > 0
       ? perVaultSteps.reduce((minStep, step) =>
           getVisualStep(step) < getVisualStep(minStep) ? step : minStep,
         )
       : currentStep;
-  // Split aggregate chrome reflects the laggard lane; columns still render
-  // from their own steps below.
   const aggregateVisualStep = isComplete
     ? TOTAL_VISUAL_STEPS + 1
     : getVisualStep(aggregateRawStep);

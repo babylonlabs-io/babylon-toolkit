@@ -9,6 +9,7 @@ import type { Hex } from "viem";
 
 import { POLLING_INTERVAL_MS } from "@/config/polling";
 import { logger } from "@/infrastructure";
+import { abortableSleep } from "@/utils/async";
 import { createVpClient } from "@/utils/rpc";
 
 export type BatchReadinessStatus = "ready" | "waiting" | "terminal";
@@ -33,25 +34,11 @@ export interface WaitForBatchReadinessParams {
   pollIntervalMs?: number;
 }
 
-function sleep(ms: number, signal?: AbortSignal): Promise<void> {
-  if (ms <= 0) return Promise.resolve();
-  return new Promise((resolve, reject) => {
-    const timeout = setTimeout(() => {
-      signal?.removeEventListener("abort", onAbort);
-      resolve();
-    }, ms);
-    const onAbort = () => {
-      clearTimeout(timeout);
-      reject(signal?.reason ?? new DOMException("Aborted", "AbortError"));
-    };
-    if (signal) {
-      if (signal.aborted) {
-        onAbort();
-        return;
-      }
-      signal.addEventListener("abort", onAbort, { once: true });
-    }
-  });
+const MIN_POLL_INTERVAL_MS = 1;
+
+function getMaxPollAttempts(timeoutMs: number, pollIntervalMs: number): number {
+  if (timeoutMs <= 0) return 1;
+  return Math.ceil(timeoutMs / pollIntervalMs) + 1;
 }
 
 export async function waitForBatchReadiness({
@@ -70,9 +57,20 @@ export async function waitForBatchReadiness({
   const readyVaultIds = new Set<Hex>();
   const terminalVaultIds = new Set<Hex>();
   const deadline = Date.now() + timeoutMs;
+  const effectivePollIntervalMs = Math.max(
+    MIN_POLL_INTERVAL_MS,
+    pollIntervalMs,
+  );
+  const maxPollAttempts = getMaxPollAttempts(
+    timeoutMs,
+    effectivePollIntervalMs,
+  );
   const rpcClient = createVpClient(providerAddress);
 
-  while (readyVaultIds.size + terminalVaultIds.size < vaults.length) {
+  // Bound the poller by timeout-derived attempts: one immediate poll, then at
+  // most one poll per interval until the deadline. This keeps the helper from
+  // spinning forever if a VP keeps returning only waiting/missing statuses.
+  for (let attempt = 0; attempt < maxPollAttempts; attempt += 1) {
     signal?.throwIfAborted();
 
     const pendingVaults = vaults.filter(
@@ -129,7 +127,10 @@ export async function waitForBatchReadiness({
 
     const remainingMs = deadline - Date.now();
     if (remainingMs <= 0) break;
-    await sleep(Math.min(pollIntervalMs, remainingMs), signal);
+    await abortableSleep(
+      Math.min(effectivePollIntervalMs, remainingMs),
+      signal,
+    );
   }
 
   return { readyVaultIds, terminalVaultIds };
