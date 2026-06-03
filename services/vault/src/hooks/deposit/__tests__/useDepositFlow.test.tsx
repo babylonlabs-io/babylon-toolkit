@@ -169,6 +169,8 @@ vi.mock("../depositFlowSteps", async () => {
     signAndSubmitPayouts: vi.fn(),
     signProofOfPossession: vi.fn(),
     submitWotsPublicKey: vi.fn(),
+    waitForPayoutReadiness: vi.fn(),
+    waitForWotsReadiness: vi.fn(),
   };
 });
 
@@ -279,6 +281,8 @@ async function setupDefaultMocks() {
     registerPeginBatchAndWait,
     signAndSubmitPayouts,
     signProofOfPossession,
+    waitForPayoutReadiness,
+    waitForWotsReadiness,
   } = vi.mocked(await import("../depositFlowSteps"));
 
   vi.mocked(useBtcWalletState).mockReturnValue({
@@ -340,6 +344,14 @@ async function setupDefaultMocks() {
         peginTxHash: "0xVault1BtcTxHash" as Hex,
       },
     ],
+  });
+  vi.mocked(waitForWotsReadiness).mockResolvedValue({
+    readyVaultIds: new Set(["0xVault0Id", "0xVault1Id"] as Hex[]),
+    terminalVaultIds: new Set<Hex>(),
+  });
+  vi.mocked(waitForPayoutReadiness).mockResolvedValue({
+    readyVaultIds: new Set(["0xVault0Id", "0xVault1Id"] as Hex[]),
+    terminalVaultIds: new Set<Hex>(),
   });
   vi.mocked(signAndSubmitPayouts).mockResolvedValue(undefined);
   vi.mocked(broadcastPrePeginTransaction).mockResolvedValue(
@@ -775,6 +787,10 @@ describe("useDepositFlow", () => {
 
       // Second vault should still attempt
       expect(signAndSubmitPayouts).toHaveBeenCalledTimes(2);
+      expect(result.current.perVaultSteps).toEqual([
+        DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS,
+        DepositFlowStep.AWAIT_VP_VERIFICATION,
+      ]);
     });
 
     it("should skip payout signing for vaults whose WOTS key submission failed", async () => {
@@ -803,6 +819,186 @@ describe("useDepositFlow", () => {
       expect(signAndSubmitPayouts).toHaveBeenCalledWith(
         expect.objectContaining({ vaultId: "0xVault1Id" }),
       );
+      expect(result.current.perVaultSteps).toEqual([
+        DepositFlowStep.SUBMIT_WOTS_KEYS,
+        DepositFlowStep.AWAIT_VP_VERIFICATION,
+      ]);
+    });
+
+    it("waits for shared WOTS readiness before submitting any WOTS key", async () => {
+      const { submitWotsPublicKey, waitForWotsReadiness } = vi.mocked(
+        await import("../depositFlowSteps"),
+      );
+
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+      await executeDepositFlow(result);
+
+      expect(waitForWotsReadiness).toHaveBeenCalledTimes(1);
+      expect(waitForWotsReadiness).toHaveBeenCalledWith(
+        expect.objectContaining({
+          providerAddress: "0xProvider123",
+          vaults: [
+            {
+              vaultId: "0xVault0Id",
+              peginTxHash: "0xVault0BtcTxHash",
+            },
+            {
+              vaultId: "0xVault1Id",
+              peginTxHash: "0xVault1BtcTxHash",
+            },
+          ],
+        }),
+      );
+      expect(waitForWotsReadiness.mock.invocationCallOrder[0]).toBeLessThan(
+        submitWotsPublicKey.mock.invocationCallOrder[0],
+      );
+    });
+
+    it("skips WOTS submission for vaults not ready before the shared readiness timeout", async () => {
+      const {
+        submitWotsPublicKey,
+        signAndSubmitPayouts,
+        waitForWotsReadiness,
+      } = vi.mocked(await import("../depositFlowSteps"));
+
+      vi.mocked(waitForWotsReadiness).mockResolvedValueOnce({
+        readyVaultIds: new Set(["0xVault1Id"] as Hex[]),
+        terminalVaultIds: new Set<Hex>(),
+      });
+
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+      const depositResult = await executeDepositFlow(result);
+
+      expect(depositResult).not.toBeNull();
+      expect(result.current.lastWarnings).toEqual(
+        expect.arrayContaining([
+          expect.stringContaining(
+            "Vault 1: WOTS key submission skipped - vault provider was not ready",
+          ),
+        ]),
+      );
+      expect(submitWotsPublicKey).toHaveBeenCalledTimes(1);
+      expect(submitWotsPublicKey).toHaveBeenCalledWith(
+        expect.objectContaining({ vaultId: "0xVault1Id" }),
+      );
+      expect(signAndSubmitPayouts).toHaveBeenCalledTimes(1);
+      expect(signAndSubmitPayouts).toHaveBeenCalledWith(
+        expect.objectContaining({ vaultId: "0xVault1Id" }),
+      );
+      expect(result.current.perVaultSteps).toEqual([
+        DepositFlowStep.AWAIT_BTC_CONFIRMATION,
+        DepositFlowStep.AWAIT_VP_VERIFICATION,
+      ]);
+    });
+
+    it("surfaces terminal WOTS readiness statuses distinctly and continues ready siblings", async () => {
+      const {
+        submitWotsPublicKey,
+        signAndSubmitPayouts,
+        waitForWotsReadiness,
+      } = vi.mocked(await import("../depositFlowSteps"));
+
+      vi.mocked(waitForWotsReadiness).mockResolvedValueOnce({
+        readyVaultIds: new Set(["0xVault1Id"] as Hex[]),
+        terminalVaultIds: new Set(["0xVault0Id"] as Hex[]),
+      });
+
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+      const depositResult = await executeDepositFlow(result);
+
+      expect(depositResult).not.toBeNull();
+      expect(result.current.lastWarnings).toEqual(
+        expect.arrayContaining([
+          expect.stringContaining(
+            "Vault 1: WOTS key submission skipped - vault provider reported this BTC Vault cannot continue",
+          ),
+        ]),
+      );
+      expect(submitWotsPublicKey).toHaveBeenCalledTimes(1);
+      expect(submitWotsPublicKey).toHaveBeenCalledWith(
+        expect.objectContaining({ vaultId: "0xVault1Id" }),
+      );
+      expect(signAndSubmitPayouts).toHaveBeenCalledTimes(1);
+      expect(signAndSubmitPayouts).toHaveBeenCalledWith(
+        expect.objectContaining({ vaultId: "0xVault1Id" }),
+      );
+    });
+
+    it("hands off without warning when payout readiness is not reached in the initial modal", async () => {
+      const { signAndSubmitPayouts, waitForPayoutReadiness } = vi.mocked(
+        await import("../depositFlowSteps"),
+      );
+
+      vi.mocked(waitForPayoutReadiness).mockResolvedValueOnce({
+        readyVaultIds: new Set<Hex>(),
+        terminalVaultIds: new Set<Hex>(),
+      });
+
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+      const depositResult = await executeDepositFlow(result);
+
+      expect(depositResult).not.toBeNull();
+      expect(signAndSubmitPayouts).not.toHaveBeenCalled();
+      expect(result.current.lastWarnings).not.toEqual(
+        expect.arrayContaining([
+          expect.stringContaining("Payout signing failed"),
+        ]),
+      );
+      expect(result.current.perVaultSteps).toEqual([
+        DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS,
+        DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS,
+      ]);
+    });
+
+    it("continues ready siblings while not-ready payout siblings stay at payout preparation", async () => {
+      const { signAndSubmitPayouts, waitForPayoutReadiness } = vi.mocked(
+        await import("../depositFlowSteps"),
+      );
+
+      vi.mocked(waitForPayoutReadiness).mockResolvedValueOnce({
+        readyVaultIds: new Set(["0xVault1Id"] as Hex[]),
+        terminalVaultIds: new Set<Hex>(),
+      });
+
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+      const depositResult = await executeDepositFlow(result);
+
+      expect(depositResult).not.toBeNull();
+      expect(signAndSubmitPayouts).toHaveBeenCalledTimes(1);
+      expect(signAndSubmitPayouts).toHaveBeenCalledWith(
+        expect.objectContaining({ vaultId: "0xVault1Id" }),
+      );
+      expect(result.current.perVaultSteps).toEqual([
+        DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS,
+        DepositFlowStep.AWAIT_VP_VERIFICATION,
+      ]);
+    });
+
+    it("does not surface SDK payout-readiness polling timeout as payout signing failure", async () => {
+      const { signAndSubmitPayouts } = vi.mocked(
+        await import("../depositFlowSteps"),
+      );
+
+      vi.mocked(signAndSubmitPayouts).mockRejectedValue(
+        new Error(
+          "Polling timeout after 1200000ms for pegin abcdef12… (target: PendingDepositorSignatures, PendingACKs, PendingActivation, ActivatedPendingBroadcast, Activated)",
+        ),
+      );
+
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+      const depositResult = await executeDepositFlow(result);
+
+      expect(depositResult).not.toBeNull();
+      expect(signAndSubmitPayouts).toHaveBeenCalledTimes(2);
+      expect(result.current.lastWarnings).not.toEqual(
+        expect.arrayContaining([
+          expect.stringContaining("Payout signing failed"),
+        ]),
+      );
+      expect(result.current.perVaultSteps).toEqual([
+        DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS,
+        DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS,
+      ]);
     });
 
     it("should retry WOTS submission once before skipping vault", async () => {

@@ -40,7 +40,7 @@ export function BtcConfirmationDetailContainer({
   // Direct poll only runs while the polling result is missing — once the
   // dashboard's cache is the source of truth, we trust it (avoids the
   // disagreement Greptile flagged: modal showing live count growing past
-  // requiredDepth while the card has coalesced to "Finalizing").
+  // requiredDepth while the card has coalesced to VP payout prep).
   const fallback = useBtcConfirmations(polling ? null : prePeginTxid);
   const confirmations = polling
     ? polling.prePeginConfirmations

@@ -172,6 +172,32 @@ describe("DepositProgressView", () => {
       expect(bar).toHaveAttribute("aria-valuemax", "100");
     });
 
+    it("uses the laggard per-vault step for split aggregate progress", () => {
+      render(
+        <DepositProgressView
+          {...baseProps}
+          currentStep={DepositFlowStep.AWAIT_VP_VERIFICATION}
+          vaultCount={2}
+          currentVaultIndex={1}
+          perVaultSteps={[
+            DepositFlowStep.SUBMIT_WOTS_KEYS,
+            DepositFlowStep.AWAIT_VP_VERIFICATION,
+          ]}
+        />,
+      );
+
+      expect(
+        screen.getByText(COPY.deposit.progress.stepsCompleted(1, 4)),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByText(COPY.deposit.progress.stepsCompleted(2, 4)),
+      ).not.toBeInTheDocument();
+      expect(screen.getByRole("progressbar")).toHaveAttribute(
+        "aria-valuenow",
+        "40",
+      );
+    });
+
     it("fills the bar fully on the final awaiting-confirmation step", () => {
       render(
         <DepositProgressView

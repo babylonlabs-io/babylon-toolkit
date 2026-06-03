@@ -3,7 +3,12 @@ import type { ReactNode } from "react";
 import type { Address, Hex } from "viem";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { PeginAction } from "@/models/peginStateMachine";
+import { DepositFlowStep } from "@/hooks/deposit/depositFlowSteps";
+import {
+  getPeginDisplayStep,
+  getWarningPeginDisplayStep,
+  PeginAction,
+} from "@/models/peginStateMachine";
 import type { VaultActivity } from "@/types/activity";
 
 import { PostDepositContinuationView } from "../PostDepositContinuationView";
@@ -62,6 +67,7 @@ vi.mock("@/models/peginStateMachine", () => ({
     REFUND_BROADCAST: "refund_broadcast",
   },
   getPeginDisplayStep: vi.fn(() => "AWAIT_BTC_CONFIRMATION"),
+  getWarningPeginDisplayStep: vi.fn(() => "AWAIT_BTC_CONFIRMATION"),
   // Mirrors the production set; ContractStatus literals match the mock above.
   USER_ACTIONABLE_PEGIN_ACTIONS: new Set([
     "SUBMIT_WOTS_KEY",
@@ -142,12 +148,14 @@ vi.mock("../DepositProgressView", () => ({
     currentStep,
     error,
     isComplete,
+    perVaultSteps,
     successMessage,
     onClose,
   }: {
     currentStep: string;
     error?: { title: string; body: string } | null;
     isComplete?: boolean;
+    perVaultSteps?: string[];
     successMessage?: string;
     onClose: () => void;
   }) => (
@@ -155,6 +163,9 @@ vi.mock("../DepositProgressView", () => ({
       <span data-testid="step">{String(currentStep)}</span>
       <span data-testid="error">{error?.body ?? ""}</span>
       <span data-testid="complete">{String(!!isComplete)}</span>
+      <span data-testid="per-vault-steps">
+        {JSON.stringify(perVaultSteps ?? [])}
+      </span>
       <span data-testid="success-message">{successMessage ?? ""}</span>
       <button type="button" data-testid="progress-close" onClick={onClose}>
         close
@@ -259,6 +270,12 @@ function renderView(
 describe("PostDepositContinuationView", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(getPeginDisplayStep).mockReturnValue(
+      DepositFlowStep.AWAIT_BTC_CONFIRMATION,
+    );
+    vi.mocked(getWarningPeginDisplayStep).mockReturnValue(
+      DepositFlowStep.AWAIT_BTC_CONFIRMATION,
+    );
   });
 
   it("waits while the vault has no actionable step", () => {
@@ -748,6 +765,48 @@ describe("PostDepositContinuationView", () => {
       activities: [activityWithId("0xvault0"), activityWithId("0xvault1")],
     });
     expect(getByTestId("error").textContent).toBe("This deposit has expired.");
+  });
+
+  it("preserves per-vault split steps when rendering a no-actionable warning", () => {
+    vi.mocked(getPeginDisplayStep).mockImplementation((state) =>
+      state.displayVariant === "warning" || state.contractStatus === 2
+        ? null
+        : DepositFlowStep.AWAIT_BTC_CONFIRMATION,
+    );
+
+    const states = new Map<string, ReturnType<typeof resultWith>>([
+      [
+        "0xvault0",
+        resultWith({
+          availableActions: [PeginAction.NONE],
+          contractStatus: 7,
+          displayVariant: "warning",
+          localStatus: "confirming",
+          message: "This deposit has expired.",
+        }),
+      ],
+      [
+        "0xvault1",
+        resultWith({
+          availableActions: [PeginAction.NONE],
+          contractStatus: 2,
+        }),
+      ],
+    ]);
+    mockGetPollingResult.mockImplementation((id: string) => states.get(id));
+
+    const { getByTestId } = renderView({
+      vaultIds: ["0xvault0" as Hex, "0xvault1" as Hex],
+      activities: [activityWithId("0xvault0"), activityWithId("0xvault1")],
+    });
+
+    expect(getByTestId("error").textContent).toBe("This deposit has expired.");
+    expect(getByTestId("per-vault-steps").textContent).toBe(
+      JSON.stringify([
+        DepositFlowStep.AWAIT_BTC_CONFIRMATION,
+        DepositFlowStep.COMPLETED,
+      ]),
+    );
   });
 
   it("closing during the wait fires no signing popup", () => {

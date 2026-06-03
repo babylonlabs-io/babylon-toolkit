@@ -23,6 +23,7 @@ vi.mock("@/hooks/deposit/depositFlowSteps", () => ({
   DepositFlowStep: {
     BROADCAST_PRE_PEGIN: 5,
     AWAIT_BTC_CONFIRMATION: 6,
+    SUBMIT_WOTS_KEYS: 7,
     AWAIT_VP_VERIFICATION: 12,
     RETRIEVE_SECRET: 13,
     AWAIT_ACTIVATION_CONFIRMATION: 15,
@@ -32,6 +33,10 @@ vi.mock("@/hooks/deposit/depositFlowSteps", () => ({
 vi.mock("@/models/peginStateMachine", () => ({
   getPeginDisplayStep: (s: { displayStep: DepositFlowStep | null }) =>
     s.displayStep,
+  getWarningPeginDisplayStep: (localStatus: string | undefined) =>
+    localStatus === "confirming"
+      ? DepositFlowStep.AWAIT_BTC_CONFIRMATION
+      : DepositFlowStep.SUBMIT_WOTS_KEYS,
   isVaultPastActivation: (s: { pastActivation: boolean } | undefined) =>
     s?.pastActivation === true,
 }));
@@ -40,6 +45,8 @@ vi.mock("@/models/peginStateMachine", () => ({
 type FakeState = {
   displayStep: DepositFlowStep | null;
   pastActivation: boolean;
+  displayVariant?: "pending" | "active" | "inactive" | "warning";
+  localStatus?: string;
 };
 
 function pollingFor(states: Record<string, FakeState>) {
@@ -145,5 +152,29 @@ describe("deriveSplitVaultProgress", () => {
     );
 
     expect(perVaultSteps?.[1]).toBe(DepositFlowStep.BROADCAST_PRE_PEGIN);
+  });
+
+  it("freezes a warning sibling at its own local step instead of mirroring the active vault", () => {
+    const getPollingResult = pollingFor({
+      "0xactive": {
+        displayStep: DepositFlowStep.RETRIEVE_SECRET,
+        pastActivation: false,
+      },
+      "0xwarning": {
+        displayStep: null,
+        pastActivation: false,
+        displayVariant: "warning",
+        localStatus: "confirming",
+      },
+    });
+
+    const { perVaultSteps } = deriveSplitVaultProgress(
+      getPollingResult,
+      ["0xactive", "0xwarning"],
+      "0xactive",
+      DepositFlowStep.RETRIEVE_SECRET,
+    );
+
+    expect(perVaultSteps?.[1]).toBe(DepositFlowStep.AWAIT_BTC_CONFIRMATION);
   });
 });

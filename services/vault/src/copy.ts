@@ -114,6 +114,18 @@ export const COPY = {
       redemptionComplete:
         "Redemption complete. Your BTC has been returned to your wallet.",
     },
+    statusErrors: {
+      expired:
+        "This deposit has expired. You may still reclaim within the grace window — see refund options.",
+      expiredCleanedUp:
+        "This deposit expired and the grace window has elapsed. No further action is possible.",
+      expiredInClaim: "Deposit expired; claim transaction broadcast",
+      invalidSigInContract:
+        "Vault provider posted an invalid peg-in signature on-chain; this deposit cannot proceed.",
+      amlRejected: "This deposit was rejected by AML screening.",
+      ingestionRejected:
+        "The vault provider could not ingest this deposit; it cannot proceed.",
+    },
     primaryAction: {
       SUBMIT_WOTS_KEY: "Submit WOTS Key",
       SIGN_PAYOUT_TRANSACTIONS: "Sign Payouts",
@@ -161,7 +173,7 @@ export const COPY = {
       confirmingDeposit:
         "Awaiting Pre-Pegin inclusion (1 Bitcoin block · ~10 min)",
       submitWotsKey: "Set up Winternitz One-Time Signature (WOTS)",
-      awaitPayoutTransactions: "Awaiting Pre-Pegin confirmations",
+      awaitPayoutTransactions: "Prepare claim and payout transactions",
       authenticateSession: "Authenticate session with vault provider",
       signPayouts: "Sign payout transactions",
       signRecoveryTxs: "Sign recovery transactions",
@@ -224,11 +236,11 @@ export const COPY = {
           blocksLeft === 1 ? "block" : "blocks"
         })`,
       finalizing: "Finalizing...",
+      waitingForPayoutPrep:
+        "Waiting for vault provider to prepare claim and payout transactions...",
       bitcoinTx: "Pre-Pegin Bitcoin transaction",
       // Compact summary rendered inline on PendingDepositCard during the
-      // AWAIT_PAYOUT_TRANSACTIONS wait. Mirrors the modal panel's "blocks
-      // left + minutes" framing (the label "Awaiting Pre-Pegin confirmations"
-      // already implies the goal, so we only need to show remaining work).
+      // AWAIT_PAYOUT_TRANSACTIONS wait while BTC depth is still accruing.
       cardSummaryProgressing: (blocksLeft: number, minutes: number) =>
         `${blocksLeft} BTC ${
           blocksLeft === 1 ? "block" : "blocks"
@@ -367,6 +379,16 @@ export const COPY = {
         count <= 1
           ? "This deposit and another of your pending BTC Vault deposits selected the same UTXOs. No BTC was committed in the other deposit, it will expire on its own."
           : `This deposit and ${count} of your other pending BTC Vault deposits selected the same UTXOs. No BTC was committed in the other deposits, they will expire on their own.`,
+      wotsReadinessTimeout: (vaultNumber: number) =>
+        `Vault ${vaultNumber}: WOTS key submission skipped - vault provider was not ready before the readiness timeout`,
+      wotsReadinessTerminal: (vaultNumber: number) =>
+        `Vault ${vaultNumber}: WOTS key submission skipped - vault provider reported this BTC Vault cannot continue`,
+      payoutReadinessTerminal: (vaultNumber: number) =>
+        `Vault ${vaultNumber}: Payout signing skipped - vault provider reported this BTC Vault cannot continue`,
+      wotsSubmissionFailed: (vaultNumber: number, error: string) =>
+        `Vault ${vaultNumber}: WOTS key submission failed - ${error}`,
+      payoutSigningFailed: (vaultNumber: number, error: string) =>
+        `Vault ${vaultNumber}: Payout signing failed - ${error}`,
       dismissReusesReservedUtxos: "Dismiss",
     },
     errors: {

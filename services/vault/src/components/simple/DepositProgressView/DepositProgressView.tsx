@@ -78,8 +78,9 @@ export interface DepositProgressViewProps {
   currentVaultIndex?: number | null;
   /**
    * Per-vault raw steps for a split deposit, indexed to match the columns.
-   * Supplied on the resume path (each column reflects its own polled state);
-   * omit for the live flow, where position-based inference is correct.
+   * Supplied when the caller has a stronger per-lane source of truth: the
+   * initial live flow tracks explicit per-vault outcomes, and resume flows use
+   * polling. Omit only for strictly sequential happy-path inference.
    */
   perVaultSteps?: DepositFlowStep[];
   onClose: () => void;
@@ -183,13 +184,26 @@ export function DepositProgressView(props: DepositProgressViewProps) {
   const visualStep = isComplete
     ? TOTAL_VISUAL_STEPS + 1
     : getVisualStep(currentStep);
+  // `currentStep` is the active action, but split deposits can have each vault
+  // lane land on a different step after a recoverable per-vault failure. The
+  // aggregate progress bar and completed-group pill must therefore use the
+  // slowest lane, while the split columns below keep rendering their own steps.
+  const aggregateRawStep =
+    vaultCount > 1 && perVaultSteps && perVaultSteps.length > 0
+      ? perVaultSteps.reduce((minStep, step) =>
+          getVisualStep(step) < getVisualStep(minStep) ? step : minStep,
+        )
+      : currentStep;
+  const aggregateVisualStep = isComplete
+    ? TOTAL_VISUAL_STEPS + 1
+    : getVisualStep(aggregateRawStep);
   const completedSteps = Math.max(
     0,
-    Math.min(TOTAL_VISUAL_STEPS, visualStep - 1),
+    Math.min(TOTAL_VISUAL_STEPS, aggregateVisualStep - 1),
   );
   const showOverallProgress = completedSteps >= 1;
   const completedGroups = STEP_GROUPS.filter(
-    (group) => visualStep > group.endStep,
+    (group) => aggregateVisualStep > group.endStep,
   ).length;
   const totalGroups = STEP_GROUPS.length;
   const showCompletedGroupsPill = completedGroups >= 1;
@@ -229,7 +243,7 @@ export function DepositProgressView(props: DepositProgressViewProps) {
       {showOverallProgress && (
         <div className="mt-3">
           <ProgressBar
-            percent={isComplete ? 1 : getStepFillPercent(currentStep)}
+            percent={isComplete ? 1 : getStepFillPercent(aggregateRawStep)}
           />
         </div>
       )}

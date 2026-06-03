@@ -7,9 +7,9 @@
  * so a failed batch never strands BTC in unregistered HTLCs. A single vault is
  * a batch of 1.
  *
- * Runs through WOTS submission and payout signing, then parks at
- * AWAIT_VP_VERIFICATION and hands off to the continuation view (artifact
- * download + activation happen at its ActivationGate).
+ * Runs through WOTS submission, signs payouts only when the VP is already
+ * ready, then hands off to the in-modal continuation view for any remaining
+ * payout signing, artifact download, and activation work.
  */
 
 import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
@@ -72,11 +72,14 @@ import { getVpProxyUrl } from "@/utils/rpc";
 import {
   DepositFlowStep,
   getEthWalletClient,
+  isPayoutReadinessTimeout,
   payoutSigningStep,
   registerPeginBatchAndWait,
   signAndSubmitPayouts,
   signProofOfPossession,
   submitWotsPublicKey,
+  waitForPayoutReadiness,
+  waitForWotsReadiness,
   type DepositUtxo,
 } from "./depositFlowSteps";
 import { useBtcWalletState } from "./useBtcWalletState";
@@ -134,6 +137,12 @@ export interface UseDepositFlowReturn {
   /** Peg-in BTC signing progress (X of Y peg-in txs, split deposits only) */
   peginSigningProgress: PeginSigningProgress | null;
   /**
+   * Per-vault live render steps for split deposits. The initial modal uses
+   * these instead of positional inference because earlier vaults can fail WOTS
+   * or payout signing while later vaults continue.
+   */
+  perVaultSteps: DepositFlowStep[];
+  /**
    * Data backing the "Awaiting Bitcoin confirmation" detail panel, snapshotted
    * when the BTC wait begins: the timestamp, the Pre-PegIn broadcast txid, and
    * the required confirmation depth of the offchain-params version this
@@ -173,7 +182,7 @@ export interface MultiVaultDepositResult {
   pegins: PeginCreationResult[];
   /** Batch ID linking the vaults */
   batchId: string;
-  /** Warning messages for background operation failures (payout signing, broadcast) */
+  /** Warning messages for recoverable per-vault failures. */
   warnings?: string[];
 }
 
@@ -217,6 +226,9 @@ export function useDepositFlow(
     useState<PayoutSigningProgress | null>(null);
   const [peginSigningProgress, setPeginSigningProgress] =
     useState<PeginSigningProgress | null>(null);
+  const [perVaultSteps, setPerVaultSteps] = useState<DepositFlowStep[]>(() =>
+    vaultAmounts.map(() => DepositFlowStep.DERIVE_VAULT_SECRET),
+  );
   const [btcConfirmationDetail, setBtcConfirmationDetail] = useState<{
     startedAt: number;
     prePeginTxid: string;
@@ -273,9 +285,16 @@ export function useDepositFlow(
       setLastWarnings([]);
       setPeginSigningProgress(null);
       setCurrentStep(DepositFlowStep.DERIVE_VAULT_SECRET);
+      setPerVaultSteps(
+        vaultAmounts.map(() => DepositFlowStep.DERIVE_VAULT_SECRET),
+      );
 
       // Track background operation failures
       const warnings: string[] = [];
+      const recordWarning = (warning: string) => {
+        warnings.push(warning);
+        setLastWarnings([...warnings]);
+      };
 
       // Track registry entries we primed so we can release them on
       // user-cancel (bound `authAnchorHex` lifetime to the flow).
@@ -598,7 +617,7 @@ export function useDepositFlow(
             if (
               !warnings.includes(COPY.deposit.warnings.depositRecordNotSaved)
             ) {
-              warnings.push(COPY.deposit.warnings.depositRecordNotSaved);
+              recordWarning(COPY.deposit.warnings.depositRecordNotSaved);
             }
           }
         }
@@ -633,6 +652,9 @@ export function useDepositFlow(
         // ========================================================================
 
         setCurrentStep(DepositFlowStep.BROADCAST_PRE_PEGIN);
+        setPerVaultSteps(
+          vaultAmounts.map(() => DepositFlowStep.BROADCAST_PRE_PEGIN),
+        );
 
         let prePeginBroadcastTxid: string;
         try {
@@ -713,6 +735,9 @@ export function useDepositFlow(
         // ========================================================================
 
         setCurrentStep(DepositFlowStep.AWAIT_BTC_CONFIRMATION);
+        setPerVaultSteps(
+          broadcastedResults.map(() => DepositFlowStep.AWAIT_BTC_CONFIRMATION),
+        );
         // Snapshot the BTC-wait inputs. The Pre-PegIn broadcast txid is the tx
         // that lands on Bitcoin (multi-vault siblings share one broadcast).
         // requiredDepth is pinned to the offchain-params version this deposit
@@ -813,12 +838,43 @@ export function useDepositFlow(
 
         baseStep = DepositFlowStep.SUBMIT_WOTS_KEYS;
 
+        const { readyVaultIds, terminalVaultIds } = await waitForWotsReadiness({
+          vaults: broadcastedResults.map((result) => ({
+            vaultId: result.vaultId,
+            peginTxHash: result.peginTxHash,
+          })),
+          providerAddress: provider.id,
+          signal,
+        });
+
         for (const result of broadcastedResults) {
           signal.throwIfAborted();
+
+          if (!readyVaultIds.has(result.vaultId)) {
+            recordWarning(
+              terminalVaultIds.has(result.vaultId)
+                ? COPY.deposit.warnings.wotsReadinessTerminal(
+                    result.vaultIndex + 1,
+                  )
+                : COPY.deposit.warnings.wotsReadinessTimeout(
+                    result.vaultIndex + 1,
+                  ),
+            );
+            wotsFailedVaultIds.add(result.vaultId);
+            continue;
+          }
 
           // Mark the current vault being processed so the split-deposit UI
           // can show per-vault progression for the WOTS phase.
           setCurrentVaultIndex(result.vaultIndex);
+          setCurrentStep(DepositFlowStep.SUBMIT_WOTS_KEYS);
+          setPerVaultSteps((prev) =>
+            prev.map((step, index) =>
+              index === result.vaultIndex
+                ? DepositFlowStep.SUBMIT_WOTS_KEYS
+                : step,
+            ),
+          );
 
           let wotsSuccess = false;
 
@@ -835,6 +891,13 @@ export function useDepositFlow(
                 signal,
               });
               wotsSuccess = true;
+              setPerVaultSteps((prev) =>
+                prev.map((step, index) =>
+                  index === result.vaultIndex
+                    ? DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS
+                    : step,
+                ),
+              );
               break;
             } catch (error) {
               // Re-throw abort errors so they're suppressed by the outer catch
@@ -852,8 +915,12 @@ export function useDepositFlow(
 
               const errorMsg =
                 error instanceof Error ? error.message : String(error);
-              const warning = `Vault ${result.vaultIndex + 1}: WOTS key submission failed - ${errorMsg}`;
-              warnings.push(warning);
+              recordWarning(
+                COPY.deposit.warnings.wotsSubmissionFailed(
+                  result.vaultIndex + 1,
+                  errorMsg,
+                ),
+              );
               logger.error(
                 error instanceof Error ? error : new Error(String(error)),
                 {
@@ -877,6 +944,32 @@ export function useDepositFlow(
         // ========================================================================
 
         baseStep = DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS;
+        setCurrentStep(DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS);
+        setCurrentVaultIndex(null);
+
+        const payoutCandidateResults = broadcastedResults.filter(
+          (result) => !wotsFailedVaultIds.has(result.vaultId),
+        );
+
+        setPerVaultSteps((prev) =>
+          prev.map((step, index) =>
+            payoutCandidateResults.some((result) => result.vaultIndex === index)
+              ? DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS
+              : step,
+          ),
+        );
+
+        const {
+          readyVaultIds: payoutReadyVaultIds,
+          terminalVaultIds: payoutTerminalVaultIds,
+        } = await waitForPayoutReadiness({
+          vaults: payoutCandidateResults.map((result) => ({
+            vaultId: result.vaultId,
+            peginTxHash: result.peginTxHash,
+          })),
+          providerAddress: provider.id,
+          signal,
+        });
 
         for (let vi = 0; vi < broadcastedResults.length; vi++) {
           const result = broadcastedResults[vi];
@@ -887,9 +980,30 @@ export function useDepositFlow(
           // the keys needed, so payout signing would timeout.
           if (wotsFailedVaultIds.has(result.vaultId)) continue;
 
+          if (!payoutReadyVaultIds.has(result.vaultId)) {
+            if (payoutTerminalVaultIds.has(result.vaultId)) {
+              recordWarning(
+                COPY.deposit.warnings.payoutReadinessTerminal(
+                  result.vaultIndex + 1,
+                ),
+              );
+            }
+            setPerVaultSteps((prev) =>
+              prev.map((step, index) =>
+                index === vi ? DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS : step,
+              ),
+            );
+            continue;
+          }
+
           try {
             setCurrentVaultIndex(vi);
             setCurrentStep(DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS);
+            setPerVaultSteps((prev) =>
+              prev.map((step, index) =>
+                index === vi ? DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS : step,
+              ),
+            );
             setIsWaiting(true);
             payoutClaimersDoneRef.current = false;
 
@@ -907,21 +1021,45 @@ export function useDepositFlow(
               onProgress: (p) => {
                 if (!p) return;
                 setPayoutSigningProgress(p);
-                setCurrentStep(payoutSigningStep(p.phase));
+                const nextStep = payoutSigningStep(p.phase);
+                setCurrentStep(nextStep);
+                setPerVaultSteps((prev) =>
+                  prev.map((step, index) => (index === vi ? nextStep : step)),
+                );
                 payoutClaimersDoneRef.current =
                   p.total > 0 && p.completed >= p.total;
               },
             });
 
             setCurrentStep(DepositFlowStep.AWAIT_VP_VERIFICATION);
+            setPerVaultSteps((prev) =>
+              prev.map((step, index) =>
+                index === vi ? DepositFlowStep.AWAIT_VP_VERIFICATION : step,
+              ),
+            );
           } catch (error) {
             // If the user cancelled, stop immediately — don't continue with other vaults
             if (signal.aborted) throw error;
 
+            if (isPayoutReadinessTimeout(error)) {
+              setPerVaultSteps((prev) =>
+                prev.map((step, index) =>
+                  index === vi
+                    ? DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS
+                    : step,
+                ),
+              );
+              continue;
+            }
+
             const errorMsg =
               error instanceof Error ? error.message : String(error);
-            const warning = `Vault ${result.vaultIndex + 1}: Payout signing failed - ${errorMsg}`;
-            warnings.push(warning);
+            recordWarning(
+              COPY.deposit.warnings.payoutSigningFailed(
+                result.vaultIndex + 1,
+                errorMsg,
+              ),
+            );
             logger.error(
               error instanceof Error ? error : new Error(String(error)),
               {
@@ -940,11 +1078,10 @@ export function useDepositFlow(
         setPayoutSigningProgress(null);
         setCurrentVaultIndex(null);
 
-        // Payout signing done. Each signed vault is left at AWAIT_VP_VERIFICATION
-        // (set above). The flow hands off to the post-deposit continuation view,
-        // which polls each vault and surfaces the manual artifact-download +
-        // activation step at its ActivationGate (where the user can download or
-        // explicitly skip) — so we no longer block the flow on a download here.
+        // Inline payout signing is best-effort. Signed vaults are left at
+        // AWAIT_VP_VERIFICATION, while vaults still waiting on payout prep stay
+        // at AWAIT_PAYOUT_TRANSACTIONS. The in-modal continuation view polls
+        // each vault and drives any remaining payout signing + activation.
         setIsWaiting(true);
 
         // Snapshot the warnings into hook state so the UI can show them
@@ -1034,6 +1171,7 @@ export function useDepositFlow(
     isWaiting,
     payoutSigningProgress,
     peginSigningProgress,
+    perVaultSteps,
     btcConfirmationDetail,
   };
 }

@@ -735,6 +735,30 @@ export function getPeginDisplayStep(state: PeginState): DepositFlowStep | null {
   return null;
 }
 
+/**
+ * Freeze a warning/terminal vault at the last locally-known deposit-flow step.
+ *
+ * Warning states intentionally do not return a normal display step: they are
+ * not actively progressing. This helper gives the multistepper a truthful
+ * place to stop instead of mirroring another sibling or defaulting to success.
+ */
+export function getWarningPeginDisplayStep(
+  localStatus: LocalStorageStatus | undefined,
+): DepositFlowStep {
+  switch (localStatus) {
+    case LocalStorageStatus.CONFIRMED:
+      return DepositFlowStep.ACTIVATE_VAULT;
+    case LocalStorageStatus.PAYOUT_SIGNED:
+      return DepositFlowStep.AWAIT_VP_VERIFICATION;
+    case LocalStorageStatus.CONFIRMING:
+      return DepositFlowStep.AWAIT_BTC_CONFIRMATION;
+    case LocalStorageStatus.PENDING:
+      return DepositFlowStep.BROADCAST_PRE_PEGIN;
+    default:
+      return DepositFlowStep.AWAIT_BTC_CONFIRMATION;
+  }
+}
+
 // ============================================================================
 // State Transition Helpers
 // ============================================================================

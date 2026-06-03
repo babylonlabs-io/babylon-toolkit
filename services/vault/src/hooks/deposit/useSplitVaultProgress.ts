@@ -25,6 +25,7 @@ import { DepositFlowStep } from "@/hooks/deposit/depositFlowSteps";
 import { logger } from "@/infrastructure";
 import {
   getPeginDisplayStep,
+  getWarningPeginDisplayStep,
   isVaultPastActivation,
 } from "@/models/peginStateMachine";
 
@@ -88,10 +89,12 @@ export function deriveSplitVaultProgress(
     // `getPeginDisplayStep` is null both for a fully-activated vault and for a
     // warning. A finished sibling must render COMPLETED (all groups ✓) — NOT
     // fall back to the active vault's step, which would otherwise reset an
-    // already-activated column to whatever the active vault is doing. A warning
-    // sibling keeps the active-step fallback so its column still renders.
-    return isVaultPastActivation(state)
-      ? DepositFlowStep.COMPLETED
+    // already-activated column to whatever the active vault is doing. Warning
+    // siblings freeze at their own last known local step instead of mirroring
+    // the active sibling.
+    if (isVaultPastActivation(state)) return DepositFlowStep.COMPLETED;
+    return state.displayVariant === "warning"
+      ? getWarningPeginDisplayStep(state.localStatus)
       : activeStep;
   });
 

@@ -38,8 +38,20 @@ export {
 } from "./ethereumSubmit";
 
 // Step 3.5: WOTS key submission (RPC, happens after broadcast + VP indexing)
-export { submitWotsPublicKey } from "./wotsSubmission";
+export { submitWotsPublicKey, waitForWotsReadiness } from "./wotsSubmission";
+export type {
+  WaitForWotsReadinessParams,
+  WotsReadinessResult,
+} from "./wotsSubmission";
 
+export {
+  isPayoutReadinessTimeout,
+  waitForPayoutReadiness,
+} from "./payoutReadiness";
+export type {
+  PayoutReadinessResult,
+  WaitForPayoutReadinessParams,
+} from "./payoutReadiness";
 // Step 4: Payout signing
 export { payoutSigningStep, signAndSubmitPayouts } from "./payoutSigning";
 export type { SignAndSubmitPayoutsParams } from "./payoutSigning";
