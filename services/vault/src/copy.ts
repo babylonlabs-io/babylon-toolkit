@@ -357,7 +357,7 @@ export const COPY = {
       // Accessible label / tooltip for the per-provider explorer link.
       providerExplorerLinkLabel: "View vault provider on explorer",
       splitOptionDescription:
-        "Split your BTC into multiple BTC Vaults for more flexibility. In liquidation, only part of your collateral may be affected.",
+        "Split your Bitcoin into multiple vaults to enable partial liquidation.",
       noSplitOptionDescription:
         "Your BTC will be deposited into a single BTC Vault",
       learnWhyRecommended: "Learn why we recommend this.",
