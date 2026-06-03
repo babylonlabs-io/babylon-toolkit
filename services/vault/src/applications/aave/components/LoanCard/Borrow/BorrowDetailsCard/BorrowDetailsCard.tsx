@@ -6,6 +6,7 @@ import {
   getHealthFactorStatusFromValue,
 } from "@/applications/aave/utils";
 import { HeartIcon } from "@/components/shared";
+import { COPY } from "@/copy";
 
 type KeyValueListItems = ComponentProps<typeof KeyValueList>["items"];
 
@@ -19,7 +20,8 @@ interface BorrowDetailsCardProps {
 }
 
 /**
- * BorrowDetailsCard - Displays borrow rate and health factor with before → after indicators
+ * BorrowDetailsCard - Displays borrow ratio (debt/collateral) and health factor
+ * with before → after indicators
  */
 export function BorrowDetailsCard({
   borrowRatio,
@@ -41,7 +43,7 @@ export function BorrowDetailsCard({
 
   const items: KeyValueListItems = [
     {
-      label: "Borrow rate",
+      label: COPY.loans.borrowRatioLabel,
       value: borrowRatioOriginal ? (
         <span className="flex items-center gap-2">
           <span className="text-accent-secondary">{borrowRatioOriginal}</span>
@@ -53,7 +55,7 @@ export function BorrowDetailsCard({
       ),
     },
     {
-      label: "Health factor",
+      label: COPY.loans.healthFactorLabel,
       value:
         healthFactorOriginal && originalColor ? (
           <span className="flex items-center gap-2">

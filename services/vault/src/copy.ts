@@ -112,7 +112,7 @@ export const COPY = {
       invalid:
         "This BTC Vault is invalid. The BTC UTXOs were spent in a different transaction.",
       redemptionComplete:
-        "Redemption complete. Your BTC has been returned to your wallet.",
+        "Redemption complete. Your BTC payout has been sent to your nominated address.",
     },
     statusErrors: {
       expired:
@@ -266,8 +266,8 @@ export const COPY = {
       doneButton: "Done",
     },
     refundSuccess: {
-      heading: "Broadcasting Refund",
-      body: "Refund transaction has been broadcast successfully.",
+      heading: "Broadcasting withdraw expired",
+      body: "Withdraw expired vault transaction broadcast successfully.",
       viewExplorerButton: "View on blockchain explorer",
       doneButton: "Done",
       doNotSpendWarning: (symbol: string) =>
@@ -357,7 +357,7 @@ export const COPY = {
       // Accessible label / tooltip for the per-provider explorer link.
       providerExplorerLinkLabel: "View vault provider on explorer",
       splitOptionDescription:
-        "Split your BTC into multiple BTC Vaults for more flexibility. In liquidation, only part of your collateral may be affected.",
+        "Split your Bitcoin into multiple vaults to enable partial liquidation.",
       noSplitOptionDescription:
         "Your BTC will be deposited into a single BTC Vault",
       learnWhyRecommended: "Learn why we recommend this.",
@@ -616,8 +616,9 @@ export const COPY = {
           "Your withdrawal is going through its on-chain challenge period before the BTC payout can be broadcast.",
       },
       payoutBroadcast: {
-        label: "BTC Sent",
-        message: "Your BTC has been sent to your nominated address.",
+        label: "Payout broadcast",
+        message:
+          "The Bitcoin payout transaction has been broadcast to your nominated address.",
       },
       payoutBlocked: {
         label: "Blocked",
@@ -655,7 +656,13 @@ export const COPY = {
     heading: "Loans",
     borrowButton: "Borrow",
     repayButton: "Repay",
-    borrowRateLabel: "Borrow rate",
+    // The interest rate Aave charges on the borrowed asset. Aave compounds
+    // continuously, so this is an APY (effective rate), matching Aave's own UI.
+    borrowRateLabel: "Borrow APY",
+    // Detail-card metric: debt-to-collateral ratio (debtUsd / collateralUsd),
+    // distinct from the borrow APY above.
+    borrowRatioLabel: "Borrow ratio",
+    healthFactorLabel: "Health factor",
     detailsAriaLabel: (symbol: string) => `${symbol} loan details`,
     empty: {
       title: (symbol: string) => `Borrow assets using your ${symbol}`,
