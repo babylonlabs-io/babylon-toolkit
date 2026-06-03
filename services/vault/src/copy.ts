@@ -266,8 +266,8 @@ export const COPY = {
       doneButton: "Done",
     },
     refundSuccess: {
-      heading: "Broadcasting Refund",
-      body: "Refund transaction has been broadcast successfully.",
+      heading: "Broadcasting withdraw expired",
+      body: "Withdraw expired vault transaction broadcast successfully.",
       viewExplorerButton: "View on blockchain explorer",
       doneButton: "Done",
       doNotSpendWarning: (symbol: string) =>
