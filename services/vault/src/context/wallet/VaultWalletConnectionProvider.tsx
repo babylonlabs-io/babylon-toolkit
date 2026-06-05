@@ -21,8 +21,8 @@ import { getNetworkConfigETH } from "@/config/network";
 import { logger } from "@/infrastructure";
 
 // Vault deposits require the connected BTC wallet to implement the
-// `deriveContextHash` API (see docs/specs/derive-context-hash.md). Only
-// UniSat exposes a conformant implementation today, so every other BTC
+// `deriveContextHash` API (see docs/specs/derive-context-hash.md). UniSat
+// and OneKey expose a conformant implementation today, so every other BTC
 // adapter is gated off here. Re-enable an entry as soon as its wallet
 // vendor ships `deriveContextHash`. Each non-conforming adapter still
 // throws `WALLET_METHOD_NOT_SUPPORTED` at the connector layer; this
@@ -35,7 +35,6 @@ const DISABLED_WALLETS: string[] = [
   "ledger_btc",
   "ledger_btc_v2",
   "okx",
-  "onekey",
 ];
 
 const context = typeof window !== "undefined" ? window : {};
