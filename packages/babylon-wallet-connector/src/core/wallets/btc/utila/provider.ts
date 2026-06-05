@@ -36,8 +36,38 @@ export class UtilaProvider implements IBTCProvider {
     this.provider = wallet.bitcoin;
   }
 
+  // Maps a user-cancelled wallet prompt to a typed CONNECTION_REJECTED so
+  // callers can treat cancellation as an expected action; already-typed
+  // WalletErrors and other errors are rethrown unchanged.
+  private mapPromptRejection = (error: unknown, action: string): never => {
+    if (error instanceof WalletError) throw error;
+    if (isUserRejectionMessage((error as Error | undefined)?.message)) {
+      throw new WalletError({
+        code: ERROR_CODES.CONNECTION_REJECTED,
+        message: `Utila Wallet rejected the ${action}`,
+        wallet: WALLET_PROVIDER_NAME,
+      });
+    }
+    throw error;
+  };
+
   connectWallet = async (): Promise<void> => {
-    await this.provider.connectWallet();
+    try {
+      await this.provider.connectWallet();
+    } catch (error) {
+      if (isUserRejectionMessage((error as Error | undefined)?.message)) {
+        throw new WalletError({
+          code: ERROR_CODES.CONNECTION_REJECTED,
+          message: "Connection to Utila Wallet was rejected",
+          wallet: WALLET_PROVIDER_NAME,
+        });
+      }
+      throw new WalletError({
+        code: ERROR_CODES.CONNECTION_FAILED,
+        message: (error as Error | undefined)?.message || "Failed to connect to Utila Wallet",
+        wallet: WALLET_PROVIDER_NAME,
+      });
+    }
 
     const address = await this.provider.getAddress();
     const publicKeyHex = await this.provider.getPublicKeyHex();
@@ -92,7 +122,11 @@ export class UtilaProvider implements IBTCProvider {
         wallet: WALLET_PROVIDER_NAME,
       });
 
-    return this.provider.signPsbt(psbtHex, options);
+    try {
+      return await this.provider.signPsbt(psbtHex, options);
+    } catch (error) {
+      return this.mapPromptRejection(error, "PSBT signing request");
+    }
   };
 
   signPsbts = async (psbtsHexes: string[], options?: SignPsbtOptions[]): Promise<string[]> => {
@@ -110,7 +144,11 @@ export class UtilaProvider implements IBTCProvider {
       });
     }
 
-    return this.provider.signPsbts(psbtsHexes, options);
+    try {
+      return await this.provider.signPsbts(psbtsHexes, options);
+    } catch (error) {
+      return this.mapPromptRejection(error, "PSBT signing request");
+    }
   };
 
   getNetwork = async (): Promise<Network> => {
@@ -125,7 +163,11 @@ export class UtilaProvider implements IBTCProvider {
         wallet: WALLET_PROVIDER_NAME,
       });
 
-    return this.provider.signMessage(message, type);
+    try {
+      return await this.provider.signMessage(message, type);
+    } catch (error) {
+      return this.mapPromptRejection(error, "message signing request");
+    }
   };
 
   getInscriptions = async (): Promise<InscriptionIdentifier[]> => {
@@ -185,17 +227,7 @@ export class UtilaProvider implements IBTCProvider {
     try {
       return await this.provider.deriveContextHash(appName, context);
     } catch (error) {
-      // Map user rejection to a typed rejection so callers can distinguish
-      // "user said no" from spec-validation failures; everything else is
-      // rethrown unwrapped to preserve the wallet's diagnostics.
-      if (isUserRejectionMessage((error as Error | undefined)?.message)) {
-        throw new WalletError({
-          code: ERROR_CODES.CONNECTION_REJECTED,
-          message: "Utila Wallet rejected the deriveContextHash approval",
-          wallet: WALLET_PROVIDER_NAME,
-        });
-      }
-      throw error;
+      return this.mapPromptRejection(error, "deriveContextHash approval");
     }
   };
 }
