@@ -1,11 +1,20 @@
 import { isAccountChangeEvent, DISCONNECT_EVENT, removeProviderListener } from "@/constants/walletEvents";
 import type { IBTCProvider, InscriptionIdentifier, SignPsbtOptions, WalletInfo } from "@/core/types";
 import { Network } from "@/core/types";
+import { withTimeout } from "@/core/utils/withTimeout";
 import { ERROR_CODES, WalletError, isUserRejectionMessage } from "@/error";
 
 import logo from "./logo.svg";
 
 export const WALLET_PROVIDER_NAME = "Utila";
+
+// Budget for non-interactive reads (address, pubkey). An MPC wallet does remote
+// co-signer round-trips, so bound them to keep a stalled provider from hanging
+// the connect flow.
+const UTILA_RPC_TIMEOUT_MS = 10_000;
+
+// Budget for the interactive connect approval (waits on the user).
+const UTILA_PROMPT_TIMEOUT_MS = 60_000;
 
 /**
  * Utila is an MPC wallet that injects an `IBTCProvider`-compatible object at
@@ -51,10 +60,21 @@ export class UtilaProvider implements IBTCProvider {
     throw error;
   };
 
+  // Builds the rejection used when a Utila call exceeds its timeout budget.
+  private timeoutError = (operation: string): WalletError =>
+    new WalletError({
+      code: ERROR_CODES.CONNECTION_FAILED,
+      message: `Utila Wallet did not respond while ${operation}. Open the extension to confirm it is unlocked, then try again.`,
+      wallet: WALLET_PROVIDER_NAME,
+    });
+
   connectWallet = async (): Promise<void> => {
     try {
-      await this.provider.connectWallet();
+      await withTimeout(this.provider.connectWallet(), UTILA_PROMPT_TIMEOUT_MS, () =>
+        this.timeoutError("connecting"),
+      );
     } catch (error) {
+      if (error instanceof WalletError) throw error;
       if (isUserRejectionMessage((error as Error | undefined)?.message)) {
         throw new WalletError({
           code: ERROR_CODES.CONNECTION_REJECTED,
@@ -69,8 +89,12 @@ export class UtilaProvider implements IBTCProvider {
       });
     }
 
-    const address = await this.provider.getAddress();
-    const publicKeyHex = await this.provider.getPublicKeyHex();
+    const address = await withTimeout<string>(this.provider.getAddress(), UTILA_RPC_TIMEOUT_MS, () =>
+      this.timeoutError("reading the address"),
+    );
+    const publicKeyHex = await withTimeout<string>(this.provider.getPublicKeyHex(), UTILA_RPC_TIMEOUT_MS, () =>
+      this.timeoutError("reading the public key"),
+    );
 
     if (publicKeyHex && address) {
       this.walletInfo = {
@@ -152,7 +176,20 @@ export class UtilaProvider implements IBTCProvider {
   };
 
   getNetwork = async (): Promise<Network> => {
-    return this.provider.getNetwork();
+    const network = await this.provider.getNetwork();
+
+    // Validate the value from the wallet rather than casting it into Network —
+    // an unexpected return must fail at the boundary, not flow silently into
+    // network-dependent PSBT signing.
+    if (!Object.values(Network).includes(network)) {
+      throw new WalletError({
+        code: ERROR_CODES.UNSUPPORTED_NETWORK,
+        message: `Unsupported network from Utila Wallet: "${network}"`,
+        wallet: WALLET_PROVIDER_NAME,
+      });
+    }
+
+    return network;
   };
 
   signMessage = async (message: string, type: "bip322-simple" | "ecdsa"): Promise<string> => {
@@ -182,6 +219,12 @@ export class UtilaProvider implements IBTCProvider {
   };
 
   on = (eventName: string, callBack: () => void) => {
+    if (!this.walletInfo)
+      throw new WalletError({
+        code: ERROR_CODES.WALLET_NOT_CONNECTED,
+        message: "Utila Wallet not connected",
+        wallet: WALLET_PROVIDER_NAME,
+      });
     if (isAccountChangeEvent(eventName)) {
       return this.provider.on("accountsChanged", callBack);
     }
@@ -191,6 +234,12 @@ export class UtilaProvider implements IBTCProvider {
   };
 
   off = (eventName: string, callBack: () => void) => {
+    if (!this.walletInfo)
+      throw new WalletError({
+        code: ERROR_CODES.WALLET_NOT_CONNECTED,
+        message: "Utila Wallet not connected",
+        wallet: WALLET_PROVIDER_NAME,
+      });
     if (isAccountChangeEvent(eventName)) {
       return removeProviderListener(this.provider, "accountsChanged", callBack);
     }
