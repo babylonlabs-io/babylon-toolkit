@@ -2,6 +2,7 @@ import { isAccountChangeEvent, DISCONNECT_EVENT, removeProviderListener } from "
 import type { BTCConfig, IBTCProvider, InscriptionIdentifier, SignPsbtOptions, WalletInfo } from "@/core/types";
 import { Network } from "@/core/types";
 import { mapSignInputsToToSignInputs } from "@/core/utils/psbtOptionsMapper";
+import { withTimeout } from "@/core/utils/withTimeout";
 import { ERROR_CODES, WalletError, isUserRejectionMessage } from "@/error";
 
 import logo from "./logo.svg";
@@ -15,11 +16,22 @@ export const WALLET_PROVIDER_NAME = "OneKey";
 // OneKeyHQ/cross-inpage-provider packages/errors/src/error-constants.ts.
 const ONEKEY_METHOD_NOT_SUPPORTED_CODE = -32004;
 
+// Budget for non-interactive reads (version refresh, address, pubkey). Bounds a
+// stalled/asleep extension so connect can't hang waiting on it.
+const ONEKEY_RPC_TIMEOUT_MS = 10_000;
+
+// Budget for the interactive connect approval (waits on the user).
+const ONEKEY_PROMPT_TIMEOUT_MS = 60_000;
+
 export class OneKeyProvider implements IBTCProvider {
   private provider: any;
   // The `$onekey` injection hub (parent of `btcwallet`); carries `$walletInfo`
   // and `$private`, the only reliable source of the OneKey app version.
   private hub: any;
+  // Set once the app version has been verified >= MIN_ONEKEY_VERSION, so the
+  // gate runs on the initial connect only — liveness/reconnect probes reuse it
+  // and a transient version-read miss cannot disconnect a verified session.
+  private versionChecked = false;
   private walletInfo: WalletInfo | undefined;
   private config: BTCConfig;
 
@@ -39,10 +51,24 @@ export class OneKeyProvider implements IBTCProvider {
     this.provider = wallet.btcwallet;
   }
 
+  // Builds the rejection used when a OneKey call exceeds its timeout budget.
+  // Surfaced as CONNECTION_FAILED (not a version/network problem) so the user
+  // can retry rather than being told to update.
+  private timeoutError = (operation: string): WalletError =>
+    new WalletError({
+      code: ERROR_CODES.CONNECTION_FAILED,
+      message: `OneKey Wallet did not respond while ${operation}. Open the extension to confirm it is unlocked, then try again.`,
+      wallet: WALLET_PROVIDER_NAME,
+    });
+
   connectWallet = async (): Promise<void> => {
     try {
-      await this.provider.connectWallet();
+      await withTimeout(this.provider.connectWallet(), ONEKEY_PROMPT_TIMEOUT_MS, () =>
+        this.timeoutError("connecting"),
+      );
     } catch (error) {
+      if (error instanceof WalletError) throw error;
+
       const errorMessage = (error as Error)?.message || "";
 
       if (errorMessage.includes("single address mode") || errorMessage.includes("multiple addresses")) {
@@ -72,8 +98,12 @@ export class OneKeyProvider implements IBTCProvider {
     // prompt in the connect UI rather than failing later mid-deposit.
     await this.ensureSupportedVersion();
 
-    const address = await this.provider.getAddress();
-    const publicKeyHex = await this.provider.getPublicKeyHex();
+    const address = await withTimeout<string>(this.provider.getAddress(), ONEKEY_RPC_TIMEOUT_MS, () =>
+      this.timeoutError("reading the address"),
+    );
+    const publicKeyHex = await withTimeout<string>(this.provider.getPublicKeyHex(), ONEKEY_RPC_TIMEOUT_MS, () =>
+      this.timeoutError("reading the public key"),
+    );
 
     if (publicKeyHex && address) {
       this.walletInfo = {
@@ -93,22 +123,45 @@ export class OneKeyProvider implements IBTCProvider {
   // OneKey populates `$walletInfo` asynchronously on injection; if it isn't
   // ready yet, call OneKey's own `$private.getConnectWalletInfo()` — the same
   // method ProviderPrivate runs on injection — which repopulates `$walletInfo`.
+  // The refresh is bounded so a stalled extension can't hang connect; a read
+  // failure surfaces as CONNECTION_FAILED (retryable), not a version verdict.
   // Returns `unknown`: external data validated by `checkOneKeyVersion`.
-  private getAppVersion = async (): Promise<unknown> => {
-    if (typeof this.hub?.$walletInfo?.version !== "string") {
-      try {
-        await this.hub?.$private?.getConnectWalletInfo?.();
-      } catch {
-        // Ignore — a missing version is handled as "unparseable" downstream.
-      }
+  private readAppVersion = async (): Promise<unknown> => {
+    if (typeof this.hub?.$walletInfo?.version === "string") {
+      return this.hub.$walletInfo.version;
     }
+
+    try {
+      await withTimeout(
+        Promise.resolve(this.hub?.$private?.getConnectWalletInfo?.()),
+        ONEKEY_RPC_TIMEOUT_MS,
+        () => this.timeoutError("reading its version"),
+      );
+    } catch (error) {
+      if (error instanceof WalletError) throw error;
+      throw new WalletError({
+        code: ERROR_CODES.CONNECTION_FAILED,
+        message: (error as Error)?.message || "Failed to read OneKey Wallet version",
+        wallet: WALLET_PROVIDER_NAME,
+      });
+    }
+
     return this.hub?.$walletInfo?.version;
   };
 
+  // Gates connect on OneKey >= MIN_ONEKEY_VERSION (the floor for
+  // deriveContextHash). Runs once per provider instance; INCOMPATIBLE_WALLET_VERSION
+  // surfaces as the "update wallet" prompt in the connect dialog.
   private ensureSupportedVersion = async (): Promise<void> => {
-    const raw = await this.getAppVersion();
+    if (this.versionChecked) return;
+
+    const raw = await this.readAppVersion();
     const result = checkOneKeyVersion(raw);
-    if (result === "ok") return;
+
+    if (result === "ok") {
+      this.versionChecked = true;
+      return;
+    }
 
     if (result === "below") {
       throw new WalletError({
@@ -119,8 +172,8 @@ export class OneKeyProvider implements IBTCProvider {
       });
     }
 
-    // Missing/non-canonical version ($walletInfo cache not ready, or a fork
-    // build): fail closed without claiming "out of date".
+    // Read succeeded but value is missing/non-canonical (fork build): fail
+    // closed without claiming "out of date".
     throw new WalletError({
       code: ERROR_CODES.INCOMPATIBLE_WALLET_VERSION,
       message: `Unable to verify your OneKey Wallet version${

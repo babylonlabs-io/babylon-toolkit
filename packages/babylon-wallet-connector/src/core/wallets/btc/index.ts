@@ -17,7 +17,8 @@ const metadata: ChainMetadata<"BTC", IBTCProvider, BTCConfig> = {
   chain: "BTC",
   name: "Bitcoin",
   icon,
-  wallets: [okx, injectable, appkit, onekey, unisat, ledger, ledgerV2, keystone],
+  // UniSat and OneKey (the deriveContextHash-capable wallets) lead the list.
+  wallets: [unisat, onekey, okx, injectable, appkit, ledger, ledgerV2, keystone],
 };
 
 export default metadata;
