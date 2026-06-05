@@ -25,6 +25,10 @@ import { COPY } from "@/copy";
 import { useBtcMempoolConfirmations } from "@/hooks/useBtcMempoolConfirmations";
 import type { PegoutPollingResult } from "@/hooks/usePegoutPolling";
 import { ClaimerPegoutStatusValue } from "@/models/pegoutStateMachine";
+import {
+  getVpExplorerProviderUrl,
+  getVpExplorerVaultUrl,
+} from "@/utils/explorer";
 import { formatBtcAmount, formatDuration } from "@/utils/formatting";
 import { payoutEtaMinutes } from "@/utils/pegoutTiming";
 import { canonicalizeTxid } from "@/utils/txid";
@@ -206,6 +210,10 @@ function PendingWithdrawSectionContent({
                   providerName={vault.providerName}
                   providerIconUrl={vault.providerIconUrl}
                   providerAddress={vault.vaultProviderAddress}
+                  vaultExplorerUrl={getVpExplorerVaultUrl(vault.id)}
+                  providerExplorerUrl={getVpExplorerProviderUrl(
+                    vault.vaultProviderAddress,
+                  )}
                   payoutBtcAddress={vault.payoutBtcAddress}
                   statusContent={
                     <VaultStatusBadge

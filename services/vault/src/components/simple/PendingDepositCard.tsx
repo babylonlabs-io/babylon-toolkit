@@ -26,6 +26,7 @@ import {
 import { getTokenBrandColor } from "@/services/token/tokenService";
 import type { VaultProvider } from "@/types/vaultProvider";
 import { truncateAddress } from "@/utils/addressUtils";
+import { getVpExplorerProviderUrl } from "@/utils/explorer";
 
 import { computeRemainingEstimateMinutes } from "./DepositProgressView/btcConfirmationProgress";
 import { ProgressBar } from "./DepositProgressView/ProgressBar";
@@ -137,6 +138,7 @@ export function PendingDepositCard({
       providerName={providerName}
       providerIconUrl={provider?.iconUrl}
       providerAddress={providerId}
+      providerExplorerUrl={getVpExplorerProviderUrl(providerId)}
       disabled={status.type === "disabled"}
       disabledTooltip={status.type === "disabled" ? status.tooltip : undefined}
       headerEnd={

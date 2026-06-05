@@ -585,6 +585,18 @@ export const COPY = {
         `Add ${symbol} as collateral so you can begin borrowing assets.`,
     },
   },
+  // Links to the Babylon BTC Vault explorer (Xangle). Only rendered when
+  // NEXT_PUBLIC_TBV_VP_EXPLORER_URL is set; icon links use these as the
+  // accessible name + tooltip.
+  explorer: {
+    vaultLinkLabel: "View vault on explorer",
+    providerLinkLabel: "View vault provider on explorer",
+    // Callout under the Protocol Cap section. `calloutLinkText` renders as the
+    // anchor to the explorer home; `callout` is the plain lead-in.
+    callout:
+      "Explore vault activity, liquidity metrics, and protocol statistics in the",
+    calloutLinkText: "BTC Trustless Vault Explorer",
+  },
   withdraw: {
     // Shared labels (review + initiated screens).
     estimatedTimeLabel: "Estimated time until payout",
