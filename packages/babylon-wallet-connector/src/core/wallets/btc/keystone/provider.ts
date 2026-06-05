@@ -12,7 +12,11 @@ import type { BTCConfig, InscriptionIdentifier, SignPsbtOptions } from "@/core/t
 import { IBTCProvider, Network } from "@/core/types";
 import BIP322 from "@/core/utils/bip322";
 import { generateP2TRAddressFromXpub, toNetwork } from "@/core/utils/wallet";
-import { unsupportedDeriveContextHash } from "@/core/wallets/btc/unsupportedDeriveContextHash";
+import { canonicalNetworkName } from "@/core/wallets/btc/keystone/canonicalNetworkName";
+import {
+  CONTEXT_HASH_OUTPUT_HEX_LENGTH,
+  isValidContextHashOutput,
+} from "@/core/wallets/btc/keystone/contextHashOutput";
 import { ERROR_CODES, WalletError } from "@/error";
 
 import logo from "./logo.svg";
@@ -60,8 +64,8 @@ export class KeystoneProvider implements IBTCProvider {
         walletMode: "btc",
         link: "",
         description: [
-          "1. Turn on your Keystone 3 with BTC only firmware.",
-          '2. Click connect software wallet and use "Sparrow" for connection.',
+          "1. Turn on your Keystone 3.",
+          '2. Click connect software wallet and select Bitcoin Wallets.',
           '3. Press the "Sync Keystone" button and scan the QR Code displayed on your Keystone hardware wallet',
           "4. The first Taproot address will be used for staking.",
         ],
@@ -369,7 +373,51 @@ export class KeystoneProvider implements IBTCProvider {
     return psbt;
   };
 
-  deriveContextHash = unsupportedDeriveContextHash(WALLET_PROVIDER_NAME);
+  deriveContextHash = async (appName: string, context: string): Promise<string> => {
+    if (!this.keystoneWalletInfo?.path) {
+      throw new WalletError({
+        code: ERROR_CODES.WALLET_NOT_CONNECTED,
+        message: "Keystone Wallet not connected",
+        wallet: WALLET_PROVIDER_NAME,
+      });
+    }
+
+    // Bind the derivation to the exact connected key — the first Taproot leaf
+    // `${path}/0/0` that this provider uses for address generation, PSBT
+    // signing, and message signing. That leaf key is the `connectedPubkey` the
+    // spec injects into the HKDF `info` (docs/specs/derive-context-hash.md §2.2).
+    // If the on-device firmware test (the §4.2 vector) fails, the firmware
+    // likely expects the account-level path instead — drop the `/0/0` suffix
+    // and use `this.keystoneWalletInfo.path`, then retest.
+    const keyPath = `${this.keystoneWalletInfo.path}/0/0`;
+
+    const ur = this.dataSdk.generateDeriveContextHashCall({
+      appName,
+      network: canonicalNetworkName(this.config.network),
+      keyPath,
+      context,
+      origin: "babylon staking app",
+    });
+
+    const getContextHash = composeQRProcess(SupportedResult.UR_BYTES);
+    const keystoneContainer = await this.viewSDK.getSdk();
+    const contextHashUR = await getContextHash(keystoneContainer, ur);
+    const contextHash = this.dataSdk.parseURBytes(contextHashUR).toString("hex");
+
+    // Defense in depth (critical path): this output feeds on-chain vault
+    // commitments via deriveVaultRoot. Assert the device returned a 32-byte
+    // value before handing it on, so a malformed firmware response fails loud
+    // here rather than corrupting a deposit.
+    if (!isValidContextHashOutput(contextHash)) {
+      throw new WalletError({
+        code: ERROR_CODES.SIGNATURE_EXTRACT_ERROR,
+        message: `Keystone returned an invalid deriveContextHash output; expected ${CONTEXT_HASH_OUTPUT_HEX_LENGTH} lowercase hex characters`,
+        wallet: WALLET_PROVIDER_NAME,
+      });
+    }
+
+    return contextHash;
+  };
 }
 
 /**
