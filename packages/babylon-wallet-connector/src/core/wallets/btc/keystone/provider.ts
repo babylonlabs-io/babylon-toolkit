@@ -12,7 +12,6 @@ import type { BTCConfig, InscriptionIdentifier, SignPsbtOptions } from "@/core/t
 import { IBTCProvider, Network } from "@/core/types";
 import BIP322 from "@/core/utils/bip322";
 import { generateP2TRAddressFromXpub, toNetwork } from "@/core/utils/wallet";
-import { unsupportedDeriveContextHash } from "@/core/wallets/btc/unsupportedDeriveContextHash";
 import { ERROR_CODES, WalletError } from "@/error";
 
 import logo from "./logo.svg";
@@ -60,8 +59,8 @@ export class KeystoneProvider implements IBTCProvider {
         walletMode: "btc",
         link: "",
         description: [
-          "1. Turn on your Keystone 3 with BTC only firmware.",
-          '2. Click connect software wallet and use "Sparrow" for connection.',
+          "1. Turn on your Keystone 3.",
+          '2. Click connect software wallet and select Bitcoin Wallets.',
           '3. Press the "Sync Keystone" button and scan the QR Code displayed on your Keystone hardware wallet',
           "4. The first Taproot address will be used for staking.",
         ],
@@ -369,7 +368,37 @@ export class KeystoneProvider implements IBTCProvider {
     return psbt;
   };
 
-  deriveContextHash = unsupportedDeriveContextHash(WALLET_PROVIDER_NAME);
+  deriveContextHash = async (appName: string, context: string): Promise<string> => {
+
+    if (!this.keystoneWalletInfo?.path) {
+      throw new WalletError({
+        code: ERROR_CODES.WALLET_NOT_CONNECTED,
+        message: "Keystone Wallet not connected",
+        wallet: WALLET_PROVIDER_NAME,
+      });
+    }
+
+    const nextworkStringMap = {
+      [Network.MAINNET]: "bitcoin-mainnet",
+      [Network.TESTNET]: "bitcoin-testnet",
+      [Network.SIGNET]: "bitcoin-signet",
+    }
+
+    const ur = this.dataSdk.generateDeriveContextHashCall({
+      appName: appName, // current only babylon-btc-vault accepted as valid app name.
+      network: nextworkStringMap[this.config.network],
+      keyPath: this.keystoneWalletInfo.path,
+      context: context,
+      origin: "babylon staking app",
+    });
+
+    const getContextHash = composeQRProcess(SupportedResult.UR_BYTES)
+    const keystoneContainer = await this.viewSDK.getSdk();
+    const contextHashUR = await getContextHash(keystoneContainer, ur);
+    const contextHash = this.dataSdk.parseURBytes(contextHashUR);
+    return contextHash.toString("hex");
+
+  }
 }
 
 /**
