@@ -31,9 +31,11 @@ test.describe("findTaprootAccount — selects the BIP86 account by path", () => 
     expect(findTaprootAccount(keys)?.path).toBe("m/86'/1'/0'");
   });
 
-  test("tolerates the 'h' hardened marker", () => {
+  test("matches the 'h' hardened marker and normalizes the returned path to apostrophes", () => {
+    // The Keystone SDK only treats a component as hardened when it ends with "'",
+    // so the selected path must be normalized before it is handed to the device.
     const keys = [{ path: "m/84h/0h/0h" }, { path: "m/86h/0h/0h" }];
-    expect(findTaprootAccount(keys)?.path).toBe("m/86h/0h/0h");
+    expect(findTaprootAccount(keys)?.path).toBe("m/86'/0'/0'");
   });
 
   test("returns undefined when no Taproot account is present", () => {
