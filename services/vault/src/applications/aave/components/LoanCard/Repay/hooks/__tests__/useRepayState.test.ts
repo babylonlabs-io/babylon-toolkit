@@ -139,6 +139,112 @@ describe("useRepayState", () => {
     });
   });
 
+  describe("setRepayAmountSlider", () => {
+    it("sets Max intent and snaps to max when the slider reaches the top", () => {
+      const { result } = renderHook(() =>
+        useRepayState({ currentDebtAmount: 100, userTokenBalance: 100 }),
+      );
+
+      act(() => {
+        result.current.setRepayAmountSlider(100);
+      });
+
+      expect(result.current.isMaxIntent).toBe(true);
+      expect(result.current.repayAmount).toBe(100);
+    });
+
+    it("sets Max intent when the slider snaps one step short of max", () => {
+      // Native range input with step = max / 1000 can emit max - one step at
+      // the far right (99.9 for a max of 100). That last reachable step must
+      // still count as Max intent, and the display snaps to the true max.
+      const { result } = renderHook(() =>
+        useRepayState({ currentDebtAmount: 100, userTokenBalance: 100 }),
+      );
+
+      act(() => {
+        result.current.setRepayAmountSlider(99.9);
+      });
+
+      expect(result.current.isMaxIntent).toBe(true);
+      expect(result.current.repayAmount).toBe(100);
+    });
+
+    it("stays partial just below the one-step threshold", () => {
+      const { result } = renderHook(() =>
+        useRepayState({ currentDebtAmount: 100, userTokenBalance: 100 }),
+      );
+
+      act(() => {
+        result.current.setRepayAmountSlider(99.89);
+      });
+
+      expect(result.current.isMaxIntent).toBe(false);
+      expect(result.current.repayAmount).toBe(99.89);
+    });
+
+    it("sets Max intent at the balance-limited max when balance is below debt", () => {
+      const { result } = renderHook(() =>
+        useRepayState({ currentDebtAmount: 100, userTokenBalance: 50 }),
+      );
+
+      act(() => {
+        result.current.setRepayAmountSlider(50);
+      });
+
+      expect(result.current.isMaxIntent).toBe(true);
+      expect(result.current.repayAmount).toBe(50);
+    });
+
+    it("does not set Max intent when there is nothing to repay", () => {
+      const { result } = renderHook(() =>
+        useRepayState({ currentDebtAmount: 0, userTokenBalance: 100 }),
+      );
+
+      act(() => {
+        result.current.setRepayAmountSlider(0);
+      });
+
+      expect(result.current.isMaxIntent).toBe(false);
+      expect(result.current.repayAmount).toBe(0);
+    });
+
+    it("clears Max intent when the slider moves back down from the top", () => {
+      const { result } = renderHook(() =>
+        useRepayState({ currentDebtAmount: 100, userTokenBalance: 100 }),
+      );
+
+      act(() => {
+        result.current.setRepayAmountSlider(100);
+      });
+      expect(result.current.isMaxIntent).toBe(true);
+
+      act(() => {
+        result.current.setRepayAmountSlider(30);
+      });
+
+      expect(result.current.isMaxIntent).toBe(false);
+      expect(result.current.repayAmount).toBe(30);
+    });
+
+    it("works at WBTC's 8-decimal scale (slider at max clears in full)", () => {
+      // WBTC at ~$75k: a small loan is a tiny token amount. The tolerance is
+      // relative (max / SLIDER_STEP_COUNT), so it's scale-invariant — an
+      // absolute epsilon would fail here. The far-right value lands one step
+      // short of max; it must still snap to the full 8-decimal debt.
+      const wbtcDebt = 0.00133333;
+      const { result } = renderHook(() =>
+        useRepayState({ currentDebtAmount: wbtcDebt, userTokenBalance: 1 }),
+      );
+
+      act(() => {
+        result.current.setRepayAmountSlider(wbtcDebt - wbtcDebt / 1000);
+      });
+
+      expect(result.current.isMaxIntent).toBe(true);
+      expect(result.current.repayAmount).toBe(wbtcDebt);
+    });
+  });
+
   describe("repayAmount state", () => {
     it("should initialize to zero", () => {
       const { result } = renderHook(() =>

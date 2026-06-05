@@ -10,6 +10,8 @@
 
 import { useCallback, useMemo, useState } from "react";
 
+import { SLIDER_STEP_COUNT } from "../../../../constants";
+
 export interface UseRepayStateProps {
   /** Current debt amount for selected reserve in token units (cached). */
   currentDebtAmount: number;
@@ -19,8 +21,15 @@ export interface UseRepayStateProps {
 
 export interface UseRepayStateResult {
   repayAmount: number;
-  /** Sets repay amount as a typed/sliderd value; clears Max intent. */
+  /** Sets repay amount as a typed value; clears Max intent. */
   setRepayAmount: (amount: number) => void;
+  /**
+   * Sets repay amount from the slider. At (or one step short of) the max it
+   * snaps to `maxRepayAmount` and marks Max intent — same as the Max button —
+   * so submit refetches and clears the full debt instead of leaving accrued
+   * dust from a stale partial amount. Below the top it's a partial repay.
+   */
+  setRepayAmountSlider: (amount: number) => void;
   /**
    * Sets repay amount as the cached `maxRepayAmount` and marks Max intent.
    * The submit path checks `isMaxIntent` and refetches fresh debt+balance
@@ -49,12 +58,32 @@ export function useRepayState({
     return Math.max(0, Math.min(currentDebtAmount, userTokenBalance));
   }, [currentDebtAmount, userTokenBalance]);
 
-  // Typed/sliderd input always drops Max intent — submit will treat it as
-  // a verbatim partial repay rather than refetching to pick a mode.
+  // Typed input always drops Max intent — submit treats it as a verbatim
+  // partial repay rather than refetching to pick a mode.
   const setRepayAmount = useCallback((amount: number) => {
     setRepayAmountFloat(amount);
     setIsMaxIntent(false);
   }, []);
+
+  // Slider input: the last reachable step counts as Max intent. The native
+  // range input's far-right value can land one step (max / SLIDER_STEP_COUNT)
+  // short of max due to float rounding, so use a one-step tolerance and snap
+  // the display to the true max. Below the top it's a verbatim partial repay.
+  const setRepayAmountSlider = useCallback(
+    (amount: number) => {
+      const atSliderMax =
+        maxRepayAmount > 0 &&
+        amount >= maxRepayAmount - maxRepayAmount / SLIDER_STEP_COUNT;
+      if (atSliderMax) {
+        setRepayAmountFloat(maxRepayAmount);
+        setIsMaxIntent(true);
+        return;
+      }
+      setRepayAmountFloat(amount);
+      setIsMaxIntent(false);
+    },
+    [maxRepayAmount],
+  );
 
   const setRepayAmountMax = useCallback((amount: number) => {
     setRepayAmountFloat(amount);
@@ -69,6 +98,7 @@ export function useRepayState({
   return {
     repayAmount,
     setRepayAmount,
+    setRepayAmountSlider,
     setRepayAmountMax,
     resetRepayAmount,
     maxRepayAmount,

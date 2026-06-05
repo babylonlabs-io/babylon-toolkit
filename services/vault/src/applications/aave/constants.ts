@@ -78,6 +78,14 @@ export const POSITION_STALENESS_THRESHOLD_MS = POSITION_REFETCH_INTERVAL_MS * 3;
 export const MIN_SLIDER_MAX = 0.0001;
 
 /**
+ * Number of discrete steps in the amount sliders (the native range input's
+ * `step` is `max / SLIDER_STEP_COUNT`). Float rounding of that division can
+ * make the far-right position land one step short of max, so "slider at max"
+ * detection uses a one-step tolerance keyed off this same count.
+ */
+export const SLIDER_STEP_COUNT = 1000;
+
+/**
  * Threshold (in USD) below which projected debt is treated as
  * effectively zero for display purposes (showing "-" for health factor
  * instead of an astronomical number). This is a display-only concern
