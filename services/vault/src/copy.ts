@@ -651,24 +651,28 @@ export const COPY = {
       unknownMessage: (status: string) =>
         `Unknown status: ${status}. Please contact support.`,
     },
-    // Shown in the Est. Remaining row once the payout clock has elapsed.
-    payoutImminent: "Payout available shortly",
     // Staged pending-withdraw card (Submitted → … → Payout sent / Blocked).
     card: {
+      // When the withdrawal was initiated (the VP's claimer-record timestamp).
+      initiatedLabel: "Initiated",
       // Umbrella label for the single withdrawal-tx row, which surfaces the
       // claim tx early and the assert tx during/after the challenge period.
       // Kept user-facing (not "claim"/"assert") to avoid protocol jargon.
       withdrawalTxLabel: "Withdrawal transaction",
       // Shown in the withdrawal-transaction slot before the claim tx is broadcast.
       withdrawalTxPending: "Pending",
-      // Row label for the live payout-eligibility countdown.
-      estRemainingLabel: "Est. Remaining",
-      // Live payout-eligibility estimate value (e.g. "~2 days").
-      estRemaining: (duration: string) => `~${duration}`,
-      // Challenge-period help note. The "~3 days" here is descriptive guidance;
-      // the live per-vault estimate is shown in the Est. Remaining row above it.
+      // Live challenge-period countdown. Labelled as the *challenge period* (a
+      // single step) — not total time to funds — so it doesn't read as "X days
+      // until withdrawn". The payout is broadcast only after this ends.
+      challengePeriodEndsLabel: "Challenge period ends",
+      challengePeriodEndsIn: (duration: string) => `in ~${duration}`,
+      // Shown once the challenge-period clock has elapsed (payout eligible).
+      challengePeriodEndsSoon: "shortly",
+      // Challenge-period help note. Explains this is one step (the on-chain
+      // challenge period) and that a payout step follows — no fixed duration
+      // here, to avoid conflicting with the live countdown above it.
       challengeNote:
-        "For your security, BTC will become unlocked and usable in approximately 3 days.",
+        "For your security, your withdrawal goes through an on-chain challenge period. After it ends, the payout is broadcast to your nominated address.",
       learnMorePrefix: "Read more about the withdrawal latency ",
       learnMoreLink: "here.",
       // Error action on the Blocked stage.

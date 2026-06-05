@@ -79,29 +79,31 @@ describe("PendingWithdrawCard — stage presentation", () => {
 
     expect(screen.getByText(CARD.withdrawalTxLabel)).toBeInTheDocument();
     expect(screen.getByText(CARD.withdrawalTxPending)).toBeInTheDocument();
-    expect(screen.queryByText("Date")).not.toBeInTheDocument();
+    expect(screen.queryByText(CARD.initiatedLabel)).not.toBeInTheDocument();
     expect(screen.getByRole("progressbar")).toBeInTheDocument();
     expect(screen.queryByText(CARD.contactSupport)).not.toBeInTheDocument();
   });
 
-  it("links the claim tx and shows the Date row while In progress", () => {
+  it("links the claim tx and shows the Initiated row while In progress", () => {
     renderCard(resultForStatus(ClaimerPegoutStatusValue.CLAIM_BROADCAST));
 
-    expect(screen.getByText("Date")).toBeInTheDocument();
+    expect(screen.getByText(CARD.initiatedLabel)).toBeInTheDocument();
     expect(screen.getByRole("progressbar")).toBeInTheDocument();
     const link = screen.getByRole("link");
     expect(link).toHaveAttribute("href", expect.stringContaining(CLAIM_TXID));
   });
 
-  it("shows the Est. Remaining countdown and challenge note, linking the assert tx", () => {
+  it("shows the challenge-period countdown and note, linking the assert tx", () => {
     // 144 timelock − 72 confirmations = 72 blocks × 10 min = 720 min = 12 hours.
     renderCard(resultForStatus(ClaimerPegoutStatusValue.ASSERT_BROADCAST), {
       timelockAssertBlocks: 144,
       assertConfirmations: 72,
     });
 
-    expect(screen.getByText(CARD.estRemainingLabel)).toBeInTheDocument();
-    expect(screen.getByText(CARD.estRemaining("12 hours"))).toBeInTheDocument();
+    expect(screen.getByText(CARD.challengePeriodEndsLabel)).toBeInTheDocument();
+    expect(
+      screen.getByText(CARD.challengePeriodEndsIn("12 hours")),
+    ).toBeInTheDocument();
     expect(
       screen.getByText(CARD.challengeNote, { exact: false }),
     ).toBeInTheDocument();

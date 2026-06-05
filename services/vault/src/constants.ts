@@ -19,10 +19,9 @@ export const REPLAYS_ON_ERROR_RATE = Number.parseFloat(
   process.env.NEXT_PUBLIC_REPLAYS_RATE ?? "0.05",
 );
 
-// External links surfaced on the pending-withdraw card. Real (non-404) targets
-// reused from the staking app.
-// TODO(product): swap in the exact withdrawal-latency doc page and the
-// canonical TBV support destination once confirmed.
+// External links surfaced on the pending-withdraw card.
+// Support points to the Babylon Discord invite (confirmed).
+// TODO(product): swap in the exact withdrawal-latency doc page once confirmed.
 export const WITHDRAWAL_LATENCY_DOCS_URL = "https://docs.babylonlabs.io";
 export const SUPPORT_URL = "https://discord.com/invite/babylonglobal";
 

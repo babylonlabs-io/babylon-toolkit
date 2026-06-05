@@ -150,8 +150,8 @@ export function PendingWithdrawCard({
       );
       estRemaining =
         etaMinutes <= 0
-          ? COPY.pegout.payoutImminent
-          : CARD_COPY.estRemaining(formatDuration(etaMinutes));
+          ? CARD_COPY.challengePeriodEndsSoon
+          : CARD_COPY.challengePeriodEndsIn(formatDuration(etaMinutes));
     } else {
       estRemaining = COPY.common.checking;
     }
@@ -192,10 +192,10 @@ export function PendingWithdrawCard({
         />
       </VaultCardRow>
 
-      {/* Date — hidden until the VP has a withdrawal record (no earlier
+      {/* Initiated — hidden until the VP has a withdrawal record (no earlier
           withdrawal timestamp exists). */}
       {timestampMs !== undefined && (
-        <VaultCardRow label="Date">
+        <VaultCardRow label={CARD_COPY.initiatedLabel}>
           <span className="text-sm text-accent-primary">
             {formatDateTime(new Date(timestampMs))}
           </span>
@@ -203,7 +203,7 @@ export function PendingWithdrawCard({
       )}
 
       {estRemaining && (
-        <VaultCardRow label={CARD_COPY.estRemainingLabel}>
+        <VaultCardRow label={CARD_COPY.challengePeriodEndsLabel}>
           <span className="text-sm text-accent-primary">{estRemaining}</span>
         </VaultCardRow>
       )}
