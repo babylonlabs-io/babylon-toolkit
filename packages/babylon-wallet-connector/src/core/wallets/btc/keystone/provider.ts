@@ -17,6 +17,7 @@ import {
   CONTEXT_HASH_OUTPUT_HEX_LENGTH,
   isValidContextHashOutput,
 } from "@/core/wallets/btc/keystone/contextHashOutput";
+import { findTaprootAccount } from "@/core/wallets/btc/keystone/taprootAccount";
 import { ERROR_CODES, WalletError } from "@/error";
 
 import logo from "./logo.svg";
@@ -65,7 +66,7 @@ export class KeystoneProvider implements IBTCProvider {
         link: "",
         description: [
           "1. Turn on your Keystone 3.",
-          '2. Click connect software wallet and select Bitcoin Wallets.',
+          "2. Click connect software wallet and select Bitcoin Wallets.",
           '3. Press the "Sync Keystone" button and scan the QR Code displayed on your Keystone hardware wallet',
           "4. The first Taproot address will be used for staking.",
         ],
@@ -91,29 +92,40 @@ export class KeystoneProvider implements IBTCProvider {
     // parse the QR Code and get extended public key and other required information
     const accountData = this.dataSdk.parseAccount(decodedResult.result);
 
-    // currently only the p2tr address will be used.
-    const P2TRINDEX = 3;
-    const xpub = accountData.keys[P2TRINDEX].extendedPublicKey;
+    // Select the Taproot (BIP86) account by parsing the derivation path, not a
+    // fixed index — the export order is not guaranteed (observed [84',49',44',86']).
+    //
+    // Note on coin_type vs. app network: Keystone exports whichever coin_type its
+    // active firmware dictates (standard mainnet firmware → 0'); the app only
+    // re-skins the address to `config.network`. On mainnet (0') this matches
+    // software wallets. For signet, the Keystone must run the separate BTC-only
+    // firmware with Signet mode connection enabled (coin_type 1') to derive the
+    // same key as software wallets like UniSat; otherwise the keys differ even
+    // for the same seed. This is intentionally not hard-enforced here (signet is
+    // dev-only).
+    const taprootAccount = findTaprootAccount(accountData.keys);
+
+    if (!taprootAccount?.extendedPublicKey)
+      throw new WalletError({
+        code: ERROR_CODES.EXTENSION_NOT_FOUND,
+        message: "Could not retrieve the Taproot extended public key",
+        wallet: WALLET_PROVIDER_NAME,
+      });
+
+    const xpub = taprootAccount.extendedPublicKey;
 
     this.keystoneWalletInfo = {
       mfp: accountData.masterFingerprint,
       extendedPublicKey: xpub,
-      path: accountData.keys[P2TRINDEX].path,
+      path: taprootAccount.path,
       address: undefined,
       publicKeyHex: undefined,
       scriptPubKeyHex: undefined,
     };
 
-    if (!this.keystoneWalletInfo.extendedPublicKey)
-      throw new WalletError({
-        code: ERROR_CODES.EXTENSION_NOT_FOUND,
-        message: "Could not retrieve the extended public key",
-        wallet: WALLET_PROVIDER_NAME,
-      });
-
     // generate the address and public key based on the xpub
     const { address, publicKeyHex, scriptPubKeyHex } = generateP2TRAddressFromXpub(
-      this.keystoneWalletInfo.extendedPublicKey,
+      xpub,
       "M/0/0",
       toNetwork(this.config.network),
     );
