@@ -2,47 +2,49 @@ import { describe, expect, it } from "vitest";
 
 import {
   getPegoutDisplayState,
+  getPegoutStageProgress,
   getPegoutTxLinkFlags,
   isPegoutEffectivelyTerminal,
+  isPegoutInProgress,
   isRecognizedPegoutStatus,
   TIMED_OUT_STATE,
 } from "../pegoutStateMachine";
 
 describe("pegoutStateMachine", () => {
   describe("getPegoutDisplayState", () => {
-    it("returns Initiating when pegout is not found", () => {
+    it("returns Submitted when pegout is not found", () => {
       const state = getPegoutDisplayState(undefined, false);
-      expect(state.label).toBe("Initiating");
+      expect(state.label).toBe("Submitted");
       expect(state.variant).toBe("pending");
     });
 
-    it("returns Initiating when found but claimerStatus is undefined", () => {
+    it("returns Submitted when found but claimerStatus is undefined", () => {
       const state = getPegoutDisplayState(undefined, true);
-      expect(state.label).toBe("Initiating");
+      expect(state.label).toBe("Submitted");
       expect(state.variant).toBe("pending");
     });
 
-    it("returns Initiating when found but claimerStatus is empty string", () => {
+    it("returns Submitted when found but claimerStatus is empty string", () => {
       const state = getPegoutDisplayState("", true);
-      expect(state.label).toBe("Initiating");
+      expect(state.label).toBe("Submitted");
       expect(state.variant).toBe("pending");
     });
 
-    it("returns Processing for ClaimEventReceived", () => {
+    it("returns Submitted for ClaimEventReceived", () => {
       const state = getPegoutDisplayState("ClaimEventReceived", true);
-      expect(state.label).toBe("Processing");
+      expect(state.label).toBe("Submitted");
       expect(state.variant).toBe("pending");
     });
 
-    it("returns Processing for ClaimBroadcast", () => {
+    it("returns In progress for ClaimBroadcast", () => {
       const state = getPegoutDisplayState("ClaimBroadcast", true);
-      expect(state.label).toBe("Processing");
+      expect(state.label).toBe("In progress");
       expect(state.variant).toBe("pending");
     });
 
-    it("returns Confirming for AssertBroadcast", () => {
+    it("returns Challenge period for AssertBroadcast", () => {
       const state = getPegoutDisplayState("AssertBroadcast", true);
-      expect(state.label).toBe("Confirming");
+      expect(state.label).toBe("Challenge period");
       expect(state.variant).toBe("pending");
     });
 
@@ -52,9 +54,9 @@ describe("pegoutStateMachine", () => {
       expect(state.message.toLowerCase()).not.toContain("few hours");
     });
 
-    it("returns Payout broadcast for PayoutBroadcast", () => {
+    it("returns Payout sent for PayoutBroadcast", () => {
       const state = getPegoutDisplayState("PayoutBroadcast", true);
-      expect(state.label).toBe("Payout broadcast");
+      expect(state.label).toBe("Payout sent");
       expect(state.variant).toBe("active");
     });
 
@@ -77,6 +79,72 @@ describe("pegoutStateMachine", () => {
       const state = getPegoutDisplayState("corrupted_value_123", true);
       expect(state.label).toBe("Unknown");
       expect(state.message).toContain("corrupted_value_123");
+    });
+  });
+
+  describe("getPegoutStageProgress", () => {
+    it("uses the Submitted fraction before a claim record exists", () => {
+      expect(getPegoutStageProgress(undefined, false)).toBe(0.12);
+      expect(getPegoutStageProgress("ClaimEventReceived", true)).toBe(0.12);
+    });
+
+    it("advances to the In progress fraction once the claim is broadcast", () => {
+      expect(getPegoutStageProgress("ClaimBroadcast", true)).toBe(0.25);
+    });
+
+    it("holds at the challenge-period base until confirmations are known", () => {
+      expect(getPegoutStageProgress("AssertBroadcast", true)).toBe(0.35);
+      // Timelock known but confirmations not yet resolved → still the base.
+      expect(
+        getPegoutStageProgress("AssertBroadcast", true, undefined, 144),
+      ).toBe(0.35);
+    });
+
+    it("interpolates the challenge period by confirmations / timelock", () => {
+      // Halfway through the timelock → halfway between base (0.35) and ceiling (0.85).
+      expect(
+        getPegoutStageProgress("AssertBroadcast", true, 72, 144),
+      ).toBeCloseTo(0.6);
+      // Fully confirmed → the ceiling.
+      expect(
+        getPegoutStageProgress("AssertBroadcast", true, 144, 144),
+      ).toBeCloseTo(0.85);
+    });
+
+    it("clamps challenge-period overshoot to the ceiling", () => {
+      expect(
+        getPegoutStageProgress("AssertBroadcast", true, 200, 144),
+      ).toBeCloseTo(0.85);
+    });
+
+    it("uses the late-stage fraction for Payout sent and Blocked", () => {
+      expect(getPegoutStageProgress("PayoutBroadcast", true)).toBe(0.95);
+      expect(getPegoutStageProgress("PayoutBlocked", true)).toBe(0.95);
+    });
+  });
+
+  describe("isPegoutInProgress", () => {
+    it("is true for a progressing stage", () => {
+      expect(isPegoutInProgress("ClaimBroadcast", undefined)).toBe(true);
+      expect(isPegoutInProgress("AssertBroadcast", undefined)).toBe(true);
+    });
+
+    it("is true before any polling result exists", () => {
+      expect(isPegoutInProgress(undefined, undefined)).toBe(true);
+    });
+
+    it("is false once payout is broadcast or blocked", () => {
+      expect(isPegoutInProgress("PayoutBroadcast", undefined)).toBe(false);
+      expect(isPegoutInProgress("PayoutBlocked", undefined)).toBe(false);
+    });
+
+    it("is false for the timed-out state regardless of any stale status", () => {
+      // Polling has stopped; TIMED_OUT_STATE's status is undefined or
+      // unrecognized, so this must key off the display state, not the status.
+      expect(isPegoutInProgress(undefined, TIMED_OUT_STATE)).toBe(false);
+      expect(isPegoutInProgress("AssertBroadcast", TIMED_OUT_STATE)).toBe(
+        false,
+      );
     });
   });
 

@@ -613,22 +613,22 @@ export const COPY = {
   pegout: {
     status: {
       claimEventReceived: {
-        label: "Processing",
+        label: "Submitted",
         message:
           "Your withdrawal request has been received and is being processed.",
       },
       claimBroadcast: {
-        label: "Processing",
+        label: "In progress",
         message:
           "Your withdrawal is in progress. A claim transaction has been broadcast to Bitcoin.",
       },
       assertBroadcast: {
-        label: "Confirming",
+        label: "Challenge period",
         message:
           "Your withdrawal is going through its on-chain challenge period before the BTC payout can be broadcast.",
       },
       payoutBroadcast: {
-        label: "Payout broadcast",
+        label: "Payout sent",
         message:
           "The Bitcoin payout transaction has been broadcast to your nominated address.",
       },
@@ -638,7 +638,8 @@ export const COPY = {
           "Withdrawal was blocked on-chain (challenger or council override). Please contact support.",
       },
       initiating: {
-        label: "Initiating",
+        // Pre-claim state folds into the "Submitted" stage on the card.
+        label: "Submitted",
         message: "Your withdrawal is being prepared by the vault provider.",
       },
       unavailable: {
@@ -650,18 +651,26 @@ export const COPY = {
       unknownMessage: (status: string) =>
         `Unknown status: ${status}. Please contact support.`,
     },
-    // Live countdown shown while the withdrawal is in its challenge period.
-    payoutEta: (duration: string) => `~${duration} until payout`,
+    // Shown in the Est. Remaining row once the payout clock has elapsed.
     payoutImminent: "Payout available shortly",
-    // Shown under the amount while the VP has not yet initiated the withdrawal.
-    awaitingInitiation:
-      "Waiting for the vault provider to start the withdrawal",
-    txHash: {
-      // "Withdrawal" (not "Transaction hash") to distinguish from the deposit
-      // peg-in/Pre-Pegin row shown on the same pending-withdraw card.
-      label: "Withdrawal",
-      claimLabel: "Claim:",
-      assertLabel: "Assert:",
+    // Staged pending-withdraw card (Submitted → … → Payout sent / Blocked).
+    card: {
+      // Single withdrawal tx hash row: the claim tx, then the assert tx.
+      txHashLabel: "TX Hash",
+      // Shown in the TX Hash slot before the claim tx is broadcast.
+      txHashPending: "Pending",
+      // Row label for the live payout-eligibility countdown.
+      estRemainingLabel: "Est. Remaining",
+      // Live payout-eligibility estimate value (e.g. "~2 days").
+      estRemaining: (duration: string) => `~${duration}`,
+      // Challenge-period help note. The "~3 days" here is descriptive guidance;
+      // the live per-vault estimate is shown in the Est. Remaining row above it.
+      challengeNote:
+        "For your security, BTC will become unlocked and usable in approximately 3 days.",
+      learnMorePrefix: "Read more about the withdrawal latency ",
+      learnMoreLink: "here.",
+      // Error action on the Blocked stage.
+      contactSupport: "Contact Support",
     },
   },
   loans: {

@@ -5,7 +5,7 @@
  */
 
 import { Container } from "@babylonlabs-io/core-ui";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useState } from "react";
 import { useNavigate, useOutletContext } from "react-router";
 
 import { AssetSelectionModal } from "@/applications/aave/components/AssetSelectionModal";
@@ -23,7 +23,6 @@ import { useConnection, useETHWallet } from "@/context/wallet";
 import { useApplicationCap } from "@/hooks/useApplicationCap";
 import { useDashboardState } from "@/hooks/useDashboardState";
 import { usePegoutPolling } from "@/hooks/usePegoutPolling";
-import { ClaimerPegoutStatusValue } from "@/models/pegoutStateMachine";
 import {
   formatBtcAmount,
   formatLtvPercent,
@@ -82,19 +81,10 @@ export function DashboardPage() {
     redeemedVaults,
   });
 
-  // Filter out vaults whose payout has been broadcast (terminal success).
-  // Failed vaults are intentionally kept visible so the user sees the error and can contact support.
-  const pendingWithdrawVaults = useMemo(
-    () =>
-      redeemedVaults.filter((vault) => {
-        const status = pegoutStatuses.get(vault.id);
-        return (
-          status?.response?.claimer?.status !==
-          ClaimerPegoutStatusValue.PAYOUT_BROADCAST
-        );
-      }),
-    [redeemedVaults, pegoutStatuses],
-  );
+  // Every redeemed vault shows its staged progress, including the terminal
+  // "Payout sent" and "Blocked" states. A vault drops off naturally once it
+  // leaves the redeemed set on-chain (payout settles / vault closes).
+  const pendingWithdrawVaults = redeemedVaults;
 
   // Sync pending vault operations (add/withdraw) with indexer data
   useSyncPendingVaults(aaveVaults);
