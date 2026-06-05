@@ -8,8 +8,8 @@
 import { Avatar, Hint } from "@babylonlabs-io/core-ui";
 import { useEffect, useState, type ReactNode } from "react";
 
-import { ExplorerLink } from "@/components/shared";
 import { CopyableHash } from "@/components/shared/CopyableHash";
+import { ExplorerLink } from "@/components/shared/ExplorerLink";
 import { getNetworkConfigBTC } from "@/config";
 import { COPY } from "@/copy";
 import { truncateAddress } from "@/utils/addressUtils";

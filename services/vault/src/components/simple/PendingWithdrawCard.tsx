@@ -15,6 +15,7 @@ import { Avatar, Hint } from "@babylonlabs-io/core-ui";
 
 import type { RedeemedVaultInfo } from "@/applications/aave/hooks/useAaveVaults";
 import { CopyableHash } from "@/components/shared/CopyableHash";
+import { ExplorerLink } from "@/components/shared/ExplorerLink";
 import { getNetworkConfigBTC } from "@/config";
 import {
   BTC_BLOCK_TIME_MINS,
@@ -33,6 +34,8 @@ import { truncateAddress } from "@/utils/addressUtils";
 import {
   getBtcExplorerAddressUrl,
   getBtcExplorerTxUrl,
+  getVpExplorerProviderUrl,
+  getVpExplorerVaultUrl,
 } from "@/utils/explorer";
 import {
   formatBtcAmount,
@@ -170,6 +173,10 @@ export function PendingWithdrawCard({
           <span className="text-xl font-medium text-accent-primary">
             {formatBtcAmount(vault.amountBtc)}
           </span>
+          <ExplorerLink
+            href={getVpExplorerVaultUrl(vault.id)}
+            label={COPY.explorer.vaultLinkLabel}
+          />
         </div>
         <VaultStatusBadge
           dotColor={STATUS_DOT_COLORS[variant]}
@@ -209,24 +216,31 @@ export function PendingWithdrawCard({
       )}
 
       <VaultCardRow label="Vault provider">
-        <Hint
-          tooltip={truncateAddress(vault.vaultProviderAddress)}
-          attachToChildren
-          placement="left"
-          className="text-sm text-accent-primary"
-        >
-          <span className="inline-flex items-center gap-1.5">
-            {vault.providerIconUrl && (
-              <Avatar
-                url={vault.providerIconUrl}
-                alt={vault.providerName}
-                size="small"
-                className="h-4 w-4"
-              />
-            )}
-            {vault.providerName}
-          </span>
-        </Hint>
+        <span className="inline-flex items-center gap-1.5">
+          <Hint
+            tooltip={truncateAddress(vault.vaultProviderAddress)}
+            attachToChildren
+            placement="left"
+            className="text-sm text-accent-primary"
+          >
+            <span className="inline-flex items-center gap-1.5">
+              {vault.providerIconUrl && (
+                <Avatar
+                  url={vault.providerIconUrl}
+                  alt={vault.providerName}
+                  size="small"
+                  className="h-4 w-4"
+                />
+              )}
+              {vault.providerName}
+            </span>
+          </Hint>
+          <ExplorerLink
+            href={getVpExplorerProviderUrl(vault.vaultProviderAddress)}
+            label={COPY.explorer.providerLinkLabel}
+            size={14}
+          />
+        </span>
       </VaultCardRow>
 
       {/* Nominated address — destination registered at vault creation. May
