@@ -23,6 +23,7 @@ import {
   AMOUNT_INPUT_CLASS_NAME,
   MIN_SLIDER_MAX,
   SAFE_TOFIXED_PRECISION,
+  SLIDER_STEP_COUNT,
 } from "../../../constants";
 import { useRepayTransaction, type RepayMode } from "../../../hooks";
 import { useLoanContext } from "../../context/LoanContext";
@@ -67,6 +68,7 @@ export function Repay() {
   const {
     repayAmount,
     setRepayAmount,
+    setRepayAmountSlider,
     setRepayAmountMax,
     resetRepayAmount,
     maxRepayAmount,
@@ -180,9 +182,9 @@ export function Repay() {
             sliderValue={repayAmount}
             sliderMin={0}
             sliderMax={sliderTrackMax}
-            sliderStep={sliderTrackMax / 1000}
+            sliderStep={sliderTrackMax / SLIDER_STEP_COUNT}
             sliderSteps={[]}
-            onSliderChange={setRepayAmount}
+            onSliderChange={setRepayAmountSlider}
             sliderVariant="rainbow"
             leftField={{
               label: "Max",
