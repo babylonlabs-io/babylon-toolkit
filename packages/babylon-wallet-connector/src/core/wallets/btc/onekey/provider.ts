@@ -2,16 +2,36 @@ import { isAccountChangeEvent, DISCONNECT_EVENT, removeProviderListener } from "
 import type { BTCConfig, IBTCProvider, InscriptionIdentifier, SignPsbtOptions, WalletInfo } from "@/core/types";
 import { Network } from "@/core/types";
 import { mapSignInputsToToSignInputs } from "@/core/utils/psbtOptionsMapper";
-import { unsupportedDeriveContextHash } from "@/core/wallets/btc/unsupportedDeriveContextHash";
-import { ERROR_CODES, WalletError } from "@/error";
+import { withTimeout } from "@/core/utils/withTimeout";
+import { ERROR_CODES, WalletError, isUserRejectionMessage } from "@/error";
 
 import logo from "./logo.svg";
 import { mapOneKeyNetwork } from "./network";
+import { MIN_ONEKEY_VERSION, checkOneKeyVersion } from "./version";
 
 export const WALLET_PROVIDER_NAME = "OneKey";
 
+// EIP-1193 code OneKey returns from `deriveContextHash` for non-HD accounts
+// (hardware / imported / watch-only) — its `rpc.methodNotSupported`, source:
+// OneKeyHQ/cross-inpage-provider packages/errors/src/error-constants.ts.
+const ONEKEY_METHOD_NOT_SUPPORTED_CODE = -32004;
+
+// Budget for non-interactive reads (version refresh, address, pubkey). Bounds a
+// stalled/asleep extension so connect can't hang waiting on it.
+const ONEKEY_RPC_TIMEOUT_MS = 10_000;
+
+// Budget for the interactive connect approval (waits on the user).
+const ONEKEY_PROMPT_TIMEOUT_MS = 60_000;
+
 export class OneKeyProvider implements IBTCProvider {
   private provider: any;
+  // The `$onekey` injection hub (parent of `btcwallet`); carries `$walletInfo`
+  // and `$private`, the only reliable source of the OneKey app version.
+  private hub: any;
+  // Set once the app version has been verified >= MIN_ONEKEY_VERSION, so the
+  // gate runs on the initial connect only — liveness/reconnect probes reuse it
+  // and a transient version-read miss cannot disconnect a verified session.
+  private versionChecked = false;
   private walletInfo: WalletInfo | undefined;
   private config: BTCConfig;
 
@@ -27,13 +47,28 @@ export class OneKeyProvider implements IBTCProvider {
       });
     }
 
+    this.hub = wallet;
     this.provider = wallet.btcwallet;
   }
 
+  // Builds the rejection used when a OneKey call exceeds its timeout budget.
+  // Surfaced as CONNECTION_FAILED (not a version/network problem) so the user
+  // can retry rather than being told to update.
+  private timeoutError = (operation: string): WalletError =>
+    new WalletError({
+      code: ERROR_CODES.CONNECTION_FAILED,
+      message: `OneKey Wallet did not respond while ${operation}. Open the extension to confirm it is unlocked, then try again.`,
+      wallet: WALLET_PROVIDER_NAME,
+    });
+
   connectWallet = async (): Promise<void> => {
     try {
-      await this.provider.connectWallet();
+      await withTimeout(this.provider.connectWallet(), ONEKEY_PROMPT_TIMEOUT_MS, () =>
+        this.timeoutError("connecting"),
+      );
     } catch (error) {
+      if (error instanceof WalletError) throw error;
+
       const errorMessage = (error as Error)?.message || "";
 
       if (errorMessage.includes("single address mode") || errorMessage.includes("multiple addresses")) {
@@ -58,8 +93,17 @@ export class OneKeyProvider implements IBTCProvider {
       }
     }
 
-    const address = await this.provider.getAddress();
-    const publicKeyHex = await this.provider.getPublicKeyHex();
+    // Gate on the OneKey app version: deriveContextHash (required for vault
+    // deposits) only exists in >= 6.3.0. Surfaced as a terminal "update"
+    // prompt in the connect UI rather than failing later mid-deposit.
+    await this.ensureSupportedVersion();
+
+    const address = await withTimeout<string>(this.provider.getAddress(), ONEKEY_RPC_TIMEOUT_MS, () =>
+      this.timeoutError("reading the address"),
+    );
+    const publicKeyHex = await withTimeout<string>(this.provider.getPublicKeyHex(), ONEKEY_RPC_TIMEOUT_MS, () =>
+      this.timeoutError("reading the public key"),
+    );
 
     if (publicKeyHex && address) {
       this.walletInfo = {
@@ -73,6 +117,70 @@ export class OneKeyProvider implements IBTCProvider {
         wallet: WALLET_PROVIDER_NAME,
       });
     }
+  };
+
+  // Reads the OneKey app/extension version from `$onekey.$walletInfo.version`.
+  // OneKey populates `$walletInfo` asynchronously on injection; if it isn't
+  // ready yet, call OneKey's own `$private.getConnectWalletInfo()` — the same
+  // method ProviderPrivate runs on injection — which repopulates `$walletInfo`.
+  // The refresh is bounded so a stalled extension can't hang connect; a read
+  // failure surfaces as CONNECTION_FAILED (retryable), not a version verdict.
+  // Returns `unknown`: external data validated by `checkOneKeyVersion`.
+  private readAppVersion = async (): Promise<unknown> => {
+    if (typeof this.hub?.$walletInfo?.version === "string") {
+      return this.hub.$walletInfo.version;
+    }
+
+    try {
+      await withTimeout(
+        Promise.resolve(this.hub?.$private?.getConnectWalletInfo?.()),
+        ONEKEY_RPC_TIMEOUT_MS,
+        () => this.timeoutError("reading its version"),
+      );
+    } catch (error) {
+      if (error instanceof WalletError) throw error;
+      throw new WalletError({
+        code: ERROR_CODES.CONNECTION_FAILED,
+        message: (error as Error)?.message || "Failed to read OneKey Wallet version",
+        wallet: WALLET_PROVIDER_NAME,
+      });
+    }
+
+    return this.hub?.$walletInfo?.version;
+  };
+
+  // Gates connect on OneKey >= MIN_ONEKEY_VERSION (the floor for
+  // deriveContextHash). Runs once per provider instance; INCOMPATIBLE_WALLET_VERSION
+  // surfaces as the "update wallet" prompt in the connect dialog.
+  private ensureSupportedVersion = async (): Promise<void> => {
+    if (this.versionChecked) return;
+
+    const raw = await this.readAppVersion();
+    const result = checkOneKeyVersion(raw);
+
+    if (result === "ok") {
+      this.versionChecked = true;
+      return;
+    }
+
+    if (result === "below") {
+      throw new WalletError({
+        code: ERROR_CODES.INCOMPATIBLE_WALLET_VERSION,
+        message: `Your OneKey Wallet is out of date (${raw}). Please update to version ${MIN_ONEKEY_VERSION} or later and try again.`,
+        wallet: WALLET_PROVIDER_NAME,
+        version: raw as string,
+      });
+    }
+
+    // Read succeeded but value is missing/non-canonical (fork build): fail
+    // closed without claiming "out of date".
+    throw new WalletError({
+      code: ERROR_CODES.INCOMPATIBLE_WALLET_VERSION,
+      message: `Unable to verify your OneKey Wallet version${
+        typeof raw === "string" ? ` (got "${raw}")` : ""
+      }. Please update to OneKey ${MIN_ONEKEY_VERSION} or later and try again.`,
+      wallet: WALLET_PROVIDER_NAME,
+    });
   };
 
   getAddress = async (): Promise<string> => {
@@ -284,5 +392,60 @@ export class OneKeyProvider implements IBTCProvider {
     return logo;
   };
 
-  deriveContextHash = unsupportedDeriveContextHash(WALLET_PROVIDER_NAME);
+  deriveContextHash = async (appName: string, context: string): Promise<string> => {
+    if (!this.walletInfo)
+      throw new WalletError({
+        code: ERROR_CODES.WALLET_NOT_CONNECTED,
+        message: "OneKey Wallet not connected",
+        wallet: WALLET_PROVIDER_NAME,
+      });
+
+    // OneKey exposes deriveContextHash on the injected `$onekey.btcwallet`
+    // per docs/specs/derive-context-hash.md §2.1, shipped in OneKey >= 6.3.0.
+    // Older builds omit the method, so surface a typed
+    // WALLET_METHOD_NOT_SUPPORTED instead of an opaque "X is not a function".
+    if (typeof this.provider.deriveContextHash !== "function") {
+      throw new WalletError({
+        code: ERROR_CODES.WALLET_METHOD_NOT_SUPPORTED,
+        message:
+          "OneKey Wallet version does not support deriveContextHash. Update to a version that implements the deriveContextHash specification.",
+        wallet: WALLET_PROVIDER_NAME,
+      });
+    }
+
+    try {
+      return await this.provider.deriveContextHash(appName, context);
+    } catch (error) {
+      // User rejection surfaces as EIP-1193 4001 "User rejected the request."
+      // (OneKeyHQ/app-monorepo useDappApproveAction -> userRejectedRequest),
+      // matched by isUserRejectionMessage. Map to a typed rejection so callers
+      // can distinguish "user said no" from spec-validation failures.
+      if (isUserRejectionMessage((error as Error | undefined)?.message)) {
+        throw new WalletError({
+          code: ERROR_CODES.CONNECTION_REJECTED,
+          message: "OneKey Wallet rejected the deriveContextHash approval",
+          wallet: WALLET_PROVIDER_NAME,
+        });
+      }
+      // OneKey implements deriveContextHash for HD (app) wallets only; hardware,
+      // imported, and watch-only accounts reject before the approval dialog with
+      // methodNotSupported. Surface the typed capability error so callers branch
+      // on it deterministically instead of the raw "Method not supported." string.
+      if (
+        (error as { code?: number } | undefined)?.code ===
+        ONEKEY_METHOD_NOT_SUPPORTED_CODE
+      ) {
+        throw new WalletError({
+          code: ERROR_CODES.WALLET_METHOD_NOT_SUPPORTED,
+          message:
+            "This OneKey account does not support deriveContextHash. Connect a OneKey app (HD) wallet account.",
+          wallet: WALLET_PROVIDER_NAME,
+        });
+      }
+      // Everything else (appName charset, context hex format, length bounds,
+      // unsupported-network) is rethrown unwrapped to preserve the wallet's
+      // spec-validation diagnostics.
+      throw error;
+    }
+  };
 }
