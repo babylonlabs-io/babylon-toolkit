@@ -16,11 +16,8 @@ import {
   SUMMARY_CARD_CLASS,
 } from "@/components/shared/layoutClasses";
 import { getNetworkConfigBTC } from "@/config";
-import {
-  ProtocolParamsProvider,
-  useProtocolParamsContext,
-} from "@/context/ProtocolParamsContext";
 import { useBtcMempoolConfirmations } from "@/hooks/useBtcMempoolConfirmations";
+import { useOffchainParams } from "@/hooks/useOffchainParams";
 import type { PegoutPollingResult } from "@/hooks/usePegoutPolling";
 import {
   ClaimerPegoutStatusValue,
@@ -42,15 +39,8 @@ interface PendingWithdrawSectionProps {
 }
 
 export function PendingWithdrawSection(props: PendingWithdrawSectionProps) {
-  // Dashboard has no ProtocolParamsProvider (see PendingDepositSection); mount
-  // one for the countdown, but only when there's something to show.
   if (props.pendingWithdrawVaults.length === 0) return null;
-
-  return (
-    <ProtocolParamsProvider>
-      <PendingWithdrawSectionContent {...props} />
-    </ProtocolParamsProvider>
-  );
+  return <PendingWithdrawSectionContent {...props} />;
 }
 
 function PendingWithdrawSectionContent({
@@ -58,7 +48,11 @@ function PendingWithdrawSectionContent({
   pegoutStatuses,
 }: PendingWithdrawSectionProps) {
   const [isExpanded, setIsExpanded] = useState(false);
-  const { getOffchainParamsByVersion } = useProtocolParamsContext();
+  // Non-blocking: the withdrawal status (tx hash, Blocked → Contact Support,
+  // Payout sent) must stay visible even if protocol-param queries are slow or
+  // failing. Only the challenge-period ETA needs timelockAssert, and it
+  // degrades to "Checking…" on its own.
+  const { resolveTimelockAssertBlocks } = useOffchainParams();
 
   // Poll Assert-tx confirmations (BIP68 payout clock) only while expanded — the
   // countdown is the only consumer and it's hidden when collapsed.
@@ -138,10 +132,6 @@ function PendingWithdrawSectionContent({
               const pollingResult = pegoutStatuses.get(vault.id);
               const claimer = pollingResult?.response?.claimer;
 
-              const timelockAssert = getOffchainParamsByVersion(
-                vault.offchainParamsVersion,
-              )?.timelockAssert;
-
               // Assert-tx confirmations are the payout CSV clock; only resolved
               // while the assert tx is broadcast and being polled (expanded).
               const canonical = canonicalizeTxid(claimer?.assert_txid);
@@ -154,11 +144,9 @@ function PendingWithdrawSectionContent({
                   key={vault.id}
                   vault={vault}
                   pollingResult={pollingResult}
-                  timelockAssertBlocks={
-                    timelockAssert !== undefined
-                      ? Number(timelockAssert)
-                      : undefined
-                  }
+                  timelockAssertBlocks={resolveTimelockAssertBlocks(
+                    vault.offchainParamsVersion,
+                  )}
                   assertConfirmations={assertConfirmations}
                 />
               );
