@@ -98,7 +98,7 @@ function WithdrawalTxValue({
   }
   return (
     <span className="text-sm text-accent-secondary">
-      {CARD_COPY.txHashPending}
+      {CARD_COPY.withdrawalTxPending}
     </span>
   );
 }
@@ -184,7 +184,7 @@ export function PendingWithdrawCard({
         <ProgressBar percent={progress} color={ASSET_BRAND_COLOR} />
       )}
 
-      <VaultCardRow label={CARD_COPY.txHashLabel}>
+      <VaultCardRow label={CARD_COPY.withdrawalTxLabel}>
         <WithdrawalTxValue
           claimTxHash={claimer?.claim_txid}
           assertTxHash={claimer?.assert_txid}

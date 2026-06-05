@@ -77,7 +77,8 @@ describe("PendingWithdrawCard — stage presentation", () => {
     // found === false: no claimer, no withdrawal timestamp yet.
     renderCard({ displayState: getPegoutDisplayState(undefined, false) });
 
-    expect(screen.getByText(CARD.txHashPending)).toBeInTheDocument();
+    expect(screen.getByText(CARD.withdrawalTxLabel)).toBeInTheDocument();
+    expect(screen.getByText(CARD.withdrawalTxPending)).toBeInTheDocument();
     expect(screen.queryByText("Date")).not.toBeInTheDocument();
     expect(screen.getByRole("progressbar")).toBeInTheDocument();
     expect(screen.queryByText(CARD.contactSupport)).not.toBeInTheDocument();

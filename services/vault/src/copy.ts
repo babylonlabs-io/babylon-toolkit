@@ -655,10 +655,12 @@ export const COPY = {
     payoutImminent: "Payout available shortly",
     // Staged pending-withdraw card (Submitted → … → Payout sent / Blocked).
     card: {
-      // Single withdrawal tx hash row: the claim tx, then the assert tx.
-      txHashLabel: "TX Hash",
-      // Shown in the TX Hash slot before the claim tx is broadcast.
-      txHashPending: "Pending",
+      // Umbrella label for the single withdrawal-tx row, which surfaces the
+      // claim tx early and the assert tx during/after the challenge period.
+      // Kept user-facing (not "claim"/"assert") to avoid protocol jargon.
+      withdrawalTxLabel: "Withdrawal transaction",
+      // Shown in the withdrawal-transaction slot before the claim tx is broadcast.
+      withdrawalTxPending: "Pending",
       // Row label for the live payout-eligibility countdown.
       estRemainingLabel: "Est. Remaining",
       // Live payout-eligibility estimate value (e.g. "~2 days").
