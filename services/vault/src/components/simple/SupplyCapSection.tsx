@@ -15,6 +15,7 @@ import {
   formatSatoshisToBtcDisplay,
   satoshiToBtcNumber,
 } from "@/utils/btcConversion";
+import { getVpExplorerHomeUrl } from "@/utils/explorer";
 import { formatUsd, getBtcSymbol } from "@/utils/formatting";
 
 interface SupplyCapSectionProps {
@@ -53,6 +54,29 @@ function CapCardSkeleton() {
   );
 }
 
+/**
+ * Callout linking to the BTC Vault explorer. Hidden when the explorer base URL
+ * (NEXT_PUBLIC_TBV_VP_EXPLORER_URL) is not configured.
+ */
+function ExplorerCallout() {
+  const href = getVpExplorerHomeUrl();
+  if (!href) return null;
+  return (
+    <p className="text-sm text-accent-secondary">
+      {COPY.explorer.callout}{" "}
+      <a
+        href={href}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="font-medium text-secondary-main underline underline-offset-2 transition-opacity hover:opacity-80"
+      >
+        {COPY.explorer.calloutLinkText}
+      </a>
+      .
+    </p>
+  );
+}
+
 function VaultCapFrame({ children }: { children: ReactNode }) {
   return (
     <div className="w-full space-y-4">
@@ -60,6 +84,7 @@ function VaultCapFrame({ children }: { children: ReactNode }) {
         Protocol Cap
       </h2>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">{children}</div>
+      <ExplorerCallout />
     </div>
   );
 }

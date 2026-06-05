@@ -8,6 +8,7 @@
 import { Avatar, Hint } from "@babylonlabs-io/core-ui";
 import { useEffect, useState, type ReactNode } from "react";
 
+import { ExplorerLink } from "@/components/shared";
 import { CopyableHash } from "@/components/shared/CopyableHash";
 import { getNetworkConfigBTC } from "@/config";
 import { COPY } from "@/copy";
@@ -66,6 +67,12 @@ interface VaultDetailCardProps {
   providerIconUrl?: string;
   /** Vault provider Ethereum address, shown on hover over the provider label */
   providerAddress: string;
+  /** Pre-built explorer URL for this vault's page. Pass only when the vault is
+   *  active/indexed (else it would 404); `undefined` renders no link. */
+  vaultExplorerUrl?: string;
+  /** Pre-built explorer URL for the vault provider's page; `undefined` renders
+   *  no link. */
+  providerExplorerUrl?: string;
   /** Status content — rendered as the value in the Status row. Omit to hide the
    * row entirely (e.g. when the status badge is rendered in the header). */
   statusContent?: ReactNode;
@@ -101,6 +108,8 @@ export function VaultDetailCard({
   providerName,
   providerIconUrl,
   providerAddress,
+  vaultExplorerUrl,
+  providerExplorerUrl,
   statusContent,
   amountSubtext,
   headerEnd,
@@ -128,9 +137,15 @@ export function VaultDetailCard({
             size="medium"
           />
           <div className="flex flex-col gap-0.5">
-            <span className="text-xl font-medium text-accent-primary">
-              {formatBtcAmount(amountBtc)}
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="text-xl font-medium text-accent-primary">
+                {formatBtcAmount(amountBtc)}
+              </span>
+              <ExplorerLink
+                href={vaultExplorerUrl}
+                label={COPY.explorer.vaultLinkLabel}
+              />
+            </div>
             {amountSubtext}
           </div>
         </div>
@@ -156,24 +171,31 @@ export function VaultDetailCard({
 
       {/* Vault Provider */}
       <VaultCardRow label="Vault provider">
-        <Hint
-          tooltip={truncateAddress(providerAddress)}
-          attachToChildren
-          placement="left"
-          className="text-sm text-accent-primary"
-        >
-          <span className="inline-flex items-center gap-1.5">
-            {providerIconUrl && (
-              <Avatar
-                url={providerIconUrl}
-                alt={providerName}
-                size="small"
-                className="h-4 w-4"
-              />
-            )}
-            {providerName}
-          </span>
-        </Hint>
+        <span className="inline-flex items-center gap-1.5">
+          <Hint
+            tooltip={truncateAddress(providerAddress)}
+            attachToChildren
+            placement="left"
+            className="text-sm text-accent-primary"
+          >
+            <span className="inline-flex items-center gap-1.5">
+              {providerIconUrl && (
+                <Avatar
+                  url={providerIconUrl}
+                  alt={providerName}
+                  size="small"
+                  className="h-4 w-4"
+                />
+              )}
+              {providerName}
+            </span>
+          </Hint>
+          <ExplorerLink
+            href={providerExplorerUrl}
+            label={COPY.explorer.providerLinkLabel}
+            size={14}
+          />
+        </span>
       </VaultCardRow>
 
       {/* Date — hidden when no timestamp is supplied (e.g. cross-device rows). */}

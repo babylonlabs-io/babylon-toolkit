@@ -4,9 +4,10 @@ import {
   Card,
   Loader,
 } from "@babylonlabs-io/core-ui";
-import { IoChevronUp, IoOpenOutline, IoWarningOutline } from "react-icons/io5";
+import { IoChevronUp, IoWarningOutline } from "react-icons/io5";
 
 import { ApplicationLogo } from "@/components/ApplicationLogo";
+import { ExplorerLink } from "@/components/shared";
 import { COPY } from "@/copy";
 import type { VaultProviderListItem } from "@/types/vaultProvider";
 import {
@@ -195,16 +196,10 @@ export function VaultProviderSelector({
                     </button>
                     {provider.explorerUrl && (
                       <div className="flex shrink-0 items-center gap-2">
-                        <a
+                        <ExplorerLink
                           href={provider.explorerUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          aria-label={FORM_COPY.providerExplorerLinkLabel}
-                          title={FORM_COPY.providerExplorerLinkLabel}
-                          className="text-accent-secondary transition-colors hover:text-accent-primary"
-                        >
-                          <IoOpenOutline size={16} />
-                        </a>
+                          label={FORM_COPY.providerExplorerLinkLabel}
+                        />
                       </div>
                     )}
                   </div>

@@ -21,8 +21,12 @@ vi.mock("@/config", () => ({
 import {
   getBtcExplorerAddressUrl,
   getBtcExplorerTxUrl,
+  getVpExplorerHomeUrl,
   getVpExplorerProviderUrl,
+  getVpExplorerVaultUrl,
 } from "../explorer";
+
+const EXPLORER_BASE = "https://explorer.test.example";
 
 describe("getVpExplorerProviderUrl", () => {
   beforeEach(() => {
@@ -30,11 +34,21 @@ describe("getVpExplorerProviderUrl", () => {
   });
 
   it("builds a /provider/<address> URL against the configured explorer base", () => {
-    envMock.ENV.VP_EXPLORER_URL = "https://explorer.test.example";
+    envMock.ENV.VP_EXPLORER_URL = EXPLORER_BASE;
     const address = "0x1234567890abcdef1234567890abcdef12345678";
 
     expect(getVpExplorerProviderUrl(address)).toBe(
-      `https://explorer.test.example/provider/${address}`,
+      `${EXPLORER_BASE}/provider/${address}`,
+    );
+  });
+
+  it("lowercases a checksummed address (the explorer keys addresses lowercase)", () => {
+    envMock.ENV.VP_EXPLORER_URL = EXPLORER_BASE;
+
+    expect(
+      getVpExplorerProviderUrl("0xAbC1230000000000000000000000000000000DEF"),
+    ).toBe(
+      `${EXPLORER_BASE}/provider/0xabc1230000000000000000000000000000000def`,
     );
   });
 
@@ -44,6 +58,63 @@ describe("getVpExplorerProviderUrl", () => {
     expect(
       getVpExplorerProviderUrl("0x1234567890abcdef1234567890abcdef12345678"),
     ).toBeUndefined();
+  });
+
+  it("returns undefined for an empty address (no broken /provider/ link)", () => {
+    envMock.ENV.VP_EXPLORER_URL = EXPLORER_BASE;
+
+    expect(getVpExplorerProviderUrl("")).toBeUndefined();
+  });
+});
+
+describe("getVpExplorerVaultUrl", () => {
+  beforeEach(() => {
+    envMock.ENV.VP_EXPLORER_URL = undefined;
+  });
+
+  it("builds a /vault/<id> URL against the configured explorer base", () => {
+    envMock.ENV.VP_EXPLORER_URL = EXPLORER_BASE;
+    const vaultId =
+      "0x134a8d1a5ba0673a3ecab0522336fce3585082161af260a2debc09574c26b0d4";
+
+    expect(getVpExplorerVaultUrl(vaultId)).toBe(
+      `${EXPLORER_BASE}/vault/${vaultId}`,
+    );
+  });
+
+  it("lowercases the id (the explorer keys vault ids lowercase)", () => {
+    envMock.ENV.VP_EXPLORER_URL = EXPLORER_BASE;
+
+    expect(getVpExplorerVaultUrl("0xABCDEF")).toBe(
+      `${EXPLORER_BASE}/vault/0xabcdef`,
+    );
+  });
+
+  it("returns undefined when the explorer base URL is not configured", () => {
+    expect(getVpExplorerVaultUrl("0xabc")).toBeUndefined();
+  });
+
+  it("returns undefined for an empty/undefined vault id", () => {
+    envMock.ENV.VP_EXPLORER_URL = EXPLORER_BASE;
+
+    expect(getVpExplorerVaultUrl("")).toBeUndefined();
+    expect(getVpExplorerVaultUrl(undefined)).toBeUndefined();
+  });
+});
+
+describe("getVpExplorerHomeUrl", () => {
+  beforeEach(() => {
+    envMock.ENV.VP_EXPLORER_URL = undefined;
+  });
+
+  it("returns the configured explorer base URL", () => {
+    envMock.ENV.VP_EXPLORER_URL = EXPLORER_BASE;
+
+    expect(getVpExplorerHomeUrl()).toBe(EXPLORER_BASE);
+  });
+
+  it("returns undefined when the explorer base URL is not configured", () => {
+    expect(getVpExplorerHomeUrl()).toBeUndefined();
   });
 });
 

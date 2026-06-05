@@ -11,9 +11,14 @@ import {
   StatusBadge,
 } from "@babylonlabs-io/core-ui";
 
+import { ExplorerLink } from "@/components/shared";
 import { getNetworkConfigBTC } from "@/config";
 import { COPY } from "@/copy";
 import { truncateAddress } from "@/utils/addressUtils";
+import {
+  getVpExplorerProviderUrl,
+  getVpExplorerVaultUrl,
+} from "@/utils/explorer";
 import { formatBtcAmount, formatOrdinal } from "@/utils/formatting";
 
 import { PeginTxHashRow } from "./PeginTxHashRow";
@@ -73,6 +78,10 @@ export function CollateralVaultItem({
           <span className="text-xl font-medium text-accent-primary">
             {formatBtcAmount(amountBtc)}
           </span>
+          <ExplorerLink
+            href={getVpExplorerVaultUrl(vaultId)}
+            label={COPY.explorer.vaultLinkLabel}
+          />
         </div>
         <div onClick={(e: React.MouseEvent) => e.stopPropagation()}>
           <Checkbox
@@ -95,19 +104,26 @@ export function CollateralVaultItem({
 
       {/* Vault Provider row */}
       <VaultCardRow label="Vault provider">
-        <Hint
-          tooltip={truncateAddress(providerAddress)}
-          attachToChildren
-          placement="left"
-          className="text-sm text-accent-primary"
-        >
-          <span className="inline-flex items-center gap-1.5">
-            {providerIconUrl && (
-              <Avatar url={providerIconUrl} alt={providerName} size="tiny" />
-            )}
-            {providerName}
-          </span>
-        </Hint>
+        <span className="inline-flex items-center gap-1.5">
+          <Hint
+            tooltip={truncateAddress(providerAddress)}
+            attachToChildren
+            placement="left"
+            className="text-sm text-accent-primary"
+          >
+            <span className="inline-flex items-center gap-1.5">
+              {providerIconUrl && (
+                <Avatar url={providerIconUrl} alt={providerName} size="tiny" />
+              )}
+              {providerName}
+            </span>
+          </Hint>
+          <ExplorerLink
+            href={getVpExplorerProviderUrl(providerAddress)}
+            label={COPY.explorer.providerLinkLabel}
+            size={14}
+          />
+        </span>
       </VaultCardRow>
 
       {/* Status row */}
