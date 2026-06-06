@@ -24,7 +24,7 @@ import {
 } from "react";
 
 import { getProtocolParamsReader } from "@/clients/eth-contract/sdk-readers";
-import { logger } from "@/infrastructure";
+import { offchainParamsQueryOptions } from "@/hooks/useOffchainParams";
 import { fetchAllUniversalChallengers } from "@/services/providers";
 import type { UniversalChallenger } from "@/types";
 
@@ -100,25 +100,12 @@ export function ProtocolParamsProvider({
     retry: RETRY_COUNT,
   });
 
+  // Shares the query (and cache) with the non-blocking useOffchainParams hook.
   const {
     data: offchainParamsData,
     isLoading: offchainLoading,
     error: offchainError,
-  } = useQuery({
-    queryKey: [PROTOCOL_PARAMS_QUERY_KEY, "allOffchainParams"],
-    queryFn: async () => {
-      const reader = await getProtocolParamsReader();
-      return reader.fetchAllOffchainParams((version, error) => {
-        logger.warn(
-          `Offchain params v${version} failed validation, skipping: ${error.message}`,
-          { category: "protocol-params" },
-        );
-      });
-    },
-    staleTime: STALE_TIME_MS,
-    refetchOnWindowFocus: false,
-    retry: RETRY_COUNT,
-  });
+  } = useQuery(offchainParamsQueryOptions());
 
   const latestUniversalChallengers = useMemo(() => {
     if (!ucData) return [];

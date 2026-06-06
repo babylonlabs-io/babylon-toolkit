@@ -2,8 +2,8 @@
  * PendingWithdrawSection Component
  *
  * Displays the "Pending Withdraw" dashboard section with a summary card
- * that expands to show individual vault details (amount, status, provider, tx hash).
- * Follows the same pattern as PendingDepositSection.
+ * that expands to show one staged progress card per withdrawal (see
+ * PendingWithdrawCard). Follows the same pattern as PendingDepositSection.
  */
 
 import { Avatar, Card } from "@babylonlabs-io/core-ui";
@@ -16,27 +16,17 @@ import {
   SUMMARY_CARD_CLASS,
 } from "@/components/shared/layoutClasses";
 import { getNetworkConfigBTC } from "@/config";
-import { BTC_BLOCK_TIME_MINS } from "@/constants";
-import {
-  ProtocolParamsProvider,
-  useProtocolParamsContext,
-} from "@/context/ProtocolParamsContext";
-import { COPY } from "@/copy";
 import { useBtcMempoolConfirmations } from "@/hooks/useBtcMempoolConfirmations";
+import { useOffchainParams } from "@/hooks/useOffchainParams";
 import type { PegoutPollingResult } from "@/hooks/usePegoutPolling";
-import { ClaimerPegoutStatusValue } from "@/models/pegoutStateMachine";
 import {
-  getVpExplorerProviderUrl,
-  getVpExplorerVaultUrl,
-} from "@/utils/explorer";
-import { formatBtcAmount, formatDuration } from "@/utils/formatting";
-import { payoutEtaMinutes } from "@/utils/pegoutTiming";
+  ClaimerPegoutStatusValue,
+  isPegoutInProgress,
+} from "@/models/pegoutStateMachine";
+import { formatBtcAmount } from "@/utils/formatting";
 import { canonicalizeTxid } from "@/utils/txid";
 
-import { PeginTxHashRow } from "./PeginTxHashRow";
-import { PegoutTxHashRow } from "./PegoutTxHashRow";
-import { STATUS_DOT_COLORS } from "./statusColors";
-import { VaultDetailCard, VaultStatusBadge } from "./VaultDetailCard";
+import { PendingWithdrawCard } from "./PendingWithdrawCard";
 
 const btcConfig = getNetworkConfigBTC();
 
@@ -49,15 +39,8 @@ interface PendingWithdrawSectionProps {
 }
 
 export function PendingWithdrawSection(props: PendingWithdrawSectionProps) {
-  // Dashboard has no ProtocolParamsProvider (see PendingDepositSection); mount
-  // one for the countdown, but only when there's something to show.
   if (props.pendingWithdrawVaults.length === 0) return null;
-
-  return (
-    <ProtocolParamsProvider>
-      <PendingWithdrawSectionContent {...props} />
-    </ProtocolParamsProvider>
-  );
+  return <PendingWithdrawSectionContent {...props} />;
 }
 
 function PendingWithdrawSectionContent({
@@ -65,7 +48,11 @@ function PendingWithdrawSectionContent({
   pegoutStatuses,
 }: PendingWithdrawSectionProps) {
   const [isExpanded, setIsExpanded] = useState(false);
-  const { getOffchainParamsByVersion } = useProtocolParamsContext();
+  // Non-blocking: the withdrawal status (tx hash, Blocked → Contact Support,
+  // Payout sent) must stay visible even if protocol-param queries are slow or
+  // failing. Only the challenge-period ETA needs timelockAssert, and it
+  // degrades to "Checking…" on its own.
+  const { resolveTimelockAssertBlocks } = useOffchainParams();
 
   // Poll Assert-tx confirmations (BIP68 payout clock) only while expanded — the
   // countdown is the only consumer and it's hidden when collapsed.
@@ -92,6 +79,17 @@ function PendingWithdrawSectionContent({
   );
   const count = pendingWithdrawVaults.length;
 
+  // The header spinner means "work in progress". Hide it once every vault has
+  // stopped progressing — payout sent, blocked, or polling timed out — so the
+  // section doesn't imply activity that isn't happening.
+  const anyInProgress = pendingWithdrawVaults.some((vault) => {
+    const result = pegoutStatuses.get(vault.id);
+    return isPegoutInProgress(
+      result?.response?.claimer?.status,
+      result?.displayState,
+    );
+  });
+
   return (
     <div className="w-full space-y-6">
       {/* Section header */}
@@ -99,7 +97,9 @@ function PendingWithdrawSectionContent({
         <h2 className="text-[24px] font-normal text-accent-primary">
           Pending Withdraw ({count})
         </h2>
-        <div className="h-[18px] w-[18px] animate-spin rounded-full border-2 border-accent-primary border-t-transparent" />
+        {anyInProgress && (
+          <div className="h-[18px] w-[18px] animate-spin rounded-full border-2 border-accent-primary border-t-transparent" />
+        )}
       </div>
 
       {/* Summary card with expand */}
@@ -125,103 +125,29 @@ function PendingWithdrawSectionContent({
           />
         </div>
 
-        {/* Expanded: individual vault detail cards */}
+        {/* Expanded: one staged progress card per vault. */}
         {isExpanded && (
           <div className="mt-4 max-h-[400px] space-y-2 overflow-y-auto">
             {pendingWithdrawVaults.map((vault) => {
               const pollingResult = pegoutStatuses.get(vault.id);
-              const displayState = pollingResult?.displayState;
-              const label = displayState?.label ?? COPY.common.checking;
-              const variant = displayState?.variant ?? "pending";
-              const tooltip = displayState?.message;
               const claimer = pollingResult?.response?.claimer;
 
-              // Payout ETA only once asserting — the timelock_assert CSV clock
-              // starts at assert broadcast; earlier states have nothing on-chain.
-              let payoutEta: string | undefined;
-              const timelockAssert = getOffchainParamsByVersion(
-                vault.offchainParamsVersion,
-              )?.timelockAssert;
-              const isAsserting =
-                claimer?.status === ClaimerPegoutStatusValue.ASSERT_BROADCAST;
-              if (
-                variant === "pending" &&
-                isAsserting &&
-                timelockAssert !== undefined
-              ) {
-                // Wait for known confirmations so a transient unknown (initial
-                // load / mempool 429) doesn't flash the full wait.
-                const canonical = canonicalizeTxid(claimer?.assert_txid);
-                const confirmations = canonical
-                  ? confirmationsByTxid.get(canonical)
-                  : undefined;
-                if (confirmations !== undefined) {
-                  const etaMinutes = payoutEtaMinutes(
-                    Number(timelockAssert),
-                    confirmations,
-                    BTC_BLOCK_TIME_MINS,
-                  );
-                  payoutEta =
-                    etaMinutes <= 0
-                      ? COPY.pegout.payoutImminent
-                      : COPY.pegout.payoutEta(formatDuration(etaMinutes));
-                }
-              }
-
-              // Before the assert is broadcast there's no payout ETA in any
-              // pending state — show the waiting hint, not a bare amount.
-              const subtext =
-                payoutEta ??
-                (variant === "pending" && !isAsserting
-                  ? COPY.pegout.awaitingInitiation
-                  : undefined);
+              // Assert-tx confirmations are the payout CSV clock; only resolved
+              // while the assert tx is broadcast and being polled (expanded).
+              const canonical = canonicalizeTxid(claimer?.assert_txid);
+              const assertConfirmations = canonical
+                ? confirmationsByTxid.get(canonical)
+                : undefined;
 
               return (
-                <VaultDetailCard
+                <PendingWithdrawCard
                   key={vault.id}
-                  amountBtc={vault.amountBtc}
-                  amountSubtext={
-                    subtext ? (
-                      <span className="text-sm text-accent-secondary">
-                        {subtext}
-                      </span>
-                    ) : undefined
-                  }
-                  txHashRow={
-                    <>
-                      {/* Deposit identity (peg-in / Pre-Pegin) — both on-chain
-                          by withdraw time, so both link to the explorer. */}
-                      <PeginTxHashRow
-                        peginTxHash={vault.peginTxHash}
-                        prePeginTxHash={vault.prePeginTxHash}
-                        linkPegin
-                        linkPrePegin
-                      />
-                      {/* Withdrawal txs (claim / assert) — only once the VP
-                          has a claimer record; gated to copy-only until each
-                          is broadcast. */}
-                      <PegoutTxHashRow
-                        claimTxHash={claimer?.claim_txid}
-                        assertTxHash={claimer?.assert_txid}
-                        claimerStatus={claimer?.status}
-                      />
-                    </>
-                  }
-                  providerName={vault.providerName}
-                  providerIconUrl={vault.providerIconUrl}
-                  providerAddress={vault.vaultProviderAddress}
-                  vaultExplorerUrl={getVpExplorerVaultUrl(vault.id)}
-                  providerExplorerUrl={getVpExplorerProviderUrl(
-                    vault.vaultProviderAddress,
+                  vault={vault}
+                  pollingResult={pollingResult}
+                  timelockAssertBlocks={resolveTimelockAssertBlocks(
+                    vault.offchainParamsVersion,
                   )}
-                  payoutBtcAddress={vault.payoutBtcAddress}
-                  statusContent={
-                    <VaultStatusBadge
-                      dotColor={STATUS_DOT_COLORS[variant]}
-                      label={label}
-                      tooltip={tooltip}
-                    />
-                  }
+                  assertConfirmations={assertConfirmations}
                 />
               );
             })}

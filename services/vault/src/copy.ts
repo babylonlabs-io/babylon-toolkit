@@ -613,22 +613,22 @@ export const COPY = {
   pegout: {
     status: {
       claimEventReceived: {
-        label: "Processing",
+        label: "Submitted",
         message:
           "Your withdrawal request has been received and is being processed.",
       },
       claimBroadcast: {
-        label: "Processing",
+        label: "In progress",
         message:
           "Your withdrawal is in progress. A claim transaction has been broadcast to Bitcoin.",
       },
       assertBroadcast: {
-        label: "Confirming",
+        label: "Challenge period",
         message:
           "Your withdrawal is going through its on-chain challenge period before the BTC payout can be broadcast.",
       },
       payoutBroadcast: {
-        label: "Payout broadcast",
+        label: "Payout sent",
         message:
           "The Bitcoin payout transaction has been broadcast to your nominated address.",
       },
@@ -638,7 +638,8 @@ export const COPY = {
           "Withdrawal was blocked on-chain (challenger or council override). Please contact support.",
       },
       initiating: {
-        label: "Initiating",
+        // Pre-claim state folds into the "Submitted" stage on the card.
+        label: "Submitted",
         message: "Your withdrawal is being prepared by the vault provider.",
       },
       unavailable: {
@@ -650,18 +651,32 @@ export const COPY = {
       unknownMessage: (status: string) =>
         `Unknown status: ${status}. Please contact support.`,
     },
-    // Live countdown shown while the withdrawal is in its challenge period.
-    payoutEta: (duration: string) => `~${duration} until payout`,
-    payoutImminent: "Payout available shortly",
-    // Shown under the amount while the VP has not yet initiated the withdrawal.
-    awaitingInitiation:
-      "Waiting for the vault provider to start the withdrawal",
-    txHash: {
-      // "Withdrawal" (not "Transaction hash") to distinguish from the deposit
-      // peg-in/Pre-Pegin row shown on the same pending-withdraw card.
-      label: "Withdrawal",
-      claimLabel: "Claim:",
-      assertLabel: "Assert:",
+    // Staged pending-withdraw card (Submitted → … → Payout sent / Blocked).
+    card: {
+      // When the withdrawal was initiated (the VP's claimer-record timestamp).
+      initiatedLabel: "Initiated",
+      // Umbrella label for the single withdrawal-tx row, which surfaces the
+      // claim tx early and the assert tx during/after the challenge period.
+      // Kept user-facing (not "claim"/"assert") to avoid protocol jargon.
+      withdrawalTxLabel: "Withdrawal transaction",
+      // Shown in the withdrawal-transaction slot before the claim tx is broadcast.
+      withdrawalTxPending: "Pending",
+      // Live challenge-period countdown. Labelled as the *challenge period* (a
+      // single step) — not total time to funds — so it doesn't read as "X days
+      // until withdrawn". The payout is broadcast only after this ends.
+      challengePeriodEndsLabel: "Challenge period ends",
+      challengePeriodEndsIn: (duration: string) => `in ~${duration}`,
+      // Shown once the challenge-period clock has elapsed (payout eligible).
+      challengePeriodEndsSoon: "shortly",
+      // Challenge-period help note. Explains this is one step (the on-chain
+      // challenge period) and that a payout step follows — no fixed duration
+      // here, to avoid conflicting with the live countdown above it.
+      challengeNote:
+        "For your security, your withdrawal goes through an on-chain challenge period. After it ends, the payout is broadcast to your nominated address.",
+      learnMorePrefix: "Read more about the withdrawal latency ",
+      learnMoreLink: "here.",
+      // Error action on the Blocked stage.
+      contactSupport: "Contact Support",
     },
   },
   loans: {
