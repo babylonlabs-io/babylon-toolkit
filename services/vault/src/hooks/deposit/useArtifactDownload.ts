@@ -11,7 +11,10 @@ import type { Hex } from "viem";
 import { COPY } from "@/copy";
 import { ensureAuthenticatedVpClient } from "@/hooks/deposit/depositFlowSteps/ensureAuthenticatedVpClient";
 import { isPreDepositorSignaturesError } from "@/models/peginStateMachine";
-import { fetchAndDownloadArtifacts } from "@/services/artifacts";
+import {
+  ArtifactDownloadCancelledError,
+  fetchAndDownloadArtifacts,
+} from "@/services/artifacts";
 import { markArtifactsDownloaded } from "@/utils/artifactDownloadStorage";
 
 const ARTIFACT_RETRY_INTERVAL_MS = 10_000;
@@ -21,7 +24,24 @@ interface ArtifactDownloadState {
   progress: string;
   error: string | null;
   downloaded: boolean;
+  /** Bytes received so far from the in-flight artifact stream. */
+  receivedBytes: number;
+  /**
+   * Expected total bytes — Content-Length when the server sends it,
+   * otherwise the service's fallback estimate. Always defined while
+   * `loading` is true.
+   */
+  totalBytes: number;
 }
+
+const INITIAL_STATE: ArtifactDownloadState = {
+  loading: false,
+  progress: "",
+  error: null,
+  downloaded: false,
+  receivedBytes: 0,
+  totalBytes: 0,
+};
 
 interface PrimeContext {
   vaultId: Hex;
@@ -62,26 +82,21 @@ export function useArtifactDownload(options?: {
   const vaultId = options?.vaultId;
   const primeContext = options?.primeContext ?? null;
 
-  const [state, setState] = useState<ArtifactDownloadState>({
-    loading: false,
-    progress: "",
-    error: null,
-    downloaded: false,
-  });
+  const [state, setState] = useState<ArtifactDownloadState>(INITIAL_STATE);
 
-  // TODO: Remove cancelledRef once the backend delivers artifacts via streaming
-  // instead of a single oversized RPC response (~450 MB). Until then, the
-  // download reliably times out and users need a way to dismiss the modal.
+  // Stops both the UI state machine (post-await guards) and the in-flight
+  // stream (polled by fetchAndDownloadArtifacts between chunks) so cancel
+  // actually releases the connection instead of letting it run to completion
+  // in the background.
   const cancelledRef = useRef(false);
 
   const download = useCallback(
     async (providerAddress: string, peginTxid: string, depositorPk: string) => {
       cancelledRef.current = false;
       setState({
+        ...INITIAL_STATE,
         loading: true,
         progress: "Fetching artifacts from vault provider...",
-        error: null,
-        downloaded: false,
       });
 
       const normalizedPeginTxid = stripHexPrefix(peginTxid);
@@ -90,10 +105,8 @@ export function useArtifactDownload(options?: {
       // below so the rendered modal state stays consistent.
       const setError = (message: string) =>
         setState({
-          loading: false,
-          progress: "",
+          ...INITIAL_STATE,
           error: message,
-          downloaded: false,
         });
 
       // Ensure the bearer is in cache before any artifact request. The
@@ -145,6 +158,10 @@ export function useArtifactDownload(options?: {
         setState((prev) => ({
           ...prev,
           progress: "Re-authenticating with vault provider...",
+          // Reset byte counters so the bar doesn't linger between attempts;
+          // the next fetchAndDownloadArtifacts call seeds them from 0 again.
+          receivedBytes: 0,
+          totalBytes: 0,
         }));
 
         // Drop any cached token so the next acquire goes back to the server.
@@ -171,6 +188,17 @@ export function useArtifactDownload(options?: {
             providerAddress,
             peginTxid,
             depositorPk,
+            {
+              onProgress: (receivedBytes, totalBytes) => {
+                // Drop progress events that arrive after cancel — they would
+                // otherwise re-show the bar after the UI has reset.
+                if (cancelledRef.current) return;
+                setState((prev) =>
+                  prev.loading ? { ...prev, receivedBytes, totalBytes } : prev,
+                );
+              },
+              isCancelled: () => cancelledRef.current,
+            },
           );
 
           if (cancelledRef.current) return;
@@ -178,17 +206,18 @@ export function useArtifactDownload(options?: {
             markArtifactsDownloaded(vaultId);
           }
           setState({
-            loading: false,
-            progress: "",
-            error: null,
+            ...INITIAL_STATE,
             downloaded: true,
           });
           return;
         } catch (err) {
+          if (err instanceof ArtifactDownloadCancelledError) return;
           if (isPreDepositorSignaturesError(err)) {
             setState((prev) => ({
               ...prev,
               progress: "Waiting for vault provider to process signatures...",
+              receivedBytes: 0,
+              totalBytes: 0,
             }));
             await new Promise((resolve) =>
               setTimeout(resolve, ARTIFACT_RETRY_INTERVAL_MS),
@@ -229,21 +258,11 @@ export function useArtifactDownload(options?: {
 
   const cancel = useCallback(() => {
     cancelledRef.current = true;
-    setState({
-      loading: false,
-      progress: "",
-      error: null,
-      downloaded: false,
-    });
+    setState(INITIAL_STATE);
   }, []);
 
   const reset = useCallback(() => {
-    setState({
-      loading: false,
-      progress: "",
-      error: null,
-      downloaded: false,
-    });
+    setState(INITIAL_STATE);
   }, []);
 
   return {

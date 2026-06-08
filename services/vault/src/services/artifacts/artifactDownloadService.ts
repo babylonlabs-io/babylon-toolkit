@@ -37,6 +37,41 @@ const RPC_TIMEOUT_MS = 120 * 1000;
 const ERROR_RESPONSE_SIZE_THRESHOLD = 4096;
 
 /**
+ * Fallback total used by the progress bar when the server omits
+ * Content-Length. Artifact payloads are currently ~1 GB; 1.3 GB leaves
+ * comfortable headroom so the displayed percentage stays under 100% for
+ * a typical response.
+ */
+const ARTIFACT_TOTAL_FALLBACK_BYTES = 1_395_864_371;
+
+export interface FetchArtifactsOptions {
+  /**
+   * Invoked after each chunk read from the response body. `totalBytes`
+   * comes from Content-Length when present, otherwise falls back to a
+   * fixed estimate (the server does not always send a length header).
+   */
+  onProgress?: (receivedBytes: number, totalBytes: number) => void;
+  /**
+   * Polled between chunk reads. Returning true cancels the in-flight
+   * stream — used so the modal's Cancel path actually releases the
+   * connection instead of pulling bytes in the background.
+   */
+  isCancelled?: () => boolean;
+}
+
+/**
+ * Sentinel thrown when the caller cancels the download via
+ * `FetchArtifactsOptions.isCancelled`. Callers should swallow this
+ * instead of surfacing it as an error.
+ */
+export class ArtifactDownloadCancelledError extends Error {
+  constructor() {
+    super("Artifact download was cancelled");
+    this.name = "ArtifactDownloadCancelledError";
+  }
+}
+
+/**
  * Fetch artifacts from the vault provider and trigger a browser file download.
  *
  * Uses JsonRpcClient.callRaw() so the raw response body can be preserved
@@ -52,6 +87,7 @@ export async function fetchAndDownloadArtifacts(
   providerAddress: string,
   peginTxid: string,
   depositorPk: string,
+  options?: FetchArtifactsOptions,
 ): Promise<void> {
   const normalizedPeginTxid = stripHexPrefix(peginTxid);
 
@@ -79,12 +115,67 @@ export async function fetchAndDownloadArtifacts(
     },
   );
 
-  const buffer = await response.arrayBuffer();
+  const buffer = await readBodyWithProgress(response, options);
   const blob = new Blob([buffer], { type: "application/json" });
 
   validateArtifactPayload(buffer);
 
   triggerBlobDownload(blob, peginTxid);
+}
+
+/**
+ * Stream the response body so the UI can show a real byte-level progress
+ * bar. Falls back to `Response.arrayBuffer()` when the body is not a
+ * ReadableStream (e.g. some test doubles).
+ */
+async function readBodyWithProgress(
+  response: Response,
+  options: FetchArtifactsOptions | undefined,
+): Promise<ArrayBuffer> {
+  const contentLengthHeader = response.headers.get("content-length");
+  const headerTotal = contentLengthHeader ? Number(contentLengthHeader) : NaN;
+  const totalBytes =
+    Number.isFinite(headerTotal) && headerTotal > 0
+      ? headerTotal
+      : ARTIFACT_TOTAL_FALLBACK_BYTES;
+
+  if (!response.body) {
+    const buffer = await response.arrayBuffer();
+    options?.onProgress?.(buffer.byteLength, totalBytes);
+    return buffer;
+  }
+
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let received = 0;
+
+  options?.onProgress?.(0, totalBytes);
+
+  try {
+    while (true) {
+      if (options?.isCancelled?.()) {
+        await reader.cancel().catch(() => undefined);
+        throw new ArtifactDownloadCancelledError();
+      }
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (value) {
+        chunks.push(value);
+        received += value.byteLength;
+        options?.onProgress?.(received, totalBytes);
+      }
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  const merged = new Uint8Array(received);
+  let offset = 0;
+  for (const chunk of chunks) {
+    merged.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return merged.buffer;
 }
 
 /**

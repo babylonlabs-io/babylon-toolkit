@@ -308,13 +308,31 @@ export const COPY = {
     artifactDownload: {
       title: "Download BTC Vault artifacts",
       body: "Download your BTC Vault artifacts. These files are required to independently claim your funds if the vault provider is unavailable.",
+      // Shown in the same modal once the download is in flight (title +
+      // body swap so the user sees a focused progress dialog instead of
+      // the pre-download marketing copy).
+      titleDownloading: "Downloading vault artifacts",
+      bodyDownloading:
+        "This may take a few minutes depending on your connection.",
+      // Shown after the download completes (third copy bucket for the
+      // same modal); the green-card layout pairs with this title.
+      titleDownloaded: "Artifacts downloaded",
+      bodyDownloaded: "Your files are stored locally and never uploaded.",
       cancelButton: "Cancel",
-      continueButton: "Continue",
+      cancelDownloadButton: "Cancel download",
+      // Right footer button in the downloaded state. The handler is
+      // contextual: PendingDepositSection hands off to the activation
+      // flow; other call sites (sign continuation, collateral re-download)
+      // fall back to their existing onComplete handler.
+      activateButton: "Activate Vault",
     },
     recoveryArtifacts: {
       cardTitle: "Recovery artifacts",
       cardSubtitle: "Encrypted backup files",
       cardSize: "Up to ~1 GB",
+      // Size variant rendered once the download has completed — the
+      // "Up to" hedge no longer applies because the file is on disk.
+      cardSizeDownloaded: "~1 GB",
       downloadButton: "Download Artifacts",
       downloadingButton: "Downloading...",
       cancelDownloadButton: "Cancel",
@@ -322,6 +340,8 @@ export const COPY = {
       retryButton: "Retry",
       walletSignatureHint:
         "You may be asked to approve a signature in your wallet to authenticate.",
+      // Caption under the progress bar while bytes are streaming.
+      doNotCloseHint: "Do not close this window while downloading.",
       cannotAuthenticate:
         "Cannot authenticate with the vault provider. Please refresh and try again.",
     },

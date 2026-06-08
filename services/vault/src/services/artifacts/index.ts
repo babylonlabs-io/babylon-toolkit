@@ -1,1 +1,5 @@
-export { fetchAndDownloadArtifacts } from "./artifactDownloadService";
+export {
+  ArtifactDownloadCancelledError,
+  fetchAndDownloadArtifacts,
+  type FetchArtifactsOptions,
+} from "./artifactDownloadService";

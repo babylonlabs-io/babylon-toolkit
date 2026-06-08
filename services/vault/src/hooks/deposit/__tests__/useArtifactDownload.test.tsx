@@ -8,9 +8,18 @@ import {
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/services/artifacts", () => ({
-  fetchAndDownloadArtifacts: vi.fn(),
-}));
+vi.mock("@/services/artifacts", async () => {
+  // Re-export the real cancellation sentinel so the hook's
+  // `err instanceof ArtifactDownloadCancelledError` check matches the
+  // class instances test cases may throw from the mocked fetch.
+  const actual = await vi.importActual<typeof import("@/services/artifacts")>(
+    "@/services/artifacts",
+  );
+  return {
+    ...actual,
+    fetchAndDownloadArtifacts: vi.fn(),
+  };
+});
 
 vi.mock("@/utils/artifactDownloadStorage", () => ({
   markArtifactsDownloaded: vi.fn(),

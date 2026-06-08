@@ -36,6 +36,14 @@ interface ArtifactDownloadModalProps extends ArtifactDownloadModalParams {
    * and they must restart the deposit flow to recover.
    */
   unsignedPrePeginTxHex?: string;
+  /**
+   * Optional activation handler invoked by the Activate Vault button in
+   * the downloaded state. When omitted, that button falls back to
+   * `onComplete` — the label stays "Activate Vault" because the
+   * downstream flow (post-deposit continuation, etc.) leads to
+   * activation, even if this modal isn't the one that fires it.
+   */
+  onActivate?: () => void;
 }
 
 export function ArtifactDownloadModal({
@@ -47,6 +55,7 @@ export function ArtifactDownloadModal({
   depositorPk,
   vaultId,
   unsignedPrePeginTxHex,
+  onActivate,
 }: ArtifactDownloadModalProps) {
   // Seed from localStorage so a reopened modal for an already-downloaded
   // vault renders the Continue path immediately (the card itself flips to
@@ -55,9 +64,16 @@ export function ArtifactDownloadModal({
   const [downloaded, setDownloaded] = useState(() =>
     hasArtifactsDownloaded(vaultId),
   );
+  // Mirrors RecoveryArtifactsCard's internal `loading` flag via onLoadingChange
+  // so the whole modal (title, body, footer button) reads as a single
+  // "downloading" state once the user kicks off the request.
+  const [isDownloading, setIsDownloading] = useState(false);
 
   useEffect(() => {
-    if (open) setDownloaded(hasArtifactsDownloaded(vaultId));
+    if (open) {
+      setDownloaded(hasArtifactsDownloaded(vaultId));
+      setIsDownloading(false);
+    }
   }, [open, vaultId]);
 
   const cardRef = useRef<RecoveryArtifactsCardHandle>(null);
@@ -87,43 +103,85 @@ export function ArtifactDownloadModal({
 
       <DialogBody className="flex flex-col items-stretch gap-10 px-6 pb-2 pt-2 text-accent-primary">
         <div className="flex flex-col items-center gap-10">
-          <svg
-            width="90"
-            height="90"
-            viewBox="0 0 90 90"
-            fill="none"
-            xmlns="http://www.w3.org/2000/svg"
-            className="text-accent-primary"
-            aria-hidden="true"
-          >
-            <path
-              d="M75 43.125V26.25L58.125 7.5H18.75C16.6789 7.5 15 9.17893 15 11.25V78.75C15 80.8211 16.6789 82.5 18.75 82.5H41.25"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-            <path
-              d="M50.625 58.5C50.625 56.4999 63.75 52.5 63.75 52.5C63.75 52.5 76.875 56.4999 76.875 58.5C76.875 74.4999 63.75 82.5 63.75 82.5C63.75 82.5 50.625 74.4999 50.625 58.5Z"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-            <path
-              d="M56.25 7.5V26.25H75"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
+          {downloaded ? (
+            <svg
+              width="90"
+              height="90"
+              viewBox="0 0 90 90"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+              className="text-accent-primary"
+              aria-hidden="true"
+            >
+              <path
+                d="M75 43.125V26.25L58.125 7.5H18.75C16.6789 7.5 15 9.17893 15 11.25V78.75C15 80.8211 16.6789 82.5 18.75 82.5H41.25"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+              <path
+                d="M48.75 71.25L60 80.625L76.875 60"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+              <path
+                d="M56.25 7.5V26.25H75"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          ) : (
+            <svg
+              width="90"
+              height="90"
+              viewBox="0 0 90 90"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+              className="text-accent-primary"
+              aria-hidden="true"
+            >
+              <path
+                d="M75 43.125V26.25L58.125 7.5H18.75C16.6789 7.5 15 9.17893 15 11.25V78.75C15 80.8211 16.6789 82.5 18.75 82.5H41.25"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+              <path
+                d="M50.625 58.5C50.625 56.4999 63.75 52.5 63.75 52.5C63.75 52.5 76.875 56.4999 76.875 58.5C76.875 74.4999 63.75 82.5 63.75 82.5C63.75 82.5 50.625 74.4999 50.625 58.5Z"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+              <path
+                d="M56.25 7.5V26.25H75"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          )}
           <div className="flex w-full flex-col items-center gap-4">
             <h2 className="text-center text-[34px] font-normal leading-[1.235] tracking-[0.25px] text-accent-primary">
-              {COPY.deposit.artifactDownload.title}
+              {downloaded
+                ? COPY.deposit.artifactDownload.titleDownloaded
+                : isDownloading
+                  ? COPY.deposit.artifactDownload.titleDownloading
+                  : COPY.deposit.artifactDownload.title}
             </h2>
             <p className="text-center text-xl font-normal leading-[1.6] tracking-[0.15px] text-accent-secondary">
-              {COPY.deposit.artifactDownload.body}
+              {downloaded
+                ? COPY.deposit.artifactDownload.bodyDownloaded
+                : isDownloading
+                  ? COPY.deposit.artifactDownload.bodyDownloading
+                  : COPY.deposit.artifactDownload.body}
             </p>
           </div>
         </div>
@@ -136,19 +194,40 @@ export function ArtifactDownloadModal({
           vaultId={vaultId}
           unsignedPrePeginTxHex={unsignedPrePeginTxHex}
           onDownloaded={() => setDownloaded(true)}
+          onLoadingChange={setIsDownloading}
         />
       </DialogBody>
 
       <DialogFooter className="flex flex-row gap-4 px-6 pb-6 pt-4">
-        <Button
-          variant={downloaded ? "contained" : "outlined"}
-          className="h-10 w-full"
-          onClick={downloaded ? onComplete : handleClose}
-        >
-          {downloaded
-            ? COPY.deposit.artifactDownload.continueButton
-            : COPY.deposit.artifactDownload.cancelButton}
-        </Button>
+        {downloaded ? (
+          <>
+            <Button
+              variant="outlined"
+              className="h-10 flex-1"
+              onClick={handleClose}
+            >
+              {COPY.deposit.artifactDownload.cancelButton}
+            </Button>
+            <Button
+              variant="contained"
+              color="secondary"
+              className="h-10 flex-1"
+              onClick={onActivate ?? onComplete}
+            >
+              {COPY.deposit.artifactDownload.activateButton}
+            </Button>
+          </>
+        ) : (
+          <Button
+            variant="outlined"
+            className="h-10 w-full"
+            onClick={handleClose}
+          >
+            {isDownloading
+              ? COPY.deposit.artifactDownload.cancelDownloadButton
+              : COPY.deposit.artifactDownload.cancelButton}
+          </Button>
+        )}
       </DialogFooter>
     </ResponsiveDialog>
   );
