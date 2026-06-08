@@ -128,6 +128,46 @@ describe("BatchedDepositGroup", () => {
     expect(screen.getAllByTestId("deposit-card")).toHaveLength(2);
   });
 
+  it("opens the batch multistepper when an owned group body is clicked", () => {
+    mockGetActionStatus.mockReturnValue(NO_ACTION);
+    const onGroupClick = vi.fn();
+    render(
+      <BatchedDepositGroup
+        activities={[activity("0xa"), activity("0xb")]}
+        vaultProviders={[]}
+        onBroadcastClick={vi.fn()}
+        onGroupClick={onGroupClick}
+      />,
+    );
+
+    fireEvent.click(screen.getByText(COPY.pegin.batchedDeposit.groupLabel));
+    // The handler receives the first sibling's id as the batch representative.
+    expect(onGroupClick).toHaveBeenCalledWith("0xa");
+  });
+
+  it("is inert when the batch belongs to a different wallet", () => {
+    // Ownership mismatch → getActionStatus returns `disabled` for the siblings.
+    mockGetActionStatus.mockReturnValue({
+      type: "disabled",
+      tooltip: "Switch to the owning wallet",
+    } satisfies ActionStatus);
+    const onGroupClick = vi.fn();
+    render(
+      <BatchedDepositGroup
+        activities={[activity("0xa"), activity("0xb")]}
+        vaultProviders={[]}
+        onBroadcastClick={vi.fn()}
+        onGroupClick={onGroupClick}
+      />,
+    );
+
+    fireEvent.click(screen.getByText(COPY.pegin.batchedDeposit.groupLabel));
+    expect(onGroupClick).not.toHaveBeenCalled();
+    // No button semantics on the wrapper, and no hoisted broadcast button
+    // (an unowned sibling is `disabled`, never `available`).
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+  });
+
   it("renders a total of all sibling amounts in the group header", () => {
     mockGetActionStatus.mockReturnValue(NO_ACTION);
     const a = activity("0xa");
