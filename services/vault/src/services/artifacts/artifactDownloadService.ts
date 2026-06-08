@@ -204,7 +204,7 @@ async function readBodyWithProgress(
   }
 
   const reader = response.body.getReader();
-  const chunks: Uint8Array[] = [];
+  const chunks: Uint8Array<ArrayBuffer>[] = [];
   let received = 0;
 
   options?.onProgress?.(0, totalBytes);
