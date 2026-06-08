@@ -8,7 +8,16 @@ const metadata: WalletMetadata<IBTCProvider, BTCConfig> = {
   name: WALLET_PROVIDER_NAME,
   icon: logo,
   docs: "https://unisat.io/download",
-  wallet: (context) => context.unisat_wallet ?? context.unisat,
+  wallet: (context) => {
+    // Prefer real UniSat's own `unisat_wallet` namespace, else `window.unisat`.
+    // OneKey injects `window.unisat` (a ProviderBtc with `isOneKey === true`)
+    // impersonating UniSat; skip any provider flagged `isOneKey` so the phantom
+    // UniSat entry isn't treated as installed (OneKey is reachable via its own
+    // `$onekey` entry), otherwise its getVersion() "1.4.10" fails our >= 1.7.14
+    // UniSat version gate.
+    const provider = context.unisat_wallet ?? context.unisat;
+    return provider && !provider.isOneKey ? provider : undefined;
+  },
   createProvider: (wallet, config) => new UnisatProvider(wallet, config),
   networks: [Network.MAINNET, Network.SIGNET],
 };
