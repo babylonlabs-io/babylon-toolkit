@@ -17,6 +17,7 @@ import {
   CONTEXT_HASH_OUTPUT_HEX_LENGTH,
   isValidContextHashOutput,
 } from "@/core/wallets/btc/keystone/contextHashOutput";
+import { signingProgressLabel } from "@/core/wallets/btc/keystone/signingProgress";
 import { findTaprootAccount } from "@/core/wallets/btc/keystone/taprootAccount";
 import { ERROR_CODES, WalletError } from "@/error";
 
@@ -201,7 +202,13 @@ export class KeystoneProvider implements IBTCProvider {
 
     const result = [];
     for (let index = 0; index < psbtsHexes.length; index++) {
-      const signedHex = await this.signPsbt(psbtsHexes[index], options?.[index]);
+      const itemOptions = options?.[index];
+      // Keystone signs one PSBT per QR scan, so surface batch progress above the
+      // QR (e.g. "Transaction 3 of 12") unless the caller supplied its own label.
+      const signedHex = await this.signPsbt(psbtsHexes[index], {
+        ...itemOptions,
+        displayMessage: itemOptions?.displayMessage ?? signingProgressLabel(index, psbtsHexes.length),
+      });
       result.push(signedHex);
     }
     return result;
@@ -320,7 +327,7 @@ export class KeystoneProvider implements IBTCProvider {
     const ur = this.dataSdk.btc.generatePSBT(Buffer.from(psbtHex, "hex"));
 
     // compose the signing process for the Keystone device
-    const signPsbt = composeQRProcess(SupportedResult.UR_PSBT);
+    const signPsbt = composeQRProcess(SupportedResult.UR_PSBT, options?.displayMessage);
 
     const keystoneContainer = await this.viewSDK.getSdk();
     const signePsbtUR = await signPsbt(keystoneContainer, ur);
@@ -436,14 +443,18 @@ export class KeystoneProvider implements IBTCProvider {
  * High order function to compose the QR generation and scanning process for specific data types.
  * Composes the QR code process for the Keystone device.
  * @param destinationDataType - The type of data to be read from the QR code.
+ * @param titleEnhance - Optional context appended to the modal titles (e.g.
+ *   "Transaction 3 of 12") so the user can track progress through a batch.
  * @returns A function that plays the UR in the QR code and reads the result.
  */
 const composeQRProcess =
-  (destinationDataType: SupportedResult) =>
+  (destinationDataType: SupportedResult, titleEnhance?: string) =>
   async (container: SDK, ur: UR): Promise<UR> => {
+    const suffix = titleEnhance ? ` · ${titleEnhance}` : "";
+
     // make the container play the UR in the QR code
     const status: PlayStatus = await container.play(ur, {
-      title: "Scan the QR Code",
+      title: `Scan the QR Code${suffix}`,
       description: "Please scan the QR code with your Keystone device.",
     });
 
@@ -456,7 +467,7 @@ const composeQRProcess =
       });
 
     const urResult = await container.read([destinationDataType], {
-      title: "Get the Signature from Keystone",
+      title: `Get the Signature from Keystone${suffix}`,
       description: "Please scan the QR code displayed on your Keystone",
       URTypeErrorMessage: "The scanned QR code can't be read. please verify and try again.",
     });
