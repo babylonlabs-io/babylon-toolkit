@@ -5,6 +5,7 @@ import { logger } from "@/infrastructure";
 import { getApplicationMetadataByController } from "../../applications";
 import { graphqlClient } from "../../clients/graphql";
 import type { Application } from "../../types/application";
+import { ETH_ADDRESS_PATTERN } from "../../utils/validation";
 
 /**
  * GraphQL response shape for applications query
@@ -49,6 +50,12 @@ export async function fetchApplications(): Promise<Application[]> {
 
   return data.applications.items
     .map((app): Application | null => {
+      if (!ETH_ADDRESS_PATTERN.test(app.id)) {
+        logger.warn(
+          `[fetchApplications] Skipping application with invalid id: "${String(app.id).slice(0, 20)}"`,
+        );
+        return null;
+      }
       const metadata = getApplicationMetadataByController(app.id);
       if (!metadata) {
         logger.warn(

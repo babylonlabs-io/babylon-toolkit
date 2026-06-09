@@ -1,7 +1,13 @@
 import { gql } from "graphql-request";
 
+import { logger } from "@/infrastructure";
+
 import { graphqlClient } from "../../clients/graphql";
 import type { UniversalChallenger } from "../../types/vaultProvider";
+import {
+  BTC_PUBKEY_HEX_PATTERN,
+  ETH_ADDRESS_PATTERN,
+} from "../../utils/validation";
 
 /** GraphQL response for universal challengers query */
 interface GraphQLUniversalChallengersResponse {
@@ -30,6 +36,27 @@ const GET_UNIVERSAL_CHALLENGERS = gql`
   }
 `;
 
+type RawChallengerItem =
+  GraphQLUniversalChallengersResponse["universalChallengerVersions"]["items"][number];
+
+function validateChallengerItem(
+  item: RawChallengerItem,
+): RawChallengerItem | null {
+  if (!ETH_ADDRESS_PATTERN.test(item.challengerInfo.id)) {
+    logger.warn(
+      `[fetchUniversalChallengers] Skipping challenger with invalid id: "${String(item.challengerInfo.id).slice(0, 20)}"`,
+    );
+    return null;
+  }
+  if (!BTC_PUBKEY_HEX_PATTERN.test(item.challengerInfo.btcPubKey)) {
+    logger.warn(
+      `[fetchUniversalChallengers] Skipping challenger ${item.challengerInfo.id}: invalid btcPubKey format`,
+    );
+    return null;
+  }
+  return item;
+}
+
 /** Result from fetchAllUniversalChallengers */
 export interface UniversalChallengersData {
   /** All challengers grouped by version */
@@ -57,7 +84,10 @@ export async function fetchAllUniversalChallengers(): Promise<UniversalChallenge
       GET_UNIVERSAL_CHALLENGERS,
     );
 
-  const items = response.universalChallengerVersions.items;
+  const rawItems = response.universalChallengerVersions.items;
+  const items = rawItems
+    .map(validateChallengerItem)
+    .filter((item): item is RawChallengerItem => item !== null);
 
   if (items.length === 0) {
     return { byVersion: new Map(), latestVersion: 0 };
