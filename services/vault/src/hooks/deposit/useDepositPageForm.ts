@@ -23,6 +23,11 @@ import { getVpExplorerProviderUrl } from "../../utils/explorer";
 import { formatProviderDisplayName } from "../../utils/formatting";
 import { sortVaultProviders } from "../../utils/sortVaultProviders";
 import { vaultProviderUnavailableReason } from "../../utils/vaultProviderStatus";
+import {
+  assertMinClaimValue,
+  assertMinPeginFee,
+  assertNumLocalChallengers,
+} from "../../utils/wasm";
 import { useApplicationCap } from "../useApplicationCap";
 import { useApplications } from "../useApplications";
 import { usePrice, usePrices } from "../usePrices";
@@ -372,10 +377,12 @@ export function useDepositPageForm(): UseDepositPageFormResult {
   const numLocalChallengers = useMemo(() => {
     if (!selectedVpBtcPubkey || !depositorBtcPubkey) return undefined;
     try {
-      return computeNumLocalChallengers(
-        selectedVpBtcPubkey,
-        vaultKeeperBtcPubkeys,
-        depositorBtcPubkey,
+      return assertNumLocalChallengers(
+        computeNumLocalChallengers(
+          selectedVpBtcPubkey,
+          vaultKeeperBtcPubkeys,
+          depositorBtcPubkey,
+        ),
       );
     } catch {
       return undefined;
@@ -398,7 +405,7 @@ export function useDepositPageForm(): UseDepositPageFormResult {
         config.offchainParams.councilQuorum,
         config.offchainParams.securityCouncilKeys.length,
         config.offchainParams.feeRate,
-      ),
+      ).then(assertMinClaimValue),
     enabled:
       latestUniversalChallengers.length > 0 && numLocalChallengers != null,
     staleTime: STALE_TIME_MS,
@@ -430,7 +437,7 @@ export function useDepositPageForm(): UseDepositPageFormResult {
         vaultKeeperBtcPubkeys.length,
         latestUniversalChallengers.length,
         config.offchainParams.minPeginFeeRate,
-      ),
+      ).then(assertMinPeginFee),
     enabled: vaultKeeperBtcPubkeys.length > 0,
     staleTime: STALE_TIME_MS,
     refetchOnWindowFocus: false,
