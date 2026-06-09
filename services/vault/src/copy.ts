@@ -525,6 +525,7 @@ export const COPY = {
     },
   },
   common: {
+    zeroUsdValue: "$0.00 USD",
     loading: "Loading...",
     confirming: "Confirming...",
     applying: "Applying...",

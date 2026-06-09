@@ -9,6 +9,7 @@ import { AmountSlider, Button, SubSection } from "@babylonlabs-io/core-ui";
 import { useCallback, useState } from "react";
 
 import { useETHWallet } from "@/context/wallet";
+import { COPY } from "@/copy";
 import { useERC20Balance } from "@/hooks";
 
 import {
@@ -187,16 +188,18 @@ export function Repay() {
             onSliderChange={setRepayAmountSlider}
             sliderVariant="rainbow"
             leftField={{
-              label: "Max",
-              value: `${formatTokenAmount(maxRepayAmount, displayDecimals)} ${assetConfig.symbol}`,
+              value:
+                repayAmount === 0
+                  ? COPY.common.zeroUsdValue
+                  : tokenPriceUsd != null
+                    ? formatUsdValue(repayAmount * tokenPriceUsd)
+                    : "–",
             }}
             onMaxClick={handleMaxClick}
             rightField={{
-              value:
-                tokenPriceUsd != null
-                  ? formatUsdValue(repayAmount * tokenPriceUsd)
-                  : "–",
+              value: `${formatTokenAmount(maxRepayAmount, displayDecimals)} ${assetConfig.symbol}`,
             }}
+            maxPosition="right"
             sliderActiveColor={getTokenBrandColor(assetConfig.symbol)}
             inputClassName={AMOUNT_INPUT_CLASS_NAME}
           />
