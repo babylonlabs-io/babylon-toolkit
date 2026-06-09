@@ -314,7 +314,12 @@ export function DepositForm({
           }
           sliderVariant="primary"
           leftField={{
-            label: "Max",
+            value: !hasAmount
+              ? (pendingConfirmationField ?? COPY.deposit.form.zeroUsdValue)
+              : usdValue,
+          }}
+          rightField={{
+            label: COPY.deposit.form.balance,
             value: maxDepositLabel,
             // Mention the supply cap only when one exists for this user.
             // `effectiveRemaining` is null both when no cap applies and while
@@ -330,11 +335,7 @@ export function DepositForm({
                   hasSupplyCap: effectiveRemaining !== null,
                 }),
           }}
-          rightField={{
-            value: !hasAmount
-              ? (pendingConfirmationField ?? usdValue)
-              : usdValue,
-          }}
+          maxPosition="right"
           onMaxClick={onMaxClick}
           inputClassName="h-10 w-auto rounded-lg bg-primary-contrast px-4 [field-sizing:content]"
         />
