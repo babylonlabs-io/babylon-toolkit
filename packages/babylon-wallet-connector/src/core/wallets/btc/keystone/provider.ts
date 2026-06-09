@@ -19,11 +19,7 @@ import {
   isValidContextHashOutput,
 } from "@/core/wallets/btc/keystone/contextHashOutput";
 import { signingProgressLabel } from "@/core/wallets/btc/keystone/signingProgress";
-import {
-  expectedTaprootCoinType,
-  findTaprootAccount,
-  getCoinType,
-} from "@/core/wallets/btc/keystone/taprootAccount";
+import { expectedTaprootCoinType, findTaprootAccount, getCoinType } from "@/core/wallets/btc/keystone/taprootAccount";
 import { ERROR_CODES, WalletError } from "@/error";
 
 import logo from "./logo.svg";
@@ -80,7 +76,7 @@ export class KeystoneProvider implements IBTCProvider {
         walletMode: "btc",
         link: "",
         description: [
-          `Requires Keystone firmware ${MIN_KEYSTONE_FIRMWARE_VERSION} or later for vault deposits.`,
+          `Requires Keystone firmware ${MIN_KEYSTONE_FIRMWARE_VERSION} or later.`,
           "1. Turn on your Keystone 3.",
           "2. Click connect software wallet and select Bitcoin Wallets.",
           '3. Press the "Sync Keystone" button and scan the QR Code displayed on your Keystone hardware wallet',
