@@ -119,6 +119,7 @@ function SimpleDepositContent({
     isSplitLoading,
     splitRatioLabel,
     depositorClaimValue,
+    depositorClaimValueError,
     ordinalsCheckPending,
     validateForm,
     resetForm,
@@ -368,6 +369,7 @@ function SimpleDepositContent({
                 }
                 isWalletConnected={isWalletConnected}
                 depositorClaimValue={totalDepositorClaimValue}
+                depositorClaimValueError={depositorClaimValueError}
                 estimatedFeeSats={estimatedFeeSats}
                 estimatedFeeRate={estimatedFeeRate}
                 isLoadingFee={isLoadingFee}

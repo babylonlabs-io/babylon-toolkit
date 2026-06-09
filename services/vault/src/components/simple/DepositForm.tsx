@@ -91,6 +91,12 @@ interface DepositFormProps {
   isLoadingFee: boolean;
   feeError: string | null;
   depositorClaimValue?: bigint;
+  /**
+   * Terminal failure from the `computeMinClaimValue` WASM query. CTA surfaces
+   * this as "Fee estimate unavailable" instead of an indefinite loading
+   * state. Null while the query is healthy.
+   */
+  depositorClaimValueError: Error | null;
   isDepositDisabled: boolean;
   isGeoBlocked: boolean;
   isAddressBlocked: boolean;
@@ -170,6 +176,7 @@ export function DepositForm({
   isLoadingFee,
   feeError,
   depositorClaimValue,
+  depositorClaimValueError,
   isDepositDisabled,
   isGeoBlocked,
   isAddressBlocked,
@@ -276,6 +283,7 @@ export function DepositForm({
     capUnavailable,
     minPeginFee,
     minPeginFeeError,
+    depositorClaimValueError,
     btcBalance,
     estimatedFeeSats: estimatedFeeSats ?? undefined,
     depositorClaimValue,

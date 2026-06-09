@@ -157,6 +157,14 @@ export interface UseDepositPageFormResult {
   splitRatioLabel: string | null;
   /** Depositor claim value computed from WASM (VK/UC counts + fee). undefined while loading. */
   depositorClaimValue: bigint | undefined;
+  /**
+   * Terminal failure from the `computeMinClaimValue` WASM query (init
+   * failure, unsupported signer count, or a guard-rejected non-positive
+   * return). Surfaced separately from the undefined "still loading" state so
+   * the CTA reports an actionable error instead of getting stuck
+   * indefinitely on "Calculating fees...".
+   */
+  depositorClaimValueError: Error | null;
 
   validateForm: () => boolean;
   validateAmountOnBlur: () => void;
@@ -382,28 +390,29 @@ export function useDepositPageForm(): UseDepositPageFormResult {
     }
   }, [selectedVpBtcPubkey, vaultKeeperBtcPubkeys, depositorBtcPubkey]);
 
-  const { data: depositorClaimValue } = useQuery({
-    queryKey: [
-      "depositorClaimValue",
-      numLocalChallengers,
-      latestUniversalChallengers.length,
-      config.offchainParams.councilQuorum,
-      config.offchainParams.securityCouncilKeys.length,
-      String(config.offchainParams.feeRate),
-    ],
-    queryFn: () =>
-      computeMinClaimValue(
-        numLocalChallengers!,
+  const { data: depositorClaimValue, error: depositorClaimValueError } =
+    useQuery({
+      queryKey: [
+        "depositorClaimValue",
+        numLocalChallengers,
         latestUniversalChallengers.length,
         config.offchainParams.councilQuorum,
         config.offchainParams.securityCouncilKeys.length,
-        config.offchainParams.feeRate,
-      ),
-    enabled:
-      latestUniversalChallengers.length > 0 && numLocalChallengers != null,
-    staleTime: STALE_TIME_MS,
-    refetchOnWindowFocus: false,
-  });
+        String(config.offchainParams.feeRate),
+      ],
+      queryFn: () =>
+        computeMinClaimValue(
+          numLocalChallengers!,
+          latestUniversalChallengers.length,
+          config.offchainParams.councilQuorum,
+          config.offchainParams.securityCouncilKeys.length,
+          config.offchainParams.feeRate,
+        ),
+      enabled:
+        latestUniversalChallengers.length > 0 && numLocalChallengers != null,
+      staleTime: STALE_TIME_MS,
+      refetchOnWindowFocus: false,
+    });
 
   // Exact per-HTLC PegIn (activation) fee the depositor must reserve inside
   // each HTLC value. Sourced from the WASM (`compute_min_pegin_fee` in
@@ -630,6 +639,10 @@ export function useDepositPageForm(): UseDepositPageFormResult {
     vaultAmounts: splitVaultAmounts,
     isSplitLoading,
     depositorClaimValue,
+    depositorClaimValueError:
+      depositorClaimValueError instanceof Error
+        ? depositorClaimValueError
+        : null,
     splitRatioLabel,
     validateForm,
     validateAmountOnBlur,

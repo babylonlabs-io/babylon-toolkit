@@ -7,6 +7,7 @@ import type {
   HtlcConnectorParams,
   HtlcConnectorInfo,
 } from "./types.js";
+import { assertWasmBigint } from "./value-guards.js";
 
 let wasmInitialized = false;
 let wasmInitPromise: Promise<void> | null = null;
@@ -93,10 +94,12 @@ export async function createPrePeginTransaction(
     const peginAmounts: bigint[] = [];
 
     for (let i = 0; i < numHtlcs; i++) {
-      htlcValues.push(tx.getHtlcValue(i));
+      htlcValues.push(assertWasmBigint(tx.getHtlcValue(i), `htlcValue[${i}]`));
       htlcScriptPubKeys.push(tx.getHtlcScriptPubKey(i));
       htlcAddresses.push(tx.getHtlcAddress(i));
-      peginAmounts.push(tx.getPeginAmountAt(i));
+      peginAmounts.push(
+        assertWasmBigint(tx.getPeginAmountAt(i), `peginAmount[${i}]`),
+      );
     }
 
     return {
@@ -106,7 +109,10 @@ export async function createPrePeginTransaction(
       htlcScriptPubKeys,
       htlcAddresses,
       peginAmounts,
-      depositorClaimValue: tx.getDepositorClaimValue(),
+      depositorClaimValue: assertWasmBigint(
+        tx.getDepositorClaimValue(),
+        "depositorClaimValue",
+      ),
     };
   } finally {
     tx.free();
@@ -236,12 +242,15 @@ export async function computeMinClaimValue(
   feeRate: bigint,
 ): Promise<bigint> {
   await initWasm();
-  return wasmComputeMinClaimValue(
-    numLocalChallengers,
-    numUniversalChallengers,
-    councilQuorum,
-    councilSize,
-    feeRate,
+  return assertWasmBigint(
+    wasmComputeMinClaimValue(
+      numLocalChallengers,
+      numUniversalChallengers,
+      councilQuorum,
+      councilSize,
+      feeRate,
+    ),
+    "minClaimValue",
   );
 }
 
@@ -261,7 +270,10 @@ export async function computeMinPeginFee(
   minPeginFeeRate: bigint,
 ): Promise<bigint> {
   await initWasm();
-  return wasmComputeMinPeginFee(numVks, numUcs, minPeginFeeRate);
+  return assertWasmBigint(
+    wasmComputeMinPeginFee(numVks, numUcs, minPeginFeeRate),
+    "minPeginFee",
+  );
 }
 
 // wasm-bindgen rethrows Rust `JsValue::from_str(...)` errors as bare strings,

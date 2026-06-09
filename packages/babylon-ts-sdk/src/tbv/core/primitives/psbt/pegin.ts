@@ -22,6 +22,8 @@ import {
 
 import { parseUnfundedWasmTransaction } from "../../utils/transaction/fundPeginTransaction";
 
+import { assertWasmPeginSizing } from "./assertWasmPeginSizing";
+
 /**
  * Parameters for building an unfunded Pre-PegIn PSBT
  */
@@ -164,6 +166,12 @@ export async function buildPrePeginPsbt(
     network: params.network,
     authAnchorHash,
   });
+
+  // CLAUDE.md critical path #1: the WASM outputs reach JS with no runtime
+  // validation. Cross-check every value-bearing field against the request
+  // and the protocol formula before it can feed a signed tx or the on-chain
+  // PegIn registration. Both the sizing and commit passes route through here.
+  await assertWasmPeginSizing(result, params);
 
   // Parse the unfunded tx to sum all output values
   // (HTLCs + optional OP_RETURN + CPFP anchor). This is the amount
