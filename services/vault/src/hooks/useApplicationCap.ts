@@ -24,6 +24,7 @@ import { computeCapSnapshot, type CapSnapshot } from "@/services/deposit";
 const APPLICATION_CAP_KEY = "applicationCap";
 const CAP_REFETCH_INTERVAL_MS = 60_000;
 const CAP_STALE_TIME_MS = 30_000;
+const CAP_MAX_STALE_AGE_MS = 3 * CAP_REFETCH_INTERVAL_MS;
 
 export interface UseApplicationCapResult {
   snapshot: CapSnapshot | null;
@@ -113,14 +114,33 @@ export function useApplicationCap(user?: string): UseApplicationCapResult {
   const uncappedSnapshot =
     snapshot !== null && !snapshot.hasTotalCap && !snapshot.hasPerAddressCap;
 
+  const now = Date.now();
+  const capsStale =
+    enabled &&
+    capsQuery.dataUpdatedAt > 0 &&
+    now - capsQuery.dataUpdatedAt > CAP_MAX_STALE_AGE_MS &&
+    !capsQuery.isFetching;
+  const usageStale =
+    enabled &&
+    !uncappedSnapshot &&
+    usageQuery.dataUpdatedAt > 0 &&
+    now - usageQuery.dataUpdatedAt > CAP_MAX_STALE_AGE_MS &&
+    !usageQuery.isFetching;
+  const staleError =
+    capsStale || usageStale
+      ? new Error("Cap data is stale — RPC may be unavailable")
+      : null;
+
+  const baseError = (
+    uncappedSnapshot ? capsQuery.error : (capsQuery.error ?? usageQuery.error)
+  ) as Error | null;
+
   return {
     snapshot,
     isLoading: uncappedSnapshot
       ? capsQuery.isLoading
       : capsQuery.isLoading || usageQuery.isLoading,
-    error: (uncappedSnapshot
-      ? capsQuery.error
-      : (capsQuery.error ?? usageQuery.error)) as Error | null,
+    error: staleError ?? baseError,
     refetch,
   };
 }
