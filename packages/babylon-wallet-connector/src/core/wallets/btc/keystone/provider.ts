@@ -405,9 +405,6 @@ export class KeystoneProvider implements IBTCProvider {
     // `${path}/0/0` that this provider uses for address generation, PSBT
     // signing, and message signing. That leaf key is the `connectedPubkey` the
     // spec injects into the HKDF `info` (docs/specs/derive-context-hash.md §2.2).
-    // If the on-device firmware test (the §4.2 vector) fails, the firmware
-    // likely expects the account-level path instead — drop the `/0/0` suffix
-    // and use `this.keystoneWalletInfo.path`, then retest.
     const keyPath = `${this.keystoneWalletInfo.path}/0/0`;
 
     const ur = this.dataSdk.generateDeriveContextHashCall({
