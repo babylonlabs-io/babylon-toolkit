@@ -43,7 +43,8 @@ function isCandidateVault(state: PeginState | undefined): boolean {
   return (
     !!state &&
     !isVaultPastActivation(state) &&
-    state.displayVariant !== "warning"
+    state.displayVariant !== "warning" &&
+    state.displayVariant !== "danger"
   );
 }
 
@@ -224,7 +225,10 @@ export function PostDepositContinuationView({
       }
       const displayStep = getPeginDisplayStep(result.peginState);
       if (displayStep !== null) return displayStep;
-      if (result.peginState.displayVariant === "warning") {
+      if (
+        result.peginState.displayVariant === "warning" ||
+        result.peginState.displayVariant === "danger"
+      ) {
         return getWarningPeginDisplayStep(result.peginState.localStatus);
       }
       return isVaultPastActivation(result.peginState)
@@ -233,7 +237,11 @@ export function PostDepositContinuationView({
     });
     const warning = pollingResults
       .map((result) => result?.peginState)
-      .find((state) => state?.displayVariant === "warning");
+      .find(
+        (state) =>
+          state?.displayVariant === "warning" ||
+          state?.displayVariant === "danger",
+      );
     if (warning) {
       // Freeze the stepper at the point of failure based on the vault's
       // last persisted localStatus — `getPeginDisplayStep` is null for

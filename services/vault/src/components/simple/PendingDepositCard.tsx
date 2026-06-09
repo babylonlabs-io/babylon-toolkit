@@ -95,7 +95,10 @@ export function PendingDepositCard({
   // wallet-ownership mismatch. Action triggering itself is no longer the
   // card's job — the parent's click handler owns that.
   const status = getActionStatus(pollingResult);
-  const dotColor = STATUS_DOT_COLORS[peginState.displayVariant];
+  const isDanger = peginState.displayVariant === "danger";
+  const dotColor = isDanger
+    ? undefined
+    : STATUS_DOT_COLORS[peginState.displayVariant];
 
   // The Pre-PegIn tx is on Bitcoin only once the depositor has broadcast it.
   // While the broadcast action is still pending, an explorer link would 404, so
@@ -144,6 +147,7 @@ export function PendingDepositCard({
       headerEnd={
         <VaultStatusBadge
           dotColor={dotColor}
+          isDanger={isDanger}
           label={peginState.displayLabel}
           tooltip={peginState.message}
         />

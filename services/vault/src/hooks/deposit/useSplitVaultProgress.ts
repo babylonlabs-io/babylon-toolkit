@@ -93,7 +93,8 @@ export function deriveSplitVaultProgress(
     // siblings freeze at their own last known local step instead of mirroring
     // the active sibling.
     if (isVaultPastActivation(state)) return DepositFlowStep.COMPLETED;
-    return state.displayVariant === "warning"
+    return state.displayVariant === "warning" ||
+      state.displayVariant === "danger"
       ? getWarningPeginDisplayStep(state.localStatus)
       : activeStep;
   });

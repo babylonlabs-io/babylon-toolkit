@@ -294,7 +294,7 @@ describe("peginStateMachine", () => {
     it("shows liquidated", () => {
       const state = getPeginState(ContractStatus.LIQUIDATED);
       expect(state.displayLabel).toBe(PEGIN_DISPLAY_LABELS.LIQUIDATED);
-      expect(state.displayVariant).toBe("warning");
+      expect(state.displayVariant).toBe("danger");
     });
 
     it("shows invalid", () => {
