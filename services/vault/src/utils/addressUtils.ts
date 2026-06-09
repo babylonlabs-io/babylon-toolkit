@@ -1,6 +1,17 @@
 /**
  * Utility functions for address and hash formatting
  */
+import { isAddress, type Address } from "viem";
+
+export function toCheckedAddress(raw: string | undefined): Address | undefined {
+  if (raw === undefined || raw === "") return undefined;
+  if (!isAddress(raw, { strict: false })) {
+    throw new Error(
+      `Wallet returned an invalid ETH address: "${raw.slice(0, 20)}"`,
+    );
+  }
+  return raw as Address;
+}
 
 const TRUNCATE_PREFIX_LENGTH = 6;
 const TRUNCATE_SUFFIX_LENGTH = 4;
