@@ -19,6 +19,7 @@ import {
 } from "@babylonlabs-io/babylon-tbv-rust-wasm";
 
 import { MAX_REASONABLE_PEGIN_VBYTES } from "../../utils/fee/constants";
+import type { ParsedOutput } from "../../utils/transaction/fundPeginTransaction";
 
 import type { PrePeginParams } from "./pegin";
 
@@ -148,6 +149,61 @@ export async function assertWasmPeginSizing(
           `(minPeginFeeRate=${params.minPeginFeeRate} × ` +
           `${MAX_REASONABLE_PEGIN_VBYTES} vbytes); htlcValue ${htlcValue} ` +
           `appears grossly inflated.`,
+      );
+    }
+  }
+}
+
+/**
+ * Bind the validated metadata to the bytes that actually get funded and
+ * signed.
+ *
+ * `assertWasmPeginSizing` proves the WASM *metadata* (`htlcValues`,
+ * `htlcScriptPubKeys`) matches the request and the protocol formula — but the
+ * transaction the depositor funds and signs is `result.txHex`. If the encoded
+ * tx carried a different HTLC output value or script than the metadata, the
+ * depositor would fund a transaction whose real outputs differ from the values
+ * that were cross-checked. This closes that final link: the encoded HTLC
+ * outputs must equal the validated metadata.
+ *
+ * The WASM lays out HTLC outputs first (vouts `0..N-1`), then the optional
+ * auth-anchor OP_RETURN, then the CPFP anchor — so we only compare the first
+ * `htlcValues.length` outputs.
+ *
+ * @param outputs - Outputs parsed from the unfunded Pre-PegIn tx hex.
+ * @param htlcValues - The (already value-validated) per-HTLC values.
+ * @param htlcScriptPubKeys - The per-HTLC scriptPubKeys (hex).
+ * @throws If the encoded outputs are too few, or any HTLC output's value or
+ *   scriptPubKey disagrees with the validated metadata.
+ */
+export function assertEncodedHtlcOutputsMatch(
+  outputs: readonly ParsedOutput[],
+  htlcValues: readonly bigint[],
+  htlcScriptPubKeys: readonly string[],
+): void {
+  if (outputs.length < htlcValues.length) {
+    throw new Error(
+      `Encoded Pre-PegIn tx has ${outputs.length} output(s), fewer than the ` +
+        `${htlcValues.length} HTLC output(s) the cross-check validated.`,
+    );
+  }
+
+  for (let i = 0; i < htlcValues.length; i++) {
+    const encodedValue = BigInt(outputs[i].value);
+    if (encodedValue !== htlcValues[i]) {
+      throw new Error(
+        `Encoded Pre-PegIn HTLC output[${i}] value ${encodedValue} does not ` +
+          `match the cross-checked htlcValue ${htlcValues[i]}; the funded/signed ` +
+          `tx would not pay the validated amount.`,
+      );
+    }
+
+    const encodedScript = outputs[i].script.toString("hex").toLowerCase();
+    const expectedScript = htlcScriptPubKeys[i].toLowerCase();
+    if (encodedScript !== expectedScript) {
+      throw new Error(
+        `Encoded Pre-PegIn HTLC output[${i}] scriptPubKey ${encodedScript} does ` +
+          `not match the cross-checked htlcScriptPubKey ${expectedScript}.`,
       );
     }
   }

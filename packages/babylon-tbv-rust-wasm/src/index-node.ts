@@ -171,7 +171,7 @@ export async function buildPeginTxFromPrePegin(
       txHex: peginTx.toHex(),
       txid: peginTx.getTxid(),
       vaultScriptPubKey: peginTx.getVaultScriptPubKey(),
-      vaultValue: peginTx.getVaultValue(),
+      vaultValue: assertWasmBigint(peginTx.getVaultValue(), "vaultValue"),
     };
   } finally {
     peginTx?.free();
@@ -216,16 +216,20 @@ export async function computeMinClaimValue(
   feeRate: bigint,
 ): Promise<bigint> {
   await initWasm();
-  return assertWasmBigint(
-    wasmComputeMinClaimValue(
-      numLocalChallengers,
-      numUniversalChallengers,
-      councilQuorum,
-      councilSize,
-      feeRate,
-    ),
-    "minClaimValue",
-  );
+  try {
+    return assertWasmBigint(
+      wasmComputeMinClaimValue(
+        numLocalChallengers,
+        numUniversalChallengers,
+        councilQuorum,
+        councilSize,
+        feeRate,
+      ),
+      "minClaimValue",
+    );
+  } catch (err) {
+    throw toError(err, "computeMinClaimValue");
+  }
 }
 
 export async function computeMinPeginFee(
@@ -234,10 +238,14 @@ export async function computeMinPeginFee(
   minPeginFeeRate: bigint,
 ): Promise<bigint> {
   await initWasm();
-  return assertWasmBigint(
-    wasmComputeMinPeginFee(numVks, numUcs, minPeginFeeRate),
-    "minPeginFee",
-  );
+  try {
+    return assertWasmBigint(
+      wasmComputeMinPeginFee(numVks, numUcs, minPeginFeeRate),
+      "minPeginFee",
+    );
+  } catch (err) {
+    throw toError(err, "computeMinPeginFee");
+  }
 }
 
 export async function createPayoutConnector(

@@ -22,7 +22,10 @@ import {
 
 import { parseUnfundedWasmTransaction } from "../../utils/transaction/fundPeginTransaction";
 
-import { assertWasmPeginSizing } from "./assertWasmPeginSizing";
+import {
+  assertEncodedHtlcOutputsMatch,
+  assertWasmPeginSizing,
+} from "./assertWasmPeginSizing";
 
 /**
  * Parameters for building an unfunded Pre-PegIn PSBT
@@ -177,6 +180,17 @@ export async function buildPrePeginPsbt(
   // (HTLCs + optional OP_RETURN + CPFP anchor). This is the amount
   // UTXOs must cover before adding network fees.
   const parsed = parseUnfundedWasmTransaction(result.txHex);
+
+  // Bind the validated metadata to the bytes that get funded and signed:
+  // the encoded HTLC outputs must carry exactly the values/scripts the
+  // cross-check above validated. Otherwise a tx whose real outputs differ
+  // from the checked metadata could still be funded and signed.
+  assertEncodedHtlcOutputsMatch(
+    parsed.outputs,
+    result.htlcValues,
+    result.htlcScriptPubKeys,
+  );
+
   const totalOutputValue = parsed.outputs.reduce(
     (sum, o) => sum + BigInt(o.value),
     0n,

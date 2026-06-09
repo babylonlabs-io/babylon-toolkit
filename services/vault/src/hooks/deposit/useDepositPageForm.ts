@@ -50,6 +50,18 @@ const STALE_TIME_MS = 5 * 60 * 1000;
  */
 const PRE_PEGIN_SAFETY_BUFFER_SATS = 3_000n;
 
+/**
+ * Normalize a React Query failure into `Error | null`. wasm-bindgen can reject
+ * with a bare string, so a plain `instanceof Error` filter would silently drop
+ * the failure and leave the CTA stuck on "Calculating fees..." instead of
+ * surfacing the terminal fee-error state. Coerce any non-null, non-Error value
+ * into an `Error` so the failure is always preserved.
+ */
+function toError(value: unknown): Error | null {
+  if (value == null) return null;
+  return value instanceof Error ? value : new Error(String(value));
+}
+
 export interface DepositPageFormData {
   amountBtc: string;
   selectedProvider: string;
@@ -630,8 +642,7 @@ export function useDepositPageForm(): UseDepositPageFormResult {
     effectiveRemaining: capSnapshot?.effectiveRemaining ?? null,
     capUnavailable: capError !== null,
     minPeginFee: minPeginFee ?? null,
-    minPeginFeeError:
-      minPeginFeeError instanceof Error ? minPeginFeeError : null,
+    minPeginFeeError: toError(minPeginFeeError),
     ordinalsCheckPending,
     isPartialLiquidation,
     setIsPartialLiquidation,
@@ -639,10 +650,7 @@ export function useDepositPageForm(): UseDepositPageFormResult {
     vaultAmounts: splitVaultAmounts,
     isSplitLoading,
     depositorClaimValue,
-    depositorClaimValueError:
-      depositorClaimValueError instanceof Error
-        ? depositorClaimValueError
-        : null,
+    depositorClaimValueError: toError(depositorClaimValueError),
     splitRatioLabel,
     validateForm,
     validateAmountOnBlur,

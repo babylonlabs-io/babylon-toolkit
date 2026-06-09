@@ -18,7 +18,10 @@ vi.mock("@babylonlabs-io/babylon-tbv-rust-wasm", () => ({
   computeMinClaimValue: computeMinClaimValueMock,
 }));
 
-import { assertWasmPeginSizing } from "../assertWasmPeginSizing";
+import {
+  assertEncodedHtlcOutputsMatch,
+  assertWasmPeginSizing,
+} from "../assertWasmPeginSizing";
 import type { PrePeginParams } from "../pegin";
 
 const CLAIM_VALUE = 5_000n;
@@ -211,5 +214,66 @@ describe("assertWasmPeginSizing", () => {
         ),
       ).rejects.toThrow(/HTLC\[1\].*exceeds the plausibility cap/);
     });
+  });
+});
+
+describe("assertEncodedHtlcOutputsMatch", () => {
+  const SCRIPT_A = "5120" + "11".repeat(32);
+  const SCRIPT_B = "5120" + "22".repeat(32);
+  const OP_RETURN_SCRIPT = "6a20" + "ab".repeat(32);
+  const ANCHOR_SCRIPT = "51024e73";
+
+  // HTLC outputs first (vouts 0..N-1), then optional OP_RETURN, then CPFP
+  // anchor — mirroring the WASM layout.
+  function htlcOutput(value: bigint, scriptHex: string) {
+    return { value: Number(value), script: Buffer.from(scriptHex, "hex") };
+  }
+
+  it("passes when encoded HTLC outputs match the validated metadata", () => {
+    const outputs = [
+      htlcOutput(105_000n, SCRIPT_A),
+      htlcOutput(255_000n, SCRIPT_B),
+      htlcOutput(0n, OP_RETURN_SCRIPT),
+      htlcOutput(330n, ANCHOR_SCRIPT),
+    ];
+    expect(() =>
+      assertEncodedHtlcOutputsMatch(
+        outputs,
+        [105_000n, 255_000n],
+        [SCRIPT_A, SCRIPT_B],
+      ),
+    ).not.toThrow();
+  });
+
+  it("throws when an encoded HTLC output value differs from htlcValues", () => {
+    const outputs = [
+      htlcOutput(105_000n, SCRIPT_A),
+      htlcOutput(254_999n, SCRIPT_B),
+    ];
+    expect(() =>
+      assertEncodedHtlcOutputsMatch(
+        outputs,
+        [105_000n, 255_000n],
+        [SCRIPT_A, SCRIPT_B],
+      ),
+    ).toThrow(/output\[1\] value 254999 does not match the cross-checked htlcValue 255000/);
+  });
+
+  it("throws when an encoded HTLC scriptPubKey differs from htlcScriptPubKeys", () => {
+    const outputs = [htlcOutput(105_000n, SCRIPT_B)];
+    expect(() =>
+      assertEncodedHtlcOutputsMatch(outputs, [105_000n], [SCRIPT_A]),
+    ).toThrow(/output\[0\] scriptPubKey .* does not match the cross-checked htlcScriptPubKey/);
+  });
+
+  it("throws when the encoded tx has fewer outputs than validated HTLCs", () => {
+    const outputs = [htlcOutput(105_000n, SCRIPT_A)];
+    expect(() =>
+      assertEncodedHtlcOutputsMatch(
+        outputs,
+        [105_000n, 255_000n],
+        [SCRIPT_A, SCRIPT_B],
+      ),
+    ).toThrow(/has 1 output\(s\), fewer than the 2 HTLC output\(s\)/);
   });
 });
