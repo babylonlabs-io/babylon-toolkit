@@ -1,5 +1,12 @@
-<!-- PLACEHOLDER — replace with Utila's official logo asset before enabling. -->
-<svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <rect width="40" height="40" rx="10" fill="#111111"/>
-  <path d="M13 12v9a7 7 0 0 0 14 0v-9" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128" fill="none">
+<g clip-path="url(#clip0_410_6315)">
+<rect width="128" height="128" rx="10" fill="white"/>
+<path d="M47.005 32.7549L59.5992 45.3491L46.096 58.8523C39.7086 65.2398 39.7086 75.5959 46.096 81.9834C52.0774 87.9647 61.5387 88.345 67.9626 83.1243L64.0615 87.0254C54.6415 96.4454 39.3686 96.4454 29.9486 87.0254L28.398 85.4748C18.978 76.0548 18.978 60.7819 28.398 51.3619L47.005 32.7549Z" fill="#161616"/>
+<path d="M80.9943 95.2514L68.4001 82.6572L81.9033 69.154C88.2907 62.7666 88.2908 52.4104 81.9033 46.023C75.922 40.0416 66.4606 39.6613 60.0367 44.882L63.9378 40.9809C73.3578 31.5609 88.6307 31.5609 98.0507 40.9809L99.6013 42.5315C109.021 51.9515 109.021 67.2244 99.6013 76.6444L80.9943 95.2514Z" fill="#161616"/>
+</g>
+<defs>
+<clipPath id="clip0_410_6315">
+<rect width="128" height="128" fill="white"/>
+</clipPath>
+</defs>
 </svg>

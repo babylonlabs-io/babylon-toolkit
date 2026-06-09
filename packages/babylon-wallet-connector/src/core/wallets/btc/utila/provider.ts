@@ -29,10 +29,10 @@ const UTILA_PROMPT_TIMEOUT_MS = 60_000;
  * needs a deterministic, domain-separated 32-byte value).
  */
 export class UtilaProvider implements IBTCProvider {
-  private provider: any;
+  private provider: IBTCProvider;
   private walletInfo: WalletInfo | undefined;
 
-  constructor(wallet: any) {
+  constructor(wallet?: { bitcoin?: IBTCProvider }) {
     // The injected object may be absent if the extension isn't installed.
     if (!wallet?.bitcoin) {
       throw new WalletError({
