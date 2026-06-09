@@ -13,12 +13,17 @@ import { IBTCProvider, Network } from "@/core/types";
 import BIP322 from "@/core/utils/bip322";
 import { generateP2TRAddressFromXpub, toNetwork } from "@/core/utils/wallet";
 import { canonicalNetworkName } from "@/core/wallets/btc/keystone/canonicalNetworkName";
+import { connectedLeafKeyPath } from "@/core/wallets/btc/keystone/connectedKeyPath";
 import {
   CONTEXT_HASH_OUTPUT_HEX_LENGTH,
   isValidContextHashOutput,
 } from "@/core/wallets/btc/keystone/contextHashOutput";
 import { signingProgressLabel } from "@/core/wallets/btc/keystone/signingProgress";
-import { findTaprootAccount } from "@/core/wallets/btc/keystone/taprootAccount";
+import {
+  expectedTaprootCoinType,
+  findTaprootAccount,
+  getCoinType,
+} from "@/core/wallets/btc/keystone/taprootAccount";
 import { ERROR_CODES, WalletError } from "@/error";
 
 import logo from "./logo.svg";
@@ -33,6 +38,15 @@ type KeystoneWalletInfo = {
 };
 
 export const WALLET_PROVIDER_NAME = "Keystone";
+
+/**
+ * Minimum Keystone firmware that ships the `deriveContextHash` UR type (the
+ * firmware paired with keystone-sdk 0.12.x). The airgapped QR sync exposes no
+ * firmware/device version, so we cannot detect or gate it programmatically the
+ * way software wallets gate their injected version — it is surfaced as a hint in
+ * the connect dialog instead. Confirm the exact version with Keystone before release.
+ */
+const MIN_KEYSTONE_FIRMWARE_VERSION = "2.4.5";
 
 export class KeystoneProvider implements IBTCProvider {
   private keystoneWalletInfo: KeystoneWalletInfo | undefined;
@@ -66,6 +80,7 @@ export class KeystoneProvider implements IBTCProvider {
         walletMode: "btc",
         link: "",
         description: [
+          `Requires Keystone firmware ${MIN_KEYSTONE_FIRMWARE_VERSION} or later for vault deposits.`,
           "1. Turn on your Keystone 3.",
           "2. Click connect software wallet and select Bitcoin Wallets.",
           '3. Press the "Sync Keystone" button and scan the QR Code displayed on your Keystone hardware wallet',
@@ -102,8 +117,8 @@ export class KeystoneProvider implements IBTCProvider {
     // software wallets. For signet, the Keystone must run the separate BTC-only
     // firmware with Signet mode connection enabled (coin_type 1') to derive the
     // same key as software wallets like UniSat; otherwise the keys differ even
-    // for the same seed. This is intentionally not hard-enforced here (signet is
-    // dev-only).
+    // for the same seed. This is intentionally not hard-enforced (signet is
+    // dev-only) — a console warning below flags the mismatch.
     const taprootAccount = findTaprootAccount(accountData.keys);
 
     if (!taprootAccount?.extendedPublicKey)
@@ -114,6 +129,21 @@ export class KeystoneProvider implements IBTCProvider {
       });
 
     const xpub = taprootAccount.extendedPublicKey;
+
+    // Dev signal: if the device's exported coin_type doesn't match the app
+    // network (e.g. mainnet-firmware Keystone connected on signet), the derived
+    // keys won't match software wallets for the same seed and surface later as a
+    // confusing "different BTC public key" error. Only fires on a mismatch
+    // (never on a correct mainnet setup), so it's effectively signet/dev-only.
+    const exportedCoinType = getCoinType(taprootAccount.path);
+    const expectedCoinType = expectedTaprootCoinType(this.config.network);
+    if (exportedCoinType !== expectedCoinType) {
+      console.warn(
+        `[Keystone] exported coin_type ${exportedCoinType} but ${this.config.network} expects ` +
+          `${expectedCoinType}; derived keys will not match software wallets for the same seed. ` +
+          `Use a Keystone firmware/mode whose network matches the app.`,
+      );
+    }
 
     this.keystoneWalletInfo = {
       mfp: accountData.masterFingerprint,
@@ -259,7 +289,7 @@ export class KeystoneProvider implements IBTCProvider {
   };
 
   signMessageECDSA = async (message: string): Promise<string> => {
-    if (!this.keystoneWalletInfo?.address || !this.keystoneWalletInfo?.publicKeyHex) {
+    if (!this.keystoneWalletInfo?.address || !this.keystoneWalletInfo?.publicKeyHex || !this.keystoneWalletInfo?.path) {
       throw new WalletError({
         code: ERROR_CODES.WALLET_NOT_CONNECTED,
         message: "Keystone Wallet not connected",
@@ -273,7 +303,7 @@ export class KeystoneProvider implements IBTCProvider {
       dataType: KeystoneBitcoinSDK.DataType.message,
       accounts: [
         {
-          path: `${this.keystoneWalletInfo.path}/0/0`,
+          path: connectedLeafKeyPath(this.keystoneWalletInfo.path),
           xfp: `${this.keystoneWalletInfo.mfp}`,
           address: this.keystoneWalletInfo.address,
         },
@@ -372,7 +402,7 @@ export class KeystoneProvider implements IBTCProvider {
 
     const bip32Derivation = {
       masterFingerprint: Buffer.from(this.keystoneWalletInfo.mfp, "hex"),
-      path: `${this.keystoneWalletInfo.path}/0/0`,
+      path: connectedLeafKeyPath(this.keystoneWalletInfo.path),
       pubkey: Buffer.from(this.keystoneWalletInfo.publicKeyHex, "hex"),
     };
 
@@ -401,11 +431,10 @@ export class KeystoneProvider implements IBTCProvider {
       });
     }
 
-    // Bind the derivation to the exact connected key — the first Taproot leaf
-    // `${path}/0/0` that this provider uses for address generation, PSBT
-    // signing, and message signing. That leaf key is the `connectedPubkey` the
-    // spec injects into the HKDF `info` (docs/specs/derive-context-hash.md §2.2).
-    const keyPath = `${this.keystoneWalletInfo.path}/0/0`;
+    // Bind to the connected leaf key — the `connectedPubkey` the spec injects
+    // into the HKDF `info` (docs/specs/derive-context-hash.md §2.2). See
+    // connectedLeafKeyPath for why this must be the `/0/0` leaf, not the account path.
+    const keyPath = connectedLeafKeyPath(this.keystoneWalletInfo.path);
 
     const ur = this.dataSdk.generateDeriveContextHashCall({
       appName,
