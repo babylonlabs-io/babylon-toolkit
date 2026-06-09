@@ -315,11 +315,10 @@ export function DepositForm({
           sliderVariant="primary"
           leftField={{
             value: !hasAmount
-              ? (pendingConfirmationField ?? COPY.deposit.form.zeroUsdValue)
+              ? (pendingConfirmationField ?? COPY.common.zeroUsdValue)
               : usdValue,
           }}
           rightField={{
-            label: COPY.deposit.form.balance,
             value: maxDepositLabel,
             // Mention the supply cap only when one exists for this user.
             // `effectiveRemaining` is null both when no cap applies and while

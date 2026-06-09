@@ -327,8 +327,6 @@ export const COPY = {
     },
     form: {
       computingAllocation: "Computing allocation...",
-      balance: "Balance",
-      zeroUsdValue: "$0.00 USD",
       maxTooltip: (opts: { hasSupplyCap: boolean }) =>
         opts.hasSupplyCap
           ? "Reserves a fee buffer, excludes inscription UTXOs, and stays within the supply cap."
@@ -527,6 +525,7 @@ export const COPY = {
     },
   },
   common: {
+    zeroUsdValue: "$0.00 USD",
     loading: "Loading...",
     confirming: "Confirming...",
     applying: "Applying...",
