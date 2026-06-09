@@ -1,5 +1,16 @@
+import { Network } from "@/core/types";
+
 /** BIP86 Taproot purpose (the first hardened component of `m/86'/…`). */
 const TAPROOT_PURPOSE = 86;
+
+/** BIP-44 coin_type the connected Keystone account should use per network (0 mainnet, 1 test/signet). */
+const TAPROOT_COIN_TYPE: Record<Network, number> = {
+  [Network.MAINNET]: 0,
+  [Network.TESTNET]: 1,
+  [Network.SIGNET]: 1,
+};
+
+export const expectedTaprootCoinType = (network: Network): number => TAPROOT_COIN_TYPE[network];
 
 /**
  * Rewrites the `h` hardened marker to the apostrophe form (`86h` → `86'`).
@@ -13,6 +24,9 @@ const TAPROOT_PURPOSE = 86;
 const normalizeHardenedPath = (path: string): string => path.replace(/h(?=\/|$)/g, "'");
 
 const purposeOf = (path: string): number => parseInt(normalizeHardenedPath(path).split("/")[1], 10);
+
+/** Parses the BIP-44 coin_type (third path component) from a derivation path, e.g. `m/86'/1'/0'` → 1. */
+export const getCoinType = (path: string): number => parseInt(normalizeHardenedPath(path).split("/")[2], 10);
 
 /**
  * Finds the Taproot (BIP86, purpose `86'`) account in a parsed Keystone export
