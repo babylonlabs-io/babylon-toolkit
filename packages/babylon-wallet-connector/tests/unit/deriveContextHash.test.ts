@@ -2,10 +2,10 @@
  * Unit tests for `deriveContextHash` adapter behavior.
  *
  * Tests the shared `unsupportedDeriveContextHash` helper used by every
- * non-supporting BTC adapter (OKX, Ledger v1/v2, AppKit, Tomo,
+ * non-supporting BTC adapter (OKX, Ledger v1/v2, Keystone, AppKit, Tomo,
  * Injectable fallback) and the injectable wrapper that stubs the method
- * when the underlying wallet doesn't implement it. UniSat, OneKey, and
- * Keystone implement the method natively instead of using this helper.
+ * when the underlying wallet doesn't implement it. UniSat and OneKey
+ * forward to the wallet's native method instead of using this helper.
  *
  * The provider classes themselves are not imported here — their
  * modules transitively pull in SVG asset imports that the unit-test

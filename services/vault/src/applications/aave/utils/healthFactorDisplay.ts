@@ -2,7 +2,6 @@ import type { HealthFactorStatus } from "@babylonlabs-io/ts-sdk/tbv/integrations
 
 import { HEALTH_FACTOR_DISPLAY_CAP } from "../constants";
 
-
 export const HEALTH_FACTOR_COLORS = {
   GREEN: "#00E676",
   AMBER: "#FFC400",
