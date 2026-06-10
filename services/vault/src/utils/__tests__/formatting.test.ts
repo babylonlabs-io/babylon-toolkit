@@ -185,8 +185,12 @@ describe("Formatting Utilities", () => {
       expect(formatAprPercent(3.6999999999999997)).toBe("3.7%");
     });
 
-    it("renders near-zero rates as 0%", () => {
-      expect(formatAprPercent(0.0000957)).toBe("0%");
+    it("renders a positive rate too small to show at two decimals as <0.01%", () => {
+      expect(formatAprPercent(0.0000957)).toBe("<0.01%");
+    });
+
+    it("renders an absolute zero rate as 0%", () => {
+      expect(formatAprPercent(0)).toBe("0%");
     });
   });
 
