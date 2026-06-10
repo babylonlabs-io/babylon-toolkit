@@ -117,4 +117,18 @@ export default {
   get isGrpcArtifactsEnabled() {
     return process.env.NEXT_PUBLIC_FF_ENABLE_GRPC_ARTIFACTS === "true";
   },
+
+  /**
+   * ENABLE_UTILA_WALLET feature flag
+   *
+   * Purpose: Surfaces the Utila (MPC) BTC wallet in the connection UI.
+   * Why needed: Utila's injected `window.utila.bitcoin` API is integrated
+   * against the documented IBTCProvider contract but not yet verified
+   * end-to-end; keep it opt-in so it ships to devnet for the Utila team to
+   * test without exposing it in prod.
+   * Default: false (Utila is hidden unless explicitly set to "true")
+   */
+  get isUtilaWalletEnabled() {
+    return process.env.NEXT_PUBLIC_FF_ENABLE_UTILA_WALLET === "true";
+  },
 };

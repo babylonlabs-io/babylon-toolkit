@@ -28,12 +28,16 @@ import { logger } from "@/infrastructure";
 // throws `WALLET_METHOD_NOT_SUPPORTED` at the connector layer; this
 // list just keeps them out of the connection UI in the first place so
 // users don't pick something that can't complete a deposit.
+//
+// Utila is gated behind a feature flag until its injected
+// `window.utila.bitcoin` API is verified end-to-end on devnet.
 const DISABLED_WALLETS: string[] = [
   APPKIT_BTC_CONNECTOR_ID,
   "injectable",
   "ledger_btc",
   "ledger_btc_v2",
   "okx",
+  ...(featureFlags.isUtilaWalletEnabled ? [] : ["utila"]),
 ];
 
 const context = typeof window !== "undefined" ? window : {};
