@@ -31,18 +31,24 @@ export function useAaveBorrowAprs({
 }: {
   reserves: AaveReserveConfig[];
 }): UseAaveBorrowAprsResult {
-  // Sort + stringify for a stable cache key regardless of input order.
-  const reserveIdsKey = useMemo(
+  // Stable cache key regardless of input order. Includes the Hub asset
+  // (`hub`/`assetId`) each rate is read from, not just the reserve ID, so a
+  // config refresh that repoints a reserve at a different Hub asset busts the
+  // cache instead of serving rates fetched for the old asset.
+  const reserveAssetsKey = useMemo(
     () =>
       reserves
-        .map((r) => r.reserveId.toString())
+        .map(
+          (r) =>
+            `${r.reserveId.toString()}:${r.reserve.hub.toLowerCase()}:${r.reserve.assetId}`,
+        )
         .sort()
         .join(","),
     [reserves],
   );
 
   const { data, isLoading, error } = useQuery({
-    queryKey: [QUERY_KEY, reserveIdsKey],
+    queryKey: [QUERY_KEY, reserveAssetsKey],
     queryFn: async () => {
       const results = await getAssetDrawnRatesSafe(
         reserves.map((r) => ({

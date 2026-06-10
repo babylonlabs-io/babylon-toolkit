@@ -11,6 +11,7 @@ import { useMemo } from "react";
 
 import { useAaveConfig } from "@/applications/aave/context";
 import { useAaveBorrowAprs } from "@/applications/aave/hooks";
+import type { AaveReserveConfig } from "@/applications/aave/services/fetchConfig";
 import { formatAprPercent } from "@/utils/formatting";
 
 export interface LandingBorrowAprs {
@@ -26,12 +27,26 @@ const LANDING_APR_SYMBOLS: readonly string[] = ["USDT", "USDC", "WBTC"];
 export function useLandingBorrowAprs(): LandingBorrowAprs {
   const { borrowableReserves } = useAaveConfig();
 
+  // One reserve per advertised symbol. If the indexer returns multiple
+  // borrowable reserves sharing a symbol (e.g. a market migration), pick the
+  // lowest reserveId so the advertised APR is deterministic and never depends
+  // on indexer return order.
+  const reserveBySymbol = useMemo(() => {
+    const map = new Map<string, AaveReserveConfig>();
+    for (const reserve of borrowableReserves) {
+      const symbol = reserve.token.symbol.toUpperCase();
+      if (!LANDING_APR_SYMBOLS.includes(symbol)) continue;
+      const existing = map.get(symbol);
+      if (!existing || reserve.reserveId < existing.reserveId) {
+        map.set(symbol, reserve);
+      }
+    }
+    return map;
+  }, [borrowableReserves]);
+
   const advertisedReserves = useMemo(
-    () =>
-      borrowableReserves.filter((r) =>
-        LANDING_APR_SYMBOLS.includes(r.token.symbol.toUpperCase()),
-      ),
-    [borrowableReserves],
+    () => Array.from(reserveBySymbol.values()),
+    [reserveBySymbol],
   );
 
   const { aprPercentByReserveId } = useAaveBorrowAprs({
@@ -40,9 +55,7 @@ export function useLandingBorrowAprs(): LandingBorrowAprs {
 
   return useMemo(() => {
     const aprForSymbol = (symbol: string): string | undefined => {
-      const reserve = advertisedReserves.find(
-        (r) => r.token.symbol.toUpperCase() === symbol,
-      );
+      const reserve = reserveBySymbol.get(symbol);
       if (!reserve) return undefined;
       const aprPercent = aprPercentByReserveId[reserve.reserveId.toString()];
       return aprPercent == null ? undefined : formatAprPercent(aprPercent);
@@ -53,5 +66,5 @@ export function useLandingBorrowAprs(): LandingBorrowAprs {
       usdc: aprForSymbol("USDC"),
       wbtc: aprForSymbol("WBTC"),
     };
-  }, [advertisedReserves, aprPercentByReserveId]);
+  }, [reserveBySymbol, aprPercentByReserveId]);
 }
