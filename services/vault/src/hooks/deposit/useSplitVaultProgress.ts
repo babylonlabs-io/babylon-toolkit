@@ -87,16 +87,21 @@ export function deriveSplitVaultProgress(
     // optimistic VERIFIED+CONFIRMED → AWAIT_ACTIVATION_CONFIRMATION case).
     if (displayStep !== null) return displayStep;
     // `getPeginDisplayStep` is null both for a fully-activated vault and for a
-    // warning. A finished sibling must render COMPLETED (all groups ✓) — NOT
-    // fall back to the active vault's step, which would otherwise reset an
-    // already-activated column to whatever the active vault is doing. Warning
-    // siblings freeze at their own last known local step instead of mirroring
-    // the active sibling.
-    if (isVaultPastActivation(state)) return DepositFlowStep.COMPLETED;
-    return state.displayVariant === "warning" ||
+    // warning/danger state. Warning/danger siblings freeze at their own last
+    // known local step instead of mirroring the active sibling — checked
+    // before `isVaultPastActivation`, which also matches LIQUIDATED and would
+    // otherwise render a seized vault as COMPLETED. A finished sibling must
+    // render COMPLETED (all groups ✓) — NOT fall back to the active vault's
+    // step, which would otherwise reset an already-activated column to
+    // whatever the active vault is doing.
+    if (
+      state.displayVariant === "warning" ||
       state.displayVariant === "danger"
-      ? getWarningPeginDisplayStep(state.localStatus)
-      : activeStep;
+    ) {
+      return getWarningPeginDisplayStep(state.localStatus);
+    }
+    if (isVaultPastActivation(state)) return DepositFlowStep.COMPLETED;
+    return activeStep;
   });
 
   return {
