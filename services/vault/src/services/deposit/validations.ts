@@ -361,12 +361,6 @@ export function getDepositCtaState(params: DepositCtaParams): DepositCtaState {
     return { disabled: true, label: "Select a vault provider" };
   }
 
-  // A provider is selected but its commission hasn't loaded. The deposit can't
-  // bind a commission it hasn't read, so block until it is available.
-  if (params.commissionUnavailable) {
-    return { disabled: true, label: "Loading commission..." };
-  }
-
   // Surface a terminal `computeMinPeginFee` failure ahead of the "still
   // loading" gate below. Without this branch a query rejection (WASM init
   // failure, unsupported signer count) would leave the CTA stuck on
@@ -391,6 +385,14 @@ export function getDepositCtaState(params: DepositCtaParams): DepositCtaState {
   const amountLabel = getDepositButtonLabel(params);
   if (amountLabel !== "Deposit") {
     return { disabled: true, label: amountLabel };
+  }
+
+  // The amount is valid and a provider is selected, but its commission hasn't
+  // loaded. The deposit binds this commission as the quote, so block until it
+  // is known — checked after the amount guidance so "Enter an amount" /
+  // "Minimum" isn't preempted by a transient commission load.
+  if (params.commissionUnavailable) {
+    return { disabled: true, label: "Loading commission..." };
   }
 
   if (params.ordinalsCheckPending) {

@@ -144,9 +144,11 @@ function SimpleDepositContent({
       ? depositorClaimValue * BigInt(depositBatchSize)
       : undefined;
 
-  // Commission (bps) the depositor was shown for the selected provider. Passed
-  // into the deposit flow as the quote that bounds `maxAcceptableCommissionBps`
-  // on-chain; `undefined` while it loads or if the read failed.
+  // Live commission (bps) for the selected provider, read from the current
+  // providers list. Captured into the deposit snapshot at commit time
+  // (`handleDeposit`) so the value the signing flow binds is exactly what the
+  // depositor reviewed — not a value a background refetch changed afterwards.
+  // `undefined` while it loads or if the read failed.
   const selectedProviderCommissionBps = providers.find(
     (provider) => provider.id === formData.selectedProvider,
   )?.commissionBps;
@@ -156,6 +158,7 @@ function SimpleDepositContent({
     depositAmount,
     selectedApplication,
     selectedProviders,
+    quotedCommissionBps,
     feeRate,
     btcWalletProvider,
     ethAddress,
@@ -322,9 +325,12 @@ function SimpleDepositContent({
       shouldSplit && vaultAmounts ? [...vaultAmounts] : [amountSats];
     setOverlappingPendingVaultCount(runOverlapCheck(effectiveVaultAmounts));
 
-    setDepositData(amountSats, effectiveSelectedApplication, [
-      formData.selectedProvider,
-    ]);
+    setDepositData(
+      amountSats,
+      effectiveSelectedApplication,
+      [formData.selectedProvider],
+      selectedProviderCommissionBps,
+    );
     setFeeRate(estimatedFeeRate);
     setIsSplitDeposit(shouldSplit);
     if (shouldSplit && vaultAmounts) {
@@ -414,7 +420,7 @@ function SimpleDepositContent({
               depositorEthAddress={ethAddress}
               selectedApplication={selectedApplication}
               selectedProviders={selectedProviders}
-              quotedCommissionBps={selectedProviderCommissionBps}
+              quotedCommissionBps={quotedCommissionBps}
               vaultProviderBtcPubkey={selectedProviderBtcPubkey}
               vaultKeeperBtcPubkeys={vaultKeeperBtcPubkeys}
               universalChallengerBtcPubkeys={universalChallengerBtcPubkeys}

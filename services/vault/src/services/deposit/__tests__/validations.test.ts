@@ -422,6 +422,17 @@ describe("Deposit Validations", () => {
       expect(result.label).toBe("Select a vault provider");
     });
 
+    it("prioritizes amount guidance over the commission gate", () => {
+      // Below-minimum amount with the commission still loading: the actionable
+      // "Minimum" guidance should win, not "Loading commission...".
+      const result = getDepositCtaState({
+        ...readyParams,
+        amountSats: 5000n,
+        commissionUnavailable: true,
+      });
+      expect(result.label).toContain("Minimum");
+    });
+
     it("returns fee error message when fee estimation fails", () => {
       const result = getDepositCtaState({
         ...readyParams,
