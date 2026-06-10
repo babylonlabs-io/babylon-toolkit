@@ -150,6 +150,13 @@ export interface DepositCtaParams extends DepositFormValidityParams {
    * indefinitely on "Calculating fees...".
    */
   minPeginFeeError: Error | null;
+  /**
+   * Terminal failure from the `computeMinClaimValue` WASM query. Same purpose
+   * as {@link minPeginFeeError}: without it a query rejection would leave the
+   * CTA stuck on "Calculating fees..." (the depositorClaimValue == null gate)
+   * with no error or retry signal.
+   */
+  depositorClaimValueError: Error | null;
 }
 
 export interface DepositCtaState {
@@ -350,7 +357,11 @@ export function getDepositCtaState(params: DepositCtaParams): DepositCtaState {
   // loading" gate below. Without this branch a query rejection (WASM init
   // failure, unsupported signer count) would leave the CTA stuck on
   // "Calculating fees..." with no error or retry signal.
-  if (params.amountSats > 0n && params.minPeginFeeError !== null) {
+  if (
+    params.amountSats > 0n &&
+    (params.minPeginFeeError !== null ||
+      params.depositorClaimValueError !== null)
+  ) {
     return { disabled: true, label: "Fee estimate unavailable" };
   }
 

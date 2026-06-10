@@ -300,6 +300,7 @@ describe("Deposit Validations", () => {
       capUnavailable: false,
       minPeginFee: 500n,
       minPeginFeeError: null,
+      depositorClaimValueError: null,
     };
 
     it("returns enabled 'Deposit' when all conditions are met", () => {
@@ -775,6 +776,17 @@ describe("Deposit Validations", () => {
         minPeginFeeError: new Error("boom"),
       });
       expect(result.label).toBe("Fee estimate unavailable");
+    });
+
+    it("disables with 'Fee estimate unavailable' when depositorClaimValue query errored", () => {
+      const result = getDepositCtaState({
+        ...readyParams,
+        depositorClaimValueError: new Error("WASM init failed"),
+      });
+      expect(result).toEqual({
+        disabled: true,
+        label: "Fee estimate unavailable",
+      });
     });
   });
 

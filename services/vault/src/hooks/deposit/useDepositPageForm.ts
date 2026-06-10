@@ -50,6 +50,18 @@ const STALE_TIME_MS = 5 * 60 * 1000;
  */
 const PRE_PEGIN_SAFETY_BUFFER_SATS = 3_000n;
 
+/**
+ * Normalize a React Query failure into `Error | null`. wasm-bindgen can reject
+ * with a bare string, so a plain `instanceof Error` filter would silently drop
+ * the failure and leave the CTA stuck on "Calculating fees..." instead of
+ * surfacing the terminal fee-error state. Coerce any non-null, non-Error value
+ * into an `Error` so the failure is always preserved.
+ */
+function toError(value: unknown): Error | null {
+  if (value == null) return null;
+  return value instanceof Error ? value : new Error(String(value));
+}
+
 export interface DepositPageFormData {
   amountBtc: string;
   selectedProvider: string;
@@ -157,6 +169,14 @@ export interface UseDepositPageFormResult {
   splitRatioLabel: string | null;
   /** Depositor claim value computed from WASM (VK/UC counts + fee). undefined while loading. */
   depositorClaimValue: bigint | undefined;
+  /**
+   * Terminal failure from the `computeMinClaimValue` WASM query (init
+   * failure, unsupported signer count, or a guard-rejected non-positive
+   * return). Surfaced separately from the undefined "still loading" state so
+   * the CTA reports an actionable error instead of getting stuck
+   * indefinitely on "Calculating fees...".
+   */
+  depositorClaimValueError: Error | null;
 
   validateForm: () => boolean;
   validateAmountOnBlur: () => void;
@@ -382,28 +402,29 @@ export function useDepositPageForm(): UseDepositPageFormResult {
     }
   }, [selectedVpBtcPubkey, vaultKeeperBtcPubkeys, depositorBtcPubkey]);
 
-  const { data: depositorClaimValue } = useQuery({
-    queryKey: [
-      "depositorClaimValue",
-      numLocalChallengers,
-      latestUniversalChallengers.length,
-      config.offchainParams.councilQuorum,
-      config.offchainParams.securityCouncilKeys.length,
-      String(config.offchainParams.feeRate),
-    ],
-    queryFn: () =>
-      computeMinClaimValue(
-        numLocalChallengers!,
+  const { data: depositorClaimValue, error: depositorClaimValueError } =
+    useQuery({
+      queryKey: [
+        "depositorClaimValue",
+        numLocalChallengers,
         latestUniversalChallengers.length,
         config.offchainParams.councilQuorum,
         config.offchainParams.securityCouncilKeys.length,
-        config.offchainParams.feeRate,
-      ),
-    enabled:
-      latestUniversalChallengers.length > 0 && numLocalChallengers != null,
-    staleTime: STALE_TIME_MS,
-    refetchOnWindowFocus: false,
-  });
+        String(config.offchainParams.feeRate),
+      ],
+      queryFn: () =>
+        computeMinClaimValue(
+          numLocalChallengers!,
+          latestUniversalChallengers.length,
+          config.offchainParams.councilQuorum,
+          config.offchainParams.securityCouncilKeys.length,
+          config.offchainParams.feeRate,
+        ),
+      enabled:
+        latestUniversalChallengers.length > 0 && numLocalChallengers != null,
+      staleTime: STALE_TIME_MS,
+      refetchOnWindowFocus: false,
+    });
 
   // Exact per-HTLC PegIn (activation) fee the depositor must reserve inside
   // each HTLC value. Sourced from the WASM (`compute_min_pegin_fee` in
@@ -621,8 +642,7 @@ export function useDepositPageForm(): UseDepositPageFormResult {
     effectiveRemaining: capSnapshot?.effectiveRemaining ?? null,
     capUnavailable: capError !== null,
     minPeginFee: minPeginFee ?? null,
-    minPeginFeeError:
-      minPeginFeeError instanceof Error ? minPeginFeeError : null,
+    minPeginFeeError: toError(minPeginFeeError),
     ordinalsCheckPending,
     isPartialLiquidation,
     setIsPartialLiquidation,
@@ -630,6 +650,7 @@ export function useDepositPageForm(): UseDepositPageFormResult {
     vaultAmounts: splitVaultAmounts,
     isSplitLoading,
     depositorClaimValue,
+    depositorClaimValueError: toError(depositorClaimValueError),
     splitRatioLabel,
     validateForm,
     validateAmountOnBlur,
