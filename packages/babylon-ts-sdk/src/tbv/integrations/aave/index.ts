@@ -76,6 +76,7 @@ export {
   buildReorderVaultsTx,
   buildRepayTx,
   buildWithdrawCollateralsTx,
+  getAssetDrawnRatesSafe,
   getDynamicReserveConfig,
   getOracleAddress,
   getPosition,
@@ -92,6 +93,8 @@ export {
   getUserTotalDebts,
   hasCollateral,
   hasDebt,
+  type AssetDrawnRateRequest,
+  type AssetDrawnRateResult,
   type ReservePriceResult,
 } from "./clients/index.js";
 

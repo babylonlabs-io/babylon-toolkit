@@ -13,6 +13,8 @@ import { CARD_DARK_BG_CLASS } from "@/components/shared/layoutClasses";
 import { Connect } from "@/components/Wallet";
 import { COPY } from "@/copy";
 
+import { useLandingBorrowAprs } from "./useLandingBorrowAprs";
+
 const COPY_OVERVIEW = COPY.overview.disconnected;
 
 interface AprStat {
@@ -22,28 +24,6 @@ interface AprStat {
   /** Tailwind class for the value's text color. */
   colorClass: string;
 }
-
-// Stub APR sources. Each entry's `value` should be wired to the real reserve
-// rate (variable borrow APR) once the data layer surfaces it. The three
-// entries below are commented out for now; restoring any one of them (with a
-// real `value`) will make that stat appear in the grid automatically.
-const APR_STATS: AprStat[] = [
-  // {
-  //   label: COPY_OVERVIEW.aprLabels.usdt,
-  //   value: undefined,
-  //   colorClass: "text-[#26A17B]",
-  // },
-  // {
-  //   label: COPY_OVERVIEW.aprLabels.usdc,
-  //   value: undefined,
-  //   colorClass: "text-[#2775CA]",
-  // },
-  // {
-  //   label: COPY_OVERVIEW.aprLabels.wbtc,
-  //   value: undefined,
-  //   colorClass: "text-[#F7931A]",
-  // },
-];
 
 function PanelCard({ children }: { children: ReactNode }) {
   return (
@@ -111,6 +91,25 @@ function Step({ index, icon, title, body }: StepProps) {
 }
 
 export function DisconnectedOverview() {
+  const borrowAprs = useLandingBorrowAprs();
+  const aprStats: AprStat[] = [
+    {
+      label: COPY_OVERVIEW.aprLabels.usdt,
+      value: borrowAprs.usdt,
+      colorClass: "text-[#26A17B]",
+    },
+    {
+      label: COPY_OVERVIEW.aprLabels.usdc,
+      value: borrowAprs.usdc,
+      colorClass: "text-[#2775CA]",
+    },
+    {
+      label: COPY_OVERVIEW.aprLabels.wbtc,
+      value: borrowAprs.wbtc,
+      colorClass: "text-[#F7931A]",
+    },
+  ];
+
   return (
     <PanelCard>
       <div className="grid grid-cols-1 gap-10 md:grid-cols-2 md:gap-12">
@@ -141,7 +140,7 @@ export function DisconnectedOverview() {
           </div>
 
           {(() => {
-            const loadedStats = APR_STATS.filter(
+            const loadedStats = aprStats.filter(
               (s): s is AprStat & { value: string } => s.value !== undefined,
             );
             if (loadedStats.length === 0) return null;

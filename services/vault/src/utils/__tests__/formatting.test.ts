@@ -8,6 +8,7 @@ import { getNetworkConfigBTC } from "@/config";
 
 import {
   formatAmount,
+  formatAprPercent,
   formatBasisPointsAsPercent,
   formatBtcAmount,
   formatCompactUsd,
@@ -168,6 +169,24 @@ describe("Formatting Utilities", () => {
     it("should format to 1 decimal place", () => {
       // 85.5% = 855000000000000000
       expect(formatLLTV(855000000000000000n)).toBe("85.5%");
+    });
+  });
+
+  describe("formatAprPercent", () => {
+    it("trims trailing zeros after rounding to two decimals", () => {
+      expect(formatAprPercent(3.7)).toBe("3.7%");
+    });
+
+    it("rounds to two decimals", () => {
+      expect(formatAprPercent(5.861)).toBe("5.86%");
+    });
+
+    it("absorbs float noise from the RAY conversion", () => {
+      expect(formatAprPercent(3.6999999999999997)).toBe("3.7%");
+    });
+
+    it("renders near-zero rates as 0%", () => {
+      expect(formatAprPercent(0.0000957)).toBe("0%");
     });
   });
 
