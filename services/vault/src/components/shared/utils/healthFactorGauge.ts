@@ -2,12 +2,13 @@ import {
   HEALTH_FACTOR_COLORS,
   type HealthFactorStatus,
 } from "@/applications/aave/utils";
+import { COPY } from "@/copy";
 
 export const STATUS_LABELS: Record<
   Exclude<HealthFactorStatus, "no_debt">,
   string
 > = {
-  safe: "Healthy",
+  safe: COPY.overview.healthFactorHealthy,
   warning: "At Risk",
   danger: "Liquidatable",
 } satisfies Record<string, string>;

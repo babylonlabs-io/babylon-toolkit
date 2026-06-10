@@ -27,6 +27,11 @@ export function getHealthFactorColor(
   }
 }
 
+/** Above this value, the health factor is effectively unbounded. Callers that show
+ *  a high-HF label (e.g. the Overview row) use this; numeric before/after deltas
+ *  intentionally do not, to preserve the magnitude of the change. */
+export const HEALTH_FACTOR_HEALTHY_THRESHOLD = 50;
+
 export function formatHealthFactor(healthFactor: number | null): string {
   // null = no debt; non-finite or absurdly high = negligible debt. All render
   // as "-" ("infinitely healthy") rather than "Infinity" or the scientific
