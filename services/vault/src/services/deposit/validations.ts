@@ -100,6 +100,14 @@ export interface DepositCtaParams extends DepositFormValidityParams {
   isAddressBlocked: boolean;
   isWalletConnected: boolean;
   hasProvider: boolean;
+  /**
+   * True when a provider is selected but its on-chain commission hasn't loaded
+   * (still fetching or the read failed). The deposit binds this commission as
+   * the quote that bounds `maxAcceptableCommissionBps` on-chain, so submitting
+   * without a known value risks the silent-overcharge path: block until it is
+   * available rather than letting the flow bind to an unquoted fresh read.
+   */
+  commissionUnavailable: boolean;
   isFeeError: boolean;
   feeError: string | null;
   feeDisabled: boolean;
@@ -351,6 +359,12 @@ export function getDepositCtaState(params: DepositCtaParams): DepositCtaState {
 
   if (!params.hasProvider) {
     return { disabled: true, label: "Select a vault provider" };
+  }
+
+  // A provider is selected but its commission hasn't loaded. The deposit can't
+  // bind a commission it hasn't read, so block until it is available.
+  if (params.commissionUnavailable) {
+    return { disabled: true, label: "Loading commission..." };
   }
 
   // Surface a terminal `computeMinPeginFee` failure ahead of the "still

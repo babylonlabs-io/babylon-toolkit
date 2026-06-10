@@ -110,6 +110,12 @@ export interface PeginBatchRegisterParams {
   }>;
   /** Proof of possession from signProofOfPossession. */
   popSignature: PopSignature;
+  /**
+   * VP commission (bps) the depositor was shown at provider selection. Bounds
+   * `maxAcceptableCommissionBps` so registration is rejected if the on-chain
+   * commission drifted upward beyond the SDK's headroom since the quote.
+   */
+  quotedCommissionBps: number;
 }
 
 export interface PeginBatchRegisterResult {

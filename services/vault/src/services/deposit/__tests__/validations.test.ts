@@ -289,6 +289,7 @@ describe("Deposit Validations", () => {
       isAddressBlocked: false,
       isWalletConnected: true,
       hasProvider: true,
+      commissionUnavailable: false,
       isFeeError: false,
       feeError: null,
       feeDisabled: false,
@@ -399,6 +400,26 @@ describe("Deposit Validations", () => {
         disabled: true,
         label: "Select a vault provider",
       });
+    });
+
+    it("blocks with 'Loading commission...' when the selected provider commission is unavailable", () => {
+      const result = getDepositCtaState({
+        ...readyParams,
+        commissionUnavailable: true,
+      });
+      expect(result).toEqual({
+        disabled: true,
+        label: "Loading commission...",
+      });
+    });
+
+    it("prioritizes 'Select a vault provider' over the commission gate", () => {
+      const result = getDepositCtaState({
+        ...readyParams,
+        hasProvider: false,
+        commissionUnavailable: true,
+      });
+      expect(result.label).toBe("Select a vault provider");
     });
 
     it("returns fee error message when fee estimation fails", () => {

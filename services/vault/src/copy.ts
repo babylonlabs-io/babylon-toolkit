@@ -351,6 +351,15 @@ export const COPY = {
       // Per-provider metric labels shown in the picker.
       providerCommissionLabel: "Commission",
       providerActiveLabel: "Total locked",
+      // Fee-breakdown lines (DepositFeesBreakdown) shown before the user
+      // submits. The commission label appends the percent, e.g. "VP commission
+      // (2.50%)"; net payout is the deposit minus that commission.
+      vpCommissionLabel: "VP commission",
+      vpCommissionTooltip:
+        "The vault provider's fee, deducted from your payout when you redeem. Set by the provider and shown here before you deposit.",
+      netPayoutLabel: "Net payout",
+      netPayoutTooltip:
+        "What you receive at payout: your deposit minus the vault provider's commission.",
       // Placeholder while a metric (commission, active BTC) is loading or
       // could not be fetched.
       providerMetricPlaceholder: "—",
@@ -442,6 +451,14 @@ export const COPY = {
       wrongWalletAccount: {
         title: "Wrong wallet account",
         body: WRONG_WALLET_BODY,
+      },
+      commissionChanged: {
+        title: "Commission changed",
+        body: "The vault provider raised its commission since you selected it. Please refresh to see the new commission and start the deposit again.",
+      },
+      commissionUnavailable: {
+        title: "Commission unavailable",
+        body: "We couldn't confirm the vault provider's commission. Please refresh and try again before depositing.",
       },
       // Vault-provider JSON-RPC error copy, consumed by `mapVpRpcError`
       // (utils/errors/formatting.ts). Title + message are both user-facing.

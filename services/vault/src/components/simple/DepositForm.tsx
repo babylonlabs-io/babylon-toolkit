@@ -265,6 +265,15 @@ export function DepositForm({
 
   const selectedApp = applications.find((a) => a.id === selectedApplication);
 
+  // Commission (bps) shown for the selected provider. Drives the fee breakdown
+  // and gates the CTA: a selected provider whose commission hasn't loaded
+  // cannot be quoted, so the deposit must wait for it.
+  const selectedProviderCommissionBps = providers.find(
+    (provider) => provider.id === selectedProvider,
+  )?.commissionBps;
+  const commissionUnavailable =
+    !!selectedProvider && selectedProviderCommissionBps === undefined;
+
   const hasAmount = !!amount && amount !== "0";
   const isFeeError = hasAmount && !isLoadingFee && !!feeError;
   const feeDisabled =
@@ -292,6 +301,7 @@ export function DepositForm({
     isAddressBlocked,
     isWalletConnected,
     hasProvider: !!selectedProvider,
+    commissionUnavailable,
     isFeeError,
     feeError,
     feeDisabled,
@@ -410,6 +420,8 @@ export function DepositForm({
         protocolFeeAmount={protocolFeeAmount}
         protocolFeePrice={protocolFeePrice}
         protocolFeeIsError={protocolFeeIsError}
+        amountSats={amountSats}
+        commissionBps={selectedProviderCommissionBps}
       />
 
       {/* Protocol & risk parameters */}

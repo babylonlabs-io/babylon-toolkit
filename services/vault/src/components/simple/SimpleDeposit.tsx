@@ -144,6 +144,13 @@ function SimpleDepositContent({
       ? depositorClaimValue * BigInt(depositBatchSize)
       : undefined;
 
+  // Commission (bps) the depositor was shown for the selected provider. Passed
+  // into the deposit flow as the quote that bounds `maxAcceptableCommissionBps`
+  // on-chain; `undefined` while it loads or if the read failed.
+  const selectedProviderCommissionBps = providers.find(
+    (provider) => provider.id === formData.selectedProvider,
+  )?.commissionBps;
+
   const {
     depositStep,
     depositAmount,
@@ -407,6 +414,7 @@ function SimpleDepositContent({
               depositorEthAddress={ethAddress}
               selectedApplication={selectedApplication}
               selectedProviders={selectedProviders}
+              quotedCommissionBps={selectedProviderCommissionBps}
               vaultProviderBtcPubkey={selectedProviderBtcPubkey}
               vaultKeeperBtcPubkeys={vaultKeeperBtcPubkeys}
               universalChallengerBtcPubkeys={universalChallengerBtcPubkeys}
