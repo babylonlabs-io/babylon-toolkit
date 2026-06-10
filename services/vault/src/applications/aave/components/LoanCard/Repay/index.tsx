@@ -22,6 +22,7 @@ import {
 } from "../../../../../utils/formatting";
 import {
   AMOUNT_INPUT_CLASS_NAME,
+  MAX_BUTTON_CLASS_NAME,
   MIN_SLIDER_MAX,
   SAFE_TOFIXED_PRECISION,
   SLIDER_STEP_COUNT,
@@ -200,6 +201,7 @@ export function Repay() {
               value: `${formatTokenAmount(maxRepayAmount, displayDecimals)} ${assetConfig.symbol}`,
             }}
             maxPosition="right"
+            maxButtonClassName={MAX_BUTTON_CLASS_NAME}
             sliderActiveColor={getTokenBrandColor(assetConfig.symbol)}
             inputClassName={AMOUNT_INPUT_CLASS_NAME}
           />

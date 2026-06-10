@@ -5,11 +5,7 @@
  * borrowAmount is in token units; converted to USD via tokenPriceUsd for calculations.
  */
 
-import {
-  calculateBorrowRatio,
-  calculateHealthFactor,
-  formatHealthFactor,
-} from "../../../../utils";
+import { calculateHealthFactor, formatHealthFactor } from "../../../../utils";
 
 export interface UseBorrowMetricsProps {
   /** Borrow amount in token units */
@@ -27,10 +23,6 @@ export interface UseBorrowMetricsProps {
 }
 
 export interface UseBorrowMetricsResult {
-  /** Borrow rate (debt/collateral) as percentage string */
-  borrowRatio: string;
-  /** Original borrow rate shown when borrow amount > 0 to show before → after */
-  borrowRatioOriginal?: string;
   healthFactor: string;
   /** Health factor value for UI (Infinity when no debt = healthy) */
   healthFactorValue: number;
@@ -53,8 +45,6 @@ export function useBorrowMetrics({
     // Use Infinity when no debt - represents "infinitely healthy" for UI purposes
     const healthValue = currentHealthFactor ?? Infinity;
     return {
-      borrowRatio: calculateBorrowRatio(currentDebtUsd, collateralValueUsd),
-      borrowRatioOriginal: undefined,
       healthFactor: formatHealthFactor(currentHealthFactor),
       healthFactorValue: healthValue,
       healthFactorOriginal: undefined,
@@ -73,11 +63,6 @@ export function useBorrowMetrics({
   const originalHealthValue = currentHealthFactor ?? Infinity;
 
   return {
-    borrowRatio: calculateBorrowRatio(totalDebtUsd, collateralValueUsd),
-    borrowRatioOriginal: calculateBorrowRatio(
-      currentDebtUsd,
-      collateralValueUsd,
-    ),
     healthFactor: formatHealthFactor(
       healthFactorValue > 0 ? healthFactorValue : null,
     ),

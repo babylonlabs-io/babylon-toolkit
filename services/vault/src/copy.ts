@@ -708,6 +708,17 @@ export const COPY = {
     // distinct from the borrow APY above.
     borrowRatioLabel: "Borrow ratio",
     healthFactorLabel: "Health factor",
+    availableLiquidityLabel: "Available liquidity",
+    utilizationLabel: "Utilization",
+    ethereumNetworkFeeLabel: "Ethereum network fee",
+    availableLabel: "Available",
+    atRiskOfLiquidation: "At risk of liquidation",
+    borrowApyTooltip:
+      "The annual interest rate charged on your borrowed amount.",
+    utilizationTooltip:
+      "The share of this market's supplied liquidity currently borrowed.",
+    healthFactorTooltip:
+      "Your position's safety margin. If it falls below 1.0, your collateral can be liquidated.",
     detailsAriaLabel: (symbol: string) => `${symbol} loan details`,
     empty: {
       title: (symbol: string) => `Borrow assets using your ${symbol}`,
