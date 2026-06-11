@@ -5,7 +5,7 @@
  * Used by both PendingDepositCard and PendingWithdrawSection.
  */
 
-import { Avatar, Hint } from "@babylonlabs-io/core-ui";
+import { Avatar, Hint, WarningIcon } from "@babylonlabs-io/core-ui";
 import { useEffect, useState, type ReactNode } from "react";
 
 import { CopyableHash } from "@/components/shared/CopyableHash";
@@ -235,19 +235,25 @@ export function VaultDetailCard({
   );
 }
 
-/** Helper: renders a status dot + label + optional tooltip */
+/** Helper: renders a status dot (or danger icon) + label + optional tooltip */
 export function VaultStatusBadge({
   dotColor,
+  isDanger = false,
   label,
   tooltip,
 }: {
-  dotColor: string;
+  dotColor?: string;
+  isDanger?: boolean;
   label: string;
   tooltip?: string;
 }) {
   return (
     <span className="flex items-center gap-1.5 text-sm text-accent-primary">
-      <span className={`inline-block h-2 w-2 rounded-full ${dotColor}`} />
+      {isDanger ? (
+        <WarningIcon size={14} variant="danger" />
+      ) : (
+        <span className={`inline-block h-2 w-2 rounded-full ${dotColor}`} />
+      )}
       {label}
       {tooltip && <Hint tooltip={tooltip} />}
     </span>
