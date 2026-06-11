@@ -33,9 +33,10 @@ vi.mock("../../../../hooks/deposit/useVaultProviders", () => ({
   useVaultProviders: () => ({ findProvider: mockFindProvider }),
 }));
 
-const mockFetchVaultById = vi.fn();
+const mockFetchVaultPayoutScriptPubKey = vi.fn();
 vi.mock("../../../../services/vault/fetchVaults", () => ({
-  fetchVaultById: (...args: unknown[]) => mockFetchVaultById(...args),
+  fetchVaultPayoutScriptPubKey: (...args: unknown[]) =>
+    mockFetchVaultPayoutScriptPubKey(...args),
 }));
 
 let mockBtcConnector: {
@@ -120,7 +121,7 @@ describe("usePayoutSigningState", () => {
     setupHappyPath();
     mockSignAndSubmitPayouts.mockResolvedValue(undefined);
     mockVerifyBtcWalletLiveness.mockResolvedValue(undefined);
-    mockFetchVaultById.mockResolvedValue(null);
+    mockFetchVaultPayoutScriptPubKey.mockResolvedValue(null);
   });
 
   describe("happy path", () => {
@@ -196,7 +197,9 @@ describe("usePayoutSigningState", () => {
         await result.current.handleSign();
       });
 
-      expect(mockFetchVaultById).toHaveBeenCalledWith(ACTIVITY.id);
+      expect(mockFetchVaultPayoutScriptPubKey).toHaveBeenCalledWith(
+        ACTIVITY.id,
+      );
       expect(result.current.error?.title).toBe("Missing payout address");
       expect(mockSignAndSubmitPayouts).not.toHaveBeenCalled();
     });
@@ -204,11 +207,11 @@ describe("usePayoutSigningState", () => {
     it("backfills the payout address from the indexer when the activity lacks it", async () => {
       // Regression: a localStorage-merged activity (vault dropped from a
       // truncated indexer list page) carries no payout address. The hook
-      // must fetch the vault by id and proceed instead of dead-ending on
+      // must fetch it by vault id and proceed instead of dead-ending on
       // "Missing payout address" while the indexer has the row.
-      mockFetchVaultById.mockResolvedValueOnce({
-        depositorPayoutBtcAddress: ACTIVITY.depositorPayoutBtcAddress,
-      });
+      mockFetchVaultPayoutScriptPubKey.mockResolvedValueOnce(
+        ACTIVITY.depositorPayoutBtcAddress,
+      );
 
       const { result } = renderHookWithProps({
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -229,9 +232,9 @@ describe("usePayoutSigningState", () => {
     it("rejects a backfilled payout address that does not match the connected wallet", async () => {
       // The backfilled address must flow through the same wallet-match
       // security guard as the activity-supplied one.
-      mockFetchVaultById.mockResolvedValueOnce({
-        depositorPayoutBtcAddress: "0xattackerscript",
-      });
+      mockFetchVaultPayoutScriptPubKey.mockResolvedValueOnce(
+        "0xattackerscript",
+      );
 
       const { result } = renderHookWithProps({
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -247,7 +250,9 @@ describe("usePayoutSigningState", () => {
     });
 
     it("errors when the activity lacks a payout address and the indexer lookup throws", async () => {
-      mockFetchVaultById.mockRejectedValueOnce(new Error("indexer down"));
+      mockFetchVaultPayoutScriptPubKey.mockRejectedValueOnce(
+        new Error("indexer down"),
+      );
 
       const { result } = renderHookWithProps({
         // eslint-disable-next-line @typescript-eslint/no-explicit-any

@@ -432,11 +432,16 @@ export async function fetchVaultsByDepositor(
     page.vaults.pageInfo.endCursor != null
   ) {
     if (pagesFetched >= MAX_VAULT_PAGES) {
-      logger.warn(
-        "[fetchVaults] hit MAX_VAULT_PAGES while paginating; results may be truncated",
-        { depositor, pagesFetched, accumulated: items.length },
+      // Fail closed: returning the accumulated prefix would silently drop
+      // tail vaults, which then fall back to localStorage-only activities
+      // without indexer-only fields — the exact failure pagination exists
+      // to prevent.
+      throw new Error(
+        `Hit MAX_VAULT_PAGES (${MAX_VAULT_PAGES}) while paginating vaults ` +
+          `for ${depositorAddress} with more pages remaining ` +
+          `(accumulated ${items.length}). Refusing to return a partial ` +
+          `vault list.`,
       );
-      break;
     }
     page = await graphqlClient.request<VaultsGraphQLResponse>(
       GET_VAULTS_BY_DEPOSITOR_NEXT_PAGE,
@@ -491,27 +496,57 @@ export async function fetchVaultById(vaultId: Hex): Promise<Vault | null> {
  * `amount`, `prePeginTxHash`) are read from the on-chain contract per
  * candidate; the indexer is only used to enumerate vault IDs.
  *
- * This query intentionally projects **only `id`** so a transient indexer
+ * These queries intentionally project **only `id`** so a transient indexer
  * issue on an unrelated field (e.g. a null `depositorWotsPkHash`) cannot
  * cause `transformVaultItem` to drop a sibling row and silently produce
  * an incomplete batch. CLAUDE.md §refund: no silent fallbacks on critical
  * paths.
  */
-const GET_VAULT_IDS_BY_DEPOSITOR = gql`
-  query GetVaultIdsByDepositor($depositor: String!) {
-    vaults(where: { depositor: $depositor }) {
+const GET_VAULT_IDS_BY_DEPOSITOR_FIRST_PAGE = gql`
+  query GetVaultIdsByDepositorFirstPage($depositor: String!, $limit: Int!) {
+    vaults(where: { depositor: $depositor }, limit: $limit) {
       items {
         id
+      }
+      pageInfo {
+        hasNextPage
+        endCursor
       }
       totalCount
     }
   }
 `;
 
-interface VaultIdsGraphQLResponse {
+const GET_VAULT_IDS_BY_DEPOSITOR_NEXT_PAGE = gql`
+  query GetVaultIdsByDepositorNextPage(
+    $depositor: String!
+    $limit: Int!
+    $after: String!
+  ) {
+    vaults(where: { depositor: $depositor }, limit: $limit, after: $after) {
+      items {
+        id
+      }
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
+    }
+  }
+`;
+
+interface VaultIdsFirstPageGraphQLResponse {
   vaults: {
     items: { id: string }[];
+    pageInfo: GraphQLPageInfo;
     totalCount: number;
+  };
+}
+
+interface VaultIdsNextPageGraphQLResponse {
+  vaults: {
+    items: { id: string }[];
+    pageInfo: GraphQLPageInfo;
   };
 }
 
@@ -521,31 +556,100 @@ interface VaultIdsGraphQLResponse {
  * from on-chain. Throws if any returned id is malformed hex — a
  * malformed id can't be looked up on-chain anyway.
  *
- * **Pagination guard:** if the indexer applies a default page-size cap
- * and the depositor has more vaults than the cap, `items.length` will
- * be less than the reported `totalCount`. A silently-truncated list
- * could omit a tail sibling of a batched Pre-PegIn, so we fail closed
- * with an actionable error instead of returning a partial set. If a
- * real user ever hits this, the fix is to add pagination (a follow-up
- * with concrete numbers is better than guessing the cap now).
+ * Walks Ponder's cursor pagination until the indexer reports no more
+ * pages. A truncated list could omit a tail sibling of a batched
+ * Pre-PegIn, so unlike the display-path list query this enumeration
+ * **fails closed**: it throws if the page backstop is hit or the
+ * accumulated ids disagree with the indexer's reported `totalCount`,
+ * instead of returning a partial set.
  */
 export async function fetchVaultIdsByDepositor(
   depositorAddress: Address,
 ): Promise<Hex[]> {
-  const data = await graphqlClient.request<VaultIdsGraphQLResponse>(
-    GET_VAULT_IDS_BY_DEPOSITOR,
-    { depositor: depositorAddress.toLowerCase() },
-  );
-  const { items, totalCount } = data.vaults;
+  const depositor = depositorAddress.toLowerCase();
+
+  const firstPage =
+    await graphqlClient.request<VaultIdsFirstPageGraphQLResponse>(
+      GET_VAULT_IDS_BY_DEPOSITOR_FIRST_PAGE,
+      { depositor, limit: VAULTS_PAGE_SIZE },
+    );
+  const items = [...firstPage.vaults.items];
+  const { totalCount } = firstPage.vaults;
+  let pageInfo = firstPage.vaults.pageInfo;
+  let pagesFetched = 1;
+
+  while (pageInfo.hasNextPage && pageInfo.endCursor != null) {
+    if (pagesFetched >= MAX_VAULT_PAGES) {
+      throw new Error(
+        `Hit MAX_VAULT_PAGES (${MAX_VAULT_PAGES}) while enumerating vault ` +
+          `ids for ${depositorAddress} with more pages remaining. Refund's ` +
+          `sibling enumeration would be incomplete; refusing to proceed.`,
+      );
+    }
+    const nextPage =
+      await graphqlClient.request<VaultIdsNextPageGraphQLResponse>(
+        GET_VAULT_IDS_BY_DEPOSITOR_NEXT_PAGE,
+        { depositor, limit: VAULTS_PAGE_SIZE, after: pageInfo.endCursor },
+      );
+    items.push(...nextPage.vaults.items);
+    pageInfo = nextPage.vaults.pageInfo;
+    pagesFetched += 1;
+  }
+
   if (items.length !== totalCount) {
     throw new Error(
       `Indexer returned ${items.length} vault ids for ${depositorAddress} ` +
-        `but totalCount=${totalCount}. The response was truncated by a ` +
-        `page-size cap and refund's sibling enumeration would be ` +
+        `but totalCount=${totalCount}. The paginated response is ` +
+        `inconsistent and refund's sibling enumeration would be ` +
         `incomplete; refusing to proceed.`,
     );
   }
   return items.map((item) => validateRequiredHex(item.id, "id", item.id));
+}
+
+const GET_VAULT_PAYOUT_SCRIPT = gql`
+  query GetVaultPayoutScript($id: String!) {
+    vault(id: $id) {
+      id
+      depositorPayoutBtcAddress
+    }
+  }
+`;
+
+interface VaultPayoutScriptGraphQLResponse {
+  vault: {
+    id: string;
+    depositorPayoutBtcAddress: string | null;
+  } | null;
+}
+
+/**
+ * Fetch only the registered payout scriptPubKey for a single vault.
+ *
+ * Used by the payout-signing backfill when a localStorage-merged activity
+ * lacks `depositorPayoutBtcAddress`. Projects only the payout field so an
+ * unrelated null or malformed column on the same row (e.g. a transient
+ * `depositorWotsPkHash`) cannot fail the full vault transform and block
+ * signing while the payout address itself is available.
+ *
+ * Returns null when the vault is not indexed (yet) or has no payout
+ * address recorded; throws if the recorded value is malformed hex.
+ */
+export async function fetchVaultPayoutScriptPubKey(
+  vaultId: Hex,
+): Promise<Hex | null> {
+  const data = await graphqlClient.request<VaultPayoutScriptGraphQLResponse>(
+    GET_VAULT_PAYOUT_SCRIPT,
+    { id: vaultId.toLowerCase() },
+  );
+  if (!data.vault?.depositorPayoutBtcAddress) {
+    return null;
+  }
+  return validateRequiredHex(
+    data.vault.depositorPayoutBtcAddress,
+    "depositorPayoutBtcAddress",
+    vaultId,
+  );
 }
 
 /**

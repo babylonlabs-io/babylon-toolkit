@@ -19,7 +19,7 @@ import { usePeginPolling } from "../../../context/deposit/PeginPollingContext";
 import { signAndSubmitPayouts } from "../../../hooks/deposit/depositFlowSteps/payoutSigning";
 import { useVaultProviders } from "../../../hooks/deposit/useVaultProviders";
 import { LocalStorageStatus } from "../../../models/peginStateMachine";
-import { fetchVaultById } from "../../../services/vault/fetchVaults";
+import { fetchVaultPayoutScriptPubKey } from "../../../services/vault/fetchVaults";
 import type { VaultActivity } from "../../../types/activity";
 import {
   BtcWalletLivenessError,
@@ -123,13 +123,15 @@ export function usePayoutSigningState({
       // The merged activity falls back to its localStorage-only shape when
       // the indexer's paginated vault list misses this vault; that shape
       // never carries the payout address (an indexer-only field). Backfill
-      // with a direct by-id lookup before refusing to sign.
+      // with a direct by-id lookup before refusing to sign. The lookup
+      // projects only the payout field so an unrelated null on the row
+      // cannot fail the fetch while the address itself is available.
       let registeredPayoutScriptPubKey = activity.depositorPayoutBtcAddress;
       if (!registeredPayoutScriptPubKey) {
-        const indexedVault = await fetchVaultById(activity.id).catch(
-          () => null,
-        );
-        registeredPayoutScriptPubKey = indexedVault?.depositorPayoutBtcAddress;
+        const backfilled = await fetchVaultPayoutScriptPubKey(
+          activity.id,
+        ).catch(() => null);
+        registeredPayoutScriptPubKey = backfilled ?? undefined;
       }
       if (!registeredPayoutScriptPubKey) {
         setError(COPY.deposit.payoutSigningGuards.missingPayoutAddress);
