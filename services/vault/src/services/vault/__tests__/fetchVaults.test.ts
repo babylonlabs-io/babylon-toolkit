@@ -70,17 +70,24 @@ function makeGraphQLVaultItem(
   };
 }
 
+function makeVaultsPage(
+  items: Record<string, unknown>[],
+  pageInfo: { hasNextPage: boolean; endCursor: string | null } = {
+    hasNextPage: false,
+    endCursor: null,
+  },
+) {
+  return { vaults: { items, pageInfo } };
+}
+
 describe("fetchVaults", () => {
   afterEach(() => vi.clearAllMocks());
 
   describe("fetchVaultsByDepositor", () => {
     it("skips vault and logs error when depositorWotsPkHash is null", async () => {
-      mockedRequest.mockResolvedValueOnce({
-        vaults: {
-          items: [makeGraphQLVaultItem({ depositorWotsPkHash: null })],
-          totalCount: 1,
-        },
-      });
+      mockedRequest.mockResolvedValueOnce(
+        makeVaultsPage([makeGraphQLVaultItem({ depositorWotsPkHash: null })]),
+      );
 
       const vaults = await fetchVaultsByDepositor(
         "0xdepositor" as `0x${string}`,
@@ -99,12 +106,9 @@ describe("fetchVaults", () => {
 
     it("returns vaults when depositorWotsPkHash is present", async () => {
       const hash = "0x" + "ab".repeat(32);
-      mockedRequest.mockResolvedValueOnce({
-        vaults: {
-          items: [makeGraphQLVaultItem({ depositorWotsPkHash: hash })],
-          totalCount: 1,
-        },
-      });
+      mockedRequest.mockResolvedValueOnce(
+        makeVaultsPage([makeGraphQLVaultItem({ depositorWotsPkHash: hash })]),
+      );
 
       const vaults = await fetchVaultsByDepositor(
         "0xdepositor" as `0x${string}`,
@@ -117,17 +121,14 @@ describe("fetchVaults", () => {
     it("maps peginTxHash and new optional fields correctly", async () => {
       const peginHash = "0x" + "aa".repeat(32);
       const popSig = "0x" + "cc".repeat(32);
-      mockedRequest.mockResolvedValueOnce({
-        vaults: {
-          items: [
-            makeGraphQLVaultItem({
-              peginTxHash: peginHash,
-              btcPopSignature: popSig,
-            }),
-          ],
-          totalCount: 1,
-        },
-      });
+      mockedRequest.mockResolvedValueOnce(
+        makeVaultsPage([
+          makeGraphQLVaultItem({
+            peginTxHash: peginHash,
+            btcPopSignature: popSig,
+          }),
+        ]),
+      );
 
       const vaults = await fetchVaultsByDepositor(
         "0xdepositor" as `0x${string}`,
@@ -140,12 +141,9 @@ describe("fetchVaults", () => {
 
     it("normalizes null optional fields to undefined", async () => {
       // Base fixture has btcPopSignature: null
-      mockedRequest.mockResolvedValueOnce({
-        vaults: {
-          items: [makeGraphQLVaultItem()],
-          totalCount: 1,
-        },
-      });
+      mockedRequest.mockResolvedValueOnce(
+        makeVaultsPage([makeGraphQLVaultItem()]),
+      );
 
       const vaults = await fetchVaultsByDepositor(
         "0xdepositor" as `0x${string}`,
@@ -158,17 +156,14 @@ describe("fetchVaults", () => {
     it("normalizes zero-hash and empty-bytes optional fields to undefined", async () => {
       const zeroHash =
         "0x0000000000000000000000000000000000000000000000000000000000000000";
-      mockedRequest.mockResolvedValueOnce({
-        vaults: {
-          items: [
-            makeGraphQLVaultItem({
-              btcPopSignature: "0x",
-              hashlock: zeroHash,
-            }),
-          ],
-          totalCount: 1,
-        },
-      });
+      mockedRequest.mockResolvedValueOnce(
+        makeVaultsPage([
+          makeGraphQLVaultItem({
+            btcPopSignature: "0x",
+            hashlock: zeroHash,
+          }),
+        ]),
+      );
 
       const vaults = await fetchVaultsByDepositor(
         "0xdepositor" as `0x${string}`,
@@ -180,12 +175,9 @@ describe("fetchVaults", () => {
     });
 
     it("skips vault and logs error when peginTxHash is null", async () => {
-      mockedRequest.mockResolvedValueOnce({
-        vaults: {
-          items: [makeGraphQLVaultItem({ peginTxHash: null })],
-          totalCount: 1,
-        },
-      });
+      mockedRequest.mockResolvedValueOnce(
+        makeVaultsPage([makeGraphQLVaultItem({ peginTxHash: null })]),
+      );
 
       const vaults = await fetchVaultsByDepositor(
         "0xdepositor" as `0x${string}`,
@@ -206,16 +198,13 @@ describe("fetchVaults", () => {
       const id1 = "0x" + "11".repeat(32);
       const id2 = "0x" + "22".repeat(32);
       const id3 = "0x" + "33".repeat(32);
-      mockedRequest.mockResolvedValueOnce({
-        vaults: {
-          items: [
-            makeGraphQLVaultItem({ id: id1, status: "pending" }),
-            makeGraphQLVaultItem({ id: id2, status: "bogus_status" }),
-            makeGraphQLVaultItem({ id: id3, status: "available" }),
-          ],
-          totalCount: 3,
-        },
-      });
+      mockedRequest.mockResolvedValueOnce(
+        makeVaultsPage([
+          makeGraphQLVaultItem({ id: id1, status: "pending" }),
+          makeGraphQLVaultItem({ id: id2, status: "bogus_status" }),
+          makeGraphQLVaultItem({ id: id3, status: "available" }),
+        ]),
+      );
 
       const vaults = await fetchVaultsByDepositor(
         "0xdepositor" as `0x${string}`,
@@ -228,12 +217,11 @@ describe("fetchVaults", () => {
 
     it("logs error to Sentry when vault has unknown status", async () => {
       const badId = "0x" + "ba".repeat(32);
-      mockedRequest.mockResolvedValueOnce({
-        vaults: {
-          items: [makeGraphQLVaultItem({ id: badId, status: "bogus_status" })],
-          totalCount: 1,
-        },
-      });
+      mockedRequest.mockResolvedValueOnce(
+        makeVaultsPage([
+          makeGraphQLVaultItem({ id: badId, status: "bogus_status" }),
+        ]),
+      );
 
       await fetchVaultsByDepositor("0xdepositor" as `0x${string}`);
 
@@ -250,6 +238,34 @@ describe("fetchVaults", () => {
           }),
           data: expect.objectContaining({ rawStatus: "bogus_status" }),
         }),
+      );
+    });
+
+    it("walks cursor pagination and returns vaults from every page", async () => {
+      const firstId = "0x" + "11".repeat(32);
+      const secondId = "0x" + "22".repeat(32);
+      mockedRequest
+        .mockResolvedValueOnce(
+          makeVaultsPage([makeGraphQLVaultItem({ id: firstId })], {
+            hasNextPage: true,
+            endCursor: "cursor-1",
+          }),
+        )
+        .mockResolvedValueOnce(
+          makeVaultsPage([makeGraphQLVaultItem({ id: secondId })]),
+        );
+
+      const vaults = await fetchVaultsByDepositor(
+        "0xdepositor" as `0x${string}`,
+      );
+
+      expect(vaults).toHaveLength(2);
+      expect(vaults[0].id).toBe(firstId);
+      expect(vaults[1].id).toBe(secondId);
+      expect(mockedRequest).toHaveBeenCalledTimes(2);
+      expect(mockedRequest).toHaveBeenLastCalledWith(
+        expect.anything(),
+        expect.objectContaining({ after: "cursor-1" }),
       );
     });
   });

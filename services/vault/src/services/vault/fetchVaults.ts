@@ -57,15 +57,53 @@ const VAULT_FIELDS = `
 `;
 
 /**
- * GraphQL query to fetch vaults by depositor address
+ * Page size for the cursor-paginated vault list query. An un-paginated
+ * `vaults` query is capped at the indexer's default page size, which
+ * silently truncates high-volume depositors; 1000 is Ponder's maximum
+ * per-page limit.
  */
-const GET_VAULTS_BY_DEPOSITOR = gql`
-  query GetVaultsByDepositor($depositor: String!) {
-    vaults(where: { depositor: $depositor }) {
+const VAULTS_PAGE_SIZE = 1000;
+
+/** Backstop against a runaway cursor loop (50 pages × 1000 vaults). */
+const MAX_VAULT_PAGES = 50;
+
+/**
+ * GraphQL queries to fetch vaults by depositor address.
+ *
+ * Two documents (first page / follow-on pages) walk Ponder's cursor
+ * pagination. Truncation here is not cosmetic: a vault dropped from the
+ * list falls back to its localStorage-only activity shape, which lacks
+ * indexer-only fields like `depositorPayoutBtcAddress` and blocks payout
+ * signing for that deposit.
+ */
+const GET_VAULTS_BY_DEPOSITOR_FIRST_PAGE = gql`
+  query GetVaultsByDepositorFirstPage($depositor: String!, $limit: Int!) {
+    vaults(where: { depositor: $depositor }, limit: $limit) {
       items {
         ${VAULT_FIELDS}
       }
-      totalCount
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
+    }
+  }
+`;
+
+const GET_VAULTS_BY_DEPOSITOR_NEXT_PAGE = gql`
+  query GetVaultsByDepositorNextPage(
+    $depositor: String!
+    $limit: Int!
+    $after: String!
+  ) {
+    vaults(where: { depositor: $depositor }, limit: $limit, after: $after) {
+      items {
+        ${VAULT_FIELDS}
+      }
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
     }
   }
 `;
@@ -132,13 +170,18 @@ interface GraphQLVaultItem {
   transactionHash: string;
 }
 
+interface GraphQLPageInfo {
+  hasNextPage: boolean;
+  endCursor: string | null;
+}
+
 /**
- * Raw vault data from GraphQL response (list query)
+ * Raw vault data from GraphQL response (paginated list query)
  */
 interface VaultsGraphQLResponse {
   vaults: {
     items: GraphQLVaultItem[];
-    totalCount: number;
+    pageInfo: GraphQLPageInfo;
   };
 }
 
@@ -363,7 +406,11 @@ function transformVaultItem(item: GraphQLVaultItem): Vault {
 }
 
 /**
- * Fetch vaults by depositor address from GraphQL
+ * Fetch vaults by depositor address from GraphQL.
+ *
+ * Walks Ponder's cursor pagination until the indexer reports no more
+ * pages, so depositors with more vaults than one page fit are not
+ * silently truncated.
  *
  * @param depositorAddress - Depositor's Ethereum address
  * @returns Array of vaults
@@ -371,13 +418,40 @@ function transformVaultItem(item: GraphQLVaultItem): Vault {
 export async function fetchVaultsByDepositor(
   depositorAddress: Address,
 ): Promise<Vault[]> {
-  const data = await graphqlClient.request<VaultsGraphQLResponse>(
-    GET_VAULTS_BY_DEPOSITOR,
-    { depositor: depositorAddress.toLowerCase() },
+  const depositor = depositorAddress.toLowerCase();
+
+  let page = await graphqlClient.request<VaultsGraphQLResponse>(
+    GET_VAULTS_BY_DEPOSITOR_FIRST_PAGE,
+    { depositor, limit: VAULTS_PAGE_SIZE },
   );
+  const items: GraphQLVaultItem[] = [...page.vaults.items];
+  let pagesFetched = 1;
+
+  while (
+    page.vaults.pageInfo.hasNextPage &&
+    page.vaults.pageInfo.endCursor != null
+  ) {
+    if (pagesFetched >= MAX_VAULT_PAGES) {
+      logger.warn(
+        "[fetchVaults] hit MAX_VAULT_PAGES while paginating; results may be truncated",
+        { depositor, pagesFetched, accumulated: items.length },
+      );
+      break;
+    }
+    page = await graphqlClient.request<VaultsGraphQLResponse>(
+      GET_VAULTS_BY_DEPOSITOR_NEXT_PAGE,
+      {
+        depositor,
+        limit: VAULTS_PAGE_SIZE,
+        after: page.vaults.pageInfo.endCursor,
+      },
+    );
+    items.push(...page.vaults.items);
+    pagesFetched += 1;
+  }
 
   const vaults: Vault[] = [];
-  for (const item of data.vaults.items) {
+  for (const item of items) {
     try {
       vaults.push(transformVaultItem(item));
     } catch (error) {
