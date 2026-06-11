@@ -1,4 +1,8 @@
 export {
+  useAaveBorrowAprs,
+  type UseAaveBorrowAprsResult,
+} from "./useAaveBorrowAprs";
+export {
   useAaveBorrowedAssets,
   type BorrowedAsset,
   type UseAaveBorrowedAssetsResult,
