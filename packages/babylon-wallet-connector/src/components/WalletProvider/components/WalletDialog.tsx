@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useEffect, useRef } from "react";
 
 import { ResponsiveDialog } from "@/components/ResponsiveDialog/ResponsiveDialog";
 import { useChainProviders } from "@/context/Chain.context";
@@ -29,6 +29,23 @@ export function WalletDialog({ persistent, storage, config, onError, simplifiedT
   const { connect, disconnect } = useWalletConnectors({ persistent, accountStorage: storage, onError });
   const { disconnect: disconnectAll } = useWalletConnect();
 
+  const disconnectTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  const clearDisconnectTimer = useCallback(() => {
+    if (disconnectTimerRef.current !== undefined) {
+      clearTimeout(disconnectTimerRef.current);
+      disconnectTimerRef.current = undefined;
+    }
+  }, []);
+
+  useEffect(() => {
+    if (visible) {
+      clearDisconnectTimer();
+    }
+  }, [visible, clearDisconnectTimer]);
+
+  useEffect(() => clearDisconnectTimer, [clearDisconnectTimer]);
+
   const handleAccepTermsOfService = useCallback(() => {
     displayChains?.();
   }, [displayChains]);
@@ -45,9 +62,10 @@ export function WalletDialog({ persistent, storage, config, onError, simplifiedT
   const handleClose = useCallback(() => {
     close?.();
     if (!confirmed) {
-      setTimeout(disconnectAll, ANIMATION_DELAY);
+      clearDisconnectTimer();
+      disconnectTimerRef.current = setTimeout(disconnectAll, ANIMATION_DELAY);
     }
-  }, [close, disconnectAll, confirmed]);
+  }, [close, disconnectAll, confirmed, clearDisconnectTimer]);
 
   const handleConfirm = useCallback(() => {
     confirm?.();

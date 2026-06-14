@@ -9,10 +9,18 @@ import { CloseIcon } from "@/components/Icons";
 export interface FullScreenDialogProps extends DetailedHTMLProps<HTMLAttributes<HTMLDivElement>, HTMLDivElement> {
   open?: boolean;
   onClose?: () => void;
+  disableEscapeClose?: boolean;
 }
 
-export const FullScreenDialog = ({ children, open = false, className, onClose, ...restProps }: FullScreenDialogProps) => {
-  const { mounted, unmount } = useModalManager({ open });
+export const FullScreenDialog = ({
+  children,
+  open = false,
+  className,
+  onClose,
+  disableEscapeClose,
+  ...restProps
+}: FullScreenDialogProps) => {
+  const { mounted, unmount } = useModalManager({ open, onClose, disableEscapeClose });
 
   return (
     <Portal mounted={mounted}>
