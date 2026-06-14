@@ -22,8 +22,8 @@ export function useModalManager({ open = false, onClose, disableEscapeClose }: O
   );
 
   useEffect(() => {
-    updateDialog(modalId, { visible, onClose, disableEscapeClose });
-  }, [modalId, visible, onClose, disableEscapeClose, updateDialog]);
+    updateDialog(modalId, { open, visible, onClose, disableEscapeClose });
+  }, [modalId, open, visible, onClose, disableEscapeClose, updateDialog]);
 
   useEffect(() => {
     if (open) {

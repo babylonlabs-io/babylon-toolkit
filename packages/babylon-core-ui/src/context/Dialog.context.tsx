@@ -4,6 +4,7 @@ import { toPixels } from "@/utils/css";
 const ESCAPE_KEY = "Escape";
 
 export interface DialogOptions {
+  open: boolean;
   visible: boolean;
   onClose?: () => void;
   disableEscapeClose?: boolean;
@@ -53,7 +54,7 @@ export function ScrollLocker({ children }: PropsWithChildren) {
 
       let topmost: DialogEntry | undefined;
       for (const entry of entriesRef.current.values()) {
-        if (!entry.visible) continue;
+        if (!entry.open) continue;
         if (!topmost || entry.order > topmost.order) topmost = entry;
       }
 
@@ -77,12 +78,12 @@ export function ScrollLocker({ children }: PropsWithChildren) {
     });
   }, []);
 
-  const updateDialog = useCallback((id: string, { visible, onClose, disableEscapeClose }: DialogOptions) => {
+  const updateDialog = useCallback((id: string, { open, visible, onClose, disableEscapeClose }: DialogOptions) => {
     const previous = entriesRef.current.get(id);
     const wasVisible = previous?.visible ?? false;
     const order = visible && !wasVisible ? (orderRef.current += 1) : (previous?.order ?? 0);
 
-    entriesRef.current.set(id, { visible, onClose, disableEscapeClose, order });
+    entriesRef.current.set(id, { open, visible, onClose, disableEscapeClose, order });
 
     if (wasVisible === visible) return;
 
