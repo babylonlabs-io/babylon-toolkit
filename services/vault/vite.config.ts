@@ -23,6 +23,7 @@ const enableSentryPlugin =
 // https://vite.dev/config/
 export default defineConfig({
   resolve: {
+    dedupe: ["@babylonlabs-io/core-ui", "react", "react-dom"],
     alias: {
       // Provide empty stubs for Node.js-only modules
       ws: resolve(__dirname, "src/stubs/ws.ts"),
@@ -34,6 +35,7 @@ export default defineConfig({
       "bitcoinjs-lib",
       "@bitcoin-js/tiny-secp256k1-asmjs",
       "@babylonlabs-io/wallet-connector",
+      "@babylonlabs-io/core-ui",
     ],
   },
   build: {

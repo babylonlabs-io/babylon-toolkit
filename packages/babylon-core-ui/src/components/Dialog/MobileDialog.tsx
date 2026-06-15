@@ -9,10 +9,18 @@ import { CloseIcon } from "@/components/Icons";
 export interface MobileDialogProps extends DetailedHTMLProps<HTMLAttributes<HTMLDivElement>, HTMLDivElement> {
   open?: boolean;
   onClose?: () => void;
+  disableEscapeClose?: boolean;
 }
 
-export const MobileDialog = ({ children, open = false, className, onClose, ...restProps }: MobileDialogProps) => {
-  const { mounted, unmount } = useModalManager({ open });
+export const MobileDialog = ({
+  children,
+  open = false,
+  className,
+  onClose,
+  disableEscapeClose,
+  ...restProps
+}: MobileDialogProps) => {
+  const { mounted, unmount } = useModalManager({ open, onClose, disableEscapeClose });
 
   return (
     <Portal mounted={mounted}>
