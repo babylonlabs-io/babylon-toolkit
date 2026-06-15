@@ -1,10 +1,11 @@
 import { Popover } from "@babylonlabs-io/core-ui";
 import { useEffect, useRef, useState } from "react";
 import { IoChevronDown } from "react-icons/io5";
-import { useNavigate, useSearchParams } from "react-router";
+import { useNavigate } from "react-router";
 
 import { getTokenByAddress } from "@/services/token/tokenService";
 
+import type { LoanTab } from "../../constants";
 import type { AaveReserveConfig } from "../../services/fetchConfig";
 import { AssetListItem } from "../AssetSelectionModal/AssetListItem";
 
@@ -16,11 +17,12 @@ interface AssetPillProps {
    * repay passes the user's borrowed reserves (the assets that can be repaid).
    */
   reserves: AaveReserveConfig[];
+  /** Current mode, preserved when switching asset (stays on borrow vs repay). */
+  mode: LoanTab;
 }
 
-export function AssetPill({ symbol, icon, reserves }: AssetPillProps) {
+export function AssetPill({ symbol, icon, reserves, mode }: AssetPillProps) {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
   const anchorRef = useRef<HTMLButtonElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const [isOpen, setIsOpen] = useState(false);
@@ -39,14 +41,9 @@ export function AssetPill({ symbol, icon, reserves }: AssetPillProps) {
 
   const handleSelect = (assetSymbol: string) => {
     setIsOpen(false);
-    // Preserve the active tab (and any other query params) so switching the
-    // asset from the repay screen keeps you on repay rather than defaulting
-    // back to borrow.
-    const query = searchParams.toString();
-    navigate({
-      pathname: `/app/aave/reserve/${assetSymbol.toLowerCase()}`,
-      search: query ? `?${query}` : "",
-    });
+    // Keep the current mode segment so switching the asset from the repay
+    // screen stays on repay rather than defaulting back to borrow.
+    navigate(`/app/aave/reserve/${assetSymbol.toLowerCase()}/${mode}`);
   };
 
   return (

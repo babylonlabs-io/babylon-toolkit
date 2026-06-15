@@ -1,9 +1,10 @@
 import { Loader } from "@babylonlabs-io/core-ui";
 import { lazy, Suspense, useEffect } from "react";
-import { Outlet, Route, Routes } from "react-router";
+import { Navigate, Outlet, Route, Routes } from "react-router";
 
 import { getAllApplications } from "./applications";
 import { AAVE_APP_ID } from "./applications/aave/config";
+import { LOAN_TAB } from "./applications/aave/constants";
 import {
   AaveConfigProvider,
   PendingVaultsProvider,
@@ -87,10 +88,17 @@ export const Router = () => {
       <Route path="/" element={<RootLayout />}>
         <Route element={<AaveOverlayLayout />}>
           <Route index element={null} />
-          <Route
-            path={`app/${AAVE_APP_ID}/reserve/:reserveId`}
-            element={<AaveReserveDetail />}
-          />
+          <Route path={`app/${AAVE_APP_ID}/reserve/:reserveId`}>
+            <Route index element={<Navigate to={LOAN_TAB.BORROW} replace />} />
+            <Route
+              path={LOAN_TAB.BORROW}
+              element={<AaveReserveDetail tab={LOAN_TAB.BORROW} />}
+            />
+            <Route
+              path={LOAN_TAB.REPAY}
+              element={<AaveReserveDetail tab={LOAN_TAB.REPAY} />}
+            />
+          </Route>
         </Route>
         <Route
           path="activity"

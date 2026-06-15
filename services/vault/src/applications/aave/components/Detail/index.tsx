@@ -2,19 +2,20 @@
  * Aave Reserve Detail
  *
  * Borrow/Repay card with real position data from Aave oracle, rendered as a
- * full-screen modal (like the deposit flow). The reserve and tab come from the
- * route (`/app/aave/reserve/:reserveId?tab=`), so the route stays
- * deep-linkable; closing the modal navigates back to the dashboard.
+ * full-screen modal (like the deposit flow). The reserve comes from the route
+ * (`/app/aave/reserve/:reserveId/borrow` or `/repay`) and the mode is passed in
+ * as `tab`, so the route stays deep-linkable; closing navigates back to the
+ * dashboard.
  */
 
 import { FullScreenDialog } from "@babylonlabs-io/core-ui";
-import { useNavigate, useParams, useSearchParams } from "react-router";
+import { useNavigate, useParams } from "react-router";
 
 import { EmptyState } from "@/components/shared";
 import { getNetworkConfigBTC } from "@/config";
 import { useConnection, useETHWallet } from "@/context/wallet";
 
-import { LOAN_TAB } from "../../constants";
+import type { LoanTab } from "../../constants";
 import { useAaveConfig } from "../../context";
 import { useAaveOracleAddress } from "../../hooks";
 import { LoanProvider } from "../context/LoanContext";
@@ -27,15 +28,9 @@ import { PositionGate } from "./PositionGate";
 
 const btcConfig = getNetworkConfigBTC();
 
-export function AaveReserveDetail() {
+export function AaveReserveDetail({ tab }: { tab: LoanTab }) {
   const navigate = useNavigate();
   const { reserveId } = useParams<{ reserveId: string }>();
-  const [searchParams] = useSearchParams();
-
-  // Read tab from URL query params (defaults to "borrow")
-  const tabParam = searchParams.get("tab");
-  const defaultTab =
-    tabParam === LOAN_TAB.REPAY ? LOAN_TAB.REPAY : LOAN_TAB.BORROW;
 
   const { isConnected } = useConnection();
   const { address } = useETHWallet();
@@ -148,7 +143,7 @@ export function AaveReserveDetail() {
           ancillaryError={ancillaryError}
           refetchPosition={refetchPosition}
         >
-          <LoanCard defaultTab={defaultTab} />
+          <LoanCard defaultTab={tab} />
         </PositionGate>
       </LoanProvider>
     );

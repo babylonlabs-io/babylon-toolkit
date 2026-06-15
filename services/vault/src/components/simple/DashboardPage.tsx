@@ -115,7 +115,7 @@ export function DashboardPage() {
     if (borrowedAssets.length === 1) {
       const assetSymbol = borrowedAssets[0].symbol;
       navigate(
-        `/app/aave/reserve/${assetSymbol.toLowerCase()}?tab=${LOAN_TAB.REPAY}`,
+        `/app/aave/reserve/${assetSymbol.toLowerCase()}/${LOAN_TAB.REPAY}`,
       );
       return;
     }
@@ -124,12 +124,9 @@ export function DashboardPage() {
   };
 
   const handleSelectAsset = (assetSymbol: string) => {
-    const basePath = `/app/aave/reserve/${assetSymbol.toLowerCase()}`;
-    const path =
-      assetModalMode === LOAN_TAB.REPAY
-        ? `${basePath}?tab=${LOAN_TAB.REPAY}`
-        : basePath;
-    navigate(path);
+    navigate(
+      `/app/aave/reserve/${assetSymbol.toLowerCase()}/${assetModalMode}`,
+    );
   };
 
   return (

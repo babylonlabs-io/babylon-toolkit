@@ -137,7 +137,7 @@ describe("Router — reserve detail is an overlay over the persistent dashboard"
   });
 
   it("keeps the dashboard mounted underneath when the reserve overlay opens", async () => {
-    await renderAt("/app/aave/reserve/usdc");
+    await renderAt("/app/aave/reserve/usdc/borrow");
 
     // Both present: the dashboard stays mounted and the reserve detail renders
     // on top of it, rather than replacing it (which is what caused the blank
@@ -146,5 +146,14 @@ describe("Router — reserve detail is an overlay over the persistent dashboard"
       expect(screen.getByText(RESERVE_DETAIL_MARKER)).toBeInTheDocument();
     });
     expect(screen.getByText(DASHBOARD_MARKER)).toBeInTheDocument();
+  });
+
+  it("redirects the bare reserve path to its borrow sub-route", async () => {
+    await renderAt("/app/aave/reserve/usdc");
+
+    // The index route redirects to /borrow, so the detail still renders.
+    await waitFor(() => {
+      expect(screen.getByText(RESERVE_DETAIL_MARKER)).toBeInTheDocument();
+    });
   });
 });

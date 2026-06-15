@@ -29,6 +29,7 @@ import {
 } from "../../../../../utils/formatting";
 import {
   AMOUNT_INPUT_CLASS_NAME,
+  LOAN_TAB,
   MAX_BUTTON_CLASS_NAME,
   MIN_SLIDER_MAX,
   SAFE_TOFIXED_PRECISION,
@@ -184,6 +185,7 @@ export function Borrow() {
                   assetConfig.symbol,
                 )}
                 reserves={borrowableReserves}
+                mode={LOAN_TAB.BORROW}
               />
             }
             onAmountChange={(e) =>
