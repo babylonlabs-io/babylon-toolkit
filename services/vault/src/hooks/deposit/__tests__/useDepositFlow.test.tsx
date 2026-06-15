@@ -244,6 +244,7 @@ const MOCK_PARAMS = {
   depositorEthAddress: "0xEthAddress123" as Address,
   selectedApplication: "0xAppController",
   selectedProviders: ["0xProvider123"],
+  quotedCommissionBps: 250,
   vaultProviderBtcPubkey: "ab".repeat(32),
   vaultKeeperBtcPubkeys: ["keeper1pubkey"],
   universalChallengerBtcPubkeys: ["uc1pubkey"],
@@ -466,6 +467,9 @@ describe("useDepositFlow", () => {
         expect(callArgs?.vaultProviderAddress).toBe("0xProvider123");
         expect(callArgs?.unsignedPrePeginTx).toBe("batchFundedPrePeginHex");
         expect(callArgs?.requests).toHaveLength(2);
+        // The commission the depositor saw is forwarded as the quote that
+        // bounds maxAcceptableCommissionBps on-chain.
+        expect(callArgs?.quotedCommissionBps).toBe(250);
 
         // First vault: htlcVout = 0
         expect(callArgs?.requests[0]).toEqual(
@@ -1316,6 +1320,24 @@ describe("useDepositFlow", () => {
         expect(result.current.error?.body).toContain("Insufficient funds");
         expect(result.current.processing).toBe(false);
       });
+    });
+
+    it("refuses to submit and never prepares the pegin when the commission is unavailable", async () => {
+      const { preparePeginTransaction } = vi.mocked(
+        await import("@/services/vault/vaultTransactionService"),
+      );
+
+      const { result } = renderHook(() =>
+        useDepositFlow({ ...MOCK_PARAMS, quotedCommissionBps: undefined }),
+      );
+      await executeDepositFlow(result);
+
+      await waitFor(() => {
+        expect(result.current.error?.title).toBe("Commission unavailable");
+        expect(result.current.processing).toBe(false);
+      });
+      // The guard fires before any BTC is committed.
+      expect(preparePeginTransaction).not.toHaveBeenCalled();
     });
   });
 });

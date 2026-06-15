@@ -52,6 +52,15 @@ export interface DepositErrorContent {
 const ERRORS = COPY.deposit.errors;
 
 /**
+ * Thrown by the deposit flow when the selected vault provider's commission
+ * never loaded, so it can't be quoted as `maxAcceptableCommissionBps`. Used as
+ * the matchable marker for the friendly `commissionUnavailable` mapping; the
+ * flow refuses to submit unbound rather than risk the silent-overcharge path.
+ */
+export const COMMISSION_UNAVAILABLE_ERROR =
+  "Vault provider commission unavailable at submit";
+
+/**
  * Extract a lowercase message from an unknown error for substring matching.
  * Includes viem's `shortMessage` (often where "insufficient funds" lives)
  * alongside the standard `message`.
@@ -107,6 +116,18 @@ export function mapDepositError(err: unknown): DepositErrorContent {
     msg.includes("wots public key hash does not match")
   ) {
     return ERRORS.wrongWalletAccount;
+  }
+
+  // 4c. VP commission drift / unavailability. The SDK throws "...commission
+  // changed since quote..." when the on-chain commission rose above the quoted
+  // value plus headroom; the flow throws COMMISSION_UNAVAILABLE_ERROR when the
+  // commission never loaded. Both are recoverable by refreshing, so they get
+  // their own titles instead of the generic fallback.
+  if (msg.includes("commission changed since quote")) {
+    return ERRORS.commissionChanged;
+  }
+  if (msg.includes(COMMISSION_UNAVAILABLE_ERROR.toLowerCase())) {
+    return ERRORS.commissionUnavailable;
   }
 
   // 5. Wallet not connected / wallet client unavailable. Checked before the

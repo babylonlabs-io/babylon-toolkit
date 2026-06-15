@@ -28,6 +28,8 @@ export interface UseDepositPageFlowResult {
   depositAmount: bigint;
   selectedApplication: string;
   selectedProviders: string[];
+  /** VP commission (bps) frozen at commit time; `undefined` if it hadn't loaded. */
+  quotedCommissionBps: number | undefined;
   feeRate: number;
 
   // Wallet data
@@ -48,6 +50,7 @@ export interface UseDepositPageFlowResult {
     amountSats: bigint,
     application: string,
     providers: string[],
+    quotedCommissionBps: number | undefined,
   ) => void;
   confirmReview: (feeRate: number) => void;
   resetDeposit: () => void;
@@ -65,6 +68,7 @@ export interface UseDepositPageFlowResult {
     amount: bigint,
     application: string,
     providers: string[],
+    quotedCommissionBps: number | undefined,
   ) => void;
   setFeeRate: (feeRate: number) => void;
 }
@@ -84,6 +88,7 @@ export function useDepositPageFlow(): UseDepositPageFlowResult {
     amount: depositAmount,
     selectedApplication,
     selectedProviders,
+    quotedCommissionBps,
     feeRate,
     goToStep,
     setDepositData,
@@ -147,8 +152,9 @@ export function useDepositPageFlow(): UseDepositPageFlowResult {
     amountSats: bigint,
     application: string,
     providers: string[],
+    commissionBps: number | undefined,
   ) => {
-    setDepositData(amountSats, application, providers);
+    setDepositData(amountSats, application, providers, commissionBps);
     goToStep(DepositStep.REVIEW);
   };
 
@@ -166,6 +172,7 @@ export function useDepositPageFlow(): UseDepositPageFlowResult {
     depositAmount,
     selectedApplication,
     selectedProviders,
+    quotedCommissionBps,
     feeRate,
     btcWalletProvider,
     ethAddress,

@@ -13,7 +13,10 @@ import { describe, expect, it } from "vitest";
 
 import { COPY } from "@/copy";
 
-import { mapDepositError } from "../depositErrors";
+import {
+  COMMISSION_UNAVAILABLE_ERROR,
+  mapDepositError,
+} from "../depositErrors";
 
 const ERRORS = COPY.deposit.errors;
 
@@ -56,6 +59,20 @@ describe("mapDepositError", () => {
       "BTC wallet account changed during deposit flow. Please restart.",
     );
     expect(mapDepositError(err)).toEqual(ERRORS.walletAccountChanged);
+  });
+
+  it("maps the SDK commission-drift error to the commission-changed callout", () => {
+    const err = new Error(
+      "Vault provider commission changed since quote: quoted 250 bps, " +
+        "chain currently reports 9999 bps (allowed drift 25 bps). " +
+        "Please refresh to see the new commission and try again.",
+    );
+    expect(mapDepositError(err)).toEqual(ERRORS.commissionChanged);
+  });
+
+  it("maps the commission-unavailable guard to the commission-unavailable callout", () => {
+    const err = new Error(COMMISSION_UNAVAILABLE_ERROR);
+    expect(mapDepositError(err)).toEqual(ERRORS.commissionUnavailable);
   });
 
   it("maps an insufficient-ETH gas error to the insufficient-ETH callout", () => {

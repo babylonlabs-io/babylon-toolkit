@@ -92,6 +92,12 @@ interface DepositFormProps {
   feeError: string | null;
   depositorClaimValue?: bigint;
   /**
+   * Full HTLC output values the protocol charges commission on, one per vault.
+   * Used by the fee breakdown so split deposits floor commission per HTLC.
+   * `undefined` while the per-vault reserve / PegIn fee is still loading.
+   */
+  commissionHtlcValues?: readonly bigint[];
+  /**
    * Terminal failure from the `computeMinClaimValue` WASM query. CTA surfaces
    * this as "Fee estimate unavailable" instead of an indefinite loading
    * state. Null while the query is healthy.
@@ -176,6 +182,7 @@ export function DepositForm({
   isLoadingFee,
   feeError,
   depositorClaimValue,
+  commissionHtlcValues,
   depositorClaimValueError,
   isDepositDisabled,
   isGeoBlocked,
@@ -265,6 +272,15 @@ export function DepositForm({
 
   const selectedApp = applications.find((a) => a.id === selectedApplication);
 
+  // Commission (bps) shown for the selected provider. Drives the fee breakdown
+  // and gates the CTA: a selected provider whose commission hasn't loaded
+  // cannot be quoted, so the deposit must wait for it.
+  const selectedProviderCommissionBps = providers.find(
+    (provider) => provider.id === selectedProvider,
+  )?.commissionBps;
+  const commissionUnavailable =
+    !!selectedProvider && selectedProviderCommissionBps === undefined;
+
   const hasAmount = !!amount && amount !== "0";
   const isFeeError = hasAmount && !isLoadingFee && !!feeError;
   const feeDisabled =
@@ -292,6 +308,7 @@ export function DepositForm({
     isAddressBlocked,
     isWalletConnected,
     hasProvider: !!selectedProvider,
+    commissionUnavailable,
     isFeeError,
     feeError,
     feeDisabled,
@@ -410,6 +427,9 @@ export function DepositForm({
         protocolFeeAmount={protocolFeeAmount}
         protocolFeePrice={protocolFeePrice}
         protocolFeeIsError={protocolFeeIsError}
+        amountSats={amountSats}
+        commissionBps={selectedProviderCommissionBps}
+        commissionHtlcValues={commissionHtlcValues}
       />
 
       {/* Protocol & risk parameters */}
