@@ -131,8 +131,9 @@ export class OneKeyProvider implements IBTCProvider {
       return this.hub.$walletInfo.version;
     }
 
+    let info: unknown;
     try {
-      await withTimeout(
+      info = await withTimeout(
         Promise.resolve(this.hub?.$private?.getConnectWalletInfo?.()),
         ONEKEY_RPC_TIMEOUT_MS,
         () => this.timeoutError("reading its version"),
@@ -146,7 +147,11 @@ export class OneKeyProvider implements IBTCProvider {
       });
     }
 
-    return this.hub?.$walletInfo?.version;
+    // Prefer the value `getConnectWalletInfo` resolved with (a build could
+    // return the version without mutating `$walletInfo`), then fall back to the
+    // cache it repopulates — so the gate doesn't rest solely on the side effect.
+    const resolved = info as { version?: unknown; walletInfo?: { version?: unknown } } | undefined;
+    return resolved?.version ?? resolved?.walletInfo?.version ?? this.hub?.$walletInfo?.version;
   };
 
   // Gates connect on OneKey >= MIN_ONEKEY_VERSION (the floor for
