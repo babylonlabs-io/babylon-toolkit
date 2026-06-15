@@ -19,9 +19,17 @@ interface AssetPillProps {
   reserves: AaveReserveConfig[];
   /** Current mode, preserved when switching asset (stays on borrow vs repay). */
   mode: LoanTab;
+  /** Lock the switcher (e.g. while a borrow/repay tx is signing/submitting). */
+  disabled?: boolean;
 }
 
-export function AssetPill({ symbol, icon, reserves, mode }: AssetPillProps) {
+export function AssetPill({
+  symbol,
+  icon,
+  reserves,
+  mode,
+  disabled = false,
+}: AssetPillProps) {
   const navigate = useNavigate();
   const anchorRef = useRef<HTMLButtonElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
@@ -51,8 +59,9 @@ export function AssetPill({ symbol, icon, reserves, mode }: AssetPillProps) {
       <button
         ref={anchorRef}
         type="button"
+        disabled={disabled}
         onClick={() => setIsOpen((prev) => !prev)}
-        className="flex items-center gap-1 rounded-full border border-secondary-strokeLight bg-neutral-200 p-2 transition-[filter] hover:brightness-95"
+        className="flex items-center gap-1 rounded-full border border-secondary-strokeLight bg-neutral-200 p-2 transition-[filter] hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:brightness-100"
       >
         <img src={icon} alt={symbol} className="h-8 w-8 rounded-full" />
         <span className="whitespace-nowrap text-xl text-accent-primary">

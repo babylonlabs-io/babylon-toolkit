@@ -723,6 +723,7 @@ export const COPY = {
     healthFactorTooltip:
       "Your position's safety margin. If it falls below 1.0, your collateral can be liquidated.",
     detailsAriaLabel: (symbol: string) => `${symbol} loan details`,
+    transactionFailedTitle: "Transaction failed",
     assetSelection: {
       title: "Select asset",
       columnAsset: "Asset",
@@ -737,6 +738,12 @@ export const COPY = {
       title: "Borrow Successful",
       body: (amount: string, symbol: string) =>
         `${amount} ${symbol} has been credited to your wallet.`,
+      doneButton: "Done",
+    },
+    repaySuccess: {
+      title: (symbol: string) => `${symbol} Repay Successful`,
+      body: (amount: string, symbol: string) =>
+        `You have repaid ${amount} ${symbol}`,
       doneButton: "Done",
     },
     empty: {

@@ -178,19 +178,19 @@ export function DisconnectedOverview() {
             icon={
               <div className="flex items-center">
                 <Avatar
-                  url="/images/usdt.png"
+                  url="/images/usdt.svg"
                   alt="USDT"
                   size="medium"
                   className="h-8 w-8"
                 />
                 <Avatar
-                  url="/images/usdc.png"
+                  url="/images/usdc.svg"
                   alt="USDC"
                   size="medium"
                   className="-ml-2 h-8 w-8"
                 />
                 <Avatar
-                  url="/images/wbtc.png"
+                  url="/images/wbtc.svg"
                   alt="WBTC"
                   size="medium"
                   className="-ml-2 h-8 w-8 bg-white"

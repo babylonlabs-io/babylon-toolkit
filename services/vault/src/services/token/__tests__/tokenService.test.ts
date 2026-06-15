@@ -4,17 +4,17 @@ import { getCurrencyIconWithFallback } from "@/services/token/tokenService";
 
 describe("getCurrencyIconWithFallback", () => {
   it("returns the provided icon when set", () => {
-    expect(getCurrencyIconWithFallback("/images/usdc.png", "USDC")).toBe(
-      "/images/usdc.png",
+    expect(getCurrencyIconWithFallback("/images/usdc.svg", "USDC")).toBe(
+      "/images/usdc.svg",
     );
   });
 
   it("falls back to the symbol-based path for known symbols when icon is missing", () => {
     expect(getCurrencyIconWithFallback(undefined, "USDC")).toBe(
-      "/images/usdc.png",
+      "/images/usdc.svg",
     );
     expect(getCurrencyIconWithFallback(undefined, "usdt")).toBe(
-      "/images/usdt.png",
+      "/images/usdt.svg",
     );
   });
 

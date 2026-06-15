@@ -8,6 +8,7 @@
 import {
   AmountSlider,
   Button,
+  Callout,
   SubSection,
   Text,
   WarningIcon,
@@ -62,7 +63,11 @@ export function Borrow() {
     onBorrowSuccess,
   } = useLoanContext();
 
-  const { executeBorrow, isProcessing } = useBorrowTransaction();
+  const {
+    executeBorrow,
+    isProcessing,
+    error: txError,
+  } = useBorrowTransaction();
 
   const { borrowAmount, setBorrowAmount, resetBorrowAmount, maxBorrowAmount } =
     useBorrowState({
@@ -172,6 +177,7 @@ export function Borrow() {
         <SubSection className="gap-4 !bg-secondary-highlight">
           <AmountSlider
             amount={borrowAmount}
+            disabled={isProcessing}
             currencyIcon={getCurrencyIconWithFallback(
               assetConfig.icon,
               assetConfig.symbol,
@@ -186,6 +192,7 @@ export function Borrow() {
                 )}
                 reserves={borrowableReserves}
                 mode={LOAN_TAB.BORROW}
+                disabled={isProcessing}
               />
             }
             onAmountChange={(e) =>
@@ -282,6 +289,17 @@ export function Borrow() {
       >
         {getBorrowButtonText()}
       </Button>
+
+      {/* Transaction error */}
+      {txError && (
+        <Callout
+          variant="error"
+          title={COPY.loans.transactionFailedTitle}
+          className="mt-4"
+        >
+          {txError}
+        </Callout>
+      )}
 
       {/* Ethereum Network Fee */}
       <div className="mt-6 flex w-full items-center justify-between text-sm">

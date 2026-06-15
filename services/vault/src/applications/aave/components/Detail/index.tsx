@@ -176,7 +176,7 @@ export function AaveReserveDetail({ tab }: { tab: LoanTab }) {
           <RepaySuccessModal
             open={showRepaySuccess}
             onClose={handleCloseRepaySuccess}
-            onViewLoan={handleCloseRepaySuccess}
+            onDone={handleCloseRepaySuccess}
             repaySymbol={assetConfig.symbol}
             repayAmount={repaySuccessData.repayAmount}
             decimals={selectedReserve.token.decimals}

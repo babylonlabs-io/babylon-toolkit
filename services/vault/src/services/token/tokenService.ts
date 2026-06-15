@@ -25,10 +25,10 @@ const btcConfig = getNetworkConfigBTC();
 const TOKEN_ICONS: Record<string, string> = {
   BTC: btcConfig.icon,
   SBTC: btcConfig.icon,
-  WBTC: "/images/wbtc.png",
+  WBTC: "/images/wbtc.svg",
   VBTC: btcConfig.icon,
-  USDC: "/images/usdc.png",
-  USDT: "/images/usdt.png",
+  USDC: "/images/usdc.svg",
+  USDT: "/images/usdt.svg",
 };
 
 /**
@@ -106,7 +106,7 @@ const TOKEN_REGISTRY: Record<string, TokenMetadata> = {
     symbol: "DAI",
     name: "Dai Stablecoin",
     decimals: 18,
-    icon: "/images/dai.png",
+    icon: "/images/dai.svg",
   },
   // WETH
   "0x4200000000000000000000000000000000000006": {

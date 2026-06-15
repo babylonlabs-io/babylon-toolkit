@@ -10,7 +10,6 @@ import { useAccount, useWalletClient } from "wagmi";
 
 import { ERC20 } from "@/clients/eth-contract";
 import { getETHChain } from "@/config/network";
-import { useError } from "@/context/error";
 import { logger } from "@/infrastructure";
 import {
   ErrorCode,
@@ -36,6 +35,8 @@ export interface UseBorrowTransactionResult {
   ) => Promise<boolean>;
   /** Whether transaction is currently processing */
   isProcessing: boolean;
+  /** Last failure message, shown inline under the action (null when none). */
+  error: string | null;
 }
 
 /**
@@ -47,11 +48,11 @@ export interface UseBorrowTransactionResult {
  */
 export function useBorrowTransaction(): UseBorrowTransactionResult {
   const [isProcessing, setIsProcessing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const { data: walletClient } = useWalletClient();
   const { address } = useAccount();
   const queryClient = useQueryClient();
   const chain = getETHChain();
-  const { handleError } = useError();
 
   const executeBorrow = async (
     borrowAmount: number,
@@ -60,6 +61,7 @@ export function useBorrowTransaction(): UseBorrowTransactionResult {
   ) => {
     if (borrowAmount <= 0) return false;
 
+    setError(null);
     setIsProcessing(true);
     try {
       // Validate wallet connection
@@ -138,15 +140,7 @@ export function useBorrowTransaction(): UseBorrowTransactionResult {
           ? mapViemErrorToContractError(error, "Borrow")
           : new Error("An unexpected error occurred while borrowing");
 
-      handleError({
-        error: mappedError,
-        displayOptions: {
-          showModal: true,
-          retryAction: isReserveMismatch
-            ? undefined
-            : () => executeBorrow(borrowAmount, reserve, preSignValidation),
-        },
-      });
+      setError(mappedError.message);
 
       return false;
     } finally {
@@ -157,5 +151,6 @@ export function useBorrowTransaction(): UseBorrowTransactionResult {
   return {
     executeBorrow,
     isProcessing,
+    error,
   };
 }

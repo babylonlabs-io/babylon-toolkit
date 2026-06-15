@@ -43,7 +43,7 @@ export function BorrowSuccessModal({
       onClose={onClose}
       className="items-center justify-center p-6"
     >
-      <div className="mx-auto flex w-full max-w-[520px] flex-col gap-10 rounded-3xl border border-secondary-strokeLight px-6 pb-6 pt-[72px] text-center text-accent-primary">
+      <div className="mx-auto flex w-full max-w-[564px] flex-col gap-10 rounded-3xl border border-secondary-strokeLight px-6 pb-6 pt-[72px] text-center text-accent-primary">
         <div className="flex flex-col items-center gap-6">
           <Avatar
             url={assetIcon}

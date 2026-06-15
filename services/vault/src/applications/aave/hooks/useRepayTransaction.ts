@@ -13,7 +13,6 @@ import { useAccount, useWalletClient } from "wagmi";
 
 import { ERC20 } from "@/clients/eth-contract";
 import { getETHChain } from "@/config/network";
-import { useError } from "@/context/error";
 import { logger } from "@/infrastructure";
 import {
   ErrorCode,
@@ -91,6 +90,8 @@ export interface UseRepayTransactionResult {
   ) => Promise<boolean>;
   /** Whether transaction is currently processing */
   isProcessing: boolean;
+  /** Last failure message, shown inline under the action (null when none). */
+  error: string | null;
 }
 
 /**
@@ -103,11 +104,11 @@ export function useRepayTransaction({
   proxyContract,
 }: UseRepayTransactionProps): UseRepayTransactionResult {
   const [isProcessing, setIsProcessing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const { data: walletClient } = useWalletClient();
   const { address } = useAccount();
   const queryClient = useQueryClient();
   const chain = getETHChain();
-  const { handleError } = useError();
 
   const executeRepay = async (
     repayAmount: number,
@@ -119,6 +120,7 @@ export function useRepayTransaction({
 
     if (repayAmount <= 0) return false;
 
+    setError(null);
     setIsProcessing(true);
     try {
       // Validate prerequisites
@@ -240,15 +242,7 @@ export function useRepayTransaction({
             ? mapViemErrorToContractError(error, "Repay")
             : new Error("An unexpected error occurred while repaying");
 
-      // Repay deliberately has no `retryAction`. If one is added later, mirror
-      // the borrow hook and gate it on `!(error instanceof ReserveMismatchError)`
-      // — retrying can't help against a compromised indexer.
-      handleError({
-        error: mappedError,
-        displayOptions: {
-          showModal: true,
-        },
-      });
+      setError(mappedError.message);
 
       return false;
     } finally {
@@ -259,5 +253,6 @@ export function useRepayTransaction({
   return {
     executeRepay,
     isProcessing,
+    error,
   };
 }

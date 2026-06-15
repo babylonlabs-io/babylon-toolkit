@@ -76,6 +76,17 @@ export function AssetSelectionModal({
     reserves: isRepay ? [] : borrowableReserves,
   });
 
+  // Oracle prices are keyed by reserve id; repay rows arrive as plain assets
+  // (no reserve id), so index the fetched prices by symbol to show them too.
+  const priceBySymbol = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const reserve of borrowableReserves) {
+      const price = pricesByReserveId[reserve.reserveId.toString()];
+      if (price != null) map.set(reserve.token.symbol, price);
+    }
+    return map;
+  }, [borrowableReserves, pricesByReserveId]);
+
   const handleAssetClick = (assetSymbol: string) => {
     onSelectAsset(assetSymbol);
     onClose();
@@ -83,16 +94,17 @@ export function AssetSelectionModal({
 
   const rows: AssetRow[] = useMemo(() => {
     if (assets) {
-      return assets.map((asset) => ({
-        key: asset.symbol,
-        symbol: asset.symbol,
-        name: asset.name,
-        icon: asset.icon,
-        priceLabel:
-          asset.priceUsd != null
-            ? formatPriceUsd(asset.priceUsd)
-            : COPY.common.emptyValue,
-      }));
+      return assets.map((asset) => {
+        const price = priceBySymbol.get(asset.symbol) ?? asset.priceUsd;
+        return {
+          key: asset.symbol,
+          symbol: asset.symbol,
+          name: asset.name,
+          icon: asset.icon,
+          priceLabel:
+            price != null ? formatPriceUsd(price) : COPY.common.emptyValue,
+        };
+      });
     }
 
     return borrowableReserves.map((reserve) => {
@@ -112,7 +124,13 @@ export function AssetSelectionModal({
             : formatAprPercent(aprPercent),
       };
     });
-  }, [assets, borrowableReserves, pricesByReserveId, aprPercentByReserveId]);
+  }, [
+    assets,
+    borrowableReserves,
+    pricesByReserveId,
+    aprPercentByReserveId,
+    priceBySymbol,
+  ]);
 
   const renderBody = () => {
     // Repay assets arrive ready; borrow rows wait on the oracle price read.

@@ -5,7 +5,12 @@
  * Gets all required data from LoanContext.
  */
 
-import { AmountSlider, Button, SubSection } from "@babylonlabs-io/core-ui";
+import {
+  AmountSlider,
+  Button,
+  Callout,
+  SubSection,
+} from "@babylonlabs-io/core-ui";
 import { useCallback, useMemo, useState } from "react";
 
 import { useETHWallet } from "@/context/wallet";
@@ -82,7 +87,11 @@ export function Repay() {
       selectedReserve.token.decimals,
     );
 
-  const { executeRepay, isProcessing } = useRepayTransaction({
+  const {
+    executeRepay,
+    isProcessing,
+    error: txError,
+  } = useRepayTransaction({
     proxyContract,
   });
 
@@ -184,9 +193,10 @@ export function Repay() {
         Repay
       </h3>
       <div className="flex flex-col gap-2">
-        <SubSection>
+        <SubSection className="!bg-secondary-highlight">
           <AmountSlider
             amount={repayAmount}
+            disabled={isProcessing}
             currencyIcon={getCurrencyIconWithFallback(
               assetConfig.icon,
               assetConfig.symbol,
@@ -201,6 +211,7 @@ export function Repay() {
                 )}
                 reserves={borrowedReserves}
                 mode={LOAN_TAB.REPAY}
+                disabled={isProcessing}
               />
             }
             onAmountChange={(e) =>
@@ -269,6 +280,17 @@ export function Repay() {
       >
         {isProcessing ? "Processing..." : buttonText}
       </Button>
+
+      {/* Transaction error */}
+      {txError && (
+        <Callout
+          variant="error"
+          title={COPY.loans.transactionFailedTitle}
+          className="mt-4"
+        >
+          {txError}
+        </Callout>
+      )}
     </div>
   );
 }

@@ -144,13 +144,13 @@ export function LoansSection({
                 className="h-14 w-14"
               />
               <Avatar
-                url="/images/usdc.png"
+                url="/images/usdc.svg"
                 alt="USDC"
                 size="xlarge"
                 className="-ml-4 h-14 w-14"
               />
               <Avatar
-                url="/images/usdt.png"
+                url="/images/usdt.svg"
                 alt="USDT"
                 size="xlarge"
                 className="-ml-4 h-14 w-14"
