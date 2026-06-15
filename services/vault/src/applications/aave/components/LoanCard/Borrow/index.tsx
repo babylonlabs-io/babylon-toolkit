@@ -33,6 +33,7 @@ import {
   MIN_SLIDER_MAX,
   SAFE_TOFIXED_PRECISION,
 } from "../../../constants";
+import { useAaveConfig } from "../../../context";
 import { useAaveBorrowAprs, useBorrowTransaction } from "../../../hooks";
 import { AssetPill } from "../../AssetPill";
 import { useLoanContext } from "../../context/LoanContext";
@@ -113,6 +114,8 @@ export function Borrow() {
 
   const hasProjection = borrowAmount > 0;
 
+  const { borrowableReserves } = useAaveConfig();
+
   // Live current borrow APR for the selected reserve (Aave Hub drawn rate).
   // The projected post-borrow rate isn't a simple read, so only "current"
   // shows real data; the other metric rows remain placeholders ("–").
@@ -180,6 +183,7 @@ export function Borrow() {
                   assetConfig.icon,
                   assetConfig.symbol,
                 )}
+                reserves={borrowableReserves}
               />
             }
             onAmountChange={(e) =>

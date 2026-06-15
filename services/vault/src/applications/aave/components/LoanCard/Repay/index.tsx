@@ -6,7 +6,7 @@
  */
 
 import { AmountSlider, Button, SubSection } from "@babylonlabs-io/core-ui";
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 
 import { useETHWallet } from "@/context/wallet";
 import { COPY } from "@/copy";
@@ -27,7 +27,13 @@ import {
   SAFE_TOFIXED_PRECISION,
   SLIDER_STEP_COUNT,
 } from "../../../constants";
-import { useRepayTransaction, type RepayMode } from "../../../hooks";
+import { useAaveConfig } from "../../../context";
+import {
+  useAaveUserPosition,
+  useRepayTransaction,
+  type RepayMode,
+} from "../../../hooks";
+import { AssetPill } from "../../AssetPill";
 import { useLoanContext } from "../../context/LoanContext";
 import { BorrowDetailsCard } from "../Borrow/BorrowDetailsCard";
 
@@ -54,6 +60,18 @@ export function Repay() {
   } = useLoanContext();
 
   const { address } = useETHWallet();
+
+  // Reserves the user can repay = those they currently hold debt in. Read from
+  // the same position query the detail screen uses (React Query dedupes it).
+  const { allBorrowReserves } = useAaveConfig();
+  const { position } = useAaveUserPosition(address);
+  const borrowedReserves = useMemo(
+    () =>
+      allBorrowReserves.filter((r) =>
+        position?.debtPositions?.has(r.reserveId),
+      ),
+    [allBorrowReserves, position],
+  );
 
   // Fetch user's token balance for repayment
   const { balance: userTokenBalance, refetch: refetchUserBalance } =
@@ -173,6 +191,16 @@ export function Repay() {
               assetConfig.symbol,
             )}
             currencyName={assetConfig.name}
+            currencySlot={
+              <AssetPill
+                symbol={assetConfig.symbol}
+                icon={getCurrencyIconWithFallback(
+                  assetConfig.icon,
+                  assetConfig.symbol,
+                )}
+                reserves={borrowedReserves}
+              />
+            }
             onAmountChange={(e) =>
               setRepayAmount(parseFloat(e.target.value) || 0)
             }

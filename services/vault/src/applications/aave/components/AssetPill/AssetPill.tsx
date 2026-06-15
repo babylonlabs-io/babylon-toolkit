@@ -1,21 +1,26 @@
 import { Popover } from "@babylonlabs-io/core-ui";
 import { useEffect, useRef, useState } from "react";
 import { IoChevronDown } from "react-icons/io5";
-import { useNavigate } from "react-router";
+import { useNavigate, useSearchParams } from "react-router";
 
 import { getTokenByAddress } from "@/services/token/tokenService";
 
-import { useAaveConfig } from "../../context";
+import type { AaveReserveConfig } from "../../services/fetchConfig";
 import { AssetListItem } from "../AssetSelectionModal/AssetListItem";
 
 interface AssetPillProps {
   symbol: string;
   icon: string;
+  /**
+   * Reserves to offer in the switcher. Borrow passes the borrowable reserves;
+   * repay passes the user's borrowed reserves (the assets that can be repaid).
+   */
+  reserves: AaveReserveConfig[];
 }
 
-export function AssetPill({ symbol, icon }: AssetPillProps) {
+export function AssetPill({ symbol, icon, reserves }: AssetPillProps) {
   const navigate = useNavigate();
-  const { borrowableReserves } = useAaveConfig();
+  const [searchParams] = useSearchParams();
   const anchorRef = useRef<HTMLButtonElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const [isOpen, setIsOpen] = useState(false);
@@ -34,7 +39,14 @@ export function AssetPill({ symbol, icon }: AssetPillProps) {
 
   const handleSelect = (assetSymbol: string) => {
     setIsOpen(false);
-    navigate(`/app/aave/reserve/${assetSymbol.toLowerCase()}`);
+    // Preserve the active tab (and any other query params) so switching the
+    // asset from the repay screen keeps you on repay rather than defaulting
+    // back to borrow.
+    const query = searchParams.toString();
+    navigate({
+      pathname: `/app/aave/reserve/${assetSymbol.toLowerCase()}`,
+      search: query ? `?${query}` : "",
+    });
   };
 
   return (
@@ -65,7 +77,7 @@ export function AssetPill({ symbol, icon }: AssetPillProps) {
         className="max-h-80 w-72 overflow-y-auto rounded-lg border border-secondary-strokeLight bg-surface p-2 shadow-lg"
       >
         <div ref={listRef} className="space-y-2">
-          {borrowableReserves.map((reserve) => (
+          {reserves.map((reserve) => (
             <AssetListItem
               key={reserve.reserveId.toString()}
               symbol={reserve.token.symbol}
