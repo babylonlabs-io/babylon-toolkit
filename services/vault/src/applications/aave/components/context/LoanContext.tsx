@@ -38,6 +38,12 @@ export interface LoanContextValue {
   oracleAddress: Address | null;
   /** Price of the selected borrow token in USD (null when oracle price is temporarily unavailable) */
   tokenPriceUsd: number | null;
+  /**
+   * True while `tokenPriceUsd` still reflects the previously-selected reserve
+   * during an asset switch. The Borrow form withholds price-derived figures
+   * (available / max) and stays disabled until the fresh price lands.
+   */
+  isPriceStale: boolean;
   /** Whether position data may be stale (oracle-derived values possibly outdated) */
   isPositionDataStale: boolean;
   /** Refetch position data — returns fresh position (or null if unavailable) */

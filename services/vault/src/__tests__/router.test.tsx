@@ -1,11 +1,15 @@
 /**
  * Router-level regression tests.
  *
- * The /activity route renders <Activity />, which transitively calls
- * useAaveConfig() through useActivities(). If the route element loses
- * its AaveConfigProvider wrapper, the page throws synchronously on
- * mount. These tests lock in that the route is always wrapped in a
- * provider so a future router refactor can't silently regress.
+ * 1. The /activity route renders <Activity />, which transitively calls
+ *    useAaveConfig() through useActivities(). If the route element loses its
+ *    AaveConfigProvider wrapper, the page throws synchronously on mount.
+ * 2. The reserve detail (/app/aave/reserve/:reserveId) is an overlay on top of
+ *    the dashboard, not a sibling route that replaces it. The dashboard must
+ *    stay mounted underneath so opening the overlay never blanks the page.
+ *
+ * These tests lock in that wiring so a future router refactor can't silently
+ * regress it.
  */
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -47,6 +51,17 @@ vi.mock("@/context/wallet", () => ({
     btcConnected: true,
     ethConnected: true,
   }),
+}));
+
+const DASHBOARD_MARKER = "dashboard-marker";
+const RESERVE_DETAIL_MARKER = "reserve-detail-marker";
+
+vi.mock("../components/simple/DashboardPage", () => ({
+  DashboardPage: () => <div>{DASHBOARD_MARKER}</div>,
+}));
+
+vi.mock("../applications/aave/components/Detail", () => ({
+  AaveReserveDetail: () => <div>{RESERVE_DETAIL_MARKER}</div>,
 }));
 
 vi.mock("../services/activity", async () => {
@@ -104,5 +119,32 @@ describe("Router — /activity regression for AaveConfigProvider wiring", () => 
         return false;
       });
     expect(sawProviderError).toBe(false);
+  });
+});
+
+describe("Router — reserve detail is an overlay over the persistent dashboard", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("renders only the dashboard at the index route", async () => {
+    await renderAt("/");
+
+    await waitFor(() => {
+      expect(screen.getByText(DASHBOARD_MARKER)).toBeInTheDocument();
+    });
+    expect(screen.queryByText(RESERVE_DETAIL_MARKER)).not.toBeInTheDocument();
+  });
+
+  it("keeps the dashboard mounted underneath when the reserve overlay opens", async () => {
+    await renderAt("/app/aave/reserve/usdc");
+
+    // Both present: the dashboard stays mounted and the reserve detail renders
+    // on top of it, rather than replacing it (which is what caused the blank
+    // flash when the two were sibling routes).
+    await waitFor(() => {
+      expect(screen.getByText(RESERVE_DETAIL_MARKER)).toBeInTheDocument();
+    });
+    expect(screen.getByText(DASHBOARD_MARKER)).toBeInTheDocument();
   });
 });

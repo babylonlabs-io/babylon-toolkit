@@ -543,6 +543,9 @@ export const COPY = {
   },
   common: {
     zeroUsdValue: "$0.00 USD",
+    // Placeholder shown where a value is not yet available (e.g. an
+    // oracle-priced figure still loading after an asset switch).
+    emptyValue: "–",
     loading: "Loading...",
     confirming: "Confirming...",
     applying: "Applying...",
@@ -720,6 +723,22 @@ export const COPY = {
     healthFactorTooltip:
       "Your position's safety margin. If it falls below 1.0, your collateral can be liquidated.",
     detailsAriaLabel: (symbol: string) => `${symbol} loan details`,
+    assetSelection: {
+      title: "Select asset",
+      columnAsset: "Asset",
+      columnPrice: "Price",
+      columnAvailable: "Available",
+      columnBorrowApr: "Borrow APR",
+      loading: "Loading assets...",
+      emptyBorrow: "No borrowable assets available",
+      emptyRepay: "No assets available",
+    },
+    borrowSuccess: {
+      title: "Borrow Successful",
+      body: (amount: string, symbol: string) =>
+        `${amount} ${symbol} has been credited to your wallet.`,
+      doneButton: "Done",
+    },
     empty: {
       title: (symbol: string) => `Borrow assets using your ${symbol}`,
       body: (symbol: string) =>

@@ -58,6 +58,7 @@ export function AaveReserveDetail() {
     totalDebtValueUsd,
     healthFactor,
     tokenPriceUsd,
+    isPriceStale,
     positionError,
     ancillaryError,
     isPositionDataStale,
@@ -132,6 +133,7 @@ export function AaveReserveDetail() {
       proxyContract,
       oracleAddress,
       tokenPriceUsd,
+      isPriceStale,
       isPositionDataStale,
       refetchPosition,
       refetchSplitParams,
@@ -169,7 +171,7 @@ export function AaveReserveDetail() {
           <BorrowSuccessModal
             open={showBorrowSuccess}
             onClose={handleCloseBorrowSuccess}
-            onViewLoan={handleCloseBorrowSuccess}
+            onDone={handleCloseBorrowSuccess}
             borrowAmount={borrowSuccessData.amount}
             borrowSymbol={assetConfig.symbol}
             decimals={selectedReserve.token.decimals}

@@ -7,11 +7,9 @@ import {
 import { HeartIcon } from "@/components/shared";
 import { COPY } from "@/copy";
 
-import { BORROW_METRIC_PLACEHOLDERS } from "../borrowMetricPlaceholders";
-
 interface BorrowMetricsCardProps {
-  hasProjection: boolean;
-  symbol: string;
+  /** Formatted current borrow APR (live from the Aave Hub), or "–". */
+  borrowApr: string;
   healthFactor: string;
   healthFactorValue: number;
   healthFactorOriginal?: string;
@@ -21,17 +19,20 @@ interface BorrowMetricsCardProps {
 const ROW_CLASS = "flex w-full items-center justify-between text-sm";
 const DIVIDER_CLASS = "h-px w-full bg-secondary-strokeLight";
 
+/**
+ * Borrow metrics card. Borrow APY shows the live current rate (Aave Hub drawn
+ * rate); Health factor uses its real projected value. Available liquidity and
+ * Utilization have no frontend data source yet, so they render the empty
+ * placeholder ("–") rather than a fabricated figure — a follow-up PR wires
+ * those (and the projected post-borrow APY) once the reserve totals are read.
+ */
 export function BorrowMetricsCard({
-  hasProjection,
-  symbol,
+  borrowApr,
   healthFactor,
   healthFactorValue,
   healthFactorOriginal,
   healthFactorOriginalValue,
 }: BorrowMetricsCardProps) {
-  const { availableLiquidity, borrowApy, utilization } =
-    BORROW_METRIC_PLACEHOLDERS;
-
   const status = getHealthFactorStatusFromValue(healthFactorValue);
   const color = getHealthFactorColor(status);
   const originalStatus =
@@ -43,21 +44,12 @@ export function BorrowMetricsCard({
     : undefined;
 
   return (
-    <SubSection className="flex-col gap-4">
+    <SubSection className="flex-col gap-4 !bg-secondary-highlight">
       <div className={ROW_CLASS}>
         <span className="text-accent-secondary">
           {COPY.loans.availableLiquidityLabel}
         </span>
-        <span className="flex items-center gap-1 text-accent-primary">
-          {hasProjection ? (
-            <>
-              <span className="text-accent-secondary">{`${availableLiquidity.current} →`}</span>
-              <span>{`${availableLiquidity.projected} ${symbol}`}</span>
-            </>
-          ) : (
-            `${availableLiquidity.current} ${symbol}`
-          )}
-        </span>
+        <span className="text-accent-primary">{COPY.common.emptyValue}</span>
       </div>
 
       <div className={DIVIDER_CLASS} />
@@ -67,16 +59,7 @@ export function BorrowMetricsCard({
           {COPY.loans.borrowRateLabel}
           <Hint tooltip={COPY.loans.borrowApyTooltip} />
         </div>
-        <span className="flex items-center gap-1 text-accent-primary">
-          {hasProjection ? (
-            <>
-              <span className="text-accent-secondary">{`${borrowApy.current} →`}</span>
-              <span>{borrowApy.projected}</span>
-            </>
-          ) : (
-            borrowApy.current
-          )}
-        </span>
+        <span className="text-accent-primary">{borrowApr}</span>
       </div>
 
       <div className={ROW_CLASS}>
@@ -84,16 +67,7 @@ export function BorrowMetricsCard({
           {COPY.loans.utilizationLabel}
           <Hint tooltip={COPY.loans.utilizationTooltip} />
         </div>
-        <span className="flex items-center gap-1 text-accent-primary">
-          {hasProjection ? (
-            <>
-              <span className="text-accent-secondary">{`${utilization.current} →`}</span>
-              <span>{utilization.projected}</span>
-            </>
-          ) : (
-            utilization.current
-          )}
-        </span>
+        <span className="text-accent-primary">{COPY.common.emptyValue}</span>
       </div>
 
       <div className={DIVIDER_CLASS} />

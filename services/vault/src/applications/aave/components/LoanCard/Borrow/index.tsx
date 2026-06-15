@@ -12,6 +12,7 @@ import {
   Text,
   WarningIcon,
 } from "@babylonlabs-io/core-ui";
+import { useEffect } from "react";
 
 import { getHealthFactorStatusFromValue } from "@/applications/aave/utils";
 import { FeatureFlags } from "@/config";
@@ -22,6 +23,7 @@ import {
   getTokenBrandColor,
 } from "../../../../../services/token";
 import {
+  formatAprPercent,
   formatTokenAmount,
   formatUsdValue,
 } from "../../../../../utils/formatting";
@@ -31,11 +33,10 @@ import {
   MIN_SLIDER_MAX,
   SAFE_TOFIXED_PRECISION,
 } from "../../../constants";
-import { useBorrowTransaction } from "../../../hooks";
+import { useAaveBorrowAprs, useBorrowTransaction } from "../../../hooks";
 import { AssetPill } from "../../AssetPill";
 import { useLoanContext } from "../../context/LoanContext";
 
-import { BORROW_METRIC_PLACEHOLDERS } from "./borrowMetricPlaceholders";
 import { BorrowMetricsCard } from "./BorrowMetricsCard";
 import { useBorrowMetrics } from "./hooks/useBorrowMetrics";
 import { useBorrowState } from "./hooks/useBorrowState";
@@ -52,6 +53,7 @@ export function Borrow() {
     assetConfig,
     oracleAddress,
     tokenPriceUsd,
+    isPriceStale,
     isPositionDataStale,
     refetchPosition,
     refetchSplitParams,
@@ -68,6 +70,19 @@ export function Borrow() {
       tokenPriceUsd,
       tokenDecimals: selectedReserve.token.decimals,
     });
+
+  // Reset the entered amount whenever the borrow asset changes. The form is no
+  // longer remounted on switch (see `useAaveReservePrice` keepPreviousData), so
+  // clear the amount explicitly — a value sized for the previous asset's max is
+  // meaningless against a different reserve.
+  useEffect(() => {
+    setBorrowAmount(0);
+  }, [selectedReserve.reserveId, setBorrowAmount]);
+
+  // While the oracle price still belongs to the previously-selected reserve
+  // (carried over to avoid a remount), withhold price-derived figures and keep
+  // the action disabled rather than show a stale max/available for the new one.
+  const isPriceReady = tokenPriceUsd != null && !isPriceStale;
 
   const metrics = useBorrowMetrics({
     borrowAmount,
@@ -98,16 +113,25 @@ export function Borrow() {
 
   const hasProjection = borrowAmount > 0;
 
+  // Live current borrow APR for the selected reserve (Aave Hub drawn rate).
+  // The projected post-borrow rate isn't a simple read, so only "current"
+  // shows real data; the other metric rows remain placeholders ("–").
+  const { aprPercentByReserveId } = useAaveBorrowAprs({
+    reserves: [selectedReserve],
+  });
+  const borrowAprPercent =
+    aprPercentByReserveId[selectedReserve.reserveId.toString()];
+  const borrowAprDisplay =
+    borrowAprPercent == null
+      ? COPY.common.emptyValue
+      : formatAprPercent(borrowAprPercent);
+
   const projectedHealthStatus = getHealthFactorStatusFromValue(
     metrics.healthFactorValue,
   );
   const showAtRiskCallout =
     hasProjection &&
     (projectedHealthStatus === "warning" || projectedHealthStatus === "danger");
-
-  const networkFeeDisplay = hasProjection
-    ? BORROW_METRIC_PLACEHOLDERS.networkFee.estimated
-    : BORROW_METRIC_PLACEHOLDERS.networkFee.idle;
 
   const handleBorrow = async () => {
     // Defensive: the disabled prop already gates on `oracleAddress == null`.
@@ -141,7 +165,7 @@ export function Borrow() {
         Borrow
       </h3>
       <div className="flex flex-col gap-2">
-        <SubSection className="gap-4">
+        <SubSection className="gap-4 !bg-secondary-highlight">
           <AmountSlider
             amount={borrowAmount}
             currencyIcon={getCurrencyIconWithFallback(
@@ -176,10 +200,14 @@ export function Borrow() {
                     ? formatUsdValue(borrowAmount * tokenPriceUsd)
                     : "–",
             }}
-            onMaxClick={() => setBorrowAmount(maxBorrowAmount)}
+            onMaxClick={() => {
+              if (isPriceReady) setBorrowAmount(maxBorrowAmount);
+            }}
             rightField={{
               label: COPY.loans.availableLabel,
-              value: `${formatTokenAmount(maxBorrowAmount, displayDecimals)} ${assetConfig.symbol}`,
+              value: isPriceReady
+                ? `${formatTokenAmount(maxBorrowAmount, displayDecimals)} ${assetConfig.symbol}`
+                : COPY.common.emptyValue,
             }}
             maxPosition="right"
             maxButtonClassName={MAX_BUTTON_CLASS_NAME}
@@ -204,8 +232,7 @@ export function Borrow() {
 
         {/* Borrow Metrics */}
         <BorrowMetricsCard
-          hasProjection={hasProjection}
-          symbol={assetConfig.symbol}
+          borrowApr={borrowAprDisplay}
           healthFactor={metrics.healthFactor}
           healthFactorValue={metrics.healthFactorValue}
           healthFactorOriginal={metrics.healthFactorOriginal}
@@ -241,21 +268,21 @@ export function Borrow() {
           isDisabled ||
           isProcessing ||
           FeatureFlags.isBorrowDisabled ||
-          tokenPriceUsd == null ||
+          !isPriceReady ||
           oracleAddress == null
         }
         onClick={handleBorrow}
-        className="mt-6 disabled:!bg-accent-disabled disabled:!opacity-100"
+        className="mt-2 disabled:!bg-accent-disabled disabled:!opacity-100"
       >
         {getBorrowButtonText()}
       </Button>
 
       {/* Ethereum Network Fee */}
-      <div className="mt-4 flex w-full items-center justify-between text-sm">
+      <div className="mt-6 flex w-full items-center justify-between text-sm">
         <span className="text-accent-primary">
           {COPY.loans.ethereumNetworkFeeLabel}
         </span>
-        <span className="text-accent-secondary">{networkFeeDisplay}</span>
+        <span className="text-accent-secondary">{COPY.common.emptyValue}</span>
       </div>
     </div>
   );

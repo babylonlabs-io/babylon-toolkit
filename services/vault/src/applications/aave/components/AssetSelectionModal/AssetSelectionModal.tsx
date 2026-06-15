@@ -1,29 +1,33 @@
 /**
- * AssetSelectionModal Component
- * Modal for selecting an asset to borrow or repay from available reserves
+ * AssetSelectionModal
+ *
+ * Full-screen asset picker opened from the dashboard Borrow / Repay buttons.
+ * Borrow mode shows a table of borrowable reserves (Asset · Price · Available ·
+ * Borrow APR); repay mode reuses the same full-screen surface but lists the
+ * user's borrowed assets with only Asset · Price (APR/liquidity don't apply to
+ * repaying). Selecting a row routes into the reserve detail.
  */
 
-import {
-  DialogBody,
-  DialogHeader,
-  ResponsiveDialog,
-} from "@babylonlabs-io/core-ui";
+import { Avatar, FullScreenDialog } from "@babylonlabs-io/core-ui";
 import { useMemo } from "react";
 
-import { getTokenByAddress } from "@/services/token/tokenService";
+import { COPY } from "@/copy";
+import {
+  getCurrencyIconWithFallback,
+  getTokenByAddress,
+} from "@/services/token/tokenService";
+import { formatAprPercent, formatPriceUsd } from "@/utils/formatting";
 
 import { LOAN_TAB, type LoanTab } from "../../constants";
 import { useAaveConfig } from "../../context";
-import { useAaveReservesPrices } from "../../hooks";
+import { useAaveBorrowAprs, useAaveReservesPrices } from "../../hooks";
 import type { Asset } from "../../types";
-
-import { AssetListItem } from "./AssetListItem";
 
 interface AssetSelectionModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSelectAsset: (assetSymbol: string) => void;
-  /** Mode determines the modal title and description */
+  /** Mode determines which columns render and the empty-state copy. */
   mode?: LoanTab;
   /**
    * Optional list of assets to display.
@@ -32,16 +36,20 @@ interface AssetSelectionModalProps {
   assets?: Asset[];
 }
 
-const MODE_CONFIG: Record<LoanTab, { title: string; description: string }> = {
-  [LOAN_TAB.BORROW]: {
-    title: "Borrow",
-    description: "Choose the asset to borrow",
-  },
-  [LOAN_TAB.REPAY]: {
-    title: "Repay",
-    description: "Choose the asset to repay",
-  },
-};
+/** Normalized row, mode-agnostic, so the table render stays declarative. */
+interface AssetRow {
+  key: string;
+  symbol: string;
+  name: string;
+  icon?: string;
+  /** Formatted price string, or the empty placeholder when unavailable. */
+  priceLabel: string;
+  /** Formatted borrow APR (borrow mode only); undefined hides the cell. */
+  aprLabel?: string;
+}
+
+/** Width of the leading Asset column; the stats share the remaining row. */
+const ASSET_COL_CLASS = "flex w-[220px] shrink-0 items-center gap-4";
 
 export function AssetSelectionModal({
   isOpen,
@@ -51,86 +59,158 @@ export function AssetSelectionModal({
   assets,
 }: AssetSelectionModalProps) {
   const { config: aaveConfig, borrowableReserves } = useAaveConfig();
+  const isRepay = mode === LOAN_TAB.REPAY;
+
   const reserveIds = useMemo(
     () => borrowableReserves.map((r) => r.reserveId),
     [borrowableReserves],
   );
-  const { pricesByReserveId, isLoading } = useAaveReservesPrices({
-    spokeAddress: aaveConfig?.coreSpokeAddress,
-    reserveIds,
+  const { pricesByReserveId, isLoading: pricesLoading } = useAaveReservesPrices(
+    {
+      spokeAddress: aaveConfig?.coreSpokeAddress,
+      reserveIds,
+    },
+  );
+  // Borrow APR is borrow-only; skip the read entirely in repay mode.
+  const { aprPercentByReserveId } = useAaveBorrowAprs({
+    reserves: isRepay ? [] : borrowableReserves,
   });
-  const config = MODE_CONFIG[mode];
 
   const handleAssetClick = (assetSymbol: string) => {
     onSelectAsset(assetSymbol);
     onClose();
   };
 
-  const renderContent = () => {
+  const rows: AssetRow[] = useMemo(() => {
     if (assets) {
-      if (assets.length === 0) {
-        return (
-          <p className="text-center text-accent-secondary">
-            No assets available
-          </p>
-        );
-      }
-
-      return assets.map((asset) => (
-        <AssetListItem
-          key={asset.symbol}
-          symbol={asset.symbol}
-          name={asset.name}
-          icon={asset.icon}
-          priceUsd={asset.priceUsd}
-          onClick={() => handleAssetClick(asset.symbol)}
-        />
-      ));
+      return assets.map((asset) => ({
+        key: asset.symbol,
+        symbol: asset.symbol,
+        name: asset.name,
+        icon: asset.icon,
+        priceLabel:
+          asset.priceUsd != null
+            ? formatPriceUsd(asset.priceUsd)
+            : COPY.common.emptyValue,
+      }));
     }
 
-    // Default: use borrowable reserves from config
-    if (isLoading) {
-      return (
-        <p className="text-center text-accent-secondary">Loading assets...</p>
-      );
-    }
+    return borrowableReserves.map((reserve) => {
+      const reserveKey = reserve.reserveId.toString();
+      const priceUsd = pricesByReserveId[reserveKey] ?? undefined;
+      const aprPercent = aprPercentByReserveId[reserveKey];
+      return {
+        key: reserveKey,
+        symbol: reserve.token.symbol,
+        name: reserve.token.name,
+        icon: getTokenByAddress(reserve.token.address)?.icon,
+        priceLabel:
+          priceUsd != null ? formatPriceUsd(priceUsd) : COPY.common.emptyValue,
+        aprLabel:
+          aprPercent == null
+            ? COPY.common.emptyValue
+            : formatAprPercent(aprPercent),
+      };
+    });
+  }, [assets, borrowableReserves, pricesByReserveId, aprPercentByReserveId]);
 
-    if (borrowableReserves.length === 0) {
+  const renderBody = () => {
+    // Repay assets arrive ready; borrow rows wait on the oracle price read.
+    if (!isRepay && pricesLoading) {
       return (
-        <p className="text-center text-accent-secondary">
-          No borrowable assets available
+        <p className="py-4 text-center text-accent-secondary">
+          {COPY.loans.assetSelection.loading}
         </p>
       );
     }
 
-    return borrowableReserves.map((reserve) => {
-      const tokenMetadata = getTokenByAddress(reserve.token.address);
-      const priceUsd =
-        pricesByReserveId[reserve.reserveId.toString()] ?? undefined;
+    if (rows.length === 0) {
       return (
-        <AssetListItem
-          key={reserve.reserveId.toString()}
-          symbol={reserve.token.symbol}
-          name={reserve.token.name}
-          icon={tokenMetadata?.icon}
-          priceUsd={priceUsd}
-          onClick={() => handleAssetClick(reserve.token.symbol)}
-        />
+        <p className="py-4 text-center text-accent-secondary">
+          {isRepay
+            ? COPY.loans.assetSelection.emptyRepay
+            : COPY.loans.assetSelection.emptyBorrow}
+        </p>
       );
-    });
+    }
+
+    return (
+      <>
+        <div className="flex items-center px-4 text-sm text-accent-secondary">
+          <span className={ASSET_COL_CLASS}>
+            {COPY.loans.assetSelection.columnAsset}
+          </span>
+          <div className="flex flex-1 items-center">
+            <span className="flex-1 py-4">
+              {COPY.loans.assetSelection.columnPrice}
+            </span>
+            {!isRepay && (
+              <>
+                <span className="flex-1 py-4">
+                  {COPY.loans.assetSelection.columnAvailable}
+                </span>
+                <span className="flex-1 py-4">
+                  {COPY.loans.assetSelection.columnBorrowApr}
+                </span>
+              </>
+            )}
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-2">
+          {rows.map((row) => (
+            <button
+              key={row.key}
+              onClick={() => handleAssetClick(row.symbol)}
+              className="flex w-full cursor-pointer items-center rounded-xl bg-secondary-highlight p-4 text-left transition-colors hover:bg-secondary-strokeLight dark:bg-primary-main dark:hover:bg-secondary-strokeDark"
+            >
+              <div className={ASSET_COL_CLASS}>
+                <Avatar
+                  url={getCurrencyIconWithFallback(row.icon, row.symbol)}
+                  alt={row.name}
+                  size="large"
+                  variant="circular"
+                  className="h-12 w-12 rounded-full bg-white"
+                />
+                <div className="flex flex-col items-start">
+                  <span className="text-base text-accent-primary">
+                    {row.name}
+                  </span>
+                  <span className="text-sm text-accent-secondary">
+                    {row.symbol}
+                  </span>
+                </div>
+              </div>
+              <div className="flex flex-1 items-center text-base text-accent-primary">
+                <span className="flex-1">{row.priceLabel}</span>
+                {!isRepay && (
+                  <>
+                    <span className="flex-1">{COPY.common.emptyValue}</span>
+                    <span className="flex-1">{row.aprLabel}</span>
+                  </>
+                )}
+              </div>
+            </button>
+          ))}
+        </div>
+      </>
+    );
   };
 
   return (
-    <ResponsiveDialog open={isOpen} onClose={onClose}>
-      <DialogHeader
-        title={config.title}
-        onClose={onClose}
-        className="text-accent-primary"
-      />
-      <DialogBody className="space-y-4">
-        <p className="text-base text-accent-secondary">{config.description}</p>
-        <div className="space-y-2">{renderContent()}</div>
-      </DialogBody>
-    </ResponsiveDialog>
+    <FullScreenDialog
+      open={isOpen}
+      onClose={onClose}
+      className="items-center justify-center p-6"
+    >
+      <div className="mx-auto w-full max-w-[612px] rounded-2xl border border-secondary-strokeLight">
+        <div className="border-b border-secondary-strokeLight p-6">
+          <h3 className="text-2xl text-accent-primary">
+            {COPY.loans.assetSelection.title}
+          </h3>
+        </div>
+        <div className="flex flex-col gap-4 px-6 pb-6 pt-4">{renderBody()}</div>
+      </div>
+    </FullScreenDialog>
   );
 }
