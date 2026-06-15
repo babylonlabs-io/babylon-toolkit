@@ -376,11 +376,11 @@ export function useDepositFlow(
         // ========================================================================
 
         setCurrentStep(DepositFlowStep.DERIVE_VAULT_SECRET);
-        // Sign each peg-in PSBT one at a time so the (x of n) sub-counter can
-        // advance per signature. A native batch signPsbts signs every tx in a
-        // single popup and returns one result, hiding intra-batch progress
-        // from the dApp — so we override signPsbts to loop signPsbt instead,
-        // trading one popup for N popups in exchange for live progress.
+        // Sign the peg-in PSBTs in a single native batch popup when the wallet
+        // supports signPsbts; the (x of n) sub-counter jumps 0 -> N around the
+        // one call. Wallets without native batch signing fall back to
+        // sequential signPsbt (via the SDK's signPsbtsWithFallback), where the
+        // per-tx wrapper ticks the counter once per signature.
         const signOnePeginPsbt: typeof confirmedBtcWallet.signPsbt = async (
           psbtHex,
           opts,
@@ -394,6 +394,21 @@ export function useDepositFlow(
           );
           return signed;
         };
+        // Native batch path: one popup; the counter jumps 0 -> N around the call.
+        const signPeginBatch: typeof confirmedBtcWallet.signPsbts = async (
+          psbtHexes,
+          opts,
+        ) => {
+          setCurrentStep(DepositFlowStep.SIGN_PEGIN_BTC);
+          setPeginSigningProgress({ completed: 0, total: psbtHexes.length });
+          const signed = await confirmedBtcWallet.signPsbts!(psbtHexes, opts);
+          setPeginSigningProgress({
+            completed: psbtHexes.length,
+            total: psbtHexes.length,
+          });
+          return signed;
+        };
+
         const phaseTrackingBtcWallet: typeof confirmedBtcWallet = {
           ...confirmedBtcWallet,
           deriveContextHash: (appName, context) => {
@@ -401,13 +416,9 @@ export function useDepositFlow(
             return confirmedBtcWallet.deriveContextHash(appName, context);
           },
           signPsbt: signOnePeginPsbt,
-          signPsbts: async (psbtHexes, opts) => {
-            const signed: string[] = [];
-            for (let i = 0; i < psbtHexes.length; i++) {
-              signed.push(await signOnePeginPsbt(psbtHexes[i], opts?.[i]));
-            }
-            return signed;
-          },
+          ...(typeof confirmedBtcWallet.signPsbts === "function"
+            ? { signPsbts: signPeginBatch }
+            : {}),
         };
 
         // No hard pre-filter. `DuplicateHashlock` on `BTCVaultRegistry`

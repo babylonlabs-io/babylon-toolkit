@@ -1152,31 +1152,7 @@ describe("useDepositFlow", () => {
   });
 
   describe("Peg-in signing progress", () => {
-    it("advances the counter to n of n by signing each peg-in tx in its own popup", async () => {
-      const { preparePeginTransaction } = vi.mocked(
-        await import("@/services/vault/vaultTransactionService"),
-      );
-      // The SDK signs the peg-in PSBTs by calling the wallet wrapper's
-      // signPsbts once; the wrapper forces per-tx signing underneath.
-      vi.mocked(preparePeginTransaction).mockImplementation(async (wallet) => {
-        await wallet.signPsbts(["psbt0", "psbt1"], [{}, {}]);
-        return MOCK_BATCH_RESULT as any;
-      });
-
-      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
-      await executeDepositFlow(result);
-
-      await waitFor(() => {
-        expect(result.current.peginSigningProgress).toEqual({
-          completed: 2,
-          total: 2,
-        });
-      });
-      // Per-tx: the single-PSBT signer is invoked once per vault.
-      expect(MOCK_BTC_WALLET.signPsbt).toHaveBeenCalledTimes(2);
-    });
-
-    it("never uses the wallet's native batch signPsbts for peg-in, so the counter can tick", async () => {
+    it("uses the wallet's native batch signPsbts so the peg-in txs sign in one popup", async () => {
       const { preparePeginTransaction } = vi.mocked(
         await import("@/services/vault/vaultTransactionService"),
       );
@@ -1189,6 +1165,8 @@ describe("useDepositFlow", () => {
         signPsbt: nativeSignPsbt,
         signPsbts: nativeSignPsbts,
       };
+      // The SDK signs the peg-in PSBTs by calling the wallet wrapper's
+      // signPsbts once; the wrapper delegates to the native batch call.
       vi.mocked(preparePeginTransaction).mockImplementation(async (wallet) => {
         await wallet.signPsbts(["psbt0", "psbt1"], [{}, {}]);
         return MOCK_BATCH_RESULT as any;
@@ -1208,9 +1186,37 @@ describe("useDepositFlow", () => {
           total: 2,
         });
       });
-      // Peg-in is signed per-tx via signPsbt; the native batch path is unused.
-      expect(nativeSignPsbts).not.toHaveBeenCalled();
-      expect(nativeSignPsbt).toHaveBeenCalledTimes(2);
+      // One native batch call signs every peg-in tx; the per-tx signer is unused.
+      expect(nativeSignPsbts).toHaveBeenCalledTimes(1);
+      expect(nativeSignPsbts).toHaveBeenCalledWith(
+        ["psbt0", "psbt1"],
+        [{}, {}],
+      );
+      expect(nativeSignPsbt).not.toHaveBeenCalled();
+    });
+
+    it("falls back to sequential signPsbt for wallets without native batch signing, ticking the counter per tx", async () => {
+      const { preparePeginTransaction } = vi.mocked(
+        await import("@/services/vault/vaultTransactionService"),
+      );
+      // MOCK_BTC_WALLET has no signPsbts, so the SDK's signPsbtsWithFallback
+      // signs each PSBT via the wrapper's signPsbt; the counter ticks per tx.
+      vi.mocked(preparePeginTransaction).mockImplementation(async (wallet) => {
+        await wallet.signPsbt("psbt0", {});
+        await wallet.signPsbt("psbt1", {});
+        return MOCK_BATCH_RESULT as any;
+      });
+
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+      await executeDepositFlow(result);
+
+      await waitFor(() => {
+        expect(result.current.peginSigningProgress).toEqual({
+          completed: 2,
+          total: 2,
+        });
+      });
+      expect(MOCK_BTC_WALLET.signPsbt).toHaveBeenCalledTimes(2);
     });
   });
 
