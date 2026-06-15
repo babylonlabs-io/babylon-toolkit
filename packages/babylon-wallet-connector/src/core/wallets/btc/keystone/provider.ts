@@ -73,7 +73,7 @@ export class KeystoneProvider implements IBTCProvider {
       description:
         "Please scan the QR code displayed on your Keystone, Currently only the first Taproot Address will be used",
       renderInitial: {
-        walletMode: "btc",
+        walletMode: "",
         link: "",
         description: [
           `Requires Keystone firmware ${MIN_KEYSTONE_FIRMWARE_VERSION} or later.`,
