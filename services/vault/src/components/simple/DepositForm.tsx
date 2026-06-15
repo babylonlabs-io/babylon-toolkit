@@ -92,6 +92,12 @@ interface DepositFormProps {
   feeError: string | null;
   depositorClaimValue?: bigint;
   /**
+   * Full HTLC output values the protocol charges commission on, one per vault.
+   * Used by the fee breakdown so split deposits floor commission per HTLC.
+   * `undefined` while the per-vault reserve / PegIn fee is still loading.
+   */
+  commissionHtlcValues?: readonly bigint[];
+  /**
    * Terminal failure from the `computeMinClaimValue` WASM query. CTA surfaces
    * this as "Fee estimate unavailable" instead of an indefinite loading
    * state. Null while the query is healthy.
@@ -176,6 +182,7 @@ export function DepositForm({
   isLoadingFee,
   feeError,
   depositorClaimValue,
+  commissionHtlcValues,
   depositorClaimValueError,
   isDepositDisabled,
   isGeoBlocked,
@@ -422,6 +429,7 @@ export function DepositForm({
         protocolFeeIsError={protocolFeeIsError}
         amountSats={amountSats}
         commissionBps={selectedProviderCommissionBps}
+        commissionHtlcValues={commissionHtlcValues}
       />
 
       {/* Protocol & risk parameters */}

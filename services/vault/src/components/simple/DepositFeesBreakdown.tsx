@@ -26,10 +26,15 @@ interface DepositFeesBreakdownProps {
   protocolFeeAmount: string;
   protocolFeePrice: string;
   protocolFeeIsError: boolean;
-  /** Entered deposit amount (satoshis) — base for the commission/net figures. */
+  /** Entered deposit amount (satoshis) — base for the net-payout figure. */
   amountSats: bigint;
   /** VP commission (bps) for the selected provider; undefined while loading. */
   commissionBps?: number;
+  /**
+   * Full HTLC output values the protocol charges commission on, one per vault.
+   * `undefined` while the reserve / PegIn-fee inputs are still loading.
+   */
+  commissionHtlcValues?: readonly bigint[];
 }
 
 interface FeeLineProps {
@@ -81,6 +86,7 @@ export function DepositFeesBreakdown({
   protocolFeeIsError,
   amountSats,
   commissionBps,
+  commissionHtlcValues,
 }: DepositFeesBreakdownProps) {
   // Format a satoshi value as a BTC amount plus an optional "($X USD)" suffix,
   // matching the existing fee-line presentation. `null` sats render as the
@@ -106,19 +112,28 @@ export function DepositFeesBreakdown({
     depositorClaimValue === undefined ? null : depositorClaimValue,
   );
 
-  // VP commission is floor(amount * bps / 10_000), deducted from the payout.
-  // Net payout is the deposit minus that commission. Both are unknown until the
-  // commission loads, so they show the placeholder until then.
+  // The protocol charges commission on the full HTLC output value
+  // (`htlcValue = deposit + depositorClaimValue + minPeginFee`), not on the
+  // entered deposit alone — see `payout.ts` (commission cap on
+  // `peginPrevOut.value`). For split deposits, each HTLC is floored
+  // independently by the payout cap, so mirror that rather than flooring the
+  // summed value once. Net payout is the deposit minus that commission.
+  // All inputs must be known to size the HTLC values, so the lines show the
+  // placeholder until the commission, reserve, and PegIn fee have all loaded.
   const { commissionSats, netPayoutSats } = useMemo(() => {
-    if (commissionBps === undefined) {
+    if (commissionBps === undefined || commissionHtlcValues === undefined) {
       return { commissionSats: null, netPayoutSats: null };
     }
-    const commission = (amountSats * BigInt(commissionBps)) / BPS_DENOMINATOR;
+    const bps = BigInt(commissionBps);
+    const commission = commissionHtlcValues.reduce(
+      (total, htlcValue) => total + (htlcValue * bps) / BPS_DENOMINATOR,
+      0n,
+    );
     return {
       commissionSats: commission,
       netPayoutSats: amountSats - commission,
     };
-  }, [amountSats, commissionBps]);
+  }, [amountSats, commissionHtlcValues, commissionBps]);
 
   const commission = formatSatsLine(commissionSats);
   const netPayout = formatSatsLine(netPayoutSats);

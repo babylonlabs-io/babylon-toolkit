@@ -144,6 +144,17 @@ function SimpleDepositContent({
       ? depositorClaimValue * BigInt(depositBatchSize)
       : undefined;
 
+  // Full HTLC output values the protocol charges commission on. `amountSats`
+  // is the total deposit, while split deposits are charged per HTLC/payout, so
+  // keep the per-vault values distinct to preserve each floor operation.
+  const commissionHtlcValues =
+    depositorClaimValue !== undefined && minPeginFee != null
+      ? (isPartialLiquidation && vaultAmounts
+          ? vaultAmounts
+          : [amountSats]
+        ).map((vaultAmount) => vaultAmount + depositorClaimValue + minPeginFee)
+      : undefined;
+
   // Live commission (bps) for the selected provider, read from the current
   // providers list. Captured into the deposit snapshot at commit time
   // (`handleDeposit`) so the value the signing flow binds is exactly what the
@@ -382,6 +393,7 @@ function SimpleDepositContent({
                 }
                 isWalletConnected={isWalletConnected}
                 depositorClaimValue={totalDepositorClaimValue}
+                commissionHtlcValues={commissionHtlcValues}
                 depositorClaimValueError={depositorClaimValueError}
                 estimatedFeeSats={estimatedFeeSats}
                 estimatedFeeRate={estimatedFeeRate}
