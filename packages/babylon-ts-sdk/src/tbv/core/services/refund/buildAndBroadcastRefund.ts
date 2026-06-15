@@ -10,7 +10,11 @@
  * @module services/refund
  */
 
-import type { Network } from "@babylonlabs-io/babylon-tbv-rust-wasm";
+import {
+  computeMinClaimValue,
+  computeMinPeginFee,
+  type Network,
+} from "@babylonlabs-io/babylon-tbv-rust-wasm";
 import { Psbt, Transaction } from "bitcoinjs-lib";
 import type { Address, Hex } from "viem";
 
@@ -352,6 +356,58 @@ function validateRefundPrePeginContext(c: RefundPrePeginContext): void {
   }
 }
 
+/**
+ * Re-derive each HTLC's original peg-in amount from its on-chain HTLC output
+ * value, inverting the protocol formula
+ * `htlcValue = peginAmount + depositorClaimValue + minPeginFee`.
+ *
+ * The original peg-in amount is not persisted anywhere — only the HTLC output
+ * value (`batch[i].amount`) survives on-chain. WASM refund template
+ * reconstruction needs the *peg-in amount*, not the HTLC value: feeding the
+ * HTLC value would size the template's HTLC output above what the funded tx
+ * carries, and `buildRefundPsbt`'s value cross-check would refuse the refund.
+ *
+ * `depositorClaimValue` and `minPeginFee` are constant across the batch
+ * (fixed by the version-pinned protocol params in {@link ctx}), so they are
+ * computed once via the same WASM entry points the peg-in path uses, then
+ * subtracted from every entry's value. The subtraction is the inverse of the
+ * sizing WASM performs internally; `buildRefundPsbt` then re-binds the result
+ * to the funded tx bytes, so a wrong derivation fails closed rather than
+ * signing a mis-sized refund.
+ */
+export async function deriveRefundPeginAmounts(
+  batch: ReadonlyArray<VaultBatchEntry>,
+  ctx: RefundPrePeginContext,
+): Promise<bigint[]> {
+  const depositorClaimValue = await computeMinClaimValue(
+    ctx.numLocalChallengers,
+    ctx.universalChallengerPubkeys.length,
+    ctx.councilQuorum,
+    ctx.councilSize,
+    ctx.feeRate,
+  );
+  const minPeginFee = await computeMinPeginFee(
+    ctx.vaultKeeperPubkeys.length,
+    ctx.universalChallengerPubkeys.length,
+    ctx.minPeginFeeRate,
+  );
+  const reserved = depositorClaimValue + minPeginFee;
+
+  return batch.map((entry, i) => {
+    const peginAmount = entry.amount - reserved;
+    if (peginAmount <= 0n) {
+      throw new Error(
+        `Re-derived peginAmount for batch[${i}] is non-positive ` +
+          `(${peginAmount}): HTLC value ${entry.amount} does not exceed ` +
+          `depositorClaimValue ${depositorClaimValue} + minPeginFee ` +
+          `${minPeginFee}. Refusing to build a refund from an inconsistent ` +
+          `(amount, protocol params) pair.`,
+      );
+    }
+    return peginAmount;
+  });
+}
+
 function finalizeAndExtract(signedPsbtHex: string): string {
   const psbt = Psbt.fromHex(signedPsbtHex);
   try {
@@ -489,6 +545,15 @@ export async function buildAndBroadcastRefund<
     );
   }
 
+  // Re-derive the original peg-in amounts from the on-chain HTLC values.
+  // `batch[i].amount` is the HTLC *output* value, not the peg-in amount the
+  // WASM template constructor expects; feeding it verbatim mis-sizes the
+  // template. The derivation is bound back to the funded tx bytes by
+  // `buildRefundPsbt`'s value cross-check, so an inconsistent result fails
+  // closed instead of producing a mis-sized refund.
+  const refundPeginAmounts = await deriveRefundPeginAmounts(vault.batch, ctx);
+  signal?.throwIfAborted();
+
   const { psbtHex } = await buildRefundPsbt({
     prePeginParams: {
       depositorPubkey: xOnlyDepositorPubkey,
@@ -498,7 +563,7 @@ export async function buildAndBroadcastRefund<
         ctx.universalChallengerPubkeys.map(stripHexPrefix),
       hashlocks: vault.batch.map((b) => stripHexPrefix(b.hashlock)),
       timelockRefund: ctx.timelockRefund,
-      pegInAmounts: vault.batch.map((b) => b.amount),
+      pegInAmounts: refundPeginAmounts,
       feeRate: ctx.feeRate,
       minPeginFeeRate: ctx.minPeginFeeRate,
       numLocalChallengers: ctx.numLocalChallengers,
