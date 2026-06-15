@@ -41,7 +41,7 @@ function BtcBadgeIcon({ badge }: { badge: "down" | "lock" }) {
   // `currentColor` lets the path inherit the text color set on the wrapper.
   return (
     <div className="relative inline-flex h-8 w-8">
-      <img src="/images/btc.png" alt="BTC" className="h-8 w-8 rounded-full" />
+      <img src="/images/btc.svg" alt="BTC" className="h-8 w-8 rounded-full" />
       <div className="absolute -bottom-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full border-[0.5px] border-[#DDDDDD] bg-white text-[#666666] dark:border-[#2F2F2F] dark:bg-[#111111] dark:text-[#B0B0B0]">
         <svg
           width="16"

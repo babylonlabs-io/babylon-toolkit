@@ -5,7 +5,7 @@ import { COPY } from "@/copy";
 
 vi.mock("@/config", () => ({
   getNetworkConfigBTC: () => ({
-    icon: "/images/btc.png",
+    icon: "/images/btc.svg",
     coinSymbol: "BTC",
   }),
 }));
@@ -25,6 +25,6 @@ describe("GeoBlockState", () => {
 
     const icon = screen.getByAltText("BTC");
     expect(icon).toBeInTheDocument();
-    expect(icon).toHaveAttribute("src", "/images/btc.png");
+    expect(icon).toHaveAttribute("src", "/images/btc.svg");
   });
 });
