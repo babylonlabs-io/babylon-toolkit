@@ -186,7 +186,7 @@ export function Repay() {
             sliderStep={sliderTrackMax / SLIDER_STEP_COUNT}
             sliderSteps={[]}
             onSliderChange={setRepayAmountSlider}
-            sliderVariant="rainbow"
+            sliderVariant="primary"
             leftField={{
               value:
                 repayAmount === 0
