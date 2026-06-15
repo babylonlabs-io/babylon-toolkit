@@ -42,7 +42,7 @@ export const WALLET_PROVIDER_NAME = "Keystone";
  * way software wallets gate their injected version — it is surfaced as a hint in
  * the connect dialog instead. Confirm the exact version with Keystone before release.
  */
-const MIN_KEYSTONE_FIRMWARE_VERSION = "2.4.5";
+const MIN_KEYSTONE_FIRMWARE_VERSION = "2.4.6";
 
 export class KeystoneProvider implements IBTCProvider {
   private keystoneWalletInfo: KeystoneWalletInfo | undefined;
