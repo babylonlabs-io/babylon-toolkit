@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { MIN_HEALTH_FACTOR_FOR_BORROW } from "../../../../../constants";
 import { validateBorrowAction } from "../validateBorrowAction";
 
-const HF_TOO_LOW_MESSAGE = `Borrowing this amount would drop your health factor below ${MIN_HEALTH_FACTOR_FOR_BORROW}, risking liquidation. Reduce the amount and retry.`;
+const HF_TOO_LOW_MESSAGE = `Borrowing this amount would drop your health factor below ${MIN_HEALTH_FACTOR_FOR_BORROW}, risking liquidation. Reduce the amount and try again.`;
 
 describe("validateBorrowAction", () => {
   it("disables with 'Enter an amount' when borrow amount is 0", () => {
@@ -31,7 +31,7 @@ describe("validateBorrowAction", () => {
       isDisabled: true,
       buttonText: "Amount too small",
       errorMessage:
-        "The minimum borrowable amount is 0.000001. Enter a higher amount and retry.",
+        "The minimum borrowable amount is 0.000001. Enter a higher amount and try again.",
     });
   });
 
@@ -43,7 +43,7 @@ describe("validateBorrowAction", () => {
 
     expect(result.buttonText).toBe("Amount too small");
     expect(result.errorMessage).toBe(
-      "The minimum borrowable amount is 0.000001. Enter a higher amount and retry.",
+      "The minimum borrowable amount is 0.000001. Enter a higher amount and try again.",
     );
   });
 
@@ -61,7 +61,7 @@ describe("validateBorrowAction", () => {
       isDisabled: true,
       buttonText: "Amount exceeds maximum",
       errorMessage:
-        "The maximum borrowable amount is 10,000 USDC. Enter a lower amount and retry.",
+        "The maximum borrowable amount is 10,000 USDC. Enter a lower amount and try again.",
     });
   });
 
@@ -113,7 +113,7 @@ describe("validateBorrowAction", () => {
       isDisabled: true,
       buttonText: "Amount exceeds maximum",
       errorMessage:
-        "The maximum borrowable amount is 10,000 USDC. Enter a lower amount and retry.",
+        "The maximum borrowable amount is 10,000 USDC. Enter a lower amount and try again.",
     });
   });
 
@@ -157,7 +157,7 @@ describe("validateBorrowAction", () => {
 
     expect(result.buttonText).toBe("Amount exceeds maximum");
     expect(result.errorMessage).toBe(
-      "The maximum borrowable amount is 0.0000099 WBTC. Enter a lower amount and retry.",
+      "The maximum borrowable amount is 0.0000099 WBTC. Enter a lower amount and try again.",
     );
   });
 });
