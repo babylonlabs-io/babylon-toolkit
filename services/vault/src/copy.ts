@@ -712,6 +712,34 @@ export const COPY = {
       body: (symbol: string) =>
         `Deposit ${symbol} as collateral to start borrowing.`,
     },
+    // Repay tab — validation button labels and depositor-facing messages.
+    repay: {
+      action: "Repay",
+      processing: "Processing...",
+      enterAmount: "Enter an amount",
+      amountTooSmall: "Amount too small",
+      amountExceedsDebt: "Amount exceeds debt",
+      insufficientBalance: "Insufficient balance",
+      cannotExceedDebt: "You cannot repay more than your current debt.",
+      minRepayable: (amount: string) => `Minimum repayable amount is ${amount}`,
+      // `symbol` undefined → generic "tokens"; otherwise names the token.
+      zeroBalance: (symbol: string | undefined, minAmount: string) =>
+        `Your ${symbol ? `${symbol} ` : ""}balance is 0. Acquire at least ${minAmount} ${symbol ?? "tokens"} to repay your debt.`,
+      shortfall: (
+        balance: string,
+        debt: string,
+        residual: string,
+        unit: string,
+      ) =>
+        `Your balance (${balance}) is less than your debt (${debt}). Repaying now will leave ${residual} in debt; acquire more ${unit} to fully clear it.`,
+      insufficientForFull: (balance: string, unit: string) =>
+        `You only have ${balance} ${unit} available. You need more ${unit} to fully repay your debt.`,
+      // Shown when the wallet balance query fails so the user isn't left with a
+      // disabled repay button and no explanation.
+      balanceLoadError: "Couldn't load your balance. Please try again.",
+      // Submit-time (Max intent) balance/debt refetch failure.
+      refetchError: "Couldn't refresh balance/debt — please try again.",
+    },
   },
   overview: {
     heading: "Overview",
