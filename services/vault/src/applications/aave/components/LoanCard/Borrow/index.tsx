@@ -145,7 +145,7 @@ export function Borrow() {
             sliderStep={sliderTrackMax / 1000}
             sliderSteps={[]}
             onSliderChange={setBorrowAmount}
-            sliderVariant="rainbow"
+            sliderVariant="primary"
             leftField={{
               value:
                 borrowAmount === 0
