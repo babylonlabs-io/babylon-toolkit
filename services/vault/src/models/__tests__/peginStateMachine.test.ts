@@ -466,9 +466,9 @@ describe("peginStateMachine", () => {
       // stays focused on the expired reason so the user doesn't see the
       // same sentence twice.
       expect(state.inlineSubtext).toBe(
-        "Refund claimable in ~24 Bitcoin blocks (~4h).",
+        "Your refund will be claimable in ~24 Bitcoin blocks (~4h).",
       );
-      expect(state.message).not.toContain("Refund claimable");
+      expect(state.message).not.toContain("claimable in");
     });
 
     it("uses singular 'block' when exactly one block remains", () => {
@@ -479,7 +479,7 @@ describe("peginStateMachine", () => {
       });
       // 1 block * 10 min = 10 min → ceil(10/60)=1h, floored to min 1h.
       expect(state.inlineSubtext).toBe(
-        "Refund claimable in ~1 Bitcoin block (~1h).",
+        "Your refund will be claimable in ~1 Bitcoin block (~1h).",
       );
     });
 

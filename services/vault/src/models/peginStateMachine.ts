@@ -105,7 +105,7 @@ export interface PeginState {
   refundMaturesInBlocks?: number;
   /**
    * Short message intended for the inline subtext slot under the amount
-   * (e.g. "Refund claimable in ~18 blocks (~3h)"). The full sentence stays
+   * (e.g. "Your refund will be claimable in ~18 blocks (~3h)"). The full sentence stays
    * in `message` for the tooltip. Set for maturing / unknown EXPIRED only.
    */
   inlineSubtext?: string;
