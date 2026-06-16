@@ -4,6 +4,8 @@
  * Validates whether user can perform the repay action based on amount.
  */
 
+import { COPY } from "@/copy";
+
 import { formatTokenAmount } from "../../../../../../utils/formatting";
 
 export interface RepayValidationResult {
@@ -39,6 +41,7 @@ export function validateRepayAction(
   displayDecimals?: number,
   symbol?: string,
 ): RepayValidationResult {
+  const copy = COPY.loans.repay;
   const tokenUnit = symbol ?? "tokens";
 
   // Below one base unit the submit path's toFixed(displayDecimals) rounds to 0n
@@ -48,8 +51,10 @@ export function validateRepayAction(
     if (repayAmount < minRepayable) {
       return {
         isDisabled: true,
-        buttonText: "Amount too small",
-        errorMessage: `Minimum repayable amount is ${formatTokenAmount(minRepayable, displayDecimals)}`,
+        buttonText: copy.amountTooSmall,
+        errorMessage: copy.minRepayable(
+          formatTokenAmount(minRepayable, displayDecimals),
+        ),
         warningMessage: null,
       };
     }
@@ -68,8 +73,11 @@ export function validateRepayAction(
   ) {
     return {
       isDisabled: true,
-      buttonText: "Insufficient balance",
-      errorMessage: `Your ${symbol ? `${symbol} ` : ""}balance is 0. Acquire at least ${formatTokenAmount(currentDebtAmount, displayDecimals)} ${tokenUnit} to repay your debt.`,
+      buttonText: copy.insufficientBalance,
+      errorMessage: copy.zeroBalance(
+        symbol,
+        formatTokenAmount(currentDebtAmount, displayDecimals),
+      ),
       warningMessage: null,
     };
   }
@@ -83,19 +91,24 @@ export function validateRepayAction(
     userTokenBalance > 0 &&
     userTokenBalance < currentDebtAmount;
 
-  // Use `formatTokenAmount` for all three numbers so the precision per number
-  // is adaptive (min 2, max 6 decimals, trailing zeros trimmed). A blanket
-  // `.toFixed(2)` would hide sub-cent dust ("leave 0.000001 in debt" → "0.00"),
-  // producing a self-contradicting message. A blanket `.toFixed(6)` would
-  // pad normal amounts with noisy zeros.
+  // `formatTokenAmount` adapts precision per number so dust isn't shown as
+  // "0.00" while normal amounts aren't padded with noisy zeros.
   const shortfallMessage = balanceShortfall
-    ? `Your balance (${formatTokenAmount(userTokenBalance as number, displayDecimals)}) is less than your debt (${formatTokenAmount(currentDebtAmount as number, displayDecimals)}). Repaying now will leave ${formatTokenAmount((currentDebtAmount as number) - (userTokenBalance as number), displayDecimals)} in debt; acquire more ${tokenUnit} to fully clear it.`
+    ? copy.shortfall(
+        formatTokenAmount(userTokenBalance as number, displayDecimals),
+        formatTokenAmount(currentDebtAmount as number, displayDecimals),
+        formatTokenAmount(
+          (currentDebtAmount as number) - (userTokenBalance as number),
+          displayDecimals,
+        ),
+        tokenUnit,
+      )
     : null;
 
   if (repayAmount === 0) {
     return {
       isDisabled: true,
-      buttonText: "Enter an amount",
+      buttonText: copy.enterAmount,
       errorMessage: null,
       warningMessage: shortfallMessage,
     };
@@ -105,22 +118,25 @@ export function validateRepayAction(
     if (balanceShortfall) {
       return {
         isDisabled: true,
-        buttonText: "Insufficient balance",
-        errorMessage: `You only have ${formatTokenAmount(userTokenBalance as number, displayDecimals)} ${tokenUnit} available. You need more ${tokenUnit} to fully repay your debt.`,
+        buttonText: copy.insufficientBalance,
+        errorMessage: copy.insufficientForFull(
+          formatTokenAmount(userTokenBalance as number, displayDecimals),
+          tokenUnit,
+        ),
         warningMessage: null,
       };
     }
     return {
       isDisabled: true,
-      buttonText: "Amount exceeds debt",
-      errorMessage: "You cannot repay more than your current debt.",
+      buttonText: copy.amountExceedsDebt,
+      errorMessage: copy.cannotExceedDebt,
       warningMessage: null,
     };
   }
 
   return {
     isDisabled: false,
-    buttonText: "Repay",
+    buttonText: copy.action,
     errorMessage: null,
     warningMessage: shortfallMessage,
   };
