@@ -85,14 +85,6 @@ interface ArtifactDownloadModalProps extends ArtifactDownloadModalParams {
    * and they must restart the deposit flow to recover.
    */
   unsignedPrePeginTxHex?: string;
-  /**
-   * Optional activation handler invoked by the Activate Vault button in
-   * the downloaded state. When omitted, that button falls back to
-   * `onComplete` — the label stays "Activate Vault" because the
-   * downstream flow (post-deposit continuation, etc.) leads to
-   * activation, even if this modal isn't the one that fires it.
-   */
-  onActivate?: () => void;
 }
 
 export function ArtifactDownloadModal({
@@ -104,7 +96,6 @@ export function ArtifactDownloadModal({
   depositorPk,
   vaultId,
   unsignedPrePeginTxHex,
-  onActivate,
 }: ArtifactDownloadModalProps) {
   // Seed from localStorage so a reopened modal for an already-downloaded
   // vault renders the Continue path immediately (the card itself flips to
@@ -197,9 +188,9 @@ export function ArtifactDownloadModal({
               variant="contained"
               color="secondary"
               className="h-10 flex-1"
-              onClick={onActivate ?? onComplete}
+              onClick={onComplete}
             >
-              {COPY.deposit.artifactDownload.activateButton}
+              {COPY.deposit.artifactDownload.doneButton}
             </Button>
           </>
         ) : (

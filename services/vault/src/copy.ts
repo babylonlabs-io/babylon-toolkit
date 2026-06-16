@@ -318,11 +318,10 @@ export const COPY = {
       bodyDownloaded: "Your files are stored locally and never uploaded.",
       cancelButton: "Cancel",
       cancelDownloadButton: "Cancel download",
-      // Right footer button in the downloaded state. The handler is
-      // contextual: PendingDepositSection hands off to the activation
-      // flow; other call sites (sign continuation, collateral re-download)
-      // fall back to their existing onComplete handler.
-      activateButton: "Activate Vault",
+      // Right footer button in the downloaded state. The modal only confirms
+      // the artifacts are on disk; it doesn't perform activation, so the
+      // label simply dismisses the dialog.
+      doneButton: "Done",
     },
     recoveryArtifacts: {
       cardTitle: "Recovery artifacts",
