@@ -168,6 +168,27 @@ export function Borrow() {
     return buttonText;
   };
 
+  // A single status callout, rendered once below the action button. Highest
+  // priority first: a current input/validation error, then the last failed
+  // transaction, then the standing "can't borrow" warnings.
+  const statusCallout: {
+    variant: "error" | "warning";
+    title?: string;
+    body: string;
+  } | null = errorMessage
+    ? { variant: "error", title: buttonText, body: errorMessage }
+    : txError
+      ? {
+          variant: "error",
+          title: COPY.loans.transactionFailedTitle,
+          body: txError,
+        }
+      : FeatureFlags.isBorrowDisabled
+        ? { variant: "warning", body: COPY.loans.borrowingUnavailable }
+        : tokenPriceUsd == null || oracleAddress == null
+          ? { variant: "warning", body: COPY.loans.priceUnavailable }
+          : null;
+
   return (
     <div>
       {/* Borrow Amount Section */}
@@ -252,22 +273,6 @@ export function Borrow() {
           healthFactorOriginal={metrics.healthFactorOriginal}
           healthFactorOriginalValue={metrics.healthFactorOriginalValue}
         />
-
-        {/* Validation error */}
-        {errorMessage && (
-          <Callout variant="error" title={buttonText}>
-            {errorMessage}
-          </Callout>
-        )}
-
-        {/* Borrow Unavailable Messages */}
-        {FeatureFlags.isBorrowDisabled && (
-          <Callout variant="warning">{COPY.loans.borrowingUnavailable}</Callout>
-        )}
-        {(tokenPriceUsd == null || oracleAddress == null) &&
-          !FeatureFlags.isBorrowDisabled && (
-            <Callout variant="warning">{COPY.loans.priceUnavailable}</Callout>
-          )}
       </div>
 
       {/* Borrow Button */}
@@ -289,14 +294,14 @@ export function Borrow() {
         {getBorrowButtonText()}
       </Button>
 
-      {/* Transaction error */}
-      {txError && (
+      {/* Single status callout (validation / transaction / availability) */}
+      {statusCallout && (
         <Callout
-          variant="error"
-          title={COPY.loans.transactionFailedTitle}
+          variant={statusCallout.variant}
+          title={statusCallout.title}
           className="mt-4"
         >
-          {txError}
+          {statusCallout.body}
         </Callout>
       )}
 

@@ -187,6 +187,27 @@ export function Repay() {
     }
   };
 
+  // A single status callout, rendered once below the action button. Highest
+  // priority first: a current input/validation error, then the last failed
+  // transaction, then the refetch/health warnings.
+  const statusCallout: {
+    variant: "error" | "warning";
+    title?: string;
+    body: string;
+  } | null = errorMessage
+    ? { variant: "error", title: buttonText, body: errorMessage }
+    : txError
+      ? {
+          variant: "error",
+          title: COPY.loans.transactionFailedTitle,
+          body: txError,
+        }
+      : refetchError
+        ? { variant: "warning", body: refetchError }
+        : warningMessage
+          ? { variant: "warning", body: warningMessage }
+          : null;
+
   return (
     <div>
       {/* Repay Amount Section */}
@@ -257,18 +278,6 @@ export function Repay() {
           healthFactorOriginal={metrics.healthFactorOriginal}
           healthFactorOriginalValue={metrics.healthFactorOriginalValue}
         />
-
-        {errorMessage && (
-          <Callout variant="error" title={buttonText}>
-            {errorMessage}
-          </Callout>
-        )}
-        {!errorMessage && refetchError && (
-          <Callout variant="warning">{refetchError}</Callout>
-        )}
-        {!errorMessage && !refetchError && warningMessage && (
-          <Callout variant="warning">{warningMessage}</Callout>
-        )}
       </div>
 
       {/* Repay Button */}
@@ -284,14 +293,14 @@ export function Repay() {
         {isProcessing ? "Processing..." : buttonText}
       </Button>
 
-      {/* Transaction error */}
-      {txError && (
+      {/* Single status callout (validation / transaction / warning) */}
+      {statusCallout && (
         <Callout
-          variant="error"
-          title={COPY.loans.transactionFailedTitle}
+          variant={statusCallout.variant}
+          title={statusCallout.title}
           className="mt-4"
         >
-          {txError}
+          {statusCallout.body}
         </Callout>
       )}
     </div>
