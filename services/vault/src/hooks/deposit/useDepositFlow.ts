@@ -155,12 +155,11 @@ export interface UseDepositFlowReturn {
   perVaultSteps: DepositFlowStep[];
   /**
    * Data backing the "Awaiting Bitcoin confirmation" detail panel, snapshotted
-   * when the BTC wait begins: the timestamp, the Pre-PegIn broadcast txid, and
-   * the required confirmation depth of the offchain-params version this
-   * deposit registered against. `null` until the BTC broadcast completes.
+   * when the BTC wait begins: the Pre-PegIn broadcast txid and the required
+   * confirmation depth of the offchain-params version this deposit registered
+   * against. `null` until the BTC broadcast completes.
    */
   btcConfirmationDetail: {
-    startedAt: number;
     prePeginTxid: string;
     requiredDepth: number;
     depositIds: readonly string[];
@@ -242,7 +241,6 @@ export function useDepositFlow(
     vaultAmounts.map(() => DepositFlowStep.DERIVE_VAULT_SECRET),
   );
   const [btcConfirmationDetail, setBtcConfirmationDetail] = useState<{
-    startedAt: number;
     prePeginTxid: string;
     requiredDepth: number;
     depositIds: readonly string[];
@@ -767,9 +765,8 @@ export function useDepositFlow(
         // a later governance change must not move the displayed target. The
         // panel itself renders at the AWAIT_PAYOUT_TRANSACTIONS step (that's
         // where the minPrepeginDepth wait actually happens); we capture the
-        // values here at broadcast time so startedAt anchors to broadcast.
+        // values here at broadcast time.
         setBtcConfirmationDetail({
-          startedAt: Date.now(),
           prePeginTxid: prePeginBroadcastTxid,
           requiredDepth: config.offchainParams.minPrepeginDepth,
           depositIds: broadcastedResults.map((r) => r.vaultId),
