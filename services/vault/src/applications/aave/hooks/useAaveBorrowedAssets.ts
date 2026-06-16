@@ -27,6 +27,8 @@ import type { AaveReserveConfig } from "../services/fetchConfig";
 export interface BorrowedAsset {
   /** Token symbol */
   symbol: string;
+  /** Full token name (e.g. "USD Coin"); falls back to the symbol. */
+  name: string;
   /** Display amount (formatted native token amount) */
   amount: string;
   /** Token icon URL */
@@ -96,6 +98,10 @@ function transformToBorrowedAsset(
 
   const tokenMetadata = getTokenByAddress(reserve.token.address);
   const symbol = resolveTokenSymbol(tokenMetadata, reserve.token.symbol);
+  // Prefer the registry's display name; fall back to the reserve's on-chain
+  // name, then the symbol, so testnet tokens absent from the registry still
+  // show something readable rather than the symbol twice.
+  const name = tokenMetadata?.name ?? reserve.token.name ?? symbol;
   const icon = getCurrencyIconWithFallback(tokenMetadata?.icon, symbol);
 
   const tokenAmount = Number(
@@ -103,7 +109,7 @@ function transformToBorrowedAsset(
   );
   const amount = formatAmount(tokenAmount, reserve.token.decimals);
 
-  return { symbol, amount, icon };
+  return { symbol, name, amount, icon };
 }
 
 /**

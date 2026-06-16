@@ -159,7 +159,7 @@ export function AssetSelectionModal({
             {COPY.loans.assetSelection.columnAsset}
           </span>
           <div className="flex flex-1 items-center">
-            <span className="flex-1 py-4">
+            <span className={`flex-1 py-4 ${isRepay ? "text-right" : ""}`}>
               {COPY.loans.assetSelection.columnPrice}
             </span>
             {!isRepay && (
@@ -200,7 +200,9 @@ export function AssetSelectionModal({
                 </div>
               </div>
               <div className="flex flex-1 items-center text-base text-accent-primary">
-                <span className="flex-1">{row.priceLabel}</span>
+                <span className={`flex-1 ${isRepay ? "text-right" : ""}`}>
+                  {row.priceLabel}
+                </span>
                 {!isRepay && (
                   <>
                     <span className="flex-1">{COPY.common.emptyValue}</span>
