@@ -35,7 +35,7 @@ export interface UseApplicationCapResult {
 export function useApplicationCap(user?: string): UseApplicationCapResult {
   const enabled = !featureFlags.isVaultCapDisabled;
   const app = CONTRACTS.AAVE_ADAPTER;
-  const userAddress = toCheckedAddress(user);
+  const userAddress = enabled ? toCheckedAddress(user) : undefined;
 
   const capsQuery = useQuery({
     queryKey: [APPLICATION_CAP_KEY, "caps", app],

@@ -8,6 +8,7 @@
 import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
 import { useChainConnector } from "@babylonlabs-io/wallet-connector";
 import { useCallback, useMemo } from "react";
+import type { Address } from "viem";
 
 import {
   DepositStep,
