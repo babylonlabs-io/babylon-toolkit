@@ -4,7 +4,7 @@
  */
 
 import { useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { parseUnits } from "viem";
 import { useAccount, useWalletClient } from "wagmi";
 
@@ -37,6 +37,8 @@ export interface UseBorrowTransactionResult {
   isProcessing: boolean;
   /** Last failure message, shown inline under the action (null when none). */
   error: string | null;
+  /** Clear the last failure message (e.g. when the borrow asset changes). */
+  clearError: () => void;
 }
 
 /**
@@ -53,6 +55,8 @@ export function useBorrowTransaction(): UseBorrowTransactionResult {
   const { address } = useAccount();
   const queryClient = useQueryClient();
   const chain = getETHChain();
+
+  const clearError = useCallback(() => setError(null), []);
 
   const executeBorrow = async (
     borrowAmount: number,
@@ -152,5 +156,6 @@ export function useBorrowTransaction(): UseBorrowTransactionResult {
     executeBorrow,
     isProcessing,
     error,
+    clearError,
   };
 }

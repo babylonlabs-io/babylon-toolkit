@@ -6,7 +6,6 @@ import { useProtocolParamsContext } from "@/context/ProtocolParamsContext";
 import { COPY } from "@/copy";
 import { DepositFlowStep } from "@/hooks/deposit/depositFlowSteps";
 import { deriveSplitVaultProgress } from "@/hooks/deposit/useSplitVaultProgress";
-import { useBtcDepthStartedAt } from "@/hooks/useBtcDepthStartedAt";
 import {
   getPeginDisplayStep,
   getWarningPeginDisplayStep,
@@ -196,7 +195,6 @@ export function PostDepositContinuationView({
   const showBtcDepthPanel =
     waitStep === DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS &&
     Boolean(activity?.prePeginTxHash);
-  const startedAt = useBtcDepthStartedAt(activity?.id, showBtcDepthPanel);
 
   // Pass to every branch so split deposits render the multi-column UI with
   // the current vault highlighted. A single-vault deposit yields vaultCount=1
@@ -386,9 +384,8 @@ export function PostDepositContinuationView({
           ?.minPrepeginDepth
       : undefined) ?? config.offchainParams.minPrepeginDepth;
   const btcConfirmationDetail: BtcConfirmationDetailData | null =
-    showBtcDepthPanel && activity?.prePeginTxHash && startedAt
+    showBtcDepthPanel && activity?.prePeginTxHash
       ? {
-          startedAt,
           prePeginTxid: activity.prePeginTxHash,
           requiredDepth,
           // Pass the whole batch — siblings share this broadcast, and the

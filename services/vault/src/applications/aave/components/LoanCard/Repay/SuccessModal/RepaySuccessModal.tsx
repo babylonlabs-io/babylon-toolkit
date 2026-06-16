@@ -23,7 +23,7 @@ interface RepaySuccessModalProps {
  * RepaySuccessModal - Full-screen success screen for repay operations.
  *
  * Mirrors the borrow success layout: a bordered card with the asset avatar,
- * "{symbol} Repay Successful", the repaid amount, and a "Done" CTA.
+ * "Repay successful", the repaid amount, and a "Done" CTA.
  */
 export function RepaySuccessModal({
   open,
@@ -51,9 +51,7 @@ export function RepaySuccessModal({
           />
 
           <div className="flex flex-col gap-4">
-            <Heading variant="h4">
-              {COPY.loans.repaySuccess.title(repaySymbol)}
-            </Heading>
+            <Heading variant="h4">{COPY.loans.repaySuccess.title}</Heading>
 
             <Text as="div" className="text-accent-secondary">
               {COPY.loans.repaySuccess.body(formattedRepay, repaySymbol)}

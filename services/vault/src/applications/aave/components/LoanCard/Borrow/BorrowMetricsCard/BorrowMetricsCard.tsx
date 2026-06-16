@@ -20,11 +20,11 @@ const ROW_CLASS = "flex w-full items-center justify-between text-sm";
 const DIVIDER_CLASS = "h-px w-full bg-secondary-strokeLight";
 
 /**
- * Borrow metrics card. Borrow APY shows the live current rate (Aave Hub drawn
+ * Borrow metrics card. Borrow APR shows the live current rate (Aave Hub drawn
  * rate); Health factor uses its real projected value. Available liquidity and
  * Utilization have no frontend data source yet, so they render the empty
  * placeholder ("–") rather than a fabricated figure — a follow-up PR wires
- * those (and the projected post-borrow APY) once the reserve totals are read.
+ * those (and the projected post-borrow rate) once the reserve totals are read.
  */
 export function BorrowMetricsCard({
   borrowApr,
@@ -57,7 +57,7 @@ export function BorrowMetricsCard({
       <div className={ROW_CLASS}>
         <div className="flex items-center gap-1 text-accent-secondary">
           {COPY.loans.borrowRateLabel}
-          <Hint tooltip={COPY.loans.borrowApyTooltip} />
+          <Hint tooltip={COPY.loans.borrowAprTooltip} />
         </div>
         <span className="text-accent-primary">{borrowApr}</span>
       </div>

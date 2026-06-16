@@ -17,6 +17,7 @@
 import type { QueryObserverResult } from "@tanstack/react-query";
 import { formatUnits } from "viem";
 
+import { COPY } from "@/copy";
 import { logger } from "@/infrastructure";
 
 import { FULL_REPAY_BUFFER_FRACTION } from "../../../../constants";
@@ -55,9 +56,6 @@ export type PickRepayParamsResult =
       message: string;
     };
 
-const REFETCH_ERROR_MESSAGE =
-  "Couldn't refresh balance/debt — please try again.";
-
 export async function pickRepayParams({
   refetchPosition,
   refetchUserBalance,
@@ -93,7 +91,7 @@ export async function pickRepayParams({
         error: error instanceof Error ? error.message : String(error),
       },
     });
-    return { kind: "error", message: REFETCH_ERROR_MESSAGE };
+    return { kind: "error", message: COPY.loans.repay.refetchError };
   }
 
   if (freshDebtAmount <= 0 || freshBalanceAmount <= 0) {

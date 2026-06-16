@@ -1,5 +1,5 @@
 import { Loader } from "@babylonlabs-io/core-ui";
-import { lazy, Suspense, useEffect } from "react";
+import { lazy, Suspense, useEffect, type ComponentType } from "react";
 import { Navigate, Outlet, Route, Routes } from "react-router";
 
 import { getAllApplications } from "./applications";
@@ -81,7 +81,11 @@ const ActivityWithProviders = () => (
 );
 
 export const Router = () => {
-  const apps = getAllApplications().filter((app) => app.Routes);
+  // Narrow to apps that actually expose Routes so the element below can render
+  // <AppRoutes /> unconditionally — no dead fallback branch.
+  const apps = getAllApplications().filter(
+    (app): app is typeof app & { Routes: ComponentType } => Boolean(app.Routes),
+  );
 
   return (
     <Routes>
@@ -116,7 +120,7 @@ export const Router = () => {
               path={`app/${app.metadata.id}/*`}
               element={
                 <Suspense fallback={<RouteFallback />}>
-                  {AppRoutes ? <AppRoutes /> : null}
+                  <AppRoutes />
                 </Suspense>
               }
             />

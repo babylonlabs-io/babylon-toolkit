@@ -14,8 +14,6 @@ import { useBtcConfirmations } from "@/hooks/deposit/useBtcConfirmations";
 import { BtcConfirmationDetail } from "./BtcConfirmationDetail";
 
 interface BtcConfirmationDetailContainerProps {
-  /** Date.now() when the panel first rendered for this deposit. */
-  startedAt: number;
   /** Pre-PegIn broadcast txid — the tx actually on the Bitcoin network. */
   prePeginTxid: string;
   /**
@@ -30,7 +28,6 @@ interface BtcConfirmationDetailContainerProps {
 }
 
 export function BtcConfirmationDetailContainer({
-  startedAt,
   prePeginTxid,
   requiredDepth,
   depositIds,
@@ -48,7 +45,6 @@ export function BtcConfirmationDetailContainer({
 
   return (
     <BtcConfirmationDetail
-      startedAt={startedAt}
       prePeginTxid={prePeginTxid}
       confirmations={confirmations}
       requiredDepth={requiredDepth}

@@ -229,7 +229,6 @@ export const COPY = {
       },
     },
     btcConfirmation: {
-      startedAt: "Started at",
       estRemaining: "Est. remaining",
       estRemainingValue: (minutes: number, blocksLeft: number) =>
         `~${minutes} min (${blocksLeft} BTC ${
@@ -247,7 +246,6 @@ export const COPY = {
         } · ~${minutes} min`,
     },
     waitDetails: {
-      startedAt: "Started at",
       status: "Status",
       // Fallback status used at the AWAIT_PAYOUT_TRANSACTIONS step on the
       // resume path, when the live BTC confirmation counter is not wired in.
@@ -704,11 +702,12 @@ export const COPY = {
     heading: "Loans",
     borrowButton: "Borrow",
     repayButton: "Repay",
-    // The interest rate Aave charges on the borrowed asset. Aave compounds
-    // continuously, so this is an APY (effective rate), matching Aave's own UI.
-    borrowRateLabel: "Borrow APY",
+    // Live drawn borrow rate for the asset (Aave Hub), no compounding applied —
+    // an APR, the same figure the asset picker labels "Borrow APR". One number,
+    // one label.
+    borrowRateLabel: "Borrow APR",
     // Detail-card metric: debt-to-collateral ratio (debtUsd / collateralUsd),
-    // distinct from the borrow APY above.
+    // distinct from the borrow APR above.
     borrowRatioLabel: "Borrow ratio",
     healthFactorLabel: "Health factor",
     availableLiquidityLabel: "Available liquidity",
@@ -716,7 +715,7 @@ export const COPY = {
     ethereumNetworkFeeLabel: "Ethereum network fee",
     availableLabel: "Available",
     atRiskOfLiquidation: "At risk of liquidation",
-    borrowApyTooltip:
+    borrowAprTooltip:
       "The annual interest rate charged on your borrowed amount.",
     utilizationTooltip:
       "The share of this market's supplied liquidity currently borrowed.",
@@ -728,20 +727,26 @@ export const COPY = {
       "Borrowing is temporarily unavailable. Please check back later.",
     priceUnavailable:
       "Price data unavailable. Borrowing is temporarily disabled.",
-    // Validation-error descriptions (the Callout title comes from the action
-    // button label, e.g. "Amount exceeds maximum").
+    // Borrow tab — action-button labels (also used as the status-callout title).
+    borrow: {
+      action: "Borrow",
+      processing: "Processing...",
+      unavailable: "Borrowing Unavailable",
+      enterAmount: "Enter an amount",
+      refreshingPosition: "Refreshing position...",
+      amountTooSmall: "Amount too small",
+      amountExceedsMax: "Amount exceeds maximum",
+      healthFactorTooLow: "Health factor too low",
+    },
+    // Borrow validation-error descriptions (the Callout title comes from the
+    // action button label above, e.g. "Amount exceeds maximum").
     validation: {
       minBorrow: (min: string) =>
-        `The minimum borrowable amount is ${min}. Enter a higher amount and retry.`,
+        `The minimum borrowable amount is ${min}. Enter a higher amount and try again.`,
       maxBorrow: (max: string, symbol: string) =>
-        `The maximum borrowable amount is ${max} ${symbol}. Enter a lower amount and retry.`,
+        `The maximum borrowable amount is ${max} ${symbol}. Enter a lower amount and try again.`,
       healthFactorTooLow: (min: number) =>
-        `Borrowing this amount would drop your health factor below ${min}, risking liquidation. Reduce the amount and retry.`,
-      minRepay: (min: string) =>
-        `The minimum repayable amount is ${min}. Enter a higher amount and retry.`,
-      insufficientBalance: (balance: string, symbol: string) =>
-        `You only have ${balance} ${symbol}, which isn't enough to fully repay your debt.`,
-      amountExceedsDebt: "You can't repay more than your current debt.",
+        `Borrowing this amount would drop your health factor below ${min}, risking liquidation. Reduce the amount and try again.`,
     },
     assetSelection: {
       title: "Select asset",
@@ -754,21 +759,49 @@ export const COPY = {
       emptyRepay: "No assets available",
     },
     borrowSuccess: {
-      title: "Borrow Successful",
+      title: "Borrow successful",
       body: (amount: string, symbol: string) =>
         `${amount} ${symbol} has been credited to your wallet.`,
       doneButton: "Done",
     },
     repaySuccess: {
-      title: (symbol: string) => `${symbol} Repay Successful`,
+      title: "Repay successful",
       body: (amount: string, symbol: string) =>
-        `You have repaid ${amount} ${symbol}`,
+        `You have repaid ${amount} ${symbol}.`,
       doneButton: "Done",
     },
     empty: {
       title: (symbol: string) => `Borrow assets using your ${symbol}`,
       body: (symbol: string) =>
         `Deposit ${symbol} as collateral to start borrowing.`,
+    },
+    // Repay tab — validation button labels and depositor-facing messages.
+    repay: {
+      action: "Repay",
+      processing: "Processing...",
+      enterAmount: "Enter an amount",
+      amountTooSmall: "Amount too small",
+      amountExceedsDebt: "Amount exceeds debt",
+      insufficientBalance: "Insufficient balance",
+      cannotExceedDebt: "You cannot repay more than your current debt.",
+      minRepayable: (amount: string) => `Minimum repayable amount is ${amount}`,
+      // `symbol` undefined → generic "tokens"; otherwise names the token.
+      zeroBalance: (symbol: string | undefined, minAmount: string) =>
+        `Your ${symbol ? `${symbol} ` : ""}balance is 0. Acquire at least ${minAmount} ${symbol ?? "tokens"} to repay your debt.`,
+      shortfall: (
+        balance: string,
+        debt: string,
+        residual: string,
+        unit: string,
+      ) =>
+        `Your balance (${balance}) is less than your debt (${debt}). Repaying now will leave ${residual} in debt; acquire more ${unit} to fully clear it.`,
+      insufficientForFull: (balance: string, unit: string) =>
+        `You only have ${balance} ${unit} available. You need more ${unit} to fully repay your debt.`,
+      // Shown when the wallet balance query fails so the user isn't left with a
+      // disabled repay button and no explanation.
+      balanceLoadError: "Couldn't load your balance. Please try again.",
+      // Submit-time (Max intent) balance/debt refetch failure.
+      refetchError: "Couldn't refresh balance/debt — please try again.",
     },
   },
   overview: {

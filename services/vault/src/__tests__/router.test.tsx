@@ -54,14 +54,20 @@ vi.mock("@/context/wallet", () => ({
 }));
 
 const DASHBOARD_MARKER = "dashboard-marker";
-const RESERVE_DETAIL_MARKER = "reserve-detail-marker";
+const RESERVE_DETAIL_TESTID = "reserve-detail-marker";
 
 vi.mock("../components/simple/DashboardPage", () => ({
   DashboardPage: () => <div>{DASHBOARD_MARKER}</div>,
 }));
 
+// Echo the `tab` prop the router resolved from the path so the tests can assert
+// that /borrow, /repay and the bare-path redirect each route to the right mode —
+// the core behavior of this PR. A prop-ignoring mock would render the same
+// marker for every route and verify nothing about borrow-vs-repay routing.
 vi.mock("../applications/aave/components/Detail", () => ({
-  AaveReserveDetail: () => <div>{RESERVE_DETAIL_MARKER}</div>,
+  AaveReserveDetail: ({ tab }: { tab: string }) => (
+    <div data-testid={RESERVE_DETAIL_TESTID} data-tab={tab} />
+  ),
 }));
 
 vi.mock("../services/activity", async () => {
@@ -133,27 +139,47 @@ describe("Router — reserve detail is an overlay over the persistent dashboard"
     await waitFor(() => {
       expect(screen.getByText(DASHBOARD_MARKER)).toBeInTheDocument();
     });
-    expect(screen.queryByText(RESERVE_DETAIL_MARKER)).not.toBeInTheDocument();
+    expect(screen.queryByTestId(RESERVE_DETAIL_TESTID)).not.toBeInTheDocument();
   });
 
-  it("keeps the dashboard mounted underneath when the reserve overlay opens", async () => {
+  it("routes the /borrow sub-path to the detail in borrow mode, dashboard still mounted", async () => {
     await renderAt("/app/aave/reserve/usdc/borrow");
 
     // Both present: the dashboard stays mounted and the reserve detail renders
     // on top of it, rather than replacing it (which is what caused the blank
     // flash when the two were sibling routes).
     await waitFor(() => {
-      expect(screen.getByText(RESERVE_DETAIL_MARKER)).toBeInTheDocument();
+      expect(screen.getByTestId(RESERVE_DETAIL_TESTID)).toBeInTheDocument();
     });
+    expect(screen.getByTestId(RESERVE_DETAIL_TESTID)).toHaveAttribute(
+      "data-tab",
+      "borrow",
+    );
     expect(screen.getByText(DASHBOARD_MARKER)).toBeInTheDocument();
+  });
+
+  it("routes the /repay sub-path to the detail in repay mode", async () => {
+    await renderAt("/app/aave/reserve/usdc/repay");
+
+    await waitFor(() => {
+      expect(screen.getByTestId(RESERVE_DETAIL_TESTID)).toBeInTheDocument();
+    });
+    expect(screen.getByTestId(RESERVE_DETAIL_TESTID)).toHaveAttribute(
+      "data-tab",
+      "repay",
+    );
   });
 
   it("redirects the bare reserve path to its borrow sub-route", async () => {
     await renderAt("/app/aave/reserve/usdc");
 
-    // The index route redirects to /borrow, so the detail still renders.
+    // The index route redirects to /borrow, so the detail renders in borrow mode.
     await waitFor(() => {
-      expect(screen.getByText(RESERVE_DETAIL_MARKER)).toBeInTheDocument();
+      expect(screen.getByTestId(RESERVE_DETAIL_TESTID)).toBeInTheDocument();
     });
+    expect(screen.getByTestId(RESERVE_DETAIL_TESTID)).toHaveAttribute(
+      "data-tab",
+      "borrow",
+    );
   });
 });

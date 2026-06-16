@@ -43,7 +43,7 @@ export function validateBorrowAction(
   if (isPositionDataStale) {
     return {
       isDisabled: true,
-      buttonText: "Refreshing position...",
+      buttonText: COPY.loans.borrow.refreshingPosition,
       errorMessage: null,
     };
   }
@@ -51,7 +51,7 @@ export function validateBorrowAction(
   if (borrowAmount === 0) {
     return {
       isDisabled: true,
-      buttonText: "Enter an amount",
+      buttonText: COPY.loans.borrow.enterAmount,
       errorMessage: null,
     };
   }
@@ -69,7 +69,7 @@ export function validateBorrowAction(
   if (borrowAmount < minBorrowable) {
     return {
       isDisabled: true,
-      buttonText: "Amount too small",
+      buttonText: COPY.loans.borrow.amountTooSmall,
       errorMessage: COPY.loans.validation.minBorrow(
         formatTokenAmount(minBorrowable, displayDecimals),
       ),
@@ -79,7 +79,7 @@ export function validateBorrowAction(
   if (borrowAmount > maxBorrowAmount) {
     return {
       isDisabled: true,
-      buttonText: "Amount exceeds maximum",
+      buttonText: COPY.loans.borrow.amountExceedsMax,
       errorMessage: COPY.loans.validation.maxBorrow(
         formatDisplayAmount(maxBorrowAmount, displayDecimals),
         symbol,
@@ -94,7 +94,7 @@ export function validateBorrowAction(
   ) {
     return {
       isDisabled: true,
-      buttonText: "Health factor too low",
+      buttonText: COPY.loans.borrow.healthFactorTooLow,
       errorMessage: COPY.loans.validation.healthFactorTooLow(
         MIN_HEALTH_FACTOR_FOR_BORROW,
       ),
@@ -103,7 +103,7 @@ export function validateBorrowAction(
 
   return {
     isDisabled: false,
-    buttonText: "Borrow",
+    buttonText: COPY.loans.borrow.action,
     errorMessage: null,
   };
 }

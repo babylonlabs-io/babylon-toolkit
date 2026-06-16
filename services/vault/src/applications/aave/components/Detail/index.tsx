@@ -9,6 +9,7 @@
  */
 
 import { FullScreenDialog } from "@babylonlabs-io/core-ui";
+import { useState } from "react";
 import { useNavigate, useParams } from "react-router";
 
 import { EmptyState } from "@/components/shared";
@@ -73,16 +74,25 @@ export function AaveReserveDetail({ tab }: { tab: LoanTab }) {
     closeRepaySuccess,
   } = useBorrowRepayModals();
 
-  const handleClose = () => navigate("/");
+  // True while a borrow/repay tx is signing or submitting. Lifted from the
+  // Borrow/Repay forms (via LoanContext.onProcessingChange) so the dialog can
+  // refuse to close mid-transaction — otherwise an ESC/backdrop/X dismiss
+  // unmounts the flow and the success screen never shows even though the tx
+  // completes on-chain.
+  const [isTxInFlight, setIsTxInFlight] = useState(false);
+
+  // Use `replace` so dismissing the overlay doesn't leave a history entry that
+  // browser Back would use to reopen the just-closed flow.
+  const handleClose = () => navigate("/", { replace: true });
 
   const handleCloseBorrowSuccess = () => {
     closeBorrowSuccess();
-    navigate("/");
+    navigate("/", { replace: true });
   };
 
   const handleCloseRepaySuccess = () => {
     closeRepaySuccess();
-    navigate("/");
+    navigate("/", { replace: true });
   };
 
   const renderContent = () => {
@@ -134,6 +144,7 @@ export function AaveReserveDetail({ tab }: { tab: LoanTab }) {
       refetchSplitParams,
       onBorrowSuccess: openBorrowSuccess,
       onRepaySuccess: openRepaySuccess,
+      onProcessingChange: setIsTxInFlight,
     };
 
     return (
@@ -155,7 +166,11 @@ export function AaveReserveDetail({ tab }: { tab: LoanTab }) {
     <>
       <FullScreenDialog
         open={!showSuccess}
-        onClose={handleClose}
+        // Withholding `onClose` hides the close button and no-ops the backdrop
+        // click; `disableEscapeClose` covers the ESC key — together they lock
+        // all three dismiss paths while a tx is in flight.
+        onClose={isTxInFlight ? undefined : handleClose}
+        disableEscapeClose={isTxInFlight}
         className="items-center justify-center p-6"
       >
         <div className="mx-auto w-full max-w-[520px]">{renderContent()}</div>

@@ -6,7 +6,7 @@
  */
 
 import { useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import type { Address } from "viem";
 import { parseUnits } from "viem";
 import { useAccount, useWalletClient } from "wagmi";
@@ -92,6 +92,8 @@ export interface UseRepayTransactionResult {
   isProcessing: boolean;
   /** Last failure message, shown inline under the action (null when none). */
   error: string | null;
+  /** Clear the last failure message (e.g. when the repay asset changes). */
+  clearError: () => void;
 }
 
 /**
@@ -109,6 +111,8 @@ export function useRepayTransaction({
   const { address } = useAccount();
   const queryClient = useQueryClient();
   const chain = getETHChain();
+
+  const clearError = useCallback(() => setError(null), []);
 
   const executeRepay = async (
     repayAmount: number,
@@ -254,5 +258,6 @@ export function useRepayTransaction({
     executeRepay,
     isProcessing,
     error,
+    clearError,
   };
 }

@@ -11,7 +11,7 @@ import {
   Callout,
   SubSection,
 } from "@babylonlabs-io/core-ui";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { useETHWallet } from "@/context/wallet";
 import { COPY } from "@/copy";
@@ -60,9 +60,11 @@ export function Repay() {
     assetConfig,
     proxyContract,
     tokenPriceUsd,
+    isPriceStale,
     refetchPosition,
     refetchSplitParams,
     onRepaySuccess,
+    onProcessingChange,
   } = useLoanContext();
 
   const { address } = useETHWallet();
@@ -80,17 +82,28 @@ export function Repay() {
   );
 
   // Fetch user's token balance for repayment
-  const { balance: userTokenBalance, refetch: refetchUserBalance } =
-    useERC20Balance(
-      selectedReserve.token.address,
-      address,
-      selectedReserve.token.decimals,
-    );
+  const {
+    balance: userTokenBalance,
+    isLoading: balanceLoading,
+    error: balanceError,
+    refetch: refetchUserBalance,
+  } = useERC20Balance(
+    selectedReserve.token.address,
+    address,
+    selectedReserve.token.decimals,
+  );
+
+  // `userTokenBalance` reads 0 while the balance query is loading or errored,
+  // which is indistinguishable from a genuine zero balance. Gate the
+  // zero-balance messaging and the submit on a known balance so we never tell a
+  // user who actually holds tokens that they have none.
+  const balanceKnown = !balanceLoading && balanceError == null;
 
   const {
     executeRepay,
     isProcessing,
     error: txError,
+    clearError,
   } = useRepayTransaction({
     proxyContract,
   });
@@ -107,6 +120,28 @@ export function Repay() {
     currentDebtAmount,
     userTokenBalance,
   });
+
+  const [refetchError, setRefetchError] = useState<string | null>(null);
+  // Set the instant Repay is clicked so the button shows "Processing…" during
+  // the Max-intent pre-submit refetch (pickRepayParams) — an on-chain
+  // round-trip that runs before executeRepay's own `isProcessing` takes over.
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // The form stays mounted when the asset switches (the AssetPill only changes
+  // `:reserveId`), so clear the amount, the last failed-tx error and any stale
+  // submit-time refetch error explicitly — all three belong to the previously
+  // selected reserve and would otherwise carry over to a different debt.
+  useEffect(() => {
+    resetRepayAmount();
+    clearError();
+    setRefetchError(null);
+  }, [selectedReserve.reserveId, resetRepayAmount, clearError]);
+
+  // Mirror the in-flight state up to the detail screen so it can lock the
+  // dialog's close affordances during signing — see AaveReserveDetail.
+  useEffect(() => {
+    onProcessingChange(isProcessing || isSubmitting);
+  }, [isProcessing, isSubmitting, onProcessingChange]);
 
   const metrics = useRepayMetrics({
     repayAmount,
@@ -138,7 +173,10 @@ export function Repay() {
   // `maxRepayAmount`.
   const sliderTrackMax = maxRepayAmount > 0 ? maxRepayAmount : MIN_SLIDER_MAX;
 
-  const [refetchError, setRefetchError] = useState<string | null>(null);
+  // While the oracle price still belongs to the previously-selected reserve
+  // (carried over to avoid a remount), withhold the price-derived USD value
+  // rather than show a figure computed against the wrong reserve's price.
+  const isPriceReady = tokenPriceUsd != null && !isPriceStale;
 
   // Pure UI action: pre-fill the input with the cached max so the user sees
   // a number, and flag Max intent. The actual refetch + mode selection
@@ -151,62 +189,74 @@ export function Repay() {
   }, [maxRepayAmount, setRepayAmountMax]);
 
   const handleRepay = async () => {
-    let mode: RepayMode = "partial";
-    let amount = repayAmount;
-    let amountRaw: bigint | null = null;
+    // Flag pending immediately so the button gives feedback during the
+    // Max-intent refetch below, not only once executeRepay sets isProcessing.
+    setIsSubmitting(true);
+    try {
+      let mode: RepayMode = "partial";
+      let amount = repayAmount;
+      let amountRaw: bigint | null = null;
 
-    if (isMaxIntent) {
-      const params = await pickRepayParams({
-        refetchPosition,
-        refetchUserBalance,
-        reserveId: selectedReserve.reserveId,
-        tokenDecimals: selectedReserve.token.decimals,
-      });
-      if (params.kind === "error") {
-        setRefetchError(params.message);
-        return;
+      if (isMaxIntent) {
+        const params = await pickRepayParams({
+          refetchPosition,
+          refetchUserBalance,
+          reserveId: selectedReserve.reserveId,
+          tokenDecimals: selectedReserve.token.decimals,
+        });
+        if (params.kind === "error") {
+          setRefetchError(params.message);
+          return;
+        }
+        mode = params.mode;
+        amount = params.amount;
+        amountRaw = params.amountRaw;
       }
-      mode = params.mode;
-      amount = params.amount;
-      amountRaw = params.amountRaw;
-    }
 
-    setRefetchError(null);
+      setRefetchError(null);
 
-    const success = await executeRepay(amount, selectedReserve, mode, {
-      preSignValidation: () =>
-        validateRepayPreSign({
-          liquidationThresholdBps,
-          refetchSplitParams,
-        }),
-      repayAmountRaw: amountRaw,
-    });
-    if (success) {
-      resetRepayAmount();
-      onRepaySuccess(amount, 0);
+      const success = await executeRepay(amount, selectedReserve, mode, {
+        preSignValidation: () =>
+          validateRepayPreSign({
+            liquidationThresholdBps,
+            refetchSplitParams,
+          }),
+        repayAmountRaw: amountRaw,
+      });
+      if (success) {
+        resetRepayAmount();
+        onRepaySuccess(amount, 0);
+      }
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   // A single status callout, rendered once below the action button. Highest
-  // priority first: a current input/validation error, then the last failed
-  // transaction, then the refetch/health warnings.
+  // priority first: a current input/validation error (only once the balance is
+  // known, so we never surface a misleading verdict computed against a still-
+  // loading 0), then the last failed transaction, the submit-time refetch
+  // failure, a balance-load failure, and finally the standing shortfall warning.
   const statusCallout: {
     variant: "error" | "warning";
     title?: string;
     body: string;
-  } | null = errorMessage
-    ? { variant: "error", title: buttonText, body: errorMessage }
-    : txError
-      ? {
-          variant: "error",
-          title: COPY.loans.transactionFailedTitle,
-          body: txError,
-        }
-      : refetchError
-        ? { variant: "warning", body: refetchError }
-        : warningMessage
-          ? { variant: "warning", body: warningMessage }
-          : null;
+  } | null =
+    balanceKnown && errorMessage
+      ? { variant: "error", title: buttonText, body: errorMessage }
+      : txError
+        ? {
+            variant: "error",
+            title: COPY.loans.transactionFailedTitle,
+            body: txError,
+          }
+        : refetchError
+          ? { variant: "warning", body: refetchError }
+          : balanceError != null
+            ? { variant: "warning", body: COPY.loans.repay.balanceLoadError }
+            : balanceKnown && warningMessage
+              ? { variant: "warning", body: warningMessage }
+              : null;
 
   return (
     <div>
@@ -218,7 +268,7 @@ export function Repay() {
         <SubSection className="!bg-secondary-highlight">
           <AmountSlider
             amount={repayAmount}
-            disabled={isProcessing}
+            disabled={isProcessing || isSubmitting}
             currencyIcon={getCurrencyIconWithFallback(
               assetConfig.icon,
               assetConfig.symbol,
@@ -233,12 +283,15 @@ export function Repay() {
                 )}
                 reserves={borrowedReserves}
                 mode={LOAN_TAB.REPAY}
-                disabled={isProcessing}
+                disabled={isProcessing || isSubmitting}
               />
             }
-            onAmountChange={(e) =>
-              setRepayAmount(parseFloat(e.target.value) || 0)
-            }
+            onAmountChange={(e) => {
+              // Clear a stale submit-time refetch error so it can't outrank the
+              // current validation message once the user edits the amount.
+              setRefetchError(null);
+              setRepayAmount(parseFloat(e.target.value) || 0);
+            }}
             balanceDetails={{
               balance: formatTokenAmount(maxRepayAmount, displayDecimals),
               symbol: assetConfig.symbol,
@@ -249,15 +302,19 @@ export function Repay() {
             sliderMax={sliderTrackMax}
             sliderStep={sliderTrackMax / SLIDER_STEP_COUNT}
             sliderSteps={[]}
-            onSliderChange={setRepayAmountSlider}
-            sliderVariant="rainbow"
+            sliderDisabled={!balanceKnown || maxRepayAmount <= 0}
+            onSliderChange={(value) => {
+              setRefetchError(null);
+              setRepayAmountSlider(value);
+            }}
+            sliderVariant="primary"
             leftField={{
               value:
                 repayAmount === 0
                   ? COPY.common.zeroUsdValue
-                  : tokenPriceUsd != null
-                    ? formatUsdValue(repayAmount * tokenPriceUsd)
-                    : "–",
+                  : isPriceReady
+                    ? formatUsdValue(repayAmount * (tokenPriceUsd as number))
+                    : COPY.common.emptyValue,
             }}
             onMaxClick={handleMaxClick}
             rightField={{
@@ -286,14 +343,16 @@ export function Repay() {
         color="secondary"
         size="large"
         fluid
-        disabled={isDisabled || isProcessing}
+        disabled={isDisabled || isProcessing || isSubmitting || !balanceKnown}
         onClick={handleRepay}
         className="mt-6"
       >
-        {isProcessing ? "Processing..." : buttonText}
+        {isProcessing || isSubmitting
+          ? COPY.loans.repay.processing
+          : buttonText}
       </Button>
 
-      {/* Single status callout (validation / transaction / warning) */}
+      {/* Single status callout (validation / transaction / balance warning) */}
       {statusCallout && (
         <Callout
           variant={statusCallout.variant}

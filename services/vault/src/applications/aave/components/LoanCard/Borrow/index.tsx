@@ -61,12 +61,14 @@ export function Borrow() {
     refetchPosition,
     refetchSplitParams,
     onBorrowSuccess,
+    onProcessingChange,
   } = useLoanContext();
 
   const {
     executeBorrow,
     isProcessing,
     error: txError,
+    clearError,
   } = useBorrowTransaction();
 
   const { borrowAmount, setBorrowAmount, resetBorrowAmount, maxBorrowAmount } =
@@ -80,11 +82,25 @@ export function Borrow() {
 
   // Reset the entered amount whenever the borrow asset changes. The form is no
   // longer remounted on switch (see `useAaveReservePrice` keepPreviousData), so
-  // clear the amount explicitly — a value sized for the previous asset's max is
-  // meaningless against a different reserve.
+  // clear the amount and the last failed-tx error explicitly — both belong to
+  // the previous reserve and would otherwise mislabel the newly selected one.
   useEffect(() => {
     setBorrowAmount(0);
-  }, [selectedReserve.reserveId, setBorrowAmount]);
+    clearError();
+  }, [selectedReserve.reserveId, setBorrowAmount, clearError]);
+
+  // Mirror the in-flight state up to the detail screen so it can lock the
+  // dialog's close affordances during signing — see AaveReserveDetail.
+  useEffect(() => {
+    onProcessingChange(isProcessing);
+  }, [isProcessing, onProcessingChange]);
+
+  // Editing the amount drops a stale failed-tx error so it can't re-surface
+  // through the status-callout priority chain once a validation error clears.
+  const handleAmountChange = (amount: number) => {
+    clearError();
+    setBorrowAmount(amount);
+  };
 
   // While the oracle price still belongs to the previously-selected reserve
   // (carried over to avoid a remount), withhold price-derived figures and keep
@@ -163,8 +179,8 @@ export function Borrow() {
   };
 
   const getBorrowButtonText = () => {
-    if (FeatureFlags.isBorrowDisabled) return "Borrowing Unavailable";
-    if (isProcessing) return "Processing...";
+    if (FeatureFlags.isBorrowDisabled) return COPY.loans.borrow.unavailable;
+    if (isProcessing) return COPY.loans.borrow.processing;
     return buttonText;
   };
 
@@ -218,25 +234,25 @@ export function Borrow() {
               />
             }
             onAmountChange={(e) =>
-              setBorrowAmount(parseFloat(e.target.value) || 0)
+              handleAmountChange(parseFloat(e.target.value) || 0)
             }
             sliderValue={borrowAmount}
             sliderMin={0}
             sliderMax={sliderTrackMax}
             sliderStep={sliderTrackMax / 1000}
             sliderSteps={[]}
-            onSliderChange={setBorrowAmount}
-            sliderVariant="rainbow"
+            onSliderChange={handleAmountChange}
+            sliderVariant="primary"
             leftField={{
               value:
                 borrowAmount === 0
                   ? COPY.common.zeroUsdValue
                   : tokenPriceUsd != null
                     ? formatUsdValue(borrowAmount * tokenPriceUsd)
-                    : "–",
+                    : COPY.common.emptyValue,
             }}
             onMaxClick={() => {
-              if (isPriceReady) setBorrowAmount(maxBorrowAmount);
+              if (isPriceReady) handleAmountChange(maxBorrowAmount);
             }}
             rightField={{
               label: COPY.loans.availableLabel,
@@ -256,7 +272,7 @@ export function Borrow() {
               className="flex w-full items-center justify-center gap-2 rounded-lg border border-secondary-strokeLight px-4 py-2"
             >
               <span aria-hidden="true" className="flex">
-                <WarningIcon size={18} color="text-error-light" />
+                <WarningIcon size={18} color="text-warning-main" />
               </span>
               <Text variant="body2" className="text-accent-secondary">
                 {COPY.loans.atRiskOfLiquidation}

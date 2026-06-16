@@ -1,7 +1,12 @@
+import {
+  computeMinClaimValue,
+  computeMinPeginFee,
+} from "@babylonlabs-io/babylon-tbv-rust-wasm";
 import * as bitcoin from "bitcoinjs-lib";
 import type { Address, Hex } from "viem";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { deriveRefundPeginAmounts } from "../buildAndBroadcastRefund";
 import {
   BIP68NotMatureError,
   buildAndBroadcastRefund,
@@ -458,9 +463,29 @@ describe("buildAndBroadcastRefund", () => {
         HASHLOCK.slice(2),
         SIBLING_HASHLOCK.slice(2),
       ]);
+      // pegInAmounts are NOT the raw HTLC output values (100k / 200k). The
+      // orchestrator re-derives the original peg-in amount by inverting
+      // `htlcValue = peginAmount + depositorClaimValue +
+      // minPeginFee`, subtracting the (batch-constant) protocol reserve from
+      // each entry's on-chain HTLC value. Compute that reserve from the same
+      // version-pinned ctx params so the assertion tracks the WASM sizing.
+      const ctx = buildCtx();
+      const reserve =
+        (await computeMinClaimValue(
+          ctx.numLocalChallengers,
+          ctx.universalChallengerPubkeys.length,
+          ctx.councilQuorum,
+          ctx.councilSize,
+          ctx.feeRate,
+        )) +
+        (await computeMinPeginFee(
+          ctx.vaultKeeperPubkeys.length,
+          ctx.universalChallengerPubkeys.length,
+          ctx.minPeginFeeRate,
+        ));
       expect(call[0].prePeginParams.pegInAmounts).toEqual([
-        100_000n,
-        200_000n,
+        100_000n - reserve,
+        200_000n - reserve,
       ]);
       expect(call[0].htlcVout).toBe(1);
       expect(call[0].prePeginParams.authAnchorHash).toBe("cd".repeat(32));
@@ -1110,6 +1135,47 @@ describe("buildAndBroadcastRefund", () => {
         }),
       ).rejects.toThrow("cancelled");
       expect(readVault).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("deriveRefundPeginAmounts", () => {
+    it("inverts the protocol formula, subtracting the batch-constant reserve", async () => {
+      const ctx = buildCtx();
+      const reserve =
+        (await computeMinClaimValue(
+          ctx.numLocalChallengers,
+          ctx.universalChallengerPubkeys.length,
+          ctx.councilQuorum,
+          ctx.councilSize,
+          ctx.feeRate,
+        )) +
+        (await computeMinPeginFee(
+          ctx.vaultKeeperPubkeys.length,
+          ctx.universalChallengerPubkeys.length,
+          ctx.minPeginFeeRate,
+        ));
+
+      const peginAmounts = await deriveRefundPeginAmounts(
+        [
+          { hashlock: HASHLOCK, amount: 100_000n, htlcVout: 0 },
+          { hashlock: HASHLOCK, amount: 250_000n, htlcVout: 1 },
+        ],
+        ctx,
+      );
+
+      expect(peginAmounts).toEqual([100_000n - reserve, 250_000n - reserve]);
+    });
+
+    it("throws when an HTLC value does not exceed the protocol reserve", async () => {
+      // A 1-sat HTLC value cannot cover depositorClaimValue + minPeginFee, so
+      // the inverted peg-in amount would be non-positive. Fail closed rather
+      // than hand WASM a zero/negative amount.
+      await expect(
+        deriveRefundPeginAmounts(
+          [{ hashlock: HASHLOCK, amount: 1n, htlcVout: 0 }],
+          buildCtx(),
+        ),
+      ).rejects.toThrow(/non-positive/);
     });
   });
 });
