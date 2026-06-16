@@ -1,5 +1,5 @@
 import { Loader } from "@babylonlabs-io/core-ui";
-import { lazy, Suspense, useEffect, type ComponentType } from "react";
+import { Suspense, useEffect, type ComponentType } from "react";
 import { Navigate, Outlet, Route, Routes } from "react-router";
 
 import { getAllApplications } from "./applications";
@@ -12,9 +12,10 @@ import {
 } from "./applications/aave/context";
 import RootLayout from "./components/pages/RootLayout";
 import NotFound from "./components/pages/not-found";
+import { lazyWithRetry } from "./utils/lazyWithRetry";
 
-const Activity = lazy(() => import("./components/pages/Activity"));
-const DashboardPage = lazy(() =>
+const Activity = lazyWithRetry(() => import("./components/pages/Activity"));
+const DashboardPage = lazyWithRetry(() =>
   import("./components/simple/DashboardPage").then((m) => ({
     default: m.DashboardPage,
   })),
@@ -24,7 +25,7 @@ const DashboardPage = lazy(() =>
 // AaveOverlayLayout), so opening it never unmounts the page underneath.
 const importAaveReserveDetail = () =>
   import("./applications/aave/components/Detail");
-const AaveReserveDetail = lazy(() =>
+const AaveReserveDetail = lazyWithRetry(() =>
   importAaveReserveDetail().then((m) => ({ default: m.AaveReserveDetail })),
 );
 
