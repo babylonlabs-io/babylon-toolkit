@@ -6,7 +6,7 @@ export interface BaseIconProps {
 
 // Extended icon props with variant support
 export interface IconProps extends BaseIconProps {
-  variant?: "default" | "primary" | "secondary" | "error" | "success" | "accent-primary" | "accent-secondary";
+  variant?: "default" | "primary" | "secondary" | "error" | "success" | "accent-primary" | "accent-secondary" | "danger";
   color?: string; // For custom colors via className
 }
 
@@ -19,6 +19,7 @@ export const iconColorVariants = {
   success: "text-success-main",
   "accent-primary": "text-accent-primary",
   "accent-secondary": "text-accent-secondary",
+  danger: "text-error-main",
 } as const;
 
 export { ThemedIcon } from "./ThemedIcon";

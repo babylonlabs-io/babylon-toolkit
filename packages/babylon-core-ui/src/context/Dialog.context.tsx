@@ -1,19 +1,35 @@
-import { type PropsWithChildren, createContext, useState, useMemo, useCallback, useEffect } from "react";
+import { type PropsWithChildren, createContext, useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { toPixels } from "@/utils/css";
 
-interface DialogContext {
-  removeDialog: (id: string, value?: boolean) => void;
-  updateDialog: (id: string, value: boolean) => void;
+const ESCAPE_KEY = "Escape";
+
+export interface DialogOptions {
+  open: boolean;
+  visible: boolean;
+  onClose?: () => void;
+  disableEscapeClose?: boolean;
 }
 
-export const DialogContext = createContext<DialogContext>({
+interface DialogEntry extends DialogOptions {
+  order: number;
+}
+
+interface DialogContextValue {
+  removeDialog: (id: string) => void;
+  updateDialog: (id: string, options: DialogOptions) => void;
+}
+
+export const DialogContext = createContext<DialogContextValue>({
   removeDialog: () => null,
   updateDialog: () => null,
 });
 
 export function ScrollLocker({ children }: PropsWithChildren) {
-  const [dialogs, setDialogs] = useState<Record<string, boolean>>({});
-  const bodyLocked = useMemo(() => Object.values(dialogs).some((v) => v), [dialogs]);
+  const [visibleIds, setVisibleIds] = useState<Record<string, true>>({});
+  const entriesRef = useRef<Map<string, DialogEntry>>(new Map());
+  const orderRef = useRef(0);
+
+  const bodyLocked = useMemo(() => Object.keys(visibleIds).length > 0, [visibleIds]);
 
   useEffect(
     function lockBody() {
@@ -32,12 +48,52 @@ export function ScrollLocker({ children }: PropsWithChildren) {
     [bodyLocked],
   );
 
-  const removeDialog = useCallback((id: string) => {
-    setDialogs((state) => (Reflect.deleteProperty(state, id) ? { ...state } : state));
+  useEffect(function closeTopmostOnEscape() {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== ESCAPE_KEY || event.defaultPrevented) return;
+
+      let topmost: DialogEntry | undefined;
+      for (const entry of entriesRef.current.values()) {
+        if (!entry.open) continue;
+        if (!topmost || entry.order > topmost.order) topmost = entry;
+      }
+
+      if (topmost?.onClose && !topmost.disableEscapeClose) {
+        event.preventDefault();
+        topmost.onClose();
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
   }, []);
 
-  const updateDialog = useCallback((id: string, value: boolean) => {
-    setDialogs((state) => ({ ...state, [id]: value }));
+  const removeDialog = useCallback((id: string) => {
+    entriesRef.current.delete(id);
+    setVisibleIds((state) => {
+      if (!(id in state)) return state;
+      const next = { ...state };
+      delete next[id];
+      return next;
+    });
+  }, []);
+
+  const updateDialog = useCallback((id: string, { open, visible, onClose, disableEscapeClose }: DialogOptions) => {
+    const previous = entriesRef.current.get(id);
+    const wasVisible = previous?.visible ?? false;
+    const order = visible && !wasVisible ? (orderRef.current += 1) : (previous?.order ?? 0);
+
+    entriesRef.current.set(id, { open, visible, onClose, disableEscapeClose, order });
+
+    if (wasVisible === visible) return;
+
+    setVisibleIds((state) => {
+      if (visible) return { ...state, [id]: true };
+      if (!(id in state)) return state;
+      const next = { ...state };
+      delete next[id];
+      return next;
+    });
   }, []);
 
   const value = useMemo(() => ({ removeDialog, updateDialog }), [removeDialog, updateDialog]);

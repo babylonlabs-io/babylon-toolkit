@@ -7,8 +7,6 @@ import { getBtcExplorerTxUrl } from "@/utils/explorer";
 import { computeRemainingEstimateMinutes } from "./btcConfirmationProgress";
 
 interface BtcConfirmationDetailProps {
-  /** Date.now() when the AWAIT_BTC_CONFIRMATION step was first entered. */
-  startedAt: number;
   /** Pre-PegIn broadcast txid — the tx actually on the Bitcoin network. */
   prePeginTxid: string;
   /** Confirmations of the Pre-PegIn tx; null while the first reading loads. */
@@ -20,13 +18,6 @@ interface BtcConfirmationDetailProps {
    * narrow split-deposit columns, where the inline label/value layout collapses.
    */
   stacked?: boolean;
-}
-
-function formatStartedAt(timestamp: number): string {
-  return new Date(timestamp).toLocaleTimeString(undefined, {
-    hour: "numeric",
-    minute: "2-digit",
-  });
 }
 
 /**
@@ -42,7 +33,6 @@ function formatEstimate(confirmations: number, requiredDepth: number): string {
 }
 
 export function BtcConfirmationDetail({
-  startedAt,
   prePeginTxid,
   confirmations,
   requiredDepth,
@@ -58,15 +48,6 @@ export function BtcConfirmationDetail({
 
   return (
     <div className="mt-3 flex flex-col gap-2 rounded-lg bg-secondary-highlight p-3">
-      <div className={rowClass}>
-        <Text as="span" variant="body2" className="text-accent-secondary">
-          {copy.startedAt}:
-        </Text>
-        <Text as="span" variant="body2" className="text-accent-primary">
-          {formatStartedAt(startedAt)}
-        </Text>
-      </div>
-
       <div className={rowClass}>
         <Text as="span" variant="body2" className="text-accent-secondary">
           {depthReached ? COPY.deposit.waitDetails.status : copy.estRemaining}:

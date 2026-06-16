@@ -6,22 +6,10 @@ import { BtcConfirmationDetail } from "../BtcConfirmationDetail";
 const TXID = "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2";
 
 const baseProps = {
-  startedAt: new Date("2026-01-01T13:44:00Z").getTime(),
   prePeginTxid: TXID,
 };
 
 describe("BtcConfirmationDetail", () => {
-  it("shows when the confirmation wait started", () => {
-    render(
-      <BtcConfirmationDetail
-        {...baseProps}
-        confirmations={0}
-        requiredDepth={6}
-      />,
-    );
-    expect(screen.getByText(/Started at/)).toBeInTheDocument();
-  });
-
   it("links the Pre-PegIn txid to the Bitcoin explorer", () => {
     render(
       <BtcConfirmationDetail

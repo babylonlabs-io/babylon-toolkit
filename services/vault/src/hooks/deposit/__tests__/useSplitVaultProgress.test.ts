@@ -45,7 +45,7 @@ vi.mock("@/models/peginStateMachine", () => ({
 type FakeState = {
   displayStep: DepositFlowStep | null;
   pastActivation: boolean;
-  displayVariant?: "pending" | "active" | "inactive" | "warning";
+  displayVariant?: "pending" | "active" | "inactive" | "warning" | "danger";
   localStatus?: string;
 };
 
@@ -171,6 +171,33 @@ describe("deriveSplitVaultProgress", () => {
     const { perVaultSteps } = deriveSplitVaultProgress(
       getPollingResult,
       ["0xactive", "0xwarning"],
+      "0xactive",
+      DepositFlowStep.RETRIEVE_SECRET,
+    );
+
+    expect(perVaultSteps?.[1]).toBe(DepositFlowStep.AWAIT_BTC_CONFIRMATION);
+  });
+
+  it("freezes a liquidated (danger) sibling at its own local step instead of COMPLETED", () => {
+    // LIQUIDATED is past activation, so the COMPLETED branch would match —
+    // but a seized vault must freeze at its last known local step, not render
+    // all-checkmarks. The danger check has to win over isVaultPastActivation.
+    const getPollingResult = pollingFor({
+      "0xactive": {
+        displayStep: DepositFlowStep.RETRIEVE_SECRET,
+        pastActivation: false,
+      },
+      "0xliquidated": {
+        displayStep: null,
+        pastActivation: true,
+        displayVariant: "danger",
+        localStatus: "confirming",
+      },
+    });
+
+    const { perVaultSteps } = deriveSplitVaultProgress(
+      getPollingResult,
+      ["0xactive", "0xliquidated"],
       "0xactive",
       DepositFlowStep.RETRIEVE_SECRET,
     );

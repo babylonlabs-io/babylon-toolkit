@@ -51,7 +51,7 @@
     "@keplr-wallet/provider-extension": "0.12.272",
     "@keplr-wallet/types": "0.12.272",
     "@keystonehq/animated-qr": "0.10.0",
-    "@keystonehq/keystone-sdk": "0.9.0",
+    "@keystonehq/keystone-sdk": "0.12.3",
     "@keystonehq/sdk": "0.22.1",
     "@ledgerhq/hw-transport": "6.31.10",
     "@ledgerhq/hw-transport-webhid": "6.30.6",

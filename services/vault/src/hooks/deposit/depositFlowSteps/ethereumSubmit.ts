@@ -93,6 +93,7 @@ export async function registerPeginBatchAndWait(
     unsignedPrePeginTx,
     requests,
     popSignature,
+    quotedCommissionBps,
   } = params;
 
   const result = await registerPeginBatchOnChain(
@@ -103,6 +104,7 @@ export async function registerPeginBatchAndWait(
       unsignedPrePeginTx,
       requests,
       popSignature,
+      quotedCommissionBps,
     },
   );
 

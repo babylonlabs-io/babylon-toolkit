@@ -55,12 +55,22 @@ export function Repay() {
   const { address } = useETHWallet();
 
   // Fetch user's token balance for repayment
-  const { balance: userTokenBalance, refetch: refetchUserBalance } =
-    useERC20Balance(
-      selectedReserve.token.address,
-      address,
-      selectedReserve.token.decimals,
-    );
+  const {
+    balance: userTokenBalance,
+    isLoading: balanceLoading,
+    error: balanceError,
+    refetch: refetchUserBalance,
+  } = useERC20Balance(
+    selectedReserve.token.address,
+    address,
+    selectedReserve.token.decimals,
+  );
+
+  // `userTokenBalance` reads 0 while the balance query is loading or errored,
+  // which is indistinguishable from a genuine zero balance. Gate the
+  // zero-balance messaging and the submit on a known balance so we never tell a
+  // user who actually holds tokens that they have none.
+  const balanceKnown = !balanceLoading && balanceError == null;
 
   const { executeRepay, isProcessing } = useRepayTransaction({
     proxyContract,
@@ -101,6 +111,7 @@ export function Repay() {
       currentDebtAmount,
       userTokenBalance,
       displayDecimals,
+      assetConfig.symbol,
     );
 
   // Cosmetic floor only: keeps the slider track from collapsing to zero
@@ -109,6 +120,10 @@ export function Repay() {
   const sliderTrackMax = maxRepayAmount > 0 ? maxRepayAmount : MIN_SLIDER_MAX;
 
   const [refetchError, setRefetchError] = useState<string | null>(null);
+  // Set the instant Repay is clicked so the button shows "Processing…" during
+  // the Max-intent pre-submit refetch (pickRepayParams) — an on-chain
+  // round-trip that runs before executeRepay's own `isProcessing` takes over.
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Pure UI action: pre-fill the input with the cached max so the user sees
   // a number, and flag Max intent. The actual refetch + mode selection
@@ -121,39 +136,46 @@ export function Repay() {
   }, [maxRepayAmount, setRepayAmountMax]);
 
   const handleRepay = async () => {
-    let mode: RepayMode = "partial";
-    let amount = repayAmount;
-    let amountRaw: bigint | null = null;
+    // Flag pending immediately so the button gives feedback during the
+    // Max-intent refetch below, not only once executeRepay sets isProcessing.
+    setIsSubmitting(true);
+    try {
+      let mode: RepayMode = "partial";
+      let amount = repayAmount;
+      let amountRaw: bigint | null = null;
 
-    if (isMaxIntent) {
-      const params = await pickRepayParams({
-        refetchPosition,
-        refetchUserBalance,
-        reserveId: selectedReserve.reserveId,
-        tokenDecimals: selectedReserve.token.decimals,
-      });
-      if (params.kind === "error") {
-        setRefetchError(params.message);
-        return;
+      if (isMaxIntent) {
+        const params = await pickRepayParams({
+          refetchPosition,
+          refetchUserBalance,
+          reserveId: selectedReserve.reserveId,
+          tokenDecimals: selectedReserve.token.decimals,
+        });
+        if (params.kind === "error") {
+          setRefetchError(params.message);
+          return;
+        }
+        mode = params.mode;
+        amount = params.amount;
+        amountRaw = params.amountRaw;
       }
-      mode = params.mode;
-      amount = params.amount;
-      amountRaw = params.amountRaw;
-    }
 
-    setRefetchError(null);
+      setRefetchError(null);
 
-    const success = await executeRepay(amount, selectedReserve, mode, {
-      preSignValidation: () =>
-        validateRepayPreSign({
-          liquidationThresholdBps,
-          refetchSplitParams,
-        }),
-      repayAmountRaw: amountRaw,
-    });
-    if (success) {
-      resetRepayAmount();
-      onRepaySuccess(amount, 0);
+      const success = await executeRepay(amount, selectedReserve, mode, {
+        preSignValidation: () =>
+          validateRepayPreSign({
+            liquidationThresholdBps,
+            refetchSplitParams,
+          }),
+        repayAmountRaw: amountRaw,
+      });
+      if (success) {
+        resetRepayAmount();
+        onRepaySuccess(amount, 0);
+      }
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -172,9 +194,12 @@ export function Repay() {
               assetConfig.symbol,
             )}
             currencyName={assetConfig.name}
-            onAmountChange={(e) =>
-              setRepayAmount(parseFloat(e.target.value) || 0)
-            }
+            onAmountChange={(e) => {
+              // Clear a stale submit-time refetch error so it can't outrank the
+              // current validation message once the user edits the amount.
+              setRefetchError(null);
+              setRepayAmount(parseFloat(e.target.value) || 0);
+            }}
             balanceDetails={{
               balance: formatTokenAmount(maxRepayAmount, displayDecimals),
               symbol: assetConfig.symbol,
@@ -185,8 +210,12 @@ export function Repay() {
             sliderMax={sliderTrackMax}
             sliderStep={sliderTrackMax / SLIDER_STEP_COUNT}
             sliderSteps={[]}
-            onSliderChange={setRepayAmountSlider}
-            sliderVariant="rainbow"
+            sliderDisabled={!balanceKnown || maxRepayAmount <= 0}
+            onSliderChange={(value) => {
+              setRefetchError(null);
+              setRepayAmountSlider(value);
+            }}
+            sliderVariant="primary"
             leftField={{
               value:
                 repayAmount === 0
@@ -214,15 +243,21 @@ export function Repay() {
           healthFactorOriginalValue={metrics.healthFactorOriginalValue}
         />
 
-        {errorMessage && (
-          <p className="text-sm text-error-main">{errorMessage}</p>
-        )}
-        {!errorMessage && refetchError && (
+        {/* Balance/refetch failures are surfaced regardless of `balanceKnown`
+            (which is false on a balance error) so the user never gets a
+            disabled button with no explanation. The validation verdict only
+            shows once the balance is actually known. */}
+        {refetchError ? (
           <p className="text-sm text-warning-main">{refetchError}</p>
-        )}
-        {!errorMessage && !refetchError && warningMessage && (
+        ) : balanceError != null ? (
+          <p className="text-sm text-warning-main">
+            {COPY.loans.repay.balanceLoadError}
+          </p>
+        ) : balanceKnown && errorMessage ? (
+          <p className="text-sm text-error-main">{errorMessage}</p>
+        ) : balanceKnown && warningMessage ? (
           <p className="text-sm text-warning-main">{warningMessage}</p>
-        )}
+        ) : null}
       </div>
 
       {/* Repay Button */}
@@ -231,11 +266,13 @@ export function Repay() {
         color="secondary"
         size="large"
         fluid
-        disabled={isDisabled || isProcessing}
+        disabled={isDisabled || isProcessing || isSubmitting || !balanceKnown}
         onClick={handleRepay}
         className="mt-6"
       >
-        {isProcessing ? "Processing..." : buttonText}
+        {isProcessing || isSubmitting
+          ? COPY.loans.repay.processing
+          : buttonText}
       </Button>
     </div>
   );

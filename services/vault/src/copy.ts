@@ -229,7 +229,6 @@ export const COPY = {
       },
     },
     btcConfirmation: {
-      startedAt: "Started at",
       estRemaining: "Est. remaining",
       estRemainingValue: (minutes: number, blocksLeft: number) =>
         `~${minutes} min (${blocksLeft} BTC ${
@@ -247,7 +246,6 @@ export const COPY = {
         } · ~${minutes} min`,
     },
     waitDetails: {
-      startedAt: "Started at",
       status: "Status",
       // Fallback status used at the AWAIT_PAYOUT_TRANSACTIONS step on the
       // resume path, when the live BTC confirmation counter is not wired in.
@@ -351,6 +349,15 @@ export const COPY = {
       // Per-provider metric labels shown in the picker.
       providerCommissionLabel: "Commission",
       providerActiveLabel: "Total locked",
+      // Fee-breakdown lines (DepositFeesBreakdown) shown before the user
+      // submits. The commission label appends the percent, e.g. "VP commission
+      // (2.50%)"; net payout is the deposit minus that commission.
+      vpCommissionLabel: "VP commission",
+      vpCommissionTooltip:
+        "The vault provider's fee, deducted from your payout when you redeem. Set by the provider and shown here before you deposit.",
+      netPayoutLabel: "Net payout",
+      netPayoutTooltip:
+        "What you receive at payout: your deposit minus the vault provider's commission.",
       // Placeholder while a metric (commission, active BTC) is loading or
       // could not be fetched.
       providerMetricPlaceholder: "—",
@@ -442,6 +449,14 @@ export const COPY = {
       wrongWalletAccount: {
         title: "Wrong wallet account",
         body: WRONG_WALLET_BODY,
+      },
+      commissionChanged: {
+        title: "Commission changed",
+        body: "The vault provider raised its commission since you selected it. Please refresh to see the new commission and start the deposit again.",
+      },
+      commissionUnavailable: {
+        title: "Commission unavailable",
+        body: "We couldn't confirm the vault provider's commission. Please refresh and try again before depositing.",
       },
       // Vault-provider JSON-RPC error copy, consumed by `mapVpRpcError`
       // (utils/errors/formatting.ts). Title + message are both user-facing.
@@ -697,10 +712,39 @@ export const COPY = {
       body: (symbol: string) =>
         `Deposit ${symbol} as collateral to start borrowing.`,
     },
+    // Repay tab — validation button labels and depositor-facing messages.
+    repay: {
+      action: "Repay",
+      processing: "Processing...",
+      enterAmount: "Enter an amount",
+      amountTooSmall: "Amount too small",
+      amountExceedsDebt: "Amount exceeds debt",
+      insufficientBalance: "Insufficient balance",
+      cannotExceedDebt: "You cannot repay more than your current debt.",
+      minRepayable: (amount: string) => `Minimum repayable amount is ${amount}`,
+      // `symbol` undefined → generic "tokens"; otherwise names the token.
+      zeroBalance: (symbol: string | undefined, minAmount: string) =>
+        `Your ${symbol ? `${symbol} ` : ""}balance is 0. Acquire at least ${minAmount} ${symbol ?? "tokens"} to repay your debt.`,
+      shortfall: (
+        balance: string,
+        debt: string,
+        residual: string,
+        unit: string,
+      ) =>
+        `Your balance (${balance}) is less than your debt (${debt}). Repaying now will leave ${residual} in debt; acquire more ${unit} to fully clear it.`,
+      insufficientForFull: (balance: string, unit: string) =>
+        `You only have ${balance} ${unit} available. You need more ${unit} to fully repay your debt.`,
+      // Shown when the wallet balance query fails so the user isn't left with a
+      // disabled repay button and no explanation.
+      balanceLoadError: "Couldn't load your balance. Please try again.",
+      // Submit-time (Max intent) balance/debt refetch failure.
+      refetchError: "Couldn't refresh balance/debt — please try again.",
+    },
   },
   overview: {
     heading: "Overview",
     healthFactorLabel: "Health factor",
+    healthFactorHealthy: "Healthy",
     ltvLabel: "Current LTV",
     totalCollateralValueLabel: "Total collateral value",
     amountToRepayLabel: "Amount to repay",

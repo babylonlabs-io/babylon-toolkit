@@ -52,6 +52,7 @@ function renderContent(
       depositorEthAddress={"0xeth" as Address}
       selectedApplication="0xapp"
       selectedProviders={["0xprovider"]}
+      quotedCommissionBps={250}
       vaultProviderBtcPubkey="0xvp"
       vaultKeeperBtcPubkeys={["0xkeeper"]}
       universalChallengerBtcPubkeys={["0xchallenger"]}

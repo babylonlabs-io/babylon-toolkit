@@ -1,4 +1,10 @@
-import { Button, Heading, Loader, Text } from "@babylonlabs-io/core-ui";
+import {
+  Button,
+  Callout,
+  Heading,
+  Loader,
+  Text,
+} from "@babylonlabs-io/core-ui";
 import {
   estimateRefundFeeSats,
   REFUND_MAX_FEE_FRACTION_DENOMINATOR,
@@ -7,7 +13,6 @@ import {
 } from "@babylonlabs-io/ts-sdk/tbv/core/services";
 import { useEffect, useState } from "react";
 
-import { StatusBanner } from "@/components/deposit/DepositSignModal/StatusBanner";
 import { FALLBACK_FEE_RATE_SATS_VB } from "@/constants";
 import { COPY } from "@/copy";
 import { usePrice } from "@/hooks/usePrices";
@@ -190,23 +195,21 @@ export function RefundReviewContent({
             emphasis
           />
 
-          {previewError && (
-            <StatusBanner variant="error">{previewError}</StatusBanner>
-          )}
+          {previewError && <Callout variant="error">{previewError}</Callout>}
           {!error && !isDust && usingFallback && (
-            <StatusBanner variant="warning">
+            <Callout variant="warning">
               {COPY.deposit.refundReview.fallbackFeeWarning}
-            </StatusBanner>
+            </Callout>
           )}
           {!error && isDust && (
-            <StatusBanner variant="error">
+            <Callout variant="error">
               {COPY.deposit.refundReview.dustError}
-            </StatusBanner>
+            </Callout>
           )}
           {!error && !isDust && feeCapMessage && (
-            <StatusBanner variant="error">{feeCapMessage}</StatusBanner>
+            <Callout variant="error">{feeCapMessage}</Callout>
           )}
-          {error && <StatusBanner variant="error">{error}</StatusBanner>}
+          {error && <Callout variant="error">{error}</Callout>}
 
           <Button
             variant="contained"

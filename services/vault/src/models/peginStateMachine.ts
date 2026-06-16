@@ -96,7 +96,7 @@ export interface PeginState {
   contractStatus: ContractStatus;
   localStatus?: LocalStorageStatus;
   displayLabel: PeginDisplayLabel;
-  displayVariant: "pending" | "active" | "inactive" | "warning";
+  displayVariant: "pending" | "active" | "inactive" | "warning" | "danger";
   availableActions: PeginAction[];
   message?: string;
   awaitingPayoutPrep?: boolean;
@@ -395,7 +395,7 @@ function isRefundBroadcastWithinTtl(
 
 interface DisplayInfo {
   displayLabel: PeginDisplayLabel;
-  displayVariant: "pending" | "active" | "inactive" | "warning";
+  displayVariant: "pending" | "active" | "inactive" | "warning" | "danger";
   message?: string;
   awaitingPayoutPrep?: boolean;
   refundMaturityState?: RefundMaturityState;
@@ -540,7 +540,7 @@ function getDisplay(
   if (contractStatus === ContractStatus.LIQUIDATED) {
     return {
       displayLabel: PEGIN_DISPLAY_LABELS.LIQUIDATED,
-      displayVariant: "warning",
+      displayVariant: "danger",
       message: COPY.pegin.messages.liquidated,
     };
   }
@@ -693,7 +693,8 @@ export function getPeginDisplayStep(state: PeginState): DepositFlowStep | null {
   // A warning state (e.g. a terminal provider failure, expired, liquidated,
   // invalid) is not in-progress — never show a step/progress bar for it, so a
   // failed deposit doesn't look like it is still advancing.
-  if (state.displayVariant === "warning") return null;
+  if (state.displayVariant === "warning" || state.displayVariant === "danger")
+    return null;
 
   if (contractStatus === ContractStatus.PENDING) {
     if (availableActions.includes(PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN)) {
