@@ -100,3 +100,20 @@ export function peginOutputCount(
  * catching catastrophic wallet-side overpayment.
  */
 export const SPLIT_TX_FEE_SAFETY_MULTIPLIER = 5;
+
+/**
+ * Upper bound (vbytes) used to plausibility-check the implied per-HTLC
+ * PegIn fee returned by WASM: `htlcValue - peginAmount - depositorClaimValue`.
+ *
+ * The WASM sizes the PegIn fee internally as `minPeginFeeRate × peginTxVsize`.
+ * We do not reproduce the exact Rust vsize model here — JS↔Rust vbyte parity
+ * is explicitly NOT a cross-stack guarantee (see `peginFeeMath.ts`), so an
+ * exact recompute would false-positive on valid deposits. Instead we bound
+ * the implied fee by the largest vsize any *standard, relayable* Bitcoin
+ * transaction can have: 100,000 vbytes (400,000 weight units, the consensus
+ * tx-weight limit). A PegIn is a single transaction, so its real vsize is far
+ * below this; an implied fee above `minPeginFeeRate × MAX_REASONABLE_PEGIN_VBYTES`
+ * therefore signals a grossly inflated `htlcValue` (excess sats that would be
+ * locked irrecoverably in the HTLC), not legitimate sizing.
+ */
+export const MAX_REASONABLE_PEGIN_VBYTES = 100_000n;

@@ -90,4 +90,33 @@ describe("VaultCardShell — card-as-button routing", () => {
     expect(shell).not.toHaveAttribute("role");
     expect(shell).not.toHaveAttribute("tabindex");
   });
+
+  it("is inert when disabled even with an onClick — but still shows the tooltip", () => {
+    // Wallet-ownership mismatch: the card dims and explains itself, but must not
+    // open the multistepper (that would auto-sign with the wrong wallet).
+    render(
+      <VaultCardShell
+        testId="shell"
+        disabled
+        disabledTooltip="Switch to the owning wallet"
+        onClick={onClick}
+      >
+        <span data-testid="plain">0.05 BTC</span>
+      </VaultCardShell>,
+    );
+    const shell = screen.getByTestId("shell");
+
+    fireEvent.click(screen.getByTestId("plain"));
+    fireEvent.keyDown(shell, { key: "Enter" });
+    fireEvent.keyDown(shell, { key: " " });
+    expect(onClick).not.toHaveBeenCalled();
+
+    expect(shell).not.toHaveAttribute("role");
+    expect(shell).not.toHaveAttribute("tabindex");
+    // Dim + tooltip still communicate why the card is inert.
+    expect(shell).toHaveAttribute(
+      "data-tooltip-content",
+      "Switch to the owning wallet",
+    );
+  });
 });

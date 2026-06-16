@@ -27,6 +27,8 @@ interface DepositSignContentProps {
   depositorEthAddress: Address | undefined;
   selectedApplication: string;
   selectedProviders: string[];
+  /** VP commission (bps) shown to the depositor for the primary provider. */
+  quotedCommissionBps: number | undefined;
   vaultProviderBtcPubkey: string;
   vaultKeeperBtcPubkeys: string[];
   universalChallengerBtcPubkeys: string[];

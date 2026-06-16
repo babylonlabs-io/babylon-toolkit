@@ -91,6 +91,18 @@ interface DepositFormProps {
   isLoadingFee: boolean;
   feeError: string | null;
   depositorClaimValue?: bigint;
+  /**
+   * Full HTLC output values the protocol charges commission on, one per vault.
+   * Used by the fee breakdown so split deposits floor commission per HTLC.
+   * `undefined` while the per-vault reserve / PegIn fee is still loading.
+   */
+  commissionHtlcValues?: readonly bigint[];
+  /**
+   * Terminal failure from the `computeMinClaimValue` WASM query. CTA surfaces
+   * this as "Fee estimate unavailable" instead of an indefinite loading
+   * state. Null while the query is healthy.
+   */
+  depositorClaimValueError: Error | null;
   isDepositDisabled: boolean;
   isGeoBlocked: boolean;
   isAddressBlocked: boolean;
@@ -170,6 +182,8 @@ export function DepositForm({
   isLoadingFee,
   feeError,
   depositorClaimValue,
+  commissionHtlcValues,
+  depositorClaimValueError,
   isDepositDisabled,
   isGeoBlocked,
   isAddressBlocked,
@@ -258,6 +272,15 @@ export function DepositForm({
 
   const selectedApp = applications.find((a) => a.id === selectedApplication);
 
+  // Commission (bps) shown for the selected provider. Drives the fee breakdown
+  // and gates the CTA: a selected provider whose commission hasn't loaded
+  // cannot be quoted, so the deposit must wait for it.
+  const selectedProviderCommissionBps = providers.find(
+    (provider) => provider.id === selectedProvider,
+  )?.commissionBps;
+  const commissionUnavailable =
+    !!selectedProvider && selectedProviderCommissionBps === undefined;
+
   const hasAmount = !!amount && amount !== "0";
   const isFeeError = hasAmount && !isLoadingFee && !!feeError;
   const feeDisabled =
@@ -276,6 +299,7 @@ export function DepositForm({
     capUnavailable,
     minPeginFee,
     minPeginFeeError,
+    depositorClaimValueError,
     btcBalance,
     estimatedFeeSats: estimatedFeeSats ?? undefined,
     depositorClaimValue,
@@ -284,6 +308,7 @@ export function DepositForm({
     isAddressBlocked,
     isWalletConnected,
     hasProvider: !!selectedProvider,
+    commissionUnavailable,
     isFeeError,
     feeError,
     feeDisabled,
@@ -314,7 +339,11 @@ export function DepositForm({
           }
           sliderVariant="primary"
           leftField={{
-            label: "Max",
+            value: !hasAmount
+              ? (pendingConfirmationField ?? COPY.common.zeroUsdValue)
+              : usdValue,
+          }}
+          rightField={{
             value: maxDepositLabel,
             // Mention the supply cap only when one exists for this user.
             // `effectiveRemaining` is null both when no cap applies and while
@@ -330,11 +359,7 @@ export function DepositForm({
                   hasSupplyCap: effectiveRemaining !== null,
                 }),
           }}
-          rightField={{
-            value: !hasAmount
-              ? (pendingConfirmationField ?? usdValue)
-              : usdValue,
-          }}
+          maxPosition="right"
           onMaxClick={onMaxClick}
           inputClassName="h-10 w-auto rounded-lg bg-primary-contrast px-4 [field-sizing:content]"
         />
@@ -402,6 +427,9 @@ export function DepositForm({
         protocolFeeAmount={protocolFeeAmount}
         protocolFeePrice={protocolFeePrice}
         protocolFeeIsError={protocolFeeIsError}
+        amountSats={amountSats}
+        commissionBps={selectedProviderCommissionBps}
+        commissionHtlcValues={commissionHtlcValues}
       />
 
       {/* Protocol & risk parameters */}

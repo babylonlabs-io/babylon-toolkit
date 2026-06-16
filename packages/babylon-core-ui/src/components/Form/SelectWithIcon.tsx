@@ -166,8 +166,8 @@ export const SelectWithIcon = forwardRef<HTMLDivElement, SelectWithIconProps>(
             break;
 
           case "Escape":
-            event.preventDefault();
             if (isOpen) {
+              event.preventDefault();
               setIsOpen(false);
             }
             break;

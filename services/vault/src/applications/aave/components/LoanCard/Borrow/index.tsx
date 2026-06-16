@@ -13,6 +13,7 @@ import {
 } from "@babylonlabs-io/core-ui";
 
 import { FeatureFlags } from "@/config";
+import { COPY } from "@/copy";
 
 import {
   getCurrencyIconWithFallback,
@@ -144,18 +145,20 @@ export function Borrow() {
             sliderStep={sliderTrackMax / 1000}
             sliderSteps={[]}
             onSliderChange={setBorrowAmount}
-            sliderVariant="rainbow"
+            sliderVariant="primary"
             leftField={{
-              label: "Max",
-              value: `${formatTokenAmount(maxBorrowAmount, displayDecimals)} ${assetConfig.symbol}`,
+              value:
+                borrowAmount === 0
+                  ? COPY.common.zeroUsdValue
+                  : tokenPriceUsd != null
+                    ? formatUsdValue(borrowAmount * tokenPriceUsd)
+                    : "–",
             }}
             onMaxClick={() => setBorrowAmount(maxBorrowAmount)}
             rightField={{
-              value:
-                tokenPriceUsd != null
-                  ? formatUsdValue(borrowAmount * tokenPriceUsd)
-                  : "–",
+              value: `${formatTokenAmount(maxBorrowAmount, displayDecimals)} ${assetConfig.symbol}`,
             }}
+            maxPosition="right"
             sliderActiveColor={getTokenBrandColor(assetConfig.symbol)}
             inputClassName={AMOUNT_INPUT_CLASS_NAME}
           />

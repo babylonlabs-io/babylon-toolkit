@@ -107,6 +107,29 @@ export function formatBasisPointsAsPercent(bps: number): string {
   return `${percent}%`;
 }
 
+/** Decimal places shown for borrow APR values on the landing card. */
+const APR_DISPLAY_DECIMALS = 2;
+
+/** Smallest APR representable at `APR_DISPLAY_DECIMALS` (0.01% for 2 decimals). */
+const APR_MIN_DISPLAYABLE = 10 ** -APR_DISPLAY_DECIMALS;
+
+/**
+ * Format a percentage value as an APR display string. Renders up to two
+ * decimals with trailing zeros trimmed (e.g. 3.7 -> "3.7%", 5.861 -> "5.86%").
+ *
+ * A genuinely zero rate shows "0%". A positive rate too small to render at
+ * two decimals (e.g. 0.0001%) shows "<0.01%" rather than collapsing to "0%",
+ * so a non-zero rate is never displayed as exactly zero.
+ *
+ * @param percent - APR as a percentage (e.g. 3.7 for 3.7%).
+ */
+export function formatAprPercent(percent: number): string {
+  if (percent <= 0) return "0%";
+  const rounded = parseFloat(percent.toFixed(APR_DISPLAY_DECIMALS));
+  if (rounded === 0) return `<${APR_MIN_DISPLAYABLE}%`;
+  return `${rounded}%`;
+}
+
 /** Decimal places shown in the Overview "Current LTV" row. Matches
  * `formatLLTV` so the user-facing current LTV and protocol max-LTV render at
  * the same resolution. */

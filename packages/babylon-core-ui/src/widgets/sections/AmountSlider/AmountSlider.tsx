@@ -69,6 +69,12 @@ export interface AmountSliderProps {
   leftField?: BottomField;
   rightField?: BottomField;
   onMaxClick?: () => void;
+  /**
+   * Controls which side of the bottom row the Max button appears on.
+   * Defaults to "left" (current behaviour). Set to "right" to render the Max
+   * button at the trailing end of the right field instead.
+   */
+  maxPosition?: "left" | "right";
 
   // General
   disabled?: boolean;
@@ -96,6 +102,7 @@ export function AmountSlider({
   leftField,
   rightField,
   onMaxClick,
+  maxPosition = "left",
   disabled = false,
   readOnly = false,
   className,
@@ -196,7 +203,7 @@ export function AmountSlider({
         {/* Left: Max button + available amount (+ optional tooltip) */}
         {leftField && (
           <div className="flex items-center gap-2">
-            {onMaxClick && leftField.label?.toLowerCase() === "max" ? (
+            {onMaxClick && maxPosition === "left" && leftField.label?.toLowerCase() === "max" ? (
               <button
                 type="button"
                 onClick={onMaxClick}
@@ -218,8 +225,28 @@ export function AmountSlider({
           </div>
         )}
 
-        {/* Right: USD value */}
-        {rightField && <span className="text-accent-secondary">{rightField.value}</span>}
+        {/* Right: USD value (or balance + Max button when maxPosition="right") */}
+        {rightField && (
+          <div className="flex items-center gap-2 text-accent-secondary">
+            <span>
+              {rightField.label && `${rightField.label}: `}
+              {rightField.value}
+            </span>
+            {rightField.tooltip && <Hint tooltip={rightField.tooltip} />}
+            {onMaxClick && maxPosition === "right" && (
+              <button
+                type="button"
+                onClick={onMaxClick}
+                disabled={disabled}
+                className="flex items-center gap-2 transition-colors hover:text-accent-primary disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <span className="cursor-pointer rounded-[8px] bg-transparent px-2 py-0.5 text-xs tracking-[0.4px] hover:opacity-90 dark:bg-primary-contrast">
+                  Max
+                </span>
+              </button>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

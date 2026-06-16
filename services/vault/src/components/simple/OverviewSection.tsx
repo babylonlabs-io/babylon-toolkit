@@ -8,6 +8,7 @@
 import {
   formatHealthFactor,
   getHealthFactorColor,
+  HEALTH_FACTOR_HEALTHY_THRESHOLD,
   type HealthFactorStatus,
 } from "@/applications/aave/utils";
 import { HealthFactorGauge, HeartIcon } from "@/components/shared";
@@ -37,7 +38,10 @@ export function OverviewSection({
     return <DisconnectedOverview />;
   }
 
-  const healthFactorFormatted = formatHealthFactor(healthFactor);
+  const healthFactorFormatted =
+    healthFactor !== null && healthFactor > HEALTH_FACTOR_HEALTHY_THRESHOLD
+      ? COPY.overview.healthFactorHealthy
+      : formatHealthFactor(healthFactor);
   const healthFactorColor = getHealthFactorColor(healthFactorStatus);
   const showHealthFactor = healthFactor !== null;
 

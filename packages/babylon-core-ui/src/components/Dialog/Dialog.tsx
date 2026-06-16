@@ -11,6 +11,7 @@ export interface DialogProps extends DetailedHTMLProps<HTMLAttributes<HTMLDivEle
   hasBackdrop?: boolean;
   backdropClassName?: string;
   dialogClassName?: string;
+  disableEscapeClose?: boolean;
 }
 
 export const Dialog = ({
@@ -21,9 +22,10 @@ export const Dialog = ({
   hasBackdrop = true,
   backdropClassName,
   dialogClassName,
+  disableEscapeClose,
   ...restProps
 }: DialogProps) => {
-  const { mounted, unmount } = useModalManager({ open });
+  const { mounted, unmount } = useModalManager({ open, onClose, disableEscapeClose });
 
   return (
     <Portal mounted={mounted}>

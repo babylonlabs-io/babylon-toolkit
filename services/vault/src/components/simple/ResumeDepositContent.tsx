@@ -47,7 +47,6 @@ import { useActivationState } from "@/hooks/deposit/useActivationState";
 import { useBroadcastState } from "@/hooks/deposit/useBroadcastState";
 import { useReleaseVpTokenOnUnmount } from "@/hooks/deposit/useReleaseVpTokenOnUnmount";
 import { useSplitVaultProgress } from "@/hooks/deposit/useSplitVaultProgress";
-import { useBtcDepthStartedAt } from "@/hooks/useBtcDepthStartedAt";
 import { useRunOnce } from "@/hooks/useRunOnce";
 import { logger } from "@/infrastructure";
 import {
@@ -162,7 +161,6 @@ export function ResumeSignContent({
       perVaultSteps={perVaultSteps}
       onClose={onClose}
       onRetry={error ? handleSign : undefined}
-      waitDetailPersistKey={activity.id}
     />
   );
 }
@@ -505,11 +503,9 @@ export function ResumeWotsContent({
   const showBtcDepthPanel =
     renderStep === DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS &&
     Boolean(activity.prePeginTxHash);
-  const startedAt = useBtcDepthStartedAt(activity.id, showBtcDepthPanel);
   const btcConfirmationDetail =
-    showBtcDepthPanel && activity.prePeginTxHash && startedAt
+    showBtcDepthPanel && activity.prePeginTxHash
       ? {
-          startedAt,
           prePeginTxid: activity.prePeginTxHash,
           requiredDepth,
           depositIds: [activity.id],
@@ -534,7 +530,6 @@ export function ResumeWotsContent({
       perVaultSteps={perVaultSteps}
       onClose={onClose}
       onRetry={error ? handleSubmit : undefined}
-      waitDetailPersistKey={activity.id}
       btcConfirmationDetail={btcConfirmationDetail}
     />
   );
@@ -762,7 +757,6 @@ export function ResumeActivationContent({
       onClose={handleDone}
       successMessage={activationSuccessMessage}
       onRetry={error ? handleSubmit : undefined}
-      waitDetailPersistKey={activity.id}
     />
   );
 }

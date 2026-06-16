@@ -40,8 +40,6 @@ import {
 } from "./steps";
 
 export interface BtcConfirmationDetailData {
-  /** Date.now() when the AWAIT_BTC_CONFIRMATION step was first entered. */
-  startedAt: number;
   /** Pre-PegIn broadcast txid — the tx actually on the Bitcoin network. */
   prePeginTxid: string;
   /** Required confirmation depth, pinned to the deposit's registered version. */
@@ -106,7 +104,6 @@ export interface DepositProgressViewProps {
    * there.
    */
   btcConfirmationDetail?: BtcConfirmationDetailData | null;
-  waitDetailPersistKey?: string;
 }
 
 /**
@@ -119,12 +116,10 @@ export interface DepositProgressViewProps {
 function resolveActiveStepDetail(params: {
   currentStep: DepositFlowStep;
   btcConfirmationDetail: BtcConfirmationDetailData | null | undefined;
-  waitDetailPersistKey: string | undefined;
   /** Stack the panel's rows — used for the narrow split-deposit columns. */
   stacked?: boolean;
 }): ReactNode {
-  const { currentStep, btcConfirmationDetail, waitDetailPersistKey, stacked } =
-    params;
+  const { currentStep, btcConfirmationDetail, stacked } = params;
   if (currentStep === DepositFlowStep.SIGN_PEGIN_BTC) {
     return <PeginFeeWarning />;
   }
@@ -134,7 +129,6 @@ function resolveActiveStepDetail(params: {
   ) {
     return (
       <BtcConfirmationDetailContainer
-        startedAt={btcConfirmationDetail.startedAt}
         prePeginTxid={btcConfirmationDetail.prePeginTxid}
         requiredDepth={btcConfirmationDetail.requiredDepth}
         depositIds={btcConfirmationDetail.depositIds}
@@ -147,11 +141,7 @@ function resolveActiveStepDetail(params: {
     currentStep === DepositFlowStep.AWAIT_VP_VERIFICATION ||
     currentStep === DepositFlowStep.AWAIT_ACTIVATION_CONFIRMATION;
   return isProviderWait ? (
-    <ProviderWaitDetail
-      step={currentStep}
-      persistKey={waitDetailPersistKey}
-      stacked={stacked}
-    />
+    <ProviderWaitDetail step={currentStep} stacked={stacked} />
   ) : null;
 }
 
@@ -173,7 +163,6 @@ export function DepositProgressView(props: DepositProgressViewProps) {
     terminalMessage,
     onRetry,
     btcConfirmationDetail,
-    waitDetailPersistKey,
   } = props;
 
   // A terminal-but-not-final milestone: closeable success without marking the
@@ -216,7 +205,6 @@ export function DepositProgressView(props: DepositProgressViewProps) {
   const activeStepDetail = resolveActiveStepDetail({
     currentStep,
     btcConfirmationDetail,
-    waitDetailPersistKey,
   });
 
   // Split columns resolve the detail from each column's OWN step (so two
@@ -228,10 +216,9 @@ export function DepositProgressView(props: DepositProgressViewProps) {
       resolveActiveStepDetail({
         currentStep: step,
         btcConfirmationDetail,
-        waitDetailPersistKey,
         stacked: opts.stacked,
       }),
-    [btcConfirmationDetail, waitDetailPersistKey],
+    [btcConfirmationDetail],
   );
 
   return (

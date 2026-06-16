@@ -51,11 +51,11 @@ export function VaultCardShell({
 }: VaultCardShellProps) {
   const tooltipId = useId();
   const tooltipActive = Boolean(disabled && disabledTooltip);
-  // A `disabled` card (e.g. wallet-ownership mismatch) is still clickable —
-  // opening the multistepper as a read-only view lets the user see where the
-  // deposit is even when they can't currently act on it. The dim + tooltip
-  // already communicate that actions are blocked.
-  const clickable = Boolean(onClick);
+  // A `disabled` card (wallet-ownership mismatch) is inert: it isn't yours, and
+  // opening the multistepper would auto-fire an action signed by the wrong
+  // wallet that can only fail its on-chain checks. Block the click entirely; the
+  // dim + tooltip already say "switch to the owning wallet."
+  const clickable = Boolean(onClick) && !disabled;
 
   // Clicks/keys on buttons or anchors inside the card (Copy / explorer link /
   // action button) preserve their own behaviour rather than open the card

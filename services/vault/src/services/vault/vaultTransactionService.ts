@@ -144,6 +144,15 @@ export interface RegisterPeginBatchOnChainParams {
   requests: BatchPeginRequestItem[];
   /** Proof of possession from signProofOfPossession(). */
   popSignature: PopSignature;
+  /**
+   * VP commission (bps) the depositor was shown at provider selection.
+   * Forwarded to the SDK as the quote that bounds `maxAcceptableCommissionBps`
+   * on-chain: if the on-chain commission has drifted upward beyond the SDK's
+   * allowed headroom between the quote and submit, registration is rejected
+   * instead of silently binding to the new higher value. See
+   * `PeginManager.resolveMaxAcceptableCommissionBps`.
+   */
+  quotedCommissionBps: number;
 }
 
 /**
@@ -254,6 +263,7 @@ export async function registerPeginBatchOnChain(
     unsignedPrePeginTx: params.unsignedPrePeginTx,
     requests: params.requests,
     popSignature: params.popSignature,
+    quotedCommissionBps: params.quotedCommissionBps,
   });
 
   return {

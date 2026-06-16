@@ -65,7 +65,11 @@ import {
   verifyBtcWalletLiveness,
 } from "@/utils/btc";
 import { satoshiToBtcNumber } from "@/utils/btcConversion";
-import { mapDepositError, type DepositErrorContent } from "@/utils/errors";
+import {
+  COMMISSION_UNAVAILABLE_ERROR,
+  mapDepositError,
+  type DepositErrorContent,
+} from "@/utils/errors";
 import { formatBtcValue } from "@/utils/formatting";
 import { getVpProxyUrl } from "@/utils/rpc";
 
@@ -102,6 +106,13 @@ export interface UseDepositFlowParams {
   selectedApplication: string;
   /** Selected vault provider addresses */
   selectedProviders: string[];
+  /**
+   * VP commission (bps) shown to the depositor at provider selection, for the
+   * primary provider (`selectedProviders[0]`). `undefined` while the on-chain
+   * commission is still loading or failed to fetch — the flow refuses to submit
+   * in that state rather than binding to an unquoted value.
+   */
+  quotedCommissionBps: number | undefined;
   /** Vault provider BTC public key (x-only, 64 hex chars) */
   vaultProviderBtcPubkey: string;
   /** Vault keeper BTC public keys */
@@ -144,12 +155,11 @@ export interface UseDepositFlowReturn {
   perVaultSteps: DepositFlowStep[];
   /**
    * Data backing the "Awaiting Bitcoin confirmation" detail panel, snapshotted
-   * when the BTC wait begins: the timestamp, the Pre-PegIn broadcast txid, and
-   * the required confirmation depth of the offchain-params version this
-   * deposit registered against. `null` until the BTC broadcast completes.
+   * when the BTC wait begins: the Pre-PegIn broadcast txid and the required
+   * confirmation depth of the offchain-params version this deposit registered
+   * against. `null` until the BTC broadcast completes.
    */
   btcConfirmationDetail: {
-    startedAt: number;
     prePeginTxid: string;
     requiredDepth: number;
     depositIds: readonly string[];
@@ -200,6 +210,7 @@ export function useDepositFlow(
     depositorEthAddress,
     selectedApplication,
     selectedProviders,
+    quotedCommissionBps,
     vaultProviderBtcPubkey,
     vaultKeeperBtcPubkeys,
     universalChallengerBtcPubkeys,
@@ -230,7 +241,6 @@ export function useDepositFlow(
     vaultAmounts.map(() => DepositFlowStep.DERIVE_VAULT_SECRET),
   );
   const [btcConfirmationDetail, setBtcConfirmationDetail] = useState<{
-    startedAt: number;
     prePeginTxid: string;
     requiredDepth: number;
     depositIds: readonly string[];
@@ -360,6 +370,14 @@ export function useDepositFlow(
 
         // Extract primary provider (current implementation supports single provider only)
         const primaryProvider = selectedProviders[0] as Address;
+
+        // The VP commission the depositor was shown must be known before we
+        // bind it on-chain. If it never loaded, refuse to submit rather than
+        // letting the SDK bind `maxAcceptableCommissionBps` to an unquoted
+        // fresh read — that is the silent-overcharge path TRV-032 describes.
+        if (quotedCommissionBps === undefined) {
+          throw new Error(COMMISSION_UNAVAILABLE_ERROR);
+        }
 
         // Generate batch ID for tracking
         const batchId = uuidv4();
@@ -519,6 +537,7 @@ export function useDepositFlow(
           unsignedPrePeginTx: batchResult.fundedPrePeginTxHex,
           requests: batchRequests,
           popSignature,
+          quotedCommissionBps,
         });
 
         // 3f. Build pegin results from batch response
@@ -746,9 +765,8 @@ export function useDepositFlow(
         // a later governance change must not move the displayed target. The
         // panel itself renders at the AWAIT_PAYOUT_TRANSACTIONS step (that's
         // where the minPrepeginDepth wait actually happens); we capture the
-        // values here at broadcast time so startedAt anchors to broadcast.
+        // values here at broadcast time.
         setBtcConfirmationDetail({
-          startedAt: Date.now(),
           prePeginTxid: prePeginBroadcastTxid,
           requiredDepth: config.offchainParams.minPrepeginDepth,
           depositIds: broadcastedResults.map((r) => r.vaultId),
@@ -1143,6 +1161,7 @@ export function useDepositFlow(
       depositorEthAddress,
       selectedApplication,
       selectedProviders,
+      quotedCommissionBps,
       vaultProviderBtcPubkey,
       vaultKeeperBtcPubkeys,
       universalChallengerBtcPubkeys,

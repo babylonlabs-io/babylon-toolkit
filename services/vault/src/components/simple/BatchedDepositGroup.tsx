@@ -73,10 +73,19 @@ export function BatchedDepositGroup({
   );
   const btcSymbol = getNetworkConfigBTC().coinSymbol;
 
+  // A batch whose vaults belong to a different wallet is inert, same as a single
+  // unowned card: every sibling already dims + shows the switch-wallet tooltip,
+  // and opening the multistepper would only auto-fire an action that fails its
+  // on-chain checks. Siblings share one depositor, so ownership is all-or-none.
+  const groupUnowned = activities.some((activity) => {
+    const result = getPollingResult(activity.id);
+    return result ? getActionStatus(result).type === "disabled" : false;
+  });
+
   // One click anywhere on the group opens the batch-level multistepper.
   // Clicks landing on a button or anchor inside (Copy, explorer link,
   // hoisted broadcast button, per-vault action) preserve their own behaviour.
-  const clickable = Boolean(onGroupClick);
+  const clickable = Boolean(onGroupClick) && !groupUnowned;
   const handleClick = (event: React.MouseEvent<HTMLDivElement>) => {
     if (!clickable || isInteractiveEventTarget(event)) return;
     onGroupClick?.(activities[0].id);
