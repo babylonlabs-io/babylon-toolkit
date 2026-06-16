@@ -10,6 +10,12 @@ import tsconfigPaths from "vite-tsconfig-paths";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
+const SRI_HASH_PREFIX = "sha384-";
+
+function stripCrossorigin(attrs: string): string {
+  return attrs.replace(/\s*crossorigin(?:="[^"]*")?/g, "");
+}
+
 function sriPlugin(): Plugin {
   const assetHashes = new Map<string, string>();
   return {
@@ -23,18 +29,18 @@ function sriPlugin(): Plugin {
         const hash = createHash("sha384")
           .update(contentBuffer)
           .digest("base64");
-        assetHashes.set(fileName, `sha384-${hash}`);
+        assetHashes.set(fileName, `${SRI_HASH_PREFIX}${hash}`);
       }
     },
     transformIndexHtml(html) {
-      return html
+      const patched = html
         .replace(
           /<script ([^>]*?)src="([^"]+)"([^>]*?)>/g,
           (_match, before, src, after) => {
             const fileName = src.replace(/^\//, "");
             const integrity = assetHashes.get(fileName);
             if (!integrity) return _match;
-            return `<script ${before}src="${src}" integrity="${integrity}" crossorigin="anonymous"${after}>`;
+            return `<script ${stripCrossorigin(before)}src="${src}" integrity="${integrity}" crossorigin="anonymous"${stripCrossorigin(after)}>`;
           },
         )
         .replace(
@@ -43,9 +49,20 @@ function sriPlugin(): Plugin {
             const fileName = href.replace(/^\//, "");
             const integrity = assetHashes.get(fileName);
             if (!integrity) return _match;
-            return `<link ${before}href="${href}" integrity="${integrity}" crossorigin="anonymous"${after}>`;
+            return `<link ${stripCrossorigin(before)}href="${href}" integrity="${integrity}" crossorigin="anonymous"${stripCrossorigin(after)}>`;
           },
         );
+
+      const unprotected = [
+        ...patched.matchAll(/<script [^>]*?src="(\/[^"]+\.js)"[^>]*>/g),
+      ].filter((m) => !m[0].includes(`integrity="${SRI_HASH_PREFIX}`));
+      if (unprotected.length > 0) {
+        throw new Error(
+          `SRI plugin: ${unprotected.length} local JS script(s) missing integrity attribute: ${unprotected.map((m) => m[1]).join(", ")}`,
+        );
+      }
+
+      return patched;
     },
   };
 }
