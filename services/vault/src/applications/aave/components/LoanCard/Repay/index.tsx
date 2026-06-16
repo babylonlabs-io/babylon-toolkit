@@ -55,12 +55,22 @@ export function Repay() {
   const { address } = useETHWallet();
 
   // Fetch user's token balance for repayment
-  const { balance: userTokenBalance, refetch: refetchUserBalance } =
-    useERC20Balance(
-      selectedReserve.token.address,
-      address,
-      selectedReserve.token.decimals,
-    );
+  const {
+    balance: userTokenBalance,
+    isLoading: balanceLoading,
+    error: balanceError,
+    refetch: refetchUserBalance,
+  } = useERC20Balance(
+    selectedReserve.token.address,
+    address,
+    selectedReserve.token.decimals,
+  );
+
+  // `userTokenBalance` reads 0 while the balance query is loading or errored,
+  // which is indistinguishable from a genuine zero balance. Gate the
+  // zero-balance messaging and the submit on a known balance so we never tell a
+  // user who actually holds tokens that they have none.
+  const balanceKnown = !balanceLoading && balanceError == null;
 
   const { executeRepay, isProcessing } = useRepayTransaction({
     proxyContract,
@@ -101,6 +111,7 @@ export function Repay() {
       currentDebtAmount,
       userTokenBalance,
       displayDecimals,
+      assetConfig.symbol,
     );
 
   // Cosmetic floor only: keeps the slider track from collapsing to zero
@@ -185,6 +196,7 @@ export function Repay() {
             sliderMax={sliderTrackMax}
             sliderStep={sliderTrackMax / SLIDER_STEP_COUNT}
             sliderSteps={[]}
+            sliderDisabled={!balanceKnown || maxRepayAmount <= 0}
             onSliderChange={setRepayAmountSlider}
             sliderVariant="primary"
             leftField={{
@@ -214,13 +226,13 @@ export function Repay() {
           healthFactorOriginalValue={metrics.healthFactorOriginalValue}
         />
 
-        {errorMessage && (
+        {balanceKnown && errorMessage && (
           <p className="text-sm text-error-main">{errorMessage}</p>
         )}
-        {!errorMessage && refetchError && (
+        {balanceKnown && !errorMessage && refetchError && (
           <p className="text-sm text-warning-main">{refetchError}</p>
         )}
-        {!errorMessage && !refetchError && warningMessage && (
+        {balanceKnown && !errorMessage && !refetchError && warningMessage && (
           <p className="text-sm text-warning-main">{warningMessage}</p>
         )}
       </div>
@@ -231,7 +243,7 @@ export function Repay() {
         color="secondary"
         size="large"
         fluid
-        disabled={isDisabled || isProcessing}
+        disabled={isDisabled || isProcessing || !balanceKnown}
         onClick={handleRepay}
         className="mt-6"
       >
