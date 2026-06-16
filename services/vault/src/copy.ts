@@ -229,7 +229,6 @@ export const COPY = {
       },
     },
     btcConfirmation: {
-      startedAt: "Started at",
       estRemaining: "Est. remaining",
       estRemainingValue: (minutes: number, blocksLeft: number) =>
         `~${minutes} min (${blocksLeft} BTC ${
@@ -247,7 +246,6 @@ export const COPY = {
         } · ~${minutes} min`,
     },
     waitDetails: {
-      startedAt: "Started at",
       status: "Status",
       // Fallback status used at the AWAIT_PAYOUT_TRANSACTIONS step on the
       // resume path, when the live BTC confirmation counter is not wired in.
