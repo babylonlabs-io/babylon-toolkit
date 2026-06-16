@@ -1125,3 +1125,123 @@ describe("buildPayoutPsbt — implicit-fee bound (value-burn variant)", () => {
     ).rejects.toThrow(/outputs \(200000 sats\) exceed inputs/);
   });
 });
+
+/**
+ * The coarse 10%-of-inputs fee cap leaves room to shave a large deposit's
+ * payout output and burn the difference as fee. The explicit depositor-payout
+ * lower bound floors outs[0] at `peginValue − maxCommission − anchorDust −
+ * MAX_PAYOUT_IMPLICIT_FEE_SATS`. The fixtures use a large pegin so the absolute
+ * fee backstop (2_000_000 sats) is the binding constraint while the 10% cap
+ * still passes.
+ */
+describe("buildPayoutPsbt — depositor-payout lower bound", () => {
+  beforeAll(async () => {
+    await initializeWasmForTests();
+  });
+
+  // 30_000_000 pegin + 1_000 assert = 30_001_000 inputs (10% cap = 3_000_100).
+  // VP-claimer floor = 30_000_000 − 1_500_000 (max commission @ 500 bps) − 546
+  // − 2_000_000 = 26_499_454.
+  const LARGE_PEGIN_VALUE = 30_000_000;
+  const SMALL_ASSERT_VALUE = 1_000;
+
+  function highValuePeginTxHex(): string {
+    const tx = new Transaction();
+    tx.addInput(NULL_TXID, 0xffffffff, SEQUENCE_MAX);
+    tx.addOutput(createDummyP2TR(), LARGE_PEGIN_VALUE);
+    return tx.toHex();
+  }
+
+  function smallAssertTxHex(): string {
+    const tx = new Transaction();
+    tx.addInput(DUMMY_TXID_2, 0xffffffff, SEQUENCE_MAX);
+    tx.addOutput(createDummyP2WPKH("c"), SMALL_ASSERT_VALUE);
+    return tx.toHex();
+  }
+
+  function payoutTxHexWith(
+    peginTxHex: string,
+    assertTxHex: string,
+    outputs: { script: Buffer; value: number }[],
+  ): string {
+    const peginTx = Transaction.fromHex(peginTxHex);
+    const assertTx = Transaction.fromHex(assertTxHex);
+    const tx = new Transaction();
+    tx.addInput(Buffer.from(peginTx.getId(), "hex").reverse(), 0, SEQUENCE_MAX);
+    tx.addInput(Buffer.from(assertTx.getId(), "hex").reverse(), 0, SEQUENCE_MAX);
+    for (const out of outputs) tx.addOutput(out.script, out.value);
+    return tx.toHex();
+  }
+
+  function baseParams(overrides: Partial<PayoutParams>): PayoutParams {
+    return {
+      payoutTxHex: "",
+      peginTxHex: "",
+      assertTxHex: "",
+      depositorBtcPubkey: TEST_KEYS.DEPOSITOR,
+      vaultProviderBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
+      vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
+      universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
+      timelockPegin: 100,
+      network: "signet" as Network,
+      claimerBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
+      registeredPayoutScriptPubKey: REGISTERED_PAYOUT_SCRIPT_HEX,
+      commissionBps: TEST_COMMISSION_BPS,
+      ...overrides,
+    };
+  }
+
+  it("VP-claimer: rejects a deflated payout below the floor even within the 10% fee cap", async () => {
+    // outs[0] 26_000_000 < floor 26_499_454; implicit fee 2_500_454 < 10% cap
+    // 3_000_100, so only the lower bound trips.
+    const peginTxHex = highValuePeginTxHex();
+    const assertTxHex = smallAssertTxHex();
+    const payoutTxHex = payoutTxHexWith(peginTxHex, assertTxHex, [
+      { script: createDummyP2WPKH("a"), value: 26_000_000 },
+      { script: createDummyP2WPKH("e"), value: 1_500_000 },
+      { script: createDummyP2WPKH("c"), value: PAYOUT_ANCHOR_DUST_SATS },
+    ]);
+    await expect(
+      buildPayoutPsbt(baseParams({ payoutTxHex, peginTxHex, assertTxHex })),
+    ).rejects.toThrow(
+      /output 0 value 26000000 sats is below the minimum depositor payout 26499454 sats/,
+    );
+  });
+
+  it("VP-claimer: accepts a large payout that pays the depositor above the floor", async () => {
+    // outs[0] 28_995_454 >= floor; commission 1_000_000 <= cap; fee 5_000.
+    const peginTxHex = highValuePeginTxHex();
+    const assertTxHex = smallAssertTxHex();
+    const payoutTxHex = payoutTxHexWith(peginTxHex, assertTxHex, [
+      { script: createDummyP2WPKH("a"), value: 28_995_454 },
+      { script: createDummyP2WPKH("e"), value: 1_000_000 },
+      { script: createDummyP2WPKH("c"), value: PAYOUT_ANCHOR_DUST_SATS },
+    ]);
+    await expect(
+      buildPayoutPsbt(baseParams({ payoutTxHex, peginTxHex, assertTxHex })),
+    ).resolves.toBeDefined();
+  });
+
+  it("depositor-as-claimer: floors outs[0] with a zero commission allowance", async () => {
+    // No commission output, so floor = 30_000_000 − 0 − 546 − 2_000_000 =
+    // 27_999_454. outs[0] 27_500_000 trips it; fee 2_500_454 < 10% cap.
+    const peginTxHex = highValuePeginTxHex();
+    const assertTxHex = smallAssertTxHex();
+    const payoutTxHex = payoutTxHexWith(peginTxHex, assertTxHex, [
+      { script: createDummyP2WPKH("a"), value: 27_500_000 },
+      { script: createDummyP2WPKH("c"), value: PAYOUT_ANCHOR_DUST_SATS },
+    ]);
+    await expect(
+      buildPayoutPsbt(
+        baseParams({
+          payoutTxHex,
+          peginTxHex,
+          assertTxHex,
+          claimerBtcPubkey: TEST_KEYS.DEPOSITOR,
+        }),
+      ),
+    ).rejects.toThrow(
+      /output 0 value 27500000 sats is below the minimum depositor payout 27999454 sats/,
+    );
+  });
+});

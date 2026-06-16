@@ -55,6 +55,33 @@ const MAX_PAYOUT_FEE_FRACTION_NUMERATOR = 10;
 const MAX_PAYOUT_FEE_FRACTION_DENOMINATOR = 100;
 
 /**
+ * Generous ceiling on a payout transaction's virtual size (vbytes). The payout
+ * is a fixed 2-input (PegIn + Assert) / 2-or-3-output taproot transaction whose
+ * real vsize is ~300-400 vB; this bound is deliberately loose. Not a protocol
+ * parameter — paired with {@link MAX_PAYOUT_FEE_RATE_SAT_PER_VB} only to derive
+ * an absolute fee backstop.
+ */
+const MAX_PAYOUT_TX_VBYTES = 1_000;
+
+/**
+ * Backstop fee rate (sat/vB), set far above any realistic Bitcoin fee rate so a
+ * legitimate payout fee can never reach the derived ceiling. Not a protocol
+ * parameter.
+ */
+const MAX_PAYOUT_FEE_RATE_SAT_PER_VB = 2_000;
+
+/**
+ * Absolute ceiling (sats) on a payout's implicit fee, used as the fee allowance
+ * in the depositor-payout lower bound. No legitimate payout pays this much fee,
+ * so any output deflation that pushes the implied fee above it is a VP burning
+ * the depositor's value. For large deposits this is far tighter than the coarse
+ * {@link MAX_PAYOUT_FEE_FRACTION_NUMERATOR}/{@link MAX_PAYOUT_FEE_FRACTION_DENOMINATOR}
+ * input fraction, which remains the binding cap for small deposits.
+ */
+const MAX_PAYOUT_IMPLICIT_FEE_SATS =
+  MAX_PAYOUT_TX_VBYTES * MAX_PAYOUT_FEE_RATE_SAT_PER_VB;
+
+/**
  * Parameters for building an unsigned Payout PSBT
  *
  * Payout is used in the challenge path after Assert, when the claimer proves validity.
@@ -166,6 +193,8 @@ export interface PayoutPsbtResult {
  * @throws If `claimerBtcPubkey` is not VP, depositor, or a registered VK
  * @throws If payout output count, outs[0] script, outs[last] anchor value, or
  *   (VP-claimer) outs[1] commission cap do not match the protocol layout
+ * @throws If outs[0] value is below the depositor-payout lower bound
+ *   `peginValue − maxCommission − anchorDust − {@link MAX_PAYOUT_IMPLICIT_FEE_SATS}`
  * @throws If `commissionBps` is not a non-negative integer below 10_000
  */
 export async function buildPayoutPsbt(
@@ -353,6 +382,11 @@ export async function buildPayoutPsbt(
  * `floor(peginValue × commissionBps / 10_000)`. Canonical layouts: VP-claimer
  * = [payout, commission, anchor]; depositor/VK-claimer = [payout, anchor].
  *
+ * Also floors the depositor payout: `outs[0].value` must be at least
+ * `peginValue − maxCommission − anchorDust − {@link MAX_PAYOUT_IMPLICIT_FEE_SATS}`,
+ * blocking a VP that deflates the depositor's output and burns the difference
+ * as an implausibly large fee.
+ *
  * `outs[1].script` and `outs[last].script` are intentionally not pinned: the
  * value pins above bound depositor exposure regardless of where those outputs
  * are sent, so the value pins — not script pins — are load-bearing.
@@ -436,6 +470,10 @@ function assertPayoutOutputLayout(args: {
     );
   }
 
+  // Maximum value a VP may legitimately remove from the depositor's output as
+  // commission: the per-role cap (0 for non-VP claimers, which carry no
+  // commission output). Reused below to floor the depositor payout.
+  let maxCommissionSats = 0;
   if (role === "vp-claimer") {
     // Structural guard only — a non-negative integer below the bps
     // denominator, so the cap math `floor(peginValue * bps / 10_000)` is
@@ -451,7 +489,7 @@ function assertPayoutOutputLayout(args: {
           `[0, ${MAX_VP_COMMISSION_BPS_EXCLUSIVE}), got ${commissionBps}`,
       );
     }
-    const maxCommissionSats = Math.floor(
+    maxCommissionSats = Math.floor(
       (peginValueSats * commissionBps) / MAX_VP_COMMISSION_BPS_EXCLUSIVE,
     );
     if (payoutTx.outs[1].value > maxCommissionSats) {
@@ -461,6 +499,35 @@ function assertPayoutOutputLayout(args: {
           `(${commissionBps} bps of peginValue=${peginValueSats})`,
       );
     }
+  }
+
+  // Explicit depositor-payout lower bound. The
+  // pins above constrain where value goes; this floors how much the depositor
+  // must *receive* at outs[0]. The depositor must keep at least the pegin value
+  // minus the most a VP may legitimately remove — the commission cap, the CPFP
+  // anchor, and a hard fee backstop.
+  //
+  // Conservative on every term — input 1's value (>= 0) is ignored, the
+  // commission *cap* is used rather than the actual commission, and the anchor
+  // is its pinned dust value — so for any legitimate payout
+  // `outs[0] = (peginValue + input1) - commission - anchor - fee` is provably
+  // >= this floor (a real payout fee is far below MAX_PAYOUT_IMPLICIT_FEE_SATS).
+  // It only rejects a VP that deflates the depositor output and burns the
+  // difference as an implausibly large fee; for large deposits it binds tighter
+  // than the coarse input-fraction fee cap in `buildPayoutPsbt`.
+  const minDepositorPayoutSats =
+    peginValueSats -
+    maxCommissionSats -
+    PAYOUT_ANCHOR_DUST_SATS -
+    MAX_PAYOUT_IMPLICIT_FEE_SATS;
+  if (payoutTx.outs[0].value < minDepositorPayoutSats) {
+    throw new Error(
+      `Payout output 0 value ${payoutTx.outs[0].value} sats is below the ` +
+        `minimum depositor payout ${minDepositorPayoutSats} sats ` +
+        `(peginValue ${peginValueSats} - maxCommission ${maxCommissionSats} - ` +
+        `anchor ${PAYOUT_ANCHOR_DUST_SATS} - maxFee ${MAX_PAYOUT_IMPLICIT_FEE_SATS}); ` +
+        `refusing to sign a payout that underpays the depositor.`,
+    );
   }
 }
 
