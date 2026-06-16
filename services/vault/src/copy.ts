@@ -724,6 +724,10 @@ export const COPY = {
       "Your position's safety margin. If it falls below 1.0, your collateral can be liquidated.",
     detailsAriaLabel: (symbol: string) => `${symbol} loan details`,
     transactionFailedTitle: "Transaction failed",
+    borrowingUnavailable:
+      "Borrowing is temporarily unavailable. Please check back later.",
+    priceUnavailable:
+      "Price data unavailable. Borrowing is temporarily disabled.",
     assetSelection: {
       title: "Select asset",
       columnAsset: "Asset",

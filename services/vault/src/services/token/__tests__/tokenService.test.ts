@@ -16,6 +16,9 @@ describe("getCurrencyIconWithFallback", () => {
     expect(getCurrencyIconWithFallback(undefined, "usdt")).toBe(
       "/images/usdt.svg",
     );
+    expect(getCurrencyIconWithFallback(undefined, "DAI")).toBe(
+      "/images/dai.svg",
+    );
   });
 
   it("renders a letter SVG data URI when both icon and known symbol are missing", () => {

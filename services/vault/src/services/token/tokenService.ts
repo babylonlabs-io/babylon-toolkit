@@ -29,6 +29,7 @@ const TOKEN_ICONS: Record<string, string> = {
   VBTC: btcConfig.icon,
   USDC: "/images/usdc.svg",
   USDT: "/images/usdt.svg",
+  DAI: "/images/dai.svg",
 };
 
 /**

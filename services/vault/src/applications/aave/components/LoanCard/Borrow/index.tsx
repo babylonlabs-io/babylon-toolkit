@@ -252,22 +252,16 @@ export function Borrow() {
           healthFactorOriginalValue={metrics.healthFactorOriginalValue}
         />
 
-        {/* Health Factor Error */}
-        {errorMessage && (
-          <p className="text-sm text-error-main">{errorMessage}</p>
-        )}
+        {/* Validation error */}
+        {errorMessage && <Callout variant="error">{errorMessage}</Callout>}
 
         {/* Borrow Unavailable Messages */}
         {FeatureFlags.isBorrowDisabled && (
-          <Text variant="body2" className="text-center text-warning-main">
-            Borrowing is temporarily unavailable. Please check back later.
-          </Text>
+          <Callout variant="warning">{COPY.loans.borrowingUnavailable}</Callout>
         )}
         {(tokenPriceUsd == null || oracleAddress == null) &&
           !FeatureFlags.isBorrowDisabled && (
-            <Text variant="body2" className="text-center text-warning-main">
-              Price data unavailable. Borrowing is temporarily disabled.
-            </Text>
+            <Callout variant="warning">{COPY.loans.priceUnavailable}</Callout>
           )}
       </div>
 

@@ -257,14 +257,12 @@ export function Repay() {
           healthFactorOriginalValue={metrics.healthFactorOriginalValue}
         />
 
-        {errorMessage && (
-          <p className="text-sm text-error-main">{errorMessage}</p>
-        )}
+        {errorMessage && <Callout variant="error">{errorMessage}</Callout>}
         {!errorMessage && refetchError && (
-          <p className="text-sm text-warning-main">{refetchError}</p>
+          <Callout variant="warning">{refetchError}</Callout>
         )}
         {!errorMessage && !refetchError && warningMessage && (
-          <p className="text-sm text-warning-main">{warningMessage}</p>
+          <Callout variant="warning">{warningMessage}</Callout>
         )}
       </div>
 
