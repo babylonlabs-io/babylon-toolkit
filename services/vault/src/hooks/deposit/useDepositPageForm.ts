@@ -162,6 +162,12 @@ export interface UseDepositPageFormResult {
   splitRatioLabel: string | null;
   /** Depositor claim value computed from WASM (VK/UC counts + fee). undefined while loading. */
   depositorClaimValue: bigint | undefined;
+  /**
+   * Terminal failure from the `computeMinClaimValue` WASM query. Surfaced
+   * separately from the null "still loading" state so the CTA can show an
+   * error instead of silently falling back to a zero claim reserve.
+   */
+  claimValueError: Error | null;
 
   validateForm: () => boolean;
   validateAmountOnBlur: () => void;
@@ -374,22 +380,32 @@ export function useDepositPageForm(): UseDepositPageFormResult {
   // Compute depositorClaimValue for UI validation (min deposit check).
   // Uses {VP} ∪ {VKs} − {depositor} which is >= the transaction builder's
   // vaultKeepers.length, making this a conservative estimate.
-  const numLocalChallengers = useMemo(() => {
-    if (!selectedVpBtcPubkey || !depositorBtcPubkey) return undefined;
+  const numLocalChallengersResult = useMemo(() => {
+    if (!selectedVpBtcPubkey || !depositorBtcPubkey) {
+      return { value: undefined, error: null };
+    }
     try {
-      return assertNumLocalChallengers(
-        computeNumLocalChallengers(
-          selectedVpBtcPubkey,
-          vaultKeeperBtcPubkeys,
-          depositorBtcPubkey,
+      return {
+        value: assertNumLocalChallengers(
+          computeNumLocalChallengers(
+            selectedVpBtcPubkey,
+            vaultKeeperBtcPubkeys,
+            depositorBtcPubkey,
+          ),
         ),
-      );
-    } catch {
-      return undefined;
+        error: null,
+      };
+    } catch (err) {
+      return {
+        value: undefined,
+        error: err instanceof Error ? err : new Error(String(err)),
+      };
     }
   }, [selectedVpBtcPubkey, vaultKeeperBtcPubkeys, depositorBtcPubkey]);
+  const numLocalChallengers = numLocalChallengersResult.value;
+  const challengerCountError = numLocalChallengersResult.error;
 
-  const { data: depositorClaimValue } = useQuery({
+  const { data: depositorClaimValue, error: claimValueError } = useQuery({
     queryKey: [
       "depositorClaimValue",
       numLocalChallengers,
@@ -637,6 +653,10 @@ export function useDepositPageForm(): UseDepositPageFormResult {
     vaultAmounts: splitVaultAmounts,
     isSplitLoading,
     depositorClaimValue,
+    claimValueError:
+      (challengerCountError ?? claimValueError) instanceof Error
+        ? (challengerCountError ?? claimValueError)
+        : null,
     splitRatioLabel,
     validateForm,
     validateAmountOnBlur,
