@@ -130,6 +130,7 @@ export function Repay() {
       currentDebtAmount,
       userTokenBalance,
       displayDecimals,
+      assetConfig.symbol,
     );
 
   // Cosmetic floor only: keeps the slider track from collapsing to zero
@@ -257,7 +258,11 @@ export function Repay() {
           healthFactorOriginalValue={metrics.healthFactorOriginalValue}
         />
 
-        {errorMessage && <Callout variant="error">{errorMessage}</Callout>}
+        {errorMessage && (
+          <Callout variant="error" title={buttonText}>
+            {errorMessage}
+          </Callout>
+        )}
         {!errorMessage && refetchError && (
           <Callout variant="warning">{refetchError}</Callout>
         )}

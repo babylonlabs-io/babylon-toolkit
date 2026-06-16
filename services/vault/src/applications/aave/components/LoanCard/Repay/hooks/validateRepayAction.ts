@@ -4,7 +4,12 @@
  * Validates whether user can perform the repay action based on amount.
  */
 
-import { formatTokenAmount } from "../../../../../../utils/formatting";
+import { COPY } from "@/copy";
+
+import {
+  formatDisplayAmount,
+  formatTokenAmount,
+} from "../../../../../../utils/formatting";
 
 export interface RepayValidationResult {
   isDisabled: boolean;
@@ -27,6 +32,7 @@ export interface RepayValidationResult {
  * @param userTokenBalance - User's token balance (optional, for better error messages)
  * @param displayDecimals - Token's display precision; messages format at it so
  *   dust isn't shown as "0.00", and amounts below one base unit are rejected.
+ * @param symbol - Token symbol, shown in the error description (e.g. "DAI")
  * @returns Validation result with disabled state, button text, and error/warning messages
  */
 export function validateRepayAction(
@@ -35,6 +41,7 @@ export function validateRepayAction(
   currentDebtAmount?: number,
   userTokenBalance?: number,
   displayDecimals?: number,
+  symbol = "",
 ): RepayValidationResult {
   // Below one base unit the submit path's toFixed(displayDecimals) rounds to 0n
   // and the tx reverts, so block it (mirrors the borrow sub-unit guard).
@@ -44,7 +51,9 @@ export function validateRepayAction(
       return {
         isDisabled: true,
         buttonText: "Amount too small",
-        errorMessage: `Minimum repayable amount is ${formatTokenAmount(minRepayable, displayDecimals)}`,
+        errorMessage: COPY.loans.validation.minRepay(
+          formatTokenAmount(minRepayable, displayDecimals),
+        ),
         warningMessage: null,
       };
     }
@@ -82,14 +91,17 @@ export function validateRepayAction(
       return {
         isDisabled: true,
         buttonText: "Insufficient balance",
-        errorMessage: `You only have ${formatTokenAmount(userTokenBalance as number, displayDecimals)} tokens available. You need more tokens to fully repay your debt.`,
+        errorMessage: COPY.loans.validation.insufficientBalance(
+          formatDisplayAmount(userTokenBalance as number, displayDecimals ?? 2),
+          symbol,
+        ),
         warningMessage: null,
       };
     }
     return {
       isDisabled: true,
       buttonText: "Amount exceeds debt",
-      errorMessage: "You cannot repay more than your current debt.",
+      errorMessage: COPY.loans.validation.amountExceedsDebt,
       warningMessage: null,
     };
   }

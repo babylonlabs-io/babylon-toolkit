@@ -728,6 +728,21 @@ export const COPY = {
       "Borrowing is temporarily unavailable. Please check back later.",
     priceUnavailable:
       "Price data unavailable. Borrowing is temporarily disabled.",
+    // Validation-error descriptions (the Callout title comes from the action
+    // button label, e.g. "Amount exceeds maximum").
+    validation: {
+      minBorrow: (min: string) =>
+        `The minimum borrowable amount is ${min}. Enter a higher amount and retry.`,
+      maxBorrow: (max: string, symbol: string) =>
+        `The maximum borrowable amount is ${max} ${symbol}. Enter a lower amount and retry.`,
+      healthFactorTooLow: (min: number) =>
+        `Borrowing this amount would drop your health factor below ${min}, risking liquidation. Reduce the amount and retry.`,
+      minRepay: (min: string) =>
+        `The minimum repayable amount is ${min}. Enter a higher amount and retry.`,
+      insufficientBalance: (balance: string, symbol: string) =>
+        `You only have ${balance} ${symbol}, which isn't enough to fully repay your debt.`,
+      amountExceedsDebt: "You can't repay more than your current debt.",
+    },
     assetSelection: {
       title: "Select asset",
       columnAsset: "Asset",

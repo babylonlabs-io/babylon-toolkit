@@ -105,6 +105,7 @@ export function Borrow() {
     metrics.healthFactorValue,
     maxBorrowAmount,
     selectedReserve.token.decimals,
+    assetConfig.symbol,
     isPositionDataStale,
   );
 
@@ -253,7 +254,11 @@ export function Borrow() {
         />
 
         {/* Validation error */}
-        {errorMessage && <Callout variant="error">{errorMessage}</Callout>}
+        {errorMessage && (
+          <Callout variant="error" title={buttonText}>
+            {errorMessage}
+          </Callout>
+        )}
 
         {/* Borrow Unavailable Messages */}
         {FeatureFlags.isBorrowDisabled && (

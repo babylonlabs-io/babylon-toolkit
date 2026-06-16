@@ -239,6 +239,21 @@ export function formatAmount(amount: number, maxDecimals = 2): string {
 }
 
 /**
+ * Amount for display in validation/error copy: thousands-separated, with 2
+ * decimals for values >= 1 (stablecoin-friendly, e.g. "8,079.98") and the
+ * token's native precision below 1 so small balances don't round to "0".
+ *
+ * @param amount - The amount to format.
+ * @param displayDecimals - The token's display precision (used when < 1).
+ */
+export function formatDisplayAmount(
+  amount: number,
+  displayDecimals: number,
+): string {
+  return formatAmount(amount, amount >= 1 ? 2 : displayDecimals);
+}
+
+/**
  * Format a date as "YYYY-MM-DD HH:mm:ss"
  * @param date - The date to format
  * @returns Formatted date string

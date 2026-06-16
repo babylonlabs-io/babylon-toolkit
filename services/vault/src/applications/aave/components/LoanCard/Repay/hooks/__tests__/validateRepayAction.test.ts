@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { validateRepayAction } from "../validateRepayAction";
 
-// Signature: (repayAmount, maxRepayAmount, currentDebtAmount?, userTokenBalance?, displayDecimals?)
+// Signature: (repayAmount, maxRepayAmount, currentDebtAmount?, userTokenBalance?, displayDecimals?, symbol?)
 describe("validateRepayAction", () => {
   describe("sub-unit guard", () => {
     it("blocks an amount below one base unit with 'Amount too small'", () => {
@@ -13,7 +13,7 @@ describe("validateRepayAction", () => {
       expect(result.isDisabled).toBe(true);
       expect(result.buttonText).toBe("Amount too small");
       expect(result.errorMessage).toBe(
-        "Minimum repayable amount is 0.00000001",
+        "The minimum repayable amount is 0.00000001. Enter a higher amount and retry.",
       );
     });
 
@@ -62,9 +62,9 @@ describe("validateRepayAction", () => {
     });
 
     it("blocks above a known balance shortfall with insufficient balance", () => {
-      const result = validateRepayAction(5, 4, 10, 4, 6);
+      const result = validateRepayAction(5, 4, 10, 4, 6, "DAI");
       expect(result.buttonText).toBe("Insufficient balance");
-      expect(result.errorMessage).toContain("You only have");
+      expect(result.errorMessage).toContain("You only have 4 DAI");
     });
 
     it("enables a valid partial repay", () => {
