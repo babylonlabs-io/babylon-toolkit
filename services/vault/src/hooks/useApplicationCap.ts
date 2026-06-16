@@ -10,7 +10,7 @@
  */
 
 import { useQuery } from "@tanstack/react-query";
-import { useCallback, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Address } from "viem";
 
 import {
@@ -26,11 +26,44 @@ const CAP_REFETCH_INTERVAL_MS = 60_000;
 const CAP_STALE_TIME_MS = 30_000;
 const CAP_MAX_STALE_AGE_MS = 3 * CAP_REFETCH_INTERVAL_MS;
 
+// Stable sentinel so the public `error` reference does not churn on every
+// render while stale — a consumer placing it in a dependency array must not
+// see a fresh object each render.
+const CAP_STALE_ERROR = new Error("Cap data is stale — RPC may be unavailable");
+
 export interface UseApplicationCapResult {
   snapshot: CapSnapshot | null;
   isLoading: boolean;
   error: Error | null;
   refetch: () => void;
+}
+
+/**
+ * Flips to `true` once `dataUpdatedAt` is older than `CAP_MAX_STALE_AGE_MS`,
+ * driven by a timer rather than render timing so the boundary is crossed even
+ * when polling stops producing renders. Resets to `false` only when
+ * `dataUpdatedAt` advances (a successful fetch), never merely because a fetch
+ * is in flight — keeping the gate fail-closed across refetch attempts.
+ */
+function useStaleAfterMaxAge(dataUpdatedAt: number, active: boolean): boolean {
+  const [isStale, setIsStale] = useState(false);
+
+  useEffect(() => {
+    if (!active || dataUpdatedAt === 0) {
+      setIsStale(false);
+      return;
+    }
+    const remaining = dataUpdatedAt + CAP_MAX_STALE_AGE_MS - Date.now();
+    if (remaining <= 0) {
+      setIsStale(true);
+      return;
+    }
+    setIsStale(false);
+    const timer = setTimeout(() => setIsStale(true), remaining);
+    return () => clearTimeout(timer);
+  }, [dataUpdatedAt, active]);
+
+  return isStale;
 }
 
 export function useApplicationCap(user?: string): UseApplicationCapResult {
@@ -45,6 +78,10 @@ export function useApplicationCap(user?: string): UseApplicationCapResult {
     staleTime: CAP_STALE_TIME_MS,
     refetchInterval: CAP_REFETCH_INTERVAL_MS,
     refetchOnWindowFocus: false,
+    // Surface a real error when offline instead of silently pausing refetches
+    // and serving cached cap data — the stale timer is the backstop, this is
+    // the direct signal. Matches useERC20Balance / useAaveUserPosition.
+    networkMode: "always",
     enabled,
   });
 
@@ -66,6 +103,7 @@ export function useApplicationCap(user?: string): UseApplicationCapResult {
     staleTime: CAP_STALE_TIME_MS,
     refetchInterval: CAP_REFETCH_INTERVAL_MS,
     refetchOnWindowFocus: false,
+    networkMode: "always",
     enabled: enabled && capsResolved,
   });
 
@@ -114,22 +152,13 @@ export function useApplicationCap(user?: string): UseApplicationCapResult {
   const uncappedSnapshot =
     snapshot !== null && !snapshot.hasTotalCap && !snapshot.hasPerAddressCap;
 
-  const now = Date.now();
-  const capsStale =
-    enabled &&
-    capsQuery.dataUpdatedAt > 0 &&
-    now - capsQuery.dataUpdatedAt > CAP_MAX_STALE_AGE_MS &&
-    !capsQuery.isFetching;
-  const usageStale =
-    enabled &&
-    !uncappedSnapshot &&
-    usageQuery.dataUpdatedAt > 0 &&
-    now - usageQuery.dataUpdatedAt > CAP_MAX_STALE_AGE_MS &&
-    !usageQuery.isFetching;
+  // Timer-driven so the staleness boundary trips even when polling stops
+  // producing renders. Usage staleness is suppressed on the uncapped path for
+  // the same reason its error is shielded below — it must not block deposits.
+  const capsStale = useStaleAfterMaxAge(capsQuery.dataUpdatedAt, enabled);
+  const usageStale = useStaleAfterMaxAge(usageQuery.dataUpdatedAt, enabled);
   const staleError =
-    capsStale || usageStale
-      ? new Error("Cap data is stale — RPC may be unavailable")
-      : null;
+    capsStale || (usageStale && !uncappedSnapshot) ? CAP_STALE_ERROR : null;
 
   const baseError = (
     uncappedSnapshot ? capsQuery.error : (capsQuery.error ?? usageQuery.error)
