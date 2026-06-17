@@ -41,13 +41,13 @@ import {
 } from "../../../hooks";
 import { AssetPill } from "../../AssetPill";
 import { useLoanContext } from "../../context/LoanContext";
-import { BorrowDetailsCard } from "../Borrow/BorrowDetailsCard";
 
 import { pickRepayParams } from "./hooks/pickRepayParams";
 import { useRepayMetrics } from "./hooks/useRepayMetrics";
 import { useRepayState } from "./hooks/useRepayState";
 import { validateRepayAction } from "./hooks/validateRepayAction";
 import { validateRepayPreSign } from "./hooks/validateRepayPreSign";
+import { RepayDetailsCard } from "./RepayDetailsCard";
 
 export function Repay() {
   const {
@@ -145,6 +145,7 @@ export function Repay() {
 
   const metrics = useRepayMetrics({
     repayAmount,
+    currentDebtAmount,
     collateralValueUsd,
     totalDebtValueUsd,
     liquidationThresholdBps,
@@ -157,6 +158,17 @@ export function Repay() {
     selectedReserve.token.decimals,
     SAFE_TOFIXED_PRECISION,
   );
+
+  // Debt row strings (token units). The symbol is shown once, on the trailing
+  // value, matching the design ("45,200 → 25,200 USDC"). When repaying, the
+  // "before" value is the bare current debt and the "after" value carries the
+  // symbol; with no amount entered there's no arrow and the current debt
+  // carries the symbol itself.
+  const debtCurrentValue = formatTokenAmount(metrics.debtCurrent, displayDecimals);
+  const debtProjectedLabel =
+    metrics.debtProjected !== undefined
+      ? `${formatTokenAmount(metrics.debtProjected, displayDecimals)} ${assetConfig.symbol}`
+      : undefined;
 
   const { isDisabled, buttonText, errorMessage, warningMessage } =
     validateRepayAction(
@@ -321,7 +333,14 @@ export function Repay() {
             }}
             onMaxClick={handleMaxClick}
             rightField={{
-              value: `${formatTokenAmount(maxRepayAmount, displayDecimals)} ${assetConfig.symbol}`,
+              // Show the user's full wallet balance beside Max. Max still snaps
+              // to `maxRepayAmount` (= min(debt, balance)), i.e. it tops out at
+              // the debt rather than the whole balance. Gate on `balanceKnown`
+              // so a loading/errored 0 isn't shown as a real balance.
+              label: COPY.loans.balanceLabel,
+              value: balanceKnown
+                ? `${formatTokenAmount(userTokenBalance, displayDecimals)} ${assetConfig.symbol}`
+                : COPY.common.emptyValue,
             }}
             maxPosition="right"
             maxButtonClassName={MAX_BUTTON_CLASS_NAME}
@@ -330,9 +349,9 @@ export function Repay() {
           />
         </SubSection>
 
-        <BorrowDetailsCard
-          borrowRatio={metrics.borrowRatio}
-          borrowRatioOriginal={metrics.borrowRatioOriginal}
+        <RepayDetailsCard
+          debt={debtProjectedLabel ?? `${debtCurrentValue} ${assetConfig.symbol}`}
+          debtOriginal={debtProjectedLabel ? debtCurrentValue : undefined}
           healthFactor={metrics.healthFactor}
           healthFactorValue={metrics.healthFactorValue}
           healthFactorOriginal={metrics.healthFactorOriginal}
@@ -365,6 +384,14 @@ export function Repay() {
           {statusCallout.body}
         </Callout>
       )}
+
+      {/* Ethereum Network Fee */}
+      <div className="mt-6 flex w-full items-center justify-between text-sm">
+        <span className="text-accent-primary">
+          {COPY.loans.ethereumNetworkFeeLabel}
+        </span>
+        <span className="text-accent-secondary">{COPY.common.emptyValue}</span>
+      </div>
     </div>
   );
 }

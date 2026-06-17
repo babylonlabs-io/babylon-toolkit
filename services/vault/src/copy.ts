@@ -706,19 +706,23 @@ export const COPY = {
     // an APR, the same figure the asset picker labels "Borrow APR". One number,
     // one label.
     borrowRateLabel: "Borrow APR",
-    // Detail-card metric: debt-to-collateral ratio (debtUsd / collateralUsd),
-    // distinct from the borrow APR above.
-    borrowRatioLabel: "Borrow ratio",
+    // Repay detail-card metric: outstanding debt for the selected reserve, in
+    // token units (before → after the repayment).
+    debtLabel: "Debt",
     healthFactorLabel: "Health factor",
     availableLiquidityLabel: "Available liquidity",
     utilizationLabel: "Utilization",
     ethereumNetworkFeeLabel: "Ethereum network fee",
     availableLabel: "Available",
+    // Repay amount slider: prefixes the user's wallet balance shown beside Max.
+    balanceLabel: "Balance",
     atRiskOfLiquidation: "At risk of liquidation",
     borrowAprTooltip:
       "The annual interest rate charged on your borrowed amount.",
     utilizationTooltip:
       "The share of this market's supplied liquidity currently borrowed.",
+    debtTooltip:
+      "The total amount you currently owe for this asset, including accrued interest.",
     healthFactorTooltip:
       "Your position's safety margin. If it falls below 1.0, your collateral can be liquidated.",
     detailsAriaLabel: (symbol: string) => `${symbol} loan details`,

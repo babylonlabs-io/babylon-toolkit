@@ -1,1 +1,0 @@
-export { BorrowDetailsCard } from "./BorrowDetailsCard";
