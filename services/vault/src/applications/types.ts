@@ -21,7 +21,12 @@ export interface ApplicationContractConfig {
 
 export interface ApplicationRegistration {
   metadata: ApplicationMetadata;
-  Routes: ComponentType;
+  /**
+   * Routes mounted under `app/<id>/*`. Optional: an app whose UI is rendered
+   * elsewhere (e.g. Aave's reserve detail, hosted as an overlay by the router)
+   * contributes only metadata/contracts and registers no standalone routes.
+   */
+  Routes?: ComponentType;
   /** Contract configuration for on-chain interactions */
   contracts: ApplicationContractConfig;
 }

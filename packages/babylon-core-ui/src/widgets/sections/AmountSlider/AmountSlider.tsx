@@ -41,6 +41,11 @@ export interface AmountSliderProps {
   amount: string | number;
   currencyIcon: string;
   currencyName: string;
+  /**
+   * Optional element rendered in place of the default currency icon + name
+   * (e.g. an asset-selector pill). When omitted, the icon + name render.
+   */
+  currencySlot?: React.ReactNode;
   onAmountChange?: (e: React.ChangeEvent<HTMLInputElement>) => void; // Optional - if not provided, input is read-only
 
   // Balance details
@@ -75,6 +80,8 @@ export interface AmountSliderProps {
    * button at the trailing end of the right field instead.
    */
   maxPosition?: "left" | "right";
+  /** Extra classes for the Max button pill (merged over the defaults). */
+  maxButtonClassName?: string;
 
   // General
   disabled?: boolean;
@@ -87,6 +94,7 @@ export function AmountSlider({
   amount,
   currencyIcon,
   currencyName,
+  currencySlot,
   onAmountChange,
   sliderValue,
   sliderMin,
@@ -103,6 +111,7 @@ export function AmountSlider({
   rightField,
   onMaxClick,
   maxPosition = "left",
+  maxButtonClassName,
   disabled = false,
   readOnly = false,
   className,
@@ -154,12 +163,14 @@ export function AmountSlider({
 
   return (
     <div className={twJoin("flex w-full flex-col gap-4", className)}>
-      {/* Row 1: Icon + Name + Input */}
+      {/* Row 1: Icon + Name (or custom slot) + Input */}
       <div className="flex w-full items-center justify-between">
-        <div className="flex items-center gap-2">
-          <img src={currencyIcon} alt={currencyName} className="h-10 w-10" />
-          <span className="whitespace-nowrap text-lg text-accent-primary">{currencyName}</span>
-        </div>
+        {currencySlot ?? (
+          <div className="flex items-center gap-2">
+            <img src={currencyIcon} alt={currencyName} className="h-10 w-10" />
+            <span className="whitespace-nowrap text-lg text-accent-primary">{currencyName}</span>
+          </div>
+        )}
         <input
           type="text"
           inputMode="decimal"
@@ -210,7 +221,12 @@ export function AmountSlider({
                 disabled={disabled}
                 className="flex items-center gap-2 text-accent-secondary transition-colors hover:text-accent-primary disabled:cursor-not-allowed disabled:opacity-50"
               >
-                <span className="cursor-pointer rounded-[8px] bg-transparent px-2 py-0.5 text-xs tracking-[0.4px] hover:opacity-90 dark:bg-primary-contrast">
+                <span
+                  className={twMerge(
+                    "cursor-pointer rounded-[8px] bg-transparent px-2 py-0.5 text-xs tracking-[0.4px] hover:opacity-90 dark:bg-primary-contrast",
+                    maxButtonClassName,
+                  )}
+                >
                   Max
                 </span>
                 <span>{leftField.value}</span>
@@ -240,7 +256,12 @@ export function AmountSlider({
                 disabled={disabled}
                 className="flex items-center gap-2 transition-colors hover:text-accent-primary disabled:cursor-not-allowed disabled:opacity-50"
               >
-                <span className="cursor-pointer rounded-[8px] bg-transparent px-2 py-0.5 text-xs tracking-[0.4px] hover:opacity-90 dark:bg-primary-contrast">
+                <span
+                  className={twMerge(
+                    "cursor-pointer rounded-[8px] bg-transparent px-2 py-0.5 text-xs tracking-[0.4px] hover:opacity-90 dark:bg-primary-contrast",
+                    maxButtonClassName,
+                  )}
+                >
                   Max
                 </span>
               </button>

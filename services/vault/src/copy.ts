@@ -541,6 +541,9 @@ export const COPY = {
   },
   common: {
     zeroUsdValue: "$0.00 USD",
+    // Placeholder shown where a value is not yet available (e.g. an
+    // oracle-priced figure still loading after an asset switch).
+    emptyValue: "–",
     loading: "Loading...",
     confirming: "Confirming...",
     applying: "Applying...",
@@ -699,14 +702,74 @@ export const COPY = {
     heading: "Loans",
     borrowButton: "Borrow",
     repayButton: "Repay",
-    // The interest rate Aave charges on the borrowed asset. Aave compounds
-    // continuously, so this is an APY (effective rate), matching Aave's own UI.
-    borrowRateLabel: "Borrow APY",
+    // Live drawn borrow rate for the asset (Aave Hub), no compounding applied —
+    // an APR, the same figure the asset picker labels "Borrow APR". One number,
+    // one label.
+    borrowRateLabel: "Borrow APR",
     // Detail-card metric: debt-to-collateral ratio (debtUsd / collateralUsd),
-    // distinct from the borrow APY above.
+    // distinct from the borrow APR above.
     borrowRatioLabel: "Borrow ratio",
     healthFactorLabel: "Health factor",
+    availableLiquidityLabel: "Available liquidity",
+    utilizationLabel: "Utilization",
+    ethereumNetworkFeeLabel: "Ethereum network fee",
+    availableLabel: "Available",
+    atRiskOfLiquidation: "At risk of liquidation",
+    borrowAprTooltip:
+      "The annual interest rate charged on your borrowed amount.",
+    utilizationTooltip:
+      "The share of this market's supplied liquidity currently borrowed.",
+    healthFactorTooltip:
+      "Your position's safety margin. If it falls below 1.0, your collateral can be liquidated.",
     detailsAriaLabel: (symbol: string) => `${symbol} loan details`,
+    transactionFailedTitle: "Transaction failed",
+    borrowingUnavailable:
+      "Borrowing is temporarily unavailable. Please check back later.",
+    priceUnavailable:
+      "Price data unavailable. Borrowing is temporarily disabled.",
+    // Borrow tab — action-button labels (also used as the status-callout title).
+    borrow: {
+      action: "Borrow",
+      processing: "Processing...",
+      unavailable: "Borrowing Unavailable",
+      enterAmount: "Enter an amount",
+      refreshingPosition: "Refreshing position...",
+      amountTooSmall: "Amount too small",
+      amountExceedsMax: "Amount exceeds maximum",
+      healthFactorTooLow: "Health factor too low",
+    },
+    // Borrow validation-error descriptions (the Callout title comes from the
+    // action button label above, e.g. "Amount exceeds maximum").
+    validation: {
+      minBorrow: (min: string) =>
+        `The minimum borrowable amount is ${min}. Enter a higher amount and try again.`,
+      maxBorrow: (max: string, symbol: string) =>
+        `The maximum borrowable amount is ${max} ${symbol}. Enter a lower amount and try again.`,
+      healthFactorTooLow: (min: number) =>
+        `Borrowing this amount would drop your health factor below ${min}, risking liquidation. Reduce the amount and try again.`,
+    },
+    assetSelection: {
+      title: "Select asset",
+      columnAsset: "Asset",
+      columnPrice: "Price",
+      columnAvailable: "Available",
+      columnBorrowApr: "Borrow APR",
+      loading: "Loading assets...",
+      emptyBorrow: "No borrowable assets available",
+      emptyRepay: "No assets available",
+    },
+    borrowSuccess: {
+      title: "Borrow successful",
+      body: (amount: string, symbol: string) =>
+        `${amount} ${symbol} has been credited to your wallet.`,
+      doneButton: "Done",
+    },
+    repaySuccess: {
+      title: "Repay successful",
+      body: (amount: string, symbol: string) =>
+        `You have repaid ${amount} ${symbol}.`,
+      doneButton: "Done",
+    },
     empty: {
       title: (symbol: string) => `Borrow assets using your ${symbol}`,
       body: (symbol: string) =>

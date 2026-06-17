@@ -134,7 +134,13 @@ export type LoanTab = (typeof LOAN_TAB)[keyof typeof LOAN_TAB];
  * Shared input className for AmountSlider across Aave components
  */
 export const AMOUNT_INPUT_CLASS_NAME =
-  "w-auto min-w-32 rounded-md border border-gray-300 px-2 py-1 dark:border-[#3a3a3a]";
+  "h-12 w-auto min-w-32 rounded-lg bg-neutral-200 px-4 text-xl text-accent-secondary";
+
+/**
+ * Shared Max-button pill styling for AmountSlider across Aave components
+ */
+export const MAX_BUTTON_CLASS_NAME =
+  "bg-neutral-200 text-sm text-accent-secondary dark:bg-neutral-200";
 
 /**
  * Maximum decimal precision JS numbers can faithfully represent for

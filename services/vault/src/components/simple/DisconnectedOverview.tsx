@@ -41,7 +41,7 @@ function BtcBadgeIcon({ badge }: { badge: "down" | "lock" }) {
   // `currentColor` lets the path inherit the text color set on the wrapper.
   return (
     <div className="relative inline-flex h-8 w-8">
-      <img src="/images/btc.png" alt="BTC" className="h-8 w-8 rounded-full" />
+      <img src="/images/btc.svg" alt="BTC" className="h-8 w-8 rounded-full" />
       <div className="absolute -bottom-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full border-[0.5px] border-[#DDDDDD] bg-white text-[#666666] dark:border-[#2F2F2F] dark:bg-[#111111] dark:text-[#B0B0B0]">
         <svg
           width="16"
@@ -178,19 +178,19 @@ export function DisconnectedOverview() {
             icon={
               <div className="flex items-center">
                 <Avatar
-                  url="/images/usdt.png"
+                  url="/images/usdt.svg"
                   alt="USDT"
                   size="medium"
                   className="h-8 w-8"
                 />
                 <Avatar
-                  url="/images/usdc.png"
+                  url="/images/usdc.svg"
                   alt="USDC"
                   size="medium"
                   className="-ml-2 h-8 w-8"
                 />
                 <Avatar
-                  url="/images/wbtc.png"
+                  url="/images/wbtc.svg"
                   alt="WBTC"
                   size="medium"
                   className="-ml-2 h-8 w-8 bg-white"

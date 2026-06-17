@@ -81,7 +81,7 @@ export function useDashboardState(connectedAddress: string | undefined) {
     (): Asset[] =>
       borrowedAssets.map((asset) => ({
         symbol: asset.symbol,
-        name: asset.symbol,
+        name: asset.name,
         icon: asset.icon,
       })),
     [borrowedAssets],

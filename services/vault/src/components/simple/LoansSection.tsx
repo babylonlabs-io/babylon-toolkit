@@ -138,19 +138,19 @@ export function LoansSection({
             {/* Overlapping token icons */}
             <div className="mb-4 flex items-center">
               <Avatar
-                url="/images/btc.png"
+                url="/images/btc.svg"
                 alt="BTC"
                 size="xlarge"
                 className="h-14 w-14"
               />
               <Avatar
-                url="/images/usdc.png"
+                url="/images/usdc.svg"
                 alt="USDC"
                 size="xlarge"
                 className="-ml-4 h-14 w-14"
               />
               <Avatar
-                url="/images/usdt.png"
+                url="/images/usdt.svg"
                 alt="USDT"
                 size="xlarge"
                 className="-ml-4 h-14 w-14"

@@ -22,10 +22,10 @@ const VARIANT_BG: Record<CalloutVariant, string> = {
 };
 
 const DEFAULT_ICONS: Record<CalloutVariant, ReactNode> = {
-  error: <CloseIcon size={24} color="text-accent-contrast" />,
-  warning: <WarningIcon size={24} color="text-accent-contrast" />,
-  success: <CheckIcon size={24} color="text-accent-contrast" />,
-  info: <InfoIcon size={24} color="text-accent-contrast" />,
+  error: <CloseIcon size={14} color="text-accent-contrast" />,
+  warning: <WarningIcon size={14} color="text-accent-contrast" />,
+  success: <CheckIcon size={14} color="text-accent-contrast" />,
+  info: <InfoIcon size={14} color="text-accent-contrast" />,
 };
 
 export function Callout({

@@ -1,19 +1,22 @@
 /**
- * Aave Reserve Detail Page
+ * Aave Reserve Detail
  *
- * Borrow/Repay card with real position data from Aave oracle.
- * Reserve is selected from the overview page and passed via URL param.
+ * Borrow/Repay card with real position data from Aave oracle, rendered as a
+ * full-screen modal (like the deposit flow). The reserve comes from the route
+ * (`/app/aave/reserve/:reserveId/borrow` or `/repay`) and the mode is passed in
+ * as `tab`, so the route stays deep-linkable; closing navigates back to the
+ * dashboard.
  */
 
-import { Container } from "@babylonlabs-io/core-ui";
-import { useNavigate, useParams, useSearchParams } from "react-router";
+import { FullScreenDialog } from "@babylonlabs-io/core-ui";
+import { useState } from "react";
+import { useNavigate, useParams } from "react-router";
 
-import { BackButton, EmptyState } from "@/components/shared";
-import { PAGE_CONTENT_CLASS } from "@/components/shared/layoutClasses";
+import { EmptyState } from "@/components/shared";
 import { getNetworkConfigBTC } from "@/config";
 import { useConnection, useETHWallet } from "@/context/wallet";
 
-import { LOAN_TAB } from "../../constants";
+import type { LoanTab } from "../../constants";
 import { useAaveConfig } from "../../context";
 import { useAaveOracleAddress } from "../../hooks";
 import { LoanProvider } from "../context/LoanContext";
@@ -26,15 +29,9 @@ import { PositionGate } from "./PositionGate";
 
 const btcConfig = getNetworkConfigBTC();
 
-export function AaveReserveDetail() {
+export function AaveReserveDetail({ tab }: { tab: LoanTab }) {
   const navigate = useNavigate();
   const { reserveId } = useParams<{ reserveId: string }>();
-  const [searchParams] = useSearchParams();
-
-  // Read tab from URL query params (defaults to "borrow")
-  const tabParam = searchParams.get("tab");
-  const defaultTab =
-    tabParam === LOAN_TAB.REPAY ? LOAN_TAB.REPAY : LOAN_TAB.BORROW;
 
   const { isConnected } = useConnection();
   const { address } = useETHWallet();
@@ -57,6 +54,7 @@ export function AaveReserveDetail() {
     totalDebtValueUsd,
     healthFactor,
     tokenPriceUsd,
+    isPriceStale,
     positionError,
     ancillaryError,
     isPositionDataStale,
@@ -76,116 +74,131 @@ export function AaveReserveDetail() {
     closeRepaySuccess,
   } = useBorrowRepayModals();
 
-  const handleBack = () => navigate("/");
+  // True while a borrow/repay tx is signing or submitting. Lifted from the
+  // Borrow/Repay forms (via LoanContext.onProcessingChange) so the dialog can
+  // refuse to close mid-transaction — otherwise an ESC/backdrop/X dismiss
+  // unmounts the flow and the success screen never shows even though the tx
+  // completes on-chain.
+  const [isTxInFlight, setIsTxInFlight] = useState(false);
+
+  // Use `replace` so dismissing the overlay doesn't leave a history entry that
+  // browser Back would use to reopen the just-closed flow.
+  const handleClose = () => navigate("/", { replace: true });
 
   const handleCloseBorrowSuccess = () => {
     closeBorrowSuccess();
-    navigate("/");
+    navigate("/", { replace: true });
   };
 
   const handleCloseRepaySuccess = () => {
     closeRepaySuccess();
-    navigate("/");
+    navigate("/", { replace: true });
   };
 
-  if (isLoading) {
-    return (
-      <Container className={`${PAGE_CONTENT_CLASS} pb-6`}>
-        <div className="space-y-6">
-          <BackButton label="Home" onClick={handleBack} />
-          <div className="flex items-center justify-center py-12">
-            <p className="text-accent-secondary">Loading...</p>
-          </div>
+  const renderContent = () => {
+    if (isLoading) {
+      return (
+        <div className="flex items-center justify-center py-12">
+          <p className="text-accent-secondary">Loading...</p>
         </div>
-      </Container>
-    );
-  }
+      );
+    }
 
-  // Disconnected state
-  if (!isConnected) {
-    return (
-      <Container className={`${PAGE_CONTENT_CLASS} pb-6`}>
-        <div className="space-y-6">
-          <BackButton label="Home" onClick={handleBack} />
-          <EmptyState
-            avatarUrl={btcConfig.icon}
-            avatarAlt={btcConfig.name}
-            title="Connect to manage position"
-            description="Please connect your wallet to manage your position."
-            isConnected={false}
-            withCard
-          />
+    if (!isConnected) {
+      return (
+        <EmptyState
+          avatarUrl={btcConfig.icon}
+          avatarAlt={btcConfig.name}
+          title="Connect to manage position"
+          description="Please connect your wallet to manage your position."
+          isConnected={false}
+          withCard
+        />
+      );
+    }
+
+    // Don't gate on oracleAddress — repay doesn't need it; lookup failure
+    // surfaces via ancillaryError on Borrow.
+    if (!selectedReserve || !assetConfig || !vbtcReserve) {
+      return (
+        <div className="flex items-center justify-center py-12">
+          <p className="text-accent-secondary">Reserve not found</p>
         </div>
-      </Container>
-    );
-  }
+      );
+    }
 
-  // Don't gate on oracleAddress — repay doesn't need it; lookup failure surfaces via ancillaryError on Borrow.
-  if (!selectedReserve || !assetConfig || !vbtcReserve) {
+    const loanContextValue = {
+      collateralValueUsd,
+      currentDebtAmount,
+      totalDebtValueUsd,
+      healthFactor,
+      liquidationThresholdBps,
+      selectedReserve,
+      assetConfig,
+      proxyContract,
+      oracleAddress,
+      tokenPriceUsd,
+      isPriceStale,
+      isPositionDataStale,
+      refetchPosition,
+      refetchSplitParams,
+      onBorrowSuccess: openBorrowSuccess,
+      onRepaySuccess: openRepaySuccess,
+      onProcessingChange: setIsTxInFlight,
+    };
+
     return (
-      <Container className={`${PAGE_CONTENT_CLASS} pb-6`}>
-        <div className="space-y-6">
-          <BackButton label="Home" onClick={handleBack} />
-          <div className="flex items-center justify-center py-12">
-            <p className="text-accent-secondary">Reserve not found</p>
-          </div>
-        </div>
-      </Container>
+      <LoanProvider value={loanContextValue}>
+        <PositionGate
+          positionError={positionError}
+          ancillaryError={ancillaryError}
+          refetchPosition={refetchPosition}
+        >
+          <LoanCard defaultTab={tab} />
+        </PositionGate>
+      </LoanProvider>
     );
-  }
-
-  const loanContextValue = {
-    collateralValueUsd,
-    currentDebtAmount,
-    totalDebtValueUsd,
-    healthFactor,
-    liquidationThresholdBps,
-    selectedReserve,
-    assetConfig,
-    proxyContract,
-    oracleAddress,
-    tokenPriceUsd,
-    isPositionDataStale,
-    refetchPosition,
-    refetchSplitParams,
-    onBorrowSuccess: openBorrowSuccess,
-    onRepaySuccess: openRepaySuccess,
   };
+
+  const showSuccess = showBorrowSuccess || showRepaySuccess;
 
   return (
-    <LoanProvider value={loanContextValue}>
-      <Container className={`${PAGE_CONTENT_CLASS} pb-6`}>
-        <div className="space-y-6">
-          <BackButton label="Home" onClick={handleBack} />
-          <PositionGate
-            positionError={positionError}
-            ancillaryError={ancillaryError}
-            refetchPosition={refetchPosition}
-          >
-            <LoanCard defaultTab={defaultTab} />
-          </PositionGate>
-        </div>
-      </Container>
+    <>
+      <FullScreenDialog
+        open={!showSuccess}
+        // Withholding `onClose` hides the close button and no-ops the backdrop
+        // click; `disableEscapeClose` covers the ESC key — together they lock
+        // all three dismiss paths while a tx is in flight.
+        onClose={isTxInFlight ? undefined : handleClose}
+        disableEscapeClose={isTxInFlight}
+        className="items-center justify-center p-6"
+      >
+        <div className="mx-auto w-full max-w-[520px]">{renderContent()}</div>
+      </FullScreenDialog>
 
-      <BorrowSuccessModal
-        open={showBorrowSuccess}
-        onClose={handleCloseBorrowSuccess}
-        onViewLoan={handleCloseBorrowSuccess}
-        borrowAmount={borrowSuccessData.amount}
-        borrowSymbol={assetConfig.symbol}
-        decimals={selectedReserve.token.decimals}
-        assetIcon={assetConfig.icon}
-      />
+      {selectedReserve && assetConfig && (
+        <>
+          <BorrowSuccessModal
+            open={showBorrowSuccess}
+            onClose={handleCloseBorrowSuccess}
+            onDone={handleCloseBorrowSuccess}
+            borrowAmount={borrowSuccessData.amount}
+            borrowSymbol={assetConfig.symbol}
+            decimals={selectedReserve.token.decimals}
+            assetIcon={assetConfig.icon}
+          />
 
-      <RepaySuccessModal
-        open={showRepaySuccess}
-        onClose={handleCloseRepaySuccess}
-        onViewLoan={handleCloseRepaySuccess}
-        repayAmount={repaySuccessData.repayAmount}
-        repaySymbol={assetConfig.symbol}
-        decimals={selectedReserve.token.decimals}
-        assetIcon={assetConfig.icon}
-      />
-    </LoanProvider>
+          <RepaySuccessModal
+            open={showRepaySuccess}
+            onClose={handleCloseRepaySuccess}
+            onDone={handleCloseRepaySuccess}
+            repaySymbol={assetConfig.symbol}
+            repayAmount={repaySuccessData.repayAmount}
+            decimals={selectedReserve.token.decimals}
+            assetIcon={assetConfig.icon}
+          />
+        </>
+      )}
+    </>
   );
 }
