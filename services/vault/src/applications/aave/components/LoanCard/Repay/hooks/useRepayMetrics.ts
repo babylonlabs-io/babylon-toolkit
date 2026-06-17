@@ -11,15 +11,13 @@ import {
   NEAR_ZERO_DEBT_RELATIVE_CAP_USD,
   NEAR_ZERO_DEBT_RELATIVE_THRESHOLD,
 } from "../../../../constants";
-import {
-  calculateBorrowRatio,
-  calculateHealthFactor,
-  formatHealthFactor,
-} from "../../../../utils";
+import { calculateHealthFactor, formatHealthFactor } from "../../../../utils";
 
 export interface UseRepayMetricsProps {
   /** Amount to repay in token units */
   repayAmount: number;
+  /** Current debt for the selected reserve in token units */
+  currentDebtAmount: number;
   /** Collateral value in USD (from Aave oracle) */
   collateralValueUsd: number;
   /** Total debt value in USD across all reserves (from Aave oracle) */
@@ -33,10 +31,16 @@ export interface UseRepayMetricsProps {
 }
 
 export interface UseRepayMetricsResult {
-  /** Borrow rate (debt/collateral) as percentage string */
-  borrowRatio: string;
-  /** Original borrow rate shown when repay amount > 0 to show before → after */
-  borrowRatioOriginal?: string;
+  /**
+   * Current debt for the selected reserve in token units. Price-independent —
+   * always available, even when the oracle price is stale.
+   */
+  debtCurrent: number;
+  /**
+   * Projected debt after the repayment, in token units. Undefined when no
+   * amount is entered (the card then shows only the current debt, no arrow).
+   */
+  debtProjected?: number;
   healthFactor: string;
   /** Health factor value for UI (Infinity when no debt = healthy) */
   healthFactorValue: number;
@@ -48,18 +52,27 @@ export interface UseRepayMetricsResult {
 
 export function useRepayMetrics({
   repayAmount,
+  currentDebtAmount,
   collateralValueUsd,
   totalDebtValueUsd,
   liquidationThresholdBps,
   currentHealthFactor,
   tokenPriceUsd,
 }: UseRepayMetricsProps): UseRepayMetricsResult {
-  // When no repay amount entered or price unavailable, show current values (no projection)
+  // Debt is pure token-unit math (no oracle price needed), so it projects even
+  // when the price is stale/unavailable. Projection only when an amount is set;
+  // repaying past the full debt clamps to zero rather than going negative.
+  const debtCurrent = currentDebtAmount;
+  const debtProjected =
+    repayAmount > 0 ? Math.max(0, currentDebtAmount - repayAmount) : undefined;
+
+  // The health-factor projection needs the USD price. Without an amount or a
+  // price, show the current health factor only (no before → after).
   if (repayAmount === 0 || tokenPriceUsd == null) {
     const healthValue = currentHealthFactor ?? Infinity;
     return {
-      borrowRatio: calculateBorrowRatio(totalDebtValueUsd, collateralValueUsd),
-      borrowRatioOriginal: undefined,
+      debtCurrent,
+      debtProjected,
       healthFactor: formatHealthFactor(currentHealthFactor),
       healthFactorValue: healthValue,
       healthFactorOriginal: undefined,
@@ -91,14 +104,8 @@ export function useRepayMetrics({
   const originalHealthValue = currentHealthFactor ?? Infinity;
 
   return {
-    borrowRatio: calculateBorrowRatio(
-      isDebtNearZero ? 0 : projectedTotalDebtUsd,
-      collateralValueUsd,
-    ),
-    borrowRatioOriginal: calculateBorrowRatio(
-      totalDebtValueUsd,
-      collateralValueUsd,
-    ),
+    debtCurrent,
+    debtProjected,
     healthFactor:
       healthFactorValue === Infinity
         ? "-"
