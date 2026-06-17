@@ -73,10 +73,11 @@ vi.mock("bitcoinjs-lib", () => ({
 
 vi.mock("../../../primitives/utils/bitcoin", () => ({
   stripHexPrefix: (s: string) => (s.startsWith("0x") ? s.slice(2) : s),
-  uint8ArrayToHex: (bytes: Uint8Array) =>
-    Buffer.from(bytes).toString("hex"),
+  uint8ArrayToHex: (bytes: Uint8Array) => Buffer.from(bytes).toString("hex"),
   validateWalletPubkey: (walletRaw: string, expectedDepositor: string) => {
-    const stripped = walletRaw.startsWith("0x") ? walletRaw.slice(2) : walletRaw;
+    const stripped = walletRaw.startsWith("0x")
+      ? walletRaw.slice(2)
+      : walletRaw;
     const walletXOnly = stripped.length === 66 ? stripped.slice(2) : stripped;
     if (walletXOnly.toLowerCase() !== expectedDepositor.toLowerCase()) {
       throw new Error(
@@ -108,6 +109,13 @@ vi.mock("../../../utils/signing", () => ({
 // dedicated tests against real PSBTs in primitives/psbt/__tests__/.
 vi.mock("../../../primitives/psbt/assertPsbtUnsignedTxMatches", () => ({
   assertPsbtUnsignedTxMatches: vi.fn(),
+}));
+
+// Same rationale for the Schnorr-signature verification guard: it needs real
+// PSBTs + real signatures, which it gets in its own dedicated unit tests
+// (primitives/psbt/__tests__/verifyScriptPathSchnorrSignature.test.ts).
+vi.mock("../../../primitives/psbt/verifyScriptPathSchnorrSignature", () => ({
+  assertScriptPathSchnorrSignature: vi.fn(),
 }));
 
 // ---------------------------------------------------------------------------
@@ -280,9 +288,7 @@ function createSigningContext(
 describe("signDepositorGraph", () => {
   it("rebuilds the payout PSBT locally from authoritative connector params", async () => {
     registerStandardMocks([CHALLENGER_A, CHALLENGER_B]);
-    const { buildPayoutPsbt } = await import(
-      "../../../primitives/psbt/payout"
-    );
+    const { buildPayoutPsbt } = await import("../../../primitives/psbt/payout");
     const builder = vi.mocked(buildPayoutPsbt);
     builder.mockClear();
 
@@ -648,9 +654,7 @@ describe("signDepositorGraph", () => {
 
   it("propagates payout build errors and never reaches the wallet", async () => {
     registerStandardMocks([CHALLENGER_A, CHALLENGER_B]);
-    const { buildPayoutPsbt } = await import(
-      "../../../primitives/psbt/payout"
-    );
+    const { buildPayoutPsbt } = await import("../../../primitives/psbt/payout");
     vi.mocked(buildPayoutPsbt).mockImplementationOnce(async () => {
       throw new Error(
         "Payout transaction output 0 does not pay the expected scriptPubKey for role depositor-as-claimer",
@@ -734,7 +738,9 @@ describe("signDepositorGraph", () => {
         }),
       }),
     ).rejects.toThrow(
-      new RegExp(`challenger set does not match expected.*missing.*${UC_PUBKEY}`),
+      new RegExp(
+        `challenger set does not match expected.*missing.*${UC_PUBKEY}`,
+      ),
     );
 
     expect(wallet.signPsbts).not.toHaveBeenCalled();

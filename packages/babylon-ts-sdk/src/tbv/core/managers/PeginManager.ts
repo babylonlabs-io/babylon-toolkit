@@ -24,13 +24,6 @@ import { Psbt, Transaction } from "bitcoinjs-lib";
 import { Buffer } from "buffer";
 
 import {
-  assertAuthAnchorOpReturn,
-  expandPerVaultSecrets,
-  normalizePopSignature,
-  normalizeXOnlyPubkey,
-  signPsbtsWithFallback,
-} from "./pegin";
-import {
   encodeFunctionData,
   isAddressEqual,
   zeroAddress,
@@ -40,22 +33,34 @@ import {
   type PublicClient,
   type WalletClient,
 } from "viem";
+import {
+  assertAuthAnchorOpReturn,
+  expandPerVaultSecrets,
+  normalizePopSignature,
+  normalizeXOnlyPubkey,
+  signPsbtsWithFallback,
+} from "./pegin";
 
-import type { BitcoinWallet, Hash, SignPsbtOptions } from "../../../shared/wallets";
-import type { WotsBlockPublicKey } from "../clients/vault-provider/types";
+import type {
+  BitcoinWallet,
+  Hash,
+  SignPsbtOptions,
+} from "../../../shared/wallets";
 import { ViemVaultRegistryReader } from "../clients/eth";
-import { type UtxoInfo, getUtxoInfo, pushTx } from "../clients/mempool";
+import { getUtxoInfo, pushTx, type UtxoInfo } from "../clients/mempool";
+import type { WotsBlockPublicKey } from "../clients/vault-provider/types";
 import { BTCVaultRegistryABI, handleContractError } from "../contracts";
 import {
   assertPsbtUnsignedTxMatches,
-  buildPrePeginPsbt,
-  buildPeginTxFromFundedPrePegin,
+  assertScriptPathSchnorrSignature,
   buildPeginInputPsbt,
+  buildPeginTxFromFundedPrePegin,
+  buildPrePeginPsbt,
+  deriveVaultId,
   extractPeginInputSignature,
   finalizePeginInputPsbt,
-  deriveVaultId,
-  type PrePeginParams,
   type Network,
+  type PrePeginParams,
 } from "../primitives";
 import {
   ensureHexPrefix,
@@ -70,11 +75,11 @@ import {
   fundPeginTransaction,
   getNetwork,
   getPsbtInputFields,
+  MAX_REASONABLE_FEE_SATS,
   peginOutputCount,
   selectUtxosForPegin,
-  type UTXO,
-  MAX_REASONABLE_FEE_SATS,
   waitForTransactionReceiptSmartAware,
+  type UTXO,
 } from "../utils";
 import { createTaprootScriptPathSignOptions } from "../utils/signing";
 import {
@@ -334,7 +339,6 @@ export interface PreparePeginResult {
   derivedSecrets: PreparePeginDerivedSecrets;
 }
 
-
 /**
  * Parameters for signing and broadcasting a transaction.
  */
@@ -507,7 +511,6 @@ export interface RegisterPeginBatchResult {
   vaults: BatchPeginResultItem[];
 }
 
-
 /**
  * Detect a P2WPKH (Native SegWit) bech32 address for the configured network,
  * used purely for diagnostic routing. Distinguishes P2WPKH (witness v0,
@@ -541,7 +544,9 @@ function isP2wpkhAddressForNetwork(address: string, network: Network): boolean {
 function resolveUtxoInfo(
   txid: string,
   vout: number,
-  localPrevouts: Record<string, { scriptPubKey: string; value: number }> | undefined,
+  localPrevouts:
+    | Record<string, { scriptPubKey: string; value: number }>
+    | undefined,
   apiUrl: string,
 ): Promise<UtxoInfo> {
   const local = localPrevouts?.[`${txid}:${vout}`];
@@ -619,9 +624,7 @@ export class PeginManager {
    * @throws If the wallet rejects, insufficient funds, or an internal
    *         invariant violation.
    */
-  async preparePegin(
-    params: PreparePeginParams,
-  ): Promise<PreparePeginResult> {
+  async preparePegin(params: PreparePeginParams): Promise<PreparePeginResult> {
     if (params.amounts.length === 0) {
       throw new Error("amounts must contain at least one entry");
     }
@@ -629,8 +632,7 @@ export class PeginManager {
     // Raw form for `signInputs[].publicKey` (UniSat/OKX/OneKey reject
     // x-only); x-only form for protocol/HTLC use. One snapshot binds
     // sizing, root derivation, and PSBT signing to one identity.
-    const depositorBtcPubkeyRaw =
-      await this.config.btcWallet.getPublicKeyHex();
+    const depositorBtcPubkeyRaw = await this.config.btcWallet.getPublicKeyHex();
     const depositorBtcPubkey = normalizeXOnlyPubkey(depositorBtcPubkeyRaw);
 
     // Pre-PegIn change pays back to the depositor. The wallet will sign
@@ -845,8 +847,11 @@ export class PeginManager {
       );
     }
 
-    const vaultProviderBtcPubkey = stripHexPrefix(params.vaultProviderBtcPubkey);
-    const vaultKeeperBtcPubkeys = params.vaultKeeperBtcPubkeys.map(stripHexPrefix);
+    const vaultProviderBtcPubkey = stripHexPrefix(
+      params.vaultProviderBtcPubkey,
+    );
+    const vaultKeeperBtcPubkeys =
+      params.vaultKeeperBtcPubkeys.map(stripHexPrefix);
     const universalChallengerBtcPubkeys =
       params.universalChallengerBtcPubkeys.map(stripHexPrefix);
     const numLocalChallengers = vaultKeeperBtcPubkeys.length;
@@ -879,7 +884,9 @@ export class PeginManager {
       network,
     });
 
-    const prePeginTxid = stripHexPrefix(calculateBtcTxHash(fundedPrePeginTxHex));
+    const prePeginTxid = stripHexPrefix(
+      calculateBtcTxHash(fundedPrePeginTxHex),
+    );
 
     const peginTxResults: Array<{
       txHex: string;
@@ -933,6 +940,15 @@ export class PeginManager {
         signedPsbts[i],
         depositorBtcPubkey,
       );
+      // Critical Path #7: verify the depositor's script-path signature against a
+      // sighash recomputed from the PSBT we built (psbtsToSign[i]) before the
+      // signed tx is finalized and broadcast. The PegIn input is signed on input 0.
+      assertScriptPathSchnorrSignature({
+        requestedPsbtHex: psbtsToSign[i],
+        signatureHex: peginInputSignature,
+        signerXOnlyPubkeyHex: depositorBtcPubkey,
+        inputIndex: 0,
+      });
 
       const depositorSignedPeginTxHex = finalizePeginInputPsbt(signedPsbts[i]);
 
@@ -952,7 +968,6 @@ export class PeginManager {
       perVault,
     };
   }
-
 
   /**
    * Signs and broadcasts a funded peg-in transaction to the Bitcoin network.
@@ -1141,7 +1156,9 @@ export class PeginManager {
       throw new Error("Ethereum wallet account not found");
     }
     const depositorEthAddress = this.config.ethWallet.account.address;
-    if (!isAddressEqual(popSignature.depositorEthAddress, depositorEthAddress)) {
+    if (
+      !isAddressEqual(popSignature.depositorEthAddress, depositorEthAddress)
+    ) {
       throw new Error(
         `Proof of possession was signed for ${popSignature.depositorEthAddress} ` +
           `but the Ethereum wallet is currently connected to ${depositorEthAddress}. ` +
@@ -1156,7 +1173,9 @@ export class PeginManager {
     const btcPopSignature = popSignature.btcPopSignature;
 
     // Step 2: Format parameters for contract call
-    const depositorBtcPubkeyHex = ensureHexPrefix(popSignature.depositorBtcPubkey);
+    const depositorBtcPubkeyHex = ensureHexPrefix(
+      popSignature.depositorBtcPubkey,
+    );
     const unsignedPrePeginTxHex = ensureHexPrefix(unsignedPrePeginTx);
     const depositorSignedPeginTxHex = ensureHexPrefix(depositorSignedPeginTx);
 
@@ -1317,7 +1336,9 @@ export class PeginManager {
       throw new Error("Ethereum wallet account not found");
     }
     const depositorEthAddress = this.config.ethWallet.account.address;
-    if (!isAddressEqual(popSignature.depositorEthAddress, depositorEthAddress)) {
+    if (
+      !isAddressEqual(popSignature.depositorEthAddress, depositorEthAddress)
+    ) {
       throw new Error(
         `Proof of possession was signed for ${popSignature.depositorEthAddress} ` +
           `but the Ethereum wallet is currently connected to ${depositorEthAddress}. ` +
@@ -1775,8 +1796,13 @@ export interface EstimateSubmitPeginRequestBatchGasParams {
 export async function estimateSubmitPeginRequestBatchGas(
   params: EstimateSubmitPeginRequestBatchGasParams,
 ): Promise<bigint> {
-  const { publicClient, btcVaultRegistry, depositorEthAddress, vaultProvider, batchSize } =
-    params;
+  const {
+    publicClient,
+    btcVaultRegistry,
+    depositorEthAddress,
+    vaultProvider,
+    batchSize,
+  } = params;
 
   if (batchSize <= 0) {
     throw new Error(
