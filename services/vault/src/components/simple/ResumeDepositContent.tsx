@@ -401,6 +401,7 @@ export function ResumeWotsContent({
           peginTxid: primedTxid,
           authAnchorHex,
           pinnedServerPubkey,
+          depositorBtcPubkey,
           enableGrpcArtifactAuth: featureFlags.isGrpcArtifactsEnabled,
         });
         trackPrimedTxid(primedTxid);

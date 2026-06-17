@@ -8,6 +8,7 @@
  * @module tbv/core/clients/vault-provider/auth/createAuthenticatedVpClient
  */
 
+import { processPublicKeyToXOnly } from "../../../primitives/utils/bitcoin";
 import type { OnChainBtcPubkey } from "../../eth/types";
 import {
   VaultProviderRpcClient,
@@ -26,6 +27,11 @@ export interface AuthenticatedVpClientConfig {
   authAnchorHex: string;
   /** On-chain VP pubkey, branded so it can only come from the registry reader. */
   pinnedServerPubkey: OnChainBtcPubkey;
+  /**
+   * Depositor BTC pubkey (x-only or compressed hex). Normalized to
+   * x-only and asserted against every issued token's CWT `aud` claim.
+   */
+  depositorBtcPubkey: string;
   /**
    * Opt into gRPC-subject auth for the artifact stream. Defaults to
    * `false` (JSON-RPC bearer). Only enable against a proxy running with
@@ -49,6 +55,9 @@ export function createAuthenticatedVpClient(
     peginTxid: config.peginTxid,
     authAnchorHex: config.authAnchorHex,
     pinnedServerPubkey: config.pinnedServerPubkey,
+    expectedAudienceXOnlyPubkey: processPublicKeyToXOnly(
+      config.depositorBtcPubkey,
+    ),
     enableGrpcArtifactAuth: config.enableGrpcArtifactAuth,
   });
 

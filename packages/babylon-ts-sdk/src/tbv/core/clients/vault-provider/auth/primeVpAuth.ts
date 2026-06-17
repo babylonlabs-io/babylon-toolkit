@@ -7,6 +7,7 @@
  * @module tbv/core/clients/vault-provider/auth/primeVpAuth
  */
 
+import { processPublicKeyToXOnly } from "../../../primitives/utils/bitcoin";
 import type { OnChainBtcPubkey } from "../../eth/types";
 
 import { buildInnerTokenClient } from "./innerTokenClient";
@@ -17,6 +18,11 @@ export interface PrimeVpAuthInput {
   peginTxid: string;
   authAnchorHex: string;
   pinnedServerPubkey: OnChainBtcPubkey;
+  /**
+   * Depositor BTC pubkey (x-only or compressed hex). Normalized to
+   * x-only and asserted against every issued token's CWT `aud` claim.
+   */
+  depositorBtcPubkey: string;
   /** Optional headers forwarded to the inner token client (e.g. gateway auth). */
   headers?: Record<string, string>;
   /**
@@ -35,6 +41,9 @@ export function primeVpTokenRegistry(input: PrimeVpAuthInput): void {
     peginTxid: input.peginTxid,
     authAnchorHex: input.authAnchorHex,
     pinnedServerPubkey: input.pinnedServerPubkey,
+    expectedAudienceXOnlyPubkey: processPublicKeyToXOnly(
+      input.depositorBtcPubkey,
+    ),
     enableGrpcArtifactAuth: input.enableGrpcArtifactAuth,
   });
 }

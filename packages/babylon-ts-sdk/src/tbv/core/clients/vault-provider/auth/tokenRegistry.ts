@@ -17,6 +17,8 @@ export interface VpTokenRegistryInput {
   peginTxid: string;
   authAnchorHex: string;
   pinnedServerPubkey: OnChainBtcPubkey;
+  /** Depositor x-only pubkey (32-byte hex), asserted against each token's CWT `aud`. */
+  expectedAudienceXOnlyPubkey: string;
   /**
    * Opt into gRPC-subject auth for {@link GRPC_AUTH_GATED_METHODS}
    * (currently the artifact stream). Defaults to `false`: those methods
@@ -32,6 +34,7 @@ interface RegistryEntry {
   provider: VpTokenProvider;
   authAnchorHex: string;
   pinnedServerPubkey: OnChainBtcPubkey;
+  expectedAudienceXOnlyPubkey: string;
   /** Resolved (defaulted) gRPC-auth gating the provider was built with. */
   enableGrpcArtifactAuth: boolean;
 }
@@ -68,6 +71,14 @@ export class VpTokenRegistry {
           `VpTokenRegistry: peginTxid ${input.peginTxid} already bound to pinnedServerPubkey ${existing.pinnedServerPubkey.slice(0, 8)}…; got ${input.pinnedServerPubkey.slice(0, 8)}…`,
         );
       }
+      if (
+        existing.expectedAudienceXOnlyPubkey !==
+        input.expectedAudienceXOnlyPubkey
+      ) {
+        throw new Error(
+          `VpTokenRegistry: peginTxid ${input.peginTxid} already bound to expectedAudienceXOnlyPubkey ${existing.expectedAudienceXOnlyPubkey.slice(0, 8)}…; got ${input.expectedAudienceXOnlyPubkey.slice(0, 8)}…`,
+        );
+      }
       // The provider's gated-method sets are fixed at construction, so a
       // later caller asking for a different subject can't be honoured by
       // the cached instance. Fail loudly rather than silently serve the
@@ -89,6 +100,7 @@ export class VpTokenRegistry {
       peginTxid: input.peginTxid,
       authAnchorHex: input.authAnchorHex,
       pinnedServerPubkey: input.pinnedServerPubkey,
+      expectedAudienceXOnlyPubkey: input.expectedAudienceXOnlyPubkey,
       authGatedMethods: useGrpcAuth
         ? AUTH_GATED_METHODS
         : new Set([...AUTH_GATED_METHODS, ...GRPC_AUTH_GATED_METHODS]),
@@ -98,6 +110,7 @@ export class VpTokenRegistry {
       provider,
       authAnchorHex: input.authAnchorHex,
       pinnedServerPubkey: input.pinnedServerPubkey,
+      expectedAudienceXOnlyPubkey: input.expectedAudienceXOnlyPubkey,
       enableGrpcArtifactAuth: useGrpcAuth,
     });
     return provider;
