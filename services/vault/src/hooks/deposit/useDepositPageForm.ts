@@ -23,6 +23,11 @@ import { getVpExplorerProviderUrl } from "../../utils/explorer";
 import { formatProviderDisplayName } from "../../utils/formatting";
 import { sortVaultProviders } from "../../utils/sortVaultProviders";
 import { vaultProviderUnavailableReason } from "../../utils/vaultProviderStatus";
+import {
+  assertMinClaimValue,
+  assertMinPeginFee,
+  assertNumLocalChallengers,
+} from "../../utils/wasm";
 import { useApplicationCap } from "../useApplicationCap";
 import { useApplications } from "../useApplications";
 import { usePrice, usePrices } from "../usePrices";
@@ -389,18 +394,30 @@ export function useDepositPageForm(): UseDepositPageFormResult {
   // Compute depositorClaimValue for UI validation (min deposit check).
   // Uses {VP} ∪ {VKs} − {depositor} which is >= the transaction builder's
   // vaultKeepers.length, making this a conservative estimate.
-  const numLocalChallengers = useMemo(() => {
-    if (!selectedVpBtcPubkey || !depositorBtcPubkey) return undefined;
+  const numLocalChallengersResult = useMemo(() => {
+    if (!selectedVpBtcPubkey || !depositorBtcPubkey) {
+      return { value: undefined, error: null };
+    }
     try {
-      return computeNumLocalChallengers(
-        selectedVpBtcPubkey,
-        vaultKeeperBtcPubkeys,
-        depositorBtcPubkey,
-      );
-    } catch {
-      return undefined;
+      return {
+        value: assertNumLocalChallengers(
+          computeNumLocalChallengers(
+            selectedVpBtcPubkey,
+            vaultKeeperBtcPubkeys,
+            depositorBtcPubkey,
+          ),
+        ),
+        error: null,
+      };
+    } catch (err) {
+      return {
+        value: undefined,
+        error: err instanceof Error ? err : new Error(String(err)),
+      };
     }
   }, [selectedVpBtcPubkey, vaultKeeperBtcPubkeys, depositorBtcPubkey]);
+  const numLocalChallengers = numLocalChallengersResult.value;
+  const challengerCountError = numLocalChallengersResult.error;
 
   const { data: depositorClaimValue, error: depositorClaimValueError } =
     useQuery({
@@ -419,7 +436,7 @@ export function useDepositPageForm(): UseDepositPageFormResult {
           config.offchainParams.councilQuorum,
           config.offchainParams.securityCouncilKeys.length,
           config.offchainParams.feeRate,
-        ),
+        ).then(assertMinClaimValue),
       enabled:
         latestUniversalChallengers.length > 0 && numLocalChallengers != null,
       staleTime: STALE_TIME_MS,
@@ -451,7 +468,7 @@ export function useDepositPageForm(): UseDepositPageFormResult {
         vaultKeeperBtcPubkeys.length,
         latestUniversalChallengers.length,
         config.offchainParams.minPeginFeeRate,
-      ),
+      ).then(assertMinPeginFee),
     enabled: vaultKeeperBtcPubkeys.length > 0,
     staleTime: STALE_TIME_MS,
     refetchOnWindowFocus: false,
@@ -650,7 +667,13 @@ export function useDepositPageForm(): UseDepositPageFormResult {
     vaultAmounts: splitVaultAmounts,
     isSplitLoading,
     depositorClaimValue,
-    depositorClaimValueError: toError(depositorClaimValueError),
+    // Fold the local challenger-count guard failure into the same terminal
+    // error: when `assertNumLocalChallengers` throws, `numLocalChallengers`
+    // is undefined, which disables the claim-value query, so its rejection
+    // never fires. Surfacing `challengerCountError` here keeps the CTA from
+    // silently degrading to a zero-reserve Max.
+    depositorClaimValueError:
+      challengerCountError ?? toError(depositorClaimValueError),
     splitRatioLabel,
     validateForm,
     validateAmountOnBlur,
