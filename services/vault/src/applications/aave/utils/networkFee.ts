@@ -5,6 +5,8 @@
  * display formatting can be unit-tested in isolation.
  */
 
+import { COPY } from "@/copy";
+
 /** 1 ETH expressed in wei. */
 const WEI_PER_ETH = 10n ** 18n;
 
@@ -40,16 +42,20 @@ export function canEstimateRepay(allowance: bigint, amount: bigint): boolean {
 /**
  * Format an estimated fee for the network-fee row.
  *
- * Returns the ETH amount alone when no ETH/USD price is available, otherwise
- * appends the USD value, e.g. `"0.000123 ETH ($0.25 USD)"`.
+ * Does the numeric work here (ETH precision, USD locale formatting) and
+ * delegates the user-visible string assembly to `COPY.loans.networkFeeValue`,
+ * so the unit/`$` labels live in copy. Returns the ETH amount alone when no
+ * ETH/USD price is available, otherwise appends the USD value, e.g.
+ * `"0.000123 ETH ($0.25 USD)"`.
  */
 export function formatNetworkFee(feeEth: number, ethPriceUsd: number): string {
-  const eth = `${feeEth.toFixed(FEE_ETH_DECIMALS)} ETH`;
-  if (ethPriceUsd <= 0) return eth;
-
-  const usd = (feeEth * ethPriceUsd).toLocaleString("en-US", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
-  return `${eth} ($${usd} USD)`;
+  const eth = feeEth.toFixed(FEE_ETH_DECIMALS);
+  const usd =
+    ethPriceUsd > 0
+      ? (feeEth * ethPriceUsd).toLocaleString("en-US", {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        })
+      : null;
+  return COPY.loans.networkFeeValue(eth, usd);
 }

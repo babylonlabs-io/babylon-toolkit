@@ -3,7 +3,9 @@
  *
  * Builds the same adapter `borrow` calldata the submit path uses and estimates
  * its gas. Borrow needs no token approval, so the estimate is available as soon
- * as the entered amount is valid (gate on `enabled`).
+ * as the entered amount is valid (gate on `enabled`). Mirrors the submit path's
+ * inputs: on-chain ERC20 decimals and the reserve→token integrity check, so the
+ * fee can't be shown for a transaction the real submit path would reject.
  */
 
 import { buildBorrowTx } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
@@ -14,8 +16,10 @@ import { useDebouncedValue } from "@/utils/hooks";
 
 import { getAaveAdapterAddress } from "../config";
 import { SAFE_TOFIXED_PRECISION } from "../constants";
+import { assertReserveMatchesOnChain } from "../services";
 import type { AaveReserveConfig } from "../services/fetchConfig";
 
+import { useErc20Decimals } from "./useErc20Decimals";
 import {
   FEE_ESTIMATE_DEBOUNCE_MS,
   useEthTxFeeEstimate,
@@ -33,7 +37,11 @@ export function useBorrowNetworkFee({
 }): EthTxFee {
   const { address } = useAccount();
   const { reserveId } = reserve;
-  const { decimals } = reserve.token;
+  const { address: tokenAddress } = reserve.token;
+
+  // On-chain decimals (cached), matching the submit path; fall back to the
+  // config value until the one-time read resolves.
+  const decimals = useErc20Decimals(tokenAddress) ?? reserve.token.decimals;
 
   // Debounce the amount so a continuous slider drag settles to one estimate
   // instead of an eth_estimateGas round-trip per tick.
@@ -47,21 +55,27 @@ export function useBorrowNetworkFee({
   const fee = useEthTxFeeEstimate({
     account: address,
     enabled: enabled && debouncedAmount > 0,
-    queryKey: ["borrow", address, reserveId.toString(), debouncedAmount],
-    prepare: () => {
+    queryKey: [
+      "borrow",
+      address,
+      reserveId.toString(),
+      debouncedAmount,
+      decimals,
+    ],
+    prepare: async () => {
       if (!address || debouncedAmount <= 0) return null;
+      const adapter = getAaveAdapterAddress();
+      // Mirror the submit-path integrity guard: if the indexer reserve→token
+      // mapping no longer matches on-chain, this throws and the estimate falls
+      // back to the empty placeholder rather than pricing the wrong asset.
+      await assertReserveMatchesOnChain(adapter, reserveId, tokenAddress);
       // Clamp toFixed precision to SAFE_TOFIXED_PRECISION to avoid IEEE-754
       // artifacts, matching the submit path (useBorrowTransaction).
       const amountBigInt = parseUnits(
         debouncedAmount.toFixed(Math.min(decimals, SAFE_TOFIXED_PRECISION)),
         decimals,
       );
-      return buildBorrowTx(
-        getAaveAdapterAddress(),
-        reserveId,
-        amountBigInt,
-        address,
-      );
+      return buildBorrowTx(adapter, reserveId, amountBigInt, address);
     },
   });
 

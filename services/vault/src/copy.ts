@@ -715,6 +715,11 @@ export const COPY = {
     availableLiquidityLabel: "Available liquidity",
     utilizationLabel: "Utilization",
     ethereumNetworkFeeLabel: "Ethereum network fee",
+    // Estimated Ethereum network (gas) fee value for the row above. `eth` is the
+    // gas cost in ETH (already formatted); `usd` is the converted value, appended
+    // only when an ETH price is available (null otherwise).
+    networkFeeValue: (eth: string, usd: string | null) =>
+      usd === null ? `${eth} ETH` : `${eth} ETH ($${usd} USD)`,
     availableLabel: "Available",
     // Repay amount slider: prefixes the user's wallet balance shown beside Max.
     balanceLabel: "Balance",

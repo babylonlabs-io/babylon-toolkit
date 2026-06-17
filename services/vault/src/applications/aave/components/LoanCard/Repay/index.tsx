@@ -205,6 +205,7 @@ export function Repay() {
     reserve: selectedReserve,
     amount: repayAmount,
     enabled: !isDisabled && balanceKnown,
+    isMaxIntent,
   });
 
   // Pure UI action: pre-fill the input with the cached max so the user sees

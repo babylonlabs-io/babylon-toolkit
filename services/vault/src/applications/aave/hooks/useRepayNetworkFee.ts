@@ -5,10 +5,15 @@
  * its gas. Repay pulls the debt token via `transferFrom`, so `eth_estimateGas`
  * reverts until the adapter has allowance — before approval we can't produce a
  * real estimate, so `prepare` returns null (→ `emptyValue`) rather than a guess.
+ *
+ * Mirrors the submit path's inputs: on-chain ERC20 decimals, the reserve→token
+ * integrity check, and — under Max intent — the `maxUint256` repay-all sentinel
+ * that `repayMaxCapped`/`repayFull` broadcast, so the fee reflects the actual
+ * transaction rather than the typed partial amount.
  */
 
 import { buildRepayTx } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
-import { parseUnits } from "viem";
+import { maxUint256, parseUnits } from "viem";
 import { useAccount } from "wagmi";
 
 import { ERC20 } from "@/clients/eth-contract";
@@ -16,9 +21,11 @@ import { useDebouncedValue } from "@/utils/hooks";
 
 import { getAaveAdapterAddress } from "../config";
 import { SAFE_TOFIXED_PRECISION } from "../constants";
+import { assertReserveMatchesOnChain } from "../services";
 import type { AaveReserveConfig } from "../services/fetchConfig";
 import { canEstimateRepay } from "../utils/networkFee";
 
+import { useErc20Decimals } from "./useErc20Decimals";
 import {
   FEE_ESTIMATE_DEBOUNCE_MS,
   useEthTxFeeEstimate,
@@ -29,14 +36,25 @@ export function useRepayNetworkFee({
   reserve,
   amount,
   enabled,
+  isMaxIntent,
 }: {
   reserve: AaveReserveConfig;
   amount: number;
   enabled: boolean;
+  /**
+   * True when the user picked Max. The submit path then sends the repay-all
+   * sentinel (`maxUint256`) via `repayMaxCapped`/`repayFull` rather than the
+   * typed amount, so the estimate must build the same calldata.
+   */
+  isMaxIntent: boolean;
 }): EthTxFee {
   const { address } = useAccount();
   const { reserveId } = reserve;
-  const { address: tokenAddress, decimals } = reserve.token;
+  const { address: tokenAddress } = reserve.token;
+
+  // On-chain decimals (cached), matching the submit path; fall back to the
+  // config value until the one-time read resolves.
+  const decimals = useErc20Decimals(tokenAddress) ?? reserve.token.decimals;
 
   // Debounce the amount so a continuous slider drag settles to one estimate
   // instead of an allowance read + eth_estimateGas round-trip per tick.
@@ -56,9 +74,15 @@ export function useRepayNetworkFee({
       reserveId.toString(),
       tokenAddress,
       debouncedAmount,
+      decimals,
+      isMaxIntent,
     ],
     prepare: async () => {
       if (!address || debouncedAmount <= 0) return null;
+      const adapter = getAaveAdapterAddress();
+      // Mirror the submit-path integrity guard before pricing the asset.
+      await assertReserveMatchesOnChain(adapter, reserveId, tokenAddress);
+
       // Clamp toFixed precision to SAFE_TOFIXED_PRECISION to avoid IEEE-754
       // artifacts, matching the submit path (useRepayTransaction partial mode).
       const amountBigInt = parseUnits(
@@ -67,9 +91,10 @@ export function useRepayNetworkFee({
       );
 
       // Without sufficient allowance the repay's transferFrom reverts under
-      // simulation. Skip the estimate so the row shows emptyValue instead of an
-      // error, rather than fabricating a gas figure.
-      const adapter = getAaveAdapterAddress();
+      // simulation. Gate on the displayed amount so the row shows emptyValue
+      // instead of an error, rather than fabricating a gas figure. (Under Max
+      // intent eth_estimateGas itself is the final allowance check — it reverts
+      // → null → emptyValue — if the sentinel needs more than is approved.)
       const allowance = await ERC20.getERC20Allowance(
         tokenAddress,
         address,
@@ -77,7 +102,10 @@ export function useRepayNetworkFee({
       );
       if (!canEstimateRepay(allowance, amountBigInt)) return null;
 
-      return buildRepayTx(adapter, address, reserveId, amountBigInt);
+      // Max intent submits the repay-all sentinel; estimate that calldata so
+      // the fee matches the transaction actually broadcast.
+      const repayValue = isMaxIntent ? maxUint256 : amountBigInt;
+      return buildRepayTx(adapter, address, reserveId, repayValue);
     },
   });
 
