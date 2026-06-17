@@ -164,7 +164,10 @@ export function Repay() {
   // "before" value is the bare current debt and the "after" value carries the
   // symbol; with no amount entered there's no arrow and the current debt
   // carries the symbol itself.
-  const debtCurrentValue = formatTokenAmount(metrics.debtCurrent, displayDecimals);
+  const debtCurrentValue = formatTokenAmount(
+    metrics.debtCurrent,
+    displayDecimals,
+  );
   const debtProjectedLabel =
     metrics.debtProjected !== undefined
       ? `${formatTokenAmount(metrics.debtProjected, displayDecimals)} ${assetConfig.symbol}`
@@ -350,7 +353,9 @@ export function Repay() {
         </SubSection>
 
         <RepayDetailsCard
-          debt={debtProjectedLabel ?? `${debtCurrentValue} ${assetConfig.symbol}`}
+          debt={
+            debtProjectedLabel ?? `${debtCurrentValue} ${assetConfig.symbol}`
+          }
           debtOriginal={debtProjectedLabel ? debtCurrentValue : undefined}
           healthFactor={metrics.healthFactor}
           healthFactorValue={metrics.healthFactorValue}
