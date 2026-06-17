@@ -1,4 +1,4 @@
-import { Button, DialogBody, DialogFooter, DialogHeader, Text } from "@babylonlabs-io/core-ui";
+import { Button, Heading, Text } from "@babylonlabs-io/core-ui";
 import { memo } from "react";
 import { twMerge } from "tailwind-merge";
 
@@ -11,69 +11,78 @@ interface ChainsProps {
   chains: IChain[];
   className?: string;
   selectedWallets?: Record<string, IWallet | undefined>;
-  onClose?: () => void;
   onConfirm?: () => void;
-  onDisconnectWallet?: (chainId: string) => void;
   onSelectChain?: (chain: IChain) => void;
 }
 
 export const Chains = memo(
-  ({
-    disabled = false,
-    chains,
-    selectedWallets = {},
-    className,
-    onClose,
-    onConfirm,
-    onSelectChain,
-    onDisconnectWallet,
-  }: ChainsProps) => {
-    const chainNames = chains.map((chain) => chain.name).join(" and ");
-    const subtitle = `Connect to both ${chainNames} Wallets`;
+  ({ disabled = false, chains, selectedWallets = {}, className, onConfirm, onSelectChain }: ChainsProps) => (
+    <div
+      className={twMerge(
+        "flex flex-col overflow-hidden rounded-2xl border border-secondary-strokeLight text-accent-primary",
+        className,
+      )}
+    >
+      <div className="border-b border-secondary-strokeLight p-6">
+        <Heading variant="h5" className="text-accent-primary">
+          Connect Wallets
+        </Heading>
+      </div>
 
-    return (
-      <div className={twMerge("flex flex-1 flex-col text-accent-primary", className)}>
-        <DialogHeader className="mb-10" title="Connect Wallets" onClose={onClose}>
-          <Text className="text-accent-secondary">{subtitle}</Text>
-        </DialogHeader>
-
-        <DialogBody className="flex flex-col gap-6">
+      <div className="flex flex-col gap-4 p-6">
+        <div className="flex flex-col gap-2">
           {chains.map((chain) => {
             const selectedWallet = selectedWallets[chain.id];
 
             return (
               <ChainButton
                 key={chain.id}
-                disabled={Boolean(selectedWallet)}
                 title={`Select ${chain.name} Wallet`}
                 logo={chain.icon}
                 alt={chain.name}
                 onClick={() => void onSelectChain?.(chain)}
               >
                 {selectedWallet && (
-                  <ConnectedWallet
-                    chainId={chain.id}
-                    logo={selectedWallet.icon}
-                    name={selectedWallet.name}
-                    address={selectedWallet.account?.address ?? ""}
-                    onDisconnect={onDisconnectWallet}
-                  />
+                  <ConnectedWallet logo={selectedWallet.icon} address={selectedWallet.account?.address ?? ""} />
                 )}
               </ChainButton>
             );
           })}
-        </DialogBody>
 
-        <DialogFooter className="mt-auto flex gap-4 pt-10">
-          <Button variant="outlined" fluid onClick={onClose}>
-            Cancel
+          <Button
+            color="secondary"
+            disabled={disabled}
+            fluid
+            onClick={onConfirm}
+            className="text-sm"
+            data-testid="chains-connect-button"
+          >
+            Connect
           </Button>
+        </div>
 
-          <Button disabled={disabled} fluid onClick={onConfirm} data-testid="chains-done-button">
-            Done
-          </Button>
-        </DialogFooter>
+        <Text variant="body2" className="text-center text-accent-secondary">
+            By clicking Connect you agree with the{" "}
+            <a
+              href="https://babylonlabs.io/terms-of-use"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline"
+            >
+              Terms of Use
+            </a>{" "}
+            and{" "}
+            <a
+              href="https://babylonlabs.io/privacy-policy"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline"
+            >
+              Privacy Policy
+            </a>
+            .
+        </Text>
       </div>
-    );
-  },
+    </div>
+  ),
 );
