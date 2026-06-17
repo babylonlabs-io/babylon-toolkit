@@ -45,6 +45,23 @@ vi.mock("../../../hooks/useBtcMempoolConfirmations", () => ({
     mockUseBtcMempoolConfirmations(txids),
 }));
 
+// EXPIRED-vault HTLC refund-spend poller — stub so the provider renders
+// without a real QueryClient. Default: nothing spent. Tests can inject a
+// spent/confirmed entry via `mockReturnValue`.
+const { mockUseBtcHtlcRefundStatus } = vi.hoisted(() => ({
+  mockUseBtcHtlcRefundStatus: vi.fn<
+    () => {
+      refundByDepositId: Map<
+        string,
+        { spent: boolean; confirmed: boolean; spendingTxid?: string }
+      >;
+    }
+  >(() => ({ refundByDepositId: new Map() })),
+}));
+vi.mock("../../../hooks/useBtcHtlcRefundStatus", () => ({
+  useBtcHtlcRefundStatus: () => mockUseBtcHtlcRefundStatus(),
+}));
+
 const mockVersionedParams = new Map<number, { tRefund: number }>();
 
 vi.mock("../../ProtocolParamsContext", () => ({
@@ -97,6 +114,10 @@ describe("PeginPollingContext", () => {
     // `mockReturnValue` to inject a depth-reached entry.
     mockUseBtcMempoolConfirmations.mockReturnValue({
       confirmationsByTxid: new Map<string, number>(),
+    });
+    mockUseBtcHtlcRefundStatus.mockReset();
+    mockUseBtcHtlcRefundStatus.mockReturnValue({
+      refundByDepositId: new Map(),
     });
     mockVersionedParams.clear();
     // The persistent confirmed-txid cache leaks across tests otherwise.
@@ -621,6 +642,26 @@ describe("PeginPollingContext", () => {
       PeginAction.REFUND_HTLC,
     ]);
     expect(status?.peginState.refundMaturityState).toBe("mature");
+  });
+
+  it("EXPIRED: hides the refund action and shows Refunded when the HTLC spend has confirmed", () => {
+    mockVersionedParams.set(3, { tRefund: 144 });
+    mockUseBtcMempoolConfirmations.mockReturnValue({
+      confirmationsByTxid: new Map([[PRE_PEGIN_TXID_HEX, 144]]),
+    });
+    // Chain ground truth: the HTLC output was already spent (refund landed
+    // and confirmed) — the dashboard must not re-offer a doomed refund.
+    mockUseBtcHtlcRefundStatus.mockReturnValue({
+      refundByDepositId: new Map([
+        [ACTIVITY_ID.toLowerCase(), { spent: true, confirmed: true }],
+      ]),
+    });
+
+    const { result } = renderExpired();
+    const status = result.current.getPollingResult(ACTIVITY_ID);
+
+    expect(status?.peginState.availableActions).toEqual([PeginAction.NONE]);
+    expect(status?.peginState.displayLabel).toBe(PEGIN_DISPLAY_LABELS.REFUNDED);
   });
 
   it("EXPIRED: never marks mature when the per-deposit tRefund is unknown (no fallback to latest)", () => {

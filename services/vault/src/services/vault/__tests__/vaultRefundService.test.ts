@@ -28,6 +28,10 @@ vi.mock("../../../clients/btc/config", () => ({
   getMempoolApiUrl: vi.fn().mockReturnValue("https://mempool.space/api"),
 }));
 
+vi.mock("../../../clients/btc/outspend", () => ({
+  fetchHtlcSpend: vi.fn(),
+}));
+
 vi.mock("@babylonlabs-io/ts-sdk/tbv/core/utils", () => ({
   calculateBtcTxHash: vi.fn(() => "0xmatching_pre_pegin_hash"),
 }));
@@ -84,12 +88,14 @@ import {
   type Mock,
 } from "vitest";
 
+import { fetchHtlcSpend } from "../../../clients/btc/outspend";
 import { getVaultFromChain } from "../../../clients/eth-contract/btc-vault-registry/query";
 import { fetchVaultProviderById } from "../fetchVaultProviders";
 import { fetchVaultIdsByDepositor, fetchVaultRefundData } from "../fetchVaults";
 import {
   buildAndBroadcastRefundTransaction,
   getRefundPreview,
+  RefundAlreadySettledError,
 } from "../vaultRefundService";
 
 const VAULT_ID = "0xvaultid" as `0x${string}`;
@@ -141,6 +147,13 @@ const mockFetch = vi.fn();
 beforeEach(() => {
   vi.stubGlobal("fetch", mockFetch);
   mockFetch.mockResolvedValue({ status: 200 });
+  // Default: HTLC output unspent, so the refund proceeds normally. Individual
+  // tests override to exercise the already-settled path. `clearAllMocks` (used
+  // per-describe) preserves this implementation.
+  (fetchHtlcSpend as Mock).mockResolvedValue({
+    spent: false,
+    confirmed: false,
+  });
 });
 
 afterEach(() => {
@@ -433,6 +446,76 @@ describe("vaultRefundService - adapter wiring", () => {
 
     expect(observed).toEqual({ txId: "broadcast_txid" });
     expect(txId).toBe("broadcast_txid");
+  });
+
+  it("throws RefundAlreadySettledError (before signing) when the HTLC is already spent", async () => {
+    (fetchHtlcSpend as Mock).mockResolvedValue({
+      spent: true,
+      confirmed: true,
+      spendingTxid: "existing_refund_txid",
+    });
+
+    const promise = buildAndBroadcastRefundTransaction({
+      vaultId: VAULT_ID,
+      depositorAddress: DEPOSITOR_ADDRESS,
+      btcWalletProvider: BTC_WALLET_PROVIDER,
+      depositorBtcPubkey: DEPOSITOR_PUBKEY,
+      feeRate: 10,
+    });
+
+    await expect(promise).rejects.toBeInstanceOf(RefundAlreadySettledError);
+    await expect(promise).rejects.toMatchObject({
+      spendingTxid: "existing_refund_txid",
+      confirmed: true,
+    });
+    // Guard fires before the wallet popup — never builds/signs/broadcasts.
+    expect(mockBuildAndBroadcastRefund).not.toHaveBeenCalled();
+  });
+
+  it("classifies a -27 broadcast rejection as already-settled when the re-probe finds the HTLC spent", async () => {
+    // Guard passes (unspent), then the broadcast races a confirmed refund:
+    // bitcoind returns -27, the re-probe finds the HTLC spent → success.
+    (fetchHtlcSpend as Mock)
+      .mockResolvedValueOnce({ spent: false, confirmed: false })
+      .mockResolvedValueOnce({
+        spent: true,
+        confirmed: true,
+        spendingTxid: "raced_refund_txid",
+      });
+    (pushTx as Mock).mockRejectedValue(
+      new Error(
+        'Failed to broadcast BTC transaction: sendrawtransaction RPC error: {"code":-27,"message":"Transaction already in block chain"}',
+      ),
+    );
+
+    await expect(
+      buildAndBroadcastRefundTransaction({
+        vaultId: VAULT_ID,
+        depositorAddress: DEPOSITOR_ADDRESS,
+        btcWalletProvider: BTC_WALLET_PROVIDER,
+        depositorBtcPubkey: DEPOSITOR_PUBKEY,
+        feeRate: 10,
+      }),
+    ).rejects.toBeInstanceOf(RefundAlreadySettledError);
+  });
+
+  it("does not classify a -26 broadcast rejection as already-settled (re-throws)", async () => {
+    (pushTx as Mock).mockRejectedValue(
+      new Error(
+        'Failed to broadcast BTC transaction: sendrawtransaction RPC error: {"code":-26,"message":"min relay fee not met"}',
+      ),
+    );
+
+    const promise = buildAndBroadcastRefundTransaction({
+      vaultId: VAULT_ID,
+      depositorAddress: DEPOSITOR_ADDRESS,
+      btcWalletProvider: BTC_WALLET_PROVIDER,
+      depositorBtcPubkey: DEPOSITOR_PUBKEY,
+      feeRate: 10,
+    });
+
+    await expect(promise).rejects.toThrow(/-26|min relay fee/);
+    await expect(promise).rejects.not.toBeInstanceOf(RefundAlreadySettledError);
   });
 });
 

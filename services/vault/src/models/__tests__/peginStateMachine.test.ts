@@ -451,6 +451,37 @@ describe("peginStateMachine", () => {
       expect(state.displayLabel).toBe(PEGIN_DISPLAY_LABELS.EXPIRED);
     });
 
+    it("shows Refunded (terminal, no action) when the HTLC spend has confirmed", () => {
+      const state = getPeginState(ContractStatus.EXPIRED, {
+        canRefund: false,
+        refundSettlement: "confirmed",
+      });
+      expect(state.displayLabel).toBe(PEGIN_DISPLAY_LABELS.REFUNDED);
+      expect(state.displayVariant).toBe("inactive");
+      expect(state.availableActions).toEqual([PeginAction.NONE]);
+    });
+
+    it("shows Refunding when the HTLC spend is seen but not yet confirmed", () => {
+      const state = getPeginState(ContractStatus.EXPIRED, {
+        canRefund: false,
+        refundSettlement: "pending",
+      });
+      expect(state.displayLabel).toBe(PEGIN_DISPLAY_LABELS.REFUNDING);
+      expect(state.displayVariant).toBe("pending");
+    });
+
+    it("chain-confirmed refund overrides a stale REFUND_BROADCAST optimistic state", () => {
+      const now = 1_700_000_000_000;
+      const state = getPeginState(ContractStatus.EXPIRED, {
+        canRefund: false,
+        refundSettlement: "confirmed",
+        localStatus: LocalStorageStatus.REFUND_BROADCAST,
+        refundBroadcastAt: now - 60_000,
+        now,
+      });
+      expect(state.displayLabel).toBe(PEGIN_DISPLAY_LABELS.REFUNDED);
+    });
+
     it("surfaces a CSV-maturing countdown when refund timelock has not elapsed", () => {
       const state = getPeginState(ContractStatus.EXPIRED, {
         expirationReason: "ack_timeout",

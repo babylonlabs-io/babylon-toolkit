@@ -62,6 +62,7 @@ export const COPY = {
       LIQUIDATED: "Liquidated",
       EXPIRED: "Expired",
       REFUNDING: "Refunding",
+      REFUNDED: "Refunded",
       FAILED: "Failed",
       INVALID: "Invalid",
       UNKNOWN: "Unknown",
@@ -106,6 +107,8 @@ export const COPY = {
         "This BTC Vault was liquidated. The collateral was seized to cover unpaid debt.",
       refundBroadcast:
         "Refund transaction has been broadcast to Bitcoin. Waiting for on-chain confirmation...",
+      refundComplete:
+        "Your refund has been confirmed on Bitcoin. The locked BTC has returned to your wallet.",
       refundMaturing: (blocks: number, hours: number) =>
         `Refund claimable in ~${blocks} Bitcoin ${blocks === 1 ? "block" : "blocks"} (~${hours}h).`,
       refundMaturingUnknown: "Checking when your refund will be claimable...",

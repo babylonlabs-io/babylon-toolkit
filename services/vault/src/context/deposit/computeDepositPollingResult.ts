@@ -4,6 +4,7 @@
  * the rules — so the decision tree is testable without a React render.
  */
 
+import type { HtlcSpend } from "../../clients/btc/outspend";
 import {
   ContractStatus,
   getPeginState,
@@ -53,6 +54,17 @@ export interface DepositPollingInputs {
   prePeginConfirmationsByTxid: Map<string, number>;
   confirmedTxids: Set<string>;
   matureRefundTxids: Set<string>;
+  /**
+   * Live HTLC spend status keyed by lowercased vault id, from the EXPIRED
+   * `outspend` poll. A spent HTLC means the refund already landed.
+   */
+  htlcRefundByDepositId: Map<string, HtlcSpend>;
+  /**
+   * Lowercased vault ids whose HTLC spend confirmed (cached; dropped from the
+   * live poll). OR'd with the live map so a confirmed refund stays settled
+   * after the txid leaves the poll set.
+   */
+  refundedHtlcVaultIds: Set<string>;
   /** Per-vault min depth, pre-resolved from `offchainParamsVersion`. */
   requiredDepth: number;
   /** Per-vault `tRefund`; `undefined` collapses maturity to `unknown`. */
@@ -76,6 +88,8 @@ export function computeDepositPollingResult(
     prePeginConfirmationsByTxid,
     confirmedTxids,
     matureRefundTxids,
+    htlcRefundByDepositId,
+    refundedHtlcVaultIds,
     requiredDepth,
     refundTimelock,
     isLoading,
@@ -84,6 +98,7 @@ export function computeDepositPollingResult(
     btcPublicKey,
   } = inputs;
   const depositId = activity.id;
+  const depositIdKey = depositId.toLowerCase();
   const contractStatus = (activity.contractStatus ?? 0) as ContractStatus;
   const localStatus = resolveLocalStatus(
     depositId,
@@ -156,10 +171,27 @@ export function computeDepositPollingResult(
     }
   }
 
+  // Chain ground truth: has the HTLC output already been spent (refund landed)?
+  // Cached confirmed-refunds OR the live poll. A confirmed spend is terminal;
+  // a spent-but-unconfirmed one is a pending refund. Either way the refund is
+  // no longer available — re-broadcasting would hit Bitcoin's -27/-25.
+  const liveRefund = htlcRefundByDepositId.get(depositIdKey);
+  const refundConfirmed =
+    refundedHtlcVaultIds.has(depositIdKey) || liveRefund?.confirmed === true;
+  const refundPending = !refundConfirmed && liveRefund?.spent === true;
+  const refundSettlement: "confirmed" | "pending" | undefined = refundConfirmed
+    ? "confirmed"
+    : refundPending
+      ? "pending"
+      : undefined;
+
   // FE-composite: SDK only checks "have unsigned hex?"; we also gate on
-  // CSV maturity so the button never shows for a deposit Bitcoin would reject.
+  // CSV maturity so the button never shows for a deposit Bitcoin would reject,
+  // and on the HTLC not already being spent (settled refund).
   const canRefund =
-    !!activity.unsignedPrePeginTx && refundMaturityState === "mature";
+    !!activity.unsignedPrePeginTx &&
+    refundMaturityState === "mature" &&
+    refundSettlement === undefined;
 
   const peginState = getPeginState(contractStatus, {
     localStatus,
@@ -174,6 +206,7 @@ export function computeDepositPollingResult(
     canRefund,
     refundMaturityState,
     refundMaturesInBlocks,
+    refundSettlement,
     vpTerminalError,
     refundBroadcastAt,
   });

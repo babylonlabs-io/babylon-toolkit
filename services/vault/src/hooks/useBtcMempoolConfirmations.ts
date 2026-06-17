@@ -7,6 +7,7 @@ import { useMemo } from "react";
 
 import { getMempoolApiUrl } from "@/clients/btc/config";
 import { fetchConfirmations } from "@/clients/btc/confirmations";
+import { mapWithConcurrency } from "@/utils/concurrency";
 import { canonicalizeTxid } from "@/utils/txid";
 
 // 60s tick catches each ~10-min block within a minute while halving requests.
@@ -19,28 +20,6 @@ const MAX_CONCURRENT_REQUESTS = 4;
 export interface BtcMempoolConfirmationsResult {
   /** Canonical (lowercased, no 0x) txid → confirmation count. Missing = unknown. */
   confirmationsByTxid: Map<string, number>;
-}
-
-// Run `task` over items with at most `concurrency` in flight; preserves order.
-async function mapWithConcurrency<T, R>(
-  items: ReadonlyArray<T>,
-  concurrency: number,
-  task: (item: T) => Promise<R>,
-): Promise<R[]> {
-  const results = new Array<R>(items.length);
-  let nextIndex = 0;
-  const workers = Array.from(
-    { length: Math.min(concurrency, items.length) },
-    async () => {
-      while (true) {
-        const i = nextIndex++;
-        if (i >= items.length) return;
-        results[i] = await task(items[i]);
-      }
-    },
-  );
-  await Promise.all(workers);
-  return results;
 }
 
 export function useBtcMempoolConfirmations(

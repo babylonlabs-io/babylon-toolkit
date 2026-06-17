@@ -6,7 +6,10 @@ import { usePeginPolling } from "@/context/deposit/PeginPollingContext";
 import { useETHWallet } from "@/context/wallet";
 import { logger } from "@/infrastructure";
 import { LocalStorageStatus } from "@/models/peginStateMachine";
-import { buildAndBroadcastRefundTransaction } from "@/services/vault/vaultRefundService";
+import {
+  buildAndBroadcastRefundTransaction,
+  RefundAlreadySettledError,
+} from "@/services/vault/vaultRefundService";
 import { usePeginStorage } from "@/storage/usePeginStorage";
 import type { VaultActivity } from "@/types/activity";
 import {
@@ -170,6 +173,20 @@ export function useRefundState({
         } catch (err) {
           if (err instanceof Error && err.name === "AbortError") {
             setRefunding(false);
+            return;
+          }
+          // The HTLC output was already spent — the refund already landed
+          // (often from another device/session). This is success, not a
+          // retryable failure: show the existing refund tx and mark the
+          // optimistic REFUND_BROADCAST state so the action stops re-offering.
+          if (err instanceof RefundAlreadySettledError) {
+            if (err.spendingTxid) setRefundTxId(err.spendingTxid);
+            setRefunding(false);
+            setOptimisticStatus(
+              vaultId,
+              LocalStorageStatus.REFUND_BROADCAST,
+              Date.now(),
+            );
             return;
           }
           logger.error(err instanceof Error ? err : new Error(String(err)), {

@@ -29,6 +29,7 @@ import { calculateBtcTxHash } from "@babylonlabs-io/ts-sdk/tbv/core/utils";
 import type { Address, Hex } from "viem";
 
 import { getMempoolApiUrl } from "../../clients/btc/config";
+import { fetchHtlcSpend } from "../../clients/btc/outspend";
 import { getVaultFromChain } from "../../clients/eth-contract/btc-vault-registry/query";
 import {
   getProtocolParamsReader,
@@ -387,6 +388,36 @@ async function readPrePeginContext(
 }
 
 /**
+ * Thrown when the refund cannot proceed because the vault's HTLC output is
+ * already spent — the depositor's refund has already landed, often from
+ * another device or session. Carries the spending (refund) txid so the UI can
+ * show success instead of a doomed retry. A pure BTC refund emits no Ethereum
+ * event, so this is detected by probing the HTLC outpoint's spend status, not
+ * from the indexer.
+ */
+export class RefundAlreadySettledError extends Error {
+  /** The transaction that already spent the HTLC output, when known. */
+  public readonly spendingTxid?: string;
+  /** True when that spending tx is confirmed in a block. */
+  public readonly confirmed: boolean;
+
+  constructor(spendingTxid: string | undefined, confirmed: boolean) {
+    super("Refund already settled: the HTLC output has already been spent.");
+    this.name = "RefundAlreadySettledError";
+    this.spendingTxid = spendingTxid;
+    this.confirmed = confirmed;
+  }
+}
+
+// bitcoind sendrawtransaction rejection codes that mean "this refund already
+// happened", relayed verbatim by mempool.space as `...RPC error: {"code":-N,...}`.
+// -27 = RPC_VERIFY_ALREADY_IN_UTXO_SET (the tx is already confirmed); -25 =
+// missing/already-spent inputs (the HTLC was already spent). Verified against
+// bitcoin/bitcoin src/rpc/protocol.h + src/node/transaction.cpp.
+const ALREADY_IN_CHAIN_CODE_RE = /"code"\s*:\s*-27\b/;
+const MISSING_OR_SPENT_INPUTS_CODE_RE = /"code"\s*:\s*-25\b/;
+
+/**
  * Build, sign, and broadcast a refund transaction for an expired vault.
  *
  * The broadcast will be rejected by the Bitcoin network if timelockRefund
@@ -394,6 +425,7 @@ async function readPrePeginContext(
  * in that case the SDK throws {@link BIP68NotMatureError}.
  *
  * @returns The broadcasted refund transaction ID
+ * @throws {@link RefundAlreadySettledError} if the HTLC output is already spent
  * @throws If vault data is missing or the broadcast fails
  */
 export async function buildAndBroadcastRefundTransaction(
@@ -425,6 +457,25 @@ export async function buildAndBroadcastRefundTransaction(
     throw new Error(COPY.deposit.refundNotBroadcast.broadcastGuardError);
   }
 
+  // The Pre-PegIn exists, but its HTLC output may already be spent — the refund
+  // already landed (e.g. from another device/session). The refund tx is
+  // deterministic, so re-broadcasting hits bitcoind -27 (already in chain) or
+  // -25 (input already spent); surface the existing refund as success instead
+  // of a doomed retry. On-chain `htlcVout` (never the indexer's) keys the
+  // probe. Fail-open: a flaky probe must not block a legitimate refund — the
+  // broadcast-time classification below is the backstop.
+  const htlcSpend = await fetchHtlcSpend(
+    target.onChainVault.prePeginTxHash,
+    target.onChainVault.htlcVout,
+    mempoolApiUrl,
+  ).catch(() => undefined);
+  if (htlcSpend?.spent) {
+    throw new RefundAlreadySettledError(
+      htlcSpend.spendingTxid,
+      htlcSpend.confirmed,
+    );
+  }
+
   // Override indexer-provided depositor pubkey with the caller's wallet key —
   // the wallet is the authoritative source for the depositor's signing key.
   const { txId } = await buildAndBroadcastRefund({
@@ -437,9 +488,33 @@ export async function buildAndBroadcastRefundTransaction(
     feeRate,
     signPsbt: (psbtHex, options) =>
       btcWalletProvider.signPsbt(psbtHex, options),
-    broadcastTx: async (signedTxHex) => ({
-      txId: await pushTx(signedTxHex, mempoolApiUrl),
-    }),
+    broadcastTx: async (signedTxHex) => {
+      try {
+        return { txId: await pushTx(signedTxHex, mempoolApiUrl) };
+      } catch (err) {
+        // Race: the HTLC was spent between the guard above and this broadcast.
+        // On bitcoind -27/-25, re-probe the outpoint; if spent, the refund is
+        // already done — report success rather than a retryable failure.
+        const message = err instanceof Error ? err.message : String(err);
+        if (
+          ALREADY_IN_CHAIN_CODE_RE.test(message) ||
+          MISSING_OR_SPENT_INPUTS_CODE_RE.test(message)
+        ) {
+          const spend = await fetchHtlcSpend(
+            target.onChainVault.prePeginTxHash,
+            target.onChainVault.htlcVout,
+            mempoolApiUrl,
+          ).catch(() => undefined);
+          if (spend?.spent) {
+            throw new RefundAlreadySettledError(
+              spend.spendingTxid,
+              spend.confirmed,
+            );
+          }
+        }
+        throw err;
+      }
+    },
     signal,
   });
 

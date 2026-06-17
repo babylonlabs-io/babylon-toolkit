@@ -14,7 +14,13 @@ import {
   TXID_RE,
 } from "../../utils/validation";
 
-import type { MempoolUTXO, NetworkFees, TxInfo, UtxoInfo } from "./types";
+import type {
+  MempoolUTXO,
+  NetworkFees,
+  OutspendStatus,
+  TxInfo,
+  UtxoInfo,
+} from "./types";
 
 /** Maximum valid satoshi value: 21 million BTC × 10^8 sats/BTC */
 const MAX_SATOSHIS = 21_000_000 * 1e8;
@@ -228,6 +234,31 @@ export async function getTipHeight(apiUrl: string): Promise<number> {
     );
   }
   return Number.parseInt(trimmed, 10);
+}
+
+/**
+ * Get the spend status of a specific transaction output.
+ *
+ * Calls the esplora-compatible `GET /tx/{txid}/outspend/{vout}` endpoint
+ * (mempool.space backend, mempool/electrs `rest.rs`). Returns
+ * `{ spent: false }` for an unspent output, or
+ * `{ spent: true, txid, vin, status }` when the output has been spent.
+ *
+ * @param txid - The transaction id whose output is being checked (no 0x prefix)
+ * @param vout - The output index
+ * @param apiUrl - Mempool API base URL
+ * @returns The output's spend status
+ */
+export async function getOutspend(
+  txid: string,
+  vout: number,
+  apiUrl: string,
+): Promise<OutspendStatus> {
+  assertValidTxid(txid);
+  if (!isValidVout(vout)) {
+    throw new Error(`Invalid vout ${vout} for transaction ${txid}`);
+  }
+  return fetchApi<OutspendStatus>(`${apiUrl}/tx/${txid}/outspend/${vout}`);
 }
 
 /**
