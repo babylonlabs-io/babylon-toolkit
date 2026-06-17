@@ -11,6 +11,7 @@ import {
   formatAprPercent,
   formatBasisPointsAsPercent,
   formatBtcAmount,
+  formatCompactTokenAmount,
   formatCompactUsd,
   formatDateTime,
   formatDuration,
@@ -446,6 +447,25 @@ describe("Formatting Utilities", () => {
   // ~5-day wait reads as "5 days", not "114 hours". Thresholds are on the raw
   // minutes (< 60 minutes, < 1440 hours, else days); the value within the unit
   // is rounded to the nearest whole.
+  describe("formatCompactTokenAmount", () => {
+    it("collapses thousands and up into K/M/B suffixes", () => {
+      expect(formatCompactTokenAmount(45200)).toBe("45.2K");
+      expect(formatCompactTokenAmount(1234567)).toBe("1.23M");
+      expect(formatCompactTokenAmount(1500000000)).toBe("1.5B");
+    });
+
+    it("shows amounts below one thousand in full, grouped, up to two decimals", () => {
+      expect(formatCompactTokenAmount(999)).toBe("999");
+      expect(formatCompactTokenAmount(500.25)).toBe("500.25");
+      expect(formatCompactTokenAmount(2.5)).toBe("2.5");
+    });
+
+    it("returns '0' for zero or negative input", () => {
+      expect(formatCompactTokenAmount(0)).toBe("0");
+      expect(formatCompactTokenAmount(-5)).toBe("0");
+    });
+  });
+
   describe("formatDuration", () => {
     it("shows 'less than a minute' at or below zero", () => {
       expect(formatDuration(0)).toBe("less than a minute");

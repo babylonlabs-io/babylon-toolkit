@@ -16,11 +16,19 @@ import {
   getCurrencyIconWithFallback,
   getTokenByAddress,
 } from "@/services/token/tokenService";
-import { formatAprPercent, formatPriceUsd } from "@/utils/formatting";
+import {
+  formatAprPercent,
+  formatCompactTokenAmount,
+  formatPriceUsd,
+} from "@/utils/formatting";
 
 import { LOAN_TAB, type LoanTab } from "../../constants";
 import { useAaveConfig } from "../../context";
-import { useAaveBorrowAprs, useAaveReservesPrices } from "../../hooks";
+import {
+  useAaveBorrowAprs,
+  useAaveReserveLiquidity,
+  useAaveReservesPrices,
+} from "../../hooks";
 import type { Asset } from "../../types";
 
 interface AssetSelectionModalProps {
@@ -44,6 +52,8 @@ interface AssetRow {
   icon?: string;
   /** Formatted price string, or the empty placeholder when unavailable. */
   priceLabel: string;
+  /** Formatted available liquidity (borrow mode only); undefined hides the cell. */
+  availableLabel?: string;
   /** Formatted borrow APR (borrow mode only); undefined hides the cell. */
   aprLabel?: string;
 }
@@ -73,6 +83,10 @@ export function AssetSelectionModal({
   );
   // Borrow APR is borrow-only; skip the read entirely in repay mode.
   const { aprPercentByReserveId } = useAaveBorrowAprs({
+    reserves: isRepay ? [] : borrowableReserves,
+  });
+  // Available liquidity is borrow-only too (the column is hidden in repay).
+  const { liquidityByReserveId } = useAaveReserveLiquidity({
     reserves: isRepay ? [] : borrowableReserves,
   });
 
@@ -111,6 +125,7 @@ export function AssetSelectionModal({
       const reserveKey = reserve.reserveId.toString();
       const priceUsd = pricesByReserveId[reserveKey] ?? undefined;
       const aprPercent = aprPercentByReserveId[reserveKey];
+      const liquidity = liquidityByReserveId[reserveKey];
       return {
         key: reserveKey,
         symbol: reserve.token.symbol,
@@ -118,6 +133,10 @@ export function AssetSelectionModal({
         icon: getTokenByAddress(reserve.token.address)?.icon,
         priceLabel:
           priceUsd != null ? formatPriceUsd(priceUsd) : COPY.common.emptyValue,
+        availableLabel:
+          liquidity == null
+            ? COPY.common.emptyValue
+            : `${formatCompactTokenAmount(liquidity.availableLiquidity)} ${reserve.token.symbol}`,
         aprLabel:
           aprPercent == null
             ? COPY.common.emptyValue
@@ -129,6 +148,7 @@ export function AssetSelectionModal({
     borrowableReserves,
     pricesByReserveId,
     aprPercentByReserveId,
+    liquidityByReserveId,
     priceBySymbol,
   ]);
 
@@ -205,7 +225,7 @@ export function AssetSelectionModal({
                 </span>
                 {!isRepay && (
                   <>
-                    <span className="flex-1">{COPY.common.emptyValue}</span>
+                    <span className="flex-1">{row.availableLabel}</span>
                     <span className="flex-1">{row.aprLabel}</span>
                   </>
                 )}

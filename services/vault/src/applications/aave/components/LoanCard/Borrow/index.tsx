@@ -25,6 +25,8 @@ import {
 } from "../../../../../services/token";
 import {
   formatAprPercent,
+  formatBasisPointsAsPercent,
+  formatCompactTokenAmount,
   formatTokenAmount,
   formatUsdValue,
 } from "../../../../../utils/formatting";
@@ -36,7 +38,11 @@ import {
   SAFE_TOFIXED_PRECISION,
 } from "../../../constants";
 import { useAaveConfig } from "../../../context";
-import { useAaveBorrowAprs, useBorrowTransaction } from "../../../hooks";
+import {
+  useAaveBorrowAprs,
+  useAaveReserveLiquidity,
+  useBorrowTransaction,
+} from "../../../hooks";
 import { AssetPill } from "../../AssetPill";
 import { useLoanContext } from "../../context/LoanContext";
 
@@ -141,7 +147,7 @@ export function Borrow() {
 
   // Live current borrow APR for the selected reserve (Aave Hub drawn rate).
   // The projected post-borrow rate isn't a simple read, so only "current"
-  // shows real data; the other metric rows remain placeholders ("–").
+  // shows real data.
   const { aprPercentByReserveId } = useAaveBorrowAprs({
     reserves: [selectedReserve],
   });
@@ -151,6 +157,32 @@ export function Borrow() {
     borrowAprPercent == null
       ? COPY.common.emptyValue
       : formatAprPercent(borrowAprPercent);
+
+  // Live available liquidity + utilization for the selected reserve (Aave Hub
+  // reserve totals). Each falls back to "–" while loading or on a failed read.
+  const { liquidityByReserveId } = useAaveReserveLiquidity({
+    reserves: [selectedReserve],
+  });
+  const reserveLiquidity =
+    liquidityByReserveId[selectedReserve.reserveId.toString()];
+  // Borrowing draws the entered amount from the reserve, so the row shows the
+  // current liquidity reducing to the post-borrow figure (current → projected),
+  // mirroring the health-factor row. The arrow only appears once an amount is
+  // entered; the symbol is shown once, on whichever value is the last shown.
+  const availableLiquidityProjectedDisplay =
+    reserveLiquidity == null || !hasProjection
+      ? undefined
+      : `${formatCompactTokenAmount(Math.max(0, reserveLiquidity.availableLiquidity - borrowAmount))} ${assetConfig.symbol}`;
+  const availableLiquidityDisplay =
+    reserveLiquidity == null
+      ? COPY.common.emptyValue
+      : availableLiquidityProjectedDisplay
+        ? formatCompactTokenAmount(reserveLiquidity.availableLiquidity)
+        : `${formatCompactTokenAmount(reserveLiquidity.availableLiquidity)} ${assetConfig.symbol}`;
+  const utilizationDisplay =
+    reserveLiquidity?.utilizationBps == null
+      ? COPY.common.emptyValue
+      : formatBasisPointsAsPercent(reserveLiquidity.utilizationBps);
 
   const projectedHealthStatus = getHealthFactorStatusFromValue(
     metrics.healthFactorValue,
@@ -283,7 +315,10 @@ export function Borrow() {
 
         {/* Borrow Metrics */}
         <BorrowMetricsCard
+          availableLiquidity={availableLiquidityDisplay}
+          availableLiquidityProjected={availableLiquidityProjectedDisplay}
           borrowApr={borrowAprDisplay}
+          utilization={utilizationDisplay}
           healthFactor={metrics.healthFactor}
           healthFactorValue={metrics.healthFactorValue}
           healthFactorOriginal={metrics.healthFactorOriginal}
