@@ -1,7 +1,10 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+// Mirrors CAP_MAX_STALE_AGE_MS (3 * 60s refetch interval) in the hook.
+const MAX_STALE_AGE_MS = 3 * 60_000;
 
 vi.mock("@/config/contracts", () => ({
   CONTRACTS: {
@@ -41,6 +44,10 @@ function buildWrapper() {
 beforeEach(() => {
   vi.clearAllMocks();
   featureFlagsMock.isVaultCapDisabled = false;
+});
+
+afterEach(() => {
+  vi.useRealTimers();
 });
 
 describe("useApplicationCap", () => {
@@ -169,5 +176,112 @@ describe("useApplicationCap", () => {
     expect(result.current.error).toBeNull();
     expect(getApplicationCap).not.toHaveBeenCalled();
     expect(getApplicationUsage).not.toHaveBeenCalled();
+  });
+
+  it("surfaces a stale error once cap data ages past the max stale age, even while a refetch is in flight", async () => {
+    // First read resolves; every later refetch hangs, so `dataUpdatedAt`
+    // freezes and `isFetching` stays true — the exact silent-RPC case.
+    let capCalls = 0;
+    vi.mocked(getApplicationCap).mockImplementation(() => {
+      capCalls += 1;
+      return capCalls === 1
+        ? Promise.resolve({ totalCapBTC: 1000n, perAddressCapBTC: 0n })
+        : new Promise(() => {});
+    });
+    vi.mocked(getApplicationUsage).mockResolvedValue({
+      totalBTC: 200n,
+      userBTC: null,
+    });
+
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const { result } = renderHook(() => useApplicationCap(), {
+      wrapper: buildWrapper(),
+    });
+
+    await waitFor(() => expect(result.current.snapshot).not.toBeNull());
+    expect(result.current.error).toBeNull();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(MAX_STALE_AGE_MS + 1);
+    });
+    expect(result.current.error).not.toBeNull();
+    expect(result.current.error?.message).toContain("stale");
+  });
+
+  it("keeps error null while cap data refreshes within the max stale age", async () => {
+    vi.mocked(getApplicationCap).mockResolvedValue({
+      totalCapBTC: 1000n,
+      perAddressCapBTC: 0n,
+    });
+    vi.mocked(getApplicationUsage).mockResolvedValue({
+      totalBTC: 200n,
+      userBTC: null,
+    });
+
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const { result } = renderHook(() => useApplicationCap(), {
+      wrapper: buildWrapper(),
+    });
+
+    await waitFor(() => expect(result.current.snapshot).not.toBeNull());
+
+    // Polling keeps succeeding, so `dataUpdatedAt` advances and the staleness
+    // timer never trips even well past the threshold.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(MAX_STALE_AGE_MS * 2);
+    });
+    expect(result.current.error).toBeNull();
+  });
+
+  it("does not flag stale before the first successful fetch", async () => {
+    vi.mocked(getApplicationCap).mockImplementation(
+      () => new Promise(() => {}),
+    );
+    vi.mocked(getApplicationUsage).mockImplementation(
+      () => new Promise(() => {}),
+    );
+
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const { result } = renderHook(() => useApplicationCap(), {
+      wrapper: buildWrapper(),
+    });
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(MAX_STALE_AGE_MS + 1);
+    });
+    expect(result.current.snapshot).toBeNull();
+    expect(result.current.error).toBeNull();
+  });
+
+  it("suppresses usage staleness on an uncapped deployment", async () => {
+    // Caps keep resolving (never stale); usage resolves once then hangs.
+    vi.mocked(getApplicationCap).mockResolvedValue({
+      totalCapBTC: 0n,
+      perAddressCapBTC: 0n,
+    });
+    let usageCalls = 0;
+    vi.mocked(getApplicationUsage).mockImplementation(() => {
+      usageCalls += 1;
+      return usageCalls === 1
+        ? Promise.resolve({ totalBTC: 12_345n, userBTC: null })
+        : new Promise(() => {});
+    });
+
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const { result } = renderHook(() => useApplicationCap(), {
+      wrapper: buildWrapper(),
+    });
+
+    await waitFor(() =>
+      expect(result.current.snapshot).toMatchObject({
+        hasTotalCap: false,
+        totalBTC: 12_345n,
+      }),
+    );
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(MAX_STALE_AGE_MS + 1);
+    });
+    expect(result.current.error).toBeNull();
   });
 });

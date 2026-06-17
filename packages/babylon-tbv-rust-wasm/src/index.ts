@@ -7,6 +7,7 @@ import type {
   HtlcConnectorParams,
   HtlcConnectorInfo,
 } from "./types.js";
+import { assertWasmBigint } from "./value-guards.js";
 
 let wasmInitialized = false;
 let wasmInitPromise: Promise<void> | null = null;
@@ -93,10 +94,12 @@ export async function createPrePeginTransaction(
     const peginAmounts: bigint[] = [];
 
     for (let i = 0; i < numHtlcs; i++) {
-      htlcValues.push(tx.getHtlcValue(i));
+      htlcValues.push(assertWasmBigint(tx.getHtlcValue(i), `htlcValue[${i}]`));
       htlcScriptPubKeys.push(tx.getHtlcScriptPubKey(i));
       htlcAddresses.push(tx.getHtlcAddress(i));
-      peginAmounts.push(tx.getPeginAmountAt(i));
+      peginAmounts.push(
+        assertWasmBigint(tx.getPeginAmountAt(i), `peginAmount[${i}]`),
+      );
     }
 
     return {
@@ -106,7 +109,10 @@ export async function createPrePeginTransaction(
       htlcScriptPubKeys,
       htlcAddresses,
       peginAmounts,
-      depositorClaimValue: tx.getDepositorClaimValue(),
+      depositorClaimValue: assertWasmBigint(
+        tx.getDepositorClaimValue(),
+        "depositorClaimValue",
+      ),
     };
   } finally {
     tx.free();
@@ -175,7 +181,7 @@ export async function buildPeginTxFromPrePegin(
       txHex: peginTx.toHex(),
       txid: peginTx.getTxid(),
       vaultScriptPubKey: peginTx.getVaultScriptPubKey(),
-      vaultValue: peginTx.getVaultValue(),
+      vaultValue: assertWasmBigint(peginTx.getVaultValue(), "vaultValue"),
     };
   } finally {
     peginTx?.free();
@@ -236,13 +242,20 @@ export async function computeMinClaimValue(
   feeRate: bigint,
 ): Promise<bigint> {
   await initWasm();
-  return wasmComputeMinClaimValue(
-    numLocalChallengers,
-    numUniversalChallengers,
-    councilQuorum,
-    councilSize,
-    feeRate,
-  );
+  try {
+    return assertWasmBigint(
+      wasmComputeMinClaimValue(
+        numLocalChallengers,
+        numUniversalChallengers,
+        councilQuorum,
+        councilSize,
+        feeRate,
+      ),
+      "minClaimValue",
+    );
+  } catch (err) {
+    throw toError(err, "computeMinClaimValue");
+  }
 }
 
 /**
@@ -261,7 +274,14 @@ export async function computeMinPeginFee(
   minPeginFeeRate: bigint,
 ): Promise<bigint> {
   await initWasm();
-  return wasmComputeMinPeginFee(numVks, numUcs, minPeginFeeRate);
+  try {
+    return assertWasmBigint(
+      wasmComputeMinPeginFee(numVks, numUcs, minPeginFeeRate),
+      "minPeginFee",
+    );
+  } catch (err) {
+    throw toError(err, "computeMinPeginFee");
+  }
 }
 
 // wasm-bindgen rethrows Rust `JsValue::from_str(...)` errors as bare strings,
@@ -354,7 +374,7 @@ function hexToBytes(hex: string): Uint8Array {
   }
   const bytes = new Uint8Array(clean.length / 2);
   for (let i = 0; i < bytes.length; i++) {
-    bytes[i] = parseInt(clean.substr(i * 2, 2), 16);
+    bytes[i] = parseInt(clean.slice(i * 2, i * 2 + 2), 16);
   }
   return bytes;
 }

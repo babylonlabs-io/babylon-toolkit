@@ -193,7 +193,7 @@ export default {
         surface: "#ffffff",
         accent: {
           primary: "#12495E",
-          secondary: "#387085",
+          secondary: "#666666",
           disabled: "#9ab7c2",
           contrast: "#ffffff",
         },

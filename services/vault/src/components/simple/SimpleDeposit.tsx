@@ -119,6 +119,7 @@ function SimpleDepositContent({
     isSplitLoading,
     splitRatioLabel,
     depositorClaimValue,
+    depositorClaimValueError,
     ordinalsCheckPending,
     validateForm,
     resetForm,
@@ -143,11 +144,32 @@ function SimpleDepositContent({
       ? depositorClaimValue * BigInt(depositBatchSize)
       : undefined;
 
+  // Full HTLC output values the protocol charges commission on. `amountSats`
+  // is the total deposit, while split deposits are charged per HTLC/payout, so
+  // keep the per-vault values distinct to preserve each floor operation.
+  const commissionHtlcValues =
+    depositorClaimValue !== undefined && minPeginFee != null
+      ? (isPartialLiquidation && vaultAmounts
+          ? vaultAmounts
+          : [amountSats]
+        ).map((vaultAmount) => vaultAmount + depositorClaimValue + minPeginFee)
+      : undefined;
+
+  // Live commission (bps) for the selected provider, read from the current
+  // providers list. Captured into the deposit snapshot at commit time
+  // (`handleDeposit`) so the value the signing flow binds is exactly what the
+  // depositor reviewed — not a value a background refetch changed afterwards.
+  // `undefined` while it loads or if the read failed.
+  const selectedProviderCommissionBps = providers.find(
+    (provider) => provider.id === formData.selectedProvider,
+  )?.commissionBps;
+
   const {
     depositStep,
     depositAmount,
     selectedApplication,
     selectedProviders,
+    quotedCommissionBps,
     feeRate,
     btcWalletProvider,
     ethAddress,
@@ -314,9 +336,12 @@ function SimpleDepositContent({
       shouldSplit && vaultAmounts ? [...vaultAmounts] : [amountSats];
     setOverlappingPendingVaultCount(runOverlapCheck(effectiveVaultAmounts));
 
-    setDepositData(amountSats, effectiveSelectedApplication, [
-      formData.selectedProvider,
-    ]);
+    setDepositData(
+      amountSats,
+      effectiveSelectedApplication,
+      [formData.selectedProvider],
+      selectedProviderCommissionBps,
+    );
     setFeeRate(estimatedFeeRate);
     setIsSplitDeposit(shouldSplit);
     if (shouldSplit && vaultAmounts) {
@@ -368,6 +393,8 @@ function SimpleDepositContent({
                 }
                 isWalletConnected={isWalletConnected}
                 depositorClaimValue={totalDepositorClaimValue}
+                commissionHtlcValues={commissionHtlcValues}
+                depositorClaimValueError={depositorClaimValueError}
                 estimatedFeeSats={estimatedFeeSats}
                 estimatedFeeRate={estimatedFeeRate}
                 isLoadingFee={isLoadingFee}
@@ -405,6 +432,7 @@ function SimpleDepositContent({
               depositorEthAddress={ethAddress}
               selectedApplication={selectedApplication}
               selectedProviders={selectedProviders}
+              quotedCommissionBps={quotedCommissionBps}
               vaultProviderBtcPubkey={selectedProviderBtcPubkey}
               vaultKeeperBtcPubkeys={vaultKeeperBtcPubkeys}
               universalChallengerBtcPubkeys={universalChallengerBtcPubkeys}

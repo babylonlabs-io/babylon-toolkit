@@ -100,6 +100,14 @@ export interface DepositCtaParams extends DepositFormValidityParams {
   isAddressBlocked: boolean;
   isWalletConnected: boolean;
   hasProvider: boolean;
+  /**
+   * True when a provider is selected but its on-chain commission hasn't loaded
+   * (still fetching or the read failed). The deposit binds this commission as
+   * the quote that bounds `maxAcceptableCommissionBps` on-chain, so submitting
+   * without a known value risks the silent-overcharge path: block until it is
+   * available rather than letting the flow bind to an unquoted fresh read.
+   */
+  commissionUnavailable: boolean;
   isFeeError: boolean;
   feeError: string | null;
   feeDisabled: boolean;
@@ -150,6 +158,13 @@ export interface DepositCtaParams extends DepositFormValidityParams {
    * indefinitely on "Calculating fees...".
    */
   minPeginFeeError: Error | null;
+  /**
+   * Terminal failure from the `computeMinClaimValue` WASM query. Same purpose
+   * as {@link minPeginFeeError}: without it a query rejection would leave the
+   * CTA stuck on "Calculating fees..." (the depositorClaimValue == null gate)
+   * with no error or retry signal.
+   */
+  depositorClaimValueError: Error | null;
 }
 
 export interface DepositCtaState {
@@ -350,7 +365,11 @@ export function getDepositCtaState(params: DepositCtaParams): DepositCtaState {
   // loading" gate below. Without this branch a query rejection (WASM init
   // failure, unsupported signer count) would leave the CTA stuck on
   // "Calculating fees..." with no error or retry signal.
-  if (params.amountSats > 0n && params.minPeginFeeError !== null) {
+  if (
+    params.amountSats > 0n &&
+    (params.minPeginFeeError !== null ||
+      params.depositorClaimValueError !== null)
+  ) {
     return { disabled: true, label: "Fee estimate unavailable" };
   }
 
@@ -366,6 +385,14 @@ export function getDepositCtaState(params: DepositCtaParams): DepositCtaState {
   const amountLabel = getDepositButtonLabel(params);
   if (amountLabel !== "Deposit") {
     return { disabled: true, label: amountLabel };
+  }
+
+  // The amount is valid and a provider is selected, but its commission hasn't
+  // loaded. The deposit binds this commission as the quote, so block until it
+  // is known — checked after the amount guidance so "Enter an amount" /
+  // "Minimum" isn't preempted by a transient commission load.
+  if (params.commissionUnavailable) {
+    return { disabled: true, label: "Loading commission..." };
   }
 
   if (params.ordinalsCheckPending) {

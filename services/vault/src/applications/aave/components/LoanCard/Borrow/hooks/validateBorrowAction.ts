@@ -4,7 +4,12 @@
  * Validates whether user can perform the borrow action based on amount and health factor.
  */
 
-import { formatTokenAmount } from "../../../../../../utils/formatting";
+import { COPY } from "@/copy";
+
+import {
+  formatDisplayAmount,
+  formatTokenAmount,
+} from "../../../../../../utils/formatting";
 import {
   MIN_HEALTH_FACTOR_FOR_BORROW,
   SAFE_TOFIXED_PRECISION,
@@ -23,6 +28,7 @@ export interface BorrowValidationResult {
  * @param projectedHealthFactor - Health factor after the borrow
  * @param maxBorrowAmount - Maximum borrowable amount based on collateral and debt
  * @param tokenDecimals - Native token decimals (e.g., 8 for WBTC, 6 for USDC, 18 for ETH)
+ * @param symbol - Token symbol, shown in the error description (e.g. "DAI")
  * @param isPositionDataStale - Whether position data may be outdated
  * @returns Validation result with disabled state, button text, and error message
  */
@@ -31,12 +37,13 @@ export function validateBorrowAction(
   projectedHealthFactor: number,
   maxBorrowAmount: number,
   tokenDecimals: number,
+  symbol: string,
   isPositionDataStale = false,
 ): BorrowValidationResult {
   if (isPositionDataStale) {
     return {
       isDisabled: true,
-      buttonText: "Refreshing position...",
+      buttonText: COPY.loans.borrow.refreshingPosition,
       errorMessage: null,
     };
   }
@@ -44,7 +51,7 @@ export function validateBorrowAction(
   if (borrowAmount === 0) {
     return {
       isDisabled: true,
-      buttonText: "Enter an amount",
+      buttonText: COPY.loans.borrow.enterAmount,
       errorMessage: null,
     };
   }
@@ -62,19 +69,21 @@ export function validateBorrowAction(
   if (borrowAmount < minBorrowable) {
     return {
       isDisabled: true,
-      buttonText: "Amount too small",
-      errorMessage: `Minimum borrowable amount is ${formatTokenAmount(minBorrowable, displayDecimals)}`,
+      buttonText: COPY.loans.borrow.amountTooSmall,
+      errorMessage: COPY.loans.validation.minBorrow(
+        formatTokenAmount(minBorrowable, displayDecimals),
+      ),
     };
   }
 
   if (borrowAmount > maxBorrowAmount) {
-    // Format with the token's native precision so the error text matches what
-    // the slider's Max label and calculateMaxBorrowTokens floor expose (the
-    // default 6-decimal cap would round a small WBTC max down to "0").
     return {
       isDisabled: true,
-      buttonText: "Amount exceeds maximum",
-      errorMessage: `Maximum borrowable amount is ${formatTokenAmount(maxBorrowAmount, displayDecimals)}`,
+      buttonText: COPY.loans.borrow.amountExceedsMax,
+      errorMessage: COPY.loans.validation.maxBorrow(
+        formatDisplayAmount(maxBorrowAmount, displayDecimals),
+        symbol,
+      ),
     };
   }
 
@@ -85,14 +94,16 @@ export function validateBorrowAction(
   ) {
     return {
       isDisabled: true,
-      buttonText: "Health factor too low",
-      errorMessage: `Borrowing this amount would put your health factor below ${MIN_HEALTH_FACTOR_FOR_BORROW}, risking liquidation. Reduce the borrow amount.`,
+      buttonText: COPY.loans.borrow.healthFactorTooLow,
+      errorMessage: COPY.loans.validation.healthFactorTooLow(
+        MIN_HEALTH_FACTOR_FOR_BORROW,
+      ),
     };
   }
 
   return {
     isDisabled: false,
-    buttonText: "Borrow",
+    buttonText: COPY.loans.borrow.action,
     errorMessage: null,
   };
 }

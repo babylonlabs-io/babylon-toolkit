@@ -61,6 +61,32 @@ export const AllIcons: Story = {
     render: () => <IconsGallery />,
 };
 
+export const WarningIconVariants: Story = {
+    render: () => {
+        const variants = [
+            "default",
+            "primary",
+            "secondary",
+            "error",
+            "success",
+            "accent-primary",
+            "accent-secondary",
+            "danger",
+        ] as const;
+
+        return (
+            <div className="p-4 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-6">
+                {variants.map((v) => (
+                    <div key={v} className="flex flex-col items-center gap-2">
+                        <WarningIcon size={24} variant={v} />
+                        <div className="text-xs text-secondary">WarningIcon ({v})</div>
+                    </div>
+                ))}
+            </div>
+        );
+    },
+};
+
 export const ThemedIconExamples: Story = {
     render: () => {
         const variants = [

@@ -1,11 +1,15 @@
 /**
  * Router-level regression tests.
  *
- * The /activity route renders <Activity />, which transitively calls
- * useAaveConfig() through useActivities(). If the route element loses
- * its AaveConfigProvider wrapper, the page throws synchronously on
- * mount. These tests lock in that the route is always wrapped in a
- * provider so a future router refactor can't silently regress.
+ * 1. The /activity route renders <Activity />, which transitively calls
+ *    useAaveConfig() through useActivities(). If the route element loses its
+ *    AaveConfigProvider wrapper, the page throws synchronously on mount.
+ * 2. The reserve detail (/app/aave/reserve/:reserveId) is an overlay on top of
+ *    the dashboard, not a sibling route that replaces it. The dashboard must
+ *    stay mounted underneath so opening the overlay never blanks the page.
+ *
+ * These tests lock in that wiring so a future router refactor can't silently
+ * regress it.
  */
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -47,6 +51,23 @@ vi.mock("@/context/wallet", () => ({
     btcConnected: true,
     ethConnected: true,
   }),
+}));
+
+const DASHBOARD_MARKER = "dashboard-marker";
+const RESERVE_DETAIL_TESTID = "reserve-detail-marker";
+
+vi.mock("../components/simple/DashboardPage", () => ({
+  DashboardPage: () => <div>{DASHBOARD_MARKER}</div>,
+}));
+
+// Echo the `tab` prop the router resolved from the path so the tests can assert
+// that /borrow, /repay and the bare-path redirect each route to the right mode —
+// the core behavior of this PR. A prop-ignoring mock would render the same
+// marker for every route and verify nothing about borrow-vs-repay routing.
+vi.mock("../applications/aave/components/Detail", () => ({
+  AaveReserveDetail: ({ tab }: { tab: string }) => (
+    <div data-testid={RESERVE_DETAIL_TESTID} data-tab={tab} />
+  ),
 }));
 
 vi.mock("../services/activity", async () => {
@@ -104,5 +125,61 @@ describe("Router — /activity regression for AaveConfigProvider wiring", () => 
         return false;
       });
     expect(sawProviderError).toBe(false);
+  });
+});
+
+describe("Router — reserve detail is an overlay over the persistent dashboard", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("renders only the dashboard at the index route", async () => {
+    await renderAt("/");
+
+    await waitFor(() => {
+      expect(screen.getByText(DASHBOARD_MARKER)).toBeInTheDocument();
+    });
+    expect(screen.queryByTestId(RESERVE_DETAIL_TESTID)).not.toBeInTheDocument();
+  });
+
+  it("routes the /borrow sub-path to the detail in borrow mode, dashboard still mounted", async () => {
+    await renderAt("/app/aave/reserve/usdc/borrow");
+
+    // Both present: the dashboard stays mounted and the reserve detail renders
+    // on top of it, rather than replacing it (which is what caused the blank
+    // flash when the two were sibling routes).
+    await waitFor(() => {
+      expect(screen.getByTestId(RESERVE_DETAIL_TESTID)).toBeInTheDocument();
+    });
+    expect(screen.getByTestId(RESERVE_DETAIL_TESTID)).toHaveAttribute(
+      "data-tab",
+      "borrow",
+    );
+    expect(screen.getByText(DASHBOARD_MARKER)).toBeInTheDocument();
+  });
+
+  it("routes the /repay sub-path to the detail in repay mode", async () => {
+    await renderAt("/app/aave/reserve/usdc/repay");
+
+    await waitFor(() => {
+      expect(screen.getByTestId(RESERVE_DETAIL_TESTID)).toBeInTheDocument();
+    });
+    expect(screen.getByTestId(RESERVE_DETAIL_TESTID)).toHaveAttribute(
+      "data-tab",
+      "repay",
+    );
+  });
+
+  it("redirects the bare reserve path to its borrow sub-route", async () => {
+    await renderAt("/app/aave/reserve/usdc");
+
+    // The index route redirects to /borrow, so the detail renders in borrow mode.
+    await waitFor(() => {
+      expect(screen.getByTestId(RESERVE_DETAIL_TESTID)).toBeInTheDocument();
+    });
+    expect(screen.getByTestId(RESERVE_DETAIL_TESTID)).toHaveAttribute(
+      "data-tab",
+      "borrow",
+    );
   });
 });

@@ -335,6 +335,13 @@ export interface SignPsbtOptions {
    * Use this to restrict signing to specific inputs (e.g., only depositor's input in payout tx).
    */
   signInputs?: SignInputOptions[];
+  /**
+   * Human-readable label for the signing step (e.g. "Transaction 3 of 12").
+   * Honored by wallets that render their own signing UI — Keystone shows it
+   * above the QR code so the user can track progress through a batch. Wallets
+   * that sign in their extension popup ignore it.
+   */
+  displayMessage?: string;
 }
 
 export interface IBTCProvider extends IProvider {

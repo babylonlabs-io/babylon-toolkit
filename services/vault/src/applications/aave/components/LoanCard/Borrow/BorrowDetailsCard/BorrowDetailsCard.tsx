@@ -79,7 +79,7 @@ export function BorrowDetailsCard({
   ];
 
   return (
-    <SubSection className="w-full flex-col">
+    <SubSection className="w-full flex-col !bg-secondary-highlight">
       <KeyValueList
         items={items}
         showDivider={false}

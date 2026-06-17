@@ -27,6 +27,13 @@ export {
   type ReservePriceResult,
 } from "./oracle.js";
 
+// Hub operations
+export {
+  getAssetDrawnRatesSafe,
+  type AssetDrawnRateRequest,
+  type AssetDrawnRateResult,
+} from "./hub.js";
+
 // Transaction builders
 export {
   buildBorrowTx,

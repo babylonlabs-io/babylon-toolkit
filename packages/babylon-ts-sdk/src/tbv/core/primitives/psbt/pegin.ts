@@ -22,6 +22,11 @@ import {
 
 import { parseUnfundedWasmTransaction } from "../../utils/transaction/fundPeginTransaction";
 
+import {
+  assertEncodedHtlcOutputsMatch,
+  assertWasmPeginSizing,
+} from "./assertWasmPeginSizing";
+
 /**
  * Parameters for building an unfunded Pre-PegIn PSBT
  */
@@ -165,10 +170,27 @@ export async function buildPrePeginPsbt(
     authAnchorHash,
   });
 
+  // CLAUDE.md critical path #1: the WASM outputs reach JS with no runtime
+  // validation. Cross-check every value-bearing field against the request
+  // and the protocol formula before it can feed a signed tx or the on-chain
+  // PegIn registration. Both the sizing and commit passes route through here.
+  await assertWasmPeginSizing(result, params);
+
   // Parse the unfunded tx to sum all output values
   // (HTLCs + optional OP_RETURN + CPFP anchor). This is the amount
   // UTXOs must cover before adding network fees.
   const parsed = parseUnfundedWasmTransaction(result.txHex);
+
+  // Bind the validated metadata to the bytes that get funded and signed:
+  // the encoded HTLC outputs must carry exactly the values/scripts the
+  // cross-check above validated. Otherwise a tx whose real outputs differ
+  // from the checked metadata could still be funded and signed.
+  assertEncodedHtlcOutputsMatch(
+    parsed.outputs,
+    result.htlcValues,
+    result.htlcScriptPubKeys,
+  );
+
   const totalOutputValue = parsed.outputs.reduce(
     (sum, o) => sum + BigInt(o.value),
     0n,

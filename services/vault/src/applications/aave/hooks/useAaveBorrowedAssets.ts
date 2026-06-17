@@ -27,6 +27,8 @@ import type { AaveReserveConfig } from "../services/fetchConfig";
 export interface BorrowedAsset {
   /** Token symbol */
   symbol: string;
+  /** Full token name (e.g. "USD Coin"); falls back to the symbol. */
+  name: string;
   /** Display amount (formatted native token amount) */
   amount: string;
   /** Token icon URL */
@@ -87,6 +89,26 @@ function resolveTokenSymbol(
 }
 
 /**
+ * Resolve a display name. Prefers the registry's curated name (e.g. "USD Coin")
+ * only on a real registry hit — `getTokenByAddress` returns a "Loading..."
+ * placeholder for addresses it doesn't know (testnet deployments), so detect
+ * that the same way `resolveTokenSymbol` does and fall back to the reserve's
+ * on-chain name, then the symbol.
+ */
+function resolveTokenName(
+  tokenMetadata: ReturnType<typeof getTokenByAddress>,
+  indexerName: string,
+  symbol: string,
+): string {
+  const isRegistryHit =
+    tokenMetadata != null && !tokenMetadata.symbol.startsWith("0x");
+  if (isRegistryHit) {
+    return tokenMetadata.name;
+  }
+  return indexerName?.trim() || symbol;
+}
+
+/**
  * Transform a reserve with debt into a display-ready BorrowedAsset
  */
 function transformToBorrowedAsset(
@@ -96,6 +118,7 @@ function transformToBorrowedAsset(
 
   const tokenMetadata = getTokenByAddress(reserve.token.address);
   const symbol = resolveTokenSymbol(tokenMetadata, reserve.token.symbol);
+  const name = resolveTokenName(tokenMetadata, reserve.token.name, symbol);
   const icon = getCurrencyIconWithFallback(tokenMetadata?.icon, symbol);
 
   const tokenAmount = Number(
@@ -103,7 +126,7 @@ function transformToBorrowedAsset(
   );
   const amount = formatAmount(tokenAmount, reserve.token.decimals);
 
-  return { symbol, amount, icon };
+  return { symbol, name, amount, icon };
 }
 
 /**

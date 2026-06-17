@@ -1,12 +1,13 @@
 /**
- * LoanCard - Tab container for Aave borrow/repay UI
+ * LoanCard - Container for the Aave borrow/repay UI
  *
- * Child components (Borrow, Repay) get their data from LoanContext
- * and handle their own transaction logic.
+ * The borrow and repay flows live on separate screens; which one renders is
+ * driven by the `tab` URL param (resolved into `defaultTab`). Repay only shows
+ * when the user actually has a position — otherwise we fall back to borrow.
+ *
+ * Child components (Borrow, Repay) get their data from LoanContext and handle
+ * their own transaction logic.
  */
-
-import { Card, Tabs } from "@babylonlabs-io/core-ui";
-import { useEffect, useState } from "react";
 
 import { LOAN_TAB, type LoanTab } from "../../constants";
 import { useLoanContext } from "../context/LoanContext";
@@ -22,33 +23,7 @@ export function LoanCard({ defaultTab = LOAN_TAB.BORROW }: LoanCardProps) {
   const { collateralValueUsd, totalDebtValueUsd } = useLoanContext();
 
   const hasPosition = totalDebtValueUsd > 0 || collateralValueUsd > 0;
+  const showRepay = defaultTab === LOAN_TAB.REPAY && hasPosition;
 
-  const [activeTab, setActiveTab] = useState<LoanTab>(defaultTab);
-
-  useEffect(() => {
-    if (activeTab === LOAN_TAB.REPAY && !hasPosition) {
-      setActiveTab(LOAN_TAB.BORROW);
-    }
-  }, [hasPosition, activeTab]);
-
-  return (
-    <Card>
-      <Tabs
-        items={[
-          {
-            id: LOAN_TAB.BORROW,
-            label: "Borrow",
-            content: <Borrow />,
-          },
-          {
-            id: LOAN_TAB.REPAY,
-            label: "Repay",
-            content: <Repay />,
-          },
-        ]}
-        activeTab={activeTab}
-        onTabChange={(tabId) => setActiveTab(tabId as LoanTab)}
-      />
-    </Card>
-  );
+  return showRepay ? <Repay /> : <Borrow />;
 }

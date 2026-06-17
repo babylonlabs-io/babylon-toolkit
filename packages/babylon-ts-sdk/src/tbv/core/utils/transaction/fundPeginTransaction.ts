@@ -34,7 +34,7 @@ export interface FundPeginTransactionParams {
 }
 
 /** A single parsed output from the unfunded WASM transaction */
-interface ParsedOutput {
+export interface ParsedOutput {
   value: number;
   script: Buffer;
 }

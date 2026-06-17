@@ -3,7 +3,7 @@
  * liquidation truth). Returns `priceUsd: null` on revert; do not substitute.
  */
 
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import type { Address } from "viem";
 
 import { getReservesPrices } from "../clients/aaveOracle";
@@ -18,6 +18,14 @@ const ONE_MINUTE_MS = 60 * 1000;
 export interface UseAaveReservePriceResult {
   priceUsd: number | null;
   isLoading: boolean;
+  /**
+   * True while `priceUsd` is still the previously-selected reserve's price,
+   * carried over (via `keepPreviousData`) so switching assets does not unmount
+   * the borrow form. Consumers must not treat the price — or any value derived
+   * from it (max borrow, available liquidity) — as belonging to the current
+   * reserve until this clears.
+   */
+  isPriceStale: boolean;
   error: Error | null;
 }
 
@@ -38,6 +46,7 @@ export function useAaveReservePrice({
   const {
     data,
     isLoading: priceLoading,
+    isPlaceholderData,
     error: priceError,
   } = useQuery({
     queryKey: [
@@ -52,6 +61,11 @@ export function useAaveReservePrice({
     enabled: priceEnabled,
     staleTime: ONE_MINUTE_MS,
     refetchInterval: ONE_MINUTE_MS,
+    // Keep the prior reserve's price on screen while the new one loads so the
+    // borrow form stays mounted on asset switch (no flash/remount). The stale
+    // window is surfaced via `isPriceStale` so consumers can withhold
+    // price-derived figures until the fresh value lands.
+    placeholderData: keepPreviousData,
   });
 
   // Propagate oracle-address loading/error up; price query is disabled until address resolves.
@@ -62,6 +76,7 @@ export function useAaveReservePrice({
   return {
     priceUsd: error ? null : (data ?? null),
     isLoading: upstreamRequested && (oracleLoading || priceLoading),
+    isPriceStale: isPlaceholderData,
     error,
   };
 }

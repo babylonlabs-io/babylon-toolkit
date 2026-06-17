@@ -11,8 +11,18 @@
 
 import type { Network } from "@babylonlabs-io/babylon-tbv-rust-wasm";
 import * as bitcoin from "bitcoinjs-lib";
+import type { Hex } from "viem";
 import { beforeAll, describe, expect, it } from "vitest";
 
+import {
+  deriveBip86ScriptPubKeyHex,
+  stripHexPrefix,
+  uint8ArrayToHex,
+} from "../../utils/bitcoin";
+import {
+  deriveRefundPeginAmounts,
+  type RefundPrePeginContext,
+} from "../../../services/refund/buildAndBroadcastRefund";
 import { fundPeginTransaction } from "../../../utils/transaction/fundPeginTransaction";
 import { buildPrePeginPsbt, type PrePeginParams } from "../pegin";
 import { buildRefundPsbt } from "../refund";
@@ -316,6 +326,129 @@ describe("buildRefundPsbt", () => {
           hashlock: wrongHashlock,
         }),
       ).rejects.toThrow();
+    });
+  });
+
+  describe("HTLC value cross-check", () => {
+    it("rejects when pegInAmounts disagree with the funded HTLC value", async () => {
+      // Fund a Pre-PegIn with the real pegInAmounts, then reconstruct the
+      // refund template with an inflated pegInAmount (same hashlock + keys,
+      // so the HTLC *script* still matches). The HTLC script does not depend
+      // on the amount, so the script cross-check passes — only the value
+      // cross-check catches that the template's HTLC value no longer equals
+      // the funded output. This is the bug class where a caller feeds the
+      // HTLC output value (not the original peg-in amount) as pegInAmounts.
+      const { txHex, params } = await buildFundedPrePegin({
+        authAnchorHash: TEST_AUTH_ANCHOR_HASH,
+      });
+
+      await expect(
+        buildRefundPsbt({
+          prePeginParams: {
+            ...params,
+            pegInAmounts: [params.pegInAmounts[0] + 10_000n],
+          },
+          fundedPrePeginTxHex: txHex,
+          htlcVout: 0,
+          refundFee: TEST_REFUND_FEE,
+          hashlock: TEST_HASH_H,
+        }),
+      ).rejects.toThrow(/value mismatch/i);
+    });
+  });
+
+  describe("refund output pinning", () => {
+    it("pays the single refund output to the depositor's BIP-86 address", async () => {
+      // The refund must return funds to exactly one output — the depositor's
+      // own BIP-86 P2TR address derived from their key — so a malformed
+      // template can't redirect the reclaimed funds elsewhere.
+      const { txHex, params } = await buildFundedPrePegin({
+        authAnchorHash: TEST_AUTH_ANCHOR_HASH,
+      });
+
+      const { psbtHex } = await buildRefundPsbt({
+        prePeginParams: params,
+        fundedPrePeginTxHex: txHex,
+        htlcVout: 0,
+        refundFee: TEST_REFUND_FEE,
+        hashlock: TEST_HASH_H,
+      });
+
+      const psbt = bitcoin.Psbt.fromHex(psbtHex);
+      const unsigned = psbt.data.globalMap.unsignedTx.toBuffer();
+      const refundTx = bitcoin.Transaction.fromBuffer(unsigned);
+      expect(refundTx.outs.length).toBe(1);
+      const outputScript = uint8ArrayToHex(
+        new Uint8Array(refundTx.outs[0].script),
+      ).toLowerCase();
+      const expectedScript = stripHexPrefix(
+        deriveBip86ScriptPubKeyHex(TEST_KEYS.DEPOSITOR),
+      ).toLowerCase();
+      expect(outputScript).toBe(expectedScript);
+
+      // The single output returns the full HTLC value minus exactly the
+      // requested fee — no value silently burned as excess miner fee.
+      const fundedHtlcValue = BigInt(
+        bitcoin.Transaction.fromHex(txHex).outs[0].value,
+      );
+      expect(BigInt(refundTx.outs[0].value)).toBe(
+        fundedHtlcValue - TEST_REFUND_FEE,
+      );
+    });
+  });
+
+  describe("peg-in amount derivation round-trip", () => {
+    it("re-derives the original peg-in amount from the funded HTLC value (real WASM)", async () => {
+      // Keystone equality: the reserve subtracted at refund time (standalone
+      // computeMinClaimValue + computeMinPeginFee) must equal the reserve WASM
+      // baked into the HTLC value at peg-in time. Fund with a known peg-in
+      // amount, read the funded HTLC value, and prove the derivation inverts
+      // back to that exact amount — so a future WASM bump that broke the
+      // equality is caught here, not in production.
+      const { txHex, params } = await buildFundedPrePegin({
+        authAnchorHash: TEST_AUTH_ANCHOR_HASH,
+      });
+      const fundedHtlcValue = BigInt(
+        bitcoin.Transaction.fromHex(txHex).outs[0].value,
+      );
+
+      const ctx: RefundPrePeginContext = {
+        vaultProviderPubkey: params.vaultProviderPubkey,
+        vaultKeeperPubkeys: params.vaultKeeperPubkeys,
+        universalChallengerPubkeys: params.universalChallengerPubkeys,
+        timelockRefund: params.timelockRefund,
+        feeRate: params.feeRate,
+        minPeginFeeRate: params.minPeginFeeRate,
+        numLocalChallengers: params.numLocalChallengers,
+        councilQuorum: params.councilQuorum,
+        councilSize: params.councilSize,
+        network: params.network,
+      };
+
+      const derived = await deriveRefundPeginAmounts(
+        [
+          {
+            hashlock: `0x${TEST_HASH_H}` as Hex,
+            amount: fundedHtlcValue,
+            htlcVout: 0,
+          },
+        ],
+        ctx,
+      );
+      expect(derived).toEqual([TEST_AMOUNTS.PEGIN]);
+
+      // And feeding the derived amount back through the real (unmocked)
+      // builder reconstructs a template whose value cross-check passes — a
+      // legitimate refund does not throw.
+      await expect(
+        buildRefundPsbt({
+          prePeginParams: { ...params, pegInAmounts: derived },
+          fundedPrePeginTxHex: txHex,
+          htlcVout: 0,
+          refundFee: TEST_REFUND_FEE,
+          hashlock: TEST_HASH_H,
+        }),
+      ).resolves.toMatchObject({ psbtHex: expect.any(String) });
     });
   });
 });

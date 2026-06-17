@@ -6,6 +6,7 @@ import { graphqlClient } from "../../../clients/graphql/client";
 import {
   fetchVaultById,
   fetchVaultIdsByDepositor,
+  fetchVaultPayoutScriptPubKey,
   fetchVaultRefundData,
   fetchVaultsByDepositor,
 } from "../fetchVaults";
@@ -70,17 +71,24 @@ function makeGraphQLVaultItem(
   };
 }
 
+function makeVaultsPage(
+  items: Record<string, unknown>[],
+  pageInfo: { hasNextPage: boolean; endCursor: string | null } = {
+    hasNextPage: false,
+    endCursor: null,
+  },
+) {
+  return { vaults: { items, pageInfo } };
+}
+
 describe("fetchVaults", () => {
   afterEach(() => vi.clearAllMocks());
 
   describe("fetchVaultsByDepositor", () => {
     it("skips vault and logs error when depositorWotsPkHash is null", async () => {
-      mockedRequest.mockResolvedValueOnce({
-        vaults: {
-          items: [makeGraphQLVaultItem({ depositorWotsPkHash: null })],
-          totalCount: 1,
-        },
-      });
+      mockedRequest.mockResolvedValueOnce(
+        makeVaultsPage([makeGraphQLVaultItem({ depositorWotsPkHash: null })]),
+      );
 
       const vaults = await fetchVaultsByDepositor(
         "0xdepositor" as `0x${string}`,
@@ -99,12 +107,9 @@ describe("fetchVaults", () => {
 
     it("returns vaults when depositorWotsPkHash is present", async () => {
       const hash = "0x" + "ab".repeat(32);
-      mockedRequest.mockResolvedValueOnce({
-        vaults: {
-          items: [makeGraphQLVaultItem({ depositorWotsPkHash: hash })],
-          totalCount: 1,
-        },
-      });
+      mockedRequest.mockResolvedValueOnce(
+        makeVaultsPage([makeGraphQLVaultItem({ depositorWotsPkHash: hash })]),
+      );
 
       const vaults = await fetchVaultsByDepositor(
         "0xdepositor" as `0x${string}`,
@@ -117,17 +122,14 @@ describe("fetchVaults", () => {
     it("maps peginTxHash and new optional fields correctly", async () => {
       const peginHash = "0x" + "aa".repeat(32);
       const popSig = "0x" + "cc".repeat(32);
-      mockedRequest.mockResolvedValueOnce({
-        vaults: {
-          items: [
-            makeGraphQLVaultItem({
-              peginTxHash: peginHash,
-              btcPopSignature: popSig,
-            }),
-          ],
-          totalCount: 1,
-        },
-      });
+      mockedRequest.mockResolvedValueOnce(
+        makeVaultsPage([
+          makeGraphQLVaultItem({
+            peginTxHash: peginHash,
+            btcPopSignature: popSig,
+          }),
+        ]),
+      );
 
       const vaults = await fetchVaultsByDepositor(
         "0xdepositor" as `0x${string}`,
@@ -140,12 +142,9 @@ describe("fetchVaults", () => {
 
     it("normalizes null optional fields to undefined", async () => {
       // Base fixture has btcPopSignature: null
-      mockedRequest.mockResolvedValueOnce({
-        vaults: {
-          items: [makeGraphQLVaultItem()],
-          totalCount: 1,
-        },
-      });
+      mockedRequest.mockResolvedValueOnce(
+        makeVaultsPage([makeGraphQLVaultItem()]),
+      );
 
       const vaults = await fetchVaultsByDepositor(
         "0xdepositor" as `0x${string}`,
@@ -158,17 +157,14 @@ describe("fetchVaults", () => {
     it("normalizes zero-hash and empty-bytes optional fields to undefined", async () => {
       const zeroHash =
         "0x0000000000000000000000000000000000000000000000000000000000000000";
-      mockedRequest.mockResolvedValueOnce({
-        vaults: {
-          items: [
-            makeGraphQLVaultItem({
-              btcPopSignature: "0x",
-              hashlock: zeroHash,
-            }),
-          ],
-          totalCount: 1,
-        },
-      });
+      mockedRequest.mockResolvedValueOnce(
+        makeVaultsPage([
+          makeGraphQLVaultItem({
+            btcPopSignature: "0x",
+            hashlock: zeroHash,
+          }),
+        ]),
+      );
 
       const vaults = await fetchVaultsByDepositor(
         "0xdepositor" as `0x${string}`,
@@ -180,12 +176,9 @@ describe("fetchVaults", () => {
     });
 
     it("skips vault and logs error when peginTxHash is null", async () => {
-      mockedRequest.mockResolvedValueOnce({
-        vaults: {
-          items: [makeGraphQLVaultItem({ peginTxHash: null })],
-          totalCount: 1,
-        },
-      });
+      mockedRequest.mockResolvedValueOnce(
+        makeVaultsPage([makeGraphQLVaultItem({ peginTxHash: null })]),
+      );
 
       const vaults = await fetchVaultsByDepositor(
         "0xdepositor" as `0x${string}`,
@@ -206,16 +199,13 @@ describe("fetchVaults", () => {
       const id1 = "0x" + "11".repeat(32);
       const id2 = "0x" + "22".repeat(32);
       const id3 = "0x" + "33".repeat(32);
-      mockedRequest.mockResolvedValueOnce({
-        vaults: {
-          items: [
-            makeGraphQLVaultItem({ id: id1, status: "pending" }),
-            makeGraphQLVaultItem({ id: id2, status: "bogus_status" }),
-            makeGraphQLVaultItem({ id: id3, status: "available" }),
-          ],
-          totalCount: 3,
-        },
-      });
+      mockedRequest.mockResolvedValueOnce(
+        makeVaultsPage([
+          makeGraphQLVaultItem({ id: id1, status: "pending" }),
+          makeGraphQLVaultItem({ id: id2, status: "bogus_status" }),
+          makeGraphQLVaultItem({ id: id3, status: "available" }),
+        ]),
+      );
 
       const vaults = await fetchVaultsByDepositor(
         "0xdepositor" as `0x${string}`,
@@ -228,12 +218,11 @@ describe("fetchVaults", () => {
 
     it("logs error to Sentry when vault has unknown status", async () => {
       const badId = "0x" + "ba".repeat(32);
-      mockedRequest.mockResolvedValueOnce({
-        vaults: {
-          items: [makeGraphQLVaultItem({ id: badId, status: "bogus_status" })],
-          totalCount: 1,
-        },
-      });
+      mockedRequest.mockResolvedValueOnce(
+        makeVaultsPage([
+          makeGraphQLVaultItem({ id: badId, status: "bogus_status" }),
+        ]),
+      );
 
       await fetchVaultsByDepositor("0xdepositor" as `0x${string}`);
 
@@ -251,6 +240,50 @@ describe("fetchVaults", () => {
           data: expect.objectContaining({ rawStatus: "bogus_status" }),
         }),
       );
+    });
+
+    it("walks cursor pagination and returns vaults from every page", async () => {
+      const firstId = "0x" + "11".repeat(32);
+      const secondId = "0x" + "22".repeat(32);
+      mockedRequest
+        .mockResolvedValueOnce(
+          makeVaultsPage([makeGraphQLVaultItem({ id: firstId })], {
+            hasNextPage: true,
+            endCursor: "cursor-1",
+          }),
+        )
+        .mockResolvedValueOnce(
+          makeVaultsPage([makeGraphQLVaultItem({ id: secondId })]),
+        );
+
+      const vaults = await fetchVaultsByDepositor(
+        "0xdepositor" as `0x${string}`,
+      );
+
+      expect(vaults).toHaveLength(2);
+      expect(vaults[0].id).toBe(firstId);
+      expect(vaults[1].id).toBe(secondId);
+      expect(mockedRequest).toHaveBeenCalledTimes(2);
+      expect(mockedRequest).toHaveBeenLastCalledWith(
+        expect.anything(),
+        expect.objectContaining({ after: "cursor-1" }),
+      );
+    });
+
+    it("fails closed when the page backstop is hit with more pages remaining", async () => {
+      // A stuck cursor (hasNextPage never clearing) must not silently
+      // return a partial vault list — tail vaults would fall back to
+      // localStorage-only activities and block payout signing.
+      mockedRequest.mockResolvedValue(
+        makeVaultsPage([makeGraphQLVaultItem()], {
+          hasNextPage: true,
+          endCursor: "stuck-cursor",
+        }),
+      );
+
+      await expect(
+        fetchVaultsByDepositor("0xdepositor" as `0x${string}`),
+      ).rejects.toThrow(/MAX_VAULT_PAGES/);
     });
   });
 
@@ -336,6 +369,59 @@ describe("fetchVaults", () => {
       await expect(
         fetchVaultById(VALID_VAULT_ID as `0x${string}`),
       ).rejects.toThrow(/Invalid address.*vaultProvider/);
+    });
+  });
+
+  describe("fetchVaultPayoutScriptPubKey", () => {
+    it("returns the payout scriptPubKey for an indexed vault", async () => {
+      const payoutScript = "0x5120" + "ab".repeat(32);
+      mockedRequest.mockResolvedValueOnce({
+        vault: {
+          id: VALID_VAULT_ID,
+          depositorPayoutBtcAddress: payoutScript,
+        },
+      });
+
+      const result = await fetchVaultPayoutScriptPubKey(
+        VALID_VAULT_ID as `0x${string}`,
+      );
+
+      expect(result).toBe(payoutScript);
+    });
+
+    it("returns null when the vault is not indexed", async () => {
+      mockedRequest.mockResolvedValueOnce({ vault: null });
+
+      const result = await fetchVaultPayoutScriptPubKey(
+        VALID_VAULT_ID as `0x${string}`,
+      );
+
+      expect(result).toBeNull();
+    });
+
+    it("returns null when the indexed vault has no payout address", async () => {
+      mockedRequest.mockResolvedValueOnce({
+        vault: { id: VALID_VAULT_ID, depositorPayoutBtcAddress: null },
+      });
+
+      const result = await fetchVaultPayoutScriptPubKey(
+        VALID_VAULT_ID as `0x${string}`,
+      );
+
+      expect(result).toBeNull();
+    });
+
+    it("throws when the recorded payout address is malformed hex", async () => {
+      mockedRequest.mockResolvedValueOnce({
+        vault: {
+          id: VALID_VAULT_ID,
+          depositorPayoutBtcAddress: "not-hex",
+        },
+      });
+
+      await expect(
+        fetchVaultPayoutScriptPubKey(VALID_VAULT_ID as `0x${string}`),
+      ).rejects.toThrow(/Malformed hex/);
     });
   });
 
@@ -437,6 +523,7 @@ describe("fetchVaults", () => {
       mockedRequest.mockResolvedValueOnce({
         vaults: {
           items: [{ id: VALID_VAULT_ID }, { id: SIBLING_ID }, { id: OTHER_ID }],
+          pageInfo: { hasNextPage: false, endCursor: null },
           totalCount: 3,
         },
       });
@@ -450,22 +537,30 @@ describe("fetchVaults", () => {
 
     it("lower-cases the depositor address in the GraphQL variable", async () => {
       mockedRequest.mockResolvedValueOnce({
-        vaults: { items: [], totalCount: 0 },
+        vaults: {
+          items: [],
+          pageInfo: { hasNextPage: false, endCursor: null },
+          totalCount: 0,
+        },
       });
 
       await fetchVaultIdsByDepositor(
         "0xAbAbAbAbAbAbAbAbAbAbAbAbAbAbAbAbAbAbAbAb" as `0x${string}`,
       );
 
-      expect(mockedRequest).toHaveBeenCalledWith(expect.anything(), {
-        depositor: "0xabababababababababababababababababababab",
-      });
+      expect(mockedRequest).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          depositor: "0xabababababababababababababababababababab",
+        }),
+      );
     });
 
     it("throws if a returned id is malformed hex", async () => {
       mockedRequest.mockResolvedValueOnce({
         vaults: {
           items: [{ id: "not-a-hex-id" }],
+          pageInfo: { hasNextPage: false, endCursor: null },
           totalCount: 1,
         },
       });
@@ -475,23 +570,56 @@ describe("fetchVaults", () => {
       ).rejects.toThrow(/Malformed hex/);
     });
 
-    it("throws when the response is page-cap truncated (items.length < totalCount)", async () => {
-      // Indexer page caps would silently drop tail siblings of a batched
-      // Pre-PegIn. Refund's sibling discovery must fail closed instead of
-      // signing against an incomplete batch.
+    it("walks cursor pagination and returns ids from every page", async () => {
+      // A depositor with more vaults than one indexer page (devnet cap is
+      // 50) must get the complete id list, not the first page only.
+      const FIRST_ID = "0x" + "11".repeat(32);
+      const SECOND_ID = "0x" + "22".repeat(32);
+      mockedRequest
+        .mockResolvedValueOnce({
+          vaults: {
+            items: [{ id: FIRST_ID }],
+            pageInfo: { hasNextPage: true, endCursor: "cursor-1" },
+            totalCount: 2,
+          },
+        })
+        .mockResolvedValueOnce({
+          vaults: {
+            items: [{ id: SECOND_ID }],
+            pageInfo: { hasNextPage: false, endCursor: null },
+          },
+        });
+
+      const ids = await fetchVaultIdsByDepositor(
+        "0xdepositor" as `0x${string}`,
+      );
+
+      expect(ids).toEqual([FIRST_ID, SECOND_ID]);
+      expect(mockedRequest).toHaveBeenCalledTimes(2);
+      expect(mockedRequest).toHaveBeenLastCalledWith(
+        expect.anything(),
+        expect.objectContaining({ after: "cursor-1" }),
+      );
+    });
+
+    it("throws when paginated ids disagree with the indexer's totalCount", async () => {
+      // An inconsistent paginated response could silently drop tail
+      // siblings of a batched Pre-PegIn. Refund's sibling discovery must
+      // fail closed instead of signing against an incomplete batch.
       mockedRequest.mockResolvedValueOnce({
         vaults: {
           items: [
             { id: "0x" + "11".repeat(32) },
             { id: "0x" + "22".repeat(32) },
           ],
+          pageInfo: { hasNextPage: false, endCursor: null },
           totalCount: 5,
         },
       });
 
       await expect(
         fetchVaultIdsByDepositor("0xdepositor" as `0x${string}`),
-      ).rejects.toThrow(/truncated by a page-size cap/);
+      ).rejects.toThrow(/inconsistent/);
     });
   });
 });

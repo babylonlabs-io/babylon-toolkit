@@ -422,7 +422,6 @@ describe("DepositProgressView", () => {
   describe("BTC confirmation detail panel", () => {
     const PRE_PEGIN_TXID =
       "1b2c3d4e5f00000000000000000000000000000000000000000000000000000000";
-    const NOW = new Date("2026-01-01T14:00:00Z").getTime();
 
     it("renders the confirmation detail when the active step is AWAIT_PAYOUT_TRANSACTIONS", () => {
       render(
@@ -430,7 +429,6 @@ describe("DepositProgressView", () => {
           {...baseProps}
           currentStep={DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS}
           btcConfirmationDetail={{
-            startedAt: NOW,
             prePeginTxid: PRE_PEGIN_TXID,
             requiredDepth: 6,
             depositIds: ["0xvault"],
@@ -447,7 +445,6 @@ describe("DepositProgressView", () => {
           {...baseProps}
           currentStep={DepositFlowStep.AWAIT_BTC_CONFIRMATION}
           btcConfirmationDetail={{
-            startedAt: NOW,
             prePeginTxid: PRE_PEGIN_TXID,
             requiredDepth: 6,
             depositIds: ["0xvault"],
@@ -466,7 +463,6 @@ describe("DepositProgressView", () => {
           {...baseProps}
           currentStep={DepositFlowStep.SUBMIT_WOTS_KEYS}
           btcConfirmationDetail={{
-            startedAt: NOW,
             prePeginTxid: PRE_PEGIN_TXID,
             requiredDepth: 6,
             depositIds: ["0xvault"],

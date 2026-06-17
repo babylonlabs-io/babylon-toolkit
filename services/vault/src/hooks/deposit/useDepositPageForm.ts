@@ -23,6 +23,11 @@ import { getVpExplorerProviderUrl } from "../../utils/explorer";
 import { formatProviderDisplayName } from "../../utils/formatting";
 import { sortVaultProviders } from "../../utils/sortVaultProviders";
 import { vaultProviderUnavailableReason } from "../../utils/vaultProviderStatus";
+import {
+  assertMinClaimValue,
+  assertMinPeginFee,
+  assertNumLocalChallengers,
+} from "../../utils/wasm";
 import { useApplicationCap } from "../useApplicationCap";
 import { useApplications } from "../useApplications";
 import { usePrice, usePrices } from "../usePrices";
@@ -49,6 +54,18 @@ const STALE_TIME_MS = 5 * 60 * 1000;
  * more headroom by construction (smaller tx, same buffer).
  */
 const PRE_PEGIN_SAFETY_BUFFER_SATS = 3_000n;
+
+/**
+ * Normalize a React Query failure into `Error | null`. wasm-bindgen can reject
+ * with a bare string, so a plain `instanceof Error` filter would silently drop
+ * the failure and leave the CTA stuck on "Calculating fees..." instead of
+ * surfacing the terminal fee-error state. Coerce any non-null, non-Error value
+ * into an `Error` so the failure is always preserved.
+ */
+function toError(value: unknown): Error | null {
+  if (value == null) return null;
+  return value instanceof Error ? value : new Error(String(value));
+}
 
 export interface DepositPageFormData {
   amountBtc: string;
@@ -157,6 +174,14 @@ export interface UseDepositPageFormResult {
   splitRatioLabel: string | null;
   /** Depositor claim value computed from WASM (VK/UC counts + fee). undefined while loading. */
   depositorClaimValue: bigint | undefined;
+  /**
+   * Terminal failure from the `computeMinClaimValue` WASM query (init
+   * failure, unsupported signer count, or a guard-rejected non-positive
+   * return). Surfaced separately from the undefined "still loading" state so
+   * the CTA reports an actionable error instead of getting stuck
+   * indefinitely on "Calculating fees...".
+   */
+  depositorClaimValueError: Error | null;
 
   validateForm: () => boolean;
   validateAmountOnBlur: () => void;
@@ -369,41 +394,54 @@ export function useDepositPageForm(): UseDepositPageFormResult {
   // Compute depositorClaimValue for UI validation (min deposit check).
   // Uses {VP} ∪ {VKs} − {depositor} which is >= the transaction builder's
   // vaultKeepers.length, making this a conservative estimate.
-  const numLocalChallengers = useMemo(() => {
-    if (!selectedVpBtcPubkey || !depositorBtcPubkey) return undefined;
+  const numLocalChallengersResult = useMemo(() => {
+    if (!selectedVpBtcPubkey || !depositorBtcPubkey) {
+      return { value: undefined, error: null };
+    }
     try {
-      return computeNumLocalChallengers(
-        selectedVpBtcPubkey,
-        vaultKeeperBtcPubkeys,
-        depositorBtcPubkey,
-      );
-    } catch {
-      return undefined;
+      return {
+        value: assertNumLocalChallengers(
+          computeNumLocalChallengers(
+            selectedVpBtcPubkey,
+            vaultKeeperBtcPubkeys,
+            depositorBtcPubkey,
+          ),
+        ),
+        error: null,
+      };
+    } catch (err) {
+      return {
+        value: undefined,
+        error: err instanceof Error ? err : new Error(String(err)),
+      };
     }
   }, [selectedVpBtcPubkey, vaultKeeperBtcPubkeys, depositorBtcPubkey]);
+  const numLocalChallengers = numLocalChallengersResult.value;
+  const challengerCountError = numLocalChallengersResult.error;
 
-  const { data: depositorClaimValue } = useQuery({
-    queryKey: [
-      "depositorClaimValue",
-      numLocalChallengers,
-      latestUniversalChallengers.length,
-      config.offchainParams.councilQuorum,
-      config.offchainParams.securityCouncilKeys.length,
-      String(config.offchainParams.feeRate),
-    ],
-    queryFn: () =>
-      computeMinClaimValue(
-        numLocalChallengers!,
+  const { data: depositorClaimValue, error: depositorClaimValueError } =
+    useQuery({
+      queryKey: [
+        "depositorClaimValue",
+        numLocalChallengers,
         latestUniversalChallengers.length,
         config.offchainParams.councilQuorum,
         config.offchainParams.securityCouncilKeys.length,
-        config.offchainParams.feeRate,
-      ),
-    enabled:
-      latestUniversalChallengers.length > 0 && numLocalChallengers != null,
-    staleTime: STALE_TIME_MS,
-    refetchOnWindowFocus: false,
-  });
+        String(config.offchainParams.feeRate),
+      ],
+      queryFn: () =>
+        computeMinClaimValue(
+          numLocalChallengers!,
+          latestUniversalChallengers.length,
+          config.offchainParams.councilQuorum,
+          config.offchainParams.securityCouncilKeys.length,
+          config.offchainParams.feeRate,
+        ).then(assertMinClaimValue),
+      enabled:
+        latestUniversalChallengers.length > 0 && numLocalChallengers != null,
+      staleTime: STALE_TIME_MS,
+      refetchOnWindowFocus: false,
+    });
 
   // Exact per-HTLC PegIn (activation) fee the depositor must reserve inside
   // each HTLC value. Sourced from the WASM (`compute_min_pegin_fee` in
@@ -430,7 +468,7 @@ export function useDepositPageForm(): UseDepositPageFormResult {
         vaultKeeperBtcPubkeys.length,
         latestUniversalChallengers.length,
         config.offchainParams.minPeginFeeRate,
-      ),
+      ).then(assertMinPeginFee),
     enabled: vaultKeeperBtcPubkeys.length > 0,
     staleTime: STALE_TIME_MS,
     refetchOnWindowFocus: false,
@@ -621,8 +659,7 @@ export function useDepositPageForm(): UseDepositPageFormResult {
     effectiveRemaining: capSnapshot?.effectiveRemaining ?? null,
     capUnavailable: capError !== null,
     minPeginFee: minPeginFee ?? null,
-    minPeginFeeError:
-      minPeginFeeError instanceof Error ? minPeginFeeError : null,
+    minPeginFeeError: toError(minPeginFeeError),
     ordinalsCheckPending,
     isPartialLiquidation,
     setIsPartialLiquidation,
@@ -630,6 +667,13 @@ export function useDepositPageForm(): UseDepositPageFormResult {
     vaultAmounts: splitVaultAmounts,
     isSplitLoading,
     depositorClaimValue,
+    // Fold the local challenger-count guard failure into the same terminal
+    // error: when `assertNumLocalChallengers` throws, `numLocalChallengers`
+    // is undefined, which disables the claim-value query, so its rejection
+    // never fires. Surfacing `challengerCountError` here keeps the CTA from
+    // silently degrading to a zero-reserve Max.
+    depositorClaimValueError:
+      challengerCountError ?? toError(depositorClaimValueError),
     splitRatioLabel,
     validateForm,
     validateAmountOnBlur,
