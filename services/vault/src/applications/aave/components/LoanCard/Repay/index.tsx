@@ -163,7 +163,10 @@ export function Repay() {
       repayAmount,
       maxRepayAmount,
       currentDebtAmount,
-      userTokenBalance,
+      // Treat the balance as unknown until it's loaded so a loading/errored 0
+      // isn't classified as a real zero balance — which would render the CTA as
+      // "Insufficient balance" for a wallet that may actually hold tokens.
+      balanceKnown ? userTokenBalance : undefined,
       displayDecimals,
       assetConfig.symbol,
     );
