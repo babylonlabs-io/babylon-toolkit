@@ -128,7 +128,7 @@ export function getPegoutTxLinkFlags(claimerStatus: string | undefined): {
 
 /**
  * Whether a polling result represents a withdrawal that is still actively
- * progressing — drives the "Pending Withdraw" header spinner.
+ * progressing — drives the "Pending Withdrawals" header spinner.
  *
  * False once the vault is protocol-terminal (`PAYOUT_BROADCAST` /
  * `PAYOUT_BLOCKED`) **or** polling has given up at `TIMED_OUT_STATE` (≥failure /

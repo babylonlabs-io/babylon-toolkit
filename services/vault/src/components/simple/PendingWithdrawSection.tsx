@@ -1,7 +1,7 @@
 /**
  * PendingWithdrawSection Component
  *
- * Displays the "Pending Withdraw" dashboard section with a summary card
+ * Displays the "Pending Withdrawals" dashboard section with a summary card
  * that expands to show one staged progress card per withdrawal (see
  * PendingWithdrawCard). Follows the same pattern as PendingDepositSection.
  */
@@ -95,7 +95,7 @@ function PendingWithdrawSectionContent({
       {/* Section header */}
       <div className="flex items-center gap-3">
         <h2 className="text-[24px] font-normal text-accent-primary">
-          Pending Withdraw ({count})
+          Pending Withdrawals ({count})
         </h2>
         {anyInProgress && (
           <div className="h-[18px] w-[18px] animate-spin rounded-full border-2 border-accent-primary border-t-transparent" />
@@ -121,7 +121,7 @@ function PendingWithdrawSectionContent({
           <ExpandMenuButton
             isExpanded={isExpanded}
             onToggle={() => setIsExpanded((prev) => !prev)}
-            aria-label="Pending withdraw details"
+            aria-label="Pending withdrawal details"
           />
         </div>
 

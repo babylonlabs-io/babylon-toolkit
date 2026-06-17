@@ -107,7 +107,7 @@ export const COPY = {
       refundBroadcast:
         "Refund transaction has been broadcast to Bitcoin. Waiting for on-chain confirmation...",
       refundMaturing: (blocks: number, hours: number) =>
-        `Refund claimable in ~${blocks} Bitcoin ${blocks === 1 ? "block" : "blocks"} (~${hours}h).`,
+        `Your refund will be claimable in ~${blocks} Bitcoin ${blocks === 1 ? "block" : "blocks"} (~${hours}h).`,
       refundMaturingUnknown: "Checking when your refund will be claimable...",
       invalid:
         "This BTC Vault is invalid. The BTC UTXOs were spent in a different transaction.",
@@ -119,7 +119,7 @@ export const COPY = {
         "This deposit has expired. You may still reclaim within the grace window — see refund options.",
       expiredCleanedUp:
         "This deposit expired and the grace window has elapsed. No further action is possible.",
-      expiredInClaim: "Deposit expired; claim transaction broadcast",
+      expiredInClaim: "Deposit expired; claim transaction has been broadcast",
       invalidSigInContract:
         "Vault provider posted an invalid peg-in signature on-chain; this deposit cannot proceed.",
       amlRejected: "This deposit was rejected by AML screening.",
@@ -181,7 +181,7 @@ export const COPY = {
       retrieveSecret: "Retrieve secret",
       revealSecret: "Sign and broadcast ETH activation transaction",
       awaitActivationConfirmation: "Awaiting vault activation confirmation",
-      peginFeeWarning: "Expect high transaction fee for security reasons",
+      peginFeeWarning: "Expect a high transaction fee for security reasons",
       signingCounter: (completed: number, total: number) =>
         `(${completed} of ${total})`,
     },
@@ -264,8 +264,8 @@ export const COPY = {
       doneButton: "Done",
     },
     refundSuccess: {
-      heading: "Broadcasting withdraw expired",
-      body: "Withdraw expired vault transaction broadcast successfully.",
+      heading: "Expired vault withdrawal broadcast",
+      body: "Your expired vault withdrawal transaction has been broadcast successfully.",
       viewExplorerButton: "View on blockchain explorer",
       doneButton: "Done",
       doNotSpendWarning: (symbol: string) =>
@@ -366,7 +366,7 @@ export const COPY = {
       splitOptionDescription:
         "Split your Bitcoin into multiple vaults to enable partial liquidation.",
       noSplitOptionDescription:
-        "Your BTC will be deposited into a single BTC Vault",
+        "Your BTC will be deposited into a single BTC Vault.",
       learnWhyRecommended: "Learn why we recommend this.",
     },
     resume: {
