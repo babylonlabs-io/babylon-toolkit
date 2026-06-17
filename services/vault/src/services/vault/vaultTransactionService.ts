@@ -123,7 +123,8 @@ export interface PreparePeginResult {
  * A split (multi-vault) deposit produces one peg-in transaction per vault,
  * each signed via the wallet (one batch popup for `signPsbts`-capable
  * wallets, sequential popups otherwise). `total` is the number of peg-in
- * transactions; `completed` advances as each is signed.
+ * transactions; `completed` jumps 0 -> total for a single native batch popup,
+ * or advances per signature in the sequential fallback.
  */
 export interface PeginSigningProgress {
   /** Number of peg-in transactions signed so far. */
