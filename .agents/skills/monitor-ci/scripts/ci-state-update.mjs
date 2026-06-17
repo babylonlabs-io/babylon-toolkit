@@ -12,6 +12,14 @@
  *   node ci-state-update.mjs cycle-check --code <code> [--agent-triggered] [counter args]
  */
 
+// --- Constants ---
+
+const DEFAULT_LOCAL_VERIFY_ATTEMPTS = 3;
+const DEFAULT_ENV_RERUN_ATTEMPTS = 2;
+const DEFAULT_MAX_CYCLES = 10;
+// How many cycles before the limit to start warning the user.
+const CYCLE_LIMIT_WARNING_BUFFER = 2;
+
 // --- Arg parsing ---
 
 const args = process.argv.slice(2);
@@ -39,7 +47,10 @@ function gate() {
 
   if (gateType === 'local-fix') {
     const count = parseInt(getArg('--local-verify-count') || '0', 10);
-    const max = parseInt(getArg('--local-verify-attempts') || '3', 10);
+    const max = parseInt(
+      getArg('--local-verify-attempts') || String(DEFAULT_LOCAL_VERIFY_ATTEMPTS),
+      10,
+    );
     if (count >= max) {
       return output({
         allowed: false,
@@ -56,7 +67,11 @@ function gate() {
 
   if (gateType === 'env-rerun') {
     const count = parseInt(getArg('--env-rerun-count') || '0', 10);
-    if (count >= 2) {
+    const max = parseInt(
+      getArg('--env-rerun-attempts') || String(DEFAULT_ENV_RERUN_ATTEMPTS),
+      10,
+    );
+    if (count >= max) {
       return output({
         allowed: false,
         envRerunCount: count,
@@ -120,7 +135,10 @@ function cycleCheck() {
   const status = getArg('--code');
   const wasAgentTriggered = getFlag('--agent-triggered');
   let cycleCount = parseInt(getArg('--cycle-count') || '0', 10);
-  const maxCycles = parseInt(getArg('--max-cycles') || '10', 10);
+  const maxCycles = parseInt(
+    getArg('--max-cycles') || String(DEFAULT_MAX_CYCLES),
+    10,
+  );
   let envRerunCount = parseInt(getArg('--env-rerun-count') || '0', 10);
 
   // Cycle classification: if previous cycle was agent-triggered, count it
@@ -130,7 +148,7 @@ function cycleCheck() {
   if (status !== 'environment_issue') envRerunCount = 0;
 
   // Approaching limit gate
-  const approachingLimit = cycleCount >= maxCycles - 2;
+  const approachingLimit = cycleCount >= maxCycles - CYCLE_LIMIT_WARNING_BUFFER;
 
   output({
     cycleCount,

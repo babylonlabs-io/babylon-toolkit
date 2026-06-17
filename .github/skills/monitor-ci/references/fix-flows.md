@@ -38,7 +38,7 @@ Spawn FETCH_HEAVY subagent for `taskFailureSummaries`. Run `ci-state-update.mjs 
 
 ### environment_issue
 
-1. Run `ci-state-update.mjs gate --gate-type env-rerun`. If not allowed, print message and exit.
+1. Run `ci-state-update.mjs gate --gate-type env-rerun --env-rerun-count <env_rerun_count> --env-rerun-attempts <env_rerun_attempts>`. If not allowed, print message and exit.
 2. Spawn UPDATE_FIX subagent with `RERUN_ENVIRONMENT_STATE`
 3. Enter wait mode with `last_cipe_url` set
 

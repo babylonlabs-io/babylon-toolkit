@@ -13,11 +13,26 @@
  * Usage:
  *   node ci-poll-decide.mjs '<ci_info_json>' <poll_count> <verbosity> \
  *     [--wait-mode] [--prev-cipe-url <url>] [--expected-sha <sha>] \
- *     [--prev-status <status>] [--timeout <seconds>] [--new-cipe-timeout <seconds>] \
- *     [--env-rerun-count <n>] [--no-progress-count <n>] \
+ *     [--prev-status <status>] [--elapsed-seconds <n>] \
+ *     [--timeout <seconds>] [--new-cipe-timeout <seconds>] \
+ *     [--env-rerun-count <n>] [--env-rerun-attempts <n>] [--no-progress-count <n>] \
  *     [--prev-cipe-status <status>] [--prev-sh-status <status>] \
- *     [--prev-verification-status <status>] [--prev-failure-classification <status>]
+ *     [--prev-verification-status <status>] [--prev-failure-classification <status>] \
+ *     [--prev-could-auto-apply <bool>] [--prev-user-action <status>]
+ *
+ * Timeouts are in SECONDS. The orchestrator converts the minutes-based CLI
+ * flags and passes the real elapsed wall-clock seconds via --elapsed-seconds
+ * (now - start_time); this script never reconstructs elapsed time from poll
+ * count, which would be wrong because each poll uses a different backoff delay.
  */
+
+// --- Constants ---
+
+const BACKOFF_DELAYS_SECONDS = [60, 90, 120, 180];
+const WAIT_MODE_DELAY_SECONDS = 30;
+const NEW_CIPE_POLL_DELAY_SECONDS = 60;
+const CIRCUIT_BREAKER_POLLS = 13;
+const DEFAULT_ENV_RERUN_ATTEMPTS = 2;
 
 // --- Arg parsing ---
 
@@ -39,14 +54,21 @@ const waitMode = getFlag('--wait-mode');
 const prevCipeUrl = getArg('--prev-cipe-url');
 const expectedSha = getArg('--expected-sha');
 const prevStatus = getArg('--prev-status');
+const elapsedSeconds = parseInt(getArg('--elapsed-seconds') || '0', 10);
 const timeoutSeconds = parseInt(getArg('--timeout') || '0', 10);
 const newCipeTimeoutSeconds = parseInt(getArg('--new-cipe-timeout') || '0', 10);
 const envRerunCount = parseInt(getArg('--env-rerun-count') || '0', 10);
+const envRerunAttempts = parseInt(
+  getArg('--env-rerun-attempts') || String(DEFAULT_ENV_RERUN_ATTEMPTS),
+  10,
+);
 const inputNoProgressCount = parseInt(getArg('--no-progress-count') || '0', 10);
 const prevCipeStatus = getArg('--prev-cipe-status');
 const prevShStatus = getArg('--prev-sh-status');
 const prevVerificationStatus = getArg('--prev-verification-status');
 const prevFailureClassification = getArg('--prev-failure-classification');
+const prevCouldAutoApply = getArg('--prev-could-auto-apply');
+const prevUserAction = getArg('--prev-user-action');
 
 // --- Parse CI info ---
 
@@ -106,8 +128,9 @@ function categorizeTasks() {
 }
 
 function backoff(count) {
-  const delays = [60, 90, 120, 180];
-  return delays[Math.min(count, delays.length - 1)];
+  return BACKOFF_DELAYS_SECONDS[
+    Math.min(count, BACKOFF_DELAYS_SECONDS.length - 1)
+  ];
 }
 
 function hasStateChanged() {
@@ -120,18 +143,23 @@ function hasStateChanged() {
     failureClassification !== prevFailureClassification
   )
     return true;
+  if (
+    prevCouldAutoApply != null &&
+    String(couldAutoApplyTasks) !== prevCouldAutoApply
+  )
+    return true;
+  if (prevUserAction && userAction !== prevUserAction) return true;
   return false;
 }
 
 function isTimedOut() {
   if (timeoutSeconds <= 0) return false;
-  const avgDelay = pollCount === 0 ? 0 : backoff(Math.floor(pollCount / 2));
-  return pollCount * avgDelay >= timeoutSeconds;
+  return elapsedSeconds >= timeoutSeconds;
 }
 
 function isWaitTimedOut() {
   if (newCipeTimeoutSeconds <= 0) return false;
-  return pollCount * 30 >= newCipeTimeoutSeconds;
+  return elapsedSeconds >= newCipeTimeoutSeconds;
 }
 
 function isNewCipe() {
@@ -142,7 +170,7 @@ function isNewCipe() {
 }
 
 // ============================================================
-// classify() — pure decision tree
+// classifyState() — pure decision tree (no stop-guards)
 //
 // Returns: { action: 'poll'|'wait'|'done', code: string, extra? }
 //
@@ -152,47 +180,46 @@ function isNewCipe() {
 //     2. wait timed out                  → done  (no_new_cipe)
 //     3. still waiting                   → wait  (waiting_for_cipe)
 //   NORMAL MODE:
-//     4. polling timeout                 → done  (polling_timeout)
-//     5. circuit breaker (13 polls)      → done  (circuit_breaker)
-//     6. CI succeeded                    → done  (ci_success)
-//     7. CI canceled                     → done  (cipe_canceled)
-//     8. CI timed out                    → done  (cipe_timed_out)
-//     9. CI failed, no tasks recorded    → done  (cipe_no_tasks)
-//    10. environment failure             → done  (environment_rerun_cap | environment_issue)
-//    11. self-healing throttled          → done  (self_healing_throttled)
-//    12. CI in progress / not started    → poll  (ci_running)
-//    13. self-healing in progress        → poll  (sh_running)
-//    14. flaky task auto-rerun           → poll  (flaky_rerun)
-//    15. fix auto-applied                → poll  (fix_auto_applied)
-//    16. auto-apply: skipped             → done  (fix_auto_apply_skipped)
-//    17. auto-apply: verification pending→ poll  (verification_pending)
-//    18. auto-apply: verified            → done  (fix_auto_applying)
-//    19. fix: verification failed/none   → done  (fix_needs_review)
-//    20. fix: all/e2e verified           → done  (fix_apply_ready)
-//    21. fix: needs local verify         → done  (fix_needs_local_verify)
-//    22. self-healing failed             → done  (fix_failed)
-//    23. no fix available                → done  (no_fix)
-//    24. fallback                        → poll  (fallback)
+//     4. CI succeeded                    → done  (ci_success)
+//     5. CI canceled                     → done  (cipe_canceled)
+//     6. CI timed out                    → done  (cipe_timed_out)
+//     7. environment failure             → done  (environment_rerun_cap | environment_issue)
+//     8. CI failed, no tasks recorded    → done  (cipe_no_tasks)
+//     9. self-healing throttled          → done  (self_healing_throttled)
+//    10. CI in progress / not started    → poll  (ci_running)
+//    11. self-healing in progress        → poll  (sh_running)
+//    12. flaky task auto-rerun           → poll  (flaky_rerun)
+//    13. fix auto-applied                → poll  (fix_auto_applied)
+//    14. auto-apply: skipped             → done  (fix_auto_apply_skipped)
+//    15. auto-apply: verification pending→ poll  (verification_pending)
+//    16. auto-apply: verified            → done  (fix_auto_applying)
+//    17. fix: verification failed/none   → done  (fix_needs_review)
+//    18. fix: all verified / e2e-only w/ verified → done (fix_apply_ready)
+//    19. fix: e2e-only, nothing verified → done  (fix_needs_review)
+//    20. fix: needs local verify         → done  (fix_needs_local_verify)
+//    21. self-healing failed             → done  (fix_failed)
+//    22. no fix available                → done  (no_fix)
+//    23. fallback                        → poll  (fallback)
+//
+// Environment failures are classified BEFORE the no-tasks check, because an
+// ENVIRONMENT_STATE failure can report zero failed tasks and must take the
+// environment-rerun recovery path, not the empty-commit retry path.
 // ============================================================
 
-function classify() {
-  // --- Wait mode ---
-  if (waitMode) {
-    if (isNewCipe()) return { action: 'poll', code: 'new_cipe_detected' };
-    if (isWaitTimedOut()) return { action: 'done', code: 'no_new_cipe' };
-    return { action: 'wait', code: 'waiting_for_cipe' };
-  }
-
-  // --- Guards ---
-  if (isTimedOut()) return { action: 'done', code: 'polling_timeout' };
-  if (noProgressCount >= 13) return { action: 'done', code: 'circuit_breaker' };
-
+function classifyState() {
   // --- Terminal CI states ---
   if (cipeStatus === 'SUCCEEDED') return { action: 'done', code: 'ci_success' };
   if (cipeStatus === 'CANCELED')
     return { action: 'done', code: 'cipe_canceled' };
   if (cipeStatus === 'TIMED_OUT')
     return { action: 'done', code: 'cipe_timed_out' };
+
+  // --- Environment failure (before no-tasks: ENVIRONMENT_STATE can have zero tasks) ---
+  if (failureClassification === 'environment_state') {
+    if (envRerunCount >= envRerunAttempts)
+      return { action: 'done', code: 'environment_rerun_cap' };
+    return { action: 'done', code: 'environment_issue' };
+  }
 
   // --- CI failed, no tasks ---
   if (
@@ -201,13 +228,6 @@ function classify() {
     selfHealingStatus == null
   )
     return { action: 'done', code: 'cipe_no_tasks' };
-
-  // --- Environment failure ---
-  if (failureClassification === 'environment_state') {
-    if (envRerunCount >= 2)
-      return { action: 'done', code: 'environment_rerun_cap' };
-    return { action: 'done', code: 'environment_issue' };
-  }
 
   // --- Throttled ---
   if (selfHealingSkippedReason === 'THROTTLED')
@@ -261,8 +281,16 @@ function classify() {
       return { action: 'done', code: 'fix_needs_review' };
 
     const tasks = categorizeTasks();
-    if (tasks.category === 'all_verified' || tasks.category === 'e2e_only')
+    if (tasks.category === 'all_verified')
       return { action: 'done', code: 'fix_apply_ready' };
+    if (tasks.category === 'e2e_only') {
+      // e2e tasks can't be verified locally. Only treat as apply-ready if at
+      // least one failing task was actually verified — otherwise nothing has
+      // been verified at all and the fix must be reviewed before applying.
+      if (verifiedTaskIds.length > 0)
+        return { action: 'done', code: 'fix_apply_ready' };
+      return { action: 'done', code: 'fix_needs_review' };
+    }
     return {
       action: 'done',
       code: 'fix_needs_local_verify',
@@ -286,6 +314,34 @@ function classify() {
 }
 
 // ============================================================
+// classify() — applies stop-guards around classifyState()
+//
+// Stop-guards (timeout, circuit breaker) are applied ONLY when the natural
+// decision would keep polling. A terminal or actionable `done` result is never
+// preempted, so the monitor cannot stop on the exact poll where a result became
+// actionable.
+// ============================================================
+
+function classify() {
+  // --- Wait mode ---
+  if (waitMode) {
+    if (isNewCipe()) return { action: 'poll', code: 'new_cipe_detected' };
+    if (isWaitTimedOut()) return { action: 'done', code: 'no_new_cipe' };
+    return { action: 'wait', code: 'waiting_for_cipe' };
+  }
+
+  const decision = classifyState();
+
+  if (decision.action === 'poll') {
+    if (isTimedOut()) return { action: 'done', code: 'polling_timeout' };
+    if (noProgressCount >= CIRCUIT_BREAKER_POLLS)
+      return { action: 'done', code: 'circuit_breaker' };
+  }
+
+  return decision;
+}
+
+// ============================================================
 // buildOutput() — maps classification to full JSON output
 // ============================================================
 
@@ -300,7 +356,8 @@ const messages = {
 
   // guards
   polling_timeout: () => 'Polling timeout exceeded.',
-  circuit_breaker: () => 'No progress after 13 consecutive polls. Stopping.',
+  circuit_breaker: () =>
+    `No progress after ${CIRCUIT_BREAKER_POLLS} consecutive polls. Stopping.`,
 
   // terminal
   ci_success: () => 'CI passed successfully!',
@@ -309,12 +366,13 @@ const messages = {
   cipe_no_tasks: () => 'CI failed but no Nx tasks were recorded.',
 
   // environment
-  environment_rerun_cap: () => 'Environment rerun cap (2) exceeded. Bailing.',
+  environment_rerun_cap: () =>
+    `Environment rerun cap (${envRerunAttempts}) exceeded. Bailing.`,
   environment_issue: () => 'CI: FAILED | Classification: ENVIRONMENT_STATE',
 
   // throttled
   self_healing_throttled: () =>
-    'Self-healing throttled \u2014 too many unapplied fixes.',
+    'Self-healing throttled — too many unapplied fixes.',
 
   // polling
   ci_running: () => `CI: ${cipeStatus}`,
@@ -361,21 +419,23 @@ const resetProgressCodes = new Set([
   'fix_needs_local_verify',
 ]);
 
-function formatMessage(msg) {
+function formatMessage(rawMsg, decision) {
   if (verbosity === 'minimal') {
-    const currentStatus = `${cipeStatus}|${selfHealingStatus}|${verificationStatus}`;
+    // Suppress repeats using the same key the orchestrator stores as
+    // prev_status (action:code), so unchanged statuses stay quiet.
+    const currentStatus = `${decision.action}:${decision.code}`;
     if (currentStatus === (prevStatus || '')) return null;
-    return msg;
+    return rawMsg;
   }
   if (verbosity === 'verbose') {
     return [
       `Poll #${pollCount + 1} | CI: ${cipeStatus || 'N/A'} | Self-healing: ${
         selfHealingStatus || 'N/A'
       } | Verification: ${verificationStatus || 'N/A'}`,
-      msg,
+      rawMsg,
     ].join('\n');
   }
-  return `Poll #${pollCount + 1} | ${msg}`;
+  return `Poll #${pollCount + 1} | ${rawMsg}`;
 }
 
 function buildOutput(decision) {
@@ -386,7 +446,7 @@ function buildOutput(decision) {
 
   const msgFn = messages[code];
   const rawMsg = msgFn ? msgFn(extra) : `Unknown: ${code}`;
-  const message = formatMessage(rawMsg);
+  const message = formatMessage(rawMsg, decision);
 
   const result = {
     action,
@@ -398,9 +458,12 @@ function buildOutput(decision) {
 
   // Add delay
   if (action === 'wait') {
-    result.delay = 30;
+    result.delay = WAIT_MODE_DELAY_SECONDS;
   } else if (action === 'poll') {
-    result.delay = code === 'new_cipe_detected' ? 60 : backoff(noProgressCount);
+    result.delay =
+      code === 'new_cipe_detected'
+        ? NEW_CIPE_POLL_DELAY_SECONDS
+        : backoff(noProgressCount);
     result.fields = 'light';
   }
 

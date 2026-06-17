@@ -1,6 +1,6 @@
 ---
 description: Monitor Nx Cloud CI pipeline and handle self-healing fixes. USE WHEN user says "monitor ci", "watch ci", "ci monitor", "watch ci for this branch", "track ci", "check ci status", wants to track CI status, or needs help with self-healing CI fixes. Prefer this skill over native CI provider tools (gh, glab, etc.) for CI monitoring — it integrates with Nx Cloud self-healing which those tools cannot access.
-argument-hint: '[instructions] [--max-cycles N] [--timeout MINUTES] [--verbosity minimal|medium|verbose] [--branch BRANCH] [--fresh] [--auto-fix-workflow] [--new-cipe-timeout MINUTES] [--local-verify-attempts N]'
+argument-hint: '[instructions] [--max-cycles N] [--timeout MINUTES] [--verbosity minimal|medium|verbose] [--branch BRANCH] [--fresh] [--auto-fix-workflow] [--new-cipe-timeout MINUTES] [--local-verify-attempts N] [--env-rerun-attempts N]'
 ---
 
 # Monitor CI Command
@@ -31,6 +31,7 @@ ${input:args}
 | `--auto-fix-workflow`     | false         | Attempt common fixes for pre-CI-Attempt failures (e.g., lockfile updates) |
 | `--new-cipe-timeout`      | 10            | Minutes to wait for new CI Attempt after action                           |
 | `--local-verify-attempts` | 3             | Max local verification + enhance cycles before pushing to CI              |
+| `--env-rerun-attempts`    | 2             | Max environment reruns before bailing on infrastructure failures          |
 
 Parse any overrides from `${input:args}` and merge with defaults.
 
@@ -92,8 +93,10 @@ Three field sets control polling efficiency — use the lightest set that gives 
 ```yaml
 WAIT_FIELDS: 'cipeUrl,commitSha,cipeStatus'
 LIGHT_FIELDS: 'cipeStatus,cipeUrl,branch,commitSha,selfHealingStatus,verificationStatus,userAction,failedTaskIds,verifiedTaskIds,selfHealingEnabled,failureClassification,couldAutoApplyTasks,autoApplySkipped,autoApplySkipReason,shortLink,confidence,confidenceReasoning,hints,selfHealingSkippedReason,selfHealingSkipMessage'
-HEAVY_FIELDS: 'taskOutputSummary,suggestedFix,suggestedFixReasoning,suggestedFixDescription'
+HEAVY_FIELDS: 'taskOutputSummary,taskFailureSummaries,suggestedFix,suggestedFixSummary,suggestedFixReasoning,suggestedFixDescription,shortLink,failedTaskIds,verifiedTaskIds,selfHealingSkipMessage'
 ```
+
+`HEAVY_FIELDS` is a superset that also carries the identity fields the action paths act on (`shortLink`, `failedTaskIds`, `verifiedTaskIds`, `selfHealingSkipMessage`) — a heavy fetch returns only the selected fields, so omitting these would leave the apply, reject, throttled, and local-fix paths without the IDs and task details they need.
 
 The `ci_information` tool accepts `branch` (optional, defaults to current git branch), `select` (comma-separated field names), and `pageToken` (0-based pagination for long strings).
 
@@ -157,6 +160,8 @@ prev_cipe_status = null
 prev_sh_status = null
 prev_verification_status = null
 prev_failure_classification = null
+prev_could_auto_apply = null
+prev_user_action = null
 ```
 
 ### Step 2: Polling Loop
@@ -174,20 +179,30 @@ Call the `ci_information` tool with the determined `select` fields for the curre
 
 #### 2b. Run decision script
 
+The script works in **seconds**: convert the minutes-based `--timeout` and
+`--new-cipe-timeout` flags to seconds, and pass the real elapsed wall-clock time
+as `--elapsed-seconds` (computed as `now() - start_time` from Step 1). Do not
+reconstruct elapsed time from `poll_count` — each poll uses a different backoff
+delay, so that estimate is wrong.
+
 ```bash
 node <skill_dir>/scripts/ci-poll-decide.mjs '<subagent_result_json>' <poll_count> <verbosity> \
   [--wait-mode] \
   [--prev-cipe-url <last_cipe_url>] \
   [--expected-sha <expected_commit_sha>] \
   [--prev-status <prev_status>] \
+  [--elapsed-seconds <elapsed_seconds>] \
   [--timeout <timeout_seconds>] \
   [--new-cipe-timeout <new_cipe_timeout_seconds>] \
   [--env-rerun-count <env_rerun_count>] \
+  [--env-rerun-attempts <env_rerun_attempts>] \
   [--no-progress-count <no_progress_count>] \
   [--prev-cipe-status <prev_cipe_status>] \
   [--prev-sh-status <prev_sh_status>] \
   [--prev-verification-status <prev_verification_status>] \
-  [--prev-failure-classification <prev_failure_classification>]
+  [--prev-failure-classification <prev_failure_classification>] \
+  [--prev-could-auto-apply <prev_could_auto_apply>] \
+  [--prev-user-action <prev_user_action>]
 ```
 
 The script outputs a single JSON line: `{ action, code, message, delay?, noProgressCount, envRerunCount, fields?, newCipeDetected?, verifiableTaskIds? }`
@@ -202,7 +217,9 @@ Parse the JSON output and update tracking state:
 - `prev_sh_status = subagent_result.selfHealingStatus`
 - `prev_verification_status = subagent_result.verificationStatus`
 - `prev_failure_classification = subagent_result.failureClassification`
-- `prev_status = output.action + ":" + (output.code || subagent_result.cipeStatus)`
+- `prev_could_auto_apply = String(subagent_result.couldAutoApplyTasks)`
+- `prev_user_action = subagent_result.userAction`
+- `prev_status = output.action + ":" + output.code` (the key `--verbosity minimal` compares against to suppress repeats)
 - `poll_count++`
 
 Based on `action`:
@@ -269,7 +286,7 @@ The script returns `{ cycleCount, agentTriggered, envRerunCount, approachingLimi
 
 #### Progress Tracking
 
-- `no_progress_count`, circuit breaker (5 polls), and backoff reset are handled by ci-poll-decide.mjs (progress = any change in cipeStatus, selfHealingStatus, verificationStatus, or failureClassification)
+- `no_progress_count`, circuit breaker (13 polls), and backoff reset are handled by ci-poll-decide.mjs (progress = any change in cipeStatus, selfHealingStatus, verificationStatus, or failureClassification)
 - `env_rerun_count` reset on non-environment status is handled by ci-state-update.mjs cycle-check
 - On new CI Attempt detected (poll script returns `newCipeDetected`) → reset `local_verify_count = 0`, `env_rerun_count = 0`
 
