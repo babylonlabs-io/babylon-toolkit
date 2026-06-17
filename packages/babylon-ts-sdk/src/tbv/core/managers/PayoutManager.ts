@@ -14,18 +14,19 @@
  * @module managers/PayoutManager
  */
 
-import type {
-  BitcoinWallet,
-  SignPsbtOptions,
-} from "../../../shared/wallets";
-import { createTaprootScriptPathSignOptions } from "../utils/signing";
+import type { BitcoinWallet, SignPsbtOptions } from "../../../shared/wallets";
 import {
   assertPsbtUnsignedTxMatches,
+  assertScriptPathSchnorrSignature,
   buildPayoutPsbt,
   extractPayoutSignature,
   validateWalletPubkey,
   type Network,
 } from "../primitives";
+import { createTaprootScriptPathSignOptions } from "../utils/signing";
+
+/** Payout PSBTs are signed by the depositor on input 0 (Taproot script-path). */
+const PAYOUT_SIGNED_INPUT_INDEX = 0;
 
 /**
  * Configuration for the PayoutManager.
@@ -233,6 +234,14 @@ export class PayoutManager {
 
     // Extract Schnorr signature
     const signature = extractPayoutSignature(signedPsbtHex, depositorPubkey);
+    // Critical Path #7: verify the signature against a sighash recomputed from
+    // the PSBT we built, not the wallet-returned one.
+    assertScriptPathSchnorrSignature({
+      requestedPsbtHex: payoutPsbt.psbtHex,
+      signatureHex: signature,
+      signerXOnlyPubkeyHex: depositorPubkey,
+      inputIndex: PAYOUT_SIGNED_INPUT_INDEX,
+    });
 
     return {
       signature,
@@ -267,9 +276,7 @@ export class PayoutManager {
    * @throws Error if wallet doesn't support batch signing
    * @throws Error if any signing operation fails
    */
-  async signPayoutTransactionsBatch(
-    transactions: SignPayoutParams[],
-  ): Promise<
+  async signPayoutTransactionsBatch(transactions: SignPayoutParams[]): Promise<
     Array<{
       payoutSignature: string;
       depositorBtcPubkey: string;
@@ -346,6 +353,12 @@ export class PayoutManager {
         signedPsbts[i],
         depositorPubkey,
       );
+      assertScriptPathSchnorrSignature({
+        requestedPsbtHex: psbtsToSign[i],
+        signatureHex: payoutSignature,
+        signerXOnlyPubkeyHex: depositorPubkey,
+        inputIndex: PAYOUT_SIGNED_INPUT_INDEX,
+      });
 
       results.push({
         payoutSignature,
@@ -355,5 +368,4 @@ export class PayoutManager {
 
     return results;
   }
-
 }

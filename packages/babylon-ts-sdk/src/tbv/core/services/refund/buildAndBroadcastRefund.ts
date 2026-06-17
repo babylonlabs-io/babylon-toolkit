@@ -21,7 +21,9 @@ import type { Address, Hex } from "viem";
 import type { SignPsbtOptions } from "../../../../shared/wallets/interfaces/BitcoinWallet";
 import { findAuthAnchorOpReturn } from "../../managers/pegin";
 import { assertPsbtUnsignedTxMatches } from "../../primitives/psbt/assertPsbtUnsignedTxMatches";
+import { extractPayoutSignature } from "../../primitives/psbt/payout";
 import { buildRefundPsbt } from "../../primitives/psbt/refund";
+import { assertScriptPathSchnorrSignature } from "../../primitives/psbt/verifyScriptPathSchnorrSignature";
 import {
   processPublicKeyToXOnly,
   stripHexPrefix,
@@ -190,9 +192,8 @@ export interface BtcBroadcastResult {
   txId: string;
 }
 
-export type BtcBroadcaster<
-  R extends BtcBroadcastResult = BtcBroadcastResult,
-> = (signedTxHex: string) => Promise<R>;
+export type BtcBroadcaster<R extends BtcBroadcastResult = BtcBroadcastResult> =
+  (signedTxHex: string) => Promise<R>;
 
 export type RefundPsbtSigner = (
   psbtHex: string,
@@ -294,7 +295,10 @@ function validateVaultRefundData(v: VaultRefundData): void {
     v.universalChallengersVersion,
     "universalChallengersVersion",
   );
-  if (typeof v.unsignedPrePeginTxHex !== "string" || v.unsignedPrePeginTxHex.length === 0) {
+  if (
+    typeof v.unsignedPrePeginTxHex !== "string" ||
+    v.unsignedPrePeginTxHex.length === 0
+  ) {
     throw new Error("unsignedPrePeginTxHex must be a non-empty hex string");
   }
   if (!BTC_HEX_BYTES_RE.test(v.unsignedPrePeginTxHex)) {
@@ -337,10 +341,7 @@ function validateRefundPrePeginContext(c: RefundPrePeginContext): void {
       `minPeginFeeRate must be a positive bigint, got ${c.minPeginFeeRate}`,
     );
   }
-  if (
-    !Number.isInteger(c.numLocalChallengers) ||
-    c.numLocalChallengers < 0
-  ) {
+  if (!Number.isInteger(c.numLocalChallengers) || c.numLocalChallengers < 0) {
     throw new Error("numLocalChallengers must be a non-negative integer");
   }
   if (
@@ -592,6 +593,22 @@ export async function buildAndBroadcastRefund<
   assertPsbtUnsignedTxMatches({
     requestedPsbtHex: psbtHex,
     returnedPsbtHex: signedPsbtHex,
+  });
+
+  // Critical Path #7: verify the depositor's script-path signature against a
+  // sighash recomputed from the PSBT we built before finalizing and broadcasting.
+  // The refund spends a single input (the HTLC output) on input 0.
+  const REFUND_SIGNED_INPUT_INDEX = 0;
+  const refundSignature = extractPayoutSignature(
+    signedPsbtHex,
+    xOnlyDepositorPubkey,
+    REFUND_SIGNED_INPUT_INDEX,
+  );
+  assertScriptPathSchnorrSignature({
+    requestedPsbtHex: psbtHex,
+    signatureHex: refundSignature,
+    signerXOnlyPubkeyHex: xOnlyDepositorPubkey,
+    inputIndex: REFUND_SIGNED_INPUT_INDEX,
   });
 
   const signedTxHex = finalizeAndExtract(signedPsbtHex);

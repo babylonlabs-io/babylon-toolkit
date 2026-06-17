@@ -23,9 +23,7 @@ import {
 // we can assert the orchestration contract (call order, arg passing, fee
 // math, error mapping) without needing WASM or a funded Pre-PegIn vector.
 vi.mock("../../../primitives/psbt/refund", () => ({
-  buildRefundPsbt: vi
-    .fn()
-    .mockResolvedValue({ psbtHex: "70736274ff01mock" }),
+  buildRefundPsbt: vi.fn().mockResolvedValue({ psbtHex: "70736274ff01mock" }),
 }));
 
 // Mocked: bitcoinjs-lib is mocked below, real helper would fail to parse.
@@ -42,6 +40,18 @@ vi.mock(
     };
   },
 );
+
+// The refund path extracts the depositor's signature and verifies it against a
+// recomputed sighash before broadcasting. Both need real PSBTs, which this suite
+// deliberately stubs (Psbt.fromHex is mocked below). Signature verification has
+// its own dedicated real-PSBT tests; here we stub the extractor and the guard so
+// the broadcast-orchestration assertions can run against the mock PSBT.
+vi.mock("../../../primitives/psbt/payout", () => ({
+  extractPayoutSignature: vi.fn(() => "ab".repeat(64)),
+}));
+vi.mock("../../../primitives/psbt/verifyScriptPathSchnorrSignature", () => ({
+  assertScriptPathSchnorrSignature: vi.fn(),
+}));
 
 // Finalize + extract uses bitcoinjs-lib. We stub Psbt.fromHex to return an
 // object with controllable `finalizeAllInputs` / `extractTransaction`.
@@ -64,8 +74,8 @@ vi.mock("bitcoinjs-lib", async (importOriginal) => {
   };
 });
 
-import { buildRefundPsbt } from "../../../primitives/psbt/refund";
 import { Psbt } from "bitcoinjs-lib";
+import { buildRefundPsbt } from "../../../primitives/psbt/refund";
 
 const mockedBuildRefundPsbt = vi.mocked(buildRefundPsbt);
 const mockedFromHex = vi.mocked(Psbt.fromHex);
@@ -346,9 +356,7 @@ describe("buildAndBroadcastRefund", () => {
     expect(call[0].prePeginParams.universalChallengerPubkeys).toEqual([
       UC_PUBKEY,
     ]);
-    expect(call[0].prePeginParams.hashlocks).toEqual([
-      HASHLOCK.slice(2),
-    ]);
+    expect(call[0].prePeginParams.hashlocks).toEqual([HASHLOCK.slice(2)]);
     // The top-level `hashlock` param on buildRefundPsbt is documented as
     // "no 0x prefix" and feeds the WASM HTLC connector derivation. A
     // prefixed value here would derive the wrong refund leaf and yield an
@@ -512,7 +520,9 @@ describe("buildAndBroadcastRefund", () => {
           signPsbt,
           broadcastTx,
         }),
-      ).rejects.toThrow(/Auth-anchor OP_RETURN at vout 2 does not match batch size/);
+      ).rejects.toThrow(
+        /Auth-anchor OP_RETURN at vout 2 does not match batch size/,
+      );
 
       expect(mockedBuildRefundPsbt).not.toHaveBeenCalled();
       expect(broadcastTx).not.toHaveBeenCalled();
@@ -548,7 +558,9 @@ describe("buildAndBroadcastRefund", () => {
           signPsbt,
           broadcastTx,
         }),
-      ).rejects.toThrow(/Funded Pre-PegIn tx has 1 outputs but batch requires at least 3/);
+      ).rejects.toThrow(
+        /Funded Pre-PegIn tx has 1 outputs but batch requires at least 3/,
+      );
       expect(mockedBuildRefundPsbt).not.toHaveBeenCalled();
     });
   });
@@ -569,9 +581,7 @@ describe("buildAndBroadcastRefund", () => {
     });
 
     it("rejects vault with non-bytes32 hashlock", async () => {
-      readVault.mockResolvedValue(
-        buildVault({ hashlock: "0xaa" as Hex }),
-      );
+      readVault.mockResolvedValue(buildVault({ hashlock: "0xaa" as Hex }));
 
       await expect(
         buildAndBroadcastRefund({
@@ -681,7 +691,9 @@ describe("buildAndBroadcastRefund", () => {
           signPsbt,
           broadcastTx,
         }),
-      ).rejects.toThrow(/batch\[0\]\.hashlock .* does not match target hashlock/);
+      ).rejects.toThrow(
+        /batch\[0\]\.hashlock .* does not match target hashlock/,
+      );
     });
 
     it("rejects when the target amount does not match its batch entry", async () => {
@@ -706,9 +718,7 @@ describe("buildAndBroadcastRefund", () => {
     });
 
     it("rejects an empty batch", async () => {
-      readVault.mockResolvedValue(
-        buildVault({ batch: [] as never }),
-      );
+      readVault.mockResolvedValue(buildVault({ batch: [] as never }));
 
       await expect(
         buildAndBroadcastRefund({
@@ -881,9 +891,7 @@ describe("buildAndBroadcastRefund", () => {
     });
 
     it("rejects zero or negative timelockRefund", async () => {
-      readPrePeginContext.mockResolvedValue(
-        buildCtx({ timelockRefund: 0 }),
-      );
+      readPrePeginContext.mockResolvedValue(buildCtx({ timelockRefund: 0 }));
 
       await expect(
         buildAndBroadcastRefund({
@@ -957,7 +965,9 @@ describe("buildAndBroadcastRefund", () => {
     it("allows refund at exactly the rate cap when the vault is large enough to clear the fraction cap", async () => {
       // refundFee at rate cap = REFUND_MAX_FEE_RATE_SATS_VB * REFUND_VSIZE.
       // Pick vault.amount such that fraction cap >= refundFee.
-      const refundFeeAtRateCap = BigInt(REFUND_MAX_FEE_RATE_SATS_VB * REFUND_VSIZE);
+      const refundFeeAtRateCap = BigInt(
+        REFUND_MAX_FEE_RATE_SATS_VB * REFUND_VSIZE,
+      );
       const minVaultAmount =
         (refundFeeAtRateCap * REFUND_MAX_FEE_FRACTION_DENOMINATOR) /
         REFUND_MAX_FEE_FRACTION_NUMERATOR;

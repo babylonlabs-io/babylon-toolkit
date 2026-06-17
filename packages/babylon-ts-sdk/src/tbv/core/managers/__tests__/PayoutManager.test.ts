@@ -27,6 +27,15 @@ import { initializeWasmForTests } from "../../primitives/psbt/__tests__/helpers"
 import { PAYOUT_ANCHOR_DUST_SATS } from "../../primitives/psbt/constants";
 import { PayoutManager, type PayoutManagerConfig } from "../PayoutManager";
 
+// These tests inject synthetic signatures into otherwise-real payout PSBTs to
+// exercise orchestration and output validation. BIP-340 signature verification
+// is a separate concern with its own dedicated real-PSBT tests
+// (primitives/psbt/__tests__/verifyScriptPathSchnorrSignature.test.ts), so it is
+// stubbed here to let the synthetic fixtures through.
+vi.mock("../../primitives/psbt/verifyScriptPathSchnorrSignature", () => ({
+  assertScriptPathSchnorrSignature: vi.fn(),
+}));
+
 // Test constants - use valid secp256k1 x-only public keys
 const TEST_KEYS = {
   DEPOSITOR: "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
@@ -192,8 +201,7 @@ describe("PayoutManager", () => {
 
           return psbtsHexes.map((psbtHex, index) => {
             const psbt = Psbt.fromHex(psbtHex);
-            const signature =
-              index === 0 ? payoutSignature1 : payoutSignature2;
+            const signature = index === 0 ? payoutSignature1 : payoutSignature2;
 
             psbt.data.inputs[0].tapScriptSig = [
               {
@@ -415,9 +423,7 @@ describe("PayoutManager", () => {
             commissionBps: 500,
           },
         ]),
-      ).rejects.toThrow(
-        "Expected 2 signed PSBTs but received 1",
-      );
+      ).rejects.toThrow("Expected 2 signed PSBTs but received 1");
     });
 
     it("should throw error when wallet returns more PSBTs than expected", async () => {
@@ -492,9 +498,7 @@ describe("PayoutManager", () => {
             commissionBps: 500,
           },
         ]),
-      ).rejects.toThrow(
-        "Expected 2 signed PSBTs but received 3",
-      );
+      ).rejects.toThrow("Expected 2 signed PSBTs but received 3");
     });
   });
 
