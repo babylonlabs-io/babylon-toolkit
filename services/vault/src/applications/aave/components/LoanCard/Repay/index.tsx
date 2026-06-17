@@ -9,6 +9,7 @@ import {
   AmountSlider,
   Button,
   Callout,
+  Loader,
   SubSection,
 } from "@babylonlabs-io/core-ui";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -36,6 +37,7 @@ import {
 import { useAaveConfig } from "../../../context";
 import {
   useAaveUserPosition,
+  useRepayNetworkFee,
   useRepayTransaction,
   type RepayMode,
 } from "../../../hooks";
@@ -195,6 +197,15 @@ export function Repay() {
   // (carried over to avoid a remount), withhold the price-derived USD value
   // rather than show a figure computed against the wrong reserve's price.
   const isPriceReady = tokenPriceUsd != null && !isPriceStale;
+
+  // Estimate the repay tx's Ethereum network fee. Gate on a valid amount and a
+  // known balance; the hook additionally checks token allowance, since repay's
+  // transferFrom makes eth_estimateGas revert before the adapter is approved.
+  const networkFee = useRepayNetworkFee({
+    reserve: selectedReserve,
+    amount: repayAmount,
+    enabled: !isDisabled && balanceKnown,
+  });
 
   // Pure UI action: pre-fill the input with the cached max so the user sees
   // a number, and flag Max intent. The actual refetch + mode selection
@@ -395,7 +406,13 @@ export function Repay() {
         <span className="text-accent-primary">
           {COPY.loans.ethereumNetworkFeeLabel}
         </span>
-        <span className="text-accent-secondary">{COPY.common.emptyValue}</span>
+        <span className="flex items-center text-accent-secondary">
+          {networkFee.isLoading ? (
+            <Loader size={16} className="text-accent-secondary" />
+          ) : (
+            (networkFee.display ?? COPY.common.emptyValue)
+          )}
+        </span>
       </div>
     </div>
   );

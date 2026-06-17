@@ -25,10 +25,12 @@ export {
   type UseAaveUserPositionResult,
 } from "./useAaveUserPosition";
 export { useAaveVaults, type UseAaveVaultsResult } from "./useAaveVaults";
+export { useBorrowNetworkFee } from "./useBorrowNetworkFee";
 export {
   useBorrowTransaction,
   type UseBorrowTransactionResult,
 } from "./useBorrowTransaction";
+export { type EthTxFee } from "./useEthTxFeeEstimate";
 export { type UseOptimalSplitResult } from "./useOptimalSplit";
 export {
   type PositionNotificationsStatus,
@@ -38,6 +40,7 @@ export {
   useReorderVaults,
   type UseReorderVaultsResult,
 } from "./useReorderVaults";
+export { useRepayNetworkFee } from "./useRepayNetworkFee";
 export {
   useRepayTransaction,
   type RepayMode,

@@ -9,6 +9,7 @@ import {
   AmountSlider,
   Button,
   Callout,
+  Loader,
   SubSection,
   Text,
   WarningIcon,
@@ -36,7 +37,11 @@ import {
   SAFE_TOFIXED_PRECISION,
 } from "../../../constants";
 import { useAaveConfig } from "../../../context";
-import { useAaveBorrowAprs, useBorrowTransaction } from "../../../hooks";
+import {
+  useAaveBorrowAprs,
+  useBorrowNetworkFee,
+  useBorrowTransaction,
+} from "../../../hooks";
 import { AssetPill } from "../../AssetPill";
 import { useLoanContext } from "../../context/LoanContext";
 
@@ -136,6 +141,16 @@ export function Borrow() {
   );
 
   const hasProjection = borrowAmount > 0;
+
+  // Estimate the borrow tx's Ethereum network fee. Only run once the entered
+  // amount passes validation (`!isDisabled`) and the price is current, so
+  // eth_estimateGas simulates a submittable borrow rather than reverting on a
+  // mid-edit or unsafe amount.
+  const networkFee = useBorrowNetworkFee({
+    reserve: selectedReserve,
+    amount: borrowAmount,
+    enabled: !isDisabled && isPriceReady,
+  });
 
   const { borrowableReserves } = useAaveConfig();
 
@@ -326,7 +341,13 @@ export function Borrow() {
         <span className="text-accent-primary">
           {COPY.loans.ethereumNetworkFeeLabel}
         </span>
-        <span className="text-accent-secondary">{COPY.common.emptyValue}</span>
+        <span className="flex items-center text-accent-secondary">
+          {networkFee.isLoading ? (
+            <Loader size={16} className="text-accent-secondary" />
+          ) : (
+            (networkFee.display ?? COPY.common.emptyValue)
+          )}
+        </span>
       </div>
     </div>
   );
