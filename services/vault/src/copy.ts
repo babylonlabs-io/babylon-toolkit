@@ -544,6 +544,8 @@ export const COPY = {
     // Placeholder shown where a value is not yet available (e.g. an
     // oracle-priced figure still loading after an asset switch).
     emptyValue: "–",
+    // Separator between a metric's current and projected value (before → after).
+    valueTransitionArrow: "→",
     loading: "Loading...",
     confirming: "Confirming...",
     applying: "Applying...",

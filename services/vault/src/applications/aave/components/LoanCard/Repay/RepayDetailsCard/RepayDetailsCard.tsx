@@ -54,7 +54,9 @@ export function RepayDetailsCard({
           {debtOriginal ? (
             <span className="flex items-center gap-2">
               <span className="text-accent-secondary">{debtOriginal}</span>
-              <span className="text-accent-secondary">→</span>
+              <span className="text-accent-secondary">
+                {COPY.common.valueTransitionArrow}
+              </span>
               <span>{debt}</span>
             </span>
           ) : (
@@ -75,7 +77,9 @@ export function RepayDetailsCard({
                 <HeartIcon color={originalColor} />
                 {healthFactorOriginal}
               </span>
-              <span className="text-accent-secondary">→</span>
+              <span className="text-accent-secondary">
+                {COPY.common.valueTransitionArrow}
+              </span>
               <span className="flex items-center gap-1">
                 <HeartIcon color={color} />
                 {healthFactor}
