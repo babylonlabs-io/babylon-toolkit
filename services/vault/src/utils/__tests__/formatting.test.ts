@@ -464,6 +464,13 @@ describe("Formatting Utilities", () => {
       expect(formatCompactTokenAmount(0)).toBe("0");
       expect(formatCompactTokenAmount(-5)).toBe("0");
     });
+
+    it("rounds to two decimals before the compact threshold so the boundary is consistent", () => {
+      // 999.995 rounds up to 1,000 → compact "1K", not the full "1,000".
+      expect(formatCompactTokenAmount(999.995)).toBe("1K");
+      // Just under the rounding boundary stays in full form.
+      expect(formatCompactTokenAmount(999.99)).toBe("999.99");
+    });
   });
 
   describe("formatDuration", () => {

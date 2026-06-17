@@ -65,7 +65,9 @@ export function BorrowMetricsCard({
         {availableLiquidityProjected ? (
           <span className="flex items-center gap-2 text-accent-primary">
             <span className="text-accent-secondary">{availableLiquidity}</span>
-            <span className="text-accent-secondary">→</span>
+            <span className="text-accent-secondary">
+              {COPY.common.valueTransitionArrow}
+            </span>
             <span>{availableLiquidityProjected}</span>
           </span>
         ) : (
@@ -105,7 +107,9 @@ export function BorrowMetricsCard({
                 <HeartIcon color={originalColor} />
                 {healthFactorOriginal}
               </span>
-              <span className="text-accent-secondary">→</span>
+              <span className="text-accent-secondary">
+                {COPY.common.valueTransitionArrow}
+              </span>
               <span className="flex items-center gap-1">
                 <HeartIcon color={color} />
                 {healthFactor}

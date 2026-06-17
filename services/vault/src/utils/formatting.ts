@@ -387,11 +387,15 @@ const COMPACT_NOTATION_THRESHOLD = 1000;
  */
 export function formatCompactTokenAmount(amount: number): string {
   if (amount <= 0) return "0";
-  if (amount >= COMPACT_NOTATION_THRESHOLD) {
+  // Round to the two decimals shown before testing the compact threshold, so a
+  // value that rounds up to 1,000 (e.g. 999.995) renders as "1K" rather than
+  // the full "1,000" — keeping the boundary consistent and not overstating.
+  const rounded = Number(amount.toFixed(2));
+  if (rounded >= COMPACT_NOTATION_THRESHOLD) {
     return new Intl.NumberFormat("en-US", {
       notation: "compact",
       maximumFractionDigits: 2,
-    }).format(amount);
+    }).format(rounded);
   }
   return formatAmount(amount, 2);
 }
