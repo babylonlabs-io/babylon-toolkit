@@ -65,6 +65,26 @@ describe("validateBorrowAction", () => {
     });
   });
 
+  it("disables with the liquidity message when the cap is the reserve's available liquidity", () => {
+    // limitedByLiquidity=true → distinct copy explaining the market is the limit.
+    const result = validateBorrowAction(
+      6000,
+      2.0,
+      5000,
+      6,
+      "USDC",
+      false,
+      true,
+    );
+
+    expect(result).toEqual({
+      isDisabled: true,
+      buttonText: "Amount exceeds available liquidity",
+      errorMessage:
+        "Only 5,000 USDC is available to borrow from this market right now. Enter a lower amount and try again.",
+    });
+  });
+
   it("disables with 'Health factor too low' when HF is below minimum", () => {
     const result = validateBorrowAction(8000, 1.0, 10000, 6, "USDC");
 

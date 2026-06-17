@@ -86,6 +86,26 @@ export function Borrow() {
       tokenDecimals: selectedReserve.token.decimals,
     });
 
+  // Live available liquidity for the selected reserve (Aave Hub reserve totals);
+  // also drives the metrics card below. Falls back to "–" while loading/failed.
+  const { liquidityByReserveId } = useAaveReserveLiquidity({
+    reserves: [selectedReserve],
+  });
+  const reserveLiquidity =
+    liquidityByReserveId[selectedReserve.reserveId.toString()];
+
+  // You can't borrow more than the reserve holds, so cap the collateral-based
+  // max by available liquidity when it's known. Additive: when the read is
+  // loading or failed (reserveLiquidity == null) the cap is skipped, so a
+  // best-effort display read can never block an otherwise-fundable borrow.
+  const limitedByLiquidity =
+    reserveLiquidity != null &&
+    reserveLiquidity.availableLiquidity < maxBorrowAmount;
+  const effectiveMaxBorrowAmount =
+    reserveLiquidity == null
+      ? maxBorrowAmount
+      : Math.min(maxBorrowAmount, reserveLiquidity.availableLiquidity);
+
   // Reset the entered amount whenever the borrow asset changes. The form is no
   // longer remounted on switch (see `useAaveReservePrice` keepPreviousData), so
   // clear the amount and the last failed-tx error explicitly — both belong to
@@ -125,17 +145,20 @@ export function Borrow() {
   const { isDisabled, buttonText, errorMessage } = validateBorrowAction(
     borrowAmount,
     metrics.healthFactorValue,
-    maxBorrowAmount,
+    effectiveMaxBorrowAmount,
     selectedReserve.token.decimals,
     assetConfig.symbol,
     isPositionDataStale,
+    limitedByLiquidity,
   );
 
   // Cosmetic minimum only — keeps the slider track from rendering at zero
   // width when there is nothing to borrow. The "Max" label and the slider's
-  // accept range use the real `maxBorrowAmount` so the UI doesn't advertise
-  // a value that validation will reject.
-  const sliderTrackMax = maxBorrowAmount > 0 ? maxBorrowAmount : MIN_SLIDER_MAX;
+  // accept range use `effectiveMaxBorrowAmount` so the UI doesn't advertise a
+  // value (beyond collateral capacity or available liquidity) that validation
+  // will reject.
+  const sliderTrackMax =
+    effectiveMaxBorrowAmount > 0 ? effectiveMaxBorrowAmount : MIN_SLIDER_MAX;
   const displayDecimals = Math.min(
     selectedReserve.token.decimals,
     SAFE_TOFIXED_PRECISION,
@@ -158,13 +181,6 @@ export function Borrow() {
       ? COPY.common.emptyValue
       : formatAprPercent(borrowAprPercent);
 
-  // Live available liquidity + utilization for the selected reserve (Aave Hub
-  // reserve totals). Each falls back to "–" while loading or on a failed read.
-  const { liquidityByReserveId } = useAaveReserveLiquidity({
-    reserves: [selectedReserve],
-  });
-  const reserveLiquidity =
-    liquidityByReserveId[selectedReserve.reserveId.toString()];
   // Borrowing draws the entered amount from the reserve, so the row shows the
   // current liquidity reducing to the post-borrow figure (current → projected),
   // mirroring the health-factor row. The arrow only appears once an amount is
@@ -284,12 +300,12 @@ export function Borrow() {
                     : COPY.common.emptyValue,
             }}
             onMaxClick={() => {
-              if (isPriceReady) handleAmountChange(maxBorrowAmount);
+              if (isPriceReady) handleAmountChange(effectiveMaxBorrowAmount);
             }}
             rightField={{
               label: COPY.loans.availableLabel,
               value: isPriceReady
-                ? `${formatTokenAmount(maxBorrowAmount, displayDecimals)} ${assetConfig.symbol}`
+                ? `${formatTokenAmount(effectiveMaxBorrowAmount, displayDecimals)} ${assetConfig.symbol}`
                 : COPY.common.emptyValue,
             }}
             maxPosition="right"

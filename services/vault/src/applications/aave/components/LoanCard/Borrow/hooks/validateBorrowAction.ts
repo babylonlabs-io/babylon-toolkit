@@ -26,10 +26,14 @@ export interface BorrowValidationResult {
  *
  * @param borrowAmount - Amount user wants to borrow
  * @param projectedHealthFactor - Health factor after the borrow
- * @param maxBorrowAmount - Maximum borrowable amount based on collateral and debt
+ * @param maxBorrowAmount - Effective maximum borrowable amount (collateral- and
+ *   debt-based, already capped by available reserve liquidity when known)
  * @param tokenDecimals - Native token decimals (e.g., 8 for WBTC, 6 for USDC, 18 for ETH)
  * @param symbol - Token symbol, shown in the error description (e.g. "DAI")
  * @param isPositionDataStale - Whether position data may be outdated
+ * @param limitedByLiquidity - Whether `maxBorrowAmount` is bound by the
+ *   reserve's available liquidity (vs the user's collateral). Selects the
+ *   "exceeds available liquidity" message over the generic "exceeds maximum".
  * @returns Validation result with disabled state, button text, and error message
  */
 export function validateBorrowAction(
@@ -39,6 +43,7 @@ export function validateBorrowAction(
   tokenDecimals: number,
   symbol: string,
   isPositionDataStale = false,
+  limitedByLiquidity = false,
 ): BorrowValidationResult {
   if (isPositionDataStale) {
     return {
@@ -77,14 +82,21 @@ export function validateBorrowAction(
   }
 
   if (borrowAmount > maxBorrowAmount) {
-    return {
-      isDisabled: true,
-      buttonText: COPY.loans.borrow.amountExceedsMax,
-      errorMessage: COPY.loans.validation.maxBorrow(
-        formatDisplayAmount(maxBorrowAmount, displayDecimals),
-        symbol,
-      ),
-    };
+    const formattedMax = formatDisplayAmount(maxBorrowAmount, displayDecimals);
+    return limitedByLiquidity
+      ? {
+          isDisabled: true,
+          buttonText: COPY.loans.borrow.amountExceedsLiquidity,
+          errorMessage: COPY.loans.validation.exceedsLiquidity(
+            formattedMax,
+            symbol,
+          ),
+        }
+      : {
+          isDisabled: true,
+          buttonText: COPY.loans.borrow.amountExceedsMax,
+          errorMessage: COPY.loans.validation.maxBorrow(formattedMax, symbol),
+        };
   }
 
   // Block borrow if health factor would be too low
