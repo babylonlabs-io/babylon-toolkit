@@ -42,6 +42,16 @@ const SIMPLE_FALSE = 20;
 const SIMPLE_TRUE = 21;
 const SIMPLE_NULL = 22;
 
+/**
+ * Maximum CBOR nesting depth. Mirrors the issuer's recursion cap (256 in
+ * btc-vault's `ciborium` stack). The COSE protected header is decoded
+ * *before* the signature is verified, so without this bound a
+ * malicious/MITM'd VP could send a deeply-nested blob and crash token
+ * acquisition with an uncatchable stack overflow. Far below the JS call
+ * stack limit, so it converts that DoS into a catchable decode error.
+ */
+const MAX_NESTING_DEPTH = 256;
+
 /** A decoded CBOR data item. Maps preserve key insertion order. */
 export type CborValue =
   | number
@@ -150,8 +160,19 @@ export class CborReader {
     return this.readBytes(head.arg);
   }
 
-  /** Read the next complete data item as a decoded {@link CborValue}. */
-  readValue(): CborValue {
+  /**
+   * Read the next complete data item as a decoded {@link CborValue}.
+   *
+   * `depth` tracks the current nesting level so a deeply-nested blob is
+   * rejected with a {@link CborDecodeError} rather than overflowing the
+   * native call stack (see {@link MAX_NESTING_DEPTH}).
+   */
+  readValue(depth = 0): CborValue {
+    if (depth > MAX_NESTING_DEPTH) {
+      throw new CborDecodeError(
+        `nesting exceeds maximum depth ${MAX_NESTING_DEPTH}`,
+      );
+    }
     const head = this.readHead();
     switch (head.major) {
       case MAJOR_UNSIGNED_INT:
@@ -168,21 +189,21 @@ export class CborReader {
       case MAJOR_ARRAY: {
         const items: CborValue[] = [];
         for (let i = 0; i < head.arg; i++) {
-          items.push(this.readValue());
+          items.push(this.readValue(depth + 1));
         }
         return items;
       }
       case MAJOR_MAP: {
         const map = new Map<CborValue, CborValue>();
         for (let i = 0; i < head.arg; i++) {
-          const key = this.readValue();
-          const value = this.readValue();
+          const key = this.readValue(depth + 1);
+          const value = this.readValue(depth + 1);
           map.set(key, value);
         }
         return map;
       }
       case MAJOR_TAG:
-        return { tag: head.arg, value: this.readValue() };
+        return { tag: head.arg, value: this.readValue(depth + 1) };
       case MAJOR_SIMPLE:
         if (head.arg === SIMPLE_FALSE) return false;
         if (head.arg === SIMPLE_TRUE) return true;
@@ -196,7 +217,20 @@ export class CborReader {
   }
 }
 
-/** Decode a single CBOR item from `bytes`. Trailing bytes are ignored. */
+/**
+ * Decode a single CBOR item from `bytes`, rejecting any trailing bytes.
+ *
+ * Used to parse the COSE protected header and CWT claims set — both are
+ * exactly one top-level item, so a valid prefix followed by extra bytes
+ * is a malformed structure, not a benign tail. Strict consumption keeps
+ * the parser from silently accepting a token a stricter CWT/COSE
+ * consumer would interpret differently.
+ */
 export function decodeCbor(bytes: Uint8Array): CborValue {
-  return new CborReader(bytes).readValue();
+  const reader = new CborReader(bytes);
+  const value = reader.readValue();
+  if (reader.pos !== bytes.length) {
+    throw new CborDecodeError("trailing bytes after top-level item");
+  }
+  return value;
 }

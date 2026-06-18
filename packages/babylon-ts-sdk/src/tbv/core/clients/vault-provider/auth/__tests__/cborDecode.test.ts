@@ -79,6 +79,35 @@ describe("decodeCbor", () => {
   it("rejects a byte string whose length overruns the buffer", () => {
     expect(() => decodeCbor(bytes(0x43, 0x01))).toThrow(CborDecodeError);
   });
+
+  it("rejects trailing bytes after the top-level item", () => {
+    // uint 0 (0x00) fully decodes; the second 0x00 is a stray trailing
+    // byte the strict top-level decoder must reject.
+    expect(() => decodeCbor(bytes(0x00, 0x00))).toThrow(CborDecodeError);
+  });
+
+  it("rejects nesting deeper than the recursion cap", () => {
+    // 300 levels of array(1) nesting (0x81 = array of one element) wrapping
+    // a final uint 0, exceeding the 256 cap. A deeply-nested blob from a
+    // malicious VP must be rejected with a CborDecodeError, not crash the
+    // decoder with a native stack overflow before the signature is checked.
+    const deeplyNested = new Uint8Array(301).fill(0x81);
+    deeplyNested[300] = 0x00;
+    expect(() => decodeCbor(deeplyNested)).toThrow(CborDecodeError);
+  });
+
+  it("decodes nesting up to the recursion cap", () => {
+    // 200 levels stays under the cap and decodes to the innermost value.
+    const depth = 200;
+    const nested = new Uint8Array(depth + 1).fill(0x81);
+    nested[depth] = 0x07;
+    let value = decodeCbor(nested);
+    for (let i = 0; i < depth; i++) {
+      expect(Array.isArray(value)).toBe(true);
+      value = (value as unknown[])[0] as typeof value;
+    }
+    expect(value).toBe(7);
+  });
 });
 
 describe("CborReader", () => {

@@ -198,6 +198,15 @@ export function verifyDepositorCwt(
       "invalid_token_structure",
     );
   }
+  // Reject anything after the COSE_Sign1 structure. The bearer we verify
+  // must be the exact bytes attached to authenticated calls; a stricter
+  // CWT/COSE consumer could interpret trailing bytes differently.
+  if (reader.pos !== tokenBytes.length) {
+    throw new CwtVerificationError(
+      "COSE Sign1 token has trailing bytes after the signature",
+      "invalid_token_structure",
+    );
+  }
 
   // --- 2a. Algorithm pin --------------------------------------------
   const alg = readProtectedAlgorithm(protectedContent);
@@ -258,6 +267,17 @@ export function verifyDepositorCwt(
     throw new CwtVerificationError(
       `token not yet valid: nbf ${claims.notBefore} > now ${input.now}`,
       "token_not_yet_valid",
+    );
+  }
+  // Reject tokens stamped in the future. The Rust reference enforces
+  // `iat <= now`; the golden tokens have iat == nbf so the `nbf` check
+  // above covers it there, but checking iat explicitly matches the
+  // reference exactly (and catches a token with nbf in the past but iat
+  // in the future).
+  if (claims.issuedAt > input.now) {
+    throw new CwtVerificationError(
+      `token issued in the future: iat ${claims.issuedAt} > now ${input.now}`,
+      "invalid_claims",
     );
   }
   if (claims.expiresAt <= input.now) {

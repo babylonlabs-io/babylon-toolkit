@@ -6,6 +6,7 @@ import {
   type CreateDepositorTokenResponse,
   VpTokenProvider,
 } from "../tokenProvider";
+import { CwtVerificationError } from "../verifyDepositorCwt";
 
 import {
   GOLDEN_CWT_AUDIENCE_XONLY,
@@ -238,6 +239,52 @@ describe("VpTokenProvider", () => {
       "vaultProvider_submitDepositorWotsKey",
     );
     expect(second).toBe(GOLDEN_CWT_TOKEN_JSONRPC);
+  });
+
+  it("throws and does not cache when the wire token fails CWT verification", async () => {
+    // A response whose server_identity proof is genuine but whose bearer
+    // token has been tampered with: the COSE signature no longer verifies,
+    // so acquire must throw and leave the cache empty (the bad token never
+    // reaches a downstream authenticated call). The next acquire re-fetches.
+    const tamperedIndex = GOLDEN_CWT_TOKEN_JSONRPC.length - 10;
+    const tamperedChar =
+      GOLDEN_CWT_TOKEN_JSONRPC[tamperedIndex] === "A" ? "B" : "A";
+    const tamperedToken =
+      GOLDEN_CWT_TOKEN_JSONRPC.slice(0, tamperedIndex) +
+      tamperedChar +
+      GOLDEN_CWT_TOKEN_JSONRPC.slice(tamperedIndex + 1);
+
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValueOnce(
+        createJsonRpcSuccessResponse(buildResponse({ token: tamperedToken })),
+      )
+      .mockResolvedValueOnce(createJsonRpcSuccessResponse(buildResponse(), 2));
+    vi.stubGlobal("fetch", mockFetch);
+
+    const client = createClient();
+    const provider = new VpTokenProvider({
+      client,
+      peginTxid: PEGIN_TXID,
+      authAnchorHex: AUTH_ANCHOR,
+      pinnedServerPubkey: PINNED_PUBKEY,
+      expectedAudienceXOnlyPubkey: GOLDEN_CWT_AUDIENCE_XONLY,
+      authGatedMethods: AUTH_GATED_METHODS,
+      grpcGatedMethods: new Set(),
+      now: () => NOW,
+    });
+
+    await expect(
+      provider.getToken("vaultProvider_submitDepositorWotsKey"),
+    ).rejects.toBeInstanceOf(CwtVerificationError);
+
+    // Cache stayed empty — the next acquire must hit the network again and
+    // serve the now-valid token rather than a cached tampered one.
+    const recovered = await provider.getToken(
+      "vaultProvider_submitDepositorWotsKey",
+    );
+    expect(recovered).toBe(GOLDEN_CWT_TOKEN_JSONRPC);
+    expect(mockFetch).toHaveBeenCalledTimes(2);
   });
 
   it("propagates server-identity errors from acquire", async () => {

@@ -21,6 +21,12 @@ import {
   GOLDEN_EXPIRES_AT,
   GOLDEN_SIGNING_KEY_XONLY,
 } from "./goldenVectors";
+import {
+  ALG_ES256K,
+  MINT_EPHEMERAL_PUBKEY_COMPRESSED,
+  type MintCwtOptions,
+  mintTestCwt,
+} from "./mintTestCwt";
 
 // Wall clock chosen between the tokens' nbf (GOLDEN_CWT_NBF) and exp
 // (GOLDEN_CWT_EXP), and within the server identity's lifetime.
@@ -184,6 +190,114 @@ describe("verifyDepositorCwt", () => {
     expectReason(
       baseInput({ expectedIssuerXOnlyPubkey: "xyz" }),
       "invalid_input",
+    );
+  });
+});
+
+// The genuine golden tokens are signed by the Rust issuer's key, so they
+// can only reach the checks that run *before* signature verification.
+// These cases mint a token with a test signing key (and hand the verifier
+// the matching ephemeral pubkey) so the signature genuinely verifies and
+// the post-signature claim-rejection paths become reachable.
+describe("verifyDepositorCwt — crafted negative tokens", () => {
+  const MINT_ISS = GOLDEN_SIGNING_KEY_XONLY;
+  const MINT_AUD = GOLDEN_CWT_AUDIENCE_XONLY;
+  const MINT_NOW = 1_700_000_000;
+  /** COSE alg id for ES256 (secp256r1) — a valid alg, but not the ES256K we pin. */
+  const ALG_ES256 = -7;
+
+  function mintedInput(
+    claims: Partial<MintCwtOptions> = {},
+  ): VerifyDepositorCwtInput {
+    const exp = claims.exp ?? MINT_NOW + 1000;
+    const token = mintTestCwt({
+      alg: ALG_ES256K,
+      iss: MINT_ISS,
+      sub: CWT_SUBJECT_JSONRPC,
+      aud: MINT_AUD,
+      exp,
+      nbf: MINT_NOW - 1000,
+      iat: MINT_NOW - 1000,
+      ...claims,
+    });
+    return {
+      token,
+      ephemeralPubkeyHex: MINT_EPHEMERAL_PUBKEY_COMPRESSED,
+      expectedIssuerXOnlyPubkey: MINT_ISS,
+      expectedSubject: CWT_SUBJECT_JSONRPC,
+      expectedAudienceXOnlyPubkey: MINT_AUD,
+      responseExpiresAt: exp,
+      serverIdentityExpiresAt: exp,
+      now: MINT_NOW,
+    };
+  }
+
+  it("accepts a token minted with the test signing key (minter sanity)", () => {
+    const claims = verifyDepositorCwt(mintedInput());
+    expect(claims.audience).toBe(MINT_AUD);
+    expect(claims.subject).toBe(CWT_SUBJECT_JSONRPC);
+  });
+
+  it("rejects a token whose protected header pins a non-ES256K algorithm", () => {
+    expectReason(mintedInput({ alg: ALG_ES256 }), "unexpected_algorithm");
+  });
+
+  it("rejects a token whose signature is not 64 bytes", () => {
+    expectReason(mintedInput({ sigLenOverride: 63 }), "invalid_token_structure");
+  });
+
+  it("rejects a token whose aud is not a 32-byte x-only pubkey", () => {
+    expectReason(mintedInput({ aud: "not-a-pubkey" }), "invalid_claims");
+  });
+
+  it("rejects a token whose iat is after its exp", () => {
+    expectReason(
+      mintedInput({ exp: MINT_NOW + 1000, iat: MINT_NOW + 1001 }),
+      "invalid_claims",
+    );
+  });
+
+  it("rejects a token issued in the future (iat > now)", () => {
+    expectReason(mintedInput({ iat: MINT_NOW + 1 }), "invalid_claims");
+  });
+
+  it("rejects a token with an empty cti", () => {
+    expectReason(mintedInput({ cti: new Uint8Array(0) }), "invalid_claims");
+  });
+
+  it("rejects a token with trailing bytes after the COSE Sign1 structure", () => {
+    // Append a stray byte to an otherwise-valid minted token. base64url of
+    // the extra byte decodes to trailing bytes the verifier must reject.
+    const valid = mintTestCwt({
+      alg: ALG_ES256K,
+      iss: MINT_ISS,
+      sub: CWT_SUBJECT_JSONRPC,
+      aud: MINT_AUD,
+      exp: MINT_NOW + 1000,
+      nbf: MINT_NOW - 1000,
+      iat: MINT_NOW - 1000,
+    });
+    const tokenBytes = Buffer.from(
+      valid.replace(/-/g, "+").replace(/_/g, "/"),
+      "base64",
+    );
+    const withTrailer = Buffer.concat([tokenBytes, Buffer.of(0x00)])
+      .toString("base64")
+      .replace(/\+/g, "-")
+      .replace(/\//g, "_")
+      .replace(/=+$/, "");
+    expectReason(
+      {
+        token: withTrailer,
+        ephemeralPubkeyHex: MINT_EPHEMERAL_PUBKEY_COMPRESSED,
+        expectedIssuerXOnlyPubkey: MINT_ISS,
+        expectedSubject: CWT_SUBJECT_JSONRPC,
+        expectedAudienceXOnlyPubkey: MINT_AUD,
+        responseExpiresAt: MINT_NOW + 1000,
+        serverIdentityExpiresAt: MINT_NOW + 1000,
+        now: MINT_NOW,
+      },
+      "invalid_token_structure",
     );
   });
 });
