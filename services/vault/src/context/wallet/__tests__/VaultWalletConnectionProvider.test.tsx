@@ -31,7 +31,6 @@ vi.mock("@babylonlabs-io/wallet-connector", () => ({
   createWalletConfig: () => ({}),
   useWalletConnect: () => ({ disconnect: h.disconnectAll }),
   useWidgetState: () => ({ visible: false }),
-  useChainConnector: () => null,
 }));
 
 vi.mock("next-themes", () => ({ useTheme: () => ({ theme: "light" }) }));

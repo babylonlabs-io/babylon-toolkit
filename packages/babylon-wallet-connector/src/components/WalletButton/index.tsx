@@ -20,7 +20,9 @@ export function WalletButton({
   installed = true,
   onClick,
 }: WalletButtonProps) {
-  const btnProps = installed ? { as: "button", disabled, onClick } : { as: "a", href: fallbackLink, target: "_blank" };
+  const btnProps = installed
+    ? { as: "button", disabled, onClick }
+    : { as: "a", href: fallbackLink, target: "_blank", rel: "noopener noreferrer" };
 
   const getTestId = () => {
     const normalizedName = name.toLowerCase();
