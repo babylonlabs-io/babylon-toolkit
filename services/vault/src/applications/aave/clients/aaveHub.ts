@@ -266,8 +266,12 @@ const NULL_PROJECTION = {
  *   rate = irStrategy.calculateInterestRate(assetId, liquidity, drawn, _, swept)
  *   utilization = drawn / (liquidity + drawn + swept)
  *
- * Both endpoints are read from the same strategy view so the current -> projected
- * delta is exact and monotonic. A new borrow of `borrowAmountRaw` moves that
+ * The current-rate leg is bit-identical to the Hub's own `getAssetDrawnRate`
+ * (Aave v4 `AssetLogic.getDrawnRate` calls the same strategy with these exact
+ * totals), so it matches the rate shown by the landing card and asset-selection
+ * modal. Both endpoints are read from one totals snapshot fed to the same
+ * strategy view, so the current -> projected delta stays exact and monotonic
+ * regardless of block skew. A new borrow of `borrowAmountRaw` moves that
  * amount from `liquidity` to `drawn`; `deficit` is passed through to both calls
  * exactly as the Hub feeds it (a borrow doesn't change it), so the figures match
  * the Hub even for a strategy that uses deficit or an asset with bad debt. Reads
