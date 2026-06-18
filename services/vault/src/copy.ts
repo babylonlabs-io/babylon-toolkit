@@ -835,7 +835,6 @@ export const COPY = {
       },
       stats: {
         capLabel: "Cap",
-        // Rendered as e.g. "90/100 Bitcoin" (deposited / total cap).
         capValue: (deposited: string, total: string) =>
           `${deposited}/${total} Bitcoin`,
         capUncapped: "Uncapped",

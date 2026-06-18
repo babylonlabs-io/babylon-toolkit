@@ -130,9 +130,6 @@ export function DashboardPage() {
     );
   };
 
-  // Disconnected: show only the entry/landing screen. The cap figure moves
-  // into the entry screen's stat row, so the Protocol Cap / Collateral / Loans
-  // sections are not rendered here.
   if (!isConnected) {
     return (
       <Container className={`${PAGE_CONTENT_CLASS} pb-6`}>

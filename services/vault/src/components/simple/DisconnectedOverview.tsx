@@ -30,16 +30,12 @@ import { useLandingBorrowAprs } from "./useLandingBorrowAprs";
 
 const COPY_OVERVIEW = COPY.overview.disconnected;
 
-/** Match SupplyCapSection: 2 decimals for >= 1 BTC, 8 for < 1 BTC. */
 function formatCapAmount(satoshis: bigint): string {
   const btc = satoshiToBtcNumber(satoshis);
   return formatSatoshisToBtcDisplay(satoshis, btc >= 1 ? 2 : 8);
 }
 
 function capStatValue(capSnapshot: CapSnapshot | null): string {
-  // null = still loading, errored, or no data — show a neutral dash rather than
-  // conflating it with a genuinely uncapped protocol (a snapshot with
-  // hasTotalCap === false).
   if (!capSnapshot) return "—";
   if (!capSnapshot.hasTotalCap) return COPY_OVERVIEW.stats.capUncapped;
   return COPY_OVERVIEW.stats.capValue(
@@ -97,7 +93,6 @@ export function DisconnectedOverview({
   capSnapshot,
 }: DisconnectedOverviewProps) {
   const borrowAprs = useLandingBorrowAprs();
-  // Only the last two cards expand; both start collapsed. null = none open.
   const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
 
   const aprStats: AprStat[] = [
@@ -119,8 +114,6 @@ export function DisconnectedOverview({
   ];
 
   const features = COPY_OVERVIEW.features;
-  // Cards 1–3 are static (full body always shown); the rates card always shows
-  // the APR row. Cards 4–5 are expandable with a chevron.
   const featureCards = [
     {
       icon: <CompetitiveRatesIcon />,

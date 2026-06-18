@@ -1,16 +1,4 @@
-/**
- * Feature cards for the disconnected entry screen.
- *
- * Each card is a single-open expandable: the header (icon + title) is always
- * visible, the body shows truncated when collapsed and in full when expanded,
- * and an optional `expandedExtra` (e.g. the APR row on the rates card) renders
- * only while expanded. The parent owns which card is open so only one expands
- * at a time.
- *
- * Icons are inline SVGs from the design with their hardcoded white fills/strokes
- * swapped to `currentColor`, so they inherit the card's text color and stay
- * visible in both light and dark themes.
- */
+/** Feature cards for the disconnected entry screen. */
 
 import { ChevronRightIcon } from "@babylonlabs-io/core-ui";
 import type { ReactNode } from "react";
@@ -137,7 +125,6 @@ export function SelfCustodialIcon() {
 }
 
 export function TrustlessIcon() {
-  // No design SVG was provided for this card; the mockup shows a "</>" glyph.
   return (
     <svg
       width={ICON_SIZE}
@@ -176,12 +163,7 @@ interface FeatureCardProps {
   icon: ReactNode;
   title: string;
   body: string;
-  /**
-   * Extra content (e.g. the APR row). On a static card it always shows; on an
-   * expandable card it shows only while expanded.
-   */
   extra?: ReactNode;
-  /** Expandable cards (Self-custodial, Trustless) get a chevron and truncate. */
   expandable?: boolean;
   expanded?: boolean;
   onToggle?: () => void;
@@ -198,8 +180,6 @@ export function FeatureCard({
 }: FeatureCardProps) {
   const showFull = !expandable || expanded;
 
-  // Body + extra live in the text column so the extra (e.g. the APR row) aligns
-  // with the title and subtitle rather than the card edge.
   const content = (
     <div className="flex w-full items-start gap-3">
       <span className="mt-0.5 shrink-0 text-accent-primary">{icon}</span>
