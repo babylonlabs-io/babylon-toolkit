@@ -4,7 +4,9 @@ import {
   ETHWalletProvider,
   WalletProvider,
   createWalletConfig,
+  useChainConnector,
   useWalletConnect,
+  useWidgetState,
 } from "@babylonlabs-io/wallet-connector";
 import { useTheme } from "next-themes";
 import {
@@ -65,6 +67,19 @@ const BTC_DISCONNECT_DEBOUNCE_MS = 3000;
  */
 function WalletProviders({ children }: PropsWithChildren) {
   const { disconnect: disconnectAll } = useWalletConnect();
+  // Whether the connect modal is open. While it is, the user is actively
+  // managing wallets, so a single-wallet disconnect must NOT cascade into the
+  // full both-wallets teardown (which also closes the modal).
+  const { visible: connectModalVisible } = useWidgetState();
+  const ethConnector = useChainConnector("ETH");
+  const connectModalVisibleRef = useRef(connectModalVisible);
+  const ethConnectorRef = useRef(ethConnector);
+  useEffect(() => {
+    connectModalVisibleRef.current = connectModalVisible;
+  }, [connectModalVisible]);
+  useEffect(() => {
+    ethConnectorRef.current = ethConnector;
+  }, [ethConnector]);
   // Guard against re-entrancy when disconnectAll triggers disconnect events
   const isDisconnectingRef = useRef(false);
   // Whether BTC has successfully connected at least once this session. A
@@ -152,14 +167,27 @@ function WalletProviders({ children }: PropsWithChildren) {
     [cancelBtcReset, scheduleBtcReset, runWalletReset],
   );
 
+  // ETH disconnect. When the connect modal is open the user is intentionally
+  // managing wallets, so just clear ETH (the connector's own disconnect handler
+  // removes it from the widget and keeps the modal on the chain list) instead of
+  // tearing down both wallets and closing the modal. Outside the modal, an ETH
+  // disconnect is a real session drop and triggers the full reset.
+  const handleEthDisconnect = useCallback(() => {
+    if (connectModalVisibleRef.current && ethConnectorRef.current) {
+      void ethConnectorRef.current.disconnect();
+      return;
+    }
+    void runWalletReset();
+  }, [runWalletReset]);
+
   // ETH has no late-injection blip; react immediately. Keeping the cancel
   // per-chain also avoids a BTC reconnect wrongly cancelling an ETH disconnect.
   const ethCallbacks = useMemo(
     () => ({
-      onDisconnect: runWalletReset,
+      onDisconnect: handleEthDisconnect,
       onAddressChange: runWalletReset,
     }),
-    [runWalletReset],
+    [handleEthDisconnect, runWalletReset],
   );
 
   return (
@@ -208,7 +236,6 @@ export const WalletConnectionProvider = ({ children }: PropsWithChildren) => {
       onError={onError}
       disabledWallets={DISABLED_WALLETS}
       requiredChains={["BTC", "ETH"]}
-      simplifiedTerms={featureFlags.isSimplifiedTermsEnabled}
       disableTomo
     >
       <WalletProviders>{children}</WalletProviders>

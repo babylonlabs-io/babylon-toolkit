@@ -1,13 +1,37 @@
 import { useCallback, useEffect } from "react";
 
 import { useChainProviders } from "@/context/Chain.context";
-import { useInscriptionProvider } from "@/context/Inscriptions.context";
 import { useLifeCycleHooks } from "@/context/LifecycleHooks.context";
-import { HashMap, IChain, IWallet } from "@/core/types";
+import { HashMap, IChain, IETHProvider, IWallet } from "@/core/types";
 import { validateAddress, validateAddressWithPK } from "@/core/utils/wallet";
 import { ERROR_CODES, WalletError } from "@/error";
 
 import { useWidgetState } from "./useWidgetState";
+
+/**
+ * AppKit exposes a single generic "Ethereum" wallet entry, so the connected
+ * wallet's static metadata carries a generic chain icon/name rather than the
+ * actual wallet the user picked (MetaMask, Rainbow, ...). Re-resolve the
+ * display identity from the provider, which reads it off the live wagmi
+ * connector, so the selected-wallet UI shows the real wallet.
+ */
+async function resolveEthDisplayWallet(wallet: IWallet): Promise<IWallet> {
+  const provider = wallet.provider as IETHProvider | null;
+  if (!provider?.getWalletProviderName || !provider?.getWalletProviderIcon) return wallet;
+
+  const [name, icon] = await Promise.all([provider.getWalletProviderName(), provider.getWalletProviderIcon()]);
+
+  return {
+    id: wallet.id,
+    name: name || wallet.name,
+    icon: icon || wallet.icon,
+    docs: wallet.docs,
+    installed: wallet.installed,
+    provider: wallet.provider,
+    account: wallet.account,
+    label: wallet.label,
+  };
+}
 
 /**
  * Connection-time WalletError codes that the user must see in-dialog —
@@ -32,14 +56,12 @@ export function useWalletConnectors({ persistent, accountStorage, onError }: Pro
     removeWallet,
     displayLoader,
     displayChains,
-    displayInscriptions,
     displayError,
     confirm,
     close,
     reset,
     chains: chainMap,
   } = useWidgetState();
-  const { showAgain } = useInscriptionProvider();
   const { verifyBTCAddress, acceptTermsOfService } = useLifeCycleHooks();
 
   // Connecting event
@@ -81,7 +103,7 @@ export function useWalletConnectors({ persistent, accountStorage, onError }: Pro
             public_key: connectedWallet.account.publicKeyHex,
           });
 
-          const goToNextScreen = () => void (showAgain ? displayInscriptions?.() : displayChains?.());
+          const goToNextScreen = () => void displayChains?.();
 
           if (
             !validateAddressWithPK(
@@ -148,9 +170,9 @@ export function useWalletConnectors({ persistent, accountStorage, onError }: Pro
 
         displayChains?.();
       },
-      ETH: (connector) => (connectedWallet) => {
+      ETH: (connector) => async (connectedWallet) => {
         if (connectedWallet) {
-          selectWallet?.(connector.id, connectedWallet);
+          selectWallet?.(connector.id, await resolveEthDisplayWallet(connectedWallet));
 
           if (persistent && connectedWallet.account?.address) {
             accountStorage.set(connector.id, connectedWallet.id);
@@ -166,7 +188,12 @@ export function useWalletConnectors({ persistent, accountStorage, onError }: Pro
     );
 
     connectorArr.forEach((connector) => {
-      selectWallet?.(connector.id, connector.connectedWallet);
+      const connectedWallet = connector.connectedWallet;
+      if (connector.id === "ETH" && connectedWallet) {
+        void resolveEthDisplayWallet(connectedWallet).then((wallet) => selectWallet?.(connector.id, wallet));
+        return;
+      }
+      selectWallet?.(connector.id, connectedWallet);
     });
 
     return () => unsubscribeArr.forEach((unsubscribe) => unsubscribe());
@@ -174,13 +201,11 @@ export function useWalletConnectors({ persistent, accountStorage, onError }: Pro
     onError,
     selectWallet,
     removeWallet,
-    displayInscriptions,
     displayChains,
     verifyBTCAddress,
     reset,
     close,
     connectors,
-    showAgain,
     persistent,
     visible,
   ]);
@@ -281,13 +306,5 @@ export function useWalletConnectors({ persistent, accountStorage, onError }: Pro
     [connectors],
   );
 
-  const disconnect = useCallback(
-    async (chainId: string) => {
-      const connector = connectors[chainId as keyof typeof connectors];
-      await connector?.disconnect();
-    },
-    [connectors],
-  );
-
-  return { connect, disconnect };
+  return { connect };
 }

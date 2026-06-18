@@ -4,11 +4,16 @@ import { twJoin } from "tailwind-merge";
 import { Portal } from "@/components/Portal";
 import { useModalManager } from "@/hooks/useModalManager";
 import { Backdrop } from "./components/Backdrop";
-import { CloseIcon } from "@/components/Icons";
+import { ChevronLeftIcon, CloseIcon } from "@/components/Icons";
 
 export interface FullScreenDialogProps extends DetailedHTMLProps<HTMLAttributes<HTMLDivElement>, HTMLDivElement> {
   open?: boolean;
   onClose?: () => void;
+  /**
+   * When provided, the top-left button becomes a back affordance (chevron) that
+   * calls this handler instead of closing. Escape/backdrop still call onClose.
+   */
+  onBack?: () => void;
   disableEscapeClose?: boolean;
 }
 
@@ -17,6 +22,7 @@ export const FullScreenDialog = ({
   open = false,
   className,
   onClose,
+  onBack,
   disableEscapeClose,
   ...restProps
 }: FullScreenDialogProps) => {
@@ -31,14 +37,24 @@ export const FullScreenDialog = ({
         )}
         onAnimationEnd={unmount}
       >
-        {onClose && (
+        {onBack ? (
           <button
-            onClick={onClose}
+            onClick={onBack}
             className="fixed top-4 left-4 z-10 flex h-8 w-8 items-center justify-center"
-            aria-label="Close"
+            aria-label="Back"
           >
-            <CloseIcon size={16} variant="accent-primary" />
+            <ChevronLeftIcon size={20} variant="accent-primary" />
           </button>
+        ) : (
+          onClose && (
+            <button
+              onClick={onClose}
+              className="fixed top-4 left-4 z-10 flex h-8 w-8 items-center justify-center"
+              aria-label="Close"
+            >
+              <CloseIcon size={16} variant="accent-primary" />
+            </button>
+          )
         )}
 
         <div
