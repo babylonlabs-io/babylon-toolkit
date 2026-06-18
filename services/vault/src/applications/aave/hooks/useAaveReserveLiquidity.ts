@@ -90,6 +90,9 @@ export function useAaveReserveLiquidity({
         }
         const suppliedRaw = availableLiquidityRaw + totalOwedRaw;
         out[key] = {
+          // The Hub reports liquidity and owed in the reserve's underlying-token
+          // base units, so convert with the token's decimals — the same scale
+          // the borrow amount and the rest of the borrow flow already use.
           availableLiquidity: Number(
             formatUnits(availableLiquidityRaw, reserve.token.decimals),
           ),

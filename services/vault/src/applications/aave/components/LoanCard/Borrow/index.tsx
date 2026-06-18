@@ -52,6 +52,14 @@ import { useBorrowState } from "./hooks/useBorrowState";
 import { validateBorrowAction } from "./hooks/validateBorrowAction";
 import { validateBorrowPreSign } from "./hooks/validateBorrowPreSign";
 
+/**
+ * Borrow at most this fraction of a reserve's available liquidity. The small
+ * margin keeps "Max" from advertising the exact remaining amount — borrowing
+ * the reserve down to zero can revert under some pool configs, so leaving a
+ * sliver avoids a fail-at-Max edge while the on-chain draw stays the backstop.
+ */
+const MAX_BORROWABLE_LIQUIDITY_FRACTION = 0.999;
+
 export function Borrow() {
   const {
     collateralValueUsd,
@@ -95,16 +103,16 @@ export function Borrow() {
     liquidityByReserveId[selectedReserve.reserveId.toString()];
 
   // You can't borrow more than the reserve holds, so cap the collateral-based
-  // max by available liquidity when it's known. Additive: when the read is
-  // loading or failed (reserveLiquidity == null) the cap is skipped, so a
-  // best-effort display read can never block an otherwise-fundable borrow.
-  const limitedByLiquidity =
-    reserveLiquidity != null &&
-    reserveLiquidity.availableLiquidity < maxBorrowAmount;
-  const effectiveMaxBorrowAmount =
+  // max by available liquidity (less a safety margin) when it's known. Additive:
+  // when the read is loading or failed (reserveLiquidity == null) the cap is
+  // skipped, so a best-effort display read can never block an otherwise-fundable
+  // borrow.
+  const liquidityCap =
     reserveLiquidity == null
-      ? maxBorrowAmount
-      : Math.min(maxBorrowAmount, reserveLiquidity.availableLiquidity);
+      ? Infinity
+      : reserveLiquidity.availableLiquidity * MAX_BORROWABLE_LIQUIDITY_FRACTION;
+  const effectiveMaxBorrowAmount = Math.min(maxBorrowAmount, liquidityCap);
+  const limitedByLiquidity = effectiveMaxBorrowAmount < maxBorrowAmount;
 
   // Reset the entered amount whenever the borrow asset changes. The form is no
   // longer remounted on switch (see `useAaveReservePrice` keepPreviousData), so
