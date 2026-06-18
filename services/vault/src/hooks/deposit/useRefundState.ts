@@ -113,50 +113,22 @@ export function useRefundState({
         abortRef.current?.abort();
         abortRef.current = new AbortController();
 
-        try {
-          // The wallet may have locked since the refund modal opened;
-          // `getPublicKeyHex()` below is cached and would not reveal it. Probe
-          // with a round-trip first so a locked wallet fails fast with an
-          // actionable error instead of a silent no-op at signing time.
-          await verifyBtcWalletLiveness(
-            btcWalletProvider,
-            connectedBtcAddress,
-            {
-              probeConnection: shouldProbeWalletLiveness(
-                btcConnector?.connectedWallet?.id,
-              ),
-            },
-          );
+        let depositorBtcPubkey: string | undefined;
 
-          // Fetch the pubkey live from the wallet (not from storage). The
-          // wallet's signPsbt signInputs[].publicKey requires the wallet's
-          // native format (typically compressed 33-byte sec1), and the
-          // stored activity holds the canonical x-only form used for
-          // on-chain/indexer identification.
-          const depositorBtcPubkey = await btcWalletProvider.getPublicKeyHex();
-          const txId = await buildAndBroadcastRefundTransaction({
-            vaultId,
-            depositorAddress: ethAddress as Address,
-            btcWalletProvider,
-            depositorBtcPubkey,
-            feeRate,
-            signal: abortRef.current.signal,
-          });
-          setRefundTxId(txId);
+        const persistRefundSuccess = (txId: string | undefined) => {
+          if (txId) setRefundTxId(txId);
           setRefunding(false);
-
           const refundBroadcastAt = Date.now();
           setOptimisticStatus(
             vaultId,
             LocalStorageStatus.REFUND_BROADCAST,
             refundBroadcastAt,
           );
-
           if (ethAddress && peginTxHash && unsignedPrePeginTx) {
             const existing = pendingPegins.find((p) => p.id === vaultId);
             if (existing) {
               markRefundBroadcast(vaultId, refundBroadcastAt);
-            } else {
+            } else if (depositorBtcPubkey) {
               addPendingPegin({
                 id: vaultId,
                 peginTxHash,
@@ -170,23 +142,36 @@ export function useRefundState({
               });
             }
           }
+        };
+
+        try {
+          await verifyBtcWalletLiveness(
+            btcWalletProvider,
+            connectedBtcAddress,
+            {
+              probeConnection: shouldProbeWalletLiveness(
+                btcConnector?.connectedWallet?.id,
+              ),
+            },
+          );
+
+          depositorBtcPubkey = await btcWalletProvider.getPublicKeyHex();
+          const txId = await buildAndBroadcastRefundTransaction({
+            vaultId,
+            depositorAddress: ethAddress as Address,
+            btcWalletProvider,
+            depositorBtcPubkey,
+            feeRate,
+            signal: abortRef.current.signal,
+          });
+          persistRefundSuccess(txId);
         } catch (err) {
           if (err instanceof Error && err.name === "AbortError") {
             setRefunding(false);
             return;
           }
-          // The HTLC output was already spent — the refund already landed
-          // (often from another device/session). This is success, not a
-          // retryable failure: show the existing refund tx and mark the
-          // optimistic REFUND_BROADCAST state so the action stops re-offering.
           if (err instanceof RefundAlreadySettledError) {
-            if (err.spendingTxid) setRefundTxId(err.spendingTxid);
-            setRefunding(false);
-            setOptimisticStatus(
-              vaultId,
-              LocalStorageStatus.REFUND_BROADCAST,
-              Date.now(),
-            );
+            persistRefundSuccess(err.spendingTxid);
             return;
           }
           logger.error(err instanceof Error ? err : new Error(String(err)), {

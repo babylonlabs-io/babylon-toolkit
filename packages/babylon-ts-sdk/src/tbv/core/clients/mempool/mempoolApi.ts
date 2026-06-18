@@ -182,7 +182,7 @@ export async function pushTx(txHex: string, apiUrl: string): Promise<string> {
       let message: string | undefined;
       try {
         const errorJson = JSON.parse(errorText);
-        message = errorJson.message;
+        message = errorJson.message ?? errorJson.error;
       } catch {
         // Not JSON, use raw text
         message = errorText;
