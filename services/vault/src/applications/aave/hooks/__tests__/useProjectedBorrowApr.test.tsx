@@ -106,6 +106,45 @@ describe("useProjectedBorrowApr", () => {
     expect(result.current.projectedPercent).toBeNull();
   });
 
+  it("withholds the projected rate while showing placeholder data for a stale amount", async () => {
+    let resolveSecond: (value: {
+      currentPercent: number | null;
+      projectedPercent: number | null;
+      error: Error | null;
+    }) => void = () => {};
+    vi.mocked(getProjectedBorrowAprPercentsSafe)
+      .mockResolvedValueOnce({
+        currentPercent: 3.7,
+        projectedPercent: 3.7,
+        error: null,
+      })
+      .mockReturnValueOnce(
+        new Promise((resolve) => {
+          resolveSecond = resolve;
+        }),
+      );
+
+    const { result, rerender } = renderHook(
+      ({ amount }) =>
+        useProjectedBorrowApr({
+          reserve: makeReserve(6, 1),
+          borrowAmount: amount,
+        }),
+      { wrapper, initialProps: { amount: 0 } },
+    );
+    await waitFor(() => expect(result.current.projectedPercent).toBe(3.7));
+
+    // Change the amount (same reserve): the read for the new amount is in flight,
+    // so the hook shows placeholder data. The current rate (amount-independent)
+    // is retained, but the stale projection must be withheld.
+    rerender({ amount: 100 });
+    await waitFor(() => expect(result.current.projectedPercent).toBeNull());
+    expect(result.current.currentPercent).toBe(3.7);
+
+    resolveSecond({ currentPercent: 3.7, projectedPercent: 5.2, error: null });
+    await waitFor(() => expect(result.current.projectedPercent).toBe(5.2));
+  });
+
   it("does not surface the previous reserve's APR while the new reserve loads", async () => {
     let resolveB: (value: {
       currentPercent: number | null;

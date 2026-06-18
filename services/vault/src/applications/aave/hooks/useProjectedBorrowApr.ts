@@ -8,8 +8,10 @@
  *
  * The entered amount is debounced before it reaches the query key: the slider
  * fires continuously while dragging, and each distinct amount is its own
- * on-chain read. `keepPreviousData` holds the last figures during a refetch so
- * the row doesn't blank between keystrokes.
+ * on-chain read. `placeholderData` keeps the previous reserve's figures during a
+ * refetch so the current rate doesn't blank between edits; the amount-specific
+ * `projectedPercent` is withheld while showing placeholder data so a stale
+ * projection is never labeled as the new amount's.
  *
  * Wallet-less: reads go through the app's public RPC client.
  */
@@ -69,7 +71,7 @@ export function useProjectedBorrowApr({
   const { hub, assetId } = reserve.reserve;
   const hubKey = hub.toLowerCase();
 
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error, isPlaceholderData } = useQuery({
     queryKey: [QUERY_KEY, hubKey, assetId, borrowAmountRaw.toString()],
     queryFn: () =>
       getProjectedBorrowAprPercentsSafe({ hub, assetId, borrowAmountRaw }),
@@ -87,10 +89,15 @@ export function useProjectedBorrowApr({
   });
 
   // Surface the SDK-style error from a non-throwing read while still falling
-  // back to nulls, so callers render the empty placeholder.
+  // back to nulls, so callers render the empty placeholder. The current rate is
+  // amount-independent so placeholder data is fine, but the projected rate is
+  // amount-specific: withhold it while showing a placeholder (it was computed
+  // for the previous amount) so the row never labels a stale projection.
   return {
     currentPercent: data?.currentPercent ?? null,
-    projectedPercent: data?.projectedPercent ?? null,
+    projectedPercent: isPlaceholderData
+      ? null
+      : (data?.projectedPercent ?? null),
     isLoading,
     error: (error as Error | null) ?? data?.error ?? null,
   };

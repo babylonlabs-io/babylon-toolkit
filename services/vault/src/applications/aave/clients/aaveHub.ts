@@ -26,6 +26,11 @@ function rateRayToPercent(rateRay: bigint): number {
   return (Number(rateRay) / Number(RAY)) * PERCENT_SCALE;
 }
 
+/** Ceil-divides a RAY-scaled value down to asset units (Aave's `fromRayUp`). */
+function ceilDivRay(valueRay: bigint): bigint {
+  return (valueRay + RAY - 1n) / RAY;
+}
+
 /**
  * Minimal Hub ABI for the two reserve-total reads. The SDK's `AaveHub.abi.json`
  * is the rate-read subset (`getAssetDrawnRate` only), so — matching the
@@ -82,6 +87,13 @@ const HUB_RATE_ABI = [
   {
     type: "function",
     name: "getAssetSwept",
+    stateMutability: "view",
+    inputs: [{ name: "assetId", type: "uint256" }],
+    outputs: [{ name: "", type: "uint256" }],
+  },
+  {
+    type: "function",
+    name: "getAssetDeficitRay",
     stateMutability: "view",
     inputs: [{ name: "assetId", type: "uint256" }],
     outputs: [{ name: "", type: "uint256" }],
@@ -256,10 +268,12 @@ const NULL_PROJECTION = {
  *
  * Both endpoints are read from the same strategy view so the current -> projected
  * delta is exact and monotonic. A new borrow of `borrowAmountRaw` moves that
- * amount from `liquidity` to `drawn` (`deficit` is unused by the curve, passed
- * as 0). Reads are isolated with `allowFailure`: any revert (e.g. an asset with
- * no strategy configured) returns nulls rather than throwing, since callers are
- * display surfaces that fall back to a placeholder.
+ * amount from `liquidity` to `drawn`; `deficit` is passed through to both calls
+ * exactly as the Hub feeds it (a borrow doesn't change it), so the figures match
+ * the Hub even for a strategy that uses deficit or an asset with bad debt. Reads
+ * are isolated with `allowFailure`: any revert (e.g. an asset with no strategy
+ * configured) returns nulls rather than throwing, since callers are display
+ * surfaces that fall back to a placeholder.
  */
 export async function getProjectedBorrowAprPercentsSafe({
   hub,
@@ -294,6 +308,12 @@ export async function getProjectedBorrowAprPercentsSafe({
         {
           address: hub,
           abi: HUB_RATE_ABI as Abi,
+          functionName: "getAssetDeficitRay" as const,
+          args: [assetIdArg] as const,
+        },
+        {
+          address: hub,
+          abi: HUB_RATE_ABI as Abi,
           functionName: "getAssetConfig" as const,
           args: [assetIdArg] as const,
         },
@@ -307,11 +327,12 @@ export async function getProjectedBorrowAprPercentsSafe({
     };
   }
 
-  const [liquidityCall, owedCall, sweptCall, configCall] = totals;
+  const [liquidityCall, owedCall, sweptCall, deficitCall, configCall] = totals;
   if (
     liquidityCall.status !== "success" ||
     owedCall.status !== "success" ||
     sweptCall.status !== "success" ||
+    deficitCall.status !== "success" ||
     configCall.status !== "success"
   ) {
     return {
@@ -324,6 +345,9 @@ export async function getProjectedBorrowAprPercentsSafe({
   // getAssetOwed returns [drawn, premium]; the strategy curve uses `drawn`.
   const drawn = (owedCall.result as readonly bigint[])[0];
   const swept = sweptCall.result as bigint;
+  // The strategy takes the deficit in asset units; the Hub stores it RAY-scaled
+  // and feeds `deficitRay.fromRayUp()` (ceil-divide by RAY) into the rate call.
+  const deficit = ceilDivRay(deficitCall.result as bigint);
   const { irStrategy } = configCall.result as { irStrategy: Address };
 
   // Borrowing moves the drawn amount out of liquidity, so the denominator
@@ -344,7 +368,7 @@ export async function getProjectedBorrowAprPercentsSafe({
           address: irStrategy,
           abi: IR_STRATEGY_ABI as Abi,
           functionName: "calculateInterestRate" as const,
-          args: [assetIdArg, liquidity, drawn, 0n, swept] as const,
+          args: [assetIdArg, liquidity, drawn, deficit, swept] as const,
         },
         {
           address: irStrategy,
@@ -354,7 +378,7 @@ export async function getProjectedBorrowAprPercentsSafe({
             assetIdArg,
             projectedLiquidity,
             projectedDrawn,
-            0n,
+            deficit,
             swept,
           ] as const,
         },

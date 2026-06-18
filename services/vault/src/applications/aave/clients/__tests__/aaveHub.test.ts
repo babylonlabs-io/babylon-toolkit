@@ -125,7 +125,12 @@ function modelRateRay(liquidity: bigint, drawn: bigint, swept: bigint): bigint {
  * it is handed, so the test verifies the projection the reader builds.
  */
 function setupHub(
-  totals: { liquidity: bigint; drawn: bigint; swept: bigint },
+  totals: {
+    liquidity: bigint;
+    drawn: bigint;
+    swept: bigint;
+    deficitRay?: bigint;
+  },
   opts: { totalsRevert?: boolean; currentRevert?: boolean } = {},
 ) {
   multicall.mockImplementation(
@@ -135,13 +140,14 @@ function setupHub(
       contracts: { functionName: string; args: unknown[] }[];
     }) => {
       if (contracts[0].functionName !== "calculateInterestRate") {
-        // Round 1: asset totals + config.
+        // Round 1: asset totals + deficit + config.
         return [
           opts.totalsRevert
             ? { status: "failure", error: new Error("reverted") }
             : { status: "success", result: totals.liquidity },
           { status: "success", result: [totals.drawn, 0n] },
           { status: "success", result: totals.swept },
+          { status: "success", result: totals.deficitRay ?? 0n },
           { status: "success", result: { irStrategy: IRM } },
         ];
       }
@@ -206,6 +212,32 @@ describe("getProjectedBorrowAprPercentsSafe", () => {
     // [assetId, liquidity, drawn, deficit, swept]
     expect(currentArgs).toEqual([5n, 600n, 400n, 0n, 7n]);
     expect(projectedArgs).toEqual([5n, 450n, 550n, 0n, 7n]);
+  });
+
+  it("passes the live deficit (RAY ceil-divided to asset units) to both calls", async () => {
+    // 2.5 RAY -> ceil(2.5) = 3 asset units.
+    setupHub({
+      liquidity: 600n,
+      drawn: 400n,
+      swept: 0n,
+      deficitRay: 2n * 10n ** 27n + 1n,
+    });
+
+    await getProjectedBorrowAprPercentsSafe({
+      hub: HUB,
+      assetId: 5,
+      borrowAmountRaw: 100n,
+    });
+
+    const rateCall = multicall.mock.calls.find(
+      (c) => c[0].contracts[0].functionName === "calculateInterestRate",
+    )!;
+    const [currentArgs, projectedArgs] = rateCall[0].contracts.map(
+      (c: { args: unknown[] }) => c.args,
+    );
+    // deficit (index 3) is identical for both legs — a borrow doesn't change it.
+    expect(currentArgs[3]).toBe(3n);
+    expect(projectedArgs[3]).toBe(3n);
   });
 
   it("crosses the optimal kink into the steep slope as utilization rises", async () => {

@@ -92,7 +92,9 @@ export function BorrowMetricsCard({
         {borrowAprProjected ? (
           <span className="flex items-center gap-2 text-accent-primary">
             <span className="text-accent-secondary">{borrowApr}</span>
-            <span className="text-accent-secondary">→</span>
+            <span className="text-accent-secondary">
+              {COPY.common.valueTransitionArrow}
+            </span>
             <span>{borrowAprProjected}</span>
           </span>
         ) : (
