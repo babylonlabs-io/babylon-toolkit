@@ -142,14 +142,16 @@ export function Borrow() {
 
   const hasProjection = borrowAmount > 0;
 
-  // Estimate the borrow tx's Ethereum network fee. Only run once the entered
-  // amount passes validation (`!isDisabled`) and the price is current, so
-  // eth_estimateGas simulates a submittable borrow rather than reverting on a
-  // mid-edit or unsafe amount.
+  // Estimate the borrow tx's Ethereum network fee once the entered amount
+  // passes validation (`!isDisabled`); eth_estimateGas then simulates a
+  // submittable borrow rather than reverting on a mid-edit or unsafe amount.
+  // Not gated on `isPriceReady`: the gas estimate is independent of the
+  // borrow-token oracle (only the ETH price matters, for the optional USD
+  // suffix, which `formatNetworkFee` omits gracefully when unavailable).
   const networkFee = useBorrowNetworkFee({
     reserve: selectedReserve,
     amount: borrowAmount,
-    enabled: !isDisabled && isPriceReady,
+    enabled: !isDisabled,
   });
 
   const { borrowableReserves } = useAaveConfig();

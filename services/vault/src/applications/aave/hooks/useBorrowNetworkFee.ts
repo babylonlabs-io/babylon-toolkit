@@ -79,5 +79,13 @@ export function useBorrowNetworkFee({
     },
   });
 
-  return { display: fee.display, isLoading: fee.isLoading || isDebouncing };
+  // Once the amount becomes invalid (`enabled` flips false) React Query still
+  // holds the last estimate under the previous debounced key, so gate the
+  // returned value on the live amount — the row clears to `–` immediately
+  // instead of lingering on a stale fee until the debounce settles.
+  const active = enabled && amount > 0;
+  return {
+    display: active ? fee.display : null,
+    isLoading: active && (fee.isLoading || isDebouncing),
+  };
 }

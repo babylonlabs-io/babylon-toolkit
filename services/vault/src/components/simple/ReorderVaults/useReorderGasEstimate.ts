@@ -12,10 +12,9 @@ import type { Hex } from "viem";
 import { useAccount } from "wagmi";
 
 import { getAaveAdapterAddress } from "@/applications/aave/config";
+import { weiToEth } from "@/applications/aave/utils/networkFee";
 import { ethClient } from "@/clients/eth-contract/client";
 import { usePrice } from "@/hooks/usePrices";
-
-const WEI_PER_ETH = 10n ** 18n;
 
 export interface ReorderGasEstimate {
   /** Formatted ETH fee string (e.g. "0.00012 ETH") */
@@ -60,12 +59,9 @@ export function useReorderGasEstimate(
         publicClient.getGasPrice(),
       ]);
 
-      const gasCostWei = gasUnits * gasPrice;
-      // Split into whole + remainder to avoid BigInt-to-Number precision loss
-      // (gasCostWei can exceed Number.MAX_SAFE_INTEGER at high gas prices)
-      const wholePart = gasCostWei / WEI_PER_ETH;
-      const remainder = gasCostWei % WEI_PER_ETH;
-      return Number(wholePart) + Number(remainder) / Number(WEI_PER_ETH);
+      // Shared precision-safe wei→ETH conversion (handles gasCostWei exceeding
+      // Number.MAX_SAFE_INTEGER at high gas prices).
+      return weiToEth(gasUnits * gasPrice);
     },
     enabled: enabled && !!address && vaultIds.length > 0,
     staleTime: 30_000,
