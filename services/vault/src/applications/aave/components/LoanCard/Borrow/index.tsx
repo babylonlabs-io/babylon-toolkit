@@ -39,9 +39,9 @@ import {
 } from "../../../constants";
 import { useAaveConfig } from "../../../context";
 import {
-  useAaveBorrowAprs,
   useAaveReserveLiquidity,
   useBorrowTransaction,
+  useProjectedBorrowApr,
 } from "../../../hooks";
 import { AssetPill } from "../../AssetPill";
 import { useLoanContext } from "../../context/LoanContext";
@@ -176,18 +176,26 @@ export function Borrow() {
 
   const { borrowableReserves } = useAaveConfig();
 
-  // Live current borrow APR for the selected reserve (Aave Hub drawn rate).
-  // The projected post-borrow rate isn't a simple read, so only "current"
-  // shows real data.
-  const { aprPercentByReserveId } = useAaveBorrowAprs({
-    reserves: [selectedReserve],
-  });
-  const borrowAprPercent =
-    aprPercentByReserveId[selectedReserve.reserveId.toString()];
+  // Current and projected borrow APR for the selected reserve, both evaluated
+  // from the Hub asset's on-chain interest-rate strategy so the entered amount's
+  // effect on utilization is exact. The projected figure is shown only once an
+  // amount raises the rate enough to differ from the current after formatting.
+  const { currentPercent: borrowAprPercent, projectedPercent } =
+    useProjectedBorrowApr({ reserve: selectedReserve, borrowAmount });
   const borrowAprDisplay =
     borrowAprPercent == null
       ? COPY.common.emptyValue
       : formatAprPercent(borrowAprPercent);
+  const borrowAprProjectedDisplay =
+    hasProjection && borrowAprPercent != null && projectedPercent != null
+      ? formatAprPercent(projectedPercent)
+      : undefined;
+  // Suppress the arrow when the projection rounds to the current value (e.g.
+  // a tiny amount, or the debounced amount has not yet caught up to the input).
+  const borrowAprProjected =
+    borrowAprProjectedDisplay && borrowAprProjectedDisplay !== borrowAprDisplay
+      ? borrowAprProjectedDisplay
+      : undefined;
 
   // Borrowing draws the entered amount from the reserve, so the row shows the
   // current liquidity reducing to the post-borrow figure (current → projected),
@@ -342,6 +350,7 @@ export function Borrow() {
           availableLiquidity={availableLiquidityDisplay}
           availableLiquidityProjected={availableLiquidityProjectedDisplay}
           borrowApr={borrowAprDisplay}
+          borrowAprProjected={borrowAprProjected}
           utilization={utilizationDisplay}
           healthFactor={metrics.healthFactor}
           healthFactorValue={metrics.healthFactorValue}

@@ -40,6 +40,10 @@ export {
   type UsePositionNotificationsResult,
 } from "./usePositionNotifications";
 export {
+  useProjectedBorrowApr,
+  type UseProjectedBorrowAprResult,
+} from "./useProjectedBorrowApr";
+export {
   useReorderVaults,
   type UseReorderVaultsResult,
 } from "./useReorderVaults";

@@ -17,6 +17,11 @@ interface BorrowMetricsCardProps {
   availableLiquidityProjected?: string;
   /** Formatted current borrow APR (live from the Aave Hub), or "–". */
   borrowApr: string;
+  /**
+   * Formatted post-borrow borrow APR. When set, the row shows
+   * `current → projected`; omit it to show the current value alone.
+   */
+  borrowAprProjected?: string;
   /** Formatted utilization percentage (borrowed / supplied), or "–". */
   utilization: string;
   healthFactor: string;
@@ -30,16 +35,18 @@ const DIVIDER_CLASS = "h-px w-full bg-secondary-strokeLight";
 
 /**
  * Borrow metrics card. Borrow APR, Available liquidity, and Utilization all
- * show live values read from the Aave Hub for the selected reserve; Health
- * factor uses its real projected value. Each figure falls back to the empty
- * placeholder ("–") while its read is loading or unavailable rather than
- * rendering a fabricated value. (The projected post-borrow rate is not a simple
- * read, so only the current borrow APR is shown.)
+ * show live values read from the Aave Hub for the selected reserve, and Health
+ * factor uses its real projected value. Once an amount is entered, the Borrow
+ * APR and Available liquidity rows render `current → projected` (the new borrow
+ * raises the reserve's utilization), as does Health factor. Each figure falls
+ * back to the empty placeholder ("–") while its read is loading or unavailable
+ * rather than rendering a fabricated value.
  */
 export function BorrowMetricsCard({
   availableLiquidity,
   availableLiquidityProjected,
   borrowApr,
+  borrowAprProjected,
   utilization,
   healthFactor,
   healthFactorValue,
@@ -82,7 +89,15 @@ export function BorrowMetricsCard({
           {COPY.loans.borrowRateLabel}
           <Hint tooltip={COPY.loans.borrowAprTooltip} />
         </div>
-        <span className="text-accent-primary">{borrowApr}</span>
+        {borrowAprProjected ? (
+          <span className="flex items-center gap-2 text-accent-primary">
+            <span className="text-accent-secondary">{borrowApr}</span>
+            <span className="text-accent-secondary">→</span>
+            <span>{borrowAprProjected}</span>
+          </span>
+        ) : (
+          <span className="text-accent-primary">{borrowApr}</span>
+        )}
       </div>
 
       <div className={ROW_CLASS}>
