@@ -451,4 +451,23 @@ describe("buildRefundPsbt", () => {
       ).resolves.toMatchObject({ psbtHex: expect.any(String) });
     });
   });
+
+  describe("pegInAmounts input guard", () => {
+    // Refund reconstruction builds the WASM template from pegInAmounts with no
+    // amount-echo backstop, so the input guard at the BigUint64Array
+    // construction is the only check on these values.
+    it("rejects a non-positive pegInAmount", async () => {
+      const { txHex, params } = await buildFundedPrePegin();
+
+      await expect(
+        buildRefundPsbt({
+          prePeginParams: { ...params, pegInAmounts: [0n] },
+          fundedPrePeginTxHex: txHex,
+          htlcVout: 0,
+          refundFee: TEST_REFUND_FEE,
+          hashlock: TEST_HASH_H,
+        }),
+      ).rejects.toThrow(/pegInAmounts\[0\] must be > 0/);
+    });
+  });
 });
