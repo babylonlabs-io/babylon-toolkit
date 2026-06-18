@@ -36,6 +36,15 @@ export const VP_CLAIMER_PAYOUT_OUTPUT_COUNT = 3;
 export const NON_VP_CLAIMER_PAYOUT_OUTPUT_COUNT = 2;
 
 /**
+ * ChallengeAssert connectors the VP returns per challenger: one for the
+ * ChallengeAssertX transaction and one for ChallengeAssertY — two single-input
+ * transactions, not a single multi-input one. This is a per-challenger array
+ * cardinality, NOT a count of inputs in one transaction.
+ * @see btc-vault crates/vault/docs/btc-transactions-spec.md (ChallengeAssertX / ChallengeAssertY)
+ */
+export const CHALLENGE_ASSERT_CONNECTORS_PER_CHALLENGER = 2;
+
+/**
  * Exclusive upper bound on VP commission (bps), and the bps denominator for
  * `floor(peginValue * bps / 10_000)`. Matches `BTCVaultRegistry._validateCommission`
  * (`commissionBps >= 10000` reverts). The minimum is version-locked
