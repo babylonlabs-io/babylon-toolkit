@@ -46,4 +46,16 @@ describe("assertPositiveBigintArray", () => {
       /pegInAmounts\[1\] must be > 0 \(got -5\)/,
     );
   });
+
+  it("throws when an element exceeds the u64 maximum", () => {
+    // Without this bound BigUint64Array would wrap 2^64 to 0 (silent corruption).
+    expect(() =>
+      assertPositiveBigintArray([1n << 64n], "pegInAmounts"),
+    ).toThrow(/pegInAmounts\[0\] must fit in a u64/);
+  });
+
+  it("accepts the u64 maximum", () => {
+    const max = (1n << 64n) - 1n;
+    expect(assertPositiveBigintArray([max], "pegInAmounts")).toEqual([max]);
+  });
 });

@@ -17,6 +17,9 @@
  * validates such inputs before the typed-array construction.
  */
 
+/** Largest value BigUint64Array stores without wrapping mod 2^64 (2^64 − 1). */
+const U64_MAX = (1n << 64n) - 1n;
+
 /**
  * Assert a WASM-returned value is a positive `bigint` and return it narrowed.
  *
@@ -50,7 +53,8 @@ export function assertWasmBigint(value: unknown, label: string): bigint {
  * @param values - The candidate array of satoshi amounts.
  * @param label - Human-readable name used in the thrown error.
  * @throws If `values` is not an array, is empty, or contains any element that is
- *   not a `bigint` or is not strictly greater than 0.
+ *   not a `bigint`, is not strictly greater than 0, or exceeds the u64 maximum
+ *   (which `BigUint64Array` would otherwise wrap mod 2^64).
  */
 export function assertPositiveBigintArray(
   values: unknown,
@@ -73,6 +77,12 @@ export function assertPositiveBigintArray(
     }
     if (value <= 0n) {
       throw new Error(`${label}[${i}] must be > 0 (got ${value}).`);
+    }
+    if (value > U64_MAX) {
+      throw new Error(
+        `${label}[${i}] must fit in a u64 (got ${value}); ` +
+          `refusing to feed it into satoshi math.`,
+      );
     }
   });
   return values as bigint[];
