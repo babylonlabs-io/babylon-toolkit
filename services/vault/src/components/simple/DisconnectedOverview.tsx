@@ -1,97 +1,105 @@
 /**
  * DisconnectedOverview Component
  *
- * Marketing / explainer panel rendered in place of the live Overview card
- * when no wallet is connected. Left column: product pitch + Connect CTA +
- * APR stats. Right column: 3-step "how it works" explainer.
+ * Entry / landing screen rendered when no wallet is connected. Left column:
+ * product pitch, a Cap / Max LTV / Loan process time stat row, and the Connect
+ * CTA. Right column: a vertical list of feature cards with single-open
+ * accordion behavior (the rates card shows live borrow APRs while expanded).
  */
 
-import { Avatar, MobileLogo } from "@babylonlabs-io/core-ui";
-import type { ReactNode } from "react";
+import { MobileLogo } from "@babylonlabs-io/core-ui";
+import { useState } from "react";
 
-import { CARD_DARK_BG_CLASS } from "@/components/shared/layoutClasses";
 import { Connect } from "@/components/Wallet";
 import { COPY } from "@/copy";
+import type { CapSnapshot } from "@/services/deposit";
+import {
+  formatSatoshisToBtcDisplay,
+  satoshiToBtcNumber,
+} from "@/utils/btcConversion";
 
+import {
+  CompetitiveRatesIcon,
+  FastAccessIcon,
+  FeatureCard,
+  PartialLiquidationIcon,
+  SelfCustodialIcon,
+  TrustlessIcon,
+} from "./DisconnectedFeatureCards";
 import { useLandingBorrowAprs } from "./useLandingBorrowAprs";
 
 const COPY_OVERVIEW = COPY.overview.disconnected;
 
+/** Match SupplyCapSection: 2 decimals for >= 1 BTC, 8 for < 1 BTC. */
+function formatCapAmount(satoshis: bigint): string {
+  const btc = satoshiToBtcNumber(satoshis);
+  return formatSatoshisToBtcDisplay(satoshis, btc >= 1 ? 2 : 8);
+}
+
+function capStatValue(capSnapshot: CapSnapshot | null): string {
+  // null = still loading, errored, or no data — show a neutral dash rather than
+  // conflating it with a genuinely uncapped protocol (a snapshot with
+  // hasTotalCap === false).
+  if (!capSnapshot) return "—";
+  if (!capSnapshot.hasTotalCap) return COPY_OVERVIEW.stats.capUncapped;
+  return COPY_OVERVIEW.stats.capValue(
+    formatCapAmount(capSnapshot.totalBTC),
+    formatCapAmount(capSnapshot.totalCapBTC),
+  );
+}
+
+interface StatCellProps {
+  label: string;
+  value: string;
+  withDivider?: boolean;
+}
+
+function StatCell({ label, value, withDivider }: StatCellProps) {
+  return (
+    <div
+      className={`flex flex-col gap-1 px-4 py-3 ${withDivider ? "border-l border-secondary-strokeLight dark:border-secondary-strokeDark" : ""}`}
+    >
+      <span className="text-xs text-accent-secondary">{label}</span>
+      <span className="text-base text-accent-primary">{value}</span>
+    </div>
+  );
+}
+
 interface AprStat {
   label: string;
-  /** Display value (e.g. "3.7%"). Stat is omitted entirely when undefined. */
   value: string | undefined;
-  /** Tailwind class for the value's text color. */
   colorClass: string;
 }
 
-function PanelCard({ children }: { children: ReactNode }) {
+function AprRow({ stats }: { stats: AprStat[] }) {
   return (
-    <div
-      className={`flex flex-col rounded-2xl bg-secondary-highlight p-10 ${CARD_DARK_BG_CLASS}`}
-    >
-      {children}
-    </div>
-  );
-}
-
-function BtcBadgeIcon({ badge }: { badge: "down" | "lock" }) {
-  // Light mode: white bg / #DDDDDD border / #666666 glyph.
-  // Dark  mode: #111111 bg / #2F2F2F border / #B0B0B0 glyph.
-  // `currentColor` lets the path inherit the text color set on the wrapper.
-  return (
-    <div className="relative inline-flex h-8 w-8">
-      <img src="/images/btc.svg" alt="BTC" className="h-8 w-8 rounded-full" />
-      <div className="absolute -bottom-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full border-[0.5px] border-[#DDDDDD] bg-white text-[#666666] dark:border-[#2F2F2F] dark:bg-[#111111] dark:text-[#B0B0B0]">
-        <svg
-          width="16"
-          height="16"
-          viewBox="0 0 18 18"
-          fill="none"
-          xmlns="http://www.w3.org/2000/svg"
-          aria-hidden="true"
+    <div className="grid grid-cols-3">
+      {stats.map((stat, i) => (
+        <div
+          key={stat.label}
+          className={`flex flex-col gap-1 ${i > 0 ? "border-l border-secondary-strokeLight pl-4 dark:border-secondary-strokeDark" : ""}`}
         >
-          {badge === "down" ? (
-            <path
-              d="M13 9L12.295 8.295L9.5 11.085V5H8.5V11.085L5.71 8.29L5 9L9 13L13 9Z"
-              fill="currentColor"
-            />
-          ) : (
-            <path
-              d="M12 7H11.5V6C11.5 4.62 10.38 3.5 9 3.5C7.62 3.5 6.5 4.62 6.5 6V7H6C5.45 7 5 7.45 5 8V13C5 13.55 5.45 14 6 14H12C12.55 14 13 13.55 13 13V8C13 7.45 12.55 7 12 7ZM7.5 6C7.5 5.17 8.17 4.5 9 4.5C9.83 4.5 10.5 5.17 10.5 6V7H7.5V6ZM12 13H6V8H12V13ZM9 11.5C9.55 11.5 10 11.05 10 10.5C10 9.95 9.55 9.5 9 9.5C8.45 9.5 8 9.95 8 10.5C8 11.05 8.45 11.5 9 11.5Z"
-              fill="currentColor"
-            />
-          )}
-        </svg>
-      </div>
+          <span className="text-xs text-accent-secondary">{stat.label}</span>
+          <span className={`text-2xl font-normal ${stat.colorClass}`}>
+            {stat.value ?? "—"}
+          </span>
+        </div>
+      ))}
     </div>
   );
 }
 
-interface StepProps {
-  index: number;
-  icon: ReactNode;
-  title: string;
-  body: string;
+interface DisconnectedOverviewProps {
+  capSnapshot: CapSnapshot | null;
 }
 
-function Step({ index, icon, title, body }: StepProps) {
-  return (
-    <div className="flex flex-col items-center gap-3 px-4 text-center">
-      {icon}
-      <div>
-        <span className="text-sm text-accent-secondary">
-          {COPY_OVERVIEW.steps.stepLabel(index)}
-        </span>
-        <h4 className="text-lg font-medium text-accent-primary">{title}</h4>
-        <p className="text-sm text-accent-secondary">{body}</p>
-      </div>
-    </div>
-  );
-}
-
-export function DisconnectedOverview() {
+export function DisconnectedOverview({
+  capSnapshot,
+}: DisconnectedOverviewProps) {
   const borrowAprs = useLandingBorrowAprs();
+  // Only the last two cards expand; both start collapsed. null = none open.
+  const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
+
   const aprStats: AprStat[] = [
     {
       label: COPY_OVERVIEW.aprLabels.usdt,
@@ -110,105 +118,106 @@ export function DisconnectedOverview() {
     },
   ];
 
+  const features = COPY_OVERVIEW.features;
+  // Cards 1–3 are static (full body always shown); the rates card always shows
+  // the APR row. Cards 4–5 are expandable with a chevron.
+  const featureCards = [
+    {
+      icon: <CompetitiveRatesIcon />,
+      title: features.competitiveRates.title,
+      body: features.competitiveRates.body,
+      extra: <AprRow stats={aprStats} />,
+    },
+    {
+      icon: <FastAccessIcon />,
+      title: features.fastAccess.title,
+      body: features.fastAccess.body,
+    },
+    {
+      icon: <PartialLiquidationIcon />,
+      title: features.partialLiquidation.title,
+      body: features.partialLiquidation.body,
+    },
+    {
+      icon: <SelfCustodialIcon />,
+      title: features.selfCustodial.title,
+      body: features.selfCustodial.body,
+      expandable: true,
+    },
+    {
+      icon: <TrustlessIcon />,
+      title: features.trustless.title,
+      body: features.trustless.body,
+      expandable: true,
+    },
+  ];
+
   return (
-    <PanelCard>
-      <div className="grid grid-cols-1 gap-10 md:grid-cols-2 md:gap-12">
-        {/* Left: product pitch + Connect CTA + APR stats */}
-        <div className="flex flex-col justify-center">
-          <div className="flex items-center gap-4">
-            <span className="[&_svg]:!h-16 [&_svg]:!w-16 [&_svg]:!text-secondary-main dark:[&_svg]:!text-accent-primary">
-              <MobileLogo />
-            </span>
-            <img
-              src="/images/aave.svg"
-              alt="Aave"
-              className="h-16 w-16 rounded-full"
-            />
-          </div>
-
-          <h3 className="mt-10 text-[34px] font-normal leading-tight text-accent-primary">
-            {COPY_OVERVIEW.heroTitle}
-          </h3>
-          <div className="mt-4 space-y-1 text-base text-accent-secondary">
-            {COPY_OVERVIEW.heroBody.map((line) => (
-              <p key={line}>{line}</p>
-            ))}
-          </div>
-
-          <div className="mt-8">
-            <Connect text={COPY_OVERVIEW.connectButton} />
-          </div>
-
-          {(() => {
-            const loadedStats = aprStats.filter(
-              (s): s is AprStat & { value: string } => s.value !== undefined,
-            );
-            if (loadedStats.length === 0) return null;
-            return (
-              <div className="mt-10 grid grid-cols-3 gap-4">
-                {loadedStats.map((stat, i) => (
-                  <div
-                    key={stat.label}
-                    className={`flex flex-col gap-1 ${i > 0 ? "border-l border-secondary-strokeLight pl-4 dark:border-secondary-strokeDark" : ""}`}
-                  >
-                    <span className="text-xs text-accent-secondary">
-                      {stat.label}
-                    </span>
-                    <span className={`text-3xl font-normal ${stat.colorClass}`}>
-                      {stat.value}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            );
-          })()}
+    <div className="grid grid-cols-1 items-start gap-10 md:grid-cols-2 md:gap-12">
+      {/* Left: product pitch + stats + Connect CTA */}
+      <div className="flex flex-col">
+        <div className="flex items-center gap-3">
+          <span className="[&_svg]:!h-10 [&_svg]:!w-10 [&_svg]:!text-secondary-main dark:[&_svg]:!text-accent-primary">
+            <MobileLogo />
+          </span>
+          <img
+            src="/images/aave.svg"
+            alt="Aave"
+            className="h-10 w-10 rounded-full"
+          />
         </div>
 
-        {/* Right: 3-step explainer (in the same panel) */}
-        <div className="flex flex-col gap-6 rounded-2xl bg-surface/40 p-6 dark:bg-black/20">
-          <Step
-            index={1}
-            icon={<BtcBadgeIcon badge="down" />}
-            title={COPY_OVERVIEW.steps.one.title}
-            body={COPY_OVERVIEW.steps.one.body}
+        <h3 className="mt-8 text-[34px] font-normal leading-tight text-accent-primary">
+          {COPY_OVERVIEW.heroTitle}
+        </h3>
+        <p className="mt-4 text-base text-accent-secondary">
+          {COPY_OVERVIEW.heroBody}
+        </p>
+
+        <div className="mt-8 grid w-full max-w-md grid-cols-3 rounded-xl border border-secondary-strokeLight dark:border-secondary-strokeDark">
+          <StatCell
+            label={COPY_OVERVIEW.stats.capLabel}
+            value={capStatValue(capSnapshot)}
           />
-          <div className="border-t-[0.5px] border-secondary-strokeLight" />
-          <Step
-            index={2}
-            icon={
-              <div className="flex items-center">
-                <Avatar
-                  url="/images/usdt.svg"
-                  alt="USDT"
-                  size="medium"
-                  className="h-8 w-8"
-                />
-                <Avatar
-                  url="/images/usdc.svg"
-                  alt="USDC"
-                  size="medium"
-                  className="-ml-2 h-8 w-8"
-                />
-                <Avatar
-                  url="/images/wbtc.svg"
-                  alt="WBTC"
-                  size="medium"
-                  className="-ml-2 h-8 w-8 bg-white"
-                />
-              </div>
-            }
-            title={COPY_OVERVIEW.steps.two.title}
-            body={COPY_OVERVIEW.steps.two.body}
+          <StatCell
+            label={COPY_OVERVIEW.stats.maxLtvLabel}
+            value={COPY_OVERVIEW.stats.maxLtvPlaceholder}
+            withDivider
           />
-          <div className="border-t-[0.5px] border-secondary-strokeLight" />
-          <Step
-            index={3}
-            icon={<BtcBadgeIcon badge="lock" />}
-            title={COPY_OVERVIEW.steps.three.title}
-            body={COPY_OVERVIEW.steps.three.body}
+          <StatCell
+            label={COPY_OVERVIEW.stats.loanProcessTimeLabel}
+            value={COPY_OVERVIEW.stats.loanProcessTimePlaceholder}
+            withDivider
           />
+        </div>
+
+        <div className="mt-8">
+          <Connect text={COPY_OVERVIEW.connectButton} />
         </div>
       </div>
-    </PanelCard>
+
+      {/* Right: feature cards. Only the last two expand (single-open). */}
+      <div className="flex flex-col gap-3">
+        {featureCards.map((card, index) => (
+          <FeatureCard
+            key={card.title}
+            icon={card.icon}
+            title={card.title}
+            body={card.body}
+            extra={card.extra}
+            expandable={card.expandable}
+            expanded={card.expandable ? expandedIndex === index : undefined}
+            onToggle={
+              card.expandable
+                ? () =>
+                    setExpandedIndex((current) =>
+                      current === index ? null : index,
+                    )
+                : undefined
+            }
+          />
+        ))}
+      </div>
+    </div>
   );
 }
