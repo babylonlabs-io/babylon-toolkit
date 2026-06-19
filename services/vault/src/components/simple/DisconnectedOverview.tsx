@@ -3,12 +3,13 @@
  *
  * Entry / landing screen rendered when no wallet is connected. Left column:
  * product pitch, a Cap / Max LTV / Loan process time stat row, and the Connect
- * CTA. Right column: a vertical list of feature cards with single-open
- * accordion behavior (the rates card shows live borrow APRs while expanded).
+ * CTA. Right column: a vertical list of feature cards. The rates card statically
+ * shows live borrow APRs; only the last two cards expand, with single-open
+ * accordion behavior.
  */
 
 import { MobileLogo } from "@babylonlabs-io/core-ui";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 
 import { Connect } from "@/components/Wallet";
 import { COPY } from "@/copy";
@@ -18,14 +19,12 @@ import {
   satoshiToBtcNumber,
 } from "@/utils/btcConversion";
 
-import {
-  CompetitiveRatesIcon,
-  FastAccessIcon,
-  FeatureCard,
-  PartialLiquidationIcon,
-  SelfCustodialIcon,
-  TrustlessIcon,
-} from "./DisconnectedFeatureCards";
+import { CompetitiveRatesIcon } from "./DisconnectedFeatureCards/CompetitiveRatesIcon";
+import { FastAccessIcon } from "./DisconnectedFeatureCards/FastAccessIcon";
+import { FeatureCard } from "./DisconnectedFeatureCards/FeatureCard";
+import { PartialLiquidationIcon } from "./DisconnectedFeatureCards/PartialLiquidationIcon";
+import { SelfCustodialIcon } from "./DisconnectedFeatureCards/SelfCustodialIcon";
+import { TrustlessIcon } from "./DisconnectedFeatureCards/TrustlessIcon";
 import { useLandingBorrowAprs } from "./useLandingBorrowAprs";
 
 const COPY_OVERVIEW = COPY.overview.disconnected;
@@ -95,55 +94,60 @@ export function DisconnectedOverview({
   const borrowAprs = useLandingBorrowAprs();
   const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
 
-  const aprStats: AprStat[] = [
-    {
-      label: COPY_OVERVIEW.aprLabels.usdt,
-      value: borrowAprs.usdt,
-      colorClass: "text-[#26A17B]",
-    },
-    {
-      label: COPY_OVERVIEW.aprLabels.usdc,
-      value: borrowAprs.usdc,
-      colorClass: "text-[#2775CA]",
-    },
-    {
-      label: COPY_OVERVIEW.aprLabels.wbtc,
-      value: borrowAprs.wbtc,
-      colorClass: "text-[#F7931A]",
-    },
-  ];
+  const aprStats: AprStat[] = useMemo(
+    () => [
+      {
+        label: COPY_OVERVIEW.aprLabels.usdt,
+        value: borrowAprs.usdt,
+        colorClass: "text-[#26A17B]",
+      },
+      {
+        label: COPY_OVERVIEW.aprLabels.usdc,
+        value: borrowAprs.usdc,
+        colorClass: "text-[#2775CA]",
+      },
+      {
+        label: COPY_OVERVIEW.aprLabels.wbtc,
+        value: borrowAprs.wbtc,
+        colorClass: "text-[#F7931A]",
+      },
+    ],
+    [borrowAprs.usdt, borrowAprs.usdc, borrowAprs.wbtc],
+  );
 
-  const features = COPY_OVERVIEW.features;
-  const featureCards = [
-    {
-      icon: <CompetitiveRatesIcon />,
-      title: features.competitiveRates.title,
-      body: features.competitiveRates.body,
-      extra: <AprRow stats={aprStats} />,
-    },
-    {
-      icon: <FastAccessIcon />,
-      title: features.fastAccess.title,
-      body: features.fastAccess.body,
-    },
-    {
-      icon: <PartialLiquidationIcon />,
-      title: features.partialLiquidation.title,
-      body: features.partialLiquidation.body,
-    },
-    {
-      icon: <SelfCustodialIcon />,
-      title: features.selfCustodial.title,
-      body: features.selfCustodial.body,
-      expandable: true,
-    },
-    {
-      icon: <TrustlessIcon />,
-      title: features.trustless.title,
-      body: features.trustless.body,
-      expandable: true,
-    },
-  ];
+  const featureCards = useMemo(() => {
+    const features = COPY_OVERVIEW.features;
+    return [
+      {
+        icon: <CompetitiveRatesIcon />,
+        title: features.competitiveRates.title,
+        body: features.competitiveRates.body,
+        extra: <AprRow stats={aprStats} />,
+      },
+      {
+        icon: <FastAccessIcon />,
+        title: features.fastAccess.title,
+        body: features.fastAccess.body,
+      },
+      {
+        icon: <PartialLiquidationIcon />,
+        title: features.partialLiquidation.title,
+        body: features.partialLiquidation.body,
+      },
+      {
+        icon: <SelfCustodialIcon />,
+        title: features.selfCustodial.title,
+        body: features.selfCustodial.body,
+        expandable: true,
+      },
+      {
+        icon: <TrustlessIcon />,
+        title: features.trustless.title,
+        body: features.trustless.body,
+        expandable: true,
+      },
+    ];
+  }, [aprStats]);
 
   return (
     <div className="grid grid-cols-1 items-start gap-10 md:grid-cols-2 md:gap-12">

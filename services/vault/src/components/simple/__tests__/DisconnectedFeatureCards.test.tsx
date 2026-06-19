@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-import { FeatureCard } from "../DisconnectedFeatureCards";
+import { FeatureCard } from "../DisconnectedFeatureCards/FeatureCard";
 
 describe("FeatureCard", () => {
   it("renders a static card with no chevron and the extra content always visible", () => {
