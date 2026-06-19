@@ -749,6 +749,7 @@ export function useDepositFlow(
               peginTxid,
               authAnchorHex,
               pinnedServerPubkey,
+              depositorBtcPubkey: batchResult.depositorBtcPubkey,
               enableGrpcArtifactAuth: featureFlags.isGrpcArtifactsEnabled,
             });
             primedRegistryTxids.push(peginTxid);

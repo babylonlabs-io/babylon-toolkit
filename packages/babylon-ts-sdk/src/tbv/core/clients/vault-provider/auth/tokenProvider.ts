@@ -36,6 +36,11 @@ import {
   type ServerIdentityResponse,
   verifyServerIdentity,
 } from "./serverIdentity";
+import {
+  CWT_SUBJECT_GRPC,
+  CWT_SUBJECT_JSONRPC,
+  verifyDepositorCwt,
+} from "./verifyDepositorCwt";
 
 /**
  * Maximum reasonable `expires_at` value (seconds since epoch). Guards
@@ -71,6 +76,13 @@ export interface VpTokenProviderConfig {
   authAnchorHex: string;
   /** Pinned VP pubkey from the on-chain registry; branded so indexer mirrors can't substitute. */
   pinnedServerPubkey: OnChainBtcPubkey;
+  /**
+   * Depositor x-only pubkey (32-byte hex). Asserted against every
+   * issued token's CWT `aud` claim so a token minted for a different
+   * depositor — or mis-issued by a buggy/compromised VP — is rejected
+   * before it can authenticate a mutation.
+   */
+  expectedAudienceXOnlyPubkey: string;
   /**
    * Methods that need a JSON-RPC-subject bearer (minted via
    * `auth_createDepositorToken`). Forwarded over plain HTTP JSON-RPC by
@@ -111,6 +123,7 @@ export class VpTokenProvider implements BearerTokenProvider {
   private readonly peginTxid: string;
   private readonly authAnchorHex: string;
   private readonly pinnedServerPubkey: OnChainBtcPubkey;
+  private readonly expectedAudienceXOnlyPubkey: string;
   private readonly authGatedMethods: ReadonlySet<string>;
   private readonly grpcGatedMethods: ReadonlySet<string>;
   private readonly refreshSkewSecs: number;
@@ -128,6 +141,7 @@ export class VpTokenProvider implements BearerTokenProvider {
     this.peginTxid = config.peginTxid;
     this.authAnchorHex = config.authAnchorHex;
     this.pinnedServerPubkey = config.pinnedServerPubkey;
+    this.expectedAudienceXOnlyPubkey = config.expectedAudienceXOnlyPubkey;
     this.authGatedMethods = config.authGatedMethods;
     this.grpcGatedMethods = config.grpcGatedMethods;
     this.refreshSkewSecs = config.refreshSkewSecs ?? DEFAULT_REFRESH_SKEW_SECS;
@@ -252,6 +266,24 @@ export class VpTokenProvider implements BearerTokenProvider {
             `VpTokenProvider: invalid expires_at in acquire response (got ${JSON.stringify(response.expires_at)}; must be a safe integer in (${now}, ${MAX_EXPIRES_AT_SECS}])`,
           );
         }
+
+        // Cryptographically verify the token itself — not just the wire
+        // envelope. The COSE Sign1 signature is checked against the
+        // (server-identity-verified) ephemeral key, and the inner CWT
+        // claims are bound to this depositor (`aud`), this VP (`iss`),
+        // and this subject. Without this the bearer is an opaque blob the
+        // FE would attach to mutations on the VP's word alone.
+        verifyDepositorCwt({
+          token: response.token,
+          ephemeralPubkeyHex: response.server_identity.ephemeral_pubkey,
+          expectedIssuerXOnlyPubkey: this.pinnedServerPubkey,
+          expectedSubject:
+            subject === "grpc" ? CWT_SUBJECT_GRPC : CWT_SUBJECT_JSONRPC,
+          expectedAudienceXOnlyPubkey: this.expectedAudienceXOnlyPubkey,
+          responseExpiresAt: response.expires_at,
+          serverIdentityExpiresAt: response.server_identity.expires_at,
+          now,
+        });
 
         const fresh: CachedToken = {
           token: response.token,

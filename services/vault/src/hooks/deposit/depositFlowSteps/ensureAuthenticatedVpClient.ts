@@ -100,6 +100,7 @@ export async function ensureAuthenticatedVpClient(
       peginTxid,
       authAnchorHex,
       pinnedServerPubkey,
+      depositorBtcPubkey: params.depositorBtcPubkey,
       enableGrpcArtifactAuth: featureFlags.isGrpcArtifactsEnabled,
     });
   } finally {

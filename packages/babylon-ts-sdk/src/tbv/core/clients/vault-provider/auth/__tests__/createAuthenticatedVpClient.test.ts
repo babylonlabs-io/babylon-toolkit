@@ -22,6 +22,7 @@ const PEGIN_TXID = "a".repeat(64);
 const AUTH_ANCHOR = "b".repeat(64);
 const PINNED_PUBKEY =
   "ab".repeat(32) as unknown as OnChainBtcPubkey;
+const DEPOSITOR_PUBKEY = "cd".repeat(32);
 
 describe("createAuthenticatedVpClient", () => {
   beforeEach(() => {
@@ -39,6 +40,7 @@ describe("createAuthenticatedVpClient", () => {
       peginTxid: PEGIN_TXID,
       authAnchorHex: AUTH_ANCHOR,
       pinnedServerPubkey: PINNED_PUBKEY,
+      depositorBtcPubkey: DEPOSITOR_PUBKEY,
     });
     const firstProvider = vpTokenRegistry.peek(PEGIN_TXID);
     expect(firstProvider).toBeDefined();
@@ -48,6 +50,7 @@ describe("createAuthenticatedVpClient", () => {
       peginTxid: PEGIN_TXID,
       authAnchorHex: AUTH_ANCHOR,
       pinnedServerPubkey: PINNED_PUBKEY,
+      depositorBtcPubkey: DEPOSITOR_PUBKEY,
     });
     expect(vpTokenRegistry.peek(PEGIN_TXID)).toBe(firstProvider);
   });
@@ -67,6 +70,7 @@ describe("createAuthenticatedVpClient", () => {
       peginTxid: PEGIN_TXID,
       authAnchorHex: AUTH_ANCHOR,
       pinnedServerPubkey: PINNED_PUBKEY,
+      depositorBtcPubkey: DEPOSITOR_PUBKEY,
     });
 
     await client.getPeginStatus({ pegin_txid: PEGIN_TXID }).catch(() => {

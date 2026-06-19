@@ -9,17 +9,23 @@ import {
 } from "../tokenRegistry";
 
 import {
+  GOLDEN_CWT_AUDIENCE_XONLY,
   GOLDEN_SIGNING_KEY_XONLY,
 } from "./goldenVectors";
 
 // The gating tests drive a real `getToken` acquire, which verifies the
-// server-identity proof. That check is exercised exhaustively in
-// serverIdentity / tokenProvider specs; here we only care which
-// bootstrap method the registry-built provider calls, so stub it out to
-// stay independent of the golden proof's wall-clock.
+// server-identity proof and the issued CWT. Both checks are exercised
+// exhaustively in serverIdentity / tokenProvider / verifyDepositorCwt
+// specs; here we only care which bootstrap method the registry-built
+// provider calls, so stub them out to stay independent of the golden
+// fixtures' wall-clock and token bytes.
 vi.mock("../serverIdentity", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../serverIdentity")>()),
   verifyServerIdentity: vi.fn(),
+}));
+vi.mock("../verifyDepositorCwt", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../verifyDepositorCwt")>()),
+  verifyDepositorCwt: vi.fn(),
 }));
 
 const PEGIN_TXID_A = "a".repeat(64);
@@ -51,6 +57,7 @@ function buildInput(
     peginTxid: PEGIN_TXID_A,
     authAnchorHex: AUTH_ANCHOR_HEX,
     pinnedServerPubkey: PINNED_PUBKEY,
+    expectedAudienceXOnlyPubkey: GOLDEN_CWT_AUDIENCE_XONLY,
     ...overrides,
   };
 }
@@ -112,6 +119,20 @@ describe("VpTokenRegistry", () => {
         buildInput({ pinnedServerPubkey: ALT_PINNED_PUBKEY }),
       ),
     ).toThrow(/already bound to pinnedServerPubkey/);
+  });
+
+  it("throws on getOrCreate with the same peginTxid but a different expectedAudienceXOnlyPubkey", () => {
+    // The token's CWT `aud` is bound to the depositor; a second caller
+    // disagreeing on the depositor pubkey must fail loud rather than
+    // share a provider that would reject the issued token's audience.
+    registry.getOrCreate(
+      buildInput({ expectedAudienceXOnlyPubkey: GOLDEN_CWT_AUDIENCE_XONLY }),
+    );
+    expect(() =>
+      registry.getOrCreate(
+        buildInput({ expectedAudienceXOnlyPubkey: "f".repeat(64) }),
+      ),
+    ).toThrow(/already bound to expectedAudienceXOnlyPubkey/);
   });
 
   it("throws on getOrCreate reuse with a different enableGrpcArtifactAuth", () => {
