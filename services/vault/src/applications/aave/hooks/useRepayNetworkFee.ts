@@ -16,7 +16,6 @@ import { buildRepayTx } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
 import { maxUint256, parseUnits } from "viem";
 import { useAccount } from "wagmi";
 
-import { ERC20 } from "@/clients/eth-contract";
 import { useDebouncedValue } from "@/utils/hooks";
 
 import { getAaveAdapterAddress } from "../config";
@@ -25,6 +24,7 @@ import { assertReserveMatchesOnChain } from "../services";
 import type { AaveReserveConfig } from "../services/fetchConfig";
 import { canEstimateRepay } from "../utils/networkFee";
 
+import { useErc20Allowance } from "./useErc20Allowance";
 import { useErc20Decimals } from "./useErc20Decimals";
 import {
   FEE_ESTIMATE_DEBOUNCE_MS,
@@ -51,10 +51,22 @@ export function useRepayNetworkFee({
   const { address } = useAccount();
   const { reserveId } = reserve;
   const { address: tokenAddress } = reserve.token;
+  const adapter = getAaveAdapterAddress();
 
   // On-chain decimals (cached), matching the submit path; fall back to the
   // config value until the one-time read resolves.
   const decimals = useErc20Decimals(tokenAddress) ?? reserve.token.decimals;
+
+  // Read the adapter allowance as a keyed query (not inline in `prepare`) so it
+  // is part of the estimate's key: when an approval lands the allowance
+  // refreshes and the row re-estimates promptly, instead of caching `–` for the
+  // estimate's whole staleTime.
+  const allowance = useErc20Allowance(
+    tokenAddress,
+    address,
+    adapter,
+    enabled && amount > 0,
+  );
 
   // Debounce the amount so a continuous slider drag settles to one estimate
   // instead of an allowance read + eth_estimateGas round-trip per tick.
@@ -76,10 +88,10 @@ export function useRepayNetworkFee({
       debouncedAmount,
       decimals,
       isMaxIntent,
+      allowance?.toString() ?? null,
     ],
     prepare: async () => {
-      if (!address || debouncedAmount <= 0) return null;
-      const adapter = getAaveAdapterAddress();
+      if (!address || debouncedAmount <= 0 || allowance == null) return null;
       // Mirror the submit-path integrity guard before pricing the asset.
       await assertReserveMatchesOnChain(adapter, reserveId, tokenAddress);
 
@@ -95,11 +107,6 @@ export function useRepayNetworkFee({
       // instead of an error, rather than fabricating a gas figure. (Under Max
       // intent eth_estimateGas itself is the final allowance check — it reverts
       // → null → emptyValue — if the sentinel needs more than is approved.)
-      const allowance = await ERC20.getERC20Allowance(
-        tokenAddress,
-        address,
-        adapter,
-      );
       if (!canEstimateRepay(allowance, amountBigInt)) return null;
 
       // Max intent submits the repay-all sentinel; estimate that calldata so
