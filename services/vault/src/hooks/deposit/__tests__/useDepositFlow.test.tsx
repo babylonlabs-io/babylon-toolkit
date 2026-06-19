@@ -787,7 +787,9 @@ describe("useDepositFlow", () => {
       // Flow should complete with warnings, not error
       expect(depositResult).not.toBeNull();
       expect(depositResult?.warnings).toHaveLength(1);
-      expect(depositResult?.warnings?.[0]).toContain("Payout signing failed");
+      expect(depositResult?.warnings?.[0]?.message).toContain(
+        "Payout signing failed",
+      );
 
       // Second vault should still attempt
       expect(signAndSubmitPayouts).toHaveBeenCalledTimes(2);
@@ -814,7 +816,7 @@ describe("useDepositFlow", () => {
 
       expect(depositResult).not.toBeNull();
       expect(depositResult?.warnings).toHaveLength(1);
-      expect(depositResult?.warnings?.[0]).toContain(
+      expect(depositResult?.warnings?.[0]?.message).toContain(
         "WOTS key submission failed",
       );
 
@@ -876,9 +878,11 @@ describe("useDepositFlow", () => {
       expect(depositResult).not.toBeNull();
       expect(result.current.lastWarnings).toEqual(
         expect.arrayContaining([
-          expect.stringContaining(
-            "Vault 1: WOTS key submission skipped - vault provider was not ready",
-          ),
+          expect.objectContaining({
+            message: expect.stringContaining(
+              "Vault 1: WOTS key submission skipped - vault provider was not ready",
+            ),
+          }),
         ]),
       );
       expect(submitWotsPublicKey).toHaveBeenCalledTimes(1);
@@ -913,9 +917,11 @@ describe("useDepositFlow", () => {
       expect(depositResult).not.toBeNull();
       expect(result.current.lastWarnings).toEqual(
         expect.arrayContaining([
-          expect.stringContaining(
-            "Vault 1: WOTS key submission skipped - vault provider reported this BTC Vault cannot continue",
-          ),
+          expect.objectContaining({
+            message: expect.stringContaining(
+              "Vault 1: WOTS key submission skipped - vault provider reported this BTC Vault cannot continue",
+            ),
+          }),
         ]),
       );
       expect(submitWotsPublicKey).toHaveBeenCalledTimes(1);
@@ -945,7 +951,9 @@ describe("useDepositFlow", () => {
       expect(signAndSubmitPayouts).not.toHaveBeenCalled();
       expect(result.current.lastWarnings).not.toEqual(
         expect.arrayContaining([
-          expect.stringContaining("Payout signing failed"),
+          expect.objectContaining({
+            message: expect.stringContaining("Payout signing failed"),
+          }),
         ]),
       );
       expect(result.current.perVaultSteps).toEqual([
@@ -996,7 +1004,9 @@ describe("useDepositFlow", () => {
       expect(signAndSubmitPayouts).toHaveBeenCalledTimes(2);
       expect(result.current.lastWarnings).not.toEqual(
         expect.arrayContaining([
-          expect.stringContaining("Payout signing failed"),
+          expect.objectContaining({
+            message: expect.stringContaining("Payout signing failed"),
+          }),
         ]),
       );
       expect(result.current.perVaultSteps).toEqual([
@@ -1247,7 +1257,7 @@ describe("useDepositFlow", () => {
       expect(result.current.error).toBeFalsy();
       expect(
         result.current.lastWarnings.some((w) =>
-          w.includes("couldn't save a local copy"),
+          w.message.includes("couldn't save a local copy"),
         ),
       ).toBe(true);
     });
@@ -1304,7 +1314,7 @@ describe("useDepositFlow", () => {
       // error must still be visible.
       expect(
         result.current.lastWarnings.some((w) =>
-          w.includes("couldn't save a local copy"),
+          w.message.includes("couldn't save a local copy"),
         ),
       ).toBe(true);
     });

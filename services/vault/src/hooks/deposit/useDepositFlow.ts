@@ -86,6 +86,7 @@ import {
   waitForWotsReadiness,
   type DepositUtxo,
 } from "./depositFlowSteps";
+import type { DepositWarning } from "./depositWarnings";
 import { useBtcWalletState } from "./useBtcWalletState";
 import { useVaultProviders } from "./useVaultProviders";
 
@@ -135,12 +136,13 @@ export interface UseDepositFlowReturn {
   /** Mapped error content (title + body) if any step failed */
   error: DepositErrorContent | null;
   /**
-   * Soft warnings accumulated by the most recent flow (e.g. "couldn't save a
-   * local copy" when the deposit registered on-chain but `addPendingPegin`
-   * failed). Empty until the flow finishes or errors out; persists for the
-   * UI to surface until the next run starts.
+   * Structured soft warnings from the most recent flow (e.g. a per-vault WOTS
+   * readiness timeout, or "couldn't save a local copy"). Empty until the flow
+   * finishes or errors out. Non-terminal per-vault warnings are dropped by the
+   * continuation view once their vault advances past the warned stage — see
+   * {@link DepositWarning}.
    */
-  lastWarnings: string[];
+  lastWarnings: DepositWarning[];
   /** Whether currently waiting for external action (e.g., wallet signature) */
   isWaiting: boolean;
   /** Payout signing progress (X of Y signings) */
@@ -192,8 +194,8 @@ export interface MultiVaultDepositResult {
   pegins: PeginCreationResult[];
   /** Batch ID linking the vaults */
   batchId: string;
-  /** Warning messages for recoverable per-vault failures. */
-  warnings?: string[];
+  /** Structured warnings for recoverable/terminal per-vault failures. */
+  warnings?: DepositWarning[];
 }
 
 // ============================================================================
@@ -232,7 +234,7 @@ export function useDepositFlow(
   // failures, localStorage write failures, etc.). Exposed so the UI can
   // surface them after completion — these are informational, the flow
   // itself doesn't abort on them.
-  const [lastWarnings, setLastWarnings] = useState<string[]>([]);
+  const [lastWarnings, setLastWarnings] = useState<DepositWarning[]>([]);
   const [payoutSigningProgress, setPayoutSigningProgress] =
     useState<PayoutSigningProgress | null>(null);
   const [peginSigningProgress, setPeginSigningProgress] =
@@ -300,8 +302,8 @@ export function useDepositFlow(
       );
 
       // Track background operation failures
-      const warnings: string[] = [];
-      const recordWarning = (warning: string) => {
+      const warnings: DepositWarning[] = [];
+      const recordWarning = (warning: DepositWarning) => {
         warnings.push(warning);
         setLastWarnings([...warnings]);
       };
@@ -644,10 +646,12 @@ export function useDepositFlow(
                 data: { vaultId: peginResult.vaultId },
               },
             );
-            if (
-              !warnings.includes(COPY.deposit.warnings.depositRecordNotSaved)
-            ) {
-              recordWarning(COPY.deposit.warnings.depositRecordNotSaved);
+            if (!warnings.some((w) => w.stage === "persistence")) {
+              recordWarning({
+                stage: "persistence",
+                terminal: true,
+                message: COPY.deposit.warnings.depositRecordNotSaved,
+              });
             }
           }
         }
@@ -880,15 +884,18 @@ export function useDepositFlow(
           signal.throwIfAborted();
 
           if (!readyVaultIds.has(result.vaultId)) {
-            recordWarning(
-              terminalVaultIds.has(result.vaultId)
+            recordWarning({
+              vaultId: result.vaultId,
+              stage: "wots",
+              terminal: terminalVaultIds.has(result.vaultId),
+              message: terminalVaultIds.has(result.vaultId)
                 ? COPY.deposit.warnings.wotsReadinessTerminal(
                     result.vaultIndex + 1,
                   )
                 : COPY.deposit.warnings.wotsReadinessTimeout(
                     result.vaultIndex + 1,
                   ),
-            );
+            });
             wotsFailedVaultIds.add(result.vaultId);
             continue;
           }
@@ -944,12 +951,15 @@ export function useDepositFlow(
 
               const errorMsg =
                 error instanceof Error ? error.message : String(error);
-              recordWarning(
-                COPY.deposit.warnings.wotsSubmissionFailed(
+              recordWarning({
+                vaultId: result.vaultId,
+                stage: "wots",
+                terminal: false,
+                message: COPY.deposit.warnings.wotsSubmissionFailed(
                   result.vaultIndex + 1,
                   errorMsg,
                 ),
-              );
+              });
               logger.error(
                 error instanceof Error ? error : new Error(String(error)),
                 {
@@ -1011,11 +1021,14 @@ export function useDepositFlow(
 
           if (!payoutReadyVaultIds.has(result.vaultId)) {
             if (payoutTerminalVaultIds.has(result.vaultId)) {
-              recordWarning(
-                COPY.deposit.warnings.payoutReadinessTerminal(
+              recordWarning({
+                vaultId: result.vaultId,
+                stage: "payout",
+                terminal: true,
+                message: COPY.deposit.warnings.payoutReadinessTerminal(
                   result.vaultIndex + 1,
                 ),
-              );
+              });
             }
             setPerVaultSteps((prev) =>
               prev.map((step, index) =>
@@ -1083,12 +1096,15 @@ export function useDepositFlow(
 
             const errorMsg =
               error instanceof Error ? error.message : String(error);
-            recordWarning(
-              COPY.deposit.warnings.payoutSigningFailed(
+            recordWarning({
+              vaultId: result.vaultId,
+              stage: "payout",
+              terminal: false,
+              message: COPY.deposit.warnings.payoutSigningFailed(
                 result.vaultIndex + 1,
                 errorMsg,
               ),
-            );
+            });
             logger.error(
               error instanceof Error ? error : new Error(String(error)),
               {
