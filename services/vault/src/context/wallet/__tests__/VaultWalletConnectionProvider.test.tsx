@@ -30,11 +30,13 @@ vi.mock("@babylonlabs-io/wallet-connector", () => ({
   ETHWalletProvider: ({ children }: { children: React.ReactNode }) => children,
   createWalletConfig: () => ({}),
   useWalletConnect: () => ({ disconnect: h.disconnectAll }),
+  useWidgetState: () => ({ visible: false }),
+  useChainConnector: () => null,
 }));
 
 vi.mock("next-themes", () => ({ useTheme: () => ({ theme: "light" }) }));
 vi.mock("@/config/featureFlags", () => ({
-  default: { isSimplifiedTermsEnabled: false },
+  default: { isUtilaWalletEnabled: false },
 }));
 vi.mock("@/infrastructure", () => ({
   logger: { info: vi.fn(), error: vi.fn() },

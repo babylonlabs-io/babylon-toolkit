@@ -48,11 +48,6 @@ interface WalletProviderProps {
    * Provide eth and/or btc properties to enable respective chains
    */
   appKitConfig?: AppKitModalConfig;
-  /**
-   * When true, only show the T&C checkbox in the terms of service dialog
-   * instead of all three checkboxes (inscriptions, hardware wallet warnings)
-   */
-  simplifiedTerms?: boolean;
   disableTomo?: boolean;
 }
 
@@ -68,7 +63,6 @@ export function WalletProvider({
   disabledWallets = [],
   requiredChains,
   appKitConfig,
-  simplifiedTerms = false,
   disableTomo = false,
 }: PropsWithChildren<WalletProviderProps>) {
   const networkMap = useMemo(() => deriveNetworkMap(config), [config]);
@@ -113,7 +107,7 @@ export function WalletProvider({
             <TomoBBNConnector persistent={persistent} storage={storage} />
           </>
         )}
-        <WalletDialog persistent={persistent} storage={storage} config={config} onError={onError} simplifiedTerms={simplifiedTerms} />
+        <WalletDialog persistent={persistent} storage={storage} config={config} onError={onError} />
       </ChainProvider>
     </LifeCycleHooksProvider>
   );

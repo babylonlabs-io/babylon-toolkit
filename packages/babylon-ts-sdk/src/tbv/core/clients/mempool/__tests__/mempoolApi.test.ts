@@ -13,6 +13,7 @@ import {
   getAddressTxs,
   getAddressUtxos,
   getNetworkFees,
+  getOutspend,
   getTipHeight,
   getTxHex,
   getTxInfo,
@@ -380,6 +381,49 @@ describe("scriptPubKey format validation", () => {
     );
     const result = await getUtxoInfo(VALID_TXID, 0, API_URL);
     expect(result.scriptPubKey).toBe("76a914abcdef88ac");
+  });
+});
+
+describe("getOutspend", () => {
+  it("returns spent:false for an unspent output", async () => {
+    mockFetch.mockResolvedValueOnce(jsonResponse({ spent: false }));
+    const result = await getOutspend(VALID_TXID, 0, API_URL);
+    expect(result.spent).toBe(false);
+    expect(result.txid).toBeUndefined();
+    expect(mockFetch).toHaveBeenCalledWith(
+      `${API_URL}/tx/${VALID_TXID}/outspend/0`,
+      expect.anything(),
+    );
+  });
+
+  it("returns the spending tx details for a spent output", async () => {
+    mockFetch.mockResolvedValueOnce(
+      jsonResponse({
+        spent: true,
+        txid: VALID_TXID_2,
+        vin: 0,
+        status: { confirmed: true, block_height: 308289 },
+      }),
+    );
+    const result = await getOutspend(VALID_TXID, 2, API_URL);
+    expect(result.spent).toBe(true);
+    expect(result.txid).toBe(VALID_TXID_2);
+    expect(result.status?.confirmed).toBe(true);
+    expect(result.status?.block_height).toBe(308289);
+  });
+
+  it("rejects an invalid txid before fetching", async () => {
+    await expect(getOutspend("bad-txid", 0, API_URL)).rejects.toThrow(
+      /Invalid transaction ID format/,
+    );
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  it("rejects a negative vout before fetching", async () => {
+    await expect(getOutspend(VALID_TXID, -1, API_URL)).rejects.toThrow(
+      /Invalid vout -1/,
+    );
+    expect(mockFetch).not.toHaveBeenCalled();
   });
 });
 

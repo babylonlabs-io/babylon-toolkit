@@ -62,6 +62,7 @@ export const COPY = {
       LIQUIDATED: "Liquidated",
       EXPIRED: "Expired",
       REFUNDING: "Refunding",
+      REFUNDED: "Refunded",
       FAILED: "Failed",
       INVALID: "Invalid",
       UNKNOWN: "Unknown",
@@ -106,6 +107,8 @@ export const COPY = {
         "This BTC Vault was liquidated. The collateral was seized to cover unpaid debt.",
       refundBroadcast:
         "Refund transaction has been broadcast to Bitcoin. Waiting for on-chain confirmation...",
+      refundComplete:
+        "Your refund has been confirmed on Bitcoin. The locked BTC has returned to your wallet.",
       refundMaturing: (blocks: number, hours: number) =>
         `Your refund will be claimable in ~${blocks} Bitcoin ${blocks === 1 ? "block" : "blocks"} (~${hours}h).`,
       refundMaturingUnknown: "Checking when your refund will be claimable...",
@@ -747,6 +750,7 @@ export const COPY = {
       refreshingPosition: "Refreshing position...",
       amountTooSmall: "Amount too small",
       amountExceedsMax: "Amount exceeds maximum",
+      amountExceedsLiquidity: "Amount exceeds available liquidity",
       healthFactorTooLow: "Health factor too low",
     },
     // Borrow validation-error descriptions (the Callout title comes from the
@@ -756,6 +760,8 @@ export const COPY = {
         `The minimum borrowable amount is ${min}. Enter a higher amount and try again.`,
       maxBorrow: (max: string, symbol: string) =>
         `The maximum borrowable amount is ${max} ${symbol}. Enter a lower amount and try again.`,
+      exceedsLiquidity: (available: string, symbol: string) =>
+        `Only ${available} ${symbol} is available to borrow from this market right now. Enter a lower amount and try again.`,
       healthFactorTooLow: (min: number) =>
         `Borrowing this amount would drop your health factor below ${min}, risking liquidation. Reduce the amount and try again.`,
     },

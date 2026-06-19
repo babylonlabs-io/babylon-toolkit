@@ -6,7 +6,6 @@ interface WalletButtonProps {
   logo: string;
   disabled?: boolean;
   name: string;
-  label?: string;
   fallbackLink?: string;
   installed?: boolean;
   onClick?: () => void;
@@ -17,7 +16,6 @@ export function WalletButton({
   disabled = false,
   name,
   logo,
-  label,
   fallbackLink,
   installed = true,
   onClick,
@@ -34,8 +32,10 @@ export function WalletButton({
 
   return (
     <Text
+      variant="body2"
       className={twMerge(
-        "flex h-14 w-full cursor-pointer items-center gap-2.5 rounded border border-secondary-strokeLight text-accent-primary px-2",
+        "flex h-14 w-full items-center gap-2.5 rounded-lg p-2 text-accent-primary",
+        installed ? "bg-neutral-200" : "bg-neutral-100",
         disabled ? "cursor-default" : "cursor-pointer",
         className,
       )}
@@ -43,9 +43,19 @@ export function WalletButton({
       data-testid={getTestId()}
     >
       <Avatar variant="rounded" className="shrink-0" alt={name} url={logo} />
-      {name}
+      <span className={twMerge("min-w-0 flex-1 truncate text-left", !installed && "text-accent-secondary")}>{name}</span>
 
-      {label && <Chip className="ml-auto shrink-0">{label}</Chip>}
+      <Chip
+        className={twMerge(
+          "flex shrink-0 items-center gap-1.5 rounded-full",
+          installed ? "bg-neutral-100" : "bg-neutral-200",
+        )}
+      >
+        {installed && <span className="size-2 rounded-full bg-[#15B768] dark:bg-[#00E676]" />}
+        <span className={installed ? "text-[#15B768] dark:text-[#00E676]" : "text-accent-secondary"}>
+          {installed ? "Installed" : "Uninstalled"}
+        </span>
+      </Chip>
     </Text>
   );
 }

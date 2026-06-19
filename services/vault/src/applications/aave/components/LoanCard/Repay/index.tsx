@@ -86,8 +86,8 @@ export function Repay() {
   // Fetch user's token balance for repayment
   const {
     balance: userTokenBalance,
-    isLoading: balanceLoading,
     error: balanceError,
+    hasBalanceData,
     refetch: refetchUserBalance,
   } = useERC20Balance(
     selectedReserve.token.address,
@@ -95,11 +95,12 @@ export function Repay() {
     selectedReserve.token.decimals,
   );
 
-  // `userTokenBalance` reads 0 while the balance query is loading or errored,
-  // which is indistinguishable from a genuine zero balance. Gate the
-  // zero-balance messaging and the submit on a known balance so we never tell a
-  // user who actually holds tokens that they have none.
-  const balanceKnown = !balanceLoading && balanceError == null;
+  // "Known" = a balance has loaded at least once (`hasBalanceData`), NOT "the
+  // latest fetch had no error". React Query keeps the last good balance across a
+  // background-refetch error (refetchInterval 30s), so gating on `error == null`
+  // would block repay on a transient blip despite a usable balance. The
+  // Max-intent submit re-fetches fresh in `pickRepayParams`.
+  const balanceKnown = hasBalanceData;
 
   const {
     executeRepay,
@@ -282,7 +283,10 @@ export function Repay() {
           }
         : refetchError
           ? { variant: "warning", body: refetchError }
-          : balanceError != null
+          : // Only when NO balance ever loaded (first load failed). A
+            // background-refetch blip keeps the last good balance, so it must
+            // not surface a load error or block repay.
+            !hasBalanceData && balanceError != null
             ? { variant: "warning", body: COPY.loans.repay.balanceLoadError }
             : balanceKnown && warningMessage
               ? { variant: "warning", body: warningMessage }

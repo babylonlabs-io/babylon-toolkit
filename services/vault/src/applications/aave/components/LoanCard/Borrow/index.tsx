@@ -26,6 +26,8 @@ import {
 } from "../../../../../services/token";
 import {
   formatAprPercent,
+  formatBasisPointsAsPercent,
+  formatCompactTokenAmount,
   formatTokenAmount,
   formatUsdValue,
 } from "../../../../../utils/formatting";
@@ -39,6 +41,7 @@ import {
 import { useAaveConfig } from "../../../context";
 import {
   useAaveBorrowAprs,
+  useAaveReserveLiquidity,
   useBorrowNetworkFee,
   useBorrowTransaction,
 } from "../../../hooks";
@@ -50,6 +53,14 @@ import { useBorrowMetrics } from "./hooks/useBorrowMetrics";
 import { useBorrowState } from "./hooks/useBorrowState";
 import { validateBorrowAction } from "./hooks/validateBorrowAction";
 import { validateBorrowPreSign } from "./hooks/validateBorrowPreSign";
+
+/**
+ * Borrow at most this fraction of a reserve's available liquidity. The small
+ * margin keeps "Max" from advertising the exact remaining amount — borrowing
+ * the reserve down to zero can revert under some pool configs, so leaving a
+ * sliver avoids a fail-at-Max edge while the on-chain draw stays the backstop.
+ */
+const MAX_BORROWABLE_LIQUIDITY_FRACTION = 0.999;
 
 export function Borrow() {
   const {
@@ -84,6 +95,26 @@ export function Borrow() {
       tokenPriceUsd,
       tokenDecimals: selectedReserve.token.decimals,
     });
+
+  // Live available liquidity for the selected reserve (Aave Hub reserve totals);
+  // also drives the metrics card below. Falls back to "–" while loading/failed.
+  const { liquidityByReserveId } = useAaveReserveLiquidity({
+    reserves: [selectedReserve],
+  });
+  const reserveLiquidity =
+    liquidityByReserveId[selectedReserve.reserveId.toString()];
+
+  // You can't borrow more than the reserve holds, so cap the collateral-based
+  // max by available liquidity (less a safety margin) when it's known. Additive:
+  // when the read is loading or failed (reserveLiquidity == null) the cap is
+  // skipped, so a best-effort display read can never block an otherwise-fundable
+  // borrow.
+  const liquidityCap =
+    reserveLiquidity == null
+      ? Infinity
+      : reserveLiquidity.availableLiquidity * MAX_BORROWABLE_LIQUIDITY_FRACTION;
+  const effectiveMaxBorrowAmount = Math.min(maxBorrowAmount, liquidityCap);
+  const limitedByLiquidity = effectiveMaxBorrowAmount < maxBorrowAmount;
 
   // Reset the entered amount whenever the borrow asset changes. The form is no
   // longer remounted on switch (see `useAaveReservePrice` keepPreviousData), so
@@ -124,17 +155,20 @@ export function Borrow() {
   const { isDisabled, buttonText, errorMessage } = validateBorrowAction(
     borrowAmount,
     metrics.healthFactorValue,
-    maxBorrowAmount,
+    effectiveMaxBorrowAmount,
     selectedReserve.token.decimals,
     assetConfig.symbol,
     isPositionDataStale,
+    limitedByLiquidity,
   );
 
   // Cosmetic minimum only — keeps the slider track from rendering at zero
   // width when there is nothing to borrow. The "Max" label and the slider's
-  // accept range use the real `maxBorrowAmount` so the UI doesn't advertise
-  // a value that validation will reject.
-  const sliderTrackMax = maxBorrowAmount > 0 ? maxBorrowAmount : MIN_SLIDER_MAX;
+  // accept range use `effectiveMaxBorrowAmount` so the UI doesn't advertise a
+  // value (beyond collateral capacity or available liquidity) that validation
+  // will reject.
+  const sliderTrackMax =
+    effectiveMaxBorrowAmount > 0 ? effectiveMaxBorrowAmount : MIN_SLIDER_MAX;
   const displayDecimals = Math.min(
     selectedReserve.token.decimals,
     SAFE_TOFIXED_PRECISION,
@@ -158,7 +192,7 @@ export function Borrow() {
 
   // Live current borrow APR for the selected reserve (Aave Hub drawn rate).
   // The projected post-borrow rate isn't a simple read, so only "current"
-  // shows real data; the other metric rows remain placeholders ("–").
+  // shows real data.
   const { aprPercentByReserveId } = useAaveBorrowAprs({
     reserves: [selectedReserve],
   });
@@ -168,6 +202,25 @@ export function Borrow() {
     borrowAprPercent == null
       ? COPY.common.emptyValue
       : formatAprPercent(borrowAprPercent);
+
+  // Borrowing draws the entered amount from the reserve, so the row shows the
+  // current liquidity reducing to the post-borrow figure (current → projected),
+  // mirroring the health-factor row. The arrow only appears once an amount is
+  // entered; the symbol is shown once, on whichever value is the last shown.
+  const availableLiquidityProjectedDisplay =
+    reserveLiquidity == null || !hasProjection
+      ? undefined
+      : `${formatCompactTokenAmount(Math.max(0, reserveLiquidity.availableLiquidity - borrowAmount))} ${assetConfig.symbol}`;
+  const availableLiquidityDisplay =
+    reserveLiquidity == null
+      ? COPY.common.emptyValue
+      : availableLiquidityProjectedDisplay
+        ? formatCompactTokenAmount(reserveLiquidity.availableLiquidity)
+        : `${formatCompactTokenAmount(reserveLiquidity.availableLiquidity)} ${assetConfig.symbol}`;
+  const utilizationDisplay =
+    reserveLiquidity?.utilizationBps == null
+      ? COPY.common.emptyValue
+      : formatBasisPointsAsPercent(reserveLiquidity.utilizationBps);
 
   const projectedHealthStatus = getHealthFactorStatusFromValue(
     metrics.healthFactorValue,
@@ -269,12 +322,12 @@ export function Borrow() {
                     : COPY.common.emptyValue,
             }}
             onMaxClick={() => {
-              if (isPriceReady) handleAmountChange(maxBorrowAmount);
+              if (isPriceReady) handleAmountChange(effectiveMaxBorrowAmount);
             }}
             rightField={{
               label: COPY.loans.availableLabel,
               value: isPriceReady
-                ? `${formatTokenAmount(maxBorrowAmount, displayDecimals)} ${assetConfig.symbol}`
+                ? `${formatTokenAmount(effectiveMaxBorrowAmount, displayDecimals)} ${assetConfig.symbol}`
                 : COPY.common.emptyValue,
             }}
             maxPosition="right"
@@ -300,7 +353,10 @@ export function Borrow() {
 
         {/* Borrow Metrics */}
         <BorrowMetricsCard
+          availableLiquidity={availableLiquidityDisplay}
+          availableLiquidityProjected={availableLiquidityProjectedDisplay}
           borrowApr={borrowAprDisplay}
+          utilization={utilizationDisplay}
           healthFactor={metrics.healthFactor}
           healthFactorValue={metrics.healthFactorValue}
           healthFactorOriginal={metrics.healthFactorOriginal}

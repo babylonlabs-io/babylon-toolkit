@@ -12,6 +12,11 @@ export {
   type UseAaveOracleAddressResult,
 } from "./useAaveOracleAddress";
 export {
+  useAaveReserveLiquidity,
+  type ReserveLiquidity,
+  type UseAaveReserveLiquidityResult,
+} from "./useAaveReserveLiquidity";
+export {
   useAaveReservePrice,
   type UseAaveReservePriceResult,
 } from "./useAaveReservePrice";
