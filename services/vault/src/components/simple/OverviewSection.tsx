@@ -1,8 +1,8 @@
 /**
  * OverviewSection Component
  * Displays overview information including Health Factor, Total Collateral
- * Value, and Amount to Repay. Renders a marketing/explainer panel
- * (DisconnectedOverview) when no wallet is connected.
+ * Value, and Amount to Repay. Rendered only while a wallet is connected; the
+ * disconnected entry screen is handled by DashboardPage.
  */
 
 import {
@@ -15,15 +15,12 @@ import { HealthFactorGauge, HeartIcon } from "@/components/shared";
 import { CARD_DARK_BG_CLASS } from "@/components/shared/layoutClasses";
 import { COPY } from "@/copy";
 
-import { DisconnectedOverview } from "./DisconnectedOverview";
-
 interface OverviewSectionProps {
   healthFactor: number | null;
   healthFactorStatus: HealthFactorStatus;
   totalCollateralValue: string;
   amountToRepay: string;
   ltv: string;
-  isConnected: boolean;
 }
 
 export function OverviewSection({
@@ -32,12 +29,7 @@ export function OverviewSection({
   totalCollateralValue,
   amountToRepay,
   ltv,
-  isConnected,
 }: OverviewSectionProps) {
-  if (!isConnected) {
-    return <DisconnectedOverview />;
-  }
-
   const healthFactorFormatted =
     healthFactor !== null && healthFactor > HEALTH_FACTOR_HEALTHY_THRESHOLD
       ? COPY.overview.healthFactorHealthy

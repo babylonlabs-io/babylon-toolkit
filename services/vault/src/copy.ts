@@ -830,30 +830,46 @@ export const COPY = {
     amountToRepayLabel: "Amount to repay",
     disconnected: {
       heroTitle: "Native Bitcoin backed borrowing",
-      heroBody: [
-        "Powered by Babylon trustless Bitcoin vault protocol and Aave V4.",
-        "Collateralize native Bitcoin and borrow stablecoins or WBTC directly from Aave.",
-        "Trustless, non-custodial, no bridging, no wrapping.",
-      ],
+      heroBody:
+        "Powered by Babylon Trustless Bitcoin Vault protocol, collateralize native Bitcoin and borrow stablecoins or WBTC directly from Aave V4.",
       connectButton: "Connect Wallet",
       aprLabels: {
         usdt: "USDT APR",
         usdc: "USDC APR",
         wbtc: "WBTC APR",
       },
-      steps: {
-        stepLabel: (n: number) => `step ${n}`,
-        one: {
-          title: "Deposit BTC as collateral",
-          body: "Lock your BTC in a BTC Vault.",
+      stats: {
+        capLabel: "Cap",
+        capValue: (deposited: string, total: string) =>
+          `${deposited}/${total} Bitcoin`,
+        capUncapped: "Uncapped",
+        maxLtvLabel: "Max LTV",
+        // TODO: wire real max LTV from contract; placeholder until integrated.
+        maxLtvPlaceholder: "78%",
+        loanProcessTimeLabel: "Loan process time",
+        // TODO: wire real loan process time; placeholder until integrated.
+        loanProcessTimePlaceholder: "~3 hours",
+      },
+      features: {
+        competitiveRates: {
+          title: "Competitive borrowing rates",
+          body: "Access to Aave V4 liquidity & its transparent, market-based variable rates.",
         },
-        two: {
-          title: "Borrow USDC, USDT or WBTC",
-          body: "Get stablecoin liquidity powered by Aave.",
+        fastAccess: {
+          title: "Fast access to liquidity",
+          body: "Vault setup and borrowing complete in about 3 hours.",
         },
-        three: {
-          title: "Repay anytime to unlock BTC",
-          body: "Repay debt plus interest to reclaim BTC.",
+        partialLiquidation: {
+          title: "Partial liquidation supported",
+          body: "for any loan position backed by multiple trustless Bitcoin vaults.",
+        },
+        selfCustodial: {
+          title: "Self-custodial and native",
+          body: "No bridging. No wrapping. No pooled custody. Your native Bitcoin stays in a self-custodial vault — with no third party or signing quorum able to move or rehypothecate it.",
+        },
+        trustless: {
+          title: "Trustless, permissionless execution",
+          body: "Collateral rules are enforced by code and cryptographic proofs — not by discretionary gatekeepers, committees, or off-chain liquidation decisions.",
         },
       },
     },

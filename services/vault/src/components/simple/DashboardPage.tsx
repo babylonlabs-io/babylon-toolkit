@@ -30,6 +30,7 @@ import {
 } from "@/utils/formatting";
 
 import { CollateralSection } from "./CollateralSection";
+import { DisconnectedOverview } from "./DisconnectedOverview";
 import { LoansSection } from "./LoansSection";
 import { OverviewSection } from "./OverviewSection";
 import { PendingDepositSection } from "./PendingDepositSection";
@@ -129,6 +130,14 @@ export function DashboardPage() {
     );
   };
 
+  if (!isConnected) {
+    return (
+      <Container className={`${PAGE_CONTENT_CLASS} pb-6`}>
+        <DisconnectedOverview capSnapshot={capSnapshot} />
+      </Container>
+    );
+  }
+
   return (
     <Container className={`${PAGE_CONTENT_CLASS} pb-6`}>
       <div className="space-y-10">
@@ -140,7 +149,6 @@ export function DashboardPage() {
           totalCollateralValue={totalCollateralValue}
           amountToRepay={amountToRepay}
           ltv={ltv}
-          isConnected={isConnected}
         />
 
         {liquidationNotificationsEnabled && (
