@@ -371,3 +371,31 @@ export function formatTokenAmount(amount: number, maxDecimals = 6): string {
   }
   return trimmed;
 }
+
+/** At/above this magnitude a token amount renders in compact K/M/B notation. */
+const COMPACT_NOTATION_THRESHOLD = 1000;
+
+/**
+ * Format a token amount for compact display. Figures of one thousand or more
+ * collapse to grouped magnitude suffixes (45_200 → "45.2K", 1_234_567 →
+ * "1.23M", 1.5e9 → "1.5B"); smaller amounts render in full (grouped, up to two
+ * decimals). The token symbol, if any, is appended by the caller. Returns "0"
+ * for zero or negative input.
+ *
+ * Sibling of `formatCompactUsd` for bare token quantities (no "$" prefix,
+ * uppercase suffix).
+ */
+export function formatCompactTokenAmount(amount: number): string {
+  if (amount <= 0) return "0";
+  // Round to the two decimals shown before testing the compact threshold, so a
+  // value that rounds up to 1,000 (e.g. 999.995) renders as "1K" rather than
+  // the full "1,000" — keeping the boundary consistent and not overstating.
+  const rounded = Number(amount.toFixed(2));
+  if (rounded >= COMPACT_NOTATION_THRESHOLD) {
+    return new Intl.NumberFormat("en-US", {
+      notation: "compact",
+      maximumFractionDigits: 2,
+    }).format(rounded);
+  }
+  return formatAmount(amount, 2);
+}

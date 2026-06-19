@@ -28,12 +28,17 @@ vi.mock("@babylonlabs-io/core-ui", () => ({
 const borrowableReserves = [
   {
     reserveId: 1n,
-    token: { symbol: "USDC", name: "USD Coin", address: "0xusdc" },
+    token: { symbol: "USDC", name: "USD Coin", address: "0xusdc", decimals: 6 },
     reserve: { hub: "0xhub", assetId: 1 },
   },
   {
     reserveId: 2n,
-    token: { symbol: "WBTC", name: "Wrapped BTC", address: "0xwbtc" },
+    token: {
+      symbol: "WBTC",
+      name: "Wrapped BTC",
+      address: "0xwbtc",
+      decimals: 8,
+    },
     reserve: { hub: "0xhub", assetId: 2 },
   },
 ];
@@ -52,6 +57,14 @@ vi.mock("../../../hooks", () => ({
   }),
   useAaveBorrowAprs: () => ({
     aprPercentByReserveId: { "1": 3.5, "2": 2.2 },
+  }),
+  useAaveReserveLiquidity: () => ({
+    liquidityByReserveId: {
+      // Below 1,000 → shown in full.
+      "1": { availableLiquidity: 500.25, utilizationBps: 2500 },
+      // Large figure → compact K/M/B notation.
+      "2": { availableLiquidity: 1234567, utilizationBps: 6000 },
+    },
   }),
 }));
 
@@ -79,6 +92,10 @@ describe("AssetSelectionModal", () => {
     expect(screen.getByText("USD Coin")).toBeInTheDocument();
     expect(screen.getByText("3.5%")).toBeInTheDocument();
     expect(screen.getByText("2.2%")).toBeInTheDocument();
+    // Available liquidity renders with the asset symbol: small amounts in full,
+    // large amounts in compact K/M/B notation.
+    expect(screen.getByText("500.25 USDC")).toBeInTheDocument();
+    expect(screen.getByText("1.23M WBTC")).toBeInTheDocument();
   });
 
   it("hides the Available and Borrow APR columns in repay mode", () => {
