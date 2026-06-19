@@ -2,8 +2,7 @@ import { isAccountChangeEvent, DISCONNECT_EVENT, removeProviderListener } from "
 import type { BTCConfig, InscriptionIdentifier, SignPsbtOptions, WalletInfo } from "@/core/types";
 import { IBTCProvider, Network } from "@/core/types";
 import { mapSignInputsToToSignInputs } from "@/core/utils/psbtOptionsMapper";
-import { unsupportedDeriveContextHash } from "@/core/wallets/btc/unsupportedDeriveContextHash";
-import { ERROR_CODES, WalletError } from "@/error";
+import { ERROR_CODES, WalletError, isUserRejectionMessage } from "@/error";
 
 import logo from "./logo.svg";
 
@@ -275,5 +274,34 @@ export class OKXProvider implements IBTCProvider {
     return logo;
   };
 
-  deriveContextHash = unsupportedDeriveContextHash(WALLET_PROVIDER_NAME);
+  deriveContextHash = async (appName: string, context: string): Promise<string> => {
+    if (!this.walletInfo)
+      throw new WalletError({
+        code: ERROR_CODES.WALLET_NOT_CONNECTED,
+        message: "OKX Wallet not connected",
+        wallet: WALLET_PROVIDER_NAME,
+      });
+
+    if (typeof this.provider.deriveContextHash !== "function") {
+      throw new WalletError({
+        code: ERROR_CODES.WALLET_METHOD_NOT_SUPPORTED,
+        message:
+          "OKX Wallet version does not support deriveContextHash. Update to a version that implements the deriveContextHash specification.",
+        wallet: WALLET_PROVIDER_NAME,
+      });
+    }
+
+    try {
+      return await this.provider.deriveContextHash(appName, context);
+    } catch (error) {
+      if (isUserRejectionMessage((error as Error | undefined)?.message)) {
+        throw new WalletError({
+          code: ERROR_CODES.CONNECTION_REJECTED,
+          message: "OKX Wallet rejected the deriveContextHash approval",
+          wallet: WALLET_PROVIDER_NAME,
+        });
+      }
+      throw error;
+    }
+  };
 }

@@ -7,9 +7,10 @@
  *
  * Rules:
  * 1. All feature flags must be defined in this file for easy maintenance
- * 2. All feature flags must start with NEXT_PUBLIC_FF_ prefix
- * 3. All flags use opt-in semantics (=== "true") and default to false
+ * 2. Boolean flags must start with NEXT_PUBLIC_FF_ prefix
+ * 3. Boolean flags use opt-in semantics (=== "true") and default to false
  * 4. Feature flags are only configurable by DevOps in mainnet environments
+ * 5. Non-boolean gating config (e.g. wallet opt-in lists) may use other prefixes
  */
 
 export default {
@@ -107,17 +108,12 @@ export default {
     return process.env.NEXT_PUBLIC_FF_ENABLE_GRPC_ARTIFACTS === "true";
   },
 
-  /**
-   * ENABLE_UTILA_WALLET feature flag
-   *
-   * Purpose: Surfaces the Utila (MPC) BTC wallet in the connection UI.
-   * Why needed: Utila's injected `window.utila.bitcoin` API is integrated
-   * against the documented IBTCProvider contract but not yet verified
-   * end-to-end; keep it opt-in so it ships to devnet for the Utila team to
-   * test without exposing it in prod.
-   * Default: false (Utila is hidden unless explicitly set to "true")
-   */
-  get isUtilaWalletEnabled() {
-    return process.env.NEXT_PUBLIC_FF_ENABLE_UTILA_WALLET === "true";
+  get extraBtcWallets() {
+    return new Set(
+      (process.env.NEXT_PUBLIC_TBV_EXTRA_BTC_WALLETS ?? "")
+        .split(",")
+        .map((s) => s.trim().toLowerCase())
+        .filter(Boolean),
+    );
   },
 };

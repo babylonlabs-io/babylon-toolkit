@@ -18,8 +18,7 @@ const metadata: ChainMetadata<"BTC", IBTCProvider, BTCConfig> = {
   chain: "BTC",
   name: "Bitcoin",
   icon,
-  // UniSat, OneKey, and Utila (the deriveContextHash-capable wallets) lead the
-  // list. Utila is feature-flagged off by consumers until verified on devnet.
+  // deriveContextHash-capable wallets (UniSat, OneKey, OKX, Utila) lead the list.
   wallets: [unisat, onekey, utila, okx, injectable, appkit, ledger, ledgerV2, keystone],
 };
 
