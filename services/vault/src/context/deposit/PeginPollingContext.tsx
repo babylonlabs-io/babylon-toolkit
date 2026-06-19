@@ -21,6 +21,7 @@ import {
 } from "react";
 
 import { usePeginPollingQuery } from "../../hooks/deposit/usePeginPollingQuery";
+import { useBtcHtlcRefundStatus } from "../../hooks/useBtcHtlcRefundStatus";
 import { useBtcMempoolConfirmations } from "../../hooks/useBtcMempoolConfirmations";
 import {
   ContractStatus,
@@ -34,6 +35,10 @@ import {
   addMatureRefundTxid,
   loadMatureRefundTxids,
 } from "../../storage/matureRefundCache";
+import {
+  addRefundedHtlcVaultId,
+  loadRefundedHtlcVaultIds,
+} from "../../storage/refundedHtlcCache";
 import type { VaultActivity } from "../../types/activity";
 import type {
   DepositPollingResult,
@@ -48,6 +53,9 @@ import { computeDepositPollingResult } from "./computeDepositPollingResult";
 
 /** React Query namespace for the Pre-PegIn confirmation poller. */
 const PREPEGIN_CONFIRMATIONS_QUERY_KEY = "prePeginMempoolConfirmations";
+
+/** React Query namespace for the EXPIRED-vault HTLC refund-spend poller. */
+const HTLC_REFUND_QUERY_KEY = "htlcRefundOutspend";
 
 /**
  * Whether a vault's localStorage status puts it in the window where the
@@ -142,6 +150,12 @@ export function PeginPollingProvider({
   const [matureRefundTxids, setMatureRefundTxids] = useState<Set<string>>(
     loadMatureRefundTxids,
   );
+  // EXPIRED vaults whose HTLC spend confirmed (refund landed). A confirmed
+  // spend is terminal, so — like the caches above — drop the vault from the
+  // poll set and keep rendering "Refunded" without re-probing.
+  const [refundedHtlcVaultIds, setRefundedHtlcVaultIds] = useState<Set<string>>(
+    loadRefundedHtlcVaultIds,
+  );
 
   const getRequiredPrePeginDepth = useCallback(
     (activity: VaultActivity): number => {
@@ -207,6 +221,36 @@ export function PeginPollingProvider({
       PREPEGIN_CONFIRMATIONS_QUERY_KEY,
     );
 
+  // Probe whether each EXPIRED+owned vault's HTLC output is already spent
+  // (refund landed). A pure BTC refund emits no Ethereum event, so the indexer
+  // never sees it — read it from Bitcoin directly. Drop vaults already known
+  // refunded (confirmed-spend cache) from the set.
+  const htlcRefundOutpoints = useMemo(
+    () =>
+      activities
+        .filter((a) => {
+          if (!isVaultOwnedByWallet(a.depositorBtcPubkey, btcPublicKey))
+            return false;
+          if ((a.contractStatus ?? 0) !== ContractStatus.EXPIRED) return false;
+          if (refundedHtlcVaultIds.has(a.id.toLowerCase())) return false;
+          return (
+            !!a.prePeginTxHash &&
+            a.htlcVout !== undefined &&
+            Number.isInteger(a.htlcVout)
+          );
+        })
+        .map((a) => ({
+          depositId: a.id,
+          prePeginTxHash: a.prePeginTxHash as string,
+          htlcVout: a.htlcVout as number,
+        })),
+    [activities, btcPublicKey, refundedHtlcVaultIds],
+  );
+  const { refundByDepositId: htlcRefundByDepositId } = useBtcHtlcRefundStatus(
+    htlcRefundOutpoints,
+    HTLC_REFUND_QUERY_KEY,
+  );
+
   // Persist newly-confirmed observations and drop them from the next
   // poll set. Side effects sit outside the updater so StrictMode's
   // double-invoke doesn't double-write; the early return prevents
@@ -261,6 +305,26 @@ export function PeginPollingProvider({
     matureRefundTxids,
     getOffchainParamsByVersion,
   ]);
+
+  // Persist vaults whose HTLC spend has confirmed and drop them from the next
+  // poll set. Only confirmed spends are cached (a mempool-only spend can still
+  // be replaced/reorged); the live map drives the transient "Refunding" state.
+  useEffect(() => {
+    if (htlcRefundByDepositId.size === 0) return;
+    const newlyRefunded: string[] = [];
+    for (const [depositId, spend] of htlcRefundByDepositId) {
+      if (spend.confirmed && !refundedHtlcVaultIds.has(depositId)) {
+        newlyRefunded.push(depositId);
+      }
+    }
+    if (newlyRefunded.length === 0) return;
+    newlyRefunded.forEach(addRefundedHtlcVaultId);
+    setRefundedHtlcVaultIds((prev) => {
+      const next = new Set(prev);
+      newlyRefunded.forEach((id) => next.add(id));
+      return next;
+    });
+  }, [htlcRefundByDepositId, refundedHtlcVaultIds]);
 
   // Optimistic status handlers
   const setOptimisticStatus = useCallback(
@@ -320,6 +384,8 @@ export function PeginPollingProvider({
         prePeginConfirmationsByTxid,
         confirmedTxids,
         matureRefundTxids,
+        htlcRefundByDepositId,
+        refundedHtlcVaultIds,
         requiredDepth: getRequiredPrePeginDepth(activity),
         refundTimelock,
         isLoading,
@@ -338,6 +404,8 @@ export function PeginPollingProvider({
       prePeginConfirmationsByTxid,
       confirmedTxids,
       matureRefundTxids,
+      htlcRefundByDepositId,
+      refundedHtlcVaultIds,
       getRequiredPrePeginDepth,
       getOffchainParamsByVersion,
       isLoading,

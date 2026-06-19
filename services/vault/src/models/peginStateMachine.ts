@@ -151,6 +151,14 @@ export interface GetPeginStateOptions {
   refundMaturityState?: RefundMaturityState;
   /** Blocks remaining until CSV maturity; set only when `maturing`. */
   refundMaturesInBlocks?: number;
+  /**
+   * Chain-derived refund settlement for an EXPIRED vault, from probing the
+   * HTLC outpoint's spend status. `confirmed` = the refund landed in a block
+   * (terminal); `pending` = the refund is in the mempool. Overrides the
+   * localStorage REFUND_BROADCAST optimistic state (chain is ground truth);
+   * paired with `canRefund=false` so a settled refund can't be re-broadcast.
+   */
+  refundSettlement?: "confirmed" | "pending";
   vpTerminalError?: string;
   /**
    * `Date.now()` value captured when the refund tx was broadcast. Anchors
@@ -546,6 +554,23 @@ function getDisplay(
   }
 
   if (contractStatus === ContractStatus.EXPIRED) {
+    // Chain ground truth: the HTLC output is already spent. Overrides the
+    // localStorage optimistic state and (with `canRefund=false`) stops the
+    // dashboard re-offering a refund that Bitcoin would reject.
+    if (options.refundSettlement === "confirmed") {
+      return {
+        displayLabel: PEGIN_DISPLAY_LABELS.REFUNDED,
+        displayVariant: "inactive",
+        message: COPY.pegin.messages.refundComplete,
+      };
+    }
+    if (options.refundSettlement === "pending") {
+      return {
+        displayLabel: PEGIN_DISPLAY_LABELS.REFUNDING,
+        displayVariant: "pending",
+        message: COPY.pegin.messages.refundBroadcast,
+      };
+    }
     if (
       localStatus === LocalStorageStatus.REFUND_BROADCAST &&
       isRefundBroadcastWithinTtl(refundBroadcastAt, now)
