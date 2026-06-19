@@ -195,7 +195,7 @@ export function DisconnectedOverview({
           />
           <StatCell
             label={COPY_OVERVIEW.stats.loanProcessTimeLabel}
-            value={COPY_OVERVIEW.stats.loanProcessTimePlaceholder}
+            value={COPY_OVERVIEW.stats.loanProcessTimeValue}
             withDivider
           />
         </div>

@@ -845,8 +845,7 @@ export const COPY = {
         capUncapped: "Uncapped",
         maxCfLabel: "Max CF",
         loanProcessTimeLabel: "Loan process time",
-        // TODO: wire real loan process time; placeholder until integrated.
-        loanProcessTimePlaceholder: "~3 hours",
+        loanProcessTimeValue: "~3 hours",
       },
       features: {
         competitiveRates: {
