@@ -35,9 +35,6 @@ vi.mock("@babylonlabs-io/wallet-connector", () => ({
 }));
 
 vi.mock("next-themes", () => ({ useTheme: () => ({ theme: "light" }) }));
-vi.mock("@/config/featureFlags", () => ({
-  default: { isUtilaWalletEnabled: false },
-}));
 vi.mock("@/infrastructure", () => ({
   logger: { info: vi.fn(), error: vi.fn() },
 }));

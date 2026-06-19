@@ -24,22 +24,24 @@ import { logger } from "@/infrastructure";
 
 // Vault deposits require the connected BTC wallet to implement the
 // `deriveContextHash` API (see docs/specs/derive-context-hash.md). UniSat
-// and OneKey expose a conformant implementation today, so every other BTC
-// adapter is gated off here. Re-enable an entry as soon as its wallet
-// vendor ships `deriveContextHash`. Each non-conforming adapter still
-// throws `WALLET_METHOD_NOT_SUPPORTED` at the connector layer; this
-// list just keeps them out of the connection UI in the first place so
-// users don't pick something that can't complete a deposit.
-//
-// Utila is gated behind a feature flag until its injected
-// `window.utila.bitcoin` API is verified end-to-end on devnet.
-const DISABLED_WALLETS: string[] = [
+// and OneKey are always enabled. Additional wallets (e.g. okx, utila) can
+// be opted in per environment via NEXT_PUBLIC_TBV_EXTRA_BTC_WALLETS (a
+// comma-separated list of wallet IDs). Each non-conforming adapter still
+// throws `WALLET_METHOD_NOT_SUPPORTED` at the connector layer; this list
+// keeps them out of the connection UI so users don't pick something that
+// can't complete a deposit.
+const ALWAYS_DISABLED_WALLETS: string[] = [
   APPKIT_BTC_CONNECTOR_ID,
   "injectable",
   "ledger_btc",
   "ledger_btc_v2",
-  "okx",
-  ...(featureFlags.isUtilaWalletEnabled ? [] : ["utila"]),
+];
+
+const OPT_IN_WALLETS = ["okx", "utila"];
+
+const DISABLED_WALLETS: string[] = [
+  ...ALWAYS_DISABLED_WALLETS,
+  ...OPT_IN_WALLETS.filter((id) => !featureFlags.extraBtcWallets.has(id)),
 ];
 
 const context = typeof window !== "undefined" ? window : {};
