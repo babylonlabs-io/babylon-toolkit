@@ -1,6 +1,7 @@
 import { sentryVitePlugin } from "@sentry/vite-plugin";
 import react from "@vitejs/plugin-react";
 import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { defineConfig, type Plugin } from "vite";
@@ -10,7 +11,21 @@ import tsconfigPaths from "vite-tsconfig-paths";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
+const SECURITY_HEADERS = {
+  "Content-Security-Policy":
+    "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; connect-src 'self' https: http: wss: ws:; img-src 'self' data: https: blob:; style-src 'self' 'unsafe-inline'; font-src 'self' data: https:; object-src 'none'; base-uri 'self'; worker-src 'self' blob:;",
+  "X-Content-Type-Options": "nosniff",
+  "X-Frame-Options": "DENY",
+  "Referrer-Policy": "strict-origin-when-cross-origin",
+  "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
+};
+
 const SRI_HASH_PREFIX = "sha384-";
+const PUBLIC_DIR = resolve(__dirname, "public");
+
+function computeSriHash(content: Buffer): string {
+  return `${SRI_HASH_PREFIX}${createHash("sha384").update(content).digest("base64")}`;
+}
 
 function stripCrossorigin(attrs: string): string {
   return attrs.replace(/\s*crossorigin(?:="[^"]*")?/g, "");
@@ -18,6 +33,17 @@ function stripCrossorigin(attrs: string): string {
 
 function sriPlugin(): Plugin {
   const assetHashes = new Map<string, string>();
+  // Static assets served from `public/` are copied verbatim and never enter the
+  // Rollup bundle, so hash them on demand from disk when referenced in the HTML.
+  function resolveIntegrity(fileName: string): string | undefined {
+    const bundled = assetHashes.get(fileName);
+    if (bundled) return bundled;
+    try {
+      return computeSriHash(readFileSync(resolve(PUBLIC_DIR, fileName)));
+    } catch {
+      return undefined;
+    }
+  }
   return {
     name: "sri",
     apply: "build",
@@ -26,10 +52,7 @@ function sriPlugin(): Plugin {
         const content = chunk.type === "chunk" ? chunk.code : chunk.source;
         const contentBuffer =
           typeof content === "string" ? Buffer.from(content) : content;
-        const hash = createHash("sha384")
-          .update(contentBuffer)
-          .digest("base64");
-        assetHashes.set(fileName, `${SRI_HASH_PREFIX}${hash}`);
+        assetHashes.set(fileName, computeSriHash(contentBuffer));
       }
     },
     transformIndexHtml(html) {
@@ -38,7 +61,7 @@ function sriPlugin(): Plugin {
           /<script ([^>]*?)src="([^"]+)"([^>]*?)>/g,
           (_match, before, src, after) => {
             const fileName = src.replace(/^\//, "");
-            const integrity = assetHashes.get(fileName);
+            const integrity = resolveIntegrity(fileName);
             if (!integrity) return _match;
             return `<script ${stripCrossorigin(before)}src="${src}" integrity="${integrity}" crossorigin="anonymous"${stripCrossorigin(after)}>`;
           },
@@ -80,6 +103,9 @@ const enableSentryPlugin =
 
 // https://vite.dev/config/
 export default defineConfig({
+  server: {
+    headers: SECURITY_HEADERS,
+  },
   resolve: {
     dedupe: ["@babylonlabs-io/core-ui", "react", "react-dom"],
     alias: {

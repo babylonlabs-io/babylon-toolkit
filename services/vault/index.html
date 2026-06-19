@@ -26,16 +26,11 @@
     <meta name="twitter:image:width" content="2048" />
     <meta name="twitter:image:height" content="1170" />
     <meta name="version" content="%NEXT_PUBLIC_COMMIT_HASH%" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; connect-src 'self' https: http: wss: ws:; img-src 'self' data: https: blob:; style-src 'self' 'unsafe-inline'; font-src 'self' data: https:; object-src 'none'; base-uri 'self'; worker-src 'self' blob:;" />
+    <meta name="referrer" content="strict-origin-when-cross-origin" />
     <title>Babylon - Vault</title>
 
-    <!-- Polyfill for Node.js process global (required for @reown/appkit-adapter-bitcoin) -->
-    <script>
-      window.process = window.process || {
-        version: "",
-        browser: true,
-        env: {},
-      };
-    </script>
+    <script src="/process-polyfill.js"></script>
   </head>
 
   <body>
