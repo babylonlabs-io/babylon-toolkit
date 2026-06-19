@@ -561,6 +561,11 @@ export const COPY = {
       heading: SOMETHING_WENT_WRONG_HEADING,
       body: "An unexpected error occurred. Please try again later.",
       retryButton: "Try again",
+      // Shown instead of the generic crash when the failure is a stale-deploy
+      // chunk 404 (a newer app version was deployed); body reuses
+      // `classifiedErrors.staleDeploy`.
+      staleDeployHeading: "A new version is available",
+      reloadButton: "Reload",
     },
     // Friendly copy for known viem / EIP-1193 / wallet-connector failure
     // categories. Consumed by `sanitizeErrorMessage` in
