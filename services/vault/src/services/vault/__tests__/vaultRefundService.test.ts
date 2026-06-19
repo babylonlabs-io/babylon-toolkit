@@ -499,6 +499,31 @@ describe("vaultRefundService - adapter wiring", () => {
     ).rejects.toBeInstanceOf(RefundAlreadySettledError);
   });
 
+  it("propagates the original error when a -27 rejection's re-probe finds the HTLC still unspent", async () => {
+    // Guard passes (unspent); broadcast hits -27, but the re-probe ALSO finds
+    // the HTLC unspent (a genuine unrelated -27, or probe lag). Fail open: the
+    // original error must propagate, never be misread as already-settled.
+    (fetchHtlcSpend as Mock)
+      .mockResolvedValueOnce({ spent: false, confirmed: false })
+      .mockResolvedValueOnce({ spent: false, confirmed: false });
+    (pushTx as Mock).mockRejectedValue(
+      new Error(
+        'Failed to broadcast BTC transaction: sendrawtransaction RPC error: {"code":-27,"message":"Transaction already in block chain"}',
+      ),
+    );
+
+    const promise = buildAndBroadcastRefundTransaction({
+      vaultId: VAULT_ID,
+      depositorAddress: DEPOSITOR_ADDRESS,
+      btcWalletProvider: BTC_WALLET_PROVIDER,
+      depositorBtcPubkey: DEPOSITOR_PUBKEY,
+      feeRate: 10,
+    });
+
+    await expect(promise).rejects.toThrow(/-27|already in block chain/);
+    await expect(promise).rejects.not.toBeInstanceOf(RefundAlreadySettledError);
+  });
+
   it("does not classify a -26 broadcast rejection as already-settled (re-throws)", async () => {
     (pushTx as Mock).mockRejectedValue(
       new Error(

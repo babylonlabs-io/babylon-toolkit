@@ -37,7 +37,7 @@ export function useRefundState({
   const btcWalletProvider = btcConnector?.connectedWallet?.provider;
   const connectedBtcAddress = btcConnector?.connectedWallet?.account?.address;
   const { address: ethAddress } = useETHWallet();
-  const { setOptimisticStatus } = usePeginPolling();
+  const { setOptimisticStatus, addConfirmedRefund } = usePeginPolling();
   const { pendingPegins, addPendingPegin, markRefundBroadcast } =
     usePeginStorage({
       ethAddress: ethAddress ?? "",
@@ -115,9 +115,15 @@ export function useRefundState({
 
         let depositorBtcPubkey: string | undefined;
 
-        const persistRefundSuccess = (txId: string | undefined) => {
+        const persistRefundSuccess = (
+          txId: string | undefined,
+          confirmed = false,
+        ) => {
           if (txId) setRefundTxId(txId);
           setRefunding(false);
+          // Mark a confirmed (terminal) refund so the dashboard shows "Refunded"
+          // immediately this session (and across reloads), not "Refunding".
+          if (confirmed) addConfirmedRefund(vaultId);
           const refundBroadcastAt = Date.now();
           setOptimisticStatus(
             vaultId,
@@ -171,7 +177,7 @@ export function useRefundState({
             return;
           }
           if (err instanceof RefundAlreadySettledError) {
-            persistRefundSuccess(err.spendingTxid);
+            persistRefundSuccess(err.spendingTxid, err.confirmed);
             return;
           }
           logger.error(err instanceof Error ? err : new Error(String(err)), {
@@ -204,6 +210,7 @@ export function useRefundState({
       applicationEntryPoint,
       pendingPegins,
       setOptimisticStatus,
+      addConfirmedRefund,
       addPendingPegin,
       markRefundBroadcast,
     ],

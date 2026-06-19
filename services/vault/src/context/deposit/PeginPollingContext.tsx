@@ -239,6 +239,9 @@ export function PeginPollingProvider({
             Number.isInteger(a.htlcVout)
           );
         })
+        // `htlcVout` is indexer-sourced and drives the DISPLAY poll only (a wrong
+        // vout → at worst mislabel/hide the refund, recoverable via cache TTL);
+        // the broadcast path re-reads htlcVout from chain, so no wrong tx signs.
         .map((a) => ({
           depositId: a.id,
           prePeginTxHash: a.prePeginTxHash as string,
@@ -362,6 +365,20 @@ export function PeginPollingProvider({
     });
   }, []);
 
+  // Confirmed settled refund: persist to the cache AND update the in-memory set
+  // so `refundConfirmed` flips to "Refunded" this session, not just on reload.
+  // Lowercased to match the `depositId.toLowerCase()` lookup in the poll result.
+  const addConfirmedRefund = useCallback((depositId: string) => {
+    addRefundedHtlcVaultId(depositId);
+    const key = depositId.toLowerCase();
+    setRefundedHtlcVaultIds((prev) => {
+      if (prev.has(key)) return prev;
+      const next = new Set(prev);
+      next.add(key);
+      return next;
+    });
+  }, []);
+
   // Wrapper: depositId → activity, resolve per-vault thresholds, then
   // hand off to the pure decision tree in `computeDepositPollingResult`.
   const getPollingResult = useCallback(
@@ -422,6 +439,7 @@ export function PeginPollingProvider({
       refetch: () => refetch(),
       setOptimisticStatus,
       clearOptimisticStatus,
+      addConfirmedRefund,
     }),
     [
       getPollingResult,
@@ -429,6 +447,7 @@ export function PeginPollingProvider({
       refetch,
       setOptimisticStatus,
       clearOptimisticStatus,
+      addConfirmedRefund,
     ],
   );
 
