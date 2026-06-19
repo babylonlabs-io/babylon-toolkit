@@ -4,7 +4,6 @@ import {
   ETHWalletProvider,
   WalletProvider,
   createWalletConfig,
-  useChainConnector,
   useWalletConnect,
   useWidgetState,
 } from "@babylonlabs-io/wallet-connector";
@@ -73,15 +72,10 @@ function WalletProviders({ children }: PropsWithChildren) {
   // managing wallets, so a single-wallet disconnect must NOT cascade into the
   // full both-wallets teardown (which also closes the modal).
   const { visible: connectModalVisible } = useWidgetState();
-  const ethConnector = useChainConnector("ETH");
   const connectModalVisibleRef = useRef(connectModalVisible);
-  const ethConnectorRef = useRef(ethConnector);
   useEffect(() => {
     connectModalVisibleRef.current = connectModalVisible;
   }, [connectModalVisible]);
-  useEffect(() => {
-    ethConnectorRef.current = ethConnector;
-  }, [ethConnector]);
   // Guard against re-entrancy when disconnectAll triggers disconnect events
   const isDisconnectingRef = useRef(false);
   // Whether BTC has successfully connected at least once this session. A
@@ -170,15 +164,14 @@ function WalletProviders({ children }: PropsWithChildren) {
   );
 
   // ETH disconnect. When the connect modal is open the user is intentionally
-  // managing wallets, so just clear ETH (the connector's own disconnect handler
-  // removes it from the widget and keeps the modal on the chain list) instead of
-  // tearing down both wallets and closing the modal. Outside the modal, an ETH
-  // disconnect is a real session drop and triggers the full reset.
+  // managing wallets: the connector's own disconnect handler (already invoked by
+  // ETHWalletProvider before this callback) clears ETH from the widget and keeps
+  // the modal on the chain list, so we only need to SUPPRESS the full
+  // both-wallets reset here. We must not call connector.disconnect() ourselves —
+  // that re-enters the in-flight disconnect path and emits duplicate events.
+  // Outside the modal, an ETH disconnect is a real session drop → full reset.
   const handleEthDisconnect = useCallback(() => {
-    if (connectModalVisibleRef.current && ethConnectorRef.current) {
-      void ethConnectorRef.current.disconnect();
-      return;
-    }
+    if (connectModalVisibleRef.current) return;
     void runWalletReset();
   }, [runWalletReset]);
 
