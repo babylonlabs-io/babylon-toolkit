@@ -1,6 +1,12 @@
 /**
- * Utility functions for address and hash formatting
+ * Utility functions for address validation and formatting
  */
+import { isAddress, type Address } from "viem";
+
+export function toCheckedAddress(raw: string | undefined): Address | undefined {
+  if (!raw || !isAddress(raw, { strict: false })) return undefined;
+  return raw as Address;
+}
 
 const TRUNCATE_PREFIX_LENGTH = 6;
 const TRUNCATE_SUFFIX_LENGTH = 4;

@@ -17,6 +17,7 @@ import {
 import { useProtocolParamsContext } from "../../context/ProtocolParamsContext";
 import { useETHWallet } from "../../context/wallet";
 import { VaultStatus } from "../../types/vault";
+import { toCheckedAddress } from "../../utils/addressUtils";
 import { useVaultDeposits } from "../useVaultDeposits";
 import { useVaults } from "../useVaults";
 
@@ -80,7 +81,7 @@ export function useDepositPageFlow(): UseDepositPageFlowResult {
     (btcConnector?.connectedWallet?.provider as BitcoinWallet | undefined) ??
     null;
   const { address: ethAddressRaw } = useETHWallet();
-  const ethAddress = ethAddressRaw as Address | undefined;
+  const ethAddress = toCheckedAddress(ethAddressRaw);
 
   // Deposit flow state from context
   const {

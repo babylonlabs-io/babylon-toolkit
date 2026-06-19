@@ -11,7 +11,6 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { Address } from "viem";
 
 import {
   getApplicationCap,
@@ -20,6 +19,7 @@ import {
 import { CONTRACTS } from "@/config/contracts";
 import featureFlags from "@/config/featureFlags";
 import { computeCapSnapshot, type CapSnapshot } from "@/services/deposit";
+import { toCheckedAddress } from "@/utils/addressUtils";
 
 const APPLICATION_CAP_KEY = "applicationCap";
 const CAP_REFETCH_INTERVAL_MS = 60_000;
@@ -69,8 +69,7 @@ function useStaleAfterMaxAge(dataUpdatedAt: number, active: boolean): boolean {
 export function useApplicationCap(user?: string): UseApplicationCapResult {
   const enabled = !featureFlags.isVaultCapDisabled;
   const app = CONTRACTS.AAVE_ADAPTER;
-  // Wallet adapters surface addresses as string; cast at the boundary.
-  const userAddress = user ? (user as Address) : undefined;
+  const userAddress = enabled ? toCheckedAddress(user) : undefined;
 
   const capsQuery = useQuery({
     queryKey: [APPLICATION_CAP_KEY, "caps", app],
