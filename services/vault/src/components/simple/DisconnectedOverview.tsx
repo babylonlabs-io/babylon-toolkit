@@ -2,7 +2,7 @@
  * DisconnectedOverview Component
  *
  * Entry / landing screen rendered when no wallet is connected. Left column:
- * product pitch, a Cap / Max LTV / Loan process time stat row, and the Connect
+ * product pitch, a Cap / Max CF / Loan process time stat row, and the Connect
  * CTA. Right column: a vertical list of feature cards. The rates card statically
  * shows live borrow APRs; only the last two cards expand, with single-open
  * accordion behavior.
@@ -11,6 +11,11 @@
 import { MobileLogo } from "@babylonlabs-io/core-ui";
 import { useMemo, useState } from "react";
 
+import { BPS_SCALE } from "@/applications/aave/constants";
+import {
+  useVaultSplitParams,
+  type VaultSplitParams,
+} from "@/applications/aave/hooks";
 import { Connect } from "@/components/Wallet";
 import { COPY } from "@/copy";
 import type { CapSnapshot } from "@/services/deposit";
@@ -18,6 +23,7 @@ import {
   formatSatoshisToBtcDisplay,
   satoshiToBtcNumber,
 } from "@/utils/btcConversion";
+import { formatBasisPointsAsPercent } from "@/utils/formatting";
 
 import { CompetitiveRatesIcon } from "./DisconnectedFeatureCards/CompetitiveRatesIcon";
 import { FastAccessIcon } from "./DisconnectedFeatureCards/FastAccessIcon";
@@ -41,6 +47,11 @@ function capStatValue(capSnapshot: CapSnapshot | null): string {
     formatCapAmount(capSnapshot.totalBTC),
     formatCapAmount(capSnapshot.totalCapBTC),
   );
+}
+
+function maxCfStatValue(splitParams: VaultSplitParams | null): string {
+  if (!splitParams) return COPY.common.emptyValue;
+  return formatBasisPointsAsPercent(Math.round(splitParams.CF * BPS_SCALE));
 }
 
 interface StatCellProps {
@@ -92,6 +103,7 @@ export function DisconnectedOverview({
   capSnapshot,
 }: DisconnectedOverviewProps) {
   const borrowAprs = useLandingBorrowAprs();
+  const { params: splitParams } = useVaultSplitParams();
   const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
 
   const aprStats: AprStat[] = useMemo(
@@ -177,13 +189,13 @@ export function DisconnectedOverview({
             value={capStatValue(capSnapshot)}
           />
           <StatCell
-            label={COPY_OVERVIEW.stats.maxLtvLabel}
-            value={COPY_OVERVIEW.stats.maxLtvPlaceholder}
+            label={COPY_OVERVIEW.stats.maxCfLabel}
+            value={maxCfStatValue(splitParams)}
             withDivider
           />
           <StatCell
             label={COPY_OVERVIEW.stats.loanProcessTimeLabel}
-            value={COPY_OVERVIEW.stats.loanProcessTimePlaceholder}
+            value={COPY_OVERVIEW.stats.loanProcessTimeValue}
             withDivider
           />
         </div>
