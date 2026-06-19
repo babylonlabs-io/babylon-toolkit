@@ -843,9 +843,7 @@ export const COPY = {
         capValue: (deposited: string, total: string) =>
           `${deposited}/${total} Bitcoin`,
         capUncapped: "Uncapped",
-        maxLtvLabel: "Max LTV",
-        // TODO: wire real max LTV from contract; placeholder until integrated.
-        maxLtvPlaceholder: "78%",
+        maxCfLabel: "Max CF",
         loanProcessTimeLabel: "Loan process time",
         // TODO: wire real loan process time; placeholder until integrated.
         loanProcessTimePlaceholder: "~3 hours",
