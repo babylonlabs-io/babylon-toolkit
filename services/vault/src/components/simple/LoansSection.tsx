@@ -9,10 +9,7 @@ import { Avatar, Button, Card } from "@babylonlabs-io/core-ui";
 import { useState } from "react";
 
 import { ExpandMenuButton } from "@/components/shared";
-import {
-  CARD_DARK_BG_CLASS,
-  SUMMARY_CARD_CLASS,
-} from "@/components/shared/layoutClasses";
+import { SUMMARY_CARD_CLASS } from "@/components/shared/layoutClasses";
 import { getNetworkConfigBTC } from "@/config";
 import { COPY } from "@/copy";
 
@@ -96,7 +93,7 @@ export function LoansSection({
               <Card
                 key={asset.symbol}
                 variant="filled"
-                className={`${SUMMARY_CARD_CLASS} ${CARD_DARK_BG_CLASS}`}
+                className={SUMMARY_CARD_CLASS}
               >
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex min-w-0 flex-1 items-center gap-2">

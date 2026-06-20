@@ -1,8 +1,6 @@
 import { ChevronRightIcon } from "@babylonlabs-io/core-ui";
 import type { ReactNode } from "react";
 
-import { CARD_DARK_BG_CLASS } from "@/components/shared/layoutClasses";
-
 interface FeatureCardProps {
   icon: ReactNode;
   title: string;
@@ -47,7 +45,7 @@ export function FeatureCard({
   );
 
   return (
-    <div className={`rounded-2xl bg-secondary-highlight ${CARD_DARK_BG_CLASS}`}>
+    <div className="rounded-2xl bg-secondary-highlight">
       {expandable ? (
         <button
           type="button"

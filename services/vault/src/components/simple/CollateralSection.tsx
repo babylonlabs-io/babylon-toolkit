@@ -23,10 +23,7 @@ import {
   type ArtifactDownloadModalParams,
 } from "@/components/deposit/ArtifactDownloadModal";
 import { DepositButton, ExpandMenuButton } from "@/components/shared";
-import {
-  CARD_DARK_BG_CLASS,
-  SUMMARY_CARD_CLASS,
-} from "@/components/shared/layoutClasses";
+import { SUMMARY_CARD_CLASS } from "@/components/shared/layoutClasses";
 import { getNetworkConfigBTC } from "@/config";
 import { COPY } from "@/copy";
 import { useVaultProviders } from "@/hooks/deposit/useVaultProviders";
@@ -228,10 +225,7 @@ export function CollateralSection({
       </div>
 
       {hasCollateral ? (
-        <Card
-          variant="filled"
-          className={`${SUMMARY_CARD_CLASS} ${CARD_DARK_BG_CLASS}`}
-        >
+        <Card variant="filled" className={SUMMARY_CARD_CLASS}>
           {/* Summary row: BTC icon + total amount + three-dots toggle */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">

@@ -1,8 +1,8 @@
 import { Avatar } from "@babylonlabs-io/core-ui";
 import { useState } from "react";
-import { RiArrowDownSLine } from "react-icons/ri";
 
 import { CopyableHash } from "@/components/shared/CopyableHash";
+import { ExpandMenuButton } from "@/components/shared/ExpandMenuButton";
 import type { LiquidationGroupRow } from "@/types/activityLog";
 import { getExplorerTxUrl } from "@/utils/explorer";
 import { formatDateTime } from "@/utils/formatting";
@@ -42,28 +42,22 @@ export function LiquidationGroupCard({ row }: LiquidationGroupCardProps) {
             <span className="text-[20px] leading-none text-accent-primary">
               {row.type}
             </span>
-            <span className="text-[14px] text-accent-secondary">{summary}</span>
+            <span className="text-[14px] text-accent-primary">{summary}</span>
           </div>
         </div>
-        <button
-          type="button"
-          onClick={() => setExpanded((v) => !v)}
+        <ExpandMenuButton
+          isExpanded={expanded}
+          onToggle={() => setExpanded((v) => !v)}
           aria-label={expanded ? "Collapse details" : "Expand details"}
-          aria-expanded={expanded}
-          className="rounded-[8px] border border-accent-primary p-2"
-        >
-          <RiArrowDownSLine
-            size={20}
-            className={`transition-transform ${expanded ? "rotate-180" : ""}`}
-          />
-        </button>
+          variant="muted"
+        />
       </div>
       {expanded && (
         <ul role="list" className="flex flex-col gap-2">
           {row.children.map((child) => (
             <li
               key={child.id}
-              className="flex items-center justify-between gap-4 rounded-[8px] bg-neutral-200 p-4"
+              className="flex items-center justify-between gap-4 rounded-[8px] bg-primary-contrast p-4"
             >
               <div className="flex min-w-0 items-center gap-2">
                 <Avatar

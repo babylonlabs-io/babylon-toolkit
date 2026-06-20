@@ -16,13 +16,19 @@ export function ActivityCard({ row }: ActivityCardProps) {
   const isPending = Boolean(row.isPending);
   const isRefunded = Boolean(row.isRefunded);
   const showSpinner = isPending && !isRefunded;
-  const showHash = row.transactionHash !== "" && !isPending;
+  const showHash = row.transactionHash !== "";
+
+  // "Pending Deposit" is an internal type used to keep pending peg-ins out of
+  // the filter menu; the row itself reads as a normal "Deposit" with a spinner.
+  const displayLabel = row.type === "Pending Deposit" ? "Deposit" : row.type;
 
   const mutedTextClass = isPending
     ? "text-accent-secondary"
     : "text-accent-primary";
+  // Pending rows sit on the darker contrast background to distinguish them
+  // from settled activity, which uses the lighter highlight background.
   const backgroundClass = isPending
-    ? "bg-neutral-200"
+    ? "bg-primary-contrast"
     : "bg-secondary-highlight";
 
   return (
@@ -34,14 +40,14 @@ export function ActivityCard({ row }: ActivityCardProps) {
         <div className="flex min-w-0 flex-col gap-1">
           <div className="flex items-center gap-2">
             <span className={`text-[20px] leading-none ${mutedTextClass}`}>
-              {row.type}
+              {displayLabel}
             </span>
             {isRefunded ? (
               <span
                 role="img"
-                aria-label={COPY.activity.refundedTooltip}
-                title={COPY.activity.refundedTooltip}
-                className="inline-block size-2 rounded-full bg-error-main"
+                aria-label={COPY.activity.expiredTooltip}
+                title={COPY.activity.expiredTooltip}
+                className="inline-block size-3 rounded-full bg-error-main"
               />
             ) : showSpinner ? (
               <span data-testid="activity-card-spinner" className="inline-flex">

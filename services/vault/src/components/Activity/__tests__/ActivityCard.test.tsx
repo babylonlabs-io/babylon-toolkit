@@ -33,7 +33,7 @@ describe("ActivityCard", () => {
     expect(screen.getByText(/2025-10-16/)).toBeInTheDocument();
   });
 
-  it("renders spinner and 'Pending…' instead of a link when isPending", () => {
+  it("renders spinner and 'Pending…' instead of a link when pending without a hash", () => {
     render(
       <ActivityCard
         row={{ ...baseRow, isPending: true, transactionHash: "" }}
@@ -45,12 +45,29 @@ describe("ActivityCard", () => {
     expect(screen.getByTestId("activity-card-spinner")).toBeInTheDocument();
   });
 
-  it("renders the red refund dot with accessible tooltip when isRefunded", () => {
+  it("renders spinner alongside the truncated hash when pending with a hash", () => {
+    render(<ActivityCard row={{ ...baseRow, isPending: true }} />);
+
+    expect(screen.getByTestId("activity-card-spinner")).toBeInTheDocument();
+    expect(screen.getByRole("link").textContent).toBe("a1b2c3...a1b2");
+    expect(screen.queryByText("Pending…")).not.toBeInTheDocument();
+  });
+
+  it("renders a 'Pending Deposit' row with the label 'Deposit'", () => {
+    render(
+      <ActivityCard
+        row={{ ...baseRow, type: "Pending Deposit", isPending: true }}
+      />,
+    );
+
+    expect(screen.getByText("Deposit")).toBeInTheDocument();
+    expect(screen.queryByText("Pending Deposit")).not.toBeInTheDocument();
+  });
+
+  it("renders the red expired dot with accessible tooltip when isRefunded", () => {
     render(<ActivityCard row={{ ...baseRow, isRefunded: true }} />);
 
-    expect(
-      screen.getByLabelText("Transaction was refunded"),
-    ).toBeInTheDocument();
+    expect(screen.getByLabelText("Withdraw expired")).toBeInTheDocument();
   });
 
   it("treats refunded as exclusive with pending (refunded wins)", () => {
@@ -61,9 +78,7 @@ describe("ActivityCard", () => {
     expect(
       screen.queryByTestId("activity-card-spinner"),
     ).not.toBeInTheDocument();
-    expect(
-      screen.getByLabelText("Transaction was refunded"),
-    ).toBeInTheDocument();
+    expect(screen.getByLabelText("Withdraw expired")).toBeInTheDocument();
   });
 
   it("copy button writes the full un-truncated hash to clipboard", () => {

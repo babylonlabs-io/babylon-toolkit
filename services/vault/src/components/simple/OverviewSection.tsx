@@ -20,7 +20,6 @@ import {
   type HealthFactorGaugeStat,
   HeartIcon,
 } from "@/components/shared";
-import { CARD_DARK_BG_CLASS } from "@/components/shared/layoutClasses";
 import { COPY } from "@/copy";
 
 interface OverviewSectionProps {
@@ -94,9 +93,7 @@ export function OverviewSection({
         </h2>
       </div>
 
-      <div
-        className={`w-full rounded-2xl bg-secondary-highlight p-6 ${CARD_DARK_BG_CLASS}`}
-      >
+      <div className="w-full rounded-2xl bg-secondary-highlight p-6">
         <div className="space-y-4">
           {/* Liquidation-risk gauge with stats */}
           {showHealthFactor && (

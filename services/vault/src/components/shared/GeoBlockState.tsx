@@ -1,6 +1,5 @@
 import { Avatar } from "@babylonlabs-io/core-ui";
 
-import { CARD_DARK_BG_CLASS } from "@/components/shared/layoutClasses";
 import { getNetworkConfigBTC } from "@/config";
 import { COPY } from "@/copy";
 
@@ -14,9 +13,7 @@ const btcConfig = getNetworkConfigBTC();
 export function GeoBlockState() {
   return (
     <div className="mx-auto w-full max-w-[760px] px-5 py-20">
-      <div
-        className={`flex flex-col items-center gap-8 rounded-2xl bg-secondary-highlight px-6 py-10 ${CARD_DARK_BG_CLASS}`}
-      >
+      <div className="flex flex-col items-center gap-8 rounded-2xl bg-secondary-highlight px-6 py-10">
         <Avatar
           url={btcConfig.icon}
           alt={btcConfig.coinSymbol}
