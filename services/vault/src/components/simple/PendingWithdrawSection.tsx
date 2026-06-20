@@ -11,10 +11,7 @@ import { useMemo, useState } from "react";
 
 import type { RedeemedVaultInfo } from "@/applications/aave/hooks/useAaveVaults";
 import { ExpandMenuButton } from "@/components/shared";
-import {
-  CARD_DARK_BG_CLASS,
-  SUMMARY_CARD_CLASS,
-} from "@/components/shared/layoutClasses";
+import { SUMMARY_CARD_CLASS } from "@/components/shared/layoutClasses";
 import { getNetworkConfigBTC } from "@/config";
 import { useBtcMempoolConfirmations } from "@/hooks/useBtcMempoolConfirmations";
 import { useOffchainParams } from "@/hooks/useOffchainParams";
@@ -103,10 +100,7 @@ function PendingWithdrawSectionContent({
       </div>
 
       {/* Summary card with expand */}
-      <Card
-        variant="filled"
-        className={`${SUMMARY_CARD_CLASS} ${CARD_DARK_BG_CLASS}`}
-      >
+      <Card variant="filled" className={SUMMARY_CARD_CLASS}>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Avatar

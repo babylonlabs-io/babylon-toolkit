@@ -7,7 +7,6 @@
 
 import type { ReactNode } from "react";
 
-import { CARD_DARK_BG_CLASS } from "@/components/shared/layoutClasses";
 import { COPY } from "@/copy";
 import { usePrice } from "@/hooks/usePrices";
 import type { CapSnapshot } from "@/services/deposit";
@@ -29,7 +28,8 @@ interface CapCardProps {
   usd: number | null;
 }
 
-const CAP_CARD_CLASS = `flex h-[76px] w-full flex-col items-start gap-1 rounded-lg bg-secondary-highlight px-6 py-4 ${CARD_DARK_BG_CLASS}`;
+const CAP_CARD_CLASS =
+  "flex h-[76px] w-full flex-col items-start gap-1 rounded-lg bg-secondary-highlight px-6 py-4";
 
 function CapCard({ label, btcDisplay, usd }: CapCardProps) {
   return (

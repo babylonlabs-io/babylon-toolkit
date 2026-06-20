@@ -1,3 +1,4 @@
+import { Button } from "@babylonlabs-io/core-ui";
 import { useEffect } from "react";
 import type { FallbackProps } from "react-error-boundary";
 
@@ -39,12 +40,9 @@ export default function GlobalError({
       <div className="w-full max-w-md rounded-lg bg-white p-8 shadow-lg">
         <h1 className="mb-4 text-2xl font-bold text-red-600">{heading}</h1>
         <p className="mb-4 text-gray-700">{body}</p>
-        <button
-          onClick={onAction}
-          className="w-full rounded-md bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
-        >
+        <Button fluid onClick={onAction}>
           {buttonLabel}
-        </button>
+        </Button>
       </div>
     </div>
   );
