@@ -1,6 +1,4 @@
-import { Chip } from "@babylonlabs-io/core-ui";
 import { useMemo } from "react";
-import { IoWarningOutline } from "react-icons/io5";
 
 import { getSectionActionRequiredLabel } from "@/components/deposit/actionStatus";
 import { usePeginPolling } from "@/context/deposit/PeginPollingContext";
@@ -25,17 +23,13 @@ export function PendingDepositActionBadge({
   if (label === null) return null;
 
   return (
-    <Chip
-      className="inline-flex items-center gap-1.5 text-accent-primary"
+    <span
+      className="inline-flex h-10 items-center justify-center rounded-full bg-[#FFFFFF] px-4 text-base font-normal leading-6 tracking-[0.15px] text-[#111111]"
       role="status"
       aria-label={`Action required: ${label}`}
       title={`A pending deposit requires action: ${label}`}
     >
-      <IoWarningOutline
-        className="h-4 w-4 flex-shrink-0 text-warning-main"
-        aria-hidden
-      />
       {label}
-    </Chip>
+    </span>
   );
 }
