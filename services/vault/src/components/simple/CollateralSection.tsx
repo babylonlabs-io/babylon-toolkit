@@ -3,7 +3,7 @@
  * Displays collateral with an expandable view showing individual peg-in vaults.
  */
 
-import { Avatar, Button, Card } from "@babylonlabs-io/core-ui";
+import { Avatar, Button, Card, Heading } from "@babylonlabs-io/core-ui";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useMemo, useState } from "react";
 import { isHex, type Address, type Hex } from "viem";
@@ -198,9 +198,13 @@ export function CollateralSection({
     <div className="w-full space-y-6">
       {/* Header row */}
       <div className="flex items-center justify-between">
-        <h2 className="text-[24px] font-normal text-accent-primary">
+        <Heading
+          variant="h5"
+          as="h2"
+          className="font-normal text-accent-primary"
+        >
           Collateral
-        </h2>
+        </Heading>
         <div className="flex items-center gap-2">
           {canReorder && (
             <Button
@@ -269,10 +273,10 @@ export function CollateralSection({
               size="xlarge"
               className="mb-4 h-[100px] w-[100px]"
             />
-            <p className="text-[20px] text-accent-primary">
+            <p className="text-xl text-accent-primary">
               {COPY.collateral.empty.title}
             </p>
-            <p className="text-[16px] text-accent-secondary">
+            <p className="text-base text-accent-secondary">
               {COPY.collateral.empty.body(btcConfig.coinSymbol)}
             </p>
           </div>

@@ -6,7 +6,7 @@
  * PendingWithdrawCard). Follows the same pattern as PendingDepositSection.
  */
 
-import { Avatar, Card } from "@babylonlabs-io/core-ui";
+import { Avatar, Card, Heading } from "@babylonlabs-io/core-ui";
 import { useMemo, useState } from "react";
 
 import type { RedeemedVaultInfo } from "@/applications/aave/hooks/useAaveVaults";
@@ -91,9 +91,13 @@ function PendingWithdrawSectionContent({
     <div className="w-full space-y-6">
       {/* Section header */}
       <div className="flex items-center gap-3">
-        <h2 className="text-[24px] font-normal text-accent-primary">
+        <Heading
+          variant="h5"
+          as="h2"
+          className="font-normal text-accent-primary"
+        >
           Pending Withdrawals ({count})
-        </h2>
+        </Heading>
         {anyInProgress && (
           <div className="h-[18px] w-[18px] animate-spin rounded-full border-2 border-accent-primary border-t-transparent" />
         )}

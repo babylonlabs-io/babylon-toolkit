@@ -9,32 +9,41 @@ import {
 import { COPY } from "@/copy";
 import { formatAmount } from "@/utils/formatting";
 
-interface RepaySuccessModalProps {
+type LoanSuccessVariant = "borrow" | "repay";
+
+interface LoanSuccessModalProps {
   open: boolean;
   onClose: () => void;
   onDone: () => void;
-  repayAmount: number;
-  repaySymbol: string;
+  variant: LoanSuccessVariant;
+  amount: number;
+  symbol: string;
   decimals: number;
   assetIcon: string;
 }
 
+const COPY_BY_VARIANT = {
+  borrow: COPY.loans.borrowSuccess,
+  repay: COPY.loans.repaySuccess,
+} as const;
+
 /**
- * RepaySuccessModal - Full-screen success screen for repay operations.
- *
- * Mirrors the borrow success layout: a bordered card with the asset avatar,
- * "Repay successful", the repaid amount, and a "Done" CTA.
+ * Full-screen success screen shown after a successful borrow or repay. The
+ * layout is identical for both operations; only the copy differs, selected by
+ * `variant`. Confirms the amount and dismisses via the "Done" CTA.
  */
-export function RepaySuccessModal({
+export function LoanSuccessModal({
   open,
   onClose,
   onDone,
-  repayAmount,
-  repaySymbol,
+  variant,
+  amount,
+  symbol,
   decimals,
   assetIcon,
-}: RepaySuccessModalProps) {
-  const formattedRepay = formatAmount(repayAmount, decimals);
+}: LoanSuccessModalProps) {
+  const copy = COPY_BY_VARIANT[variant];
+  const formattedAmount = formatAmount(amount, decimals);
 
   return (
     <FullScreenDialog
@@ -51,10 +60,10 @@ export function RepaySuccessModal({
           />
 
           <div className="flex flex-col gap-4">
-            <Heading variant="h4">{COPY.loans.repaySuccess.title}</Heading>
+            <Heading variant="h4">{copy.title}</Heading>
 
             <Text as="div" className="text-accent-secondary">
-              {COPY.loans.repaySuccess.body(formattedRepay, repaySymbol)}
+              {copy.body(formattedAmount, symbol)}
             </Text>
           </div>
         </div>
@@ -66,7 +75,7 @@ export function RepaySuccessModal({
           fluid
           onClick={onDone}
         >
-          {COPY.loans.repaySuccess.doneButton}
+          {copy.doneButton}
         </Button>
       </div>
     </FullScreenDialog>

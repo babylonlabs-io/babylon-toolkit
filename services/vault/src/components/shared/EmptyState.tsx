@@ -49,11 +49,11 @@ export function EmptyState({
         />
 
         {/* Primary Text */}
-        <p className="text-[20px] text-accent-primary">{title}</p>
+        <p className="text-xl text-accent-primary">{title}</p>
 
         {/* Secondary Text */}
         {description && (
-          <p className="text-[14px] text-accent-secondary">{description}</p>
+          <p className="text-sm text-accent-secondary">{description}</p>
         )}
 
         {/* Action Button */}

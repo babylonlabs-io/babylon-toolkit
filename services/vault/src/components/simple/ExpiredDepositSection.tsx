@@ -10,7 +10,7 @@
  * resolve its polling result.
  */
 
-import { Avatar, Card } from "@babylonlabs-io/core-ui";
+import { Avatar, Card, Heading } from "@babylonlabs-io/core-ui";
 import { useMemo, useState } from "react";
 
 import { ExpandMenuButton } from "@/components/shared";
@@ -54,9 +54,13 @@ export function ExpiredDepositSection({
   return (
     <div className="w-full space-y-6">
       <div className="flex items-center gap-3">
-        <h2 className="text-[24px] font-normal text-accent-primary">
+        <Heading
+          variant="h5"
+          as="h2"
+          className="font-normal text-accent-primary"
+        >
           Expired Deposits ({count})
-        </h2>
+        </Heading>
       </div>
 
       <Card variant="filled" className={SUMMARY_CARD_CLASS}>

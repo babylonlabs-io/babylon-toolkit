@@ -1,4 +1,4 @@
-import { Avatar } from "@babylonlabs-io/core-ui";
+import { Avatar, Heading } from "@babylonlabs-io/core-ui";
 import { useEffect, useState } from "react";
 
 import { COPY } from "@/copy";
@@ -43,9 +43,13 @@ export function ActivityList({ activities, isConnected }: ActivityListProps) {
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between gap-4">
-        <h2 className="text-[24px] font-normal text-accent-primary">
+        <Heading
+          variant="h5"
+          as="h2"
+          className="font-normal text-accent-primary"
+        >
           {COPY.activity.pageTitle}
-        </h2>
+        </Heading>
         {isConnected && (
           <div className="flex items-center gap-4">
             <Avatar url={AAVE_LOGO_URL} alt="Aave" size="small" />
