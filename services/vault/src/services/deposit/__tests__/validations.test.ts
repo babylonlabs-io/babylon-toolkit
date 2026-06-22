@@ -287,6 +287,7 @@ describe("Deposit Validations", () => {
       isDepositDisabled: false,
       isGeoBlocked: false,
       isAddressBlocked: false,
+      vaultCountAtCap: false,
       isWalletConnected: true,
       hasProvider: true,
       commissionUnavailable: false,
@@ -349,6 +350,53 @@ describe("Deposit Validations", () => {
         disabled: true,
         label: "Wallet not eligible",
       });
+    });
+
+    it("returns 'Maximum BTC Vaults reached' when vault count is at cap", () => {
+      const result = getDepositCtaState({
+        ...readyParams,
+        vaultCountAtCap: true,
+      });
+      expect(result).toEqual({
+        disabled: true,
+        label: "Maximum BTC Vaults reached",
+      });
+    });
+
+    it("prioritizes deposit-disabled over vault count cap", () => {
+      const result = getDepositCtaState({
+        ...readyParams,
+        isDepositDisabled: true,
+        vaultCountAtCap: true,
+      });
+      expect(result.label).toBe("Deposits unavailable");
+    });
+
+    it("prioritizes geo-blocked over vault count cap", () => {
+      const result = getDepositCtaState({
+        ...readyParams,
+        isGeoBlocked: true,
+        vaultCountAtCap: true,
+      });
+      expect(result.label).toBe("Service unavailable in your region");
+    });
+
+    it("prioritizes address-blocked over vault count cap", () => {
+      const result = getDepositCtaState({
+        ...readyParams,
+        isAddressBlocked: true,
+        vaultCountAtCap: true,
+      });
+      expect(result.label).toBe("Wallet not eligible");
+    });
+
+    it("prioritizes vault count cap over wallet not connected", () => {
+      const result = getDepositCtaState({
+        ...readyParams,
+        vaultCountAtCap: true,
+        isWalletConnected: false,
+      });
+      expect(result.label).toBe("Maximum BTC Vaults reached");
     });
 
     it("prioritizes geo-blocked over address-blocked", () => {

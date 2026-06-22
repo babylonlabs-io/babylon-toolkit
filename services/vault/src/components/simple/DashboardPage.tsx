@@ -28,6 +28,7 @@ import { useApplicationCap } from "@/hooks/useApplicationCap";
 import { useDashboardState } from "@/hooks/useDashboardState";
 import { usePegoutPolling } from "@/hooks/usePegoutPolling";
 import { usePrices } from "@/hooks/usePrices";
+import { useVaultCountCap } from "@/hooks/useVaultCountCap";
 import {
   formatBtcAmount,
   formatLiquidationDistancePercent,
@@ -44,6 +45,7 @@ import { PendingDepositSection } from "./PendingDepositSection";
 import { PendingWithdrawSection } from "./PendingWithdrawSection";
 import { PositionNotificationBanner } from "./PositionNotificationBanner";
 import { SupplyCapSection } from "./SupplyCapSection";
+import { VaultCountCapBanner } from "./VaultCountCapBanner";
 import WithdrawFlow from "./WithdrawFlow";
 
 export function DashboardPage() {
@@ -85,6 +87,8 @@ export function DashboardPage() {
     isConnected ? address : undefined,
   );
   const { prices, metadata } = usePrices();
+
+  const vaultCountCap = useVaultCountCap(isConnected ? address : undefined);
 
   const liquidationNotificationsEnabled =
     featureFlags.isLiquidationNotificationsEnabled;
@@ -188,6 +192,8 @@ export function DashboardPage() {
     <Container className={`${PAGE_CONTENT_CLASS} pb-6`}>
       <div className="space-y-10">
         <SupplyCapSection snapshot={capSnapshot} isLoading={isCapLoading} />
+
+        <VaultCountCapBanner cap={vaultCountCap} />
 
         <OverviewSection
           healthFactor={healthFactor}

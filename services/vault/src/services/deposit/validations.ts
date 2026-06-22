@@ -14,6 +14,7 @@ import {
   type ValidationResult,
 } from "@babylonlabs-io/ts-sdk/tbv/core/services";
 
+import { COPY } from "@/copy";
 import { getBtcSymbol } from "@/utils/formatting";
 
 export {
@@ -100,6 +101,7 @@ export interface DepositCtaParams extends DepositFormValidityParams {
   isGeoBlocked: boolean;
   isAddressBlocked: boolean;
   isWalletConnected: boolean;
+  vaultCountAtCap: boolean;
   hasProvider: boolean;
   /**
    * True when a provider is selected but its on-chain commission hasn't loaded
@@ -275,6 +277,10 @@ export function getDepositCtaState(params: DepositCtaParams): DepositCtaState {
 
   if (params.isAddressBlocked) {
     return { disabled: true, label: "Wallet not eligible" };
+  }
+
+  if (params.vaultCountAtCap) {
+    return { disabled: true, label: COPY.vaultCountCap.depositCtaLabel };
   }
 
   if (!params.isWalletConnected) {

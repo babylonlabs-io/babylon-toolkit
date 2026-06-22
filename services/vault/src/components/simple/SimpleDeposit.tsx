@@ -13,6 +13,7 @@ import { useDepositPeginFee } from "@/hooks/deposit/useDepositPeginFee";
 import { useDialogStep } from "@/hooks/deposit/useDialogStep";
 import { usePendingVaultOverlapCheck } from "@/hooks/deposit/usePendingVaultOverlapCheck";
 import { useProtocolFeeRows } from "@/hooks/useProtocolFeeRows";
+import { useVaultCountCap } from "@/hooks/useVaultCountCap";
 import type { VaultActivity } from "@/types/activity";
 import {
   shouldProbeWalletLiveness,
@@ -77,6 +78,7 @@ function SimpleDepositContent({
   const { address: connectedEthAddress } = useETHWallet();
   const { address: connectedBtcAddress, reconnect: reconnectBtcWallet } =
     useBTCWallet();
+  const { isAtCap: vaultCountAtCap } = useVaultCountCap(connectedEthAddress);
   const btcConnector = useChainConnector("BTC");
   const { rows: feeRows, collateralFactor } =
     useProtocolFeeRows(connectedEthAddress);
@@ -426,6 +428,7 @@ function SimpleDepositContent({
                   isDepositDisabled: FeatureFlags.isDepositDisabled,
                   isGeoBlocked: isGeoBlocked || isGeoLoading,
                   isAddressBlocked: isAddressBlocked || isScreeningLoading,
+                  vaultCountAtCap,
                   ordinalsCheckPending,
                 }}
                 collateralFactor={collateralFactor}

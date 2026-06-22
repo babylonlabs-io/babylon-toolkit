@@ -140,6 +140,8 @@ export interface DepositGatingState {
   isDepositDisabled: boolean;
   isGeoBlocked: boolean;
   isAddressBlocked: boolean;
+  /** True when this position already holds the maximum number of BTC Vaults. */
+  vaultCountAtCap?: boolean;
   /**
    * True while the inscription (ordinals) check is still in flight. Blocks
    * submission so the user cannot deposit before the spendable set has been
@@ -221,6 +223,7 @@ export function DepositForm({
     isDepositDisabled,
     isGeoBlocked,
     isAddressBlocked,
+    vaultCountAtCap = false,
     ordinalsCheckPending = false,
   } = gatingState;
   const [openPanel, setOpenPanel] = useState<"split" | "provider" | null>(null);
@@ -329,6 +332,7 @@ export function DepositForm({
     isDepositDisabled,
     isGeoBlocked,
     isAddressBlocked,
+    vaultCountAtCap,
     isWalletConnected,
     hasProvider: !!selectedProvider,
     commissionUnavailable,
