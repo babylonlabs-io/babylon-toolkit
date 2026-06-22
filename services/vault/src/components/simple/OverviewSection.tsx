@@ -6,7 +6,7 @@
  * connected; the disconnected entry screen is handled by DashboardPage.
  */
 
-import { Hint, InfoIcon } from "@babylonlabs-io/core-ui";
+import { Heading, Hint, InfoIcon } from "@babylonlabs-io/core-ui";
 import { useMemo } from "react";
 
 import {
@@ -88,9 +88,13 @@ export function OverviewSection({
   return (
     <div className="w-full space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-[24px] font-normal text-accent-primary">
+        <Heading
+          variant="h5"
+          as="h2"
+          className="font-normal text-accent-primary"
+        >
           {COPY.overview.heading}
-        </h2>
+        </Heading>
       </div>
 
       <div className="w-full rounded-2xl bg-secondary-highlight p-6">

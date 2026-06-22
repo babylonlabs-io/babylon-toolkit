@@ -9,6 +9,7 @@ import {
   AmountSlider,
   Button,
   Callout,
+  Heading,
   SubSection,
 } from "@babylonlabs-io/core-ui";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -283,9 +284,13 @@ export function Repay() {
   return (
     <div>
       {/* Repay Amount Section */}
-      <h3 className="mb-4 text-[24px] font-normal text-accent-primary">
+      <Heading
+        variant="h5"
+        as="h3"
+        className="mb-4 font-normal text-accent-primary"
+      >
         Repay
-      </h3>
+      </Heading>
       <div className="flex flex-col gap-2">
         <SubSection className="!bg-secondary-highlight">
           <AmountSlider

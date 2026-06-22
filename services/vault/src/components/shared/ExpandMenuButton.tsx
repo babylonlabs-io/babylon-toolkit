@@ -21,7 +21,7 @@ const VARIANT_CLASSES: Record<
     iconColor: "text-accent-primary",
   },
   muted: {
-    button: "rounded-[8px] p-2",
+    button: "rounded-lg p-2",
     iconSize: 24,
     iconColor: "text-accent-secondary",
   },

@@ -21,8 +21,7 @@ import { useAaveConfig } from "../../context";
 import { useAaveOracleAddress } from "../../hooks";
 import { LoanProvider } from "../context/LoanContext";
 import { LoanCard } from "../LoanCard";
-import { BorrowSuccessModal } from "../LoanCard/Borrow/SuccessModal";
-import { RepaySuccessModal } from "../LoanCard/Repay/SuccessModal";
+import { LoanSuccessModal } from "../LoanCard/LoanSuccessModal";
 
 import { useAaveReserveDetail, useBorrowRepayModals } from "./hooks";
 import { PositionGate } from "./PositionGate";
@@ -178,22 +177,24 @@ export function AaveReserveDetail({ tab }: { tab: LoanTab }) {
 
       {selectedReserve && assetConfig && (
         <>
-          <BorrowSuccessModal
+          <LoanSuccessModal
+            variant="borrow"
             open={showBorrowSuccess}
             onClose={handleCloseBorrowSuccess}
             onDone={handleCloseBorrowSuccess}
-            borrowAmount={borrowSuccessData.amount}
-            borrowSymbol={assetConfig.symbol}
+            amount={borrowSuccessData.amount}
+            symbol={assetConfig.symbol}
             decimals={selectedReserve.token.decimals}
             assetIcon={assetConfig.icon}
           />
 
-          <RepaySuccessModal
+          <LoanSuccessModal
+            variant="repay"
             open={showRepaySuccess}
             onClose={handleCloseRepaySuccess}
             onDone={handleCloseRepaySuccess}
-            repaySymbol={assetConfig.symbol}
-            repayAmount={repaySuccessData.repayAmount}
+            amount={repaySuccessData.repayAmount}
+            symbol={assetConfig.symbol}
             decimals={selectedReserve.token.decimals}
             assetIcon={assetConfig.icon}
           />

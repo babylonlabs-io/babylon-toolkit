@@ -21,10 +21,10 @@ export function GeoBlockState() {
           className="h-[100px] w-[100px]"
         />
         <div className="flex flex-col items-center gap-1 text-center">
-          <p className="text-[20px] leading-[1.6] text-accent-primary">
+          <p className="text-xl leading-[1.6] text-accent-primary">
             {COPY.geoBlock.title}
           </p>
-          <p className="text-[16px] leading-[1.5] text-accent-secondary">
+          <p className="text-base leading-[1.5] text-accent-secondary">
             {COPY.geoBlock.body}
           </p>
         </div>

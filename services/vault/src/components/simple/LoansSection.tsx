@@ -5,7 +5,7 @@
  * the visual pattern used by PendingDeposits / Collateral.
  */
 
-import { Avatar, Button, Card } from "@babylonlabs-io/core-ui";
+import { Avatar, Button, Card, Heading } from "@babylonlabs-io/core-ui";
 import { useState } from "react";
 
 import { ExpandMenuButton } from "@/components/shared";
@@ -56,9 +56,13 @@ export function LoansSection({
   return (
     <div className="w-full space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-[24px] font-normal text-accent-primary">
+        <Heading
+          variant="h5"
+          as="h2"
+          className="font-normal text-accent-primary"
+        >
           {COPY.loans.heading}
-        </h2>
+        </Heading>
         <div className="flex gap-3">
           <Button
             variant="outlined"
@@ -154,10 +158,10 @@ export function LoansSection({
               />
             </div>
 
-            <p className="text-[20px] text-accent-primary">
+            <p className="text-xl text-accent-primary">
               {COPY.loans.empty.title(btcConfig.coinSymbol)}
             </p>
-            <p className="text-[16px] text-accent-secondary">
+            <p className="text-base text-accent-secondary">
               {COPY.loans.empty.body(btcConfig.coinSymbol)}
             </p>
           </div>
