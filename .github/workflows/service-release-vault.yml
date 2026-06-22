@@ -78,7 +78,8 @@ jobs:
           else
             SELECTED=$(echo "$ALL" | jq -c --arg e "$ENVIRONMENT" '[.[] | select(.environment == $e)]')
             if [ "$(echo "$SELECTED" | jq 'length')" -eq 0 ]; then
-              echo "::error::Unknown ENVIRONMENT '$ENVIRONMENT'. Valid: vault-devnet, vault-staging-devnet, vault-testnet, all."
+              VALID=$(echo "$ALL" | jq -r '[.[].environment] + ["all"] | join(", ")')
+              echo "::error::Unknown ENVIRONMENT '$ENVIRONMENT'. Valid: $VALID."
               exit 1
             fi
           fi
