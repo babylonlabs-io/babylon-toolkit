@@ -209,13 +209,17 @@ export default function RootLayout() {
           {/* `[&>div]:!max-w-[1400px]` caps the Footer's inner Container at
               1400px, overriding the `container` class's 1536px max-width at
               the 2xl breakpoint so the footer aligns with the navbar.
+              `[&>div]:!px-5` restores the 20px horizontal inset that core-ui's
+              Container drops at the `sm` breakpoint (`sm:px-0`), matching the
+              navbar/page `PAGE_CONTENT_CLASS` padding so the footer content
+              lines up with the rest of the page chrome.
               `!bg-secondary-main` + `before:!bg-secondary-main` swap the light-
               mode background (and its decorative top-edge pseudo) from the
               default teal to brand orange; dark mode keeps `primary-main`. */}
           <Footer
             socialLinks={DEFAULT_SOCIAL_LINKS}
             copyrightYear={new Date().getFullYear()}
-            className="!bg-secondary-main before:!bg-secondary-main dark:!bg-primary-main dark:before:!bg-primary-main [&>div]:!max-w-[1400px]"
+            className="!bg-secondary-main before:!bg-secondary-main dark:!bg-primary-main dark:before:!bg-primary-main [&>div]:!max-w-[1400px] [&>div]:!px-5"
           />
         </div>
       </div>
