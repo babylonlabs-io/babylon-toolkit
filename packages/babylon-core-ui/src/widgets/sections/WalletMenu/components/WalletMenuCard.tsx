@@ -165,7 +165,8 @@ export const WalletMenuCard: React.FC<WalletMenuCardProps> = ({
             alt={walletName || walletType}
             url={walletIcon || ''}
             size="large"
-            className="w-8 h-8 md:w-10 md:h-10 flex-shrink-0"
+            variant="rounded"
+            className="w-8 h-8 md:w-10 md:h-10 flex-shrink-0 !overflow-visible"
           />
 
           <div className="flex flex-1 flex-col items-start min-w-0">

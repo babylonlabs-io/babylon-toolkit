@@ -10,8 +10,7 @@ import {
   useWalletConnect,
   useWidgetState,
 } from "@babylonlabs-io/wallet-connector";
-import { useMemo, useState } from "react";
-import { twMerge } from "tailwind-merge";
+import { useMemo } from "react";
 
 import { useAddressScreening } from "@/context/addressScreening";
 import { useGeoFencing } from "@/context/geofencing";
@@ -30,7 +29,6 @@ interface ConnectProps {
 
 export const Connect: React.FC<ConnectProps> = ({ loading = false, text }) => {
   const { open, disconnect } = useWalletConnect();
-  const [isWalletMenuOpen, setIsWalletMenuOpen] = useState(false);
 
   const {
     connected: btcConnected,
@@ -65,10 +63,6 @@ export const Connect: React.FC<ConnectProps> = ({ loading = false, text }) => {
     [selectedWallets, btcConnected, ethConnected, btcConnector, ethConnector],
   );
 
-  const handleOpenChange = (open: boolean) => {
-    setIsWalletMenuOpen(open);
-  };
-
   // Show BtcEthWalletMenu when wallets are connected and not geo-blocked.
   // Address-blocked users still need the menu to disconnect and try a different wallet.
   if (isWalletConnected && !isGeoBlocked && !isGeoLoading) {
@@ -77,29 +71,21 @@ export const Connect: React.FC<ConnectProps> = ({ loading = false, text }) => {
         <BtcEthWalletMenu
           trigger={
             <div className="cursor-pointer">
-              <AvatarGroup max={3} variant="circular">
+              <AvatarGroup max={3} variant="rounded" className="!-space-x-0.5">
                 {displayWallets["BTC"] && (
                   <Avatar
                     alt={displayWallets["BTC"].name}
                     url={displayWallets["BTC"].icon}
-                    size="large"
-                    className={twMerge(
-                      "box-content bg-accent-contrast object-contain",
-                      isWalletMenuOpen &&
-                        "outline outline-[2px] outline-accent-primary",
-                    )}
+                    size="medium"
+                    className="box-content !overflow-visible object-contain"
                   />
                 )}
                 {displayWallets["ETH"] && (
                   <Avatar
                     alt={displayWallets["ETH"].name}
                     url={displayWallets["ETH"].icon}
-                    size="large"
-                    className={twMerge(
-                      "box-content bg-accent-contrast object-contain",
-                      isWalletMenuOpen &&
-                        "outline outline-[2px] outline-accent-primary",
-                    )}
+                    size="medium"
+                    className="box-content !overflow-visible object-contain"
                   />
                 )}
               </AvatarGroup>
@@ -115,7 +101,6 @@ export const Connect: React.FC<ConnectProps> = ({ loading = false, text }) => {
           btcCoinSymbol="BTC"
           ethCoinSymbol="ETH"
           onDisconnect={disconnect}
-          onOpenChange={handleOpenChange}
         />
       </div>
     );
