@@ -37,10 +37,11 @@ export interface UseOptimalSplitResult {
   error: Error | null;
 }
 
-// Bitcoin's fixed maximum supply in satoshis (21,000,000 BTC × 1e8). Any
-// amount above this is invalid input and would trip the SDK's
-// assertSafePrecision guard (RangeError). We reject it with an explicit error
-// rather than computing the split or returning a silent zero result.
+// Bitcoin's fixed maximum supply in satoshis (21,000,000 BTC × 1e8). A larger
+// "amount" can't be a real deposit and would trip the SDK's assertSafePrecision
+// guard (RangeError) mid-render. This is a defensive crash-guard only — the
+// oversized amount is rejected for the user with an explicit message by the
+// form's balance/max validation (getDepositCtaState), so we just bail here.
 const MAX_PLAUSIBLE_DEPOSIT_SATS = 2_100_000_000_000_000n;
 
 const EMPTY_RESULT: Omit<UseOptimalSplitResult, "isLoading" | "error"> = {
@@ -58,21 +59,9 @@ export function useOptimalSplit(
   const { params, isLoading, error } = useVaultSplitParams(connectedAddress);
   const { minDeposit } = useProtocolParamsContext();
 
-  const { result, amountError } = useMemo(() => {
-    // An oversized amount is invalid input, not a no-split: surface an explicit
-    // error instead of a zeroed result that downstream split planning can't
-    // distinguish from a normal empty/no-split state.
-    if (totalBtc > MAX_PLAUSIBLE_DEPOSIT_SATS) {
-      return {
-        result: EMPTY_RESULT,
-        amountError: new RangeError(
-          "Deposit amount exceeds the maximum supported value.",
-        ),
-      };
-    }
-
-    if (!params || totalBtc <= 0n) {
-      return { result: EMPTY_RESULT, amountError: null };
+  const result = useMemo(() => {
+    if (!params || totalBtc <= 0n || totalBtc > MAX_PLAUSIBLE_DEPOSIT_SATS) {
+      return EMPTY_RESULT;
     }
 
     const { THF, CF, LB } = params;
@@ -95,22 +84,17 @@ export function useOptimalSplit(
     const canSplit = minDepositForSplit > 0n && totalBtc >= minDepositForSplit;
 
     return {
-      result: {
-        sacrificialVault: split.sacrificialVault,
-        protectedVault: split.protectedVault,
-        seizedFraction: split.seizedFraction,
-        canSplit,
-        minDepositForSplit,
-      },
-      amountError: null,
+      sacrificialVault: split.sacrificialVault,
+      protectedVault: split.protectedVault,
+      seizedFraction: split.seizedFraction,
+      canSplit,
+      minDepositForSplit,
     };
   }, [params, totalBtc, minDeposit]);
 
   return {
     ...result,
     isLoading,
-    // Surface oversized-amount errors alongside param-fetch errors so an
-    // invalid amount isn't masked as a valid empty result.
-    error: error ?? amountError,
+    error,
   };
 }

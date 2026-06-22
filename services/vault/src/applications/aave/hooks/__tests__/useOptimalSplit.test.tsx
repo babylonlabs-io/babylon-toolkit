@@ -71,13 +71,13 @@ describe("useOptimalSplit", () => {
     expect(result.current.sacrificialVault).toBe(0n);
   });
 
-  it("surfaces an explicit error for an oversized amount instead of zeroing", () => {
-    // 21,000,001 BTC in sats — above Bitcoin's max supply, so invalid input.
+  it("returns an empty result without throwing for an oversized amount", () => {
+    // Above Bitcoin's max supply (21M BTC) — would trip the SDK's
+    // assertSafePrecision guard (RangeError); the hook must bail safely.
     const { result } = renderHook(() =>
       useOptimalSplit(2_100_000_100_000_000n),
     );
 
-    expect(result.current.error).toBeInstanceOf(RangeError);
     expect(result.current.canSplit).toBe(false);
     expect(result.current.sacrificialVault).toBe(0n);
     expect(result.current.protectedVault).toBe(0n);

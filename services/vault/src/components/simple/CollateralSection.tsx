@@ -6,6 +6,7 @@
 import { Avatar, Button, Card } from "@babylonlabs-io/core-ui";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useMemo, useState } from "react";
+import { twJoin } from "tailwind-merge";
 import { isHex, type Address, type Hex } from "viem";
 import { useAccount } from "wagmi";
 
@@ -273,11 +274,10 @@ export function CollateralSection({
               url={btcConfig.icon}
               alt={btcConfig.coinSymbol}
               size="xlarge"
-              className={
-                FeatureFlags.isDepositDisabled
-                  ? "mb-4 h-[100px] w-[100px] grayscale"
-                  : "mb-4 h-[100px] w-[100px]"
-              }
+              className={twJoin(
+                "mb-4 h-[100px] w-[100px]",
+                FeatureFlags.isDepositDisabled && "grayscale",
+              )}
             />
             <p className="text-[20px] text-accent-primary">
               {FeatureFlags.isDepositDisabled
