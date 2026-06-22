@@ -309,15 +309,24 @@ describe("Deposit Validations", () => {
       expect(result).toEqual({ disabled: false, label: "Deposit" });
     });
 
-    it("returns 'Depositing Unavailable' when deposits are disabled", () => {
+    it("returns disabled 'Deposits unavailable' when deposits are disabled", () => {
       const result = getDepositCtaState({
         ...readyParams,
         isDepositDisabled: true,
       });
       expect(result).toEqual({
         disabled: true,
-        label: "Depositing Unavailable",
+        label: "Deposits unavailable",
       });
+    });
+
+    it("prioritizes deposit-disabled over geo-blocked", () => {
+      const result = getDepositCtaState({
+        ...readyParams,
+        isDepositDisabled: true,
+        isGeoBlocked: true,
+      });
+      expect(result.label).toBe("Deposits unavailable");
     });
 
     it("returns geo-blocked message when geo-blocked", () => {
@@ -496,15 +505,6 @@ describe("Deposit Validations", () => {
         disabled: true,
         label: "Insufficient balance",
       });
-    });
-
-    it("prioritizes deposit-disabled over geo-blocked", () => {
-      const result = getDepositCtaState({
-        ...readyParams,
-        isDepositDisabled: true,
-        isGeoBlocked: true,
-      });
-      expect(result.label).toBe("Depositing Unavailable");
     });
 
     it("prioritizes geo-blocked over wallet-not-connected", () => {
