@@ -95,6 +95,7 @@ export function validateMultiVaultDepositInputs(
 // ---------------------------------------------------------------------------
 
 export interface DepositCtaParams extends DepositFormValidityParams {
+  /** DISABLE_DEPOSIT kill-switch — blocks the CTA at every deposit entry point. */
   isDepositDisabled: boolean;
   isGeoBlocked: boolean;
   isAddressBlocked: boolean;
@@ -268,7 +269,7 @@ export function getDepositButtonLabel(
 
 export function getDepositCtaState(params: DepositCtaParams): DepositCtaState {
   if (params.isDepositDisabled) {
-    return { disabled: true, label: "Depositing Unavailable" };
+    return { disabled: true, label: "Deposits unavailable" };
   }
 
   if (params.isGeoBlocked) {

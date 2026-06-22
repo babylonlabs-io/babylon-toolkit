@@ -4,6 +4,9 @@ export { DetailsCard, type DetailRow } from "./DetailsCard";
 export { EmptyState } from "./EmptyState";
 export { ExpandMenuButton } from "./ExpandMenuButton";
 export { ExplorerLink } from "./ExplorerLink";
-export { HealthFactorGauge } from "./HealthFactorGauge";
+export {
+  HealthFactorGauge,
+  type HealthFactorGaugeStat,
+} from "./HealthFactorGauge";
 export { HeartIcon } from "./icons";
 export { SubmitModal } from "./SubmitModal";

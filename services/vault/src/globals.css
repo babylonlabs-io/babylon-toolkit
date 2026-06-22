@@ -9,6 +9,7 @@
 
 html {
   @apply bg-surface;
+  -webkit-font-smoothing: antialiased;
 }
 
 :root {

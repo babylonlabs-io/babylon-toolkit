@@ -17,6 +17,7 @@ vi.mock("@/services/vault/vaultRefundService", async (importOriginal) => {
     ...actual,
     getRefundPreview: vi.fn(async () => ({
       amountSats: 1_000_000n,
+      feeCapBasisSats: 1_000_000n,
       halfHourFeeSatsVb: 5,
       prePeginOnChain: true,
     })),
@@ -84,6 +85,7 @@ describe("RefundModal", () => {
   it("disables Confirm and shows the rate-cap banner when mempool returns a malicious fee rate", async () => {
     vi.mocked(getRefundPreview).mockResolvedValueOnce({
       amountSats: 100_000_000n,
+      feeCapBasisSats: 100_000_000n,
       halfHourFeeSatsVb: 10_000,
       prePeginOnChain: true,
     });
@@ -133,6 +135,7 @@ describe("RefundModal", () => {
     // exists to spend, so the modal must not offer the refund form.
     vi.mocked(getRefundPreview).mockResolvedValueOnce({
       amountSats: 1_000_000n,
+      feeCapBasisSats: 1_000_000n,
       halfHourFeeSatsVb: 5,
       prePeginOnChain: false,
     });
@@ -161,12 +164,15 @@ describe("RefundModal", () => {
     expect(onClose).toHaveBeenCalled();
   });
 
-  it("disables Confirm and shows the fraction-cap banner for a small vault at a within-rate-cap fee", async () => {
-    // Small vault where rate is below the per-vbyte ceiling but absolute
-    // fee still consumes more than 10% of vault.amount.
-    // 100k-sat vault, halfHourFee=100 sat/vB → fee=16_000 > 10% of 100k.
+  it("caps the fee against the deposit basis, not the larger refund amount, for a small vault", async () => {
+    // The cap mirrors the SDK, which keys off the deposit amount
+    // (feeCapBasisSats), not the funded HTLC value shown as amountSats.
+    // halfHourFee=100 sat/vB → fee=16_000. That is > 10% of the 100k deposit
+    // basis (10_000) so the banner must show, yet < 10% of the 200k funded
+    // amount (20_000) — so a cap keyed off amountSats would wrongly pass.
     vi.mocked(getRefundPreview).mockResolvedValueOnce({
-      amountSats: 100_000n,
+      amountSats: 200_000n,
+      feeCapBasisSats: 100_000n,
       halfHourFeeSatsVb: 100,
       prePeginOnChain: true,
     });
@@ -183,7 +189,7 @@ describe("RefundModal", () => {
     );
 
     expect(
-      await screen.findByText(/exceeds 10% of the refund amount/i),
+      await screen.findByText(/exceeds the 10% refund safety cap/i),
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /confirm/i })).toBeDisabled();
   });

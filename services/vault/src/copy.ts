@@ -167,6 +167,12 @@ export const COPY = {
     },
   },
   deposit: {
+    disabled: {
+      title: "Deposits temporarily unavailable",
+      description: "Deposits are currently disabled. Please try again later.",
+      bannerMessage:
+        "New deposits are paused for maintenance and will resume shortly.",
+    },
     steps: {
       generateSecret: "Generate secret for the deposit",
       signPeginBtc: "Sign the peg-in BTC transaction",
@@ -295,6 +301,14 @@ export const COPY = {
         "Could not fetch the mempool fee rate. The minimum relay fee may not get your refund confirmed. Set a fee rate above to continue.",
       dustError:
         "Network fee is too high — your refund would be below the Bitcoin dust limit. Lower the fee rate to continue.",
+      feeRateCapError: (maxRateSatsVb: number) =>
+        `Network fee rate exceeds the safety cap of ${maxRateSatsVb} sat/vB. Lower the fee rate to continue.`,
+      // The cap is a percentage of the vault deposit (the SDK's basis), not of
+      // the larger refund amount shown above — so frame it as the safety cap
+      // rather than "% of the refund amount", which would contradict the
+      // displayed figure.
+      feeFractionCapError: (percent: number) =>
+        `Network fee exceeds the ${percent}% refund safety cap. Lower the fee rate to continue.`,
       retryButton: "Retry",
       confirmButton: "Confirm",
     },
@@ -824,10 +838,19 @@ export const COPY = {
   overview: {
     heading: "Overview",
     healthFactorLabel: "Health factor",
+    healthFactorTooltip:
+      "Your position's safety margin. If it falls below 1.0, your collateral can be liquidated.",
     healthFactorHealthy: "Healthy",
-    ltvLabel: "Current LTV",
+    healthFactorAtRisk: "At Risk",
+    healthFactorLiquidatable: "Liquidatable",
+    liquidationRiskLabel: "Liquidation Risk",
     totalCollateralValueLabel: "Total collateral value",
-    amountToRepayLabel: "Amount to repay",
+    totalCollateralValueTooltip:
+      "The current USD value of all Bitcoin collateral backing your loans.",
+    totalBorrowedLabel: "Total borrowed",
+    liquidationPriceLabel: "Liquidation price",
+    btcPriceLabel: "BTC price",
+    pctToLiquidationLabel: "% to liquidation",
     disconnected: {
       heroTitle: "Native Bitcoin backed borrowing",
       heroBody:

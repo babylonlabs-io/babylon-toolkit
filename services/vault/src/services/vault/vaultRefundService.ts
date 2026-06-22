@@ -26,6 +26,7 @@ import {
   type VaultRefundData,
 } from "@babylonlabs-io/ts-sdk/tbv/core/services";
 import { calculateBtcTxHash } from "@babylonlabs-io/ts-sdk/tbv/core/utils";
+import { Transaction } from "bitcoinjs-lib";
 import type { Address, Hex } from "viem";
 
 import { getMempoolApiUrl } from "../../clients/btc/config";
@@ -63,7 +64,27 @@ export interface BroadcastRefundParams {
 }
 
 export interface RefundPreview {
+  /**
+   * The amount actually reclaimed by the refund: the funded HTLC output value
+   * at `htlcVout` in the on-chain Pre-PegIn tx. This is the vault deposit
+   * amount PLUS the protocol reserve (`depositorClaimValue + minPeginFee`)
+   * that peg-in baked into the HTLC output — the depositor reclaims all of it
+   * (minus the network fee) because activation never spent the reserve. NOT
+   * the bare on-chain `amount` field, which is only the deposit amount. The
+   * broadcast path pins the refund output to exactly this value minus the fee
+   * (see `buildRefundPsbt`), so the preview must show the same figure.
+   */
   amountSats: bigint;
+  /**
+   * The deposit amount (`amount` field) the SDK's fee-fraction safety cap is
+   * computed against (`buildAndBroadcastRefund` caps the refund fee at a
+   * fraction of `vault.amount`). The review UI mirrors that cap to avoid
+   * letting the user confirm a fee the SDK is about to reject — so it must
+   * use this deposit-amount basis, not the larger `amountSats`, otherwise the
+   * mirror drifts (notably for small vaults where the reserve is a large
+   * fraction of the deposit).
+   */
+  feeCapBasisSats: bigint;
   /**
    * Mempool's halfHourFee, or null if the fee endpoint failed. Vault data
    * loads independently — a fee fetch failure must not block the refund.
@@ -121,6 +142,30 @@ async function isPrePeginOnChain(
   }
 }
 
+/**
+ * Read the funded HTLC output value (satoshis) the refund will reclaim — the
+ * output at `htlcVout` in the funded Pre-PegIn tx. This is the deposit amount
+ * plus the protocol reserve peg-in baked into the HTLC; it is the value the
+ * broadcast path pins the refund output to (minus the fee). The funded tx hex
+ * is authenticated against the on-chain `prePeginTxHash` in
+ * {@link readTargetVault} before it reaches here.
+ */
+function readFundedHtlcValueSats(
+  fundedTxHex: string,
+  htlcVout: number,
+): bigint {
+  const fundedTx = Transaction.fromHex(stripHexPrefix(fundedTxHex));
+  const htlcOutput = fundedTx.outs[htlcVout];
+  if (!htlcOutput) {
+    throw new Error(
+      `Funded Pre-PegIn tx has no output at htlcVout ${htlcVout} ` +
+        `(it has ${fundedTx.outs.length} outputs). Cannot preview the ` +
+        `refund amount.`,
+    );
+  }
+  return BigInt(htlcOutput.value);
+}
+
 export async function getRefundPreview(vaultId: Hex): Promise<RefundPreview> {
   const mempoolApiUrl = getMempoolApiUrl();
   // The fee fetch doesn't depend on vault data — start it now so it overlaps
@@ -133,7 +178,16 @@ export async function getRefundPreview(vaultId: Hex): Promise<RefundPreview> {
     isPrePeginOnChain(target.onChainVault.prePeginTxHash, mempoolApiUrl),
   ]);
   return {
-    amountSats: target.onChainVault.amount,
+    // Reclaimed amount = the funded HTLC output value, not the bare deposit
+    // `amount`. The reserve peg-in baked into the HTLC returns to the
+    // depositor since activation never spent it.
+    amountSats: readFundedHtlcValueSats(
+      target.unsignedPrePeginTx,
+      target.onChainVault.htlcVout,
+    ),
+    // The SDK caps the refund fee against the deposit amount; mirror that
+    // basis in the UI cap so the two never disagree.
+    feeCapBasisSats: target.onChainVault.amount,
     halfHourFeeSatsVb:
       feeRecommendation && feeRecommendation.halfHourFee > 0
         ? feeRecommendation.halfHourFee
