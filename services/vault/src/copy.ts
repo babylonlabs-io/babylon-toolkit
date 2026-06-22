@@ -635,6 +635,12 @@ export const COPY = {
       body: (symbol: string) =>
         `Add ${symbol} as collateral so you can begin borrowing assets.`,
     },
+    // The "⋯" actions menu on the Collateral summary card.
+    menu: {
+      triggerLabel: "Collateral options",
+      withdraw: "Withdraw",
+      reorder: "Reorder",
+    },
   },
   // Links to the Babylon BTC Vault explorer (Xangle). Only rendered when
   // NEXT_PUBLIC_TBV_VP_EXPLORER_URL is set; icon links use these as the
@@ -649,6 +655,15 @@ export const COPY = {
     calloutLinkText: "BTC Trustless Vault Explorer",
   },
   withdraw: {
+    // Collateral-selection modal opened from the Collateral "⋯" menu. Picks
+    // which vaults to withdraw before handing off to the withdrawal flow.
+    modal: {
+      title: "Withdraw",
+      subtitle:
+        "Choose the collateral you want to withdraw. Remaining vaults will move up in priority order.",
+      confirmButton: "Withdraw",
+      confirmButtonWithAmount: (amount: string) => `Withdraw ${amount}`,
+    },
     // Shared labels (review + initiated screens).
     estimatedTimeLabel: "Estimated time until payout",
     nominatedAddressLabel: "Nominated address",

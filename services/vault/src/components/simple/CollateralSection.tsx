@@ -3,7 +3,7 @@
  * Displays collateral with an expandable view showing individual peg-in vaults.
  */
 
-import { Avatar, Button, Card, Heading } from "@babylonlabs-io/core-ui";
+import { Avatar, Card, Heading } from "@babylonlabs-io/core-ui";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useMemo, useState } from "react";
 import { twJoin } from "tailwind-merge";
@@ -34,6 +34,7 @@ import { invalidateVaultQueries } from "@/utils/queryKeys";
 
 import { CollateralExpandedContent } from "./CollateralExpandedContent";
 import { ReorderSuccessModal, ReorderVaultsModal } from "./ReorderVaults";
+import { CollateralActionsMenu, WithdrawVaultsModal } from "./WithdrawVaults";
 
 const btcConfig = getNetworkConfigBTC();
 
@@ -75,6 +76,7 @@ export function CollateralSection({
       })
     | null
   >(null);
+  const [isWithdrawOpen, setIsWithdrawOpen] = useState(false);
   const [isReorderOpen, setIsReorderOpen] = useState(false);
   const [isReorderSuccess, setIsReorderSuccess] = useState(false);
   const { findProvider } = useVaultProviders();
@@ -155,6 +157,11 @@ export function CollateralSection({
     [selectedVaultIds, onSelectedVaultIdsChange],
   );
 
+  const handleWithdrawConfirm = useCallback(() => {
+    setIsWithdrawOpen(false);
+    onWithdraw();
+  }, [onWithdraw]);
+
   const handleReorderSuccessClose = useCallback(() => {
     setIsReorderSuccess(false);
     if (address) {
@@ -207,16 +214,6 @@ export function CollateralSection({
           Collateral
         </Heading>
         <div className="flex items-center gap-2">
-          {canReorder && (
-            <Button
-              variant="outlined"
-              size="large"
-              onClick={() => setIsReorderOpen(true)}
-              className="rounded-full"
-            >
-              Reorder
-            </Button>
-          )}
           <DepositButton
             variant="outlined"
             size="large"
@@ -226,12 +223,19 @@ export function CollateralSection({
           >
             Deposit
           </DepositButton>
+          {hasCollateral && (
+            <CollateralActionsMenu
+              onWithdraw={() => setIsWithdrawOpen(true)}
+              onReorder={() => setIsReorderOpen(true)}
+              canReorder={canReorder}
+            />
+          )}
         </div>
       </div>
 
       {hasCollateral ? (
         <Card variant="filled" className={SUMMARY_CARD_CLASS}>
-          {/* Summary row: BTC icon + total amount + three-dots toggle */}
+          {/* Summary row: BTC icon + total amount + expand chevron */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Avatar
@@ -254,13 +258,6 @@ export function CollateralSection({
           {isExpanded && (
             <CollateralExpandedContent
               vaults={collateralVaults}
-              vaultEligibility={vaultEligibility}
-              selectedVaultIds={effectiveSelectedVaultIds}
-              selectedBtc={selectedBtc}
-              canWithdraw={canWithdraw}
-              onToggleVaultSelect={handleToggleVaultSelect}
-              onWithdraw={onWithdraw}
-              disabledReason={disabledReason}
               onArtifactDownload={handleArtifactDownload}
             />
           )}
@@ -303,6 +300,19 @@ export function CollateralSection({
           unsignedPrePeginTxHex={artifactParams.unsignedPrePeginTx}
         />
       )}
+
+      <WithdrawVaultsModal
+        isOpen={isWithdrawOpen}
+        onClose={() => setIsWithdrawOpen(false)}
+        vaults={collateralVaults}
+        vaultEligibility={vaultEligibility}
+        selectedVaultIds={effectiveSelectedVaultIds}
+        selectedBtc={selectedBtc}
+        canWithdraw={canWithdraw}
+        onToggleVaultSelect={handleToggleVaultSelect}
+        onConfirm={handleWithdrawConfirm}
+        disabledReason={disabledReason}
+      />
 
       <ReorderVaultsModal
         isOpen={isReorderOpen}
