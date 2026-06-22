@@ -167,6 +167,12 @@ export const COPY = {
     },
   },
   deposit: {
+    disabled: {
+      title: "Deposits temporarily unavailable",
+      description: "Deposits are currently disabled. Please try again later.",
+      bannerMessage:
+        "Deposits are currently disabled while we address an issue.",
+    },
     steps: {
       generateSecret: "Generate secret for the deposit",
       signPeginBtc: "Sign the peg-in BTC transaction",

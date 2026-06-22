@@ -284,7 +284,6 @@ describe("Deposit Validations", () => {
       btcBalance: 1000000n,
       estimatedFeeSats: 1000n,
       depositorClaimValue: 5000n,
-      isDepositDisabled: false,
       isGeoBlocked: false,
       isAddressBlocked: false,
       isWalletConnected: true,
@@ -307,17 +306,6 @@ describe("Deposit Validations", () => {
     it("returns enabled 'Deposit' when all conditions are met", () => {
       const result = getDepositCtaState(readyParams);
       expect(result).toEqual({ disabled: false, label: "Deposit" });
-    });
-
-    it("returns 'Depositing Unavailable' when deposits are disabled", () => {
-      const result = getDepositCtaState({
-        ...readyParams,
-        isDepositDisabled: true,
-      });
-      expect(result).toEqual({
-        disabled: true,
-        label: "Depositing Unavailable",
-      });
     });
 
     it("returns geo-blocked message when geo-blocked", () => {
@@ -496,15 +484,6 @@ describe("Deposit Validations", () => {
         disabled: true,
         label: "Insufficient balance",
       });
-    });
-
-    it("prioritizes deposit-disabled over geo-blocked", () => {
-      const result = getDepositCtaState({
-        ...readyParams,
-        isDepositDisabled: true,
-        isGeoBlocked: true,
-      });
-      expect(result.label).toBe("Depositing Unavailable");
     });
 
     it("prioritizes geo-blocked over wallet-not-connected", () => {

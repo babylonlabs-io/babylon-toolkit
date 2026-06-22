@@ -103,7 +103,6 @@ interface DepositFormProps {
    * state. Null while the query is healthy.
    */
   depositorClaimValueError: Error | null;
-  isDepositDisabled: boolean;
   isGeoBlocked: boolean;
   isAddressBlocked: boolean;
   onDeposit: () => void;
@@ -184,7 +183,6 @@ export function DepositForm({
   depositorClaimValue,
   commissionHtlcValues,
   depositorClaimValueError,
-  isDepositDisabled,
   isGeoBlocked,
   isAddressBlocked,
   onDeposit,
@@ -303,7 +301,6 @@ export function DepositForm({
     btcBalance,
     estimatedFeeSats: estimatedFeeSats ?? undefined,
     depositorClaimValue,
-    isDepositDisabled,
     isGeoBlocked,
     isAddressBlocked,
     isWalletConnected,

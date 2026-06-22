@@ -27,7 +27,7 @@ import {
   CARD_DARK_BG_CLASS,
   SUMMARY_CARD_CLASS,
 } from "@/components/shared/layoutClasses";
-import { getNetworkConfigBTC } from "@/config";
+import { FeatureFlags, getNetworkConfigBTC } from "@/config";
 import { COPY } from "@/copy";
 import { useVaultProviders } from "@/hooks/deposit/useVaultProviders";
 import { logger } from "@/infrastructure";
@@ -219,7 +219,7 @@ export function CollateralSection({
             variant="outlined"
             size="large"
             onClick={() => onDeposit()}
-            disabled={!isConnected}
+            disabled={!isConnected || FeatureFlags.isDepositDisabled}
             className="rounded-full"
           >
             Deposit
@@ -273,13 +273,21 @@ export function CollateralSection({
               url={btcConfig.icon}
               alt={btcConfig.coinSymbol}
               size="xlarge"
-              className="mb-4 h-[100px] w-[100px]"
+              className={
+                FeatureFlags.isDepositDisabled
+                  ? "mb-4 h-[100px] w-[100px] grayscale"
+                  : "mb-4 h-[100px] w-[100px]"
+              }
             />
             <p className="text-[20px] text-accent-primary">
-              {COPY.collateral.empty.title}
+              {FeatureFlags.isDepositDisabled
+                ? COPY.deposit.disabled.title
+                : COPY.collateral.empty.title}
             </p>
             <p className="text-[16px] text-accent-secondary">
-              {COPY.collateral.empty.body(btcConfig.coinSymbol)}
+              {FeatureFlags.isDepositDisabled
+                ? COPY.deposit.disabled.description
+                : COPY.collateral.empty.body(btcConfig.coinSymbol)}
             </p>
           </div>
         </Card>

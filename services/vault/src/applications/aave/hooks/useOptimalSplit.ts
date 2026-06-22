@@ -37,6 +37,12 @@ export interface UseOptimalSplitResult {
   error: Error | null;
 }
 
+// Bitcoin's fixed maximum supply in satoshis (21,000,000 BTC × 1e8). Any
+// amount above this is invalid input and would trip the SDK's
+// assertSafePrecision guard (RangeError). Bail to the empty result so the
+// form's amount validation can surface the error instead of crashing.
+const MAX_PLAUSIBLE_DEPOSIT_SATS = 2_100_000_000_000_000n;
+
 const EMPTY_RESULT: Omit<UseOptimalSplitResult, "isLoading" | "error"> = {
   sacrificialVault: 0n,
   protectedVault: 0n,
@@ -53,7 +59,7 @@ export function useOptimalSplit(
   const { minDeposit } = useProtocolParamsContext();
 
   const result = useMemo(() => {
-    if (!params || totalBtc <= 0n) {
+    if (!params || totalBtc <= 0n || totalBtc > MAX_PLAUSIBLE_DEPOSIT_SATS) {
       return EMPTY_RESULT;
     }
 

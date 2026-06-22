@@ -18,7 +18,11 @@ import { twJoin } from "tailwind-merge";
 
 import { DepositButton } from "@/components/shared";
 import { PAGE_CONTENT_CLASS } from "@/components/shared/layoutClasses";
-import { getNetworkConfigBTC, shouldDisplayTestingMsg } from "@/config";
+import {
+  FeatureFlags,
+  getNetworkConfigBTC,
+  shouldDisplayTestingMsg,
+} from "@/config";
 import { useAddressScreening } from "@/context/addressScreening";
 import { useAddressType } from "@/context/addressType";
 import { useGeoFencing } from "@/context/geofencing";
@@ -28,6 +32,7 @@ import { AaveConfigProvider } from "../../applications/aave/context";
 import { useBTCWallet, useETHWallet } from "../../context/wallet";
 import { AddressScreeningBanner } from "../shared/AddressScreeningBanner";
 import { AddressTypeBanner } from "../shared/AddressTypeBanner";
+import { DepositDisabledBanner } from "../shared/DepositDisabledBanner";
 import { GeoBlockState } from "../shared/GeoBlockState";
 import SimpleDeposit from "../simple/SimpleDeposit";
 import { Connect } from "../Wallet";
@@ -118,6 +123,11 @@ export default function RootLayout() {
           visible={!isGeoBlocked && isWalletConnected && isAddressBlocked}
         />
         <AddressTypeBanner visible={!isGeoBlocked && showAddressTypeBanner} />
+        <DepositDisabledBanner
+          visible={
+            !isGeoBlocked && isWalletConnected && FeatureFlags.isDepositDisabled
+          }
+        />
         <Header
           size="md"
           // `!max-w-` overrides the `container` class's 2xl breakpoint max-width
@@ -149,6 +159,7 @@ export default function RootLayout() {
                   <DepositButton
                     variant="outlined"
                     rounded
+                    disabled={FeatureFlags.isDepositDisabled}
                     onClick={() => openDeposit()}
                   >
                     Deposit {btcConfig.coinSymbol}

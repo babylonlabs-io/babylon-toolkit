@@ -399,7 +399,6 @@ function SimpleDepositContent({
                 estimatedFeeRate={estimatedFeeRate}
                 isLoadingFee={isLoadingFee}
                 feeError={feeError}
-                isDepositDisabled={FeatureFlags.isDepositDisabled}
                 isGeoBlocked={isGeoBlocked || isGeoLoading}
                 isAddressBlocked={isAddressBlocked || isScreeningLoading}
                 onDeposit={handleDeposit}
