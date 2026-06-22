@@ -2,9 +2,11 @@ import { isAccountChangeEvent, DISCONNECT_EVENT, removeProviderListener } from "
 import type { BTCConfig, InscriptionIdentifier, SignPsbtOptions, WalletInfo } from "@/core/types";
 import { IBTCProvider, Network } from "@/core/types";
 import { mapSignInputsToToSignInputs } from "@/core/utils/psbtOptionsMapper";
+import { withTimeout } from "@/core/utils/withTimeout";
 import { ERROR_CODES, WalletError, isUserRejectionMessage } from "@/error";
 
 import logo from "./logo.svg";
+import { MIN_OKX_VERSION, checkOKXVersion } from "./version";
 
 const PROVIDER_NAMES = {
   [Network.MAINNET]: "bitcoin",
@@ -14,8 +16,13 @@ const PROVIDER_NAMES = {
 
 export const WALLET_PROVIDER_NAME = "OKX";
 
+// Bound the version read so a locked/asleep extension fails recoverably, not hangs.
+const OKX_RPC_TIMEOUT_MS = 10_000;
+
 export class OKXProvider implements IBTCProvider {
   private provider: any;
+  // Root `okxwallet` (getVersion lives here); `this.provider` is the per-chain provider.
+  private wallet: any;
   private walletInfo: WalletInfo | undefined;
   private config: BTCConfig;
 
@@ -31,6 +38,8 @@ export class OKXProvider implements IBTCProvider {
       });
     }
 
+    this.wallet = wallet;
+
     const providerName = PROVIDER_NAMES[config.network];
 
     if (!providerName) {
@@ -45,6 +54,9 @@ export class OKXProvider implements IBTCProvider {
   }
 
   connectWallet = async (): Promise<void> => {
+    // Fail fast on an out-of-date OKX here, not at deposit time.
+    await this.ensureSupportedVersion();
+
     let result;
     try {
       result = await this.provider.connect();
@@ -78,6 +90,57 @@ export class OKXProvider implements IBTCProvider {
         wallet: WALLET_PROVIDER_NAME,
       });
     }
+  };
+
+  private timeoutError = (operation: string): WalletError =>
+    new WalletError({
+      code: ERROR_CODES.CONNECTION_FAILED,
+      message: `OKX Wallet did not respond while ${operation}. Open the extension to confirm it is unlocked, then try again.`,
+      wallet: WALLET_PROVIDER_NAME,
+    });
+
+  // Gate connect on OKX >= MIN_OKX_VERSION (deriveContextHash support).
+  // Fail closed on a missing / unreadable / non-canonical version.
+  private ensureSupportedVersion = async (): Promise<void> => {
+    if (typeof this.wallet.getVersion !== "function") {
+      throw new WalletError({
+        code: ERROR_CODES.INCOMPATIBLE_WALLET_VERSION,
+        message: `Your OKX Wallet extension is out of date. Please update to version ${MIN_OKX_VERSION} or later and try again.`,
+        wallet: WALLET_PROVIDER_NAME,
+      });
+    }
+
+    let raw: unknown;
+    try {
+      raw = await withTimeout(this.wallet.getVersion(), OKX_RPC_TIMEOUT_MS, () =>
+        this.timeoutError("reading its version"),
+      );
+    } catch (error) {
+      throw new WalletError({
+        code: ERROR_CODES.CONNECTION_FAILED,
+        message: (error as Error)?.message || "Failed to read OKX Wallet version",
+        wallet: WALLET_PROVIDER_NAME,
+      });
+    }
+
+    const result = checkOKXVersion(raw);
+    if (result === "ok") return;
+
+    if (result === "below") {
+      throw new WalletError({
+        code: ERROR_CODES.INCOMPATIBLE_WALLET_VERSION,
+        message: `Your OKX Wallet extension is out of date (${raw}). Please update to version ${MIN_OKX_VERSION} or later and try again.`,
+        wallet: WALLET_PROVIDER_NAME,
+        version: raw as string,
+      });
+    }
+
+    // Non-canonical version (fork/canary): fail closed without claiming "out of date".
+    throw new WalletError({
+      code: ERROR_CODES.INCOMPATIBLE_WALLET_VERSION,
+      message: `Unable to verify your OKX Wallet version${typeof raw === "string" ? ` (got "${raw}")` : ""}. Please install the official OKX Wallet ${MIN_OKX_VERSION} or later and try again.`,
+      wallet: WALLET_PROVIDER_NAME,
+    });
   };
 
   getAddress = async (): Promise<string> => {
