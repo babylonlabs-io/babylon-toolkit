@@ -9,10 +9,19 @@ const VAULT_A = ("0x" + "a".repeat(64)) as `0x${string}`;
 const VAULT_B = ("0x" + "b".repeat(64)) as `0x${string}`;
 const VAULT_C = ("0x" + "c".repeat(64)) as `0x${string}`;
 
+type ActivatingEntry = {
+  vaultId: `0x${string}`;
+  amountBtc: number;
+  providerAddress?: string;
+};
+
 // Mutable state read by the hoisted mocks below.
 let mockCollaterals: unknown[] | null = null;
+let mockCollateralBtc = 0;
 let mockReorderedOrder: readonly `0x${string}`[] | null = null;
+let mockActivatingVaults = new Map<string, ActivatingEntry>();
 const mockClearReorderedOrder = vi.fn();
+const mockClearActivatingVault = vi.fn();
 
 vi.mock("@/applications/aave/context", () => ({
   useReorderOverride: () => ({
@@ -20,12 +29,17 @@ vi.mock("@/applications/aave/context", () => ({
     applyReorderedOrder: vi.fn(),
     clearReorderedOrder: mockClearReorderedOrder,
   }),
+  useActivatingVaults: () => ({
+    activatingVaults: mockActivatingVaults,
+    addActivatingVault: vi.fn(),
+    clearActivatingVault: mockClearActivatingVault,
+  }),
 }));
 
 vi.mock("@/applications/aave/hooks", () => ({
   useAaveUserPosition: () => ({
     position: mockCollaterals ? { collaterals: mockCollaterals } : null,
-    collateralBtc: 0,
+    collateralBtc: mockCollateralBtc,
     collateralValueUsd: 0,
     debtValueUsd: 0,
     healthFactor: null,
@@ -70,7 +84,9 @@ describe("useDashboardState", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockCollaterals = null;
+    mockCollateralBtc = 0;
     mockReorderedOrder = null;
+    mockActivatingVaults = new Map();
   });
 
   it("returns a stable collateralVaults reference across re-renders when position?.collaterals is undefined", () => {
@@ -143,5 +159,48 @@ describe("useDashboardState", () => {
       VAULT_B,
     ]);
     expect(mockClearReorderedOrder).toHaveBeenCalled();
+  });
+
+  it("appends an optimistic activating row when the vault is not yet indexed", () => {
+    mockCollaterals = null; // empty position (first deposit)
+    mockActivatingVaults = new Map([
+      [VAULT_A.toLowerCase(), { vaultId: VAULT_A, amountBtc: 1 }],
+    ]);
+
+    const { result } = renderHook(() => useDashboardState("0xabc"));
+
+    expect(result.current.collateralVaults).toHaveLength(1);
+    expect(result.current.collateralVaults[0]).toMatchObject({
+      vaultId: VAULT_A,
+      amountBtc: 1,
+      isActivating: true,
+      inUse: false,
+    });
+    // Display total + display gate reflect the optimistic vault, while the
+    // financial collateralBtc and the action-gating hasCollateral stay
+    // indexer-pure (so Borrow can't be unlocked before collateral exists).
+    expect(result.current.displayCollateralBtc).toBe(1);
+    expect(result.current.collateralBtc).toBe(0);
+    expect(result.current.hasDisplayCollateral).toBe(true);
+    expect(result.current.hasCollateral).toBe(false);
+    expect(mockClearActivatingVault).not.toHaveBeenCalled();
+  });
+
+  it("drops the activating override and does not duplicate once the indexer reflects the vault", () => {
+    mockCollateralBtc = 1;
+    mockCollaterals = [collateral(VAULT_A, 0)];
+    mockActivatingVaults = new Map([
+      [VAULT_A.toLowerCase(), { vaultId: VAULT_A, amountBtc: 1 }],
+    ]);
+
+    const { result } = renderHook(() => useDashboardState("0xabc"));
+
+    // Only the indexer row remains — no duplicate optimistic row.
+    expect(vaultIds(result.current.collateralVaults)).toEqual([VAULT_A]);
+    expect(result.current.collateralVaults[0].isActivating).toBeUndefined();
+    // Reconciliation clears the now-indexed activating entry.
+    expect(mockClearActivatingVault).toHaveBeenCalledWith(VAULT_A);
+    // Display total is not double-counted.
+    expect(result.current.displayCollateralBtc).toBe(1);
   });
 });
