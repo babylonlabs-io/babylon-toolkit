@@ -1,21 +1,23 @@
 /**
  * DepositSummaryCard
  *
- * Pre-sign intro screen for the deposit flow. Renders a compact summary of the
- * four step groups (collapsed, each showing its signature count) before the
- * user starts signing. Clicking "Sign" begins the flow, after which
- * DepositProgressView takes over with the live stepper.
+ * Pre-sign intro state of the deposit flow. Renders inside the shared
+ * DepositCardShell, supplying the collapsed group list (each group with its
+ * signature count) as the body and a single "Sign" CTA as the footer. Clicking
+ * "Sign" begins the flow, after which the live stepper renders the expanded
+ * groups inside the same shell.
  *
  * Counts are derived from STEP_GROUPS (the same source the live stepper uses),
  * so the summary stays in lock-step with the real group sizes.
  */
 
-import { Button, Heading, Text } from "@babylonlabs-io/core-ui";
+import { Button, Text } from "@babylonlabs-io/core-ui";
 
 import { COPY } from "@/copy";
 
+import { DepositCardShell } from "./DepositCardShell";
 import { StepConnector } from "./StepConnector";
-import { DEPOSIT_VIEW_MAX_WIDTH_CLASS, STEP_GROUPS } from "./steps";
+import { STEP_GROUPS } from "./steps";
 
 interface DepositSummaryCardProps {
   /** Starts the deposit flow; the parent then swaps in DepositProgressView. */
@@ -31,26 +33,19 @@ const SUMMARY_GROUPS = STEP_GROUPS.map((group) => ({
 
 export function DepositSummaryCard({ onSign }: DepositSummaryCardProps) {
   return (
-    <div
-      className={`w-full ${DEPOSIT_VIEW_MAX_WIDTH_CLASS} overflow-hidden rounded-xl border border-secondary-strokeDark`}
+    <DepositCardShell
+      footer={
+        <Button
+          variant="contained"
+          color="secondary"
+          className="w-full"
+          onClick={onSign}
+        >
+          {COPY.deposit.progress.buttons.sign}
+        </Button>
+      }
     >
-      <div className="px-6 pt-6">
-        <Heading variant="h5" className="text-accent-primary">
-          {COPY.deposit.progress.heading}{" "}
-          <Text as="span" variant="body1" className="text-accent-secondary">
-            ({COPY.deposit.progress.summary.estimate})
-          </Text>
-        </Heading>
-
-        <Text variant="body2" className="mb-6 mt-2 text-accent-secondary">
-          {COPY.deposit.progress.summary.description}
-        </Text>
-      </div>
-
-      {/* Full-bleed divider: spans the card edge-to-edge through the padding. */}
-      <div className="border-t border-secondary-strokeDark" />
-
-      <div className="flex flex-col px-6 pt-6">
+      <div className="flex flex-col">
         {SUMMARY_GROUPS.map((group, index) => (
           <div key={group.title} className="flex flex-col">
             <div className="flex items-center gap-3">
@@ -78,17 +73,6 @@ export function DepositSummaryCard({ onSign }: DepositSummaryCardProps) {
           </div>
         ))}
       </div>
-
-      <div className="px-6 pb-6 pt-6">
-        <Button
-          variant="contained"
-          color="secondary"
-          className="w-full"
-          onClick={onSign}
-        >
-          {COPY.deposit.progress.buttons.sign}
-        </Button>
-      </div>
-    </div>
+    </DepositCardShell>
   );
 }

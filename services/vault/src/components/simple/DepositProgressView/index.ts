@@ -1,3 +1,4 @@
+export { DepositCardShell } from "./DepositCardShell";
 export {
   DepositProgressView,
   type BtcConfirmationDetailData,
