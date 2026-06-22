@@ -171,7 +171,7 @@ export const COPY = {
       title: "Deposits temporarily unavailable",
       description: "Deposits are currently disabled. Please try again later.",
       bannerMessage:
-        "Deposits are currently disabled while we address an issue.",
+        "New deposits are paused for maintenance and will resume shortly.",
     },
     steps: {
       generateSecret: "Generate secret for the deposit",
