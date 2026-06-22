@@ -9,7 +9,7 @@
 
 import { Callout } from "@babylonlabs-io/core-ui";
 import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import type { Address, Hex } from "viem";
 
 import { computeDepositDerivedState } from "@/components/deposit/DepositSignModal/depositStepHelpers";
@@ -79,7 +79,16 @@ export function DepositSignContent({
     }
   }, [executeDeposit, onRefetchActivities]);
 
+  // `executeDeposit` broadcasts BTC and has no internal re-entrancy guard, and
+  // dropping `useRunOnce` removed its exactly-once protection. A fast double
+  // click on Sign fires `handleSign` twice before the `started` re-render
+  // unmounts the button, which would start (and broadcast) the deposit twice.
+  // This ref restores the exactly-once guarantee regardless of click cadence.
+  const hasStartedRef = useRef(false);
+
   const handleSign = useCallback(() => {
+    if (hasStartedRef.current) return;
+    hasStartedRef.current = true;
     setStarted(true);
     void startFlow();
   }, [startFlow]);
