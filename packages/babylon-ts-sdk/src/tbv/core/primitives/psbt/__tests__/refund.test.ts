@@ -11,7 +11,6 @@
 
 import type { Network } from "@babylonlabs-io/babylon-tbv-rust-wasm";
 import * as bitcoin from "bitcoinjs-lib";
-import type { Hex } from "viem";
 import { beforeAll, describe, expect, it } from "vitest";
 
 import {
@@ -19,10 +18,6 @@ import {
   stripHexPrefix,
   uint8ArrayToHex,
 } from "../../utils/bitcoin";
-import {
-  deriveRefundPeginAmounts,
-  type RefundPrePeginContext,
-} from "../../../services/refund/buildAndBroadcastRefund";
 import { fundPeginTransaction } from "../../../utils/transaction/fundPeginTransaction";
 import { buildPrePeginPsbt, type PrePeginParams } from "../pegin";
 import { buildRefundPsbt } from "../refund";
@@ -397,52 +392,22 @@ describe("buildRefundPsbt", () => {
     });
   });
 
-  describe("peg-in amount derivation round-trip", () => {
-    it("re-derives the original peg-in amount from the funded HTLC value (real WASM)", async () => {
-      // Keystone equality: the reserve subtracted at refund time (standalone
-      // computeMinClaimValue + computeMinPeginFee) must equal the reserve WASM
-      // baked into the HTLC value at peg-in time. Fund with a known peg-in
-      // amount, read the funded HTLC value, and prove the derivation inverts
-      // back to that exact amount — so a future WASM bump that broke the
-      // equality is caught here, not in production.
+  describe("peg-in amount pass-through", () => {
+    it("passes the on-chain peg-in amount straight through and the value cross-check accepts it (real WASM)", async () => {
+      // `batch[i].amount` is the on-chain vault deposit (peg-in) amount, which
+      // is exactly what WASM's `pegInAmounts` expects: WASM re-adds the protocol
+      // reserve (`depositorClaimValue + minPeginFee`) internally when it sizes
+      // the HTLC output, so the template's HTLC value equals the funded tx's
+      // output and `buildRefundPsbt`'s value cross-check passes. Fund with a
+      // known peg-in amount and prove the unmodified amount reconstructs a
+      // template the cross-check accepts — a legitimate refund does not throw.
       const { txHex, params } = await buildFundedPrePegin({
         authAnchorHash: TEST_AUTH_ANCHOR_HASH,
       });
-      const fundedHtlcValue = BigInt(
-        bitcoin.Transaction.fromHex(txHex).outs[0].value,
-      );
 
-      const ctx: RefundPrePeginContext = {
-        vaultProviderPubkey: params.vaultProviderPubkey,
-        vaultKeeperPubkeys: params.vaultKeeperPubkeys,
-        universalChallengerPubkeys: params.universalChallengerPubkeys,
-        timelockRefund: params.timelockRefund,
-        feeRate: params.feeRate,
-        minPeginFeeRate: params.minPeginFeeRate,
-        numLocalChallengers: params.numLocalChallengers,
-        councilQuorum: params.councilQuorum,
-        councilSize: params.councilSize,
-        network: params.network,
-      };
-
-      const derived = await deriveRefundPeginAmounts(
-        [
-          {
-            hashlock: `0x${TEST_HASH_H}` as Hex,
-            amount: fundedHtlcValue,
-            htlcVout: 0,
-          },
-        ],
-        ctx,
-      );
-      expect(derived).toEqual([TEST_AMOUNTS.PEGIN]);
-
-      // And feeding the derived amount back through the real (unmocked)
-      // builder reconstructs a template whose value cross-check passes — a
-      // legitimate refund does not throw.
       await expect(
         buildRefundPsbt({
-          prePeginParams: { ...params, pegInAmounts: derived },
+          prePeginParams: { ...params, pegInAmounts: [TEST_AMOUNTS.PEGIN] },
           fundedPrePeginTxHex: txHex,
           htlcVout: 0,
           refundFee: TEST_REFUND_FEE,

@@ -78,6 +78,7 @@ vi.mock("../fetchVaults", () => ({
 
 import { getNetworkFees, pushTx } from "@babylonlabs-io/ts-sdk/tbv/core";
 import { calculateBtcTxHash } from "@babylonlabs-io/ts-sdk/tbv/core/utils";
+import * as bitcoin from "bitcoinjs-lib";
 import {
   afterEach,
   beforeEach,
@@ -129,8 +130,22 @@ const VP_BTC_PUBKEY_X_ONLY = "f".repeat(64);
 const VAULT_PROVIDER = { btcPubKey: `0x${VP_BTC_PUBKEY_X_ONLY}` };
 const VAULT_KEEPERS = [{ btcPubKey: "vk1" }, { btcPubKey: "vk2" }];
 const UNIVERSAL_CHALLENGERS = [{ btcPubKey: "uc1" }];
+// Funded Pre-PegIn tx whose HTLC output (vout 0, matching ON_CHAIN_VAULT
+// .htlcVout) carries the deposit amount (100_000) PLUS the protocol reserve.
+// The refund preview must report this funded value — what the depositor
+// actually reclaims — not the bare on-chain deposit amount.
+const FUNDED_HTLC_VALUE_SATS = 133_668n; // 100_000 deposit + 33_668 reserve
+const FUNDED_PRE_PEGIN_TX_HEX = (() => {
+  const tx = new bitcoin.Transaction();
+  tx.addInput(Buffer.alloc(32, 0), 0);
+  tx.addOutput(
+    Buffer.from(`0014${"bb".repeat(20)}`, "hex"),
+    Number(FUNDED_HTLC_VALUE_SATS),
+  );
+  return tx.toHex();
+})();
 const INDEXER_VAULT = {
-  unsignedPrePeginTx: "0xrawtx",
+  unsignedPrePeginTx: `0x${FUNDED_PRE_PEGIN_TX_HEX}`,
   depositorBtcPubkey: "indexer_depositor_pubkey",
 };
 const BTC_WALLET_PROVIDER = {
@@ -553,9 +568,15 @@ describe("getRefundPreview", () => {
     mockFetch.mockResolvedValue({ status: 200 });
   });
 
-  it("returns the on-chain HTLC amount and mempool halfHourFee", async () => {
+  it("returns the funded HTLC value (deposit + reserve) as the refund amount, with the deposit amount as the fee-cap basis", async () => {
     const preview = await getRefundPreview(VAULT_ID);
-    expect(preview.amountSats).toBe(ON_CHAIN_VAULT.amount);
+    // The reclaimed amount is the funded HTLC output value, not the bare
+    // on-chain deposit amount — the reserve returns to the depositor.
+    expect(preview.amountSats).toBe(FUNDED_HTLC_VALUE_SATS);
+    expect(preview.amountSats).not.toBe(ON_CHAIN_VAULT.amount);
+    // The SDK caps the fee against the deposit amount; the preview surfaces it
+    // separately so the UI cap mirrors the SDK exactly.
+    expect(preview.feeCapBasisSats).toBe(ON_CHAIN_VAULT.amount);
     expect(preview.halfHourFeeSatsVb).toBe(7);
     expect(preview.prePeginOnChain).toBe(true);
   });
@@ -572,7 +593,7 @@ describe("getRefundPreview", () => {
       new Error("mempool unreachable"),
     );
     const preview = await getRefundPreview(VAULT_ID);
-    expect(preview.amountSats).toBe(ON_CHAIN_VAULT.amount);
+    expect(preview.amountSats).toBe(FUNDED_HTLC_VALUE_SATS);
     expect(preview.halfHourFeeSatsVb).toBeNull();
   });
 

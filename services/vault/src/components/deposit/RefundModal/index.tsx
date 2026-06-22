@@ -104,6 +104,7 @@ export function RefundModal({
     >
       <RefundReviewContent
         amountSats={previewQuery.data?.amountSats ?? null}
+        feeCapBasisSats={previewQuery.data?.feeCapBasisSats ?? null}
         defaultFeeRateSatsVb={previewQuery.data?.halfHourFeeSatsVb ?? null}
         previewError={previewError}
         refunding={refunding}
