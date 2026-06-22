@@ -13,8 +13,10 @@ import { useCallback, useRef, useState } from "react";
 import type { Address, Hex } from "viem";
 
 import { computeDepositDerivedState } from "@/components/deposit/DepositSignModal/depositStepHelpers";
+import { useSigningNotificationOptional } from "@/context/SigningNotificationContext";
 import { COPY } from "@/copy";
 import { useDepositFlow } from "@/hooks/deposit/useDepositFlow";
+import { useDepositSigningNotification } from "@/hooks/deposit/useDepositSigningNotification";
 
 import { DepositProgressView, DepositSummaryCard } from "./DepositProgressView";
 import { PostDepositContinuationContent } from "./PostDepositContinuationContent";
@@ -66,6 +68,13 @@ export function DepositSignContent({
     Hex[] | null
   >(null);
 
+  const signingNotifier = useSigningNotificationOptional();
+
+  // Notify the depositor (if they've tabbed away) when the active flow reaches
+  // a pre-broadcast signing step. Post-broadcast signing is covered by the
+  // pending-deposit observer in PeginPollingContext.
+  useDepositSigningNotification(currentStep);
+
   // The flow no longer auto-starts on mount: the initial screen is a compact
   // summary card and the depositor begins signing by clicking "Sign". Once
   // started, the live stepper (DepositProgressView) takes over.
@@ -89,9 +98,13 @@ export function DepositSignContent({
   const handleSign = useCallback(() => {
     if (hasStartedRef.current) return;
     hasStartedRef.current = true;
+    // The Sign click is a user gesture - the right moment to ask for OS
+    // notification permission so we can later ping the depositor when a
+    // signature is needed and they've switched tabs.
+    signingNotifier?.requestPermission();
     setStarted(true);
     void startFlow();
-  }, [startFlow]);
+  }, [startFlow, signingNotifier]);
 
   // Derived state
   const { isComplete, canClose, isProcessing, canContinueInBackground } =

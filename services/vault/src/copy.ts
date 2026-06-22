@@ -194,6 +194,41 @@ export const COPY = {
       signingCounter: (completed: number, total: number) =>
         `(${completed} of ${total})`,
     },
+    // Browser (desktop) notifications fired when a deposit needs the depositor
+    // to sign or act while the tab is in the background. `title` is the bold
+    // heading; `body` is the line beneath it. Titles mirror the in-app
+    // action badges (`pegin.actionRequiredBadges`) so the two surfaces agree.
+    // Bodies are kept short because the OS truncates long notification text.
+    notifications: {
+      deriveVaultSecret: {
+        title: "Signing required",
+        body: "Approve the request in your wallet to generate your deposit secret.",
+      },
+      signPeginBtc: {
+        title: "Signing required",
+        body: "Approve the peg-in transaction in your wallet to continue your deposit.",
+      },
+      signPop: {
+        title: "Signing required",
+        body: "Sign the ownership proof in your wallet to continue your deposit.",
+      },
+      submitWotsKey: {
+        title: "Key required",
+        body: "Your deposit is ready - submit your WOTS key to continue.",
+      },
+      signPayouts: {
+        title: "Signing required",
+        body: "Your vault provider has prepared your payout transactions - sign them to continue.",
+      },
+      signAndBroadcast: {
+        title: "Broadcast required",
+        body: "Your deposit is registered - broadcast the Pre-Pegin transaction to continue.",
+      },
+      activateVault: {
+        title: "Activation required",
+        body: "Your Bitcoin is confirmed - activate your BTC Vault to finish your deposit.",
+      },
+    },
     groups: {
       registerDeposit: "Register deposit",
       signWots: "Set up claim",
