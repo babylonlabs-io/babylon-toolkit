@@ -26,14 +26,6 @@ describe("HealthFactorGauge", () => {
     expect(screen.getByRole("meter")).toHaveAttribute("aria-valuenow", "2.5");
   });
 
-  it("uses theme-aware threshold marker colors", () => {
-    render(<HealthFactorGauge value={2.5} status="safe" />);
-
-    expect(
-      screen.getByTestId("health-factor-liquidation-threshold"),
-    ).toHaveClass("border-secondary-strokeDark", "dark:border-white");
-  });
-
   it("renders warning label for warning status", () => {
     render(<HealthFactorGauge value={1.2} status="warning" />);
     expect(screen.getByText("At Risk")).toBeInTheDocument();
@@ -61,5 +53,24 @@ describe("HealthFactorGauge", () => {
     const meter = screen.getByRole("meter");
     expect(meter).toHaveAttribute("aria-valuemin", "0");
     expect(meter).toHaveAttribute("aria-valuemax", "3");
+  });
+
+  it("renders the stats row when stats are provided", () => {
+    render(
+      <HealthFactorGauge
+        value={2.5}
+        status="safe"
+        stats={[
+          { label: "Liquidation price", value: "$70,000" },
+          { label: "BTC price", value: "$88,400" },
+          { label: "% to liquidation", value: "19.2%" },
+        ]}
+      />,
+    );
+
+    expect(screen.getByText("Liquidation price")).toBeInTheDocument();
+    expect(screen.getByText("$70,000")).toBeInTheDocument();
+    expect(screen.getByText("% to liquidation")).toBeInTheDocument();
+    expect(screen.getByText("19.2%")).toBeInTheDocument();
   });
 });

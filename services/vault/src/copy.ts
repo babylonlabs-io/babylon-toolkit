@@ -824,10 +824,19 @@ export const COPY = {
   overview: {
     heading: "Overview",
     healthFactorLabel: "Health factor",
+    healthFactorTooltip:
+      "Your position's safety margin. If it falls below 1.0, your collateral can be liquidated.",
     healthFactorHealthy: "Healthy",
-    ltvLabel: "Current LTV",
+    healthFactorAtRisk: "At Risk",
+    healthFactorLiquidatable: "Liquidatable",
+    liquidationRiskLabel: "Liquidation Risk",
     totalCollateralValueLabel: "Total collateral value",
-    amountToRepayLabel: "Amount to repay",
+    totalCollateralValueTooltip:
+      "The current USD value of all Bitcoin collateral backing your loans.",
+    totalBorrowedLabel: "Total borrowed",
+    liquidationPriceLabel: "Liquidation price",
+    btcPriceLabel: "BTC price",
+    pctToLiquidationLabel: "% to liquidation",
     disconnected: {
       heroTitle: "Native Bitcoin backed borrowing",
       heroBody:

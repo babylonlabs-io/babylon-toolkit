@@ -130,24 +130,27 @@ export function formatAprPercent(percent: number): string {
   return `${rounded}%`;
 }
 
-/** Decimal places shown in the Overview "Current LTV" row. Matches
- * `formatLLTV` so the user-facing current LTV and protocol max-LTV render at
- * the same resolution. */
-const LTV_DISPLAY_DECIMALS = 1;
+/** Decimal places shown for the Overview "% to liquidation" figure. */
+const LIQUIDATION_DISTANCE_DECIMALS = 1;
 
 /**
- * Format current loan-to-value (debt / collateral) as a percentage string.
- * Returns "-" when either side is non-positive (no debt or no collateral →
- * no meaningful LTV), matching the empty-state convention of the Health
- * Factor row in OverviewSection.
+ * Format a BTC/USD price for display at whole-dollar resolution, without a
+ * currency suffix (e.g. "$88,400"). Used for the Overview liquidation-price
+ * and BTC-price stats where the bare "$…" form reads cleanest.
  */
-export function formatLtvPercent(
-  debtUsd: number,
-  collateralUsd: number,
-): string {
-  if (debtUsd <= 0 || collateralUsd <= 0) return "-";
-  const percent = (debtUsd / collateralUsd) * 100;
-  return `${percent.toFixed(LTV_DISPLAY_DECIMALS)}%`;
+export function formatUsdPrice(usdValue: number): string {
+  return `$${Math.round(usdValue).toLocaleString("en-US")}`;
+}
+
+/**
+ * Format the distance from the current BTC price down to the liquidation price
+ * as a percentage (e.g. "19.2%"). A position already at or past its
+ * liquidation price has no remaining buffer, so non-positive inputs render as
+ * "0%".
+ */
+export function formatLiquidationDistancePercent(percent: number): string {
+  const clamped = Math.max(0, percent);
+  return `${clamped.toFixed(LIQUIDATION_DISTANCE_DECIMALS)}%`;
 }
 
 /**

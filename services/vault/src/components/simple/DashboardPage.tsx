@@ -13,19 +13,25 @@ import { PositionNotificationsDebugPanel } from "@/applications/aave/components/
 import { LOAN_TAB, type LoanTab } from "@/applications/aave/constants";
 import { useSyncPendingVaults } from "@/applications/aave/context";
 import { useAaveVaults } from "@/applications/aave/hooks";
-import type { PositionNotificationsStatus } from "@/applications/aave/hooks/usePositionNotifications";
+import {
+  usePositionNotifications,
+  type PositionNotificationsStatus,
+} from "@/applications/aave/hooks/usePositionNotifications";
 import type { CalculatorResult } from "@/applications/aave/positionNotifications";
 import type { Asset } from "@/applications/aave/types";
 import type { RootLayoutContext } from "@/components/pages/RootLayout";
 import { PAGE_CONTENT_CLASS } from "@/components/shared/layoutClasses";
 import featureFlags from "@/config/featureFlags";
 import { useConnection, useETHWallet } from "@/context/wallet";
+import { COPY } from "@/copy";
 import { useApplicationCap } from "@/hooks/useApplicationCap";
 import { useDashboardState } from "@/hooks/useDashboardState";
 import { usePegoutPolling } from "@/hooks/usePegoutPolling";
+import { usePrices } from "@/hooks/usePrices";
 import {
   formatBtcAmount,
-  formatLtvPercent,
+  formatLiquidationDistancePercent,
+  formatUsdPrice,
   formatUsdValue,
 } from "@/utils/formatting";
 
@@ -72,6 +78,11 @@ export function DashboardPage() {
     isConnected ? address : undefined,
   );
 
+  const { result: positionNotifications } = usePositionNotifications(
+    isConnected ? address : undefined,
+  );
+  const { prices, metadata } = usePrices();
+
   const liquidationNotificationsEnabled =
     featureFlags.isLiquidationNotificationsEnabled;
 
@@ -92,9 +103,35 @@ export function DashboardPage() {
 
   // Format display values
   const totalCollateralValue = formatUsdValue(collateralValueUsd);
-  const amountToRepay = formatUsdValue(debtValueUsd);
-  const ltv = formatLtvPercent(debtValueUsd, collateralValueUsd);
+  const totalBorrowed = formatUsdValue(debtValueUsd);
   const totalAmountBtc = formatBtcAmount(collateralBtc);
+
+  // Liquidation-risk gauge stats. Liquidation price and distance-to-liquidation
+  // come from the first group of the position cascade (the price at which the
+  // first seizure triggers); BTC price comes from the live oracle feed. Fall
+  // back to the empty-value placeholder until the inputs are available, and
+  // suppress the BTC price whenever its oracle round is stale or fetch-failed
+  // (mirroring the guard in usePositionNotifications) so a price sourced from a
+  // bad feed never sits beside liquidation stats derived from that same feed.
+  // Note this does not cover the brief transient while the cascade is still
+  // loading: a freshly-fetched BTC price can render beside placeholder stats.
+  const firstLiquidationGroup = positionNotifications?.groups[0] ?? null;
+  const btcPriceUsd = prices["BTC"];
+  const btcMetadata = metadata["BTC"];
+  const isBtcPriceUsable =
+    btcMetadata !== undefined &&
+    !btcMetadata.isStale &&
+    !btcMetadata.fetchFailed;
+  const liquidationPrice = firstLiquidationGroup
+    ? formatUsdPrice(firstLiquidationGroup.liquidationPrice)
+    : COPY.common.emptyValue;
+  const btcPrice =
+    isBtcPriceUsable && btcPriceUsd !== undefined && btcPriceUsd > 0
+      ? formatUsdPrice(btcPriceUsd)
+      : COPY.common.emptyValue;
+  const pctToLiquidation = firstLiquidationGroup
+    ? formatLiquidationDistancePercent(-firstLiquidationGroup.distancePct)
+    : COPY.common.emptyValue;
 
   const handleOpenWithdraw = useCallback(() => {
     setIsWithdrawOpen(true);
@@ -147,8 +184,10 @@ export function DashboardPage() {
           healthFactor={healthFactor}
           healthFactorStatus={healthFactorStatus}
           totalCollateralValue={totalCollateralValue}
-          amountToRepay={amountToRepay}
-          ltv={ltv}
+          totalBorrowed={totalBorrowed}
+          liquidationPrice={liquidationPrice}
+          btcPrice={btcPrice}
+          pctToLiquidation={pctToLiquidation}
         />
 
         {liquidationNotificationsEnabled && (
