@@ -1,13 +1,12 @@
 import { sentryVitePlugin } from "@sentry/vite-plugin";
 import react from "@vitejs/plugin-react";
-import { createHash } from "node:crypto";
-import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { defineConfig, type Plugin } from "vite";
+import { defineConfig } from "vite";
 import EnvironmentPlugin from "vite-plugin-environment";
 import { nodePolyfills } from "vite-plugin-node-polyfills";
 import tsconfigPaths from "vite-tsconfig-paths";
+import { sriPlugin } from "./src/build/sriPlugin";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -19,76 +18,6 @@ const SECURITY_HEADERS = {
   "Referrer-Policy": "strict-origin-when-cross-origin",
   "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
 };
-
-const SRI_HASH_PREFIX = "sha384-";
-const PUBLIC_DIR = resolve(__dirname, "public");
-
-function computeSriHash(content: Buffer): string {
-  return `${SRI_HASH_PREFIX}${createHash("sha384").update(content).digest("base64")}`;
-}
-
-function stripCrossorigin(attrs: string): string {
-  return attrs.replace(/\s*crossorigin(?:="[^"]*")?/g, "");
-}
-
-function sriPlugin(): Plugin {
-  const assetHashes = new Map<string, string>();
-  // Static assets served from `public/` are copied verbatim and never enter the
-  // Rollup bundle, so hash them on demand from disk when referenced in the HTML.
-  function resolveIntegrity(fileName: string): string | undefined {
-    const bundled = assetHashes.get(fileName);
-    if (bundled) return bundled;
-    try {
-      return computeSriHash(readFileSync(resolve(PUBLIC_DIR, fileName)));
-    } catch {
-      return undefined;
-    }
-  }
-  return {
-    name: "sri",
-    apply: "build",
-    generateBundle(_options, bundle) {
-      for (const [fileName, chunk] of Object.entries(bundle)) {
-        const content = chunk.type === "chunk" ? chunk.code : chunk.source;
-        const contentBuffer =
-          typeof content === "string" ? Buffer.from(content) : content;
-        assetHashes.set(fileName, computeSriHash(contentBuffer));
-      }
-    },
-    transformIndexHtml(html) {
-      const patched = html
-        .replace(
-          /<script ([^>]*?)src="([^"]+)"([^>]*?)>/g,
-          (_match, before, src, after) => {
-            const fileName = src.replace(/^\//, "");
-            const integrity = resolveIntegrity(fileName);
-            if (!integrity) return _match;
-            return `<script ${stripCrossorigin(before)}src="${src}" integrity="${integrity}" crossorigin="anonymous"${stripCrossorigin(after)}>`;
-          },
-        )
-        .replace(
-          /<link ([^>]*?)href="([^"]+\.js)"([^>]*?)>/g,
-          (_match, before, href, after) => {
-            const fileName = href.replace(/^\//, "");
-            const integrity = assetHashes.get(fileName);
-            if (!integrity) return _match;
-            return `<link ${stripCrossorigin(before)}href="${href}" integrity="${integrity}" crossorigin="anonymous"${stripCrossorigin(after)}>`;
-          },
-        );
-
-      const unprotected = [
-        ...patched.matchAll(/<script [^>]*?src="(\/[^"]+\.js)"[^>]*>/g),
-      ].filter((m) => !m[0].includes(`integrity="${SRI_HASH_PREFIX}`));
-      if (unprotected.length > 0) {
-        throw new Error(
-          `SRI plugin: ${unprotected.length} local JS script(s) missing integrity attribute: ${unprotected.map((m) => m[1]).join(", ")}`,
-        );
-      }
-
-      return patched;
-    },
-  };
-}
 
 const isSentryDisabled =
   process.env.NEXT_BUILD_E2E || process.env.DISABLE_SENTRY === "true";
