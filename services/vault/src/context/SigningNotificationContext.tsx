@@ -26,6 +26,10 @@ import {
 
 import { FeatureFlags } from "@/config";
 import {
+  loadNotificationPromptDismissed,
+  setNotificationPromptDismissed,
+} from "@/storage/notificationPromptStorage";
+import {
   type BrowserNotificationCopy,
   getBrowserNotificationPermission,
   isDocumentHidden,
@@ -44,10 +48,20 @@ interface SigningNotificationContextValue {
   notifySigningRequired: (key: string, copy: BrowserNotificationCopy) => void;
   /**
    * Whether to surface the "enable notifications" prompt: the feature is on,
-   * the browser supports notifications, and the user hasn't decided yet
-   * (neither granted nor blocked). Flips to `false` once a decision is made.
+   * the browser supports notifications, the user hasn't decided yet (neither
+   * granted nor blocked), and they haven't dismissed the prompt. Flips to
+   * `false` once any of those change.
    */
   shouldPromptForPermission: boolean;
+  /** Whether the depositor dismissed the prompt ("No thanks"). Persisted. */
+  promptDismissed: boolean;
+  /** Dismiss the prompt and remember it across reloads. */
+  dismissPrompt: () => void;
+  /**
+   * Clear a prior dismissal so the prompt can be offered again — the "revert"
+   * hook for a future re-enable entry point (e.g. a settings toggle).
+   */
+  resetPromptDismissal: () => void;
 }
 
 const SigningNotificationContext =
@@ -62,6 +76,9 @@ export function SigningNotificationProvider({
   const shownKeysRef = useRef<Set<string>>(new Set());
   const [permission, setPermission] = useState<NotificationPermission | null>(
     () => (enabled ? getBrowserNotificationPermission() : null),
+  );
+  const [promptDismissed, setPromptDismissed] = useState<boolean>(() =>
+    loadNotificationPromptDismissed(),
   );
 
   // Refresh on focus so an out-of-band decision (Brave's address-bar prompt,
@@ -88,6 +105,16 @@ export function SigningNotificationProvider({
       });
   }, [enabled]);
 
+  const dismissPrompt = useCallback(() => {
+    setNotificationPromptDismissed(true);
+    setPromptDismissed(true);
+  }, []);
+
+  const resetPromptDismissal = useCallback(() => {
+    setNotificationPromptDismissed(false);
+    setPromptDismissed(false);
+  }, []);
+
   const notifySigningRequired = useCallback(
     (key: string, copy: BrowserNotificationCopy) => {
       if (!enabled) return;
@@ -105,15 +132,26 @@ export function SigningNotificationProvider({
     [enabled],
   );
 
-  const shouldPromptForPermission = enabled && permission === "default";
+  const shouldPromptForPermission =
+    enabled && permission === "default" && !promptDismissed;
 
   const value = useMemo(
     () => ({
       requestPermission,
       notifySigningRequired,
       shouldPromptForPermission,
+      promptDismissed,
+      dismissPrompt,
+      resetPromptDismissal,
     }),
-    [requestPermission, notifySigningRequired, shouldPromptForPermission],
+    [
+      requestPermission,
+      notifySigningRequired,
+      shouldPromptForPermission,
+      promptDismissed,
+      dismissPrompt,
+      resetPromptDismissal,
+    ],
   );
 
   return (

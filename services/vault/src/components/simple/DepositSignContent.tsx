@@ -70,15 +70,17 @@ export function DepositSignContent({
 
   const signingNotifier = useSigningNotificationOptional();
 
-  // Notify the depositor (if they've tabbed away) when the active flow reaches
-  // a pre-broadcast signing step. Post-broadcast signing is covered by the
-  // pending-deposit observer in PeginPollingContext.
-  useDepositSigningNotification(currentStep);
-
   // The flow no longer auto-starts on mount: the initial screen is a compact
   // summary card and the depositor begins signing by clicking "Sign". Once
   // started, the live stepper (DepositProgressView) takes over.
   const [started, setStarted] = useState(false);
+
+  // Notify the depositor (if they've tabbed away) when the active flow reaches
+  // a pre-broadcast signing step. Gated on `started` so the initial
+  // DERIVE_VAULT_SECRET value can't notify before the user clicks Sign.
+  // Post-broadcast signing is covered by the pending-deposit observer in
+  // PeginPollingContext.
+  useDepositSigningNotification(currentStep, started);
 
   const startFlow = useCallback(async () => {
     const result = await executeDeposit();

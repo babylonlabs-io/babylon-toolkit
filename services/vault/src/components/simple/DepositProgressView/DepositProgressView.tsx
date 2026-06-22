@@ -18,6 +18,7 @@ import {
 } from "@babylonlabs-io/core-ui";
 import { type ReactNode, useCallback, useMemo } from "react";
 
+import { NotificationPermissionPrompt } from "@/components/shared/NotificationPermissionPrompt";
 import { COPY } from "@/copy";
 import { DepositFlowStep } from "@/hooks/deposit/depositFlowSteps/types";
 import type { PayoutSigningProgress } from "@/services/vault/vaultPayoutSignatureService";
@@ -258,6 +259,8 @@ export function DepositProgressView(props: DepositProgressViewProps) {
             activeStepDetail={activeStepDetail}
           />
         )}
+
+        <NotificationPermissionPrompt />
 
         {error && (
           <Callout variant="error" title={error.title}>

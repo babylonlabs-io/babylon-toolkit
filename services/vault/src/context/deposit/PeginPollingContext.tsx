@@ -435,7 +435,7 @@ export function PeginPollingProvider({
 
   // Surface a browser notification when any polled deposit enters a
   // signing/action-required state while the user is on another tab.
-  useSigningRequiredNotifications(activities, getPollingResult);
+  useSigningRequiredNotifications(activities, getPollingResult, btcPublicKey);
 
   const contextValue = useMemo(
     () => ({

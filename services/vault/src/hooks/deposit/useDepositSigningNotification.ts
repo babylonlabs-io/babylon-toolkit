@@ -14,6 +14,7 @@ import { useEffect, useId } from "react";
 
 import { useSigningNotificationOptional } from "@/context/SigningNotificationContext";
 import { COPY } from "@/copy";
+import { useDocumentHidden } from "@/hooks/useDocumentHidden";
 import type { BrowserNotificationCopy } from "@/utils/notifications/browserNotification";
 
 // Import the enum from its defining module rather than the `depositFlowSteps`
@@ -30,18 +31,28 @@ const PRE_BROADCAST_STEP_COPY: Partial<
   [DepositFlowStep.SIGN_POP]: COPY.deposit.notifications.signPop,
 };
 
+/**
+ * @param currentStep the active deposit-flow step
+ * @param active whether the flow has actually started. Guards against the
+ *   initial `DERIVE_VAULT_SECRET` value firing (and consuming its de-dup key)
+ *   while the summary card is still shown, before the user clicks Sign.
+ */
 export function useDepositSigningNotification(
   currentStep: DepositFlowStep,
+  active: boolean,
 ): void {
   const notifier = useSigningNotificationOptional();
   // Per-flow id keeps the de-dup key unique so a second deposit in the same
   // session notifies again rather than being swallowed by the prior flow.
   const flowId = useId();
+  // Re-fire when the user switches tabs: a step reached while focused is
+  // suppressed by the provider, so we retry once the tab is hidden.
+  const documentHidden = useDocumentHidden();
 
   useEffect(() => {
-    if (!notifier) return;
+    if (!notifier || !active) return;
     const copy = PRE_BROADCAST_STEP_COPY[currentStep];
     if (!copy) return;
     notifier.notifySigningRequired(`inflow:${flowId}:${currentStep}`, copy);
-  }, [currentStep, notifier, flowId]);
+  }, [currentStep, active, notifier, flowId, documentHidden]);
 }

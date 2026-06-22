@@ -228,13 +228,14 @@ export const COPY = {
         title: "Activation required",
         body: "Your Bitcoin is confirmed - activate your BTC Vault to finish your deposit.",
       },
-      // Top-of-app prompt shown while notifications are supported but the user
-      // hasn't allowed them yet.
-      banner: {
+      // In-flow prompt nudging the depositor to allow browser notifications so
+      // we can ping them when a deposit needs a signature.
+      prompt: {
+        title: "Stay notified",
         message:
-          "Turn on browser notifications to get pinged when your deposit needs you to sign.",
-        enable: "Enable",
-        dismissAria: "Dismiss notification prompt",
+          "Turn on browser notifications and we'll let you know the moment your deposit needs you to sign.",
+        enable: "Enable notifications",
+        dismiss: "No thanks",
       },
     },
     groups: {

@@ -58,6 +58,7 @@ describe("SigningNotificationContext", () => {
       window as unknown as { Notification: typeof FakeNotification }
     ).Notification = FakeNotification;
     setVisibility("hidden");
+    localStorage.clear();
   });
 
   afterEach(() => {
@@ -140,6 +141,46 @@ describe("SigningNotificationContext", () => {
     flag.enabled = false;
     FakeNotification.permission = "default";
     expect(renderNotifier().current!.shouldPromptForPermission).toBe(false);
+  });
+
+  it("stops prompting after the user dismisses it", () => {
+    FakeNotification.permission = "default";
+    const notifier = renderNotifier();
+    expect(notifier.current!.shouldPromptForPermission).toBe(true);
+
+    act(() => {
+      notifier.current!.dismissPrompt();
+    });
+
+    expect(notifier.current!.promptDismissed).toBe(true);
+    expect(notifier.current!.shouldPromptForPermission).toBe(false);
+  });
+
+  it("persists the dismissal across remounts", () => {
+    FakeNotification.permission = "default";
+    const first = renderNotifier();
+    act(() => {
+      first.current!.dismissPrompt();
+    });
+
+    // A fresh provider reads the dismissal back from storage.
+    expect(renderNotifier().current!.promptDismissed).toBe(true);
+  });
+
+  it("re-offers the prompt after the dismissal is reset", () => {
+    FakeNotification.permission = "default";
+    const notifier = renderNotifier();
+    act(() => {
+      notifier.current!.dismissPrompt();
+    });
+    expect(notifier.current!.shouldPromptForPermission).toBe(false);
+
+    act(() => {
+      notifier.current!.resetPromptDismissal();
+    });
+
+    expect(notifier.current!.promptDismissed).toBe(false);
+    expect(notifier.current!.shouldPromptForPermission).toBe(true);
   });
 
   it("stops prompting once a permission decision resolves", async () => {
